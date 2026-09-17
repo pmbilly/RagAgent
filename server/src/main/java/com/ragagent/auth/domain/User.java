@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.ragagent.common.web.PgJsonTypeHandler;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -58,7 +58,7 @@ public class User {
     private boolean isSystemAdmin;
     /** jsonb 列；UserPreferences 恒输出（Go 值类型 struct 无 omitempty），空对象为 {} */
     @com.fasterxml.jackson.annotation.JsonProperty("preferences")
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private UserPreferences preferences;
     @com.fasterxml.jackson.annotation.JsonProperty("created_at")
     private OffsetDateTime createdAt;

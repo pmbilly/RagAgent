@@ -173,7 +173,7 @@ public class AuthFilter extends OncePerRequestFilter {
         if (target.tenantId() == 0) {
             // 无可用空间：身份级路由放行 tenantless，其余 TENANT_REQUIRED
             if (isTenantOptionalAPI(request.getRequestURI(), request.getMethod())) {
-                TenantContext.set(null, TenantContext.webUserPrincipal(user.getId()), null, user.isIsSystemAdmin(), user.getId());
+                TenantContext.set(null, TenantContext.webUserPrincipal(user.getId()), null, user.isIsSystemAdmin(), user.getId(), user.isCanAccessAllTenants());
                 return true;
             }
             response.setStatus(409);
@@ -204,7 +204,7 @@ public class AuthFilter extends OncePerRequestFilter {
                 role.value(), user.getId(), target.tenantId(), vt.tenantId(),
                 request.getHeader("X-Tenant-ID"), target.crossTenantSwitch());
         TenantContext.set(target.tenantId(), TenantContext.webUserPrincipal(user.getId()), role.value(),
-                user.isIsSystemAdmin(), user.getId());
+                user.isIsSystemAdmin(), user.getId(), user.isCanAccessAllTenants());
         return true;
     }
 

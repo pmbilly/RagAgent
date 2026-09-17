@@ -5,8 +5,10 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
@@ -23,6 +25,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleBiz(BizException ex) {
         AppError e = ex.appError();
         return ResponseEntity.status(e.httpCode()).body(errorBody(e));
+    }
+
+    /**
+     * Spring 6.1 对未映射路径抛 NoResourceFoundException（落到 handleOther 会变 500）。
+     * 对照 gin 默认 404："404 page not found"（text/plain）。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<String> handleNoResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(404)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body("404 page not found");
     }
 
     @ExceptionHandler(Exception.class)

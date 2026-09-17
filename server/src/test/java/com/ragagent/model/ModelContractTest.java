@@ -1,0 +1,300 @@
+package com.ragagent.model;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.regex.Pattern;
+
+import com.ragagent.TestSchema;
+import com.ragagent.auth.domain.TenantMember;
+import com.ragagent.auth.domain.Tenant;
+import com.ragagent.auth.domain.User;
+import com.ragagent.auth.domain.UserPreferences;
+import com.ragagent.auth.mapper.TenantMapper;
+import com.ragagent.auth.mapper.TenantMemberMapper;
+import com.ragagent.auth.mapper.UserMapper;
+import com.ragagent.common.security.SsrfGuard;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+/**
+ * 阶段 2 契约测试：模型配置模块，对照 golden 逐字节比对。
+ *
+ * golden 来源：Go dev server（2026-09-17 录制，完整生命周期实录）。
+ * 动态字段（模型 UUID / 时间戳）两侧同掩码；其余静态 golden 直接逐字节断言。
+ * 掩码规则与 AuthContractTest 一致，另加模型 id 掩码。
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+class ModelContractTest {
+
+    private static final String BCRYPT = "$2a$10$9U3ZmqQkmCqoQUZapJ1Txe5puo70IHlrnyZnSdE9LO/HUagt5exnK"; // Passw0rd!
+    private static final OffsetDateTime TS = OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 123456000, ZoneOffset.ofHours(8));
+
+    private static final Pattern TS_PATTERN = Pattern.compile(
+            "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})");
+    private static final Pattern MODEL_ID_PATTERN = Pattern.compile(
+            "\"id\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+
+    private static final String CREATE_BODY = "{\"name\":\"golden-lifecycle\",\"display_name\":\"Golden Lifecycle\","
+            + "\"type\":\"KnowledgeQA\",\"source\":\"remote\",\"description\":\"phase2 golden\","
+            + "\"parameters\":{\"base_url\":\"https://api.deepseek.com/v1\",\"api_key\":\"sk-golden-secret\","
+            + "\"provider\":\"openai\",\"supports_vision\":true,\"context_window\":128000,\"max_output_tokens\":4096}}";
+    private static final String UPDATE_BODY = "{\"name\":\"golden-lifecycle-v2\",\"display_name\":\"Golden V2\","
+            + "\"description\":\"updated\","
+            + "\"parameters\":{\"base_url\":\"https://api.deepseek.com/v1\",\"provider\":\"openai\","
+            + "\"supports_vision\":false,\"context_window\":64000}}";
+
+    @Autowired
+    private MockMvc mockMvc;
+    @Autowired
+    private JdbcTemplate jdbc;
+    @Autowired
+    private UserMapper userMapper;
+    @Autowired
+    private TenantMapper tenantMapper;
+    @Autowired
+    private TenantMemberMapper memberMapper;
+    @Autowired
+    private SsrfGuard ssrfGuard;
+
+    @BeforeEach
+    void seed() {
+        // 对照 Go dev server 录制时的 SSRF_WHITELIST_EXTRA（含 api.deepseek.com，豁免 DNS 检查）
+        ssrfGuard.reloadWhitelist("api.deepseek.com");
+        TestSchema.createTables(jdbc);
+        TestSchema.resetData(jdbc);
+
+        Tenant tenant = new Tenant();
+        tenant.setId(10002L);
+        tenant.setName("phase1-test-tenant");
+        tenant.setStatus("active");
+        tenantMapper.insert(tenant);
+
+        insertUser("11111111-2222-3333-4444-555555555501", "phase1test", "java-phase1@weknora.test");
+        insertUser("11111111-2222-3333-4444-555555555504", "phase1viewer", "java-phase1-viewer@weknora.test");
+        insertMember("11111111-2222-3333-4444-555555555501", "owner");
+        insertMember("11111111-2222-3333-4444-555555555504", "viewer");
+    }
+
+    private void insertUser(String id, String username, String email) {
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPasswordHash(BCRYPT);
+        user.setTenantId(10002L);
+        user.setIsActive(true);
+        user.setPreferences(new UserPreferences());
+        user.setCreatedAt(TS);
+        user.setUpdatedAt(TS);
+        userMapper.insert(user);
+    }
+
+    private void insertMember(String userId, String role) {
+        TenantMember member = new TenantMember();
+        member.setUserId(userId);
+        member.setTenantId(10002L);
+        member.setRole(role);
+        member.setStatus("active");
+        member.setJoinedAt(TS);
+        memberMapper.insert(member);
+    }
+
+    // ── 静态 golden ───────────────────────────────────────────────────────
+
+    @Test
+    void listModelsEmpty() throws Exception {
+        mockMvc.perform(get("/api/v1/models").header("Authorization", "Bearer " + loginOwner()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(goldenBytes("models-list-empty.json")));
+    }
+
+    @Test
+    void providers() throws Exception {
+        mockMvc.perform(get("/api/v1/models/providers").header("Authorization", "Bearer " + loginOwner()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(goldenBytes("model-providers.json")));
+    }
+
+    @Test
+    void providersFilteredByChat() throws Exception {
+        mockMvc.perform(get("/api/v1/models/providers?model_type=chat")
+                        .header("Authorization", "Bearer " + loginOwner()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(goldenBytes("model-providers-chat.json")));
+    }
+
+    @Test
+    void getModelNotFound() throws Exception {
+        mockMvc.perform(get("/api/v1/models/no-such-model-id")
+                        .header("Authorization", "Bearer " + loginOwner()))
+                .andExpect(status().isNotFound())
+                .andExpect(content().bytes(goldenBytes("model-not-found.json")));
+    }
+
+    @Test
+    void weknoracloudStatus() throws Exception {
+        mockMvc.perform(get("/api/v1/models/weknoracloud/status")
+                        .header("Authorization", "Bearer " + loginOwner()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(goldenBytes("weknoracloud-status.json")));
+    }
+
+    @Test
+    void createValidationError() throws Exception {
+        mockMvc.perform(post("/api/v1/models")
+                        .header("Authorization", "Bearer " + loginOwner())
+                        .contentType("application/json")
+                        .content("{\"type\":\"KnowledgeQA\",\"source\":\"openai\","
+                                + "\"parameters\":{\"base_url\":\"https://api.openai.com/v1\"}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().bytes(goldenBytes("model-create-validation.json")));
+    }
+
+    @Test
+    void createSsrfBlocked() throws Exception {
+        mockMvc.perform(post("/api/v1/models")
+                        .header("Authorization", "Bearer " + loginOwner())
+                        .contentType("application/json")
+                        .content("{\"name\":\"ssrf-test\",\"type\":\"KnowledgeQA\",\"source\":\"openai\","
+                                + "\"parameters\":{\"base_url\":\"http://127.0.0.1:8080/v1\",\"api_key\":\"sk-test\"}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().bytes(goldenBytes("model-create-ssrf.json")));
+    }
+
+    @Test
+    void createForbiddenForViewer() throws Exception {
+        mockMvc.perform(post("/api/v1/models")
+                        .header("Authorization", "Bearer " + loginViewer())
+                        .contentType("application/json")
+                        .content("{\"name\":\"v\",\"type\":\"KnowledgeQA\",\"source\":\"openai\","
+                                + "\"parameters\":{\"base_url\":\"https://api.openai.com/v1\"}}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().bytes(goldenBytes("model-create-forbidden-viewer.json")));
+    }
+
+    // ── 生命周期（掩码后逐字节） ──────────────────────────────────────────
+
+    @Test
+    void modelLifecycle() throws Exception {
+        String token = loginOwner();
+
+        // create → 201
+        MvcResult created = mockMvc.perform(post("/api/v1/models")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content(CREATE_BODY))
+                .andExpect(status().isCreated())
+                .andReturn();
+        assertEquals(mask(golden("model-create.json")), mask(created.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+                "create 响应应与 golden 一致（掩码后）");
+        String modelId = extractModelId(created.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        // get → 200
+        MvcResult got = mockMvc.perform(get("/api/v1/models/" + modelId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertEquals(mask(golden("model-get.json")), mask(got.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+                "get 响应应与 golden 一致（掩码后）");
+
+        // update → 200（golden 锁定空 type/source 覆盖语义 + 内存旧时间戳行为）
+        MvcResult updated = mockMvc.perform(put("/api/v1/models/" + modelId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content(UPDATE_BODY))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertEquals(mask(golden("model-update.json")), mask(updated.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+                "update 响应应与 golden 一致（掩码后）");
+
+        // credentials PUT → 200（静态）
+        mockMvc.perform(put("/api/v1/models/" + modelId + "/credentials")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content("{\"api_key\":\"sk-rotated-key\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(goldenBytes("model-cred-put.json")));
+
+        // credentials PUT（空 body = 查询已配置状态）→ 200（静态）
+        mockMvc.perform(put("/api/v1/models/" + modelId + "/credentials")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(goldenBytes("model-cred-get.json")));
+
+        // credentials DELETE → 204
+        mockMvc.perform(delete("/api/v1/models/" + modelId + "/credentials/api_key")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        // delete → 200（静态）
+        mockMvc.perform(delete("/api/v1/models/" + modelId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(goldenBytes("model-delete.json")));
+    }
+
+    // ── 工具 ──────────────────────────────────────────────────────────────
+
+    private String loginOwner() throws Exception {
+        return login("java-phase1@weknora.test");
+    }
+
+    private String loginViewer() throws Exception {
+        return login("java-phase1-viewer@weknora.test");
+    }
+
+    private String login(String email) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType("application/json")
+                        .content("{\"email\":\"" + email + "\",\"password\":\"Passw0rd!\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String body = result.getResponse().getContentAsString();
+        java.util.regex.Matcher m = Pattern.compile("\"token\":\"([^\"]+)\"").matcher(body);
+        assertTrue(m.find(), "login 响应应含 token: " + body);
+        return m.group(1);
+    }
+
+    private static String golden(String name) throws Exception {
+        return new String(goldenBytes(name), StandardCharsets.UTF_8).trim();
+    }
+
+    private static byte[] goldenBytes(String name) throws Exception {
+        return new ClassPathResource("contracts/" + name).getInputStream().readAllBytes();
+    }
+
+    private static String extractModelId(String body) {
+        java.util.regex.Matcher m = Pattern.compile(
+                "\"id\":\"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\"").matcher(body);
+        assertTrue(m.find(), "响应应含模型 UUID: " + body);
+        return m.group(1);
+    }
+
+    /** 与 golden 比对前对动态字段做同一种掩码（UUID + 时间戳） */
+    private static String mask(String s) {
+        String out = MODEL_ID_PATTERN.matcher(s).replaceAll("\"id\":\"<id>\"");
+        out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
+        return out;
+    }
+}

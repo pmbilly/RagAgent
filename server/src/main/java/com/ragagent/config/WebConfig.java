@@ -2,11 +2,13 @@ package com.ragagent.config;
 
 import java.util.List;
 
+import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.auth.filter.AuthFilter;
 import com.ragagent.auth.service.TenantMemberService;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.auth.service.UserService;
 import com.ragagent.common.filter.RequestIdFilter;
+import com.ragagent.common.web.RbacInterceptor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +17,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -25,6 +28,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    private final TenantProperties tenantProperties;
+
+    public WebConfig(TenantProperties tenantProperties) {
+        this.tenantProperties = tenantProperties;
+    }
 
     /** 对照 gin cors.Config：通配 Origin、显式头清单、MaxAge 12h */
     @Bean
@@ -70,5 +79,29 @@ public class WebConfig implements WebMvcConfigurer {
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
         bean.addUrlPatterns("/*");
         return bean;
+    }
+
+    /**
+     * 对照 Go router/rbac.go 的守卫矩阵（阶段 2：models + weknoracloud）。
+     * 拦截器运行在 servlet filter（Auth）之后、controller 之前，顺序与 Go 中间件链一致。
+     * 静态段（providers / weknoracloud/status）规则先于 /{id} 通配注册，等价 gin 静态优先。
+     */
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        RbacInterceptor rbac = new RbacInterceptor(tenantProperties);
+        // /models 组（对照 RegisterModelRoutes）
+        rbac.addRule("GET", "/api/v1/models", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/models/providers", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/models/weknoracloud/status", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/models/*/debug", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/models", TenantRole.ADMIN, false);
+        rbac.addRule("PUT", "/api/v1/models/*/credentials", TenantRole.ADMIN, true);
+        rbac.addRule("DELETE", "/api/v1/models/*/credentials/*", TenantRole.ADMIN, true);
+        rbac.addRule("PUT", "/api/v1/models/*", TenantRole.ADMIN, true);
+        rbac.addRule("DELETE", "/api/v1/models/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/models/*", TenantRole.VIEWER, false);
+        // weknoracloud（对照 RegisterWeKnoraCloudRoutes）
+        rbac.addRule("POST", "/api/v1/weknoracloud/credentials", TenantRole.ADMIN, false);
+        registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**", "/api/v1/weknoracloud/credentials");
     }
 }

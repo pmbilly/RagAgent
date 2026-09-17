@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.ragagent.common.web.PgJsonTypeHandler;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -34,29 +34,29 @@ public class Tenant {
     /** gorm default:'active' */
     private String status;
     /** json 列：包装格式 {"engines":[...]} 或历史裸数组（读取后归一化） */
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode retrieverEngines;
     private String business;
     /** gorm default:10737418240（10GB） */
     private Long storageQuota;
     /** gorm default:0 */
     private Long storageUsed;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode contextConfig;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode webSearchConfig;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode parserEngineConfig;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode credentials;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode storageEngineConfig;
     private String defaultStorageBackendId;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode chatHistoryConfig;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode retrievalConfig;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode memoryConfig;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

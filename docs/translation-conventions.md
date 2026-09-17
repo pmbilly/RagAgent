@@ -91,6 +91,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 |---|---|---|---|---|
 | 骨架 | internal/router/、internal/errors/、internal/middleware/{error_handler,auth}.go | com.ragagent.common.{error,context,filter,web} + config.WebConfig | ✅ | 错误格式两种形态已确认（见 §9）；401 三态已锁定；Flyway 对 Go 数据 baseline 验证通过 |
 | auth/租户（阶段 1） | internal/middleware/auth.go、auth_context.go、access.go；internal/application/service/user.go（Login/ValidateToken/generateTokensForTenant/resolveLoginTenantID 链）；internal/handler/auth.go(Login)、dto/{auth,tenant}.go；types/{user,tenant,tenant_member,principal}.go | com.ragagent.auth.{domain,mapper,dto,service,filter,controller} + config.{TenantProperties,JacksonConfig} | ✅ | 10 条新 golden 全过（H2 种子+掩码比对）；e2e 连 dev DB 验证通过。关键坑见 §9 |
+| 模型配置（阶段 2） | internal/handler/model*.go、weknoracloud.go；internal/application/service/{model,weknoracloud}.go；internal/types/model.go、builtin_models_config.go；internal/models/provider/*；internal/utils/{security.go(SSRF),crypto.go}；internal/middleware/rbac.go（RequireRole 子集）；internal/application/repository/{model,model_usage}.go | com.ragagent.model.{domain,mapper,dto,service,controller} + com.ragagent.common.{crypto,security,web.RbacInterceptor/PgJsonTypeHandler} | ✅ | 9 条新 golden 全过；providers 响应与 Go 实录字节一致；AES-GCM 落库密文/回读解密 e2e 验证。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -107,11 +108,27 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   指针+omitempty 字段（tenant 各 *Config）→ 省略。Java User getter 归一化 + TenantResponse.from 零值归一化 + NON_NULL 注解对齐。
 - **soft delete 不用 @TableLogic**：GORM `DeletedAt` 改为显式 `.isNull(deleted_at)` 查询条件（datetime 逻辑删除值在 MP 各版本行为敏感，显式条件语义确定）。
 - **401 三态**（auth.go）：无凭据→`missing authentication`；Bearer 携带但校验失败→`invalid or expired token`；X-API-Key 但服务未配置→`API key service is not configured`
-- **已知差异（阶段 1，随后续模块消除）**：
-  1. X-API-Key 通道：Go dev 已装配 apiKeyService → `Unauthorized: invalid API key`；Java 阶段 1 未实现 → `API key service is not configured`（golden api-key-401.json 已录，Phase 2 对齐）
+- **已知差异（阶段 1+2，随后续模块消除）**：
+  1. X-API-Key 通道：Go dev 已装配 apiKeyService → `Unauthorized: invalid API key`；Java 阶段 1 未实现 → `API key service is not configured`（golden api-key-401.json 已录，后续对齐）
   2. 登录 400 的 details：空 body 复刻 `EOF`；JSON 语法错误用 Jackson 原生消息（Go 为 encoding/json 消息，逐字节不同）——前端只读 message，golden 掩码 details
   3. AuthFilter 放行的未翻译端点（如带有效 JWT 的 GET /api/v1/auth/me）Java 404 vs Go 200——端点随模块翻译补齐
   4. JWT secret < 32 字节：Go 不报错，jjwt 解析抛 WeakKeyException（dev 走随机 32B 无影响）
+  5. **POST /models/:id/debug**：需要 models/* 运行时客户端（真实上游调用），随阶段 7 agent 引擎翻译；本阶段该路由 404
+  6. **非 remote 源的 CreateModel**：Go 会起 ollama 拉取协程轮询状态到 active/download_failed；Java 阶段 2 无 OllamaService → 保持 downloading 不轮转（ollama 集成随 initialization 模块）
+  7. **SSRF 白名单**：Java 仅 ENV 路径（SSRF_WHITELIST + _EXTRA，对照 Go 启动兜底）；DB 运行时调谐（SystemSettingService 推送）随系统设置模块——`SsrfGuard.reloadWhitelist(raw)` 接口已就位（对照 Go SetSSRFWhitelistFromRaw）
+  8. RBAC 拒绝审计落库（AuditService.LogDenied）未翻译，仅记日志；RequireSystemAdmin / RequireOwnershipOrRole 随对应模块
+- **阶段 2 新确认的契约细节**：
+  - gin.H 信封在模型模块大量出现：{"data":...,"success":true}（data<success 恰为字母序）；
+    DeleteModel 是 {"message":"Model deleted","success":true}——message<success，别写反
+  - credentials/fields 等 map 响应 key 字母序：LinkedHashMap 按序插入（Map.of 顺序未定义，会漂）
+  - UpdateModel：type/source/description **无条件覆盖**（空串清空，golden 锁定）；api_key/app_secret 快照保留；
+    响应用内存旧对象（时间戳不刷新，golden 锁定）
+  - PG jsonb 写入：setObject(OTHER) 让服务端按列类型强转（setString 会被 PG 拒绝）→ PgJsonTypeHandler
+  - ModelParameters 加密在 TypeHandler 层（对照 Go Value()/Scan() driver 钩子），读路径宽容解密失败置空
+  - ModelResponse.parameters 的 omitempty int：0 → 省略（context_window/max_output_tokens/max_concurrency）
+  - CheckStatus 的 needs_reinit=true 分支在 Go 中不可达（Scan 阶段已把解密失败的 secret 置空）——以代码行为为准
+  - 测试共享 H2 在 JVM 内跨类复用：DDL 必须收敛到 TestSchema，CREATE IF NOT EXISTS 不补列
+  - 中文 golden 比较必须按原始字节（content().bytes）——MockMvc 默认 ISO-8859-1 解码会出 mojibake
 - **TENANT_REQUIRED**：有效 JWT 但无可用空间时 409（仅 tenant-optional 路由放行 tenantless）
 - **Flyway baseline**：历史库（Go 98 迁移已生效）必须 `baseline-version: 97`——骨架期漏配导致 V2-V7 被重复执行（IF NOT EXISTS 侥幸成功）、V8 数据迁移失败。
   dev 库 flyway_schema_history 留有脏数据（baseline@1 + V2-V7 记录），需一次性清理后正常启动：

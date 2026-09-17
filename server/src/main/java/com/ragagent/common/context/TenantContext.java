@@ -33,6 +33,7 @@ public final class TenantContext {
     private static final ThreadLocal<Principal> principal = new ThreadLocal<>();
     private static final ThreadLocal<String> role = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> systemAdmin = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Boolean> canAccessAllTenants = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<String> userId = new ThreadLocal<>();
     private static final ThreadLocal<String> embedVisitorId = new ThreadLocal<>();
     private static final ThreadLocal<String> requestId = new ThreadLocal<>();
@@ -68,13 +69,20 @@ public final class TenantContext {
         return Boolean.TRUE.equals(systemAdmin.get());
     }
 
+    /** 对照 User.CanAccessAllTenants（跨空间超管判定的另一半，需配合 EnableCrossTenantAccess） */
+    public static boolean canAccessAllTenants() {
+        return Boolean.TRUE.equals(canAccessAllTenants.get());
+    }
+
     /** 对照 applyAuthSession 的常规会话（tenantId/role 允许 null = tenantless） */
-    public static void set(Long tid, Principal p, String r, boolean sysAdmin, String uid) {
+    public static void set(Long tid, Principal p, String r, boolean sysAdmin, String uid,
+                           boolean accessAllTenants) {
         tenantId.set(tid);
         principal.set(p);
         role.set(r);
         systemAdmin.set(sysAdmin);
         userId.set(uid);
+        canAccessAllTenants.set(accessAllTenants);
     }
 
     public static void setEmbedVisitorId(String visitorId) {
@@ -91,6 +99,7 @@ public final class TenantContext {
         role.remove();
         systemAdmin.remove();
         userId.remove();
+        canAccessAllTenants.remove();
         embedVisitorId.remove();
         requestId.remove();
     }
