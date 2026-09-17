@@ -1,0 +1,66 @@
+package com.ragagent.config;
+
+import java.util.List;
+
+import com.ragagent.common.filter.AuthFilter;
+import com.ragagent.common.filter.RequestIdFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+/**
+ * 对照 Go internal/router/router.go 的全局装配：
+ * CORS → RequestID → (Language/Logger/Recovery 由 Spring 等价物承担) → Auth。
+ * 错误处理：Go 的 Recovery/ErrorHandler 由 GlobalExceptionHandler + Spring 默认错误机制承担，
+ * 响应契约由 golden 测试锁定。
+ */
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    /** 对照 gin cors.Config：通配 Origin、显式头清单、MaxAge 12h */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of(
+                "Origin", "Content-Type", "Accept", "Authorization", "X-API-Key",
+                "X-Request-ID", "X-Tenant-ID", "X-Embed-Session",
+                "X-External-User-ID", "X-External-User-Token"));
+        config.setExposedHeaders(List.of("Content-Length", "Access-Control-Allow-Origin"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(12L * 3600);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+
+    @Bean
+    public FilterRegistrationBean<CorsFilter> corsFilter() {
+        FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(corsConfigurationSource()));
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return bean;
+    }
+
+    @Bean
+    public FilterRegistrationBean<RequestIdFilter> requestIdFilter() {
+        FilterRegistrationBean<RequestIdFilter> bean = new FilterRegistrationBean<>(new RequestIdFilter());
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        bean.addUrlPatterns("/*");
+        return bean;
+    }
+
+    @Bean
+    public FilterRegistrationBean<AuthFilter> authFilter() {
+        FilterRegistrationBean<AuthFilter> bean = new FilterRegistrationBean<>(new AuthFilter());
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
+        bean.addUrlPatterns("/*");
+        return bean;
+    }
+}

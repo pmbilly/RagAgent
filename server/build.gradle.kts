@@ -50,6 +50,7 @@ dependencies {
     // 测试
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("com.h2database:h2")   // 契约/单元测试内存库，不依赖外部 postgres
 }
 
 // proto 源目录指向仓库根 proto/（单一来源，不复制）
