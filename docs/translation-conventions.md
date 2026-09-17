@@ -90,15 +90,32 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 模块 | Go 源 | Java 目标 | 状态 | 备注（踩坑/GORM 清单/SSE emit 表位置） |
 |---|---|---|---|---|
 | 骨架 | internal/router/、internal/errors/、internal/middleware/{error_handler,auth}.go | com.ragagent.common.{error,context,filter,web} + config.WebConfig | ✅ | 错误格式两种形态已确认（见 §9）；401 三态已锁定；Flyway 对 Go 数据 baseline 验证通过 |
+| auth/租户（阶段 1） | internal/middleware/auth.go、auth_context.go、access.go；internal/application/service/user.go（Login/ValidateToken/generateTokensForTenant/resolveLoginTenantID 链）；internal/handler/auth.go(Login)、dto/{auth,tenant}.go；types/{user,tenant,tenant_member,principal}.go | com.ragagent.auth.{domain,mapper,dto,service,filter,controller} + config.{TenantProperties,JacksonConfig} | ✅ | 10 条新 golden 全过（H2 种子+掩码比对）；e2e 连 dev DB 验证通过。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
   1. AppError 走全局 ErrorHandler：`{"success":false,"error":{"code":N,"message":"...","details":...}}`（details 恒输出，null 时为 `"details":null`）
   2. auth 中间件直接写：`{"error":"Unauthorized: missing authentication"}`（纯字符串，401）
+- **⚠️ JSON 键序规则（2026-09-17 实测修正）**：Go `gin.H`/`map` 响应的键按 **encoding/json 字母序**输出；
+  struct 响应按**字段声明序**输出。Java 侧：map 形态（错误信封、TENANT_REQUIRED、middleware 直写）必须按字母序构造
+  （`{"error":{"code","details","message"},"success":false}`、`{"code":"TENANT_REQUIRED","error":"Workspace required"}`）；
+  DTO record 按声明序 = Go struct 字段序。骨架期"插入序"假设被 golden 证伪，已修。
+- **Go 时间序列化**：`time.Time` RFC3339Nano，**服务器本地时区偏移**（dev 实测 `2026-09-17T15:44:16.950624+08:00`）。
+  Java：OffsetDateTime 经 JacksonConfig 统一转 JVM 默认时区再输出（ISO_OFFSET_DATE_TIME 的纳秒尾部零裁剪与 RFC3339Nano 字节一致）。
+- **Go 非指针字段零值**：string 列 NULL → `""`（`"avatar":""` 恒输出）、uint64 列 NULL → `0`；
+  指针+omitempty 字段（tenant 各 *Config）→ 省略。Java User getter 归一化 + TenantResponse.from 零值归一化 + NON_NULL 注解对齐。
+- **soft delete 不用 @TableLogic**：GORM `DeletedAt` 改为显式 `.isNull(deleted_at)` 查询条件（datetime 逻辑删除值在 MP 各版本行为敏感，显式条件语义确定）。
 - **401 三态**（auth.go）：无凭据→`missing authentication`；Bearer 携带但校验失败→`invalid or expired token`；X-API-Key 但服务未配置→`API key service is not configured`
-- **Go 的 Auth 挂在 engine 全局**：未匹配路径也返回 401（不是 404），Java AuthFilter 覆盖 /* 与此对齐
-- **TENANT_REQUIRED**：有效 JWT 但无可用空间时 409 `{"error":"Workspace required","code":"TENANT_REQUIRED"}`（仅 tenant-optional 路由放行）
-- DB：schema 与 98 个迁移一字不改；Flyway baseline-on-migrate 已实测通过（Go 数据的 dev 库）
-- 端口：后端 8080（前端 dev 代理默认值）；dev 库 localhost:15432
-- 测试：契约/单测用 H2 内存库（server/src/test/resources/application.yml），不依赖外部 postgres；golden 文件在 server/src/test/resources/contracts/
+- **已知差异（阶段 1，随后续模块消除）**：
+  1. X-API-Key 通道：Go dev 已装配 apiKeyService → `Unauthorized: invalid API key`；Java 阶段 1 未实现 → `API key service is not configured`（golden api-key-401.json 已录，Phase 2 对齐）
+  2. 登录 400 的 details：空 body 复刻 `EOF`；JSON 语法错误用 Jackson 原生消息（Go 为 encoding/json 消息，逐字节不同）——前端只读 message，golden 掩码 details
+  3. AuthFilter 放行的未翻译端点（如带有效 JWT 的 GET /api/v1/auth/me）Java 404 vs Go 200——端点随模块翻译补齐
+  4. JWT secret < 32 字节：Go 不报错，jjwt 解析抛 WeakKeyException（dev 走随机 32B 无影响）
+- **TENANT_REQUIRED**：有效 JWT 但无可用空间时 409（仅 tenant-optional 路由放行 tenantless）
+- **Flyway baseline**：历史库（Go 98 迁移已生效）必须 `baseline-version: 97`——骨架期漏配导致 V2-V7 被重复执行（IF NOT EXISTS 侥幸成功）、V8 数据迁移失败。
+  dev 库 flyway_schema_history 留有脏数据（baseline@1 + V2-V7 记录），需一次性清理后正常启动：
+  `UPDATE flyway_schema_history SET version='97' WHERE installed_rank=1; DELETE FROM flyway_schema_history WHERE installed_rank > 1;`
+  （清理前 Java 连 dev 库启动需 `--spring.flyway.enabled=false`；全新库从 V0 全量执行不受影响）
+- DB：schema 与 98 个迁移一字不改；端口：后端 8080（前端 dev 代理默认值）；dev 库 localhost:15432
+- 测试：契约/单测用 H2 内存库（server/src/test/resources/application.yml），不依赖外部 postgres；golden 文件在 server/src/test/resources/contracts/；动态字段（token/refresh_token/时间戳）两侧同掩码后比对

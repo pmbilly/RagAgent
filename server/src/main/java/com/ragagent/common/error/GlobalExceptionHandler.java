@@ -32,15 +32,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(500).body(errorBody(e));
     }
 
-    /** 与 Go ErrorHandler 的 JSON 字段顺序一致：success → error{code, message, details} */
+    /**
+     * 与 Go ErrorHandler 的 JSON 字节序一致。
+     * 实测 Go 信封是 gin.H（map），encoding/json 对 map 键按字母序输出：
+     * {"error":{"code":N,"details":...,"message":"..."},"success":false}
+     * （2026-09-17 用运行中的 Go dev server 实测确认，修正了骨架期的插入序假设）
+     */
     private Map<String, Object> errorBody(AppError e) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("code", e.code());
-        error.put("message", e.message());
         error.put("details", e.details());
+        error.put("message", e.message());
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", false);
         body.put("error", error);
+        body.put("success", false);
         return body;
     }
 }

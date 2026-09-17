@@ -2,7 +2,10 @@ package com.ragagent.config;
 
 import java.util.List;
 
-import com.ragagent.common.filter.AuthFilter;
+import com.ragagent.auth.filter.AuthFilter;
+import com.ragagent.auth.service.TenantMemberService;
+import com.ragagent.auth.service.TenantService;
+import com.ragagent.auth.service.UserService;
 import com.ragagent.common.filter.RequestIdFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -56,9 +59,14 @@ public class WebConfig implements WebMvcConfigurer {
         return bean;
     }
 
+    /** 对照 Go Auth 中间件（engine 全局，覆盖 /*） */
     @Bean
-    public FilterRegistrationBean<AuthFilter> authFilter() {
-        FilterRegistrationBean<AuthFilter> bean = new FilterRegistrationBean<>(new AuthFilter());
+    public FilterRegistrationBean<AuthFilter> authFilter(UserService userService,
+                                                         TenantService tenantService,
+                                                         TenantMemberService memberService,
+                                                         TenantProperties tenantProperties) {
+        FilterRegistrationBean<AuthFilter> bean =
+                new FilterRegistrationBean<>(new AuthFilter(userService, tenantService, memberService, tenantProperties));
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
         bean.addUrlPatterns("/*");
         return bean;

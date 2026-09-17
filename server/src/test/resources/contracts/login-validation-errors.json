@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"Key: 'LoginRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag\nKey: 'LoginRequest.Password' Error:Field validation for 'Password' failed on the 'min' tag","message":"Invalid login parameters"},"success":false}

@@ -1,0 +1,125 @@
+package com.ragagent.auth.service;
+
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Base64;
+import java.util.Date;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
+import com.ragagent.auth.domain.User;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.SignatureException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+/**
+ * JWT 签发与解析（对照 Go internal/application/service/user.go 的 JWT 部分）。
+ *
+ * 契约（逐条对照 Go）：
+ * - 签名：HS256；secret 取 env JWT_SECRET（trim 后非空），否则随机 32 字节 base64(Std)，进程内一次生成
+ *   （对照 getJwtSecret 的 sync.Once 语义）
+ * - access claims：user_id, email, tenant_id, exp(+24h 秒), iat, type="access"
+ * - refresh claims：user_id, exp(+7d 秒), iat, type="refresh"（无 email/tenant_id）
+ *
+ * 已知差异（记录于约定 §8）：Go 对短 secret（&lt;32 字节）不报错；jjwt 对 HS256 强制 key ≥ 256bit，
+ * SecretKeySpec 构造不校验，但 parse 时 WeakKeyException。dev 无 JWT_SECRET 时走随机 32 字节，无影响。
+ */
+@Component
+public class JwtService {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private final SecretKey key;
+
+    public JwtService() {
+        this.key = new SecretKeySpec(getJwtSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    }
+
+    /** 对照 getJwtSecret()：JWT_SECRET env → 随机 32B base64 */
+    private static String getJwtSecret() {
+        String env = System.getenv("JWT_SECRET");
+        if (env != null && !env.trim().isEmpty()) {
+            return env.trim();
+        }
+        byte[] randomBytes = new byte[32];
+        RANDOM.nextBytes(randomBytes);
+        return Base64.getEncoder().encodeToString(randomBytes);
+    }
+
+    /** access token：24h 有效，tenant_id 编码活跃空间 */
+    public String generateAccessToken(User user, long activeTenantId) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .claim("user_id", user.getId())
+                .claim("email", user.getEmail())
+                .claim("tenant_id", activeTenantId)
+                .expiration(Date.from(now.plus(24, ChronoUnit.HOURS)))
+                .issuedAt(Date.from(now))
+                .claim("type", "access")
+                .signWith(key)
+                .compact();
+    }
+
+    /** refresh token：7d 有效，不含 email/tenant_id */
+    public String generateRefreshToken(User user) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .claim("user_id", user.getId())
+                .expiration(Date.from(now.plus(7, ChronoUnit.DAYS)))
+                .issuedAt(Date.from(now))
+                .claim("type", "refresh")
+                .signWith(key)
+                .compact();
+    }
+
+    /**
+     * 解析并校验签名（对照 jwt.Parse + HMAC 方法校验）。
+     * 仅校验签名与 exp；业务语义校验（revocation/类型）由 UserService.validateToken 负责，
+     * 与 Go 分层一致（middleware 调 UserService.ValidateToken）。
+     *
+     * @throws TokenValidationException 签名无效/过期/非 HS256
+     */
+    public Claims parseSigned(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (SignatureException | io.jsonwebtoken.security.WeakKeyException e) {
+            throw new TokenValidationException("invalid token", e);
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            throw new TokenValidationException("invalid token", e);
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+            // MalformedJwtException / PrematureJwtException / 空白串等
+            throw new TokenValidationException("invalid token", e);
+        }
+    }
+
+    /** 对照 tenantIDFromClaims：claim 缺失/非数字/≤0 → fallback */
+    public static long tenantIdFromClaims(Claims claims, long fallback) {
+        Object raw = claims.get("tenant_id");
+        if (raw instanceof Number n) {
+            long v = n.longValue();
+            return v > 0 ? v : fallback;
+        }
+        return fallback;
+    }
+
+    /** 对照 isRefreshTokenClaims */
+    public static boolean isRefreshTokenClaims(Claims claims) {
+        return "refresh".equals(claims.get("type"));
+    }
+
+    /** 对照 isSandboxTerminalTicketClaims（sandboxTerminalTicketType = "sandbox_terminal"） */
+    public static boolean isSandboxTerminalTicketClaims(Claims claims) {
+        return "sandbox_terminal".equals(claims.get("type"));
+    }
+}

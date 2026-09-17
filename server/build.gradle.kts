@@ -43,6 +43,9 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
+    // bcrypt（对照 Go golang.org/x/crypto/bcrypt，DefaultCost=10）
+    implementation("org.springframework.security:spring-security-crypto")
+
     // 工具
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
