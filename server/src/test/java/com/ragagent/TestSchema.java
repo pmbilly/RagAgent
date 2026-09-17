@@ -172,9 +172,111 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "CONSTRAINT mcp_tool_approvals_tenant_svc_tool UNIQUE (tenant_id, service_id, tool_name))");
-        // mcp_metadata 的工具计数走 jsonb_array_length（PG 方言）；H2 没有这个函数，
-        // 这里注册同名 ALIAS 指向本类的 Java 实现，让**同一条 SQL** 在测试库上也能跑。
+        // ── 阶段 4.2：Wiki（列名/约束以 Go 迁移 000037/000061/000075 为准） ──
+        // H2 用 VARCHAR 承载 jsonb（对照 PG 的 jsonb 列；读回由 TypeHandler 解析）。
+        // jsonb 列在迁移里都是**可空**的（只有 DEFAULT，没有 NOT NULL），此处照抄——
+        // 否则"清空 page_metadata"的 UPDATE 会在 H2 上炸 NOT NULL，而 PG 上完全合法。
+        // 索引：PG 的原始定义是
+        //   CREATE UNIQUE INDEX idx_wiki_pages_kb_slug ON wiki_pages (knowledge_base_id, slug)
+        //       WHERE deleted_at IS NULL;                                     -- 部分唯一索引
+        //   CREATE UNIQUE INDEX idx_wiki_folders_parent_name
+        //       ON wiki_folders (knowledge_base_id, parent_id, name) WHERE deleted_at IS NULL;
+        //   CREATE INDEX idx_wiki_pages_fulltext ON wiki_pages USING GIN (to_tsvector(...)); -- PG 专有
+        //   CREATE INDEX idx_wiki_pages_source_refs ON wiki_pages USING GIN (source_refs jsonb_path_ops);
+        //   CREATE INDEX idx_wiki_pages_title_trgm ON wiki_pages USING GIN (lower(title) gin_trgm_ops);
+        // H2 不支持部分索引 / GIN / jsonb_path_ops / gin_trgm_ops，**一律不建**：
+        // 若改建成全量唯一索引会让"软删后重建同名 slug"直接冲突（比 PG 更严），
+        // 反倒扭曲语义。唯一性在本仓库由 service 层保证。
+        // 唯一在 H2 下等价的（非部分、普通 B-tree）索引是 wiki_page_revisions 的
+        // (page_id, version) —— 它是 MERGE/ON CONFLICT 幂等写入的依赖，予以保留。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS wiki_pages (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
+                "knowledge_base_id VARCHAR(36) NOT NULL, slug VARCHAR(255) NOT NULL," +
+                "title VARCHAR(512) NOT NULL DEFAULT '', page_type VARCHAR(32) NOT NULL DEFAULT 'summary'," +
+                "status VARCHAR(32) NOT NULL DEFAULT 'published'," +
+                "content TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT ''," +
+                "parent_slug VARCHAR(255) NOT NULL DEFAULT '', folder_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "category_path VARCHAR DEFAULT '[]', wiki_path VARCHAR(1024) NOT NULL DEFAULT ''," +
+                "depth INT NOT NULL DEFAULT 0, sort_order INT NOT NULL DEFAULT 0," +
+                "source_refs VARCHAR DEFAULT '[]', chunk_refs VARCHAR DEFAULT '[]'," +
+                "in_links VARCHAR DEFAULT '[]', out_links VARCHAR DEFAULT '[]'," +
+                "page_metadata VARCHAR DEFAULT '{}', aliases VARCHAR DEFAULT '[]'," +
+                "version INT NOT NULL DEFAULT 1," +
+                "last_edit_source VARCHAR(16) NOT NULL DEFAULT ''," +
+                "last_editor_id VARCHAR(64) NOT NULL DEFAULT ''," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS wiki_folders (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL DEFAULT 0," +
+                "knowledge_base_id VARCHAR(36) NOT NULL, parent_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "name VARCHAR(255) NOT NULL, path VARCHAR(1024) NOT NULL DEFAULT ''," +
+                "depth INT NOT NULL DEFAULT 0, sort_order INT NOT NULL DEFAULT 0," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS wiki_page_revisions (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
+                "knowledge_base_id VARCHAR(36) NOT NULL, page_id VARCHAR(36) NOT NULL," +
+                "slug VARCHAR(255) NOT NULL, version INT NOT NULL," +
+                "title VARCHAR(512) NOT NULL DEFAULT '', page_type VARCHAR(32) NOT NULL DEFAULT 'summary'," +
+                "status VARCHAR(32) NOT NULL DEFAULT 'published'," +
+                "content TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT ''," +
+                "aliases VARCHAR DEFAULT '[]'," +
+                "edit_source VARCHAR(16) NOT NULL DEFAULT '', editor_id VARCHAR(64) NOT NULL DEFAULT ''," +
+                "edited_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        // 与迁移一致的全量唯一索引（H2 下等价）
+        jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_page_revisions_page_version "
+                + "ON wiki_page_revisions (page_id, version)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS wiki_page_issues (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
+                "knowledge_base_id VARCHAR(36) NOT NULL, slug VARCHAR(255) NOT NULL," +
+                "issue_type VARCHAR(50) NOT NULL, description TEXT NOT NULL," +
+                "suspected_knowledge_ids VARCHAR," +
+                "status VARCHAR(20) NOT NULL DEFAULT 'pending', reported_by VARCHAR(100) NOT NULL," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // ── 阶段 4.2：通用任务队列（列名/约束以 Go 迁移 000041 为准） ──
+        // 这两张表是 wiki ingest 的持久化待办队列与死信档案（wiki_ingest.go 的
+        // task_pending_ops / task_dead_letters）。payload 在 PG 里是 jsonb、
+        // 在 H2 里用 VARCHAR 承载（读回由 PgJsonTypeHandler 解析）；
+        // claimed_at 可空（NULL = 未认领）。
+        // 索引：PG 的 idx_task_pending_ops_scope / _tenant 与
+        // idx_task_dead_letters_{scope,tenant,task_type} 都只影响性能、不影响语义，
+        // H2 的内联索引语法与 PG 也不同，故一律不建（与 wiki_pages 的处理一致）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS task_pending_ops (" +
+                "id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "task_type VARCHAR(64) NOT NULL," +
+                "scope VARCHAR(32) NOT NULL," +
+                "scope_id VARCHAR(64) NOT NULL," +
+                "op VARCHAR(32) NOT NULL," +
+                "dedup_key VARCHAR(128) NOT NULL DEFAULT ''," +
+                "payload VARCHAR NOT NULL DEFAULT '{}'," +
+                "fail_count INT NOT NULL DEFAULT 0," +
+                "enqueued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "claimed_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS task_dead_letters (" +
+                "id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "task_type VARCHAR(64) NOT NULL," +
+                "scope VARCHAR(32) NOT NULL," +
+                "scope_id VARCHAR(64) NOT NULL," +
+                "related_id VARCHAR(64) NOT NULL DEFAULT ''," +
+                "payload VARCHAR NOT NULL," +
+                "last_error TEXT NOT NULL DEFAULT ''," +
+                "fail_count INT NOT NULL," +
+                "failed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+
+        // mcp_metadata 的工具计数走 json_array_length（PG 方言）；
+        // wiki 的"有目录优先"排序走 jsonb_array_length（PG 方言）。
+        // H2 两个函数都没有，这里各注册一个同名 ALIAS 指向本类的 Java 实现，
+        // 让**同一条 SQL** 在测试库上也能跑。
         jdbc.execute("CREATE ALIAS IF NOT EXISTS json_array_length FOR "
+                + "\"com.ragagent.TestSchema.jsonArrayLength\"");
+        jdbc.execute("CREATE ALIAS IF NOT EXISTS jsonb_array_length FOR "
                 + "\"com.ragagent.TestSchema.jsonArrayLength\"");
     }
 
@@ -214,5 +316,11 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM mcp_oauth_tokens");
         jdbc.execute("DELETE FROM mcp_oauth_clients");
         jdbc.execute("DELETE FROM mcp_services");
+        jdbc.execute("DELETE FROM wiki_page_issues");
+        jdbc.execute("DELETE FROM wiki_page_revisions");
+        jdbc.execute("DELETE FROM wiki_pages");
+        jdbc.execute("DELETE FROM wiki_folders");
+        jdbc.execute("DELETE FROM task_pending_ops");
+        jdbc.execute("DELETE FROM task_dead_letters");
     }
 }

@@ -85,6 +85,56 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 - ** golden 契约测试**：`server/src/test/resources/contracts/` 下按端点存 Go 版实际响应，Java 集成测试逐字段比对
 - 翻译完成的定义：Go 测试语义对应的 Java 测试全部通过 + golden 通过
 
+## 7.5 派发翻译 agent 的标准约束（每次必带）
+
+每个翻译 agent 的任务书里**必须**包含以下段落。它们对应的是已经踩过的坑，
+省掉任何一条都会以某种形式复发。
+
+```
+【项目强制约束——以下每条都对应踩过的坑】
+
+1. 先读 docs/translation-conventions.md 的 §3（GORM 隐式行为清单）与 §9（已确认细节与坑）。
+   §9 里的规则都是复发的来源，写代码前逐条对照，别等到 review。
+
+2. 领域对象上**任何** isXxx() / getXxx() 形式的派生访问器，先判断它在 Go 里是**方法**还是**字段**：
+   - 方法 → 必须 @JsonIgnore（否则被 Jackson 当属性写进 jsonb，回读抛
+     UnrecognizedPropertyException，整列不可用）
+   - 这个坑在阶段 3、4.1 各复发一次，是**复发率最高**的错误。
+
+3. 新增/修改的、会落 jsonb 或直接作响应体的类型，必须在
+   `server/src/test/java/com/ragagent/common/JsonContractRoundTripTest.java` 里加一条
+   `assertRoundTrips(...)`（工具见 `com.ragagent.common.JsonRoundTrip`，它用严格映射器
+   自动抓「漏 @JsonIgnore」与「键名漏蛇形」）。
+
+4. JSON 键名**逐字段对照 Go 的 json tag**：本项目 JSON 是契约。Go 的 tag 是蛇形就写
+   @JsonProperty("snake_case")，不要按 Java 字段名输出。MCP/Wiki 里还有协议规定的
+   驼峰（如 inputSchema / mimeType），照抄别改。
+
+5. Go 非指针零值语义：string 字段默认 ""、计数器用原始类型（避免插 NULL）、
+   omitempty 的 0/空/false 要省略（@JsonInclude(NON_DEFAULT)），无 omitempty 的恒输出。
+
+6. jsonb 回读路径的 ObjectMapper 必须容忍未知属性
+   （Go 的 json.Unmarshal 默认忽略，Jackson 默认失败），否则历史行读不出来。
+
+7. 测试**禁止依赖真实网络**：
+   - 不写真实公网域名（本机 DNS 可能把 api.openai.com 解析到 Teredo 段而被 SSRF 拒绝）
+   - 需要出站校验时注入白名单（`SsrfGuard.reloadWhitelist(...)` /
+     `LlmTransport.setSsrfGuard(...)`）或用 stub server
+
+8. 测试命令**只跑你负责的包**，不要跑全量：
+   `./gradlew test --tests "com.ragagent.<你的包>.*"`
+   多个 agent 同时跑全量会争抢 build 目录（OOM / test-results 被并发写坏 → 假失败）。
+
+9. 只改你负责的目录。`config/WebConfig.java` 的路由注册、`TestSchema.java` 的表结构
+   （除非任务明确要求新增表）由主会话统一处理，避免并发写冲突。
+
+10. 报告里必须给出：翻了的文件、**暴露给后续模块的关键签名**、测试数量与结果、
+    与 Go 的已知差异、需要主会话决策的点。
+```
+
+**为什么要降并行度**：并行 agent 争抢 gradle/build 目录造成的 OOM 与"假失败"重跑，
+在阶段 4 浪费了至少两轮。宁可串行，也别让两个 agent 同时跑全量测试。
+
 ## 8. 翻译日志（每完成一个模块更新）
 
 | 模块 | Go 源 | Java 目标 | 状态 | 备注（踩坑/GORM 清单/SSE emit 表位置） |

@@ -1,0 +1,683 @@
+package com.ragagent.wiki.prompt;
+
+import java.util.List;
+
+/**
+ * Wiki 生成管线的全部 prompt 常量（对照 Go internal/agent/prompts_wiki.go 全文，565 行）。
+ *
+ * <p><b>逐字对照</b>：本文件的字符串内容与 Go 的 raw string 字面量<b>逐字节一致</b>
+ * （含语言指令、粒度指引、模板变量名与空行）。这些文本直接影响生成质量，
+ * 任何「顺手的措辞优化」都是回归——{@code WikiPromptsByteFidelityTest} 用 SHA-256
+ * 把每个常量的字节内容钉死在 Go 侧算出的哈希上。</p>
+ *
+ * <p><b>模板引擎替换</b>：Go 用 {@code text/template}（{@code {{.X}}} 取值、
+ * {@code {{if .X}}...{{end}}} 条件块）。Java 侧不引入模板引擎，改由
+ * {@link WikiPromptTemplate#render} 支持这两个构造——prompts_wiki.go 用到的全部语法
+ * 就只有这两个（无 {@code range} / {@code else} / 管道）。<b>变量名与 Go 逐一对齐</b>，
+ * 调用方传的 map key 就是 Go 模板里的字段名。</p>
+ */
+public final class WikiPrompts {
+
+    private WikiPrompts() {}
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L3-46。</p>
+     *
+     * <p>为一批 ingest 产出的 entity / concept 页面<b>一次性</b>分配目录路径（category），让整批落在同一棵连贯的树上并复用既有文件夹——而不是每个页面各自并行地发明自己的目录（在建库首批、KB 还没有任何目录可锚定时分叉最严重）。结果只在 reduce 阶段应用到<b>尚无 category</b> 的页面，因此用户编辑与既有归档永不被打乱。</p>
+     */
+    public static final String WIKI_TAXONOMY_PLAN_PROMPT = """
+You are organizing a wiki knowledge base into a navigation directory. Assign each item below to a directory path (category) so the whole set lands on ONE coherent tree.
+
+<existing_folders>
+{{.ExistingTaxonomy}}
+</existing_folders>
+
+<items>
+{{.Items}}
+</items>
+
+<instructions>
+For every item, output a category path: an array of folder labels from broad to narrow (at most 2 levels). The category classifies WHAT the item fundamentally IS (the stable library "shelf" it always sits on), never the role it plays in one document.
+
+How to choose a path for each item:
+1. If an existing folder in <existing_folders> fits, REUSE its EXACT label (character-for-character). Do NOT invent a synonym folder (e.g. do NOT create "春节习俗" when "春节 / 传统习俗" already fits).
+2. If NO existing folder fits, CREATE a new, broad, durable folder for it (e.g. an organization → "组织", a legal idea → "法律概念", a place → "地点"). The directory does not have to stay small — most items DO have a natural home, so coin a sensible top-level folder rather than leaving them unfiled. Group items of the SAME kind under the SAME new folder so the tree stays coherent.
+3. Only give an empty path [] when an item genuinely belongs to NO durable subject at all. This must be RARE. The absence of a matching existing folder is NOT a reason for []; create a folder instead.
+
+Other rules:
+- Group items of the SAME kind under the SAME folder at the SAME depth. Do not file one equivalent item a level deeper than its siblings (e.g. avoid "地点 / 地址 / Address1" next to "地点 / Address2" — pick one consistent depth for equivalent items).
+- Prefer a single broad top-level folder; add a second level only for a genuinely durable sub-domain shared by several items.
+- Do NOT use the item type ("entity"/"concept") as a folder. Do NOT put slashes inside a single label.
+- Every item slug in <items> MUST appear exactly once in the output.
+- Write ALL folder labels in {{.Language}}.
+
+### JSON Formatting Rules
+- Output ONLY valid JSON, no preamble.
+- Do NOT use literal newlines inside JSON string values.
+</instructions>
+
+Output format:
+{
+  "assignments": [
+    {"slug": "entity/zhang-san", "path": ["人物"]},
+    {"slug": "concept/spring-festival", "path": ["节日", "传统节日"]}
+  ]
+}""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L52-85。</p>
+     *
+     * <p>为新入库文档生成结构化摘要页。<b>文件名与标题刻意不传给 LLM</b>：WeKnora 里上传的文档常带与内容无关的文件名（例如按扫描仪型号命名的 {@code MX5280.pdf}），真实抽取内容单薄时把这种文件名喂给模型会诱发幻觉摘要。模型只能依据下方给出的文档正文。</p>
+     */
+    public static final String WIKI_SUMMARY_PROMPT = """
+You are a wiki editor. Given the following document content, create a structured wiki summary page in Markdown format.
+
+<document>
+<content>
+{{.Content}}
+</content>
+</document>
+
+<available_wiki_pages>
+{{.ExtractedSlugs}}
+</available_wiki_pages>
+
+<instructions>
+1. The FIRST line of your output MUST be: SUMMARY: {one sentence, 15-40 words, describing what this document is about — for wiki index listing}
+2. After the SUMMARY line, write a comprehensive summary of the document in Markdown format.
+3. Include the key facts, arguments, and conclusions.
+4. Use proper heading hierarchy (## for sections, ### for subsections).
+5. **Wiki-link rule**: The available_wiki_pages list above maps slugs to display names and their aliases (format: "[[slug]] = display name (Aliases: a, b)"). Whenever you mention a name or alias that matches a listed entry, you MUST write it as [[slug|display name]] (e.g. [[entity/zhong-guo|中国]]), NOT as bold (**name**) or bare [[slug]]. Use the EXACT slugs provided — do NOT invent new slugs.
+6. **Image rule**: If the document contains <images> tags with <image> elements, you SHOULD include the relevant images in your summary using the Markdown syntax: ![caption](url). Place the images where they are contextually relevant to the text. The URL inside ![caption](url) is an opaque token; reproduce it EXACTLY and VERBATIM, do not alter, shorten, or normalize it.
+7. At the end, include a "## Key Takeaways" section with bullet points.
+8. Write in {{.Language}}.
+9. Keep the summary concise but thorough (500-1500 words depending on document length).
+10. **Empty content rule**: If the <content> block above is empty, contains only image references with no extracted text, or otherwise carries no substantive information, output exactly: "SUMMARY: No textual content was extractable from this document." followed by a brief note explaining that the document could not be summarised. Do NOT invent a topic, do NOT guess from any other clue.
+</instructions>
+
+Output the SUMMARY line first, then the Markdown content. Do not include any other preamble.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L87-164。</p>
+     *
+     * <p>单次 LLM 调用同时抽取 entities 与 concepts，返回带 {@code "entities"} / {@code "concepts"} 两个数组的 JSON 对象。取代原先分开的 {@code WikiEntityExtractPrompt} 与 {@code WikiConceptExtractPrompt}。</p>
+     */
+    public static final String WIKI_KNOWLEDGE_EXTRACT_PROMPT = """
+You are a knowledge extraction system. Analyze the following document and extract all significant entities AND key concepts.
+
+<document>
+<content>
+{{.Content}}
+</content>
+</document>
+
+<previous_slugs>
+{{.PreviousSlugs}}
+</previous_slugs>
+
+<instructions>
+Return a JSON object with two arrays: "entities" and "concepts".
+**IMPORTANT: Write ALL names, descriptions, and details in {{.Language}}**.
+
+If the <content> block above is empty, contains only image references with no extracted text, or otherwise carries no substantive information, return {"entities": [], "concepts": []}. Do NOT invent entities or concepts from any other source.
+
+### Slug Continuity Rules
+If previous slugs are provided above, you MUST follow these rules:
+- If an entity or concept from the previous extraction still exists in the current document, **reuse its exact slug** from the previous list. Do NOT generate a new slug for the same thing.
+- If an entity or concept no longer appears in the document, **do NOT include it** in the output.
+- Only generate new slugs for entities/concepts that are genuinely new (not present in the previous list).
+- This ensures slug stability across document updates.
+
+### Entities (people, organizations, products, places, technologies, events, etc.)
+Each entity should have:
+- "name": The entity name in {{.Language}} (human-readable)
+- "slug": URL-friendly slug, format "entity/<lowercase-hyphenated-name>" (use romanized/pinyin form for non-Latin names). **Reuse previous slug if the entity was extracted before.**
+- "aliases": An array of strings representing names that refer to THE EXACT SAME entity. Only include: official abbreviations (e.g. "IBM" for "International Business Machines"), full/short name variants (e.g. "腾讯" for "腾讯控股有限公司"), translations (e.g. "Apple" for "苹果公司"), and well-known alternate names (e.g. "Alphabet" for "Google母公司"). Do NOT include parent categories, related products, generic terms, or broader concepts. Provide [] if none.
+- "description": **Index listing summary** — one sentence, 15-40 words, in {{.Language}}. Describes WHAT this entity IS and its role in the document. Must be self-contained (understandable without reading the full page). This will be displayed in the wiki index.
+- "details": A 2-5 sentence summary in {{.Language}} of key facts from the document. **Image rule**: If the document contains relevant <image> elements in an <images> tag, include them in the details using Markdown syntax: ![caption](url). The URL inside ![caption](url) is an opaque token; reproduce it EXACTLY and VERBATIM, do not alter, shorten, or normalize it.
+
+Only include entities that are substantively discussed (mentioned at least twice or described in detail). Do NOT include generic terms.
+
+### Concepts (topics, themes, methodologies, theories, etc.)
+Each concept should have:
+- "name": The concept name in {{.Language}} (human-readable)
+- "slug": URL-friendly slug, format "concept/<lowercase-hyphenated-name>" (use romanized/pinyin form for non-Latin names). **Reuse previous slug if the concept was extracted before.**
+- "aliases": An array of strings representing names that refer to THE EXACT SAME concept. Only include: official abbreviations (e.g. "RAG" for "Retrieval-Augmented Generation"), full/short name variants, and well-known synonyms used interchangeably in the field. Do NOT include sub-topics, related techniques, broader categories, or implementation details. Provide [] if none.
+- "description": **Index listing summary** — one sentence, 15-40 words, in {{.Language}}. Defines WHAT this concept IS. Must be self-contained (understandable without reading the full page). This will be displayed in the wiki index.
+- "details": A 2-5 sentence explanation in {{.Language}} as discussed in the document. **Image rule**: If the document contains relevant <image> elements in an <images> tag, include them in the details using Markdown syntax: ![caption](url). The URL inside ![caption](url) is an opaque token; reproduce it EXACTLY and VERBATIM, do not alter, shorten, or normalize it.
+
+Only include concepts that are substantively discussed. Skip trivial or overly generic concepts.
+
+### Deduplication Rules
+- If something is a specific named thing (person, company, product, place), put it ONLY in "entities".
+- If something is an abstract idea, methodology, or theory, put it ONLY in "concepts".
+- Never duplicate items across the two arrays.
+
+### JSON Formatting Rules
+- **CRITICAL**: Do NOT use literal newline characters inside JSON string values. If you need a newline in a string, you MUST use the escaped sequence \\n.
+</instructions>
+
+Output ONLY valid JSON. Example:
+{
+  "entities": [
+    {
+      "name": "Acme Corp",
+      "slug": "entity/acme-corp",
+      "aliases": ["Acme", "Acme Corporation"],
+      "description": "A technology company specializing in AI solutions.",
+      "details": "Acme Corp was founded in 2020 and has grown to 500 employees. They focus on enterprise AI products and recently launched their flagship RAG platform."
+    }
+  ],
+  "concepts": [
+    {
+      "name": "Retrieval-Augmented Generation",
+      "slug": "concept/retrieval-augmented-generation",
+      "aliases": ["RAG"],
+      "description": "A technique that combines information retrieval with language model generation.",
+      "details": "RAG works by first retrieving relevant documents from a knowledge base using vector similarity search, then feeding those documents as context to an LLM for answer generation."
+    }
+  ]
+}""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L166-249。</p>
+     *
+     * <p>chunk-cited 管线的 Pass 0：让 LLM 扫出文档里全部 entity / concept 的<b>骨架</b>（name、slug、aliases、短描述、短 details）。重活——把每个 slug 挂到具体的佐证 chunk 上——由第二遍完成（见 {@link #WIKI_CHUNK_CITATION_PROMPT}）。因为不必再携带逐项完整事实，长文档下本 prompt 依然便宜。</p>
+     */
+    public static final String WIKI_CANDIDATE_SLUG_PROMPT = """
+You are a knowledge extraction system. Analyze the following document and list all significant entities AND key concepts as a lightweight candidate set. Another pass will later attach concrete supporting chunks to each item, so you do NOT need to write exhaustive per-item facts here.
+
+<document>
+<content>
+{{.Content}}
+</content>
+</document>
+
+<previous_slugs>
+{{.PreviousSlugs}}
+</previous_slugs>
+
+<instructions>
+Return a JSON object with two arrays: "entities" and "concepts".
+**IMPORTANT: Write ALL names, descriptions, and details in {{.Language}}**.
+
+If the <content> block above is empty, contains only image references with no extracted text, or otherwise carries no substantive information, return {"entities": [], "concepts": []}. Do NOT invent entities or concepts from any other source.
+
+### Extraction Scope (Granularity: {{.Granularity}})
+{{.GranularityGuidance}}
+
+### Slug Continuity Rules
+If previous slugs are provided above, you MUST follow these rules:
+- If an entity or concept from the previous extraction still exists in the current document, **reuse its exact slug** from the previous list. Do NOT generate a new slug for the same thing.
+- If an entity or concept no longer appears in the document, **do NOT include it** in the output.
+- Only generate new slugs for entities/concepts that are genuinely new (not present in the previous list).
+- This ensures slug stability across document updates.
+
+### Entities (people, organizations, products, places, technologies, events, etc.)
+Each entity should have:
+- "name": The entity name in {{.Language}} (human-readable).
+- "slug": URL-friendly slug, format "entity/<lowercase-hyphenated-name>" (use romanized/pinyin form for non-Latin names). **Reuse previous slug if the entity was extracted before.**
+- "aliases": An array of strings representing names that refer to THE EXACT SAME entity. Only include: official abbreviations (e.g. "IBM" for "International Business Machines"), full/short name variants (e.g. "腾讯" for "腾讯控股有限公司"), translations, and well-known alternate names. Do NOT include parent categories, related products, generic terms, or broader concepts. Provide [] if none.
+- "description": **Index listing summary** — one sentence, 15-40 words, in {{.Language}}. Describes WHAT this entity IS and its role in the document. Must be self-contained. This will be displayed in the wiki index.
+- "details": A short 1-3 sentence fallback summary in {{.Language}}. This is ONLY used when chunk-level citation fails downstream, so it does NOT need to be exhaustive. Keep it under 300 characters.
+
+Apply the Extraction Scope rules above. Never promote trivially-mentioned names into entities.
+
+### Concepts (topics, themes, methodologies, theories, etc.)
+Each concept should have:
+- "name": The concept name in {{.Language}} (human-readable).
+- "slug": URL-friendly slug, format "concept/<lowercase-hyphenated-name>" (use romanized/pinyin form for non-Latin names). **Reuse previous slug if the concept was extracted before.**
+- "aliases": An array of strings representing names that refer to THE EXACT SAME concept. Only include: official abbreviations (e.g. "RAG" for "Retrieval-Augmented Generation"), full/short name variants, and well-known synonyms used interchangeably in the field. Do NOT include sub-topics, related techniques, broader categories, or implementation details. Provide [] if none.
+- "description": **Index listing summary** — one sentence, 15-40 words, in {{.Language}}. Defines WHAT this concept IS. Must be self-contained.
+- "details": A short 1-3 sentence fallback summary in {{.Language}}. Keep it under 300 characters.
+
+Apply the Extraction Scope rules above. Skip concepts that are merely name-dropped without discussion.
+
+### Deduplication Rules
+- If something is a specific named thing (person, company, product, place), put it ONLY in "entities".
+- If something is an abstract idea, methodology, or theory, put it ONLY in "concepts".
+- Never duplicate items across the two arrays.
+
+### JSON Formatting Rules
+- **CRITICAL**: Do NOT use literal newline characters inside JSON string values. If you need a newline in a string, you MUST use the escaped sequence \\n.
+</instructions>
+
+Output ONLY valid JSON. Example:
+{
+  "entities": [
+    {
+      "name": "Acme Corp",
+      "slug": "entity/acme-corp",
+      "aliases": ["Acme", "Acme Corporation"],
+      "description": "A technology company specializing in AI solutions.",
+      "details": "Founded in 2020, focuses on enterprise AI products."
+    }
+  ],
+  "concepts": [
+    {
+      "name": "Retrieval-Augmented Generation",
+      "slug": "concept/retrieval-augmented-generation",
+      "aliases": ["RAG"],
+      "description": "A technique that combines information retrieval with language model generation.",
+      "details": "Retrieves documents, then feeds them as context to an LLM."
+    }
+  ]
+}""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L251-316。</p>
+     *
+     * <p>chunk-cited 管线的 Pass 1..N：读一批 chunk，为每个候选 entity/concept 列出<b>实质性讨论</b>它的 chunk ID。这样逐 slug 的「事实」保持逐字原文（chunk 文本），而不是让 LLM 转述。<b>块序对 provider 前缀缓存有语义</b>：静态规则、输出 schema 与逐文档稳定的 {@code <candidate_slugs>} 都排在逐批变化的 {@code <chunks>} <b>之前</b>；同一文档内只有 {@code ChunksXML} 逐批变化，因此第一批之后的每一批都共享那段长长的 {@code [rules | candidate_slugs]} 前缀，不必为静态规则重复计费。</p>
+     */
+    public static final String WIKI_CHUNK_CITATION_PROMPT = """
+You are a precise citation system. Your job is to scan a batch of document chunks and decide, for each candidate entity/concept below, which chunks substantively discuss it.
+
+<instructions>
+**IMPORTANT: Write ALL names, descriptions, and details in {{.Language}}**.
+
+### Primary task
+For each candidate slug (listed in <candidate_slugs> below), select the chunk IDs (from the <chunks> block below) that **substantively discuss** that entity/concept. "Substantively" means the chunk states at least one concrete fact, attribute, step, date, number, relationship, or other useful piece of information about the candidate — not a passing mention.
+
+- Only cite chunks that appear in the <chunks> block below.
+- Use the "id" attribute of each <c> element verbatim (e.g. "c003").
+- If a candidate is not meaningfully discussed in ANY chunk in this batch, omit it from the output (do not include empty arrays).
+- A chunk CAN be cited by multiple candidates if it genuinely discusses multiple of them.
+- If a chunk is overly long or mixes unrelated topics, still cite it for every candidate it discusses.
+
+### Secondary task: new slugs
+If this batch reveals a significant entity/concept that is **NOT** in <candidate_slugs>, you may add it under "new_slugs" so it gets incorporated. Only add genuinely new, substantively-discussed items. Do NOT rediscover items already listed in <candidate_slugs> — reuse their slug if they are already candidates.
+
+Each new slug must include:
+- "type": "entity" or "concept"
+- "name", "slug", "aliases", "description", "details" (same semantics as the candidate list)
+- "source_chunks": list of chunk IDs in the current batch that discuss it
+
+### JSON Formatting Rules
+- **CRITICAL**: Do NOT use literal newline characters inside JSON string values. If needed, use \\n.
+- Output ONLY valid JSON, no preamble.
+</instructions>
+
+Output format:
+{
+  "citations": {
+    "entity/xxx": ["c001", "c003"],
+    "concept/yyy": ["c002"]
+  },
+  "new_slugs": [
+    {
+      "type": "entity",
+      "name": "Example",
+      "slug": "entity/example",
+      "aliases": [],
+      "description": "...",
+      "details": "...",
+      "source_chunks": ["c005"]
+    }
+  ]
+}
+
+If nothing in this batch is cite-worthy, return: {"citations": {}, "new_slugs": []}
+
+<candidate_slugs>
+{{.CandidateSlugs}}
+</candidate_slugs>
+
+<chunks>
+{{.ChunksXML}}
+</chunks>
+
+Now apply the instructions above to the chunks and output ONLY the JSON.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L318-340。</p>
+     *
+     * <p>只含每次页面更新共享的规则。把页面身份与源数据排除在本条消息之外，给 provider 留出跨 reduce 批次可缓存的<b>长且字节稳定</b>的前缀。</p>
+     */
+    public static final String WIKI_PAGE_MODIFY_SYSTEM_PROMPT = """
+You are a wiki editor tasked with updating an existing wiki page. You must process NEW information to add and/or deleted documents whose exclusive contributions must be removed.
+
+### SOURCE GROUNDING & MERGE RULES (CRITICAL):
+1. **No Inline Chunk IDs:** Chunk handles such as [c003] are internal processing metadata. NEVER output them in the page body or summary, and remove any legacy inline chunk handles from existing content while editing. Source associations are stored separately by the system.
+2. **Mandatory Grounding:** Every newly added factual claim, entity, or numerical value MUST be directly supported by the provided new source chunks, but the final prose must remain clean Markdown without inline chunk IDs.
+3. **No Hallucination:** Do not invent, synthesize, or infer any information that is not explicitly present in the provided source chunks. If the new chunks clearly and directly supersede or contradict existing content, update the main text to reflect the newer supported information AND add a brief "Contradictions / Updates" section summarizing the change. If the conflict is ambiguous, unresolved, or not directly supported by the provided chunks, do not overwrite the existing content; instead, add only a "Contradictions / Updates" section describing the conflict.
+4. The shared source-context block describes what each source document is about and what kind of document it is. Use it only to calibrate scope, attribution, and tone. Never copy source-context wording into the page as factual evidence.
+5. Stable system-owned output, grounding, safety, and factuality rules override any business instructions.
+
+### EDITING AND OUTPUT RULES:
+1. You are a COMPILER, not a creative writer. Stay close to the verbatim source wording. You may lightly reorder, deduplicate, and join related sentences, but must not rephrase for style, expand short statements, or invent transitions.
+2. Do not over-structure. Introduce a section heading only if the source or existing page uses it. Prefer a single top-level heading, short paragraphs, and flat factual lists over an invented hierarchy.
+3. Do not add rhetorical filler such as "aims to provide", "designed to", "旨在帮助", "致力于", or "具有重要意义" unless it appears verbatim in an evidentiary source chunk.
+4. Keep self-reported claims scoped and attributed. Do not elevate a resume, product page, announcement, or first-person statement into an industry-wide fact.
+5. Preserve existing information that remains valid and on-topic. Maintain the existing page's structure and formatting style where possible.
+6. Keep a [[slug|name]] link only when its slug is present in the supplied valid-link list. Never invent a slug and never link a page to itself.
+7. Images may be included only from supplied new information. Treat each Markdown image URL as an opaque token and reproduce it exactly without altering, shortening, or normalizing it.
+8. The first output line must be "SUMMARY: {one sentence, 15-40 words}", followed immediately by clean Markdown page content.
+
+Output the SUMMARY line first, followed by the updated Markdown content, with no other preamble.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L342-403。</p>
+     *
+     * <p>承载逐批与逐页数据。文档级 source context <b>刻意放在最前</b>：同一源文档产出的所有页面因此共享最长可能的公共前缀，之后才因页面元数据而分叉。</p>
+     */
+    public static final String WIKI_PAGE_MODIFY_USER_PROMPT = """
+{{if .HasAdditions}}<shared_source_contexts>
+{{.SharedSourceContexts}}</shared_source_contexts>
+{{end}}
+
+<page_metadata>
+  <slug>{{.PageSlug}}</slug>
+  <title>{{.PageTitle}}</title>
+  <type>{{.PageType}}</type>{{if .PageAliases}}
+  <aliases>{{.PageAliases}}</aliases>{{end}}
+</page_metadata>
+
+This wiki page is specifically about **{{.PageTitle}}** (a {{.PageType}}). Every statement on the page MUST be directly about this exact {{.PageType}} — not about related, adjacent, or similarly-named things.
+
+<existing_page_content>
+{{.ExistingContent}}
+</existing_page_content>
+
+{{if .HasAdditions}}
+<new_information>
+{{.NewContent}}
+</new_information>
+
+The <new_information> block above is assembled from VERBATIM source chunks already cited as directly supporting this page. The preceding <shared_source_contexts> block is framing only, not evidence.
+{{end}}
+
+{{if .HasRetractions}}
+<deleted_documents>
+{{.DeletedContent}}
+</deleted_documents>
+
+<remaining_source_documents>
+{{.RemainingSourcesContent}}
+</remaining_source_documents>
+{{end}}
+
+<valid_wiki_links>
+{{.AvailableSlugs}}
+</valid_wiki_links>
+
+<instructions>
+1. The FIRST line of your output MUST be: SUMMARY: {one sentence, 15-40 words, describing what this page is about after the update — for wiki index listing}
+{{if .HasRetractions}}
+2. REMOVE facts/claims that were ONLY sourced from the <deleted_documents> and are NOT present in any <remaining_source_documents> or <new_information>.
+{{end}}
+{{if .HasAdditions}}
+3. ADD and MERGE the facts from <new_information> into the page. You are a COMPILER, not a writer:
+   - **CRITICAL CONFLICT CHECK**: First verify that the <new_information> is actually about **{{.PageTitle}}** (as declared in <page_metadata>). If a piece of new info clearly belongs to a DIFFERENT but related thing (e.g., this page is about "Hunyuan Model" but the new info is about "Qwen3"; or this page is about "居民身份证" but the new info is about "工作居住证"), you MUST REJECT that part of the new information and DO NOT add it.
+   - If it is genuinely about {{.PageTitle}} and contradicts old content, prefer the newer information.
+{{end}}
+4. Preserve existing information that is still valid and still about {{.PageTitle}}.
+5. Keep [[slug|name]] wiki-link references ONLY if the slug appears in the <valid_wiki_links> list above. Remove any [[slug|name]] whose slug is NOT in that list. Do NOT invent new wiki-link slugs. The page's own slug ({{.PageSlug}}) MUST NOT appear as a [[...]] link inside its own content.
+6. Maintain the existing page structure and formatting style. Use "# {{.PageTitle}}" as the top-level heading if the page does not already have one. Do NOT introduce new heading levels beyond what the source or existing page justifies.
+{{if .HasRetractions}}
+7. If after removing deleted content the page becomes nearly empty and there is no new information to add, output just: "SUMMARY: (empty page)\\n# {{.PageTitle}}\\n\\n*This page's primary source document was removed.*"
+{{end}}
+8. Write in {{.Language}}.
+</instructions>
+
+Output the SUMMARY line first, then the updated Markdown content. Do not include any other preamble.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L405-419。</p>
+     *
+     * <p>为<b>新建</b>索引页生成导语（仅首次）。</p>
+     */
+    public static final String WIKI_INDEX_INTRO_PROMPT = """
+You are a wiki editor. Write a brief introduction for a wiki knowledge base index page.
+
+<document_summaries>
+{{.DocumentSummaries}}
+</document_summaries>
+
+<instructions>
+1. Write a title line starting with "# " that reflects the knowledge domain.
+2. Follow with 2-3 sentences describing what this wiki covers, based on the document summaries above.
+3. Keep it concise — this is just the header section, the directory listing will be added separately below.
+4. Write in {{.Language}}.
+</instructions>
+
+Output ONLY the title and introduction paragraph. Do NOT generate any directory listings or page links.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L421-445。</p>
+     *
+     * <p>增量更新既有索引页的导语，使其反映最近变化。</p>
+     */
+    public static final String WIKI_INDEX_INTRO_UPDATE_PROMPT = """
+You are a wiki editor. Update the introduction section of a wiki index page to reflect recent changes.
+
+<current_introduction>
+{{.ExistingIntro}}
+</current_introduction>
+
+<changes>
+{{.ChangeDescription}}
+</changes>
+
+<document_summaries>
+{{.DocumentSummaries}}
+</document_summaries>
+
+<instructions>
+1. Update the introduction to accurately reflect the current state of the wiki.
+2. If documents were added, mention the new topics if they significantly change the wiki's scope.
+3. If documents were removed, remove references to those topics if they no longer apply.
+4. Keep the same tone, style, and title format as the existing introduction.
+5. Keep it concise — 1 title line + 2-3 sentences.
+6. Write in {{.Language}}.
+</instructions>
+
+Output ONLY the updated title and introduction paragraph. Do NOT generate any directory listings or page links.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>Go agent/prompts_wiki.go L447-496。</p>
+     *
+     * <p>让 LLM 判定新抽取项与既有 wiki 页面之间的重复。每个条目自带<b>它自己</b>的一小串表面相似的既有页面（其 {@code <candidates>}），因此去重退化为针对少量真正相似页面的<b>逐条目局部 yes/no 决策</b>，跨条目错配在结构上无从表达。</p>
+     */
+    public static final String WIKI_DEDUPLICATION_PROMPT = """
+You are a strict deduplication system. You are given a list of newly extracted items. Each item carries its OWN short list of existing wiki pages that are surface-similar to it (its <candidates>). For each item, decide whether it refers to the **exact same** real-world entity or concept as ONE of its own candidates.
+
+<items>
+{{.Candidates}}
+</items>
+
+<instructions>
+### How to read the input
+Each <item> is a newly extracted entity/concept. The <candidates> nested inside it are the ONLY existing pages you may merge that item into — they were pre-selected as similar to that specific item. A page listed under one item tells you NOTHING about any other item.
+
+### Hard constraints — a merge is only valid when ALL hold:
+- The target slug is one of the candidate <page> slugs listed **inside that same item**. NEVER merge into a page listed under a different item, and NEVER invent a slug.
+- The types are compatible: entities merge with entities, concepts merge with concepts. **Never merge an entity into a concept or vice versa.**
+
+### Merge criteria — ALL must be true:
+1. The new item and the candidate page refer to the **same real-world thing** (same person, same organization, same specific concept).
+2. The match is a **name variation**: abbreviation ↔ full name, translation, or minor spelling difference.
+
+### Examples of CORRECT merges:
+- "Acme Corp" → "Acme Corporation" (same company, abbreviation)
+- "RAG" → "Retrieval-Augmented Generation" (same concept, acronym)
+- "苹果公司" → "Apple Inc." (same entity, translation)
+
+### Examples of INCORRECT merges — do NOT merge these:
+- "Hunyuan Model" → "Qwen Model" (competing products in the same category are DIFFERENT entities, do not merge them)
+- "iPhone 15" → "Huawei Mate 60" (different specific instances in the same category)
+- "GPT-4" → "GPT-3.5" (different versions of a product are distinct entities)
+- "AI Safety" → "Content Review Mechanism" (related topics, but different concepts)
+- "Athlete Registration" → "Degree Verification" (both involve verification, but completely different domains)
+- "Competition Categories" → "Age Groups" (age groups are one aspect of categories, not the same concept)
+- "Performance Standard" → "Competition Rounds" (both relate to competitions, but are different concepts)
+- "Machine Learning" → "Neural Networks" (neural networks are a subset of ML, not the same concept)
+- "居民身份证 / Resident ID Card" → "工作居住证 / Work Residence Permit" (both are government-issued documents but completely different credentials)
+- "驾驶证 / Driver's License" → "行驶证 / Vehicle Registration" (both are car-related certificates but different documents)
+- "学位证 / Degree Certificate" → "毕业证 / Graduation Certificate" (both educational documents but distinct)
+
+### Key principle: **related ≠ same**. Two items sharing a few characters in their name, or belonging to the same domain / document family / industry, is NOT a reason to merge. **ABSOLUTELY DO NOT** merge different products, different companies, different versions, or different certificates/documents just because they belong to the same category. When in doubt, do NOT merge. It is far better to have two separate pages for the same thing than to wrongly merge two different things.
+
+Return a JSON object with a "merges" map. The key is the NEW item's slug, the value is the EXISTING page's slug that it should merge into. Only include items where you are highly confident they are the same thing.
+
+If no items match any existing pages, return: {"merges": {}}
+
+### JSON Formatting Rules
+- **CRITICAL**: Do NOT use literal newline characters inside JSON string values. If you need a newline in a string, you MUST use the escaped sequence \\n.
+</instructions>
+
+Output ONLY valid JSON. Example:
+{"merges": {"entity/acme-corporation": "entity/acme-corp", "concept/rag": "concept/retrieval-augmented-generation"}}""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>注入 {@link #WIKI_CANDIDATE_SLUG_PROMPT} 的粒度指引块之一，
+     * 对照 Go {@code WikiGranularityGuidanceFocused}（prompts_wiki.go L507-520）。</p>
+     *
+     * <p>三级构成从「只要文档的主要对象」到「看见的每个具名之物都要」的谱系。
+     * 沿列表下移会<b>单调地</b>提高候选 slug 数量、下游 chunk-citation 成本，
+     * 以及 wiki 索引的噪声/信号比。</p>
+     */
+    public static final String WIKI_GRANULARITY_GUIDANCE_FOCUSED = """
+**FOCUSED mode — aggressive pruning.**
+Extract ONLY the document's primary subjects: the handful of entities/concepts that this document is fundamentally ABOUT.
+
+INCLUDE:
+- The document's main subject(s) — e.g. for a resume: the person and their named projects; for an announcement: the announcing organization and the event/product being announced; for a product page: the product itself and its maker.
+- At most 3-7 items total across entities and concepts combined.
+
+EXCLUDE (even if named explicitly):
+- Technology stacks / libraries / frameworks mentioned in passing (e.g. a resume listing "Spring Boot, MySQL, Redis" — do NOT extract these).
+- Generic concepts and methodologies that are merely referenced (e.g. "microservices", "async processing", "stateless authentication", "streaming response" mentioned as an implementation detail).
+- Places, schools, or organizations mentioned only as background (e.g. alma mater of a resume owner, unless the document is ABOUT the school itself).
+- Anything that would normally get a one-sentence description because there is not enough content to say more.
+
+If you are unsure whether an item belongs, LEAVE IT OUT. A clean, focused index is more valuable than a comprehensive but noisy one.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>注入 {@link #WIKI_CANDIDATE_SLUG_PROMPT} 的粒度指引块之一，
+     * 对照 Go {@code WikiGranularityGuidanceStandard}（prompts_wiki.go L522-535）。</p>
+     *
+     * <p>三级构成从「只要文档的主要对象」到「看见的每个具名之物都要」的谱系。
+     * 沿列表下移会<b>单调地</b>提高候选 slug 数量、下游 chunk-citation 成本，
+     * 以及 wiki 索引的噪声/信号比。</p>
+     */
+    public static final String WIKI_GRANULARITY_GUIDANCE_STANDARD = """
+**STANDARD mode — balanced (default).**
+Extract the document's main subjects PLUS entities/concepts that are substantively discussed — meaning they have a dedicated paragraph, multiple bullet points, or at least 2-3 sentences of context.
+
+INCLUDE:
+- The document's main subject(s).
+- Secondary entities/concepts that receive a concrete block of content (a paragraph, a multi-point list, or a dedicated sub-section).
+- Named methodologies, architectures, or techniques when the document explains HOW the subject uses them — not merely names them.
+
+EXCLUDE:
+- Items mentioned only in a comma-separated list of technologies without any further explanation (e.g. "Tech stack: A, B, C, D" — none of A/B/C/D are extracted unless they each also receive their own paragraph elsewhere).
+- One-off mentions, parenthetical references, and generic infrastructure nouns.
+- Items whose entire contribution to the document would fit in a single short sentence.
+
+Aim for a tight, curated index. When in doubt about a marginal item, prefer to EXCLUDE it.""";
+
+    // ═══════════════════════════════════════════════════════════════
+    /**
+     * <p>注入 {@link #WIKI_CANDIDATE_SLUG_PROMPT} 的粒度指引块之一，
+     * 对照 Go {@code WikiGranularityGuidanceExhaustive}（prompts_wiki.go L537-549）。</p>
+     *
+     * <p>三级构成从「只要文档的主要对象」到「看见的每个具名之物都要」的谱系。
+     * 沿列表下移会<b>单调地</b>提高候选 slug 数量、下游 chunk-citation 成本，
+     * 以及 wiki 索引的噪声/信号比。</p>
+     */
+    public static final String WIKI_GRANULARITY_GUIDANCE_EXHAUSTIVE = """
+**EXHAUSTIVE mode — maximum recall.**
+Extract every named entity and every recognizable concept, including technologies, tools, standards, and methodologies mentioned even once by name, provided they are concrete and well-known (not generic terms like "database" or "function").
+
+INCLUDE:
+- All main and secondary subjects.
+- All named technologies, libraries, frameworks, databases, services, protocols, or standards.
+- All recognizable concepts and methodologies that have widely-used names (e.g. RAG, microservices, async processing, SSE, JWT).
+
+EXCLUDE ONLY:
+- Truly generic terms (e.g. "server", "function", "data").
+- Items that appear only inside URL paths or reference citations.
+
+Use this mode when the knowledge base functions as a technical glossary rather than a curated narrative wiki.""";
+
+    /**
+     * 全部 prompt 常量，顺序 = 本类声明序（= Go prompts_wiki.go 的声明序）。
+     * 测试用它逐条渲染，确认没有模板变量被漏替换。
+     */
+    public static final List<String> ALL_PROMPTS = List.of(
+            WIKI_TAXONOMY_PLAN_PROMPT,
+            WIKI_SUMMARY_PROMPT,
+            WIKI_KNOWLEDGE_EXTRACT_PROMPT,
+            WIKI_CANDIDATE_SLUG_PROMPT,
+            WIKI_CHUNK_CITATION_PROMPT,
+            WIKI_PAGE_MODIFY_SYSTEM_PROMPT,
+            WIKI_PAGE_MODIFY_USER_PROMPT,
+            WIKI_INDEX_INTRO_PROMPT,
+            WIKI_INDEX_INTRO_UPDATE_PROMPT,
+            WIKI_DEDUPLICATION_PROMPT,
+            WIKI_GRANULARITY_GUIDANCE_FOCUSED,
+            WIKI_GRANULARITY_GUIDANCE_STANDARD,
+            WIKI_GRANULARITY_GUIDANCE_EXHAUSTIVE
+    );
+
+    // ═══════════════════════════════════════════════════════════════
+    // 粒度指引 / purpose（对照 Go 的函数，非常量）
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * 对照 Go {@code WikiGranularityGuidance}（prompts_wiki.go L556-565）：返回注入
+     * {@link #WIKI_CANDIDATE_SLUG_PROMPT} 模板的指引文本。
+     *
+     * <p>入参是 {@code WikiConfig.ExtractionGranularity} 里存的<b>原始字符串</b>；
+     * 调用方 <b>不需要</b>先 {@code Normalize()}——未知值一律落到 standard。</p>
+     */
+    public static String granularityGuidance(String granularity) {
+        // 对照 Go 的 switch：只认 "focused" / "exhaustive"，其余（含 ""、大小写不符）→ standard
+        if ("focused".equals(granularity)) {
+            return WIKI_GRANULARITY_GUIDANCE_FOCUSED;
+        }
+        if ("exhaustive".equals(granularity)) {
+            return WIKI_GRANULARITY_GUIDANCE_EXHAUSTIVE;
+        }
+        return WIKI_GRANULARITY_GUIDANCE_STANDARD;
+    }
+
+    /**
+     * 对照 Go {@code wikiPromptPurpose}（wiki_ingest.go L2646-2667）：把模板文本映射为
+     * LLM 调用记账/缓存用的 purpose 标签。
+     *
+     * <p>Go 用 {@code switch promptTpl} <b>按字符串内容</b>比较（模板是包级常量，
+     * 调用方传的就是同一个字符串）。Java 侧同样按内容比较——因此 {@link String#equals}
+     * 而不是 {@code ==}，且必须在 {@code equals} 之后再谈"同一个模板"。</p>
+     *
+     * <p>未识别的模板 → {@code "wiki_generation"}（Go 的 default 分支）。</p>
+     */
+    public static String purposeOf(String promptTemplate) {
+        if (promptTemplate == null) {
+            return "wiki_generation";
+        }
+        switch (promptTemplate) {
+            case WIKI_PAGE_MODIFY_USER_PROMPT -> { return "wiki_page_modify"; }
+            case WIKI_CHUNK_CITATION_PROMPT -> { return "wiki_chunk_citation"; }
+            case WIKI_CANDIDATE_SLUG_PROMPT -> { return "wiki_candidate_slug"; }
+            case WIKI_SUMMARY_PROMPT -> { return "wiki_summary"; }
+            case WIKI_KNOWLEDGE_EXTRACT_PROMPT -> { return "wiki_knowledge_extract"; }
+            case WIKI_TAXONOMY_PLAN_PROMPT -> { return "wiki_taxonomy_plan"; }
+            case WIKI_DEDUPLICATION_PROMPT -> { return "wiki_deduplication"; }
+            case WIKI_INDEX_INTRO_PROMPT, WIKI_INDEX_INTRO_UPDATE_PROMPT -> { return "wiki_index_intro"; }
+            default -> { return "wiki_generation"; }
+        }
+    }
+}

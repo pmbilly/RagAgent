@@ -1,0 +1,77 @@
+package com.ragagent.wiki.domain;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+
+/**
+ * 结构化 wiki 索引响应里的一行（对照 Go types.WikiIndexEntry，
+ * internal/types/wiki_page.go L765-774）。
+ *
+ * <p>只携带渲染一条可点击目录项所需的列——后端投影 {@code SELECT slug, title, summary}，
+ * 这样 4 万页的知识库每次打开索引都不必为 TEXT 正文付出传输代价。</p>
+ */
+@JsonPropertyOrder({"slug", "title", "summary", "parent_slug", "category_path", "wiki_path",
+        "depth", "sort_order"})
+public class WikiIndexEntry {
+
+    @JsonProperty("slug")
+    private String slug = "";
+
+    @JsonProperty("title")
+    private String title = "";
+
+    @JsonProperty("summary")
+    private String summary = "";
+
+    @TableField(value = "parent_slug")
+    @JsonProperty("parent_slug")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private String parentSlug = "";
+
+    @TableField(value = "category_path", typeHandler = WikiStringListTypeHandler.class)
+    @JsonProperty("category_path")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<String> categoryPath = new ArrayList<>();
+
+    @TableField(value = "wiki_path")
+    @JsonProperty("wiki_path")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private String wikiPath = "";
+
+    @JsonProperty("depth")
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    private int depth;
+
+    @JsonProperty("sort_order")
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    private int sortOrder;
+
+    public String getSlug() { return slug; }
+    public void setSlug(String v) { this.slug = v == null ? "" : v; }
+
+    public String getTitle() { return title; }
+    public void setTitle(String v) { this.title = v == null ? "" : v; }
+
+    public String getSummary() { return summary; }
+    public void setSummary(String v) { this.summary = v == null ? "" : v; }
+
+    public String getParentSlug() { return parentSlug; }
+    public void setParentSlug(String v) { this.parentSlug = v == null ? "" : v; }
+
+    public List<String> getCategoryPath() { return categoryPath; }
+    public void setCategoryPath(List<String> v) { this.categoryPath = v == null ? new ArrayList<>() : v; }
+
+    public String getWikiPath() { return wikiPath; }
+    public void setWikiPath(String v) { this.wikiPath = v == null ? "" : v; }
+
+    public int getDepth() { return depth; }
+    public void setDepth(int v) { this.depth = v; }
+
+    public int getSortOrder() { return sortOrder; }
+    public void setSortOrder(int v) { this.sortOrder = v; }
+}

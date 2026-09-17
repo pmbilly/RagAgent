@@ -1,0 +1,107 @@
+package com.ragagent.wiki.domain;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+
+/**
+ * 列出 wiki 页面的过滤 / 分页请求（对照 Go types.WikiPageListRequest，
+ * internal/types/wiki_page.go L633-645）。
+ *
+ * <p><b>指针字段的 Java 对应</b>：Go 的 {@code FolderID *string} 与
+ * {@code CategoryDepth *int} 用"指针是否为 nil"区分<b>未提供</b>与<b>提供零值</b>
+ * （{} = 根目录、0 = 根层级）；Java 侧用包装类型的 {@code null} 表达"未提供"。
+ * 这是本类唯一需要小心的地方——{@code folderId = ""} 与 {@code folderId = null}
+ * 是两种不同语义。</p>
+ */
+@JsonPropertyOrder({
+        "knowledge_base_id", "page_type", "status", "query", "folder_id", "category_path",
+        "category_depth", "page", "page_size", "sort_by", "sort_order"
+})
+public class WikiPageListRequest {
+
+    @JsonProperty("knowledge_base_id")
+    private String knowledgeBaseId = "";
+
+    /** 按类型过滤；可带逗号分隔的多类型（"entity,concept"），由 SplitWikiPageTypes 切分 */
+    @JsonProperty("page_type")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private String pageType = "";
+
+    /** 按状态过滤 */
+    @JsonProperty("status")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private String status = "";
+
+    /** 全文检索词 */
+    @JsonProperty("query")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private String query = "";
+
+    /** 精确的文件夹归属（"" = 根）；<b>null = 不过滤</b>（Go 的 *string） */
+    @JsonProperty("folder_id")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String folderId;
+
+    /** 精确的目录路径（按 {@link WikiCategoryPaths#trimFolderSegments} 归一化后比较） */
+    @JsonProperty("category_path")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<String> categoryPath = new ArrayList<>();
+
+    /** 精确的目录层级深度，含 0（根）；<b>null = 不过滤</b>（Go 的 *int） */
+    @JsonProperty("category_depth")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Integer categoryDepth;
+
+    /** 分页页码（1 起）；&lt;1 时按 1 处理 */
+    @JsonProperty("page")
+    private int page;
+
+    /** 分页大小；&lt;1 时按 20 处理 */
+    @JsonProperty("page_size")
+    private int pageSize;
+
+    /** "updated_at" | "created_at" | "title" | "page_type" | "wiki_path" | "sort_order" | "depth" */
+    @JsonProperty("sort_by")
+    private String sortBy = "";
+
+    /** "asc" 或 "desc"；非 "asc" 一律按 DESC（对照 Go applyWikiPageListOrder） */
+    @JsonProperty("sort_order")
+    private String sortOrder = "";
+
+    public String getKnowledgeBaseId() { return knowledgeBaseId; }
+    public void setKnowledgeBaseId(String v) { this.knowledgeBaseId = v == null ? "" : v; }
+
+    public String getPageType() { return pageType; }
+    public void setPageType(String v) { this.pageType = v == null ? "" : v; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String v) { this.status = v == null ? "" : v; }
+
+    public String getQuery() { return query; }
+    public void setQuery(String v) { this.query = v == null ? "" : v; }
+
+    public String getFolderId() { return folderId; }
+    public void setFolderId(String v) { this.folderId = v; }
+
+    public List<String> getCategoryPath() { return categoryPath; }
+    public void setCategoryPath(List<String> v) { this.categoryPath = v == null ? new ArrayList<>() : v; }
+
+    public Integer getCategoryDepth() { return categoryDepth; }
+    public void setCategoryDepth(Integer v) { this.categoryDepth = v; }
+
+    public int getPage() { return page; }
+    public void setPage(int v) { this.page = v; }
+
+    public int getPageSize() { return pageSize; }
+    public void setPageSize(int v) { this.pageSize = v; }
+
+    public String getSortBy() { return sortBy; }
+    public void setSortBy(String v) { this.sortBy = v == null ? "" : v; }
+
+    public String getSortOrder() { return sortOrder; }
+    public void setSortOrder(String v) { this.sortOrder = v == null ? "" : v; }
+}

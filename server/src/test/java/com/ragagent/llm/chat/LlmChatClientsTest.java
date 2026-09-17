@@ -5,15 +5,37 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatConfig;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
  * 聊天实例工厂的分发契约（对照 Go chat.NewChat / NewRemoteChat
  * 与测试 TestNewRemoteChat_AnthropicProvider）。
+ *
+ * 构造期会做 SSRF 校验（对照 Go），而本机 DNS 可能把公网域名解析到受限段
+ * （实测 api.openai.com → Teredo 地址），故先把测试用域名加入白名单，
+ * 让断言聚焦在**类型分发**而非网络环境。
  */
 class LlmChatClientsTest {
+
+    private static SsrfGuard previous;
+
+    @BeforeAll
+    static void allowTestHosts() {
+        previous = new SsrfGuard();
+        SsrfGuard guard = new SsrfGuard();
+        guard.reloadWhitelist("api.openai.com,api.deepseek.com,api.anthropic.com");
+        LlmTransport.setSsrfGuard(guard);
+    }
+
+    @AfterAll
+    static void restoreGuard() {
+        LlmTransport.setSsrfGuard(previous);
+    }
 
     private static ChatConfig remote(String baseUrl, String provider) {
         ChatConfig c = new ChatConfig();
