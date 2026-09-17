@@ -1,0 +1,44 @@
+# WeKnora dev 环境（对齐 Go 仓 docker-compose.dev.yml 的端口习惯）
+# postgres 15432 / redis 16379 / docreader 50051——与 ~/WeKnora 的 dev 容器同端口，
+# 同时只能起一套；Java 版 bootRun 默认连 localhost 这些端口。
+
+services:
+  postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    container_name: RagAgent-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123!@#
+      POSTGRES_DB: WeKnora
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: RagAgent-redis-dev
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  docreader:
+    image: wechatopenai/weknora-docreader:latest
+    container_name: RagAgent-docreader-dev
+    ports:
+      - "50051:50051"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
