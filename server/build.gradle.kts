@@ -53,7 +53,7 @@ dependencies {
     testRuntimeOnly("com.h2database:h2")   // 契约/单元测试内存库，不依赖外部 postgres
 }
 
-// proto 源目录指向仓库根 proto/（单一来源，不复制）
+// proto 源目录指向仓库根 docreader/（单一来源，不复制；目录名镜像 Go 仓 docreader/proto/）
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:3.25.5"
@@ -70,7 +70,7 @@ protobuf {
     }
 }
 sourceSets["main"].proto {
-    srcDir("../proto")
+    srcDir("../docreader")
 }
 
 // Flyway 要求 V<version>__<desc>.sql 命名；Go 迁移是 000097_xxx.up.sql。

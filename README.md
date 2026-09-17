@@ -7,8 +7,8 @@ WeKnora 的 Java 重构版（Spring Boot 3 + JDK 21）。由 Go 版（[Tencent/W
 ```
 ├── server/        Spring Boot 后端（com.ragagent.*，按领域分包）
 ├── frontend/      Vue 3 前端（从 Go 仓原样复制，与后端只认 HTTP/SSE 契约）
-├── migrations/    98 个 SQL 迁移（schema 与 Go 版一字不改）
-├── proto/         docreader gRPC proto
+├── migrations/    98 个 SQL 迁移（= Go 仓 migrations/versioned/，schema 一字不改）
+├── docreader/     docreader gRPC proto（目录名镜像 Go 仓 docreader/proto/）
 ├── docker-compose.yml  dev 环境（postgres/redis/docreader）
 └── docs/          翻译约定文档（AI 翻译会话必读）
 ```
