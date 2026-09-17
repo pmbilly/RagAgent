@@ -1,0 +1,30 @@
+# Java / Gradle
+.gradle/
+build/
+server/build/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Node / 前端
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.tsbuildinfo
+frontend/package.json.md5
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.claude/
+
+# OS
+.DS_Store
+
+# 本地环境
+.env
+*.local
+
+# 测试产物
+server/src/test/resources/contracts/tmp/

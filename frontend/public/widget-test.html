@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Widget 测试页 — GAC AI 客服</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      background: #f5f6f7;
+      color: #222;
+    }
+    header {
+      padding: 16px 24px;
+      background: #fff;
+      border-bottom: 1px solid #e5e6eb;
+    }
+    header h1 { margin: 0; font-size: 18px; }
+    main { padding: 24px; max-width: 720px; }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e6eb;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 15px; }
+    .card p, .card li { font-size: 13px; line-height: 1.7; color: #555; }
+    code {
+      background: #f2f3f5;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header><h1>Embed Widget 测试页</h1></header>
+  <main>
+    <div class="card">
+      <h2>验收清单</h2>
+      <ul>
+        <li>右下角应出现 <strong>黑色</strong> 圆形启动按钮（primary color #000000）</li>
+        <li>点击展开聊天窗，默认尺寸 <code>420 × 720</code></li>
+        <li>标题为「GAC AI 客服」</li>
+        <li>发消息测试用户消息气泡样式（深底白字 14px）</li>
+        <li>渠道「显示思考过程」<strong>关闭</strong>时：思考中只见三点闪烁</li>
+        <li>渠道「显示思考过程」<strong>打开</strong>时：「思考中」折叠卡片，展开为 markdown</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>说明</h2>
+      <p>本页与 widget 脚本同源（均来自 vite dev server），页面 origin 为
+      <code>http://localhost:5173</code>，需已加入渠道的 Allowed Origins，
+      否则会报 <code>origin not allowed</code>。</p>
+    </div>
+  </main>
+
+  <script src="http://localhost:5173/weknora-widget.js"
+          data-channel="1a603fc5-b456-4417-9973-3c4ded4469d0"
+          data-token="em_AZX3FXqyBSHBov580hL7HD2KsKIh7drKRTbyh5Cc8B4"
+          data-position="bottom-right"
+          data-primary-color="#000000"
+          data-title="GAC AI 客服"></script>
+</body>
+</html>
