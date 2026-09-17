@@ -92,6 +92,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 骨架 | internal/router/、internal/errors/、internal/middleware/{error_handler,auth}.go | com.ragagent.common.{error,context,filter,web} + config.WebConfig | ✅ | 错误格式两种形态已确认（见 §9）；401 三态已锁定；Flyway 对 Go 数据 baseline 验证通过 |
 | auth/租户（阶段 1） | internal/middleware/auth.go、auth_context.go、access.go；internal/application/service/user.go（Login/ValidateToken/generateTokensForTenant/resolveLoginTenantID 链）；internal/handler/auth.go(Login)、dto/{auth,tenant}.go；types/{user,tenant,tenant_member,principal}.go | com.ragagent.auth.{domain,mapper,dto,service,filter,controller} + config.{TenantProperties,JacksonConfig} | ✅ | 10 条新 golden 全过（H2 种子+掩码比对）；e2e 连 dev DB 验证通过。关键坑见 §9 |
 | 模型配置（阶段 2） | internal/handler/model*.go、weknoracloud.go；internal/application/service/{model,weknoracloud}.go；internal/types/model.go、builtin_models_config.go；internal/models/provider/*；internal/utils/{security.go(SSRF),crypto.go}；internal/middleware/rbac.go（RequireRole 子集）；internal/application/repository/{model,model_usage}.go | com.ragagent.model.{domain,mapper,dto,service,controller} + com.ragagent.common.{crypto,security,web.RbacInterceptor/PgJsonTypeHandler} | ✅ | 9 条新 golden 全过；providers 响应与 Go 实录字节一致；AES-GCM 落库密文/回读解密 e2e 验证。关键坑见 §9 |
+| 知识库（阶段 3） | internal/handler/{knowledgebase,knowledge}.go；internal/application/service/{knowledgebase,knowledge,knowledge_create,knowledge_process}.go；internal/application/repository/{knowledgebase,knowledge}.go；internal/types/{knowledgebase,knowledge,knowledge_folder}.go；internal/infrastructure/docparser/(gRPC 客户端)；internal/chunker/*；internal/utils/{storage,security}(SSRF) | com.ragagent.knowledge.{domain,mapper,dto,service,controller,chunker}（KnowledgeProcessWorker=进程内虚拟线程队列，对照 asynq；DocReaderClient gRPC；EmbedderClient；VectorStoreService） | ✅ | 20 条 golden 全过（KB CRUD+文档 CRUD，含 409 duplicate 特殊信封）；e2e 连 dev PG：上传→docreader 解析→chunk 落库→无 embedding 模型按契约 failed。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -134,5 +135,32 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   dev 库 flyway_schema_history 留有脏数据（baseline@1 + V2-V7 记录），需一次性清理后正常启动：
   `UPDATE flyway_schema_history SET version='97' WHERE installed_rank=1; DELETE FROM flyway_schema_history WHERE installed_rank > 1;`
   （清理前 Java 连 dev 库启动需 `--spring.flyway.enabled=false`；全新库从 V0 全量执行不受影响）
+- **阶段 3 新确认的契约细节**：
+  - KB 响应**双序列化**：单条/列表走 buildKBResponse（TreeMap 全字母序，含嵌套）；move-targets 走原始
+    struct 声明序（含嵌套——capabilities 按 vector,keyword,wiki,graph,faq；chunking/vlm/asr/storage_config
+    按 Go 字段声明序）→ buildListItem/build vs buildRaw 两套，勿混
+  - 列表接口才回填 creator_name（Go enrichKBCreatorNames 仅 list）；get/update/pin 响应**不含**该键
+  - KB 列表/移动目标排序：created_at DESC（repository L88 Order 子句）
+  - manual create 的 metadata 键序：响应是**内存对象**（Go struct 声明序 content,format,status,version,updated_at）；
+    经 PG jsonb 落库后键序被规范化为**（长度,字节序）排序**（doc-update golden 的 format,status,content 即 jsonb 序）——
+    Java 在 PgJsonTypeHandler.parse 对 JsonNode 目标做同等规范化（H2 的 VARCHAR 不会自动做）
+  - Go 非指针零值在 DB 层同样是 "":name/type/embedding_model_id/summary_model_id/file_path/file_hash/folder_path
+    缺省都是 ""（GORM 写零值非 NULL）→ Java 实体字段默认值 ""，包装类型计数器用原始类型（PG 列 NOT NULL）
+  - knowledge.source ≠ type：file 上传 source=""（零值），url 记 url，manual 记 manual
+  - 404 消息大小写：KB 不存在是 "knowledge base not found"（全小写 k，kb_access.go），勿写成 "Knowledge base..."
+  - 文档 update 联动：description 显式提交时 summary_status = 非空?"completed":"none"（即使只改 title 带 description 字段也触发）
+  - folders 树只排除 parse_status='deleting'（draft 计入）；manual draft 的 "不计数" 是录制顺序假象，勿照搬
+  - rerank_model_id **不在** knowledge_bases 表（迁移 000001 已删，移到 session 级配置）——实体勿加该列
+  - chunking_config：chunk_size/chunk_overlap/separators 恒输出（separators 用 @JsonInclude(ALWAYS) 覆盖类级
+    NON_NULL，null→JSON null）；其余字段 NON_DEFAULT（0/空/false 省略，对照 Go omitempty）
+  - 领域对象上的便捷方法（isZero/isMultimodalEnabled/isAborted）必须 @JsonIgnore——否则会写进 jsonb，
+    回读触发 UnrecognizedPropertyException（MyBatisSystemException: null，根因埋在 Caused by 链深处）
+- **阶段 3 已知差异（后续阶段补）**：
+  1. asynq → 进程内虚拟线程队列（KnowledgeProcessWorker）：单实例语义一致，多实例无 Redis 队列协调
+  2. 富化扇出/多模态（VLM 图片描述）/图谱/问题生成未实现：expectedSubtasks==0 快路径，状态机 pending→processing→completed/failed
+  3. 共享 KB 跨租户访问（kb_shares）、span 追踪、vector_store_id 绑定校验未实现
+  4. resource:// key 内部编码与 Go 不同（opaque，不外泄）；本地存储落盘 {LOCAL_STORAGE_BASE_DIR}/{tenantId}/{knowledgeId}/{fileName}
+  5. 未实现路由（阶段 4+）：clear-contents/copy/duplicate/preview/download/cancel/reparse/move/batch/tags/FAQ 导入/wiki_config 相关
+  6. 删除文档为同步软删（Go 异步任务语义，响应契约一致：data.task_id + "Delete task submitted"）
 - DB：schema 与 98 个迁移一字不改；端口：后端 8080（前端 dev 代理默认值）；dev 库 localhost:15432
 - 测试：契约/单测用 H2 内存库（server/src/test/resources/application.yml），不依赖外部 postgres；golden 文件在 server/src/test/resources/contracts/；动态字段（token/refresh_token/时间戳）两侧同掩码后比对

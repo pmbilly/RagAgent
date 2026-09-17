@@ -26,7 +26,7 @@ dependencies {
 
     // 数据库
     implementation("com.baomidou:mybatis-plus-spring-boot3-starter:3.5.7")
-    runtimeOnly("org.postgresql:postgresql")
+    implementation("org.postgresql:postgresql")   // PGobject 等编译期可见（VectorStoreService）
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
 

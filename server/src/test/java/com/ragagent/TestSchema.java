@@ -57,15 +57,73 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // usage 查询依赖（knowledge_bases/custom_agents 仅阶段 2 引用计算所需列）
+        // knowledge_bases：阶段 2 usage 查询 + 阶段 3 CRUD 共用的**全列**定义
+        //（H2 共享 JVM，CREATE IF NOT EXISTS 以先建者为准——禁止在别处再建此表）
         jdbc.execute("CREATE TABLE IF NOT EXISTS knowledge_bases (" +
                 "id VARCHAR(36) PRIMARY KEY, name VARCHAR NOT NULL, tenant_id BIGINT NOT NULL," +
                 "embedding_model_id VARCHAR(64), summary_model_id VARCHAR(64)," +
                 "image_processing_config VARCHAR, vlm_config VARCHAR, asr_config VARCHAR, wiki_config VARCHAR," +
+                "type VARCHAR(32) NOT NULL DEFAULT 'document'," +
+                "is_temporary BOOLEAN NOT NULL DEFAULT FALSE, description TEXT, creator_id VARCHAR(36)," +
+                "chunking_config VARCHAR NOT NULL DEFAULT '{}'," +
+                "storage_provider_config VARCHAR, storage_backend_id VARCHAR(36)," +
+                "cos_config VARCHAR NOT NULL DEFAULT '{}', vector_store_id VARCHAR(36)," +
+                "extract_config VARCHAR, faq_config VARCHAR," +
+                "question_generation_config VARCHAR, auto_tag_config VARCHAR," +
+                "indexing_strategy VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS custom_agents (" +
                 "id VARCHAR(36) PRIMARY KEY, name VARCHAR NOT NULL, tenant_id BIGINT NOT NULL," +
                 "config VARCHAR, deleted_at TIMESTAMP WITH TIME ZONE)");
+        // ── 阶段 3：知识库 ──
+        jdbc.execute("CREATE TABLE IF NOT EXISTS storage_backends (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL, name VARCHAR NOT NULL," +
+                "provider VARCHAR(32) NOT NULL, config VARCHAR NOT NULL DEFAULT '{}'," +
+                "source VARCHAR(16) NOT NULL DEFAULT 'user', status VARCHAR(16) NOT NULL DEFAULT 'active'," +
+                "legacy_alias BOOLEAN NOT NULL DEFAULT FALSE," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS knowledges (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL, knowledge_base_id VARCHAR NOT NULL," +
+                "type VARCHAR(50) NOT NULL, title VARCHAR NOT NULL, description TEXT, source VARCHAR NOT NULL," +
+                "channel VARCHAR(50) NOT NULL DEFAULT 'web', parse_status VARCHAR(50) NOT NULL DEFAULT 'pending'," +
+                "pending_subtasks_count INTEGER NOT NULL DEFAULT 0, summary_status VARCHAR(32) NOT NULL DEFAULT 'none'," +
+                "enable_status VARCHAR(50) NOT NULL DEFAULT 'enabled'," +
+                "embedding_model_id VARCHAR(64), file_name VARCHAR, folder_path VARCHAR NOT NULL DEFAULT ''," +
+                "file_type VARCHAR, file_size BIGINT, file_hash VARCHAR, file_path TEXT," +
+                "storage_size BIGINT NOT NULL DEFAULT 0, metadata VARCHAR, custom_metadata VARCHAR," +
+                "last_faq_import_result VARCHAR," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "processed_at TIMESTAMP WITH TIME ZONE, error_message TEXT," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS chunks (" +
+                "id VARCHAR(36) PRIMARY KEY, seq_id BIGINT, tenant_id BIGINT NOT NULL," +
+                "knowledge_id VARCHAR NOT NULL, knowledge_base_id VARCHAR NOT NULL, tag_id VARCHAR," +
+                "content TEXT NOT NULL, source_content TEXT, content_revision INTEGER NOT NULL DEFAULT 0," +
+                "index_status VARCHAR(16) NOT NULL DEFAULT 'ready', last_editor_id VARCHAR(64)," +
+                "chunk_index INTEGER NOT NULL, is_enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "flags INTEGER NOT NULL DEFAULT 1, status INTEGER NOT NULL DEFAULT 0," +
+                "start_at INTEGER NOT NULL, end_at INTEGER NOT NULL," +
+                "pre_chunk_id VARCHAR, next_chunk_id VARCHAR, chunk_type VARCHAR(20) NOT NULL DEFAULT 'text'," +
+                "parent_chunk_id VARCHAR, relation_chunks VARCHAR, indirect_relation_chunks VARCHAR," +
+                "metadata VARCHAR, content_hash VARCHAR, image_info TEXT, context_header TEXT," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS user_kb_pins (" +
+                "user_id VARCHAR(36) NOT NULL, knowledge_base_id VARCHAR(36) NOT NULL," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS embeddings (" +
+                "id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "source_id VARCHAR(64) NOT NULL, source_type INTEGER NOT NULL," +
+                "chunk_id VARCHAR(64), knowledge_id VARCHAR(64), knowledge_base_id VARCHAR(64)," +
+                "content TEXT, dimension INTEGER NOT NULL, embedding VARCHAR," +
+                "CONSTRAINT embeddings_unique_source UNIQUE (source_id, source_type))");
     }
 
     /** 清空全部数据（外键无依赖，任意顺序） */
@@ -76,6 +134,11 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM tenants");
         jdbc.execute("DELETE FROM models");
         jdbc.execute("DELETE FROM knowledge_bases");
+        jdbc.execute("DELETE FROM knowledges");
+        jdbc.execute("DELETE FROM chunks");
+        jdbc.execute("DELETE FROM user_kb_pins");
+        jdbc.execute("DELETE FROM storage_backends");
+        jdbc.execute("DELETE FROM embeddings");
         jdbc.execute("DELETE FROM custom_agents");
     }
 }

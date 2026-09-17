@@ -102,6 +102,24 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/models/*", TenantRole.VIEWER, false);
         // weknoracloud（对照 RegisterWeKnoraCloudRoutes）
         rbac.addRule("POST", "/api/v1/weknoracloud/credentials", TenantRole.ADMIN, false);
-        registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**", "/api/v1/weknoracloud/credentials");
+        // 知识库（对照 RegisterKnowledgeBaseRoutes/RegisterKnowledgeRoutes 阶段 3 子集）
+        rbac.addRule("POST", "/api/v1/knowledge-bases", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/pin", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/move-targets", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("DELETE", "/api/v1/knowledge-bases/*", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*", TenantRole.VIEWER, false);
+        // 文档（OwnedKBOrAdmin 的所有权判定在 controller/service 层，拦截器只做角色下限）
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/file", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/url", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/manual", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/knowledge/folders", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/knowledge", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("DELETE", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/knowledge/*", TenantRole.VIEWER, false);
+        registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**",
+                "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**");
     }
 }

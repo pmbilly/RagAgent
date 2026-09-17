@@ -12,7 +12,10 @@ spring:
       host: localhost
       port: 16379
 
-# 骨架阶段无 MyBatis mapper；后续 mapper 测试再加 @MybatisPlusTest 专属配置
+weknora:
+  storage:
+    local-base-dir: ./build/test-files   # 测试期本地文件落点（KB 文档上传）
+
 logging:
   level:
     com.ragagent: WARN
