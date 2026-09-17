@@ -162,5 +162,19 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   4. resource:// key 内部编码与 Go 不同（opaque，不外泄）；本地存储落盘 {LOCAL_STORAGE_BASE_DIR}/{tenantId}/{knowledgeId}/{fileName}
   5. 未实现路由（阶段 4+）：clear-contents/copy/duplicate/preview/download/cancel/reparse/move/batch/tags/FAQ 导入/wiki_config 相关
   6. 删除文档为同步软删（Go 异步任务语义，响应契约一致：data.task_id + "Delete task submitted"）
+- **工具链与调试坑（跨阶段复用，阶段 3 实测）**：
+  1. JUnit XML 的 failure `message` 属性会截断长 diff（~4KB），且 `content().bytes` 失败时 expected/actual
+     以十进制字节数组呈现——直接按 byte 解码或找首个差异位，别信肉眼截断的片段
+  2. `<testcase>` 与 `<failure>` 的归属正则会跨用例误配（贪婪匹配）——定位失败一律以堆栈里的
+     `KnowledgeContractTest.java:行号` 为准
+  3. MyBatis 层异常报 `MyBatisSystemException: null`（NPE 被吞 message）——根因必在日志
+     `Caused by:` 链深处（如 jsonb 回读 UnrecognizedPropertyException），别在业务代码里瞎找
+  4. `./gradlew test --tests X` 通过后跑 `./gradlew test` 可能全 up-to-date——先看
+     `build/test-results/test/*.xml` 的 tests/failures 计数和时间戳再下结论
+  5. 契约断言顺序：先 status 再 body——body 断言失败时若 status 也错，优先修 status（500 时 body 无意义）
+  6. H2 与 PG 行为差：NOT NULL 约束、jsonb 键序、DDL 默认值都会在 H2 绿、PG 炸——e2e 必须连真 PG 过一遍
+     （阶段 3 的 source/folder_path/channel 零值、rerank 列都是 H2 测不出来的）
+  7. golden 录制顺序会影响响应内容（如 folders 计数、列表顺序）——测试必须**严格复刻录制序**，
+     反推语义前先怀疑顺序
 - DB：schema 与 98 个迁移一字不改；端口：后端 8080（前端 dev 代理默认值）；dev 库 localhost:15432
 - 测试：契约/单测用 H2 内存库（server/src/test/resources/application.yml），不依赖外部 postgres；golden 文件在 server/src/test/resources/contracts/；动态字段（token/refresh_token/时间戳）两侧同掩码后比对
