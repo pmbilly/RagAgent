@@ -89,10 +89,16 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 
 | 模块 | Go 源 | Java 目标 | 状态 | 备注（踩坑/GORM 清单/SSE emit 表位置） |
 |---|---|---|---|---|
-| （示例）骨架 | internal/router/ | com.ragagent.common | ⬜ | |
+| 骨架 | internal/router/、internal/errors/、internal/middleware/{error_handler,auth}.go | com.ragagent.common.{error,context,filter,web} + config.WebConfig | ✅ | 错误格式两种形态已确认（见 §9）；401 三态已锁定；Flyway 对 Go 数据 baseline 验证通过 |
 
 ## 9. 当前确认过的细节
 
-- Go 全局错误形态：待阶段 0 翻译 router/middleware 时确认后更新 §4
-- DB：schema 与 98 个迁移一字不改；Flyway baseline-on-migrate 兼容已有 Go 数据的库
+- **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
+  1. AppError 走全局 ErrorHandler：`{"success":false,"error":{"code":N,"message":"...","details":...}}`（details 恒输出，null 时为 `"details":null`）
+  2. auth 中间件直接写：`{"error":"Unauthorized: missing authentication"}`（纯字符串，401）
+- **401 三态**（auth.go）：无凭据→`missing authentication`；Bearer 携带但校验失败→`invalid or expired token`；X-API-Key 但服务未配置→`API key service is not configured`
+- **Go 的 Auth 挂在 engine 全局**：未匹配路径也返回 401（不是 404），Java AuthFilter 覆盖 /* 与此对齐
+- **TENANT_REQUIRED**：有效 JWT 但无可用空间时 409 `{"error":"Workspace required","code":"TENANT_REQUIRED"}`（仅 tenant-optional 路由放行）
+- DB：schema 与 98 个迁移一字不改；Flyway baseline-on-migrate 已实测通过（Go 数据的 dev 库）
 - 端口：后端 8080（前端 dev 代理默认值）；dev 库 localhost:15432
+- 测试：契约/单测用 H2 内存库（server/src/test/resources/application.yml），不依赖外部 postgres；golden 文件在 server/src/test/resources/contracts/
