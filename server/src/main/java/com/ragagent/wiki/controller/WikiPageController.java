@@ -109,7 +109,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>Go 的 {@code GetGraph} 会用 {@code memoryService.FamiliarKnowledgeIDs(ctx)} 点亮
  *       "熟悉"节点；Java 无 memory 模块 → 该字段恒为 null（等价 Go 的 nil 分支）。</li>
  *   <li>Go 的审计埋点 {@code RecordWikiContentActivity} 由
- *       {@link WikiActivityAudit} 接缝承接，未装配实现 bean 时退化为 debug 日志。</li>
+ *       {@link WikiActivityAudit} 接缝承接；实现 bean
+ *       （{@code com.ragagent.audit.service.WikiActivityAuditRecorder}）已随审计模块
+ *       翻译落地，缺失时才退化为 debug 日志。</li>
  *   <li>Go 的 nil slice 序列化成 {@code null}，Java 侧沿用既有 DTO/服务层的"空列表"归一
  *       （ListIssues / SearchPages / ListPages 的空结果）。</li>
  *   <li>{@code ShouldBindJSON} 的 JSON 语法错误文案：Go 用 encoding/json 的消息，

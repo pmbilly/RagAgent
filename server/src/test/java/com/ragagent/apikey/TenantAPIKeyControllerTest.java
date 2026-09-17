@@ -301,13 +301,17 @@ class TenantAPIKeyControllerTest {
 
     @Test
     void createWithInvalidWorkspaceIdIs400() throws Exception {
+        // 文案与 code 来自 **PathTenantMatch 中间件**，不是 handler：
+        // Go 的 tenantByID 组挂着 g.PathTenantMatch()，它在 handler 之前就拒掉了非法 id，
+        // 所以 handler 里的 "Invalid workspace ID"（code 1000）是**不可达的死代码**。
         mockMvc.perform(post("/api/v1/tenants/not-a-number/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"x\",\"full_access\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1000,\"message\":\"Invalid workspace ID\"}}"));
+                        "{\"success\":false,\"error\":{\"code\":1010,"
+                                + "\"message\":\"workspace id must be a positive integer\"}}"));
     }
 
     @Test
@@ -475,16 +479,18 @@ class TenantAPIKeyControllerTest {
     @Test
     void keysAreTenantScoped() throws Exception {
         String keyId = createKey("mine", "retrieve");
-        // 用另一个租户的 id 操作同一把 Key → UPDATE 的租户边界让 RowsAffected = 0
+        // 用另一个租户的 id 操作同一把 Key → **PathTenantMatch 中间件先拒**（403），
+        // 走不到 service 层的租户边界（RowsAffected=0 → 404）。这与 Go 的路由分层一致：
+        // tenantByID 组挂着 g.PathTenantMatch()，它比 handler/service 都靠前。
         mockMvc.perform(put("/api/v1/tenants/" + OTHER_TENANT_ID + "/api-keys/" + keyId)
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"stolen\",\"full_access\":true}"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(delete("/api/v1/tenants/" + OTHER_TENANT_ID + "/api-keys/" + keyId)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden());
 
         // 原租户的 Key 仍然在
         MvcResult list = mockMvc.perform(get("/api/v1/tenants/" + TENANT_ID + "/api-keys")

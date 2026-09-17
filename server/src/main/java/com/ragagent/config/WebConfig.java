@@ -198,6 +198,12 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/issues", TenantRole.VIEWER, false);
         rbac.addRule("PUT", "/api/v1/knowledgebase/*/wiki/issues/*/status", TenantRole.VIEWER, false);
 
+        // 审计日志（对照 routes_auth_tenant.go:145 / knowledgebase 活动流 / routes 的 system 段）
+        rbac.addRule("GET", "/api/v1/tenants/*/audit-log", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/activity", TenantRole.VIEWER, false);
+        // 平台级审计：**仅系统管理员**（租户角色再高也不放行）
+        rbac.addSystemAdminRule("GET", "/api/v1/system/admin/audit-log");
+
         // 租户 API Key 管理（对照 routes_auth_tenant.go）：Owner+。
         // 刻意**不**登记进 API-Key 策略表——Key 不能给自己扩权（Go 测试钉住的契约）。
         rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
@@ -208,6 +214,6 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
                 "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**",
-                "/api/v1/tenants/**");
+                "/api/v1/tenants/**", "/api/v1/system/**");
     }
 }

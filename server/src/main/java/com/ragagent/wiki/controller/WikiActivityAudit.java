@@ -17,12 +17,16 @@ import java.util.Map;
  * Target={@code wiki}/{@code kbID}、Outcome={@code success}、
  * Details={@code {"count":N,"actions":{...}}}（只在 count &gt; 0 时写）。</p>
  *
- * <p><b>为什么是接缝而不是直接调用</b>：Java 侧审计模块（{@code com.ragagent.audit.*}）
- * 尚未翻译，本阶段没有 {@code AuditLogService} 可注入。为了让 handler 的埋点位置与 Go
- * <b>一一对应</b>、且不把 wiki 模块耦合到未来的审计实现上，这里定义端口，由后续阶段
- * （或主会话）提供实现 bean。没有实现 bean 时 {@code ObjectProvider.getIfAvailable()}
- * 返回 null，行为退化为一条 debug 日志——等价于 Go 侧 {@code auditService} 为 nil 的情形
- * （{@code recordKBActivity} 内部 {@code audit.Log} 是尽力而为、绝不影响编辑本身）。</p>
+ * <p><b>为什么是接缝而不是直接调用</b>：定义端口是为了让 handler 的埋点位置与 Go
+ * <b>一一对应</b>、且不把 wiki 模块反向耦合到审计实现上。没有实现 bean 时
+ * {@code ObjectProvider.getIfAvailable()} 返回 null，行为退化为一条 debug 日志——
+ * 等价于 Go 侧 {@code auditService} 为 nil 的情形（{@code recordKBActivity} 内部
+ * {@code audit.Log} 是尽力而为、绝不影响编辑本身）。</p>
+ *
+ * <p><b>实现已就位</b>：{@code com.ragagent.audit.service.WikiActivityAuditRecorder}
+ * （随审计模块翻译一起交付）实现了本接口，@Component 自动装配，因此
+ * WikiPageController 的 6 处人工埋点与 WikiIngestBatchHandler 的批量摘要
+ * 现在都<b>真正落库</b>为 {@code wiki.content_changed} 审计行。</p>
  */
 public interface WikiActivityAudit {
 

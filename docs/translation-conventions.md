@@ -154,6 +154,29 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   3. `APIKeyRoutePolicies` 目前只覆盖**已翻译**路由；未翻译模块（agents/sessions/chunks/eval/
      sandbox/系统管理/tenants/**）的策略待各自模块落地时补登记。
 
+- **audit 回补 + 守卫补齐的关键点**：
+  - **`RbacInterceptor` 新增 `sysAdminOnly` 语义**：`orSystemAdmin`（放行条件："角色达标**或**系统管理员"）
+    与"**仅限**系统管理员"是两回事，用前者表达后者会把租户 Owner 也放进来。
+    `/api/v1/system/**` 这类平台端点必须用 `addSystemAdminRule`。
+  - **`PathTenantMatch` 已实现**（自动对所有 `/api/v1/tenants/{id}/**` 生效）：URL 里的租户必须
+    等于活动租户。没有它时，租户 A 的 Owner 换个 URL 里的 id 就能读租户 B 的审计/密钥列表。
+    错误形态逐条对照 Go：空 → 400、非正整数 → 400、上下文无租户 → 401（fail closed）、不匹配 → 403。
+  - **中间件分层会改变错误文案**（本轮修正了两条测试）：Go 的 `tenantByID` 组挂着
+    `PathTenantMatch`，它在 handler **之前**拒绝，所以 handler 里的 `"Invalid workspace ID"`(code 1000)
+    是**不可达死代码**——线上真实返回是中间件的 `"workspace id must be a positive integer"`(code 1010)。
+    同理，跨租户操作 API Key 返回 **403**（中间件）而非 404（service 层的租户边界）。
+    **写契约测试时先确认拒绝发生在哪一层**，别照 handler 源码的文案写期望。
+  - **审计埋点已接线**：`WikiActivityAudit` 的 6 处（manual_create/edit/delete/revert/auto-fix）
+    与 `RbacInterceptor` 的拒绝审计都真正落库了。前者此前因缺 bean 退化成 debug 日志，
+    后者是 §9 阶段 1 记录的差异 #8。
+- **审计模块的已知差异**：
+  1. `request_path` 记法是 Spring 的 `{id}`（Go 是 gin 的 `:id`）——同一条路由，字符串差一个符号。
+     取模板用 `HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE`，拿不到时回落 RBAC 规则的 Ant 模式，
+     **绝不**回落原始 URI（否则遍历 UUID 会审计去重窗口失效）。
+  2. KB 活动的第三个判定用守卫形态（Go handler 内那条同义 AppError 检查不可达，未复刻）。
+  3. Wiki 埋点的 details 缺 3 个键（`task_id`/`trigger`/`processing_status`），任务上下文未移植。
+  4. `AuditLog.id` 在未落库的内存对象上序列化为 `null`（Go 是 `0`）——读路径恒有值。
+
 ## 7.5 派发翻译 agent 的标准约束（每次必带）
 
 每个翻译 agent 的任务书里**必须**包含以下段落。它们对应的是已经踩过的坑，
@@ -216,6 +239,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | MCP 服务管理（阶段 4.1） | internal/mcp/*（自研协议客户端：client/manager/oauth_*+SSRF）；internal/types/mcp*.go；internal/application/{repository,service}/mcp*.go；internal/handler/mcp_*.go + dto/mcp.go；internal/agent/approval/*（提前翻译以解耦） | com.ragagent.mcp.{domain,protocol,oauth,mapper,service,dto,controller} + com.ragagent.agent.approval | ✅ | 22 端点全落地；17 条 golden（CRUD/审批/凭据/SSRF 拒绝/403/404）掩码比对通过。e2e 在真 PG 验证：密钥加密落库（enc:v1:）+ **跨语言双向互操作**（同 key 下 Go 写 Java 读、Java 写 Go 读均成功）。关键坑见 §9 |
 | Wiki（阶段 4.2） | internal/handler/wiki_page.go；internal/application/service/{wiki_page,wiki_lint,wiki_slug_handles,wiki_linkify,wiki_ingest*}.go；internal/application/repository/wiki_page.go；internal/types/{wiki_page,interfaces/wiki_page}.go；internal/agent/prompts_wiki.go | com.ragagent.wiki.{domain,mapper,service,prompt,controller} | ✅ | 21 端点全落地；13 条 golden（CRUD/文件夹/聚合读/权限，掩码比对）+ **真 PG 上 5 个读端点 A/B 全部 MATCH**，且 Java 写的行 Go 读回一致。关键坑见 §9 |
 | API Key 体系（横切回补） | internal/types/tenant_api_key.go；internal/middleware/api_key_gate.go；internal/application/{repository,service}/tenant_api_key.go；internal/handler/tenant.go 的 API Key 段 | com.ragagent.apikey.{domain,mapper,service,filter,controller} | ✅ | 25 条能力 + scope + 路由策略表；门禁拦截器接入 WebConfig（order -1，先于角色维度）；AuthFilter 通道 3 换真实鉴权；**数据面 KB 白名单已收口**（requireKb / getKnowledge）。120 新测试 |
+| audit 审计（横切回补） | internal/types/audit_log.go；internal/application/{service,repository}/audit_log*.go；internal/handler/audit_log.go | com.ragagent.audit.{domain,mapper,service,controller} | ✅ | 62 个 AuditAction；3 端点；**接上了既有埋点**：WikiActivityAudit 的 6 处 + RbacInterceptor 的拒绝审计（§9 阶段 1 差异 #8 的正式收口）。golden A/B 实测（空页 `[]` 非 null、1010 文案、request_path 存路由模板） |
 
 ## 9. 当前确认过的细节
 

@@ -9,6 +9,10 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.apikey.domain.TenantAPIKey;
+import com.ragagent.audit.controller.AuditLogListResponse;
+import com.ragagent.audit.domain.AuditAction;
+import com.ragagent.audit.domain.AuditLog;
+import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.apikey.domain.TenantAPIKeyCreateResponse;
 import com.ragagent.apikey.domain.TenantAPIKeyResponse;
 import com.ragagent.knowledge.domain.KbAsrConfig;
@@ -353,6 +357,64 @@ class JsonContractRoundTripTest {
         assertRoundTrips(TenantAPIKeyCreateResponse.of(response, "sk-once"),
                 TenantAPIKeyCreateResponse.class,
                 "handler.tenantAPIKeyCreateResponse ← TenantAPIKeyCreateResponse");
+    }
+
+    // ── 审计日志（audit_logs.details 落 jsonb + 三个端点的响应体元素） ──────
+
+    /**
+     * 审计契约实体。三类风险各钉一条：
+     * <ol>
+     *   <li>{@code AuditLog} 的 15 个键<b>无 omitempty</b>——键名必须逐字对齐 Go tag
+     *       （{@code actor_user_id} / {@code target_user_id} / {@code request_method} …
+     *       最易漏的是 {@code scope_type}/{@code scope_id}，它们是迁移 000073 才加的）；</li>
+     *   <li>它<b>同时是</b> jsonb 列的宿主：{@code details} 走 PgJsonTypeHandler，
+     *       本测试的裸 ObjectMapper 不注册 JSR-310，所以时间字段留空
+     *       （时间格式另由 JacksonConfig + 控制器测试覆盖）；</li>
+     *   <li>响应信封 {@code auditLogListResponse} 的 {@code next_cursor} 是蛇形。</li>
+     * </ol>
+     * <p>本类刻意<b>没有</b> isXxx() 派生访问器——若将来有人加（例如
+     * {@code isDenied()}），往返断言会在反序列化阶段直接炸，把那个坑挡在提交前。</p>
+     */
+    @Test
+    void auditLogContractsRoundTrip() {
+        ObjectNode details = MAPPER.createObjectNode();
+        details.put("raw_path", "/api/v1/tenants/7");
+        details.put("required_role", "admin");
+
+        AuditLog entry = new AuditLog();
+        entry.setId(102L);
+        entry.setTenantId(7L);
+        entry.setActorUserId("u-viewer");
+        entry.setActorRole("viewer");
+        entry.setAction(AuditAction.ACCESS_DENIED);
+        entry.setScopeType("knowledge_base");
+        entry.setScopeId("kb-a");
+        entry.setTargetType("wiki");
+        entry.setTargetId("kb-a");
+        entry.setTargetUserId("u-target");
+        entry.setRequestPath("/api/v1/tenants/*/audit-log");
+        entry.setRequestMethod("GET");
+        entry.setOutcome(AuditOutcome.DENIED);
+        entry.setDetails(details);
+        assertRoundTrips(entry, AuditLog.class,
+                "types.AuditLog ← AuditLog（jsonb details + 15 个无 omitempty 的键）");
+
+        // details 省略（nil）也要能往返：Go 侧 nil RawMessage 输出 null / 由库默认补 '{}'。
+        AuditLog bare = new AuditLog();
+        bare.setTenantId(0L);
+        bare.setAction(AuditAction.SYSTEM_SETTING_CHANGED);
+        bare.setOutcome(AuditOutcome.SUCCESS);
+        assertRoundTrips(bare, AuditLog.class, "types.AuditLog ← AuditLog（details 为空）");
+
+        assertRoundTrips(
+                AuditLogListResponse.of(List.of(entry)),
+                AuditLogListResponse.class,
+                "handler.auditLogListResponse ← AuditLogListResponse");
+        // 空页：next_cursor=0 且 data 归一为 []（Go 侧为 null，见类注释的已知差异）
+        assertRoundTrips(
+                AuditLogListResponse.of(List.of()),
+                AuditLogListResponse.class,
+                "handler.auditLogListResponse ← AuditLogListResponse（空页）");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
