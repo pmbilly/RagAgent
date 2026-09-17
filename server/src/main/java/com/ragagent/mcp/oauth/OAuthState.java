@@ -1,0 +1,60 @@
+package com.ragagent.mcp.oauth;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import com.ragagent.common.context.TenantContext;
+
+/**
+ * 一次进行中的 OAuth 授权码流程所需的全部临时数据（对照 Go
+ * internal/mcp/oauth_state.go:25-36 的 {@code OAuthState}）。
+ *
+ * <p><b>为什么必须服务端存储</b>（Go 注释原文精神）：本结构持有 PKCE 的
+ * {@code code_verifier}，那是<b>绝不能发往授权服务器</b>的秘密（授权请求里只发它的
+ * SHA-256 摘要 code_challenge）。因此 state 参数只是一个不透明句柄，
+ * 真正的数据存在服务端（Redis 多实例 / Lite 内存）。
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record OAuthState(
+        @JsonProperty("tenant_id") long tenantId,
+        @JsonProperty("user_id") String userId,
+        @JsonProperty("principal") Principal principal,
+        @JsonProperty("service_id") String serviceId,
+        @JsonProperty("code_verifier") String codeVerifier,
+        @JsonProperty("client_id") String clientId,
+        @JsonProperty("redirect_uri") String redirectUri,
+        /**
+         * 回调完成后浏览器最终被弹回的前端地址（不是授权服务器回跳的 redirect_uri）。
+         */
+        @JsonProperty("frontend_redirect") String frontendRedirect) {
+
+    public OAuthState {
+        userId = nz(userId);
+        serviceId = nz(serviceId);
+        codeVerifier = nz(codeVerifier);
+        clientId = nz(clientId);
+        redirectUri = nz(redirectUri);
+        frontendRedirect = nz(frontendRedirect);
+    }
+
+    private static String nz(String v) {
+        return v == null ? "" : v;
+    }
+
+    /** 对照 Go {@code types.Principal} 的结构内序列化形态（仅用于 Redis 往返）。 */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Principal(@JsonProperty("type") String type, @JsonProperty("id") String id) {
+
+        static Principal of(TenantContext.Principal p) {
+            return p == null ? new Principal("", "") : new Principal(nz(p.type()), nz(p.id()));
+        }
+
+        TenantContext.Principal toContextPrincipal() {
+            return new TenantContext.Principal(nz(type), nz(id));
+        }
+    }
+
+    public TenantContext.Principal principalOrNull() {
+        return principal == null ? null : principal.toContextPrincipal();
+    }
+}

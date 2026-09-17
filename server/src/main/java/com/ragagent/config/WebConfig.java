@@ -119,7 +119,35 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("PUT", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("DELETE", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("GET", "/api/v1/knowledge/*", TenantRole.VIEWER, false);
+        // MCP 服务（对照 RegisterMCPServiceRoutes，routes_infra.go:149-185）
+        // 更具体的路径必须排在 /mcp-services/* 之前，与 Go 的注册序一致
+        rbac.addRule("POST", "/api/v1/mcp-services", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/mcp-services", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/mcp-services/*/test", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/mcp-services/*/tools", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/mcp-services/*/resources", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/mcp-services/*/metadata/refresh", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/mcp-services/*/metadata", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/mcp-services/*/usage-instructions/generate", TenantRole.ADMIN, false);
+        rbac.addRule("PUT", "/api/v1/mcp-services/*/credentials", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/mcp-services/*/credentials/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/mcp-services/*/tool-approvals", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/mcp-services/*/tool-approvals/*", TenantRole.ADMIN, false);
+        // OAuth（routes_infra.go:183-185）：发起/查询/撤销都是 Viewer+
+        rbac.addRule("POST", "/api/v1/mcp-services/*/oauth/authorize-url", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/mcp-services/*/oauth/status", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/mcp-services/*/oauth/token", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/mcp-services/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/mcp-services/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/mcp-services/*", TenantRole.VIEWER, false);
+        // agent 会话内的审批 / OAuth 决议（routes_infra.go:200-201）
+        rbac.addRule("POST", "/api/v1/agent/tool-approvals/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/agent/mcp-oauth-resolutions/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/agent/mcp-oauth-resolutions/*/cancel", TenantRole.VIEWER, false);
+        // 注意：/api/v1/mcp-oauth/callback 是**公开路由**（靠一次性 state 自证），不注册规则
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**",
-                "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**");
+                "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
+                "/api/v1/mcp-services/**", "/api/v1/agent/**");
     }
 }

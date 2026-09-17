@@ -124,6 +124,75 @@ public final class TestSchema {
                 "chunk_id VARCHAR(64), knowledge_id VARCHAR(64), knowledge_base_id VARCHAR(64)," +
                 "content TEXT, dimension INTEGER NOT NULL, embedding VARCHAR," +
                 "CONSTRAINT embeddings_unique_source UNIQUE (source_id, source_type))");
+        // ── 阶段 4.1：MCP（列名/约束以 Go 迁移 000001/000042/000062/000064/000074/000091/000092 为准） ──
+        jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_services (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL, name VARCHAR(255) NOT NULL," +
+                "description TEXT, enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "transport_type VARCHAR(50) NOT NULL, url VARCHAR(512)," +
+                "headers VARCHAR, auth_config VARCHAR, advanced_config VARCHAR," +
+                "stdio_config VARCHAR, env_vars VARCHAR," +
+                "is_builtin BOOLEAN NOT NULL DEFAULT FALSE," +
+                "usage_instructions TEXT NOT NULL DEFAULT ''," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_oauth_clients (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
+                "service_id VARCHAR(36) NOT NULL, client_id VARCHAR(512) NOT NULL," +
+                "client_secret TEXT, redirect_uri VARCHAR(1024)," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "CONSTRAINT mcp_oauth_clients_tenant_svc UNIQUE (tenant_id, service_id))");
+        // user_id 放宽到 VARCHAR(512)、principal_type/principal_id 为 struct 演进后的形态
+        // （迁移 000064 补列；以 Go struct 为准）
+        jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_oauth_tokens (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
+                "user_id VARCHAR(512) NOT NULL, principal_type VARCHAR(32) NOT NULL," +
+                "principal_id VARCHAR(512) NOT NULL, service_id VARCHAR(36) NOT NULL," +
+                "access_token TEXT, refresh_token TEXT, token_type VARCHAR(32)," +
+                "expires_at TIMESTAMP WITH TIME ZONE," +
+                "refresh_lease_id VARCHAR(36), refresh_lease_until TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "CONSTRAINT mcp_oauth_tokens_tenant_principal_svc " +
+                "UNIQUE (tenant_id, principal_type, principal_id, service_id))");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_metadata (" +
+                "tenant_id BIGINT NOT NULL, service_id VARCHAR(36) NOT NULL," +
+                "principal VARCHAR(255) NOT NULL DEFAULT ''," +
+                "config_fingerprint VARCHAR(64) NOT NULL, tools VARCHAR NOT NULL," +
+                "instructions TEXT NOT NULL DEFAULT '', server_name TEXT NOT NULL DEFAULT ''," +
+                "server_version TEXT NOT NULL DEFAULT '', server_description TEXT NOT NULL DEFAULT ''," +
+                "synced_at TIMESTAMP WITH TIME ZONE NOT NULL," +
+                "PRIMARY KEY (tenant_id, service_id, principal))");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_tool_approvals (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
+                "service_id VARCHAR(36) NOT NULL, tool_name VARCHAR(512) NOT NULL," +
+                "require_approval BOOLEAN NOT NULL DEFAULT FALSE," +
+                "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "CONSTRAINT mcp_tool_approvals_tenant_svc_tool UNIQUE (tenant_id, service_id, tool_name))");
+        // mcp_metadata 的工具计数走 jsonb_array_length（PG 方言）；H2 没有这个函数，
+        // 这里注册同名 ALIAS 指向本类的 Java 实现，让**同一条 SQL** 在测试库上也能跑。
+        jdbc.execute("CREATE ALIAS IF NOT EXISTS json_array_length FOR "
+                + "\"com.ragagent.TestSchema.jsonArrayLength\"");
+    }
+
+    /**
+     * H2 ALIAS 目标：对照 PG {@code json_array_length(json)}。
+     * 入参是 H2 的 VARCHAR（测试库用 VARCHAR 承载 jsonb），内容必须是 JSON 数组。
+     */
+    public static int jsonArrayLength(String json) {
+        if (json == null || json.isEmpty()) {
+            return 0;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode node =
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
+            return node.isArray() ? node.size() : 0;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("json_array_length: invalid JSON", e);
+        }
     }
 
     /** 清空全部数据（外键无依赖，任意顺序） */
@@ -140,5 +209,10 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM storage_backends");
         jdbc.execute("DELETE FROM embeddings");
         jdbc.execute("DELETE FROM custom_agents");
+        jdbc.execute("DELETE FROM mcp_tool_approvals");
+        jdbc.execute("DELETE FROM mcp_metadata");
+        jdbc.execute("DELETE FROM mcp_oauth_tokens");
+        jdbc.execute("DELETE FROM mcp_oauth_clients");
+        jdbc.execute("DELETE FROM mcp_services");
     }
 }

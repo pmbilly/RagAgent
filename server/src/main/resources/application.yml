@@ -19,6 +19,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:16379}
+      # dev Redis 开了 requirepass（.env 的 REDIS_PASSWORD）；未设时留空
+      password: ${REDIS_PASSWORD:}
   flyway:
     locations: classpath:db/migration,filesystem:./build/generated-migrations
     baseline-on-migrate: true   # 已有 Go 版数据的库自动 baseline，不重复执行 98 个迁移

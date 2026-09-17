@@ -94,6 +94,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 模型配置（阶段 2） | internal/handler/model*.go、weknoracloud.go；internal/application/service/{model,weknoracloud}.go；internal/types/model.go、builtin_models_config.go；internal/models/provider/*；internal/utils/{security.go(SSRF),crypto.go}；internal/middleware/rbac.go（RequireRole 子集）；internal/application/repository/{model,model_usage}.go | com.ragagent.model.{domain,mapper,dto,service,controller} + com.ragagent.common.{crypto,security,web.RbacInterceptor/PgJsonTypeHandler} | ✅ | 9 条新 golden 全过；providers 响应与 Go 实录字节一致；AES-GCM 落库密文/回读解密 e2e 验证。关键坑见 §9 |
 | 知识库（阶段 3） | internal/handler/{knowledgebase,knowledge}.go；internal/application/service/{knowledgebase,knowledge,knowledge_create,knowledge_process}.go；internal/application/repository/{knowledgebase,knowledge}.go；internal/types/{knowledgebase,knowledge,knowledge_folder}.go；internal/infrastructure/docparser/(gRPC 客户端)；internal/chunker/*；internal/utils/{storage,security}(SSRF) | com.ragagent.knowledge.{domain,mapper,dto,service,controller,chunker}（KnowledgeProcessWorker=进程内虚拟线程队列，对照 asynq；DocReaderClient gRPC；EmbedderClient；VectorStoreService） | ✅ | 20 条 golden 全过（KB CRUD+文档 CRUD，含 409 duplicate 特殊信封）；e2e 连 dev PG：上传→docreader 解析→chunk 落库→无 embedding 模型按契约 failed。关键坑见 §9 |
 | LLM 调用客户端（阶段 4.0） | internal/models/chat/*（26 文件）；internal/models/provider/*（30 文件）；internal/models/limiter/*；internal/models/utils/ollama/ | com.ragagent.llm.{domain,chat,provider,limiter,ollama}（LlmChatClient 接口；RemoteApiChat/AnthropicChat/OllamaChat；ProviderAdapter 13 实现）+ LlmChatClients 工厂 | ✅ | 368 测试全绿（本模块 ~330）。Java 侧把 Go 的「SDK 路径 vs 裸 HTTP 路径」合并为 ObjectNode 单路径。关键简化与已知差异见 §9 |
+| MCP 服务管理（阶段 4.1） | internal/mcp/*（自研协议客户端：client/manager/oauth_*+SSRF）；internal/types/mcp*.go；internal/application/{repository,service}/mcp*.go；internal/handler/mcp_*.go + dto/mcp.go；internal/agent/approval/*（提前翻译以解耦） | com.ragagent.mcp.{domain,protocol,oauth,mapper,service,dto,controller} + com.ragagent.agent.approval | ✅ | 22 端点全落地；17 条 golden（CRUD/审批/凭据/SSRF 拒绝/403/404）掩码比对通过。e2e 在真 PG 验证：密钥加密落库（enc:v1:）+ **跨语言双向互操作**（同 key 下 Go 写 Java 读、Java 写 Go 读均成功）。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -203,6 +204,52 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
      `model.service.WeKnoraCloudService.sign` 一份）——建议后续提升可见性收敛为一处
   7. Azure URL 拼接：Go 走 go-openai `fullURL`（`<base>/openai/deployments/<modelId>/chat/completions?api-version=`），
      Java 照公式复刻，api-version 取 `extra_config.api_version`，缺省 `2023-05-15`
+- **阶段 4.1（MCP）新确认的细节**：
+  - MCP 协议层**全自研**（无第三方 SDK）：JSON-RPC 2.0 over HTTP/SSE，两种传输
+    （sse / http-streamable）。官方 MCP Java SDK 虽已 1.0.0 GA，但核心不含 OAuth，
+    而 Go 侧的 OAuth 恰是 mark3labs/mcp-go 现成的——无论如何要自研，故不引入依赖。
+  - **stdio 传输保留类型但硬禁用**（命令注入）：结构体、`stdio_config` 列、DTO 字段都在，
+    传输层双重拒绝，与 Go 一致。
+  - **密钥剥离是编译期不变式**：`dto.McpServiceResponse` / `McpAuthConfigResponse` 结构体上
+    就没有 api_key/token 字段；"是否已配置"经 `credentials.api_key.configured` 布尔暴露。
+    非秘密的结构配置（`auth_type`/`api_key_header`）**会**回显，密钥值不会（golden 钉住）。
+  - `MCPServiceResponse.usage_instructions` 在字段序**首位**（Go struct 声明序）。
+  - **MCPTool 的 `inputSchema` / MCPResource 的 `mimeType` 是驼峰**——MCP 协议规范字段名，
+    别按项目惯例改成 snake_case。
+  - `MCPToolApproval` 实体**直接作为** `GET /{id}/tool-approvals` 响应体，其 JSON 键名必须
+    逐字对齐 Go tag（`@JsonProperty` 只影响 Jackson，MyBatis 列名仍走 underscore 映射）。
+  - **工具策略的"缺行 = enabled"语义**：Go 用 map Create 绕开 GORM 省略零值，Java 仓储
+    同样显式写 false，不能依赖实体默认值。
+  - RBAC：`/mcp-services` 全部端点走 Admin（写）/Viewer（读）；**OAuth 的 authorize-url/status/token
+    都是 Viewer+**；`/api/v1/mcp-oauth/callback` 是**公开路由**（一次性 state 自证），不注册规则。
+  - 认证流程的跨请求 hack（`SetExpectedState`）与"attempt 仅在 code 交换后完成"是刻意的，
+    防止"已存在的 token 满足新开的授权弹窗"。
+- **阶段 4.1 已知差异 / 未接线**：
+  1. **create 可写入 `id` 与 `is_builtin`**（Go 直接绑实体，Java 照抄）：客户端能钉死主键、
+     或建出跨租户可见的 builtin 行。属 Go 侧既有问题，建议后续单独收紧。
+  2. **create 时 `enabled` 恒为 true**：GORM `default:true` 会替换非指针 bool 的零值并回写内存，
+     Go 的 POST 实际无法创建 disabled 服务；Java 显式复刻。
+  3. `ErrMCPMetadataStorage`（503）在 Java 侧不可达：Go 靠接口类型断言失败触发，Java 是静态装配。
+  4. **OAuth state 的 Redis 存储默认关闭**（`weknora.mcp-oauth.redis-state-store=false`）：
+     Go 靠 `*redis.Client` 是否为 nil 判断，Java 的 StringRedisTemplate 只要引入依赖就存在。
+     **多副本生产部署必须打开**，否则回调落到别的副本会找不到 state。
+  5. `usage_instructions` 生成的 WeKnoraCloud 凭据回落缺失（TenantService 尚无该读取口）。
+  6. LLM 客户端的 `langfuse` 追踪未实现 → MCP/LLM 的观测数据不落 Langfuse。
+- **跨阶段通用坑（阶段 4 新增）**：
+  - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
+    （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，
+    新增任何「对照 Go 方法」的便捷访问器时先想它。
+  - **jsonb 回读的 ObjectMapper 要容忍未知属性**：Go 的 `json.Unmarshal` 默认**忽略**未知字段，
+    Jackson 默认**失败**。TypeHandler 里用的裸 ObjectMapper 必须配
+    `FAIL_ON_UNKNOWN_PROPERTIES=false`，否则历史行/新增字段会让整行读不出来。
+  - **写脚本时注意 zsh 特殊变量**：`$GID` 在 zsh 里是只读的组 ID，赋值 UUID 会炸
+    （bad math expression）——e2e 脚本用 `SVC_ID` 之类的名字。
+  - **`source .env` 会覆盖 host-run 需要的地址**：WeKnora 的 .env 是容器内地址
+    （DB_HOST=postgres / REDIS_ADDR=redis:6379 / DOCREADER_ADDR=docreader:50051），
+    host-run 必须逐项覆盖为 localhost + 映射端口（15432/16379/50051）。只想要某个 key
+    （如 SYSTEM_AES_KEY）时用 `grep -m1 '^KEY=' .env | cut -d= -f2-` 单独取，别整份 source。
+  - **跨语言加密互操作的 e2e 前提是两侧 SYSTEM_AES_KEY 相同**：不同 key 下读回会静默置空
+    （宽容解密→configured:false），这是预期的密码学行为不是 bug。验证互操作必须用同一个 key。
 - **工具链与调试坑（跨阶段复用，阶段 3 实测）**：
   1. JUnit XML 的 failure `message` 属性会截断长 diff（~4KB），且 `content().bytes` 失败时 expected/actual
      以十进制字节数组呈现——直接按 byte 解码或找首个差异位，别信肉眼截断的片段

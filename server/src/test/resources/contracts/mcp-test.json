@@ -1,0 +1,1 @@
+{"data":{"success":false,"message":"Initialization failed: failed to initialize: transport error: failed to send request: failed to send request: Post \"https://mcp.example.com/mcp\": dial tcp: lookup mcp.example.com: no such host"},"success":true}
