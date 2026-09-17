@@ -28,6 +28,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 路由守卫式 403（对照 Go 中间件的纯字符串形态 {@code {"error":"Forbidden: ..."}}）。
+     *
+     * <p>与 {@link BizException} 的 403 **形态不同**：后者是 AppError 信封。Go 里两种并存，
+     * 按拒绝发生在中间件还是 handler 区分——控制器里做的所有权判定属于前者，
+     * 详见 {@link GuardForbiddenException} 的类注释。</p>
+     */
+    @ExceptionHandler(GuardForbiddenException.class)
+    public ResponseEntity<String> handleGuardForbidden(GuardForbiddenException ex) {
+        String msg = ex.getMessage() == null ? "" : ex.getMessage();
+        String escaped = msg.replace("\\", "\\\\").replace("\"", "\\\"");
+        return ResponseEntity.status(403)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":\"Forbidden: " + escaped + "\"}");
+    }
+
+    /**
      * Spring 6.1 对未映射路径抛 NoResourceFoundException（落到 handleOther 会变 500）。
      * 对照 gin 默认 404："404 page not found"（text/plain）。
      */

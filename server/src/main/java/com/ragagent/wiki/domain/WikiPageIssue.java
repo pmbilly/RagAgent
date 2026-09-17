@@ -58,6 +58,7 @@ public class WikiPageIssue {
 
     @TableField(value = "suspected_knowledge_ids", typeHandler = WikiStringListTypeHandler.class)
     @JsonProperty("suspected_knowledge_ids")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> suspectedKnowledgeIds = new ArrayList<>();
 
     @JsonProperty("status")

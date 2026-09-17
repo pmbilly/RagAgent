@@ -77,10 +77,10 @@ class WikiDomainTest {
 
     @Test
     void emptyStringArrayDecodesToEmptyList() {
-        // Go 的 nil StringArray 会 marshal 成字面量 null；Java 统一写 []（见 handler 类注释），
-        // 而读取两侧都宽容。
-        assertThat(WikiStringListTypeHandler.encode(null)).isEqualTo("[]");
-        assertThat(WikiStringListTypeHandler.encode(List.of())).isEqualTo("[]");
+        // 写路径对齐 Go：nil / 空列表都走 SQL NULL（见 handler 类注释），
+        // encode() 的序列化结果对应 Go 的字面量 null；读路径宽容，一律回空列表。
+        assertThat(WikiStringListTypeHandler.encode(null)).isEqualTo("null");
+        assertThat(WikiStringListTypeHandler.encode(List.of())).isEqualTo("null");
         assertThat(WikiStringListTypeHandler.decode("[]")).isEmpty();
         assertThat(WikiStringListTypeHandler.decode("null")).isEmpty();
         assertThat(WikiStringListTypeHandler.decode("")).isEmpty();

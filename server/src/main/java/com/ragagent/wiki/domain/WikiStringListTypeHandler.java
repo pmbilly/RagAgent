@@ -24,18 +24,18 @@ import org.apache.ibatis.type.JdbcType;
  * {@code List<String>} 走泛型擦除后是 {@code List.class}，Jackson 会反序列化成
  * {@code List<LinkedHashMap>} / {@code List<Object>}，元素类型丢失。</p>
  *
- * <p><b>与 Go 的一处刻意差异（保真说明）</b>：Go 的 {@code Value()} 对 nil 切片
- * {@code json.Marshal} 出字面量 {@code null}；本 handler 对 null/空列表统一写
- * {@code []}（= 各迁移里这些列的 DEFAULT）。原因有两条：</p>
- * <ol>
- *   <li>{@code wiki_pages.category_path} 等的列默认值就是 {@code '[]'::JSONB}，
- *       写 {@code []} 与"GORM 省略零值让 DB 默认值兜底"的结果一致；</li>
- *   <li>Go 的 PG 语义下 {@code in_links = '[]'::JSONB} 对 jsonb 字面量 {@code null}
- *       不成立（{@code CountOrphans} 会漏数），写 {@code []} 消除这个方言陷阱，
- *       且与 SQLite 分支（{@code json_array_length(in_links) = 0}）的判定一致。</li>
- * </ol>
+ * <p><b>写路径对齐 Go</b>：Go 的 {@code Value()} 对 nil 切片返回 SQL NULL，空切片返回
+ * {@code []}。Java 的实体无法区分"未设置"与"显式空"，而 golden 实录里这些列都是 NULL
+ * （响应输出 {@code "aliases":null}），因此这里把**空列表也写成 SQL NULL**——
+ * 这样跨语言读同一行才一致（Java 写 NULL → Go 读 nil → JSON {@code null}；
+ * 若 Java 写 {@code []}，Go 会读出空切片并输出 {@code []}）。</p>
  *
- * <p>读路径宽容：SQL NULL、空串、JSON {@code null} 一律回空列表。</p>
+ * <p>代价：查询侧不能再依赖 {@code in_links = '[]'::JSONB}（对 NULL 不成立），
+ * 需要用 {@code COALESCE(in_links, '[]'::jsonb)}。仓储层已按此写法处理。</p>
+ *
+ * <p>读路径宽容：SQL NULL / 空串 / JSON {@code null} 一律回空列表；
+ * 序列化时空列表再转回 {@code null}（见 {@link EmptyListAsNullSerializer}），
+ * 与 Go 的 {@code nil → null} 对齐。</p>
  */
 public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
 
@@ -48,10 +48,14 @@ public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, List<String> parameter, JdbcType jdbcType)
             throws SQLException {
-        List<String> value = parameter == null ? List.of() : parameter;
+        if (parameter == null || parameter.isEmpty()) {
+            // 对齐 Go 的 nil slice → SQL NULL（见类注释）
+            ps.setNull(i, java.sql.Types.OTHER);
+            return;
+        }
         try {
             // PG jsonb：setObject(OTHER) 让服务端按列类型强转（H2 按 VARCHAR 落库）
-            ps.setObject(i, MAPPER.writeValueAsString(value), java.sql.Types.OTHER);
+            ps.setObject(i, MAPPER.writeValueAsString(parameter), java.sql.Types.OTHER);
         } catch (Exception e) {
             throw new SQLException("serialize wiki string array failed", e);
         }
@@ -88,13 +92,15 @@ public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
      * 不必绕过 JDBC。</p>
      */
     public static List<String> decode(String json) {
+        // 必须返回**可变**列表：调用方（如 updateInLinks）会就地 add，
+        // List.of() 会抛 UnsupportedOperationException
         if (json == null || json.isEmpty()) {
-            return List.of();
+            return new ArrayList<>();
         }
         try {
             List<String> values = MAPPER.readValue(json, TYPE);
             if (values == null) {
-                return List.of();
+                return new ArrayList<>();
             }
             List<String> out = new ArrayList<>(values.size());
             for (String v : values) {
@@ -107,12 +113,14 @@ public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
     }
 
     /**
-     * 对照 Go StringArray.Value：序列化成紧凑 JSON 数组（见类注释：nil/空列表统一写
-     * {@code []} 而非 Go 的字面量 {@code null}）。
+     * 对照 Go {@code StringArray.Value} 的序列化结果：null / 空列表 → 字面量 {@code null}
+     * （与写路径一致，见类注释）。
      */
     public static String encode(List<String> values) {
         try {
-            return MAPPER.writeValueAsString(values == null ? List.of() : values);
+            return values == null || values.isEmpty()
+                    ? "null"
+                    : MAPPER.writeValueAsString(values);
         } catch (Exception e) {
             throw new IllegalStateException("serialize wiki string array failed", e);
         }

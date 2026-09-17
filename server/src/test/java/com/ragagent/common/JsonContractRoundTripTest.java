@@ -29,6 +29,15 @@ import com.ragagent.mcp.domain.McpTestResult;
 import com.ragagent.mcp.domain.McpTool;
 import com.ragagent.mcp.domain.McpToolApproval;
 import com.ragagent.wiki.domain.WikiConfig;
+import com.ragagent.wiki.service.CombinedExtraction;
+import com.ragagent.wiki.service.ExtractedItem;
+import com.ragagent.wiki.service.NewSlugFromCitation;
+import com.ragagent.wiki.service.SlugUpdate;
+import com.ragagent.wiki.service.WikiFinalizeChange;
+import com.ragagent.wiki.service.WikiFinalizeRow;
+import com.ragagent.wiki.service.WikiIngestConstants;
+import com.ragagent.wiki.service.WikiIngestPayload;
+import com.ragagent.wiki.service.WikiPendingOp;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -199,6 +208,80 @@ class JsonContractRoundTripTest {
     void wikiConfigRoundTrips() {
         WikiConfig c = new WikiConfig();
         assertRoundTrips(c, WikiConfig.class, "types.WikiConfig ← WikiConfig");
+    }
+
+    // ── Wiki 批次管道（落 task_pending_ops.payload / task_dead_letters.payload） ──
+
+    /**
+     * 批次执行体（wiki_ingest_batch.go / wiki_ingest_cite.go / wiki_ingest_dedup.go）
+     * 读写的那批 jsonb 载荷。
+     *
+     * <p>跨语言读写时字段名必须逐字对齐 Go 的 json tag；任何
+     * {@code isXxx()}/{@code getXxx()} 派生方法都必须 {@code @JsonIgnore}
+     * （约定 §9 复发率最高的坑），否则整列回读会抛
+     * {@code UnrecognizedPropertyException}。</p>
+     */
+    @Test
+    void wikiBatchPayloadsRoundTrip() {
+        assertRoundTrips(
+                new WikiIngestPayload(7L, "kb-1", "zh-CN"),
+                WikiIngestPayload.class,
+                "service.WikiIngestPayload ← WikiIngestPayload");
+        // omitempty 的 language 省略后仍须往返幂等
+        assertRoundTrips(
+                new WikiIngestPayload(7L, "kb-1", null),
+                WikiIngestPayload.class,
+                "service.WikiIngestPayload（language 省略）← WikiIngestPayload");
+
+        assertRoundTrips(
+                WikiFinalizeRow.slug("entity/a", "A"),
+                WikiFinalizeRow.class,
+                "service.wikiFinalizeRow ← WikiFinalizeRow（slug 行）");
+        assertRoundTrips(
+                WikiFinalizeRow.change(WikiFinalizeChange.added("Doc", "Sum")),
+                WikiFinalizeRow.class,
+                "service.wikiFinalizeRow ← WikiFinalizeRow（change 行）");
+        assertRoundTrips(
+                WikiFinalizeRow.folderIds(List.of("folder-a")),
+                WikiFinalizeRow.class,
+                "service.wikiFinalizeRow ← WikiFinalizeRow（folder_prune 行）");
+
+        WikiPendingOp op = new WikiPendingOp(WikiIngestConstants.OP_INGEST, "kid-1");
+        op.setLanguage("zh-CN");
+        op.setDocTitle("Title");
+        op.setDocSummary("Summary");
+        op.setPageSlugs(List.of("entity/a"));
+        op.setFolderIds(List.of("folder-a"));
+        assertRoundTrips(op, WikiPendingOp.class, "service.WikiPendingOp ← WikiPendingOp");
+
+        ExtractedItem item = new ExtractedItem(
+                "孔子", "entity/kong-zi", List.of("孔丘"), "desc", "details");
+        item.setSourceChunks(List.of("c1", "c2"));
+        assertRoundTrips(item, ExtractedItem.class, "service.extractedItem ← ExtractedItem");
+
+        SlugUpdate update = new SlugUpdate("entity/kong-zi", SlugUpdate.TYPE_ENTITY);
+        update.setItem(item);
+        update.setDocTitle("Doc");
+        update.setKnowledgeId("kid-1");
+        update.setSourceRef("kid-1");
+        update.setLanguage("zh-CN");
+        update.setSummaryBody("body");
+        update.setSummaryLine("line");
+        update.setRetractDocContent("old");
+        update.setSourceChunks(List.of("c1"));
+        update.setDocSummary("doc summary");
+        assertRoundTrips(update, SlugUpdate.class, "service.SlugUpdate ← SlugUpdate");
+
+        assertRoundTrips(
+                new NewSlugFromCitation("entity", "Fresh", "entity/fresh", List.of("A"),
+                        "desc", "details", List.of("c1", "c2")),
+                NewSlugFromCitation.class,
+                "cite.newSlugFromCitation ← NewSlugFromCitation");
+
+        assertRoundTrips(
+                new CombinedExtraction(List.of(item), List.of(item)),
+                CombinedExtraction.class,
+                "service.combinedExtraction ← CombinedExtraction");
     }
 
     // ── LLM 契约（StreamResponse 落库 / TokenUsage 落 jsonb） ───────────────

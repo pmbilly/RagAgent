@@ -85,6 +85,53 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 - ** golden 契约测试**：`server/src/test/resources/contracts/` 下按端点存 Go 版实际响应，Java 集成测试逐字段比对
 - 翻译完成的定义：Go 测试语义对应的 Java 测试全部通过 + golden 通过
 
+- **阶段 4.2（Wiki）新确认的细节**：
+  - **Wiki 的响应形态与知识库/MCP 都不同**，三处都要按实录写：
+    1. 页面 CRUD 返回**裸实体**（无 `success`/`data` 信封）
+    2. 列表是自定义分页 `{"pages":[...],"total":N,"page":N,"page_size":N,"total_pages":N}`
+    3. 错误是**纯字符串** `{"error":"Wiki page not found"}`（不是 AppError 信封）
+  - **403 有两种形态**（本轮新分离）：路由守卫/所有权判定 → `{"error":"Forbidden: <msg>"}`
+    （纯字符串，无信封）；handler 内 AppError → 完整信封。Go 的所有权守卫
+    （`OwnedWikiKBOrAdmin`）属前者，Java 侧因拦截器拿不到资源，只能在控制器内判定，
+    故新增 `GuardForbiddenException` + 全局处理器分支来产出守卫格式。**阶段 3 的
+    `KnowledgeBaseController` 有同样偏差，已一并修正。**
+  - **创建页面/文件夹返回 201**（不是 200）；不存在的 KB 返回 **404 + AppError 信封**
+    （不是 403）——这两个都要实测确认，别照直觉写。
+  - **jsonb 字符串数组列的 NULL 语义**（`aliases`/`source_refs`/`chunk_refs`/`in_links`/
+    `out_links`/`category_path`）：Go 的 nil slice 写 **SQL NULL**，响应输出 `null`。
+    Java 侧落地三件事才对齐：
+    1. `WikiStringListTypeHandler` 对空列表**写 SQL NULL**（不是 `[]`）；
+       代价是查询侧要用 `COALESCE(in_links, '[]'::jsonb)`，不能依赖 `= '[]'`
+    2. `EmptyListAsNullSerializer` 把空列表序列化回 `null`（读路径宽容返回空列表）
+    3. decode 必须返回**可变** `ArrayList`——业务代码会就地 `add`，`List.of()` 会抛
+       `UnsupportedOperationException`（本轮踩过）
+  - **`category_path` 是唯一带 omitempty 的数组字段**（空时省略键，其余恒输出 `null`）——
+    逐个核对 Go 的 json tag，别一刀切。
+  - **`page_metadata` 列有 `DEFAULT '{}'`，但 Go 显式写 NULL 覆盖它**。
+    MyBatis-Plus 默认对 null 字段**省略该列**，会落到 DB 默认值 `{}` →
+    必须 `insertStrategy = FieldStrategy.ALWAYS`。**其他带 DEFAULT 的 jsonb 列同理**。
+  - `wiki` 路由前缀是 `/knowledgebase`（**无连字符**），与知识库的 `/knowledge-bases` 不同。
+- **阶段 4.2 已知差异 / 未接线**：
+  1. **slug 锁 / inflight 限流 / 身份认领 / finalize 锁默认全为进程内实现**（= Go 的 Lite 模式）。
+     多副本部署必须换 Redis 实现并 `@Primary` 注册；否则表现为"同一标题建出两个页面"。
+  2. `spans` 追踪与 langfuse 未实现（no-op 门面，调用点形状与 Go 逐行对应）。
+  3. `WikiCrossLinker`/`WikiChunkCleaner`/`WikiPendingOpsCounter`/`WikiActiveFlag` 是可选接线端口，
+     缺 bean 时按 Go 的 nil 分支降级。
+  4. `GetGraph` 的 `FamiliarKnowledgeIDs` 恒 null（memory 模块未翻译）。
+  5. 空列表 vs null：`ListIssues`/`SearchPages` 等 Go 的 nil slice 输出 `null`，
+     Java 归一为 `[]`（前端已有守卫）。**与上面 jsonb 数组列的处置不同**——
+     那些对齐了 null，这几个没有；若要完全逐字节对齐需在控制器手工组 JSON。
+  6. `asynq` 计数（`retry=n/m`）与 `errgroup` 首错取消未实现（Go 实际也恒 `return nil`）；
+     `ClaimBatch` 用等价的条件 UPDATE 替代 `FOR UPDATE SKIP LOCKED`（H2 不支持），
+     极端并发下整组放弃的几行会停到 90 分钟 stale 阈值后回收。
+- **本轮新增的通用坑**：
+  - **zsh 的 `echo` 会解释反斜杠转义**：`echo "$JSON" > f.json` 会把 Go 正确输出的
+    `\n` 转成真换行，导致 golden 文件非法。**保存 curl 输出一律用 `curl -o`**。
+  - **zsh 的 `GID`/`UID` 是只读特殊变量**，赋 UUID 会报 "bad math expression"——
+    e2e 脚本用 `SVC_ID` 之类名字，或直接用 bash（已收敛到 `scripts/`）。
+  - **`scripts/` 里的脚本已固化 JDK 路径探测**：换 shell 后 `./gradlew` 会报
+    "Unable to locate a Java Runtime"（Homebrew openjdk 不在默认 PATH）。
+
 ## 7.5 派发翻译 agent 的标准约束（每次必带）
 
 每个翻译 agent 的任务书里**必须**包含以下段落。它们对应的是已经踩过的坑，
@@ -145,6 +192,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 知识库（阶段 3） | internal/handler/{knowledgebase,knowledge}.go；internal/application/service/{knowledgebase,knowledge,knowledge_create,knowledge_process}.go；internal/application/repository/{knowledgebase,knowledge}.go；internal/types/{knowledgebase,knowledge,knowledge_folder}.go；internal/infrastructure/docparser/(gRPC 客户端)；internal/chunker/*；internal/utils/{storage,security}(SSRF) | com.ragagent.knowledge.{domain,mapper,dto,service,controller,chunker}（KnowledgeProcessWorker=进程内虚拟线程队列，对照 asynq；DocReaderClient gRPC；EmbedderClient；VectorStoreService） | ✅ | 20 条 golden 全过（KB CRUD+文档 CRUD，含 409 duplicate 特殊信封）；e2e 连 dev PG：上传→docreader 解析→chunk 落库→无 embedding 模型按契约 failed。关键坑见 §9 |
 | LLM 调用客户端（阶段 4.0） | internal/models/chat/*（26 文件）；internal/models/provider/*（30 文件）；internal/models/limiter/*；internal/models/utils/ollama/ | com.ragagent.llm.{domain,chat,provider,limiter,ollama}（LlmChatClient 接口；RemoteApiChat/AnthropicChat/OllamaChat；ProviderAdapter 13 实现）+ LlmChatClients 工厂 | ✅ | 368 测试全绿（本模块 ~330）。Java 侧把 Go 的「SDK 路径 vs 裸 HTTP 路径」合并为 ObjectNode 单路径。关键简化与已知差异见 §9 |
 | MCP 服务管理（阶段 4.1） | internal/mcp/*（自研协议客户端：client/manager/oauth_*+SSRF）；internal/types/mcp*.go；internal/application/{repository,service}/mcp*.go；internal/handler/mcp_*.go + dto/mcp.go；internal/agent/approval/*（提前翻译以解耦） | com.ragagent.mcp.{domain,protocol,oauth,mapper,service,dto,controller} + com.ragagent.agent.approval | ✅ | 22 端点全落地；17 条 golden（CRUD/审批/凭据/SSRF 拒绝/403/404）掩码比对通过。e2e 在真 PG 验证：密钥加密落库（enc:v1:）+ **跨语言双向互操作**（同 key 下 Go 写 Java 读、Java 写 Go 读均成功）。关键坑见 §9 |
+| Wiki（阶段 4.2） | internal/handler/wiki_page.go；internal/application/service/{wiki_page,wiki_lint,wiki_slug_handles,wiki_linkify,wiki_ingest*}.go；internal/application/repository/wiki_page.go；internal/types/{wiki_page,interfaces/wiki_page}.go；internal/agent/prompts_wiki.go | com.ragagent.wiki.{domain,mapper,service,prompt,controller} | ✅ | 21 端点全落地；13 条 golden（CRUD/文件夹/聚合读/权限，掩码比对）+ **真 PG 上 5 个读端点 A/B 全部 MATCH**，且 Java 写的行 Go 读回一致。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 

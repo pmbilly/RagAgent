@@ -104,6 +104,7 @@ public class WikiPage {
     /** 别名、缩写、首字母缩略语或译名 */
     @TableField(typeHandler = WikiStringListTypeHandler.class)
     @JsonProperty("aliases")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> aliases = new ArrayList<>();
 
     /** 语义父页面 slug（可为空）；页面仅按 FolderID 归组时留空 */
@@ -151,6 +152,7 @@ public class WikiPage {
      */
     @TableField(value = "source_refs", typeHandler = WikiStringListTypeHandler.class)
     @JsonProperty("source_refs")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> sourceRefs = new ArrayList<>();
 
     /**
@@ -160,20 +162,26 @@ public class WikiPage {
      */
     @TableField(value = "chunk_refs", typeHandler = WikiStringListTypeHandler.class)
     @JsonProperty("chunk_refs")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> chunkRefs = new ArrayList<>();
 
     /** 链接<b>到</b>本页面的页面 slug（反向链接） */
     @TableField(value = "in_links", typeHandler = WikiStringListTypeHandler.class)
     @JsonProperty("in_links")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> inLinks = new ArrayList<>();
 
     /** 本页面链接<b>出去</b>的页面 slug（出链） */
     @TableField(value = "out_links", typeHandler = WikiStringListTypeHandler.class)
     @JsonProperty("out_links")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> outLinks = new ArrayList<>();
 
     /** 任意元数据（标签、分类、日期等）；Go 类型是 types.JSON（原始 JSON） */
-    @TableField(value = "page_metadata", typeHandler = PgJsonTypeHandler.class)
+    // insertStrategy=ALWAYS：MyBatis-Plus 默认对 null 字段省略该列，会落到 DB 默认值 '{}'，
+    // 而 Go 显式写 NULL（nil JSON → driver 返回 nil）——golden 里该键是 null，故必须总是插入。
+    @TableField(value = "page_metadata", typeHandler = PgJsonTypeHandler.class,
+            insertStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
     @JsonProperty("page_metadata")
     private JsonNode pageMetadata;
 

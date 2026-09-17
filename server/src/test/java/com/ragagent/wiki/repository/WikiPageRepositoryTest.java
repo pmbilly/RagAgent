@@ -685,11 +685,10 @@ class WikiPageRepositoryTest {
         assertThat(got.getInLinks()).containsExactly("index");
         assertThat(got.getOutLinks()).containsExactly("concept/c", "entity/e");
         assertThat(got.getDepth()).isEqualTo(2);
-        // page_metadata 未赋值 → INSERT 省略该列 → 由 SQL 的 DEFAULT '{}' 兜底
-        // （Go/GORM 同样省略零值列，故 Go 读回也是空对象而非 null）
-        assertThat(got.getPageMetadata()).isNotNull();
-        assertThat(got.getPageMetadata().isObject()).isTrue();
-        assertThat(got.getPageMetadata()).isEmpty();
+        // page_metadata 未赋值 → 写入 SQL NULL（insertStrategy=ALWAYS），读回 null。
+        // 契约依据：Go golden 实录里该键是 "page_metadata":null（不是 {}）——
+        // 尽管列默认值是 '{}'，Go 的 nil JSON 会显式写 NULL 覆盖它。
+        assertThat(got.getPageMetadata()).isNull();
     }
 
     /** 未设置的可选 jsonb 列读回空列表（不是 null），与 Go 的非指针零值语义一致 */

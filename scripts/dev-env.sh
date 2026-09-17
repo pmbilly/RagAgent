@@ -19,6 +19,14 @@
 
 set -euo pipefail
 
+# JDK 21：Gradle 与 bootRun 都要求 JAVA_HOME/PATH 指向 21。
+# 踩过的坑：脚本里若依赖调用者已配好 PATH，换一个 shell 就会得到
+# "Unable to locate a Java Runtime"（Homebrew 的 openjdk 不在默认 PATH）。
+if [ -z "${JAVA_HOME:-}" ] && [ -d /opt/homebrew/opt/openjdk@21 ]; then
+  export JAVA_HOME="/opt/homebrew/opt/openjdk@21"
+  export PATH="${JAVA_HOME}/bin:${PATH}"
+fi
+
 RAGAGENT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEKNORA_ROOT="${WEKNORA_ROOT:-$(cd "${RAGAGENT_ROOT}/../WeKnora" && pwd)}"
 WEKNORA_ENV="${WEKNORA_ROOT}/.env"

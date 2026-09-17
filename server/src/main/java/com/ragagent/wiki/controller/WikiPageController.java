@@ -12,6 +12,7 @@ import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
@@ -957,7 +958,7 @@ public class WikiPageController {
         String uid = TenantContext.currentUserId();
         boolean admin = TenantRole.fromString(role).hasPermission(TenantRole.ADMIN);
         if (!admin && (kb.getCreatorId().isEmpty() || !kb.getCreatorId().equals(uid))) {
-            throw new BizException(AppError.forbidden("must own the resource or have the required role"));
+            throw GuardForbiddenException.mustOwnResourceOrHaveRole();
         }
     }
 

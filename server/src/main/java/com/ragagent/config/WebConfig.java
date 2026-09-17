@@ -146,8 +146,34 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/agent/mcp-oauth-resolutions/*/cancel", TenantRole.VIEWER, false);
         // 注意：/api/v1/mcp-oauth/callback 是**公开路由**（靠一次性 state 自证），不注册规则
 
+        // Wiki（对照 RegisterWikiPageRoutes，routes_knowledge.go:294-334）
+        // 注意路径前缀是 /knowledgebase（**无连字符**，与知识库的 /knowledge-bases 不同）
+        // 写端点在 Go 里是 OwnedWikiKBOrAdmin = "Admin 或创建者本人"，**没有 Contributor 下限**
+        // （Viewer 创建的 KB 其本人可写），所以这里只设 VIEWER 下限，所有权判定在控制器内。
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/pages", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledgebase/*/wiki/pages", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledgebase/*/wiki/move-page", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/pages/**", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledgebase/*/wiki/pages/**", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/knowledgebase/*/wiki/pages/**", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/revisions/**", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledgebase/*/wiki/revert", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/folders", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledgebase/*/wiki/folders", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledgebase/*/wiki/folders/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/knowledgebase/*/wiki/folders/*", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/index", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/graph", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/stats", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/search", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledgebase/*/wiki/rebuild-links", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/lint", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledgebase/*/wiki/auto-fix", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/issues", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledgebase/*/wiki/issues/*/status", TenantRole.VIEWER, false);
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
-                "/api/v1/mcp-services/**", "/api/v1/agent/**");
+                "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**");
     }
 }
