@@ -63,6 +63,10 @@ public class KnowledgeService {
     }
 
     public KnowledgeBase requireKb(String kbId) {
+        // 对照 AuthorizeTenantAPIKeyKnowledgeBases：KB 受限的 API Key 不能触碰白名单外的库。
+        // 放在这里是因为所有文档端点都经过它——一处覆盖全部（Go 侧是分散在 handler 里逐个调的）。
+        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
+                kbId == null ? java.util.List.of() : java.util.List.of(kbId));
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
                 .eq(KnowledgeBase::getTenantId, tenantId())
@@ -283,6 +287,10 @@ public class KnowledgeService {
         if (k == null) {
             throw new BizException(AppError.notFound("Knowledge not found"));
         }
+        // 对照 AuthorizeTenantAPIKeyKnowledgeTargets：按 knowledgeId 操作的端点，
+        // 用其所属 KB 做 scope 校验（KB 受限的 Key 不得越界）。
+        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
+                java.util.List.of(k.getKnowledgeBaseId()));
         return k;
     }
 

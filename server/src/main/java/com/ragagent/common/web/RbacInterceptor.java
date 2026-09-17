@@ -53,6 +53,11 @@ public class RbacInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
+        // 对照 Go：RequireRole 对 API-Key 主体直接放行——能力维度由 APIKeyGate 全权判定，
+        // 否则 full-access Key 会被这里的角色下限拦住（rbac_api_key_shortcircuit_test.go）
+        if (com.ragagent.apikey.domain.APIKeyScopeContext.present()) {
+            return true;
+        }
         Rule rule = match(request.getMethod(), request.getRequestURI());
         if (rule == null) {
             // 未声明路由：对照 Go 该组默认无守卫时不拦截（API-key default-deny 属 APIKeyGate，未翻译）

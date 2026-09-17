@@ -8,6 +8,9 @@ import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.apikey.domain.TenantAPIKey;
+import com.ragagent.apikey.domain.TenantAPIKeyCreateResponse;
+import com.ragagent.apikey.domain.TenantAPIKeyResponse;
 import com.ragagent.knowledge.domain.KbAsrConfig;
 import com.ragagent.knowledge.domain.KbChunkingConfig;
 import com.ragagent.knowledge.domain.KbImageProcessingConfig;
@@ -310,6 +313,46 @@ class JsonContractRoundTripTest {
         o.setToolChoice("auto");
         o.setTools(List.of(new ChatTool("t", "d", null)));
         assertRoundTrips(o, ChatOptions.class, "chat.ChatOptions ← ChatOptions");
+    }
+
+    // ── 租户 API Key（tenant_api_keys 的两个 jsonb 列 + 四个管理端点的响应体） ──
+
+    /**
+     * API Key 契约实体。三类风险各钉一条：
+     * <ol>
+     *   <li>{@code TenantAPIKey.isPlatform()} / {@code tenantIdValue()} 在 Go 里是
+     *       <b>方法</b>——漏 {@code @JsonIgnore} 会把 {@code "platform":true} 写进
+     *       序列化结果（约定 §9 复发率最高的坑）；</li>
+     *   <li>{@code key_hash} 的 Go tag 是 {@code json:"-"}，必须双向忽略；</li>
+     *   <li>响应体 {@code TenantAPIKeyResponse} 的蛇形键名与
+     *       {@code TenantAPIKeyCreateResponse} 的 token 末位。</li>
+     * </ol>
+     */
+    @Test
+    void tenantApiKeyContractsRoundTrip() {
+        TenantAPIKey key = new TenantAPIKey();
+        key.setId(7L);
+        key.setTenantId(42L);
+        key.setScopeType("tenant");
+        key.setName("integration");
+        key.setKeyHash("deadbeef");          // json:"-" → 不进 JSON
+        key.setApiKey("sk-plaintext");
+        key.setFullAccess(false);
+        key.setKnowledgeBaseIds(List.of("kb-1", "kb-2"));
+        key.setCapabilities(List.of("retrieve", "chat"));
+        // 时间字段留空：本工具用的是**裸** ObjectMapper（未注册 JSR-310 模块），
+        // 非空 OffsetDateTime 会在这里炸，而时间键名/格式已由
+        // TenantAPIKeyControllerTest 与 JacksonConfig 覆盖。
+        assertRoundTrips(key, TenantAPIKey.class,
+                "types.TenantAPIKey ← TenantAPIKey（jsonb 数组列 + 派生方法须 @JsonIgnore）");
+
+        TenantAPIKeyResponse response = TenantAPIKeyResponse.from(key);
+        assertRoundTrips(response, TenantAPIKeyResponse.class,
+                "handler.tenantAPIKeyResponse ← TenantAPIKeyResponse");
+        // 三个成功响应体都经它派生，token 在末位
+        assertRoundTrips(TenantAPIKeyCreateResponse.of(response, "sk-once"),
+                TenantAPIKeyCreateResponse.class,
+                "handler.tenantAPIKeyCreateResponse ← TenantAPIKeyCreateResponse");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────

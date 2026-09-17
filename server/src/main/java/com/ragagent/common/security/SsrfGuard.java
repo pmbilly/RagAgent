@@ -63,16 +63,26 @@ public class SsrfGuard {
         }
     }
 
-    private volatile Whitelist whitelist;
+    /**
+     * 白名单是**进程级**状态（对照 Go 的包级变量 + {@code SetSSRFWhitelistFromRaw}）。
+     *
+     * <p>刻意用 static：一是对齐 Go 的语义（白名单来自进程 env，不是每实例配置）；
+     * 二是消除一个真实的偶发故障——出站工具类（{@code LlmTransport} / {@code McpHttp}）
+     * 持有的是**静态** guard 引用，而每个 Spring 测试上下文都会新建一个 {@code SsrfGuard} bean
+     * 并在构造期覆盖那把静态引用。多上下文场景下，测试对"自己的" bean 调
+     * {@code reloadWhitelist} 可能作用在一个已被替换掉的实例上，表现为契约测试随机 400。
+     * 静态化后所有上下文共享同一份白名单，行为确定。</p>
+     */
+    private static volatile Whitelist whitelist = parseWhitelistRaw(mergeRaws(
+            System.getenv("SSRF_WHITELIST"), System.getenv("SSRF_WHITELIST_EXTRA")));
 
     public SsrfGuard() {
-        this.whitelist = parseWhitelistRaw(mergeRaws(
-                System.getenv("SSRF_WHITELIST"), System.getenv("SSRF_WHITELIST_EXTRA")));
+        // 白名单在类初始化时读取 env；构造只保证 bean 可注入
     }
 
     /** 对照 Go SetSSRFWhitelistFromRaw：原子替换白名单（SystemSettingService 运行时调谐路径；测试亦用） */
     public void reloadWhitelist(String raw) {
-        this.whitelist = parseWhitelistRaw(raw);
+        whitelist = parseWhitelistRaw(raw);
     }
 
     /** 对照 mergeSSRFWhitelistRaws */

@@ -132,6 +132,28 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - **`scripts/` 里的脚本已固化 JDK 路径探测**：换 shell 后 `./gradlew` 会报
     "Unable to locate a Java Runtime"（Homebrew openjdk 不在默认 PATH）。
 
+- **API Key 体系（横切回补）关键点**：
+  - **两套独立授权叠加**：角色维度（`RbacInterceptor`）与能力维度（`APIKeyGateInterceptor`）
+    是独立的，Go 里能力判定先于角色判定，且 **`RequireRole` 对 API-Key 主体直接放行**
+    （否则 full-access Key 会被角色下限拦住）——Java 侧在 `RbacInterceptor` 加了
+    `APIKeyScopeContext.present()` 短路。
+  - **门禁层 ≠ 数据面**：门禁只校验"这个路由需要什么能力"，**数据面**还要校验
+    "这个 KB 是否在 Key 的白名单内"（`authorizeKnowledgeBases`）。只做前者 = scoped Key
+    能访问任意 KB。Java 侧收口点选在 `KnowledgeService.requireKb` / `getKnowledge`
+    （所有文档端点都经过它们，一处覆盖全部；Go 是分散在 handler 里逐个调的）。
+  - **管理端点刻意不登记 API-Key 策略** → Key 主体 default-deny（Key 不能给自己扩权）。
+  - **jsonb 三态**（`null` = full-access / `[]` = scoped 空 / 有值）：不能用 wiki 那套
+    "空列表写 SQL NULL" 的 handler——会把三态压成两态。故单独有 `APIKeyRawJsonbTypeHandler`。
+  - **`SsrfGuard` 的白名单改为进程级静态**（对照 Go 的包级变量）。原先每实例一份，
+    而出站工具类持静态引用，多 Spring 上下文下会互相覆盖——表现为契约测试随机 400
+    （真实踩过）。
+- **API Key 回补的剩余差异**：
+  1. `resolveAPIPrincipal`（API 主体模式 / HMAC 令牌 / `X-External-User-ID`）未翻译 → 等价于
+     Go 的回落分支；与 `api-principal-config` 端点配套，建议单独排期。
+  2. `userService.GetUserByTenantID` 未翻译 → 租户 Key 一律走 Go 的合成用户兜底 `system-<tenantId>`。
+  3. `APIKeyRoutePolicies` 目前只覆盖**已翻译**路由；未翻译模块（agents/sessions/chunks/eval/
+     sandbox/系统管理/tenants/**）的策略待各自模块落地时补登记。
+
 ## 7.5 派发翻译 agent 的标准约束（每次必带）
 
 每个翻译 agent 的任务书里**必须**包含以下段落。它们对应的是已经踩过的坑，
@@ -193,6 +215,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | LLM 调用客户端（阶段 4.0） | internal/models/chat/*（26 文件）；internal/models/provider/*（30 文件）；internal/models/limiter/*；internal/models/utils/ollama/ | com.ragagent.llm.{domain,chat,provider,limiter,ollama}（LlmChatClient 接口；RemoteApiChat/AnthropicChat/OllamaChat；ProviderAdapter 13 实现）+ LlmChatClients 工厂 | ✅ | 368 测试全绿（本模块 ~330）。Java 侧把 Go 的「SDK 路径 vs 裸 HTTP 路径」合并为 ObjectNode 单路径。关键简化与已知差异见 §9 |
 | MCP 服务管理（阶段 4.1） | internal/mcp/*（自研协议客户端：client/manager/oauth_*+SSRF）；internal/types/mcp*.go；internal/application/{repository,service}/mcp*.go；internal/handler/mcp_*.go + dto/mcp.go；internal/agent/approval/*（提前翻译以解耦） | com.ragagent.mcp.{domain,protocol,oauth,mapper,service,dto,controller} + com.ragagent.agent.approval | ✅ | 22 端点全落地；17 条 golden（CRUD/审批/凭据/SSRF 拒绝/403/404）掩码比对通过。e2e 在真 PG 验证：密钥加密落库（enc:v1:）+ **跨语言双向互操作**（同 key 下 Go 写 Java 读、Java 写 Go 读均成功）。关键坑见 §9 |
 | Wiki（阶段 4.2） | internal/handler/wiki_page.go；internal/application/service/{wiki_page,wiki_lint,wiki_slug_handles,wiki_linkify,wiki_ingest*}.go；internal/application/repository/wiki_page.go；internal/types/{wiki_page,interfaces/wiki_page}.go；internal/agent/prompts_wiki.go | com.ragagent.wiki.{domain,mapper,service,prompt,controller} | ✅ | 21 端点全落地；13 条 golden（CRUD/文件夹/聚合读/权限，掩码比对）+ **真 PG 上 5 个读端点 A/B 全部 MATCH**，且 Java 写的行 Go 读回一致。关键坑见 §9 |
+| API Key 体系（横切回补） | internal/types/tenant_api_key.go；internal/middleware/api_key_gate.go；internal/application/{repository,service}/tenant_api_key.go；internal/handler/tenant.go 的 API Key 段 | com.ragagent.apikey.{domain,mapper,service,filter,controller} | ✅ | 25 条能力 + scope + 路由策略表；门禁拦截器接入 WebConfig（order -1，先于角色维度）；AuthFilter 通道 3 换真实鉴权；**数据面 KB 白名单已收口**（requireKb / getKnowledge）。120 新测试 |
 
 ## 9. 当前确认过的细节
 

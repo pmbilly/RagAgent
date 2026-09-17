@@ -73,10 +73,25 @@ public class WebConfig implements WebMvcConfigurer {
     public FilterRegistrationBean<AuthFilter> authFilter(UserService userService,
                                                          TenantService tenantService,
                                                          TenantMemberService memberService,
-                                                         TenantProperties tenantProperties) {
+                                                         TenantProperties tenantProperties,
+                                                         com.ragagent.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel) {
         FilterRegistrationBean<AuthFilter> bean =
-                new FilterRegistrationBean<>(new AuthFilter(userService, tenantService, memberService, tenantProperties));
+                new FilterRegistrationBean<>(new AuthFilter(userService, tenantService, memberService,
+                        tenantProperties, apiKeyAuthChannel));
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
+        bean.addUrlPatterns("/*");
+        return bean;
+    }
+
+    /**
+     * 清理 API Key 作用域 ThreadLocal。Servlet 线程池会复用线程，
+     * 不清理会让后续的 JWT 请求被误判成 API Key 主体（对照 Go 的 per-request 值语义）。
+     */
+    @Bean
+    public FilterRegistrationBean<com.ragagent.apikey.filter.APIKeyScopeCleanupFilter> apiKeyScopeCleanupFilter() {
+        FilterRegistrationBean<com.ragagent.apikey.filter.APIKeyScopeCleanupFilter> bean =
+                new FilterRegistrationBean<>(new com.ragagent.apikey.filter.APIKeyScopeCleanupFilter());
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 15);
         bean.addUrlPatterns("/*");
         return bean;
     }
@@ -89,6 +104,17 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         RbacInterceptor rbac = new RbacInterceptor(tenantProperties);
+
+        // API Key 能力维度的门禁（对照 Go middleware.APIKeyRouteAuthorizer.Middleware）。
+        // 必须**排在角色维度的 RbacInterceptor 之前**：Go 里能力判定先于角色判定，
+        // 且 RbacInterceptor 对 API Key 主体短路（见其 apiKeyShortCircuit）。
+        com.ragagent.apikey.filter.APIKeyRouteAuthorizer apiKeyAuthorizer =
+                new com.ragagent.apikey.filter.APIKeyRouteAuthorizer();
+        com.ragagent.apikey.filter.APIKeyRoutePolicies.registerAll(apiKeyAuthorizer);
+        registry.addInterceptor(new com.ragagent.apikey.filter.APIKeyGateInterceptor(apiKeyAuthorizer))
+                .addPathPatterns("/api/v1/**")
+                .order(-1);
+
         // /models 组（对照 RegisterModelRoutes）
         rbac.addRule("GET", "/api/v1/models", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/models/providers", TenantRole.VIEWER, false);
@@ -172,8 +198,16 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/knowledgebase/*/wiki/issues", TenantRole.VIEWER, false);
         rbac.addRule("PUT", "/api/v1/knowledgebase/*/wiki/issues/*/status", TenantRole.VIEWER, false);
 
+        // 租户 API Key 管理（对照 routes_auth_tenant.go）：Owner+。
+        // 刻意**不**登记进 API-Key 策略表——Key 不能给自己扩权（Go 测试钉住的契约）。
+        rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
+        rbac.addRule("POST", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
+        rbac.addRule("PUT", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
+        rbac.addRule("DELETE", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
-                "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**");
+                "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**",
+                "/api/v1/tenants/**");
     }
 }

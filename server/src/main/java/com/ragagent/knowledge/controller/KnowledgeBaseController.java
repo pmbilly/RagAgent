@@ -93,6 +93,12 @@ public class KnowledgeBaseController {
             @RequestParam(value = "creator", required = false) String creator) {
         log.info("Start listing knowledge bases");
         List<KnowledgeBase> kbs = kbService.listKnowledgeBases(creator);
+        // 对照 filterKnowledgeBasesForAPIKeyScope：KB 受限的 API Key 只看得到白名单内的库。
+        // 这是**数据面**校验（门禁层只校验路由能力），scoped Key 的收口强度取决于此处。
+        var scope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        if (scope != null && scope.isKnowledgeBaseRestricted()) {
+            kbs = kbs.stream().filter(kb -> scope.allowsKnowledgeBase(kb.getId())).toList();
+        }
         List<Map<String, Object>> data = new ArrayList<>(kbs.size());
         for (KnowledgeBase kb : kbs) {
             data.add(KnowledgeBaseResponseBuilder.buildListItem(kb, kbService.retrieveDriver()));

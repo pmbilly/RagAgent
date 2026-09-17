@@ -66,15 +66,18 @@ public class AuthFilter extends OncePerRequestFilter {
     private final TenantService tenantService;
     private final TenantMemberService memberService;
     private final TenantProperties tenantProperties;
+    private final com.ragagent.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel;
 
     public AuthFilter(UserService userService,
                       TenantService tenantService,
                       TenantMemberService memberService,
-                      TenantProperties tenantProperties) {
+                      TenantProperties tenantProperties,
+                      com.ragagent.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel) {
         this.userService = userService;
         this.tenantService = tenantService;
         this.memberService = memberService;
         this.tenantProperties = tenantProperties;
+        this.apiKeyAuthChannel = apiKeyAuthChannel;
     }
 
     @Override
@@ -110,10 +113,13 @@ public class AuthFilter extends OncePerRequestFilter {
             }
         }
 
-        // 通道 3：X-API-Key（阶段 1：API key 服务未配置）
+        // 通道 3：X-API-Key（对照 Go middleware/auth.go 的 apiKeyService 分支）。
+        // 鉴权通过时由 channel 自行写入 principal/scope 上下文，不再往下走其它通道。
         String apiKey = request.getHeader("X-API-Key");
         if (apiKey != null && !apiKey.isEmpty()) {
-            writeUnauthorized(response, "Unauthorized: API key service is not configured");
+            if (apiKeyAuthChannel.authenticate(request, response)) {
+                chain.doFilter(request, response);
+            }
             return;
         }
 
