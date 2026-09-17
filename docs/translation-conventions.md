@@ -93,6 +93,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | auth/租户（阶段 1） | internal/middleware/auth.go、auth_context.go、access.go；internal/application/service/user.go（Login/ValidateToken/generateTokensForTenant/resolveLoginTenantID 链）；internal/handler/auth.go(Login)、dto/{auth,tenant}.go；types/{user,tenant,tenant_member,principal}.go | com.ragagent.auth.{domain,mapper,dto,service,filter,controller} + config.{TenantProperties,JacksonConfig} | ✅ | 10 条新 golden 全过（H2 种子+掩码比对）；e2e 连 dev DB 验证通过。关键坑见 §9 |
 | 模型配置（阶段 2） | internal/handler/model*.go、weknoracloud.go；internal/application/service/{model,weknoracloud}.go；internal/types/model.go、builtin_models_config.go；internal/models/provider/*；internal/utils/{security.go(SSRF),crypto.go}；internal/middleware/rbac.go（RequireRole 子集）；internal/application/repository/{model,model_usage}.go | com.ragagent.model.{domain,mapper,dto,service,controller} + com.ragagent.common.{crypto,security,web.RbacInterceptor/PgJsonTypeHandler} | ✅ | 9 条新 golden 全过；providers 响应与 Go 实录字节一致；AES-GCM 落库密文/回读解密 e2e 验证。关键坑见 §9 |
 | 知识库（阶段 3） | internal/handler/{knowledgebase,knowledge}.go；internal/application/service/{knowledgebase,knowledge,knowledge_create,knowledge_process}.go；internal/application/repository/{knowledgebase,knowledge}.go；internal/types/{knowledgebase,knowledge,knowledge_folder}.go；internal/infrastructure/docparser/(gRPC 客户端)；internal/chunker/*；internal/utils/{storage,security}(SSRF) | com.ragagent.knowledge.{domain,mapper,dto,service,controller,chunker}（KnowledgeProcessWorker=进程内虚拟线程队列，对照 asynq；DocReaderClient gRPC；EmbedderClient；VectorStoreService） | ✅ | 20 条 golden 全过（KB CRUD+文档 CRUD，含 409 duplicate 特殊信封）；e2e 连 dev PG：上传→docreader 解析→chunk 落库→无 embedding 模型按契约 failed。关键坑见 §9 |
+| LLM 调用客户端（阶段 4.0） | internal/models/chat/*（26 文件）；internal/models/provider/*（30 文件）；internal/models/limiter/*；internal/models/utils/ollama/ | com.ragagent.llm.{domain,chat,provider,limiter,ollama}（LlmChatClient 接口；RemoteApiChat/AnthropicChat/OllamaChat；ProviderAdapter 13 实现）+ LlmChatClients 工厂 | ✅ | 368 测试全绿（本模块 ~330）。Java 侧把 Go 的「SDK 路径 vs 裸 HTTP 路径」合并为 ObjectNode 单路径。关键简化与已知差异见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -162,6 +163,46 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   4. resource:// key 内部编码与 Go 不同（opaque，不外泄）；本地存储落盘 {LOCAL_STORAGE_BASE_DIR}/{tenantId}/{knowledgeId}/{fileName}
   5. 未实现路由（阶段 4+）：clear-contents/copy/duplicate/preview/download/cancel/reparse/move/batch/tags/FAQ 导入/wiki_config 相关
   6. 删除文档为同步软删（Go 异步任务语义，响应契约一致：data.task_id + "Delete task submitted"）
+- **阶段 4.0（LLM 客户端）新确认的细节与简化**：
+  - **SDK/裸 HTTP 双路径合并**：Go 的 `useRawHTTP = thinkingUseRaw || adapter.ForceRawHTTP() || endpoint != "" || promptCacheForceRaw`
+    是因为 go-openai SDK 的 struct 带不了 `enable_thinking` 等非标准字段。Java 统一用 Jackson
+    `ObjectNode` 构造请求体 → 双路径合并为一条，`ForceRawHTTP()` 无对应物（ProviderAdapter 已删该方法）。
+    **必须保留的**是各 adapter 的净效果：ShapeRequest 直接改 ObjectNode、Endpoint 覆写、Auth 分叉。
+  - ThinkingStrategy 同理：Go 的 `Apply` 返回 `(customBody, useRawHTTP)`，Java 退化为纯注入
+    `apply(ObjectNode, opts, isStream)`；"何时注入"的语义（nil 语义 / alwaysSend / disableOnNonStream）逐条保留。
+  - **并发装饰器**：Go 的 `out` 是**无缓冲 channel**（生产者阻塞直到消费者接收），Java 必须用
+    `SynchronousQueue` —— 用有界 `LinkedBlockingQueue` 会让 `offer` 在消费者不读时仍成功，
+    放弃检测永不触发、信号量泄漏（阶段 4.0 实测踩过）。
+  - 放弃检测差异：Go 靠 `select { case out<-resp; case <-ctx.Done(): }` 即时释放；
+    Java 无 ctx，改用 `offer(timeout)` 超时判定（默认 120s，构造器可配）。语义等价但**释放是延迟的**，
+    调用方若会主动放弃长流，应考虑显式机制。
+  - **补全预算**：一个内部预算（`ChatOptions.completionBudget()`，MaxCompletionTokens 优先），
+    出站**恰好一个** token 字段（`CompletionBudget.wireField(provider, model)`）——
+    同时携带两者会被火山 Ark 之类网关直接拒绝（WeKnora#3014）。
+  - provider 路由：`ProviderRegistry.detectProvider(baseUrl)` 的 26 分支**顺序有语义**，逐条照抄。
+- **阶段 4.0 已知差异 / 未实现**：
+  1. `langfuse_wrapper.go`：Java 侧追踪未实现 → 不做包装器（等价于 Go 未启用路径，零成本）
+  2. `llm_debug.go` / `llm_debug_wrapper.go`：同上，省略（等价于 LLMDebugEnabled 关闭）
+  3. `stream_raw_dump.go`：SSE 原始包落盘调试功能，默认关闭，未翻
+  4. `sandbox_file_progress.go`（293 行）：沙箱工具的行数进度事件，依赖阶段 7 的 sandbox → 随阶段 7
+     （RemoteApiChat 里已留接线点 TODO）
+  5. `limiter` 的 **Redis 分布式限流器**（ZSET+Lua+心跳）未翻：多实例部署下并发上限不做跨进程协调，
+     与 asynq→进程内队列同类取舍
+  6. `ImageResolver` 的 `LocalImageResolver` 全局钩子：应用层存储模块装配点待补（当前走
+     LOCAL_STORAGE_BASE_DIR 兜底，与 Go 测试环境行为一致）
+  7. `logUsage` 缺 ctx 里的 purpose / 前缀指纹（日志行比 Go 略短，不影响行为）
+- **阶段 4.0 发现的 Go 侧不一致（Java 已照抄并用测试钉住，改动前须知会偏离 Go）**：
+  1. `transport.go` 注释写 1800s/600s，**代码实际 300s/600s** → Java 取 300/600
+  2. Ollama `completionTokens`：非流式 `EvalCount - promptTokens`，流式直接 `EvalCount`——同一语义两种算法
+  3. **七牛云默认 URL `api.qnaigc.com` 不含 "qiniu" 子串**，而 DetectProvider 只认 `qiniuapi.com`/`qiniu`
+     → 目录默认地址喂回去会 detect 成 generic，QINIU 分支永远命中不了自家默认 URL（有 golden 测试钉住）
+  4. Ollama 工具 schema：Go 反序列化进强类型 struct，**静默丢弃** `oneOf`/`additionalProperties` 等未建模关键字；
+     Java 选择原样透传 JsonNode（信息只多不少，且 Go 行为会让 schema 非法）
+  5. 终态 answer 的 `finish_reason`：Go 的裸 HTTP 路径不带、SDK 路径带；Java 单路径统一带
+  6. WeKnoraCloud 签名函数在 Java 侧重复实现（`llm.chat.ProviderAdapters` 内一份、
+     `model.service.WeKnoraCloudService.sign` 一份）——建议后续提升可见性收敛为一处
+  7. Azure URL 拼接：Go 走 go-openai `fullURL`（`<base>/openai/deployments/<modelId>/chat/completions?api-version=`），
+     Java 照公式复刻，api-version 取 `extra_config.api_version`，缺省 `2023-05-15`
 - **工具链与调试坑（跨阶段复用，阶段 3 实测）**：
   1. JUnit XML 的 failure `message` 属性会截断长 diff（~4KB），且 `content().bytes` 失败时 expected/actual
      以十进制字节数组呈现——直接按 byte 解码或找首个差异位，别信肉眼截断的片段
