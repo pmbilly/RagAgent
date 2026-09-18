@@ -25,6 +25,7 @@ import com.ragagent.knowledge.domain.KbVlmConfig;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatTool;
+import com.ragagent.llm.domain.ResponseType;
 import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
 import com.ragagent.mcp.domain.McpAuthConfig;
@@ -35,6 +36,8 @@ import com.ragagent.mcp.domain.McpStdioConfig;
 import com.ragagent.mcp.domain.McpTestResult;
 import com.ragagent.mcp.domain.McpTool;
 import com.ragagent.mcp.domain.McpToolApproval;
+import com.ragagent.stream.LiveRunPayload;
+import com.ragagent.stream.StreamEvent;
 import com.ragagent.wiki.domain.WikiConfig;
 import com.ragagent.wiki.service.CombinedExtraction;
 import com.ragagent.wiki.service.ExtractedItem;
@@ -415,6 +418,39 @@ class JsonContractRoundTripTest {
                 AuditLogListResponse.of(List.of()),
                 AuditLogListResponse.class,
                 "handler.auditLogListResponse ← AuditLogListResponse（空页）");
+    }
+
+    // ── 流事件（落 Redis；Go 与 Java **共用同一批键**，本文件里唯一不是 jsonb/HTTP 的契约） ──
+
+    /**
+     * {@code interfaces.StreamEvent} 与 {@code liveRunPayload}。
+     *
+     * <p>它们不落 jsonb、也不作 HTTP 响应体，但**跨语言共享**：Go 与 Java 两个实现
+     * 读写同一批 Redis 键，且 {@code ClearLiveRun} / {@code UpdateSteerEventData}
+     * 都在原始字节上做 CAS。键名或零值语义一变，跨语言的 CAS 就会静默失效——
+     * 所以同样纳入这道防线。</p>
+     *
+     * <p>timestamp 留空：本工具用的是**裸** ObjectMapper（未注册 JSR-310），
+     * 非空值会在这里炸；其真实字节形状由 {@code com.ragagent.stream.StreamJsonTest}
+     * 对着 Go 的实录钉住。</p>
+     */
+    @Test
+    void streamEventContractsRoundTrip() {
+        StreamEvent event = new StreamEvent("e-1", ResponseType.ANSWER, "hi", true);
+        event.setData(Map.of("consumed", true));
+        TokenUsage usage = new TokenUsage();
+        usage.setPromptTokens(3);
+        usage.setTotalTokens(3);
+        event.setUsage(usage);
+        assertRoundTrips(event, StreamEvent.class,
+                "interfaces.StreamEvent ← StreamEvent（Redis 流事件，data/usage 为 omitempty）");
+
+        // 空 data/usage 也要能往返：Go 侧 omitempty 省略后仍须幂等
+        assertRoundTrips(new StreamEvent("e-2", ResponseType.STEER, "", false), StreamEvent.class,
+                "interfaces.StreamEvent ← StreamEvent（省略 data/usage）");
+
+        assertRoundTrips(new LiveRunPayload("msg-1", "req-1"), LiveRunPayload.class,
+                "stream.liveRunPayload ← LiveRunPayload");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────

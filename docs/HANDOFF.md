@@ -36,7 +36,8 @@
 | — | 机制建设（往返测试 + 脚本 + agent 约束模板） | ✅ | `fc13321` |
 | — | API Key 体系回补（含数据面收口） | ✅ | `4d38d75` |
 | — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
-| **5** | **会话 / SSE** | ⏳ **下一步** | — |
+| 5.0 | **`stream/` 流管理器**（SESSION/SSE 的前置） | ✅ | 见 §8 日志 |
+| **5** | **会话 / SSE**（余下部分） | ⏳ **下一步** | — |
 | 6 | embed 渠道 | ⏳ | — |
 | 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
 | 8 | 联调 | ⏳ | — |
@@ -51,7 +52,9 @@
 
 ### 3.1 拆解（含依赖判断）
 
-**可独立做（不依赖 agent 引擎）** —— 建议先做这批：
+**已落地**：`stream/` 流管理器（1032 行）→ `com.ragagent.stream`。
+
+**可独立做（不依赖 agent 引擎）** —— 建议接着做这批：
 
 | 文件 | 行数 | 内容 |
 |---|---|---|
@@ -60,7 +63,6 @@
 | `application/service/message_suggestion.go` | 962 | 追问建议 |
 | `application/service/session_qa_helpers.go` | 345 | QA 辅助 |
 | `application/service/session_attachment_staging.go` | 295 | 附件暂存 |
-| `stream/` | 1032 | **SSE 管理器**（`memory_manager.go` / `redis_manager.go` / `factory.go`） |
 | `handler/session/*` + `handler/message*.go` | ~12k（含测试） | HTTP 层 |
 
 **强依赖阶段 7（agent 引擎）** —— 建议后移或先打桩：
@@ -83,10 +85,22 @@
 
 ### 3.3 开工建议
 
-1. 先读 `stream/` 三个文件——**SSE 管理器是 agent 引擎的前置**，优先落地
+1. ~~先读 `stream/` 三个文件——**SSE 管理器是 agent 引擎的前置**，优先落地~~ ✅ 已完成
 2. 摸底 agent 只读，产出一份与 `docs/translation-conventions.md` 风格一致的报告
 3. 按 §7.5 约束派 agent（**单 agent 串行优先**，见下方"并发踩坑"）
 4. 验收走 §4 的完整流程
+
+### 3.4 阶段 5.0（stream 管理器）交接要点
+
+- 已交付 `com.ragagent.stream`：`StreamManager` 接口 + `MemoryStreamManager` / `RedisStreamManager`
+  两个实现，`StreamManagerConfig` 按 `STREAM_MANAGER_TYPE` 选型（精确匹配 `"redis"`，
+  其余走内存；选 redis 时**启动即 Ping**，连不上就起不来——与 Go 一致，已实测）。
+- **它是跨语言共用的 Redis 存储契约**，JSON 逐字节对齐 Go（HTML 转义 / 小写十六进制 /
+  map 排序）——细节与踩坑见 §9「阶段 5（stream 流管理器）新确认的细节」，**动它之前先读那一段**。
+- 测试：35 条（`com.ragagent.stream.*`，其中 15 条跑在**真 redis-server** 上；
+  本机 PATH 上没有 `redis-server` 时整类 skip）。全量 1437 测试绿。
+- **还没接进任何 HTTP 端点**——消费方是 `handler/session/stream.go` 等，
+  随会话模块一起翻译。所以现在做不了 SSE 的 A/B。
 
 ## 4. 标准验收流程（每个模块）
 

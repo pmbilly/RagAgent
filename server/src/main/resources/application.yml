@@ -21,6 +21,14 @@ spring:
       port: ${REDIS_PORT:16379}
       # dev Redis 开了 requirepass（.env 的 REDIS_PASSWORD）；未设时留空
       password: ${REDIS_PASSWORD:}
+      # 对照 Go stream 管理器建客户端时读的 REDIS_USERNAME / REDIS_DB
+      username: ${REDIS_USERNAME:}
+      database: ${REDIS_DB:0}
+      # 对照 common.RedisTLSConfig：REDIS_USE_TLS=true 才开 TLS（默认关）。
+      # Go 另有 REDIS_TLS_SERVER_NAME / REDIS_TLS_INSECURE_SKIP_VERIFY，Java 侧暂无
+      # 对应物——见 docs/translation-conventions.md §9 的已知差异。
+      ssl:
+        enabled: ${REDIS_USE_TLS:false}
   flyway:
     locations: classpath:db/migration,filesystem:./build/generated-migrations
     baseline-on-migrate: true   # 已有 Go 版数据的库自动 baseline，不重复执行 98 个迁移
@@ -37,6 +45,13 @@ grpc:
     docreader:
       address: ${DOCREADER_ADDR:static://localhost:50051}
       negotiation-type: plaintext
+
+# 流管理器（对照 Go internal/stream/factory.go 读的那组环境变量）
+weknora:
+  stream:
+    type: ${STREAM_MANAGER_TYPE:memory}   # memory | redis（Go 是精确匹配，其余一律 memory）
+    prefix: ${REDIS_PREFIX:}              # 原样使用，不去尾冒号（.env 的 "stream:" 会拼出双冒号，与 Go 一致）
+    ttl: 1h                               # Go 工厂硬编码 time.Hour
 
 # ---- 以下为 Go config.yaml 的业务配置键（翻译对应模块时逐个启用）----
 conversation:

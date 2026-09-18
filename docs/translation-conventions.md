@@ -240,6 +240,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | Wiki（阶段 4.2） | internal/handler/wiki_page.go；internal/application/service/{wiki_page,wiki_lint,wiki_slug_handles,wiki_linkify,wiki_ingest*}.go；internal/application/repository/wiki_page.go；internal/types/{wiki_page,interfaces/wiki_page}.go；internal/agent/prompts_wiki.go | com.ragagent.wiki.{domain,mapper,service,prompt,controller} | ✅ | 21 端点全落地；13 条 golden（CRUD/文件夹/聚合读/权限，掩码比对）+ **真 PG 上 5 个读端点 A/B 全部 MATCH**，且 Java 写的行 Go 读回一致。关键坑见 §9 |
 | API Key 体系（横切回补） | internal/types/tenant_api_key.go；internal/middleware/api_key_gate.go；internal/application/{repository,service}/tenant_api_key.go；internal/handler/tenant.go 的 API Key 段 | com.ragagent.apikey.{domain,mapper,service,filter,controller} | ✅ | 25 条能力 + scope + 路由策略表；门禁拦截器接入 WebConfig（order -1，先于角色维度）；AuthFilter 通道 3 换真实鉴权；**数据面 KB 白名单已收口**（requireKb / getKnowledge）。120 新测试 |
 | audit 审计（横切回补） | internal/types/audit_log.go；internal/application/{service,repository}/audit_log*.go；internal/handler/audit_log.go | com.ragagent.audit.{domain,mapper,service,controller} | ✅ | 62 个 AuditAction；3 端点；**接上了既有埋点**：WikiActivityAudit 的 6 处 + RbacInterceptor 的拒绝审计（§9 阶段 1 差异 #8 的正式收口）。golden A/B 实测（空页 `[]` 非 null、1010 文案、request_path 存路由模板） |
+| stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -380,6 +381,51 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
      **多副本生产部署必须打开**，否则回调落到别的副本会找不到 state。
   5. `usage_instructions` 生成的 WeKnoraCloud 凭据回落缺失（TenantService 尚无该读取口）。
   6. LLM 客户端的 `langfuse` 追踪未实现 → MCP/LLM 的观测数据不落 Langfuse。
+- **阶段 5（stream 流管理器）新确认的细节**：
+  - **这一块是「跨语言共用的 Redis 存储契约」**，不是内部类型：Go 与 Java 两个实现
+    读写同一批键。JSON 是契约本身，逐字节对齐不是洁癖——
+    `ClearLiveRun` 的 CAS 是在原始 JSON 上做**子串匹配**、`UpdateSteerEventData` 的 CAS 是
+    拿**读到的原文**比对槽位，两边写出的字节不同，跨语言的这两条 CAS 就会一路重试到放弃。
+  - **Jackson 与 Go `encoding/json` 有两处字节差**（实测确认）：
+    1. `encoding/json` 默认把 `<` `>` `&` 转义成 \u003c / \u003e / \u0026（**小写**十六进制），
+       Jackson 默认**原样输出**；
+    2. 其余控制字符 Go 写**小写** `\u00xx`，Jackson 写大写。
+    已用 `com.ragagent.stream.GoJsonEscapes` 复刻。
+    **踩坑**：Jackson 的 `CharacterEscapes` 是**整表替换**而非叠加——返回数组里没标 escape
+    的字符会**原样输出**，所以 `\b \t \n \f \r \" \\` 这些"两边本来就一致"的短转义
+    **也必须显式声明**（实现时漏掉，`\n`/`\t`/`\b` 直接漏成了原文，被 `StreamJsonTest` 抓到）。
+  - **map 按键字母序输出**（`ORDER_MAP_ENTRIES_BY_KEYS`）：Go 的 `json.Marshal` 对 map 恒排序。
+  - **`REDIS_PREFIX` 原样使用**，不做去尾冒号处理——dev `.env` 是 `REDIS_PREFIX=stream:`，
+    拼出来的键是 `stream::sess:msg`（**双冒号**）。这是 Go 的原样行为，别"顺手修好"。
+  - **`STREAM_MANAGER_TYPE` 是精确匹配** `"redis"`，其余一切值（含大小写不符、空）都是内存后端
+    ——Go 的 `switch` 就是精确匹配，别改成 `equalsIgnoreCase`。
+  - **Go 的工厂会先 Ping**，连不上就返回 error、服务起不来。Java 侧在 `StreamManagerConfig`
+    里同样 fail-fast（实测：Redis 端口写错 → context 取消刷新，报 `failed to connect to Redis`）。
+  - **损坏的 live-run 标记必须抛错**，不能折叠成"没有 live run"：调用方把空值当 `new_run`，
+    于是 `/steer` 会在仍在生成的轮次之上叠起第二个 AgentQA。
+  - **`GetEvents` 的 nextOffset 用 Redis 原始条数**：解码失败被跳过的事件也计入，
+    否则每次轮询都会把同一条坏数据重拉一遍。
+  - **TTL 续期点有四处**：`AppendEvent`、`GetEvents`（**含空读**）、`AppendSteerEvents`、`GetLiveRun`。
+    空读续期是刻意的——模型思考期间 SSE 轮询循环走的正是这条路径，长轮次不能看起来"空闲"。
+  - **测试起真 `redis-server`**（等价 Go 测试的 miniredis；`EmbeddedRedis` 会顺 PATH 找，
+    找不到就整类 skip，也可用 `REDIS_TEST_ADDR` 指向已有实例）。这块的语义一半在 Lua 脚本与真实
+    TTL 里，本项目其他 Redis 依赖点那种 `Fake*` 替身在这里替不掉。
+    TTL 用例断言"续期前后 TTL 变大"而非"大于某个绝对值"——TTL 按毫秒存、按秒向下取整读，
+    刚写 5s 也可能读到 4，断言太紧会假红（已踩过一次）。
+- **阶段 5 已知差异 / 未接线**：
+  1. `RedisStreamManager` 复用 Spring 的 `StringRedisTemplate`（Go 是 `NewRedisStreamManager` 自建
+     client）。连接参数走 `spring.data.redis.*`，已接 `REDIS_HOST/PORT/PASSWORD/USERNAME/DB`
+     （对照 Go 工厂读的 `REDIS_ADDR/USERNAME/PASSWORD/DB`）——`REDIS_ADDR` 那个 `host:port` 单串形式未直接消费。
+  2. Redis TLS：`REDIS_USE_TLS` 已接（落到 Boot 的 `spring.data.redis.ssl.enabled`）；
+     **`REDIS_TLS_SERVER_NAME` / `REDIS_TLS_INSECURE_SKIP_VERIFY` 无对应物**（dev / .env 均未启用 TLS）。
+  3. `StreamEvent.type` 未赋值时 Java 序列化为 `null`，Go 的零值是 `""`（真实产出方恒会赋值，未复刻零值）。
+  4. U+2028 / U+2029：Go 在 escapeHTML 下会转义，Java 未复刻（Jackson 的转义表只管 7-bit，
+     复刻得付出的代价是把中文也一起转义，反而更远）。
+  5. `RedisStreamManager` 没有 Go 的 `Close()`——连接由 Spring 管理，不归它管。
+  6. **stream 目前只是装配好的 bean，还没有 HTTP 端点消费它**：session / message 模块未翻译，
+     所以这一阶段还做不了 SSE 的 A/B。e2e 目前只验证到「redis 模式下服务能起、连不上时按 Go 的方式起不来」。
+  7. e2e 脚本默认不导出 `STREAM_MANAGER_TYPE`（host-run 下 Go/Java 都走内存后端）；
+     要用 redis 后端做联调需显式带上 `STREAM_MANAGER_TYPE=redis REDIS_PREFIX=stream:`。
 - **跨阶段通用坑（阶段 4 新增）**：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，
