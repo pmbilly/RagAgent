@@ -59,7 +59,7 @@
 | 波 | 内容 | 规模 | 状态 |
 |---|---|---|---|
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
-| **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史） | ~25 条 | ⏳ **下一步** |
+| **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（admin/tenant/faq/chunk/vectorstore/storagebackend/邀约/…） | ~140 条 | ⏳ |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ |
 | 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
@@ -79,7 +79,7 @@
 - 五个真叶子（零未翻译前置）：`datasource` ✅、`memory` ✅、`sandbox`、`browserskill`、`infrastructure`。
   **`sandbox` 是最紧的前置**（`agent/skills` 硬依赖它，另解锁系统管理端与 skill）。
 
-## 3. 下一步：波 1（会话 / 消息面剩余）
+## 3. 下一步：波 2（管理面与知识库外围）
 
 ### 3.1 做什么
 
@@ -95,16 +95,24 @@ sandbox terminal(2)/local-browser(2)（波 3）与 knowledge-chat/agent-chat/kno
 
 - `com.ragagent.session.domain` + `mapper`：`Session` / `Message` / 五个 jsonb List 处理器 /
   `SessionRepository` / `MessageRepository` / `MessageSuggestionRepository`
-- `com.ragagent.session.service`：`SessionService`（`getSession` / `getOwnedSession` /
-  `getSessionById` + `loadSessionForRead` 的可见性判定）/ `MessageService`
+- `com.ragagent.session.service`：`SessionService`（读路径 + **写路径已全**：create/list/
+  setPinned/update/delete/batchDelete/deleteAll + generateTitle）/ `MessageService` /
+  `MessageSuggestionService` / `TemporaryDocumentService` + `AttachmentFileStore`
+  （Go 布局落盘 `local://{tenant}/exports/…`，异步解析 executor；agent 门控/VLM/asynq
+  为已知差异，见 conventions §9「波 1 G5」）
+- `com.ragagent.session.controller`：Session/Message/MessageSuggestion/TemporaryDocument/Steer
+  五个 controller（含 Go 风格 JSON 绑定语义 `GoJsonBindError`）
+- `com.ragagent.common.web`：`GoTimeSerializer`（timestamptz 列）/
+  `GoNaiveOffsetDateTimeTypeHandler`（naive 列，双形态）`PgJsonTypeHandler`（jsonb，
+  **update 用 `set(col,val,"typeHandler=…")` 三参重载**）
 - `com.ragagent.session.sse`：`SseContract` / `SseFrameWriter` / `StreamEventEmitter` /
   `StreamResponseBuilder`（SSE 的整条线，已 A/B 验过）
 - `com.ragagent.storageurl`：引用重写 + 扣留缓冲（已 A/B 验过）
 - `com.ragagent.stream`：流管理器
 
-**服务层的读路径要扩展**：`SessionService` 现在只有读方法，会话 CRUD（create/update/delete/
-list/pin/attachments/artifacts/title）要照 Go `application/service/session.go` 补。
-写路径**不加** Admin 回退（`getOwnedSession` 的语义，见 §2.2 那条）。
+**波 2 的起点**：先读 `docs/translation-conventions.md` §8（已完成模块台账）与 §9
+（各波实测的坑——**动手前必读**，多数坑会复发）；再按 §4 的标准验收流程推进。
+判依赖看调用点不看包名（§2.2 的教训）。
 
 ## 4. 标准验收流程（每个模块）
 
