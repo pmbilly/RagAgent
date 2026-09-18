@@ -150,6 +150,12 @@ public final class APIKeyRoutePolicies {
         a.registerGin("POST", "/api/v1/sessions/:session_id/messages/:message_id/suggestions", sessions);
         a.registerGin("GET", "/api/v1/sessions/:id/messages/:message_id/suggestions", sessions);
         a.registerGin("POST", "/api/v1/sessions/:session_id/suggestion-events", sessions);
+        // 产物 3 条 + generate_title + stop（routes_chat.go L60-67、L105-107，同组 chat 能力）
+        a.registerGin("GET", "/api/v1/sessions/:id/artifacts", sessions);
+        a.registerGin("GET", "/api/v1/sessions/:id/messages/:message_id/artifacts", sessions);
+        a.registerGin("GET", "/api/v1/sessions/:id/messages/:message_id/artifacts/:index/download", sessions);
+        a.registerGin("POST", "/api/v1/sessions/:session_id/generate_title", sessions);
+        a.registerGin("POST", "/api/v1/sessions/:session_id/stop", sessions);
     }
 
     /**

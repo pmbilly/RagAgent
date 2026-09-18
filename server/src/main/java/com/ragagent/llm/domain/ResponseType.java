@@ -57,7 +57,13 @@ public enum ResponseType {
     /** 旧对话被摘要压缩以适配上下文窗口 */
     CONTEXT_COMPACTED("context_compacted"),
     /** skill 安装交给安装器 agent 的指令（仅安装流水线发出，且最先发出） */
-    INSTALL_PROMPT("install_prompt");
+    INSTALL_PROMPT("install_prompt"),
+    /**
+     * 停止生成（对照 Go handler 里 {@code types.ResponseType(event.EventStop)} 的
+     * 字符串强转——"stop" 不在 Go 的 ResponseType 常量表里，但确实以该值落进
+     * StreamManager 的存储契约，见 SessionController.stopSession）。
+     */
+    STOP("stop");
 
     private final String value;
 

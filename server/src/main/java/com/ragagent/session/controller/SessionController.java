@@ -1,5 +1,6 @@
 package com.ragagent.session.controller;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +15,7 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.GoJsonBindError;
+import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
@@ -80,11 +82,14 @@ public class SessionController {
 
     private final SessionService sessionService;
     private final com.ragagent.session.service.MessageService messageService;
+    private final com.ragagent.stream.StreamManager streamManager;
 
     public SessionController(SessionService sessionService,
-                             com.ragagent.session.service.MessageService messageService) {
+                             com.ragagent.session.service.MessageService messageService,
+                             com.ragagent.stream.StreamManager streamManager) {
         this.sessionService = sessionService;
         this.messageService = messageService;
+        this.streamManager = streamManager;
     }
 
     /**
@@ -467,6 +472,324 @@ public class SessionController {
         body.put("is_pinned", pinned);
         body.put("success", true);
         return ResponseEntity.ok(body);
+    }
+
+    // ══════════════════════════ 产物（波 1 G6） ══════════════════════════
+
+    /**
+     * 对照 Go {@code ListSessionArtifacts}（artifact_download.go L49-93）：
+     * 会话全部 assistant 消息的产物元数据，**不含存储 URL**——客户端不能绕过
+     * download 端点直接读 provider:// 路径。
+     */
+    @GetMapping("/api/v1/sessions/{id}/artifacts")
+    public ResponseEntity<Map<String, Object>> listSessionArtifacts(@PathVariable("id") String id) {
+        String sessionId = LogSanitizer.sanitize(id);
+        if (sessionId.isEmpty()) {
+            throw new BizException(AppError.badRequest("invalid session id"));
+        }
+        // 归属校验走 GetSession（读可见性，与 Go 相同）
+        try {
+            sessionService.getSession(sessionId);
+        } catch (SessionNotFoundException e) {
+            throw BizException.notFound(e.getMessage());
+        } catch (RuntimeException e) {
+            throw toInternal(e);
+        }
+        List<com.ragagent.session.domain.MessageArtifact> artifacts;
+        try {
+            artifacts = messageService.getSessionArtifacts(sessionId);
+        } catch (RuntimeException e) {
+            throw BizException.internal(e.getMessage());
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", artifactListItems(artifacts));
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /** 对照 Go {@code ListMessageArtifacts}（L103-144）。 */
+    @GetMapping("/api/v1/sessions/{id}/messages/{message_id}/artifacts")
+    public ResponseEntity<Map<String, Object>> listMessageArtifacts(
+            @PathVariable("id") String id,
+            @PathVariable("message_id") String messageId) {
+        String sessionId = LogSanitizer.sanitize(id);
+        String mid = LogSanitizer.sanitize(messageId);
+        if (sessionId.isEmpty() || mid.isEmpty()) {
+            throw new BizException(AppError.badRequest("session_id and message_id are required"));
+        }
+        try {
+            sessionService.getSession(sessionId);
+        } catch (SessionNotFoundException e) {
+            throw BizException.notFound(e.getMessage());
+        } catch (RuntimeException e) {
+            throw toInternal(e);
+        }
+        Message message;
+        try {
+            message = messageService.getMessage(sessionId, mid);
+        } catch (com.ragagent.session.domain.MessageNotFoundException e) {
+            // Go：err != nil || msg == nil → 404 "message not found"（固定文案）
+            throw BizException.notFound("message not found");
+        } catch (RuntimeException e) {
+            throw BizException.notFound("message not found");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", artifactListItems(
+                message.getArtifacts() == null ? List.of() : message.getArtifacts()));
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * 对照 Go {@code DownloadMessageArtifact}（L152-258）。
+     *
+     * <p>确定性分支逐条对照（400/404 文案固定）；实际取文件依赖 access 层的
+     * 资源目录解析（未翻译）——Go 在 catalog 查不到资源时同样回
+     * 404 "artifact not accessible"，Java 恒落该分支（provider 级文件服务未翻译）。</p>
+     */
+    @GetMapping("/api/v1/sessions/{id}/messages/{message_id}/artifacts/{index}/download")
+    public ResponseEntity<Map<String, Object>> downloadMessageArtifact(
+            @PathVariable("id") String id,
+            @PathVariable("message_id") String messageId,
+            @PathVariable("index") String indexParam) {
+        String sessionId = LogSanitizer.sanitize(id);
+        String mid = LogSanitizer.sanitize(messageId);
+        if (sessionId.isEmpty() || mid.isEmpty() || indexParam == null || indexParam.isEmpty()) {
+            throw new BizException(AppError.badRequest(
+                    "session_id, message_id and index are required"));
+        }
+        final int index;
+        try {
+            index = Integer.parseInt(indexParam);
+        } catch (NumberFormatException e) {
+            throw new BizException(AppError.badRequest("invalid artifact index"));
+        }
+        if (index < 0) {
+            throw new BizException(AppError.badRequest("invalid artifact index"));
+        }
+        try {
+            sessionService.getSession(sessionId);
+        } catch (SessionNotFoundException e) {
+            throw BizException.notFound(e.getMessage());
+        } catch (RuntimeException e) {
+            throw toInternal(e);
+        }
+        Message message;
+        try {
+            message = messageService.getMessage(sessionId, mid);
+        } catch (RuntimeException e) {
+            throw BizException.notFound("message not found");
+        }
+        List<com.ragagent.session.domain.MessageArtifact> artifacts =
+                message.getArtifacts() == null ? List.of() : message.getArtifacts();
+        if (index >= artifacts.size()) {
+            throw BizException.notFound("artifact index out of range");
+        }
+        com.ragagent.session.domain.MessageArtifact artifact = artifacts.get(index);
+        if (artifact.getUrl() == null || artifact.getUrl().isEmpty()) {
+            throw BizException.notFound("artifact storage path missing");
+        }
+        // access.ResolveMessageArtifact（资源目录/共享授权）未翻译——与 Go 的
+        // catalog 查不到资源同一出口：404 "artifact not accessible"。
+        // （Go 的 fileService==nil → 500 分支生产装配不可达；Java 侧同理不设。）
+        throw BizException.notFound("artifact not accessible");
+    }
+
+    /** 对照 Go {@code artifactListItem}（L265-279）：声明序 + handle omitempty。 */
+    private static List<Map<String, Object>> artifactListItems(
+            List<com.ragagent.session.domain.MessageArtifact> artifacts) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (int i = 0; i < artifacts.size(); i++) {
+            com.ragagent.session.domain.MessageArtifact a = artifacts.get(i);
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("index", i);
+            String handle = artifactHandle(a.getUrl());
+            if (handle != null && !handle.isEmpty()) {
+                item.put("handle", handle);
+            }
+            item.put("file_name", a.getFileName());
+            item.put("file_type", a.getFileType());
+            item.put("file_size", a.getFileSize());
+            item.put("source_path", a.getSourcePath());
+            item.put("mod_time", a.getModTime());
+            item.put("created_at", a.getCreatedAt());
+            items.add(item);
+        }
+        return items;
+    }
+
+    /**
+     * 对照 Go {@code artifactHandle}（L352-357）：URL 是 {@code resource://<handle>}
+     * （恰好 22 个合法字符）时返回规范化的 {@code resource://<handle>}，否则空串
+     * （空串被 omitempty 省略——响应里没有 handle 键）。
+     */
+    private static String artifactHandle(String url) {
+        if (url == null) {
+            return "";
+        }
+        String trimmed = url.trim();
+        if (!trimmed.startsWith("resource://")) {
+            return "";
+        }
+        String handle = trimmed.substring("resource://".length());
+        if (handle.length() != 22) {
+            return "";
+        }
+        for (int i = 0; i < handle.length(); i++) {
+            char c = handle.charAt(i);
+            boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-';
+            if (!ok) {
+                return "";
+            }
+        }
+        return "resource://" + handle;
+    }
+
+    // ══════════════════════════ 生成标题（波 1 G6） ══════════════════════════
+
+    /**
+     * 对照 Go {@code GenerateTitle}（title.go L25-76）。写会话行，用严格 owner 范围
+     * （GetOwnedSession——管理员可读不可改）。响应 {"data":title,"success":true}。
+     */
+    @PostMapping("/api/v1/sessions/{session_id}/generate_title")
+    public ResponseEntity<Map<String, Object>> generateTitle(
+            @PathVariable("session_id") String sessionId,
+            @RequestBody(required = false) String rawBody) {
+        if (sessionId == null || sessionId.isEmpty()) {
+            throw new BizException(AppError.badRequest("invalid session id"));
+        }
+        GenerateTitleRequest request = bindBody(rawBody, GenerateTitleRequest.class);
+        // binding:"required"：validator 对切片是**非 nil 即通过**（golden 实测
+        // {"messages":[]} 通过 binding 走到了模型查找），只有字段缺失才 400
+        if (request == null || request.messages() == null) {
+            throw new BizException(AppError.badRequest(
+                    "Key: 'GenerateTitleRequest.Messages' Error:Field validation for 'Messages' "
+                            + "failed on the 'required' tag"));
+        }
+        Session session;
+        try {
+            session = sessionService.getOwnedSession(sessionId);
+        } catch (SessionNotFoundException e) {
+            log.warn("Session not found, ID: {}", sessionId);
+            throw BizException.notFound(e.getMessage());
+        } catch (RuntimeException e) {
+            throw toInternal(e);
+        }
+        String title;
+        try {
+            title = sessionService.generateTitle(session, request.messages(), "");
+        } catch (RuntimeException e) {
+            throw toInternal(e);
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", title);
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /** 对照 Go {@code GenerateTitleRequest}（types.go L18-20）。 */
+    private record GenerateTitleRequest(
+            @JsonProperty("messages") List<Message> messages) {
+    }
+
+    // ══════════════════════════ 停止生成（波 1 G6） ══════════════════════════
+
+    /**
+     * 对照 Go {@code StopSession}（stream.go L219-324）。
+     *
+     * <p>⚠️ 错误形态与组内其他端点不同：Go 直接 {@code c.JSON(code, gin.H{"error": "..."})}
+     * ——纯字符串信封（**不是** AppError 信封），状态码有 400/401/403/404 五种。
+     * 停止事件经 StreamManager 落存储（跨语言键空间），事件 type 是
+     * {@code types.ResponseType(event.EventStop)} 的字符串强转 "stop"。</p>
+     */
+    @PostMapping("/api/v1/sessions/{session_id}/stop")
+    public ResponseEntity<Map<String, Object>> stopSession(
+            @PathVariable("session_id") String sessionId,
+            @RequestBody(required = false) String rawBody) {
+        String sid = LogSanitizer.sanitize(sessionId);
+        if (sid == null || sid.isEmpty()) {
+            return errorBody(400, "Session ID is required");
+        }
+        StopSessionRequest request = null;
+        if (rawBody != null && !rawBody.isBlank()) {
+            try {
+                request = MAPPER.readValue(rawBody, StopSessionRequest.class);
+            } catch (Exception e) {
+                return errorBody(400, "message_id is required");
+            }
+        }
+        if (request == null || isBlankStr(request.messageId())) {
+            return errorBody(400, "message_id is required");
+        }
+        String assistantMessageId = LogSanitizer.sanitize(request.messageId());
+
+        Long tenantId = TenantContext.currentTenantId();
+        if (tenantId == null) {
+            return errorBody(401, "Unauthorized");
+        }
+
+        // 消息可见性走 GetMessage（读路径），会话走严格 owner 范围（写路径）
+        Message message;
+        try {
+            message = messageService.getMessage(sid, assistantMessageId);
+        } catch (RuntimeException e) {
+            return errorBody(404, "Message not found");
+        }
+        if (message.getSessionId() == null || !message.getSessionId().equals(sid)) {
+            return errorBody(403, "Message does not belong to this session");
+        }
+        Session session;
+        try {
+            session = sessionService.getOwnedSession(sid);
+        } catch (RuntimeException e) {
+            return errorBody(404, "Session not found");
+        }
+        if (session.getTenantId() == null || session.getTenantId().longValue() != tenantId) {
+            // ⚠️ Long 比较必须拆箱（陷阱 §5 第 6 条：租户 10002 超出缓存区间，
+            // 引用比较恒不等 → 误判 "Access denied"，G6 契约测试抓回）
+            return errorBody(403, "Access denied");
+        }
+        if (message.isCompleted()) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("message", "Message already completed");
+            body.put("success", true);
+            return ResponseEntity.ok(body);
+        }
+
+        com.ragagent.stream.StreamEvent stopEvent = new com.ragagent.stream.StreamEvent(
+                "stop-" + System.nanoTime(), com.ragagent.llm.domain.ResponseType.STOP,
+                "", true);
+        stopEvent.setTimestamp(OffsetDateTime.now());
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("session_id", sid);
+        data.put("message_id", assistantMessageId);
+        data.put("reason", "user_requested");
+        stopEvent.setData(data);
+        try {
+            streamManager.appendEvent(sid, assistantMessageId, stopEvent);
+        } catch (RuntimeException e) {
+            return errorBody(500, "Failed to write stop event");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Generation stopped");
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /** 对照 Go {@code StopSessionRequest}（stream.go 内定义，message_id 必填）。 */
+    private record StopSessionRequest(@JsonProperty("message_id") String messageId) {
+    }
+
+    /** Go 的 {@code c.JSON(code, gin.H{"error": "..."})}：纯字符串错误信封。 */
+    private static ResponseEntity<Map<String, Object>> errorBody(int status, String message) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", message);
+        return ResponseEntity.status(status).body(body);
+    }
+
+    private static boolean isBlankStr(String v) {
+        return v == null || v.trim().isEmpty();
     }
 
     // ══════════════════════════ 公共 ══════════════════════════

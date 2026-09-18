@@ -12,6 +12,8 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.model.service.ModelService;
+import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
@@ -48,15 +50,18 @@ public class SessionService {
     private final MessageRepository messageRepository;
     private final MessageSuggestionRepository suggestionRepository;
     private final KnowledgeService knowledgeService;
+    private final ModelService modelService;
 
     public SessionService(SessionRepository sessionRepository,
                           MessageRepository messageRepository,
                           MessageSuggestionRepository suggestionRepository,
-                          KnowledgeService knowledgeService) {
+                          KnowledgeService knowledgeService,
+                          ModelService modelService) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.suggestionRepository = suggestionRepository;
         this.knowledgeService = knowledgeService;
+        this.modelService = modelService;
     }
 
     // ── Go 的包级辅助 ──────────────────────────────────────────────────────
@@ -396,6 +401,68 @@ public class SessionService {
         }
         // TODO(波 2 web-search): Go 在此调 webSearchStateRepo.DeleteWebSearchTempKBState（失败被吞）。
         // TODO(波 3 sandbox): Go 在此 destroyBoundSandbox（会话绑定的 MicroVM；Disabled 后端是 no-op）。
+    }
+
+    /**
+     * 对照 Go {@code GenerateTitle}（session.go L749-861）。
+     *
+     * <p>标题已存在 → 直接返回；messages 为空时回库取第一条 user 消息
+     * （Go 的 {@code GetFirstMessageOfUser} 查不到抛 gorm 错误 → 500 "record not found"）；
+     * modelID 缺省时找第一台 KnowledgeQA 模型。</p>
+     *
+     * <p><b>已知差异</b>：真正的 LLM 调用依赖 ModelService 运行时工厂（GetChatModel，
+     * 阶段 7）——Java 侧走到这一步抛 500（与 Go 运行时失败形态一致）；
+     * 标题已存在 / 无用户消息 / 无 KnowledgeQA 模型三条确定性路径逐字对照。</p>
+     */
+    public String generateTitle(Session session, List<Message> messages, String modelId) {
+        if (session == null) {
+            throw new BizException(AppError.internal("session cannot be empty"));
+        }
+        // 已有标题直接返回（不重生成、不落库）
+        if (session.getTitle() != null && !session.getTitle().isEmpty()) {
+            return session.getTitle();
+        }
+
+        Message message = null;
+        if (messages == null || messages.isEmpty()) {
+            message = messageRepository.getFirstMessageOfUser(session.getId());
+            if (message == null) {
+                // Go：GetFirstMessageOfUser 的 gorm.ErrRecordNotFound 原文
+                throw new BizException(AppError.internal("record not found"));
+            }
+        } else {
+            for (Message m : messages) {
+                if (Message.ROLE_USER.equals(m.getRole())) {
+                    message = m;
+                    break;
+                }
+            }
+        }
+        if (message == null) {
+            throw new BizException(AppError.internal("no user message found"));
+        }
+
+        if (modelId == null || modelId.isEmpty()) {
+            List<com.ragagent.model.domain.Model> models = modelService.listModels();
+            for (com.ragagent.model.domain.Model model : models) {
+                if (model == null) {
+                    continue;
+                }
+                if ("KnowledgeQA".equals(model.getType())) {
+                    modelId = model.getId();
+                    break;
+                }
+            }
+            if (modelId == null || modelId.isEmpty()) {
+                throw new BizException(
+                        AppError.internal("no KnowledgeQA model available for title generation"));
+            }
+        }
+
+        // LLM 调用依赖运行时模型工厂（阶段 7）；此前到这里的请求以 500 收场，
+        // 与 Go 的模型运行时失败形态一致（handler：NewInternalServerError(err.Error())）。
+        throw new BizException(AppError.internal(
+                "title model runtime is not available yet (untranslated)"));
     }
 
     /**

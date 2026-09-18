@@ -254,6 +254,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | session CRUD+pin（波 1 G1） | internal/application/service/session.go 的写方法（L188-668）；internal/handler/session/handler.go L123-582；internal/router/routes_chat.go L53-83 | com.ragagent.session.service.SessionService 写路径扩展 + controller.SessionController（8 条端点）+ apikey.filter.APIKeyRoutePolicies + common.web.GoJsonBindError | ✅ | 8 端点全落地；34 条新契约测试（**golden 全是 Go 实录**）+ **真 PG 上 34 组 A/B 全 MATCH**（2988 测试全量绿）。**golden 实测纠正了三处预实现**：渠道 source 拒绝是 500 双前缀（非 403）、page=0 被 omitempty 跳过、`queryPaged` 的 is_pinned 映射缺陷。关键坑见 §9「波 1 G1」 |
 | 消息面（波 1 G2） | internal/handler/message.go（347 行）；internal/application/service/message.go 的读/删/搜/统计方法；internal/application/repository/message.go 的两条检索查询；routes_chat.go L16-33 + L59 | com.ragagent.session.{service.MessageService 扩展,controller.MessageController,domain.MessageWithSession/MessageSearchGroupItem/MessageSearchResult/ChatHistoryKbStats} + SessionController 补 ClearSessionMessages + APIKeyRoutePolicies | ✅ | 5 端点全落地（4 条 /messages + 清空）；23 条新契约测试（golden 全是 Go 实录）+ **真 PG 上 25 组 A/B 全 MATCH**（3011 全量绿）。**golden 抓到的关键契约**：search 的 match_type 全是 "hybrid"（partner 补对的空 matchType 与 "keyword" 合并所致）。关键坑见 §9「波 1 G2」 |
 | 追问建议（波 1 G3） | internal/handler/message_suggestion.go（156 行）；internal/application/service/message_suggestion.go 的 Ensure/Get/RecordEvent/suppress 与包级辅助 | com.ragagent.session.{service.MessageSuggestionService,controller.MessageSuggestionController} + APIKeyRoutePolicies | ✅ | 3 端点全落地；17 条新契约测试 + **真 PG 上 18 组 A/B 全 MATCH**（3028 全量绿）。**已知差异**：LLM 生成步降级为 failed/generation_error（运行时模型工厂随阶段 7、知识推荐随波 2/4）；未配置 follow-ups 的默认路径逐字节一致。关键坑见 §9「波 1 G3」 |
+| 产物+title+stop（波 1 G6） | internal/handler/session/{artifact_download.go,title.go,stream.go 的 StopSession}；service/session.go 的 GenerateTitle | SessionController 追加 5 条端点 + llm.domain.ResponseType 补 STOP + MessageService.getSessionArtifacts + SessionService.generateTitle | ✅ | 5 端点全落地；22 条新契约测试 + **真 PG 上 22 组 A/B 全 MATCH**（3050 全量绿）。**golden 抓回两个真缺陷**：stop 的 Long 引用比较（陷阱 §5.6 复发）、AbstractJsonListTypeHandler 缺 JSR310 模块（artifacts 列整列不可读）。关键坑见 §9「波 1 G6」 |
 
 ## 9. 当前确认过的细节
 
@@ -1037,3 +1038,28 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
      suppression_reason/error_code/model_id（空串省略）、prompt/completion_tokens/
      latency_ms（0 省略）、generated_at（nil 省略）、agent_id（**无** omitempty，恒输出
      空串）——逐一对照，agent_id 漏了空串输出就会分叉。
+- **波 1 G6（产物/title/stop）新确认的细节与坑——前三条都会复发**：
+  1. **`Long != Long` 又咬了一口**（陷阱 §5 第 6 条复发）：stop 里
+     `session.getTenantId() != tenantId`（Long vs Long）引用比较恒不等 →
+     正常请求被误判 403 "Access denied"。**凡租户/ID 比较，一律 `.longValue()` /
+     `equals` / 先拆箱**——这个坑第 2 次出现了，写比较表达式前先看两边类型。
+  2. **jsonb List 处理器必须挂 JavaTimeModule**：MessageArtifact 带
+     OffsetDateTime 字段（mod_time/created_at），AbstractJsonListTypeHandler 的
+     静态 MAPPER 缺 JSR310 模块 → artifacts 列**整列**反序列化失败（读消息就炸）。
+     这类缺陷只有"真的写带时间字段的 jsonb"才暴露——新增带时间的 jsonb 元素类型时，
+     先写一条往返测试。
+  3. **validator 的 required 对切片是"非 nil 即通过"**：`{"messages":[]}` 通过
+     binding 走到了模型查找（golden 实测 500 "no KnowledgeQA model..."），
+     只有字段**缺失（null）**才 400。别按直觉把空列表也拒了。
+  4. **stop 的错误形态是纯字符串信封** `{"error":"..."}`（c.JSON 直写，不是
+     AppError 信封），且 GetMessage 在 GetOwnedSession **之前**——会话不可见也落
+     404 "Message not found"。成功形态 {"message","success"}（字母序）。
+  5. **stop 事件的 type 是字符串强转**：`types.ResponseType(event.EventStop)`
+     = "stop"，不在 Go 的 ResponseType 常量表里但真实落存储——Java 的
+     ResponseType 枚举补了 STOP("stop")（跨语言键空间契约）。
+  6. **artifact 下载的 access 层未翻译**：确定性分支（index 非法/越界/路径缺失/
+     404 文案）逐字对照后，恒落 404 "artifact not accessible"（与 Go catalog
+     查不到资源同一出口）。Go 的 fileService==nil → 500 分支生产装配不可达。
+  7. **generate_title 的已知差异**：LLM 调用依赖运行时模型工厂（阶段 7）——
+     确定性路径（已有标题 / 无 user 消息 / 无 KnowledgeQA 模型）逐字对照；
+     走到 LLM 那步 Java 以 500 收场（与 Go 运行时失败同形态）。

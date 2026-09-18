@@ -170,6 +170,19 @@ public class MessageService {
         return messages;
     }
 
+    /**
+     * 对照 Go {@code GetSessionArtifacts}（message.go L516-523）：会话全部 assistant
+     * 消息的产物，按创建序扁平化（空会话 id 返回空列表）。
+     */
+    public List<com.ragagent.session.domain.MessageArtifact> getSessionArtifacts(String sessionId) {
+        if (sessionId == null || sessionId.isEmpty()) {
+            return List.of();
+        }
+        List<com.ragagent.session.domain.MessageArtifact> artifacts =
+                messageRepository.getSessionArtifacts(sessionId);
+        return artifacts == null ? List.of() : artifacts;
+    }
+
     // ── 删 ──────────────────────────────────────────────────────────────────
 
     /**
