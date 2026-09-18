@@ -433,6 +433,157 @@ public final class TestSchema {
                 + "\"com.ragagent.TestSchema.jsonArrayLength\"");
         jdbc.execute("CREATE ALIAS IF NOT EXISTS jsonb_array_length FOR "
                 + "\"com.ragagent.TestSchema.jsonArrayLength\"");
+
+        createMemoryTables(jdbc);
+    }
+
+    /**
+     * memory 模块的 7 张表（对照 Go 迁移 {@code 000084_memory} + {@code 000094_memory_consistency}
+     * + {@code 000095_memory_vector_search}）。
+     *
+     * <p>三处与 PG 的 DDL 有意的差异，都是 H2 的限制（**迁移一字不改，索引以迁移为准**）：</p>
+     * <ul>
+     *   <li>{@code JSONB} → {@code VARCHAR}（测试库统一用 VARCHAR 承载 jsonb，同既有表）；</li>
+     *   <li>PG 的 {@code uuid_generate_v4()} 默认值去掉——H2 没有该函数，
+     *       而 id 一律由应用层生成（同既有表）；</li>
+     *   <li>{@code memory_item_embeddings.embedding}（pgvector 的 {@code halfvec}）
+     *       → {@code VARBINARY}。向量列只在 PG 上真正使用，测试库只需列存在能落盘。</li>
+     * </ul>
+     *
+     * <p>注意 {@code memory_extraction_sessions} 是**复合主键**
+     * （{@code (tenant_id, subject_id, session_id)}），没有 id 列。</p>
+     */
+    private static void createMemoryTables(JdbcTemplate jdbc) {
+        // memory_subjects：一个主体在一个工作区里的记忆空间。
+        // extraction_state / consolidated_at / forced_consolidated_at 由 000094 追加。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS memory_subjects (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "subject_id VARCHAR(512) NOT NULL," +
+                "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "block_text VARCHAR NOT NULL DEFAULT ''," +
+                "block_updated_at TIMESTAMP WITH TIME ZONE," +
+                "item_count INTEGER NOT NULL DEFAULT 0," +
+                "last_extracted_at TIMESTAMP WITH TIME ZONE," +
+                "extract_cursor TIMESTAMP WITH TIME ZONE," +
+                "extraction_state VARCHAR," +
+                "pending_sessions VARCHAR," +
+                "extract_scheduled_at TIMESTAMP WITH TIME ZONE," +
+                "consolidated_at TIMESTAMP WITH TIME ZONE," +
+                "forced_consolidated_at TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_subjects_scope " +
+                "ON memory_subjects (tenant_id, subject_id)");
+
+        // memory_items：一条被记住的陈述。replaces_id 由 000094 追加。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS memory_items (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "subject_id VARCHAR(512) NOT NULL," +
+                "kind VARCHAR(32) NOT NULL," +
+                "content VARCHAR NOT NULL," +
+                "topic VARCHAR(255) NOT NULL DEFAULT ''," +
+                "normalized_key VARCHAR(255) NOT NULL DEFAULT ''," +
+                "importance SMALLINT NOT NULL DEFAULT 3," +
+                "origin VARCHAR(16) NOT NULL DEFAULT 'extracted'," +
+                "status VARCHAR(16) NOT NULL DEFAULT 'active'," +
+                "source_session_id VARCHAR(36)," +
+                "source_message_id VARCHAR(36)," +
+                "valid_from TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "invalid_at TIMESTAMP WITH TIME ZONE," +
+                "expires_at TIMESTAMP WITH TIME ZONE," +
+                "replaces_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "superseded_by VARCHAR(36)," +
+                "last_used_at TIMESTAMP WITH TIME ZONE," +
+                "use_count INTEGER NOT NULL DEFAULT 0," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_memory_items_scope " +
+                "ON memory_items (tenant_id, subject_id, status)");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_memory_items_key " +
+                "ON memory_items (tenant_id, subject_id, normalized_key)");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_memory_replaces " +
+                "ON memory_items (tenant_id, subject_id, replaces_id, status)");
+
+        // memory_tombstones：记"这条被刻意忘掉了"，免得后台蒸馏又把它加回来。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS memory_tombstones (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "subject_id VARCHAR(512) NOT NULL," +
+                "topic VARCHAR(255) NOT NULL DEFAULT ''," +
+                "fingerprint VARCHAR(64) NOT NULL," +
+                "source_message_id VARCHAR(36)," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_mem_tomb_fp " +
+                "ON memory_tombstones (tenant_id, subject_id, fingerprint)");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_memory_tombstones_scope " +
+                "ON memory_tombstones (tenant_id, subject_id)");
+
+        // memory_topic_stats：aliases 由 000094 追加（NOT NULL DEFAULT '[]'）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS memory_topic_stats (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "subject_id VARCHAR(512) NOT NULL," +
+                "normalized_key VARCHAR(255) NOT NULL," +
+                "topic VARCHAR(255) NOT NULL DEFAULT ''," +
+                "aliases VARCHAR NOT NULL DEFAULT '[]'," +
+                "hits INTEGER NOT NULL DEFAULT 0," +
+                "last_seen_at TIMESTAMP WITH TIME ZONE," +
+                "promoted_at TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_mem_topic_scope " +
+                "ON memory_topic_stats (tenant_id, subject_id, normalized_key)");
+
+        // memory_doc_affinity：这个人的回答反复取材于哪些文档。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS memory_doc_affinity (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "subject_id VARCHAR(512) NOT NULL," +
+                "knowledge_id VARCHAR(36) NOT NULL," +
+                "knowledge_base_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "title VARCHAR(512) NOT NULL DEFAULT ''," +
+                "hits INTEGER NOT NULL DEFAULT 0," +
+                "last_used_at TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_mem_affinity_scope " +
+                "ON memory_doc_affinity (tenant_id, subject_id, knowledge_id)");
+
+        // memory_item_embeddings：PG 上是 pgvector 的 halfvec（000095）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS memory_item_embeddings (" +
+                "item_id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "subject_id VARCHAR(512) NOT NULL," +
+                "model_id VARCHAR(64) NOT NULL DEFAULT ''," +
+                "dims INTEGER NOT NULL DEFAULT 0," +
+                "vector VARBINARY," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_mem_emb_scope " +
+                "ON memory_item_embeddings (tenant_id, subject_id)");
+
+        // memory_extraction_sessions：每个会话自己的蒸馏进度（复合主键，无 id 列）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS memory_extraction_sessions (" +
+                "tenant_id BIGINT NOT NULL," +
+                "subject_id VARCHAR(512) NOT NULL," +
+                "session_id VARCHAR(36) NOT NULL," +
+                "revision BIGINT NOT NULL DEFAULT 0," +
+                "cursor_at TIMESTAMP WITH TIME ZONE," +
+                "cursor_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "pending BOOLEAN NOT NULL DEFAULT FALSE," +
+                "failure_count INTEGER NOT NULL DEFAULT 0," +
+                "failure_code VARCHAR(64) NOT NULL DEFAULT ''," +
+                "failed_from_at TIMESTAMP WITH TIME ZONE," +
+                "failed_from_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "failed_to_at TIMESTAMP WITH TIME ZONE," +
+                "failed_to_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "failed_at TIMESTAMP WITH TIME ZONE," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL," +
+                "PRIMARY KEY (tenant_id, subject_id, session_id))");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_memory_extraction_pending " +
+                "ON memory_extraction_sessions (tenant_id, subject_id, pending, updated_at, session_id)");
     }
 
     /**
