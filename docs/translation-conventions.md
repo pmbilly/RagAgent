@@ -255,6 +255,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 消息面（波 1 G2） | internal/handler/message.go（347 行）；internal/application/service/message.go 的读/删/搜/统计方法；internal/application/repository/message.go 的两条检索查询；routes_chat.go L16-33 + L59 | com.ragagent.session.{service.MessageService 扩展,controller.MessageController,domain.MessageWithSession/MessageSearchGroupItem/MessageSearchResult/ChatHistoryKbStats} + SessionController 补 ClearSessionMessages + APIKeyRoutePolicies | ✅ | 5 端点全落地（4 条 /messages + 清空）；23 条新契约测试（golden 全是 Go 实录）+ **真 PG 上 25 组 A/B 全 MATCH**（3011 全量绿）。**golden 抓到的关键契约**：search 的 match_type 全是 "hybrid"（partner 补对的空 matchType 与 "keyword" 合并所致）。关键坑见 §9「波 1 G2」 |
 | 追问建议（波 1 G3） | internal/handler/message_suggestion.go（156 行）；internal/application/service/message_suggestion.go 的 Ensure/Get/RecordEvent/suppress 与包级辅助 | com.ragagent.session.{service.MessageSuggestionService,controller.MessageSuggestionController} + APIKeyRoutePolicies | ✅ | 3 端点全落地；17 条新契约测试 + **真 PG 上 18 组 A/B 全 MATCH**（3028 全量绿）。**已知差异**：LLM 生成步降级为 failed/generation_error（运行时模型工厂随阶段 7、知识推荐随波 2/4）；未配置 follow-ups 的默认路径逐字节一致。关键坑见 §9「波 1 G3」 |
 | 产物+title+stop（波 1 G6） | internal/handler/session/{artifact_download.go,title.go,stream.go 的 StopSession}；service/session.go 的 GenerateTitle | SessionController 追加 5 条端点 + llm.domain.ResponseType 补 STOP + MessageService.getSessionArtifacts + SessionService.generateTitle | ✅ | 5 端点全落地；22 条新契约测试 + **真 PG 上 22 组 A/B 全 MATCH**（3050 全量绿）。**golden 抓回两个真缺陷**：stop 的 Long 引用比较（陷阱 §5.6 复发）、AbstractJsonListTypeHandler 缺 JSR310 模块（artifacts 列整列不可读）。关键坑见 §9「波 1 G6」 |
+| steer（波 1 G4） | internal/handler/session/steer.go 的 4 个 HTTP 端点（L461-810）+ 包级辅助（parseSteerDelivery/selectSteerBacklog/pendingSteerQueueItems/steerEvent） | com.ragagent.session.controller.SteerController + APIKeyRoutePolicies + BizException 补 serviceUnavailable | ✅ | 4 端点 HTTP 面全落地；16 条新测试（11 golden + 5 条直种 streamManager 的排队路径单测）+ **真 PG 上 12 组 A/B 全 MATCH**（3066 全量绿）。**范围说明**：live run 只能由 agent 引擎设置——排队/注入路径的引擎侧（PollSteer/follow-up 交接）随波 4/5，HTTP 面已对齐。关键坑见 §9「波 1 G4」 |
 
 ## 9. 当前确认过的细节
 
@@ -1063,3 +1064,20 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   7. **generate_title 的已知差异**：LLM 调用依赖运行时模型工厂（阶段 7）——
      确定性路径（已有标题 / 无 user 消息 / 无 KnowledgeQA 模型）逐字对照；
      走到 LLM 那步 Java 以 500 收场（与 Go 运行时失败同形态）。
+- **波 1 G4（steer）新确认的细节与坑——前三条都会复发**：
+  1. **binding required 先于业务 trim**：Go 的 `query binding:"required"` 在
+     ShouldBindJSON 里就拒掉空串/缺失（validator 原文），handler 里那句
+     "query must not be empty" 只有**纯空白**才可达。校验顺序写反 golden 立刻分叉。
+  2. **validator 的 required 对 string 是"非零值"**：空串失败；对 slice 是"非 nil"
+     （与 G6 的 messages:[] 行为同源）。两类字段别想当然。
+  3. **live run 是 agent 引擎的产物**：HTTP 层造不出"有活轮"状态——steer 的
+     排队/注入路径在引擎接线（波 4/5）前无法 golden/A/B，用"直种 streamManager 的
+     单测"钉住响应形态（StreamManager.setLiveRun + appendSteerEvents 可直接调）。
+  4. **gin.H 响应的字母序在 steer 里随处可见**：
+     already_injected/queued/gone/deleted 各形态的键序都是字母序
+     （removed < status < steer_id < success；assistant_message_id < delivery < ...）。
+  5. **StreamBatch 是 record**：访问器是 `events()` 不是 `getEvents()`——
+     既有代码 5.2 就写对了，新代码凭直觉写错会编译错（本轮）。
+  6. **503（ServiceUnavailable）是 steer 的可重试语义**：live run / 前序投递
+     查询失败 → 503 "Failed to look up running turn"（客户端 toast 后重试，
+     而不是开第二轮）。BizException 需补 serviceUnavailable 工厂。

@@ -37,6 +37,10 @@ public class BizException extends RuntimeException {
         return new BizException(AppError.internal(message));
     }
 
+    public static BizException serviceUnavailable(String message) {
+        return new BizException(AppError.serviceUnavailable(message));
+    }
+
     public AppError appError() {
         return appError;
     }

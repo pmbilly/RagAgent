@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · **3050 测试全绿** · Java 主代码 114,959 行 / 测试 61,618 行
-> **端点覆盖：Go 412 条 → Java 已注册 131 条（约 32%）**
+> 最后更新：2026-09-18 · **3066 测试全绿** · Java 主代码 114,959 行 / 测试 61,618 行
+> **端点覆盖：Go 412 条 → Java 已注册 135 条（约 33%）**
 
 ## 0. 一句话背景
 
@@ -51,6 +51,7 @@
 | **波 1 G2** | **消息面（load/search/stats/delete + 清空，5 条路由）** | ✅ | 23 golden + **真 PG A/B 25 组全 MATCH**（search 的 match_type=hybrid 之谜、matchType 空串合并等，见 conventions §9「波 1 G2」） |
 | **波 1 G3** | **追问建议（ensure/get/events，3 条路由）** | ✅ | 17 golden + **真 PG A/B 18 组全 MATCH**（writeError 子串分派、LLM 生成步降级等，见 conventions §9「波 1 G3」） |
 | **波 1 G6** | **产物 3 条 + generate_title + stop（5 条路由）** | ✅ | 22 golden + **真 PG A/B 22 组全 MATCH**（golden 抓回 stop 的 Long 引用比较、jsonb 处理器缺 JSR310 两个真缺陷，见 conventions §9「波 1 G6」） |
+| **波 1 G4** | **steer（排队/列表/删除/提升，4 条路由）** | ✅ | 11 golden + 直种 streamManager 的排队路径单测 5 条 + **真 PG A/B 12 组全 MATCH**（引擎侧 PollSteer/follow-up 随波 4/5，见 conventions §9「波 1 G4」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -81,9 +82,9 @@
 
 ### 3.1 做什么
 
-`routes_chat.go`(38) 里 **`continue-stream`、G1（8 条）、G2（5 条）、G3（3 条）、G6（5 条）已完成**，剩约 9 条：
-临时文档(5) + steer(4)。
-**全部不被 agent 引擎阻塞。** steer.go 38KB 最重（streamManager API 已就绪）；临时文档需先定 asynq 异步解析的 Java 等价方案。
+`routes_chat.go`(38) 里 **`continue-stream`、G1（8 条）、G2（5 条）、G3（3 条）、G6（5 条）、G4（4 条）已完成**，剩 9 条：
+临时文档(5)（需先定 asynq 异步解析的 Java 等价方案）+ sandbox terminal(2)/local-browser(2)（波 3）。
+波 1 的 chat 主链路 HTTP 面已基本齐了；临时文档是波 1 最后一块（也是唯一一块涉及文件上传/解析基建的）。
 
 ⚠️ 例外：`POST /sessions/:id/knowledge-chat`、`POST /sessions/:id/agent-chat`、
 `POST /knowledge-search` 这三条要等**波 4**（它们真的走 agent 引擎）。
