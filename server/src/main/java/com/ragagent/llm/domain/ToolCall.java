@@ -7,6 +7,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.ragagent.common.web.GoMapSerializer;
 
 /**
  * 工具调用（同时对照 Go chat.ToolCall 与 types.LLMToolCall——两者 JSON 形状相同，
@@ -30,6 +32,8 @@ public class ToolCall {
      */
     @JsonProperty("provider_metadata")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
+    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, JsonNode> providerMetadata;
 
     /**

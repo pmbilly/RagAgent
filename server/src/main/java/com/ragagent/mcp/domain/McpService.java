@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.ragagent.common.web.PgJsonTypeHandler;
+import com.ragagent.common.web.GoMapSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /**
  * MCP 服务配置实体（对照 Go types.MCPService，internal/types/mcp.go:25-45）。
@@ -37,6 +39,8 @@ public class McpService {
     /** 可选：SSE / HTTP Streamable 时必填 */
     private String url;
     @TableField(typeHandler = PgJsonTypeHandler.class)
+    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
+    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, String> headers;
     @TableField(typeHandler = McpAuthConfigTypeHandler.class)
     private McpAuthConfig authConfig;
@@ -45,6 +49,8 @@ public class McpService {
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private McpStdioConfig stdioConfig;
     @TableField(typeHandler = PgJsonTypeHandler.class)
+    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
+    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, String> envVars;
     /** 是否为内置服务（对所有工作空间可见） */
     private boolean isBuiltin;

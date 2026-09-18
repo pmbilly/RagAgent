@@ -7,6 +7,8 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.ragagent.common.web.GoMapSerializer;
 
 /**
  * wiki 的聚合统计（对照 Go types.WikiStats，internal/types/wiki_page.go L728-737）。
@@ -23,6 +25,8 @@ public class WikiStats {
 
     /** 键为 page_type，值为计数；用 LinkedHashMap 保持 Go map 的键序可控 */
     @JsonProperty("pages_by_type")
+    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
+    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, Long> pagesByType = new LinkedHashMap<>();
 
     @JsonProperty("total_links")

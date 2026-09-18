@@ -642,6 +642,46 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     `HTTP/1.1 200 `（无 reason phrase）、Spring 的 CORS 过滤器多三个 `Vary`、
     `X-Request-ID` 的大小写与 gin 的 `X-Request-Id` 不同。HTTP 头名大小写不敏感，
     正文不受影响。
+- **JSON 编码器的系统性差分排查（本轮的专项）**：
+  - **做法**（可复用）：读 Go `encoding/json` 的 encoder 源码定出**类别**（转义分支、
+    浮点编码器、整数、容器），为每类构造语料，用独立 Go 程序录出真值，再拿**容器里那个
+    mapper**（`@SpringBootTest` 注入，不是自己 new 的）对表。
+    成果是 `GoJsonEncodingContractTest`（27 条）——它把下面这张表变成可自动检查的。
+  - **起因**：HTML 转义那一类之所以被发现，纯粹是因为聊天正文碰巧踩到了。
+    其余类别**没有任何 golden 覆盖**，是同一类潜伏风险：某个响应恰好在某个字段里出现
+    某种字符或数值就会分叉，而且没人会预料到。
+  - **逐类结论**：
+
+    | 类别 | 状态 |
+    |---|---|
+    | `< > &` 的 HTML 转义 | ✅ 已**全局**对齐（`JacksonConfig`） |
+    | 控制字符小写十六进制、`\b \t \n \f \r \" \\` | ✅ 对齐（`GoJsonEscapes`，注意是整表替换） |
+    | U+2028 / U+2029 | ⚠️ **已知差异，刻意保留**——详见下条 |
+    | `int64` / `uint64` | ✅ 对齐（uint64 上限超出 Java `long`，用 `BigInteger`） |
+    | `null` / `[]` / `{}` 形状 | ✅ mapper 层不额外加工，取舍是逐字段的事 |
+    | **double 的值格式** | ⚠️ **逐字段**，见下 |
+    | **map 键序** | ⚠️ **逐字段**，见下 |
+
+  - **⚠️ U+2028 / U+2029 是刻意保留的差异**：Go **会**把它们转义（`"a\u2028b"`，
+    为的是 JSON 能直接当 JavaScript 求值），而 Jackson 的 `CharacterEscapes`
+    **够不到非 ASCII**——生成器对 `> 0x7F` 的字符走另一条路径，压根不查转义表。
+    要复刻只能给 `String` 注册全局自定义序列化器，或开 `ESCAPE_NON_ASCII`（那会把中文
+    也一起转义，反而更远）。这两个字符出现在正文里的概率极低、且对解析 JSON 的客户端不可见，
+    权衡后保留，并**在测试里显式钉住当前行为**，免得将来有人以为它对齐了。
+  - **⚠️ double 的值格式只能逐字段**：Go 走专用编码器（整数值不补 `.0`），
+    Jackson 走 `Double.toString`。**刻意不做全局注册**——`serializerByType(Double.class,…)`
+    会连 `ChatOptions` 这种**发给 LLM provider 的请求体**一起改掉（`"temperature":1`
+    取代 `1.0`），收益为零、风险实在。
+    **新增含 double 的响应类型时，字段上必须挂 `GoDoubleSerializer`。**
+  - **⚠️ map 键序只能逐字段**（Go 对 map 恒按字节序排，Jackson 不排）。
+    本轮排查发现：**golden 契约文件里所有 map 字段都只有 1 个键**
+    （`headers`/`credentials`/`env_vars` 全是单键）——多键 map 的键序**从未被验证过**。
+    已给响应侧的 5 个字段补上 `GoMapSerializer`：
+    `McpService.{headers,envVars}`、`McpServiceResponse.{headers,envVars,credentials}`、
+    `WikiStats.pagesByType`、`llm.domain.ToolCall.providerMetadata`。
+    **新增响应类型时，Map 字段上必须挂 `GoMapSerializer`**（它对已排好序的 map 是幂等的）。
+    注：jsonb 列另有一套（PG 的 `(长度,字节序)` 规范化），别混——那套走
+    `PgJsonTypeHandler.parse` 的 JsonNode 规范化，见 §9「KB 响应双序列化」。
 - **跨阶段通用坑（阶段 4 新增）**：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，
