@@ -243,6 +243,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
 | agent_steps 类型收紧（阶段 5.2 步 3 上） | internal/types/{agent,message}.go；internal/storageurl/request.go 的 RewriteMessages* | com.ragagent.agent.domain.{AgentStep,ToolCall,ToolCallTarget,ToolResult} + session.domain.{AgentStepListTypeHandler,SearchResultListTypeHandler} + common.web.{GoTimeSerializer,GoTimeDeserializer} + storageurl.Rewriter.rewriteMessages* | ✅ | 30 测试（12 逐字节 + 18 往返/重写）。**修掉了消息响应体上一个既有契约偏差**：jsonb 透传时元素退化成 LinkedHashMap，键序变成 PG 规范化序。关键坑见 §9 |
 | continue-stream 端点（阶段 5.2 步 4） | internal/handler/session/stream.go L29-204 + resource_urls.go L56-174 | com.ragagent.session.{controller.SessionStreamController,sse.SseFrameWriter,sse.StreamEventEmitter} + WebConfig 路由 + APIKeyRoutePolicies | ✅ | **第一次真正的 SSE A/B：四条路径逐字节 MATCH**（见 §9）。帧骨架、HTML 转义、扣留重组全部对齐 |
+| memory 实体+仓储（波 0 第 2 步） | internal/types/{memory,memory_extraction}.go 的实体；internal/application/repository/memory{,_extraction,_lifecycle,_vector}.go | com.ragagent.memory.{domain,mapper} + MemoryContext | ✅ | 187 测试（其中 52+23+17 是 H2 仓储、其余是实体/纯函数）。PG 专属路径（ON CONFLICT / FOR UPDATE / halfvec）在 dev PG 上手跑验过。关键坑见 §9 |
 | 会话/消息最小读路径（阶段 5.2 步 3 下） | internal/application/service/{session,message}.go 的读方法 + loadSessionForRead | com.ragagent.session.service.{SessionService,MessageService,SessionLookupScope} | ✅ | 14 测试（授权判定）。`Session.requiresAdminConsoleRead` 阶段 5.1 已落地，本步只补 service 层的两条读路径与 Admin 回退 |
 | storageurl（阶段 5.2 步 2） | internal/storageurl/{mode,storageurl,stream,resolver,request}.go | com.ragagent.storageurl.{Mode,StorageUrlContext,ResourceModeException,PublicModeForbiddenException,Resolver,Rewriter,StreamRewriter,FileServiceResolver,FileService,StorageBackendResolver} | ✅ | 49 测试。**这是第一处跨 5 个 handler 的共享契约**（message/knowledgebase/session/embed/im 都 import 它）。扣留缓冲 + 模式解析全部按 Go 对等移植；差分语料见 §9。已知差异：provider 级文件服务未翻译 |
 | SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
@@ -666,6 +667,37 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     data_analysis(~1.2k) 都可以在各自依赖就绪后再补，不必一次做完。
   - **顺带确认**：`internal/sandbox` / `datasource` / `browserskill` / `infrastructure/web_search`
     对 agent 是**干净的**，不会反向阻塞它们自己的 handler。
+- **波 0（memory）新确认的细节与坑**：
+  - **⚠️ 自定义 `@Select` 的结果映射不会套实体的 `@TableField(typeHandler=…)`**（本轮新踩，
+    与阶段 5「自定义 `@Select` 的结果映射」是同一条，但这次的具体表现值得记）：
+    `MemorySubjectMapper.selectByScope/selectByScopeForUpdate` 与 `MemoryTopicStatMapper`
+    的 4 条查询**必须写方法级 `@Results`**，否则 `extraction_state` / `pending_sessions` /
+    `aliases` 读回来**恒为 null**——库里明明有值、读出来是 null，H2 与 PG 都会中。
+    **凡是自定义 `@Select` 且返回实体、实体上挂了 typeHandler 的，逐个检查 `@Results`。**
+  - **测试不要靠墙钟造"时间已经过去"**（本轮抓到一次真实的不稳测试）：
+    「第一次 enqueue 用 90s 窗口、第二次用 1ms 窗口，断言该投递了」——
+    这要求两次调用间隔 ≥1ms。单跑绿、**全量跑红**（JIT/GC 压力下两次落在同一毫秒）。
+    正确写法：**直接把 DB 里的时间戳推到窗口之外**（`UPDATE … SET extract_scheduled_at = ?`），
+    完全不依赖计时。Go 侧没有这个用例，不存在可照抄的写法。
+  - **GORM 的 CREATE 零值→DDL 默认值替换**要显式复刻：`importance 0→3`、`origin ""→extracted`、
+    `status ""→active`、`enabled false→true`。不补的话会落进 DDL 默认值——**H2 与 PG 都一样**，
+    但服务层拿到的内存对象与 Go 不同（Go 的钩子会回写内存）。
+  - **三处「Go 源码没写、GORM 偷偷补 `updated_at`」**：`TouchUsed`、`DeleteItem` 的提议作废、
+    `FinishExtraction` 的 `Update`。GORM 的 `Update` 会自动写 `updated_at`，照抄时容易漏。
+  - **`MemoryExtractionSession` 是复合主键**（`(tenant_id, subject_id, session_id)`）：
+    MyBatis-Plus 不支持复合主键的 `@TableId`，只标了 `sessionId`，**所有读写都走显式 SQL**。
+    后续 service 若想用 `selectById` 会踩坑。
+  - **`MemorySubject.pendingSessions` 的"新建 null / 读回 []"**：新建对象字段是 null
+    （对齐 Go 零值的 JSON `null`），落库时由 `ensureSubject`/`saveExtractionState` 归一成 `[]`，
+    读回来是非 null 空列表。两种形态并存，与 Go 一致。
+  - **`MemoryConfig` 的业务方法刻意不带 `get`/`is` 前缀**（`vectorRecallEnabled()` 而不是
+    `isVectorRecallEnabled()`）：本类型是响应体 + 落库 jsonb 的形状，叫 `isXxx` 会让 Jackson
+    多吐一个 `vector_recall_enabled` 键（§7.5 第 2 条那个复发率最高的坑）。
+  - **`Character.UnicodeScript.HAN` 表达 Go 的 `unicode.Is(unicode.Han, r)`**；
+    且 Java 的 `Character.isWhitespace` **不含** U+00A0 而 Go 的 `unicode.IsSpace` **含**，
+    故 `isGoSpace` 显式补上——与 §9 那条 `\s` 差异同族。
+  - **未覆盖**：`searchItemsByVector` 的 SQL 排名路径（需要真 PG + pgvector）**无自动化测试**，
+    只有手跑验证 → 回归保护为零，建议排一个 e2e 步骤。
 - **JSON 编码器的系统性差分排查（本轮的专项）**：
   - **做法**（可复用）：读 Go `encoding/json` 的 encoder 源码定出**类别**（转义分支、
     浮点编码器、整数、容器），为每类构造语料，用独立 Go 程序录出真值，再拿**容器里那个

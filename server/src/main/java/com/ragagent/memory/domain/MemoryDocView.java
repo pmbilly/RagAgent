@@ -57,4 +57,23 @@ public class MemoryDocView {
     public void setLastUsedAt(OffsetDateTime v) {
         lastUsedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
     }
+
+    /**
+     * 对照 Go {@code MemoryDocViewFromAffinity}（internal/types/memory.go L1070-1082）。
+     *
+     * @return {@code row} 为 null 时回 null（对应 Go 的 {@code if row == nil { return nil }}）
+     */
+    public static MemoryDocView fromAffinity(MemoryDocAffinity row) {
+        if (row == null) {
+            return null;
+        }
+        MemoryDocView view = new MemoryDocView();
+        view.setId(row.getId());
+        view.setKnowledgeId(row.getKnowledgeId());
+        view.setKnowledgeBaseId(row.getKnowledgeBaseId());
+        view.setTitle(row.getTitle());
+        view.setHits(row.getHits());
+        view.setLastUsedAt(row.getLastUsedAt());
+        return view;
+    }
 }
