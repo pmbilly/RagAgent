@@ -57,20 +57,7 @@ public class MemoryMessageReader {
      * <p>游标为零值（时间零 + id 空）时**不加游标条件**，即从头开始。</p>
      */
     public List<Message> listAfterCursor(String sessionId, MemoryMessageCursor cursor, int limit) {
-        LambdaQueryWrapper<Message> w = new LambdaQueryWrapper<Message>()
-                .eq(Message::getSessionId, sessionId)
-                .isNull(Message::getDeletedAt);
-        boolean hasCursor = cursor != null
-                && (!GoTimeSerializer.isGoZero(cursor.getAt()) || !cursor.getId().isEmpty());
-        if (hasCursor) {
-            OffsetDateTime at = cursor.getAt();
-            String id = cursor.getId();
-            w.and(outer -> outer
-                    .gt(Message::getCreatedAt, at)
-                    .or(inner -> inner.eq(Message::getCreatedAt, at).gt(Message::getId, id)));
-        }
-        w.orderByAsc(Message::getCreatedAt).orderByAsc(Message::getId).last("LIMIT " + limit);
-        return mapper.selectList(w);
+        return messages.listMessagesBySessionAfterCursor(sessionId, cursor, limit);
     }
 
     /**

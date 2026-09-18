@@ -20,10 +20,13 @@ import org.apache.ibatis.annotations.Update;
  * messages 的 MyBatis-Plus 基础仓储（对照 Go
  * internal/application/repository/message.go 的 {@code messageRepository}）。
  *
+ * <p>{@code ListMessagesBySessionAfterCursor}（依赖 memory 模块的
+ * {@code MemoryMessageCursor}）已在 {@link MessageRepository} 落地——memory 的 service
+ * 层需要它做游标分页，本轮收口回这里，不再由 memory 侧自拼一份 SQL。</p>
+ *
  * <p><b>本文件尚未包含</b>三条需要 JOIN sessions 的检索查询
  * （{@code SearchMessagesByKeyword} / {@code GetMessagesByKnowledgeIDs} /
- * {@code GetMessagesByRequestIDs}）与 {@code ListMessagesBySessionAfterCursor}
- * （依赖 memory 模块的 {@code MemoryMessageCursor}）——它们在下一步落地。</p>
+ * {@code GetMessagesByRequestIDs}）——它们在搜索端点落地时补。</p>
  *
  * <p>软删除的处置同 sessions：查询显式 {@code deleted_at IS NULL}，删除是 UPDATE。</p>
  */

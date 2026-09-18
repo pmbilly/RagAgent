@@ -11,6 +11,8 @@ import java.util.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.memory.domain.MemoryMessageCursor;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.session.domain.MessageArtifact;
@@ -302,6 +304,36 @@ public class MessageRepository {
     /** 对照 Go {@code GetFirstMessageOfUser}（L153-161）。 */
     public Message getFirstMessageOfUser(String sessionId) {
         return mapper.selectFirstBySessionAndRole(sessionId, Message.ROLE_USER);
+    }
+
+    /**
+     * 对照 Go {@code ListMessagesBySessionAfterCursor}（L127-136）：
+     * memory 模块分页读消息时用的**稳定游标**（{@code (created_at, id)} 双键）。
+     *
+     * <p>为什么是双键：{@code created_at} 会撞（同一毫秒落多条），单键游标会漏读或重读。
+     * 所以判据是 {@code created_at > at} <b>或</b>（{@code created_at = at} 且 {@code id > id}）。</p>
+     *
+     * <p><b>实测确认 GORM 会把这段 OR 包进括号</b>（Standalone DryRun：
+     * {@code ... AND (created_at > $2 OR (created_at = $3 AND id > $4)) AND deleted_at IS NULL ...}），
+     * 所以不像"裸串接 AND/OR"那样有优先级问题；本方法用 {@code .and(...)} 显式分组，
+     * 与 GORM 的实际 SQL 同形。软删除条件同样是 GORM 自动补的。</p>
+     */
+    public List<Message> listMessagesBySessionAfterCursor(
+            String sessionId, MemoryMessageCursor cursor, int limit) {
+        LambdaQueryWrapper<Message> w = new LambdaQueryWrapper<Message>()
+                .eq(Message::getSessionId, sessionId)
+                .isNull(Message::getDeletedAt);
+        boolean hasCursor = cursor != null
+                && (!GoTimeSerializer.isGoZero(cursor.getAt()) || !cursor.getId().isEmpty());
+        if (hasCursor) {
+            OffsetDateTime at = cursor.getAt();
+            String id = cursor.getId();
+            w.and(outer -> outer
+                    .gt(Message::getCreatedAt, at)
+                    .or(inner -> inner.eq(Message::getCreatedAt, at).gt(Message::getId, id)));
+        }
+        w.orderByAsc(Message::getCreatedAt).orderByAsc(Message::getId).last("LIMIT " + limit);
+        return mapper.selectList(w);
     }
 
     /** 对照 Go {@code GetKnowledgeIDsBySessionID}（L290-301）：只取非空 knowledge_id。 */
