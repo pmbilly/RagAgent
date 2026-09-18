@@ -37,9 +37,16 @@ import com.ragagent.mcp.domain.McpTestResult;
 import com.ragagent.mcp.domain.McpTool;
 import com.ragagent.mcp.domain.McpToolApproval;
 import com.ragagent.session.domain.MentionedItem;
+import com.ragagent.session.domain.Message;
+import com.ragagent.session.domain.MessageArtifact;
+import com.ragagent.session.domain.MessageAttachment;
+import com.ragagent.session.domain.MessageExecutionContext;
+import com.ragagent.session.domain.MessageImage;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionLastRequestState;
 import com.ragagent.session.domain.SessionListItem;
+import com.ragagent.session.domain.SuggestionAttribution;
+import com.ragagent.session.domain.UsedMemory;
 import com.ragagent.stream.LiveRunPayload;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.wiki.domain.WikiConfig;
@@ -541,6 +548,76 @@ class JsonContractRoundTripTest {
 
         assertRoundTrips(new MentionedItem(), MentionedItem.class,
                 "types.MentionedItem ← MentionedItem（全空——恒输出八个空串键）");
+    }
+
+    /**
+     * {@code types.Message} 及其 jsonb 子类型（阶段 5）。
+     *
+     * <p>三类风险各钉一条：</p>
+     * <ol>
+     *   <li>{@code MessageAttachment.url} 是 {@code json:"-"}——响应与落库**都不该带**
+     *       （内部存储句柄外泄 = 可跨会话下载的引用）；</li>
+     *   <li>{@code MessageAttachment.isTruncated} 与 {@code Message.isCompleted}/{@code isFallback}
+     *       是「字段名不能带 is 前缀」的那类坑（见 §9）；</li>
+     *   <li>{@code Message.executionContext} 也是 {@code json:"-"}，但它**要落库**——
+     *       所以子结构 {@link MessageExecutionContext} 必须能往返。</li>
+     * </ol>
+     * <p>时间字段留空：本工具用的是裸 ObjectMapper（未注册 JSR-310）。</p>
+     */
+    @Test
+    void messageContractsRoundTrip() {
+        Message m = new Message();
+        m.setId("m1");
+        m.setSessionId("s1");
+        m.setRequestId("r1");
+        m.setContent("hi");
+        m.setRole(Message.ROLE_ASSISTANT);
+        m.setKnowledgeReferences(new java.util.ArrayList<>(List.of(Map.of("id", "k1"))));
+        m.setAgentSteps(new java.util.ArrayList<>(List.of(Map.of("iteration", 0))));
+        m.setMentionedItems(new java.util.ArrayList<>(List.of(new MentionedItem())));
+        m.setImages(new java.util.ArrayList<>(List.of(new MessageImage())));
+        m.setAttachments(new java.util.ArrayList<>(List.of(new MessageAttachment())));
+        m.setArtifacts(new java.util.ArrayList<>(List.of(new MessageArtifact())));
+        m.setCompleted(true);
+        m.setFallback(true);
+        m.setAgentDurationMs(42);
+        m.setChannel("web");
+        m.setAgentId("ag1");
+        m.setAgentTenantId(7);
+        m.setModelId("md1");
+        m.setKnowledgeId("kn1");
+        m.setUsedMemories(List.of(new UsedMemory()));
+        assertRoundTrips(m, Message.class,
+                "types.Message ← Message（跨模块列表字段先按不透明类型透传）");
+
+        assertRoundTrips(new Message(), Message.class, "types.Message ← Message（全空）");
+
+        // 附件：url 双向忽略（json:"-" 同时管响应与落库）
+        MessageAttachment att = new MessageAttachment();
+        att.setId("a1");
+        att.setUrl("secret://internal-handle");
+        att.setFileName("f.pdf");
+        att.setFileSize(10);
+        att.setTruncated(true);
+        assertRoundTrips(att, MessageAttachment.class, "types.MessageAttachment ← MessageAttachment");
+
+        MessageImage img = new MessageImage();
+        img.setUrl("u");
+        img.setCaption("c");
+        assertRoundTrips(img, MessageImage.class, "types.MessageImage ← MessageImage");
+
+        assertRoundTrips(new UsedMemory(), UsedMemory.class, "types.UsedMemory ← UsedMemory");
+
+        // execution_context 不出响应，但**要落库**，所以子结构必须能往返
+        MessageExecutionContext ctx = new MessageExecutionContext();
+        ctx.setAgentConfigHash("h");
+        ctx.setQuestionSuggestions(Map.of("enabled", true));
+        ctx.setTagScopes(List.of(Map.of("tag_id", "t1")));
+        ctx.setWebSearchEnabled(true);
+        ctx.setSuggestionAttribution(new SuggestionAttribution());
+        ctx.setLangfuseTraceparent("00-abc-def-01");
+        assertRoundTrips(ctx, MessageExecutionContext.class,
+                "types.MessageExecutionContext ← MessageExecutionContext（execution_context 列）");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
