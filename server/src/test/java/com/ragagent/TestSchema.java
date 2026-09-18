@@ -435,6 +435,79 @@ public final class TestSchema {
                 + "\"com.ragagent.TestSchema.jsonArrayLength\"");
 
         createMemoryTables(jdbc);
+        createDatasourceTables(jdbc);
+    }
+
+    /**
+     * datasource 模块的 2 张表（对照 Go 迁移
+     * {@code 000029_datasource_tables.up.sql}）。
+     *
+     * <p><b>该迁移是这两张表的唯一来源</b>：全仓再没有第二个迁移碰过
+     * {@code data_sources} / {@code sync_logs}（{@code 000076} 只给
+     * {@code knowledges} 加了个表达式索引），所以**没有 {@code ALTER TABLE} 追加列要合并**。</p>
+     *
+     * <h2>与 PG DDL 的差异（都是 H2 限制，迁移一字不改）</h2>
+     * <ul>
+     *   <li>{@code JSONB} → {@code VARCHAR}（测试库统一用 VARCHAR 承载 jsonb，
+     *       读回由 {@code PgJsonTypeHandler} 解析；同既有表）。</li>
+     *   <li>PG 的 {@code TIMESTAMP}（不带时区）→ {@code TIMESTAMP WITH TIME ZONE}
+     *       ——与 TestSchema 里所有既有表一致。真库那两列是 naive timestamp，
+     *       但 Go 侧一律写 {@code time.Time}、读回也只做排序用，两边语义一致。</li>
+     *   <li>{@code sync_logs.data_source_id} 的
+     *       {@code REFERENCES data_sources(id) ON DELETE CASCADE} 外键**不建**：
+     *       其一，与既有表（memory 的七张、im_channel_sessions 等）的处理一致；
+     *       其二，{@code data_sources} 是软删（{@code deleted_at}），
+     *       cascade 在真库上永远不会触发，去掉它不改变任何可观察行为。</li>
+     *   <li>五个普通索引（{@code idx_data_sources_*} / {@code idx_sync_logs_*}）
+     *       不建——它们只影响性能。唯一影响语义的索引（唯一约束）本表没有。</li>
+     * </ul>
+     *
+     * <p>⚠️ <b>没有 DEFAULT 的 jsonb 列</b>：迁移里 {@code config} /
+     * {@code last_sync_cursor} / {@code last_sync_result} / {@code result}
+     * 都**可空且无默认值**，所以 MyBatis-Plus 对 null 字段省略该列会落到 SQL NULL，
+     * 与 Go 的 {@code JSON.Value()} 对空值回 {@code nil, nil} 一致——
+     * 这里照抄迁移的"可空、无 default"，**不要**加上 {@code DEFAULT '{}'}
+     * （那会让"写 NULL"与"写 {}"再也测不出差别）。</p>
+     */
+    private static void createDatasourceTables(JdbcTemplate jdbc) {
+        jdbc.execute("CREATE TABLE IF NOT EXISTS data_sources (" +
+                "id VARCHAR(36) NOT NULL PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "knowledge_base_id VARCHAR(36) NOT NULL," +
+                "name VARCHAR(255) NOT NULL," +
+                "type VARCHAR(50) NOT NULL," +
+                "config VARCHAR," +
+                "sync_schedule VARCHAR(100)," +
+                "sync_mode VARCHAR(20) DEFAULT 'incremental'," +
+                "status VARCHAR(32) DEFAULT 'active'," +
+                "conflict_strategy VARCHAR(32) DEFAULT 'overwrite'," +
+                "sync_deletions BOOLEAN DEFAULT TRUE," +
+                "last_sync_at TIMESTAMP WITH TIME ZONE," +
+                "last_sync_cursor VARCHAR," +
+                "last_sync_result VARCHAR," +
+                "error_message TEXT," +
+                "sync_log_retention_days INT DEFAULT 30," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+
+        jdbc.execute("CREATE TABLE IF NOT EXISTS sync_logs (" +
+                "id VARCHAR(36) NOT NULL PRIMARY KEY," +
+                "data_source_id VARCHAR(36) NOT NULL," +
+                "tenant_id BIGINT NOT NULL," +
+                "status VARCHAR(32) NOT NULL," +
+                "started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "finished_at TIMESTAMP WITH TIME ZONE," +
+                "items_total INT DEFAULT 0," +
+                "items_created INT DEFAULT 0," +
+                "items_updated INT DEFAULT 0," +
+                "items_deleted INT DEFAULT 0," +
+                "items_skipped INT DEFAULT 0," +
+                "items_failed INT DEFAULT 0," +
+                "error_message TEXT," +
+                "result VARCHAR," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
     }
 
     /**
@@ -636,5 +709,8 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM messages");
         jdbc.execute("DELETE FROM im_channel_sessions");
         jdbc.execute("DELETE FROM sessions");
+        // datasource：先子后父（真库里有 ON DELETE CASCADE，测试库没建外键，顺序照旧）
+        jdbc.execute("DELETE FROM sync_logs");
+        jdbc.execute("DELETE FROM data_sources");
     }
 }
