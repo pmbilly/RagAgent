@@ -125,15 +125,25 @@ public final class APIKeyRoutePolicies {
     }
 
     /**
-     * 会话路由（对照 Go router/routes_chat.go L76）。
+     * 会话路由（对照 Go router/routes_chat.go L53-83 的 {@code /sessions} 组 + L85 的
+     * {@code continue-stream}）。
      *
-     * <p>会话是**按用户的聊天状态**、不是知识库内容，所以用 {@code chat} 能力：
-     * 一把 scoped key 因此能跑完整的对话流程（建/管自己的会话）而无需全租户权限。
-     * 目前只登记了已翻译的 {@code continue-stream}；同组的其余端点在各自落地时补。</p>
+     * <p>会话是**按用户的聊天状态**、不是知识库内容，所以整组共用
+     * {@code apiKeyChat(apiKeyFullAccess())}：一把 scoped key 因此能跑完整的对话流程
+     * （建/管自己的会话）而无需全租户权限。消息 / steer / 附件 / 产物等端点在各自落地时补。</p>
      */
     private static void registerSessionRoutes(APIKeyRouteAuthorizer a) {
         APIKeyRoutePolicy sessions = APIKeyRoutePolicy.chat(APIKeyRoutePolicy.fullAccess());
         a.registerGin("GET", "/api/v1/sessions/continue-stream/:session_id", sessions);
+        // 波 1 G1：会话 CRUD + 置顶
+        a.registerGin("POST", "/api/v1/sessions", sessions);
+        a.registerGin("GET", "/api/v1/sessions", sessions);
+        a.registerGin("GET", "/api/v1/sessions/:id", sessions);
+        a.registerGin("PUT", "/api/v1/sessions/:id", sessions);
+        a.registerGin("DELETE", "/api/v1/sessions/:id", sessions);
+        a.registerGin("DELETE", "/api/v1/sessions/batch", sessions);
+        a.registerGin("POST", "/api/v1/sessions/:session_id/pin", sessions);
+        a.registerGin("DELETE", "/api/v1/sessions/:id/pin", sessions);
     }
 
     /**

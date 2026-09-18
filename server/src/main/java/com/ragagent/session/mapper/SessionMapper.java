@@ -174,6 +174,10 @@ public interface SessionMapper extends BaseMapper<Session> {
             + "</script>")
     @Results({
             @Result(column = "id", property = "id", id = true),
+            // ⚠️ is_pinned 必须显式映射：实体属性名是 pinned（字段名刻意去掉 is 前缀，
+            // 见 Session.pinned 的注释），自动映射按 is_pinned → "isPinned" 找不到属性，
+            // 列表里的置顶态会恒为 false（golden 契约测试抓到的真实缺陷）。
+            @Result(column = "is_pinned", property = "pinned"),
             // jsonb 列要显式挂类型处理器（见方法注释）
             @Result(column = "agent_config", property = "lastRequestState",
                     typeHandler = com.ragagent.common.web.PgJsonTypeHandler.class)

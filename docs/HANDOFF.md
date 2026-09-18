@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 最新提交 `695efa0` · **2944 测试全绿** · Java 主代码 114,959 行 / 测试 61,618 行
-> **端点覆盖：Go 412 条 → Java 已注册 110 条（约 27%）**
+> 最后更新：2026-09-18 · **2988 测试全绿** · Java 主代码 114,959 行 / 测试 61,618 行
+> **端点覆盖：Go 412 条 → Java 已注册 118 条（约 29%）**
 
 ## 0. 一句话背景
 
@@ -47,6 +47,7 @@
 | — | JSON 编码器全局对齐 + 系统性差分排查 | ✅ | 见 §9.2 |
 | **波 0** | **`memory`（16 条路由）** | ✅ | 22 golden + **真 PG A/B 36 组 35 MATCH** |
 | **波 0** | **`datasource`（17 条路由）** | ✅ | 39 golden + **真 PG A/B 39 组全 MATCH** |
+| **波 1 G1** | **session CRUD + pin（8 条路由）** | ✅ | 34 golden + **真 PG A/B 34 组全 MATCH**（golden 实测纠正 3 处预实现，见 conventions §9「波 1 G1」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -77,9 +78,9 @@
 
 ### 3.1 做什么
 
-`routes_chat.go`(38) 里 **`continue-stream` 已完成**，剩约 25 条：
-session CRUD(8) + 临时文档(5) + 产物(4) + 追问建议(3) + 消息(4) + `generate_title` + 等。
-**全部不被 agent 引擎阻塞。**
+`routes_chat.go`(38) 里 **`continue-stream` 与 session CRUD+pin（G1，8 条）已完成**，剩约 17 条：
+消息(4+clear 1) + 追问建议(3) + 临时文档(5) + 产物(3) + `generate_title` + stop + steer(4)。
+**全部不被 agent 引擎阻塞。** 建议顺序：消息 → 建议 → 附件/产物/title → steer（steer.go 38KB 最重）。
 
 ⚠️ 例外：`POST /sessions/:id/knowledge-chat`、`POST /sessions/:id/agent-chat`、
 `POST /knowledge-search` 这三条要等**波 4**（它们真的走 agent 引擎）。

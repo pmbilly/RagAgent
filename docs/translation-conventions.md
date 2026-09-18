@@ -251,6 +251,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
 | memory HTTP 层（波 0 第 4 步，**memory 模块收官**） | internal/handler/memory.go（465 行）；internal/router/routes_memory.go（16 条路由） | com.ragagent.memory.controller.MemoryController + config.WebConfig 路由 + apikey.filter.APIKeyRoutePolicies | ✅ | 16 端点全落地；34 条新测试（**22 个 golden 全部是 Go 实录**）+ **真 PG 上 36 组 A/B（35 MATCH / 1 已知差异）**（唯一 DIFF 是非法 JSON 的 details 文案，已知差异）。关键坑见 §9 |
 | datasource service+HTTP 层（波 0，**datasource 模块收官**） | internal/application/service/datasource_service.go（1488）；internal/handler/{datasource,datasource_credentials}.go；internal/router/routes_infra.go L292-333（17 条路由）；internal/container 的 initConnectorRegistry/startDataSourceScheduler | com.ragagent.datasource.{service,controller,dto} + config.WebConfig + apikey.filter.APIKeyRoutePolicies | ✅ | 17 端点全落地；88 条新测试（50 service + 38 契约，**golden 全是 Go 实录**）+ **真 PG 上 39 组 A/B 全 MATCH**（含**双向跨语言互读**与**一次真实 RSS 同步的终态计数**）。关键坑见 §9 |
+| session CRUD+pin（波 1 G1） | internal/application/service/session.go 的写方法（L188-668）；internal/handler/session/handler.go L123-582；internal/router/routes_chat.go L53-83 | com.ragagent.session.service.SessionService 写路径扩展 + controller.SessionController（8 条端点）+ apikey.filter.APIKeyRoutePolicies + common.web.GoJsonBindError | ✅ | 8 端点全落地；34 条新契约测试（**golden 全是 Go 实录**）+ **真 PG 上 34 组 A/B 全 MATCH**（2988 测试全量绿）。**golden 实测纠正了三处预实现**：渠道 source 拒绝是 500 双前缀（非 403）、page=0 被 omitempty 跳过、`queryPaged` 的 is_pinned 映射缺陷。关键坑见 §9「波 1 G1」 |
 
 ## 9. 当前确认过的细节
 
@@ -959,3 +960,33 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
      反推语义前先怀疑顺序
 - DB：schema 与 98 个迁移一字不改；端口：后端 8080（前端 dev 代理默认值）；dev 库 localhost:15432
 - 测试：契约/单测用 H2 内存库（server/src/test/resources/application.yml），不依赖外部 postgres；golden 文件在 server/src/test/resources/contracts/；动态字段（token/refresh_token/时间戳）两侧同掩码后比对
+- **波 1 G1（session CRUD+pin）新确认的细节与坑——前四条都会复发**：
+  1. **AppError 二次包装**：controller 的 `catch (RuntimeException e) → BizException.internal(e.getMessage())`
+     会把 **BizException 自身**也再包一层——`BizException.getMessage()` 是
+     `"error code: N, error message: …"` 前缀形态，再包一次就变成
+     `"error code: 1007, error message: error code: 1002, …"`。必须先 `instanceof BizException` 直通。
+  2. **渠道来源筛选的拒绝是 500 不是 403**：Go service 返回 `NewForbiddenError`（AppError），
+     handler 对非 NotFound 错误一律 `NewInternalServerError(err.Error())`——而 AppError.Error()
+     的形态是 `"error code: 1002, error message: listing channel sessions requires tenant admin or owner role"`。
+     golden 实测前按直觉写成 403，A/B 抓回。
+  3. **gin form 绑定 `omitempty,min=1` 的语义**：`page=0` 显式传入同样被 omitempty 跳过
+     （200 且服务层归一化成 1），只有**负数**才触发 min tag；非整数是 strconv 原文
+     `strconv.ParseInt: parsing "abc": invalid syntax`；超界是 go-playground validator 原文
+     `Key: 'Pagination.PageSize' Error:Field validation for 'PageSize' failed on the 'max' tag`。
+  4. **`queryPaged` 的 is_pinned 映射缺陷（golden 抓到的真 bug）**：自定义 `@Select` 的
+     自动映射按 `is_pinned → "isPinned"` 找属性，而实体属性名是 `pinned`（字段名刻意去 is 前缀，
+     见 Session.pinned 注释）→ 列表置顶态**恒为 false**。§5 第 7 条（自定义 @Select 不套实体注解）
+     的同族：**@Results 里凡是"实体属性名 ≠ 列名驼峰"的列都要显式映射**。
+  5. **Go JSON 解析错误文案仿真**：session 的 400 把解析器原文放在 `message`（golden 锁字节），
+     Jackson 措辞不同 → `common.web.GoJsonBindError` 仿真顶层形态（EOF / 字面量扫描 /
+     looking for beginning of value）。**已知差异**：body 以 `{ [ " 数字 -` 开头但深层结构坏掉时
+     回落 Jackson 消息——前端正常请求不触发，录到此类 golden 再补。
+  6. **请求体 `null` 字面量**：Go 的 `ShouldBindJSON` 遇 `null` 零值绑定**不报错**——
+     Java 侧 `readValue` 返回 null，要按空对象处理，别 NPE。
+  7. **dev PG 的列表 golden 带遗留数据**：录制时测试租户里有历史会话，`session-list*.json`
+     有 4 个条目。契约测试用 SQL 精确播种（含 updated_at 相对顺序）复现录制状态；
+     A/B 脚本对变更类用例要**两侧各用各的 id**（Go 先打会消费状态，Java 复打同一 id 必 DIFF）。
+  8. **删除路径的清理三件套**：知识清理在 Go 是 goroutine 异步 + cleanup-scope 授权，
+     Java 暂为同步尽力而为（HTTP 不可见）；webSearchState 清理与 destroyBoundSandbox
+     以 TODO 占位（随波 2/波 3 收口）。`SanitizeForLog` 不只是日志卫生——批量删除把它
+     的输出**当真实入参**（`"  "` 两个空格保留 → 判不可见），Java 侧 `LogSanitizer.sanitize` 逐字对照。

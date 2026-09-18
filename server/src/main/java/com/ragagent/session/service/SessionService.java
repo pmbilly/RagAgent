@@ -1,14 +1,23 @@
 package com.ragagent.session.service;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.BizException;
+import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.session.domain.Session;
+import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.domain.SessionOwnerIds;
+import com.ragagent.session.mapper.MessageRepository;
+import com.ragagent.session.mapper.MessageSuggestionRepository;
 import com.ragagent.session.mapper.SessionRepository;
 
 /**
@@ -36,9 +45,18 @@ public class SessionService {
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
     private final SessionRepository sessionRepository;
+    private final MessageRepository messageRepository;
+    private final MessageSuggestionRepository suggestionRepository;
+    private final KnowledgeService knowledgeService;
 
-    public SessionService(SessionRepository sessionRepository) {
+    public SessionService(SessionRepository sessionRepository,
+                          MessageRepository messageRepository,
+                          MessageSuggestionRepository suggestionRepository,
+                          KnowledgeService knowledgeService) {
         this.sessionRepository = sessionRepository;
+        this.messageRepository = messageRepository;
+        this.suggestionRepository = suggestionRepository;
+        this.knowledgeService = knowledgeService;
     }
 
     // ── Go 的包级辅助 ──────────────────────────────────────────────────────
@@ -181,6 +199,203 @@ public class SessionService {
             throw new IllegalArgumentException("workspace id is required");
         }
         return sessionRepository.getById(tenantId, id);
+    }
+
+    // ── 写方法（波 1 G1，对照 Go session.go 各写方法） ─────────────────────
+
+    /**
+     * 对照 Go {@code CreateSession}（L188-207）：校验租户后落库。
+     *
+     * <p>Go 的校验失败返回普通 error，handler 包成 500 Internal（不是 400）——
+     * 实际到不了这里（Auth 中间件已保证租户存在），但形态要保持一致。</p>
+     */
+    public Session createSession(Session session) {
+        Long tenantId = session.getTenantId();
+        if (tenantId == null || tenantId == 0L) {
+            throw new BizException(AppError.internal("tenant ID is required"));
+        }
+        return sessionRepository.create(session);
+    }
+
+    /**
+     * 对照 Go {@code ListSessions}（L331-369）：带 keyword/source/agent_id 过滤的分页列表。
+     *
+     * <p>渠道来源筛选（api / embed / IM 平台）是**租户级管理员视图**：要求 Admin+，
+     * 且命中时**丢掉按人裁剪**（Drop per-user owner scope）。其余来源保持调用方
+     * 自己的 owner 范围。</p>
+     */
+    public SessionRepository.PagedItems listSessions(SessionListQuery query) {
+        long tenantId = requireTenantId();
+        String userId;
+        if (Session.listSourceRequiresAdmin(query.source())) {
+            if (!TenantRole.fromString(TenantContext.currentRole()).hasPermission(TenantRole.ADMIN)) {
+                // ⚠️ 不是 403：Go 的 handler 把这个 ForbiddenError 包进
+                // NewInternalServerError(err.Error())，而 AppError.Error() 的形态是
+                // "error code: 1002, error message: …" —— golden 实测是 500 + 该文案。
+                throw new BizException(AppError.internal(
+                        "error code: 1002, error message: listing channel sessions requires tenant admin or owner role"));
+            }
+            userId = "";
+        } else {
+            userId = SessionOwnerIds.currentSessionOwnerId();
+        }
+        return sessionRepository.queryPaged(query.withScope(tenantId, userId));
+    }
+
+    /**
+     * 对照 Go {@code SetSessionPinned}（L398-410）。
+     *
+     * @return 受影响行数；0 = 会话不存在或不可见（handler 据此回 404）
+     */
+    public long setSessionPinned(String sessionId, boolean pinned) {
+        if (sessionId == null || sessionId.isEmpty()) {
+            throw new BizException(AppError.internal("session id is required"));
+        }
+        long tenantId = requireTenantId();
+        String userId = SessionOwnerIds.currentSessionOwnerId();
+        return sessionRepository.setPinned(tenantId, userId, sessionId, pinned);
+    }
+
+    /**
+     * 对照 Go {@code UpdateSession}（L412-442）：**写路径用 owner 范围严格加载**
+     * （{@code repo.Get}，不是 loadSessionForRead——管理员能读但**不得改**），
+     * 然后 sanitize description 再更新（只写 title/description/updated_at）。
+     */
+    public void updateSession(Session session) {
+        if (session.getId() == null || session.getId().isEmpty()) {
+            throw new BizException(AppError.internal("session id is required"));
+        }
+        String userId = SessionOwnerIds.currentSessionOwnerId();
+        Session existing = sessionRepository.get(session.getTenantId(), userId, session.getId());
+        session.setDescription(Session.sanitizeClientSessionDescription(
+                session.getDescription(), existing.getDescription()));
+        sessionRepository.update(session, userId);
+    }
+
+    /**
+     * 对照 Go {@code DeleteSession}（L471-538）：先严格范围加载（404 门槛），
+     * 再做三件套清理（知识 / 临时 KB / 建议 / sandbox），最后软删。
+     */
+    public void deleteSession(String id) {
+        if (id == null || id.isEmpty()) {
+            throw new BizException(AppError.internal("session id is required"));
+        }
+        long tenantId = requireTenantId();
+        String userId = SessionOwnerIds.currentSessionOwnerId();
+
+        sessionRepository.get(tenantId, userId, id);
+
+        cleanupSessionResources(tenantId, id);
+
+        long rows = sessionRepository.delete(tenantId, userId, id);
+        if (rows == 0) {
+            throw new SessionNotFoundException();
+        }
+    }
+
+    /**
+     * 对照 Go {@code BatchDeleteSessions}（L540-609）：先筛出**可见**的 id
+     * （逐个 {@code repo.Get}，不可见的静默跳过），全部不可见 → 404；
+     * 清理与删除都只对可见集合做。
+     */
+    public void batchDeleteSessions(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new BizException(AppError.internal("session ids are required"));
+        }
+        long tenantId = requireTenantId();
+        String userId = SessionOwnerIds.currentSessionOwnerId();
+
+        List<String> visibleIds = new ArrayList<>();
+        for (String id : ids) {
+            try {
+                sessionRepository.get(tenantId, userId, id);
+                visibleIds.add(id);
+            } catch (SessionNotFoundException notFound) {
+                // Go：该 id 不可见就跳过，不算错误
+            }
+        }
+        if (visibleIds.isEmpty()) {
+            throw new SessionNotFoundException();
+        }
+
+        for (String id : visibleIds) {
+            cleanupSessionResources(tenantId, id);
+        }
+
+        sessionRepository.batchDelete(tenantId, userId, visibleIds);
+        for (String id : visibleIds) {
+            try {
+                suggestionRepository.deleteBySessionId(tenantId, id);
+            } catch (RuntimeException e) {
+                log.warn("Failed to delete suggestions for session {}: {}", id, e.toString());
+            }
+        }
+    }
+
+    /**
+     * 对照 Go {@code DeleteAllSessions}（L611-668）：列出当前范围的全部会话做清理，
+     * 再整体软删 + 删建议。列表失败**不阻断**删除（Go 的 Warnf + 继续走）。
+     */
+    public void deleteAllSessions() {
+        long tenantId = requireTenantId();
+        String userId = SessionOwnerIds.currentSessionOwnerId();
+
+        List<Session> sessions;
+        try {
+            sessions = sessionRepository.getByTenantId(tenantId, userId);
+        } catch (RuntimeException e) {
+            log.warn("Failed to list sessions for cleanup: {}", e.toString());
+            sessions = null;
+        }
+        if (sessions != null) {
+            for (Session session : sessions) {
+                cleanupSessionResources(tenantId, session.getId());
+            }
+        }
+
+        sessionRepository.deleteAllByTenantId(tenantId, userId);
+
+        if (sessions != null) {
+            for (Session session : sessions) {
+                try {
+                    suggestionRepository.deleteBySessionId(tenantId, session.getId());
+                } catch (RuntimeException e) {
+                    log.warn("Failed to delete suggestions for session {}: {}",
+                            session.getId(), e.toString());
+                }
+            }
+        }
+    }
+
+    /**
+     * Go DeleteSession / BatchDeleteSessions 共用的「每会话清理」三件套。
+     *
+     * <p><b>已知差异（对照 Go，待随对应波次收口）</b>：</p>
+     * <ul>
+     *   <li>知识清理：Go 在 goroutine 里异步做（且走 cleanup-scope 授权），错误全吞；
+     *       这里同步尽力而为——HTTP 响应不受影响，但删除请求会等知识清完才返回。</li>
+     *   <li>临时 KB 清理（webSearchStateRepo）：web-search 模块未翻译，TODO(波 2)。
+     *       Go 侧失败同样被吞，无 HTTP 可见差异。</li>
+     *   <li>destroyBoundSandbox：sandbox 模块未翻译，TODO(波 3)。后端 Disabled 时
+     *       Go 本就是 no-op；翻译 sandbox 时补上。</li>
+     * </ul>
+     */
+    private void cleanupSessionResources(long tenantId, String sessionId) {
+        try {
+            List<String> knowledgeIds = messageRepository.getKnowledgeIdsBySessionId(sessionId);
+            for (String knowledgeId : knowledgeIds) {
+                try {
+                    knowledgeService.deleteKnowledge(knowledgeId);
+                } catch (RuntimeException e) {
+                    log.warn("Failed to delete chat history knowledge for session {}: {}",
+                            sessionId, e.toString());
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("Failed to get knowledge IDs for session {}: {}", sessionId, e.toString());
+        }
+        // TODO(波 2 web-search): Go 在此调 webSearchStateRepo.DeleteWebSearchTempKBState（失败被吞）。
+        // TODO(波 3 sandbox): Go 在此 destroyBoundSandbox（会话绑定的 MicroVM；Disabled 后端是 no-op）。
     }
 
     /**
