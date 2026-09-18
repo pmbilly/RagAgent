@@ -2,6 +2,7 @@ package com.ragagent.common;
 
 import static com.ragagent.common.JsonRoundTrip.assertRoundTrips;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,8 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatTool;
 import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.llm.domain.StreamResponse;
+import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
 import com.ragagent.mcp.domain.McpAuthConfig;
@@ -331,6 +334,65 @@ class JsonContractRoundTripTest {
         o.setToolChoice("auto");
         o.setTools(List.of(new ChatTool("t", "d", null)));
         assertRoundTrips(o, ChatOptions.class, "chat.ChatOptions ← ChatOptions");
+    }
+
+    @Test
+    void searchResultRoundTrips() {
+        // 检索结果：既是 SSE references 事件的载荷，也是 messages.knowledge_references 的元素。
+        // 两个 json:"-" 的内部字段（ContentRevision/ContentRewritten）必须 @JsonIgnore——
+        // 否则会被写进 jsonb 再回读，正是 §9 记的那个复发坑。
+        SearchResult sr = new SearchResult();
+        sr.setId("chunk-1");
+        sr.setContent("hello");
+        sr.setKnowledgeId("kb-1");
+        sr.setChunkIndex(3);
+        sr.setKnowledgeTitle("t");
+        sr.setStartAt(10);
+        sr.setEndAt(20);
+        sr.setSeq(2);
+        sr.setScore(0.75);
+        sr.setMatchType(3);
+        sr.setSubChunkId(List.of("sub-1"));
+        sr.setMetadata(Map.of("lang", "zh"));
+        sr.setChunkType("text");
+        sr.setParentChunkId("p-1");
+        sr.setImageInfo("{}");
+        sr.setKnowledgeFilename("a.md");
+        sr.setKnowledgeSource("file");
+        sr.setKnowledgeChannel("web");
+        sr.setMatchedContent("matched");
+        sr.setKnowledgeDescription("d");
+        sr.setKnowledgeCustomMetadata("cm");
+        sr.setKnowledgeBaseId("kb-1");
+        sr.setContentRevision(7);
+        sr.setContentRewritten(true);
+        assertRoundTrips(sr, SearchResult.class, "types.SearchResult ← SearchResult");
+    }
+
+    @Test
+    void streamResponseRoundTrips() {
+        // SSE 事件体：id/response_type/content/done 恒输出，其余 omitempty。
+        // data 的键序由 GoMapSerializer 递归对齐 Go——往返必须幂等。
+        StreamResponse r = StreamResponse.of(ResponseType.REFERENCES, "", false);
+        r.setId("req-1");
+        r.setSessionId("sess-1");
+        r.setAssistantMessageId("msg-1");
+        r.setFinishReason("stop");
+
+        SearchResult sr = new SearchResult();
+        sr.setId("chunk-1");
+        r.setKnowledgeReferences(List.of(sr));
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("zeta", "1");
+        data.put("alpha", Map.of("inner_z", 1, "inner_a", 2));
+        r.setData(data);
+
+        TokenUsage usage = new TokenUsage();
+        usage.setTotalTokens(5);
+        r.setUsage(usage);
+
+        assertRoundTrips(r, StreamResponse.class, "types.StreamResponse ← StreamResponse");
     }
 
     // ── 租户 API Key（tenant_api_keys 的两个 jsonb 列 + 四个管理端点的响应体） ──

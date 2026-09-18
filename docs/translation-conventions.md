@@ -241,6 +241,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | API Key 体系（横切回补） | internal/types/tenant_api_key.go；internal/middleware/api_key_gate.go；internal/application/{repository,service}/tenant_api_key.go；internal/handler/tenant.go 的 API Key 段 | com.ragagent.apikey.{domain,mapper,service,filter,controller} | ✅ | 25 条能力 + scope + 路由策略表；门禁拦截器接入 WebConfig（order -1，先于角色维度）；AuthFilter 通道 3 换真实鉴权；**数据面 KB 白名单已收口**（requireKb / getKnowledge）。120 新测试 |
 | audit 审计（横切回补） | internal/types/audit_log.go；internal/application/{service,repository}/audit_log*.go；internal/handler/audit_log.go | com.ragagent.audit.{domain,mapper,service,controller} | ✅ | 62 个 AuditAction；3 端点；**接上了既有埋点**：WikiActivityAudit 的 6 处 + RbacInterceptor 的拒绝审计（§9 阶段 1 差异 #8 的正式收口）。golden A/B 实测（空页 `[]` 非 null、1010 文案、request_path 存路由模板） |
 | stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
+| SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -461,6 +462,51 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     的既有做法一致；对应模块翻译时再收紧类型。
   - `MessageRepository.GetMessageByRequestID` 查不到时返回 `nil, nil`（**不是**错误），
     与同文件其它读方法不同——别统一成抛异常。
+- **阶段 5.2（SSE 契约层）新确认的细节与坑**：
+  - **`types.JSON` 的名字陷阱**（本轮实测）：Go 的 `type JSON json.RawMessage` 是**具名类型**，
+    它**带** `MarshalJSON`（`internal/types/json.go`）→ 序列化时**内联**成真正的 JSON 对象。
+    ⚠️ **但只抄 `type JSON json.RawMessage` 而漏掉方法，会退化成 base64 字符串**
+    （`"chunk_metadata":"eyJxdWVzdGlvbnMiOlsicSJdfQ=="`）——写对照试验程序时踩过，
+    因为具名类型不继承底层类型的方法。Java 侧 `SearchResult.chunkMetadata` 用 `JsonNode`。
+    另：它带 `omitempty`，判据是 `len(bytes)==0`，所以**空**才省略，字面量 `{}` 会输出。
+  - **Go 的 `float64` 不用 `fmt`，有专用编码器**：`'f'` 最短表示，但 `abs != 0 && (abs < 1e-6 || abs >= 1e21)`
+    时切 `'e'`（指数带 `+`、不补零）。与 Jackson 默认的 `Double.toString` 有两处**系统性**差异：
+    整数值多 `.0`（`1` vs `1.0`）、指数写法不同（`1e+21` vs `1.0E21`）。
+    → `com.ragagent.common.web.GoDoubleSerializer` 复刻，28 条 **Go 实录**语料钉住。
+  - **⚠️ Java 的 `Double.toString` 在次正规数上不是最短表示**（实测 JDK 21）：
+    最小次正规数它给 `4.9E-324`（2 位），真正能唯一往返的是 `5e-324`（1 位），Go 输出的正是后者。
+    故 `GoDoubleSerializer` 在 Java 结果上再做一轮「有效位数递减」（`BigDecimal.round` + 回读校验），
+    这**只会朝 Go 移动**。**任何直接 `Double.toString` 当 Go 输出的做法都会在这里分叉。**
+  - **map 的键序要递归，而且嵌套 map 手工排不掉**：Go 的 `json.Marshal` 对 map 恒排序，
+    项目此前的做法是「手工按字母序 `put`」——只对**一层**有效。
+    `StreamResponse.data` 里的 `arguments` 是**模型返回的 JSON 参数**，键序由模型决定，
+    外层再怎么排也管不到 → `GoMapSerializer`（挂在字段上，递归到 map 与数组）。
+    键序按 **UTF-8 字节**比（Go 的字符串序），不是 `String.compareTo`——只在「BMP U+E000–U+FFFF
+    与增补平面混排」时不同，JSON 键基本都是 ASCII。
+  - **⚠️ 挂自定义序列化器会让 `@JsonInclude(NON_EMPTY)` 失效**：`JsonSerializer.isEmpty` 的
+    默认实现**只看 `value == null`**，不再走 `MapSerializer.isEmpty` 判"空容器"→
+    Go 的 `omitempty`（len==0 省略）会退化成"空 map 也输出 `{}`"。
+    **修法是覆写 `isEmpty`**。本轮被 `StreamResponseBuilderTest.omitsEmptyDataMap` 抓到。
+  - **`buildStreamResponse` 的两个字段恒不被设置**：`tool_calls` / `finish_reason` 在这条路径上
+    从不赋值（照抄 Go，别"顺手补全"）。
+  - **`references` 事件的三态**：`data["references"]` 缺席/`null` → 不设；活路径是
+    `[]*SearchResult`（直接透传）；**从 Redis 回放**是 `[]interface{}`（元素退化成 map）→
+    逐个 `searchResultFromMap` 重建；其它类型（如字符串）→ 一条分支都不命中。
+    注意「元素不是 map」时 Go 是**跳过**，重建出**空但非 nil** 的 slice → omitempty 让它整个键消失。
+  - **`searchResultFromMap` 只恢复部分字段**（照抄，别补全）：`match_type` 留在 `0`、
+    `sub_chunk_id` 留在 `null`、`chunk_metadata`/`matched_content`/`knowledge_custom_metadata`
+    不恢复；**未知键被丢弃**（但**只在重建出来的 `knowledge_references` 里**——
+    `data.references` 是原样的 map，未知键照旧回显）。
+    验证方法：同一个引用在两处的**键序本来就不同**（一处是 struct 声明序，一处是 map 字母序）。
+  - **`sendCompletionEvent` 是刻意的空实现**（Go 的注释说明：再补一个 `done:true` 的空 answer
+    会让前端状态机混乱，完成以 `complete` 事件为准）。Java 侧保留同名空方法，
+    让调用序列与 Go 逐行对应，而不是删掉调用点。
+  - **`setSSEHeaders` 是覆盖语义**（对应 Go 的 `c.Header`），用 `setHeader` 不是 `addHeader`。
+  - **时机**：SSE 头必须在写任何正文**之前**设置——参数校验失败要能退回普通 400 JSON。
+    这也是步 4 里 `resolveStreamRewriter` 必须前置的原因。
+  - **遗留待办（步 3）**：`Message.knowledge_references` 仍是 `List<Object>` 透传。
+    本步只把 `StreamResponse.knowledgeReferences` 收紧成 `List<SearchResult>`
+    （聊天模块不产出该字段，改动零影响）；Message 那边涉及 jsonb 回读，等 `GetMessage` 一起做。
 - **跨阶段通用坑（阶段 4 新增）**：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，

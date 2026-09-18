@@ -6,6 +6,9 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.ragagent.common.web.GoMapSerializer;
+import com.ragagent.retrieval.domain.SearchResult;
 
 /**
  * 流式响应（对照 Go types.StreamResponse，internal/types/chat.go:292-304）。
@@ -30,13 +33,16 @@ public class StreamResponse {
     @JsonProperty("done")
     private boolean done;
     /**
-     * 检索引用（Go: types.References = []*SearchResult）。
-     * 类型随检索模块（阶段 5/7）细化——chat 包本身从不设置该字段，
-     * 仅需保证序列化时原样透传。
+     * 检索引用（Go: {@code types.References = []*SearchResult}）。
+     *
+     * <p>chat 包本身从不设置该字段，只有 SSE 契约层（{@code session.sse}）会填；
+     * 类型随检索模块落地而细化（阶段 5.2 步 1），不再是 {@code List<Object>} 透传。</p>
+     *
+     * <p>Go 带 omitempty：len 为 0 时整键省略（含"空但非 nil"的 slice）。</p>
      */
     @JsonProperty("knowledge_references")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<Object> knowledgeReferences;
+    private List<SearchResult> knowledgeReferences;
     @JsonProperty("session_id")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String sessionId;
@@ -46,8 +52,16 @@ public class StreamResponse {
     @JsonProperty("tool_calls")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<ToolCall> toolCalls;
+    /**
+     * 附加数据。Go 是 {@code map[string]interface{}} + omitempty。
+     *
+     * <p>键序由 {@link GoMapSerializer} 递归对齐 Go 的编码器——产出方（chat / agent 引擎）
+     * 大多用 {@code LinkedHashMap} 按写入序，而 Go 恒按 key 排序；
+     * 嵌套的 {@code arguments} 之类更是直接来自模型返回的 JSON，外层排不掉。</p>
+     */
     @JsonProperty("data")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, Object> data;
     @JsonProperty("usage")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -79,8 +93,8 @@ public class StreamResponse {
     public void setContent(String v) { content = v == null ? "" : v; }
     public boolean isDone() { return done; }
     public void setDone(boolean v) { done = v; }
-    public List<Object> getKnowledgeReferences() { return knowledgeReferences; }
-    public void setKnowledgeReferences(List<Object> v) { knowledgeReferences = v; }
+    public List<SearchResult> getKnowledgeReferences() { return knowledgeReferences; }
+    public void setKnowledgeReferences(List<SearchResult> v) { knowledgeReferences = v; }
     public String getSessionId() { return sessionId; }
     public void setSessionId(String v) { sessionId = v; }
     public String getAssistantMessageId() { return assistantMessageId; }

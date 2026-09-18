@@ -1,6 +1,6 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 最新提交 `a13e4df` · 1514 测试全绿
+> 最后更新：2026-09-18 · 最新提交 `cec25e1` · 1556 测试全绿
 
 ## 0. 一句话背景
 
@@ -38,7 +38,7 @@
 | — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
 | 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
 | 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
-| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | ⏳ **下一步** | — |
+| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | 🔶 拆解中 · **步 1/4 完成**（SSE 契约层） | — |
 | 6 | embed 渠道 | ⏳ | — |
 | 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
 | 8 | 联调 | ⏳ | — |
@@ -132,10 +132,27 @@
 
 | 步 | 内容 | 规模 | 为什么这个顺序 |
 |---|---|---|---|
-| 1 | **SSE 契约层**：`setSSEHeaders` / **`buildStreamResponse`** / `sendCompletionEvent`（Go `helpers.go` L182-249） | ~100 行 | `buildStreamResponse` 把 `StreamEvent` 翻成 `StreamResponse`，**就是一个真正的 emit 点**——按 §6 先把 emit 表列出来再写。可独立单测 |
+| 1 | ✅ **已完成** — SSE 契约层：`setSSEHeaders` / **`buildStreamResponse`** / `sendCompletionEvent` / `searchResultFromMap`（Go `helpers.go` L182-249）+ `types.SearchResult` | ~100 行 | 见下方「步 1 交付说明」 |
 | 2 | **`storageurl.StreamRewriter`**（Go `internal/storageurl/stream.go`） | 203 行（自带 227 行测试） | 每个事件发出前都要过它；自带测试，最容易独立移植的一块 |
 | 3 | **service 最小读路径**：`GetSession` / `GetOwnedSession` / `GetMessage`（含 `loadSessionForRead` 的可见性判定） | 仓储已就绪 | 依赖已全部到位 |
 | 4 | **`ContinueStream` 控制器**（Go `stream.go` L29-204） | ~200 行 | 到这一步才有第一次真正的 SSE A/B |
+
+**步 1 交付说明（已完成）**：
+
+| 文件 | 内容 |
+|---|---|
+| `common/web/GoDoubleSerializer` | `float64` 按 Go 专用编码器输出（整数值不补 `.0`、指数写法、次正规数最短表示） |
+| `common/web/GoMapSerializer` | map 键序**递归**对齐 Go（含 `data.arguments` 这类模型返回的嵌套 map） |
+| `retrieval/domain/SearchResult` | Go `types.SearchResult`；两个 `json:"-"` 内部字段走 `@JsonIgnore` |
+| `session/sse/SseContract` | 四个 SSE 头（覆盖语义）+ 空实现的 `sendCompletionEvent` |
+| `session/sse/StreamResponseBuilder` | `buildStreamResponse` + `searchResultFromMap`；**类注释里就是 §6 要求的 emit 表** |
+
+测试 41 条（`GoDoubleSerializerTest` 28 + `StreamResponseBuilderTest` 12 + 往返 1），
+**期望值全部是 Go 实录**：把 helpers.go 的三个函数连同 `types.SearchResult`/`types.JSON`
+原样抄进一个独立 Go 程序跑 `json.Marshal`，输出抄进断言。
+这条「抄源码 + 真 Go 运行时序列化」的做法在本轮抓到两个只看代码看不出的坑
+（`types.JSON` 漏 `MarshalJSON` 会退化成 base64；Java `Double.toString` 在次正规数上更长），
+**后续凡涉及"字节级对齐"的模块建议沿用**。
 
 **第 4 步的几个要点（读 Go 时注意）**：
 
