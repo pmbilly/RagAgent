@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ragagent.session.domain.Session;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Result;
+import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -70,4 +72,122 @@ public interface SessionMapper extends BaseMapper<Session> {
                                @Param("updatedAt") java.time.OffsetDateTime updatedAt,
                                @Param("userScoped") boolean userScoped,
                                @Param("userId") String userId);
+
+    // ── 列表查询（对照 Go QueryPaged，repository/session.go L142-279） ──────────
+
+    /**
+     * 列表查询的 FROM + WHERE，两条 SQL（count / rows）共用一份。
+     *
+     * <p>注意几处刻意的写法，都是照 Go 抄的：</p>
+     * <ul>
+     *   <li>{@code ics.id IS NULL} 的 {@code web}/{@code embed} 桶、以及
+     *       {@code d.description} 的 NOT LIKE——**软删除的 IM 映射也要算数**（Go 注释：
+     *       一个曾经绑过 IM 的会话就属于那个平台，/clear 会软删映射并另起会话）。</li>
+     *   <li>{@code s.deleted_at IS NULL} 手写：这条查询走的是 {@code Table(...)}，
+     *       GORM 的自动软删不会介入，Go 自己写了；Java 侧同理。</li>
+     *   <li>{@code keyword} 的 LIKE 转义（{@code \%} / {@code \_} / {@code \\}）在仓储层
+     *       做好再传进来——Go 是 {@code escapeLikeKeyword(kw)} 之后拼 {@code %...%}。</li>
+     * </ul>
+     */
+    String PAGED_FROM_WHERE = """
+            FROM sessions AS s
+            LEFT JOIN im_channel_sessions ics ON ics.session_id = s.id
+            <where>
+              s.tenant_id = #{q.tenantId} AND s.deleted_at IS NULL
+              <if test="q.userId != null and q.userId != ''">
+                AND (s.user_id = #{q.userId} OR s.user_id IS NULL OR s.user_id = '')
+              </if>
+              AND (s.description IS NULL OR s.description NOT LIKE #{skillMarker})
+              <if test="keywordLike != null">
+                AND <choose>
+                  <when test="postgres">s.title ILIKE #{keywordLike}</when>
+                  <otherwise>LOWER(s.title) LIKE LOWER(#{keywordLike})</otherwise>
+                </choose>
+              </if>
+              <if test="src != null and src != ''">
+                <choose>
+                  <when test="src == 'api'">
+                    AND (s.user_id LIKE #{apiTenantLike} OR s.user_id LIKE #{apiExternalLike})
+                  </when>
+                  <when test="src == 'web'">
+                    AND (ics.id IS NULL AND (s.description = '' OR s.description NOT LIKE #{embedLike})
+                         AND (s.user_id IS NULL
+                              OR (s.user_id NOT LIKE #{apiTenantLike}
+                                  AND s.user_id NOT LIKE #{apiExternalLike})))
+                  </when>
+                  <when test="src == 'embed'">
+                    AND (ics.id IS NULL AND s.description LIKE #{embedLike})
+                  </when>
+                  <when test="channelDesc != null">
+                    AND (ics.id IS NULL AND s.description = #{channelDesc})
+                  </when>
+                  <otherwise>
+                    AND ics.platform = #{src}
+                  </otherwise>
+                </choose>
+              </if>
+              <if test="q.agentId != null and q.agentId != ''">
+                AND ics.agent_id = #{q.agentId}
+              </if>
+            </where>
+            """;
+
+    /**
+     * 总数（对照 Go 的 {@code Distinct("s.id").Count(&total)}）。
+     *
+     * <p>用 {@code COUNT(DISTINCT s.id)} 而不是 {@code COUNT(*)}：LEFT JOIN 理论上可能
+     * 扇出（Go 的注释说明了为什么当前不会，以及一旦"重映射已有会话"就需要加一行一会话的守卫）。</p>
+     */
+    @Select("<script>SELECT COUNT(DISTINCT s.id) " + PAGED_FROM_WHERE + "</script>")
+    long countPaged(@Param("q") com.ragagent.session.domain.SessionListQuery q,
+                    @Param("postgres") boolean postgres,
+                    @Param("keywordLike") String keywordLike,
+                    @Param("src") String src,
+                    @Param("channelDesc") String channelDesc,
+                    @Param("embedLike") String embedLike,
+                    @Param("apiTenantLike") String apiTenantLike,
+                    @Param("apiExternalLike") String apiExternalLike,
+                    @Param("skillMarker") String skillMarker);
+
+    /**
+     * 列表数据页（对照 Go QueryPaged 的 rowsQ）。
+     *
+     * <p>{@code agent_config} 必须显式挂 {@code PgJsonTypeHandler}：自定义 {@code @Select}
+     * 的结果映射不会自动套实体的 {@code @TableField(typeHandler=...)}，得在 {@code @Results}
+     * 里再声明一次，否则这一列会被当成裸字符串塞给 {@code SessionLastRequestState} 而炸。</p>
+     *
+     * <p>排序差异（{@code NULLS LAST}）用内联 {@code <if>} 表达，不用 {@code ${}} 拼接——
+     * 少一处字符串注入面。</p>
+     */
+    @Select("<script>"
+            + "SELECT s.id, s.tenant_id, s.title, s.description, s.user_id, s.is_pinned, "
+            + "s.pinned_at, s.agent_config, s.sandbox_config_id, s.created_at, s.updated_at, "
+            + "s.deleted_at, "
+            + "ics.platform AS im_platform, ics.chat_id AS im_chat_id, "
+            + "ics.thread_id AS im_thread_id, ics.user_id AS im_user_id, "
+            + "ics.agent_id AS im_agent_id, ics.im_channel_id AS im_channel_id "
+            + PAGED_FROM_WHERE
+            + "ORDER BY s.is_pinned DESC, s.pinned_at DESC "
+            + "<if test='postgres'>NULLS LAST </if>"
+            + ", s.updated_at DESC "
+            + "LIMIT #{limit} OFFSET #{offset}"
+            + "</script>")
+    @Results({
+            @Result(column = "id", property = "id", id = true),
+            // jsonb 列要显式挂类型处理器（见方法注释）
+            @Result(column = "agent_config", property = "lastRequestState",
+                    typeHandler = com.ragagent.common.web.PgJsonTypeHandler.class)
+    })
+    java.util.List<com.ragagent.session.domain.SessionListItem> queryPaged(
+            @Param("q") com.ragagent.session.domain.SessionListQuery q,
+            @Param("postgres") boolean postgres,
+            @Param("keywordLike") String keywordLike,
+            @Param("src") String src,
+            @Param("channelDesc") String channelDesc,
+            @Param("embedLike") String embedLike,
+            @Param("apiTenantLike") String apiTenantLike,
+            @Param("apiExternalLike") String apiExternalLike,
+            @Param("skillMarker") String skillMarker,
+            @Param("limit") int limit,
+            @Param("offset") int offset);
 }

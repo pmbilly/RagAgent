@@ -78,8 +78,20 @@ public class Session {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String userId = "";
 
+    /**
+     * <b>字段名不带 {@code is} 前缀是刻意的</b>，两个地方都依赖这一点：
+     * <ol>
+     *   <li>Jackson：字段 {@code isPinned} 的隐式属性名是 "isPinned"，而 getter
+     *       {@code isPinned()} 的隐式名是 "pinned"——两者对不上就会**各生成一个属性**，
+     *       JSON 里同时冒出 {@code is_pinned} 和 {@code pinned} 两个键（真实踩过）。</li>
+     *   <li>MyBatis-Plus 的 lambda：{@code Session::isPinned} 按 PropertyNamer 推成
+     *       "pinned"，要能对上实体字段名才找得到列映射。</li>
+     * </ol>
+     * 列名由 {@code @TableField("is_pinned")} 显式给出。
+     */
+    @TableField("is_pinned")
     @JsonProperty("is_pinned")
-    private boolean isPinned;
+    private boolean pinned;
 
     /** 置顶时刻；未置顶时为 null（Go 的 *time.Time）。 */
     @JsonProperty("pinned_at")
@@ -231,11 +243,11 @@ public class Session {
     }
 
     public boolean isPinned() {
-        return isPinned;
+        return pinned;
     }
 
     public void setPinned(boolean v) {
-        this.isPinned = v;
+        this.pinned = v;
     }
 
     public OffsetDateTime getPinnedAt() {

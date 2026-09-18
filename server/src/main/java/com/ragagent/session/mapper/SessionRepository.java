@@ -1,15 +1,22 @@
 package com.ragagent.session.mapper;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+
+import javax.sql.DataSource;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionLastRequestState;
+import com.ragagent.session.domain.SessionListItem;
+import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
+import com.ragagent.session.domain.SessionOwnerIds;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,7 +28,8 @@ import org.springframework.stereotype.Component;
  *       → {@link #create} 里无条件覆盖新 UUID（**不是**"为空才生成"）。</li>
  *   <li><b>软删除</b>：{@code gorm.DeletedAt}。GORM 会给模型查询自动加
  *       {@code deleted_at IS NULL}。Java 不用 {@code @TableLogic}，每条查询显式加条件；
- *       删除走 {@link SessionMapper#softDelete} 的 UPDATE（见 §9 的既定做法）。</li>
+ *       删除走 UPDATE 置 {@code deleted_at}（见 §9 的既定做法）——**硬删会连带触发
+ *       {@code im_channel_sessions_session_id_fkey} 的 ON DELETE CASCADE**。</li>
  *   <li><b>可见性范围 {@code applySessionUserScope}</b>（Go L20-26）：{@code userID} 非空时加
  *       {@code (user_id = ? OR user_id IS NULL OR user_id = '')}——**空 owner 的历史行/API 行
  *       对所有人都可见**。这条件出现在 Get/GetByTenantID/GetPagedByTenantID/Update/Delete/
@@ -32,17 +40,19 @@ import org.springframework.stereotype.Component;
  *       无条件覆盖（改成空串也真的写空）。Java 用 {@code LambdaUpdateWrapper.set} 逐列写，
  *       同一语义。</li>
  * </ol>
- *
- * <p><b>本文件尚未包含</b> {@code QueryPaged}（会话列表的动态 SQL + im_channel_sessions
- * LEFT JOIN）——它和 {@code SessionListItem} 一起在下一步落地。</p>
  */
 @Component
 public class SessionRepository {
 
-    private final SessionMapper mapper;
+    private static final String EMBED_PREFIX = "embed:";
 
-    public SessionRepository(SessionMapper mapper) {
+    private final SessionMapper mapper;
+    /** 对照 Go 本方法每次问的 {@code db.Dialector.Name() == "postgres"}（同 wiki 的做法）。 */
+    private final boolean postgres;
+
+    public SessionRepository(SessionMapper mapper, DataSource dataSource) {
         this.mapper = mapper;
+        this.postgres = detectPostgres(dataSource);
     }
 
     /**
@@ -127,20 +137,14 @@ public class SessionRepository {
      */
     public long setPinned(long tenantId, String userId, String id, boolean pinned) {
         OffsetDateTime now = OffsetDateTime.now();
-        // 这个方法的 SET 子句用**字符串列名**而不是 lambda：MyBatis-Plus 的 lambda 解析
-        // 会把 `isPinned()` 按 PropertyNamer 推成属性 "pinned"，而实体字段叫 isPinned /
-        // 列叫 is_pinned，三者对不上 → 运行期抛 "can not find lambda cache for this property"。
-        // 条件部分照旧用 lambda，不受影响。
-        UpdateWrapper<Session> w = new UpdateWrapper<Session>()
-                .set("is_pinned", pinned)
-                .set("pinned_at", pinned ? now : null)
-                .set("updated_at", now)
-                .eq("tenant_id", tenantId)
-                .eq("id", id)
-                .isNull("deleted_at");
-        if (userId != null && !userId.isEmpty()) {
-            w.and(q -> q.eq("user_id", userId).or().isNull("user_id").or().eq("user_id", ""));
-        }
+        LambdaUpdateWrapper<Session> w = new LambdaUpdateWrapper<Session>()
+                .eq(Session::getTenantId, tenantId)
+                .eq(Session::getId, id)
+                .isNull(Session::getDeletedAt)
+                .set(Session::isPinned, pinned)
+                .set(Session::getPinnedAt, pinned ? now : null)
+                .set(Session::getUpdatedAt, now);
+        applyUserScope(w, userId);
         return mapper.update(null, w);
     }
 
@@ -271,7 +275,68 @@ public class SessionRepository {
         return mapper.update(null, w);
     }
 
+    // ── 列表（QueryPaged） ──────────────────────────────────────────────────
+
+    /**
+     * 对照 Go {@code QueryPaged}（L142-279）。服务层负责在调用前把 TenantID/UserID 填好
+     * （含"渠道来源筛选需要 Admin+，且要丢掉按人裁剪"那段判定）。
+     *
+     * <p>方言差异只在两处，都由 {@code postgres} 开关切换：{@code ILIKE} 与 {@code NULLS LAST}
+     * （H2 两个都不支持）。Go 每次查询都问 {@code db.Dialector.Name()}，同一进程内结果不变，
+     * 故与 wiki 一样在构造期探测一次。</p>
+     */
+    public PagedItems queryPaged(SessionListQuery q) {
+        String rawSource = q.source() == null ? "" : q.source().trim();
+        String src = rawSource.toLowerCase(Locale.ROOT);
+
+        // 对照 Go：先取原始大小写的 channelID（它切片的是 src 而不是 lower），
+        // 再拼成 embed_channel:<channelID> 做**等值**匹配（不是 LIKE）
+        String channelDesc = null;
+        if (src.startsWith(EMBED_PREFIX)) {
+            String channelId = rawSource.substring(EMBED_PREFIX.length()).trim();
+            if (!channelId.isEmpty()) {
+                channelDesc = Session.EMBED_SESSION_MARKER_PREFIX + channelId;
+            }
+        }
+
+        String kw = q.keyword() == null ? "" : q.keyword().trim();
+        String keywordLike = kw.isEmpty() ? null : "%" + escapeLikeKeyword(kw) + "%";
+
+        // 四个 LIKE 用的前缀串（Go 在 SQL 里现拼，Java 侧拼好传参）
+        String skillMarker = Session.SKILL_MAINTENANCE_SESSION_MARKER + "%";
+        String embedLike = Session.EMBED_SESSION_MARKER_PREFIX + "%";
+        String apiTenantLike = SessionOwnerIds.API_TENANT_KEY_PREFIX + "%";
+        String apiExternalLike = SessionOwnerIds.API_EXTERNAL_USER_PREFIX + "%";
+
+        long total = mapper.countPaged(q, postgres, keywordLike, src, channelDesc,
+                embedLike, apiTenantLike, apiExternalLike, skillMarker);
+
+        // 归一化对照 Go 本方法自己的 page/size 兜底（与 types.Pagination 同规则）
+        int page = q.page() < 1 ? 1 : q.page();
+        int size = q.pageSize() < 1 ? 20 : Math.min(q.pageSize(), 1000);
+
+        List<SessionListItem> items = mapper.queryPaged(q, postgres, keywordLike, src, channelDesc,
+                embedLike, apiTenantLike, apiExternalLike, skillMarker, size, (page - 1) * size);
+
+        return new PagedItems(items, total, page, size);
+    }
+
+    /** 对照 Go {@code wikiDialect()} 的同款探测（见 {@code WikiPageRepository.detectPostgres}）。 */
+    private static boolean detectPostgres(DataSource dataSource) {
+        try (Connection c = dataSource.getConnection()) {
+            String product = c.getMetaData().getDatabaseProductName();
+            return product != null && product.toLowerCase(Locale.ROOT).contains("postgres");
+        } catch (SQLException e) {
+            // 与 wiki 的处置一致：探测失败按非 postgres 走（H2 路径），不阻断启动
+            return false;
+        }
+    }
+
     /** {@code GetPagedByTenantID} 的返回：一页数据 + 总数。 */
     public record PagedSessions(List<Session> sessions, long total) {
+    }
+
+    /** {@code QueryPaged} 的返回（对照 Go {@code PageResult} 的四元组，去掉 Data 的泛型）。 */
+    public record PagedItems(List<SessionListItem> items, long total, int page, int pageSize) {
     }
 }

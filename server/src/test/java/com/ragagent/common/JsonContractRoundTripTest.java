@@ -39,6 +39,7 @@ import com.ragagent.mcp.domain.McpToolApproval;
 import com.ragagent.session.domain.MentionedItem;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionLastRequestState;
+import com.ragagent.session.domain.SessionListItem;
 import com.ragagent.stream.LiveRunPayload;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.wiki.domain.WikiConfig;
@@ -498,6 +499,18 @@ class JsonContractRoundTripTest {
 
         // 全空也要能往返：omitempty 的字段被省略后仍须幂等
         assertRoundTrips(new Session(), Session.class, "types.Session ← Session（全空）");
+
+        // 列表项：同样是裸响应体元素，且内嵌了要遮蔽掉的内层 im_platform
+        SessionListItem item = new SessionListItem();
+        item.setId("sess-1");
+        item.setTitle("T");
+        item.setTenantId(10002L);
+        item.setUserId("u-1");
+        item.setPinned(true);
+        item.setImPlatform("feishu");
+        item.setImChatId("c1");
+        assertRoundTrips(item, SessionListItem.class,
+                "types.SessionListItem ← SessionListItem（内嵌 Session + 外层同名字段遮蔽）");
     }
 
     @Test

@@ -430,6 +430,23 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，
     新增任何「对照 Go 方法」的便捷访问器时先想它。
+  - **同族的第二种形态：Java 字段名以 `is` 开头**（阶段 5 新增）。Go 的字段是 `IsPinned` /
+    json tag `is_pinned`，直译成 `private boolean isPinned` 会**多吐一个键**：
+    Jackson 给字段的隐式属性名是 `isPinned`、给 `isPinned()` 这个 getter 的是 `pinned`，两者
+    对不上 → 各生成一个属性 → JSON 里同时出现 `is_pinned` 和 `pinned`。
+    **修法：字段改名去掉 `is` 前缀**（`private boolean pinned` + `@TableField("is_pinned")`），
+    getter 仍是 `isPinned()`。这样字段与 getter 的隐式名都是 `pinned`、合并成一个属性，
+    再被 `@JsonProperty("is_pinned")` 改名。**顺带解决** MyBatis-Plus 的 lambda：
+    `Session::isPinned` 按 PropertyNamer 推成 `pinned`，正好对上字段名（否则运行期抛
+    `can not find lambda cache for this property`）。
+    既有实体（如 `McpToolApproval.requireApproval`）没这问题，因为**字段名不带 `is` 前缀**——
+    Java 字段名一律跟随 Go 去掉 `Is` 前缀的那部分。
+  - **⚠️ `JsonContractRoundTripTest` 抓不到上面这条**（本轮实测）：多出来的 `pinned` 键在
+    反序列化时被 `setPinned` 接住，往返仍然幂等，测试是绿的。**而且**当时写键序断言的正则
+    是 `"([a-z_]+)"`，驼峰键名直接被过滤掉。
+    所以：**带 `is` 前缀布尔字段的响应体，必须额外钉一条「键序 + 键数」断言**，正则要写成
+    驼峰感知的 `"([A-Za-z_][A-Za-z0-9_]*)":`。范式见
+    `server/src/test/java/com/ragagent/session/SessionJsonContractTest.java`。
   - **jsonb 回读的 ObjectMapper 要容忍未知属性**：Go 的 `json.Unmarshal` 默认**忽略**未知字段，
     Jackson 默认**失败**。TypeHandler 里用的裸 ObjectMapper 必须配
     `FAIL_ON_UNKNOWN_PROPERTIES=false`，否则历史行/新增字段会让整行读不出来。
