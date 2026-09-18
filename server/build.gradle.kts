@@ -93,10 +93,14 @@ tasks.named("processResources") { dependsOn(syncMigrations) }
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    // 测试 JVM 的默认上限是 512MB（Gradle 默认），而本套件（800+ 测试、十余个
-    // @SpringBootTest 上下文 + 共享 H2 内存库）实测峰值已贴近 512MB：把上限压到
-    // 448MB 后、**即使排除全部 wiki 测试**也稳定 OOM。阶段 4.2 加入 wiki 测试后
-    // 就变成偶发 OutOfMemoryError（表现为「Gradle Test Executor N failed to
-    // execute tests」，随机命中某个测试类，极易误判成业务 bug）。此处显式留余量。
-    maxHeapSize = "1g"
+    // 测试 JVM 的默认上限是 512MB（Gradle 默认），而本套件（十余个 @SpringBootTest
+    // 上下文 + 共享 H2 内存库）实测峰值已贴近 512MB：把上限压到 448MB 后、
+    // **即使排除全部 wiki 测试**也稳定 OOM。阶段 4.2 加入 wiki 测试后就变成偶发
+    // OutOfMemoryError（表现为「Gradle Test Executor N failed to execute tests」，
+    // 随机命中某个测试类，极易误判成业务 bug）。
+    //
+    // 阶段 5.2/波 0 把套件推到 2855 条后，1g 也不够了——**波 0 的 datasource 连接器层
+    // 一次加了 737 条测试，1g 下全量稳定 OOM（单跑该包 829 条没事，所以很容易漏）**。
+    // 提到 2g。这是**测试期参数，不影响生产**；再翻一倍测试量时记得继续往上调。
+    maxHeapSize = "2g"
 }
