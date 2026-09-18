@@ -39,15 +39,29 @@
 | 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
 | 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
 | **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | ✅ `continue-stream` 完成（4/4 步） | — |
-| 6 | embed 渠道 | ⏳ | — |
-| 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
-| 8 | 联调 | ⏳ | — |
+| **A** | **波 0**：memory / datasource（零前置的真叶子） | ⏳ **下一步** | — |
+| **B** | **波 1-2**：未被 agent 阻塞的端点群（约 200 条路由） | ⏳ | — |
+| **C** | **波 3**：agent 前置（sandbox / infrastructure / browserskill / modelcontext） | ⏳ | — |
+| **D** | **波 4**：agent 核心 + agent/tools（咽喉） | ⏳ | — |
+| **E** | **波 5**：chat_pipeline / im / skill / shared-agent 收口 | ⏳ | — |
 
-**后移/后置**（用户已决策）：
-- **IM**（15.6k）：主链路硬依赖阶段 5+7，整体后移到阶段 5 之后
-- **计划外模块**（datasource 10.8k / memory 7.9k / 管理端 10k / skill 6k / infrastructure 11.7k）：
-  阶段 7 之后统一做
-- **sandbox + browserskill**（17.2k）：原计划即后置到第二期
+> ⚠️ **2026-09-18 重排**：原「阶段 6 embed → 7 agent → 8 联调」的顺序已废弃，理由见 §9
+> 「剩余工作的依赖结构（2026-09-18 实测重排）」。**embed(28 条) 移到波 4 之后**——
+> 它和 `routes_chat.go` 的其余部分一样堵在 agent/tools 上，提前做只能打桩。
+
+**波次总览**（2026-09-18 实测重排，见 §9 的依赖分析）：
+
+| 波 | 内容 | 规模 | 解锁 |
+|---|---|---|---|
+| 0 | `memory`(4.8k) · `datasource`(10.8k) | ~15.6k | 33 条路由，**零未翻译前置** |
+| 1 | 会话/消息面剩余（CRUD/附件/产物/追问建议/消息历史） | ~25 条路由 | 阶段 5.2 的自然延续 |
+| 2 | 其余未被阻塞的端点群（admin/tenant/faq/chunk/vectorstore/…） | ~140 条路由 | — |
+| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | agent 的硬前置；sandbox 另解锁系统管理端+skill |
+| 4 | **agent 核心**（engine/think/act/observe/finalize）+ `agent/tools` | ~25k | `routes_agent.go`(88) + `routes_chat.go` 剩余 + embed(28) |
+| 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | — |
+
+**关键判断**：335 条待做路由里 **约 60% 现在就能做，不用等 agent 引擎**。
+`continue-stream` 之外的 chat/agent 端点才真正堵在波 4。
 
 ## 3. 下一步：阶段 5（会话 / SSE）
 

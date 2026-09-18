@@ -642,6 +642,30 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     `HTTP/1.1 200 `（无 reason phrase）、Spring 的 CORS 过滤器多三个 `Vary`、
     `X-Request-ID` 的大小写与 gin 的 `X-Request-Id` 不同。HTTP 头名大小写不敏感，
     正文不受影响。
+- **剩余工作的依赖结构（2026-09-18 实测重排，推翻原阶段 6/7/8 顺序）**：
+  - **做法**：量路由（Go 注册 412 条 vs Java 已注册 77 条）+ 按 router 文件分布 + 逐模块量前置/
+    解锁关系。**结论与原计划差得很远**，两条实测推翻了原前提：
+    1. **`agent/approval` 早已翻译**（阶段 4.1，25 个文件）。按**包名**做闭包判断会把
+       `mcp_service.go`(11) + `mcp_oauth.go`(6) 误判成"被 agent 阻塞"——它们其实早就可做。
+    2. **`session.go` 里的 `chat_pipeline` 只是个没被用到的字段**：全仓只有两处真正调
+       `eventManager`，都在 `session_knowledge_qa.go`（L728/L905）。会话 CRUD / 附件 / 产物 /
+       追问建议那 ~25 条路由**不**被 agent 引擎阻塞。
+    教训：**判依赖要看调用点，不要看包名闭包。** Go 的包粒度会让"只为了一个类型"
+    的 import 传染出一大片假依赖。
+  - **agent 不是一块巨石，是三件平行的事**：`chat_pipeline` 与 `agent` 之间只有 1 处引用
+    （`chat_pipeline/data_analysis.go` 引 `agent/tools`）——是 RAG pipeline 与 ReAct agent
+    两条**平行**执行路径。真正的关键路径是
+    `sandbox → agent 核心 → agent/tools(20k，咽喉) → {im, skill, chat_pipeline}`。
+  - **五个真叶子**（零未翻译前置，可独立开工）：`datasource`(10.8k)、`sandbox`(14.7k)、
+    `browserskill`(2.5k)、`infrastructure`(11.7k)、`memory`(4.8k)。
+    其中 **sandbox 是最紧的前置**——`agent/skills` 硬依赖它，且它另解锁系统管理端与 skill 模块。
+  - **`internal/agent/tools`(20k) 是全局咽喉**：被 `im`、`chat_pipeline`、`skill` 三处 import，
+    并经 `shared_agent_access.go` 拖住 `knowledge.go`(27) + `knowledgebase.go`(12) +
+    `organization.go`(35)。它不做完，`routes_agent.go`(88) 整块动不了。
+  - **`agent/tools/*` 内部还有一层可分**：wiki_*(~2.9k) / sandbox_*(~1.3k) / mcp_*(~2.2k) /
+    data_analysis(~1.2k) 都可以在各自依赖就绪后再补，不必一次做完。
+  - **顺带确认**：`internal/sandbox` / `datasource` / `browserskill` / `infrastructure/web_search`
+    对 agent 是**干净的**，不会反向阻塞它们自己的 handler。
 - **JSON 编码器的系统性差分排查（本轮的专项）**：
   - **做法**（可复用）：读 Go `encoding/json` 的 encoder 源码定出**类别**（转义分支、
     浮点编码器、整数、容器），为每类构造语料，用独立 Go 程序录出真值，再拿**容器里那个
