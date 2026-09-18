@@ -242,6 +242,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | audit 审计（横切回补） | internal/types/audit_log.go；internal/application/{service,repository}/audit_log*.go；internal/handler/audit_log.go | com.ragagent.audit.{domain,mapper,service,controller} | ✅ | 62 个 AuditAction；3 端点；**接上了既有埋点**：WikiActivityAudit 的 6 处 + RbacInterceptor 的拒绝审计（§9 阶段 1 差异 #8 的正式收口）。golden A/B 实测（空页 `[]` 非 null、1010 文案、request_path 存路由模板） |
 | stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
 | agent_steps 类型收紧（阶段 5.2 步 3 上） | internal/types/{agent,message}.go；internal/storageurl/request.go 的 RewriteMessages* | com.ragagent.agent.domain.{AgentStep,ToolCall,ToolCallTarget,ToolResult} + session.domain.{AgentStepListTypeHandler,SearchResultListTypeHandler} + common.web.{GoTimeSerializer,GoTimeDeserializer} + storageurl.Rewriter.rewriteMessages* | ✅ | 30 测试（12 逐字节 + 18 往返/重写）。**修掉了消息响应体上一个既有契约偏差**：jsonb 透传时元素退化成 LinkedHashMap，键序变成 PG 规范化序。关键坑见 §9 |
+| continue-stream 端点（阶段 5.2 步 4） | internal/handler/session/stream.go L29-204 + resource_urls.go L56-174 | com.ragagent.session.{controller.SessionStreamController,sse.SseFrameWriter,sse.StreamEventEmitter} + WebConfig 路由 + APIKeyRoutePolicies | ✅ | **第一次真正的 SSE A/B：四条路径逐字节 MATCH**（见 §9）。帧骨架、HTML 转义、扣留重组全部对齐 |
 | 会话/消息最小读路径（阶段 5.2 步 3 下） | internal/application/service/{session,message}.go 的读方法 + loadSessionForRead | com.ragagent.session.service.{SessionService,MessageService,SessionLookupScope} | ✅ | 14 测试（授权判定）。`Session.requiresAdminConsoleRead` 阶段 5.1 已落地，本步只补 service 层的两条读路径与 Admin 回退 |
 | storageurl（阶段 5.2 步 2） | internal/storageurl/{mode,storageurl,stream,resolver,request}.go | com.ragagent.storageurl.{Mode,StorageUrlContext,ResourceModeException,PublicModeForbiddenException,Resolver,Rewriter,StreamRewriter,FileServiceResolver,FileService,StorageBackendResolver} | ✅ | 49 测试。**这是第一处跨 5 个 handler 的共享契约**（message/knowledgebase/session/embed/im 都 import 它）。扣留缓冲 + 模式解析全部按 Go 对等移植；差分语料见 §9。已知差异：provider 级文件服务未翻译 |
 | SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
@@ -598,6 +599,40 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - **`sessionUserIDForLookup` 的共享 agent 分支未接线**（属阶段 7）：
     `SessionLookupScope` 已就位但无人 `mark()`，于是查询**始终带 user 范围**。
     差异方向偏保守（Go 放行的 Java 可能 404），不是漏洞。
+- **阶段 5.2 步 4（continue-stream）新确认的细节与坑**：
+  - **⚠️ SSE 帧不是 Spring 的格式**：{@code c.SSEvent("message", resp)} 走 gin-contrib/sse，
+    对结构体/指针走 `json.NewEncoder` 那一支，线上字节是
+    **`event:message\ndata:<json>\n\n`**——冒号后**没有空格**，`data:` 里的 JSON 尾随一个 `\n`，
+    再补一个 `\n`。Spring 的 `SseEmitter` 自己拼帧且格式不同，**不能用**。
+    已按 Go 实录在 `SseFrameWriterTest` 里逐字节钉住。
+  - **⚠️ 帧里的 JSON 必须用 Go 的转义**：gin 用 `json.NewEncoder`，默认开 HTML 转义——
+    `< > &` 写成 `\u003c` / `\u003e` / `\u0026`（小写十六进制）。**Spring 那个 mapper 不转义**，
+    直接用在含 `&` 的正文上就会分叉。`SseFrameWriter` 复用 `StreamJson.mapper()`
+    （那份配置本来就是"Go 兼容 JSON"，Redis 与 SSE 两条路径共用同一份定义）。
+  - **⚠️ Content-Type 会被 SSE 渲染器无条件覆盖**：`sse.Event.Render` 里的
+    `WriteContentType` 把 Content-Type 直接赋成 `text/event-stream;charset=utf-8`，
+    所以 `setSSEHeaders` 设的 `text/event-stream` **不是**线上的最终值
+    （`Cache-Control` 是"没有才设"，`no-cache` 保持不变）。
+  - **扣留键是 `类型 \x00 事件 id`**：同一流的增量分片共用一个 event id 才会被**重组**
+    （A/B 实测：id 不同则各自独立扣留，尾巴在终止事件前被 `FlushAll` 冲成独立事件，
+    带 `data:{"event_id": <原事件 id>}`）；id 相同则后一片到达时补全并整段发出。
+    两条路径都已 A/B 对齐。
+  - **四种失败文案各不相同，别统一**：`invalid session id`（400，路由上不可达）/
+    `Missing message ID`（400）/ `session not found`（404，会话可见性也是这个）/
+    **`record not found`**（404，`gorm.ErrRecordNotFound.Error()` 的原文，
+    **不是** "message not found"）/ `No stream events found`（404 手写信封）/
+    非法 `resource_urls`（400，文案与 Go 的 `ParseMode` 逐字一致）。
+  - **手写信封的键序**：`c.JSON(404, gin.H{...})` 里 gin.H 是 **map → 键按字母序**，
+    所以线上是 `{"error":"…","success":false}`，不是源码里的书写顺序。
+  - **`resource_urls` 必须在写任何 SSE 头之前解析**——否则非法取值就没法落成普通 400 JSON 了。
+  - **客户端断开检测与 Go 有差异（已记录，未复刻）**：Go 用 `c.Request.Context().Done()`
+    立刻返回；Java 阻塞式 Servlet 拿不到等价通知，改用**写失败**（`IOException`）检测。
+    后果是**延迟**而非错误：流中途断线要等下一次有事件可写才发现（活跃生成下亚秒级），
+    只有"流完全停滞"会多挂一会儿。
+  - **响应头层面容器固有差异（非本步引入，暂不处理）**：Tomcat 的 status line 是
+    `HTTP/1.1 200 `（无 reason phrase）、Spring 的 CORS 过滤器多三个 `Vary`、
+    `X-Request-ID` 的大小写与 gin 的 `X-Request-Id` 不同。HTTP 头名大小写不敏感，
+    正文不受影响。
 - **跨阶段通用坑（阶段 4 新增）**：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，

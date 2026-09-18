@@ -1,6 +1,6 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 最新提交 `4754b82` · 1637 测试全绿
+> 最后更新：2026-09-18 · 最新提交 `PENDING` · 1655 测试全绿
 
 ## 0. 一句话背景
 
@@ -38,7 +38,7 @@
 | — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
 | 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
 | 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
-| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | 🔶 拆解中 · **步 1-3/4 完成** | — |
+| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | ✅ `continue-stream` 完成（4/4 步） | — |
 | 6 | embed 渠道 | ⏳ | — |
 | 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
 | 8 | 联调 | ⏳ | — |
@@ -135,7 +135,7 @@
 | 1 | ✅ **已完成** — SSE 契约层：`setSSEHeaders` / **`buildStreamResponse`** / `sendCompletionEvent` / `searchResultFromMap`（Go `helpers.go` L182-249）+ `types.SearchResult` | ~100 行 | 见下方「步 1 交付说明」 |
 | 2 | ✅ **已完成** — **`storageurl` 包**（`mode` / `storageurl` / `stream` / `resolver` / `request` 的重写部分） | 实为 846 行（原估 203 行只算了 `stream.go`） | 见下方「步 2 交付说明」 |
 | 3 | ✅ **已完成** — service 最小读路径 + **`AgentSteps` 类型收紧** | — | 见下方「步 3 交付说明」 |
-| 4 | **`ContinueStream` 控制器**（Go `stream.go` L29-204） | ~200 行 | 到这一步才有第一次真正的 SSE A/B |
+| 4 | ✅ **已完成** — `ContinueStream` 控制器 + 路由 + SSE 帧 | ~200 行 | 见下方「步 4 交付说明」 |
 
 **步 1 交付说明（已完成）**：
 
@@ -190,6 +190,35 @@
 **顺带修掉一个既有契约偏差**：`knowledge_references` / `agent_steps` 此前按
 `List<Object>` 透传，读回来元素是 `LinkedHashMap`、键序是 PG 的 jsonb 规范化序，
 而不是 Go 的 struct 声明序——它们在消息响应体里，是实打实的线上差异。
+
+**步 4 交付说明（已完成）——第一次真正的 SSE A/B 全绿**：
+
+| 文件 | 内容 |
+|---|---|
+| `session/controller/SessionStreamController` | `resource_urls` 前置解析、四种失败各自映射、offset 0 回放、已完成流不进轮询、100ms 轮询 |
+| `session/sse/SseFrameWriter` | 逐字节复刻 gin 的帧（`event:message\ndata:…\n\n`）+ Go 的 JSON 转义 |
+| `session/sse/StreamEventEmitter` | `resource_urls.go` 的 emit 点（含扣留冲发、`heldFragmentData`） |
+| `WebConfig` + `APIKeyRoutePolicies` | 路由 `/api/v1/sessions/continue-stream/*` → Viewer；API-Key 走 `chat(fullAccess())` |
+
+**A/B 结果（Go :8080 vs Java :8082，同一 dev PG + 同一 Redis 键空间）**：
+
+| 路径 | 结果 |
+|---|---|
+| 缺 `message_id` → 400 | ✅ 逐字节 |
+| 不存在的会话 → 404 `session not found` | ✅ 逐字节 |
+| 非法 `resource_urls` → 400 | ✅ 逐字节（含 Go `ParseMode` 的原文案） |
+| handle 模式回放 + complete（含 HTML 转义、`usage`） | ✅ 逐字节 |
+| public 模式：分片 id 不同 → 尾巴被 FlushAll 冲成独立事件 | ✅ 逐字节 |
+| public 模式：分片 id 相同 → 扣留后**重组** | ✅ 逐字节 |
+
+复现方式（不留残留数据）：造一条 `sessions`/`messages` 行（租户 10002，`user_id=''` 即可落在
+可见范围内），用 `redis-cli RPUSH 'stream::<sess>:<msg>' '<Go 格式的 StreamEvent JSON>'` 造流，
+两侧各打一发 `curl` 后 `diff`。**要共享 Redis 键空间，两个 server 都要带
+`STREAM_MANAGER_TYPE=redis REDIS_PREFIX=stream:`**（§9 里那条"e2e 脚本默认不带"的提醒）。
+
+已知差异（均已记进 §9）：客户端断开靠写失败检测而非 Go 的 ctx 取消（差异是延迟、有界）；
+响应头层面 Tomcat/CORS 的容器固有差异（status line、三个 `Vary`、`X-Request-ID` 大小写），
+**正文不受影响**。
 
 **第 4 步的几个要点（读 Go 时注意）**：
 
