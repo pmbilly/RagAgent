@@ -2,7 +2,10 @@ package com.ragagent.knowledge.service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -12,26 +15,48 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.common.CleanInvalidUtf8;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.security.InputSanitizer;
 import com.ragagent.knowledge.domain.Chunk;
+import com.ragagent.knowledge.domain.KbIndexingStrategy;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
+import com.ragagent.knowledge.domain.KnowledgeTag;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
+import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 对照 Go internal/application/service/knowledge.go + knowledge_create.go
  * （阶段 3 子集：file/url/manual 创建、分页列表、get/update/delete、folders；
  *  处理管道 = pending→processing→(docreader→chunk→embed)→completed/failed，
  *  asynq 以进程内虚拟线程队列替代（响应契约一致，重试/取消语义见约定 §9））。
+ *
+ * <p><b>波 2 扩展（文档操作面）</b>：spans 合成树、regenerate-summary（无 summary
+ * model 的确定性 400）、manual 更新、reparse/cancel-parse、download/preview 文件解析、
+ * image info、tags 批量、batch-delete/batch-reparse/clear-contents（asynq →
+ * 同步尽力而为，HTTP 契约 = task_id + 文案）、folders 树升级为完整
+ * BuildKnowledgeFolderTree、GET 侧回填 tags。</p>
+ *
+ * <p><b>已知差异（记录于各类注释）</b>：
+ * ① 批量删除/清空在 Go 是 asynq 异步清理（向量/文件/wiki 一并回收），Java 为同步
+ *    软删（chunk+knowledge 行），HTTP 响应逐字节一致；② reparse 的资源清理只对齐
+ *    "删 chunks"这一可观测子集；③ regenerate 的 LLM 生成随阶段 7（无 summary model
+ *    的 400 分支逐字节一致）；④ updateChunkVector 只对齐 NeedsEmbedding 判定与
+ *    "model ID cannot be empty" 失败分支，向量引擎未接线。</p>
  */
 @Service
 public class KnowledgeService {
@@ -39,27 +64,51 @@ public class KnowledgeService {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（§9 步 3 教训）。 */
+    private static final ObjectMapper CLONE_MAPPER = new ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+            .disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+
+    /** Go types/knowledge_span.go 的 5 段 canonical 时间线（顺序即合成顺序） */
+    public static final List<String> ALL_STAGES =
+            List.of("docreader", "chunking", "embedding", "multimodal", "postprocess");
+
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
+    private final KnowledgeTagMapper tagMapper;
     private final LocalStorageService storage;
     private final KnowledgeProcessWorker worker;
+    private final KnowledgeTaskProgressStore progressStore;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
                             KnowledgeBaseMapper kbMapper,
                             ChunkMapper chunkMapper,
+                            KnowledgeTagMapper tagMapper,
                             LocalStorageService storage,
-                            @Lazy KnowledgeProcessWorker worker) {
+                            @Lazy KnowledgeProcessWorker worker,
+                            KnowledgeTaskProgressStore progressStore) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
+        this.tagMapper = tagMapper;
         this.storage = storage;
         this.worker = worker;
+        this.progressStore = progressStore;
     }
 
     private static long tenantId() {
         Long tid = TenantContext.currentTenantId();
         return tid == null ? 0 : tid;
+    }
+
+    /** 对照 knowledgeBaseService.GetKnowledgeBaseByID 的原始查找（nullable，路由级
+     *  ownership 守卫用：缺失放行）；无 API-Key 白名单口（白名单在 requireKbAccess）。 */
+    public KnowledgeBase findKb(String kbId) {
+        return kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, kbId)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
     }
 
     public KnowledgeBase requireKb(String kbId) {
@@ -291,7 +340,84 @@ public class KnowledgeService {
         // 用其所属 KB 做 scope 校验（KB 受限的 Key 不得越界）。
         com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
                 java.util.List.of(k.getKnowledgeBaseId()));
+        // 对照 GetKnowledgeByID（service 层）：回填 tags（knowledge_tag_relations 连接查；
+        // 无关系 → 保持 null，与 golden "tags":null 一致）
+        attachTags(k);
         return k;
+    }
+
+    /** 对照 repo.GetKnowledgeByIDOnly：无租户过滤（守卫/权限解析用）。 */
+    public Knowledge getKnowledgeByIdOnly(String id) {
+        return knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+    }
+
+    /** 调用者空间内的可空读取（对照 move handler 里 service GetKnowledgeByID 的
+     *  租户过滤语义；查不到返回 null，由调用方决定错误文案）。 */
+    public Knowledge getKnowledgeInTenant(long tenantId, String id) {
+        return knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .eq(Knowledge::getTenantId, tenantId)
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+    }
+
+    /**
+     * 对照 repo.GetKnowledgeBatch：按 (tenant, ids) 批量取，<b>不回填 tags</b>
+     * （Go 只有 GetKnowledgeByID/list 分页路径回填；batch 响应恒 "tags":null）。
+     * GORM Find 恒返回非 nil 切片 → Java 恒返回 List（空也 []，不 null）。
+     */
+    public List<Knowledge> getKnowledgeBatch(long tenantId, List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getTenantId, tenantId)
+                .in(Knowledge::getId, ids)
+                .isNull(Knowledge::getDeletedAt));
+    }
+
+    /**
+     * 对照 GetKnowledgeBatchWithSharedAccess 的同租户收敛形态：kb_shares / shared-agent
+     * 未翻译（约定 §9 阶段 3 差异 3），共享路径的"补捞"只对同租户行有效，而租户内行
+     * 已被第一条批量查询覆盖——净效果即按租户的批量读。恒非 null（GORM Find 语义）。
+     */
+    public List<Knowledge> getKnowledgeBatchWithSharedAccess(long tenantId, List<String> ids) {
+        return getKnowledgeBatch(tenantId, ids);
+    }
+
+    /** 对照 attachTagsToKnowledge：有关系才回填（无关系保持 null）。 */
+    public void attachTags(Knowledge k) {
+        if (k == null) {
+            return;
+        }
+        List<KnowledgeTag> rows = tagMapper.selectTagsWithKnowledgeId(List.of(k.getId()));
+        if (!rows.isEmpty()) {
+            k.setTags(new ArrayList<>(rows.stream().map(KnowledgeService::tagView).toList()));
+        }
+    }
+
+    /** 对照 KnowledgeTag struct 的 JSON 形态（字段声明序，color 零值 ""）。
+     *  时间与 JacksonConfig 的 OffsetDateTime 序列化同式（JVM 默认时区 + ISO_OFFSET）。 */
+    public static ObjectNode tagView(KnowledgeTag t) {
+        ObjectNode n = MAPPER.createObjectNode();
+        n.put("id", t.getId());
+        n.put("seq_id", t.getSeqId() == null ? 0L : t.getSeqId());
+        n.put("tenant_id", t.getTenantId() == null ? 0L : t.getTenantId());
+        n.put("knowledge_base_id", t.getKnowledgeBaseId());
+        n.put("name", t.getName());
+        n.put("color", t.getColor() == null ? "" : t.getColor());
+        n.put("sort_order", t.getSortOrder() == null ? 0 : t.getSortOrder());
+        n.put("created_at", t.getCreatedAt() == null ? null : goTimeString(t.getCreatedAt()));
+        n.put("updated_at", t.getUpdatedAt() == null ? null : goTimeString(t.getUpdatedAt()));
+        return n;
+    }
+
+    private static String goTimeString(OffsetDateTime v) {
+        return v.atZoneSameInstant(java.time.ZoneId.systemDefault()).toOffsetDateTime()
+                .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
     /** 对照 UpdateKnowledge：title/description(指针)/custom_metadata 部分更新 */
@@ -329,22 +455,1047 @@ public class KnowledgeService {
         return UUID.randomUUID().toString();
     }
 
-    // ── folders（对照 ListKnowledgeFolders 最小实现：根目录统计 + 一层目录） ──
+    // ── folders（波 2 升级：对照 types.BuildKnowledgeFolderTree 完整树） ──
 
-    /** 对照 KnowledgeFolderTree：root_document_count/total_document_count/folders */
+    /**
+     * 对照 KnowledgeFolderTree：root_document_count/total_document_count/folders。
+     * 计数只排除 parse_status='deleting'（draft 计入）+ 软删行；中间空目录会被
+     * 具体化以保持层级连通；同名排序按 path 字节序（Go strings.&lt;）。
+     */
     public JsonNode folderTree(String kbId) {
         requireKb(kbId);
-        // 对照 ListKnowledgeFolderCounts：只排除 parse_status='deleting'（draft 计入）
+        // 对照 ListKnowledgeFolderCounts：GROUP BY folder_path（Java 侧取列后内存聚合，
+        // 语义一致：tenant+kb+parse_status<>'deleting'+deleted_at IS NULL）
         List<Knowledge> docs = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
+                .select(Knowledge::getFolderPath)
                 .eq(Knowledge::getKnowledgeBaseId, kbId)
+                .eq(Knowledge::getTenantId, tenantId())
                 .isNull(Knowledge::getDeletedAt)
                 .ne(Knowledge::getParseStatus, Knowledge.PARSE_DELETING));
-        long root = docs.stream().filter(d -> d.getFolderPath().isEmpty()).count();
+        Map<String, Long> counts = new TreeMap<>();
+        for (Knowledge d : docs) {
+            counts.merge(d.getFolderPath() == null ? "" : d.getFolderPath(), 1L, Long::sum);
+        }
+
+        long rootCount = 0;
+        long totalCount = 0;
+        Map<String, ObjectNode> nodes = new TreeMap<>();
+        Map<String, List<ObjectNode>> children = new TreeMap<>();
+        ArrayNode top = MAPPER.createArrayNode();
+        for (Map.Entry<String, Long> e : counts.entrySet()) {
+            long count = e.getValue();
+            totalCount += count;
+            String path = normalizeKnowledgeFolderPath(e.getKey());
+            if (path.isEmpty()) {
+                rootCount += count;
+                continue;
+            }
+            ObjectNode node = ensureFolderNode(path, nodes, children, top);
+            node.put("document_count", node.path("document_count").asLong() + count);
+        }
+        // 对照：深度优先回卷 total_count（深路径先算，父级累加子树）
+        List<String> paths = new ArrayList<>(nodes.keySet());
+        paths.sort((a, b) -> {
+            int da = countChar(a, '/'), db = countChar(b, '/');
+            return da != db ? Integer.compare(db, da) : a.compareTo(b);
+        });
+        for (String path : paths) {
+            ObjectNode node = nodes.get(path);
+            long total = node.path("document_count").asLong() + children
+                    .getOrDefault(path, List.of()).stream()
+                    .mapToLong(c -> c.path("total_count").asLong()).sum();
+            node.put("total_count", total);
+        }
+        // 对照 sortNodes：children/Folders 都按 name 的小写序排；空 children 整键缺席
+        //（KnowledgeFolderNode.Children omitempty）
+        for (Map.Entry<String, List<ObjectNode>> e : children.entrySet()) {
+            List<ObjectNode> list = e.getValue();
+            list.sort(byNameLower);
+            nodes.get(e.getKey()).set("children", MAPPER.createArrayNode().addAll(list));
+        }
+        List<ObjectNode> topList = new ArrayList<>();
+        top.forEach(n -> topList.add((ObjectNode) n));
+        topList.sort(byNameLower);
+        top.removeAll();
+        topList.forEach(top::add);
         ObjectNode tree = MAPPER.createObjectNode();
-        tree.put("root_document_count", root);
-        tree.put("total_document_count", docs.size());
-        tree.set("folders", MAPPER.createArrayNode());
+        tree.put("root_document_count", rootCount);
+        tree.put("total_document_count", totalCount);
+        tree.set("folders", top);
         return tree;
+    }
+
+    private static final java.util.Comparator<ObjectNode> byNameLower =
+            java.util.Comparator.comparing(n -> n.path("name").asText("").toLowerCase(java.util.Locale.ROOT));
+
+    /** 对照 ensure：节点 + 缺失祖先具体化；顶级挂 Folders，子级挂 parent.Children。 */
+    private static ObjectNode ensureFolderNode(String path, Map<String, ObjectNode> nodes,
+                                               Map<String, List<ObjectNode>> children, ArrayNode top) {
+        ObjectNode existing = nodes.get(path);
+        if (existing != null) {
+            return existing;
+        }
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("path", path);
+        node.put("name", folderName(path));
+        node.put("document_count", 0);
+        node.put("total_count", 0);
+        nodes.put(path, node);
+        String parent = folderParent(path);
+        if (parent.isEmpty()) {
+            top.add(node);
+        } else {
+            ensureFolderNode(parent, nodes, children, top);
+            children.computeIfAbsent(parent, k -> new ArrayList<>()).add(node);
+        }
+        return node;
+    }
+
+    private static String folderName(String path) {
+        if (path.isEmpty()) {
+            return "";
+        }
+        int idx = path.lastIndexOf('/');
+        return idx >= 0 ? path.substring(idx + 1) : path;
+    }
+
+    private static String folderParent(String path) {
+        int idx = path.lastIndexOf('/');
+        return idx >= 0 ? path.substring(0, idx) : "";
+    }
+
+    private static int countChar(String s, char c) {
+        int n = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == c) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * 对照 types.NormalizeKnowledgeFolderPath（knowledge_folder.go L38-82）：
+     * \ → /、分段 trim、去尾部 ". "、跳过空/./.. 段、单段 ≤128 字节、深度 ≤16、总长 ≤1024。
+     */
+    public static String normalizeKnowledgeFolderPath(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "";
+        }
+        raw = raw.replace('\\', '/');
+        List<String> segments = new ArrayList<>(8);
+        for (String segment : raw.split("/", -1)) {
+            segment = segment.trim();
+            segment = stripTrailing(segment, ". ");
+            if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
+                continue;
+            }
+            if (segment.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 128) {
+                byte[] bytes = segment.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                int cut = 128;
+                while (cut > 0 && (bytes[cut] & 0xC0) == 0x80) {
+                    cut--; // 回退到 rune 起点
+                }
+                segment = new String(bytes, 0, cut, java.nio.charset.StandardCharsets.UTF_8).trim();
+            }
+            if (segment.isEmpty()) {
+                continue;
+            }
+            segments.add(segment);
+            if (segments.size() >= 16) {
+                break;
+            }
+        }
+        String path = String.join("/", segments);
+        while (path.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1024 && !segments.isEmpty()) {
+            segments = segments.subList(0, segments.size() - 1);
+            path = String.join("/", segments);
+        }
+        return path;
+    }
+
+    private static String stripTrailing(String s, String cutset) {
+        while (!s.isEmpty() && cutset.indexOf(s.charAt(s.length() - 1)) >= 0) {
+            s = s.substring(0, s.length() - 1);
+        }
+        return s;
+    }
+
+    // ── 文件夹移动 / 重命名（波 2） ──────────────────────────────────────
+
+    /**
+     * 对照 MoveKnowledgeToFolder（service 层）。调用前 handler 已做
+     * requireKnowledgeInKB，这里的 loadKnowledgeWriteBatch/kb 校验属 Go 的双保险，
+     * Java 保留同序（writeResourceIDs 空 id → 400；跨 KB → 403 "knowledge outside target KB"）。
+     *
+     * @return affected 行数（UpdateKnowledgeFolderPath 的 RowsAffected）
+     */
+    @Transactional
+    public long moveKnowledgeToFolder(String kbId, List<String> ids, String folderPath) {
+        if (ids == null || ids.isEmpty()) {
+            throw BizException.badRequest("knowledge_ids cannot be empty");
+        }
+        String normalized = normalizeTargetFolderPath(folderPath);
+        List<Knowledge> rows = loadKnowledgeWriteBatch(ids, kbId);
+        List<String> checkedIds = new ArrayList<>(rows.size());
+        for (Knowledge row : rows) {
+            if (!row.getKnowledgeBaseId().equals(kbId)) {
+                throw BizException.forbidden("knowledge outside target KB");
+            }
+            checkedIds.add(row.getId());
+        }
+        long tenantId = rows.get(0).getTenantId();
+        return knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("tenant_id", tenantId)
+                .eq("knowledge_base_id", kbId)
+                .in("id", checkedIds)
+                .set("folder_path", normalized)
+                .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
+    }
+
+    /**
+     * 对照 RenameKnowledgeFolder（service 层）：source/target 规范化、同路径短路面、
+     * 不能移进自身子目录、KB 缺失 → 404。@return affected 行数。
+     */
+    @Transactional
+    public long renameKnowledgeFolder(String kbId, String from, String to) {
+        String source = normalizeKnowledgeFolderPath(from);
+        if (source.isEmpty()) {
+            throw BizException.badRequest("源文件夹路径不能为空");
+        }
+        String target = normalizeTargetFolderPath(to);
+        if (target.isEmpty()) {
+            throw BizException.badRequest("目标文件夹路径不能为空");
+        }
+        if (target.equals(source)) {
+            return 0;
+        }
+        if (target.startsWith(source + "/")) {
+            throw BizException.badRequest("不能将文件夹移动到它自己的子目录下");
+        }
+        KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, kbId)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (kb == null || !kb.getId().equals(kbId)) {
+            throw BizException.notFound("knowledge base not found");
+        }
+        // 对照 RenameKnowledgeFolderPath：行级重写（folder_path = source 或 source+"/%"），
+        // 目标 = Normalize(to + suffix)，按目标分组批量 UPDATE（Go 双重循环的净效果）
+        List<Knowledge> rows = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
+                .select(Knowledge::getId, Knowledge::getFolderPath)
+                .eq(Knowledge::getTenantId, kb.getTenantId())
+                .eq(Knowledge::getKnowledgeBaseId, kbId)
+                .and(w -> w.eq(Knowledge::getFolderPath, source)
+                        .or().likeRight(Knowledge::getFolderPath, source + "/")));
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        Map<String, List<String>> byTarget = new TreeMap<>();
+        for (Knowledge row : rows) {
+            String suffix = row.getFolderPath().startsWith(source)
+                    ? row.getFolderPath().substring(source.length()) : row.getFolderPath();
+            byTarget.computeIfAbsent(normalizeKnowledgeFolderPath(target + suffix), k -> new ArrayList<>())
+                    .add(row.getId());
+        }
+        long affected = 0;
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        for (Map.Entry<String, List<String>> e : byTarget.entrySet()) {
+            affected += knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                    .eq("tenant_id", kb.getTenantId())
+                    .eq("knowledge_base_id", kbId)
+                    .in("id", e.getValue())
+                    .set("folder_path", e.getKey())
+                    .set("updated_at", now));
+        }
+        return affected;
+    }
+
+    /** 对照 normalizeTargetFolderPath：trim → ValidateInput（非法 → 1010）→ Normalize。 */
+    private static String normalizeTargetFolderPath(String folderPath) {
+        String trimmed = folderPath == null ? "" : folderPath.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        String safe = InputSanitizer.validateInput(trimmed);
+        if (safe == null) {
+            throw new BizException(AppError.validation("文件夹路径包含非法字符"));
+        }
+        return normalizeKnowledgeFolderPath(safe);
+    }
+
+    /**
+     * 对照 loadKnowledgeWriteBatch（knowledge_write.go L101-145）：逐 id 校验存在性、
+     * moving 状态、KB 绑定与 <b>requireKBWrite 授权</b>；缺行 → 404 "knowledge not
+     * found"（小写，golden 钉住）；行落在授权 KB 之外 → 403 "无权修改该知识库"
+     * （golden kg-tags-cross-kb 钉住——Go 的 grant 只覆盖进入 handler 时解析的那一个 KB）。
+     *
+     * @param grantedKbId 当前请求已授权的那个 KB（kb_id 路径 = 显式 kb_id；无 kb_id 路径 =
+     *                    首条 knowledge 的 KB；单行 loadKnowledgeWrite 的调用方传 null）
+     */
+    public List<Knowledge> loadKnowledgeWriteBatch(List<String> ids, String grantedKbId) {
+        List<String> cleaned = new ArrayList<>(ids.size());
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String id : ids) {
+            if (id == null || id.trim().isEmpty()) {
+                throw BizException.badRequest("resource ID cannot be empty");
+            }
+            if (seen.add(id)) {
+                cleaned.add(id);
+            }
+        }
+        List<Knowledge> rows = getKnowledgeBatch(tenantId(), cleaned);
+        Map<String, Knowledge> byId = new java.util.HashMap<>();
+        for (Knowledge row : rows) {
+            byId.put(row.getId(), row);
+        }
+        List<Knowledge> result = new ArrayList<>(cleaned.size());
+        java.util.Set<String> checkedKbs = new java.util.HashSet<>();
+        for (String id : cleaned) {
+            Knowledge row = byId.get(id);
+            if (row == null) {
+                throw BizException.notFound("knowledge not found");
+            }
+            rejectMovingKnowledge(row);
+            if (checkedKbs.add(row.getKnowledgeBaseId())) {
+                // knowledgeWriteKB：KB 行与 (id, tenant) 绑定一致，否则 403
+                KnowledgeBase kb = findKb(row.getKnowledgeBaseId());
+                if (kb == null || !kb.getTenantId().equals(row.getTenantId())) {
+                    throw BizException.forbidden("knowledge does not belong to its knowledge base");
+                }
+                // requireKBWrite：grant 只覆盖授权 KB（org-share 分支未翻译）
+                if (grantedKbId == null || !grantedKbId.equals(row.getKnowledgeBaseId())) {
+                    throw BizException.forbidden("无权修改该知识库");
+                }
+            }
+            result.add(row);
+        }
+        return result;
+    }
+
+    /** 对照 loadKnowledgeWrite 的单行版（校验同上 + KB 绑定一致性）。 */
+    public Knowledge loadKnowledgeWrite(String id) {
+        Knowledge k = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .eq(Knowledge::getTenantId, tenantId())
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (k == null) {
+            throw BizException.notFound("knowledge not found");
+        }
+        rejectMovingKnowledge(k);
+        KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, k.getKnowledgeBaseId())
+                .eq(KnowledgeBase::getTenantId, k.getTenantId())
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (kb == null || !kb.getId().equals(k.getKnowledgeBaseId())
+                || !kb.getTenantId().equals(k.getTenantId())) {
+            throw BizException.forbidden("knowledge does not belong to its knowledge base");
+        }
+        return k;
+    }
+
+    /** 对照 access.RejectMovingKnowledge：transfer metadata 里 operation=move 且
+     *  phase=moving → 409（本批路由的固定状态防线）。 */
+    private static void rejectMovingKnowledge(Knowledge k) {
+        JsonNode metadata = k.getMetadata();
+        if (metadata == null || !metadata.has("_knowledge_transfer")) {
+            return;
+        }
+        JsonNode state = metadata.get("_knowledge_transfer");
+        if ("move".equals(state.path("operation").asText(""))
+                && "moving".equals(state.path("phase").asText(""))) {
+            throw BizException.conflict("knowledge has an unfinished move; retry the move first");
+        }
+    }
+
+    // ── 波 2：文档操作面 ──────────────────────────────────────────────────
+
+    /**
+     * 对照 GetKnowledgeSpans（handler 端响应组装在 controller）。Java 无 spanRepo
+     * （spans 追踪未实现，约定 §9 阶段 4.2 差异 2）——照 Go 的 spanRepo==nil 分支 +
+     * "表里没有行" 路径：rows 恒空、latestAttempt 恒 0、currentAttempt =
+     * 显式 ?attempt=N（&gt;0）否则 0。buildSpanTree 全量翻译（合成 root + 5 段）。
+     *
+     * @return data 信封内层（gin.H 键按字母序：attempt/current_attempt/current_stage/
+     *         knowledge_id/[last_error]/latest_attempt/parse_status/trace）
+     */
+    public ObjectNode knowledgeSpans(Knowledge knowledge, int requestedAttempt) {
+        int currentAttempt = Math.max(requestedAttempt, 0);
+        com.ragagent.knowledge.dto.SpanTree tree =
+                buildSpanTree(knowledge.getId(), currentAttempt, knowledge.getParseStatus());
+
+        ObjectNode resp = MAPPER.createObjectNode();
+        resp.put("attempt", currentAttempt);
+        resp.put("current_attempt", currentAttempt);
+        resp.put("current_stage", tree.currentStage());
+        resp.put("knowledge_id", knowledge.getId());
+        JsonNode lastError = knowledgeSpansLastError(currentAttempt, knowledge);
+        if (lastError != null) {
+            resp.set("last_error", lastError);
+        }
+        resp.put("latest_attempt", 0);
+        resp.put("parse_status", knowledge.getParseStatus() == null ? "" : knowledge.getParseStatus());
+        resp.set("trace", tree.root());
+        return resp;
+    }
+
+    record SpanTree(ObjectNode root, String currentStage) {
+    }
+
+    /**
+     * 对照 buildSpanTree（handler/knowledge.go L748-858）：rows 为空时合成 root +
+     * 5 个 canonical stage 占位（status 由 parse_status 推导：completed→done、
+     * failed→failed、其余 pending）。节点键序 = KnowledgeProcessingSpan 声明序，
+     * 带 omitempty 的字段（parent_span_id、input、output、metadata、error_code、
+     * error_message、started_at、finished_at、duration_ms）缺席，children 空缺席。
+     */
+    private static com.ragagent.knowledge.dto.SpanTree buildSpanTree(
+            String knowledgeId, int attempt, String parseStatus) {
+        String syntheticStatus = "pending";
+        if (Knowledge.PARSE_COMPLETED.equals(parseStatus)) {
+            syntheticStatus = "done";
+        } else if (Knowledge.PARSE_FAILED.equals(parseStatus)) {
+            syntheticStatus = "failed";
+        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        ObjectNode root = spanNode(knowledgeId, attempt, "", "knowledge_processing", "root",
+                syntheticStatus, null, now);
+        ArrayNode children = MAPPER.createArrayNode();
+        for (String stage : ALL_STAGES) {
+            children.add(spanNode(knowledgeId, attempt, "", stage, "stage",
+                    syntheticStatus, null, now));
+        }
+        root.set("children", children);
+        return new com.ragagent.knowledge.dto.SpanTree(root, "");
+    }
+
+    private static ObjectNode spanNode(String knowledgeId, int attempt, String spanId,
+                                       String name, String kind, String status,
+                                       String parentSpanId, OffsetDateTime now) {
+        ObjectNode n = MAPPER.createObjectNode();
+        n.put("knowledge_id", knowledgeId);
+        n.put("attempt", attempt);
+        n.put("span_id", spanId);
+        if (parentSpanId != null && !parentSpanId.isEmpty()) {
+            n.put("parent_span_id", parentSpanId);
+        }
+        n.put("name", name);
+        n.put("kind", kind);
+        n.put("status", status);
+        n.put("created_at", goTimeString(now));
+        n.put("updated_at", goTimeString(now));
+        return n;
+    }
+
+    /**
+     * 对照 knowledgeSpansLastError（L698-732）：无 span 失败行时，仅
+     * currentAttempt==latestAttempt（Java 恒 0==0 成立）且 parse_status=failed 且
+     * error_message 非空才落 last_error；SERVER_RESTART 文案 EqualFold 判定照抄。
+     */
+    private static JsonNode knowledgeSpansLastError(int currentAttempt, Knowledge knowledge) {
+        String parseStatus = knowledge.getParseStatus() == null ? "" : knowledge.getParseStatus();
+        String message = knowledge.getErrorMessage() == null ? "" : knowledge.getErrorMessage();
+        if (currentAttempt != 0 || !Knowledge.PARSE_FAILED.equals(parseStatus) || message.isEmpty()) {
+            return null;
+        }
+        String errorCode = "UNKNOWN";
+        if ("Task interrupted due to application restart"
+                .equalsIgnoreCase(message.trim())) {
+            errorCode = "SERVER_RESTART";
+        }
+        // gin.H → encoding/json 键按字母序输出（code < error_code < error_message <
+        // finished_at < message < name < stage），golden 钉住
+        ObjectNode e = MAPPER.createObjectNode();
+        e.put("code", errorCode);
+        e.put("error_code", errorCode);
+        e.put("error_message", message);
+        e.put("finished_at", knowledge.getUpdatedAt() == null
+                ? null : goTimeString(knowledge.getUpdatedAt()));
+        e.put("message", message);
+        e.put("name", "knowledge_processing");
+        e.put("stage", "knowledge_processing");
+        return e;
+    }
+
+    /**
+     * 对照 RegenerateKnowledgeSummary（knowledge_process.go L2294-2306 的确定性前缀）：
+     * summary model 未配置 → fmt.Errorf 原文（handler 包 400）。模型存在后的 LLM 生成
+     * 随阶段 7（届时报 "summary model is not available in this deployment"，已知差异）。
+     */
+    public Knowledge regenerateKnowledgeSummary(String id) {
+        Knowledge k = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .eq(Knowledge::getTenantId, tenantId())
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (k == null) {
+            throw BizException.notFound("record not found");
+        }
+        KnowledgeBase kb = requireKb(k.getKnowledgeBaseId());
+        if (kb.getSummaryModelId() == null || kb.getSummaryModelId().isEmpty()) {
+            throw new BizException(AppError.badRequest("summary model is not configured"));
+        }
+        // LLM 生成路径未接线（阶段 7）
+        throw new BizException(AppError.internal("summary model is not available in this deployment"));
+    }
+
+    /**
+     * 对照 RequestKnowledgeSummaryRefresh → enqueueSummaryRefresh 的确定性前缀：
+     * 无 summary model → 先落 summary_status=failed（对照 markFailed 的列更新），
+     * 再返回原文错误（handler 包 400）。
+     */
+    public void requestKnowledgeSummaryRefresh(String id) {
+        Knowledge k = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .eq(Knowledge::getTenantId, tenantId())
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (k == null) {
+            throw BizException.notFound("record not found");
+        }
+        KnowledgeBase kb = requireKb(k.getKnowledgeBaseId());
+        if (kb.getSummaryModelId() == null || kb.getSummaryModelId().isEmpty()) {
+            knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                    .eq("id", k.getId())
+                    .set("summary_status", "failed"));
+            throw new BizException(AppError.badRequest("summary model is not configured"));
+        }
+        throw new BizException(AppError.internal("summary model is not available in this deployment"));
+    }
+
+    /**
+     * 对照 UpdateManualKnowledge（knowledge_create.go L991-1111）。payload 为
+     * handler 解析出的字段（null = 请求体 null 字面量）。@return 响应体 knowledge
+     * （内存对象，metadata 为声明序键，updated_at RFC3339 秒级 UTC）。
+     */
+    public Knowledge updateManualKnowledge(String id, String title, String content,
+                                           String status, String channel) {
+        if (content == null && title == null && status == null && channel == null) {
+            throw BizException.badRequest("请求内容不能为空");
+        }
+        String cleanContent = InputSanitizer.cleanMarkdown(content == null ? "" : content);
+        if (cleanContent.trim().isEmpty()) {
+            throw new BizException(AppError.validation("内容不能为空"));
+        }
+        if (cleanContent.length() > 200000) {
+            throw new BizException(AppError.validation("内容长度超出限制（最多200000个字符）"));
+        }
+        String safeTitle = InputSanitizer.validateInput(title == null ? "" : title);
+        if (safeTitle == null) {
+            throw new BizException(AppError.validation("标题包含非法字符或超出长度限制"));
+        }
+        String normalizedStatus = status == null ? "" : status.trim().toLowerCase();
+        if (normalizedStatus.isEmpty()) {
+            normalizedStatus = "draft";
+        }
+        if (!"draft".equals(normalizedStatus) && !"publish".equals(normalizedStatus)) {
+            throw new BizException(AppError.validation("状态仅支持 draft 或 publish"));
+        }
+
+        Knowledge existing = loadKnowledgeWrite(id);
+        if (!"manual".equals(existing.getType())) {
+            throw BizException.badRequest("仅支持手工知识的在线编辑");
+        }
+        KnowledgeBase kb = requireKb(existing.getKnowledgeBaseId());
+
+        int version = 1;
+        JsonNode oldMeta = existing.getMetadata();
+        if (oldMeta != null && oldMeta.hasNonNull("version")) {
+            version = oldMeta.path("version").asInt(0) + 1;
+            if (version <= 1) {
+                version = 1;
+            }
+        }
+        ObjectNode meta = MAPPER.createObjectNode();
+        meta.put("content", cleanContent);
+        meta.put("format", "markdown");
+        meta.put("status", normalizedStatus);
+        meta.put("version", version);
+        // Go time.Format(RFC3339)：秒恒输出（秒为 0 时 toString 会塌缩成分钟精度，掩码后仍不同）
+        meta.put("updated_at", OffsetDateTime.now(ZoneOffset.UTC)
+                .truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")));
+
+        if (!safeTitle.isEmpty()) {
+            existing.setTitle(safeTitle);
+        } else if (existing.getTitle() == null || existing.getTitle().isEmpty()) {
+            existing.setTitle("手工知识-" + java.time.format.DateTimeFormatter
+                    .ofPattern("yyyyMMdd-HHmmss").format(OffsetDateTime.now()));
+        }
+        existing.setFileName(ensureManualFileName(existing.getTitle()));
+        existing.setFileType("manual");
+        existing.setType("manual");
+        existing.setSource("manual");
+        existing.setEnableStatus("disabled");
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        existing.setUpdatedAt(now);
+        existing.setEmbeddingModelId(kb.getEmbeddingModelId());
+
+        if ("draft".equals(normalizedStatus)) {
+            existing.setParseStatus("draft");
+            existing.setDescription("");
+            existing.setProcessedAt(null);
+            updateKnowledgeRow(existing, meta);
+            existing.setMetadata(meta);
+            return existing;
+        }
+
+        // Publish：pending + 异步清理重建（对照 L1076-1090）
+        existing.setParseStatus("pending");
+        existing.setDescription("");
+        existing.setProcessedAt(null);
+        updateKnowledgeRow(existing, meta);
+        existing.setMetadata(meta);
+        worker.enqueue(existing.getId());
+        return existing;
+    }
+
+    /**
+     * 对照 repo.UpdateKnowledge（Save 全列写 + Omit DeletedAt/PendingSubtasksCount）：
+     * description=""/processed_at=NULL 这类零值也必须落库，不能走 MP 默认的跳空列。
+     */
+    private void updateKnowledgeRow(Knowledge k, JsonNode metadata) {
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", k.getId())
+                .set("type", k.getType())
+                .set("title", k.getTitle())
+                .set("description", k.getDescription())
+                .set("source", k.getSource())
+                .set("parse_status", k.getParseStatus())
+                .set("summary_status", k.getSummaryStatus())
+                .set("enable_status", k.getEnableStatus())
+                .set("embedding_model_id", k.getEmbeddingModelId())
+                .set("file_name", k.getFileName())
+                .set("file_type", k.getFileType())
+                .set("file_size", k.getFileSize() == null ? 0L : k.getFileSize())
+                .set("file_hash", k.getFileHash())
+                .set("file_path", k.getFilePath())
+                .set("metadata", metadata,
+                        "typeHandler=com.ragagent.common.web.PgJsonTypeHandler")
+                .set("updated_at", k.getUpdatedAt())
+                .set("processed_at", k.getProcessedAt())
+                .set("error_message", k.getErrorMessage()));
+    }
+
+    /** 对照 sanitizeManualDownloadFilename：换行/制表删除、斜杠转连字符、引号转单引号、
+     *  空白回落 untitled、补 .md 后缀。 */
+    public static String sanitizeManualDownloadFilename(String title) {
+        String safeName = title == null ? "" : title
+                .replace("\n", "").replace("\r", "").replace("\t", "")
+                .replace("/", "-").replace("\\", "-").replace("\"", "'");
+        if (safeName.trim().isEmpty()) {
+            safeName = "untitled";
+        }
+        if (!safeName.toLowerCase().endsWith(".md")) {
+            safeName = safeName + ".md";
+        }
+        return safeName;
+    }
+
+    /**
+     * 对照 ReparseKnowledge（knowledge_process.go L2447-2728 的确定性前缀）：
+     * loadKnowledgeWrite → （override 校验仅当显式传入）→ reset → 落库 → 入队。
+     * @return 响应体 knowledge（内存对象，重置后的状态；时间戳掩码外逐字段一致）
+     */
+    public Knowledge reparseKnowledge(String id) {
+        Knowledge existing = loadKnowledgeWrite(id);
+        KnowledgeBase kb = requireKb(existing.getKnowledgeBaseId());
+        resetKnowledgeForReparse(existing, kb);
+        updateKnowledgeRow(existing, existing.getMetadata());
+        worker.enqueue(existing.getId());
+        return existing;
+    }
+
+    /** 对照 resetKnowledgeForReparse（L2733-2743）。 */
+    private static void resetKnowledgeForReparse(Knowledge k, KnowledgeBase kb) {
+        k.setParseStatus(Knowledge.PARSE_PENDING);
+        k.setEnableStatus("disabled");
+        k.setDescription("");
+        k.setProcessedAt(null);
+        k.setErrorMessage("");
+        k.setEmbeddingModelId(kb.getEmbeddingModelId());
+        k.setPendingSubtasksCount(0);
+    }
+
+    /**
+     * 对照 CancelKnowledgeParse（knowledge_process.go L2763-2845）：cancelled 幂等、
+     * completed/failed → 400 "解析已结束，无法取消"、deleting → 400 "知识正在删除中，
+     * 无法取消解析"、其余状态（含 unknown）放行改 cancelled。
+     */
+    public Knowledge cancelKnowledgeParse(String id) {
+        Knowledge existing = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .eq(Knowledge::getTenantId, tenantId())
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (existing == null) {
+            throw BizException.notFound("knowledge not found");
+        }
+        switch (existing.getParseStatus() == null ? "" : existing.getParseStatus()) {
+            case Knowledge.PARSE_CANCELLED -> {
+                return existing; // 幂等
+            }
+            case Knowledge.PARSE_COMPLETED, Knowledge.PARSE_FAILED ->
+                throw BizException.badRequest("解析已结束，无法取消");
+            case Knowledge.PARSE_DELETING ->
+                throw BizException.badRequest("知识正在删除中，无法取消解析");
+            default -> {
+                // pending/processing/finalizing/unknown → 可取消（unknown Go 仅记日志放行）
+            }
+        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", existing.getId())
+                .set("parse_status", Knowledge.PARSE_CANCELLED)
+                .set("error_message", "用户已取消解析")
+                .set("pending_subtasks_count", 0)
+                .set("updated_at", now));
+        existing.setParseStatus(Knowledge.PARSE_CANCELLED);
+        existing.setErrorMessage("用户已取消解析");
+        existing.setPendingSubtasksCount(0);
+        existing.setUpdatedAt(now);
+        return existing;
+    }
+
+    /**
+     * 对照 GetKnowledgeFile（service/knowledge.go L681-712）：manual 流 metadata.content；
+     * document 走本地文件。路径解析对照 local provider：resource://（阶段 3 布局）与
+     * local://{rel}（Go provider 原生）都支持；路径越界 → Go 的
+     * "invalid file path: path traversal denied: ..." 原文（golden 钉住）。
+     *
+     * @return (bytes, filename, manual)；manual = 内存 reader（Go 侧非 Seeker →
+     *         Accept-Ranges: none），document = 磁盘文件（Seeker → bytes）
+     */
+    public record KnowledgeFile(byte[] content, String filename, boolean manual) {
+    }
+
+    public KnowledgeFile getKnowledgeFile(String id) {
+        Knowledge knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .eq(Knowledge::getTenantId, tenantId())
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (knowledge == null) {
+            throw BizException.notFound("record not found");
+        }
+        if ("manual".equals(knowledge.getType())) {
+            String content = knowledge.getMetadata() != null
+                    && knowledge.getMetadata().hasNonNull("content")
+                    ? knowledge.getMetadata().get("content").asText() : "";
+            return new KnowledgeFile(
+                    content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    sanitizeManualDownloadFilename(knowledge.getTitle()), true);
+        }
+        String filePath = knowledge.getFilePath() == null ? "" : knowledge.getFilePath();
+        return new KnowledgeFile(storage.readChecked(filePath), knowledge.getFileName(), false);
+    }
+
+    /**
+     * 对照 UpdateImageInfo（knowledge_process.go L2942-3123 的确定性链）：
+     * 解析 image_info（非 JSON → Go json 原文的 500）、恰好 1 张图才动、
+     * chunk 归属校验（403）、子块 caption/OCR 同步、缺块补建、
+     * updateChunkVector 的 NeedsEmbedding 分支（策略 IsZero→Default 的 Go 钩子照抄 →
+     * embedding model 空 → 500 "model ID cannot be empty"，golden 钉住）、
+     * knowledge.file_hash = md5(knowledgeID+fileHash+imageInfo)。
+     */
+    @Transactional
+    public void updateImageInfo(String knowledgeId, String chunkId, String rawImageInfo) {
+        Knowledge knowledge = loadKnowledgeWrite(knowledgeId);
+        String imageInfo = CleanInvalidUtf8.clean(rawImageInfo == null ? "" : rawImageInfo);
+        final JsonNode images;
+        try {
+            images = MAPPER.readTree(imageInfo);
+        } catch (Exception e) {
+            // 对照 json.Unmarshal 失败 → 非 AppError → 500 message=原文
+            throw new BizException(AppError.internal(com.ragagent.common.web.GoJsonBindError
+                    .message(imageInfo, e.getMessage())));
+        }
+        if (!images.isArray() || images.size() != 1) {
+            log.warn("Expected exactly one image info, got {}",
+                    images.isArray() ? images.size() : -1);
+            return; // Go 返回 nil → 200
+        }
+        JsonNode image = images.get(0);
+
+        Chunk chunk = chunkMapper.selectOne(new LambdaQueryWrapper<Chunk>()
+                .eq(Chunk::getId, chunkId)
+                .eq(Chunk::getTenantId, tenantId())
+                .isNull(Chunk::getDeletedAt)
+                .last("LIMIT 1"));
+        if (chunk == null) {
+            // 对照 chunkRepo.GetChunkByID 的 "chunk not found"（handler 包 500）
+            throw new BizException(AppError.internal("chunk not found"));
+        }
+        if (!chunk.getId().equals(chunkId) || !chunk.getKnowledgeId().equals(knowledge.getId())
+                || !chunk.getTenantId().equals(knowledge.getTenantId())
+                || !chunk.getKnowledgeBaseId().equals(knowledge.getKnowledgeBaseId())) {
+            throw BizException.forbidden("chunk does not belong to its knowledge document");
+        }
+        chunk.setImageInfo(imageInfo);
+        long tenantId = tenantId();
+        List<Chunk> chunkChildren = chunkMapper.selectList(new LambdaQueryWrapper<Chunk>()
+                .eq(Chunk::getParentChunkId, chunkId)
+                .eq(Chunk::getTenantId, tenantId)
+                .isNull(Chunk::getDeletedAt));
+
+        List<Chunk> updateChunks = new ArrayList<>();
+        updateChunks.add(chunk);
+        List<Chunk> addChunks = new ArrayList<>();
+        boolean hasOcr = false;
+        boolean hasCaption = false;
+        String originalUrl = image.path("original_url").asText("");
+        String caption = image.path("caption").asText("");
+        String ocrText = image.path("ocr_text").asText("");
+        for (Chunk child : chunkChildren) {
+            JsonNode childImages;
+            try {
+                childImages = MAPPER.readTree(child.getImageInfo() == null ? "" : child.getImageInfo());
+            } catch (Exception e) {
+                continue; // Go WARN + continue
+            }
+            if (!childImages.isArray() || childImages.isEmpty()) {
+                continue;
+            }
+            if (!originalUrl.equals(childImages.get(0).path("original_url").asText(""))) {
+                continue;
+            }
+            switch (child.getChunkType() == null ? "" : child.getChunkType()) {
+                case "image_caption" -> {
+                    hasCaption = true;
+                    if (!caption.equals(childImages.get(0).path("caption").asText(""))) {
+                        child.setContent(caption);
+                        child.setImageInfo(imageInfo);
+                        updateChunks.add(child);
+                    }
+                }
+                case "image_ocr" -> {
+                    hasOcr = true;
+                    if (!ocrText.equals(childImages.get(0).path("ocr_text").asText(""))) {
+                        child.setContent(ocrText);
+                        child.setImageInfo(imageInfo);
+                        updateChunks.add(child);
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+        if (!hasCaption && !caption.isEmpty()) {
+            addChunks.add(newImageChunk(knowledge, chunk, "image_caption", caption, imageInfo));
+        }
+        if (!hasOcr && !ocrText.isEmpty()) {
+            addChunks.add(newImageChunk(knowledge, chunk, "image_ocr", ocrText, imageInfo));
+        }
+        for (Chunk c : addChunks) {
+            chunkMapper.insert(c);
+        }
+        for (Chunk c : updateChunks) {
+            chunkMapper.updateById(c);
+        }
+        // 对照 updateChunkVector：EnsureDefaults(IsZero→Default) 的 Go 钩子照抄 →
+        // NeedsEmbedding → 模型 id 空 → 500 "model ID cannot be empty"（golden 钉住）
+        KnowledgeBase kb = requireKb(chunk.getKnowledgeBaseId());
+        KbIndexingStrategy strategy = kb.getIndexingStrategy();
+        if (strategy == null || strategy.isZero()) {
+            strategy = KbIndexingStrategy.defaultStrategy();
+        }
+        if (strategy.isVectorEnabled() || strategy.isKeywordEnabled()) {
+            String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
+            if (modelId.isEmpty()) {
+                throw new BizException(AppError.internal("model ID cannot be empty"));
+            }
+            // 向量引擎未接线（波 3/4）：模型行存在与否的分支无 golden，恒按部署差异收场
+            throw new BizException(AppError.internal("embedding model is not available in this deployment"));
+        }
+        // 对照：knowledge.file_hash = calculateStr(knowledgeID, fileHash, imageInfo)
+        Knowledge fresh = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, knowledgeId)
+                .eq(Knowledge::getTenantId, tenantId)
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (fresh != null) {
+            String fileHash = LocalStorageService.md5Hex((knowledgeId + (fresh.getFileHash() == null
+                    ? "" : fresh.getFileHash()) + imageInfo)
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                    .eq("id", fresh.getId())
+                    .set("file_hash", fileHash)
+                    .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
+        }
+    }
+
+    private static Chunk newImageChunk(Knowledge k, Chunk parent, String type,
+                                       String content, String imageInfo) {
+        Chunk c = new Chunk();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        c.setId(UUID.randomUUID().toString());
+        c.setCreatedAt(now);
+        c.setUpdatedAt(now);
+        c.setTenantId(k.getTenantId());
+        c.setKnowledgeId(parent.getKnowledgeId());
+        c.setKnowledgeBaseId(parent.getKnowledgeBaseId());
+        c.setContent(content);
+        c.setChunkType(type);
+        c.setParentChunkId(parent.getId());
+        c.setImageInfo(imageInfo);
+        c.setIsEnabled(true);
+        return c;
+    }
+
+    // ── 波 2：tags 批量 ──────────────────────────────────────────────────
+
+    /**
+     * 对照 UpdateKnowledgeTagBatch（service/knowledge.go L955-1041）。
+     * authorizedKBID 为空 = 未显式给 kb_id（由首条 knowledge 推导的授权范围）。
+     */
+    @Transactional
+    public void updateKnowledgeTagBatch(String authorizedKBID, Map<String, List<String>> updates) {
+        if (updates == null || updates.isEmpty()) {
+            return;
+        }
+        List<String> knowledgeIDs = new ArrayList<>(updates.keySet());
+        knowledgeIDs.sort(String::compareTo);
+        // 授权 KB = 显式 kb_id；无 kb_id 时 = 首条（排序后最靠前的）knowledge 所属 KB
+        //（Go 的 grant 来自 handler 对首条 knowledge 的 resolve，同构）
+        String grantedKbId = authorizedKBID;
+        if (grantedKbId == null || grantedKbId.isEmpty()) {
+            Knowledge first = getKnowledge(knowledgeIDs.get(0));
+            grantedKbId = first.getKnowledgeBaseId();
+        }
+        List<Knowledge> knowledgeList = loadKnowledgeWriteBatch(knowledgeIDs, grantedKbId);
+        long tenantId = knowledgeList.get(0).getTenantId();
+
+        if (authorizedKBID != null && !authorizedKBID.isEmpty()) {
+            if (knowledgeList.size() != updates.size()) {
+                throw BizException.forbidden("some knowledge IDs are not accessible in the authorized scope");
+            }
+            for (Knowledge k : knowledgeList) {
+                if (!k.getKnowledgeBaseId().equals(authorizedKBID)) {
+                    throw BizException.forbidden("knowledge " + k.getId()
+                            + " does not belong to authorized knowledge base");
+                }
+            }
+        }
+        // 收集 + 校验标签（对照 L987-1031）
+        java.util.Set<String> tagIDSet = new java.util.TreeSet<>();
+        for (List<String> tagIDs : updates.values()) {
+            for (String tagID : tagIDs) {
+                if (tagID != null && !tagID.isEmpty()) {
+                    tagIDSet.add(tagID);
+                }
+            }
+        }
+        Map<String, KnowledgeTag> tagMap = new java.util.HashMap<>();
+        if (!tagIDSet.isEmpty()) {
+            List<KnowledgeTag> tags = tagMapper.selectByTenantAndIds(tenantId, List.copyOf(tagIDSet));
+            for (KnowledgeTag tag : tags) {
+                tagMap.put(tag.getId(), tag);
+            }
+        }
+        for (Knowledge k : knowledgeList) {
+            List<String> tagIDs = updates.get(k.getId());
+            if (tagIDs == null) {
+                continue;
+            }
+            for (String tagID : tagIDs) {
+                if (tagID == null || tagID.isEmpty()) {
+                    continue;
+                }
+                KnowledgeTag tag = tagMap.get(tagID);
+                if (tag == null) {
+                    throw BizException.badRequest("标签 " + tagID + " 不存在");
+                }
+                if (tag.getTenantId() == null || tag.getTenantId() != tenantId
+                        || !tag.getKnowledgeBaseId().equals(k.getKnowledgeBaseId())) {
+                    throw BizException.badRequest("标签 " + tagID + " 不属于知识库 " + k.getKnowledgeBaseId());
+                }
+            }
+        }
+        for (String knowledgeID : knowledgeIDs) {
+            setKnowledgeTags(knowledgeID, updates.get(knowledgeID));
+        }
+    }
+
+    /** 对照 repo.SetKnowledgeTags：删旧 + 插新（空/重复 id 跳过）。 */
+    private void setKnowledgeTags(String knowledgeId, List<String> tagIDs) {
+        tagMapper.deleteRelations(knowledgeId);
+        if (tagIDs == null || tagIDs.isEmpty()) {
+            return;
+        }
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        for (String tagID : tagIDs) {
+            if (tagID != null && !tagID.isEmpty() && seen.add(tagID)) {
+                tagMapper.insertRelation(knowledgeId, tagID);
+            }
+        }
+    }
+
+    // ── 波 2：批量删除 / 批量重解析 / 清空（asynq → 同步尽力而为，响应契约一致） ──
+
+    /**
+     * 对照 BatchDeleteKnowledge 的 handler 校验链之后的入队（Go 异步清理）。
+     * Java 同步软删（chunk + knowledge + 本地文件），HTTP 契约（task_id/文案）一致。
+     * 注意调用方已做过 RejectMoving/kb 归属校验。
+     */
+    @Transactional
+    public String batchDeleteKnowledge(String kbId, List<String> ids) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        for (String id : ids) {
+            knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                    .eq("id", id)
+                    .isNull("deleted_at")
+                    .set("deleted_at", now));
+            chunkMapper.update(null, new UpdateWrapper<Chunk>()
+                    .eq("knowledge_id", id)
+                    .set("deleted_at", now));
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    /**
+     * 对照 ProcessKnowledgeListReparse 的提交面：逐条 reset 到 pending + 入队。
+     * 调用方已完成 requireKnowledgeInKB / RejectMoving 校验。
+     */
+    public String batchReparseKnowledge(String kbId, List<String> ids) {
+        KnowledgeBase kb = requireKb(kbId);
+        for (String id : ids) {
+            Knowledge k = getKnowledge(id);
+            resetKnowledgeForReparse(k, kb);
+            updateKnowledgeRow(k, k.getMetadata());
+            worker.enqueue(k.getId());
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    /**
+     * 对照 ClearKnowledgeBaseContents 的入队面。Go 是 asynq 异步清理（响应只含
+     * 列表计数），录制的两次连续 clear 都是 "task submitted" + 相同计数（worker 尚未
+     * 动行）——Java 用 parse_status='deleting' 标记 + 计数复刻这个窗口（行为收敛：
+     * 后续读路径对 KB2 无感知；真正的回收与既有 deleteKnowledge 语义一致地缺位，
+     * 见类注释已知差异 ①）。
+     *
+     * @return 本次列入清理的条数
+     */
+    @Transactional
+    public int clearKnowledgeBaseContents(String kbId) {
+        List<Knowledge> rows = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getKnowledgeBaseId, kbId)
+                .eq(Knowledge::getTenantId, tenantId())
+                .isNull(Knowledge::getDeletedAt));
+        for (Knowledge row : rows) {
+            rejectMovingKnowledge(row);
+        }
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .in("id", rows.stream().map(Knowledge::getId).toList())
+                .set("parse_status", Knowledge.PARSE_DELETING)
+                .set("updated_at", now));
+        return rows.size();
     }
 
     /** 阶段 3 内部：worker 使用的按 id 加载（无租户条件，任务可能跨请求线程） */
@@ -364,6 +1515,695 @@ public class KnowledgeService {
             uw.set("processed_at", OffsetDateTime.now(ZoneOffset.UTC));
         }
         knowledgeMapper.update(null, uw);
+    }
+
+    // ── 波 2 第三批：搜索与移动/复制（8 条路由的服务面） ──────────────────
+
+    /** 搜索结果（对照 Go 的 (knowledges, hasMore, total, err) 四元返回）。 */
+    public record SearchOutcome(List<Knowledge> knowledges, boolean hasMore, long total) {}
+
+    /** 对照 types.KnowledgeSearchScope（跨库搜索的 (tenant, kb) 对）。 */
+    public record KnowledgeSearchScope(long tenantId, String kbId) {}
+
+    /**
+     * 对照 knowledgeService.SearchKnowledge（own + org-shared 文档库的关键词搜索）。
+     * <b>已知差异</b>：org-share（kbShareService）未翻译——共享库的补捞分支恒空，
+     * 与 ChunkAccessGuard/KnowledgeAccessGuard 的既有收紧同源；本租户文档库路径完整翻译
+     * （含 keyword LIKE 转义、file_types 别名、offset/limit+has_more、knowledge_base_name 回填）。
+     *
+     * <p>scopes 为空时 Go 返回 nil 切片 → 响应 {@code "data":null}；查到 0 行时返回
+     * 空**非 nil** 切片 → {@code "data":[]}（GORM make 语义）。Java 用 null data 复刻。</p>
+     */
+    public SearchOutcome searchKnowledge(String keyword, int offset, int limit, List<String> fileTypes) {
+        long tid = tenantId();
+        List<KnowledgeSearchScope> scopes = new ArrayList<>();
+        for (KnowledgeBase kb : kbMapper.selectList(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getTenantId, tid)
+                .isNull(KnowledgeBase::getDeletedAt))) {
+            if ("document".equals(kb.getType())) {
+                scopes.add(new KnowledgeSearchScope(tid, kb.getId()));
+            }
+        }
+        // org-shared KBs（Go: kbShareService.ListSharedKnowledgeBases）未翻译 → 不补捞
+        return searchKnowledgeInScopes(scopes, keyword, offset, limit, fileTypes);
+    }
+
+    /**
+     * 对照 repo.SearchKnowledgeInScopes：JOIN knowledge_bases 限定 (tenant,kb) 对 +
+     * {@code knowledge_bases.type='document'}，keyword 对 LOWER(file_name)/LOWER(title)
+     * LIKE（%/_/\ 转义，对照 escapeLikeKeyword），file_types 按扩展名别名展开
+     * （xlsx↔xls / docx↔doc / jpg↔jpeg↔png，url/html → type='url'），
+     * created_at DESC + limit+1 探测 has_more，total 是过滤后的全量计数。
+     */
+    public SearchOutcome searchKnowledgeInScopes(List<KnowledgeSearchScope> scopes, String keyword,
+                                                 int offset, int limit, List<String> fileTypes) {
+        if (scopes == null || scopes.isEmpty()) {
+            return new SearchOutcome(null, false, 0);
+        }
+        // JOIN 语义：KB 行必须存在（同租户）且 type=document
+        List<KnowledgeSearchScope> valid = new ArrayList<>();
+        for (KnowledgeSearchScope s : scopes) {
+            KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                    .eq(KnowledgeBase::getId, s.kbId())
+                    .eq(KnowledgeBase::getTenantId, s.tenantId())
+                    .isNull(KnowledgeBase::getDeletedAt)
+                    .last("LIMIT 1"));
+            if (kb != null && "document".equals(kb.getType())) {
+                valid.add(s);
+            }
+        }
+        if (valid.isEmpty()) {
+            return new SearchOutcome(null, false, 0);
+        }
+        LambdaQueryWrapper<Knowledge> qw = new LambdaQueryWrapper<Knowledge>().isNull(Knowledge::getDeletedAt);
+        qw.and(w -> {
+            for (KnowledgeSearchScope s : valid) {
+                w.or(i -> i.eq(Knowledge::getTenantId, s.tenantId())
+                        .eq(Knowledge::getKnowledgeBaseId, s.kbId()));
+            }
+        });
+        String kw = keyword == null ? "" : keyword;
+        if (!kw.isEmpty()) {
+            String pat = "%" + escapeLikeKeyword(kw.toLowerCase()) + "%";
+            qw.and(w -> w.apply("LOWER(file_name) LIKE {0}", pat)
+                    .or()
+                    .apply("LOWER(title) LIKE {0}", pat));
+        }
+        List<String> patterns = fileTypePatterns(fileTypes);
+        boolean includeUrl = patterns.remove("<<url>>");
+        if (!patterns.isEmpty() || includeUrl) {
+            qw.and(w -> {
+                for (int i = 0; i < patterns.size(); i++) {
+                    if (i > 0) {
+                        w.or();
+                    }
+                    w.apply("LOWER(file_name) LIKE {0}", patterns.get(i));
+                }
+                if (includeUrl) {
+                    if (!patterns.isEmpty()) {
+                        w.or();
+                    }
+                    w.eq(Knowledge::getType, "url");
+                }
+            });
+        }
+        long total = knowledgeMapper.selectCount(qw);
+        List<Knowledge> rows = knowledgeMapper.selectList(qw
+                .orderByDesc(Knowledge::getCreatedAt)
+                .last("LIMIT " + (limit + 1) + " OFFSET " + offset));
+        boolean hasMore = rows.size() > limit;
+        if (hasMore) {
+            rows = rows.subList(0, limit);
+        }
+        // knowledge_base_name 回填（对照 JOIN 列；kb 行前面已按 scope 校验存在）
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        for (KnowledgeSearchScope s : valid) {
+            KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                    .eq(KnowledgeBase::getId, s.kbId())
+                    .eq(KnowledgeBase::getTenantId, s.tenantId())
+                    .isNull(KnowledgeBase::getDeletedAt)
+                    .last("LIMIT 1"));
+            if (kb != null) {
+                names.put(kb.getId(), kb.getName());
+            }
+        }
+        for (Knowledge row : rows) {
+            row.setKnowledgeBaseName(names.getOrDefault(row.getKnowledgeBaseId(), ""));
+        }
+        return new SearchOutcome(rows, hasMore, total);
+    }
+
+    /** 对照 escapeLikeKeyword：\、%、_ 前加反斜杠（LIKE 默认转义符，H2/PG 一致）。 */
+    static String escapeLikeKeyword(String keyword) {
+        return keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /**
+     * 对照 repo 的 file_types 展开逻辑：小写、去前导点、保序去重、别名互认
+     * （xlsx↔xls / docx↔doc / jpg↔jpeg↔png）；url/html 折成 type='url' 条件（哨兵 &lt;&lt;url&gt;&gt;）。
+     */
+    static List<String> fileTypePatterns(List<String> fileTypes) {
+        List<String> patterns = new ArrayList<>();
+        if (fileTypes == null) {
+            return patterns;
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String ft : fileTypes) {
+            String f = ft == null ? "" : ft.toLowerCase();
+            while (f.startsWith(".")) {
+                f = f.substring(1);
+            }
+            if ("url".equals(f) || "html".equals(f)) {
+                if (!seen.contains("<<url>>")) {
+                    seen.add("<<url>>");
+                    patterns.add("<<url>>");
+                }
+                continue;
+            }
+            String pat = "%." + f;
+            if (!seen.contains(pat)) {
+                seen.add(pat);
+                patterns.add(pat);
+            }
+            List<String> aliases = switch (f) {
+                case "xlsx" -> List.of("%.xls");
+                case "xls" -> List.of("%.xlsx");
+                case "docx" -> List.of("%.doc");
+                case "doc" -> List.of("%.docx");
+                case "jpg" -> List.of("%.jpeg", "%.png");
+                case "jpeg" -> List.of("%.jpg", "%.png");
+                case "png" -> List.of("%.jpg", "%.jpeg");
+                default -> List.<String>of();
+            };
+            for (String alias : aliases) {
+                if (!seen.contains(alias)) {
+                    seen.add(alias);
+                    patterns.add(alias);
+                }
+            }
+        }
+        return patterns;
+    }
+
+    // ── 任务 ID（对照 utils/taskid.go） ──────────────────────────────────
+
+    /**
+     * 对照 GenerateTaskID：{@code <type>_<tenant>_<millis>_<8hex>_<business12>}，
+     * business 段取前 12 字符并剔除 - _ :。进度路由按嵌入的租户段做隔离校验。
+     */
+    public static String generateTaskId(String taskType, long tenantId, String businessId) {
+        String type = taskType == null ? "" : taskType;
+        type = type.replace(":", "_").replace("-", "_").replace(" ", "_").toLowerCase();
+        String biz = businessId == null ? "" : businessId;
+        if (biz.length() > 12) {
+            biz = biz.substring(0, 12);
+        }
+        biz = biz.replace("-", "").replace("_", "").replace(":", "");
+        String shortUuid = UUID.randomUUID().toString().substring(0, 8).replace("-", "");
+        String id = type + "_" + tenantId + "_" + System.currentTimeMillis() + "_" + shortUuid;
+        if (!biz.isEmpty()) {
+            id += "_" + biz;
+        }
+        return id;
+    }
+
+    /**
+     * 对照 utils.ParseTaskID/TaskTenantID：从 {@code <type>_<tenant>_<ts>_<uuid>[_<biz>]}
+     * 里定位 (tenant, timestamp) 对（type 段可含下划线）。解析失败返回 null → 调用方出
+     * 400 "invalid task ID"。
+     */
+    public static Long taskTenantId(String taskId) {
+        if (taskId == null) {
+            return null;
+        }
+        String[] parts = taskId.split("_");
+        if (parts.length < 4) {
+            return null;
+        }
+        for (int i = 1; i < parts.length - 2; i++) {
+            Long tenant = parseUint(parts[i]);
+            if (tenant == null || tenant == 0) {
+                continue;
+            }
+            Long ts = parseLong(parts[i + 1]);
+            if (ts == null || ts < 1_000_000_000_000L) {
+                continue;
+            }
+            return tenant;
+        }
+        return null;
+    }
+
+    private static Long parseUint(String s) {
+        try {
+            return Long.parseUnsignedLong(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Long parseLong(String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    // ── Move（asynq → 进程内虚拟线程；HTTP 契约 = 立即返回 + 进度查询） ────
+
+    /**
+     * 入队 move 任务（对照 handler 的 asynq.Enqueue + SaveKnowledgeMoveProgress）。
+     * 初始进度 SetNX（键已存在不覆写）；worker 在虚拟线程里真实驱动状态机：
+     * pending → processing（total=items）→ 逐条搬行（"Moved X/N knowledge items"）→
+     * completed/100（error=""，created_at=0——Go worker 的新对象不带 created_at，实录）。
+     *
+     * <p><b>已知差异</b>：只搬 DB 行（knowledges.knowledge_base_id + chunks），向量索引
+     * / wiki / reparse 衍生数据不复制（检索引擎未接线，随波 4）；asynq 的
+     * retry/marker 语义不翻译（既有取舍）。</p>
+     */
+    public void startKnowledgeMove(long tenantId, String taskId, List<String> knowledgeIds,
+                                   String sourceKbId, String targetKbId, String mode) {
+        progressStore.saveMoveInitial(new com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress(
+                taskId, sourceKbId, targetKbId, "pending", 0, knowledgeIds.size(), 0, 0,
+                "Task queued, waiting to start...", "", epochNow(), epochNow()));
+        // §5：跨虚拟线程显式传值，不共享 ThreadLocal
+        final String role = TenantContext.currentRole();
+        final String userId = TenantContext.currentUserId();
+        Thread.ofVirtual().start(() -> {
+            TenantContext.set(tenantId, null, role, false, userId, false);
+            try {
+                runKnowledgeMove(tenantId, taskId, knowledgeIds, sourceKbId, targetKbId);
+            } finally {
+                TenantContext.clear();
+            }
+        });
+    }
+
+    private void runKnowledgeMove(long tenantId, String taskId, List<String> knowledgeIds,
+                                  String sourceKbId, String targetKbId) {
+        int total = knowledgeIds.size();
+        progressStore.saveMove(new KnowledgeMoveProgress(
+                taskId, sourceKbId, targetKbId, "processing", 0, total, 0, 0, "", "", 0, epochNow()));
+        int processed = 0;
+        int failed = 0;
+        String failures = null;
+        for (String id : knowledgeIds) {
+            try {
+                moveOneKnowledgeRow(tenantId, id, targetKbId);
+            } catch (RuntimeException e) {
+                failed++;
+                String itemFailure = "knowledge " + id + ": " + e.getMessage();
+                failures = failures == null ? itemFailure : failures + "\n" + itemFailure;
+            }
+            processed++;
+            int done = processed - failed;
+            progressStore.saveMove(new KnowledgeMoveProgress(
+                    taskId, sourceKbId, targetKbId, "processing", processed * 100 / total,
+                    total, processed, failed,
+                    "Moved " + done + "/" + total + " knowledge items", "", 0, epochNow()));
+        }
+        if (failures != null) {
+            progressStore.saveMove(new KnowledgeMoveProgress(
+                    taskId, sourceKbId, targetKbId, "failed", processed * 100 / total,
+                    total, processed, failed, "Moved " + (processed - failed) + "/" + total
+                            + " knowledge items", failures, 0, epochNow()));
+            return;
+        }
+        progressStore.saveMove(new KnowledgeMoveProgress(
+                taskId, sourceKbId, targetKbId, "completed", 100, total, processed, failed,
+                "Moved " + (processed - failed) + "/" + total + " knowledge items", "", 0, epochNow()));
+    }
+
+    /** 单条搬行：knowledge 行 + chunks 行换 KB（向量索引不搬，见 startKnowledgeMove 差异）。 */
+    private void moveOneKnowledgeRow(long tenantId, String knowledgeId, String targetKbId) {
+        Knowledge row = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, knowledgeId)
+                .eq(Knowledge::getTenantId, tenantId)
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (row == null) {
+            throw new IllegalStateException("not found");
+        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", knowledgeId)
+                .set("knowledge_base_id", targetKbId)
+                .set("updated_at", now));
+        chunkMapper.update(null, new UpdateWrapper<Chunk>()
+                .eq("knowledge_id", knowledgeId)
+                .set("knowledge_base_id", targetKbId)
+                .set("updated_at", now));
+    }
+
+    public void saveKnowledgeMoveProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress p) {
+        progressStore.saveMoveInitial(p);
+    }
+
+    /** 查不到（含过期）→ null；对照 Go 的 404 "Knowledge move task not found"。 */
+    public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress getKnowledgeMoveProgress(String taskId) {
+        return progressStore.getMove(taskId);
+    }
+
+    // ── KB clone（copy 路由的 worker 面） ─────────────────────────────────
+
+    /**
+     * 入队 KB clone 任务（对照 handler 的 asynq.Enqueue + SaveKBCloneProgress）。
+     * worker 进程内执行：create 目标时按 Go 保留字段建 KB 行（**不含** indexing_strategy —
+     * EnsureDefaults 补成 vector+keyword）；已有目标做 preflight（add=源里 target 没有的、
+     * remove=target 里的多余行；file_hash+completed 二次匹配），total=add+remove，
+     * 逐步 "Processed X/N clone operations"，终态 completed/100 +
+     * "Knowledge base clone completed successfully"（created_at=0 实录）。
+     *
+     * <p><b>已知差异</b>：克隆只到"行级"（KB 行 + knowledge 行 + chunk 行），向量索引/
+     * 文件对象/wiki/FAQ tag 映射不复制；transfer-state 续跑/重试语义不翻译。</p>
+     */
+    public void startKBClone(long tenantId, String taskId, String sourceId, String targetId,
+                             boolean createTarget, String creatorId) {
+        progressStore.saveCloneInitial(new com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress(
+                taskId, sourceId, targetId, "pending", 0, 0, 0,
+                "Task queued, waiting to start...", "", epochNow(), epochNow()));
+        Thread.ofVirtual().start(() -> {
+            TenantContext.set(tenantId, null, null, false, null, false);
+            try {
+                runKBClone(tenantId, taskId, sourceId, targetId, createTarget, creatorId);
+            } finally {
+                TenantContext.clear();
+            }
+        });
+    }
+
+    private void runKBClone(long tenantId, String taskId, String sourceId, String targetId,
+                            boolean createTarget, String creatorId) {
+        KnowledgeBase source = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, sourceId)
+                .eq(KnowledgeBase::getTenantId, tenantId)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (source == null) {
+            progressStore.saveClone(new KBCloneProgress(
+                    taskId, sourceId, targetId, "failed", 0, 0, 0, "Clone preflight failed",
+                    "knowledge base not found", 0, epochNow()));
+            return;
+        }
+        KBCloneProgress progress = new KBCloneProgress(
+                taskId, sourceId, targetId, "processing", 0, 0, 0,
+                "Starting knowledge base clone...", "", 0, epochNow());
+        progressStore.saveClone(progress);
+        try {
+            KnowledgeBase dst = targetRowForClone(tenantId, targetId, createTarget, creatorId, source);
+            // preflight：add = 源里 target 没有的（file_hash+completed 二次匹配）；
+            // remove = target 里的多余行；源里未完成的行报错（对照 planKnowledgeClone）
+            List<Knowledge> srcRows = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
+                    .eq(Knowledge::getKnowledgeBaseId, sourceId)
+                    .eq(Knowledge::getTenantId, tenantId)
+                    .isNull(Knowledge::getDeletedAt));
+            List<Knowledge> dstRows = createTarget ? new ArrayList<>()
+                    : knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
+                            .eq(Knowledge::getKnowledgeBaseId, targetId)
+                            .eq(Knowledge::getTenantId, tenantId)
+                            .isNull(Knowledge::getDeletedAt));
+            List<Knowledge> toAdd = new ArrayList<>();
+            java.util.Set<String> matched = new java.util.HashSet<>();
+            for (Knowledge k : srcRows) {
+                if (!Knowledge.PARSE_COMPLETED.equals(k.getParseStatus())) {
+                    throw new IllegalStateException("source knowledge " + k.getId() + " is not completed");
+                }
+                boolean hit = false;
+                if (k.getFileHash() != null && !k.getFileHash().isEmpty()) {
+                    for (Knowledge o : dstRows) {
+                        if (!matched.contains(o.getId()) && k.getFileHash().equals(o.getFileHash())
+                                && Knowledge.PARSE_COMPLETED.equals(o.getParseStatus())) {
+                            matched.add(o.getId());
+                            hit = true;
+                            break;
+                        }
+                    }
+                }
+                if (!hit) {
+                    toAdd.add(k);
+                }
+            }
+            List<String> toRemove = new ArrayList<>();
+            for (Knowledge o : dstRows) {
+                if (matched.contains(o.getId())) {
+                    continue;
+                }
+                if (Knowledge.PARSE_PROCESSING.equals(o.getParseStatus())
+                        || Knowledge.PARSE_PENDING.equals(o.getParseStatus())
+                        || Knowledge.PARSE_DELETING.equals(o.getParseStatus())) {
+                    throw new IllegalStateException("target knowledge " + o.getId() + " is busy");
+                }
+                toRemove.add(o.getId());
+            }
+            int total = toAdd.size() + toRemove.size();
+            progress = new KBCloneProgress(taskId, sourceId, targetId, "processing", 0, total, 0,
+                    progress.message(), "", 0, epochNow());
+            progressStore.saveClone(progress);
+            int done = 0;
+            for (String id : toRemove) {
+                removeKnowledgeRow(id);
+                done++;
+                progress = progress.withDone(done);
+                progressStore.saveClone(progress);
+            }
+            for (Knowledge k : toAdd) {
+                cloneKnowledgeRow(k, dst);
+                done++;
+                progress = progress.withDone(done);
+                progressStore.saveClone(progress);
+            }
+            progressStore.saveClone(new KBCloneProgress(
+                    taskId, sourceId, targetId, "completed", 100, total,
+                    total, "Knowledge base clone completed successfully", "", 0, epochNow()));
+        } catch (RuntimeException e) {
+            progressStore.saveClone(new KBCloneProgress(
+                    taskId, sourceId, targetId, "failed", progress.progress(), progress.total(),
+                    progress.processed(), "Failed to clone knowledge", String.valueOf(e.getMessage()),
+                    0, epochNow()));
+        }
+    }
+
+    /** create 目标：按 Go ProcessKBClone/CopyKnowledgeBase 的保留字段建行（索引策略走默认）。 */
+    private KnowledgeBase targetRowForClone(long tenantId, String targetId, boolean create,
+                                            String creatorId, KnowledgeBase source) {
+        if (!create) {
+            return kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                    .eq(KnowledgeBase::getId, targetId)
+                    .eq(KnowledgeBase::getTenantId, tenantId)
+                    .isNull(KnowledgeBase::getDeletedAt)
+                    .last("LIMIT 1"));
+        }
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setId(targetId);
+        kb.setTenantId(tenantId);
+        kb.setCreatorId(creatorId);
+        kb.setName(source.getName());
+        kb.setType(source.getType());
+        kb.setDescription(source.getDescription());
+        kb.setChunkingConfig(source.getChunkingConfig());
+        kb.setImageProcessingConfig(source.getImageProcessingConfig());
+        kb.setEmbeddingModelId(source.getEmbeddingModelId());
+        kb.setSummaryModelId(source.getSummaryModelId());
+        kb.setVlmConfig(source.getVlmConfig());
+        kb.setStorageProviderConfig(source.getStorageProviderConfig());
+        kb.setStorageBackendId(source.getStorageBackendId());
+        kb.setStorageConfig(source.getStorageConfig());
+        kb.setFaqConfig(source.getFaqConfig());
+        kb.setVectorStoreId(source.getVectorStoreId());
+        kb.setIndexingStrategy(KbIndexingStrategy.defaultStrategy());
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        kb.setCreatedAt(now);
+        kb.setUpdatedAt(now);
+        kb.normalizeVectorStoreId();
+        kbMapper.insert(kb);
+        return kb;
+    }
+
+    /** 对照 deleteReferencedKnowledge 的可观测子集：knowledge 软删 + chunk 软删。 */
+    private void removeKnowledgeRow(String knowledgeId) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", knowledgeId)
+                .isNull("deleted_at")
+                .set("deleted_at", now));
+        chunkMapper.update(null, new UpdateWrapper<Chunk>()
+                .eq("knowledge_id", knowledgeId)
+                .set("deleted_at", now));
+    }
+
+    /** 行级克隆：新 knowledge id + 新 chunk id（向量/文件对象不复制，见 startKBClone 差异）。 */
+    private void cloneKnowledgeRow(Knowledge src, KnowledgeBase dst) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        String newId = UUID.randomUUID().toString();
+        Knowledge copy = new Knowledge();
+        copy.setId(newId);
+        copy.setTenantId(dst.getTenantId());
+        copy.setKnowledgeBaseId(dst.getId());
+        copy.setType(src.getType());
+        copy.setTitle(src.getTitle());
+        copy.setDescription(src.getDescription());
+        copy.setSource(src.getSource());
+        copy.setParseStatus(src.getParseStatus());
+        copy.setSummaryStatus(src.getSummaryStatus());
+        copy.setEnableStatus(src.getEnableStatus());
+        copy.setEmbeddingModelId(src.getEmbeddingModelId());
+        copy.setFileName(src.getFileName());
+        copy.setFolderPath(src.getFolderPath());
+        copy.setFileType(src.getFileType());
+        copy.setFileSize(src.getFileSize());
+        copy.setFileHash(src.getFileHash());
+        copy.setFilePath(src.getFilePath());
+        copy.setMetadata(src.getMetadata());
+        copy.setCustomMetadata(src.getCustomMetadata());
+        copy.setCreatedAt(now);
+        copy.setUpdatedAt(now);
+        copy.setErrorMessage(src.getErrorMessage());
+        knowledgeMapper.insert(copy);
+        List<Chunk> chunks = chunkMapper.selectList(new LambdaQueryWrapper<Chunk>()
+                .eq(Chunk::getKnowledgeId, src.getId())
+                .eq(Chunk::getTenantId, src.getTenantId())
+                .isNull(Chunk::getDeletedAt));
+        for (Chunk c : chunks) {
+            Chunk nc = new Chunk();
+            nc.setId(UUID.randomUUID().toString());
+            nc.setTenantId(dst.getTenantId());
+            nc.setKnowledgeId(newId);
+            nc.setKnowledgeBaseId(dst.getId());
+            nc.setContent(c.getContent());
+            nc.setChunkIndex(c.getChunkIndex());
+            nc.setIsEnabled(c.isIsEnabled());
+            nc.setChunkType(c.getChunkType());
+            nc.setContentHash(c.getContentHash());
+            nc.setStartAt(c.getStartAt());
+            nc.setEndAt(c.getEndAt());
+            nc.setCreatedAt(now);
+            nc.setUpdatedAt(now);
+            chunkMapper.insert(nc);
+        }
+    }
+
+    public void saveKBCloneProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress p) {
+        progressStore.saveCloneInitial(p);
+    }
+
+    /** 查不到（含过期）→ null；对照 Go 的 404 "KB clone task not found"。 */
+    public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress getKBCloneProgress(String taskId) {
+        return progressStore.getClone(taskId);
+    }
+
+    // ── Duplicate（同步，settings-only） ──────────────────────────────────
+
+    /**
+     * 对照 knowledgeBaseService.DuplicateKnowledgeBase：JSON 往返克隆配置，新 id/租户，
+     * 名字带 " 副本"（zh 缺省；重名 " 2"、" 3"...），creator=调用者（非合成用户），
+     * 计数/置顶/临时全清零，EnsureDefaults + Normalize 后落库。**只复制设置**——
+     * knowledge/chunk/索引/分享/置顶都不带（Go 同义）。
+     */
+    public KnowledgeBase duplicateKnowledgeBase(String sourceId) {
+        KnowledgeBase source = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, sourceId)
+                .eq(KnowledgeBase::getTenantId, tenantId())
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (source == null) {
+            throw new BizException(AppError.notFound("knowledge base not found"));
+        }
+        KnowledgeBaseService.ensureDefaults(source);
+        KnowledgeBase target;
+        try {
+            // JSON 往返深拷贝（对照 cloneKnowledgeBaseConfiguration 的 Marshal/Unmarshal）。
+            // 注意 MAPPER 是裸 ObjectMapper（无 JSR310）——KnowledgeBase 带 OffsetDateTime，
+            // 必须用带 JavaTimeModule 的独立 mapper（与 AbstractJsonListTypeHandler 的教训同族）。
+            target = CLONE_MAPPER.convertValue(source, KnowledgeBase.class);
+        } catch (IllegalArgumentException e) {
+            throw new BizException(AppError.internal("failed to clone knowledge base configuration")
+                    .withDetails(String.valueOf(e.getMessage())));
+        }
+        target.setId(UUID.randomUUID().toString());
+        target.setTenantId(tenantId());
+        target.setName(buildDuplicateKnowledgeBaseName(tenantId(), source.getName()));
+        String uid = TenantContext.currentUserId();
+        target.setCreatorId(uid != null && !uid.startsWith("system-") ? uid : "");
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        target.setCreatedAt(now);
+        target.setUpdatedAt(now);
+        target.setDeletedAt(null);
+        target.setIsTemporary(false);
+        target.setIsPinned(false);
+        target.setPinnedAt(null);
+        target.setKnowledgeCount(0);
+        target.setChunkCount(0);
+        target.setIsProcessing(false);
+        target.setProcessingCount(0);
+        target.setShareCount(0);
+        target.setCreatorName("");
+        KnowledgeBaseService.ensureDefaults(target);
+        target.normalizeVectorStoreId();
+        kbMapper.insert(target);
+        return target;
+    }
+
+    /** 对照 buildDuplicateKnowledgeBaseName：zh 缺省后缀 " 副本"，重名追加 " 2"/" 3"...。 */
+    private String buildDuplicateKnowledgeBaseName(long tid, String sourceName) {
+        String baseName = sourceName == null ? "" : sourceName.trim();
+        if (baseName.isEmpty()) {
+            baseName = "知识库";
+        }
+        String suffix = " 副本";
+        java.util.Set<String> existing = new java.util.HashSet<>();
+        for (KnowledgeBase kb : kbMapper.selectList(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getTenantId, tid)
+                .isNull(KnowledgeBase::getDeletedAt))) {
+            existing.add(kb.getName());
+        }
+        String candidate = baseName + suffix;
+        if (!existing.contains(candidate)) {
+            return candidate;
+        }
+        for (int i = 2; ; i++) {
+            candidate = baseName + suffix + " " + i;
+            if (!existing.contains(candidate)) {
+                return candidate;
+            }
+        }
+    }
+
+    // ── 跨库兼容性（对照 access.ValidateKBTransferCompatibility） ─────────
+
+    /** 消息逐字对照 Go（handler 包成 400 AppError，message=原文）。 */
+    public static void validateKBTransferCompatibility(KnowledgeBase source, KnowledgeBase target,
+                                                       String mode) {
+        if (!source.getType().equals(target.getType())) {
+            throw new IllegalArgumentException("source and target knowledge bases must have the same type");
+        }
+        String se = source.getEmbeddingModelId() == null ? "" : source.getEmbeddingModelId();
+        String te = target.getEmbeddingModelId() == null ? "" : target.getEmbeddingModelId();
+        if (!se.equals(te)) {
+            throw new IllegalArgumentException("source and target knowledge bases use different embedding models");
+        }
+        if (!"reuse_vectors".equals(mode) && !"reparse".equals(mode)) {
+            throw new IllegalArgumentException("unknown move mode: " + mode);
+        }
+        if ("reuse_vectors".equals(mode) && !sharesStoreWith(source, target)) {
+            throw new IllegalArgumentException(
+                    "source and target knowledge bases use different vector stores; use reparse mode for moves");
+        }
+    }
+
+    /** clone（无 mode）的兼容性判定：mode 传 null 跳过 move 专属检查。 */
+    public static void validateCloneCompatibility(KnowledgeBase source, KnowledgeBase target) {
+        if (!source.getType().equals(target.getType())) {
+            throw new IllegalArgumentException("source and target knowledge bases must have the same type");
+        }
+        String se = source.getEmbeddingModelId() == null ? "" : source.getEmbeddingModelId();
+        String te = target.getEmbeddingModelId() == null ? "" : target.getEmbeddingModelId();
+        if (!se.equals(te)) {
+            throw new IllegalArgumentException("source and target knowledge bases use different embedding models");
+        }
+        if (!sharesStoreWith(source, target)) {
+            throw new IllegalArgumentException(
+                    "source and target knowledge bases use different vector stores; use reparse mode for moves");
+        }
+    }
+
+    /** 对照 KnowledgeBase.SharesStoreWith：两边都没绑定（null/空串）视为共享。 */
+    static boolean sharesStoreWith(KnowledgeBase a, KnowledgeBase b) {
+        String sa = normalizeStore(a);
+        String sb = normalizeStore(b);
+        if (sa.isEmpty() && sb.isEmpty()) {
+            return true;
+        }
+        return !sa.isEmpty() && sa.equals(sb);
+    }
+
+    private static String normalizeStore(KnowledgeBase kb) {
+        String v = kb == null || kb.getVectorStoreId() == null ? "" : kb.getVectorStoreId();
+        return v.trim();
+    }
+
+    private static long epochNow() {
+        return java.time.Instant.now().getEpochSecond();
     }
 
     /** 409 重复文档（对照 handler L173-178 特殊信封，不走 error_handler） */

@@ -162,7 +162,8 @@ public class Knowledge {
     public void setFileSize(Long v) { fileSize = v; }
     public String getFileHash() { return fileHash; }
     public void setFileHash(String v) { fileHash = v; }
-    public String getFilePath() { return filePath; }
+    /** Go 非指针 string 零值：NULL 扫描为 ""（波 2 search golden 实录） */
+    public String getFilePath() { return filePath == null ? "" : filePath; }
     public void setFilePath(String v) { filePath = v; }
     public long getStorageSize() { return storageSize; }
     public void setStorageSize(long v) { storageSize = v; }

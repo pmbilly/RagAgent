@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 
+import com.ragagent.common.error.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,11 @@ public class LocalStorageService {
         this.baseDir = Path.of(baseDir);
     }
 
+    /** 测试种子用：本地落盘根目录（绝对化 + 规范化，防止相对路径下 startsWith 误判）。 */
+    public Path baseDir() {
+        return baseDir.toAbsolutePath().normalize();
+    }
+
     /** 保存文件内容，返回 resource:// 路径（对照 golden file_path 形态） */
     public String save(long tenantId, String knowledgeId, String fileName, byte[] content) {
         try {
@@ -60,6 +66,45 @@ public class LocalStorageService {
         } catch (IOException e) {
             throw new IllegalStateException("failed to read file: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 波 2：对照 Go local provider GetFile 的路径解析 + SafePathUnderBase 守卫
+     * （service/file/local.go L111-132 + utils/security.go L110-127）。支持
+     * resource://（阶段 3 布局）与 local://{rel}（Go provider 原生）与裸相对路径；
+     * 解析后不在 baseDir 下 → Go 原文 "invalid file path: path traversal denied: ..."。
+     * 空路径/读失败由调用方翻译成 "Failed to retrieve file" 信封（对照
+     * GetKnowledgeFile 的错误链）。
+     */
+    public byte[] readChecked(String filePath) {
+        Path resolved = resolveUnderBase(filePath);
+        try {
+            return Files.readAllBytes(resolved);
+        } catch (IOException e) {
+            throw new BizException(com.ragagent.common.error.AppError.internal("Failed to retrieve file")
+                    .withDetails("failed to open file: " + e.getMessage()));
+        }
+    }
+
+    private Path resolveUnderBase(String filePath) {
+        String base = baseDir.toAbsolutePath().normalize().toString();
+        String candidate;
+        if (filePath != null && filePath.startsWith("local://")) {
+            candidate = filePath.substring("local://".length());
+        } else if (filePath != null && filePath.startsWith("resource://")) {
+            candidate = filePath.substring("resource://".length());
+        } else {
+            candidate = filePath == null ? "" : filePath;
+        }
+        Path resolved = java.nio.file.Path.of(candidate).isAbsolute()
+                ? java.nio.file.Path.of(candidate)
+                : baseDir.resolve(candidate);
+        Path abs = resolved.toAbsolutePath().normalize();
+        if (!abs.equals(baseDir.toAbsolutePath().normalize()) && !abs.startsWith(base + "/")) {
+            throw new BizException(com.ragagent.common.error.AppError.internal("Failed to retrieve file")
+                    .withDetails("invalid file path: path traversal denied: path is outside base directory"));
+        }
+        return abs;
     }
 
     public boolean exists(String resourcePath) {

@@ -36,6 +36,7 @@ import com.ragagent.apikey.domain.TenantAPIKeyResponse;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.KbAsrConfig;
 import com.ragagent.knowledge.domain.KbChunkingConfig;
@@ -979,6 +980,39 @@ class JsonContractRoundTripTest {
         DocumentChunkMetadata empty = new DocumentChunkMetadata();
         assertRoundTrips(empty, DocumentChunkMetadata.class,
                 "types.DocumentChunkMetadata ← DocumentChunkMetadata（全空 → {}）");
+    }
+
+    @Test
+    void knowledgeTaskDtosRoundTrip() {
+        // 波 2 第三批的响应体（move/copy 的任务面）。进度对象是响应契约（不落 jsonb）：
+        // 字段恒输出（Go 无 omitempty），isTerminal() 派生访问器必须 @JsonIgnore（§7.5 第 2 条）。
+        var move = new KnowledgeTaskDtos.KnowledgeMoveProgress(
+                "kg_move_10002_1704628851692_a1b2c3d4_kb789", "kb-src", "kb-dst",
+                "completed", 100, 3, 3, 0, "Moved 3/3 knowledge items", "", 0, 1789767737L);
+        assertRoundTrips(move, KnowledgeTaskDtos.KnowledgeMoveProgress.class,
+                "types.KnowledgeMoveProgress ← KnowledgeTaskDtos.KnowledgeMoveProgress");
+
+        var clone = new KnowledgeTaskDtos.KBCloneProgress(
+                "kb_clone_10002_1704628851692_a1b2c3d4_kb789", "kb-src", "kb-dst",
+                "completed", 100, 4, 4, "Knowledge base clone completed successfully", "", 0,
+                1789767745L);
+        assertRoundTrips(clone, KnowledgeTaskDtos.KBCloneProgress.class,
+                "types.KBCloneProgress ← KnowledgeTaskDtos.KBCloneProgress");
+
+        var mvResp = new KnowledgeTaskDtos.MoveKnowledgeResponse(
+                "kg_move_10002_1_a", "kb-src", "kb-dst", 1, "Knowledge move task started");
+        assertRoundTrips(mvResp, KnowledgeTaskDtos.MoveKnowledgeResponse.class,
+                "handler.MoveKnowledgeResponse ← KnowledgeTaskDtos.MoveKnowledgeResponse");
+
+        var cpResp = new KnowledgeTaskDtos.CopyKnowledgeBaseResponse(
+                "kb_clone_10002_1_a", "kb-src", "kb-dst", "Knowledge base copy task started");
+        assertRoundTrips(cpResp, KnowledgeTaskDtos.CopyKnowledgeBaseResponse.class,
+                "handler.CopyKnowledgeBaseResponse ← KnowledgeTaskDtos.CopyKnowledgeBaseResponse");
+
+        var dupResp = new KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse(
+                "kb-src", "kb-dst", "Knowledge base duplicate created", null);
+        assertRoundTrips(dupResp, KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse.class,
+                "handler.DuplicateKnowledgeBaseResponse ← KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse");
     }
 
     @Test

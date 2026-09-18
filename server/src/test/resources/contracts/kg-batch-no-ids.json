@@ -1,0 +1,1 @@
+{"error":{"code":1000,"details":"Key: 'GetKnowledgeBatchRequest.IDs' Error:Field validation for 'IDs' failed on the 'required' tag","message":"Invalid request parameters"},"success":false}

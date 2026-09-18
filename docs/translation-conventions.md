@@ -258,6 +258,8 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | steer（波 1 G4） | internal/handler/session/steer.go 的 4 个 HTTP 端点（L461-810）+ 包级辅助（parseSteerDelivery/selectSteerBacklog/pendingSteerQueueItems/steerEvent） | com.ragagent.session.controller.SteerController + APIKeyRoutePolicies + BizException 补 serviceUnavailable | ✅ | 4 端点 HTTP 面全落地；16 条新测试（11 golden + 5 条直种 streamManager 的排队路径单测）+ **真 PG 上 12 组 A/B 全 MATCH**（3066 全量绿）。**范围说明**：live run 只能由 agent 引擎设置——排队/注入路径的引擎侧（PollSteer/follow-up 交接）随波 4/5，HTTP 面已对齐。关键坑见 §9「波 1 G4」 |
 | 临时文档 attachments（波 1 G5，**波 1 收官**） | internal/handler/session/temporary_document.go（174 行）；service/temporary_document.go 的 Create/Get/List/Delete/OpenFile/Process（L133-348 + parse L350-449 的纯文本/docreader 路径）；repository/temporary_document.go；filetransport/response.go；file/local.go 的 SaveBytes/GetFile/DeleteFile | com.ragagent.session.{service.TemporaryDocumentService,service.AttachmentFileStore,controller.TemporaryDocumentController,mapper.TemporaryDocument*,domain.TemporaryDocument} + common.web.{GoNaiveTimeSerializer,GoNaiveOffsetDateTimeTypeHandler,ContentTypeByFilename} + TestSchema.temporary_documents | ✅ | 5 端点全落地；11 条新契约测试（golden 全是 Go 实录）+ **真 PG 上 11 组 A/B 全 MATCH**（3077 全量绿）。**顺手验证了 chunker(auto/1600/160)+ApproxTokenCount 与 Go 逐字节一致**。关键坑见 §9「波 1 G5」 |
 | chunk 编辑面（波 2 第一批） | internal/handler/chunk.go（472 行，10 端点）；internal/application/service/{chunk,chunk_write}.go + knowledge_write.go 的 loadKnowledgeWrite + access/knowledge_state.go + searchutil/{imageinfo*,chunkmerge}；internal/application/repository/chunk.go 的 14 个方法；internal/middleware/{rbac.go 的 RequireOwnershipOrRole,kb_access.go 的 KBIDFrom*Param}；types/{chunk,faq} 的 GeneratedQuestion* | com.ragagent.knowledge.{domain.ChunkRevision/domain.DocumentChunkMetadata/domain.GeneratedQuestion,mapper.ChunkRepository/mapper.ChunkRevisionMapper,mapper.ChunkAccessGuard,service.ChunkService,service.ChunkSearchUtil,controller.ChunkController} + common.CleanInvalidUtf8 + WebConfig 读规则 + APIKeyRoutePolicies chunks 段 + TestSchema.chunk_revisions | ✅ | 10 端点全落地；81 条新测试（18 仓储 + 28 service + 35 契约，golden 全是 Go 实录）+ **真 PG 上 46 场景 A/B 全 MATCH**（3161 全量绿）。**golden 抓回 clamp 误写**（page 钳成恒 1、size 小值被抬高）。已知差异：syncChunkIndex 引擎未接线恒 failed、Regenerate 的 LLM 步降级（随波 3/4、阶段 7）。关键坑见 §9「波 2 chunk」 |
+| knowledge 文档操作面（波 2 第二批） | internal/handler/knowledge.go 的 15 端点（L608-2791）+ knowledgebase.go 的 ClearKnowledgeBaseContents；internal/application/service/{knowledge,knowledge_process,knowledge_create,knowledge_summary_refresh}.go 对应方法 + knowledge_write.go 批量校验；internal/types/{knowledge_folder,tag,knowledge_span}.go；internal/application/repository/{knowledge_tag,tag}.go；internal/filetransport/response.go；internal/application/service/file/local.go 的 GetFile | com.ragagent.knowledge.{controller.KnowledgeController 扩展,service.KnowledgeService 扩展,service.KnowledgeAccessGuard,dto.SpanTree,domain.KnowledgeTag,mapper.KnowledgeTagMapper} + common.security.InputSanitizer + LocalStorageService.readChecked/baseDir + WebConfig 规则 + APIKeyRoutePolicies + TestSchema.{knowledge_tags,knowledge_tag_relations} | ✅ | 15+1 端点全落地；14 条契约测试（**121 个 kg-* golden 全是 Go 实录**，含下载/预览的响应头与字节）+ 既有 knowledge/chunk/common 套件 234 测试全绿。**golden 抓回四个真契约**：EnsureDefaults 把"全关索引"重置成 vector+keyword（image 链恒 500 "model ID cannot be empty"）、ValidateInput 放行 `<script>x`（无闭合标签）、tags 无 kb_id 的跨租户 403 文案不带 "base"、clear-contents 两次连续调用都返回 task submitted。已知差异：批量删除/清空/重解析为同步尽力而为（HTTP 契约一致）、summary/vector 的模型运行时随阶段 7。关键坑见 §9「波 2 knowledge 文档操作面」 |
+| knowledge 搜索与移动/复制（波 2 第三批，**knowledge 域收官**） | internal/handler/knowledge.go 的 SearchKnowledge/MoveKnowledge/GetKnowledgeMoveProgress（L2149-2543）+ knowledgebase.go 的 HybridSearch/CopyKnowledgeBase/DuplicateKnowledgeBase/GetKBCloneProgress（L318-1112）；internal/application/service/{knowledge.go 的 Search*,knowledge_clone_move.go,knowledge_transfer.go,knowledgebase.go 的 Duplicate/Copy,knowledgebase_search.go+storegroup 的 HybridSearch 前置段}；internal/application/access/kb_transfer.go；internal/utils/taskid.go；internal/handler/{task_progress_auth.go,list_pagination.go 的 parseOffsetPagination} | com.ragagent.knowledge.{controller.{KnowledgeController 扩展,KnowledgeBaseController 扩展},service.{KnowledgeService 扩展（search/move/clone/duplicate/task-id/兼容性）,KnowledgeTaskProgressStore},dto.KnowledgeTaskDtos,KnowledgeBaseResponseBuilder 的 includeEngineType 重载} + WebConfig 规则 + APIKeyRoutePolicies | ✅ | 8 端点全落地；**76 个 ks-* golden 全是 Go 实录** + 7 条契约测试（异步用例轮询到 completed 再比对终态）+ 套件 242 测试全绿。**golden 抓回的真契约**：move 的 binding 校验把全部失败字段按 struct 序 join("\n") 进 message、copy 的 binding 错误在 **details**（与 move 的 message 前缀形态刻意不同）、跨租户 source 在 copy 是 403 "Permission denied..."（ResolveKB）而 move 是 handler 的 "No permission to access source..."、duplicate 的 404 是路由中间件的小写 "knowledge base not found"（handler 的 "Source..." 不可达）、worker 覆写进度**不带 created_at**（终态 created_at:0）、duplicate 无 vector_store_engine_type 键（envStores 空）而阶段 3 的 kb-get golden 有（部署状态漂移）。已知差异：hybrid-search 的检索执行随波 4（当前恒 "data":null）、move/clone 只做到行级、进度存储为进程内 map。关键坑见 §9「波 2 knowledge 搜索与移动/复制」 |
 
 ## 9. 当前确认过的细节
 
@@ -1178,3 +1180,144 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     Java 恒 failed（检索引擎未接线，随波 3/4）；Regenerate 的 LLM 生成步降级
     （summary model 存在时报 "summary model is not available in this deployment"，随阶段 7）；
     delete-question 的向量删除 WARN+no-op（模型行校验保留）。
+- **波 2 knowledge 文档操作面（15+1 条路由）新确认的细节与坑——前四条都会复发**：
+  1. **⚠️ EnsureDefaults 会把"全关索引"重置成默认值**（本轮最值钱的发现）：
+     Go 每次经 `knowledgeBaseService.GetKnowledgeBaseByID` 读 KB 都跑
+     `kb.EnsureDefaults()`，其中 `IndexingStrategy.IsZero()`（vector/keyword/wiki/graph
+     **全 false**）会被替换成 `DefaultIndexingStrategy()`（vector+keyword=true）——
+     所以"用 SQL 关掉全部索引"对 service 层的 NeedsEmbedding 判定**无效**。
+     实测：UpdateImageInfo 链尾的 updateChunkVector 恒走
+     `GetEmbeddingModel("")` → 500 `"model ID cannot be empty"`（golden
+     kg-image-update/again/mismatch 钉住）。Java 侧照抄：读 KB 后
+     `isZero() → defaultStrategy()` 再判 NeedsEmbedding。同理"关 summary model"只影响
+     regenerate-summary 的判定（那里读的是 SummaryModelID，不受 EnsureDefaults 影响）。
+  2. **ValidateInput 的 XSS 正则要求闭合标签**：`"<script>x"` **不**命中
+     `<script[^>]*>.*?</script>`，会通过校验并归一化成文件夹 `<scriptx`
+     （golden kg-move-badpath=200、kg-rename-badto=200 moved_count=2 钉住）。
+     common.security.InputSanitizer 的 16 条正则逐条照抄，别"补全"安全性。
+  3. **同一个"跨租户"有两种 403 文案，取决于守卫在哪一层**：路由挂了
+     KBAccessFromKnowledgeIDParam 的（stages/spans/download/preview/reparse/cancel/
+     manual/image/regenerate）在中间件层拒绝 → `"Permission denied to access this
+     knowledge base"`；body 路由（/knowledge/tags 无 kb_id，从首条 knowledge 推导 KB）
+     在 handler 的 resolveKnowledgeAndValidateKBAccess 里拒绝 →
+     `"Permission denied to access this knowledge"`（不带 base）。判定顺序：
+     tags 路径的 handler 链**不做** requireKbAccess 的 KB 查询（Go 直接用
+     knowledge 行上的 tenantID 判），Java 侧单独走 resolveKnowledgeHandlerLevel。
+  4. **clear-contents 的两次连续调用都是 "task submitted"+相同计数**：Go 异步
+     worker 没跑完时第二次 list 仍看到行。Java 用 parse_status='deleting' 标记 +
+     计数复刻该窗口（golden kg-clear-again 钉住）；list 侧只排除 parse_status=
+     'deleting' 的过滤同时作用于 folders 计数（ListKnowledgeFolderCounts）与
+     clear 的行清单——别在 clear 的 list 里额外加 status 过滤。
+  5. **批处理路由的行校验文案三处刻意不同**：batch-delete 的 count 不符 →
+     `"One or more knowledge entries not found"`；batch-reparse 的 →
+     `"some knowledge entries were not found"`；move（requireKnowledgeInKB）→
+     `"One or more..."`。且 batch-delete/batch-reparse 逐行先 `RejectMovingKnowledge`
+     （409）再查跨 KB；move 则由 service 层 loadKnowledgeWriteBatch 兜
+     （404 "knowledge not found" 小写 / 409 / 403 `"knowledge outside target KB"`）。
+  6. **tags 的授权 grant 只覆盖一个 KB**：kb_id 路径 = 显式 kb_id；无 kb_id =
+     首条 knowledge 的 KB。loadKnowledgeWriteBatch 逐 KB 校验
+     requireKBWrite，落在授权 KB 之外 → 403 `"无权修改该知识库"`（service 层，
+     早于 authorizedKBID 的 scope 校验；golden kg-tags-cross-kb 钉住）。
+     而 tags-unknown-knowledge 在同一批加载里先出 404 `"knowledge not found"`
+     （小写 k）。两个文案的先后顺序 golden 依赖，不能重排。
+  7. **gin.H 的字母序有两处新形态**：spans 响应 data 键序
+     `attempt < current_attempt < current_stage < knowledge_id < last_error <
+     latest_attempt < parse_status < trace`，last_error 内
+     `code < error_code < error_message < finished_at < message < name < stage`；
+     SpanTreeNode 按 struct 声明序（children 恒最后，空缺席）。合成树的
+     created_at/updated_at 是响应时刻（掩码）。
+  8. **文件下载/预览的头是逐字节契约**：下载固定 `Content-Type: application/octet-stream`
+     + `Content-Description/-Transfer-Encoding/Expires`；预览按
+     SafeContentTypeByFilename（.md → `text/markdown; charset=utf-8` inline）。
+     Content-Disposition 走 mime.FormatMediaType：token 安全（ASCII 且非 tspecials）
+     → `filename=kg-doc.txt`；否则 `filename*=utf-8''%E6...`（小写 utf-8、大写十六进制）。
+     Seeker（磁盘文件）→ `Accept-Ranges: bytes`；manual（内存 reader）→
+     `Accept-Ranges: none` + 显式 Content-Length。manual 文件名 =
+     sanitizeManualDownloadFilename(title)（换行删除、斜杠转 `-`、引号转 `'`、补 .md）。
+  9. **GET /knowledge/batch 的绑定顺序**：uint64 form 字段的 strconv 映射错误
+     （details=`strconv.ParseUint: parsing "abc": invalid syntax`，message 仍是
+     `"Invalid request parameters"`）先于 validator 的 IDs required；`?ids=`（空值）
+     通过 required 进服务层 → `data:[]`。agent 共享路径未翻译恒 403
+     `"no permission for this shared agent"`（与 Go 的 agents==nil/not-found 同文案）。
+  10. **manual 更新的响应 metadata 是内存对象**（content,format,status,version,updated_at
+      声明序），version=旧值+1，updated_at 是 RFC3339 秒级 UTC；经落库再读回（如
+      reparse 响应）才变成 jsonb 规范化键序（format,status,content,...）——两种形态
+      在同一轮 golden 里并存，别统一。
+  - 已知差异（记录在 KnowledgeService 类注释）：① batch-delete/clear-contents 为同步
+    尽力而为（batch-delete=软删、clear=parse_status='deleting' 标记；HTTP 契约一致，
+    真正的向量/文件/wiki 回收缺位）；② reparse 的 process_config 覆盖不落地（仅支持
+    null/缺省，覆盖校验随 worker 收口）；③ regenerate-summary/向量更新在模型存在时
+    报 "…not available in this deployment"（运行时模型工厂随阶段 7）；④ spRepo 未
+    翻译 → spans 恒走 spanRepo==nil 分支（rows 空 + latest_attempt=0 + ?attempt=N
+    透传），buildSpanTree/knowledgeSpansLastError 全量翻译非降级；⑤ shared-agent /
+    org-share 两条授予路径未翻译（恒 403/仅同租户），与 wiki/chunk 同源。
+  - 测试基建：TestSchema 增 knowledge_tags/knowledge_tag_relations（迁移 000001 §10 +
+    000063；seq_id 播种显式给值）；错误 message 里内嵌的 UUID（"…does not belong to
+    knowledge base X"）要用**裸 UUID 掩码**（不带键名上下文），本测试类 mask() 已带。
+    录制脚本 scripts/record-knowledge-golden.sh 的 KG 行 file_name/file_hash 逐行
+    固定（文档 body 断言 file_size/hash 是字面量不是掩码）；KG1 的文件落在
+    LOCAL_STORAGE_BASE_DIR/kgdocs/（local://kgdocs/kg-doc.txt，两侧同布局）。
+
+- **波 2 knowledge 搜索与移动/复制（8 条路由，knowledge 域收官）新确认的细节与坑——前四条都会复发**：
+  1. **同一个"binding 失败"，move 和 copy 的 HTTP 形态刻意不同**（本轮最重要的发现）：
+     move 是 `NewBadRequestError("Invalid request parameters: " + err.Error())` →
+     **message 带前缀、details=null**，且 validator 把**全部**失败字段按 struct 序用 `\n`
+     连接成一条 message（`{}` 空 body → 四行 Key: ... required tag；部分合法 → 只列失败字段）；
+     copy 是 `NewBadRequestError("Invalid request parameters").WithDetails(err.Error())` →
+     **message 固定、validator 原文在 details**。hybrid-search 也是 details 形态
+     （EOF / GoJsonBindError 原文）。三处别统一。
+  2. **跨租户 KB 的 403/404 取决于守卫在哪一层**：move 的 handler 直接
+     `GetKnowledgeBaseByID`（租户无关）再自己判租户 → 403 "No permission to access
+     source/target knowledge base"；copy/duplicate 走 `resolveHandlerKBAccessFor` /
+     路由 KBAccessRead → cross-tenant source 是 **403 "Permission denied to access this
+     knowledge base"**（access.ResolveKB 的 ErrForbidden，不是注释说的 NotFound——golden
+     实测推翻了源码注释）；duplicate 的 404 "Source knowledge base not found"（大写 S）
+     被路由中间件的 404 小写 "knowledge base not found" 挡成**不可达死代码**。
+  3. **进度终态的 `created_at` 恒为 0**：handler 准入时 SetNX 的 pending 进度带
+     created_at=now，但 asynq worker 每步都 `&types.KBCloneProgress{...}` 新对象
+     **不带 created_at** → SET 覆写后读回来的就是 0。Java 侧照抄（新 record 构造传 0），
+     别"顺手保留"。move 终态 message 是逐条推进的 "Moved X/N knowledge items"
+     （完成块不改 message），clone 终态是 "Knowledge base clone completed successfully"
+     （覆盖逐条 "Processed X/N clone operations"）。
+  4. ** EnsureDefaults 会传染进 duplicate/copy-create**：duplicate 的响应
+     `indexing_strategy`/`capabilities` 是**读路径 EnsureDefaults 之后**的形态
+     （DB 全关 → 响应 vector+keyword=true）；clone-create 的 Go worker 建 KB 行**不复制**
+     源的 indexing_strategy 字段，EnsureDefaults 补成 vector+keyword。Java 用
+     JSON 往返（CLONE_MAPPER，**必须挂 JavaTimeModule**——KnowledgeBase 带
+     OffsetDateTime，裸 mapper 直接 500）+ `KnowledgeBaseService.ensureDefaults`。
+  5. **`vector_store_engine_type` 键的有无 = 部署状态**：Go 的 buildKBResponse 只在
+     `storeView.EngineType != ""` 时写键；envDefaultStoreView 的 EngineType 取
+     `envStores[0]`——阶段 3 的 kb-get golden（09-17 录）有 "postgres"、本轮 duplicate
+     golden（09-19 录）没有：当前 Go dev 的 envStores 为空。Java 侧
+     `KnowledgeBaseResponseBuilder.build(kb, driver, includeEngineType)` 重载分开两条路，
+     **别把两份 golden 互相"修"成一个样子**。
+  6. **dev PG 的存储后端回填**：Go API 建 KB 时 applyAndValidateStorageBackend 会把
+     租户的 System LOCAL（legacy alias、source=env）写进 storage_backend_id +
+     provider=local——duplicate 响应里这两个字段依赖它。契约测试要**种子一个
+     storage_backends 行 + KB 行带 storage_backend_id/storage_provider_config**，
+     否则 duplicate 的 storage_backend_id 输出 null、provider 输出 ""。
+  7. **搜索是租户级全库扫描**：SearchKnowledge 的 scope = 本租户全部 document KB
+     （repo JOIN 再按 type=document 过滤）；`recent=true` 的 total=租户全量行数——
+     **dev PG 有历史残留，不过滤的 recent golden 不是契约稳定值**（本轮只录
+     file_types=url 收敛后的 recent，脚本里留了注释占位）。keyword 搜索用租户内唯一
+     关键词（ksdoc）收敛命中集合；种子行 created_at 必须显式且互不相同（Go 按
+     created_at DESC，并列顺序不稳定）；file_types 别名（xlsx↔xls/docx↔doc/
+     jpg↔jpeg↔png、url/html→type='url'）与 `% _ \` 的 LIKE 转义要逐字照抄。
+  8. **task id 是跨请求契约**：`<type>_<tenant>_<millis>_<8hex>[_<biz12>]`，进度路由按
+     嵌入租户段隔离（解析失败 400 "invalid task ID"、跨租户 404 "task not found"、
+     同租户查无 404 专属文案 "Knowledge move task not found" / "KB clone task not found"）。
+     Java 照 ParseTaskID 的"定位 (tenant,ts) 对"算法实现（type 段可含下划线）。
+  9. **hybrid-search 的确定性降级**：retriever 未接线（波 4）→ 前置确定性分支
+     （KBAccessRead 守卫、query_text 必填、resource_urls 解析、multi-KB scope 授权
+     ——空集/越权/主库缺席都是 404 小写）逐字翻译后，检索执行落 Go 的"零结果"出口
+     `{"data":null,"success":true}`（空库+空 embedding 的 dev KB 在 Go 也是这个形态，
+     golden 钉住）。**有绑定且命中数据时 Go 能出结果**——已知差异记在 Javadoc。
+  10. **GET 带-body 的兼容路由**：`GET /knowledge-bases/{id}/hybrid-search` 与 POST 同
+      handler（#1727），JSON body 缺失同样 400 EOF——别按"GET 无 body"写绑定。
+  - 已知差异（记录在 KnowledgeService/KnowledgeTaskProgressStore 类注释）：
+    ① hybrid-search 的检索执行随波 4（含 multi-KB embedding 一致性校验）；② move/clone
+    只做到行级（knowledge+chunk 行），向量索引/文件对象/wiki/FAQ tag 映射不复制；
+    ③ 进度存储是进程内 map（24h 读路径 TTL 对照 Redis SET EX；单实例语义一致，多副本
+    无跨进程可见性）；④ asynq 的 retry/preflight-failed 中间态不翻译（进度直接落终态）；
+    ⑤ search 的 org-shared 补捞与 agent_id 分支未翻译（scope 恒本租户文档库；agent_id
+    恒 403 "no permission for this shared agent"，与 batch 路由同款）。

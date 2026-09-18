@@ -29,6 +29,19 @@ public final class KnowledgeBaseResponseBuilder {
 
     /** 对照 buildKBResponse：env 回退 store view（无 vector_stores 绑定的 KB） */
     public static Map<String, Object> build(KnowledgeBase kb, String retrieveDriver) {
+        return build(kb, retrieveDriver, true);
+    }
+
+    /**
+     * {@code includeEngineType=false} 对照 Go 的 storeView.EngineType=="" 分支：
+     * {@code m["vector_store_engine_type"] = storeView.EngineType} 只在**非空**时写入键。
+     * duplicate 走 resolveKBStoreView → envDefaultStoreView，其 EngineType 取
+     * envStores[0]——当前部署（Golden 实录 2026-09-19）envStores 为空 → 键整体缺席。
+     * （阶段 3 的 kb-get golden 里有 "postgres"：录制当时 envStores 非空——两份 golden
+     * 反映的是两种部署状态，别互相"修"。）
+     */
+    public static Map<String, Object> build(KnowledgeBase kb, String retrieveDriver,
+                                            boolean includeEngineType) {
         Map<String, Object> m = new TreeMap<>();
 
         m.put("asr_config", treeSorted(kb.getAsrConfig()));
@@ -68,7 +81,9 @@ public final class KnowledgeBaseResponseBuilder {
         if (kb.hasVectorStore()) {
             m.put("vector_store_id", kb.getVectorStoreId());
         }
-        m.put("vector_store_engine_type", engineType(retrieveDriver));
+        if (includeEngineType) {
+            m.put("vector_store_engine_type", engineType(retrieveDriver));
+        }
         m.put("vector_store_name", "System default");
         m.put("vector_store_source", "env");
         m.put("vector_store_status", "available");

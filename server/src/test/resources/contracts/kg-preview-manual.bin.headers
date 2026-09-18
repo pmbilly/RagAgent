@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: none
+Cache-Control: private, no-store
+Content-Disposition: inline; filename*=utf-8''%E6%89%8B%E5%B7%A5%E7%9F%A5%E8%AF%86%EF%BC%88%E6%94%B9%EF%BC%89.md
+Content-Type: text/markdown; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: d5631246-4a6c-46c4-bbd9-7e1f3ea2f473
+Date: Fri, 18 Sep 2026 20:23:38 GMT
+Content-Length: 28
+

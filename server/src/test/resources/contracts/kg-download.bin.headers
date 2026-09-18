@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: private, no-store
+Content-Description: File Transfer
+Content-Disposition: attachment; filename=kg-doc.txt
+Content-Length: 34
+Content-Transfer-Encoding: binary
+Content-Type: application/octet-stream
+Expires: 0
+X-Content-Type-Options: nosniff
+X-Request-Id: 68705e57-6d4c-42dc-90c5-5ab29ced0ac2
+Date: Fri, 18 Sep 2026 20:23:38 GMT
+

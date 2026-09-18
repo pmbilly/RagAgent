@@ -136,12 +136,48 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("PUT", "/api/v1/knowledge-bases/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("DELETE", "/api/v1/knowledge-bases/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("GET", "/api/v1/knowledge-bases/*", TenantRole.VIEWER, false);
+        // 波 2 第三批（对照 routes_knowledge.go L227-242）：
+        // copy 是静态段，必须先于 /knowledge-bases/* 通配登记（AntPathMatcher 取首个命中）；
+        // hybrid-search 的 POST/GET 都登记（Go 两条同一 handler）；duplicate=Contributor（create 档）。
+        rbac.addRule("POST", "/api/v1/knowledge-bases/copy", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/copy/progress/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/hybrid-search", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/hybrid-search", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/duplicate", TenantRole.CONTRIBUTOR, false);
         // 文档（OwnedKBOrAdmin 的所有权判定在 controller/service 层，拦截器只做角色下限）
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/file", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/url", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/manual", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("GET", "/api/v1/knowledge-bases/*/knowledge/folders", TenantRole.VIEWER, false);
+        // 清空 KB 内容：Go 是 g.Admin()（Admin+），比同组写端更严
+        rbac.addRule("DELETE", "/api/v1/knowledge-bases/*/knowledge", TenantRole.ADMIN, false);
+        // 重命名文件夹：Go 无角色门（只有 OwnedKBOrAdmin + KBAccessWrite）→ 取最低的 VIEWER 下限
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/knowledge/folders", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/knowledge-bases/*/knowledge", TenantRole.VIEWER, false);
+        // 文档操作面（波 2 第二批，对照 RegisterKnowledgeRoutes L86-133）：
+        // 静态段（batch/tags/folder/batch-*）先于 /knowledge/* 通配登记（AntPathMatcher 取首个命中）；
+        // 带 :id 的写端在 Go 里没有角色门（ownership 在控制器内）→ 一律 VIEWER 下限；
+        // download 是 Contributor（比 preview 严）、批处理写是 Contributor。
+        rbac.addRule("GET", "/api/v1/knowledge/batch", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge/tags", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("POST", "/api/v1/knowledge/batch-delete", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("POST", "/api/v1/knowledge/batch-reparse", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("POST", "/api/v1/knowledge/folder", TenantRole.CONTRIBUTOR, false);
+        // 波 2 第三批（对照 routes_knowledge.go L121-132）：search/move/progress 与
+        // 批处理同组——静态段先于 /knowledge/* 通配（move 是两段静态，search 单段）
+        rbac.addRule("GET", "/api/v1/knowledge/search", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge/move/progress/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge/move", TenantRole.CONTRIBUTOR, false);
+        // 两段路径（Ant 的 * 不跨 /，与 /knowledge/* 互不遮蔽，仍按静态段先登记）
+        rbac.addRule("GET", "/api/v1/knowledge/*/stages", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge/*/spans", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge/*/download", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/knowledge/*/preview", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge/*/regenerate-summary", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge/manual/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge/*/reparse", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge/*/cancel-parse", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge/image/*/*", TenantRole.VIEWER, false);
         rbac.addRule("PUT", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("DELETE", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("GET", "/api/v1/knowledge/*", TenantRole.VIEWER, false);

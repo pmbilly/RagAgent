@@ -1,0 +1,1 @@
+{"error":{"code":1000,"details":null,"message":"Invalid request parameters: Key: 'RenameKnowledgeFolderRequest.From' Error:Field validation for 'From' failed on the 'required' tag"},"success":false}

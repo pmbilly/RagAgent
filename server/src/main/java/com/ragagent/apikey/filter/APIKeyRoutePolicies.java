@@ -247,15 +247,51 @@ public final class APIKeyRoutePolicies {
         a.registerGin("PUT", "/api/v1/knowledge-bases/:id/pin", kbRead);
         a.registerGin("GET", "/api/v1/knowledge-bases/:id/move-targets", kbRead);
 
-        // KB 作用域的文档写入 / 读（routes_knowledge.go:70-81；kb=ingest，kbRead=retrieve）
+        // 波 2 第三批（routes_knowledge.go:227-242）：copy/duplicate 与 create 同档
+        // （manage_kbs）；hybrid-search 的 POST/GET 都在 kb 组（retrieve）；copy/progress
+        // 是独立的 retrieve|manage_kbs 组合（Go: kb.With(apiKeyRetrieve(apiKeyManageKnowledgeBases(...)))）。
+        // 注意 /copy 静态段先于 /:id 登记。
+        a.registerGin("POST", "/api/v1/knowledge-bases/copy", kbManage);
+        a.registerGin("GET", "/api/v1/knowledge-bases/copy/progress/:task_id",
+                APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.manageKnowledgeBases(APIKeyRoutePolicy.fullAccess())));
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/hybrid-search", kbRead);
+        a.registerGin("GET", "/api/v1/knowledge-bases/:id/hybrid-search", kbRead);
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/duplicate", kbManage);
+
+        // KB 作用域的文档写入 / 读（routes_knowledge.go:70-81；kb=ingest，kbRead=retrieve；
+        // 清空 KB 整库内容只允许 full-access key：kb.With(apiKeyFullAccess()).DELETE(...)）
         a.registerGin("POST", "/api/v1/knowledge-bases/:id/knowledge/file", kbIngest);
         a.registerGin("POST", "/api/v1/knowledge-bases/:id/knowledge/url", kbIngest);
         a.registerGin("POST", "/api/v1/knowledge-bases/:id/knowledge/manual", kbIngest);
         a.registerGin("GET", "/api/v1/knowledge-bases/:id/knowledge", kbRead);
         a.registerGin("GET", "/api/v1/knowledge-bases/:id/knowledge/folders", kbRead);
+        a.registerGin("PUT", "/api/v1/knowledge-bases/:id/knowledge/folders", kbIngest);
+        a.registerGin("DELETE", "/api/v1/knowledge-bases/:id/knowledge", APIKeyRoutePolicy.fullAccess());
 
-        // 文档（routes_knowledge.go:86-132；k=ingest，kRead=retrieve）
+        // 文档（routes_knowledge.go:86-132；k=ingest，kRead=retrieve。波 2 第二批补齐：
+        // 批处理/跨文档端点没有单一 :id 可挂，能力照单文档兄弟登记 ingest/retrieve，
+        // KB 白名单在 handler/service 内逐次收口）
+        a.registerGin("GET", "/api/v1/knowledge/batch", kbRead);
         a.registerGin("GET", "/api/v1/knowledge/:id", kbRead);
+        a.registerGin("GET", "/api/v1/knowledge/:id/stages", kbRead);
+        a.registerGin("GET", "/api/v1/knowledge/:id/spans", kbRead);
+        a.registerGin("POST", "/api/v1/knowledge/:id/regenerate-summary", kbIngest);
+        a.registerGin("PUT", "/api/v1/knowledge/manual/:id", kbIngest);
+        a.registerGin("POST", "/api/v1/knowledge/:id/reparse", kbIngest);
+        a.registerGin("POST", "/api/v1/knowledge/:id/cancel-parse", kbIngest);
+        a.registerGin("GET", "/api/v1/knowledge/:id/download", kbRead);
+        a.registerGin("GET", "/api/v1/knowledge/:id/preview", kbRead);
+        a.registerGin("PUT", "/api/v1/knowledge/image/:id/:chunk_id", kbIngest);
+        a.registerGin("PUT", "/api/v1/knowledge/tags", kbIngest);
+        a.registerGin("POST", "/api/v1/knowledge/batch-reparse", kbIngest);
+        a.registerGin("POST", "/api/v1/knowledge/batch-delete", kbIngest);
+        a.registerGin("POST", "/api/v1/knowledge/folder", kbIngest);
+        // 波 2 第三批（routes_knowledge.go:121-132）：search/move-progress 是 retrieve
+        // （kRead），move 是内容写（k=ingest，requireTenantAPIKeyKnowledgeBases 在
+        // handler 内把 source+target 兜进白名单）
+        a.registerGin("GET", "/api/v1/knowledge/search", kbRead);
+        a.registerGin("GET", "/api/v1/knowledge/move/progress/:task_id", kbRead);
+        a.registerGin("POST", "/api/v1/knowledge/move", kbIngest);
         a.registerGin("PUT", "/api/v1/knowledge/:id", kbIngest);
         a.registerGin("DELETE", "/api/v1/knowledge/:id", kbIngest);
 
@@ -341,8 +377,8 @@ public final class APIKeyRoutePolicies {
     //   routes_infra.go        L149-201  MCP（已登记）+ /agent/tool-approvals（**default deny**）
     //   routes_infra.go        L210       /web-search/providers
     //   routes_infra.go        L297-342   system/admin 控制面（PlatformOnly）
-    //   routes_knowledge.go    L19-53    chunker/preview、chunks/**
-    //   routes_knowledge.go    L118-244  文档下载/预览/批量、FAQ、标签、copy/duplicate/progress
+    //   routes_knowledge.go    L19-53    chunker/preview、chunks/**（chunks 段已登记）
+    //   routes_knowledge.go    L118-244  FAQ、标签、copy/duplicate/progress（文档操作面已登记）
     //   routes_chat.go         L24-131   messages、sessions、knowledge-chat、agent-chat、knowledge-search
     //   routes_agent.go        L22-136   agents、favorites、skills、organizations、shares
     //   routes_auth_tenant.go  L53-136   tenants/**、members、invitations（注意 /api-keys 是 default deny）

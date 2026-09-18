@@ -228,6 +228,22 @@ public class KnowledgeBaseService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 对照 repo.GetKnowledgeBaseByID（**无租户过滤**，EnsureDefaults 在 service 层做）：
+     * move/copy/duplicate 的 handler 链先按 id 找行、再自己判租户——跨租户行"存在"是
+     * 403/404 分歧的前提，不能提前按租户收敛。
+     */
+    public KnowledgeBase getAllTenantById(String id) {
+        KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, id)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (kb != null) {
+            ensureDefaults(kb);
+        }
+        return kb;
+    }
+
     /** 对照 GetKnowledgeBase：带计数回填 */
     public KnowledgeBase getKnowledgeBase(String id) {
         KnowledgeBase kb = getById(tenantId(), id);

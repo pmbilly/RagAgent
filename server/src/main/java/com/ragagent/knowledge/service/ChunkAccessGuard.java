@@ -184,4 +184,12 @@ public class ChunkAccessGuard {
             throw GuardForbiddenException.mustOwnResourceOrHaveRole();
         }
     }
+
+    /** 波 2：KB 已在手的所有权判定（OwnedKBOrAdmin 的路由级形态，供复用）。 */
+    public void requireOwnedKb(KnowledgeBase kb) {
+        if (kb == null) {
+            return; // 与 ErrResourceNotFound 放行语义一致
+        }
+        checkOwnership(kb);
+    }
 }

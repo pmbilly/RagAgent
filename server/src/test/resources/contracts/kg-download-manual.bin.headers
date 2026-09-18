@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Accept-Ranges: none
+Cache-Control: private, no-store
+Content-Description: File Transfer
+Content-Disposition: attachment; filename*=utf-8''%E6%89%8B%E5%B7%A5%E7%9F%A5%E8%AF%86%EF%BC%88%E6%94%B9%EF%BC%89.md
+Content-Transfer-Encoding: binary
+Content-Type: application/octet-stream
+Expires: 0
+X-Content-Type-Options: nosniff
+X-Request-Id: 17a737c8-0ac7-4787-99ea-3a297526991a
+Date: Fri, 18 Sep 2026 20:23:38 GMT
+Content-Length: 28
+

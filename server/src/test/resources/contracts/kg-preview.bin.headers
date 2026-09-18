@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: private, no-store
+Content-Disposition: inline; filename=kg-doc.txt
+Content-Length: 34
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: c81fb321-7b14-40cd-9371-fa84c8fe2673
+Date: Fri, 18 Sep 2026 20:23:38 GMT
+

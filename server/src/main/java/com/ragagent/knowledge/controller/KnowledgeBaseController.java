@@ -30,12 +30,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go internal/handler/knowledgebase.go（阶段 3 子集：
- * create/list/get/update/delete/pin/move-targets；copy/duplicate/clear/progress 随后续阶段）。
+ * 对照 Go internal/handler/knowledgebase.go（阶段 3 子集 + 波 2 第三批：
+ * hybrid-search（POST+GET）/ copy / duplicate / copy/progress）。
  *
- * 请求体直接绑定 types.KnowledgeBase（无 CreateRequest 结构）——含 legacy cos_config 兼容
+ * <p>请求体直接绑定 types.KnowledgeBase（无 CreateRequest 结构）——含 legacy cos_config 兼容
  * （对照 UnmarshalJSON L412）。响应 data 经「实体→map 合并」输出，全部键字母序
- * （KnowledgeBaseResponseBuilder）。
+ * （KnowledgeBaseResponseBuilder）。</p>
+ *
+ * <p><b>波 2 第三批的守卫顺序</b>（golden 依赖，不能重排）：
+ * hybrid-search / duplicate 的路由带 {@code KBAccessRead}（Java 在控制器内 =
+ * {@code guard.requireKbAccess}：缺失 → 404 小写 / 跨租户 → 403 信封）；copy 的
+ * source/target 在 body 里，handler 内 resolveHandlerKBAccessFor——跨租户在
+ * access.ResolveKB 出 403 "Permission denied to access this knowledge base"
+ * （golden ks-copy-cross-source），与 move 的 handler 租户检查文案不同。</p>
  */
 @RestController
 @RequestMapping("/api/v1/knowledge-bases")
@@ -45,9 +52,15 @@ public class KnowledgeBaseController {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final KnowledgeBaseService kbService;
+    private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
+    private final com.ragagent.knowledge.service.KnowledgeAccessGuard guard;
 
-    public KnowledgeBaseController(KnowledgeBaseService kbService) {
+    public KnowledgeBaseController(KnowledgeBaseService kbService,
+                                   com.ragagent.knowledge.service.KnowledgeService knowledgeService,
+                                   com.ragagent.knowledge.service.KnowledgeAccessGuard guard) {
         this.kbService = kbService;
+        this.knowledgeService = knowledgeService;
+        this.guard = guard;
     }
 
     /** 对照 CreateKnowledgeBase — Contributor+ */
@@ -204,6 +217,296 @@ public class KnowledgeBaseController {
         body.put("data", data);
         body.put("success", true);
         return body;
+    }
+
+    // ── 波 2 第三批：hybrid-search / copy / duplicate / copy progress ─────
+
+    /**
+     * 对照 HybridSearch（POST 为主；GET 携带 JSON body 兼容 #1727——两条路由同一 handler）。
+     * 检索引擎（retriever）未翻译（波 4）：需要真实向量/关键词执行的部分不可达，Java 落
+     * Go 的「零结果」出口（{@code {"data":null,"success":true}}，golden 钉住）。
+     * <b>已知差异：绑定过向量库且命中数据时 Go 能出结果</b>；前置的确定性分支
+     * （KB 访问守卫、query_text 必填、resource_urls 解析、多库 scope 授权）逐字翻译。
+     */
+    @PostMapping("/{id}/hybrid-search")
+    public ResponseEntity<?> hybridSearchPost(@PathVariable("id") String id,
+                                              @RequestBody(required = false) String rawBody,
+                                              @RequestParam(value = "resource_urls", required = false) String resourceUrls) {
+        return hybridSearch(id, rawBody, resourceUrls);
+    }
+
+    /** 对照 GET /knowledge-bases/{id}/hybrid-search（同 handler，body 语义一致）。 */
+    @GetMapping("/{id}/hybrid-search")
+    public ResponseEntity<?> hybridSearchGet(@PathVariable("id") String id,
+                                             @RequestBody(required = false) String rawBody,
+                                             @RequestParam(value = "resource_urls", required = false) String resourceUrls) {
+        return hybridSearch(id, rawBody, resourceUrls);
+    }
+
+    private ResponseEntity<?> hybridSearch(String id, String rawBody, String resourceUrls) {
+        log.info("Start hybrid search");
+        // 对照 validateAndGetKnowledgeBase → 路由 KBAccessRead 的控制器内落地
+        KnowledgeBase kb = guard.requireKbAccess(id);
+        // 对照 ShouldBindJSON(&types.SearchParams)：错误形态是 message+details（EOF/解析器原文）
+        JsonNode req = bindSearchParams(rawBody);
+        String queryText = req.path("query_text").asText("");
+        JsonNode embedding = req.get("query_embedding");
+        boolean precomputedVectorOnly = embedding != null && embedding.isArray() && !embedding.isEmpty()
+                && req.path("disable_keywords_match").asBoolean(false)
+                && !req.path("disable_vector_match").asBoolean(false);
+        if (queryText.trim().isEmpty() && !precomputedVectorOnly) {
+            throw new BizException(AppError.badRequest("query_text is required"));
+        }
+        // 对照 resolveResourceRewriter：public 拒绝 → 403；其他坏值 → 400
+        try {
+            com.ragagent.storageurl.Mode.resolve(resourceUrls);
+        } catch (com.ragagent.storageurl.PublicModeForbiddenException e) {
+            log.warn("Rejected resource URL mode: {}", e.getMessage());
+            throw new BizException(AppError.forbidden(e.getMessage()));
+        } catch (com.ragagent.storageurl.ResourceModeException e) {
+            log.warn("Rejected resource URL mode: {}", e.getMessage());
+            throw new BizException(AppError.badRequest(e.getMessage()));
+        }
+        // 对照 service.HybridSearch 的前置确定性段：
+        // GetKnowledgeBaseByIDs（租户无关）→ 空集 404；authorizeKBAccess → 未授权 404；
+        // pickPrimary 缺席 → 404。多库 embedding 一致性校验与检索执行随波 4。
+        List<String> searchKbIds = new ArrayList<>();
+        JsonNode idsNode = req.get("knowledge_base_ids");
+        if (idsNode != null && idsNode.isArray() && !idsNode.isEmpty()) {
+            idsNode.forEach(n -> searchKbIds.add(n.asText()));
+        } else {
+            searchKbIds.add(kb.getId());
+        }
+        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(searchKbIds);
+        List<KnowledgeBase> kbs = new ArrayList<>();
+        for (String kbId : searchKbIds) {
+            KnowledgeBase row = kbService.getAllTenantById(kbId);
+            if (row != null) {
+                kbs.add(row);
+            }
+        }
+        if (kbs.isEmpty()) {
+            throw new BizException(AppError.notFound("knowledge base not found"));
+        }
+        Long caller = TenantContext.currentTenantId();
+        for (KnowledgeBase row : kbs) {
+            // org-share / shared-agent 授予未翻译：非调用者租户一律不可见（Go 是 404 不泄漏）
+            if (row.getTenantId() == null || caller == null || !row.getTenantId().equals(caller)) {
+                throw new BizException(AppError.notFound("knowledge base not found"));
+            }
+        }
+        boolean primaryFound = kbs.stream().anyMatch(row -> row.getId().equals(kb.getId()));
+        if (!primaryFound) {
+            throw new BizException(AppError.notFound("knowledge base not found"));
+        }
+        // 检索执行不可达（波 4）→ Go 在空管线/零命中时返回 nil → data:null（实测一致）
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", null);
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /** 对照 ShouldBindJSON(&SearchParams) 的 400 形态（message 固定 + details 解析器原文）。 */
+    private static JsonNode bindSearchParams(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            throw new BizException(AppError.badRequest("Invalid request parameters").withDetails("EOF"));
+        }
+        try {
+            JsonNode node = MAPPER.readTree(rawBody);
+            if (node == null || !node.isObject()) {
+                throw new BizException(AppError.badRequest("Invalid request parameters").withDetails("EOF"));
+            }
+            return node;
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(AppError.badRequest("Invalid request parameters")
+                    .withDetails(com.ragagent.common.web.GoJsonBindError.message(rawBody, e.getMessage())));
+        }
+    }
+
+    /**
+     * 对照 CopyKnowledgeBase（POST /knowledge-bases/copy，Contributor；源在 body）。
+     * 绑定错误是 details 形态（"Invalid request parameters" + validator/解析器原文，
+     * 与 move 的 message 前缀形态刻意不同——golden 双向钉住）。create 目标在准入时保留
+     * UUID（响应即返回），worker 落行。
+     */
+    @PostMapping("/copy")
+    public ResponseEntity<?> copyKnowledgeBase(@RequestBody(required = false) String rawBody) {
+        log.info("Start copying knowledge base");
+        JsonNode body = bindCopyBody(rawBody);
+        String sourceId = body.path("source_id").asText("");
+        String targetId = body.path("target_id").asText("");
+        String explicitTaskId = body.path("task_id").asText("");
+        long caller = TenantContext.currentTenantId() == null ? 0 : TenantContext.currentTenantId();
+        if (caller == 0) {
+            throw new BizException(AppError.unauthorized("Unauthorized"));
+        }
+        // 对照 resolveHandlerKBAccessFor(source, Viewer)：白名单 → 404 小写 / 跨租户 403 信封
+        KnowledgeBase sourceKb = resolveHandlerKbAccess(sourceId);
+        if (sourceKb.getTenantId() == null || sourceKb.getTenantId() != caller) {
+            throw new BizException(AppError.forbidden("No permission to copy this knowledge base"));
+        }
+        String taskId = explicitTaskId;
+        if (taskId.isEmpty()) {
+            taskId = com.ragagent.knowledge.service.KnowledgeService.generateTaskId("kb_clone", caller, sourceId);
+        } else {
+            requireTaskProgressTenant(taskId);
+        }
+        boolean create = targetId.isEmpty();
+        KnowledgeBase targetKb = new KnowledgeBase();
+        targetKb.setId(java.util.UUID.randomUUID().toString());
+        targetKb.setTenantId(caller);
+        String creatorId = "";
+        if (create) {
+            String uid = TenantContext.currentUserId();
+            if (uid != null && !uid.startsWith("system-")) {
+                targetKb.setCreatorId(uid);
+                creatorId = uid;
+            }
+        } else {
+            KnowledgeBase existing = resolveHandlerKbAccess(targetId);
+            if (existing.getTenantId() == null || existing.getTenantId() != caller) {
+                throw new BizException(AppError.forbidden("No permission to copy to this knowledge base"));
+            }
+            // 对照 EvaluateOwnershipOrRole(Admin, creator)：非创建者且非 Admin+ 拒绝
+            String role = TenantContext.currentRole();
+            boolean admin = TenantRole.fromString(role).hasPermission(TenantRole.ADMIN);
+            if (!admin && (existing.getCreatorId() == null || existing.getCreatorId().isEmpty()
+                    || !existing.getCreatorId().equals(TenantContext.currentUserId()))) {
+                throw new BizException(AppError.forbidden("No permission to replace this knowledge base's contents"));
+            }
+            try {
+                com.ragagent.knowledge.service.KnowledgeService.validateCloneCompatibility(sourceKb, existing);
+            } catch (IllegalArgumentException e) {
+                throw new BizException(AppError.badRequest(e.getMessage()));
+            }
+            targetKb = existing;
+        }
+        String reservedTargetId = targetKb.getId();
+        knowledgeService.startKBClone(caller, taskId, sourceId, reservedTargetId, create, creatorId);
+        var resp = new com.ragagent.knowledge.dto.KnowledgeTaskDtos.CopyKnowledgeBaseResponse(
+                taskId, sourceId, reservedTargetId, "Knowledge base copy task started");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("data", resp);
+        out.put("success", true);
+        return ResponseEntity.ok(out);
+    }
+
+    /**
+     * 对照 CopyKnowledgeBaseRequest 绑定：SourceID required；错误放 **details**
+     * （handler 用 NewBadRequestError("Invalid request parameters").WithDetails(err.Error())）。
+     */
+    private static JsonNode bindCopyBody(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            throw new BizException(AppError.badRequest("Invalid request parameters").withDetails("EOF"));
+        }
+        JsonNode body;
+        try {
+            body = MAPPER.readTree(rawBody);
+        } catch (Exception e) {
+            throw new BizException(AppError.badRequest("Invalid request parameters")
+                    .withDetails(com.ragagent.common.web.GoJsonBindError.message(rawBody, e.getMessage())));
+        }
+        if (body == null || !body.isObject()) {
+            throw new BizException(AppError.badRequest("Invalid request parameters").withDetails("EOF"));
+        }
+        JsonNode source = body.get("source_id");
+        if (source == null || source.isNull() || source.asText("").isEmpty()) {
+            throw new BizException(AppError.badRequest("Invalid request parameters")
+                    .withDetails("Key: 'CopyKnowledgeBaseRequest.SourceID' Error:Field validation for "
+                            + "'SourceID' failed on the 'required' tag"));
+        }
+        return body;
+    }
+
+    /**
+     * 对照 resolveHandlerKBAccessFor(Viewer)：白名单 → 查行（租户无关）→ 授权。
+     * 缺失 → 404 "knowledge base not found"；跨租户（org-share 未翻译）→ 403 信封
+     * "Permission denied to access this knowledge base"（golden ks-copy-cross-source）。
+     */
+    private KnowledgeBase resolveHandlerKbAccess(String kbId) {
+        if (kbId == null || kbId.isEmpty()) {
+            throw new BizException(AppError.badRequest("Knowledge base ID cannot be empty"));
+        }
+        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(List.of(kbId));
+        KnowledgeBase kb = kbService.getAllTenantById(kbId);
+        if (kb == null) {
+            throw new BizException(AppError.notFound("knowledge base not found"));
+        }
+        Long caller = TenantContext.currentTenantId();
+        if (kb.getTenantId() == null || caller == null || !kb.getTenantId().equals(caller)) {
+            throw new BizException(AppError.forbidden("Permission denied to access this knowledge base"));
+        }
+        return kb;
+    }
+
+    /** 对照 GetKBCloneProgress：租户隔离 + 404 "KB clone task not found"。 */
+    @GetMapping("/copy/progress/{taskId}")
+    public ResponseEntity<?> getKBCloneProgress(@PathVariable("taskId") String taskId) {
+        if (taskId == null || taskId.isEmpty()) {
+            throw new BizException(AppError.badRequest("Task ID cannot be empty"));
+        }
+        requireTaskProgressTenant(taskId);
+        var progress = knowledgeService.getKBCloneProgress(taskId);
+        if (progress == null) {
+            throw new BizException(AppError.notFound("KB clone task not found"));
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", progress);
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /** 对照 requireTaskProgressTenant（与 KnowledgeController 的私有实现同源）。 */
+    private void requireTaskProgressTenant(String taskId) {
+        Long taskTenant = com.ragagent.knowledge.service.KnowledgeService.taskTenantId(taskId);
+        if (taskTenant == null) {
+            throw new BizException(AppError.badRequest("invalid task ID"));
+        }
+        Long caller = TenantContext.currentTenantId();
+        if (caller == null || caller == 0) {
+            throw new BizException(AppError.unauthorized("Unauthorized"));
+        }
+        if (!taskTenant.equals(caller)) {
+            throw new BizException(AppError.notFound("task not found"));
+        }
+    }
+
+    /**
+     * 对照 DuplicateKnowledgeBase（POST /{id}/duplicate，201）：路由 KBAccessRead 先拒
+     * （缺失 404 小写 / 跨租户 403 信封——handler 的 "Source knowledge base not found"
+     * 因此不可达），租户校验后同步克隆**设置**（名字带 " 副本"，重名去重）。
+     */
+    @PostMapping("/{id}/duplicate")
+    public ResponseEntity<?> duplicateKnowledgeBase(@PathVariable("id") String id) {
+        log.info("Start duplicating knowledge base, ID: {}", id);
+        String sourceId = id == null ? "" : id;
+        if (sourceId.isEmpty()) {
+            throw new BizException(AppError.badRequest("Knowledge base ID cannot be empty"));
+        }
+        // 对照路由 KBAccessRead("id") 的中间件层拒绝
+        guard.requireKbAccess(sourceId);
+        long callerTenant = TenantContext.currentTenantId() == null ? 0 : TenantContext.currentTenantId();
+        KnowledgeBase sourceKb = kbService.getAllTenantById(sourceId);
+        if (sourceKb == null) {
+            // 路由守卫已兜住缺失；此分支保留对照 handler 的 NotFound 文案
+            throw new BizException(AppError.notFound("Source knowledge base not found"));
+        }
+        if (sourceKb.getTenantId() == null || sourceKb.getTenantId() != callerTenant) {
+            log.warn("Knowledge base duplicate rejected: source belongs to another tenant");
+            throw new BizException(AppError.forbidden("No permission to duplicate this knowledge base"));
+        }
+        KnowledgeBase targetKb = knowledgeService.duplicateKnowledgeBase(sourceId);
+        var resp = new com.ragagent.knowledge.dto.KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse(
+                sourceId, targetKb.getId(), "Knowledge base duplicate created",
+                // resolveKBStoreView → envDefaultStoreView：EngineType 取 envStores[0]，
+                // 当前部署为空 → buildKBResponse 不写 vector_store_engine_type 键（golden 钉住）
+                KnowledgeBaseResponseBuilder.build(targetKb, kbService.retrieveDriver(), false));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("data", resp);
+        out.put("success", true);
+        return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
 
     /** legacy 兼容的小工具（避免在 bind 里散落强转） */
