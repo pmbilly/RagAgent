@@ -114,7 +114,17 @@ public class DataSourceRepository {
 
             // GORM 的 struct Updates 对 updated_at 是**无条件覆盖**（AutoUpdateTime），
             // 它在 SET 里的位置与零值规则无关。
-            w.set("updated_at", OffsetDateTime.now());
+            //
+            // ⚠️ 这里算一次、同时写进 SET 与**内存对象**——GORM 的
+            // `stmt.SetColumn("updated_at", curTime)` 是写进 `stmt.Dest`（就是调用方那个
+            // `*types.DataSource`）的，所以 Go 的 `UpdateDataSource` 返回给 handler 的
+            // 那个结构体上，`updated_at` 已经是 DB 里那个新值（实测：PUT 的响应里
+            // updated_at 是本次更新时间，而 created_at 因为零值被跳过、仍是 Go 零值）。
+            // Java 的 wrapper 不回写实体，少了这一步 PUT 响应会变成
+            // `"updated_at":"0001-01-01T00:00:00Z"`（golden ds-update.json 钉住）。
+            OffsetDateTime updatedAt = OffsetDateTime.now();
+            w.set("updated_at", updatedAt);
+            ds.setUpdatedAt(updatedAt);
 
             // created_at 是 AutoCreateTime（不是 AutoUpdateTime）→ 走普通的零值规则：
             // 非零才进 SET。加载出来的 ds 一定带着原值，所以线上会多写一次同值列。

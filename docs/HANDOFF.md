@@ -1,6 +1,6 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 最新提交 `e98e5eb` · 1655 测试全绿
+> 最后更新：2026-09-18 · 波 0 收官（memory + datasource） · **2944 测试全绿**（3 skipped）
 
 ## 0. 一句话背景
 
@@ -39,7 +39,7 @@
 | 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
 | 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
 | **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | ✅ `continue-stream` 完成（4/4 步） | — |
-| **A** | **波 0**：memory ✅ **模块完整收官** / datasource ⏳ | **memory 4/4 步完成**（实体+仓储 → settings domain → service 层 → **HTTP 层 16 端点**）；datasource 未开工，是波 0 的下一步 | — |
+| **A** | **波 0**：memory ✅ / **datasource ✅ 模块完整收官** | **memory 4/4 步**（实体+仓储 → settings domain → service 层 → **HTTP 层 16 端点**）；**datasource 4/4 步**（类型+仓储 → 连接器层 → **service 层** → **HTTP 层 17 端点 + 路由装配**）——**波 0 做完** | — |
 | **B** | **波 1-2**：未被 agent 阻塞的端点群（约 200 条路由） | ⏳ | — |
 | **C** | **波 3**：agent 前置（sandbox / infrastructure / browserskill / modelcontext） | ⏳ | — |
 | **D** | **波 4**：agent 核心 + agent/tools（咽喉） | ⏳ | — |
@@ -53,7 +53,7 @@
 
 | 波 | 内容 | 规模 | 解锁 |
 |---|---|---|---|
-| 0 | `memory`(4.8k) · `datasource`(10.8k) | ~15.6k | 33 条路由，**零未翻译前置** |
+| 0 | ✅ **已完成**：`memory`(4.8k) · `datasource`(10.8k) | ~15.6k | 33 条路由，**零未翻译前置** |
 | 1 | 会话/消息面剩余（CRUD/附件/产物/追问建议/消息历史） | ~25 条路由 | 阶段 5.2 的自然延续 |
 | 2 | 其余未被阻塞的端点群（admin/tenant/faq/chunk/vectorstore/…） | ~140 条路由 | — |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | agent 的硬前置；sandbox 另解锁系统管理端+skill |
@@ -62,6 +62,35 @@
 
 **关键判断**：335 条待做路由里 **约 60% 现在就能做，不用等 agent 引擎**。
 `continue-stream` 之外的 chat/agent 端点才真正堵在波 4。
+
+### 2.1 波 0（datasource）交接要点 —— **模块收官**
+
+已交付 `com.ragagent.datasource.{service,controller,dto}` + 路由/策略装配：
+
+| 文件 | 内容 |
+|---|---|
+| `service/DataSourceService` | 17 条路由的全部业务语义 + **实现了 `DataSourceSyncHandler`**（`ProcessSync` 的批量路径与流式路径、`applyFetchedItem` 的条木分类、`updateSyncRunResult` 的状态机） |
+| `service/KnowledgeBridge` + `MapperKnowledgeBridge` | **知识库写入的端口**：同步跑在后台线程上、没有 `TenantContext`，所以租户必须显式传（Go 是往 ctx 里塞）。**已知差异：最小闭环**，见下 |
+| `service/AutoTagProvider` + `NoAutoTagProvider` | 自动标签端口（`knowledge_tag` 模块未翻译 → 恒回 null，等价 Go 的 `autoTag == nil`） |
+| `service/DataSourceWiring` | 9 个连接器实例的登记（照抄 `container.initConnectorRegistry`）+ `Scheduler` + 启动/停止生命周期 |
+| `controller/DataSourceController` + `DataSourceCredentialsController` | 14 + 2 条路由；**两个文件的错误形态不同**（纯字符串 vs AppError 信封），照抄 Go |
+| `dto/{DataSourceResponse,DataSourceConfigDto,CredentialsResponse,CredentialFieldMetadata}` | 出参；`credentials` 按构造剥离 |
+| `config/WebConfig` + `apikey.filter.APIKeyRoutePolicies` | 17 条路由的角色规则 + `manageDataSources(fullAccess())` 策略 |
+
+测试：88 条（50 service + 38 契约，golden 全部 Go 实录）。
+**真 PG 上 39 组 A/B 全 MATCH**（`scripts/ab-datasource.sh`），含**双向跨语言互读**与
+**一次真实 RSS 同步的终态计数**（`status=success total=2 created=2 failed=0` 两侧相同）。
+
+**已知差异**（详见 §9「波 0（datasource service + HTTP 层）已知差异」）：
+知识库写入是"最小闭环"（不如 Go 全）；自动标签无实现；asynq 的 retry-count/task-id 拿不到；
+进程内队列跨副本不去重；langfuse 未接线。
+
+**动它之前先读 §9 那两段**——尤其 `Long != Long` 的引用比较与 GORM 把 `updated_at`
+回写内存对象这两条，它们都是**只在真请求下才暴露**的。
+
+**下一步**：波 1（会话/消息面剩余 ~25 条路由）或波 2（其余未被 agent 阻塞的端点群）。
+datasource 的 `routes_infra.go` 邻居（sandbox-configs / evaluation / initialization /
+web-search-providers / vector-stores / storage-backends / channels）仍待各自模块落地。
 
 ## 3. 下一步：阶段 5（会话 / SSE）
 

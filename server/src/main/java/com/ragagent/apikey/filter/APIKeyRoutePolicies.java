@@ -53,6 +53,40 @@ public final class APIKeyRoutePolicies {
         registerMcpRoutes(authorizer);
         registerSessionRoutes(authorizer);
         registerMemoryRoutes(authorizer);
+        registerDataSourceRoutes(authorizer);
+    }
+
+    /**
+     * 数据源（对照 Go {@code router/routes_infra.go} L299-332 的 {@code /datasource} 组）。
+     *
+     * <p>整组共用 {@code apiKeyManageDataSources(apiKeyFullAccess())} = 要求 full-access
+     * 且能力清单含 {@code manage_data_sources}——与 {@code /models}、{@code /mcp-services}
+     * 的处置完全同构（"full-access 或显式带该能力"）。</p>
+     *
+     * <p><b>17 条</b>——与 {@code RegisterDataSourceRoutes} 注册的条数一致。读端与写端
+     * 都在这一条策略下；角色维度（Viewer / Admin）由 {@code RbacInterceptor} 另行把关，
+     * 两个维度互相独立（Go 里能力判定先于角色判定）。</p>
+     */
+    private static void registerDataSourceRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy ds = APIKeyRoutePolicy.manageDataSources(APIKeyRoutePolicy.fullAccess());
+        final String base = "/api/v1/datasource";
+        a.registerGin("GET", base + "/types", ds);
+        a.registerGin("POST", base + "/validate-credentials", ds);
+        a.registerGin("POST", base, ds);
+        a.registerGin("GET", base, ds);
+        a.registerGin("GET", base + "/:id", ds);
+        a.registerGin("PUT", base + "/:id", ds);
+        a.registerGin("DELETE", base + "/:id", ds);
+        a.registerGin("PUT", base + "/:id/credentials", ds);
+        a.registerGin("DELETE", base + "/:id/credentials/:field", ds);
+        a.registerGin("POST", base + "/:id/validate", ds);
+        a.registerGin("GET", base + "/:id/resources", ds);
+        a.registerGin("POST", base + "/:id/resource-ancestors", ds);
+        a.registerGin("POST", base + "/:id/sync", ds);
+        a.registerGin("POST", base + "/:id/pause", ds);
+        a.registerGin("POST", base + "/:id/resume", ds);
+        a.registerGin("GET", base + "/:id/logs", ds);
+        a.registerGin("GET", base + "/logs/:log_id", ds);
     }
 
     /**

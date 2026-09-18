@@ -250,6 +250,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | storageurl（阶段 5.2 步 2） | internal/storageurl/{mode,storageurl,stream,resolver,request}.go | com.ragagent.storageurl.{Mode,StorageUrlContext,ResourceModeException,PublicModeForbiddenException,Resolver,Rewriter,StreamRewriter,FileServiceResolver,FileService,StorageBackendResolver} | ✅ | 49 测试。**这是第一处跨 5 个 handler 的共享契约**（message/knowledgebase/session/embed/im 都 import 它）。扣留缓冲 + 模式解析全部按 Go 对等移植；差分语料见 §9。已知差异：provider 级文件服务未翻译 |
 | SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
 | memory HTTP 层（波 0 第 4 步，**memory 模块收官**） | internal/handler/memory.go（465 行）；internal/router/routes_memory.go（16 条路由） | com.ragagent.memory.controller.MemoryController + config.WebConfig 路由 + apikey.filter.APIKeyRoutePolicies | ✅ | 16 端点全落地；34 条新测试（**22 个 golden 全部是 Go 实录**）+ **真 PG 上 36 组 A/B（35 MATCH / 1 已知差异）**（唯一 DIFF 是非法 JSON 的 details 文案，已知差异）。关键坑见 §9 |
+| datasource service+HTTP 层（波 0，**datasource 模块收官**） | internal/application/service/datasource_service.go（1488）；internal/handler/{datasource,datasource_credentials}.go；internal/router/routes_infra.go L292-333（17 条路由）；internal/container 的 initConnectorRegistry/startDataSourceScheduler | com.ragagent.datasource.{service,controller,dto} + config.WebConfig + apikey.filter.APIKeyRoutePolicies | ✅ | 17 端点全落地；88 条新测试（50 service + 38 契约，**golden 全是 Go 实录**）+ **真 PG 上 39 组 A/B 全 MATCH**（含**双向跨语言互读**与**一次真实 RSS 同步的终态计数**）。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -797,6 +798,79 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - 另外：`SsrfGuard` 的白名单是**进程级静态**，连接器测试必须 `reloadWhitelist(...)` 放行
     loopback、并在 `@AfterAll` 还原（§9 里"多 Spring 上下文互相覆盖"那条的延伸）。
   - `TaskScheduler.shutdown()` 在 Spring 6.1.14 **不存在**（6.2 才有）。
+- **波 0（datasource service + HTTP 层）新确认的细节与坑**：
+  - **⚠️ Java 的 `Long != Long` 是引用比较（本轮最值钱的一条）**：租户 id 这类
+    **包装类型**之间写 `a != b`，判的是引用；`10002` 超出 `Long` 缓存区间（-128..127），
+    装箱出来的两个实例恒不相等。症状是**每一个请求都 404**（`DataSourceCredentialsController`
+    实测：凭据子资源全组 404）。**修法**：`Objects.equals(...)`，或让比较的一侧是
+    **原始类型**（方法签名写 `long tenantId` 就会自动拆箱，`DataSourceController`
+    的守卫正是因此没中招）。Go 的 `uint64 != uint64` 是值比较，翻过来时最容易漏。
+  - **⚠️ GORM 的 struct `Updates` 会把 `updated_at` **写回内存对象**（实测）**：
+    `stmt.SetColumn("updated_at", curTime)` 直接改 `stmt.Dest`（就是调用方那个
+    `*types.DataSource`）。所以 PUT 的响应里 **`updated_at` 是本次更新时间、
+    而 `created_at` 仍是 Go 零值 `0001-01-01T00:00:00Z`**（后者是 AutoCreateTime，
+    零值被跳过、不回写）。Java 的 wrapper 不回写实体 → 必须由仓储显式
+    `ds.setUpdatedAt(同一个值)`，否则 PUT 响应会退化成两个零值时间
+    （golden `ds-update.json` 钉住）。
+  - **`json.RawMessage` + `omitempty` 的判据是 `len(bytes)==0`**：`config` /
+    `last_sync_cursor` / `last_sync_result` / `error_message` / `latest_sync_log` 在
+    DTO 上**省略整个键**，而同一个字段在**实体**上是恒输出的——两种形态并存，
+    别把 DTO 的 omitempty 抄到实体上（反之亦然）。
+  - **`DataSource.ParseConfig()` 会返回 `(nil, nil)`**（`len(d.Config)==0` 短路）。
+    service 的 `validateDataSourceConfig` 把它**原样递给连接器**（各连接器自己拒绝，
+    实测文案是 RSS 的 `"invalid configuration: config is nil"`）。把这些 null
+    提前折叠成泛泛的 `ErrInvalidConfig` 会改掉**暴露出来的那句话**。
+  - **`ResolveResourceAncestors` 的短路在 service、不在 handler**：空 `resource_ids`
+    在 service 里直接返回空切片，但 handler **仍然先跑** `getOwnedDataSource`
+    ——所以"未知 id + 空列表"回 404，"存在的 id + 空列表"回 200。别把短路提到 handler 前面。
+  - **两个 handler 文件的错误形态不同**：`datasource.go` 全是
+    `c.JSON(status, gin.H{"error": msg})`（**纯字符串**），
+    `datasource_credentials.go` 全是 `c.Error(errors.NewXxxError(...))`
+    （**AppError 信封**）。而且复制的两份归属判定**有意不同**：租户缺失时一个回 401
+    `unauthorized`、另一个回 400 `Workspace ID cannot be empty`；跨租户的知识库
+    一个回 403 `access denied`、另一个折叠成 404（消息不同）。照抄，别统一。
+  - **凭据子资源的"字段缺失"回的是 go-playground/validator 的原文**
+    （`Key: 'dataSourceCredentialsPutRequest.Credentials' Error:Field validation for
+    'Credentials' failed on the 'required' tag`）——它是稳定的线上字符串，已逐字复刻。
+    空 map 是**另一条** 400（`credentials map must be non-empty; …`）。
+  - **RSS 的 `feed_urls` 是非密钥配置**：`HasConfiguredCredentials("rss")` 只看
+    `auth_headers`。所以 PUT 一个只有 feed_urls 的 credentials 之后
+    `configured` 仍是 **false**（实测，golden 钉住）。
+  - **`/datasource/types` 在 Go 侧本来就不可逐字节复现**：先遍历 map（随机序）再做
+    **稳定**插入排序，同优先级的条目顺序每次调用都不同（实测相邻两次调用里
+    `feishu_drive`/`lark_drive` 就换了位）。**按 type 建索引比**，别按下标比。
+  - **`limit` 严格、`offset` 容错**：`/datasource/{id}/logs` 的 `limit` 只要给了就必须
+    落在 1..100（含 `abc` → 400 `limit must be between 1 and 100`），而 `offset`
+    解析失败或为负一律归 0（200）——与 memory 那套"非法 limit 归 50"**相反**。
+  - **A/B 的日志比对要"等终态"**：`POST /{id}/sync` 之后 Go 的任务要经 Redis 派发给
+    asynq worker（实测 ~1-2s 跑完），Java 是进程内虚拟线程队列——发完立刻比 `/logs`
+    就是在比竞态（会看到 `finished_at` 一边 null 一边有值）。脚本里等
+    `finished_at` 非空后再比，顺带把**真实同步的终态计数**也比了（实测两侧都是
+    `status=success total=2 created=2 failed=0`）。
+  - **`SsrfGuard` 白名单是进程级静态**：A/B 与契约测试里的 RSS 都要真的抓 loopback
+    上的 stub feed，所以 **Go 侧启动必须带 `SSRF_WHITELIST=127.0.0.1,::1,localhost`**
+    （不是 `_EXTRA`），Java 侧同名 env；`../scripts/ab-datasource.sh` 与
+    `record-datasource-golden.sh` 都固化了这件事，且 golden 的 `feed_urls`
+    与 stub 端口（18099）是**响应的一部分**，改端口要重新录。
+  - **契约测试里把 `DataSourceSyncTaskQueue` 换成 mock**：真队列会在后台虚拟线程里
+    跑完整同步（抓 feed → 往 H2 写 knowledge 行），与断言无关又互相干扰。
+    队列是"传输"不是契约面（与 memory 把 task queue 留在真实服务外的取舍一致）。
+- **波 0（datasource service + HTTP 层）已知差异 / 未接线**：
+  1. **asynq → 进程内队列**（既有取舍的延续）：拿不到 `asynq.GetRetryCount` →
+     `streamStartCursor` 的 `attempt` 恒为 0（等价于"手动全量同步的第一次尝试"，
+     重试的全量同步会从头再抓而不是续跑）；拿不到 `asynq.GetTaskID` → 同步审计的
+     details 少 `task_id` 一个键（`trigger`/`processing_status` 照常）。
+     `ManualSync` 的 TaskID 由 Java 侧生成 UUID（Go 是 asynq 生成的随机串）。
+  2. **知识库写入是"最小闭环"**：`MapperKnowledgeBridge` 只覆盖
+     "落一行可被后续同步找回的 knowledge + 交给进程内处理队列"。Go 的
+     `CreateKnowledgeFromFile` 另有：文件名安全校验、按 KB/连接器解析多模态与问题生成
+     配置、标签关系、按 KB 选存储引擎、asynq 载荷形态、入队失败的补偿与审计。
+     **净效果**：同步进知识库的内容本身弱于 Go（解析/分块仍走阶段 3 的 worker）。
+  3. **自动标签无生产实现**：`knowledge_tag` 模块未翻译 → `NoAutoTagProvider` 恒回 null，
+     等价于 Go 的 `autoTag == nil` 分支（同步照常、条目没有自动标签）。
+  4. **langfuse 追踪未接线**：`InjectTracing` 是 no-op（§9 阶段 4.0 差异 1）。
+  5. **进程内队列拿不到跨副本去重**：调度器的两层去重里，第 2 层（确定性 TaskID）
+     只在单 JVM 内有效——多副本会各自触发一次（与 memory/wiki 同族取舍）。
 - **JSON 编码器的系统性差分排查（本轮的专项）**：
   - **做法**（可复用）：读 Go `encoding/json` 的 encoder 源码定出**类别**（转义分支、
     浮点编码器、整数、容器），为每类构造语料，用独立 Go 程序录出真值，再拿**容器里那个

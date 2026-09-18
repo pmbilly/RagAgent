@@ -19,6 +19,19 @@ import com.ragagent.agent.domain.ToolCallTarget;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.apikey.domain.TenantAPIKeyCreateResponse;
+import com.ragagent.datasource.domain.DataSource;
+import com.ragagent.datasource.domain.DataSourceConfig;
+import com.ragagent.datasource.domain.DataSourceConstants;
+import com.ragagent.datasource.domain.DataSourceSyncPayload;
+import com.ragagent.datasource.domain.Resource;
+import com.ragagent.datasource.domain.SyncCursor;
+import com.ragagent.datasource.domain.SyncItemError;
+import com.ragagent.datasource.domain.SyncLog;
+import com.ragagent.datasource.domain.SyncResult;
+import com.ragagent.datasource.domain.TaskInitiator;
+import com.ragagent.datasource.dto.CredentialFieldMetadata;
+import com.ragagent.datasource.dto.CredentialsResponse;
+import com.ragagent.datasource.dto.DataSourceResponse;
 import com.ragagent.apikey.domain.TenantAPIKeyResponse;
 import com.ragagent.knowledge.domain.KbAsrConfig;
 import com.ragagent.knowledge.domain.KbChunkingConfig;
@@ -796,6 +809,135 @@ class JsonContractRoundTripTest {
         ctx.setLangfuseTraceparent("00-abc-def-01");
         assertRoundTrips(ctx, MessageExecutionContext.class,
                 "types.MessageExecutionContext ← MessageExecutionContext（execution_context 列）");
+    }
+
+    /**
+     * 数据源模块的契约往返（{@code datasource/domain} + {@code datasource/dto}）。
+     *
+     * <p>三类东西必须能往返，理由各不相同：</p>
+     * <ol>
+     *   <li><b>落 jsonb 的</b>：{@code DataSource.config} / {@code last_sync_cursor} /
+     *       {@code last_sync_result} 是"原样透传"的列，经 {@code PgJsonTypeHandler}
+     *       读写——键名漏蛇形或漏 {@code @JsonIgnore} 会让整列读不回来
+     *       （§7.5 第 2、3 条，复发率最高的一条）；</li>
+     *   <li><b>作响应体的</b>：{@code SyncLog} / {@code Resource} /
+     *       {@code DataSourceResponse} 都是裸实体出参，多一个键就是线上多发一个键；</li>
+     *   <li><b>领域对象的派生访问器</b>：{@code DataSourceConfig.isMultimodalEnabled()}
+     *       在 Go 里是 {@code json:"-"} 的运行期字段（不落库、不进响应），漏标会让
+     *       {@code config} 列多出一个 {@code multimodalEnabled}，回读时因未知属性直接炸
+     *       ——本断言就是那道防线。</li>
+     * </ol>
+     */
+    @Test
+    void dataSourceContractsRoundTrip() {
+        // ── 落 jsonb 的配置 ──────────────────────────────────────────────
+        DataSourceConfig cfg = new DataSourceConfig();
+        cfg.setType(DataSourceConstants.CONNECTOR_TYPE_RSS);
+        cfg.setResourceIds(List.of("r1", "r2"));
+        cfg.setSettings(new java.util.LinkedHashMap<>(Map.of("feed_urls", "http://f")));
+        cfg.setCredentials(new java.util.LinkedHashMap<>(Map.of("auth_headers", "X-Token: t")));
+        cfg.setMultimodalEnabled(true); // json:"-"（本行是它的防线）
+        assertRoundTrips(cfg, DataSourceConfig.class,
+                "types.DataSourceConfig ← DataSourceConfig（multimodal_enabled 不出现）");
+
+        assertRoundTrips(new DataSourceConfig(), DataSourceConfig.class,
+                "types.DataSourceConfig ← DataSourceConfig（全空：四个键恒输出）");
+
+        // ── 同步游标与结果（同样落 jsonb） ────────────────────────────────
+        SyncCursor cursor = new SyncCursor();
+        cursor.setLastSyncTime(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        cursor.setConnectorCursor(new java.util.LinkedHashMap<>(Map.of("page", "2", "hash", "abc")));
+        cursor.setLastSchemaHash("h1");
+        assertRoundTrips(cursor, SyncCursor.class, "types.SyncCursor ← SyncCursor");
+
+        SyncItemError itemError = new SyncItemError();
+        itemError.setTitle("doc");
+        itemError.setCode("FEISHU_TOKEN_EXPIRED");
+        itemError.setParams(Map.of("code", "99991663"));
+        itemError.setMessage("token expired");
+
+        SyncResult result = new SyncResult();
+        result.setTotal(3);
+        result.setCreated(1);
+        result.setUpdated(1);
+        result.setDeleted(1);
+        result.setSkipped(1);
+        result.setFailed(2);
+        result.setDeletionFailed(1);
+        result.setErrors(List.of(itemError));
+        result.setNextCursor(cursor);
+        assertRoundTrips(result, SyncResult.class, "types.SyncResult ← SyncResult");
+
+        assertRoundTrips(new SyncItemError(), SyncItemError.class,
+                "types.SyncItemError ← SyncItemError");
+
+        // ── 响应体 ──────────────────────────────────────────────────────
+        ObjectNode syncResultNode = MAPPER.createObjectNode();
+        syncResultNode.put("total", 2);
+        SyncLog syncLog = new SyncLog();
+        syncLog.setId("l1");
+        syncLog.setDataSourceId("d1");
+        syncLog.setTenantId(7L);
+        syncLog.setStatus(DataSourceConstants.SYNC_LOG_STATUS_SUCCESS);
+        syncLog.setStartedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        syncLog.setFinishedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        syncLog.setItemsTotal(2);
+        syncLog.setErrorMessage("");
+        syncLog.setResult(syncResultNode);
+        assertRoundTrips(syncLog, SyncLog.class, "types.SyncLog ← SyncLog（裸实体响应体）");
+        assertRoundTrips(new SyncLog(), SyncLog.class,
+                "types.SyncLog ← SyncLog（全空：一个 omitempty 都没有）");
+
+        Resource resource = new Resource();
+        resource.setExternalId("e1");
+        resource.setName("Stub Feed");
+        resource.setType("feed");
+        resource.setDescription("desc");
+        resource.setUrl("http://u");
+        resource.setModifiedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        resource.setParentId("");
+        resource.setHasChildren(false);
+        resource.setMetadata(new java.util.LinkedHashMap<>(Map.of("item_count", 2)));
+        assertRoundTrips(resource, Resource.class, "types.Resource ← Resource（裸数组响应体）");
+
+        // ── 任务载荷（进进程内队列，不落库也不出响应） ────────────────────
+        assertRoundTrips(new DataSourceSyncPayload(
+                        new TaskInitiator("u1", "admin"), "manual", "d1", 7L, "l1", false, 10),
+                DataSourceSyncPayload.class, "types.DataSourceSyncPayload ← DataSourceSyncPayload");
+        assertRoundTrips(new TaskInitiator("", ""), TaskInitiator.class, "types.TaskInitiator ← {}");
+
+        // ── HTTP 出参 DTO ───────────────────────────────────────────────
+        assertRoundTrips(CredentialsResponse.credentials(true), CredentialsResponse.class,
+                "dto.CredentialsResponse ← CredentialsResponse");
+        assertRoundTrips(new CredentialFieldMetadata(true), CredentialFieldMetadata.class,
+                "dto.CredentialFieldMetadata ← CredentialFieldMetadata");
+
+        DataSource entity = new DataSource();
+        entity.setId("d1");
+        entity.setTenantId(7L);
+        entity.setKnowledgeBaseId("kb1");
+        entity.setName("n");
+        entity.setType(DataSourceConstants.CONNECTOR_TYPE_RSS);
+        entity.setConfig(cfg.toJSON());
+        entity.setSyncSchedule("0 0 * * * *");
+        entity.setSyncMode(DataSourceConstants.SYNC_MODE_INCREMENTAL);
+        entity.setStatus(DataSourceConstants.DATA_SOURCE_STATUS_ACTIVE);
+        entity.setConflictStrategy(DataSourceConstants.CONFLICT_STRATEGY_OVERWRITE);
+        entity.setSyncDeletions(true);
+        entity.setLastSyncAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        entity.setErrorMessage("");
+        entity.setSyncLogRetentionDays(30);
+        entity.setCreatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        entity.setUpdatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        entity.setTotalItemsSynced(5L);
+        entity.setLatestSyncLog(syncLog);
+        assertRoundTrips(entity, DataSource.class, "types.DataSource ← DataSource（config 落库）");
+
+        // DTO 是**响应体**：config 的 credentials 按构造被剥离，只有"配没配"暴露
+        assertRoundTrips(DataSourceResponse.from(entity), DataSourceResponse.class,
+                "dto.DataSourceResponse ← DataSourceResponse（凭据剥离）");
+        assertRoundTrips(DataSourceResponse.from(new DataSource()), DataSourceResponse.class,
+                "dto.DataSourceResponse ← DataSourceResponse（全空实体）");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────

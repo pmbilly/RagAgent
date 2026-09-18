@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Stub Feed</title>
+    <link>http://127.0.0.1:18099/</link>
+    <description>A local stub feed for datasource contract tests</description>
+    <item>
+      <title>第一条</title>
+      <link>http://127.0.0.1:18099/articles/1</link>
+      <guid>stub-1</guid>
+      <pubDate>Mon, 01 Sep 2025 00:00:00 GMT</pubDate>
+      <description>hello from the stub feed</description>
+    </item>
+    <item>
+      <title>second</title>
+      <link>http://127.0.0.1:18099/articles/2</link>
+      <guid>stub-2</guid>
+      <pubDate>Tue, 02 Sep 2025 00:00:00 GMT</pubDate>
+      <description>another one</description>
+    </item>
+  </channel>
+</rss>
