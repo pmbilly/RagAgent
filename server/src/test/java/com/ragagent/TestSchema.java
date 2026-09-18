@@ -319,6 +319,44 @@ public final class TestSchema {
                 "details VARCHAR NOT NULL DEFAULT '{}'," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
+        // sessions：**只建 Go struct 映射到的那些列**。迁移 000001 建的一批策略配置列
+        // （knowledge_base_id / max_rounds / enable_rewrite / … / summary_parameters）
+        // 在 Go 的 struct 里是注释掉的（types/session.go L110-125），GORM 不碰它们、
+        // 由 DB 默认值兜住；Java 实体同样不映射。这里也不建——建了反而会掩盖
+        // "Java 不该写这些列"这件事。真 PG 上那些列的 NOT NULL 由 DEFAULT 满足。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS sessions (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "title VARCHAR(255)," +
+                "description TEXT," +
+                "user_id VARCHAR(512)," +
+                "is_pinned BOOLEAN NOT NULL DEFAULT FALSE," +
+                "pinned_at TIMESTAMP WITH TIME ZONE," +
+                "agent_config VARCHAR," +
+                "sandbox_config_id VARCHAR(36)," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+
+        // im_channel_sessions：会话的来源/归属信息。IM 模块本身还没翻，
+        // 但 sessions 的两条查询要用到它（GetIMPlatform 的 JOIN、QueryPaged 的 LEFT JOIN），
+        // 所以先把表建出来。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS im_channel_sessions (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "platform VARCHAR(20) NOT NULL," +
+                "user_id VARCHAR(128) NOT NULL," +
+                "chat_id VARCHAR(128) NOT NULL DEFAULT ''," +
+                "session_id VARCHAR(36) NOT NULL," +
+                "tenant_id BIGINT NOT NULL," +
+                "agent_id VARCHAR(36) DEFAULT ''," +
+                "status VARCHAR(20) NOT NULL DEFAULT 'active'," +
+                "metadata VARCHAR DEFAULT '{}'," +
+                "im_channel_id VARCHAR(36) DEFAULT ''," +
+                "thread_id VARCHAR(128) NOT NULL DEFAULT ''," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+
         // mcp_metadata 的工具计数走 json_array_length（PG 方言）；
         // wiki 的"有目录优先"排序走 jsonb_array_length（PG 方言）。
         // H2 两个函数都没有，这里各注册一个同名 ALIAS 指向本类的 Java 实现，
@@ -373,5 +411,8 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM task_dead_letters");
         jdbc.execute("DELETE FROM tenant_api_keys");
         jdbc.execute("DELETE FROM audit_logs");
+        // im_channel_sessions 有指向 sessions 的外键，先删子表
+        jdbc.execute("DELETE FROM im_channel_sessions");
+        jdbc.execute("DELETE FROM sessions");
     }
 }

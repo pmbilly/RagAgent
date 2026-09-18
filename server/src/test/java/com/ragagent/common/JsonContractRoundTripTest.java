@@ -36,6 +36,9 @@ import com.ragagent.mcp.domain.McpStdioConfig;
 import com.ragagent.mcp.domain.McpTestResult;
 import com.ragagent.mcp.domain.McpTool;
 import com.ragagent.mcp.domain.McpToolApproval;
+import com.ragagent.session.domain.MentionedItem;
+import com.ragagent.session.domain.Session;
+import com.ragagent.session.domain.SessionLastRequestState;
 import com.ragagent.stream.LiveRunPayload;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.wiki.domain.WikiConfig;
@@ -451,6 +454,80 @@ class JsonContractRoundTripTest {
 
         assertRoundTrips(new LiveRunPayload("msg-1", "req-1"), LiveRunPayload.class,
                 "stream.liveRunPayload ← LiveRunPayload");
+    }
+
+    // ── 会话 / 消息（阶段 5） ──────────────────────────────────────────────
+
+    /**
+     * {@code types.Session} 与它落 jsonb 的两个伴生类型。
+     *
+     * <p>风险点：{@code last_request_state} 复用**遗留的 {@code agent_config} 列**，
+     * 且 {@code Session} 的响应形态是**裸 struct**（GET /sessions/{id} 直接把它塞进
+     * {@code data}）——所以键序是 Go struct 声明序，不是字母序。</p>
+     *
+     * <p>时间字段留空：本工具用的是**裸** ObjectMapper（未注册 JSR-310）。</p>
+     */
+    @Test
+    void sessionContractsRoundTrip() {
+        Session s = new Session();
+        s.setId("sess-1");
+        s.setTitle("标题");
+        s.setDescription("desc");
+        s.setTenantId(10002L);
+        s.setUserId("u-1");
+        s.setPinned(true);
+        s.setSandboxConfigId("sc-1");
+        s.setImPlatform("feishu");
+
+        SessionLastRequestState state = new SessionLastRequestState();
+        state.setAgentId("agent-1");
+        state.setAgentEnabled(true);
+        state.setModelId("model-1");
+        state.setKnowledgeBaseIds(List.of("kb-1"));
+        state.setKnowledgeIds(List.of("k-1"));
+        state.setTagIds(List.of("t-1"));
+        state.setMcpServiceIds(List.of("mcp-1"));
+        state.setSkillNames(List.of("skill-1"));
+        state.setMentionedItems(List.of(new MentionedItem()));
+        state.setLocalBrowserEnabled(true);
+        state.setWebSearchEnabled(true);
+        s.setLastRequestState(state);
+
+        assertRoundTrips(s, Session.class,
+                "types.Session ← Session（裸响应体 + 复用 agent_config 列的 last_request_state）");
+
+        // 全空也要能往返：omitempty 的字段被省略后仍须幂等
+        assertRoundTrips(new Session(), Session.class, "types.Session ← Session（全空）");
+    }
+
+    @Test
+    void sessionLastRequestStateRoundTripsAlone() {
+        // 它自己就是 agent_config 列的内容，单独钉一条
+        SessionLastRequestState state = new SessionLastRequestState();
+        state.setAgentId("agent-1");
+        state.setAgentEnabled(true);
+        assertRoundTrips(state, SessionLastRequestState.class,
+                "types.SessionLastRequestState ← SessionLastRequestState（agent_config 列）");
+        assertRoundTrips(new SessionLastRequestState(), SessionLastRequestState.class,
+                "types.SessionLastRequestState ← SessionLastRequestState（全空）");
+    }
+
+    @Test
+    void mentionedItemRoundTrips() {
+        // 八个键**全部无 omitempty**：未用的字段要输出空串而不是省略
+        MentionedItem item = new MentionedItem();
+        item.setId("kb-1");
+        item.setName("产品手册");
+        item.setType("kb");
+        item.setKbType("document");
+        item.setKbId("kb-1");
+        item.setKbName("产品手册");
+        item.setServiceId("svc-1");
+        item.setSkillName("skill-1");
+        assertRoundTrips(item, MentionedItem.class, "types.MentionedItem ← MentionedItem");
+
+        assertRoundTrips(new MentionedItem(), MentionedItem.class,
+                "types.MentionedItem ← MentionedItem（全空——恒输出八个空串键）");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────

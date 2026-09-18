@@ -19,6 +19,10 @@ public final class TenantContext {
         public static final String API_TENANT = "api_tenant";
         public static final String API_PLATFORM = "api_platform";
         public static final String API_EXTERNAL_USER = "api_external_user";
+        /** 对照 Go {@code PrincipalIMUser}：IM 渠道用户（会话 owner 判定会回落到普通 user id）。 */
+        public static final String IM_USER = "im_user";
+        /** 对照 Go {@code PrincipalEmbedChannel}。 */
+        public static final String EMBED_CHANNEL = "embed_channel";
         public static final String EMBED_SESSION = "embed_session";
         public static final String EMBED_VISITOR = "embed_visitor";
 
