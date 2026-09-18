@@ -1,6 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 波 0 收官（memory + datasource） · **2944 测试全绿**（3 skipped）
+> 最后更新：2026-09-18 · 最新提交 `695efa0` · **2944 测试全绿** · Java 主代码 114,959 行 / 测试 61,618 行
+> **端点覆盖：Go 412 条 → Java 已注册 110 条（约 27%）**
 
 ## 0. 一句话背景
 
@@ -9,282 +10,106 @@
 而不是"代码看起来对"。
 
 - Java 仓：`/Users/billy/ragagent-java`（可写）
-- Go 仓：`/Users/billy/WeKnora`（**只读**对照，`~/.claude/CLAUDE.md` 要求改动后跑 `graphify update .`）
+- Go 仓：`/Users/billy/WeKnora`（**只读**对照，别改任何源文件；`scripts/go-server-up.sh` 会往
+  `bin/` 写构建产物，那是对的，但跑完记得 `rm -rf bin` 让 Go 仓保持干净）
 - 计划文件：`/Users/billy/.claude/plans/flickering-wishing-cat.md`
 
-## 1. 开工前必读（按顺序）
+## 1. 开工前必读（按顺序，不要跳）
 
 1. **`docs/translation-conventions.md`** —— 本项目最重要的资产。
    - §3 GORM 隐式行为清单
-   - §7.5 **派 agent 的标准约束**（十条，每条都对应踩过的坑）
+   - §4 错误与响应格式
+   - §7.5 **派 agent 的十条强制约束**（每条都对应踩过的坑）
    - §8 翻译日志（每完成一个模块**必须**追加一行）
-   - §9 已确认的契约细节 + 已知差异 + **工具链坑**（含最高频的几类错误）
-2. `docs/HANDOFF.md`（本文）—— 进度与下一步
+   - §9 **已确认的契约细节 + 已知差异 + 工具链坑 —— 动任何模块前逐条对照**，
+     里面的每一条都是真实踩过的
+2. `docs/HANDOFF.md`（本文）—— 进度、波次、下一步、协作方式
 3. 需要时再查源码：`server/src/main/java/com/ragagent/`
 
 ## 2. 进度总览
 
-| 阶段 | 模块 | 状态 | 提交 |
+### 2.1 已完成的模块
+
+| 阶段 | 模块 | 状态 | 关键验证 |
 |---|---|---|---|
 | 0 | 骨架（路由/错误体系/分页/TenantContext） | ✅ | — |
-| 1 | auth / 租户 | ✅ | `d0e85fd` |
-| 2 | 模型配置（含 SSRF / AES 凭证加密） | ✅ | `6f90b51` |
-| 3 | 知识库（KB CRUD + 文档上传→解析→chunk） | ✅ | `5048dd3` |
-| 4.0 | **LLM 调用客户端**（`models/chat` + `provider` + `limiter`） | ✅ | `11a8ae9` |
-| 4.1 | MCP 服务管理（自研协议客户端 + OAuth 全链） | ✅ | `c645502` |
-| 4.2 | Wiki（21 端点 + 完整生成管线） | ✅ | `a0efb66` |
-| — | 机制建设（往返测试 + 脚本 + agent 约束模板） | ✅ | `fc13321` |
-| — | API Key 体系回补（含数据面收口） | ✅ | `4d38d75` |
-| — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
-| 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
-| 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
-| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | ✅ `continue-stream` 完成（4/4 步） | — |
-| **A** | **波 0**：memory ✅ / **datasource ✅ 模块完整收官** | **memory 4/4 步**（实体+仓储 → settings domain → service 层 → **HTTP 层 16 端点**）；**datasource 4/4 步**（类型+仓储 → 连接器层 → **service 层** → **HTTP 层 17 端点 + 路由装配**）——**波 0 做完** | — |
-| **B** | **波 1-2**：未被 agent 阻塞的端点群（约 200 条路由） | ⏳ | — |
-| **C** | **波 3**：agent 前置（sandbox / infrastructure / browserskill / modelcontext） | ⏳ | — |
-| **D** | **波 4**：agent 核心 + agent/tools（咽喉） | ⏳ | — |
-| **E** | **波 5**：chat_pipeline / im / skill / shared-agent 收口 | ⏳ | — |
+| 1 | auth / 租户 | ✅ | 10 条 golden + e2e |
+| 2 | 模型配置（SSRF / AES 凭证加密） | ✅ | 9 条 golden + 加密互操作 e2e |
+| 3 | 知识库（KB CRUD + 文档→解析→chunk） | ✅ | 20 条 golden + e2e 连真 PG |
+| 4.0 | LLM 调用客户端 | ✅ | 368 测试 |
+| 4.1 | MCP 服务管理（自研协议 + OAuth 全链） | ✅ | 17 条 golden + 跨语言互操作 |
+| 4.2 | Wiki（21 端点 + 生成管线） | ✅ | 13 条 golden + 5 端点 A/B MATCH |
+| — | API Key 体系回补 | ✅ | 25 能力 + 数据面白名单收口 |
+| — | audit 审计回补 | ✅ | 埋点接线 |
+| 5.0 | `stream/` 流管理器 | ✅ | 35 测试（含真 redis） |
+| 5.1 | 会话/消息 domain + 仓储 | ✅ | — |
+| 5.2 | **`continue-stream` 端点 + SSE 契约层 + storageurl** | ✅ | **四条路径 A/B 逐字节 MATCH**（见 §9.3） |
+| — | JSON 编码器全局对齐 + 系统性差分排查 | ✅ | 见 §9.2 |
+| **波 0** | **`memory`（16 条路由）** | ✅ | 22 golden + **真 PG A/B 36 组 35 MATCH** |
+| **波 0** | **`datasource`（17 条路由）** | ✅ | 39 golden + **真 PG A/B 39 组全 MATCH** |
 
-> ⚠️ **2026-09-18 重排**：原「阶段 6 embed → 7 agent → 8 联调」的顺序已废弃，理由见 §9
-> 「剩余工作的依赖结构（2026-09-18 实测重排）」。**embed(28 条) 移到波 4 之后**——
-> 它和 `routes_chat.go` 的其余部分一样堵在 agent/tools 上，提前做只能打桩。
+### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
-**波次总览**（2026-09-18 实测重排，见 §9 的依赖分析）：
-
-| 波 | 内容 | 规模 | 解锁 |
+| 波 | 内容 | 规模 | 状态 |
 |---|---|---|---|
-| 0 | ✅ **已完成**：`memory`(4.8k) · `datasource`(10.8k) | ~15.6k | 33 条路由，**零未翻译前置** |
-| 1 | 会话/消息面剩余（CRUD/附件/产物/追问建议/消息历史） | ~25 条路由 | 阶段 5.2 的自然延续 |
-| 2 | 其余未被阻塞的端点群（admin/tenant/faq/chunk/vectorstore/…） | ~140 条路由 | — |
-| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | agent 的硬前置；sandbox 另解锁系统管理端+skill |
-| 4 | **agent 核心**（engine/think/act/observe/finalize）+ `agent/tools` | ~25k | `routes_agent.go`(88) + `routes_chat.go` 剩余 + embed(28) |
-| 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | — |
+| 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
+| **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史） | ~25 条 | ⏳ **下一步** |
+| 2 | 其余未被 agent 阻塞的端点群（admin/tenant/faq/chunk/vectorstore/storagebackend/邀约/…） | ~140 条 | ⏳ |
+| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ |
+| 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
+| 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
 
-**关键判断**：335 条待做路由里 **约 60% 现在就能做，不用等 agent 引擎**。
-`continue-stream` 之外的 chat/agent 端点才真正堵在波 4。
+**为什么这么排（实测结论，别再照搬旧计划）**：
 
-### 2.1 波 0（datasource）交接要点 —— **模块收官**
+- **335 条待做路由里约 60% 现在就能做，不用等 agent 引擎。** 两条实测推翻了原前提：
+  ① `agent/approval` **阶段 4.1 就翻译完了**——按**包名**做闭包判断会把 `mcp_service.go`(11)
+  + `mcp_oauth.go`(6) 这 17 条误判成"被 agent 阻塞"；
+  ② `session.go` 里的 `chat_pipeline` **只是个没被用到的字段**（全仓只有两处真正调
+  `eventManager`，都在 `session_knowledge_qa.go`），所以 ~25 条会话路由**不**被阻塞。
+  **教训：判依赖要看调用点，不要看包名闭包。**
+- **agent 不是一块巨石，是三件平行的事**：`chat_pipeline` 与 `agent` 之间只有 1 处引用。
+  真正的关键路径是 `sandbox → agent 核心 → agent/tools → {im, skill, chat_pipeline}`。
+- **`embed`(28 条) 已从"阶段 6"移到波 4 之后**——它同样堵在 `agent/tools` 上。
+- 五个真叶子（零未翻译前置）：`datasource` ✅、`memory` ✅、`sandbox`、`browserskill`、`infrastructure`。
+  **`sandbox` 是最紧的前置**（`agent/skills` 硬依赖它，另解锁系统管理端与 skill）。
 
-已交付 `com.ragagent.datasource.{service,controller,dto}` + 路由/策略装配：
+## 3. 下一步：波 1（会话 / 消息面剩余）
 
-| 文件 | 内容 |
-|---|---|
-| `service/DataSourceService` | 17 条路由的全部业务语义 + **实现了 `DataSourceSyncHandler`**（`ProcessSync` 的批量路径与流式路径、`applyFetchedItem` 的条木分类、`updateSyncRunResult` 的状态机） |
-| `service/KnowledgeBridge` + `MapperKnowledgeBridge` | **知识库写入的端口**：同步跑在后台线程上、没有 `TenantContext`，所以租户必须显式传（Go 是往 ctx 里塞）。**已知差异：最小闭环**，见下 |
-| `service/AutoTagProvider` + `NoAutoTagProvider` | 自动标签端口（`knowledge_tag` 模块未翻译 → 恒回 null，等价 Go 的 `autoTag == nil`） |
-| `service/DataSourceWiring` | 9 个连接器实例的登记（照抄 `container.initConnectorRegistry`）+ `Scheduler` + 启动/停止生命周期 |
-| `controller/DataSourceController` + `DataSourceCredentialsController` | 14 + 2 条路由；**两个文件的错误形态不同**（纯字符串 vs AppError 信封），照抄 Go |
-| `dto/{DataSourceResponse,DataSourceConfigDto,CredentialsResponse,CredentialFieldMetadata}` | 出参；`credentials` 按构造剥离 |
-| `config/WebConfig` + `apikey.filter.APIKeyRoutePolicies` | 17 条路由的角色规则 + `manageDataSources(fullAccess())` 策略 |
+### 3.1 做什么
 
-测试：88 条（50 service + 38 契约，golden 全部 Go 实录）。
-**真 PG 上 39 组 A/B 全 MATCH**（`scripts/ab-datasource.sh`），含**双向跨语言互读**与
-**一次真实 RSS 同步的终态计数**（`status=success total=2 created=2 failed=0` 两侧相同）。
+`routes_chat.go`(38) 里 **`continue-stream` 已完成**，剩约 25 条：
+session CRUD(8) + 临时文档(5) + 产物(4) + 追问建议(3) + 消息(4) + `generate_title` + 等。
+**全部不被 agent 引擎阻塞。**
 
-**已知差异**（详见 §9「波 0（datasource service + HTTP 层）已知差异」）：
-知识库写入是"最小闭环"（不如 Go 全）；自动标签无实现；asynq 的 retry-count/task-id 拿不到；
-进程内队列跨副本不去重；langfuse 未接线。
+⚠️ 例外：`POST /sessions/:id/knowledge-chat`、`POST /sessions/:id/agent-chat`、
+`POST /knowledge-search` 这三条要等**波 4**（它们真的走 agent 引擎）。
 
-**动它之前先读 §9 那两段**——尤其 `Long != Long` 的引用比较与 GORM 把 `updated_at`
-回写内存对象这两条，它们都是**只在真请求下才暴露**的。
+### 3.2 已经就位的组件（直接用，别重造）
 
-**下一步**：波 1（会话/消息面剩余 ~25 条路由）或波 2（其余未被 agent 阻塞的端点群）。
-datasource 的 `routes_infra.go` 邻居（sandbox-configs / evaluation / initialization /
-web-search-providers / vector-stores / storage-backends / channels）仍待各自模块落地。
+- `com.ragagent.session.domain` + `mapper`：`Session` / `Message` / 五个 jsonb List 处理器 /
+  `SessionRepository` / `MessageRepository` / `MessageSuggestionRepository`
+- `com.ragagent.session.service`：`SessionService`（`getSession` / `getOwnedSession` /
+  `getSessionById` + `loadSessionForRead` 的可见性判定）/ `MessageService`
+- `com.ragagent.session.sse`：`SseContract` / `SseFrameWriter` / `StreamEventEmitter` /
+  `StreamResponseBuilder`（SSE 的整条线，已 A/B 验过）
+- `com.ragagent.storageurl`：引用重写 + 扣留缓冲（已 A/B 验过）
+- `com.ragagent.stream`：流管理器
 
-## 3. 下一步：阶段 5（会话 / SSE）
-
-### 3.1 拆解（含依赖判断）
-
-**已落地**：
-- `stream/` 流管理器（1032 行）→ `com.ragagent.stream`（§3.4）
-- 会话/消息/追问建议的 domain + 仓储 → `com.ragagent.session.{domain,mapper}`（§3.5）
-- **仓储层对 `continue-stream` 已经够用**，三条 JOIN 检索查询（搜索端点用，不在该路径上）留到做搜索时补
-
-**可独立做（不依赖 agent 引擎）** —— 建议接着做这批：
-
-| 文件 | 行数 | 内容 |
-|---|---|---|
-| `application/service/session.go` | 993 | 会话 CRUD、标题生成 |
-| `application/service/message.go` | 978 | 消息 CRUD |
-| `application/service/message_suggestion.go` | 962 | 追问建议 |
-| `application/service/session_qa_helpers.go` | 345 | QA 辅助 |
-| `application/service/session_attachment_staging.go` | 295 | 附件暂存 |
-| `handler/session/*` + `handler/message*.go` | ~12k（含测试） | HTTP 层 |
-
-**强依赖阶段 7（agent 引擎）** —— 建议后移或先打桩：
-
-| 文件 | 行数 | 依赖 |
-|---|---|---|
-| `application/service/session_knowledge_qa.go` | 1290 | `internal/agent/tools` + `chat_pipeline` |
-| `application/service/session_agent_qa.go` | 647 | agent 引擎 |
-| `application/service/session_sandbox_pin.go` | 214 | sandbox（已后置） |
-
-### 3.2 已就位的可复用组件
-
-- **`com.ragagent.llm`**：`LlmChatClient` / `LlmChatClients.create(config, ollamaService, governor)`，
-  返回 `ChatResponse` 与 `BlockingQueue<StreamResponse>`；`ResponseType` 枚举已含全部 22 个值
-  （`ANSWER`/`THINKING`/`TOOL_CALL`/`SESSION_TITLE`/`STEER` …），阶段 5 直接产出即可
-- **`StreamResponse` / `TokenUsage`**（`llm.domain`）：SSE 事件体与用量契约已定义
-- `com.ragagent.auth` 的 `TenantContext`、`com.ragagent.apikey` 的 `APIKeyScopeContext`
-- `com.ragagent.mcp` 的 `Gate`（审批门，含 `OAuthPendingRequest`）
-- 测试基座：`TestSchema`（H2 共享 DDL）、`JsonRoundTrip`（契约往返体检）
-
-### 3.3 开工建议
-
-1. ~~先读 `stream/` 三个文件——**SSE 管理器是 agent 引擎的前置**，优先落地~~ ✅ 已完成
-2. 摸底 agent 只读，产出一份与 `docs/translation-conventions.md` 风格一致的报告
-3. 按 §7.5 约束派 agent（**单 agent 串行优先**，见下方"并发踩坑"）
-4. 验收走 §4 的完整流程
-
-### 3.4 阶段 5.0（stream 管理器）交接要点
-
-- 已交付 `com.ragagent.stream`：`StreamManager` 接口 + `MemoryStreamManager` / `RedisStreamManager`
-  两个实现，`StreamManagerConfig` 按 `STREAM_MANAGER_TYPE` 选型（精确匹配 `"redis"`，
-  其余走内存；选 redis 时**启动即 Ping**，连不上就起不来——与 Go 一致，已实测）。
-- **它是跨语言共用的 Redis 存储契约**，JSON 逐字节对齐 Go（HTML 转义 / 小写十六进制 /
-  map 排序）——细节与踩坑见 §9「阶段 5（stream 流管理器）新确认的细节」，**动它之前先读那一段**。
-- 测试：35 条（`com.ragagent.stream.*`，其中 15 条跑在**真 redis-server** 上；
-  本机 PATH 上没有 `redis-server` 时整类 skip）。
-- **还没接进任何 HTTP 端点**——消费方是 `handler/session/stream.go`，见 §3.5。
-
-### 3.5 阶段 5.1 交接要点（会话/消息 domain + 仓储）
-
-已交付 `com.ragagent.session.{domain,mapper}`：
-
-- `Session` / `SessionListItem` / `SessionListQuery` + `SessionRepository`（含 `QueryPaged` 的
-  六种来源桶、方言分叉 `ILIKE`/`NULLS LAST`）
-- `Message` + 六个 jsonb 子类型 + `MessageRepository`
-- `MessageSuggestionSet` / `MessageSuggestionEvent` + `MessageSuggestionRepository`
-  （`AcquireGeneration` 的四条分支：唯一键抢占 → 复用 ready/suppressed → 让位未过期租约 → 抢过期租约）
-- 五个 `List<T>` 型 jsonb 列的处理器（`AbstractJsonListTypeHandler` 基类 + 三行子类）
-
-**尚未包含**（不在 `continue-stream` 路径上，做搜索端点时一并补）：
-`SearchMessagesByKeyword` / `GetMessagesByKnowledgeIDs` / `GetMessagesByRequestIDs`
-（都要 JOIN sessions + `MessageWithSession`）与 `ListMessagesBySessionAfterCursor`
-（依赖 memory 模块的 `MessageMessageCursor`），以及搜索响应类型
-（`MessageSearchGroupItem` / `MessageSearchResult`）。
-
-**动这块之前先读 §9「阶段 5（session/message）新确认的细节与坑」**——尤其
-`Updates(结构体)` 的零值跳过、wrapper `.set()` 不套 typeHandler、`List<T>` 泛型擦除这三条。
-
-### 3.6 下一轮：`continue-stream` 端点（**已侦察，比预想的大**）
-
-上一轮把 `handler/session/stream.go` 的依赖面查清了：它**不是"两个 service 调用"**，
-还要下面三层。建议按这个顺序做，前三步各自可独立验证，第 4 步才需要它们合起来。
-
-| 步 | 内容 | 规模 | 为什么这个顺序 |
-|---|---|---|---|
-| 1 | ✅ **已完成** — SSE 契约层：`setSSEHeaders` / **`buildStreamResponse`** / `sendCompletionEvent` / `searchResultFromMap`（Go `helpers.go` L182-249）+ `types.SearchResult` | ~100 行 | 见下方「步 1 交付说明」 |
-| 2 | ✅ **已完成** — **`storageurl` 包**（`mode` / `storageurl` / `stream` / `resolver` / `request` 的重写部分） | 实为 846 行（原估 203 行只算了 `stream.go`） | 见下方「步 2 交付说明」 |
-| 3 | ✅ **已完成** — service 最小读路径 + **`AgentSteps` 类型收紧** | — | 见下方「步 3 交付说明」 |
-| 4 | ✅ **已完成** — `ContinueStream` 控制器 + 路由 + SSE 帧 | ~200 行 | 见下方「步 4 交付说明」 |
-
-**步 1 交付说明（已完成）**：
-
-| 文件 | 内容 |
-|---|---|
-| `common/web/GoDoubleSerializer` | `float64` 按 Go 专用编码器输出（整数值不补 `.0`、指数写法、次正规数最短表示） |
-| `common/web/GoMapSerializer` | map 键序**递归**对齐 Go（含 `data.arguments` 这类模型返回的嵌套 map） |
-| `retrieval/domain/SearchResult` | Go `types.SearchResult`；两个 `json:"-"` 内部字段走 `@JsonIgnore` |
-| `session/sse/SseContract` | 四个 SSE 头（覆盖语义）+ 空实现的 `sendCompletionEvent` |
-| `session/sse/StreamResponseBuilder` | `buildStreamResponse` + `searchResultFromMap`；**类注释里就是 §6 要求的 emit 表** |
-
-测试 41 条（`GoDoubleSerializerTest` 28 + `StreamResponseBuilderTest` 12 + 往返 1），
-**期望值全部是 Go 实录**：把 helpers.go 的三个函数连同 `types.SearchResult`/`types.JSON`
-原样抄进一个独立 Go 程序跑 `json.Marshal`，输出抄进断言。
-这条「抄源码 + 真 Go 运行时序列化」的做法在本轮抓到两个只看代码看不出的坑
-（`types.JSON` 漏 `MarshalJSON` 会退化成 base64；Java `Double.toString` 在次正规数上更长），
-**后续凡涉及"字节级对齐"的模块建议沿用**。
-
-**步 2 交付说明（已完成）**：
-
-⚠️ **原估偏小**：步 2 写的「`StreamRewriter`，203 行」只是 `stream.go` 一个文件。
-`StreamRewriter` 依赖 `Rewriter`，后者依赖 `Resolver`/`Mode`，一路拖出整个 `storageurl` 包
-（846 行）；而 `resolver.go` 又要一套**完全不存在的**多 provider 文件服务层
-（`internal/application/service/file/*`，20+ 文件 + 各家云 SDK）。
-**处理方式是收窄成端口**，见下。
-
-| 文件 | 内容 |
-|---|---|
-| `storageurl/Mode` + `StorageUrlContext` + 两个异常 | 模式解析/合并（查询值 vs 部署默认 vs 强制 handle）、KB 受限 Key 的 403 |
-| `storageurl/Rewriter` | `Pattern` 替换 + memo + `IsHTTPURL` + `forRequest` + `CopyReferences`/`CopyData` |
-| `storageurl/StreamRewriter` | 扣留缓冲：`findIncompleteRef` / `findIncompleteMarkdownImage` / `holdbackCutoff` / `push` / `flushAll` |
-| `storageurl/FileServiceResolver` + `FileService` / `StorageBackendResolver` 端口 | provider 解析与缓存；**端口暂无生产实现** |
-
-测试 49 条。除照搬 Go 的表驱动用例外，还加了一份**差分语料**（把 Go 的两个正则与三个函数
-抄进独立程序打印结果，期望值抄回断言）——它抓到并钉住了 `\v` 那条已知差异。
-
-**未接线（步 3 一起做）**：`RewriteMessages` / `RewriteMessagesResponse` / `rewriteAgentSteps`
-——它们要**有类型的** `AgentSteps`（Java 侧目前是 `List<Object>` 透传），且服务的是消息历史端点
-而非 SSE。SSE 要用的 `CopyReferences` / `CopyData` 已落地。
-
-**步 3 交付说明（已完成）**：
-
-| 文件 | 内容 |
-|---|---|
-| `agent/domain/{AgentStep,ToolCall,ToolCallTarget,ToolResult}` | `agent_steps` 列的组成类型（`ToolCall` 与 `llm.domain.ToolCall` 是**两个不同协议形状**的同名类型） |
-| `common/web/GoTimeSerializer` + `GoTimeDeserializer` | Go 的 `time.Time` 是值类型，零值输出 `"0001-01-01T00:00:00Z"` 而非 `null` |
-| `session/domain/{AgentStepListTypeHandler,SearchResultListTypeHandler}` | 泛型擦除会让元素退化成 map、键序变成 PG 规范化序 |
-| `storageurl.Rewriter.rewriteMessages*` | 步 2 遗留的三件套（`RewriteMessages` / `RewriteMessagesResponse` / `rewriteAgentSteps`） |
-| `session/service/{SessionService,MessageService,SessionLookupScope}` | 会话/消息最小读路径 + `loadSessionForRead` 的可见性判定 |
-
-测试 44 条（12 逐字节 + 18 类型/重写 + 14 授权判定）。
-**顺带修掉一个既有契约偏差**：`knowledge_references` / `agent_steps` 此前按
-`List<Object>` 透传，读回来元素是 `LinkedHashMap`、键序是 PG 的 jsonb 规范化序，
-而不是 Go 的 struct 声明序——它们在消息响应体里，是实打实的线上差异。
-
-**步 4 交付说明（已完成）——第一次真正的 SSE A/B 全绿**：
-
-| 文件 | 内容 |
-|---|---|
-| `session/controller/SessionStreamController` | `resource_urls` 前置解析、四种失败各自映射、offset 0 回放、已完成流不进轮询、100ms 轮询 |
-| `session/sse/SseFrameWriter` | 逐字节复刻 gin 的帧（`event:message\ndata:…\n\n`）+ Go 的 JSON 转义 |
-| `session/sse/StreamEventEmitter` | `resource_urls.go` 的 emit 点（含扣留冲发、`heldFragmentData`） |
-| `WebConfig` + `APIKeyRoutePolicies` | 路由 `/api/v1/sessions/continue-stream/*` → Viewer；API-Key 走 `chat(fullAccess())` |
-
-**A/B 结果（Go :8080 vs Java :8082，同一 dev PG + 同一 Redis 键空间）**：
-
-| 路径 | 结果 |
-|---|---|
-| 缺 `message_id` → 400 | ✅ 逐字节 |
-| 不存在的会话 → 404 `session not found` | ✅ 逐字节 |
-| 非法 `resource_urls` → 400 | ✅ 逐字节（含 Go `ParseMode` 的原文案） |
-| handle 模式回放 + complete（含 HTML 转义、`usage`） | ✅ 逐字节 |
-| public 模式：分片 id 不同 → 尾巴被 FlushAll 冲成独立事件 | ✅ 逐字节 |
-| public 模式：分片 id 相同 → 扣留后**重组** | ✅ 逐字节 |
-
-复现方式（不留残留数据）：造一条 `sessions`/`messages` 行（租户 10002，`user_id=''` 即可落在
-可见范围内），用 `redis-cli RPUSH 'stream::<sess>:<msg>' '<Go 格式的 StreamEvent JSON>'` 造流，
-两侧各打一发 `curl` 后 `diff`。**要共享 Redis 键空间，两个 server 都要带
-`STREAM_MANAGER_TYPE=redis REDIS_PREFIX=stream:`**（§9 里那条"e2e 脚本默认不带"的提醒）。
-
-已知差异（均已记进 §9）：客户端断开靠写失败检测而非 Go 的 ctx 取消（差异是延迟、有界）；
-响应头层面 Tomcat/CORS 的容器固有差异（status line、三个 `Vary`、`X-Request-ID` 大小写），
-**正文不受影响**。
-
-**第 4 步的几个要点（读 Go 时注意）**：
-
-- `resolveStreamRewriter` 必须在**写任何 SSE header 之前**解析——非法 `resource_urls`
-  要能落成普通 400 JSON，而不是"已经开始流了才发现参数错"。
-- 轮询是 **100ms ticker**；客户端断开靠 `c.Request.Context().Done()` →
-  Java 侧是 `SseEmitter.onCompletion/onTimeout`（§6 第 3、4 条）。
-- 三种 not-found 的**文案与状态码各不相同**，别统一：
-  会话不存在 → 404 + `err.Error()`；消息不存在（`gorm.ErrRecordNotFound`）→ 404 + `err.Error()`；
-  `message == nil` → **404 + `{"success":false,"error":"Incomplete message not found"}`**（手写信封）；
-  流里没有事件 → **404 + `{"success":false,"error":"No stream events found"}`**。
-- 已经 `complete` 的流要**先回放全部事件、再补一个完成事件**然后返回，不进轮询循环。
+**服务层的读路径要扩展**：`SessionService` 现在只有读方法，会话 CRUD（create/update/delete/
+list/pin/attachments/artifacts/title）要照 Go `application/service/session.go` 补。
+写路径**不加** Admin 回退（`getOwnedSession` 的语义，见 §2.2 那条）。
 
 ## 4. 标准验收流程（每个模块）
 
 ```bash
-# 0) 环境
-export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"   # 或直接用 scripts/ 里的脚本（已自动探测）
+# 0) 环境（换了 shell 一定要先设 JDK，否则 ./gradlew 报 "Unable to locate a Java Runtime"）
+export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
 cd /Users/billy/ragagent-java
 
 # 1) 起 Go server 录 golden（同时起 Java 做 A/B 对比）
-scripts/go-server-up.sh          # 内含 env 覆盖与 SSRF 白名单配置
-scripts/java-server-up.sh
+scripts/go-server-up.sh            # 注意：必须从 WeKnora 目录调！见 §5 第 11 条
+scripts/java-server-up.sh          # Java 默认 :8082，Go :8080
+# 要共享 Redis 键空间时两个都要带：STREAM_MANAGER_TYPE=redis REDIS_PREFIX=stream:
 
 # 2) 录 golden（务必用 curl -o，不要用 echo >，zsh 会解释转义）
 TOKEN=$(scripts/token.sh 8080)
@@ -292,43 +117,70 @@ curl -s -o server/src/test/resources/contracts/xxx.json \
   -X POST http://localhost:8080/api/v1/... -H "Authorization: Bearer $TOKEN" ...
 
 # 3) 写契约测试（掩码 UUID/时间戳后逐字节比对；中文用 content().bytes）
-# 4) 全量测试
-./gradlew test
+# 4) 定向测试 → 最后必须全量
+./gradlew :server:test --tests "com.ragagent.<你的包>.*"
+./gradlew test                     # ⚠️ 必须跑一次；约 3 分钟（测试堆已提到 2g）
 
-# 5) e2e：Java 连真 PG 跑通，并与 Go 做 A/B（掩码后应 MATCH）
+# 5) e2e / A/B：Java 连真 PG 跑通，并与 Go 逐字节对比
 # 6) 更新 docs/translation-conventions.md 的 §8（日志行）+ §9（新细节/差异）
 # 7) 提交（结尾带 Co-Authored-By: Claude <noreply@anthropic.com>）
 ```
+
+**环境**：dev PG `localhost:15432`（密码 `postgres123!@#`，库 `WeKnora`）、
+Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`；
+测试账号 `java-phase1*`（租户 10002）；**dev DB 含真实数据，只动测试租户**。
 
 ## 5. 陷阱清单（按复发率排序）
 
 > 完整版在 `docs/translation-conventions.md` §9。这里是最高频的几条。
 
-1. **领域对象的 `isXxx()` 派生方法必须 `@JsonIgnore`** —— 曾在阶段 3、4.1 各复发一次
-   （`Knowledge.isAborted`、`McpAuthConfig.isOAuth`），后者导致整个 jsonb 列读不回来。
-   **防线**：`JsonContractRoundTripTest` 里加一条 `assertRoundTrips(...)`，自动拦。
-2. **JSON 键名逐字段对照 Go 的 json tag** —— 蛇形忘了写 `@JsonProperty` 就接不住前端请求、
-   也读不出 Go 写的行。MCP/Wiki 里还有协议规定的驼峰（`inputSchema` / `mimeType`）。
-3. **Go 零值语义** —— string 默认 `""`、计数器用原始类型（否则插 NULL）、
-   `omitempty` 的 0/空/false 要省略、无 `omitempty` 的恒输出（含 `null`）。
+1. **领域对象的 `isXxx()` 派生方法必须 `@JsonIgnore`** —— 复发率最高，阶段 3、4.1、波 0 各踩过。
+   漏了会把多余的键写进 jsonb，回读抛 `UnrecognizedPropertyException` 让**整列不可用**。
+   **防线**：`JsonContractRoundTripTest` 里加 `assertRoundTrips(...)`。
+   ⚠️ **不要给字段取名 `isXxx`**（`private boolean isPinned` 会多吐一个键）——字段名去掉 `is` 前缀。
+2. **JSON 键名逐字段对照 Go 的 json tag** —— 蛇形漏 `@JsonProperty` 就接不住前端请求。
+   **map 响应字段必须挂 `GoMapSerializer`（或模块内子类）、double 字段必须挂 `GoDoubleSerializer`**
+   —— §9 有专门说明，这两类**全局解不了**，新增响应类型时逐个检查。
+3. **Go 零值语义** —— string 默认 `""`、计数器用原始类型、`omitempty` 的 0/空/false 要省略、
+   无 `omitempty` 的恒输出（含 `null`）。**三态 `*bool` 必须是可空 `Boolean`**，压成 `boolean`
+   等于替用户做决定。
 4. **带 `DEFAULT` 的 jsonb 列**：MyBatis-Plus 对 null 字段**省略该列** → 落到 DB 默认值，
-   而 Go 显式写 NULL。需要 `insertStrategy = FieldStrategy.ALWAYS`（阶段 4.2 踩过）。
+   而 Go 显式写 NULL。需要 `FieldStrategy.ALWAYS`（wiki 踩过）。
+   ⚠️ **反过来也成立**：列**没有** DEFAULT 时不要加 ALWAYS（datasource 的三个 jsonb 列就是）。
+   **逐个查迁移里有没有 DEFAULT，别一刀切。**
 5. **中间件分层会改变错误文案** —— 写契约测试前先确认拒绝发生在哪一层，
-   Go 的 handler 里常有**不可达的死代码**（阶段 4 的 audit 回补踩过）。
-6. **测试禁止依赖真实网络** —— 本机 DNS 可能把 `api.openai.com` 解析到 Teredo 段而被 SSRF 拒绝。
-7. **保存 curl 输出用 `-o`**，别用 `echo "$X" > f`（zsh 的 echo 会解释 `\n` 转义，golden 会坏）。
-8. **`MyBatisSystemException: null`** 的根因在 `Caused by:` 链深处，别在业务代码里瞎找。
-9. **H2 绿、PG 炸** —— NOT NULL 约束、jsonb 键序、DDL 默认值只在真 PG 上暴露。e2e 必须连真 PG。
+   Go 的 handler 里常有**不可达的死代码**。
+6. **`Long != Long` 是引用比较** —— 租户 id 10002 超出 `Long` 缓存区间（-128..127），
+   用 `!=` 比会让整组子资源 404，**只在真请求下暴露**（波 0 踩到）。比 `Long` 一律用 `equals` 或先拆箱。
+7. **自定义 `@Select` 的结果映射不套实体的 `@TableField(typeHandler=…)`** ——
+   要写**方法级** `@Results`，否则 jsonb 列静默读成 null（"库里有值、读出来是 null"）。
+8. **测试禁止依赖真实网络** —— 用 stub server（`com.sun.net.httpserver.HttpServer` 就够，
+   记得 `setExecutor(...)` 否则挂死）；SSRF 白名单要在 `@AfterAll` 还原。
+9. **不要写靠墙钟造时间的测试** —— 「1ms 窗口断言已过期」这类单跑绿、全量红（JIT/GC 下
+   两次调用落在同一毫秒）。要造"时间已过去"就直接改 DB 里的时间戳。
+10. **日志断言必须显式 `setLevel` 再还原** —— 级别过滤发生在 appender **之前**，
+    断言 INFO/DEBUG 的测试单跑绿、与 `@SpringBootTest` 同批跑就红。这是"单跑绿全量红"的另一变种。
+11. **起 Go server 的两个坑**（都实际踩过）：必须**从 WeKnora 目录**调用（viper 找
+    `config/config.yaml`），且 `DB_DRIVER/DB_USER/DB_PASSWORD/DB_NAME/REDIS_ADDR/REDIS_PASSWORD`
+    要显式导出（否则 panic `unsupported database driver:` 或 `连接Redis失败`）。
+12. **保存 curl 输出用 `-o`**，别用 `echo "$X" > f`（zsh 的 echo 会解释 `\n`，golden 会坏）。
+13. **`MyBatisSystemException: null`** 的根因在 `Caused by:` 链深处，别在业务代码里瞎找。
+14. **H2 绿、PG 炸** —— NOT NULL 约束、jsonb 键序、DDL 默认值只在真 PG 上暴露。e2e 必须连真 PG。
 
-## 6. 协作方式（这轮验证有效的）
+## 6. 协作方式（已验证有效）
 
-- **主会话做**：共享契约（domain 类型）、跨模块装配（`WebConfig` 路由/过滤器）、
-  golden 录制与 A/B 对比、真实缺陷的排查与修复、文档与提交
-- **agent 做**：单模块的机械翻译 + 对等测试（任务书必须带 §7.5 的十条约束）
-- **并发踩坑（重要）**：多个 agent 同时跑 `./gradlew test`（**全量**）会争抢 build 目录，
-  导致 OOM 与"假失败"重跑——阶段 4 因此浪费了至少两轮。
-  **现在的做法**：任务书里明确「只跑 `--tests "com.ragagent.<你的包>.*"`」，且**尽量串行**。
-- 派 agent 时**先说清单一：**「先读 `docs/translation-conventions.md` 的 §3/§9/§7.5」
+- **主会话做**：共享契约（domain 类型）、跨模块装配（`WebConfig` 路由/过滤器、
+  `APIKeyRoutePolicies`）、**`TestSchema` 的 DDL**、golden 录制 / A-B 对比、
+  真实缺陷的排查与修复、文档与提交
+- **agent 做**：单模块的机械翻译 + 对等测试。任务书必须带 §7.5 的十条约束
+- **⚠️ 最重要的一条：agent 报"全绿"之后，主会话必须自己跑一次全量 `./gradlew test` 复核。**
+  本轮就靠这个抓到 agent 自己写的一个墙钟不稳测试（单跑绿、全量红）。
+  **只跑自己的包会漏掉这类问题。**
+- **并发**：多个 agent 同时跑**全量** `./gradlew test` 会争抢 build 目录（OOM / 假失败）。
+  任务书里要明确「只跑 `--tests "com.ragagent.<你的包>.*"`」，且**尽量串行**。
+- **如果一个 agent 需要跨模块改动**（比如要动 `session` 包、`TestSchema`），
+  在它跑的期间**不要派别的 agent**，并在任务书里显式授权那几个文件。
+- 派 agent 时**第一句**永远是：「先读 `docs/translation-conventions.md` 的 §3/§7.5/§8/§9」
 
 ## 7. 关键文件索引
 
@@ -336,14 +188,65 @@ curl -s -o server/src/test/resources/contracts/xxx.json \
 |---|---|
 | 翻译约定（必读） | `docs/translation-conventions.md` |
 | 交接文档（本文） | `docs/HANDOFF.md` |
-| 契约 golden | `server/src/test/resources/contracts/` |
+| 契约 golden（142 个） | `server/src/test/resources/contracts/` |
 | H2 共享 DDL | `server/src/test/java/com/ragagent/TestSchema.java` |
 | JSON 往返体检 | `server/src/test/java/com/ragagent/common/JsonContractRoundTripTest.java` |
 | e2e 脚本 | `scripts/{dev-env,go-server-up,java-server-up,token}.sh` |
+| golden 录制 / A-B 范例 | `scripts/{record-datasource-golden,ab-datasource}.sh` |
 | 路由与过滤器装配 | `server/src/main/java/com/ragagent/config/WebConfig.java` |
+| Go 的响应格式锚点 | `com.ragagent.common.web.{GoJsonEscapes,GoMapSerializer,GoDoubleSerializer,GoTimeSerializer}` |
 
 ## 8. 如果遇到不确定的
 
-- **架构/范围决策**：问用户（这轮几次范围调整都是用户定的：IM 后移、计划外模块后置、机制优先）
-- **Go 行为不确定**：**实测**——起 Go server 打一发，不要猜。这轮发现的真实缺陷
-  （403 两种形态、201 状态码、jsonb NULL 语义、PathTenantMatch 缺失）**全部**是实测出来的
+- **架构 / 范围 / 顺序决策**：问用户（这轮几次调整都是用户定的）
+- **Go 行为不确定**：**实测**——起 Go server 打一发，**不要猜**。
+  这轮发现的真实缺陷（403 两种形态、201 状态码、jsonb NULL 语义、`gorm` 的 `updated_at` 回写内存、
+  `Long != Long`）**全部**是实测出来的
+- **怀疑 Go 有 bug 时**：先实测再下结论。本轮有一次怀疑 GORM 的 AND/OR 优先级问题，
+  用 DryRun 打印实际 SQL 后发现**是我错了**（GORM 会自己包括号），差点"修好"成偏离 Go。
+
+## 9. 本轮（阶段 5.2 + 波 0）的经验总结 —— 新 agent 读这一节能少走弯路
+
+### 9.1 最值钱的方法：**录 Go 实录**
+
+不要靠读源码推断 Go 的行为。把 Go 的类型/函数**原样抄进一个独立 Go 程序**，
+跑出真值，再把输出抄进 Java 断言。这条方法抓到过：
+
+- `types.JSON` 漏抄 `MarshalJSON` 会退化成 base64（差点按错的行为写 Java）
+- Java 的 `Double.toString` 在次正规数上比 Go 长（`4.9E-324` vs `5e-324`）
+- Java 的 `$` **不等于** Go 的 `$`（Java 还匹配末尾换行符之前）——照抄会让流卡住
+- gin 的 SSE 帧是 `event:message\ndata:…\n\n`（冒号后**没有空格**）+ Go 的 HTML 转义
+- `scoreItems` 的分母口径、`selectResidentInterests` 会把 nil 条目也塞进 selected
+
+**Go 程序要放到 `/tmp` 或复制一份 Go 仓到 `/tmp`**（原仓只读）。
+需要调未导出函数时，用 `go test -overlay` 挂探针或复制整仓加同包测试文件。
+
+### 9.2 JSON 编码器的类差异（已全局对齐，但要知道有哪些）
+
+- **HTML 转义**（`< > &` → `<` 等）：**已全局装**在 `JacksonConfig`
+- **控制字符小写十六进制、短转义**：`GoJsonEscapes`（注意是**整表替换**，
+  `\b \t \n \f \r \" \\` 必须显式声明）
+- **U+2028 / U+2029**：**已知差异，刻意保留**（Jackson 的 `CharacterEscapes` 够不到非 ASCII）
+- **float64 格式**：**逐字段**，`GoDoubleSerializer`。**不要全局注册**——会污染发给 LLM provider 的请求体
+- **map 键序**：**逐字段**，`GoMapSerializer`。注意它**只排键序**，
+  map 里的 `Double` 值仍会被 Jackson 写成 `1.0`——值里可能有数字的字段要用模块内子类
+  （见 `datasource.domain.DataSourceMapSerializer`）
+
+### 9.3 SSE 线格式（A/B 已验，改动前先读）
+
+四条路径逐字节 MATCH：错误路径 ×3、handle 模式回放、public 模式扣留冲发、public 模式跨分片重组。
+
+- 帧：`event:message\ndata:<json>\n\n`；JSON 走 Go 的转义与 map 排序
+- **Content-Type 被 SSE 渲染器无条件覆盖**成 `text/event-stream;charset=utf-8`
+- 扣留键是 `类型 + NUL + 事件 id`：**同一流的增量分片共用一个 event id 才会重组**
+- 客户端断开：Java 用**写失败**检测（Go 用 ctx 取消）——差异是**延迟**（有界）而非错误
+
+### 9.4 一个模块的典型节奏（≈4 步，`memory` 与 `datasource` 都是这么走的）
+
+1. **契约类型**（domain：实体 + 5~10 个响应/配置类型）—— 主会话做
+2. **实体 + 仓储**（Mapper + Repository）—— 可派 agent，但 **`TestSchema` 由主会话加**
+3. **service 层** —— 派 agent
+4. **HTTP 层 + 路由**（Controller + `WebConfig` + `APIKeyRoutePolicies`）—— 派 agent
+
+每步一个提交；每步都要求 agent 附**一次全量 `./gradlew test`** 的结果；
+主会话再独立复核一次。一个模块大约 5 个提交 / 2000-6000 行 Java / 100-900 条测试。
