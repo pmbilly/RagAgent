@@ -241,6 +241,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | API Key 体系（横切回补） | internal/types/tenant_api_key.go；internal/middleware/api_key_gate.go；internal/application/{repository,service}/tenant_api_key.go；internal/handler/tenant.go 的 API Key 段 | com.ragagent.apikey.{domain,mapper,service,filter,controller} | ✅ | 25 条能力 + scope + 路由策略表；门禁拦截器接入 WebConfig（order -1，先于角色维度）；AuthFilter 通道 3 换真实鉴权；**数据面 KB 白名单已收口**（requireKb / getKnowledge）。120 新测试 |
 | audit 审计（横切回补） | internal/types/audit_log.go；internal/application/{service,repository}/audit_log*.go；internal/handler/audit_log.go | com.ragagent.audit.{domain,mapper,service,controller} | ✅ | 62 个 AuditAction；3 端点；**接上了既有埋点**：WikiActivityAudit 的 6 处 + RbacInterceptor 的拒绝审计（§9 阶段 1 差异 #8 的正式收口）。golden A/B 实测（空页 `[]` 非 null、1010 文案、request_path 存路由模板） |
 | stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
+| storageurl（阶段 5.2 步 2） | internal/storageurl/{mode,storageurl,stream,resolver,request}.go | com.ragagent.storageurl.{Mode,StorageUrlContext,ResourceModeException,PublicModeForbiddenException,Resolver,Rewriter,StreamRewriter,FileServiceResolver,FileService,StorageBackendResolver} | ✅ | 49 测试。**这是第一处跨 5 个 handler 的共享契约**（message/knowledgebase/session/embed/im 都 import 它）。扣留缓冲 + 模式解析全部按 Go 对等移植；差分语料见 §9。已知差异：provider 级文件服务未翻译 |
 | SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
@@ -507,6 +508,48 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - **遗留待办（步 3）**：`Message.knowledge_references` 仍是 `List<Object>` 透传。
     本步只把 `StreamResponse.knowledgeReferences` 收紧成 `List<SearchResult>`
     （聊天模块不产出该字段，改动零影响）；Message 那边涉及 jsonb 回读，等 `GetMessage` 一起做。
+- **阶段 5.2 步 2（storageurl 包）新确认的细节与坑**：
+  - **⚠️ Java 的 `$` 不是 Go 的 `$`**（本轮最值钱的一条）：Go 的 RE2 在没有 `(?m)` 时
+    `$` 只匹配**文本末尾**；Java 的 `$` **还匹配末尾换行符之前**。任何"尾部锚定"的正则
+    （`stream.go` 的两个都不完整引用检测）照抄 `$` 就会分叉：
+    `"text local://1/a.png\n"` 这种普通分片会被 Java 判成"尾部有不完整引用"而整段扣住，
+    Go 却照常发出。**改写为 `\z`**。（`\b` 则无需改：两边默认都是 ASCII 词边界。）
+  - **`\s` 两边也不同（保留差异）**：Go 的 RE2 `\s` 是 `[\t\n\f\r ]`（**不含** `\x0B`），
+    Java 默认 **含** `\x0B`。于是 `"text local://1/a.png\v"` 在 Go 里是一个完整 token、
+    在 Java 里于 `\v` 处截断。URL 里出现垂直制表符不可能，权衡后**保留差异并写进差分测试**，
+    而不是把正则改成显式字符类（那会让它离 Go 的写法更远、更易在维护时写错）。
+  - **`maxHeldBytes` / `maxIncompleteImageBytes` 是「字节」不是「字符」**：
+    Go 的 `string` 按 UTF-8 计长，Java 的 `String` 按 UTF-16。直接当字符数用，
+    中文尾巴的扣留上限会放宽 3 倍。故 `StreamRewriter` 自备 `utf8Length` /
+    `charIndexAtByteOffset`（后者等价于 Go 的 `runeStart`：把字节偏移**向下取整到字符边界**，
+    增补平面字符会落到它的高位代理上——正好是该 rune 的起点）。
+  - **⚠️ `copyValue` 的 `changed` 必须按值判，不能按引用判**：Go 的
+    `return out, out != typed` 对 `string` 是**值**比较；而 Java 的 `rewrite()` 每次都
+    `toString()` 出一个新对象。用 `converted != item` 判，每个没改动的字符串都算"改过"，
+    于是 `copyData` 永远返回副本——Go 那条"元数据没变就原样返回（免得每个 SSE 事件都复制一遍）"
+    的优化直接失效。修法：照抄 Go 的 `(值, changed)` 二元返回，字符串比 `equals`，
+    容器用**子层递归出的 changed**（不做深比较）。
+  - **`WithForcedHandleMode` → `StorageUrlContext`（ThreadLocal）**：Go 把标记塞进 ctx 随链透传，
+    Java 沿用与 `TenantContext` / `APIKeyScopeContext` 一致的 ThreadLocal。
+    **区别在于生命周期**：ctx 值随作用域自动失效，ThreadLocal 不会——
+    设置方必须在请求结束的 finally 里 `clear()`，漏清会污染同线程的下一个请求。
+  - **两种模式错误用异常继承表达**（对照 Go 的哨兵错误 + `errors.Is`）：
+    `ResourceModeException` → **400**、`PublicModeForbiddenException extends ResourceModeException`
+    → **403**。调用方 **catch 子类在前**。这与 §9"403 有两种形态"里
+    "守卫形态 vs handler 内 AppError 信封"是同一个区分点。
+  - **`NewRequestRewriter` → `Rewriter.forRequest(mode, tenant, defaultSvc, storageResolver)`**：
+    `ModeHandle` 得到的是**禁用**的 Rewriter（不解析任何东西、不写 access-grant 行）。
+  - **⚠️ 已知差异：provider 级文件服务未翻译**。Go 的 `BuildFileServiceForProvider` 第一步是
+    `filesvc.NewFileServiceFromStorageConfig`（local/minio/s3/cos/tos/oss/obs/ks3 的 SDK 客户端，
+    20+ 文件），Java 无对应物。故 `FileService` / `StorageBackendResolver` 做成
+    **只有方法的端口、暂无生产实现**，调用方传 `null`。
+    **可见行为与 Go 未配 `APP_EXTERNAL_URL` 的部署逐字节一致**（引用解析不出 http(s)
+    → 原样保留成 handle），只有日志措辞不同。真正的公网 URL 生成要等存储后端模块。
+  - **未接线（步 3 一起做）**：`RewriteMessages` / `RewriteMessagesResponse` / `rewriteAgentSteps`
+    未翻译——它们要**有类型的** `AgentSteps`（Java 侧目前是 `List<Object>` 透传），
+    且服务的是消息历史端点而非 SSE。`CopyReferences` / `CopyData`（SSE 要用的两个）已落地。
+  - `Mode.defaultMode()` 读 `System.getenv`，**Java 侧没测**（进程内改不了 env，项目至今
+    没有环境注入的测试缝）。`ParseMode` 已全覆盖，而 `defaultMode` 拿到非空值后就是调它。
 - **跨阶段通用坑（阶段 4 新增）**：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，

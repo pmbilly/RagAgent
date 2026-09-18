@@ -1,6 +1,6 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 最新提交 `5b66662` · 1556 测试全绿
+> 最后更新：2026-09-18 · 最新提交 `PENDING` · 1605 测试全绿
 
 ## 0. 一句话背景
 
@@ -38,7 +38,7 @@
 | — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
 | 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
 | 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
-| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | 🔶 拆解中 · **步 1/4 完成**（SSE 契约层） | — |
+| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | 🔶 拆解中 · **步 1-2/4 完成** | — |
 | 6 | embed 渠道 | ⏳ | — |
 | 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
 | 8 | 联调 | ⏳ | — |
@@ -133,7 +133,7 @@
 | 步 | 内容 | 规模 | 为什么这个顺序 |
 |---|---|---|---|
 | 1 | ✅ **已完成** — SSE 契约层：`setSSEHeaders` / **`buildStreamResponse`** / `sendCompletionEvent` / `searchResultFromMap`（Go `helpers.go` L182-249）+ `types.SearchResult` | ~100 行 | 见下方「步 1 交付说明」 |
-| 2 | **`storageurl.StreamRewriter`**（Go `internal/storageurl/stream.go`） | 203 行（自带 227 行测试） | 每个事件发出前都要过它；自带测试，最容易独立移植的一块 |
+| 2 | ✅ **已完成** — **`storageurl` 包**（`mode` / `storageurl` / `stream` / `resolver` / `request` 的重写部分） | 实为 846 行（原估 203 行只算了 `stream.go`） | 见下方「步 2 交付说明」 |
 | 3 | **service 最小读路径**：`GetSession` / `GetOwnedSession` / `GetMessage`（含 `loadSessionForRead` 的可见性判定） | 仓储已就绪 | 依赖已全部到位 |
 | 4 | **`ContinueStream` 控制器**（Go `stream.go` L29-204） | ~200 行 | 到这一步才有第一次真正的 SSE A/B |
 
@@ -153,6 +153,28 @@
 这条「抄源码 + 真 Go 运行时序列化」的做法在本轮抓到两个只看代码看不出的坑
 （`types.JSON` 漏 `MarshalJSON` 会退化成 base64；Java `Double.toString` 在次正规数上更长），
 **后续凡涉及"字节级对齐"的模块建议沿用**。
+
+**步 2 交付说明（已完成）**：
+
+⚠️ **原估偏小**：步 2 写的「`StreamRewriter`，203 行」只是 `stream.go` 一个文件。
+`StreamRewriter` 依赖 `Rewriter`，后者依赖 `Resolver`/`Mode`，一路拖出整个 `storageurl` 包
+（846 行）；而 `resolver.go` 又要一套**完全不存在的**多 provider 文件服务层
+（`internal/application/service/file/*`，20+ 文件 + 各家云 SDK）。
+**处理方式是收窄成端口**，见下。
+
+| 文件 | 内容 |
+|---|---|
+| `storageurl/Mode` + `StorageUrlContext` + 两个异常 | 模式解析/合并（查询值 vs 部署默认 vs 强制 handle）、KB 受限 Key 的 403 |
+| `storageurl/Rewriter` | `Pattern` 替换 + memo + `IsHTTPURL` + `forRequest` + `CopyReferences`/`CopyData` |
+| `storageurl/StreamRewriter` | 扣留缓冲：`findIncompleteRef` / `findIncompleteMarkdownImage` / `holdbackCutoff` / `push` / `flushAll` |
+| `storageurl/FileServiceResolver` + `FileService` / `StorageBackendResolver` 端口 | provider 解析与缓存；**端口暂无生产实现** |
+
+测试 49 条。除照搬 Go 的表驱动用例外，还加了一份**差分语料**（把 Go 的两个正则与三个函数
+抄进独立程序打印结果，期望值抄回断言）——它抓到并钉住了 `\v` 那条已知差异。
+
+**未接线（步 3 一起做）**：`RewriteMessages` / `RewriteMessagesResponse` / `rewriteAgentSteps`
+——它们要**有类型的** `AgentSteps`（Java 侧目前是 `List<Object>` 透传），且服务的是消息历史端点
+而非 SSE。SSE 要用的 `CopyReferences` / `CopyData` 已落地。
 
 **第 4 步的几个要点（读 Go 时注意）**：
 

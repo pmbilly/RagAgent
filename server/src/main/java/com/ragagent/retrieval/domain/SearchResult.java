@@ -241,6 +241,45 @@ public class SearchResult {
     public String getKnowledgeBaseId() { return knowledgeBaseId; }
     public void setKnowledgeBaseId(String v) { knowledgeBaseId = v == null ? "" : v; }
 
+    /**
+     * 浅拷贝（对照 Go 的 {@code rewritten := *ref}）。
+     *
+     * <p>{@code Rewriter.CopyReferences} 用它来"复制后再就地改写"，因为 SSE 的 references
+     * 载荷与流的重放缓冲、以及正在落库的助手消息**共享同一批 {@code *SearchResult} 指针**——
+     * 就地改写会把那两处一起弄坏。</p>
+     *
+     * <p>名字不是 {@code getXxx}/{@code isXxx}，Jackson 不会把它当属性——这正是要的。</p>
+     */
+    public SearchResult copy() {
+        SearchResult c = new SearchResult();
+        c.id = id;
+        c.content = content;
+        c.knowledgeId = knowledgeId;
+        c.chunkIndex = chunkIndex;
+        c.knowledgeTitle = knowledgeTitle;
+        c.startAt = startAt;
+        c.endAt = endAt;
+        c.seq = seq;
+        c.score = score;
+        c.matchType = matchType;
+        c.subChunkId = subChunkId;
+        c.metadata = metadata;
+        c.chunkType = chunkType;
+        c.parentChunkId = parentChunkId;
+        c.imageInfo = imageInfo;
+        c.knowledgeFilename = knowledgeFilename;
+        c.knowledgeSource = knowledgeSource;
+        c.knowledgeChannel = knowledgeChannel;
+        c.chunkMetadata = chunkMetadata;
+        c.matchedContent = matchedContent;
+        c.knowledgeDescription = knowledgeDescription;
+        c.knowledgeCustomMetadata = knowledgeCustomMetadata;
+        c.knowledgeBaseId = knowledgeBaseId;
+        c.contentRevision = contentRevision;
+        c.contentRewritten = contentRewritten;
+        return c;
+    }
+
     public int getContentRevision() { return contentRevision; }
     public void setContentRevision(int v) { contentRevision = v; }
 
