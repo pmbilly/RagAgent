@@ -13,6 +13,10 @@ import com.ragagent.apikey.domain.TenantAPIKey;
 import com.ragagent.audit.controller.AuditLogListResponse;
 import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
+import com.ragagent.agent.domain.AgentStep;
+import com.ragagent.agent.domain.ToolCall;
+import com.ragagent.agent.domain.ToolCallTarget;
+import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.apikey.domain.TenantAPIKeyCreateResponse;
 import com.ragagent.apikey.domain.TenantAPIKeyResponse;
@@ -370,6 +374,55 @@ class JsonContractRoundTripTest {
     }
 
     @Test
+    void agentStepTypesRoundTrip() {
+        // agent_steps 列的组成类型。三个派生访问器（getObservations / getExecutionName /
+        // getExecutionArgs）在 Go 里都是方法，漏 @JsonIgnore 会把整列写坏——往返断言是防线。
+        ToolCallTarget target = new ToolCallTarget();
+        target.setName("svc.tool");
+        target.setArgs(Map.of("k", "v"));
+        target.setServiceName("svc");
+        target.setToolName("tool");
+        assertRoundTrips(target, ToolCallTarget.class, "types.ToolCallTarget ← ToolCallTarget");
+
+        ToolResult result = new ToolResult();
+        result.setSuccess(true);
+        result.setOutput("out");
+        result.setData(Map.of("k", "v"));
+        result.setError("e");
+        result.setImages(List.of("i"));
+        assertRoundTrips(result, ToolResult.class, "types.ToolResult ← ToolResult");
+
+        ToolCall call = new ToolCall();
+        call.setTarget(target);
+        call.setId("call-1");
+        call.setName("search");
+        call.setArgs(Map.of("a", "1"));
+        call.setResult(result);
+        call.setReflection("ref");
+        call.setDuration(42);
+        call.setProviderMetadata(Map.of("gemini", MAPPER.createObjectNode().put("x", 1)));
+        assertRoundTrips(call, ToolCall.class, "types.ToolCall ← agent.domain.ToolCall");
+
+        AgentStep step = new AgentStep();
+        step.setIteration(1);
+        step.setThought("t");
+        step.setUserMessagesBefore(List.of("m1"));
+        step.setIntermediateAnswer(true);
+        step.setReasoningContent("rc");
+        step.setToolCalls(List.of(call));
+        // 时间必须显式给：Go 的零值时间会输出 year-1 字面量，而**裸 STRICT mapper
+        // 读不回它**——本类型的两个时间方法自带的序列化器能覆盖，但断言用真实值更稳。
+        step.setTimestamp(java.time.OffsetDateTime.now());
+        assertRoundTrips(step, AgentStep.class, "types.AgentStep ← AgentStep");
+    }
+
+    /** 零值时间也必须能往返（Go 的值类型语义，输出 year-1 字面量而非 null）。 */
+    @Test
+    void agentStepZeroTimeRoundTrips() {
+        assertRoundTrips(new AgentStep(), AgentStep.class, "types.AgentStep（零值）← AgentStep");
+    }
+
+    @Test
     void streamResponseRoundTrips() {
         // SSE 事件体：id/response_type/content/done 恒输出，其余 omitempty。
         // data 的键序由 GoMapSerializer 递归对齐 Go——往返必须幂等。
@@ -634,8 +687,12 @@ class JsonContractRoundTripTest {
         m.setRequestId("r1");
         m.setContent("hi");
         m.setRole(Message.ROLE_ASSISTANT);
-        m.setKnowledgeReferences(new java.util.ArrayList<>(List.of(Map.of("id", "k1"))));
-        m.setAgentSteps(new java.util.ArrayList<>(List.of(Map.of("iteration", 0))));
+        SearchResult mref = new SearchResult();
+        mref.setId("k1");
+        m.setKnowledgeReferences(new java.util.ArrayList<>(List.of(mref)));
+        AgentStep mstep = new AgentStep();
+        mstep.setIteration(0);
+        m.setAgentSteps(new java.util.ArrayList<>(List.of(mstep)));
         m.setMentionedItems(new java.util.ArrayList<>(List.of(new MentionedItem())));
         m.setImages(new java.util.ArrayList<>(List.of(new MessageImage())));
         m.setAttachments(new java.util.ArrayList<>(List.of(new MessageAttachment())));

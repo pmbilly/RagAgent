@@ -12,8 +12,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.ragagent.llm.domain.TokenUsage;
+import com.ragagent.retrieval.domain.SearchResult;
 
 /**
  * messages 表实体（对照 Go {@code types.Message}，internal/types/message.go L308-378）。
@@ -35,20 +37,19 @@ import com.ragagent.llm.domain.TokenUsage;
  *       指针 nil、切片 nil）。所以"把 content 改成空串"在这条路径上**不会生效**。
  *       这不是缺陷而是 Go 的既有行为，Java 侧必须照抄（见 {@code MessageRepository.update}）。</li>
  *   <li><b>默认排序</b>：各查询自带 {@code created_at ASC/DESC}（Go L54/L68/L94/L121/L134）。</li>
- *   <li><b>{@code knowledge_references} 等 jsonb 列</b>：走 {@code PgJsonTypeHandler}。</li>
+ *   <li><b>各 jsonb 列</b>：元素类型已知的走 {@code AbstractJsonListTypeHandler} 的
+ *       子类（泛型擦除会让元素退化成 map）；{@code usage} / {@code execution_context}
+ *       是单个对象，走 {@code PgJsonTypeHandler}。</li>
  * </ol>
  *
  * <h2>跨模块类型的处置</h2>
- * <p>三处依赖尚未翻译的模块，先按**不透明**类型透传（与 {@code StreamResponse.knowledgeReferences}
- * 的既有做法一致）：</p>
- * <ul>
- *   <li>{@code knowledge_references}：Go 是 {@code References = []*SearchResult}，
- *       属检索模块。仅需保证序列化时原样透传。</li>
- *   <li>{@code agent_steps}：Go 是 {@code AgentSteps = []AgentStep} → {@code ToolCall}，
- *       属 agent 引擎（阶段 7）。</li>
- *   <li>{@code execution_context}：字段本身是 {@code json:"-"}（不出响应），
- *       子结构见 {@link MessageExecutionContext}。</li>
- * </ul>
+ * <p>{@code knowledge_references} 与 {@code agent_steps} 原先按**不透明**的
+ * {@code List<Object>} 透传，阶段 5.2 步 3 起已收紧成有类型的列表
+ * （{@link com.ragagent.retrieval.domain.SearchResult} / {@link AgentStep}）——
+ * 二者都直接出现在消息响应体里，透传时读回来的元素是 {@code LinkedHashMap}，
+ * 键序变成 PG jsonb 的规范化序而非 Go 的 struct 声明序，**是实打实的契约偏差**。</p>
+ * <p>仍按不透明类型处理的一处：{@code execution_context} 的字段本身是 {@code json:"-"}，
+ * 不出响应，子结构见 {@link MessageExecutionContext}。</p>
  */
 @TableName(value = "messages", autoResultMap = true)
 @JsonPropertyOrder({
@@ -82,15 +83,15 @@ public class Message {
     private String role = "";
 
     /** 检索引用。**无 omitempty**（nil 会输出成 {@code null}）。跨模块类型见类注释。 */
-    @TableField(value = "knowledge_references", typeHandler = PgJsonTypeHandler.class)
+    @TableField(value = "knowledge_references", typeHandler = SearchResultListTypeHandler.class)
     @JsonProperty("knowledge_references")
-    private List<Object> knowledgeReferences = new ArrayList<>();
+    private List<SearchResult> knowledgeReferences = new ArrayList<>();
 
     /** agent 执行步骤。跨模块类型见类注释。 */
-    @TableField(value = "agent_steps", typeHandler = PgJsonTypeHandler.class)
+    @TableField(value = "agent_steps", typeHandler = AgentStepListTypeHandler.class)
     @JsonProperty("agent_steps")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<Object> agentSteps = new ArrayList<>();
+    private List<AgentStep> agentSteps = new ArrayList<>();
 
     /** 用户消息里 @ 到的知识库/文件等。 */
     @TableField(value = "mentioned_items", typeHandler = MentionedItemListTypeHandler.class)
@@ -265,19 +266,19 @@ public class Message {
         this.role = v == null ? "" : v;
     }
 
-    public List<Object> getKnowledgeReferences() {
+    public List<SearchResult> getKnowledgeReferences() {
         return knowledgeReferences;
     }
 
-    public void setKnowledgeReferences(List<Object> v) {
+    public void setKnowledgeReferences(List<SearchResult> v) {
         this.knowledgeReferences = v;
     }
 
-    public List<Object> getAgentSteps() {
+    public List<AgentStep> getAgentSteps() {
         return agentSteps;
     }
 
-    public void setAgentSteps(List<Object> v) {
+    public void setAgentSteps(List<AgentStep> v) {
         this.agentSteps = v;
     }
 

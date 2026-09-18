@@ -7,14 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.llm.domain.TokenUsage;
+import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.MentionedItem;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageArtifact;
@@ -101,12 +102,12 @@ class MessageJsonContractTest {
         m.setContent("hi");
         m.setRole(Message.ROLE_ASSISTANT);
 
-        Map<String, Object> ref = new LinkedHashMap<>();
-        ref.put("id", "k1");
+        SearchResult ref = new SearchResult();
+        ref.setId("k1");
         m.setKnowledgeReferences(new ArrayList<>(List.of(ref)));
 
-        Map<String, Object> step = new LinkedHashMap<>();
-        step.put("iteration", 0);
+        AgentStep step = new AgentStep();
+        step.setIteration(0);
         m.setAgentSteps(new ArrayList<>(List.of(step)));
 
         MentionedItem mi = new MentionedItem();
