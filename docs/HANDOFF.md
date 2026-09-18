@@ -1,6 +1,6 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 最新提交 `23d0859` · 1401 测试全绿
+> 最后更新：2026-09-18 · 最新提交 `a13e4df` · 1514 测试全绿
 
 ## 0. 一句话背景
 
@@ -36,8 +36,9 @@
 | — | 机制建设（往返测试 + 脚本 + agent 约束模板） | ✅ | `fc13321` |
 | — | API Key 体系回补（含数据面收口） | ✅ | `4d38d75` |
 | — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
-| 5.0 | **`stream/` 流管理器**（SESSION/SSE 的前置） | ✅ | 见 §8 日志 |
-| **5** | **会话 / SSE**（余下部分） | ⏳ **下一步** | — |
+| 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
+| 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
+| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | ⏳ **下一步** | — |
 | 6 | embed 渠道 | ⏳ | — |
 | 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
 | 8 | 联调 | ⏳ | — |
@@ -52,7 +53,10 @@
 
 ### 3.1 拆解（含依赖判断）
 
-**已落地**：`stream/` 流管理器（1032 行）→ `com.ragagent.stream`。
+**已落地**：
+- `stream/` 流管理器（1032 行）→ `com.ragagent.stream`（§3.4）
+- 会话/消息/追问建议的 domain + 仓储 → `com.ragagent.session.{domain,mapper}`（§3.5）
+- **仓储层对 `continue-stream` 已经够用**，三条 JOIN 检索查询（搜索端点用，不在该路径上）留到做搜索时补
 
 **可独立做（不依赖 agent 引擎）** —— 建议接着做这批：
 
@@ -98,9 +102,52 @@
 - **它是跨语言共用的 Redis 存储契约**，JSON 逐字节对齐 Go（HTML 转义 / 小写十六进制 /
   map 排序）——细节与踩坑见 §9「阶段 5（stream 流管理器）新确认的细节」，**动它之前先读那一段**。
 - 测试：35 条（`com.ragagent.stream.*`，其中 15 条跑在**真 redis-server** 上；
-  本机 PATH 上没有 `redis-server` 时整类 skip）。全量 1437 测试绿。
-- **还没接进任何 HTTP 端点**——消费方是 `handler/session/stream.go` 等，
-  随会话模块一起翻译。所以现在做不了 SSE 的 A/B。
+  本机 PATH 上没有 `redis-server` 时整类 skip）。
+- **还没接进任何 HTTP 端点**——消费方是 `handler/session/stream.go`，见 §3.5。
+
+### 3.5 阶段 5.1 交接要点（会话/消息 domain + 仓储）
+
+已交付 `com.ragagent.session.{domain,mapper}`：
+
+- `Session` / `SessionListItem` / `SessionListQuery` + `SessionRepository`（含 `QueryPaged` 的
+  六种来源桶、方言分叉 `ILIKE`/`NULLS LAST`）
+- `Message` + 六个 jsonb 子类型 + `MessageRepository`
+- `MessageSuggestionSet` / `MessageSuggestionEvent` + `MessageSuggestionRepository`
+  （`AcquireGeneration` 的四条分支：唯一键抢占 → 复用 ready/suppressed → 让位未过期租约 → 抢过期租约）
+- 五个 `List<T>` 型 jsonb 列的处理器（`AbstractJsonListTypeHandler` 基类 + 三行子类）
+
+**尚未包含**（不在 `continue-stream` 路径上，做搜索端点时一并补）：
+`SearchMessagesByKeyword` / `GetMessagesByKnowledgeIDs` / `GetMessagesByRequestIDs`
+（都要 JOIN sessions + `MessageWithSession`）与 `ListMessagesBySessionAfterCursor`
+（依赖 memory 模块的 `MessageMessageCursor`），以及搜索响应类型
+（`MessageSearchGroupItem` / `MessageSearchResult`）。
+
+**动这块之前先读 §9「阶段 5（session/message）新确认的细节与坑」**——尤其
+`Updates(结构体)` 的零值跳过、wrapper `.set()` 不套 typeHandler、`List<T>` 泛型擦除这三条。
+
+### 3.6 下一轮：`continue-stream` 端点（**已侦察，比预想的大**）
+
+上一轮把 `handler/session/stream.go` 的依赖面查清了：它**不是"两个 service 调用"**，
+还要下面三层。建议按这个顺序做，前三步各自可独立验证，第 4 步才需要它们合起来。
+
+| 步 | 内容 | 规模 | 为什么这个顺序 |
+|---|---|---|---|
+| 1 | **SSE 契约层**：`setSSEHeaders` / **`buildStreamResponse`** / `sendCompletionEvent`（Go `helpers.go` L182-249） | ~100 行 | `buildStreamResponse` 把 `StreamEvent` 翻成 `StreamResponse`，**就是一个真正的 emit 点**——按 §6 先把 emit 表列出来再写。可独立单测 |
+| 2 | **`storageurl.StreamRewriter`**（Go `internal/storageurl/stream.go`） | 203 行（自带 227 行测试） | 每个事件发出前都要过它；自带测试，最容易独立移植的一块 |
+| 3 | **service 最小读路径**：`GetSession` / `GetOwnedSession` / `GetMessage`（含 `loadSessionForRead` 的可见性判定） | 仓储已就绪 | 依赖已全部到位 |
+| 4 | **`ContinueStream` 控制器**（Go `stream.go` L29-204） | ~200 行 | 到这一步才有第一次真正的 SSE A/B |
+
+**第 4 步的几个要点（读 Go 时注意）**：
+
+- `resolveStreamRewriter` 必须在**写任何 SSE header 之前**解析——非法 `resource_urls`
+  要能落成普通 400 JSON，而不是"已经开始流了才发现参数错"。
+- 轮询是 **100ms ticker**；客户端断开靠 `c.Request.Context().Done()` →
+  Java 侧是 `SseEmitter.onCompletion/onTimeout`（§6 第 3、4 条）。
+- 三种 not-found 的**文案与状态码各不相同**，别统一：
+  会话不存在 → 404 + `err.Error()`；消息不存在（`gorm.ErrRecordNotFound`）→ 404 + `err.Error()`；
+  `message == nil` → **404 + `{"success":false,"error":"Incomplete message not found"}`**（手写信封）；
+  流里没有事件 → **404 + `{"success":false,"error":"No stream events found"}`**。
+- 已经 `complete` 的流要**先回放全部事件、再补一个完成事件**然后返回，不进轮询循环。
 
 ## 4. 标准验收流程（每个模块）
 
