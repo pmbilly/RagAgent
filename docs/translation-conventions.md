@@ -243,6 +243,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
 | agent_steps 类型收紧（阶段 5.2 步 3 上） | internal/types/{agent,message}.go；internal/storageurl/request.go 的 RewriteMessages* | com.ragagent.agent.domain.{AgentStep,ToolCall,ToolCallTarget,ToolResult} + session.domain.{AgentStepListTypeHandler,SearchResultListTypeHandler} + common.web.{GoTimeSerializer,GoTimeDeserializer} + storageurl.Rewriter.rewriteMessages* | ✅ | 30 测试（12 逐字节 + 18 往返/重写）。**修掉了消息响应体上一个既有契约偏差**：jsonb 透传时元素退化成 LinkedHashMap，键序变成 PG 规范化序。关键坑见 §9 |
 | continue-stream 端点（阶段 5.2 步 4） | internal/handler/session/stream.go L29-204 + resource_urls.go L56-174 | com.ragagent.session.{controller.SessionStreamController,sse.SseFrameWriter,sse.StreamEventEmitter} + WebConfig 路由 + APIKeyRoutePolicies | ✅ | **第一次真正的 SSE A/B：四条路径逐字节 MATCH**（见 §9）。帧骨架、HTML 转义、扣留重组全部对齐 |
+| datasource 类型+仓储（波 0） | internal/types/datasource.go；internal/application/repository/datasource_repo.go | com.ragagent.datasource.{domain,mapper} | ✅ | 92 测试（42 JSON 逐字节 Go 实录 / 50 H2 仓储）。TestSchema 加 data_sources/sync_logs（迁移 000029 唯一来源） |
 | memory 实体+仓储（波 0 第 2 步） | internal/types/{memory,memory_extraction}.go 的实体；internal/application/repository/memory{,_extraction,_lifecycle,_vector}.go | com.ragagent.memory.{domain,mapper} + MemoryContext | ✅ | 187 测试（其中 52+23+17 是 H2 仓储、其余是实体/纯函数）。PG 专属路径（ON CONFLICT / FOR UPDATE / halfvec）在 dev PG 上手跑验过。关键坑见 §9 |
 | 会话/消息最小读路径（阶段 5.2 步 3 下） | internal/application/service/{session,message}.go 的读方法 + loadSessionForRead | com.ragagent.session.service.{SessionService,MessageService,SessionLookupScope} | ✅ | 14 测试（授权判定）。`Session.requiresAdminConsoleRead` 阶段 5.1 已落地，本步只补 service 层的两条读路径与 Admin 回退 |
 | storageurl（阶段 5.2 步 2） | internal/storageurl/{mode,storageurl,stream,resolver,request}.go | com.ragagent.storageurl.{Mode,StorageUrlContext,ResourceModeException,PublicModeForbiddenException,Resolver,Rewriter,StreamRewriter,FileServiceResolver,FileService,StorageBackendResolver} | ✅ | 49 测试。**这是第一处跨 5 个 handler 的共享契约**（message/knowledgebase/session/embed/im 都 import 它）。扣留缓冲 + 模式解析全部按 Go 对等移植；差分语料见 §9。已知差异：provider 级文件服务未翻译 |
@@ -764,6 +765,23 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     不这么做会在启动时 panic `unsupported database driver:` 或找不到配置文件。
   - **契约测试要自己清 memory 的 7 张表**：`TestSchema.resetData` 不含它们
     （该文件不归 memory 模块改），照 `MemoryRepositoryTest` 的写法显式 `DELETE`。
+- **波 0（datasource）新确认的细节与坑**：
+  - **map 里数字的浮点格式也要对齐**：`GoMapSerializer` 只排键序、值原样交给 Jackson，
+    而 `Resource.metadata` / `connector_cursor` / `settings` 里必然有数字（分页偏移、条目上限），
+    Go 的 `float64` 会写 `1` 而 Jackson 写 `1.0`。故新增
+    `datasource.domain.DataSourceMapSerializer`：在按键排序之上再把 map 值的 `Double`
+    走 `GoDoubleSerializer`。**没有动共享的 `GoMapSerializer`**——那会让所有用它的地方
+    一起改变行为，而这条规则只在"map 值可能是浮点"的字段上才需要。
+    **后续模块若也有"数字进 map 且要出响应"的字段，照这个模子做模块内的子类。**
+  - **jsonb 列不一定需要 `FieldStrategy.ALWAYS`**：`data_sources` 三个 jsonb 列在迁移里
+    **没有 DEFAULT**，MP 省略 null 列恰好落 SQL NULL，与 Go 的 `JSON.Value()` 一致。
+    与 wiki 的 `page_metadata`（有 `DEFAULT '{}'`，必须 ALWAYS）**相反**——
+    **逐个查迁移里有没有 DEFAULT，别一刀切。**
+  - **GORM 的"三步舞"可以退化成一步**（要能证明净效果）：`sync_deletions` 写入 Go 走
+    `Create`(GORM 把 false 替成 true) → `UpdateColumn`(写回原值，SkipHooks 不刷 updated_at)
+    → 回写内存；三步的净效果就是"落库与内存都等于调用方原值"，Java 直接插原值。
+    **退化必须写出证明，并用用例钉住**（本轮钉了"false 真的落库"）——
+    这类"看起来多余实则有净效果"的 Go 代码，退化前要先把它连起来算一遍。
 - **JSON 编码器的系统性差分排查（本轮的专项）**：
   - **做法**（可复用）：读 Go `encoding/json` 的 encoder 源码定出**类别**（转义分支、
     浮点编码器、整数、容器），为每类构造语料，用独立 Go 程序录出真值，再拿**容器里那个
