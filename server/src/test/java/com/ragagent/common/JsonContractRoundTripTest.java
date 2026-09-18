@@ -35,6 +35,11 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
+import com.ragagent.memory.domain.MemoryConfig;
+import com.ragagent.memory.domain.MemoryConsolidationResult;
+import com.ragagent.memory.domain.MemoryDocView;
+import com.ragagent.memory.domain.MemorySettings;
+import com.ragagent.memory.domain.MemoryTopicView;
 import com.ragagent.mcp.domain.McpAuthConfig;
 import com.ragagent.mcp.domain.McpAuthType;
 import com.ragagent.mcp.domain.McpResource;
@@ -338,6 +343,60 @@ class JsonContractRoundTripTest {
         o.setToolChoice("auto");
         o.setTools(List.of(new ChatTool("t", "d", null)));
         assertRoundTrips(o, ChatOptions.class, "chat.ChatOptions ← ChatOptions");
+    }
+
+    @Test
+    void memorySettingsSliceRoundTrips() {
+        // 波 0 第 1 步：memory 的 settings 切片。MemoryConfig 是 tenants 上的 jsonb，
+        // 其余四个是响应体。注意 vector_recall/retrieval_conditioning 是**三态** Boolean——
+        // 往返必须保留 null 与显式 false 的区别。
+        MemoryConfig c = new MemoryConfig();
+        c.setEnabled(true);
+        c.setWriteMode(MemoryConfig.WRITE_MODE_AUTO);
+        c.setExtractModelId("m1");
+        c.setMaxItems(200);
+        c.setExtractDelaySeconds(30);
+        c.setExtractMinIntervalSeconds(60);
+        c.setExtractInstructions("instr");
+        c.setInterestThreshold(3);
+        c.setEmbeddingModelId("e1");
+        c.setVectorRecall(true);
+        c.setRetrievalConditioning(false);
+        assertRoundTrips(c, MemoryConfig.class, "types.MemoryConfig ← MemoryConfig");
+
+        MemoryConfig zero = new MemoryConfig();
+        assertRoundTrips(zero, MemoryConfig.class, "types.MemoryConfig（零值，两个指针为 null）← MemoryConfig");
+
+        MemorySettings settings = new MemorySettings();
+        settings.setWorkspaceEnabled(true);
+        settings.setWriteMode(MemoryConfig.WRITE_MODE_EXPLICIT_ONLY);
+        settings.setItemCount(7);
+        settings.setMaxItems(200);
+        assertRoundTrips(settings, MemorySettings.class, "types.MemorySettings ← MemorySettings");
+
+        MemoryConsolidationResult result = new MemoryConsolidationResult();
+        result.setMerged(2);
+        result.setSkipped(MemoryConsolidationResult.SKIP_TOO_SOON);
+        assertRoundTrips(result, MemoryConsolidationResult.class,
+                "types.MemoryConsolidationResult ← MemoryConsolidationResult");
+
+        MemoryTopicView topic = new MemoryTopicView();
+        topic.setId("t1");
+        topic.setTopic("db");
+        topic.setAliases(List.of("a", "b"));
+        topic.setHits(2);
+        topic.setThreshold(3);
+        topic.setLastSeenAt(java.time.OffsetDateTime.now());
+        assertRoundTrips(topic, MemoryTopicView.class, "types.MemoryTopicView ← MemoryTopicView");
+
+        MemoryDocView doc = new MemoryDocView();
+        doc.setId("d1");
+        doc.setKnowledgeId("k1");
+        doc.setKnowledgeBaseId("kb1");
+        doc.setTitle("t");
+        doc.setHits(4);
+        doc.setLastUsedAt(java.time.OffsetDateTime.now());
+        assertRoundTrips(doc, MemoryDocView.class, "types.MemoryDocView ← MemoryDocView");
     }
 
     @Test
