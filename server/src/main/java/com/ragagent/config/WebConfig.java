@@ -204,6 +204,10 @@ public class WebConfig implements WebMvcConfigurer {
         // 平台级审计：**仅系统管理员**（租户角色再高也不放行）
         rbac.addSystemAdminRule("GET", "/api/v1/system/admin/audit-log");
 
+        // 会话（对照 routes_chat.go 的 sessions 组）：整组 Viewer 起步。
+        // 目前只登记了已翻译的 continue-stream；同组其余端点在各自落地时补。
+        rbac.addRule("GET", "/api/v1/sessions/continue-stream/*", TenantRole.VIEWER, false);
+
         // 租户 API Key 管理（对照 routes_auth_tenant.go）：Owner+。
         // 刻意**不**登记进 API-Key 策略表——Key 不能给自己扩权（Go 测试钉住的契约）。
         rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
@@ -211,7 +215,8 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("PUT", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
         rbac.addRule("DELETE", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
 
-        registry.addInterceptor(rbac).addPathPatterns("/api/v1/models/**",
+        registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
+                "/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
                 "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**",
                 "/api/v1/tenants/**", "/api/v1/system/**");

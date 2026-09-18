@@ -51,6 +51,19 @@ public final class APIKeyRoutePolicies {
         registerModelRoutes(authorizer);
         registerKnowledgeAndWikiRoutes(authorizer);
         registerMcpRoutes(authorizer);
+        registerSessionRoutes(authorizer);
+    }
+
+    /**
+     * 会话路由（对照 Go router/routes_chat.go L76）。
+     *
+     * <p>会话是**按用户的聊天状态**、不是知识库内容，所以用 {@code chat} 能力：
+     * 一把 scoped key 因此能跑完整的对话流程（建/管自己的会话）而无需全租户权限。
+     * 目前只登记了已翻译的 {@code continue-stream}；同组的其余端点在各自落地时补。</p>
+     */
+    private static void registerSessionRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy sessions = APIKeyRoutePolicy.chat(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("GET", "/api/v1/sessions/continue-stream/:session_id", sessions);
     }
 
     /**
