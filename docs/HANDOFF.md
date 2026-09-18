@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · **3077 测试全绿** · Java 主代码 114,959 行 / 测试 61,618 行
-> **端点覆盖：Go 412 条 → Java 已注册 140 条（约 34%）**
+> 最后更新：2026-09-18 · **3161 测试全绿** · golden 188 个
+> **端点覆盖：Go 412 条 → Java 已注册 150 条（约 36%）**
 
 ## 0. 一句话背景
 
@@ -53,6 +53,7 @@
 | **波 1 G6** | **产物 3 条 + generate_title + stop（5 条路由）** | ✅ | 22 golden + **真 PG A/B 22 组全 MATCH**（golden 抓回 stop 的 Long 引用比较、jsonb 处理器缺 JSR310 两个真缺陷，见 conventions §9「波 1 G6」） |
 | **波 1 G4** | **steer（排队/列表/删除/提升，4 条路由）** | ✅ | 11 golden + 直种 streamManager 的排队路径单测 5 条 + **真 PG A/B 12 组全 MATCH**（引擎侧 PollSteer/follow-up 随波 4/5，见 conventions §9「波 1 G4」） |
 | **波 1 G5** | **临时文档 attachments（5 条路由，波 1 收官）** | ✅ | 11 golden + **真 PG A/B 11 组全 MATCH**；纯文本解析管线（chunker+token）与 Go 逐字节一致；agent 门控/VLM/asynq 按已知差异收口（见 conventions §9「波 1 G5」） |
+| **波 2 chunk** | **chunk 编辑面（10 条路由，波 2 开工）** | ✅ | 46 golden + **真 PG A/B 46 场景全 MATCH**（3161 全量绿）；ChunkAccessGuard（ownership+KB 访问分层）、修订历史/乐观锁、生成问题；clamp 误写被 golden 抓回（见 conventions §9「波 2 chunk」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -60,7 +61,7 @@
 |---|---|---|---|
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
-| 2 | 其余未被 agent 阻塞的端点群（admin/tenant/faq/chunk/vectorstore/storagebackend/邀约/…） | ~140 条 | ⏳ |
+| 2 | 其余未被 agent 阻塞的端点群（~~chunk ✅~~/knowledge 剩余/faq/members/invitations/api-principal/system/admin/providers/stores/backends/evaluation/webSearch） | ~135 条 | 🔄 chunk(10) 完成 |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ |
 | 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
@@ -83,10 +84,12 @@
 
 ### 3.1 做什么
 
-**波 1 全部收官**：`continue-stream` + G1（8 条）+ G2（5 条）+ G3（3 条）+ G6（5 条）+
-G4（4 条）+ G5 临时文档（5 条）全部落地并 A/B 全 MATCH。routes_chat.go(38) 里只剩
-sandbox terminal(2)/local-browser(2)（波 3）与 knowledge-chat/agent-chat/knowledge-search（波 4）。
-**下一步是波 2**（admin/tenant/faq/chunk/vectorstore/storagebackend/邀约等约 140 条，不被 agent 阻塞）。
+**波 1 全部收官**；**波 2 已开工，chunk 编辑面 10 条路由完成**（2026-09-18：46 golden +
+真 PG A/B 全 MATCH，节奏见 conventions §8「chunk 编辑面」行、坑见 §9「波 2 chunk」）。
+波 2 剩余（约 135 条，都不被 agent 阻塞），建议下一批从 **knowledge 剩余 24 条**
+（download/preview/search/stages/spans/image/tags/batch/move/copy 等）或 **FAQ 11 条**
+（与 chunk 同在 routes_knowledge.go，复用 ChunkAccessGuard 模式与 `faq.go` 类型资产）接着做；
+再往后 members/invitations(14)、api-principal(3)、system/admin(14)、providers/stores/backends(26)。
 
 ⚠️ 例外：`POST /sessions/:id/knowledge-chat`、`POST /sessions/:id/agent-chat`、
 `POST /knowledge-search` 这三条要等**波 4**（它们真的走 agent 引擎）。
@@ -112,7 +115,10 @@ sandbox terminal(2)/local-browser(2)（波 3）与 knowledge-chat/agent-chat/kno
 
 **波 2 的起点**：先读 `docs/translation-conventions.md` §8（已完成模块台账）与 §9
 （各波实测的坑——**动手前必读**，多数坑会复发）；再按 §4 的标准验收流程推进。
-判依赖看调用点不看包名（§2.2 的教训）。
+判依赖看调用点不看包名（§2.2 的教训）。chunk 模块刚趟出一条「知识库域内小模块」的
+完整路径：契约类型 + ChunkAccessGuard（ownership/KB 访问守卫分层）+ 仓储 + service +
+controller，golden 录制与 A/B 脚本（`record-chunk-golden.sh` / `ab-chunk.sh`）可直接改造成
+同域模块用。⚠️ A/B 前先确认 8082 上没有旧 Java server 进程（§9「波 2 chunk」第 10 条）。
 
 ## 4. 标准验收流程（每个模块）
 

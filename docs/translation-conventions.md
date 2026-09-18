@@ -257,6 +257,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 产物+title+stop（波 1 G6） | internal/handler/session/{artifact_download.go,title.go,stream.go 的 StopSession}；service/session.go 的 GenerateTitle | SessionController 追加 5 条端点 + llm.domain.ResponseType 补 STOP + MessageService.getSessionArtifacts + SessionService.generateTitle | ✅ | 5 端点全落地；22 条新契约测试 + **真 PG 上 22 组 A/B 全 MATCH**（3050 全量绿）。**golden 抓回两个真缺陷**：stop 的 Long 引用比较（陷阱 §5.6 复发）、AbstractJsonListTypeHandler 缺 JSR310 模块（artifacts 列整列不可读）。关键坑见 §9「波 1 G6」 |
 | steer（波 1 G4） | internal/handler/session/steer.go 的 4 个 HTTP 端点（L461-810）+ 包级辅助（parseSteerDelivery/selectSteerBacklog/pendingSteerQueueItems/steerEvent） | com.ragagent.session.controller.SteerController + APIKeyRoutePolicies + BizException 补 serviceUnavailable | ✅ | 4 端点 HTTP 面全落地；16 条新测试（11 golden + 5 条直种 streamManager 的排队路径单测）+ **真 PG 上 12 组 A/B 全 MATCH**（3066 全量绿）。**范围说明**：live run 只能由 agent 引擎设置——排队/注入路径的引擎侧（PollSteer/follow-up 交接）随波 4/5，HTTP 面已对齐。关键坑见 §9「波 1 G4」 |
 | 临时文档 attachments（波 1 G5，**波 1 收官**） | internal/handler/session/temporary_document.go（174 行）；service/temporary_document.go 的 Create/Get/List/Delete/OpenFile/Process（L133-348 + parse L350-449 的纯文本/docreader 路径）；repository/temporary_document.go；filetransport/response.go；file/local.go 的 SaveBytes/GetFile/DeleteFile | com.ragagent.session.{service.TemporaryDocumentService,service.AttachmentFileStore,controller.TemporaryDocumentController,mapper.TemporaryDocument*,domain.TemporaryDocument} + common.web.{GoNaiveTimeSerializer,GoNaiveOffsetDateTimeTypeHandler,ContentTypeByFilename} + TestSchema.temporary_documents | ✅ | 5 端点全落地；11 条新契约测试（golden 全是 Go 实录）+ **真 PG 上 11 组 A/B 全 MATCH**（3077 全量绿）。**顺手验证了 chunker(auto/1600/160)+ApproxTokenCount 与 Go 逐字节一致**。关键坑见 §9「波 1 G5」 |
+| chunk 编辑面（波 2 第一批） | internal/handler/chunk.go（472 行，10 端点）；internal/application/service/{chunk,chunk_write}.go + knowledge_write.go 的 loadKnowledgeWrite + access/knowledge_state.go + searchutil/{imageinfo*,chunkmerge}；internal/application/repository/chunk.go 的 14 个方法；internal/middleware/{rbac.go 的 RequireOwnershipOrRole,kb_access.go 的 KBIDFrom*Param}；types/{chunk,faq} 的 GeneratedQuestion* | com.ragagent.knowledge.{domain.ChunkRevision/domain.DocumentChunkMetadata/domain.GeneratedQuestion,mapper.ChunkRepository/mapper.ChunkRevisionMapper,mapper.ChunkAccessGuard,service.ChunkService,service.ChunkSearchUtil,controller.ChunkController} + common.CleanInvalidUtf8 + WebConfig 读规则 + APIKeyRoutePolicies chunks 段 + TestSchema.chunk_revisions | ✅ | 10 端点全落地；81 条新测试（18 仓储 + 28 service + 35 契约，golden 全是 Go 实录）+ **真 PG 上 46 场景 A/B 全 MATCH**（3161 全量绿）。**golden 抓回 clamp 误写**（page 钳成恒 1、size 小值被抬高）。已知差异：syncChunkIndex 引擎未接线恒 failed、Regenerate 的 LLM 步降级（随波 3/4、阶段 7）。关键坑见 §9「波 2 chunk」 |
 
 ## 9. 当前确认过的细节
 
@@ -1120,3 +1121,60 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
      （shared-agent config/Audio/VLM）随波 5/7；preview 响应头用 servlet
      `setHeader` 原样写（Spring/Tomcat 的 Content-Type 规范化会去掉 charset= 前空格，
      A/B 脚本已归一化该容器噪音 + Vary + reason phrase）。
+
+- **波 2 chunk（编辑面）新确认的细节与坑——前四条都会复发**：
+  1. **同一个 service 异常在三个 handler 的 HTTP 形态各不相同**（本轮最重要的发现）：
+     `UpdateDocumentChunk` 的业务失败（空内容/加图/非 text/超 200000 字节）在 Go 是
+     `fmt.Errorf` → update handler 包 **500** 信封 code=1007 且 message=原文；
+     revert handler 对非 AppError 包 **400**；questions 三端点把**一切**错误包成
+     **400** `NewBadRequestError(err.Error())`（含 AppError 的双前缀原文）。golden 实测：
+     `PUT` 空内容 → 500 `"chunk content cannot be empty"`。**不能给 ChunkService 写一个
+     统一的异常映射**——每个端点单独 catch。
+  2. **分页钳位是三段 if，不是 clamp**（golden 抓回的真 bug）：Go L117-125 是
+     `page<1→1`（**无上限**，page=5 合法）、`size<1→10`（**缺省语义**，size=2 是合法值
+     不会被抬高）、`size>100→100`。写成 `clamp(size, 10, 100)` 会让 page_size=2 静默
+     变 10、clamp(page,1,1) 让所有页码变 1——列表"看起来对"但翻页坏了。
+  3. **revert 未知 revision → 400 "record not found"**（gorm 原文透传，非 404）；
+     `revision` 缺失 → validator 原文 `Key: 'RevertChunkRequest.Revision' ... 'required' tag`
+     （required 挂在 ***int** 上，`null`/缺失都触发）；`question:"   "` **过** binding
+     （required 对 string 是"非零值"），由 service 落 `"question cannot be empty"`——
+     与 G4 的"required 先于业务 trim"是**相反**的顺序，按端点实录。
+  4. **delete-question 的模型链在 metadata 变更之前**：无 embedding 模型的 KB 上
+     `DELETE /chunks/by-id/:id/questions` 三连发全部落 400
+     `"failed to get embedding model: model ID cannot be empty"`——问题**从未**被真正
+     删除，metadata 不变。service 内的顺序（writableChunk → 找问题 → kb → engine → model）
+     必须逐字照抄，不能把"找不到问题"的 400 提前到模型校验之后。
+  5. **gin.H 字母序的两个新形态**：update/revert 成功响应是
+     `data < description < success < summary_status`；list 是
+     `data < page < page_size < success < total`。knowledge 重载失败时
+     description/summary_status 两个键**整体缺席**（只剩 data+success）。
+  6. **Chunk 的响应化注解**：`source_content`/`context_header` 是 `json:"-"`；
+     三个 json 列（relation_chunks/indirect_relation_chunks/metadata）对照
+     types.JSON.MarshalJSON——空输出 `null`；**7 个非指针 string 列的 getter 归一化
+     NULL→""**（tag_id/parent_chunk_id/pre_chunk_id/next_chunk_id/content_hash/
+     last_editor_id/image_info，对照 GORM 扫描 NULL 进非指针 string 的零值语义——
+     H2 列可空，不归一化会输出 `null`）。`is_enabled` 字段名带 is 前缀但
+     getter `isIsEnabled()` 隐式属性名与字段一致 → 合并成一个属性，安全。
+  7. **ChunkAccessGuard 的分层与放行语义**（对照 RequireOwnershipOrRole +
+     RequireKBAccess 的中间件链）：ownership 守卫里资源在调用者空间**不存在 → 放行**
+     （ErrResourceNotFound 透传，交给后续守卫/handler 出 404）；KB 访问层
+     knowledge 缺失 → 404 `"Knowledge not found"`（大写 K）、chunk 缺失 → 404
+     `"Chunk not found"`、KB 缺失 → 404 `"knowledge base not found"`（小写 k）、
+     跨租户 → 403 信封 `"Permission denied to access this knowledge base"`、
+     非创建者写 → 403 **纯字符串**。by-id 的 ownership 查找显式重校验租户
+     （GetChunkByIDOnly 无空间过滤）。判定顺序 golden 依赖，不能重排。
+  8. **契约测试的固定 id 必须是纯十六进制**：掩码正则认 `[0-9a-f-]`，`kkk…` 开头的
+     种子 id 不会被掩码 → 与 golden 的真 uuid 对不上。A/B 的 seq_id 来自 PG 序列、
+     两侧必然不同 → A/B 里掩码 `"seq_id":`，契约测试里播种精确复刻 golden 值。
+  9. **A/B 残留清理要含 chunk_revisions**：只清 chunks/knowledges 的话，上一轮的
+     revision 快照会让下一次 update 撞 `idx_chunk_revisions_chunk_revision` 唯一索引
+     ——两侧同型 500 但 JDBC 错误包装文案不同 → DIFF。幂等种子 =
+     `DELETE chunk_revisions → chunks → knowledges`（外键序）。
+  10. **旧 Java server 进程占 8082**（本轮实际踩到）：上次会话的 bootRun 还在跑时，
+     新启动端口冲突直接 BUILD FAILED，但 `wait_for_port` 打到**旧进程**照样报 ready
+     ——表现为"新路由 404"。`java-server-up.sh` 前先 `kill` 旧进程（`lsof -i :8082`）。
+  - 已知差异（记录在 ChunkService 类注释）：syncChunkIndex 只对齐"策略关 → 早退"分支
+    （测试数据全走这条）；KB 需要 embedding 时，模型行缺失与 Go 同形报错，模型存在则
+    Java 恒 failed（检索引擎未接线，随波 3/4）；Regenerate 的 LLM 生成步降级
+    （summary model 存在时报 "summary model is not available in this deployment"，随阶段 7）；
+    delete-question 的向量删除 WARN+no-op（模型行校验保留）。

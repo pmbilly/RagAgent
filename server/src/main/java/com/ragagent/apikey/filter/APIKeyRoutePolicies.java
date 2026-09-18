@@ -283,6 +283,22 @@ public final class APIKeyRoutePolicies {
         a.registerGin("POST", wiki + "/auto-fix", kbIngest);
         a.registerGin("GET", wiki + "/issues", kbRead);
         a.registerGin("PUT", wiki + "/issues/:issue_id/status", kbIngest);
+
+        // chunks（routes_knowledge.go:27-53；chunks 组=ingest，chunkRead=retrieve；
+        // 注释原文：Scoped API key 需要 ingest 能力写内容，retrieve 能力读内容，
+        // 两者仍受 KB 白名单约束——白名单校验在 ChunkAccessGuard.requireKbAccess）
+        final APIKeyRoutePolicy chunkIngest = APIKeyRoutePolicy.ingest(APIKeyRoutePolicy.fullAccess());
+        final APIKeyRoutePolicy chunkRead = APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("GET", "/api/v1/chunks/:knowledge_id", chunkRead);
+        a.registerGin("GET", "/api/v1/chunks/by-id/:id", chunkRead);
+        a.registerGin("GET", "/api/v1/chunks/:knowledge_id/:id/revisions", chunkRead);
+        a.registerGin("DELETE", "/api/v1/chunks/:knowledge_id/:id", chunkIngest);
+        a.registerGin("DELETE", "/api/v1/chunks/:knowledge_id", chunkIngest);
+        a.registerGin("PUT", "/api/v1/chunks/:knowledge_id/:id", chunkIngest);
+        a.registerGin("POST", "/api/v1/chunks/:knowledge_id/:id/revert", chunkIngest);
+        a.registerGin("DELETE", "/api/v1/chunks/by-id/:id/questions", chunkIngest);
+        a.registerGin("PUT", "/api/v1/chunks/by-id/:id/questions", chunkIngest);
+        a.registerGin("POST", "/api/v1/chunks/by-id/:id/questions/regenerate", chunkIngest);
     }
 
     /**

@@ -129,7 +129,7 @@ public class Chunk {
     public void setKnowledgeId(String v) { knowledgeId = v; }
     public String getKnowledgeBaseId() { return knowledgeBaseId; }
     public void setKnowledgeBaseId(String v) { knowledgeBaseId = v; }
-    public String getTagId() { return tagId; }
+    public String getTagId() { return tagId == null ? "" : tagId; }
     public void setTagId(String v) { tagId = v; }
     public String getContent() { return content; }
     public void setContent(String v) { content = v; }
@@ -139,7 +139,7 @@ public class Chunk {
     public void setContentRevision(int v) { contentRevision = v; }
     public String getIndexStatus() { return indexStatus; }
     public void setIndexStatus(String v) { indexStatus = v; }
-    public String getLastEditorId() { return lastEditorId; }
+    public String getLastEditorId() { return lastEditorId == null ? "" : lastEditorId; }
     public void setLastEditorId(String v) { lastEditorId = v; }
     public int getChunkIndex() { return chunkIndex; }
     public void setChunkIndex(int v) { chunkIndex = v; }
@@ -154,13 +154,13 @@ public class Chunk {
     public void setStartAt(int v) { startAt = v; }
     public int getEndAt() { return endAt; }
     public void setEndAt(int v) { endAt = v; }
-    public String getPreChunkId() { return preChunkId; }
+    public String getPreChunkId() { return preChunkId == null ? "" : preChunkId; }
     public void setPreChunkId(String v) { preChunkId = v; }
-    public String getNextChunkId() { return nextChunkId; }
+    public String getNextChunkId() { return nextChunkId == null ? "" : nextChunkId; }
     public void setNextChunkId(String v) { nextChunkId = v; }
     public String getChunkType() { return chunkType; }
     public void setChunkType(String v) { chunkType = v == null ? "text" : v; }
-    public String getParentChunkId() { return parentChunkId; }
+    public String getParentChunkId() { return parentChunkId == null ? "" : parentChunkId; }
     public void setParentChunkId(String v) { parentChunkId = v; }
     public JsonNode getRelationChunks() { return relationChunks; }
     public void setRelationChunks(JsonNode v) { relationChunks = v; }
@@ -168,9 +168,9 @@ public class Chunk {
     public void setIndirectRelationChunks(JsonNode v) { indirectRelationChunks = v; }
     public JsonNode getMetadata() { return metadata; }
     public void setMetadata(JsonNode v) { metadata = v; }
-    public String getContentHash() { return contentHash; }
+    public String getContentHash() { return contentHash == null ? "" : contentHash; }
     public void setContentHash(String v) { contentHash = v; }
-    public String getImageInfo() { return imageInfo; }
+    public String getImageInfo() { return imageInfo == null ? "" : imageInfo; }
     public void setImageInfo(String v) { imageInfo = v; }
     public String getContextHeader() { return contextHeader; }
     public void setContextHeader(String v) { contextHeader = v; }

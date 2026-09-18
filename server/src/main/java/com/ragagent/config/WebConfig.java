@@ -145,6 +145,11 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("PUT", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("DELETE", "/api/v1/knowledge/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("GET", "/api/v1/knowledge/*", TenantRole.VIEWER, false);
+        // chunks 读组（对照 RegisterChunkRoutes，routes_knowledge.go:27-53：
+        // 读 = Viewer+；写无角色门，ownership 守卫在 ChunkController 内判定）
+        rbac.addRule("GET", "/api/v1/chunks/by-id/*", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/chunks/*/*/revisions", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/chunks/*", TenantRole.VIEWER, false);
         // MCP 服务（对照 RegisterMCPServiceRoutes，routes_infra.go:149-185）
         // 更具体的路径必须排在 /mcp-services/* 之前，与 Go 的注册序一致
         rbac.addRule("POST", "/api/v1/mcp-services", TenantRole.ADMIN, false);
