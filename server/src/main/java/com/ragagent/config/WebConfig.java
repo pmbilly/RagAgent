@@ -208,6 +208,31 @@ public class WebConfig implements WebMvcConfigurer {
         // 目前只登记了已翻译的 continue-stream；同组其余端点在各自落地时补。
         rbac.addRule("GET", "/api/v1/sessions/continue-stream/*", TenantRole.VIEWER, false);
 
+        // 长期记忆（对照 RegisterMemoryRoutes，routes_memory.go:17-40）
+        // 守卫**只有 Viewer**：路径里没有任何 subject 参数，记忆空间一律从请求主体推导，
+        // 所以不存在需要所有权判定的"别人的资源"。这里也**没有**管理端。
+        // API-Key 侧要求 full-access（见 APIKeyRoutePolicies）——记忆空间属于个人，
+        // scoped 集成 Key 不该继承一个。
+        // 静态段先于通配段登记（与 Go 的注册序一致）：AntPathMatcher 取**首个**匹配，
+        // 而 `/items/**` 这种 Ant 模式连 `/items` 本身都能匹配上。
+        rbac.addRule("GET", "/api/v1/memory/settings", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/memory/settings", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/memory/items", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/memory/items", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/memory/items", TenantRole.VIEWER, false);
+        // Go 的 `:id` 是**单段**参数，但 AntPathMatcher 的 `*` 不跨 `/`，
+        // 够不到 `/items/:id/confirm` 这类两段路径 → 用 `/**` 覆盖（同 Wiki 段的写法）。
+        rbac.addRule("PUT", "/api/v1/memory/items/**", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/memory/items/**", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/memory/items/**", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/memory/topics", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/memory/topics/**", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/memory/topics/**", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/memory/documents", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/memory/documents/**", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/memory/export", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/memory/consolidate", TenantRole.VIEWER, false);
+
         // 租户 API Key 管理（对照 routes_auth_tenant.go）：Owner+。
         // 刻意**不**登记进 API-Key 策略表——Key 不能给自己扩权（Go 测试钉住的契约）。
         rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
@@ -219,6 +244,6 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
                 "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**",
-                "/api/v1/tenants/**", "/api/v1/system/**");
+                "/api/v1/tenants/**", "/api/v1/system/**", "/api/v1/memory/**");
     }
 }

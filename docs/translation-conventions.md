@@ -247,6 +247,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 会话/消息最小读路径（阶段 5.2 步 3 下） | internal/application/service/{session,message}.go 的读方法 + loadSessionForRead | com.ragagent.session.service.{SessionService,MessageService,SessionLookupScope} | ✅ | 14 测试（授权判定）。`Session.requiresAdminConsoleRead` 阶段 5.1 已落地，本步只补 service 层的两条读路径与 Admin 回退 |
 | storageurl（阶段 5.2 步 2） | internal/storageurl/{mode,storageurl,stream,resolver,request}.go | com.ragagent.storageurl.{Mode,StorageUrlContext,ResourceModeException,PublicModeForbiddenException,Resolver,Rewriter,StreamRewriter,FileServiceResolver,FileService,StorageBackendResolver} | ✅ | 49 测试。**这是第一处跨 5 个 handler 的共享契约**（message/knowledgebase/session/embed/im 都 import 它）。扣留缓冲 + 模式解析全部按 Go 对等移植；差分语料见 §9。已知差异：provider 级文件服务未翻译 |
 | SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
+| memory HTTP 层（波 0 第 4 步，**memory 模块收官**） | internal/handler/memory.go（465 行）；internal/router/routes_memory.go（16 条路由） | com.ragagent.memory.controller.MemoryController + config.WebConfig 路由 + apikey.filter.APIKeyRoutePolicies | ✅ | 16 端点全落地；34 条新测试（**22 个 golden 全部是 Go 实录**）+ **真 PG 上 36 组 A/B（35 MATCH / 1 已知差异）**（唯一 DIFF 是非法 JSON 的 details 文案，已知差异）。关键坑见 §9 |
 
 ## 9. 当前确认过的细节
 
@@ -698,6 +699,71 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     故 `isGoSpace` 显式补上——与 §9 那条 `\s` 差异同族。
   - **未覆盖**：`searchItemsByVector` 的 SQL 排名路径（需要真 PG + pgvector）**无自动化测试**，
     只有手跑验证 → 回归保护为零，建议排一个 e2e 步骤。
+- **memory HTTP 层（波 0 第 4 步）新确认的细节与坑**：
+  - **⚠️ 同一个 service 方法，两条响应路径的 nil 语义不同**（本轮最值得记的一条）：
+    `GET /memory/items` 的空仓库是 `"data":[]`，而 `GET /memory/export` 的空仓库是
+    `"data":null`。原因在 Go 侧：`ListItems` 的仓储走 GORM 的 `Find(&items)`，
+    **GORM 会把 nil slice 初始化成非 nil 空切片**（`[]`）；
+    而 `Export` 是 `var items []*types.MemoryItem` + `append`，
+    空仓库时**一次 append 都没发生** → 仍是 nil → `null`。
+    **Java 侧要把 `Export` 的列表声明成可空的 `List<MemoryItem> items = null`**，
+    只在真的有行时才 `new ArrayList<>()`——写成 `new ArrayList<>()` 就再也拿不回 `null` 了。
+    这与 Wiki 那条"`ListIssues` 归一为 `[]`"是**相反方向**的取舍：这里对齐了 `null`，
+    因为它就在导出文件的第一个字节上。
+  - **`gin.H` 的键序在这些端点上"反直觉"**：`Clear` 的线上字节是
+    `{"removed":N,"success":true}`——`removed` 在 `success` **之前**，
+    与源码里的书写顺序（`"success", "removed"`）相反。Export 同理
+    （`data, success, total, truncated`）。一律按**字母序** `put` 进 `LinkedHashMap`。
+  - **`Export` 的两个头**：`Content-Disposition: attachment; filename="weknora-memories.json"`
+    + **`Content-Type` 仍是普通 JSON**（Go 是 `c.Header(...)` + `c.JSON`，
+    不是 `application/octet-stream`）。Java 侧 Java 这条端点显式带 `charset=utf-8`，
+    是全局 JSON 端点里最接近 Go 的一条（其余 Java 端点是裸 `application/json`）。
+    ⚠️ **容器层仍差一个空格**：Go 写 `application/json; charset=utf-8`，
+    Tomcat 的 `setContentType` 会规范成 `application/json;charset=utf-8`
+    （MockMvc 里保留原样、真容器上去掉 OWS）。RFC 7231 下 OWS 可选、语义等价，
+    与既有的 status line / `Vary` / `X-Request-ID` 大小写同属容器固有差异。
+  - **`memoryListPaging` 是容错的**：`limit` 非法、≤0 或 >200 一律归 50，
+    `offset` 为负归 0——实测 `?limit=abc&offset=-5` 返回 **200 空页**而不是 400。
+    但 `status` 白名单校验**先于**分页解析：`?status=bogus` 一律 400（与 limit 无关）。
+  - **`EmptyContent` / `PreviouslyForgotten` 落 500 而不是 400**：两个异常刻意
+    **不在** `fail()` 的 switch 里。实测 `POST /memory/items {"content":"   "}` →
+    `500 {"error":{"code":1007,"details":"memory: empty content","message":"Failed to create memory"}}`
+    ——`message` 是 **handler 传进来的那句**（`Failed to create memory`），
+    `details` 才是 `err.Error()`。别把这两者搞反，也别"顺手"把它改成 400。
+  - **校验错误的 code 是 1010 不是 1000**：`NewValidationError` → 1010（`Invalid request data`），
+    `NewBadRequestError` → 1000（如 `enabled is required` / `unsupported status` /
+    `memory is disabled`）。同一个 handler 里两者并存。
+  - **`createItem` / `promoteTopic` / `consolidateNow` 在"没有主体"时抛 `Disabled`（400）
+    而不是 `NoScope`（401）**——service 侧走的是 `enabledScope()` 的**布尔**判定，
+    NoScope 在那里被吞成了"不许用记忆"。照抄，别在 handler 里"修正"成 401。
+  - **NoScope（401 `no principal in request`）在这 16 条路由上实际不可达**：
+    整组都要求 Viewer 角色，能进来的请求一定有主体。分支保留（对照 Go 的 `fail()`），
+    但没有实测 golden——报告里要说明这一点。
+  - **405 的情况**：Go 里 `DELETE /memory/items` 与 `DELETE /memory/items/:id` 是
+    两条独立路由；Java 侧同理，别让 `/**` 的 Ant 规则把两者合并。
+  - **`RbacInterceptor` 的 Ant 模式够不到两段路径**：`/api/v1/memory/items/*` 匹配
+    `/items/{id}` 但**不**匹配 `/items/{id}/confirm`。所以 confirm/reject/promote
+    这些两段路径要按 `/**` 登记（与 Wiki 段的既有写法一致）。
+    **顺序仍是"静态段在前"**——`match()` 取首个命中，而 Ant 的 `/a/**` 连 `/a` 自己都匹配。
+  - **API-Key 策略是纯 `fullAccess()`，不带任何能力**（对照
+    `apiKeyGroup(r.Group("/memory", g.Viewer()), apiKeyFullAccess())`）。
+    与 `/sessions/continue-stream` 的 `chat(fullAccess())` 是**有意**的差别：
+    记忆属于**一个人**（`subject_id = principal.StorageID()`），
+    而 scoped 集成 Key 代表的是一个系统。实测：带 `chat` 的 scoped Key → 403
+    `{"error":"Forbidden: API key scope does not allow this operation"}`，
+    full-access Key → 200，两侧与 Go 逐字节一致。
+  - **A/B 结果（Go :8080 vs Java :8082，同一 dev PG）**：16 个端点 + 各种边界共
+    **36 组请求，35 组逐字节 MATCH**。唯一 DIFF 是**非法 JSON 请求体**的
+    `details` 文案（Go 的 `encoding/json` vs Jackson；`code`/`message` 一致），
+    已归入 §9 阶段 1 差异 #2 那一族。空 body 的 `details:"EOF"` 是逐字节一致的。
+  - **复现 A/B 的注意点**：`scripts/go-server-up.sh` 必须从 **WeKnora 目录**调用
+    （viper 在 cwd 下找 `config/config.yaml`，否则 `Config File "config" Not Found`）；
+    且 host-run 需要 `DB_DRIVER`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`/`RETRIEVE_DRIVER`
+    等**非地址类**的 env（`dev-env.sh` 只覆盖地址，所以要先 `set -a; . ./.env; set +a`
+    再把 `DB_HOST/DB_PORT/REDIS_ADDR/DOCREADER_ADDR` 覆盖回 localhost）。
+    不这么做会在启动时 panic `unsupported database driver:` 或找不到配置文件。
+  - **契约测试要自己清 memory 的 7 张表**：`TestSchema.resetData` 不含它们
+    （该文件不归 memory 模块改），照 `MemoryRepositoryTest` 的写法显式 `DELETE`。
 - **JSON 编码器的系统性差分排查（本轮的专项）**：
   - **做法**（可复用）：读 Go `encoding/json` 的 encoder 源码定出**类别**（转义分支、
     浮点编码器、整数、容器），为每类构造语料，用独立 Go 程序录出真值，再拿**容器里那个

@@ -52,6 +52,42 @@ public final class APIKeyRoutePolicies {
         registerKnowledgeAndWikiRoutes(authorizer);
         registerMcpRoutes(authorizer);
         registerSessionRoutes(authorizer);
+        registerMemoryRoutes(authorizer);
+    }
+
+    /**
+     * 长期记忆（对照 Go {@code router/routes_memory.go} L17-40 的 16 条路由）。
+     *
+     * <p>整组共用 {@code apiKeyFullAccess()} = {@code {RequireFullAccess: true}}，
+     * 而且<b>刻意不带任何能力清单</b>——Go 的注释把理由写死了：
+     * 「记忆空间属于一个人，scoped 集成 key 不该继承一个」。
+     * 所以带 {@code chat} 的 Key 能跑完整对话流程，却读不到同一批记忆：
+     * 记忆是<b>按人</b>的（{@code subject_id = principal.StorageID()}），
+     * 而一把集成 Key 代表的是一个系统、不是一个人。</p>
+     *
+     * <p>注意与 {@code /api/v1/sessions/continue-stream/*} 的对比：那边是
+     * {@code chat(fullAccess())}（scoped Key 凭 {@code chat} 能力即可进），
+     * 这边是纯 full-access。两者的差别是有意的，别顺手统一。</p>
+     */
+    private static void registerMemoryRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy memory = APIKeyRoutePolicy.fullAccess();
+        final String base = "/api/v1/memory";
+        a.registerGin("GET", base + "/settings", memory);
+        a.registerGin("PUT", base + "/settings", memory);
+        a.registerGin("GET", base + "/items", memory);
+        a.registerGin("POST", base + "/items", memory);
+        a.registerGin("DELETE", base + "/items", memory);
+        a.registerGin("PUT", base + "/items/:id", memory);
+        a.registerGin("DELETE", base + "/items/:id", memory);
+        a.registerGin("POST", base + "/items/:id/confirm", memory);
+        a.registerGin("POST", base + "/items/:id/reject", memory);
+        a.registerGin("GET", base + "/topics", memory);
+        a.registerGin("DELETE", base + "/topics/:id", memory);
+        a.registerGin("POST", base + "/topics/:id/promote", memory);
+        a.registerGin("GET", base + "/documents", memory);
+        a.registerGin("DELETE", base + "/documents/:id", memory);
+        a.registerGin("GET", base + "/export", memory);
+        a.registerGin("POST", base + "/consolidate", memory);
     }
 
     /**

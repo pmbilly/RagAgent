@@ -39,7 +39,7 @@
 | 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
 | 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
 | **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | ✅ `continue-stream` 完成（4/4 步） | — |
-| **A** | **波 0**：memory / datasource（零前置的真叶子） | ⏳ **下一步** | — |
+| **A** | **波 0**：memory ✅ **模块完整收官** / datasource ⏳ | **memory 4/4 步完成**（实体+仓储 → settings domain → service 层 → **HTTP 层 16 端点**）；datasource 未开工，是波 0 的下一步 | — |
 | **B** | **波 1-2**：未被 agent 阻塞的端点群（约 200 条路由） | ⏳ | — |
 | **C** | **波 3**：agent 前置（sandbox / infrastructure / browserskill / modelcontext） | ⏳ | — |
 | **D** | **波 4**：agent 核心 + agent/tools（咽喉） | ⏳ | — |
