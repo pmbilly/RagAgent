@@ -252,6 +252,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | memory HTTP 层（波 0 第 4 步，**memory 模块收官**） | internal/handler/memory.go（465 行）；internal/router/routes_memory.go（16 条路由） | com.ragagent.memory.controller.MemoryController + config.WebConfig 路由 + apikey.filter.APIKeyRoutePolicies | ✅ | 16 端点全落地；34 条新测试（**22 个 golden 全部是 Go 实录**）+ **真 PG 上 36 组 A/B（35 MATCH / 1 已知差异）**（唯一 DIFF 是非法 JSON 的 details 文案，已知差异）。关键坑见 §9 |
 | datasource service+HTTP 层（波 0，**datasource 模块收官**） | internal/application/service/datasource_service.go（1488）；internal/handler/{datasource,datasource_credentials}.go；internal/router/routes_infra.go L292-333（17 条路由）；internal/container 的 initConnectorRegistry/startDataSourceScheduler | com.ragagent.datasource.{service,controller,dto} + config.WebConfig + apikey.filter.APIKeyRoutePolicies | ✅ | 17 端点全落地；88 条新测试（50 service + 38 契约，**golden 全是 Go 实录**）+ **真 PG 上 39 组 A/B 全 MATCH**（含**双向跨语言互读**与**一次真实 RSS 同步的终态计数**）。关键坑见 §9 |
 | session CRUD+pin（波 1 G1） | internal/application/service/session.go 的写方法（L188-668）；internal/handler/session/handler.go L123-582；internal/router/routes_chat.go L53-83 | com.ragagent.session.service.SessionService 写路径扩展 + controller.SessionController（8 条端点）+ apikey.filter.APIKeyRoutePolicies + common.web.GoJsonBindError | ✅ | 8 端点全落地；34 条新契约测试（**golden 全是 Go 实录**）+ **真 PG 上 34 组 A/B 全 MATCH**（2988 测试全量绿）。**golden 实测纠正了三处预实现**：渠道 source 拒绝是 500 双前缀（非 403）、page=0 被 omitempty 跳过、`queryPaged` 的 is_pinned 映射缺陷。关键坑见 §9「波 1 G1」 |
+| 消息面（波 1 G2） | internal/handler/message.go（347 行）；internal/application/service/message.go 的读/删/搜/统计方法；internal/application/repository/message.go 的两条检索查询；routes_chat.go L16-33 + L59 | com.ragagent.session.{service.MessageService 扩展,controller.MessageController,domain.MessageWithSession/MessageSearchGroupItem/MessageSearchResult/ChatHistoryKbStats} + SessionController 补 ClearSessionMessages + APIKeyRoutePolicies | ✅ | 5 端点全落地（4 条 /messages + 清空）；23 条新契约测试（golden 全是 Go 实录）+ **真 PG 上 25 组 A/B 全 MATCH**（3011 全量绿）。**golden 抓到的关键契约**：search 的 match_type 全是 "hybrid"（partner 补对的空 matchType 与 "keyword" 合并所致）。关键坑见 §9「波 1 G2」 |
 
 ## 9. 当前确认过的细节
 
@@ -990,3 +991,24 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
      Java 暂为同步尽力而为（HTTP 不可见）；webSearchState 清理与 destroyBoundSandbox
      以 TODO 占位（随波 2/波 3 收口）。`SanitizeForLog` 不只是日志卫生——批量删除把它
      的输出**当真实入参**（`"  "` 两个空格保留 → 判不可见），Java 侧 `LogSanitizer.sanitize` 逐字对照。
+- **波 1 G2（消息面）新确认的细节与坑——前三条都会复发**：
+  1. **search 的 match_type 全是 "hybrid" 是 partner 补对造成的**：关键词只命中
+     Q/A 一侧时，`fetchPartnerMessages` 补的另一条 matchType 是**空串**，
+     Go 的合并分支 `g.MatchType != item.MatchType`（**不排除空串**）→ "keyword" != "" →
+     升 "hybrid"。Java 首版多写了 `!item.matchType().isEmpty()` 守卫，golden 抓回。
+     **凡是照抄 Go 的 merge/compare 分支，一个条件都不能多加**。
+  2. **keyword 模式不是透传**：Go 走 `convertKeywordResults` 赋线性分值 (n-i)/n
+     （单结果 = 1，不是 1.0——GoDoubleSerializer 逐字段）；hybrid 模式走 RRF
+     （k=60，分值 1/(60+rank)）。两条路径的分值公式完全不同。
+  3. **两个 404 文案刻意不同**：会话不可见是 `session not found`（ErrSessionNotFound），
+     消息不存在是 **gorm 的原文** `record not found`（handler 直接透传 err.Error()）。
+     Java 的 `MessageNotFoundException` 消息不是契约，controller 里用常量 `RECORD_NOT_FOUND`。
+  4. **消息没有 HTTP 创建端点**（聊天管线产生，波 4/5）——golden 录制与 A/B 造数
+     都要 psql 直插 dev PG（messages 表大半列有默认值，显式给
+     id/request_id/session_id/role/content/created_at 即可）。H2 测试同款播种。
+  5. **搜索的向量路径依赖 ChatHistoryConfig**（未配置时 Go 跳过向量搜索）——
+     Java 的 retrieval/HybridSearch 未翻译，恒走"未配置"分支，未配置租户两侧一致。
+     已知差异只在"租户配置了聊天历史 KB"时出现（TODO 随 retrieval 收口）。
+  6. **A/B 的删除用例两侧各删各的孪生行**（同内容不同 id）——Go 先删会消费状态，
+     Java 复删同 id 必 404，那组 MATCH 是**假绿**（空转）。清空（clear）是幂等的，
+     两侧先后打同一会话即可。

@@ -79,9 +79,12 @@ public class SessionController {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final SessionService sessionService;
+    private final com.ragagent.session.service.MessageService messageService;
 
-    public SessionController(SessionService sessionService) {
+    public SessionController(SessionService sessionService,
+                             com.ragagent.session.service.MessageService messageService) {
         this.sessionService = sessionService;
+        this.messageService = messageService;
     }
 
     /**
@@ -402,6 +405,30 @@ public class SessionController {
         } catch (Exception e) {
             throw new BizException(AppError.badRequest("invalid request"));
         }
+    }
+
+    // ══════════════════════════ 清空消息 ══════════════════════════
+
+    /**
+     * 对照 Go {@code ClearSessionMessages}（handler.go L407-435，路由 L59）：
+     * 会话本身保留，消息全软删（含建议与聊天历史知识清理——在 MessageService 里）。
+     * 会话不可见 → 404 "session not found"。
+     */
+    @DeleteMapping("/api/v1/sessions/{id}/messages")
+    public ResponseEntity<Map<String, Object>> clearSessionMessages(@PathVariable("id") String id) {
+        String sessionId = LogSanitizer.sanitize(id);
+        if (sessionId.isEmpty()) {
+            throw new BizException(AppError.badRequest("invalid session id"));
+        }
+        try {
+            messageService.clearSessionMessages(sessionId);
+        } catch (SessionNotFoundException e) {
+            log.warn("Session not found, ID: {}", sessionId);
+            throw BizException.notFound(e.getMessage());
+        } catch (RuntimeException e) {
+            throw toInternal(e);
+        }
+        return messageBody("Session messages cleared successfully");
     }
 
     // ══════════════════════════ 置顶 ══════════════════════════

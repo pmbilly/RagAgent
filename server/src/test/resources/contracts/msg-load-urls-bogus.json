@@ -1,0 +1,1 @@
+{"error":{"code":1000,"details":null,"message":"invalid resource_urls value \"bogus\": expected \"handle\" or \"public\""},"success":false}

@@ -19,6 +19,7 @@ import com.ragagent.session.domain.MessageArtifact;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.MessageNotFoundException;
 import com.ragagent.session.domain.Session;
+import com.ragagent.session.domain.MessageWithSession;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,10 +57,23 @@ public class MessageRepository {
 
     private final MessageMapper mapper;
     private final SessionMapper sessionMapper;
+    /** 方言探测（与 SessionRepository 同款，构造期问一次）：关键词搜索的 ILIKE / LOWER 分支。 */
+    private final boolean postgres;
 
-    public MessageRepository(MessageMapper mapper, SessionMapper sessionMapper) {
+    public MessageRepository(MessageMapper mapper, SessionMapper sessionMapper,
+                             javax.sql.DataSource dataSource) {
         this.mapper = mapper;
         this.sessionMapper = sessionMapper;
+        this.postgres = detectPostgres(dataSource);
+    }
+
+    private static boolean detectPostgres(javax.sql.DataSource dataSource) {
+        try (java.sql.Connection c = dataSource.getConnection()) {
+            String product = c.getMetaData().getDatabaseProductName();
+            return product != null && product.toLowerCase(java.util.Locale.ROOT).contains("postgres");
+        } catch (java.sql.SQLException e) {
+            return false;
+        }
     }
 
     // ── 写 ──────────────────────────────────────────────────────────────────
@@ -418,5 +432,93 @@ public class MessageRepository {
             }
             return Message.ROLE_USER.equals(a.getRole()) ? -1 : 1;
         };
+    }
+
+    // ── 搜索（波 1 G2）────────────────────────────────────────────────────
+
+    /**
+     * 对照 Go {@code SearchMessagesByKeyword}（message.go L184-216）：租户 + owner 范围内
+     * 按内容关键词搜索，created_at DESC 取 limit 条，带出会话标题。
+     *
+     * <p><b>Go 是一条 JOIN SQL</b>；Java 两步化（先取范围内会话 id，再查消息）——
+     * 等价性：INNER JOIN sessions ON id AND tenant_id AND deleted_at IS NULL (+owner 范围)
+     * 与第一步的 id 集合完全相同；第二步的消息过滤与排序照抄。会话标题由第二步后
+     * 一次批量查询补齐（等价于 SELECT 里那列 session_title）。</p>
+     *
+     * <p>owner 范围逐字对照：{@code (user_id = ? OR user_id IS NULL OR user_id = '')}；
+     * 大小写不敏感匹配在 PG 用 {@code ILIKE}、H2 用 {@code LOWER} 对
+     * {@code LOWER}（方言开关与 SessionMapper 同款）；LIKE 转义复用
+     * {@code SessionRepository.escapeLikeKeyword}。</p>
+     */
+    public List<MessageWithSession> searchMessagesByKeyword(long tenantId, String ownerId,
+            String keyword, List<String> sessionIds, int limit) {
+        if (limit <= 0) {
+            limit = 20;
+        }
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Session> sw =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Session>()
+                        .select(Session::getId)
+                        .eq(Session::getTenantId, tenantId)
+                        .isNull(Session::getDeletedAt);
+        if (ownerId != null && !ownerId.isEmpty()) {
+            sw.and(q -> q.eq(Session::getUserId, ownerId)
+                    .or().isNull(Session::getUserId)
+                    .or().eq(Session::getUserId, ""));
+        }
+        List<String> candidates = new ArrayList<>();
+        for (Session s : sessionMapper.selectList(sw)) {
+            candidates.add(s.getId());
+        }
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+
+        LambdaQueryWrapper<Message> mw = new LambdaQueryWrapper<Message>()
+                .in(Message::getSessionId, candidates)
+                .isNull(Message::getDeletedAt)
+                .orderByDesc(Message::getCreatedAt)
+                .last("LIMIT " + limit);
+        if (sessionIds != null && !sessionIds.isEmpty()) {
+            mw.in(Message::getSessionId, sessionIds);
+        }
+        mw.apply(postgres ? "content ILIKE {0}" : "LOWER(content) LIKE LOWER({0})",
+                "%" + SessionRepository.escapeLikeKeyword(keyword) + "%");
+        return withSessionTitles(mapper.selectList(mw));
+    }
+
+    /**
+     * 对照 Go {@code GetMessagesByRequestIDs}（message.go L270-287）：按 request_id 取
+     * Q&amp;A 对的另一半（搜索管线的补对步骤用）。没有租户/owner 条件——Go 也只有
+     * {@code request_id IN ?} + 软删过滤，标题来自 JOIN。
+     */
+    public List<MessageWithSession> getMessagesByRequestIds(List<String> requestIds) {
+        if (requestIds == null || requestIds.isEmpty()) {
+            return List.of();
+        }
+        List<Message> rows = mapper.selectList(new LambdaQueryWrapper<Message>()
+                .in(Message::getRequestId, requestIds)
+                .isNull(Message::getDeletedAt));
+        return withSessionTitles(rows);
+    }
+
+    /** 补 session_title（等价于 Go 两条检索 SQL 里 JOIN 出的那一列）。 */
+    private List<MessageWithSession> withSessionTitles(List<Message> rows) {
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (Message m : rows) {
+            ids.add(m.getSessionId());
+        }
+        Map<String, String> titles = new HashMap<>();
+        for (Session s : sessionMapper.selectList(new LambdaQueryWrapper<Session>()
+                .in(Session::getId, ids))) {
+            titles.put(s.getId(), s.getTitle() == null ? "" : s.getTitle());
+        }
+        List<MessageWithSession> out = new ArrayList<>(rows.size());
+        for (Message m : rows) {
+            out.add(new MessageWithSession(m, titles.getOrDefault(m.getSessionId(), "")));
+        }
+        return out;
     }
 }

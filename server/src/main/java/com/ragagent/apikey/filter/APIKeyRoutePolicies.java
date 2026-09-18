@@ -52,6 +52,7 @@ public final class APIKeyRoutePolicies {
         registerKnowledgeAndWikiRoutes(authorizer);
         registerMcpRoutes(authorizer);
         registerSessionRoutes(authorizer);
+        registerMessageRoutes(authorizer);
         registerMemoryRoutes(authorizer);
         registerDataSourceRoutes(authorizer);
     }
@@ -144,6 +145,25 @@ public final class APIKeyRoutePolicies {
         a.registerGin("DELETE", "/api/v1/sessions/batch", sessions);
         a.registerGin("POST", "/api/v1/sessions/:session_id/pin", sessions);
         a.registerGin("DELETE", "/api/v1/sessions/:id/pin", sessions);
+        a.registerGin("DELETE", "/api/v1/sessions/:id/messages", sessions);
+    }
+
+    /**
+     * 消息路由（对照 Go router/routes_chat.go L16-33 的 {@code /messages} 组）。
+     *
+     * <p>消息历史对 API Key 默认是 full-access 面，但细分子能力：
+     * {@code /search} 与 {@code /chat-history-stats} 要 {@code message_history}
+     * （租户级聊天历史元数据），{@code /load} 与 DELETE 要 {@code chat}
+     * （操作自己会话里的消息，所有权由 message service 把关）。</p>
+     */
+    private static void registerMessageRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy full = APIKeyRoutePolicy.fullAccess();
+        APIKeyRoutePolicy history = APIKeyRoutePolicy.messageHistory(full);
+        APIKeyRoutePolicy chat = APIKeyRoutePolicy.chat(full);
+        a.registerGin("POST", "/api/v1/messages/search", history);
+        a.registerGin("GET", "/api/v1/messages/chat-history-stats", history);
+        a.registerGin("GET", "/api/v1/messages/:session_id/load", chat);
+        a.registerGin("DELETE", "/api/v1/messages/:session_id/:id", chat);
     }
 
     /**
