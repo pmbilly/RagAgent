@@ -426,6 +426,41 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
      所以这一阶段还做不了 SSE 的 A/B。e2e 目前只验证到「redis 模式下服务能起、连不上时按 Go 的方式起不来」。
   7. e2e 脚本默认不导出 `STREAM_MANAGER_TYPE`（host-run 下 Go/Java 都走内存后端）；
      要用 redis 后端做联调需显式带上 `STREAM_MANAGER_TYPE=redis REDIS_PREFIX=stream:`。
+- **阶段 5（session/message）新确认的细节与坑**：
+  - **GORM 的 `Updates(结构体)` 会跳过零值字段**（session/message 仓储都有这条路径）。
+    string `""` / 数值 `0` / bool `false` / 指针 nil / 切片 nil 一律不写进 SET——
+    所以**"把 content 改成空串"在这种调用下不生效**。这是 Go 的既有语义，照抄别修。
+    Java 侧要逐字段判零后再 `set`。判据：string != ""、数值 != 0、bool != false、对象/切片 != null。
+    另：全部字段为零时 GORM 会生成 `UPDATE t SET` 这种非法语句而报错，Java 侧直接跳过。
+  - **⚠️ MyBatis-Plus 的 wrapper `.set()` 不套用实体上的 `@TableField(typeHandler=...)`**。
+    `LambdaUpdateWrapper.set(Message::getImages, list)` 会退化成 **Java 序列化**，
+    落库时报 `Data conversion error converting "CAST(X'aced0005...)"`（`0xACED` 是
+    Java 序列化魔数，看到这个字节串就是本坑）。
+    **修法**：用 3 参形式 `set("images", value, "typeHandler=com.x.YTypeHandler")`
+    （需要字符串列名，所以这类更新得用 `UpdateWrapper` 而不是 `LambdaUpdateWrapper`），
+    或者干脆写一个带 `#{..., typeHandler=...}` 的显式 `@Update`。
+    实体自带的 insert/updateById 路径不受影响，只有 wrapper 有这个问题。
+  - **`List<T>` 型 jsonb 列读回来是 `List<LinkedHashMap>`**：泛型擦除后
+    `JacksonTypeHandler` 只拿得到 `List.class`，元素类型丢失，一取元素就 `ClassCastException`。
+    项目里 wiki/apikey/mcp 各自手写了 List 处理器就是这个原因；
+    session 模块用了个基类收口照抄这个结论：
+    `AbstractJsonListTypeHandler<T>` + 每个元素类型一个三行的子类
+    （`MessageImageListTypeHandler` 等）。
+    **注意写路径与 wiki 相反**：Go 的 `MessageImages.Value()` 把 nil 切片写成 `[]`
+    （不是 SQL NULL），所以这里空列表也写 `[]`，别套用 wiki 那套"空列表写 NULL"。
+  - **自定义 `@Select` 的结果映射不会自动套实体的 `@TableField(typeHandler=...)`**——
+    要在方法上写 `@Results({@Result(column=..., property=..., typeHandler=...)})`
+    （实体之外的投影行同理）。`@Result` 是**方法级**注解，写在类的字段上不生效。
+  - `Message.execution_context` 与 `MessageAttachment.url` 都是 `json:"-"`，但**仍要落库**；
+    `MessageAttachment.URL` 的 tag 同时管响应**和** `Value()` 的 JSON（所以它落库也不带），
+    而 `Message.execution_context` 的 `-` 只管响应（它的 `Value()` 是独立方法）。
+    两个 `json:"-"` 的含义不一样，逐个看 Value() 而不是一律加 `@JsonIgnore`。
+  - `Message` 里三处跨模块类型（`References`→检索、`AgentSteps`→agent 引擎、
+    `execution_context` 的 `QuestionSuggestionConfig`/`TagScope`）先按**不透明**类型
+    （`List<Object>` / `Map<String,Object>`）透传，与 `StreamResponse.knowledgeReferences`
+    的既有做法一致；对应模块翻译时再收紧类型。
+  - `MessageRepository.GetMessageByRequestID` 查不到时返回 `nil, nil`（**不是**错误），
+    与同文件其它读方法不同——别统一成抛异常。
 - **跨阶段通用坑（阶段 4 新增）**：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，

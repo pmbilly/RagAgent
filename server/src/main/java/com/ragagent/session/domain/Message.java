@@ -93,23 +93,23 @@ public class Message {
     private List<Object> agentSteps = new ArrayList<>();
 
     /** 用户消息里 @ 到的知识库/文件等。 */
-    @TableField(value = "mentioned_items", typeHandler = PgJsonTypeHandler.class)
+    @TableField(value = "mentioned_items", typeHandler = MentionedItemListTypeHandler.class)
     @JsonProperty("mentioned_items")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MentionedItem> mentionedItems = new ArrayList<>();
 
-    @TableField(value = "images", typeHandler = PgJsonTypeHandler.class)
+    @TableField(value = "images", typeHandler = MessageImageListTypeHandler.class)
     @JsonProperty("images")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MessageImage> images = new ArrayList<>();
 
-    @TableField(value = "attachments", typeHandler = PgJsonTypeHandler.class)
+    @TableField(value = "attachments", typeHandler = MessageAttachmentListTypeHandler.class)
     @JsonProperty("attachments")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MessageAttachment> attachments = new ArrayList<>();
 
     /** skill 产出、由 ArtifactCollector 在沙箱结束后回填（仅助手消息）。 */
-    @TableField(value = "artifacts", typeHandler = PgJsonTypeHandler.class)
+    @TableField(value = "artifacts", typeHandler = MessageArtifactListTypeHandler.class)
     @JsonProperty("artifacts")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MessageArtifact> artifacts = new ArrayList<>();
@@ -179,7 +179,7 @@ public class Message {
     private String knowledgeId;
 
     /** 注入到本回答的长期记忆，供 UI 展示与就地删除。 */
-    @TableField(value = "used_memories", typeHandler = PgJsonTypeHandler.class)
+    @TableField(value = "used_memories", typeHandler = UsedMemoryListTypeHandler.class)
     @JsonProperty("used_memories")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<UsedMemory> usedMemories;

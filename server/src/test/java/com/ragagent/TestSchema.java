@@ -338,6 +338,36 @@ public final class TestSchema {
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
 
+        // messages：阶段 5 消息模块。同样只建 Go struct 映射到的列——迁移 000001 的那些
+        // 列在 struct 里都有对应字段，故这里与真库基本一致；jsonb 列在 H2 用 VARCHAR 承载。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS messages (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "request_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "session_id VARCHAR(36) NOT NULL," +
+                "role VARCHAR(50) NOT NULL DEFAULT ''," +
+                "content TEXT NOT NULL DEFAULT ''," +
+                "knowledge_references VARCHAR NOT NULL DEFAULT '[]'," +
+                "agent_steps VARCHAR," +
+                "is_completed BOOLEAN NOT NULL DEFAULT FALSE," +
+                "mentioned_items VARCHAR DEFAULT '[]'," +
+                "is_fallback BOOLEAN DEFAULT FALSE," +
+                "agent_duration_ms BIGINT DEFAULT 0," +
+                "knowledge_id VARCHAR(36)," +
+                "images VARCHAR DEFAULT '[]'," +
+                "channel VARCHAR(50) NOT NULL DEFAULT ''," +
+                "rendered_content TEXT NOT NULL DEFAULT ''," +
+                "attachments VARCHAR DEFAULT '[]'," +
+                "agent_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "agent_tenant_id BIGINT NOT NULL DEFAULT 0," +
+                "model_id VARCHAR(64) NOT NULL DEFAULT ''," +
+                "execution_context VARCHAR NOT NULL DEFAULT '{}'," +
+                "artifacts VARCHAR DEFAULT '[]'," +
+                "used_memories VARCHAR," +
+                "usage VARCHAR," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+
         // im_channel_sessions：会话的来源/归属信息。IM 模块本身还没翻，
         // 但 sessions 的两条查询要用到它（GetIMPlatform 的 JOIN、QueryPaged 的 LEFT JOIN），
         // 所以先把表建出来。
@@ -411,7 +441,8 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM task_dead_letters");
         jdbc.execute("DELETE FROM tenant_api_keys");
         jdbc.execute("DELETE FROM audit_logs");
-        // im_channel_sessions 有指向 sessions 的外键，先删子表
+        // 子表先删（im_channel_sessions 有指向 sessions 的外键；messages 逻辑上也是子表）
+        jdbc.execute("DELETE FROM messages");
         jdbc.execute("DELETE FROM im_channel_sessions");
         jdbc.execute("DELETE FROM sessions");
     }
