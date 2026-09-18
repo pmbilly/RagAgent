@@ -256,6 +256,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 追问建议（波 1 G3） | internal/handler/message_suggestion.go（156 行）；internal/application/service/message_suggestion.go 的 Ensure/Get/RecordEvent/suppress 与包级辅助 | com.ragagent.session.{service.MessageSuggestionService,controller.MessageSuggestionController} + APIKeyRoutePolicies | ✅ | 3 端点全落地；17 条新契约测试 + **真 PG 上 18 组 A/B 全 MATCH**（3028 全量绿）。**已知差异**：LLM 生成步降级为 failed/generation_error（运行时模型工厂随阶段 7、知识推荐随波 2/4）；未配置 follow-ups 的默认路径逐字节一致。关键坑见 §9「波 1 G3」 |
 | 产物+title+stop（波 1 G6） | internal/handler/session/{artifact_download.go,title.go,stream.go 的 StopSession}；service/session.go 的 GenerateTitle | SessionController 追加 5 条端点 + llm.domain.ResponseType 补 STOP + MessageService.getSessionArtifacts + SessionService.generateTitle | ✅ | 5 端点全落地；22 条新契约测试 + **真 PG 上 22 组 A/B 全 MATCH**（3050 全量绿）。**golden 抓回两个真缺陷**：stop 的 Long 引用比较（陷阱 §5.6 复发）、AbstractJsonListTypeHandler 缺 JSR310 模块（artifacts 列整列不可读）。关键坑见 §9「波 1 G6」 |
 | steer（波 1 G4） | internal/handler/session/steer.go 的 4 个 HTTP 端点（L461-810）+ 包级辅助（parseSteerDelivery/selectSteerBacklog/pendingSteerQueueItems/steerEvent） | com.ragagent.session.controller.SteerController + APIKeyRoutePolicies + BizException 补 serviceUnavailable | ✅ | 4 端点 HTTP 面全落地；16 条新测试（11 golden + 5 条直种 streamManager 的排队路径单测）+ **真 PG 上 12 组 A/B 全 MATCH**（3066 全量绿）。**范围说明**：live run 只能由 agent 引擎设置——排队/注入路径的引擎侧（PollSteer/follow-up 交接）随波 4/5，HTTP 面已对齐。关键坑见 §9「波 1 G4」 |
+| 临时文档 attachments（波 1 G5，**波 1 收官**） | internal/handler/session/temporary_document.go（174 行）；service/temporary_document.go 的 Create/Get/List/Delete/OpenFile/Process（L133-348 + parse L350-449 的纯文本/docreader 路径）；repository/temporary_document.go；filetransport/response.go；file/local.go 的 SaveBytes/GetFile/DeleteFile | com.ragagent.session.{service.TemporaryDocumentService,service.AttachmentFileStore,controller.TemporaryDocumentController,mapper.TemporaryDocument*,domain.TemporaryDocument} + common.web.{GoNaiveTimeSerializer,GoNaiveOffsetDateTimeTypeHandler,ContentTypeByFilename} + TestSchema.temporary_documents | ✅ | 5 端点全落地；11 条新契约测试（golden 全是 Go 实录）+ **真 PG 上 11 组 A/B 全 MATCH**（3077 全量绿）。**顺手验证了 chunker(auto/1600/160)+ApproxTokenCount 与 Go 逐字节一致**。关键坑见 §9「波 1 G5」 |
 
 ## 9. 当前确认过的细节
 
@@ -1081,3 +1082,41 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   6. **503（ServiceUnavailable）是 steer 的可重试语义**：live run / 前序投递
      查询失败 → 503 "Failed to look up running turn"（客户端 toast 后重试，
      而不是开第二轮）。BizException 需补 serviceUnavailable 工厂。
+- **波 1 G5（临时文档 attachments）新确认的细节与坑——前四条都会复发**：
+  1. **`@TableField(typeHandler=…)` 在 MP 生成的 insert/update SQL 里生效的前提是
+     `@TableName(autoResultMap = true)`**——而且 **`LambdaUpdateWrapper.set(col, val)`
+     根本不带 typeHandler**，必须用三参重载 `set(col, val, "typeHandler=<FQCN>")`。
+     两处都漏就是 A/B 实测的 "column \"chunks\" is of type jsonb but expression is of
+     type character varying"。value 属性也要显式给（照 SyncLog 模式）。
+  2. **时间列的"双形态"**：naive 列（timestamp without time zone）由 Go 写入的值
+     （expires_at/started_at/ready_at，time.Now() 本地墙钟）读回渲染 **Z 形态**，
+     但**创建响应里的 expires_at 是内存值**渲染 **+08:00 形态**；created_at/updated_at
+     是 DB 默认（PG 服务器 UTC）恒 **Z**。Java 用 OffsetDateTime +
+     `GoNaiveOffsetDateTimeTypeHandler`（写=原 offset 墙钟、读=UTC 解释）对齐；
+     created_at/updated_at 无 RETURNING 回填，service 显式赋 now(UTC)。
+  3. **Go nil slice 的 jsonb 链路**：text 路径 parse 返回 nil images → json.Marshal →
+     4 字节 `"null"` 字面量写进 jsonb（**不是 SQL NULL**）→ 读回 MarshalJSON →
+     响应里 `"image_refs":null`。Java 字符串字段存 `"null"` + `@JsonRawValue`
+     输出（H2 列 NOT NULL，写 SQL NULL 直接炸）；`readJsonArray` 要把 `"null"`
+     当空数组。**IdType.ASSIGN_UUID 是 32 位无连字符 hex**——Go 是带连字符
+     UUID，必须 IdType.INPUT + service 显式 `UUID.randomUUID()`。
+  4. **ext 在 service 层带点**：`filepath.Ext` 只 Lower 不去点——`file_type` 是
+     `".txt"`、报错 `"unsupported file type: .exe"`；传给 docreader 才去点。
+     纯文本管线的终态（metadata `{"parser":"plain_text"}`、token_count/chunk_count、
+     chunks jsonb 形态）与 Go **逐字节一致**——chunker auto/1600/160 + ApproxTokenCount
+     的对齐被顺手验证。
+  5. **存储布局按 Go 逐字对齐**（`{base}/{tenant}/exports/chat_attachment_{uuid12}{ext}`
+     → `local://` 引用）：resource_ref 虽是 json:"-"，但 A/B 跨服务互读依赖两侧同布局。
+     baseDir 必须 `toAbsolutePath().normalize()`——相对路径（./build/test-files）下
+     `startsWith` 会误判路径穿越。
+  6. **上传容器的非 multipart / 空 size 语义**：非 multipart 请求 Go 的 FormFile
+     固定报 `request Content-Type isn't multipart/form-data`（400），multipart 但缺
+     file part 是 `http: no such file`；**空 size 不在 controller 拒**（FormFile 收
+     0 字节，由 service 报 "file size must be between 1 byte and 50MB"）。
+     MaxBytesReader 超限 → `http: request body too large`（multipart 上限放宽到
+     60MB 让 service 的 50MB 校验先触发）。
+  7. **已知差异（记录在 service 类注释）**：任务队列用进程内单线程 executor
+     （asynq 随波 4）；扩展白名单静态表（ListEngines 未翻译）；agent_id 门控
+     （shared-agent config/Audio/VLM）随波 5/7；preview 响应头用 servlet
+     `setHeader` 原样写（Spring/Tomcat 的 Content-Type 规范化会去掉 charset= 前空格，
+     A/B 脚本已归一化该容器噪音 + Vary + reason phrase）。

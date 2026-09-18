@@ -1,0 +1,1 @@
+{"error":{"code":1000,"details":null,"message":"invalid attachment upload: request Content-Type isn't multipart/form-data"},"success":false}

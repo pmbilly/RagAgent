@@ -406,6 +406,33 @@ public final class TestSchema {
                 "actor_id VARCHAR(512) NOT NULL DEFAULT ''," +
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
 
+        // temporary_documents（波 1 G5）：会话附件。jsonb 列在 H2 用 VARCHAR 承载；
+        // 时间列在真库是 **TIMESTAMP WITHOUT TIME ZONE**（naive），H2 用 TIMESTAMP 对齐。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS temporary_documents (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "session_id VARCHAR(36) NOT NULL," +
+                "resource_ref TEXT NOT NULL," +
+                "file_name VARCHAR(1024) NOT NULL," +
+                "file_type VARCHAR(32) NOT NULL," +
+                "mime_type VARCHAR(255) NOT NULL DEFAULT ''," +
+                "file_size BIGINT NOT NULL," +
+                "status VARCHAR(16) NOT NULL DEFAULT 'uploaded'," +
+                "content TEXT NOT NULL DEFAULT ''," +
+                "chunks VARCHAR NOT NULL DEFAULT '[]'," +
+                "image_refs VARCHAR NOT NULL DEFAULT '[]'," +
+                "metadata VARCHAR NOT NULL DEFAULT '{}'," +
+                "processing_options VARCHAR NOT NULL DEFAULT '{}'," +
+                "token_count INT NOT NULL DEFAULT 0," +
+                "chunk_count INT NOT NULL DEFAULT 0," +
+                "error_message TEXT NOT NULL DEFAULT ''," +
+                "expires_at TIMESTAMP NOT NULL," +
+                "started_at TIMESTAMP," +
+                "ready_at TIMESTAMP," +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP)");
+
         // im_channel_sessions：会话的来源/归属信息。IM 模块本身还没翻，
         // 但 sessions 的两条查询要用到它（GetIMPlatform 的 JOIN、QueryPaged 的 LEFT JOIN），
         // 所以先把表建出来。
@@ -706,6 +733,7 @@ public final class TestSchema {
         // 子表先删（im_channel_sessions 有指向 sessions 的外键；messages 逻辑上也是子表）
         jdbc.execute("DELETE FROM message_suggestion_events");
         jdbc.execute("DELETE FROM message_suggestion_sets");
+        jdbc.execute("DELETE FROM temporary_documents");
         jdbc.execute("DELETE FROM messages");
         jdbc.execute("DELETE FROM im_channel_sessions");
         jdbc.execute("DELETE FROM sessions");

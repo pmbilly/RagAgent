@@ -161,6 +161,12 @@ public final class APIKeyRoutePolicies {
         a.registerGin("GET", "/api/v1/sessions/:id/steer", sessions);
         a.registerGin("DELETE", "/api/v1/sessions/:id/steer/:steer_id", sessions);
         a.registerGin("POST", "/api/v1/sessions/:session_id/steer/:steer_id/inject", sessions);
+        // 临时文档 attachments 5 条（routes_chat.go L61-65，同组 chat 能力）
+        a.registerGin("POST", "/api/v1/sessions/:session_id/attachments", sessions);
+        a.registerGin("GET", "/api/v1/sessions/:id/attachments", sessions);
+        a.registerGin("GET", "/api/v1/sessions/:id/attachments/:attachment_id", sessions);
+        a.registerGin("GET", "/api/v1/sessions/:id/attachments/:attachment_id/preview", sessions);
+        a.registerGin("DELETE", "/api/v1/sessions/:id/attachments/:attachment_id", sessions);
     }
 
     /**

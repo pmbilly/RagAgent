@@ -7,6 +7,14 @@ server:
 spring:
   application:
     name: ragagent
+  servlet:
+    multipart:
+      # 对照 Go 的 MaxBytesReader（GetMaxFileSizeMB()*1MB + 1MB，默认 51MB）——
+      # 限值放宽到 60MB 让 service 层的大小校验（50MB）先触发；超 60MB 的请求
+      # 由 TemporaryDocumentController 的 MaxUploadSizeExceededException 处理器
+      # 仿 Go 的 "http: request body too large" 400 文案。
+      max-file-size: 60MB
+      max-request-size: 60MB
   threads:
     virtual:
       enabled: true          # JDK 21 虚拟线程，对照 Go goroutine 语义

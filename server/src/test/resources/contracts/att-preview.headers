@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: private, no-store
+Content-Disposition: inline; filename=note.txt
+Content-Length: 48
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: 5930ca16-f1e7-4eb1-8235-5b76374b7320
+Date: Fri, 18 Sep 2026 11:50:39 GMT
+
