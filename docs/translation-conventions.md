@@ -243,6 +243,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
 | agent_steps 类型收紧（阶段 5.2 步 3 上） | internal/types/{agent,message}.go；internal/storageurl/request.go 的 RewriteMessages* | com.ragagent.agent.domain.{AgentStep,ToolCall,ToolCallTarget,ToolResult} + session.domain.{AgentStepListTypeHandler,SearchResultListTypeHandler} + common.web.{GoTimeSerializer,GoTimeDeserializer} + storageurl.Rewriter.rewriteMessages* | ✅ | 30 测试（12 逐字节 + 18 往返/重写）。**修掉了消息响应体上一个既有契约偏差**：jsonb 透传时元素退化成 LinkedHashMap，键序变成 PG 规范化序。关键坑见 §9 |
 | continue-stream 端点（阶段 5.2 步 4） | internal/handler/session/stream.go L29-204 + resource_urls.go L56-174 | com.ragagent.session.{controller.SessionStreamController,sse.SseFrameWriter,sse.StreamEventEmitter} + WebConfig 路由 + APIKeyRoutePolicies | ✅ | **第一次真正的 SSE A/B：四条路径逐字节 MATCH**（见 §9）。帧骨架、HTML 转义、扣留重组全部对齐 |
+| datasource 连接器层（波 0） | internal/datasource/**（框架 + 8 个连接器子包） | com.ragagent.datasource.{,connector.*} | ✅ | 补 737 测试（829 总数），全打 127.0.0.1 stub。**RSS 的 gofeed/go-readability/html-to-markdown 无 Java 等价物 → 显式接缝降级**（唯一实质降级）。⚠️ 套件 2855 条后测试堆 1g 不够，已提到 2g |
 | datasource 类型+仓储（波 0） | internal/types/datasource.go；internal/application/repository/datasource_repo.go | com.ragagent.datasource.{domain,mapper} | ✅ | 92 测试（42 JSON 逐字节 Go 实录 / 50 H2 仓储）。TestSchema 加 data_sources/sync_logs（迁移 000029 唯一来源） |
 | memory 实体+仓储（波 0 第 2 步） | internal/types/{memory,memory_extraction}.go 的实体；internal/application/repository/memory{,_extraction,_lifecycle,_vector}.go | com.ragagent.memory.{domain,mapper} + MemoryContext | ✅ | 187 测试（其中 52+23+17 是 H2 仓储、其余是实体/纯函数）。PG 专属路径（ON CONFLICT / FOR UPDATE / halfvec）在 dev PG 上手跑验过。关键坑见 §9 |
 | 会话/消息最小读路径（阶段 5.2 步 3 下） | internal/application/service/{session,message}.go 的读方法 + loadSessionForRead | com.ragagent.session.service.{SessionService,MessageService,SessionLookupScope} | ✅ | 14 测试（授权判定）。`Session.requiresAdminConsoleRead` 阶段 5.1 已落地，本步只补 service 层的两条读路径与 Admin 回退 |
@@ -782,6 +783,20 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     → 回写内存；三步的净效果就是"落库与内存都等于调用方原值"，Java 直接插原值。
     **退化必须写出证明，并用用例钉住**（本轮钉了"false 真的落库"）——
     这类"看起来多余实则有净效果"的 Go 代码，退化前要先把它连起来算一遍。
+- **波 0（datasource 连接器层）新确认的坑——四条都会复发**：
+  - **⚠️ 日志断言必须显式 `setLevel` 再还原**：`logging.level.com.ragagent: WARN` 的级别过滤
+    发生在 **appender 之前**，所以任何断言 INFO/DEBUG 日志内容的测试，**单跑该包绿、一旦与
+    任何 `@SpringBootTest` 同批跑就红**（拿到空串）。这是"单跑绿全量红"的**新变种**，
+    与之前那个墙钟不稳是两回事。修法：测试里 `logger.setLevel(INFO)` + `@AfterAll` 还原。
+  - **JDK 的 `com.sun.net.httpserver.HttpServer` 必须 `setExecutor(...)`**，否则它的默认
+    分派器是单线程且会挂死（测试表现为超时）。做 stub server 时容易漏。
+  - **`HttpExchange.getRequestBody()` 只能读一次**：读第二次得空串且**不报错**——
+    需要重放的场景要先把字节缓存下来。
+  - **Javadoc 里不能出现字面的"星号+斜杠"**，会提前结束注释块（本轮踩了两次）。
+    写正则或路径时用 `&#42;` 之类转义，或改写措辞。
+  - 另外：`SsrfGuard` 的白名单是**进程级静态**，连接器测试必须 `reloadWhitelist(...)` 放行
+    loopback、并在 `@AfterAll` 还原（§9 里"多 Spring 上下文互相覆盖"那条的延伸）。
+  - `TaskScheduler.shutdown()` 在 Spring 6.1.14 **不存在**（6.2 才有）。
 - **JSON 编码器的系统性差分排查（本轮的专项）**：
   - **做法**（可复用）：读 Go `encoding/json` 的 encoder 源码定出**类别**（转义分支、
     浮点编码器、整数、容器），为每类构造语料，用独立 Go 程序录出真值，再拿**容器里那个
