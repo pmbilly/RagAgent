@@ -33,6 +33,10 @@ import com.ragagent.datasource.dto.CredentialFieldMetadata;
 import com.ragagent.datasource.dto.CredentialsResponse;
 import com.ragagent.datasource.dto.DataSourceResponse;
 import com.ragagent.apikey.domain.TenantAPIKeyResponse;
+import com.ragagent.knowledge.domain.Chunk;
+import com.ragagent.knowledge.domain.ChunkRevision;
+import com.ragagent.knowledge.domain.DocumentChunkMetadata;
+import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.KbAsrConfig;
 import com.ragagent.knowledge.domain.KbChunkingConfig;
 import com.ragagent.knowledge.domain.KbImageProcessingConfig;
@@ -938,6 +942,80 @@ class JsonContractRoundTripTest {
                 "dto.DataSourceResponse ← DataSourceResponse（凭据剥离）");
         assertRoundTrips(DataSourceResponse.from(new DataSource()), DataSourceResponse.class,
                 "dto.DataSourceResponse ← DataSourceResponse（全空实体）");
+    }
+
+    @Test
+    void chunkRevisionRoundTrips() {
+        // chunk 模块（波 2）：响应体（ListChunkRevisions 的 data 元素），字段序 = Go 声明序。
+        // is_enabled 是 false 也要恒输出（Go 无 omitempty）——字段名刻意不取 isEnabled。
+        ChunkRevision r = new ChunkRevision();
+        r.setId(java.util.UUID.randomUUID().toString());
+        r.setTenantId(10002L);
+        r.setKnowledgeBaseId(java.util.UUID.randomUUID().toString());
+        r.setKnowledgeId(java.util.UUID.randomUUID().toString());
+        r.setChunkId(java.util.UUID.randomUUID().toString());
+        r.setRevision(0);
+        r.setContent("");
+        r.setEnabled(false);
+        r.setEditorId("user-1");
+        r.setEditSource("user");
+        r.setEditedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        r.setCreatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        assertRoundTrips(r, ChunkRevision.class, "types.ChunkRevision ← ChunkRevision");
+    }
+
+    @Test
+    void documentChunkMetadataRoundTrips() {
+        // chunks.metadata（jsonb）的文档形状：generated_questions 空→省略（slice omitempty）、
+        // generated_questions_revision 0→省略（int omitempty）、content_revision 非 nil 的 0 要输出（*int）。
+        DocumentChunkMetadata meta = new DocumentChunkMetadata();
+        meta.setGeneratedQuestions(java.util.List.of(
+                new GeneratedQuestion("q-1", "问题？", 3),
+                new GeneratedQuestion("q-2", "另一个问题？", null)));
+        meta.setGeneratedQuestionsRevision(3);
+        assertRoundTrips(meta, DocumentChunkMetadata.class,
+                "types.DocumentChunkMetadata ← DocumentChunkMetadata（含问题）");
+
+        DocumentChunkMetadata empty = new DocumentChunkMetadata();
+        assertRoundTrips(empty, DocumentChunkMetadata.class,
+                "types.DocumentChunkMetadata ← DocumentChunkMetadata（全空 → {}）");
+    }
+
+    @Test
+    void chunkRoundTrips() {
+        // Chunk 起作响应体（chunk 模块波 2）：字段序 = Go struct 声明序。
+        // source_content / context_header 是 json:"-"（@JsonIgnore）；is_enabled 恒输出；
+        // 三个 json 列空 → null（对照 types.JSON.MarshalJSON 的 len==0 → "null"）。
+        Chunk chunk = new Chunk();
+        chunk.setId(java.util.UUID.randomUUID().toString());
+        chunk.setSeqId(42L);
+        chunk.setTenantId(10002L);
+        chunk.setKnowledgeId(java.util.UUID.randomUUID().toString());
+        chunk.setKnowledgeBaseId(java.util.UUID.randomUUID().toString());
+        chunk.setTagId("");
+        chunk.setContent("正文");
+        chunk.setContentRevision(2);
+        chunk.setIndexStatus("ready");
+        chunk.setLastEditorId("");
+        chunk.setChunkIndex(0);
+        chunk.setIsEnabled(false);
+        chunk.setFlags(1);
+        chunk.setStatus(0);
+        chunk.setStartAt(0);
+        chunk.setEndAt(2);
+        chunk.setPreChunkId("");
+        chunk.setNextChunkId("");
+        chunk.setChunkType("text");
+        chunk.setParentChunkId("");
+        chunk.setRelationChunks(null);
+        chunk.setIndirectRelationChunks(null);
+        chunk.setMetadata(null);
+        chunk.setContentHash("");
+        chunk.setImageInfo("");
+        chunk.setCreatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        chunk.setUpdatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
+        chunk.setDeletedAt(null);
+        assertRoundTrips(chunk, Chunk.class, "types.Chunk ← Chunk（活行：deleted_at=null）");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────

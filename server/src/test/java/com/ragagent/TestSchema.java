@@ -113,6 +113,15 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // 迁移 000078（chunk 编辑与修订历史）
+        jdbc.execute("CREATE TABLE IF NOT EXISTS chunk_revisions (" +
+                "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
+                "knowledge_base_id VARCHAR(36) NOT NULL, knowledge_id VARCHAR(36) NOT NULL," +
+                "chunk_id VARCHAR(36) NOT NULL, revision INTEGER NOT NULL," +
+                "content TEXT NOT NULL DEFAULT '', is_enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "editor_id VARCHAR(64) NOT NULL DEFAULT '', edit_source VARCHAR(16) NOT NULL DEFAULT 'user'," +
+                "edited_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS user_kb_pins (" +
                 "user_id VARCHAR(36) NOT NULL, knowledge_base_id VARCHAR(36) NOT NULL," +
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
@@ -713,6 +722,7 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM knowledge_bases");
         jdbc.execute("DELETE FROM knowledges");
         jdbc.execute("DELETE FROM chunks");
+        jdbc.execute("DELETE FROM chunk_revisions");
         jdbc.execute("DELETE FROM user_kb_pins");
         jdbc.execute("DELETE FROM storage_backends");
         jdbc.execute("DELETE FROM embeddings");
