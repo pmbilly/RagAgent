@@ -30,6 +30,10 @@ import com.ragagent.session.domain.MessageNotFoundException;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.service.MessageService;
+import com.ragagent.session.sse.SseFrameWriter;
+import com.ragagent.session.sse.StreamEventEmitter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.common.web.GoJsonEscapes;
 import com.ragagent.session.service.SessionService;
 import com.ragagent.storageurl.FileService;
 import com.ragagent.storageurl.StorageBackendResolver;
@@ -54,15 +58,28 @@ class SessionStreamControllerTest {
     private SessionService sessionService;
     private MessageService messageService;
     private StreamManager streamManager;
+    private StreamEventEmitter emitter;
     private SessionStreamController controller;
+
+    /**
+     * 与线上等价的 mapper：**必须**带上 Go 的转义表（线上由 {@code JacksonConfig} 全局装）。
+     * {@code SseFrameWriterTest} 用容器里的真 bean 覆盖这条；这里只是为了让控制器测试
+     * 不必启动整个 Spring 上下文。
+     */
+    private static ObjectMapper goEscapingMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.getFactory().setCharacterEscapes(new GoJsonEscapes());
+        return mapper;
+    }
 
     @BeforeEach
     void setUp() {
         sessionService = mock(SessionService.class);
         messageService = mock(MessageService.class);
         streamManager = mock(StreamManager.class);
+        emitter = new StreamEventEmitter(new SseFrameWriter(goEscapingMapper()));
         controller = new SessionStreamController(
-                sessionService, messageService, streamManager, absent(), absent());
+                sessionService, messageService, streamManager, emitter, absent(), absent());
         TenantContext.set(10002L, null, "viewer", false, "u-1", false);
     }
 

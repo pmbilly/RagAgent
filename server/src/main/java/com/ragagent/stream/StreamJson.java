@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.ragagent.common.web.GoJsonEscapes;
 
 /**
  * 流事件进出 Redis 用的 ObjectMapper（**不是** HTTP 响应那个）。

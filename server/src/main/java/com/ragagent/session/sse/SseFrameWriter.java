@@ -5,9 +5,11 @@ import java.nio.charset.StandardCharsets;
 
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.springframework.stereotype.Component;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.llm.domain.StreamResponse;
-import com.ragagent.stream.StreamJson;
 
 /**
  * 把一个 {@link StreamResponse} 写成 gin 那条 SSE 帧——**逐字节**。
@@ -31,11 +33,11 @@ import com.ragagent.stream.StreamJson;
  * <h2>⚠️ 两个只看 Java 直觉会写错的地方</h2>
  * <ol>
  *   <li><b>JSON 用 Go 的转义规则</b>：gin 用 {@code json.NewEncoder}，它默认开
- *       HTML 转义——{@code < > &} 会被写成 {@code \u003c} / {@code \u003e} / {@code \u0026}（小写十六进制）。
- *       Spring 那个 mapper 不转义，直接用就会在含 {@code &} 的正文上分叉。
- *       所以这里复用 {@link StreamJson#mapper()}：它已经把「HTML 转义 + map 按键排序 +
- *       时间用本地时区 RFC3339Nano」配齐了——那份配置本来就是"Go 兼容 JSON"，
- *       Redis 与 SSE 两条路径共用同一份定义。</li>
+ *       HTML 转义——{@code < > &} 会被写成 {@code \u003c} / {@code \u003e} / {@code \u0026}。
+ *       这条规则现在由 {@code config.JacksonConfig} <b>全局</b>装在应用统一的 mapper 上
+ *       （原先只有 SSE 这一条路径特批），所以本类直接用注入的那个 mapper 即可。
+ *       <b>不要</b>在这里再挂一个私有的 mapper——那正是"同一段文本在不同响应路径上
+ *       给出不同字节"的来源。</li>
  *   <li><b>Content-Type 会被覆盖</b>：{@code sse.Event.Render} 里的
  *       {@code WriteContentType} 会<b>无条件</b>把 Content-Type 改写成
  *       {@code text/event-stream;charset=utf-8}——即 {@code setSSEHeaders} 设的
@@ -44,7 +46,8 @@ import com.ragagent.stream.StreamJson;
  *       注意 {@code Cache-Control} 是"没有才设"，所以 {@code no-cache} 保持不变。</li>
  * </ol>
  */
-public final class SseFrameWriter {
+@Component
+public class SseFrameWriter {
 
     /**
      * gin 的 SSE renderer 最终写出的 Content-Type
@@ -55,7 +58,10 @@ public final class SseFrameWriter {
     /** 事件名固定为 {@code message}（gin 的 {@code c.SSEvent("message", …)}）。 */
     public static final String EVENT_NAME = "message";
 
-    private SseFrameWriter() {
+    private final ObjectMapper mapper;
+
+    public SseFrameWriter(ObjectMapper mapper) {
+        this.mapper = mapper;
     }
 
     /**
@@ -70,14 +76,14 @@ public final class SseFrameWriter {
     /**
      * 写一帧并 flush（对照 {@code c.SSEvent("message", response)} + {@code c.Writer.Flush()}）。
      *
-     * <p>序列化用的是 {@link StreamJson#mapper()}，理由见类注释。序列化失败按 Go 的
+     * <p>序列化用的是应用统一的 mapper（其地转义规则见类注释）。序列化失败按 Go 的
      * {@code json.Encoder} 行为是写一个零长度输出并返回错误——这里直接抛出，
      * 由调用方按"写失败"处理（关流）。</p>
      */
-    public static void write(HttpServletResponse response, StreamResponse payload) throws IOException {
+    public void write(HttpServletResponse response, StreamResponse payload) throws IOException {
         String json;
         try {
-            json = StreamJson.mapper().writeValueAsString(payload);
+            json = mapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
             throw new IOException("failed to marshal stream response: " + e.getMessage(), e);
         }

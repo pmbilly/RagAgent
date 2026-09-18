@@ -1,4 +1,4 @@
-package com.ragagent.stream;
+package com.ragagent.common.web;
 
 import com.fasterxml.jackson.core.SerializableString;
 import com.fasterxml.jackson.core.io.CharacterEscapes;
@@ -40,14 +40,14 @@ import com.fasterxml.jackson.core.io.SerializedString;
  * 这两个字符出现在流事件正文里的概率可以忽略——真正参与 CAS 比对的是 {@code id} 与
  * {@code assistant_message_id}，都是 UUID 形态。</p>
  */
-final class GoJsonEscapes extends CharacterEscapes {
+final public class GoJsonEscapes extends CharacterEscapes {
 
     /** Go 的十六进制字母表是小写的（{@code const hex = "0123456789abcdef"}）。 */
     private static final char[] LOWER_HEX = "0123456789abcdef".toCharArray();
 
     private final int[] ascii;
 
-    GoJsonEscapes() {
+    public GoJsonEscapes() {
         int[] table = new int[128];
         // 全部控制字符都要显式声明——这张表是替换而非叠加
         for (int i = 0; i < 0x20; i++) {

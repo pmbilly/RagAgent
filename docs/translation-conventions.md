@@ -605,10 +605,19 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     **`event:message\ndata:<json>\n\n`**——冒号后**没有空格**，`data:` 里的 JSON 尾随一个 `\n`，
     再补一个 `\n`。Spring 的 `SseEmitter` 自己拼帧且格式不同，**不能用**。
     已按 Go 实录在 `SseFrameWriterTest` 里逐字节钉住。
-  - **⚠️ 帧里的 JSON 必须用 Go 的转义**：gin 用 `json.NewEncoder`，默认开 HTML 转义——
-    `< > &` 写成 `\u003c` / `\u003e` / `\u0026`（小写十六进制）。**Spring 那个 mapper 不转义**，
-    直接用在含 `&` 的正文上就会分叉。`SseFrameWriter` 复用 `StreamJson.mapper()`
-    （那份配置本来就是"Go 兼容 JSON"，Redis 与 SSE 两条路径共用同一份定义）。
+  - **⚠️ 帧里的 JSON 用 Go 的转义**：gin 用 `json.NewEncoder`，默认开 HTML 转义——
+    `< > &` 写成 `\u003c` / `\u003e` / `\u0026`（小写十六进制）。
+    **这个差异不是 SSE 特有的、也不是本步引入的**：Spring 的 mapper 从来就不这么转义，
+    全应用如此，只是 golden 契约文件里 `< > &` 的出现次数一直是 **0**，从没被测到。
+    聊天正文（散文）是第一个踩到的，KB 名称/描述、模型 description 同样会踩。
+    **已在 `config.JacksonConfig` 全局装上 `GoJsonEscapes`**（转义表挂在 **JsonFactory** 上，
+    要用 `postConfigurer` 拿建好的 mapper；且 `CharacterEscapes` 是**整表替换**，
+    `\b \t \n \f \r \" \\` 这些短转义必须显式声明）。
+    改动后全量 1659 测试**零翻转**——印证了"从没被测到"这个判断。
+    `GoJsonEscapes` 已从 `com.ragagent.stream` 移到 `com.ragagent.common.web`
+    （它现在是全应用的基础设施，不再只服务 Redis 那条路）。
+    `SseFrameWriter` / `StreamEventEmitter` 因此改成 `@Component`、注入**应用统一**的 mapper——
+    不再给 SSE 单开一个，那正是"同一段文本在两条响应路径上给出不同字节"的来源。
   - **⚠️ Content-Type 会被 SSE 渲染器无条件覆盖**：`sse.Event.Render` 里的
     `WriteContentType` 把 Content-Type 直接赋成 `text/event-stream;charset=utf-8`，
     所以 `setSSEHeaders` 设的 `text/event-stream` **不是**线上的最终值

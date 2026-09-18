@@ -7,6 +7,8 @@ import java.util.Set;
 
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.springframework.stereotype.Component;
+
 import com.ragagent.llm.domain.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.storageurl.Rewriter;
@@ -40,7 +42,8 @@ import com.ragagent.stream.StreamEvent;
  *       否则客户端一旦看到完成标记就认为消息结束了，尾巴会被丢掉。</li>
  * </ul>
  */
-public final class StreamEventEmitter {
+@Component
+public class StreamEventEmitter {
 
     /** 对照 Go {@code deltaResponseTypes}：Content 是可累加片段的类型。 */
     private static final Set<ResponseType> DELTA_RESPONSE_TYPES = Set.of(
@@ -57,7 +60,10 @@ public final class StreamEventEmitter {
     /** 对照 Go {@code holdbackKey} 的分隔符（NUL，正文里不可能出现）。 */
     private static final char HOLDBACK_KEY_SEPARATOR = '\0';
 
-    private StreamEventEmitter() {
+    private final SseFrameWriter frameWriter;
+
+    public StreamEventEmitter(SseFrameWriter frameWriter) {
+        this.frameWriter = frameWriter;
     }
 
     /** 对照 Go {@code holdbackKey}：一个增量流的身份。 */
@@ -110,14 +116,14 @@ public final class StreamEventEmitter {
      * 若 {@code evt} 会终止流，先把扣留缓冲里还剩的内容冲出去，
      * 因为客户端把完成标记当作消息结束。
      */
-    public static void emitStreamEvent(
+    public void emitStreamEvent(
             HttpServletResponse out, StreamEvent evt, String requestId,
             StreamRewriter rewriter, ClientState client) throws IOException {
         StreamResponse response = buildStreamResponseFor(evt, requestId, rewriter);
         if (TERMINAL_RESPONSE_TYPES.contains(evt.getType())) {
             flushHeldStreamContent(out, requestId, rewriter, client);
         }
-        SseFrameWriter.write(out, response);
+        frameWriter.write(out, response);
     }
 
     /**
@@ -127,7 +133,7 @@ public final class StreamEventEmitter {
      * <p>凡是"客户端还在连着、但流停下来"的路径都必须调它——完成、用户请求停止、
      * 或者放弃事件存储。客户端已经走了就没人收了。</p>
      */
-    public static void flushHeldStreamContent(
+    public void flushHeldStreamContent(
             HttpServletResponse out, String requestId, StreamRewriter rewriter,
             ClientState client) throws IOException {
         Map<String, StreamRewriter.Held> held = rewriter.flushAll();
@@ -145,7 +151,7 @@ public final class StreamEventEmitter {
             response.setResponseType(parsed.responseType());
             response.setContent(fragment.content());
             response.setData(heldFragmentData(fragment.meta(), parsed.eventId()));
-            SseFrameWriter.write(out, response);
+            frameWriter.write(out, response);
         }
     }
 

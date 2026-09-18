@@ -81,6 +81,7 @@ public class SessionStreamController {
     private final SessionService sessionService;
     private final MessageService messageService;
     private final StreamManager streamManager;
+    private final StreamEventEmitter emitter;
     private final FileService fileService;
     private final StorageBackendResolver storageBackendResolver;
 
@@ -88,11 +89,13 @@ public class SessionStreamController {
             SessionService sessionService,
             MessageService messageService,
             StreamManager streamManager,
+            StreamEventEmitter emitter,
             ObjectProvider<FileService> fileService,
             ObjectProvider<StorageBackendResolver> storageBackendResolver) {
         this.sessionService = sessionService;
         this.messageService = messageService;
         this.streamManager = streamManager;
+        this.emitter = emitter;
         // 两个端口目前**没有生产实现**（多 provider 存储后端未翻译），
         // 缺 bean 时按 Go 的 nil 分支降级：引用一律解析不出 URL，原样保留成 handle。
         this.fileService = fileService.getIfAvailable();
@@ -242,7 +245,7 @@ public class SessionStreamController {
 
         try {
             for (StreamEvent evt : events) {
-                StreamEventEmitter.emitStreamEvent(response, evt, requestId, resourceRewriter, client);
+                emitter.emitStreamEvent(response, evt, requestId, resourceRewriter, client);
             }
         } catch (IOException e) {
             clientGone.set(true);
@@ -277,7 +280,7 @@ public class SessionStreamController {
                 // 读事件失败：把扣留缓冲里还剩的吐出去，然后收工（照抄 Go）
                 log.error("Failed to get new events: {}", e.toString());
                 try {
-                    StreamEventEmitter.flushHeldStreamContent(response, requestId, resourceRewriter, client);
+                    emitter.flushHeldStreamContent(response, requestId, resourceRewriter, client);
                 } catch (IOException ignored) {
                     // 客户端已经走了——没有别人可发
                 }
@@ -290,7 +293,7 @@ public class SessionStreamController {
                     if (evt.getType() == ResponseType.COMPLETE) {
                         completedNow = true;
                     }
-                    StreamEventEmitter.emitStreamEvent(response, evt, requestId, resourceRewriter, client);
+                    emitter.emitStreamEvent(response, evt, requestId, resourceRewriter, client);
                 }
             } catch (IOException e) {
                 clientGone.set(true);

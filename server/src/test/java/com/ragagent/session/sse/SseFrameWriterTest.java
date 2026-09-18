@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.ragagent.llm.domain.ResponseType;
@@ -29,11 +31,20 @@ import com.ragagent.llm.domain.StreamResponse;
  * <p>第 2 条是最容易漏的：Spring 自带的 mapper **不**做 HTML 转义，
  * 直接用就会在含 {@code &} 的正文上分叉。</p>
  */
+@SpringBootTest
 class SseFrameWriterTest {
 
-    private static MockHttpServletResponse write(StreamResponse payload) throws Exception {
+    /**
+     * 用**容器里那个** {@link SseFrameWriter}——它注入的是应用统一的 mapper，
+     * 转义规则由 {@code JacksonConfig} 全局装在上面。
+     * <b>刻意不自己 new 一个 mapper</b>：那样测的是测试自己的配置，不是线上那条路。
+     */
+    @Autowired
+    private SseFrameWriter writer;
+
+    private MockHttpServletResponse write(StreamResponse payload) throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
-        SseFrameWriter.write(response, payload);
+        writer.write(response, payload);
         return response;
     }
 
