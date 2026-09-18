@@ -241,6 +241,8 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | API Key 体系（横切回补） | internal/types/tenant_api_key.go；internal/middleware/api_key_gate.go；internal/application/{repository,service}/tenant_api_key.go；internal/handler/tenant.go 的 API Key 段 | com.ragagent.apikey.{domain,mapper,service,filter,controller} | ✅ | 25 条能力 + scope + 路由策略表；门禁拦截器接入 WebConfig（order -1，先于角色维度）；AuthFilter 通道 3 换真实鉴权；**数据面 KB 白名单已收口**（requireKb / getKnowledge）。120 新测试 |
 | audit 审计（横切回补） | internal/types/audit_log.go；internal/application/{service,repository}/audit_log*.go；internal/handler/audit_log.go | com.ragagent.audit.{domain,mapper,service,controller} | ✅ | 62 个 AuditAction；3 端点；**接上了既有埋点**：WikiActivityAudit 的 6 处 + RbacInterceptor 的拒绝审计（§9 阶段 1 差异 #8 的正式收口）。golden A/B 实测（空页 `[]` 非 null、1010 文案、request_path 存路由模板） |
 | stream 流管理器（阶段 5 起步） | internal/stream/{factory,memory_manager,redis_manager}.go；internal/types/interfaces/stream_manager.go | com.ragagent.stream.{StreamEvent,StreamBatch,LiveRun,StreamManager,MemoryStreamManager,RedisStreamManager,StreamJson,GoJsonEscapes,StreamManagerConfig} + config.StreamProperties | ✅ | 35 测试（**起真 redis-server** 跑 3 个 Lua 脚本/CAS/TTL）+ 契约往返 3 条。它不落 jsonb 也不作响应体，却是 Go 与 Java **共用同一批 Redis 键**的契约，故按字节对齐（HTML 转义/小写十六进制/map 排序）；跨语言互操作已实测。关键点见 §9 |
+| agent_steps 类型收紧（阶段 5.2 步 3 上） | internal/types/{agent,message}.go；internal/storageurl/request.go 的 RewriteMessages* | com.ragagent.agent.domain.{AgentStep,ToolCall,ToolCallTarget,ToolResult} + session.domain.{AgentStepListTypeHandler,SearchResultListTypeHandler} + common.web.{GoTimeSerializer,GoTimeDeserializer} + storageurl.Rewriter.rewriteMessages* | ✅ | 30 测试（12 逐字节 + 18 往返/重写）。**修掉了消息响应体上一个既有契约偏差**：jsonb 透传时元素退化成 LinkedHashMap，键序变成 PG 规范化序。关键坑见 §9 |
+| 会话/消息最小读路径（阶段 5.2 步 3 下） | internal/application/service/{session,message}.go 的读方法 + loadSessionForRead | com.ragagent.session.service.{SessionService,MessageService,SessionLookupScope} | ✅ | 14 测试（授权判定）。`Session.requiresAdminConsoleRead` 阶段 5.1 已落地，本步只补 service 层的两条读路径与 Admin 回退 |
 | storageurl（阶段 5.2 步 2） | internal/storageurl/{mode,storageurl,stream,resolver,request}.go | com.ragagent.storageurl.{Mode,StorageUrlContext,ResourceModeException,PublicModeForbiddenException,Resolver,Rewriter,StreamRewriter,FileServiceResolver,FileService,StorageBackendResolver} | ✅ | 49 测试。**这是第一处跨 5 个 handler 的共享契约**（message/knowledgebase/session/embed/im 都 import 它）。扣留缓冲 + 模式解析全部按 Go 对等移植；差分语料见 §9。已知差异：provider 级文件服务未翻译 |
 | SSE 契约层（阶段 5.2 步 1） | internal/handler/session/helpers.go L182-249（setSSEHeaders / buildStreamResponse / sendCompletionEvent / searchResultFromMap）；internal/types/search.go 的 SearchResult；internal/types/json.go 的 JSON | com.ragagent.session.sse.{SseContract,StreamResponseBuilder} + com.ragagent.retrieval.domain.SearchResult + com.ragagent.common.web.{GoDoubleSerializer,GoMapSerializer} | ✅ | 41 个新测试（28 浮点语料 + 12 SSE 逐字节 + 1 往返）；**期望值全部是 Go 实录**（把 helpers.go 的三个函数原样抄进独立 Go 程序跑出来的 `json.Marshal`）。emit 表见 `StreamResponseBuilder` 类注释。关键坑见 §9 |
 
@@ -550,6 +552,52 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     且服务的是消息历史端点而非 SSE。`CopyReferences` / `CopyData`（SSE 要用的两个）已落地。
   - `Mode.defaultMode()` 读 `System.getenv`，**Java 侧没测**（进程内改不了 env，项目至今
     没有环境注入的测试缝）。`ParseMode` 已全覆盖，而 `defaultMode` 拿到非空值后就是调它。
+- **阶段 5.2 步 3 新确认的细节与坑**：
+  - **⚠️ Jackson 对 `null` 值根本不调用 `@JsonSerialize(using=…)`**（本轮第二值钱的一条）：
+    序列化一个 null 字段时走的是 `nullSerializer` 分支，自定义序列化器**一次都不会被调到**。
+    Go 的 `time.Time` 是**值类型**、没有"缺省"这回事（零值输出
+    `"0001-01-01T00:00:00Z"`），而 Java 字段是可空的 `OffsetDateTime`——
+    想靠"null → 输出 year-1 字面量"是**行不通的**。
+    **修法是让字段默认值本身就持有 Go 零值时间**（`GoTimeSerializer.GO_ZERO_DATE_TIME`），
+    反序列化侧也把 null/缺失回落到零值时间，往返才幂等。
+    字段访问器因此是**值语义**：判"有没有时间"要用
+    `GoTimeSerializer.isGoZero(t)`（对应 Go 的 `t.IsZero()`），不是 `!= null`。
+  - **⚠️ jsonb 读路径的 mapper 没有 `JavaTimeModule`**：`AbstractJsonListTypeHandler` 用的是裸
+    `new ObjectMapper()`。**这就是本项目此前没人往 jsonb 类型里放时间字段的原因**——
+    序列化侧有 `JacksonConfig` 兜着，读回侧没有，一放就 `InvalidDefinitionException`。
+    给 `AgentStep.timestamp` 挂了**成对**的 `@JsonSerialize` + `@JsonDeserialize` 之后两个方向自足，
+    不依赖任何全局 mapper 配置。**后续任何 jsonb 类型要加时间字段，照这个模子来。**
+  - **Go 里有两个同名 `ToolCall`，JSON 完全不同**：
+    `chat.ToolCall`（OpenAI 协议形状 `id`/`type`/`function`）→ `llm.domain.ToolCall`；
+    `types.ToolCall`（agent 领域形状 `name`/`args`/`result`/`reflection`/`duration`）→
+    `agent.domain.ToolCall`。Java 保留同名、靠包区分（Go 也是这样），**别互相顶替**。
+  - **`result` 是指针但 `json:"result"` 没有 omitempty** → nil 要输出 `"result":null`；
+    `tool_calls` 同理。这两个最容易被"顺手加个 omomitempty"改错，语料已钉住。
+  - **`provider_metadata` 是 `map[string]json.RawMessage`，值原样内联**（不是字符串）——
+    Java 用 `Map<String, JsonNode>`，别写成 `Map<String, String>`。
+  - **`List<Object>` 透传 jsonb 是实打实的契约偏差**：读回来的元素是 `LinkedHashMap`，
+    键序变成 PG 的 jsonb 规范化序（长度,字节序），不是 Go 的 struct 声明序。
+    `knowledge_references` 与 `agent_steps` 本轮一并收紧，模子是既有的
+    `AbstractJsonListTypeHandler<T>` + 三行子类。
+  - **`Rewriter.rewriteMessages` 的覆盖范围照抄 Go**：只改
+    `content` / `images[].url` / `images[].caption` / `knowledge_references` /
+    `agent_steps[].thought` / `agent_steps[].reasoning_content` /
+    `tool_calls[].reflection` / `tool_calls[].result.output`。
+    **`result.data` 不动**——别看着像 Markdown 就顺手改。
+  - **`cloneMessages` 是"经 JSON 往返的深拷贝"**，与 Go 一致会**丢掉 `json:"-"` 的字段**
+    （`rendered_content` / `execution_context`）。它们本来就不出响应所以不可见，
+    但这是刻意行为，别"顺手修好"。它用的 mapper 需要 `JavaTimeModule`
+    （否则 `created_at` 直接抛），与 HTTP 那个**不是同一个**、也刻意不是。
+  - **读路径有两条，刻意分开**：`getSession`（读，带 Admin+ 回退，管理员能读渠道会话）
+    vs `getOwnedSession`（写/变更，严格 owner 范围）。合成一条会让"能读"悄悄变成"能改"。
+  - **Admin 回退只覆盖渠道托管行**：`loadSessionForRead` 第二跳拿到的会话若
+    `requiresAdminConsoleRead` 为 false（例如别人的普通 Web 会话），仍然要 404。
+    第二跳也找不到时返回的是**第一跳**的错误——不泄漏"租户里确实有这一行"。
+  - **`types.MustTenantIDFromContext` 的 Java 侧不得降级**：Go 直接 panic，
+    Java 抛 `IllegalStateException`。悄悄当成"无租户查询"会跨租户泄漏。
+  - **`sessionUserIDForLookup` 的共享 agent 分支未接线**（属阶段 7）：
+    `SessionLookupScope` 已就位但无人 `mark()`，于是查询**始终带 user 范围**。
+    差异方向偏保守（Go 放行的 Java 可能 404），不是漏洞。
 - **跨阶段通用坑（阶段 4 新增）**：
   - **领域对象的 isXxx() 便捷方法必须 @JsonIgnore**——已在阶段 3 记录，阶段 4 又踩一次
     （`McpAuthConfig.isOAuth()` 导致整个 auth_config 列落库后读不回）。这是**复发率最高的坑**，

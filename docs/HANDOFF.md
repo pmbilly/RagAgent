@@ -1,6 +1,6 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · 最新提交 `b475907` · 1605 测试全绿
+> 最后更新：2026-09-18 · 最新提交 `PENDING` · 1637 测试全绿
 
 ## 0. 一句话背景
 
@@ -38,7 +38,7 @@
 | — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
 | 5.0 | **`stream/` 流管理器**（SSE 的前置） | ✅ | `4393168` |
 | 5.1 | **会话/消息 domain + 仓储**（含追问建议） | ✅ | `a13e4df` |
-| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | 🔶 拆解中 · **步 1-2/4 完成** | — |
+| **5.2** | **会话 / SSE 端点**（`continue-stream` 起） | 🔶 拆解中 · **步 1-3/4 完成** | — |
 | 6 | embed 渠道 | ⏳ | — |
 | 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
 | 8 | 联调 | ⏳ | — |
@@ -134,7 +134,7 @@
 |---|---|---|---|
 | 1 | ✅ **已完成** — SSE 契约层：`setSSEHeaders` / **`buildStreamResponse`** / `sendCompletionEvent` / `searchResultFromMap`（Go `helpers.go` L182-249）+ `types.SearchResult` | ~100 行 | 见下方「步 1 交付说明」 |
 | 2 | ✅ **已完成** — **`storageurl` 包**（`mode` / `storageurl` / `stream` / `resolver` / `request` 的重写部分） | 实为 846 行（原估 203 行只算了 `stream.go`） | 见下方「步 2 交付说明」 |
-| 3 | **service 最小读路径**：`GetSession` / `GetOwnedSession` / `GetMessage`（含 `loadSessionForRead` 的可见性判定） | 仓储已就绪 | 依赖已全部到位 |
+| 3 | ✅ **已完成** — service 最小读路径 + **`AgentSteps` 类型收紧** | — | 见下方「步 3 交付说明」 |
 | 4 | **`ContinueStream` 控制器**（Go `stream.go` L29-204） | ~200 行 | 到这一步才有第一次真正的 SSE A/B |
 
 **步 1 交付说明（已完成）**：
@@ -175,6 +175,21 @@
 **未接线（步 3 一起做）**：`RewriteMessages` / `RewriteMessagesResponse` / `rewriteAgentSteps`
 ——它们要**有类型的** `AgentSteps`（Java 侧目前是 `List<Object>` 透传），且服务的是消息历史端点
 而非 SSE。SSE 要用的 `CopyReferences` / `CopyData` 已落地。
+
+**步 3 交付说明（已完成）**：
+
+| 文件 | 内容 |
+|---|---|
+| `agent/domain/{AgentStep,ToolCall,ToolCallTarget,ToolResult}` | `agent_steps` 列的组成类型（`ToolCall` 与 `llm.domain.ToolCall` 是**两个不同协议形状**的同名类型） |
+| `common/web/GoTimeSerializer` + `GoTimeDeserializer` | Go 的 `time.Time` 是值类型，零值输出 `"0001-01-01T00:00:00Z"` 而非 `null` |
+| `session/domain/{AgentStepListTypeHandler,SearchResultListTypeHandler}` | 泛型擦除会让元素退化成 map、键序变成 PG 规范化序 |
+| `storageurl.Rewriter.rewriteMessages*` | 步 2 遗留的三件套（`RewriteMessages` / `RewriteMessagesResponse` / `rewriteAgentSteps`） |
+| `session/service/{SessionService,MessageService,SessionLookupScope}` | 会话/消息最小读路径 + `loadSessionForRead` 的可见性判定 |
+
+测试 44 条（12 逐字节 + 18 类型/重写 + 14 授权判定）。
+**顺带修掉一个既有契约偏差**：`knowledge_references` / `agent_steps` 此前按
+`List<Object>` 透传，读回来元素是 `LinkedHashMap`、键序是 PG 的 jsonb 规范化序，
+而不是 Go 的 struct 声明序——它们在消息响应体里，是实打实的线上差异。
 
 **第 4 步的几个要点（读 Go 时注意）**：
 
