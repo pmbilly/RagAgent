@@ -1,0 +1,162 @@
+# 交接文档（新会话接手用）
+
+> 最后更新：2026-09-18 · 最新提交 `23d0859` · 1401 测试全绿
+
+## 0. 一句话背景
+
+把 WeKnora 后端从 Go（Gin/GORM）**全面翻译**成 Java（Spring Boot 3 + JDK 21 + MyBatis-Plus）。
+前端**零改动**，因此验收标准是「响应与 Go 实录**逐字节一致**（golden 契约测试）」，
+而不是"代码看起来对"。
+
+- Java 仓：`/Users/billy/ragagent-java`（可写）
+- Go 仓：`/Users/billy/WeKnora`（**只读**对照，`~/.claude/CLAUDE.md` 要求改动后跑 `graphify update .`）
+- 计划文件：`/Users/billy/.claude/plans/flickering-wishing-cat.md`
+
+## 1. 开工前必读（按顺序）
+
+1. **`docs/translation-conventions.md`** —— 本项目最重要的资产。
+   - §3 GORM 隐式行为清单
+   - §7.5 **派 agent 的标准约束**（十条，每条都对应踩过的坑）
+   - §8 翻译日志（每完成一个模块**必须**追加一行）
+   - §9 已确认的契约细节 + 已知差异 + **工具链坑**（含最高频的几类错误）
+2. `docs/HANDOFF.md`（本文）—— 进度与下一步
+3. 需要时再查源码：`server/src/main/java/com/ragagent/`
+
+## 2. 进度总览
+
+| 阶段 | 模块 | 状态 | 提交 |
+|---|---|---|---|
+| 0 | 骨架（路由/错误体系/分页/TenantContext） | ✅ | — |
+| 1 | auth / 租户 | ✅ | `d0e85fd` |
+| 2 | 模型配置（含 SSRF / AES 凭证加密） | ✅ | `6f90b51` |
+| 3 | 知识库（KB CRUD + 文档上传→解析→chunk） | ✅ | `5048dd3` |
+| 4.0 | **LLM 调用客户端**（`models/chat` + `provider` + `limiter`） | ✅ | `11a8ae9` |
+| 4.1 | MCP 服务管理（自研协议客户端 + OAuth 全链） | ✅ | `c645502` |
+| 4.2 | Wiki（21 端点 + 完整生成管线） | ✅ | `a0efb66` |
+| — | 机制建设（往返测试 + 脚本 + agent 约束模板） | ✅ | `fc13321` |
+| — | API Key 体系回补（含数据面收口） | ✅ | `4d38d75` |
+| — | audit 审计回补（含埋点接线） | ✅ | `23d0859` |
+| **5** | **会话 / SSE** | ⏳ **下一步** | — |
+| 6 | embed 渠道 | ⏳ | — |
+| 7 | **agent 引擎 + chat_pipeline + modelcontext**（39k，最大一块） | ⏳ | — |
+| 8 | 联调 | ⏳ | — |
+
+**后移/后置**（用户已决策）：
+- **IM**（15.6k）：主链路硬依赖阶段 5+7，整体后移到阶段 5 之后
+- **计划外模块**（datasource 10.8k / memory 7.9k / 管理端 10k / skill 6k / infrastructure 11.7k）：
+  阶段 7 之后统一做
+- **sandbox + browserskill**（17.2k）：原计划即后置到第二期
+
+## 3. 下一步：阶段 5（会话 / SSE）
+
+### 3.1 拆解（含依赖判断）
+
+**可独立做（不依赖 agent 引擎）** —— 建议先做这批：
+
+| 文件 | 行数 | 内容 |
+|---|---|---|
+| `application/service/session.go` | 993 | 会话 CRUD、标题生成 |
+| `application/service/message.go` | 978 | 消息 CRUD |
+| `application/service/message_suggestion.go` | 962 | 追问建议 |
+| `application/service/session_qa_helpers.go` | 345 | QA 辅助 |
+| `application/service/session_attachment_staging.go` | 295 | 附件暂存 |
+| `stream/` | 1032 | **SSE 管理器**（`memory_manager.go` / `redis_manager.go` / `factory.go`） |
+| `handler/session/*` + `handler/message*.go` | ~12k（含测试） | HTTP 层 |
+
+**强依赖阶段 7（agent 引擎）** —— 建议后移或先打桩：
+
+| 文件 | 行数 | 依赖 |
+|---|---|---|
+| `application/service/session_knowledge_qa.go` | 1290 | `internal/agent/tools` + `chat_pipeline` |
+| `application/service/session_agent_qa.go` | 647 | agent 引擎 |
+| `application/service/session_sandbox_pin.go` | 214 | sandbox（已后置） |
+
+### 3.2 已就位的可复用组件
+
+- **`com.ragagent.llm`**：`LlmChatClient` / `LlmChatClients.create(config, ollamaService, governor)`，
+  返回 `ChatResponse` 与 `BlockingQueue<StreamResponse>`；`ResponseType` 枚举已含全部 22 个值
+  （`ANSWER`/`THINKING`/`TOOL_CALL`/`SESSION_TITLE`/`STEER` …），阶段 5 直接产出即可
+- **`StreamResponse` / `TokenUsage`**（`llm.domain`）：SSE 事件体与用量契约已定义
+- `com.ragagent.auth` 的 `TenantContext`、`com.ragagent.apikey` 的 `APIKeyScopeContext`
+- `com.ragagent.mcp` 的 `Gate`（审批门，含 `OAuthPendingRequest`）
+- 测试基座：`TestSchema`（H2 共享 DDL）、`JsonRoundTrip`（契约往返体检）
+
+### 3.3 开工建议
+
+1. 先读 `stream/` 三个文件——**SSE 管理器是 agent 引擎的前置**，优先落地
+2. 摸底 agent 只读，产出一份与 `docs/translation-conventions.md` 风格一致的报告
+3. 按 §7.5 约束派 agent（**单 agent 串行优先**，见下方"并发踩坑"）
+4. 验收走 §4 的完整流程
+
+## 4. 标准验收流程（每个模块）
+
+```bash
+# 0) 环境
+export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"   # 或直接用 scripts/ 里的脚本（已自动探测）
+cd /Users/billy/ragagent-java
+
+# 1) 起 Go server 录 golden（同时起 Java 做 A/B 对比）
+scripts/go-server-up.sh          # 内含 env 覆盖与 SSRF 白名单配置
+scripts/java-server-up.sh
+
+# 2) 录 golden（务必用 curl -o，不要用 echo >，zsh 会解释转义）
+TOKEN=$(scripts/token.sh 8080)
+curl -s -o server/src/test/resources/contracts/xxx.json \
+  -X POST http://localhost:8080/api/v1/... -H "Authorization: Bearer $TOKEN" ...
+
+# 3) 写契约测试（掩码 UUID/时间戳后逐字节比对；中文用 content().bytes）
+# 4) 全量测试
+./gradlew test
+
+# 5) e2e：Java 连真 PG 跑通，并与 Go 做 A/B（掩码后应 MATCH）
+# 6) 更新 docs/translation-conventions.md 的 §8（日志行）+ §9（新细节/差异）
+# 7) 提交（结尾带 Co-Authored-By: Claude <noreply@anthropic.com>）
+```
+
+## 5. 陷阱清单（按复发率排序）
+
+> 完整版在 `docs/translation-conventions.md` §9。这里是最高频的几条。
+
+1. **领域对象的 `isXxx()` 派生方法必须 `@JsonIgnore`** —— 曾在阶段 3、4.1 各复发一次
+   （`Knowledge.isAborted`、`McpAuthConfig.isOAuth`），后者导致整个 jsonb 列读不回来。
+   **防线**：`JsonContractRoundTripTest` 里加一条 `assertRoundTrips(...)`，自动拦。
+2. **JSON 键名逐字段对照 Go 的 json tag** —— 蛇形忘了写 `@JsonProperty` 就接不住前端请求、
+   也读不出 Go 写的行。MCP/Wiki 里还有协议规定的驼峰（`inputSchema` / `mimeType`）。
+3. **Go 零值语义** —— string 默认 `""`、计数器用原始类型（否则插 NULL）、
+   `omitempty` 的 0/空/false 要省略、无 `omitempty` 的恒输出（含 `null`）。
+4. **带 `DEFAULT` 的 jsonb 列**：MyBatis-Plus 对 null 字段**省略该列** → 落到 DB 默认值，
+   而 Go 显式写 NULL。需要 `insertStrategy = FieldStrategy.ALWAYS`（阶段 4.2 踩过）。
+5. **中间件分层会改变错误文案** —— 写契约测试前先确认拒绝发生在哪一层，
+   Go 的 handler 里常有**不可达的死代码**（阶段 4 的 audit 回补踩过）。
+6. **测试禁止依赖真实网络** —— 本机 DNS 可能把 `api.openai.com` 解析到 Teredo 段而被 SSRF 拒绝。
+7. **保存 curl 输出用 `-o`**，别用 `echo "$X" > f`（zsh 的 echo 会解释 `\n` 转义，golden 会坏）。
+8. **`MyBatisSystemException: null`** 的根因在 `Caused by:` 链深处，别在业务代码里瞎找。
+9. **H2 绿、PG 炸** —— NOT NULL 约束、jsonb 键序、DDL 默认值只在真 PG 上暴露。e2e 必须连真 PG。
+
+## 6. 协作方式（这轮验证有效的）
+
+- **主会话做**：共享契约（domain 类型）、跨模块装配（`WebConfig` 路由/过滤器）、
+  golden 录制与 A/B 对比、真实缺陷的排查与修复、文档与提交
+- **agent 做**：单模块的机械翻译 + 对等测试（任务书必须带 §7.5 的十条约束）
+- **并发踩坑（重要）**：多个 agent 同时跑 `./gradlew test`（**全量**）会争抢 build 目录，
+  导致 OOM 与"假失败"重跑——阶段 4 因此浪费了至少两轮。
+  **现在的做法**：任务书里明确「只跑 `--tests "com.ragagent.<你的包>.*"`」，且**尽量串行**。
+- 派 agent 时**先说清单一：**「先读 `docs/translation-conventions.md` 的 §3/§9/§7.5」
+
+## 7. 关键文件索引
+
+| 用途 | 路径 |
+|---|---|
+| 翻译约定（必读） | `docs/translation-conventions.md` |
+| 交接文档（本文） | `docs/HANDOFF.md` |
+| 契约 golden | `server/src/test/resources/contracts/` |
+| H2 共享 DDL | `server/src/test/java/com/ragagent/TestSchema.java` |
+| JSON 往返体检 | `server/src/test/java/com/ragagent/common/JsonContractRoundTripTest.java` |
+| e2e 脚本 | `scripts/{dev-env,go-server-up,java-server-up,token}.sh` |
+| 路由与过滤器装配 | `server/src/main/java/com/ragagent/config/WebConfig.java` |
+
+## 8. 如果遇到不确定的
+
+- **架构/范围决策**：问用户（这轮几次范围调整都是用户定的：IM 后移、计划外模块后置、机制优先）
+- **Go 行为不确定**：**实测**——起 Go server 打一发，不要猜。这轮发现的真实缺陷
+  （403 两种形态、201 状态码、jsonb NULL 语义、PathTenantMatch 缺失）**全部**是实测出来的
