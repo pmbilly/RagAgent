@@ -146,6 +146,10 @@ public final class APIKeyRoutePolicies {
         a.registerGin("POST", "/api/v1/sessions/:session_id/pin", sessions);
         a.registerGin("DELETE", "/api/v1/sessions/:id/pin", sessions);
         a.registerGin("DELETE", "/api/v1/sessions/:id/messages", sessions);
+        // 追问建议 3 条（routes_chat.go L89-91，同组 chat 能力）
+        a.registerGin("POST", "/api/v1/sessions/:session_id/messages/:message_id/suggestions", sessions);
+        a.registerGin("GET", "/api/v1/sessions/:id/messages/:message_id/suggestions", sessions);
+        a.registerGin("POST", "/api/v1/sessions/:session_id/suggestion-events", sessions);
     }
 
     /**

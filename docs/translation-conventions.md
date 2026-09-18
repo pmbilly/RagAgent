@@ -253,6 +253,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | datasource service+HTTP 层（波 0，**datasource 模块收官**） | internal/application/service/datasource_service.go（1488）；internal/handler/{datasource,datasource_credentials}.go；internal/router/routes_infra.go L292-333（17 条路由）；internal/container 的 initConnectorRegistry/startDataSourceScheduler | com.ragagent.datasource.{service,controller,dto} + config.WebConfig + apikey.filter.APIKeyRoutePolicies | ✅ | 17 端点全落地；88 条新测试（50 service + 38 契约，**golden 全是 Go 实录**）+ **真 PG 上 39 组 A/B 全 MATCH**（含**双向跨语言互读**与**一次真实 RSS 同步的终态计数**）。关键坑见 §9 |
 | session CRUD+pin（波 1 G1） | internal/application/service/session.go 的写方法（L188-668）；internal/handler/session/handler.go L123-582；internal/router/routes_chat.go L53-83 | com.ragagent.session.service.SessionService 写路径扩展 + controller.SessionController（8 条端点）+ apikey.filter.APIKeyRoutePolicies + common.web.GoJsonBindError | ✅ | 8 端点全落地；34 条新契约测试（**golden 全是 Go 实录**）+ **真 PG 上 34 组 A/B 全 MATCH**（2988 测试全量绿）。**golden 实测纠正了三处预实现**：渠道 source 拒绝是 500 双前缀（非 403）、page=0 被 omitempty 跳过、`queryPaged` 的 is_pinned 映射缺陷。关键坑见 §9「波 1 G1」 |
 | 消息面（波 1 G2） | internal/handler/message.go（347 行）；internal/application/service/message.go 的读/删/搜/统计方法；internal/application/repository/message.go 的两条检索查询；routes_chat.go L16-33 + L59 | com.ragagent.session.{service.MessageService 扩展,controller.MessageController,domain.MessageWithSession/MessageSearchGroupItem/MessageSearchResult/ChatHistoryKbStats} + SessionController 补 ClearSessionMessages + APIKeyRoutePolicies | ✅ | 5 端点全落地（4 条 /messages + 清空）；23 条新契约测试（golden 全是 Go 实录）+ **真 PG 上 25 组 A/B 全 MATCH**（3011 全量绿）。**golden 抓到的关键契约**：search 的 match_type 全是 "hybrid"（partner 补对的空 matchType 与 "keyword" 合并所致）。关键坑见 §9「波 1 G2」 |
+| 追问建议（波 1 G3） | internal/handler/message_suggestion.go（156 行）；internal/application/service/message_suggestion.go 的 Ensure/Get/RecordEvent/suppress 与包级辅助 | com.ragagent.session.{service.MessageSuggestionService,controller.MessageSuggestionController} + APIKeyRoutePolicies | ✅ | 3 端点全落地；17 条新契约测试 + **真 PG 上 18 组 A/B 全 MATCH**（3028 全量绿）。**已知差异**：LLM 生成步降级为 failed/generation_error（运行时模型工厂随阶段 7、知识推荐随波 2/4）；未配置 follow-ups 的默认路径逐字节一致。关键坑见 §9「波 1 G3」 |
 
 ## 9. 当前确认过的细节
 
@@ -1012,3 +1013,27 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   6. **A/B 的删除用例两侧各删各的孪生行**（同内容不同 id）——Go 先删会消费状态，
      Java 复删同 id 必 404，那组 MATCH 是**假绿**（空转）。清空（clear）是幂等的，
      两侧先后打同一会话即可。
+- **波 1 G3（追问建议）新确认的细节与坑——前三条都会复发**：
+  1. **writeError 的子串分派要逐字照抄**：gorm.ErrRecordNotFound → "suggestions not found"
+     （**消息不存在也落这**，不是 "message not found"）；会话 404 是独立分支
+     （"session not found"）；业务 400 靠 `strings.Contains` 匹配
+     "completed assistant" / "invalid suggestion event" / "requires question_id" /
+     "does not belong" / "not allowed"——Java 侧的 IllegalArgumentException 文案必须
+     含这些子串；其余 500 用**固定文案** "message suggestion operation failed"（不透传）。
+  2. **Ensure 的请求体只在 ContentLength > 0 时解析**：空 body 合法
+     （regenerate=false）；畸形 JSON → 400 固定文案 "invalid request body"
+     （不是解析器原文——与 sessions/messages 的 GoJsonBindError 路径不同）。
+  3. **ready 集合的复用是幂等契约**：ensure 对已有 ready/suppressed 集合（不 regenerate）
+     直接返回既有结果（AcquireGeneration acquired=false），两侧先后打同一资源响应一致——
+     A/B 不需要孪生数据。
+  4. **GetFollowUps 的缓存键是五元组**：(tenant, assistant_message_id, placement,
+     config_hash, locale)。config_hash 缺省 "no-agent-config"、locale 缺省
+     DefaultLanguage（zh-CN）——直插的 ready 集合必须用这两个缺省值才能被命中。
+  5. **LLM 生成步的降级**：generateWithModel 依赖 ModelService 运行时工厂（阶段 7）、
+     generateFromKnowledge 依赖 customAgentService（波 2/4）。降级走 generateErr 路径
+     → failed/generation_error（HTTP 形态与生成失败一致）；未配置 follow-ups 的
+     默认路径（suppress "disabled"）两侧逐字节一致。
+  6. **metric 字段的 omitempty 形态**：MessageSuggestionSet 的
+     suppression_reason/error_code/model_id（空串省略）、prompt/completion_tokens/
+     latency_ms（0 省略）、generated_at（nil 省略）、agent_id（**无** omitempty，恒输出
+     空串）——逐一对照，agent_id 漏了空串输出就会分叉。
