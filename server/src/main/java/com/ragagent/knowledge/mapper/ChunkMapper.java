@@ -3,6 +3,9 @@ package com.ragagent.knowledge.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ragagent.knowledge.domain.Chunk;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Result;
+import org.apache.ibatis.annotations.Results;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
@@ -63,4 +66,53 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
             + "deleted_at = #{c.deletedAt, jdbcType=TIMESTAMP_WITH_TIMEZONE} "
             + "WHERE id = #{c.id} AND deleted_at IS NULL")
     int updateAllFieldsExceptSeqId(@Param("c") Chunk chunk);
+
+    /**
+     * 对照 Go {@code FindFAQChunkWithDuplicateQuestion} 的 <b>postgres</b> 分支
+     * （chunk.go L788-794）：standard_question IN / similar_questions 数组交集。
+     * status ∈ {default 0, stored 1, indexed 2}（stored 的兄弟请求也算，防重试插重行），
+     * 软删行不可见；LIMIT 1 无 ORDER BY（照抄 Go）。metadata 投影需要显式
+     * {@code @Results}（自定义 @Select 不套实体 typeHandler，约定 §9）。
+     */
+    @Select("<script>"
+            + "SELECT id, metadata FROM chunks "
+            + "WHERE tenant_id = #{tenantId} AND knowledge_base_id = #{kbId} "
+            + "AND chunk_type = 'faq' AND status IN (0, 1, 2) AND id != #{excludeChunkId} "
+            + "AND deleted_at IS NULL "
+            + "AND (metadata->>'standard_question' IN "
+            + "<foreach collection='questions' item='q' open='(' close=')' separator=','>#{q}</foreach> "
+            + "OR EXISTS (SELECT 1 FROM jsonb_array_elements_text("
+            + "COALESCE(metadata->'similar_questions', '[]'::jsonb)) elem "
+            + "WHERE elem.value IN "
+            + "<foreach collection='questions' item='q' open='(' close=')' separator=','>#{q}</foreach>)) "
+            + "LIMIT 1"
+            + "</script>")
+    @Results({
+            @Result(column = "id", property = "id"),
+            @Result(column = "metadata", property = "metadata",
+                    typeHandler = com.ragagent.common.web.PgJsonTypeHandler.class),
+    })
+    Chunk findFaqDuplicateChunk(@Param("tenantId") long tenantId,
+                                @Param("kbId") String kbId,
+                                @Param("excludeChunkId") String excludeChunkId,
+                                @Param("questions") java.util.List<String> questions);
+
+    /**
+     * 对照 Go {@code UpdateChunks}（chunk.go L417-520）：CASE 批量更新
+     * content / is_enabled / tag_id / flags / status + updated_at=NOW()
+     * （一条语句一个时刻，排序敏感）。metadata / content_hash 不在此更新
+     * （Go 注释明确：需要 metadata 用单条 UpdateChunk/Save）。
+     */
+    @Update("<script>"
+            + "UPDATE chunks SET "
+            + "content = CASE <foreach collection='chunks' item='c'>WHEN id = #{c.id} THEN #{c.content}</foreach> ELSE content END, "
+            + "is_enabled = CASE <foreach collection='chunks' item='c'>WHEN id = #{c.id} THEN #{c.isEnabled}</foreach> ELSE is_enabled END, "
+            + "tag_id = CASE <foreach collection='chunks' item='c'>WHEN id = #{c.id} THEN #{c.tagId}</foreach> ELSE tag_id END, "
+            + "flags = CASE <foreach collection='chunks' item='c'>WHEN id = #{c.id} THEN #{c.flags}</foreach> ELSE flags END, "
+            + "status = CASE <foreach collection='chunks' item='c'>WHEN id = #{c.id} THEN #{c.status}</foreach> ELSE status END, "
+            + "updated_at = NOW() "
+            + "WHERE id IN <foreach collection='chunks' item='c' open='(' close=')' separator=','>#{c.id}</foreach> "
+            + "AND deleted_at IS NULL"
+            + "</script>")
+    int updateChunksCase(@Param("chunks") java.util.List<Chunk> chunks);
 }

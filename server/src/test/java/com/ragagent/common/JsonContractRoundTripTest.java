@@ -36,7 +36,9 @@ import com.ragagent.apikey.domain.TenantAPIKeyResponse;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
+import com.ragagent.knowledge.dto.FaqDtos;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos;
+import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.KbAsrConfig;
 import com.ragagent.knowledge.domain.KbChunkingConfig;
@@ -1050,6 +1052,86 @@ class JsonContractRoundTripTest {
         chunk.setUpdatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
         chunk.setDeletedAt(null);
         assertRoundTrips(chunk, Chunk.class, "types.Chunk ← Chunk（活行：deleted_at=null）");
+    }
+
+    @Test
+    void faqDtosRoundTrip() {
+        // FAQ 模块（波 2 第四批）。FaqChunkMetadata 落 chunks.metadata（jsonb）+其余是
+        // 响应契约；omitempty 逐字段 NON_DEFAULT（无 omitempty 的 id/index/error 等恒输出）。
+        var meta = new FaqChunkMetadata();
+        meta.standardQuestion = "怎么 绑定 手机？";
+        meta.similarQuestions = List.of("如何绑定手机");
+        meta.negativeQuestions = List.of("怎么解绑手机");
+        meta.answers = List.of("进入设置。");
+        meta.answerStrategy = "all";
+        meta.version = 1;
+        meta.source = "faq";
+        assertRoundTrips(meta, FaqChunkMetadata.class, "types.FAQChunkMetadata ← FaqChunkMetadata");
+
+        var emptyMeta = new FaqChunkMetadata();
+        assertRoundTrips(emptyMeta, FaqChunkMetadata.class,
+                "types.FAQChunkMetadata ← FaqChunkMetadata（零值：仅 standard_question 恒输出）");
+
+        var entry = new FaqDtos.FaqEntry(970001L, "chunk-1", "kg-1", "kb-1", 965001L, "热门问题",
+                true, true, "怎么绑定手机", List.of("如何绑定"), null, List.of("答案"),
+                "all", "question_only",
+                java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
+                java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
+                0.87, 1, "faq", "如何绑定");
+        assertRoundTrips(entry, FaqDtos.FaqEntry.class, "types.FAQEntry ← FaqDtos.FaqEntry");
+
+        // 导出面：id 无 omitempty（0 恒输出，golden 实录）
+        var exportEntry = new FaqDtos.FaqExportEntry(0L, "", "问题", null, null, List.of("答案"),
+                "all", true, false);
+        assertRoundTrips(exportEntry, FaqDtos.FaqExportEntry.class,
+                "types.FAQExportEntry ← FaqDtos.FaqExportEntry（id=0 恒输出）");
+
+        var payload = new FaqDtos.FaqEntryPayload(5L, "问题", List.of("相似问"), null,
+                List.of("答案"), "random", 965001L, "分类", false, true);
+        assertRoundTrips(payload, FaqDtos.FaqEntryPayload.class,
+                "types.FAQEntryPayload ← FaqDtos.FaqEntryPayload");
+
+        var upsert = new FaqDtos.FaqBatchUpsertPayload(List.of(payload), "append", "kg-1",
+                "faq_import_10002_1_a", true);
+        assertRoundTrips(upsert, FaqDtos.FaqBatchUpsertPayload.class,
+                "types.FAQBatchUpsertPayload ← FaqDtos.FaqBatchUpsertPayload");
+
+        var search = new FaqDtos.FaqSearchRequest("怎么绑定手机", 0.7, 10,
+                List.of(965001L), null, true);
+        assertRoundTrips(search, FaqDtos.FaqSearchRequest.class,
+                "types.FAQSearchRequest ← FaqDtos.FaqSearchRequest");
+
+        var fieldsBatch = new FaqDtos.FaqEntryFieldsBatchUpdate(
+                Map.of(970001L, new FaqDtos.FaqEntryFieldsUpdate(true, false, 965001L)),
+                Map.of(965002L, new FaqDtos.FaqEntryFieldsUpdate(null, null, null)),
+                List.of(970003L));
+        assertRoundTrips(fieldsBatch, FaqDtos.FaqEntryFieldsBatchUpdate.class,
+                "types.FAQEntryFieldsBatchUpdate ← FaqDtos.FaqEntryFieldsBatchUpdate");
+
+        var failed = new FaqDtos.FaqFailedEntry(0, "标准问不能为空", "pre_validation", false,
+                "分类", "问题", List.of("相似问"), null, List.of("答案"),
+                true, false, List.of("被移除的相似问"), null);
+        assertRoundTrips(failed, FaqDtos.FaqFailedEntry.class, "types.FAQFailedEntry ← FaqDtos.FaqFailedEntry");
+
+        var success = new FaqDtos.FaqSuccessEntry(0, 970002L, 0, "", "问题");
+        assertRoundTrips(success, FaqDtos.FaqSuccessEntry.class,
+                "types.FAQSuccessEntry ← FaqDtos.FaqSuccessEntry（tag_id=0/tag_name 空省略）");
+
+        var merge = new FaqDtos.FaqMergeDetail(1, "标准问", true, 2, 0);
+        assertRoundTrips(merge, FaqDtos.FaqMergeDetail.class, "types.FAQMergeDetail ← FaqDtos.FaqMergeDetail");
+
+        var progress = new FaqDtos.FaqImportProgress("faq_import_10002_1_a", "kb-1", "kg-1",
+                "completed", 100, 3, 3, 1, 1, 0, 0,
+                null, "local://10002/exports/x.csv", null, List.of(0, 2), List.of(0),
+                0, 1, null, "验证完成 / 上传 3 条", "", 1789771866L, 1789771867L, true,
+                "append", java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), "open", 5L);
+        assertRoundTrips(progress, FaqDtos.FaqImportProgress.class,
+                "types.FAQImportProgress ← FaqDtos.FaqImportProgress（message/error 恒输出）");
+
+        var result = new FaqDtos.FaqImportResult(2, 1, 1, 0, 0, 0, 1, "append",
+                java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), "task", null, "open", 5L);
+        assertRoundTrips(result, FaqDtos.FaqImportResult.class,
+                "types.FAQImportResult ← FaqDtos.FaqImportResult（last_faq_import_result jsonb）");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────

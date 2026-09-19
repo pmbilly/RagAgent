@@ -192,4 +192,21 @@ public class ChunkAccessGuard {
         }
         checkOwnership(kb);
     }
+
+    /**
+     * 波 2 FAQ（OwnedKBOrAdmin 的 URL :id 直指 KB 形态）：先在<b>调用者空间</b>查 KB
+     * （缺失 → 放行，交给后续 KBAccess 层出 404/403），存在则判创建者/Admin+。
+     * FAQ 的写路由（POST /entry 等）用这条；判定顺序 golden 依赖，不能重排。
+     */
+    public void requireOwnedKbInCallerSpace(String kbId) {
+        KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, kbId)
+                .eq(KnowledgeBase::getTenantId, TenantContext.currentTenantId())
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (kb == null) {
+            return; // ErrResourceNotFound → 中间件放行
+        }
+        checkOwnership(kb);
+    }
 }

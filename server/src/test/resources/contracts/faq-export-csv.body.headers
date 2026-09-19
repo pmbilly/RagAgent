@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Content-Disposition: attachment; filename=faq_export.csv
+Content-Length: 657
+Content-Type: text/csv; charset=utf-8
+X-Request-Id: f2e5e8bb-ecc0-4ea0-9ebb-118eee8f9267
+Date: Fri, 18 Sep 2026 22:51:10 GMT
+

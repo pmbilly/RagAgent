@@ -286,6 +286,25 @@ public final class APIKeyRoutePolicies {
         a.registerGin("POST", "/api/v1/knowledge/batch-reparse", kbIngest);
         a.registerGin("POST", "/api/v1/knowledge/batch-delete", kbIngest);
         a.registerGin("POST", "/api/v1/knowledge/folder", kbIngest);
+
+        // FAQ（routes_knowledge.go:149-180；faq=ingest，faqRead=retrieve——entries 读=retrieve、
+        // 写=ingest，与文档同档；search 是 POST 但挂 faqRead；导入进度路由在 KB 组外，
+        // retrieve|ingest 都可轮询发起过的任务）。KB 白名单仍由 KBAccess 层逐次收口。
+        APIKeyRoutePolicy faqRead = APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("GET", "/api/v1/knowledge-bases/:id/faq/entries", faqRead);
+        a.registerGin("GET", "/api/v1/knowledge-bases/:id/faq/entries/export", faqRead);
+        a.registerGin("GET", "/api/v1/knowledge-bases/:id/faq/entries/:entry_id", faqRead);
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/faq/search", faqRead);
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/faq/entries", kbIngest);
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/faq/entry", kbIngest);
+        a.registerGin("PUT", "/api/v1/knowledge-bases/:id/faq/entries/:entry_id", kbIngest);
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/faq/entries/:entry_id/similar-questions", kbIngest);
+        a.registerGin("PUT", "/api/v1/knowledge-bases/:id/faq/entries/fields", kbIngest);
+        a.registerGin("PUT", "/api/v1/knowledge-bases/:id/faq/entries/tags", kbIngest);
+        a.registerGin("DELETE", "/api/v1/knowledge-bases/:id/faq/entries", kbIngest);
+        a.registerGin("PUT", "/api/v1/knowledge-bases/:id/faq/import/last-result/display", kbIngest);
+        a.registerGin("GET", "/api/v1/faq/import/progress/:task_id",
+                APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.ingest(APIKeyRoutePolicy.fullAccess())));
         // 波 2 第三批（routes_knowledge.go:121-132）：search/move-progress 是 retrieve
         // （kRead），move 是内容写（k=ingest，requireTenantAPIKeyKnowledgeBases 在
         // handler 内把 source+target 兜进白名单）
@@ -378,7 +397,7 @@ public final class APIKeyRoutePolicies {
     //   routes_infra.go        L210       /web-search/providers
     //   routes_infra.go        L297-342   system/admin 控制面（PlatformOnly）
     //   routes_knowledge.go    L19-53    chunker/preview、chunks/**（chunks 段已登记）
-    //   routes_knowledge.go    L118-244  FAQ、标签、copy/duplicate/progress（文档操作面已登记）
+    //   routes_knowledge.go    L118-244  标签、copy/duplicate/progress（文档操作面与 FAQ 已登记）
     //   routes_chat.go         L24-131   messages、sessions、knowledge-chat、agent-chat、knowledge-search
     //   routes_agent.go        L22-136   agents、favorites、skills、organizations、shares
     //   routes_auth_tenant.go  L53-136   tenants/**、members、invitations（注意 /api-keys 是 default deny）

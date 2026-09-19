@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Content-Disposition: attachment; filename=faq_export.json
+Content-Length: 2
+Content-Type: application/json; charset=utf-8
+X-Request-Id: 2bba9e42-3caa-473e-9e6d-2ccae5df74c6
+Date: Fri, 18 Sep 2026 22:51:11 GMT
+

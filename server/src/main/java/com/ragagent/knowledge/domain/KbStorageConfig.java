@@ -1,5 +1,6 @@
 package com.ragagent.knowledge.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -13,6 +14,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
         "secret_id", "secret_key", "region", "bucket_name", "app_id",
         "path_prefix", "provider", "endpoint", "use_ssl", "force_path_style"
 })
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbStorageConfig {
 
     @JsonProperty("secret_id")

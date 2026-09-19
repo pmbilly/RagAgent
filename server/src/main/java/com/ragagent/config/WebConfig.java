@@ -186,6 +186,26 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/chunks/by-id/*", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/chunks/*/*/revisions", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/chunks/*", TenantRole.VIEWER, false);
+        // FAQ（对照 RegisterFAQRoutes，routes_knowledge.go:141-180）：读 = Viewer+
+        // （KBAccessRead 在 FaqController）；写路由在 Go 里是 OwnedKBOrAdmin +
+        // KBAccessWrite、**无角色门**（Viewer 创建的 KB 其本人可写）→ 一律 VIEWER 下限，
+        // 所有权判定在 FaqController 内（requireKbWrite）。静态段（entries/fields/tags、
+        // entry、search、import）先于 /entries/* 通配登记（AntPathMatcher 取首个命中）；
+        // search 是 POST 但走 faqRead（retrieve 能力）。
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/faq/entries/export", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/faq/entries", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/faq/entries", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/knowledge-bases/*/faq/entries", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/faq/entry", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/faq/search", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/faq/entries/fields", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/faq/entries/tags", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/faq/import/last-result/display", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/faq/entries/*/similar-questions", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/faq/entries/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/faq/entries/*", TenantRole.VIEWER, false);
+        // FAQ 导入进度（KB 作用域外）：Viewer+（对照 g.apiKeyRoute 的 g.Viewer()）
+        rbac.addRule("GET", "/api/v1/faq/import/progress/*", TenantRole.VIEWER, false);
         // MCP 服务（对照 RegisterMCPServiceRoutes，routes_infra.go:149-185）
         // 更具体的路径必须排在 /mcp-services/* 之前，与 Go 的注册序一致
         rbac.addRule("POST", "/api/v1/mcp-services", TenantRole.ADMIN, false);

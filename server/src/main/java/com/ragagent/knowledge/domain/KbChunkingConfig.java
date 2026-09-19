@@ -2,6 +2,7 @@ package com.ragagent.knowledge.domain;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -17,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
         "enable_parent_child", "parent_chunk_size", "child_chunk_size",
         "strategy", "token_limit", "languages", "table_metadata_instructions"
 })
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbChunkingConfig {
 
     @JsonProperty("chunk_size")

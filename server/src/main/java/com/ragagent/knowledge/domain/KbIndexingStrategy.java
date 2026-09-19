@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
@@ -10,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * 该回退由 KnowledgeBaseMapper 查询侧显式处理（Java 无 GORM Scan 钩子）。
  */
 @JsonPropertyOrder({"vector_enabled", "keyword_enabled", "wiki_enabled", "graph_enabled"})
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbIndexingStrategy {
 
     @JsonProperty("vector_enabled")

@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -15,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
         "enabled", "model_id", "description_language", "custom_instructions",
         "model_name", "base_url", "api_key", "interface_type"
 })
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbVlmConfig {
 
     @JsonProperty("enabled")

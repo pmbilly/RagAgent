@@ -1321,3 +1321,16 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     无跨进程可见性）；④ asynq 的 retry/preflight-failed 中间态不翻译（进度直接落终态）；
     ⑤ search 的 org-shared 补捞与 agent_id 分支未翻译（scope 恒本租户文档库；agent_id
     恒 403 "no permission for this shared agent"，与 batch 路由同款）。
+- **波 2 FAQ 补充（真 PG A/B 抓回的跨列缺陷）**：
+  - **PG 列 DEFAULT 演进会让旧 Java 实体整行读不出来**：`knowledge_bases.chunking_config`
+    的 PG 默认值（迁移后新增）含 `split_markers`/`keep_separator`，Go 的
+    `json.Unmarshal` 静默丢弃未知键，Java 的 `KbChunkingConfig` 裸抛
+    UnrecognizedPropertyException → **该 KB 的一切读写 500**。修法：全部 Kb*Config
+    jsonb 类挂 `@JsonIgnoreProperties(ignoreUnknown = true)`（对照 Go 的容忍语义）。
+    **凡"裸 SQL/新迁移写的行"都可能有 Java 实体不认识的键**——契约测试用 API 建的行
+    永远踩不到，只有 A/B 的裸种子行暴露（H2 绿 PG 炸的又一变种）。
+  - **裸种子 KB 行的 NULL jsonb 列**：`KnowledgeBase.getIndexingStrategy()` 对 null
+    兜底 defaultStrategy()（照 Go Scan 的 NULL→零值）——这类兜底要逐列检查，别只兜一个。
+  - FAQ 的其余实录坑（无细节 500 形态、先落库后 500、mode 缺失即 400、
+    "分页参数不合法"单独文案、dry_run 进度富化、faq-upsert-running 为 A/B 预期 DIFF）
+    见 FaqService/FaqController 类注释与 §8 台账行。
