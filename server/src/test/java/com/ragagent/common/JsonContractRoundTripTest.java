@@ -1301,6 +1301,32 @@ class JsonContractRoundTripTest {
                 "handler.invitationLookupResponse ← InvitationLookupResponse（tenant_name 省略）");
     }
 
+    // ── 波 2 扫尾批 2（OIDC 端点响应体） ───────────────────────────────────
+
+    @Test
+    void authOidcContractsRoundTrip() {
+        // OIDCConfigResponse：provider_display_name 是 omitempty，两形态各钉一条
+        assertRoundTrips(
+                new com.ragagent.auth.dto.OidcConfigResponse(true, false, "OIDC"),
+                com.ragagent.auth.dto.OidcConfigResponse.class,
+                "types.OIDCConfigResponse ← OidcConfigResponse");
+        assertRoundTrips(
+                new com.ragagent.auth.dto.OidcConfigResponse(true, true, ""),
+                com.ragagent.auth.dto.OidcConfigResponse.class,
+                "types.OIDCConfigResponse ← OidcConfigResponse（display name 省略）");
+
+        // OIDCAuthURLResponse：后三字段 omitempty；nonce 标 json:"-" 不建模
+        assertRoundTrips(
+                new com.ragagent.auth.dto.OidcAuthUrlResponse(true, "OIDC",
+                        "https://idp.example.com/authorize?client_id=c", "st.ate"),
+                com.ragagent.auth.dto.OidcAuthUrlResponse.class,
+                "types.OIDCAuthURLResponse ← OidcAuthUrlResponse");
+        assertRoundTrips(
+                new com.ragagent.auth.dto.OidcAuthUrlResponse(false, "", "", ""),
+                com.ragagent.auth.dto.OidcAuthUrlResponse.class,
+                "types.OIDCAuthURLResponse ← OidcAuthUrlResponse（omitempty 全省略）");
+    }
+
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
 
     /**

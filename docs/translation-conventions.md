@@ -265,6 +265,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | knowledge 文档操作面（波 2 第二批） | internal/handler/knowledge.go 的 15 端点（L608-2791）+ knowledgebase.go 的 ClearKnowledgeBaseContents；internal/application/service/{knowledge,knowledge_process,knowledge_create,knowledge_summary_refresh}.go 对应方法 + knowledge_write.go 批量校验；internal/types/{knowledge_folder,tag,knowledge_span}.go；internal/application/repository/{knowledge_tag,tag}.go；internal/filetransport/response.go；internal/application/service/file/local.go 的 GetFile | com.ragagent.knowledge.{controller.KnowledgeController 扩展,service.KnowledgeService 扩展,service.KnowledgeAccessGuard,dto.SpanTree,domain.KnowledgeTag,mapper.KnowledgeTagMapper} + common.security.InputSanitizer + LocalStorageService.readChecked/baseDir + WebConfig 规则 + APIKeyRoutePolicies + TestSchema.{knowledge_tags,knowledge_tag_relations} | ✅ | 15+1 端点全落地；14 条契约测试（**121 个 kg-* golden 全是 Go 实录**，含下载/预览的响应头与字节）+ 既有 knowledge/chunk/common 套件 234 测试全绿。**golden 抓回四个真契约**：EnsureDefaults 把"全关索引"重置成 vector+keyword（image 链恒 500 "model ID cannot be empty"）、ValidateInput 放行 `<script>x`（无闭合标签）、tags 无 kb_id 的跨租户 403 文案不带 "base"、clear-contents 两次连续调用都返回 task submitted。已知差异：批量删除/清空/重解析为同步尽力而为（HTTP 契约一致）、summary/vector 的模型运行时随阶段 7。关键坑见 §9「波 2 knowledge 文档操作面」 |
 | knowledge 搜索与移动/复制（波 2 第三批，**knowledge 域收官**） | internal/handler/knowledge.go 的 SearchKnowledge/MoveKnowledge/GetKnowledgeMoveProgress（L2149-2543）+ knowledgebase.go 的 HybridSearch/CopyKnowledgeBase/DuplicateKnowledgeBase/GetKBCloneProgress（L318-1112）；internal/application/service/{knowledge.go 的 Search*,knowledge_clone_move.go,knowledge_transfer.go,knowledgebase.go 的 Duplicate/Copy,knowledgebase_search.go+storegroup 的 HybridSearch 前置段}；internal/application/access/kb_transfer.go；internal/utils/taskid.go；internal/handler/{task_progress_auth.go,list_pagination.go 的 parseOffsetPagination} | com.ragagent.knowledge.{controller.{KnowledgeController 扩展,KnowledgeBaseController 扩展},service.{KnowledgeService 扩展（search/move/clone/duplicate/task-id/兼容性）,KnowledgeTaskProgressStore},dto.KnowledgeTaskDtos,KnowledgeBaseResponseBuilder 的 includeEngineType 重载} + WebConfig 规则 + APIKeyRoutePolicies | ✅ | 8 端点全落地；**76 个 ks-* golden 全是 Go 实录** + 7 条契约测试（异步用例轮询到 completed 再比对终态）+ 套件 242 测试全绿。**golden 抓回的真契约**：move 的 binding 校验把全部失败字段按 struct 序 join("\n") 进 message、copy 的 binding 错误在 **details**（与 move 的 message 前缀形态刻意不同）、跨租户 source 在 copy 是 403 "Permission denied..."（ResolveKB）而 move 是 handler 的 "No permission to access source..."、duplicate 的 404 是路由中间件的小写 "knowledge base not found"（handler 的 "Source..." 不可达）、worker 覆写进度**不带 created_at**（终态 created_at:0）、duplicate 无 vector_store_engine_type 键（envStores 空）而阶段 3 的 kb-get golden 有（部署状态漂移）。已知差异：hybrid-search 的检索执行随波 4（当前恒 "data":null）、move/clone 只做到行级、进度存储为进程内 map。关键坑见 §9「波 2 knowledge 搜索与移动/复制」 |
 | auth 注册族（波 2 扫尾批 1） | internal/handler/auth.go 的 Register/AutoSetup/GetAuthConfig/ValidateToken/GetCurrentUser/UpdateMyPreferences/ChangePassword（L85-1024 的剩余段）+ auth_register_by_invite.go（全文）；internal/application/service/{user.go 的 Register/ChangePassword/UpdateUserPreferences,tenant.go 的 CreateTenant/createDefaultStorageBackend,tenant_invitation.go 的 token 路径,password_policy.go}；internal/types/{user.go 的 RegisterRequest/UserInfo/RegisterResponse/UserPreferences,tenant.go 的 BeforeCreate} | com.ragagent.auth.{controller.AuthController 重写（+9 端点）,service.{PasswordPolicy（新）,UserService 扩展,TenantService.createDefaultStorageBackend},dto.{RegisterRequest/RegisterResponse/UserInfo/UpdatePreferencesRequest/InvitationLookup*/RegisterByInviteRequest/ChangePasswordRequest},mapper.UserMapper.insertTenantless} + config.TenantProperties 补 selfServiceCreationEnabled + system.service.SystemAdminUserService 委托 PasswordPolicy + TestSchema（复用） | ✅ | 9 端点全落地；**46 个 reg-* golden 全是 Go 实录** + 8 条契约测试（场景顺序严格复刻录制脚本）+ **真 PG 上 46 组 A/B 两轮稳定全 MATCH**。**A/B 抓回真缺陷**：tenantless 注册的 user insert 走 getter 把 null 归一成 0 → 真 PG 违反 fk_users_tenant（H2 无 FK 不暴露）→ UserMapper.insertTenantless 省略该列（对照 GORM Omit）。**golden 纠正**：UserPreferences 三字段蛇形 tag（browser_search_instructions/last_active_tenant_id/oidc_only_login）、context_config 零值对象恒输出（见 §9「波 2 扫尾批 1」）。login-success.json golden 随当前 Go 二进制重录（9/17 旧版无 context_config 键）。关键坑见 §9「波 2 扫尾批 1」 |
+| auth OIDC（波 2 扫尾批 2） | internal/handler/auth.go 的 GetOIDCAuthorizationURL/OIDCStart/GetOIDCConfig/OIDCRedirectCallback（L311-505，含 setOIDCNonceCookie/oidcCallbackURL/decodeOIDCState/urlQueryEscape）；internal/utils/oidc_state.go（全文）；internal/application/service/user.go 的 GetOIDCAuthorizationURL(L435)/LoginWithOIDC 门控段(L484-500)/getOIDCConfig(L1518)/populateOIDCEndpoints(L1542)/validateOIDCEndpoints(L1488)；internal/config/config.go 的 OIDCAuthConfig+env 覆盖+缺省段（L305-323/L690-748）；internal/types/user.go 的 OIDC*Response（L149-181） | com.ragagent.auth.{service.{OidcConfig,OidcStateCodec,OidcService}（新）,controller.AuthController（+4 端点+302/cookie/escaper 辅助）,dto.{OidcConfigResponse,OidcAuthUrlResponse}} | ✅ | 4 端点全落地（未配置=disabled 分支全覆盖）；**13 个 oidc-* golden 全是 Go 实录**（302 端点用合成信封 JSON：body/location/set_cookie/status）+ 5 条契约测试 + 往返 4 条 + **真 PG 上 13 组 A/B 两轮全 MATCH**（字节比对，无掩码项）。**翻译边界**：enabled 后的 discovery 抓取与 code 交换/userinfo/provisioning 整体推迟（dev 两侧恒 disabled 不可达），抛自造 OidcException；config.yaml 的 oidc_auth 段无 Java 加载器，仅实现 env+缺省两层（dev 等价）。关键坑见 §9「波 2 扫尾批 2」 |
 
 ## 9. 当前确认过的细节
 
@@ -1414,3 +1415,37 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - 注册成功响应的 `user` 是**完整 User 实体**（含 `"deleted_at":null`），而
     /auth/validate 与 /auth/me 的 user 是 **UserInfo 投影（无 deleted_at）**——同一用户
     两种形状，UserInfo.from 静态工厂收口。
+
+- **波 2 扫尾批 2（auth OIDC）补充**：
+  - **gin Redirect 的 302 是有 body 的**：`<a href="<Location>">Found</a>.\n\n`，
+    Content-Type `text/html; charset=utf-8`，且 body 里 href 的 Location 经
+    **Go html.EscapeString** 转义（`&`→`&amp;` 等 5 字符）而 **Location 头保持原样**
+    （实测含 `&` 的 oidc_error 场景两形态并存）。Spring 的 302 ResponseEntity 默认无
+    body——`redirectFound` 手写 status/Location/Content-Type/body 四件套；golden 对
+    302 端点用**合成信封 JSON**（键字母序 body/location/set_cookie/status）落盘，
+    契约测试从 MockMvc 结果组同一信封比对（约定写在 record-oidc-golden.sh 头注释）。
+  - **MockHttpServletResponse 会解析并重序列化 Set-Cookie**：`Max-Age=0` 被补
+    `Expires=Thu, 01 Jan 1970 00:00:00 GMT`（MockCookie 行为）；真容器（Tomcat）
+    原样透传（A/B 逐字节证实 Go 的清算头是 `weknora_oidc_nonce=; Path=/; Max-Age=0;
+    HttpOnly`）。MockMvc 契约测试对这条头做窄化还原，真字节由 A/B 钉住。
+  - **OIDC state 是 HMAC 签名的自包含令牌**（oidc_state.go）：
+    `b64url_nopad(json).b64url_nopad(hmac-sha256)`，json 字段序 nonce,redirect_uri,iat，
+    密钥=env JWT_SECRET（空则随机 32B，sync.Once）。**跨语言互验已实测**：python
+    锻造的 state 被 Go 接受（录制脚本）、Java OidcStateCodec 自签自验（契约测试）。
+    verify 的 6 条失败（段数/b64/HMAC/redirect_uri/iat/新鲜度 ±10min/-1min）在 handler
+    层全部坍缩成 `invalid_state` 302——**不区分原因、无 Set-Cookie**；只有 verify+nonce
+    cookie 双过才发清算头（`Max-Age=0`），再分派 missing_code / login_failed。
+  - **urlQueryEscape 是定制 replacer 不是标准 percent-encoding**（auth.go L494-505）：
+    只转义 `% # & + = ?` 与空格共 7 个，其余原样（`/`、`:`、多字节 UTF-8 都不动）。
+    而授权 URL 构建用的是 `url.Values.Encode()`（**Go QueryEscape 语义**：alnum 与
+    `-_.~` 原样、空格 `+`、其余 %XX 大写；**键按字母序** client_id,redirect_uri,
+    response_type,scope,state）——两个 escaper 职责不同，勿混用（Java URLEncoder 会把
+    `~` 编成 %7E，不可用，OidcService.goQueryEscape 手写）。
+  - **OIDC 配置链只有 env+缺省两层**（Java 侧）：Go 另有 config.yaml `oidc_auth` 段，
+    Java 仓无该加载器；env 名与 Go 完全同名（OIDC_AUTH_* + OIDC_USER_INFO_MAPPING_*），
+    缺省 ProviderDisplayName="OIDC"、Scopes=[openid,profile,email]、mapping name/email。
+    dev 两侧 config.yaml 均无此段，行为等价；若将来接 config.yaml 需补 OidcConfig。
+  - **nonce cookie 名 `weknora_oidc_nonce`**：下发（url/start 成功分支，dev 不可达）
+    Max-Age=600、HttpOnly、SameSite=Lax、secure=TLS 或 X-Forwarded-Proto=https；
+    Set-Cookie 字节序对照 Go Cookie.String()（Path; Max-Age; Secure; HttpOnly; SameSite）。
+    /oidc/start 的回调地址由请求自身 Host 头推导（oidcCallbackURL），外部平台深链用。
