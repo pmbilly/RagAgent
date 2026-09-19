@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-20 · **3396 测试全绿** · golden 1195 个（1135+60）
-> **端点覆盖：Go 412 条 → Java 已注册约 341 条（约 83%）——波 3 进行中（sandbox/skill/协作/agents 全收官）**
+> 最后更新：2026-09-20 · **3399 测试全绿** · golden 1239 个（1195+44）
+> **端点覆盖：Go 412 条 → Java 已注册约 346 条（约 84%）——波 3 完成（含 browserskill 尾巴）**
 
 ## 0. 一句话背景
 
@@ -66,6 +66,7 @@
 | **波 3 sandbox 子批 4** | **/skills 家族 7 条 + /me/env-vars 5 条（skill 模块用户面收官）** | ✅ | 24 golden + A/B 24 场景两轮 ALL MATCH（3392 绿）；catalog 三段合并投影、install=202 installs 映射、删除钉住 409 1005、DELETE 吃 JSON body、bundle_sha256 掩码（见 conventions §9「波 3 sandbox 子批 4」） |
 | **波 3 协作批** | **organizations 25 条 + KB/agent shares 7 条 + shared-* 3 条（协作面收官）** | ✅ | 117 golden（org-*/shr-*）+ A/B 两轮 116 场景 ALL MATCH（3394 绿）；com.ragagent.org 新包 20 文件；golden 纠正六处预实现（require_approval 不存在/shares 回填不对称/permission 恒 viewer/Go 文案错配真录 500/共享 KB raw 读无 EnsureDefaults）；**上报 emoji 转义跨横切缺陷待专项**（见 conventions §9「波 3 协作面」） |
 | **波 3 agents 批** | **agents CRUD 8 条 + initialization 3 条** | ✅ | 60 golden（ag-*/init-*）+ A/B 两轮 60 场景 ALL MATCH（3396 绿）；**emoji 修复落地**（GoWriterJsonFactory 改道 Writer，root cause=Jackson UTF8 生成器硬编码，升级不可解；内建 avatar golden 钉住+全逐字节套件回归）；vendor yaml 装载；initialization 的 tenant_id=0 等既有行为照抄（见 conventions §9「波 3 agents 批」） |
+| **波 3 browserskill 批** | **/me/browser 3 条 + local-browser 3 条（引擎级鉴权）** | ✅ | 44 golden（含 download 字节+headers）+ A/B 两轮 45 项 ALL MATCH 零 DIFF（3399 绿，测试堆 4g→5g）；跨语言互操作实测（Go authorize 兑换的设备行 Java WS 握手通过）；执行循环随波 4（见 conventions §9「波 3 browserskill 批」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -74,8 +75,8 @@
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
-| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ✅ **波 3 完成（sandbox/skill/协作/agents，~86 条）**——emoji 专项已在 agents 批顺手修复。剩余：/me/browser（随 browserskill）、models/{id}/debug（阶段 7）。**下一波 4：agent 核心 + tools（~20k，全局咽喉）**——chat 三兄弟/knowledge-search/技能执行/web_search 实调/web_fetch 的解锁点；embed/im 清单面可先行 |
-| 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
+| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ✅ **波 3 完成（sandbox/skill/协作/agents/browserskill，~92 条）**——emoji 专项已在 agents 批修复。剩余：sessions/:id/local-browser 2 条（随波 4 tools）、models/{id}/debug（阶段 7）。**波 4 按作战计划（§2.3）执行：4.1 event 包 → 4.2 纯逻辑 → 4.3 embed/im → 4.4 模型客户端+检索地基 → 4.5 tools → 4.6 引擎+chat** |
+| 4 | **agent 核心** + `agent/tools`（实测待翻 ~27k 非测试行）+ chat_pipeline 6.8k + 前置缺口 6.5k | ~40k | ⏳ 作战计划见 §2.3 |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
 
 **为什么这么排（实测结论，别再照搬旧计划）**：
@@ -91,6 +92,35 @@
 - **`embed`(28 条) 已从"阶段 6"移到波 4 之后**——它同样堵在 `agent/tools` 上。
 - 五个真叶子（零未翻译前置）：`datasource` ✅、`memory` ✅、`sandbox`、`browserskill`、`infrastructure`。
   **`sandbox` 是最紧的前置**（`agent/skills` 硬依赖它，另解锁系统管理端与 skill）。
+
+
+### 2.3 波 4 作战计划（2026-09-20 勘察 agent 实测产出）
+
+**实测规模**：agent 根包 4,944（approval 1,163 已翻）+ compaction 863 + skills 1,858 + token 140 +
+tools 非测试 20,112（69 文件）+ chat_pipeline 26 文件 6,763 + 事件契约 794 ≈ **待翻 ~34k**，
+另有前置缺口 ~6.5k（models/embedding 3.8k、models/rerank 5.7k 含测试、searchutil 2,139、
+web_fetch ~900、web_search 执行面 792、VLM/ASR）。HTTP 面 = qa.go(1,768) 的 chat 三兄弟 +
+agent_stream_handler(896，17 种事件订阅 + superseded preamble 剔除) + session_agent_qa/
+session_knowledge_qa(1,290) + agent_service 装配(1,485)。
+
+**子批切法**（串行为主，4.3 可与 4.2 并行）：
+
+| 子批 | 范围 | 行数 | 验收 |
+|---|---|---|---|
+| 4.1 事件契约（**第一子批**） | internal/event 整包 → com.ragagent.event + §6 的 24 个 emit 点落表（final_answer×7/tool_call×3/thought×2/mcp_oauth×2/其余各×1，payload 全在 event_data.go 317 行） | ~794 | 纯单测（Go 实录 payload JSON 逐字节）；零路由零 TestSchema |
+| 4.2 纯逻辑件 | token estimator、compaction 全包、prompts 族、const/tool_images/context_debug | ~2,570 | 纯单测（Go 实录程序抄输出） |
+| 4.3 embed/im 清单面（可并行） | embed_channel(426)+handler(847)、im channel CRUD+callback(537)、embed 公开面不堵 QA 的 ~14 条 | ~2,200 | golden + 真 PG A/B（wechat qrcode XDEP） |
+| 4.4 模型客户端+检索地基 | models/embedding、models/rerank、searchutil、web_fetch、web_search 执行面 | ~6,500 | stub server A/B（双端同 stub 比请求体逐字节） |
+| 4.5 tools 全量（可拆 a 确定性/b 知识/c 执行+MCP） | registry+基建 2,450 + 知识九件 5,700 + wiki 十件 2,870 + sandbox/shell/skill 十件 3,330 + MCP 五件 2,290 + web 四件 1,000 + todo/sequential 580 | ~20,100 | 知识/wiki/内存检索：真 PG golden A/B；MCP：双端同打 stub MCP server；web_search：stub |
+| 4.6 引擎 + chat 三兄弟 | engine/think/act/observe/finalize/steer + skills 包 + agent_service 装配 + qa.go + agent_stream_handler + chat_pipeline | ~18,000 | **stub LLM 全链路 A/B**（双端同指脚本化 OpenAI 兼容 stub，复用 continue-stream MATCH 基建） |
+
+**关键风险**：① SSE 时序（final_answer event-id 分片重组 + superseded preamble 剔除——最高危）；
+② LLM 确定性（chat 链路 A/B 必须双端同指 stub LLM，真实链路只做骨架断言）；③ 虚拟线程显式
+拷贝 TenantContext（Go ctx 传租户，ThreadLocal 不跨虚拟线程）+ Long 引用比较陷阱在工具并发
+回调复发；④ 引擎装配 bean 走接口 seam 注入 stub，**不加 @SpringBootTest 上下文变体**（§5.15）。
+**Java 已有基础（勿重建）**：llm 流式客户端（阶段 4.0）、StreamManager+steer 队列（阶段 5.0）、
+session.sse 契约层+continue-stream（5.2）、agent.approval、sandbox 客户端切片、SkillFrontmatter/
+SkillBundleParser/TenantSkillService、agentm BuiltinAgentRegistry。
 
 ## 3. 下一步：波 3（波 2 已全部收官，本节只剩波 3）
 

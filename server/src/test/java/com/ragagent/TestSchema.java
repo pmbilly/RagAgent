@@ -905,6 +905,36 @@ public final class TestSchema {
                 "tenant_id BIGINT NOT NULL, agent_id VARCHAR(36) NOT NULL, source_tenant_id BIGINT NOT NULL," +
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "PRIMARY KEY (tenant_id, agent_id, source_tenant_id))");
+        // 波 3 browserskill 批：持久授权三表（迁移 000093 逐列对照；
+        // "user" 是保留字必须带引号；token_hash/id 唯一索引照迁移）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS browser_devices (" +
+                "scope_key VARCHAR(32) PRIMARY KEY," +
+                "id VARCHAR(32) NOT NULL UNIQUE," +
+                "tenant BIGINT NOT NULL," +
+                "\"user\" VARCHAR(36) NOT NULL," +
+                "label VARCHAR(100) NOT NULL," +
+                "token_hash VARCHAR(64) NOT NULL UNIQUE," +
+                "previous_hash VARCHAR(64) NOT NULL DEFAULT ''," +
+                "previous_until TIMESTAMP WITH TIME ZONE NOT NULL," +
+                "expires_at TIMESTAMP WITH TIME ZONE NOT NULL," +
+                "renew_after TIMESTAMP WITH TIME ZONE NOT NULL," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL," +
+                "last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL," +
+                "revoked_at TIMESTAMP WITH TIME ZONE," +
+                "owner VARCHAR(32) NOT NULL DEFAULT ''," +
+                "owner_url VARCHAR(500) NOT NULL DEFAULT ''," +
+                "lease_key VARCHAR(32) NOT NULL DEFAULT ''," +
+                "lease_until TIMESTAMP WITH TIME ZONE NOT NULL)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS browser_pairings (" +
+                "scope_key VARCHAR(32) PRIMARY KEY," +
+                "token_hash VARCHAR(64) NOT NULL UNIQUE," +
+                "tenant BIGINT NOT NULL," +
+                "\"user\" VARCHAR(36) NOT NULL," +
+                "expires_at TIMESTAMP WITH TIME ZONE NOT NULL)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS browser_task_interruptions (" +
+                "scope_key VARCHAR(32) NOT NULL," +
+                "session VARCHAR(36) NOT NULL," +
+                "PRIMARY KEY (scope_key, session))");
     }
 
     /**
@@ -989,5 +1019,9 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM organization_tenant_members");
         jdbc.execute("DELETE FROM tenant_disabled_shared_agents");
         jdbc.execute("DELETE FROM organizations");
+        // 波 3 browserskill 批：持久授权三表
+        jdbc.execute("DELETE FROM browser_task_interruptions");
+        jdbc.execute("DELETE FROM browser_pairings");
+        jdbc.execute("DELETE FROM browser_devices");
     }
 }

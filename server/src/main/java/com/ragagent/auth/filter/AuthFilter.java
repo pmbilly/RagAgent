@@ -59,6 +59,13 @@ public class AuthFilter extends OncePerRequestFilter {
             Map.entry("/api/v1/auth/oidc/start", Set.of("GET")),
             Map.entry("/api/v1/auth/oidc/callback", Set.of("GET")),
             Map.entry("/api/v1/mcp-oauth/callback", Set.of("GET")),
+            // 波 3 browserskill：/api/v1/local-browser 三条在 Go router.go L184-186
+            // 注册于 Auth 中间件**之前**（引擎级路由）——扩展靠 WS 子协议票据、
+            // authorize 靠一次性 Bearer 票据、internal 靠 HMAC 签名各自鉴权，
+            // Java 侧经本白名单获得等价的"无 Auth"语义（X-API-Key 同样被忽略）。
+            Map.entry("/api/v1/local-browser/extension", Set.of("GET")),
+            Map.entry("/api/v1/local-browser/extension/authorize", Set.of("POST")),
+            Map.entry("/api/v1/local-browser/internal", Set.of("POST")),
             Map.entry("/api/v1/auth/refresh", Set.of("POST")),
             Map.entry("/api/v1/files/presigned", Set.of("GET", "HEAD")));
 

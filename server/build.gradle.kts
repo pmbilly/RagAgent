@@ -108,5 +108,7 @@ tasks.withType<Test> {
     // 提到 3g。波 3 sandbox 子批 1（+13 个 MockMvc 测试、+2 个上下文变体）后 3g
     // 又在 GC 死亡螺旋后 OOM（全量耗时 6.7min→13.4min 即螺旋特征）：提到 4g。
     // 治本方向是收敛 @SpringBootTest 上下文变体数量（每变体整份上下文驻留堆）。
-    maxHeapSize = "4g"
+    // 波 3 协作/agents/browserskill 三批（每批 +1-2 个上下文变体）后 4g 在
+    // MyBatis XML 解析处 OOM：提到 5g。曲线：512MB→1g→2g→3g→4g→5g。
+    maxHeapSize = "5g"
 }

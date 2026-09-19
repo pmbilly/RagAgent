@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="browser-skill-weknora.zip"
+Content-Length: 309
+Content-Type: application/zip
+Last-Modified: Sat, 19 Sep 2026 21:01:22 GMT
+X-Request-Id: b6bf741a-4800-4271-92c9-96f2c37df6df
+Date: Sat, 19 Sep 2026 21:07:09 GMT
+
