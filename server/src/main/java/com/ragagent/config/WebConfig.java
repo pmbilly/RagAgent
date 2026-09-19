@@ -423,6 +423,14 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/tenants/*/api-principal-config", TenantRole.OWNER, false);
         rbac.addRule("PUT", "/api/v1/tenants/*/api-principal-config", TenantRole.OWNER, false);
         rbac.addRule("POST", "/api/v1/tenants/*/api-principal-test-token", TenantRole.OWNER, false);
+        // 波 2 终扫批（routes_agent.go RegisterUserFavoriteRoutes + routes_knowledge.go
+        // RegisterChunkerDebugRoutes，均 g.Viewer()）：
+        // 收藏是"做收藏动作的人"的资源（不属资源创建者），Viewer+ 即可；
+        // preview 是 KB 编辑器调试面板的只读端点。
+        rbac.addRule("GET", "/api/v1/user/favorites", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/user/favorites", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/user/favorites/*/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/chunker/preview", TenantRole.VIEWER, false);
 
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
@@ -432,7 +440,8 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/datasource/**",
                 "/api/v1/web-search-providers/**", "/api/v1/web-search/**",
                 "/api/v1/vector-stores/**", "/api/v1/storage-backends/**",
-                "/api/v1/evaluation/**");
+                "/api/v1/evaluation/**",
+                "/api/v1/user/favorites/**", "/api/v1/chunker/**");
     }
 
     /**

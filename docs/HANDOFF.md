@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-19 · **3266 测试全绿** · golden 909 个
-> **端点覆盖：Go 412 条 → Java 已注册约 258 条（约 63%）——波 2 六批全部收官**
+> 最后更新：2026-09-19 · **3298 测试全绿** · golden 941 个（909+32）
+> **端点覆盖：Go 412 条 → Java 已注册约 262 条（约 64%）——波 2 全部收官（六批+终扫批）**
 
 ## 0. 一句话背景
 
@@ -59,6 +59,7 @@
 | **波 2 基础设施配置** | **web-search-providers/vector-stores/storage-backends 30 条** | ✅ | 110 golden + A/B 全 MATCH（3215 绿）；**A/B 抓回三缺陷：jsonb TypeHandler setObject(Types.OTHER)、StoredResource.TableName()=resources、create 缺 AutoCreateTime 回写**（见 §9「波 2 基础设施配置三组补充」） |
 | **波 2 成员/邀请** | **members/invitations/api-principal 17 条** | ✅ | 91 golden + A/B 全 MATCH（3238 绿）；**真缺陷：clearStaleHomeTenant 必须写 SQL NULL（写 0 炸 FK）**；B 的两种 token 形态是契约场景（见 §9「波 2 成员/邀请/api-principal 补充」） |
 | **波 2 系统管理端** | **/system 7 条 + /system/admin 15 条 + evaluation 2 条** | ✅ | 53 golden + A/B 三轮稳定全 MATCH（3266 绿）；RequireSystemAdmin 文案纠正、UserKbPin 列映射真缺陷（kb_id/pinned_at）、sandbox-check 留波 3 占位（见 §9「波 2 系统管理端补充」） |
+| **波 2 终扫批** | **用户收藏 3 条 + chunker 预览 1 条（波 2 全部收官）** | ✅ | 32 golden + 真 PG A/B 32 场景两轮 ALL MATCH（3298 绿，首轮即全对零缺陷）；GORM Find 空结果 `[]` 非 null、空 strategy=legacy 非 auto、preview 裸错误体、测试堆 2g→3g（见 conventions §9「波 2 终扫批」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -66,7 +67,7 @@
 |---|---|---|---|
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
-| 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation） | ~140 条 | ✅ **核心收官（118 条，六批 A/B 全 MATCH）**；扫尾 ~14 条见 §3.0 |
+| 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ |
 | 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
@@ -85,20 +86,20 @@
 - 五个真叶子（零未翻译前置）：`datasource` ✅、`memory` ✅、`sandbox`、`browserskill`、`infrastructure`。
   **`sandbox` 是最紧的前置**（`agent/skills` 硬依赖它，另解锁系统管理端与 skill）。
 
-## 3. 下一步：波 2 扫尾批 → 波 3
+## 3. 下一步：波 3（波 2 已全部收官，本节只剩波 3）
 
-### 3.0 波 2 扫尾清单（~14 条，未被 agent 阻塞；开波 3 前可顺手做或并行）
+### 3.0 波 2 扫尾清单（✅ 全部完成，留档备查）
 
 最终对账（Go/Java 路由程序化对账 + 逐批核对）确认波 2 命名模块全部落地后，
-还剩这批"非命名模块但同样不被 agent 阻塞"的散条：
+剩下的"非命名模块但同样不被 agent 阻塞"的散条，已全部完成：
 
 | 组 | 路由 | 说明 |
 |---|---|---|
 | ~~auth 注册族（~9）~~ | ✅ **已完成（2026-09-19）**：9 端点全落地，46 reg-* golden + 8 契约测试 + 真 PG A/B 46 组两轮 ALL MATCH。台账见 conventions §8「auth 注册族（波 2 扫尾批 1）」，坑见 §9 同名小节 | logout/refresh 阶段 1 已翻 |
 | ~~OIDC（4）~~ | ✅ **已完成（2026-09-19）**：4 端点全落地（路由实为 4 条，config/url/start/callback），13 oidc-* golden（302 用合成信封约定）+ 5 契约测试 + 真 PG A/B 两轮 ALL MATCH。只翻了未配置=disabled 确定性分支；enabled 后的 discovery/code 交换/provisioning 整体推迟（§9「波 2 扫尾批 2」deferral）。将来做 provisioning 时 tenantless 建号必须用 UserMapper.insertTenantless（§9「波 2 扫尾批 1」的 FK 坑） | logout/refresh 阶段 1 已翻 |
 | ~~跨租户租户管理（4~5）~~ | ✅ **已完成（2026-09-19）**：5 端点全落地（GET /tenants/all、/tenants/search、POST /tenants、GET/PUT /tenants/kv/{key}——注意 KV 是 /kv/{key} 不是 /{id}/kv/{key}，目标租户走 X-Tenant-ID 头）。65 ct-* golden（63 flag-on + 2 flag-off）+ 11 契约测试 + 真 PG A/B 62 MATCH + 1 EXPECTED-DIFF（prompt-templates GET 推迟，Go 独有 vendor yaml）。台账见 conventions §8「跨空间租户目录 + KV 配置（波 2 扫尾批 3）」，坑见 §9 同名小节 | logout/refresh 阶段 1 已翻 |
-| 用户收藏（4） | GET/POST/DELETE /user/favorites、DELETE /user/favorites/{type}/{id} | handler/user_resource_favorite.go；**先查表名（TableName() 陷阱）** |
-| chunker 预览（1） | POST /chunker/preview | chunker 已逐字节一致（G5 验证），确定性 |
+| ~~用户收藏（标 4，实为 3）~~ | ✅ **已完成（2026-09-19）**：GET/POST /user/favorites + DELETE /user/favorites/{type}/{id}（routes_agent.go 实际只注册 3 条，HANDOFF 旧写 4 条是笔误已纠正）。20 fav-* golden + 5 契约测试 + A/B 两轮 ALL MATCH。表无外键、纯 SQL mapper、幽灵删除 200。台账见 conventions §8「用户收藏 + chunker 预览（波 2 终扫批）」 | — |
+| ~~chunker 预览（1）~~ | ✅ **已完成（2026-09-19）**：POST /chunker/preview，12 cprev-* golden（响应全确定零掩码）+ 2 契约测试 + A/B 两轮 ALL MATCH。chunker 补诊断层（SplitWithDiagnostics/splitParentChildWithDiagnostics），核心切分零改动 | — |
 
 **明确推迟（有依赖，别现在做）**：/me/browser + /local-browser（波 3 browserskill）、
 /me/env-vars/{skill,sandbox}（波 3/5）、/wechat/qrcode ×2（波 5 im）、
@@ -161,7 +162,7 @@ curl -s -o server/src/test/resources/contracts/xxx.json \
 # 3) 写契约测试（掩码 UUID/时间戳后逐字节比对；中文用 content().bytes）
 # 4) 定向测试 → 最后必须全量
 ./gradlew :server:test --tests "com.ragagent.<你的包>.*"
-./gradlew test                     # ⚠️ 必须跑一次；约 3 分钟（测试堆已提到 2g）
+./gradlew test                     # ⚠️ 必须跑一次；约 6 分钟（测试堆已提到 3g，见 §5 补充）
 
 # 5) e2e / A/B：Java 连真 PG 跑通，并与 Go 逐字节对比
 # 6) 更新 docs/translation-conventions.md 的 §8（日志行）+ §9（新细节/差异）

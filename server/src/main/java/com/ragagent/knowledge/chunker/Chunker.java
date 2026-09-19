@@ -31,6 +31,33 @@ public final class Chunker {
     public record ParentChildConfigs(SplitterConfig parent, SplitterConfig child) {
     }
 
+    /** 某一层被校验器拒绝的记录（对照 Go TierRejection，strategy.go:63）。 */
+    public record TierRejection(DocumentProfiler.StrategyTier tier, String reason) {
+    }
+
+    /**
+     * 策略链诊断轨迹（对照 Go Diagnostics，strategy.go:75）。JSON 形状是
+     * preview 端点公开 API 的一部分——{@code rejected} 为 Go nil slice，
+     * 无拒绝时序列化成 {@code null}（不是 {@code []}）；{@code profile} 在
+     * 显式非 auto 策略下为 null（不经画像）。
+     */
+    public record Diagnostics(DocumentProfiler.StrategyTier selectedTier,
+            List<DocumentProfiler.StrategyTier> tierChain,
+            List<TierRejection> rejected,
+            DocumentProfiler.DocProfile profile) {
+    }
+
+    /** splitWithDiagnostics 的双返回值（对照 Go 的 (chunks, diag)）。 */
+    public record SplitResult(List<ParsedChunk> chunks, Diagnostics diagnostics) {
+    }
+
+    /** splitParentChildWithDiagnostics 的双返回值。 */
+    public record ParentChildDiagnostics(ParentChildResult result, Diagnostics diagnostics) {
+    }
+
+    private record ParentChildSplit(ParentChildResult result, Diagnostics diagnostics) {
+    }
+
     private Chunker() {
     }
 
@@ -66,17 +93,83 @@ public final class Chunker {
     }
 
     /**
+     * 对照 Go SplitWithDiagnostics（strategy.go:88）：与 {@link #split} 相同的切分，
+     * 附带诊断轨迹（选中层、完整链、逐层拒绝原因、auto 时的画像）。
+     * selectedTier 默认 LEGACY——空 diag 不携带零串（debug UI 不出空白标签）。
+     */
+    public static SplitResult splitWithDiagnostics(String text, SplitterConfig cfg) {
+        Diagnostics diag = new Diagnostics(DocumentProfiler.StrategyTier.LEGACY, null, null, null);
+        if (text == null || text.isEmpty()) {
+            return new SplitResult(List.of(), diag);
+        }
+        cfg = ensureDefaults(cfg);
+        ChainResolution res = resolveChainWithProfile(text, cfg);
+        diag = new Diagnostics(diag.selectedTier(), res.chain(), diag.rejected(), res.profile());
+        int totalChars = Runes.len(text);
+
+        List<ParsedChunk> lastOut = null;
+        DocumentProfiler.StrategyTier lastTier = DocumentProfiler.StrategyTier.LEGACY;
+        for (int i = 0; i < res.chain().size(); i++) {
+            DocumentProfiler.StrategyTier tier = res.chain().get(i);
+            List<ParsedChunk> out = runTier(tier, text, cfg, res.profile());
+            ChunkValidator.ValidationResult v = ChunkValidator.validate(out, totalChars, cfg.getChunkSize());
+            if (v.ok()) {
+                diag = new Diagnostics(tier, diag.tierChain(), diag.rejected(), diag.profile());
+                return new SplitResult(out, diag);
+            }
+            List<TierRejection> rejected = new ArrayList<>(
+                    diag.rejected() == null ? List.of() : diag.rejected());
+            rejected.add(new TierRejection(tier, v.reason()));
+            diag = new Diagnostics(diag.selectedTier(), diag.tierChain(), rejected, diag.profile());
+            LOG.log(System.Logger.Level.DEBUG, "chunker: tier " + tier + " rejected: " + v.reason());
+            if (tier == DocumentProfiler.StrategyTier.LEGACY && i == res.chain().size() - 1) {
+                lastOut = out;
+                lastTier = tier;
+            }
+        }
+        if (lastOut != null) {
+            diag = new Diagnostics(lastTier, diag.tierChain(), diag.rejected(), diag.profile());
+            return new SplitResult(lastOut, diag);
+        }
+        // 防御性最后一跳（对照 Go 的 SplitText fallback）
+        return new SplitResult(LegacySplitter.splitText(text, cfg), diag);
+    }
+
+    /**
      * 对照 Go SplitParentChild（strategy.go:135）：parent 分块走策略链，
      * 再按 childCfg 把每个 parent 细分为 child。child 分块遵守 childCfg.strategy。
      */
     public static ParentChildResult splitParentChild(String text, SplitterConfig parentCfg,
             SplitterConfig childCfg) {
+        return splitParentChildInternal(text, parentCfg, childCfg, false).result();
+    }
+
+    /**
+     * 对照 Go SplitParentChildWithDiagnostics（strategy.go:144）：结果与
+     * splitParentChild 完全一致，diagnostics 描述<b>整篇文档</b> parent 切分所选策略。
+     */
+    public static ParentChildDiagnostics splitParentChildWithDiagnostics(String text,
+            SplitterConfig parentCfg, SplitterConfig childCfg) {
+        ParentChildSplit split = splitParentChildInternal(text, parentCfg, childCfg, true);
+        return new ParentChildDiagnostics(split.result(), split.diagnostics());
+    }
+
+    private static ParentChildSplit splitParentChildInternal(String text, SplitterConfig parentCfg,
+            SplitterConfig childCfg, boolean withDiagnostics) {
         parentCfg = ensureDefaults(parentCfg);
         childCfg = ensureDefaults(childCfg);
 
-        List<ParsedChunk> parents = split(text, parentCfg);
+        List<ParsedChunk> parents;
+        Diagnostics diag = null;
+        if (withDiagnostics) {
+            SplitResult sr = splitWithDiagnostics(text, parentCfg);
+            parents = sr.chunks();
+            diag = sr.diagnostics();
+        } else {
+            parents = split(text, parentCfg);
+        }
         if (parents.isEmpty()) {
-            return new ParentChildResult(List.of(), List.of());
+            return new ParentChildSplit(new ParentChildResult(List.of(), List.of()), diag);
         }
 
         List<ParsedChunk> newParents = new ArrayList<>();
@@ -103,7 +196,7 @@ public final class Chunker {
                 childSeq++;
             }
         }
-        return new ParentChildResult(newParents, children);
+        return new ParentChildSplit(new ParentChildResult(newParents, children), diag);
     }
 
     /** 对照 Go NormalizeSplitterConfig（strategy.go:190）：ingestion 使用的基础默认值。 */

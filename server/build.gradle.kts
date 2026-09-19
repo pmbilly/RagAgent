@@ -102,5 +102,9 @@ tasks.withType<Test> {
     // 阶段 5.2/波 0 把套件推到 2855 条后，1g 也不够了——**波 0 的 datasource 连接器层
     // 一次加了 737 条测试，1g 下全量稳定 OOM（单跑该包 829 条没事，所以很容易漏）**。
     // 提到 2g。这是**测试期参数，不影响生产**；再翻一倍测试量时记得继续往上调。
-    maxHeapSize = "2g"
+    //
+    // 波 2 终扫批（3273 条 + 契约文件过千）后 2g 再次随机 OOM（仍表现为
+    // 「Gradle Test Executor N failed to execute tests」，OOM 点在 Spring 资源扫描）：
+    // 提到 3g。
+    maxHeapSize = "3g"
 }

@@ -267,6 +267,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | auth 注册族（波 2 扫尾批 1） | internal/handler/auth.go 的 Register/AutoSetup/GetAuthConfig/ValidateToken/GetCurrentUser/UpdateMyPreferences/ChangePassword（L85-1024 的剩余段）+ auth_register_by_invite.go（全文）；internal/application/service/{user.go 的 Register/ChangePassword/UpdateUserPreferences,tenant.go 的 CreateTenant/createDefaultStorageBackend,tenant_invitation.go 的 token 路径,password_policy.go}；internal/types/{user.go 的 RegisterRequest/UserInfo/RegisterResponse/UserPreferences,tenant.go 的 BeforeCreate} | com.ragagent.auth.{controller.AuthController 重写（+9 端点）,service.{PasswordPolicy（新）,UserService 扩展,TenantService.createDefaultStorageBackend},dto.{RegisterRequest/RegisterResponse/UserInfo/UpdatePreferencesRequest/InvitationLookup*/RegisterByInviteRequest/ChangePasswordRequest},mapper.UserMapper.insertTenantless} + config.TenantProperties 补 selfServiceCreationEnabled + system.service.SystemAdminUserService 委托 PasswordPolicy + TestSchema（复用） | ✅ | 9 端点全落地；**46 个 reg-* golden 全是 Go 实录** + 8 条契约测试（场景顺序严格复刻录制脚本）+ **真 PG 上 46 组 A/B 两轮稳定全 MATCH**。**A/B 抓回真缺陷**：tenantless 注册的 user insert 走 getter 把 null 归一成 0 → 真 PG 违反 fk_users_tenant（H2 无 FK 不暴露）→ UserMapper.insertTenantless 省略该列（对照 GORM Omit）。**golden 纠正**：UserPreferences 三字段蛇形 tag（browser_search_instructions/last_active_tenant_id/oidc_only_login）、context_config 零值对象恒输出（见 §9「波 2 扫尾批 1」）。login-success.json golden 随当前 Go 二进制重录（9/17 旧版无 context_config 键）。关键坑见 §9「波 2 扫尾批 1」 |
 | auth OIDC（波 2 扫尾批 2） | internal/handler/auth.go 的 GetOIDCAuthorizationURL/OIDCStart/GetOIDCConfig/OIDCRedirectCallback（L311-505，含 setOIDCNonceCookie/oidcCallbackURL/decodeOIDCState/urlQueryEscape）；internal/utils/oidc_state.go（全文）；internal/application/service/user.go 的 GetOIDCAuthorizationURL(L435)/LoginWithOIDC 门控段(L484-500)/getOIDCConfig(L1518)/populateOIDCEndpoints(L1542)/validateOIDCEndpoints(L1488)；internal/config/config.go 的 OIDCAuthConfig+env 覆盖+缺省段（L305-323/L690-748）；internal/types/user.go 的 OIDC*Response（L149-181） | com.ragagent.auth.{service.{OidcConfig,OidcStateCodec,OidcService}（新）,controller.AuthController（+4 端点+302/cookie/escaper 辅助）,dto.{OidcConfigResponse,OidcAuthUrlResponse}} | ✅ | 4 端点全落地（未配置=disabled 分支全覆盖）；**13 个 oidc-* golden 全是 Go 实录**（302 端点用合成信封 JSON：body/location/set_cookie/status）+ 5 条契约测试 + 往返 4 条 + **真 PG 上 13 组 A/B 两轮全 MATCH**（字节比对，无掩码项）。**翻译边界**：enabled 后的 discovery 抓取与 code 交换/userinfo/provisioning 整体推迟（dev 两侧恒 disabled 不可达），抛自造 OidcException；config.yaml 的 oidc_auth 段无 Java 加载器，仅实现 env+缺省两层（dev 等价）。关键坑见 §9「波 2 扫尾批 2」 |
 | 跨空间租户目录 + KV 配置（波 2 扫尾批 3） | internal/handler/tenant.go 的 ListAllTenants(L1192)/SearchTenants(L1218)/CreateTenant(L226-513)/GetTenantKV+UpdateTenantKV(L1304-1395)/六个 KV 子 handler(L1398-1901)/validateParserEngineOutboundURLs(L1904)；internal/application/service/tenant.go 的 CreateTenant/createDefaultStorageBackend/SearchTenants；router/routes_auth_tenant.go L53-81；internal/types/tenant.go 的 WebSearchConfig/ParserEngineConfig/StorageEngineConfig/ChatHistoryConfig/RetrievalConfig + PreserveIfRedacted 族 | com.ragagent.auth.{domain.tenantconfig（5 类型+TenantConfigRedaction，新）,controller.TenantCatalogController（新，5 端点）,domain.Tenant 注解,service.{TenantService+listAll/search/validateStorageBucketUniqueness,TenantMemberService+ensureOwner}} + config.{TenantProperties 第 4 组件 maxOwnedPerUser,WebConfig +crossTenant 规则×2+kv 角色下限} + common.web.RbacInterceptor（crossTenant 分支 + PathTenantMatch 门控修正）+ apikey.APIKeyRoutePolicies +5 条 + system.SystemSettingRegistry +3 键 | ✅ | 5 端点全落地；**65 个 ct-* golden 全是 Go 实录**（63 flag-on + 2 flag-off，含 settings 切换链）+ 11 条契约测试（含 flag-off 小类）+ 往返 5 条 + **真 PG A/B 62 MATCH + 1 EXPECTED-DIFF**（prompt-templates GET 为 Go 独有 vendor yaml，Java 推迟 → 400，ab-ct.sh 清单列明）。**golden 抓回**：Tenant.StorageUsed 零值 0（Java 实体 Long 默认 null）；**录制脚本坑**：布尔设置 PUT 必须 JSON bool。掩码族：uuid/时间戳/数字 id/api_key 明文/SSRF 解析 IP。关键坑见 §9「波 2 扫尾批 3」 |
+| 用户收藏 + chunker 预览（波 2 终扫批，**波 2 全部收官**） | internal/handler/{user_resource_favorite.go,chunker_debug.go}；internal/application/{repository,service}/user_resource_favorite.go；internal/types/user_resource_favorite.go + interfaces 同名；internal/router/{routes_agent.go RegisterUserFavoriteRoutes（3 条，**HANDOFF 旧写 4 条是笔误**）,routes_knowledge.go RegisterChunkerDebugRoutes（1 条）} | com.ragagent.favorite.{domain.UserResourceFavorite,mapper.UserResourceFavoriteMapper（复合主键→纯 SQL）,service.UserResourceFavoriteService,controller.UserFavoriteController} + knowledge.controller.ChunkerDebugController + knowledge.chunker 诊断层（TierRejection/Diagnostics/SplitResult/splitWithDiagnostics/splitParentChildWithDiagnostics + ParentChildSplit 内部重构） + WebConfig（rbac×4 + 拦截器路径 +2） + APIKeyRoutePolicies（+1） + TestSchema.user_resource_favorites | ✅ | 3+1 端点全落地；**32 条新 golden 全是 Go 实录**（fav-* ×20 + cprev-* ×12，cprev 全确定零掩码）+ 7 条契约测试 + **真 PG A/B 32 场景两轮 ALL MATCH（首轮即全对，唯一掩码项 created_at；3298 全量绿）**。**golden 钉死**：GORM Find 空结果 `"data":[]` 非 null、空 strategy=legacy 非 auto、rejected nil→null、preview 错误体是裸 gin.H 非信封。关键坑见 §9「波 2 终扫批」 |
 
 ## 9. 当前确认过的细节
 
@@ -1513,3 +1514,42 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - **双构造器 record 必须 @ConstructorBinding**：TenantProperties 加第 4 组件后
     保留了三参兼容构造，@ConfigurationPropertiesScan 找不到绑定构造器就退化成
     无参实例化 → 启动 NoSuchMethodException。钉在 canonical 构造器上解决。
+- **波 2 终扫批（favorites + chunker 预览）补充——波 2 到此全部收官**：
+  - **GORM Find 空结果 → `"data":[]` 非 null**：Go `var list []*T; Find(&list)`
+    零命中时 list 是**空非 nil 切片**，序列化成 `[]`。别按"Go nil slice→null"
+    的通用规则去猜——golden fav-list-empty-kb.json 钉死。同批另一处 nil 语义
+    相反：`Diagnostics.Rejected` 未发生拒绝时保持 nil → `"rejected":null`
+    （append 过才变数组）；`Chunks` 用 make 初始化 → 恒 `[]`。**同一个 handler
+    里三种形态并存，逐字段对 Go 源码**。
+  - **空 strategy = legacy，不是 auto**：`resolveChainWithProfile` 的 switch 里
+    `case StrategyLegacy, "":` 同档；只有 `auto` 和**未知值**（default 分支）才走
+    画像选链。此时 diag.Profile 为 null，由 **handler** 调 ProfileDocument 物化
+    （避免二次切分）——preview 响应里的 profile 恒非 null 但来源分两种。
+  - **preview 的错误体是裸 gin.H**：`{"error":"<字符串>","success":false}`，
+    不走 AppError 信封（fav 的 400 才是信封+details）。413 三键字母序
+    error<limit<success。binding 文案 `"invalid request body: "+err.Error()`
+    拼在 error 字符串里，复用 GoJsonBindError。深层结构类型错误
+    （chunk_size:"five"）Go/Jackson 措辞差异大，**刻意不录**（已知差异）。
+  - **profile 的两个编码陷阱**（§9.2 在本批的实例）：double 三字段
+    （avg_line_len/std_line_len/code_ratio）挂 GoDoubleSerializer——golden 里
+    `"avg_line_len":91`（Go 整值 float64 无 .0）；`md_heading_counts` 是
+    `map[int]int`：键**数字升序**输出（Jackson 用按键排序的 LinkedHashMap）、
+    空表恒 `{}`（profiler 恒 make）。
+  - **favorites 幽灵删除也是 200** `{"success":true}`（repo 返回 0 行，Handler
+    不分支）；类型白名单/空 id 的 400 文案逐字对照 Go sentinel error；FirstOrCreate
+    = 先 SELECT 四键再 INSERT（复合主键 → MyBatis-Plus 无 @TableId，**纯 SQL mapper**）。
+  - **收藏表无外键**：resource_id 任意字符串即合法（不校验资源存在），录制/测试
+    用固定假 id 不依赖真实 KB/agent；RBAC Viewer 三条 + chunker/preview 一条；
+    API key 侧 favorites **不登记**（默认拒绝），preview 登记
+    `retrieve(ingest(fullAccess()))`（单条路由双能力组合的又一例）。
+  - **MockMvc 编码陷阱复发**（陷阱清单第 12 条的兄弟）：`getContentAsString()`
+    在响应缺 charset 时按 ISO-8859-1 解码——全角破折号（"text is empty — paste…"）
+    和中文 content 全部变 mojibake。**契约测试的 raw() 一律
+    `new String(getContentAsByteArray(), UTF_8)`**。
+  - **测试堆 2g→3g**：3298 条 + 契约文件过千后，2g 再次随机 OOM（仍是
+    「Gradle Test Executor N failed to execute tests」，OOM 点在 Spring 资源扫描
+    的 substring 里，极易误判业务 bug——见 server/build.gradle.kts 注释史：
+    512MB→1g→2g→3g，随测试量继续上调）。
+  - 本批是**零缺陷批**：A/B 首轮 ALL MATCH，没有抓回任何 H2 绿/PG 红问题——
+    小模块+纯 SQL+既有基础设施（GoJsonBindError/GoTimeSerializer/GoDoubleSerializer）
+    全复用时的预期形态。

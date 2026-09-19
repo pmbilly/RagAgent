@@ -1,0 +1,130 @@
+package com.ragagent.favorite.controller;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.common.context.TenantContext;
+import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.BizException;
+import com.ragagent.common.web.GoJsonBindError;
+import com.ragagent.favorite.domain.UserResourceFavorite;
+import com.ragagent.favorite.service.UserResourceFavoriteService;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 用户收藏的 HTTP 层（对照 Go {@code internal/handler/user_resource_favorite.go} 全文，
+ * 路由对照 {@code internal/router/routes_agent.go} 的 RegisterUserFavoriteRoutes——
+ * 实际是 3 条路由：GET/POST /user/favorites + DELETE /user/favorites/{type}/{id}）。
+ *
+ * <h2>授权模型（Go 类注释原文）</h2>
+ * <p>handler 永远从 auth 上下文推导 (user_id, tenant_id)，没有"看别人收藏"的路径；
+ * favorites 属于<b>做收藏动作的人</b>而非资源创建者，不走 OwnedXOrAdmin。
+ * Viewer+ 即可，API key 默认拒绝（路由未对 API key 声明）。</p>
+ *
+ * <h2>响应形态：gin.H = map = 键字母序（§9 JSON 键序规则）</h2>
+ * <ul>
+ *   <li>列表：{@code {"data":[…],"success":true}}（data &lt; success；GORM Find
+ *       空结果序列化为 {@code []} 而非 null——golden fav-list-empty-kb.json）</li>
+ *   <li>add/remove：恒 {@code {"success":true}}——幽灵删除也是 200 true</li>
+ * </ul>
+ *
+ * <h2>错误形态：AppError 信封 + binding 细节进 details</h2>
+ * <pre>
+ *   非法 body → 400 message="invalid request body" details=Go 解码措辞（EOF / invalid character…）
+ *   非法类型  → 400 message="invalid favorite resource type" details=null
+ *   空 id     → 400 message="favorite resource id is required" details=null
+ * </pre>
+ * <p>Go handler 里 favoriteContext 的 401（"user ID not found" / "workspace ID
+ * not found"）在中间件保证租户与 principal 之后是<b>不可达死代码</b>（陷阱 §5.5）；
+ * Java 侧同位保留防御分支。</p>
+ */
+@RestController
+public class UserFavoriteController {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+
+    private final UserResourceFavoriteService service;
+
+    public UserFavoriteController(UserResourceFavoriteService service) {
+        this.service = service;
+    }
+
+    /** 对照 Go ListFavorites：?type= 缺失/非法 → 400（空串不命中白名单）。 */
+    @GetMapping("/api/v1/user/favorites")
+    public Map<String, Object> listFavorites(@RequestParam(required = false) String type) {
+        String userId = favoriteUserId();
+        Long tenantId = favoriteTenantId();
+        List<UserResourceFavorite> list = service.list(userId, tenantId, type);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", list);
+        body.put("success", true);
+        return body;
+    }
+
+    /** 对照 Go AddFavorite：body 是 {type,id}，成功只回 success。 */
+    @PostMapping("/api/v1/user/favorites")
+    public Map<String, Object> addFavorite(@RequestBody(required = false) String rawBody) {
+        AddFavoriteRequest req = bindBody(rawBody);
+        service.add(favoriteUserId(), favoriteTenantId(), req.type, req.id);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        return body;
+    }
+
+    /** 对照 Go RemoveFavorite：类型/id 校验失败 400；删 0 行照样 200。 */
+    @DeleteMapping("/api/v1/user/favorites/{type}/{id}")
+    public Map<String, Object> removeFavorite(@PathVariable String type, @PathVariable String id) {
+        service.remove(favoriteUserId(), favoriteTenantId(), type, id);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        return body;
+    }
+
+    /** 对照 Go AddFavoriteRequest：json tag 是小写 type/id。 */
+    private record AddFavoriteRequest(String type, String id) {
+    }
+
+    private AddFavoriteRequest bindBody(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            throw invalidBody("EOF");
+        }
+        try {
+            return MAPPER.readValue(rawBody, AddFavoriteRequest.class);
+        } catch (Exception e) {
+            throw invalidBody(GoJsonBindError.message(rawBody, e.getMessage()));
+        }
+    }
+
+    /** 对照 NewBadRequestError("invalid request body").WithDetails(err.Error())。 */
+    private static BizException invalidBody(String details) {
+        return new BizException(AppError.badRequest("invalid request body").withDetails(details));
+    }
+
+    /** 对照 favoriteContext：userId 缺失 → 401 "user ID not found"（防御位）。 */
+    private static String favoriteUserId() {
+        String userId = TenantContext.currentUserId();
+        if (userId == null || userId.isEmpty()) {
+            throw BizException.unauthorized("user ID not found");
+        }
+        return userId;
+    }
+
+    /** 对照 favoriteContext：tenant 缺失 → 401 "workspace ID not found"（防御位）。 */
+    private static Long favoriteTenantId() {
+        Long tenantId = TenantContext.currentTenantId();
+        if (tenantId == null || tenantId == 0L) {
+            throw BizException.unauthorized("workspace ID not found");
+        }
+        return tenantId;
+    }
+}

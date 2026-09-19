@@ -538,6 +538,14 @@ public final class APIKeyRoutePolicies {
         a.registerGin("DELETE", "/api/v1/chunks/by-id/:id/questions", chunkIngest);
         a.registerGin("PUT", "/api/v1/chunks/by-id/:id/questions", chunkIngest);
         a.registerGin("POST", "/api/v1/chunks/by-id/:id/questions/regenerate", chunkIngest);
+
+        // chunker 预览（routes_knowledge.go:19 RegisterChunkerDebugRoutes）：
+        // apiKeyRetrieve(apiKeyIngest(apiKeyFullAccess()))——单条路由同时要
+        // retrieve+ingest 两个能力（读内容面 + 写内容面的组合门），无 KB 白名单
+        // 可挂（不碰任何存储）。favorites 不在此登记：Go 注释原文 "not declared
+        // for API keys (default-deny)"，未声明的路由走默认拒绝。
+        a.registerGin("POST", "/api/v1/chunker/preview",
+                APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.ingest(APIKeyRoutePolicy.fullAccess())));
     }
 
     /**

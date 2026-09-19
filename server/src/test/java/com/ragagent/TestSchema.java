@@ -765,6 +765,15 @@ public final class TestSchema {
                 "last_modified_by VARCHAR(36) NOT NULL DEFAULT ''," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        // 波 2 终扫批：用户收藏（迁移 000047）。
+        // 复合主键、无外键（收藏在分享撤销/软删窗口内保留）；resource_type 'kb'|'agent'。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS user_resource_favorites (" +
+                "user_id VARCHAR(36) NOT NULL," +
+                "tenant_id BIGINT NOT NULL," +
+                "resource_type VARCHAR(16) NOT NULL," +
+                "resource_id VARCHAR(64) NOT NULL," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "PRIMARY KEY (user_id, tenant_id, resource_type, resource_id))");
     }
 
     /**
@@ -832,5 +841,7 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM resources");
         // 波 2 收官批：系统设置
         jdbc.execute("DELETE FROM system_settings");
+        // 波 2 终扫批：用户收藏
+        jdbc.execute("DELETE FROM user_resource_favorites");
     }
 }
