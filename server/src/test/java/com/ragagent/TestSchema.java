@@ -788,12 +788,13 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // 波 3 子批 1 最小只读依赖（迁移 000086 的 tenant_skills，全列建；
-        // skills 管理面在子批 2，本批只用于 Update 的 in-flight 判定）。
+        // 波 3 子批 1 最小只读依赖（迁移 000086/000087/000089/000090 并集，全列建；
+        // skills 管理面在子批 3 使用）。
         jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_skills (" +
                 "id VARCHAR(36) PRIMARY KEY," +
                 "tenant_id BIGINT NOT NULL," +
                 "sandbox_config_id VARCHAR(36) NOT NULL," +
+                "catalog_id VARCHAR(36)," +
                 "name VARCHAR(255) NOT NULL," +
                 "version VARCHAR(64)," +
                 "description VARCHAR," +
@@ -802,6 +803,9 @@ public final class TestSchema {
                 "bundle_sha256 VARCHAR(64)," +
                 "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
                 "installed_snapshot_id VARCHAR(255)," +
+                "install_session_id VARCHAR(36)," +
+                "install_message_id VARCHAR(36)," +
+                "envs VARCHAR," +
                 "status VARCHAR(32) NOT NULL," +
                 "error VARCHAR," +
                 "installing_since TIMESTAMP WITH TIME ZONE," +
@@ -822,6 +826,19 @@ public final class TestSchema {
                 "superseded_at TIMESTAMP WITH TIME ZONE," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        // 波 3 子批 3：技能目录（迁移 000090 基表；catalog 写面随 /skills 家族批）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_skill_catalog (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "name VARCHAR(255) NOT NULL," +
+                "version VARCHAR(64)," +
+                "description VARCHAR," +
+                "instructions VARCHAR," +
+                "bundle_ref VARCHAR(1024)," +
+                "bundle_sha256 VARCHAR(64)," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
         // 波 3 子批 2：技能声明的环境变量（迁移 000089，逐列对照；
         // value 是 AES-GCM 密文，任何端点不回显）。
         jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_user_env_vars (" +
@@ -910,5 +927,7 @@ public final class TestSchema {
         // 波 3 子批 2
         jdbc.execute("DELETE FROM tenant_skill_snapshots");
         jdbc.execute("DELETE FROM tenant_user_env_vars");
+        // 波 3 子批 3
+        jdbc.execute("DELETE FROM tenant_skill_catalog");
     }
 }

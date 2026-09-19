@@ -1503,6 +1503,47 @@ class JsonContractRoundTripTest {
                 "types.VolumeMountConfig ← VolumeMountConfig（enabled 恒输出）");
     }
 
+    @Test
+    void sandboxSkillSurfaceRoundTrips() {
+        // 波 3 子批 3：skills 管理面的响应体类型（键序 = Go struct 序；
+        // enabled/is_set/done/percent 这类恒输出布尔在 NON_DEFAULT 类级注解下会
+        // 被整键吞掉——逐字段注解后这里就是守门断言）
+        var env = new com.ragagent.sandbox.controller.SandboxSkillController.SkillEnvResponse(
+                "PROBE_TOKEN", "token for probe", true, false);
+        assertRoundTrips(env,
+                com.ragagent.sandbox.controller.SandboxSkillController.SkillEnvResponse.class,
+                "types.skillEnvResponse ← SkillEnvResponse（is_set=false 恒输出）");
+
+        // 时间字段留 null：本工具是裸 ObjectMapper（无 JSR-310），时间序列化由
+        // GoTimeSerializer + 契约测试覆盖
+        var skill = new com.ragagent.sandbox.controller.SandboxSkillController.SkillResponse(
+                "22222222-3333-4444-5555-666666666601", "probe-skill", "1.0.0",
+                "probe skill", false, "ready", "", "deadbeef", "snap-0001",
+                "sess-0001", "msg-0001", null, null,
+                java.util.List.of(env));
+        assertRoundTrips(skill,
+                com.ragagent.sandbox.controller.SandboxSkillController.SkillResponse.class,
+                "types.skillResponse ← SkillResponse（enabled=false 恒输出）");
+
+        var event = new com.ragagent.sandbox.controller.SandboxSkillController.SkillInstallEvent(
+                0, "accepted", "", "installing", false);
+        assertRoundTrips(event,
+                com.ragagent.sandbox.controller.SandboxSkillController.SkillInstallEvent.class,
+                "types.skillInstallEvent ← SkillInstallEvent（percent=0/done=false 恒输出）");
+
+        var content = new com.ragagent.sandbox.service.SkillBundleParser.SkillFileContent(
+                "empty.txt", 0, "utf-8", "", "", false, false);
+        assertRoundTrips(content,
+                com.ragagent.sandbox.service.SkillBundleParser.SkillFileContent.class,
+                "types.SkillFileContent ← SkillFileContent（size=0 恒输出）");
+
+        var entry = new com.ragagent.sandbox.service.SkillBundleParser.SkillFileEntry(
+                "SKILL.md", 0);
+        assertRoundTrips(entry,
+                com.ragagent.sandbox.service.SkillBundleParser.SkillFileEntry.class,
+                "types.SkillFileEntry ← SkillFileEntry");
+    }
+
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
 
     /**
