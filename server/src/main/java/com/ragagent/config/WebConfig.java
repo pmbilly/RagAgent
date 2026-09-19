@@ -317,6 +317,40 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("DELETE", "/api/v1/datasource/*", TenantRole.ADMIN, false);
         rbac.addRule("GET", "/api/v1/datasource/*", TenantRole.VIEWER, false);
 
+        // 基础设施配置三组（波 2 第五批，对照 routes_infra.go L205-284）：
+        // 租户级基础设施，读 Viewer+、写与连通测试 Admin+（无 ownership 守卫）。
+        // 静态段（types/test/*/credentials/*/default）先于 /x/* 通配登记（首个命中生效）。
+        rbac.addRule("GET", "/api/v1/web-search-providers/types", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/web-search-providers/test", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/web-search-providers", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/web-search-providers", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/web-search-providers/*/credentials", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/web-search-providers/*/credentials/*", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/web-search-providers/*/test", TenantRole.ADMIN, false);
+        rbac.addRule("PUT", "/api/v1/web-search-providers/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/web-search-providers/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/web-search-providers/*", TenantRole.VIEWER, false);
+        // 旧版运行时 provider 列表（Viewer+）；原始 group 注册 → API Key default-deny
+        rbac.addRule("GET", "/api/v1/web-search/providers", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/vector-stores/types", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/vector-stores/test", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/vector-stores", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/vector-stores", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/vector-stores/*/test", TenantRole.ADMIN, false);
+        rbac.addRule("PUT", "/api/v1/vector-stores/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/vector-stores/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/vector-stores/*", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/storage-backends/types", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/storage-backends/test", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/storage-backends", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/storage-backends", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/storage-backends/*/test", TenantRole.ADMIN, false);
+        // /default 是两段路径，必须先于 /storage-backends/* 登记（Ant 的 * 不跨 /）
+        rbac.addRule("PUT", "/api/v1/storage-backends/*/default", TenantRole.ADMIN, false);
+        rbac.addRule("PUT", "/api/v1/storage-backends/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/storage-backends/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/storage-backends/*", TenantRole.VIEWER, false);
+
         // 租户 API Key 管理（对照 routes_auth_tenant.go）：Owner+。
         // 刻意**不**登记进 API-Key 策略表——Key 不能给自己扩权（Go 测试钉住的契约）。
         rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
@@ -329,6 +363,8 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
                 "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**",
                 "/api/v1/tenants/**", "/api/v1/system/**", "/api/v1/memory/**",
-                "/api/v1/datasource/**");
+                "/api/v1/datasource/**",
+                "/api/v1/web-search-providers/**", "/api/v1/web-search/**",
+                "/api/v1/vector-stores/**", "/api/v1/storage-backends/**");
     }
 }

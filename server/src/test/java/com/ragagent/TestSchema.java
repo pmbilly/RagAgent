@@ -486,6 +486,36 @@ public final class TestSchema {
 
         createMemoryTables(jdbc);
         createDatasourceTables(jdbc);
+        createInfraConfigTables(jdbc);
+    }
+
+    /**
+     * 波 2 第五批：基础设施配置三组的两张新表（web_search_providers=迁移 000030、
+     * vector_stores=迁移 000032，列序/默认值以迁移为准）+ resources 最小投影（StoredResource.TableName()）
+     * （迁移后增表；storage 停用守卫只 COUNT (tenant_id, storage_backend_id, state)）。
+     * 两个 config jsonb 列在 PG 有 DEFAULT（'{}'）——实体恒持非 null 对象，不依赖默认。
+     */
+    private static void createInfraConfigTables(JdbcTemplate jdbc) {
+        jdbc.execute("CREATE TABLE IF NOT EXISTS web_search_providers (" +
+                "id VARCHAR(36) NOT NULL PRIMARY KEY, tenant_id BIGINT NOT NULL, " +
+                "name VARCHAR(255) NOT NULL, provider VARCHAR(50) NOT NULL, description TEXT, " +
+                "parameters VARCHAR, is_default BOOLEAN DEFAULT FALSE, " +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS vector_stores (" +
+                "id VARCHAR(36) NOT NULL PRIMARY KEY, name VARCHAR(255) NOT NULL, " +
+                "engine_type VARCHAR(50) NOT NULL, connection_config VARCHAR NOT NULL DEFAULT '{}', " +
+                "index_config VARCHAR NOT NULL DEFAULT '{}', tenant_id BIGINT NOT NULL, " +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // Go types.StoredResource 的 TableName() 是 "resources"（types/resource.go L66）
+        jdbc.execute("CREATE TABLE IF NOT EXISTS resources (" +
+                "id VARCHAR(36) NOT NULL PRIMARY KEY, handle VARCHAR(22) NOT NULL, " +
+                "tenant_id BIGINT NOT NULL, storage_backend_id VARCHAR(36), " +
+                "provider VARCHAR(32) NOT NULL, physical_path TEXT NOT NULL, " +
+                "kind VARCHAR(32) NOT NULL DEFAULT 'file', state VARCHAR(16) NOT NULL DEFAULT 'active')");
     }
 
     /**
@@ -766,5 +796,9 @@ public final class TestSchema {
         // datasource：先子后父（真库里有 ON DELETE CASCADE，测试库没建外键，顺序照旧）
         jdbc.execute("DELETE FROM sync_logs");
         jdbc.execute("DELETE FROM data_sources");
+        // 波 2 第五批：基础设施配置三组
+        jdbc.execute("DELETE FROM web_search_providers");
+        jdbc.execute("DELETE FROM vector_stores");
+        jdbc.execute("DELETE FROM resources");
     }
 }

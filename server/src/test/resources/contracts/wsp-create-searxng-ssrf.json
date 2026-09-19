@@ -1,0 +1,1 @@
+{"error":{"code":1007,"details":null,"message":"invalid SearXNG base_url: SSRF validation failed: hostname 127.0.0.1 is restricted"},"success":false}

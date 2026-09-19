@@ -1334,3 +1334,21 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - FAQ 的其余实录坑（无细节 500 形态、先落库后 500、mode 缺失即 400、
     "分页参数不合法"单独文案、dry_run 进度富化、faq-upsert-running 为 A/B 预期 DIFF）
     见 FaqService/FaqController 类注释与 §8 台账行。
+- **波 2 基础设施配置三组补充（真 PG A/B 抓回的三个真缺陷）**：
+  1. **自定义 jsonb TypeHandler 写库必须 `setObject(i, json, Types.OTHER)`**——三个新
+     handler（WebSearchParams/ConnectionConfig/IndexConfig）都写成 `setString`，H2 全绿、
+     PG 直接 "column ... is of type jsonb but expression is of type character varying"
+     （§9 阶段 2 的结论在自定义 handler 上复发：**setString 不行，与 handler 声明无关**）。
+  2. **GORM TableName() 覆写是陷阱**：`types.StoredResource.TableName()` = **"resources"**
+     ——agent 按结构体名造了 `stored_resources` 影子表并在 TestSchema 建出来自圆其说，
+     H2 绿、真 PG 500 "relation does not exist"。**翻译守卫查询前先查 TableName()**。
+  3. **create 响应的 AutoCreateTime 回写**：GORM Create 会把 now 回写内存对象，
+     controller 直接序列化实体——Java 的 `repo.create(entity, now)` 把 now 当独立参数
+     就丢了回写 → 响应恒 year-1。**insert 后显式 setCreatedAt/setUpdatedAt(now)**
+     （datasource 波 §9 的 PUT updated_at 回写是同族教训）。
+  4. wsp 的 PUT 把 created_at 清零（Go `Select("*").Updates` 写零值 year-1，之后所有
+     GET 恒 year-1）是**字面契约**，Java 写 SQL NULL 读 null→GO_ZERO 字面量跨语言等价；
+     vs 的 PUT 只 Select("name") created_at 保持——同文件族内两组行为刻意不同，照抄。
+  - 其余实录坑（同一 404 两种形态、test 端点的 AppError 双前缀差异、Go map 迭代随机、
+    PreserveIfRedacted、env stores 部署状态、viewer 用例误带 owner 头的录制坑）
+    见各 Controller/Service 类注释与 §8 台账行。

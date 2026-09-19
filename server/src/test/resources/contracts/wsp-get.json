@@ -1,0 +1,1 @@
+{"data":{"id":"5a849ad9-4102-4c95-b262-613cd8dede1f","tenant_id":10002,"name":"wsp-golden-ddg","provider":"duckduckgo","description":"d","parameters":{"base_url":"x","extra_config":{"k":"v"}},"is_default":false,"created_at":"2026-09-19T01:34:05.222768Z","updated_at":"2026-09-19T01:34:05.222768Z","credentials":{"api_key":{"configured":false}}},"success":true}

@@ -1,0 +1,1 @@
+{"error":{"code":1000,"details":"SSRF validation failed: hostname 127.0.0.1 is restricted","message":"storage endpoint failed SSRF validation"},"success":false}

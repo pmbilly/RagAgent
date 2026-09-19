@@ -55,6 +55,56 @@ public final class APIKeyRoutePolicies {
         registerMessageRoutes(authorizer);
         registerMemoryRoutes(authorizer);
         registerDataSourceRoutes(authorizer);
+        registerInfraConfigRoutes(authorizer);
+    }
+
+    /**
+     * 基础设施配置三组（波 2 第五批，对照 Go routes_infra.go L205-284）。
+     *
+     * <p>三组各挂自己的管理能力（均叠加 full-access）：
+     * {@code /web-search-providers}=manage_web_search、
+     * {@code /vector-stores}=manage_vector_stores、
+     * {@code /storage-backends}=manage_storage_backends。</p>
+     *
+     * <p><b>刻意不登记</b>：{@code /api/v1/web-search/providers}（旧版运行时 provider
+     * 列表）在 Go 里注册于**原始 group**（无 apiKeyGroup 包装）→ Key default-deny。</p>
+     */
+    private static void registerInfraConfigRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy wsp = APIKeyRoutePolicy.manageWebSearch(APIKeyRoutePolicy.fullAccess());
+        final String wspBase = "/api/v1/web-search-providers";
+        a.registerGin("GET", wspBase + "/types", wsp);
+        a.registerGin("POST", wspBase + "/test", wsp);
+        a.registerGin("POST", wspBase, wsp);
+        a.registerGin("GET", wspBase, wsp);
+        a.registerGin("GET", wspBase + "/:id", wsp);
+        a.registerGin("PUT", wspBase + "/:id", wsp);
+        a.registerGin("DELETE", wspBase + "/:id", wsp);
+        a.registerGin("PUT", wspBase + "/:id/credentials", wsp);
+        a.registerGin("DELETE", wspBase + "/:id/credentials/:field", wsp);
+        a.registerGin("POST", wspBase + "/:id/test", wsp);
+
+        APIKeyRoutePolicy vs = APIKeyRoutePolicy.manageVectorStores(APIKeyRoutePolicy.fullAccess());
+        final String vsBase = "/api/v1/vector-stores";
+        a.registerGin("GET", vsBase + "/types", vs);
+        a.registerGin("POST", vsBase + "/test", vs);
+        a.registerGin("POST", vsBase, vs);
+        a.registerGin("GET", vsBase, vs);
+        a.registerGin("GET", vsBase + "/:id", vs);
+        a.registerGin("PUT", vsBase + "/:id", vs);
+        a.registerGin("DELETE", vsBase + "/:id", vs);
+        a.registerGin("POST", vsBase + "/:id/test", vs);
+
+        APIKeyRoutePolicy sb = APIKeyRoutePolicy.manageStorageBackends(APIKeyRoutePolicy.fullAccess());
+        final String sbBase = "/api/v1/storage-backends";
+        a.registerGin("GET", sbBase + "/types", sb);
+        a.registerGin("POST", sbBase + "/test", sb);
+        a.registerGin("POST", sbBase, sb);
+        a.registerGin("GET", sbBase, sb);
+        a.registerGin("GET", sbBase + "/:id", sb);
+        a.registerGin("PUT", sbBase + "/:id", sb);
+        a.registerGin("DELETE", sbBase + "/:id", sb);
+        a.registerGin("POST", sbBase + "/:id/test", sb);
+        a.registerGin("PUT", sbBase + "/:id/default", sb);
     }
 
     /**
@@ -390,11 +440,10 @@ public final class APIKeyRoutePolicies {
     //
     // 对照 Go 源，回补时把对应行搬进上面的 registerXxx 即可：
     //   routes_infra.go        L52-126   sandbox-configs(fullAccess only)、evaluation(run_evaluations)、
-    //                                    initialization(retrieve / manage_kbs / manage_models)、
-    //                                    web-search-providers、vector-stores、storage-backends、
-    //                                    datasource、channels
+    //                                    initialization(retrieve / manage_kbs / manage_models)、channels
     //   routes_infra.go        L149-201  MCP（已登记）+ /agent/tool-approvals（**default deny**）
-    //   routes_infra.go        L210       /web-search/providers
+    //   routes_infra.go        L210       /web-search/providers（**default deny**，本批确认）
+    //   routes_infra.go        L205-284  web-search-providers / vector-stores / storage-backends（已登记）
     //   routes_infra.go        L297-342   system/admin 控制面（PlatformOnly）
     //   routes_knowledge.go    L19-53    chunker/preview、chunks/**（chunks 段已登记）
     //   routes_knowledge.go    L118-244  标签、copy/duplicate/progress（文档操作面与 FAQ 已登记）

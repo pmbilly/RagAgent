@@ -54,6 +54,10 @@ import com.ragagent.llm.domain.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.llm.domain.TokenUsage;
+import com.ragagent.storage.dto.StorageConfig;
+import com.ragagent.vectorstore.domain.ConnectionConfig;
+import com.ragagent.vectorstore.domain.IndexConfig;
+import com.ragagent.websearch.domain.WebSearchProviderParams;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
 import com.ragagent.memory.domain.MemoryConfig;
 import com.ragagent.memory.domain.MemoryConsolidationResult;
@@ -1132,6 +1136,75 @@ class JsonContractRoundTripTest {
                 java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), "task", null, "open", 5L);
         assertRoundTrips(result, FaqDtos.FaqImportResult.class,
                 "types.FAQImportResult ← FaqDtos.FaqImportResult（last_faq_import_result jsonb）");
+    }
+
+    @Test
+    void infraConfigRoundTrips() {
+        // 波 2 第五批：基础设施配置三组的 jsonb/响应体类型（§7.5 第 3 条）
+        var wspParams = new com.ragagent.websearch.domain.WebSearchProviderParams();
+        wspParams.setApiKey("sk-1");
+        wspParams.setEngineId("eng-1");
+        wspParams.setBaseUrl("http://searxng.example.internal:8080");
+        wspParams.setProxyUrl("http://proxy.example.internal:1080");
+        wspParams.setExtraConfig(new java.util.LinkedHashMap<>(java.util.Map.of(
+                "search_engine", "search_std", "content_size", "medium")));
+        assertRoundTrips(wspParams, WebSearchProviderParams.class,
+                "types.WebSearchProviderParameters ← websearch.domain.WebSearchProviderParams（api_key omitempty）");
+
+        var conn = new ConnectionConfig();
+        conn.addr = "http://127.0.0.1:9200";
+        conn.username = "elastic";
+        conn.password = "pw";
+        conn.apiKey = "key";
+        conn.insecureSkipVerify = true;
+        conn.host = "localhost";
+        conn.port = 6334;
+        conn.useTls = true;
+        conn.grpcAddress = "weaviate:50051";
+        conn.scheme = "https";
+        conn.database = "weknora";
+        conn.useDefaultConnection = true;
+        conn.httpPort = 8030;
+        conn.version = "7.10.1";
+        assertRoundTrips(conn, ConnectionConfig.class,
+                "types.ConnectionConfig ← vectorstore.domain.ConnectionConfig（全字段 omitempty + GetEndpoint @JsonIgnore）");
+
+        var idx = new IndexConfig();
+        idx.indexName = "weknora";
+        idx.numberOfShards = 4;
+        idx.numberOfReplicas = 1;
+        idx.collectionPrefix = "weknora_embeddings";
+        idx.collectionName = "weknora_embeddings";
+        idx.shardNumber = 1;
+        idx.replicationFactor = 1;
+        idx.shardsNum = 1;
+        idx.replicaNumber = 1;
+        idx.desiredShardCount = 1;
+        idx.bucketsNum = 10;
+        idx.replicationNum = 1;
+        idx.hnswM = 16;
+        idx.hnswEfConstruction = 100;
+        idx.hnswEfSearch = 100;
+        idx.knnEngine = "lucene";
+        assertRoundTrips(idx, IndexConfig.class,
+                "types.IndexConfig ← vectorstore.domain.IndexConfig（GetIndexNameOrDefault @JsonIgnore）");
+
+        var cfg = new StorageConfig();
+        cfg.mode = "remote";
+        cfg.endpoint = "minio.example.internal:9000";
+        cfg.region = "ap-beijing";
+        cfg.accessKeyId = "ak";
+        cfg.secretAccessKey = "sk";
+        cfg.bucketName = "bucket";
+        cfg.pathPrefix = "pp";
+        cfg.appId = "1250000";
+        cfg.useSsl = true;
+        cfg.forcePathStyle = true;
+        cfg.useTempBucket = true;
+        cfg.tempBucketName = "tmp";
+        cfg.tempRegion = "ap-shanghai";
+        assertRoundTrips(cfg, StorageConfig.class,
+                "types.StorageBackendConfig ← storage.dto.StorageConfig（全字段 omitempty）");
     }
 
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
