@@ -53,9 +53,9 @@ import org.springframework.web.servlet.HandlerMapping;
  */
 class RbacDeniedAuditTest {
 
-    /** 对照 Go TenantConfig 的开关构造（第二个参数是跨空间访问，本测试不用）。 */
+    /** 对照 Go TenantConfig 的开关构造（跨空间访问与自助创建本测试不用）。 */
     private static TenantProperties props(Boolean enableRbac) {
-        return new TenantProperties(enableRbac, false);
+        return new TenantProperties(enableRbac, false, null);
     }
 
     @AfterEach

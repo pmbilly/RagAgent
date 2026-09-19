@@ -264,6 +264,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 系统管理端+评估（波 2 收官批） | internal/handler/system.go（2393 行）+ deployment_capabilities.go + evaluation.go（131 行）；internal/application/service/{system_setting 相关,vectorstore 健康检查,storagebackend 复用}；router/routes_auth_tenant.go L246-335 + routes_infra.go L81-89 | com.ragagent.system.{domain.SystemSetting,mapper,service.{SystemSettingService/Registry,SystemAdminUserService,SystemInfoService,ParserEngineRegistry,DeploymentCapabilitiesHolder},controller.{System,SystemAdmin}Controller}（14 文件）+ com.ragagent.evaluation（4 文件，执行步降级）+ common.error.PlainErrorException + RbacInterceptor sysAdminOnly 文案纠正 + TestSchema.system_settings | ✅ | 22+2 端点全落地（sandbox-check 留波 3 占位 404）；53 golden + 26 契约测试 + A/B 三轮稳定全 MATCH（capabilities/db_version/evaluation 执行态按部署 XDEP）。**golden 纠正**：RequireSystemAdmin 文案、ParserEngineInfo 无 json tag（键为驼峰）；**真缺陷**：UserKbPin 列映射（真表 kb_id/pinned_at）、anydoc 文案缺尾段、createTenant 漏 business 零值。关键坑见 §9「波 2 系统管理端补充」 |
 | knowledge 文档操作面（波 2 第二批） | internal/handler/knowledge.go 的 15 端点（L608-2791）+ knowledgebase.go 的 ClearKnowledgeBaseContents；internal/application/service/{knowledge,knowledge_process,knowledge_create,knowledge_summary_refresh}.go 对应方法 + knowledge_write.go 批量校验；internal/types/{knowledge_folder,tag,knowledge_span}.go；internal/application/repository/{knowledge_tag,tag}.go；internal/filetransport/response.go；internal/application/service/file/local.go 的 GetFile | com.ragagent.knowledge.{controller.KnowledgeController 扩展,service.KnowledgeService 扩展,service.KnowledgeAccessGuard,dto.SpanTree,domain.KnowledgeTag,mapper.KnowledgeTagMapper} + common.security.InputSanitizer + LocalStorageService.readChecked/baseDir + WebConfig 规则 + APIKeyRoutePolicies + TestSchema.{knowledge_tags,knowledge_tag_relations} | ✅ | 15+1 端点全落地；14 条契约测试（**121 个 kg-* golden 全是 Go 实录**，含下载/预览的响应头与字节）+ 既有 knowledge/chunk/common 套件 234 测试全绿。**golden 抓回四个真契约**：EnsureDefaults 把"全关索引"重置成 vector+keyword（image 链恒 500 "model ID cannot be empty"）、ValidateInput 放行 `<script>x`（无闭合标签）、tags 无 kb_id 的跨租户 403 文案不带 "base"、clear-contents 两次连续调用都返回 task submitted。已知差异：批量删除/清空/重解析为同步尽力而为（HTTP 契约一致）、summary/vector 的模型运行时随阶段 7。关键坑见 §9「波 2 knowledge 文档操作面」 |
 | knowledge 搜索与移动/复制（波 2 第三批，**knowledge 域收官**） | internal/handler/knowledge.go 的 SearchKnowledge/MoveKnowledge/GetKnowledgeMoveProgress（L2149-2543）+ knowledgebase.go 的 HybridSearch/CopyKnowledgeBase/DuplicateKnowledgeBase/GetKBCloneProgress（L318-1112）；internal/application/service/{knowledge.go 的 Search*,knowledge_clone_move.go,knowledge_transfer.go,knowledgebase.go 的 Duplicate/Copy,knowledgebase_search.go+storegroup 的 HybridSearch 前置段}；internal/application/access/kb_transfer.go；internal/utils/taskid.go；internal/handler/{task_progress_auth.go,list_pagination.go 的 parseOffsetPagination} | com.ragagent.knowledge.{controller.{KnowledgeController 扩展,KnowledgeBaseController 扩展},service.{KnowledgeService 扩展（search/move/clone/duplicate/task-id/兼容性）,KnowledgeTaskProgressStore},dto.KnowledgeTaskDtos,KnowledgeBaseResponseBuilder 的 includeEngineType 重载} + WebConfig 规则 + APIKeyRoutePolicies | ✅ | 8 端点全落地；**76 个 ks-* golden 全是 Go 实录** + 7 条契约测试（异步用例轮询到 completed 再比对终态）+ 套件 242 测试全绿。**golden 抓回的真契约**：move 的 binding 校验把全部失败字段按 struct 序 join("\n") 进 message、copy 的 binding 错误在 **details**（与 move 的 message 前缀形态刻意不同）、跨租户 source 在 copy 是 403 "Permission denied..."（ResolveKB）而 move 是 handler 的 "No permission to access source..."、duplicate 的 404 是路由中间件的小写 "knowledge base not found"（handler 的 "Source..." 不可达）、worker 覆写进度**不带 created_at**（终态 created_at:0）、duplicate 无 vector_store_engine_type 键（envStores 空）而阶段 3 的 kb-get golden 有（部署状态漂移）。已知差异：hybrid-search 的检索执行随波 4（当前恒 "data":null）、move/clone 只做到行级、进度存储为进程内 map。关键坑见 §9「波 2 knowledge 搜索与移动/复制」 |
+| auth 注册族（波 2 扫尾批 1） | internal/handler/auth.go 的 Register/AutoSetup/GetAuthConfig/ValidateToken/GetCurrentUser/UpdateMyPreferences/ChangePassword（L85-1024 的剩余段）+ auth_register_by_invite.go（全文）；internal/application/service/{user.go 的 Register/ChangePassword/UpdateUserPreferences,tenant.go 的 CreateTenant/createDefaultStorageBackend,tenant_invitation.go 的 token 路径,password_policy.go}；internal/types/{user.go 的 RegisterRequest/UserInfo/RegisterResponse/UserPreferences,tenant.go 的 BeforeCreate} | com.ragagent.auth.{controller.AuthController 重写（+9 端点）,service.{PasswordPolicy（新）,UserService 扩展,TenantService.createDefaultStorageBackend},dto.{RegisterRequest/RegisterResponse/UserInfo/UpdatePreferencesRequest/InvitationLookup*/RegisterByInviteRequest/ChangePasswordRequest},mapper.UserMapper.insertTenantless} + config.TenantProperties 补 selfServiceCreationEnabled + system.service.SystemAdminUserService 委托 PasswordPolicy + TestSchema（复用） | ✅ | 9 端点全落地；**46 个 reg-* golden 全是 Go 实录** + 8 条契约测试（场景顺序严格复刻录制脚本）+ **真 PG 上 46 组 A/B 两轮稳定全 MATCH**。**A/B 抓回真缺陷**：tenantless 注册的 user insert 走 getter 把 null 归一成 0 → 真 PG 违反 fk_users_tenant（H2 无 FK 不暴露）→ UserMapper.insertTenantless 省略该列（对照 GORM Omit）。**golden 纠正**：UserPreferences 三字段蛇形 tag（browser_search_instructions/last_active_tenant_id/oidc_only_login）、context_config 零值对象恒输出（见 §9「波 2 扫尾批 1」）。login-success.json golden 随当前 Go 二进制重录（9/17 旧版无 context_config 键）。关键坑见 §9「波 2 扫尾批 1」 |
 
 ## 9. 当前确认过的细节
 
@@ -1383,3 +1384,33 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     （ev-post/ev-get/ev-get-viewer）A/B 归部署态跳过，确定性校验分支照常比对。
   - RequireSystemAdmin 的拒绝文案是 "Forbidden: system administrator required"
     （RbacInterceptor 既有实现写错，golden 纠正——audit-log 路由的既有文案随之修正）。
+- **波 2 扫尾批 1（auth 注册族）补充**：
+  - **MyBatis 走 getter 取属性**——`User.getTenantId()` 的「null→0 归一化」会把
+    tenantless 注册写成 `tenant_id=0`，真 PG 违反 `fk_users_tenant`（H2 无 FK 永远不暴露）。
+    凡「Go Omit → SQL NULL」语义的**写入**路径都不能依赖实体 getter：
+    `UserMapper.insertTenantless` 显式省略 tenant_id 列（register-by-invite /
+    OIDC provisioning 共用；update 侧参照波 2 第六批的 `tenant_id=NULL` wrapper 写法）。
+    **这是 §5.6 之后的又一代复发坑：getter 归一化只服务于读/序列化，写库要绕开它。**
+  - **`tenants.context_config` 的零值对象契约**（实测当前 Go 二进制）：Go 注册路径经
+    GORM Create 对 nil `*ContextConfig` 调 `Value()` → `json.Marshal(nil)` → 落库的是
+    **jsonb `'null'` 字面量**（非 SQL NULL）；读回 `Scan([]byte("null"))` 落在已分配的
+    零值 struct 上 → 响应**恒输出零值对象**
+    `{"max_tokens":0,"compression_strategy":"","recent_message_count":0,"summarize_threshold":0}`
+    （struct 声明序）。Java 侧：createTenant 在 null 时写 `MAPPER.nullNode()`（与 Go
+    落库字节一致），TenantService 读路径 `normalizeContextConfig` 把 null/NullNode/任意
+    存储序对象统一归一成 4 键 struct 序（jsonb 存储序 ≠ Go 输出序，实测 PG 10002 行）。
+    **login-success.json（9/17 录）因此键缺失已过时，按当前二进制重录**——golden
+    的时效以「构建中的 Go 二进制」为准，旧 golden 与新二进制冲突时重录并记台账。
+  - **匿名 struct 的 binding 错误无 Key 前缀**：change-password 的请求体是 handler 内联
+    匿名 struct，validator 错误为 `Key: 'OldPassword' ...`（无 `RegisterRequest.` 式前缀）；
+    invitations/lookup 的 message 是 "token is required"（非 "Invalid registration
+    parameters"）。逐条以 golden 为准，勿凭一致性想象。
+  - **updateMyPreferences 的 max=4000 校验在 binding 层**（go-playground 按 rune 计），
+    4001 字符的响应 details 是 `Key: 'updateMyPreferencesRequest.BrowserSearchInstructions'
+    Error:...'max' tag`——service 层的 4000 复查只是兜底，响应形态由 binding 决定。
+  - **register-by-invite 的 updated_at 二次刷新**：user 建号（UTC now）→ 回填 tenant_id
+    再 Save（GORM 自动刷 updated_at）→ 响应里 created_at ≠ updated_at 且时区形态可不同
+    （A/B 掩码覆盖；断言勿假设两值相等）。
+  - 注册成功响应的 `user` 是**完整 User 实体**（含 `"deleted_at":null`），而
+    /auth/validate 与 /auth/me 的 user 是 **UserInfo 投影（无 deleted_at）**——同一用户
+    两种形状，UserInfo.from 静态工厂收口。

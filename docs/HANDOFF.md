@@ -94,8 +94,8 @@
 
 | 组 | 路由 | 说明 |
 |---|---|---|
-| auth 注册族（~9） | POST /auth/register、/auth/auto-setup、/auth/register-by-invite、/auth/invitations/lookup、GET /auth/config、/auth/validate、GET /auth/me、PUT /auth/me/preferences、POST /auth/change-password（**先 grep AuthController 确认 phase 1 已翻哪些，缺的补**） | register 建租户四表（business NOT NULL 无默认）；logout/refresh 若已翻则跳过 |
-| OIDC（5） | GET /auth/oidc/{config,url,callback,start} + /auth/oidc/callback | 依赖外部 IdP——只翻未配置分支，golden 按部署实录 |
+| ~~auth 注册族（~9）~~ | ✅ **已完成（2026-09-19）**：9 端点全落地，46 reg-* golden + 8 契约测试 + 真 PG A/B 46 组两轮 ALL MATCH。台账见 conventions §8「auth 注册族（波 2 扫尾批 1）」，坑见 §9 同名小节 | logout/refresh 阶段 1 已翻 |
+| OIDC（5） | GET /auth/oidc/{config,url,callback,start} + /auth/oidc/callback | 依赖外部 IdP——只翻未配置分支，golden 按部署实录。**tenantless 建号必须用 UserMapper.insertTenantless**（§9「波 2 扫尾批 1」的 FK 坑） |
 | 跨租户租户管理（4~5） | GET /tenants/all、/tenants/search、POST /tenants、GET/PUT /tenants/{id}/kv/{key} | CrossTenant 守卫 → canAccessAllTenants 等价物 |
 | 用户收藏（4） | GET/POST/DELETE /user/favorites、DELETE /user/favorites/{type}/{id} | handler/user_resource_favorite.go；**先查表名（TableName() 陷阱）** |
 | chunker 预览（1） | POST /chunker/preview | chunker 已逐字节一致（G5 验证），确定性 |
@@ -123,7 +123,7 @@ ab-members/ab-system）与录制脚本参数化模式（XXX_TARGET_PORT/XXX_OUT_
   （进程内进度存储）、`SystemSettingService`（运行时调谐统一入口）、
   `WebSearchProviderService.constructProvider`、`VectorStoreConfigService.testConnection`
 - **A/B 脚本族**（全部真 PG、掩码后逐字节）：ab-chunk / ab-knowledge / ab-faq /
-  ab-infra-config / ab-members / ab-system；录制脚本统一支持 XXX_TARGET_PORT/XXX_OUT_DIR
+  ab-infra-config / ab-members / ab-system / ab-reg；录制脚本统一支持 XXX_TARGET_PORT/XXX_OUT_DIR
   参数化重放（新模块照此模式写）
 - 既有：session/message/memory/datasource/wiki/mcp/model/audit/apikey/stream/storageurl 各域
   （见 §2.1 与 conventions §8）
@@ -134,10 +134,10 @@ ab-members/ab-system）与录制脚本参数化模式（XXX_TARGET_PORT/XXX_OUT_
   旧代码，新路由表现为 404**——本会话 chunk 与 infra 两批都踩过）
 - agent 任务书必带：conventions §9 对应小节、golden 前缀防冲突（先 ls contracts/）、
   幂等清理含 chunk_revisions 等衍生表、固定种子 id 纯十六进制
-- agent 报"全绿"后主会话必须独立跑全量 + 真 PG A/B——本会话六批里 A/B 抓回了
-  **9 个 H2 绿/PG 红或实现缺陷**（clamp 误写、setString→setObject、TableName 影子表、
+- agent 报"全绿"后主会话必须独立跑全量 + 真 PG A/B——本会话各批里 A/B 抓回了
+  **10 个 H2 绿/PG 红或实现缺陷**（clamp 误写、setString→setObject、TableName 影子表、
   AutoCreateTime 回写、UserKbPin 列映射、clearStaleHomeTenant FK、business 零值、
-  anydoc 文案、Kb*Config 容忍性）
+  anydoc 文案、Kb*Config 容忍性、**扫尾批 1 的 tenantless 注册 getter 归一化写 0 炸 FK**）
 - agent 可能撞用量上限中断（本会话 members 批中断一次）：中断后主会话直接接力修
   （编译错误→测试失败逐个排），比重新派 agent 快
 

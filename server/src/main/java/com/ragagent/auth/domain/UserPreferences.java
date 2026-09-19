@@ -16,8 +16,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UserPreferences {
 
+    @com.fasterxml.jackson.annotation.JsonProperty("browser_search_instructions")
     private String browserSearchInstructions;
+    @com.fasterxml.jackson.annotation.JsonProperty("last_active_tenant_id")
     private Long lastActiveTenantId;
+    @com.fasterxml.jackson.annotation.JsonProperty("oidc_only_login")
     private Boolean oidcOnlyLogin;
 
     public String getBrowserSearchInstructions() { return browserSearchInstructions; }

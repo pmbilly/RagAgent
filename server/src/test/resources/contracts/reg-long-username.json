@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"Key: 'RegisterRequest.Username' Error:Field validation for 'Username' failed on the 'max' tag","message":"Invalid registration parameters"},"success":false}

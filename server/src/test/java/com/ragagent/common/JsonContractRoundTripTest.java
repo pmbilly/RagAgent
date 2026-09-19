@@ -1258,6 +1258,49 @@ class JsonContractRoundTripTest {
                 "types.EvaluationDetail ← evaluation.dto.EvaluationDetail（metric omitempty + thinking null）");
     }
 
+    // ── 波 2 扫尾批 1（auth 注册族响应体） ─────────────────────────────────
+
+    @Test
+    void authRegisterContractsRoundTrip() {
+        // UserInfo：/auth/validate 与 /auth/me 的 user 投影——**没有 deleted_at**
+        // （与 User 实体序列化的差别）；avatar/tenant_id/preferences 恒输出。
+        // 时间字段留空：本工具用的是裸 ObjectMapper（未注册 JSR-310）。
+        var prefs = new com.ragagent.auth.domain.UserPreferences();
+        prefs.setBrowserSearchInstructions("instr");
+        prefs.setLastActiveTenantId(10002L);
+        var info = new com.ragagent.auth.dto.UserInfo(
+                "u-1", "probe", "probe@weknora.test", "", 10002L,
+                true, false, false, prefs, null, null);
+        assertRoundTrips(info, com.ragagent.auth.dto.UserInfo.class,
+                "types.UserInfo ← auth.dto.UserInfo（无 deleted_at，preferences 恒输出）");
+
+        // RegisterResponse：201 响应体，内嵌的是 **User 实体**（含 "deleted_at":null），
+        // 与 UserInfo 投影的差异正是 golden 钉住的点
+        var user = new com.ragagent.auth.domain.User();
+        user.setId("u-1");
+        user.setUsername("reg-probe");
+        user.setEmail("reg@weknora.test");
+        user.setTenantId(10002L);
+        user.setIsActive(true);
+        user.setPreferences(new com.ragagent.auth.domain.UserPreferences());
+        assertRoundTrips(
+                new com.ragagent.auth.dto.RegisterResponse(true, "Registration successful", user),
+                com.ragagent.auth.dto.RegisterResponse.class,
+                "types.RegisterResponse ← auth.dto.RegisterResponse（user 为完整实体）");
+
+        // InvitationLookupResponse：tenant_name 是 omitempty（NON_EMPTY），两种形态各钉一条
+        assertRoundTrips(
+                new com.ragagent.auth.dto.InvitationLookupResponse(
+                        10002L, "Acme", "viewer", "2026-09-20T14:00:00Z"),
+                com.ragagent.auth.dto.InvitationLookupResponse.class,
+                "handler.invitationLookupResponse ← InvitationLookupResponse");
+        assertRoundTrips(
+                new com.ragagent.auth.dto.InvitationLookupResponse(
+                        10002L, "", "viewer", "2026-09-20T14:00:00Z"),
+                com.ragagent.auth.dto.InvitationLookupResponse.class,
+                "handler.invitationLookupResponse ← InvitationLookupResponse（tenant_name 省略）");
+    }
+
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
 
     /**

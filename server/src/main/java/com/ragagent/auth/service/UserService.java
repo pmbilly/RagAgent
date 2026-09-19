@@ -10,11 +10,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ragagent.auth.domain.AuthToken;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.TenantMember;
+import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.auth.domain.User;
+import com.ragagent.auth.domain.UserPreferences;
 import com.ragagent.auth.dto.LoginRequest;
 import com.ragagent.auth.dto.Membership;
 import com.ragagent.auth.mapper.AuthTokenMapper;
 import com.ragagent.auth.mapper.UserMapper;
+import com.ragagent.common.context.TenantContext;
+import com.ragagent.system.service.SystemSettingService;
 import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,18 +50,21 @@ public class UserService {
     private final TenantService tenantService;
     private final TenantMemberService memberService;
     private final JwtService jwtService;
+    private final SystemSettingService settingService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserService(UserMapper userMapper,
                        AuthTokenMapper authTokenMapper,
                        TenantService tenantService,
                        TenantMemberService memberService,
-                       JwtService jwtService) {
+                       JwtService jwtService,
+                       SystemSettingService settingService) {
         this.userMapper = userMapper;
         this.authTokenMapper = authTokenMapper;
         this.tenantService = tenantService;
         this.memberService = memberService;
         this.jwtService = jwtService;
+        this.settingService = settingService;
     }
 
     // ── 登录 ─────────────────────────────────────────────────────────────
@@ -185,9 +192,28 @@ public class UserService {
         return out;
     }
 
-    /** 对照 UpdateUser（invited 首空间采纳 / 被移除后的指针清理） */
+    /** 对照 UpdateUser：整行写回。调用方负责设置 updatedAt（Go Save 自动刷）。 */
     public void updateUser(User user) {
         userMapper.updateById(user);
+    }
+
+    /**
+     * 对照 UpdateUser 的 tenantID==0 分支（repository/user.go L114-126）：
+     * Omit(tenant_id) Save + UpdateColumn(NULL)——⚠️ 直接写 0 会炸 FK fk_users_tenant。
+     * register-by-invite 的 accept 失败修复路径专用。
+     */
+    public void restoreTenantless(User user) {
+        user.setTenantId(null);
+        user.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        userMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId())
+                .set(User::getTenantId, null)
+                .set(User::getUpdatedAt, user.getUpdatedAt()));
+    }
+
+    /** 对照 DeleteUser（register-by-invite 修复失败时的半建号清理）。 */
+    public void deleteUser(String id) {
+        userMapper.deleteById(id);
     }
 
     // ── memberships 组装 ──────────────────────────────────────────────────
@@ -395,5 +421,288 @@ public class UserService {
             // 对照 Go `_ = s.tokenRepo.CreateToken(...)`：落库失败不使登录失败
             log.warn("Failed to persist {} (user={}): {}", tokenType, userId, e.toString());
         }
+    }
+
+    // ── 注册（对照 Register，user.go L132-225） ────────────────────────────
+
+    /** 对照 types.TenantProvisioningMode。 */
+    public static final String PROVISIONING_CREATE_PERSONAL = "create_personal";
+    public static final String PROVISIONING_TENANTLESS = "tenantless";
+
+    /** 注册失败：message = Go error 原文（handler 包成 400 BadRequest）。 */
+    public static final class RegistrationException extends RuntimeException {
+        public RegistrationException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * 对照 Register。创建顺序：租户（含默认存储后端）→ 用户 → Owner 成员行；
+     * 任一步失败按 Go 顺序回滚（删用户/删租户），错误消息逐字符对照。
+     */
+    public User register(String username, String email, String password, String provisioning) {
+        if (username.isEmpty() || email.isEmpty() || password.isEmpty()) {
+            throw new RegistrationException("username, email and password are required");
+        }
+        if (getUserByEmail(email) != null) {
+            throw new RegistrationException("user with this email already exists");
+        }
+        if (getUserByUsername(username) != null) {
+            throw new RegistrationException("user with this username already exists");
+        }
+        String hashedPassword = passwordEncoder.encode(password);
+
+        String mode = provisioning;
+        if (mode == null || mode.isEmpty()) {
+            mode = PROVISIONING_CREATE_PERSONAL;
+        }
+        if (!PROVISIONING_CREATE_PERSONAL.equals(mode) && !PROVISIONING_TENANTLESS.equals(mode)) {
+            throw new RegistrationException("invalid tenant provisioning mode \"" + mode + "\"");
+        }
+
+        Tenant createdTenant = null;
+        if (PROVISIONING_CREATE_PERSONAL.equals(mode)) {
+            Tenant tenant = new Tenant();
+            // 对照：租户名再过一遍 SanitizeForLog（req.Username 已在 handler 消毒，幂等）
+            tenant.setName(sanitizeForLog(username) + "'s Workspace");
+            tenant.setDescription("Default workspace");
+            tenant.setStatus("active");
+            try {
+                createdTenant = tenantService.createTenant(tenant);
+            } catch (RuntimeException e) {
+                log.error("Failed to create workspace: {}", e.toString());
+                throw new RegistrationException("failed to create workspace");
+            }
+        }
+
+        User user = new User();
+        user.setId(UUID.randomUUID().toString());
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPasswordHash(hashedPassword);
+        // 对照 CreateUser（repository/user.go L33-43）：tenant_id=0 → Omit → SQL NULL
+        // （写 0 会违反 fk_users_tenant）；读回时由领域层归一为 0
+        user.setTenantId(createdTenant != null ? createdTenant.getId() : null);
+        user.setIsActive(true);
+        user.setPreferences(new UserPreferences());
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+
+        try {
+            if (createdTenant == null) {
+                // tenantless：getter 会把 null 归一成 0，必须省略 tenant_id 列
+                // （对照 Go Omit → SQL NULL；写 0 在真 PG 违反 fk_users_tenant）
+                userMapper.insertTenantless(user);
+            } else {
+                userMapper.insert(user);
+            }
+        } catch (RuntimeException e) {
+            log.error("Failed to create user: {}", e.toString());
+            if (createdTenant != null) {
+                try {
+                    tenantService.deleteTenant(createdTenant.getId());
+                } catch (RuntimeException rollbackErr) {
+                    log.error("Failed to roll back tenant {} after user creation failure: {}",
+                            createdTenant.getId(), rollbackErr.toString());
+                }
+            }
+            throw new RegistrationException("failed to create user");
+        }
+
+        // 对照 EnsureOwner 引导：失败则删用户+删租户并报错
+        if (createdTenant != null) {
+            try {
+                memberService.addMember(user.getId(), createdTenant.getId(), TenantRole.OWNER.value(), null);
+            } catch (RuntimeException e) {
+                log.error("Failed to create owner membership for user {} tenant {}: {}",
+                        user.getId(), createdTenant.getId(), e.toString());
+                try {
+                    userMapper.deleteById(user.getId());
+                } catch (RuntimeException ignored) {
+                    // 尽力回滚，对照 Go `_ =`
+                }
+                try {
+                    tenantService.deleteTenant(createdTenant.getId());
+                } catch (RuntimeException ignored) {
+                    // 同上
+                }
+                throw new RegistrationException("failed to finalise workspace ownership");
+            }
+        }
+        return user;
+    }
+
+    /** 对照 GetUserByUsername：软删除过滤；找不到返回 null */
+    public User getUserByUsername(String username) {
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, username)
+                .isNull(User::getDeletedAt)
+                .orderByAsc(User::getId)
+                .last("LIMIT 1"));
+    }
+
+    /** 对照 GetCurrentUser（user.go L1451）：从请求上下文取用户（AuthFilter 已鉴权）。 */
+    public User getCurrentUser() {
+        String userId = TenantContext.currentUserId();
+        if (userId == null || userId.isEmpty()) {
+            return null;
+        }
+        return getUserById(userId);
+    }
+
+    // ── 偏好（对照 UpdateUserPreferences，user.go L619-662） ───────────────
+
+    /**
+     * 对照 UpdateUserPreferences：PATCH 语义合并（null = 未携带，保持原值）。
+     * browser_search_instructions trim 后超 4000 rune → PreferencesException；
+     * 空串或等于平台默认值 → 存 null（响应省略）；last_active_tenant_id=0 → 清偏好。
+     */
+    public UserPreferences updateUserPreferences(String userId, UserPreferences patch) {
+        User user = getUserById(userId);
+        if (user == null) {
+            throw new PreferencesException("record not found");
+        }
+        UserPreferences merged = user.getPreferences() != null ? user.getPreferences() : new UserPreferences();
+        if (patch.getBrowserSearchInstructions() != null) {
+            String value = goTrimSpace(patch.getBrowserSearchInstructions());
+            if (value.codePointCount(0, value.length())
+                    > PasswordPolicy.MAX_BROWSER_SEARCH_INSTRUCTIONS_LENGTH) {
+                throw new PreferencesException("browser search instructions must not exceed "
+                        + PasswordPolicy.MAX_BROWSER_SEARCH_INSTRUCTIONS_LENGTH + " characters");
+            }
+            merged.setBrowserSearchInstructions(
+                    value.isEmpty() || value.equals(PasswordPolicy.DEFAULT_BROWSER_SEARCH_INSTRUCTIONS)
+                            ? null : value);
+        }
+        if (patch.getLastActiveTenantId() != null) {
+            // 0 = 「忘掉我的偏好」哨兵；其余正值直接存（成员关系下次登录时校验）
+            merged.setLastActiveTenantId(
+                    patch.getLastActiveTenantId() == 0 ? null : patch.getLastActiveTenantId());
+        }
+        user.setPreferences(merged);
+        user.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        userMapper.updateById(user);
+        return merged;
+    }
+
+    /** 偏好更新失败：message = Go error 原文（handler 包成 400 BadRequest "Failed to update preferences"）。 */
+    public static final class PreferencesException extends RuntimeException {
+        public PreferencesException(String message) {
+            super(message);
+        }
+    }
+
+    // ── 修改密码（对照 ChangePassword，user.go L674-714） ──────────────────
+
+    /** change-password 的失败分类（对照 handler/auth.go L777-798 的分派）。 */
+    public enum ChangePasswordFailure {NONE, INVALID_OLD, SAME_AS_OLD, POLICY, OTHER}
+
+    public static final class ChangePasswordException extends RuntimeException {
+        private final ChangePasswordFailure kind;
+
+        public ChangePasswordException(ChangePasswordFailure kind, String message) {
+            super(message);
+            this.kind = kind;
+        }
+
+        public ChangePasswordFailure kind() {
+            return kind;
+        }
+    }
+
+    /**
+     * 对照 ChangePassword：先验旧密码（错误凭据不被策略错误掩盖）→ 新旧相同 →
+     * 策略 → 落库 → 吊销全部会话。成功改密会清掉 OIDC 自动 provisioning 的
+     * oidc_only_login 标记。
+     */
+    public void changePassword(String userId, String oldPassword, String newPassword) {
+        User user = getUserById(userId);
+        if (user == null) {
+            throw new ChangePasswordException(ChangePasswordFailure.OTHER, "record not found");
+        }
+        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+            throw new ChangePasswordException(ChangePasswordFailure.INVALID_OLD, "invalid old password");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ChangePasswordException(ChangePasswordFailure.SAME_AS_OLD,
+                    "new password must differ from current password");
+        }
+        String policyError = PasswordPolicy.validate(newPassword, complexPasswordEnabled());
+        if (policyError != null) {
+            throw new ChangePasswordException(ChangePasswordFailure.POLICY, policyError);
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        if (user.getPreferences() != null
+                && Boolean.TRUE.equals(user.getPreferences().getOidcOnlyLogin())) {
+            user.getPreferences().setOidcOnlyLogin(false);
+        }
+        try {
+            userMapper.updateById(user);
+        } catch (RuntimeException e) {
+            throw new ChangePasswordException(ChangePasswordFailure.OTHER, e.getMessage());
+        }
+        // 吊销全部会话：被偷的 token 不能活过密码轮换
+        revokeTokensByUserId(userId);
+    }
+
+    /** 对照 RevokeTokensByUserID（repository/user.go L344-347）：is_revoked=true（GORM 同时刷 updated_at）。 */
+    public void revokeTokensByUserId(String userId) {
+        authTokenMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<AuthToken>()
+                .eq(AuthToken::getUserId, userId)
+                .set(AuthToken::isIsRevoked, true)
+                .set(AuthToken::getUpdatedAt, OffsetDateTime.now(ZoneOffset.UTC)));
+    }
+
+    // ── Token 签发（对外） ─────────────────────────────────────────────────
+
+    /** 对照 GenerateTokens（user.go L861-866）：按登录空间解析结果签发。 */
+    public String[] generateTokens(User user) {
+        return generateTokensForTenant(user, resolveLoginTenantId(user));
+    }
+
+    // ── 工具 ──────────────────────────────────────────────────────────────
+
+    /** 对照 ResolveComplexPasswordEnabled（password_policy.go）：DB > ENV > false。 */
+    public boolean complexPasswordEnabled() {
+        return settingService.getBool(
+                "auth.complex_password_enabled", "WEKNORA_AUTH_COMPLEX_PASSWORD_ENABLED", false);
+    }
+
+    /** 对照 secutils.SanitizeForLog：\n \r \t → 空格，其余控制字符（<32）剔除。 */
+    public static String sanitizeForLog(String input) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        String s = input.replace("\n", " ").replace("\r", " ").replace("\t", " ");
+        StringBuilder b = new StringBuilder(s.length());
+        s.codePoints().forEach(cp -> {
+            if (cp >= 32) {
+                b.appendCodePoint(cp);
+            }
+        });
+        return b.toString();
+    }
+
+    /**
+     * 对照 Go strings.TrimSpace（unicode.IsSpace）：Java trim/strip 都不含 U+00A0，
+     * 这里按 unicode.IsSpace 的字符集显式处理（与 §9 的 `\s` 差异同族）。
+     */
+    public static String goTrimSpace(String s) {
+        int start = 0;
+        int end = s.length();
+        while (start < end && isGoSpace(s.charAt(start))) {
+            start++;
+        }
+        while (end > start && isGoSpace(s.charAt(end - 1))) {
+            end--;
+        }
+        return s.substring(start, end);
+    }
+
+    private static boolean isGoSpace(char c) {
+        // Go unicode.IsSpace：'\t' '\n' '\v' '\f' '\r' ' ' U+0085 U+00A0 + Unicode 空白
+        return Character.isWhitespace(c) || Character.isSpaceChar(c) || c == '\u0085' || c == '\u00A0';
     }
 }

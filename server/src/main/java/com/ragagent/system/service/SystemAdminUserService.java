@@ -19,6 +19,7 @@ import com.ragagent.auth.domain.TenantMember;
 import com.ragagent.auth.domain.User;
 import com.ragagent.auth.mapper.AuthTokenMapper;
 import com.ragagent.auth.mapper.UserMapper;
+import com.ragagent.auth.service.PasswordPolicy;
 import com.ragagent.auth.service.TenantMemberService;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
@@ -53,12 +54,9 @@ public class SystemAdminUserService {
 
     private static final Logger log = LoggerFactory.getLogger(SystemAdminUserService.class);
 
-    /** Go ErrPasswordPolicy / ErrComplexPasswordPolicy 的原文（400 响应体）。 */
-    public static final String ERR_PASSWORD_POLICY =
-            "password must be 8-32 characters and contain at least one letter and one number";
-    public static final String ERR_COMPLEX_PASSWORD_POLICY =
-            "password must be 8-32 characters and must contain uppercase and lowercase "
-                    + "letters, numbers, and special characters";
+    /** Go ErrPasswordPolicy / ErrComplexPasswordPolicy 的原文（400 响应体）；实现已收拢到 PasswordPolicy。 */
+    public static final String ERR_PASSWORD_POLICY = PasswordPolicy.ERR_PASSWORD_POLICY;
+    public static final String ERR_COMPLEX_PASSWORD_POLICY = PasswordPolicy.ERR_COMPLEX_PASSWORD_POLICY;
 
     /** Go binding 的 email 正则（go-playground validator 同族的宽松域名校验）。 */
     private static final java.util.regex.Pattern EMAIL = java.util.regex.Pattern.compile(
@@ -96,38 +94,9 @@ public class SystemAdminUserService {
                 "auth.complex_password_enabled", "WEKNORA_AUTH_COMPLEX_PASSWORD_ENABLED", false);
     }
 
-    /** @return null = 通过；否则 = 错误消息（Go 原文） */
+    /** @return null = 通过；否则 = 错误消息（Go 原文）。实现委托 PasswordPolicy.validate。 */
     public String validatePasswordPolicy(String password, boolean complexEnabled) {
-        int length = password.codePointCount(0, password.length());
-        if (length < 8 || length > 32) {
-            return complexEnabled ? ERR_COMPLEX_PASSWORD_POLICY : ERR_PASSWORD_POLICY;
-        }
-        boolean hasUpper = false;
-        boolean hasLower = false;
-        boolean hasDigit = false;
-        boolean hasSpecial = false;
-        for (int i = 0; i < password.length(); i++) {
-            char r = password.charAt(i);
-            if (r >= 'A' && r <= 'Z') {
-                hasUpper = true;
-            } else if (r >= 'a' && r <= 'z') {
-                hasLower = true;
-            } else if (r >= '0' && r <= '9') {
-                hasDigit = true;
-            } else if (PASSWORD_SPECIAL_CHARS.indexOf(r) >= 0) {
-                hasSpecial = true;
-            }
-        }
-        if (complexEnabled) {
-            if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
-                return ERR_COMPLEX_PASSWORD_POLICY;
-            }
-            return null;
-        }
-        if ((!hasUpper && !hasLower) || !hasDigit) {
-            return ERR_PASSWORD_POLICY;
-        }
-        return null;
+        return PasswordPolicy.validate(password, complexEnabled);
     }
 
     /** 对照 generatePolicyCompliantPassword：生成直到过策略（复杂 → 16 位复杂密码）。 */
