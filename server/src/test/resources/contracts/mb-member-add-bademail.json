@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"Key: 'addMemberRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag","message":"invalid request body"},"success":false}

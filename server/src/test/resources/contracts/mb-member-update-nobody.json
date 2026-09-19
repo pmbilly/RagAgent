@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"Key: 'updateMemberRoleRequest.Role' Error:Field validation for 'Role' failed on the 'required' tag","message":"invalid request body"},"success":false}

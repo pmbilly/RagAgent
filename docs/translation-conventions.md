@@ -1352,3 +1352,18 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - 其余实录坑（同一 404 两种形态、test 端点的 AppError 双前缀差异、Go map 迭代随机、
     PreserveIfRedacted、env stores 部署状态、viewer 用例误带 owner 头的录制坑）
     见各 Controller/Service 类注释与 §8 台账行。
+- **波 2 成员/邀请/api-principal 补充（真 PG A/B 抓回的 clearStaleHomeTenant 落库链）**：
+  - **clearStaleHomeTenant 的落库有两个专属坑**：① `updateById(user)` 会把
+    `tenant_id=0` 写进 UPDATE → FK `fk_users_tenant` 直接炸（Go 是
+    `Omit("tenant_id").Save` + `UpdateColumn("tenant_id", nil)`——显式 NULL，不是 0）；
+    ② `users.preferences` 是 jsonb 列，wrapper 两参 `.set(col, obj)` 缺 typeHandler 直接
+    MyBatisSystemException（§9 三参规则）。**净修法：单条 wrapper 只写
+    `tenant_id=NULL`**；preferences 存量偏差无害（pref==home 与 home 走同一解析路径，
+    已记录为已知偏差）。
+  - **B 的两种 token 形态是契约场景**：曾入成员→登录→成员行被删的 JWT（带租户上下文）
+    访问 /me/* 落 403 "not a member of the target workspace"；从未是成员的重登 JWT
+    （tenantless）访问 /me/* 走 tenant-optional 200。契约测试必须复刻对应的登录时序，
+    不能用"从未是成员"的 token 去比 403 场景。
+  - 其余实录坑（@PathVariable 名字必须与模板一致、MP 分页 count 不能带 orderBy、
+    gin.H 内层 map 字母序、邀请 seq_id/invite_url/JWT 的掩码策略）见
+    TenantMemberContractTest 与各 Controller 注释。

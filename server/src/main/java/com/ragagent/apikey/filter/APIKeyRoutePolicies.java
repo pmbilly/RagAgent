@@ -56,6 +56,49 @@ public final class APIKeyRoutePolicies {
         registerMemoryRoutes(authorizer);
         registerDataSourceRoutes(authorizer);
         registerInfraConfigRoutes(authorizer);
+        registerTenantMemberRoutes(authorizer);
+    }
+
+    /**
+     * 空间成员 / 邀请 / API-Principal（波 2 第六批，对照 Go routes_auth_tenant.go:88-137）。
+     *
+     * <p>三档策略：</p>
+     * <ul>
+     *   <li><b>members + invitations</b>（7 条）＝
+     *       {@code apiKeyManageMembers(apiKeyFullAccess())}——直加/改角色/撤销/建共享链接
+     *       都在 manage_members 能力面；{@code rejectAPIKeyOwnerAssignment} 在 service 层
+     *       禁止机器主体授 Owner（能力面可管低角色、绝不能铸 Owner）。</li>
+     *   <li><b>api-principal 三条</b>＝platform 能力：GET 是
+     *       {@code system_tenants_read|system_tenants_manage}（读或管皆可），
+     *       PUT / test-token 只有 {@code system_tenants_manage}（写面）。</li>
+     * </ul>
+     *
+     * <p><b>刻意不登记</b>（Go 注册在原始 group、无 apiKeyRoute 包装 → Key default-deny）：
+     * {@code POST /tenants/{id}/leave}（自助退出是"人的动作"，机器主体无从谈起）；
+     * {@code /me/invitations**} 五条收件箱路由（按登录用户自证，同 Go）。</p>
+     */
+    private static void registerTenantMemberRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy members = APIKeyRoutePolicy.manageMembers(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("GET", "/api/v1/tenants/:id/members", members);
+        a.registerGin("POST", "/api/v1/tenants/:id/members", members);
+        a.registerGin("PUT", "/api/v1/tenants/:id/members/:user_id", members);
+        a.registerGin("DELETE", "/api/v1/tenants/:id/members/:user_id", members);
+        a.registerGin("GET", "/api/v1/tenants/:id/invitations", members);
+        a.registerGin("POST", "/api/v1/tenants/:id/invitations", members);
+        a.registerGin("DELETE", "/api/v1/tenants/:id/invitations/:inv_id", members);
+        a.registerGin("POST", "/api/v1/tenants/:id/invite-links", members);
+
+        // platform 租户读/管理能力（对照 Go 的 apiKeyPlatform(SystemTenantsRead/Manage)）
+        a.registerGin("GET", "/api/v1/tenants/:id/api-principal-config",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_READ,
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
+        a.registerGin("PUT", "/api/v1/tenants/:id/api-principal-config",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
+        a.registerGin("POST", "/api/v1/tenants/:id/api-principal-test-token",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
     }
 
     /**
@@ -449,7 +492,8 @@ public final class APIKeyRoutePolicies {
     //   routes_knowledge.go    L118-244  标签、copy/duplicate/progress（文档操作面与 FAQ 已登记）
     //   routes_chat.go         L24-131   messages、sessions、knowledge-chat、agent-chat、knowledge-search
     //   routes_agent.go        L22-136   agents、favorites、skills、organizations、shares
-    //   routes_auth_tenant.go  L53-136   tenants/**、members、invitations（注意 /api-keys 是 default deny）
+    //   routes_auth_tenant.go  L53-136   members/invitations/api-principal（已登记）；
+    //                                    /leave 与 /me/invitations**（default deny，本批确认）
     //   files.go               L336-510  KB 作用域文件代理（retrieve + AllowFileServeAPIKey）
 
     // ── 供测试/后续模块复用的策略样例（与 Go router/rbac.go 的构造器同构） ──

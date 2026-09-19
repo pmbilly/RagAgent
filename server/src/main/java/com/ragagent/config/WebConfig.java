@@ -358,6 +358,26 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("PUT", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
         rbac.addRule("DELETE", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
 
+        // 空间成员 / 邀请 / API-Principal（波 2 第六批，对照 routes_auth_tenant.go:88-137）：
+        // 列表=Viewer+（任意成员可看名册）；一切变更=Owner+（Go 的 g.Owner()，**不是**
+        // ADMIN 下限——成员/角色是租户内最高影响操作）；/leave=Viewer+（成员可自助退出）。
+        // PathTenantMatch 对 /api/v1/tenants/{id}/** 自动生效（RbacInterceptor 内建）。
+        // /api/v1/me/invitations** 在 Go 里无角色门（只挂 Auth）→ 不登记规则、
+        // 拦截器 pattern 也未覆盖 /me/**。
+        rbac.addRule("GET", "/api/v1/tenants/*/members", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/tenants/*/members", TenantRole.OWNER, false);
+        rbac.addRule("PUT", "/api/v1/tenants/*/members/*", TenantRole.OWNER, false);
+        rbac.addRule("DELETE", "/api/v1/tenants/*/members/*", TenantRole.OWNER, false);
+        rbac.addRule("POST", "/api/v1/tenants/*/leave", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/tenants/*/invitations", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/tenants/*/invitations", TenantRole.OWNER, false);
+        rbac.addRule("DELETE", "/api/v1/tenants/*/invitations/*", TenantRole.OWNER, false);
+        rbac.addRule("POST", "/api/v1/tenants/*/invite-links", TenantRole.OWNER, false);
+        // api-principal 三条（Go g.Owner()）：配置与测试签发都是 Owner 面
+        rbac.addRule("GET", "/api/v1/tenants/*/api-principal-config", TenantRole.OWNER, false);
+        rbac.addRule("PUT", "/api/v1/tenants/*/api-principal-config", TenantRole.OWNER, false);
+        rbac.addRule("POST", "/api/v1/tenants/*/api-principal-test-token", TenantRole.OWNER, false);
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",

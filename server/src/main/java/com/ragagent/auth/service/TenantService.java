@@ -61,6 +61,18 @@ public class TenantService {
     }
 
     /**
+     * 对照 UpdateTenant（api-principal PUT 专用子集）：写回整行配置。
+     * GORM 的 Update 会自动刷 updated_at——api_principal_config 的 PUT 响应虽不回显，
+     * 但落库行为保持一致（显式 set updated_at，别让列停在旧值）。
+     */
+    public Tenant updateTenant(Tenant tenant) {
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC);
+        tenant.setUpdatedAt(now);
+        tenantMapper.updateById(tenant);
+        return tenant;
+    }
+
+    /**
      * 对照 RetrieverEngines.Scan：NULL/裸数组 → 归一化；
      * 响应恒输出包装格式（Go RetrieverEngines 为值类型，无 omitempty）。
      * NULL → {"engines":null}（Go 零值 struct 的序列化结果）；裸数组 → {"engines":[...]}。

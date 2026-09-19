@@ -58,6 +58,9 @@ public class Tenant {
     private JsonNode retrievalConfig;
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode memoryConfig;
+    /** jsonb（迁移 000064）：API principal 配置；加密语义见 APIPrincipalConfigTypeHandler */
+    @TableField(typeHandler = APIPrincipalConfigTypeHandler.class)
+    private APIPrincipalConfig apiPrincipalConfig;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private OffsetDateTime deletedAt;
@@ -96,6 +99,8 @@ public class Tenant {
     public void setRetrievalConfig(JsonNode v) { retrievalConfig = v; }
     public JsonNode getMemoryConfig() { return memoryConfig; }
     public void setMemoryConfig(JsonNode v) { memoryConfig = v; }
+    public APIPrincipalConfig getApiPrincipalConfig() { return apiPrincipalConfig; }
+    public void setApiPrincipalConfig(APIPrincipalConfig v) { apiPrincipalConfig = v; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) { createdAt = v; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }

@@ -168,6 +168,28 @@ public class UserService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 对照 GetUsersByIDs：批量按 id 查（map 形态，供成员/邀请列表 hydrate）。
+     * GORM Find 的软删除过滤 → isNull(deleted_at)。
+     */
+    public java.util.Map<String, User> getUsersByIds(java.util.Collection<String> ids) {
+        java.util.Map<String, User> out = new java.util.HashMap<>();
+        if (ids == null || ids.isEmpty()) {
+            return out;
+        }
+        for (User u : userMapper.selectList(new LambdaQueryWrapper<User>()
+                .in(User::getId, ids)
+                .isNull(User::getDeletedAt))) {
+            out.put(u.getId(), u);
+        }
+        return out;
+    }
+
+    /** 对照 UpdateUser（invited 首空间采纳 / 被移除后的指针清理） */
+    public void updateUser(User user) {
+        userMapper.updateById(user);
+    }
+
     // ── memberships 组装 ──────────────────────────────────────────────────
 
     /**
@@ -284,7 +306,14 @@ public class UserService {
             user.getPreferences().setLastActiveTenantId(null);
         }
         try {
-            userMapper.updateById(user);
+            // Go UpdateUser：tenant_id==0 时 Omit("tenant_id").Save + UpdateColumn(NULL)。
+            // ⚠️ 两个坑：tenant_id=0 写进 UPDATE 会炸 FK fk_users_tenant；preferences 是
+            // jsonb 列，两参 set 带 typeHandler 字段会 MyBatisSystemException（§9 三参规则）。
+            // 只写 tenant_id=NULL——preferences.last_active_tenant_id 的存量偏差无害
+            // （pref==home 与 home 走同一条解析路径，净行为一致；已记录为已知偏差）。
+            userMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<User>()
+                    .eq(User::getId, user.getId())
+                    .set(User::getTenantId, null));
         } catch (RuntimeException e) {
             log.warn("clearStaleHomeTenant: failed to persist cleared home for user {} (was tenant {}): {}",
                     user.getId(), staleHome, e.toString());
