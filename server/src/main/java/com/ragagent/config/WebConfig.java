@@ -265,6 +265,42 @@ public class WebConfig implements WebMvcConfigurer {
         // 平台级审计：**仅系统管理员**（租户角色再高也不放行）
         rbac.addSystemAdminRule("GET", "/api/v1/system/admin/audit-log");
 
+        // 系统管理端（波 2 收官批，对照 routes_auth_tenant.go L246-258 / L260-335）：
+        // /system 组读端 Viewer+（"is the parser reachable"），主动探测远端的 check/
+        // reconnect/storage-check Admin+（会拿租户凭据发起网络扇出）。/system/admin 组
+        // 全部**仅系统管理员**（组级 SystemAdmin() → 逐条 addSystemAdminRule；
+        // 静态段先于通配段登记，AntPathMatcher 取首个命中）。
+        // POST /system/sandbox-check 未实现（依赖波 3 sandbox）→ 不登记规则、不登记策略。
+        rbac.addRule("GET", "/api/v1/system/capabilities", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/system/info", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/system/parser-engines", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/system/parser-engines/check", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/system/docreader/reconnect", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/system/storage-engine-status", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/system/storage-engine-check", TenantRole.ADMIN, false);
+        rbac.addSystemAdminRule("POST", "/api/v1/system/admin/promote");
+        rbac.addSystemAdminRule("POST", "/api/v1/system/admin/revoke");
+        rbac.addSystemAdminRule("GET", "/api/v1/system/admin/list");
+        rbac.addSystemAdminRule("POST", "/api/v1/system/admin/users/reset-password");
+        rbac.addSystemAdminRule("POST", "/api/v1/system/admin/users/create");
+        rbac.addSystemAdminRule("GET", "/api/v1/system/admin/api-keys");
+        rbac.addSystemAdminRule("POST", "/api/v1/system/admin/api-keys");
+        rbac.addSystemAdminRule("DELETE", "/api/v1/system/admin/api-keys/*");
+        rbac.addSystemAdminRule("GET", "/api/v1/system/admin/settings");
+        rbac.addSystemAdminRule("GET", "/api/v1/system/admin/settings/*");
+        rbac.addSystemAdminRule("PUT", "/api/v1/system/admin/settings/*");
+        rbac.addSystemAdminRule("DELETE", "/api/v1/system/admin/settings/*");
+        rbac.addSystemAdminRule("GET", "/api/v1/system/admin/runtime/queues");
+        rbac.addSystemAdminRule("GET", "/api/v1/system/admin/runtime/queues/*/tasks");
+        rbac.addSystemAdminRule("POST", "/api/v1/system/admin/runtime/queues/*/tasks/*/actions/*");
+        rbac.addSystemAdminRule("DELETE", "/api/v1/system/admin/runtime/queues/*/archived");
+        rbac.addSystemAdminRule("POST", "/api/v1/system/admin/tenants/apply-default-storage-quota");
+
+        // 评估（对照 routes_infra.go L81-89）：POST 驱动 LLM+检索（Admin+），
+        // GET 读结果（Viewer+）。
+        rbac.addRule("POST", "/api/v1/evaluation", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/evaluation", TenantRole.VIEWER, false);
+
         // 会话（对照 routes_chat.go 的 sessions 组）：整组 Viewer 起步。
         // 目前只登记了已翻译的 continue-stream；同组其余端点在各自落地时补。
         rbac.addRule("GET", "/api/v1/sessions/continue-stream/*", TenantRole.VIEWER, false);
@@ -385,6 +421,32 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/tenants/**", "/api/v1/system/**", "/api/v1/memory/**",
                 "/api/v1/datasource/**",
                 "/api/v1/web-search-providers/**", "/api/v1/web-search/**",
-                "/api/v1/vector-stores/**", "/api/v1/storage-backends/**");
+                "/api/v1/vector-stores/**", "/api/v1/storage-backends/**",
+                "/api/v1/evaluation/**");
+    }
+
+    /**
+     * GET /system/capabilities 的启动快照（对照 Go router.NewRouter 尾部的
+     * BindDeploymentCapabilities(deploymentCapabilitiesFromRouter(params))）。
+     * Java 侧以"模块是否已翻译注册"等价 Go 的"handler 是否被注入"（当前部署状态：
+     * organizations/agents/im/embed/sandbox 未注册 → route_not_registered，随波 3/4/5/7
+     * 推进在各自批次翻真——这是**部署状态**而非代码契约，A/B 按部署各自断言）。
+     */
+    @org.springframework.context.annotation.Bean
+    public com.ragagent.system.service.DeploymentCapabilitiesHolder deploymentCapabilitiesHolder(
+            com.ragagent.apikey.service.TenantAPIKeyService apiKeyService) {
+        var holder = new com.ragagent.system.service.DeploymentCapabilitiesHolder();
+        holder.bind(
+                /* organizations */ false,
+                /* agents */ false,
+                /* im */ false,
+                /* embed */ false,
+                /* api */ apiKeyService != null,
+                /* mcp */ true,
+                /* webSearch */ true,
+                /* vectorStore */ true,
+                /* storage */ true,
+                /* sandbox */ false);
+        return holder;
     }
 }

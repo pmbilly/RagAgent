@@ -1367,3 +1367,15 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - 其余实录坑（@PathVariable 名字必须与模板一致、MP 分页 count 不能带 orderBy、
     gin.H 内层 map 字母序、邀请 seq_id/invite_url/JWT 的掩码策略）见
     TenantMemberContractTest 与各 Controller 注释。
+- **波 2 系统管理端补充（真 PG A/B 抓回）**：
+  - **阶段 3 的 UserKbPin 列映射是错的**：真表列名是 `kb_id`/`pinned_at`，实体按驼峰
+    映射成 `knowledge_base_id`/`created_at`——fillPin 在真 PG 直接 500。**H2 的 DDL 是
+    照实体写的，永远发现不了**；pin 路由此前从未过真 PG A/B 所以潜伏至今。
+    **凡"表 DDL 以迁移为准"的纪律同样适用于 TestSchema**——照实体写 DDL 等于自欺。
+  - **Go 常量文案要取到源头文件**（anydoc 不可用原因分三段拼接在
+    `anydoc/backend_stub.go`，Java 只抄了第一段）；运行环境相关的 long 常量
+    （ affected 租户数 / key 数字 id / tenant_id）在 A/B 里按部署掩码。
+  - evaluation 执行步是部署能力（Go dev 真跑 LLM 流水线带真实指标），执行态三文件
+    （ev-post/ev-get/ev-get-viewer）A/B 归部署态跳过，确定性校验分支照常比对。
+  - RequireSystemAdmin 的拒绝文案是 "Forbidden: system administrator required"
+    （RbacInterceptor 既有实现写错，golden 纠正——audit-log 路由的既有文案随之修正）。

@@ -34,8 +34,13 @@ public class DocReaderClient {
     private static final Logger log = LoggerFactory.getLogger(DocReaderClient.class);
     private static final Duration CALL_TIMEOUT = Duration.ofMinutes(30);
 
-    private final DocReaderGrpc.DocReaderBlockingStub blocking;
-    private final DocReaderGrpc.DocReaderStub asyncStub;
+    /** blocking/asyncStub 可被 {@link #reconnect} 原子换绑（volatile 保可见性）。 */
+    private volatile DocReaderGrpc.DocReaderBlockingStub blocking;
+    private volatile DocReaderGrpc.DocReaderStub asyncStub;
+
+    /** 远端可达性（对照 GRPCDocumentReader.IsConnected 的 conn != nil 语义）。 */
+    private volatile boolean connected;
+    private final Object reconnectLock = new Object();
 
     public DocReaderClient() {
         String addr = System.getenv("DOCREADER_ADDR");
@@ -58,6 +63,11 @@ public class DocReaderClient {
                 .build();
         this.blocking = DocReaderGrpc.newBlockingStub(channel);
         this.asyncStub = DocReaderGrpc.newStub(channel);
+        // DOCREADER_ADDR 缺省时 DocReaderClient 构造用 localhost:50051 兜底——
+        // 与 Go 的差异：Go 的 addr=="" 时启动"未连接"状态。Java 侧以 env 显式配置
+        // 为连接判据（dev/e2e 都显式配置，行为一致）。
+        String configured = System.getenv("DOCREADER_ADDR");
+        this.connected = configured != null && !configured.isBlank();
     }
 
     /** 解析结果：markdown + 图片数（阶段 3 忽略图片内容） */
@@ -133,5 +143,70 @@ public class DocReaderClient {
             throw new IllegalStateException("docreader parse error: " + resp.getError());
         }
         return new ParseResult(resp.getMarkdownContent(), resp.getImageRefsCount());
+    }
+
+    // ── 系统管理端（波 2 收官批）附加能力 ─────────────────────────────────
+
+    /** 远端引擎信息（对照 Go types.ParserEngineInfo——无 json tag，响应键是 Go 字段名）。 */
+    public record RemoteEngine(String name, String description, java.util.List<String> fileTypes,
+                               boolean available, String unavailableReason) {}
+
+    /**
+     * 对照 GRPCDocumentReader.IsConnected：conn != nil。Java 的 ManagedChannel 惰性连接，
+     * 这里以"启动时配置了 DOCREADER_ADDR 或已 reconnect 成功"为准——与 Go 在
+     * "配置了地址即连接对象存在"的语义一致。
+     */
+    public boolean isConnected() {
+        return connected;
+    }
+
+    /**
+     * 对照 GRPCDocumentReader.Reconnect：关旧通道、按新地址重建。失败抛
+     * RuntimeException（handler 落 200 + code:1 "连接失败: %v"，与 Go 相同形态）。
+     */
+    public void reconnect(String addr) {
+        synchronized (reconnectLock) {
+            try {
+                String host = addr;
+                int port = 50051;
+                int idx = addr.lastIndexOf(':');
+                if (idx > 0) {
+                    host = addr.substring(0, idx);
+                    port = Integer.parseInt(addr.substring(idx + 1));
+                }
+                ManagedChannel channel = ManagedChannelBuilder.forAddress(host, port)
+                        .usePlaintext()
+                        .maxInboundMessageSize(64 * 1024 * 1024)
+                        .build();
+                DocReaderGrpc.DocReaderBlockingStub newBlocking = DocReaderGrpc.newBlockingStub(channel);
+                // 探活：真连一次 ListEngines（空 overrides），失败即判定重连失败
+                newBlocking.withDeadlineAfter(5, java.util.concurrent.TimeUnit.SECONDS)
+                        .listEngines(Docreader.ListEnginesRequest.newBuilder().build());
+                this.blocking = newBlocking;
+                this.asyncStub = DocReaderGrpc.newStub(channel);
+                this.connected = true;
+            } catch (RuntimeException e) {
+                throw new IllegalStateException("gRPC connect failed: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * 对照 GRPCDocumentReader.ListEngines：gRPC ListEngines RPC → 引擎列表。
+     * RPC 失败抛 RuntimeException（调用方 fetchRemoteEngines 记 WARN 后回落静态表）。
+     */
+    public java.util.List<RemoteEngine> listEngines(java.util.Map<String, String> overrides) {
+        Docreader.ListEnginesRequest.Builder req = Docreader.ListEnginesRequest.newBuilder();
+        if (overrides != null) {
+            req.putAllConfigOverrides(overrides);
+        }
+        Docreader.ListEnginesResponse resp = blocking.withDeadlineAfter(30, TimeUnit.SECONDS)
+                .listEngines(req.build());
+        java.util.List<RemoteEngine> result = new ArrayList<>();
+        for (Docreader.ParserEngineInfo e : resp.getEnginesList()) {
+            result.add(new RemoteEngine(e.getName(), e.getDescription(),
+                    e.getFileTypesList(), e.getAvailable(), e.getUnavailableReason()));
+        }
+        return result;
     }
 }

@@ -57,6 +57,79 @@ public final class APIKeyRoutePolicies {
         registerDataSourceRoutes(authorizer);
         registerInfraConfigRoutes(authorizer);
         registerTenantMemberRoutes(authorizer);
+        registerSystemRoutes(authorizer);
+        registerEvaluationRoutes(authorizer);
+    }
+
+    /**
+     * 系统管理端（波 2 收官批，对照 Go routes_auth_tenant.go L246-258 / L260-335）。
+     *
+     * <p><b>/system 组</b>共用 {@code apiKeyManageVectorStores(apiKeyFullAccess())}
+     * （full-access 或显式 manage_vector_stores——Go 的注释把"为何是它"写成了
+     * 兼容遗留路由的历史决定）；其中 capabilities 单独覆写为 {@code apiKeyAny()}
+     * （scoped key 也能读部署能力清单，"leaving it default-deny was why scoped keys
+     * got a 403 here"）。**同一条路由的覆写按 Go 的注册序后登记覆盖**。</p>
+     *
+     * <p><b>/system/admin 组</b>只有 settings/runtime/tenants/audit-log 用
+     * {@code g.apiKeyRoute(...)} 包装（platform 能力）；promote / revoke / list /
+     * users/reset-password、users/create、api-keys 的 CRUD 注册在**原始 group**上 →
+     * Key default-deny（不能给自己扩权），与 Go 完全一致，刻意不登记。</p>
+     *
+     * <p><b>POST /system/sandbox-check 不登记</b>：路由未实现（波 3），
+     * 登记了也只是死条目。</p>
+     */
+    private static void registerSystemRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy system = APIKeyRoutePolicy.manageVectorStores(APIKeyRoutePolicy.fullAccess());
+        final String base = "/api/v1/system";
+        a.registerGin("GET", base + "/info", system);
+        a.registerGin("GET", base + "/parser-engines", system);
+        a.registerGin("POST", base + "/parser-engines/check", system);
+        a.registerGin("POST", base + "/docreader/reconnect", system);
+        a.registerGin("GET", base + "/storage-engine-status", system);
+        a.registerGin("POST", base + "/storage-engine-check", system);
+        // capabilities 的 apiKeyAny 覆写在组策略之后（Go：systemRoutes.With(apiKeyAny()).GET(...)）
+        a.registerGin("GET", base + "/capabilities", APIKeyRoutePolicy.any());
+
+        APIKeyRoutePolicy settingsRead = APIKeyRoutePolicy.platform(
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_SETTINGS_READ,
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_SETTINGS_MANAGE);
+        APIKeyRoutePolicy settingsManage = APIKeyRoutePolicy.platform(
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_SETTINGS_MANAGE);
+        a.registerGin("GET", "/api/v1/system/admin/settings", settingsRead);
+        a.registerGin("GET", "/api/v1/system/admin/settings/:key", settingsRead);
+        a.registerGin("PUT", "/api/v1/system/admin/settings/:key", settingsManage);
+        a.registerGin("DELETE", "/api/v1/system/admin/settings/:key", settingsManage);
+
+        APIKeyRoutePolicy runtimeRead = APIKeyRoutePolicy.platform(
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_RUNTIME_READ,
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_RUNTIME_MANAGE);
+        APIKeyRoutePolicy runtimeManage = APIKeyRoutePolicy.platform(
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_RUNTIME_MANAGE);
+        a.registerGin("GET", "/api/v1/system/admin/runtime/queues", runtimeRead);
+        a.registerGin("GET", "/api/v1/system/admin/runtime/queues/:queue/tasks", runtimeRead);
+        a.registerGin("POST", "/api/v1/system/admin/runtime/queues/:queue/tasks/:task_id/actions/:action",
+                runtimeManage);
+        a.registerGin("DELETE", "/api/v1/system/admin/runtime/queues/:queue/archived", runtimeManage);
+
+        a.registerGin("POST", "/api/v1/system/admin/tenants/apply-default-storage-quota",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
+
+        // 已翻译的 /system/admin/audit-log（audit 模块回补时落地）——platform 审计读能力
+        a.registerGin("GET", "/api/v1/system/admin/audit-log",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_AUDIT_READ));
+    }
+
+    /**
+     * 评估（对照 Go routes_infra.go L81-89）：整组
+     * {@code apiKeyRunEvaluations(apiKeyFullAccess())}——full-access 或显式
+     * run_evaluations；POST/GET 同策略（角色维度 Admin/Viewer 由 RBAC 另行把关）。
+     */
+    private static void registerEvaluationRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy evaluation = APIKeyRoutePolicy.runEvaluations(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("POST", "/api/v1/evaluation", evaluation);
+        a.registerGin("GET", "/api/v1/evaluation", evaluation);
     }
 
     /**

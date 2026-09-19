@@ -2,6 +2,7 @@ package com.ragagent.knowledge.domain;
 
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
@@ -12,7 +13,11 @@ import com.baomidou.mybatisplus.annotation.TableName;
 public class UserKbPin {
 
     private String userId;
+    /** 真表列名是 kb_id（PG \d user_kb_pins），非 knowledge_base_id */
+    @TableField("kb_id")
     private String knowledgeBaseId;
+    /** 真表列名是 pinned_at */
+    @TableField("pinned_at")
     private OffsetDateTime createdAt;
 
     public String getUserId() { return userId; }

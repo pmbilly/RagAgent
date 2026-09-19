@@ -1,0 +1,1 @@
+{"code":"TENANT_REQUIRED","error":"Workspace required: platform API keys must send X-Tenant-ID"}

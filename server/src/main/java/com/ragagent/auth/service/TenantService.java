@@ -73,6 +73,33 @@ public class TenantService {
     }
 
     /**
+     * 对照 CreateTenant（注册/系统管理员建用户路径的最小子集）：status=active +
+     * created_at/updated_at 显式赋值 + id 回填。存储配额等列落 DB 默认值
+     * （10GiB，迁移 000001）。storage bucket 唯一性校验与默认存储后端创建
+     * 随租户管理面（routes_auth_tenant.go 的租户 CRUD 组）一起翻译。
+     */
+    public Tenant createTenant(Tenant tenant) {
+        if (tenant.getName() == null || tenant.getName().isEmpty()) {
+            throw new IllegalArgumentException("workspace name cannot be empty");
+        }
+        tenant.setStatus("active");
+        // 真表 business 列 NOT NULL 且无默认（Go 非指针 string 零值 "" 由 GORM 写入）
+        if (tenant.getBusiness() == null) {
+            tenant.setBusiness("");
+        }
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC);
+        tenant.setCreatedAt(now);
+        tenant.setUpdatedAt(now);
+        tenantMapper.insert(tenant);
+        return tenant;
+    }
+
+    /** 对照 DeleteTenant（register 失败回滚用；此处行尚无引用，物理删除无害）。 */
+    public void deleteTenant(long id) {
+        tenantMapper.deleteById(id);
+    }
+
+    /**
      * 对照 RetrieverEngines.Scan：NULL/裸数组 → 归一化；
      * 响应恒输出包装格式（Go RetrieverEngines 为值类型，无 omitempty）。
      * NULL → {"engines":null}（Go 零值 struct 的序列化结果）；裸数组 → {"engines":[...]}。

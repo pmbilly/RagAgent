@@ -44,6 +44,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Go handler 直写的纯字符串错误形态（{@code c.JSON(status, gin.H{"error": msg})}），
+     * 状态码随异常携带——system admin 组的 promote/revoke/reset-password 等大量使用。
+     * 与 {@link #handleGuardForbidden(GuardForbiddenException)} 同族（那边恒 403 且
+     * 消息带 "Forbidden: " 前缀），这边按 Go 原文原样输出。
+     */
+    @ExceptionHandler(PlainErrorException.class)
+    public ResponseEntity<String> handlePlainError(PlainErrorException ex) {
+        String msg = ex.getMessage() == null ? "" : ex.getMessage();
+        String escaped = msg.replace("\\", "\\\\").replace("\"", "\\\"");
+        return ResponseEntity.status(ex.status())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":\"" + escaped + "\"}");
+    }
+
+    /**
      * Spring 6.1 对未映射路径抛 NoResourceFoundException（落到 handleOther 会变 500）。
      * 对照 gin 默认 404："404 page not found"（text/plain）。
      */

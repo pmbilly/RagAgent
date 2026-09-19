@@ -1207,6 +1207,57 @@ class JsonContractRoundTripTest {
                 "types.StorageBackendConfig ← storage.dto.StorageConfig（全字段 omitempty）");
     }
 
+    // ── 波 2 收官批（系统管理端 + 评估） ──────────────────────────────────
+
+    @Test
+    void systemSettingRoundTrips() {
+        // system_settings 行直接作响应体（裸行，无信封）+ value 落 jsonb。
+        // enum/lastModifiedByName 是 gorm:"-"（TableField(exist=false)）+ omitempty。
+        var row = new com.ragagent.system.domain.SystemSetting();
+        row.setId(1L);
+        row.setKey("tenant.max_owned_per_user");
+        row.setValue(MAPPER.valueToTree(12));
+        row.setValueType("int");
+        row.setCategory("tenant");
+        row.setDescription("每个非超管用户通过自助创建可拥有的最大空间数。");
+        row.setIsSecret(false);
+        row.setRequiresRestart(false);
+        row.setLastModifiedBy("11111111-2222-3333-4444-555555555701");
+        row.setEnumOptions(java.util.List.of("a", "b"));
+        row.setLastModifiedByName("javasysadmin");
+        assertRoundTrips(row, com.ragagent.system.domain.SystemSetting.class,
+                "types.SystemSetting ← system.domain.SystemSetting（value jsonb + enum/name omitempty）");
+    }
+
+    @Test
+    void evaluationDetailRoundTrips() {
+        // EvaluationDetail（task+params）直接作响应体；double 字段挂 GoDoubleSerializer，
+        // summary_config.thinking 是 *bool 无 omitempty（null 恒输出）。
+        var task = new com.ragagent.evaluation.dto.EvaluationDtos.EvaluationTask();
+        task.id = "evaluation_10002_1789790586130_89a7491e_default";
+        task.tenantId = 10002L;
+        task.datasetId = "default";
+        task.status = 0;
+        var params = new com.ragagent.evaluation.dto.EvaluationDtos.PipelineParams();
+        params.maxRounds = 5;
+        params.vectorThreshold = 0.2;
+        params.keywordThreshold = 0.3;
+        params.embeddingTopK = 30;
+        params.rerankTopK = 30;
+        params.rerankThreshold = 0.3;
+        params.chatModelId = "fake-chat-model-id";
+        var summary = new com.ragagent.evaluation.dto.EvaluationDtos.SummaryConfigParams();
+        summary.repeatPenalty = 1.0;
+        summary.temperature = 0.3;
+        summary.maxCompletionTokens = 2048;
+        params.summaryConfig = summary;
+        var detail = new com.ragagent.evaluation.dto.EvaluationDtos.EvaluationDetail();
+        detail.task = task;
+        detail.params = params;
+        assertRoundTrips(detail, com.ragagent.evaluation.dto.EvaluationDtos.EvaluationDetail.class,
+                "types.EvaluationDetail ← evaluation.dto.EvaluationDetail（metric omitempty + thinking null）");
+    }
+
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
 
     /**

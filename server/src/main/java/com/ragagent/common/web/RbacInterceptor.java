@@ -149,7 +149,7 @@ public class RbacInterceptor implements HandlerInterceptor {
                     tenantId == null ? 0L : tenantId,
                     TenantContext.currentUserId(),
                     TenantContext.currentRole(),
-                    rule.minRole().value(),
+                    rule.sysAdminOnly() ? "system_admin" : rule.minRole().value(),
                     routeTemplate(request, rule),
                     request.getMethod(),
                     request.getRequestURI());
@@ -160,7 +160,12 @@ public class RbacInterceptor implements HandlerInterceptor {
         response.setStatus(403);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getWriter().write("{\"error\":\"Forbidden: insufficient workspace role\"}");
+        // 两种守卫的文案不同（Go rbac.go L107-109 vs L182-184），golden 钉住：
+        // RequireRole → "Forbidden: insufficient workspace role"；
+        // RequireSystemAdmin → "Forbidden: system administrator required"。
+        response.getWriter().write(rule.sysAdminOnly()
+                ? "{\"error\":\"Forbidden: system administrator required\"}"
+                : "{\"error\":\"Forbidden: insufficient workspace role\"}");
         return false;
     }
 
