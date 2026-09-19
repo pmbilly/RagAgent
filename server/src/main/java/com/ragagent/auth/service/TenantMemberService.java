@@ -94,6 +94,28 @@ public class TenantMemberService {
                 .orderByAsc(TenantMember::getId));
     }
 
+    /**
+     * 对照 EnsureOwner（service/tenant_member.go L211-249）：幂等——已有成员行
+     * 原样返回；否则插 owner/active 行。并发下唯一索引拒绝时重读胜出行
+     * （对照 isDuplicateMembership 分支：DuplicateKeyException → 重读）。
+     * POST /tenants 的 owner 引导走这里。
+     */
+    public TenantMember ensureOwner(String userId, long tenantId) {
+        TenantMember existing = getMembership(userId, tenantId);
+        if (existing != null) {
+            return existing;
+        }
+        try {
+            return addMember(userId, tenantId, TenantRole.OWNER.value(), null);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            TenantMember winner = getMembership(userId, tenantId);
+            if (winner != null) {
+                return winner;
+            }
+            throw e;
+        }
+    }
+
     /** 对照 HasAnyMembers：目标空间是否存在 active 成员（不含软删除行） */
     public boolean hasAnyActiveMembers(long tenantId) {
         Long count = memberMapper.selectCount(new LambdaQueryWrapper<TenantMember>()

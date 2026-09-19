@@ -1327,6 +1327,80 @@ class JsonContractRoundTripTest {
                 "types.OIDCAuthURLResponse ← OidcAuthUrlResponse（omitempty 全省略）");
     }
 
+    // ── 波 2 扫尾批 3（租户 KV 配置类型族，落 tenants 表 jsonb 列） ─────────
+
+    @Test
+    void tenantKvConfigsRoundTrip() {
+        // WebSearchConfig：omitempty 家族（空串/0/false 全省略）；api_key 序列化抑制
+        // （write-only：响应与回读都见不到，黑名单保留）
+        com.ragagent.auth.domain.tenantconfig.WebSearchConfig ws =
+                new com.ragagent.auth.domain.tenantconfig.WebSearchConfig();
+        ws.setProvider("tavily");
+        ws.setApiKey("ak-secret");
+        ws.setMaxResults(5);
+        ws.setIncludeDate(true);
+        ws.setCompressionMethod("summary");
+        ws.setBlacklist(java.util.List.of("bad.com"));
+        ws.setProxyUrl("http://proxy.local:8080");
+        assertRoundTrips(ws, com.ragagent.auth.domain.tenantconfig.WebSearchConfig.class,
+                "types.WebSearchConfig ← WebSearchConfig");
+
+        // ParserEngineConfig：rules 是 List<JsonNode> 透传；布尔三态指针
+        com.ragagent.auth.domain.tenantconfig.ParserEngineConfig parser =
+                new com.ragagent.auth.domain.tenantconfig.ParserEngineConfig();
+        parser.setMineruEndpoint("http://mineru.example.com");
+        parser.setMineruApiKey("mk-secret");
+        parser.setMineruModel("pipeline");
+        parser.setMineruEnableFormula(Boolean.TRUE);
+        parser.setMineruEnableTable(Boolean.FALSE);
+        parser.setChatParserEngineRules(java.util.List.of(
+                MAPPER.createObjectNode().put("engine", "mineru").put("priority", 1)));
+        assertRoundTrips(parser, com.ragagent.auth.domain.tenantconfig.ParserEngineConfig.class,
+                "types.ParserEngineConfig ← ParserEngineConfig");
+
+        // StorageEngineConfig：8 个 provider 嵌套块（null 块省略）
+        com.ragagent.auth.domain.tenantconfig.StorageEngineConfig storage =
+                new com.ragagent.auth.domain.tenantconfig.StorageEngineConfig();
+        storage.setDefaultProvider("minio");
+        com.ragagent.auth.domain.tenantconfig.StorageEngineConfig.MinioEngineConfig minio =
+                new com.ragagent.auth.domain.tenantconfig.StorageEngineConfig.MinioEngineConfig();
+        minio.setMode("remote");
+        minio.setEndpoint("http://minio.example.com");
+        minio.setAccessKeyId("AK");
+        minio.setSecretAccessKey("SK");
+        minio.setBucketName("b");
+        minio.setUseSsl(false);
+        minio.setPathPrefix("p");
+        storage.setMinio(minio);
+        assertRoundTrips(storage, com.ragagent.auth.domain.tenantconfig.StorageEngineConfig.class,
+                "types.StorageEngineConfig ← StorageEngineConfig");
+
+        // ChatHistoryConfig：三字段全输出形态
+        com.ragagent.auth.domain.tenantconfig.ChatHistoryConfig chat =
+                new com.ragagent.auth.domain.tenantconfig.ChatHistoryConfig();
+        chat.setEnabled(true);
+        chat.setEmbeddingModelId("emb-1");
+        chat.setKnowledgeBaseId("kb-1");
+        assertRoundTrips(chat, com.ragagent.auth.domain.tenantconfig.ChatHistoryConfig.class,
+                "types.ChatHistoryConfig ← ChatHistoryConfig");
+
+        // RetrievalConfig：double 走 GoDoubleSerializer（0.5 → 0.5、0 → 0）；
+        // rrf_* 零值 NON_DEFAULT 省略
+        com.ragagent.auth.domain.tenantconfig.RetrievalConfig ret =
+                new com.ragagent.auth.domain.tenantconfig.RetrievalConfig();
+        ret.setEmbeddingTopK(20);
+        ret.setVectorThreshold(0.5);
+        ret.setKeywordThreshold(0.4);
+        ret.setRerankTopK(5);
+        ret.setRerankThreshold(0.1);
+        ret.setRerankModelId("rm-1");
+        ret.setRrfK(60);
+        ret.setRrfVectorWeight(0.7);
+        ret.setRrfKeywordWeight(0.3);
+        assertRoundTrips(ret, com.ragagent.auth.domain.tenantconfig.RetrievalConfig.class,
+                "types.RetrievalConfig ← RetrievalConfig");
+    }
+
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
 
     /**

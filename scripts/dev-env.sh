@@ -51,6 +51,13 @@ env_value() {
 export SYSTEM_AES_KEY="${SYSTEM_AES_KEY:-$(env_value SYSTEM_AES_KEY)}"
 export REDIS_PASSWORD="${REDIS_PASSWORD:-$(env_value REDIS_PASSWORD)}"
 
+# Go 二进制自己不读 .env（godotenv 只在容器入口用），host-run 必须显式导出。
+# 这些值在 .env 里与 dev PG 一致（同一个库，只是容器/宿主地址不同），直接取用。
+export DB_DRIVER="${DB_DRIVER:-$(env_value DB_DRIVER)}"
+export DB_USER="${DB_USER:-$(env_value DB_USER)}"
+export DB_PASSWORD="${DB_PASSWORD:-$(env_value DB_PASSWORD)}"
+export DB_NAME="${DB_NAME:-$(env_value DB_NAME)}"
+
 # Java 侧自有配置（与 Go 无关）
 export JWT_SECRET="${JWT_SECRET:-java-e2e-jwt-secret-key-0123456789abcdef}"
 export LOCAL_STORAGE_BASE_DIR="${LOCAL_STORAGE_BASE_DIR:-/tmp/weknora-java-files}"

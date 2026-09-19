@@ -22,47 +22,86 @@ import com.fasterxml.jackson.databind.JsonNode;
  * - jsonb 配置列在本阶段统一按 JsonNode 透传（Go 的 *Config 强类型翻译随对应模块按需补强；
  *   读取路径字节级一致：DB 存什么响应什么，Jackson 保持解析时的 key 顺序）
  *
- * JSON 输出不走本实体（API 输出统一经 dto.TenantResponse），无需 @JsonPropertyOrder。
+ * JSON 输出契约（波 2 扫尾批 3 起，POST /tenants 直接序列化本实体，
+ * 对照 Go types.Tenant 的 json tag 与字段声明序）：
+ * id, name, description, status, retriever_engines, business, storage_quota,
+ * storage_used, context_config, web_search_config, parser_engine_config,
+ * credentials, storage_engine_config, default_storage_backend_id（omitempty）,
+ * chat_history_config, retrieval_config, memory_config, created_at, updated_at,
+ * deleted_at；api_principal_config json:"-" 恒不输出。其余 null 恒输出显式 null。
+ * 列表/详情等其余 API 输出仍统一经 dto.TenantResponse。
  */
 @TableName(value = "tenants", autoResultMap = true)
+@com.fasterxml.jackson.annotation.JsonPropertyOrder({
+        "id", "name", "description", "status", "retriever_engines", "business",
+        "storage_quota", "storage_used", "context_config", "web_search_config",
+        "parser_engine_config", "credentials", "storage_engine_config",
+        "default_storage_backend_id", "chat_history_config", "retrieval_config",
+        "memory_config", "created_at", "updated_at", "deleted_at"
+})
 public class Tenant {
 
     @TableId(type = IdType.AUTO)
+    @com.fasterxml.jackson.annotation.JsonProperty("id")
     private Long id;
+    @com.fasterxml.jackson.annotation.JsonProperty("name")
     private String name;
+    @com.fasterxml.jackson.annotation.JsonProperty("description")
     private String description;
     /** gorm default:'active' */
+    @com.fasterxml.jackson.annotation.JsonProperty("status")
     private String status;
     /** json 列：包装格式 {"engines":[...]} 或历史裸数组（读取后归一化） */
+    @com.fasterxml.jackson.annotation.JsonProperty("retriever_engines")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode retrieverEngines;
+    @com.fasterxml.jackson.annotation.JsonProperty("business")
     private String business;
     /** gorm default:10737418240（10GB） */
+    @com.fasterxml.jackson.annotation.JsonProperty("storage_quota")
     private Long storageQuota;
     /** gorm default:0 */
+    @com.fasterxml.jackson.annotation.JsonProperty("storage_used")
     private Long storageUsed;
+    @com.fasterxml.jackson.annotation.JsonProperty("context_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode contextConfig;
+    @com.fasterxml.jackson.annotation.JsonProperty("web_search_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode webSearchConfig;
+    @com.fasterxml.jackson.annotation.JsonProperty("parser_engine_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode parserEngineConfig;
+    @com.fasterxml.jackson.annotation.JsonProperty("credentials")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode credentials;
+    @com.fasterxml.jackson.annotation.JsonProperty("storage_engine_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode storageEngineConfig;
+    /** Go 指针 + omitempty：null 时整键省略 */
+    @com.fasterxml.jackson.annotation.JsonInclude(
+            com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    @com.fasterxml.jackson.annotation.JsonProperty("default_storage_backend_id")
     private String defaultStorageBackendId;
+    @com.fasterxml.jackson.annotation.JsonProperty("chat_history_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode chatHistoryConfig;
+    @com.fasterxml.jackson.annotation.JsonProperty("retrieval_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode retrievalConfig;
+    @com.fasterxml.jackson.annotation.JsonProperty("memory_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode memoryConfig;
-    /** jsonb（迁移 000064）：API principal 配置；加密语义见 APIPrincipalConfigTypeHandler */
+    /** jsonb（迁移 000064）：API principal 配置；加密语义见 APIPrincipalConfigTypeHandler；
+     *  Go json:"-" —— 任何响应都不输出（@JsonIgnore 同时挡住反序列化，与 Go 一致） */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @TableField(typeHandler = APIPrincipalConfigTypeHandler.class)
     private APIPrincipalConfig apiPrincipalConfig;
+    @com.fasterxml.jackson.annotation.JsonProperty("created_at")
     private OffsetDateTime createdAt;
+    @com.fasterxml.jackson.annotation.JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
+    @com.fasterxml.jackson.annotation.JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     public Long getId() { return id; }

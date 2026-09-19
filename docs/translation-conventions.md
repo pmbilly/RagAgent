@@ -266,6 +266,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | knowledge 搜索与移动/复制（波 2 第三批，**knowledge 域收官**） | internal/handler/knowledge.go 的 SearchKnowledge/MoveKnowledge/GetKnowledgeMoveProgress（L2149-2543）+ knowledgebase.go 的 HybridSearch/CopyKnowledgeBase/DuplicateKnowledgeBase/GetKBCloneProgress（L318-1112）；internal/application/service/{knowledge.go 的 Search*,knowledge_clone_move.go,knowledge_transfer.go,knowledgebase.go 的 Duplicate/Copy,knowledgebase_search.go+storegroup 的 HybridSearch 前置段}；internal/application/access/kb_transfer.go；internal/utils/taskid.go；internal/handler/{task_progress_auth.go,list_pagination.go 的 parseOffsetPagination} | com.ragagent.knowledge.{controller.{KnowledgeController 扩展,KnowledgeBaseController 扩展},service.{KnowledgeService 扩展（search/move/clone/duplicate/task-id/兼容性）,KnowledgeTaskProgressStore},dto.KnowledgeTaskDtos,KnowledgeBaseResponseBuilder 的 includeEngineType 重载} + WebConfig 规则 + APIKeyRoutePolicies | ✅ | 8 端点全落地；**76 个 ks-* golden 全是 Go 实录** + 7 条契约测试（异步用例轮询到 completed 再比对终态）+ 套件 242 测试全绿。**golden 抓回的真契约**：move 的 binding 校验把全部失败字段按 struct 序 join("\n") 进 message、copy 的 binding 错误在 **details**（与 move 的 message 前缀形态刻意不同）、跨租户 source 在 copy 是 403 "Permission denied..."（ResolveKB）而 move 是 handler 的 "No permission to access source..."、duplicate 的 404 是路由中间件的小写 "knowledge base not found"（handler 的 "Source..." 不可达）、worker 覆写进度**不带 created_at**（终态 created_at:0）、duplicate 无 vector_store_engine_type 键（envStores 空）而阶段 3 的 kb-get golden 有（部署状态漂移）。已知差异：hybrid-search 的检索执行随波 4（当前恒 "data":null）、move/clone 只做到行级、进度存储为进程内 map。关键坑见 §9「波 2 knowledge 搜索与移动/复制」 |
 | auth 注册族（波 2 扫尾批 1） | internal/handler/auth.go 的 Register/AutoSetup/GetAuthConfig/ValidateToken/GetCurrentUser/UpdateMyPreferences/ChangePassword（L85-1024 的剩余段）+ auth_register_by_invite.go（全文）；internal/application/service/{user.go 的 Register/ChangePassword/UpdateUserPreferences,tenant.go 的 CreateTenant/createDefaultStorageBackend,tenant_invitation.go 的 token 路径,password_policy.go}；internal/types/{user.go 的 RegisterRequest/UserInfo/RegisterResponse/UserPreferences,tenant.go 的 BeforeCreate} | com.ragagent.auth.{controller.AuthController 重写（+9 端点）,service.{PasswordPolicy（新）,UserService 扩展,TenantService.createDefaultStorageBackend},dto.{RegisterRequest/RegisterResponse/UserInfo/UpdatePreferencesRequest/InvitationLookup*/RegisterByInviteRequest/ChangePasswordRequest},mapper.UserMapper.insertTenantless} + config.TenantProperties 补 selfServiceCreationEnabled + system.service.SystemAdminUserService 委托 PasswordPolicy + TestSchema（复用） | ✅ | 9 端点全落地；**46 个 reg-* golden 全是 Go 实录** + 8 条契约测试（场景顺序严格复刻录制脚本）+ **真 PG 上 46 组 A/B 两轮稳定全 MATCH**。**A/B 抓回真缺陷**：tenantless 注册的 user insert 走 getter 把 null 归一成 0 → 真 PG 违反 fk_users_tenant（H2 无 FK 不暴露）→ UserMapper.insertTenantless 省略该列（对照 GORM Omit）。**golden 纠正**：UserPreferences 三字段蛇形 tag（browser_search_instructions/last_active_tenant_id/oidc_only_login）、context_config 零值对象恒输出（见 §9「波 2 扫尾批 1」）。login-success.json golden 随当前 Go 二进制重录（9/17 旧版无 context_config 键）。关键坑见 §9「波 2 扫尾批 1」 |
 | auth OIDC（波 2 扫尾批 2） | internal/handler/auth.go 的 GetOIDCAuthorizationURL/OIDCStart/GetOIDCConfig/OIDCRedirectCallback（L311-505，含 setOIDCNonceCookie/oidcCallbackURL/decodeOIDCState/urlQueryEscape）；internal/utils/oidc_state.go（全文）；internal/application/service/user.go 的 GetOIDCAuthorizationURL(L435)/LoginWithOIDC 门控段(L484-500)/getOIDCConfig(L1518)/populateOIDCEndpoints(L1542)/validateOIDCEndpoints(L1488)；internal/config/config.go 的 OIDCAuthConfig+env 覆盖+缺省段（L305-323/L690-748）；internal/types/user.go 的 OIDC*Response（L149-181） | com.ragagent.auth.{service.{OidcConfig,OidcStateCodec,OidcService}（新）,controller.AuthController（+4 端点+302/cookie/escaper 辅助）,dto.{OidcConfigResponse,OidcAuthUrlResponse}} | ✅ | 4 端点全落地（未配置=disabled 分支全覆盖）；**13 个 oidc-* golden 全是 Go 实录**（302 端点用合成信封 JSON：body/location/set_cookie/status）+ 5 条契约测试 + 往返 4 条 + **真 PG 上 13 组 A/B 两轮全 MATCH**（字节比对，无掩码项）。**翻译边界**：enabled 后的 discovery 抓取与 code 交换/userinfo/provisioning 整体推迟（dev 两侧恒 disabled 不可达），抛自造 OidcException；config.yaml 的 oidc_auth 段无 Java 加载器，仅实现 env+缺省两层（dev 等价）。关键坑见 §9「波 2 扫尾批 2」 |
+| 跨空间租户目录 + KV 配置（波 2 扫尾批 3） | internal/handler/tenant.go 的 ListAllTenants(L1192)/SearchTenants(L1218)/CreateTenant(L226-513)/GetTenantKV+UpdateTenantKV(L1304-1395)/六个 KV 子 handler(L1398-1901)/validateParserEngineOutboundURLs(L1904)；internal/application/service/tenant.go 的 CreateTenant/createDefaultStorageBackend/SearchTenants；router/routes_auth_tenant.go L53-81；internal/types/tenant.go 的 WebSearchConfig/ParserEngineConfig/StorageEngineConfig/ChatHistoryConfig/RetrievalConfig + PreserveIfRedacted 族 | com.ragagent.auth.{domain.tenantconfig（5 类型+TenantConfigRedaction，新）,controller.TenantCatalogController（新，5 端点）,domain.Tenant 注解,service.{TenantService+listAll/search/validateStorageBucketUniqueness,TenantMemberService+ensureOwner}} + config.{TenantProperties 第 4 组件 maxOwnedPerUser,WebConfig +crossTenant 规则×2+kv 角色下限} + common.web.RbacInterceptor（crossTenant 分支 + PathTenantMatch 门控修正）+ apikey.APIKeyRoutePolicies +5 条 + system.SystemSettingRegistry +3 键 | ✅ | 5 端点全落地；**65 个 ct-* golden 全是 Go 实录**（63 flag-on + 2 flag-off，含 settings 切换链）+ 11 条契约测试（含 flag-off 小类）+ 往返 5 条 + **真 PG A/B 62 MATCH + 1 EXPECTED-DIFF**（prompt-templates GET 为 Go 独有 vendor yaml，Java 推迟 → 400，ab-ct.sh 清单列明）。**golden 抓回**：Tenant.StorageUsed 零值 0（Java 实体 Long 默认 null）；**录制脚本坑**：布尔设置 PUT 必须 JSON bool。掩码族：uuid/时间戳/数字 id/api_key 明文/SSRF 解析 IP。关键坑见 §9「波 2 扫尾批 3」 |
 
 ## 9. 当前确认过的细节
 
@@ -1449,3 +1450,66 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     Max-Age=600、HttpOnly、SameSite=Lax、secure=TLS 或 X-Forwarded-Proto=https；
     Set-Cookie 字节序对照 Go Cookie.String()（Path; Max-Age; Secure; HttpOnly; SameSite）。
     /oidc/start 的回调地址由请求自身 Host 头推导（oidcCallbackURL），外部平台深链用。
+
+- **波 2 扫尾批 3（跨空间租户目录 + KV 配置分发器）补充**：
+  - **PathTenantMatch 必须按 BEST_MATCHING_PATTERN 门控**：旧实现按「路径以
+    /api/v1/tenants/ 开头」裸匹配，会把 /tenants/all、/tenants/search、/tenants/kv/*
+    全当跨租户越权 403 掉（all/search/kv 的 {id} 段根本不是租户 id）。改为仅当
+    匹配模板以 `/api/v1/tenants/{` 开头才查目标租户——literal 段路由（all/search/kv）
+    由各自守卫管。这是本批唯一的存量行为修正（旧路由无这些模板，回归由全量套件钉住）。
+  - **跨空间守卫在 RbacInterceptor 不走 EnableRBAC 判定**：flag off → 403
+    「Cross-workspace access is disabled」；非超管 → 403「Insufficient permissions
+    for cross-workspace operation」（均 code 1002，c.Error 信封，不审计）。
+    POST /tenants 不登记 RBAC 规则（任何登录用户可自助，部署级开关在 handler 内
+    三层解析：DB > env > config 底座）。
+  - **创建族三种错误形态并存**：binding 失败 400 code 1010 details 是
+    go-playground 原文（`Key: 'createTenantRequest.Name' Error:...'required' tag`，
+    rune 计长，min=1/max=128、description max=512；空 body → details "EOF"）；
+    空名/空格名穿过 binding 在 service 抛 → 500 code 1007 details
+    "workspace name cannot be empty"；配额预检 cap>0 且 owned≥cap → 429 code 1006；
+    self-service 关停 → 403 code 2005。超管全字段路径 ShouldBindJSON(&types.Tenant)
+    绑定整个实体（status 请求值被 service 恒写 "active"，id 恒由 DB 生成）。
+  - **TOCTOU 复检与回滚顺序**：ensureOwner（DuplicateKeyException 重读胜出行）→
+    提交后再数一遍 owner 数，超帽回滚成员+租户；tenantless 回填失败同样回滚。
+    auto_create_api_key 失败只 warn 不拖垮创建（对照 Go `_ =` 尽力语义）。
+  - **autokey 响应是 map 深排序**：tenantWithAPIKey 把实体序列化成 map 再加
+    api_key——Go map[string]any 序列化**各层键都字母序**（api_key 排最前），
+    与实体 @JsonPropertyOrder 的声明序完全不同。Java 用 springMapper.valueToTree
+    （保 +08:00 时间串）再递归 TreeMap 深排序复刻。
+  - **KV GET 默认形态六 key 各异**（golden 钉死）：web-search 是 `data:null`
+    （指针列 SQL NULL → nil）；parser/storage/chat/retrieval 是**零值对象**
+    （GORM Scan 对 SQL NULL 留给已分配 struct；jsonb 'null' 字面量也 Scan 成零值
+    对象——parseConfig 对 NullNode 返回 newInstance 复刻）；memory 多一层
+    Normalize 默认值（write_mode=explicit_only/max_items=200/delay=90/interval=300/
+    interest=3/vector_recall+retrieval_conditioning=null）。
+  - **PreserveIfRedacted 语义 = 空串或 "***" 都保留旧值**（ws 的 api_key/proxy_url、
+    parser 的 mineru_api_key 等）；**S3 例外只认 "***"**（空串是真清字段）。
+    响应侧 api_key 恒不输出（write-only），proxy_url/secret_access_key 等掩成 "***"。
+  - **KV PUT 校验顺序坑**：storage 的 provider 归一+白名单、retrieval 的五段范围、
+    memory 的七段校验都在**租户上下文检查之前**（对照 Go handler 行序）——无租户
+    时这些 400 先于 "Workspace is empty"。PUT 成功信封键字母序
+    `{"data":...,"message":...,"success":true}`；message 文案 ws/retrieval/memory/chat
+    英文、parser/storage 中文（"解析引擎配置已更新"/"存储引擎配置已更新"）。
+  - **chat-history enable 自动建隐藏 KB**：enabled+有模型+无存量 KB → 建
+    __chat_history__（is_temporary）；模型未变再 PUT 沿用存量 knowledge_base_id。
+    embedding_model_id 不做存在性校验（Go 同）。KnowledgeBaseService 对无后端租户
+    容忍（backend null 直接返回，不落 backend 关联）。
+  - **parser 无成功路径 golden**：三条录制全是 SSRF 1010（example.com 在本机
+    fake-ip DNS 下解析到 198.18.0.0/15 受限段；127.0.0.1 字面量字节稳定）。
+    A/B 与契约测试对 "resolves to restricted IP <ip>" 的 IP 段掩码。若将来
+    dev 环境 DNS 变化，可补成功路径 golden。
+  - **prompt-templates 推迟**：GET 是 Go 独有（vendor config/prompt_templates/*.yaml
+    + Language 中间件，47KB payload），Java 落 default → 400 unsupported key；
+    PUT 两侧本来都 400（Go 分发器无此 key）。A/B 列 EXPECTED DIFF（ab-ct.sh 的
+    EXPECTED_DIFFS 清单）。
+  - **search 的宽松解析**：tenant_id 非数字→0 忽略；page<1→1；page_size<1→20、
+    >100→100；keyword+tenant_id 是 OR 关系；恒 created_at DESC。list/search 响应
+    恒按 viewer 形态裁剪（调用方自家角色不解锁别家秘密）：省略四个秘密字段，
+    且 context_config 因 GORM jsonb 'null' Scan 语义输出**零值对象而非 null**。
+  - **设置族回归**：tenant.{max_owned_per_user,self_service_creation_enabled,
+    auto_create_api_key} 三键注册进 SystemSettingRegistry（int/bool/bool），
+    布尔 PUT 必须发 JSON bool（{"value":true}，发字符串 "true" 400
+    "expected bool, got string"——录制脚本第一轮的坑）。
+  - **双构造器 record 必须 @ConstructorBinding**：TenantProperties 加第 4 组件后
+    保留了三参兼容构造，@ConfigurationPropertiesScan 找不到绑定构造器就退化成
+    无参实例化 → 启动 NoSuchMethodException。钉在 canonical 构造器上解决。

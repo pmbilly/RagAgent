@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -68,12 +69,70 @@ public class TenantService {
         return out;
     }
 
+    /** 对照 ListTenants（repo）：全量列表，created_at DESC，软删除过滤 */
+    public List<Tenant> listAllTenants() {
+        List<Tenant> tenants = tenantMapper.selectList(new LambdaQueryWrapper<Tenant>()
+                .isNull(Tenant::getDeletedAt)
+                .orderByDesc(Tenant::getCreatedAt));
+        for (Tenant t : tenants) {
+            normalizeRetrieverEngines(t);
+            normalizeContextConfig(t);
+        }
+        return tenants;
+    }
+
     /**
-     * 对照 UpdateTenant（api-principal PUT 专用子集）：写回整行配置。
-     * GORM 的 Update 会自动刷 updated_at——api_principal_config 的 PUT 响应虽不回显，
-     * 但落库行为保持一致（显式 set updated_at，别让列停在旧值）。
+     * 对照 repo.SearchTenants（repository/tenant.go L77-119）：
+     * tenant_id>0 且 keyword 非空 → (id=? OR name LIKE OR description LIKE)；
+     * 仅 tenant_id → id=?；仅 keyword → name/description LIKE。
+     * LIKE 参数先过 escapeLikeKeyword（\ % _ 反斜杠转义，PG LIKE 默认 ESCAPE 就是反斜杠）。
+     * 先 Count 再 Offset/Limit，恒 created_at DESC。
+     */
+    public record TenantSearchPage(List<Tenant> tenants, long total) {}
+
+    public TenantSearchPage searchTenants(String keyword, long tenantId, int page, int pageSize) {
+        String kw = keyword == null ? "" : keyword;
+        var wrapper = new LambdaQueryWrapper<Tenant>().isNull(Tenant::getDeletedAt);
+        if (tenantId > 0 && !kw.isEmpty()) {
+            String like = escapeLikeKeyword(kw);
+            final long id = tenantId;
+            wrapper.and(w -> w.eq(Tenant::getId, id)
+                    .or().like(Tenant::getName, like)
+                    .or().like(Tenant::getDescription, like));
+        } else if (tenantId > 0) {
+            wrapper.eq(Tenant::getId, tenantId);
+        } else if (!kw.isEmpty()) {
+            String like = escapeLikeKeyword(kw);
+            wrapper.and(w -> w.like(Tenant::getName, like)
+                    .or().like(Tenant::getDescription, like));
+        }
+        Long total = tenantMapper.selectCount(wrapper);
+        if (page > 0 && pageSize > 0) {
+            wrapper.last("LIMIT " + pageSize + " OFFSET " + ((long) (page - 1) * pageSize));
+        }
+        wrapper.orderByDesc(Tenant::getCreatedAt);
+        List<Tenant> tenants = tenantMapper.selectList(wrapper);
+        for (Tenant t : tenants) {
+            normalizeRetrieverEngines(t);
+            normalizeContextConfig(t);
+        }
+        return new TenantSearchPage(tenants, total == null ? 0 : total);
+    }
+
+    /** 对照 Go 的 escapeLikeKeyword：\ → \\、% → \%、_ → \_（顺序敏感，先转义反斜杠） */
+    private static String escapeLikeKeyword(String kw) {
+        return kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /**
+     * 对照 UpdateTenant（service/tenant.go L138-166）：先做存储桶唯一性校验
+     * （KV storage PUT / api-principal PUT 共用这条 service 路径，Go 同），
+     * 再显式刷 updated_at 写回。GORM Updates(struct) 跳过零值字段；
+     * MyBatis-Plus updateById 跳过 null 字段——两条路径对"从 DB 读出再写回"
+     * 的用法等价（值未变的列重写同值）。
      */
     public Tenant updateTenant(Tenant tenant) {
+        validateStorageBucketUniqueness(tenant);
         java.time.OffsetDateTime now = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC);
         tenant.setUpdatedAt(now);
         tenantMapper.updateById(tenant);
@@ -81,11 +140,73 @@ public class TenantService {
     }
 
     /**
+     * 对照 validateStorageBucketUniqueness（service/tenant.go L287-345）：
+     * minio/cos/tos/s3/oss 五族的 bucket_name 跨租户唯一；仅当本租户**改动**
+     * 了某族桶名（与库存旧值不同）且该桶名被别的租户占用时拒绝。
+     * Go 对"旧租户读取失败"仅容忍 not-found 两类错误——Java 侧 selectById
+     * 返回 null 即等价语义。
+     */
+    private void validateStorageBucketUniqueness(Tenant tenant) {
+        JsonNode cfg = tenant.getStorageEngineConfig();
+        if (cfg == null || cfg.isNull()) {
+            return;
+        }
+        Map<String, String> oldBuckets = Map.of();
+        if (tenant.getId() != null && tenant.getId() != 0) {
+            Tenant old = tenantMapper.selectById(tenant.getId());
+            if (old != null) {
+                oldBuckets = bucketNames(old.getStorageEngineConfig());
+            }
+        }
+        Map<String, String> newBuckets = bucketNames(cfg);
+        // 汇总其他租户的占用（软删除行不参与——Go 的 ListTenants 走 GORM 软删除过滤）
+        Map<String, java.util.Set<String>> usedByOthers = new HashMap<>();
+        for (Tenant t : tenantMapper.selectList(new LambdaQueryWrapper<Tenant>()
+                .isNull(Tenant::getDeletedAt))) {
+            if (t.getId() != null && t.getId().equals(tenant.getId())) {
+                continue;
+            }
+            bucketNames(t.getStorageEngineConfig()).forEach((p, b) ->
+                    usedByOthers.computeIfAbsent(p, k -> new java.util.HashSet<>()).add(b));
+        }
+        for (Map.Entry<String, String> e : newBuckets.entrySet()) {
+            String oldB = oldBuckets.get(e.getKey());
+            if (!e.getValue().equals(oldB)) {
+                java.util.Set<String> used = usedByOthers.get(e.getKey());
+                if (used != null && used.contains(e.getValue())) {
+                    throw new com.ragagent.common.error.BizException(
+                            com.ragagent.common.error.AppError.badRequest(
+                                    "存储桶名称「" + e.getValue() + "」已被其他空间使用，为保证数据隔离，请使用其他名称"));
+                }
+            }
+        }
+    }
+
+    /** 对照 getBuckets 闭包：取 minio/cos/tos/s3/oss 五族的非空 bucket_name */
+    private static Map<String, String> bucketNames(JsonNode cfg) {
+        if (cfg == null || cfg.isNull() || !cfg.isObject()) {
+            return Map.of();
+        }
+        Map<String, String> out = new HashMap<>();
+        for (String provider : new String[]{"minio", "cos", "tos", "s3", "oss"}) {
+            JsonNode node = cfg.get(provider);
+            if (node == null || !node.isObject()) {
+                continue;
+            }
+            JsonNode bucket = node.get("bucket_name");
+            if (bucket != null && bucket.isTextual() && !bucket.asText().isEmpty()) {
+                out.put(provider, bucket.asText());
+            }
+        }
+        return out;
+    }
+
+    /**
      * 对照 CreateTenant（tenant.go L34-73）：status=active + created_at/updated_at 显式赋值
      * + RetrieverEngines BeforeCreate 钩子（nil → 空数组）+ id 回填 + 默认存储后端创建。
      * 存储配额等列落 DB 默认值（10GiB，迁移 000000）。
-     * validateStorageBucketUniqueness 对本路径是 no-op（tenant.StorageEngineConfig 恒 null，
-     * tenant.go L291 提前返回），故不翻。
+     * validateStorageBucketUniqueness 对自助路径是 no-op（StorageEngineConfig 恒 null），
+     * 超管全字段路径可能携带 → 与 Go 一样在 insert 前跑（tenant.go L51-58）。
      */
     public Tenant createTenant(Tenant tenant) {
         if (tenant.getName() == null || tenant.getName().isEmpty()) {
@@ -95,6 +216,10 @@ public class TenantService {
         // 真表 business 列 NOT NULL 且无默认（Go 非指针 string 零值 "" 由 GORM 写入）
         if (tenant.getBusiness() == null) {
             tenant.setBusiness("");
+        }
+        // Go 非指针 int64 零值：StorageUsed 恒 0 落库并回显（响应实体即在内存对象）
+        if (tenant.getStorageUsed() == null) {
+            tenant.setStorageUsed(0L);
         }
         // 对照 Tenant.BeforeCreate（tenant.go L144-150）：nil engines → 空数组
         if (tenant.getRetrieverEngines() == null) {
@@ -110,6 +235,7 @@ public class TenantService {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         tenant.setCreatedAt(now);
         tenant.setUpdatedAt(now);
+        validateStorageBucketUniqueness(tenant);
         tenantMapper.insert(tenant);
         try {
             createDefaultStorageBackend(tenant);

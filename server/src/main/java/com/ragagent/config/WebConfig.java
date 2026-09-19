@@ -387,6 +387,16 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("DELETE", "/api/v1/storage-backends/*", TenantRole.ADMIN, false);
         rbac.addRule("GET", "/api/v1/storage-backends/*", TenantRole.VIEWER, false);
 
+        // 跨空间租户目录（波 2 扫尾批 3，对照 routes_auth_tenant.go L53-61）：
+        // g.CrossTenant() 守卫（flag + CanAccessAllTenants，不受 EnableRBAC 调制）。
+        // POST /tenants 不登记规则——Go 该路由只有 Auth（自助创建对普通用户开放）。
+        rbac.addCrossTenantRule("GET", "/api/v1/tenants/all");
+        rbac.addCrossTenantRule("GET", "/api/v1/tenants/search");
+        // 租户 KV 配置分发器（对照 L75-76）：GET Viewer+、PUT Admin+；
+        // 三条敏感 key 的 admin 门在控制器内（CanViewIntegrationSecrets）。
+        rbac.addRule("GET", "/api/v1/tenants/kv/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/tenants/kv/*", TenantRole.ADMIN, false);
+
         // 租户 API Key 管理（对照 routes_auth_tenant.go）：Owner+。
         // 刻意**不**登记进 API-Key 策略表——Key 不能给自己扩权（Go 测试钉住的契约）。
         rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);

@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"Key: 'createTenantRequest.Description' Error:Field validation for 'Description' failed on the 'max' tag","message":"Invalid request parameters"},"success":false}

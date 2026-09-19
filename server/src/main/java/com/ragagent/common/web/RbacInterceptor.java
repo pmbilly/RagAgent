@@ -44,14 +44,18 @@ public class RbacInterceptor implements HandlerInterceptor {
     private static final AntPathMatcher MATCHER = new AntPathMatcher();
 
     /**
-     * 一条 RBAC 规则：方法 + Ant 路径 + 角色下限 + 是否允许系统管理员绕过 + 是否**仅限**系统管理员。
+     * 一条 RBAC 规则：方法 + Ant 路径 + 角色下限 + 是否允许系统管理员绕过 + 是否**仅限**系统管理员
+     * + 是否跨空间守卫。
      *
-     * <p>后两者是不同语义，别混：{@code orSystemAdmin} 是"租户角色达标**或**系统管理员"（放行条件），
+     * <p>后三者是不同语义，别混：{@code orSystemAdmin} 是"租户角色达标**或**系统管理员"（放行条件），
      * {@code sysAdminOnly} 是"必须是系统管理员"（限定条件，对照 Go 的 {@code SystemAdmin()}）。
-     * 用前者表达后者会把租户 Owner 也放进来。</p>
+     * 用前者表达后者会把租户 Owner 也放进来。
+     * {@code crossTenant} 对照 Go 的 {@code RequireCrossTenantAccess}（middleware/access.go
+     * L110-141）：命中即改走"flag + CanAccessAllTenants"判定，**不看角色、不受
+     * EnableRBAC 调制、不写拒绝审计**（Go 原文明确 "NOT modulated by EnableRBAC"）。</p>
      */
     public record Rule(String method, String pattern, TenantRole minRole, boolean orSystemAdmin,
-                       boolean sysAdminOnly) {}
+                       boolean sysAdminOnly, boolean crossTenant) {}
 
     /**
      * 拒绝审计回调（对照 Go 的 {@code interfaces.AuditLogService.LogDenied}，
@@ -102,7 +106,7 @@ public class RbacInterceptor implements HandlerInterceptor {
     }
 
     public RbacInterceptor addRule(String method, String pattern, TenantRole minRole, boolean orSystemAdmin) {
-        rules.add(new Rule(method, pattern, minRole, orSystemAdmin, false));
+        rules.add(new Rule(method, pattern, minRole, orSystemAdmin, false, false));
         return this;
     }
 
@@ -111,7 +115,16 @@ public class RbacInterceptor implements HandlerInterceptor {
      * 用于 {@code /api/v1/system/**} 这类平台级端点——租户角色再高也不放行。
      */
     public RbacInterceptor addSystemAdminRule(String method, String pattern) {
-        rules.add(new Rule(method, pattern, TenantRole.ADMIN, false, true));
+        rules.add(new Rule(method, pattern, TenantRole.ADMIN, false, true, false));
+        return this;
+    }
+
+    /**
+     * 跨空间守卫（对照 Go 的 {@code g.CrossTenant()} → RequireCrossTenantAccess）。
+     * 用于 GET /tenants/all、GET /tenants/search：minRole 字段不适用（占位 VIEWER）。
+     */
+    public RbacInterceptor addCrossTenantRule(String method, String pattern) {
+        rules.add(new Rule(method, pattern, TenantRole.VIEWER, false, false, true));
         return this;
     }
 
@@ -132,6 +145,23 @@ public class RbacInterceptor implements HandlerInterceptor {
         Rule rule = match(request.getMethod(), request.getRequestURI());
         if (rule == null) {
             // 未声明路由：对照 Go 该组默认无守卫时不拦截（API-key default-deny 属 APIKeyGate，未翻译）
+            return true;
+        }
+        if (rule.crossTenant()) {
+            // 对照 RequireCrossTenantAccess：平台 Key 已在上方短路放行；
+            // flag 关闭 → 403 "disabled"；非超管 → 403 "Insufficient permissions"。
+            // 刻意不走 EnableRBAC 放行、不写拒绝审计（Go 原文如此）。
+            if (!tenantProperties.enableCrossTenantAccess()) {
+                log.warn("[rbac] cross-tenant route blocked (EnableCrossTenantAccess=false): user={} path={}",
+                        TenantContext.currentUserId(), request.getRequestURI());
+                throw new BizException(AppError.forbidden("Cross-workspace access is disabled"));
+            }
+            if (!TenantContext.canAccessAllTenants()) {
+                log.warn("[rbac] cross-tenant route blocked (not a superuser): user={} path={}",
+                        TenantContext.currentUserId(), request.getRequestURI());
+                throw new BizException(AppError.forbidden(
+                        "Insufficient permissions for cross-workspace operation"));
+            }
             return true;
         }
         if (check(rule)) {
@@ -230,6 +260,12 @@ public class RbacInterceptor implements HandlerInterceptor {
      * 对照 Go {@code middleware.RequirePathTenantMatch}（internal/middleware/access.go）：
      * 对 {@code /api/v1/tenants/{id}/**} 强制 URL 里的租户 == 调用方活动租户。
      *
+     * <p><b>门控修正（波 2 扫尾批 3）</b>：Go 里这个中间件只挂在 {@code /tenants/:id}
+     * 子组上——{@code /tenants/all}、{@code /tenants/search}、{@code /tenants/kv/:key}
+     * 都不经过它。此前 Java 对所有 {@code /api/v1/tenants/*} 首段强制数字解析，
+     * 会把 "all"/"kv" 误判成 400。现改为按 Spring 最佳匹配模板门控：仅当模板的
+     * 租户段是 {@code {...}} 占位符（形如 {@code /api/v1/tenants/{id}/...}）才执行。</p>
+     *
      * <p>没有这层时，租户 A 的 Owner 可以把 URL 里的 id 换成租户 B 去读对方的
      * 审计日志 / API Key 列表——角色下限（Owner）照样满足。</p>
      *
@@ -240,6 +276,11 @@ public class RbacInterceptor implements HandlerInterceptor {
             throws IOException {
         String uri = request.getRequestURI();
         if (!uri.startsWith("/api/v1/tenants/")) {
+            return true;
+        }
+        Object pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        if (!(pattern instanceof String p) || !p.startsWith("/api/v1/tenants/{")) {
+            // 静态段路由（/all、/search、/kv/{key}）或拿不到模板：对照 Go——不在 :id 组，不查
             return true;
         }
         String rest = uri.substring("/api/v1/tenants/".length());

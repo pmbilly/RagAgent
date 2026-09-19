@@ -1,0 +1,464 @@
+package com.ragagent.auth.controller;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+
+import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.ragagent.TestSchema;
+import com.ragagent.auth.domain.Tenant;
+import com.ragagent.auth.domain.TenantMember;
+import com.ragagent.auth.domain.User;
+import com.ragagent.auth.domain.UserPreferences;
+import com.ragagent.auth.mapper.TenantMapper;
+import com.ragagent.auth.mapper.TenantMemberMapper;
+import com.ragagent.auth.mapper.UserMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+/**
+ * 跨空间租户目录 + KV 配置分发器契约测试（波 2 扫尾批 3，5 条路由）。
+ * golden：record-ct-golden.sh（67 条 ct-*，全部 Go 实录；本类覆盖 flag-on 的
+ * H2 自足部分，list/search 成功路径与 prompt-templates GET 留给 A/B——
+ * 前者依赖 dev DB 租户清单，后者是 Go 独有的 vendor yaml 功能）。
+ *
+ * <p>种子严格复刻录制脚本：租户 10002 + 四人（ct-super 跨空间超管 /
+ * ct-viewer / ct-self / javasysadmin 系统管理员），密码全部 Passw0rd!
+ * （bcrypt 常量），成员行 joined_at 固定。</p>
+ *
+ * <p>录制顺序影响状态：创建族 / 每个 KV key 族各自在单个 @Test 内按录制
+ * 顺序串完（@BeforeEach 重播种）。KV 族先由 ct-self 自助创建 alpha 租户
+ * （响应不比 golden，只取 id），X-Tenant-ID 切过去再打 KV。</p>
+ *
+ * <p>掩码（两侧同掩码）：租户/设置行的数字 id、UUID（default_storage_backend_id、
+ * knowledge_base_id、last_modified_by、embedding_model_id）、时间戳、
+ * api_key 明文、parser SSRF 错误里的解析 IP（fake-ip 段每次解析可能不同）。</p>
+ *
+ * <p><b>已知不录</b>：GET prompt-templates（Go 200 vendor yaml，Java 推迟 →
+ * 400 unsupported key，A/B 列 EXPECTED DIFF）；parser 三条 PUT 全是 SSRF
+ * 失败路径（无成功路径 golden，见 docs §9）。</p>
+ */
+@SpringBootTest(properties = "weknora.tenant.enable-cross-tenant-access=true")
+@AutoConfigureMockMvc
+class TenantCatalogContractTest {
+
+    private static final String BCRYPT =
+            "$2a$10$9U3ZmqQkmCqoQUZapJ1Txe5puo70IHlrnyZnSdE9LO/HUagt5exnK";
+    private static final long TENANT = 10002L;
+    private static final String SYS_ID = "11111111-2222-3333-4444-555555555701";
+    private static final String SUPER_ID = "11111111-2222-3333-4444-555555555702";
+    private static final String VIEWER_ID = "11111111-2222-3333-4444-555555555703";
+    private static final String SELF_ID = "11111111-2222-3333-4444-555555555704";
+    private static final String SYS_EMAIL = "java-sys-admin@weknora.test";
+    private static final String SUPER_EMAIL = "ct-super@weknora.test";
+    private static final String VIEWER_EMAIL = "ct-viewer@weknora.test";
+    private static final String SELF_EMAIL = "ct-self@weknora.test";
+    /** 录制脚本用的 dev DB 真实 embedding 模型 id（字面量复刻进请求体） */
+    private static final String EMBEDDING_MODEL = "9aa07763-6b4f-4152-9f2b-3ad0e2d2f69f";
+
+    private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
+    private static final Pattern DATA_ID = Pattern.compile("\"id\":(\\d+)");
+    private static final Pattern UUID_VALUE = Pattern.compile(
+            "\"([a-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+    private static final Pattern TS_VALUE = Pattern.compile(
+            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T[0-9:.+\\-Z]+\"");
+    private static final Pattern API_KEY = Pattern.compile("\"api_key\":\"[^\"]*\"");
+    private static final Pattern SSRF_IP = Pattern.compile("resolves to restricted IP [0-9.]+");
+
+    @Autowired
+    private MockMvc mockMvc;
+    @Autowired
+    private JdbcTemplate jdbc;
+    @Autowired
+    private UserMapper userMapper;
+    @Autowired
+    private TenantMapper tenantMapper;
+    @Autowired
+    private TenantMemberMapper memberMapper;
+
+    private String superTok;
+    private String viewerTok;
+    private String selfTok;
+    private String sysTok;
+
+    @BeforeEach
+    void seed() throws Exception {
+        TestSchema.createTables(jdbc);
+        TestSchema.resetData(jdbc);
+
+        Tenant tenant = new Tenant();
+        tenant.setId(TENANT);
+        tenant.setName("phase1-test-tenant");
+        tenant.setStatus("active");
+        tenantMapper.insert(tenant);
+
+        seedUser(SYS_ID, "javasysadmin", SYS_EMAIL, false, true);
+        seedUser(SUPER_ID, "ct-super", SUPER_EMAIL, true, false);
+        seedUser(VIEWER_ID, "ct-viewer", VIEWER_EMAIL, false, false);
+        seedUser(SELF_ID, "ct-self", SELF_EMAIL, false, false);
+
+        seedMember(SYS_ID, TENANT, "owner");
+        seedMember(SUPER_ID, TENANT, "owner");
+        seedMember(VIEWER_ID, TENANT, "viewer");
+        seedMember(SELF_ID, TENANT, "viewer");
+
+        superTok = "Bearer " + login(SUPER_EMAIL);
+        viewerTok = "Bearer " + login(VIEWER_EMAIL);
+        selfTok = "Bearer " + login(SELF_EMAIL);
+        sysTok = "Bearer " + login(SYS_EMAIL);
+    }
+
+    private void seedUser(String id, String username, String email,
+                          boolean crossTenant, boolean sysAdmin) {
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPasswordHash(BCRYPT);
+        user.setTenantId(TENANT);
+        user.setIsActive(true);
+        user.setCanAccessAllTenants(crossTenant);
+        user.setIsSystemAdmin(sysAdmin);
+        user.setPreferences(new UserPreferences());
+        userMapper.insert(user);
+    }
+
+    private void seedMember(String userId, long tenantId, String role) {
+        TenantMember member = new TenantMember();
+        member.setUserId(userId);
+        member.setTenantId(tenantId);
+        member.setRole(role);
+        member.setStatus("active");
+        member.setJoinedAt(OffsetDateTime.parse("2026-09-01T10:03:00Z"));
+        memberMapper.insert(member);
+    }
+
+    // ════════════════ 1) 创建族（录制脚本 §1-5，严格按序） ════════════════
+
+    @Test
+    void createFamilyMatchesGo() throws Exception {
+        // §1 自助创建成功（alpha）+ binding 家族 + 空名 500
+        MvcResult self = mockMvc.perform(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"ct-alpha\",\"description\":\"alpha workspace\"}")).andReturn();
+        assertEquals(201, self.getResponse().getStatus(), raw(self));
+        assertEquals(mask(golden("ct-create-self.json")), mask(raw(self)));
+        long alphaId = extractId(raw(self));
+
+        assertGolden(jsonBody(post("/api/v1/tenants"), selfTok, "{}"),
+                400, "ct-create-binding-empty.json");
+        assertGolden(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"" + "n".repeat(129) + "\"}"),
+                400, "ct-create-binding-longname.json");
+        assertGolden(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"ok-name\",\"description\":\"" + "d".repeat(513) + "\"}"),
+                400, "ct-create-binding-longdesc.json");
+        // 空 body：contentType 带着但无内容（对照录制脚本的 -H 不带 -d）
+        assertGolden(post("/api/v1/tenants").header("Authorization", selfTok)
+                        .contentType("application/json"),
+                400, "ct-create-empty-body.json");
+        assertGolden(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"  \",\"description\":\"\"}"),
+                500, "ct-create-wsname-500.json");
+
+        // §2 超管全字段路径（status 被 service 恒写 active；storage_quota 透传 12345）
+        assertMasked(jsonBody(post("/api/v1/tenants"), superTok,
+                "{\"name\":\"ct-beta\",\"description\":\"beta workspace\","
+                        + "\"storage_quota\":12345,\"status\":\"suspended\"}"),
+                201, "ct-create-superuser.json");
+        assertGolden(jsonBody(post("/api/v1/tenants"), superTok,
+                "{\"name\":\"\",\"description\":\"x\"}"),
+                500, "ct-create-super-noname.json");
+
+        // §3 配额 429（cap=1，ct-self 已 owns alpha）→ DELETE 还原
+        assertMasked(jsonBody(put("/api/v1/system/admin/settings/tenant.max_owned_per_user"),
+                sysTok, "{\"value\":\"1\"}"), 200, "ct-set-quota.json");
+        assertGolden(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"ct-over-quota\"}"), 429, "ct-create-quota-429.json");
+        assertGolden(delete("/api/v1/system/admin/settings/tenant.max_owned_per_user")
+                        .header("Authorization", sysTok), 200, "ct-unset-quota.json");
+
+        // §4 self-service 关停 403（code 2005）→ 还原
+        assertMasked(jsonBody(put("/api/v1/system/admin/settings/tenant.self_service_creation_enabled"),
+                sysTok, "{\"value\":false}"), 200, "ct-set-noss.json");
+        assertGolden(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"ct-blocked\"}"), 403, "ct-create-disabled.json");
+        assertGolden(delete("/api/v1/system/admin/settings/tenant.self_service_creation_enabled")
+                        .header("Authorization", sysTok), 200, "ct-unset-noss.json");
+
+        // §5 auto_create_api_key 兼容路径（data.api_key 明文，掩码）→ 还原
+        assertMasked(jsonBody(put("/api/v1/system/admin/settings/tenant.auto_create_api_key"),
+                sysTok, "{\"value\":true}"), 200, "ct-set-autokey.json");
+        assertMasked(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"ct-gamma\",\"description\":\"gamma workspace\"}"),
+                201, "ct-create-apikey.json");
+        assertGolden(delete("/api/v1/system/admin/settings/tenant.auto_create_api_key")
+                        .header("Authorization", sysTok), 200, "ct-unset-autokey.json");
+    }
+
+    // ════════════════ 2) 跨空间守卫（flag-on 的非超管 403） ════════════════
+
+    @Test
+    void crossTenantGuardsMatchGo() throws Exception {
+        assertGolden(get("/api/v1/tenants/all").header("Authorization", viewerTok),
+                403, "ct-all-nonsuper.json");
+        assertGolden(get("/api/v1/tenants/search").header("Authorization", viewerTok),
+                403, "ct-search-nonsuper.json");
+    }
+
+    // ════════════════ 3) KV 分发器：unsupported / prompt-templates / 权限门 ═
+
+    @Test
+    void kvDispatchAndAccessMatchGo() throws Exception {
+        long alpha = createAlpha();
+        seedMember(VIEWER_ID, alpha, "viewer"); // 录制脚本 SQL 直种，避开成员 API
+
+        assertGolden(get("/api/v1/tenants/kv/bogus-key")
+                        .header("Authorization", selfTok).header("X-Tenant-ID", alpha),
+                400, "ct-kv-unsupported.json");
+        // PUT prompt-templates：Go 分发器本来就没有它 → 两侧都 400
+        assertGolden(jsonBody(put("/api/v1/tenants/kv/prompt-templates"), selfTok, "{}")
+                        .header("X-Tenant-ID", alpha),
+                400, "ct-kv-put-prompt-templates.json");
+        // GET prompt-templates：Go 200（vendor yaml），Java 推迟 → 400。
+        // 字节与 unsupported key 同形态，这里钉住推迟行为本身；Go 的 200 golden
+        // 留 A/B 列 EXPECTED DIFF（见类注释与 docs §9）。
+        MvcResult pt = mockMvc.perform(get("/api/v1/tenants/kv/prompt-templates")
+                .header("Authorization", selfTok).header("X-Tenant-ID", alpha)).andReturn();
+        assertEquals(400, pt.getResponse().getStatus(), raw(pt));
+        assertEquals(golden("ct-kv-unsupported.json"), raw(pt));
+
+        // viewer 打敏感 key → 403；retrieval-config 非敏感 → viewer 可读（零值）
+        assertGolden(get("/api/v1/tenants/kv/web-search-config")
+                        .header("Authorization", viewerTok).header("X-Tenant-ID", alpha),
+                403, "ct-kv-secret-viewer.json");
+        assertGolden(get("/api/v1/tenants/kv/retrieval-config")
+                        .header("Authorization", viewerTok).header("X-Tenant-ID", alpha),
+                200, "ct-kv-ret-get-viewer.json");
+    }
+
+    // ════════════════ 4) KV web-search-config ════════════════
+
+    @Test
+    void kvWebSearchMatchesGo() throws Exception {
+        long alpha = createAlpha();
+        assertGolden(kvGet("web-search-config", alpha), 200, "ct-kv-ws-get-default.json");
+        assertGolden(kvPut("web-search-config", alpha,
+                "{\"max_results\":5,\"include_date\":true,\"compression_method\":\"summary\","
+                        + "\"blacklist\":[\"bad.com\"],\"api_key\":\"ak-secret-123\","
+                        + "\"proxy_url\":\"http://proxy.local:8080\"}"),
+                200, "ct-kv-ws-put.json");
+        assertGolden(kvGet("web-search-config", alpha), 200, "ct-kv-ws-get-after.json");
+        assertGolden(kvPut("web-search-config", alpha,
+                "{\"max_results\":7,\"compression_method\":\"none\","
+                        + "\"api_key\":\"***\",\"proxy_url\":\"***\"}"),
+                200, "ct-kv-ws-put-preserve.json");
+        assertGolden(kvPut("web-search-config", alpha, "{\"max_results\":51}"),
+                400, "ct-kv-ws-put-bad51.json");
+    }
+
+    // ════════════════ 5) KV parser-engine-config（三条 PUT 全 SSRF 失败） ══
+
+    @Test
+    void kvParserMatchesGo() throws Exception {
+        long alpha = createAlpha();
+        assertGolden(kvGet("parser-engine-config", alpha), 200, "ct-kv-parser-get-default.json");
+        // example.com 走 DNS：fake-ip 段每次解析的末位可能不同 → IP 掩码
+        assertMasked(kvPut("parser-engine-config", alpha,
+                "{\"mineru_endpoint\":\"http://mineru.example.com\",\"mineru_api_key\":\"mk-secret\","
+                        + "\"mineru_model\":\"pipeline\"}"),
+                400, "ct-kv-parser-put.json");
+        assertGolden(kvGet("parser-engine-config", alpha), 200, "ct-kv-parser-get-after.json");
+        assertMasked(kvPut("parser-engine-config", alpha,
+                "{\"mineru_endpoint\":\"http://mineru2.example.com\",\"mineru_api_key\":\"***\"}"),
+                400, "ct-kv-parser-put-preserve.json");
+        // 字面 IP 不解析 DNS → 字节稳定
+        assertGolden(kvPut("parser-engine-config", alpha,
+                "{\"mineru_endpoint\":\"http://127.0.0.1:9000/x\"}"),
+                400, "ct-kv-parser-put-ssrf.json");
+    }
+
+    // ════════════════ 6) KV storage-engine-config ════════════════
+
+    @Test
+    void kvStorageMatchesGo() throws Exception {
+        long alpha = createAlpha();
+        assertGolden(kvGet("storage-engine-config", alpha), 200, "ct-kv-storage-get-default.json");
+        assertGolden(kvPut("storage-engine-config", alpha,
+                "{\"default_provider\":\"minio\",\"minio\":{\"mode\":\"remote\","
+                        + "\"endpoint\":\"http://minio.example.com\",\"access_key_id\":\"AK\","
+                        + "\"secret_access_key\":\"SK\",\"bucket_name\":\"b\",\"use_ssl\":false,"
+                        + "\"path_prefix\":\"p\"}}"),
+                200, "ct-kv-storage-put.json");
+        assertGolden(kvGet("storage-engine-config", alpha), 200, "ct-kv-storage-get-after.json");
+        assertGolden(kvPut("storage-engine-config", alpha,
+                "{\"default_provider\":\"minio\",\"minio\":{\"mode\":\"remote\","
+                        + "\"endpoint\":\"http://minio2.example.com\",\"access_key_id\":\"***\","
+                        + "\"secret_access_key\":\"***\",\"bucket_name\":\"b2\",\"use_ssl\":true,"
+                        + "\"path_prefix\":\"p2\"}}"),
+                200, "ct-kv-storage-put-preserve.json");
+        assertGolden(kvPut("storage-engine-config", alpha, "{\"default_provider\":\" \"}"),
+                200, "ct-kv-storage-put-empty-provider.json");
+    }
+
+    // ════════════════ 7) KV chat-history-config（enable 自动建隐藏 KB） ════
+
+    @Test
+    void kvChatHistoryMatchesGo() throws Exception {
+        long alpha = createAlpha();
+        assertGolden(kvGet("chat-history-config", alpha), 200, "ct-kv-chat-get-default.json");
+        assertGolden(kvPut("chat-history-config", alpha,
+                "{\"enabled\":false,\"embedding_model_id\":\"\"}"),
+                200, "ct-kv-chat-put-off.json");
+        // enable：自动建隐藏 KB，knowledge_base_id 是随机 uuid（掩码）；
+        // Java KnowledgeBaseService 对无后端租户容忍（backend null 直接返回）
+        assertMasked(kvPut("chat-history-config", alpha,
+                "{\"enabled\":true,\"embedding_model_id\":\"" + EMBEDDING_MODEL + "\"}"),
+                200, "ct-kv-chat-put-enable.json");
+        assertMasked(kvGet("chat-history-config", alpha), 200, "ct-kv-chat-get-after.json");
+        // 再次 enable：模型未变 → 沿用存量 KB（uuid 与上一条相同，掩码后对齐）
+        assertMasked(kvPut("chat-history-config", alpha,
+                "{\"enabled\":true,\"embedding_model_id\":\"" + EMBEDDING_MODEL + "\"}"),
+                200, "ct-kv-chat-put-again.json");
+    }
+
+    // ════════════════ 8) KV retrieval-config ════════════════
+
+    @Test
+    void kvRetrievalMatchesGo() throws Exception {
+        long alpha = createAlpha();
+        assertGolden(kvGet("retrieval-config", alpha), 200, "ct-kv-ret-get-default.json");
+        assertGolden(kvPut("retrieval-config", alpha,
+                "{\"embedding_top_k\":20,\"vector_threshold\":0.5,\"keyword_threshold\":0.4,"
+                        + "\"rerank_top_k\":5,\"rerank_threshold\":0.1,\"rerank_model_id\":\"rm-1\","
+                        + "\"rrf_k\":60,\"rrf_vector_weight\":0.7,\"rrf_keyword_weight\":0.3}"),
+                200, "ct-kv-ret-put.json");
+        assertGolden(kvGet("retrieval-config", alpha), 200, "ct-kv-ret-get-after.json");
+        assertGolden(kvPut("retrieval-config", alpha, "{\"vector_threshold\":1.5}"),
+                400, "ct-kv-ret-put-bad-vector.json");
+        assertGolden(kvPut("retrieval-config", alpha, "{\"embedding_top_k\":201}"),
+                400, "ct-kv-ret-put-bad-topk.json");
+    }
+
+    // ════════════════ 9) KV memory-config ════════════════
+
+    @Test
+    void kvMemoryMatchesGo() throws Exception {
+        long alpha = createAlpha();
+        assertGolden(kvGet("memory-config", alpha), 200, "ct-kv-mem-get-default.json");
+        assertGolden(kvPut("memory-config", alpha,
+                "{\"enabled\":true,\"write_mode\":\"auto\",\"max_items\":500,"
+                        + "\"extract_delay_seconds\":30,\"extract_min_interval_seconds\":60,"
+                        + "\"extract_instructions\":\"  记笔记  \",\"interest_threshold\":5,"
+                        + "\"embedding_model_id\":\"\",\"vector_recall\":true,"
+                        + "\"retrieval_conditioning\":false}"),
+                200, "ct-kv-mem-put.json");
+        assertGolden(kvGet("memory-config", alpha), 200, "ct-kv-mem-get-after.json");
+        assertGolden(kvPut("memory-config", alpha, "{\"write_mode\":\"bogus\"}"),
+                400, "ct-kv-mem-put-bad-mode.json");
+        assertGolden(kvPut("memory-config", alpha, "{\"max_items\":2001}"),
+                400, "ct-kv-mem-put-bad-max.json");
+        assertGolden(kvPut("memory-config", alpha, "{\"interest_threshold\":-1}"),
+                400, "ct-kv-mem-put-bad-interest.json");
+        assertGolden(kvPut("memory-config", alpha, "{\"extract_delay_seconds\":3601}"),
+                400, "ct-kv-mem-put-bad-delay.json");
+    }
+
+    // ════════════════ 辅助 ════════════════
+
+    /** ct-self 自助创建 alpha（复刻录制脚本 §1 第一枪），返回租户 id。 */
+    private long createAlpha() throws Exception {
+        MvcResult r = mockMvc.perform(jsonBody(post("/api/v1/tenants"), selfTok,
+                "{\"name\":\"ct-alpha\",\"description\":\"alpha workspace\"}")).andReturn();
+        assertEquals(201, r.getResponse().getStatus(), raw(r));
+        return extractId(raw(r));
+    }
+
+    private MockHttpServletRequestBuilder kvGet(String key, long alpha) {
+        return get("/api/v1/tenants/kv/" + key)
+                .header("Authorization", selfTok).header("X-Tenant-ID", alpha);
+    }
+
+    private MockHttpServletRequestBuilder kvPut(String key, long alpha, String body) {
+        return jsonBody(put("/api/v1/tenants/kv/" + key), selfTok, body)
+                .header("X-Tenant-ID", alpha);
+    }
+
+    private static long extractId(String body) {
+        Matcher m = DATA_ID.matcher(body);
+        assertThat(m.find()).as("创建响应应含 data.id: " + body).isTrue();
+        return Long.parseLong(m.group(1));
+    }
+
+    /** 静态 golden：状态码 + 响应体逐字节。 */
+    private void assertGolden(MockHttpServletRequestBuilder req, int status, String goldenName)
+            throws Exception {
+        MvcResult r = mockMvc.perform(req).andReturn();
+        assertEquals(status, r.getResponse().getStatus(), goldenName + " 状态码不符: " + raw(r));
+        assertEquals(golden(goldenName), raw(r), goldenName);
+    }
+
+    /** 掩码 golden：两侧同掩码后逐字节。 */
+    private void assertMasked(MockHttpServletRequestBuilder req, int status, String goldenName)
+            throws Exception {
+        MvcResult r = mockMvc.perform(req).andReturn();
+        assertEquals(status, r.getResponse().getStatus(), goldenName + " 状态码不符: " + raw(r));
+        assertEquals(mask(golden(goldenName)), mask(raw(r)), goldenName);
+    }
+
+    private String login(String email) throws Exception {
+        MvcResult r = mockMvc.perform(jsonBody(post("/api/v1/auth/login"), null,
+                "{\"email\":\"" + email + "\",\"password\":\"Passw0rd!\"}")).andReturn();
+        Matcher m = TOKEN.matcher(raw(r));
+        assertThat(m.find()).as("login 响应应含 token: " + raw(r)).isTrue();
+        return m.group(1);
+    }
+
+    private static MockHttpServletRequestBuilder jsonBody(MockHttpServletRequestBuilder builder,
+                                                          String bearer, String body) {
+        if (bearer != null) {
+            builder.header("Authorization", bearer);
+        }
+        builder.contentType("application/json");
+        if (body != null) {
+            builder.content(body);
+        }
+        return builder;
+    }
+
+    private static String raw(MvcResult result) throws Exception {
+        return new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private static String golden(String name) throws Exception {
+        return new String(new ClassPathResource("contracts/" + name).getInputStream()
+                .readAllBytes(), StandardCharsets.UTF_8).trim();
+    }
+
+    /**
+     * 两侧同掩码：api_key 明文 → UUID → 时间戳 → 数字 id → SSRF 解析 IP。
+     * api_key 先于 UUID（token 字母数字连字符形态不会误中 UUID 模式，顺序双保险）。
+     */
+    private static String mask(String s) {
+        String out = API_KEY.matcher(s).replaceAll("\"api_key\":\"<api_key>\"");
+        out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");
+        out = TS_VALUE.matcher(out).replaceAll("\"$1\":\"<ts>\"");
+        out = DATA_ID.matcher(out).replaceAll("\"id\":\"<id>\"");
+        out = SSRF_IP.matcher(out).replaceAll("resolves to restricted IP <ip>");
+        return out;
+    }
+}

@@ -28,9 +28,10 @@ echo "    AES key  = $([ -n "${SYSTEM_AES_KEY}" ] && echo "set (${#SYSTEM_AES_KE
 echo "    SSRF extra whitelist = ${SSRF_WHITELIST_EXTRA:-<none>}"
 echo "    log      = ${LOG}"
 
+# Go 二进制按 CWD 找 config/config.yaml，必须在 WeKnora 仓根目录启动。
 SERVER_PORT="${GO_PORT}" \
 LOCAL_STORAGE_BASE_DIR="${LOCAL_STORAGE_BASE_DIR}" \
-"${BIN}" > "${LOG}" 2>&1 &
+bash -c 'cd "$1" && shift && exec "$@"' _ "${WEKNORA_ROOT}" "${BIN}" > "${LOG}" 2>&1 &
 
 echo "==> waiting for readiness"
 wait_for_port "${GO_PORT}" /api/v1/knowledge-bases 40

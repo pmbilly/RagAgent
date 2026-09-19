@@ -172,6 +172,24 @@ public final class APIKeyRoutePolicies {
         a.registerGin("POST", "/api/v1/tenants/:id/api-principal-test-token",
                 APIKeyRoutePolicy.platform(
                         com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
+
+        // 跨空间租户目录 + KV 分发器（波 2 扫尾批 3，对照 Go routes_auth_tenant.go
+        // L53-76）：
+        // - all/search ＝ platform(system_tenants_read | system_tenants_manage)；
+        // - POST /tenants ＝ platform(system_tenants_manage)（Go 注释："工作区 Key
+        //   对租户目录操作 default-deny"）；
+        // - kv 两条 ＝ manage_tenant_settings 叠加 full-access（租户级配置面）。
+        APIKeyRoutePolicy catalogRead = APIKeyRoutePolicy.platform(
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_READ,
+                com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE);
+        a.registerGin("GET", "/api/v1/tenants/all", catalogRead);
+        a.registerGin("GET", "/api/v1/tenants/search", catalogRead);
+        a.registerGin("POST", "/api/v1/tenants",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
+        APIKeyRoutePolicy kv = APIKeyRoutePolicy.manageTenantSettings(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("GET", "/api/v1/tenants/kv/:key", kv);
+        a.registerGin("PUT", "/api/v1/tenants/kv/:key", kv);
     }
 
     /**

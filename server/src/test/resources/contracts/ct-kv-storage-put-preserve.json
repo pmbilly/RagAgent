@@ -1,0 +1,1 @@
+{"data":{"default_provider":"minio","minio":{"mode":"remote","endpoint":"http://minio2.example.com","access_key_id":"***","secret_access_key":"***","bucket_name":"b2","use_ssl":true,"path_prefix":"p2"}},"message":"存储引擎配置已更新","success":true}
