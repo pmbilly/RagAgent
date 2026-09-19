@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":null,"message":"Agent is not fully configured. Please set the chat model, and set the rerank model if the knowledge_search tool is enabled in agent settings."},"success":false}

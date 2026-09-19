@@ -86,9 +86,15 @@ public final class TestSchema {
                 "indexing_strategy VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // custom_agents：波 3 协作面批次扩列（Go types.CustomAgent 全列）——
+        // 共享智能体响应要序列化 description/avatar/is_builtin/created_by/时间戳。
         jdbc.execute("CREATE TABLE IF NOT EXISTS custom_agents (" +
-                "id VARCHAR(36) PRIMARY KEY, name VARCHAR NOT NULL, tenant_id BIGINT NOT NULL," +
-                "config VARCHAR, deleted_at TIMESTAMP WITH TIME ZONE)");
+                "id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT," +
+                "avatar VARCHAR(64) DEFAULT '', is_builtin BOOLEAN NOT NULL DEFAULT FALSE," +
+                "tenant_id BIGINT NOT NULL, created_by VARCHAR(36) DEFAULT ''," +
+                "config VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
         // ── 阶段 3：知识库 ──
         jdbc.execute("CREATE TABLE IF NOT EXISTS storage_backends (" +
                 "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL, name VARCHAR NOT NULL," +
@@ -852,6 +858,53 @@ public final class TestSchema {
                 "\"value\" VARCHAR," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        // ── 波 3 协作面批次：organizations + shares（迁移 000012 / 000045 / 000046 逐列对照）──
+        jdbc.execute("CREATE TABLE IF NOT EXISTS organizations (" +
+                "id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT," +
+                "avatar VARCHAR(512) DEFAULT '', owner_id VARCHAR(36) NOT NULL," +
+                "owner_tenant_id BIGINT," +
+                "invite_code VARCHAR(32), invite_code_expires_at TIMESTAMP WITH TIME ZONE," +
+                "invite_code_validity_days SMALLINT NOT NULL DEFAULT 7," +
+                "require_approval BOOLEAN NOT NULL DEFAULT FALSE," +
+                "searchable BOOLEAN NOT NULL DEFAULT FALSE," +
+                "member_limit INTEGER NOT NULL DEFAULT 50," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS organization_tenant_members (" +
+                "id VARCHAR(36) PRIMARY KEY, organization_id VARCHAR(36) NOT NULL," +
+                "tenant_id BIGINT NOT NULL, role VARCHAR(32) NOT NULL DEFAULT 'viewer'," +
+                "representative_user_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "joined_at TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS organization_join_requests (" +
+                "id VARCHAR(36) PRIMARY KEY, organization_id VARCHAR(36) NOT NULL," +
+                "user_id VARCHAR(36) NOT NULL, tenant_id BIGINT NOT NULL," +
+                "request_type VARCHAR(32) NOT NULL DEFAULT 'join', prev_role VARCHAR(32)," +
+                "requested_role VARCHAR(32) NOT NULL DEFAULT 'viewer'," +
+                "status VARCHAR(32) NOT NULL DEFAULT 'pending', message TEXT," +
+                "reviewed_by VARCHAR(36), reviewed_at TIMESTAMP WITH TIME ZONE, review_message TEXT," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS kb_shares (" +
+                "id VARCHAR(36) PRIMARY KEY, knowledge_base_id VARCHAR(36) NOT NULL," +
+                "organization_id VARCHAR(36) NOT NULL, shared_by_user_id VARCHAR(36) NOT NULL," +
+                "source_tenant_id BIGINT NOT NULL, permission VARCHAR(32) NOT NULL DEFAULT 'viewer'," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS agent_shares (" +
+                "id VARCHAR(36) PRIMARY KEY, agent_id VARCHAR(36) NOT NULL," +
+                "organization_id VARCHAR(36) NOT NULL, shared_by_user_id VARCHAR(36) NOT NULL," +
+                "source_tenant_id BIGINT NOT NULL, permission VARCHAR(32) NOT NULL DEFAULT 'viewer'," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_disabled_shared_agents (" +
+                "tenant_id BIGINT NOT NULL, agent_id VARCHAR(36) NOT NULL, source_tenant_id BIGINT NOT NULL," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "PRIMARY KEY (tenant_id, agent_id, source_tenant_id))");
     }
 
     /**
@@ -929,5 +982,12 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM tenant_user_env_vars");
         // 波 3 子批 3
         jdbc.execute("DELETE FROM tenant_skill_catalog");
+        // 波 3 协作面批次
+        jdbc.execute("DELETE FROM kb_shares");
+        jdbc.execute("DELETE FROM agent_shares");
+        jdbc.execute("DELETE FROM organization_join_requests");
+        jdbc.execute("DELETE FROM organization_tenant_members");
+        jdbc.execute("DELETE FROM tenant_disabled_shared_agents");
+        jdbc.execute("DELETE FROM organizations");
     }
 }

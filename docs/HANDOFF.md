@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-20 · **3392 测试全绿** · golden 1018 个（994+24）
-> **端点覆盖：Go 412 条 → Java 已注册约 295 条（约 72%）——波 3 进行中（sandbox + skill 模块用户面收官）**
+> 最后更新：2026-09-20 · **3394 测试全绿** · golden 1135 个（1018+117）
+> **端点覆盖：Go 412 条 → Java 已注册约 330 条（约 80%）——波 3 进行中（sandbox + skill 用户面 + 协作面收官）**
 
 ## 0. 一句话背景
 
@@ -64,6 +64,7 @@
 | **波 3 sandbox 子批 2** | **/system/sandbox-check 转正 + templates/query provider 面** | ✅ | 8 golden + A/B 8 场景两轮 ALL MATCH（3361 绿，首轮即全对）；sandboxCheckReason 固定中文分类是字节稳定锚、plain-500 无 details 键（controller-local handler，FAQ 同款）、RemoteError 分类器落地（见 conventions §9「波 3 sandbox 子批 2」） |
 | **波 3 sandbox 子批 3** | **/sandbox-configs/:id/skills* 12 条（sandbox HTTP 面收官）** | ✅ | 18 golden + A/B 18 场景两轮 ALL MATCH（3390 绿）；upload=202 异步受理、SSE 单帧、envs 列逐字段 AES、类级 NON_DEFAULT 吞 false 的坑（见 conventions §9「波 3 sandbox 子批 3」） |
 | **波 3 sandbox 子批 4** | **/skills 家族 7 条 + /me/env-vars 5 条（skill 模块用户面收官）** | ✅ | 24 golden + A/B 24 场景两轮 ALL MATCH（3392 绿）；catalog 三段合并投影、install=202 installs 映射、删除钉住 409 1005、DELETE 吃 JSON body、bundle_sha256 掩码（见 conventions §9「波 3 sandbox 子批 4」） |
+| **波 3 协作批** | **organizations 25 条 + KB/agent shares 7 条 + shared-* 3 条（协作面收官）** | ✅ | 117 golden（org-*/shr-*）+ A/B 两轮 116 场景 ALL MATCH（3394 绿）；com.ragagent.org 新包 20 文件；golden 纠正六处预实现（require_approval 不存在/shares 回填不对称/permission 恒 viewer/Go 文案错配真录 500/共享 KB raw 读无 EnsureDefaults）；**上报 emoji 转义跨横切缺陷待专项**（见 conventions §9「波 3 协作面」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -72,7 +73,7 @@
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
-| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ **子批 1-4 完成（sandbox + skill 模块用户面，33 条）**。infrastructure 实为四支撑库：chunker 已完、docparser 默认路径阶段 3 已接（mineru/paddle 转换器+image_resolver 为多引擎残余）、web_fetch/web_search 是降级面——HTTP 可见残余并入波 4/5。下一批：organizations 8 条 + shares 协作面（对账确认的自包含 CRUD）；/me/browser 随 browserskill |
+| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ **子批 1-4 + 协作批完成（sandbox/skill/协作面，68 条）**。infrastructure 四支撑库的 HTTP 可见残余并入波 4/5（docparser 多引擎转换器、web_fetch/web_search 客户端）。**【待办专项】emoji 转义修复**（GoJsonEscapes 代理对 vs Go raw UTF-8）。下一批：agents CRUD 家族 12 条（custom_agent.go 715 行，shares 已就位）+ initialization 残余 3 条；/me/browser 随 browserskill |
 | 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
 

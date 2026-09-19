@@ -477,6 +477,54 @@ public class WebConfig implements WebMvcConfigurer {
         // （Go 注释原文：这些是调用者自己的值，service 从上下文而非请求推导主体）——
         // 不登记 rbac 规则；拦截器 pattern 也不覆盖 /me/**（与 /me/invitations 同款）。
 
+        // ── 波 3 协作面批次（对照 routes_agent.go RegisterOrganizationRoutes L95-216）──
+        // organizations 组 Viewer/Admin 混合：create/join*/invite*/member 写/request 复审
+        // 与 role 升级全是 Admin+（Go 注释：改整个空间的组织角色不能由 Viewer/Contributor
+        // 发起）；list/get/search/preview/members/shares 读端 Viewer+。
+        // 静态段（preview/join/join-request/search/join-by-id）先于 /organizations/* 通配
+        // 登记（AntPathMatcher 取首个命中）。
+        rbac.addRule("POST", "/api/v1/organizations", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/organizations/preview/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/organizations/join", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/organizations/join-request", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations/search", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/organizations/join-by-id", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/organizations/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/organizations/*", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/organizations/*/leave", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/organizations/*/request-upgrade", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/organizations/*/invite-code", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/search-tenants", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/search-users", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/organizations/*/invite", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/members", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/organizations/*/members/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/organizations/*/members/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/join-requests", TenantRole.ADMIN, false);
+        rbac.addRule("PUT", "/api/v1/organizations/*/join-requests/*/review", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/shares", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/agent-shares", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/shared-knowledge-bases", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/organizations/*/shared-agents", TenantRole.VIEWER, false);
+        // KB shares：POST/PUT/DELETE 是 OwnedKBOrAdmin（**无角色门**——Viewer 创建的 KB
+        // 其本人可分享），GET 纯读 Viewer+；所有权判定在控制器内（先例同 FAQ）。
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/shares", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/shares", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/shares/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/knowledge-bases/*/shares/*", TenantRole.VIEWER, false);
+        // agent shares 三条：全部 OwnedAgentOrAdmin（GET 也是——Go 注释：JWT 侧 owner
+        // 校验），无角色门 → VIEWER 下限；判定在控制器内。
+        rbac.addRule("POST", "/api/v1/agents/*/shares", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/agents/*/shares", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/agents/*/shares/*", TenantRole.VIEWER, false);
+        // shared-* 三条：读 Viewer+；"disable by me" 是空间级偏好（写
+        // tenant_disabled_shared_agents 影响整个空间的会话下拉）→ Admin+。
+        rbac.addRule("GET", "/api/v1/shared-knowledge-bases", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/shared-agents", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/shared-agents/disabled", TenantRole.ADMIN, false);
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
@@ -487,7 +535,9 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/vector-stores/**", "/api/v1/storage-backends/**",
                 "/api/v1/evaluation/**",
                 "/api/v1/user/favorites/**", "/api/v1/chunker/**",
-                "/api/v1/sandbox-configs/**", "/api/v1/skills/**");
+                "/api/v1/sandbox-configs/**", "/api/v1/skills/**",
+                "/api/v1/organizations/**", "/api/v1/agents/**",
+                "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**");
     }
 
     /**
@@ -502,7 +552,7 @@ public class WebConfig implements WebMvcConfigurer {
             com.ragagent.apikey.service.TenantAPIKeyService apiKeyService) {
         var holder = new com.ragagent.system.service.DeploymentCapabilitiesHolder();
         holder.bind(
-                /* organizations */ false,
+                /* organizations */ true,
                 /* agents */ false,
                 /* im */ false,
                 /* embed */ false,
