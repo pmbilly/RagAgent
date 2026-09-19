@@ -105,6 +105,8 @@ tasks.withType<Test> {
     //
     // 波 2 终扫批（3273 条 + 契约文件过千）后 2g 再次随机 OOM（仍表现为
     // 「Gradle Test Executor N failed to execute tests」，OOM 点在 Spring 资源扫描）：
-    // 提到 3g。
-    maxHeapSize = "3g"
+    // 提到 3g。波 3 sandbox 子批 1（+13 个 MockMvc 测试、+2 个上下文变体）后 3g
+    // 又在 GC 死亡螺旋后 OOM（全量耗时 6.7min→13.4min 即螺旋特征）：提到 4g。
+    // 治本方向是收敛 @SpringBootTest 上下文变体数量（每变体整份上下文驻留堆）。
+    maxHeapSize = "4g"
 }

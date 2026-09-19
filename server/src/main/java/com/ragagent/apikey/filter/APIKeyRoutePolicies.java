@@ -59,6 +59,7 @@ public final class APIKeyRoutePolicies {
         registerTenantMemberRoutes(authorizer);
         registerSystemRoutes(authorizer);
         registerEvaluationRoutes(authorizer);
+        registerSandboxConfigRoutes(authorizer);
     }
 
     /**
@@ -546,6 +547,24 @@ public final class APIKeyRoutePolicies {
         // for API keys (default-deny)"，未声明的路由走默认拒绝。
         a.registerGin("POST", "/api/v1/chunker/preview",
                 APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.ingest(APIKeyRoutePolicy.fullAccess())));
+    }
+
+    /**
+     * 沙箱配置（对照 Go router/routes_infra.go L49-74 RegisterSandboxConfigRoutes）：
+     * 整组 {@code apiKeyGroup(..., apiKeyFullAccess())}——Go 注释原文：这些是持有
+     * provider 凭据的工作区基础设施，scoped key 不能安全地获得部分权限（变更可能
+     * 遗弃远端沙箱），所以只有 full-access key 能进，子批 2 的 skills 子资源同组同档。
+     */
+    private static void registerSandboxConfigRoutes(APIKeyRouteAuthorizer a) {
+        APIKeyRoutePolicy sandboxConfigs = APIKeyRoutePolicy.fullAccess();
+        a.registerGin("GET", "/api/v1/sandbox-configs", sandboxConfigs);
+        a.registerGin("PUT", "/api/v1/sandbox-configs/workspace-policy", sandboxConfigs);
+        a.registerGin("POST", "/api/v1/sandbox-configs/templates/query", sandboxConfigs);
+        a.registerGin("POST", "/api/v1/sandbox-configs", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id", sandboxConfigs);
+        a.registerGin("PUT", "/api/v1/sandbox-configs/:id", sandboxConfigs);
+        a.registerGin("DELETE", "/api/v1/sandbox-configs/:id", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/sandboxes", sandboxConfigs);
     }
 
     /**

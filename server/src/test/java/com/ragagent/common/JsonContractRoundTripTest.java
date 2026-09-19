@@ -1401,6 +1401,108 @@ class JsonContractRoundTripTest {
                 "types.RetrievalConfig ← RetrievalConfig");
     }
 
+    // ── 波 3 sandbox 子批 1（config jsonb 列 + 响应体双用族） ────────────────
+
+    @Test
+    void tenantSandboxConfigRoundTrips() {
+        // TenantSandboxConfig 是 tenant_sandbox_configs.config 的 jsonb 载荷 + 响应体。
+        // 三类风险各钉一条：
+        //  1. 全部字段 omitempty（字符串空/0/false/null 全省略）——零值形态往返幂等；
+        //  2. skill_image.built_at 是 Go time.Time（struct）：omitempty 无效 → 恒输出，
+        //     零值输出 year-1 字面量（字段默认值持 GO_ZERO + 成对序列化器）；
+        //  3. env_vars 是 map → GoMapSerializer 键字母序（往返仍须幂等）。
+        var cfg = new com.ragagent.sandbox.domain.TenantSandboxConfig();
+        cfg.setSandboxType("cube");
+        cfg.setDefaultTimeoutSec(120);
+        cfg.setTerminalIdleDisconnectSec(900);
+        cfg.setAllowPrivateEndpoints(true);
+        cfg.setEnvVars(new java.util.LinkedHashMap<>(java.util.Map.of("TOKEN", "t")));
+        var cube = new com.ragagent.sandbox.domain.CubeSandboxConfig();
+        cube.setApiUrl("http://127.0.0.1:33000");
+        cube.setProxyUrl("http://127.0.0.1:80");
+        cube.setSandboxDomain("cube.app");
+        cube.setApiKey("sk-live");
+        cube.setTemplateId("tpl-1");
+        cube.setHttpTimeoutSec(45);
+        cube.setCubeSandboxTtlSeconds(1800);
+        cube.setDnsServers(java.util.List.of("127.0.0.1", "8.8.8.8"));
+        cfg.setCube(cube);
+        cfg.setVolumeMount(new com.ragagent.sandbox.domain.VolumeMountConfig());
+        var image = new com.ragagent.sandbox.domain.SkillImageConfig();
+        image.setSnapshotId("snap-1");
+        image.setGeneration(2);
+        image.setBuiltAt(java.time.OffsetDateTime.parse("2026-09-19T08:00:00.5+08:00"));
+        image.setBaseTemplateId("tpl-1");
+        image.setOwnerFingerprint("f".repeat(64));
+        cfg.setSkillImage(image);
+        cfg.setSkillRollout("new_session");
+        assertRoundTrips(cfg, com.ragagent.sandbox.domain.TenantSandboxConfig.class,
+                "types.TenantSandboxConfig ← TenantSandboxConfig（全字段 + 内嵌快照）");
+
+        // 全空：省略一切（除 built_at 恒输出 year-1）
+        assertRoundTrips(new com.ragagent.sandbox.domain.TenantSandboxConfig(),
+                com.ragagent.sandbox.domain.TenantSandboxConfig.class,
+                "types.TenantSandboxConfig ← TenantSandboxConfig（全空，built_at 恒输出）");
+    }
+
+    @Test
+    void sandboxNetworkPolicyRoundTrips() {
+        // SandboxNetworkPolicy + CubeEgressRule/CubeHeaderInject/E2BHostRule：
+        // name/header/secret/host 无 omitempty（恒输出），其余省略；
+        // e2b headers map 挂 GoMapSerializer。
+        var policy = new com.ragagent.sandbox.domain.SandboxNetworkPolicy();
+        policy.setDenyEgressByDefault(true);
+        policy.setAllowOut(java.util.List.of("*.example.com", "10.0.0.0/8"));
+        policy.setDenyOut(java.util.List.of("0.0.0.0/0"));
+
+        var inject = new com.ragagent.sandbox.domain.SandboxNetworkPolicy.CubeHeaderInject();
+        inject.setHeader("X-Token");
+        inject.setSecret("s3cr3t");
+        inject.setFormat("${SECRET}");
+        var rule = new com.ragagent.sandbox.domain.SandboxNetworkPolicy.CubeEgressRule();
+        rule.setName("vendor-api");
+        rule.setScheme("https");
+        rule.setSni("api.example.com");
+        rule.setHost("api.example.com");
+        rule.setMethods(java.util.List.of("GET", "POST"));
+        rule.setPath("/v1/");
+        rule.setDeny(false);
+        rule.setAudit("metadata");
+        rule.setInject(java.util.List.of(inject));
+        policy.setCubeRules(java.util.List.of(rule));
+
+        var hostRule = new com.ragagent.sandbox.domain.SandboxNetworkPolicy.E2BHostRule();
+        hostRule.setHost("api.example.com");
+        hostRule.setHeaders(new java.util.LinkedHashMap<>(java.util.Map.of("Authorization", "Bearer x")));
+        policy.setE2bHostRules(java.util.List.of(hostRule));
+        assertRoundTrips(policy, com.ragagent.sandbox.domain.SandboxNetworkPolicy.class,
+                "types.SandboxNetworkPolicy ← SandboxNetworkPolicy（全规则形态）");
+
+        // 零值：四个键全省略
+        assertRoundTrips(new com.ragagent.sandbox.domain.SandboxNetworkPolicy(),
+                com.ragagent.sandbox.domain.SandboxNetworkPolicy.class,
+                "types.SandboxNetworkPolicy ← SandboxNetworkPolicy（零值）");
+
+        // 后端专属块（e2b/docker/volume_mount）各钉一条
+        var e2b = new com.ragagent.sandbox.domain.E2BSandboxConfig();
+        e2b.setApiUrl("https://api.e2b.app");
+        e2b.setApiKey("k");
+        e2b.setTemplateId("t");
+        e2b.setE2bSandboxTtlSeconds(300);
+        assertRoundTrips(e2b, com.ragagent.sandbox.domain.E2BSandboxConfig.class,
+                "types.E2BSandboxConfig ← E2BSandboxConfig");
+        var docker = new com.ragagent.sandbox.domain.DockerSandboxConfig();
+        docker.setImage("wechatopenai/weknora-sandbox:main");
+        docker.setHost("unix:///var/run/docker.sock");
+        docker.setCpuLimit(2);
+        docker.setMemoryLimitMb(2048);
+        assertRoundTrips(docker, com.ragagent.sandbox.domain.DockerSandboxConfig.class,
+                "types.DockerSandboxConfig ← DockerSandboxConfig");
+        assertRoundTrips(new com.ragagent.sandbox.domain.VolumeMountConfig(),
+                com.ragagent.sandbox.domain.VolumeMountConfig.class,
+                "types.VolumeMountConfig ← VolumeMountConfig（enabled 恒输出）");
+    }
+
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
 
     /**

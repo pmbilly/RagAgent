@@ -268,6 +268,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | auth OIDC（波 2 扫尾批 2） | internal/handler/auth.go 的 GetOIDCAuthorizationURL/OIDCStart/GetOIDCConfig/OIDCRedirectCallback（L311-505，含 setOIDCNonceCookie/oidcCallbackURL/decodeOIDCState/urlQueryEscape）；internal/utils/oidc_state.go（全文）；internal/application/service/user.go 的 GetOIDCAuthorizationURL(L435)/LoginWithOIDC 门控段(L484-500)/getOIDCConfig(L1518)/populateOIDCEndpoints(L1542)/validateOIDCEndpoints(L1488)；internal/config/config.go 的 OIDCAuthConfig+env 覆盖+缺省段（L305-323/L690-748）；internal/types/user.go 的 OIDC*Response（L149-181） | com.ragagent.auth.{service.{OidcConfig,OidcStateCodec,OidcService}（新）,controller.AuthController（+4 端点+302/cookie/escaper 辅助）,dto.{OidcConfigResponse,OidcAuthUrlResponse}} | ✅ | 4 端点全落地（未配置=disabled 分支全覆盖）；**13 个 oidc-* golden 全是 Go 实录**（302 端点用合成信封 JSON：body/location/set_cookie/status）+ 5 条契约测试 + 往返 4 条 + **真 PG 上 13 组 A/B 两轮全 MATCH**（字节比对，无掩码项）。**翻译边界**：enabled 后的 discovery 抓取与 code 交换/userinfo/provisioning 整体推迟（dev 两侧恒 disabled 不可达），抛自造 OidcException；config.yaml 的 oidc_auth 段无 Java 加载器，仅实现 env+缺省两层（dev 等价）。关键坑见 §9「波 2 扫尾批 2」 |
 | 跨空间租户目录 + KV 配置（波 2 扫尾批 3） | internal/handler/tenant.go 的 ListAllTenants(L1192)/SearchTenants(L1218)/CreateTenant(L226-513)/GetTenantKV+UpdateTenantKV(L1304-1395)/六个 KV 子 handler(L1398-1901)/validateParserEngineOutboundURLs(L1904)；internal/application/service/tenant.go 的 CreateTenant/createDefaultStorageBackend/SearchTenants；router/routes_auth_tenant.go L53-81；internal/types/tenant.go 的 WebSearchConfig/ParserEngineConfig/StorageEngineConfig/ChatHistoryConfig/RetrievalConfig + PreserveIfRedacted 族 | com.ragagent.auth.{domain.tenantconfig（5 类型+TenantConfigRedaction，新）,controller.TenantCatalogController（新，5 端点）,domain.Tenant 注解,service.{TenantService+listAll/search/validateStorageBucketUniqueness,TenantMemberService+ensureOwner}} + config.{TenantProperties 第 4 组件 maxOwnedPerUser,WebConfig +crossTenant 规则×2+kv 角色下限} + common.web.RbacInterceptor（crossTenant 分支 + PathTenantMatch 门控修正）+ apikey.APIKeyRoutePolicies +5 条 + system.SystemSettingRegistry +3 键 | ✅ | 5 端点全落地；**65 个 ct-* golden 全是 Go 实录**（63 flag-on + 2 flag-off，含 settings 切换链）+ 11 条契约测试（含 flag-off 小类）+ 往返 5 条 + **真 PG A/B 62 MATCH + 1 EXPECTED-DIFF**（prompt-templates GET 为 Go 独有 vendor yaml，Java 推迟 → 400，ab-ct.sh 清单列明）。**golden 抓回**：Tenant.StorageUsed 零值 0（Java 实体 Long 默认 null）；**录制脚本坑**：布尔设置 PUT 必须 JSON bool。掩码族：uuid/时间戳/数字 id/api_key 明文/SSRF 解析 IP。关键坑见 §9「波 2 扫尾批 3」 |
 | 用户收藏 + chunker 预览（波 2 终扫批，**波 2 全部收官**） | internal/handler/{user_resource_favorite.go,chunker_debug.go}；internal/application/{repository,service}/user_resource_favorite.go；internal/types/user_resource_favorite.go + interfaces 同名；internal/router/{routes_agent.go RegisterUserFavoriteRoutes（3 条，**HANDOFF 旧写 4 条是笔误**）,routes_knowledge.go RegisterChunkerDebugRoutes（1 条）} | com.ragagent.favorite.{domain.UserResourceFavorite,mapper.UserResourceFavoriteMapper（复合主键→纯 SQL）,service.UserResourceFavoriteService,controller.UserFavoriteController} + knowledge.controller.ChunkerDebugController + knowledge.chunker 诊断层（TierRejection/Diagnostics/SplitResult/splitWithDiagnostics/splitParentChildWithDiagnostics + ParentChildSplit 内部重构） + WebConfig（rbac×4 + 拦截器路径 +2） + APIKeyRoutePolicies（+1） + TestSchema.user_resource_favorites | ✅ | 3+1 端点全落地；**32 条新 golden 全是 Go 实录**（fav-* ×20 + cprev-* ×12，cprev 全确定零掩码）+ 7 条契约测试 + **真 PG A/B 32 场景两轮 ALL MATCH（首轮即全对，唯一掩码项 created_at；3298 全量绿）**。**golden 钉死**：GORM Find 空结果 `"data":[]` 非 null、空 strategy=legacy 非 auto、rejected nil→null、preview 错误体是裸 gin.H 非信封。关键坑见 §9「波 2 终扫批」 |
+| sandbox 配置 CRUD 面（波 3 子批 1，**波 3 开工**） | internal/handler/sandbox_config.go（8 端点）；internal/application/service/tenant_sandbox_config.go 的 CRUD 子集（Sanitize/Create/List/Get/Update/Delete/workspace-policy/inventory 前置）；internal/application/repository/tenant_sandbox_config.go（全文）；internal/types/{tenant.go L613-955 的 TenantSandboxConfig 族,tenant_sandbox_config_entity.go,config_redaction.go L271-398,sandbox_network_policy.go}；internal/sandbox/{sandbox.go,docker_enabled.go,config_required.go,url_guard.go,tenant_config.go 的类型与校验层} | com.ragagent.sandbox.{domain（TenantSandboxConfig 家族+SandboxNetworkPolicy+SandboxConfigRedaction+TenantSandboxConfigEntity+TypeHandler 字段级 AES）,runtime（SandboxTypes/BackendPolicy/CubeDns/OutboundUrlGuard/SandboxConfigRequirements/EffectiveConfigResolver/SandboxIdentity/ConfigSandboxClient 接缝；第五包名）,mapper（配置+tenant_skills 只读投影）,service（TenantSandboxConfigService+SandboxClientFactory 接缝+Skills 只读店+错误类型族）,controller.SandboxConfigController} + WebConfig rbac×8 + APIKeyRoutePolicies fullAccess×8 + TestSchema.{tenant_sandbox_configs,tenant_skills} | ✅ | 8 端点全落地；**27 条 sbx-* golden 全是 Go 实录**（uuid/ts 掩码；api_key/env_vars 两侧投影恒 "***"）+ 5 条契约测试 + 86 条域/服务/冒烟测试 + **真 PG A/B 27 场景两轮 ALL MATCH（首轮即全对；3358 全量绿）**。**golden 钉死**：URL 守卫先于必填校验（cube-incomplete 落私网拒绝分支）、三种 unsupported-type 文案（named-configs/template-catalog 变体）、409 固定文案 inventory_unverifiable、Inventory 恒 200 {sandbox_count,unverifiable}、docker 恒禁用（env 未设）。关键坑见 §9「波 3 sandbox 子批 1」 |
 
 ## 9. 当前确认过的细节
 
@@ -1553,3 +1554,52 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - 本批是**零缺陷批**：A/B 首轮 ALL MATCH，没有抓回任何 H2 绿/PG 红问题——
     小模块+纯 SQL+既有基础设施（GoJsonBindError/GoTimeSerializer/GoDoubleSerializer）
     全复用时的预期形态。
+- **波 3 sandbox 子批 1（配置 CRUD 面）补充**：
+  - **依赖真相（本批立项依据）**：sandbox 包 14.7k 行里，配置 CRUD 的 HTTP 面完全不依赖
+    provider 可用性——Create 纯校验+落库；Update 的旧凭据盘点失败 → WARN 后**继续保存**
+    （Go 注释原文：堵保存会把管理员困在正要修的 key 上）；Delete 盘点失败 →
+    `!force` 409 `sandbox_inventory_unverifiable` / `force` 继续删。错误文案全是
+    固定串，dev 无 provider 两侧同形。**provider 执行面（templates/skills/exec）才需要
+    真客户端**——接缝 `SandboxClientFactory`/`ConfigSandboxClient#list` 本批以
+    Unwired 占位，子批 2 换真实现。
+  - **URL 守卫先于必填校验**（Sanitize 链实测顺序）：endpoint 的
+    ValidateOutboundURLWithPolicy 在 ResolveEffectiveConfig（必填）**之前**——
+    golden sbx-cube-incomplete 落在 "address 127.0.0.1 is private" 而非 missing-fields。
+    录 golden 前先实测分支顺序，别按源码阅读顺序想当然。
+  - **三种 unsupported-type 文案并存**：named 配置保存路径
+    "named sandbox configs only support cube, e2b and docker backends"；
+    templates/query 路径 "sandbox template catalog only supports …"；ParseSandboxType
+    底层还有 `sandbox: unsupported sandbox type "xxx"`（带引号值）。同语义不同层不同
+    文案，golden 各钉各的。
+  - **特殊拒绝体是"信封形但字符串 code"**：409/423 的
+    `{"error":{"code":"sandbox_inventory_unverifiable",…}}` code 是**字符串**且
+    **无 details 键**——与 AppError 信封的数字 code+恒输出 details 两处都不同，
+    controller 里用裸 LinkedHashMap 直写，不走 GlobalExceptionHandler。
+  - **Inventory 的 provider 失败形态是 200 不是 500**：
+    `{"data":{"sandbox_count":0,"unverifiable":true},"success":true}`（Go 的
+    SandboxInventory 把不可核实编码进响应体而非错误）。
+  - **config 列的字段级 AES**（与模型凭证 whole-payload 加密不同）：Go 在 Value()
+    钩子里对 Cube/E2B 的 APIKey、EnvVars 值、Network secret **逐字段**加密后混入
+    jsonb；Scan 侧 DecryptStoredSecretLenient 失败→置空（不抛）。Java 在
+    TypeHandler 里做同样的事；enc:v1: 前缀与阶段 2 互操作同族。
+  - **api_key/env_vars 的响应掩码与存储加密无关**：SandboxConfigForResponse 恒把
+    非空密文掩成 "***"（未配置留空串），MergeSandboxConfigForUpdate 用
+    PreserveIfRedacted（与 ct 批 tenantconfig 同族）把 "***" 回填成存量值。
+    契约测试/契约断言只依赖掩码形态，H2 无 AES key 也能全链路（服务层的
+    「拒绝明文落密钥」检查用固定 key 替身放行，真加密路径由 A/B 真 server 覆盖）。
+  - **docker 后端开关是三层解析**（DB system_settings > env WEKNORA_SANDBOX_DOCKER_ENABLED
+    > false），Java 侧 SandboxBackendPolicy.setDockerBackendEnabled 是 system_settings
+    的推送口，本批只有 env+false 两层（dev 等价）；**将来接 SystemSettingRegistry 时
+    记得把 sandbox.docker_enabled 推进来**。
+  - **时区形态在同一 Go 进程内都不稳定**：sbx-create 响应的 created_at 是
+    `…Z`（GORM 内存对象）、sbx-list 读回是 `…+08:00`（PG 驱动回读）——**同一行
+    同一轮录制两种形态**。时间戳掩码从「跨轮稳定」升级为「必需」，任何新 golden
+    都别赌 Go 侧时区形态。
+  - **墙钟脆弱测试第三变种**（§5 陷阱 9 续）：RedisStreamManagerTest 的 TTL 续期
+    用例（5s TTL + sleep(2s) + 秒级精度前后对比）在全量慢跑下两种假红——键过期
+    （读数 -2）与 renew 前后同秒（after==before）。修法：毫秒精度（PTTL）读数 +
+    管理器 TTL 拉到 2min，把续期可见性与机器速度解耦。
+  - **全量时长 6.7min→14.5min**：sandbox 批 +2~3 个 @SpringBootTest 上下文变体后
+    （每变体整份上下文驻留堆），3g 堆开始 OOM（GC 死亡螺旋特征：全量耗时翻倍），
+    提到 4g 恢复稳定。治本方向是收敛上下文变体数量（TestConfiguration/不同
+    @MockBean 组合各算一个变体），堆只买时间。

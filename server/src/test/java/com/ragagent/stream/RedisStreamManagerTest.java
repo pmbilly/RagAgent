@@ -74,13 +74,18 @@ class RedisStreamManagerTest {
      *
      * <p>用「前后对比」而不是「大于某个绝对值」：TTL 按毫秒存、按秒**向下取整**读，
      * 刚写进去 5s 也可能读到 4（实现无误，断言太紧会假红——这里已经踩过一次）。</p>
+     *
+     * <p>⚠️ 读数用毫秒精度（PTTL），且调用方用**长 TTL**（≥2min）建 manager：
+     * 全量慢跑时秒级取整可能让 renew 前后落在同一秒（after==before 假红）、
+     * 短 TTL 键可能撑不到断言就过期（读数 -2 假红）——波 3 sandbox 批验收时
+     * 两种形态都实测到了（§5 陷阱 9 的第三变种）。</p>
      */
     private void assertRefreshesLiveRunTtl(String liveRunKey, Runnable action) {
-        Long before = ttlSeconds(liveRunKey);
+        Long before = template.getExpire(liveRunKey, TimeUnit.MILLISECONDS);
         action.run();
-        Long after = ttlSeconds(liveRunKey);
+        Long after = template.getExpire(liveRunKey, TimeUnit.MILLISECONDS);
         assertTrue(after > before,
-                "live-run 的 TTL 必须被推回去（前 " + before + "s → 后 " + after + "s）");
+                "live-run 的 TTL 必须被推回去（前 " + before + "ms → 后 " + after + "ms）");
     }
 
     // ── 键布局 ──────────────────────────────────────────────────────────────
@@ -172,7 +177,8 @@ class RedisStreamManagerTest {
 
     @Test
     void appendEventRefreshesTheLiveRunTtl() {
-        RedisStreamManager m = manager(Duration.ofSeconds(5));
+        // 2min TTL：全量慢跑下键必须撑到断言（5s 时实测过期 → -2 假红）
+        RedisStreamManager m = manager(Duration.ofMinutes(2));
         m.setLiveRun("sess-1", "assist-1", "req-1");
         sleep(2000);
 
@@ -183,7 +189,7 @@ class RedisStreamManagerTest {
 
     @Test
     void getEventsRefreshesTheLiveRunTtlWhileWaiting() {
-        RedisStreamManager m = manager(Duration.ofSeconds(5));
+        RedisStreamManager m = manager(Duration.ofMinutes(2));
         m.setLiveRun("sess-1", "assist-1", "req-1");
         sleep(2000);
 
@@ -194,7 +200,7 @@ class RedisStreamManagerTest {
 
     @Test
     void appendSteerEventsRefreshesTheLiveRunTtl() {
-        RedisStreamManager m = manager(Duration.ofSeconds(5));
+        RedisStreamManager m = manager(Duration.ofMinutes(2));
         m.setLiveRun("sess-1", "assist-1", "req-1");
         sleep(2000);
 

@@ -774,6 +774,40 @@ public final class TestSchema {
                 "resource_id VARCHAR(64) NOT NULL," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "PRIMARY KEY (user_id, tenant_id, resource_type, resource_id))");
+        // 波 3 子批 1：租户沙箱配置（迁移 000082）。
+        // config 列 jsonb NOT NULL（H2 用 VARCHAR 承载，内含字段级 AES-GCM 密文）；
+        // (tenant_id,name) 部分唯一索引在 H2 用普通唯一索引近似（软删行由测试场景规避）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_sandbox_configs (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "name VARCHAR(255) NOT NULL," +
+                "description VARCHAR," +
+                "sandbox_type VARCHAR(32) NOT NULL," +
+                "config VARCHAR NOT NULL," +
+                "cordoned_at TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // 波 3 子批 1 最小只读依赖（迁移 000086 的 tenant_skills，全列建；
+        // skills 管理面在子批 2，本批只用于 Update 的 in-flight 判定）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_skills (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "sandbox_config_id VARCHAR(36) NOT NULL," +
+                "name VARCHAR(255) NOT NULL," +
+                "version VARCHAR(64)," +
+                "description VARCHAR," +
+                "instructions VARCHAR," +
+                "bundle_ref VARCHAR(1024)," +
+                "bundle_sha256 VARCHAR(64)," +
+                "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "installed_snapshot_id VARCHAR(255)," +
+                "status VARCHAR(32) NOT NULL," +
+                "error VARCHAR," +
+                "installing_since TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
     }
 
     /**
@@ -843,5 +877,8 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM system_settings");
         // 波 2 终扫批：用户收藏
         jdbc.execute("DELETE FROM user_resource_favorites");
+        // 波 3 子批 1：租户沙箱配置 + skills 最小依赖
+        jdbc.execute("DELETE FROM tenant_skills");
+        jdbc.execute("DELETE FROM tenant_sandbox_configs");
     }
 }

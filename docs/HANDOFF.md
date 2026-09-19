@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-19 · **3298 测试全绿** · golden 941 个（909+32）
-> **端点覆盖：Go 412 条 → Java 已注册约 262 条（约 64%）——波 2 全部收官（六批+终扫批）**
+> 最后更新：2026-09-19 · **3358 测试全绿** · golden 968 个（941+27）
+> **端点覆盖：Go 412 条 → Java 已注册约 270 条（约 66%）——波 2 全部收官；波 3 sandbox 子批 1 完成**
 
 ## 0. 一句话背景
 
@@ -60,6 +60,7 @@
 | **波 2 成员/邀请** | **members/invitations/api-principal 17 条** | ✅ | 91 golden + A/B 全 MATCH（3238 绿）；**真缺陷：clearStaleHomeTenant 必须写 SQL NULL（写 0 炸 FK）**；B 的两种 token 形态是契约场景（见 §9「波 2 成员/邀请/api-principal 补充」） |
 | **波 2 系统管理端** | **/system 7 条 + /system/admin 15 条 + evaluation 2 条** | ✅ | 53 golden + A/B 三轮稳定全 MATCH（3266 绿）；RequireSystemAdmin 文案纠正、UserKbPin 列映射真缺陷（kb_id/pinned_at）、sandbox-check 留波 3 占位（见 §9「波 2 系统管理端补充」） |
 | **波 2 终扫批** | **用户收藏 3 条 + chunker 预览 1 条（波 2 全部收官）** | ✅ | 32 golden + 真 PG A/B 32 场景两轮 ALL MATCH（3298 绿，首轮即全对零缺陷）；GORM Find 空结果 `[]` 非 null、空 strategy=legacy 非 auto、preview 裸错误体、测试堆 2g→3g（见 conventions §9「波 2 终扫批」） |
+| **波 3 sandbox 子批 1** | **/sandbox-configs 配置 CRUD 8 条** | ✅ | 27 golden + A/B 27 场景两轮 ALL MATCH（3358 绿，首轮即全对）；URL 守卫先于必填、Inventory 失败=200 固定形态、config 列字段级 AES、SandboxClientFactory 接缝占位（见 conventions §9「波 3 sandbox 子批 1」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -68,7 +69,7 @@
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
-| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ |
+| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ **子批 1 完成**（sandbox 配置 CRUD 8 条）；下一批：sandbox skills 子资源 12 条 + sandbox-check 转正 + QueryTemplates provider 面 |
 | 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
 
@@ -162,7 +163,8 @@ curl -s -o server/src/test/resources/contracts/xxx.json \
 # 3) 写契约测试（掩码 UUID/时间戳后逐字节比对；中文用 content().bytes）
 # 4) 定向测试 → 最后必须全量
 ./gradlew :server:test --tests "com.ragagent.<你的包>.*"
-./gradlew test                     # ⚠️ 必须跑一次；约 6 分钟（测试堆已提到 3g，见 §5 补充）
+./gradlew test                     # ⚠️ 必须跑一次；约 15 分钟（测试堆 4g；全量时长随
+                                   #    @SpringBootTest 上下文变体数增长，见 §5 补充）
 
 # 5) e2e / A/B：Java 连真 PG 跑通，并与 Go 逐字节对比
 # 6) 更新 docs/translation-conventions.md 的 §8（日志行）+ §9（新细节/差异）
@@ -209,6 +211,10 @@ Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`�
 12. **保存 curl 输出用 `-o`**，别用 `echo "$X" > f`（zsh 的 echo 会解释 `\n`，golden 会坏）。
 13. **`MyBatisSystemException: null`** 的根因在 `Caused by:` 链深处，别在业务代码里瞎找。
 14. **H2 绿、PG 炸** —— NOT NULL 约束、jsonb 键序、DDL 默认值只在真 PG 上暴露。e2e 必须连真 PG。
+15. **全量时长/堆的退化信号**（波 3 实测）：全量从 6.7min 涨到 13-15min 且伴随
+    「Gradle Test Executor N failed」OOM → 先怀疑 **GC 死亡螺旋**（@SpringBootTest
+    上下文变体又变多了），提堆（现 4g）只是买时间，治本是收敛变体数。
+    墙钟脆弱测试的第三变种（TTL 续期断言）见 conventions §9「波 3 sandbox 子批 1」。
 
 ## 6. 协作方式（已验证有效）
 

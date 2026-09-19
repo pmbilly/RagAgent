@@ -431,6 +431,17 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/user/favorites", TenantRole.VIEWER, false);
         rbac.addRule("DELETE", "/api/v1/user/favorites/*/*", TenantRole.VIEWER, false);
         rbac.addRule("POST", "/api/v1/chunker/preview", TenantRole.VIEWER, false);
+        // 波 3 子批 1（对照 routes_infra.go RegisterSandboxConfigRoutes，Go L52-74）：
+        // 静态段（workspace-policy/templates/query）先于 /:id 通配登记（AntPathMatcher
+        // 取首个命中）；:id/sandboxes 在 :id 之前。List/Get 是 Viewer+，其余 Admin+。
+        rbac.addRule("GET", "/api/v1/sandbox-configs", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/sandbox-configs/workspace-policy", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/sandbox-configs/templates/query", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/sandbox-configs", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/sandboxes", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/sandbox-configs/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/sandbox-configs/*", TenantRole.ADMIN, false);
 
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
@@ -441,7 +452,8 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/web-search-providers/**", "/api/v1/web-search/**",
                 "/api/v1/vector-stores/**", "/api/v1/storage-backends/**",
                 "/api/v1/evaluation/**",
-                "/api/v1/user/favorites/**", "/api/v1/chunker/**");
+                "/api/v1/user/favorites/**", "/api/v1/chunker/**",
+                "/api/v1/sandbox-configs/**");
     }
 
     /**
