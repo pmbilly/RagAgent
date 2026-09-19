@@ -1544,6 +1544,47 @@ class JsonContractRoundTripTest {
                 "types.SkillFileEntry ← SkillFileEntry");
     }
 
+    @Test
+    void sandboxSkillsMeSurfaceRoundTrips() {
+        // 波 3 子批 4：/skills 家族与 /me/env-vars 的响应体类型（键序 = Go struct 序；
+        // enabled/required/source 这类恒输出字段在 NON_DEFAULT/NON_EMPTY 下会被
+        // 整键吞掉——逐字段注解后这里就是守门断言）。时间字段留 null：本工具是裸
+        // ObjectMapper（无 JSR-310），时间序列化由 GoTimeSerializer + 契约测试覆盖。
+        var installView = new com.ragagent.sandbox.service.SkillCatalogView.SkillCatalogInstallView(
+                "22222222-3333-4444-5555-666666666602", "6c141771-2661-4626-85d8-32c9b8a7d829",
+                "slk-probe-cube", "cube", "ready", false, "", "", null);
+        assertRoundTrips(installView,
+                com.ragagent.sandbox.service.SkillCatalogView.SkillCatalogInstallView.class,
+                "types.SkillCatalogInstallView ← SkillCatalogInstallView（enabled=false 恒输出）");
+
+        var catalogView = new com.ragagent.sandbox.service.SkillCatalogView(
+                "22222222-3333-4444-5555-666666666602", "mev-probe-skill", "",
+                "mev probe", "", null, null, java.util.List.of(installView));
+        assertRoundTrips(catalogView,
+                com.ragagent.sandbox.service.SkillCatalogView.class,
+                "types.SkillCatalogView ← SkillCatalogView（version/bundle_sha256 空串省略）");
+
+        var varView = new com.ragagent.sandbox.service.UserEnvService.EnvVarView(
+                "PROBE_TOKEN", "probe token", false, "unset", null);
+        assertRoundTrips(varView,
+                com.ragagent.sandbox.service.UserEnvService.EnvVarView.class,
+                "types.EnvVarView ← EnvVarView（required=false 省略、source 恒输出）");
+
+        var skillGroup = new com.ragagent.sandbox.service.UserEnvService.SkillEnvGroup(
+                "22222222-3333-4444-5555-666666666602", "mev-probe-skill", "mev probe",
+                java.util.List.of(varView));
+        assertRoundTrips(skillGroup,
+                com.ragagent.sandbox.service.UserEnvService.SkillEnvGroup.class,
+                "types.SkillEnvGroup ← SkillEnvGroup");
+
+        var configGroup = new com.ragagent.sandbox.service.UserEnvService.ConfigEnvGroup(
+                "6c141771-2661-4626-85d8-32c9b8a7d829", "slk-probe-cube", "catalog probe",
+                java.util.List.of(), java.util.List.of(skillGroup));
+        assertRoundTrips(configGroup,
+                com.ragagent.sandbox.service.UserEnvService.ConfigEnvGroup.class,
+                "types.ConfigEnvGroup ← ConfigEnvGroup");
+    }
+
     // ── 元信息：把「哪些类型已覆盖」变成可读清单 ────────────────────────────
 
     /**

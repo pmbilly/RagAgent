@@ -462,6 +462,20 @@ public class WebConfig implements WebMvcConfigurer {
         // 波 3 子批 2：sandbox-check 转正（routes_auth_tenant.go L257，g.Admin()，
         // 与 storage-engine-check 同档）
         rbac.addRule("POST", "/api/v1/system/sandbox-check", TenantRole.ADMIN, false);
+        // 波 3 子批 4（对照 routes_agent.go RegisterSkillRoutes L70-90）：
+        // GET /skills 与 GET /skills/catalog 是 Viewer+（catalog 读让 agent 编辑器
+        // 能展示未安装的 skill）；catalogWrite 五条 Admin+（会烤进沙箱镜像）。
+        // 静态段 catalog 先于 /:id 通配；files/content 先于 files。
+        rbac.addRule("GET", "/api/v1/skills", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/skills/catalog", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/skills/catalog", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/skills/catalog/*/install", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/skills/catalog/*/files/content", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/skills/catalog/*/files", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/skills/catalog/*", TenantRole.ADMIN, false);
+        // /me/env-vars 五条（routes_auth_tenant.go RegisterMyEnvVarRoutes）：**无角色门**
+        // （Go 注释原文：这些是调用者自己的值，service 从上下文而非请求推导主体）——
+        // 不登记 rbac 规则；拦截器 pattern 也不覆盖 /me/**（与 /me/invitations 同款）。
 
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
@@ -473,7 +487,7 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/vector-stores/**", "/api/v1/storage-backends/**",
                 "/api/v1/evaluation/**",
                 "/api/v1/user/favorites/**", "/api/v1/chunker/**",
-                "/api/v1/sandbox-configs/**");
+                "/api/v1/sandbox-configs/**", "/api/v1/skills/**");
     }
 
     /**

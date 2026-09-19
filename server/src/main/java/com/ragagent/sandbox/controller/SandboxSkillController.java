@@ -691,7 +691,7 @@ public class SandboxSkillController {
         throw err;
     }
 
-    private static BizException skillTooLargeError() {
+    static BizException skillTooLargeError() {
         return BizException.badRequest(
                 "skill bundle cannot exceed " + maxSkillBundleSizeMB() + " MB");
     }

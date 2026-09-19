@@ -582,6 +582,16 @@ public final class APIKeyRoutePolicies {
         a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/transcript", sandboxConfigs);
         a.registerGin("POST", "/api/v1/system/sandbox-check",
                 APIKeyRoutePolicy.manageVectorStores(APIKeyRoutePolicy.fullAccess()));
+        // 波 3 子批 4（routes_agent.go RegisterSkillRoutes L70-90）：catalogWrite 组
+        // = apiKeyGroup(fullAccess)——catalog 写会烤进沙箱镜像，只有 full-access key
+        // 能进。GET /skills 与 GET /skills/catalog **不登记**：Go 里这两条只挂角色门
+        // 未声明 API-key 能力 → 未声明 = 默认拒绝（与 favorites 同款注释）。
+        APIKeyRoutePolicy catalogWrite = APIKeyRoutePolicy.fullAccess();
+        a.registerGin("POST", "/api/v1/skills/catalog", catalogWrite);
+        a.registerGin("POST", "/api/v1/skills/catalog/:id/install", catalogWrite);
+        a.registerGin("GET", "/api/v1/skills/catalog/:id/files", catalogWrite);
+        a.registerGin("GET", "/api/v1/skills/catalog/:id/files/content", catalogWrite);
+        a.registerGin("DELETE", "/api/v1/skills/catalog/:id", catalogWrite);
     }
 
     /**

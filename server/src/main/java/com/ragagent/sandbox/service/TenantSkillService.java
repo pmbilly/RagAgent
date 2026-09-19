@@ -3,8 +3,13 @@ package com.ragagent.sandbox.service;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -77,6 +82,8 @@ public class TenantSkillService {
     private final SkillBundleStore bundleStore;
     private final SkillProgressStore progress;
     private final SandboxClientFactory clientFactory;
+    /** 配置读面（listCatalog 的 ListByTenant；子批 4 加入）。 */
+    private final com.ragagent.sandbox.mapper.TenantSandboxConfigMapper configMapper;
     @Nullable
     private final com.ragagent.stream.StreamManager streams;
 
@@ -94,12 +101,14 @@ public class TenantSkillService {
             SkillBundleStore bundleStore,
             SkillProgressStore progress,
             SandboxClientFactory clientFactory,
+            com.ragagent.sandbox.mapper.TenantSandboxConfigMapper configMapper,
             @Nullable com.ragagent.stream.StreamManager streams) {
         this.skills = skills;
         this.configsHolder = configsHolder;
         this.bundleStore = bundleStore;
         this.progress = progress;
         this.clientFactory = clientFactory;
+        this.configMapper = configMapper;
         this.streams = streams;
     }
 
@@ -1092,10 +1101,425 @@ public class TenantSkillService {
 
     // ── 源 sentinel（对照 ErrSkillSourceInvalid） ────────────────────────
 
+    /** 对照 {@code ErrSkillSourceInvalid}：registry/git/URL source 校验一切拒绝的标记。 */
+    public static final String SENTINEL_SKILL_SOURCE_INVALID = "skill source is invalid";
+
     /** registry/git/URL source 校验的一切拒绝（handler 升 400）。 */
     public static class SkillSourceInvalidException extends RuntimeException {
         public SkillSourceInvalidException(String message) {
             super(message);
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 波 3 子批 4：/skills 家族（skill_handler.go + skill_catalog.go +
+    // tenant_skill_catalog.go L42-165 / L492-642 + tenant_skill_effective.go）
+    // ══════════════════════════════════════════════════════════════════════
+
+    // ── usable skills（skill_handler.go 的 ListUsableSkills 面） ──────────
+
+    /**
+     * 对照 {@code ListUsableSkills} → {@code effectiveTenantSkills}：一次聊天真正能
+     * 调用的已安装技能（ready、启用、且快照是会话真正启动的镜像）。任何失败都返回空
+     * ——@ 提及不得因 skill 查询失败而 500（Go 注释原文）。
+     */
+    public List<TenantSkillEntity> listUsableSkills(long tenantId, String configId) {
+        if (configId == null || configId.isEmpty() || tenantId == 0) {
+            return List.of();
+        }
+        TenantSandboxConfigEntity cfgEntity = configsHolder.getByID(tenantId, configId);
+        if (cfgEntity == null || cfgEntity.getConfig() == null) {
+            return List.of();
+        }
+        if (!skillImageActive(cfgEntity.getConfig())) {
+            return List.of();
+        }
+        List<TenantSkillEntity> rows;
+        try {
+            rows = skills.listSkillsByConfig(tenantId, configId);
+        } catch (RuntimeException e) {
+            log.warn("[skill] list skills of sandbox config {} for skill injection failed: {}",
+                    configId, e.getMessage());
+            return List.of();
+        }
+        List<TenantSkillEntity> usable = new ArrayList<>(rows.size());
+        for (TenantSkillEntity row : rows) {
+            if (row == null || !row.isEnabled() || !SkillStatus.READY.equals(row.getStatus())) {
+                continue;
+            }
+            usable.add(row);
+        }
+        return usable;
+    }
+
+    /** 对照 {@code sandbox.SkillImageActive}（skill_image.go L33-65 的直译）。 */
+    static boolean skillImageActive(com.ragagent.sandbox.domain.TenantSandboxConfig cfg) {
+        if (cfg == null) {
+            return false;
+        }
+        return switch (cfg.getSandboxType() == null ? "" : cfg.getSandboxType()) {
+            case SandboxTypes.TYPE_CUBE -> cfg.getCube() != null
+                    && !com.ragagent.sandbox.runtime.SkillImageSupport.skillImageTemplateOverride(cfg.getSkillImage(),
+                            "cube", cfg.getCube().getApiKey(), cfg.getCube().getApiUrl()).isEmpty();
+            case SandboxTypes.TYPE_E2B -> cfg.getE2b() != null
+                    && !com.ragagent.sandbox.runtime.SkillImageSupport.skillImageTemplateOverride(cfg.getSkillImage(),
+                            "e2b", cfg.getE2b().getApiKey(), cfg.getE2b().getApiUrl()).isEmpty();
+            case SandboxTypes.TYPE_DOCKER ->
+                    !com.ragagent.sandbox.runtime.SkillImageSupport.dockerSkillImageOverride(cfg).isEmpty();
+            default -> false;
+        };
+    }
+
+    // ── catalog 列表（tenant_skill_catalog.go L42-165） ──────────────────
+
+    /**
+     * 对照 {@code ListCatalog}：工作区的每份 skill 定义 + 它在各沙箱上的安装。
+     * catalog 行在前（created_at ASC）；孤儿安装（catalog 行已删/从未存在）与
+     * catalog 之前的直装行并成合成定义补在后面。
+     */
+    public List<SkillCatalogView> listCatalog(long tenantId) {
+        List<TenantSkillCatalogEntity> catalogs = skills.listCatalogsByTenant(tenantId);
+        List<TenantSkillEntity> installs = skills.listSkillsByTenant(tenantId);
+        List<TenantSandboxConfigEntity> configs = configMapper.listByTenant(tenantId);
+        Map<String, TenantSandboxConfigEntity> configByID =
+                new HashMap<>(configs.size() * 2);
+        for (TenantSandboxConfigEntity cfg : configs) {
+            if (cfg != null) {
+                configByID.put(cfg.getId(), cfg);
+            }
+        }
+
+        // LinkedHashMap：Go 的 map 遍历序随机，Java 侧固定为 tenant 行序（单条目下等价）
+        Map<String, List<TenantSkillEntity>> byCatalog = new LinkedHashMap<>();
+        List<TenantSkillEntity> unattached = new ArrayList<>();
+        for (TenantSkillEntity row : installs) {
+            if (row == null) {
+                continue;
+            }
+            if (!row.getCatalogId().isEmpty()) {
+                byCatalog.computeIfAbsent(row.getCatalogId(), k -> new ArrayList<>()).add(row);
+                continue;
+            }
+            unattached.add(row);
+        }
+
+        List<SkillCatalogView> out =
+                new ArrayList<>(catalogs.size() + unattached.size());
+        Set<String> seenName = new HashSet<>();
+        Set<String> seenCatalog = new HashSet<>();
+        for (TenantSkillCatalogEntity cat : catalogs) {
+            if (cat == null) {
+                continue;
+            }
+            seenName.add(cat.getName());
+            seenCatalog.add(cat.getId());
+            out.add(SkillCatalogView.catalogView(cat,
+                    byCatalog.getOrDefault(cat.getId(), List.of()), configByID));
+        }
+        // catalog 行被删（或从未存在）的安装否则会消失：它们既非 unattached
+        // （catalog_id 有值）也不在任何活定义名下渲染（Go 注释原文）
+        for (Map.Entry<String, List<TenantSkillEntity>> e : byCatalog.entrySet()) {
+            if (seenCatalog.contains(e.getKey())) {
+                continue;
+            }
+            unattached.addAll(e.getValue());
+        }
+        // catalog_id 之前时代的行（或测试直插的安装）仍要作为定义出现，
+        // 设置页才完整（Go 注释原文）
+        for (TenantSkillEntity row : unattached) {
+            if (seenName.contains(row.getName())) {
+                for (SkillCatalogView view : out) {
+                    if (view.name().equals(row.getName())) {
+                        view.installations()
+                                .add(SkillCatalogView.installView(row, configByID));
+                    }
+                }
+                continue;
+            }
+            seenName.add(row.getName());
+            TenantSkillCatalogEntity synthetic = new TenantSkillCatalogEntity();
+            synthetic.setId(row.getId());
+            synthetic.setTenantId(row.getTenantId());
+            synthetic.setName(row.getName());
+            synthetic.setVersion(row.getVersion());
+            synthetic.setDescription(row.getDescription());
+            synthetic.setBundleSha256(row.getBundleSha256());
+            synthetic.setCreatedAt(row.getCreatedAt());
+            synthetic.setUpdatedAt(row.getUpdatedAt());
+            out.add(SkillCatalogView.catalogView(synthetic, List.of(row), configByID));
+        }
+        return out;
+    }
+
+    // ── catalog 注册（L167-188 + upsertCatalogFromBundle 复用子批 3） ────
+
+    /** 对照 {@code RegisterCatalogFromArchive}：只记定义不安装；同名重传更新存量。 */
+    public TenantSkillCatalogEntity registerCatalogFromArchive(long tenantId, byte[] archive) {
+        SkillBundleParser.SkillBundle bundle = SkillBundleParser.parseSkillBundle(archive);
+        return upsertCatalogFromBundle(tenantId, bundle, archive, true);
+    }
+
+    /**
+     * 对照 {@code RegisterCatalogFromSource}：抓取公开 skill 并记入 catalog。
+     * 本批只翻译到 SSRF 校验层——校验通过后的真实抓取随 registry 安装面（波 4 接缝），
+     * dev 的 fake-ip DNS 让一切公网域名在校验层即被拒（golden slk-catalog-register-src）。
+     */
+    public TenantSkillCatalogEntity registerCatalogFromSource(long tenantId, String source) {
+        SkillSource.Parsed parsed = SkillSource.parse(source);
+        byte[] archive = fetchSkillArchive(parsed.directURL());
+        SkillBundleParser.SkillBundle bundle = SkillBundleParser.parseSkillBundle(archive);
+        return upsertCatalogFromBundle(tenantId, bundle, archive, true);
+    }
+
+    /**
+     * 对照 {@code getSkillURL} 的前半段：出站前先过 SSRF 校验；拒绝消息 =
+     * {@code skill source is invalid: <FormatSSRFError>}（Go 原文形态）。
+     * 波 4 接缝：校验通过后的 HTTP GET（handoff/重定向/限额）不翻——该分支要求
+     * 白名单放行的出站 URL，dev 无网等价不可达。
+     */
+    private byte[] fetchSkillArchive(String rawURL) {
+        com.ragagent.common.security.SsrfGuard guard =
+                new com.ragagent.common.security.SsrfGuard();
+        try {
+            guard.validateURLForSSRF(rawURL);
+        } catch (com.ragagent.common.security.SsrfGuard.SsrfException e) {
+            throw new SkillSourceInvalidException(SENTINEL_SKILL_SOURCE_INVALID + ": "
+                    + guard.formatSSRFError("skill source", rawURL, e));
+        }
+        throw new SkillSourceInvalidException(SENTINEL_SKILL_SOURCE_INVALID
+                + ": download failed: skill source fetch is not available in this deployment");
+    }
+
+    // ── catalog 安装（L190-243） ─────────────────────────────────────────
+
+    /** 对照 {@code CatalogInstallResult}：部分成功也是 202（errors 里逐配置报错）。 */
+    public record CatalogInstallResult(Map<String, String> installs, Map<String, String> errors) {
+    }
+
+    /**
+     * 对照 {@code InstallCatalogToConfigs}：把 catalog skill 用既有镜像安装管线
+     * 装到每个具名沙箱。缺失的配置逐个报错跳过；部分成功照常返回，调用方才能
+     * 显示每配置状态（Go 注释原文）。
+     */
+    public CatalogInstallResult installCatalogToConfigs(long tenantId, String catalogId,
+            List<String> configIDs) {
+        TenantSkillCatalogEntity catalog = resolveCatalog(tenantId, catalogId);
+        byte[] archive = catalogBundleArchive(tenantId, catalog);
+
+        List<String> ids = uniqueNonEmptyStrings(configIDs);
+        if (ids.isEmpty()) {
+            throw BizException.badRequest("at least one sandbox is required");
+        }
+
+        // Go 的 json.Marshal 对 map 恒按键字母序输出——TreeMap 对齐多配置请求
+        Map<String, String> resultInstalls = new TreeMap<>();
+        Map<String, String> errors = new TreeMap<>();
+        RuntimeException firstErr = null;
+        for (String configId : ids) {
+            try {
+                String skillId = installSkill(tenantId, configId, archive);
+                resultInstalls.put(configId, skillId);
+            } catch (RuntimeException installErr) {
+                log.warn("[skill] install catalog {} onto config {} failed: {}",
+                        catalogId, configId, installErr.getMessage());
+                errors.put(configId, skillUserErrorMessage(installErr));
+                if (firstErr == null) {
+                    firstErr = installErr;
+                }
+            }
+        }
+        if (resultInstalls.isEmpty()) {
+            throw firstErr;
+        }
+        return new CatalogInstallResult(resultInstalls, errors);
+    }
+
+    /** 对照 {@code skillUserErrorMessage}：AppError 取消息，其余取 toString。 */
+    private static String skillUserErrorMessage(RuntimeException err) {
+        if (err instanceof BizException biz && !biz.appError().message().isEmpty()) {
+            return biz.appError().message();
+        }
+        String msg = err.getMessage();
+        return msg == null ? err.toString() : msg;
+    }
+
+    // ── catalog 删除（L245-276） ─────────────────────────────────────────
+
+    /**
+     * 对照 {@code DeleteCatalog}：只删没有剩余安装的定义并丢弃存量 zip。
+     * 沙箱卸载永不删这份 zip（Go 注释原文）。
+     */
+    public void deleteCatalog(long tenantId, String catalogId) {
+        TenantSkillCatalogEntity catalog = skills.getCatalogByID(tenantId, catalogId);
+        if (catalog == null) {
+            throw BizException.notFound("skill not found");
+        }
+        List<TenantSkillEntity> installs = skills.listSkillsByCatalog(tenantId, catalogId);
+        for (TenantSkillEntity row : installs) {
+            if (row == null) {
+                continue;
+            }
+            throw BizException.conflict(
+                    "remove this skill from every sandbox before deleting it from the catalog");
+        }
+        String ref = catalog.getBundleRef() == null ? "" : catalog.getBundleRef().trim();
+        skills.deleteCatalog(tenantId, catalogId, now());
+        if (!ref.isEmpty()) {
+            deleteBundleBestEffort(tenantId, ref);
+        }
+    }
+
+    // ── catalog 文件浏览（L544-642） ─────────────────────────────────────
+
+    /** 对照 {@code ListCatalogFiles}：文件属 skill 定义，不属于某次沙箱安装。 */
+    public List<SkillBundleParser.SkillFileEntry> listCatalogFiles(long tenantId,
+            String catalogId) {
+        byte[] archive = loadCatalogDefinitionArchive(tenantId, catalogId);
+        return SkillBundleParser.listSkillZipFiles(archive);
+    }
+
+    /** 对照 {@code ReadCatalogFile}。 */
+    public SkillBundleParser.SkillFileContent readCatalogFile(long tenantId, String catalogId,
+            String relativePath) {
+        String clean;
+        try {
+            clean = SkillBundleParser.safeSkillFilePath(relativePath);
+        } catch (IllegalArgumentException e) {
+            throw BizException.badRequest(e.getMessage());
+        }
+        byte[] archive = loadCatalogDefinitionArchive(tenantId, catalogId);
+        byte[] body;
+        try {
+            body = SkillBundleParser.readSkillZipFile(archive, clean);
+        } catch (SkillBundleParser.SkillFileNotFoundException e) {
+            throw BizException.notFound("skill file not found");
+        }
+        return SkillBundleParser.projectSkillFileContent(clean, body);
+    }
+
+    /** 对照 {@code loadCatalogArchive}（catalog 入口；安装行的同名读取面见上方）。 */
+    private byte[] loadCatalogDefinitionArchive(long tenantId, String catalogId) {
+        TenantSkillCatalogEntity catalog = resolveCatalog(tenantId, catalogId);
+        return catalogBundleArchive(tenantId, catalog);
+    }
+
+    /**
+     * 对照 {@code catalogBundleArchive}：定义自有对象优先；其次该 catalog 的安装行；
+     * 再次全租户里 ID 或同名行（都过摘要校验）。全不可用 → 400（Go 措辞照抄）。
+     */
+    private byte[] catalogBundleArchive(long tenantId, TenantSkillCatalogEntity catalog) {
+        if (catalog == null) {
+            throw BizException.notFound("skill not found");
+        }
+        String wantSHA = catalog.getBundleSha256() == null ? "" : catalog.getBundleSha256().trim();
+
+        if (!catalog.getBundleRef().trim().isEmpty()) {
+            byte[] archive = tryCatalogRow(tenantId, catalogToProbe(catalog), wantSHA);
+            if (archive != null) {
+                return archive;
+            }
+        }
+        for (TenantSkillEntity row : skills.listSkillsByCatalog(tenantId, catalog.getId())) {
+            byte[] archive = tryCatalogRow(tenantId, row, wantSHA);
+            if (archive != null) {
+                return archive;
+            }
+        }
+        for (TenantSkillEntity row : skills.listSkillsByTenant(tenantId)) {
+            if (row == null || (!row.getId().equals(catalog.getId())
+                    && !row.getName().equals(catalog.getName()))) {
+                continue;
+            }
+            byte[] archive = tryCatalogRow(tenantId, row, wantSHA);
+            if (archive != null) {
+                return archive;
+            }
+        }
+        throw BizException.badRequest(
+                "the archive of this skill is no longer stored; add it again from the original bundle");
+    }
+
+    /** tryRow 闭包的直译：读得到且摘要一致才算数。 */
+    private byte[] tryCatalogRow(long tenantId, TenantSkillEntity row, String wantSHA) {
+        if (row == null || row.getBundleRef().trim().isEmpty()) {
+            return null;
+        }
+        byte[] archive = trySkillBundle(tenantId, row);
+        if (archive == null || archive.length == 0) {
+            return null;
+        }
+        if (!wantSHA.isEmpty() && !SkillBundleParser.archiveMatchesSHA(archive, wantSHA)) {
+            return null;
+        }
+        return archive;
+    }
+
+    // ── catalog 解析（L492-542） ─────────────────────────────────────────
+
+    /**
+     * 对照 {@code resolveCatalog}：catalog 行优先；ID 落在安装行（行 ID 或其
+     * catalog_id）上时投影成定义——同一定义的两个名字都能被解析。
+     */
+    private TenantSkillCatalogEntity resolveCatalog(long tenantId, String id) {
+        String trimmed = id == null ? "" : id.trim();
+        if (trimmed.isEmpty()) {
+            throw BizException.notFound("skill not found");
+        }
+        TenantSkillCatalogEntity cat = skills.getCatalogByID(tenantId, trimmed);
+        if (cat != null) {
+            return cat;
+        }
+        TenantSkillEntity match = null;
+        for (TenantSkillEntity row : skills.listSkillsByTenant(tenantId)) {
+            if (row != null && (row.getId().equals(trimmed)
+                    || row.getCatalogId().equals(trimmed))) {
+                match = row;
+                break;
+            }
+        }
+        if (match == null) {
+            throw BizException.notFound("skill not found");
+        }
+        String cid = match.getCatalogId().trim();
+        if (!cid.isEmpty() && !cid.equals(trimmed)) {
+            TenantSkillCatalogEntity byInstall = skills.getCatalogByID(tenantId, cid);
+            if (byInstall != null) {
+                return byInstall;
+            }
+        }
+        return catalogProjectionFromSkill(match);
+    }
+
+    /** 对照 {@code catalogProjectionFromSkill}。 */
+    private static TenantSkillCatalogEntity catalogProjectionFromSkill(TenantSkillEntity row) {
+        TenantSkillCatalogEntity projection = new TenantSkillCatalogEntity();
+        projection.setId(row.getId());
+        projection.setTenantId(row.getTenantId());
+        projection.setName(row.getName());
+        projection.setVersion(row.getVersion());
+        projection.setDescription(row.getDescription());
+        projection.setInstructions(row.getInstructions());
+        projection.setBundleRef(row.getBundleRef());
+        projection.setBundleSha256(row.getBundleSha256());
+        projection.setCreatedAt(row.getCreatedAt());
+        projection.setUpdatedAt(row.getUpdatedAt());
+        return projection;
+    }
+
+    // ── 本批的小工具 ─────────────────────────────────────────────────────
+
+    /** 对照 {@code uniqueNonEmptyStrings}（保序去重）。 */
+    private static List<String> uniqueNonEmptyStrings(List<String> in) {
+        if (in == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        for (String s : in) {
+            String t = s == null ? "" : s.trim();
+            if (!t.isEmpty()) {
+                out.add(t);
+            }
+        }
+        return new ArrayList<>(out);
     }
 }

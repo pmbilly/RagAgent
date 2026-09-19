@@ -163,7 +163,68 @@ public interface TenantSkillMapper {
             + "WHERE tenant_id = #{e.tenantId} AND id = #{e.id} AND deleted_at IS NULL")
     int updateCatalog(@Param("e") TenantSkillCatalogEntity e, @Param("now") OffsetDateTime now);
 
+    /** 对照 DeleteCatalog：软删定义（deleted_at）；安装行不受影响。 */
+    @Update("UPDATE tenant_skill_catalog SET deleted_at = #{now} "
+            + "WHERE tenant_id = #{tenantId} AND id = #{id} AND deleted_at IS NULL")
+    int deleteCatalog(@Param("tenantId") long tenantId, @Param("id") String id,
+            @Param("now") OffsetDateTime now);
+
     /** DeleteSkill 的第二段：硬删该 skill 名下的用户值（与软删同事务）。 */
     @Delete("DELETE FROM tenant_user_env_vars WHERE tenant_id = #{tenantId} AND skill_id = #{skillId}")
     int deleteUserEnvVarsOfSkill(@Param("tenantId") long tenantId, @Param("skillId") String skillId);
+
+    // ── tenant_user_env_vars（迁移 000089；波 3 子批 4 的 /me/env-vars 面） ──
+    //
+    // H2 的 VALUE 是保留字，列名全程双引号（TestSchema 同款）。value 的加解密在
+    // service 层显式做（对照 Go 的 BeforeSave/AfterFind 钩子），mapper 只管字节。
+
+    String UENV_COLS = "id, tenant_id, principal_type, principal_id, sandbox_config_id, "
+            + "skill_id, name, \"value\", created_at, updated_at";
+
+    @Select("SELECT " + UENV_COLS + " FROM tenant_user_env_vars "
+            + "WHERE tenant_id = #{tenantId} AND principal_type = #{principalType} "
+            + "AND principal_id = #{principalId} AND sandbox_config_id = #{configId} "
+            + "AND skill_id = #{skillId} ORDER BY name ASC")
+    java.util.List<com.ragagent.sandbox.domain.TenantUserEnvVar> listUserEnvVars(
+            @Param("tenantId") long tenantId, @Param("principalType") String principalType,
+            @Param("principalId") String principalId, @Param("configId") String configId,
+            @Param("skillId") String skillId);
+
+    /** 对照 ListUserEnvVarsByConfig（ListMine 的一次性读面）：ORDER BY skill_id ASC, name ASC。 */
+    @Select("SELECT " + UENV_COLS + " FROM tenant_user_env_vars "
+            + "WHERE tenant_id = #{tenantId} AND principal_type = #{principalType} "
+            + "AND principal_id = #{principalId} AND sandbox_config_id = #{configId} "
+            + "ORDER BY skill_id ASC, name ASC")
+    java.util.List<com.ragagent.sandbox.domain.TenantUserEnvVar> listUserEnvVarsByConfig(
+            @Param("tenantId") long tenantId, @Param("principalType") String principalType,
+            @Param("principalId") String principalId, @Param("configId") String configId);
+
+    /** 对照 UpsertUserEnvVar 的 UPDATE 臂（唯一索引命中时只换 value/updated_at）。 */
+    @Update("UPDATE tenant_user_env_vars SET \"value\" = #{value}, updated_at = #{now} "
+            + "WHERE tenant_id = #{tenantId} AND principal_type = #{principalType} "
+            + "AND principal_id = #{principalId} AND sandbox_config_id = #{configId} "
+            + "AND skill_id = #{skillId} AND name = #{name}")
+    int updateUserEnvVarValue(@Param("tenantId") long tenantId,
+            @Param("principalType") String principalType, @Param("principalId") String principalId,
+            @Param("configId") String configId, @Param("skillId") String skillId,
+            @Param("name") String name, @Param("value") String value,
+            @Param("now") OffsetDateTime now);
+
+    /** 对照 UpsertUserEnvVar 的 INSERT 臂（UPDATE 未命中行时）。 */
+    @Insert("INSERT INTO tenant_user_env_vars (id, tenant_id, principal_type, principal_id, "
+            + "sandbox_config_id, skill_id, name, \"value\", created_at, updated_at) "
+            + "VALUES (#{e.id}, #{e.tenantId}, #{e.principalType}, #{e.principalId}, "
+            + "#{e.sandboxConfigId}, #{e.skillId}, #{e.name}, #{e.value}, #{now}, #{now})")
+    int insertUserEnvVar(@Param("e") com.ragagent.sandbox.domain.TenantUserEnvVar e,
+            @Param("now") OffsetDateTime now);
+
+    /** 对照 DeleteUserEnvVar：返回受影响行数（0 = ErrEnvVarNotFound）。 */
+    @Delete("DELETE FROM tenant_user_env_vars "
+            + "WHERE tenant_id = #{tenantId} AND principal_type = #{principalType} "
+            + "AND principal_id = #{principalId} AND sandbox_config_id = #{configId} "
+            + "AND skill_id = #{skillId} AND name = #{name}")
+    int deleteUserEnvVar(@Param("tenantId") long tenantId,
+            @Param("principalType") String principalType, @Param("principalId") String principalId,
+            @Param("configId") String configId, @Param("skillId") String skillId,
+            @Param("name") String name);
 }
