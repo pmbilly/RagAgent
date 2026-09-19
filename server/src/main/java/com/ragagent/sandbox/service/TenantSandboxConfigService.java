@@ -23,6 +23,10 @@ import com.ragagent.sandbox.runtime.CubeDns;
 import com.ragagent.sandbox.runtime.EffectiveConfig;
 import com.ragagent.sandbox.runtime.EffectiveConfigResolver;
 import com.ragagent.sandbox.runtime.OutboundUrlGuard;
+import com.ragagent.sandbox.runtime.RemoteConfigSandboxClient;
+import com.ragagent.sandbox.runtime.RemoteError;
+import com.ragagent.sandbox.runtime.RemoteErrorKind;
+import com.ragagent.sandbox.runtime.RemoteTemplate;
 import com.ragagent.sandbox.runtime.SandboxBackendPolicy;
 import com.ragagent.sandbox.runtime.SandboxIdentity;
 import com.ragagent.sandbox.runtime.SandboxTypes;
@@ -136,9 +140,15 @@ public class TenantSandboxConfigService {
             TenantSandboxConfig config, String configId, boolean ensureStandard, boolean replaceStandard) {
     }
 
+    /** 响应体（对照 Go SandboxTemplateCatalog，tenant_sandbox_config.go L277-281）。 */
     public record SandboxTemplateCatalog(
-            List<Object> templates,
+            @com.fasterxml.jackson.annotation.JsonProperty("templates")
+            List<RemoteTemplate> templates,
+            @com.fasterxml.jackson.annotation.JsonProperty("standard_template_id")
+            @com.fasterxml.jackson.annotation.JsonInclude(
+                    com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
             String standardTemplateId,
+            @com.fasterxml.jackson.annotation.JsonProperty("provisioned")
             boolean provisioned) {
     }
 
@@ -510,11 +520,34 @@ public class TenantSandboxConfigService {
         }
         EffectiveConfig effective =
                 EffectiveConfigResolver.resolveEffectiveConfig(merged, EffectiveConfig.defaultConfig());
-        // ── provider 接缝（子批 2 换真客户端 + 目录段） ─────────────────────
-        ConfigSandboxClient client = clientFactory.create(effective);
-        throw new IllegalStateException("sandbox: provider client produced no template catalog "
-                + "(unreachable with the unwired factory; client class "
-                + client.getClass().getName() + ")");
+
+        // ── provider 目录段（对照 L619-691）────────────────────────────────
+        ConfigSandboxClient anyClient = clientFactory.create(effective);
+        // Go：catalog, ok := any(client).(sandbox.RemoteTemplateCatalog)
+        if (!(anyClient instanceof RemoteConfigSandboxClient client)
+                || !client.supportsTemplateCatalog()) {
+            // 原样上抛（非 sentinel）→ 500 信封 message=原文
+            throw new IllegalStateException(
+                    "sandbox: provider \"" + effective.type + "\" does not expose templates");
+        }
+        // ListTemplates 失败 → RemoteError 分类上抛 → 500（cause 含各运行时拨号
+        // 措辞，A/B 对该 golden 掩码 message）
+        List<RemoteTemplate> templates = client.listTemplates();
+        List<RemoteTemplate> result = TemplateCatalogSupport.deduplicateSandboxTemplates(templates);
+        RemoteTemplate usable = TemplateCatalogSupport.pickStandardTemplate(result);
+        String standardTemplateId = usable != null ? usable.id : "";
+        List<String> oldStandardIds = TemplateCatalogSupport.standardTemplateIDs(result);
+        // 列举只读；标准模板的创建/重建是设置页的显式动作（L637-640 注释原文）。
+        // wantStandard 分支（ensure/replace + singleflight + persistSpawnTemplateID）
+        // 只在控制面可达后执行——本批以 UNSUPPORTED 分类显式收场，随子批 3/波 4 接线。
+        boolean wantStandard = in.replaceStandard() || (in.ensureStandard() && usable == null);
+        if (wantStandard) {
+            String op = in.replaceStandard() ? "replace" : "ensure";
+            throw RemoteError.of(effective.type, op, RemoteErrorKind.UNSUPPORTED,
+                    "standard template provisioning is not wired in this build");
+        }
+        result.sort(TemplateCatalogSupport.CATALOG_ORDER);
+        return new SandboxTemplateCatalog(result, standardTemplateId, false);
     }
 
     /** 对照 refuseClusterSkillTemplateReplace（L717-738）。 */

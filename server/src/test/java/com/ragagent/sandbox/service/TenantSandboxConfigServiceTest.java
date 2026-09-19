@@ -473,11 +473,14 @@ class TenantSandboxConfigServiceTest {
         assertEquals("sandbox template catalog only supports cube, e2b and docker backends",
                 e.appError().message());
 
-        // cube + catalog 占位模板 → effective 校验通过 → 接缝抛"未接线"（500 家族）
+        // cube + catalog 占位模板 → effective 校验通过 → 真客户端拨 127.0.0.1:33000
+        // 拒连 → RemoteError(UNAVAILABLE)（500 家族；波 3 子批 2 起接真客户端）
         TenantSandboxConfig cube = cubeConfig(null, "");
-        assertThrows(SandboxClientFactory.SandboxClientNotWiredException.class,
+        com.ragagent.sandbox.runtime.RemoteError re = assertThrows(
+                com.ragagent.sandbox.runtime.RemoteError.class,
                 () -> service.queryTemplates(TENANT,
                         new SandboxTemplateQueryInput(cube, "", false, false)));
+        assertEquals(com.ragagent.sandbox.runtime.RemoteErrorKind.UNAVAILABLE, re.kind);
     }
 
     // ── QueryTemplates：技能快照拦截 replace_standard（409 skill_snapshot_blocks_template） ──

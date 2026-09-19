@@ -69,6 +69,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/sandbox-configs")
 public class SandboxConfigController {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(SandboxConfigController.class);
+
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -414,5 +417,29 @@ public class SandboxConfigController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
         return body;
+    }
+
+    // ══════════════════════════ 错误形态分支 ══════════════════════════
+
+    /**
+     * 非 AppError（provider 盘点/目录读取/仓储错误）→ Go 全局 ErrorHandler 的
+     * plain 分支：500 + {@code {"error":{"code":1007,"message":"Internal server
+     * error"},"success":false}}（<b>无 details 键</b>——与 AppError 信封的
+     * "details":null 刻意不同，golden tpl-cube-unreachable 实录）。与 FAQ 批同款：
+     * 只处理本控制器的异常，不污染全局（common 文件零改动）。刻意不列
+     * BizException——它必须继续走全局的 AppError 信封。
+     */
+    @org.springframework.web.bind.annotation.ExceptionHandler({IllegalStateException.class,
+            com.ragagent.sandbox.runtime.RemoteError.class,
+            org.springframework.dao.DataAccessException.class})
+    public ResponseEntity<Map<String, Object>> handlePlainInternal(Exception ex) {
+        log.error("sandbox config operation failed", ex);
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("code", com.ragagent.common.error.ErrorCode.INTERNAL_SERVER.value());
+        error.put("message", "Internal server error");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", error);
+        body.put("success", false);
+        return ResponseEntity.status(500).body(body);
     }
 }

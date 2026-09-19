@@ -565,6 +565,23 @@ public final class APIKeyRoutePolicies {
         a.registerGin("PUT", "/api/v1/sandbox-configs/:id", sandboxConfigs);
         a.registerGin("DELETE", "/api/v1/sandbox-configs/:id", sandboxConfigs);
         a.registerGin("GET", "/api/v1/sandbox-configs/:id/sandboxes", sandboxConfigs);
+        // 波 3 子批 2：skills 子资源（同组同档 fullAccess）+ sandbox-check（/system 组
+        // 的 manageVectorStores(fullAccess())，与 storage-engine-check 同档）
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills", sandboxConfigs);
+        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId", sandboxConfigs);
+        a.registerGin("PATCH", "/api/v1/sandbox-configs/:id/skills/:skillId", sandboxConfigs);
+        a.registerGin("DELETE", "/api/v1/sandbox-configs/:id/skills/:skillId", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/files", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/files/content", sandboxConfigs);
+        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills/:skillId/reinstall", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/guidance", sandboxConfigs);
+        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills/:skillId/guidance", sandboxConfigs);
+        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills/:skillId/stop", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/install-events", sandboxConfigs);
+        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/transcript", sandboxConfigs);
+        a.registerGin("POST", "/api/v1/system/sandbox-check",
+                APIKeyRoutePolicy.manageVectorStores(APIKeyRoutePolicy.fullAccess()));
     }
 
     /**

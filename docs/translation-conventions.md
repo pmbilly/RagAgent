@@ -269,6 +269,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 跨空间租户目录 + KV 配置（波 2 扫尾批 3） | internal/handler/tenant.go 的 ListAllTenants(L1192)/SearchTenants(L1218)/CreateTenant(L226-513)/GetTenantKV+UpdateTenantKV(L1304-1395)/六个 KV 子 handler(L1398-1901)/validateParserEngineOutboundURLs(L1904)；internal/application/service/tenant.go 的 CreateTenant/createDefaultStorageBackend/SearchTenants；router/routes_auth_tenant.go L53-81；internal/types/tenant.go 的 WebSearchConfig/ParserEngineConfig/StorageEngineConfig/ChatHistoryConfig/RetrievalConfig + PreserveIfRedacted 族 | com.ragagent.auth.{domain.tenantconfig（5 类型+TenantConfigRedaction，新）,controller.TenantCatalogController（新，5 端点）,domain.Tenant 注解,service.{TenantService+listAll/search/validateStorageBucketUniqueness,TenantMemberService+ensureOwner}} + config.{TenantProperties 第 4 组件 maxOwnedPerUser,WebConfig +crossTenant 规则×2+kv 角色下限} + common.web.RbacInterceptor（crossTenant 分支 + PathTenantMatch 门控修正）+ apikey.APIKeyRoutePolicies +5 条 + system.SystemSettingRegistry +3 键 | ✅ | 5 端点全落地；**65 个 ct-* golden 全是 Go 实录**（63 flag-on + 2 flag-off，含 settings 切换链）+ 11 条契约测试（含 flag-off 小类）+ 往返 5 条 + **真 PG A/B 62 MATCH + 1 EXPECTED-DIFF**（prompt-templates GET 为 Go 独有 vendor yaml，Java 推迟 → 400，ab-ct.sh 清单列明）。**golden 抓回**：Tenant.StorageUsed 零值 0（Java 实体 Long 默认 null）；**录制脚本坑**：布尔设置 PUT 必须 JSON bool。掩码族：uuid/时间戳/数字 id/api_key 明文/SSRF 解析 IP。关键坑见 §9「波 2 扫尾批 3」 |
 | 用户收藏 + chunker 预览（波 2 终扫批，**波 2 全部收官**） | internal/handler/{user_resource_favorite.go,chunker_debug.go}；internal/application/{repository,service}/user_resource_favorite.go；internal/types/user_resource_favorite.go + interfaces 同名；internal/router/{routes_agent.go RegisterUserFavoriteRoutes（3 条，**HANDOFF 旧写 4 条是笔误**）,routes_knowledge.go RegisterChunkerDebugRoutes（1 条）} | com.ragagent.favorite.{domain.UserResourceFavorite,mapper.UserResourceFavoriteMapper（复合主键→纯 SQL）,service.UserResourceFavoriteService,controller.UserFavoriteController} + knowledge.controller.ChunkerDebugController + knowledge.chunker 诊断层（TierRejection/Diagnostics/SplitResult/splitWithDiagnostics/splitParentChildWithDiagnostics + ParentChildSplit 内部重构） + WebConfig（rbac×4 + 拦截器路径 +2） + APIKeyRoutePolicies（+1） + TestSchema.user_resource_favorites | ✅ | 3+1 端点全落地；**32 条新 golden 全是 Go 实录**（fav-* ×20 + cprev-* ×12，cprev 全确定零掩码）+ 7 条契约测试 + **真 PG A/B 32 场景两轮 ALL MATCH（首轮即全对，唯一掩码项 created_at；3298 全量绿）**。**golden 钉死**：GORM Find 空结果 `"data":[]` 非 null、空 strategy=legacy 非 auto、rejected nil→null、preview 错误体是裸 gin.H 非信封。关键坑见 §9「波 2 终扫批」 |
 | sandbox 配置 CRUD 面（波 3 子批 1，**波 3 开工**） | internal/handler/sandbox_config.go（8 端点）；internal/application/service/tenant_sandbox_config.go 的 CRUD 子集（Sanitize/Create/List/Get/Update/Delete/workspace-policy/inventory 前置）；internal/application/repository/tenant_sandbox_config.go（全文）；internal/types/{tenant.go L613-955 的 TenantSandboxConfig 族,tenant_sandbox_config_entity.go,config_redaction.go L271-398,sandbox_network_policy.go}；internal/sandbox/{sandbox.go,docker_enabled.go,config_required.go,url_guard.go,tenant_config.go 的类型与校验层} | com.ragagent.sandbox.{domain（TenantSandboxConfig 家族+SandboxNetworkPolicy+SandboxConfigRedaction+TenantSandboxConfigEntity+TypeHandler 字段级 AES）,runtime（SandboxTypes/BackendPolicy/CubeDns/OutboundUrlGuard/SandboxConfigRequirements/EffectiveConfigResolver/SandboxIdentity/ConfigSandboxClient 接缝；第五包名）,mapper（配置+tenant_skills 只读投影）,service（TenantSandboxConfigService+SandboxClientFactory 接缝+Skills 只读店+错误类型族）,controller.SandboxConfigController} + WebConfig rbac×8 + APIKeyRoutePolicies fullAccess×8 + TestSchema.{tenant_sandbox_configs,tenant_skills} | ✅ | 8 端点全落地；**27 条 sbx-* golden 全是 Go 实录**（uuid/ts 掩码；api_key/env_vars 两侧投影恒 "***"）+ 5 条契约测试 + 86 条域/服务/冒烟测试 + **真 PG A/B 27 场景两轮 ALL MATCH（首轮即全对；3358 全量绿）**。**golden 钉死**：URL 守卫先于必填校验（cube-incomplete 落私网拒绝分支）、三种 unsupported-type 文案（named-configs/template-catalog 变体）、409 固定文案 inventory_unverifiable、Inventory 恒 200 {sandbox_count,unverifiable}、docker 恒禁用（env 未设）。关键坑见 §9「波 3 sandbox 子批 1」 |
+| sandbox-check + templates provider 面（波 3 子批 2，主会话接力） | internal/handler/sandbox_check.go（567 行全文）；internal/application/service/tenant_sandbox_config.go 的 QueryTemplates provider 段（L619-691）+ 纯函数族（L693-922）；internal/sandbox/{remote_errors.go 全文,tenant_resolver.go 的 NewRemoteClientForCheck,cube/e2b/docke r_remote_client.go 的 Health/Capabilities 切片,template_catalog.go 判定助手} | com.ragagent.sandbox.{runtime.{RemoteErrorKind,RemoteError（httpErrorKind+传输分类）,RemoteTemplate（含 isStandardTemplate/normalizeImageRepository 判定）,RemoteProviderClient（薄 HTTP+路由常量）,RemoteConfigSandboxClient（Health/ListTemplates/Create/list/delete）},service.{RemoteSandboxClientFactory（替换 Unwired）,TemplateCatalogSupport 纯函数族,queryTemplates provider 段},controller.{SandboxCheckController（老式 code/msg + 200 结构化 + sandboxCheckReason 固定文案）,SandboxConfigController 补 plain-500 handler}} + TestSchema.tenant_skill_snapshots/tenant_user_env_vars | ✅ | 1+1 端点全落地（sandbox-check 404 占位转正）；**8 条 schk-*/tpl-* golden 全是 Go 实录**（latency_ms 掩码）+ 3 条契约测试 + **真 PG A/B 8 场景两轮 ALL MATCH（3361 全量绿）**。**golden 钉死**：sandboxCheckReason 固定中文分类（拒连→"服务不可用：端点拒绝连接"）、caps 是 gin.H 字母序 {pause_resume,reconnect,volumes}、latency 0ms 被 omitempty 整键省略、templates 500 是 plain 1007 无 details 键（FAQ 批同款 controller-local handler）。skills 12 条随子批 3。关键坑见 §9「波 3 sandbox 子批 2」 |
 
 ## 9. 当前确认过的细节
 
@@ -1603,3 +1604,34 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     （每变体整份上下文驻留堆），3g 堆开始 OOM（GC 死亡螺旋特征：全量耗时翻倍），
     提到 4g 恢复稳定。治本方向是收敛上下文变体数量（TestConfiguration/不同
     @MockBean 组合各算一个变体），堆只买时间。
+- **波 3 sandbox 子批 2（sandbox-check + templates provider 面）补充**：
+  - **sandboxCheckReason 是 dev A/B 的字节稳定锚**：provider 传输错误按
+    RemoteError.Kind 归一成固定中文文案（拒连→"服务不可用：端点拒绝连接"、
+    超时→"请求超时：…"、认证→"认证失败：…"、404→"资源不存在：请检查模板 ID"、
+    INVALID_REQUEST→"参数无效："+msg、docker 的 Unavailable 走
+    dockerUnavailableCheckReason 从消息里抠 host）。原始拨号措辞永不进响应体。
+  - **分类器契约**（remote_errors.go）：httpErrorKind（400/422→invalid_request、
+    401/403→authentication、404→not_found（**Create 特判 invalid_request**）、
+    408/504→timeout、409→conflict、410→terminal、429/507→capacity、5xx→
+    unavailable、其它→internal）+ 传输层（net.Error 非超时→unavailable、
+    超时→timeout；Java 的 ConnectException/UnknownHostException/SSLException 全落
+    unavailable 分支）。
+  - **sandbox-check 的三个形态并存**：400 老式 `{"code":1,"msg":…}`（系统组遗留，
+    非 AppError 信封）、200 结构化探测结果、checks[].ok 三态（null=跳过）。
+    **capabilities 是 gin.H：键字母序**（pause_resume<reconnect<volumes）——
+    struct 序会假红。三方具名后端的探测面能力同表（volumes=false，
+    pause_resume/reconnect=true）。
+  - **latency_ms 的粒度差**：Go 拒连 0ms → omitempty 整键省略；Java HttpClient
+    同场景 1ms+ → 键出现。掩码把 `,"latency_ms":N` 整片段从两侧移除，别只掩数字。
+  - **plain-500 分支**：Go 全局 ErrorHandler 对非 AppError 是
+    `{"error":{"code":1007,"message":"Internal server error"},"success":false}`
+    （**无 details 键**），与 AppError 信封的 "details":null 刻意不同。处理方式
+    沿用 FAQ 批先例：**controller-local @ExceptionHandler**（列 RemoteError/
+    IllegalStateException/DataAccessException，刻意不列 BizException——它必须
+    继续走全局信封），common 全局文件零改动。
+  - **agent 中断接力的边界**（本批实测）：agent 撞用量上限时可能**还没有写任何
+    文件**（全部预算耗在按纪律读文档+Go 源码上）——接力前先 `git status` 盘点，
+    别假设有半成品。主会话接力时优先做"自包含+验收闭环"的切片，把大面留给
+    配额恢复后的下一个 agent。
+  - **fmt 的 %q**：Go `"sandbox: provider %q cannot be probed"` 的 %q 输出双引号
+    包裹——Java 手拼 `"\"" + type + "\""` 时别漏。

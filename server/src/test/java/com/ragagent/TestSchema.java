@@ -808,6 +808,33 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // 波 3 子批 2：技能快照台账（迁移 000086 第二张表）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_skill_snapshots (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "sandbox_config_id VARCHAR(36) NOT NULL," +
+                "skill_id VARCHAR(36)," +
+                "snapshot_id VARCHAR(255)," +
+                "parent_snapshot_id VARCHAR(255)," +
+                "generation INTEGER NOT NULL DEFAULT 0," +
+                "trigger VARCHAR(16) NOT NULL," +
+                "state VARCHAR(16) NOT NULL," +
+                "superseded_at TIMESTAMP WITH TIME ZONE," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        // 波 3 子批 2：技能声明的环境变量（迁移 000089，逐列对照；
+        // value 是 AES-GCM 密文，任何端点不回显）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_user_env_vars (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "principal_type VARCHAR(32) NOT NULL," +
+                "principal_id VARCHAR(512) NOT NULL," +
+                "sandbox_config_id VARCHAR(36) NOT NULL," +
+                "skill_id VARCHAR(36) NOT NULL DEFAULT ''," +
+                "name VARCHAR(255) NOT NULL," +
+                "\"value\" VARCHAR," +
+                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     /**
@@ -880,5 +907,8 @@ public final class TestSchema {
         // 波 3 子批 1：租户沙箱配置 + skills 最小依赖
         jdbc.execute("DELETE FROM tenant_skills");
         jdbc.execute("DELETE FROM tenant_sandbox_configs");
+        // 波 3 子批 2
+        jdbc.execute("DELETE FROM tenant_skill_snapshots");
+        jdbc.execute("DELETE FROM tenant_user_env_vars");
     }
 }

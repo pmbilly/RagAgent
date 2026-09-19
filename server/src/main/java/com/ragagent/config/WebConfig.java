@@ -442,6 +442,26 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/sandbox-configs/*", TenantRole.VIEWER, false);
         rbac.addRule("PUT", "/api/v1/sandbox-configs/*", TenantRole.ADMIN, false);
         rbac.addRule("DELETE", "/api/v1/sandbox-configs/*", TenantRole.ADMIN, false);
+        // 波 3 子批 2（routes_infra.go L60-72，skills 全程 Admin+——注释原文：上传会
+        // 驱动 root shell、产物烤进镜像；events/transcript 是 SSE 只读）：
+        // 静态段（install-events/transcript/reinstall/stop/guidance/files）先于
+        // /:skillId 通配，files/content 先于 files。
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/install-events", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/transcript", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills/*/reinstall", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills/*/stop", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/guidance", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills/*/guidance", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/files/content", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/files", TenantRole.ADMIN, false);
+        rbac.addRule("PATCH", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
+        // 波 3 子批 2：sandbox-check 转正（routes_auth_tenant.go L257，g.Admin()，
+        // 与 storage-engine-check 同档）
+        rbac.addRule("POST", "/api/v1/system/sandbox-check", TenantRole.ADMIN, false);
 
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
