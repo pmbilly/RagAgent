@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-18 · **3161 测试全绿** · golden 188 个
-> **端点覆盖：Go 412 条 → Java 已注册 150 条（约 36%）**
+> 最后更新：2026-09-19 · **3266 测试全绿** · golden 909 个
+> **端点覆盖：Go 412 条 → Java 已注册约 258 条（约 63%）——波 2 六批全部收官**
 
 ## 0. 一句话背景
 
@@ -54,6 +54,11 @@
 | **波 1 G4** | **steer（排队/列表/删除/提升，4 条路由）** | ✅ | 11 golden + 直种 streamManager 的排队路径单测 5 条 + **真 PG A/B 12 组全 MATCH**（引擎侧 PollSteer/follow-up 随波 4/5，见 conventions §9「波 1 G4」） |
 | **波 1 G5** | **临时文档 attachments（5 条路由，波 1 收官）** | ✅ | 11 golden + **真 PG A/B 11 组全 MATCH**；纯文本解析管线（chunker+token）与 Go 逐字节一致；agent 门控/VLM/asynq 按已知差异收口（见 conventions §9「波 1 G5」） |
 | **波 2 chunk** | **chunk 编辑面（10 条路由，波 2 开工）** | ✅ | 46 golden + **真 PG A/B 46 场景全 MATCH**（3161 全量绿）；ChunkAccessGuard（ownership+KB 访问分层）、修订历史/乐观锁、生成问题；clamp 误写被 golden 抓回（见 conventions §9「波 2 chunk」） |
+| **波 2 knowledge 域** | **文档操作 16 条 + 搜索/移动/复制 8 条（24 条）** | ✅ | 197 golden + 真 PG A/B 189 项全 MATCH（3183 绿）；spans 合成时间线全量翻译、EnsureDefaults 钩子、file_path 零值归一（见 §9「波 2 knowledge」两节） |
+| **波 2 FAQ** | **FAQ 12+1 条** | ✅ | 98 golden + A/B 全 MATCH（1 项预期差异=asynq 重试窗口）；textconv 繁简 vendor；**真缺陷：Kb*Config 七类补 @JsonIgnoreProperties（PG 列 DEFAULT 演进出 split_markers）**（见 §9「波 2 FAQ 补充」） |
+| **波 2 基础设施配置** | **web-search-providers/vector-stores/storage-backends 30 条** | ✅ | 110 golden + A/B 全 MATCH（3215 绿）；**A/B 抓回三缺陷：jsonb TypeHandler setObject(Types.OTHER)、StoredResource.TableName()=resources、create 缺 AutoCreateTime 回写**（见 §9「波 2 基础设施配置三组补充」） |
+| **波 2 成员/邀请** | **members/invitations/api-principal 17 条** | ✅ | 91 golden + A/B 全 MATCH（3238 绿）；**真缺陷：clearStaleHomeTenant 必须写 SQL NULL（写 0 炸 FK）**；B 的两种 token 形态是契约场景（见 §9「波 2 成员/邀请/api-principal 补充」） |
+| **波 2 系统管理端** | **/system 7 条 + /system/admin 15 条 + evaluation 2 条** | ✅ | 53 golden + A/B 三轮稳定全 MATCH（3266 绿）；RequireSystemAdmin 文案纠正、UserKbPin 列映射真缺陷（kb_id/pinned_at）、sandbox-check 留波 3 占位（见 §9「波 2 系统管理端补充」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -61,7 +66,7 @@
 |---|---|---|---|
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
-| 2 | 其余未被 agent 阻塞的端点群（~~chunk ✅~~/knowledge 剩余/faq/members/invitations/api-principal/system/admin/providers/stores/backends/evaluation/webSearch） | ~135 条 | 🔄 chunk(10) 完成 |
+| 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation） | ~140 条 | ✅ **核心收官（118 条，六批 A/B 全 MATCH）**；扫尾 ~14 条见 §3.0 |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ |
 | 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
@@ -80,45 +85,61 @@
 - 五个真叶子（零未翻译前置）：`datasource` ✅、`memory` ✅、`sandbox`、`browserskill`、`infrastructure`。
   **`sandbox` 是最紧的前置**（`agent/skills` 硬依赖它，另解锁系统管理端与 skill）。
 
-## 3. 下一步：波 2（管理面与知识库外围）
+## 3. 下一步：波 2 扫尾批 → 波 3
 
-### 3.1 做什么
+### 3.0 波 2 扫尾清单（~14 条，未被 agent 阻塞；开波 3 前可顺手做或并行）
 
-**波 1 全部收官**；**波 2 已开工，chunk 编辑面 10 条路由完成**（2026-09-18：46 golden +
-真 PG A/B 全 MATCH，节奏见 conventions §8「chunk 编辑面」行、坑见 §9「波 2 chunk」）。
-波 2 剩余（约 135 条，都不被 agent 阻塞），建议下一批从 **knowledge 剩余 24 条**
-（download/preview/search/stages/spans/image/tags/batch/move/copy 等）或 **FAQ 11 条**
-（与 chunk 同在 routes_knowledge.go，复用 ChunkAccessGuard 模式与 `faq.go` 类型资产）接着做；
-再往后 members/invitations(14)、api-principal(3)、system/admin(14)、providers/stores/backends(26)。
+最终对账（Go/Java 路由程序化对账 + 逐批核对）确认波 2 命名模块全部落地后，
+还剩这批"非命名模块但同样不被 agent 阻塞"的散条：
 
-⚠️ 例外：`POST /sessions/:id/knowledge-chat`、`POST /sessions/:id/agent-chat`、
-`POST /knowledge-search` 这三条要等**波 4**（它们真的走 agent 引擎）。
+| 组 | 路由 | 说明 |
+|---|---|---|
+| auth 注册族（~9） | POST /auth/register、/auth/auto-setup、/auth/register-by-invite、/auth/invitations/lookup、GET /auth/config、/auth/validate、GET /auth/me、PUT /auth/me/preferences、POST /auth/change-password（**先 grep AuthController 确认 phase 1 已翻哪些，缺的补**） | register 建租户四表（business NOT NULL 无默认）；logout/refresh 若已翻则跳过 |
+| OIDC（5） | GET /auth/oidc/{config,url,callback,start} + /auth/oidc/callback | 依赖外部 IdP——只翻未配置分支，golden 按部署实录 |
+| 跨租户租户管理（4~5） | GET /tenants/all、/tenants/search、POST /tenants、GET/PUT /tenants/{id}/kv/{key} | CrossTenant 守卫 → canAccessAllTenants 等价物 |
+| 用户收藏（4） | GET/POST/DELETE /user/favorites、DELETE /user/favorites/{type}/{id} | handler/user_resource_favorite.go；**先查表名（TableName() 陷阱）** |
+| chunker 预览（1） | POST /chunker/preview | chunker 已逐字节一致（G5 验证），确定性 |
+
+**明确推迟（有依赖，别现在做）**：/me/browser + /local-browser（波 3 browserskill）、
+/me/env-vars/{skill,sandbox}（波 3/5）、/wechat/qrcode ×2（波 5 im）、
+knowledge-chat/agent-chat/knowledge-search（波 4）、models/{id}/debug（阶段 7）、
+/system/sandbox-check（波 3，Java 已 404 占位）。
+
+### 3.1 波 3 起点（HANDOFF §2.2 波表已排）
+
+**sandbox 是最紧的前置**（agent/skills 硬依赖，另解锁系统管理端 sandbox-check 与
+skill 模块）。顺序：`sandbox → infrastructure → browserskill → modelcontext`。
+波 3 的 A/B 直接复用本会话沉淀的脚本族（ab-chunk/ab-knowledge/ab-faq/ab-infra-config/
+ab-members/ab-system）与录制脚本参数化模式（XXX_TARGET_PORT/XXX_OUT_DIR）。
 
 ### 3.2 已经就位的组件（直接用，别重造）
 
-- `com.ragagent.session.domain` + `mapper`：`Session` / `Message` / 五个 jsonb List 处理器 /
-  `SessionRepository` / `MessageRepository` / `MessageSuggestionRepository`
-- `com.ragagent.session.service`：`SessionService`（读路径 + **写路径已全**：create/list/
-  setPinned/update/delete/batchDelete/deleteAll + generateTitle）/ `MessageService` /
-  `MessageSuggestionService` / `TemporaryDocumentService` + `AttachmentFileStore`
-  （Go 布局落盘 `local://{tenant}/exports/…`，异步解析 executor；agent 门控/VLM/asynq
-  为已知差异，见 conventions §9「波 1 G5」）
-- `com.ragagent.session.controller`：Session/Message/MessageSuggestion/TemporaryDocument/Steer
-  五个 controller（含 Go 风格 JSON 绑定语义 `GoJsonBindError`）
-- `com.ragagent.common.web`：`GoTimeSerializer`（timestamptz 列）/
-  `GoNaiveOffsetDateTimeTypeHandler`（naive 列，双形态）`PgJsonTypeHandler`（jsonb，
-  **update 用 `set(col,val,"typeHandler=…")` 三参重载**）
-- `com.ragagent.session.sse`：`SseContract` / `SseFrameWriter` / `StreamEventEmitter` /
-  `StreamResponseBuilder`（SSE 的整条线，已 A/B 验过）
-- `com.ragagent.storageurl`：引用重写 + 扣留缓冲（已 A/B 验过）
-- `com.ragagent.stream`：流管理器
+- **共享守卫**：`ChunkAccessGuard`（ownership+KB 访问分层，403 纯字符串 vs 信封按层分布）
+  / `KnowledgeAccessGuard`（含 envelope 形态）/ `requireOwnedKb` 族——知识库域路由照此分层
+- **chunk 模块起就位的响应契约**：`Chunk`/`ChunkRevision`/`DocumentChunkMetadata`/
+  `GeneratedQuestion`/`KbChunkingConfig`（@JsonIgnoreProperties 全家桶）
+- **基础设施**：`PlainErrorException(status,msg)`（任意 handler 直写纯字符串错误的通用出口）、
+  `KnowledgeService.generateTaskId`（任务 id 契约）、`KnowledgeTaskProgressStore`
+  （进程内进度存储）、`SystemSettingService`（运行时调谐统一入口）、
+  `WebSearchProviderService.constructProvider`、`VectorStoreConfigService.testConnection`
+- **A/B 脚本族**（全部真 PG、掩码后逐字节）：ab-chunk / ab-knowledge / ab-faq /
+  ab-infra-config / ab-members / ab-system；录制脚本统一支持 XXX_TARGET_PORT/XXX_OUT_DIR
+  参数化重放（新模块照此模式写）
+- 既有：session/message/memory/datasource/wiki/mcp/model/audit/apikey/stream/storageurl 各域
+  （见 §2.1 与 conventions §8）
 
-**波 2 的起点**：先读 `docs/translation-conventions.md` §8（已完成模块台账）与 §9
-（各波实测的坑——**动手前必读**，多数坑会复发）；再按 §4 的标准验收流程推进。
-判依赖看调用点不看包名（§2.2 的教训）。chunk 模块刚趟出一条「知识库域内小模块」的
-完整路径：契约类型 + ChunkAccessGuard（ownership/KB 访问守卫分层）+ 仓储 + service +
-controller，golden 录制与 A/B 脚本（`record-chunk-golden.sh` / `ab-chunk.sh`）可直接改造成
-同域模块用。⚠️ A/B 前先确认 8082 上没有旧 Java server 进程（§9「波 2 chunk」第 10 条）。
+### 3.3 执行纪律（本会话验证有效）
+
+- 派 agent 前先 `lsof -ti :8082` 杀旧 Java server（**旧进程占端口会让 wait_for_port 打到
+  旧代码，新路由表现为 404**——本会话 chunk 与 infra 两批都踩过）
+- agent 任务书必带：conventions §9 对应小节、golden 前缀防冲突（先 ls contracts/）、
+  幂等清理含 chunk_revisions 等衍生表、固定种子 id 纯十六进制
+- agent 报"全绿"后主会话必须独立跑全量 + 真 PG A/B——本会话六批里 A/B 抓回了
+  **9 个 H2 绿/PG 红或实现缺陷**（clamp 误写、setString→setObject、TableName 影子表、
+  AutoCreateTime 回写、UserKbPin 列映射、clearStaleHomeTenant FK、business 零值、
+  anydoc 文案、Kb*Config 容忍性）
+- agent 可能撞用量上限中断（本会话 members 批中断一次）：中断后主会话直接接力修
+  （编译错误→测试失败逐个排），比重新派 agent 快
 
 ## 4. 标准验收流程（每个模块）
 
@@ -202,6 +223,15 @@ Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`�
 - **如果一个 agent 需要跨模块改动**（比如要动 `session` 包、`TestSchema`），
   在它跑的期间**不要派别的 agent**，并在任务书里显式授权那几个文件。
 - 派 agent 时**第一句**永远是：「先读 `docs/translation-conventions.md` 的 §3/§7.5/§8/§9」
+- **agent 撞用量上限中断（波 2 members 批实测）**：主会话直接接力修——先编译（该批
+  遗留了测试变量遮蔽与 @PathVariable 模板名不一致），再逐个排契约测试失败（每修一轮
+  重跑单包）。比重新派 agent 快，且上下文无损。接力时以 agent 留下的 golden 为准绳
+  （预实现与 golden 冲突时以 golden 为准）。
+- **A/B 掩码是逐步长出来的**：每批的 ab 脚本首轮跑完，把 DIFF 里的动态字段逐个加掩码
+  （uuid/ts/epoch/task/seq/invite_url/JWT/generated_password/affected…），直到 ALL MATCH
+  且连跑两轮稳定。掩码不是"放过差异"——**契约测试同时钉住 Java 自身确定性值**。
+- **部署态文件**（capabilities/db_version/evaluation 执行态/搜索引擎列表连接态）在 A/B 里
+  标 XDEP 跳过、按部署各自断言，契约测试负责 Java 侧形状。
 
 ## 7. 关键文件索引
 
@@ -209,7 +239,7 @@ Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`�
 |---|---|
 | 翻译约定（必读） | `docs/translation-conventions.md` |
 | 交接文档（本文） | `docs/HANDOFF.md` |
-| 契约 golden（142 个） | `server/src/test/resources/contracts/` |
+| 契约 golden（909 个） | `server/src/test/resources/contracts/` |
 | H2 共享 DDL | `server/src/test/java/com/ragagent/TestSchema.java` |
 | JSON 往返体检 | `server/src/test/java/com/ragagent/common/JsonContractRoundTripTest.java` |
 | e2e 脚本 | `scripts/{dev-env,go-server-up,java-server-up,token}.sh` |
