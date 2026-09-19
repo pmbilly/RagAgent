@@ -1,0 +1,1 @@
+{"error":{"code":1000,"details":null,"message":"Key: 'InitializationRequest.DocumentSplitting.ChunkSize' Error:Field validation for 'ChunkSize' failed on the 'min' tag"},"success":false}

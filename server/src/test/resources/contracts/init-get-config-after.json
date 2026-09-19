@@ -1,0 +1,1 @@
+{"data":{"documentSplitting":{"chunkOverlap":50,"chunkSize":500,"separators":["\n\n"]},"hasFiles":false,"multimodal":{"enabled":false},"nodeExtract":{"enabled":false},"questionGeneration":{"enabled":false},"rerank":{"baseUrl":"","credentials":{"apiKey":false},"enabled":false,"modelName":""}},"success":true}

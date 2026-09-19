@@ -165,8 +165,9 @@ class SystemContractTest {
         for (String key : subsetKeys(goldenCaps).split("\\|")) {
             assertThat(java).contains(key);
         }
-        // Java 部署：api/mcp/websearch/vectorstore/storage=true；其余 route_not_registered
-        assertThat(java).contains("\"agents\":{\"supported\":false,\"reason\":\"route_not_registered\"}");
+        // Java 部署：api/mcp/websearch/vectorstore/storage=true；agents 随波 3 agents 批
+        // 注册（routes_agent.go 的 agents 家族落地）→ supported=true；其余 route_not_registered
+        assertThat(java).contains("\"agents\":{\"supported\":true}");
         assertThat(java).contains("\"integrations.api\":{\"supported\":true}");
         assertThat(java).contains("\"settings.mcp\":{\"supported\":true}");
         // docker 活值覆盖：sandbox=false → route_not_registered

@@ -113,6 +113,32 @@ public final class APIKeyRoutePolicies {
         a.registerGin("GET", "/api/v1/shared-knowledge-bases", orgs);
         a.registerGin("GET", "/api/v1/shared-agents", orgs);
         a.registerGin("POST", "/api/v1/shared-agents/disabled", orgs);
+
+        // ── 波 3 agents 批（对照 Go routes_agent.go RegisterCustomAgentRoutes L22-51）──
+        // agents 组 base=fullAccess；读面 read_agents/manage_agents/chat/full 任一；
+        // 写面 manage_agents/full 任一；suggested-questions 注册在组外但能力同读面。
+        // （agents/:id/shares 三条已在上面登记，全 fullAccess。）
+        APIKeyRoutePolicy agFull = APIKeyRoutePolicy.fullAccess();
+        APIKeyRoutePolicy agRead = APIKeyRoutePolicy.readAgents(
+                APIKeyRoutePolicy.manageAgents(APIKeyRoutePolicy.chat(agFull)));
+        APIKeyRoutePolicy agWrite = APIKeyRoutePolicy.manageAgents(agFull);
+        a.registerGin("GET", "/api/v1/agents/placeholders", agRead);
+        a.registerGin("GET", "/api/v1/agents/type-presets", agRead);
+        a.registerGin("POST", "/api/v1/agents", agWrite);
+        a.registerGin("GET", "/api/v1/agents", agRead);
+        a.registerGin("GET", "/api/v1/agents/:id", agRead);
+        a.registerGin("PUT", "/api/v1/agents/:id", agWrite);
+        a.registerGin("DELETE", "/api/v1/agents/:id", agWrite);
+        a.registerGin("POST", "/api/v1/agents/:id/copy", agWrite);
+        a.registerGin("GET", "/api/v1/agents/:id/suggested-questions", agRead);
+
+        // initialization 三条（对照 routes_infra.go L96-105；KB 依赖属 knowledge 域）
+        a.registerGin("GET", "/api/v1/initialization/config/:kbId",
+                APIKeyRoutePolicy.retrieve(agFull));
+        a.registerGin("POST", "/api/v1/initialization/initialize/:kbId",
+                APIKeyRoutePolicy.manageKnowledgeBases(agFull));
+        a.registerGin("PUT", "/api/v1/initialization/config/:kbId",
+                APIKeyRoutePolicy.manageKnowledgeBases(agFull));
     }
 
     /**

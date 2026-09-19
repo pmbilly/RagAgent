@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-20 · **3394 测试全绿** · golden 1135 个（1018+117）
-> **端点覆盖：Go 412 条 → Java 已注册约 330 条（约 80%）——波 3 进行中（sandbox + skill 用户面 + 协作面收官）**
+> 最后更新：2026-09-20 · **3396 测试全绿** · golden 1195 个（1135+60）
+> **端点覆盖：Go 412 条 → Java 已注册约 341 条（约 83%）——波 3 进行中（sandbox/skill/协作/agents 全收官）**
 
 ## 0. 一句话背景
 
@@ -65,6 +65,7 @@
 | **波 3 sandbox 子批 3** | **/sandbox-configs/:id/skills* 12 条（sandbox HTTP 面收官）** | ✅ | 18 golden + A/B 18 场景两轮 ALL MATCH（3390 绿）；upload=202 异步受理、SSE 单帧、envs 列逐字段 AES、类级 NON_DEFAULT 吞 false 的坑（见 conventions §9「波 3 sandbox 子批 3」） |
 | **波 3 sandbox 子批 4** | **/skills 家族 7 条 + /me/env-vars 5 条（skill 模块用户面收官）** | ✅ | 24 golden + A/B 24 场景两轮 ALL MATCH（3392 绿）；catalog 三段合并投影、install=202 installs 映射、删除钉住 409 1005、DELETE 吃 JSON body、bundle_sha256 掩码（见 conventions §9「波 3 sandbox 子批 4」） |
 | **波 3 协作批** | **organizations 25 条 + KB/agent shares 7 条 + shared-* 3 条（协作面收官）** | ✅ | 117 golden（org-*/shr-*）+ A/B 两轮 116 场景 ALL MATCH（3394 绿）；com.ragagent.org 新包 20 文件；golden 纠正六处预实现（require_approval 不存在/shares 回填不对称/permission 恒 viewer/Go 文案错配真录 500/共享 KB raw 读无 EnsureDefaults）；**上报 emoji 转义跨横切缺陷待专项**（见 conventions §9「波 3 协作面」） |
+| **波 3 agents 批** | **agents CRUD 8 条 + initialization 3 条** | ✅ | 60 golden（ag-*/init-*）+ A/B 两轮 60 场景 ALL MATCH（3396 绿）；**emoji 修复落地**（GoWriterJsonFactory 改道 Writer，root cause=Jackson UTF8 生成器硬编码，升级不可解；内建 avatar golden 钉住+全逐字节套件回归）；vendor yaml 装载；initialization 的 tenant_id=0 等既有行为照抄（见 conventions §9「波 3 agents 批」） |
 
 ### 2.2 波次路线（**2026-09-18 实测重排，已废弃原「阶段 6/7/8」**）
 
@@ -73,7 +74,7 @@
 | 0 | `memory`(7.9k) · `datasource`(14k) | 33 条路由 | ✅ **完成** |
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
-| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ⏳ **子批 1-4 + 协作批完成（sandbox/skill/协作面，68 条）**。infrastructure 四支撑库的 HTTP 可见残余并入波 4/5（docparser 多引擎转换器、web_fetch/web_search 客户端）。**【待办专项】emoji 转义修复**（GoJsonEscapes 代理对 vs Go raw UTF-8）。下一批：agents CRUD 家族 12 条（custom_agent.go 715 行，shares 已就位）+ initialization 残余 3 条；/me/browser 随 browserskill |
+| 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ✅ **波 3 完成（sandbox/skill/协作/agents，~86 条）**——emoji 专项已在 agents 批顺手修复。剩余：/me/browser（随 browserskill）、models/{id}/debug（阶段 7）。**下一波 4：agent 核心 + tools（~20k，全局咽喉）**——chat 三兄弟/knowledge-search/技能执行/web_search 实调/web_fetch 的解锁点；embed/im 清单面可先行 |
 | 4 | **agent 核心** + `agent/tools`（20k，全局咽喉） | ~25k | ⏳ |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
 

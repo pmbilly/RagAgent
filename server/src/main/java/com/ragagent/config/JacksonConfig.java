@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.ragagent.common.web.GoJsonEscapes;
+import com.ragagent.common.web.GoWriterJsonFactory;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -70,5 +71,16 @@ public class JacksonConfig {
     public Jackson2ObjectMapperBuilderCustomizer goJsonEscapesCustomizer() {
         return builder -> builder.postConfigurer(
                 mapper -> mapper.getFactory().setCharacterEscapes(new GoJsonEscapes()));
+    }
+
+    /**
+     * HTTP 响应走 Writer 路径的 JsonFactory（{@link GoWriterJsonFactory}）：
+     * 修复补充字符（emoji）被 UTF8JsonGenerator 转义成代理对 {@code \uD83D\uDCDA}、
+     * 而 Go 输出 raw UTF-8 的字节差。装在 HTTP mapper 上，不影响 jsonb/存储侧
+     * 各服务自建的 ObjectMapper。
+     */
+    @Bean
+    public Jackson2ObjectMapperBuilderCustomizer goWriterJsonFactoryCustomizer() {
+        return builder -> builder.factory(new GoWriterJsonFactory());
     }
 }

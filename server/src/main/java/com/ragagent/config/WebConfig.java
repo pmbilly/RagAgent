@@ -525,6 +525,27 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/shared-agents", TenantRole.VIEWER, false);
         rbac.addRule("POST", "/api/v1/shared-agents/disabled", TenantRole.ADMIN, false);
 
+        // ── 波 3 agents 批：agents CRUD 家族（对照 routes_agent.go RegisterCustomAgentRoutes）──
+        // 静态段先于 /agents/* 通配登记（AntPathMatcher 取首个命中）。
+        // placeholders/type-presets/list/get：Viewer+；create/copy：Contributor+；
+        // update/delete：OwnedAgentOrAdmin（无角色门——下限 VIEWER，所有权判定在控制器内）。
+        rbac.addRule("GET", "/api/v1/agents/placeholders", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/agents/type-presets", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/agents", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/agents", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/agents/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/agents/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/agents/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/agents/*/copy", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("GET", "/api/v1/agents/*/suggested-questions", TenantRole.VIEWER, false);
+
+        // ── 波 3 agents 批：initialization 三条（对照 routes_infra.go L96-105）──
+        // GET=KBAccessRead（Viewer+）；POST/PUT=OwnedKBOrAdmin + KBAccessWrite
+        //（与 PUT /knowledge-bases/:id 同矩阵：CONTRIBUTOR 下限，所有权判定在控制器内）。
+        rbac.addRule("GET", "/api/v1/initialization/config/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/initialization/initialize/*", TenantRole.CONTRIBUTOR, false);
+        rbac.addRule("PUT", "/api/v1/initialization/config/*", TenantRole.CONTRIBUTOR, false);
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
@@ -537,7 +558,8 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/user/favorites/**", "/api/v1/chunker/**",
                 "/api/v1/sandbox-configs/**", "/api/v1/skills/**",
                 "/api/v1/organizations/**", "/api/v1/agents/**",
-                "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**");
+                "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**",
+                "/api/v1/initialization/**");
     }
 
     /**
@@ -553,7 +575,7 @@ public class WebConfig implements WebMvcConfigurer {
         var holder = new com.ragagent.system.service.DeploymentCapabilitiesHolder();
         holder.bind(
                 /* organizations */ true,
-                /* agents */ false,
+                /* agents */ true, // 波 3 agents 批注册了 routes_agent.go 的 agents 家族
                 /* im */ false,
                 /* embed */ false,
                 /* api */ apiKeyService != null,
