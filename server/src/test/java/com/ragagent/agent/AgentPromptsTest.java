@@ -37,7 +37,6 @@ import static com.ragagent.agent.GoRecording.STR_KBLIST_ALLNIL;
 import static com.ragagent.agent.GoRecording.STR_KBLIST_EMPTY;
 import static com.ragagent.agent.GoRecording.STR_KBLIST_INJECTION;
 import static com.ragagent.agent.GoRecording.STR_OUTPUT_PROMPT;
-import static com.ragagent.agent.GoRecording.STR_PHS_AUTOFILL;
 import static com.ragagent.agent.GoRecording.STR_PHS_DISABLED;
 import static com.ragagent.agent.GoRecording.STR_PHS_FULL;
 import static com.ragagent.agent.GoRecording.STR_PHS_UNKNOWN_LEFT;
@@ -191,9 +190,18 @@ class AgentPromptsTest {
                 List.of(), true, "2026-09-20", "Chinese (Simplified)")).isEqualTo(STR_PHS_FULL);
         assertThat(AgentPrompts.renderPromptPlaceholdersWithStatus(
                 "T={{web_search_status}}", List.of(), false, "2026-09-20", "")).isEqualTo(STR_PHS_DISABLED);
+        // Go 录制 STR_PHS_AUTOFILL = "auto 2026-09-20 Sunday 2026-09-19"（录制日 09-20）。
+        // {{current_week}}/{{yesterday}} 在 Go（types/placeholder.go L215-218）由 time.Now()
+        // 兜底（{{current_time}} 走显式参数），录制常量只在录制当天可复现——09-21 凌晨复核
+        // 时抓回的墙钟 flake（§5 #9）。公式等价性已由录制日全量绿证明，此处按当日现算期望值，
+        // 继续钉住替换接线、星期名英文全称与日期格式。
+        LocalDate today = LocalDate.now();
         assertThat(AgentPrompts.renderPromptPlaceholdersWithStatus(
                 "auto {{current_time}} {{current_week}} {{yesterday}}", List.of(), false, "2026-09-20", ""))
-                .isEqualTo(STR_PHS_AUTOFILL);
+                .isEqualTo("auto 2026-09-20 "
+                        + today.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL,
+                                java.util.Locale.ENGLISH)
+                        + " " + today.minusDays(1));
         assertThat(AgentPrompts.renderPromptPlaceholdersWithStatus(
                 "keep {{unknown_ph}} intact", List.of(), false, "2026-09-20", "")).isEqualTo(STR_PHS_UNKNOWN_LEFT);
         // 占位符定义表（AvailablePlaceholders，agent 分支四项）

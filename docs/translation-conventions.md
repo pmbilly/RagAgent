@@ -284,6 +284,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 
 | 知识检索+wiki 工具族（波 4.5b） | internal/agent/tools/ 的 knowledge 九件（knowledge_search/grep_chunks/list_chunks/query_graph/get_doc_info/search_conversations/search_memory/database_query/data_analysis+sql_guard/search_auth）+ wiki 十件（wiki_search/read_page/write_page/replace_text/rename_page/delete_page/read_source_doc + wiki_issue 四件 flag/read/update） | com.ragagent.agent.tools 新文件 24 个：KnowledgeSearchTool/GrepChunksTool/ListKnowledgeChunksTool/QueryKnowledgeGraphTool/GetDocumentInfoTool/SearchConversationsTool/SearchMemoryTool/DatabaseQueryTool/DataAnalysisTool + SqlGuard（1590 行，手写替代 pg_query）/SearchAuth（455）/SearchTarget/DocChunkSupport/WikiSupport + 10 个 Wiki*Tool。执行接线（SqlQueryExecutor/KnowledgeLoader/Materializer/DuckDB 引擎选型）的生产装配随 4.6 | ✅ | **9 个新测试类全绿**（259 tests / 0 failures，PG 依赖类真实执行：DatabaseQuery 15/DataAnalysis 12/KnowledgeSearch 15/WikiTools 8/GrepChunks 10）；**249 条 Go 实录 21 组**（/tmp/toolrec45b 探针，GoRecording45B.java 249 常量）。**已知差异（备案，实录已锁稳定段）**：⑮ DuckDB 1.5.2 vs JDBC 1.1.3 错误文案不同（missing-column 语料只锁稳定段）；⑯ DuckDB 1.1.3 无 read_xlsx（buildExcelCreateTableSQL 逐字锁定，执行侧 ST_Read shim）；⑰ knowledge_search dedup 二轮顺序 Go map 随机 vs Java LinkedHashMap 确定（rerank_preserve_top 语料钉采样）。**决策点**：手写 SqlGuard 替代 pg_query、跳过 Deparse、DatabaseQueryTool 注入 LongSupplier tenantId、storage 后端解析留 KnowledgeFileMaterializer seam、未加 JsonContractRoundTripTest。零既有文件被改。关键坑见 §9「波 4.5b 补充」 |
 | 执行面+MCP 工具族（波 4.5c） | internal/agent/tools/ 的 sandbox 文件面五件（read_file 180/sandbox_ls 320/sandbox_write 403/sandbox_edit 423/sandbox_diff 158）+ shell_exec（1027）+ skill 三件（skill_file 416/skill_resources 90/skill_runtime_guard 89）+ 行为完整所需超清单两件（workspace_reader 442/python_syntax 158）+ read_web_page 77 + MCP 四件（mcp_tool 755/mcp_catalog 974/mcp_exposure 254/mcp_oauth 253） | com.ragagent.agent.tools 新文件 35 个 ~10k 行：ReadFileTool（skill 资源/workspace/web:// 游标三分支）+WorkspaceFileReader/ListSandboxFilesTool/WriteSandboxFileTool/EditSandboxFileTool+SandboxEdits（**字节偏移语义**）/SandboxDiffs（接 4.5a 预留 sandboxOutputSnapshot）+ ShellExecTool（session+install 双变体、黑名单、保头保尾截断、stdin base64 管道、skill env 解析/捕获；**4.5a 的 ShellCommandOutput emit 首次真正触发**）+ WriteSkillFileTool/EditSkillFileTool/SkillFiles/SkillResources/SkillRuntimeGuard/PythonSyntax + McpToolWrapper/McpCatalog/McpDiscoverTool（三模式）/McpCallTool/McpRegisteredTool（实现 4.5a 预留 McpCatalogGuardedTool，鉴权先于 schema 校验）/McpExposure/McpOAuthSupport/ApprovalBridge + SandboxPaths/RemoteDirEntry/RemoteStatEntry/SkillEnvironment（SkillEnvResolver 按 Go env_resolver.go 原样补在本包）+ 接口族 SandboxFileSource/Sink/Editor、SandboxCommandExecutor/SandboxInstallCommandExecutor、SkillFileStore。**ToolRegistry 扩展 +303 行纯新增**（唯一授权既有文件：prepareMcpTools(Direct)/refreshMcpTools/rememberMcpHistory/mcpCatalog/mcpCallTarget/hasMcpServer） | ✅ | **68 新测试全绿，agent 包 327 条零回归**（小包批 B1a~B4 合计 3901 全绿）；**265 条 Go 实录 14 组**（/tmp/toolrec45c 探针 a/b/c + 内嵌 stub MCP server；GoRecording45C.java 265 常量）；**MCP stub A/B 双端同打同款 stub server**：tools/list、tools/call、notifications/initialized 请求体逐字节一致（id 掩码），工具结果 output 逐字节一致（initialize 差异备案⑱）。实录抓回 7 处真语义缺陷（edit 字节偏移/UTF-8 分页预算/U+FFFD 逐字节/GoDuration "1ms"/16-hex 后缀/content_items 字节计数/ErrTimeout 补写）。**已知差异（备案）**：⑱ initialize 请求体 Go SDK=2025-11-25 vs Java 4.1=2024-11-05（4.1 既有契约，握手语义一致）；McpTool InputSchema JsonNode 重序列化 vs Go RawMessage 原文（pretty-JSON 服务器的 ref 哈希不一致）；Go json.Unmarshal 错误文案不可达只录不比。**决策点**：SkillEnvironment 位置、McpTool raw-schema 通道（动 4.1）、执行期身份重校验、投影类型对接方式。关键坑见 §9「波 4.5c 补充」 |
+| modelcontext + skills 库 + langfuse seam（波 4.6a，4.6 首批） | internal/modelcontext/ 15 非测试文件 ~3.3k（citations/handles/handle_table/registry/sources/mcp/mcp_sources/resources/stream/tool_policy/model_output）+ internal/agent/skills/ 9 非测试文件 ~3.3k（skill/skill_frontmatter/source/loader/tenant_source/env_resolver/manager/shell_staging/shell_environment）+ internal/tracing/langfuse 的引擎三调用点 | com.ragagent.modelcontext 新包 10 文件 ~3.0k（Registry：ProtocolPrompt/EncodeMessages/DecodeToolCalls/DecodeOutputText/StreamDecoder/Register*/ModelToolResult*/CompactKnownText + SourceRegistry/CitationStreamExpander/GoHtml（EscapeString 五字符）+ ResourceRegistry（res://0001 起/孤儿过滤）+ ToolPolicy（37 策略表+RawJson 保原始字节扫描器）+ ModelOutput（8 display_type）+ GoJsonValues（float64 归一/Go 严格单值解析））+ com.ragagent.agent.skills 新包 8 文件 ~2.0k（Skill/SkillFrontmatter 两步修复管线/Loader（ReadDir 排序+Walk 深度序）/TenantSkillSource（**手写 zip 中央目录解析器含 zip64**+LRU）/SkillEnvResolver/Manager（SessionFileStore/SandboxGateway 窄 seam + **asSkillEnvironment() 适配器接 4.5c SkillEnvironment**））+ com.ragagent.tracing.langfuse 3 文件（LangfuseManager 接口+Span+no-op 单例；OTLP 导出降级备案） | ✅ | **48 新测试全绿（四包 375 条）**；**193 条 Go 实录**（modelcontext 92 + skills 101，含 100_001 条目/20_001 文件真 zip 边界、LRU 逐出计数）；**零既有文件改动**（SkillEnvironment 桥接走适配器，tools 包一字未动；波 3 sandbox.service 对账同源同值零改动）。**实录抓回**：Go json 严格单值（FAIL_ON_TRAILING_TOKENS——default 分支 Go 只走 labeled refs）、RE2 `$`→`\z`、`\s` 的 `\x0B` 差异、float64 数字归一、map[string]RawMessage 保 1.0 字面量重组。**主会话修掉 4.2 潜伏墙钟 flake**（AgentPromptsTest，见 §9「波 4.6a 补充」）。**决策点**：波 3 SkillFrontmatter snakeyaml 宽容类型是否对齐、GoRawJson 深层键序边界。关键坑见 §9「波 4.6a 补充」 |
 
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
@@ -1882,3 +1883,26 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     GrepChunkSearch/KnowledgeFileMaterializer 的**生产**接线全部随 4.6
     agent_service 装配（4.5c 报告有完整签名清单）；4.5b 行的「执行接线留 4.5c」
     实指装配期，本波确认归 4.6。
+- **波 4.6a 补充**：
+  - **⚠️ 墙钟 flake 教训（4.2 潜伏、4.6a 复核抓回、已修）**：Go 的
+    {{current_week}}/{{yesterday}} 由 types.RenderPromptPlaceholders 用
+    `time.Now()` 兜底（placeholder.go L215-218），{{current_time}} 走
+    renderPromptPlaceholdersWithStatus 的显式参数——录制常量
+    STR_PHS_AUTOFILL（"auto 2026-09-20 Sunday 2026-09-19"）只在录制日可复现，
+    09-21 凌晨复核翻红。修法=测试按当日现算期望值（公式等价性由录制日全量绿
+    背书），录制常量保留作形状文档，GoRecording.java 不动。**教训：录 Go 实录
+    时若输出含 time.Now() 派生段，必须当日把断言写成「静态骨架 + 当日现算
+    动态段」，别等翻红**。
+  - **Go json 严格单值**：Jackson 默认容忍尾随 token，Go json.Unmarshal 拒绝
+    ——GoJsonValues 全局 FAIL_ON_TRAILING_TOKENS。default 分支（整串非 JSON）
+    Go 只走 labeled refs，结构化注册是 Java 初版误分支（实录抓回）。
+  - **RE2 vs Java 正则再+2**：`$` 锚一律 `\z`；`\s` 用 `[\t\n\f\r ]` 显式类
+    （Java 多 `\x0B`）。
+  - **zip 中央目录**：TenantSkillSource 手写解析器（对称 Go zip.NewReader，
+    含 zip64 EOCD），条目体惰性解压；flag-bit-3 流式条目不支持（探针与生产
+    zip.Writer 产物都不用，备案）。
+  - **波 3 对账结论**：SkillBundleParser 四常量（20_000/100_000/32MiB/512MiB）
+    与 SkillFrontmatter 同源同值零改动；波 3 snakeyaml 宽容嵌套类型 vs 新包
+    显式类型错误留决策（未动波 3 文件）。
+  - **langfuse seam**：恒 no-op 单例；4.6b 引擎三调用点（StartSpan/
+    finishAgentSpan/finishToolSpan）签名照 Go，接真 OTLP 时只换实现不动调用点。

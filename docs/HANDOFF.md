@@ -1,54 +1,57 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-20 · **基线：小包批 B1a~B4 合计 3901 测试全绿（4.5c 已提交）** · golden 1324 个
-> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 进行中（4.1/4.2/4.3/4.4/4.2/4.5a/4.5b/4.5c 完成；下一步 4.6 引擎+chat 三兄弟收官波 4）**
+> 最后更新：2026-09-21 · **基线：四包批（modelcontext/agent.skills/langfuse/agent）375 测试全绿（4.6a 已提交）** · golden 1324 个
+> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 收官段进行中（4.6 拆四批：4.6a 完成；下一步 4.6b 引擎核心 → 4.6c chat_pipeline → 4.6d HTTP+装配+A/B）**
 
-## 0. 接手状态（2026-09-20，4.5c 已收官——新会话直接派 4.6）
+## 0. 接手状态（2026-09-21，4.6a 已收官——新会话直接派 4.6b）
 
-**4.5c（sandbox/shell/skill 执行面 + MCP 工具族）✅ 完成**：35 个新主文件全在
-`com.ragagent.agent.tools/`（ReadFileTool+WorkspaceFileReader / List/Write/EditSandboxFileTool
-+ SandboxEdits 字节偏移 + SandboxDiffs（接通 4.5a sandboxOutputSnapshot）/ ShellExecTool
-session+install 双变体（**4.5a ShellCommandOutput emit 首次真正触发**）/ Write+EditSkillFileTool
-+ SkillFiles/SkillResources/SkillRuntimeGuard/PythonSyntax / McpToolWrapper/McpCatalog/
-McpDiscoverTool/McpCallTool/McpRegisteredTool/McpExposure/McpOAuthSupport/ApprovalBridge
-+ 接口族 SandboxFileSource/Sink/Editor、SandboxCommandExecutor、SkillFileStore、
-SkillEnvironment）+ 11 个新测试文件 + GoRecording45C（265 条实录 14 组，/tmp/toolrec45c
-探针 ×3 + 探针内嵌 stub MCP server）。**既有文件只动 ToolRegistry.java（+303 纯新增，
-MCP 方法扩展，唯一授权）**。台账见 conventions §8「波 4.5c」与 §9「波 4.5c 补充」。
+**波 4.6 切分（2026-09-21 实测重排，4.6 全量 ~23k 行超单批容量）**：
+**4.6a modelcontext+skills 库+langfuse seam（✅ 本批）→ 4.6b 引擎核心
+（engine/observe/act/think/finalize/steer ~3.7k + context_debug 引擎段）→
+4.6c chat_pipeline（26 文件实测 9,873，比旧估 6.8k 大）→ 4.6d HTTP 面+装配+
+stub LLM 全链路 A/B 收官（qa.go 1,768 + agent_stream_handler 896 +
+session_agent_qa 647 + session_knowledge_qa 1,290 + agent_service 1,485）**。
 
-**MCP stub A/B（双端同打同款 stub server）**：tools/list、tools/call、notifications/initialized
-请求体逐字节一致（id 掩码），工具结果 output 逐字节一致。**已知差异（备案）**：⑱ initialize
-请求体 Go SDK=2025-11-25 vs Java 4.1=2024-11-05（4.1 既有契约，握手语义一致）；McpTool
-InputSchema 走 JsonNode 重序列化 vs Go RawMessage 原文（pretty-JSON 服务器的 ref 哈希
-不一致，修法=4.1 McpTool 加 raw-schema 通道，留决策）。
+**4.6a ✅ 完成**：三个新包——`com.ragagent.modelcontext`（10 文件 ~3.0k，Registry
+公开面 ProtocolPrompt/DecodeOutputText/StreamDecoder/ToolPolicy 37 策略表 +
+GoJsonValues 严格单值）、`com.ragagent.agent.skills`（8 文件 ~2.0k，Manager 经
+asSkillEnvironment() 适配器接 4.5c SkillEnvironment；TenantSkillSource 手写 zip
+中央目录解析器含 zip64）、`com.ragagent.tracing.langfuse`（接口+no-op 单例，
+OTLP 降级备案）。193 条 Go 实录 + 48 新测试。**零既有文件改动**；波 3
+SkillBundleParser/SkillFrontmatter 对账同源同值。台账见 conventions §8「波 4.6a」
+§9「波 4.6a 补充」。
 
-**4.5b 摘要（上一批）**：24 主文件（知识九件+SqlGuard 1590 行+wiki 十件）+ 9 测试类 +
-249 条实录。实录抓回 ParamValidator `{}` 短路、TodoWrite steps null 两真缺陷已修。
+**主会话修掉 4.2 潜伏墙钟 flake**：AgentPromptsTest.placeholdersWithStatusMatchGo
+——Go 的 current_week/yesterday 走 time.Now()（placeholder.go L215-218），录制
+常量只在录制日（09-20）可复现，09-21 凌晨翻红。已改测试按当日现算期望值。
+**教训（§9 已写）**：录 Go 实录时输出含 time.Now() 派生段，必须当日写成
+「静态骨架 + 当日现算动态段」。
 
-**⚠️ 测试基建坑（4.5b 起生效）**：大组合批跑稳定复现 Mockito inline MockMaker 初始化失败
-（ByteBuddy self-attach 失败）——命中后该 JVM 内全部 Spring/Mockito 测试假红。
-**全量回归一律按小包批次跑**：B1a=agent、B1b=common/event/apikey/audit/auth、
-B2=browserskill/datasource/embed/embedding/evaluation/favorite、
+**4.6b 派发输入（已勘察）**：engine.go(934)/observe.go(918)/think.go(626)/act.go(619)/
+finalize.go(188)/steer.go(93) + context_debug.go 引擎段(169)；依赖已全就位
+（4.2 纯逻辑件/4.5x tools 全量/4.1 event+approval+mcp/4.6a modelcontext+skills+
+langfuse seam/llm 4.0）；**事件 emit 主战场**（4.1 package-info 的 24 emit 点表：
+final_answer×7/tool_call×3/thought×2…）；steer 引擎侧 PollSteer/follow-up 交接
+（波 1 G4 遗留）；验收=Go 实录 + 脚本化 stub LLM 单测（引擎循环对拍），
+**不加 @SpringBootTest 上下文变体**；虚拟线程显式拷贝 TenantContext + Long equals。
+
+**⚠️ 测试基建坑（4.5b 起生效）**：大组合批跑稳定复现 Mockito inline MockMaker
+初始化失败——**全量回归一律按小包批次跑**（B1a=agent、B1b=common/event/apikey/
+audit/auth、B2=browserskill/datasource/embed/embedding/evaluation/favorite、
 B3=im/knowledge/llm/mcp/memory/model/org、
 B4=rerank/sandbox/searchutil/session/storage/storageurl/stream/system/vectorstore/
-webfetch/websearch/wiki/agentm。agent 包（B1a）零 Mockito 恒绿；批次内冒假红就单包
-重跑确认后重试该批（详见 conventions §9「波 4.5b 补充」）。
+webfetch/websearch/wiki/agentm）。批次内冒假红就单包重跑确认后重试该批
+（详见 conventions §9「波 4.5b 补充」）。
 
-**4.6 待办输入（4.5c 报告移交）**：装配签名清单（SandboxFileSource/Sink/Editor、
-SandboxCommandExecutor/SandboxInstallCommandExecutor、SkillFileStore、SkillEnvironment、
-ShellExecTool.withSkillEnvironment/withEnvCapture、McpCatalog 构造与 installMcpCatalog、
-registry 的 prepareMcpTools/refreshMcpTools/rememberMcpHistory）+ 四个决策点
-（SkillEnvironment 位置 / McpTool raw-schema 通道 / 执行期身份重校验 / 投影类型对接）。
-**真 sandbox Manager 与 4.5b 知识数据源（SqlQueryExecutor/AnalysisDuckDb/GrepChunkSearch/
-KnowledgeFileMaterializer）的生产接线都归 4.6 agent_service 装配**
-（参照 Go agent_service.go L436/L497/L828 三个 register* 函数）。
+**4.6c/4.6d 待办输入**：chat_pipeline 26 文件 9,873 行（query_understand/search/
+rerank/extract_entity/merge/into_chat_message 等，依赖 4.4 检索地基）；4.6d 装配
+签名清单与四决策点见 4.5c 报告（HANDOFF 前版 §0 有抄录）+ 4.6a 报告（Registry/
+Manager/LangfuseManager 构造面）。
 
-**重派模板（4.6）**："4.6 任务书——engine/think/act/observe/finalize/steer + skills 包 +
-agent_service 装配 + qa.go 1,768 + agent_stream_handler 896（17 种事件订阅 + superseded
-preamble 剔除）+ session_agent_qa/session_knowledge_qa + chat_pipeline 6,763，~18k；
-验收：stub LLM 全链路 A/B（双端同指脚本化 OpenAI 兼容 stub，复用 continue-stream MATCH
-基建），SSE 时序最高危；先读 conventions §3/§6/§7.5/§8/§9（§9 波 4.5a/b/c 小节有
-registry 契约与已知差异 ⑮⑯⑰⑱）；只跑 com.ragagent.agent.* 与 session.* 小包批"
+**重派模板（4.6b）**："4.6b 任务书——agent 引擎核心六件 ~3.7k + context_debug
+引擎段；验收：Go 实录 + 脚本化 stub LLM 对拍单测；先读 conventions §3/§6（SSE
+纪律）/§7.5/§8/§9（波 4.5a/b/c、4.6a 小节）；虚拟线程 TenantContext 显式拷贝；
+只跑 com.ragagent.agent.* 与新包小批"
 
 ## 0. 一句话背景
 
