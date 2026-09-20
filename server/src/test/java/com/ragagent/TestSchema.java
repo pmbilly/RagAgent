@@ -935,6 +935,51 @@ public final class TestSchema {
                 "scope_key VARCHAR(32) NOT NULL," +
                 "session VARCHAR(36) NOT NULL," +
                 "PRIMARY KEY (scope_key, session))");
+        // 波 4.3：embed_channels（迁移 000060 全列；allow_memory 列 Go struct 未映射，不建）
+        jdbc.execute("CREATE TABLE IF NOT EXISTS embed_channels (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "agent_id VARCHAR(36) NOT NULL DEFAULT 'builtin-quick-answer'," +
+                "name VARCHAR(255) NOT NULL DEFAULT ''," +
+                "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "publish_token VARCHAR(64) NOT NULL DEFAULT ''," +
+                "allowed_origins VARCHAR NOT NULL DEFAULT '[]'," +
+                "welcome_message VARCHAR NOT NULL DEFAULT ''," +
+                "rate_limit_per_minute INTEGER NOT NULL DEFAULT 30," +
+                "rate_limit_per_day INTEGER NOT NULL DEFAULT 10000," +
+                "primary_color VARCHAR(32) NOT NULL DEFAULT ''," +
+                "page_title VARCHAR(255) NOT NULL DEFAULT ''," +
+                "header_title_mode VARCHAR(32) NOT NULL DEFAULT 'channel'," +
+                "show_suggested_questions BOOLEAN NOT NULL DEFAULT TRUE," +
+                "show_thinking BOOLEAN NOT NULL DEFAULT FALSE," +
+                "widget_position VARCHAR(32) NOT NULL DEFAULT 'bottom-right'," +
+                "allow_web_search BOOLEAN NOT NULL DEFAULT FALSE," +
+                "allow_file_upload BOOLEAN NOT NULL DEFAULT FALSE," +
+                "default_locale VARCHAR(16) NOT NULL DEFAULT ''," +
+                "webhook_url VARCHAR(512) NOT NULL DEFAULT ''," +
+                "webhook_secret VARCHAR(128) NOT NULL DEFAULT ''," +
+                "launcher_icon VARCHAR NOT NULL DEFAULT ''," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // 波 4.3：im_channels（迁移 000021 + 000023 kb_id + 000024 bot_identity + 000028 session_mode）
+        // 波 4.3：im_channels（迁移 000021 + 000023 kb_id + 000024 bot_identity + 000028 session_mode）
+        jdbc.execute("CREATE TABLE IF NOT EXISTS im_channels (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "tenant_id BIGINT NOT NULL," +
+                "agent_id VARCHAR(36) NOT NULL," +
+                "platform VARCHAR(20) NOT NULL," +
+                "name VARCHAR(255) NOT NULL DEFAULT ''," +
+                "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                "mode VARCHAR(20) NOT NULL DEFAULT 'websocket'," +
+                "output_mode VARCHAR(20) NOT NULL DEFAULT 'stream'," +
+                "knowledge_base_id VARCHAR(36) DEFAULT ''," +
+                "bot_identity VARCHAR(255) NOT NULL DEFAULT ''," +
+                "session_mode VARCHAR(20) NOT NULL DEFAULT 'user'," +
+                "credentials VARCHAR NOT NULL DEFAULT '{}'," +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
     }
 
     /**
@@ -1023,5 +1068,9 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM browser_task_interruptions");
         jdbc.execute("DELETE FROM browser_pairings");
         jdbc.execute("DELETE FROM browser_devices");
+        // 波 4.3：embed 管理面 + im channels 清单面
+        jdbc.execute("DELETE FROM im_channels");
+        jdbc.execute("DELETE FROM embed_channels");
     }
-}
+
+    }

@@ -139,6 +139,30 @@ public final class APIKeyRoutePolicies {
                 APIKeyRoutePolicy.manageKnowledgeBases(agFull));
         a.registerGin("PUT", "/api/v1/initialization/config/:kbId",
                 APIKeyRoutePolicy.manageKnowledgeBases(agFull));
+
+        // ── 波 4.3：embed 管理面 + im channels 清单面 + wechat 扫码组 ──
+        //（对照 Go routes_agent.go RegisterEmbedChannelRoutes L264-278 与
+        // RegisterIMChannelRoutes L298-319：四组全部 apiKeyManageChannels(apiKeyFullAccess())。
+        // /api/v1/embed/** 公开面走 publish token（EmbedAuth），**不**登记 API-Key 策略
+        // ——对照 Go：该组在 engine 上、不经 g.apiKeyGroup 包装，Key 主体不可达。）
+        APIKeyRoutePolicy channels = APIKeyRoutePolicy.manageChannels(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("POST", "/api/v1/agents/:id/embed-channels", channels);
+        a.registerGin("GET", "/api/v1/agents/:id/embed-channels", channels);
+        a.registerGin("GET", "/api/v1/embed-channels", channels);
+        a.registerGin("GET", "/api/v1/embed-channels/:channel_id", channels);
+        a.registerGin("PUT", "/api/v1/embed-channels/:channel_id", channels);
+        a.registerGin("DELETE", "/api/v1/embed-channels/:channel_id", channels);
+        a.registerGin("POST", "/api/v1/embed-channels/:channel_id/rotate-token", channels);
+        a.registerGin("POST", "/api/v1/embed-channels/:channel_id/preview-session", channels);
+        a.registerGin("GET", "/api/v1/embed-channels/:channel_id/stats", channels);
+        a.registerGin("POST", "/api/v1/agents/:id/im-channels", channels);
+        a.registerGin("GET", "/api/v1/agents/:id/im-channels", channels);
+        a.registerGin("GET", "/api/v1/im-channels", channels);
+        a.registerGin("PUT", "/api/v1/im-channels/:id", channels);
+        a.registerGin("DELETE", "/api/v1/im-channels/:id", channels);
+        a.registerGin("POST", "/api/v1/im-channels/:id/toggle", channels);
+        a.registerGin("POST", "/api/v1/wechat/qrcode", channels);
+        a.registerGin("POST", "/api/v1/wechat/qrcode/status", channels);
     }
 
     /**

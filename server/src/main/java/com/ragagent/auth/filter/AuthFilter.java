@@ -102,6 +102,14 @@ public class AuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 通道 1.5：embed 公开面（对照 Go：embed 路由组注册在 engine 上、不进全局 Auth 组，
+        // 由 middleware.EmbedAuth 自行鉴权——Java 侧由 com.ragagent.embed 的
+        // EmbedAuthFilter 承担，本过滤器整体让路）。
+        if (request.getRequestURI().startsWith("/api/v1/embed/")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // 通道 2：Bearer JWT
         boolean bearerPresented = false;
         String authHeader = request.getHeader("Authorization");

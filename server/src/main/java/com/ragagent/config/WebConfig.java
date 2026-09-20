@@ -546,6 +546,31 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/initialization/initialize/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("PUT", "/api/v1/initialization/config/*", TenantRole.CONTRIBUTOR, false);
 
+        // ── 波 4.3：embed 管理面 + im channels 清单面（对照 routes_agent.go
+        // RegisterEmbedChannelRoutes L260-279 / RegisterIMChannelRoutes L296-320）──
+        // 管理端点：写（create/update/delete/rotate/toggle）Admin+，读（list/get/
+        // preview/stats）Viewer+；wechat 扫码组全 Admin+（Go 注释：成功扫码会把个人
+        // 微信绑到空间）。静态段先于通配段登记（AntPathMatcher 取首个命中）。
+        // /api/v1/embed/**（公开面）刻意**不**登记规则——它不经过 AuthFilter 与 RBAC，
+        // 由 EmbedAuthFilter 的 publish token 自证（对照 Go 的 engine 级路由组）。
+        rbac.addRule("POST", "/api/v1/agents/*/embed-channels", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/agents/*/embed-channels", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/embed-channels", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/embed-channels/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/embed-channels/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/embed-channels/*", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/embed-channels/*/rotate-token", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/embed-channels/*/preview-session", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/embed-channels/*/stats", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/agents/*/im-channels", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/agents/*/im-channels", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/im-channels", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/im-channels/*", TenantRole.ADMIN, false);
+        rbac.addRule("DELETE", "/api/v1/im-channels/*", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/im-channels/*/toggle", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/wechat/qrcode", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/wechat/qrcode/status", TenantRole.ADMIN, false);
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
@@ -559,7 +584,8 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/sandbox-configs/**", "/api/v1/skills/**",
                 "/api/v1/organizations/**", "/api/v1/agents/**",
                 "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**",
-                "/api/v1/initialization/**");
+                "/api/v1/initialization/**",
+                "/api/v1/embed-channels/**", "/api/v1/im-channels/**", "/api/v1/wechat/**");
     }
 
     /**
@@ -576,8 +602,8 @@ public class WebConfig implements WebMvcConfigurer {
         holder.bind(
                 /* organizations */ true,
                 /* agents */ true, // 波 3 agents 批注册了 routes_agent.go 的 agents 家族
-                /* im */ false,
-                /* embed */ false,
+                /* im */ true, // 波 4.3：RegisterIMChannelRoutes 的渠道 CRUD 面落地
+                /* embed */ true, // 波 4.3：RegisterEmbedChannelRoutes/RegisterEmbedPublicRoutes 落地
                 /* api */ apiKeyService != null,
                 /* mcp */ true,
                 /* webSearch */ true,

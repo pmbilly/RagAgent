@@ -107,7 +107,9 @@ public class McpOAuthController {
             throw BizException.unauthorized("authentication required");
         }
         if (req == null) {
-            throw BizException.badRequest("unexpected end of JSON input");
+            // 对照 Go 的 gin ShouldBindJSON：空 body 的解码错误原文是 "EOF"
+            // （emb-pub-mcp-authorize-nobody golden 钉死；直连路由同 handler 同文案）
+            throw BizException.badRequest("EOF");
         }
         String redirectUri = trim(req.redirectUri());
         if (redirectUri.isEmpty()) {
@@ -280,7 +282,8 @@ public class McpOAuthController {
             throw BizException.internal("OAuth gate is not configured");
         }
         if (body == null) {
-            throw BizException.badRequest("unexpected end of JSON input");
+            // 对照 Go 的 gin ShouldBindJSON：空 body → "EOF"（同 authorize-url）
+            throw BizException.badRequest("EOF");
         }
         String serviceId = trim(body.serviceId());
         if (serviceId.isEmpty()) {

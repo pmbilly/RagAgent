@@ -171,9 +171,13 @@ class AttachmentContractTest {
 
     // ════════ 列表 / 详情 / 终态 ════════
 
-    /** 上传后轮询到 ready 终态（text 管线无 docreader，ms 级完成）。 */
+    /**
+     * 上传后轮询到 ready 终态（text 管线无 docreader，ms 级完成）。
+     * 100×200ms=20s：全量重载下解析队列会被拖慢，4s 窗口实测假红一次
+     * （§5.9 等待类变体——窗口放宽不影响断言语义，命中即退）。
+     */
     private MvcResult awaitReady(String attId) throws Exception {
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 100; i++) {
             MvcResult r = perform(get("/api/v1/sessions/" + sid + "/attachments/" + attId)
                     .header("Authorization", bearer));
             if (r.getResponse().getStatus() == 200

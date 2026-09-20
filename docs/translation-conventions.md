@@ -276,6 +276,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | agents CRUD + initialization（波 3 agents 批） | internal/handler/custom_agent.go（715 行全文）+ initialization*.go；internal/application/service/custom_agent*.go；internal/types 的 CustomAgent/CustomAgentConfig；config 的 builtin_agents.yaml/agent_type_presets.yaml/prompt_templates vendor | com.ragagent.agentm.{controller.{AgentController,InitializationController},service.{CustomAgentService,BuiltinAgentRegistry（vendor yaml 启动装载+i18n+prompt 解析）,AgentConfigJson（树级 EnsureDefaults/Validate）,AgentPlaceholders,AgentTypePresets},domain.CustomAgentEntity,mapper.{CustomAgentMapper,AgentQuestionMapper,JsonbRawStringTypeHandler},dto.{AgentResponses,InitResponses}} + common.web.GoWriterJsonFactory（**emoji 修复**） + WebConfig（rbac 12 条+holders agents→true）+ APIKeyRoutePolicies（12 条） | ✅ | 11 端点全落地；**60 条 ag-*/init-* golden 全是 Go 实录** + AgentContractTest + 回归 24 包全绿 + **真 PG A/B 两轮 60 场景 ALL MATCH（3396 全量绿）**。**emoji 跨横切缺陷修复落地**：根因=UTF8JsonGenerator._outputMultiByteChar 对补充字符硬编码代理对转义（2.17-2.20 四版一致，升级不可解）→ GoWriterJsonFactory 把 HTTP mapper 改道 WriterBasedJsonGenerator（Writer 编码=raw UTF-8，与 Go 逐字节一致），内建 avatar 📚/📊 golden 直接钉住，org/knowledge/session/wiki 全部逐字节套件回归绿。**golden 钉死的 Go 既有行为**：POST initialize 建 model 行 tenant_id=0（回读找不到→llm/embedding 键缺席）、initialization 404 是守卫层 "knowledge base not found"、内建 PUT 无行时创建行且 config 取请求原文。已知差异：DeleteAgent 的 im 清理 no-op（im 未翻）、suggested-questions 的 wiki fallback、kb_selection_mode=all 派生表——均随波 4/5。关键坑见 §9「波 3 agents 批」 |
 | browserskill（波 3 尾巴批） | internal/browserskill/ 全部（4,689 行：Manager/store/http 语义/authorization/cluster/daemon/errors/focus/human）+ router.go 的 5 条路由（含引擎级 3 条）+ session.Handler 的 BrowserSkill* handler | com.ragagent.browserskill.{domain（Scope=SHA-256 前 16 字节 hex 跨语言键空间/DeviceRecord/PairingRecord/TaskInterruption/BrowserStatus/AccountStatus/RpcError）,service.{BrowserSkillManager 全文移植,BrowserSkillStore 14 方法,BrowserSkillHttp（http.Error/json.Encoder 尾随换行/MaxBytesReader 语义）},controller×2,GinJson 字母序信封,BrowserSkillWiring} + AuthFilter NO_AUTH_API（引擎级 3 条在 Auth 之前的语义）+ TestSchema 3 表（迁移 000093） | ✅ | 5 端点全落地；**44 个 bs-* golden 全是 Go 实录**（含 download 的字节+headers 双锚；录制部署形态 BROWSERSKILL_BINARY=/usr/bin/false 固化在脚本头）+ BrowserSkillContractTest（单方法按录制序——真实服务器状态跨请求持久，拆 @Test 会假红）+ **真 PG A/B 两轮 45 项 ALL MATCH 零 DIFF**（3399 全量绿）。**跨语言互操作实测**：Go authorize 兑换的设备行（SHA-256 哈希）Java WS 握手认证通过。执行循环接缝（RPC 执行段/WS 双向转发/preview/idle 释放）随波 4；sessions/:id/local-browser 两条随波 4。关键坑见 §9「波 3 browserskill 批」 |
 | 事件契约包（波 4.1，**波 4 开工**） | internal/event/ 全部（event.go 267+event_data.go 317+adapter 59+middleware 94+global 57）+ agent/const.go 的 generateEventID | com.ragagent.event 新包 41 文件：基建 14（EventType 39 常量/Event/EventBus 同步+异步/EventMiddleware 链/GlobalEventBus/EventIds/EventJson（GoJsonEscapes+map 字母序+Go 浮点+GoTime）/TenantContextSnapshot 跨虚拟线程显式传值/package-info 含 **24 emit 点表**）+ payload 27 类 | ✅ | **101 单测全绿**（Go 实录：27 payload × 零值/全量/omitempty ≈ 75 字节断言 + EventBus 行为 12 条：同步顺序/断链/panic 原样冒出/ID 值语义 shallowCopy/异步虚拟线程隔离+租户传递/EmitAndWait barrier/中间件链序/Global Set-先-Get-后 once quirk）+ **全量 3500 绿**。**踩坑新知**：`is` 前缀 boolean 字段必须 getter 上同时标 @JsonProperty（否则拆出多余属性）；primitive double 绕过模块注册的 Double 序列化器（threshold 用包装 Double 才输出 Go 的 0）——均被实录钉住。零路由零 TestSchema。关键坑见 §9「波 4.1 事件契约」 |
+| embed/im 清单面（波 4.3） | internal/handler/embed_channel*.go 管理段+公开面 + im channel CRUD handler；internal/application/service/embed_channel.go（426）+ im channels service（CRUD 段） | com.ragagent.embed 新包 12 文件（EmbedTokens em_/ems_ 令牌+HMAC 会话签名/EmbedRateLimiter 本地滑动窗口=Go Lite 回退/EmbedAuthFilter/EmbedChannelService/EmbedTokenStore+Redis 变体/GoStyleErrorReportValve 容器级错误页对齐）+ com.ragagent.im 新包 4 文件（bot_identity 全平台计算/duplicate 检查/BeforeCreate·Save 钩子） + AuthFilter（/api/v1/embed/ 前缀让路）+ McpOAuthController 空 body 文案 EOF 对齐 + WebConfig 17 条 + TestSchema 2 表 | ✅ | 12 端点全落地（管理面 9 + im 清单 8 计 + 公开面非 QA 部分；QA 委托面随 4.6）；**85 条 emb-*/imc-* golden 全是 Go 实录** + EmbedContractTest/ImContractTest + 回归 10 包 + **真 PG A/B 两轮 85/85 ALL MATCH 零 DIFF（3502 全量绿）**。**golden 钉死**：create 对 default:true 零值 bool 走 DB 默认（请求 false 落库仍 true）、update 缺 allowed_origins 键=nil 整列覆写（响应 null 且清空 allowlist）、未知/跨租户 agent 落 500 "operation failed"、gin.H 字母序与三套 struct 序并存、im CRUD 信封**无 success 键且 create 是 200 非 201**、duplicate bot 409 文案带 %q 渠道名。**横切备案**：GoStyleErrorReportValve（容器级错误页对齐 Go 纯文本，只在响应未被应用代码写过时接管）。关键坑见 §9「波 4.3 embed/im」 |
 
 ## 9. 当前确认过的细节
 
@@ -1744,3 +1745,19 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     异步 emit 路径有专门测试。
   - **24 emit 点表**已固化在 com.ragagent.event 的 package-info（think 5/observe 4/
     approval gate 4/finalize 3/act 3/engine 2/tools 2/steer 1）——4.6 引擎批的 §6 纪律基线。
+- **波 4.3 embed/im 清单面补充**：
+  - **GoStyleErrorReportValve（横切备案）**：Go 对畸形 HTTP 头行回纯文本
+    `400 Bad Request`，Tomcat 默认渲染 HTML 错误页——自定义 ErrorReportValve
+    经 host.setErrorReportValveClass 替换默认阀，**只在响应体未被任何应用代码
+    写过时接管**（应用 JSON 错误契约不受影响，401 JSON 已验证原样）。影响全服
+    容器级错误页格式（对齐 Go）。
+  - **GORM 零值 bool 的 DB 默认语义**：create 对 default:true 的列（enabled/
+    show_suggested）请求 false **落库仍 true**（GORM 省略零值列 → DB 默认）——
+    与 §3 清单一致但方向反直觉，golden 已钉。
+  - **update 缺键 = json.Marshal(nil)="null" 整列覆写**：allowed_origins 缺失时
+    Go 把字面量 "null" 写进 jsonb 列（响应 null、allowlist 清空）——不是
+    "保留原值"也不是 "写 []"。
+  - **im CRUD 信封形态**：无 success 键、create 是 200 非 201、duplicate bot
+    409 文案带 %q 渠道名——与 embed 管理面（201、信封）刻意不同族。
+  - **EmbedAuth 中间件**：publish token（em_/ems_ 前缀）+ HMAC 会话签名 +
+    本地滑动窗口限流（=Go Lite 回退；Redis ZSET 路径未翻，429 分支未录）。

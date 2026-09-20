@@ -1,0 +1,1 @@
+{"error":"platform must be one of: 'dingtalk', 'feishu', 'lark', 'mattermost', 'qqbot', 'slack', 'telegram', 'wechat', 'wecom', 'yunzhijia'"}
