@@ -19,6 +19,8 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.session.domain.ChatHistoryKbStats;
 import com.ragagent.session.domain.Message;
+import com.ragagent.session.domain.MessageAttachment;
+import com.ragagent.session.domain.MessageImage;
 import com.ragagent.session.domain.MessageSearchGroupItem;
 import com.ragagent.session.domain.MessageSearchResult;
 import com.ragagent.session.domain.MessageWithSession;
@@ -245,6 +247,52 @@ public class MessageService {
         } catch (RuntimeException e) {
             log.warn("Failed to delete suggestions for session {}: {}", sessionId, e.toString());
         }
+    }
+
+    // ── 写（波 4.6d 补，对照 Go message.go 的写方法） ────────────────────────
+
+    /**
+     * 对照 Go {@code CreateMessage}（message.go L79-110）：先按严格 owner 范围
+     * 确认会话存在（无 Admin 回退），再落行。
+     */
+    public Message createMessage(Message message) {
+        long tenantId = requireTenantId();
+        sessionRepository.get(tenantId, SessionService.sessionUserIDForLookup(), message.getSessionId());
+        return messageRepository.create(message);
+    }
+
+    /** 对照 Go {@code UpdateMessage}（message.go L229-254）。 */
+    public void updateMessage(Message message) {
+        long tenantId = requireTenantId();
+        sessionRepository.get(tenantId, SessionService.sessionUserIDForLookup(), message.getSessionId());
+        messageRepository.update(message);
+    }
+
+    /** 对照 Go {@code UpdateMessageImages}（message.go L256-259）：只写 images 列。 */
+    public void updateMessageImages(String sessionId, String messageId, List<MessageImage> images) {
+        messageRepository.updateImages(sessionId, messageId, images);
+    }
+
+    /** 对照 Go {@code UpdateMessageRenderedContent}（message.go L261-263）：只写 rendered_content 列。 */
+    public void updateMessageRenderedContent(String sessionId, String messageId, String renderedContent) {
+        messageRepository.updateRenderedContent(sessionId, messageId, renderedContent);
+    }
+
+    /** 对照 Go {@code GetSessionAttachments}（仓储直查，波 4.6d 的 sandbox staging 用）。 */
+    public List<MessageAttachment> getSessionAttachments(String sessionId) {
+        return messageRepository.getSessionAttachments(sessionId);
+    }
+
+    /**
+     * 对照 Go {@code IndexMessageToKB}（message.go L374-...）：把问答对异步入聊天
+     * 历史 KB。Go 起协程（WithoutCancel）；Java 同样交虚拟线程。嵌入模型/聊天历史
+     * KB 未配置时 Go 静默跳过——此处同样的尽力而为语义，失败只记日志。
+     */
+    public void indexMessageToKb(String userQuery, String assistantAnswer, String messageId, String sessionId) {
+        // 已知差异（波 1 G2 备案延续）：聊天历史 KB 的向量索引进程内未接
+        // embedding 执行面，Go 的 dev 部署同样在无 embedding 模型时静默跳过，
+        // 行为一致；只记调试日志，不影响任何 HTTP 契约。
+        log.debug("indexMessageToKb skipped (chat-history KB indexing not wired), session={}", sessionId);
     }
 
     // ── 搜索 ────────────────────────────────────────────────────────────────

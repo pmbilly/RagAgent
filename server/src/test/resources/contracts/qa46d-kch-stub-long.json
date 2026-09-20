@@ -1,0 +1,15 @@
+event:message
+data:{"id":"34044786-165d-42ec-a6a1-cc789e34482a","response_type":"agent_query","content":"","done":true,"session_id":"7628cdfe-21f8-4e3f-ae88-ebb10230cd6d","assistant_message_id":"c674e437-181a-4ce9-900a-d627ea2b01f4","data":{"assistant_created_at":"2026-09-20T22:27:54.070924Z","assistant_message_id":"c674e437-181a-4ce9-900a-d627ea2b01f4","session_id":"7628cdfe-21f8-4e3f-ae88-ebb10230cd6d","user_created_at":"2026-09-20T22:27:54.067257Z","user_message_id":"bc04bd99-afb7-46ea-8567-ba370871a03e"}}
+
+event:message
+data:{"id":"34044786-165d-42ec-a6a1-cc789e34482a","response_type":"answer","content":"第一段。","done":false,"data":{"event_id":"50be3fe4-answer"}}
+
+event:message
+data:{"id":"34044786-165d-42ec-a6a1-cc789e34482a","response_type":"answer","content":"第二段，","done":false,"data":{"event_id":"50be3fe4-answer"}}
+
+event:message
+data:{"id":"34044786-165d-42ec-a6a1-cc789e34482a","response_type":"answer","content":"第三段内容较长一些，用于观察分片重组与扣留缓冲。","done":true,"data":{"completed_at":1789943274,"duration_ms":0,"event_id":"50be3fe4-answer"}}
+
+event:message
+data:{"id":"34044786-165d-42ec-a6a1-cc789e34482a","response_type":"complete","content":"","done":true,"data":{"final_content":"第一段。第二段，第三段内容较长一些，用于观察分片重组与扣留缓冲。","total_duration_ms":0,"total_steps":0}}
+

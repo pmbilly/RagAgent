@@ -305,6 +305,13 @@ public class WebConfig implements WebMvcConfigurer {
         // 目前只登记了已翻译的 continue-stream；同组其余端点在各自落地时补。
         rbac.addRule("GET", "/api/v1/sessions/continue-stream/*", TenantRole.VIEWER, false);
 
+        // chat 三入口（波 4.6d，对照 routes_chat.go L117-133 的 RegisterChatRoutes）：
+        // knowledge-chat / agent-chat / knowledge-search 全部 Viewer+（逐会话/逐 KB
+        // 授权在 handler 内做）。API-Key 侧 chat/retrieve 能力见 APIKeyRoutePolicies。
+        rbac.addRule("POST", "/api/v1/knowledge-chat/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/agent-chat/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-search", TenantRole.VIEWER, false);
+
         // 长期记忆（对照 RegisterMemoryRoutes，routes_memory.go:17-40）
         // 守卫**只有 Viewer**：路径里没有任何 subject 参数，记忆空间一律从请求主体推导，
         // 所以不存在需要所有权判定的"别人的资源"。这里也**没有**管理端。

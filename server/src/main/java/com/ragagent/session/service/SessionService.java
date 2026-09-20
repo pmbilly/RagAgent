@@ -266,6 +266,15 @@ public class SessionService {
      * （{@code repo.Get}，不是 loadSessionForRead——管理员能读但**不得改**），
      * 然后 sanitize description 再更新（只写 title/description/updated_at）。
      */
+    /**
+     * 对照 Go UpdateSessionLastRequestState（session.go 的输入条状态写入）。
+     * 波 4.6d 补（KnowledgeQaController 的异步 UI memo 用）。
+     */
+    public void updateSessionLastRequestState(String sessionId, com.ragagent.session.domain.SessionLastRequestState state) {
+        long tenantId = TenantContext.currentTenantId() == null ? 0 : TenantContext.currentTenantId();
+        sessionRepository.updateLastRequestState(tenantId, sessionUserIDForLookup(), sessionId, state);
+    }
+
     public void updateSession(Session session) {
         if (session.getId() == null || session.getId().isEmpty()) {
             throw new BizException(AppError.internal("session id is required"));

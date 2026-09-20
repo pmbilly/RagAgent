@@ -443,6 +443,14 @@ public final class APIKeyRoutePolicies {
         a.registerGin("GET", "/api/v1/sessions/:id/messages/:message_id/artifacts", sessions);
         a.registerGin("GET", "/api/v1/sessions/:id/messages/:message_id/artifacts/:index/download", sessions);
         a.registerGin("POST", "/api/v1/sessions/:session_id/generate_title", sessions);
+
+        // chat 三入口（波 4.6d，对照 routes_chat.go L117-133）：chat 能力（检索为 retrieve）
+        a.registerGin("POST", "/api/v1/knowledge-chat/:session_id",
+                APIKeyRoutePolicy.chat(APIKeyRoutePolicy.fullAccess()));
+        a.registerGin("POST", "/api/v1/agent-chat/:session_id",
+                APIKeyRoutePolicy.chat(APIKeyRoutePolicy.fullAccess()));
+        a.registerGin("POST", "/api/v1/knowledge-search",
+                APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.fullAccess()));
         a.registerGin("POST", "/api/v1/sessions/:session_id/stop", sessions);
         // steer 4 条（routes_chat.go L74-77，同组 chat 能力）
         a.registerGin("POST", "/api/v1/sessions/:session_id/steer", sessions);

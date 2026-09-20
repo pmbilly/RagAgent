@@ -1,0 +1,12 @@
+event:message
+data:{"id":"8d9f811a-6c06-4f72-a48e-0ad0f0a36b26","response_type":"agent_query","content":"","done":true,"session_id":"80d5cdda-5950-47b9-b972-ee6c08562586","assistant_message_id":"2b857e49-fa19-4923-a7f0-55ef031c09b9","data":{"assistant_created_at":"2026-09-20T22:27:55.464791Z","assistant_message_id":"2b857e49-fa19-4923-a7f0-55ef031c09b9","session_id":"80d5cdda-5950-47b9-b972-ee6c08562586","user_created_at":"2026-09-20T22:27:55.454685Z","user_message_id":"3bcfa15c-405b-4efe-b1e2-5166463a3e7f"}}
+
+event:message
+data:{"id":"8d9f811a-6c06-4f72-a48e-0ad0f0a36b26","response_type":"answer","content":"你好，","done":false,"data":{"event_id":"307198bc-answer"}}
+
+event:message
+data:{"id":"8d9f811a-6c06-4f72-a48e-0ad0f0a36b26","response_type":"answer","content":"我是知识助手。","done":true,"data":{"completed_at":1789943275,"duration_ms":0,"event_id":"307198bc-answer"}}
+
+event:message
+data:{"id":"8d9f811a-6c06-4f72-a48e-0ad0f0a36b26","response_type":"complete","content":"","done":true,"data":{"final_content":"你好，我是知识助手。","total_duration_ms":0,"total_steps":0}}
+
