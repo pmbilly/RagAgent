@@ -282,7 +282,8 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 
 | tools 基建+确定性工具（波 4.5a） | internal/agent/tools/ 的 registry+基建 21 文件（registry/definitions/capabilities/param_cast/param_validate/json_repair/truncate/normalize_id/output_budget/output_links/file_mutation_queue/strip_think/think_stream/exec_context/execution_policy/tool/data_schema/mcp_schema）+ todo_write/sequentialthinking/faq_snippet | com.ragagent.agent.tools 新包 33 文件 ~4.4k 行：ToolRegistry（first-wins/排序字节稳定/deferred/outputLimitProvider 接缝）+ ToolDefinitions（退役工具替代文案）+ ToolCapabilities（KB 能力门控）+ ParamCaster/ParamValidator/JsonRepair/ToolOutput（truncate）/NormalizeToolCallId/OutputBudgets/OutputLinks/FileMutationQueue/ThinkBlocks/ThinkStreamSplitter/GoJsonCodec/GoPath/GoJsonEscapes 复用 + TodoWriteTool/SequentialThinkingTool/FaqSnippet/DataSchemaTool + AgentTool/BaseTool/ToolRequest/ToolExecContext/ToolCancellation/MessageSanitizer/ShellEnvExtractor/ShellCommandOutput（emit 只接线不触发，执行面 4.5c） | ✅ | **31 个测试类全绿**（15 个实录回放类 + FileMutationQueue 行为机）；**208 条 Go 实录**（/tmp/toolrec 探针同包调用未导出函数 → rec.jsonl → GoRecording45A.java 生成常量，覆盖 json_repair 31/cast 29/validate 15+3/truncate 15/normid 9/strip_think 11/think_stream 13/todo 6/seqthink 11/registry 17/caps 12/faq 10/fmq 4/budget 13/codec 9）。**实录抓回三个真缺陷**：① ParamValidator 对 `{}` args 提前返回跳过 required 检查（Go 只在 len(args)==0 短路，`{}` 照样报 missing）；② TodoWriteTool 缺省 steps 编出 `[]`/`"[]"`（Go 的 nil 切片是 `null`/`"null"`）；③ JsonRepair `List<Character>`/ParamCaster import/FaqSnippet import/ShellCommandOutput 受检异常 4+2 编译错误。**已知通道差异（备案）**：Go 的 (result,err) 双通道折叠——Java 工具用 success=false+error 表达失败，"success=true 同时 err" 形态不可表达；bad-json 的 args 在 Java 上游已解析（seqthink/todo 的 bad_json case 不录）。执行面（sandbox/shell/skill/web/knowledge/wiki/MCP 工具）与 EventBus emit 接线随 4.5b/4.5c |
 
-| 知识检索+wiki 工具族（波 4.5b） | internal/agent/tools/ 的 knowledge 九件（knowledge_search/grep_chunks/list_chunks/query_graph/get_doc_info/search_conversations/search_memory/database_query/data_analysis+sql_guard/search_auth）+ wiki 十件（wiki_search/read_page/write_page/replace_text/rename_page/delete_page/read_source_doc + wiki_issue 四件 flag/read/update） | com.ragagent.agent.tools 新文件 24 个：KnowledgeSearchTool/GrepChunksTool/ListKnowledgeChunksTool/QueryKnowledgeGraphTool/GetDocumentInfoTool/SearchConversationsTool/SearchMemoryTool/DatabaseQueryTool/DataAnalysisTool + SqlGuard（1590 行，手写替代 pg_query）/SearchAuth（455）/SearchTarget/DocChunkSupport/WikiSupport + 10 个 Wiki*Tool。执行接线（SqlQueryExecutor/KnowledgeLoader/Materializer/DuckDB 引擎选型）留 4.5c | ✅ | **9 个新测试类全绿**（259 tests / 0 failures，PG 依赖类真实执行：DatabaseQuery 15/DataAnalysis 12/KnowledgeSearch 15/WikiTools 8/GrepChunks 10）；**249 条 Go 实录 21 组**（/tmp/toolrec45b 探针，GoRecording45B.java 249 常量）。**已知差异（备案，实录已锁稳定段）**：⑮ DuckDB 1.5.2 vs JDBC 1.1.3 错误文案不同（missing-column 语料只锁稳定段）；⑯ DuckDB 1.1.3 无 read_xlsx（buildExcelCreateTableSQL 逐字锁定，执行侧 ST_Read shim）；⑰ knowledge_search dedup 二轮顺序 Go map 随机 vs Java LinkedHashMap 确定（rerank_preserve_top 语料钉采样）。**决策点**：手写 SqlGuard 替代 pg_query、跳过 Deparse、DatabaseQueryTool 注入 LongSupplier tenantId、storage 后端解析留 KnowledgeFileMaterializer seam（4.5c）、未加 JsonContractRoundTripTest。零既有文件被改。关键坑见 §9「波 4.5b 补充」 |
+| 知识检索+wiki 工具族（波 4.5b） | internal/agent/tools/ 的 knowledge 九件（knowledge_search/grep_chunks/list_chunks/query_graph/get_doc_info/search_conversations/search_memory/database_query/data_analysis+sql_guard/search_auth）+ wiki 十件（wiki_search/read_page/write_page/replace_text/rename_page/delete_page/read_source_doc + wiki_issue 四件 flag/read/update） | com.ragagent.agent.tools 新文件 24 个：KnowledgeSearchTool/GrepChunksTool/ListKnowledgeChunksTool/QueryKnowledgeGraphTool/GetDocumentInfoTool/SearchConversationsTool/SearchMemoryTool/DatabaseQueryTool/DataAnalysisTool + SqlGuard（1590 行，手写替代 pg_query）/SearchAuth（455）/SearchTarget/DocChunkSupport/WikiSupport + 10 个 Wiki*Tool。执行接线（SqlQueryExecutor/KnowledgeLoader/Materializer/DuckDB 引擎选型）的生产装配随 4.6 | ✅ | **9 个新测试类全绿**（259 tests / 0 failures，PG 依赖类真实执行：DatabaseQuery 15/DataAnalysis 12/KnowledgeSearch 15/WikiTools 8/GrepChunks 10）；**249 条 Go 实录 21 组**（/tmp/toolrec45b 探针，GoRecording45B.java 249 常量）。**已知差异（备案，实录已锁稳定段）**：⑮ DuckDB 1.5.2 vs JDBC 1.1.3 错误文案不同（missing-column 语料只锁稳定段）；⑯ DuckDB 1.1.3 无 read_xlsx（buildExcelCreateTableSQL 逐字锁定，执行侧 ST_Read shim）；⑰ knowledge_search dedup 二轮顺序 Go map 随机 vs Java LinkedHashMap 确定（rerank_preserve_top 语料钉采样）。**决策点**：手写 SqlGuard 替代 pg_query、跳过 Deparse、DatabaseQueryTool 注入 LongSupplier tenantId、storage 后端解析留 KnowledgeFileMaterializer seam、未加 JsonContractRoundTripTest。零既有文件被改。关键坑见 §9「波 4.5b 补充」 |
+| 执行面+MCP 工具族（波 4.5c） | internal/agent/tools/ 的 sandbox 文件面五件（read_file 180/sandbox_ls 320/sandbox_write 403/sandbox_edit 423/sandbox_diff 158）+ shell_exec（1027）+ skill 三件（skill_file 416/skill_resources 90/skill_runtime_guard 89）+ 行为完整所需超清单两件（workspace_reader 442/python_syntax 158）+ read_web_page 77 + MCP 四件（mcp_tool 755/mcp_catalog 974/mcp_exposure 254/mcp_oauth 253） | com.ragagent.agent.tools 新文件 35 个 ~10k 行：ReadFileTool（skill 资源/workspace/web:// 游标三分支）+WorkspaceFileReader/ListSandboxFilesTool/WriteSandboxFileTool/EditSandboxFileTool+SandboxEdits（**字节偏移语义**）/SandboxDiffs（接 4.5a 预留 sandboxOutputSnapshot）+ ShellExecTool（session+install 双变体、黑名单、保头保尾截断、stdin base64 管道、skill env 解析/捕获；**4.5a 的 ShellCommandOutput emit 首次真正触发**）+ WriteSkillFileTool/EditSkillFileTool/SkillFiles/SkillResources/SkillRuntimeGuard/PythonSyntax + McpToolWrapper/McpCatalog/McpDiscoverTool（三模式）/McpCallTool/McpRegisteredTool（实现 4.5a 预留 McpCatalogGuardedTool，鉴权先于 schema 校验）/McpExposure/McpOAuthSupport/ApprovalBridge + SandboxPaths/RemoteDirEntry/RemoteStatEntry/SkillEnvironment（SkillEnvResolver 按 Go env_resolver.go 原样补在本包）+ 接口族 SandboxFileSource/Sink/Editor、SandboxCommandExecutor/SandboxInstallCommandExecutor、SkillFileStore。**ToolRegistry 扩展 +303 行纯新增**（唯一授权既有文件：prepareMcpTools(Direct)/refreshMcpTools/rememberMcpHistory/mcpCatalog/mcpCallTarget/hasMcpServer） | ✅ | **68 新测试全绿，agent 包 327 条零回归**（小包批 B1a~B4 合计 3901 全绿）；**265 条 Go 实录 14 组**（/tmp/toolrec45c 探针 a/b/c + 内嵌 stub MCP server；GoRecording45C.java 265 常量）；**MCP stub A/B 双端同打同款 stub server**：tools/list、tools/call、notifications/initialized 请求体逐字节一致（id 掩码），工具结果 output 逐字节一致（initialize 差异备案⑱）。实录抓回 7 处真语义缺陷（edit 字节偏移/UTF-8 分页预算/U+FFFD 逐字节/GoDuration "1ms"/16-hex 后缀/content_items 字节计数/ErrTimeout 补写）。**已知差异（备案）**：⑱ initialize 请求体 Go SDK=2025-11-25 vs Java 4.1=2024-11-05（4.1 既有契约，握手语义一致）；McpTool InputSchema JsonNode 重序列化 vs Go RawMessage 原文（pretty-JSON 服务器的 ref 哈希不一致）；Go json.Unmarshal 错误文案不可达只录不比。**决策点**：SkillEnvironment 位置、McpTool raw-schema 通道（动 4.1）、执行期身份重校验、投影类型对接方式。关键坑见 §9「波 4.5c 补充」 |
 
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
@@ -1852,3 +1853,32 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     单包重跑确认后重试该批即可。如频繁复发，候选修法（留给 Owner 决策，
     未动手）：test JVM 加 `-Djdk.attach.allowAttachSelf=true` 或
     `net.bytebuddy.agent.attacher.dump` 诊断，勿改 forkEvery 先定位。
+- **波 4.5c 补充**：
+  - **录制方法**：同 4.5a/b（/tmp/toolrec45c 复制 Go internal/，同包探针
+    zz_rec45c_a/b/c_test.go + 探针内嵌 stub MCP server → rec.jsonl →
+    GoRecording45C.java，"禁止手改"；重生成命令在文件头注释。超长常量用
+    StringBuilder 运行期拼接——javac 对字面量 + 常量折叠会撞 CONSTANT_Utf8 64KB 上限）。
+  - **MCP stub A/B 双端结论**：tools/list、tools/call、notifications/initialized 的
+    method+params 逐字节一致（JSON-RPC id 掩码），工具结果 output 逐字节一致。
+    **initialize 请求体（⑱）不逐字节**：Go 走 mark3labs SDK（protocolVersion
+    2025-11-25、键序 protocolVersion→clientInfo→capabilities），Java 4.1 客户端
+    （2024-11-05、protocolVersion→capabilities→clientInfo）——握手语义一致，
+    A/B 按各自基线断言；要逐字节就得动 4.1 McpProtocol（决策点，未动手）。
+  - **mcpToolRef 的 schema 原字节**：Go InputSchema 是 json.RawMessage（服务器发什么
+    哈希什么）；Java 4.1 McpTool 存 JsonNode（紧凑重序列化）。服务器发 compact schema
+    时两端 ref 一致；pretty-JSON 服务器会不一致。修法=给 McpTool 加 raw-schema
+    字符串通道（动 4.1 文件，留 Owner 决策）。
+  - **实录抓回的字节语义族**（Go→Java 最易翻错的四处）：① edit 工具的
+    index/overlap 判定是**字节偏移**非字符偏移（中文语料 [3,9] vs 字符 [1,3]）；
+    ② sandbox 文件分页 maxBytes 按 UTF-8 **字节**预算；③ shell 流截断切 rune 时
+    坏解码逐**字节**输出 U+FFFD（不是每 rune 一个）；④ Go duration 的 "1ms"
+    不写 "1.0ms"。
+  - **ctx 身份的显式化**：Go catalog.authorize 从 ctx 取 (tenant, principal,
+    oauthPrincipal)；Java 在 McpCatalog 构造期捕获，执行路径 authorizeExecution()
+    （tenant==0 恒失败）。多引擎共用 registry 时的执行期重校验留 4.6。
+  - **装配边界确认**：真 sandbox Manager（SandboxFileSource/Sink/Editor、
+    SandboxCommandExecutor/SandboxInstallCommandExecutor、SkillFileStore、
+    SkillEnvironment 的实现）与 4.5b 的 SqlQueryExecutor/AnalysisDuckDb/
+    GrepChunkSearch/KnowledgeFileMaterializer 的**生产**接线全部随 4.6
+    agent_service 装配（4.5c 报告有完整签名清单）；4.5b 行的「执行接线留 4.5c」
+    实指装配期，本波确认归 4.6。
