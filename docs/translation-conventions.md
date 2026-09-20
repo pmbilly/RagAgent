@@ -286,6 +286,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 执行面+MCP 工具族（波 4.5c） | internal/agent/tools/ 的 sandbox 文件面五件（read_file 180/sandbox_ls 320/sandbox_write 403/sandbox_edit 423/sandbox_diff 158）+ shell_exec（1027）+ skill 三件（skill_file 416/skill_resources 90/skill_runtime_guard 89）+ 行为完整所需超清单两件（workspace_reader 442/python_syntax 158）+ read_web_page 77 + MCP 四件（mcp_tool 755/mcp_catalog 974/mcp_exposure 254/mcp_oauth 253） | com.ragagent.agent.tools 新文件 35 个 ~10k 行：ReadFileTool（skill 资源/workspace/web:// 游标三分支）+WorkspaceFileReader/ListSandboxFilesTool/WriteSandboxFileTool/EditSandboxFileTool+SandboxEdits（**字节偏移语义**）/SandboxDiffs（接 4.5a 预留 sandboxOutputSnapshot）+ ShellExecTool（session+install 双变体、黑名单、保头保尾截断、stdin base64 管道、skill env 解析/捕获；**4.5a 的 ShellCommandOutput emit 首次真正触发**）+ WriteSkillFileTool/EditSkillFileTool/SkillFiles/SkillResources/SkillRuntimeGuard/PythonSyntax + McpToolWrapper/McpCatalog/McpDiscoverTool（三模式）/McpCallTool/McpRegisteredTool（实现 4.5a 预留 McpCatalogGuardedTool，鉴权先于 schema 校验）/McpExposure/McpOAuthSupport/ApprovalBridge + SandboxPaths/RemoteDirEntry/RemoteStatEntry/SkillEnvironment（SkillEnvResolver 按 Go env_resolver.go 原样补在本包）+ 接口族 SandboxFileSource/Sink/Editor、SandboxCommandExecutor/SandboxInstallCommandExecutor、SkillFileStore。**ToolRegistry 扩展 +303 行纯新增**（唯一授权既有文件：prepareMcpTools(Direct)/refreshMcpTools/rememberMcpHistory/mcpCatalog/mcpCallTarget/hasMcpServer） | ✅ | **68 新测试全绿，agent 包 327 条零回归**（小包批 B1a~B4 合计 3901 全绿）；**265 条 Go 实录 14 组**（/tmp/toolrec45c 探针 a/b/c + 内嵌 stub MCP server；GoRecording45C.java 265 常量）；**MCP stub A/B 双端同打同款 stub server**：tools/list、tools/call、notifications/initialized 请求体逐字节一致（id 掩码），工具结果 output 逐字节一致（initialize 差异备案⑱）。实录抓回 7 处真语义缺陷（edit 字节偏移/UTF-8 分页预算/U+FFFD 逐字节/GoDuration "1ms"/16-hex 后缀/content_items 字节计数/ErrTimeout 补写）。**已知差异（备案）**：⑱ initialize 请求体 Go SDK=2025-11-25 vs Java 4.1=2024-11-05（4.1 既有契约，握手语义一致）；McpTool InputSchema JsonNode 重序列化 vs Go RawMessage 原文（pretty-JSON 服务器的 ref 哈希不一致）；Go json.Unmarshal 错误文案不可达只录不比。**决策点**：SkillEnvironment 位置、McpTool raw-schema 通道（动 4.1）、执行期身份重校验、投影类型对接方式。关键坑见 §9「波 4.5c 补充」 |
 | modelcontext + skills 库 + langfuse seam（波 4.6a，4.6 首批） | internal/modelcontext/ 15 非测试文件 ~3.3k（citations/handles/handle_table/registry/sources/mcp/mcp_sources/resources/stream/tool_policy/model_output）+ internal/agent/skills/ 9 非测试文件 ~3.3k（skill/skill_frontmatter/source/loader/tenant_source/env_resolver/manager/shell_staging/shell_environment）+ internal/tracing/langfuse 的引擎三调用点 | com.ragagent.modelcontext 新包 10 文件 ~3.0k（Registry：ProtocolPrompt/EncodeMessages/DecodeToolCalls/DecodeOutputText/StreamDecoder/Register*/ModelToolResult*/CompactKnownText + SourceRegistry/CitationStreamExpander/GoHtml（EscapeString 五字符）+ ResourceRegistry（res://0001 起/孤儿过滤）+ ToolPolicy（37 策略表+RawJson 保原始字节扫描器）+ ModelOutput（8 display_type）+ GoJsonValues（float64 归一/Go 严格单值解析））+ com.ragagent.agent.skills 新包 8 文件 ~2.0k（Skill/SkillFrontmatter 两步修复管线/Loader（ReadDir 排序+Walk 深度序）/TenantSkillSource（**手写 zip 中央目录解析器含 zip64**+LRU）/SkillEnvResolver/Manager（SessionFileStore/SandboxGateway 窄 seam + **asSkillEnvironment() 适配器接 4.5c SkillEnvironment**））+ com.ragagent.tracing.langfuse 3 文件（LangfuseManager 接口+Span+no-op 单例；OTLP 导出降级备案） | ✅ | **48 新测试全绿（四包 375 条）**；**193 条 Go 实录**（modelcontext 92 + skills 101，含 100_001 条目/20_001 文件真 zip 边界、LRU 逐出计数）；**零既有文件改动**（SkillEnvironment 桥接走适配器，tools 包一字未动；波 3 sandbox.service 对账同源同值零改动）。**实录抓回**：Go json 严格单值（FAIL_ON_TRAILING_TOKENS——default 分支 Go 只走 labeled refs）、RE2 `$`→`\z`、`\s` 的 `\x0B` 差异、float64 数字归一、map[string]RawMessage 保 1.0 字面量重组。**主会话修掉 4.2 潜伏墙钟 flake**（AgentPromptsTest，见 §9「波 4.6a 补充」）。**决策点**：波 3 SkillFrontmatter snakeyaml 宽容类型是否对齐、GoRawJson 深层键序边界。关键坑见 §9「波 4.6a 补充」 |
 | agent 引擎核心（波 4.6b） | internal/agent/ 根包 engine.go(934)/observe.go(918)/think.go(626)/act.go(619)/finalize.go(188)/steer.go(93)/context_debug.go 引擎段(169) + types 的 AgentState/AgentConfig 消费面 + prompts 的四个 info 类型 | com.ragagent.agent 根包新文件 4 个：AgentEngine（七文件方法收进一类，分段注释=Go 文件名；Execute/executeLoop/runReActIteration/streamLLMToEventBus/streamThinkingToEventBus/callLLMWithRetry/executeToolCalls(+parallel 写屏障)/runToolCall/manageContextWindow/runCompaction/analyzeResponse/streamFinalAnswerToEventBus/emitCompletionEvent/drainSteerMessages/logContextPrediction/logContextDrift）+ AgentConfig（运行时消费面，与 agentm.AgentConfigJson 配置树刻意分离）+ AgentEngineException（Go error 通道，message=fmt.Errorf 原文）+ SteerSink（引擎半边接口，4.6d 实现）+ domain.AgentState（json 契约：pending_steer_messages 是 json:"-"） | ✅ | **20 个实录回放测试全绿（com.ragagent.agent.* 362 条零回归）**；**74 条 Go 实录 20 组**（/tmp/toolrec46b 同包探针复用 engine_test.go mockChat + steer_test.go fakeSteerSink：自然停/空内容重试/卡死检测/max-iterations 合成/content_filter/并行工具写屏障/length 拒执行/steer 注入+循环结束续跑/render_user_turn 句柄压缩/trim/compaction 触发/estimate/流错误/优雅降级）。**实录抓回两个真缺陷**：① MessageSanitizer 合并就地改共享对象（Go 切片值语义→多轮下用户消息被反复追加），② 引擎两处用字段 sessionId 而非 Execute 入参。**语义备案**：complete 事件 usage 键恒输出（Go typed-nil interface）+ agent_steps 恒输出（interface{} 持切片，与切片类型字段的 omitempty 相反）——RawValue 过 NON_EMPTY。关键坑见 §9「波 4.6b 补充」 |
+| chat_pipeline 检索管线（波 4.6c） | internal/application/service/chat_pipeline/ 全部 26 非测试文件（9,873 行） | com.ragagent.chatpipeline 新包 43 主文件 ~8.7k 行：ChatManage 三段状态包 + EventManager（注册序闭包链）+ PipelineBuilder（5 组预设管线）+ PluginError（9 预定义错误**同一实例**保 Go 指针比较语义）+ 17 个 Plugin* 插件类（多文件收进一类，分段注释=Go 文件名）+ PipelinePorts（全部窄 seam：Model/KnowledgeBase/Knowledge/Chunk/Memory/Message 等 Service 子集，**签名已与既有 memory.service 等对齐**）+ PipelineCommon（RunParallel/ParallelMap=虚拟线程）/SearchSupport/ReferencesSupport/PipelineProgress（进度窗口时钟可注入）/GoJsonMarshal（MarshalIndent 字节形态）/QueryTokenizer（jieba 接缝） | ✅ | **42 新测试全绿（四包合跑 437 条）**；**263 条 Go 实录 40 组**（/tmp/toolrec46c 同包探针复用 Go 既有测试 fakes；两次运行 diff 为空）覆盖 query 理解 19 形态/expansion 17（jieba 真分词）/merge 五件全分支/rerank 48/progress 事件序列/stream 路由等。**实录抓回三个真缺陷**：① expandShortContextWithNeighbors 前后文是**替换**非拼接（首版文本翻倍）；② Go `len()` 三处是**字节语义**（按 char 翻译会漏变体）；③ 引号字符类只有直引号+「」『』（hexdump 验证无弯引号）。**零既有文件改动**。已知差异：jieba 降级 seam、entity 错误文案掩差异段、search_parallel 合并序恒 chunk→entity（Go 并发序不可控备案）。seam 装配清单（PipelinePorts 11 接口）随 4.6d |
 
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
@@ -1974,3 +1975,36 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     persist 函数随 4.6d 落 tools 包时再收敛；⑥ AgentConfig 本波只收引擎消费字段
     （其余 Go 字段随 4.6d agent_service 装配按需补），未进 JsonContractRoundTripTest
     （引擎内部类型，不落 jsonb/响应体；JSON 形状由实录回放钉住）。
+- **波 4.6c 补充**：
+  - **实录方法**：/tmp/toolrec46c 复制 Go internal/ + go.mod/go.sum，同包探针
+    zz_rec46c_support_test.go + zz_rec46c_test.go 复用 Go 既有 *_test.go 的 fakes
+    （8 个测试文件里有 stub service/LLM），驱动管线纯函数与各插件 OnEvent →
+    rec46c.jsonl → GoRecording46C.java（禁手改，重生成命令在头注释）。
+    掩码两侧同款（uuid/事件 id 8-hex 前缀/duration_ms 连键删/DATE/WEEKDAY/PORT）。
+  - **实录抓回的真缺陷（三件）**：① merge_expand 的 prevContent 是
+    `JoinChunkContent(prev, prevContent)` **替换**语义，写成 append 会文本翻倍
+    （链式邻居展开组抓回）；② expansion/extract 的 `len()` 是 **UTF-8 字节语义**
+    ×3（len(seg)>5、len(s)<3、len>2）——「知识库」3 字符=9 字节入选，按 char
+    翻译漏变体；③ 引号字符类经 hexdump 验证只有直引号+「」『』，无弯引号
+    U+2018/2019。
+  - **PluginError 同一实例语义**：Go 的 9 个预定义错误是包级单例，
+    `stageErr == ErrSearchNothing` 是指针比较——Java 保留同一实例 + 引用比较，
+    管线的"错误类型分流"依赖它，别重构成值相等。
+  - **search_parallel 合并序备案**：Go 侧 map 迭代/并发合并序不可控，
+    Java 恒 chunk→entity（LinkedHashMap 保出现序）——实录锁稳定段；
+    `EntityKBIDs/EntityKnowledge` 用 LinkedHashMap。
+  - **jieba 接缝（4.4 既有）**：expansion 组按实录注入固定分词表
+    （QueryTokenizer.setSegmenter），未命中回落二字滑窗。
+  - **web_fetch 实录差异**：Go 探针的本地 stub 被 web_fetch 的 SSRF 守卫拒连，
+    实录锁的是"抓取失败→内容不变"的管线行为；Java 用 127.0.0.1:9 复现同语义，
+    不依赖进程级 SsrfGuard 状态。
+  - **4.6d 装配清单（PipelinePorts 11 seam）**：ModelService/KnowledgeBaseService/
+    KnowledgeService/ChunkRepository（含 ListChunksByParentIDs）/KnowledgeRepository/
+    KnowledgeBaseRepository/MessageService（updateMessageImages/
+    updateMessageRenderedContent 需补方法或 adapter 直写 mapper）/MemoryService
+    （可直接委托 memory.service.MemoryService）/WebSearch/RetrieveGraphRepository/
+    DataAnalysisSessionFactory（实现须放 agent.tools 包内触达包私有
+    loadFromKnowledge）；TenantService/SessionService/WebSearchStateService/
+    WebSearchProviderRepository 是占位（Go 侧只判 nil 或存而不读）。
+    进度窗口：PipelineProgress.begin/endRetrievalProgress、
+    shouldCloseRetrievalProgress、lastConsolidatedRetrievalStage。

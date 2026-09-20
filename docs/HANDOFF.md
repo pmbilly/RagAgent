@@ -1,57 +1,69 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：四包批（modelcontext/agent.skills/langfuse/agent）375 测试全绿（4.6a 已提交）** · golden 1324 个
-> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 收官段进行中（4.6 拆四批：4.6a 完成；下一步 4.6b 引擎核心 → 4.6c chat_pipeline → 4.6d HTTP+装配+A/B）**
+> 最后更新：2026-09-21 · **基线：四包批（chatpipeline/agent/modelcontext/langfuse）437 测试全绿（4.6c 已提交）** · golden 1324 个
+> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 收官段进行中（4.6a/4.6b/4.6c 完成；下一步 4.6d HTTP+装配+stub LLM 全链路 A/B 收官波 4）**
 
-## 0. 接手状态（2026-09-21，4.6a 已收官——新会话直接派 4.6b）
+## 0. 接手状态（2026-09-21，4.6c 已收官——新会话直接派 4.6d）
 
 **波 4.6 切分（2026-09-21 实测重排，4.6 全量 ~23k 行超单批容量）**：
-**4.6a modelcontext+skills 库+langfuse seam（✅ 本批）→ 4.6b 引擎核心
-（engine/observe/act/think/finalize/steer ~3.7k + context_debug 引擎段）→
-4.6c chat_pipeline（26 文件实测 9,873，比旧估 6.8k 大）→ 4.6d HTTP 面+装配+
-stub LLM 全链路 A/B 收官（qa.go 1,768 + agent_stream_handler 896 +
-session_agent_qa 647 + session_knowledge_qa 1,290 + agent_service 1,485）**。
+**4.6a modelcontext+skills 库+langfuse seam（✅ f7a2b98）→ 4.6b 引擎核心
+（✅ f345658，AgentEngine 3,227 行 + 74 实录 + MessageSanitizer 真缺陷修复）→
+4.6c chat_pipeline（✅ 本批，43 文件 8.7k + 263 实录 40 组）→
+4.6d HTTP 面+装配+stub LLM 全链路 A/B 收官（qa.go 1,768 + agent_stream_handler 896 +
+session_agent_qa 647 + session_knowledge_qa 1,290 + agent_service 装配 1,485）**。
 
-**4.6a ✅ 完成**：三个新包——`com.ragagent.modelcontext`（10 文件 ~3.0k，Registry
-公开面 ProtocolPrompt/DecodeOutputText/StreamDecoder/ToolPolicy 37 策略表 +
-GoJsonValues 严格单值）、`com.ragagent.agent.skills`（8 文件 ~2.0k，Manager 经
-asSkillEnvironment() 适配器接 4.5c SkillEnvironment；TenantSkillSource 手写 zip
-中央目录解析器含 zip64）、`com.ragagent.tracing.langfuse`（接口+no-op 单例，
-OTLP 降级备案）。193 条 Go 实录 + 48 新测试。**零既有文件改动**；波 3
-SkillBundleParser/SkillFrontmatter 对账同源同值。台账见 conventions §8「波 4.6a」
-§9「波 4.6a 补充」。
+**4.6c ✅ 完成**：`com.ragagent.chatpipeline` 新包 43 主文件 ~8.7k 行（17 个 Plugin*
+插件类 + EventManager/PipelineBuilder/ChatManage + **PipelinePorts 11 个窄 seam**）+
+8 测试文件 + **263 条 Go 实录 40 组**（两次运行 diff 为空）。**实录抓回三个真缺陷**
+（merge_expand 替换语义写成了拼接、Go len() 字节语义 ×3、引号字符类无弯引号）。
+**零既有文件改动**。台账见 conventions §8「波 4.6c」与 §9「波 4.6c 补充」
+（**4.6d 装配清单——PipelinePorts 11 seam 的 adapter 要求——在 §9 波 4.6c 末段**）。
 
-**主会话修掉 4.2 潜伏墙钟 flake**：AgentPromptsTest.placeholdersWithStatusMatchGo
-——Go 的 current_week/yesterday 走 time.Now()（placeholder.go L215-218），录制
-常量只在录制日（09-20）可复现，09-21 凌晨翻红。已改测试按当日现算期望值。
-**教训（§9 已写）**：录 Go 实录时输出含 time.Now() 派生段，必须当日写成
-「静态骨架 + 当日现算动态段」。
+**4.6a 摘要（f7a2b98）**：`com.ragagent.modelcontext`（Registry/ToolPolicy/StreamDecoder
++ GoJsonValues 严格单值）+ `com.ragagent.agent.skills`（Manager 经 asSkillEnvironment()
+接 4.5c SkillEnvironment）+ `com.ragagent.tracing.langfuse`（no-op seam）；193 实录。
+**主会话修掉 4.2 潜伏墙钟 flake**（AgentPromptsTest，教训在 §9 波 4.6a：实录含
+time.Now() 派生段必须当日写成「静态骨架 + 当日现算」）。
 
-**4.6b 派发输入（已勘察）**：engine.go(934)/observe.go(918)/think.go(626)/act.go(619)/
-finalize.go(188)/steer.go(93) + context_debug.go 引擎段(169)；依赖已全就位
-（4.2 纯逻辑件/4.5x tools 全量/4.1 event+approval+mcp/4.6a modelcontext+skills+
-langfuse seam/llm 4.0）；**事件 emit 主战场**（4.1 package-info 的 24 emit 点表：
-final_answer×7/tool_call×3/thought×2…）；steer 引擎侧 PollSteer/follow-up 交接
-（波 1 G4 遗留）；验收=Go 实录 + 脚本化 stub LLM 单测（引擎循环对拍），
-**不加 @SpringBootTest 上下文变体**；虚拟线程显式拷贝 TenantContext + Long equals。
+**4.6b 摘要（f345658）**：AgentEngine（七文件收一类）+ AgentConfig 运行时消费面 +
+domain.AgentState + SteerSink 接口；74 实录 20 组事件序列对拍；真缺陷=MessageSanitizer
+就地合并改共享对象（copy-on-merge 修复）+ 引擎 sessionId 字段/参数误用；语义备案=
+complete 事件 usage 键恒输出（typed-nil）+ agent_steps 恒输出；流终止约定 done=true
+且非 THINKING；cancel seam=setCancellationSource(Supplier<String>)。
+
+**4.6d 派发输入（四批的装配决策点汇总）**：
+- **HTTP 面**：Go handler/session/qa.go(1,768) + agent_stream_handler.go(896，17 种
+  事件订阅 + superseded preamble 剔除) + session_agent_qa.go(647) +
+  session_knowledge_qa.go(1,290，chat_pipeline 的调用方)；SSE 线格式契约见 §9.3
+  （四条路径 MATCH 基建复用），**final_answer event-id 分片重组 + superseded preamble
+  剔除是最高危**。
+- **装配（agent_service.go 1,485 参照，不逐行翻）**：工具注册三函数 L436/L497/L828；
+  4.5c 报告的签名清单（SandboxFileSource/Sink/Editor、SandboxCommandExecutor、
+  SkillFileStore、SkillEnvironment→skillsManager.asSkillEnvironment()、
+  ShellExecTool.withSkillEnvironment/withEnvCapture、McpCatalog+installMcpCatalog、
+  registry.prepareMcpTools/refreshMcpTools）；4.6b 的 SteerSink 实现（session 侧
+  PollSteer/PersistSteerMessage back half）+ setCancellationSource（stop 链路）；
+  4.6c 的 PipelinePorts 11 seam adapter（MemoryService 直接委托
+  memory.service.MemoryService；DataAnalysisSessionFactory 实现放 agent.tools 包内）。
+- **验收**：stub LLM 全链路 A/B（双端同指脚本化 OpenAI 兼容 stub，复用 continue-stream
+  MATCH 基建）+ 新 HTTP 面 golden；**不加 @SpringBootTest 上下文变体**（§5.15）。
+- **遗留决策点**：⑱ initialize 契约对齐与否（Owner）、SkillEnvironment 位置、
+  波 3 SkillFrontmatter snakeyaml 宽容类型、TenantService 占位是否变真。
 
 **⚠️ 测试基建坑（4.5b 起生效）**：大组合批跑稳定复现 Mockito inline MockMaker
-初始化失败——**全量回归一律按小包批次跑**（B1a=agent、B1b=common/event/apikey/
-audit/auth、B2=browserskill/datasource/embed/embedding/evaluation/favorite、
-B3=im/knowledge/llm/mcp/memory/model/org、
+初始化失败——**全量回归一律按小包批次跑**（B1a=agent/chatpipeline、
+B1b=common/event/apikey/audit/auth、B2=browserskill/datasource/embed/embedding/
+evaluation/favorite、B3=im/knowledge/llm/mcp/memory/model/org、
 B4=rerank/sandbox/searchutil/session/storage/storageurl/stream/system/vectorstore/
 webfetch/websearch/wiki/agentm）。批次内冒假红就单包重跑确认后重试该批
 （详见 conventions §9「波 4.5b 补充」）。
 
-**4.6c/4.6d 待办输入**：chat_pipeline 26 文件 9,873 行（query_understand/search/
-rerank/extract_entity/merge/into_chat_message 等，依赖 4.4 检索地基）；4.6d 装配
-签名清单与四决策点见 4.5c 报告（HANDOFF 前版 §0 有抄录）+ 4.6a 报告（Registry/
-Manager/LangfuseManager 构造面）。
-
-**重派模板（4.6b）**："4.6b 任务书——agent 引擎核心六件 ~3.7k + context_debug
-引擎段；验收：Go 实录 + 脚本化 stub LLM 对拍单测；先读 conventions §3/§6（SSE
-纪律）/§7.5/§8/§9（波 4.5a/b/c、4.6a 小节）；虚拟线程 TenantContext 显式拷贝；
-只跑 com.ragagent.agent.* 与新包小批"
+**重派模板（4.6d）**："4.6d 任务书——qa.go + agent_stream_handler +
+session_agent_qa/knowledge_qa + agent_service 装配 + PipelinePorts adapters；
+验收：新面 golden + stub LLM 全链路 A/B 双端逐字节（SSE 时序最高危）；
+先读 conventions §3/§6/§7.5/§8/§9（§9.3 SSE 契约 + 波 4.5x/4.6a/b/c 小节）；
+golden 前缀先 ls contracts/ 防冲突；跨模块文件（session 域/WebConfig）显式授权；
+测试小包批（agent/chatpipeline/session 各自跑）"
 
 ## 0. 一句话背景
 
