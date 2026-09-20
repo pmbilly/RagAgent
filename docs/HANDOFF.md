@@ -1,41 +1,35 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-20 · **基线 3707 测试全绿（已提交 4110ad4）** · golden 1324 个
-> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 进行中（4.1/4.3/4.4/4.2 完成；4.5a 中断于 91%，见 §0 接手状态）**
+> 最后更新：2026-09-20 · **基线 3721 测试全绿（4.5a 已提交）** · golden 1324 个
+> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 进行中（4.1/4.2/4.3/4.4/4.5a 完成；下一步 4.5b 知识工具）**
 
-## 0. 接手状态（2026-09-20，4.5a agent 撞配额中断——新会话从这里接）
+## 0. 接手状态（2026-09-20，4.5a 已收官——新会话直接派 4.5b）
 
-**已提交基线（4110ad4）**：3707 测试全绿，工作树在 4.5a 中断前只有新增未提交文件。
+**4.5a（tools 基建+确定性工具）✅ 完成**：33 主文件 ~4.4k 行 + 31 测试类
+（15 个 Go 实录回放类 + FileMutationQueue 行为机 + 生成常量 GoRecording45A）。
+录制方法：/tmp/toolrec 复制 Go internal/ + 同包探针 zz_recorder_test.go
+（调未导出函数）→ rec.jsonl（208 条）→ 生成 Java 常量。台账与坑见
+conventions §8「波 4.5a」与 §9「波 4.5a tools 基建补充」。
 
-**4.5a（tools 基建+确定性工具）中断点盘点**：
-- **已写 33 个主文件 ~4438 行**（`com.ragagent.agent.tools/` 包）：AgentTool/BaseTool/
-  ArgumentValidator/ToolCapabilities/ToolDefinitions/ToolExecContext/ExecutionPolicy/
-  ParamValidator/ParamCaster/JsonRepair/GoJsonCodec/GoPath/MessageSanitizer/
-  NormalizeToolCallId/OutputBudgets/OutputLimitProvider/OutputLinks/ThinkBlocks/
-  ThinkStreamSplitter/ToolCancellation/FileMutationQueue/ShellEnvExtractor/
-  ShellCommandOutput/DataSchemaTool/McpInputSchemaValidator/McpCatalogGuardedTool/
-  TodoWriteTool/SequentialThinkingTool/FaqSnippet 等——**全部为新增文件，未动既有文件**
-- **编译差 5 个机械错误**（`./gradlew :server:compileJava` 可复现）：
-  1. `JsonRepair.java:269/271`——`stack` 声明为 `List<Integer>` 但 add/get 传 char，
-     统一成 `List<Character>` 即可
-  2. `ParamCaster.java:80`——`ObjectMapperHolder.MAPPER` 找不到符号（内部类在
-     L198，检查是否 static/字段名）
-  3. `ParamCaster.java:187`——`GoDoubleSerializer.format(v)` 缺 import
-     （`com.ragagent.common.web.GoDoubleSerializer`）
-  4. `FaqSnippet.java:321`——`Set<String>` 缺 import `java.util.Set`
-- **测试完全没写**（agent 死在实现后、测试前）
-- **剩余工作**：修 5 个编译错误 → 按 §7.5 纪律写 Go 实录单测（json_repair 全语料/
-  param 判定表/registry 注册发现/TODO+sequential_thinking 状态机/faq_snippet 投影/
-  strip_think/think_stream 分段/output_budget 截断边界/file_mutation_queue 状态机）→
-  只跑 `com.ragagent.agent.*` → 主会话全量验收
-- **Go 实录录制器**：未建（/tmp 下无 4.5a 录制目录）——json_repair 等语料需重新录
-- **任务书要点回放**：Registry 是 4.5b/4.5c 的骨架（注册/发现/capabilities 门控/
-  param 校验语义逐字对照，错误文案含工具名的格式化照抄）；shell_command_output 的
-  1 处 emit 只接线不触发（执行面在 4.5c）；EventBus 对接 com.ragagent.event（4.1 已就位）
+**实录抓回的真缺陷（均已修）**：
+- ParamValidator 对 `{}` args 短路跳过 required（Go 只在 len==0 短路）——
+  hint 拼接依赖 `{}` 触发校验
+- TodoWriteTool 缺省 steps 应为 null/"null"（Go nil 切片）非 []/"[]"
+- 编译期 6 错（交接清单 5 + ShellCommandOutput 受检异常 1）
 
-**重派模板**：直接发「4.5a 续命」任务书——"golden 不涉及（纯单测批）；33 文件已写好，
-先修 5 个编译错误（见上），再补 Go 实录单测；Go 源 internal/agent/tools/ 的基建 21 文件
-+ todo_write/sequential_thinking/faq_snippet 三工具"。
+**环境性假红 2 个（非代码问题，4110ad4 干净基线复现一致）**：
+TenantCatalogContractTest.kvParserMatchesGo + SandboxSkillsMeContractTest
+依赖本机 fake-ip DNS（198.18.0.0/15）；当前 NXDOMAIN → SSRF 文案差异。
+开代理恢复 fake-ip 即绿，或按部署态标 XDEP（留决策）。
+
+**已知通道差异（备案）**：Go (result,err) 双通道折叠为单返回；bad-json args
+在 Java 上游已解析（todo/seqthink 的 bad_json case 不录）。
+
+**重派模板（4.5b）**："4.5b 任务书——知识工具 ~5.7k：knowledge_search/grep_chunks/
+wiki 十件/search_conversations/search_memory/database_query/data_analysis；验收：
+真 PG golden A/B；先读 conventions §3/§7.5/§8/§9（§9 波 4.5a 小节有 registry
+校验/hint 拼接契约）；golden 前缀先 ls contracts/ 防冲突；只跑
+com.ragagent.agent.*"
 
 ## 0. 一句话背景
 
@@ -110,7 +104,7 @@
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ✅ **波 3 完成（sandbox/skill/协作/agents/browserskill，~92 条）**——emoji 专项已在 agents 批修复。剩余：sessions/:id/local-browser 2 条（随波 4 tools）、models/{id}/debug（阶段 7） |
-| 4 | **agent 核心 + tools + chat_pipeline + 前置缺口** | ~40k | ⏳ **4.1/4.3/4.4/4.2 完成并提交**（event 41 文件；embed/im 16 文件 85 golden；模型客户端+检索地基 68 文件 122 测试 + 30 请求体 stub A/B；纯逻辑件 24 文件 79 新测试 + 486 条 Go 实录含 jtokkit token 逐字节）。**4.5a 中断于 91%**（33 文件已写、5 个编译错误、测试未写——**接手清单见 §0**）。剩 4.5a 收尾 + 4.5b 知识工具 + 4.5c 执行面+MCP + 4.6 引擎+chat |
+| 4 | **agent 核心 + tools + chat_pipeline + 前置缺口** | ~40k | ⏳ **4.1/4.3/4.4/4.2/4.5a 完成并提交**（event 41 文件；embed/im 16 文件 85 golden；模型客户端+检索地基 68 文件 122 测试 + 30 请求体 stub A/B；纯逻辑件 24 文件 79 新测试 + 486 条 Go 实录含 jtokkit token 逐字节；**4.5a tools 基建 33 文件 + 208 条 Go 实录 31 测试类收官**——抓回 ParamValidator `{}` 短路/TodoWrite steps null 两真缺陷，见 §9）。剩 4.5b 知识工具 + 4.5c 执行面+MCP + 4.6 引擎+chat |
 | 5 | **im 执行体 + skill 收口 + shared-agent 收口** | — | ⏳ im service.go 3,453 行执行体、tenant_skill_* 收口、shared_agent_access→tools：随 4.5/4.6 接缝 |
 | 4 | **agent 核心** + `agent/tools`（实测待翻 ~27k 非测试行）+ chat_pipeline 6.8k + 前置缺口 6.5k | ~40k | ⏳ 作战计划见 §2.3 |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
@@ -161,14 +155,13 @@ SkillBundleParser/TenantSkillService、agentm BuiltinAgentRegistry。
 ## 3. 下一步：波 4 收尾（波 3 已全部收官）
 
 **新会话开场动作**（按序）：
-1. `git status` + 读 §0 接手状态（4.5a 的 33 文件与 5 个编译错误清单）
-2. 修编译错误 → 补 Go 实录单测 → 只跑 `com.ragagent.agent.*`
-3. 主会话全量验收 → 更新 conventions §8/§9 → 提交 4.5a
-4. 依次派 4.5b（知识工具 ~5.7k：knowledge_search/grep_chunks/wiki 十件/search_conversations/
+1. `git status` + 读 §0（4.5a 已收官，直接派 4.5b）
+2. 派 4.5b（知识工具 ~5.7k：knowledge_search/grep_chunks/wiki 十件/search_conversations/
    search_memory/database_query/data_analysis——真 PG golden A/B 验收）→ 4.5c（sandbox/shell/
    skill 执行面 + MCP 五件——stub HTTP/双端 stub MCP server 验收）→ 4.6 引擎+chat 三兄弟
    （qa.go 1,768 + agent_stream_handler 896 + session_agent_qa/knowledge_qa + chat_pipeline
    6,763——stub LLM 全链路 A/B 收官，SSE 时序最高危见 §2.3 风险清单）
+3. 主会话全量复核 → 更新 conventions §8/§9 → 提交
 
 ### 3.0 波 2 扫尾清单（✅ 全部完成，留档备查）
 

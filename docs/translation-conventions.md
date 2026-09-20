@@ -280,8 +280,9 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 模型客户端+检索地基（波 4.4） | internal/models/embedding/（3,843 含测试）+ models/rerank/（5,725）+ internal/searchutil（2,139，部分波 2 已翻走桥接）+ infrastructure/web_fetch/（~900）+ application/service/web_search.go 执行面（792） | com.ragagent.embedding 新包 21 文件（Embedder 洋葱装饰：Factory→Http SSRF 传输+4 次指数退避→BatchEmbedder 子批短路→ConcurrencyEmbedder 过闸；10 provider 含 WeknoraCloudSign 全项目第二份 Sign）+ rerank 新包 14 文件（8 provider：LKEAP=TC3-HMAC-SHA256 裸 HTTP+切批、Volcengine=V4 HMAC 并发 4——SDK 无 Java 等价的规范复刻；NVIDIA logit sigmoid）+ searchutil 新包 8 文件（SearchChunkMerge/ImageInfoEnricher/KeywordScoreNormalizer 等；ChunkSearchUtil 桥接复用）+ webfetch 4 文件（双工厂 60s/2MB+15s/100KB、错误分类 17 码、BrowserRenderer 接缝=chromedp 降级恒失败）+ websearch/provider 20 文件+WebSearchService 执行面 + retrieval/domain 3 类型 | ✅ | **122 新测试+受影响 9 包 701 全绿**（embedding 22/rerank 23/searchutil 33/webfetch 16/websearch 38）；**31 份 Go wire 实录**（/tmp 录制器）+ **30 个请求体 stub 逐字节 A/B**（embedding 11+rerank 8+web_search 11）。**stub A/B 抓回两个真契约**：Volcengine rerank 顶层键序是 datas→rerank_model→rerank_instruction（非字母序）；Go `%02s` 对字符串也补零（Baidu 日期）。已知降级：jieba 分词接缝（默认二字滑窗近似，可注入恢复）、chromedp/readability 走 Go 自身回退分支、IP pinning 用每跳 SSRF+DNS 校验近似。关键坑见 §9「波 4.4 模型客户端+检索地基」 |
 | agent 纯逻辑件（波 4.2） | internal/agent/{token/estimator.go,compaction/ 8 文件,prompts.go,prompts_browser.go,grounding_prompt.go,const.go,tool_images.go,context_debug.go} + types/prompt_instructions.go/placeholder.go/agent.go 预算族 | com.ragagent.agent 新包 24 文件 ~3.2k 行：TokenEstimator（jtokkit cl100k_base=tiktoken-go，**token 数逐字节一致**）、compaction 8 件（Compactor/CutPoint/ConversationSerializer/FileOps/Preparation/Overflow/Settings）、AgentPrompts/GroundingPrompt/AgentPromptPlaceholders/AgentPromptTemplates、AgentConsts/AgentBudgets/ContextDiagnostics/ToolImages | ✅ | **133 测试全绿**（新 79）；**486 条 Go 实录**（13 场景组：token 36 语料含 CJK/emoji、serialize/truncate 七态/renderToolArgs 16 态含 float64 语义、overflow 35 条、Compact 端到端 4 场景、isTransientError 20 表、三条全量系统提示词逐字节）。**实录钉住的真契约**：ovf17 "CONTEXT_WINDOW_EXCEEDED" 不匹配 generic 模式（Go 既有行为逐字保留）；Go json.Marshal float64 大整数→1.23e+29 形态（手写递归编码器，Jackson DoubleNode 走不到 DoubleSerializer）。**新依赖 jtokkit 1.1.0**（纯 Java 零传递，逐字节验收要求真 BPE——jieba 式降级会破坏压缩切点语义）。已知差异：摘要 60s 超时归调用方、context_debug 引擎段随 4.6、llm domain 三字段 null 守卫（消费侧）。关键坑见 §9「波 4.2 纯逻辑件」 |
 
-## 9. 当前确认过的细节
+| tools 基建+确定性工具（波 4.5a） | internal/agent/tools/ 的 registry+基建 21 文件（registry/definitions/capabilities/param_cast/param_validate/json_repair/truncate/normalize_id/output_budget/output_links/file_mutation_queue/strip_think/think_stream/exec_context/execution_policy/tool/data_schema/mcp_schema）+ todo_write/sequentialthinking/faq_snippet | com.ragagent.agent.tools 新包 33 文件 ~4.4k 行：ToolRegistry（first-wins/排序字节稳定/deferred/outputLimitProvider 接缝）+ ToolDefinitions（退役工具替代文案）+ ToolCapabilities（KB 能力门控）+ ParamCaster/ParamValidator/JsonRepair/ToolOutput（truncate）/NormalizeToolCallId/OutputBudgets/OutputLinks/FileMutationQueue/ThinkBlocks/ThinkStreamSplitter/GoJsonCodec/GoPath/GoJsonEscapes 复用 + TodoWriteTool/SequentialThinkingTool/FaqSnippet/DataSchemaTool + AgentTool/BaseTool/ToolRequest/ToolExecContext/ToolCancellation/MessageSanitizer/ShellEnvExtractor/ShellCommandOutput（emit 只接线不触发，执行面 4.5c） | ✅ | **31 个测试类全绿**（15 个实录回放类 + FileMutationQueue 行为机）；**208 条 Go 实录**（/tmp/toolrec 探针同包调用未导出函数 → rec.jsonl → GoRecording45A.java 生成常量，覆盖 json_repair 31/cast 29/validate 15+3/truncate 15/normid 9/strip_think 11/think_stream 13/todo 6/seqthink 11/registry 17/caps 12/faq 10/fmq 4/budget 13/codec 9）。**实录抓回三个真缺陷**：① ParamValidator 对 `{}` args 提前返回跳过 required 检查（Go 只在 len(args)==0 短路，`{}` 照样报 missing）；② TodoWriteTool 缺省 steps 编出 `[]`/`"[]"`（Go 的 nil 切片是 `null`/`"null"`）；③ JsonRepair `List<Character>`/ParamCaster import/FaqSnippet import/ShellCommandOutput 受检异常 4+2 编译错误。**已知通道差异（备案）**：Go 的 (result,err) 双通道折叠——Java 工具用 success=false+error 表达失败，"success=true 同时 err" 形态不可表达；bad-json 的 args 在 Java 上游已解析（seqthink/todo 的 bad_json case 不录）。执行面（sandbox/shell/skill/web/knowledge/wiki/MCP 工具）与 EventBus emit 接线随 4.5b/4.5c |
 
+## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
   1. AppError 走全局 ErrorHandler：`{"success":false,"error":{"code":N,"message":"...","details":...}}`（details 恒输出，null 时为 `"details":null`）
   2. auth 中间件直接写：`{"error":"Unauthorized: missing authentication"}`（纯字符串，401）
@@ -1798,3 +1799,24 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - **全量跑的瞬时失败处置**：被中断的录制轮次会在 dev PG 留残留状态
     （bs 的 device/pairing 行）→ 下一轮全量个别用例假红（单跑即绿）。
     处置：重跑一轮确认瞬时，再决定是否需要测试侧自愈。
+- **波 4.5a tools 基建补充**：
+  - **录制方法**：/tmp/toolrec 复制 Go 仓 internal/，加同包探针 zz_recorder_test.go
+    直接调未导出函数（mockTool/outcomeTool 复用 Go 测试文件的定义），输出
+    rec.jsonl → 生成 GoRecording45A.java（"禁止手改"惯例，同 GoRecording.java）。
+  - **ValidateParams 的短路条件**：Go 只认 `len(args)==0`（空 RawMessage）；
+    `{}` 照常走 required 检查并报 "required parameter ... is missing"——
+    Java 侧写 `args.isEmpty()` 提前返回是**真缺陷**（registry 的 call_mcp_tool 等
+    hint 拼接依赖 `{}` 触发校验），实录 hint_mcp case 抓回。
+  - **Go nil 切片 vs Java 空 List**：todo_write 缺省 steps → Go null/"null"，
+    Java 空 ArrayList → []/"[]"。data map 里的嵌套结构不能无脑
+    GoJsonCodec 全树排序——Go 只排 map 键、struct 按声明序；测试侧用
+    键序无关 canonical 比较 + steps_json 字符串/输出文本的字节断言分担契约。
+  - **(result, err) 双通道折叠备案**：Java registry 单返回——工具以
+    success=false+error 表达失败；Go 的 "result.Success=true 且 err≠nil 时
+    强制置 false" 语义在 Java 不可表达（也不需要：工具内部已归一）。
+  - **环境性假红（非代码问题）**：TenantCatalogContractTest.kvParserMatchesGo 与
+    SandboxSkillsMeContractTest.recordedScenario 依赖本机 fake-ip DNS
+    （198.18.0.0/15，代理/VPN 的 wildcard 解析）——当前 nslookup NXDOMAIN 时
+    SSRF 文案变为 "DNS resolution failed"，与 4110ad4 干净基线上复现一致。
+    恢复 fake-ip DNS（开代理）即绿；或后续把这两个 golden 的 SSRF 文案按
+    部署态标 XDEP。
