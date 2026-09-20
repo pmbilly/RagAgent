@@ -46,6 +46,11 @@ dependencies {
     // bcrypt（对照 Go golang.org/x/crypto/bcrypt，DefaultCost=10）
     implementation("org.springframework.security:spring-security-crypto")
 
+    // tiktoken BPE 编码器（对照 Go github.com/tiktoken-go/tokenizer 的 cl100k_base，
+    // internal/agent/token/estimator.go 的逐字节等价物；encodeOrdinary = Go 的 Encode——
+    // 两者对特殊 token（<|endoftext|> 等）都不做特殊处理，纯 BPE。纯 Java 零传递依赖）
+    implementation("com.knuddels:jtokkit:1.1.0")
+
     // 工具
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

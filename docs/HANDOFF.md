@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-20 · **3628 测试全绿** · golden 1324 个（4.4 为 stub A/B 无路由 golden）
-> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 进行中（4.1/4.3/4.4 完成）**
+> 最后更新：2026-09-20 · **3707 测试全绿** · golden 1324 个
+> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 进行中（4.1/4.3/4.4/4.2 完成，仅剩 4.5 tools 与 4.6 引擎+chat）**
 
 ## 0. 一句话背景
 
@@ -76,7 +76,7 @@
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ✅ **波 3 完成（sandbox/skill/协作/agents/browserskill，~92 条）**——emoji 专项已在 agents 批修复。剩余：sessions/:id/local-browser 2 条（随波 4 tools）、models/{id}/debug（阶段 7） |
-| 4 | **agent 核心 + tools + chat_pipeline + 前置缺口** | ~40k | ⏳ **4.1 事件契约 + 4.3 embed/im + 4.4 模型客户端+检索地基完成**（4.4：68 文件、122 新测试、31 Go wire 实录、30 请求体 stub 逐字节 A/B）；下一子批 4.2 纯逻辑件（~2.6k）→ 4.5 tools（三拆 ~20k）→ 4.6 引擎+chat（stub LLM 全链路） |
+| 4 | **agent 核心 + tools + chat_pipeline + 前置缺口** | ~40k | ⏳ **4.1/4.3/4.4/4.2 完成**（event 41 文件；embed/im 16 文件 85 golden；模型客户端+检索地基 68 文件 122 测试 + 30 请求体 stub A/B；纯逻辑件 24 文件 79 新测试 + 486 条 Go 实录含 jtokkit token 逐字节）。**仅剩 4.5 tools（三拆 ~20k）与 4.6 引擎+chat（stub LLM 全链路收官）** |
 | 5 | **im 执行体 + skill 收口 + shared-agent 收口** | — | ⏳ im service.go 3,453 行执行体、tenant_skill_* 收口、shared_agent_access→tools：随 4.5/4.6 接缝 |
 | 4 | **agent 核心** + `agent/tools`（实测待翻 ~27k 非测试行）+ chat_pipeline 6.8k + 前置缺口 6.5k | ~40k | ⏳ 作战计划见 §2.3 |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |

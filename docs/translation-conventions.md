@@ -278,6 +278,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 事件契约包（波 4.1，**波 4 开工**） | internal/event/ 全部（event.go 267+event_data.go 317+adapter 59+middleware 94+global 57）+ agent/const.go 的 generateEventID | com.ragagent.event 新包 41 文件：基建 14（EventType 39 常量/Event/EventBus 同步+异步/EventMiddleware 链/GlobalEventBus/EventIds/EventJson（GoJsonEscapes+map 字母序+Go 浮点+GoTime）/TenantContextSnapshot 跨虚拟线程显式传值/package-info 含 **24 emit 点表**）+ payload 27 类 | ✅ | **101 单测全绿**（Go 实录：27 payload × 零值/全量/omitempty ≈ 75 字节断言 + EventBus 行为 12 条：同步顺序/断链/panic 原样冒出/ID 值语义 shallowCopy/异步虚拟线程隔离+租户传递/EmitAndWait barrier/中间件链序/Global Set-先-Get-后 once quirk）+ **全量 3500 绿**。**踩坑新知**：`is` 前缀 boolean 字段必须 getter 上同时标 @JsonProperty（否则拆出多余属性）；primitive double 绕过模块注册的 Double 序列化器（threshold 用包装 Double 才输出 Go 的 0）——均被实录钉住。零路由零 TestSchema。关键坑见 §9「波 4.1 事件契约」 |
 | embed/im 清单面（波 4.3） | internal/handler/embed_channel*.go 管理段+公开面 + im channel CRUD handler；internal/application/service/embed_channel.go（426）+ im channels service（CRUD 段） | com.ragagent.embed 新包 12 文件（EmbedTokens em_/ems_ 令牌+HMAC 会话签名/EmbedRateLimiter 本地滑动窗口=Go Lite 回退/EmbedAuthFilter/EmbedChannelService/EmbedTokenStore+Redis 变体/GoStyleErrorReportValve 容器级错误页对齐）+ com.ragagent.im 新包 4 文件（bot_identity 全平台计算/duplicate 检查/BeforeCreate·Save 钩子） + AuthFilter（/api/v1/embed/ 前缀让路）+ McpOAuthController 空 body 文案 EOF 对齐 + WebConfig 17 条 + TestSchema 2 表 | ✅ | 12 端点全落地（管理面 9 + im 清单 8 计 + 公开面非 QA 部分；QA 委托面随 4.6）；**85 条 emb-*/imc-* golden 全是 Go 实录** + EmbedContractTest/ImContractTest + 回归 10 包 + **真 PG A/B 两轮 85/85 ALL MATCH 零 DIFF（3502 全量绿）**。**golden 钉死**：create 对 default:true 零值 bool 走 DB 默认（请求 false 落库仍 true）、update 缺 allowed_origins 键=nil 整列覆写（响应 null 且清空 allowlist）、未知/跨租户 agent 落 500 "operation failed"、gin.H 字母序与三套 struct 序并存、im CRUD 信封**无 success 键且 create 是 200 非 201**、duplicate bot 409 文案带 %q 渠道名。**横切备案**：GoStyleErrorReportValve（容器级错误页对齐 Go 纯文本，只在响应未被应用代码写过时接管）。关键坑见 §9「波 4.3 embed/im」 |
 | 模型客户端+检索地基（波 4.4） | internal/models/embedding/（3,843 含测试）+ models/rerank/（5,725）+ internal/searchutil（2,139，部分波 2 已翻走桥接）+ infrastructure/web_fetch/（~900）+ application/service/web_search.go 执行面（792） | com.ragagent.embedding 新包 21 文件（Embedder 洋葱装饰：Factory→Http SSRF 传输+4 次指数退避→BatchEmbedder 子批短路→ConcurrencyEmbedder 过闸；10 provider 含 WeknoraCloudSign 全项目第二份 Sign）+ rerank 新包 14 文件（8 provider：LKEAP=TC3-HMAC-SHA256 裸 HTTP+切批、Volcengine=V4 HMAC 并发 4——SDK 无 Java 等价的规范复刻；NVIDIA logit sigmoid）+ searchutil 新包 8 文件（SearchChunkMerge/ImageInfoEnricher/KeywordScoreNormalizer 等；ChunkSearchUtil 桥接复用）+ webfetch 4 文件（双工厂 60s/2MB+15s/100KB、错误分类 17 码、BrowserRenderer 接缝=chromedp 降级恒失败）+ websearch/provider 20 文件+WebSearchService 执行面 + retrieval/domain 3 类型 | ✅ | **122 新测试+受影响 9 包 701 全绿**（embedding 22/rerank 23/searchutil 33/webfetch 16/websearch 38）；**31 份 Go wire 实录**（/tmp 录制器）+ **30 个请求体 stub 逐字节 A/B**（embedding 11+rerank 8+web_search 11）。**stub A/B 抓回两个真契约**：Volcengine rerank 顶层键序是 datas→rerank_model→rerank_instruction（非字母序）；Go `%02s` 对字符串也补零（Baidu 日期）。已知降级：jieba 分词接缝（默认二字滑窗近似，可注入恢复）、chromedp/readability 走 Go 自身回退分支、IP pinning 用每跳 SSRF+DNS 校验近似。关键坑见 §9「波 4.4 模型客户端+检索地基」 |
+| agent 纯逻辑件（波 4.2） | internal/agent/{token/estimator.go,compaction/ 8 文件,prompts.go,prompts_browser.go,grounding_prompt.go,const.go,tool_images.go,context_debug.go} + types/prompt_instructions.go/placeholder.go/agent.go 预算族 | com.ragagent.agent 新包 24 文件 ~3.2k 行：TokenEstimator（jtokkit cl100k_base=tiktoken-go，**token 数逐字节一致**）、compaction 8 件（Compactor/CutPoint/ConversationSerializer/FileOps/Preparation/Overflow/Settings）、AgentPrompts/GroundingPrompt/AgentPromptPlaceholders/AgentPromptTemplates、AgentConsts/AgentBudgets/ContextDiagnostics/ToolImages | ✅ | **133 测试全绿**（新 79）；**486 条 Go 实录**（13 场景组：token 36 语料含 CJK/emoji、serialize/truncate 七态/renderToolArgs 16 态含 float64 语义、overflow 35 条、Compact 端到端 4 场景、isTransientError 20 表、三条全量系统提示词逐字节）。**实录钉住的真契约**：ovf17 "CONTEXT_WINDOW_EXCEEDED" 不匹配 generic 模式（Go 既有行为逐字保留）；Go json.Marshal float64 大整数→1.23e+29 形态（手写递归编码器，Jackson DoubleNode 走不到 DoubleSerializer）。**新依赖 jtokkit 1.1.0**（纯 Java 零传递，逐字节验收要求真 BPE——jieba 式降级会破坏压缩切点语义）。已知差异：摘要 60s 超时归调用方、context_debug 引擎段随 4.6、llm domain 三字段 null 守卫（消费侧）。关键坑见 §9「波 4.2 纯逻辑件」 |
 
 ## 9. 当前确认过的细节
 
@@ -1781,3 +1782,19 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     无行为变更的重构，留清理批次。
   - **wsp-test 路由维持 SEARCH_DEGRADED**：执行面已就绪但接线需重录 golden
     （现有 golden 录的是 Go 真实外网执行文案）——留决策。
+- **波 4.2 纯逻辑件补充**：
+  - **token 估算选型**：jtokkit cl100k_base `encodeOrdinary` = tiktoken-go 的
+    Encode——36 语料（中/英/日韩/代码/emoji/URL）token 数**逐字节一致**。这类
+    "分词/切点"语义不能接缝降级：压缩切点/阈值全部建立在 token 数上。
+  - **Go json.Marshal 的 float64 泛型语义**：`interface{}` 持有大整数时输出
+    `1.2345678901234568e+29`、`1e21→1e+21`——Jackson 的 DoubleNode 走不到注册的
+    DoubleSerializer，需手写递归编码器（renderToolArgs 16 态实录钉住）。
+  - **Go 既有怪癖逐字保留**：ovf17 的 "CONTEXT_WINDOW_EXCEEDED" 不匹配 generic
+    模式（`context[_ ]length[_ ]exceeded`）——不"修好"。
+  - **llm domain 缺口备案**：ChatMessage 的 name/toolCallId/reasoningContent
+    默认 null（Go 零值 ""）——消费侧已 null-guard；是否补 `= ""` 初始化留
+    llm domain Owner 决策（FunctionDef.parameters 是 JsonNode 非 RawMessage，
+    字节级对齐等 4.5 注册表统一构造 schema 时核对）。
+  - **全量跑的瞬时失败处置**：被中断的录制轮次会在 dev PG 留残留状态
+    （bs 的 device/pairing 行）→ 下一轮全量个别用例假红（单跑即绿）。
+    处置：重跑一轮确认瞬时，再决定是否需要测试侧自愈。
