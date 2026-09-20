@@ -1,0 +1,19 @@
+{
+  "path": "/api/v1/embeddings",
+  "method": "POST",
+  "auth_name": "",
+  "auth_value": "",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Content-Length": "79",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1",
+    "X-Api-Key": "secret-test",
+    "X-Appid": "app-test",
+    "X-Nonce": "cwQall8s7paHHlZb",
+    "X-Request-Id": "030c6d23-facc-4ec8-b8ef-966f6e558421",
+    "X-Signature": "711fe72143d8533cc4964b80aeb7a964",
+    "X-Timestamp": "1789876209"
+  },
+  "body": "{\"model\":\"remote-name\",\"input\":[\"hello world\",\"second text\"],\"dimensions\":1024}"
+}

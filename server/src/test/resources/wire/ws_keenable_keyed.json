@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "url": "/v1/search",
+  "headers": {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "X-Api-Key": "keen_test",
+    "X-Keenable-Title": "WeKnora"
+  },
+  "body": "{\"query\":\"hi\",\"mode\":\"pro\"}"
+}

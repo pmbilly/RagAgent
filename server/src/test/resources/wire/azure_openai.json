@@ -1,0 +1,14 @@
+{
+  "path": "/openai/deployments/ada-deployment/embeddings",
+  "method": "POST",
+  "auth_name": "api-key",
+  "auth_value": "sk-test",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Api-Key": "sk-test",
+    "Content-Length": "70",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1"
+  },
+  "body": "{\"model\":\"ada-deployment\",\"input\":[\"hello\"],\"encoding_format\":\"float\"}"
+}

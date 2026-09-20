@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "url": "http://stub.local/search?format=json\u0026language=all\u0026q=hello",
+  "headers": {
+    "Accept": "application/json",
+    "User-Agent": "WeKnora/1.0"
+  },
+  "body": ""
+}

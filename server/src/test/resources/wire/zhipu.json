@@ -1,0 +1,14 @@
+{
+  "path": "/embeddings",
+  "method": "POST",
+  "auth_name": "Authorization",
+  "auth_value": "Bearer sk-test",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Authorization": "Bearer sk-test",
+    "Content-Length": "90",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1"
+  },
+  "body": "{\"model\":\"embedding-3\",\"input\":[\"hello world\",\"second text\"],\"truncate_prompt_tokens\":511}"
+}

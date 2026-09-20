@@ -1,0 +1,10 @@
+{
+  "method": "POST",
+  "url": "",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer mk-test",
+    "Content-Type": "application/json"
+  },
+  "body": "{\"q\":\"WeKnora\",\"scope\":\"scholar\",\"size\":2,\"includeSummary\":true,\"includeRawContent\":false,\"conciseSnippet\":true}"
+}

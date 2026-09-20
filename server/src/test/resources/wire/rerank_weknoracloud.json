@@ -1,0 +1,19 @@
+{
+  "path": "/api/v1/rerank",
+  "method": "POST",
+  "auth_name": "",
+  "auth_value": "",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Content-Length": "61",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1",
+    "X-Api-Key": "secret-test",
+    "X-Appid": "app-test",
+    "X-Nonce": "dvAbrRYHahL41lCj",
+    "X-Request-Id": "bff57c95-bf81-4d06-a829-284594b60cd0",
+    "X-Signature": "5ca17414ca5eb4e2afe74dec5e95b7dc",
+    "X-Timestamp": "1789876798"
+  },
+  "body": "{\"model\":\"remote-name\",\"query\":\"query\",\"documents\":[\"A\",\"B\"]}"
+}

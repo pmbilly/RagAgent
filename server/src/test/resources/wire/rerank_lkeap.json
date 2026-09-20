@@ -1,0 +1,20 @@
+{
+  "path": "/",
+  "method": "POST",
+  "auth_name": "",
+  "auth_value": "",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Authorization": "TC3-HMAC-SHA256 Credential=AKIDtest/2026-09-20/lkeap/tc3_request, SignedHeaders=content-type;host, Signature=de7711a1869570d48061e68b7f37ad02fd8cf056bcae42b117e846c4ddb9f29c",
+    "Content-Length": "66",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1",
+    "X-Tc-Action": "RunRerank",
+    "X-Tc-Language": "zh-CN",
+    "X-Tc-Region": "ap-guangzhou",
+    "X-Tc-Requestclient": "SDK_GO_1.3.103",
+    "X-Tc-Timestamp": "1789876209",
+    "X-Tc-Version": "2024-05-22"
+  },
+  "body": "{\"Query\":\"query\",\"Docs\":[\"A\",\"B\",\"C\"],\"Model\":\"lke-reranker-base\"}"
+}

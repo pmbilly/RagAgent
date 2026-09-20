@@ -1,0 +1,14 @@
+{
+  "path": "/",
+  "method": "POST",
+  "auth_name": "Authorization",
+  "auth_value": "Bearer sk-test",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Authorization": "Bearer sk-test",
+    "Content-Length": "102",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1"
+  },
+  "body": "{\"model\":\"test-reranker\",\"query\":{\"text\":\"query\"},\"passages\":[{\"text\":\"A\"},{\"text\":\"B\"},{\"text\":\"C\"}]}"
+}

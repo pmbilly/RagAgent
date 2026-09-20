@@ -1,0 +1,17 @@
+{
+  "path": "/api/knowledge/service/rerank",
+  "method": "POST",
+  "auth_name": "Authorization",
+  "auth_value": "HMAC-SHA256 Credential=AKLT-test/20260920/cn-beijing/air/request, SignedHeaders=content-type;host;x-content-sha256;x-date, Signature=7088a389d561af1e36174ef5206d331b7779b083169aac5f55d646d5b8135b09",
+  "headers": {
+    "Accept": "application/json",
+    "Accept-Encoding": "gzip",
+    "Authorization": "HMAC-SHA256 Credential=AKLT-test/20260920/cn-beijing/air/request, SignedHeaders=content-type;host;x-content-sha256;x-date, Signature=7088a389d561af1e36174ef5206d331b7779b083169aac5f55d646d5b8135b09",
+    "Content-Length": "264",
+    "Content-Type": "application/json",
+    "User-Agent": "vikingdb-go-sdk-knowledge/0.0.11",
+    "X-Content-Sha256": "5428a037e79714946ab128c467462b549b95828a8d38d2a4f65b8e19e8b10e05",
+    "X-Date": "20260920T035009Z"
+  },
+  "body": "{\"datas\":[{\"query\":\"保留对话数据吗\",\"content\":\"会保留\"},{\"query\":\"保留对话数据吗\",\"content\":\"不会保留\"}],\"rerank_model\":\"doubao-seed-rerank\",\"rerank_instruction\":\"Whether the Document answers the Query or matches the content retrieval intent\"}"
+}

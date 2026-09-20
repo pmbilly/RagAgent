@@ -104,6 +104,9 @@ class SandboxSkillsMeContractTest {
             "\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern SHA_PATTERN = Pattern.compile(
             "\"bundle_sha256\":\"[0-9a-f]{64}\"");
+    /** fake-ip DNS 池的受限段地址（198.18.0.0/15）——解析 IP 是环境锚（§9 ct 掩码族）。 */
+    private static final Pattern FAKEIP_PATTERN = Pattern.compile(
+            "198\\.18\\.\\d+\\.\\d+");
 
     @Autowired
     private MockMvc mockMvc;
@@ -195,10 +198,13 @@ class SandboxSkillsMeContractTest {
         assertGolden(json(post("/api/v1/skills/catalog").header("Authorization", owner),
                 "{\"source\":\"\"}"), 400, "slk-catalog-register-invalid.json");
         // SSRF 拒绝在出站校验层发生（dev 的 fake-ip DNS 把公网域名解进受限段）；
-        // 校验通过后的真实抓取是波 4 接缝——任何分支都不会发出出站请求
-        assertGolden(json(post("/api/v1/skills/catalog").header("Authorization", owner),
-                        "{\"source\":\"https://example.com/not-reachable.zip\"}"),
-                400, "slk-catalog-register-src.json");
+        // 校验通过后的真实抓取是波 4 接缝——任何分支都不会发出出站请求。
+        // fake-ip 池每次解析回不同地址（录制 198.18.0.122 / 重跑 198.18.0.74）——
+        // IP 是环境锚必须掩码（§9 ct 批"SSRF 解析 IP 掩码族"），受限段文案另行断言。
+        assertMaskedBody("slk-catalog-register-src.json", actualSourceResponse(owner));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                actualSourceResponse(owner).contains("restricted range 198.18.0.0/15"),
+                "SSRF 拒绝必须落在 198.18.0.0/15 受限段");
 
         // ==> 2) catalog 归档注册（本地存储）+ 列表/files
         MvcResult registered = mockMvc.perform(multipart("/api/v1/skills/catalog")
@@ -307,7 +313,18 @@ class SandboxSkillsMeContractTest {
     private static String mask(String s) {
         String out = UUID_PATTERN.matcher(s).replaceAll("\"<uuid>\"");
         out = TS_PATTERN.matcher(out).replaceAll("<ts>");
+        out = FAKEIP_PATTERN.matcher(out).replaceAll("<fakeip>");
         return SHA_PATTERN.matcher(out).replaceAll("\"bundle_sha256\":\"<sha>\"");
+    }
+
+    /** slk-catalog-register-src 专用：发请求、钉 400、回响应体（IP 环境锚掩码比对）。 */
+    private String actualSourceResponse(String owner) throws Exception {
+        MvcResult r = mockMvc.perform(json(
+                        post("/api/v1/skills/catalog").header("Authorization", owner),
+                        "{\"source\":\"https://example.com/not-reachable.zip\"}"))
+                .andReturn();
+        assertEquals(400, r.getResponse().getStatus(), snippet(r));
+        return raw(r);
     }
 
     private static String extractUuid(String body, String anchor) {

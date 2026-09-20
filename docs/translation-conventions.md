@@ -277,6 +277,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | browserskill（波 3 尾巴批） | internal/browserskill/ 全部（4,689 行：Manager/store/http 语义/authorization/cluster/daemon/errors/focus/human）+ router.go 的 5 条路由（含引擎级 3 条）+ session.Handler 的 BrowserSkill* handler | com.ragagent.browserskill.{domain（Scope=SHA-256 前 16 字节 hex 跨语言键空间/DeviceRecord/PairingRecord/TaskInterruption/BrowserStatus/AccountStatus/RpcError）,service.{BrowserSkillManager 全文移植,BrowserSkillStore 14 方法,BrowserSkillHttp（http.Error/json.Encoder 尾随换行/MaxBytesReader 语义）},controller×2,GinJson 字母序信封,BrowserSkillWiring} + AuthFilter NO_AUTH_API（引擎级 3 条在 Auth 之前的语义）+ TestSchema 3 表（迁移 000093） | ✅ | 5 端点全落地；**44 个 bs-* golden 全是 Go 实录**（含 download 的字节+headers 双锚；录制部署形态 BROWSERSKILL_BINARY=/usr/bin/false 固化在脚本头）+ BrowserSkillContractTest（单方法按录制序——真实服务器状态跨请求持久，拆 @Test 会假红）+ **真 PG A/B 两轮 45 项 ALL MATCH 零 DIFF**（3399 全量绿）。**跨语言互操作实测**：Go authorize 兑换的设备行（SHA-256 哈希）Java WS 握手认证通过。执行循环接缝（RPC 执行段/WS 双向转发/preview/idle 释放）随波 4；sessions/:id/local-browser 两条随波 4。关键坑见 §9「波 3 browserskill 批」 |
 | 事件契约包（波 4.1，**波 4 开工**） | internal/event/ 全部（event.go 267+event_data.go 317+adapter 59+middleware 94+global 57）+ agent/const.go 的 generateEventID | com.ragagent.event 新包 41 文件：基建 14（EventType 39 常量/Event/EventBus 同步+异步/EventMiddleware 链/GlobalEventBus/EventIds/EventJson（GoJsonEscapes+map 字母序+Go 浮点+GoTime）/TenantContextSnapshot 跨虚拟线程显式传值/package-info 含 **24 emit 点表**）+ payload 27 类 | ✅ | **101 单测全绿**（Go 实录：27 payload × 零值/全量/omitempty ≈ 75 字节断言 + EventBus 行为 12 条：同步顺序/断链/panic 原样冒出/ID 值语义 shallowCopy/异步虚拟线程隔离+租户传递/EmitAndWait barrier/中间件链序/Global Set-先-Get-后 once quirk）+ **全量 3500 绿**。**踩坑新知**：`is` 前缀 boolean 字段必须 getter 上同时标 @JsonProperty（否则拆出多余属性）；primitive double 绕过模块注册的 Double 序列化器（threshold 用包装 Double 才输出 Go 的 0）——均被实录钉住。零路由零 TestSchema。关键坑见 §9「波 4.1 事件契约」 |
 | embed/im 清单面（波 4.3） | internal/handler/embed_channel*.go 管理段+公开面 + im channel CRUD handler；internal/application/service/embed_channel.go（426）+ im channels service（CRUD 段） | com.ragagent.embed 新包 12 文件（EmbedTokens em_/ems_ 令牌+HMAC 会话签名/EmbedRateLimiter 本地滑动窗口=Go Lite 回退/EmbedAuthFilter/EmbedChannelService/EmbedTokenStore+Redis 变体/GoStyleErrorReportValve 容器级错误页对齐）+ com.ragagent.im 新包 4 文件（bot_identity 全平台计算/duplicate 检查/BeforeCreate·Save 钩子） + AuthFilter（/api/v1/embed/ 前缀让路）+ McpOAuthController 空 body 文案 EOF 对齐 + WebConfig 17 条 + TestSchema 2 表 | ✅ | 12 端点全落地（管理面 9 + im 清单 8 计 + 公开面非 QA 部分；QA 委托面随 4.6）；**85 条 emb-*/imc-* golden 全是 Go 实录** + EmbedContractTest/ImContractTest + 回归 10 包 + **真 PG A/B 两轮 85/85 ALL MATCH 零 DIFF（3502 全量绿）**。**golden 钉死**：create 对 default:true 零值 bool 走 DB 默认（请求 false 落库仍 true）、update 缺 allowed_origins 键=nil 整列覆写（响应 null 且清空 allowlist）、未知/跨租户 agent 落 500 "operation failed"、gin.H 字母序与三套 struct 序并存、im CRUD 信封**无 success 键且 create 是 200 非 201**、duplicate bot 409 文案带 %q 渠道名。**横切备案**：GoStyleErrorReportValve（容器级错误页对齐 Go 纯文本，只在响应未被应用代码写过时接管）。关键坑见 §9「波 4.3 embed/im」 |
+| 模型客户端+检索地基（波 4.4） | internal/models/embedding/（3,843 含测试）+ models/rerank/（5,725）+ internal/searchutil（2,139，部分波 2 已翻走桥接）+ infrastructure/web_fetch/（~900）+ application/service/web_search.go 执行面（792） | com.ragagent.embedding 新包 21 文件（Embedder 洋葱装饰：Factory→Http SSRF 传输+4 次指数退避→BatchEmbedder 子批短路→ConcurrencyEmbedder 过闸；10 provider 含 WeknoraCloudSign 全项目第二份 Sign）+ rerank 新包 14 文件（8 provider：LKEAP=TC3-HMAC-SHA256 裸 HTTP+切批、Volcengine=V4 HMAC 并发 4——SDK 无 Java 等价的规范复刻；NVIDIA logit sigmoid）+ searchutil 新包 8 文件（SearchChunkMerge/ImageInfoEnricher/KeywordScoreNormalizer 等；ChunkSearchUtil 桥接复用）+ webfetch 4 文件（双工厂 60s/2MB+15s/100KB、错误分类 17 码、BrowserRenderer 接缝=chromedp 降级恒失败）+ websearch/provider 20 文件+WebSearchService 执行面 + retrieval/domain 3 类型 | ✅ | **122 新测试+受影响 9 包 701 全绿**（embedding 22/rerank 23/searchutil 33/webfetch 16/websearch 38）；**31 份 Go wire 实录**（/tmp 录制器）+ **30 个请求体 stub 逐字节 A/B**（embedding 11+rerank 8+web_search 11）。**stub A/B 抓回两个真契约**：Volcengine rerank 顶层键序是 datas→rerank_model→rerank_instruction（非字母序）；Go `%02s` 对字符串也补零（Baidu 日期）。已知降级：jieba 分词接缝（默认二字滑窗近似，可注入恢复）、chromedp/readability 走 Go 自身回退分支、IP pinning 用每跳 SSRF+DNS 校验近似。关键坑见 §9「波 4.4 模型客户端+检索地基」 |
 
 ## 9. 当前确认过的细节
 
@@ -1761,3 +1762,22 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     409 文案带 %q 渠道名——与 embed 管理面（201、信封）刻意不同族。
   - **EmbedAuth 中间件**：publish token（em_/ems_ 前缀）+ HMAC 会话签名 +
     本地滑动窗口限流（=Go Lite 回退；Redis ZSET 路径未翻，429 分支未录）。
+- **波 4.4 模型客户端+检索地基补充**：
+  - **stub A/B 的"请求体逐字节"打法**：把 Go 客户端类型逐字抄进 /tmp 程序打本地
+    stub server 录请求体（31 份 wire 实录），Java 测试对同一 stub 比对——无路由面
+    支撑库的等价 A/B。抓回的真契约：**Volcengine rerank 顶层键序是非字母序的
+    datas→rerank_model→rerank_instruction**（map 字母序规则的 provider 级例外）；
+    **Go fmt 的 %02s 对字符串也补零**（宽度对字符串同样生效）。
+  - **SDK 无 Java 等价 → 规范裸 HTTP 复刻**：LKEAP（腾讯 TC3-HMAC-SHA256）与
+    Volcengine（V4 签名）按云厂商签名规范直接实现 + 切批语义（60 条/2000 字符、
+    50 条并发 4）照抄；Authorization 具体值不做跨语言比对（Go 测试也只验含 AK）。
+  - **降级接缝三件**（与波 0 RSS 同族）：jieba 分词（Segmenter 接缝默认二字滑窗
+    近似，可注入恢复）、chromedp 渲染（BrowserRenderer 接缝恒失败=Go 的
+    browser-unavailable 分支）、readability/html-to-markdown（走 Go 自身回退分支）。
+  - **IP pinning 取舍**：JDK 不能换 dialer——用每跳 SSRF+DNS 校验近似
+    （LlmTransport 同款，阶段 4.0 已备案）。
+  - **GoJson 包内副本收敛**（待办）：embedding/rerank/websearch.provider 三份
+    GoJson + 两份 Sign 暂为包内副本（避免跨包耦合），收敛为 common 级是
+    无行为变更的重构，留清理批次。
+  - **wsp-test 路由维持 SEARCH_DEGRADED**：执行面已就绪但接线需重录 golden
+    （现有 golden 录的是 Go 真实外网执行文案）——留决策。

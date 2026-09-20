@@ -1,0 +1,14 @@
+{
+  "path": "/embeddings",
+  "method": "POST",
+  "auth_name": "Authorization",
+  "auth_value": "Bearer sk-test",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Authorization": "Bearer sk-test",
+    "Content-Length": "102",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1"
+  },
+  "body": "{\"model\":\"jina-embeddings-v3\",\"input\":[\"hello world\",\"second text\"],\"truncate\":true,\"dimensions\":1024}"
+}

@@ -1,0 +1,14 @@
+{
+  "path": "/models/gemini-embedding-2:batchEmbedContents",
+  "method": "POST",
+  "auth_name": "x-goog-api-key",
+  "auth_value": "sk-test",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Content-Length": "236",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1",
+    "X-Goog-Api-Key": "sk-test"
+  },
+  "body": "{\"requests\":[{\"model\":\"models/gemini-embedding-2\",\"content\":{\"parts\":[{\"text\":\"hello world\"}]},\"output_dimensionality\":768},{\"model\":\"models/gemini-embedding-2\",\"content\":{\"parts\":[{\"text\":\"second text\"}]},\"output_dimensionality\":768}]}"
+}

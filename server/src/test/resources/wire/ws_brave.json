@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "url": "https://api.search.brave.com/res/v1/web/search?count=2\u0026q=rust+%26+go",
+  "headers": {
+    "Accept": "application/json",
+    "X-Subscription-Token": "test-subscription"
+  },
+  "body": ""
+}

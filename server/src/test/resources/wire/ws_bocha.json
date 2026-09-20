@@ -1,0 +1,10 @@
+{
+  "method": "POST",
+  "url": "",
+  "headers": {
+    "Accept": "application/json",
+    "Authorization": "Bearer sk-test",
+    "Content-Type": "application/json"
+  },
+  "body": "{\"query\":\"WeKnora\",\"freshness\":\"oneWeek\",\"summary\":true,\"count\":2}"
+}

@@ -1,0 +1,8 @@
+{
+  "method": "POST",
+  "url": "",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"api_key\":\"tv-test\",\"query\":\"query\",\"max_results\":3}"
+}

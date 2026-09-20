@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "",
+  "headers": {
+    "Content-Type": "application/json",
+    "X-Api-Key": "exa-test"
+  },
+  "body": "{\"query\":\"hello\",\"numResults\":2,\"contents\":{\"highlights\":true,\"text\":true}}"
+}

@@ -1,0 +1,14 @@
+{
+  "path": "/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding",
+  "method": "POST",
+  "auth_name": "Authorization",
+  "auth_value": "Bearer sk-test",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Authorization": "Bearer sk-test",
+    "Content-Length": "104",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1"
+  },
+  "body": "{\"model\":\"multimodal-embedding-v1\",\"input\":{\"contents\":[{\"text\":\"hello world\"},{\"text\":\"second text\"}]}}"
+}

@@ -1,0 +1,10 @@
+{
+  "method": "POST",
+  "url": "/v1/search/public",
+  "headers": {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "X-Keenable-Title": "WeKnora"
+  },
+  "body": "{\"query\":\"hello\",\"mode\":\"pro\"}"
+}

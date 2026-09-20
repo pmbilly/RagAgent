@@ -1,0 +1,14 @@
+{
+  "path": "/embeddings",
+  "method": "POST",
+  "auth_name": "Authorization",
+  "auth_value": "Bearer sk-test",
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Authorization": "Bearer sk-test",
+    "Content-Length": "94",
+    "Content-Type": "application/json",
+    "User-Agent": "Go-http-client/1.1"
+  },
+  "body": "{\"model\":\"nvidia/nv-embedqa\",\"input\":[\"hello\"],\"encoding_format\":\"float\",\"input_type\":\"query\"}"
+}

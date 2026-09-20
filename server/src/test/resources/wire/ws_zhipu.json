@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "",
+  "headers": {
+    "Authorization": "Bearer test-key",
+    "Content-Type": "application/json"
+  },
+  "body": "{\"search_query\":\"智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智智\",\"search_engine\":\"search_pro\",\"search_intent\":false,\"count\":50,\"content_size\":\"high\"}"
+}

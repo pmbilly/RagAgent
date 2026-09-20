@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "",
+  "headers": {
+    "Authorization": "Bearer bd-test",
+    "Content-Type": "application/json"
+  },
+  "body": "{\"messages\":[{\"role\":\"user\",\"content\":\"长查询中文内容用于测试宽度模型截断逻辑超长部分\"}],\"search_source\":\"baidu_search_v2\",\"resource_type_filter\":[{\"type\":\"web\",\"top_k\":3}]}"
+}
