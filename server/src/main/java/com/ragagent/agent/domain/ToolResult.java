@@ -61,8 +61,10 @@ public class ToolResult {
     public Map<String, Object> getData() { return data; }
     public void setData(Map<String, Object> v) { data = v; }
 
-    public String getError() { return error; }
-    public void setError(String v) { error = v; }
+    public String getError() { return error == null ? "" : error; }
+
+    /** Go 的 string 零值是 ""，传入 null 归一为 ""（消费侧可直接 isEmpty）。 */
+    public void setError(String v) { error = v == null ? "" : v; }
 
     public List<String> getImages() { return images; }
     public void setImages(List<String> v) { images = v; }

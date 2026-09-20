@@ -46,8 +46,14 @@ public final class MessageSanitizer {
             if (!result.isEmpty() && !"tool".equals(role)) {
                 ChatMessage prev = result.get(result.size() - 1);
                 if (prev.getRole().equals(role) && !"tool".equals(prev.getRole())) {
-                    // 与前一条合并
-                    prev.setContent(prev.getContent() + "\n\n" + (msg.getContent() == null ? "" : msg.getContent()));
+                    // 与前一条合并。⚠️ 必须落成<b>新对象</b>：Go 的 []chat.Message 持
+                    // 结构体值，result 里的合并写不回调用方的切片；Java 列表持有共享
+                    // 引用，就地 setContent 会把合并泄漏进调用方的消息列表（多轮场景
+                    // 下同一条用户消息被反复追加，引擎实录抓回）。
+                    ChatMessage merged = shallowCopy(prev);
+                    merged.setContent(prev.getContent() + "\n\n"
+                            + (msg.getContent() == null ? "" : msg.getContent()));
+                    result.set(result.size() - 1, merged);
                     continue;
                 }
             }
@@ -56,7 +62,9 @@ public final class MessageSanitizer {
             String toolCallId = msg.getToolCallId() == null ? "" : msg.getToolCallId();
             if ("tool".equals(role) && !toolCallId.isEmpty()) {
                 if (!hasMatchingToolCall(messages.subList(0, i), toolCallId)) {
-                    // 保留可恢复的数据，但不把外部输出升格为策略
+                    // 保留可恢复的数据，但不把外部输出升格为策略。改写同样落成新对象
+                    // （Go 的 range 循环变量是结构体副本，原始切片不受影响）。
+                    msg = shallowCopy(msg);
                     msg.setRole("user");
                     msg.setContent("<untrusted_tool_result name=\"" + goHtmlEscape(orEmpty(msg.getName()))
                             + "\">\n" + goHtmlEscape(orEmpty(msg.getContent())) + "\n</untrusted_tool_result>");
@@ -69,6 +77,19 @@ public final class MessageSanitizer {
         }
 
         return result;
+    }
+
+    /** Go 结构体值拷贝的对应物：字段逐个复制（列表字段保持同一引用，语义同 Go 切片头拷贝）。 */
+    private static ChatMessage shallowCopy(ChatMessage m) {
+        ChatMessage c = new ChatMessage(m.getRole(), m.getContent());
+        c.setMultiContent(m.getMultiContent());
+        c.setName(m.getName());
+        c.setToolCallId(m.getToolCallId());
+        c.setToolCalls(m.getToolCalls());
+        c.setImages(m.getImages());
+        c.setReasoningContent(m.getReasoningContent());
+        c.setKind(m.getKind());
+        return c;
     }
 
     /** 前面的 assistant 消息里是否有 ID 匹配的 tool call。 */

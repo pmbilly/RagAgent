@@ -197,6 +197,22 @@ public final class Registry {
         return sources.registerChunk(ref, false);
     }
 
+    /**
+     * 引擎桥接（4.6b，新增公开重载，无行为变更）：{@code ChunkReference} 是包内类型，
+     * agent 引擎（observe.go 的 registerRuntimeReferences）拿不到构造面，按字段透传。
+     */
+    public String registerContextChunk(String chunkId, String knowledgeId, String knowledgeBaseId,
+            String documentTitle, int chunkIndex, String chunkType) {
+        SourceRegistry.ChunkReference ref = new SourceRegistry.ChunkReference();
+        ref.chunkId = chunkId == null ? "" : chunkId;
+        ref.knowledgeId = knowledgeId == null ? "" : knowledgeId;
+        ref.knowledgeBaseId = knowledgeBaseId == null ? "" : knowledgeBaseId;
+        ref.documentTitle = documentTitle == null ? "" : documentTitle;
+        ref.chunkIndex = chunkIndex;
+        ref.chunkType = chunkType == null ? "" : chunkType;
+        return sources.registerChunk(ref, false);
+    }
+
     public String registerDocument(String id) {
         return sources.registerDocument(id);
     }

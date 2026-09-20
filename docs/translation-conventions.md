@@ -285,6 +285,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | 知识检索+wiki 工具族（波 4.5b） | internal/agent/tools/ 的 knowledge 九件（knowledge_search/grep_chunks/list_chunks/query_graph/get_doc_info/search_conversations/search_memory/database_query/data_analysis+sql_guard/search_auth）+ wiki 十件（wiki_search/read_page/write_page/replace_text/rename_page/delete_page/read_source_doc + wiki_issue 四件 flag/read/update） | com.ragagent.agent.tools 新文件 24 个：KnowledgeSearchTool/GrepChunksTool/ListKnowledgeChunksTool/QueryKnowledgeGraphTool/GetDocumentInfoTool/SearchConversationsTool/SearchMemoryTool/DatabaseQueryTool/DataAnalysisTool + SqlGuard（1590 行，手写替代 pg_query）/SearchAuth（455）/SearchTarget/DocChunkSupport/WikiSupport + 10 个 Wiki*Tool。执行接线（SqlQueryExecutor/KnowledgeLoader/Materializer/DuckDB 引擎选型）的生产装配随 4.6 | ✅ | **9 个新测试类全绿**（259 tests / 0 failures，PG 依赖类真实执行：DatabaseQuery 15/DataAnalysis 12/KnowledgeSearch 15/WikiTools 8/GrepChunks 10）；**249 条 Go 实录 21 组**（/tmp/toolrec45b 探针，GoRecording45B.java 249 常量）。**已知差异（备案，实录已锁稳定段）**：⑮ DuckDB 1.5.2 vs JDBC 1.1.3 错误文案不同（missing-column 语料只锁稳定段）；⑯ DuckDB 1.1.3 无 read_xlsx（buildExcelCreateTableSQL 逐字锁定，执行侧 ST_Read shim）；⑰ knowledge_search dedup 二轮顺序 Go map 随机 vs Java LinkedHashMap 确定（rerank_preserve_top 语料钉采样）。**决策点**：手写 SqlGuard 替代 pg_query、跳过 Deparse、DatabaseQueryTool 注入 LongSupplier tenantId、storage 后端解析留 KnowledgeFileMaterializer seam、未加 JsonContractRoundTripTest。零既有文件被改。关键坑见 §9「波 4.5b 补充」 |
 | 执行面+MCP 工具族（波 4.5c） | internal/agent/tools/ 的 sandbox 文件面五件（read_file 180/sandbox_ls 320/sandbox_write 403/sandbox_edit 423/sandbox_diff 158）+ shell_exec（1027）+ skill 三件（skill_file 416/skill_resources 90/skill_runtime_guard 89）+ 行为完整所需超清单两件（workspace_reader 442/python_syntax 158）+ read_web_page 77 + MCP 四件（mcp_tool 755/mcp_catalog 974/mcp_exposure 254/mcp_oauth 253） | com.ragagent.agent.tools 新文件 35 个 ~10k 行：ReadFileTool（skill 资源/workspace/web:// 游标三分支）+WorkspaceFileReader/ListSandboxFilesTool/WriteSandboxFileTool/EditSandboxFileTool+SandboxEdits（**字节偏移语义**）/SandboxDiffs（接 4.5a 预留 sandboxOutputSnapshot）+ ShellExecTool（session+install 双变体、黑名单、保头保尾截断、stdin base64 管道、skill env 解析/捕获；**4.5a 的 ShellCommandOutput emit 首次真正触发**）+ WriteSkillFileTool/EditSkillFileTool/SkillFiles/SkillResources/SkillRuntimeGuard/PythonSyntax + McpToolWrapper/McpCatalog/McpDiscoverTool（三模式）/McpCallTool/McpRegisteredTool（实现 4.5a 预留 McpCatalogGuardedTool，鉴权先于 schema 校验）/McpExposure/McpOAuthSupport/ApprovalBridge + SandboxPaths/RemoteDirEntry/RemoteStatEntry/SkillEnvironment（SkillEnvResolver 按 Go env_resolver.go 原样补在本包）+ 接口族 SandboxFileSource/Sink/Editor、SandboxCommandExecutor/SandboxInstallCommandExecutor、SkillFileStore。**ToolRegistry 扩展 +303 行纯新增**（唯一授权既有文件：prepareMcpTools(Direct)/refreshMcpTools/rememberMcpHistory/mcpCatalog/mcpCallTarget/hasMcpServer） | ✅ | **68 新测试全绿，agent 包 327 条零回归**（小包批 B1a~B4 合计 3901 全绿）；**265 条 Go 实录 14 组**（/tmp/toolrec45c 探针 a/b/c + 内嵌 stub MCP server；GoRecording45C.java 265 常量）；**MCP stub A/B 双端同打同款 stub server**：tools/list、tools/call、notifications/initialized 请求体逐字节一致（id 掩码），工具结果 output 逐字节一致（initialize 差异备案⑱）。实录抓回 7 处真语义缺陷（edit 字节偏移/UTF-8 分页预算/U+FFFD 逐字节/GoDuration "1ms"/16-hex 后缀/content_items 字节计数/ErrTimeout 补写）。**已知差异（备案）**：⑱ initialize 请求体 Go SDK=2025-11-25 vs Java 4.1=2024-11-05（4.1 既有契约，握手语义一致）；McpTool InputSchema JsonNode 重序列化 vs Go RawMessage 原文（pretty-JSON 服务器的 ref 哈希不一致）；Go json.Unmarshal 错误文案不可达只录不比。**决策点**：SkillEnvironment 位置、McpTool raw-schema 通道（动 4.1）、执行期身份重校验、投影类型对接方式。关键坑见 §9「波 4.5c 补充」 |
 | modelcontext + skills 库 + langfuse seam（波 4.6a，4.6 首批） | internal/modelcontext/ 15 非测试文件 ~3.3k（citations/handles/handle_table/registry/sources/mcp/mcp_sources/resources/stream/tool_policy/model_output）+ internal/agent/skills/ 9 非测试文件 ~3.3k（skill/skill_frontmatter/source/loader/tenant_source/env_resolver/manager/shell_staging/shell_environment）+ internal/tracing/langfuse 的引擎三调用点 | com.ragagent.modelcontext 新包 10 文件 ~3.0k（Registry：ProtocolPrompt/EncodeMessages/DecodeToolCalls/DecodeOutputText/StreamDecoder/Register*/ModelToolResult*/CompactKnownText + SourceRegistry/CitationStreamExpander/GoHtml（EscapeString 五字符）+ ResourceRegistry（res://0001 起/孤儿过滤）+ ToolPolicy（37 策略表+RawJson 保原始字节扫描器）+ ModelOutput（8 display_type）+ GoJsonValues（float64 归一/Go 严格单值解析））+ com.ragagent.agent.skills 新包 8 文件 ~2.0k（Skill/SkillFrontmatter 两步修复管线/Loader（ReadDir 排序+Walk 深度序）/TenantSkillSource（**手写 zip 中央目录解析器含 zip64**+LRU）/SkillEnvResolver/Manager（SessionFileStore/SandboxGateway 窄 seam + **asSkillEnvironment() 适配器接 4.5c SkillEnvironment**））+ com.ragagent.tracing.langfuse 3 文件（LangfuseManager 接口+Span+no-op 单例；OTLP 导出降级备案） | ✅ | **48 新测试全绿（四包 375 条）**；**193 条 Go 实录**（modelcontext 92 + skills 101，含 100_001 条目/20_001 文件真 zip 边界、LRU 逐出计数）；**零既有文件改动**（SkillEnvironment 桥接走适配器，tools 包一字未动；波 3 sandbox.service 对账同源同值零改动）。**实录抓回**：Go json 严格单值（FAIL_ON_TRAILING_TOKENS——default 分支 Go 只走 labeled refs）、RE2 `$`→`\z`、`\s` 的 `\x0B` 差异、float64 数字归一、map[string]RawMessage 保 1.0 字面量重组。**主会话修掉 4.2 潜伏墙钟 flake**（AgentPromptsTest，见 §9「波 4.6a 补充」）。**决策点**：波 3 SkillFrontmatter snakeyaml 宽容类型是否对齐、GoRawJson 深层键序边界。关键坑见 §9「波 4.6a 补充」 |
+| agent 引擎核心（波 4.6b） | internal/agent/ 根包 engine.go(934)/observe.go(918)/think.go(626)/act.go(619)/finalize.go(188)/steer.go(93)/context_debug.go 引擎段(169) + types 的 AgentState/AgentConfig 消费面 + prompts 的四个 info 类型 | com.ragagent.agent 根包新文件 4 个：AgentEngine（七文件方法收进一类，分段注释=Go 文件名；Execute/executeLoop/runReActIteration/streamLLMToEventBus/streamThinkingToEventBus/callLLMWithRetry/executeToolCalls(+parallel 写屏障)/runToolCall/manageContextWindow/runCompaction/analyzeResponse/streamFinalAnswerToEventBus/emitCompletionEvent/drainSteerMessages/logContextPrediction/logContextDrift）+ AgentConfig（运行时消费面，与 agentm.AgentConfigJson 配置树刻意分离）+ AgentEngineException（Go error 通道，message=fmt.Errorf 原文）+ SteerSink（引擎半边接口，4.6d 实现）+ domain.AgentState（json 契约：pending_steer_messages 是 json:"-"） | ✅ | **20 个实录回放测试全绿（com.ragagent.agent.* 362 条零回归）**；**74 条 Go 实录 20 组**（/tmp/toolrec46b 同包探针复用 engine_test.go mockChat + steer_test.go fakeSteerSink：自然停/空内容重试/卡死检测/max-iterations 合成/content_filter/并行工具写屏障/length 拒执行/steer 注入+循环结束续跑/render_user_turn 句柄压缩/trim/compaction 触发/estimate/流错误/优雅降级）。**实录抓回两个真缺陷**：① MessageSanitizer 合并就地改共享对象（Go 切片值语义→多轮下用户消息被反复追加），② 引擎两处用字段 sessionId 而非 Execute 入参。**语义备案**：complete 事件 usage 键恒输出（Go typed-nil interface）+ agent_steps 恒输出（interface{} 持切片，与切片类型字段的 omitempty 相反）——RawValue 过 NON_EMPTY。关键坑见 §9「波 4.6b 补充」 |
 
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
@@ -1906,3 +1907,70 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     显式类型错误留决策（未动波 3 文件）。
   - **langfuse seam**：恒 no-op 单例；4.6b 引擎三调用点（StartSpan/
     finishAgentSpan/finishToolSpan）签名照 Go，接真 OTLP 时只换实现不动调用点。
+
+- **波 4.6b 补充**：
+  - **实录方法（引擎版）**：/tmp/toolrec46b 复制 Go internal/ + go.mod/go.sum，同包探针
+    zz_rec46b_test.go 复用 engine_test.go 的 mockChat、steer_test.go 的 fakeSteerSink/
+    summarizerChat（同包 \_test.go 可直接引用），脚本化 chunk 驱动真引擎。**chunk 三件套
+    形态**（首轮实录抓的错：只给 Data 不给 ToolCalls → 工具从未执行）：UI pending/progress
+    事件由 chunk.Data 驱动，真正执行的调用是 provider 末块的 chunk.ToolCalls（不带 Data，
+    避免 pending 去重再发一次 progress）。重生成命令在 GoRecording46B.java 头注释。
+  - **掩码纪律（引擎实录特有）**：duration/duration_ms/total_duration_ms 必须**连键带值
+    删除**（含前导逗号），不能掩成 0——Go 侧 stub 工具 0ms 被 omitempty 掉键、Java 侧
+    真实耗时非 0 键在，留键掩 0 恒不一致；两侧同删后逐字节可比。时间戳→"TS"、
+    `<current_time>` 日期→DATE（含 `<` 转义形态；Java 测试当日现算后同款掩码——
+    4.6a 墙钟教训的标准应用）。**事件 id 掩 uuid 前缀保后缀**（-tool-call-pending 等
+    形态仍是断言的一部分）。
+  - **⚠️ Go interface{} + omitempty 的 typed-nil/空切片语义（实录钉死，Java 复刻）**：
+    ① complete 事件的 `usage` 键**恒输出**——turnUsage 返回 nil \*TokenUsage 装进
+    interface{} 是 typed-nil，interface 非 nil → 不省略，输出 `"usage":null`；Java 用
+    NullNode 过 NON_EMPTY。② `agent_steps` 同理**恒输出**（空切片→`[]`）；对比：
+    声明为**切片类型**的字段（knowledge_refs []interface{}）len 0 才省略。event 包不可改，
+    空列表用 `RawValue("[]")` 过 NON_EMPTY（@JsonValue 包装器不行——JsonValueSerializer
+    把空判定委托给 List 序列化器照样省略）。**4.6d 消费 complete 事件时 usage 按
+    `instanceof TokenUsage` 判别（NullNode=无用量）**。
+  - **流终止约定（Java 侧定义，对齐 4.0 生产者）**：Go 引擎 `for chunk := range stream`
+    以 channel 关闭收尾，done 只是数据；Java BlockingQueue 无关闭——引擎在
+    **`done=true` 且非 THINKING** 的元素处收束（4.0 生产者的终态元素恒为
+    ANSWER/ERROR+done；THINKING+done 是生产者中途补的 thinking-done 标记，其后仍有
+    分片，照 Go 继续消费）。首轮实录抓回：见 done 就 break 会把思考通道后面的答案
+    全部吞掉。
+  - **实录抓回的真缺陷（4.5a 潜伏）**：MessageSanitizer 合并连续同角色消息时**就地
+    setContent 改共享对象**——Go 的 `result[last].Content += ...` 写在切片的**结构体副本**
+    上、调用方列表不动；Java 列表持引用，多轮场景下同一条用户消息被逐轮反复追加
+    （引擎实录 chat-shape 抓回：第二轮 user content 里出现两份 runtime_context）。
+    修法=合并与孤儿 tool-result 改写都**落成新对象**（shallowCopy）。**教训：Go 切片
+    持值语义翻译成 Java 引用列表时，一切就地写都要过一遍"写的是谁的副本"**。
+  - **sessionId 参数 vs 字段**：Go 引擎有 sessionId 字段（构造时给，emitContextCompacted
+    用它）但 Execute 的 sessionID 参数才是各 emit 点的正文——closeAnswerStream/
+    analyzeResponse 若误用字段，SSE 帧的 session_id 会变成装配值而非请求值（实录抓回）。
+    另外 **complete 事件的 AgentCompleteData.SessionID Go 恒不赋值（=""）**——照抄。
+  - **cancel seam**：Go 的 ctx 取消检查（轮首/LLM 调用后/流停顿）收敛为
+    `setCancellationSource(Supplier<String>)`（null=存活，非 null=ctx.Err().Error() 原文）；
+    4.6d 的 stop 链路接线。取消时抢救 final answer 后抛 AgentEngineException(cancelErr, state)，
+    state 挂异常上（Go 的 `return state, ctx.Err()` 对应物）。
+  - **并行工具调用**：errgroup(8)+CanRunConcurrently 白名单→虚拟线程+Semaphore(8)，
+    写屏障=顺序落段。租户/主体在引擎线程 TenantContextSnapshot.capture()、虚拟线程
+    replay()+finally clear（纪律 #1 的标准实现）。runToolCall 的 principal 显式传参。
+  - **compaction 引擎接线**：无窗口（MaxContextTokens≤0）时 Compactor.create 返回 null=
+    Go 的 nil 压缩器，全部 settings 访问走 activeCompactionSettings()（nil receiver→零值
+    settings 的对应物）；compactionExhaustedAt 挂消息数、freed < tokens_before/20 即耗尽。
+  - **已知差异（备案）**：① Go json.Unmarshal 错误文案（runToolCall unrepairable 形态
+    的 "invalid character ..."）与 Jackson 不同——实录只锁静态骨架（前缀+两段固定提示），
+    同 4.5c 备案；② formatToolHint 遍历 args 取第一个 string 值——Go map 迭代随机、
+    Java 取插入序首个，单参数工具等价（测试用单参数）；③ PromptPrefixFingerprint/
+    WithLLMCallMetadata（provider 缓存观测 ctx 标注）未翻——Java LlmChatClient 无 ctx
+    形参，无消费点；④ LLM 瞬态重试的 Thread.sleep(1s/2s) 保留；⑤ 工具执行超时由
+    ToolExecContext.execTimeoutMillis 传给工具面自执行（Go 是 ctx.WithTimeout 包裹），
+    engine 不再包一层。
+  - **决策点（留 4.6c/4.6d/Owner）**：① SteerSink 实现方（session 侧 PollSteer/
+    PersistSteerMessage back half）随 4.6d 装配，接口已定（mentionedItems 为不透明
+    Object 透传，实现方用 session.domain.MentionedItem 还原）；② Registry 加了一个
+    公开重载 registerContextChunk(6 参)（ChunkReference 是包内类型，引擎拿不到构造面）
+    ——4.6a 文件的唯一改动，纯新增无行为变更；③ tools/MessageSanitizer 两处
+    copy-on-merge 修复（见上，真缺陷非偏好）；④ domain/ToolResult.setError null 归一
+    （Go 零值 "" 语义，消费侧 isEmpty 直用）；⑤ persist.go 的 SanitizeToolDataForPersist
+    本波以私有静态落在引擎（唯一消费点 emitToolOutcome），SSE 回放/DB 存储的其余
+    persist 函数随 4.6d 落 tools 包时再收敛；⑥ AgentConfig 本波只收引擎消费字段
+    （其余 Go 字段随 4.6d agent_service 装配按需补），未进 JsonContractRoundTripTest
+    （引擎内部类型，不落 jsonb/响应体；JSON 形状由实录回放钉住）。
