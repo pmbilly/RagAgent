@@ -1,69 +1,41 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：四包批（chatpipeline/agent/modelcontext/langfuse）437 测试全绿（4.6c 已提交）** · golden 1324 个
-> **端点覆盖：Go 412 条 → Java 已注册约 358 条（约 87%）——波 4 收官段进行中（4.6a/4.6b/4.6c 完成；下一步 4.6d HTTP+装配+stub LLM 全链路 A/B 收官波 4）**
+> 最后更新：2026-09-21 · **基线：小包批合计 3,985 测试全绿（波 4 全部收官：4.6a/b/c/d 已提交）** · golden 1339 个
+> **端点覆盖：Go 412 条 → Java 已注册约 361 条（约 88%）——波 4 ✅；下一步：波 5（im 执行体/skill 收口/shared-agent）+ 收尾扫描（见 §0「剩余缺口清单」）**
 
-## 0. 接手状态（2026-09-21，4.6c 已收官——新会话直接派 4.6d）
+## 0. 接手状态（2026-09-21，波 4 已全部收官）
 
-**波 4.6 切分（2026-09-21 实测重排，4.6 全量 ~23k 行超单批容量）**：
-**4.6a modelcontext+skills 库+langfuse seam（✅ f7a2b98）→ 4.6b 引擎核心
-（✅ f345658，AgentEngine 3,227 行 + 74 实录 + MessageSanitizer 真缺陷修复）→
-4.6c chat_pipeline（✅ 本批，43 文件 8.7k + 263 实录 40 组）→
-4.6d HTTP 面+装配+stub LLM 全链路 A/B 收官（qa.go 1,768 + agent_stream_handler 896 +
-session_agent_qa 647 + session_knowledge_qa 1,290 + agent_service 装配 1,485）**。
+**波 4.6 四连批全部提交**：4.6a f7a2b98（modelcontext+skills+langfuse seam，193 实录）→
+4.6b f345658（AgentEngine 引擎核心，74 实录 + MessageSanitizer 真缺陷修复）→
+4.6c 755bff4（chatpipeline 43 文件，263 实录 + 三个 len/拼接真缺陷修复）→
+4.6d 29b41b9（**chat 三入口 HTTP 面 + AgentStreamBridge SSE 桥 + PipelinePorts 11 seam
+装配 + SteerSink/follow-up + stub LLM 全链路 A/B 15 场景 × 2 轮全 MATCH 零 DIFF**）。
+验收基线：小包批 3,985 条全绿（session 257/agent+chatpipeline 404/apikey+auth 175/
+common+event+audit 270/B2 955/B3 1066/B4 1115）；golden 1,339 个。
 
-**4.6c ✅ 完成**：`com.ragagent.chatpipeline` 新包 43 主文件 ~8.7k 行（17 个 Plugin*
-插件类 + EventManager/PipelineBuilder/ChatManage + **PipelinePorts 11 个窄 seam**）+
-8 测试文件 + **263 条 Go 实录 40 组**（两次运行 diff 为空）。**实录抓回三个真缺陷**
-（merge_expand 替换语义写成了拼接、Go len() 字节语义 ×3、引号字符类无弯引号）。
-**零既有文件改动**。台账见 conventions §8「波 4.6c」与 §9「波 4.6c 补充」
-（**4.6d 装配清单——PipelinePorts 11 seam 的 adapter 要求——在 §9 波 4.6c 末段**）。
+**⚠️ 批次教训（4.6d 复发确认）**：agent/chatpipeline 与 apikey/auth 等 @SpringBootTest
+包同批 → Mockito attach 假红（110 条）；**B1 批拆两批跑**（agent/chatpipeline 一批、
+Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「波 4.5b 补充」。
 
-**4.6a 摘要（f7a2b98）**：`com.ragagent.modelcontext`（Registry/ToolPolicy/StreamDecoder
-+ GoJsonValues 严格单值）+ `com.ragagent.agent.skills`（Manager 经 asSkillEnvironment()
-接 4.5c SkillEnvironment）+ `com.ragagent.tracing.langfuse`（no-op seam）；193 实录。
-**主会话修掉 4.2 潜伏墙钟 flake**（AgentPromptsTest，教训在 §9 波 4.6a：实录含
-time.Now() 派生段必须当日写成「静态骨架 + 当日现算」）。
+**剩余缺口清单（整体改造收尾，按批派）**：
+1. **收尾扫描批（散条 HTTP 面）**：sessions/:id/local-browser ×2（BrowserSkillConnection，
+   Go handler/session/browserskill.go）+ sandbox_terminal_ws.go(426)/bridge(340)
+   （terminal-ticket + WebSocket）+ embed 公开 QA 委托面（4.3 遗留）+ models/{id}/debug
+2. **波 5**：im 执行体（im service.go 3,453，/wechat/qrcode ×2 随此）+
+   tenant_skill_* 收口 + shared_agent_access→tools + 共享 agent QA 解析
+   （GetSharedAgentForTenant，4.6d 备案）+ 波 4.6d 其余移交缺口
+3. **检索引擎批**：HybridSearch 执行面（向量/关键词检索实质执行——4.6d adapter 留
+   空/1003 两形态，纯聊天路径不受影响）
+4. **执行体批**：ArtifactCollector/rewriteArtifactReferences/VLM Predict 的生产装配
+   （dev 部署两侧同形 no-op，真部署才需要）
+5. **Owner 决策遗留**：⑱ MCP initialize 契约对齐、SkillEnvironment 位置、
+   波 3 SkillFrontmatter snakeyaml 宽容类型、TenantService 占位是否变真、
+   ConversationProperties 多环境接线
 
-**4.6b 摘要（f345658）**：AgentEngine（七文件收一类）+ AgentConfig 运行时消费面 +
-domain.AgentState + SteerSink 接口；74 实录 20 组事件序列对拍；真缺陷=MessageSanitizer
-就地合并改共享对象（copy-on-merge 修复）+ 引擎 sessionId 字段/参数误用；语义备案=
-complete 事件 usage 键恒输出（typed-nil）+ agent_steps 恒输出；流终止约定 done=true
-且非 THINKING；cancel seam=setCancellationSource(Supplier<String>)。
-
-**4.6d 派发输入（四批的装配决策点汇总）**：
-- **HTTP 面**：Go handler/session/qa.go(1,768) + agent_stream_handler.go(896，17 种
-  事件订阅 + superseded preamble 剔除) + session_agent_qa.go(647) +
-  session_knowledge_qa.go(1,290，chat_pipeline 的调用方)；SSE 线格式契约见 §9.3
-  （四条路径 MATCH 基建复用），**final_answer event-id 分片重组 + superseded preamble
-  剔除是最高危**。
-- **装配（agent_service.go 1,485 参照，不逐行翻）**：工具注册三函数 L436/L497/L828；
-  4.5c 报告的签名清单（SandboxFileSource/Sink/Editor、SandboxCommandExecutor、
-  SkillFileStore、SkillEnvironment→skillsManager.asSkillEnvironment()、
-  ShellExecTool.withSkillEnvironment/withEnvCapture、McpCatalog+installMcpCatalog、
-  registry.prepareMcpTools/refreshMcpTools）；4.6b 的 SteerSink 实现（session 侧
-  PollSteer/PersistSteerMessage back half）+ setCancellationSource（stop 链路）；
-  4.6c 的 PipelinePorts 11 seam adapter（MemoryService 直接委托
-  memory.service.MemoryService；DataAnalysisSessionFactory 实现放 agent.tools 包内）。
-- **验收**：stub LLM 全链路 A/B（双端同指脚本化 OpenAI 兼容 stub，复用 continue-stream
-  MATCH 基建）+ 新 HTTP 面 golden；**不加 @SpringBootTest 上下文变体**（§5.15）。
-- **遗留决策点**：⑱ initialize 契约对齐与否（Owner）、SkillEnvironment 位置、
-  波 3 SkillFrontmatter snakeyaml 宽容类型、TenantService 占位是否变真。
-
-**⚠️ 测试基建坑（4.5b 起生效）**：大组合批跑稳定复现 Mockito inline MockMaker
-初始化失败——**全量回归一律按小包批次跑**（B1a=agent/chatpipeline、
-B1b=common/event/apikey/audit/auth、B2=browserskill/datasource/embed/embedding/
-evaluation/favorite、B3=im/knowledge/llm/mcp/memory/model/org、
-B4=rerank/sandbox/searchutil/session/storage/storageurl/stream/system/vectorstore/
-webfetch/websearch/wiki/agentm）。批次内冒假红就单包重跑确认后重试该批
-（详见 conventions §9「波 4.5b 补充」）。
-
-**重派模板（4.6d）**："4.6d 任务书——qa.go + agent_stream_handler +
-session_agent_qa/knowledge_qa + agent_service 装配 + PipelinePorts adapters；
-验收：新面 golden + stub LLM 全链路 A/B 双端逐字节（SSE 时序最高危）；
-先读 conventions §3/§6/§7.5/§8/§9（§9.3 SSE 契约 + 波 4.5x/4.6a/b/c 小节）；
-golden 前缀先 ls contracts/ 防冲突；跨模块文件（session 域/WebConfig）显式授权；
-测试小包批（agent/chatpipeline/session 各自跑）"
+**重派模板（下一批=收尾扫描批 1）**："收尾批任务书——sessions/:id/local-browser ×2 +
+sandbox_terminal_ws/bridge + embed QA 委托面 + models/{id}/debug；验收：golden +
+A/B（WS/ticket 按部署态标 XDEP 或双端同打 stub）；先读 conventions §3/§6/§7.5/§8/§9；
+golden 前缀先 ls contracts/；WebConfig/APIKeyRoutePolicies 显式授权；小包批测试"
 
 ## 0. 一句话背景
 
