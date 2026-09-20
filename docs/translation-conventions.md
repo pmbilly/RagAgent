@@ -282,6 +282,8 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 
 | tools 基建+确定性工具（波 4.5a） | internal/agent/tools/ 的 registry+基建 21 文件（registry/definitions/capabilities/param_cast/param_validate/json_repair/truncate/normalize_id/output_budget/output_links/file_mutation_queue/strip_think/think_stream/exec_context/execution_policy/tool/data_schema/mcp_schema）+ todo_write/sequentialthinking/faq_snippet | com.ragagent.agent.tools 新包 33 文件 ~4.4k 行：ToolRegistry（first-wins/排序字节稳定/deferred/outputLimitProvider 接缝）+ ToolDefinitions（退役工具替代文案）+ ToolCapabilities（KB 能力门控）+ ParamCaster/ParamValidator/JsonRepair/ToolOutput（truncate）/NormalizeToolCallId/OutputBudgets/OutputLinks/FileMutationQueue/ThinkBlocks/ThinkStreamSplitter/GoJsonCodec/GoPath/GoJsonEscapes 复用 + TodoWriteTool/SequentialThinkingTool/FaqSnippet/DataSchemaTool + AgentTool/BaseTool/ToolRequest/ToolExecContext/ToolCancellation/MessageSanitizer/ShellEnvExtractor/ShellCommandOutput（emit 只接线不触发，执行面 4.5c） | ✅ | **31 个测试类全绿**（15 个实录回放类 + FileMutationQueue 行为机）；**208 条 Go 实录**（/tmp/toolrec 探针同包调用未导出函数 → rec.jsonl → GoRecording45A.java 生成常量，覆盖 json_repair 31/cast 29/validate 15+3/truncate 15/normid 9/strip_think 11/think_stream 13/todo 6/seqthink 11/registry 17/caps 12/faq 10/fmq 4/budget 13/codec 9）。**实录抓回三个真缺陷**：① ParamValidator 对 `{}` args 提前返回跳过 required 检查（Go 只在 len(args)==0 短路，`{}` 照样报 missing）；② TodoWriteTool 缺省 steps 编出 `[]`/`"[]"`（Go 的 nil 切片是 `null`/`"null"`）；③ JsonRepair `List<Character>`/ParamCaster import/FaqSnippet import/ShellCommandOutput 受检异常 4+2 编译错误。**已知通道差异（备案）**：Go 的 (result,err) 双通道折叠——Java 工具用 success=false+error 表达失败，"success=true 同时 err" 形态不可表达；bad-json 的 args 在 Java 上游已解析（seqthink/todo 的 bad_json case 不录）。执行面（sandbox/shell/skill/web/knowledge/wiki/MCP 工具）与 EventBus emit 接线随 4.5b/4.5c |
 
+| 知识检索+wiki 工具族（波 4.5b） | internal/agent/tools/ 的 knowledge 九件（knowledge_search/grep_chunks/list_chunks/query_graph/get_doc_info/search_conversations/search_memory/database_query/data_analysis+sql_guard/search_auth）+ wiki 十件（wiki_search/read_page/write_page/replace_text/rename_page/delete_page/read_source_doc + wiki_issue 四件 flag/read/update） | com.ragagent.agent.tools 新文件 24 个：KnowledgeSearchTool/GrepChunksTool/ListKnowledgeChunksTool/QueryKnowledgeGraphTool/GetDocumentInfoTool/SearchConversationsTool/SearchMemoryTool/DatabaseQueryTool/DataAnalysisTool + SqlGuard（1590 行，手写替代 pg_query）/SearchAuth（455）/SearchTarget/DocChunkSupport/WikiSupport + 10 个 Wiki*Tool。执行接线（SqlQueryExecutor/KnowledgeLoader/Materializer/DuckDB 引擎选型）留 4.5c | ✅ | **9 个新测试类全绿**（259 tests / 0 failures，PG 依赖类真实执行：DatabaseQuery 15/DataAnalysis 12/KnowledgeSearch 15/WikiTools 8/GrepChunks 10）；**249 条 Go 实录 21 组**（/tmp/toolrec45b 探针，GoRecording45B.java 249 常量）。**已知差异（备案，实录已锁稳定段）**：⑮ DuckDB 1.5.2 vs JDBC 1.1.3 错误文案不同（missing-column 语料只锁稳定段）；⑯ DuckDB 1.1.3 无 read_xlsx（buildExcelCreateTableSQL 逐字锁定，执行侧 ST_Read shim）；⑰ knowledge_search dedup 二轮顺序 Go map 随机 vs Java LinkedHashMap 确定（rerank_preserve_top 语料钉采样）。**决策点**：手写 SqlGuard 替代 pg_query、跳过 Deparse、DatabaseQueryTool 注入 LongSupplier tenantId、storage 后端解析留 KnowledgeFileMaterializer seam（4.5c）、未加 JsonContractRoundTripTest。零既有文件被改。关键坑见 §9「波 4.5b 补充」 |
+
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
   1. AppError 走全局 ErrorHandler：`{"success":false,"error":{"code":N,"message":"...","details":...}}`（details 恒输出，null 时为 `"details":null`）
@@ -1820,3 +1822,33 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     SSRF 文案变为 "DNS resolution failed"，与 4110ad4 干净基线上复现一致。
     恢复 fake-ip DNS（开代理）即绿；或后续把这两个 golden 的 SSRF 文案按
     部署态标 XDEP。
+- **波 4.5b 补充**：
+  - **录制方法**：同 4.5a（/tmp/toolrec45b 复制 Go 仓 internal/，同包探针
+    zz_rec45b_*.go ×11 → rec.jsonl → GoRecording45B.java，"禁止手改"）。
+  - **已知差异（实录已锁稳定段，不再验证）**：
+    - ⑮ DuckDB 1.5.2（Go）vs JDBC 1.1.3（Java，波 4.2 引入，build.gradle.kts:39
+      既有）错误文案不同——missing-column 语料只锁稳定段；
+    - ⑯ DuckDB 1.1.3 无 read_xlsx——buildExcelCreateTableSQL 逐字锁定，
+      执行侧靠 ST_Read shim 重试；
+    - ⑰ knowledge_search dedup 二轮顺序：Go map 随机 vs Java LinkedHashMap
+      确定——rerank_preserve_top 语料钉采样。
+  - **决策点（照单收录）**：手写 SqlGuard（1590 行）替代 pg_query、跳过
+    Deparse、DatabaseQueryTool 注入 LongSupplier tenantId、storage 后端解析留
+    KnowledgeFileMaterializer seam（4.5c）、未加 JsonContractRoundTripTest
+    （agent 已给理由）。
+  - **⚠️ 测试基建新坑（2026-09-20 实测，与 4.5b 代码无关）**：大组合批跑
+    （agent+common+event+apikey+audit+auth 六包 704 条，或 agent+apikey）
+    稳定复现 Mockito inline MockMaker 初始化失败
+    （"Could not self-attach to current VM using external process"，
+    ByteBuddy attach 外部进程失败）——该 JVM 内首个 @SpringBootTest 上下文
+    /mock() 初始化失败后，**全部** Spring/Mockito 测试假红（208 条）；而
+    com.ragagent.agent.* 全包零 Mockito（纯实录回放），单跑恒绿。同样组合
+    分小包（agent 单独 / 其余五包一起）全绿。处置：**全量回归按 4.5a 同款
+    小包批次跑**（B1a=agent、B1b=common/event/apikey/audit/auth、
+    B2=browserskill/datasource/embed/embedding/evaluation/favorite、
+    B3=im/knowledge/llm/mcp/memory/model/org、
+    B4=rerank/sandbox/searchutil/session/storage/storageurl/stream/system/
+    vectorstore/webfetch/websearch/wiki/agentm）；批次内若冒同款 attach 假红，
+    单包重跑确认后重试该批即可。如频繁复发，候选修法（留给 Owner 决策，
+    未动手）：test JVM 加 `-Djdk.attach.allowAttachSelf=true` 或
+    `net.bytebuddy.agent.attacher.dump` 诊断，勿改 forkEvery 先定位。

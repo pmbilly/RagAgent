@@ -1,0 +1,181 @@
+package com.ragagent.agent.tools;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.agent.tools.WikiSupport.AppliedChange;
+import com.ragagent.agent.tools.WikiSupport.PageView;
+import com.ragagent.agent.tools.WikiSupport.ResolvedPage;
+import com.ragagent.agent.tools.WikiSupport.WikiContentRewrite;
+import com.ragagent.agent.tools.WikiSupport.WikiPages;
+import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
+
+/**
+ * wiki_rename_page 工具（对照 Go {@code wiki_rename_page.go}，逐字移植）。
+ * 新 slug 建页 → 改写入链 → 删旧页；任一步失败都回滚+清理。
+ */
+public class WikiRenamePageTool extends BaseTool {
+
+    private static final String SCHEMA_JSON = """
+            {
+            	"type": "object",
+            	"properties": {
+            		"slug": {
+            			"type": "string",
+            			"description": "The current slug of the Wiki page"
+            		},
+            		"new_slug": {
+            			"type": "string",
+            			"description": "The new slug for the page"
+            		}
+            	},
+            	"required": ["slug", "new_slug"]
+            }""";
+
+    private static final String DESCRIPTION =
+            "Rename a Wiki page's slug. Automatically cascades the new slug to all pages that linked to the old one.";
+
+    private final WikiPages wikiPageService;
+    private final List<String> kbIds;
+    private final WikiRouteResolver routes;
+
+    public WikiRenamePageTool(WikiPages wikiPageService, List<String> kbIds, WikiRouteResolver routes) {
+        super(ToolDefinitions.TOOL_WIKI_RENAME_PAGE, DESCRIPTION, SCHEMA_JSON);
+        this.wikiPageService = wikiPageService;
+        this.kbIds = kbIds;
+        this.routes = routes != null ? routes : new WikiRouteResolver();
+    }
+
+    @Override
+    public ToolResult execute(ToolRequest request) {
+        JsonNode args = request.args();
+        if (kbIds == null || kbIds.isEmpty()) {
+            return failure("No knowledge bases available for editing");
+        }
+        if (args.path("new_slug").asText("").isEmpty()) {
+            return failure("new_slug is required");
+        }
+        String slug;
+        String newSlug;
+        try {
+            slug = WikiSupport.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
+            newSlug = WikiSupport.normalizeAndValidateWikiSlug(args.path("new_slug").asText(""));
+        } catch (IllegalArgumentException e) {
+            return failure(e.getMessage());
+        }
+        if (newSlug.equals(slug)) {
+            return failure("new_slug must be different from old slug");
+        }
+
+        PageView existingPage;
+        String kbId;
+        try {
+            ResolvedPage resolved = WikiSupport.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
+            existingPage = resolved.page();
+            kbId = resolved.kbId();
+        } catch (RuntimeException e) {
+            return failure("Failed to resolve page to rename: " + e.getMessage());
+        }
+
+        List<String> inLinks = new ArrayList<>(existingPage.inLinks());
+
+        // 新 slug 建页（同内容）
+        PageView newPage = existingPage.copy();
+        newPage.setKnowledgeBaseId(kbId);
+        newPage.setSlug(newSlug);
+        try {
+            wikiPageService.createPage(newPage, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+        } catch (RuntimeException e) {
+            return failure("Failed to create renamed page: " + e.getMessage());
+        }
+
+        String finalSlug = slug;
+        String finalNewSlug = newSlug;
+        WikiContentRewrite rewrite = content -> {
+            String updated = content.replace("[[" + finalSlug + "]]", "[[" + finalNewSlug + "]]");
+            updated = updated.replace("[[" + finalSlug + "|", "[[" + finalNewSlug + "|");
+            return new WikiSupport.RewriteResult(updated, !updated.equals(content));
+        };
+
+        List<String> updatedSlugs = new ArrayList<>();
+        List<AppliedChange> changes;
+        try {
+            changes = WikiSupport.applyIncomingWikiContentRewrite(
+                    wikiPageService, kbId, inLinks, WikiSupport.WIKI_EDIT_SOURCE_AGENT, rewrite, updatedSlugs);
+        } catch (WikiSupport.WikiRewriteException rewriteErr) {
+            String rollbackErr = null;
+            try {
+                WikiSupport.rollbackWikiContentChanges(
+                        wikiPageService, rewriteErr.changes(), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            } catch (RuntimeException rb) {
+                rollbackErr = rb.getMessage();
+            }
+            String cleanupErr = null;
+            try {
+                wikiPageService.deletePage(kbId, newSlug, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            } catch (RuntimeException ce) {
+                cleanupErr = ce.getMessage();
+            }
+            return failure("Rename aborted while updating incoming links: "
+                    + WikiSupport.joinWikiMutationErrors(rewriteErr.getMessage(), rollbackErr, cleanupErr));
+        }
+        int updatedCount = updatedSlugs.size();
+
+        try {
+            wikiPageService.deletePage(kbId, slug, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+        } catch (RuntimeException e) {
+            String rollbackErr = null;
+            try {
+                WikiSupport.rollbackWikiContentChanges(
+                        wikiPageService, changes, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            } catch (RuntimeException rb) {
+                rollbackErr = rb.getMessage();
+            }
+            String cleanupErr = null;
+            try {
+                wikiPageService.deletePage(kbId, newSlug, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            } catch (RuntimeException ce) {
+                cleanupErr = ce.getMessage();
+            }
+            return failure("Rename aborted because the old page could not be deleted: "
+                    + WikiSupport.joinWikiMutationErrors(e.getMessage(), rollbackErr, cleanupErr));
+        }
+        routes.forget(slug, kbId);
+        routes.remember(newSlug, kbId);
+
+        wikiPageService.injectCrossLinks(kbId, List.of(newSlug));
+        try {
+            wikiPageService.rebuildIndexPage(kbId);
+        } catch (RuntimeException ignored) {
+            // 对照 Go：_ = RebuildIndexPage
+        }
+
+        String outputMsg = String.format(
+                "Successfully renamed page [[%s]] → [[%s]] and updated %d incoming links.", slug, newSlug, updatedCount);
+        if (updatedCount > 0) {
+            outputMsg += String.format("\n- Affected pages: %s", String.join(", ", updatedSlugs));
+        }
+
+        ToolResult r = new ToolResult();
+        r.setSuccess(true);
+        r.setOutput(outputMsg);
+        java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("display_type", "wiki_rename_page");
+        data.put("old_slug", slug);
+        data.put("new_slug", newSlug);
+        data.put("title", existingPage.title());
+        data.put("updated_count", updatedCount);
+        data.put("affected_pages", updatedSlugs);
+        r.setData(data);
+        return r;
+    }
+
+    private static ToolResult failure(String message) {
+        ToolResult result = new ToolResult();
+        result.setSuccess(false);
+        result.setError(message);
+        return result;
+    }
+}
