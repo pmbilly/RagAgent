@@ -2,6 +2,22 @@
 
 ## 0.0 总验收完成（2026-09-22，双端起服 + 无掩码 A/B 抽样 + 全量分批绿）
 
+**收尾补录（同日第二批）**：三类剩余缺口又推进四批并全部收官——
+①**检索引擎批**（3cb4b2e）：HybridSearch 执行面全量翻译（pgvector halfvec HNSW
+向量检索 + ParadeDB BM25 关键词 + RRF 融合 + FAQ 迭代/负例 + 富化装配 +
+GetEffectiveEngines×RETRIEVE_DRIVER 闸门），QaWiring seam 与 hybrid-search HTTP
+端点接入真实执行。**dev PG 双端 A/B 逐字节 MATCH**：无 RETRIEVE_DRIVER 场景双端
+data:null 一致；RETRIEVE_DRIVER=postgres 场景向量-only 与 RRF 混合两条路径的
+id/score(浮点字节)/content/排序/富化字段全同。
+②**W5δ provider 终端**（ea68238）：中性层全量（RemoteTerminalOptions 五旋钮、
+事件/会话/能力接口、idle 15m 钳位、TTL 刷新钳位、PtyInputCoalescer 突发聚合），
+provider SDK 传输标 XDEP（dev 双侧同落 INTERNAL）。
+③**γ3 验签核心**（55686ac）：slack/dingtalk 签名向量录自独立 Go 程序
+（contracts/w5g3-im-adapter-signatures.tsv），telegram 常时比较/mattermost token
+语义钉住；各平台出站发送与 feishu/wecom AES 验签族属后续。
+④**最终验收**：全量五批再次全绿（含 im.runtime/retrieval/sandbox.runtime.terminal
+新增测试），route-recon 终核交集 387、真缺口 2 不变。
+
 **做了什么（本段收尾）**：W5γ1（im 地基：types/adapter 接口/命令族/think/
 tool_display/qaqueue/supervisor/ChannelSession，98 键 Go 实录钉字节契约）+
 W5γ2（ImService 全量：HandleMessage 管线/executeQARequest 三态输出/handleMessageStream
@@ -41,7 +57,7 @@ tenants-all 九族 GET + sessions pin 写路径（pin 响应/列表回流/还原
 **下一步**：按上述 1→4 顺序补执行体（每处都是独立批次，验收口径=签名/解析/错误族
 单测 + 双端 stub 对拍；成功路径标 XDEP）→ models/{id}/debug（阶段 7，Owner 决策）。
 
-> 最后更新：2026-09-22 · **基线：总验收完成（见 git log 顶部）· golden 1,719+**
+> 最后更新：2026-09-22 · **基线：收尾批全部收官（检索引擎批 + W5δ + γ3 验签核心，见 git log 顶部）· golden 1,719+**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 2 条** = `/swagger/{}`（Go 工具路由，非翻译目标）+ `models/{id}/debug`（留阶段 7，规则已登记、控制器 404 占位）
 
