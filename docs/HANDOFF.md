@@ -11,6 +11,23 @@ app_mention/message 分支 bot+subType 过滤、thread_ts 双 ID 语义、<@U…
 百分号解码/path.Base 归一、重名保首、handle 优先，20 条 Go overlay 实录逐字节
 MATCH，且实录抓回移植下标 bug 一枚）。
 
+**收尾补录（同日第四批，执行体确定性面收官）**：三批再进——
+①**ArtifactCollector 排水本体**（ac06c71/0c01fc9，artifact_collector.go 全文）：
+Collect/CollectWithNotify 全流程（降级链全 null、(path,mtime) 已知集去重、
+accept 过滤、二次尺寸守卫、UUID 命名上传、resource 绑定尽力而为、
+ReferencedHistory 引用重绑），7 测试绿。**教训**：构造依赖无 bean 的类不能标
+@Service（0c01fc9，否则拖垮全部 @SpringBootTest 上下文）。
+②**VLM Predict 客户端**（662222ec，vlm/remote_api.go+vlm.go 确定性面）：
+ConfigFromModel（local→ollama 缺省）、multipart 请求体（data-URI/detail=auto/
+max_tokens=5000/temp 0.1）、reasoning/GPT5 整形（max_completion_tokens 平移+
+采样清零）、no choices 与 length 截断错误族、MIME 嗅探，5 测试绿（stub transport）。
+③**tenant_skill reaper 状态机 + 快照台账**（82b16d7）：ReapStuckRuns 逐行
+（installing 的 serving||!known → 治愈 ready、known&&!serving → failed；
+removing 的保守三分支）+ 快照台账四方法 + ListStaleInstalling，H2 全绿。
+**最终验收（二轮）**：全量五批再全绿（B2 首轮 browserskill 假红单包重跑即绿——
+既有批次内假红族）；route-recon 终核交集 387、真缺口 2 不变；双端活进程重新
+登录后 agents 列表逐字节 MATCH。
+
 **收尾补录（同日第二批）**：三类剩余缺口又推进四批并全部收官——
 ①**检索引擎批**（3cb4b2e）：HybridSearch 执行面全量翻译（pgvector halfvec HNSW
 向量检索 + ParadeDB BM25 关键词 + RRF 融合 + FAQ 迭代/负例 + 富化装配 +
@@ -66,7 +83,7 @@ tenants-all 九族 GET + sessions pin 写路径（pin 响应/列表回流/还原
 **下一步**：按上述 1→4 顺序补执行体（每处都是独立批次，验收口径=签名/解析/错误族
 单测 + 双端 stub 对拍；成功路径标 XDEP）→ models/{id}/debug（阶段 7，Owner 决策）。
 
-> 最后更新：2026-09-22 · **基线：收尾批全部收官（检索引擎批 + W5δ + γ3 验签核心，见 git log 顶部）· golden 1,719+**
+> 最后更新：2026-09-22 · **基线：终验收收官（ArtifactCollector + VLM Predict + reaper/快照台账 + γ3 确定性面全量，见 git log 顶部）· golden 1,719+**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 2 条** = `/swagger/{}`（Go 工具路由，非翻译目标）+ `models/{id}/debug`（留阶段 7，规则已登记、控制器 404 占位）
 
