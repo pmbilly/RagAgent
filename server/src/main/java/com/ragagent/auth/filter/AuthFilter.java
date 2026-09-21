@@ -110,6 +110,14 @@ public class AuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 通道 1.6：IM 平台回调（W5a，对照 Go routes_agent.go RegisterIMRoutes：
+        // "registered BEFORE auth middleware since IM platforms use their own
+        // signature verification"——签名校验在 handler 内做，随波 5 im 执行体）。
+        if (request.getRequestURI().startsWith("/api/v1/im/callback/")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // 通道 2：Bearer JWT
         boolean bearerPresented = false;
         String authHeader = request.getHeader("Authorization");

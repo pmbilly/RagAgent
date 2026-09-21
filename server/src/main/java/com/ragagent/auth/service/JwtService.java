@@ -122,4 +122,25 @@ public class JwtService {
     public static boolean isSandboxTerminalTicketClaims(Claims claims) {
         return "sandbox_terminal".equals(claims.get("type"));
     }
+
+    /**
+     * 对照 {@code jwt.Parse(..., jwt.WithoutClaimsValidation())}（user.go L1318-1326，
+     * Logout 的 userIDFromSignedToken 用）：签名与算法必须校验，但 **claims 不校验**——
+     * 过期的 token 也允许登出（Go 注释原文："expired tokens are allowed so logout
+     * still works after the access token TTL"）。jjwt 的签名校验先于 exp 检查，
+     * 因此 {@link io.jsonwebtoken.ExpiredJwtException} 抛出时签名已验证通过，
+     * 从异常里取回 claims 即等价。
+     *
+     * @throws TokenValidationException 签名无效/非 HS256（与 Go 同样拒绝）
+     */
+    public Claims parseSignedAllowExpired(String token) {
+        try {
+            return parseSigned(token);
+        } catch (TokenValidationException e) {
+            if (e.getCause() instanceof io.jsonwebtoken.ExpiredJwtException expired) {
+                return expired.getClaims();
+            }
+            throw e;
+        }
+    }
 }

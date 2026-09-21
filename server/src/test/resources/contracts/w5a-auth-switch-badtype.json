@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"json: cannot unmarshal string into Go struct field .tenant_id of type uint64","message":"Invalid workspace switch request"},"success":false}

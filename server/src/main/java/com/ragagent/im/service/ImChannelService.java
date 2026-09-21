@@ -287,6 +287,44 @@ public class ImChannelService {
                 registry.orderedIds());
     }
 
+    // ── W5a：IM 回调面（对照 EnsureChannelAdapter，service.go L1567-1593） ──
+
+    /** 回调通道的三态失败（HTTP 形态由 controller 逐个映射，照抄 Go handler）。 */
+    public static final class CallbackChannelNotFoundException extends RuntimeException {
+        public CallbackChannelNotFoundException() { super("channel not found"); }
+    }
+
+    public static final class CallbackChannelDisabledException extends RuntimeException {
+        public CallbackChannelDisabledException() { super("channel is disabled"); }
+    }
+
+    public static final class CallbackChannelUnavailableException extends RuntimeException {
+        public CallbackChannelUnavailableException() { super("channel not available"); }
+    }
+
+    /**
+     * 对照 EnsureChannelAdapter 的**确定性前缀**：渠道行缺失（404）→ disabled
+     * （503）。第三段（适配器工厂 + 平台验签/解析）属于波 5 im 执行体——
+     * Java 侧还没有任何 adapter factory，StartChannel 等价分支恒走
+     * "channel adapter is not active" → 503 "channel not available"
+     * （与 Go 对未知 platform 的行为一致；对**已知** platform 是已备案的
+     * A/B 差异——Go 会进入平台验签（403 verification failed 等），见约定 §9）。
+     *
+     * @return 渠道行（仅 enabled 且 404/503 检查已过的调用点使用）
+     */
+    public ImChannelEntity ensureChannelForCallback(String channelId) {
+        ImChannelEntity fresh = mapper.getById(channelId);
+        if (fresh == null) {
+            // 对照 gorm.ErrRecordNotFound → 404 "channel not found"（+ StopChannel 清缓存）
+            throw new CallbackChannelNotFoundException();
+        }
+        if (!fresh.isEnabled()) {
+            throw new CallbackChannelDisabledException();
+        }
+        // StartChannel/GetChannelAdapter：无 adapter factory（波 5）
+        throw new CallbackChannelUnavailableException();
+    }
+
     /** 对照 checkDuplicateBot（L3234-3260）。 */
     public void checkDuplicateBot(ImChannelEntity channel, String excludeId) {
         String botKey = computeBotIdentity(channel);

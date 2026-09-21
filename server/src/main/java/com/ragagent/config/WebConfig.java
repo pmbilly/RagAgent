@@ -218,6 +218,14 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("PUT", "/api/v1/knowledge-bases/*/faq/entries/*", TenantRole.VIEWER, false);
         // FAQ 导入进度（KB 作用域外）：Viewer+（对照 g.apiKeyRoute 的 g.Viewer()）
         rbac.addRule("GET", "/api/v1/faq/import/progress/*", TenantRole.VIEWER, false);
+        // KB 标签 CRUD（W5a，对照 routes_knowledge.go RegisterKnowledgeTagRoutes L264-283）：
+        // 读 = Viewer + KBAccessRead；写 = OwnedKBOrAdmin + KBAccessWrite、**无角色门**
+        // （注释原文：与 KB 主体的 creator OR Admin+ 矩阵一致）→ VIEWER 下限，
+        // 所有权判定在 KnowledgeTagController 内。静态段先于 /tags/* 通配登记。
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/tags", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/tags", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/tags/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/knowledge-bases/*/tags/*", TenantRole.VIEWER, false);
         // MCP 服务（对照 RegisterMCPServiceRoutes，routes_infra.go:149-185）
         // 更具体的路径必须排在 /mcp-services/* 之前，与 Go 的注册序一致
         rbac.addRule("POST", "/api/v1/mcp-services", TenantRole.ADMIN, false);
@@ -446,8 +454,17 @@ public class WebConfig implements WebMvcConfigurer {
         // 跨空间租户目录（波 2 扫尾批 3，对照 routes_auth_tenant.go L53-61）：
         // g.CrossTenant() 守卫（flag + CanAccessAllTenants，不受 EnableRBAC 调制）。
         // POST /tenants 不登记规则——Go 该路由只有 Auth（自助创建对普通用户开放）。
+        // GET /tenants 同样**无角色门**（W5a 补的 ListTenants：只回活动空间自身，
+        // Go 注册在裸 tenantRoutes 组、无 g.Viewer()）→ 不登记规则。
         rbac.addCrossTenantRule("GET", "/api/v1/tenants/all");
         rbac.addCrossTenantRule("GET", "/api/v1/tenants/search");
+        // tenants CRUD 的 per-id 三条（W5a，对照 routes_auth_tenant.go L88-97）：
+        // GET=Viewer+（读空间设置）；PUT/DELETE=Owner+（改/删空间——Go 注释矩阵）。
+        // PathTenantMatch 对 /api/v1/tenants/{id}/** 自动生效（RbacInterceptor 内建），
+        // "Invalid workspace ID" 的 handler 检查是死代码（约定 §9）。
+        rbac.addRule("GET", "/api/v1/tenants/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/tenants/*", TenantRole.OWNER, false);
+        rbac.addRule("DELETE", "/api/v1/tenants/*", TenantRole.OWNER, false);
         // 租户 KV 配置分发器（对照 L80-81）：GET Viewer+、PUT Admin+；
         // 三条敏感 key 的 admin 门在控制器内（CanViewIntegrationSecrets）。
         rbac.addRule("GET", "/api/v1/tenants/kv/*", TenantRole.VIEWER, false);

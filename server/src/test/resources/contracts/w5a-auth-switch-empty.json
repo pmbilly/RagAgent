@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"Key: 'TenantID' Error:Field validation for 'TenantID' failed on the 'required' tag","message":"Invalid workspace switch request"},"success":false}

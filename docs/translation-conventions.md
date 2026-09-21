@@ -289,6 +289,8 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | chat_pipeline 检索管线（波 4.6c） | internal/application/service/chat_pipeline/ 全部 26 非测试文件（9,873 行） | com.ragagent.chatpipeline 新包 43 主文件 ~8.7k 行：ChatManage 三段状态包 + EventManager（注册序闭包链）+ PipelineBuilder（5 组预设管线）+ PluginError（9 预定义错误**同一实例**保 Go 指针比较语义）+ 17 个 Plugin* 插件类（多文件收进一类，分段注释=Go 文件名）+ PipelinePorts（全部窄 seam：Model/KnowledgeBase/Knowledge/Chunk/Memory/Message 等 Service 子集，**签名已与既有 memory.service 等对齐**）+ PipelineCommon（RunParallel/ParallelMap=虚拟线程）/SearchSupport/ReferencesSupport/PipelineProgress（进度窗口时钟可注入）/GoJsonMarshal（MarshalIndent 字节形态）/QueryTokenizer（jieba 接缝） | ✅ | **42 新测试全绿（四包合跑 437 条）**；**263 条 Go 实录 40 组**（/tmp/toolrec46c 同包探针复用 Go 既有测试 fakes；两次运行 diff 为空）覆盖 query 理解 19 形态/expansion 17（jieba 真分词）/merge 五件全分支/rerank 48/progress 事件序列/stream 路由等。**实录抓回三个真缺陷**：① expandShortContextWithNeighbors 前后文是**替换**非拼接（首版文本翻倍）；② Go `len()` 三处是**字节语义**（按 char 翻译会漏变体）；③ 引号字符类只有直引号+「」『』（hexdump 验证无弯引号）。**零既有文件改动**。已知差异：jieba 降级 seam、entity 错误文案掩差异段、search_parallel 合并序恒 chunk→entity（Go 并发序不可控备案）。seam 装配清单（PipelinePorts 11 接口）随 4.6d |
 | chat HTTP 面+装配（波 4.6d，波 4 收官批） | internal/handler/session/qa.go(1,768) + agent_stream_handler.go(896) + application/service/{session_agent_qa 647, session_knowledge_qa 1,290, agent_service.go 装配 1,485} | com.ragagent.session 新文件 10 个：KnowledgeQaController（三入口全文）/AgentStreamBridge（17 事件订阅 + final_answer 分片重组 + superseded preamble 剔除）/SessionKnowledgeQaService（管线调用方+进度窗口+ErrSearchNothing 兜底）/SessionAgentQaService（AgentQA+LoadAgentHistory+registerTools）/QaSupport/QaWiring（**PipelinePorts 11 seam 生产 adapter** + 17 插件注册序）/SteerSinkBridge/SteerRunCoordinator/QaAgentConfig + dto + config.ConversationProperties（11 vendor 模板装载）+ agent.tools.{ToolResultPersist,DataAnalysisSessionBridge} + chatpipeline.DataAnalysisSessionFactoryAdapter | ✅ | **A/B 15 场景 × 2 轮全 MATCH 零 DIFF**（scripts/ab-qa46d.sh，双端同指 stub LLM scripts/stub-llm-server.py，真 PG）；golden qa46d-* ×15 + KnowledgeQaContractTest 7 条绿；**小包批合计 3,985 全绿**（session 257/agent+chatpipeline 404/apikey+auth 175/common+event+audit 270/B2 955/B3 1066/B4 1115）。**实录/联调抓回**：parseQARequest 漏拷 query、虚拟线程 TenantContext 丢失（capture/replay 修复）、gin binding 文案必须 @RequestBody String 手工绑定（否则 400→500）。**已知缺口（备案）**：共享 agent QA 解析（波 5）、HybridSearch 执行面（检索引擎批）、Artifact/VLM 执行体（dev 两侧同形 no-op）、models/{id}/debug+local-browser+terminal-ws（收尾扫描）。**批次教训**：agent/chatpipeline 不能与 apikey/auth 等 @SpringBootTest 包同批（Mockito attach 假红复发，分批即绿） |
 
+| W5a 收尾批（WebConfig RBAC 漂移修复 + 13 条小散路由） | internal/router/rbac.go 全文对照 + routes_chat.go RegisterSessionRoutes/RegisterMessageRoutes + routes_knowledge.go RegisterChunkRoutes 写族 + handler/{auth,tenant,tag}.go 的 Logout/RefreshToken/SwitchTenant/ListTenants/GetTenant/UpdateTenant/DeleteTenant + service/{user.go L1127-1470, tag.go 全文} + internal/im EnsureChannelAdapter 确定性前缀 + routes_agent.go RegisterIMRoutes | com.ragagent.config.WebConfig（漂移：拦截器 pattern +sessions/messages/chunks/faq/knowledge-chat/agent-chat/knowledge-search 六前缀补齐，规则 +sessions 23 条/messages 4 条/chunks 写 7 条）+ auth.{controller.AuthController +3 端点,service.{UserService logout/refreshToken/switchTenant,JwtService.parseSignedAllowExpired}} + auth.{controller.TenantCatalogController +4 端点,service.TenantService.deleteTenant 软删级联} + knowledge.{controller.KnowledgeTagController,service.KnowledgeTagService,dto.KnowledgeTagDtos,mapper.KnowledgeTagMapper/Repository 全套 CRUD,ChunkRepository.deleteChunksByTagId} + im.{controller.ImCallbackController,service.ImChannelService.ensureChannelForCallback} + auth.filter.AuthFilter 回调让路 + apikey.filter.APIKeyRoutePolicies +8 | ✅ | **56 条 w5a-* golden 全是 Go 实录** + W5aSundryRoutesContractTest（56 比对一法）+ **真 PG A/B 三轮 56/56 ALL MATCH 零 DIFF**（ab-w5a.sh，漂移修复的 put-nonowner=403 场景直击 OWNER 规则）+ 受影响 9 包回归绿。**golden 抓回三个真契约**：①Go 的 tag.SeqID 经 GORM RETURNING **回填真值**（旧注释"恒 0"是错的）→ PG 插入后按 id 回读；②tag create 的 validator 键**带** struct 前缀（`createTagRequest.Name`，匿名 struct 才无前缀）；③page=0 过 binding（omitempty 视零值为空）→ 归一 page=1。**实录钉住**：refresh 轮换的吊销检查在"同秒 JWT 逐字节相同"时会因 auth_tokens 出现同值行而变成堆序掷硬币——录制脚本 sleep 2 保证确定性；GET /tenants/:id 的 handler "Invalid workspace ID" 与 DELETE 缺行 500 均被 PathTenantMatch 拦成死代码；im 回调 enabled 渠道在 Go dev 因 mattermost 适配器工厂失败恒 503 "channel not available"（Java 无适配器同形 → MATCH 非 XDEP）。**决策点**：tenant DELETE 用自助建租户+PathTenantMatch 403 的组合钉住（真实删除在 dev 不可达），级联软删（成员+租户）以 repo 层对齐。已知差异：tag force/content_only 的 asynq 异步回收（knowledge 文件删除/向量索引）降级 no-op WARN；org-share 授予路径未翻译（同源收紧）。关键坑见 §9「W5a 补充」 |
+
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
   1. AppError 走全局 ErrorHandler：`{"success":false,"error":{"code":N,"message":"...","details":...}}`（details 恒输出，null 时为 `"details":null`）
@@ -2032,3 +2034,45 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     rewriteArtifactReferences/VLM Predict 执行体（dev 两侧同形 no-op 分支）；
     models/{id}/debug、sessions/:id/local-browser ×2、sandbox_terminal_ws+bridge、
     embed 公开 QA 委托面。
+- **W5a 补充（漂移修复 + 13 条小散路由）**：
+  - **RBAC 漂移的两类形态**（对账产物，修的都是"规则存在但空转"或"规则缺席"）：
+    ① **拦截器 pattern 缺前缀**——`registry.addInterceptor(rbac).addPathPatterns(...)`
+    清单缺 `chunks/**`、`messages/**`、`faq/**`、`knowledge-chat/**`、`agent-chat/**`、
+    `knowledge-search` 六个前缀，此前的 addRule 全部空转；② **规则缺席**——sessions
+    组（Go 在组级挂 g.Viewer()，组内每条都吃 Viewer 下限）、messages 组 4 条、chunks
+    写族 7 条（OwnedChunkKBOrAdmin=creator OR Admin，无角色下限 → 拦截器只设 VIEWER、
+    ownership 归 ChunkAccessGuard——FAQ/Wiki 写路由的既有落地同款）。漂移修复的验证
+    直击场景：viewer PUT /tenants/10002 → OWNER 规则 403（w5a-tenant-put-nonowner），
+    A/B 与 Go 逐字节 MATCH。
+  - **tag.SeqID 会回填**（纠正 FAQ 批的旧注释）：GORM 对 `autoIncrement` 列在 PG 走
+    RETURNING 回填内存对象——CreateTag 响应 `seq_id` 是真值。Java：PG 插入
+    （NEXTVAL）后按 id 回读；H2 维持 max+1。
+  - **refresh 轮换的吊销检查是"同值行"敏感的**：JWT iat 秒级——同一秒内 refresh 轮换
+    出的新 refresh_token 与旧值**逐字节相同**，auth_tokens 出现两行同值记录，
+    Go 的 GetTokenByValue（First 无 ORDER BY）命中哪行取决于堆序 → "revoked" 检查
+    掷硬币。录制/测试必须 sleep 2 再刷新（保证轮换值不同，旧值必 401）。
+  - **具名 struct 的 validator 键带前缀**：`createTagRequest.Name`（tag create）——
+    "匿名 struct 无前缀"的规则只适用于 handler 内联匿名 struct（refresh 的
+    `RefreshToken`、switch 的 `TenantID`）。别一刀切。
+  - **page=0 是合法输入**：Pagination 的 `omitempty,min=1` 对查询绑定把零值视为空
+    → 跳过校验 → GetPage 归一成 1（200）——不是 400。page=abc 才是 400
+    （details=strconv 原文）。
+  - **PathTenantMatch 的两只新死代码**：GET /tenants/:id 的 handler "Invalid workspace
+    ID"（400）与 DELETE 缺租户的路径——URL :id ≠ 活动租户时中间件先行 403，
+    两者都不可达。self-serve 建租户后活动租户仍是 home → 对新租户的 DELETE 恒 403，
+    这是**录制钉住的既有行为**（要真删得切 X-Tenant-ID）。
+  - **im 回调（engine 级路由）**：AuthFilter 对 `/api/v1/im/callback/` 前缀整体让路
+    （对照 Go 注册在 Auth 之前的语义）。Go dev 上 enabled 渠道的回调恒 503
+    "channel not available"——mattermost webhook 适配器工厂在空 credentials 下建适配
+    失败——Java 无适配器（随波 5）落同形 503 → **MATCH 非 XDEP**；disabled → 503
+    "channel is disabled"、缺行 → 404 "channel not found"，三条确定性分支全 MATCH。
+  - **DeleteTenant 的级联软删**：Go repo 在事务里先软删 tenant_members 再软删 tenant
+    （GORM DeletedAt）——Java 原实现 deleteById 是硬删（且不删成员），已对齐为
+    显式 `deleted_at` 写入；createTenant 的回滚路径共用此方法（Go 三处 rollback 也走
+    service.DeleteTenant）。
+  - **switch-tenant 的绑定顺序**：json.Unmarshal（语法/类型错，uint64 的文案带
+    匿名 struct 的 ".tenant_id" 路径）先于 validator（required）；成功路径先落
+    last_active 偏好再签发令牌（写失败中止切换），旧 refresh 尽力吊销。
+  - **测试基建（复发提醒）**：`mcp.*` 与 `storage.*` 同批跑会互踩——MCP 的 SSRF 用例
+    改动进程级 SsrfGuard 白名单且未还原，StorageBackendContractTest 的 SSRF 拒绝分支
+    随之假红（clean HEAD 复现，与本批无关，待专项收敛）。

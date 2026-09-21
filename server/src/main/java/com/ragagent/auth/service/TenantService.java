@@ -33,10 +33,14 @@ public class TenantService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final TenantMapper tenantMapper;
+    private final com.ragagent.auth.mapper.TenantMemberMapper memberMapper;
     private final StorageBackendRepository storageBackendRepository;
 
-    public TenantService(TenantMapper tenantMapper, StorageBackendRepository storageBackendRepository) {
+    public TenantService(TenantMapper tenantMapper,
+                         com.ragagent.auth.mapper.TenantMemberMapper memberMapper,
+                         StorageBackendRepository storageBackendRepository) {
         this.tenantMapper = tenantMapper;
+        this.memberMapper = memberMapper;
         this.storageBackendRepository = storageBackendRepository;
     }
 
@@ -393,8 +397,24 @@ public class TenantService {
     }
 
     /** 对照 DeleteTenant（register 失败回滚用；此处行尚无引用，物理删除无害）。 */
+    /**
+     * 对照 repo.DeleteTenant（repository/tenant.go L125-132）：事务里先软删
+     * tenant_members（tenant_id=?）再软删 tenants（id=?）——GORM DeletedAt 语义
+     * = 显式写 deleted_at（约定 §9，不用 @TableLogic）。删不存在的 id 不报错
+     * （service.DeleteTenant 对 "record not found" 容忍 → 仍返回成功）。
+     * W5a 前的硬删 deleteById 是错译——createTenant 的回滚路径同样走这里
+     * （Go handler 三处 rollback 都调 service.DeleteTenant）。
+     */
     public void deleteTenant(long id) {
-        tenantMapper.deleteById(id);
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC);
+        memberMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<com.ragagent.auth.domain.TenantMember>()
+                .eq("tenant_id", id)
+                .isNull("deleted_at")
+                .set("deleted_at", now));
+        tenantMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Tenant>()
+                .eq("id", id)
+                .isNull("deleted_at")
+                .set("deleted_at", now));
     }
 
     /**

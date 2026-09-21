@@ -45,6 +45,7 @@ import com.ragagent.auth.service.TokenValidationException;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.config.TenantProperties;
 import com.ragagent.system.service.SystemSettingRegistry;
 import com.ragagent.system.service.SystemSettingService;
@@ -798,6 +799,251 @@ public class AuthController {
     }
 
     /** 对照 dto.NewAuthLoginResponse：active_tenant 按 membership 角色决定秘密字段是否输出 */
+    // ── W5a 补 3：logout / refresh / switch-tenant（对照 auth.go L517-604 / L569-611 / L856-893） ──
+
+    /**
+     * POST /auth/logout（对照 Logout，L517-560）。
+     * AuthFilter 已把它列入 tenant-optional（tenantless 也可登出，对照 Go）。
+     * 成功信封是 gin.H{"success","message"} → 字母序 message &lt; success。
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, Object>> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        log.info("Start user logout");
+        if (authHeader == null || authHeader.isEmpty()) {
+            throw new BizException(AppError.validation("Authorization header is required"));
+        }
+        String[] tokenParts = authHeader.split(" ", -1);
+        if (tokenParts.length != 2 || !"Bearer".equals(tokenParts[0])) {
+            throw new BizException(AppError.validation("Invalid Authorization header format"));
+        }
+        try {
+            userService.logout(tokenParts[1]);
+        } catch (UserService.LogoutException e) {
+            throw new BizException(AppError.internal("Logout failed").withDetails(e.getMessage()));
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Logout successful");
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * POST /auth/refresh（对照 RefreshToken，L569-611）。noAuthAPI 白名单路径
+     * （无鉴权）；绑定失败 400 "Invalid refresh token request"+details，
+     * service 失败 401 "Token refresh failed"+details。成功信封是
+     * gin.H{"success","message","access_token","refresh_token"} → 字母序
+     * access_token &lt; message &lt; refresh_token &lt; success。
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, Object>> refreshToken(
+            @RequestBody(required = false) String rawBody) {
+        log.info("Start token refresh");
+        RefreshTokenRequest req = bindRefreshBody(rawBody);
+        if (req == null || req.refreshToken() == null || req.refreshToken().isEmpty()) {
+            throw invalidParams("Invalid refresh token request",
+                    bindingError(null, "RefreshToken", "required"));
+        }
+        String[] tokens;
+        try {
+            tokens = userService.refreshToken(req.refreshToken());
+        } catch (UserService.RefreshTokenException e) {
+            throw new BizException(AppError.unauthorized("Token refresh failed").withDetails(e.getMessage()));
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("access_token", tokens[0]);
+        body.put("message", "Token refreshed successfully");
+        body.put("refresh_token", tokens[1]);
+        body.put("success", true);
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * 绑定（匿名 struct{RefreshToken string required}）：空 body → "EOF"；
+     * 语法错 → Go encoding/json 文案；类型错 → 匿名 struct 的
+     * "json: cannot unmarshal <kind> into Go struct field .refreshToken of type string"。
+     */
+    private RefreshTokenRequest bindRefreshBody(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            throw invalidParams("Invalid refresh token request", "EOF");
+        }
+        com.fasterxml.jackson.databind.JsonNode root;
+        try {
+            root = MAPPER.readTree(rawBody);
+        } catch (Exception e) {
+            throw invalidParams("Invalid refresh token request",
+                    GoJsonBindError.message(rawBody, e.getMessage()));
+        }
+        RefreshTokenRequest req = new RefreshTokenRequest();
+        if (root == null || root.isNull()) {
+            return req;
+        }
+        if (!root.isObject()) {
+            throw invalidParams("Invalid refresh token request",
+                    "json: cannot unmarshal " + goJsonKind(root)
+                            + " into Go value of type " + SWITCH_ANON_STRUCT_TYPE);
+        }
+        com.fasterxml.jackson.databind.JsonNode node = root.get("refreshToken");
+        if (node == null || node.isNull() || node.isTextual()) {
+            req.refreshToken = node == null || node.isNull() ? null : node.asText();
+            return req;
+        }
+        throw invalidParams("Invalid refresh token request",
+                "json: cannot unmarshal " + goJsonKind(node)
+                        + " into Go struct field .refreshToken of type string");
+    }
+
+    /** 对照 RefreshToken handler 的匿名 struct（refreshToken required）。 */
+    static final class RefreshTokenRequest {
+        @com.fasterxml.jackson.annotation.JsonProperty("refreshToken")
+        String refreshToken;
+
+        String refreshToken() {
+            return refreshToken;
+        }
+    }
+
+    /**
+     * SwitchTenant 匿名 struct 的 Go reflect.Type 字符串（顶层非对象时的
+     * UnmarshalTypeError 文案要用；Golden 录制钉住）。
+     */
+    private static final String SWITCH_ANON_STRUCT_TYPE =
+            "struct { TenantID uint64 \"json:\\\"tenant_id\\\" binding:\\\"required\\\"\"; "
+                    + "RefreshToken string \"json:\\\"refresh_token\\\"\" }";
+
+    /**
+     * POST /auth/switch-tenant（对照 SwitchTenant，L856-893）。tenant-optional
+     * （tenantless 主体可调用，切换成功即有空间）。绑定失败 400
+     * "Invalid workspace switch request"+details；未认证 401 "not authenticated"；
+     * service 失败 403 "workspace switch failed"+details；成功 = 登录响应同形
+     * （AuthLoginResponse，message="Workspace switched"）。
+     */
+    @PostMapping("/switch-tenant")
+    public ResponseEntity<AuthLoginResponse> switchTenant(
+            @RequestBody(required = false) String rawBody) {
+        long tenantId = bindSwitchTenantRequest(rawBody);
+        String currentRefreshToken = extractSwitchRefreshToken(rawBody);
+
+        User user = userService.getCurrentUser();
+        if (user == null) {
+            throw new BizException(AppError.unauthorized("not authenticated"));
+        }
+
+        LoginResult result;
+        try {
+            result = userService.switchTenant(user, tenantId, currentRefreshToken);
+        } catch (UserService.SwitchTenantException e) {
+            log.warn("SwitchTenant failed user={} target={}: {}", user.getId(), tenantId, e.getMessage());
+            throw new BizException(AppError.forbidden("workspace switch failed").withDetails(e.getMessage()));
+        }
+        return ResponseEntity.ok(new AuthLoginResponse(result.success(), result.message(),
+                result.user(), activeTenantResponse(result), result.memberships(),
+                result.token(), result.refreshToken()));
+    }
+
+    /** 对照 NewAuthLoginResponse 的 active_tenant 组装（memberships 里的角色决定裁剪）。 */
+    private TenantResponse activeTenantResponse(LoginResult result) {
+        if (result.activeTenant() == null) {
+            return null;
+        }
+        String role = membershipRoleForTenant(result.memberships(), result.activeTenant().getId());
+        return TenantResponse.from(result.activeTenant(),
+                TenantRole.fromString(role).hasPermission(TenantRole.ADMIN));
+    }
+
+    /**
+     * switch-tenant 的绑定（对照匿名 struct：TenantID uint64 required +
+     * RefreshToken string）。Go 顺序 = 先 json.Unmarshal（语法/类型错误）再 validator。
+     * uint64 的类型错误文案：`json: cannot unmarshal <kind> into Go struct field
+     * .tenant_id of type uint64`（匿名 struct 无类型名 → ".tenant_id"）。
+     */
+    private long bindSwitchTenantRequest(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            throw invalidParams("Invalid workspace switch request", "EOF");
+        }
+        com.fasterxml.jackson.databind.JsonNode root;
+        try {
+            root = MAPPER.readTree(rawBody);
+        } catch (Exception e) {
+            throw invalidParams("Invalid workspace switch request",
+                    GoJsonBindError.message(rawBody, e.getMessage()));
+        }
+        if (root == null || !root.isObject()) {
+            if (root == null || root.isNull()) {
+                // body=null → Go 零值绑定 → validator required（TenantID 零值）
+                throw invalidParams("Invalid workspace switch request",
+                        bindingError(null, "TenantID", "required"));
+            }
+            // 顶层非对象：Go 的 "json: cannot unmarshal <kind> into Go value of type <匿名 struct 类型串>"
+            throw invalidParams("Invalid workspace switch request",
+                    "json: cannot unmarshal " + goJsonKind(root) + " into Go value of type "
+                            + SWITCH_ANON_STRUCT_TYPE);
+        }
+        com.fasterxml.jackson.databind.JsonNode idNode = root.get("tenant_id");
+        if (idNode == null || idNode.isNull()) {
+            throw invalidParams("Invalid workspace switch request",
+                    bindingError(null, "TenantID", "required"));
+        }
+        if (!idNode.isNumber()) {
+            throw invalidParams("Invalid workspace switch request",
+                    "json: cannot unmarshal " + goJsonKind(idNode)
+                            + " into Go struct field .tenant_id of type uint64");
+        }
+        // uint64：非负整数，0 也合法解析（validator required 才拒）
+        java.math.BigDecimal value = idNode.decimalValue();
+        if (value.scale() > 0 && value.stripTrailingZeros().scale() > 0) {
+            throw invalidParams("Invalid workspace switch request",
+                    "json: cannot unmarshal number " + idNode.asText()
+                            + " into Go struct field .tenant_id of type uint64");
+        }
+        if (value.signum() < 0 || value.compareTo(new java.math.BigDecimal("18446744073709551615")) > 0) {
+            throw invalidParams("Invalid workspace switch request",
+                    "json: cannot unmarshal number " + idNode.asText()
+                            + " into Go struct field .tenant_id of type uint64");
+        }
+        long parsed = value.longValue();
+        if (parsed == 0) {
+            // uint64 零值 → validator required
+            throw invalidParams("Invalid workspace switch request",
+                    bindingError(null, "TenantID", "required"));
+        }
+        return parsed;
+    }
+
+    /** Go encoding/json 的 UnmarshalTypeError 值种别（string/bool/object/array/number）。 */
+    private static String goJsonKind(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node.isTextual()) {
+            return "string";
+        }
+        if (node.isBoolean()) {
+            return "bool";
+        }
+        if (node.isArray()) {
+            return "array";
+        }
+        if (node.isObject()) {
+            return "object";
+        }
+        return "number";
+    }
+
+    /** refresh_token 字段（无 binding，任意 JSON 标量都取原文；缺省/非字符串 = 空串语义）。 */
+    private static String extractSwitchRefreshToken(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            return "";
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = MAPPER.readTree(rawBody);
+            com.fasterxml.jackson.databind.JsonNode node = root == null ? null : root.get("refresh_token");
+            if (node != null && node.isTextual()) {
+                return node.asText();
+            }
+        } catch (Exception ignored) {
+            // 语法错误已在 bindSwitchTenantRequest 报过
+        }
+        return "";
+    }
+
     private AuthLoginResponse buildAuthLoginResponse(boolean success, String message, User user,
                                                      Tenant activeTenant, List<Membership> memberships,
                                                      String token, String refreshToken) {

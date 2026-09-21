@@ -1,0 +1,1 @@
+{"error":{"code":1010,"details":"json: cannot unmarshal number into Go struct field updateTenantRequest.name of type string","message":"Invalid request data"},"success":false}

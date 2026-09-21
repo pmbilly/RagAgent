@@ -24,6 +24,10 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
             + "AND deleted_at IS NULL")
     ImChannelEntity getByIdAndTenant(@Param("id") String id, @Param("tenantId") long tenantId);
 
+    /** 对照 GetChannelByID（service.go L1627-1633，W5a 回调面用）：无租户过滤。 */
+    @Select("SELECT * FROM im_channels WHERE id = #{id} AND deleted_at IS NULL")
+    ImChannelEntity getById(@Param("id") String id);
+
     /** 对照 ListChannelsByAgent：created_at DESC。 */
     @Select("SELECT * FROM im_channels WHERE agent_id = #{agentId} AND tenant_id = #{tenantId} "
             + "AND deleted_at IS NULL ORDER BY created_at DESC")

@@ -655,6 +655,172 @@ public class UserService {
                 .set(AuthToken::getUpdatedAt, OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
+    // ── W5a：logout / refresh / switch-tenant（对照 user.go L1127-1470） ────
+
+    /**
+     * 对照 Logout（L1429-1438）：从（可过期的）JWT 里解出 user_id，吊销该用户
+     * 全部会话。access/refresh 两种 token 都收——客户端不必先 refresh 再登出。
+     *
+     * @throws LogoutException message = Go error 原文（handler 包成 500 "Logout failed"）
+     */
+    public void logout(String tokenString) {
+        String userId = userIdFromSignedToken(tokenString);
+        revokeTokensByUserId(userId);
+    }
+
+    /** 对照 userIDFromSignedToken（L1318-1339）：WithoutClaimsValidation → 过期可解。 */
+    private String userIdFromSignedToken(String tokenString) {
+        Claims claims;
+        try {
+            claims = jwtService.parseSignedAllowExpired(tokenString);
+        } catch (TokenValidationException e) {
+            throw new LogoutException("invalid token");
+        }
+        Object raw = claims.get("user_id");
+        if (!(raw instanceof String userId) || goTrimSpace(userId).isEmpty()) {
+            throw new LogoutException("invalid user ID in token");
+        }
+        return userId;
+    }
+
+    /** logout 的失败通道（对照 handler 的 NewInternalServerError("Logout failed").WithDetails(err)）。 */
+    public static final class LogoutException extends RuntimeException {
+        public LogoutException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * 对照 RefreshToken（L1372-1427）：校验 refresh JWT → 查 auth_tokens 撤销状态 →
+     * 吊销旧 refresh → GenerateTokens（按 last-active 偏好解析目标空间）。
+     *
+     * @return {accessToken, newRefreshToken}
+     * @throws RefreshTokenException message = Go error 原文（handler 包成 401 "Token refresh failed"）
+     */
+    public String[] refreshToken(String refreshTokenString) {
+        Claims claims;
+        try {
+            claims = jwtService.parseSigned(refreshTokenString);
+        } catch (TokenValidationException e) {
+            // Go：jwt.Parse 默认校验 claims（含 exp）→ 失败即 "invalid refresh token"
+            throw new RefreshTokenException("invalid refresh token");
+        }
+        if (!JwtService.isRefreshTokenClaims(claims)) {
+            throw new RefreshTokenException("not a refresh token");
+        }
+        Object rawUserId = claims.get("user_id");
+        if (!(rawUserId instanceof String userId)) {
+            throw new RefreshTokenException("invalid user ID in token");
+        }
+
+        // 撤销状态检查（Go：record 缺失 / is_revoked → 同一文案）
+        AuthToken record = authTokenMapper.selectOne(new LambdaQueryWrapper<AuthToken>()
+                .eq(AuthToken::getToken, refreshTokenString)
+                .last("LIMIT 1"));
+        if (record == null || record.isIsRevoked()) {
+            throw new RefreshTokenException("refresh token is revoked");
+        }
+        if (!TOKEN_TYPE_REFRESH.equals(record.getTokenType())) {
+            throw new RefreshTokenException("not a refresh token");
+        }
+
+        User user = getUserById(userId);
+        if (user == null) {
+            // Go：GetUserByID 的 gorm 原文透传
+            throw new RefreshTokenException("record not found");
+        }
+
+        // 吊销旧 refresh token（Go：Save 整行，GORM 自动刷 updated_at）
+        record.setIsRevoked(true);
+        record.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        authTokenMapper.updateById(record);
+
+        // 对照 GenerateTokens（L861-866）：按 last-active 偏好解析空间
+        return generateTokens(user);
+    }
+
+    /** refresh 的失败通道（对照 handler 的 NewUnauthorizedError("Token refresh failed")）。 */
+    public static final class RefreshTokenException extends RuntimeException {
+        public RefreshTokenException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * 对照 SwitchTenant（L1127-1211）：校验成员关系（跨空间超管豁免）→ 记
+     * last-active 偏好（先于签发，失败中止）→ 签发新令牌对 → 尽力吊销旧 refresh。
+     *
+     * @throws SwitchTenantException message = Go error 原文（handler 包成
+     *         403 "workspace switch failed"）
+     */
+    public LoginResult switchTenant(User user, long targetTenantId, String currentRefreshToken) {
+        if (user == null) {
+            throw new SwitchTenantException("user is required");
+        }
+        if (targetTenantId == 0) {
+            throw new SwitchTenantException("target workspace ID is required");
+        }
+
+        // 校验成员关系，除非跨空间超管切出自己的 home
+        if (!user.isCanAccessAllTenants() || targetTenantId == user.getTenantId()) {
+            TenantMember member = memberService.getMembership(user.getId(), targetTenantId);
+            if (member == null || !TenantMemberService.STATUS_ACTIVE.equals(member.getStatus())) {
+                throw new SwitchTenantException("tenant membership not found");
+            }
+        }
+
+        Tenant tenant = tenantService.getTenantById(targetTenantId);
+        if (tenant == null) {
+            // Go：GetTenantByID 的 "record not found" 被包进 "load target workspace: %w"
+            throw new SwitchTenantException("load target workspace: record not found");
+        }
+
+        // 先落偏好再签发（Go 注释：200 响应必须同时是持久的落地偏好更新）
+        try {
+            UserPreferences patch = new UserPreferences();
+            patch.setLastActiveTenantId(targetTenantId);
+            UserPreferences merged = updateUserPreferences(user.getId(), patch);
+            user.setPreferences(merged);
+        } catch (RuntimeException e) {
+            throw new SwitchTenantException("record last-active-tenant preference: " + e.getMessage());
+        }
+
+        String[] tokens;
+        try {
+            tokens = generateTokensForTenant(user, targetTenantId);
+        } catch (RuntimeException e) {
+            throw new SwitchTenantException("generate tokens: " + e.getMessage());
+        }
+
+        // 尽力吊销旧 refresh（失败只记日志，不拖垮切换）
+        if (currentRefreshToken != null && !currentRefreshToken.isBlank()) {
+            try {
+                AuthToken record = authTokenMapper.selectOne(new LambdaQueryWrapper<AuthToken>()
+                        .eq(AuthToken::getToken, currentRefreshToken)
+                        .last("LIMIT 1"));
+                if (record != null) {
+                    record.setIsRevoked(true);
+                    record.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+                    authTokenMapper.updateById(record);
+                }
+            } catch (RuntimeException e) {
+                log.warn("Failed to revoke previous refresh token during tenant switch: {}",
+                        e.getMessage());
+            }
+        }
+
+        List<Membership> memberships = buildLoginMemberships(user, tenant);
+        return new LoginResult(true, "Workspace switched", user, tenant, memberships,
+                tokens[0], tokens[1]);
+    }
+
+    /** switch-tenant 的失败通道（对照 handler 的 NewForbiddenError("workspace switch failed")）。 */
+    public static final class SwitchTenantException extends RuntimeException {
+        public SwitchTenantException(String message) {
+            super(message);
+        }
+    }
+
     // ── Token 签发（对外） ─────────────────────────────────────────────────
 
     /** 对照 GenerateTokens（user.go L861-866）：按登录空间解析结果签发。 */

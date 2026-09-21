@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import com.ragagent.knowledge.domain.KnowledgeTag;
 
@@ -120,6 +121,10 @@ public interface KnowledgeTagMapper {
     @Select("SELECT COALESCE(MAX(seq_id), 0) FROM knowledge_tags")
     long maxSeqId();
 
+    /** PG：插入（NEXTVAL）后按 id 回读序列值——GORM 的 autoIncrement 回填等价物（golden 钉住）。 */
+    @Select("SELECT seq_id FROM knowledge_tags WHERE id = #{id}")
+    Long selectSeqIdById(String id);
+
     /**
      * 对照 {@code DeleteUnusedTags}（tag.go L229-240）：删掉既无 knowledge 关联
      * （活跃 knowledge）也无 chunk 引用的标签，返回删除行数。
@@ -131,4 +136,116 @@ public interface KnowledgeTagMapper {
             + "AND id NOT IN (SELECT DISTINCT tag_id FROM chunks WHERE tenant_id = #{tenantId} "
             + "AND knowledge_base_id = #{kbId} AND tag_id IS NOT NULL AND tag_id != '' AND deleted_at IS NULL)")
     int deleteUnusedTags(long tenantId, String kbId);
+
+    // ── W5a：KB 标签 CRUD（对照 Go repository/tag.go 全文） ──────────────────
+
+    /**
+     * 对照 {@code GetByID}（tag.go L33-42）：tenant + id。⚠️ Go 的 KnowledgeTag
+     * struct **没有** gorm.DeletedAt 字段（deleted_at 列恒 NULL、从不写）→
+     * Delete 是**硬删**、查询不带软删过滤（selectByTenantAndIds 的
+     * deleted_at IS NULL 是无害 no-op，保留兼容）。
+     */
+    @Select("SELECT id, seq_id AS seqId, tenant_id AS tenantId, "
+            + "knowledge_base_id AS knowledgeBaseId, name, color, "
+            + "sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt "
+            + "FROM knowledge_tags WHERE tenant_id = #{tenantId} AND id = #{id} LIMIT 1")
+    KnowledgeTag selectByTenantAndId(long tenantId, String id);
+
+    /**
+     * 对照 {@code ListByKB}（tag.go L94-137）的 keyword 分支（tag 管理面）。
+     * keyword 已在 Java 侧按 Go escapeLikeKeyword 转义（\\ % _），这里只拼 LIKE；
+     * 无 ESCAPE 子句——PG/H2 的默认转义符都是反斜杠（照抄 Go 的裸 LIKE）。
+     */
+    @Select("""
+            <script>
+            SELECT id, seq_id AS seqId, tenant_id AS tenantId,
+                   knowledge_base_id AS knowledgeBaseId, name, color,
+                   sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt
+            FROM knowledge_tags
+            WHERE tenant_id = #{tenantId} AND knowledge_base_id = #{kbId}
+            <if test="escapedKeyword != null and escapedKeyword != ''">
+              AND name LIKE CONCAT('%', #{escapedKeyword}, '%')
+            </if>
+            ORDER BY sort_order ASC, created_at DESC, seq_id DESC
+            LIMIT #{limit} OFFSET #{offset}
+            </script>
+            """)
+    List<KnowledgeTag> listByKBKeyword(long tenantId, String kbId,
+                                       @org.apache.ibatis.annotations.Param("escapedKeyword") String escapedKeyword,
+                                       @org.apache.ibatis.annotations.Param("limit") int limit,
+                                       @org.apache.ibatis.annotations.Param("offset") int offset);
+
+    /** 对照 ListByKB 的 Count 前置查询（同样的 keyword 过滤）。 */
+    @Select("""
+            <script>
+            SELECT COUNT(*) FROM knowledge_tags
+            WHERE tenant_id = #{tenantId} AND knowledge_base_id = #{kbId}
+            <if test="escapedKeyword != null and escapedKeyword != ''">
+              AND name LIKE CONCAT('%', #{escapedKeyword}, '%')
+            </if>
+            </script>
+            """)
+    long countByKB(long tenantId, String kbId,
+                   @org.apache.ibatis.annotations.Param("escapedKeyword") String escapedKeyword);
+
+    /** 对照 {@code Update} = GORM Save：按主键整行覆写（含零值，照抄）。 */
+    @Update("UPDATE knowledge_tags SET seq_id = #{t.seqId}, tenant_id = #{t.tenantId}, "
+            + "knowledge_base_id = #{t.knowledgeBaseId}, name = #{t.name}, color = #{t.color}, "
+            + "sort_order = #{t.sortOrder}, created_at = #{t.createdAt}, updated_at = #{t.updatedAt} "
+            + "WHERE id = #{t.id}")
+    int updateTag(@org.apache.ibatis.annotations.Param("t") KnowledgeTag t);
+
+    /** 对照 {@code Delete}（tag.go L139-143）：硬删（struct 无 DeletedAt）。 */
+    @Delete("DELETE FROM knowledge_tags WHERE tenant_id = #{tenantId} AND id = #{id}")
+    int deleteByTenantAndId(long tenantId, String id);
+
+    /** 对照 {@code CountReferences} 的 knowledge 计数（活跃 knowledge 的关联数）。 */
+    @Select("SELECT COUNT(*) FROM knowledge_tag_relations ktr "
+            + "JOIN knowledges k ON ktr.knowledge_id = k.id AND k.deleted_at IS NULL "
+            + "AND k.tenant_id = #{tenantId} AND k.knowledge_base_id = #{kbId} "
+            + "WHERE ktr.tag_id = #{tagId}")
+    long countKnowledgeRefs(long tenantId, String kbId, String tagId);
+
+    /** 对照 {@code CountReferences} 的 chunk 计数（GORM 自动过滤软删 chunk）。 */
+    @Select("SELECT COUNT(*) FROM chunks WHERE tenant_id = #{tenantId} "
+            + "AND knowledge_base_id = #{kbId} AND tag_id = #{tagId} AND deleted_at IS NULL")
+    long countChunkRefs(long tenantId, String kbId, String tagId);
+
+    /** 对照 {@code BatchCountReferences} 的 knowledge 计数（单查询分组版）。 */
+    @Select("""
+            <script>
+            SELECT ktr.tag_id AS tagId, COUNT(*) AS cnt
+            FROM knowledge_tag_relations ktr
+            JOIN knowledges k ON ktr.knowledge_id = k.id AND k.deleted_at IS NULL
+              AND k.tenant_id = #{tenantId} AND k.knowledge_base_id = #{kbId}
+            WHERE ktr.tag_id IN
+            <foreach collection="tagIds" item="tid" open="(" separator="," close=")">#{tid}</foreach>
+            GROUP BY ktr.tag_id
+            </script>
+            """)
+    List<TagCountRow> batchCountKnowledgeRefs(long tenantId, String kbId,
+                                              @org.apache.ibatis.annotations.Param("tagIds") List<String> tagIds);
+
+    /** 对照 {@code BatchCountReferences} 的 chunk 计数（单查询分组版）。 */
+    @Select("""
+            <script>
+            SELECT tag_id AS tagId, COUNT(*) AS cnt FROM chunks
+            WHERE tenant_id = #{tenantId} AND knowledge_base_id = #{kbId}
+              AND deleted_at IS NULL AND tag_id IN
+            <foreach collection="tagIds" item="tid" open="(" separator="," close=")">#{tid}</foreach>
+            GROUP BY tag_id
+            </script>
+            """)
+    List<TagCountRow> batchCountChunkRefs(long tenantId, String kbId,
+                                          @org.apache.ibatis.annotations.Param("tagIds") List<String> tagIds);
+
+    /** 分组计数投影行（列别名经 map-underscore → 属性）。 */
+    class TagCountRow {
+        private String tagId;
+        private long cnt;
+        public String getTagId() { return tagId; }
+        public void setTagId(String v) { tagId = v; }
+        public long getCnt() { return cnt; }
+        public void setCnt(long v) { cnt = v; }
+    }
 }

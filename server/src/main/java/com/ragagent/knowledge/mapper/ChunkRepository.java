@@ -331,6 +331,35 @@ public class ChunkRepository {
         }
     }
 
+    /**
+     * 对照 Go {@code DeleteChunksByTagID}（chunk.go L583-628，W5a 标签 CRUD 用）：
+     * pluck 该 tag 下全部 chunk id → 排除 excluded → 按 1000 一批软删。
+     * 返回"计划删除"的 id 清单（对照 Go 的索引清理入参，含删除失败时的已删前缀）。
+     */
+    public List<String> deleteChunksByTagId(long tenantId, String kbId, String tagId, List<String> excludeIds) {
+        List<String> allIds = chunkMapper.selectIdsByTag(tenantId, kbId, tagId);
+        java.util.Set<String> excludeSet = new java.util.HashSet<>(excludeIds == null ? List.of() : excludeIds);
+        List<String> toDelete = new java.util.ArrayList<>(allIds.size());
+        for (String id : allIds) {
+            if (!excludeSet.contains(id)) {
+                toDelete.add(id);
+            }
+        }
+        if (toDelete.isEmpty()) {
+            return List.of();
+        }
+        final int batchSize = 1000;
+        for (int i = 0; i < toDelete.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, toDelete.size());
+            chunkMapper.update(null, new UpdateWrapper<Chunk>()
+                    .eq("tenant_id", tenantId)
+                    .in("id", toDelete.subList(i, end))
+                    .isNull("deleted_at")
+                    .set("deleted_at", java.time.OffsetDateTime.now()));
+        }
+        return toDelete;
+    }
+
     /** 对照 Go {@code DeleteChunksByKnowledgeID}（L547-551）：tenant + knowledge 软删。 */
     public void deleteChunksByKnowledgeId(long tenantId, String knowledgeId) {
         chunkMapper.update(null, new UpdateWrapper<Chunk>()

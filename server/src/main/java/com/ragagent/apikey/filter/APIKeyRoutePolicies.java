@@ -294,6 +294,21 @@ public final class APIKeyRoutePolicies {
         APIKeyRoutePolicy kv = APIKeyRoutePolicy.manageTenantSettings(APIKeyRoutePolicy.fullAccess());
         a.registerGin("GET", "/api/v1/tenants/kv/:key", kv);
         a.registerGin("PUT", "/api/v1/tenants/kv/:key", kv);
+
+        // tenants CRUD（W5a，对照 Go routes_auth_tenant.go L73-97 的 apiKeyRoute 声明）：
+        // GET /tenants = manage_tenant_settings|full-access（ListTenants）；GET /tenants/:id
+        // = platform(read|manage)（同 catalogRead）；PUT/DELETE = platform(manage)。
+        // auth 三条（logout/refresh/switch-tenant）与 IM 回调**刻意不登记**——
+        // Go 注册在裸 r 上（default deny）/ engine 级无鉴权。
+        a.registerGin("GET", "/api/v1/tenants",
+                APIKeyRoutePolicy.manageTenantSettings(APIKeyRoutePolicy.fullAccess()));
+        a.registerGin("GET", "/api/v1/tenants/:id", catalogRead);
+        a.registerGin("PUT", "/api/v1/tenants/:id",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
+        a.registerGin("DELETE", "/api/v1/tenants/:id",
+                APIKeyRoutePolicy.platform(
+                        com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
     }
 
     /**
@@ -601,6 +616,13 @@ public final class APIKeyRoutePolicies {
         a.registerGin("PUT", "/api/v1/knowledge-bases/:id/faq/import/last-result/display", kbIngest);
         a.registerGin("GET", "/api/v1/faq/import/progress/:task_id",
                 APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.ingest(APIKeyRoutePolicy.fullAccess())));
+
+        // KB 标签 CRUD（W5a，routes_knowledge.go:271-282；kbTags=ingest、kbTagsRead=retrieve
+        // ——与 FAQ 同档：读=retrieve、写=ingest，KB 白名单由 KBAccess 层逐次收口）
+        a.registerGin("GET", "/api/v1/knowledge-bases/:id/tags", kbRead);
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/tags", kbIngest);
+        a.registerGin("PUT", "/api/v1/knowledge-bases/:id/tags/:tag_id", kbIngest);
+        a.registerGin("DELETE", "/api/v1/knowledge-bases/:id/tags/:tag_id", kbIngest);
         // 波 2 第三批（routes_knowledge.go:121-132）：search/move-progress 是 retrieve
         // （kRead），move 是内容写（k=ingest，requireTenantAPIKeyKnowledgeBases 在
         // handler 内把 source+target 兜进白名单）

@@ -1,6 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：小包批合计 3,985 测试全绿（波 4 全部收官：4.6a/b/c/d 已提交）** · golden 1339 个
+> 最后更新：2026-09-21 · **基线：W5a 收尾批完成（WebConfig RBAC 漂移修复 + 13 条小散路由；受影响包回归绿 + A/B 三轮 56/56 ALL MATCH）** · golden 1395 个
+> **端点覆盖：Go 412 条 → Java 已注册约 374 条（约 91%）——W5a ✅；下一步：收尾扫描批（见 §0「剩余缺口清单」）**
 > **端点覆盖：Go 412 条 → Java 已注册约 361 条（约 88%）——波 4 ✅；下一步：波 5（im 执行体/skill 收口/shared-agent）+ 收尾扫描（见 §0「剩余缺口清单」）**
 
 ## 0. 接手状态（2026-09-21，波 4 已全部收官）
@@ -12,6 +13,15 @@
 装配 + SteerSink/follow-up + stub LLM 全链路 A/B 15 场景 × 2 轮全 MATCH 零 DIFF**）。
 验收基线：小包批 3,985 条全绿（session 257/agent+chatpipeline 404/apikey+auth 175/
 common+event+audit 270/B2 955/B3 1066/B4 1115）；golden 1,339 个。
+
+**W5a 收尾批（2026-09-21）**：A 部分 = WebConfig RBAC 漂移修复（拦截器 pattern 补
+chunks/messages/faq/knowledge-chat/agent-chat/knowledge-search 六前缀 + sessions 23 条/
+messages 4 条/chunks 写族 7 条规则——此前多为空转/缺席）；B 部分 = 13 条小散路由
+（auth logout/refresh/switch-tenant + tenants CRUD 4 + KB 标签 4 + IM 回调 2）。
+验收：56 条 w5a-* golden + W5aSundryRoutesContractTest + 真 PG A/B 三轮 56/56 ALL MATCH
+（ab-w5a.sh）。台账见 conventions §8「W5a 收尾批」，坑见 §9「W5a 补充」
+（tag.SeqID 回填、refresh 同秒 JWT 掷硬币、PathTenantMatch 死代码、mcp×storage
+测试互踩为新发现）。
 
 **⚠️ 批次教训（4.6d 复发确认）**：agent/chatpipeline 与 apikey/auth 等 @SpringBootTest
 包同批 → Mockito attach 假红（110 条）；**B1 批拆两批跑**（agent/chatpipeline 一批、

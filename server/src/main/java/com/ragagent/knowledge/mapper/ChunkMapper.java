@@ -13,6 +13,14 @@ import org.apache.ibatis.annotations.Update;
 public interface ChunkMapper extends BaseMapper<Chunk> {
 
     /**
+     * 对照 Go {@code DeleteChunksByTagID} 的 Pluck("id")（chunk.go L592-594，
+     * W5a 标签 CRUD 用）：该 tag 下全部 chunk 的 id（GORM 自动过滤软删行）。
+     */
+    @Select("SELECT id FROM chunks WHERE tenant_id = #{tenantId} "
+            + "AND knowledge_base_id = #{kbId} AND tag_id = #{tagId} AND deleted_at IS NULL")
+    java.util.List<String> selectIdsByTag(long tenantId, String kbId, String tagId);
+
+    /**
      * 全字段 UPDATE（对照 GORM {@code Omit("SeqID").Save(chunk)}——Save 对有主键的行
      * 是 {@code Select("*")} 的全字段 UPDATE，零值也写；seq_id 被排除）。
      *

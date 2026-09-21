@@ -41,6 +41,7 @@ import com.ragagent.system.service.SystemSettingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -412,6 +413,193 @@ public class TenantCatalogController {
 
         String name() { return name; }
         String description() { return description; }
+    }
+
+    // ── W5a：tenants CRUD 4 条（对照 handler/tenant.go L541-659 / L1123-1181） ──
+
+    /**
+     * GET /tenants（对照 ListTenants，L1165-1181）：返回**调用者活动空间**的单元素
+     * 列表（不是全量目录——全量在 /tenants/all）。上下文无租户 → 401
+     * "Authentication required"。Go 路由**无角色门**（只有全局 Auth），Java 侧
+     * 同样不登记 RBAC 规则。
+     */
+    @GetMapping("/api/v1/tenants")
+    public Map<String, Object> listTenants() {
+        Long tenantId = TenantContext.currentTenantId();
+        Tenant tenant = tenantId == null || tenantId == 0 ? null : tenantService.getTenantById(tenantId);
+        if (tenant == null) {
+            throw new BizException(AppError.unauthorized("Authentication required"));
+        }
+        List<TenantResponse> items = new ArrayList<>();
+        items.add(TenantResponse.from(tenant, contextRoleHasAdmin()));
+        return TenantMemberController.envelope(Map.of("items", items));
+    }
+
+    /**
+     * GET /tenants/{id}（对照 GetTenant，L541-578）。URL :id 的合法性由
+     * PathTenantMatch 在中间件层先行校验/拒绝（handler 里的 "Invalid workspace ID"
+     * 400 是不可达死代码，约定 §9）；租户缺失 → 500 "Failed to retrieve workspace"
+     * details "record not found"（Go 的 repo 错误不是 AppError）。
+     */
+    @GetMapping("/api/v1/tenants/{id}")
+    public Map<String, Object> getTenant(@PathVariable("id") String id) {
+        Tenant tenant = loadTenantOr500(Long.parseLong(id.trim()), "Failed to retrieve workspace");
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("data", TenantResponse.from(tenant, contextRoleHasAdmin()));
+        body.put("success", true);
+        return body;
+    }
+
+    /**
+     * PUT /tenants/{id}（对照 UpdateTenant，L581-657）：白名单只开 name/description
+     *（指针区分"未携带"与"显式空串"）。绑定失败 400 "Invalid request data"+details；
+     * name trim 后空 → 400 "name cannot be blank"；其余复用 kv 分发器的 500 形态。
+     */
+    @PutMapping("/api/v1/tenants/{id}")
+    public Map<String, Object> updateTenant(@PathVariable("id") String id,
+                                            @RequestBody(required = false) String rawBody) {
+        UpdateTenantRequest req = bindUpdateTenantRequest(rawBody);
+        Tenant existing = loadTenantOr500(Long.parseLong(id.trim()), "Failed to load workspace");
+        // 注意：绑定（400 语义层）先于租户加载——Go handler 同序
+
+        if (req.name != null) {
+            String trimmed = trimGo(req.name);
+            if (trimmed.isEmpty()) {
+                throw new BizException(AppError.validation("name cannot be blank"));
+            }
+            existing.setName(trimmed);
+        }
+        if (req.description != null) {
+            existing.setDescription(trimGo(req.description));
+        }
+
+        try {
+            tenantService.updateTenant(existing);
+        } catch (BizException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BizException(AppError.internal("Failed to update workspace")
+                    .withDetails(e.getMessage()));
+        }
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("data", TenantResponse.from(existing, contextRoleHasAdmin()));
+        body.put("success", true);
+        return body;
+    }
+
+    /** 对照 updateTenantRequest（tenant.go L102-105）：name omitempty,min=1,max=128；description omitempty,max=512。 */
+    static final class UpdateTenantRequest {
+        @com.fasterxml.jackson.annotation.JsonProperty("name")
+        String name;
+        @com.fasterxml.jackson.annotation.JsonProperty("description")
+        String description;
+    }
+
+    /**
+     * 绑定 + validator（rune 计长；失败字段按 struct 序 join("\n")）。
+     * 类型错给 Go UnmarshalTypeError 原文（具名 struct →
+     * "updateTenantRequest.name of type string"——golden w5a-tenant-put-badjson 钉住）。
+     */
+    private UpdateTenantRequest bindUpdateTenantRequest(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            throw invalidParams("Invalid request data", "EOF");
+        }
+        com.fasterxml.jackson.databind.JsonNode root;
+        try {
+            root = MAPPER.readTree(rawBody);
+        } catch (Exception e) {
+            throw invalidParams("Invalid request data",
+                    GoJsonBindError.message(rawBody, e.getMessage()));
+        }
+        if (root == null || !root.isObject()) {
+            if (root == null || root.isNull()) {
+                return new UpdateTenantRequest();
+            }
+            throw invalidParams("Invalid request data",
+                    "json: cannot unmarshal " + goJsonKind(root) + " into Go value of type "
+                            + "struct { Name *string \"json:\\\"name\\\" binding:\\\"omitempty,min=1,max=128\\\"\"; "
+                            + "Description *string \"json:\\\"description\\\" binding:\\\"omitempty,max=512\\\"\" }");
+        }
+        String typeError = goStringField(root, "name");
+        if (typeError == null) {
+            typeError = goStringField(root, "description");
+        }
+        if (typeError != null) {
+            throw invalidParams("Invalid request data", typeError);
+        }
+        UpdateTenantRequest req = new UpdateTenantRequest();
+        req.name = root.get("name") == null || root.get("name").isNull() ? null : root.get("name").asText();
+        req.description = root.get("description") == null || root.get("description").isNull()
+                ? null : root.get("description").asText();
+        List<String> errors = new ArrayList<>();
+        if (req.name != null) {
+            int len = req.name.codePointCount(0, req.name.length());
+            if (len < 1) {
+                errors.add(bindingError("updateTenantRequest", "Name", "min"));
+            } else if (len > 128) {
+                errors.add(bindingError("updateTenantRequest", "Name", "max"));
+            }
+        }
+        if (req.description != null && req.description.codePointCount(0, req.description.length()) > 512) {
+            errors.add(bindingError("updateTenantRequest", "Description", "max"));
+        }
+        if (!errors.isEmpty()) {
+            throw invalidParams("Invalid request data", String.join("\n", errors));
+        }
+        return req;
+    }
+
+    /** Go json.Decoder 的值种别（UnmarshalTypeError 文案用）。 */
+    private static String goJsonKind(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node.isTextual()) return "string";
+        if (node.isBoolean()) return "bool";
+        if (node.isArray()) return "array";
+        if (node.isObject()) return "object";
+        return "number";
+    }
+
+    /** string 字段类型检查；违规返回 Go UnmarshalTypeError 原文，否则 null。 */
+    private static String goStringField(com.fasterxml.jackson.databind.JsonNode root, String field) {
+        com.fasterxml.jackson.databind.JsonNode node = root.get(field);
+        if (node == null || node.isNull() || node.isTextual()) {
+            return null;
+        }
+        return "json: cannot unmarshal " + goJsonKind(node)
+                + " into Go struct field updateTenantRequest." + field + " of type string";
+    }
+
+    /**
+     * DELETE /tenants/{id}（对照 DeleteTenant，L1123-1162）：repo 层软删成员+租户、
+     * 删不存在的 id 同样成功 → 恒 200 {"message","success"}。
+     */
+    @DeleteMapping("/api/v1/tenants/{id}")
+    public Map<String, Object> deleteTenant(@PathVariable("id") String id) {
+        try {
+            tenantService.deleteTenant(Long.parseLong(id.trim()));
+        } catch (BizException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BizException(AppError.internal("Failed to delete workspace")
+                    .withDetails(e.getMessage()));
+        }
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("message", "Workspace deleted successfully");
+        body.put("success", true);
+        return body;
+    }
+
+    /** GET/PUT 共用：租户缺失 → 500 + details "record not found"（对照 GetTenantByID 的 gorm 原文透传）。 */
+    private Tenant loadTenantOr500(long id, String message) {
+        Tenant tenant = tenantService.getTenantById(id);
+        if (tenant == null) {
+            throw new BizException(AppError.internal(message).withDetails("record not found"));
+        }
+        return tenant;
+    }
+
+    /** 对照 dto.NewTenantResponse 的 includeSecrets = RoleFromContext ≥ admin。 */
+    private static boolean contextRoleHasAdmin() {
+        return TenantRole.fromString(TenantContext.currentRole()).hasPermission(TenantRole.ADMIN);
     }
 
     // ── KV 分发器（对照 GetTenantKV / UpdateTenantKV，L1304-1395） ──────────
