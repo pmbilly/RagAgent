@@ -186,6 +186,18 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/chunks/by-id/*", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/chunks/*/*/revisions", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/chunks/*", TenantRole.VIEWER, false);
+        // chunks 写组（W5a 漂移修复补登记，对照 routes_knowledge.go L40-53）：
+        // Go 是 OwnedChunkKBOrAdmin/FromChunkID = "KB 创建者本人 OR Admin+"（无 Contributor
+        // 下限——Viewer 创建的 KB 其本人可写）→ 拦截器只设 VIEWER 下限，
+        // "creator OR Admin+" 判定在 ChunkAccessGuard（requireOwnedChunkKb*）内，
+        // 与 FAQ/Wiki 写路由的既有落地同款。静态段 by-id 先于通配登记。
+        rbac.addRule("DELETE", "/api/v1/chunks/by-id/*/questions", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/chunks/by-id/*/questions", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/chunks/by-id/*/questions/regenerate", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/chunks/*/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/chunks/*/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/chunks/*/*/revert", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/chunks/*", TenantRole.VIEWER, false);
         // FAQ（对照 RegisterFAQRoutes，routes_knowledge.go:141-180）：读 = Viewer+
         // （KBAccessRead 在 FaqController）；写路由在 Go 里是 OwnedKBOrAdmin +
         // KBAccessWrite、**无角色门**（Viewer 创建的 KB 其本人可写）→ 一律 VIEWER 下限，
@@ -301,9 +313,46 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/evaluation", TenantRole.ADMIN, false);
         rbac.addRule("GET", "/api/v1/evaluation", TenantRole.VIEWER, false);
 
-        // 会话（对照 routes_chat.go 的 sessions 组）：整组 Viewer 起步。
-        // 目前只登记了已翻译的 continue-stream；同组其余端点在各自落地时补。
+        // 会话（对照 routes_chat.go RegisterSessionRoutes）：Go 在**组级**挂 g.Viewer()
+        // （"sessions 是 per-user 资源，handler 内自查 ownership；Viewer+ 把已吊销账号
+        // 挡在门外"），即组内全部端点 Viewer+，无逐路由差异 → 全部 VIEWER 下限。
+        // W5a 漂移修复补登记（此前只有 continue-stream 一条，组内其余规则缺席 = 空转）。
+        // 未翻译端点（sandbox/terminal-ticket、local-browser×2）随收尾扫描批补。
         rbac.addRule("GET", "/api/v1/sessions/continue-stream/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/sessions/batch", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*", TenantRole.VIEWER, false);
+        rbac.addRule("PUT", "/api/v1/sessions/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/sessions/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/sessions/*/messages", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/generate_title", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/attachments", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/attachments", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/attachments/*/preview", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/attachments/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/sessions/*/attachments/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/stop", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/steer", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/steer", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/sessions/*/steer/*", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/steer/*/inject", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/pin", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/sessions/*/pin", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/messages/*/suggestions", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/messages/*/suggestions", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/suggestion-events", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/artifacts", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/messages/*/artifacts", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/messages/*/artifacts/*/download", TenantRole.VIEWER, false);
+
+        // 消息面（W5a 漂移修复补登记，对照 routes_chat.go RegisterMessageRoutes L28-31）：
+        // 四条逐路由 g.Viewer()（组注释原文："message history 是 tenant-wide 面，
+        // Viewer+ 把非成员挡在外面"）。静态段（search/chat-history-stats）先于通配。
+        rbac.addRule("POST", "/api/v1/messages/search", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/messages/chat-history-stats", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/messages/*", TenantRole.VIEWER, false);
+        rbac.addRule("DELETE", "/api/v1/messages/*/*", TenantRole.VIEWER, false);
 
         // chat 三入口（波 4.6d，对照 routes_chat.go L117-133 的 RegisterChatRoutes）：
         // knowledge-chat / agent-chat / knowledge-search 全部 Viewer+（逐会话/逐 KB
@@ -399,7 +448,7 @@ public class WebConfig implements WebMvcConfigurer {
         // POST /tenants 不登记规则——Go 该路由只有 Auth（自助创建对普通用户开放）。
         rbac.addCrossTenantRule("GET", "/api/v1/tenants/all");
         rbac.addCrossTenantRule("GET", "/api/v1/tenants/search");
-        // 租户 KV 配置分发器（对照 L75-76）：GET Viewer+、PUT Admin+；
+        // 租户 KV 配置分发器（对照 L80-81）：GET Viewer+、PUT Admin+；
         // 三条敏感 key 的 admin 门在控制器内（CanViewIntegrationSecrets）。
         rbac.addRule("GET", "/api/v1/tenants/kv/*", TenantRole.VIEWER, false);
         rbac.addRule("PUT", "/api/v1/tenants/kv/*", TenantRole.ADMIN, false);
@@ -579,8 +628,11 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/wechat/qrcode/status", TenantRole.ADMIN, false);
 
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
+                "/api/v1/messages/**",
                 "/api/v1/models/**",
                 "/api/v1/weknoracloud/credentials", "/api/v1/knowledge-bases/**", "/api/v1/knowledge/**",
+                "/api/v1/chunks/**", "/api/v1/faq/**",
+                "/api/v1/knowledge-chat/**", "/api/v1/agent-chat/**", "/api/v1/knowledge-search",
                 "/api/v1/mcp-services/**", "/api/v1/agent/**", "/api/v1/knowledgebase/**",
                 "/api/v1/tenants/**", "/api/v1/system/**", "/api/v1/memory/**",
                 "/api/v1/datasource/**",
@@ -593,6 +645,10 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**",
                 "/api/v1/initialization/**",
                 "/api/v1/embed-channels/**", "/api/v1/im-channels/**", "/api/v1/wechat/**");
+        // W5a 漂移修复补的 pattern：chunks/messages/faq/knowledge-chat/agent-chat/
+        // knowledge-search 六个前缀的 addRule 早已存在（chunks 读组、faq/import/progress、
+        // chat 三入口），但拦截器此前不覆盖这些前缀 → 规则空转。im 的 engine 级回调
+        // 路由（/api/v1/im/callback/**）刻意不在清单：Go 注册在 Auth 之前、无 RBAC。
     }
 
     /**
