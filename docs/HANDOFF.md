@@ -265,6 +265,14 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 前端**零改动**，因此验收标准是「响应与 Go 实录**逐字节一致**（golden 契约测试）」，
 而不是"代码看起来对"。
 
+> **原仓下线声明（2026-09-22）**：Java 仓运行/构建已不依赖 Go 仓——
+> ①基础设施全部由本仓 `docker-compose.yml` 自起（postgres/redis/docreader 三容器，
+> docreader 用官方镜像 `wechatopenai/weknora-docreader:latest`，proto 契约已本仓化）；
+> ②密钥/连接值已迁至本仓 `.env`（gitignored；dev-env.sh 优先读本仓，WeKnora 路径
+> 仅为历史开发机兼容回落）；③server/frontend/gradle 源码零 Go 仓路径引用。
+> 仅存的 WeKnora 引用在**验证工具脚本**（go-server-up.sh/ab-*/record-*，69 个脚本
+> 共享 dev-env.sh）——用途是对拍 Go 行为，等价性已建立后随原仓下线自然退役，
+> golden 契约测试（1,719+ 已入库）不受影响。
 - Java 仓：`/Users/billy/ragagent-java`（可写）
 - Go 仓：`/Users/billy/WeKnora`（**只读**对照，别改任何源文件；`scripts/go-server-up.sh` 会往
   `bin/` 写构建产物，那是对的，但跑完记得 `rm -rf bin` 让 Go 仓保持干净）
