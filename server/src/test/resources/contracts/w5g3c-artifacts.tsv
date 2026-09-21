@@ -1,0 +1,20 @@
+img_bare	![评分](sandbox:市场画像评分.html)\\n\\n正文
+img_sandbox_prefix	![评分](sandbox:市场画像评分.html)
+img_sandbox_slash	![评分](sandbox:市场画像评分.html)
+img_output_path	![评分](sandbox:市场画像评分.html)
+img_ws_path	![评分](sandbox:市场画像评分.html)
+img_percent_encoded	![评分](sandbox:市场画像评分.html)
+link_bare_untouched	[文档](README.md)
+link_sandbox_prefix	[报表](sandbox:市场画像评分.html)
+http_untouched	[site](https://example.com/a.html)
+resource_untouched	![x](resource://cccccccccccccccccccccccc)
+unknown_name_untouched	![x](不存在.html)
+space_name	![c](sandbox:chart data (v2).png)
+dup_keeps_first	![d](sandbox:dup.txt)
+code_fence_untouched	```\\n![x](市场画像评分.html)\\n```
+inline_code_untouched	看 `![x](市场画像评分.html)` 这个
+mixed_doc	# 报告\\n\\n![评分](sandbox:市场画像评分.html) 与 [docs](README.md)\\n\\n```go\\n// ![x](市场画像评分.html)\\n```\\n完
+title_suffix	![评分](sandbox:市场画像评分.html "标题")
+angle_bracket	![评分](sandbox:市场画像评分.html)
+empty_content	
+no_artifacts	![评分](市场画像评分.html)
