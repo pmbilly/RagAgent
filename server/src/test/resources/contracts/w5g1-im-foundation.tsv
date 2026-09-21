@@ -1,0 +1,98 @@
+strip_think_complete	answer
+strip_think_open	
+strip_think_none	plain answer
+strip_think_multiline	before\n\nafter
+strip_think_empty	
+strip_think_two	AB
+transform_md_closed_content	> 💭 **思考过程**\n> line1\n> line2\n\n---\n\nanswer
+transform_md_closed_empty	beforerest
+transform_md_open_content	lead> 💭 **思考过程**\n> thinking hard\n> more\n
+transform_md_open_empty	> 💭 **思考中...**\n
+transform_md_no_tag	no tags here
+transform_tg_closed_content	> 💭 *思考过程*\n> thought\n\n---\n\nans
+wrap_think	<think>\ninner\n</think>
+wrap_think_empty	
+agent_raw_inprogress	<think>\nthinking narrative\n检索知识库：「退款」 · 找到 3 个结果\n</think>
+agent_raw_done	<think>\nthinking narrative\n检索知识库：「退款」 · 找到 3 个结果\n</think>\n\nfinal answer
+agent_intermediate	> 💭 **思考过程**\n> thinking narrative\n> 检索知识库：「退款」 · 找到 3 个结果\n\n---\n\nlive answer text
+agent_final	final answer
+display_intermediate	> 💭 **思考过程**\n> t\n\n---\n\nans
+display_final	ans
+quickqa_intermediate	已完成问题理解\n正在检索知识库：「发票」\n检索知识库：「发票」 · 找到 2 个结果\n\n> 💭 **思考**\n> rag reasoning\n
+quickqa_intermediate_with_answer	final rag answer
+is_rag_tool_yes	true
+is_rag_tool_no	false
+locname_known	知识库检索
+locname_mcp	Feishu Send Msg
+locname_mcp_single	Search
+locname_unknown	custom_tool
+mcpname_edge	mcp_
+mcpname_plain	Plain
+toolline_s1	检索知识库：「退款政策」 · 找到 5 个结果
+toolline_s2	检索知识库：「没有」 · 未找到匹配的内容
+toolline_s3	正在调用 知识库检索...
+toolline_s4	检索知识库失败：「x」
+toolline_w1	网络搜索：「weather」 · 找到 2 个网络搜索结果
+toolline_g1	搜索关键词：「-alpha、-beta +2」 · 找到 12 个匹配片段，来自 3 个文档
+toolline_wk1	Wiki 阅读：「首页」
+toolline_wr1	写入沙箱文件：「scripts/a.py」 +10 -2
+toolline_ed1	编辑沙箱文件：「scripts/b.py」...
+toolline_t1	完成思考
+toolline_t2	更新任务列表
+toolline_m1	调用 Feishu Send · sent
+toolline_i1	已查看图片内容
+toolline_l1	查看 文档 · 已加载 5 / ? 个分块
+toolline_d1	获取文档：年度报告
+ragline_qu_pending	正在理解问题...
+ragline_qu_done	已完成问题理解
+ragline_ks_web_pending	正在检索网络：「news」
+ragline_ks_mixed_pending	正在检索知识库和网络...
+ragline_ks_kb_done	检索知识库：「q」 · 找到 2 个结果
+ragline_unknown	
+ksm_web	找到 4 条网页
+ksm_mixed	找到 1 个结果（5 篇文档，2 条网页）
+ksm_kbcounts	找到 1 个结果，来自 2 个文件
+ksm_zero	未找到匹配的内容
+gsm_zero	未找到匹配的内容
+chunks_nil_total	已加载 5 / ? 个分块
+chunks_total	已加载 5 / 23 个分块 · 第 2 页，每页 10 个
+getbool_variants	[true,true,true,true,false,true,false,false,false]
+getstring_missing	
+resolve_mode	websocket
+resolve_mode_keep	webhook
+stream_section	line1\nline2\nline3
+cmd_parse_help	help|[info]
+cmd_parse_url	false
+cmd_parse_nonslash	false
+cmd_isregistered	[true,false,false,false]
+cmd_lookslike	[true,false,false,false]
+cmd_help_all	action=0|**可用指令**\n\n· `/clear` — 清空对话记忆，下次消息将开始全新会话\n· `/help` — 显示可用指令列表，或查看某个指令的详细用法\n· `/info` — 查看当前智能体的信息与能力\n· `/search` — 直接检索知识库原文（不经 AI 总结），例如：/search 退款政策\n· `/stop` — 中止当前正在进行的回答\n\n发送 `/help <指令名>` 查看详细用法
+cmd_help_detail	action=0|**/clear** — 清空对话记忆，下次消息将开始全新会话
+cmd_help_unknown	action=0|未知指令 `nope`，发送 `/help` 查看所有可用指令。
+cmd_clear	action=1|✅ 对话已清空，下次消息将开始全新会话。
+cmd_stop	action=2|✅ 已请求中止当前回答。
+cmd_search_noargs	action=0|请输入搜索内容，例如：`/search 退款政策`
+userkey	ch1:u1:c1:t1
+userkey_nothread	ch1:u1:c1
+quoted_text	以下是用户引用的一条历史消息，仅作为上下文参考：\n<quoted_message>\nquoted text\n</quoted_message>
+quoted_bot_nontext	用户引用了一条图片消息，但你无法查看该内容。请直接告知用户你目前无法处理图片消息，建议用户用文字描述问题。不要猜测该消息的内容。
+quoted_nil	
+nontext_labels	{"file":"文件","image":"图片","video":"视频","voice":"语音"}
+tool_visible_thinking	false
+tool_visible_search	true
+brief_tool_summary	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...
+strip_citation	abc
+strip_image_xml	xorig texty
+holdback_cutoff	9
+file_msg_qa	我上传了文件「report.pdf」。请确认已收到，并告知我接下来可以如何协助。
+file_ext	pdf
+file_ext_none	
+platform_to_channel	feishu
+platform_to_channel_unknown	im
+qa_failure_reply	抱歉，回答已被取消。
+session_title_user	张三
+session_title_user_noname	user
+session_title_thread	chat chat9 · thread 
+short_id	89abcdef
+title_initial	
+channel_session_table	im_channel_sessions
