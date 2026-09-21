@@ -67,6 +67,29 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * 对照 IssueSandboxTerminalTicket（service/sandbox_terminal_ticket.go L33-53）：
+     * 沙箱终端 WS 握手票据。不是访问令牌——ValidateToken 拒绝它
+     * （{@link #isSandboxTerminalTicketClaims}）；绑定 user/tenant/session/token 四元组，
+     * TTL 缺省 2 分钟（DefaultSandboxTerminalTicketTTL）。W5d 批新增。
+     */
+    public String generateSandboxTerminalTicket(String userId, long tenantId,
+            String sessionId, String tokenId, java.time.Duration ttl) {
+        Instant now = Instant.now();
+        java.time.Duration effective = ttl == null || ttl.isNegative() || ttl.isZero()
+                ? java.time.Duration.ofMinutes(2) : ttl;
+        return Jwts.builder()
+                .claim("user_id", userId)
+                .claim("tenant_id", tenantId)
+                .claim("session_id", sessionId)
+                .claim("token_id", tokenId)
+                .claim("type", "sandbox_terminal")
+                .expiration(Date.from(now.plus(effective)))
+                .issuedAt(Date.from(now))
+                .signWith(key)
+                .compact();
+    }
+
     /** refresh token：7d 有效，不含 email/tenant_id */
     public String generateRefreshToken(User user) {
         Instant now = Instant.now();

@@ -1,0 +1,218 @@
+# 已确认细节与坑 · W5 收尾批（W5a / W5b / W5c + 后续 W5d 追加于此）
+
+> 本文件是 `docs/translation-conventions.md` §9 的一个分片（按批次拆分，**内容未改动**）。
+> 代码注释与任务书里的「约定 §9「XXX」」按条目标题在本目录内检索即可。
+> 回链：[`translation-conventions.md`](../translation-conventions.md) §9 索引 ｜
+> 同目录兄弟文件：00 基础 / 01 阶段 4.1–5.2 / 02 波 0–1 / 03 波 2 / 04 波 3 / 05 波 4 / 06 W5。
+
+
+- **W5a 补充（漂移修复 + 13 条小散路由）**：
+  - **RBAC 漂移的两类形态**（对账产物，修的都是"规则存在但空转"或"规则缺席"）：
+    ① **拦截器 pattern 缺前缀**——`registry.addInterceptor(rbac).addPathPatterns(...)`
+    清单缺 `chunks/**`、`messages/**`、`faq/**`、`knowledge-chat/**`、`agent-chat/**`、
+    `knowledge-search` 六个前缀，此前的 addRule 全部空转；② **规则缺席**——sessions
+    组（Go 在组级挂 g.Viewer()，组内每条都吃 Viewer 下限）、messages 组 4 条、chunks
+    写族 7 条（OwnedChunkKBOrAdmin=creator OR Admin，无角色下限 → 拦截器只设 VIEWER、
+    ownership 归 ChunkAccessGuard——FAQ/Wiki 写路由的既有落地同款）。漂移修复的验证
+    直击场景：viewer PUT /tenants/10002 → OWNER 规则 403（w5a-tenant-put-nonowner），
+    A/B 与 Go 逐字节 MATCH。
+  - **tag.SeqID 会回填**（纠正 FAQ 批的旧注释）：GORM 对 `autoIncrement` 列在 PG 走
+    RETURNING 回填内存对象——CreateTag 响应 `seq_id` 是真值。Java：PG 插入
+    （NEXTVAL）后按 id 回读；H2 维持 max+1。
+  - **refresh 轮换的吊销检查是"同值行"敏感的**：JWT iat 秒级——同一秒内 refresh 轮换
+    出的新 refresh_token 与旧值**逐字节相同**，auth_tokens 出现两行同值记录，
+    Go 的 GetTokenByValue（First 无 ORDER BY）命中哪行取决于堆序 → "revoked" 检查
+    掷硬币。录制/测试必须 sleep 2 再刷新（保证轮换值不同，旧值必 401）。
+  - **具名 struct 的 validator 键带前缀**：`createTagRequest.Name`（tag create）——
+    "匿名 struct 无前缀"的规则只适用于 handler 内联匿名 struct（refresh 的
+    `RefreshToken`、switch 的 `TenantID`）。别一刀切。
+  - **page=0 是合法输入**：Pagination 的 `omitempty,min=1` 对查询绑定把零值视为空
+    → 跳过校验 → GetPage 归一成 1（200）——不是 400。page=abc 才是 400
+    （details=strconv 原文）。
+  - **PathTenantMatch 的两只新死代码**：GET /tenants/:id 的 handler "Invalid workspace
+    ID"（400）与 DELETE 缺租户的路径——URL :id ≠ 活动租户时中间件先行 403，
+    两者都不可达。self-serve 建租户后活动租户仍是 home → 对新租户的 DELETE 恒 403，
+    这是**录制钉住的既有行为**（要真删得切 X-Tenant-ID）。
+  - **im 回调（engine 级路由）**：AuthFilter 对 `/api/v1/im/callback/` 前缀整体让路
+    （对照 Go 注册在 Auth 之前的语义）。Go dev 上 enabled 渠道的回调恒 503
+    "channel not available"——mattermost webhook 适配器工厂在空 credentials 下建适配
+    失败——Java 无适配器（随波 5）落同形 503 → **MATCH 非 XDEP**；disabled → 503
+    "channel is disabled"、缺行 → 404 "channel not found"，三条确定性分支全 MATCH。
+  - **DeleteTenant 的级联软删**：Go repo 在事务里先软删 tenant_members 再软删 tenant
+    （GORM DeletedAt）——Java 原实现 deleteById 是硬删（且不删成员），已对齐为
+    显式 `deleted_at` 写入；createTenant 的回滚路径共用此方法（Go 三处 rollback 也走
+    service.DeleteTenant）。
+  - **switch-tenant 的绑定顺序**：json.Unmarshal（语法/类型错，uint64 的文案带
+    匿名 struct 的 ".tenant_id" 路径）先于 validator（required）；成功路径先落
+    last_active 偏好再签发令牌（写失败中止切换），旧 refresh 尽力吊销。
+  - **测试基建（复发提醒）**：`mcp.*` 与 `storage.*` 同批跑会互踩——MCP 的 SSRF 用例
+    改动进程级 SsrfGuard 白名单且未还原，StorageBackendContractTest 的 SSRF 拒绝分支
+    随之假红（clean HEAD 复现，与本批无关，待专项收敛）。
+- **收尾批 W5a 补充**：
+  - **RBAC 漂移（对账产物，2026-09-21）**：WebConfig 的 addRule 与拦截器
+    addPathPatterns 是两段配置——规则登记了 pattern 不覆盖=空转。六前缀
+    （chunks/messages/faq/knowledge-chat/agent-chat/knowledge-search）修复后以
+    "viewer PUT /tenants → 403 与 Go 逐字节 MATCH" 钉住。**教训：新增路由时
+    addRule 与 addPathPatterns 必须同批核对**。
+  - **GORM RETURNING 回填**：tag.SeqID 创建后是 DB 回填的真值，别信"恒 0"旧注释。
+  - **具名 struct validator 错误键**：gin binding 对具名请求 struct 的字段路径带
+    结构体名前缀（createTagRequest.xxx），匿名 struct 无前缀——绑定文案契约要逐
+    个录。
+  - **deleteTenant 纠偏**：旧 Java 实现是硬删，Go 是事务内级联软删（成员+租户）。
+  - **mcp×storage 测试互踩（既有，留专项）**：MCP SSRF 用例改进程级 SsrfGuard
+    白名单后未还原，泄漏影响同 JVM 后续测试；clean HEAD 复现确认非 W5a 引入。
+
+- **W5b 补充（initialization 系统级 14 条）**：
+  - **gin validator 键的另一面**：W5a 钉了"具名 struct 带 `createTagRequest.` 前缀、
+    匿名 struct 无前缀"；W5b 再钉一刀——键里的字段名是 **Go 字段名**而非 json tag
+    （字段 `Models []string json:"models"` → `Key: 'Models' Error:...`，不是 'models'）。
+    validator 从不看 json tag。
+  - **同一 handler 两种时区路径**：OllamaModelInfo.modified_at 来自 JSON 反序列化
+    （UTC 字面量）→ time.Time marshal **保留原 location** 输出 `Z`；下载任务的
+    startTime 来自 time.Now() → 输出服务器本地偏移 `+08:00`。Java 侧对应
+    goTimeAsIs（不改时区）与 goTime（atZoneSameInstant 本地化）两个 helper，别混。
+  - **OllamaService 单例 bean（W5b 首次落地）**：Go 是 container.Provide 单例，
+    Java 此前只有 ObjectProvider 空注入。isAvailable 是**跨请求共享状态**——
+    CheckOllamaModels 的"已可用则跳过 StartService"分支依赖单例；每请求新建会把
+    可用实例的 per-model 失败（200 map 全 false）变成 500 "Ollama服务不可用"。
+    bean 落地后 QaWiring/memory 的 getIfAvailable() 与 Go 同形。
+  - **downloadTasks 是进程内存**（Go 包级 map）：不落 DB、重启即空——Java 用
+    ConcurrentHashMap 单例承载，**不引入新表**；A/B 的 tasks 比对要重启双端
+    lockstep（各自历史决定数量），且 Go map 迭代序随机 → 掩码后按元素排序再比。
+  - **ASR seam 的取舍**：asr 包只有一个 provider（OpenAI 兼容 transcription），
+    接缝缺省实现做真实出站（multipart POST {base}/audio/transcriptions + 300s
+    超时），错误文案按 go-openai error.go **逐字节仿真**（APIError 与 RequestError
+    两族 + Go encoding/json 顶层错误文案仿真）。教训：**JDK HttpClient 会剥掉
+    header 值尾随空格**——"Bearer " 到达 stub 变 "Bearer"，stub 探针判空 key 时
+    两侧要按 strip 后比对。
+  - **multimodal/test 名不副实**：Go 的 TestMultimodalFunction 校验了 VLM/存储表单，
+    实际执行只调 DocReader（VLM 参数不参与调用）——Java 复用 knowledge 的
+    DocReaderClient 即可，无需 VLM provider；A/B 双端同打 dev docreader，成功
+    响应只有 caption:""/ocr:""/processing_time（掩 ms）+ success。
+  - **A/B 抓回的真缺陷**：multimodal data 节点按 gin.H 字母序输出（caption < ocr <
+    processing_time < success），首版按处理顺序插入（processing_time 在前）——
+    golden 没盖住（mm 成功路径需要 docreader，契约测试 JVM 没有），A/B 抓回。
+    **教训：响应含 docreader/外部依赖的成功路径至少要有一条 A/B。**
+  - **契约测试的 in-JVM stub 选位**：OllamaService bean 的缺省基址是
+    localhost:11434 → 测试 stub 直接占 11434（环境无 ollama 时恒空闲），避免
+    "测试改 env"的不可能问题；OpenAI 兼容 upstream 用随机端口 + SSRF 白名单
+    reload/restore（§5 #8）；SSRF 拒绝场景用 10.0.0.1:9（直连 IP 不在白名单，
+    与白名单状态无关的确定性 400，不碰 DNS）。
+  - **record 脚本的进程态前提**：downloadTasks 在 Go 侧是进程内存 → 录制前必须
+    重启 Go server（否则上一轮的任务残留进 tasks 空表 golden——实测踩过一次）。
+  - **已备案差异**：ollama/上游传输层错误内文（Go `dial tcp ...` vs JDK 文案）
+    掩码比对；GoJsonBindError 的深结构 JSON 错误回落 Jackson 文案；pull 的 12h
+    ctx 超时未翻（Java 虚拟线程无等价 cancel，只有取消语义缺位无行为差异）；
+    50MB 上传上限族（MaxBytesReader 前置）未录——Spring multipart 60MB 全局上限
+    承接，超限文案不同（golden 不可达）。
+
+- **W5c 补充（文件代理面 8 条路由）**：
+  - **注册位置决定鉴权分层（files.go 的核心契约）**：/files 在 Auth **之后**（需登录）、
+    /r/:token 在 Auth **之前**（零鉴权，令牌自证）、presigned 在 Auth 之后但 Auth 的
+    noAuthAPI 白名单放行 GET/HEAD（IM 平台 HEAD 预检）、presigned-preview 在引擎根
+    （APIKeyGate 不跑 → 显式 DenyAPIKeyPrincipal + RequireRole(Admin)，而 RequireRole
+    对 Key 短路所以 Deny 必须在先）。Java 侧分层：AuthFilter 通道 1.7（/r/ 前缀让路）、
+    APIKeyGateInterceptor `.excludePathPatterns("/api/v1/files/**")`、
+    AllowFileServeAPIKeyInterceptor/DenyAPIKeyPrincipalInterceptor（既有预留类接线）
+    + RbacInterceptor ADMIN 规则 + 控制器内 Deny 兜底删除。
+  - **HEAD 的 404 是 gin NoRoute 形态**：Go 只给 /r/* 与 presigned 注册 HEAD；
+    其余 GET 路由的 HEAD 落 gin NoRoute（404 + `text/plain` 无 charset +
+    "404 page not found" 无换行 + Content-Length:18）。Spring 的 `head()` 请求会把
+    **GET 处理器的 method 参数改写成 GET**（拦截器/handler 里 `getMethod()` 不可靠），
+    必须显式 `@RequestMapping(method=HEAD)` 映射才能钉住。curl 侧 `-X HEAD` 会等
+    永不到来的 body → 录制脚本 HEAD 一律 `-I`。
+  - **presigned 的 Content-Disposition 是裸值**：Go 调 streamStoredFile **不带
+    filename**（varargs 空）→ filetransport.Serve 内部对空 filename 直接写
+    "inline"/"attachment"（无 filename= 段），Content-Type 却从路径派生。
+  - **presigned-preview 的 url 是 BackendScoped 包装**：dev 租户有 System LOCAL
+    legacy alias 行 → ResolveBackend 命中 → BackendScopedFileService.GetFileURL 把
+    未改写的路径重新包成 `storage://<backendID>/<原路径>` → `rewritten` 恒 true、
+    provider 被覆写成 backend 的 local（"minio://bucket/x.png" 也一样）。
+    "URL unchanged" 的 hint 分支在 dev 不可达（golden 只钉 200 形态）。
+  - **If-None-Match 携带但服务端无 ETag → 照常 200**：go1.26 的
+    checkIfNoneMatch 对"携带但不匹配"返回 condTrue（即 If-None-Match 未命中）→
+    不 304。304 只在 etagWeakMatch(请求 etag, 服务端 ETag) 命中时发生，本服务
+    恒无 ETag → 永不 304。第一版翻译照想象写了 304，被 golden 抓回。
+  - **mime.FormatMediaType 按 UTF-8 字节迭代**：Go `value[index]` 是字节索引，
+    CJK 文件名逐字节百分号化（数 → %E6%95%B0）；Java 按 char 迭代会把 BMP 字符
+    的 16 位值直接切 hex。另：`'`/`%` 是 token 字符（不引号），`=` 是 tspecial
+    （引号）；needsEncoding 对 \t 豁免（encodedword.go）。
+  - **filepath.Rel/Rel 的"根性不同"分支**：`Rel("/data/files", "10002/exports/a.png")`
+    是 error（Go files.go GetFileURL 据此原样返回输入 → rewritten=true）。
+    go1.26 实录钉住：`Rel("/a/b","/a/x/y/../cgi-bin") = "../x/cgi-bin"`。
+  - **go-server-up 的 SYSTEM_AES_KEY**：WeKnora/.env **有** 32 字节的
+    SYSTEM_AES_KEY（presign 签名在 dev 是激活态）；不要用自造 key 覆盖——两侧
+    必须同 key（dev-env 统一取 .env）。录制/重放的 expires+sig 只在请求里、
+    不进 golden，所以 golden 与时间无关。
+  - **容器 Content-Type 空格规范化（备案，同波 1 G5）**：Tomcat 把
+    `text/plain; charset=utf-8` 写上线成 `text/plain;charset=utf-8`（去空格）；
+    ab-w5c.sh 的 norm_hdr 两侧同形归一（MockMvc 不归一，契约测试无此问题）。
+  - **MockMvc 的 query 参数不做百分号解码**：`get("/files?file_path=local%3A%2F…")`
+    到 handler 里还是编码值——契约测试直接放解码后的值（Go c.Query 拿到的也是
+    解码值，两侧 handler 输入一致）。
+  - **资源注册表（迁移 000069）**：TestSchema 的 resources 从最小投影扩到全投影 +
+    补 resource_bindings/resource_access_grants 两表。/r/ 的授权完全在行上
+    （token_hash=SHA-256(token)，派生令牌=HMAC("resource_grant:v1:<id>:<窗口起点>")
+    前 16 字节 base64url，窗口=TTL/2、锚点是 **Go 零值时间（公元 1 年）** 距纪元
+    62135596800 秒——跨语言派生同一 token 的前提；无 key 时回落随机令牌）。
+    IsReferencedByKnowledgeBase 只认"绑定指向存活文档"（knowledges×knowledge_bases
+    双 JOIN），未注册的 exports 文件在 KB 代理路由下是 403（不是 404）。
+  - **已知差异（备案）**：①云 provider 的 SDK 客户端层未翻译——完备云配置的
+    解析在 Java 落 400（Go 会造出客户端并可能 200），dev 恒 local 不可达（XDEP）；
+    ②APP_EXTERNAL_URL 在位的 GetFileURL 预签名/派生令牌分支已按 Go 移植但 dev
+    不可达；③消息代理的跨租户 shared-agent/org-shared 授予路径随波 5（owner≠caller
+    恒 403，方向偏保守）；④If-Match/If-Range 的 412/200 语义按 Go 移植但 A/B 未录
+    （curl 默认不带）；多段 Range 的 multipart 边界随机无字节锚。
+
+
+- **W5d（沙箱终端 WS + 会话侧 local-browser + embed QA 委托收口）**：
+  - **⚠️ Tomcat 上「101 后继续写 Servlet 裸流」不成立（本批最大技术风险，实测结论）**：
+    `setStatus(101)+flushBuffer` 后，101 状态行与 `Sec-WebSocket-Accept` 能正常到达
+    客户端，但 Tomcat 按 HTTP 语义视 **1xx 响应无实体**，之后对 response 裸流的
+    `write+flush` **调用成功、字节却被静默吞掉**（探针日志证实 flush OK、客户端
+    10 秒收不到 close 帧）——容器层面**不**等价 gorilla 的 Hijack。正路是
+    **Servlet 3.1 升级**：`request.upgrade(TerminalWebSocketUpgradeHandler.class)`，
+    帧走 `WebConnection` 裸流。升级判定段（gorilla 的检查序 + returnError 形态）
+    与 101 头仍由控制器写（不 flush，容器在 service 返回时提交）。
+  - **HttpUpgradeHandler 的数据交接 = ThreadLocal（arm → init）**：容器只按类名
+    实例化 handler（无 Spring 注入）；Tomcat 在 service 返回后**同一线程**回调
+    `init(WebConnection)`，但**过滤器链已退出**（TenantContext 已清）——续跑所需
+    的租户等上下文必须由控制器在 arm 前**显式捕获进闭包**（HANDOFF §2.3 纪律 3
+    「显式拷 TenantContext」的 WS 变体）。并发计数（sessionTerminalLimiter 上限 5）
+    的 release 也必须挪进续跑闭包的 finally——控制器返回时连接才刚开始。
+  - **`AuthFilter` 不是 bean，谁都不能注入它**（W5d 半成品踩塌整个上下文的根因）：
+    它由 WebConfig `new` 进 FilterRegistrationBean。修法是 HANDOFF 属主决策的
+    方案②——把 AttachAuthenticatedUser 能力链（authenticateJWTUser/空间解析/
+    角色装配）抽成 `@Component WsAuthSupport`，AuthFilter 通道 2 与
+    SandboxTerminalController 共用一份装配逻辑。派 agent 注入 bean 时，先核对
+    注入目标是不是真是 bean（§2.3 纪律 4 的最新反例）。
+  - **golden/A/B 抓回的真契约**：
+    ① **`plainStatus` 的空体 404**——只 `setStatus(404)` 时 Tomcat 的
+    ErrorReportValve 在响应未提交且状态 ≥400 时补默认错误体（`"404 Not Found"`，
+    Spring Boot showReport=false 形态），Go 的 `c.Status(404)` 是空体。修法：
+    `setContentLength(0)+flushBuffer()` 提交空响应后阀门跳过。**W5c 的
+    missing-file 场景文件名无扩展名、ab 循环只比 .json/.bin/.hdr，同一偏差潜伏
+    未曝**——无扩展名场景文件是比对盲区，新批次的 ab 循环要显式枚举。
+    ② **WS 升级失败族的 `Sec-Websocket-Version: 13` 头**（小写 s——gorilla
+    returnError 的原样键名）+ `X-Content-Type-Options: nosniff` + 纯文本
+    `Bad Request\n`（12 字节含尾换行）逐字节钉住。
+  - **框架层差异（备案，不入字节契约）**：①**CORS 头族**——Go cors 中间件
+    恒写 `Access-Control-Allow-Origin: *`（配 credentials:true，规范上不允许但
+    浏览器容忍），Spring CORS 禁止 allowCredentials+'*' 组合而**回显 Origin**；
+    Expose-Headers 的逗号后空格也是框架渲染差异。浏览器语义等价，ab-w5d.sh 的
+    norm_hdr 排除 `access-control-` 整族。②Tomcat 的 `;charset=` 去空格（W5c 已备案）。
+  - **ticket JWT 的形状差（ opaque，不掩不行）**：Go 铸的票 header 含 `"typ":"JWT"`、
+    claims 按字母序（exp/iat/session_id/tenant_id/token_id/type/user_id）；Java
+    （jjwt）header 只有 alg、claims 按声明序。票对客户端不透明可交换（同 secret
+    HMAC-SHA256 双端互验已过 A/B），但 golden 比对必须掩 JWT 值。
+  - **embed QA 委托层**：`patchEmbedChatPayload` 的 `"null"` 字面量视同空体
+    （Go `json.Unmarshal("null",&map)` 得 nil map 无错误）；数组/标量是 unmarshal
+    类型错误 → 400 "invalid json"。委托后确定性错误的锚是 validator 文案
+    （`Key: 'CreateKnowledgeQARequest.Query' ...`，Go 字段名——W5b 已备案同款）。
+    **带 query 的 embed chat 不进 golden**（进完整 QA 管线挂流；SSE 字节契约
+    4.6d 已钉，本批只验委托层）。
+  - **登记面**（W5a 漂移族教训的执行）：sessions 组 RBAC 补 terminal-ticket +
+    local-browser×2 三条 VIEWER 规则；APIKeyRoutePolicies 补同三条 chat 能力；
+    APIKeyGateInterceptor `excludePathPatterns` 补 WS 升级路由（Go 注册于 Auth
+    与 /api/v1 组之前，组级 gate 对它不跑）。WS 路由**不**登记 RBAC 规则
+    （票据自鉴权，Go 无角色门）。

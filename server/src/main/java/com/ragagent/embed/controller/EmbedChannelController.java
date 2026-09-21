@@ -57,13 +57,10 @@ import org.springframework.web.bind.annotation.RestController;
  * mcp-oauth authorize-url/status、mcp-oauth-resolutions(+cancel)、tool-approvals。
  * 委托面直接调用既有控制器方法（对照 Go 的 handler 委托），确保字节契约同源。</p>
  *
- * <p><b>刻意留接缝（不实现，javadoc 声明）</b>：</p>
- * <ul>
- *   <li>{@code POST /embed/:cid/knowledge-chat/:sid} 与 {@code POST /embed/:cid/agent-chat/:sid}
- *       —— QA 运行时（patchEmbedChatPayload + sessionHandler.KnowledgeQA/AgentQA）随 agent
- *       引擎批（4.6）翻译；golden 未录（QA 委托面刻意不录）；</li>
- *   <li>{@code GET /embed/:cid/files} —— 文件代理面随 filetransport 收口批。</li>
- * </ul>
+ * <p><b>W5d 收口（2026-09-21）</b>：{@code POST /embed/:cid/knowledge-chat/:sid} 与
+ * {@code POST /embed/:cid/agent-chat/:sid}（patchEmbedChatPayload + 委托
+ * KnowledgeQaController 的 KnowledgeQA/AgentQA）与 {@code GET /embed/:cid/files}
+ * （委托 FileProxyService.serveTenantFiles，与 /files 同 handler 体）已落地。</p>
  *
  * <h2>响应形态</h2>
  * <ul>
@@ -87,6 +84,8 @@ public class EmbedChannelController {
     private final MessageSuggestionController suggestionController;
     private final McpOAuthController mcpOAuthController;
     private final AgentToolApprovalController toolApprovalController;
+    private final com.ragagent.session.controller.KnowledgeQaController knowledgeQaController;
+    private final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
 
     public EmbedChannelController(EmbedChannelService service,
                                   SessionService sessionService,
@@ -95,7 +94,9 @@ public class EmbedChannelController {
                                   SessionController sessionController,
                                   MessageSuggestionController suggestionController,
                                   McpOAuthController mcpOAuthController,
-                                  AgentToolApprovalController toolApprovalController) {
+                                  AgentToolApprovalController toolApprovalController,
+                                  com.ragagent.session.controller.KnowledgeQaController knowledgeQaController,
+                                  com.ragagent.storage.fileserve.FileProxyService fileProxyService) {
         this.service = service;
         this.sessionService = sessionService;
         this.sessionRepository = sessionRepository;
@@ -104,6 +105,8 @@ public class EmbedChannelController {
         this.suggestionController = suggestionController;
         this.mcpOAuthController = mcpOAuthController;
         this.toolApprovalController = toolApprovalController;
+        this.knowledgeQaController = knowledgeQaController;
+        this.fileProxyService = fileProxyService;
     }
 
     // ═══════════════════ 请求体（对照 Go embedChannelRequest） ═══════════════════
@@ -418,6 +421,102 @@ public class EmbedChannelController {
         data.put("id", created.getId());
         data.put("sig", sig);
         return ResponseEntity.status(201).body(dataEnvelope(data));
+    }
+
+    // ═══════════════════ QA / 文件代理委托（W5d 收口） ═══════════════════
+
+    /** 对照 EmbedKnowledgeChat（L460-462）：patch 后委托 KnowledgeQA。 */
+    @PostMapping("/api/v1/embed/{channel_id}/knowledge-chat/{session_id}")
+    public void knowledgeChat(@PathVariable("session_id") String sessionId,
+                              @RequestBody(required = false) String rawBody,
+                              @RequestParam(name = "resource_urls", required = false) String resourceUrls,
+                              jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        delegateEmbedChat(sessionId, rawBody, resourceUrls, false, response);
+    }
+
+    /** 对照 EmbedAgentChat（L464-466）：patch 后按渠道 agent 分派 AgentQA/KnowledgeQA。 */
+    @PostMapping("/api/v1/embed/{channel_id}/agent-chat/{session_id}")
+    public void agentChat(@PathVariable("session_id") String sessionId,
+                          @RequestBody(required = false) String rawBody,
+                          @RequestParam(name = "resource_urls", required = false) String resourceUrls,
+                          jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        delegateEmbedChat(sessionId, rawBody, resourceUrls, true, response);
+    }
+
+    /**
+     * 对照 delegateEmbedChat（L620-648）：渠道 → ensureEmbedSession →
+     * patchEmbedChatPayload → 委托。quick-answer 内建 agent 恒走 KnowledgeQA。
+     */
+    private void delegateEmbedChat(String sessionId, String rawBody, String resourceUrls,
+            boolean agentMode, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        EmbedChannelEntity ch = channel(request0());
+        ensureSession(LogSanitizer.sanitize(sessionId));
+        String patched = patchEmbedChatPayload(rawBody, ch, agentMode);
+        if (agentMode && !"builtin-quick-answer".equals(ch.getAgentId())) {
+            knowledgeQaController.agentQA(LogSanitizer.sanitize(sessionId), patched,
+                    resourceUrls, response);
+            return;
+        }
+        knowledgeQaController.knowledgeQA(LogSanitizer.sanitize(sessionId), patched,
+                resourceUrls, response);
+    }
+
+    /**
+     * 对照 patchEmbedChatPayload（L712-750）：把渠道约束合并进访客 QA 请求体。
+     * 「invalid request body」（Go 的 io.ReadAll 失败）在 Java 不可达——body 已由
+     * Spring 读成 String；坏 JSON / 非对象 → 400 "invalid json"。
+     */
+    private static String patchEmbedChatPayload(String rawBody, EmbedChannelEntity ch,
+            boolean agentMode) {
+        com.fasterxml.jackson.databind.node.ObjectNode payload;
+        if (rawBody == null || rawBody.isEmpty()) {
+            payload = MAPPER.createObjectNode();
+        } else {
+            JsonNode node;
+            try {
+                node = MAPPER.readTree(rawBody);
+            } catch (Exception e) {
+                throw new PlainErrorException(400, "invalid json");
+            }
+            // Go 的 json.Unmarshal("null", &map) 得 nil map 无错误 → 视同空体；
+            // 数组/标量是 unmarshal 类型错误 → "invalid json"
+            if (node == null || node.isNull()) {
+                payload = MAPPER.createObjectNode();
+            } else if (!node.isObject()) {
+                throw new PlainErrorException(400, "invalid json");
+            } else {
+                payload = (com.fasterxml.jackson.databind.node.ObjectNode) node;
+            }
+        }
+        payload.put("agent_id", ch.getAgentId());
+        payload.putArray("knowledge_base_ids");
+        // Go：仅当客户端给了 bool 才算 opt-in（非 bool 一律 false）
+        JsonNode clientWs = payload.get("web_search_enabled");
+        payload.put("web_search_enabled", ch.isAllowWebSearch()
+                && clientWs != null && clientWs.isBoolean() && clientWs.asBoolean());
+        if (!ch.isAllowFileUpload()) {
+            payload.remove("images");
+            payload.remove("attachment_uploads");
+            payload.remove("attachment_ids");
+        }
+        payload.putArray("mcp_service_ids");
+        payload.put("agent_enabled", agentMode);
+        try {
+            return MAPPER.writeValueAsString(payload);
+        } catch (Exception e) {
+            throw new PlainErrorException(500, "failed to prepare request");
+        }
+    }
+
+    /**
+     * 对照 routes_agent.go L255：embed 文件代理与 /files 共用同一 handler 体
+     * （newFileServeHandler）——渠道租户由 EmbedAuthFilter 注入 TenantContext，
+     * 路径归属校验在 FileProxyService 内（resource:// 目录命中优先）。
+     */
+    @GetMapping("/api/v1/embed/{channel_id}/files")
+    public void embedFiles(jakarta.servlet.http.HttpServletRequest request,
+                           jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        fileProxyService.serveTenantFiles(request, response);
     }
 
     /** 对照 EmbedLoadMessages：先 ensureEmbedSession，再委托 MessageController.LoadMessages。 */

@@ -68,16 +68,16 @@ public class WebConfig implements WebMvcConfigurer {
         return bean;
     }
 
-    /** 对照 Go Auth 中间件（engine 全局，覆盖 /*） */
+    /** 对照 Go Auth 中间件（engine 全局，覆盖 /*）。
+     *  W5d：JWT 认证装配链在 {@link com.ragagent.auth.filter.WsAuthSupport}（@Component），
+     *  本过滤器只组装三通道分派。 */
     @Bean
     public FilterRegistrationBean<AuthFilter> authFilter(UserService userService,
-                                                         TenantService tenantService,
-                                                         TenantMemberService memberService,
-                                                         TenantProperties tenantProperties,
+                                                         com.ragagent.auth.filter.WsAuthSupport wsAuthSupport,
                                                          com.ragagent.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel) {
         FilterRegistrationBean<AuthFilter> bean =
-                new FilterRegistrationBean<>(new AuthFilter(userService, tenantService, memberService,
-                        tenantProperties, apiKeyAuthChannel));
+                new FilterRegistrationBean<>(new AuthFilter(userService, wsAuthSupport,
+                        apiKeyAuthChannel));
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
         bean.addUrlPatterns("/*");
         return bean;
@@ -118,6 +118,9 @@ public class WebConfig implements WebMvcConfigurer {
                 // 组级 APIKeyGate 对它们不跑——presigned 靠 HMAC 自证、preview 显式
                 // DenyAPIKeyPrincipal（FileProxyController 内，403 文案与 Go 一致）。
                 .excludePathPatterns("/api/v1/files/**")
+                // W5d：沙箱终端 WS 在 Go 注册于 Auth 与 /api/v1 组之前（引擎根，
+                // routes_chat.go L148-150），组级 APIKeyGate 对它不跑——票据自鉴权。
+                .excludePathPatterns("/api/v1/sessions/*/sandbox/terminal")
                 .order(-1);
 
         // /models 组（对照 RegisterModelRoutes）
@@ -333,7 +336,6 @@ public class WebConfig implements WebMvcConfigurer {
         // （"sessions 是 per-user 资源，handler 内自查 ownership；Viewer+ 把已吊销账号
         // 挡在门外"），即组内全部端点 Viewer+，无逐路由差异 → 全部 VIEWER 下限。
         // W5a 漂移修复补登记（此前只有 continue-stream 一条，组内其余规则缺席 = 空转）。
-        // 未翻译端点（sandbox/terminal-ticket、local-browser×2）随收尾扫描批补。
         rbac.addRule("GET", "/api/v1/sessions/continue-stream/*", TenantRole.VIEWER, false);
         rbac.addRule("POST", "/api/v1/sessions", TenantRole.VIEWER, false);
         rbac.addRule("DELETE", "/api/v1/sessions/batch", TenantRole.VIEWER, false);
@@ -361,6 +363,14 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/sessions/*/artifacts", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/sessions/*/messages/*/artifacts", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/sessions/*/messages/*/artifacts/*/download", TenantRole.VIEWER, false);
+
+        // 沙箱终端票据 + local-browser 会话面（W5d，对照 routes_chat.go
+        // RegisterSandboxTerminalRoutes / handler/session/browserskill.go——sessions
+        // 组级 g.Viewer() 同族）。WS 升级路由（GET …/sandbox/terminal）在 Go 注册于
+        // Auth 之前、票据自鉴权，不经过 RBAC，不登记。
+        rbac.addRule("POST", "/api/v1/sessions/*/sandbox/terminal-ticket", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/sessions/*/local-browser", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/sessions/*/local-browser", TenantRole.VIEWER, false);
 
         // 消息面（W5a 漂移修复补登记，对照 routes_chat.go RegisterMessageRoutes L28-31）：
         // 四条逐路由 g.Viewer()（组注释原文："message history 是 tenant-wide 面，

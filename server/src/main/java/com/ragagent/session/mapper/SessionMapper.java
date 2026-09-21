@@ -42,6 +42,30 @@ public interface SessionMapper extends BaseMapper<Session> {
     String selectImPlatform(@Param("tenantId") long tenantId, @Param("sessionId") String sessionId);
 
     /**
+     * 会话沙箱 pin 读（W5d，对照 Go SessionSandboxPinner.read，session_sandbox_pin.go
+     * L56-73：{@code SELECT sandbox_config_id FROM sessions WHERE id = ?}——GORM 的
+     * Model() 自动带 {@code deleted_at IS NULL}（"软删的会话视同不存在"）。NULL pin
+     * 与缺行都归 null；Read() 的调用方把两者都当"无活沙箱"。
+     */
+    @Select("SELECT sandbox_config_id FROM sessions "
+            + "WHERE id = #{sessionId} AND deleted_at IS NULL")
+    String selectSandboxConfigPin(@Param("sessionId") String sessionId);
+
+    /**
+     * 会话沙箱 pin 写（对照 SessionSandboxPinner.Pin 的认领 UPDATE，L98-103：
+     * {@code WHERE id = ? AND (sandbox_config_id IS NULL OR sandbox_config_id = '')}——
+     * 并发首建沙箱时败者采纳赢者的 config；本终端入口无并发对手，0 行=已被别人钉住，
+     * 调用方按 Go 语义回读现有 pin。GORM 的 Update 自动刷 updated_at，这里一并 SET。
+     */
+    @Update("UPDATE sessions SET sandbox_config_id = #{configId}, updated_at = #{now} "
+            + "WHERE id = #{sessionId} AND deleted_at IS NULL "
+            + "AND (sandbox_config_id IS NULL OR sandbox_config_id = '')")
+    int updateSandboxConfigPin(@Param("sessionId") String sessionId,
+            @Param("configId") String configId, @Param("now") java.time.OffsetDateTime now);
+
+
+
+    /**
      * 写 {@code agent_config}（承载 {@code SessionLastRequestState}）+ {@code updated_at}
      * （对照 Go {@code UpdateLastRequestState}，L342-363）。
      *

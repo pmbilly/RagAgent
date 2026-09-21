@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Content-Length,Access-Control-Allow-Origin
+Cache-Control: public, max-age=86400
+Content-Disposition: inline; filename=w5d-embed-seed.txt
+Content-Length: 15
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: bf356dc8-85eb-4392-ab29-8b2e9bb68b1a
+Date: Mon, 21 Sep 2026 11:39:39 GMT
+

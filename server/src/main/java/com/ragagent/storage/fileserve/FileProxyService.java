@@ -393,8 +393,22 @@ public class FileProxyService {
     }
 
     /** 对照 Go {@code c.Status(n)}：只写状态，无体无 Content-Type。 */
+    /**
+     * 对照 Go {@code c.Status(status)}（**空体**）。
+     * ⚠️ 只 setStatus 不够：Tomcat 的 ErrorReportValve 会在响应未提交且状态 ≥400 时
+     * 补默认错误体（"404 Not Found" 字样，Spring Boot 的 showReport=false 形态）——
+     * W5d 的 embed/files 404 golden 抓回这个偏差（W5c 的 missing-file 场景无扩展名、
+     * 当时 ab 循环漏比对，同一偏差潜伏未曝）。setContentLength(0)+flush 提交空响应
+     * 后阀门跳过，与 Go 的空体逐字节一致。
+     */
     public static void plainStatus(HttpServletResponse response, int status) {
         response.setStatus(status);
+        response.setContentLength(0);
+        try {
+            response.flushBuffer();
+        } catch (IOException ignored) {
+            // 连接已断（对照 Go：写不出去也无处可达）
+        }
     }
 
     /** 对照 Go {@code c.JSON(status, gin.H{"error": msg})}。 */

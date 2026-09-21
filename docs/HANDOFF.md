@@ -1,9 +1,32 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：W5c 收尾批完成（文件代理面 8 条；85 golden + A/B 两轮 75/75 ALL MATCH）** · golden 1,649 个
-> **端点覆盖（2026-09-21 程序化对账：Go 448 条 verb+path）→ Java 已落地约 440 条（约 98%）。真缺口仅剩 7 条 + models/{id}/debug——下一步 W5d（WS/ticket/local-browser + embed QA）→ 波 5**
+> 最后更新：2026-09-21 · **基线：W5d 收官提交（见 git log 顶部）· golden 1,676 个**
+> 端点覆盖（2026-09-21 程序化对账 `scripts/route-recon.py`：交集 387）：
+> **真缺口候选 2 条** = `/swagger/{}`（Go 工具路由，非翻译目标）+ `models/{id}/debug`（留阶段 7，规则已登记、控制器 404 占位）
 
-## 0. 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——新会话直接派 W5d）
+## 0.0 W5d 已收官（2026-09-21 下半场接手续做，当日完成）
+
+> 半成品的实况记录（接手可跳过）已被本节替换；当时的分析底稿在 git 历史里。
+
+**做了什么**：①修 context（`AuthFilter` 非 bean 被注入控制器 → 按方案②抽
+`WsAuthSupport` @Component，AuthFilter 通道 2 同委托）；②**实测翻案**——半成品
+「101 后写 Servlet 裸流」在 Tomcat 上不成立（1xx 无实体、写入被静默吞，探针实证），
+改 **Servlet 3.1 `request.upgrade` + WebConnection 裸流**
+（`TerminalWebSocketUpgradeHandler`，ThreadLocal arm→init 交接，租户显式捕获）；
+③补登记（RBAC 三条 VIEWER + APIKeyRoutePolicies 三条 chat + APIKeyGate exclude
+WS 路由）；④补 embed QA 三端点（knowledge-chat/agent-chat 委托 +
+patchEmbedChatPayload、files 委托 FileProxyService）；⑤验收：**24 个 w5d-* golden
+（Go 实录）+ W5dTerminalEmbedContractTest 5 方法 + 真 PG A/B 两轮 26/26 ALL MATCH
+零 DIFF**（ab-w5d.sh，含 ws-handshake-live 双端实测握手逐字节一致）。
+**golden 抓回真缺陷**：plainStatus 空体 404 被 Tomcat ErrorReportValve 补默认体
+（W5c 潜伏偏差一并修复）。台账 conventions §8「W5d」，坑 §9「W5d」
+（known-issues/06-wave-5.md）。provider 终端执行体（远程 PTY）标 XDEP 随波 5。
+
+**复核基线（本批分批全量）**：W5d 受影响六包 479 绿（session/embed/storage/
+browserskill/apikey/auth）+ agent/chatpipeline 批 + 其余包分批全绿（Gradle
+Test Executor 300 秒窗口限制下按 B1 纪律分批；agent/chatpipeline 单独一批）。
+
+## 0.1 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——存档，最新实况见 §0.0）
 
 **W5c 收尾批（2026-09-21，文件代理面收官）**：Go `internal/router/files.go`(693) 全文
 翻译 → `com.ragagent.storage.fileserve` 新包 8 文件（FileProxyService/FileAccessResolver/
@@ -52,14 +75,14 @@ session/apikey/auth）+ W5b 批 303 绿（agentm/llm）+ W5a 批 226 绿（auth/
 Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「波 4.5b 补充」。
 
 **剩余缺口清单（整体改造收尾，按批派）**：
-1. **W5d（下一批，真缺口最后 7 条）**：sessions/:id/local-browser ×2（BrowserSkillConnection，
-   Go handler/session/browserskill.go）+ sandbox_terminal_ws.go(426)/bridge(340)
-   （terminal-ticket + WebSocket 终端）+ embed 公开 QA 委托 3 条（knowledge-chat/
-   agent-chat/files——4.3 遗留，QA 委托 4.6d 的 Controller 可复用）
+1. ~~W5d~~ ✅ **已收官（2026-09-21，见 §0.0）**：终端 2 + local-browser 2 + embed QA 3
+   全部落地并验收（24 golden + A/B 两轮 26/26 零 DIFF）。
    （models/{id}/debug 仍留阶段 7：规则已登记、控制器 404 占位）
 2. **波 5**：im 执行体（im service.go 3,453）+ tenant_skill_* 收口 +
    shared_agent_access→tools + 共享 agent QA 解析（GetSharedAgentForTenant，
-   4.6d 备案）+ 波 4.6d 其余移交缺口
+   4.6d 备案）+ 波 4.6d 其余移交缺口 + **provider 终端执行体**（W5d 的 XDEP 接缝：
+   cube/e2b/docker 远程 PTY，SessionTerminalService 的 openOnResolved/provisionAndOpen
+   与 TerminalBridge 泵组的生产接线）
 3. **检索引擎批**：HybridSearch 执行面（向量/关键词检索实质执行——4.6d adapter 留
    空/1003 两形态，纯聊天路径不受影响）
 4. **执行体批**：ArtifactCollector/rewriteArtifactReferences/VLM Predict 的生产装配
@@ -67,13 +90,6 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 5. **专项/Owner 决策遗留**：mcp×storage SsrfGuard 互踩（既有问题，W5a 发现）；
    ⑱ MCP initialize 契约对齐、SkillEnvironment 位置、波 3 SkillFrontmatter snakeyaml
    宽容类型、TenantService 占位是否变真、ConversationProperties 多环境接线
-
-**重派模板（W5d）**："W5d 任务书——sessions/:id/local-browser ×2 + sandbox_terminal_ws
-(426)/bridge(340)（terminal-ticket + WS 终端）+ embed 公开 QA 委托 3 条；验收：golden +
-A/B（WS/ticket 双端同打 stub 或按部署态标 XDEP；embed QA 委托复用 4.6d KnowledgeQaController
-路径双端同指 stub LLM）；先读 conventions §3/§6/§7.5/§8/§9（§9.3 SSE + W5a/b/c 补充）；
-golden 前缀先 ls contracts/（w5d-*）；WebConfig/APIKeyRoutePolicies/AuthFilter 显式授权；
-小包批测试（勿与 agent/chatpipeline 同批）"
 
 ## 0. 一句话背景
 
@@ -93,8 +109,12 @@ golden 前缀先 ls contracts/（w5d-*）；WebConfig/APIKeyRoutePolicies/AuthFi
    - §4 错误与响应格式
    - §7.5 **派 agent 的十条强制约束**（每条都对应踩过的坑）
    - §8 翻译日志（每完成一个模块**必须**追加一行）
-   - §9 **已确认的契约细节 + 已知差异 + 工具链坑 —— 动任何模块前逐条对照**，
-     里面的每一条都是真实踩过的
+   - §9 已确认的契约细节 + 已知差异 + 工具链坑 —— **动任何模块前逐条对照**。
+     ⚠️ **§9 的正文已于 2026-09-21 按批次拆到 `docs/known-issues/`**（内容未改动）：
+     `00-foundation`（基础契约+跨阶段坑）/ `01-mcp-stream-session` / `02-wave-0-1` /
+     `03-wave-2` / `04-wave-3` / `05-wave-4` / `06-wave-5`（W5d 及以后追加于此）。
+     conventions 的 §9 现在是**全量索引表**（条目 → 文件），历史注释里的
+     「约定 §9「XXX」」按标题在 `docs/known-issues/` 里检索即可。
 2. `docs/HANDOFF.md`（本文）—— 进度、波次、下一步、协作方式
 3. 需要时再查源码：`server/src/main/java/com/ragagent/`
 
@@ -168,50 +188,36 @@ golden 前缀先 ls contracts/（w5d-*）；WebConfig/APIKeyRoutePolicies/AuthFi
   **`sandbox` 是最紧的前置**（`agent/skills` 硬依赖它，另解锁系统管理端与 skill）。
 
 
-### 2.3 波 4 作战计划（2026-09-20 勘察 agent 实测产出）
+### 2.3 波 4 作战计划（✅ 已收官，只留档与仍有效的纪律）
 
-**实测规模**：agent 根包 4,944（approval 1,163 已翻）+ compaction 863 + skills 1,858 + token 140 +
-tools 非测试 20,112（69 文件）+ chat_pipeline 26 文件 6,763 + 事件契约 794 ≈ **待翻 ~34k**，
-另有前置缺口 ~6.5k（models/embedding 3.8k、models/rerank 5.7k 含测试、searchutil 2,139、
-web_fetch ~900、web_search 执行面 792、VLM/ASR）。HTTP 面 = qa.go(1,768) 的 chat 三兄弟 +
-agent_stream_handler(896，17 种事件订阅 + superseded preamble 剔除) + session_agent_qa/
-session_knowledge_qa(1,290) + agent_service 装配(1,485)。
+波 4（4.1→4.6d）已全部收官。**逐批的源文件 / 落地文件 / 验收数字见 conventions §8 的六行台账**
+（细节在 `known-issues/05-wave-4.md`），§2.1 / §2.2 有汇总。当时勘察的实测规模
+（agent+tools+chat_pipeline ≈ 待翻 34k、前置缺口 6.5k）与逐子批切法/验收口径**不再维护，
+别当成待办**。
 
-**子批切法**（串行为主，4.3 可与 4.2 并行）：
+**跨批仍有效的四条纪律**（波 4 踩出来的，W5d 及以后照用）：
 
-| 子批 | 范围 | 行数 | 验收 |
-|---|---|---|---|
-| 4.1 事件契约（**第一子批**） | internal/event 整包 → com.ragagent.event + §6 的 24 个 emit 点落表（final_answer×7/tool_call×3/thought×2/mcp_oauth×2/其余各×1，payload 全在 event_data.go 317 行） | ~794 | 纯单测（Go 实录 payload JSON 逐字节）；零路由零 TestSchema |
-| 4.2 纯逻辑件 | token estimator、compaction 全包、prompts 族、const/tool_images/context_debug | ~2,570 | 纯单测（Go 实录程序抄输出） |
-| 4.3 embed/im 清单面（可并行） | embed_channel(426)+handler(847)、im channel CRUD+callback(537)、embed 公开面不堵 QA 的 ~14 条 | ~2,200 | golden + 真 PG A/B（wechat qrcode XDEP） |
-| 4.4 模型客户端+检索地基 | models/embedding、models/rerank、searchutil、web_fetch、web_search 执行面 | ~6,500 | stub server A/B（双端同 stub 比请求体逐字节） |
-| 4.5 tools 全量（可拆 a 确定性/b 知识/c 执行+MCP） | registry+基建 2,450 + 知识九件 5,700 + wiki 十件 2,870 + sandbox/shell/skill 十件 3,330 + MCP 五件 2,290 + web 四件 1,000 + todo/sequential 580 | ~20,100 | 知识/wiki/内存检索：真 PG golden A/B；MCP：双端同打 stub MCP server；web_search：stub |
-| 4.6 引擎 + chat 三兄弟 | engine/think/act/observe/finalize/steer + skills 包 + agent_service 装配 + qa.go + agent_stream_handler + chat_pipeline | ~18,000 | **stub LLM 全链路 A/B**（双端同指脚本化 OpenAI 兼容 stub，复用 continue-stream MATCH 基建） |
+1. **SSE 时序是最高危区**：final_answer 的 event-id 分片重组 + superseded preamble 剔除。
+   已由 4.6d 的 stub LLM A/B 钉住，线格式细节在 `known-issues/01-mcp-stream-session.md`
+   —— **动 SSE / bridge / 事件订阅之前先读那两节**。
+2. **LLM 确定性**：凡涉及 chat 链路的 A/B **必须双端同指 stub LLM**
+   （`scripts/stub-llm-server.py`），真实链路只做骨架断言。W5d 的 embed QA 委托同样适用。
+3. **虚拟线程必须显式拷 TenantContext**（Go 用 ctx 传租户，ThreadLocal 不跨虚拟线程），
+   `Long` 比较一律 `equals`/拆箱——并发工具回调处会复发。**W5d 的 WS 升级后正是这套线程模型。**
+4. **装配走接口 seam 注入 stub，不加 `@SpringBootTest` 上下文变体**（§5 补注）；
+   新增/注入 bean 时连带核对注入点是否真是 bean —— W5d 半成品就是把非 bean 的 `AuthFilter`
+   注进控制器、把整个上下文搞挂的（见 §0.0），这是本纪律的最新反例。
 
-**关键风险**：① SSE 时序（final_answer event-id 分片重组 + superseded preamble 剔除——最高危）；
-② LLM 确定性（chat 链路 A/B 必须双端同指 stub LLM，真实链路只做骨架断言）；③ 虚拟线程显式
-拷贝 TenantContext（Go ctx 传租户，ThreadLocal 不跨虚拟线程）+ Long 引用比较陷阱在工具并发
-回调复发；④ 引擎装配 bean 走接口 seam 注入 stub，**不加 @SpringBootTest 上下文变体**（§5.15）。
-**Java 已有基础（勿重建）**：llm 流式客户端（阶段 4.0）、StreamManager+steer 队列（阶段 5.0）、
-session.sse 契约层+continue-stream（5.2）、agent.approval、sandbox 客户端切片、SkillFrontmatter/
-SkillBundleParser/TenantSkillService、agentm BuiltinAgentRegistry。
 
-## 3. 下一步：波 4.6（引擎 + chat 三兄弟，波 4 收官批）
+## 3. 下一步：波 5（W5d 已收官，实况见 §0.0）
 
 **新会话开场动作**（按序）：
-1. `git status` + 读 §0（4.5c 已收官，直接派 4.6；4.5c 报告的装配签名清单与
-   四个决策点已抄录在 §0「4.6 待办输入」）
-2. 派 4.6（engine/think/act/observe/finalize/steer + skills 包 + agent_service 装配 +
-   qa.go 1,768 + agent_stream_handler 896 + session_agent_qa/knowledge_qa +
-   chat_pipeline 6,763，~18k）——验收：**stub LLM 全链路 A/B**（双端同指脚本化
-   OpenAI 兼容 stub，复用 continue-stream MATCH 基建）；**SSE 时序最高危**
-   （final_answer event-id 分片重组 + superseded preamble 剔除，见 §2.3 风险清单；
-   线格式契约见 §9.3）
-3. 主会话全量复核（**按小包批次跑**，见 §0 测试基建坑；4.6 会动 session 域——
-   agent 任务书要显式授权跨模块文件，且跑批期间不派别的 agent）
-   → 更新 conventions §8/§9 → 提交
-4. 4.6 后收尾：models/{id}/debug（阶段 7）+ sessions/:id/local-browser 2 条
-   （随引擎）+ ⑱ initialize 契约是否对齐（Owner 决策）
+1. `git status`（确认在 `/Users/billy/ragagent-java`）+ 读 §0.0。
+2. 真缺口用 `python3 scripts/route-recon.py` 复核（起点应为「真缺口候选 2」=
+   `/swagger/{}` 非翻译目标 + `models/{id}/debug` 留阶段 7）。
+3. 之后：波 5（im 执行体 3,453 行 + tenant_skill_* + shared_agent_access→tools）、
+   检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、
+   provider 终端执行体（W5d 的 XDEP 接缝，与波 5 同批）、⑱ initialize 契约对齐（Owner 决策）
 
 ### 3.0 波 2 扫尾清单（✅ 全部完成，留档备查）
 
@@ -253,12 +259,19 @@ ab-members/ab-system）与录制脚本参数化模式（XXX_TARGET_PORT/XXX_OUT_
   参数化重放（新模块照此模式写）
 - 既有：session/message/memory/datasource/wiki/mcp/model/audit/apikey/stream/storageurl 各域
   （见 §2.1 与 conventions §8）
+- **引擎/agent 侧地基（波 4 之前的沉淀，W5d 与波 5 直接用）**：llm 流式客户端（阶段 4.0）、
+  `StreamManager`+steer 队列（阶段 5.0）、`session.sse` 契约层 + `continue-stream`（5.2）、
+  `agent.approval`、`sandbox` 客户端切片、`SkillFrontmatter`/`SkillBundleParser`/`TenantSkillService`、
+  `agentm.BuiltinAgentRegistry`、`BrowserSkillManager`（含 `Sec-WebSocket-Protocol` 校验）
+- **文档/工具（收尾期新增）**：`docs/known-issues/`（conventions §9 正文分片）、
+  `docs/W5d-plan.md`、`scripts/route-recon.py`（路由缺口对账）
 
 ### 3.3 执行纪律（本会话验证有效）
 
 - 派 agent 前先 `lsof -ti :8082` 杀旧 Java server（**旧进程占端口会让 wait_for_port 打到
   旧代码，新路由表现为 404**——本会话 chunk 与 infra 两批都踩过）
-- agent 任务书必带：conventions §9 对应小节、golden 前缀防冲突（先 ls contracts/）、
+- agent 任务书必带：`docs/known-issues/` 的对应分片（原 conventions §9，按批次分片）+
+  conventions §7.5 十条约束、golden 前缀防冲突（先 ls contracts/）、
   幂等清理含 chunk_revisions 等衍生表、固定种子 id 纯十六进制
 - agent 报"全绿"后主会话必须独立跑全量 + 真 PG A/B——本会话各批里 A/B 抓回了
   **10 个 H2 绿/PG 红或实现缺陷**（clamp 误写、setString→setObject、TableName 影子表、
@@ -301,7 +314,8 @@ Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`�
 
 ## 5. 陷阱清单（按复发率排序）
 
-> 完整版在 `docs/translation-conventions.md` §9。这里是最高频的几条。
+> 完整版在 `docs/known-issues/`（conventions §9 的正文已按批次拆到那里，§9 只留索引）。
+> 下面是最高频的几条。
 
 1. **领域对象的 `isXxx()` 派生方法必须 `@JsonIgnore`** —— 复发率最高，阶段 3、4.1、波 0 各踩过。
    漏了会把多余的键写进 jsonb，回读抛 `UnrecognizedPropertyException` 让**整列不可用**。
@@ -368,13 +382,16 @@ Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`�
 
 | 用途 | 路径 |
 |---|---|
-| 翻译约定（必读） | `docs/translation-conventions.md` |
+| 翻译约定（必读，§1–§8 正文） | `docs/translation-conventions.md` |
+| **已知细节与坑（原 §9 正文，按批次分片）** | `docs/known-issues/{00-foundation,01-mcp-stream-session,02-wave-0-1,03-wave-2,04-wave-3,05-wave-4,06-wave-5}.md` |
 | 交接文档（本文） | `docs/HANDOFF.md` |
-| 契约 golden（909 个） | `server/src/test/resources/contracts/` |
+| W5d 作战计划（2026-09-21 立） | `docs/W5d-plan.md` |
+| 契约 golden | `server/src/test/resources/contracts/`（1,649 个） |
 | H2 共享 DDL | `server/src/test/java/com/ragagent/TestSchema.java` |
 | JSON 往返体检 | `server/src/test/java/com/ragagent/common/JsonContractRoundTripTest.java` |
 | e2e 脚本 | `scripts/{dev-env,go-server-up,java-server-up,token}.sh` |
 | golden 录制 / A-B 范例 | `scripts/{record-datasource-golden,ab-datasource}.sh` |
+| **路由对账（Go↔Java 缺口）** | `scripts/route-recon.py`（收尾期每批收尾跑一次） |
 | 路由与过滤器装配 | `server/src/main/java/com/ragagent/config/WebConfig.java` |
 | Go 的响应格式锚点 | `com.ragagent.common.web.{GoJsonEscapes,GoMapSerializer,GoDoubleSerializer,GoTimeSerializer}` |
 
@@ -387,7 +404,14 @@ Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`�
 - **怀疑 Go 有 bug 时**：先实测再下结论。本轮有一次怀疑 GORM 的 AND/OR 优先级问题，
   用 DryRun 打印实际 SQL 后发现**是我错了**（GORM 会自己包括号），差点"修好"成偏离 Go。
 
-## 9. 本轮（阶段 5.2 + 波 0）的经验总结 —— 新 agent 读这一节能少走弯路
+## 9. 方法论与流程（不随批次增长；坑与细节一律进 known-issues）
+
+> 本节**只放方法与流程**。具体坑、契约细节、已知差异的正文都在
+> `docs/known-issues/`（conventions §9 的正文，按批次分片，索引见 conventions §9）。
+> 曾在此处的「JSON 编码器类差异」「SSE 线格式」两份摘要已删（与分片重复且更旧）。
+> ⚠️ **§9.1 / §9.2 / §9.3 这三个编号是稳定锚点**——源码注释里有 6+ 处在引用
+> （如 `event.EventJson`「§9.2 的污染警告」、`event.AgentFinalAnswerData`「§9.3 扣留键」），
+> 只可作为**指针**保留，别删、别重编号。
 
 ### 9.1 最值钱的方法：**录 Go 实录**
 
@@ -403,25 +427,18 @@ Redis `localhost:16379`（密码 `redis123!@#`）、docreader `localhost:50051`�
 **Go 程序要放到 `/tmp` 或复制一份 Go 仓到 `/tmp`**（原仓只读）。
 需要调未导出函数时，用 `go test -overlay` 挂探针或复制整仓加同包测试文件。
 
-### 9.2 JSON 编码器的类差异（已全局对齐，但要知道有哪些）
+### 9.2 JSON 编码器类差异 → 见 `known-issues/00-foundation.md`
 
-- **HTML 转义**（`< > &` → `<` 等）：**已全局装**在 `JacksonConfig`
-- **控制字符小写十六进制、短转义**：`GoJsonEscapes`（注意是**整表替换**，
-  `\b \t \n \f \r \" \\` 必须显式声明）
-- **U+2028 / U+2029**：**已知差异，刻意保留**（Jackson 的 `CharacterEscapes` 够不到非 ASCII）
-- **float64 格式**：**逐字段**，`GoDoubleSerializer`。**不要全局注册**——会污染发给 LLM provider 的请求体
-- **map 键序**：**逐字段**，`GoMapSerializer`。注意它**只排键序**，
-  map 里的 `Double` 值仍会被 Jackson 写成 `1.0`——值里可能有数字的字段要用模块内子类
-  （见 `datasource.domain.DataSourceMapSerializer`）
+正文（逐类结论表：HTML 转义 / `GoJsonEscapes` / U+2028 / int64 / double / map 键序，
+以及「double 与 map 键序**只能逐字段**，全局注册会污染发给 LLM 的请求体」的取舍）
+在 **`docs/known-issues/00-foundation.md`「JSON 编码器的系统性差分排查」**。
+配套体检：`GoJsonEncodingContractTest` + `JsonContractRoundTripTest`。
 
-### 9.3 SSE 线格式（A/B 已验，改动前先读）
+### 9.3 SSE 线格式 → 见 `known-issues/01-mcp-stream-session.md`
 
-四条路径逐字节 MATCH：错误路径 ×3、handle 模式回放、public 模式扣留冲发、public 模式跨分片重组。
-
-- 帧：`event:message\ndata:<json>\n\n`；JSON 走 Go 的转义与 map 排序
-- **Content-Type 被 SSE 渲染器无条件覆盖**成 `text/event-stream;charset=utf-8`
-- 扣留键是 `类型 + NUL + 事件 id`：**同一流的增量分片共用一个 event id 才会重组**
-- 客户端断开：Java 用**写失败**检测（Go 用 ctx 取消）——差异是**延迟**（有界）而非错误
+状态锚点：**四条路径（错误 ×3 / handle 回放 / public 扣留冲发 / public 跨分片重组）逐字节 MATCH**。
+帧格式、Content-Type 被覆盖、扣留键、断开检测的实现细节在
+**`docs/known-issues/01-mcp-stream-session.md`「阶段 5.2（SSE 契约层）」与「步 4（continue-stream）」**。
 
 ### 9.4 一个模块的典型节奏（≈4 步，`memory` 与 `datasource` 都是这么走的）
 
