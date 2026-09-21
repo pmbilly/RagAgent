@@ -149,6 +149,15 @@ public final class SandboxPaths {
     }
 
     /**
+     * skill 的 venv/node_modules/.weknora bin 前缀（对照 sandbox.SkillCommandPath，
+     * skill_paths.go L211-215——普通 skill 执行与安装校验共用）。
+     */
+    public static String skillCommandPath(String dir) {
+        return join(dir, ".venv", "bin") + ":"
+                + join(dir, "node_modules", ".bin") + ":" + join(dir, ".weknora", "bin");
+    }
+
+    /**
      * 把 s 渲染成 /bin/sh 的一个字面 word（对照 ShellQuote）。单引号是唯一能让所有
      * 元字符失效的构造；非 ASCII 字节原样通过，CJK 文件名在 sandbox 里仍是同一个文件。
      */

@@ -319,3 +319,73 @@
     租户/用户 ON CONFLICT ensure + w5f 专属 id 自清）+
     W5fCrossTenantFileContractTest 3 方法 + 真 PG A/B 两轮 18/18 ALL MATCH
     （ab-w5f.sh，无掩码）；storage/session/org/knowledge 回归 477 绿。
+
+- **W5β（tenant_skill verify 族 + progress 收口）**：
+  - **范围裁定**：verify 门=install 的最后一关，但**它不是 HTTP 面**——Go 里
+    verifySkill 只被 install 管线的 installer-agent 循环调用
+    （install.go installDependenciesAndVerify L769-820：round→agent→verify→
+    repairable 才再来一轮，上限 skillInstallVerifyRounds=2）。Java 的 install
+    管线体（播种/agent/快照/指针切换/transcript/steer/reaper）仍是 provider-XDEP
+    接缝（dev 无 cube/e2b/docker，bootMaintenanceSandbox 恒失败），所以本批 =
+    把"能翻且能钉死"的校验门全部落地 + 接缝原语就位，**管线消费点随 provider
+    执行体批**。progress 三件套（publish/Last/Subscribe）波 3 已翻
+    （SkillProgressStore，subscribe 的恒 null 通道=Go redis==nil 分支，逐字对齐），
+    本批复核无缺口。repository 491 行复核：现役方法全在；快照台账四方法 +
+    ListStaleInstalling 按 mapper 注释随管线批（消费点在 Snapshot/reaper）。
+  - **形状差异（诚实声明）**：Go 的 verify 族挂 *TenantSkillService、从
+    sandbox.Manager 取能力（installExecutor 能力断言 + SessionFileReader 类型
+    断言）；Java 会话 Manager 未翻，执行面/读面以 SandboxInstallCommandExecutor +
+    TenantSkillVerifier.SessionFileReader（窄能力接口，capabilities.go L108-111
+    对应物）两个 seam 显式传入，断言失败收敛为 null 检查（文案逐字保留：
+    "sandbox backend does not support install-mode shell" / "sandbox backend
+    cannot read the install report"）。
+  - **字节契约**：四个命令构造（tree/python/node/shell）+ forEach + runtime 命令
+    全部钉 Go 实录（2026-09-21 `go test -overlay` 探针加
+    internal/application/service/w5k_probe_test.go，不落盘 Go 仓）——fixture 在
+    `contracts/w5k-probe-commands.tsv`（18 键原始字节）。**python 命令里的
+    base64 全文一并钉住**：两侧各自 base64 后相等 = Java 资源
+    `resources/sandbox/tenant_skill_verify.py` 与 Go go:embed 文件逐字节相同的
+    实测证明（另有 shasum 256=f7d896a2…，cp+cmp 双保险）。
+  - **行为验收三层**（27 项全绿）：①命令构造字节（17 测试）；②runtime 门行为
+    ——照 Go runtimeProbeManager 用本机 `/bin/bash --noprofile --norc -c` 真执行
+    校验命令：六形态报告阶梯（{}×3→"Write a valid…"、分号/绝对路径命令名→
+    "bare executable names"、空 blocker→"non-empty explanations"）、skill 本地
+    bin 的 PATH 解析（先缺→gate 含命令名，写入 .weknora/bin 再跑→nil，引号目录名
+    练 ShellQuote）、外部 blocker 恒不可修（Repairable=false）、SKILL.md-only
+    bundle 的完整错误串与 Go 实录逐字节（含 reader 的 "file does not exist"）；
+    ③python 校验器行为——Go verify_python_test 全表镜像：10 用例 + 副作用
+    （parse-only 不执行模块体）+ 非零权限 000 文件 + import 形态九连（**import
+    永远不是裁决**）+ office 工具包布局，python3 stdin 真跑；缺 python3 跳过、
+    `packaging` 在否决定 false marker 是 note 还是静默（Go 同款运行时分支）。
+  - **语义细节（容易翻错的）**：①verificationNotes **不去重**（去重是 python
+    校验器自己 add_note 的事，server 侧保序保重）；②verificationProblems 同样
+    保重；③describeExecFailure 的字段序 exit→killed→error→stderr、各段
+    TrimSpace；④nodeDependencyNames 读不了的 package.json → 空名单不报错
+    （"是安装器 agent 要报告的问题"）、devDependencies 排除、名单排序；
+    ⑤sortedScriptPaths 的 Go map 乱序被末尾 sort 消化——Java 侧 map 序无所谓，
+    结果一致；⑥skillAuxiliaryScript 的目录段匹配在**大小写折叠后**进行
+    （TESTS/x.py 命中），文件名 stem 规则 = conftest/setup/test_*/`*_test`；
+    ⑦runtime 门 JSON 语义：commands/blockers 任一为 null 或缺失 → 无效报告
+    （与解析失败同一文案），类型不符（`{"commands":{}}`）同败；命令名正则
+    `^[A-Za-z0-9_][A-Za-z0-9_.+-]*$` + ≤128；blocker 空白行拒绝；entries>100
+    拒绝；blockers 非空 → **Repairable=false** 的 gate（唯一不可修形态）；
+    commands 空数组 → 直接 nil（不 exec）。
+  - **execInstall 语义**：退出码非零 → (result, "command failed (" +
+    describeExecFailure + ")") 双通道返回（verifySkillTree 需要读 result 的
+    ExitCode/Stderr 再决定覆盖错误）；transport 失败 → (nil, msg)。Java 侧
+    record InstallExec(result, failure) 对齐。ShellExecOptions：execVerify 用
+    WorkDir=/workspace + 10min 超时 + WEKNORA_SKILL_DIR/WEKNORA_SKILL_OUTPUT_DIR
+    双 env（常量复用 SkillEnvResolver）；execInstall 用 AsRoot+AllowSkillsRoot
+    （旗标随会话 Manager 批生效）。
+  - **SkillCommandPath 归一**：唯一实现提到 SandboxPaths.skillCommandPath
+    （public），agent.skills.Manager 改委托——普通 skill 执行与安装校验共用
+    （Go skill_paths.go L211 注释原文），防两处漂移。
+  - **SkillInstallRuntimeInstructions 刻意未翻**：只被安装 prompt 构造消费
+    （buildInstallPrompt/buildRepairPrompt，install.go L995/L1831），属 installer
+    agent 管线；随管线翻，避免无消费者的大段常量先漂移。
+  - 验收：27 新测试全绿（字节契约 17 + runtime 行为 4 + python 行为 6 类）；
+    sandbox/agent.tools/agent.skills 定向回归绿；全量按 B1 纪律五批
+    （B1a agent+chatpipeline / B1b common+event+apikey+audit+auth / B2 六包 /
+    B3 八包 / B4 十四包）**全绿零失败**。A/B：**N/A（XDEP 备案）**——verify 门
+    无 HTTP 面，dev 双端 install 管线都止于 bootMaintenanceSandbox（provider
+    不可达）， golden 对账 route-recon 交集 387、真缺口候选 2 不变。

@@ -226,6 +226,21 @@ public class TenantSkillService {
         return progress.subscribe(tenantId, configId, skillId);
     }
 
+    // ── 校验门（tenant_skill_verify.go 面，波 5 W5β） ─────────────────────
+
+    /**
+     * 对照 {@code verifySkill}：安装的最后一道门（逐 pass 见 {@link TenantSkillVerifier}）。
+     * 执行体/读文件体以 seam 显式传入（Go 从 sandbox.Manager 取能力；Java 的会话
+     * Manager 随 provider 执行体批落地）。install 管线体（播种/agent/快照/切换）接入
+     * 前由契约测试直接驱动本入口。
+     */
+    TenantSkillVerifier.VerifyResult verifySkill(
+            com.ragagent.agent.tools.SandboxInstallCommandExecutor executor,
+            TenantSkillVerifier.SessionFileReader reader,
+            String sessionID, String skillDir, SkillBundleParser.SkillBundle bundle) {
+        return TenantSkillVerifier.verifySkill(executor, reader, sessionID, skillDir, bundle);
+    }
+
     // ── install 入口（tenant_skill_install.go L61-201） ──────────────────
 
     /** 对照 {@code InstallSkill}：校验、记录、后台启动；返回 skill ID 供 202。 */

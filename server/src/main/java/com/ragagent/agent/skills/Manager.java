@@ -510,10 +510,9 @@ public final class Manager {
         return new PreparedShell(wrapped, runtimeEnv);
     }
 
-    /** 对照 sandbox.SkillCommandPath：skill 的 venv/node_modules/.weknora bin 前缀。 */
+    /** 对照 sandbox.SkillCommandPath：skill 的 venv/node_modules/.weknora bin 前缀（W5β 起唯一实现在 SandboxPaths）。 */
     static String skillCommandPath(String dir) {
-        return SandboxPaths.join(dir, ".venv", "bin") + ":"
-                + SandboxPaths.join(dir, "node_modules", ".bin") + ":" + SandboxPaths.join(dir, ".weknora", "bin");
+        return SandboxPaths.skillCommandPath(dir);
     }
 
     // ---- manager.go 常量与环境 ----

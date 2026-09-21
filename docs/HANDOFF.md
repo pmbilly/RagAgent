@@ -1,10 +1,48 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：W5α3 收官提交（见 git log 顶部）· golden 1,719 个**（实际清点；α2 节写的 1,700 系笔误，α2 末实为 1,701）
+> 最后更新：2026-09-21 · **基线：W5β 收官提交（见 git log 顶部）· golden 1,719 个**（不变；W5β 无 HTTP 面）
 > 端点覆盖（2026-09-21 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 2 条** = `/swagger/{}`（Go 工具路由，非翻译目标）+ `models/{id}/debug`（留阶段 7，规则已登记、控制器 404 占位）
 
-## 0.0 W5α3 已收官（2026-09-21，波 5 第三子批：FileAccessResolver 跨租户双授予）
+## 0.0 W5β 已收官（2026-09-21，波 5 第四子批：tenant_skill verify 族 + progress 收口）
+
+**做了什么**：verify 门全文翻译——tenant_skill_verify.go（491 行全文：verifySkill
+四段编排 + verifySkillTree/verifyDeclaredDependencies/verifyScriptsParse/
+execVerify + tree/python/node/shell 四命令构造 + auxiliary 拆分/sortedScriptPaths/
+nodeDependencyNames/notes/problems 纯函数）+ tenant_skill_runtime_verify.go
+（113 行全文：install-report.json 校验阶梯 + runtime 命令核查）+ install.go 的
+describeExecFailure/execInstall。Java 落 `sandbox.service.{SkillVerificationException,
+TenantSkillVerifier}`；**python 校验器以逐字节资源进
+`resources/sandbox/tenant_skill_verify.py`**（cp+cmp+shasum 钉住）。形状差异
+（类注释声明）：Go 从 sandbox.Manager 取能力（installExecutor 断言 +
+SessionFileReader 类型断言），Java 以 SandboxInstallCommandExecutor +
+TenantSkillVerifier.SessionFileReader（窄能力接口）两个 seam 显式传入，文案逐字
+保留。SkillCommandPath 归一到 `SandboxPaths.skillCommandPath`（Manager 委托）。
+progress 三件套波 3 已在（SkillProgressStore，subscribe 恒 null 通道=Go redis==nil
+分支）复核零缺口；repository 491 行复核零缺口——快照台账/reaper 方法随管线批
+（mapper 注释既有备案）。**刻意未翻**：SkillInstallRuntimeInstructions +
+buildRepairPrompt/openInstallerRun 等 installer-agent 管线件（provider-XDEP，
+随管线批，避免无消费者常量先漂移）。
+验收：**27 新测试全绿**——①命令构造字节契约 17（fixture 是 `go test -overlay`
+探针从 Go 录的 `contracts/w5k-probe-commands.tsv` 18 键原始字节；**python 命令的
+base64 全文钉住资源逐字节同一**）；②runtime 门行为 4（照 Go runtimeProbeManager
+用本机 /bin/bash 真执行校验命令：六形态报告阶梯、skill 本地 bin 的 PATH 解析
+（引号目录名练 ShellQuote）、外部 blocker 恒不可修、纯文档 skill 完整错误串与
+Go 实录逐字节）；③python 校验器行为 6 类（Go verify_python_test 全表镜像，
+python3 stdin 真跑：语法错误分型/缺依赖 exit2/marker 门/auxiliary note/副作用零/
+import 九连/office 布局；缺 python3 跳过、packaging 在否分支同 Go）。
+受影响包（sandbox/agent.tools/agent.skills）+ 全量五批（B1a~B4，含 modelcontext/
+tracing）**全绿零失败**。**A/B N/A（XDEP 备案）**：verify 门无 HTTP 面，dev 双端
+install 管线都止步 bootMaintenanceSandbox（provider 不可达）。
+台账 conventions §9「W5β」，坑 §9「W5β」（known-issues/06-wave-5.md）。
+
+**下一步**：W5γ（im 执行体：γ1 地基 / γ2 service / γ3 九渠道适配器，波 5 最大块）
+→ W5δ（provider 终端执行体，W5d 已标 XDEP；tenant_skill install 管线体/
+transcript/steer/reaper 同属 provider-XDEP 族，接缝在 W5β 已备齐）。顺序见
+`docs/W5-plan.md`。
+
+
+## 0.1 W5α3 已收官（2026-09-21，存档——波 5 第三子批：FileAccessResolver 跨租户双授予）
 
 **做了什么**：消息文件代理的跨租户授权收口成 Go access/files.go
 AuthorizeMessageFile（L154-230 逐行）+ message_files.go 全文——
@@ -32,7 +70,7 @@ apiKeyAllowsKb 段必须用 key 自有会话才触达。台账 conventions §8�
 登记）→ W5γ（im 执行体：γ1 地基 / γ2 service / γ3 九渠道适配器，波 5 最大
 块）→ W5δ（provider 终端执行体，W5d 已标 XDEP）。顺序见 `docs/W5-plan.md`。
 
-## 0.1 W5α2 已收官（2026-09-21，存档——波 5 第二子批：QA resolveAgent 共享分支）
+## 0.2 W5α2 已收官（2026-09-21，存档——波 5 第二子批：QA resolveAgent 共享分支）
 
 **做了什么**：knowledge-chat/agent-chat 的 resolveAgent 共享分支全量落地——
 共享优先（err 吞掉）+ source==0 才回落 own + source!=0 未命中 404
@@ -54,7 +92,7 @@ AuthorizeMessageFile 双授予路径：resourceAccessibleViaSharedKB 证据收�
 （collectKBEvidenceFromValue 递归）+ GetSharedAgentForTenant +
 GetMessageFileBindings）→ W5β/γ/δ 按 `docs/W5-plan.md`。
 
-## 0.2 W5α1 已收官（2026-09-21，存档——波 5 首子批：共享 agent 读面收口）
+## 0.3 W5α1 已收官（2026-09-21，存档——波 5 首子批：共享 agent 读面收口）
 
 **作战计划**：`docs/W5-plan.md`（波 5 顺序 W5α 共享 agent 收口 → W5β tenant_skill →
 W5γ im 执行体 → W5δ provider 终端执行体；W5α 内部 α1 读面 / α2 QA / α3
@@ -84,7 +122,7 @@ sharedAgentReadOnly 下游接线 + ApplyBuiltinAgentLocalization 装配层补齐
 CustomAgentService.applyLocalization 私有，用 BuiltinAgentRegistry 原语）→
 W5α3（FileAccessResolver 跨租户恒 403 桩 → Go access/files.go 双授予路径）。
 
-## 0.3 W5d 已收官（2026-09-21，存档——沙箱终端 WS + local-browser + embed QA 委托）
+## 0.4 W5d 已收官（2026-09-21，存档——沙箱终端 WS + local-browser + embed QA 委托）
 
 > 半成品的实况记录（接手可跳过）已被本节替换；当时的分析底稿在 git 历史里。
 
@@ -106,7 +144,7 @@ patchEmbedChatPayload、files 委托 FileProxyService）；⑤验收：**24 个 
 browserskill/apikey/auth）+ agent/chatpipeline 批 + 其余包分批全绿（Gradle
 Test Executor 300 秒窗口限制下按 B1 纪律分批；agent/chatpipeline 单独一批）。
 
-## 0.4 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——存档，最新实况见 §0.0）
+## 0.5 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——存档，最新实况见 §0.0）
 
 **W5c 收尾批（2026-09-21，文件代理面收官）**：Go `internal/router/files.go`(693) 全文
 翻译 → `com.ragagent.storage.fileserve` 新包 8 文件（FileProxyService/FileAccessResolver/
@@ -249,7 +287,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ✅ **波 3 完成（sandbox/skill/协作/agents/browserskill，~92 条）**——emoji 专项已在 agents 批修复。剩余：sessions/:id/local-browser 2 条（随波 4 tools）、models/{id}/debug（阶段 7） |
 | 4 | **agent 核心 + tools + chat_pipeline + 前置缺口** | ~40k | ✅ **波 4 全部收官**：4.1（mcp 17 golden）/4.2（纯逻辑件 486 实录）/4.3（embed/im 85 golden）/4.4（模型客户端+检索地基 122 测试+30 stub A/B）/4.5a（tools 基建 208 实录）/4.5b（知识检索+wiki 249 实录）/4.5c（执行面+MCP 265 实录+stub A/B）/4.6a（modelcontext+skills 193 实录）/4.6b（AgentEngine 74 实录）/4.6c（chatpipeline 263 实录）/4.6d（chat 三入口+装配+A/B 15 场景全 MATCH）——台账 conventions §8，批次坑 §9 各小节 |
-| 5 | **im 执行体 + skill 收口 + shared-agent 收口** | — | ⏳ im service.go 3,453 行执行体、tenant_skill_* 收口、shared_agent_access→tools：随 4.5/4.6 接缝 |
+| 5 | **im 执行体 + skill 收口 + shared-agent 收口** | — | ⏳ **进行中**：W5d/W5α1~α3/W5β ✅；剩 W5γ（im 执行体 γ1 地基/γ2 service/γ3 九渠道）+ W5δ（provider 终端执行体）；install 管线体等 provider-XDEP 族随 δ 同批（见 §0.0 与 W5-plan.md） |
 | 4 | **agent 核心** + `agent/tools`（实测待翻 ~27k 非测试行）+ chat_pipeline 6.8k + 前置缺口 6.5k | ~40k | ⏳ 作战计划见 §2.3 |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
 
@@ -289,15 +327,16 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    注进控制器、把整个上下文搞挂的（见 §0.0），这是本纪律的最新反例。
 
 
-## 3. 下一步：波 5（W5d 已收官，实况见 §0.0）
+## 3. 下一步：波 5（W5β 已收官，实况见 §0.0）
 
 **新会话开场动作**（按序）：
 1. `git status`（确认在 `/Users/billy/ragagent-java`）+ 读 §0.0。
 2. 真缺口用 `python3 scripts/route-recon.py` 复核（起点应为「真缺口候选 2」=
    `/swagger/{}` 非翻译目标 + `models/{id}/debug` 留阶段 7）。
-3. 之后：波 5（im 执行体 3,453 行 + tenant_skill_* + shared_agent_access→tools）、
+3. 之后：波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
+   tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、
-   provider 终端执行体（W5d 的 XDEP 接缝，与波 5 同批）、⑱ initialize 契约对齐（Owner 决策）
+   ⑱ initialize 契约对齐（Owner 决策）
 
 ### 3.0 波 2 扫尾清单（✅ 全部完成，留档备查）
 
