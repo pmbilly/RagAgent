@@ -1,18 +1,22 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：W5b 收尾批完成（initialization 系统级 14 条；45 golden + A/B 两轮 80/80 ALL MATCH）** · golden 1440 个
-> **端点覆盖：Go 412 条 → Java 已注册约 388 条（约 94%）——W5a ✅ W5b ✅；下一步：收尾扫描批（见 §0「剩余缺口清单」）**
-> **端点覆盖：Go 412 条 → Java 已注册约 361 条（约 88%）——波 4 ✅；下一步：波 5（im 执行体/skill 收口/shared-agent）+ 收尾扫描（见 §0「剩余缺口清单」）**
+> 最后更新：2026-09-21 · **基线：W5c 收尾批完成（文件代理面 8 条；85 golden + A/B 两轮 75/75 ALL MATCH）** · golden 1,649 个
+> **端点覆盖（2026-09-21 程序化对账：Go 448 条 verb+path）→ Java 已落地约 440 条（约 98%）。真缺口仅剩 7 条 + models/{id}/debug——下一步 W5d（WS/ticket/local-browser + embed QA）→ 波 5**
 
-## 0. 接手状态（2026-09-21，波 4 已全部收官）
+## 0. 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——新会话直接派 W5d）
 
-**波 4.6 四连批全部提交**：4.6a f7a2b98（modelcontext+skills+langfuse seam，193 实录）→
-4.6b f345658（AgentEngine 引擎核心，74 实录 + MessageSanitizer 真缺陷修复）→
-4.6c 755bff4（chatpipeline 43 文件，263 实录 + 三个 len/拼接真缺陷修复）→
-4.6d 29b41b9（**chat 三入口 HTTP 面 + AgentStreamBridge SSE 桥 + PipelinePorts 11 seam
-装配 + SteerSink/follow-up + stub LLM 全链路 A/B 15 场景 × 2 轮全 MATCH 零 DIFF**）。
-验收基线：小包批 3,985 条全绿（session 257/agent+chatpipeline 404/apikey+auth 175/
-common+event+audit 270/B2 955/B3 1066/B4 1115）；golden 1,339 个。
+**W5c 收尾批（2026-09-21，文件代理面收官）**：Go `internal/router/files.go`(693) 全文
+翻译 → `com.ragagent.storage.fileserve` 新包 8 文件（FileProxyService/FileAccessResolver/
+FileTransport（**http.ServeContent 移植**：Range 206/416、If-* 预判、FormatMediaType
+RFC 2231）/StoragePaths/LocalFileContentService/BackendScopedFileService/
+StorageFileResolver/ResourceCatalogService）+ 4 控制器（/files、/r/*、presigned
+GET+HEAD、presigned-preview、KB-scoped、message-scoped）。验收：85 条 w5c-* golden +
+真 PG A/B 两轮 **75/75 ALL MATCH 零 DIFF**（ab-w5c.sh：27 JSON 逐字节 + 21 二进制
+body + 6 HEAD 形态）。golden 抓回六个真契约（presigned 裸 inline/attachment、
+presigned-preview 的 storage:// 包装、If-None-Match 无 ETag 照常 200、绑定缺失 403
+先于 404、FormatMediaType UTF-8 字节百分号化、HEAD 404 是 gin NoRoute 形态）。
+**TestSchema 新增 resource_bindings/resource_access_grants 两表**（迁移 000069 硬依赖，
+主会话复核接受——"TestSchema 以迁移为准"先例）。台账见 conventions §8「W5c」§9「W5c 补充」。
 
 **W5b 收尾批（2026-09-21，initialization 模型初始化向导收官）**：补齐
 initialization 系统级 14 条（ollama 管理 6 + 模型连通性测试 5 + 抽取 3）。
@@ -33,29 +37,43 @@ messages 4 条/chunks 写族 7 条规则——此前多为空转/缺席）；B �
 （tag.SeqID 回填、refresh 同秒 JWT 掷硬币、PathTenantMatch 死代码、mcp×storage
 测试互踩为新发现）。
 
+**波 4 已全部收官（4.6 四连批）**：4.6a f7a2b98（modelcontext+skills+langfuse seam，
+193 实录）→ 4.6b f345658（AgentEngine 引擎核心，74 实录 + MessageSanitizer 真缺陷
+修复）→ 4.6c 755bff4（chatpipeline 43 文件，263 实录 + 三个 len/拼接真缺陷修复）→
+4.6d 29b41b9（chat 三入口 HTTP 面 + AgentStreamBridge SSE 桥 + PipelinePorts 11 seam
+装配 + SteerSink/follow-up + stub LLM 全链路 A/B 15 场景 × 2 轮全 MATCH 零 DIFF）。
+
+**复核基线（主会话独立复跑）**：W5c 受影响六包 692 绿（storage/storageurl/knowledge/
+session/apikey/auth）+ W5b 批 303 绿（agentm/llm）+ W5a 批 226 绿（auth/knowledge/im）
++ session 257 绿；波 4 收官时小包批合计 3,985 绿。golden 1,649。
+
 **⚠️ 批次教训（4.6d 复发确认）**：agent/chatpipeline 与 apikey/auth 等 @SpringBootTest
 包同批 → Mockito attach 假红（110 条）；**B1 批拆两批跑**（agent/chatpipeline 一批、
 Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「波 4.5b 补充」。
 
 **剩余缺口清单（整体改造收尾，按批派）**：
-1. **收尾扫描批（散条 HTTP 面）**：sessions/:id/local-browser ×2（BrowserSkillConnection，
+1. **W5d（下一批，真缺口最后 7 条）**：sessions/:id/local-browser ×2（BrowserSkillConnection，
    Go handler/session/browserskill.go）+ sandbox_terminal_ws.go(426)/bridge(340)
-   （terminal-ticket + WebSocket）+ embed 公开 QA 委托面（4.3 遗留）+ models/{id}/debug
-2. **波 5**：im 执行体（im service.go 3,453，/wechat/qrcode ×2 随此）+
-   tenant_skill_* 收口 + shared_agent_access→tools + 共享 agent QA 解析
-   （GetSharedAgentForTenant，4.6d 备案）+ 波 4.6d 其余移交缺口
+   （terminal-ticket + WebSocket 终端）+ embed 公开 QA 委托 3 条（knowledge-chat/
+   agent-chat/files——4.3 遗留，QA 委托 4.6d 的 Controller 可复用）
+   （models/{id}/debug 仍留阶段 7：规则已登记、控制器 404 占位）
+2. **波 5**：im 执行体（im service.go 3,453）+ tenant_skill_* 收口 +
+   shared_agent_access→tools + 共享 agent QA 解析（GetSharedAgentForTenant，
+   4.6d 备案）+ 波 4.6d 其余移交缺口
 3. **检索引擎批**：HybridSearch 执行面（向量/关键词检索实质执行——4.6d adapter 留
    空/1003 两形态，纯聊天路径不受影响）
 4. **执行体批**：ArtifactCollector/rewriteArtifactReferences/VLM Predict 的生产装配
    （dev 部署两侧同形 no-op，真部署才需要）
-5. **Owner 决策遗留**：⑱ MCP initialize 契约对齐、SkillEnvironment 位置、
-   波 3 SkillFrontmatter snakeyaml 宽容类型、TenantService 占位是否变真、
-   ConversationProperties 多环境接线
+5. **专项/Owner 决策遗留**：mcp×storage SsrfGuard 互踩（既有问题，W5a 发现）；
+   ⑱ MCP initialize 契约对齐、SkillEnvironment 位置、波 3 SkillFrontmatter snakeyaml
+   宽容类型、TenantService 占位是否变真、ConversationProperties 多环境接线
 
-**重派模板（下一批=收尾扫描批 1）**："收尾批任务书——sessions/:id/local-browser ×2 +
-sandbox_terminal_ws/bridge + embed QA 委托面 + models/{id}/debug；验收：golden +
-A/B（WS/ticket 按部署态标 XDEP 或双端同打 stub）；先读 conventions §3/§6/§7.5/§8/§9；
-golden 前缀先 ls contracts/；WebConfig/APIKeyRoutePolicies 显式授权；小包批测试"
+**重派模板（W5d）**："W5d 任务书——sessions/:id/local-browser ×2 + sandbox_terminal_ws
+(426)/bridge(340)（terminal-ticket + WS 终端）+ embed 公开 QA 委托 3 条；验收：golden +
+A/B（WS/ticket 双端同打 stub 或按部署态标 XDEP；embed QA 委托复用 4.6d KnowledgeQaController
+路径双端同指 stub LLM）；先读 conventions §3/§6/§7.5/§8/§9（§9.3 SSE + W5a/b/c 补充）；
+golden 前缀先 ls contracts/（w5d-*）；WebConfig/APIKeyRoutePolicies/AuthFilter 显式授权；
+小包批测试（勿与 agent/chatpipeline 同批）"
 
 ## 0. 一句话背景
 
@@ -130,7 +148,7 @@ golden 前缀先 ls contracts/；WebConfig/APIKeyRoutePolicies 显式授权；�
 | **1** | **会话/消息面剩余**（CRUD/附件/产物/追问建议/消息历史/steer） | 27 条 | ✅ **完成**（真 PG A/B 全 MATCH） |
 | 2 | 其余未被 agent 阻塞的端点群（chunk/knowledge/faq/infra-config/members+invitations+api-principal/system/admin/evaluation + 扫尾 auth/OIDC/跨租户/favorites/chunker-预览） | ~140 条 | ✅ **全部收官（A/B 全 MATCH）** |
 | 3 | **关键路径前置**：`sandbox` → `infrastructure` → `browserskill` → `modelcontext` | ~32k | ✅ **波 3 完成（sandbox/skill/协作/agents/browserskill，~92 条）**——emoji 专项已在 agents 批修复。剩余：sessions/:id/local-browser 2 条（随波 4 tools）、models/{id}/debug（阶段 7） |
-| 4 | **agent 核心 + tools + chat_pipeline + 前置缺口** | ~40k | ⏳ **4.1/4.3/4.4/4.2/4.5a/4.5b/4.5c 完成并提交**（event 41 文件；embed/im 16 文件 85 golden；模型客户端+检索地基 68 文件 122 测试 + 30 请求体 stub A/B；纯逻辑件 24 文件 79 新测试 + 486 条 Go 实录；4.5a tools 基建 33 文件 + 208 条实录；4.5b 知识检索+wiki 24 文件 + 249 条实录；**4.5c 执行面+MCP 35 文件 + 265 条实录 + MCP stub A/B 双端逐字节收官 tools 全量**——见 §9）。剩 4.6 引擎+chat 收官 |
+| 4 | **agent 核心 + tools + chat_pipeline + 前置缺口** | ~40k | ✅ **波 4 全部收官**：4.1（mcp 17 golden）/4.2（纯逻辑件 486 实录）/4.3（embed/im 85 golden）/4.4（模型客户端+检索地基 122 测试+30 stub A/B）/4.5a（tools 基建 208 实录）/4.5b（知识检索+wiki 249 实录）/4.5c（执行面+MCP 265 实录+stub A/B）/4.6a（modelcontext+skills 193 实录）/4.6b（AgentEngine 74 实录）/4.6c（chatpipeline 263 实录）/4.6d（chat 三入口+装配+A/B 15 场景全 MATCH）——台账 conventions §8，批次坑 §9 各小节 |
 | 5 | **im 执行体 + skill 收口 + shared-agent 收口** | — | ⏳ im service.go 3,453 行执行体、tenant_skill_* 收口、shared_agent_access→tools：随 4.5/4.6 接缝 |
 | 4 | **agent 核心** + `agent/tools`（实测待翻 ~27k 非测试行）+ chat_pipeline 6.8k + 前置缺口 6.5k | ~40k | ⏳ 作战计划见 §2.3 |
 | 5 | `chat_pipeline` · `im` · skill · shared-agent 收口 | ~30k | ⏳ |
