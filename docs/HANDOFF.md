@@ -1,10 +1,38 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：W5α2 收官提交（见 git log 顶部）· golden 1,700 个**
+> 最后更新：2026-09-21 · **基线：W5α3 收官提交（见 git log 顶部）· golden 1,719 个**（实际清点；α2 节写的 1,700 系笔误，α2 末实为 1,701）
 > 端点覆盖（2026-09-21 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 2 条** = `/swagger/{}`（Go 工具路由，非翻译目标）+ `models/{id}/debug`（留阶段 7，规则已登记、控制器 404 占位）
 
-## 0.0 W5α2 已收官（2026-09-21，波 5 第二子批：QA resolveAgent 共享分支）
+## 0.0 W5α3 已收官（2026-09-21，波 5 第三子批：FileAccessResolver 跨租户双授予）
+
+**做了什么**：消息文件代理的跨租户授权收口成 Go access/files.go
+AuthorizeMessageFile（L154-230 逐行）+ message_files.go 全文——
+①shared-agent 授予（`AgentShareService.getSharedAgentForTenant` +
+`ResourceCatalogService.getMessageFileBindings`（catalog 层负责
+reference→resource.ID 解析）+ `SharedAgentKBScope.allows` + `apiKeyAllowsKb`
+（try/catch 对照 Go `== nil` 判定），消息 artifact 绑定独立放行）；
+②org-shared KB 证据链（`collectSharedKBEvidenceIDs`：knowledge_references +
+agent_steps 的 `collectKBEvidenceFromValue` 递归 + kb_shares viewer +
+存活 resource_bindings，全程 fail-closed）。`FileAccessResolver` 构造器新增
+4 依赖（AgentShare/KbShare/Knowledge/KnowledgeBaseService）。
+验收：**13 场景 18 个 w5f-* golden（Go 实录，record-w5f-golden.sh 幂等种子）+
+W5fCrossTenantFileContractTest 3 方法 + 真 PG A/B 两轮 18/18 ALL MATCH**
+（ab-w5f.sh，无掩码）；storage/session/org/knowledge 回归 477 绿。
+**golden 抓回两个真契约**：①ToolCall.Result.Output 命中的 handle **不能**
+归因到兄弟 Data 的 knowledge_base_id（Go 先 Output 后 Data、kb 上下文只沿
+map 下行继承）——首录 evidence-steps 403 是种子设计错而非翻译错，证据串
+须与 knowledge_base_id 同 map；②API-Key 主体读 web 用户会话恒 404
+（owner = `api_tenant_key:<tenant>:<keyID>` 精确匹配，
+runtimeMayBypassAdminConsoleRead 仅放行 key-owned 会话）——授予循环的
+apiKeyAllowsKb 段必须用 key 自有会话才触达。台账 conventions §8「W5α3」，
+坑 §9「W5α3」（known-issues/06-wave-5.md）。
+
+**下一步**：W5β（tenant_skill verify + progress，Go 侧位置见 route-recon
+登记）→ W5γ（im 执行体：γ1 地基 / γ2 service / γ3 九渠道适配器，波 5 最大
+块）→ W5δ（provider 终端执行体，W5d 已标 XDEP）。顺序见 `docs/W5-plan.md`。
+
+## 0.1 W5α2 已收官（2026-09-21，存档——波 5 第二子批：QA resolveAgent 共享分支）
 
 **做了什么**：knowledge-chat/agent-chat 的 resolveAgent 共享分支全量落地——
 共享优先（err 吞掉）+ source==0 才回落 own + source!=0 未命中 404
@@ -26,7 +54,7 @@ AuthorizeMessageFile 双授予路径：resourceAccessibleViaSharedKB 证据收�
 （collectKBEvidenceFromValue 递归）+ GetSharedAgentForTenant +
 GetMessageFileBindings）→ W5β/γ/δ 按 `docs/W5-plan.md`。
 
-## 0.1 W5α1 已收官（2026-09-21，存档——波 5 首子批：共享 agent 读面收口）
+## 0.2 W5α1 已收官（2026-09-21，存档——波 5 首子批：共享 agent 读面收口）
 
 **作战计划**：`docs/W5-plan.md`（波 5 顺序 W5α 共享 agent 收口 → W5β tenant_skill →
 W5γ im 执行体 → W5δ provider 终端执行体；W5α 内部 α1 读面 / α2 QA / α3
@@ -56,7 +84,7 @@ sharedAgentReadOnly 下游接线 + ApplyBuiltinAgentLocalization 装配层补齐
 CustomAgentService.applyLocalization 私有，用 BuiltinAgentRegistry 原语）→
 W5α3（FileAccessResolver 跨租户恒 403 桩 → Go access/files.go 双授予路径）。
 
-## 0.2 W5d 已收官（2026-09-21，存档——沙箱终端 WS + local-browser + embed QA 委托）
+## 0.3 W5d 已收官（2026-09-21，存档——沙箱终端 WS + local-browser + embed QA 委托）
 
 > 半成品的实况记录（接手可跳过）已被本节替换；当时的分析底稿在 git 历史里。
 
@@ -78,7 +106,7 @@ patchEmbedChatPayload、files 委托 FileProxyService）；⑤验收：**24 个 
 browserskill/apikey/auth）+ agent/chatpipeline 批 + 其余包分批全绿（Gradle
 Test Executor 300 秒窗口限制下按 B1 纪律分批；agent/chatpipeline 单独一批）。
 
-## 0.3 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——存档，最新实况见 §0.0）
+## 0.4 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——存档，最新实况见 §0.0）
 
 **W5c 收尾批（2026-09-21，文件代理面收官）**：Go `internal/router/files.go`(693) 全文
 翻译 → `com.ragagent.storage.fileserve` 新包 8 文件（FileProxyService/FileAccessResolver/

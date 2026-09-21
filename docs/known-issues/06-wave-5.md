@@ -282,3 +282,40 @@
   - 验收：3 条 w5q-* golden（pre-SSE 错误面）+ W5qSharedAgentQaContractTest +
     真 PG A/B 两轮 5/5 ALL MATCH（ab-w5q.sh：2 SSE 正路径掩码对拍 + 3 负面逐字节，
     双侧各一条会话避免历史互染）；session/common/event 回归 467 绿。
+
+- **W5α3（FileAccessResolver 跨租户双授予：shared-agent 授予 + org-shared KB 证据链）**：
+  - **授予顺序照 Go files.go L154-230 逐行**：owner = resource 租户（无 resource
+    行回落 message.agent_tenant_id）→ owner==0 → 403 → role=="user" 且跨租户 →
+    403 → resource!=null 且 agentTenantId!=0 且 ≠owner → 先试证据链**失败即 403**
+    （不落 shared-agent）→ owner!=caller 且未授权 → agentTenantId==0 时才再试
+    证据链 → shared-agent 授予。授权失败一律 FileAccessException.forbidden()
+    （Go 错误全折 403 的 fail-closed），消息加载失败 notFound()。
+  - **证据链四要件缺一不可**（resourceAccessibleViaSharedKB，自有 agent + 他方
+    KB 的 #3022 场景）：持久化检索证据含规范 resource:// handle
+    （knowledge_references 的 content/matched_content/image_info，或 agent_steps
+    递归）+ 证据 KB 属于资源租户 + kb_shares org 共享 ≥viewer + 存活
+    resource_bindings（**文本里出现 handle 不算所有权证据**）。任何查找失败
+    fail-closed。
+  - **ToolCall 证据的 kb 上下文不共享**：collectKBEvidenceFromValue 对 ToolCall
+    先 Output 后 Data——Output 命中的 handle **不能**归因到兄弟 Data map 的
+    knowledge_base_id（上下文只沿 map 下行继承 knowledge_base_id /
+    knowledge_base / knowledge_id）。Go 实录钉住：handle 在 Output + kb 在 Data
+    → 403；handle 放进 Data 内部字符串（与 knowledge_base_id 同 map）→ 200。
+    首录 evidence-steps 403 是种子设计错，不是翻译错。
+  - **API-Key 主体的会话可见性**：owner = `api_tenant_key:<tenant>:<keyID>`
+    （SessionOwnerIDFromContext(PrincipalAPITenant)），读 web 用户会话恒 404
+    （owner 精确不匹配）；runtimeMayBypassAdminConsoleRead 只放行 owner 相等的
+    key-owned 会话。授予循环里的 apiKeyAllowsKb 因此**必须用 key 自有会话才
+    触达**（受限 key 白名单外 → false；full-access / web 用户恒放行；Go 是
+    `AuthorizeTenantAPIKeyKnowledgeBases(...) == nil` 判定，Java try/catch 包
+    authorizeKnowledgeBases）。
+  - **GetMessageFileBindings 在 catalog 层做 reference→resource.ID 解析**
+    （Go files.go 传原始 reference）：resolvePath → getByTenantLocation 兜底；
+    资源不存在/租户不符 → 空 origins（**不是错误**）；messageArtifact 段认
+    owner_type='message' + relation='artifact' + owner_id=消息 id。
+  - **撤销 share 即撤销历史消息文件访问**：授权每次请求重查当前共享关系
+    （agent_shares/kb_shares/绑定全部现查，无缓存）。
+  - 验收：13 场景 18 个 w5f-* golden（Go 实录，record-w5f-golden.sh 幂等种子：
+    租户/用户 ON CONFLICT ensure + w5f 专属 id 自清）+
+    W5fCrossTenantFileContractTest 3 方法 + 真 PG A/B 两轮 18/18 ALL MATCH
+    （ab-w5f.sh，无掩码）；storage/session/org/knowledge 回归 477 绿。

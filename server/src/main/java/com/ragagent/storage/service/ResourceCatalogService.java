@@ -227,4 +227,30 @@ public class ResourceCatalogService {
         }
         return repo.isReferencedByKnowledgeBase(tenantId, kbId, resource.getId());
     }
+
+    /** 对照 Go types.MessageFileBindings（消息文件的权威来源：KB 绑定 + 消息 artifact 绑定）。 */
+    public record MessageFileBindings(java.util.List<String> knowledgeBaseIds, boolean messageArtifact) {
+    }
+
+    /**
+     * 对照 Go {@code resourceCatalog.GetMessageFileBindings}（service/resource.go L179-197）：
+     * 先解析别名（ResolvePath → GetByTenantLocation 兜底），资源不存在或租户不符 →
+     * 空 origins（不是错误）；命中才读权威绑定。
+     */
+    public MessageFileBindings getMessageFileBindings(long tenantId, String reference, String messageId) {
+        ResolvedPath resolved = resolvePath(reference);
+        if (resolved.error()) {
+            return new MessageFileBindings(java.util.List.of(), false);
+        }
+        StoredResource resource = resolved.resource();
+        if (resource == null) {
+            resource = repo.getByTenantLocation(tenantId, locationHash(resolved.physicalPath())).orElse(null);
+        }
+        if (resource == null || resource.getTenantId() != tenantId) {
+            return new MessageFileBindings(java.util.List.of(), false);
+        }
+        return new MessageFileBindings(
+                repo.knowledgeBaseIdsForBinding(tenantId, resource.getId()),
+                repo.hasMessageArtifactBinding(tenantId, resource.getId(), messageId));
+    }
 }

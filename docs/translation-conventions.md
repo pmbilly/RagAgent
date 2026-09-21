@@ -383,3 +383,4 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | W5d（沙箱终端 WS + local-browser + embed QA 委托） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | W5α1（共享 agent 读面收口：KB list/batch/search agent_id 分支） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | W5α2（QA resolveAgent 共享分支 + 执行租户切换） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
+| W5α3（FileAccessResolver 跨租户双授予：shared-agent 授予 + org-shared KB 证据链） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
