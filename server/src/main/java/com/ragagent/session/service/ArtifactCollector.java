@@ -12,7 +12,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 import com.ragagent.agent.tools.RemoteDirEntry;
 import com.ragagent.session.domain.MessageArtifact;
@@ -27,7 +26,6 @@ import com.ragagent.session.domain.MessageArtifact;
  * 处理，不设置 message.Artifacts）。Collect 抛出的错误只限内部不变量被破坏；
  * 单文件失败（不可读/超限/上传失败）记日志跳过，绝不打断回合。</p>
  */
-@Service
 public class ArtifactCollector {
 
     private static final Logger log = LoggerFactory.getLogger(ArtifactCollector.class);
