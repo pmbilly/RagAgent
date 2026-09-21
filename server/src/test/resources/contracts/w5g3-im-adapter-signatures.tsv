@@ -1,0 +1,7 @@
+slack_sig	v0=340a1d41825ad1d37312cb51194da3433eff47e5501a427f130b65a9991c6763
+slack_base	v0:1700000000:{"type":"event_callback","text":"你好 IM"}
+dingtalk_sig	z4CboP6RnjpKyroWrYAPqIV+H4TMFSz4H3hV67+4aUU=
+dingtalk_ts	1700000000
+telegram_header	w5g3-telegram-secret
+body	{"type":"event_callback","text":"你好 IM"}
+secret	w5gamma-secret
