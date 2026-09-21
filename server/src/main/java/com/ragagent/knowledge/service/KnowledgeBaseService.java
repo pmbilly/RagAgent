@@ -255,6 +255,46 @@ public class KnowledgeBaseService {
         return kb;
     }
 
+    /**
+     * 对照 ListKnowledgeBasesByTenantID（共享 agent 分支专用，W5\u03b1）：
+     * tenant \u5168\u91cf + is_temporary=false + created_at DESC\u3002\u4e0d\u56de\u586b pin/creator_name/
+     * share_count\uff08Go \u8be5\u8def\u5f84\u4e0d\u505a\uff09\uff1b\u8ba1\u6570\u53ea\u8986\u76d6\u7c7b\u578b\u76f8\u5173\u5b57\u6bb5\uff08document\u2192
+     * knowledge_count\u3001faq\u2192chunk_count\uff09\uff0cprocessing \u72b6\u6001\u53ea\u7b97 pending/processing\u3002
+     */
+    public List<KnowledgeBase> listKnowledgeBasesByTenantId(long tenantId) {
+        List<KnowledgeBase> all = kbMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<KnowledgeBase>()
+                        .eq("tenant_id", tenantId)
+                        .eq("is_temporary", false)
+                        .isNull("deleted_at")
+                        .orderByDesc("created_at"));
+        for (KnowledgeBase kb : all) {
+            fillCountsForSharedList(kb);
+        }
+        return all;
+    }
+
+    /** 对照 Go service L422-437：只覆盖类型相关计数字段，另一个保留库表原值。 */
+    private void fillCountsForSharedList(KnowledgeBase kb) {
+        if ("document".equals(kb.getType())) {
+            Long kc = knowledgeMapper.selectCount(new LambdaQueryWrapper<Knowledge>()
+                    .eq(Knowledge::getKnowledgeBaseId, kb.getId())
+                    .isNull(Knowledge::getDeletedAt));
+            kb.setKnowledgeCount(kc == null ? 0 : kc);
+        } else if ("faq".equals(kb.getType())) {
+            Long cc = chunkMapper.selectCount(new LambdaQueryWrapper<com.ragagent.knowledge.domain.Chunk>()
+                    .eq(com.ragagent.knowledge.domain.Chunk::getKnowledgeBaseId, kb.getId())
+                    .isNull(com.ragagent.knowledge.domain.Chunk::getDeletedAt));
+            kb.setChunkCount(cc == null ? 0 : cc);
+        }
+        Long pc = knowledgeMapper.selectCount(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getKnowledgeBaseId, kb.getId())
+                .isNull(Knowledge::getDeletedAt)
+                .in(Knowledge::getParseStatus, Knowledge.PARSE_PENDING, Knowledge.PARSE_PROCESSING));
+        kb.setProcessingCount(pc == null ? 0 : pc);
+        kb.setIsProcessing(pc != null && pc > 0);
+    }
+
     /** 对照 ListKnowledgeBases：全量（无分页）+ 计数/置顶/创建者名回填 */
     public List<KnowledgeBase> listKnowledgeBases(String creator) {
         // 对照 repository L88：Order("created_at DESC") 最新在前

@@ -54,13 +54,16 @@ public class KnowledgeBaseController {
     private final KnowledgeBaseService kbService;
     private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
     private final com.ragagent.knowledge.service.KnowledgeAccessGuard guard;
+    private final com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess;
 
     public KnowledgeBaseController(KnowledgeBaseService kbService,
                                    com.ragagent.knowledge.service.KnowledgeService knowledgeService,
-                                   com.ragagent.knowledge.service.KnowledgeAccessGuard guard) {
+                                   com.ragagent.knowledge.service.KnowledgeAccessGuard guard,
+                                   com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
         this.guard = guard;
+        this.sharedAgentAccess = sharedAgentAccess;
     }
 
     /** 对照 CreateKnowledgeBase — Contributor+ */
@@ -100,11 +103,42 @@ public class KnowledgeBaseController {
         }
     }
 
-    /** 对照 ListKnowledgeBases — Viewer+；creator=mine|others 过滤 */
+    /**
+     * 对照 ListKnowledgeBases — Viewer+；creator=mine|others 过滤。
+     *
+     * <p>{@code agent_id} 分支（W5α 收口，Go L514-541）：共享 agent 解析 → scope
+     * 空短路 → 列 agent 源空间 KB → 能力过滤 → API-Key 过滤 → SharedStoreDisplay
+     * 列表项（跨租户剥离 vector_store_*）。</p>
+     */
     @GetMapping
     public ResponseEntity<?> listKnowledgeBases(
-            @RequestParam(value = "creator", required = false) String creator) {
+            @RequestParam(value = "creator", required = false) String creator,
+            @RequestParam(value = "agent_id", required = false) String agentId,
+            @RequestParam(value = "agent_source_tenant_id", required = false) String agentSourceTenantId) {
         log.info("Start listing knowledge bases");
+        String safeAgent = com.ragagent.common.security.LogSanitizer.sanitize(agentId == null ? "" : agentId);
+        if (!safeAgent.isEmpty()) {
+            com.ragagent.org.domain.AgentRow agent =
+                    sharedAgentAccess.resolveForRequest(safeAgent, agentSourceTenantId);
+            com.ragagent.org.service.SharedAgentKBScope agentScope =
+                    com.ragagent.org.service.SharedAgentKBScope.from(agent);
+            if (agentScope.isEmpty()) {
+                return ResponseEntity.ok(envelope(new ArrayList<>()));
+            }
+            List<KnowledgeBase> sharedKbs = kbService.listKnowledgeBasesByTenantId(agent.getTenantId());
+            sharedKbs = com.ragagent.knowledge.service.SharedAgentAccessResolver
+                    .filterKnowledgeBasesForSharedAgent(sharedKbs, agent);
+            var agentScopeKey = com.ragagent.apikey.domain.APIKeyScopeContext.current();
+            if (agentScopeKey != null && agentScopeKey.isKnowledgeBaseRestricted()) {
+                sharedKbs = sharedKbs.stream()
+                        .filter(kb -> agentScopeKey.allowsKnowledgeBase(kb.getId())).toList();
+            }
+            List<Map<String, Object>> sharedData = new ArrayList<>(sharedKbs.size());
+            for (KnowledgeBase kb : sharedKbs) {
+                sharedData.add(KnowledgeBaseResponseBuilder.buildSharedListItem(kb));
+            }
+            return ResponseEntity.ok(envelope(sharedData));
+        }
         List<KnowledgeBase> kbs = kbService.listKnowledgeBases(creator);
         // 对照 filterKnowledgeBasesForAPIKeyScope：KB 受限的 API Key 只看得到白名单内的库。
         // 这是**数据面**校验（门禁层只校验路由能力），scoped Key 的收口强度取决于此处。

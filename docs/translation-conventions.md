@@ -381,3 +381,4 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | W5b 补充（initialization 系统级 14 条） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | W5c 补充（文件代理面 8 条路由） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | W5d（沙箱终端 WS + local-browser + embed QA 委托） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
+| W5α1（共享 agent 读面收口：KB list/batch/search agent_id 分支） | [`06-wave-5.md`](known-issues/06-wave-5.md) |

@@ -147,6 +147,42 @@ public class KbShareService {
                 .orderByDesc(KbShare::getCreatedAt));
     }
 
+    /**
+     * 对照 CheckTenantKBPermission（kbshare.go L462-485，W5α 收口）：org 共享给
+     * 调用方租户的有效角色取最高（minOrgRole(share, member) → applyTenantRoleCap）。
+     * 成员查询失败跳过该 share（Go `continue`）。
+     */
+    public CheckTenantKBPermissionResult checkTenantKBPermission(String kbId, long callerTenantId,
+                                                                 TenantRole callerTenantRole) {
+        List<KbShare> shares = listByKnowledgeBase(kbId);
+        String highest = "";
+        boolean shared = false;
+        for (KbShare share : shares) {
+            OrganizationTenantMember tm = getMemberRow(share.getOrganizationId(), callerTenantId);
+            if (tm == null) {
+                continue;
+            }
+            shared = true;
+            String effective = OrganizationService.minOrgRole(share.getPermission(), tm.getRole());
+            effective = OrganizationService.applyTenantRoleCap(effective, callerTenantRole);
+            if (highest.isEmpty() || OrganizationService.hasPermission(effective, highest)) {
+                highest = effective;
+            }
+        }
+        return new CheckTenantKBPermissionResult(highest, shared);
+    }
+
+    /** (effectiveRole, isShared)：role 空串 = 无有效授予（对照 Go 的 "" 零值）。 */
+    public record CheckTenantKBPermissionResult(String role, boolean shared) {
+
+        /** 对照 KBSharePermissions.Check：双方角色有效且 effective ≥ required。 */
+        public boolean permits(String required) {
+            return shared && OrganizationService.isValidRole(role)
+                    && OrganizationService.isValidRole(required)
+                    && OrganizationService.hasPermission(role, required);
+        }
+    }
+
     /** 对照 ListByOrganization：排除 KB 已软删的 share，order created_at DESC。 */
     public List<KbShare> listByOrganization(String orgId) {
         return shareMapper.selectList(new LambdaQueryWrapper<KbShare>()

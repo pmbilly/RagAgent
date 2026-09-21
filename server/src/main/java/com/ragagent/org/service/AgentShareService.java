@@ -321,6 +321,91 @@ public class AgentShareService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * 对照 GetShareByAgentIDAndSourceForTenant（repository/agent_share.go L216-244）：
+     * 精确 source 选择子 + 组织成员资格 + organizations 未删 + custom_agents 未删 四重 join。
+     */
+    public AgentShare getShareByAgentIdAndSourceForTenant(long tenantId, String agentId,
+                                                          long sourceTenantId) {
+        List<AgentShare> rows = shareMapper.selectList(new LambdaQueryWrapper<AgentShare>()
+                .eq(AgentShare::getAgentId, agentId)
+                .eq(AgentShare::getSourceTenantId, sourceTenantId)
+                .isNull(AgentShare::getDeletedAt)
+                .inSql(AgentShare::getOrganizationId,
+                        "SELECT otm.organization_id FROM organization_tenant_members otm "
+                                + "WHERE otm.tenant_id = " + tenantId)
+                .inSql(AgentShare::getOrganizationId,
+                        "SELECT id FROM organizations WHERE deleted_at IS NULL")
+                .apply("EXISTS (SELECT 1 FROM custom_agents ca WHERE ca.id = agent_id "
+                        + "AND ca.tenant_id = source_tenant_id AND ca.deleted_at IS NULL)")
+                .orderByAsc(AgentShare::getId)
+                .last("LIMIT 1"));
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /**
+     * 对照 GetSharedAgentForTenant（agent_share.go L455-505）：一次 share 查询 + 一次
+     * agent 查询。callerTenantRole 目前只作对称/未来限额用途（Go 原文 `_ = callerTenantRole`）。
+     *
+     * <p>哨兵映射（文案即契约）：agentID 空 / source==caller →
+     * {@link OrgServiceException#agentShareNotFound()}；share 查不到 →
+     * {@link OrgServiceException#agentSharePermission()}；agent 缺失 →
+     * {@link OrgServiceException#agentNotFoundForShare()}。</p>
+     *
+     * <p>Go 返回前 ApplyBuiltinAgentLocalization——只覆盖 name/description/avatar，
+     * 不影响 config/tenant 判定；QA 面（α2）消费完整 agent 时在装配层补齐。</p>
+     */
+    public AgentRow getSharedAgentForTenant(long tenantId, TenantRole callerTenantRole,
+                                            String agentId, long... sourceTenantId) {
+        if (agentId == null || agentId.isEmpty()) {
+            throw OrgServiceException.agentShareNotFound();
+        }
+        if (sourceTenantId.length > 0 && sourceTenantId[0] != 0) {
+            if (sourceTenantId[0] == tenantId) {
+                throw OrgServiceException.agentShareNotFound();
+            }
+            AgentShare share = getShareByAgentIdAndSourceForTenant(tenantId, agentId,
+                    sourceTenantId[0]);
+            if (share == null) {
+                throw OrgServiceException.agentSharePermission();
+            }
+            AgentRow agent = agentMapper.getById(agentId);
+            if (agent == null || agent.getTenantId() == null
+                    || agent.getTenantId().longValue() != share.getSourceTenantId().longValue()) {
+                throw OrgServiceException.agentNotFoundForShare();
+            }
+            return agent;
+        }
+        AgentShare share = getShareByAgentIdForTenant(tenantId, agentId, tenantId);
+        if (share == null) {
+            throw OrgServiceException.agentSharePermission();
+        }
+        AgentRow agent = agentMapper.getById(agentId);
+        if (agent == null || agent.getTenantId() == null
+                || agent.getTenantId().longValue() != share.getSourceTenantId().longValue()) {
+            throw OrgServiceException.agentNotFoundForShare();
+        }
+        return agent;
+    }
+
+    /**
+     * 对照 TenantCanAccessKBViaSomeSharedAgent（agent_share.go L506-521）：调用方租户
+     * 有任意一个共享 agent 的 KB 范围覆盖该 KB 即真（用于"通过智能体可见"的无 agent_id 详情）。
+     */
+    public boolean tenantCanAccessKBViaSomeSharedAgent(long tenantId, TenantRole callerTenantRole,
+                                                       String kbId, long kbTenantId) {
+        if (kbId == null || kbId.isEmpty()) {
+            return false;
+        }
+        List<SharedAgentInfo> list = listSharedAgents(tenantId, callerTenantRole);
+        for (SharedAgentInfo info : list) {
+            if (SharedAgentKBScope.includesKb(info.agent(), kbId, kbTenantId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public AgentShare getById(String id) {
         AgentShare share = shareMapper.selectOne(new LambdaQueryWrapper<AgentShare>()
                 .eq(AgentShare::getId, id).last("LIMIT 1"));

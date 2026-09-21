@@ -96,4 +96,9 @@ public class OrgServiceException extends RuntimeException {
     public static OrgServiceException agentSharePermission() {
         return new OrgServiceException(Kind.PLAIN, "permission denied for this share operation");
     }
+
+    /** 对照 agent_share.go ErrAgentShareNotFound（与 kbshare 的 "share not found" 不同文案）。 */
+    public static OrgServiceException agentShareNotFound() {
+        return new OrgServiceException(Kind.PLAIN, "agent share not found");
+    }
 }

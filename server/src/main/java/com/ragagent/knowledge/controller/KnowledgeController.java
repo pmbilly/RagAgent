@@ -58,13 +58,22 @@ public class KnowledgeController {
     private final KnowledgeService knowledgeService;
     private final KnowledgeAccessGuard guard;
     private final SsrfGuard ssrfGuard;
+    private final com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess;
+    private final com.ragagent.knowledge.service.KnowledgeBaseService kbService;
+    private final com.ragagent.org.service.KbShareService kbShareService;
 
     public KnowledgeController(KnowledgeService knowledgeService,
                                KnowledgeAccessGuard guard,
-                               SsrfGuard ssrfGuard) {
+                               SsrfGuard ssrfGuard,
+                               com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess,
+                               com.ragagent.knowledge.service.KnowledgeBaseService kbService,
+                               com.ragagent.org.service.KbShareService kbShareService) {
         this.knowledgeService = knowledgeService;
         this.guard = guard;
         this.ssrfGuard = ssrfGuard;
+        this.sharedAgentAccess = sharedAgentAccess;
+        this.kbService = kbService;
+        this.kbShareService = kbShareService;
     }
 
     /** 对照 CreateKnowledgeFromFile — multipart（字段名严格对照 Go：file/fileName/metadata/tag_ids/channel/process_config） */
@@ -182,8 +191,8 @@ public class KnowledgeController {
 
     /**
      * 对照 GetKnowledgeBatch（GET /knowledge/batch）。query 绑定：ids required
-     * （"ids=" → [""] 通过 binding，服务层查不到行 → data:[]）；agent 共享路径未翻译，
-     * 恒落 Go 的 "no permission for this shared agent"（agents==nil 同文案，golden 钉住）。
+     * （"ids=" → [""] 通过 binding，服务层查不到行 → data:[]）；agent_id 分支
+     * （W5α 收口）：共享 agent 解析 → scope 空短路 → 有效租户取数 → scope 过滤。
      */
     @GetMapping("/knowledge/batch")
     public ResponseEntity<?> getKnowledgeBatch(
@@ -216,22 +225,89 @@ public class KnowledgeController {
                             + "'IDs' failed on the 'required' tag"));
         }
         String safeAgent = LogSanitizer.sanitize(agentId == null ? "" : agentId);
+        // agent 共享分支（W5α 收口，Go L1604-1624）：解析 → scope 空短路 → 有效租户切换
+        com.ragagent.org.service.SharedAgentKBScope agentScope = null;
+        long effectiveTenant = callerTenant;
         if (!safeAgent.isEmpty()) {
-            // shared-agent 授予路径未翻译（波 5）——Go 侧 agents==nil / 共享不存在同文案
-            throw new BizException(AppError.forbidden("no permission for this shared agent"));
+            com.ragagent.org.domain.AgentRow agent =
+                    sharedAgentAccess.resolveForRequest(safeAgent, agentSourceTenantId);
+            agentScope = com.ragagent.org.service.SharedAgentKBScope.from(agent);
+            effectiveTenant = agent.getTenantId();
+            if (agentScope.isEmpty()) {
+                return ResponseEntity.ok(envelope(new ArrayList<>()));
+            }
         }
-        List<Knowledge> knowledges = knowledgeService.getKnowledgeBatch(callerTenant, ids);
+        List<Knowledge> knowledges;
         if (LogSanitizer.sanitize(kbId == null ? "" : kbId).isEmpty()) {
-            knowledges = knowledgeService.getKnowledgeBatchWithSharedAccess(callerTenant, ids);
+            if (agentScope != null) {
+                // 对照 agentScope 无 kb_id 分支：保持已授权 agent 的读范围与原始调用方
+                knowledges = knowledgeService.getKnowledgeBatch(effectiveTenant, ids);
+            } else {
+                knowledges = knowledgeService.getKnowledgeBatchWithSharedAccess(callerTenant, ids);
+            }
         } else {
             String safeKbId = LogSanitizer.sanitize(kbId);
-            guard.requireKbAccess(safeKbId);
-            knowledges = knowledgeService.getKnowledgeBatch(callerTenant, ids);
+            long effID;
+            if (agentScope == null) {
+                guard.requireKbAccess(safeKbId);
+                effID = callerTenant;
+            } else {
+                effID = resolveKbAccessForAgentScope(safeKbId, callerTenant, agentScope);
+            }
+            knowledges = knowledgeService.getKnowledgeBatch(effID, ids);
             // scopeKBID 过滤（对照 allowedKBSet= {kb_id}）
             knowledges = knowledges.stream()
                     .filter(k -> safeKbId.equals(k.getKnowledgeBaseId())).toList();
         }
+        if (agentScope != null) {
+            // 对照 filterKnowledgeByAgentScope（agent 分支恒过滤，与 kb_id 无关）
+            final com.ragagent.org.service.SharedAgentKBScope scope = agentScope;
+            knowledges = com.ragagent.knowledge.service.SharedAgentAccessResolver
+                    .filterKnowledgeByAgentScope(knowledges, scope,
+                            Knowledge::getKnowledgeBaseId, Knowledge::getTenantId);
+        }
         return ResponseEntity.ok(envelope(knowledges));
+    }
+
+    /**
+     * 对照 validateKnowledgeBaseAccessWithKBID × access.ResolveKB（agent 流程，
+     * required=Viewer，W5α）：授予顺序 own → org-share → agent-scope；无授予 →
+     * 403 "Permission denied to access this knowledge base"；授予后 scope 校验失败 →
+     * 403 "Knowledge base not accessible through this agent"。返回 effID（恒 = KB 的
+     * owner 租户，对照 grant.EffectiveTenantID）。
+     */
+    private long resolveKbAccessForAgentScope(String safeKbId, long callerTenant,
+                                              com.ragagent.org.service.SharedAgentKBScope agentScope) {
+        // 对照 requireTenantAPIKeyKnowledgeBase：先于 KB 加载
+        var keyScope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        if (keyScope != null && keyScope.isKnowledgeBaseRestricted()
+                && !keyScope.allowsKnowledgeBase(safeKbId)) {
+            throw new BizException(AppError.forbidden(
+                    "API key scope does not allow one or more knowledge bases"));
+        }
+        KnowledgeBase kb = kbShareService.kbById(safeKbId);
+        if (kb == null) {
+            throw new BizException(AppError.notFound("knowledge base not found"));
+        }
+        long kbTenant = kb.getTenantId() == null ? 0 : kb.getTenantId();
+        boolean granted = kbTenant == callerTenant;
+        if (!granted) {
+            granted = kbShareService.checkTenantKBPermission(safeKbId, callerTenant,
+                    com.ragagent.org.service.OrganizationService.callerTenantRole())
+                    .permits("viewer");
+        }
+        if (!granted) {
+            granted = agentScope.allows(safeKbId, kbTenant);
+        }
+        if (!granted) {
+            throw new BizException(AppError.forbidden(
+                    "Permission denied to access this knowledge base"));
+        }
+        if (!agentScope.allows(safeKbId, kbTenant)) {
+            throw new BizException(AppError.forbidden(
+                    "Knowledge base not accessible through this agent"));
+        }
+        return kbTenant;
     }
 
     /** 对照 GetKnowledgeSpans（/stages 与 /spans 两个路径同 handler；gin.H 键字母序） */
@@ -590,9 +666,9 @@ public class KnowledgeController {
      * parseOffsetPagination（1010 文案）→ file_types → agent_id → API-Key 白名单 →
      * own+shared 缺省路径。空 keyword 只在显式 recent=true 时合法。
      *
-     * <p>已知差异：agent_id 分支依赖 shared agents（未翻译）→ 走 Go 的 agents 不可用
-     * 同款 403 "no permission for this shared agent"；org-shared 补捞未翻译（scope 恒
-     * 本租户文档库）。</p>
+     * <p>agent_id 分支（W5α 收口，Go L2185-2250）：共享 agent 解析 → scope 空短路 →
+     * 显式选择直取 / "all" 列源空间 KB 经能力过滤且仅 document 型 → API-Key 过滤 →
+     * SearchKnowledgeForScopes。</p>
      */
     @GetMapping("/knowledge/search")
     public ResponseEntity<?> searchKnowledge(
@@ -602,7 +678,8 @@ public class KnowledgeController {
             @RequestParam(value = "offset", required = false) String offsetParam,
             @RequestParam(value = "limit", required = false) String limitParam,
             @RequestParam(value = "file_types", required = false) String fileTypesParam,
-            @RequestParam(value = "agent_id", required = false) String agentId) {
+            @RequestParam(value = "agent_id", required = false) String agentId,
+            @RequestParam(value = "agent_source_tenant_id", required = false) String agentSourceTenantId) {
         // Go: recent, _ := strconv.ParseBool(...) —— 非法值静默为 false
         boolean recent = Boolean.parseBoolean(recentParam == null ? "false" : recentParam.trim());
         String keyword = keywordParam == null ? "" : keywordParam;
@@ -642,8 +719,49 @@ public class KnowledgeController {
         }
         String safeAgent = LogSanitizer.sanitize(agentId == null ? "" : agentId);
         if (!safeAgent.isEmpty()) {
-            // shared-agent 授予路径未翻译（波 5）——Go 侧 agents 不可用同文案（golden 钉住）
-            throw new BizException(AppError.forbidden("no permission for this shared agent"));
+            // 对照 SearchKnowledge 的 agent_id 分支（W5α 收口，Go L2185-2250）
+            com.ragagent.org.domain.AgentRow agent =
+                    sharedAgentAccess.resolveForRequest(safeAgent, agentSourceTenantId);
+            long sourceTenant = agent.getTenantId();
+            com.ragagent.org.service.SharedAgentKBScope agentScope =
+                    com.ragagent.org.service.SharedAgentKBScope.from(agent);
+            if (agentScope.isEmpty()) {
+                return ResponseEntity.ok(searchAgentEmptyBody());
+            }
+            List<KnowledgeService.KnowledgeSearchScope> scopes = new ArrayList<>();
+            if (!agentScope.isAll()) {
+                for (String id : agentScope.ids()) {
+                    if (!id.isEmpty()) {
+                        scopes.add(new KnowledgeService.KnowledgeSearchScope(sourceTenant, id));
+                    }
+                }
+            } else {
+                List<KnowledgeBase> kbs = kbService.listKnowledgeBasesByTenantId(sourceTenant);
+                for (KnowledgeBase kb : com.ragagent.knowledge.service.SharedAgentAccessResolver
+                        .filterKnowledgeBasesForSharedAgent(kbs, agent)) {
+                    if ("document".equals(kb.getType())) {
+                        scopes.add(new KnowledgeService.KnowledgeSearchScope(kb.getTenantId(),
+                                kb.getId()));
+                    }
+                }
+            }
+            // 对照 filterKnowledgeSearchScopesForAPIKey：受限 Key 只保留白名单 KB
+            var keyScope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
+            if (keyScope != null && keyScope.isKnowledgeBaseRestricted()) {
+                scopes = scopes.stream()
+                        .filter(s -> keyScope.allowsKnowledgeBase(s.kbId())).toList();
+            }
+            if (scopes.isEmpty()) {
+                return ResponseEntity.ok(searchAgentEmptyBody());
+            }
+            KnowledgeService.SearchOutcome agentOutcome = knowledgeService.searchKnowledgeInScopes(
+                    scopes, keyword, offset, limit, fileTypes);
+            Map<String, Object> agentBody = new LinkedHashMap<>();
+            agentBody.put("data", agentOutcome.knowledges());
+            agentBody.put("has_more", agentOutcome.hasMore());
+            agentBody.put("success", true);
+            agentBody.put("total", agentOutcome.total());
+            return ResponseEntity.ok(agentBody);
         }
         KnowledgeService.SearchOutcome outcome;
         var scope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
@@ -672,6 +790,16 @@ public class KnowledgeController {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /** 对照 agent 分支空响应：gin.H{"success","data":[],"has_more":false,"total":0}（键字母序）。 */
+    private static Map<String, Object> searchAgentEmptyBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("data", new ArrayList<>());
+        body.put("has_more", false);
+        body.put("success", true);
+        body.put("total", 0);
+        return body;
     }
 
     /**

@@ -56,7 +56,7 @@ public final class KnowledgeBaseResponseBuilder {
         m.put("description", kb.getDescription() == null ? "" : kb.getDescription());
         m.put("embedding_model_id", nullToEmpty(kb.getEmbeddingModelId()));
         m.put("extract_config", json(kb.getExtractConfig()));
-        m.put("faq_config", json(kb.getFaqConfig()));
+        m.put("faq_config", json(faqConfigView(kb)));
         m.put("id", kb.getId());
         m.put("image_processing_config", treeSorted(kb.getImageProcessingConfig()));
         m.put("indexing_strategy", treeSorted(kb.getIndexingStrategy()));
@@ -69,7 +69,11 @@ public final class KnowledgeBaseResponseBuilder {
         m.put("processing_count", kb.getProcessingCount());
         m.put("question_generation_config", json(kb.getQuestionGenerationConfig()));
         m.put("share_count", kb.getShareCount());
-        m.put("storage_backend_id", emptyToNull(kb.getStorageBackendId()));
+        // storage_backend_id：Go 实体 json 带 omitempty（buildKBResponse 走 json.Marshal
+        // 实体 → map），空值键整体缺席；非空才输出（kb-list.json 等旧 golden 有值场景不变）。
+        if (kb.getStorageBackendId() != null && !kb.getStorageBackendId().isEmpty()) {
+            m.put("storage_backend_id", kb.getStorageBackendId());
+        }
         m.put("storage_config", treeSorted(kb.getStorageConfig()));
         m.put("storage_provider_config",
                 kb.getStorageProviderConfig() == null ? null : treeSorted(kb.getStorageProviderConfig()));
@@ -141,7 +145,7 @@ public final class KnowledgeBaseResponseBuilder {
             m.put("vector_store_id", kb.getVectorStoreId());
         }
         m.put("extract_config", json(kb.getExtractConfig()));
-        m.put("faq_config", json(kb.getFaqConfig()));
+        m.put("faq_config", json(faqConfigView(kb)));
         m.put("question_generation_config", json(kb.getQuestionGenerationConfig()));
         m.put("auto_tag_config", json(kb.getAutoTagConfig()));
         m.put("wiki_config", json(kb.getWikiConfig()));
@@ -176,6 +180,25 @@ public final class KnowledgeBaseResponseBuilder {
         return node == null || node.isNull() ? null : tree(node);
     }
 
+    /**
+     * 对照 EnsureDefaults 的 FAQ 段（types/knowledgebase.go L744-758）：type=faq 时
+     * faq_config 物化默认值（NULL → 全默认；缺字段补默认，FAQConfig 仅这两个字段）；
+     * type!=faq → FAQConfig 清空（JSON null）。字段序 = Go struct 声明序（亦字母序）。
+     */
+    private static JsonNode faqConfigView(KnowledgeBase kb) {
+        if (!"faq".equals(kb.getType())) {
+            return null;
+        }
+        JsonNode raw = kb.getFaqConfig();
+        String indexMode = raw != null && raw.isObject() ? raw.path("index_mode").asText("") : "";
+        String questionIndexMode =
+                raw != null && raw.isObject() ? raw.path("question_index_mode").asText("") : "";
+        com.fasterxml.jackson.databind.node.ObjectNode out = MAPPER.createObjectNode();
+        out.put("index_mode", indexMode.isEmpty() ? "question_answer" : indexMode);
+        out.put("question_index_mode", questionIndexMode.isEmpty() ? "combined" : questionIndexMode);
+        return out;
+    }
+
     /** raw 序列化：嵌套对象保序（Go struct 声明序 = valueToTree + @JsonPropertyOrder），不排序 */
     private static Object tree(Object pojo) {
         if (pojo == null) {
@@ -194,6 +217,27 @@ public final class KnowledgeBaseResponseBuilder {
     public static java.util.Map<String, Object> buildListItem(KnowledgeBase kb, String retrieveDriver) {
         java.util.Map<String, Object> m = build(kb, retrieveDriver);
         m.put("creator_name", nullToEmpty(kb.getCreatorName()));
+        return m;
+    }
+
+    /**
+     * 共享 agent 分支的 KB 列表项（W5α，对照 buildKBListResponse 的 view 三态）：
+     * <ul>
+     *   <li>KB 无 vector_stores 绑定 → envDefaultStoreView（本部署 engine_type 缺席，
+     *       与 2026-09-21 w5s 实录一致）；</li>
+     *   <li>有绑定且跨租户（agent 分支恒然——share 排除同空间）→ SharedStoreDisplay：
+     *       vector_store_id/vector_store_name 删除、source="shared"、status="available"；</li>
+     *   <li>Go 该分支不回填 creator_name，实体 {@code creator_name} 带 omitempty →
+     *       键整体缺席（勿用 buildListItem）。</li>
+     * </ul>
+     */
+    public static java.util.Map<String, Object> buildSharedListItem(KnowledgeBase kb) {
+        java.util.Map<String, Object> m = build(kb, null, false);
+        if (kb.hasVectorStore()) {
+            m.remove("vector_store_id");
+            m.remove("vector_store_name");
+            m.put("vector_store_source", "shared");
+        }
         return m;
     }
 

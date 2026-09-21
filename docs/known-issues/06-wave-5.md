@@ -216,3 +216,43 @@
     APIKeyGateInterceptor `excludePathPatterns` 补 WS 升级路由（Go 注册于 Auth
     与 /api/v1 组之前，组级 gate 对它不跑）。WS 路由**不**登记 RBAC 规则
     （票据自鉴权，Go 无角色门）。
+
+- **W5α1（共享 agent 读面收口：KB list / knowledge batch / knowledge search 的 agent_id 分支）**：
+  - **`Long != Long` 装箱比较是真缺陷高发位**：`getSharedAgentForTenant` 的
+    `agent.getTenantId() != share.getSourceTenantId()`（两个 Long，10005 超缓存区间 →
+    引用不等 → 恒 true → 恒抛"agent not found"）。契约测试第一断言 403 抓回；
+    修法 `.longValue()` 比较。**教训**：跨实体 id 相等判定一律先查两边声明类型，
+    装箱类型用 `longValue()`/`Objects.equals`。
+  - **`buildKBResponse` 走 `json.Marshal(实体)→map`，omitempty 在实体侧生效**：
+    `storage_backend_id,omitempty` 空值时键**整体缺席**（Java build() 此前恒输出
+    `"storage_backend_id":null`）。Go map 合并路径的 omitempty 判定要回到实体
+    json tag，不能只看 map 组装代码。旧 golden（kb-list.json 等）该键恒有值，
+    偏差潜伏到 w5s 的空值场景才曝。
+  - **GORM 对 NULL 列跳过 `sql.Scanner.Scan`**（留零值 struct）——
+    `IndexingStrategy.Scan` 注释里的 "NULL → DefaultIndexingStrategy()" 分支实际
+    到不了。`IsZero→Default` 只发生在 **service 读路径的 EnsureDefaults 调用点**
+    （KB list/get），chunk 等路径不做此默认：ChunkContractTest 种子显式存全 false
+    strategy 关索引，getter 若自作主张 IsZero→Default 会把索引重新打开
+    （16 个回归红灯："model ID cannot be empty" / index_status ready→failed）。
+    **实体 getter 不许内嵌 EnsureDefaults 语义**——只保留 w5s 实录钉住的
+    carve-out：faq 且 faq_config NULL 时 EnsureDefaults 提前 return，策略保持零值。
+  - **FAQ 的 EnsureDefaults 段**：type=faq 且 FAQConfig==nil → 物化
+    `{"index_mode":"question_answer","question_index_mode":"combined"}` 并**提前
+    return**（策略默认段被跳过）；type!=faq → FAQConfig 清空（JSON null）。
+    capabilities = IndexingStrategy 四位 + `type=="faq"`。
+  - **`custom_metadata` 种子显式给 `'{}'`**（PG 列 NOT NULL + 默认值，H2 TestSchema
+    是 nullable VARCHAR——KnowledgeSearchMoveContractTest 既有先例同款）。
+  - **403 文案三兄弟各归各位**："no permission for this shared agent"（agent 解析，
+    含 share 无/agent 无/显式 source 不符三种来源都折成它）/"Permission denied to
+    access this knowledge base"（ResolveKB 三段授予全灭）/"Knowledge base not
+    accessible through this agent"（授予后 scope 校验失败）。
+  - **共享 KB 列表项三态 store view**：无 vector_stores 绑定 → envDefaultStoreView
+    （本部署 engine_type 键缺席）；有绑定且跨租户 → SharedStoreDisplay（删
+    vector_store_id/name、source="shared"）；own-tenant 绑定 → 批量解析。
+    `creator_name` 带 omitempty——共享分支不回填 → 键整体缺席（勿用 buildListItem）。
+  - **调试方法**：Spring Boot 测试的 `System.err` 落在
+    `build/test-results/test/TEST-*.xml` 的 system-err 节点，不在 Gradle 控制台；
+    断言 fail-fast——"8 请求只 1 个探针"是首断言即抛的正常形态，不是请求丢了。
+  - 验收：21 条 w5s-* golden（Go 实录，record-w5s-golden.sh 幂等种子）+
+    W5sSharedAgentContractTest 3 方法 22 断言 + 真 PG A/B 两轮 21/21 ALL MATCH
+    （ab-w5s.sh，掩码仅时间戳）。knowledge/org 回归 174/174。

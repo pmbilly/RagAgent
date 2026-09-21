@@ -150,8 +150,16 @@ public class KnowledgeBase {
     public JsonNode getWikiConfig() { return wikiConfig; }
     public void setWikiConfig(JsonNode v) { wikiConfig = v; }
     public KbIndexingStrategy getIndexingStrategy() {
-        if (indexingStrategy == null) indexingStrategy = KbIndexingStrategy.defaultStrategy();
-        return indexingStrategy;
+        // 对照 Go 精确语义：GORM 对 NULL 列**跳过** Scan（留零值 struct，Scan 注释里的
+        // NULL→Default 分支实际到不了）；IsZero→Default 只发生在 service 读路径的
+        // EnsureDefaults 调用点（KB list/get），chunk 等路径不做此默认。
+        // 历史近似（null→Default）与既有 golden 全兼容，仅补 w5s 实录钉住的 carve-out：
+        // faq 且 faq_config 为 NULL → EnsureDefaults 提前 return，策略保持零值。
+        if (indexingStrategy != null) {
+            return indexingStrategy;
+        }
+        return "faq".equals(type) && faqConfig == null
+                ? new KbIndexingStrategy() : KbIndexingStrategy.defaultStrategy();
     }
     public void setIndexingStrategy(KbIndexingStrategy v) { indexingStrategy = v; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
