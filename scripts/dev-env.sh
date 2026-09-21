@@ -28,8 +28,14 @@ if [ -z "${JAVA_HOME:-}" ] && [ -d /opt/homebrew/opt/openjdk@21 ]; then
 fi
 
 RAGAGENT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WEKNORA_ROOT="${WEKNORA_ROOT:-$(cd "${RAGAGENT_ROOT}/../WeKnora" && pwd)}"
-WEKNORA_ENV="${WEKNORA_ROOT}/.env"
+# 密钥/连接值优先读本仓自己的 .env（自 Go 仓下线后成为唯一来源）；
+# 本仓没有时回落 WeKnora 仓的 .env（历史开发机兼容，已废弃路径）。
+if [ -f "${RAGAGENT_ROOT}/.env" ]; then
+  WEKNORA_ENV="${RAGAGENT_ROOT}/.env"
+else
+  WEKNORA_ROOT="${WEKNORA_ROOT:-$(cd "${RAGAGENT_ROOT}/../WeKnora" && pwd)}"
+  WEKNORA_ENV="${WEKNORA_ROOT}/.env"
+fi
 
 # dev 环境的宿主机端口（docker-compose 映射）
 export DB_HOST="${DB_HOST:-localhost}"
