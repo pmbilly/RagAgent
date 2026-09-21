@@ -31,6 +31,7 @@ import com.ragagent.chatpipeline.PluginSearchParallel;
 import com.ragagent.chatpipeline.PluginWebFetch;
 import com.ragagent.chatpipeline.PluginWikiBoost;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.retrieval.HybridSearchService;
 import com.ragagent.config.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
@@ -63,9 +64,10 @@ import com.ragagent.websearch.service.WebSearchService;
  *
  * <h2>已知差异（备案）</h2>
  * <ul>
- *   <li><b>HybridSearch 执行面</b>：向量库查询引擎未翻译（波 2 knowledge 搜索批的
- *       已知差异延续）→ adapter 返回空结果，管线走 ErrSearchNothing → 兜底路径。
- *       无 embedding 模型/空 KB 的部署两侧行为一致（A/B 依赖这一点）。</li>
+ *   <li><b>HybridSearch 执行面（检索引擎批 2026-09-22 已接入）</b>：adapter 委托
+ *       {@code HybridSearchService}（pgvector + ParadeDB BM25 + RRF 融合 +
+ *       FAQ 迭代/负例过滤 + 富化装配，对照 knowledgebase_search*.go 全族）。
+ *       外部向量店（ES/milvus/…）绑定仍按 2201 unavailable 同形拒绝（provider 批）。</li>
  *   <li><b>RetrieveGraphRepository</b>：图检索（neo4j）未翻译 → 传 null（Go 的
  *       ExtractEntity/SearchEntity 同样有 neo4jEnabled=nil 闸门）。</li>
  *   <li><b>WebSearchStateService / WebSearchProviderRepository</b>：Go 当前存而不读，
@@ -131,7 +133,7 @@ public class QaWiring {
     /** 对照 interfaces.KnowledgeBaseService 的 chat_pipeline 子集。 */
     @Bean
     public PipelinePorts.KnowledgeBaseService qaPipelineKnowledgeBaseService(
-            KnowledgeBaseService kbService) {
+            KnowledgeBaseService kbService, HybridSearchService hybridSearchService) {
         return new PipelinePorts.KnowledgeBaseService() {
             @Override
             public KnowledgeBase getKnowledgeBaseByIdOnly(String id) {
@@ -153,24 +155,35 @@ public class QaWiring {
 
             @Override
             public List<SearchResult> hybridSearch(String knowledgeBaseId, com.ragagent.chatpipeline.SearchParams params) {
-                // 已知差异（见类注释）：向量/关键词检索执行面未翻译。
-                // KB 元数据缺失时抛 Go 同形的 1003 错误（A/B 场景 kse-unknown-kb 依赖）；
-                // 其余情形与 Go「检索引擎不可用」的空结果路径收敛。
+                // KB 元数据缺失时保持 Go 同形的 1003 错误（A/B 场景 kse-unknown-kb 依赖）。
                 if (kbService.getAllTenantById(knowledgeBaseId) == null) {
                     throw new PipelinePorts.PipelinePortException(
                             "error code: 1003, error message: knowledge base not found");
                 }
-                return new ArrayList<>();
+                // Go 侧 params 是值拷贝（归一化不回传调用方）——Java 显式浅拷贝。
+                com.ragagent.chatpipeline.SearchParams local = new com.ragagent.chatpipeline.SearchParams();
+                local.setQueryText(params.getQueryText());
+                local.setQueryEmbedding(params.getQueryEmbedding());
+                local.setVectorThreshold(params.getVectorThreshold());
+                local.setKeywordThreshold(params.getKeywordThreshold());
+                local.setMatchCount(params.getMatchCount());
+                local.setDisableKeywordsMatch(params.isDisableKeywordsMatch());
+                local.setDisableVectorMatch(params.isDisableVectorMatch());
+                local.setSkipContextEnrichment(params.isSkipContextEnrichment());
+                local.setKnowledgeIds(params.getKnowledgeIds());
+                local.setTagIds(params.getTagIds());
+                local.setKnowledgeBaseIds(params.getKnowledgeBaseIds());
+                return hybridSearchService.hybridSearch(knowledgeBaseId, local);
             }
 
             @Override
             public float[] getQueryEmbedding(String kbId, String queryText) {
-                return null;
+                return hybridSearchService.getQueryEmbedding(kbId, queryText);
             }
 
             @Override
             public Map<String, String> resolveEmbeddingModelKeys(List<KnowledgeBase> kbs) {
-                return new LinkedHashMap<>();
+                return hybridSearchService.resolveEmbeddingModelKeys(kbs);
             }
         };
     }

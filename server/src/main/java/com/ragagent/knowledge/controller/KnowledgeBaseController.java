@@ -15,6 +15,7 @@ import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.dto.KnowledgeBaseResponseBuilder;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
+import com.ragagent.retrieval.HybridSearchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -55,15 +56,18 @@ public class KnowledgeBaseController {
     private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
     private final com.ragagent.knowledge.service.KnowledgeAccessGuard guard;
     private final com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess;
+    private final HybridSearchService hybridSearchService;
 
     public KnowledgeBaseController(KnowledgeBaseService kbService,
                                    com.ragagent.knowledge.service.KnowledgeService knowledgeService,
                                    com.ragagent.knowledge.service.KnowledgeAccessGuard guard,
-                                   com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess) {
+                                   com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess,
+                                   HybridSearchService hybridSearchService) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
         this.guard = guard;
         this.sharedAgentAccess = sharedAgentAccess;
+        this.hybridSearchService = hybridSearchService;
     }
 
     /** 对照 CreateKnowledgeBase — Contributor+ */
@@ -333,11 +337,41 @@ public class KnowledgeBaseController {
         if (!primaryFound) {
             throw new BizException(AppError.notFound("knowledge base not found"));
         }
-        // 检索执行不可达（波 4）→ Go 在空管线/零命中时返回 nil → data:null（实测一致）
+        // 检索引擎批（2026-09-22）：执行面接入 HybridSearchService
+        // （pgvector + ParadeDB BM25 + RRF + FAQ 后处理 + 富化装配）。
+        // Go 在空管线/零命中时返回 nil → data:null（形态保持不变）。
+        com.ragagent.chatpipeline.SearchParams params = new com.ragagent.chatpipeline.SearchParams();
+        params.setQueryText(queryText);
+        if (embedding != null && embedding.isArray() && !embedding.isEmpty()) {
+            float[] vec = new float[embedding.size()];
+            for (int i = 0; i < embedding.size(); i++) {
+                vec[i] = (float) embedding.get(i).asDouble();
+            }
+            params.setQueryEmbedding(vec);
+        }
+        params.setVectorThreshold(req.path("vector_threshold").asDouble(0.0));
+        params.setKeywordThreshold(req.path("keyword_threshold").asDouble(0.0));
+        params.setMatchCount(req.path("match_count").asInt(0));
+        params.setDisableKeywordsMatch(req.path("disable_keywords_match").asBoolean(false));
+        params.setDisableVectorMatch(req.path("disable_vector_match").asBoolean(false));
+        params.setSkipContextEnrichment(req.path("skip_context_enrichment").asBoolean(false));
+        params.setKnowledgeIds(asStringList(req.get("knowledge_ids")));
+        params.setTagIds(asStringList(req.get("tag_ids")));
+        params.setKnowledgeBaseIds(searchKbIds);
+        List<com.ragagent.retrieval.domain.SearchResult> results =
+                hybridSearchService.hybridSearch(kb.getId(), params);
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", null);
+        body.put("data", results);
         body.put("success", true);
         return ResponseEntity.ok(body);
+    }
+
+    private static List<String> asStringList(JsonNode node) {
+        List<String> out = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            node.forEach(n -> out.add(n.asText()));
+        }
+        return out;
     }
 
     /** 对照 ShouldBindJSON(&SearchParams) 的 400 形态（message 固定 + details 解析器原文）。 */
