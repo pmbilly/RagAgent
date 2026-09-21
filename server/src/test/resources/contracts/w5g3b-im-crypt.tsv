@@ -1,0 +1,10 @@
+feishu_encrypt_key	w5g3-feishu-encrypt-key
+feishu_ciphertext	VzVHM0ZJWEVESVYxMjM0NSPxvqr8hunJ6ynoocbVMaNSOjIbHYjsNQ9/yxOyoOy8X7bltvwxVlWjOI9wDdThdGget9faz9elhucSF63ZKJAfq8UlGnOMOjjbqR6nt7DHeqED9OLRv77c92yBH+kzbQ==
+feishu_plaintext	{"header":{"token":"tok-abc","type":"event_callback"},"event":{"text":"你好 飞书"}}
+wecom_aeskey_b64	MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
+wecom_ciphertext	fb2IJy+yWTdpKjuBAEdBdcxlWdRfHonIMaETv1FWDh7kamr2LvWR/G1p4Wyrsl3Pzd5tA6qEyGgObwZ70yfgBs4r8RD3Dl4l8pP6Js+k7J7AKYTcbeuPnmgSmWRyMyZWttQGdOcq7MSoh6nWRyirznXOSdJKO3iz42KyyLkTPgI=
+wecom_plaintext	<xml><ToUserName><![CDATA[ww]]></ToUserName><Content><![CDATA[你好 企微]]></Content></xml>
+wecom_signature	51fbef29cf2eac5f689a94312908728aec9bd001
+wecom_timestamp	1700000000
+wecom_nonce	nonce123
+wecom_token	w5g3-wecom-token
