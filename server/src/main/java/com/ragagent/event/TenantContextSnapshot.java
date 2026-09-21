@@ -39,4 +39,13 @@ public record TenantContextSnapshot(
         TenantContext.setEmbedVisitorId(embedVisitorId);
         TenantContext.setRequestId(requestId);
     }
+
+    /**
+     * 对照 Go types.WithExecutionTenant：只换执行租户（仓库/模型解析范围），身份
+     * （principal/role/userId）原样保留——授权面永远看调用方，不看执行租户。
+     */
+    public TenantContextSnapshot withTenantId(long executionTenantId) {
+        return new TenantContextSnapshot(executionTenantId, principal, role, systemAdmin,
+                userId, canAccessAllTenants, embedVisitorId, requestId);
+    }
 }

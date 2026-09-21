@@ -256,3 +256,29 @@
   - 验收：21 条 w5s-* golden（Go 实录，record-w5s-golden.sh 幂等种子）+
     W5sSharedAgentContractTest 3 方法 22 断言 + 真 PG A/B 两轮 21/21 ALL MATCH
     （ab-w5s.sh，掩码仅时间戳）。knowledge/org 回归 174/174。
+
+- **W5α2（QA resolveAgent 共享分支：knowledge-chat/agent-chat 的共享 agent 解析）**：
+  - **Go resolveAgent 的错误是"吞掉"不是外抛**：GetSharedAgentForTenant 失败 →
+    customAgent=nil 静默；source==0 才回落 own agent（"被拒的共享选择子不许静默跑
+    同 id 本地内建"）；source!=0 且 nil → 外层 404 "Shared agent not found"。
+    与 α1 读面（失败即 403）形态完全不同，别混。
+  - **执行租户切换 = 换 TenantContext 快照，身份不动**：Go WithExecutionTenant
+    先 WithCaller 捕获身份再换 TenantIDContextKey——授权面永远看调用方，仓库/模型
+    解析看执行租户。Java 对应物：TenantContextSnapshot.withTenantId（record 派生），
+    在异步段 replay 前替换。判别锚：模型行只在源租户 10005——不切换必
+    "model not found"，A/B 正路径 SSE 双端 MATCH 证明切换生效。
+    Go 同款守卫：租户不存在（GetTenantByID miss）则不切换。
+  - **agentTenantID 取 effectiveTenantID 而非请求 source 参数**（Go L493-495：
+    为 0 才回落 agent.TenantID）——请求里的 agent_source_tenant_id 只是选择子，
+    不是数据。
+  - **检索租户不依赖快照**：Java resolveRetrievalTenantId 已取 agentRow.tenantId
+    （共享行=源租户），与 Go 的执行租户殊途同归；access.WithSharedAgent 的
+    KB grant 授权收窄机制 Java 侧无对应物，随检索面专项收口（已备案控制器 doc）。
+  - **字段级 JSON 类型错误的 Go 措辞仿真**：Go `json: cannot unmarshal string
+    into Go struct field CreateKnowledgeQARequest.agent_source_tenant_id of type
+    uint64`——GoJsonBindError 新增 fieldTypeError/valueKind + 登记表
+    （Struct.field → Go 类型；uint64/int64 不能从 Java 类型推断，逐条 golden 登记），
+    parseOrBindError 从 JsonMappingException 的 path 首段取字段名。
+  - 验收：3 条 w5q-* golden（pre-SSE 错误面）+ W5qSharedAgentQaContractTest +
+    真 PG A/B 两轮 5/5 ALL MATCH（ab-w5q.sh：2 SSE 正路径掩码对拍 + 3 负面逐字节，
+    双侧各一条会话避免历史互染）；session/common/event 回归 467 绿。

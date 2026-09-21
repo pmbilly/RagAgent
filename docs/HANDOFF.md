@@ -1,10 +1,32 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：W5α1 收官提交（见 git log 顶部）· golden 1,697 个**
+> 最后更新：2026-09-21 · **基线：W5α2 收官提交（见 git log 顶部）· golden 1,700 个**
 > 端点覆盖（2026-09-21 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 2 条** = `/swagger/{}`（Go 工具路由，非翻译目标）+ `models/{id}/debug`（留阶段 7，规则已登记、控制器 404 占位）
 
-## 0.0 W5α1 已收官（2026-09-21，波 5 首子批：共享 agent 读面收口）
+## 0.0 W5α2 已收官（2026-09-21，波 5 第二子批：QA resolveAgent 共享分支）
+
+**做了什么**：knowledge-chat/agent-chat 的 resolveAgent 共享分支全量落地——
+共享优先（err 吞掉）+ source==0 才回落 own + source!=0 未命中 404
+"Shared agent not found"；`TenantContextSnapshot.withTenantId`（对照 Go
+WithExecutionTenant：换执行租户不换身份）在 QA 异步段 replay 前切换；
+agentTenantID 取 effectiveTenantID（=共享 agent 实际归属租户，非请求 source 参数）；
+sharedAgentReadOnly 接入 rc→QaRequest（下游 SessionAgentQaService 既有消费点激活）。
+GoJsonBindError 新增字段级类型错误仿真（登记表 Struct.field→Go 类型，
+"json: cannot unmarshal string into Go struct field ... of type uint64"）。
+验收：**3 条 w5q-* golden + W5qSharedAgentQaContractTest + 真 PG A/B 两轮
+5/5 ALL MATCH**（ab-w5q.sh：2 SSE 正路径掩码对拍——模型行只在源租户 10005
+是执行租户切换的判别锚——+ 3 负面逐字节）；session/common/event 回归 467 绿。
+备案：ApplyBuiltinAgentLocalization 随 agentm 装配层统一补齐；
+access.WithSharedAgent 的 KB grant 收窄随检索面专项收口（检索租户已取
+agentRow.tenantId，殊途同归）。台账 conventions §8「W5α2」，坑 §9「W5α2」。
+
+**下一步**：W5α3（FileAccessResolver 跨租户恒 403 桩 → Go access/files.go
+AuthorizeMessageFile 双授予路径：resourceAccessibleViaSharedKB 证据收集
+（collectKBEvidenceFromValue 递归）+ GetSharedAgentForTenant +
+GetMessageFileBindings）→ W5β/γ/δ 按 `docs/W5-plan.md`。
+
+## 0.1 W5α1 已收官（2026-09-21，存档——波 5 首子批：共享 agent 读面收口）
 
 **作战计划**：`docs/W5-plan.md`（波 5 顺序 W5α 共享 agent 收口 → W5β tenant_skill →
 W5γ im 执行体 → W5δ provider 终端执行体；W5α 内部 α1 读面 / α2 QA / α3
@@ -34,7 +56,7 @@ sharedAgentReadOnly 下游接线 + ApplyBuiltinAgentLocalization 装配层补齐
 CustomAgentService.applyLocalization 私有，用 BuiltinAgentRegistry 原语）→
 W5α3（FileAccessResolver 跨租户恒 403 桩 → Go access/files.go 双授予路径）。
 
-## 0.1 W5d 已收官（2026-09-21，存档——沙箱终端 WS + local-browser + embed QA 委托）
+## 0.2 W5d 已收官（2026-09-21，存档——沙箱终端 WS + local-browser + embed QA 委托）
 
 > 半成品的实况记录（接手可跳过）已被本节替换；当时的分析底稿在 git 历史里。
 
@@ -56,7 +78,7 @@ patchEmbedChatPayload、files 委托 FileProxyService）；⑤验收：**24 个 
 browserskill/apikey/auth）+ agent/chatpipeline 批 + 其余包分批全绿（Gradle
 Test Executor 300 秒窗口限制下按 B1 纪律分批；agent/chatpipeline 单独一批）。
 
-## 0.2 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——存档，最新实况见 §0.0）
+## 0.3 接手状态（2026-09-21，收尾批 W5a/W5b/W5c 已收官——存档，最新实况见 §0.0）
 
 **W5c 收尾批（2026-09-21，文件代理面收官）**：Go `internal/router/files.go`(693) 全文
 翻译 → `com.ragagent.storage.fileserve` 新包 8 文件（FileProxyService/FileAccessResolver/

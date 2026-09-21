@@ -81,4 +81,51 @@ public final class GoJsonBindError {
         }
         return jacksonMessage;
     }
+
+    // ── 字段级类型错误（W5α2 起，golden 驱动登记） ─────────────────────────
+
+    /**
+     * 已登记的 (Go 结构体.字段 json 名) → Go 类型 三元组——只登记 golden 实录钉住的
+     * 条目（Go uint64/int64/float64/[]string 的区分不能从 Java 类型推断，逐条录）。
+     */
+    private static final java.util.Map<String, String> FIELD_GO_TYPES = java.util.Map.of(
+            "CreateKnowledgeQARequest.agent_source_tenant_id", "uint64");
+
+    /**
+     * 仿真 Go 的字段级类型错误：{@code json: cannot unmarshal <kind> into Go struct
+     * field <Struct>.<jsonField> of type <goType>}。未登记的字段返回 null（调用方回落
+     * Jackson 措辞——与深结构错误的既定处理一致）。
+     *
+     * @param structName Go 结构体名（Java 类 simpleName 与 Go 同名时直取）
+     * @param jsonField  出错字段的 json 名（Jackson path 首段）
+     * @param valueKind  实际值的 JSON 种类：string/number/bool/object/array
+     */
+    public static String fieldTypeError(String structName, String jsonField, String valueKind) {
+        String goType = FIELD_GO_TYPES.get(structName + "." + jsonField);
+        if (goType == null) {
+            return null;
+        }
+        return "json: cannot unmarshal " + valueKind + " into Go struct field "
+                + structName + "." + jsonField + " of type " + goType;
+    }
+
+    /** Jackson 树节点 → Go 措辞的值种类（unmarshal 错误的第一个词）。 */
+    public static String valueKind(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || node.isNull()) {
+            return "null";
+        }
+        if (node.isTextual()) {
+            return "string";
+        }
+        if (node.isNumber()) {
+            return "number";
+        }
+        if (node.isBoolean()) {
+            return "bool";
+        }
+        if (node.isArray()) {
+            return "array";
+        }
+        return "object";
+    }
 }

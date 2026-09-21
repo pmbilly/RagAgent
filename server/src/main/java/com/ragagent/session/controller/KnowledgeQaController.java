@@ -32,6 +32,7 @@ import com.ragagent.event.AgentQueryData;
 import com.ragagent.event.AgentThoughtData;
 import com.ragagent.event.AgentToolCallData;
 import com.ragagent.event.AgentToolResultData;
+import com.ragagent.org.domain.AgentRow;
 import com.ragagent.event.ErrorData;
 import com.ragagent.event.AgentFinalAnswerData;
 import com.ragagent.event.AgentCompleteData;
@@ -96,8 +97,11 @@ import static com.ragagent.session.service.QaSupport.KnowledgeTargets;
  *
  * <h2>已备案差异</h2>
  * <ul>
- *   <li>共享 agent 解析（GetSharedAgentForTenant）随波 5 收口：resolveAgent 只走
- *       own-agent 分支；agent_source_tenant_id 非空且未命中共享 → 404 文案保留。</li>
+ *   <li>共享 agent 解析（W5α2 已收口）：resolveAgent 共享优先、source==0 才回落 own；
+ *       GetSharedAgentForTenant 的 ApplyBuiltinAgentLocalization 只覆盖
+ *       name/description/avatar（QA 消费 config/tenant，不进字节契约），随 agentm 装配层
+ *       统一补齐；access.WithSharedAgent 的 KB grant 机制（检索授权收窄）随检索面
+ *       专项收口——Java 检索租户已取 agentRow.tenantId（等价执行范围）。</li>
  *   <li>图片上传/附件的存储写入与 VLM 分析：saveImageAttachments 的对象存储写入
  *       在 dev（本地盘）与 Go 行为一致；VLM 分析 emit-only 形态保留。</li>
  *   <li>临时附件的 ResolveForPrompt 内容选择（等待/跳过的事件形态保留，内容解析
@@ -261,6 +265,23 @@ public class KnowledgeQaController {
         try {
             return BIND_JSON.readValue(rawBody, type);
         } catch (Exception e) {
+            // 字段级类型错误 → Go 的 unmarshal 措辞（golden 驱动登记，w5q-kch-badsource）
+            if (e instanceof com.fasterxml.jackson.databind.JsonMappingException jme
+                    && !jme.getPath().isEmpty() && jme.getPath().get(0).getFieldName() != null) {
+                String field = jme.getPath().get(0).getFieldName();
+                String kind = "?";
+                try {
+                    kind = com.ragagent.common.web.GoJsonBindError.valueKind(
+                            BIND_JSON.readTree(rawBody).get(field));
+                } catch (Exception ignore) {
+                    // rawBody 本身坏掉时回落 Jackson 措辞
+                }
+                String goMsg = com.ragagent.common.web.GoJsonBindError.fieldTypeError(
+                        type.getSimpleName(), field, kind);
+                if (goMsg != null) {
+                    throw BizException.badRequest(goMsg);
+                }
+            }
             throw BizException.badRequest(com.ragagent.common.web.GoJsonBindError.message(rawBody, e.getMessage()));
         }
     }
@@ -328,12 +349,15 @@ public class KnowledgeQaController {
             throw BizException.notFound("Session not found");
         }
 
-        // resolveAgent（Go L550-600；共享 agent 分支随波 5）
-        CustomAgentEntity customAgent = resolveAgent(request.agentId, request.agentSourceTenantId);
+        // resolveAgent（Go L548-600：共享优先，source==0 才回落 own）
+        ResolvedAgent resolvedAgent = resolveAgent(request.agentId, request.agentSourceTenantId);
+        CustomAgentEntity customAgent = resolvedAgent.row();
         if (request.agentSourceTenantId != 0 && customAgent == null) {
             throw BizException.notFound("Shared agent not found");
         }
         rc.agentRow = customAgent;
+        rc.effectiveTenantId = resolvedAgent.effectiveTenantId();
+        rc.sharedAgentReadOnly = resolvedAgent.sharedAgentReadOnly();
         if (customAgent != null) {
             ObjectNode cfg = parseAgentConfig(customAgent);
             AgentConfigJson.ensureDefaults(cfg);
@@ -441,7 +465,8 @@ public class KnowledgeQaController {
 
         // assistant 消息骨架（buildMessageExecutionContext 的 agent 字段，Go L368-426）
         String agentId = customAgent == null ? "" : customAgent.getId();
-        long agentTenantId = request.agentSourceTenantId != 0 ? request.agentSourceTenantId
+        // Go：agentTenantID = effectiveTenantID，为 0 才回落 agent.TenantID（L493-495）
+        long agentTenantId = resolvedAgent.effectiveTenantId() != 0 ? resolvedAgent.effectiveTenantId()
                 : (customAgent != null && customAgent.getTenantId() != null ? customAgent.getTenantId() : 0);
         String modelId = request.summaryModelId;
         if (modelId.isEmpty() && rc.agentConfig != null) {
@@ -468,33 +493,85 @@ public class KnowledgeQaController {
         rc.webSearchEnabled = request.webSearchEnabled;
         rc.localBrowserEnabled = request.localBrowserEnabled;
         rc.mentionedItems = QaSupport.convertMentionedItems(request.mentionedItems());
-        rc.effectiveTenantId = 0; // 共享 agent 解析随波 5
         rc.channel = request.channel;
         rc.reqAgentEnabled = request.agentEnabled;
         rc.reqAgentID = request.agentId;
         return new ParsedRequest(rc, request);
     }
 
-    /** resolveAgent（Go L550-600；共享分支随波 5 收口，own-agent 分支逐行对应）。 */
-    private CustomAgentEntity resolveAgent(String agentId, long sourceTenantId) {
+    /**
+     * resolveAgent（Go qa.go L548-600 逐行对应）：共享 agent 优先（err 吞掉不外抛），
+     * source==0 才回落 own agent；source!=0 且未命中 → 外层 404 "Shared agent not found"。
+     *
+     * <p>三元组 = (agent 行, effectiveTenantId, sharedAgentReadOnly)。effectiveTenantId
+     * 是共享 agent 的**实际归属租户**（模型/KB/MCP 解析范围），非请求里的 source 参数。</p>
+     */
+    private ResolvedAgent resolveAgent(String agentId, long sourceTenantId) {
         if (agentId == null || agentId.isEmpty()) {
-            return null;
+            return new ResolvedAgent(null, 0, false);
         }
-        // sourceTenantID == 0 时才回落 own agent（Go L584 的守卫语义）
-        if (sourceTenantId != 0) {
-            return null;
+        CustomAgentEntity customAgent = null;
+        long effectiveTenantId = 0;
+        boolean sharedAgentReadOnly = false;
+        Long currentTenant = TenantContext.currentTenantId();
+        String currentUser = TenantContext.currentUserId();
+        if (currentTenant != null && currentTenant != 0 && currentUser != null && !currentUser.isEmpty()) {
+            try {
+                AgentRow shared = agentShareServiceField.getSharedAgentForTenant(currentTenant,
+                        com.ragagent.org.service.OrganizationService.callerTenantRole(),
+                        agentId, sourceTenantId);
+                if (shared != null) {
+                    effectiveTenantId = shared.getTenantId() == null ? 0 : shared.getTenantId();
+                    customAgent = toCustomAgentEntity(shared);
+                    sharedAgentReadOnly = true;
+                    log.info("Using shared agent: ID={}, Name={}, effectiveTenantID={} (retrieval scope)",
+                            customAgent.getId(), customAgent.getName(), effectiveTenantId);
+                }
+            } catch (RuntimeException e) {
+                // Go：share 解析失败静默——source==0 回落 own，source!=0 外层 404
+                log.info("Shared agent resolution miss: agent ID: {}, error: {}", agentId, e.toString());
+            }
         }
-        try {
-            var result = customAgentServiceField.getAgentByID(agentId, null);
-            return result == null ? null : result.row();
-        } catch (RuntimeException e) {
-            log.warn("Failed to get custom agent, agent ID: {}, error: {}, using default config", agentId, e.toString());
-            return null;
+        // sourceTenantID == 0 时才回落 own agent（Go L584 的守卫语义：
+        // 被拒的共享选择子不许静默跑同 id 的本地内建 agent）
+        if (customAgent == null && sourceTenantId == 0) {
+            try {
+                var result = customAgentServiceField.getAgentByID(agentId, null);
+                customAgent = result == null ? null : result.row();
+            } catch (RuntimeException e) {
+                log.warn("Failed to get custom agent, agent ID: {}, error: {}, using default config",
+                        agentId, e.toString());
+            }
         }
+        return new ResolvedAgent(customAgent, effectiveTenantId, sharedAgentReadOnly);
+    }
+
+    /** resolveAgent 的三元返回（对照 Go (customAgent, effectiveTenantID, sharedAgentReadOnly)）。 */
+    private record ResolvedAgent(CustomAgentEntity row, long effectiveTenantId,
+                                 boolean sharedAgentReadOnly) {}
+
+    /** AgentRow（org 投影）→ CustomAgentEntity（agentm 消费面）：字段一一同名映射。 */
+    private static CustomAgentEntity toCustomAgentEntity(AgentRow row) {
+        CustomAgentEntity e = new CustomAgentEntity();
+        e.setId(row.getId());
+        e.setName(row.getName());
+        e.setDescription(row.getDescription());
+        e.setAvatar(row.getAvatar());
+        e.setBuiltin(row.isBuiltin());
+        e.setTenantId(row.getTenantId());
+        e.setCreatedBy(row.getCreatedBy());
+        e.setConfig(row.getConfig());
+        e.setCreatedAt(row.getCreatedAt());
+        e.setUpdatedAt(row.getUpdatedAt());
+        return e;
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.ragagent.agentm.service.CustomAgentService customAgentServiceField;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ragagent.org.service.AgentShareService agentShareServiceField;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ragagent.auth.service.TenantService tenantServiceField;
 
     private static ObjectNode parseAgentConfig(CustomAgentEntity row) {
         try {
@@ -654,8 +731,18 @@ public class KnowledgeQaController {
 
         // 异步执行（虚拟线程，Go L1209-1313 的 goroutine）。
         // 纪律 #1：TenantContext 是 ThreadLocal，跨虚拟线程必须显式 capture/replay。
-        com.ragagent.event.TenantContextSnapshot requestTenant =
-                com.ragagent.event.TenantContextSnapshot.capture();
+        // 对照 setupSSEStream（Go qa.go L661-675）：共享 agent → 异步段以源租户为
+        // 执行租户（模型/KB/MCP 解析范围；身份不变）；租户不存在则不切换（Go 同款守卫）。
+        final com.ragagent.event.TenantContextSnapshot requestTenant =
+                reqCtx.effectiveTenantId != 0
+                        && tenantServiceField.getTenantById(reqCtx.effectiveTenantId) != null
+                ? com.ragagent.event.TenantContextSnapshot.capture()
+                        .withTenantId(reqCtx.effectiveTenantId)
+                : com.ragagent.event.TenantContextSnapshot.capture();
+        if (reqCtx.effectiveTenantId == requestTenant.tenantId() && reqCtx.effectiveTenantId != 0) {
+            log.info("Using effective tenant {} for shared agent (model/KB/MCP)",
+                    reqCtx.effectiveTenantId);
+        }
         Thread.Builder.OfVirtual runner = Thread.ofVirtual();
         runner.start(() -> {
             try {
