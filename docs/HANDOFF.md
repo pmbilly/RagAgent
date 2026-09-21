@@ -2,6 +2,15 @@
 
 ## 0.0 总验收完成（2026-09-22，双端起服 + 无掩码 A/B 抽样 + 全量分批绿）
 
+**收尾补录（同日第三批，γ3 深化）**：feishu/wecom AES 加密验签族（crypt 族全量：
+AES-256-CBC + PKCS#7 + SHA1 四元组签名，密文/签名 fixture 录自独立 Go 程序
+`contracts/w5g3b-im-crypt.tsv`，5 测试绿）；slack 确定性核心（URL 挑战回显、
+app_mention/message 分支 bot+subType 过滤、thread_ts 双 ID 语义、<@U…> 提及
+剥离、mattermost payload 双态解析，6 测试绿）；**ArtifactReferenceRewriter**
+（artifact_reference.go 270 行全文——代码段保护、括号配对扫描、sandbox: 前缀/
+百分号解码/path.Base 归一、重名保首、handle 优先，20 条 Go overlay 实录逐字节
+MATCH，且实录抓回移植下标 bug 一枚）。
+
 **收尾补录（同日第二批）**：三类剩余缺口又推进四批并全部收官——
 ①**检索引擎批**（3cb4b2e）：HybridSearch 执行面全量翻译（pgvector halfvec HNSW
 向量检索 + ParadeDB BM25 关键词 + RRF 融合 + FAQ 迭代/负例 + 富化装配 +
