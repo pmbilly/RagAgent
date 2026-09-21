@@ -218,6 +218,66 @@ public interface TenantSkillMapper {
     int insertUserEnvVar(@Param("e") com.ragagent.sandbox.domain.TenantUserEnvVar e,
             @Param("now") OffsetDateTime now);
 
+    // ── 快照台账 + reaper（W5 收尾批；消费点 = install/remove 管线与 reaper） ──
+
+    String SNAPSHOT_COLS = "id, tenant_id, sandbox_config_id, skill_id, generation, "
+            + "snapshot_id, state, superseded_at, created_at, updated_at";
+
+    /** 对照 ListStaleInstalling（repository L261-273）：installing/removing 且心跳超时。 */
+    @Results(value = {
+            @Result(column = "envs", property = "envs", typeHandler = SkillEnvVarsTypeHandler.class)
+    })
+    @Select("SELECT " + COLS + " FROM tenant_skills "
+            + "WHERE status IN ('installing', 'removing') "
+            + "AND installing_since IS NOT NULL AND installing_since < #{cutoff} "
+            + "AND deleted_at IS NULL")
+    List<TenantSkillEntity> listStaleInstalling(@Param("cutoff") OffsetDateTime cutoff);
+
+    /** 对照 updateSkillFields 的专用形态（reaper 状态机写 status/error/心跳/snapshot）。 */
+    @Update("UPDATE tenant_skills SET status = #{status}, error = #{error}, "
+            + "installing_since = #{installingSince}, installed_snapshot_id = #{snapshotId}, "
+            + "updated_at = #{now} "
+            + "WHERE tenant_id = #{tenantId} AND sandbox_config_id = #{configId} "
+            + "AND id = #{skillId} AND deleted_at IS NULL")
+    int updateReapState(@Param("tenantId") long tenantId, @Param("configId") String configId,
+            @Param("skillId") String skillId, @Param("status") String status,
+            @Param("error") String error, @Param("installingSince") OffsetDateTime installingSince,
+            @Param("snapshotId") String snapshotId, @Param("now") OffsetDateTime now);
+
+    /** 对照 CreateSnapshotRow：provider 工作前先记台账行。 */
+    @Insert("INSERT INTO tenant_skill_snapshots (id, tenant_id, sandbox_config_id, skill_id, "
+            + "generation, snapshot_id, trigger, state, created_at, updated_at) "
+            + "VALUES (#{e.id}, #{e.tenantId}, #{e.sandboxConfigId}, #{e.skillId}, #{e.generation}, "
+            + "#{e.snapshotId}, #{e.trigger}, #{e.state}, #{now}, #{now})")
+    int createSnapshotRow(@Param("e") com.ragagent.sandbox.domain.TenantSkillSnapshotEntity e,
+            @Param("now") OffsetDateTime now);
+
+    /**
+     * 对照 MarkSnapshotState（repository L283-298）：台账状态迁移。snapshotId 仅在
+     * 非空时覆盖；state=superseded 时落 superseded_at（Go 的 map 条件更新等价形）。
+     */
+    @Update("UPDATE tenant_skill_snapshots SET state = #{state}, updated_at = #{now}, "
+            + "snapshot_id = CASE WHEN #{snapshotId} IS NOT NULL AND #{snapshotId} != '' "
+            + "THEN #{snapshotId} ELSE snapshot_id END, "
+            + "superseded_at = CASE WHEN #{state} = 'superseded' THEN #{now} ELSE superseded_at END "
+            + "WHERE tenant_id = #{tenantId} AND id = #{id}")
+    int markSnapshotState(@Param("tenantId") long tenantId, @Param("id") String id,
+            @Param("state") String state, @Param("snapshotId") String snapshotId,
+            @Param("now") OffsetDateTime now);
+
+    /** 对照 ListSnapshotsByConfig：generation ASC 全链。 */
+    @Select("SELECT " + SNAPSHOT_COLS + " FROM tenant_skill_snapshots "
+            + "WHERE tenant_id = #{tenantId} AND sandbox_config_id = #{configId} "
+            + "ORDER BY generation ASC")
+    List<com.ragagent.sandbox.domain.TenantSkillSnapshotEntity> listSnapshotsByConfig(
+            @Param("tenantId") long tenantId, @Param("configId") String configId);
+
+    /** 对照 DeleteSnapshotRowsByConfig：整配置删除时清台账（普通切换永不调用）。 */
+    @Update("DELETE FROM tenant_skill_snapshots "
+            + "WHERE tenant_id = #{tenantId} AND sandbox_config_id = #{configId}")
+    int deleteSnapshotRowsByConfig(@Param("tenantId") long tenantId,
+            @Param("configId") String configId);
+
     /** 对照 DeleteUserEnvVar：返回受影响行数（0 = ErrEnvVarNotFound）。 */
     @Delete("DELETE FROM tenant_user_env_vars "
             + "WHERE tenant_id = #{tenantId} AND principal_type = #{principalType} "
