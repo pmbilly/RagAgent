@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: public, max-age=86400
+Content-Disposition: inline; filename=w5c-blob.xyz
+Content-Length: 22
+Content-Type: application/octet-stream
+X-Content-Type-Options: nosniff
+X-Request-Id: dc16c306-dd5c-431c-9b8f-1a0922033868
+Date: Mon, 21 Sep 2026 03:46:05 GMT
+

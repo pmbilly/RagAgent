@@ -113,6 +113,11 @@ public class WebConfig implements WebMvcConfigurer {
         com.ragagent.apikey.filter.APIKeyRoutePolicies.registerAll(apiKeyAuthorizer);
         registry.addInterceptor(new com.ragagent.apikey.filter.APIKeyGateInterceptor(apiKeyAuthorizer))
                 .addPathPatterns("/api/v1/**")
+                // W5c：/api/v1/files/presigned 与 presigned-preview 在 Go 注册在
+                // **引擎根**（servePresignedFiles/servePresignedPreview 拿 *gin.Engine），
+                // 组级 APIKeyGate 对它们不跑——presigned 靠 HMAC 自证、preview 显式
+                // DenyAPIKeyPrincipal（FileProxyController 内，403 文案与 Go 一致）。
+                .excludePathPatterns("/api/v1/files/**")
                 .order(-1);
 
         // /models 组（对照 RegisterModelRoutes）
@@ -144,6 +149,9 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/hybrid-search", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/knowledge-bases/*/hybrid-search", TenantRole.VIEWER, false);
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/duplicate", TenantRole.CONTRIBUTOR, false);
+        // KB 图片代理（W5c，对照 files.go serveKBScopedFiles L336-347：Viewer +
+        // KBAccessRead——KB 访问判定在 KbFileProxyController 内）
+        rbac.addRule("GET", "/api/v1/knowledge-bases/*/files", TenantRole.VIEWER, false);
         // 文档（OwnedKBOrAdmin 的所有权判定在 controller/service 层，拦截器只做角色下限）
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/file", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/knowledge/url", TenantRole.CONTRIBUTOR, false);
@@ -361,6 +369,14 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/messages/chat-history-stats", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/messages/*", TenantRole.VIEWER, false);
         rbac.addRule("DELETE", "/api/v1/messages/*/*", TenantRole.VIEWER, false);
+
+        // 消息图片代理（W5c，对照 files.go serveMessageScopedFiles L498-518：Viewer）
+        rbac.addRule("GET", "/api/v1/sessions/*/messages/*/files", TenantRole.VIEWER, false);
+
+        // presigned-preview 诊断（W5c，对照 files.go servePresignedPreview L639-642：
+        // RequireRole(Admin)——对 API-Key 主体短路，Key 由 FileProxyController 显式拒绝；
+        // presigned 与 /r/* 在 Go 无角色门 → 不登记规则，拦截器放过无规则路径）
+        rbac.addRule("GET", "/api/v1/files/presigned-preview", TenantRole.ADMIN, false);
 
         // chat 三入口（波 4.6d，对照 routes_chat.go L117-133 的 RegisterChatRoutes）：
         // knowledge-chat / agent-chat / knowledge-search 全部 Viewer+（逐会话/逐 KB
@@ -661,6 +677,19 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/wechat/qrcode", TenantRole.ADMIN, false);
         rbac.addRule("POST", "/api/v1/wechat/qrcode/status", TenantRole.ADMIN, false);
 
+        // W5c：/files 与 KB 图片代理的 API-Key 自带守卫（对照 Go 路由上的
+        // middleware.AllowFileServeAPIKey——这两个引擎级路由不在 /api/v1 组的门禁下，
+        // KB 受限 Key 拒绝、full-access 与 retrieve 放行，JWT 直通）。
+        // 注册先于 rbac（对照 Go 链序：AllowFileServeAPIKey → Viewer）。
+        registry.addInterceptor(new com.ragagent.apikey.filter.AllowFileServeAPIKeyInterceptor())
+                .addPathPatterns("/files", "/api/v1/knowledge-bases/*/files")
+                .order(0);
+        // W5c：presigned-preview 的 DenyAPIKeyPrincipal（对照 Go servePresignedPreview
+        // L640——RequireRole 对 Key 短路，引擎级路由必须显式拒绝 Key）。
+        registry.addInterceptor(new com.ragagent.apikey.filter.DenyAPIKeyPrincipalInterceptor())
+                .addPathPatterns("/api/v1/files/presigned-preview")
+                .order(0);
+
         registry.addInterceptor(rbac).addPathPatterns("/api/v1/sessions/**",
                 "/api/v1/messages/**",
                 "/api/v1/models/**",
@@ -678,7 +707,11 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/organizations/**", "/api/v1/agents/**",
                 "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**",
                 "/api/v1/initialization/**",
-                "/api/v1/embed-channels/**", "/api/v1/im-channels/**", "/api/v1/wechat/**");
+                "/api/v1/embed-channels/**", "/api/v1/im-channels/**", "/api/v1/wechat/**",
+                // W5c：presigned-preview 的 ADMIN 规则要有 pattern 才能命中；
+                // presigned 与 preview 的 GET/HEAD 也流经本拦截器，但无规则即放行
+                //（对照 Go：两条路由在引擎根、无 RBAC 中间件）。
+                "/api/v1/files/**");
         // W5a 漂移修复补的 pattern：chunks/messages/faq/knowledge-chat/agent-chat/
         // knowledge-search 六个前缀的 addRule 早已存在（chunks 读组、faq/import/progress、
         // chat 三入口），但拦截器此前不覆盖这些前缀 → 规则空转。im 的 engine 级回调

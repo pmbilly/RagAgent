@@ -510,8 +510,9 @@ public final class TestSchema {
 
     /**
      * 波 2 第五批：基础设施配置三组的两张新表（web_search_providers=迁移 000030、
-     * vector_stores=迁移 000032，列序/默认值以迁移为准）+ resources 最小投影（StoredResource.TableName()）
-     * （迁移后增表；storage 停用守卫只 COUNT (tenant_id, storage_backend_id, state)）。
+     * vector_stores=迁移 000032，列序/默认值以迁移为准）+ resources /
+     * resource_bindings / resource_access_grants（迁移 000069 资源注册表——
+     * W5c 扩到全投影并补齐两张伴生表，/r/ 能力 URL 与 scoped 文件代理依赖它们）。
      * 两个 config jsonb 列在 PG 有 DEFAULT（'{}'）——实体恒持非 null 对象，不依赖默认。
      */
     private static void createInfraConfigTables(JdbcTemplate jdbc) {
@@ -529,12 +530,35 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // Go types.StoredResource 的 TableName() 是 "resources"（types/resource.go L66）
+        // Go types.StoredResource 的 TableName() 是 "resources"（types/resource.go L66）。
+        // W5c：按迁移 000069 补齐全投影（此前是停用守卫用的最小投影）。
         jdbc.execute("CREATE TABLE IF NOT EXISTS resources (" +
                 "id VARCHAR(36) NOT NULL PRIMARY KEY, handle VARCHAR(22) NOT NULL, " +
                 "tenant_id BIGINT NOT NULL, storage_backend_id VARCHAR(36), " +
                 "provider VARCHAR(32) NOT NULL, physical_path TEXT NOT NULL, " +
-                "kind VARCHAR(32) NOT NULL DEFAULT 'file', state VARCHAR(16) NOT NULL DEFAULT 'active')");
+                "location_hash VARCHAR(64) NOT NULL, " +
+                "kind VARCHAR(32) NOT NULL DEFAULT 'file', " +
+                "mime_type VARCHAR(255) NOT NULL DEFAULT '', " +
+                "original_name VARCHAR(1024) NOT NULL DEFAULT '', " +
+                "size BIGINT NOT NULL DEFAULT 0, " +
+                "content_hash VARCHAR(64) NOT NULL DEFAULT '', " +
+                "lifecycle VARCHAR(16) NOT NULL DEFAULT 'persistent', " +
+                "expires_at TIMESTAMP WITH TIME ZONE, state VARCHAR(16) NOT NULL DEFAULT 'active', " +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
+                "deleted_at TIMESTAMP WITH TIME ZONE)");
+        // 迁移 000069 的两张伴生表：绑定=存活声明、授权=/r/ 能力令牌行。
+        // H2 不建 PG 的 UNIQUE INDEX 与 FK（同既有表纪律）。
+        jdbc.execute("CREATE TABLE IF NOT EXISTS resource_bindings (" +
+                "id VARCHAR(36) NOT NULL PRIMARY KEY, resource_id VARCHAR(36) NOT NULL, " +
+                "tenant_id BIGINT NOT NULL, owner_type VARCHAR(32) NOT NULL, " +
+                "owner_id VARCHAR(64) NOT NULL, relation VARCHAR(32) NOT NULL DEFAULT 'attachment', " +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS resource_access_grants (" +
+                "id VARCHAR(36) NOT NULL PRIMARY KEY, token_hash VARCHAR(64) NOT NULL, " +
+                "resource_id VARCHAR(36) NOT NULL, access_scope VARCHAR(16) NOT NULL DEFAULT 'read', " +
+                "expires_at TIMESTAMP WITH TIME ZONE NOT NULL, revoked_at TIMESTAMP WITH TIME ZONE, " +
+                "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
     }
 
     /**
@@ -1045,6 +1069,9 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM web_search_providers");
         jdbc.execute("DELETE FROM vector_stores");
         jdbc.execute("DELETE FROM resources");
+        // W5c：资源注册表伴生表
+        jdbc.execute("DELETE FROM resource_bindings");
+        jdbc.execute("DELETE FROM resource_access_grants");
         // 波 2 收官批：系统设置
         jdbc.execute("DELETE FROM system_settings");
         // 波 2 终扫批：用户收藏

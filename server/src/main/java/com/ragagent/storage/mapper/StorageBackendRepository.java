@@ -79,6 +79,20 @@ public class StorageBackendRepository {
                 .optional();
     }
 
+    /**
+     * Go FindLegacyAlias：provider 的 legacy 别名行（<b>不过滤 deleted_at</b>——
+     * Go 源原文如此，别"顺手修好"）；First 按 GORM 默认主键序取第一条。
+     */
+    public StorageBackend findLegacyAlias(long tenantId, String provider) {
+        return jdbc.sql("SELECT " + COLS + " FROM storage_backends "
+                        + "WHERE tenant_id = ? AND provider = ? AND legacy_alias = TRUE "
+                        + "ORDER BY id LIMIT 1")
+                .params(tenantId, provider)
+                .query(new BackendMapper())
+                .optional()
+                .orElse(null);
+    }
+
     /** Go List：created_at DESC */
     public List<StorageBackend> list(long tenantId) {
         return jdbc.sql("SELECT " + COLS + " FROM storage_backends "

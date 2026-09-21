@@ -61,6 +61,26 @@ public final class APIKeyRoutePolicies {
         registerEvaluationRoutes(authorizer);
         registerSandboxConfigRoutes(authorizer);
         registerOrganizationRoutes(authorizer);
+        registerFileRoutes(authorizer);
+    }
+
+    /**
+     * 文件代理面（W5c，对照 Go router/files.go 的两条 v1 组 apiKeyRoute 声明）：
+     * KB 作用域图片代理 = retrieve+fullAccess（Go L336-337 注释原文：保住 file 路由
+     * 的既有 API-key 政策——KB 受限 Key 拒绝，full-access 与 retrieve 仍要过
+     * KBAccessRead）；消息作用域资源代理 = chat+fullAccess（Go L502 注释原文：
+     * chat 能力即够，因为 GetMessage 强制了 Key 所属会话的 ownership）。
+     *
+     * <p>其余文件路由不在本表：/files、/r/:token、/api/v1/files/presigned、
+     * presigned-preview 都注册在<b>引擎根</b>（/api/v1 组的门禁不跑），
+     * Go 侧没有也不需要策略——presigned-preview 显式 DenyAPIKeyPrincipal，
+     * /files 用路由级 AllowFileServeAPIKey（FileProxyService 内移植）。</p>
+     */
+    private static void registerFileRoutes(APIKeyRouteAuthorizer a) {
+        a.registerGin("GET", "/api/v1/knowledge-bases/:id/files",
+                APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.fullAccess()));
+        a.registerGin("GET", "/api/v1/sessions/:id/messages/:message_id/files",
+                APIKeyRoutePolicy.chat(APIKeyRoutePolicy.fullAccess()));
     }
 
     /**

@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: public, max-age=86400
+Content-Disposition: inline; filename=w5c-report.pdf
+Content-Length: 29
+Content-Type: application/pdf
+X-Content-Type-Options: nosniff
+X-Request-Id: c7036b69-979a-4b1a-93a0-b6c30c45a1fe
+Date: Mon, 21 Sep 2026 03:46:05 GMT
+

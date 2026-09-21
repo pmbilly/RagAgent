@@ -1,0 +1,78 @@
+package com.ragagent.session.controller;
+
+import java.io.IOException;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.ragagent.storage.controller.FileProxyController;
+import com.ragagent.storage.fileserve.FileAccess;
+import com.ragagent.storage.fileserve.FileAccessException;
+import com.ragagent.storage.fileserve.FileAccessResolver;
+import com.ragagent.storage.fileserve.FileProxyService;
+import com.ragagent.storage.fileserve.FileAccessResolver.MessageFileLookup;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+/**
+ * 消息作用域的资源代理（收尾批 W5c，对照 Go router/files.go serveMessageScopedFiles +
+ * newMessageScopedFileServeHandler + access.ResolveMessageFile）。
+ *
+ * <p>聊天渲染器加载 assistant 消息内嵌的资源用。消息服务先证明调用者拥有所在会话
+ * （{@code MessageService.getMessage} 的 loadSessionForRead 可见性判定，含 Admin
+ * 回退），持久化消息必须<b>逐字引用</b>该文件（content / artifacts[].url /
+ * knowledge_references / images / agent_steps[].tool_calls[].result 五处持久化字段，
+ * MessageReferencesFile 的整 token 匹配）。</p>
+ *
+ * <p>Go 的中间件链：APIKeyGate（chat+fullAccess 策略，见 APIKeyRoutePolicies）
+ * → g.Viewer()（RbacInterceptor 规则）→ handler。</p>
+ *
+ * <p><b>已知收紧</b>：跨租户消息文件的 shared-agent / org-shared KB 两条授予路径
+ * 随波 5——owner ≠ caller 恒 403（Go 在 share 在位时放行），方向偏保守。</p>
+ */
+@RestController
+public class MessageFileProxyController {
+
+    private final com.ragagent.session.service.MessageService messageService;
+    private final FileAccessResolver accessResolver;
+    private final FileProxyService proxy;
+
+    public MessageFileProxyController(com.ragagent.session.service.MessageService messageService,
+            FileAccessResolver accessResolver, FileProxyService proxy) {
+        this.messageService = messageService;
+        this.accessResolver = accessResolver;
+        this.proxy = proxy;
+    }
+
+    /** Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。 */
+    @RequestMapping(value = "/api/v1/sessions/{id}/messages/{message_id}/files",
+            method = RequestMethod.HEAD)
+    public void filesHead(@PathVariable("id") String id,
+            @PathVariable("message_id") String messageId, jakarta.servlet.http.HttpServletResponse response)
+            throws IOException {
+        FileProxyController.writeGinNoRoute(response);
+    }
+
+    @GetMapping("/api/v1/sessions/{id}/messages/{message_id}/files")
+    public void files(@PathVariable("id") String id,
+            @PathVariable("message_id") String messageId, HttpServletRequest request,
+            HttpServletResponse response) throws IOException {
+        String reference = FileProxyService.requireFilePathQuery(request, response);
+        if (reference == null) {
+            return;
+        }
+        MessageFileLookup lookup = messageService::getMessage;
+        FileAccess file;
+        try {
+            file = accessResolver.resolveMessageFile(id, messageId, reference, lookup);
+        } catch (FileAccessException e) {
+            FileProxyService.fileAccessError(response, e);
+            return;
+        }
+        proxy.serveAuthorizedFile(response, request, file, "message files");
+    }
+}

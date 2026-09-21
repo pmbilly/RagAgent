@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: public, max-age=86400
+Content-Disposition: attachment; filename=w5c-page.html
+Content-Length: 45
+Content-Type: application/octet-stream
+X-Content-Type-Options: nosniff
+X-Request-Id: e7e735f5-201b-49ec-a859-c479254e12fc
+Date: Mon, 21 Sep 2026 03:46:05 GMT
+

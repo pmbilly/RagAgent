@@ -1,0 +1,11 @@
+HTTP/1.1 206 Partial Content
+Accept-Ranges: bytes
+Cache-Control: public, max-age=86400
+Content-Disposition: inline; filename=w5c-seed.txt
+Content-Length: 8
+Content-Range: bytes 4-11/41
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: 15ac6c18-8d3f-46a5-99fb-69449ec49adf
+Date: Mon, 21 Sep 2026 03:46:05 GMT
+

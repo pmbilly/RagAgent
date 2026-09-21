@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: public, max-age=86400
+Content-Disposition: inline; filename=w5c-image.png
+Content-Length: 34
+Content-Type: image/png
+X-Content-Type-Options: nosniff
+X-Request-Id: 7b580c0b-829a-4213-89cd-92a74c1f5c79
+Date: Mon, 21 Sep 2026 03:46:05 GMT
+

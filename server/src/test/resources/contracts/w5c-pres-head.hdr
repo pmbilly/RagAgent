@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: public, max-age=86400
+Content-Disposition: inline
+Content-Length: 41
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: 6f6b611c-1140-4a05-a292-4a24d3132656
+Date: Mon, 21 Sep 2026 03:46:05 GMT
+

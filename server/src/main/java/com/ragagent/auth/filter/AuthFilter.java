@@ -118,6 +118,14 @@ public class AuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 通道 1.7：/r/ 能力 URL（W5c，对照 Go router.go L175-177：
+        // serveResourceGrants 注册在 Auth 中间件**之前**——短时令牌自证，
+        // 面向无法带 WeKnora 头的 IM 平台客户端）。
+        if (request.getRequestURI().startsWith("/r/")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // 通道 2：Bearer JWT
         boolean bearerPresented = false;
         String authHeader = request.getHeader("Authorization");

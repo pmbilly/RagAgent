@@ -293,6 +293,7 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | W5a 收尾批（WebConfig RBAC 漂移修复 + 13 条小散路由） | internal/router/rbac.go 全文对照 + routes_chat.go RegisterSessionRoutes/RegisterMessageRoutes + routes_knowledge.go RegisterChunkRoutes 写族 + handler/{auth,tenant,tag}.go 的 Logout/RefreshToken/SwitchTenant/ListTenants/GetTenant/UpdateTenant/DeleteTenant + service/{user.go L1127-1470, tag.go 全文} + internal/im EnsureChannelAdapter 确定性前缀 + routes_agent.go RegisterIMRoutes | com.ragagent.config.WebConfig（漂移：拦截器 pattern +sessions/messages/chunks/faq/knowledge-chat/agent-chat/knowledge-search 六前缀补齐，规则 +sessions 23 条/messages 4 条/chunks 写 7 条）+ auth.{controller.AuthController +3 端点,service.{UserService logout/refreshToken/switchTenant,JwtService.parseSignedAllowExpired}} + auth.{controller.TenantCatalogController +4 端点,service.TenantService.deleteTenant 软删级联} + knowledge.{controller.KnowledgeTagController,service.KnowledgeTagService,dto.KnowledgeTagDtos,mapper.KnowledgeTagMapper/Repository 全套 CRUD,ChunkRepository.deleteChunksByTagId} + im.{controller.ImCallbackController,service.ImChannelService.ensureChannelForCallback} + auth.filter.AuthFilter 回调让路 + apikey.filter.APIKeyRoutePolicies +8 | ✅ | **56 条 w5a-* golden 全是 Go 实录** + W5aSundryRoutesContractTest（56 比对一法）+ **真 PG A/B 三轮 56/56 ALL MATCH 零 DIFF**（ab-w5a.sh，漂移修复的 put-nonowner=403 场景直击 OWNER 规则）+ 受影响 9 包回归绿。**golden 抓回三个真契约**：①Go 的 tag.SeqID 经 GORM RETURNING **回填真值**（旧注释"恒 0"是错的）→ PG 插入后按 id 回读；②tag create 的 validator 键**带** struct 前缀（`createTagRequest.Name`，匿名 struct 才无前缀）；③page=0 过 binding（omitempty 视零值为空）→ 归一 page=1。**实录钉住**：refresh 轮换的吊销检查在"同秒 JWT 逐字节相同"时会因 auth_tokens 出现同值行而变成堆序掷硬币——录制脚本 sleep 2 保证确定性；GET /tenants/:id 的 handler "Invalid workspace ID" 与 DELETE 缺行 500 均被 PathTenantMatch 拦成死代码；im 回调 enabled 渠道在 Go dev 因 mattermost 适配器工厂失败恒 503 "channel not available"（Java 无适配器同形 → MATCH 非 XDEP）。**决策点**：tenant DELETE 用自助建租户+PathTenantMatch 403 的组合钉住（真实删除在 dev 不可达），级联软删（成员+租户）以 repo 层对齐。已知差异：tag force/content_only 的 asynq 异步回收（knowledge 文件删除/向量索引）降级 no-op WARN；org-share 授予路径未翻译（同源收紧）。关键坑见 §9「W5a 补充」 |
 
 | 收尾批 W5b：initialization 系统级 14 条（模型初始化向导收官） | internal/handler/initialization.go 的系统级 14 端点（CheckOllamaStatus/ListOllamaModels/CheckOllamaModels/DownloadOllamaModel/GetDownloadProgress/ListDownloadTasks + CheckRemoteModel/TestEmbeddingModel/CheckRerankModel/CheckASRModel/TestMultimodalFunction + ExtractTextRelations/FabriTag/FabriText，L923-2606）+ internal/models/utils/ollama 的 Pull 进度回调 + internal/models/asr（唯一 provider OpenAIASR，381 行）+ config.yaml extract 段（extract_graph/fabri_text 模板）+ internal/assets/asr_test.wav | com.ragagent.agentm.{service.{OllamaDownloadTaskStore（进程内 map=Go 包级 downloadTasks，无新表）,AsrTranscriber（seam+OpenAI 兼容缺省实现，含 go-openai error.go 字节级仿真）,AsrTestAudio,ExtractPrompts（vendor agentm/extract_config.yaml 与 Go config.yaml L49-107 逐字节同源）,AgentmWiring（**OllamaService 单例 bean 首次落地**，对照 container.Provide）}} + InitializationController +14 端点 + llm.ollama.OllamaService.pullWithProgress（management 缺口）+ WebConfig rbac×14 + APIKeyRoutePolicies manageModels×14 + 测试侧 W5bStubServers（in-JVM ollama:11434 + OpenAI 兼容 upstream） | ✅ | **45 条 w5b-* golden 全是 Go 实录**（DOWN/UP 双态 + upstream stub 场景）+ W5bInitializationContractTest（4 方法顺序敏感）+ **真 PG A/B 两轮 40 场景×2=80 项 ALL MATCH 零 DIFF**（ab-w5b.sh，双端同指 stub-llm 8181/stub-ollama 8182 + 同一 dev docreader）。**A/B 抓回一个真缺陷**：multimodal 成功/失败 data 节点必须按 gin.H 字母序**插入**（ObjectNode 保插入序，caption<ocr<processing_time<success）。**golden 钉死的契约**：①gin validator 键用 Go 字段名非 json tag（匿名 struct 是 'Models'/'ModelName'，具名才带 struct 前缀）；②OllamaModelInfo.modified_at 保留 JSON 反序列化的 UTC（time.Time marshal 语义），而下载任务的 startTime 是本地时区——同 handler 内两种时区路径并存；③asr 的 500 纯文本 body 走 go-openai RequestError 形态（`invalid character 'b' looking for beginning of value, body: boom`）且 available=**true**（端点可达分支）。**seam 降级备案**：ASR=薄复刻唯一 provider（真实出站）；VLM 无 provider 调用（multimodal/test 实际打 DocReader）；download 的 12h ctx 超时未翻（虚拟线程无等价 cancel）。已知差异：ollama 传输层错误内文（Go dial tcp vs JDK）掩码比对、GoJsonBindError 深结构回落。关键坑见 §9「W5b 补充」 |
+| 收尾批 W5c：文件代理面 8 条路由（internal/router/files.go 收官） | internal/router/files.go（693 行全文：newFileServeHandler/serveFilesWithResources/serveResourceGrants/serveKBScopedFiles/serveMessageScopedFiles/servePresignedFiles/servePresignedPreview + parseStorageTarget/resolveCatalogResource/streamStoredFile/fileAccessError/serveAuthorizedFile）+ internal/application/access/files.go（全文）+ internal/application/service/{resource.go 的解析/授权子集,resource_references.go,storagebackend.go 的 ResolveFileService/ResolveBackend}+ internal/application/service/file/{factory.go 的完备性检查,resolve_tenant.go,local.go 的 GetFile/GetFileURL,backend_scoped.go 的 GetFile/GetFileURL}+ internal/filetransport/response.go + internal/middleware/api_key_gate.go 的 AllowFileServeAPIKey/DenyAPIKeyPrincipal + utils/presign.go 全文 + utils/file_reference.go + types/{resource.go 的解析族,file_reference.go} | com.ragagent.storage.fileserve 新包 8 文件（StoragePaths/FileContentService/LocalFileContentService/BackendScopedFileService/StorageFileResolver/ResourceCatalogService 复用 mapper/FileTransport/FileAccessResolver/FileProxyService）+ storage.{domain.StoredResource,mapper.ResourceRepository,controller.FileProxyController}+ knowledge.controller.KbFileProxyController + session.controller.MessageFileProxyController + config.WebConfig（rbac×3 + 拦截器 pattern + APIKeyGate exclude /api/v1/files/** + 两个既有 API-Key 拦截器接线）+ AuthFilter /r/ 前缀让路 + APIKeyRoutePolicies ×2 + TestSchema resources 全投影 + resource_bindings/resource_access_grants（迁移 000069） | ✅ | **85 个 w5c-* golden 全是 Go 实录**（6 类种子文件字节 + resources/grants/KB/绑定/session/messages 直种双端共享）+ W5cFileProxyContractTest 9 方法（二进制 body+headers 双锚）+ fileserve 纯函数 24 单测（FormatMediaType 24 语料/parseRange/Rel 全是 go1.26 实录）+ **真 PG A/B 两轮 75/75 ALL MATCH 零 DIFF**（ab-w5c.sh，双端同指 dev PG + 同一落盘目录 + .env 同一把 SYSTEM_AES_KEY）。**golden/A/B 抓回的真契约**：①presigned 的 Content-Disposition 是**裸 inline/attachment**（Go 调 streamStoredFile 不带 filename）；②presigned-preview 的 url 是 BackendScoped 的 `storage://<backendID>/` 包装（rewritten 恒 true、provider 被 backend 覆写）；③KB 受限 Key 对 KB 代理路由的门禁拒绝文案与 gate 相同；④If-None-Match 携带但无服务端 ETag → 照常 200（不是 304）。关键坑见 §9「W5c 补充」 |
 
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
@@ -2136,3 +2137,61 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
     ctx 超时未翻（Java 虚拟线程无等价 cancel，只有取消语义缺位无行为差异）；
     50MB 上传上限族（MaxBytesReader 前置）未录——Spring multipart 60MB 全局上限
     承接，超限文案不同（golden 不可达）。
+
+- **W5c 补充（文件代理面 8 条路由）**：
+  - **注册位置决定鉴权分层（files.go 的核心契约）**：/files 在 Auth **之后**（需登录）、
+    /r/:token 在 Auth **之前**（零鉴权，令牌自证）、presigned 在 Auth 之后但 Auth 的
+    noAuthAPI 白名单放行 GET/HEAD（IM 平台 HEAD 预检）、presigned-preview 在引擎根
+    （APIKeyGate 不跑 → 显式 DenyAPIKeyPrincipal + RequireRole(Admin)，而 RequireRole
+    对 Key 短路所以 Deny 必须在先）。Java 侧分层：AuthFilter 通道 1.7（/r/ 前缀让路）、
+    APIKeyGateInterceptor `.excludePathPatterns("/api/v1/files/**")`、
+    AllowFileServeAPIKeyInterceptor/DenyAPIKeyPrincipalInterceptor（既有预留类接线）
+    + RbacInterceptor ADMIN 规则 + 控制器内 Deny 兜底删除。
+  - **HEAD 的 404 是 gin NoRoute 形态**：Go 只给 /r/* 与 presigned 注册 HEAD；
+    其余 GET 路由的 HEAD 落 gin NoRoute（404 + `text/plain` 无 charset +
+    "404 page not found" 无换行 + Content-Length:18）。Spring 的 `head()` 请求会把
+    **GET 处理器的 method 参数改写成 GET**（拦截器/handler 里 `getMethod()` 不可靠），
+    必须显式 `@RequestMapping(method=HEAD)` 映射才能钉住。curl 侧 `-X HEAD` 会等
+    永不到来的 body → 录制脚本 HEAD 一律 `-I`。
+  - **presigned 的 Content-Disposition 是裸值**：Go 调 streamStoredFile **不带
+    filename**（varargs 空）→ filetransport.Serve 内部对空 filename 直接写
+    "inline"/"attachment"（无 filename= 段），Content-Type 却从路径派生。
+  - **presigned-preview 的 url 是 BackendScoped 包装**：dev 租户有 System LOCAL
+    legacy alias 行 → ResolveBackend 命中 → BackendScopedFileService.GetFileURL 把
+    未改写的路径重新包成 `storage://<backendID>/<原路径>` → `rewritten` 恒 true、
+    provider 被覆写成 backend 的 local（"minio://bucket/x.png" 也一样）。
+    "URL unchanged" 的 hint 分支在 dev 不可达（golden 只钉 200 形态）。
+  - **If-None-Match 携带但服务端无 ETag → 照常 200**：go1.26 的
+    checkIfNoneMatch 对"携带但不匹配"返回 condTrue（即 If-None-Match 未命中）→
+    不 304。304 只在 etagWeakMatch(请求 etag, 服务端 ETag) 命中时发生，本服务
+    恒无 ETag → 永不 304。第一版翻译照想象写了 304，被 golden 抓回。
+  - **mime.FormatMediaType 按 UTF-8 字节迭代**：Go `value[index]` 是字节索引，
+    CJK 文件名逐字节百分号化（数 → %E6%95%B0）；Java 按 char 迭代会把 BMP 字符
+    的 16 位值直接切 hex。另：`'`/`%` 是 token 字符（不引号），`=` 是 tspecial
+    （引号）；needsEncoding 对 \t 豁免（encodedword.go）。
+  - **filepath.Rel/Rel 的"根性不同"分支**：`Rel("/data/files", "10002/exports/a.png")`
+    是 error（Go files.go GetFileURL 据此原样返回输入 → rewritten=true）。
+    go1.26 实录钉住：`Rel("/a/b","/a/x/y/../cgi-bin") = "../x/cgi-bin"`。
+  - **go-server-up 的 SYSTEM_AES_KEY**：WeKnora/.env **有** 32 字节的
+    SYSTEM_AES_KEY（presign 签名在 dev 是激活态）；不要用自造 key 覆盖——两侧
+    必须同 key（dev-env 统一取 .env）。录制/重放的 expires+sig 只在请求里、
+    不进 golden，所以 golden 与时间无关。
+  - **容器 Content-Type 空格规范化（备案，同波 1 G5）**：Tomcat 把
+    `text/plain; charset=utf-8` 写上线成 `text/plain;charset=utf-8`（去空格）；
+    ab-w5c.sh 的 norm_hdr 两侧同形归一（MockMvc 不归一，契约测试无此问题）。
+  - **MockMvc 的 query 参数不做百分号解码**：`get("/files?file_path=local%3A%2F…")`
+    到 handler 里还是编码值——契约测试直接放解码后的值（Go c.Query 拿到的也是
+    解码值，两侧 handler 输入一致）。
+  - **资源注册表（迁移 000069）**：TestSchema 的 resources 从最小投影扩到全投影 +
+    补 resource_bindings/resource_access_grants 两表。/r/ 的授权完全在行上
+    （token_hash=SHA-256(token)，派生令牌=HMAC("resource_grant:v1:<id>:<窗口起点>")
+    前 16 字节 base64url，窗口=TTL/2、锚点是 **Go 零值时间（公元 1 年）** 距纪元
+    62135596800 秒——跨语言派生同一 token 的前提；无 key 时回落随机令牌）。
+    IsReferencedByKnowledgeBase 只认"绑定指向存活文档"（knowledges×knowledge_bases
+    双 JOIN），未注册的 exports 文件在 KB 代理路由下是 403（不是 404）。
+  - **已知差异（备案）**：①云 provider 的 SDK 客户端层未翻译——完备云配置的
+    解析在 Java 落 400（Go 会造出客户端并可能 200），dev 恒 local 不可达（XDEP）；
+    ②APP_EXTERNAL_URL 在位的 GetFileURL 预签名/派生令牌分支已按 Go 移植但 dev
+    不可达；③消息代理的跨租户 shared-agent/org-shared 授予路径随波 5（owner≠caller
+    恒 403，方向偏保守）；④If-Match/If-Range 的 412/200 语义按 Go 移植但 A/B 未录
+    （curl 默认不带）；多段 Range 的 multipart 边界随机无字节锚。
