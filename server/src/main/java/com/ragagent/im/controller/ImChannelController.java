@@ -141,7 +141,8 @@ public class ImChannelController {
         } catch (RuntimeException e) {
             return plain(500, "failed to list channels");
         }
-        List<Map<String, Object>> data = new ArrayList<>();
+        // GORM Find 零行 = nil 切片 → data:null（ListChannelsByAgent 同实录锚）。
+        List<Map<String, Object>> data = channels.isEmpty() ? null : new ArrayList<>();
         for (ImChannelEntity ch : channels) {
             data.add(summaryRow(ch));
         }
@@ -161,7 +162,8 @@ public class ImChannelController {
                     .error("[IM] list all channels failed", e);
             return plain(500, "failed to list channels");
         }
-        List<Map<String, Object>> data = new ArrayList<>();
+        // GORM Scan 进 nil 切片：零行时 marshals 为 null（非 []）——2026-09-22 双端实录。
+        List<Map<String, Object>> data = rows.isEmpty() ? null : new ArrayList<>();
         for (Map<String, Object> row : rows) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", row.get("id"));
@@ -177,6 +179,7 @@ public class ImChannelController {
             m.put("bot_identity", row.get("bot_identity"));
             m.put("created_at", row.get("created_at"));
             m.put("updated_at", row.get("updated_at"));
+            if (data == null) break;
             data.add(m);
         }
         Map<String, Object> body = new LinkedHashMap<>();

@@ -389,3 +389,23 @@
     B3 八包 / B4 十四包）**全绿零失败**。A/B：**N/A（XDEP 备案）**——verify 门
     无 HTTP 面，dev 双端 install 管线都止于 bootMaintenanceSandbox（provider
     不可达）， golden 对账 route-recon 交集 387、真缺口候选 2 不变。
+
+- **总验收冒烟 A/B 抓回三个真缺陷（2026-09-22，dev PG 双端实录，已修复）**：
+  - **SessionListItem 的 NULL 字符串列**：dev PG 有 description 为 NULL 的会话行，
+    GORM 扫描 → Go 零值 `""`（恒输出键），Java 侧 `SessionListItem` 的
+    title/description 无零值归一 → 出 `null`。修复 = 字段默认 `""` + setter 归一
+    （§9「Go 零值语义」的列表投影版——**列表 DTO 也要过零值清单**，不仅实体）。
+  - **storage-backends 的时间戳时区**：Go 的 StorageBackendResponse 直接 marshal
+    struct，GORM/lib-pq 扫描 timestamptz 得到的 time.Time 带 **UTC location** →
+    输出 `Z`；Java 的 GoTimeSerializer 统一转 JVM 本地时区 → `+08:00`。此前的
+    golden/A/B 都掩码时间戳所以漏网。修复 = `GoTimeSerializer.Utc` 变体（保护
+    targetZone()）挂在该 DTO 两字段。**教训：掩码 A/B 对时间戳是盲的——收尾验收
+    必须跑一轮无掩码逐字节抽样**；其余"直接 marshal struct"的响应类型同病，
+    逐个排查（agents 列表 Go 走自定义格式化所以本就 MATCH）。
+  - **im-channels 空列表 `null` vs `[]`**：Go 的 ListChannelsByAgent/
+    ListChannelsByTenant 用 GORM Find/Scan 进 nil 切片 → 零行 marshals 为
+    `{"data":null}`；Java 侧恒 `new ArrayList` → `[]`。修复 = 空列表出 null。
+    golden 只录了有行场景所以没钉住——**空列表形态要显式录 golden**。
+  - 验收锚：sessions/agents/knowledge_bases/im-channels/storage-backends/
+    web-search-providers/vector-stores/sandbox-configs/tenants-all 九族 GET +
+    sessions pin 写路径（pin 响应 + 列表回流 + 还原）全部无掩码逐字节 MATCH。

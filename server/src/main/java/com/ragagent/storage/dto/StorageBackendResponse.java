@@ -25,9 +25,9 @@ public class StorageBackendResponse {
     @JsonProperty("source") public String source;
     @JsonProperty("status") public String status;
     @JsonProperty("legacy_alias") public boolean legacyAlias;
-    @JsonProperty("created_at") @JsonSerialize(using = GoTimeSerializer.class)
+    @JsonProperty("created_at") @JsonSerialize(using = GoTimeSerializer.Utc.class)
     public OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("updated_at") @JsonSerialize(using = GoTimeSerializer.class)
+    @JsonProperty("updated_at") @JsonSerialize(using = GoTimeSerializer.Utc.class)
     public OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
     @JsonProperty("deleted_at")
     @JsonInclude(JsonInclude.Include.ALWAYS) // Go 无 omitempty：null 恒输出

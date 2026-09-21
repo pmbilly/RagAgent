@@ -65,7 +65,24 @@ public class GoTimeSerializer extends JsonSerializer<OffsetDateTime> {
             gen.writeString(GO_ZERO_TIME_LITERAL);
             return;
         }
-        OffsetDateTime local = value.atZoneSameInstant(ZoneId.systemDefault()).toOffsetDateTime();
-        gen.writeString(local.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        gen.writeString(value.atZoneSameInstant(targetZone()).toOffsetDateTime()
+                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+    }
+
+    /** 渲染时区：默认 JVM 本地（常规路径），UTC 变体覆盖。 */
+    protected ZoneId targetZone() {
+        return ZoneId.systemDefault();
+    }
+
+    /**
+     * UTC 变体：GORM/lib-pq 扫描 timestamptz 得到的 time.Time 带 UTC location，
+     * Go 原生 marshal 输出 {@code Z}——storage-backends 等直接 marshal struct 的
+     * 路径逐字节对齐用（2026-09-22 双端实录抓回）。
+     */
+    public static final class Utc extends GoTimeSerializer {
+        @Override
+        protected ZoneId targetZone() {
+            return java.time.ZoneOffset.UTC;
+        }
     }
 }

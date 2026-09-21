@@ -36,11 +36,12 @@ public class SessionListItem {
     @JsonProperty("id")
     private String id;
 
+    // Go 字符串零值语义：GORM 扫 NULL 列得 ""（恒输出的键不允许出 null）
     @JsonProperty("title")
-    private String title;
+    private String title = "";
 
     @JsonProperty("description")
-    private String description;
+    private String description = "";
 
     @JsonProperty("tenant_id")
     private Long tenantId;
@@ -117,7 +118,7 @@ public class SessionListItem {
     }
 
     public void setTitle(String v) {
-        this.title = v;
+        this.title = v == null ? "" : v;
     }
 
     public String getDescription() {
@@ -125,7 +126,7 @@ public class SessionListItem {
     }
 
     public void setDescription(String v) {
-        this.description = v;
+        this.description = v == null ? "" : v;
     }
 
     public Long getTenantId() {
