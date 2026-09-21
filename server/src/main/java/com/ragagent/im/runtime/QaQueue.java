@@ -54,9 +54,22 @@ public final class QaQueue {
         final AtomicBoolean cancelled = new AtomicBoolean(false);
         public final IncomingMessage msg;
 
+        /** 业务束（γ2 的 ImService.QaTask；队列层不解释）。 */
+        private Object attach;
+
         public QaRequest(String userKey, IncomingMessage msg) {
             this.userKey = userKey;
             this.msg = msg;
+        }
+
+        public <T> T attach() {
+            @SuppressWarnings("unchecked")
+            T t = (T) attach;
+            return t;
+        }
+
+        public void attach(Object attach) {
+            this.attach = attach;
         }
 
         public String userKey() {

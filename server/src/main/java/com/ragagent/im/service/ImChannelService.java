@@ -321,8 +321,9 @@ public class ImChannelService {
         if (!fresh.isEnabled()) {
             throw new CallbackChannelDisabledException();
         }
-        // StartChannel/GetChannelAdapter：无 adapter factory（波 5）
-        throw new CallbackChannelUnavailableException();
+        // γ2 起适配器可用性由 ImService.adapterFor 判定（工厂注册 + 运行态）；
+        // 未注册平台的渠道由控制器回 503 "channel not available"（W5a golden 形态）。
+        return fresh;
     }
 
     /** 对照 checkDuplicateBot（L3234-3260）。 */

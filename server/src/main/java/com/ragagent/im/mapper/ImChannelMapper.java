@@ -28,6 +28,10 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
     @Select("SELECT * FROM im_channels WHERE id = #{id} AND deleted_at IS NULL")
     ImChannelEntity getById(@Param("id") String id);
 
+    /** LoadAndStartChannels 的启动读取（enabled 且未软删）。 */
+    @Select("SELECT * FROM im_channels WHERE enabled = TRUE AND deleted_at IS NULL")
+    java.util.List<ImChannelEntity> listEnabled();
+
     /** 对照 ListChannelsByAgent：created_at DESC。 */
     @Select("SELECT * FROM im_channels WHERE agent_id = #{agentId} AND tenant_id = #{tenantId} "
             + "AND deleted_at IS NULL ORDER BY created_at DESC")
