@@ -292,6 +292,8 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 
 | W5a 收尾批（WebConfig RBAC 漂移修复 + 13 条小散路由） | internal/router/rbac.go 全文对照 + routes_chat.go RegisterSessionRoutes/RegisterMessageRoutes + routes_knowledge.go RegisterChunkRoutes 写族 + handler/{auth,tenant,tag}.go 的 Logout/RefreshToken/SwitchTenant/ListTenants/GetTenant/UpdateTenant/DeleteTenant + service/{user.go L1127-1470, tag.go 全文} + internal/im EnsureChannelAdapter 确定性前缀 + routes_agent.go RegisterIMRoutes | com.ragagent.config.WebConfig（漂移：拦截器 pattern +sessions/messages/chunks/faq/knowledge-chat/agent-chat/knowledge-search 六前缀补齐，规则 +sessions 23 条/messages 4 条/chunks 写 7 条）+ auth.{controller.AuthController +3 端点,service.{UserService logout/refreshToken/switchTenant,JwtService.parseSignedAllowExpired}} + auth.{controller.TenantCatalogController +4 端点,service.TenantService.deleteTenant 软删级联} + knowledge.{controller.KnowledgeTagController,service.KnowledgeTagService,dto.KnowledgeTagDtos,mapper.KnowledgeTagMapper/Repository 全套 CRUD,ChunkRepository.deleteChunksByTagId} + im.{controller.ImCallbackController,service.ImChannelService.ensureChannelForCallback} + auth.filter.AuthFilter 回调让路 + apikey.filter.APIKeyRoutePolicies +8 | ✅ | **56 条 w5a-* golden 全是 Go 实录** + W5aSundryRoutesContractTest（56 比对一法）+ **真 PG A/B 三轮 56/56 ALL MATCH 零 DIFF**（ab-w5a.sh，漂移修复的 put-nonowner=403 场景直击 OWNER 规则）+ 受影响 9 包回归绿。**golden 抓回三个真契约**：①Go 的 tag.SeqID 经 GORM RETURNING **回填真值**（旧注释"恒 0"是错的）→ PG 插入后按 id 回读；②tag create 的 validator 键**带** struct 前缀（`createTagRequest.Name`，匿名 struct 才无前缀）；③page=0 过 binding（omitempty 视零值为空）→ 归一 page=1。**实录钉住**：refresh 轮换的吊销检查在"同秒 JWT 逐字节相同"时会因 auth_tokens 出现同值行而变成堆序掷硬币——录制脚本 sleep 2 保证确定性；GET /tenants/:id 的 handler "Invalid workspace ID" 与 DELETE 缺行 500 均被 PathTenantMatch 拦成死代码；im 回调 enabled 渠道在 Go dev 因 mattermost 适配器工厂失败恒 503 "channel not available"（Java 无适配器同形 → MATCH 非 XDEP）。**决策点**：tenant DELETE 用自助建租户+PathTenantMatch 403 的组合钉住（真实删除在 dev 不可达），级联软删（成员+租户）以 repo 层对齐。已知差异：tag force/content_only 的 asynq 异步回收（knowledge 文件删除/向量索引）降级 no-op WARN；org-share 授予路径未翻译（同源收紧）。关键坑见 §9「W5a 补充」 |
 
+| 收尾批 W5b：initialization 系统级 14 条（模型初始化向导收官） | internal/handler/initialization.go 的系统级 14 端点（CheckOllamaStatus/ListOllamaModels/CheckOllamaModels/DownloadOllamaModel/GetDownloadProgress/ListDownloadTasks + CheckRemoteModel/TestEmbeddingModel/CheckRerankModel/CheckASRModel/TestMultimodalFunction + ExtractTextRelations/FabriTag/FabriText，L923-2606）+ internal/models/utils/ollama 的 Pull 进度回调 + internal/models/asr（唯一 provider OpenAIASR，381 行）+ config.yaml extract 段（extract_graph/fabri_text 模板）+ internal/assets/asr_test.wav | com.ragagent.agentm.{service.{OllamaDownloadTaskStore（进程内 map=Go 包级 downloadTasks，无新表）,AsrTranscriber（seam+OpenAI 兼容缺省实现，含 go-openai error.go 字节级仿真）,AsrTestAudio,ExtractPrompts（vendor agentm/extract_config.yaml 与 Go config.yaml L49-107 逐字节同源）,AgentmWiring（**OllamaService 单例 bean 首次落地**，对照 container.Provide）}} + InitializationController +14 端点 + llm.ollama.OllamaService.pullWithProgress（management 缺口）+ WebConfig rbac×14 + APIKeyRoutePolicies manageModels×14 + 测试侧 W5bStubServers（in-JVM ollama:11434 + OpenAI 兼容 upstream） | ✅ | **45 条 w5b-* golden 全是 Go 实录**（DOWN/UP 双态 + upstream stub 场景）+ W5bInitializationContractTest（4 方法顺序敏感）+ **真 PG A/B 两轮 40 场景×2=80 项 ALL MATCH 零 DIFF**（ab-w5b.sh，双端同指 stub-llm 8181/stub-ollama 8182 + 同一 dev docreader）。**A/B 抓回一个真缺陷**：multimodal 成功/失败 data 节点必须按 gin.H 字母序**插入**（ObjectNode 保插入序，caption<ocr<processing_time<success）。**golden 钉死的契约**：①gin validator 键用 Go 字段名非 json tag（匿名 struct 是 'Models'/'ModelName'，具名才带 struct 前缀）；②OllamaModelInfo.modified_at 保留 JSON 反序列化的 UTC（time.Time marshal 语义），而下载任务的 startTime 是本地时区——同 handler 内两种时区路径并存；③asr 的 500 纯文本 body 走 go-openai RequestError 形态（`invalid character 'b' looking for beginning of value, body: boom`）且 available=**true**（端点可达分支）。**seam 降级备案**：ASR=薄复刻唯一 provider（真实出站）；VLM 无 provider 调用（multimodal/test 实际打 DocReader）；download 的 12h ctx 超时未翻（虚拟线程无等价 cancel）。已知差异：ollama 传输层错误内文（Go dial tcp vs JDK）掩码比对、GoJsonBindError 深结构回落。关键坑见 §9「W5b 补充」 |
+
 ## 9. 当前确认过的细节
 - **Go 全局错误形态（两种并存，按 handler 实际写法区分）**：
   1. AppError 走全局 ErrorHandler：`{"success":false,"error":{"code":N,"message":"...","details":...}}`（details 恒输出，null 时为 `"details":null`）
@@ -2090,3 +2092,47 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   - **deleteTenant 纠偏**：旧 Java 实现是硬删，Go 是事务内级联软删（成员+租户）。
   - **mcp×storage 测试互踩（既有，留专项）**：MCP SSRF 用例改进程级 SsrfGuard
     白名单后未还原，泄漏影响同 JVM 后续测试；clean HEAD 复现确认非 W5a 引入。
+
+- **W5b 补充（initialization 系统级 14 条）**：
+  - **gin validator 键的另一面**：W5a 钉了"具名 struct 带 `createTagRequest.` 前缀、
+    匿名 struct 无前缀"；W5b 再钉一刀——键里的字段名是 **Go 字段名**而非 json tag
+    （字段 `Models []string json:"models"` → `Key: 'Models' Error:...`，不是 'models'）。
+    validator 从不看 json tag。
+  - **同一 handler 两种时区路径**：OllamaModelInfo.modified_at 来自 JSON 反序列化
+    （UTC 字面量）→ time.Time marshal **保留原 location** 输出 `Z`；下载任务的
+    startTime 来自 time.Now() → 输出服务器本地偏移 `+08:00`。Java 侧对应
+    goTimeAsIs（不改时区）与 goTime（atZoneSameInstant 本地化）两个 helper，别混。
+  - **OllamaService 单例 bean（W5b 首次落地）**：Go 是 container.Provide 单例，
+    Java 此前只有 ObjectProvider 空注入。isAvailable 是**跨请求共享状态**——
+    CheckOllamaModels 的"已可用则跳过 StartService"分支依赖单例；每请求新建会把
+    可用实例的 per-model 失败（200 map 全 false）变成 500 "Ollama服务不可用"。
+    bean 落地后 QaWiring/memory 的 getIfAvailable() 与 Go 同形。
+  - **downloadTasks 是进程内存**（Go 包级 map）：不落 DB、重启即空——Java 用
+    ConcurrentHashMap 单例承载，**不引入新表**；A/B 的 tasks 比对要重启双端
+    lockstep（各自历史决定数量），且 Go map 迭代序随机 → 掩码后按元素排序再比。
+  - **ASR seam 的取舍**：asr 包只有一个 provider（OpenAI 兼容 transcription），
+    接缝缺省实现做真实出站（multipart POST {base}/audio/transcriptions + 300s
+    超时），错误文案按 go-openai error.go **逐字节仿真**（APIError 与 RequestError
+    两族 + Go encoding/json 顶层错误文案仿真）。教训：**JDK HttpClient 会剥掉
+    header 值尾随空格**——"Bearer " 到达 stub 变 "Bearer"，stub 探针判空 key 时
+    两侧要按 strip 后比对。
+  - **multimodal/test 名不副实**：Go 的 TestMultimodalFunction 校验了 VLM/存储表单，
+    实际执行只调 DocReader（VLM 参数不参与调用）——Java 复用 knowledge 的
+    DocReaderClient 即可，无需 VLM provider；A/B 双端同打 dev docreader，成功
+    响应只有 caption:""/ocr:""/processing_time（掩 ms）+ success。
+  - **A/B 抓回的真缺陷**：multimodal data 节点按 gin.H 字母序输出（caption < ocr <
+    processing_time < success），首版按处理顺序插入（processing_time 在前）——
+    golden 没盖住（mm 成功路径需要 docreader，契约测试 JVM 没有），A/B 抓回。
+    **教训：响应含 docreader/外部依赖的成功路径至少要有一条 A/B。**
+  - **契约测试的 in-JVM stub 选位**：OllamaService bean 的缺省基址是
+    localhost:11434 → 测试 stub 直接占 11434（环境无 ollama 时恒空闲），避免
+    "测试改 env"的不可能问题；OpenAI 兼容 upstream 用随机端口 + SSRF 白名单
+    reload/restore（§5 #8）；SSRF 拒绝场景用 10.0.0.1:9（直连 IP 不在白名单，
+    与白名单状态无关的确定性 400，不碰 DNS）。
+  - **record 脚本的进程态前提**：downloadTasks 在 Go 侧是进程内存 → 录制前必须
+    重启 Go server（否则上一轮的任务残留进 tasks 空表 golden——实测踩过一次）。
+  - **已备案差异**：ollama/上游传输层错误内文（Go `dial tcp ...` vs JDK 文案）
+    掩码比对；GoJsonBindError 的深结构 JSON 错误回落 Jackson 文案；pull 的 12h
+    ctx 超时未翻（Java 虚拟线程无等价 cancel，只有取消语义缺位无行为差异）；
+    50MB 上传上限族（MaxBytesReader 前置）未录——Spring multipart 60MB 全局上限
+    承接，超限文案不同（golden 不可达）。

@@ -1,7 +1,7 @@
 # 交接文档（新会话接手用）
 
-> 最后更新：2026-09-21 · **基线：W5a 收尾批完成（WebConfig RBAC 漂移修复 + 13 条小散路由；受影响包回归绿 + A/B 三轮 56/56 ALL MATCH）** · golden 1395 个
-> **端点覆盖：Go 412 条 → Java 已注册约 374 条（约 91%）——W5a ✅；下一步：收尾扫描批（见 §0「剩余缺口清单」）**
+> 最后更新：2026-09-21 · **基线：W5b 收尾批完成（initialization 系统级 14 条；45 golden + A/B 两轮 80/80 ALL MATCH）** · golden 1440 个
+> **端点覆盖：Go 412 条 → Java 已注册约 388 条（约 94%）——W5a ✅ W5b ✅；下一步：收尾扫描批（见 §0「剩余缺口清单」）**
 > **端点覆盖：Go 412 条 → Java 已注册约 361 条（约 88%）——波 4 ✅；下一步：波 5（im 执行体/skill 收口/shared-agent）+ 收尾扫描（见 §0「剩余缺口清单」）**
 
 ## 0. 接手状态（2026-09-21，波 4 已全部收官）
@@ -13,6 +13,16 @@
 装配 + SteerSink/follow-up + stub LLM 全链路 A/B 15 场景 × 2 轮全 MATCH 零 DIFF**）。
 验收基线：小包批 3,985 条全绿（session 257/agent+chatpipeline 404/apikey+auth 175/
 common+event+audit 270/B2 955/B3 1066/B4 1115）；golden 1,339 个。
+
+**W5b 收尾批（2026-09-21，initialization 模型初始化向导收官）**：补齐
+initialization 系统级 14 条（ollama 管理 6 + 模型连通性测试 5 + 抽取 3）。
+OllamaService 单例 bean 首次落地（对照 container.Provide）；下载任务=进程内存
+（无新表）；ASR=薄复刻唯一 provider 的 seam（真实出站，go-openai 错误文案字节级
+仿真）；multimodal 实际打 DocReader（VLM 参数不参与调用）。
+验收：45 条 w5b-* golden + W5bInitializationContractTest + 真 PG A/B 两轮
+80/80 ALL MATCH（ab-w5b.sh，双端同指 stub-llm/stub-ollama + 同一 dev docreader）。
+台账见 conventions §8「W5b」，坑见 §9「W5b 补充」（validator 键用 Go 字段名、
+同 handler 两种时区路径、A/B 抓回 mm data 节点字母序缺陷）。
 
 **W5a 收尾批（2026-09-21）**：A 部分 = WebConfig RBAC 漂移修复（拦截器 pattern 补
 chunks/messages/faq/knowledge-chat/agent-chat/knowledge-search 六前缀 + sessions 23 条/

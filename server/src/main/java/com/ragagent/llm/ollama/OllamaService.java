@@ -207,6 +207,23 @@ public class OllamaService {
     }
 
     /**
+     * 对照 Go handler 的 {@code GetClient().Pull(ctx, pullReq, progressFunc)}
+     * （initialization.go pullModelWithProgress 的底层调用）：{@code POST /api/pull}
+     * 并把每行 NDJSON 进度原样回调给调用方。与 {@link #pullModel(String)} 的区别：
+     * pullModel 固定打日志，本方法把进度交给调用方（下载任务进度条需要它）。
+     *
+     * <p>不先探活也不查模型是否已存在——那是 Go handler 在调用前自己做的前置
+     * （StartService / IsModelAvailable），这里保持与裸 {@code Client.Pull} 同形。</p>
+     */
+    public void pullWithProgress(String modelName, ProgressCallback fn) {
+        try {
+            streamNdjson("/api/pull", Map.of("name", modelName), fn::onProgress);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("failed to pull model: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 对照 Go EnsureModelAvailable 的完整语义（chat 路径每次调用都走它）：
      * <ol>
      *   <li>服务不可用但 optional → 直接返回（不拉取、不报错）；</li>

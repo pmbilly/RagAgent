@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
-"""脚本化 OpenAI 兼容 stub LLM（波 4.6d 双端同指的全链路 A/B 用）。
+"""脚本化 OpenAI 兼容 stub LLM（波 4.6d 双端同指的全链路 A/B 用；W5b 扩展）。
 
 - POST /v1/chat/completions（stream 或非 stream 均支持）
 - 按请求末条 user 消息里的「场景标记」选脚本（缺省 fixed）：
     <<SCENARIO:chat>>   → 分片 "你好，" + "我是知识助手。" + done（usage 固定）
     <<SCENARIO:echo>>   → 原样回显末条 user 消息（单分片）
   分片序列与 usage 数字恒定，双端同 stub 即可逐字节对拍。
+- W5b 扩展（non-stream 面）：
+    <<SCENARIO:graph>>（或 user 消息含该标记） → 带围栏的抽取 JSON（graph 场景）
+    user 消息含 "Please randomly generate a text"        → fabri-text 固定示例文本
+    其余非流式 chat                                       → "stub-chat-reply"
+- W5b 扩展（新端点，兼容既有 chat 场景不动）：
+    POST /embeddings            → 固定 3 维向量 [0.1, 0.2, 0.3]
+    POST /rerank                → 固定 1 个结果（relevance_score 0.99）
+    POST */audio/transcriptions → 按 multipart 里的 model 字段路由场景：
+        缺 Authorization / "Bearer "   → 401 invalid api key（fillSecrets 探针）
+        asr-401                        → 401
+        asr-404                        → 404
+        asr-modelmissing               → 400 "model stub-model not found"
+        asr-500text                    → 500 纯文本 "boom"
+        其余                           → 200 verbose_json（text=stub-transcript）
 - 幂等：无状态，无落盘。
 """
 import json
+import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -21,6 +36,15 @@ SCENARIOS = {
     "long": ["第一段。", "第二段，", "第三段内容较长一些，用于观察分片重组与扣留缓冲。"],
     "think": ["<think>内部思考</think>最终答案：42。"],
 }
+
+GRAPH_REPLY = "```json\n[\n" \
+    "  {\"entity\": \"张三\", \"entity_attributes\": [\"研究员\"], \"chunks\": [\"c1\"]},\n" \
+    "  {\"entity\": \"李四\", \"entity_attributes\": []},\n" \
+    "  {\"entity1\": \"张三\", \"entity2\": \"李四\", \"relation\": \"Author\"},\n" \
+    "  {\"entity1\": \"张三\", \"entity2\": \"王五\", \"relation\": \"Unknown\"}\n" \
+    "]\n```"
+
+FABRI_REPLY = "这是一段由 stub 生成的示例文本，用于 fabri-text 契约测试。"
 
 
 def pick_scenario(messages):
@@ -47,16 +71,64 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)
-        body = json.loads(self.rfile.read(length) or b"{}")
+        body = self.rfile.read(length) or b"{}"
         if self.path.endswith("/chat/completions"):
-            return self.chat(body)
+            return self.chat(json.loads(body or b"{}"))
+        if self.path.endswith("/embeddings"):
+            return self._json({
+                "object": "list",
+                "data": [{"object": "embedding", "index": 0,
+                          "embedding": [0.1, 0.2, 0.3]}],
+                "model": "stub-model",
+                "usage": {"prompt_tokens": 2, "total_tokens": 2},
+            })
+        if self.path.endswith("/rerank"):
+            return self._json({"results": [{"index": 0, "relevance_score": 0.99}],
+                               "model": "stub-model"})
+        if self.path.endswith("/audio/transcriptions"):
+            return self.audio(body)
         self.send_error(404)
+
+    def audio(self, body):
+        ctype = self.headers.get("Content-Type") or ""
+        model = ""
+        if "boundary=" in ctype:
+            boundary = ctype.split("boundary=")[1].strip().strip('"')
+            text = body.decode("latin-1")
+            for part in text.split("--" + boundary):
+                m = re.search(r'name="model"\r\n\r\n(.*)\r\n', part)
+                if m:
+                    model = m.group(1)
+                    break
+        auth = self.headers.get("Authorization") or ""
+        if not auth.strip() or auth.strip() == "Bearer":
+            # Go 的 "Bearer " + "" == "Bearer"（带尾随空格），都视为未带 key
+            return self._json(
+                {"error": {"message": "invalid api key", "type": "invalid_request_error"}},
+                status=401)
+        if model == "asr-401":
+            return self._json(
+                {"error": {"message": "invalid api key", "type": "invalid_request_error"}},
+                status=401)
+        if model == "asr-404":
+            return self._json({"error": {"message": "Not Found"}}, status=404)
+        if model == "asr-modelmissing":
+            return self._json({"error": {"message": "model stub-model not found"}}, status=400)
+        if model == "asr-500text":
+            return self._raw(500, "text/plain", b"boom")
+        return self._json({"text": "stub-transcript", "segments": [
+            {"start": 0.0, "end": 1.5, "text": " stub-transcript "}]})
 
     def chat(self, body):
         stream = bool(body.get("stream"))
         scenario = pick_scenario(body.get("messages"))
+        user_text = last_user(body.get("messages"))
         if scenario == "echo":
-            chunks = [last_user(body.get("messages"))]
+            chunks = [user_text]
+        elif "<<SCENARIO:graph>>" in user_text:
+            chunks = [GRAPH_REPLY]
+        elif "Please randomly generate a text" in user_text:
+            chunks = [FABRI_REPLY]
         else:
             chunks = SCENARIOS.get(scenario, SCENARIOS["chat"])
         model = body.get("model") or "stub-model"
@@ -109,6 +181,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _raw(self, status, ctype, payload):
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 if __name__ == "__main__":

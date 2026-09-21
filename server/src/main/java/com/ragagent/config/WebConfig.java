@@ -619,6 +619,23 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/initialization/initialize/*", TenantRole.CONTRIBUTOR, false);
         rbac.addRule("PUT", "/api/v1/initialization/config/*", TenantRole.CONTRIBUTOR, false);
 
+        // ── W5b：initialization 系统级 14 条（对照 routes_infra.go L109-125）──
+        // "不绑某个 KB 的系统级检测/下载"：JWT 侧只读探测 Viewer+、变更 Admin+。
+        rbac.addRule("GET", "/api/v1/initialization/ollama/status", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/initialization/ollama/models", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/initialization/ollama/models/check", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/ollama/models/download", TenantRole.ADMIN, false);
+        rbac.addRule("GET", "/api/v1/initialization/ollama/download/progress/*", TenantRole.VIEWER, false);
+        rbac.addRule("GET", "/api/v1/initialization/ollama/download/tasks", TenantRole.VIEWER, false);
+        rbac.addRule("POST", "/api/v1/initialization/remote/check", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/embedding/test", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/rerank/check", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/asr/check", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/multimodal/test", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/extract/text-relation", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/extract/fabri-tag", TenantRole.ADMIN, false);
+        rbac.addRule("POST", "/api/v1/initialization/extract/fabri-text", TenantRole.ADMIN, false);
+
         // ── 波 4.3：embed 管理面 + im channels 清单面（对照 routes_agent.go
         // RegisterEmbedChannelRoutes L260-279 / RegisterIMChannelRoutes L296-320）──
         // 管理端点：写（create/update/delete/rotate/toggle）Admin+，读（list/get/

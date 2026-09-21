@@ -140,6 +140,24 @@ public final class APIKeyRoutePolicies {
         a.registerGin("PUT", "/api/v1/initialization/config/:kbId",
                 APIKeyRoutePolicy.manageKnowledgeBases(agFull));
 
+        // ── W5b：initialization 系统级 14 条（对照 routes_infra.go L109-125）──
+        // 全部 apiKeyManageModels(apiKeyFullAccess())：full-access 或显式 manage_models。
+        APIKeyRoutePolicy initModels = APIKeyRoutePolicy.manageModels(APIKeyRoutePolicy.fullAccess());
+        a.registerGin("GET", "/api/v1/initialization/ollama/status", initModels);
+        a.registerGin("GET", "/api/v1/initialization/ollama/models", initModels);
+        a.registerGin("POST", "/api/v1/initialization/ollama/models/check", initModels);
+        a.registerGin("POST", "/api/v1/initialization/ollama/models/download", initModels);
+        a.registerGin("GET", "/api/v1/initialization/ollama/download/progress/:taskId", initModels);
+        a.registerGin("GET", "/api/v1/initialization/ollama/download/tasks", initModels);
+        a.registerGin("POST", "/api/v1/initialization/remote/check", initModels);
+        a.registerGin("POST", "/api/v1/initialization/embedding/test", initModels);
+        a.registerGin("POST", "/api/v1/initialization/rerank/check", initModels);
+        a.registerGin("POST", "/api/v1/initialization/asr/check", initModels);
+        a.registerGin("POST", "/api/v1/initialization/multimodal/test", initModels);
+        a.registerGin("POST", "/api/v1/initialization/extract/text-relation", initModels);
+        a.registerGin("POST", "/api/v1/initialization/extract/fabri-tag", initModels);
+        a.registerGin("POST", "/api/v1/initialization/extract/fabri-text", initModels);
+
         // ── 波 4.3：embed 管理面 + im channels 清单面 + wechat 扫码组 ──
         //（对照 Go routes_agent.go RegisterEmbedChannelRoutes L264-278 与
         // RegisterIMChannelRoutes L298-319：四组全部 apiKeyManageChannels(apiKeyFullAccess())。
