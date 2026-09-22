@@ -115,7 +115,7 @@ public class SessionTerminalService {
         // resolveSessionManager 刚查过），否则用 agent 给的 configID 解析；具名后端
         // 成功后写 pin（并发认领：败者采纳赢者的 config）。
         String configId = emptyToBlank(sandboxConfigId);
-        Resolution mgr = resolveTenantSandboxForConfig(tenantId, configId);
+        Resolution mgr = resolveTenantSandboxForConfig(tenantId, configId, true);
         if (mgr.failure() != null || mgr.type() == null) {
             return new OpenResult(null, mgr.failure());
         }
@@ -133,7 +133,7 @@ public class SessionTerminalService {
                 if (winnerId.isEmpty()) {
                     return new OpenResult(null, Failure.INTERNAL);
                 }
-                Resolution winner = resolveTenantSandboxForConfig(tenantId, winnerId);
+                Resolution winner = resolveTenantSandboxForConfig(tenantId, winnerId, true);
                 if (winner.failure() != null) {
                     return new OpenResult(null, winner.failure());
                 }
@@ -141,7 +141,7 @@ public class SessionTerminalService {
             }
             return provisionAndOpen(mgr, sessionId);
         }
-        Resolution winner = resolveTenantSandboxForConfig(tenantId, pinned);
+        Resolution winner = resolveTenantSandboxForConfig(tenantId, pinned, true);
         if (winner.failure() != null) {
             return new OpenResult(null, winner.failure());
         }
@@ -167,7 +167,7 @@ public class SessionTerminalService {
         if (configId.isEmpty()) {
             return new Resolution(null, Failure.NOT_BOUND);
         }
-        return resolveTenantSandboxForConfig(tenantId, configId);
+        return resolveTenantSandboxForConfig(tenantId, configId, true);
     }
 
     /**
@@ -177,17 +177,24 @@ public class SessionTerminalService {
      * docker 关闭 → 错误 → INTERNAL；disabled 类型 → disabled。
      * 返回的 type 是后端类型（"disabled"=disabled 管理器，"cube"/"e2b"/"docker"=
      * provider 管理器）。
+     *
+     * <p>{@code applyWorkspacePolicy=false} 对照 Go teardown 路径传 {@code policy=nil}
+     * （session.go destroyBoundSandbox：工作区 kill switch **不得**阻断已建沙箱的
+     * 拆除——关掉脚本执行仍要允许 teardown）。</p>
      */
-    private Resolution resolveTenantSandboxForConfig(long tenantId, String configId) {
+    private Resolution resolveTenantSandboxForConfig(long tenantId, String configId,
+            boolean applyWorkspacePolicy) {
         // ① 工作区 kill switch
-        try {
-            if (tenantId != 0 && sandboxConfigService.workspaceScriptsDisabled(tenantId)) {
-                return new Resolution(SandboxTypes.TYPE_DISABLED, null);
+        if (applyWorkspacePolicy) {
+            try {
+                if (tenantId != 0 && sandboxConfigService.workspaceScriptsDisabled(tenantId)) {
+                    return new Resolution(SandboxTypes.TYPE_DISABLED, null);
+                }
+            } catch (RuntimeException e) {
+                // Go：读策略失败 Warnf 后继续（不当成失败也不当成禁用）
+                log.warn("[sandbox] failed to read workspace sandbox policy for {}: {}", tenantId,
+                        e.toString());
             }
-        } catch (RuntimeException e) {
-            // Go：读策略失败 Warnf 后继续（不当成失败也不当成禁用）
-            log.warn("[sandbox] failed to read workspace sandbox policy for {}: {}", tenantId,
-                    e.toString());
         }
 
         // ② 无具名配置 = 沙箱执行关闭
@@ -233,6 +240,43 @@ public class SessionTerminalService {
                     new Resolution(effective.type, null);
             default -> new Resolution(SandboxTypes.TYPE_DISABLED, null);
         };
+    }
+
+    // ── 拆除（对照 session.go destroyBoundSandbox，L670-718） ─────────────────
+
+    /**
+     * 拆除会话绑定的沙箱实例（会话删除三件套之一）。错误一律<b>不阻断</b>会话删除：
+     * pin 读失败 / 解析失败 / 销毁失败都只 warn（Go 同形）。
+     *
+     * <p>解析走 {@code policy=nil} 语义（kill switch 不阻断拆除）；Disabled 管理器
+     * 没有会话可拆（Go 的 DestroySession 类型断言失败 → no-op）；provider 后端
+     * （cube/e2b/docker）的会话级销毁属 provider-XDEP（与 W5δ 终端同一接缝）——
+     * Go 在 provider 不可达时同样 warn 后放弃，此时 pin 保留。</p>
+     */
+    public void destroyBoundSandbox(long tenantId, String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return;
+        }
+        String configId;
+        try {
+            configId = trim(sessionMapper.selectSandboxConfigPin(sessionId));
+        } catch (RuntimeException e) {
+            log.warn("Failed to read sandbox pin for session {} cleanup: {}",
+                    sessionId, e.toString());
+            return;
+        }
+        Resolution resolved = resolveTenantSandboxForConfig(tenantId, configId, false);
+        if (resolved.failure() != null) {
+            log.warn("Failed to resolve sandbox for session {} cleanup", sessionId);
+            return;
+        }
+        if (SandboxTypes.TYPE_DISABLED.equals(resolved.type())) {
+            // Disabled 管理器没有按会话持有的资源（对照类型断言失败 → no-op）
+            return;
+        }
+        // XDEP 接缝：provider 会话级销毁（DestroySession）随波 5 的 provider 执行体。
+        log.warn("destroy sandbox for session {} requires provider session runtime "
+                + "(wave 5 seam) type={}", sessionId, resolved.type());
     }
 
     // ── 打开（对照 openOnManager + terminalManagerFromManager） ──────────────

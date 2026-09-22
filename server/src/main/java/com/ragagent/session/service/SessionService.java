@@ -67,6 +67,8 @@ public class SessionService {
     private final ModelService modelService;
     private final ModelRuntimeFactory modelRuntimeFactory;
     private final ConversationProperties conversationProps;
+    private final com.ragagent.websearch.service.WebSearchTempKbStateService webSearchTempKbState;
+    private final SessionTerminalService sessionTerminalService;
 
     public SessionService(SessionRepository sessionRepository,
                           MessageRepository messageRepository,
@@ -74,7 +76,9 @@ public class SessionService {
                           KnowledgeService knowledgeService,
                           ModelService modelService,
                           ModelRuntimeFactory modelRuntimeFactory,
-                          ConversationProperties conversationProps) {
+                          ConversationProperties conversationProps,
+                          com.ragagent.websearch.service.WebSearchTempKbStateService webSearchTempKbState,
+                          SessionTerminalService sessionTerminalService) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.suggestionRepository = suggestionRepository;
@@ -82,6 +86,8 @@ public class SessionService {
         this.modelService = modelService;
         this.modelRuntimeFactory = modelRuntimeFactory;
         this.conversationProps = conversationProps;
+        this.webSearchTempKbState = webSearchTempKbState;
+        this.sessionTerminalService = sessionTerminalService;
     }
 
     // ── Go 的包级辅助 ──────────────────────────────────────────────────────
@@ -402,17 +408,14 @@ public class SessionService {
     }
 
     /**
-     * Go DeleteSession / BatchDeleteSessions 共用的「每会话清理」三件套。
+     * Go DeleteSession / BatchDeleteSessions 共用的「每会话清理」三件套
+     * （知识 / 临时 KB / sandbox；建议删除在软删之后）。
      *
-     * <p><b>已知差异（对照 Go，待随对应波次收口）</b>：</p>
-     * <ul>
-     *   <li>知识清理：Go 在 goroutine 里异步做（且走 cleanup-scope 授权），错误全吞；
-     *       这里同步尽力而为——HTTP 响应不受影响，但删除请求会等知识清完才返回。</li>
-     *   <li>临时 KB 清理（webSearchStateRepo）：web-search 模块未翻译，TODO(波 2)。
-     *       Go 侧失败同样被吞，无 HTTP 可见差异。</li>
-     *   <li>destroyBoundSandbox：sandbox 模块未翻译，TODO(波 3)。后端 Disabled 时
-     *       Go 本就是 no-op；翻译 sandbox 时补上。</li>
-     * </ul>
+     * <p><b>已知差异（对照 Go）</b>：知识清理 Go 在 goroutine 里异步做（且走
+     * cleanup-scope 授权），这里同步尽力而为——HTTP 响应不受影响，但删除请求会等
+     * 知识清完才返回。临时 KB 清理（2026-09-23 走查批接线，
+     * {@code DeleteWebSearchTempKBState}）与 {@code destroyBoundSandbox}（同批接线，
+     * SessionTerminalService.destroyBoundSandbox）失败均被吞，无 HTTP 可见差异。</p>
      */
     private void cleanupSessionResources(long tenantId, String sessionId) {
         try {
@@ -428,8 +431,12 @@ public class SessionService {
         } catch (RuntimeException e) {
             log.warn("Failed to get knowledge IDs for session {}: {}", sessionId, e.toString());
         }
-        // TODO(波 2 web-search): Go 在此调 webSearchStateRepo.DeleteWebSearchTempKBState（失败被吞）。
-        // TODO(波 3 sandbox): Go 在此 destroyBoundSandbox（会话绑定的 MicroVM；Disabled 后端是 no-op）。
+        try {
+            webSearchTempKbState.deleteTempKbState(sessionId);
+        } catch (RuntimeException e) {
+            log.warn("Failed to cleanup temporary KB for session {}: {}", sessionId, e.toString());
+        }
+        sessionTerminalService.destroyBoundSandbox(tenantId, sessionId);
     }
 
     /**
