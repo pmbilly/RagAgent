@@ -33,6 +33,8 @@ final class OpenAiStreamState {
     final Map<Integer, Boolean> nameNotified = new LinkedHashMap<>();
     /** thinking 工具的 thought 字段增量抽取器（对照 fieldExtractors）。 */
     final Map<Integer, JsonFieldExtractor> fieldExtractors = new LinkedHashMap<>();
+    /** 沙箱 write/edit 工具的实时行数进度抽取器（对照 fileProgress，见 {@link SandboxFileProgress}）。 */
+    final Map<Integer, SandboxFileProgress> fileProgress = new LinkedHashMap<>();
 
     /** 从最后一个携带 usage 的分片里捕获的用量（include_usage 开启时才有）。 */
     TokenUsage usage;
