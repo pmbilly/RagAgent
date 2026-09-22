@@ -668,5 +668,27 @@
     DB：3 chunks status=2 + 3 向量行（dimension 1024、tag_id/source_id 齐、
     content=combined 形态）；列表接口回读（seq_id 真值）；删除条目 + 删除 KB
     无残留。knowledge 185 + agent/chatpipeline 405 绿。
-  - **剩余待办（同族）**：updateImageInfo 向量重建（小）；WebSearchProvider test
-    （小-中）；EvaluationService 执行步（大，依赖 dataset 服务未翻译）。
+  - **updateImageInfo 向量重建接线（同日续，占位清除）**：`updateChunkVector` 占位
+    （"embedding model is not available in this deployment"）替换为真实调用
+    `ChunkVectorIndexer.updateChunkVector(kbId, updateChunks + addChunks)`（对照 Go
+    L3099 `append(updateChunk, addChunk...)` 形态；空 model ID → 1007
+    "model ID cannot be empty"，golden kg-image-update/again/mismatch 复绿）。
+  - **踩坑③（读层差异，二次修正上一批的去钩子过修）**：Go 的
+    `NeedsEmbeddingModel` 判定**按调用点分两层语义**——
+    **服务层**（`kbService.GetKnowledgeBaseByID`：repo 读后 `EnsureDefaults()`，
+    `IsZero()`（4 字段全 false）→ Default（vector+keyword 开））；
+    **repo 层**（`kbRepository.GetKnowledgeBaseByID`：仅 GORM Scan，NULL 列 →
+    Default、显式全 false JSON → **保持 false**）。
+    `updateChunkVector`/regenerate 走服务层（`knowledge_process.go` L2861/L2302）；
+    `chunkService.syncChunkIndex` 走 repo 层（`chunk.go` L670）。证据：kg-image
+    golden 的 KB fixture 是**显式全 false 策略**，Go 实录仍是 1007（走进了向量
+    分支）→ 服务层钩子确实存在；而 chunk 编辑系列的 golden 期望不走进
+    （上一批 13 测试红的实证）→ repo 层无钩子。修正：`ChunkVectorIndexer` 拆
+    `needsEmbeddingServiceLayer`/`needsEmbeddingRepoLayer`，
+    `KnowledgeService.kbNeedsEmbedding`（regenerate 路径）恢复服务层钩子；
+    updateImageInfo 路径不再有独立判定（统一走 indexer）。
+    验证：knowledge 185 全绿（kg-image 系列 + chunk 编辑系列同时满足）；
+    全量回归遇成片 Mockito「Could not self-attach」为 HANDOFF 已钉的内存压力
+    抖动（非业务）；真实验证见下条。
+  - **剩余待办（同族）**：WebSearchProvider test（小-中）；EvaluationService
+    执行步（大，依赖 dataset 服务未翻译）。

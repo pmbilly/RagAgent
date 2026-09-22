@@ -77,13 +77,18 @@ public class ChunkVectorIndexer {
         if (kb == null) {
             throw BizException.notFound("knowledge base not found");
         }
-        if (!needsEmbedding(kb)) {
+        if (!needsEmbeddingServiceLayer(kb)) {
             return;
+        }
+        // 对照 Go GetModelByID 的 errors.New("model ID cannot be empty")（非 AppError →
+        // handler 包 1007 internal 原文；golden kg-image-update/again/mismatch 钉住）
+        String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
+        if (modelId.isEmpty()) {
+            throw new BizException(AppError.internal("model ID cannot be empty"));
         }
         Model embeddingModel;
         try {
-            embeddingModel = modelService.getModelByID(
-                    kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId());
+            embeddingModel = modelService.getModelByID(modelId);
         } catch (ModelNotFoundException e) {
             throw new BizException(AppError.notFound("Model not found"));
         }
@@ -100,7 +105,7 @@ public class ChunkVectorIndexer {
         if (kb == null) {
             throw new IllegalStateException("knowledge base not found");
         }
-        if (!needsEmbedding(kb)) {
+        if (!needsEmbeddingRepoLayer(kb)) {
             return;
         }
         String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
@@ -186,16 +191,34 @@ public class ChunkVectorIndexer {
     }
 
     /**
-     * 对照 KB.NeedsEmbeddingModel（types/knowledgebase.go L848）：
-     * {@code IndexingStrategy.NeedsEmbedding() = vector_enabled || keyword_enabled}。
-     * Go 的 IndexingStrategy 是值类型 struct：DB NULL 列 Scan 跳过后为零值（全 false）→
-     * false，<b>没有</b> isZero→Default 钩子（那是服务读路径 EnsureDefaults 的独立语义）。
-     * 2026-09-22 走查批踩坑：误套钩子会把「显式全 false 的策略」翻成 Default（vector+
-     * keyword 全开），让策略关的 KB 走进真实出站。
+     * <b>服务层</b>判定（对照 Go {@code kbService.GetKnowledgeBaseByID}：repo 读后调
+     * {@code kb.EnsureDefaults()} —— {@code IndexingStrategy.IsZero()}（4 字段全 false）
+     * 翻成 Default（vector+keyword 开））。{@link #updateChunkVector} 走这里。
+     *
+     * <p>证据：golden kg-image-update/again/mismatch 的 KB 是显式全 false 策略
+     * （contracts 测试 fixture），实录仍是 1007 "model ID cannot be empty"——Go 走进了
+     * 向量分支，即全 false 策略经服务层读法被翻成 Default。</p>
      */
-    private static boolean needsEmbedding(KnowledgeBase kb) {
+    private static boolean needsEmbeddingServiceLayer(KnowledgeBase kb) {
         KbIndexingStrategy strategy = kb.getIndexingStrategy();
-        return strategy != null && (strategy.isVectorEnabled() || strategy.isKeywordEnabled());
+        if (strategy == null || strategy.isZero()) {
+            strategy = KbIndexingStrategy.defaultStrategy();
+        }
+        return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
+    }
+
+    /**
+     * <b>repo 层</b>判定（对照 Go {@code kbRepository.GetKnowledgeBaseByID}：仅 GORM
+     * Scan，无 EnsureDefaults）——Scan(nil) 返回 Default（NULL 列 → vector+keyword 开）；
+     * 显式全 false / 空 JSON 保持全 false（IsZero 不翻）。{@link #syncChunkIndex} 走这里
+     * （2026-09-22 走查批实证：套钩子会让全 false 策略的 KB 误走进真实出站，13 测试红）。
+     */
+    private static boolean needsEmbeddingRepoLayer(KnowledgeBase kb) {
+        KbIndexingStrategy strategy = kb.getIndexingStrategy();
+        if (strategy == null) {
+            strategy = KbIndexingStrategy.defaultStrategy();
+        }
+        return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
     }
 
     /** kb 行（仅 id，无租户过滤——Go GetKnowledgeBaseByID 同款；软删不可见）。 */

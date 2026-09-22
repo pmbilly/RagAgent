@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -67,9 +65,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>已知差异（记录于各类注释）</b>：
  * ① 批量删除/清空在 Go 是 asynq 异步清理（向量/文件/wiki 一并回收），Java 为同步
  *    软删（chunk+knowledge 行），HTTP 响应逐字节一致；② reparse 的资源清理只对齐
- *    "删 chunks"这一可观测子集；③ regenerate 的 LLM 生成随阶段 7（无 summary model
- *    的 400 分支逐字节一致）；④ updateChunkVector 只对齐 NeedsEmbedding 判定与
- *    "model ID cannot be empty" 失败分支，向量引擎未接线。</p>
+ *    "删 chunks"这一可观测子集；③ 刷新型摘要为进程内虚拟线程（asynq 语义取舍，
+ *    重试对齐 MaxRetry(3)）；④ updateChunkVector 全链已接线（ChunkVectorIndexer，
+ *    含真 embedding 与生成问题行重建）。</p>
  */
 @Service
 public class KnowledgeService {
@@ -1482,13 +1480,22 @@ public class KnowledgeService {
     }
 
     /**
-     * 对照 KB.NeedsEmbeddingModel（types/knowledgebase.go L848）：vector||keyword。
-     * 与 {@link ChunkVectorIndexer} 同款——<b>不得</b>加 isZero→Default 钩子
-     * （Go 值类型 struct 的零值即 false；钩子是 EnsureDefaults 读路径的独立语义）。
+     * 对照 KB.NeedsEmbeddingModel 经<b>服务层</b>读法（Go RegenerateKnowledgeSummary
+     * L2302 的 kb 来自 {@code kbService.GetKnowledgeBaseByID} → {@code EnsureDefaults()}：
+     * IsZero（4 字段全 false）→ Default），即 vector||keyword。
+     *
+     * <p><b>读层差异（2026-09-22 二次踩坑修正）</b>：Go 的判定按调用点分两层语义——
+     * 服务层（kbService，含 EnsureDefaults 钩子）与 repo 层（kbRepository，仅 Scan：
+     * NULL→Default、全 false 保持）。本方法对应服务层；{@link ChunkVectorIndexer}
+     * 内部按调用点分别用服务层/repo 层判定。证据：全 false 策略的 KB 在 Go 的
+     * updateImageInfo/regenerate 路径仍被判定为需要 embedding（golden 1007 实录）。</p>
      */
     private static boolean kbNeedsEmbedding(KnowledgeBase kb) {
         KbIndexingStrategy strategy = kb.getIndexingStrategy();
-        return strategy != null && (strategy.isVectorEnabled() || strategy.isKeywordEnabled());
+        if (strategy == null || strategy.isZero()) {
+            strategy = KbIndexingStrategy.defaultStrategy();
+        }
+        return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
     }
 
     /**
@@ -1719,11 +1726,11 @@ public class KnowledgeService {
     }
 
     /**
-     * 对照 UpdateImageInfo（knowledge_process.go L2942-3123 的确定性链）：
+     * 对照 UpdateImageInfo（knowledge_process.go L2942-3123 全链）：
      * 解析 image_info（非 JSON → Go json 原文的 500）、恰好 1 张图才动、
      * chunk 归属校验（403）、子块 caption/OCR 同步、缺块补建、
-     * updateChunkVector 的 NeedsEmbedding 分支（策略 IsZero→Default 的 Go 钩子照抄 →
-     * embedding model 空 → 500 "model ID cannot be empty"，golden 钉住）、
+     * {@code updateChunkVector(updateChunks + addChunks)}（模型 ID 空 → 1007
+     * "model ID cannot be empty"，golden 钉住）、
      * knowledge.file_hash = md5(knowledgeID+fileHash+imageInfo)。
      */
     @Transactional
@@ -1820,21 +1827,13 @@ public class KnowledgeService {
         for (Chunk c : updateChunks) {
             chunkMapper.updateById(c);
         }
-        // 对照 updateChunkVector：EnsureDefaults(IsZero→Default) 的 Go 钩子照抄 →
-        // NeedsEmbedding → 模型 id 空 → 500 "model ID cannot be empty"（golden 钉住）
-        KnowledgeBase kb = requireKb(chunk.getKnowledgeBaseId());
-        KbIndexingStrategy strategy = kb.getIndexingStrategy();
-        if (strategy == null || strategy.isZero()) {
-            strategy = KbIndexingStrategy.defaultStrategy();
-        }
-        if (strategy.isVectorEnabled() || strategy.isKeywordEnabled()) {
-            String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
-            if (modelId.isEmpty()) {
-                throw new BizException(AppError.internal("model ID cannot be empty"));
-            }
-            // 向量引擎未接线（波 3/4）：模型行存在与否的分支无 golden，恒按部署差异收场
-            throw new BizException(AppError.internal("embedding model is not available in this deployment"));
-        }
+        // 对照 updateChunkVector(ctx, chunk.KnowledgeBaseID, append(updateChunk, addChunk...))：
+        // 内部过 NeedsEmbedding（策略判定在 ChunkVectorIndexer）→ GetEmbeddingModel；
+        // 模型 ID 空 → 1007 "model ID cannot be empty"（golden kg-image-update/again 钉住）
+        List<Chunk> vectorChunks = new ArrayList<>(updateChunks.size() + addChunks.size());
+        vectorChunks.addAll(updateChunks);
+        vectorChunks.addAll(addChunks);
+        chunkVectorIndexer.updateChunkVector(chunk.getKnowledgeBaseId(), vectorChunks);
         // 对照：knowledge.file_hash = calculateStr(knowledgeID, fileHash, imageInfo)
         Knowledge fresh = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getId, knowledgeId)

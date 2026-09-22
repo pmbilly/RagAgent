@@ -114,7 +114,22 @@ bootRun 一起杀掉**（bootRun 托管在 Gradle 守护进程上）——停完
 **走查期间要跑测试就先重启服务再测，或测完立即重启**；看到全站 500 +
 NoClassDefFoundError 不用查代码，重启即解。
 
-> 最后更新：2026-09-22 · **基线：走查第十一~十三处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链接线，见 git log 顶部）· golden 1,719+24**
+**第十四处（本批，updateImageInfo 向量重建接线 + 读层差异二次修正）**：
+`KnowledgeService.updateImageInfo` 的 `updateChunkVector` 占位清除，改真实调用
+`ChunkVectorIndexer.updateChunkVector(kbId, updateChunks + addChunks)`（对照 Go
+L3099 `append(updateChunk, addChunk...)`）。**踩坑③（读层差异）**：Go 的
+`NeedsEmbeddingModel` 判定按调用点分两层——**服务层**（`kbService.GetKnowledgeBaseByID`
+→ `EnsureDefaults()`：IsZero（4 字段全 false）→ Default）/ **repo 层**
+（`kbRepository.GetKnowledgeBaseByID`：仅 Scan，NULL→Default、显式全 false 保持）。
+上一批「统一去钩子」是过修：knowledge 185 绿的同时 kg-image golden 转红
+（期望 1007 得 200）。修正后拆 `needsEmbeddingServiceLayer`/`needsEmbeddingRepoLayer`
+（`ChunkVectorIndexer`），`KnowledgeService.kbNeedsEmbedding`（regenerate 路径，
+Go L2302 服务层）恢复钩子——**updateChunkVector/regenerate 用服务层，
+syncChunkIndex 用 repo 层**。判定证据：kg-image golden 的 KB fixture 是显式全
+false 策略而实录 1007（服务层钩子存在）；chunk 编辑系列 golden 期望不走进
+（repo 层无钩子）。验证：knowledge 185 全绿。详见 known-issues/06 尾部。
+
+> 最后更新：2026-09-22 · **基线：走查第十一~十四处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
@@ -511,10 +526,9 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    `/swagger/{}` 非翻译目标）。⚠️ route-recon 只对账路由——「路由在、执行体占位」
    的缺口它抓不到，历史上已抓出两族：regenerate-summary（已补全）与 ChunkService
    三处（下一条）。
-3. 之后：**占位扫描已完成**（2026-09-22，§0.0 第十三处），FaqService 索引族
-   全链（含导入分批循环）已接线；剩余真缺口按序：updateImageInfo 向量重建（小）→
-   WebSearchProvider test（小-中）→ EvaluationService 执行步（大，依赖 dataset
-   服务未翻译）；
+3. 之后：**占位扫描已完成**（2026-09-22，§0.0 第十四/十三处），FaqService 索引族
+   全链与 updateImageInfo 向量重建均已接线；剩余真缺口按序：WebSearchProvider
+   test（小-中）→ EvaluationService 执行步（大，依赖 dataset 服务未翻译）；
    波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
    tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、
