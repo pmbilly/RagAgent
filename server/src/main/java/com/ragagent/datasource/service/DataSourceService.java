@@ -114,8 +114,6 @@ import org.springframework.stereotype.Service;
  *   <li><b>langfuse 追踪未接线</b>：{@code langfuse.InjectTracing} 是 no-op
  *       （§9 阶段 4.0 已知差异 1）。</li>
  *   <li><b>知识库写入是"最小闭环"</b>，见 {@link KnowledgeBridge} 的类注释。</li>
- *   <li><b>自动标签无实现</b>：{@link AutoTagProvider} 缺生产实现，
- *       恒走 Go 的 {@code autoTag == nil} 分支。</li>
  * </ol>
  */
 @Service
