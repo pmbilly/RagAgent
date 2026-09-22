@@ -217,6 +217,51 @@ public class ChunkRepository {
                 .isNull(Chunk::getDeletedAt));
     }
 
+    /**
+     * 对照 Go {@code ListChunksByParentIDs}（L310-325）：tenant + parent_chunk_id IN，
+     * 软删行不可见；空 parentIDs 返回空列表（Go 的 nil 展开语义）。
+     */
+    public List<Chunk> listChunksByParentIDs(long tenantId, List<String> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return List.of();
+        }
+        return chunkMapper.selectList(new LambdaQueryWrapper<Chunk>()
+                .eq(Chunk::getTenantId, tenantId)
+                .in(Chunk::getParentChunkId, parentIds)
+                .isNull(Chunk::getDeletedAt));
+    }
+
+    /**
+     * 对照 Go {@code ListChunksByKnowledgeID}（L149-161）：**text-only**（chunk_type='text'）
+     * + chunk_index ASC，软删行不可见。摘要/索引管线取「文档正文」都走这里；
+     * summary / parent_text / image 类子块走 {@link #listChunksByKnowledgeIDAndTypes}。
+     */
+    public List<Chunk> listChunksByKnowledgeID(long tenantId, String knowledgeId) {
+        return chunkMapper.selectList(new LambdaQueryWrapper<Chunk>()
+                .eq(Chunk::getTenantId, tenantId)
+                .eq(Chunk::getKnowledgeId, knowledgeId)
+                .eq(Chunk::getChunkType, "text")
+                .isNull(Chunk::getDeletedAt)
+                .orderByAsc(Chunk::getChunkIndex));
+    }
+
+    /**
+     * 对照 Go {@code ListChunksByKnowledgeIDAndTypes}（L163-181）：chunk_type IN + ASC；
+     * 空 chunkTypes 返回空列表（Go 的 nil 语义）。
+     */
+    public List<Chunk> listChunksByKnowledgeIDAndTypes(
+            long tenantId, String knowledgeId, List<String> chunkTypes) {
+        if (chunkTypes == null || chunkTypes.isEmpty()) {
+            return List.of();
+        }
+        return chunkMapper.selectList(new LambdaQueryWrapper<Chunk>()
+                .eq(Chunk::getTenantId, tenantId)
+                .eq(Chunk::getKnowledgeId, knowledgeId)
+                .in(Chunk::getChunkType, chunkTypes)
+                .isNull(Chunk::getDeletedAt)
+                .orderByAsc(Chunk::getChunkIndex));
+    }
+
     // ── 写 ──────────────────────────────────────────────────────────────────
 
     /**
@@ -760,8 +805,10 @@ public class ChunkRepository {
     /**
      * Go 的 {@code strings.TrimSpace}（unicode.IsSpace 全集）。Java 的 {@code strip()}
      * 不含 U+0085/U+00A0（非断行空格），与 Go 的 White_Space 集不同，故显式复刻。
+     * （public：knowledge.service 的摘要管线（getSummary/sampleLongContent）同样需要
+     * Go 精确裁空语义，跨包复用同一实现。）
      */
-    private static String goTrimSpace(String s) {
+    public static String goTrimSpace(String s) {
         if (s == null) {
             return "";
         }

@@ -1,30 +1,49 @@
 package com.ragagent.knowledge.service;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 
 import javax.sql.DataSource;
 
-import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.Knowledge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * postgres 向量写库（对照 Go retriever/postgres BatchSave → embeddings 表 halfvec）。
+ * postgres 向量写/删库（对照 Go retriever/postgres repository.go 的
+ * BatchSave / DeleteByChunkIDList / DeleteByKnowledgeIDList → embeddings 表）。
  *
- * halfvec 写入：PG 需 `?::halfvec` 强转（pgvector 类型，PG JDBC 无内建映射）；
- * 测试库 H2 退化为 VARCHAR 存储（向量检索本身随检索模块翻译，阶段 3 只写不查）。
+ * <p>halfvec 写入：PG 需 {@code ?::halfvec} 强转（pgvector 类型，PG JDBC 无内建映射）；
+ * 测试库 H2 退化为 VARCHAR 存储（H2 分支的 MERGE 语义近似 ON CONFLICT DO NOTHING——
+ * H2 无 DO NOTHING 形态，命中 KEY 时覆盖；两侧的调用方都是"先删后插"，无命中场景）。</p>
+ *
+ * <p><b>source_id 契约（2026-09-22 走查修正）</b>：对照 Go 全部 IndexInfo 构造点，
+ * chunk 行的 source_id = chunkID（<b>无</b> "chunk:" 前缀——此前 Java 侧写
+ * "chunk:"+id 是移植偏差，会让双端共库时同一 chunk 出两份向量行）；生成问题行
+ * source_id = GeneratedQuestionSourceID(chunkID, questionID)（超 64 字节时
+ * {@code chunkID-q<sha256 前 12 字节 hex>}，见 Go types/faq.go）。</p>
  */
 @Service
 public class VectorStoreService {
 
     private static final Logger log = LoggerFactory.getLogger(VectorStoreService.class);
+
+    /**
+     * 对照 Go types.IndexInfo 落库面（toDBVectorEmbedding 的列投影）：
+     * source_type 恒 0（types.ChunkSourceType）；content 是调用方组装好的
+     * 索引文本（title 前缀 + EmbeddingContent，见 buildKnowledgeIndexContent）。
+     */
+    public record IndexRow(
+            String sourceId,
+            String chunkId,
+            String knowledgeId,
+            String knowledgeBaseId,
+            String content,
+            boolean isEnabled) {
+    }
 
     private final JdbcTemplate jdbc;
     private final boolean postgres;
@@ -40,38 +59,62 @@ public class VectorStoreService {
         this.postgres = pg;
     }
 
-    /** 对照 BatchSave：upsert（source_id+source_type 唯一），source_type=0（chunk 向量） */
-    public void batchSave(Knowledge k, List<Chunk> chunks, List<float[]> vectors) {
+    /**
+     * 对照 Go BatchSave：{@code INSERT ... ON CONFLICT DO NOTHING}（source_id+source_type
+     * 唯一）；向量按行序对应（rows[i] ↔ vectors[i]）。调用方负责先删旧行
+     * （{@link #deleteByChunkId} / {@link #deleteByKnowledgeId}），Go 的 updateChunkVector
+     * 与处理管道都是"先删后插"。
+     */
+    public void saveIndexRows(List<IndexRow> rows, List<float[]> vectors) {
         String sql = postgres
                 ? "INSERT INTO embeddings (created_at, updated_at, source_id, source_type, chunk_id, "
-                  + "knowledge_id, knowledge_base_id, content, dimension, embedding) "
-                  + "VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?::halfvec) "
-                  + "ON CONFLICT (source_id, source_type) DO UPDATE SET "
-                  + "updated_at = EXCLUDED.updated_at, content = EXCLUDED.content, "
-                  + "dimension = EXCLUDED.dimension, embedding = EXCLUDED.embedding"
+                  + "knowledge_id, knowledge_base_id, content, is_enabled, dimension, embedding) "
+                  + "VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?::halfvec) "
+                  + "ON CONFLICT (source_id, source_type) DO NOTHING"
                 : "MERGE INTO embeddings (created_at, updated_at, source_id, source_type, chunk_id, "
-                  + "knowledge_id, knowledge_base_id, content, dimension, embedding) "
-                  + "KEY(source_id, source_type) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)";
+                  + "knowledge_id, knowledge_base_id, content, is_enabled, dimension, embedding) "
+                  + "KEY(source_id, source_type) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)";
         Timestamp now = Timestamp.from(Instant.now());
-        java.util.List<Integer> indexes = new java.util.ArrayList<>(chunks.size());
-        for (int i = 0; i < chunks.size(); i++) {
+        List<Integer> indexes = new java.util.ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
             indexes.add(i);
         }
         jdbc.batchUpdate(sql, indexes, indexes.size(), (ps, idx) -> {
-            Chunk c = chunks.get(idx);
+            IndexRow r = rows.get(idx);
             float[] vector = vectors.get(idx);
             ps.setTimestamp(1, now);
             ps.setTimestamp(2, now);
-            ps.setString(3, "chunk:" + c.getId());
-            ps.setString(4, c.getId());
-            ps.setString(5, k.getId());
-            ps.setString(6, k.getKnowledgeBaseId());
-            ps.setString(7, c.getContent());
-            ps.setInt(8, vector.length);
+            ps.setString(3, r.sourceId());
+            ps.setString(4, r.chunkId());
+            ps.setString(5, r.knowledgeId());
+            ps.setString(6, r.knowledgeBaseId());
+            ps.setString(7, r.content());
+            ps.setBoolean(8, r.isEnabled());
+            ps.setInt(9, vector.length);
             // PG 侧 SQL 带 ?::halfvec 强转（pgvector 提供 text→halfvec cast），
             // String 参数经服务端 cast 入库；H2 走 MERGE 直接存字符串
-            ps.setString(9, toHalfvecLiteral(vector));
+            ps.setString(10, toHalfvecLiteral(vector));
         });
+    }
+
+    /** 对照 Go DeleteByChunkIDList：{@code DELETE WHERE chunk_id IN (...)}（含生成问题行）。 */
+    public void deleteByChunkId(List<String> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(chunkIds.size(), "?"));
+        jdbc.update("DELETE FROM embeddings WHERE chunk_id IN (" + placeholders + ")",
+                chunkIds.toArray());
+    }
+
+    /** 对照 Go DeleteByKnowledgeIDList：{@code DELETE WHERE knowledge_id IN (...)}。 */
+    public void deleteByKnowledgeId(List<String> knowledgeIds) {
+        if (knowledgeIds == null || knowledgeIds.isEmpty()) {
+            return;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(knowledgeIds.size(), "?"));
+        jdbc.update("DELETE FROM embeddings WHERE knowledge_id IN (" + placeholders + ")",
+                knowledgeIds.toArray());
     }
 
     /** halfvec 文本形态：[0.1,0.2,...] */

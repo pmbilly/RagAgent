@@ -180,4 +180,6 @@ public class ConversationProperties {
     public void setSummaryRepeatPenalty(double v) { summaryRepeatPenalty = v; }
     public String getGenerateSessionTitlePrompt() { return generateSessionTitlePrompt; }
     public void setGenerateSessionTitlePrompt(String v) { generateSessionTitlePrompt = v; }
+    public String getGenerateSummaryPrompt() { return generateSummaryPrompt; }
+    public void setGenerateSummaryPrompt(String v) { generateSummaryPrompt = v; }
 }

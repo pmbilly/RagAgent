@@ -172,6 +172,19 @@ public class Chunk {
     public void setContentHash(String v) { contentHash = v; }
     public String getImageInfo() { return imageInfo == null ? "" : imageInfo; }
     public void setImageInfo(String v) { imageInfo = v; }
+
+    /**
+     * 对照 Go {@code Chunk.EmbeddingContent()}（types/chunk.go L202-211）：发给 embedding
+     * 模型的文本 = ContextHeader（若有）+ "\n\n" + Content（trim）。方法名刻意不用
+     * getter 形态，Jackson 不会把它当序列化属性。
+     */
+    public String embeddingContent() {
+        String body = content == null ? "" : content.strip();
+        if (contextHeader == null || contextHeader.isEmpty()) {
+            return body;
+        }
+        return contextHeader + "\n\n" + body;
+    }
     public String getContextHeader() { return contextHeader; }
     public void setContextHeader(String v) { contextHeader = v; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

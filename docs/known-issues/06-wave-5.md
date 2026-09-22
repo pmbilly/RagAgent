@@ -503,3 +503,79 @@
     jieba 接缝是二字滑窗近似（SearchTextUtil 类注释声明的「唯一实质降级」），
     mmr avg_redundancy 0.0536 vs Go 0.0853，选择因此分叉。RRF 融合分、
     rerank 模型分双端 15 位小数一致。
+
+- **走查抓回（2026-09-22，regenerate-summary 500——「阶段 7 占位」补全，已修复）**：
+  知识库文档点「生成摘要」恒 500。根因：Java 端 regenerate-summary 在「无 summary
+  model 的确定性 400」之外是占位——模型已配置时无条件抛
+  `"summary model is not available in this deployment"`。route-recon 只对账路由，
+  **抓不到「路由在、执行体占位」**；同类占位还有 ChunkService 三处（见文末待办）。
+  本批全量翻译 Go knowledge_process.go L2291-2443 + knowledge_summary_refresh.go：
+  - **RegenerateKnowledgeSummary**：textChunks 筛选（text+enabled）→ 空集
+    description="" + failed 落库 + insufficient 400 → metadataVersion 捕获 +
+    processing 落库 → getChatModel（ModelRuntimeFactory；code"model not found" →
+    404 "Model not found"，对照 errors.As 解出内层 AppError 透传）→ getSummary →
+    新鲜度校验（sourceChanged 先于 completed 落库）→ summary chunk 复用/新建
+    （**必须按 chunk_type=summary 另查**——Go L2404-2414 的修复点：text-only 列表
+    永远查不到已有 summary chunk，漏了会每次追加新块）+ updateChunkVector。
+  - **getSummary**：sortChunksForSummary（有编辑按 chunk_index、否则 StartAt）+
+    编辑拼接/MergeTextChunks + 图片富化（正文 <200 runes 走 caption+OCR，否则
+    caption-only）+ sampleLongContent（头60%/中20%/尾20% 码点采样，
+    “[...content omitted...]” 衔接）+ minTextContentRunes=10 充分性闸门 +
+    CustomMetadataText 前缀 + LLM（temperature 0.3 硬编码、thinking=false、
+    max_tokens 2048 缺省、{{language}} 渲染）+ 空白输出 → errEmptySummaryOutput。
+  - **failGeneration**：insufficient → description=""+failed；willRetry（asynq 重试
+    额度）→ pending（保留既有 description）；终态 → 新鲜度校验（源已变 → 丢弃）→
+    首 chunk 兜底（500 码点 trim）+ failed。
+  - **RequestKnowledgeSummaryRefresh**：summary 未启用静默返回；无 model →
+    markFailed（单列）+ 400；成功 → pending 落库 + 虚拟线程刷新（显式拷
+    TenantContext，§5），重试语义对齐 asynq MaxRetry(3)（stale/insufficient 静默丢弃）。
+  - **controller**：两分支成功 → 200 {"success","data"}；refresh 分支 reload
+    （对照 handler L1788-1791 的 pending 回流）。无 summary model 的 5 条
+    kg-regen-* golden 保绿（400/404/403 形态不变）。
+  - 新积木：ChunkRepository 补 listChunksByKnowledgeID（text-only ASC，Go L149）/
+    listChunksByKnowledgeIDAndTypes / listChunksByParentIDs；ConversationProperties
+    补 getGenerateSummaryPrompt；CollectImageInfoByChunkIDs 两级聚合下沉
+    searchutil.ImageInfoEnricher（chatpipeline.ImageInfoCollector 改委托，消除两份
+    实现漂移）；Chunk.embeddingContent()；KnowledgeIndexContent.build（新文件）。
+- **同场处理管道三个索引契约点对齐（对照 Go processDocument L335-351/L563-585）**：
+  ① **索引文本形态**：嵌入文本与 embeddings.content 改为
+  `buildKnowledgeIndexContent(title + "\n" + EmbeddingContent)`（此前 Java 写裸
+  content、嵌入无 title 前缀——ParadeDB BM25 的评分对象与 Go 不一致）；
+  ② **重处理预清理**：先删旧 chunks 行（无条件）+ 删该 knowledge 全部向量行
+  （仅向量化启用且模型可用时），此前只删 chunks 行、embeddings 旧行残留；
+  ③ **失败清理**：处理链失败时删本次 chunks + 向量行；模型解析失败发生在预清理
+  **之前**（既有数据不动，照抄 Go 顺序）。
+- **同场修正 VectorStoreService 的 source_id 形态偏差（预存缺陷）**：Java 原写
+  `"chunk:"+id`，Go 全部构造点是 `chunk.ID`（无前缀）+ 问题行
+  `GeneratedQuestionSourceID`（chunkID-qID；超 64 字节折叠 chunkID-q+sha256 前
+  12 字节 hex）。双端共库时旧形态会让同一 chunk 出两份向量行（ON CONFLICT 键不同）。
+  改：saveIndexRows（Go 形态 + ON CONFLICT DO NOTHING 对照 BatchSave）+ 新增
+  deleteByChunkId/deleteByKnowledgeId（对照 DeleteByChunkIDList/ByKnowledgeIDList，
+  按 chunk_id 删**不区分前缀**——dev 库遗留的 "chunk:" 历史行由重新解析/编辑路径
+  自然清理，无需数据迁移）。TestSchema 的 embeddings 补 is_enabled 列（迁移 000002
+  有该列，此前 H2 缺列）。
+- **走查阻断回归（服务重启后暴露）：knowledge_bases.creator_id 为 NULL 的行 →
+  KB 列表 NPE 500**。dev 库 A/B 种子行（BQ Alpha/Beta/Temp）creator_id 为 NULL；
+  `KnowledgeBase.getCreatorId()` 无归一化（字段 null 直出，setter 的归一化挡不住
+  MyBatis 的字段回填），Go 非指针 string 恒 ""。getter 归一化 → 同族未防御点
+  （ChunkAccessGuard/KnowledgeBaseController/WikiPageController 的 ownership
+  `isEmpty()` 判定）一并解除。**A/B 实测**：Go :8080 同库列表该字段为 ""
+  （非 null），Java 修复后一致。**教训：走查期间的提交（如 c5a34f1）若服务未重启，
+  回归潜伏到下次重启才暴露——提交后应及时重启验证。**
+- **验证（真实环境）**：走查文档（租户 10122「GAC客服」KB，49 text chunks，
+  summary model 已配）——首发 200 + 8.9s + DB completed + description 落库 +
+  summary chunk（index=max+1、parent=首 text chunk、is_enabled=t）+ embeddings 行
+  （source_id 无前缀、content 带 title 前缀、dimension 1024）；第二发（refresh）
+  200 + 80ms + 响应 summary_status=pending（reload 回流）+ 异步完成后 completed
+  且 summary chunk 仍 1 个（复用不追加）；全站冒烟 200。新增
+  SummaryPipelineLogicTest 12 用例；knowledge/chatpipeline 两包 215 绿 + 复跑 172 绿。
+- **同族待办（本批未动，下一批）**：ChunkService 三处同款阶段占位——
+  `syncChunkIndex`（「reindex engine unavailable」占位；Go chunk.go L669-719 就是
+  单 chunk 版 updateChunkVector：NeedsEmbedding→GetEmbeddingModel→
+  DeleteByChunkIDList→disabled 只删不插→chunk 行+问题行 BatchIndex）、
+  `enqueueSummaryRefresh`（WARN no-op；应接本批 requestKnowledgeSummaryRefresh 的
+  pending/入队语义）、`regenerateChunkQuestions` 的 LLM 生成步（同款
+  "summary model is not available in this deployment" 占位）。接线会改变
+  ChunkServiceTest 已钉断言（「策略开+模型在 → failed」），需随批更新 + A/B 验证。
+  另：KnowledgeService 的 updateChunkVector 与新积木可顺手抽公共
+  ChunkVectorIndexer 供 ChunkService 复用。

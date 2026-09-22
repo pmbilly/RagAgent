@@ -165,6 +165,7 @@ public final class TestSchema {
                 "source_id VARCHAR(64) NOT NULL, source_type INTEGER NOT NULL," +
                 "chunk_id VARCHAR(64), knowledge_id VARCHAR(64), knowledge_base_id VARCHAR(64)," +
                 "content TEXT, dimension INTEGER NOT NULL, embedding VARCHAR," +
+                "is_enabled BOOLEAN DEFAULT TRUE," +
                 "CONSTRAINT embeddings_unique_source UNIQUE (source_id, source_type))");
         // ── 阶段 4.1：MCP（列名/约束以 Go 迁移 000001/000042/000062/000064/000074/000091/000092 为准） ──
         jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_services (" +

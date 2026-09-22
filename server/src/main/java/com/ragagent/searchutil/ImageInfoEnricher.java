@@ -63,6 +63,111 @@ public final class ImageInfoEnricher {
     }
 
     /**
+     * 对照 Go {@code searchutil.CollectImageInfoByChunkIDs}：按 chunk 聚合子块
+     * image_info（两级解析——文本块的直接子块是图片块；parent_text 块的孙辈图片
+     * 折算到顶层文本 ID），禁用子块跳过；返回 chunkID → 合并后数组 JSON。
+     *
+     * <p>仓储以 {@code lister} 回调注入（tenantId + parentIDs → 子块列表），
+     * chatpipeline 端口与 knowledge 包的具体仓储都走这里，避免两份实现漂移。</p>
+     */
+    public static Map<String, String> collectImageInfoByChunkIds(
+            java.util.function.BiFunction<Long, List<String>, List<com.ragagent.knowledge.domain.Chunk>> lister,
+            long tenantId, List<String> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return null;
+        }
+        List<com.ragagent.knowledge.domain.Chunk> children;
+        try {
+            children = lister.apply(tenantId, chunkIds);
+        } catch (RuntimeException e) {
+            return null;
+        }
+        if (children == null || children.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Map<String, ImageInfo>> aggMap = new LinkedHashMap<>();
+        List<String> textChildIds = new ArrayList<>();
+        Map<String, String> textToParent = new LinkedHashMap<>();
+        for (com.ragagent.knowledge.domain.Chunk child : children) {
+            if (!child.isIsEnabled()) {
+                continue;
+            }
+            switch (child.getChunkType()) {
+                case "image_ocr", "image_caption" -> addChildInfo(aggMap, child.getParentChunkId(), child);
+                case "text" -> {
+                    textChildIds.add(child.getId());
+                    textToParent.put(child.getId(), child.getParentChunkId());
+                }
+                default -> {
+                }
+            }
+        }
+        if (!textChildIds.isEmpty()) {
+            List<com.ragagent.knowledge.domain.Chunk> grandChildren;
+            try {
+                grandChildren = lister.apply(tenantId, textChildIds);
+            } catch (RuntimeException e) {
+                grandChildren = null;
+            }
+            if (grandChildren != null) {
+                for (com.ragagent.knowledge.domain.Chunk gc : grandChildren) {
+                    if (!gc.isIsEnabled()) {
+                        continue;
+                    }
+                    if (!"image_ocr".equals(gc.getChunkType()) && !"image_caption".equals(gc.getChunkType())) {
+                        continue;
+                    }
+                    String parentTextID = textToParent.get(gc.getParentChunkId());
+                    if (parentTextID != null) {
+                        addChildInfo(aggMap, parentTextID, gc);
+                    }
+                }
+            }
+        }
+
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, ImageInfo>> e : aggMap.entrySet()) {
+            if (e.getValue().isEmpty()) {
+                continue;
+            }
+            out.put(e.getKey(), ImageInfoMatchUtil.marshalImageInfos(new ArrayList<>(e.getValue().values())));
+        }
+        return out;
+    }
+
+    /** 对照 addInfo：URL（空则 OriginalURL）去重 + 非空 OCR/Caption 字段覆盖。 */
+    private static void addChildInfo(Map<String, Map<String, ImageInfo>> aggMap,
+                                     String targetID,
+                                     com.ragagent.knowledge.domain.Chunk child) {
+        if (child.getImageInfo() == null || child.getImageInfo().isEmpty()) {
+            return;
+        }
+        List<ImageInfo> infos = ImageInfoMatchUtil.parseInfos(child.getImageInfo());
+        if (infos == null || infos.isEmpty()) {
+            return;
+        }
+        Map<String, ImageInfo> agg = aggMap.computeIfAbsent(targetID, k -> new LinkedHashMap<>());
+        for (ImageInfo info : infos) {
+            String key = info.getUrl().isEmpty() ? info.getOriginalUrl() : info.getUrl();
+            if (key.isEmpty()) {
+                continue;
+            }
+            ImageInfo existing = agg.get(key);
+            if (existing == null) {
+                agg.put(key, info);
+            } else {
+                if (!info.getOcrText().isEmpty()) {
+                    existing.setOcrText(info.getOcrText());
+                }
+                if (!info.getCaption().isEmpty()) {
+                    existing.setCaption(info.getCaption());
+                }
+            }
+        }
+    }
+
+    /**
      * 对照 ClearImageInfoTextMatchingBody：从 image_info 中移除与 recognized 完全
      * 相等的 OCR/caption 字段（merge 把该正文挂回 Content，富化不再重复注入）。
      */

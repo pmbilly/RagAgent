@@ -32,6 +32,19 @@ import java.time.ZoneOffset;
  *   → completed + enable_status=enabled + processed_at
  *   任一步失败 → failed + error_message
  *   deleting/cancelled 检查点短路（对照 isKnowledgeAborted）
+ *
+ * <p><b>2026-09-22 走查修正（对齐 Go 处理管道的三个契约点）</b>：</p>
+ * <ol>
+ *   <li><b>索引文本形态</b>：嵌入文本与 embeddings.content 均为
+ *       {@code buildKnowledgeIndexContent(knowledge, chunk.EmbeddingContent())}
+ *       （title 前缀 + ContextHeader + trim 正文），此前 Java 侧 content 列写裸
+ *       content 且嵌入文本无 title 前缀——BM25 关键词检索的评分对象与 Go 不一致。</li>
+ *   <li><b>重处理预清理</b>（对照 Go processDocument L335-351）：先删旧 chunks 行
+ *       （无条件）+ 删该 knowledge 的全部向量行（仅向量化启用且模型可用时），
+ *       此前 Java 只删 chunks 行、embeddings 旧行残留（旧 chunk_id 的向量仍可被检索）。</li>
+ *   <li><b>失败清理</b>（对照 Go L629-639）：处理链失败时删本次 chunks + 向量行。
+ *       模型解析失败发生在预清理<b>之前</b>——既有数据保持不动（照抄 Go 顺序）。</li>
+ * </ol>
  */
 @Service
 public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcessWorker {
@@ -111,89 +124,123 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 throw new IllegalStateException("knowledge base not found");
             }
 
-            // 1. 取文本：manual 直接取 metadata.content；file 经 docreader 解析
-            String markdown;
-            if ("manual".equals(k.getType())) {
-                markdown = k.getMetadata() != null && k.getMetadata().hasNonNull("content")
-                        ? k.getMetadata().get("content").asText() : "";
-            } else {
-                byte[] content = storage.read(k.getFilePath());
-                DocReaderClient.ParseResult parsed = docReader.read(
-                        content, k.getFileName(), k.getFileType(), k.getTitle(), null);
-                markdown = parsed.markdown();
-            }
-            if (knowledgeMapper.selectById(knowledgeId).isAborted()) {
-                return; // 检查点（对照 processChunks 内 4 检查点的精简）
-            }
+            // 1) 向量化判定 + 模型解析（对照 Go：模型缺失 → failed，此阶段尚未动既有数据）
+            EmbedderClient.EmbedConfig embedConfig = resolveEmbedConfig(k, kb);
 
-            // 2. 分块（对照 chunker.Split；KB 配置 0 值回退默认 512/80）
-            SplitterConfig cfg = toSplitterConfig(kb.getChunkingConfig());
-            List<ParsedChunk> parsedChunks = Chunker.split(markdown, cfg);
-
-            // 3. 清旧写新（对照 DeleteChunksByKnowledgeID + CreateChunks）
+            // 2) 预清理（对照 Go processDocument L335-351）：删旧 chunks 行（无条件）+
+            //    删该 knowledge 全部向量行（仅向量化启用且模型可用时）
             chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
                     .eq(Chunk::getKnowledgeId, knowledgeId));
-            List<Chunk> chunks = new ArrayList<>(parsedChunks.size());
-            String prevId = null;
-            for (int i = 0; i < parsedChunks.size(); i++) {
-                ParsedChunk pc = parsedChunks.get(i);
-                Chunk c = new Chunk();
-                c.setId(java.util.UUID.randomUUID().toString());
-                OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-                c.setCreatedAt(now);
-                c.setUpdatedAt(now);
-                c.setTenantId(k.getTenantId());
-                c.setKnowledgeId(knowledgeId);
-                c.setKnowledgeBaseId(k.getKnowledgeBaseId());
-                c.setContent(pc.getContent());
-                c.setSourceContent(pc.getContent());
-                c.setContextHeader(pc.getContextHeader());
-                c.setChunkIndex(i);
-                c.setStartAt(pc.getStart());
-                c.setEndAt(pc.getEnd());
-                c.setChunkType("text");
-                c.setPreChunkId(prevId);
-                chunks.add(c);
-                prevId = c.getId();
-            }
-            for (int i = 0; i < chunks.size(); i++) {
-                if (i + 1 < chunks.size()) {
-                    chunks.get(i).setNextChunkId(chunks.get(i + 1).getId());
-                }
-                chunkMapper.insert(chunks.get(i));
+            if (embedConfig != null) {
+                vectorStore.deleteByKnowledgeId(List.of(knowledgeId));
             }
 
-            // 4. 向量化（对照 retrieveEngine.BatchIndex；无 embedding 模型 → failed）
-            if (kb.getIndexingStrategy().isVectorEnabled() || kb.getIndexingStrategy().isKeywordEnabled()) {
-                String modelId = k.getEmbeddingModelId().isEmpty()
-                        ? kb.getEmbeddingModelId() : k.getEmbeddingModelId();
-                if (modelId.isEmpty()) {
-                    throw new IllegalStateException("embedding model is not configured");
+            try {
+                // 3) 取文本：manual 直接取 metadata.content；file 经 docreader 解析
+                String markdown;
+                if ("manual".equals(k.getType())) {
+                    markdown = k.getMetadata() != null && k.getMetadata().hasNonNull("content")
+                            ? k.getMetadata().get("content").asText() : "";
+                } else {
+                    byte[] content = storage.read(k.getFilePath());
+                    DocReaderClient.ParseResult parsed = docReader.read(
+                            content, k.getFileName(), k.getFileType(), k.getTitle(), null);
+                    markdown = parsed.markdown();
                 }
-                Model model = modelService.getByIdVisible(k.getTenantId(), modelId);
-                if (model == null) {
-                    throw new IllegalStateException("embedding model not found: " + modelId);
+                if (knowledgeMapper.selectById(knowledgeId).isAborted()) {
+                    return; // 检查点（对照 processChunks 内 4 检查点的精简）
                 }
-                EmbedderClient.EmbedConfig embedConfig = EmbedderClient.configFrom(model);
-                int embedBatch = embedBatchSize();
-                for (int from = 0; from < chunks.size(); from += embedBatch) {
-                    List<Chunk> batch = chunks.subList(from, Math.min(from + embedBatch, chunks.size()));
-                    List<String> texts = new ArrayList<>(batch.size());
-                    for (Chunk c : batch) {
-                        String header = c.getContextHeader();
-                        texts.add(header == null || header.isEmpty() ? c.getContent() : header + "\n\n" + c.getContent());
+
+                // 4) 分块（对照 chunker.Split；KB 配置 0 值回退默认 512/80）
+                SplitterConfig cfg = toSplitterConfig(kb.getChunkingConfig());
+                List<ParsedChunk> parsedChunks = Chunker.split(markdown, cfg);
+
+                // 5) 清旧写新（旧行已在预清理删除；对照 CreateChunks）
+                List<Chunk> chunks = new ArrayList<>(parsedChunks.size());
+                String prevId = null;
+                for (int i = 0; i < parsedChunks.size(); i++) {
+                    ParsedChunk pc = parsedChunks.get(i);
+                    Chunk c = new Chunk();
+                    c.setId(java.util.UUID.randomUUID().toString());
+                    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+                    c.setCreatedAt(now);
+                    c.setUpdatedAt(now);
+                    c.setTenantId(k.getTenantId());
+                    c.setKnowledgeId(knowledgeId);
+                    c.setKnowledgeBaseId(k.getKnowledgeBaseId());
+                    c.setContent(pc.getContent());
+                    c.setSourceContent(pc.getContent());
+                    c.setContextHeader(pc.getContextHeader());
+                    c.setChunkIndex(i);
+                    c.setStartAt(pc.getStart());
+                    c.setEndAt(pc.getEnd());
+                    c.setChunkType("text");
+                    c.setPreChunkId(prevId);
+                    chunks.add(c);
+                    prevId = c.getId();
+                }
+                for (int i = 0; i < chunks.size(); i++) {
+                    if (i + 1 < chunks.size()) {
+                        chunks.get(i).setNextChunkId(chunks.get(i + 1).getId());
                     }
-                    List<float[]> vectors = embedder.embedBatch(embedConfig, texts);
-                    vectorStore.batchSave(k, batch, vectors);
+                    chunkMapper.insert(chunks.get(i));
                 }
-            }
 
-            // 5. 完成（无富化快路径：直接 completed + enabled）
-            failOrComplete(knowledgeId, null);
+                // 6) 向量化（对照 processChunks 的 BatchIndex：indexContent =
+                //    title + EmbeddingContent；先删后插的"删"已在预清理完成）
+                if (embedConfig != null) {
+                    List<VectorStoreService.IndexRow> rows = new ArrayList<>(chunks.size());
+                    List<String> texts = new ArrayList<>(chunks.size());
+                    for (Chunk c : chunks) {
+                        String text = KnowledgeIndexContent.build(k, c.embeddingContent());
+                        texts.add(text);
+                        rows.add(new VectorStoreService.IndexRow(
+                                c.getId(), c.getId(), k.getId(), k.getKnowledgeBaseId(), text, true));
+                    }
+                    int embedBatch = embedBatchSize();
+                    for (int from = 0; from < rows.size(); from += embedBatch) {
+                        int to = Math.min(from + embedBatch, rows.size());
+                        List<float[]> vectors = embedder.embedBatch(embedConfig, texts.subList(from, to));
+                        vectorStore.saveIndexRows(rows.subList(from, to), vectors);
+                    }
+                }
+
+                // 7) 完成（无富化快路径：直接 completed + enabled）
+                failOrComplete(knowledgeId, null);
+            } catch (Exception inner) {
+                // 对照 Go L629-639：失败时清本次 chunks + 向量行（向量化未启用时只清 chunks）
+                chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
+                        .eq(Chunk::getKnowledgeId, knowledgeId));
+                if (embedConfig != null) {
+                    vectorStore.deleteByKnowledgeId(List.of(knowledgeId));
+                }
+                throw inner;
+            }
         } catch (Exception e) {
             log.warn("process knowledge {} failed: {}", knowledgeId, e.toString());
             failOrComplete(knowledgeId, e.getMessage() == null ? e.toString() : e.getMessage());
         }
+    }
+
+    /**
+     * 向量化判定 + 模型解析（对照 Go processDocument：vector/keyword 任一启用才取模型；
+     * knowledge 行优先、回落 KB——Java 既有取数口径，已验收）。
+     * 模型缺失时抛错，此时预清理尚未执行（既有数据不动，照抄 Go 顺序）。
+     */
+    private EmbedderClient.EmbedConfig resolveEmbedConfig(Knowledge k, KnowledgeBase kb) {
+        if (!(kb.getIndexingStrategy().isVectorEnabled() || kb.getIndexingStrategy().isKeywordEnabled())) {
+            return null;
+        }
+        String modelId = k.getEmbeddingModelId() == null || k.getEmbeddingModelId().isEmpty()
+                ? kb.getEmbeddingModelId() : k.getEmbeddingModelId();
+        if (modelId == null || modelId.isEmpty()) {
+            throw new IllegalStateException("embedding model is not configured");
+        }
+        Model model = modelService.getByIdVisible(k.getTenantId(), modelId);
+        if (model == null) {
+            throw new IllegalStateException("embedding model not found: " + modelId);
+        }
+        return EmbedderClient.configFrom(model);
     }
 
     /** KB 配置 → chunker 配置（0 值回退对照 Go 默认：512/80/separators） */

@@ -335,7 +335,7 @@ public class KnowledgeController {
         return ResponseEntity.ok(envelope(data));
     }
 
-    /** 对照 RegenerateKnowledgeSummary：ownership + KBAccessWrite + service 确定性分支 */
+    /** 对照 RegenerateKnowledgeSummary：ownership + KBAccessWrite + 成功 200 {"success","data"} */
     @PostMapping("/knowledge/{id}/regenerate-summary")
     public ResponseEntity<?> regenerateKnowledgeSummary(@PathVariable("id") String id) {
         String safeId = LogSanitizer.sanitize(id);
@@ -343,15 +343,16 @@ public class KnowledgeController {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
         }
         Knowledge knowledge = resolveKnowledgeByGuard(safeId, true);
+        Knowledge result;
         if (knowledge.getSummaryStatus() == null || knowledge.getSummaryStatus().isEmpty()
                 || "none".equals(knowledge.getSummaryStatus())) {
-            knowledgeService.regenerateKnowledgeSummary(safeId);
+            result = knowledgeService.regenerateKnowledgeSummary(safeId);
         } else {
             knowledgeService.requestKnowledgeSummaryRefresh(safeId);
+            // 对照 Go handler L1788-1791：入队成功后 GetKnowledgeByID 重读（pending 态回流）
+            result = knowledgeService.getKnowledge(safeId);
         }
-        // service 对无 summary model 的部署恒抛 400（golden 分支）；LLM 生成随阶段 7，
-        // 走到此处即部署差异形态（与 chunk 模块 Regenerate 的降级同款文案）
-        throw new BizException(AppError.internal("summary model is not available in this deployment"));
+        return ResponseEntity.ok(envelope(result));
     }
 
     /** 对照 UpdateManualKnowledge：ownership + KBAccessWrite + 手工内容校验 */

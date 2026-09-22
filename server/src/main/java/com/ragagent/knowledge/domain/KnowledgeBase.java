@@ -133,7 +133,13 @@ public class KnowledgeBase {
     public void setDescription(String v) { description = v; }
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long v) { tenantId = v; }
-    public String getCreatorId() { return creatorId; }
+    /**
+     * 对照 Go 非指针 string 零值语义：DB NULL → ""（GORM 扫 NULL 到 string 也是 ""）。
+     * 走查实案：dev 库 A/B 种子行 creator_id 为 NULL → 列表服务 {@code .isEmpty()} NPE 500；
+     * A/B 实测 Go 响应为 {@code "creator_id": ""}（非 null）。getter 归一化同时修正
+     * 响应形态与全部调用点（ChunkAccessGuard/Controller 的 ownership 判定等）。
+     */
+    public String getCreatorId() { return creatorId == null ? "" : creatorId; }
     public void setCreatorId(String v) { creatorId = v == null ? "" : v; }
     public KbChunkingConfig getChunkingConfig() {
         if (chunkingConfig == null) chunkingConfig = new KbChunkingConfig();
