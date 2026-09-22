@@ -139,7 +139,18 @@ deployment"）清除 → 对照 Go handler L412-431 全量：CreateProvider（�
 调用参数契约）；真实双端对拍（duckduckgo → 均真实出站 200 error 原文；nosuch →
 双端同 "not registered" 文案）。详见 known-issues/06 尾部。
 
-> 最后更新：2026-09-23 · **基线：走查第十一~十五处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线，见 git log 顶部）· golden 1,719+24**
+**第十六处（本批，评估 dataset 前置 + 执行步暂缓决策）**：`DatasetService`
+（对照 Go dataset.go 全文：GetDatasetByID 忽略入参恒取默认集 + PrintStats +
+Iterate → QaPair）落地；数据加载为一次性转换的内嵌 JSON
+（`resources/dataset/samples.json`，1 QA 对 / 4 passage——Go 读
+`./dataset/samples/*.parquet`，转换用临时 Go 工具已删）。**EvaluationService
+执行步按 Owner 决策暂缓**（2026-09-23）：前端无 `/v1/evaluation` 入口、
+`CreateKnowledgeFromPassageSync` 无路由、需新增 jieba-analysis 依赖、
+metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（metric 算法包 600 行 /
+metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
+接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
+
+> 最后更新：2026-09-23 · **基线：走查第十一~十六处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
@@ -537,8 +548,11 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    的缺口它抓不到，历史上已抓出两族：regenerate-summary（已补全）与 ChunkService
    三处（下一条）。
 3. 之后：**占位扫描已完成**（2026-09-22~23，§0.0 第十五~十三处），FaqService
-   索引族全链、updateImageInfo 向量重建、WebSearchProvider test 均已接线；
-   剩余真缺口仅 1 项：EvaluationService 执行步（大，依赖 dataset 服务未翻译）；
+   索引族全链、updateImageInfo 向量重建、WebSearchProvider test、评估 dataset
+   前置均已落地；剩余真缺口仅 **EvaluationService 执行步——Owner 决策暂缓**
+   （2026-09-23：前端无 `/v1/evaluation` 入口 / `CreateKnowledgeFromPassageSync`
+   无路由 / 需新增 jieba 分词依赖 / metrics 数值不承诺逐字节；范围与依赖清单见
+   known-issues/06 尾部，恢复条件：后端出现评估调用需求）；
    波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
    tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、

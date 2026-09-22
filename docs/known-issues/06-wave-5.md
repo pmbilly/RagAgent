@@ -706,4 +706,24 @@
     `{"error":"duckduckgo HTML search failed: ... HTTP connect timed out / net/http ...",`success":false}`
     ——真实出站已发生（本环境 DDG 不通，错误文案详情因 HTTP 客户端不同，属 provider
     翻译层的既有差异）；`nosuch` 类型 → 双端同文案 "not registered"。
-  - **剩余待办（同族）**：EvaluationService 执行步（大，依赖 dataset 服务未翻译）。
+  - **EvaluationService 执行步（Owner 决策：暂缓，2026-09-23）**：范围与依赖清单
+    已侦查完，暂不投入——理由：①前端**无** `/v1/evaluation` 调用入口（settings
+    仅 API-key 权限位名 `run_evaluations`）；②`CreateKnowledgeFromPassageSync`
+    亦**无 HTTP 路由**（仅评估内部调用）；③需新增依赖 **jieba-analysis** 中文分词
+    （Go metric 包 `splitIntoWords` 用 `types.Jieba.Cut`——BLEU/ROUGE 分词），
+    零新依赖纪律下需单独评估；④metrics 数值因分词器实现差异**不承诺**与 Go
+    逐字节一致（HANDOFF 已约定 `ev-get.json` 属部署能力差异，A/B 按部署各自断言）。
+    **已完成部分**：dataset 服务（parquet → 内嵌 JSON + Iterate/PrintStats，
+    提交 272928b + 2 条单测）。**剩余清单**（按依赖序）：metric 算法包
+    （Go ~600 行非测试：precision/recall/ndcg/mrr/map/bleu/rouge/rouge_score/
+    common；Go 单测 precision/recall/mrr/map 可照搬断言）→ metric_hook.go
+    （194 行：MetricList.Append/Avg + HookMetric 的 record*/内容匹配回 pid）→
+    `CreateKnowledgeFromPassageSync` + `processDocumentFromPassage`
+    （Go knowledge_create.go ~300 行：段落安全校验 → knowledge 行（type=passage、
+    enable_status=disabled）→ 同步分块+索引 → audit）→ `EvalDataset` +
+    `getPassageList`（147 行：并发 worker = GOMAXPROCS-1、逐 QA 跑
+    KnowledgeQAByEvent（Java 已有）、进度回写、defer 清理 knowledge+KB）→
+    controller 接线（后台线程从「标记 failed」换真实执行）。
+  - **同族彻底清空**：至此占位扫描清单的 4 项真缺口全部落地（FaqService 索引族 /
+    updateImageInfo / WebSearchProvider test / 评估 dataset 前置）——仅 EvaluationService
+    执行步按 Owner 决策暂缓。
