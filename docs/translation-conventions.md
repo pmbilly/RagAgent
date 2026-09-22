@@ -389,3 +389,4 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 | W5γ/W5δ/检索引擎/ArtifactCollector+VLM 等收官批（总验收抓回的三缺陷） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | 阶段 7（models/{id}/debug）新确认的细节与坑——包装器截断与终态 finish_reason 分路径都会复发 | [`07-model-debug.md`](known-issues/07-model-debug.md) |
 | 阶段 7 已知差异 / 未接线 + 环境相关既有失败（B2 SYSTEM_AES_KEY、B4 pip verifier） | [`07-model-debug.md`](known-issues/07-model-debug.md) |
+| 占位收口批（2026-09-23，十处「备案理由过期」缺口全修 + SsrfGuard 快照纪律 + DataSource 白名单类顺序修复 + 单发全量自附风暴定性） | [`HANDOFF.md`](HANDOFF.md) §0.-1 与 git log 9eec8a4..7744fab |

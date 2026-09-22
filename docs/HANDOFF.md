@@ -1,5 +1,62 @@
 # 交接文档（新会话接手用）
 
+## 0.-1 占位收口批（2026-09-23，全仓占位排查 → 十处缺口全修——「路由在、执行体占位」清零）
+
+**排查**：按 HANDOFF 全仓扫描占位标记（占位/TODO/not translated/恒 null/固定 401/
+"not available yet"）+ 逐条对照 Go 原文与 known-issues 备案，区分「备案理由已过期的
+真缺口」vs「理由仍成立的在册降级」。**修复 10 项**（每项独立提交，均带测试）：
+
+1. `9eec8a4` **会话删除三件套**（波 0/1 备案「随波 2/3 收口」未回补）：
+   browserSkill.Forget/ForgetAll 接线（Go handler.go:385/471/509）+ 新增
+   WebSearchTempKbStateService（web_search_state.go 全文，Redis tempkb:<sid>）+
+   SessionTerminalService.destroyBoundSandbox（session.go L670-718，policy=nil 跳过
+   kill switch；provider 会话级销毁仍 XDEP seam）。
+2. `bfdd1d1` **AutoTagProvider 生产实现**：KnowledgeTagAutoTagProvider
+   （FindOrCreateTagByName 语义），NoAutoTagProvider 占位删除（knowledge_tag 模块已落地）。
+3. `a18bb23` **追问建议 LLM 生成步**（G3 备案降级，依赖已随 models/{id}/debug 就位）：
+   generate/generateWithModel/generateFromKnowledge/buildGenerationContext 全族
+   （message_suggestion.go L257-778）+ CustomAgentService.getKnowledgeSuggestedQuestions
+   （includeCurated=false 变体）+ agent 租户切换 + token 用量回填。
+4. `b02540d` **Artifact 版本澄清**：ArtifactVersions（artifact_versions.go 全文）+
+   MessageService.clarifyReadArtifactVersions 全量接线（message_artifact_versions.go；
+   原「随 G6 落地」TODO）+ AgentStreamBridge 补 Go L751-760 澄清点（collector seam）。
+5. `ab902bd` **API 主体解析**（排查新坐实：波 2 只翻了配置面，中间件消费面恒回落）：
+   resolveAPIPrincipal 两模式（direct_header/signed_token，手写 HS256 HMAC——golang-jwt
+   不限密钥长度而 jjwt 拒短密钥）+ 首位用户路径（UserService.getUserByTenantIdFirst）
+   + 401 文案逐字对照。
+6. `45f8fc4` **消息搜索向量路径**（备案「随 retrieval 收口」已过期）：vectorSearchViaKB +
+   rerankResults + GetMessagesByKnowledgeIDs（JOIN sessions，方法级 @Results 防 jsonb/is
+   前缀陷阱）+ mode=vector 失败上抛/hybrid 降级，逐字对照 Go。
+7. `0f66ff5` **Wiki 共享访问**（阶段 3 差异 3，kb_shares 已落地未接入）：
+   requireWikiKB 接 org-share/shared-agent 两条读授予 + 写路径 Editor 级 org-share
+   （Go rbac.go L226-230 透传 + KBAccessWrite(Editor)）——agent 报告的「写路径收紧」
+   经主会话对照 Go 定夺修正为对齐。
+8. `347eb18` **sandbox_file_progress**（备案「随阶段 7」，依赖波 3 已完成）：
+   SandboxFileProgress 全文 + openai_stream.go L561-593 两处 emit 接通。
+9. `7744fab` **ImageResolver 装配点**（备案 #6）：ChatLocalImageResolverWiring
+   （container.go L489-536）+ **SsrfGuard 白名单泄漏修复**（snapshotWhitelist/restore
+   + ImageResolverTest/RemoteApiChatTest 泄漏点——W5a「互踩专项」in-scope 实例，
+   该泄漏此前让 storage 契约测试 2 条预存假红）。
+10. 本批收尾：**DataSourceHttpContractTest 类顺序脆弱测试修复**（@BeforeAll 设的
+    loopback 白名单被懒加载上下文的 ApplicationReadyEvent 预载覆盖——DB 值
+    ["198.18.0.0/15"]；在 @BeforeEach 重设即稳。**基线 worktree 实测 a7aeacb 同挂，
+    预存问题非本批引入**）。
+
+**验收**：批次回归 4284 测试四批跑（B1 863 / B2 全绿 / B3 1717 / B4 全绿），
+**仅剩 2 条失败均为 fake-ip 环境锚测试**（auth kvParserMatchesGo + sandbox
+slk-catalog-register-src：golden 文案编码了 Clash TUN 198.18.0.0/15 拒绝，代理离线时
+mineru.example.com 无解析落 DNS-failure 文案；代理恢复即绿，测试文件自带环境锚注释）。
+bootRun 重启冒烟通过（capabilities/sessions/创建删除 200）。⚠️ 复训两条纪律：
+①单发 `./gradlew test` 会撞**确定性的 1581 条 Mockito 自附风暴**（两次全量精确同数），
+必须按 B1~B4 分批跑（handoff 旧知识「内存抖动」说 krat——同 JVM 全量对
+@SpringBootTest 是结构性炸，分批是正解）；②后台 agent 并发跑 gradle 会顶满内存放大
+自附风暴，agent 报告期不要另起全量。
+
+**在册不动**（理由仍成立）：EvaluationService 执行步（Owner 暂缓）、provider-XDEP 族
+（γ3 九渠道/W5δ 终端/tenant_skill install/VLM ollama+weknoracloud）、DataAnalysis
+（DuckDB 依赖）、BrowserSkillManager 执行循环 seam（需浏览器后端）、OIDC enabled 网络步、
+langfuse/Redis 限流器/asynq/jieba/readability 降级族、 tenant_skill install。
+
 ## 0.0 阶段 7 收官（2026-09-22，models/{id}/debug 落地——路由对账真缺口清零）
 
 **做了什么**：翻译最后一条功能性真缺口 `POST /api/v1/models/{id}/debug`
@@ -184,7 +241,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-23 · **基线：走查第十一~十九处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置 + 会话标题生成 + post-process 摘要 fan-out + span 写入侧全量接线，见 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-23 · **基线：占位收口批（会话删除三件套 / AutoTagProvider / 追问建议生成 / Artifact 版本澄清 / API 主体解析 / 向量搜索路径 / Wiki 共享访问 / sandbox_file_progress / ImageResolver 装配 / SsrfGuard 泄漏修复，见 §0.-1 与 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 

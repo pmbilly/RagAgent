@@ -101,6 +101,11 @@
      与 asynq→进程内队列同类取舍
   6. `ImageResolver` 的 `LocalImageResolver` 全局钩子：应用层存储模块装配点待补（当前走
      LOCAL_STORAGE_BASE_DIR 兜底，与 Go 测试环境行为一致）
+     ✅ **已解决（2026-09-23 走查收口批，7744fab）**：storage 模块 W5c 落地后备案理由过期，
+     `ChatLocalImageResolverWiring` 接上生产装配（container.go L489-536 逐行；
+     云 provider 仍是 W5c 既有 XDEP 降级）。同批复盘：进程级 SsrfGuard 白名单新增
+     `snapshotWhitelist/restoreWhitelist` 测试快照纪律，修复 ImageResolverTest /
+     RemoteApiChatTest 的泄漏（W5a「互踩专项」家族 in-scope 新实例）
   7. `logUsage` 缺 ctx 里的 purpose / 前缀指纹（日志行比 Go 略短，不影响行为）
 - **阶段 4.0 发现的 Go 侧不一致（Java 已照抄并用测试钉住，改动前须知会偏离 Go）**：
   1. `transport.go` 注释写 1800s/600s，**代码实际 300s/600s** → Java 取 300/600

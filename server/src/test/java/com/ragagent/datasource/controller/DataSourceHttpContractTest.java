@@ -165,9 +165,24 @@ class DataSourceHttpContractTest {
 
         // SSRF 白名单是**进程级静态**：放行 loopback、结束后还原（与 RssConnectorTest 同一处置）
         originalGuard = ConnectorHttp.ssrfGuard();
+        reloadLoopbackWhitelist();
+    }
+
+    /**
+     * ⚠️ 每个测试方法前都**重设**一次 loopback 白名单：@SpringBootTest 的上下文在
+     * 首个测试方法时才懒加载，启动完成事件会按 DB 里的 ssrf.whitelist
+     * （dev 库 = ["198.18.0.0/15"]）**覆盖**进程级静态白名单——若只在 @BeforeAll 设，
+     * 类顺序（谁先加载这个上下文）决定成败（known-issues W5a「SsrfGuard 互踩」家族）。
+     */
+    private static void reloadLoopbackWhitelist() {
         SsrfGuard guard = new SsrfGuard();
         guard.reloadWhitelist("127.0.0.1,::1,localhost");
         ConnectorHttp.setSsrfGuard(guard);
+    }
+
+    @BeforeEach
+    void reassertLoopbackWhitelist() {
+        reloadLoopbackWhitelist();
     }
 
     @AfterAll
