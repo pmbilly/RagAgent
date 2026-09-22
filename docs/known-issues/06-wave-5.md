@@ -616,3 +616,42 @@
     （TenantCatalogContractTest / SandboxSkillsMeContractTest 的 fake-IP 漂移族，
     与代码无关）。**未单独验证**：chunk 编辑 bodyChanged 触发的 enqueueSummaryRefresh
     真实入队（逻辑已由摘要链路端到端覆盖，调用点 catch/warn 与 Go 同款）。
+
+- **占位扫描结论 + FaqService 索引执行面接线（2026-09-22 走查批续）**：全仓按
+  「not available in this deployment / engine unavailable / lands with wave」文案扫描，
+  真缺口清单 = FaqService 索引族（本段修复）/ updateImageInfo 向量重建（小）/
+  WebSearchProvider test（小-中）/ EvaluationService 执行步（大，依赖 dataset 服务）；
+  其余（sandbox/skill 文件工具、TenantSkillSource、OidcService enabled 分支）为
+  provider-XDEP 设计内降级或明确 deferral。
+  - **新积木**：`FaqIndexRows`（buildFAQIndexInfoList：combined 单行 / separate
+    标准问 + 相似问 `chunkID-<i>` 行，buildFAQIndexContent 逐字对照）；
+    `TenantStorageService`（AdjustStorageUsed：SQL 增量 + 负数钳 0）；
+    `VectorStoreService` 扩展（IndexRow 补 tagId（**所有行**写 tag_id 列，此前落
+    NULL 与 Go 的 "" 有别）+ batchUpdateChunkEnabledStatus / batchUpdateChunkTagId
+    （对照 pgRepository 两个 Batch 方法）+ estimateStorageSize（对照
+    calculateIndexStorageSize））。
+  - **FaqService 接线**：创建（indexFAQChunks adjustStorage=true，失败回滚 chunk +
+    "failed to index chunk: %w"）/ 更新两处（adjustStorage=false，失败原样返回）/
+    删除（deleteFAQChunkVectors：删行 + 配额回退 + 钳 0）/ 字段批量（enabled/tag 同步
+    → 失败**阻断**（对照 knowledge_faq.go L838-852 的 return err），此前 WARN+no-op）。
+  - **踩坑①（真实缺陷，两处通用）**：`chunks` 表的 NOT NULL string 列
+    （source_content / last_editor_id / context_header）在「Go Save 全列写零值」的
+    语义下，Java 的 updateChunk（updateAllFieldsExceptSeqId 全列 UPDATE）对
+    **新建 chunk 的内存对象**写 NULL → 违反 NOT NULL（FAQ 创建后 status 更新的实案
+    500：`null value in column "source_content"`）。修复 = ChunkRepository.updateChunk
+    对三列做 Go 零值归一（source_content/context_header 判 null 置 ""；
+    getLastEditorId 已归一——经 setter 回写字段）。同族教训：**「Go 非指针 string」
+    的列在写库前都要过零值归一清单**。
+  - **踩坑②（纪律）**：接线后直接在旧进程上验证 → 撞到旧 classes（日志里是已删除的
+    方法名栈帧），**编译/测试后必须重启 bootRun 才能验证**（同 §0.0 测试纪律编）。
+  - **验证（真实环境，走查租户临时 FAQ KB + 现有 Embedding 模型，验证后已清理）**：
+    ① 创建条目 → 200（1.0s 真实 embedding）+ chunk status=2 + 三 NOT NULL 列 "" +
+    embeddings 行（source_id=chunkID、tag_id=未分类标签、dimension=1024、
+    content=标准问/相似问/答案 combined 形态）；② 字段批量 is_enabled=false →
+    chunks 与 embeddings 同步 f；③ 删除条目 → 200 + 向量行清理 + chunk 软删 +
+    **storage_used 12958→6479（配额回退精确）**；④ 删除临时 KB 无残留。
+  - **待办（同族，下一步）**：FAQ **导入**执行面（`importUnavailable` 仍占位，
+    knowledge_faq_import.go L1499-1620 的分批循环：build → CreateChunks →
+    indexFAQChunks(adjustStorage=true) → status=2 → 进度/失败收集；indexFAQChunks
+    本段已就绪，导入只剩循环与进度接线）；updateImageInfo 向量重建；
+    WebSearchProvider test；EvaluationService。

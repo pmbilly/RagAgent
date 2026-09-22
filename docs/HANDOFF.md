@@ -92,6 +92,16 @@ knowledge_bases.creator_id 为 NULL 的行（dev 库 A/B 种子 BQ Alpha/Beta/Te
 string 恒 ""）。getter 归一化修复 + **A/B 实测**（Go :8080 同库输出 ""）。
 **教训：走查期间的提交（c5a34f1 等）若服务未重启，回归潜伏到下次重启才暴露——
 提交后应及时重启验证**。
+**第十三处（本批，占位扫描 + FaqService 索引执行面接线）**：全仓按占位文案扫描后
+的真缺口清单与修复：FaqService 索引族（创建/更新/删除/字段批量已接线；**导入执行面
+仍占位，为下一步**）、updateImageInfo 向量重建（小）、WebSearchProvider test（小-中）、
+EvaluationService（大）；其余为 provider-XDEP 设计内降级/deferral。新积木
+`FaqIndexRows`/`TenantStorageService`/`VectorStoreService` 扩展（tag_id +
+BatchUpdateChunkEnabledStatus/TagID + estimateStorageSize）。**踩坑①**：chunks 表
+NOT NULL 列（source_content/last_editor_id/context_header）在 Save 全列语义下需
+Go 零值归一（updateChunk 已修）；**踩坑②**：编译/测试后必须重启 bootRun 才能验证
+（旧进程撞到已删除方法）。真实验证：临时 FAQ KB 全链路（创建 200 + 向量行形态 /
+字段批量同步 / 删除 + 配额回退精确）+ 清理。详见 known-issues/06 尾部。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
 是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把
@@ -103,7 +113,7 @@ bootRun 一起杀掉**（bootRun 托管在 Gradle 守护进程上）——停完
 **走查期间要跑测试就先重启服务再测，或测完立即重启**；看到全站 500 +
 NoClassDefFoundError 不用查代码，重启即解。
 
-> 最后更新：2026-09-22 · **基线：走查第十一/十二处修复（regenerate-summary 全量 + 处理管道索引契约三点 + creator_id NULL 回归 + ChunkService 四处占位接线，见 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-22 · **基线：走查第十一~十三处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引执行面接线，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
@@ -500,10 +510,11 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    `/swagger/{}` 非翻译目标）。⚠️ route-recon 只对账路由——「路由在、执行体占位」
    的缺口它抓不到，历史上已抓出两族：regenerate-summary（已补全）与 ChunkService
    三处（下一条）。
-3. 之后：ChunkService 四处阶段占位已接线（2026-09-22，见 §0.0 第十一处）；
-   **下一个「占位扫描」建议**：全仓 grep「not available in this deployment /
-   engine unavailable / lands with wave」类文案，把剩余的「路由在、执行体占位」
-   一次性列出来（本批已清 regenerate-summary 与 ChunkService 四处）；
+3. 之后：**占位扫描已完成**（2026-09-22，§0.0 第十三处）——剩余真缺口按序：
+   **FAQ 导入执行面**（`FaqService.importUnavailable`；indexFAQChunks 已就绪，
+   只剩 Go knowledge_faq_import.go L1499-1620 的分批循环 + 进度/失败收集接线）→
+   updateImageInfo 向量重建（小）→ WebSearchProvider test（小-中）→
+   EvaluationService 执行步（大，依赖 dataset 服务未翻译）；
    波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
    tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、

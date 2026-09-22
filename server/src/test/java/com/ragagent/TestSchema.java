@@ -164,6 +164,7 @@ public final class TestSchema {
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "source_id VARCHAR(64) NOT NULL, source_type INTEGER NOT NULL," +
                 "chunk_id VARCHAR(64), knowledge_id VARCHAR(64), knowledge_base_id VARCHAR(64)," +
+                "tag_id VARCHAR(36)," +
                 "content TEXT, dimension INTEGER NOT NULL, embedding VARCHAR," +
                 "is_enabled BOOLEAN DEFAULT TRUE," +
                 "CONSTRAINT embeddings_unique_source UNIQUE (source_id, source_type))");

@@ -94,6 +94,9 @@ public class FaqService {
     private final ChunkMapper chunkMapper;
     private final ModelMapper modelMapper;
     private final LocalStorageService storage;
+    private final VectorStoreService vectorStore;
+    private final EmbedderClient embedder;
+    private final TenantStorageService tenantStorage;
 
     public FaqService(ChunkRepository chunkRepository,
                       KnowledgeMapper knowledgeMapper,
@@ -104,7 +107,10 @@ public class FaqService {
                       FaqImportTaskStore taskStore,
                       ChunkMapper chunkMapper,
                       ModelMapper modelMapper,
-                      LocalStorageService storage) {
+                      LocalStorageService storage,
+                      VectorStoreService vectorStore,
+                      EmbedderClient embedder,
+                      TenantStorageService tenantStorage) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
@@ -115,6 +121,9 @@ public class FaqService {
         this.chunkMapper = chunkMapper;
         this.modelMapper = modelMapper;
         this.storage = storage;
+        this.vectorStore = vectorStore;
+        this.embedder = embedder;
+        this.tenantStorage = tenantStorage;
     }
 
     private static long tenantId() {
@@ -258,7 +267,7 @@ public class FaqService {
             String indexMode = faqIndexMode(kb);
 
             // GetEmbeddingModel：模型行缺失/ID 空 → plain 500（handler c.Error 的非 AppError 分支）
-            requireEmbeddingModel(kb);
+            Model embeddingModel = requireEmbeddingModel(kb);
 
             boolean isEnabled = payload.isEnabled() == null || payload.isEnabled();
             int flags = payload.isRecommended() != null && !payload.isRecommended() ? 0 : 1;
@@ -284,9 +293,10 @@ public class FaqService {
             }
             createChunks(List.of(chunk));
 
-            // 索引步：模型运行时未接线（阶段 7/波 4）——按 Go 的失败路径回滚 chunk
+            // 索引步（对照 indexFAQChunks(..., adjustStorage=true, needDelete=false)）：
+            // 失败 → 按 Go 的失败路径回滚 chunk + "failed to index chunk: %w"
             try {
-                indexFAQChunksOrThrow();
+                indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, true);
             } catch (RuntimeException indexErr) {
                 chunkRepository.deleteChunk(tid, chunk.getId());
                 throw new IllegalStateException("failed to index chunk: " + indexErr.getMessage(), indexErr);
@@ -399,8 +409,10 @@ public class FaqService {
 
         // 增量索引（separate 模式）/ 增量删除 + 全量索引——索引执行面在 Go 也先过
         // GetEmbeddingModel；无模型的 KB 在这里 plain 500（变更已持久化）
-        requireEmbeddingModel(kb);
-        indexUnavailable(kb, "failed to index chunk");
+        Model embeddingModel = requireEmbeddingModel(kb);
+        // 对照 Go L430-450：separate 模式相似问减少时先删多余 sourceID——Java 的
+        // indexFAQChunks 全删该 chunk 行后重插（净效果等价）；索引失败原样返回
+        indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, false);
 
         Map<String, Long> tagSeqIdMap = new LinkedHashMap<>();
         if (!chunk.getTagId().isEmpty()) {
@@ -505,8 +517,9 @@ public class FaqService {
         if (faqKnowledge == null) {
             throw new IllegalStateException("failed to get knowledge: record not found");
         }
-        requireEmbeddingModel(kb);
-        indexUnavailable(kb, "failed to index chunk");
+        Model embeddingModel = requireEmbeddingModel(kb);
+        // 对照 Go L603（similar questions 追加后的全量重索引）：失败原样返回
+        indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, false);
 
         FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
         if (!chunk.getTagId().isEmpty()) {
@@ -650,10 +663,14 @@ public class FaqService {
             }
         }
 
-        // 检索引擎同步（Go 的 envStores 兜底引擎在无向量绑定 KB 上是 no-op；WARN+no-op 对齐可见面）
-        if (!enabledUpdates.isEmpty() || !tagUpdates.isEmpty()) {
-            log.warn("Retriever sync for FAQ fields batch skipped: retrieve engine unavailable "
-                    + "(enabled={}, tags={})", enabledUpdates.size(), tagUpdates.size());
+        // 检索引擎同步（对照 knowledge_faq.go L838-852）：失败 → 原样上抛（阻断；
+        // chunk 行已在上方落库——与 Go 的顺序一致）。
+        // 2026-09-22 走查批接线：此前为 WARN + no-op 占位。
+        if (!enabledUpdates.isEmpty()) {
+            vectorStore.batchUpdateChunkEnabledStatus(enabledUpdates);
+        }
+        if (!tagUpdates.isEmpty()) {
+            vectorStore.batchUpdateChunkTagId(tagUpdates);
         }
         log.info("FAQ fields batch updated: kb={}, by_id={}, by_tag={}",
                 kb.getId(), req.byId() == null ? 0 : req.byId().size(),
@@ -2355,14 +2372,16 @@ public class FaqService {
      * 行缺失 → gorm 的 "record not found"。两支都包成
      * {@code failed to get embedding model: %w} 后以 plain 500 冒泡。
      */
-    private void requireEmbeddingModel(KnowledgeBase kb) {
+    private Model requireEmbeddingModel(KnowledgeBase kb) {
         String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
         if (modelId.isEmpty()) {
             throw new IllegalStateException("failed to get embedding model: model ID cannot be empty");
         }
-        if (findModelRow(tenantId(), modelId) == null) {
+        Model model = findModelRow(tenantId(), modelId);
+        if (model == null) {
             throw new IllegalStateException("failed to get embedding model: record not found");
         }
+        return model;
     }
 
     /** 模型行存在性（对照 GetModelByID：ID 空 / 行缺失两支；行存在 → 运行时降级见类注释）。 */
@@ -2373,23 +2392,100 @@ public class FaqService {
                 .last("LIMIT 1"));
     }
 
-    /** 索引步（indexFAQChunks）：模型运行时未接线（阶段 7/波 4）的确定性降级。 */
-    private void indexUnavailable(KnowledgeBase kb, String prefix) {
-        throw new IllegalStateException(prefix + ": embedding runtime is not available in this deployment");
+    /**
+     * 对照 indexFAQChunks（knowledge_faq_import.go L2019-2130）——2026-09-22 走查批接线：
+     * 组装索引行（{@link FaqIndexRows}）→ adjustStorage 时估算大小 + 配额检查（超限 →
+     * "Storage quota exceeded"）→ 删旧行（Go 的 needDelete=false 靠 EFPutDocument 覆盖，
+     * Java 的 DO NOTHING 语义下显式先删（净效果等价：该 chunk 的全部新行重插））→
+     * 分批 embedding → 写库 → adjustStorage 时配额累加 → UpdateKnowledge(processed_at)。
+     */
+    private void indexFAQChunks(KnowledgeBase kb, Knowledge knowledge, List<Chunk> chunks,
+                                Model embeddingModel, boolean adjustStorage) {
+        if (chunks == null || chunks.isEmpty()) {
+            return;
+        }
+        long tid = tenantId();
+        List<VectorStoreService.IndexRow> rows = new ArrayList<>();
+        List<String> chunkIds = new ArrayList<>();
+        for (Chunk chunk : chunks) {
+            rows.addAll(FaqIndexRows.build(kb, chunk));
+            chunkIds.add(chunk.getId());
+        }
+        int dimensions = embeddingDimensions(embeddingModel);
+        long size = 0;
+        if (adjustStorage) {
+            size = VectorStoreService.estimateStorageSize(rows, dimensions);
+            com.ragagent.auth.domain.Tenant tenantInfo = tenantStorage.getTenant(tid);
+            long quota = tenantInfo == null || tenantInfo.getStorageQuota() == null
+                    ? 0 : tenantInfo.getStorageQuota();
+            long used = tenantInfo == null || tenantInfo.getStorageUsed() == null
+                    ? 0 : tenantInfo.getStorageUsed();
+            if (quota > 0 && used + size > quota) {
+                throw new IllegalStateException("Storage quota exceeded");
+            }
+        }
+        vectorStore.deleteByChunkId(chunkIds);
+        EmbedderClient.EmbedConfig cfg = EmbedderClient.configFrom(embeddingModel);
+        int batchSize = ChunkVectorIndexer.embedBatchSize();
+        for (int from = 0; from < rows.size(); from += batchSize) {
+            int to = Math.min(from + batchSize, rows.size());
+            List<VectorStoreService.IndexRow> batchRows = rows.subList(from, to);
+            List<String> texts = new ArrayList<>(batchRows.size());
+            for (VectorStoreService.IndexRow row : batchRows) {
+                texts.add(row.content());
+            }
+            List<float[]> vectors;
+            try {
+                vectors = embedder.embedBatch(cfg, texts);
+            } catch (Exception e) {
+                throw new IllegalStateException(e.getMessage() == null ? e.toString() : e.getMessage(), e);
+            }
+            vectorStore.saveIndexRows(batchRows, vectors);
+        }
+        if (adjustStorage && size > 0) {
+            tenantStorage.adjustStorageUsed(tid, size);
+            knowledge.setStorageSize(knowledge.getStorageSize() + size);
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        knowledge.setUpdatedAt(now);
+        knowledge.setProcessedAt(now);
+        knowledgeMapper.updateById(knowledge);
     }
 
-    private void indexFAQChunksOrThrow() {
-        throw new IllegalStateException("embedding runtime is not available in this deployment");
-    }
-
-    /** 对照 deleteFAQChunkVectors 的 GetEmbeddingModel 门槛（L2132-2141）。 */
+    /**
+     * 对照 deleteFAQChunkVectors（knowledge_faq_import.go L2132-2179）：GetEmbeddingModel
+     * 门槛（失败原样抛）→ 估算大小 → DeleteByChunkIDList → 配额回退（storage_used 负数
+     * 钳 0 在 TenantStorageService 内；knowledge.storage_size 钳 0）→ UpdateKnowledge。
+     */
     private void deleteFAQChunkVectors(KnowledgeBase kb, Knowledge knowledge, List<Chunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return;
         }
-        requireEmbeddingModel(kb);
-        throw new IllegalStateException("failed to delete chunk vectors: "
-                + "embedding runtime is not available in this deployment");
+        Model embeddingModel = requireEmbeddingModel(kb);
+        long tid = tenantId();
+        List<VectorStoreService.IndexRow> rows = new ArrayList<>();
+        List<String> chunkIds = new ArrayList<>();
+        for (Chunk chunk : chunks) {
+            rows.addAll(FaqIndexRows.build(kb, chunk));
+            chunkIds.add(chunk.getId());
+        }
+        long size = VectorStoreService.estimateStorageSize(rows, embeddingDimensions(embeddingModel));
+        vectorStore.deleteByChunkId(chunkIds);
+        if (size > 0) {
+            tenantStorage.adjustStorageUsed(tid, -size);
+            knowledge.setStorageSize(Math.max(0, knowledge.getStorageSize() - size));
+        }
+        knowledge.setUpdatedAt(OffsetDateTime.now());
+        knowledgeMapper.updateById(knowledge);
+    }
+
+    /** 对照 Go embeddingModel.GetDimensions()：模型 embedding_parameters.dimension。 */
+    private static int embeddingDimensions(Model model) {
+        if (model == null || model.getParameters() == null
+                || model.getParameters().getEmbeddingParameters() == null) {
+            return 0;
+        }
+        return model.getParameters().getEmbeddingParameters().getDimension();
     }
 
     private void createChunks(List<Chunk> chunks) {

@@ -146,10 +146,11 @@ public class ChunkVectorIndexer {
                 }
                 knowledgeCache.put(chunk.getKnowledgeId(), knowledge);
             }
+            // tag_id 传 ""：对照 Go updateChunkVector/syncChunkIndex 的 IndexInfo 不设 TagID（零值）
             rows.add(new VectorStoreService.IndexRow(chunk.getId(), chunk.getId(),
                     chunk.getKnowledgeId(), chunk.getKnowledgeBaseId(),
                     KnowledgeIndexContent.build(knowledge, chunk.embeddingContent()),
-                    chunk.isIsEnabled()));
+                    chunk.isIsEnabled(), ""));
             DocumentChunkMetadata meta = chunkDocumentMetadata(chunk);
             if (meta != null && meta.getGeneratedQuestions() != null) {
                 for (GeneratedQuestion question : meta.getGeneratedQuestions()) {
@@ -160,7 +161,7 @@ public class ChunkVectorIndexer {
                     rows.add(new VectorStoreService.IndexRow(
                             ChunkSearchUtil.generatedQuestionSourceId(chunk.getId(), question.getId()),
                             chunk.getId(), chunk.getKnowledgeId(), chunk.getKnowledgeBaseId(),
-                            KnowledgeIndexContent.build(knowledge, question.getQuestion()), true));
+                            KnowledgeIndexContent.build(knowledge, question.getQuestion()), true, ""));
                 }
             }
         }

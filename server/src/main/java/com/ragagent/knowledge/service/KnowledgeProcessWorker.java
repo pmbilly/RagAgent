@@ -194,8 +194,9 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                     for (Chunk c : chunks) {
                         String text = KnowledgeIndexContent.build(k, c.embeddingContent());
                         texts.add(text);
+                        // tag_id 传 ""：对照 Go processChunks 的 IndexInfo 不设 TagID（零值）
                         rows.add(new VectorStoreService.IndexRow(
-                                c.getId(), c.getId(), k.getId(), k.getKnowledgeBaseId(), text, true));
+                                c.getId(), c.getId(), k.getId(), k.getKnowledgeBaseId(), text, true, ""));
                     }
                     int embedBatch = embedBatchSize();
                     for (int from = 0; from < rows.size(); from += embedBatch) {

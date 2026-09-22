@@ -275,6 +275,17 @@ public class ChunkRepository {
     public void updateChunk(Chunk chunk) {
         // GORM autoUpdateTime：Save 把 updated_at 覆盖为 now 且回写 struct
         chunk.setUpdatedAt(java.time.OffsetDateTime.now());
+        // Go 的 string 零值语义：Save 写 "" 而非 NULL。chunks 表这三列是 NOT NULL，
+        // 而新建的 chunk 内存对象未设它们（Go 侧零值恒 ""）——2026-09-22 走查实案：
+        // FAQ 创建后 status 更新的全列 UPDATE 写 NULL → 违反 NOT NULL 约束。
+        if (chunk.getSourceContent() == null) {
+            chunk.setSourceContent("");
+        }
+        if (chunk.getContextHeader() == null) {
+            chunk.setContextHeader("");
+        }
+        // getLastEditorId() 是 null→"" 归一的 getter：经 setter 无条件回写字段
+        chunk.setLastEditorId(chunk.getLastEditorId());
         chunkMapper.updateAllFieldsExceptSeqId(chunk);
     }
 
