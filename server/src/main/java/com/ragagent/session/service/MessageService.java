@@ -14,9 +14,17 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
+import com.ragagent.auth.domain.tenantconfig.ChatHistoryConfig;
+import com.ragagent.auth.domain.tenantconfig.RetrievalConfig;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.model.service.ModelRuntimeFactory;
+import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.rerank.RankResult;
+import com.ragagent.rerank.Reranker;
+import com.ragagent.retrieval.HybridSearchService;
+import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.ChatHistoryKbStats;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageArtifact;
@@ -39,8 +47,8 @@ import com.ragagent.session.mapper.SessionRepository;
  *       （LoadMessages 的两条路径）；</li>
  *   <li>删：{@code DeleteMessage} / {@code ClearSessionMessages}（含建议删除与
  *       聊天历史知识的尽力而为清理）；</li>
- *   <li>搜：{@code SearchMessages} 的关键词路径 + RRF 融合 + Q&amp;A 补对 + 按
- *       request_id 分组（向量路径见下面的已知差异）；</li>
+ *   <li>搜：{@code SearchMessages} 的关键词路径 + 向量路径（vectorSearchViaKB）+
+ *       RRF 融合 + Q&amp;A 补对 + 按 request_id 分组；</li>
  *   <li>统计：{@code GetChatHistoryKBStats}。</li>
  * </ul>
  *
@@ -48,10 +56,17 @@ import com.ragagent.session.mapper.SessionRepository;
  * <ol>
  *   <li><b>聊天历史知识清理是同步尽力而为</b>：Go 在 goroutine 里异步做
  *       （{@code context.WithoutCancel}），错误全吞。HTTP 响应不受影响。</li>
- *   <li><b>向量搜索路径未实现</b>：Go 在租户配置了 ChatHistoryConfig 时走
- *       {@code kbService.HybridSearch}（依赖 retrieval/向量检索）——该模块未翻译，
- *       暂恒跳过（等价于"未配置"分支）。未配置时两侧行为一致；配置了才有差异。
- *       TODO(随 retrieval 模块收口)。</li>
+ *   <li><b>向量搜索已接线（2026-09-23 收口；检索引擎批提供 HybridSearch 执行面）</b>：
+ *       租户配置了 ChatHistoryConfig 时走
+ *       {@link HybridSearchService#hybridSearch}（vector-only：
+ *       {@code DisableKeywordsMatch=true}，关键词仍在 messages 表上单独搜），
+ *       KB 命中经 {@code knowledge_id} 映射回消息并按分排序；配置了 rerank 模型时
+ *       先重排（取不到模型 / 调用失败 → 原样返回，对照 Go {@code rerankResults}）。
+ *       mode=vector 时 KB 检索失败上抛（handler 500），hybrid 时 Warn 后降级
+ *       keyword-only——与 Go 逐字对齐。<b>残留差异</b>：①Go 从请求上下文读租户配置，
+ *       Java 经 TenantService 重查租户行（同一数据源，净效果一致）；②Go 的
+ *       {@code sort.Slice} 不稳定、Java 用稳定排序，同分消息的相对顺序可能不同
+ *       （Go 自身在该输入下也不确定）。</li>
  *   <li><b>clarifyReadArtifactVersions 全量接线（2026-09-23 走查批）</b>：
  *       needsHistory 快路径 + 全会话产物表澄清（ArtifactVersions.clarifyArtifactVersions），
  *       存量会话与新生成轮同享澄清。</li>
@@ -76,19 +91,27 @@ public class MessageService {
     private final KnowledgeService knowledgeService;
     private final TenantService tenantService;
     private final com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService;
+    /** 聊天历史 KB 的向量检索执行面（对照 Go kbService.HybridSearch 的 HybridSearch 段）。 */
+    private final HybridSearchService hybridSearchService;
+    /** 对照 Go modelService.GetRerankModel（rerankResults 的重排模型工厂）。 */
+    private final ModelRuntimeFactory modelRuntimeFactory;
 
     public MessageService(SessionRepository sessionRepository,
                           MessageRepository messageRepository,
                           MessageSuggestionRepository suggestionRepository,
                           KnowledgeService knowledgeService,
                           TenantService tenantService,
-                          com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService) {
+                          com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService,
+                          HybridSearchService hybridSearchService,
+                          ModelRuntimeFactory modelRuntimeFactory) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.suggestionRepository = suggestionRepository;
         this.knowledgeService = knowledgeService;
         this.tenantService = tenantService;
         this.knowledgeBaseService = knowledgeBaseService;
+        this.hybridSearchService = hybridSearchService;
+        this.modelRuntimeFactory = modelRuntimeFactory;
     }
 
     /**
@@ -343,8 +366,9 @@ public class MessageService {
      * <p>搜索范围与列表同构：**按人裁剪**（owner scope），防止搜索框读到同事的私聊
      * （Go 的注释原文，session.go 同款语义）。</p>
      *
-     * <p>向量路径的已知差异见类注释第 2 条——未配置聊天历史 KB 时两侧一致
-     * （Go 跳过、Java 也跳过），所以 keyword / hybrid 两条路径这里是逐字对照的。</p>
+     * <p>向量路径经聊天历史 KB 的 HybridSearch（见 {@link #vectorSearchViaKb}）：
+     * 未配置聊天历史 KB 时两侧一致恒跳过；mode=vector 时 KB 检索失败上抛（500），
+     * hybrid 时降级 keyword-only。</p>
      *
      * @param query      已由 controller 做 SanitizeForLog（Go 在 handler 里做）
      * @param mode       keyword / vector / hybrid（空 → hybrid）
@@ -370,8 +394,22 @@ public class MessageService {
                     tenantId, ownerId, query, sessionIds, limit * 3);
         }
 
-        // Step 2：向量搜索（未配置聊天历史 KB → Go 也返回空，行为一致；已配置时 Java 暂跳过）
+        // Step 2：向量搜索（经聊天历史 KB；未配置 → 空，Go 的 nil, nil 分支）
         List<SearchItem> vectorResults = List.of();
+        if (MODE_VECTOR.equals(mode) || MODE_HYBRID.equals(mode)) {
+            try {
+                vectorResults = vectorSearchViaKb(query, sessionIds);
+                log.info("Vector search found {} results", vectorResults.size());
+            } catch (RuntimeException e) {
+                // Go：两种模式都先 Warnf，vector 模式再上抛（handler 500）、
+                // hybrid 模式吞掉降级 keyword-only
+                log.warn("Vector search via KB failed, falling back to keyword-only: {}",
+                        e.toString());
+                if (MODE_VECTOR.equals(mode)) {
+                    throw e;
+                }
+            }
+        }
 
         // Step 3：按模式合并
         List<SearchItem> items;
@@ -379,7 +417,7 @@ public class MessageService {
             // ⚠️ keyword 分支不是直接透传：Go 走 convertKeywordResults 赋线性分值
             items = convertKeywordResults(keywordRows);
         } else if (MODE_VECTOR.equals(mode)) {
-            items = List.of();
+            items = vectorResults;
         } else {
             items = rrfMerge(toItems(keywordRows, "keyword"), vectorResults);
         }
@@ -403,6 +441,230 @@ public class MessageService {
         return result;
     }
 
+    // ── 搜索 · 向量路径（对照 Go vectorSearchViaKB / rerankResults / 两个配置读取） ────
+
+    /**
+     * 对照 Go {@code getChatHistoryConfig}（message.go L344-356）：读租户的聊天历史
+     * KB 配置，**三要素不全即视为未配置**（{@code IsConfigured} = Enabled +
+     * EmbeddingModelID + KnowledgeBaseID 逐字段对照）→ 返回 null，向量搜索恒空。
+     *
+     * <p>Go 从请求上下文取租户对象；Java 的 TenantContext 只带 id，按本类既有模式
+     * （{@link #getChatHistoryKbStats}）经 TenantService 重查同一行。</p>
+     */
+    private ChatHistoryConfig getChatHistoryConfig() {
+        Long tenantId = TenantContext.currentTenantId();
+        if (tenantId == null) {
+            return null;
+        }
+        Tenant tenant = tenantService.getTenantById(tenantId);
+        if (tenant == null) {
+            return null;
+        }
+        JsonNode node = tenant.getChatHistoryConfig();
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        ChatHistoryConfig cfg = new ChatHistoryConfig();
+        cfg.setEnabled(node.path("enabled").asBoolean(false));
+        cfg.setEmbeddingModelId(node.path("embedding_model_id").asText(""));
+        cfg.setKnowledgeBaseId(node.path("knowledge_base_id").asText(""));
+        // 对照 Go ChatHistoryConfig.IsConfigured（chat_history_config.go L45-47）
+        if (cfg.isEnabled() && !cfg.getEmbeddingModelId().isEmpty()
+                && !cfg.getKnowledgeBaseId().isEmpty()) {
+            return cfg;
+        }
+        return null;
+    }
+
+    /**
+     * 对照 Go {@code getRetrievalConfig}（message.go L358-368）：未配置 → 空配置
+     * （各有效值走 GetEffective* 的缺省）。
+     */
+    private RetrievalConfig getRetrievalConfig() {
+        Long tenantId = TenantContext.currentTenantId();
+        RetrievalConfig rc = new RetrievalConfig();
+        if (tenantId == null) {
+            return rc;
+        }
+        Tenant tenant = tenantService.getTenantById(tenantId);
+        JsonNode node = tenant == null ? null : tenant.getRetrievalConfig();
+        if (node == null || node.isNull()) {
+            return rc;
+        }
+        rc.setEmbeddingTopK(node.path("embedding_top_k").asInt(0));
+        rc.setVectorThreshold(node.path("vector_threshold").asDouble(0));
+        rc.setRerankTopK(node.path("rerank_top_k").asInt(0));
+        rc.setRerankThreshold(node.path("rerank_threshold").asDouble(0));
+        rc.setRerankModelId(node.path("rerank_model_id").asText(""));
+        return rc;
+    }
+
+    /**
+     * 对照 Go {@code vectorSearchViaKB}（message.go L651-724）：聊天历史 KB 的
+     * **vector-only** 检索（关键词在 messages 表上单独做）→ 按 {@code knowledge_id}
+     * 映射回消息 → 按分排序。失败一律抛 RuntimeException（message 对照 Go 的
+     * {@code fmt.Errorf} 原文），由调用方按模式决定上抛还是降级。
+     */
+    private List<SearchItem> vectorSearchViaKb(String query, List<String> sessionIds) {
+        ChatHistoryConfig cfg = getChatHistoryConfig();
+        if (cfg == null) {
+            return List.of(); // 聊天历史 KB 未配置，跳过向量搜索（Go: return nil, nil）
+        }
+
+        RetrievalConfig rc = getRetrievalConfig();
+
+        // vector-only 语义（Go 逐字段）：QueryText + MatchCount(=有效 EmbeddingTopK)
+        // + VectorThreshold + DisableKeywordsMatch=true
+        SearchParams searchParams = new SearchParams();
+        searchParams.setQueryText(query);
+        searchParams.setMatchCount(effectiveEmbeddingTopK(rc));
+        searchParams.setVectorThreshold(effectiveVectorThreshold(rc));
+        searchParams.setDisableKeywordsMatch(true);
+
+        List<SearchResult> kbResults;
+        try {
+            kbResults = hybridSearchService.hybridSearch(cfg.getKnowledgeBaseId(), searchParams);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("KB hybrid search failed: " + e.getMessage(), e);
+        }
+        if (kbResults == null || kbResults.isEmpty()) {
+            return List.of();
+        }
+
+        // 配置了 rerank 模型才重排（未配置/失败 → 原样返回）
+        kbResults = rerankResults(rc, query, kbResults);
+        if (kbResults.isEmpty()) {
+            return List.of();
+        }
+
+        // KB 命中 → knowledge_id → 消息
+        List<String> knowledgeIds = new ArrayList<>(kbResults.size());
+        Map<String, Double> scoreByKnowledgeId = new LinkedHashMap<>();
+        for (SearchResult r : kbResults) {
+            knowledgeIds.add(r.getKnowledgeId());
+            scoreByKnowledgeId.put(r.getKnowledgeId(), r.getScore());
+        }
+
+        List<MessageWithSession> messages;
+        try {
+            messages = messageRepository.getMessagesByKnowledgeIds(knowledgeIds);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(
+                    "failed to get messages by knowledge IDs: " + e.getMessage(), e);
+        }
+
+        // SessionIDs 过滤（Go 的 sessionFilter map）
+        Set<String> sessionFilter = sessionIds == null ? Set.of() : new HashSet<>(sessionIds);
+
+        List<SearchItem> results = new ArrayList<>();
+        for (MessageWithSession msg : messages) {
+            String sid = msg.getMessage().getSessionId();
+            if (!sessionFilter.isEmpty() && !sessionFilter.contains(sid)) {
+                continue;
+            }
+            double score = scoreByKnowledgeId.getOrDefault(msg.getMessage().getKnowledgeId(), 0.0);
+            results.add(new SearchItem(msg, score, "vector"));
+        }
+
+        // 按分降序。Go 的 sort.Slice 不稳定；Java 用稳定排序（同分消息的相对顺序
+        // Go 自身也不确定，已知差异见类注释第 2 条）
+        results.sort((a, b) -> Double.compare(b.score(), a.score()));
+        return results;
+    }
+
+    /**
+     * 对照 Go {@code rerankResults}（message.go L728-773）：配置了 rerank 模型才重排；
+     * 取不到模型 / 调用失败都**原样返回**（Go 的 Warnf + return results）。
+     * 命中按 threshold 过滤、topK 截断，score 换成重排分——Go 是 struct 值拷贝，
+     * Java 用 {@link SearchResult#copy()}，同样不改原结果对象。
+     */
+    private List<SearchResult> rerankResults(RetrievalConfig rc, String query,
+            List<SearchResult> results) {
+        if (rc == null || rc.getRerankModelId().isEmpty() || results.isEmpty()) {
+            return results;
+        }
+
+        Reranker reranker;
+        try {
+            reranker = modelRuntimeFactory.getRerankModel(rc.getRerankModelId());
+        } catch (RuntimeException e) {
+            log.warn("Failed to get rerank model {}, skipping rerank: {}",
+                    rc.getRerankModelId(), e.toString());
+            return results;
+        }
+
+        List<String> documents = new ArrayList<>(results.size());
+        for (SearchResult r : results) {
+            documents.add(r.getContent());
+        }
+
+        List<RankResult> rankResults;
+        try {
+            rankResults = reranker.rerank(query, documents);
+        } catch (RuntimeException e) {
+            log.warn("Rerank call failed, skipping: {}", e.toString());
+            return results;
+        }
+
+        double threshold = effectiveRerankThreshold(rc);
+        int topK = effectiveRerankTopK(rc);
+
+        List<SearchResult> reranked = new ArrayList<>();
+        for (RankResult rr : rankResults) {
+            if (rr.getIndex() >= results.size()) {
+                continue;
+            }
+            if (rr.getRelevanceScore() < threshold) {
+                continue;
+            }
+            SearchResult item = results.get(rr.getIndex()).copy(); // Go: item := *results[...]
+            item.setScore(rr.getRelevanceScore());
+            reranked.add(item);
+            if (reranked.size() >= topK) {
+                break;
+            }
+        }
+
+        log.info("Rerank: {} -> {} results (threshold={}, topK={})", results.size(),
+                reranked.size(), String.format(java.util.Locale.ROOT, "%.2f", threshold), topK);
+        return reranked;
+    }
+
+    /** 对照 Go {@code GetEffectiveEmbeddingTopK}（≤0 → DefaultRetrievalTopK=50）。 */
+    private static int effectiveEmbeddingTopK(RetrievalConfig rc) {
+        if (rc == null || rc.getEmbeddingTopK() <= 0) {
+            return 50;
+        }
+        return rc.getEmbeddingTopK();
+    }
+
+    /** 对照 Go {@code GetEffectiveVectorThreshold}（≤0 → 0.15）。 */
+    private static double effectiveVectorThreshold(RetrievalConfig rc) {
+        if (rc == null || rc.getVectorThreshold() <= 0) {
+            return 0.15;
+        }
+        return rc.getVectorThreshold();
+    }
+
+    /** 对照 Go {@code GetEffectiveRerankTopK}（≤0 → 10）。 */
+    private static int effectiveRerankTopK(RetrievalConfig rc) {
+        if (rc == null || rc.getRerankTopK() <= 0) {
+            return 10;
+        }
+        return rc.getRerankTopK();
+    }
+
+    /**
+     * 对照 Go {@code GetEffectiveRerankThreshold}：**只有 rc==nil 才回 0.2**——
+     * 显式配置 0 是合法值（不设 {@code <= 0} 缺省，别顺手"修好"）。
+     */
+    private static double effectiveRerankThreshold(RetrievalConfig rc) {
+        if (rc == null) {
+            return 0.2;
+        }
+        return rc.getRerankThreshold();
+    }
+
     private static List<SearchItem> toItems(List<MessageWithSession> rows, String matchType) {
         List<SearchItem> items = new ArrayList<>(rows.size());
         for (MessageWithSession row : rows) {
@@ -424,8 +686,8 @@ public class MessageService {
     /**
      * 对照 Go {@code rrfMerge}（L789-843）：Reciprocal Rank Fusion。
      * 同一条消息两路都命中 → 分数累加、matchType 升级为 hybrid；
-     * 排序按融合分降序。Java 向量路径未实现前 vectorResults 恒空，
-     * 结果与 Go"未配置 KB 的 hybrid"完全一致。
+     * 排序按融合分降序。keyword 侧的初始 matchType 是 "keyword"、
+     * 向量侧是 "vector"（Go 同款，见 {@code accumulate} 的 singleMatchType）。
      */
     private static List<SearchItem> rrfMerge(List<SearchItem> keywordResults,
             List<SearchItem> vectorResults) {

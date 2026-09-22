@@ -38,7 +38,10 @@ import org.springframework.stereotype.Component;
  *   <li><b>默认排序</b>：{@code created_at ASC/DESC} 各查询自带（Go L54/L68/L94/L121/L134）。</li>
  * </ol>
  *
- * <p><b>本文件尚未包含</b>三条 JOIN sessions 的检索查询与 memory 游标分页——下一步。</p>
+ * <p><b>JOIN sessions 的三条检索查询</b>：{@code SearchMessagesByKeyword} 与
+ * {@code GetMessagesByRequestIDs} 两步化（先查消息再补会话标题）；{@code
+ * GetMessagesByKnowledgeIDs} 保一条 JOIN SQL（见 {@link #getMessagesByKnowledgeIds}）。
+ * memory 游标分页在 {@link MessageMapper}。</p>
  */
 @Component
 public class MessageRepository {
@@ -499,6 +502,29 @@ public class MessageRepository {
                 .in(Message::getRequestId, requestIds)
                 .isNull(Message::getDeletedAt));
         return withSessionTitles(rows);
+    }
+
+    /**
+     * 对照 Go {@code GetMessagesByKnowledgeIDs}（message.go L250-267）：向量搜索把
+     * 聊天历史 KB 的命中按 {@code knowledge_id} 映射回消息。
+     *
+     * <p>这条**不走两步化**：Go 的 {@code INNER JOIN sessions ... AND sessions.deleted_at
+     * IS NULL} 会把「会话已软删/不存在」的消息直接从结果里丢掉，两步化必须再补一次
+     * 会话存在性过滤，净效果写起来反而更绕——保留一条 JOIN SQL（见
+     * {@link MessageMapper#selectMessagesByKnowledgeIds}，jsonb 列靠方法级
+     * {@code @Results} 显式挂类型处理器）。空入参直接返回空列表（Go 的 {@code nil, nil}）。</p>
+     */
+    public List<MessageWithSession> getMessagesByKnowledgeIds(List<String> knowledgeIds) {
+        if (knowledgeIds == null || knowledgeIds.isEmpty()) {
+            return List.of();
+        }
+        List<MessageMapper.MessageWithSessionRow> rows =
+                mapper.selectMessagesByKnowledgeIds(knowledgeIds);
+        List<MessageWithSession> out = new ArrayList<>(rows.size());
+        for (MessageMapper.MessageWithSessionRow row : rows) {
+            out.add(new MessageWithSession(row, row.getSessionTitle()));
+        }
+        return out;
     }
 
     /** 补 session_title（等价于 Go 两条检索 SQL 里 JOIN 出的那一列）。 */

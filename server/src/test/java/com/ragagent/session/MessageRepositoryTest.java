@@ -3,15 +3,18 @@ package com.ragagent.session;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import com.ragagent.TestSchema;
+import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageArtifact;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.session.domain.MessageNotFoundException;
+import com.ragagent.session.domain.MessageWithSession;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.mapper.MessageRepository;
 import com.ragagent.session.mapper.SessionRepository;
@@ -301,5 +304,65 @@ class MessageRepositoryTest {
         assertThat(after.getImages().get(0).getCaption()).isEqualTo("cap");
         // 其他列没被动过
         assertThat(after.getContent()).isEqualTo("q");
+    }
+
+    // ── GetMessagesByKnowledgeIDs（向量搜索的 KB 命中回映射） ────────────────
+
+    private void markWithKnowledgeId(Message m, String knowledgeId) {
+        jdbc.update("UPDATE messages SET knowledge_id = ? WHERE id = ?", knowledgeId, m.getId());
+    }
+
+    @Test
+    void getMessagesByKnowledgeIdsJoinsSessionTitleAndMapsColumns() {
+        Message m = message(Message.ROLE_ASSISTANT, "indexed answer", "r9");
+        markWithKnowledgeId(m, "kn-1");
+        // 钉 @Results 的两个易漏点：is_completed 属性名不带 is 前缀、session_title 来自 JOIN
+        jdbc.update("UPDATE messages SET is_completed = TRUE, agent_duration_ms = 42 "
+                + "WHERE id = ?", m.getId());
+
+        List<MessageWithSession> rows = repo.getMessagesByKnowledgeIds(List.of("kn-1"));
+        assertThat(rows).hasSize(1);
+        MessageWithSession row = rows.get(0);
+        assertThat(row.getSessionTitle()).isEqualTo("t");                 // JOIN sessions.title
+        assertThat(row.getMessage().getId()).isEqualTo(m.getId());
+        assertThat(row.getMessage().getSessionId()).isEqualTo(sessionId);
+        assertThat(row.getMessage().getKnowledgeId()).isEqualTo("kn-1");
+        assertThat(row.getMessage().isCompleted()).isTrue();              // is_completed → completed
+        assertThat(row.getMessage().getAgentDurationMs()).isEqualTo(42);
+
+        // 空入参 → 空列表（Go 的 nil, nil 短路）
+        assertThat(repo.getMessagesByKnowledgeIds(List.of())).isEmpty();
+    }
+
+    @Test
+    void getMessagesByKnowledgeIdsExcludesSoftDeletedMessagesAndSessions() {
+        Message deleted = message(Message.ROLE_ASSISTANT, "deleted answer", "r9");
+        markWithKnowledgeId(deleted, "kn-1");
+        repo.delete(sessionId, deleted.getId());                          // 消息软删 → 排除
+        assertThat(repo.getMessagesByKnowledgeIds(List.of("kn-1"))).isEmpty();
+
+        Message live = message(Message.ROLE_ASSISTANT, "live answer", "r10");
+        markWithKnowledgeId(live, "kn-2");
+        jdbc.update("UPDATE sessions SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", sessionId);
+        // 会话软删 → INNER JOIN sessions.deleted_at IS NULL 直接丢掉（两步化最容易被丢掉的语义）
+        assertThat(repo.getMessagesByKnowledgeIds(List.of("kn-2"))).isEmpty();
+    }
+
+    @Test
+    void getMessagesByKnowledgeIdsReadsJsonbColumnsThroughMethodLevelResults() {
+        // 波 0 memory 同款坑：自定义 @Select 不套实体的 @TableField(typeHandler=...)，
+        // jsonb 列必须走方法级 @Results——没有它这列读回来就是 null
+        Message m = message(Message.ROLE_ASSISTANT, "with refs", "r11");
+        SearchResult ref = new SearchResult();
+        ref.setId("chunk-9");
+        ref.setContent("ref content");
+        m.setKnowledgeReferences(new ArrayList<>(List.of(ref)));
+        repo.update(m);
+        markWithKnowledgeId(m, "kn-3");
+
+        List<MessageWithSession> rows = repo.getMessagesByKnowledgeIds(List.of("kn-3"));
+        assertThat(rows.get(0).getMessage().getKnowledgeReferences()).hasSize(1);
+        assertThat(rows.get(0).getMessage().getKnowledgeReferences().get(0).getId())
+                .isEqualTo("chunk-9");
     }
 }
