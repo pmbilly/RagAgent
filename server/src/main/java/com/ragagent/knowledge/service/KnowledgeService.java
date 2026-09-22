@@ -95,6 +95,7 @@ public class KnowledgeService {
     private final ModelRuntimeFactory modelRuntimeFactory;
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ConversationProperties conversationProps;
+    private final com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
                             KnowledgeBaseMapper kbMapper,
@@ -106,7 +107,8 @@ public class KnowledgeService {
                             ChunkRepository chunkRepo,
                             ModelRuntimeFactory modelRuntimeFactory,
                             ChunkVectorIndexer chunkVectorIndexer,
-                            ConversationProperties conversationProps) {
+                            ConversationProperties conversationProps,
+                            com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -118,6 +120,7 @@ public class KnowledgeService {
         this.modelRuntimeFactory = modelRuntimeFactory;
         this.chunkVectorIndexer = chunkVectorIndexer;
         this.conversationProps = conversationProps;
+        this.spanRepository = spanRepository;
     }
 
     private static long tenantId() {
@@ -836,46 +839,55 @@ public class KnowledgeService {
     // ── 波 2：文档操作面 ──────────────────────────────────────────────────
 
     /**
-     * 对照 GetKnowledgeSpans（handler 端响应组装在 controller）。Java 无 spanRepo
-     * （spans 追踪未实现，约定 §9 阶段 4.2 差异 2）——照 Go 的 spanRepo==nil 分支 +
-     * "表里没有行" 路径：rows 恒空、latestAttempt 恒 0、currentAttempt =
-     * 显式 ?attempt=N（&gt;0）否则 0。buildSpanTree 全量翻译（合成 root + 5 段）。
+     * 对照 GetKnowledgeSpans（handler L608-690）：attempt 选择（显式 ?attempt=N 优先，
+     * 否则 spans 表的 latestAttempt）→ ListByAttempt → buildSpanTree（真实行建树 +
+     * 缺失 canonical stage 合成）→ last_error（span 失败行优先）。
+     * 2026-09-23 起 span 写入侧已接线（此前 spanRepo==nil 分支的备案差异作废）。
      *
      * @return data 信封内层（gin.H 键按字母序：attempt/current_attempt/current_stage/
      *         knowledge_id/[last_error]/latest_attempt/parse_status/trace）
      */
     public ObjectNode knowledgeSpans(Knowledge knowledge, int requestedAttempt) {
-        int currentAttempt = Math.max(requestedAttempt, 0);
-        com.ragagent.knowledge.dto.SpanTree tree =
-                buildSpanTree(knowledge.getId(), currentAttempt, knowledge.getParseStatus());
+        int latestAttempt = spanRepository.latestAttempt(knowledge.getId());
+        int currentAttempt = requestedAttempt > 0 ? requestedAttempt : latestAttempt;
+        List<com.ragagent.knowledge.domain.KnowledgeProcessingSpan> rows =
+                currentAttempt > 0
+                        ? spanRepository.listByAttempt(knowledge.getId(), currentAttempt)
+                        : List.of();
+        SpanTree tree = buildSpanTree(knowledge.getId(), currentAttempt, rows,
+                knowledge.getParseStatus());
 
         ObjectNode resp = MAPPER.createObjectNode();
         resp.put("attempt", currentAttempt);
         resp.put("current_attempt", currentAttempt);
         resp.put("current_stage", tree.currentStage());
         resp.put("knowledge_id", knowledge.getId());
-        JsonNode lastError = knowledgeSpansLastError(currentAttempt, knowledge);
+        JsonNode lastError = knowledgeSpansLastError(currentAttempt, latestAttempt,
+                knowledge, tree.lastFailure());
         if (lastError != null) {
             resp.set("last_error", lastError);
         }
-        resp.put("latest_attempt", 0);
+        resp.put("latest_attempt", latestAttempt);
         resp.put("parse_status", knowledge.getParseStatus() == null ? "" : knowledge.getParseStatus());
         resp.set("trace", tree.root());
         return resp;
     }
 
-    record SpanTree(ObjectNode root, String currentStage) {
+    record SpanTree(ObjectNode root, String currentStage,
+                    com.ragagent.knowledge.domain.KnowledgeProcessingSpan lastFailure) {
     }
 
     /**
-     * 对照 buildSpanTree（handler/knowledge.go L748-858）：rows 为空时合成 root +
-     * 5 个 canonical stage 占位（status 由 parse_status 推导：completed→done、
-     * failed→failed、其余 pending）。节点键序 = KnowledgeProcessingSpan 声明序，
-     * 带 omitempty 的字段（parent_span_id、input、output、metadata、error_code、
-     * error_message、started_at、finished_at、duration_ms）缺席，children 空缺席。
+     * 对照 buildSpanTree（handler/knowledge.go L748-858）：真实行按 span_id 建索引
+     * （保 rows 序）→ root（首个 kind=root）/首个 running stage（current_stage）/
+     * 末个 failed 行（lastFailure）→ children 按 rows 序链接（无父/孤儿挂 root）→
+     * 缺失 canonical stage 合成占位（AllStages 序）。rows 为空时与旧实现逐字节一致
+     * （全合成，status 由 parse_status 推导：completed→done、failed→failed、其余 pending）。
      */
-    private static com.ragagent.knowledge.dto.SpanTree buildSpanTree(
-            String knowledgeId, int attempt, String parseStatus) {
+    private static SpanTree buildSpanTree(
+            String knowledgeId, int attempt,
+            List<com.ragagent.knowledge.domain.KnowledgeProcessingSpan> rows,
+            String parseStatus) {
         String syntheticStatus = "pending";
         if (Knowledge.PARSE_COMPLETED.equals(parseStatus)) {
             syntheticStatus = "done";
@@ -883,15 +895,115 @@ public class KnowledgeService {
             syntheticStatus = "failed";
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ObjectNode root = spanNode(knowledgeId, attempt, "", "knowledge_processing", "root",
-                syntheticStatus, null, now);
-        ArrayNode children = MAPPER.createArrayNode();
+
+        Map<String, ObjectNode> nodes = new java.util.LinkedHashMap<>();
+        com.ragagent.knowledge.domain.KnowledgeProcessingSpan rootRow = null;
+        Map<String, com.ragagent.knowledge.domain.KnowledgeProcessingSpan> stageRowByName =
+                new java.util.LinkedHashMap<>();
+        String currentStage = "";
+        com.ragagent.knowledge.domain.KnowledgeProcessingSpan lastFailure = null;
+        for (com.ragagent.knowledge.domain.KnowledgeProcessingSpan r : rows) {
+            nodes.put(r.getSpanId(), spanNodeFromRow(r));
+            if ("root".equals(r.getKind()) && rootRow == null) {
+                rootRow = r;
+            }
+            if ("stage".equals(r.getKind())) {
+                stageRowByName.put(r.getName(), r);
+            }
+            if ("running".equals(r.getStatus()) && "stage".equals(r.getKind())
+                    && currentStage.isEmpty()) {
+                currentStage = r.getName();
+            }
+            if ("failed".equals(r.getStatus())) {
+                lastFailure = r;
+            }
+        }
+
+        ObjectNode root;
+        if (rootRow == null) {
+            root = spanNode(knowledgeId, attempt, "", "knowledge_processing", "root",
+                    syntheticStatus, null, now);
+        } else {
+            root = nodes.get(rootRow.getSpanId());
+        }
+
+        // 真实 children 链接（按 rows 序——Go 刻意不遍历 map，保证 fan-out 子 span 稳定序）
+        for (com.ragagent.knowledge.domain.KnowledgeProcessingSpan r : rows) {
+            ObjectNode n = nodes.get(r.getSpanId());
+            if (n == null || n == root) {
+                continue;
+            }
+            ObjectNode parent = r.getParentSpanId().isEmpty()
+                    ? null : nodes.get(r.getParentSpanId());
+            if (parent == null) {
+                parent = root;
+            }
+            ArrayNode children = parent.has("children")
+                    ? (ArrayNode) parent.get("children") : MAPPER.createArrayNode();
+            children.add(n);
+            parent.set("children", children);
+        }
+
+        // 缺失 stage 合成（AllStages 序，保证 5 段布局确定性）
         for (String stage : ALL_STAGES) {
+            if (stageRowByName.containsKey(stage)) {
+                continue;
+            }
+            ArrayNode children = root.has("children")
+                    ? (ArrayNode) root.get("children") : MAPPER.createArrayNode();
             children.add(spanNode(knowledgeId, attempt, "", stage, "stage",
                     syntheticStatus, null, now));
+            root.set("children", children);
         }
-        root.set("children", children);
-        return new com.ragagent.knowledge.dto.SpanTree(root, "");
+        return new SpanTree(root, currentStage, lastFailure);
+    }
+
+    /**
+     * 真实 span 行的 trace 节点渲染：键序 = Go {@code KnowledgeProcessingSpan} 声明序；
+     * omitempty 字段（parent_span_id/input/output/metadata/error_code/error_message/
+     * started_at/finished_at/duration_ms）缺席即省略；error_detail 是 {@code json:"-"} 不输出；
+     * created_at/updated_at 恒输出。
+     */
+    private static ObjectNode spanNodeFromRow(
+            com.ragagent.knowledge.domain.KnowledgeProcessingSpan r) {
+        ObjectNode n = MAPPER.createObjectNode();
+        n.put("knowledge_id", r.getKnowledgeId());
+        n.put("attempt", r.getAttempt());
+        n.put("span_id", r.getSpanId());
+        if (!r.getParentSpanId().isEmpty()) {
+            n.put("parent_span_id", r.getParentSpanId());
+        }
+        n.put("name", r.getName());
+        n.put("kind", r.getKind());
+        n.put("status", r.getStatus());
+        if (r.getInput() != null) {
+            n.set("input", MAPPER.valueToTree(r.getInput()));
+        }
+        if (r.getOutput() != null) {
+            n.set("output", MAPPER.valueToTree(r.getOutput()));
+        }
+        if (r.getMetadata() != null) {
+            n.set("metadata", MAPPER.valueToTree(r.getMetadata()));
+        }
+        if (!r.getErrorCode().isEmpty()) {
+            n.put("error_code", r.getErrorCode());
+        }
+        if (!r.getErrorMessage().isEmpty()) {
+            n.put("error_message", r.getErrorMessage());
+        }
+        if (r.getStartedAt() != null) {
+            n.put("started_at", goTimeString(r.getStartedAt()));
+        }
+        if (r.getFinishedAt() != null) {
+            n.put("finished_at", goTimeString(r.getFinishedAt()));
+        }
+        if (r.getDurationMs() != 0) {
+            n.put("duration_ms", r.getDurationMs());
+        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        n.put("created_at", goTimeString(r.getCreatedAt() == null ? now : r.getCreatedAt()));
+        n.put("updated_at", goTimeString(r.getUpdatedAt() == null ? now : r.getUpdatedAt()));
+        return n;
     }
 
     private static ObjectNode spanNode(String knowledgeId, int attempt, String spanId,
@@ -913,14 +1025,33 @@ public class KnowledgeService {
     }
 
     /**
-     * 对照 knowledgeSpansLastError（L698-732）：无 span 失败行时，仅
-     * currentAttempt==latestAttempt（Java 恒 0==0 成立）且 parse_status=failed 且
-     * error_message 非空才落 last_error；SERVER_RESTART 文案 EqualFold 判定照抄。
+     * 对照 knowledgeSpansLastError（handler L697-732）：span 失败行优先（字母序
+     * code/error_code/error_message/finished_at/message/name/stage；finished_at 为
+     * null 时输出 null）；否则 currentAttempt==latestAttempt 且 parse_status=failed
+     * 且 error_message 非空才落知识行回退（SERVER_RESTART 文案 EqualFold 判定照抄）。
      */
-    private static JsonNode knowledgeSpansLastError(int currentAttempt, Knowledge knowledge) {
+    private static JsonNode knowledgeSpansLastError(
+            int currentAttempt, int latestAttempt, Knowledge knowledge,
+            com.ragagent.knowledge.domain.KnowledgeProcessingSpan spanFailure) {
+        if (spanFailure != null) {
+            ObjectNode e = MAPPER.createObjectNode();
+            e.put("code", spanFailure.getErrorCode());
+            e.put("error_code", spanFailure.getErrorCode());
+            e.put("error_message", spanFailure.getErrorMessage());
+            if (spanFailure.getFinishedAt() == null) {
+                e.putNull("finished_at");
+            } else {
+                e.put("finished_at", goTimeString(spanFailure.getFinishedAt()));
+            }
+            e.put("message", spanFailure.getErrorMessage());
+            e.put("name", spanFailure.getName());
+            e.put("stage", spanFailure.getName());
+            return e;
+        }
         String parseStatus = knowledge.getParseStatus() == null ? "" : knowledge.getParseStatus();
         String message = knowledge.getErrorMessage() == null ? "" : knowledge.getErrorMessage();
-        if (currentAttempt != 0 || !Knowledge.PARSE_FAILED.equals(parseStatus) || message.isEmpty()) {
+        if (currentAttempt != latestAttempt || !Knowledge.PARSE_FAILED.equals(parseStatus)
+                || message.isEmpty()) {
             return null;
         }
         String errorCode = "UNKNOWN";
