@@ -59,7 +59,15 @@ public class EmbedderClient {
         if (!config.apiKey().isEmpty()) {
             builder.header("Authorization", "Bearer " + config.apiKey());
         }
-        HttpResponse<String> resp = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> resp;
+        try {
+            resp = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (java.io.IOException e) {
+            // 对照 Go "send request: %w"（url.Error 含方法与地址）：JDK 裸 ConnectException
+            // 常无 message，兜底类名；dial tcp 等传输层内文属已记录的掩码 DIFF 族。
+            throw new IllegalStateException(
+                    "send request: Post \"" + config.baseUrl() + "/embeddings\": " + ioDetail(e), e);
+        }
         if (resp.statusCode() / 100 != 2) {
             throw new IllegalStateException("embedding request failed: HTTP " + resp.statusCode()
                     + " " + abbreviate(resp.body()));
@@ -82,6 +90,10 @@ public class EmbedderClient {
             out.add(vector);
         }
         return out;
+    }
+
+    private static String ioDetail(java.io.IOException e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     private static String abbreviate(String s) {

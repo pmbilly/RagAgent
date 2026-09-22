@@ -42,6 +42,10 @@ SSE error 事件（方法见 known-issues/06 尾部）。同场环境根因：Gr
 启动 shell 的代理环境变量固化成 JVM proxyHost 属性，Clash 端口一空 Java 全站
 LLM 调用 ConnectException 而 Go 直连正常——**「Go 通 Java 不通」先 jcmd 查
 proxyHost 再怀疑代码**。
+**第五处**：文档上传解析落 failed、error_message 只剩裸 `java.net.ConnectException`
+——环境根因是 KB 选了指停摆 stub（127.0.0.1:8181）的种子调试模型 md-emb，代码
+DIFF 是 EmbedderClient 让裸 IOException 上抛丢 URL；已按 Go `send request: %w`
+形态补 `send request: Post "<url>": <类名>` 兜底（详情 known-issues/03 尾部）。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
 是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把

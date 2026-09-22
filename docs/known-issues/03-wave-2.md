@@ -447,3 +447,16 @@
   - **教训**：实体的 Jackson 绑定形态要用「前端真实全字段 payload」过一遍，契约测试
     的极简 body 覆盖不到未知键拒绝；omitempty 归一适用于所有「Go struct 绑定 →
     jsonb 入库」的配置列。
+
+- **走查抓回（2026-09-22，手动验收「文档上传解析」场景，已修复）**：上传 md 文档后
+  解析落 `failed`，error_message 只剩裸类名 `java.net.ConnectException`，看不出连的谁。
+  根因两层：①**环境**——该 KB 的 embedding 模型选了种子调试模型 md-emb
+  （`b0000000-…-003`，base_url 指 stub-llm 127.0.0.1:8181），stub 没起 → 连接被拒；
+  ②**代码 DIFF**——EmbedderClient.embedBatch 的 http.send 让裸 IOException 直接上抛，
+  worker catch 里 `e.getMessage()==null` 回落 `e.toString()` 只剩类名；Go 的
+  OpenAIEmbedder 是 `send request: %w` 包 url.Error（含方法与地址）。
+  修复 = send 外包一层 `send request: Post "<base_url>/embeddings": <ioDetail>`，
+  ioDetail 复用疑点③同款兜底（message 为空取类名）；dial tcp 等传输层内文仍属
+  掩码 DIFF 族。验证 = reparse 接口复现拿到新文案 → 起 stub 8181 再 reparse →
+  completed + chunks 落库。**教训**：「文档解析失败」先看 error_message 里的地址，
+  embedding/rerank 这类出站调用失败的报错路径同样要过「无消息 IOException」兜底。
