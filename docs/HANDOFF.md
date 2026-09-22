@@ -46,6 +46,10 @@ proxyHost 再怀疑代码**。
 ——环境根因是 KB 选了指停摆 stub（127.0.0.1:8181）的种子调试模型 md-emb，代码
 DIFF 是 EmbedderClient 让裸 IOException 上抛丢 URL；已按 Go `send request: %w`
 形态补 `send request: Post "<url>": <类名>` 兜底（详情 known-issues/03 尾部）。
+**第六处**：SSRF 误拦 dashscope 等公网模型域名——IpClass 的 0.0.0.0/8 上界误写
+0x0fffffff（实为 0.0.0.0/4，1.x–15.x 整段公网全误判）；同场对照 Go 谓词顺序拆开
+UNSPECIFIED/LOOPBACK（0.0.0.0 双端文案此前不同）。新增 IpClassTest 钉边界
+（详情 known-issues/00 尾部）。TUN fake-IP（198.18.0.0/15）被拦仍是设计行为。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
 是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把

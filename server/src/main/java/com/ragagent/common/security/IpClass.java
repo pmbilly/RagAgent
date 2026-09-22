@@ -30,8 +30,14 @@ public final class IpClass {
         if (ip == null) {
             return new Result(Class.INVALID, Class.INVALID.reason);
         }
-        // net.IP 谓词优先（对照 Go：IsPrivate/IsLoopback/...）
-        if (ip.isAnyLocalAddress() || ip.isLoopbackAddress()) {
+        // net.IP 谓词优先（对照 Go Classify：IsPrivate/IsLoopback/IsLinkLocal*/IsMulticast/IsUnspecified）
+        // Java 谓词集无 IsPrivate 等价物（siteLocal 近似但顺序靠后不影响，私网段不与其他谓词重叠）；
+        // isAnyLocalAddress = Go IsUnspecified（0.0.0.0 / ::），不能与 loopback 合并——
+        // Go 对 0.0.0.0 报 "unspecified address"，不是 "loopback address"。
+        if (ip.isAnyLocalAddress()) {
+            return new Result(Class.UNSPECIFIED, Class.UNSPECIFIED.reason);
+        }
+        if (ip.isLoopbackAddress()) {
             return new Result(Class.LOOPBACK, Class.LOOPBACK.reason);
         }
         if (ip.isLinkLocalAddress() || isLinkLocalMulticast(ip)) {
@@ -51,7 +57,7 @@ public final class IpClass {
                 return new Result(Class.UNSPECIFIED, Class.UNSPECIFIED.reason);
             }
             // restrictedIPv4Ranges（对照 ipclass.go；0.0.0.0/8 已由 unspecified 覆盖一部分，保留完整表）
-            if (inRange(v, 0x00000000, 0x0fffffff)) return reserved("0.0.0.0/8");
+            if (inRange(v, 0x00000000, 0x00ffffff)) return reserved("0.0.0.0/8");
             if (inRange(v, 0x64400000, 0x647fffff)) return cgnat();
             if (inRange(v, 0xc6120000, 0xc613ffff)) return reserved("198.18.0.0/15");
             if (inRange(v, 0xc0000000, 0xc00000ff)) return reserved("192.0.0.0/24");

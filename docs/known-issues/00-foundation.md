@@ -201,3 +201,18 @@
      反推语义前先怀疑顺序
 - DB：schema 与 98 个迁移一字不改；端口：后端 8080（前端 dev 代理默认值）；dev 库 localhost:15432
 - 测试：契约/单测用 H2 内存库（server/src/test/resources/application.yml），不依赖外部 postgres；golden 文件在 server/src/test/resources/contracts/；动态字段（token/refresh_token/时间戳）两侧同掩码后比对
+
+- **走查抓回（2026-09-22，SSRF 误拦公网模型域名，已修复）**：添加 dashscope embedding
+  模型测试连接报 `hostname dashscope.aliyuncs.com resolves to restricted IP 8.152.159.24:
+  restricted range 0.0.0.0/8`——8.x 明明是公网。根因：`IpClass` 的 0.0.0.0/8 上界误写
+  `0x0fffffff`（实为 0.0.0.0/4，把 1.x–15.x 整段公网误判；8.8.8.8 都过不了），正确上界
+  `0x00ffffff`。既有测试/golden 没覆盖 1–15 开头的 IP 所以全绿漏网。
+  - **同场对照 Go Classify 谓词顺序又抓回一个文案 DIFF**：Java 把
+    `isAnyLocalAddress() || isLoopbackAddress()` 合并报 LOOPBACK，Go 是
+    IsUnspecified 独立分支报 "unspecified address"——0.0.0.0 双端文案不同。
+    已拆开对照。链路本地多播 224.0.0.0/24 双端都先于 generic multicast，一致。
+  - 修复 = 上界改正 + UNSPECIFIED/LOOPBACK 谓词拆开；新增 IpClassTest 逐段钉
+    Go restrictedIPv4Ranges 边界（含 dashscope 实案 8.152.159.24）。
+  - 验证：remote/check 打 dashscope 真端点 → SSRF 放行、拿到真 401（假 key），
+    认证/网络链路通畅。注意 TUN 代理 fake-IP（198.18.0.0/15）被拦仍是**设计行为**
+    （Go 同表），与本缺陷无关。
