@@ -35,8 +35,18 @@ BizException 直接 getMessage() 带出 `error code: ..., error message: ` 前�
 TenantContext（必 null）→ `is_completed` 落不了库，追问建议恒 400；连
 completeAssistantMessage 的建议线程也漏了 runWithTenant（纪律 #1 漏网分支，
 AGENT/stop 路径都有包裹唯独它漏）。已修，e2e 双端复核一致。
+**第四处**：QA 错误事件把 `com.ragagent...BizException: error code: ...` 包装前缀
+泄漏给前端——Go 发的是 PluginError.Err 内层原文；executeQA catch 新增
+errorEventText() 沿 cause 链拆包。A/B 取证 = 双端各指死代理制造同款失败对比
+SSE error 事件（方法见 known-issues/06 尾部）。同场环境根因：Gradle 守护进程把
+启动 shell 的代理环境变量固化成 JVM proxyHost 属性，Clash 端口一空 Java 全站
+LLM 调用 ConnectException 而 Go 直连正常——**「Go 通 Java 不通」先 jcmd 查
+proxyHost 再怀疑代码**。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
-先 `./gradlew --stop` 清旧守护进程（内存压力抖动，勿误判为业务 bug）。
+是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
+缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把
+bootRun 一起杀掉**（bootRun 托管在 Gradle 守护进程上）——停完必须
+`scripts/java-server-up.sh` 重启，否则前端全部接口 500（2026-09-22 实踩）。
 
 > 最后更新：2026-09-22 · **基线：阶段 7 收官（models/{id}/debug 全量 + 共享栈两缺陷修复，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：

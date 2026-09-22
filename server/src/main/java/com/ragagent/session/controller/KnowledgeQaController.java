@@ -764,7 +764,10 @@ public class KnowledgeQaController {
                 errEvt.setType(EventType.EVENT_ERROR);
                 errEvt.setSessionId(sessionId);
                 ErrorData errData = new ErrorData();
-                errData.setError(serviceErr.getMessage());
+                // Go：qa.go 发的是 serviceErr.Error()，而管道返回的是 PluginError.Err
+                // 内层错误（不含包装前缀）——剥掉 BizException 包装取 appError().message()，
+                // 否则错误事件会带出 "com.ragagent...BizException: error code: ..." 前缀。
+                errData.setError(errorEventText(serviceErr));
                 errData.setStage(mode == QaMode.NORMAL ? "knowledge_qa_execution" : "agent_execution");
                 errData.setSessionId(sessionId);
                 errEvt.setData(errData);
@@ -836,6 +839,21 @@ public class KnowledgeQaController {
             HttpServletResponse response) throws IOException {
         // 简化执行体：与 executeQA 共享（本批 follow-up 仅走 agent 分支的复刻）
         throw new UnsupportedOperationException("superseded by executeQA");
+    }
+
+    /**
+     * 错误事件的文案归一（对照 Go qa.go 的 serviceErr.Error()——Go 管道返回
+     * PluginError.Err 内层错误，不带包装前缀）：剥掉 cause 链上的 BizException
+     * 包装取 appError().message()；非 BizException 时退回 getMessage()，null 兜底类名。
+     */
+    private static String errorEventText(RuntimeException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof BizException be) {
+                return be.appError().message();
+            }
+        }
+        String msg = e.getMessage();
+        return msg != null ? msg : e.getClass().getSimpleName();
     }
 
     private void runWithTenant(Long tenantId, Runnable body) {

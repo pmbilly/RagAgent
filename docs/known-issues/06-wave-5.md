@@ -449,3 +449,24 @@
     fork 失败。`./gradlew --stop` 清掉旧守护进程后稳定全绿。与
     build.gradle.kts 里 512MB→5g 的 OOM 史同族：**测试基建报错先查内存压力，
     再怀疑代码**；交叉实验要控制守护进程这个变量。
+
+- **走查抓回（2026-09-22，QA 错误事件文案泄漏 + 代理环境污染，已修复）**：
+  用户代理抖动期间 QA 失败，前端错误事件内容是
+  `com.ragagent.common.error.BizException: error code: 1007, error message: send request: ConnectException`
+  ——Java 异常类名 + BizException 前缀全漏给用户。Go 对照（qa.go L1290 附近）：
+  管道返回的是 `PluginError.Err` **内层错误**（`return err.Err`，不带包装），
+  事件文案 = `send request: Post "...": proxyconnect tcp: dial tcp ...: connection refused`。
+  修复 = KnowledgeQaController.executeQA 的 catch 里新增 errorEventText()：
+  沿 cause 链找 BizException 取 appError().message()，否则 getMessage() 兜底类名。
+  A/B 取证法（值得复用）：**双端各指一个死代理**（Go: HTTPS_PROXY=127.0.0.1:9999
+  环境变量，Go ProxyFromEnvironment 会读；Java: JAVA_TOOL_OPTIONS 注
+  -Dhttps.proxyHost/Port）制造同款失败，抓 SSE error 事件对比——Go
+  `send request: proxyconnect tcp: ...`，Java 修复后 `send request: ConnectException`
+  （结构对齐，内层网络文案随平台差异属既有约定，同疑点③ EOF 兜底）。
+  - **环境根因（不改代码）**：Java 进程的 http(s).proxyHost=127.0.0.1:7897
+    来自 **Gradle 守护进程把启动 shell 的代理环境变量固化成 JVM 系统属性**，
+    bootRun fork 继承——Clash 一切换/端口一空，Java 全部出站 LLM 调用
+    ConnectException，而 Go（无代理环境变量，直连）正常。表象极像翻译 bug。
+    处置 = `./gradlew --stop` + 干净 shell 重启（注意 --stop 会杀掉 bootRun，
+    见 HANDOFF §0.0 测试纪律）。**教训：QA 链路「Go 通 Java 不通」先 jcmd
+    VM.system_properties 查 proxyHost，再怀疑代码。**
