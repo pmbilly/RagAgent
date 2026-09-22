@@ -37,7 +37,24 @@ import java.time.ZoneOffset;
 public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcessWorker {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeProcessWorker.class);
-    private static final int EMBED_BATCH = 40;
+
+    /**
+     * 对照 Go batch.go：BATCH_EMBED_SIZE env，空 → 5，非法值 → 报错（照抄
+     * strconv.Atoi 文案——会落进 knowledge 的 error_message）。走查实案：
+     * 硬编码 40 会被 dashscope 拒（batch size 上限 20），Go 默认 5 无此问题。
+     */
+    private static int embedBatchSize() {
+        String env = System.getenv("BATCH_EMBED_SIZE");
+        if (env == null || env.isEmpty()) {
+            return 5;
+        }
+        try {
+            return Integer.parseInt(env.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException(
+                    "strconv.Atoi: parsing \"" + env + "\": invalid syntax");
+        }
+    }
 
     private final java.util.concurrent.ExecutorService executor =
             Executors.newVirtualThreadPerTaskExecutor();
@@ -158,8 +175,9 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                     throw new IllegalStateException("embedding model not found: " + modelId);
                 }
                 EmbedderClient.EmbedConfig embedConfig = EmbedderClient.configFrom(model);
-                for (int from = 0; from < chunks.size(); from += EMBED_BATCH) {
-                    List<Chunk> batch = chunks.subList(from, Math.min(from + EMBED_BATCH, chunks.size()));
+                int embedBatch = embedBatchSize();
+                for (int from = 0; from < chunks.size(); from += embedBatch) {
+                    List<Chunk> batch = chunks.subList(from, Math.min(from + embedBatch, chunks.size()));
                     List<String> texts = new ArrayList<>(batch.size());
                     for (Chunk c : batch) {
                         String header = c.getContextHeader();

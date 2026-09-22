@@ -54,6 +54,9 @@ UNSPECIFIED/LOOPBACK（0.0.0.0 双端文案此前不同）。新增 IpClassTest 
 打开即 400「unsupported key」。新增 agent.PromptTemplateCatalog（vendored yaml
 九文件 + LocalizeTemplates + Go 字段序/omitempty 保真输出），四组语言 A/B 逐字节
 MATCH，当初 EXPECTED DIFF 转正为契约断言（详情 known-issues/03 尾部）。
+**第八处**：embedding 入库批量硬编码 40 被 dashscope 拒（上限 20）——Go 是
+BATCH_EMBED_SIZE env 默认 5；已对齐（含 strconv.Atoi 文案）。教训：stub 能过
+≠ 真 provider 能过，批量/限流参数对照 Go 的 env 值（详情 known-issues/03 尾部）。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
 是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把

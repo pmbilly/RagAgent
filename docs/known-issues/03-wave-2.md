@@ -477,3 +477,13 @@
     MATCH（47,856 字节）；已录的 ct-kv-get-prompt-templates.json golden 与今日
     Go 响应 cmp 一致——当初的 EXPECTED DIFF 转正，契约测试从「钉 400 推迟」
     改为对 golden 断言 200。
+
+- **走查抓回（2026-09-22，真实 embedding 模型入库失败，已修复）**：配好 dashscope
+  embedding 后文档解析落 failed：`batch size is invalid, it should not be larger
+  than 20`。根因：KnowledgeProcessWorker 硬编码 EMBED_BATCH=40，而 Go 是
+  `BATCH_EMBED_SIZE` env、默认 **5**（batch.go L32-37）——任何批量上限 <40 的
+  provider 都会炸，此前只用 stub（无批量限制）验证过所以漏网。修复 =
+  embedBatchSize() 对齐 Go：env 空 → 5，非法值照抄 strconv.Atoi 文案抛错
+  （会落进 error_message）。验证 = 真实 dashscope 模型 reparse 走查文档 →
+  completed + chunks 落库。**教训**：「stub 能过 ≠ 真 provider 能过」——批量/
+  限流/长度类参数要对照 Go 的 env 可调值，不要用自以为合理的常量。
