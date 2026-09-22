@@ -743,6 +743,31 @@
     ②二次调用 0.01s 返回已有标题（幂等不重生成）；③异步路径：
     `knowledge-chat` 发消息 → SSE 流内 `session_title` 事件 ×1 + 标题落库；
     测试会话已清理。
+  - **重建知识后摘要恒空（走查第十八处，2026-09-23）**：现象 = 「重建知识」
+    （reparse）后 description 被清空且永不恢复（首次导入同样不生成摘要）。
+    根因 = Java 缺 Go 的「处理完成 → post-process 摘要 fan-out」链路：①worker
+    完成时未落 `summary_status=none`（对照 finalizeIndexedKnowledgeState
+    L215-242）；②无 post-process fan-out（对照 knowledge_post_process.go L208
+    `willSpawnSummary = textChunks>0` → L562 入队摘要任务；任务体 =
+    ProcessSummaryGeneration）。修复：`failOrComplete` 完成时（KB 配了 summary
+    model）落 none + 有文本块则调 `requestPostProcessSummaryGeneration`
+    （cancelled/deleting 跳过 → 无 summary model 落 failed 不抛 → pending 落库 +
+    复用刷新的重试/吞错 worker，对齐 MaxRetry(3)）。
+    **条件化取舍（记录在案）**：仅当 KB 配了 summary model 时推进——Java 的进程内
+    worker 在契约测试里会真实处理，而 Go 录制环境的 asynq worker 不在录制进程内；
+    无条件推进会用异步副作用污染 HTTP 快照断言（kg-manual-draft 等 3 例实测红）。
+    无 summary model 的 KB 因此不做 none/failed 中间态（Go 真实运行会推 failed），
+    可观测差异 = 摘要状态列的中间值。验证：knowledge 185 全绿；真实环境
+    （走查 KB + 文档 reparse）：`pending→completed` + `summary:
+    completed→processing→completed` + **摘要重新生成**（30s 内）。
+  - **下一项真缺口（待决策，大）**：「查看 Trace」按钮不显示——前端判定
+    `spans` 返回 `trace.span_id` 或 `current_attempt>0`；Java 只有 spans **读**侧
+    （无 spans 行时合成占位 trace，span_id 空），**缺 Go 的 span 写入侧**
+    （`knowledge_span_tracker.go` 879 行 + `knowledge_span_repo.go` 271 行 +
+    types 117 行 + 处理管道各阶段埋点：chunk/extract/image_multimodal/knowledge）。
+    DB 实证：`knowledge_processing_spans` 的 105 行全部由 Go（09-18，租户
+    10000/10002）写入；用户文档 0 行 → 按钮不显示。规模 ~1300 行 + 广泛埋点。
   - **同族彻底清空**：至此占位扫描清单的 4 项真缺口全部落地（FaqService 索引族 /
     updateImageInfo / WebSearchProvider test / 评估 dataset 前置）+ 走查抓回的
-    会话标题生成；仅 EvaluationService 执行步按 Owner 决策暂缓。
+    会话标题生成、post-process 摘要 fan-out；仅 EvaluationService 执行步按 Owner
+    决策暂缓、span 写入侧待决策。

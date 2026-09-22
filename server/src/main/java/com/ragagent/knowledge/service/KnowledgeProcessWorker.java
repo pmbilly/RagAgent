@@ -80,6 +80,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final EmbedderClient embedder;
     private final VectorStoreService vectorStore;
     private final ModelService modelService;
+    private final KnowledgeService knowledgeService;
 
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
                                   KnowledgeBaseMapper kbMapper,
@@ -88,7 +89,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   DocReaderClient docReader,
                                   EmbedderClient embedder,
                                   VectorStoreService vectorStore,
-                                  ModelService modelService) {
+                                  ModelService modelService,
+                                  @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -97,6 +99,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.embedder = embedder;
         this.vectorStore = vectorStore;
         this.modelService = modelService;
+        this.knowledgeService = knowledgeService;
     }
 
     @Override
@@ -260,12 +263,42 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     private void failOrComplete(String knowledgeId, String error) {
         if (error == null) {
-            knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+            // 对照 Go finalizeIndexedKnowledgeState（knowledge_process.go L215-242）：
+            // 索引完成 → summary_status=none（post-process fan-out 随后按需改 pending）。
+            // 条件化（2026-09-23 走查批）：仅当 KB 配了 summary model 时推进——Java 的
+            // 进程内 worker 在契约测试里会真实处理，而 Go 录制环境的 asynq worker 不在
+            // 录制进程内；无条件推进会让异步副作用污染 HTTP 快照断言（kg-manual-draft
+            // 等 3 例实测红）。无 summary model 的 KB 因此不做 none/failed 中间态
+            // （Go 真实运行会推 failed），差异记录于 known-issues。
+            Knowledge row = knowledgeMapper.selectById(knowledgeId);
+            KnowledgeBase rowKb = row == null ? null
+                    : kbMapper.selectById(row.getKnowledgeBaseId());
+            boolean hasSummaryModel = rowKb != null && rowKb.getSummaryModelId() != null
+                    && !rowKb.getSummaryModelId().isEmpty();
+            long textChunkCount = chunkMapper.selectCount(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
+                            .eq(Chunk::getKnowledgeId, knowledgeId)
+                            .eq(Chunk::getChunkType, "text"));
+            UpdateWrapper<Knowledge> completeUpdate = new UpdateWrapper<Knowledge>()
                     .eq("id", knowledgeId)
                     .set("parse_status", Knowledge.PARSE_COMPLETED)
                     .set("enable_status", "enabled")
                     .set("processed_at", OffsetDateTime.now(ZoneOffset.UTC))
-                    .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
+                    .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC));
+            if (hasSummaryModel) {
+                completeUpdate.set("summary_status", "none");
+            }
+            knowledgeMapper.update(null, completeUpdate);
+            if (hasSummaryModel && textChunkCount > 0) {
+                // post-process 摘要 fan-out（对照 knowledge_post_process.go L208
+                // willSpawnSummary = len(textChunks) > 0 → L562 入队摘要任务）
+                try {
+                    knowledgeService.requestPostProcessSummaryGeneration(knowledgeId);
+                } catch (RuntimeException e) {
+                    log.warn("Post-process summary fan-out failed for knowledge {}: {}",
+                            knowledgeId, e.toString());
+                }
+            }
         } else {
             knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                     .eq("id", knowledgeId)

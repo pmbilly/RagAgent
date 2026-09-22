@@ -1405,6 +1405,51 @@ public class KnowledgeService {
     }
 
     /**
+     * post-process 的摘要 fan-out（对照 knowledge_post_process.go L208
+     * {@code willSpawnSummary = len(textChunks) > 0} + L346-390 的 summary_status 落库；
+     * 任务体 = ProcessSummaryGeneration，knowledge_process.go L1121-1330——与刷新
+     * 共用同一生成管线，差异仅在「错误不抛给调用方」）。
+     *
+     * <p>调用方 {@link KnowledgeProcessWorker} 在索引完成后调用（知识行此时已落
+     * {@code summary_status=none}，对照 finalizeIndexedKnowledgeState L215-242）。
+     * 本方法完成三件事：cancelled/deleting → 跳过（L1148-1156）；无 summary model
+     * → 落 failed 不抛（L1133-1138）；否则 pending 落库 + 异步生成（重试/吞错语义
+     * 同 {@link #spawnSummaryRefreshWorker}）。租户取知识行，不依赖调用线程的
+     * TenantContext（worker 线程无上下文）。</p>
+     */
+    public void requestPostProcessSummaryGeneration(String knowledgeId) {
+        Knowledge k = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, knowledgeId)
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        if (k == null) {
+            return;
+        }
+        String parseStatus = k.getParseStatus() == null ? "" : k.getParseStatus();
+        if (Knowledge.PARSE_CANCELLED.equals(parseStatus)
+                || Knowledge.PARSE_DELETING.equals(parseStatus)) {
+            return;
+        }
+        KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, k.getKnowledgeBaseId())
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (kb == null) {
+            return;
+        }
+        if (kb.getSummaryModelId() == null || kb.getSummaryModelId().isEmpty()) {
+            // 对照 L1133-1138：无 summary model → summary_status=failed（任务不抛错）
+            markSummaryFailed(knowledgeId);
+            return;
+        }
+        // 对照 post_process L346 + ProcessSummaryGeneration L1159：pending 先落库再异步
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", knowledgeId)
+                .set("summary_status", SUMMARY_PENDING));
+        spawnSummaryRefreshWorker(knowledgeId, k.getTenantId());
+    }
+
+    /**
      * 对照 RequestKnowledgeSummaryRefresh → enqueueSummaryRefresh
      * （knowledge_summary_refresh.go L83-151）：summary 已启用（非空非 none）才入队；
      * 无 summary model → 先落 failed（markFailed）再抛原文错误；成功 → 落 pending +

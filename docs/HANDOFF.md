@@ -139,6 +139,17 @@ deployment"）清除 → 对照 Go handler L412-431 全量：CreateProvider（�
 调用参数契约）；真实双端对拍（duckduckgo → 均真实出站 200 error 原文；nosuch →
 双端同 "not registered" 文案）。详见 known-issues/06 尾部。
 
+**第十八处（本批，post-process 摘要 fan-out——走查抓回）**：现象 = 「重建知识」
+后摘要恒空（首次导入亦不生成）。根因 = Java 缺「处理完成 → summary_status=none
+→ post-process fan-out → 摘要任务」链路（对照 finalizeIndexedKnowledgeState +
+knowledge_post_process.go L208/L562；任务体 ProcessSummaryGeneration）。修复：
+worker 完成时（KB 有 summary model）落 none + 有文本块则调
+`requestPostProcessSummaryGeneration`（复用刷新 worker 的重试/吞错语义）。
+**条件化取舍**：仅 KB 配 summary model 时推进（进程内 worker 的异步副作用会污染
+契约测试 HTTP 快照，3 例实测红）。验证：knowledge 185 绿 + 真实 reparse 摘要
+30s 内重新生成。**同批发现下一项大缺口**：span 写入侧缺失（Trace 按钮不显示，
+~1300 行 + 埋点，DB 实证 spans 仅 Go 写过）——待决策。详见 known-issues/06 尾部。
+
 **第十七处（本批，会话标题生成接线——走查抓回）**：现象 = 发消息后标题恒为
 "新会话"。根因两处阶段占位：`SessionService.generateTitle` 的 LLM 步抛
 "title model runtime is not available yet"；`KnowledgeQaController` 的
@@ -162,7 +173,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-23 · **基线：走查第十一~十七处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置 + 会话标题生成接线，见 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-23 · **基线：走查第十一~十八处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置 + 会话标题生成 + post-process 摘要 fan-out，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
