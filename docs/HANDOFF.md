@@ -139,6 +139,18 @@ deployment"）清除 → 对照 Go handler L412-431 全量：CreateProvider（�
 调用参数契约）；真实双端对拍（duckduckgo → 均真实出站 200 error 原文；nosuch →
 双端同 "not registered" 文案）。详见 known-issues/06 尾部。
 
+**第十九处（本批，span 写入侧全量接线——走查抓回「查看 Trace」按钮不显示）**：
+Owner 决策全量翻译，四阶段：①模型 + 仓储（55a224f，upsert 动态列/BFS 级联/
+三种 cancel，PG ON CONFLICT + H2 先查后写）→ ②读侧接真实表（d61c02a，attempt
+选择/buildSpanTree(rows)/last_error span 优先/spanNodeFromRow 键序）→ ③SpanTracker
+全文（879 行对照：openAttempt/beginStage 重入复用/beginSubSpan/end-fail-skip/
+lookup/finalize 幂等/abort 平扫/依赖闭包/心跳）→ ④worker 埋点（docreader/chunking/
+embedding(或 skip)/multimodal skip/postprocess + finalize；cancel → AbortAttempt）。
+已知差异：reparse 的 attempt 分配推迟到 worker 启动（Go 在入口分配随 payload 传）；
+span input/output 取关键子集。验证：knowledge 193 + 回归 868 全绿；真实 reparse →
+spans 表 6 行（root+5 阶段，multimodal skipped）→ trace.span_id 非空 +
+current_attempt=1 → 前端按钮显示。详见 known-issues/06 尾部。
+
 **第十八处（本批，post-process 摘要 fan-out——走查抓回）**：现象 = 「重建知识」
 后摘要恒空（首次导入亦不生成）。根因 = Java 缺「处理完成 → summary_status=none
 → post-process fan-out → 摘要任务」链路（对照 finalizeIndexedKnowledgeState +
@@ -147,8 +159,7 @@ worker 完成时（KB 有 summary model）落 none + 有文本块则调
 `requestPostProcessSummaryGeneration`（复用刷新 worker 的重试/吞错语义）。
 **条件化取舍**：仅 KB 配 summary model 时推进（进程内 worker 的异步副作用会污染
 契约测试 HTTP 快照，3 例实测红）。验证：knowledge 185 绿 + 真实 reparse 摘要
-30s 内重新生成。**同批发现下一项大缺口**：span 写入侧缺失（Trace 按钮不显示，
-~1300 行 + 埋点，DB 实证 spans 仅 Go 写过）——待决策。详见 known-issues/06 尾部。
+30s 内重新生成。详见 known-issues/06 尾部。
 
 **第十七处（本批，会话标题生成接线——走查抓回）**：现象 = 发消息后标题恒为
 "新会话"。根因两处阶段占位：`SessionService.generateTitle` 的 LLM 步抛
@@ -173,7 +184,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-23 · **基线：走查第十一~十八处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置 + 会话标题生成 + post-process 摘要 fan-out，见 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-23 · **基线：走查第十一~十九处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置 + 会话标题生成 + post-process 摘要 fan-out + span 写入侧全量接线，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
@@ -570,12 +581,13 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    `/swagger/{}` 非翻译目标）。⚠️ route-recon 只对账路由——「路由在、执行体占位」
    的缺口它抓不到，历史上已抓出两族：regenerate-summary（已补全）与 ChunkService
    三处（下一条）。
-3. 之后：**占位扫描已完成**（2026-09-22~23，§0.0 第十五~十三处），FaqService
-   索引族全链、updateImageInfo 向量重建、WebSearchProvider test、评估 dataset
-   前置均已落地；剩余真缺口仅 **EvaluationService 执行步——Owner 决策暂缓**
-   （2026-09-23：前端无 `/v1/evaluation` 入口 / `CreateKnowledgeFromPassageSync`
-   无路由 / 需新增 jieba 分词依赖 / metrics 数值不承诺逐字节；范围与依赖清单见
-   known-issues/06 尾部，恢复条件：后端出现评估调用需求）；
+3. 之后：**占位扫描已完成**（2026-09-22~23，§0.0 第十九~十三处），FaqService
+   索引族全链、updateImageInfo、WebSearchProvider test、评估 dataset 前置、
+   会话标题、摘要 fan-out、span 写入侧均已落地；剩余真缺口仅
+   **EvaluationService 执行步——Owner 决策暂缓**（2026-09-23：前端无
+   `/v1/evaluation` 入口 / `CreateKnowledgeFromPassageSync` 无路由 / 需新增
+   jieba 分词依赖 / metrics 数值不承诺逐字节；范围与依赖清单见 known-issues/06
+   尾部，恢复条件：后端出现评估调用需求）；
    波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
    tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、

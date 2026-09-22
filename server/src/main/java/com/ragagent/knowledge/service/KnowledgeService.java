@@ -96,6 +96,7 @@ public class KnowledgeService {
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ConversationProperties conversationProps;
     private final com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository;
+    private final SpanTracker spanTracker;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
                             KnowledgeBaseMapper kbMapper,
@@ -108,7 +109,8 @@ public class KnowledgeService {
                             ModelRuntimeFactory modelRuntimeFactory,
                             ChunkVectorIndexer chunkVectorIndexer,
                             ConversationProperties conversationProps,
-                            com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository) {
+                            com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository,
+                            SpanTracker spanTracker) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -121,6 +123,7 @@ public class KnowledgeService {
         this.chunkVectorIndexer = chunkVectorIndexer;
         this.conversationProps = conversationProps;
         this.spanRepository = spanRepository;
+        this.spanTracker = spanTracker;
     }
 
     private static long tenantId() {
@@ -1865,6 +1868,13 @@ public class KnowledgeService {
         existing.setErrorMessage("用户已取消解析");
         existing.setPendingSubtasksCount(0);
         existing.setUpdatedAt(now);
+        // 对照 Go CancelKnowledgeParse：LatestAttempt → AbortAttempt（平扫非终态子 span +
+        // 收口 root 为 cancelled；best-effort，nil/missing attempt no-op）
+        int spanAttempt = spanTracker.latestAttempt(existing.getId());
+        if (spanAttempt > 0) {
+            spanTracker.abortAttempt(existing.getId(), spanAttempt,
+                    "USER_CANCELLED", "用户已取消解析", "用户已取消解析");
+        }
         return existing;
     }
 

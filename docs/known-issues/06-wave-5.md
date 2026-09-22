@@ -760,13 +760,35 @@
     可观测差异 = 摘要状态列的中间值。验证：knowledge 185 全绿；真实环境
     （走查 KB + 文档 reparse）：`pending→completed` + `summary:
     completed→processing→completed` + **摘要重新生成**（30s 内）。
-  - **下一项真缺口（待决策，大）**：「查看 Trace」按钮不显示——前端判定
-    `spans` 返回 `trace.span_id` 或 `current_attempt>0`；Java 只有 spans **读**侧
-    （无 spans 行时合成占位 trace，span_id 空），**缺 Go 的 span 写入侧**
-    （`knowledge_span_tracker.go` 879 行 + `knowledge_span_repo.go` 271 行 +
-    types 117 行 + 处理管道各阶段埋点：chunk/extract/image_multimodal/knowledge）。
-    DB 实证：`knowledge_processing_spans` 的 105 行全部由 Go（09-18，租户
-    10000/10002）写入；用户文档 0 行 → 按钮不显示。规模 ~1300 行 + 广泛埋点。
+  - **span 写入侧全量接线（走查第十九处，2026-09-23）**：现象 = 文档导入/重建后
+    无「查看 Trace」按钮（前端判定 `spans` 返回 `trace.span_id` 或
+    `current_attempt>0`）——Java 只有 spans **读**侧（无行时合成占位 trace，
+    span_id 空），缺 Go 写入侧。Owner 决策**全量翻译**，四阶段落地：
+    ①**Phase 1**（55a224f）：`KnowledgeProcessingSpan` 模型（kind/status/stage
+    常量集）+ `KnowledgeSpanRepository` 8 方法（upsert **动态列**语义 / attempt
+    分配 / `listByAttempt` id ASC / BFS 级联取消 / 三种 cancel）——PG 用
+    `ON CONFLICT (knowledge_id,attempt,span_id) DO UPDATE SET <动态列>`
+    （`uq_kpspan_attempt_span` 在 000055 迁移），H2 退化为先查后写；TestSchema
+    补表（jsonb→CLOB）；单测 8 组。
+    ②**Phase 2**（d61c02a）：读侧接真实表（attempt 选择 / `buildSpanTree(rows)`
+    真实建树 + 缺失 stage 合成 / `last_error` span 失败行优先 /
+    `spanNodeFromRow` 键序与 omitempty 语义）。
+    ③**Phase 3**：`SpanTracker` 全文（openAttempt / beginStage（同名重入复用
+    span_id）/ beginSubSpan（fitSpanName + supersede）/ end-fail-skip /
+    lookupStage-ByName / finalizeAttempt（幂等 + duration 重算）/ abortAttempt
+    （平扫非终态）/ `stagesDependingOn` 传递闭包 / MAIN 阶段失败收口 root /
+    heartbeat 仅 root-stage）。
+    ④**Phase 4**：worker 埋点（openAttempt + docreader（仅文件路径 + 失败
+    failSpan）/ chunking（chunks_written+total_text_chars）/ embedding（或 skip）/
+    multimodal skip / postprocess + finalize；`cancelKnowledgeParse` →
+    AbortAttempt）。
+    **已知差异**：reparse 的 attempt 分配推迟到 worker 启动（Go 在 reparse 入口
+    分配并随 payload 传递，UI 立即看到新 attempt）；span 的 input/output 取关键
+    子集（无 golden 覆盖该细节）。**验证**：knowledge 193 + 回归 868 全绿（停
+    daemon 后跑）；真实 reparse：spans 表 6 行（root 5732ms + docreader 268ms +
+    chunking 176ms + embedding 5073ms + multimodal **skipped** + postprocess 27ms）
+    → `/spans` 返回 `trace.span_id` 非空 + `current_attempt=1` → 前端
+    `hasTrace=true`（按钮显示）。
   - **同族彻底清空**：至此占位扫描清单的 4 项真缺口全部落地（FaqService 索引族 /
     updateImageInfo / WebSearchProvider test / 评估 dataset 前置）+ 走查抓回的
     会话标题生成、post-process 摘要 fan-out；仅 EvaluationService 执行步按 Owner

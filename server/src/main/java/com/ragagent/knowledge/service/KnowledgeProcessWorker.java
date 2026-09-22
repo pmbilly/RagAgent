@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
+import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
 import com.ragagent.knowledge.chunker.Chunker;
 import com.ragagent.knowledge.chunker.ParsedChunk;
 import com.ragagent.knowledge.chunker.SplitterConfig;
@@ -81,6 +82,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final VectorStoreService vectorStore;
     private final ModelService modelService;
     private final KnowledgeService knowledgeService;
+    private final SpanTracker spanTracker;
 
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
                                   KnowledgeBaseMapper kbMapper,
@@ -90,7 +92,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   EmbedderClient embedder,
                                   VectorStoreService vectorStore,
                                   ModelService modelService,
-                                  @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService) {
+                                  @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService,
+                                  SpanTracker spanTracker) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -100,6 +103,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.vectorStore = vectorStore;
         this.modelService = modelService;
         this.knowledgeService = knowledgeService;
+        this.spanTracker = spanTracker;
     }
 
     @Override
@@ -116,6 +120,14 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
         if (updated == 0) {
             return; // 已被抢或已取消
+        }
+        // 对照 Go processDocument L3355-3365：分配本 attempt 的 span 树（payload.Attempt
+        // 缺省时 OpenAttempt；best-effort——追踪器绝不阻断处理）
+        int attempt = 0;
+        try {
+            attempt = spanTracker.openAttempt(knowledgeId, "").attempt();
+        } catch (RuntimeException e) {
+            log.warn("[SpanTracker] openAttempt failed kid={}: {}", knowledgeId, e.toString());
         }
         try {
             Knowledge k = knowledgeMapper.selectById(knowledgeId);
@@ -140,21 +152,38 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
             try {
                 // 3) 取文本：manual 直接取 metadata.content；file 经 docreader 解析
+                //    （对照 Go 的 docreader 阶段埋点 L3712-3827：仅文件路径记录该阶段）
                 String markdown;
+                SpanTracker.SpanHandle docSpan;
                 if ("manual".equals(k.getType())) {
                     markdown = k.getMetadata() != null && k.getMetadata().hasNonNull("content")
                             ? k.getMetadata().get("content").asText() : "";
                 } else {
-                    byte[] content = storage.read(k.getFilePath());
-                    DocReaderClient.ParseResult parsed = docReader.read(
-                            content, k.getFileName(), k.getFileType(), k.getTitle(), null);
-                    markdown = parsed.markdown();
+                    docSpan = beginStageSpan(attempt, knowledgeId,
+                            KnowledgeProcessingSpan.STAGE_DOC_READER,
+                            java.util.Map.of(
+                                    "file_type", k.getFileType() == null ? "" : k.getFileType(),
+                                    "file_name", k.getFileName() == null ? "" : k.getFileName()));
+                    try {
+                        byte[] content = storage.read(k.getFilePath());
+                        DocReaderClient.ParseResult parsed = docReader.read(
+                                content, k.getFileName(), k.getFileType(), k.getTitle(), null);
+                        markdown = parsed.markdown();
+                    } catch (RuntimeException e) {
+                        failStageSpan(docSpan, "DOCREADER_FAILED",
+                                e.getMessage() == null ? e.toString() : e.getMessage(), e);
+                        throw e;
+                    }
+                    endStageSpan(docSpan, java.util.Map.of("chars", markdown.length()));
                 }
                 if (knowledgeMapper.selectById(knowledgeId).isAborted()) {
                     return; // 检查点（对照 processChunks 内 4 检查点的精简）
                 }
 
                 // 4) 分块（对照 chunker.Split；KB 配置 0 值回退默认 512/80）
+                //    + 5) 清旧写新（对照 Go 的 chunking 阶段埋点 L532-548）
+                SpanTracker.SpanHandle chunkSpan = beginStageSpan(attempt, knowledgeId,
+                        KnowledgeProcessingSpan.STAGE_CHUNKING, null);
                 SplitterConfig cfg = toSplitterConfig(kb.getChunkingConfig());
                 List<ParsedChunk> parsedChunks = Chunker.split(markdown, cfg);
 
@@ -188,10 +217,23 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                     }
                     chunkMapper.insert(chunks.get(i));
                 }
+                int totalChars = 0;
+                for (Chunk c : chunks) {
+                    totalChars += c.getContent() == null ? 0 : c.getContent().length();
+                }
+                endStageSpan(chunkSpan, java.util.Map.of(
+                        "chunks_written", chunks.size(), "total_text_chars", totalChars));
 
                 // 6) 向量化（对照 processChunks 的 BatchIndex：indexContent =
                 //    title + EmbeddingContent；先删后插的"删"已在预清理完成）
+                //    + embedding / multimodal 阶段埋点（对照 Go L564-705）
                 if (embedConfig != null) {
+                    SpanTracker.SpanHandle embedSpan = beginStageSpan(attempt, knowledgeId,
+                            KnowledgeProcessingSpan.STAGE_EMBEDDING,
+                            java.util.Map.of(
+                                    "chunks_to_embed", chunks.size(),
+                                    "model_id", k.getEmbeddingModelId() == null
+                                            ? "" : k.getEmbeddingModelId()));
                     List<VectorStoreService.IndexRow> rows = new ArrayList<>(chunks.size());
                     List<String> texts = new ArrayList<>(chunks.size());
                     for (Chunk c : chunks) {
@@ -207,10 +249,20 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                         List<float[]> vectors = embedder.embedBatch(embedConfig, texts.subList(from, to));
                         vectorStore.saveIndexRows(rows.subList(from, to), vectors);
                     }
+                    endStageSpan(embedSpan, java.util.Map.of(
+                            "chunks_embedded", chunks.size()));
+                } else {
+                    // 对照 Go L674：向量/关键词都关 → embedding 阶段 skip
+                    skipStageSpan(attempt, knowledgeId,
+                            KnowledgeProcessingSpan.STAGE_EMBEDDING, "skipped");
                 }
+                // multimodal：Java 无多模态处理管线 → 对照 Go L698-705 的 skip 分支
+                skipStageSpan(attempt, knowledgeId,
+                        KnowledgeProcessingSpan.STAGE_MULTIMODAL, "skipped");
 
-                // 7) 完成（无富化快路径：直接 completed + enabled）
-                failOrComplete(knowledgeId, null);
+                // 7) 完成（无富化快路径：直接 completed + enabled；postprocess 阶段与
+                //    finalize 在 failOrComplete 里记录）
+                failOrComplete(knowledgeId, attempt, null);
             } catch (Exception inner) {
                 // 对照 Go L629-639：失败时清本次 chunks + 向量行（向量化未启用时只清 chunks）
                 chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
@@ -222,7 +274,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             }
         } catch (Exception e) {
             log.warn("process knowledge {} failed: {}", knowledgeId, e.toString());
-            failOrComplete(knowledgeId, e.getMessage() == null ? e.toString() : e.getMessage());
+            failOrComplete(knowledgeId, attempt,
+                    e.getMessage() == null ? e.toString() : e.getMessage());
         }
     }
 
@@ -261,8 +314,12 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         return cfg;
     }
 
-    private void failOrComplete(String knowledgeId, String error) {
+    private void failOrComplete(String knowledgeId, int attempt, String error) {
         if (error == null) {
+            // postprocess 阶段埋点（对照 Go post_process.go L142 的 BeginStage(postprocess)：
+            // 覆盖摘要 fan-out 与收口）
+            SpanTracker.SpanHandle postSpan = beginStageSpan(attempt, knowledgeId,
+                    KnowledgeProcessingSpan.STAGE_POST_PROCESS, null);
             // 对照 Go finalizeIndexedKnowledgeState（knowledge_process.go L215-242）：
             // 索引完成 → summary_status=none（post-process fan-out 随后按需改 pending）。
             // 条件化（2026-09-23 走查批）：仅当 KB 配了 summary model 时推进——Java 的
@@ -299,12 +356,60 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                             knowledgeId, e.toString());
                 }
             }
+            endStageSpan(postSpan, null);
+            // 对照 Go 的 PostProcess → FinalizeAttempt（L751-818）：root 幂等收口 done
+            if (attempt > 0) {
+                spanTracker.finalizeAttempt(knowledgeId, attempt,
+                        KnowledgeProcessingSpan.STATUS_DONE, null, "", "");
+            }
         } else {
             knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                     .eq("id", knowledgeId)
                     .set("parse_status", Knowledge.PARSE_FAILED)
                     .set("error_message", abbreviate(error))
                     .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
+            // 非阶段失败（模型解析/预清理等）没有 failSpan 收口 → 显式 finalize（幂等）
+            if (attempt > 0) {
+                spanTracker.finalizeAttempt(knowledgeId, attempt,
+                        KnowledgeProcessingSpan.STATUS_FAILED, null, "", abbreviate(error));
+            }
+        }
+    }
+
+    // ── span 埋点辅助（对照 Go knowledge.go L248-299 的 by-name shims；attempt<=0 时全 no-op） ──
+
+    private SpanTracker.SpanHandle beginStageSpan(int attempt, String knowledgeId,
+                                                 String stage, java.util.Map<String, Object> input) {
+        if (attempt <= 0) {
+            return null;
+        }
+        return spanTracker.beginStage(knowledgeId, attempt, stage, input);
+    }
+
+    private void endStageSpan(SpanTracker.SpanHandle span, java.util.Map<String, Object> output) {
+        if (span != null) {
+            spanTracker.endSpan(span, output);
+        }
+    }
+
+    private void failStageSpan(SpanTracker.SpanHandle span, String code, String message,
+                               Throwable error) {
+        if (span != null) {
+            spanTracker.failSpan(span, code, message, error);
+        }
+    }
+
+    /** 对照 Go skipStage（L286-299）：无 begin 记录时先合成一行再 skip（保 schema 不变量）。 */
+    private void skipStageSpan(int attempt, String knowledgeId, String stage, String reason) {
+        if (attempt <= 0) {
+            return;
+        }
+        SpanTracker.SpanHandle span = spanTracker.lookupStage(knowledgeId, attempt, stage);
+        if (span == null) {
+            span = spanTracker.beginStage(knowledgeId, attempt, stage, null);
+        }
+        if (span != null) {
+            spanTracker.skipSpan(span, reason);
         }
     }
 
