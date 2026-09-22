@@ -61,6 +61,16 @@ BATCH_EMBED_SIZE env 默认 5；已对齐（含 strconv.Atoi 文案）。教训�
 sync）推一次白名单，Java 只在设置变更时推；已补 ApplicationReadyEvent 启动预载。
 同场确认检索 0 结果 → 固定兜底回复是设计行为（最高相似度 0.56 < 阈值 0.7，
 Go 同库同查询同样空集）（详情 known-issues/03 尾部）。
+**第十处（检索恒空三连，走查疑点⑫）**：知识库有内容但工具检索恒空。三层叠加：
+①env——cmd/server 不读 .env，RETRIEVE_DRIVER 需真实导出，dev-env.sh 已补
+（env_value 改按 key 回落 WeKnora/.env）；②PluginSearch 三处 executor +
+PipelineCommon.runParallel/parallelMap 虚拟线程丢 TenantContext（getModelByID
+tenantId()=0 → ModelNotFound 静默降级关键词-only），全部补 capture/replay；
+③SearchKnowledge 漏 setTenantId → Merge 扩块全跳过；④mergeOrderedContent
+裸拼未折叠重叠 → 改调 ChunkSearchUtil.joinChunkContent。验证：knowledge-search
+双端 A/B 前 6 条逐字节一致；agent @KB 工具检索 8 条 vs Go 7 条同形态。
+残留：尾部集合因 jieba 二字滑窗近似（SearchTextUtil 声明的文档化降级）分叉
+（详情 known-issues/06 尾部）。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
 是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把

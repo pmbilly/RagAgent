@@ -12,6 +12,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.ragagent.agent.tools.SearchTarget;
+import com.ragagent.common.context.TenantContext;
+import com.ragagent.event.TenantContextSnapshot;
 import com.ragagent.tracing.langfuse.LangfuseManager;
 import com.ragagent.tracing.langfuse.Span;
 import com.ragagent.retrieval.domain.SearchResult;
@@ -89,11 +91,15 @@ public final class PluginSearch implements Plugin {
 
         logInput(chatManage);
 
-        // KB 检索与 web 检索并发（对照两个 goroutine + mu）
+        // KB 检索与 web 检索并发（对照两个 goroutine + mu）。
+        // Go 的 ctx 值随 goroutine 捕获流转；Java ThreadLocal 不跨线程，必须显式快照/回放
+        // （约定 §5，与 EventBus 异步派发同款纪律——否则虚拟线程上 tenantId()=0，
+        // getModelByID 抛 ModelNotFoundException，整组静默降级为关键词-only）。
+        TenantContextSnapshot tenantSnap = TenantContextSnapshot.capture();
         List<SearchResult> allResults = new ArrayList<>();
         Object lock = new Object();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var f1 = executor.submit(() -> {
+            var f1 = executor.submit(withTenant(tenantSnap, () -> {
                 try {
                     List<SearchResult> kbResults = searchByTargets(chatManage);
                     if (kbResults != null && !kbResults.isEmpty()) {
@@ -106,8 +112,8 @@ public final class PluginSearch implements Plugin {
                     kbErrHolder.set(t);
                     return null;
                 }
-            });
-            var f2 = executor.submit(() -> {
+            }));
+            var f2 = executor.submit(withTenant(tenantSnap, () -> {
                 List<SearchResult> webResults = searchWebIfEnabled(chatManage);
                 if (webResults != null && !webResults.isEmpty()) {
                     synchronized (lock) {
@@ -115,7 +121,7 @@ public final class PluginSearch implements Plugin {
                     }
                 }
                 return null;
-            });
+            }));
             joinQuietly(f1);
             joinQuietly(f2);
         }
@@ -248,16 +254,17 @@ public final class PluginSearch implements Plugin {
         Object lock = new Object();
         java.util.concurrent.atomic.AtomicBoolean errOnce = new java.util.concurrent.atomic.AtomicBoolean(false);
 
+        TenantContextSnapshot groupSnap = TenantContextSnapshot.capture();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
             for (Map.Entry<String, List<SearchTarget>> entry : groups.entrySet()) {
                 String modelKey = entry.getKey();
                 List<SearchTarget> targets = entry.getValue();
-                futures.add(executor.submit(() -> {
+                futures.add(executor.submit(withTenant(groupSnap, () -> {
                     searchModelGroup(modelKey, targets, chatManage, queryText, kbMap,
                             results, firstErr, errOnce, lock);
                     return null;
-                }));
+                })));
             }
             for (var f : futures) {
                 joinQuietly(f);
@@ -271,6 +278,22 @@ public final class PluginSearch implements Plugin {
             throw new PipelinePorts.PipelinePortException(firstErr[0].getMessage(), firstErr[0]);
         }
         return results;
+    }
+
+    /**
+     * 跨虚拟线程显式传 TenantContext（约定 §5）：提交线程 capture，工作线程 replay，
+     * finally clear（虚拟线程由 JVM 池化复用载体，不清理会污染下一个任务）。
+     */
+    private static java.util.concurrent.Callable<Object> withTenant(
+            TenantContextSnapshot snap, java.util.concurrent.Callable<Object> body) {
+        return () -> {
+            snap.replay();
+            try {
+                return body.call();
+            } finally {
+                TenantContext.clear();
+            }
+        };
     }
 
     private void searchModelGroup(String modelKey, List<SearchTarget> targets, ChatManage chatManage,
@@ -595,12 +618,13 @@ public final class PluginSearch implements Plugin {
         cf.put("cap", capSem);
         PipelineLog.info("Search", "expansion_concurrency", cf);
 
+        TenantContextSnapshot expansionSnap = TenantContextSnapshot.capture();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
             for (Object[] job : jobs) {
                 String q = (String) job[0];
                 SearchTarget t = (SearchTarget) job[1];
-                futures.add(executor.submit(() -> {
+                futures.add(executor.submit(withTenant(expansionSnap, () -> {
                     sem.acquireUninterruptibly();
                     try {
                         double[] th = t.recallThresholds(chatManage.getVectorThreshold(), expKwTh);
@@ -625,7 +649,7 @@ public final class PluginSearch implements Plugin {
                             w.put("kb_id", t.knowledgeBaseId());
                             w.put("error", e.getMessage());
                             PipelineLog.warn("Search", "expansion_error", w);
-                            return;
+                            return null;
                         }
                         if (res != null && !res.isEmpty()) {
                             for (SearchResult r : res) {
@@ -643,7 +667,8 @@ public final class PluginSearch implements Plugin {
                     } finally {
                         sem.release();
                     }
-                }));
+                    return null;
+                })));
             }
             for (var fu : futures) {
                 try {

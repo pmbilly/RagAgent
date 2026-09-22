@@ -213,23 +213,34 @@ public final class PipelineCommon {
     /**
      * 对照 RunParallel：并发执行任务，返回 name → 非nil错误的 map（无错任务不进 map）。
      * 任务跑在虚拟线程上。
+     *
+     * <p>Go 的 ctx 值随 goroutine 捕获流转；Java ThreadLocal 不跨线程，这里在提交线程
+     * 快照 TenantContext、任务线程回放（约定 §5）——否则下游读 TenantContext 的代码
+     * （如 getModelByID → tenantId()=0）会静默拿到空上下文（走查疑点⑫抓回）。</p>
      */
     public static Map<String, PluginError> runParallel(ParallelTask... tasks) {
         Map<String, PluginError> errs = new HashMap<>();
         if (tasks.length == 0) {
             return errs;
         }
+        com.ragagent.event.TenantContextSnapshot tenantSnap =
+                com.ragagent.event.TenantContextSnapshot.capture();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<java.util.concurrent.Future<?>> futures = new ArrayList<>(tasks.length);
             for (ParallelTask task : tasks) {
                 futures.add(executor.submit(() -> {
-                    PluginError err = task.run().get();
-                    if (err != null) {
-                        synchronized (errs) {
-                            errs.put(task.name(), err);
+                    tenantSnap.replay();
+                    try {
+                        PluginError err = task.run().get();
+                        if (err != null) {
+                            synchronized (errs) {
+                                errs.put(task.name(), err);
+                            }
                         }
+                        return null;
+                    } finally {
+                        com.ragagent.common.context.TenantContext.clear();
                     }
-                    return null;
                 }));
             }
             for (java.util.concurrent.Future<?> f : futures) {
@@ -260,19 +271,26 @@ public final class PipelineCommon {
         }
         int workers = maxWorkers <= 0 || maxWorkers > n ? n : maxWorkers;
         Semaphore sem = new Semaphore(workers);
+        com.ragagent.event.TenantContextSnapshot tenantSnap =
+                com.ragagent.event.TenantContextSnapshot.capture();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<java.util.concurrent.Future<?>> futures = new ArrayList<>(n);
             for (int i = 0; i < n; i++) {
                 final int idx = i;
                 final T item = items.get(i);
                 futures.add(executor.submit(() -> {
-                    sem.acquireUninterruptibly();
+                    tenantSnap.replay();
                     try {
-                        results.set(idx, fn.apply(idx, item));
+                        sem.acquireUninterruptibly();
+                        try {
+                            results.set(idx, fn.apply(idx, item));
+                        } finally {
+                            sem.release();
+                        }
+                        return null;
                     } finally {
-                        sem.release();
+                        com.ragagent.common.context.TenantContext.clear();
                     }
-                    return null;
                 }));
             }
             for (java.util.concurrent.Future<?> f : futures) {

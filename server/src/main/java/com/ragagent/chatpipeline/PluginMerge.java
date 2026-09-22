@@ -661,14 +661,6 @@ public final class PluginMerge implements Plugin {
         return results;
     }
 
-    /** 对照 joinChunkContent 的 "\n\n" 语义（JoinChunkContent 负责折叠重复，此处 join）。 */
-    private static String joinChunk(String a, String b) {
-        if (a.isEmpty() || b.isEmpty()) {
-            return a + b;
-        }
-        return a + "\n\n" + b;
-    }
-
     /** 对照 runeLen。 */
     static int runeLen(String s) {
         return s == null ? 0 : s.codePointCount(0, s.length());
@@ -678,10 +670,13 @@ public final class PluginMerge implements Plugin {
     static String mergeOrderedContent(String prev, String base, String next, int maxLen) {
         String content = base;
         if (!prev.isEmpty()) {
-            content = joinChunk(prev, content);
+            // Go 用 searchutil.JoinChunkContent（带重叠折叠），不是裸拼接——
+            // 邻居块尾部常与 base 前缀重叠（parser 滑动窗口），裸拼会重复一段且
+            // 多出 "\n\n"，与 Go 输出逐字节对不上（走查疑点⑫抓回）。
+            content = ChunkSearchUtil.joinChunkContent(prev, content, "\n\n");
         }
         if (!next.isEmpty()) {
-            content = joinChunk(content, next);
+            content = ChunkSearchUtil.joinChunkContent(content, next, "\n\n");
         }
         int runes = runeLen(content);
         if (runes > maxLen) {

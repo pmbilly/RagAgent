@@ -470,3 +470,36 @@
     处置 = `./gradlew --stop` + 干净 shell 重启（注意 --stop 会杀掉 bootRun，
     见 HANDOFF §0.0 测试纪律）。**教训：QA 链路「Go 通 Java 不通」先 jcmd
     VM.system_properties 查 proxyHost，再怀疑代码。**
+
+- **走查抓回（2026-09-22，检索恒空三连根因，已修复）**：知识库明明有内容，
+  工具检索恒「未找到匹配的内容」。三层根因叠加，逐层剥离：
+  1. **部署/env 差（非代码）**：cmd/server 不读 .env（godotenv 只在
+     cmd/desktop），RETRIEVE_DRIVER 必须真实导出；本仓 .env 存在会整文件抢占
+     WeKnora/.env，而它不含此键 → 双端默认检索引擎皆空 → Go/Java 同打
+     "No retrievable indexing pipelines"。修复 = dev-env.sh 导出
+     RETRIEVE_DRIVER + env_value() 改按 key 回落 WeKnora/.env。
+  2. **虚拟线程丢 TenantContext（翻译缺陷）**：PluginSearch 三处
+     newVirtualThreadPerTaskExecutor（KB/web 并发、model 分组、查询扩展）上
+     TenantContext（ThreadLocal）为空 → getQueryEmbedding → getModelByID 里
+     tenantId()=0 → ModelNotFoundException（无 message，日志 error=<nil>）
+     → 整组静默降级关键词-only → hit_count=0。Go 的 ctx 值随 goroutine 捕获
+     流转，无此问题。修复 = 提交线程 TenantContextSnapshot.capture() +
+     工作线程 replay/finally clear（约定 §5，与 cb1a003 同款）；同法修
+     PipelineCommon.runParallel/parallelMap——agent 路径 SearchParallel 的
+     任务线程也靠它拿到租户（否则 capture 到的还是空）。
+  3. **SearchKnowledge 漏 setTenantId（翻译缺陷）**：Go 的 Merge 插件从 ctx
+     取租户；Java 走 ChatManage。knowledge-search 路径没塞 → Merge 阶段
+     parent_resolve/faq_enrich/expand 全 skip（missing_tenant）→ 响应
+     content 少了前后文扩块。
+  4. **mergeOrderedContent 裸拼（翻译缺陷）**：Go 用 searchutil.JoinChunkContent
+     （后缀/前缀重叠折叠），Java 用了本地 joinChunk 裸 "\n\n" 拼接 → 扩块后
+     内容与 Go 逐字节对不上（邻居块尾部与 base 前缀重复一段）。修复 = 改调
+     ChunkSearchUtil.joinChunkContent，删除本地 joinChunk。
+  - **验证**：POST /api/v1/knowledge-search（kb=d25d3cfd，「什么是在线工程师？」）
+    双端 A/B：均 8 条，**前 6 条逐字节一致**（含 850 字扩块 content）；agent
+    会话 @知识库 工具检索 Java「检索到 8 条」/ Go「检索到 7 条」同形态。
+  - **残留已知差（文档化降级，非新 bug）**：尾部第 7/8 条集合不同
+    （Java 65b911e5 vs Go 6ad80dd3）——MMR 的 jaccard 依赖中文分词，Java 的
+    jieba 接缝是二字滑窗近似（SearchTextUtil 类注释声明的「唯一实质降级」），
+    mmr avg_redundancy 0.0536 vs Go 0.0853，选择因此分叉。RRF 融合分、
+    rerank 模型分双端 15 位小数一致。

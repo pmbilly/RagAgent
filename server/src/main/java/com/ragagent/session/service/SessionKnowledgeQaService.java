@@ -418,6 +418,10 @@ public class SessionKnowledgeQaService {
         ChatManage chatManage = new ChatManage();
         chatManage.setQuery(query);
         chatManage.setUserId(userId);
+        // Go 侧插件从 ctx 取 tenant；Java 无 ctx，经 ChatManage 传递（对照 QA 路径
+        // retrievalTenantId 的同款赋值）——漏了它 Merge 阶段 faq_enrich/expand 全跳过，
+        // knowledge-search 响应的 content 就少了前后文扩块，与 Go 逐字节对不上。
+        chatManage.setTenantId(tenantId);
         chatManage.setKnowledgeBaseIds(knowledgeBaseIds);
         chatManage.setKnowledgeIds(knowledgeIds);
         chatManage.setSearchTargets(SearchTargetView.toPipeline(searchTargets));

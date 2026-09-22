@@ -30,11 +30,17 @@ fi
 RAGAGENT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # 密钥/连接值优先读本仓自己的 .env（自 Go 仓下线后成为唯一来源）；
 # 本仓没有时回落 WeKnora 仓的 .env（历史开发机兼容，已废弃路径）。
+# 注意是**按 key** 回落：本仓 .env 存在但缺某个 key（如 RETRIEVE_DRIVER）时，
+# 仍可从 WeKnora 仓 .env 补——否则整文件抢占会让缺键静默为空（走查踩坑：
+# Java 缺 RETRIEVE_DRIVER → 默认检索引擎为空 → 检索恒空）。
+WEKNORA_ROOT_FALLBACK="$(cd "${RAGAGENT_ROOT}/../WeKnora" 2>/dev/null && pwd || true)"
 if [ -f "${RAGAGENT_ROOT}/.env" ]; then
   WEKNORA_ENV="${RAGAGENT_ROOT}/.env"
+  WEKNORA_ENV_FALLBACK="${WEKNORA_ROOT_FALLBACK:+$WEKNORA_ROOT_FALLBACK/.env}"
 else
-  WEKNORA_ROOT="${WEKNORA_ROOT:-$(cd "${RAGAGENT_ROOT}/../WeKnora" && pwd)}"
+  WEKNORA_ROOT="${WEKNORA_ROOT:-$WEKNORA_ROOT_FALLBACK}"
   WEKNORA_ENV="${WEKNORA_ROOT}/.env"
+  WEKNORA_ENV_FALLBACK=""
 fi
 
 # dev 环境的宿主机端口（docker-compose 映射）
@@ -48,9 +54,15 @@ export GO_PORT="${GO_PORT:-8080}"
 
 # 从 .env 取单个 key（不要 source 整个文件，见坑 1）
 env_value() {
-  local key="$1"
-  [ -f "${WEKNORA_ENV}" ] || { echo ""; return; }
-  grep -m1 "^${key}=" "${WEKNORA_ENV}" | cut -d= -f2- || echo ""
+  local key="$1" val=""
+  if [ -f "${WEKNORA_ENV}" ]; then
+    val=$(grep -m1 "^${key}=" "${WEKNORA_ENV}" | cut -d= -f2- || true)
+  fi
+  # 按 key 回落到 WeKnora 仓 .env（主文件缺键时）
+  if [ -z "$val" ] && [ -n "${WEKNORA_ENV_FALLBACK:-}" ] && [ -f "${WEKNORA_ENV_FALLBACK}" ]; then
+    val=$(grep -m1 "^${key}=" "${WEKNORA_ENV_FALLBACK}" | cut -d= -f2- || true)
+  fi
+  echo "$val"
 }
 
 # 与 Go 侧一致的加密密钥——跨语言 e2e 的前提（见坑 2）
@@ -63,6 +75,10 @@ export DB_DRIVER="${DB_DRIVER:-$(env_value DB_DRIVER)}"
 export DB_USER="${DB_USER:-$(env_value DB_USER)}"
 export DB_PASSWORD="${DB_PASSWORD:-$(env_value DB_PASSWORD)}"
 export DB_NAME="${DB_NAME:-$(env_value DB_NAME)}"
+# 检索引擎兜底（走查踩坑：Go 从 .env 拿到 RETRIEVE_DRIVER=postgres，Java 缺了它
+# 会让「租户 engines 空 → 默认引擎」兜底落空，检索恒空「No retrievable indexing
+# pipelines」）。与 Go 同源取 .env，未配置则不导出（保持 Go 的"未配置"语义）。
+export RETRIEVE_DRIVER="${RETRIEVE_DRIVER:-$(env_value RETRIEVE_DRIVER)}"
 
 # Java 侧自有配置（与 Go 无关）
 export JWT_SECRET="${JWT_SECRET:-java-e2e-jwt-secret-key-0123456789abcdef}"
