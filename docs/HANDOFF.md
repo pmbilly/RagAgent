@@ -31,6 +31,12 @@ BizException 直接 getMessage() 带出 `error code: ..., error message: ` 前�
 并给 RemoteApiChat/AnthropicChat 的 `send request: null`（无消息 IOException）补了
 异常类名兜底——该现象大半源于 TUN 代理 fake-IP（198.18.0.0/15）被双端 SSRF 同拦 +
 连接池/DNS 腐化，重启即解，属环境教训而非翻译缺陷。
+**第三处**：NORMAL 快答路径的完成监听在桥接虚拟线程触发、监听器内才读
+TenantContext（必 null）→ `is_completed` 落不了库，追问建议恒 400；连
+completeAssistantMessage 的建议线程也漏了 runWithTenant（纪律 #1 漏网分支，
+AGENT/stop 路径都有包裹唯独它漏）。已修，e2e 双端复核一致。
+**测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
+先 `./gradlew --stop` 清旧守护进程（内存压力抖动，勿误判为业务 bug）。
 
 > 最后更新：2026-09-22 · **基线：阶段 7 收官（models/{id}/debug 全量 + 共享栈两缺陷修复，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：

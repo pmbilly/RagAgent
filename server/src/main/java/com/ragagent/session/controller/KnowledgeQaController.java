@@ -698,6 +698,9 @@ public class KnowledgeQaController {
                 }
             });
             final boolean[] completionHandled = {false};
+            // 事件在桥接虚拟线程触发，TenantContext 是 ThreadLocal——注册时捕获
+            // session 租户，触发时 replay（与 L976 stop 处理器同款纪律 #1）。
+            final long normalSessionTenantId = reqCtx.session.getTenantId();
             streamCtx.eventBus.on(EventType.EVENT_AGENT_FINAL_ANSWER, evt -> {
                 if (!(evt.getData() instanceof AgentFinalAnswerData data)) {
                     return;
@@ -714,16 +717,17 @@ public class KnowledgeQaController {
                         }
                         completionHandled[0] = true;
                         log.info("Knowledge QA service completed for session: {}", sessionId);
-                        Long sessionTenant = TenantContext.currentTenantId();
-                        completeAssistantMessage(streamCtx.assistantMessage, reqCtx.query, reqCtx.userMessageID,
-                                sessionTenant);
-                        Event done = new Event();
-                        done.setType(EventType.EVENT_AGENT_COMPLETE);
-                        done.setSessionId(sessionId);
-                        AgentCompleteData cd = new AgentCompleteData();
-                        cd.setFinalAnswer(am.getContent());
-                        done.setData(cd);
-                        streamCtx.eventBus.emit(done);
+                        runWithTenant(normalSessionTenantId, () -> {
+                            completeAssistantMessage(streamCtx.assistantMessage, reqCtx.query,
+                                    reqCtx.userMessageID, normalSessionTenantId);
+                            Event done = new Event();
+                            done.setType(EventType.EVENT_AGENT_COMPLETE);
+                            done.setSessionId(sessionId);
+                            AgentCompleteData cd = new AgentCompleteData();
+                            cd.setFinalAnswer(am.getContent());
+                            done.setData(cd);
+                            streamCtx.eventBus.emit(done);
+                        });
                     }
                 }
             });
@@ -1411,7 +1415,9 @@ public class KnowledgeQaController {
         if (userQuery != null && !userQuery.isEmpty() && suggestionService != null) {
             Thread.ofVirtual().start(() -> {
                 try {
-                    suggestionService.ensureFollowUps(sessionId, amId, false);
+                    // 与上面 indexMessageToKb 同款：虚拟线程不继承 ThreadLocal，
+                    // 对照 Go 协程携 WithoutCancel(ctx)（含 tenant）必须显式 replay。
+                    runWithTenant(tenantId, () -> suggestionService.ensureFollowUps(sessionId, amId, false));
                 } catch (RuntimeException e) {
                     log.warn("follow-up suggestion generation failed for message {}: {}", amId, e.toString());
                 }

@@ -425,3 +425,27 @@
     `getMessage()==null` 时兜底异常类名（对照 Go `fmt.Errorf("send request: %w")`
     会打出错误名如 "EOF"）。重启服务（清掉腐化连接池/DNS 缓存）后同请求立即
     打通。A/B 复核：DeepSeek 401 分支与 127.0.0.1 SSRF 拒绝分支双端逐字节一致。
+
+- **走查抓回（2026-09-22，手动验收「新会话问答→追问建议」场景，已修复）**：
+  NORMAL 模式 QA 完成后 `POST sessions/{sid}/messages/{mid}/suggestions` 恒 400
+  「follow-up suggestions require a completed assistant message」。根因是**同一处
+  TenantContext ThreadLocal 丢失的两个切面**（Go 的 ctx 随 goroutine 自然携带，
+  Java 跨虚拟线程必须 capture/replay——纪律 #1 的漏网分支）：
+  ①NORMAL 模式的 `EVENT_AGENT_FINAL_ANSWER` 完成监听在桥接虚拟线程上触发，
+  监听器内才读 `TenantContext.currentTenantId()`（必为 null）→
+  `completeAssistantMessage` 的 `updateMessage` 抛
+  `IllegalStateException: types.TenantIDContextKey not set in context`，WARN 吞掉 →
+  **`is_completed` 永远落不了库**（AGENT 路径 L778 有 runWithTenant 包裹所以没事，
+  stop 处理器 L976 也有——唯独 NORMAL 快答路径漏了）；
+  ②`completeAssistantMessage` 里 spawn 的追问建议生成线程没像
+  indexMessageToKb 那样包 runWithTenant → 同一个 IllegalStateException。
+  修复 = 监听器注册时捕获 `reqCtx.session.getTenantId()`（对照 stop 处理器写法）
+  + 建议线程包 runWithTenant。e2e 复核：修复后同流程 is_completed=t、
+  suggestions 200（suppressed/disabled），与 Go 端逐字节同形态。
+  - **副产物教训（测试环境抖动）**：排查中三批回归（session+chatpipeline+agent）
+    反复出现 234 条「Could not self-attach to current VM」（Mockito/ByteBuddy
+    外部进程 attach 失败）——一度与树状态呈假相关（stash 交叉实验 7 轮误导），
+    实为**多个 Gradle 守护进程 + bootRun + vite 并存耗尽 16GB 内存**，helper JVM
+    fork 失败。`./gradlew --stop` 清掉旧守护进程后稳定全绿。与
+    build.gradle.kts 里 512MB→5g 的 OOM 史同族：**测试基建报错先查内存压力，
+    再怀疑代码**；交叉实验要控制守护进程这个变量。
