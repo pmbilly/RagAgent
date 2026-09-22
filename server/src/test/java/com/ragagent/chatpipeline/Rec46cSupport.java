@@ -652,6 +652,8 @@ final class Rec46cSupport {
         final Map<String, RuntimeException> embedErr = new LinkedHashMap<>();
         final Map<String, List<SearchResult>> hybrid = new LinkedHashMap<>();
         final Map<String, RuntimeException> hybridErr = new LinkedHashMap<>();
+        /** 命中这些 id 时 hybridSearch 返回 null（模拟无可用检索管道）。 */
+        final java.util.Set<String> hybridNull = new java.util.HashSet<>();
         final List<SearchParams> hybridParams = new ArrayList<>();
         final List<String> hybridIDs = new ArrayList<>();
         Map<String, String> modelKeys;
@@ -718,6 +720,10 @@ final class Rec46cSupport {
             }
             if (hybridErr.containsKey(id)) {
                 throw hybridErr.get(id);
+            }
+            if (hybridNull.contains(id)) {
+                // 对照生产 HybridSearchService「无可用检索管道 → 返回 null（Go nil 切片）」
+                return null;
             }
             List<SearchResult> res = hybrid.get(id);
             return res != null ? res : new ArrayList<>();

@@ -296,3 +296,11 @@
     rewriteArtifactReferences/VLM Predict 执行体（dev 两侧同形 no-op 分支）；
     models/{id}/debug、sessions/:id/local-browser ×2、sandbox_terminal_ws+bridge、
     embed 公开 QA 委托面。
+
+- **走查抓回（2026-09-22，手动验收新会话场景）**：PluginSearch 合并整库检索路径对
+  `hybridSearch` 的 null 返回（无可用检索管道，对照 Go nil 切片）裸 `addAll` →
+  NPE（"Cannot invoke Collection.toArray() because c is null"），QA 以
+  PipelinePortException 收场。修复 = null 显式跳过（append(dst, nil...) 的 no-op
+  语义），回归用例 `SearchRecordingTest.searchByTargetsNullHybridResult`（stub 新增
+  hybridNull 集合模拟 null 返回）。**教训复发确认**：Go nil 切片语义清单要覆盖
+  「服务返回 nil → 消费方 addAll/遍历」全链路，不只生产端。

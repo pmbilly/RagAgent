@@ -347,8 +347,12 @@ public final class PluginSearch implements Plugin {
                 f.put("kb_ids", fullKbIds);
                 f.put("hit_count", res == null ? 0 : res.size());
                 PipelineLog.info("Search", "combined_kb_result", f);
-                synchronized (lock) {
-                    results.addAll(res);
+                // res 可为 null（无可用检索管道时 hybridSearch 返回 null，对照 Go 的 nil 切片——
+                // append(dst, nil...) 是 no-op，这里必须显式跳过，否则 addAll(null) 抛 NPE）
+                if (res != null) {
+                    synchronized (lock) {
+                        results.addAll(res);
+                    }
                 }
             } catch (RuntimeException e) {
                 Map<String, Object> f = new LinkedHashMap<>();

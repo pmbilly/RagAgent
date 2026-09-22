@@ -464,6 +464,34 @@ class SearchRecordingTest {
         assertRec("search_by_targets", "empty", json(s3));
     }
 
+    /**
+     * 回归（2026-09-22 走查抓回）：hybridSearch 返回 null（无可用检索管道，
+     * 对照 Go 的 nil 切片）时，合并整库检索路径曾 {@code results.addAll(null)} 抛
+     * NPE（"Cannot invoke Collection.toArray() because c is null"），整个 QA 以
+     * PipelinePortException 收场。正确语义 = append(dst, nil...) 的 no-op：
+     * 视为空命中、无错误、流水线继续。
+     */
+    @Test
+    void searchByTargetsNullHybridResult() {
+        Rec46cSupport.StubKBService kbSvc = new Rec46cSupport.StubKBService();
+        kbSvc.hybridNull.add("kb-1"); // 无可用检索管道 → hybridSearch 返回 null
+        kbSvc.kbs.put("kb-1", Rec46cSupport.kb("kb-1", "document", true, true, false));
+        PluginSearch p = new PluginSearch(kbSvc, null, null, null, null, null, null, null, null);
+        ChatManage cm = new ChatManage();
+        cm.setQuery("你好");
+        cm.setRewriteQuery("你好");
+        cm.setEmbeddingTopK(2);
+        cm.setVectorThreshold(0.5);
+        cm.setKeywordThreshold(0.6);
+        cm.setTenantId(1);
+        cm.setSearchTargets(new ArrayList<>(List.of(
+                new com.ragagent.agent.tools.SearchTarget("knowledge_base", "kb-1", 1,
+                        null, null, null, false))));
+        List<SearchResult> res = p.searchByTargets(cm); // 修复前这里抛 NPE
+        org.junit.jupiter.api.Assertions.assertTrue(res == null || res.isEmpty(),
+                "null 检索结果应视为空命中而不是异常");
+    }
+
     @Test
     void searchParallel() {
         Rec46cSupport.StubKBService kbSvc = new Rec46cSupport.StubKBService();
