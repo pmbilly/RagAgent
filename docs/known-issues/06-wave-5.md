@@ -409,3 +409,19 @@
   - 验收锚：sessions/agents/knowledge_bases/im-channels/storage-backends/
     web-search-providers/vector-stores/sandbox-configs/tenants-all 九族 GET +
     sessions pin 写路径（pin 响应 + 列表回流 + 还原）全部无掩码逐字节 MATCH。
+
+- **走查抓回（2026-09-22，手动验收「添加模型→测试连接」场景，已修复）**：
+  `POST /initialization/remote/check` 组装失败文案时对 `BizException` 直接
+  `getMessage()` → 带出 `error code: 1007, error message: ` 前缀（Go 的
+  error.Error() 只有原文）。修复 = 拆包取 `appError().message()`
+  （InitializationController.remoteCheck）。**BizException 前缀坑又一处复发**——
+  凡「catch 后把异常文案回显/拼进响应」的位置都要过这一遍。
+  - 同场景叠加的环境教训：用户机器 TUN 代理（Clash 类）开启时
+    api.deepseek.com 被系统解析成 fake-IP 198.18.0.4（RFC 2544 网段），
+    **双端 SSRF 都拦**（Go ipclass.go 也把 198.18.0.0/15 列 Reserved，拦截行为
+    双端一致，是设计行为非缺陷）；而 Java 的 HTTP 发送路径在代理半开状态下拿到
+    无消息的 IOException → `send request: null` 不可诊断。修复 =
+    RemoteApiChat.sendRequest / AnthropicChat.send 的 IOException 文案在
+    `getMessage()==null` 时兜底异常类名（对照 Go `fmt.Errorf("send request: %w")`
+    会打出错误名如 "EOF"）。重启服务（清掉腐化连接池/DNS 缓存）后同请求立即
+    打通。A/B 复核：DeepSeek 401 分支与 127.0.0.1 SSRF 拒绝分支双端逐字节一致。

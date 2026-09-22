@@ -25,6 +25,13 @@ TenantSkillPythonVerifierTest 为本机 pip 环境性失败，干净树同样挂
 明确非翻译目标）**。前端「模型测试」按钮现在可用。provider-XDEP 族不变（γ3 九渠道 /
 W5δ 终端 / VLM ollama+weknoracloud 界面 / tenant_skill install 管线体等，见 §0.1 清单）。
 
+**同日手动走查又抓回两处（均已修复，详情 known-issues/06 与 05 尾部）**：
+①新会话 QA 的 PluginSearch null addAll NPE（5baf927）；②「测试连接」失败文案对
+BizException 直接 getMessage() 带出 `error code: ..., error message: ` 前缀（拆包修复），
+并给 RemoteApiChat/AnthropicChat 的 `send request: null`（无消息 IOException）补了
+异常类名兜底——该现象大半源于 TUN 代理 fake-IP（198.18.0.0/15）被双端 SSRF 同拦 +
+连接池/DNS 腐化，重启即解，属环境教训而非翻译缺陷。
+
 > 最后更新：2026-09-22 · **基线：阶段 7 收官（models/{id}/debug 全量 + 共享栈两缺陷修复，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）

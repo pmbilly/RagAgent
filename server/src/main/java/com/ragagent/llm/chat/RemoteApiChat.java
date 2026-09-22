@@ -592,11 +592,17 @@ public class RemoteApiChat implements LlmChatClient {
         try {
             return LlmTransport.send(builder.build());
         } catch (IOException e) {
-            throw BizException.internal("send request: " + e.getMessage());
+            // getMessage() 可能为 null（如 EOFException），对照 Go fmt.Errorf("send request: %w")
+            // 会打出错误名，兜底用异常类名。
+            throw BizException.internal("send request: " + ioDetail(e));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw BizException.internal("send request interrupted");
         }
+    }
+
+    private static String ioDetail(IOException e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     /** 非 200 时读出 body 并抛错（对照 Go 的 "API request failed with status %d: %s"）。 */

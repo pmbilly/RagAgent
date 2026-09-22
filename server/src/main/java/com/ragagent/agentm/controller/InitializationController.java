@@ -671,7 +671,10 @@ public class InitializationController {
             available = true;
             message = "连接正常，模型可用";
         } catch (RuntimeException e) {
-            String errMsg = e.getMessage() == null ? "" : e.getMessage();
+            // BizException.getMessage() 带 "error code: ..., error message: " 前缀，
+            // 对照 Go 的 error.Error() 原文须拆包取 appError().message()。
+            String raw = e instanceof BizException be ? be.appError().message() : e.getMessage();
+            String errMsg = raw == null ? "" : raw;
             if (errMsg.contains("status code: 400")) {
                 // 400 = 端点可达且鉴权通过，仅参数不匹配（照抄 Go 判定）
                 available = true;

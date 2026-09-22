@@ -677,11 +677,17 @@ public class AnthropicChat implements LlmChatClient {
         try {
             return LlmTransport.send(request);
         } catch (IOException e) {
-            throw new IllegalStateException("send request: " + e.getMessage(), e);
+            // getMessage() 可能为 null（如 EOFException），对照 Go fmt.Errorf("send request: %w")
+            // 会打出错误名，兜底用异常类名。
+            throw new IllegalStateException("send request: " + ioDetail(e), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("send request: " + e.getMessage(), e);
+            throw new IllegalStateException("send request: " + ioDetail(e), e);
         }
+    }
+
+    private static String ioDetail(Exception e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     private static byte[] readBody(HttpResponse<InputStream> resp) {
