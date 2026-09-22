@@ -59,6 +59,11 @@ MATCH，当初 EXPECTED DIFF 转正为契约断言（详情 known-issues/03 尾�
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把
 bootRun 一起杀掉**（bootRun 托管在 Gradle 守护进程上）——停完必须
 `scripts/java-server-up.sh` 重启，否则前端全部接口 500（2026-09-22 实踩）。
+⚠️ 同族第二坑（同日实踩）：bootRun 服务期间跑 `./gradlew test/compileJava`
+会**重写 bootRun 正在用的 build/classes 目录**，运行中的 JVM 随即对所有接口抛
+`NoClassDefFoundError`（Spring 兜成 500「Internal Server Error」，无业务日志）——
+**走查期间要跑测试就先重启服务再测，或测完立即重启**；看到全站 500 +
+NoClassDefFoundError 不用查代码，重启即解。
 
 > 最后更新：2026-09-22 · **基线：阶段 7 收官（models/{id}/debug 全量 + 共享栈两缺陷修复，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
