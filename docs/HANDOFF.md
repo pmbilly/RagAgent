@@ -57,6 +57,10 @@ MATCH，当初 EXPECTED DIFF 转正为契约断言（详情 known-issues/03 尾�
 **第八处**：embedding 入库批量硬编码 40 被 dashscope 拒（上限 20）——Go 是
 BATCH_EMBED_SIZE env 默认 5；已对齐（含 strconv.Atoi 文案）。教训：stub 能过
 ≠ 真 provider 能过，批量/限流参数对照 Go 的 env 值（详情 known-issues/03 尾部）。
+**第九处**：DB 存的 ssrf.whitelist 重启后静默失效——Go 在 preload（initial
+sync）推一次白名单，Java 只在设置变更时推；已补 ApplicationReadyEvent 启动预载。
+同场确认检索 0 结果 → 固定兜底回复是设计行为（最高相似度 0.56 < 阈值 0.7，
+Go 同库同查询同样空集）（详情 known-issues/03 尾部）。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
 是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把

@@ -42,6 +42,11 @@ import org.springframework.stereotype.Service;
  * {@link SsrfGuard#reloadWhitelist(String)}（含 SSRF_WHITELIST_EXTRA 合并，对照
  * applySSRFWhitelist）。model.max_concurrency / sandbox.docker_enabled 的桥随
  * 阶段 7 / 波 3 的消费方接线（Go 的 limiter.SetGlobalLimit / sandbox.SetDockerBackendEnabled）。</p>
+ *
+ * <p><b>启动预载</b>（对照 Go preload 的 initial sync，走查补翻）：应用就绪后把
+ * DB 的 ssrf.whitelist 推给 SsrfGuard——否则重启后 DB 白名单静默失效（guard 静态
+ * 初始化只读 env），单实例下也可观测（走查实案：UI 存了 198.18.0.0/15，重启后
+ * dashscope fake-IP 又被拦）。读失败降级 env-only（WARN，不阻断启动）。</p>
  */
 @Service
 public class SystemSettingService {
@@ -402,9 +407,23 @@ public class SystemSettingService {
         return a.equals(b);
     }
 
+    /**
+     * 对照 Go preload 的 initial sync（system_setting.go L405）：应用就绪后把 DB 的
+     * ssrf.whitelist 推给 SsrfGuard。走查实案：UI 保存的白名单在重启后静默失效
+     * （guard 静态初始化只读 env），单实例即可观测。
+     */
+    @org.springframework.context.event.EventListener(
+            org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void applyWhitelistOnStartup() {
+        try {
+            dispatchSideEffects("ssrf.whitelist");
+        } catch (RuntimeException e) {
+            log.warn("startup ssrf.whitelist apply failed, env-only fallback: {}", e.toString());
+        }
+    }
+
     /** 对照 dispatchSideEffects：ssrf.whitelist 已接线；其余桥随消费方模块接线。 */
-    private void dispatchSideEffects(String changedKey) {
-        if ("ssrf.whitelist".equals(changedKey)) {
+    private void dispatchSideEffects(String changedKey) {        if ("ssrf.whitelist".equals(changedKey)) {
             List<String> list = getStringList("ssrf.whitelist", "SSRF_WHITELIST", new ArrayList<>());
             String primary = String.join(",", list);
             String extra = System.getenv("SSRF_WHITELIST_EXTRA");

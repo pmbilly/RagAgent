@@ -487,3 +487,16 @@
   （会落进 error_message）。验证 = 真实 dashscope 模型 reparse 走查文档 →
   completed + chunks 落库。**教训**：「stub 能过 ≠ 真 provider 能过」——批量/
   限流/长度类参数要对照 Go 的 env 可调值，不要用自以为合理的常量。
+
+- **走查抓回（2026-09-22，DB 白名单重启后静默失效，已修复）**：用户在系统设置存了
+  `ssrf.whitelist=["198.18.0.0/15"]`（TUN fake-IP 段），Java 重启后 dashscope 又被拦
+  ——SsrfGuard 静态初始化只读 env，`dispatchSideEffects` 只在「设置变更」时推。
+  Go 的 applySSRFWhitelist 还在 **preload（initial sync）** 调用（system_setting.go
+  L405）——这是当初「Lite 取舍：无 preload」漏掉的可观测面：单实例下也可观测，
+  不只是多副本广播。修复 = SystemSettingService 加 ApplicationReadyEvent 监听，
+  启动后 dispatchSideEffects("ssrf.whitelist")，读失败降级 env-only（WARN）。
+  - 验证：重启后直接检索/问答 dashscope 全通（此前重启即 400 SSRF）。
+  - **同场排查结论（非缺陷）**：检索 0 结果 → 兜底固定回复 "Sorry, I am unable to
+    answer this question." 是**设计行为**——查询「你好/需求总览」与分块最高余弦
+    0.5614 < 默认 vector_threshold 0.7；Go 端同库同查询同样空集（重启 Go 预载
+    白名单后 A/B 确认）。阈值在租户检索配置可调。
