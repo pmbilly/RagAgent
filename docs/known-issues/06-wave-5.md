@@ -650,8 +650,23 @@
     content=标准问/相似问/答案 combined 形态）；② 字段批量 is_enabled=false →
     chunks 与 embeddings 同步 f；③ 删除条目 → 200 + 向量行清理 + chunk 软删 +
     **storage_used 12958→6479（配额回退精确）**；④ 删除临时 KB 无残留。
-  - **待办（同族，下一步）**：FAQ **导入**执行面（`importUnavailable` 仍占位，
-    knowledge_faq_import.go L1499-1620 的分批循环：build → CreateChunks →
-    indexFAQChunks(adjustStorage=true) → status=2 → 进度/失败收集；indexFAQChunks
-    本段已就绪，导入只剩循环与进度接线）；updateImageInfo 向量重建；
-    WebSearchProvider test；EvaluationService。
+  - **FAQ 导入执行面接线（同日续，`importUnavailable` 占位清除）**：对照
+    executeFAQImport 的导入循环（knowledge_faq_import.go L1499-1671）实现
+    `executeImportBatches`——按 faqImportBatchSize(50) 分批 → 逐条 sanitize /
+    resolveTagID / 建 chunk（不设 flags，对照 Go）→ CreateChunks →
+    indexFAQChunks(adjustStorage=true) → status=2（updateChunks 批量）→ 收集
+    success_entries（index/seq_id/tag_id/tag_name/标准问；**seq_id=0 与 Go 一致**：
+    Go 的 CreateChunks 在 PG 上不预分配 SeqID（注释：DB 序列，避免并发冲突），
+    GORM 也不回读）→ 进度落库（"正在处理第 X/Y 条"）→ finalizeImport
+    （completed + 结果落库 + replace 清未引用标签）。已知差异：Go 的 defer recover
+    会回滚本任务已建 chunks 与索引行，Java 直落 failed 终态（与 processImport 既有
+    取舍同款）。配套补 `withSuccessEntries` helper。
+  - **导入真实验证（走查租户临时 FAQ KB，验证后已清理）**：POST /faq/entries
+    （3 条，append/dry_run=false）→ 200 + task_id；轮询进度 → **completed /
+    progress 100 / processed 3 / success 3 / failed 0**（"导入完成 / 上传 3 条 /
+    成功 3 条"）+ success_entries 3 条（index/tag_id/tag_name/标准问逐字正确）；
+    DB：3 chunks status=2 + 3 向量行（dimension 1024、tag_id/source_id 齐、
+    content=combined 形态）；列表接口回读（seq_id 真值）；删除条目 + 删除 KB
+    无残留。knowledge 185 + agent/chatpipeline 405 绿。
+  - **剩余待办（同族）**：updateImageInfo 向量重建（小）；WebSearchProvider test
+    （小-中）；EvaluationService 执行步（大，依赖 dataset 服务未翻译）。

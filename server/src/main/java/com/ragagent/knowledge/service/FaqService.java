@@ -1079,15 +1079,15 @@ public class FaqService {
             progress = withMessage(progress,
                     "验证完成，开始导入 " + progress.validEntryIndices().size() + " 条有效数据...");
 
-            // 导入执行面：与 Go 同位置过 GetEmbeddingModel（无模型 KB 的实录失败点）；
-            // 模型行存在但运行时未接线的降级见类注释差异 4。
+            // 导入执行面：与 Go 同位置过 GetEmbeddingModel（无模型 KB 的实录失败点）
+            Model embeddingModel;
             try {
-                requireEmbeddingModel(kb);
+                embeddingModel = requireEmbeddingModel(kb);
             } catch (IllegalStateException e) {
                 markImportFailed(job, progress, e.getMessage());
                 return;
             }
-            importUnavailable(job, progress);
+            executeImportBatches(job, kb, knowledge, embeddingModel, progress);
         } finally {
             TenantContext.clear();
         }
@@ -1644,13 +1644,137 @@ public class FaqService {
         log.warn("FAQ import task {} failed: {}", job.taskId(), error);
     }
 
+    /** 对照 Go knowledge.go L90：faqImportBatchSize = 50（每批处理的 FAQ 条目数）。 */
+    private static final int FAQ_IMPORT_BATCH_SIZE = 50;
+
     /**
-     * 导入执行面降级：模型行存在但运行时未接线（阶段 7）——Go 在该场景能真嵌入导入。
-     * 无模型 KB 在 requireEmbeddingModelForJob 处已按 Go 同位置失败，不进这里。
+     * 对照 executeFAQImport 的导入执行循环（knowledge_faq_import.go L1499-1671）——
+     * 2026-09-22 走查批接线（此前是「embedding runtime is not available」占位）：
+     * 按 faqImportBatchSize(50) 分批 → 逐条 sanitize/resolveTagID/建 chunk → CreateChunks
+     * → indexFAQChunks(adjustStorage=true) → status=2 → 收集成功条目 → 进度落库；
+     * 末尾 finalizeImport（completed 终态 + 结果落库 + replace 清未引用标签）。
+     *
+     * <p>已知差异：Go 的 defer recover 会回滚本任务已创建的 chunks 与索引行；Java 无该
+     * 事务性回滚（失败直落 failed 终态，残留行由重导/replace 清理）——与 processImport
+     * 的既有取舍同款。</p>
      */
-    private void importUnavailable(ImportJob job, FaqImportProgress progress) {
-        markImportFailed(job, progress,
-                "FAQ import failed: failed to index chunks: embedding runtime is not available in this deployment");
+    private void executeImportBatches(ImportJob job, KnowledgeBase kb, Knowledge faqKnowledge,
+                                      Model embeddingModel, FaqImportProgress progress) {
+        List<Integer> valid = progress.validEntryIndices();
+        int totalEntries = progress.total();
+        int skippedCount = progress.skippedCount();
+        int actualProcessed = skippedCount + progress.mergedCount();
+        String indexMode = faqIndexMode(kb);
+        List<FaqSuccessEntry> successEntries = progress.successEntries() == null
+                ? new ArrayList<>() : new ArrayList<>(progress.successEntries());
+
+        for (int i = 0; i < valid.size(); i += FAQ_IMPORT_BATCH_SIZE) {
+            int end = Math.min(i + FAQ_IMPORT_BATCH_SIZE, valid.size());
+            List<Chunk> chunks = new ArrayList<>(end - i);
+            for (int k = i; k < end; k++) {
+                int entryIdx = valid.get(k); // dry-run 校验给出的原始条目下标
+                FaqDtos.FaqEntryPayload entry = job.entries().get(entryIdx);
+                FaqChunkMetadata meta;
+                try {
+                    meta = sanitizeFAQEntryPayload(entry);
+                } catch (RuntimeException e) {
+                    markImportFailed(job, progress,
+                            "FAQ import failed: failed to sanitize entry at index " + entryIdx
+                                    + ": " + e.getMessage());
+                    return;
+                }
+                String tagID;
+                try {
+                    tagID = resolveTagID(job.kbId(), entry);
+                } catch (RuntimeException e) {
+                    markImportFailed(job, progress,
+                            "FAQ import failed: failed to resolve tag for entry at index " + entryIdx
+                                    + ": " + e.getMessage());
+                    return;
+                }
+                boolean isEnabled = entry.isEnabled() == null || entry.isEnabled();
+                Chunk chunk = new Chunk();
+                chunk.setId(UUID.randomUUID().toString());
+                chunk.setTenantId(job.tenantId());
+                chunk.setKnowledgeId(faqKnowledge.getId());
+                chunk.setKnowledgeBaseId(kb.getId());
+                chunk.setContent(buildFAQChunkContent(meta, indexMode));
+                chunk.setIsEnabled(isEnabled);
+                chunk.setChunkType("faq");
+                chunk.setTagId(tagID);
+                chunk.setStatus(1); // stored
+                if (entry.id() != null && entry.id() > 0) {
+                    chunk.setSeqId(entry.id());
+                }
+                setFaqMetadata(chunk, meta);
+                // 对照 Go：导入建的 chunk 不设 Flags（推荐位零值）
+                chunk.setCreatedAt(OffsetDateTime.now());
+                chunk.setUpdatedAt(chunk.getCreatedAt());
+                chunks.add(chunk);
+            }
+            List<String> chunkIds = new ArrayList<>(chunks.size());
+            for (Chunk chunk : chunks) {
+                chunkIds.add(chunk.getId());
+            }
+            try {
+                createChunks(chunks);
+            } catch (RuntimeException e) {
+                markImportFailed(job, progress,
+                        "FAQ import failed: failed to create chunks: " + e.getMessage());
+                return;
+            }
+            try {
+                indexFAQChunks(kb, faqKnowledge, chunks, embeddingModel, true);
+            } catch (RuntimeException e) {
+                markImportFailed(job, progress,
+                        "FAQ import failed: failed to index chunks: " + e.getMessage());
+                return;
+            }
+            for (Chunk chunk : chunks) {
+                chunk.setStatus(2); // indexed
+            }
+            try {
+                chunkRepository.updateChunks(chunks);
+            } catch (RuntimeException e) {
+                markImportFailed(job, progress,
+                        "FAQ import failed: failed to update chunks status: " + e.getMessage());
+                return;
+            }
+
+            // 收集成功条目（对照 Go L1606-1630：index/seq_id/tag_id/tag_name/标准问）
+            for (int k = 0; k < chunks.size(); k++) {
+                Chunk chunk = chunks.get(k);
+                FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
+                String standardQ = meta == null || meta.standardQuestion == null
+                        ? "" : meta.standardQuestion;
+                long tagID = 0;
+                String tagName = "";
+                if (chunk.getTagId() != null && !chunk.getTagId().isEmpty()) {
+                    KnowledgeTag tag = tagMapper
+                            .selectByTenantAndIds(job.tenantId(), List.of(chunk.getTagId()))
+                            .stream().findFirst().orElse(null);
+                    if (tag != null) {
+                        tagID = tag.getSeqId();
+                        tagName = tag.getName();
+                    }
+                }
+                successEntries.add(new FaqSuccessEntry(valid.get(k), 
+                        chunk.getSeqId() == null ? 0 : chunk.getSeqId(), tagID, tagName, standardQ));
+            }
+
+            actualProcessed += end - i;
+            int prog = totalEntries == 0 ? 0 : (int) ((double) actualProcessed / totalEntries * 100);
+            progress = withStatus(progress, "processing", prog, actualProcessed);
+            progress = withMessage(progress,
+                    "正在处理第 " + actualProcessed + "/" + totalEntries + " 条");
+            progress = withSuccessEntries(progress, successEntries);
+            taskStore.saveProgress(progress);
+        }
+
+        progress = withSuccessEntries(progress, successEntries);
+        taskStore.saveProgress(progress);
+        log.info("FAQ import task {}: all batches completed, processed: {}", job.taskId(), actualProcessed);
+        finalizeImport(job, progress, totalEntries);
     }
 
     /** 对照 generateFailedEntriesCSV（knowledge_faq_import.go L257-318）：BOM + 8 列，
@@ -1776,6 +1900,18 @@ public class FaqService {
         return new FaqImportProgress(p.taskId(), p.kbId(), p.knowledgeId(), status, prog,
                 p.total(), processed, p.successCount(), p.failedCount(), p.partialFailedCount(),
                 p.skippedCount(), p.failedEntries(), p.failedEntriesUrl(), p.successEntries(),
+                p.validEntryIndices(), p.mergeEntryIndices(), p.mergedCount(), p.addedCount(),
+                p.mergeDetails(), p.message(), p.error(), p.createdAt(), p.updatedAt(), p.dryRun(),
+                p.importMode(), p.importedAt(), p.displayStatus(), p.processingTime());
+    }
+
+    /** 批次成功后累积 success_entries（对照 Go 的 progress.SuccessEntries append）。 */
+    private static FaqImportProgress withSuccessEntries(FaqImportProgress p,
+                                                        List<FaqSuccessEntry> successEntries) {
+        return new FaqImportProgress(p.taskId(), p.kbId(), p.knowledgeId(), p.status(), p.progress(),
+                p.total(), p.processed(), p.successCount(), p.failedCount(), p.partialFailedCount(),
+                p.skippedCount(), p.failedEntries(), p.failedEntriesUrl(),
+                successEntries == null ? List.of() : new ArrayList<>(successEntries),
                 p.validEntryIndices(), p.mergeEntryIndices(), p.mergedCount(), p.addedCount(),
                 p.mergeDetails(), p.message(), p.error(), p.createdAt(), p.updatedAt(), p.dryRun(),
                 p.importMode(), p.importedAt(), p.displayStatus(), p.processingTime());
