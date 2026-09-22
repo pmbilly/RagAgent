@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * <p>覆盖：{@link Chunk#embeddingContent()}（Go Chunk.EmbeddingContent）、
  * {@link KnowledgeIndexContent#build}（Go buildKnowledgeIndexContent）、
  * {@link ImageInfoEnricher#collectImageInfoByChunkIds}（Go CollectImageInfoByChunkIDs
- * 的两级解析/去重/容错）、{@link KnowledgeService#generatedQuestionSourceId}
+ * 的两级解析/去重/容错）、{@link ChunkSearchUtil#generatedQuestionSourceId}
  * （Go GeneratedQuestionSourceID 的 64 字节折叠）。</p>
  *
  * <p>不依赖 Spring 上下文：LLM 主链路（doRegenerate 状态机 / summary chunk 维护 /
@@ -142,7 +142,7 @@ class SummaryPipelineLogicTest {
 
     @Test
     void questionSourceIdConcatenatesWhenShort() {
-        assertThat(KnowledgeService.generatedQuestionSourceId("chunk-1", "q-1"))
+        assertThat(ChunkSearchUtil.generatedQuestionSourceId("chunk-1", "q-1"))
                 .isEqualTo("chunk-1-q-1");
     }
 
@@ -150,20 +150,20 @@ class SummaryPipelineLogicTest {
     void questionSourceIdHashesWhenOver64Bytes() {
         String chunkId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"; // 36
         String questionId = "11111111-2222-3333-4444-555555555555"; // 36 → 73 > 64
-        String out = KnowledgeService.generatedQuestionSourceId(chunkId, questionId);
+        String out = ChunkSearchUtil.generatedQuestionSourceId(chunkId, questionId);
         assertThat(out).startsWith(chunkId + "-q");
         assertThat(out).hasSize(chunkId.length() + 2 + 24); // "-q" + sha256 前 12 字节 hex
         assertThat(out.substring(chunkId.length() + 2)).matches("[0-9a-f]{24}");
         // 同样的 questionID 恒得同一折叠值（Go 语义：历史索引行仍可寻址）
-        assertThat(KnowledgeService.generatedQuestionSourceId(chunkId, questionId)).isEqualTo(out);
+        assertThat(ChunkSearchUtil.generatedQuestionSourceId(chunkId, questionId)).isEqualTo(out);
     }
 
     @Test
     void questionSourceIdHashIsDeterministicForDifferentChunks() {
         String q = "11111111-2222-3333-4444-555555555555";
-        String a = KnowledgeService.generatedQuestionSourceId(
+        String a = ChunkSearchUtil.generatedQuestionSourceId(
                 "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", q);
-        String b = KnowledgeService.generatedQuestionSourceId(
+        String b = ChunkSearchUtil.generatedQuestionSourceId(
                 "ffffffff-bbbb-cccc-dddd-eeeeeeeeeeee", q);
         // 后缀（questionID 的摘要）相同、前缀（chunkID）不同
         assertThat(a.substring(a.length() - 24)).isEqualTo(b.substring(b.length() - 24));

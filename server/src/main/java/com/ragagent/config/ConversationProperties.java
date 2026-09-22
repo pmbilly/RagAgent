@@ -182,4 +182,10 @@ public class ConversationProperties {
     public void setGenerateSessionTitlePrompt(String v) { generateSessionTitlePrompt = v; }
     public String getGenerateSummaryPrompt() { return generateSummaryPrompt; }
     public void setGenerateSummaryPrompt(String v) { generateSummaryPrompt = v; }
+    public String getGenerateQuestionsPrompt() { return generateQuestionsPrompt; }
+    public void setGenerateQuestionsPrompt(String v) { generateQuestionsPrompt = v; }
+    public String getExtractEntitiesPrompt() { return extractEntitiesPrompt; }
+    public void setExtractEntitiesPrompt(String v) { extractEntitiesPrompt = v; }
+    public String getExtractRelationshipsPrompt() { return extractRelationshipsPrompt; }
+    public void setExtractRelationshipsPrompt(String v) { extractRelationshipsPrompt = v; }
 }

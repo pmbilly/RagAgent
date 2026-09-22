@@ -579,3 +579,40 @@
   ChunkServiceTest 已钉断言（「策略开+模型在 → failed」），需随批更新 + A/B 验证。
   另：KnowledgeService 的 updateChunkVector 与新积木可顺手抽公共
   ChunkVectorIndexer 供 ChunkService 复用。
+
+- **同批续（2026-09-22，ChunkService 四处阶段占位接线，已修复）**：上条「同族待办」
+  当日一并落地——
+  - **新积木 `ChunkVectorIndexer`**（@Service）：`updateChunkVector`（多 chunk，摘要
+    链路）与 `syncChunkIndex`（单 chunk，chunk 编辑链路）共用同一执行体（删旧 →
+    disabled 只删不插 → chunk 行 + 问题行 BatchIndex）。问题行 source_id 统一到既有
+    `ChunkSearchUtil.generatedQuestionSourceId`（删除了本批一度重复的实现）。
+  - `ChunkService.syncChunkIndex`（原「reindex engine unavailable」占位）→ 委托
+    indexer；失败文案阶梯照旧（kb 缺失/模型 id 空/模型缺失 → IllegalStateException →
+    上层标 index_status=failed）。
+  - `ChunkService.enqueueSummaryRefresh`（原 WARN no-op）→ 委托
+    `KnowledgeService.requestKnowledgeSummaryRefresh`（pending 落库 + 虚拟线程刷新）。
+  - `ChunkService.regenerateChunkQuestions` 的 LLM 生成步（原「summary model is not
+    available」占位）→ 全量：prompt 渲染（question_count/content/context/doc_name/
+    language）+ 业务指引包裹 + chat（temp 0.7 / max 512 / thinking=false）+ 行解析
+    （剥前缀符号、>5 字节、count 上限；抽 `parseGeneratedQuestions` 纯逻辑）+ latest
+    revision 冲突 409 + 向量原子替换。
+  - `ChunkService.deleteGeneratedQuestion` 的向量删除（原 WARN no-op）→
+    `VectorStoreService.deleteBySourceId`（新增，对照 DeleteBySourceIDList；删失败同样
+    只警告继续）。
+  - 配套：`PromptInstructions` 上提 `com.ragagent.common.prompt`（wiki 的历史类改一行
+    委托，消除两份措辞漂移——wiki 类注释当初的建议落地）；ConversationProperties 补
+    `getGenerateQuestionsPrompt`（含 extractEntities/extractRelationships 预留 getter）。
+  - **踩坑（值得记）**：把 `updateImageInfo` 的「策略 isZero→Default」钩子误套进
+    `NeedsEmbeddingModel` 判定 → 显式全 false 的策略被翻成 Default（vector+keyword
+    全开）→ 策略关的 KB 走进真实出站 → 13 个既有测试红（ChunkServiceTest 全链 +
+    ChunkContractTest 契约）。Go 的 IndexingStrategy 是**值类型 struct**：零值即 false，
+    `NeedsEmbeddingModel` **没有** EnsureDefaults 钩子（那是服务读路径的独立语义）。
+    修正 = indexer 与 KnowledgeService.kbNeedsEmbedding 双处去钩子（注释钉住教训）。
+  - **验证（真实环境闭环，租户 10122 文档）**：① chunk 编辑（index_status 置 failed
+    走重试路径）→ 200 + ready（0.99s 真实出站）+ 向量行重建（source_id=chunkID 无前缀、
+    content 带 title 前缀、1024 维）；② 生成问题 → 200 + 真实 LLM 出 3 条问题（1.8s）+
+    问题行向量 `chunkID-q<sha24hex>` 折叠形态（62 字节）；③ 删除问题 → 200 ×3 + 向量行
+    4→1 + metadata 复原 `{}`。回归 ~2502 测试绿，仅 2 条 SSRF/DNS 环境性失败
+    （TenantCatalogContractTest / SandboxSkillsMeContractTest 的 fake-IP 漂移族，
+    与代码无关）。**未单独验证**：chunk 编辑 bodyChanged 触发的 enqueueSummaryRefresh
+    真实入队（逻辑已由摘要链路端到端覆盖，调用点 catch/warn 与 Go 同款）。

@@ -79,9 +79,13 @@ tenantId()=0 → ModelNotFound 静默降级关键词-only），全部补 capture
 索引契约点**（索引文本 title 前缀、重处理预清理旧向量行、失败清理）并修正
 **VectorStoreService 的 source_id 形态偏差**（原写 "chunk:"+id，Go 是 chunkID 无
 前缀 + 问题行 chunkID-qID 折叠——双端共库会出重复向量行）。真实环境验证 200 +
-completed + summary chunk 复用 + 向量行形态正确。**同族待办**：ChunkService 三处
-同款占位（syncChunkIndex / enqueueSummaryRefresh / regenerateChunkQuestions 的 LLM
-步）——下批接线。
+completed + summary chunk 复用 + 向量行形态正确。**同族占位已同批接线**：ChunkService
+四处（syncChunkIndex / enqueueSummaryRefresh / regenerateChunkQuestions 的 LLM 步 /
+deleteGeneratedQuestion 的向量删除）→ 新积木 `ChunkVectorIndexer` +
+`VectorStoreService.deleteBySourceId` + `PromptInstructions` 上提；真实环境三链路
+闭环验证（编辑→ready+向量重建 / 生成问题→LLM 3 条+问题行折叠 source_id / 删除→
+向量清理+metadata 复原）；踩坑与细节见 known-issues/06 尾部（含 needsEmbedding
+**不得**套 isZero→Default 钩子的教训）。
 **第十二处（本批，走查阻断回归：creator_id NULL → KB 列表 NPE 500）**：
 knowledge_bases.creator_id 为 NULL 的行（dev 库 A/B 种子 BQ Alpha/Beta/Temp）让
 `getCreatorId().isEmpty()` NPE → 列表 500。根因：实体 getter 无归一化（Go 非指针
@@ -99,7 +103,7 @@ bootRun 一起杀掉**（bootRun 托管在 Gradle 守护进程上）——停完
 **走查期间要跑测试就先重启服务再测，或测完立即重启**；看到全站 500 +
 NoClassDefFoundError 不用查代码，重启即解。
 
-> 最后更新：2026-09-22 · **基线：走查第十一/十二处修复（regenerate-summary 全量 + 处理管道索引契约三点 + creator_id NULL 回归，见 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-22 · **基线：走查第十一/十二处修复（regenerate-summary 全量 + 处理管道索引契约三点 + creator_id NULL 回归 + ChunkService 四处占位接线，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
@@ -496,11 +500,10 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    `/swagger/{}` 非翻译目标）。⚠️ route-recon 只对账路由——「路由在、执行体占位」
    的缺口它抓不到，历史上已抓出两族：regenerate-summary（已补全）与 ChunkService
    三处（下一条）。
-3. 之后：（**优先**）ChunkService 三处阶段占位接线——`syncChunkIndex` /
-   `enqueueSummaryRefresh` / `regenerateChunkQuestions` 的 LLM 生成步，
-   接本批已落地的 updateChunkVector / requestKnowledgeSummaryRefresh 语义
-   （Go 位置：chunk.go L669-719 与 knowledge_summary_refresh.go；接线会改
-   ChunkServiceTest 已钉断言，需随批更新 + A/B）；
+3. 之后：ChunkService 四处阶段占位已接线（2026-09-22，见 §0.0 第十一处）；
+   **下一个「占位扫描」建议**：全仓 grep「not available in this deployment /
+   engine unavailable / lands with wave」类文案，把剩余的「路由在、执行体占位」
+   一次性列出来（本批已清 regenerate-summary 与 ChunkService 四处）；
    波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
    tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、

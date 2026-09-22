@@ -1,9 +1,11 @@
 package com.ragagent.knowledge.service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -12,22 +14,30 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.agent.AgentPromptPlaceholders;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.prompt.PromptInstructions;
+import com.ragagent.config.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
 import com.ragagent.knowledge.mapper.ChunkNotFoundException;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRevisionConflictException;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
+import com.ragagent.llm.LlmChatClient;
+import com.ragagent.llm.domain.ChatMessage;
+import com.ragagent.llm.domain.ChatOptions;
+import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.mapper.ModelMapper;
+import com.ragagent.model.service.ModelRuntimeFactory;
+import com.ragagent.wiki.service.WikiLanguageSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -59,24 +69,25 @@ import org.springframework.stereotype.Service;
  *       是 Go 的逐字行为）。</li>
  * </ul>
  *
- * <h2>已知差异 / 降级（逐条对应 Go，后续波次收口）</h2>
+ * <h2>已知差异 / 降级（逐条对应 Go）</h2>
  * <ol>
- *   <li><b>{@link #syncChunkIndex}（检索引擎，波 3/4）</b>：Go 在模型+引擎齐备时能真重索引
- *       （index_status=ready），Java 恒 failed——见方法注释的降级阶梯。测试数据
- *       （indexing_strategy 关向量/关键词）走 {@code !NeedsEmbeddingModel() → return}，
- *       与 Go 逐字节一致。</li>
- *   <li><b>{@link #enqueueSummaryRefresh}</b>：只实现 Go 的早退分支；其余分支 WARN + no-op，
- *       summary_status 的 pending/failed 副作用也不做（任务队列是进程内实现，随波 4/5 收口）。
- *       Go 会标 pending 并入队（或失败时标 failed）。</li>
- *   <li><b>{@link #regenerateChunkQuestions} 的 LLM 生成步</b>：阶段 7 前无运行时 chat
- *       客户端——summary model 行存在时抛
- *       {@code "summary model is not available in this deployment"}。Go 该路径能真生成；
- *       golden 测试数据 KB 无 summary model，全部落在确定性分支。</li>
- *   <li><b>{@link #deleteGeneratedQuestion} 的向量删除</b>：Java 无检索引擎 → 引擎创建与
- *       {@code DeleteBySourceIDList} WARN + no-op（Go 对删除向量行失败同样只警告继续，
- *       元数据更新不受影响——净效果 HTTP 面一致，向量行的清理推迟到波 3/4）。
- *       "failed to create retrieve engine: %w" 分支因此在本部署不可达（同
- *       ErrMCPMetadataStorage 的"静态装配不可达"先例），文案仍按 Go 保留在注释里。</li>
+ *   <li><b>{@link #syncChunkIndex}（2026-09-22 走查批接线）</b>：执行体在
+ *       {@link ChunkVectorIndexer#syncChunkIndex}（DeleteByChunkIDList → disabled 只删
+ *       不插 → chunk 行 + 问题行 BatchIndex）；确定性分支（策略关 →
+ *       {@code !NeedsEmbeddingModel()} return）不变。⚠️ 接线前「模型+引擎齐备恒 failed」
+ *       的占位行为已消除，ChunkServiceTest 的相关断言随批更新。</li>
+ *   <li><b>{@link #enqueueSummaryRefresh}（同批接线）</b>：委托
+ *       {@link KnowledgeService#requestKnowledgeSummaryRefresh}（pending 落库 + 进程内
+ *       虚拟线程刷新；无 summary model → markFailed + 400）。备案：kb 行缺失时 Go 的
+ *       markFailed 会落 failed，Java 抛 notFound 不落列（该路径不可达——chunk 的 KB 必然存在）。</li>
+ *   <li><b>{@link #regenerateChunkQuestions} 的 LLM 生成步（同批接线）</b>：prompt 渲染
+ *       （question_count/content/context/doc_name/language）+ 业务指引包裹 + chat
+ *       （temp 0.7 / max 512 / thinking=false）+ 行解析，与 Go 逐段对照；revision 冲突
+ *       409、向量原子替换走 {@link ChunkVectorIndexer#updateChunkVector}。</li>
+ *   <li><b>{@link #deleteGeneratedQuestion} 的向量删除（同批接线）</b>：
+ *       {@link VectorStoreService#deleteBySourceId}（Go DeleteBySourceIDList 的删行语义；
+ *       失败同样只警告继续）。"failed to create retrieve engine: %w" 分支在本部署不可达
+ *       （Java 直接按 source_id 删，无引擎对象），文案按 Go 保留在注释里。</li>
  *   <li><b>requireKBWrite 未翻译</b>：Go 的 loadKnowledgeWrite 末尾还有
  *       {@code requireKBWrite(kb)}（KB 授予/能力判定，消耗中间件写入的 grant）——Java 的
  *       授权在路由层（ChunkAccessGuard/RbacInterceptor），service 层无 grant 语境，略。</li>
@@ -110,13 +121,28 @@ public class ChunkService {
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final ModelMapper modelMapper;
+    private final ChunkVectorIndexer chunkVectorIndexer;
+    private final ModelRuntimeFactory modelRuntimeFactory;
+    private final KnowledgeService knowledgeService;
+    private final ConversationProperties conversationProps;
+    private final VectorStoreService vectorStore;
 
     public ChunkService(ChunkRepository chunkRepository, KnowledgeMapper knowledgeMapper,
-                        KnowledgeBaseMapper kbMapper, ModelMapper modelMapper) {
+                        KnowledgeBaseMapper kbMapper, ModelMapper modelMapper,
+                        ChunkVectorIndexer chunkVectorIndexer,
+                        ModelRuntimeFactory modelRuntimeFactory,
+                        KnowledgeService knowledgeService,
+                        ConversationProperties conversationProps,
+                        VectorStoreService vectorStore) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.modelMapper = modelMapper;
+        this.chunkVectorIndexer = chunkVectorIndexer;
+        this.modelRuntimeFactory = modelRuntimeFactory;
+        this.knowledgeService = knowledgeService;
+        this.conversationProps = conversationProps;
+        this.vectorStore = vectorStore;
     }
 
     /** loadKnowledgeWrite 的返回（Go 的 (knowledge, kb, error) 三元）。 */
@@ -445,9 +471,13 @@ public class ChunkService {
         if (findModelRow(tenantId, embeddingModelId) == null) {
             throw BizException.badRequest("failed to get embedding model: model not found");
         }
-        // 5c. 向量删除（Go L850：DeleteBySourceIDList）——无引擎，WARN + no-op。
-        //     Go 删除失败（问题未被索引过）同样只警告继续，不阻断元数据更新。
-        log.warn("Vector index deletion for question source {} skipped: retrieve engine unavailable", sourceId);
+        // 5c. 向量删除（Go L850：DeleteBySourceIDList）——2026-09-22 走查批接线到
+        //     VectorStoreService；Go 删除失败（问题未被索引过）只警告继续，不阻断元数据更新。
+        try {
+            vectorStore.deleteBySourceId(List.of(sourceId));
+        } catch (RuntimeException e) {
+            log.warn("Failed to delete vector index for question (may not exist): {}", e.getMessage());
+        }
 
         // 6. 从 metadata 移除
         List<GeneratedQuestion> remaining = new ArrayList<>(questions.size() - 1);
@@ -508,13 +538,187 @@ public class ChunkService {
         if (kb.getSummaryModelId() == null || kb.getSummaryModelId().isEmpty()) {
             throw BizException.badRequest("summary model is required for question generation");
         }
-        // Go：GetChatModel(kb.SummaryModelID)——模型行缺失时先报 "model not found"（400 原文）
-        if (findModelRow(tenantId, kb.getSummaryModelId()) == null) {
-            throw BizException.badRequest("model not found");
+        // 2026-09-22 走查批：LLM 生成步接线（Go GetChatModel 的错误在 RegenerateChunkQuestions
+        // 的 handler 里统一包 400 err.Error()——"model not found" 等原文）
+        LlmChatClient chatModel;
+        try {
+            chatModel = modelRuntimeFactory.getChatModel(kb.getSummaryModelId());
+        } catch (RuntimeException e) {
+            throw BizException.badRequest(e.getMessage() == null ? "model not found" : e.getMessage());
         }
-        // LLM 生成步降级（阶段 7 前无运行时 chat 客户端）。已知差异：Go 在此能真生成问题
-        // 并原子替换向量条目；golden 测试数据 KB 无 summary model，到不了这里。
-        throw BizException.badRequest("summary model is not available in this deployment");
+        String prevContent = resolveNeighborContent(tenantId, chunk, chunk.getPreChunkId());
+        String nextContent = resolveNeighborContent(tenantId, chunk, chunk.getNextChunkId());
+        // 对照 ResolveProcessConfig(kb, overrides).QuestionGenerationConfig：count 缺省 3、上限 10
+        JsonNode qg = kb.getQuestionGenerationConfig();
+        int questionCount = qg == null ? 0 : qg.path("question_count").asInt(0);
+        if (questionCount <= 0) {
+            questionCount = 3;
+        }
+        if (questionCount > 10) {
+            questionCount = 10;
+        }
+        String customInstructions = qg == null ? "" : qg.path("custom_instructions").asText("");
+        List<String> questions = generateQuestionsWithContext(
+                chatModel, chunk.getContent(), prevContent, nextContent,
+                knowledge.getTitle(), questionCount, customInstructions);
+        // 对照 Go：重读 latestChunk，期间被编辑（revision 变化）则 409
+        Chunk latest;
+        try {
+            latest = chunkRepository.getChunkById(tenantId, chunkId);
+        } catch (ChunkNotFoundException e) {
+            throw BizException.badRequest("chunk not found");
+        }
+        if (latest.getContentRevision() != generationRevision) {
+            throw new ChunkRevisionConflictException();
+        }
+        chunk = latest;
+        List<GeneratedQuestion> generated = new ArrayList<>(questions.size());
+        Integer questionRevision = chunk.getContentRevision();
+        for (String question : questions) {
+            generated.add(new GeneratedQuestion(UUID.randomUUID().toString(), question, questionRevision));
+        }
+        // 对照 SetDocumentMetadata：整体替换 metadata（仅 generated_questions 两键，
+        // 空列表/0 由域类型注解的 omitempty 语义省略）
+        DocumentChunkMetadata meta = new DocumentChunkMetadata();
+        meta.setGeneratedQuestions(generated);
+        meta.setGeneratedQuestionsRevision(chunk.getContentRevision());
+        try {
+            chunk.setMetadata(writeDocumentMetadata(meta));
+        } catch (JsonProcessingException e) {
+            throw BizException.badRequest("failed to set chunk metadata: " + e.getMessage());
+        }
+        try {
+            chunkRepository.updateChunk(chunk);
+        } catch (RuntimeException e) {
+            throw BizException.badRequest("failed to update chunk: " + e.getMessage());
+        }
+        try {
+            chunkVectorIndexer.updateChunkVector(kb.getId(), List.of(chunk));
+        } catch (RuntimeException e) {
+            // Go：updateChunkVector 的 err 同样被 handler 包 400（此时 metadata 已落库）
+            throw BizException.badRequest(e.getMessage());
+        }
+        log.info("Successfully regenerated {} questions for chunk {}", generated.size(), chunkId);
+        return generated;
+    }
+
+    /**
+     * 对照 Go resolveNeighbor/sameChunkDocument（knowledge_process.go L2235-2244 +
+     * chunk_write.go L33-36）：邻居块必须与当前块同租户/同 KB/同文档，否则按空处理；
+     * 读取失败同样按空。用于问题生成的 surrounding_context。
+     */
+    private String resolveNeighborContent(long tenantId, Chunk chunk, String neighborId) {
+        if (neighborId == null || neighborId.isEmpty()) {
+            return "";
+        }
+        Chunk neighbor;
+        try {
+            neighbor = chunkRepository.getChunkById(tenantId, neighborId);
+        } catch (RuntimeException e) {
+            return "";
+        }
+        if (!Objects.equals(neighbor.getTenantId(), chunk.getTenantId())
+                || !Objects.equals(neighbor.getKnowledgeBaseId(), chunk.getKnowledgeBaseId())
+                || !Objects.equals(neighbor.getKnowledgeId(), chunk.getKnowledgeId())) {
+            return "";
+        }
+        return neighbor.getContent() == null ? "" : neighbor.getContent();
+    }
+
+    /**
+     * 对照 Go {@code generateQuestionsWithContext}（knowledge_process.go L2132-2204）：
+     * 1) prompt 取自 config.Conversation.GenerateQuestionsPrompt（空 → err 原文）；
+     * 2) context 段：preceding/following 非空才拼 surrounding_context；
+     * 3) 渲染 {{question_count}}/{{content}}/{{context}}/{{doc_name}}/{{language}}；
+     * 4) 业务指引包裹（AppendCustomPromptInstructions label=question_generation）；
+     * 5) chat（temperature 0.7 / max_tokens 512 / thinking=false，单条 user 消息）；
+     * 6) 行解析：逐行 trim → 裁前缀符号 → trim → 非空且 &gt;5 字节才收，达到 count 即止。
+     */
+    private List<String> generateQuestionsWithContext(LlmChatClient chatModel, String content,
+                                                      String prevContent, String nextContent,
+                                                      String docName, int questionCount,
+                                                      String customInstructions) {
+        if (content == null || content.isEmpty() || questionCount <= 0) {
+            return List.of();
+        }
+        String prompt = ChunkRepository.goTrimSpace(conversationProps.getGenerateQuestionsPrompt());
+        if (prompt.isEmpty()) {
+            throw BizException.badRequest("generate questions prompt not configured");
+        }
+        StringBuilder contextSection = new StringBuilder();
+        if ((prevContent != null && !prevContent.isEmpty())
+                || (nextContent != null && !nextContent.isEmpty())) {
+            contextSection.append("<surrounding_context>\n");
+            if (prevContent != null && !prevContent.isEmpty()) {
+                contextSection.append("<preceding_content>\n").append(prevContent)
+                        .append("\n\n</preceding_content>\n\n");
+            }
+            if (nextContent != null && !nextContent.isEmpty()) {
+                contextSection.append("<following_content>\n").append(nextContent)
+                        .append("\n\n</following_content>\n\n");
+            }
+            contextSection.append("</surrounding_context>\n\n");
+        }
+        prompt = AgentPromptPlaceholders.renderPromptPlaceholders(prompt, Map.of(
+                "question_count", String.valueOf(questionCount),
+                "content", content,
+                "context", contextSection.toString(),
+                "doc_name", docName == null ? "" : docName,
+                "language", WikiLanguageSupport.languageNameFromContext()));
+        prompt = PromptInstructions.appendCustomPromptInstructions(
+                prompt, customInstructions, "question_generation");
+        ChatOptions options = new ChatOptions();
+        options.setTemperature(0.7);
+        options.setMaxTokens(512);
+        options.setThinking(Boolean.FALSE);
+        ChatResponse response;
+        try {
+            response = chatModel.chat(List.of(ChatMessage.user(prompt)), options);
+        } catch (BizException e) {
+            throw BizException.badRequest(e.getMessage());
+        } catch (RuntimeException e) {
+            throw BizException.badRequest("failed to generate questions: "
+                    + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+        String text = response == null || response.getContent() == null ? "" : response.getContent();
+        return parseGeneratedQuestions(text, questionCount);
+    }
+
+    /**
+     * 对照 Go {@code generateQuestionsWithContext} 的行解析段（L2186-2201）：
+     * 逐行 trim → 裁前缀符号（{@code "0123456789.-*) "}）→ trim → 非空且 &gt;5 字节
+     * （Go 的 len 是 UTF-8 字节数）才收，达到 count 即止。抽为纯逻辑便于单测。
+     */
+    static List<String> parseGeneratedQuestions(String content, int questionCount) {
+        List<String> questions = new ArrayList<>(Math.max(questionCount, 0));
+        if (content == null || questionCount <= 0) {
+            return questions;
+        }
+        for (String raw : content.split("\n", -1)) {
+            String line = ChunkRepository.goTrimSpace(raw);
+            if (line.isEmpty()) {
+                continue;
+            }
+            line = trimLeftCharSet(line, "0123456789.-*) ");
+            line = ChunkRepository.goTrimSpace(line);
+            // Go 的 len(line) > 5 是 UTF-8 字节数
+            if (!line.isEmpty() && line.getBytes(StandardCharsets.UTF_8).length > 5) {
+                questions.add(line);
+                if (questions.size() >= questionCount) {
+                    break;
+                }
+            }
+        }
+        return questions;
+    }
+
+    /** 对照 Go {@code strings.TrimLeft(s, cutset)}：裁掉开头属于字符集的字符。 */
+    private static String trimLeftCharSet(String s, String cutset) {
+        int i = 0;
+        while (i < s.length() && cutset.indexOf(s.charAt(i)) >= 0) {
+            i++;
+        }
+        return s.substring(i);
     }
 
     // ── 删除 ───────────────────────────────────────────────────────────────
@@ -833,55 +1037,37 @@ public class ChunkService {
         chunkRepository.updateChunk(parent);
     }
 
-    // ── 索引同步（降级阶梯，见类注释第 1 条）───────────────────────────────
+    // ── 索引同步（2026-09-22 走查批：接线到 ChunkVectorIndexer）────────────────
 
     /**
-     * 对照 Go {@code syncChunkIndex}（chunk.go L669-719）——<b>降级实现</b>，阶梯：
-     * <ol>
-     *   <li>kb 查不到 → 原样上抛（Go: ErrKnowledgeBaseNotFound，500 面；Java
-     *       {@link IllegalStateException}("knowledge base not found")）；</li>
+     * 对照 Go {@code syncChunkIndex}（chunk.go L669-719）——接线
+     * {@link ChunkVectorIndexer#syncChunkIndex}（与 updateChunkVector 同源的执行体）：
+     * <ul>
      *   <li>{@code !kb.NeedsEmbeddingModel()}（indexing_strategy 的 vector_enabled /
-     *       keyword_enabled 都 false；Go types/indexing_strategy.go L34 NeedsEmbedding）
-     *       → <b>return（与 Go 逐字节一致，测试数据走这条）</b>；</li>
-     *   <li>需要模型：按 kb.embeddingModelId 找模型行——找不到 → 抛
-     *       {@link IllegalStateException}("model not found")（对照 Go GetEmbeddingModel
-     *       失败 → 上层标 index_status=failed）；找到了 → 抛
-     *       {@link IllegalStateException}("reindex engine unavailable")（Java 无检索引擎，
-     *       波 3/4 收口）→ 上层标 failed。<b>已知差异：Go 在模型+引擎齐备时能重索引成功
-     *       （ready），Java 恒 failed</b>——Go 后续的 DeleteByChunkIDList / BatchIndex、
-     *       生成问题条目（GeneratedQuestionSourceID 作 source_id）随引擎一起翻译。</li>
-     * </ol>
+     *       keyword_enabled 都 false）→ return（确定性子集，测试数据走这条）；</li>
+     *   <li>kb 缺失 → {@link IllegalStateException}("knowledge base not found")、模型 id 空
+     *       → "model ID cannot be empty"、模型行缺失 → "model not found"（500 面文案照旧，
+     *       由 indexer 保持）；</li>
+     *   <li>执行体：DeleteByChunkIDList（disabled 只删不插）→ chunk 行 + 生成问题行
+     *       （GeneratedQuestionSourceID 折叠）BatchIndex——与 Go 逐段对照。</li>
+     * </ul>
+     * 调用方（UpdateDocumentChunk 等）与 Go 一致地在异常时标 index_status=failed。
      */
     private void syncChunkIndex(Chunk chunk) {
-        KnowledgeBase kb = findKbRow(chunk.getKnowledgeBaseId());
-        if (kb == null) {
-            // Go: kbRepository.GetKnowledgeBaseByID 的 ErrKnowledgeBaseNotFound 原样上抛
-            throw new IllegalStateException("knowledge base not found");
-        }
-        KbIndexingStrategy strategy = kb.getIndexingStrategy();
-        boolean needsEmbeddingModel = strategy.isVectorEnabled() || strategy.isKeywordEnabled();
-        if (!needsEmbeddingModel) {
-            return;
-        }
-        String embeddingModelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
-        if (embeddingModelId.isEmpty() || findModelRow(chunk.getTenantId(), embeddingModelId) == null) {
-            // Go: GetEmbeddingModel → "model ID cannot be empty" / ErrModelNotFound
-            throw new IllegalStateException(embeddingModelId.isEmpty()
-                    ? "model ID cannot be empty" : "model not found");
-        }
-        // Go: CreateRetrieveEngineForKB + DeleteByChunkIDList + BatchIndex——Java 无检索引擎
-        throw new IllegalStateException("reindex engine unavailable");
+        chunkVectorIndexer.syncChunkIndex(chunk);
     }
 
-    // ── summary 刷新入队（降级，见类注释第 2 条）───────────────────────────
+    // ── summary 刷新入队（2026-09-22 走查批：接线到 KnowledgeService 全量语义）──
 
     /**
-     * 对照 Go {@code enqueueSummaryRefresh}（knowledge_summary_refresh.go L83-138）——
-     * <b>只实现早退分支</b>：knowledge 为 null、summary_status 为空或 "none" 时
-     * return（与 Go 逐字节一致）。其余分支（读 KB / 校验 summary model / 标 pending /
-     * asynq 入队 / 失败标 failed）在 Java 侧 WARN + no-op：任务队列是进程内实现，
-     * summary 生成随波 4/5 收口；Go 在这些分支会改写 summary_status
-     * （pending / failed）并真正入队——该副作用本实现刻意不做。
+     * 对照 Go {@code enqueueSummaryRefresh}（knowledge_summary_refresh.go L83-151）——
+     * 接线 {@link KnowledgeService#requestKnowledgeSummaryRefresh}（全量语义：早退分支 /
+     * 无 summary model 的 markFailed+400 / 成功 pending 落库 + 进程内虚拟线程刷新）。
+     *
+     * <p>调用方（UpdateDocumentChunk 的 bodyChanged/enabled 变化分支）与 Go 一致地
+     * 忽略失败（catch + WARN）。已知差异备案：kb 行缺失时 Go 的 markFailed 会落
+     * summary_status=failed，Java 的 request 路径抛 notFound 不落列——kb 缺失在本
+     * 路径不可达（chunk 的 KB 必然存在）。</p>
      */
     private void enqueueSummaryRefresh(Knowledge knowledge) {
         if (knowledge == null) {
@@ -891,8 +1077,7 @@ public class ChunkService {
         if (status == null || status.isEmpty() || SUMMARY_STATUS_NONE.equals(status)) {
             return;
         }
-        log.warn("Summary refresh enqueue skipped (task queue lands with wave 4/5): knowledge {}",
-                knowledge.getId());
+        knowledgeService.requestKnowledgeSummaryRefresh(knowledge.getId());
     }
 
     // ── 私有工具 ───────────────────────────────────────────────────────────

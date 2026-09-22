@@ -1,12 +1,9 @@
 package com.ragagent.knowledge.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -33,8 +30,6 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.agent.AgentPromptPlaceholders;
 import com.ragagent.config.ConversationProperties;
-import com.ragagent.knowledge.domain.DocumentChunkMetadata;
-import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress;
 import com.ragagent.knowledge.mapper.ChunkMapper;
@@ -46,10 +41,7 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelRuntimeFactory;
-import com.ragagent.model.service.ModelService;
-import com.ragagent.model.service.ModelService.ModelNotFoundException;
 import com.ragagent.searchutil.ImageInfoEnricher;
 import com.ragagent.searchutil.SearchChunkMerge;
 import com.ragagent.wiki.service.WikiImageMarkup;
@@ -102,10 +94,8 @@ public class KnowledgeService {
     private final KnowledgeProcessWorker worker;
     private final KnowledgeTaskProgressStore progressStore;
     private final ChunkRepository chunkRepo;
-    private final ModelService modelService;
     private final ModelRuntimeFactory modelRuntimeFactory;
-    private final EmbedderClient embedder;
-    private final VectorStoreService vectorStore;
+    private final ChunkVectorIndexer chunkVectorIndexer;
     private final ConversationProperties conversationProps;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
@@ -116,10 +106,8 @@ public class KnowledgeService {
                             @Lazy KnowledgeProcessWorker worker,
                             KnowledgeTaskProgressStore progressStore,
                             ChunkRepository chunkRepo,
-                            ModelService modelService,
                             ModelRuntimeFactory modelRuntimeFactory,
-                            EmbedderClient embedder,
-                            VectorStoreService vectorStore,
+                            ChunkVectorIndexer chunkVectorIndexer,
                             ConversationProperties conversationProps) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
@@ -129,10 +117,8 @@ public class KnowledgeService {
         this.worker = worker;
         this.progressStore = progressStore;
         this.chunkRepo = chunkRepo;
-        this.modelService = modelService;
         this.modelRuntimeFactory = modelRuntimeFactory;
-        this.embedder = embedder;
-        this.vectorStore = vectorStore;
+        this.chunkVectorIndexer = chunkVectorIndexer;
         this.conversationProps = conversationProps;
     }
 
@@ -989,8 +975,6 @@ public class KnowledgeService {
     private static final int DEFAULT_SUMMARY_MAX_INPUT_CHARS = 1024 * 24;
     /** asynq MaxRetry(3)：刷新任务最多 1 次初始 + 3 次重试（进程内虚拟线程替代）。 */
     private static final int SUMMARY_MAX_RETRY = 3;
-    /** Go maxGeneratedQuestionSourceIDLength（types/faq.go）。 */
-    private static final int MAX_GENERATED_QUESTION_SOURCE_ID_LENGTH = 64;
 
     /**
      * 对照 RegenerateKnowledgeSummary（knowledge_process.go L2294-2443）：HTTP 同步路径。
@@ -1107,7 +1091,7 @@ public class KnowledgeService {
                 chunkMapper.insert(summaryChunk);
                 summaryChunks.add(summaryChunk);
             }
-            updateChunkVector(knowledge.getKnowledgeBaseId(), summaryChunks);
+            chunkVectorIndexer.updateChunkVector(knowledge.getKnowledgeBaseId(), summaryChunks);
         }
         return knowledge;
     }
@@ -1498,143 +1482,13 @@ public class KnowledgeService {
     }
 
     /**
-     * 对照 updateChunkVector（knowledge_process.go L2859-2940）：按 chunk 重建向量行——
-     * 删该 chunk 的全部旧行（含生成问题行）→ 批量 embedding → 插入 chunk 行
-     * （source_id=chunkID）与生成问题行（GeneratedQuestionSourceID 形态）。
+     * 对照 KB.NeedsEmbeddingModel（types/knowledgebase.go L848）：vector||keyword。
+     * 与 {@link ChunkVectorIndexer} 同款——<b>不得</b>加 isZero→Default 钩子
+     * （Go 值类型 struct 的零值即 false；钩子是 EnsureDefaults 读路径的独立语义）。
      */
-    private void updateChunkVector(String kbId, List<Chunk> chunks) {
-        KnowledgeBase kb = requireKb(kbId);
-        if (!kbNeedsEmbedding(kb)) {
-            return; // 对照 NeedsEmbeddingModel
-        }
-        Model embeddingModel;
-        try {
-            // 对照 GetEmbeddingModel（状态闸门在 GetModelByID 内）
-            embeddingModel = modelService.getModelByID(
-                    kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId());
-        } catch (ModelNotFoundException e) {
-            throw new BizException(AppError.notFound("Model not found"));
-        }
-        EmbedderClient.EmbedConfig cfg = EmbedderClient.configFrom(embeddingModel);
-
-        List<VectorStoreService.IndexRow> rows = new ArrayList<>();
-        List<String> ids = new ArrayList<>();
-        Map<String, Knowledge> knowledgeCache = new HashMap<>();
-        for (Chunk chunk : chunks) {
-            if (chunk.getKnowledgeBaseId() == null || !chunk.getKnowledgeBaseId().equals(kbId)) {
-                log.warn("Knowledge base ID mismatch: {} != {}", chunk.getKnowledgeBaseId(), kbId);
-                continue;
-            }
-            ids.add(chunk.getId());
-            if (!chunk.isIsEnabled() || "parent_text".equals(chunk.getChunkType())) {
-                continue;
-            }
-            Knowledge knowledge = knowledgeCache.get(chunk.getKnowledgeId());
-            if (knowledge == null) {
-                knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
-                        .eq(Knowledge::getId, chunk.getKnowledgeId())
-                        .eq(Knowledge::getTenantId, chunk.getTenantId())
-                        .isNull(Knowledge::getDeletedAt)
-                        .last("LIMIT 1"));
-                if (knowledge == null) {
-                    throw BizException.notFound("record not found");
-                }
-                knowledgeCache.put(chunk.getKnowledgeId(), knowledge);
-            }
-            rows.add(new VectorStoreService.IndexRow(chunk.getId(), chunk.getId(),
-                    chunk.getKnowledgeId(), chunk.getKnowledgeBaseId(),
-                    KnowledgeIndexContent.build(knowledge, chunk.embeddingContent()),
-                    chunk.isIsEnabled()));
-            DocumentChunkMetadata meta = chunkDocumentMetadata(chunk);
-            if (meta != null && meta.getGeneratedQuestions() != null) {
-                for (GeneratedQuestion question : meta.getGeneratedQuestions()) {
-                    if (question.getQuestion() == null
-                            || ChunkRepository.goTrimSpace(question.getQuestion()).isEmpty()) {
-                        continue;
-                    }
-                    rows.add(new VectorStoreService.IndexRow(
-                            generatedQuestionSourceId(chunk.getId(), question.getId()),
-                            chunk.getId(), chunk.getKnowledgeId(), chunk.getKnowledgeBaseId(),
-                            KnowledgeIndexContent.build(knowledge, question.getQuestion()), true));
-                }
-            }
-        }
-        vectorStore.deleteByChunkId(ids);
-        int embedBatch = embedBatchSize();
-        for (int from = 0; from < rows.size(); from += embedBatch) {
-            int to = Math.min(from + embedBatch, rows.size());
-            List<VectorStoreService.IndexRow> batchRows = rows.subList(from, to);
-            List<String> texts = new ArrayList<>(batchRows.size());
-            for (VectorStoreService.IndexRow row : batchRows) {
-                texts.add(row.content());
-            }
-            List<float[]> vectors;
-            try {
-                vectors = embedder.embedBatch(cfg, texts);
-            } catch (Exception e) {
-                throw new BizException(AppError.badRequest(
-                        e.getMessage() == null ? e.toString() : e.getMessage()));
-            }
-            vectorStore.saveIndexRows(batchRows, vectors);
-        }
-    }
-
-    /** 对照 KB.NeedsEmbeddingModel：vector/keyword 任一启用（策略零值 → Default 钩子）。 */
     private static boolean kbNeedsEmbedding(KnowledgeBase kb) {
         KbIndexingStrategy strategy = kb.getIndexingStrategy();
-        if (strategy == null || strategy.isZero()) {
-            strategy = KbIndexingStrategy.defaultStrategy();
-        }
-        return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
-    }
-
-    /** 解析 chunk.metadata 的 generated_questions（失败 → null，对照 Go 的 err 忽略）。 */
-    private static DocumentChunkMetadata chunkDocumentMetadata(Chunk chunk) {
-        JsonNode meta = chunk.getMetadata();
-        if (meta == null || meta.isNull()) {
-            return null;
-        }
-        try {
-            return MAPPER.treeToValue(meta, DocumentChunkMetadata.class);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * 对照 types.GeneratedQuestionSourceID（faq.go L41-50）：chunkID+"-"+questionID；
-     * 超 64 字节时折叠为 chunkID + "-q" + sha256(questionID) 前 12 字节 hex。
-     */
-    static String generatedQuestionSourceId(String chunkId, String questionId) {
-        String candidate = chunkId + "-" + questionId;
-        if (candidate.length() <= MAX_GENERATED_QUESTION_SOURCE_ID_LENGTH) {
-            return candidate;
-        }
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest((questionId == null ? "" : questionId).getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder();
-            for (int i = 0; i < 12; i++) {
-                hex.append(String.format("%02x", digest[i]));
-            }
-            return chunkId + "-q" + hex;
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
-    }
-
-    /** 对照 Go batch.go 的 BatchEmbedSize（BATCH_EMBED_SIZE env，默认 5，非法值照抄 Atoi 文案）。 */
-    private static int embedBatchSize() {
-        String env = System.getenv("BATCH_EMBED_SIZE");
-        if (env == null || env.isEmpty()) {
-            return 5;
-        }
-        try {
-            return Integer.parseInt(env.trim());
-        } catch (NumberFormatException e) {
-            throw new IllegalStateException(
-                    "strconv.Atoi: parsing \"" + env + "\": invalid syntax");
-        }
+        return strategy != null && (strategy.isVectorEnabled() || strategy.isKeywordEnabled());
     }
 
     /**

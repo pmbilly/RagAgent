@@ -43,8 +43,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>重点钉住：乐观锁冲突（409 面）、非 AppError 校验的 500 面文案、source_content 惰性
  * 回填、revision 快照记"上一个 editor"、writableChunk 的四类错误 + moving 409、
  * Upsert/Delete 生成问题的 400 原文、rebuildParentContent 的倒序替换与冲突追加、
- * 图片子块的停用联动、syncChunkIndex 降级阶梯（策略关 → 与 Go 一致 return；
- * 策略开+模型在 → reindex engine unavailable → 上层标 failed）。</p>
+ * 图片子块的停用联动、syncChunkIndex 执行体（策略关 → 与 Go 一致 return；
+ * 策略开+模型在 → 真实出站，不可达/失败 → 上层标 failed）、生成问题行解析纯逻辑。</p>
  *
  * <p>⚠️ {@code @AutoConfigureMockMvc} 是为了与其余契约测试共用同一个 Spring 上下文缓存键
  * （理由见 {@code ChunkRepositoryTest} 的类注释）。</p>
@@ -149,7 +149,11 @@ class ChunkServiceTest {
         m.setType("embedding");
         m.setSource("remote");
         m.setStatus("active");
-        m.setParameters(new com.ragagent.model.domain.ModelParameters());
+        // 2026-09-22 接线后 syncChunkIndex / regenerateChunkQuestions 会真实出站：
+        // baseUrl 指向 127.0.0.1:1 的不可达端口，让出站快速确定性地失败（测试禁真实网络）。
+        com.ragagent.model.domain.ModelParameters p = new com.ragagent.model.domain.ModelParameters();
+        p.setBaseUrl("http://127.0.0.1:1/v1");
+        m.setParameters(p);
         modelMapper.insert(m);
         return m;
     }
@@ -608,14 +612,38 @@ class ChunkServiceTest {
                             .isEqualTo("summary model is required for question generation");
                 });
 
-        // summary model 行存在 → LLM 生成步降级（已知差异，阶段 7 收口）
+        // summary model 行存在 → 2026-09-22 走查批接线：真实出站（baseUrl=127.0.0.1:1
+        // 不可达）→ 失败按 Go err.Error() 包 400（不再是阶段占位文案）
         model("chat-1");
         jdbc.update("UPDATE knowledge_bases SET summary_model_id = 'chat-1' WHERE id = ?", KB);
         assertThatThrownBy(() -> service.regenerateChunkQuestions(text.getId()))
                 .isInstanceOfSatisfying(BizException.class, e -> {
                     assertThat(e.appError().message())
-                            .isEqualTo("summary model is not available in this deployment");
+                            .isNotEqualTo("summary model is not available in this deployment");
                 });
+    }
+
+    // ── 生成问题行解析（接线后 LLM 输出的确定性片段）────────────────────────
+
+    @Test
+    void parseGeneratedQuestionsTrimsPrefixesDropsShortLinesAndCapsCount() {
+        String output = "1. 什么是知识库？\n"
+                + "- 如何配置嵌入模型\n"
+                + "  *  支持哪些文件格式？  \n"
+                + "\n"
+                + "短\n"                          // <6 字节 → 丢弃
+                + "3) 这是第五个问题吗？\n"
+                + "4. 超出数量上限的问题";
+        // count=3：前三行生效即止（"短" 与超限行不入）
+        assertThat(ChunkService.parseGeneratedQuestions(output, 3))
+                .containsExactly("什么是知识库？", "如何配置嵌入模型", "支持哪些文件格式？");
+        // count=10：短行仍被丢弃（字节数 <=5）
+        assertThat(ChunkService.parseGeneratedQuestions(output, 10))
+                .containsExactly("什么是知识库？", "如何配置嵌入模型", "支持哪些文件格式？",
+                        "这是第五个问题吗？", "超出数量上限的问题");
+        // 非正 count / 空输出 → 空列表（对照 Go content=="" || count<=0 → nil）
+        assertThat(ChunkService.parseGeneratedQuestions(output, 0)).isEmpty();
+        assertThat(ChunkService.parseGeneratedQuestions(null, 3)).isEmpty();
     }
 
     // ── DeleteChunk / DeleteChunksByKnowledgeID ───────────────────────────
@@ -727,17 +755,18 @@ class ChunkServiceTest {
         assertThat(after.getSourceContent()).isEqualTo("0123456789abcdefghij");
     }
 
-    // ── syncChunkIndex 降级阶梯（已知差异侧）────────────────────────────────
+    // ── syncChunkIndex 执行体（2026-09-22 接线侧）────────────────────────────
 
     @Test
-    void updateDocumentChunkMarksFailedWhenReindexEngineUnavailable() {
+    void updateDocumentChunkMarksFailedWhenEmbeddingOutboundUnreachable() {
         kb(KB, true); // 策略开向量 → 需要 embedding 模型
         knowledge(DOC, KB);
         model("emb-1");
         jdbc.update("UPDATE knowledge_bases SET embedding_model_id = 'emb-1' WHERE id = ?", KB);
         Chunk c = chunk(DOC, "body");
 
-        // 模型在、引擎缺（波 3/4）→ 上层标 index_status=failed 并返回 chunk（不抛）
+        // 模型在、出站不可达（测试模型 baseUrl=127.0.0.1:1）→ 上层标 index_status=failed
+        // 并返回 chunk（不抛）——Go 在 BatchIndex 失败时同款（index_status=failed 仍落库）
         Chunk out = service.updateDocumentChunk(c.getId(), "edited", null, null);
         assertThat(out.getIndexStatus()).isEqualTo("failed");
         assertThat(indexStatus(c.getId())).isEqualTo("failed");

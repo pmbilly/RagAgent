@@ -107,6 +107,16 @@ public class VectorStoreService {
                 chunkIds.toArray());
     }
 
+    /** 对照 Go DeleteBySourceIDList：{@code DELETE WHERE source_id IN (...)}（删除问题行）。 */
+    public void deleteBySourceId(List<String> sourceIds) {
+        if (sourceIds == null || sourceIds.isEmpty()) {
+            return;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(sourceIds.size(), "?"));
+        jdbc.update("DELETE FROM embeddings WHERE source_id IN (" + placeholders + ")",
+                sourceIds.toArray());
+    }
+
     /** 对照 Go DeleteByKnowledgeIDList：{@code DELETE WHERE knowledge_id IN (...)}。 */
     public void deleteByKnowledgeId(List<String> knowledgeIds) {
         if (knowledgeIds == null || knowledgeIds.isEmpty()) {
