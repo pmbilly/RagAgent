@@ -534,10 +534,12 @@ class RemoteApiChatTest {
 
     private HttpServer server;
     private SsrfGuard previousGuard;
+    private SsrfGuard.Whitelist whitelistSnapshot;
 
     @BeforeEach
     void allowLoopback() {
         // 被测代码会对 endpoint 做 SSRF 校验；测试把回环地址加入白名单（对照 Go 测试用 httptest）
+        whitelistSnapshot = SsrfGuard.snapshotWhitelist();
         SsrfGuard guard = new SsrfGuard();
         guard.reloadWhitelist("127.0.0.1,example.openai.azure.com");
         LlmTransport.setSsrfGuard(guard);
@@ -549,6 +551,7 @@ class RemoteApiChatTest {
             server.stop(0);
             server = null;
         }
+        SsrfGuard.restoreWhitelist(whitelistSnapshot);
         LlmTransport.setSsrfGuard(new SsrfGuard());
     }
 

@@ -56,7 +56,7 @@ public class SsrfGuard {
             Pattern.compile("(?i)^::ffff:\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"),
             Pattern.compile("(?i)^\\[[0-9a-f:]+\\]$"));
 
-    private record Whitelist(Set<String> exactHosts, List<String> suffixHosts,
+    public record Whitelist(Set<String> exactHosts, List<String> suffixHosts,
                              List<java.net.InetAddress[]> cidrNets, List<Integer> cidrPrefixLens) {
         static Whitelist empty() {
             return new Whitelist(Set.of(), List.of(), List.of(), List.of());
@@ -83,6 +83,23 @@ public class SsrfGuard {
     /** 对照 Go SetSSRFWhitelistFromRaw：原子替换白名单（SystemSettingService 运行时调谐路径；测试亦用） */
     public void reloadWhitelist(String raw) {
         whitelist = parseWhitelistRaw(raw);
+    }
+
+    /**
+     * 快照当前进程级白名单（测试用）：{@code reloadWhitelist} 改的是 static 字段，
+     * 测试里「new 一个新实例替换进 transport」并不还原它——同 JVM 的后续测试
+     * （storage 契约测试等）会看到上一个测试留下的白名单（known-issues W5a
+     * 「SsrfGuard 互踩」家族的根因）。测试模板：@BeforeEach 里
+     * {@code snapshot = SsrfGuard.snapshotWhitelist();}，@AfterEach 里
+     * {@code SsrfGuard.restoreWhitelist(snapshot);}。
+     */
+    public static Whitelist snapshotWhitelist() {
+        return whitelist;
+    }
+
+    /** 还原 {@link #snapshotWhitelist()} 的快照（测试用）。 */
+    public static void restoreWhitelist(Whitelist snapshot) {
+        whitelist = snapshot == null ? parseWhitelistRaw("") : snapshot;
     }
 
     /** 对照 mergeSSRFWhitelistRaws */

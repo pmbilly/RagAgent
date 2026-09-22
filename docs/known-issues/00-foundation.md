@@ -95,6 +95,8 @@
   3. `stream_raw_dump.go`：SSE 原始包落盘调试功能，默认关闭，未翻
   4. `sandbox_file_progress.go`（293 行）：沙箱工具的行数进度事件，依赖阶段 7 的 sandbox → 随阶段 7
      （RemoteApiChat 里已留接线点 TODO）
+     ✅ **已解决（2026-09-23 走查收口批，347eb18）**：SandboxFileProgress 全文翻译并接通
+     openai_stream.go L561-593 的两处 emit（sandbox 模块波 3 已落地，备案理由过期）
   5. `limiter` 的 **Redis 分布式限流器**（ZSET+Lua+心跳）未翻：多实例部署下并发上限不做跨进程协调，
      与 asynq→进程内队列同类取舍
   6. `ImageResolver` 的 `LocalImageResolver` 全局钩子：应用层存储模块装配点待补（当前走

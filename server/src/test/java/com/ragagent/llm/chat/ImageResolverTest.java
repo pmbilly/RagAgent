@@ -19,6 +19,7 @@ import com.ragagent.llm.domain.ChatMessage;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -38,9 +39,17 @@ class ImageResolverTest {
             0x00, 0x00, 0x00, 0x0D, 'I', 'H', 'D', 'R'};
 
     private final SsrfGuard guard = new SsrfGuard();
+    private SsrfGuard.Whitelist whitelistSnapshot;
+
+    @BeforeEach
+    void snapshotWhitelist() {
+        // reloadWhitelist 改的是进程级 static——不还原会踩坏同 JVM 的后续测试
+        whitelistSnapshot = SsrfGuard.snapshotWhitelist();
+    }
 
     @AfterEach
     void tearDown() {
+        SsrfGuard.restoreWhitelist(whitelistSnapshot);
         LlmTransport.setSsrfGuard(new SsrfGuard());
         ImageResolver.setLocalImageResolver(null);
     }
