@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -101,10 +102,55 @@ public class KnowledgeBaseController {
             ObjectNodeCompat.setProvider(node, node.get("storage_config").get("provider").asText());
         }
         try {
-            return MAPPER.convertValue(node, KnowledgeBase.class);
+            KnowledgeBase kb = MAPPER.convertValue(node, KnowledgeBase.class);
+            normalizeConfigOmitEmpty(kb);
+            return kb;
         } catch (IllegalArgumentException e) {
             throw new BizException(AppError.badRequest("Invalid request parameters").withDetails(e.getMessage()));
         }
+    }
+
+    /**
+     * 对照 Go 的 omitempty 归一：Go 把配置绑进**带 omitempty 标签的 struct**，
+     * 入库（Value() marshal）与响应（json.Marshal）都会丢掉空值字段；Java 侧这些
+     * 字段是 JsonNode 透传，若不归一，前端编辑器发来的空串/空数组会被原样
+     * 存库并回显（走查抓回的 A/B DIFF：Go 的 extract_config 只有 {"enabled":false}）。
+     * keep 集合 = 无 omitempty 的标签（恒保留）；其余字段空值（null/""/0/[]/{}）剔除。
+     */
+    private static void normalizeConfigOmitEmpty(KnowledgeBase kb) {
+        kb.setExtractConfig(dropEmpty(kb.getExtractConfig(), Set.of("enabled")));
+        kb.setWikiConfig(dropEmpty(kb.getWikiConfig(), Set.of("synthesis_model_id", "max_pages_per_ingest")));
+        kb.setAutoTagConfig(dropEmpty(kb.getAutoTagConfig(), Set.of("enabled")));
+        kb.setQuestionGenerationConfig(dropEmpty(kb.getQuestionGenerationConfig(),
+                Set.of("enabled", "question_count")));
+        // faq_config：Go 的 FAQConfig 两个字段都无 omitempty → 原样保留，不归一
+    }
+
+    /** omitempty 语义：keep 之外的字段，值为 null/空串/0/空数组/空对象时剔除。
+     *  注意 bool 不剔——相关配置里唯一的 omitempty bool 是 *bool（skip_if_tagged），
+     *  Go 对非 nil 指针的 false 也保留。 */
+    private static JsonNode dropEmpty(JsonNode node, Set<String> keep) {
+        if (node == null || !node.isObject()) {
+            return node;
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode obj =
+                (com.fasterxml.jackson.databind.node.ObjectNode) node;
+        List<String> drop = new ArrayList<>();
+        obj.fields().forEachRemaining(e -> {
+            if (keep.contains(e.getKey())) {
+                return;
+            }
+            JsonNode v = e.getValue();
+            boolean empty = v == null || v.isNull()
+                    || (v.isTextual() && v.asText().isEmpty())
+                    || (v.isNumber() && v.numberValue().doubleValue() == 0d)
+                    || (v.isContainerNode() && v.isEmpty());
+            if (empty) {
+                drop.add(e.getKey());
+            }
+        });
+        drop.forEach(obj::remove);
+        return obj;
     }
 
     /**

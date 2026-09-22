@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
@@ -35,58 +36,88 @@ public class KnowledgeBase {
     private String name = "";
     /** document/faq/wiki，默认 document（对照 EnsureDefaults）；Go 零值 ""（请求缺省时非 null） */
     private String type = "";
+    @JsonProperty("is_temporary")
     private boolean isTemporary;
     private String description;
+    @JsonProperty("tenant_id")
     private Long tenantId;
+    @JsonProperty("creator_id")
     private String creatorId;
+    @JsonProperty("chunking_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbChunkingConfig chunkingConfig;
+    @JsonProperty("image_processing_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbImageProcessingConfig imageProcessingConfig;
+    @JsonProperty("embedding_model_id")
     private String embeddingModelId;
+    @JsonProperty("summary_model_id")
     private String summaryModelId;
+    @JsonProperty("vlm_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbVlmConfig vlmConfig;
+    @JsonProperty("asr_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbAsrConfig asrConfig;
+    @JsonProperty("storage_provider_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbStorageProviderConfig storageProviderConfig;
+    @JsonProperty("storage_backend_id")
     private String storageBackendId;
     /** gorm 列 cos_config（JSON 键 storage_config） */
+    @JsonProperty("storage_config")
     @TableField(value = "cos_config", typeHandler = PgJsonTypeHandler.class)
     private KbStorageConfig storageConfig;
+    @JsonProperty("vector_store_id")
     private String vectorStoreId;
+    @JsonProperty("extract_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode extractConfig;
+    @JsonProperty("faq_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode faqConfig;
+    @JsonProperty("question_generation_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode questionGenerationConfig;
+    @JsonProperty("auto_tag_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode autoTagConfig;
+    @JsonProperty("wiki_config")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode wikiConfig;
+    @JsonProperty("indexing_strategy")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbIndexingStrategy indexingStrategy;
+    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
+    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
+    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     // ── gorm:"-" 瞬态（查询回填） ──
+    @JsonProperty("is_pinned")
     @TableField(exist = false)
     private boolean isPinned;
+    @JsonProperty("pinned_at")
     @TableField(exist = false)
     private OffsetDateTime pinnedAt;
+    @JsonProperty("knowledge_count")
     @TableField(exist = false)
     private long knowledgeCount;
+    @JsonProperty("chunk_count")
     @TableField(exist = false)
     private long chunkCount;
+    @JsonProperty("is_processing")
     @TableField(exist = false)
     private boolean isProcessing;
+    @JsonProperty("processing_count")
     @TableField(exist = false)
     private long processingCount;
+    @JsonProperty("share_count")
     @TableField(exist = false)
     private long shareCount;
+    @JsonProperty("creator_name")
     @TableField(exist = false)
     private String creatorName;
 

@@ -427,3 +427,23 @@
   - 本批是**零缺陷批**：A/B 首轮 ALL MATCH，没有抓回任何 H2 绿/PG 红问题——
     小模块+纯 SQL+既有基础设施（GoJsonBindError/GoTimeSerializer/GoDoubleSerializer）
     全复用时的预期形态。
+
+- **走查抓回（2026-09-22，手动验收「创建知识库」场景，已修复）**：前端编辑器全字段
+  payload 创建 KB 恒 400「Invalid request parameters」。根因：`KnowledgeBase` 实体字段
+  没有 `@JsonProperty` snake 别名（嵌套配置类都有，顶层实体漏了），控制器 MAPPER 又是
+  裸 `new ObjectMapper()`（FAIL_ON_UNKNOWN_PROPERTIES 默认开）→ 第一个未知键
+  `wiki_config` 即抛。既有契约测试只发 name/description 极简 body 所以全绿漏网。
+  修复 = 实体 30 个字段按 Go types/knowledgebase.go 的 json 标签逐字段补注解。
+  - **同场 A/B 又抓回第二个 DIFF**：extract_config/wiki_config 等 JsonNode 透传字段
+    把前端发来的空串/空数组原样存库回显，Go 则绑进带 omitempty 的 struct（入库
+    Value() marshal 与响应 json.Marshal 都丢空值）——Go 的 extract_config 只剩
+    `{"enabled":false}`。修复 = bindKnowledgeBase 里 normalizeConfigOmitEmpty()
+    按各 struct 的 omitempty 标签剔空值（keep 集 = 无 omitempty 的键；bool 不剔——
+    skip_if_tagged 是 *bool，非 nil 的 false Go 也保留）。faq_config 两字段无
+    omitempty 故不归一。修复后同 payload 双端响应逐字节 MATCH。
+  - `vector_store_engine_type` 键差（Java 恒出 "postgres" / Go 缺席）是**部署态
+    差异非缺陷**：Go 的 EngineType 取 envStores[0]，本部署 envStores 空；golden
+    录制时非空。维持既有「按部署各自断言」纪律不动。
+  - **教训**：实体的 Jackson 绑定形态要用「前端真实全字段 payload」过一遍，契约测试
+    的极简 body 覆盖不到未知键拒绝；omitempty 归一适用于所有「Go struct 绑定 →
+    jsonb 入库」的配置列。
