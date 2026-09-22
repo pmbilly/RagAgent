@@ -700,6 +700,15 @@ public final class AgentStreamBridge {
                 if (data.getUsage() instanceof TokenUsage usage) {
                     assistantMessage.setUsage(usage);
                 }
+
+                // 对照 Go L751-760：产物收集后用引用历史澄清版本引用。collector 未装配
+                // （备案 seam）时 previous 为空；current 为空则澄清恒 no-op（dev 双侧同形）。
+                assistantMessage.setContent(
+                        com.ragagent.session.domain.ArtifactVersions.clarifyArtifactVersions(
+                                assistantMessage.getContent(), assistantMessage.getArtifacts(),
+                                List.of(),
+                                com.ragagent.wiki.service.WikiLanguageSupport
+                                        .languageFromContextOrDefault()));
             }
 
             // Fallback: no answer events streamed but a final answer exists → emit answer pair.

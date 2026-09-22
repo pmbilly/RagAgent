@@ -19,6 +19,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.session.domain.ChatHistoryKbStats;
 import com.ragagent.session.domain.Message;
+import com.ragagent.session.domain.MessageArtifact;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.session.domain.MessageSearchGroupItem;
@@ -51,9 +52,9 @@ import com.ragagent.session.mapper.SessionRepository;
  *       {@code kbService.HybridSearch}（依赖 retrieval/向量检索）——该模块未翻译，
  *       暂恒跳过（等价于"未配置"分支）。未配置时两侧行为一致；配置了才有差异。
  *       TODO(随 retrieval 模块收口)。</li>
- *   <li><b>clarifyReadArtifactVersions 只做短路判定</b>：needsHistory 的完整
- *       澄清逻辑（ClarifyArtifactVersions）随波 1 G6（产物）落地；
- *       无产物的消息两侧都原样返回。</li>
+ *   <li><b>clarifyReadArtifactVersions 全量接线（2026-09-23 走查批）</b>：
+ *       needsHistory 快路径 + 全会话产物表澄清（ArtifactVersions.clarifyArtifactVersions），
+ *       存量会话与新生成轮同享澄清。</li>
  * </ol>
  */
 @Service
@@ -156,18 +157,57 @@ public class MessageService {
     }
 
     /**
-     * 对照 Go {@code clarifyReadArtifactVersions}（message_artifact_versions.go L13-57）
-     * 的短路判定：所有消息都没有产物时原样返回（Go 也是这个开销为零的快路径）。
-     * 完整澄清逻辑（需要 ScanResourceReferences + ClarifyArtifactVersions）随 G6 落地。
+     * 对照 Go {@code clarifyReadArtifactVersions}（message_artifact_versions.go 全文，
+     * 2026-09-23 走查批接线）：所有消息的产物 URL 都被正文直接引用时零开销原样返回
+     * （Go 同款快路径）；否则取全会话产物表，把每条消息正文里引用的跨版本 URL 澄清成
+     * 「历史版本 / 本轮生成」对照。存量会话与新生成轮获得同样的澄清——即使产生
+     * 旧版本的消息不在本页。调用方已授权会话读取。
      */
     private List<Message> clarifyReadArtifactVersions(String sessionId, List<Message> messages) {
+        boolean needsHistory = false;
         for (Message message : messages) {
-            if (message.getArtifacts() != null && !message.getArtifacts().isEmpty()) {
-                // TODO(波 1 G6): 对照 Go 走 GetSessionArtifacts + ClarifyArtifactVersions 的版本澄清
-                log.warn("Artifact version clarification not implemented yet (session {}), "
-                        + "returning messages as-is", sessionId);
-                return messages;
+            if (message == null || message.getArtifacts() == null
+                    || message.getArtifacts().isEmpty()) {
+                continue;
             }
+            Set<String> owned = new java.util.HashSet<>();
+            for (MessageArtifact artifact : message.getArtifacts()) {
+                owned.add(artifact.getUrl());
+            }
+            for (String ref : ArtifactCollector.ResourceReferences.scan(message.getContent())) {
+                if (!owned.contains(ref)) {
+                    needsHistory = true;
+                }
+            }
+        }
+        if (!needsHistory) {
+            return messages;
+        }
+        List<MessageArtifact> previous;
+        try {
+            previous = messageRepository.getSessionArtifacts(sessionId);
+        } catch (RuntimeException e) {
+            log.warn("Read artifact versions failed: {}", e.toString());
+            return messages;
+        }
+        if (previous == null) {
+            previous = List.of();
+        }
+        for (Message message : messages) {
+            if (message == null) {
+                continue;
+            }
+            Set<String> refs = new java.util.HashSet<>(
+                    ArtifactCollector.ResourceReferences.scan(message.getContent()));
+            List<MessageArtifact> referenced = new java.util.ArrayList<>();
+            for (MessageArtifact artifact : previous) {
+                if (artifact != null && refs.contains(artifact.getUrl())) {
+                    referenced.add(artifact);
+                }
+            }
+            message.setContent(com.ragagent.session.domain.ArtifactVersions.clarifyArtifactVersions(
+                    message.getContent(), message.getArtifacts(), referenced,
+                    com.ragagent.wiki.service.WikiLanguageSupport.languageFromContextOrDefault()));
         }
         return messages;
     }
