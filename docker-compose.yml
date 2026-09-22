@@ -34,8 +34,9 @@ services:
     restart: unless-stopped
 
   docreader:
-    # 固定 digest：与 2026-09-22 A/B 验收所用镜像一致（:latest 会随上游漂移）
-    image: wechatopenai/weknora-docreader@sha256:59e26f98f17c296c5f4bd216404558f51d31991b580cfef1d204903a01e4b46b
+    # 跟随上游最新（文档解析独立演进）；如需回滚，2026-09-22 A/B 验收所用版本为
+    # wechatopenai/weknora-docreader@sha256:59e26f98f17c296c5f4bd216404558f51d31991b580cfef1d204903a01e4b46b
+    image: wechatopenai/weknora-docreader:latest
     container_name: RagAgent-docreader-dev
     ports:
       - "50051:50051"
