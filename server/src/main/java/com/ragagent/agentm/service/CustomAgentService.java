@@ -393,6 +393,22 @@ public class CustomAgentService {
     /** 对照 GetSuggestedQuestions（静态面：curated / 无范围 / FAQ+document chunk 池）。 */
     public ArrayNode getSuggestedQuestions(String agentId, List<String> kbIds,
             List<String> knowledgeIds, List<TagScope> tagScopes, int limit, String locale) {
+        return getSuggestedQuestions(agentId, kbIds, knowledgeIds, tagScopes, limit, locale, true);
+    }
+
+    /**
+     * 对照 GetKnowledgeSuggestedQuestions（custom_agent.go L496-501）：includeCurated=false
+     * ——不走 starters 门/curated 收集，直接进 FAQ+document chunk 池
+     * （追问建议 knowledge 模式的候选来源）。
+     */
+    public ArrayNode getKnowledgeSuggestedQuestions(String agentId, List<String> kbIds,
+            List<String> knowledgeIds, List<TagScope> tagScopes, int limit, String locale) {
+        return getSuggestedQuestions(agentId, kbIds, knowledgeIds, tagScopes, limit, locale, false);
+    }
+
+    private ArrayNode getSuggestedQuestions(String agentId, List<String> kbIds,
+            List<String> knowledgeIds, List<TagScope> tagScopes, int limit, String locale,
+            boolean includeCurated) {
         boolean limitProvided = limit > 0;
         if (!limitProvided) {
             limit = SUGGESTION_DEFAULT_LIMIT;
@@ -413,29 +429,31 @@ public class CustomAgentService {
 
         JsonNode qs = cfg.get("question_suggestions");
         boolean startersEnabled = qs != null && qs.path("starters").path("enabled").asBoolean(false);
-        if (!startersEnabled) {
-            return MAPPER.createArrayNode();
-        }
-        JsonNode starters = qs.get("starters");
-        if (!limitProvided && starters.path("count").asInt(0) > 0) {
-            limit = starters.path("count").asInt();
-        }
-        String mode = starters.path("mode").asText("");
-        starterMode = mode;
-        if (AgentConfigJson.SUGGESTION_CURATED.equals(mode) || AgentConfigJson.SUGGESTION_HYBRID.equals(mode)) {
-            JsonNode items = starters.get("items");
-            if (items != null && items.isArray()) {
-                for (JsonNode item : items) {
-                    String prompt = item.asText("");
-                    if (prompt.trim().isEmpty()) {
-                        continue;
+        if (includeCurated) {
+            if (!startersEnabled) {
+                return MAPPER.createArrayNode();
+            }
+            JsonNode starters = qs.get("starters");
+            if (!limitProvided && starters.path("count").asInt(0) > 0) {
+                limit = starters.path("count").asInt();
+            }
+            String mode = starters.path("mode").asText("");
+            starterMode = mode;
+            if (AgentConfigJson.SUGGESTION_CURATED.equals(mode) || AgentConfigJson.SUGGESTION_HYBRID.equals(mode)) {
+                JsonNode items = starters.get("items");
+                if (items != null && items.isArray()) {
+                    for (JsonNode item : items) {
+                        String prompt = item.asText("");
+                        if (prompt.trim().isEmpty()) {
+                            continue;
+                        }
+                        curated.add(new Object[] {prompt, "agent_config", ""});
                     }
-                    curated.add(new Object[] {prompt, "agent_config", ""});
                 }
             }
-        }
-        if (AgentConfigJson.SUGGESTION_CURATED.equals(mode)) {
-            return truncate(curated, limit);
+            if (AgentConfigJson.SUGGESTION_CURATED.equals(mode)) {
+                return truncate(curated, limit);
+            }
         }
 
         // tag scopes 解析
