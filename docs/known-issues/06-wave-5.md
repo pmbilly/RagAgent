@@ -690,5 +690,20 @@
     验证：knowledge 185 全绿（kg-image 系列 + chunk 编辑系列同时满足）；
     全量回归遇成片 Mockito「Could not self-attach」为 HANDOFF 已钉的内存压力
     抖动（非业务）；真实验证见下条。
-  - **剩余待办（同族）**：WebSearchProvider test（小-中）；EvaluationService
-    执行步（大，依赖 dataset 服务未翻译）。
+  - **WebSearchProvider test 端点接线（同日续，SEARCH_DEGRADED 占位清除）**：
+    `doTestSearch`（`POST /web-search-providers/test` 与 `/{id}/test` 共用）的固定
+    降级文案替换为真实执行——对照 Go `handler/web_search_provider.go` L412-431 全量：
+    `registry.createProvider(providerType, params)`（失败 → "failed to create provider: "
+    + 原文）→ `provider.search("test", 1, false)`（失败 → 原文透传）→ 空结果 →
+    `EmptyTestResults.emptyTestResultsError` 文案；三支出口均 200 纯字符串
+    （TestFailure）。真实出站受本部署 SSRF 白名单约束（与 Go guard 同款）。
+    controller 注入 `WebSearchProviderRegistry`（域类/接口同名用全限定名区分）。
+    验证：websearch 39 全绿（原 38 条 golden 契约 + 新增 1 条执行面回归——
+    `section7_testRealExecution` 以 registry.register 注入内存 stub 覆盖
+    「有结果 success / 空结果文案 / search 抛错原文」三出口与调用参数契约
+    （"test"/1/false）；Go 侧该路径无实录，故为内联断言非 golden）；
+    真实环境实测（Java vs Go 双端对拍）：`{"provider":"duckduckgo"}` 均 200
+    `{"error":"duckduckgo HTML search failed: ... HTTP connect timed out / net/http ...",`success":false}`
+    ——真实出站已发生（本环境 DDG 不通，错误文案详情因 HTTP 客户端不同，属 provider
+    翻译层的既有差异）；`nosuch` 类型 → 双端同文案 "not registered"。
+  - **剩余待办（同族）**：EvaluationService 执行步（大，依赖 dataset 服务未翻译）。

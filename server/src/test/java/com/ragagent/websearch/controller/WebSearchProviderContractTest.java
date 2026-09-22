@@ -1,6 +1,8 @@
 package com.ragagent.websearch.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,9 +10,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import com.ragagent.TestSchema;
+import com.ragagent.retrieval.domain.WebSearchResult;
+import com.ragagent.websearch.provider.WebSearchProviderRegistry;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.TenantMember;
 import com.ragagent.auth.domain.User;
@@ -62,6 +67,8 @@ class WebSearchProviderContractTest {
 
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private WebSearchProviderRegistry registry;
     @Autowired
     private JdbcTemplate jdbc;
     @Autowired
@@ -318,5 +325,67 @@ class WebSearchProviderContractTest {
         compareAndStatus("wsp-delete.json", 200, "DELETE", base + "/" + ddg, owner, null);
         compareAndStatus("wsp-delete-404.json", 404, "DELETE", base + "/" + UNKNOWN, owner, null);
         compareAndStatus("wsp-get-after-delete.json", 404, "GET", base + "/" + ddg, owner, null);
+    }
+
+    // ── 7) test 端点真实执行面（非 golden：Go 实录仅覆盖构造失败分支）──────
+
+    /**
+     * 2026-09-23 占位扫清回归（doTestSearch 真实执行编排）：构造成功 → 真实 search
+     * 的三种出口——有结果 {"success":true}；空结果 → EmptyTestResults 文案；
+     * search 抛错 → 原文透传（均 200 纯字符串）。以 registry.register 注入内存
+     * stub（无需外网；Go 侧无此路径实录，故为内联断言而非 golden）。
+     */
+    @Test
+    void section7_testRealExecution() throws Exception {
+        registry.register("stub-ok", params -> new StubProvider("stub-ok", new WebSearchResult()));
+        registry.register("stub-empty", params -> new StubProvider("stub-empty", null));
+        registry.register("stub-fail", params -> new StubProvider("stub-fail", "explode"));
+
+        String base = API + "/web-search-providers";
+        MvcResult ok = perform("POST", base + "/test", owner, "{\"provider\":\"stub-ok\"}");
+        assertEquals(200, ok.getResponse().getStatus());
+        assertTrue(ok.getResponse().getContentAsString().contains("\"success\":true"),
+                ok.getResponse().getContentAsString());
+
+        // 空结果 → default 文案（stub-empty 不在 searxng/ddg/keenable/exa 分支）
+        MvcResult empty = perform("POST", base + "/test", owner, "{\"provider\":\"stub-empty\"}");
+        assertEquals(200, empty.getResponse().getStatus());
+        assertTrue(empty.getResponse().getContentAsString()
+                        .contains("search returned 0 results, please verify your API key and configuration"),
+                empty.getResponse().getContentAsString());
+
+        MvcResult fail = perform("POST", base + "/test", owner, "{\"provider\":\"stub-fail\"}");
+        assertEquals(200, fail.getResponse().getStatus());
+        assertTrue(fail.getResponse().getContentAsString().contains("stub search exploded"),
+                fail.getResponse().getContentAsString());
+    }
+
+    /** registry 注入用 stub；mode = 结果条目 / null（空结果）/ "explode"（抛错）。 */
+    private static final class StubProvider
+            implements com.ragagent.websearch.provider.WebSearchProvider {
+        private final String name;
+        private final Object mode;
+
+        StubProvider(String name, Object mode) {
+            this.name = name;
+            this.mode = mode;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public List<WebSearchResult> search(String query, int maxResults, boolean includeDate) {
+            // 对照 Go doTestSearch 的调用参数：searchProvider.Search(ctx, "test", 1, false)
+            assertEquals("test", query);
+            assertEquals(1, maxResults);
+            assertFalse(includeDate);
+            if ("explode".equals(mode)) {
+                throw new IllegalStateException("stub search exploded");
+            }
+            return mode == null ? List.of() : List.of((WebSearchResult) mode);
+        }
     }
 }

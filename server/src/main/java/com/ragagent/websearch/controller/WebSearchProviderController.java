@@ -14,10 +14,13 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
+import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProvider;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 import com.ragagent.websearch.dto.WebSearchProviderResponse;
 import com.ragagent.websearch.dto.WebSearchProviderTypes;
+import com.ragagent.websearch.provider.EmptyTestResults;
+import com.ragagent.websearch.provider.WebSearchProviderRegistry;
 import com.ragagent.websearch.service.WebSearchProviderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,9 +60,12 @@ public class WebSearchProviderController {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final WebSearchProviderService service;
+    private final WebSearchProviderRegistry registry;
 
-    public WebSearchProviderController(WebSearchProviderService service) {
+    public WebSearchProviderController(WebSearchProviderService service,
+                                       WebSearchProviderRegistry registry) {
         this.service = service;
+        this.registry = registry;
     }
 
     // ── /types（Viewer+）：静态元数据 ──────────────────────────────────
@@ -217,25 +223,38 @@ public class WebSearchProviderController {
     // ── 内部辅助 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 doTestSearch：registry 构造失败是**确定性**错误分支（本部署无 SSRF 白名单，
-     * 一切目标都在触网前被拒）。通过构造的 provider 在 Go 里会真实外网搜索——该步
-     * 不可确定性复现，Java 以固定降级文案落 200 {@code {"success":false}}（已知差异，
-     * 随波 4/7 检索引擎收口；契约测试不覆盖该文案）。
+     * 对照 doTestSearch（handler/web_search_provider.go L412-431 全量，2026-09-23
+     * 占位扫清）：CreateProvider → {@code search("test", 1, false)} → 空结果 →
+     * EmptyTestResultsError 文案；三支失败均以 200 纯字符串输出（{@link TestFailure}）。
+     * 真实出站受本部署 SSRF 白名单约束（与 Go 的 guard 同款——白名单外目标在触网前
+     * 即拒，错误原文经 TestFailure 200 输出）。
      */
-    static final String SEARCH_DEGRADED = "web search provider test is not available in this deployment";
-
     private void doTestSearch(String providerType, WebSearchProviderParams params) {
-        if (!WebSearchProviderService.isValidProviderType(providerType)) {
-            // Go registry.CreateProvider 的 miss 分支（doTestSearch 再包一层前缀）
-            throw new TestFailure("failed to create provider: web search provider type "
-                    + providerType + " not registered");
-        }
+        log.info("[WebSearch][Test] testing provider type={}", providerType);
+        com.ragagent.websearch.provider.WebSearchProvider provider;
         try {
-            service.constructProvider(providerType, params);
+            provider = registry.createProvider(providerType, params);
         } catch (RuntimeException e) {
-            throw new TestFailure("failed to create provider: " + e.getMessage());
+            log.warn("[WebSearch][Test] failed to create provider: {}", e.getMessage());
+            throw new TestFailure("failed to create provider: " + messageOf(e));
         }
-        throw new TestFailure(SEARCH_DEGRADED);
+        List<WebSearchResult> results;
+        try {
+            results = provider.search("test", 1, false);
+        } catch (RuntimeException e) {
+            log.warn("[WebSearch][Test] search failed: {}", e.getMessage());
+            throw new TestFailure(messageOf(e));
+        }
+        if (results == null || results.isEmpty()) {
+            String message = EmptyTestResults.emptyTestResultsError(providerType, provider).getMessage();
+            log.warn("[WebSearch][Test] {}", message);
+            throw new TestFailure(message);
+        }
+        log.info("[WebSearch][Test] succeeded: type={}, results={}", providerType, results.size());
+    }
+
+    private static String messageOf(RuntimeException e) {
+        return e.getMessage() == null ? e.toString() : e.getMessage();
     }
 
     /** test 端点的失败形态：200 纯字符串（不走全局异常的信封） */

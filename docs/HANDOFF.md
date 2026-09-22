@@ -129,7 +129,17 @@ syncChunkIndex 用 repo 层**。判定证据：kg-image golden 的 KB fixture �
 false 策略而实录 1007（服务层钩子存在）；chunk 编辑系列 golden 期望不走进
 （repo 层无钩子）。验证：knowledge 185 全绿。详见 known-issues/06 尾部。
 
-> 最后更新：2026-09-22 · **基线：走查第十一~十四处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正，见 git log 顶部）· golden 1,719+24**
+**第十五处（本批，WebSearchProvider test 端点接线）**：`doTestSearch` 的
+`SEARCH_DEGRADED` 占位（"web search provider test is not available in this
+deployment"）清除 → 对照 Go handler L412-431 全量：CreateProvider（失败包
+"failed to create provider: " 前缀）→ `search("test", 1, false)`（失败原文透传）→
+空结果 → `EmptyTestResults` 文案；三支出口 200 纯字符串。controller 注入
+`WebSearchProviderRegistry`（域类/接口同名，用全限定名区分）。验证：websearch
+39 全绿（38 golden + 新增执行面回归 `section7_testRealExecution`：stub 三出口 +
+调用参数契约）；真实双端对拍（duckduckgo → 均真实出站 200 error 原文；nosuch →
+双端同 "not registered" 文案）。详见 known-issues/06 尾部。
+
+> 最后更新：2026-09-23 · **基线：走查第十一~十五处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
@@ -526,9 +536,9 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    `/swagger/{}` 非翻译目标）。⚠️ route-recon 只对账路由——「路由在、执行体占位」
    的缺口它抓不到，历史上已抓出两族：regenerate-summary（已补全）与 ChunkService
    三处（下一条）。
-3. 之后：**占位扫描已完成**（2026-09-22，§0.0 第十四/十三处），FaqService 索引族
-   全链与 updateImageInfo 向量重建均已接线；剩余真缺口按序：WebSearchProvider
-   test（小-中）→ EvaluationService 执行步（大，依赖 dataset 服务未翻译）；
+3. 之后：**占位扫描已完成**（2026-09-22~23，§0.0 第十五~十三处），FaqService
+   索引族全链、updateImageInfo 向量重建、WebSearchProvider test 均已接线；
+   剩余真缺口仅 1 项：EvaluationService 执行步（大，依赖 dataset 服务未翻译）；
    波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
    tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、
