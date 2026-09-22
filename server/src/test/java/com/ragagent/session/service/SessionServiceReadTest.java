@@ -40,7 +40,9 @@ class SessionServiceReadTest {
                 org.mockito.Mockito.mock(com.ragagent.session.mapper.MessageRepository.class),
                 org.mockito.Mockito.mock(com.ragagent.session.mapper.MessageSuggestionRepository.class),
                 org.mockito.Mockito.mock(com.ragagent.knowledge.service.KnowledgeService.class),
-                org.mockito.Mockito.mock(com.ragagent.model.service.ModelService.class));
+                org.mockito.Mockito.mock(com.ragagent.model.service.ModelService.class),
+                org.mockito.Mockito.mock(com.ragagent.model.service.ModelRuntimeFactory.class),
+                org.mockito.Mockito.mock(com.ragagent.config.ConversationProperties.class));
         TenantContext.set(TENANT, null, null, false, "u-1", false);
     }
 

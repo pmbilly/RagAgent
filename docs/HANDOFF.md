@@ -139,6 +139,18 @@ deployment"）清除 → 对照 Go handler L412-431 全量：CreateProvider（�
 调用参数契约）；真实双端对拍（duckduckgo → 均真实出站 200 error 原文；nosuch →
 双端同 "not registered" 文案）。详见 known-issues/06 尾部。
 
+**第十七处（本批，会话标题生成接线——走查抓回）**：现象 = 发消息后标题恒为
+"新会话"。根因两处阶段占位：`SessionService.generateTitle` 的 LLM 步抛
+"title model runtime is not available yet"；`KnowledgeQaController` 的
+GenerateTitleAsync 触发点只打日志（原备案"两侧无 session_title 事件"论断有误）。
+修复：generateTitle 全量接线（GetChatModel → GenerateSessionTitlePrompt +
+language 占位 → Chat 0.3/thinking=false → sanitizeGeneratedTitle（剥 think 前缀 +
+100 码点截断）→ 落库）+ 新增 generateTitleAsync（虚拟线程 + emit session_title
+事件，AgentStreamBridge 转发 SSE）；**EventBus 非 Spring bean**（请求级实例）
+→ 按 Go 签名传参（注入会 NoSuchBeanDefinition，实测踩坑）。验证：session 270
+全绿；真实环境三链路（同步端点 0.9s 真实 LLM 生成 + 幂等二次调用 + 异步发消息
+流内 session_title 事件 + 落库）。详见 known-issues/06 尾部。
+
 **第十六处（本批，评估 dataset 前置 + 执行步暂缓决策）**：`DatasetService`
 （对照 Go dataset.go 全文：GetDatasetByID 忽略入参恒取默认集 + PrintStats +
 Iterate → QaPair）落地；数据加载为一次性转换的内嵌 JSON
@@ -150,7 +162,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-23 · **基线：走查第十一~十六处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置，见 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-23 · **基线：走查第十一~十七处（regenerate-summary 全量 + 索引契约三点 + creator_id NULL 回归 + ChunkService 四处 + 占位扫描 + FaqService 索引/导入全链 + updateImageInfo 接线与读层修正 + WebSearchProvider test 接线 + 评估 dataset 前置 + 会话标题生成接线，见 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 

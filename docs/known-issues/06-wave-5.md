@@ -724,6 +724,25 @@
     `getPassageList`（147 行：并发 worker = GOMAXPROCS-1、逐 QA 跑
     KnowledgeQAByEvent（Java 已有）、进度回写、defer 清理 knowledge+KB）→
     controller 接线（后台线程从「标记 failed」换真实执行）。
+  - **会话标题生成接线（走查第十七处，2026-09-23）**：现象 = 发消息后标题恒为
+    "新会话"。根因两处阶段占位：①`SessionService.generateTitle` 的 LLM 步抛
+    `"title model runtime is not available yet (untranslated)"`；②
+    `KnowledgeQaController` 的 GenerateTitleAsync 触发点只打日志（原备案
+    "两侧均无 session_title 事件" 的论断有误——Go 在 dev 有 KnowledgeQA 模型时
+    会真实生成并 emit 事件，前端据此更新标题）。修复：`generateTitle` 全量接线
+    （GetChatModel → system=GenerateSessionTitlePrompt（language 占位渲染）+
+    user=消息内容 → Chat（temperature 0.3 / thinking=false）→
+    `sanitizeGeneratedTitle`（剥 `"<think>\n\n</think>"` 前缀 + Go TrimSpace +
+    100 码点截断）→ `sessionRepository.update`）；新增 `generateTitleAsync`
+    （捕获租户/请求 ID → 虚拟线程 → 生成 → emit `session_title` 事件；
+    AgentStreamBridge 已订阅同事件转发 SSE）。**EventBus 非 Spring bean**
+    （请求级实例）→ 对照 Go 签名按参数传入（上下文启动期 `NoSuchBeanDefinition` 实测踩坑）。
+    验证：session 270 全绿（g6-title-* golden 的确定性分支全保持）；真实环境——
+    ①同步端点 `POST /sessions/{id}/generate_title` → 200
+    `{"data":"计算机操作系统有哪些","success":true}`（0.9s 真实 LLM）+ 落库；
+    ②二次调用 0.01s 返回已有标题（幂等不重生成）；③异步路径：
+    `knowledge-chat` 发消息 → SSE 流内 `session_title` 事件 ×1 + 标题落库；
+    测试会话已清理。
   - **同族彻底清空**：至此占位扫描清单的 4 项真缺口全部落地（FaqService 索引族 /
-    updateImageInfo / WebSearchProvider test / 评估 dataset 前置）——仅 EvaluationService
-    执行步按 Owner 决策暂缓。
+    updateImageInfo / WebSearchProvider test / 评估 dataset 前置）+ 走查抓回的
+    会话标题生成；仅 EvaluationService 执行步按 Owner 决策暂缓。

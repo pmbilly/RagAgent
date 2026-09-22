@@ -1013,7 +1013,7 @@ public class KnowledgeQaController {
                 streamManager, eventBus);
         bridge.subscribe();
 
-        // title 生成（GenerateTitleAsync：session title 为空时）
+        // title 生成（GenerateTitleAsync：session title 为空时；2026-09-23 走查批接线）
         if (generateTitle && (reqCtx.session.getTitle() == null || reqCtx.session.getTitle().isEmpty())) {
             String modelId = "";
             if (reqCtx.agentConfig != null) {
@@ -1021,8 +1021,7 @@ public class KnowledgeQaController {
             }
             log.info("Session has no title, starting async title generation, session ID: {}, model: {}",
                     reqCtx.sessionId, modelId);
-            // 已知差异（备案）：GenerateTitleAsync 的 LLM 生成随模型运行时收口；
-            // 标题缺省时两侧均为无 session_title 事件（3s 等待超时同形）。
+            sessionService.generateTitleAsync(reqCtx.session, reqCtx.query, modelId, eventBus);
         }
         return streamCtx;
     }

@@ -2,17 +2,31 @@ package com.ragagent.session.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.ragagent.agent.AgentPromptPlaceholders;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.config.ConversationProperties;
+import com.ragagent.event.Event;
+import com.ragagent.event.EventBus;
+import com.ragagent.event.EventIds;
+import com.ragagent.event.EventType;
+import com.ragagent.event.SessionTitleData;
 import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.llm.LlmChatClient;
+import com.ragagent.llm.domain.ChatMessage;
+import com.ragagent.llm.domain.ChatOptions;
+import com.ragagent.llm.domain.ChatResponse;
+import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.model.service.ModelService;
+import com.ragagent.wiki.service.WikiLanguageSupport;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
@@ -51,17 +65,23 @@ public class SessionService {
     private final MessageSuggestionRepository suggestionRepository;
     private final KnowledgeService knowledgeService;
     private final ModelService modelService;
+    private final ModelRuntimeFactory modelRuntimeFactory;
+    private final ConversationProperties conversationProps;
 
     public SessionService(SessionRepository sessionRepository,
                           MessageRepository messageRepository,
                           MessageSuggestionRepository suggestionRepository,
                           KnowledgeService knowledgeService,
-                          ModelService modelService) {
+                          ModelService modelService,
+                          ModelRuntimeFactory modelRuntimeFactory,
+                          ConversationProperties conversationProps) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.suggestionRepository = suggestionRepository;
         this.knowledgeService = knowledgeService;
         this.modelService = modelService;
+        this.modelRuntimeFactory = modelRuntimeFactory;
+        this.conversationProps = conversationProps;
     }
 
     // ── Go 的包级辅助 ──────────────────────────────────────────────────────
@@ -413,15 +433,12 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code GenerateTitle}（session.go L749-861）。
-     *
-     * <p>标题已存在 → 直接返回；messages 为空时回库取第一条 user 消息
-     * （Go 的 {@code GetFirstMessageOfUser} 查不到抛 gorm 错误 → 500 "record not found"）；
-     * modelID 缺省时找第一台 KnowledgeQA 模型。</p>
-     *
-     * <p><b>已知差异</b>：真正的 LLM 调用依赖 ModelService 运行时工厂（GetChatModel，
-     * 阶段 7）——Java 侧走到这一步抛 500（与 Go 运行时失败形态一致）；
-     * 标题已存在 / 无用户消息 / 无 KnowledgeQA 模型三条确定性路径逐字对照。</p>
+     * 对照 Go {@code GenerateTitle}（session.go L749-861 全量，2026-09-23 走查批接线）：
+     * 标题已存在 → 直接返回；messages 为空时回库取第一条 user 消息（查不到 →
+     * 500 "record not found"）；modelID 缺省找第一台 KnowledgeQA 模型 → GetChatModel
+     * → system=GenerateSessionTitlePrompt（language 占位渲染）+ user=消息内容 →
+     * Chat（temperature 0.3 / thinking=false）→ sanitizeGeneratedTitle（剥 think 前缀
+     * + 100 码点截断）→ 落库。
      */
     public String generateTitle(Session session, List<Message> messages, String modelId) {
         if (session == null) {
@@ -468,10 +485,136 @@ public class SessionService {
             }
         }
 
-        // LLM 调用依赖运行时模型工厂（阶段 7）；此前到这里的请求以 500 收场，
-        // 与 Go 的模型运行时失败形态一致（handler：NewInternalServerError(err.Error())）。
-        throw new BizException(AppError.internal(
-                "title model runtime is not available yet (untranslated)"));
+        LlmChatClient chatModel;
+        try {
+            // 对照 Go L812：GetChatModel 失败原样返回（handler → 500 原文）
+            chatModel = modelRuntimeFactory.getChatModel(modelId);
+        } catch (BizException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BizException(AppError.internal(
+                    e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+
+        String titlePrompt = AgentPromptPlaceholders.renderPromptPlaceholders(
+                conversationProps.getGenerateSessionTitlePrompt(),
+                Map.of("language", WikiLanguageSupport.languageNameFromContext()));
+        ChatOptions options = new ChatOptions();
+        options.setTemperature(0.3); // Go 硬编码 0.3
+        options.setThinking(Boolean.FALSE);
+        ChatResponse response;
+        try {
+            response = chatModel.chat(
+                    List.of(ChatMessage.system(titlePrompt),
+                            ChatMessage.user(message.getContent() == null
+                                    ? "" : message.getContent())),
+                    options);
+        } catch (BizException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BizException(AppError.internal(
+                    e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+
+        GeneratedTitle generated = sanitizeGeneratedTitle(
+                response == null || response.getContent() == null ? "" : response.getContent());
+        if (generated.truncated()) {
+            log.warn("Generated session title exceeded {} runes and was truncated, session={}, model={}",
+                    MAX_SESSION_TITLE_RUNES, session.getId(), modelId);
+        }
+        session.setTitle(generated.title());
+        sessionRepository.update(session, session.getUserId());
+        return session.getTitle();
+    }
+
+    /** 对照 Go maxSessionTitleRunes（session.go L727-731）= 100。 */
+    private static final int MAX_SESSION_TITLE_RUNES = 100;
+
+    /** sanitizeGeneratedTitle 的返回对（Go 的多返回值元组）。 */
+    private record GeneratedTitle(String title, boolean truncated) {
+    }
+
+    /**
+     * 对照 Go sanitizeGeneratedTitle（session.go L738-745）：剥
+     * {@code "<think>\n\n</think>"} 前缀 → Go TrimSpace → 超 100 码点按码点截断 + 再 trim。
+     */
+    private static GeneratedTitle sanitizeGeneratedTitle(String raw) {
+        String text = raw;
+        if (text.startsWith("<think>\n\n</think>")) {
+            text = text.substring("<think>\n\n</think>".length());
+        }
+        String title = goTrimSpace(text);
+        int count = title.codePointCount(0, title.length());
+        if (count <= MAX_SESSION_TITLE_RUNES) {
+            return new GeneratedTitle(title, false);
+        }
+        return new GeneratedTitle(goTrimSpace(
+                title.substring(0, title.offsetByCodePoints(0, MAX_SESSION_TITLE_RUNES))), true);
+    }
+
+    /** Go strings.TrimSpace（unicode.IsSpace 全集；Java strip() 缺 U+0085/U+00A0）。 */
+    private static String goTrimSpace(String s) {
+        int start = 0;
+        int end = s.length();
+        while (start < end && isGoSpace(s.codePointAt(start))) {
+            start += Character.charCount(s.codePointAt(start));
+        }
+        while (end > start && isGoSpace(s.codePointBefore(end))) {
+            end -= Character.charCount(s.codePointBefore(end));
+        }
+        return s.substring(start, end);
+    }
+
+    private static boolean isGoSpace(int cp) {
+        return switch (cp) {
+            case '\t', '\n', '\u000B', '\f', '\r', ' ', '\u0085', '\u00A0' -> true;
+            default -> Character.getType(cp) == Character.SPACE_SEPARATOR
+                    || cp == 0x2028 || cp == 0x2029;
+        };
+    }
+
+    /**
+     * 对照 Go GenerateTitleAsync（session.go L863-937，2026-09-23 走查批接线）：
+     * 捕获租户/请求 ID → 虚拟线程（bgCtx 语义：不依赖已结束的 HTTP 请求上下文）→
+     * title 已存在跳过 → {@link #generateTitle}（首条 user 消息 = userQuery）→
+     * emit {@code session_title} 事件（AgentStreamBridge 转发 SSE，前端据此更新标题）。
+     */
+    public void generateTitleAsync(Session session, String userQuery, String modelId,
+                                   EventBus bus) {
+        final Long tenantId = TenantContext.currentTenantId();
+        final String requestId = TenantContext.currentRequestId();
+        final String userId = TenantContext.currentUserId();
+        Thread.ofVirtual().name("title-" + session.getId()).start(() -> {
+            TenantContext.set(tenantId, null, requestId, false, userId, false);
+            try {
+                if (session.getTitle() != null && !session.getTitle().isEmpty()) {
+                    return;
+                }
+                Message userMessage = new Message();
+                userMessage.setRole(Message.ROLE_USER);
+                userMessage.setContent(userQuery);
+                String title;
+                try {
+                    title = generateTitle(session, List.of(userMessage), modelId);
+                } catch (RuntimeException e) {
+                    log.error("Failed to generate title for session {}: {}",
+                            session.getId(), e.getMessage());
+                    return;
+                }
+                if (bus != null) {
+                    try {
+                        bus.emit(new Event(EventIds.generateEventID("session_title"),
+                                EventType.EVENT_SESSION_TITLE, session.getId(),
+                                new SessionTitleData(session.getId(), title), null, requestId));
+                    } catch (RuntimeException e) {
+                        log.error("Failed to emit title update event, session {}: {}",
+                                session.getId(), e.getMessage());
+                    }
+                }
+            } finally {
+                TenantContext.clear();
+            }
+        });
     }
 
     /**
