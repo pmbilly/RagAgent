@@ -301,7 +301,7 @@ public class WebConfig implements WebMvcConfigurer {
         // reconnect/storage-check Admin+（会拿租户凭据发起网络扇出）。/system/admin 组
         // 全部**仅系统管理员**（组级 SystemAdmin() → 逐条 addSystemAdminRule；
         // 静态段先于通配段登记，AntPathMatcher 取首个命中）。
-        // POST /system/sandbox-check 未实现（依赖波 3 sandbox）→ 不登记规则、不登记策略。
+        // POST /system/sandbox-check 随波 3 子批 2 转正（见下方 L561 附近的登记）。
         rbac.addRule("GET", "/api/v1/system/capabilities", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/system/info", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/system/parser-engines", TenantRole.VIEWER, false);

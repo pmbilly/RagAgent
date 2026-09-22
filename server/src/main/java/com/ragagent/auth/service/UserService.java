@@ -167,6 +167,20 @@ public class UserService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 对照 GetUserByTenantID（repository/user.go L102-111）：租户内 created_at
+     * 最早的用户（软删除过滤）；找不到返回 null。API Key 认证的
+     * {@code attachAPIKeyAuthContext} 用它取租户首位用户身份，查不到时
+     * 走 Go 的合成用户兜底 {@code system-<tenantId>}。
+     */
+    public User getUserByTenantIdFirst(long tenantId) {
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getTenantId, tenantId)
+                .isNull(User::getDeletedAt)
+                .orderByAsc(User::getCreatedAt)
+                .last("LIMIT 1"));
+    }
+
     /** 对照 GetUserByID：软删除过滤；找不到返回 null */
     public User getUserById(String id) {
         return userMapper.selectOne(new LambdaQueryWrapper<User>()
