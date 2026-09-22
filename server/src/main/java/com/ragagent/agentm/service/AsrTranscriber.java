@@ -267,7 +267,7 @@ public interface AsrTranscriber {
             }
         }
 
-        static String goOpenAiError(int statusCode, byte[] body) {
+        public static String goOpenAiError(int statusCode, byte[] body) {
             String statusLine = statusCode + " " + reasonPhrase(statusCode);
             String errText = null;
             String message = null;

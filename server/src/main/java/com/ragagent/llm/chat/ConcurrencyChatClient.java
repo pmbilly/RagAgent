@@ -42,6 +42,12 @@ public class ConcurrencyChatClient implements LlmChatClient {
      */
     private static final long DEFAULT_ABANDON_TIMEOUT_SECONDS = 120;
 
+    /** 首个 done 之后等待尾巴事件的窗口（秒）：对照 Go channel close 的模拟。 */
+    private static final long TAIL_POLL_TIMEOUT_SECONDS = 2;
+
+    /** 尾巴事件的转发等待上限（毫秒）：消费者已收束时快速放弃，不占放弃阈值。 */
+    private static final long TAIL_OFFER_TIMEOUT_MS = 500;
+
     private final LlmChatClient delegate;
     /** 该模型配置的后台并发上限；0 回退到进程级默认（见 ConcurrencyGovernor.gateNamedN）。 */
     private final int limit;
@@ -115,6 +121,14 @@ public class ConcurrencyChatClient implements LlmChatClient {
                         return;
                     }
                     if (resp.isDone()) {
+                        // 对照 Go `for resp := range ch`：channel 关闭前 done 之后还可能
+                        // 有终态后续事件（如带 usage 的终态 answer，RemoteApiChat 在
+                        // [DONE]/EOF 时补发）。Java 队列无 close 语义，用短窗口 poll
+                        // 模拟；尾巴事件用短超时 offer 转发——仍在读的消费者（模型调试
+                        // 等 range 语义）照单全收，已在首个 done 收束的消费者
+                        // （SSE/agent）最多占 TAIL_OFFER_TIMEOUT_MS 即释放，
+                        // 不触发 120s 放弃阈值。
+                        forwardTail(inner, out);
                         return;
                     }
                 }
@@ -129,6 +143,39 @@ public class ConcurrencyChatClient implements LlmChatClient {
             }
         });
         return out;
+    }
+
+    /**
+     * 转发首个 done 之后的尾巴事件（对照 Go range-over-channel 的自然收束）。
+     *
+     * <p>poll 超时视为「channel 关闭」；offer 失败视为消费者已收束，排干内层后返回。</p>
+     */
+    private void forwardTail(BlockingQueue<StreamResponse> inner, BlockingQueue<StreamResponse> out) {
+        for (;;) {
+            StreamResponse tail;
+            try {
+                tail = inner.poll(TAIL_POLL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (tail == null) {
+                return;
+            }
+            boolean accepted;
+            try {
+                accepted = out.offer(tail, TAIL_OFFER_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (!accepted) {
+                log.debug("stream consumer gone after done for model={}, dropping tail",
+                        delegate.getModelId());
+                drain(inner);
+                return;
+            }
+        }
     }
 
     /** 排干内层队列，让上游生产者可以正常退出（不消费内容，只腾出空间）。 */

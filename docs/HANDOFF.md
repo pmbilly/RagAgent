@@ -1,6 +1,35 @@
 # 交接文档（新会话接手用）
 
-## 0.0 总验收完成（2026-09-22，双端起服 + 无掩码 A/B 抽样 + 全量分批绿）
+## 0.0 阶段 7 收官（2026-09-22，models/{id}/debug 落地——路由对账真缺口清零）
+
+**做了什么**：翻译最后一条功能性真缺口 `POST /api/v1/models/{id}/debug`
+（前端「模型测试」按钮），对照 internal/handler/model.go DebugModel 全文：
+multipart 入参（input 64KB 按 UTF-8 字节）、options 手工解析复刻 Go
+UnmarshalTypeError 文案、五类模型运行时工厂（ModelRuntimeFactory：embedding/rerank
+走状态闸门、chat/vlm/asr 直取——不对称照抄 Go）、request preview（gin.H 键序
+TreeMap + options struct 声明序 LinkedHashMap）、chat 流式消费（done 后短超时
+排空，模拟 channel close）、ASR/VLM/embedding/rerank 四族响应整形。
+**验收**：24 场景 golden 全是 Go 实录（租户 10009，`md-*.json`）+
+ModelDebugContractTest 24 用例全绿 + **双端 stub A/B 两轮 24/24 逐字节 MATCH +
+HTTP 状态码 24/24 一致**（掩码仅 elapsed_ms）+ 全量五批回归（B4 一条
+TenantSkillPythonVerifierTest 为本机 pip 环境性失败，干净树同样挂，与本阶段无关——
+见 known-issues/07）。
+**A/B 抓回并修复共享 LLM 栈两个真缺陷**（详情 known-issues/07-model-debug.md）：
+①`ConcurrencyChatClient` 在首个 done 后截断流——Go 包装器是 range-until-close
+全量转发（含带 usage 的终态事件），修复为 done 后 forwardTail 短窗口转发；
+②流终态事件的 finish_reason 在 Go 分路径携带（SDK 路径带 / 裸 HTTP 路径不带）——
+`ThinkingStrategy.apply` 恢复 boolean 返回（= 是否注入字段，对照 Go useRawHTTP），
+`Outbound.rawPath` 标记复刻分野。SSE/agent 消费面在首个 done 即收束，回归不受影响。
+
+**整体状态更新**：route-recon 交集 387，**真缺口只剩 `/swagger/{}`（Go 工具路由，
+明确非翻译目标）**。前端「模型测试」按钮现在可用。provider-XDEP 族不变（γ3 九渠道 /
+W5δ 终端 / VLM ollama+weknoracloud 界面 / tenant_skill install 管线体等，见 §0.1 清单）。
+
+> 最后更新：2026-09-22 · **基线：阶段 7 收官（models/{id}/debug 全量 + 共享栈两缺陷修复，见 git log 顶部）· golden 1,719+24**
+> 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
+> **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
+
+## 0.1 总验收完成（2026-09-22，存档——双端起服 + 无掩码 A/B 抽样 + 全量分批绿，最新实况见 §0.0）
 
 **收尾补录（同日第三批，γ3 深化）**：feishu/wecom AES 加密验签族（crypt 族全量：
 AES-256-CBC + PKCS#7 + SHA1 四元组签名，密文/签名 fixture 录自独立 Go 程序

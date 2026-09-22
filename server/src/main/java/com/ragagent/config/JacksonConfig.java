@@ -83,4 +83,15 @@ public class JacksonConfig {
     public Jackson2ObjectMapperBuilderCustomizer goWriterJsonFactoryCustomizer() {
         return builder -> builder.factory(new GoWriterJsonFactory());
     }
+
+    /**
+     * float[] 的 Go 字节形态（models/{id}/debug 的 embedding raw_response）。
+     * float[] 在既有响应面不出现，按类型注册无传染面（对照约定 §9 的
+     * "double/map 全局注册会污染"教训——这里仅注册数组类型本身）。
+     */
+    @Bean
+    public Jackson2ObjectMapperBuilderCustomizer goFloatArrayCustomizer() {
+        return builder -> builder.serializerByType(float[].class,
+                new com.ragagent.common.web.GoFloatArraySerializer());
+    }
 }

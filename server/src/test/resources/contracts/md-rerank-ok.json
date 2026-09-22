@@ -1,0 +1,1 @@
+{"data":{"elapsed_ms":1,"observations":{"result_count":1},"ok":true,"raw_response":[{"index":0,"document":{"text":""},"relevance_score":0.99}],"request":{"documents":["第一段","第二段"],"input":"q","model_id":"b0000000-0000-0000-0000-000000000004","model_name":"md-rerank","model_type":"Rerank","options":{},"provider":"","source":"remote"}},"success":true}

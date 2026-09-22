@@ -1,0 +1,1 @@
+{"error":{"code":1000,"details":null,"message":"invalid options: json: cannot unmarshal string into Go struct field ModelDebugOptions.max_tokens of type int"},"success":false}

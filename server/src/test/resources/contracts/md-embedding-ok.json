@@ -1,0 +1,1 @@
+{"data":{"elapsed_ms":2,"observations":{"dimension":3},"ok":true,"raw_response":[0.1,0.2,0.3],"request":{"input":"embed me","model_id":"b0000000-0000-0000-0000-000000000003","model_name":"md-emb","model_type":"Embedding","options":{},"provider":"","source":"remote"}},"success":true}

@@ -564,6 +564,7 @@ public final class APIKeyRoutePolicies {
         a.registerGin("GET", "/api/v1/models/providers", models);
         a.registerGin("POST", "/api/v1/models", models);
         a.registerGin("GET", "/api/v1/models", models);
+        a.registerGin("POST", "/api/v1/models/:id/debug", models);
         a.registerGin("GET", "/api/v1/models/:id", models);
         a.registerGin("PUT", "/api/v1/models/:id", models);
         a.registerGin("DELETE", "/api/v1/models/:id", models);

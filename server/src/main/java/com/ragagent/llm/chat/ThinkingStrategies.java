@@ -22,8 +22,8 @@ public final class ThinkingStrategies {
     /** 完全不发送 thinking 相关字段。 */
     public static final class None implements ThinkingStrategy {
         @Override
-        public void apply(ObjectNode body, ChatOptions opts, boolean isStream) {
-            // no-op
+        public boolean apply(ObjectNode body, ChatOptions opts, boolean isStream) {
+            return false; // no-op
         }
 
         @Override
@@ -53,12 +53,12 @@ public final class ThinkingStrategies {
         }
 
         @Override
-        public void apply(ObjectNode body, ChatOptions opts, boolean isStream) {
+        public boolean apply(ObjectNode body, ChatOptions opts, boolean isStream) {
             boolean thinking;
             if (opts != null && opts.getThinking() != null) {
                 thinking = opts.getThinking();
             } else if (!alwaysSend) {
-                return;
+                return false;
             } else {
                 thinking = false;
             }
@@ -66,6 +66,7 @@ public final class ThinkingStrategies {
                 thinking = false;
             }
             body.put("enable_thinking", thinking);
+            return true;
         }
 
         @Override
@@ -77,12 +78,13 @@ public final class ThinkingStrategies {
     /** LKEAP / 火山引擎的 `{ "thinking": { "type": "enabled"|"disabled" } }`；thinking 未设置时不注入。 */
     public static final class ThinkingTypeField implements ThinkingStrategy {
         @Override
-        public void apply(ObjectNode body, ChatOptions opts, boolean isStream) {
+        public boolean apply(ObjectNode body, ChatOptions opts, boolean isStream) {
             if (opts == null || opts.getThinking() == null) {
-                return;
+                return false;
             }
             ObjectNode thinking = body.putObject("thinking");
             thinking.put("type", opts.getThinking() ? "enabled" : "disabled");
+            return true;
         }
 
         @Override
@@ -94,11 +96,12 @@ public final class ThinkingStrategies {
     /** vLLM / NVIDIA / 通用本地部署的 `chat_template_kwargs.enable_thinking`；thinking 未设置时不注入。 */
     public static final class ChatTemplateKwargs implements ThinkingStrategy {
         @Override
-        public void apply(ObjectNode body, ChatOptions opts, boolean isStream) {
+        public boolean apply(ObjectNode body, ChatOptions opts, boolean isStream) {
             if (opts == null || opts.getThinking() == null) {
-                return;
+                return false;
             }
             body.putObject("chat_template_kwargs").put("enable_thinking", opts.getThinking());
+            return true;
         }
 
         @Override

@@ -1,6 +1,10 @@
 package com.ragagent.rerank;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 单条重排结果（对照 Go {@code rerank.RankResult} 与其自定义
@@ -11,13 +15,18 @@ import com.fasterxml.jackson.databind.JsonNode;
  * {@code score}；两者都没有时为 0。序列化形如
  * {@code {"index":N,"document":{"text":"..."},"relevance_score":X}}
  * （Go struct 字段序，DocumentInfo 恒输出对象）。</p>
+ *
+ * <p>Jackson 注解为 models/{id}/debug 的 raw_response 序列化而加（此前该类只走
+ * {@link #marshal()} 内部路径，注解不改变任何既有行为）。</p>
  */
+@JsonPropertyOrder({"index", "document", "relevance_score"})
 public final class RankResult {
 
     private int index;
     private final DocumentInfo document = new DocumentInfo();
     private double relevanceScore;
 
+    @JsonProperty("index")
     public int getIndex() {
         return index;
     }
@@ -26,10 +35,13 @@ public final class RankResult {
         index = v;
     }
 
+    @JsonProperty("document")
     public DocumentInfo getDocument() {
         return document;
     }
 
+    @JsonProperty("relevance_score")
+    @JsonSerialize(using = GoDoubleSerializer.class)
     public double getRelevanceScore() {
         return relevanceScore;
     }
@@ -39,9 +51,11 @@ public final class RankResult {
     }
 
     /** 文档信息（对照 Go {@code DocumentInfo}；自身按 {@code {"text":"..."}} 序列化）。 */
+    @JsonPropertyOrder({"text"})
     public static final class DocumentInfo {
         private String text = "";
 
+        @JsonProperty("text")
         public String getText() {
             return text;
         }

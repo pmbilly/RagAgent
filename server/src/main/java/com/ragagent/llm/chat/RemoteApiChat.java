@@ -486,15 +486,21 @@ public class RemoteApiChat implements LlmChatClient {
         ObjectNode body = shapedRequest(messages, opts, isStream);
 
         ThinkingStrategy thinking = thinkingOverride != null ? thinkingOverride : adapter.thinking();
-        thinking.apply(body, opts, isStream);
+        boolean thinkingEmitted = thinking.apply(body, opts, isStream);
 
         CacheRetention retention = PromptCache.resolveCacheRetention(opts);
         PromptCache.Policy policy = PromptCache.promptCachePolicyFor(provider, baseUrl);
-        PromptCache.applyPromptCacheToJSONBody(
+        boolean cacheRewritten = PromptCache.applyPromptCacheToJSONBody(
                 body, policy, PromptCache.promptCacheSessionID(sessionId, opts), retention);
 
-        String endpoint = resolveEndpoint(adapter.endpoint(baseUrl, modelId, isStream));
-        return new Outbound(body, endpoint, policy, sessionId);
+        // 对照 Go useRawHTTP = useRaw || ForceRawHTTP() || endpoint != "" || forceRaw：
+        // Java 传输层不分流，但 Go 裸 HTTP 路径的流终态事件不带 finish_reason（SDK 路径带），
+        // 该标记原样保留这一可观察差异（ForceRawHTTP 已删除，等价于恒 false）。
+        String adapterEndpoint = adapter.endpoint(baseUrl, modelId, isStream);
+        boolean rawPath = thinkingEmitted || cacheRewritten
+                || (adapterEndpoint != null && !adapterEndpoint.isEmpty());
+        String endpoint = resolveEndpoint(adapterEndpoint);
+        return new Outbound(body, endpoint, policy, sessionId, rawPath);
     }
 
     /**
@@ -515,8 +521,9 @@ public class RemoteApiChat implements LlmChatClient {
         return baseUrl + "/chat/completions";
     }
 
-    /** 出站请求（对照 Go buildOutbound 的三个返回值 + 发送时需要的策略/会话）。 */
-    record Outbound(ObjectNode body, String endpoint, PromptCache.Policy policy, String sessionId) {
+    /** 出站请求（对照 Go buildOutbound 的三个返回值 + 发送时需要的策略/会话 + 路径标记）。 */
+    record Outbound(ObjectNode body, String endpoint, PromptCache.Policy policy, String sessionId,
+                    boolean rawPath) {
 
         byte[] bodyBytes() {
             try {
@@ -701,7 +708,9 @@ public class RemoteApiChat implements LlmChatClient {
 
         BlockingQueue<StreamResponse> streamChan = new LinkedBlockingQueue<>();
         InputStream body = resp.body();
-        Thread.ofVirtual().name("llm-stream-" + modelName).start(() -> processRawHttpStream(body, streamChan));
+        boolean rawPath = out.rawPath();
+        Thread.ofVirtual().name("llm-stream-" + modelName)
+                .start(() -> processRawHttpStream(body, streamChan, rawPath));
         return streamChan;
     }
 
@@ -709,10 +718,13 @@ public class RemoteApiChat implements LlmChatClient {
      * 对照 Go processRawHTTPStream：SSE 逐事件读取 + 解析 + 交给
      * {@link #processStreamDelta}。
      *
-     * <p>终态：EOF 与 {@code data: [DONE]} 都发一条 answer{Done:true, ToolCalls, Usage, FinishReason}；
-     * 读错误发 error{Done:true, FinishReason:"incomplete"}。</p>
+     * <p>终态：EOF 与 {@code data: [DONE]} 都发一条 answer{Done:true, ToolCalls, Usage}；
+     * FinishReason 只在 SDK 等价路径（{@code rawPath=false}）携带——Go 裸 HTTP 路径的
+     * 终态事件不带 finish_reason（remote_api.go processRawHTTPStream 的收尾 send），
+     * SDK 路径带 state.lastFinishReason。读错误发 error{Done:true, FinishReason:"incomplete"}。</p>
      */
-    void processRawHttpStream(InputStream input, BlockingQueue<StreamResponse> streamChan) {
+    void processRawHttpStream(InputStream input, BlockingQueue<StreamResponse> streamChan,
+                              boolean rawPath) {
         OpenAiStreamState state = new OpenAiStreamState();
         SseReader reader = new SseReader(input);
         try (input) {
@@ -721,7 +733,7 @@ public class RemoteApiChat implements LlmChatClient {
                 try {
                     Optional<SseReader.SseEvent> next = reader.readEvent();
                     if (next.isEmpty()) {
-                        streamChan.put(terminalResponse(state));
+                        streamChan.put(terminalResponse(state, rawPath));
                         return;
                     }
                     event = next.get();
@@ -738,7 +750,7 @@ public class RemoteApiChat implements LlmChatClient {
 
                 if (event.done()) {
                     // 对照 Go：data: [DONE] 与 EOF 走同一条终态路径
-                    streamChan.put(terminalResponse(state));
+                    streamChan.put(terminalResponse(state, rawPath));
                     return;
                 }
                 if (event.data() == null) {
@@ -785,15 +797,18 @@ public class RemoteApiChat implements LlmChatClient {
     /**
      * 流终态响应（EOF / [DONE]）。
      *
-     * <p>Go 的裸 HTTP 路径这里不带 FinishReason，SDK 路径带 {@code state.lastFinishReason}；
-     * Java 单路径按主会话指定的合并语义带上（字段 omitempty，未观察到时仍是省略）。</p>
+     * <p>对照 Go：裸 HTTP 路径的收尾不带 FinishReason，SDK 路径带
+     * {@code state.lastFinishReason}；{@code rawPath} 复刻这一分野
+     * （字段 omitempty，未观察到时仍是省略）。</p>
      */
-    private StreamResponse terminalResponse(OpenAiStreamState state) {
+    private StreamResponse terminalResponse(OpenAiStreamState state, boolean rawPath) {
         logUsage(state.usage);
         StreamResponse done = StreamResponse.of(ResponseType.ANSWER, "", true);
         done.setToolCalls(state.buildOrderedToolCalls());
         done.setUsage(state.usage);
-        done.setFinishReason(state.lastFinishReason);
+        if (!rawPath) {
+            done.setFinishReason(state.lastFinishReason);
+        }
         return done;
     }
 
