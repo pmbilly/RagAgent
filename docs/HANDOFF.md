@@ -50,6 +50,10 @@ DIFF 是 EmbedderClient 让裸 IOException 上抛丢 URL；已按 Go `send reque
 0x0fffffff（实为 0.0.0.0/4，1.x–15.x 整段公网全误判）；同场对照 Go 谓词顺序拆开
 UNSPECIFIED/LOOPBACK（0.0.0.0 双端文案此前不同）。新增 IpClassTest 钉边界
 （详情 known-issues/00 尾部）。TUN fake-IP（198.18.0.0/15）被拦仍是设计行为。
+**第七处（推迟项清零）**：GET /tenants/kv/prompt-templates 落地——Agent 编辑器
+打开即 400「unsupported key」。新增 agent.PromptTemplateCatalog（vendored yaml
+九文件 + LocalizeTemplates + Go 字段序/omitempty 保真输出），四组语言 A/B 逐字节
+MATCH，当初 EXPECTED DIFF 转正为契约断言（详情 known-issues/03 尾部）。
 **测试纪律补充**：全量/多批回归若遇成片的 Mockito「Could not self-attach」，
 是内存压力抖动（多守护进程 + bootRun + vite 并存顶满内存），勿误判为业务 bug；
 缓解 = 释放内存后重跑。⚠️ 但若 Java 服务正在走查，`./gradlew --stop` **会把

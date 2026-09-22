@@ -59,9 +59,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>GET  /tenants/search  —— SearchTenants（L1218-1280），分页 + keyword/tenant_id</li>
  *   <li>POST /tenants         —— CreateTenant（L226-513）：自助/超管双路径、配额、
  *       owner 引导、tenantless 回填、auto_create_api_key 兼容</li>
- *   <li>GET/PUT /tenants/kv/{key} —— KV 分发器（L1304-1395），6 个 DB-backed key；
- *       prompt-templates 推迟（需 vendor Go 的 10 个 yaml + Language 中间件，
- *       本批 Java 落 default → 400，A/B 列 EXPECTED DIFF，见约定 §9）</li>
+ *   <li>GET/PUT /tenants/kv/{key} —— KV 分发器（L1304-1395），6 个 DB-backed key
+ *       + GET prompt-templates（走查补翻：PromptTemplateCatalog 装载 vendored
+ *       yaml + LocalizeTemplates 本地化；PUT 分发器 Go 本来就没有它 → 400）</li>
  * </ul>
  *
  * <p>跨空间守卫（all/search）在 {@code RbacInterceptor.addCrossTenantRule}；
@@ -605,16 +605,23 @@ public class TenantCatalogController {
     // ── KV 分发器（对照 GetTenantKV / UpdateTenantKV，L1304-1395） ──────────
 
     @GetMapping("/api/v1/tenants/kv/{key}")
-    public Map<String, Object> getTenantKV(@PathVariable String key) {
+    public Map<String, Object> getTenantKV(@PathVariable String key,
+                                           jakarta.servlet.http.HttpServletRequest request) {
         requireIntegrationSecretsIfSensitive(key);
         return switch (key) {
             case "web-search-config" -> TenantMemberController.envelope(getWebSearch());
+            // 对照 GetPromptTemplates：config.yaml 模板 + Accept-Language 本地化
+            // （locale 解析 = middleware/language.go：env → Accept-Language 首 tag → zh-CN）
+            case "prompt-templates" -> TenantMemberController.envelope(
+                    com.ragagent.agent.PromptTemplateCatalog.toJson(
+                            com.ragagent.agent.PromptTemplateCatalog.load(),
+                            com.ragagent.agentm.service.BuiltinAgentRegistry
+                                    .localeFromRequest(request.getHeader("Accept-Language"))));
             case "parser-engine-config" -> TenantMemberController.envelope(getParserEngine());
             case "storage-engine-config" -> TenantMemberController.envelope(getStorageEngine());
             case "chat-history-config" -> TenantMemberController.envelope(getChatHistory());
             case "retrieval-config" -> TenantMemberController.envelope(getRetrieval());
             case "memory-config" -> TenantMemberController.envelope(getMemory());
-            // prompt-templates 推迟（类注释）；Go PUT 分发器本来就没有它 → 同样 400
             default -> throw new BizException(AppError.badRequest("unsupported key"));
         };
     }

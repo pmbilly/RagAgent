@@ -460,3 +460,20 @@
   掩码 DIFF 族。验证 = reparse 接口复现拿到新文案 → 起 stub 8181 再 reparse →
   completed + chunks 落库。**教训**：「文档解析失败」先看 error_message 里的地址，
   embedding/rerank 这类出站调用失败的报错路径同样要过「无消息 IOException」兜底。
+
+- **走查抓回（2026-09-22，Agent 编辑器打开即 400，推迟项清零）**：前端
+  AgentEditorModal 加载依赖时打 `GET /tenants/kv/prompt-templates`，Java 按
+  当初的推迟登记落 400「unsupported key」。本次补翻落地：新增
+  `agent.PromptTemplateCatalog`（classpath vendored yaml 九文件装载 +
+  LocalizeTemplates 本地化 + Go struct 序/omitempty 逐字段保真的 ObjectNode
+  输出），控制器 GET 分支接线，locale 复用 middleware/language.go 等价物
+  （env → Accept-Language 首 tag → zh-CN）。
+  - **保真点**：①handler 的 localized 副本只搬 9 字段——graph_extraction/
+    generate_questions 恒缺席（Go 源码如此，勿"顺手补全"）；②system_prompt 等
+    四个无 omitempty 字段空值是 null 而非键缺席；③模板级 omitempty 对
+    user/has_knowledge_base/has_web_search/default/mode 逐字段生效，i18n 恒不出
+    响应；④本地化只换 name/description 且只在覆盖值非空时换。
+  - **验证**：zh-CN/en-US/ja-JP/空 Accept-Language 四组双端 A/B 全部逐字节
+    MATCH（47,856 字节）；已录的 ct-kv-get-prompt-templates.json golden 与今日
+    Go 响应 cmp 一致——当初的 EXPECTED DIFF 转正，契约测试从「钉 400 推迟」
+    改为对 golden 断言 200。
