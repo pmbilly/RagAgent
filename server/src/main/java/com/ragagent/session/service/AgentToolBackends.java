@@ -12,12 +12,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import com.ragagent.agent.tools.DatabaseQueryTool;
 import com.ragagent.agent.tools.DocChunkSupport;
 import com.ragagent.agent.tools.GrepChunksTool;
 import com.ragagent.agent.tools.KnowledgeSearchTool;
 import com.ragagent.agent.tools.QueryKnowledgeGraphTool;
 import com.ragagent.agent.tools.SearchAuth;
+import com.ragagent.agent.tools.SearchConversationsTool;
+import com.ragagent.agent.tools.SearchMemoryTool;
 import com.ragagent.agent.tools.SearchTarget;
+import com.ragagent.common.context.TenantContext;
+import com.ragagent.memory.domain.MemoryItem;
+import com.ragagent.memory.service.MemorySearchResult;
+import com.ragagent.memory.service.MemoryService;
+import com.ragagent.session.domain.MessageSearchGroupItem;
+import com.ragagent.session.domain.MessageSearchResult;
 import com.ragagent.chatpipeline.SearchParams;
 import com.ragagent.config.ConversationProperties;
 import com.ragagent.knowledge.domain.Knowledge;
@@ -56,6 +65,8 @@ public class AgentToolBackends {
     private final ChunkRepository chunkRepository;
     private final HybridSearchService hybridSearchService;
     private final ConversationProperties conversation;
+    private final MessageService messageService;
+    private final MemoryService memoryService;
     private final JdbcTemplate jdbc;
 
     public AgentToolBackends(KnowledgeBaseService kbService,
@@ -63,21 +74,29 @@ public class AgentToolBackends {
                              ChunkRepository chunkRepository,
                              HybridSearchService hybridSearchService,
                              ConversationProperties conversation,
+                             MessageService messageService,
+                             MemoryService memoryService,
                              DataSource dataSource) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
         this.chunkRepository = chunkRepository;
         this.hybridSearchService = hybridSearchService;
         this.conversation = conversation;
+        this.messageService = messageService;
+        this.memoryService = memoryService;
         this.jdbc = new JdbcTemplate(dataSource);
     }
 
     /**
-     * Go {@code registerTools} 的知识检索族构造面（5 件）——allowedTools 命中即构造。
-     * 非本族名返回 {@code null}（调用方照旧记 "Unknown tool"）。
+     * Go {@code registerTools} 的构造面（KB 检索族 5 件 + 会话/记忆/DB 3 件）——
+     * allowedTools 命中即构造。非本族名返回 {@code null}（调用方照旧记 "Unknown tool"）。
+     *
+     * @param ownerId   search_conversations 的 owner（引擎装配期从调用方身份捕获，Go 同款）
+     * @param sessionId 当前会话（工具用于剔除本轮会话自身）
      */
-    public com.ragagent.agent.tools.AgentTool createKbTool(String toolName,
-            SearchTarget.SearchTargets targets, Reranker rerankModel) {
+    public com.ragagent.agent.tools.AgentTool createTool(String toolName,
+            SearchTarget.SearchTargets targets, Reranker rerankModel,
+            String ownerId, String sessionId) {
         return switch (toolName) {
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_KNOWLEDGE_SEARCH ->
                     new KnowledgeSearchTool(knowledgeSearchBackend(), chunkInfoBackend(),
@@ -93,8 +112,106 @@ public class AgentToolBackends {
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_GET_DOCUMENT_INFO ->
                     new com.ragagent.agent.tools.GetDocumentInfoTool(knowledgeInfoReader(),
                             chunkById(), pagedChunks(), targets);
+            case com.ragagent.agent.tools.ToolDefinitions.TOOL_SEARCH_CONVERSATIONS ->
+                    new SearchConversationsTool(conversationSearch(), ownerId, sessionId);
+            case com.ragagent.agent.tools.ToolDefinitions.TOOL_SEARCH_MEMORY ->
+                    new SearchMemoryTool(memorySearch());
+            case com.ragagent.agent.tools.ToolDefinitions.TOOL_DATABASE_QUERY ->
+                    new DatabaseQueryTool(sqlQueryExecutor(), targets, () -> {
+                        Long t = TenantContext.currentTenantId();
+                        return t == null ? 0L : t;
+                    });
             default -> null;
         };
+    }
+
+    // ==================================================================
+    // search_conversations / search_memory / database_query（切片 2a）
+    // ==================================================================
+
+    /** 对照 NewSearchConversationsTool：messageService.SearchMessages（hybrid、owner 显式）。 */
+    public SearchConversationsTool.ConversationSearch conversationSearch() {
+        return (query, limit, ownerId) -> {
+            MessageSearchResult r = messageService.searchMessages(
+                    query, MessageService.MODE_HYBRID, limit, null,
+                    ownerId == null || ownerId.isEmpty() ? null : ownerId);
+            List<SearchConversationsTool.ExchangeView> out = new ArrayList<>();
+            if (r != null && r.getItems() != null) {
+                for (MessageSearchGroupItem item : r.getItems()) {
+                    out.add(new SearchConversationsTool.ExchangeView(
+                            nz(item.getSessionId()), nz(item.getSessionTitle()),
+                            item.getCreatedAt() == null
+                                    ? java.time.LocalDate.of(1, 1, 1)
+                                    : item.getCreatedAt().toLocalDate(),
+                            nz(item.getQueryContent()), nz(item.getAnswerContent())));
+                }
+            }
+            return out;
+        };
+    }
+
+    /** 对照 NewSearchMemoryTool(s.memoryService)。 */
+    public SearchMemoryTool.MemorySearch memorySearch() {
+        return (query, limit) -> {
+            MemorySearchResult r = memoryService.searchMemory(query, limit);
+            if (r == null) {
+                return new SearchMemoryTool.MemorySearchResultView(false, List.of());
+            }
+            List<SearchMemoryTool.MemoryItemView> items = new ArrayList<>();
+            if (r.items() != null) {
+                for (MemoryItem it : r.items()) {
+                    items.add(new SearchMemoryTool.MemoryItemView(nz(it.getKind()),
+                            nz(it.getTopic()), nz(it.getContent()),
+                            it.getValidFrom() == null
+                                    ? java.time.LocalDate.of(1, 1, 1)
+                                    : it.getValidFrom().toLocalDate()));
+                }
+            }
+            return new SearchMemoryTool.MemorySearchResultView(r.available(), items);
+        };
+    }
+
+    /** 对照 {@code db.Raw(securedSQL).Rows()}（值类型约定见 seam 文档）。 */
+    public DatabaseQueryTool.SqlQueryExecutor sqlQueryExecutor() {
+        return securedSql -> jdbc.query(securedSql, rs -> {
+            java.sql.ResultSetMetaData md = rs.getMetaData();
+            int n = md.getColumnCount();
+            List<String> columns = new ArrayList<>(n);
+            for (int i = 1; i <= n; i++) {
+                columns.add(md.getColumnLabel(i));
+            }
+            List<List<Object>> rows = new ArrayList<>();
+            while (rs.next()) {
+                List<Object> row = new ArrayList<>(n);
+                for (int i = 1; i <= n; i++) {
+                    row.add(coerceSqlValue(rs.getObject(i)));
+                }
+                rows.add(row);
+            }
+            return new DatabaseQueryTool.QueryResult(columns, rows);
+        });
+    }
+
+    /**
+     * 值类型约定对齐 Go 的 {@code rows.Scan(interface{})} + {@code []byte→string}：
+     * 文本→String、整型→Long、浮点→Double、数值→BigDecimal、布尔→Boolean；
+     * PG 的 uuid/时间类型在 Go 侧同样经 []byte 落到 string，这里统一 toString。
+     */
+    private static Object coerceSqlValue(Object v) {
+        if (v == null) {
+            return null;
+        }
+        if (v instanceof Integer || v instanceof Short || v instanceof Byte) {
+            return ((Number) v).longValue();
+        }
+        if (v instanceof byte[] b) {
+            return new String(b, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        if (v instanceof java.util.UUID || v instanceof java.sql.Timestamp
+                || v instanceof java.sql.Date || v instanceof java.sql.Time) {
+            return v.toString();
+        }
+        return v;
     }
 
     // ==================================================================

@@ -1,5 +1,20 @@
 # 交接文档（新会话接手用）
 
+## 0.-5 agent 工具接线·切片 2a（2026-09-23——会话/记忆/DB 三件 + 记忆闸门回收）
+
+**做了什么**：`search_conversations`（owner 装配期捕获 + `MessageService` owner 显式重载）、
+`search_memory`（**闸门回收**：Go 是「先摘再按 MemoryAvailable 挂回」，Java 此前只摘不挂——
+记忆开着也永远没有该工具）、`database_query`（JdbcTemplate 行扫描 + 值类型约定）三件接进
+`createTool`；A/B 抓回两件 schema 字面量与 Go 不一致（已修；`search_memory` 的 schema 是 Go
+手写字面量，待记忆开启部署复核）。
+
+**验收**：双端同注册 **7 件**且 **tools 段 14285 字节逐字节一致**（`search_memory` 因双方
+记忆闸门同判为关而都不注册——闸门一致）；agent 362 / session 349 全绿 + 映射钉/H2 行扫描用例。
+细节见 known-issues/06-wave-5.md 尾部。
+
+**下一步 = 切片 2b**：`data_schema`（ScopeAuthorizer 装配）+ wiki 10 件（WikiPages seam +
+WikiSupport.newWikiScopes* + WikiRouteResolver）+ web_search/web_fetch（Java 无工具类，新翻）。
+
 ## 0.-4 agent 检索工具族接线·切片 1（2026-09-23——KB 五件接真实服务，Unknown tool 清零）
 
 **做了什么**：`registerTools` 新增 knowledge_search / grep_chunks / list_knowledge_chunks /

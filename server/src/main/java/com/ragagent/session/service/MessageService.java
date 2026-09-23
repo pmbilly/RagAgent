@@ -377,8 +377,19 @@ public class MessageService {
      */
     public MessageSearchResult searchMessages(String query, String mode, int limit,
             List<String> sessionIds) {
+        return searchMessages(query, mode, limit, sessionIds, null);
+    }
+
+    /**
+     * 显式 owner 的搜索变体（对照 Go {@code MessageSearchParams.OwnerID}——
+     * search_conversations 工具在引擎装配期捕获 owner 后按入参传入，不读线程上下文）。
+     */
+    public MessageSearchResult searchMessages(String query, String mode, int limit,
+            List<String> sessionIds, String ownerIdOverride) {
         long tenantId = requireTenantId();
-        String ownerId = SessionOwnerIds.currentSessionOwnerId();
+        String ownerId = ownerIdOverride == null || ownerIdOverride.isEmpty()
+                ? SessionOwnerIds.currentSessionOwnerId()
+                : ownerIdOverride;
 
         if (mode == null || mode.isEmpty()) {
             mode = MODE_HYBRID;

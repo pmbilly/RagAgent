@@ -28,8 +28,9 @@ import com.ragagent.agent.domain.ToolResult;
 public class DatabaseQueryTool extends BaseTool {
 
     /** schema 字节即契约：Go 实录 {@code utils.GenerateSchema[DatabaseQueryInput]()}（探针 _schema 语料）。 */
+    /** 键序/字段对照 Go GenerateSchema 输出（字母序：additionalProperties < properties < required < type）。 */
     private static final String SCHEMA_JSON = """
-            {"type":"object","properties":{"sql":{"type":"string","description":"The SELECT SQL query to execute. DO NOT include tenant_id condition - it will be automatically added for security."}},"required":["sql"],"additionalProperties":false}""";
+            {"additionalProperties":false,"properties":{"sql":{"description":"The SELECT SQL query to execute. DO NOT include tenant_id condition - it will be automatically added for security.","type":"string"}},"required":["sql"],"type":"object"}""";
 
     private static final String DESCRIPTION = "Execute SQL queries to retrieve information from the database.\n"
             + "\n"

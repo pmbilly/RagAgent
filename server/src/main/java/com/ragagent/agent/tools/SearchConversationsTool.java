@@ -35,20 +35,21 @@ public class SearchConversationsTool extends BaseTool {
     /** 对照 searchConversationsSnippetRunes。 */
     static final int SNIPPET_RUNES = 400;
 
+    /** 键序对照 Go GenerateSchema 输出（字母序：properties < required < type）。 */
     private static final String SCHEMA_JSON = """
             {
-              "type": "object",
               "properties": {
-                "query": {
-                  "type": "string",
-                  "description": "What to look for in past conversations, in the user's own words"
-                },
                 "limit": {
-                  "type": "integer",
-                  "description": "Maximum number of past exchanges to return (default 5, max 8)"
+                  "description": "Maximum number of past exchanges to return (default 5, max 8)",
+                  "type": "integer"
+                },
+                "query": {
+                  "description": "What to look for in past conversations, in the user's own words",
+                  "type": "string"
                 }
               },
-              "required": ["query"]
+              "required": ["query"],
+              "type": "object"
             }""";
 
     private static final String DESCRIPTION = """

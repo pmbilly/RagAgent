@@ -105,6 +105,20 @@ class AgentToolBackendsDbTest {
         assertThat(backends.chunkInfoBackend().faqChunkById("atb-c1")).isNotNull();
     }
 
+    /** database_query 的行扫描：列名有序 + 值类型约定（整型→Long、布尔→Boolean）。 */
+    @Test
+    void sqlQueryExecutorScansColumnsAndRows() {
+        var result = backends.sqlQueryExecutor().query(
+                "SELECT id, chunk_index, is_enabled FROM chunks WHERE id = 'atb-c1'");
+        // H2 未加引号的标识符返回大写列标签，PG（生产）返回小写——按大小写不敏感断言
+        assertThat(result.columns()).map(String::toLowerCase)
+                .containsExactly("id", "chunk_index", "is_enabled");
+        assertThat(result.rows()).hasSize(1);
+        assertThat(result.rows().get(0).get(0)).isEqualTo("atb-c1");
+        assertThat(result.rows().get(0).get(1)).isInstanceOf(Long.class);
+        assertThat(result.rows().get(0).get(2)).isInstanceOf(Boolean.class);
+    }
+
     /** 标签聚合（knowledge_tag_relations → Map<knowledgeID, List<TagView>>）。 */
     @Test
     void fetchTagsAggregates() {

@@ -858,3 +858,26 @@
     `AgentToolBackendsKbToolTest`（构造钉）+ `AgentToolBackendsDbTest`（H2：scope/正则/
     计数/分页/标签）。恢复后端时注意 dev-env：本仓 `.env` 存在时 `WEKNORA_ROOT` 未导出，
     `go-server-up.sh`（set -u）会炸——需显式 `WEKNORA_ROOT=/Users/billy/WeKnora` 前缀。
+
+- **agent 工具接线·切片 2a（2026-09-23，会话/记忆/DB 三件 + 记忆闸门回收）**：
+  在切片 1 的 `AgentToolBackends` 上补三件：
+  - `search_conversations`：对照 NewSearchConversationsTool——owner 在引擎装配期从调用方
+    身份捕获（`SessionOwnerIds.currentSessionOwnerId()`）显式传入；`MessageService` 新增
+    owner 显式重载（对照 Go `MessageSearchParams.OwnerID`，不再依赖线程上下文）；
+    映射 `MessageSearchGroupItem → ExchangeView`（createdAt→LocalDate，零值 0001-01-01）。
+  - `search_memory`：**闸门回收**——Go L956-962 是「先摘再按 `MemoryAvailable`
+    挂回」，Java 此前只摘不挂（记忆开着也永远没有该工具）；已按 Go 补
+    `memoryService.memoryAvailable()` 条件挂回 + go 原文日志。
+  - `database_query`：`SqlQueryExecutor` 走 JdbcTemplate 行扫描（列名有序 + 值类型约定：
+    整型→Long、byte[]→UTF-8 String、numeric→BigDecimal、uuid/时间→toString）；
+    tenant 供应商取 `TenantContext.currentTenantId()`（SQL 注入由工具侧 `validateAndSecureSQL`
+    完成，adapter 只执行）。
+  - **A/B 抓回**：`database_query` 与 `search_conversations` 的 schema 字面量与
+    Go 输出不一致（缺 `additionalProperties`、键序/字段序非字母序）——均已按 Go 实录修正；
+    `search_memory` 的 schema 是 Go **手写字面量**（非 GenerateSchema），Java 逐字保留，
+    待记忆开启的部署再用 A/B 复核。
+  - **验证**：A/B 双端同注册 **7 件**（KB 五件 + conversations + database_query，
+    `search_memory` 因双方记忆闸门同判为关而都不注册）→ **tools 段 14285 字节逐字节一致**；
+    agent 362 / session 349 全绿；新增映射钉（conversations/memory）+ H2 行扫描用例。
+  - **遗留**：`data_schema`（需 ScopeAuthorizer 装配）+ wiki 10 件 + web_search/web_fetch
+    （Java 无工具类，属新翻）= 切片 2b；外层键序/messages/temperature 三项残留照旧。

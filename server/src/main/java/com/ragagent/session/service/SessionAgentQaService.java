@@ -580,7 +580,7 @@ public class SessionAgentQaService {
         if (config.getMaxToolOutputChars() > 0) {
             toolRegistry.setMaxToolOutputSize(config.getMaxToolOutputChars());
         }
-        registerTools(toolRegistry, config, rerankModel);
+        registerTools(toolRegistry, config, rerankModel, sessionId);
         // registerMCPTools：MCP 服务面在 dev 无启用的服务 → Go 的 ListMCPServices 返回
         // 空集同形（服务注册/发现面为 4.1 既有包，装配随 embed/im QA 面）
 
@@ -667,7 +667,8 @@ public class SessionAgentQaService {
     }
 
     /** registerTools（agent_service.go L837-1141 的注册面；工具集与硬门控逐条保留）。 */
-    private void registerTools(ToolRegistry registry, QaAgentConfig config, Reranker rerankModel) {
+    private void registerTools(ToolRegistry registry, QaAgentConfig config, Reranker rerankModel,
+            String sessionId) {
         List<String> allowedTools = new ArrayList<>(config.getAllowedTools().isEmpty()
                 ? com.ragagent.agent.tools.ToolDefinitions.defaultAllowedTools()
                 : config.getAllowedTools());
@@ -739,8 +740,13 @@ public class SessionAgentQaService {
             allowedTools.add(ToolDefinitions.TOOL_WEB_FETCH);
         }
 
-        // memory 工具跟开关（Go L956-962）
+        // memory 工具跟开关（Go L956-962）：先摘，可用才挂回（"关掉"与"没存过"要答得不同）
         allowedTools.remove(ToolDefinitions.TOOL_SEARCH_MEMORY);
+        if (memoryService.memoryAvailable()) {
+            allowedTools.add(ToolDefinitions.TOOL_SEARCH_MEMORY);
+        } else {
+            log.info("search_memory not registered: long-term memory is off for this request");
+        }
 
         // 硬安全网（Go L994-1023）
         List<String> ragToolSet = List.of(
@@ -764,6 +770,7 @@ public class SessionAgentQaService {
         allowedTools = new ArrayList<>(new java.util.LinkedHashSet<>(allowedTools));
 
         // Register each allowed tool（Go L1030-1137）
+        String toolOwnerId = com.ragagent.session.domain.SessionOwnerIds.currentSessionOwnerId();
         for (String toolName : allowedTools) {
             com.ragagent.agent.tools.AgentTool toolToRegister = null;
             switch (toolName) {
@@ -771,13 +778,15 @@ public class SessionAgentQaService {
                         toolToRegister = new com.ragagent.agent.tools.SequentialThinkingTool();
                 case ToolDefinitions.TOOL_TODO_WRITE ->
                         toolToRegister = new com.ragagent.agent.tools.TodoWriteTool();
-                // 知识检索族（2026-09-23 接线批）：seam → 真实服务经 AgentToolBackends
+                // 检索/会话/记忆/DB 族（2026-09-23 接线批）：seam → 真实服务经 AgentToolBackends
                 case ToolDefinitions.TOOL_KNOWLEDGE_SEARCH, ToolDefinitions.TOOL_GREP_CHUNKS,
                         ToolDefinitions.TOOL_LIST_KNOWLEDGE_CHUNKS,
                         ToolDefinitions.TOOL_QUERY_KNOWLEDGE_GRAPH,
-                        ToolDefinitions.TOOL_GET_DOCUMENT_INFO ->
-                        toolToRegister = toolBackends.createKbTool(toolName,
-                                config.getSearchTargets(), rerankModel);
+                        ToolDefinitions.TOOL_GET_DOCUMENT_INFO,
+                        ToolDefinitions.TOOL_SEARCH_CONVERSATIONS,
+                        ToolDefinitions.TOOL_SEARCH_MEMORY, ToolDefinitions.TOOL_DATABASE_QUERY ->
+                        toolToRegister = toolBackends.createTool(toolName,
+                                config.getSearchTargets(), rerankModel, toolOwnerId, sessionId);
                 case ToolDefinitions.TOOL_SHELL_EXEC, ToolDefinitions.TOOL_READ_FILE,
                         ToolDefinitions.LEGACY_TOOL_READ_SKILL, ToolDefinitions.LEGACY_TOOL_EXECUTE_SKILL_SCRIPT,
                         ToolDefinitions.TOOL_LIST_SANDBOX_FILES, ToolDefinitions.LEGACY_TOOL_READ_SANDBOX_FILE,
