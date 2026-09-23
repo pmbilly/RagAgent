@@ -69,6 +69,7 @@ public class SessionAgentQaService {
     private final com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry;
     private final SessionSandboxExecutionService sandboxExecution;
     private final SessionAttachmentStagingService attachmentStaging;
+    private final AgentToolBackends toolBackends;
     public SessionAgentQaService(MessageService messageService,
             ModelService modelService,
             MemoryService memoryService,
@@ -76,7 +77,8 @@ public class SessionAgentQaService {
             com.ragagent.agentm.service.CustomAgentService customAgentService,
             com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry,
             SessionSandboxExecutionService sandboxExecution,
-            SessionAttachmentStagingService attachmentStaging) {
+            SessionAttachmentStagingService attachmentStaging,
+            AgentToolBackends toolBackends) {
         this.messageService = messageService;
         this.modelService = modelService;
         this.memoryService = memoryService;
@@ -85,6 +87,7 @@ public class SessionAgentQaService {
         this.builtinAgentRegistry = builtinAgentRegistry;
         this.sandboxExecution = sandboxExecution;
         this.attachmentStaging = attachmentStaging;
+        this.toolBackends = toolBackends;
     }
 
     // ==================================================================
@@ -759,8 +762,13 @@ public class SessionAgentQaService {
                         toolToRegister = new com.ragagent.agent.tools.SequentialThinkingTool();
                 case ToolDefinitions.TOOL_TODO_WRITE ->
                         toolToRegister = new com.ragagent.agent.tools.TodoWriteTool();
-                // 知识检索族的构造依赖检索执行面（hybridSearch adapter 为空）——
-                // 在 hasVectorKb 硬网已删除，不会走到 default
+                // 知识检索族（2026-09-23 接线批）：seam → 真实服务经 AgentToolBackends
+                case ToolDefinitions.TOOL_KNOWLEDGE_SEARCH, ToolDefinitions.TOOL_GREP_CHUNKS,
+                        ToolDefinitions.TOOL_LIST_KNOWLEDGE_CHUNKS,
+                        ToolDefinitions.TOOL_QUERY_KNOWLEDGE_GRAPH,
+                        ToolDefinitions.TOOL_GET_DOCUMENT_INFO ->
+                        toolToRegister = toolBackends.createKbTool(toolName,
+                                config.getSearchTargets(), rerankModel);
                 case ToolDefinitions.TOOL_SHELL_EXEC, ToolDefinitions.TOOL_READ_FILE,
                         ToolDefinitions.LEGACY_TOOL_READ_SKILL, ToolDefinitions.LEGACY_TOOL_EXECUTE_SKILL_SCRIPT,
                         ToolDefinitions.TOOL_LIST_SANDBOX_FILES, ToolDefinitions.LEGACY_TOOL_READ_SANDBOX_FILE,

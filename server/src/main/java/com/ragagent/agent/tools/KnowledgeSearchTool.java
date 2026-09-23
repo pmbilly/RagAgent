@@ -190,8 +190,14 @@ public class KnowledgeSearchTool extends BaseTool {
         /** 对照 GetQueryEmbedding；异常返回 null（Go 侧仅 warn，queryEmbedding 为 nil）。 */
         float[] getQueryEmbedding(String kbId, String queryText);
 
-        /** 对照 HybridSearch；异常对照 Go err 分支（warn 跳过该路）。 */
-        List<SearchResultView> hybridSearch(HybridParams params);
+        /**
+         * 对照 {@code HybridSearch(ctx, kbID, params)}；异常对照 Go err 分支（warn 跳过该路）。
+         *
+         * <p>kbID 与 {@code params.knowledgeBaseIDs} 必须分开传（Go 同签名：单 id 用于
+         * 主库/embedding 解析，列表用于跨库范围）——2026-09-23 接线时修正：此前 seam 只传
+         * params，定向（knowledge/tag）分支的 target KB id 会丢，适配器无从路由。</p>
+         */
+        List<SearchResultView> hybridSearch(String kbId, HybridParams params);
     }
 
     /** 对照 ChunkService 被用子集。 */
@@ -510,9 +516,11 @@ public class KnowledgeSearchTool extends BaseTool {
 
                 if (!fullKBIDs.isEmpty()) {
                     try {
-                        List<SearchResultView> kbResults = backend.hybridSearch(new HybridParams(
-                                q, queryEmbedding, fullKBIDs, null, null, null,
-                                topK, vectorThreshold, keywordThreshold));
+                        // 对照 Go L543：kbID = fullKBIDs[0]，范围在 params.KnowledgeBaseIDs 里
+                        List<SearchResultView> kbResults = backend.hybridSearch(fullKBIDs.get(0),
+                                new HybridParams(
+                                        q, queryEmbedding, fullKBIDs, null, null, null,
+                                        topK, vectorThreshold, keywordThreshold));
                         if (kbResults != null) {
                             for (SearchResultView r : kbResults) {
                                 allResults.add(new ResultWithMeta(r, q, "hybrid",
@@ -527,9 +535,11 @@ public class KnowledgeSearchTool extends BaseTool {
                 for (SearchTarget st : knowledgeTargets) {
                     double[] thresholds = st.recallThresholds(vectorThreshold, keywordThreshold);
                     try {
-                        List<SearchResultView> kbResults = backend.hybridSearch(new HybridParams(
-                                q, queryEmbedding, null, st.knowledgeIds(), st.tagIds(), st.scopeTagIds(),
-                                topK, thresholds[0], thresholds[1]));
+                        // 对照 Go L582：kbID = st.KnowledgeBaseID（此前 seam 丢了该 id）
+                        List<SearchResultView> kbResults = backend.hybridSearch(st.knowledgeBaseId(),
+                                new HybridParams(
+                                        q, queryEmbedding, null, st.knowledgeIds(), st.tagIds(),
+                                        st.scopeTagIds(), topK, thresholds[0], thresholds[1]));
                         if (kbResults != null) {
                             for (SearchResultView r : kbResults) {
                                 allResults.add(new ResultWithMeta(r, q, "hybrid",

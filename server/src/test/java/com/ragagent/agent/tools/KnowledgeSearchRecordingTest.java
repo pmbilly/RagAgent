@@ -69,18 +69,17 @@ class KnowledgeSearchRecordingTest {
         }
 
         @Override
-        public List<SearchResultView> hybridSearch(HybridParams params) {
+        public List<SearchResultView> hybridSearch(String kbId, HybridParams params) {
             if (hybridFn != null) {
                 return hybridFn.apply(params.knowledgeBaseIDs() == null ? "" : String.join(",", params.knowledgeBaseIDs()), params);
             }
-            String kbID = params.knowledgeBaseIDs() != null && !params.knowledgeBaseIDs().isEmpty()
-                    ? params.knowledgeBaseIDs().get(0)
-                    : (params.knowledgeIDs() != null && !params.knowledgeIDs().isEmpty() ? "skb1" : "");
-            RuntimeException err = hybridErr.get(kbID);
+            // 对照 Go HybridSearch(ctx, kbID, params)：kbID 由调用点显式传入
+            // （whole-KB 分支 = fullKBIDs[0]；定向分支 = target.KnowledgeBaseID）。
+            RuntimeException err = hybridErr.get(kbId);
             if (err != null) {
                 throw err;
             }
-            return hybrid.get(kbID + "|" + params.queryText());
+            return hybrid.get(kbId + "|" + params.queryText());
         }
     }
 
