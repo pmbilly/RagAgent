@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 切片 2d 双端 stub A/B：web_search / web_fetch 两件的 tools 段逐字节对拍。
+# 切片 2d 双端 stub A/B：web_search / web_fetch 两件的**全请求体**逐字节对拍
+# （tools 段 + messages/system prompt，掩 UUID/时间戳；2026-09-24 升级）。
 # 前置（对照 ab-tools-wiki.sh）：
 #   1) STUB_DUMP_DIR=/tmp/ab-web-dump python3 scripts/stub-llm-server.py 8181 &
 #   2) SSRF_WHITELIST_EXTRA=127.0.0.1 scripts/go-server-up.sh
@@ -69,27 +70,47 @@ side() { # name port token
   ls -1 "${DUMP}" | tail -n +$((before + 1)) | grep "v1_chat_completions" > "/tmp/ab-web-${name}.list" || true
   local n; n="$(wc -l < "/tmp/ab-web-${name}.list" | tr -d ' ')"
   echo "  ${name} chat/completions 请求体 = ${n} 个"
-  # 取首个**带 tools** 的请求体（标题生成/改写轮次不带 tools，跳过）
-  python3 - "${DUMP}" "/tmp/ab-web-${name}.list" "/tmp/ab-web-${name}.tools" <<'PY'
-import json,os,sys
+  cp "/tmp/ab-web-${name}.list" "/tmp/ab-web-${name}.rawlist"
+}
+
+# 全 body 对拍（对照 2026-09-24 批：messages/system prompt/tools 逐字节，掩 UUID/时间戳）
+compare_full_body() {
+  for side in java go; do
+    python3 - "/tmp/ab-web-dump" "/tmp/ab-web-${side}.rawlist" "/tmp/ab-web-${side}" <<'PY'
+import json, os, re, sys
 dump, lst, out = sys.argv[1], sys.argv[2], sys.argv[3]
-picked = None
+picked = {"tools": None, "title": None}
 for line in open(lst, encoding="utf-8"):
     name = line.strip()
     if not name:
         continue
     body = json.load(open(os.path.join(dump, name), encoding="utf-8"))
-    tools = body.get("tools")
-    if tools:
-        print("  %s: tools 数 = %d" % (name, len(tools)), file=sys.stderr)
-        if picked is None:
-            picked = tools
-    else:
-        print("  %s: 无 tools（%s）" % (name, body.get("model")), file=sys.stderr)
-if picked is None:
-    sys.exit("无带 tools 的请求体")
-open(out, "w", encoding="utf-8").write(json.dumps(picked, ensure_ascii=False, separators=(",", ":")))
+    key = "tools" if body.get("tools") else "title"
+    if picked[key] is None:
+        picked[key] = body
+def norm(body):
+    s = json.dumps(body, ensure_ascii=False, indent=1, sort_keys=True)
+    s = re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<UUID>", s)
+    s = re.sub(r"\d{4}-\d\d-\d\dT[\d:.]+(Z|[+-]\d{2}:\d{2})", "<TS>", s)
+    return s
+for key, body in picked.items():
+    if body is None:
+        sys.exit("%s 轮缺失" % key)
+    open("%s.%s.body" % (out, key), "w", encoding="utf-8").write(norm(body))
 PY
+  done
+  local ok=1
+  for key in tools title; do
+    if cmp -s "/tmp/ab-web-java.${key}.body" "/tmp/ab-web-go.${key}.body"; then
+      echo "MATCH ${key} 轮全 body（$(wc -c < /tmp/ab-web-java.${key}.body | tr -d ' ') 字节）"
+    else
+      echo "DIFF ${key} 轮"
+      diff <(cat "/tmp/ab-web-go.${key}.body") <(cat "/tmp/ab-web-java.${key}.body") | head -20 || true
+      ok=0
+    fi
+  done
+  [ "${ok}" = "1" ] || exit 1
+  python3 -c 'import json;print("  tools:", ", ".join(t["function"]["name"] for t in json.load(open("/tmp/ab-web-java.tools.body"))["tools"]))'
 }
 
 trap 'fixture_down "${JAVA_PORT}" >/dev/null 2>&1 || true; fixture_down "${GO_PORT}" >/dev/null 2>&1 || true' EXIT
@@ -102,30 +123,5 @@ side java "${JAVA_PORT}" "${JTOKEN}"
 echo "==> Go   :${GO_PORT}"
 side go "${GO_PORT}" "${JTOKEN}"
 
-echo "==> 对拍 tools 段"
-if cmp -s /tmp/ab-web-java.tools /tmp/ab-web-go.tools; then
-  echo "MATCH tools 段逐字节一致（$(wc -c < /tmp/ab-web-java.tools | tr -d ' ') 字节）"
-  python3 -c 'import json;print("  tools:", ", ".join(t["function"]["name"] for t in json.load(open("/tmp/ab-web-java.tools"))))'
-else
-  echo "DIFF"
-  python3 - <<'PY'
-import json
-g=json.load(open("/tmp/ab-web-go.tools",encoding="utf-8"))
-j=json.load(open("/tmp/ab-web-java.tools",encoding="utf-8"))
-gn=[t["function"]["name"] for t in g]; jn=[t["function"]["name"] for t in j]
-print("  Go   :", ", ".join(gn))
-print("  Java :", ", ".join(jn))
-print("  仅 Go :", [x for x in gn if x not in jn])
-print("  仅 Java:", [x for x in jn if x not in gn])
-gm={t["function"]["name"]:t for t in g}; jm={t["function"]["name"]:t for t in j}
-for n in sorted(set(gn)&set(jn)):
-    a=json.dumps(gm[n],ensure_ascii=False,sort_keys=True); b=json.dumps(jm[n],ensure_ascii=False,sort_keys=True)
-    if a!=b:
-        print("  内容差异:", n)
-        for i in range(min(len(a),len(b))):
-            if a[i]!=b[i]:
-                print("    首差@%d Go=%r Java=%r" % (i,a[max(0,i-60):i+60],b[max(0,i-60):i+60]))
-                break
-PY
-  exit 1
-fi
+echo "==> 对拍全请求体（tools 轮 + 标题轮）"
+compare_full_body

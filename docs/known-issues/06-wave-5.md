@@ -1037,3 +1037,36 @@
     路径键序 Java 未模拟（见上分路径备案）；③ `PluginSearch.effectiveWebSearchConfig`
     漏拷 apiKey（Go EffectiveWebSearchConfig 全量拷贝——chatpipeline 既有面，非本
     切片，备案）；④ 照旧：messages 内容、`temperature`、`SkillInstallPipelineImpl:1123`。
+
+- **agent 出站体 messages/temperature 保真 + 全 body A/B 升级（2026-09-24，切片 2 系列残留收口）**：
+  2a~2c 反复备案的「messages 内容差 + temperature 差」本轮复现并收口：
+  - **复现升级**：`ab-tools-web.sh` 从「只比 tools 段」升级为**全请求体对拍**
+    （标题轮 + tools 轮，sort_keys + 掩 UUID/时间戳）。复现用夹具必须**带 KB +
+    rerank + temperature**——无 KB 的 web 夹具在 9-23 走查批之后已经全匹配，
+    2c 时代的残留只在带 KB 配置上才出现。
+  - **差异一：RAG base 模板缺失（862 字符）**。Go 的 BuildSystemPromptSections
+    按 KB 有无选模板：有 KB → `GetProgressiveRAGSystemPrompt`（vendored
+    agent_system_prompt.yaml 的 rag 模式），无 KB → pure。Java 引擎的
+    `setAppConfig` 塞的是**空 TemplatesConfig** → rag 模板渲染为空 → system
+    首段变成 steering_guidance。修复：`loadAgentSystemPromptTemplates()` 装载
+    vendored yaml（纯模板路径无回归）。
+  - **差异二：kbInfos 占位**。Go resolveKBAndDocInfos → getKnowledgeBaseInfos
+    加载真实 KB 行（名称/类型/描述/docCount/最近文档 top10/capabilities）；Java
+    此前全占位（name=别名 b1、description 空、capabilities 空）→ runtime_context
+    的 knowledge_base 块缺 name/description/capabilities。修复：翻译
+    knowledgeBaseScopesForPrompt（KnowledgeBases 优先，否则 SearchTargets 全集 +
+    租户映射）+ getKnowledgeBaseInfos（IsTemporary 跳过；FAQ 库 ListFAQEntries、
+    否则 ListPagedKnowledgeByKnowledgeBaseID(completed)；单库失败回落 ID-only）+
+    kbRetrievalCapabilities（wiki/chunks）+ getSelectedDocumentInfos（@ 提及文档）。
+  - **差异三：temperature**。Go config 无 temperature → 零值 0 → openai-go
+    omitempty **整键省略**；Java 的 `asDouble(0.7)` 缺省多发一键。修复：缺省改 0
+    （RemoteApiChat 对 temperature==0 本就不出键）。内建 agent 的 0.7 来自
+    agent_type_presets.yaml **显式配置**（两端 yaml 同源），不靠 handler 缺省。
+  - **验证**：带 KB 夹具（ab-kb + rerank stub + temperature 0.7 + deepseek 模型行）
+    双端全 body **两轮逐字节一致**（tools 轮 30813 字节 + 标题轮 449 字节）；无 KB
+    web 夹具同样两轮 MATCH。回归 agent 380 / session 366 / chatpipeline 43 全绿。
+    夹具全退（ab-kbagent、种子模型行、ab-kb、测试会话）。
+  - **顺带修复**：`PluginSearch.effectiveWebSearchConfig` 漏拷 apiKey（Go 全量
+    拷贝；deprecated provider 回落路径消费）——c1a0528 单独提交。
+  - **仍开放**：Go SDK 结构体序 vs map 序的分路径（provider 键缺失时顶层键序不同，
+    LLM 批收口）；AgentWebPages 真实 Docker drain E2E（随 install E2E 批）。

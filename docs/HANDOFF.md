@@ -1,5 +1,20 @@
 # 交接文档（新会话接手用）
 
+## 0.-10 agent 出站体 messages/temperature 保真（2026-09-24——A/B 升级全 body 对拍）
+
+**做了什么**：`ab-tools-web.sh` 升级为**全请求体对拍**（标题轮+tools 轮，掩
+UUID/TS）后，用带 KB+rerank+temperature 的夹具复现并收口 2a~2c 的全部 messages
+残留：①**RAG base 模板缺失**（862 字符）——引擎 setAppConfig 塞空配置，改为
+loadAgentSystemPromptTemplates() 装 vendored yaml（有 KB→rag 模式，无 KB→pure）；
+②**kbInfos 占位**——翻译 resolveKBAndDocInfos/getKnowledgeBaseInfos（真实
+name/description/docCount/最近文档 top10/capabilities，IsTemporary 跳过，失败回落
+ID-only）+ getSelectedDocumentInfos（@ 提及）；③**temperature 多发**——Java 缺省
+0.7 改 0（Go 零值 omitempty 整键省略；内建的 0.7 来自 presets yaml 显式配置）。
+**验收**：带 KB 夹具双端全 body 两轮逐字节一致（tools 轮 30813 + 标题轮 449 字节）；
+无 KB 夹具同 MATCH；agent 380 / session 366 / chatpipeline 43 全绿；夹具全退。
+**顺带**：PluginSearch.effectiveWebSearchConfig 补拷 apiKey（c1a0528）。
+**仍开放**：SDK/map 分路径键序（LLM 批）；真实 Docker drain E2E（install E2E 批）。
+
 ## 0.-9 存储写字节面 + ArtifactCollector 生产装配（2026-09-24——§0.-2 剩余 1 收口）
 
 **做了什么**：Go `file/local.go` 写面 + `file/resource_catalog.go` 装饰器 +
@@ -445,7 +460,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-24 · **基线：存储写字节面 + ArtifactCollector 生产装配（drain 点 + AgentWebPages 生产接线，见 §0.-9 与 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-24 · **基线：agent 出站体 messages/temperature 保真（全 body A/B 两轮 MATCH，见 §0.-10 与 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 

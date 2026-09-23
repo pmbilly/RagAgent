@@ -74,6 +74,9 @@ public class SessionAgentQaService {
     private final com.ragagent.storage.service.ResourceCatalogService resourceCatalog;
     private final javax.sql.DataSource dataSource;
     private final ArtifactCollectorWiring artifactCollectorWiring;
+    private final com.ragagent.knowledge.service.KnowledgeBaseService kbService;
+    private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
+    private final com.ragagent.knowledge.service.FaqService faqService;
     /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
     private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
     private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
@@ -90,6 +93,9 @@ public class SessionAgentQaService {
             com.ragagent.storage.service.ResourceCatalogService resourceCatalog,
             javax.sql.DataSource dataSource,
             ArtifactCollectorWiring artifactCollectorWiring,
+            com.ragagent.knowledge.service.KnowledgeBaseService kbService,
+            com.ragagent.knowledge.service.KnowledgeService knowledgeService,
+            com.ragagent.knowledge.service.FaqService faqService,
             com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
                     ollamaService) {
@@ -107,6 +113,9 @@ public class SessionAgentQaService {
         this.resourceCatalog = resourceCatalog;
         this.dataSource = dataSource;
         this.artifactCollectorWiring = artifactCollectorWiring;
+        this.kbService = kbService;
+        this.knowledgeService = knowledgeService;
+        this.faqService = faqService;
     }
 
     // ==================================================================
@@ -294,7 +303,9 @@ public class SessionAgentQaService {
         ObjectNode c = AgentConfigJson.ensureDefaults(req.agentConfig);
         QaAgentConfig ac = new QaAgentConfig();
         ac.setMaxIterations(c.path("max_iterations").asInt(0));
-        ac.setTemperature(c.path("temperature").asDouble(0.7));
+        // Go 零值 = 未配置；RemoteApiChat 对 temperature==0 不出键（openai-go omitempty
+        // 同形）。内建 agent 的 0.7 来自 agent_type_presets.yaml 显式配置，不靠此缺省。
+        ac.setTemperature(c.path("temperature").asDouble(0.0));
         ac.setWebSearchEnabled(c.path("web_search_enabled").asBoolean(false) && req.webSearchEnabled);
         ac.setLocalBrowserEnabled(req.localBrowserEnabled);
         ac.setWebSearchMaxResults(c.path("web_search_max_results").asInt(0));
@@ -609,12 +620,8 @@ public class SessionAgentQaService {
         toolRegistry.prepareMcpTools();
 
         // 3. Resolve KB / selected doc metadata（resolveKBAndDocInfos；失败回落 IDs-only）
-        List<AgentPrompts.KnowledgeBaseInfo> kbInfos = new ArrayList<>();
-        for (String kbId : kbScopeIds(config)) {
-            kbInfos.add(new AgentPrompts.KnowledgeBaseInfo(kbId, kbId, "document", "", 0,
-                    new ArrayList<>(), new ArrayList<>()));
-        }
-        List<AgentPrompts.SelectedDocumentInfo> selectedDocs = new ArrayList<>();
+        List<AgentPrompts.KnowledgeBaseInfo> kbInfos = getKnowledgeBaseInfos(config);
+        List<AgentPrompts.SelectedDocumentInfo> selectedDocs = getSelectedDocumentInfos(config);
 
         // 4. System prompt template
         String systemPromptTemplate = "";
@@ -626,7 +633,10 @@ public class SessionAgentQaService {
         // 5. Create engine
         AgentEngine engine = new AgentEngine(config, chatModel, toolRegistry, eventBus,
                 kbInfos, selectedDocs, sessionId, systemPromptTemplate);
-        engine.setAppConfig(new com.ragagent.agent.AgentPromptTemplates.TemplatesConfig(new ArrayList<>()));
+        // 对照 Go：cfg.PromptTemplates 启动时装载 vendored yaml——RAG/pure 两个 base
+        // 模板由此区分（此前塞空配置，带 KB 的 agent 缺 RAG 开头段 ≈860 字符）。
+        engine.setAppConfig(new com.ragagent.agent.AgentPromptTemplates.TemplatesConfig(
+                com.ragagent.agent.AgentPromptTemplates.loadAgentSystemPromptTemplates()));
         // pinned mentions（resolvePinnedMCPServiceInfos / resolvePinnedSkillInfos）
         List<AgentPrompts.PinnedMCPServiceInfo> pinnedMcp = new ArrayList<>();
         if (config.getPinnedMcpServiceIds() != null) {
@@ -665,6 +675,151 @@ public class SessionAgentQaService {
         }
 
         return engine;
+    }
+
+    // ── resolveKBAndDocInfos（agent_service.go L368-394 + L1184-1327）────────
+
+    /** 对照 knowledgeBaseScopesForPrompt：KnowledgeBases 优先，否则 SearchTargets 全集。 */
+    private record KbScopes(List<String> kbIds, Map<String, Long> kbTenantMap) {
+    }
+
+    private static KbScopes knowledgeBaseScopesForPrompt(QaAgentConfig config) {
+        Map<String, Long> tenantMap = config.getSearchTargets() == null
+                ? Map.of() : config.getSearchTargets().getKbTenantMap();
+        if (config.getKnowledgeBases() != null && !config.getKnowledgeBases().isEmpty()) {
+            return new KbScopes(config.getKnowledgeBases(), tenantMap);
+        }
+        return new KbScopes(config.getSearchTargets() == null
+                ? List.of() : config.getSearchTargets().getAllKnowledgeBaseIds(), tenantMap);
+    }
+
+    /**
+     * 对照 getKnowledgeBaseInfos：真实 KB 元数据（名称/描述/类型/文档数/最近文档/
+     * capabilities）进 system prompt 与 runtime_context。单库失败回落 ID-only 占位；
+     * 临时库（__chat_history__ 等）跳过。
+     */
+    private List<AgentPrompts.KnowledgeBaseInfo> getKnowledgeBaseInfos(QaAgentConfig config) {
+        KbScopes scopes = knowledgeBaseScopesForPrompt(config);
+        if (scopes.kbIds().isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<AgentPrompts.KnowledgeBaseInfo> kbInfos = new ArrayList<>();
+        for (String kbId : scopes.kbIds()) {
+            com.ragagent.knowledge.domain.KnowledgeBase kb;
+            try {
+                kb = knowledgeQa.findKnowledgeBase(kbId);
+            } catch (RuntimeException e) {
+                kb = null;
+            }
+            if (kb == null) {
+                log.warn("Failed to get knowledge base {}, using IDs only for prompt", kbId);
+                kbInfos.add(new AgentPrompts.KnowledgeBaseInfo(kbId, kbId, "document", "", 0,
+                        List.of(), List.of()));
+                continue;
+            }
+            // 跳过隐藏/系统托管的知识库（__chat_history__ 等）
+            if (kb.isIsTemporary()) {
+                log.debug("Skipping temporary knowledge base {} ({}) from prompt", kb.getId(), kb.getName());
+                continue;
+            }
+            int docCount = 0;
+            List<AgentPrompts.RecentDocInfo> recentDocs = new ArrayList<>();
+            // FAQ 库：条目列表；否则/失败回落通用 knowledge 列表（completed 过滤，top 10）
+            if ("faq".equals(kb.getType())) {
+                try {
+                    var page = faqService.listEntries(kbId, 1, 10, null, 0, "", "", "", null);
+                    docCount = ((Number) page.getOrDefault("total", 0)).intValue();
+                    @SuppressWarnings("unchecked")
+                    List<com.ragagent.knowledge.dto.FaqDtos.FaqEntry> entries =
+                            (List<com.ragagent.knowledge.dto.FaqDtos.FaqEntry>) page.get("data");
+                    if (entries != null) {
+                        for (var entry : entries) {
+                            if (recentDocs.size() >= 10) {
+                                break;
+                            }
+                            recentDocs.add(new AgentPrompts.RecentDocInfo(
+                                    entry.chunkId(), entry.knowledgeBaseId(), entry.knowledgeId(),
+                                    entry.standardQuestion(), "", "", 0, "faq",
+                                    entry.createdAt() == null ? ""
+                                            : entry.createdAt().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
+                                    entry.standardQuestion(), entry.similarQuestions(), entry.answers()));
+                        }
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("Failed to list FAQ entries for {}: {}", kbId, e.getMessage());
+                }
+            }
+            // 对照 Go：非 FAQ 或 FAQ 列表为空/失败 → 回落通用 knowledge 列表
+            if (!"faq".equals(kb.getType()) || recentDocs.isEmpty()) {
+                try {
+                    var page = knowledgeService.listKnowledge(kbId, 1, 10, null, "completed",
+                            null, null, false);
+                    docCount = (int) Math.max(page.getTotal(), 0);
+                    if (page.getRecords() != null) {
+                        for (com.ragagent.knowledge.domain.Knowledge k : page.getRecords()) {
+                            if (k == null || recentDocs.size() >= 10) {
+                                break;
+                            }
+                            recentDocs.add(new AgentPrompts.RecentDocInfo(
+                                    "", kb.getId(), nz(k.getId()), nz(k.getTitle()), nz(k.getDescription()),
+                                    nz(k.getFileName()), k.getFileSize() == null ? 0 : k.getFileSize(),
+                                    nz(k.getFileType()),
+                                    k.getCreatedAt() == null ? ""
+                                            : k.getCreatedAt().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE),
+                                    "", null, null));
+                        }
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("Failed to list knowledge for {}: {}", kbId, e.getMessage());
+                }
+            }
+            String kbType = kb.getType() == null || kb.getType().isEmpty() ? "document" : kb.getType();
+            kbInfos.add(new AgentPrompts.KnowledgeBaseInfo(kb.getId(), nz(kb.getName()), kbType,
+                    nz(kb.getDescription()), docCount, kbRetrievalCapabilities(kb), recentDocs));
+        }
+        return kbInfos;
+    }
+
+    /** 对照 kbRetrievalCapabilities：wiki / chunks（vector 或 keyword 开启）。 */
+    private static List<String> kbRetrievalCapabilities(com.ragagent.knowledge.domain.KnowledgeBase kb) {
+        List<String> caps = new ArrayList<>(2);
+        if (kb.getIndexingStrategy() != null) {
+            if (kb.getIndexingStrategy().isWikiEnabled()) {
+                caps.add("wiki");
+            }
+            if (kb.getIndexingStrategy().isVectorEnabled() || kb.getIndexingStrategy().isKeywordEnabled()) {
+                caps.add("chunks");
+            }
+        }
+        return caps;
+    }
+
+    /** 对照 getSelectedDocumentInfos：@ 提及文档的元数据（缺失逐条跳过）。 */
+    private List<AgentPrompts.SelectedDocumentInfo> getSelectedDocumentInfos(QaAgentConfig config) {
+        List<String> ids = config.getKnowledgeIds();
+        if (ids == null || ids.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<AgentPrompts.SelectedDocumentInfo> selectedDocs = new ArrayList<>();
+        for (String kid : ids) {
+            com.ragagent.knowledge.domain.Knowledge k;
+            try {
+                k = knowledgeService.getKnowledgeByIdOnly(kid);
+            } catch (RuntimeException e) {
+                k = null;
+            }
+            if (k == null) {
+                log.warn("Selected knowledge {} not found", kid);
+                continue;
+            }
+            selectedDocs.add(new AgentPrompts.SelectedDocumentInfo(nz(k.getId()),
+                    nz(k.getKnowledgeBaseId()), nz(k.getTitle()), nz(k.getFileName()), nz(k.getFileType())));
+        }
+        return selectedDocs;
+    }
+
+    private static String nz(String v) {
+        return v == null ? "" : v;
     }
 
     private static List<String> kbScopeIds(QaAgentConfig config) {
