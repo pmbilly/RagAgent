@@ -21,6 +21,11 @@ public class TenantSkillSnapshotEntity {
     private String skillId;
     private int generation;
     private String snapshotId;
+    /** 对照 Go ParentSnapshotID：本行 build 前的活指针（迁移 000086）。 */
+    private String parentSnapshotId;
+    /** 对照 Go PlannedName：provider 调用前先记的快照名（迁移 000088）——
+     *  进程死在 commit 与回写之间时，遗弃的 provider 快照仍可按它对账回收。 */
+    private String plannedName;
     private String state;
     private String trigger;
     private OffsetDateTime supersededAt;
@@ -39,6 +44,10 @@ public class TenantSkillSnapshotEntity {
     public void setGeneration(int generation) { this.generation = generation; }
     public String getSnapshotId() { return snapshotId; }
     public void setSnapshotId(String snapshotId) { this.snapshotId = snapshotId; }
+    public String getParentSnapshotId() { return parentSnapshotId; }
+    public void setParentSnapshotId(String parentSnapshotId) { this.parentSnapshotId = parentSnapshotId; }
+    public String getPlannedName() { return plannedName; }
+    public void setPlannedName(String plannedName) { this.plannedName = plannedName; }
     public String getTrigger() { return trigger; }
     public void setTrigger(String trigger) { this.trigger = trigger; }
     public String getState() { return state; }

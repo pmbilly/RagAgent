@@ -87,6 +87,14 @@ public class TenantSkillService {
     @Nullable
     private final com.ragagent.stream.StreamManager streams;
 
+    /**
+     * install 管线本体（D2 批接线；对照 Go 的 go s.runInstall(...)——受理点把
+     * runInstall 步骤链委托给生产实现）。null 仅存在于直接构造（测试）路径，
+     * 此时回落到波 4 的 Unwired seam 行为。
+     */
+    @Nullable
+    private final SkillInstallPipeline installPipeline;
+
     /** 对照 {@code now func() time.Time}；测试可替换。 */
     private java.util.function.Supplier<OffsetDateTime> clock = OffsetDateTime::now;
 
@@ -102,7 +110,8 @@ public class TenantSkillService {
             SkillProgressStore progress,
             SandboxClientFactory clientFactory,
             com.ragagent.sandbox.mapper.TenantSandboxConfigMapper configMapper,
-            @Nullable com.ragagent.stream.StreamManager streams) {
+            @Nullable com.ragagent.stream.StreamManager streams,
+            @Nullable SkillInstallPipeline installPipeline) {
         this.skills = skills;
         this.configsHolder = configsHolder;
         this.bundleStore = bundleStore;
@@ -110,6 +119,7 @@ public class TenantSkillService {
         this.clientFactory = clientFactory;
         this.configMapper = configMapper;
         this.streams = streams;
+        this.installPipeline = installPipeline;
     }
 
     /** 测试注入口（生产恒为墙钟）。 */
@@ -343,9 +353,10 @@ public class TenantSkillService {
                 new SkillProgress(10, "accepted", "", SkillStatus.INSTALLING));
 
         // 安装活得比 HTTP 请求久，不得继承它的取消；跨重启也不持久——StopSkill 改写行，
-        // 卡死 run 的 reaper 是兜底。波 4 接缝：runInstall 的管线体（播种/agent/快照）不翻。
+        // 卡死 run 的 reaper 是兜底。D2：runInstall 步骤链委托生产管线（对照 go s.runInstall）。
         final String bgSkillId = skillId;
         final SkillBundleParser.SkillBundle bgBundle = bundle;
+        final List<String> bgInstructions = List.of(instructions);
         Thread.ofVirtual().start(() -> {
             Thread current = Thread.currentThread();
             runCancels.put(runKey(tenantId, configId, bgSkillId), current);
@@ -353,7 +364,12 @@ public class TenantSkillService {
                     skillImageLockKey(tenantId, configId), k -> new ReentrantLock());
             lock.lock();
             try {
-                runInstallPipelineSeam(tenantId, configId, bgSkillId, bgBundle);
+                if (installPipeline != null) {
+                    installPipeline.execute(new SkillInstallPipeline.Entry(tenantId, configId,
+                            bgSkillId, bgBundle, bgInstructions));
+                } else {
+                    runInstallPipelineSeam(tenantId, configId, bgSkillId, bgBundle);
+                }
             } catch (RuntimeException err) {
                 log.error("[skill] install {} failed: {}", bgSkillId, err.getMessage());
             } finally {
@@ -1085,9 +1101,15 @@ public class TenantSkillService {
         }
     }
 
-    private final Map<String, Object> steerLocks = new ConcurrentHashMap<>();
+    /**
+     * steer 锁注册表：HTTP 面（installGuidance/steerInstall）与 install 管线
+     * （InstallerRun.round 的 set/clear live-run、InstallSteerSink.closeIfDrained）
+     * 共用同一把进程内锁——对照 Go withInstallSteerLock 的 keyed 分布式锁
+     * （D2 批改为 static，管线侧经 {@link #steerLock} 取用）。
+     */
+    private static final Map<String, Object> steerLocks = new ConcurrentHashMap<>();
 
-    private Object steerLock(String sessionId) {
+    static Object steerLock(String sessionId) {
         return steerLocks.computeIfAbsent(sessionId, k -> new Object());
     }
 

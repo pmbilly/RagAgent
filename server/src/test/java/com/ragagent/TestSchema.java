@@ -871,6 +871,7 @@ public final class TestSchema {
                 "skill_id VARCHAR(36)," +
                 "snapshot_id VARCHAR(255)," +
                 "parent_snapshot_id VARCHAR(255)," +
+                "planned_name VARCHAR(255)," +
                 "generation INTEGER NOT NULL DEFAULT 0," +
                 "trigger VARCHAR(16) NOT NULL," +
                 "state VARCHAR(16) NOT NULL," +

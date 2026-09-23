@@ -120,6 +120,19 @@ public interface TenantSkillMapper {
             @Param("now") OffsetDateTime now);
 
     /**
+     * 对照 UpdateSkillEnvs（repository tenant_skill.go）：install 管线的
+     * recordEnvDeclaration 专用写（envs 是唯一 UpdateSkill 刻意缺席的列——类注释）。
+     */
+    @Update("UPDATE tenant_skills SET envs = #{envs,typeHandler=" + ENV_TH + "}, "
+            + "updated_at = #{now} "
+            + "WHERE tenant_id = #{tenantId} AND sandbox_config_id = #{configId} "
+            + "AND id = #{skillId} AND deleted_at IS NULL")
+    int updateSkillEnvs(@Param("tenantId") long tenantId,
+            @Param("configId") String configId, @Param("skillId") String skillId,
+            @Param("envs") com.ragagent.sandbox.domain.SkillEnvVars envs,
+            @Param("now") OffsetDateTime now);
+
+    /**
      * 对照 DeleteSkill 的第一段：软删 skill 行（第二段的用户值硬删见
      * {@link #deleteUserEnvVarsOfSkill}，两段由 service 层同一事务包裹——
      * Go 的注释原文见 service 侧）。skill 行不存在时返回 0、什么都不删。
@@ -246,9 +259,11 @@ public interface TenantSkillMapper {
 
     /** 对照 CreateSnapshotRow：provider 工作前先记台账行。 */
     @Insert("INSERT INTO tenant_skill_snapshots (id, tenant_id, sandbox_config_id, skill_id, "
-            + "generation, snapshot_id, trigger, state, created_at, updated_at) "
+            + "generation, snapshot_id, parent_snapshot_id, planned_name, trigger, state, "
+            + "created_at, updated_at) "
             + "VALUES (#{e.id}, #{e.tenantId}, #{e.sandboxConfigId}, #{e.skillId}, #{e.generation}, "
-            + "#{e.snapshotId}, #{e.trigger}, #{e.state}, #{now}, #{now})")
+            + "#{e.snapshotId}, #{e.parentSnapshotId}, #{e.plannedName}, #{e.trigger}, #{e.state}, "
+            + "#{now}, #{now})")
     int createSnapshotRow(@Param("e") com.ragagent.sandbox.domain.TenantSkillSnapshotEntity e,
             @Param("now") OffsetDateTime now);
 
