@@ -18,9 +18,11 @@ import org.springframework.stereotype.Component;
  * controller 里做，对照 overlayLiveDockerSandboxCapability）。</p>
  *
  * <p>当前 Java 部署的注册状态（= 快照值，随模块翻译推进而变化——这正是该端点的语义）：
- * organizations/agents/integrations.im/integrations.embed/settings.sandbox 的路由未注册 →
- * supported=false + "route_not_registered"；其余 true。与 Go dev 的差异属于<b>部署状态漂移</b>
- * （同 §9 "vector_store_engine_type 键的有无"的先例），A/B 时按部署各自断言。</p>
+     * 全部能力路由已注册 → supported=true；唯 settings.sandbox.docker 因 Java 进程无 docker
+     * 后端执行体（对照 Go DockerBackendEnabled 恒 false）→ supported=false +
+     * "docker_backend_disabled"（活值覆盖在 controller 的 overlayLiveDockerSandboxCapability）。
+     * 与 Go dev 的差异属于<b>部署状态漂移</b>（同 §9 "vector_store_engine_type 键的有无"
+     * 的先例），A/B 时按部署各自断言。</p>
  */
 @Component
 public class DeploymentCapabilitiesHolder {

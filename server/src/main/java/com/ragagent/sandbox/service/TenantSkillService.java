@@ -248,11 +248,17 @@ public class TenantSkillService {
         return installSkillArchive(tenantId, configId, archive);
     }
 
-    /** 对照 {@code installFromSource} 的 service 入口：source 校验在抓取前失败。 */
+    /**
+     * 对照 {@code InstallSkillFromSource}：配置先于抓取授权（未知配置 ID 不得先花一次
+     * 出站请求与一份下载配额，Go 注释原文），再走与上传相同的安装管线。
+     */
     public String installSkillFromSource(long tenantId, String configId, String source) {
-        // 波 4 接缝：parseSkillSource/fetch 的 930 行校验与抓取管线随 registry 安装面翻译；
-        // 本批入口即以 source 校验失败收场（分类与 bundle 同族 → 400）
-        throw new SkillSourceInvalidException("skill source is invalid: " + source);
+        TenantSandboxConfigEntity cfgEntity = configsHolder.getByID(tenantId, configId);
+        if (cfgEntity == null) {
+            throw BizException.notFound("sandbox config not found");
+        }
+        SkillSourceFetcher.Fetched fetched = SkillSourceFetcher.fetchNormalizedSkillBundle(source);
+        return installParsedSkill(tenantId, configId, fetched.bundle(), fetched.archive());
     }
 
     private String installSkillArchive(long tenantId, String configId, byte[] archive,
@@ -1167,8 +1173,17 @@ public class TenantSkillService {
         return usable;
     }
 
-    /** 对照 {@code sandbox.SkillImageActive}（skill_image.go L33-65 的直译）。 */
-    static boolean skillImageActive(com.ragagent.sandbox.domain.TenantSandboxConfig cfg) {
+    /**
+     * 会话执行面读取一份已安装技能的 bundle（对照 Go agentService.loadInstalledSkillBundle，
+     * agent_service.go L658-706：行自指对象优先，否则按 catalog 归档、带 SHA 校验——
+     * 同 {@link #skillBundleArchive} 的语义，键 (tenant, config, skill)）。
+     * 供 {@code TenantSkillSource} 的 loadBundle 闭包调用。
+     */
+    public byte[] loadInstalledSkillBundle(long tenantId, String configId, String skillId) {
+        return skillBundleArchive(tenantId, configId, skillId);
+    }
+
+    /** 对照 {@code sandbox.SkillImageActive}（skill_image.go L33-65 的直译）。 */    static boolean skillImageActive(com.ragagent.sandbox.domain.TenantSandboxConfig cfg) {
         if (cfg == null) {
             return false;
         }
@@ -1276,33 +1291,13 @@ public class TenantSkillService {
 
     /**
      * 对照 {@code RegisterCatalogFromSource}：抓取公开 skill 并记入 catalog。
-     * 本批只翻译到 SSRF 校验层——校验通过后的真实抓取随 registry 安装面（波 4 接缝），
-     * dev 的 fake-ip DNS 让一切公网域名在校验层即被拒（golden slk-catalog-register-src）。
+     * 抓取管线（SSRF 校验、hop/handoff、限额）见 {@link SkillSourceFetcher}；
+     * golden slk-catalog-register-src 钉的是 SSRF 校验层的拒绝文案（直链/公网域名
+     * 在校验层即被拒，无需出网）。
      */
     public TenantSkillCatalogEntity registerCatalogFromSource(long tenantId, String source) {
-        SkillSource.Parsed parsed = SkillSource.parse(source);
-        byte[] archive = fetchSkillArchive(parsed.directURL());
-        SkillBundleParser.SkillBundle bundle = SkillBundleParser.parseSkillBundle(archive);
-        return upsertCatalogFromBundle(tenantId, bundle, archive, true);
-    }
-
-    /**
-     * 对照 {@code getSkillURL} 的前半段：出站前先过 SSRF 校验；拒绝消息 =
-     * {@code skill source is invalid: <FormatSSRFError>}（Go 原文形态）。
-     * 波 4 接缝：校验通过后的 HTTP GET（handoff/重定向/限额）不翻——该分支要求
-     * 白名单放行的出站 URL，dev 无网等价不可达。
-     */
-    private byte[] fetchSkillArchive(String rawURL) {
-        com.ragagent.common.security.SsrfGuard guard =
-                new com.ragagent.common.security.SsrfGuard();
-        try {
-            guard.validateURLForSSRF(rawURL);
-        } catch (com.ragagent.common.security.SsrfGuard.SsrfException e) {
-            throw new SkillSourceInvalidException(SENTINEL_SKILL_SOURCE_INVALID + ": "
-                    + guard.formatSSRFError("skill source", rawURL, e));
-        }
-        throw new SkillSourceInvalidException(SENTINEL_SKILL_SOURCE_INVALID
-                + ": download failed: skill source fetch is not available in this deployment");
+        SkillSourceFetcher.Fetched fetched = SkillSourceFetcher.fetchNormalizedSkillBundle(source);
+        return upsertCatalogFromBundle(tenantId, fetched.bundle(), fetched.archive(), true);
     }
 
     // ── catalog 安装（L190-243） ─────────────────────────────────────────

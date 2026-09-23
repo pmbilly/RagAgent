@@ -69,6 +69,11 @@ public class FileProxyService {
         this.globalFileService = resolver.globalFileService(localBaseDir);
     }
 
+    /** 进程级默认文件服务（沙箱附件 staging 等共享消费方读取；恒 local 基座+装饰视图）。 */
+    public FileContentService globalFileService() {
+        return globalFileService;
+    }
+
     // ── files.go 共享小件 ───────────────────────────────────────────────────
 
     /**

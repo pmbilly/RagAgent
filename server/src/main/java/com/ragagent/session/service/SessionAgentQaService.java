@@ -67,18 +67,24 @@ public class SessionAgentQaService {
     private final SessionKnowledgeQaService knowledgeQa;
     private final com.ragagent.agentm.service.CustomAgentService customAgentService;
     private final com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry;
+    private final SessionSandboxExecutionService sandboxExecution;
+    private final SessionAttachmentStagingService attachmentStaging;
     public SessionAgentQaService(MessageService messageService,
             ModelService modelService,
             MemoryService memoryService,
             SessionKnowledgeQaService knowledgeQa,
             com.ragagent.agentm.service.CustomAgentService customAgentService,
-            com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry) {
+            com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry,
+            SessionSandboxExecutionService sandboxExecution,
+            SessionAttachmentStagingService attachmentStaging) {
         this.messageService = messageService;
         this.modelService = modelService;
         this.memoryService = memoryService;
         this.knowledgeQa = knowledgeQa;
         this.customAgentService = customAgentService;
         this.builtinAgentRegistry = builtinAgentRegistry;
+        this.sandboxExecution = sandboxExecution;
+        this.attachmentStaging = attachmentStaging;
     }
 
     // ==================================================================
@@ -102,137 +108,159 @@ public class SessionAgentQaService {
         // Build AgentConfig
         QaAgentConfig agentConfig = buildAgentConfig(req, agentTenantId);
 
-        // VLM runtime field
-        String vlm = req.agentConfig.path("vlm_model_id").asText("");
-        if (!vlm.isEmpty()) {
-            agentConfig.setVlmModelId(vlm);
-        }
-
-        // Resolve model ID
-        String effectiveModelId = knowledgeQa.resolveChatModelId(req, agentConfig.getKnowledgeBases(),
-                agentConfig.getKnowledgeIds());
-        if (effectiveModelId.isEmpty()) {
-            throw new RuntimeException("summary model (model_id) is not configured in custom agent settings");
-        }
-        LlmChatClient summaryModel = chatModel(effectiveModelId);
-
-        boolean supportsVision = false;
-        int modelContextWindow = 0;
-        try {
-            var info = modelService.getModelByID(effectiveModelId);
-            if (info != null && info.getParameters() != null) {
-                supportsVision = info.getParameters().isSupportsVision();
-                modelContextWindow = info.getParameters().getContextWindow();
+        // 回合租约（Go session_agent_qa.go L168 的 holdSandboxTurn）：防技能镜像
+        // 变更在回合中途重建 VM；staging 与引擎执行都在租约窗口内。
+        try (var sandboxTurnLease = sandboxExecution.holdSandboxTurn(
+                agentTenantId, sessionId, agentConfig.getSandboxConfigId())) {
+            // 附件 staging（Go session_agent_qa.go L172-196）：把会话持久附件
+            // 物化进沙箱 /workspace/input；staged 清单在查询组合时注入提示。
+            // Go 侧 staging 失败即回合失败——这里同样让异常上抛。
+            List<SessionAttachmentStagingService.StagedSessionAttachment> stagedAttachments =
+                    new ArrayList<>();
+            if (attachmentStaging.sessionSandboxInputStore(
+                    agentTenantId, sessionId, agentConfig.getSandboxConfigId()) != null) {
+                stagedAttachments = attachmentStaging.stageSessionAttachments(
+                        agentTenantId, sessionId, agentConfig.getSandboxConfigId(),
+                        messageService.getSessionAttachments(sessionId));
             }
-        } catch (RuntimeException e) {
-            // Go: err != nil → 零值
-        }
-        agentConfig.setChatModelSupportsVision(supportsVision);
-        // AgentMaxContextTokens（types/agent.go L24-32）：显式设置 > 模型声明 > 缺省
-        agentConfig.setMaxContextTokens(agentConfig.getMaxContextTokens() > 0
-                ? agentConfig.getMaxContextTokens()
-                : (modelContextWindow > 0 ? modelContextWindow
-                        : com.ragagent.agent.AgentBudgets.DEFAULT_MAX_CONTEXT_TOKENS));
-        log.info("Agent context window: {} tokens (model {} declares {})",
-                agentConfig.getMaxContextTokens(), effectiveModelId, modelContextWindow);
-
-        // Rerank model only when knowledge_search can run
-        Reranker rerankModel = null;
-        if (agentRequiresRerankModel(req.agentConfig)) {
-            String rerankModelId = req.agentConfig.path("rerank_model_id").asText("");
-            if (rerankModelId.isEmpty()) {
-                throw new RuntimeException("rerank model is not configured: please set rerank_model_id on the agent");
+            // VLM runtime field
+            String vlm = req.agentConfig.path("vlm_model_id").asText("");
+            if (!vlm.isEmpty()) {
+                agentConfig.setVlmModelId(vlm);
             }
-            rerankModel = rerankModel(rerankModelId);
-        } else {
-            log.info("knowledge_search is unavailable for the effective agent scope, "
-                    + "skipping rerank model initialization");
-        }
 
-        // Multi-turn history（agent_history.go LoadAgentHistory）
-        List<ChatMessage> llmContext = new ArrayList<>();
-        if (agentConfig.isMultiTurnEnabled()) {
-            int historyTurns = agentConfig.getHistoryTurns() <= 0 ? 5 : agentConfig.getHistoryTurns();
+            // Resolve model ID
+            String effectiveModelId = knowledgeQa.resolveChatModelId(req, agentConfig.getKnowledgeBases(),
+                    agentConfig.getKnowledgeIds());
+            if (effectiveModelId.isEmpty()) {
+                throw new RuntimeException("summary model (model_id) is not configured in custom agent settings");
+            }
+            LlmChatClient summaryModel = chatModel(effectiveModelId);
+
+            boolean supportsVision = false;
+            int modelContextWindow = 0;
             try {
-                llmContext = loadAgentHistory(sessionId, historyTurns);
+                var info = modelService.getModelByID(effectiveModelId);
+                if (info != null && info.getParameters() != null) {
+                    supportsVision = info.getParameters().isSupportsVision();
+                    modelContextWindow = info.getParameters().getContextWindow();
+                }
             } catch (RuntimeException e) {
-                log.warn("Failed to load agent history from DB: {}, continuing without history", e.toString());
-                llmContext = new ArrayList<>();
+                // Go: err != nil → 零值
             }
-            log.info("Loaded {} history messages from DB (turns={})", llmContext.size(), historyTurns);
-        } else {
-            log.info("Multi-turn disabled for this agent, running without history");
-        }
+            agentConfig.setChatModelSupportsVision(supportsVision);
+            // AgentMaxContextTokens（types/agent.go L24-32）：显式设置 > 模型声明 > 缺省
+            agentConfig.setMaxContextTokens(agentConfig.getMaxContextTokens() > 0
+                    ? agentConfig.getMaxContextTokens()
+                    : (modelContextWindow > 0 ? modelContextWindow
+                            : com.ragagent.agent.AgentBudgets.DEFAULT_MAX_CONTEXT_TOKENS));
+            log.info("Agent context window: {} tokens (model {} declares {})",
+                    agentConfig.getMaxContextTokens(), effectiveModelId, modelContextWindow);
 
-        // Create agent engine（agent_service.go CreateAgentEngine 装配）
-        AgentEngine engine = createAgentEngine(agentConfig, summaryModel, rerankModel, eventBus,
-                sessionId, req.assistantMessageId);
-
-        // Memory recall
-        if (memoryService != null && req.agentConfig.path("memory_enabled").asBoolean(false)) {
-            var recall = memoryService.recall(req.query);
-            if (recall != null && recall.prompt() != null && !recall.prompt().isEmpty()) {
-                engine.setMemoryPrompt(recall.prompt());
-                List<UsedMemory> used = new ArrayList<>();
-                if (recall.items() != null) {
-                    for (var item : recall.items()) {
-                        UsedMemory um = new UsedMemory();
-                        um.setId(item.getId());
-                        um.setContent(item.getContent());
-                        used.add(um);
-                    }
+            // Rerank model only when knowledge_search can run
+            Reranker rerankModel = null;
+            if (agentRequiresRerankModel(req.agentConfig)) {
+                String rerankModelId = req.agentConfig.path("rerank_model_id").asText("");
+                if (rerankModelId.isEmpty()) {
+                    throw new RuntimeException("rerank model is not configured: please set rerank_model_id on the agent");
                 }
-                Event evt = new Event();
-                evt.setType(EventType.EVENT_MEMORY_RECALLED);
-                evt.setSessionId(sessionId);
-                evt.setData(new MemoryRecalledData(used));
+                rerankModel = rerankModel(rerankModelId);
+            } else {
+                log.info("knowledge_search is unavailable for the effective agent scope, "
+                        + "skipping rerank model initialization");
+            }
+
+            // Multi-turn history（agent_history.go LoadAgentHistory）
+            List<ChatMessage> llmContext = new ArrayList<>();
+            if (agentConfig.isMultiTurnEnabled()) {
+                int historyTurns = agentConfig.getHistoryTurns() <= 0 ? 5 : agentConfig.getHistoryTurns();
                 try {
-                    eventBus.emit(evt);
+                    llmContext = loadAgentHistory(sessionId, historyTurns);
                 } catch (RuntimeException e) {
-                    log.warn("Failed to emit memory recalled event: {}", e.toString());
+                    log.warn("Failed to load agent history from DB: {}, continuing without history", e.toString());
+                    llmContext = new ArrayList<>();
                 }
-                log.info("Injected {} long-term memories into agent context", used.size());
+                log.info("Loaded {} history messages from DB (turns={})", llmContext.size(), historyTurns);
+            } else {
+                log.info("Multi-turn disabled for this agent, running without history");
             }
-        }
 
-        // Steer sink
-        if (req.steerSink != null) {
-            engine.setSteerSink(req.steerSink);
-        }
+            // Create agent engine（agent_service.go CreateAgentEngine 装配）
+            AgentEngine engine = createAgentEngine(agentConfig, summaryModel, rerankModel, eventBus,
+                    sessionId, req.assistantMessageId);
 
-        // Query composition（Go L241-263）
-        String agentQuery = req.query;
-        List<String> agentImageUrls = new ArrayList<>();
-        if (supportsVision && req.imageUrls != null && !req.imageUrls.isEmpty()) {
-            agentImageUrls = req.imageUrls;
-            log.info("Agent model supports vision, passing {} image(s) directly", agentImageUrls.size());
-        } else if (!req.imageDescription.isEmpty()) {
-            agentQuery = req.query + "\n\n[用户上传图片内容]\n" + req.imageDescription;
-            log.info("Agent model does not support vision, appending image description ({} chars)",
-                    req.imageDescription.length());
-        }
-        if (!req.quotedContext.isEmpty()) {
-            agentQuery += "\n\n" + req.quotedContext;
-        }
-        if (!req.attachments.isEmpty()) {
-            agentQuery += com.ragagent.chatpipeline.MessageAttachmentsPrompt.build(req.attachments);
-            log.info("Appended {} attachment(s) to agent query", req.attachments.size());
-        }
+            // Memory recall
+            if (memoryService != null && req.agentConfig.path("memory_enabled").asBoolean(false)) {
+                var recall = memoryService.recall(req.query);
+                if (recall != null && recall.prompt() != null && !recall.prompt().isEmpty()) {
+                    engine.setMemoryPrompt(recall.prompt());
+                    List<UsedMemory> used = new ArrayList<>();
+                    if (recall.items() != null) {
+                        for (var item : recall.items()) {
+                            UsedMemory um = new UsedMemory();
+                            um.setId(item.getId());
+                            um.setContent(item.getContent());
+                            used.add(um);
+                        }
+                    }
+                    Event evt = new Event();
+                    evt.setType(EventType.EVENT_MEMORY_RECALLED);
+                    evt.setSessionId(sessionId);
+                    evt.setData(new MemoryRecalledData(used));
+                    try {
+                        eventBus.emit(evt);
+                    } catch (RuntimeException e) {
+                        log.warn("Failed to emit memory recalled event: {}", e.toString());
+                    }
+                    log.info("Injected {} long-term memories into agent context", used.size());
+                }
+            }
 
-        // Execute（Go L272-284：失败 emit error 事件后返回 nil）
-        try {
-            engine.execute(sessionId, req.assistantMessageId, agentQuery, llmContext, agentImageUrls);
-        } catch (RuntimeException e) {
-            log.error("Agent execution failed: {}", e.toString());
-            Event evt = new Event();
-            evt.setType(EventType.EVENT_ERROR);
-            evt.setSessionId(sessionId);
-            ErrorData errData = new ErrorData();
-            errData.setError(e.getMessage());
-            errData.setStage("agent_execution");
-            errData.setSessionId(sessionId);
-            evt.setData(errData);
-            eventBus.emit(evt);
+            // Steer sink
+            if (req.steerSink != null) {
+                engine.setSteerSink(req.steerSink);
+            }
+
+            // Query composition（Go L241-263）
+            String agentQuery = req.query;
+            List<String> agentImageUrls = new ArrayList<>();
+            if (supportsVision && req.imageUrls != null && !req.imageUrls.isEmpty()) {
+                agentImageUrls = req.imageUrls;
+                log.info("Agent model supports vision, passing {} image(s) directly", agentImageUrls.size());
+            } else if (!req.imageDescription.isEmpty()) {
+                agentQuery = req.query + "\n\n[用户上传图片内容]\n" + req.imageDescription;
+                log.info("Agent model does not support vision, appending image description ({} chars)",
+                        req.imageDescription.length());
+            }
+            if (!req.quotedContext.isEmpty()) {
+                agentQuery += "\n\n" + req.quotedContext;
+            }
+            if (!req.attachments.isEmpty()) {
+                agentQuery += com.ragagent.chatpipeline.MessageAttachmentsPrompt.build(req.attachments);
+                log.info("Appended {} attachment(s) to agent query", req.attachments.size());
+            }
+
+            // Execute（Go L272-284：失败 emit error 事件后返回 nil）
+            try {
+                engine.execute(sessionId, req.assistantMessageId, agentQuery, llmContext, agentImageUrls);
+            } catch (RuntimeException e) {
+                log.error("Agent execution failed: {}", e.toString());
+                Event evt = new Event();
+                evt.setType(EventType.EVENT_ERROR);
+                evt.setSessionId(sessionId);
+                ErrorData errData = new ErrorData();
+                errData.setError(e.getMessage());
+                errData.setStage("agent_execution");
+                errData.setSessionId(sessionId);
+                evt.setData(errData);
+                eventBus.emit(evt);
+            }
+            // sandbox staged 附件提示（Go L261-264）
+            if (!stagedAttachments.isEmpty()) {
+                agentQuery += SessionAttachmentStagingService.buildSandboxAttachmentsPrompt(stagedAttachments);
+                log.info("Appended {} staged sandbox attachment path(s) to agent query",
+                        stagedAttachments.size());
+            }
         }
     }
 
@@ -293,6 +321,16 @@ public class SessionAgentQaService {
                 ac.setSkillsEnabled(false);
                 log.warn("Unknown SkillsSelectionMode={}: skills disabled", skillsMode);
             }
+        }
+
+        // 然后并入本轮沙箱镜像里已安装的技能（Go L333-343：skillsForRun 以会话
+        // 已 pin 的配置为准——与沙箱解析同路径；行集已按 ready/enabled/快照生效收窄）
+        var runSkills = sandboxExecution.skillsForRun(
+                agentTenantId, req.session.getId(), ac.getSandboxConfigId());
+        ac.setTenantSkills(runSkills.rows());
+        if (!runSkills.rows().isEmpty()) {
+            log.info("Sandbox config {} offers {} installed skill(s) to this run",
+                    runSkills.configId(), runSkills.rows().size());
         }
 
         // Resolve knowledge bases
@@ -533,8 +571,18 @@ public class SessionAgentQaService {
         registerTools(toolRegistry, config, rerankModel);
         // registerMCPTools：MCP 服务面在 dev 无启用的服务 → Go 的 ListMCPServices 返回
         // 空集同形（服务注册/发现面为 4.1 既有包，装配随 embed/im QA 面）
-        // registerSandboxShellIfAllowed：无 sandbox 管理器（dev disable）→ 不注册
-        // registerSandboxFileTools：session file store 能力不可用 → 不注册（Go 同）
+
+        // 沙箱执行面（Go agent_service.go：registerSandboxShellIfAllowed L216 →
+        // registerSandboxFileTools L217 → initializeSkillsManager L272）：解析会话
+        // 沙箱、注册 shell_exec 与文件工具、构建 skills 管理器并绑定。失败降级为
+        // 无沙箱回合（工具不注册）。
+        long sandboxTenantId = com.ragagent.common.context.TenantContext.currentTenantId() == null
+                ? 0L : com.ragagent.common.context.TenantContext.currentTenantId();
+        sandboxExecution.registerSandboxShellIfAllowed(toolRegistry, sandboxTenantId,
+                sessionId, config);
+        sandboxExecution.registerSandboxFileTools(toolRegistry, sandboxTenantId,
+                sessionId, config);
+        sandboxExecution.initializeSkillsManager(sandboxTenantId, sessionId, config, toolRegistry);
         toolRegistry.prepareMcpTools();
 
         // 3. Resolve KB / selected doc metadata（resolveKBAndDocInfos；失败回落 IDs-only）

@@ -17,6 +17,7 @@ configurations {
     }
 }
 
+
 dependencies {
     // Spring
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -50,6 +51,13 @@ dependencies {
     // internal/agent/token/estimator.go 的逐字节等价物；encodeOrdinary = Go 的 Encode——
     // 两者对特殊 token（<|endoftext|> 等）都不做特殊处理，纯 BPE。纯 Java 零传递依赖）
     implementation("com.knuddels:jtokkit:1.1.0")
+
+    // Docker Engine API 客户端（对照 Go github.com/docker/docker/client，
+    // internal/sandbox/docker_engine.go 的 dockerEngineAPI 接口）。httpclient5 transport
+    // 支持 unix://（Java 16+ UnixDomainSocketAddress）与 TCP+TLS，exec hijack 流式输出
+    // 由其 ExecStartCmd 回调承载——与 Go client.ContainerExecAttach 同一传输语义。
+    implementation("com.github.docker-java:docker-java-core:3.7.1")
+    implementation("com.github.docker-java:docker-java-transport-zerodep:3.7.1")
 
     // 工具
     compileOnly("org.projectlombok:lombok")

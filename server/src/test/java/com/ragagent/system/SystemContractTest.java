@@ -170,9 +170,10 @@ class SystemContractTest {
         assertThat(java).contains("\"agents\":{\"supported\":true}");
         assertThat(java).contains("\"integrations.api\":{\"supported\":true}");
         assertThat(java).contains("\"settings.mcp\":{\"supported\":true}");
-        // docker 活值覆盖：sandbox=false → route_not_registered
-        assertThat(java).contains("\"settings.sandbox\":{\"supported\":false,\"reason\":\"route_not_registered\"}");
-        assertThat(java).contains("\"settings.sandbox.docker\":{\"supported\":false,\"reason\":\"route_not_registered\"}");
+        // sandbox 随波 3 sandbox 批注册 → supported=true；docker 活值覆盖：
+        // Java 无 docker 后端执行体接线前 DockerBackendEnabled 恒 false → docker_backend_disabled
+        assertThat(java).contains("\"settings.sandbox\":{\"supported\":true}");
+        assertThat(java).contains("\"settings.sandbox.docker\":{\"supported\":false,\"reason\":\"docker_backend_disabled\"}");
     }
 
     /** 从 golden 提取 map 键名（部署无关的结构对齐检查）。 */

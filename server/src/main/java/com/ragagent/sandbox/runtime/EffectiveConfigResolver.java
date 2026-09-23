@@ -419,8 +419,15 @@ public final class EffectiveConfigResolver {
         cfg.network.allowInternetAccess = false;
     }
 
-    /** 对照 remote_client.go 的 cloneMetadata：可变浅拷贝。 */
+    /**
+     * 对照 remote_client.go 的 cloneMetadata：可变浅拷贝。
+     * Go 注释原文："Nil input returns nil so callers can distinguish
+     * 'explicitly empty' from 'not set'"——null 必须穿透，不得 NPE。
+     */
     static Map<String, String> cloneMetadata(Map<String, String> source) {
+        if (source == null) {
+            return null;
+        }
         return source.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                         (a, b) -> a, java.util.LinkedHashMap::new));

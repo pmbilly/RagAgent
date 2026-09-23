@@ -40,8 +40,10 @@ import org.springframework.stereotype.Service;
  *
  * <p>副作用桥（dispatchSideEffects）：ssrf.whitelist 更新后推给
  * {@link SsrfGuard#reloadWhitelist(String)}（含 SSRF_WHITELIST_EXTRA 合并，对照
- * applySSRFWhitelist）。model.max_concurrency / sandbox.docker_enabled 的桥随
- * 阶段 7 / 波 3 的消费方接线（Go 的 limiter.SetGlobalLimit / sandbox.SetDockerBackendEnabled）。</p>
+ * applySSRFWhitelist）；sandbox.docker_enabled 推给
+ * {@link SandboxBackendPolicy#setDockerBackendEnabled}（对照 applyDockerBackendEnabled，
+ * DB &gt; env &gt; false 三层解析后推运行期覆盖值）。model.max_concurrency 的桥已随
+ * 并发闸门装配接线（ConcurrencyGovernorWiring）。</p>
  *
  * <p><b>启动预载</b>（对照 Go preload 的 initial sync，走查补翻）：应用就绪后把
  * DB 的 ssrf.whitelist 推给 SsrfGuard——否则重启后 DB 白名单静默失效（guard 静态
@@ -409,20 +411,22 @@ public class SystemSettingService {
 
     /**
      * 对照 Go preload 的 initial sync（system_setting.go L405）：应用就绪后把 DB 的
-     * ssrf.whitelist 推给 SsrfGuard。走查实案：UI 保存的白名单在重启后静默失效
-     * （guard 静态初始化只读 env），单实例即可观测。
+     * ssrf.whitelist / sandbox.docker_enabled 推给消费方。走查实案：UI 保存的白名单在
+     * 重启后静默失效（guard 静态初始化只读 env），单实例即可观测。
      */
     @org.springframework.context.event.EventListener(
             org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void applyWhitelistOnStartup() {
-        try {
-            dispatchSideEffects("ssrf.whitelist");
-        } catch (RuntimeException e) {
-            log.warn("startup ssrf.whitelist apply failed, env-only fallback: {}", e.toString());
+        for (String key : List.of("ssrf.whitelist", "sandbox.docker_enabled")) {
+            try {
+                dispatchSideEffects(key);
+            } catch (RuntimeException e) {
+                log.warn("startup {} apply failed, env-only fallback: {}", key, e.toString());
+            }
         }
     }
 
-    /** 对照 dispatchSideEffects：ssrf.whitelist 已接线；其余桥随消费方模块接线。 */
+    /** 对照 dispatchSideEffects：ssrf.whitelist 与 sandbox.docker_enabled 已接线。 */
     private void dispatchSideEffects(String changedKey) {        if ("ssrf.whitelist".equals(changedKey)) {
             List<String> list = getStringList("ssrf.whitelist", "SSRF_WHITELIST", new ArrayList<>());
             String primary = String.join(",", list);
@@ -432,6 +436,11 @@ public class SystemSettingService {
                 merged = merged.isEmpty() ? extra : merged + "," + extra;
             }
             ssrfGuard.reloadWhitelist(merged);
+        } else if ("sandbox.docker_enabled".equals(changedKey)) {
+            // 对照 applyDockerBackendEnabled（system_setting.go L547-550）
+            boolean enabled = getBool("sandbox.docker_enabled", "WEKNORA_SANDBOX_DOCKER_ENABLED", false);
+            com.ragagent.sandbox.runtime.SandboxBackendPolicy.setDockerBackendEnabled(enabled);
+            log.info("[system_settings] sandbox.docker_enabled applied (enabled={})", enabled);
         }
     }
 

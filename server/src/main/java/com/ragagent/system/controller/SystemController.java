@@ -100,9 +100,11 @@ public class SystemController {
         Map<String, SystemDtos.DeploymentCapability> caps =
                 new LinkedHashMap<>(data.capabilities());
         boolean sandboxSupported = caps.get("settings.sandbox").supported();
-        // Go: sandbox.Supported && sandbox.DockerBackendEnabled()。Java 无 sandbox
-        // 后端（波 3）→ DockerBackendEnabled() 恒 false。
-        boolean dockerSupported = false;
+        // Go: sandbox.Supported && sandbox.DockerBackendEnabled()——活值来自
+        // 三层解析（system_settings 的 sandbox.docker_enabled > env > false），
+        // SystemSettingService 的推送桥在 Update/Reset/启动预载时维护。
+        boolean dockerSupported = com.ragagent.sandbox.runtime.SandboxBackendPolicy
+                .dockerBackendEnabled();
         String reason = "";
         if (sandboxSupported && !dockerSupported) {
             reason = "docker_backend_disabled";

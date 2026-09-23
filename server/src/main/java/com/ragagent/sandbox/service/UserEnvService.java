@@ -478,8 +478,18 @@ public class UserEnvService {
     }
 
     /** 对照 AfterFind → decryptEnvValue：解不开置空并记日志，行保持可列出。 */
-    private List<TenantUserEnvVar> decrypt(List<TenantUserEnvVar> rows) {
-        for (TenantUserEnvVar row : rows) {
+    /**
+     * 凭据解析器的一次作用域读（对照 Go userEnvReader.ListUserEnvVars + 解密后
+     * 返回）：给 {@link UserEnvResolver} 的 overlayMine 用——值按调用方隔离，
+     * 解密失败的条目按 unset 处理。
+     */
+    public List<TenantUserEnvVar> listDecryptedForResolver(long tenantId,
+            TenantContext.Principal principal, String configId, String skillId) {
+        return decrypt(skills.listUserEnvVars(tenantId, principal.type(), principal.id(),
+                configId, skillId));
+    }
+
+    private List<TenantUserEnvVar> decrypt(List<TenantUserEnvVar> rows) {        for (TenantUserEnvVar row : rows) {
             String stored = row.getValue();
             if (stored == null || stored.isEmpty()) {
                 row.setValue("");

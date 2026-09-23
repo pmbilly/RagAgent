@@ -749,7 +749,7 @@ public class WebConfig implements WebMvcConfigurer {
                 /* webSearch */ true,
                 /* vectorStore */ true,
                 /* storage */ true,
-                /* sandbox */ false);
+                /* sandbox */ true); // 波 3 sandbox 批路由全注册（sandbox-configs/skills/sandbox-check/me/env-vars）
         return holder;
     }
 }

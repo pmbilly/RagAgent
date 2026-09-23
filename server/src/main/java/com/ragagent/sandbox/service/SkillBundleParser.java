@@ -109,15 +109,31 @@ public final class SkillBundleParser {
 
     // ── ParseSkillBundle ────────────────────────────────────────────────
 
+    /**
+     * 对照 {@code SkillBundleParseOptions}：远端归档（git host / registry）需要的
+     * 宽松开关——上传 zip 走 DEFAULT。
+     */
+    record ParseOptions(String subdir, boolean allowExtraFiles, boolean allowNestedSkill) {
+        static final ParseOptions DEFAULT = new ParseOptions("", false, false);
+    }
+
     /** 对照 {@code ParseSkillBundle}：平面归档与单层包裹目录都收（人们实际上传的两种形态）。 */
     public static SkillBundle parseSkillBundle(byte[] archive) {
-        Map<String, byte[]> raw = unzipSkillArchive(archive);
-        Map<String, byte[]> files = stripSkillRootPrefix(raw);
+        return parseSkillBundleWithOptions(archive, ParseOptions.DEFAULT);
+    }
+
+    /**
+     * 对照 {@code ParseSkillBundleWithOptions}：远端安装的宽松开关
+     * （Subdir / AllowExtraFiles / AllowNestedSkill）。SHA256 仍对输入字节。
+     */
+    public static SkillBundle parseSkillBundleWithOptions(byte[] archive, ParseOptions opts) {
+        Map<String, byte[]> raw = unzipSkillArchive(archive, opts);
+        Map<String, byte[]> files = stripSkillRootPrefix(raw, opts);
         return skillBundleFromFiles(archive, files);
     }
 
-    private static Map<String, byte[]> unzipSkillArchive(byte[] archive) {
-        List<ZipItem> entries = skillZipEntries(archive);
+    private static Map<String, byte[]> unzipSkillArchive(byte[] archive, ParseOptions opts) {
+        List<ZipItem> entries = skillZipEntries(archive, opts);
 
         Map<String, byte[]> raw = new LinkedHashMap<>();
         long totalBytes = 0;
@@ -143,7 +159,7 @@ public final class SkillBundleParser {
     private record ZipItem(String archiveName, String name, long size, byte[] body) {
     }
 
-    private static List<ZipItem> skillZipEntries(byte[] archive) {
+    private static List<ZipItem> skillZipEntries(byte[] archive, ParseOptions opts) {
         List<RawEntry> central;
         try {
             central = readCentralDirectory(archive);
@@ -168,12 +184,15 @@ public final class SkillBundleParser {
         String prefix = skillRootPrefix(pending.stream()
                 .map(p -> p.cleaned)
                 .distinct()
-                .toList());
+                .toList(), opts);
 
         List<ZipItem> out = new ArrayList<>();
         long totalBytes = 0;
         for (RawEntry item : pending) {
             if (!prefix.isEmpty() && !item.cleaned.startsWith(prefix + "/")) {
+                if (opts.allowExtraFiles()) {
+                    continue; // 对照 AllowExtraFiles：skill 根之外的文件丢弃
+                }
                 throw new BundleInvalidException("archive holds files outside the skill directory "
                         + quote(prefix));
             }
@@ -274,9 +293,10 @@ public final class SkillBundleParser {
 
     /**
      * 对照 {@code skillBundleFromFiles}：SKILL.md 必须在根上，frontmatter 校验通过，
-     * 版本可缺省；SHA256 对原始上传字节。
+     * 版本可缺省；SHA256 对原始上传字节。包内可见（SkillSourceFetcher 的 markdown
+     * 直收路径复用）。
      */
-    private static SkillBundle skillBundleFromFiles(byte[] archive, Map<String, byte[]> files) {
+    static SkillBundle skillBundleFromFiles(byte[] archive, Map<String, byte[]> files) {
         byte[] manifest = files.get("SKILL.md");
         if (manifest == null) {
             throw new BundleInvalidException("SKILL.md is missing");
@@ -317,6 +337,28 @@ public final class SkillBundleParser {
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 对照 {@code zipSkillFiles}：把（可能重挂过根的）skill 文件重打确定性 zip
+     * （名称排序），让远端归档走与上传相同的 InstallSkill 路径。
+     */
+    static byte[] zipSkillFiles(Map<String, byte[]> files) {
+        List<String> names = new ArrayList<>(files.keySet());
+        java.util.Collections.sort(names);
+        try {
+            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+            try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(buf)) {
+                for (String name : names) {
+                    zos.putNextEntry(new ZipEntry(name));
+                    zos.write(files.get(name));
+                    zos.closeEntry();
+                }
+            }
+            return buf.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalStateException("write skill zip entry: " + e.getMessage(), e);
         }
     }
 
@@ -374,8 +416,8 @@ public final class SkillBundleParser {
 
     /** 对照 {@code listSkillZipFiles}：skill 根相对路径 + 声明大小，按名称排序。 */
     public static List<SkillFileEntry> listSkillZipFiles(byte[] archive) {
-        Map<String, byte[]> raw = unzipSkillArchive(archive);
-        Map<String, byte[]> stripped = stripSkillRootPrefix(raw);
+        Map<String, byte[]> raw = unzipSkillArchive(archive, ParseOptions.DEFAULT);
+        Map<String, byte[]> stripped = stripSkillRootPrefix(raw, ParseOptions.DEFAULT);
         Map<String, Long> index = new TreeMap<>();
         for (Map.Entry<String, byte[]> e : stripped.entrySet()) {
             index.put(e.getKey(), (long) e.getValue().length);
@@ -389,8 +431,8 @@ public final class SkillBundleParser {
 
     /** 对照 {@code readSkillZipFile}：按 skill 根相对路径读一个文件，其余保持压缩。 */
     public static byte[] readSkillZipFile(byte[] archive, String rel) {
-        Map<String, byte[]> raw = unzipSkillArchive(archive);
-        Map<String, byte[]> stripped = stripSkillRootPrefix(raw);
+        Map<String, byte[]> raw = unzipSkillArchive(archive, ParseOptions.DEFAULT);
+        Map<String, byte[]> stripped = stripSkillRootPrefix(raw, ParseOptions.DEFAULT);
         byte[] body = stripped.get(rel);
         if (body == null) {
             throw new SkillFileNotFoundException();
@@ -403,8 +445,8 @@ public final class SkillBundleParser {
     /**
      * 对照 {@code stripSkillRootPrefix}：把归档重挂在放 SKILL.md 的目录上。
      */
-    static Map<String, byte[]> stripSkillRootPrefix(Map<String, byte[]> raw) {
-        String prefix = skillRootPrefix(raw.keySet());
+    static Map<String, byte[]> stripSkillRootPrefix(Map<String, byte[]> raw, ParseOptions opts) {
+        String prefix = skillRootPrefix(raw.keySet(), opts);
         if (prefix.isEmpty()) {
             return raw;
         }
@@ -412,6 +454,9 @@ public final class SkillBundleParser {
         for (Map.Entry<String, byte[]> e : raw.entrySet()) {
             String name = e.getKey();
             if (!name.startsWith(prefix + "/")) {
+                if (opts.allowExtraFiles()) {
+                    continue; // 对照 AllowExtraFiles
+                }
                 throw new BundleInvalidException("archive holds files outside the skill directory "
                         + quote(prefix));
             }
@@ -424,13 +469,21 @@ public final class SkillBundleParser {
     }
 
     /**
-     * 对照 {@code skillRootPrefix}：zip 根上的 SKILL.md 就是这个 skill（嵌套的 SKILL.md
-     * 只是附加文件）；否则恰有一个目录承载它。
+     * 对照 {@code skillRootPrefix}：subdir 为空时 zip 根上的 SKILL.md 就是这个 skill
+     * （嵌套的 SKILL.md 只是附加文件）；否则按 subdir（或 AllowNestedSkill 的唯一
+     * 深层 SKILL.md）定根。
      */
-    static String skillRootPrefix(Iterable<String> names) {
-        for (String name : names) {
-            if (name.equals("SKILL.md")) {
-                return "";
+    static String skillRootPrefix(Iterable<String> names, ParseOptions opts) {
+        ParseOptions o = opts == null ? ParseOptions.DEFAULT : opts;
+        String subdir = goPathClean(trimSlash(o.subdir() == null ? "" : o.subdir()));
+        if (subdir.equals(".")) {
+            subdir = "";
+        }
+        if (subdir.isEmpty()) {
+            for (String name : names) {
+                if (name.equals("SKILL.md")) {
+                    return "";
+                }
             }
         }
         List<String> matches = new ArrayList<>();
@@ -439,11 +492,20 @@ public final class SkillBundleParser {
                 continue;
             }
             String dir = dirName(name);
-            if (dir.isEmpty() || !dir.contains("/")) {
+            if (!subdir.isEmpty()) {
+                if (dir.equals(subdir) || dir.endsWith("/" + subdir)) {
+                    matches.add(dir);
+                }
+                continue;
+            }
+            if (dir.isEmpty() || !dir.contains("/") || o.allowNestedSkill()) {
                 matches.add(dir);
             }
         }
         if (matches.isEmpty()) {
+            if (!subdir.isEmpty()) {
+                throw new BundleInvalidException("SKILL.md is missing under " + quote(subdir));
+            }
             throw new BundleInvalidException("SKILL.md is missing");
         }
         List<String> uniq = uniqueStrings(matches);
@@ -451,6 +513,21 @@ public final class SkillBundleParser {
             throw new BundleInvalidException("archive holds more than one skill");
         }
         return uniq.get(0);
+    }
+
+    private static String trimSlash(String s) {
+        if (s == null) {
+            return "";
+        }
+        int b = 0;
+        int e = s.length();
+        while (b < e && s.charAt(b) == '/') {
+            b++;
+        }
+        while (e > b && s.charAt(e - 1) == '/') {
+            e--;
+        }
+        return s.substring(b, e);
     }
 
     /** 对照 {@code validateSkillEntryName}：只禁控制字符（NUL 含在内）。 */

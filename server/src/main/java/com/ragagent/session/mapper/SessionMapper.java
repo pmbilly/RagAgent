@@ -52,6 +52,15 @@ public interface SessionMapper extends BaseMapper<Session> {
     String selectSandboxConfigPin(@Param("sessionId") String sessionId);
 
     /**
+     * 会话存在性（沙箱绑定回收用，对照 Go sessionExistenceLookup.GetByID 的
+     * "session 行还在吗"语义：tenant + id + 软删过滤）。生命周期协调器在回收
+     * 孤儿绑定时调用——会话已消失才允许删除 provider 资源。
+     */
+    @Select("SELECT COUNT(1) FROM sessions "
+            + "WHERE tenant_id = #{tenantId} AND id = #{sessionId} AND deleted_at IS NULL")
+    long countSessionExists(@Param("tenantId") long tenantId, @Param("sessionId") String sessionId);
+
+    /**
      * 会话沙箱 pin 写（对照 SessionSandboxPinner.Pin 的认领 UPDATE，L98-103：
      * {@code WHERE id = ? AND (sandbox_config_id IS NULL OR sandbox_config_id = '')}——
      * 并发首建沙箱时败者采纳赢者的 config；本终端入口无并发对手，0 行=已被别人钉住，
