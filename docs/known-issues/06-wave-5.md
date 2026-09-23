@@ -793,3 +793,36 @@
     updateImageInfo / WebSearchProvider test / 评估 dataset 前置）+ 走查抓回的
     会话标题生成、post-process 摘要 fan-out；仅 EvaluationService 执行步按 Owner
     决策暂缓、span 写入侧待决策。
+
+- **走查抓回（2026-09-23，agent 模式分派谓词抄错——「智能推理」agent 恒走 RAG 快答）**：
+  现象 = 所有真实 agent（前端/内置/IM 一律写 `agent_mode=smart-reasoning`）经
+  `POST /agent-chat` 都被判进 RAG 快答管线：无 thinking/todo/工具事件、无多步推理、
+  steer/compaction 失效；`local_browser_enabled` 因同谓词被误拒 400。
+  - **根因一（谓词抄错）**：`SessionKnowledgeQaService.isAgentMode` 写成
+    `"agent".equals(...)`——Go 侧无此取值（`types/custom_agent.go` L553-556：
+    `Config.AgentMode == AgentModeSmartReasoning`；Java IM 侧 `ImService:912`、
+    前端 `Input-field.vue:2054`、`AgentConfigJson:65` 都写对）。5 处消费点
+    （QA 分派 / 本地浏览器门控 / agentEnabled 持久化 / 两处 prompt 模板选择）同源受害。
+  - **根因二（内建虚拟 agent 运行时空配置）**：无 DB 行的内建 agent 走
+    `CustomAgentService.virtualAgent` 合成行，但合成时**不落 config 字符串**；
+    `KnowledgeQaController.resolveAgent` 只取 `result.row()` 再
+    `parse(row.getConfig())` → 得 `{}`（agent_mode/allowed_tools/kb_selection_mode
+    全丢，SandboxTerminalController 同款受害）。Go 的 `GetAgentByID` 在无 DB 行时
+    返回带完整 Config 的物化 agent。有 DB 行的租户（10000/10009/10122）不触发，
+    故 dev 主租户长期带伤而不可见。
+  - **修复**：谓词改 `"smart-reasoning"`（注释钉 Go 行号）；`virtualAgent` 合成行补
+    `setConfig(built.get("config").toString())`（响应层不受影响——`AgentResponses`
+    用 `result.config()`）。
+  - **验证**：新增 `SessionKnowledgeQaServiceAgentModeTest`（smart-reasoning/
+    quick-answer/旧误值/空 四取值域）+ `AgentContractTest.virtualBuiltinAgentCarriesConfigOnRow`
+    （虚拟行 config 非空）；session 339 / agentm 7 / agent 362 / org 2 / knowledge 193
+    全绿；**双端活进程 2×2 对拍**（同一会话同请求体）：`builtin-smart-reasoning`
+    → Go/Java 均 `stage=agent_execution`（修复前 Java 为 `knowledge_qa_execution`）；
+    `agent_mode="agent"`（Go 视为非 agent）→ 双端均 RAG 流（knowledge_search 进度 +
+    fallback answer）——分派完全互换验证通过。**无 golden 覆盖 `agent_execution`**
+    是漏网主因（4.6d A/B 场景全是不可解析 agent / agent_enabled=false）。
+  - **遗留（紧接下一步）**：agent 引擎的**检索工具族仍未注册**
+    （`SessionAgentQaService.registerTools` 只构造 thinking/todo_write，
+    knowledge_search 等落 `default → "Unknown tool"`；工具实现（4.5b）与检索执行面
+    均已就位，`hasVectorKb` 硬网不会删掉有向量库的用例）——分派修好后 agent 真实跑
+    引擎但无 KB 工具，须随批补注册。

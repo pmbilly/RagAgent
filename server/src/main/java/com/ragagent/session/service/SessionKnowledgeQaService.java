@@ -988,9 +988,17 @@ public class SessionKnowledgeQaService {
         return new Prompts(system, context);
     }
 
-    /** 对照 IsAgentMode（config.agent_mode == "agent"）。 */
+    /**
+     * 对照 Go {@code types.CustomAgent.IsAgentMode}（internal/types/custom_agent.go
+     * L553-556：{@code Config.AgentMode == AgentModeSmartReasoning}）。
+     *
+     * <p>⚠️ 2026-09-23 修复：原实现误写成 {@code == "agent"}（Go 侧无此取值），
+     * 导致所有真实 agent（前端/内置/IM 一律写 {@code smart-reasoning}）在
+     * agent-chat 被误判进 RAG 快答分支——实弹 2×2 对拍证据见
+     * known-issues/06-wave-5.md 尾部。</p>
+     */
     public static boolean isAgentMode(ObjectNode c) {
-        return "agent".equals(c.path("agent_mode").asText(""));
+        return "smart-reasoning".equals(c.path("agent_mode").asText(""));
     }
 
     private static String templateContentByIdAndFile(String id, String file) {

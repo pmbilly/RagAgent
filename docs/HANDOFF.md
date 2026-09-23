@@ -1,5 +1,30 @@
 # 交接文档（新会话接手用）
 
+## 0.-3 agent 模式分派修复（2026-09-23，走查抓回——「智能推理」agent 恒走 RAG 快答）
+
+**做了什么**（两处根因，一次修；此处「走查抓回」= 占位全面复查的最高危项，实弹对拍坐实）：
+①`SessionKnowledgeQaService.isAgentMode` 谓词抄错：`"agent"` → Go 语义
+`"smart-reasoning"`（`types/custom_agent.go` L553-556）；5 处消费点同源（QA 分派 /
+本地浏览器门控 / agentEnabled 持久化 / 两处 prompt 模板选择）。
+②`CustomAgentService.virtualAgent` 合成内建 agent 行不落 config 字符串 → 无 DB 行的
+租户运行时拿到空配置（`resolveAgent` 只取 row 再 parse）；合成行补 `setConfig(...)`
+（对照 Go `GetAgentByID` 的物化 agent）。
+
+**验证**：新单测（谓词取值域）+ AgentContractTest 增「虚拟行 config 非空」钉；
+session 339 / agentm 7 / agent 362 / org 2 / knowledge 193 定向回归全绿；
+**双端活进程 2×2 实弹对拍**（同库同会话同请求体）：`builtin-smart-reasoning` 双端
+`stage=agent_execution`（修复前 Java 为 `knowledge_qa_execution`）、
+`agent_mode="agent"`（Go 视为非 agent）双端 RAG 流——分派完全对齐 Go。
+细节见 known-issues/06-wave-5.md 尾部；漏网主因 = 无 golden 覆盖 `agent_execution`
+（4.6d A/B 场景全避开了已解析的真实 agent）。
+
+**立即遗留（建议下一批）**：agent 引擎的**检索工具族未注册**
+（`SessionAgentQaService.registerTools` 只构造 thinking/todo_write，knowledge_search /
+grep_chunks / list_knowledge_chunks / query_knowledge_graph / get_document_info 落
+`default → "Unknown tool"`；工具实现（4.5b）与检索执行面（3cb4b2e）均已就位）——
+分派修好后 agent 真实跑引擎但无 KB 工具，修完前端 agent 会话会出现
+`Unknown tool: ...` 告警可作入口锚点。
+
 ## 0.-2 沙箱/技能执行面工程（2026-09-23，批 A→D2 落地——「技能与沙箱」从禁用到全链可用，两笔提交）
 
 **做了什么**（commits `0352cb8` + `c1a8442`，61 文件 +16.5k 行；前端品牌改动为用户自己的工作树状态，勿动勿提交）：

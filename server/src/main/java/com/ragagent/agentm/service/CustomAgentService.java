@@ -110,6 +110,15 @@ public class CustomAgentService {
         virtual.setAvatar(built.path("avatar").asText(""));
         virtual.setBuiltin(builtin);
         virtual.setTenantId(tenant);
+        // ⚠️ 2026-09-23 修复：合成行必须带上 config 字符串——运行时消费面
+        // （KnowledgeQaController.resolveAgent / SandboxTerminalController）只取 row
+        // 并重新 parse row.getConfig()，不落 config 会让无 DB 行的租户拿到空配置
+        //（agent_mode/allowed_tools/kb_selection_mode 等全丢）。Go 的 GetAgentByID
+        // 在无 DB 行时返回的是带完整 Config 的物化 agent，行为等价。
+        JsonNode cfgNode = built.get("config");
+        if (cfgNode != null && !cfgNode.isNull()) {
+            virtual.setConfig(cfgNode.toString());
+        }
         return new Result(virtual, (ObjectNode) built.get("config"));
     }
 

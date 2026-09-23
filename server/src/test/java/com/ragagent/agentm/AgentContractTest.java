@@ -8,6 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.ragagent.TestSchema;
+import com.ragagent.agentm.service.CustomAgentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +58,8 @@ class AgentContractTest {
     private MockMvc mockMvc;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private CustomAgentService customAgentService;
 
     private String token;
     private String bearer;
@@ -112,6 +115,26 @@ class AgentContractTest {
     void unauthorized() throws Exception {
         assertGolden(getH("/api/v1/agents", null), 401, "ag-noauth.json");
         assertGolden(getH("/api/v1/agents", "Bearer garbage.token.here"), 401, "ag-badtoken.json");
+    }
+
+    /**
+     * 2026-09-23 修复钉住：无 DB 行的内建 agent 走 virtualAgent 合成——
+     * 合成行必须带 config 字符串，否则运行时消费面（KnowledgeQaController.resolveAgent /
+     * SandboxTerminalController 只取 row 并重新 parse row.getConfig()）拿到空配置，
+     * agent_mode/allowed_tools/kb_selection_mode 全丢（本测试租户无内建 DB 行）。
+     */
+    @Test
+    void virtualBuiltinAgentCarriesConfigOnRow() {
+        com.ragagent.common.context.TenantContext.set(10005L, null, "owner", false, AGU, false);
+        try {
+            var result = customAgentService.getAgentByID("builtin-smart-reasoning", null);
+            assertTrue(result.row().getConfig() != null
+                            && result.row().getConfig().contains("\"smart-reasoning\""),
+                    "虚拟内建行的 config 字符串必须落上（运行时消费面重新 parse row.getConfig()）");
+            assertEquals("smart-reasoning", result.config().path("agent_mode").asText());
+        } finally {
+            com.ragagent.common.context.TenantContext.clear();
+        }
     }
 
     @Test
