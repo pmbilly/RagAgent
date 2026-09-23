@@ -554,6 +554,7 @@ public final class PluginSearch implements Plugin {
             return out;
         }
         out.blacklist = cfg.getBlacklist() == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(cfg.getBlacklist());
+        out.apiKey = cfg.getApiKey() == null ? "" : cfg.getApiKey();
         out.documentFragments = cfg.getDocumentFragments();
         out.embeddingModelId = cfg.getEmbeddingModelId() == null ? "" : cfg.getEmbeddingModelId();
         out.includeDate = cfg.isIncludeDate();
@@ -561,6 +562,9 @@ public final class PluginSearch implements Plugin {
         out.provider = cfg.getProvider() == null ? "" : cfg.getProvider();
         out.proxyUrl = cfg.getProxyUrl() == null ? "" : cfg.getProxyUrl();
         return out;
+        // Go 全量拷贝还含 rerank_model_id/embedding_dimension——执行形状
+        // WebSearchConfig 未承载（仅 RAG 压缩消费，search 路径不用），随压缩
+        // 路径接线时补。
     }
 
     private static Map<String, Object> mapOf(Object... kv) {
