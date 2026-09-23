@@ -1,5 +1,37 @@
 # 交接文档（新会话接手用）
 
+## 0.-2 沙箱/技能执行面工程（2026-09-23，批 A→D2 落地——「技能与沙箱」从禁用到全链可用，两笔提交）
+
+**做了什么**（commits `0352cb8` + `c1a8442`，61 文件 +16.5k 行；前端品牌改动为用户自己的工作树状态，勿动勿提交）：
+
+- **批 A 能力与开关**：WebConfig 的 sandbox 能力翻真（原 `false` 是"波 3 未翻译"的过时部署标记）；SystemController 的 docker 活值改读 `SandboxBackendPolicy.dockerBackendEnabled()`（原硬编码 false）；SystemSettingService 补 `sandbox.docker_enabled` → SandboxBackendPolicy 推送桥（preload/Update/Reset）。
+- **批 B 技能源**：`SkillSourceFetcher`（URL 下载步全文：hop 递归上限 3/JSON handoff/zip-markdown 判别/大小限额/SSRF），替换 "skill source fetch is not available" 占位。
+- **批 C 执行面**：`SandboxSessionClient` 执行契约 + `DockerSandboxClient`（docker-java 3.7.1 **zerodep** transport：容器创建/exec 流式/文件族/ContainerCommit 快照/idle 回收/模板目录）+ `SessionBoundManager`/绑定存储(Redis+内存)/生命周期协调/一次性执行器 + `TenantSandboxResolverService` + `SessionSandboxExecutionService`（resolveForExecution/shell 与文件工具注册/initializeSkillsManager/holdSandboxTurn 回合租约）+ 附件 staging（session_attachment_staging.go 全文）+ SessionAgentQaService 接线（skillsForRun 注入本轮镜像技能、staged 提示注入查询、try-with-resources 租约窗口）。
+- **批 D1 支撑面**：`SkillInstallTranscript`（事件回调/渐近进度 35+44·(1−e^(−k/12))/持久化=Redis 事件流+messages 两行——**没有 skill_install_transcript 表**，任务书有误）/`InstallSteerSink`（UUIDv5(SHA-1, OID) 确定性 ID，Go 实录向量钉死）/`SkillInstallPipeline` 接缝。
+- **批 D2 管线本体**：`SkillInstallPipelineImpl`（~1700 行，runInstall 8 步全链：行所有权+虚拟线程心跳/维护会话/播种/installer agent 循环（builtin-skill-installer+特权 shell+steer 消费+修复轮）/manifest+env 声明/scratch 清理/快照台账先行+ContainerCommit/指针切换指纹复核/旧快照废弃/进度 100%）+ `InstallEngineFactory` 接缝（sandbox 接口 + session 实现：安装模式工具装配；循环依赖经 ObjectProvider）+ `SkillEnvDeclaration`；TenantSkillService 的 catalog install 后台受理改委托管线（虚拟线程）。
+- **快照台账补列**：`parent_snapshot_id`/`planned_name`（迁移 000086/000088 已在 PG 与 Flyway 同步；实体字段+mapper INSERT+TestSchema 对齐）——废弃 building 行从此可按 planned_name 对账回收。
+
+**验证**：四域回归 304 绿（sandbox.runtime/service+session.service+SystemContractTest）；**真实 Docker 集成测试 4/4**（OrbStack）；真 PG 快照台账两列确认；bootRun 冒烟 200（capabilities/skills-catalog）。
+
+**关键教训（新会话必读）**：
+1. **docker-java 传输选型**：httpclient5 传输的 exec hijack **不传输输出帧也不传 stdin**（与版本无关，3.4.0/3.7.1 双探针实锤）——必须用 zerodep transport；且 zerodep 的 **stdin 写端无半关闭**（EOF 不达，读 stdin 的命令挂死到 timeout 137）——WriteFile 走 PutArchive（tarSingleFile 最小 ustar）、exec stdin 走"种子文件+重定向"绕开 hijack 写路径。
+2. **Go `%q` 动词**：Java String.format 不认（UnknownFormatConversionException）——SessionSandboxPaths 5 处已修；引号用 quoteGo 参数自带。
+3. **任务书/测试预期会写错，Go 源+实录才是准绳**（本轮三例：dockerSanitizeImageName 对空格是丢弃而非转分隔符、isDirectArchivePath 只认 .zip/.tgz/.tar.gz/.tar/.md 后缀——非归档后缀走 registry 改写、UUIDv5 实录向量）。
+4. **代理交付后立即跑测试可能撞陈旧增量编译产物**（4 条假失败在强制重编后消失）——验收先 `--rerun` 或 clean compile 确认。
+5. **本机 Docker 是 OrbStack**：`/var/run/docker.sock` 符号链接失效，集成测试必须 `DOCKER_HOST=unix:///$HOME/.orbstack/run/docker.sock` + `WEKNORA_SANDBOX_DOCKER_ENABLED=true` + `WEKNORA_SANDBOX_DOCKER_IT=true`。
+6. gradle 增量编译会漏报部分类型错误（RemoteSessionLifecycle 5 处漏报案例）——验收用独立全量 javac 或 --rerun。
+
+**当前能力（全链可用）**：技能目录注册（文件上传）→ 安装到 docker 沙箱配置（LLM 驱动依赖安装 + 镜像快照）→ 对话中选技能真实执行（shell_exec/文件工具/凭据三层注入/附件 staging）。
+
+**剩余（按优先级）**：
+1. **ArtifactCollector 生产 bean 装配**：ArtifactFileStore=存储写字节面（StorageFileResolver/TenantStorageService 一族）、SessionArtifactStore=MessageRepository 包装（Go NewMessageRepoArtifactStore）、ResourceCatalogBinder=ResourceCatalogService；drain 点=agent_stream_handler.go L720-734 等价的引擎完成处（best-effort + emitArtifactsPending）；source 适配器 `SessionBoundArtifactSource` 已备。
+2. **真实 LLM install E2E**：建 docker 沙箱配置（host 留空自动探测；OrbStack 注意 DOCKER_HOST）→ 上传技能 → 安装（install-events SSE 进度 + 快照 commit）→ 对话执行（shell_exec + 产物）。管线全链就绪，无已知阻塞。
+3. **批 E 终端 PTY**（cube/e2b，Go cube_terminal.go/e2b_terminal.go ~400 行；docker 无 PTY）：注意 zerodep 传输 stdin 无半关闭对 PTY 双向流的影响需先评估。
+4. SkillProgressStore 的 pub/sub 实时通道（现 no-op subscribe）+ langfuse span（备案级降级）。
+5. 评估执行 E2E 前记得：docker 开关现在走 system_settings（DB 层）即开即用，无需重启。
+
+---
+
 ## 0.-1 占位收口批（2026-09-23，全仓占位排查 → 十处缺口全修——「路由在、执行体占位」清零）
 
 **排查**：按 HANDOFF 全仓扫描占位标记（占位/TODO/not translated/恒 null/固定 401/
@@ -254,7 +286,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-23 · **基线：占位收口批（会话删除三件套 / AutoTagProvider / 追问建议生成 / Artifact 版本澄清 / API 主体解析 / 向量搜索路径 / Wiki 共享访问 / sandbox_file_progress / ImageResolver 装配 / SsrfGuard 泄漏修复，见 §0.-1 与 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-23 · **基线：沙箱/技能执行面工程（批 A→D2 两笔提交 0352cb8+c1a8442，见 §0.-2 与 git log 顶部）· golden 1,719+24 · 真实 Docker 集成测试 4/4**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
