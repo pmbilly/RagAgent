@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.error.BizException;
@@ -540,13 +541,50 @@ public class RemoteApiChat implements LlmChatClient {
 
         byte[] bodyBytes() {
             try {
-                // Go json.Marshal 等价：HTML 转义（< > & 转小写十六进制反斜杠 u 形式）——
-                // 与 embedding/websearch 等出站请求的既有 GoJson 模式一致（§9 差分排查）。
-                return GO_MARSHAL.writeValueAsBytes(body);
+                // Go json.Marshal 等价：① 每层对象键按 Go 的 map 序输出（goSorted），
+                // ② HTML 转义（< > & 转小写十六进制反斜杠 u 形式）——与 embedding/
+                // websearch 等出站请求的既有 GoJson 模式一致（§9 差分排查）。
+                return GO_MARSHAL.writeValueAsBytes(goSorted(body));
             } catch (IOException e) {
                 throw BizException.internal("marshal request: " + e.getMessage());
             }
         }
+    }
+
+    /**
+     * 按 Go 的 map 序列化顺序重排请求体：Go 的整个 chat 请求体是经 map 出去的，
+     * {@code encoding/json} 对 map 一律按 key 的字节序输出，所以<b>每一层对象</b>
+     * 都是字母序。2026-09-23 双端实录对拍坐实三处同源差异：顶层
+     * {@code max_completion_tokens/messages/model/parallel_tool_calls/prompt_cache_key/
+     * stream/stream_options/tools}、messages 元素 {@code content/role}、
+     * 工具 schema {@code properties/required/type}——而 Java 侧的 ObjectNode 保持插入序。
+     *
+     * <p>键序比较用 UTF-8 字节（与 Go 一致，而非 Java 的 UTF-16 码元序）。</p>
+     */
+    static JsonNode goSorted(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return node;
+        }
+        if (node.isObject()) {
+            List<String> names = new ArrayList<>();
+            node.fieldNames().forEachRemaining(names::add);
+            names.sort((a, b) -> java.util.Arrays.compare(
+                    a.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    b.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            ObjectNode sorted = JsonNodeFactory.instance.objectNode();
+            for (String name : names) {
+                sorted.set(name, goSorted(node.get(name)));
+            }
+            return sorted;
+        }
+        if (node.isArray()) {
+            ArrayNode sorted = JsonNodeFactory.instance.arrayNode();
+            for (JsonNode item : node) {
+                sorted.add(goSorted(item));
+            }
+            return sorted;
+        }
+        return node;
     }
 
     /** 组请求头（对照 Go chatWithRawHTTP/chatStreamWithRawHTTP 的头部设置顺序）。 */

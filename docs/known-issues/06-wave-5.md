@@ -892,3 +892,49 @@
   接线钉新增 `data_schema`。**仍待切片 2c**：wiki 10 件（`WikiSupport.WikiPages` 适配器
   14 方法 + scopes/routes + hasWikiKb 门控，验收需 wiki KB 夹具）与 `web_search`/`web_fetch`
   （Java 缺件，属新翻）。
+
+- **agent 工具接线·切片 2c（2026-09-23，wiki 十件落地；A/B 抓回「Go 出站体每层键序」根因）**：
+  在 `AgentToolBackends` 上补 `createWikiTool`（对照 `agent_service.go` L1093-1116 十个构造点：
+  `wiki_read_page`/`wiki_search` 收 `wikiScopes`+`routes`+tagsFetcher，其余八件收扁平
+  `wikiKBIDs`——Go 的这处不对称是**有意的**：`NewWikiScopesFromKBIDs` 会丢掉 doc/tag 窄化）
+  与 `wikiPages()` 适配器（`WikiSupport.WikiPages` 14 方法 → `wiki.service.WikiPageService`）。
+  - **接缝契约翻译三处**：① Go 的 `repository.ErrWikiPageNotFound` 在 Java 侧是
+    `WikiPageNotFoundException`（repository 抛，不是返回 nil），而接缝约定「null = 页不存在」
+    ——`getPageBySlug` 单独吞掉它，其余异常照抛（否则 `resolveUniqueWikiPage` 会把
+    「本 KB 没有这页」当致命错误，多 KB 扫描直接断）；② Go 的
+    `types.WithWikiEditSource(ctx, WikiEditSourceAgent)` → `WikiEditContext.callWith/runWith`
+    （service 落库时读 ThreadLocal）；③ Go 的 `time.Time` 进 `json.MarshalIndent` 是
+    RFC3339Nano 文本，`IssueView` 以字符串承载 → `goTimeText`：**按 UTC 渲染**（GORM 读
+    timestamptz 得 UTC location）**且尾零连小数点一起裁**（`ISO_OFFSET_DATE_TIME` 会补齐到
+    3/6/9 位，`.100` vs Go 的 `.1`）。
+  - **另一处必翻译**：Go 建页只走字段字面量（`wiki_write_page.go:199`、`wiki_rename_page.go:94`），
+    `ID` 恒为空串 → `CreatePage` 生成新 UUID；Java 的 rename 走 `PageView.copy()` 会带上**旧页
+    ID**，接缝不清掉就跟尚未删除的旧页撞主键。已在 `wikiPages().createPage` 里 `setId(null)`。
+  - **门控补齐**：`registerTools` 此前只 `hasWikiKb = !wikiKbIds.isEmpty()`，没做 Go L886-895 的
+    「dedup → `NewWikiScopesFromSearchTargets` → **用 scope 结果重建 wikiKBIDs**」；现在
+    `hasWikiKb` 按窄化后的清单判定（畸形空 target 不成整库授权 → 该 KB 也不挂 wiki 工具），
+    并按 Go L870 一个引擎一个 `WikiRouteResolver` 实例共享给十件。
+  - **A/B 抓回的根因（本批最大一处，且解释了前三个切片逐个修的键序）**：Go 的整个出站 chat
+    请求体是经 **map** 序列化的，`encoding/json` 对 map key 一律按字节序输出，所以
+    **每一层对象**都是字母序——实录证据：顶层 `max_completion_tokens/messages/model/
+    parallel_tool_calls/prompt_cache_key/stream/stream_options/tools`、messages 元素
+    `content/role`、工具 schema `properties/required/type`（Java 全是插入序）。
+    十件 wiki schema 的**内容**与 Go 逐字段相等，只差键序 → 说明此前「手改字面量键序」的
+    路子治标不治本。改在 `RemoteApiChat.goSorted()`（`Outbound.bodyBytes()` 序列化前递归重排，
+    比较器用 UTF-8 字节 = Go 序）一处收口：**同时清掉备案残留「外层请求体键序」**，
+    messages 元素的 `role/content` 也随之外对齐。
+  - **验证**：新增 `scripts/ab-tools-wiki.sh`（双端 stub：同 agent、各自建会话跑 agent-chat，
+    从 `STUB_DUMP_DIR` 落盘里挑首个带 tools 的请求体对拍）——修前报十件全差、修后
+    **同注册 11 件 + tools 段 10692 字节逐字节一致**，顶层键序与 Go 完全一致
+    （只剩 `temperature` 一项）；回归 wiki 554 / agent 362 / session 361 / llm.chat 155 全绿，
+    新增 `AgentToolBackendsWikiTest`（H2 真 service）+ `RemoteApiChatTest.outboundKeysAreSortedLikeGoMap`。
+    夹具已全退（夹具 KB 的 `wiki_enabled`、temp agent `cd03be45-…-wiki`、rerank stub 行
+    `ab0c0000-…-ab01`、六个临时会话）。
+  - **残留（新增备案）**：① `wiki_read_issue` 结果里 `suspected_knowledge_ids` 空值——Go 的
+    nil `StringArray` 经 jsonb `null` 往返仍是 nil → 渲染 `null`，Java 的 `IssueView` setter
+    把 null 归成空表 → 渲染 `[]`（工具**结果**字节差异，Go 迁移 000037 该列无 DEFAULT，
+    `wiki_flag_issue` 不带该参数时落的是 jsonb 'null'）；② agent 建的 wiki 页 `tenant_id=0`
+    （Go `wiki_write_page.go` 的 struct 字面量不带 TenantID，只 rename 带；Java 逐字对齐——
+    wiki 读路径按 `knowledge_base_id+slug` 过滤、不看 tenant，所以两端同样无感，但
+    `WikiPageMapper` 唯一按 tenant 过滤的那条查询会漏掉这些行）。照旧残留：messages 内容、
+    `temperature`、`SkillInstallPipelineImpl:1123`。**下一步 = web_search/web_fetch**（Java 缺件，新翻）。

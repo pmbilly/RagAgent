@@ -1,5 +1,44 @@
 # 交接文档（新会话接手用）
 
+## 0.-7 agent 工具接线·切片 2c（2026-09-23——wiki 十件落地 + 出站键序一次性收口）
+
+**做了什么**：
+- `AgentToolBackends` 新增 `createWikiTool`（对照 `agent_service.go` L1093-1116 的十个构造点）
+  与 `wikiPages()`——`WikiSupport.WikiPages` 接缝桥到真实 `wiki.service.WikiPageService`。
+  Go 语义翻译三处：① `repository.ErrWikiPageNotFound`（Java 侧是
+  `WikiPageNotFoundException`）→ 接缝契约的「返回 null」，其余异常照抛；② 写归因
+  `types.WithWikiEditSource(ctx, agent)` → `WikiEditContext.callWith/runWith`；
+  ③ `time.Time` → Go `json.Marshal` 的 RFC3339Nano 文本（**尾零连小数点一起裁**，
+  Java 的 `ISO_OFFSET_DATE_TIME` 会补齐到 3/6/9 位）。
+  另：`createPage` 在接缝处**强制新 UUID**——Go 两个调用点都用字段字面量建页（ID 恒空），
+  而 `wiki_rename_page` 在 Java 侧走 `PageView.copy()` 会带上旧 ID，不清就撞主键。
+- `registerTools` 补齐 Go L886-895 的 scope 解析：`dedup → newWikiScopesFromSearchTargets →
+  **用 scope 结果重建 wikiKBIDs**`，`hasWikiKb` 据窄化后的清单判定（畸形空 target 不会
+  变成整库授权）；一个引擎一个 `WikiRouteResolver` 实例共享给十件（Go L870）。
+- **A/B 抓回的最大一处**：Go 的整个出站 chat 请求体是经 **map** 序列化的，
+  `encoding/json` 对 map 一律按 key 字节序输出——所以**每一层对象**都是字母序
+  （顶层 `max_completion_tokens/messages/model/…`、messages 元素 `content/role`、
+  工具 schema `properties/required/type`）。此前各切片手工修的是「工具字面量键序」，
+  本批改在 `RemoteApiChat.goSorted()`（序列化前递归重排）一处收口，
+  **同时清掉备案残留「外层请求体键序」**，10 件 wiki schema 无需逐个改。
+
+**验收**：`scripts/ab-tools-wiki.sh`（新增，双端 stub 对拍 tools 段）——同注册 **11 件**
+（KB 五件里的 knowledge_search + wiki 十件）、**tools 段 10692 字节逐字节一致**；
+修前 A/B 报出十件 schema 全部键序差、修后 MATCH，顶层键序与 Go 完全一致
+（仅 `temperature` 一项残留）。回归：wiki 554 / agent 362 / session 361 / llm.chat 155 全绿；
+新增 `AgentToolBackendsWikiTest`（H2 真 service：null 翻译 / 往返 / 新 UUID / edit_source /
+issue 时间文本 / 十件可构造）+ `RemoteApiChatTest.outboundKeysAreSortedLikeGoMap`。
+夹具已全部回退（wiki_enabled、temp agent、rerank stub 行、六个临时会话）。
+
+**残留（待专项）**：① messages 内容（system prompt 缺 Go 的 KB 使用段约 860 字符 +
+user 缺 `<runtime_context>` 块）、`temperature`（Java 0.7 / Go 不发）照旧；
+② `wiki_read_issue` 输出里 `suspected_knowledge_ids` 空值 Java 渲染 `[]`、Go 是 `null`
+（Go 侧 nil slice 经 jsonb 'null' 往返仍是 nil）——工具**结果**字节差异，非本切片主题；
+③ agent 建的 wiki 页 `tenant_id=0`（Go `wiki_write_page.go` 的 struct 字面量不带 TenantID，
+仅 rename 带；Java 逐字对齐，读路径不按 tenant 过滤所以无感）；
+④ `SkillInstallPipelineImpl:1123` 同款 governor 漏传。**下一步 = web_search/web_fetch**
+（Java 无工具类，属新翻：Go `web_search.go` ~80 行 / `web_fetch.go` ~77 行 + 描述/实录）。
+
 ## 0.-6 agent 工具接线·切片 2b（2026-09-23——data_schema 接线；wiki/web 仍待）
 
 **做了什么**：`data_schema` 接进 `createTool`（KnowledgeLookup/ChunkLister 走
@@ -10,10 +49,8 @@ tenant 取 knowledge 行；`scopeEnforced` 时挂 `SearchAuth.authorizeKnowledge
 **验收**：A/B 双端同注册 **8 件**（KB 五件 + conversations + database_query + data_schema）→
 **tools 段 14675 字节逐字节一致**；agent 362 / session 349 全绿。
 
-**仍待（切片 2c）**：**wiki 10 件**（需实现 `WikiSupport.WikiPages` 适配器——14 个方法桥到
-wiki 模块真实服务 + `WikiSupport.newWikiScopesFromKbIds` + `new WikiRouteResolver()`，
-仅 `hasWikiKb` 注册；验收需 wiki KB 夹具）＋ **`web_search`/`web_fetch`**（Java 无工具类，
-属新翻，Go ~80/77 行 + 描述/实录）。
+**已完成（切片 2c，见 §0.-7）**：**wiki 10 件**接线 + 门控 + A/B 已落地。
+**仍待**：**`web_search`/`web_fetch`**（Java 无工具类，属新翻，Go ~80/77 行 + 描述/实录）。
 
 ## 0.-5 agent 工具接线·切片 2a（2026-09-23——会话/记忆/DB 三件 + 记忆闸门回收）
 

@@ -18,6 +18,7 @@ import com.ragagent.agent.AgentPrompts;
 import com.ragagent.agent.AgentToolNames;
 import com.ragagent.agent.skills.Manager;
 import com.ragagent.agent.tools.ToolDefinitions;
+import com.ragagent.agent.tools.WikiSupport;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 import com.ragagent.agent.tools.ToolRegistry;
 import com.ragagent.agentm.service.AgentConfigJson;
@@ -678,7 +679,7 @@ public class SessionAgentQaService {
 
         // Capability detection from SearchTargets（Go L869-896）
         boolean hasVectorKb = false;
-        List<String> wikiKbIds = new ArrayList<>();
+        List<String> detectedWikiKbIds = new ArrayList<>();
         if (config.getSearchTargets() != null) {
             for (var target : config.getSearchTargets().list()) {
                 String kbId = target.knowledgeBaseId();
@@ -692,7 +693,7 @@ public class SessionAgentQaService {
                             hasVectorKb = true;
                         }
                         if (kb.getIndexingStrategy().isWikiEnabled()) {
-                            wikiKbIds.add(kb.getId());
+                            detectedWikiKbIds.add(kb.getId());
                         }
                     }
                 } catch (RuntimeException ignored) {
@@ -700,7 +701,20 @@ public class SessionAgentQaService {
                 }
             }
         }
+        // Go L886-895：dedup → 由 SearchTargets 解析出带 doc/tag 窄化的 scope → **再用 scope
+        // 重建 KB 清单**。hasWikiKb 必须看窄化后的结果：畸形空 target 不会变成整库授权，
+        // 因而该 KB 也不该挂 wiki 工具。
+        List<WikiSupport.WikiScope> wikiScopes = detectedWikiKbIds.isEmpty()
+                ? List.of()
+                : WikiSupport.newWikiScopesFromSearchTargets(config.getSearchTargets(), detectedWikiKbIds);
+        List<String> wikiKbIds = new ArrayList<>();
+        for (WikiSupport.WikiScope scope : wikiScopes) {
+            wikiKbIds.add(scope.knowledgeBaseId());
+        }
         boolean hasWikiKb = !wikiKbIds.isEmpty();
+        // Go L870：一个引擎一个 WikiRouteResolver，wiki 十件共享（search 见过的 slug
+        // 会偏置 read_page 的查找序）
+        WikiSupport.WikiRouteResolver wikiRoutes = new WikiSupport.WikiRouteResolver();
         boolean hasKnowledge = !config.getKnowledgeBases().isEmpty() || !config.getKnowledgeIds().isEmpty()
                 || (config.getSearchTargets() != null
                         && com.ragagent.agent.tools.SearchTarget.SearchTargets
@@ -788,6 +802,14 @@ public class SessionAgentQaService {
                         ToolDefinitions.TOOL_DATA_SCHEMA ->
                         toolToRegister = toolBackends.createTool(toolName,
                                 config.getSearchTargets(), rerankModel, toolOwnerId, sessionId);
+                // wiki 族 10 件（2026-09-23 接线批·切片 2c）：Go L1093-1116
+                case ToolDefinitions.TOOL_WIKI_READ_PAGE, ToolDefinitions.TOOL_WIKI_SEARCH,
+                        ToolDefinitions.TOOL_WIKI_READ_SOURCE_DOC, ToolDefinitions.TOOL_WIKI_FLAG_ISSUE,
+                        ToolDefinitions.TOOL_WIKI_WRITE_PAGE, ToolDefinitions.TOOL_WIKI_REPLACE_TEXT,
+                        ToolDefinitions.TOOL_WIKI_RENAME_PAGE, ToolDefinitions.TOOL_WIKI_DELETE_PAGE,
+                        ToolDefinitions.TOOL_WIKI_READ_ISSUE, ToolDefinitions.TOOL_WIKI_UPDATE_ISSUE ->
+                        toolToRegister = toolBackends.createWikiTool(toolName,
+                                config.getSearchTargets(), wikiScopes, wikiKbIds, wikiRoutes);
                 case ToolDefinitions.TOOL_SHELL_EXEC, ToolDefinitions.TOOL_READ_FILE,
                         ToolDefinitions.LEGACY_TOOL_READ_SKILL, ToolDefinitions.LEGACY_TOOL_EXECUTE_SKILL_SCRIPT,
                         ToolDefinitions.TOOL_LIST_SANDBOX_FILES, ToolDefinitions.LEGACY_TOOL_READ_SANDBOX_FILE,

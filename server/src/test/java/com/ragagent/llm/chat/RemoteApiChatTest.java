@@ -353,6 +353,37 @@ class RemoteApiChatTest {
         assertTrue(fn.get("parameters").isNull());
     }
 
+    /**
+     * 出站请求体的**键序**逐层等于 Go 的 map 序列化序（2026-09-23 双端实录对拍：
+     * Go 顶层 messages/model/stream/…、messages 元素 content/role、
+     * 工具 schema properties/required/type 全为字母序，而 ObjectNode 默认保持插入序）。
+     */
+    @Test
+    void outboundKeysAreSortedLikeGoMap() throws Exception {
+        RemoteApiChat chat = newTestRemoteChat();
+        ChatTool tool = new ChatTool();
+        tool.getFunction().setName("wiki_read_page");
+        tool.getFunction().setDescription("d");
+        tool.getFunction().setParameters(MAPPER.readTree(
+                "{\"type\":\"object\",\"properties\":{\"slugs\":{\"type\":\"array\","
+                        + "\"items\":{\"type\":\"string\"},\"description\":\"list\"}},"
+                        + "\"required\":[\"slugs\"]}"));
+        ChatOptions opts = new ChatOptions();
+        opts.setTools(List.of(tool));
+
+        String json = new String(chat.buildOutbound(userMessage("hi"), opts, false, null)
+                .bodyBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("{\"function\":{\"description\":\"d\",\"name\":\"wiki_read_page\","
+                        + "\"parameters\":{\"properties\":{\"slugs\":{\"description\":\"list\","
+                        + "\"items\":{\"type\":\"string\"},\"type\":\"array\"}},"
+                        + "\"required\":[\"slugs\"],\"type\":\"object\"}},\"type\":\"function\"}"),
+                "tools 段每层键序必须字母序：" + json);
+        assertTrue(json.indexOf("\"messages\"") < json.indexOf("\"model\"")
+                        && json.indexOf("\"model\"") < json.indexOf("\"tools\""),
+                "顶层键序必须字母序：" + json);
+    }
+
     // ------------------------------------------------------------------
     // 对照 Go TestApplyCompletionToolCallMetadata
     // ------------------------------------------------------------------
