@@ -325,17 +325,37 @@ public class ArtifactCollector {
 
     /** 对照 types.ScanResourceReferences：抽答案里全部 resource://<handle> 引用。 */
     static final class ResourceReferences {
+        // 对照 Go resourceReferenceRE（types/resource.go L164）：handle 是 base64url
+        // 的 22 字符，字符集含 -/_（缺了会漏掉约一半的引用——Docker 排水 IT 抓回）。
         private static final java.util.regex.Pattern RESOURCE_REF =
-                java.util.regex.Pattern.compile("resource://[A-Za-z0-9]{22}");
+                java.util.regex.Pattern.compile("resource://[A-Za-z0-9_-]{22}");
+
+        /** 对照 isResourceHandleChar（resource.go L159-162）。 */
+        private static boolean isResourceHandleChar(char c) {
+            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-';
+        }
 
         static List<String> scan(String content) {
             List<String> out = new ArrayList<>();
             if (content == null || content.isEmpty()) {
                 return out;
             }
+            // Go：更长的 handle 字符连串不是「22 字符 handle 带尾随文本」——那是别的
+            // 非法 token，绑截断前缀会挂错文件（resource.go L181-185 的边界检查）。
             var m = RESOURCE_REF.matcher(content);
+            List<int[]> spans = new ArrayList<>();
             while (m.find()) {
-                out.add(m.group());
+                spans.add(new int[]{m.start(), m.end()});
+            }
+            for (int[] span : spans) {
+                if (span[1] < content.length() && isResourceHandleChar(content.charAt(span[1]))) {
+                    continue;
+                }
+                String ref = content.substring(span[0], span[1]);
+                if (!out.contains(ref)) {
+                    out.add(ref);
+                }
             }
             return out;
         }

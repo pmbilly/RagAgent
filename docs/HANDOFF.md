@@ -1,5 +1,18 @@
 # 交接文档（新会话接手用）
 
+## 0.-12 全量回归 + 真实 Docker 排水 E2E（2026-09-24——验证面收口 + 一个真缺陷）
+
+**做了什么**：①**全量分批回归**（本轮多批改动共享面后的全面排查）：8 个批次
+~4,100 用例全绿（明细见 known-issues/06 尾部）；②**真实 Docker 产物排水全链
+E2E**（ArtifactDrainDockerIT，门控同既有 Docker IT）：真容器 → 生产绑定形态 →
+ArtifactCollector → 装饰存储（resource://）→ 磁盘回环/去重/引用历史——§0.-9 的
+验证缺口关闭。**IT 抓回一个真生产缺陷并已修**：ResourceReferences 引用扫描正则
+漏 base64url 的 `-_` 字符（约一半 handle 受影响，答案引用产物时 ReferencedHistory
+静默失效）+ 缺 Go 的截断边界检查——已修并补纯单测。**坑**：IT 门控注解改类时勿丢；
+resolvePath 返回的是 local:// 作用域路径；22 字符字面量用 repeat 生成。
+**运维**：后台 Go/Java 用 nohup 后尽量在同一次调用内完成验证（进程组信号会优雅
+杀掉后台服务，macOS 无 setsid）。
+
 ## 0.-11 LLM 分路径键序收口（2026-09-24——最后一个已知保真缺口关闭）
 
 **做了什么**：RemoteApiChat 出站序列化按 Go 的**两条真实路径**分流——map 改写路径
@@ -475,7 +488,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-24 · **基线：LLM 分路径键序收口（SDK/map 双路径全 body MATCH，见 §0.-11 与 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-24 · **基线：全量分批回归 ~4,100 全绿 + 真实 Docker 排水 E2E（引用扫描真缺陷修复，见 §0.-12 与 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 

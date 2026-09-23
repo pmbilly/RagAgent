@@ -191,4 +191,38 @@ class ArtifactCollectorTest {
         assertEquals("unnamed", ArtifactCollector.safeFileName(""));
         assertEquals("unnamed", ArtifactCollector.safeFileName(null));
     }
+
+    /**
+     * 引用扫描的字符集与边界（2026-09-24 Docker 排水 IT 抓回的真缺陷）：
+     * handle 是 base64url 22 字符（含 -/_），Go 的 resourceReferenceRE 字符集
+     * 含 -/_ 且拒绝「更长连串的截断匹配」（resource.go L159-185）。
+     */
+    @org.junit.jupiter.api.Test
+    void resourceReferenceScanHandlesBase64UrlAlphabetAndBoundary() {
+        String h22 = "a".repeat(22);
+        // base64url 字符集（含 - 与 _）的 22 字符 handle——约一半的随机 handle 命中，
+        // 旧实现 [A-Za-z0-9]{22} 会漏掉它们（Docker 排水 IT 抓回的真缺陷）
+        String mixed = "resource://" + "aB3-xY9_qR7wZc2VbN01mK".substring(0, 22);
+        assertEquals(List.of(mixed),
+                ArtifactCollector.ResourceReferences.scan("请下载 " + mixed + " 查看结果"));
+        // 纯字母数字 22 字符仍可扫描
+        assertEquals(List.of("resource://" + h22),
+                ArtifactCollector.ResourceReferences.scan("resource://" + h22));
+        // 更长连串（23 字符）= 非法 token，拒绝截断前缀（对照 Go 边界检查）
+        assertEquals(List.of(),
+                ArtifactCollector.ResourceReferences.scan("resource://" + h22 + "a"));
+        // 21 字符不足 → 不匹配
+        assertEquals(List.of(),
+                ArtifactCollector.ResourceReferences.scan("resource://" + "a".repeat(21)));
+        // 去重：同一引用只出现一次
+        assertEquals(List.of("resource://" + h22),
+                ArtifactCollector.ResourceReferences.scan(
+                        "a resource://" + h22 + " b resource://" + h22));
+        // 无引用 / 空文本
+        assertEquals(List.of(), ArtifactCollector.ResourceReferences.scan("no refs here"));
+        assertEquals(List.of(), ArtifactCollector.ResourceReferences.scan(""));
+        // 22 字符后跟非 handle 字符（如 '.'）→ 正常匹配（边界检查只拒 handle 字符）
+        assertEquals(List.of("resource://" + h22),
+                ArtifactCollector.ResourceReferences.scan("resource://" + h22 + "."));
+    }
 }

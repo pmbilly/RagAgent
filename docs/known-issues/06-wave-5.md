@@ -1096,3 +1096,32 @@
     chatpipeline 43 全绿。
   - **运维注意**：本轮 Go server 两次在后台被优雅关闭（setsid 缺失的进程组信号），
     macOS 无 setsid——长跑用 `nohup ... &` 后在同一次调用内完成验证，或挂 launchd。
+
+- **真实 Docker 产物排水 E2E + 引用扫描真缺陷修复（2026-09-24，§0.-2 剩余 2 的验证缺口关闭）**：
+  - **新 IT**：`session.service/ArtifactDrainDockerIT`（门控
+    `WEKNORA_SANDBOX_DOCKER_IT=true`，@SpringBootTest + OrbStack）——真容器
+    `/workspace/output` 文件 → 生产绑定形态（docker + 容器 id，templateId=镜像 tag）
+    的 SessionBoundManager → SessionBoundArtifactSource → ArtifactCollector →
+    装饰存储（resource:// 手柄 + 资源注册 + artifact 绑定行）→ 磁盘回环；去重
+    （全部已知 = **空切片**非 nil，Go `make(0,0)` 语义）与引用历史回带。跑法：
+    `DOCKER_HOST=unix:///$HOME/.orbstack/run/docker.sock WEKNORA_SANDBOX_DOCKER_IT=true
+    WEKNORA_SANDBOX_DOCKER_ENABLED=true ./gradlew :server:test --tests
+    "com.ragagent.session.service.ArtifactDrainDockerIT"`。
+  - **IT 抓回一个真生产缺陷**：`ArtifactCollector.ResourceReferences` 的引用扫描
+    正则是 `[A-Za-z0-9]{22}`，而 Go（types/resource.go L164）是
+    `[A-Za-z0-9_-]{22}`——handle 是 base64url，**约一半含 -/_**，旧实现会让答案
+    文本引用这类产物时 ReferencedHistory 静默失效；且缺 Go L181-185 的边界检查
+    （更长连串拒绝截断前缀）。已修（字符集 + 边界 + 去重），补纯单测
+    `resourceReferenceScanHandlesBase64UrlAlphabetAndBoundary`（22/23/21 字符、
+    基本square字符集、去重、空文本）。
+  - **坑**：①22 字符手写字面量极易数错（24 个 a 写成 22）——测试用 `"a".repeat(22)`
+    生成；②装饰存储的 `resolvePath().physicalPath()` 是 `local://…` provider 作用域
+    路径，测试读盘要 `baseDir.resolve(strip前缀)`，直接 `Path.of` 得到 `local:/…`；
+    ③IT 的 `@EnabledIfEnvironmentVariable` 门控在改写类时**必须保留**——丢失会让
+    无 Docker 的普通批次直接 initializationError。
+  - **全量分批回归（本日基线）**：B1a agent 380 + chatpipeline 43 / B1b
+    common+event+apikey+audit+auth 458 / B2 knowledge+wiki+model+mcp+modelcontext
+    1059 / B3 memory+datasource+stream+im+org+embedding+vectorstore+rerank 1378 /
+    B4 sandbox+browserskill+embed+system+websearch+webfetch+searchutil+tracing+
+    favorite+evaluation+storageurl+root 440 / session 369 / storage 55 / llm.chat
+    156——**共 ~4,100 用例全绿，0 失败**。
