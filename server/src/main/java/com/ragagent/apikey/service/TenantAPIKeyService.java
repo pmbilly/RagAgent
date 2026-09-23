@@ -215,11 +215,29 @@ public class TenantAPIKeyService {
      * 迁移 000065 给历史行写的是占位摘要 {@code migrated-tenant-<id>}，
      * 这些行从未被真实认证过；用库里的明文重算 SHA-256 并回填。
      *
-     * <p>Go 在启动时调用一次（container 里）。Java 侧由组合根在启动钩子里调用——
-     * 见任务报告的"待接线"。</p>
+     * <p>Go 在每次启动时调用一次（cmd/server/bootstrap.go L44-52，常量 EXISTS
+     * 短路使稳态零开销）。Java 侧由本服务的 ApplicationReadyEvent 钩子等价调用
+     * （2026-09-23 第二轮走查批接线——原"待接线"备案清除）。</p>
      *
      * @return 实际回填的行数；第二条相同的 Key 摘要直接跳过
      */
+    /**
+     * 对照 Go bootstrap 的启动回填（cmd/server/bootstrap.go L44-52）：每次启动
+     * 尽力而为执行一次；失败只记 warn 不阻断启动。
+     */
+    @org.springframework.context.event.EventListener(
+            org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void backfillOnStartup() {
+        try {
+            int n = backfillMissingKeyHashes();
+            if (n > 0) {
+                log.info("[bootstrap] backfilled {} legacy tenant api key hash(es)", n);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[bootstrap] tenant api key hash backfill failed: {}", e.toString());
+        }
+    }
+
     public int backfillMissingKeyHashes() {
         if (!repo.hasKeysWithPlaceholderHash()) {
             return 0;

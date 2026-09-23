@@ -224,8 +224,25 @@ public class RbacInterceptor implements HandlerInterceptor {
         return null;
     }
 
-    /** 对照 RequireRole / RequireRoleOrSystemAdmin 判定链 */
+    /** 对照 RequireRole / RequireRoleOrSystemAdmin / RequireSystemAdmin 判定链 */
     private boolean check(Rule rule) {
+        // Go：API-key 主体由 APIKeyGate 全权判定（能力 + KB 白名单 + default-deny），
+        // 角色阶梯不适用于机器主体——RequireRole / RequireRoleOrSystemAdmin 短路放行
+        // （rbac.go L72-78 / L121-124）；RequireSystemAdmin 只放行平台 Key、
+        // 拒绝租户 Key（L155-164）。
+        com.ragagent.apikey.domain.TenantAPIKeyScope apiKeyScope =
+                com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        if (apiKeyScope != null) {
+            if (rule.sysAdminOnly()) {
+                if (apiKeyScope.isPlatform()) {
+                    return true;
+                }
+                log.warn("[rbac] system admin required: API-key principal denied path-rule={}",
+                        rule.pattern());
+                return false;
+            }
+            return true;
+        }
         if (rule.sysAdminOnly()) {
             // 仅系统管理员：租户角色不参与判定
             if (TenantContext.isSystemAdmin()) {

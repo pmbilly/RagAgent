@@ -58,17 +58,20 @@ public class KnowledgeBaseController {
     private final com.ragagent.knowledge.service.KnowledgeAccessGuard guard;
     private final com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess;
     private final HybridSearchService hybridSearchService;
+    private final com.ragagent.org.service.KbShareService kbShareService;
 
     public KnowledgeBaseController(KnowledgeBaseService kbService,
                                    com.ragagent.knowledge.service.KnowledgeService knowledgeService,
                                    com.ragagent.knowledge.service.KnowledgeAccessGuard guard,
                                    com.ragagent.knowledge.service.SharedAgentAccessResolver sharedAgentAccess,
-                                   HybridSearchService hybridSearchService) {
+                                   HybridSearchService hybridSearchService,
+                                   com.ragagent.org.service.KbShareService kbShareService) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
         this.guard = guard;
         this.sharedAgentAccess = sharedAgentAccess;
         this.hybridSearchService = hybridSearchService;
+        this.kbShareService = kbShareService;
     }
 
     /** 对照 CreateKnowledgeBase — Contributor+ */
@@ -353,7 +356,7 @@ public class KnowledgeBaseController {
         }
         // 对照 service.HybridSearch 的前置确定性段：
         // GetKnowledgeBaseByIDs（租户无关）→ 空集 404；authorizeKBAccess → 未授权 404；
-        // pickPrimary 缺席 → 404。多库 embedding 一致性校验与检索执行随波 4。
+        // pickPrimary 缺席 → 404。检索执行已随检索引擎批接线（下方）。
         List<String> searchKbIds = new ArrayList<>();
         JsonNode idsNode = req.get("knowledge_base_ids");
         if (idsNode != null && idsNode.isArray() && !idsNode.isEmpty()) {
@@ -374,10 +377,28 @@ public class KnowledgeBaseController {
         }
         Long caller = TenantContext.currentTenantId();
         for (KnowledgeBase row : kbs) {
-            // org-share / shared-agent 授予未翻译：非调用者租户一律不可见（Go 是 404 不泄漏）
-            if (row.getTenantId() == null || caller == null || !row.getTenantId().equals(caller)) {
-                throw new BizException(AppError.notFound("knowledge base not found"));
+            // 对照 authorizeKBAccess（knowledgebase_search_storegroup.go L199-241）+
+            // KBPermissions.Check（context.go L79-94）：同租户 viewer 直通；跨租户走
+            // org-share 三维帽的 viewer 检查（2026-09-23 第二轮走查批接线——原
+            // 「授予未翻译」整组 404 的收紧与 Go 不符）；查询失败 → 500 原文案；
+            // 拒绝 → 404 不泄漏（shared-agent 分支不在 hybrid 检索授权面内，Go 同）。
+            if (row.getTenantId() != null && row.getTenantId().equals(caller)) {
+                continue;
             }
+            try {
+                var share = kbShareService.checkTenantKBPermission(row.getId(),
+                        caller == null ? 0L : caller,
+                        com.ragagent.org.service.OrganizationService.callerTenantRole());
+                if (share.permits("viewer")) {
+                    continue;
+                }
+            } catch (RuntimeException e) {
+                log.warn("hybrid search shared-KB lookup failed: kb={} err={}",
+                        com.ragagent.common.security.LogSanitizer.sanitize(row.getId()), e.toString());
+                throw new BizException(AppError.internal(
+                        "failed to verify knowledge base access"));
+            }
+            throw new BizException(AppError.notFound("knowledge base not found"));
         }
         boolean primaryFound = kbs.stream().anyMatch(row -> row.getId().equals(kb.getId()));
         if (!primaryFound) {

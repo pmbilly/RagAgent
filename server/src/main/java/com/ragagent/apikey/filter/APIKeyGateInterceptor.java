@@ -31,8 +31,8 @@ import org.springframework.web.servlet.HandlerMapping;
  *
  * <p>⚠️ <b>注册顺序</b>：必须在 {@code RbacInterceptor} **之前**（先做能力维度判定，
  * 再做角色维度判定）。Go 里 RequireRole 对 API-Key 主体是短路的——角色维度
- * 由本门禁全权代表。Java 的 {@code RbacInterceptor} 目前没有这个短路分支，
- * 见任务报告"待接线"。</p>
+ * 由本门禁全权代表。Java 的 {@code RbacInterceptor} 已含同款短路
+ * （2026-09-23 第二轮走查批补齐）。</p>
  */
 public class APIKeyGateInterceptor implements HandlerInterceptor {
 
