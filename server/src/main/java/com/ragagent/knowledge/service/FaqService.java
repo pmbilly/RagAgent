@@ -33,8 +33,16 @@ import com.ragagent.knowledge.dto.FaqDtos.FaqImportResult;
 import com.ragagent.knowledge.dto.FaqDtos.FaqSuccessEntry;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.ChunkRepository;
+import com.ragagent.audit.domain.AuditAction;
+import com.ragagent.audit.domain.AuditLog;
+import com.ragagent.audit.domain.AuditOutcome;
+import com.ragagent.audit.service.AuditLogService;
+import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.model.mapper.ModelMapper;
 import com.ragagent.model.domain.Model;
+import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.retrieval.HybridSearchService;
+import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
@@ -62,22 +70,18 @@ import org.springframework.stereotype.Service;
  *
  * <h2>已知差异（Go 有、Java 未接线，均记在对应方法注释）</h2>
  * <ol>
- *   <li><b>向量索引/检索引擎未翻译（波 4）</b>：CreateEntry/UpdateEntry/
- *       AddSimilarQuestions/Upsert 的 indexFAQChunks 增量删除、fields 批量后的
- *       BatchUpdateChunkEnabledStatus/TagID 同步、SearchFAQ 的 HybridSearch 执行面
- *       ——Go 的 envStores 兜底引擎在无 embedding 的 dev KB 上等价于空结果/告警，
- *       Java 对齐其<b>可见出口</b>（搜索恒 {@code data:[]}、引擎同步 WARN+no-op）。
- *       有绑定且配置了模型的 KB 在 Go 能出真实结果——随波 4 收口。</li>
  *   <li><b>asynq → 进程内虚拟线程</b>（既有取舍）：retry/backoff 中间态不翻译，
  *       导入失败直接落 failed 终态；running 锁与进度是进程内 map（对照 Go 的
  *       redisClient==nil 内存兜底分支，单实例语义一致）。</li>
- *   <li><b>KB 活动审计（recordKBActivity）未接线</b>：FAQ 的 created/updated/
- *       batch_deleted/import_started/import_completed 埋点只记日志（与 knowledge
- *       模块同源，audit 埋点随模块收口）。</li>
  *   <li><b>faqCreateIndexBudget / embedding 真实调用</b>：模型行存在时 Java 无法
  *       真嵌入——CreateEntry 走 Go 的「索引失败→回滚 chunk」路径并以 plain 500 收场
  *       （文案见 {@link #embeddingUnavailable}）；golden 数据全部命中空模型分支。</li>
  * </ol>
+ *
+ * <p>2026-09-23 第二轮走查收口：SearchFAQ 的 HybridSearch 执行面 + TagName 批补
+ * （原「随波 4 收口」备案，检索引擎已随 3cb4b2e 落地）与 KB 活动审计五处
+ * （created/updated×2/fields 批量/batch_deleted，对照 Go recordKBActivity 调用点）
+ * 全部接线；向量索引族已于走查第十三处接线。</p>
  */
 @Service
 public class FaqService {
@@ -97,6 +101,11 @@ public class FaqService {
     private final VectorStoreService vectorStore;
     private final EmbedderClient embedder;
     private final TenantStorageService tenantStorage;
+    /** FAQ 搜索的检索执行面（对照 Go kbService.HybridSearch；波 4 检索引擎批落地）。 */
+    private final HybridSearchService hybridSearchService;
+    /** KB 活动审计（对照 Go recordKBActivity 的 s.audit）。 */
+    private final AuditLogService auditService;
+
 
     public FaqService(ChunkRepository chunkRepository,
                       KnowledgeMapper knowledgeMapper,
@@ -110,7 +119,9 @@ public class FaqService {
                       LocalStorageService storage,
                       VectorStoreService vectorStore,
                       EmbedderClient embedder,
-                      TenantStorageService tenantStorage) {
+                      TenantStorageService tenantStorage,
+                      HybridSearchService hybridSearchService,
+                      AuditLogService auditService) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
@@ -124,6 +135,8 @@ public class FaqService {
         this.vectorStore = vectorStore;
         this.embedder = embedder;
         this.tenantStorage = tenantStorage;
+        this.hybridSearchService = hybridSearchService;
+        this.auditService = auditService;
     }
 
     private static long tenantId() {
@@ -322,6 +335,10 @@ public class FaqService {
                 }
             }
             log.info("FAQ entry created: kb={}, entry={}", kb.getId(), chunk.getSeqId());
+            recordKbActivity(tid, kb.getId(), AuditAction.KNOWLEDGE_CREATED,
+                    "faq_entry", chunk.getId(),
+                    Map.of("entry_id", chunk.getSeqId() == null ? 0L : chunk.getSeqId(),
+                            "source_type", "faq"));
             return entry;
         } finally {
             taskStore.releaseCreateGuard(guardKey);
@@ -431,6 +448,10 @@ public class FaqService {
             }
         }
         log.info("FAQ entry updated: kb={}, entry={}", kb.getId(), chunk.getSeqId());
+        recordKbActivity(tid, kb.getId(), AuditAction.KNOWLEDGE_UPDATED,
+                "faq_entry", chunk.getId(),
+                Map.of("entry_id", chunk.getSeqId() == null ? 0L : chunk.getSeqId(),
+                        "source_type", "faq"));
         return entry;
     }
 
@@ -529,6 +550,10 @@ public class FaqService {
                 entry = withTagName(entry, tag.getName());
             }
         }
+        recordKbActivity(tid, kb.getId(), AuditAction.KNOWLEDGE_UPDATED,
+                "faq_entry", chunk.getId(),
+                Map.of("entry_id", chunk.getSeqId() == null ? 0L : chunk.getSeqId(),
+                        "source_type", "faq"));
         return entry;
     }
 
@@ -675,6 +700,11 @@ public class FaqService {
         log.info("FAQ fields batch updated: kb={}, by_id={}, by_tag={}",
                 kb.getId(), req.byId() == null ? 0 : req.byId().size(),
                 req.byTag() == null ? 0 : req.byTag().size());
+        recordKbActivity(tid, kb.getId(), AuditAction.KNOWLEDGE_UPDATED,
+                "faq_entry", "",
+                Map.of("count", req.byId() == null ? 0 : req.byId().size(),
+                        "tag_groups", req.byTag() == null ? 0 : req.byTag().size(),
+                        "batch", true));
     }
 
     // ══════════════════ 删除 ═══════════════════════════════════════════
@@ -720,6 +750,90 @@ public class FaqService {
             deleteFAQChunkVectors(kb, knowledges.get(e.getKey()), e.getValue());
         }
         log.info("FAQ entries deleted: kb={}, count={}", kb.getId(), chunksToRemove.size());
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("count", chunksToRemove.size());
+        details.put("source_type", "faq");
+        List<String> titles = new ArrayList<>(chunksToRemove.size());
+        for (Chunk chunk : chunksToRemove) {
+            titles.add(faqChunkQuestion(chunk));
+        }
+        appendSampleTitles(details, titles);
+        recordKbActivity(tid, kb.getId(), AuditAction.KNOWLEDGE_BATCH_DELETED,
+                "faq_entry", "", details);
+    }
+
+    /** 对照 faqChunkQuestion（knowledge_faq.go L1580-1592）：标准问（trim）。 */
+    private String faqChunkQuestion(Chunk chunk) {
+        FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
+        if (meta == null) {
+            return "";
+        }
+        String question = meta.standardQuestion == null ? "" : meta.standardQuestion.trim();
+        return question;
+    }
+
+    /** 对照 kbActivityAppendSampleTitles（kb_activity.go L49-79）：去空去重、上限 5、
+     *  单条落 title、多条落 titles。 */
+    private static void appendSampleTitles(Map<String, Object> details, List<String> titles) {
+        List<String> samples = new ArrayList<>(5);
+        Set<String> seen = new LinkedHashSet<>(5);
+        for (String title : titles) {
+            String t = title == null ? "" : title.trim();
+            if (t.isEmpty() || samples.size() >= 5 || !seen.add(t)) {
+                continue;
+            }
+            samples.add(t);
+        }
+        if (samples.isEmpty()) {
+            return;
+        }
+        details.put("title", samples.get(0));
+        if (samples.size() > 1) {
+            details.put("titles", samples);
+        }
+    }
+
+    /**
+     * 对照 recordKBActivity（kb_activity.go L91-160）：尽力而为的 KB 活动审计。
+     * ScopeType=knowledge_base、ScopeID=kbID、Outcome=success、details 按字母序。
+     */
+    private void recordKbActivity(long tenantId, String kbId, String action,
+                                  String targetType, String targetId, Map<String, Object> details) {
+        if (kbId == null || kbId.isEmpty()) {
+            return;
+        }
+        long tid = tenantId;
+        if (tid == 0) {
+            Long ctxTenant = com.ragagent.common.context.TenantContext.currentTenantId();
+            tid = ctxTenant == null ? 0L : ctxTenant;
+        }
+        if (tid == 0) {
+            return;
+        }
+        String actorId = com.ragagent.common.context.TenantContext.currentUserId() == null
+                ? "" : com.ragagent.common.context.TenantContext.currentUserId();
+        String actorRole = actorId.isEmpty() ? ""
+                : com.ragagent.common.context.TenantContext.currentRole() == null
+                ? "" : com.ragagent.common.context.TenantContext.currentRole();
+
+        AuditLog entry = new AuditLog();
+        entry.setTenantId(tid);
+        entry.setActorUserId(actorId);
+        entry.setActorRole(actorRole);
+        entry.setAction(action);
+        entry.setScopeType("knowledge_base");
+        entry.setScopeId(kbId);
+        entry.setTargetType(targetType);
+        entry.setTargetId(targetId);
+        entry.setOutcome(AuditOutcome.SUCCESS);
+        com.fasterxml.jackson.databind.node.ObjectNode detailsNode =
+                com.fasterxml.jackson.databind.json.JsonMapper.builder().build().createObjectNode();
+        details.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEachOrdered(e -> detailsNode.set(e.getKey(),
+                        com.fasterxml.jackson.databind.json.JsonMapper.builder().build().valueToTree(e.getValue())));
+        entry.setDetails(detailsNode);
+        auditService.logBestEffort(entry);
     }
 
     // ══════════════════ 导出 ═══════════════════════════════════════════
@@ -880,18 +994,128 @@ public class FaqService {
 
         boolean hasPriorityFilter = !firstPriorityTagUuids.isEmpty() || !secondPriorityTagUuids.isEmpty();
 
-        // HybridSearch 执行面（波 4）：检索引擎不可用 → 检索结果为空 →
-        // Go 的「len(searchResults) == 0 → return []*FAQEntry{}」出口（L1069-1071）。
-        // 有绑定且命中数据时 Go 能出真实结果——已知差异，随波 4 收口。
-        List<FaqEntry> entries = convertSearchResults(kb, List.of(), tid, matchCount,
+        // HybridSearch 执行面（2026-09-23 走查批接线——原「随波 4 收口」备案，
+        // 检索引擎已随 3cb4b2e 落地）：优先级过滤时按 Go 语义两级检索、
+        // FirstPriority 先结果后 SecondPriority 按 chunkID 去重合并；
+        // 空结果 → Go L1069-1071 的 {@code data:[]} 出口（golden 钉住）。
+        List<SearchResult> searchResults = searchFaqChunks(kbId, req.queryText(),
+                vectorThreshold, matchCount, req.onlyRecommended(),
                 hasPriorityFilter, firstPriorityTagUuids, secondPriorityTagUuids);
+        if (searchResults.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // SearchResult.ID = chunkID；分数/命中类型/命中内容按 chunk 回填（Go L1073-1089）
+        List<String> chunkIds = new ArrayList<>(searchResults.size());
+        Map<String, Double> chunkScores = new LinkedHashMap<>();
+        Map<String, Integer> chunkMatchTypes = new LinkedHashMap<>();
+        Map<String, String> chunkMatchedContents = new LinkedHashMap<>();
+        for (SearchResult result : searchResults) {
+            chunkIds.add(result.getId());
+            chunkScores.put(result.getId(), result.getScore());
+            chunkMatchTypes.put(result.getId(), result.getMatchType());
+            chunkMatchedContents.put(result.getId(),
+                    result.getMatchedContent() == null ? "" : result.getMatchedContent());
+        }
+
+        List<Chunk> chunks = chunkRepository.listChunksById(tid, chunkIds);
+        List<FaqEntry> entries = convertSearchResults(kb, chunks, tid, matchCount,
+                hasPriorityFilter, firstPriorityTagUuids, secondPriorityTagUuids,
+                chunkScores, chunkMatchTypes, chunkMatchedContents);
+
+        // 批量补 TagName（L1214-1250）：entry.TagID(seq) → tag 名
+        if (!entries.isEmpty()) {
+            List<Long> tagSeqIds = new ArrayList<>();
+            for (FaqEntry entry : entries) {
+                if (entry.tagId() != 0 && !tagSeqIds.contains(entry.tagId())) {
+                    tagSeqIds.add(entry.tagId());
+                }
+            }
+            if (!tagSeqIds.isEmpty()) {
+                Map<Long, String> tagNameMap = new LinkedHashMap<>();
+                try {
+                    for (KnowledgeTag tag : tagMapper.selectByTenantAndSeqIds(tid, tagSeqIds)) {
+                        tagNameMap.put(tag.getSeqId(), tag.getName());
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("Failed to batch query tags: {}", e.toString());
+                }
+                if (!tagNameMap.isEmpty()) {
+                    List<FaqEntry> filled = new ArrayList<>(entries.size());
+                    for (FaqEntry entry : entries) {
+                        String name = entry.tagId() != 0 ? tagNameMap.get(entry.tagId()) : null;
+                        filled.add(name == null ? entry : withTagName(entry, name));
+                    }
+                    entries = filled;
+                }
+            }
+        }
         return entries;
     }
 
-    /** 对照 L1073-1252 的命中转换/优先级排序/限流骨架（检索未接线时 chunks 恒空）。 */
+    /**
+     * 对照 Go L1012-1067 的检索步：优先级过滤时两级各自检索（Go 用 goroutine，Java
+     * 顺序执行——合并序固定为先 First 后 Second，结果序等价）；无过滤单次全量检索。
+     * 参数逐字段对照：DisableKeywordsMatch=true（关键词在 messages/FAQ 自身层面）、
+     * TagIDs=优先级标签、OnlyRecommended 透传。任一失败原样上抛（Go 同形）。
+     */
+    private List<SearchResult> searchFaqChunks(String kbId, String queryText,
+            double vectorThreshold, int matchCount, boolean onlyRecommended,
+            boolean hasPriorityFilter, List<String> firstPriorityTagUuids,
+            List<String> secondPriorityTagUuids) {
+        if (!hasPriorityFilter) {
+            SearchParams params = new SearchParams();
+            params.setQueryText(LogSanitizer.sanitize(queryText));
+            params.setVectorThreshold(vectorThreshold);
+            params.setMatchCount(matchCount);
+            params.setDisableKeywordsMatch(true);
+            // Java 引擎以 null 表示「无可检索管线」（Go 的 nil,nil）——按空集处理
+            List<SearchResult> results = hybridSearchService.hybridSearch(kbId, params);
+            return results == null ? List.of() : results;
+        }
+        Map<String, List<SearchResult>> byLevel = new LinkedHashMap<>();
+        fillPriorityLevel(kbId, queryText, vectorThreshold, matchCount, onlyRecommended,
+                firstPriorityTagUuids, byLevel, "first");
+        fillPriorityLevel(kbId, queryText, vectorThreshold, matchCount, onlyRecommended,
+                secondPriorityTagUuids, byLevel, "second");
+        // 合并：FirstPriority 先、SecondPriority 后，chunkID 去重（Go L1048-1058）
+        List<SearchResult> merged = new ArrayList<>();
+        Set<String> seenChunkIds = new LinkedHashSet<>();
+        for (String level : new String[] {"first", "second"}) {
+            for (SearchResult result : byLevel.getOrDefault(level, List.of())) {
+                if (seenChunkIds.add(result.getId())) {
+                    merged.add(result);
+                }
+            }
+        }
+        return merged;
+    }
+
+    private void fillPriorityLevel(String kbId, String queryText, double vectorThreshold,
+            int matchCount, boolean onlyRecommended, List<String> tagUuids,
+            Map<String, List<SearchResult>> out, String level) {
+        if (tagUuids == null || tagUuids.isEmpty()) {
+            return; // Go：该优先级未提供时不发起检索
+        }
+        SearchParams params = new SearchParams();
+        params.setQueryText(LogSanitizer.sanitize(queryText));
+        params.setVectorThreshold(vectorThreshold);
+        params.setMatchCount(matchCount);
+        params.setDisableKeywordsMatch(true);
+        params.setTagIds(tagUuids);
+        params.setOnlyRecommended(onlyRecommended);
+        List<SearchResult> results = hybridSearchService.hybridSearch(kbId, params);
+        out.put(level, results == null ? List.of() : results);
+    }
+
+    /** 对照 L1073-1252 的命中转换/优先级排序/限流（score/matchType/matchedQuestion
+     *  在转换时按 chunkID 回填，排序与截断在前，TagName 批补在调用方末尾）。 */
     private List<FaqEntry> convertSearchResults(KnowledgeBase kb, List<Chunk> chunks, long tid,
                                                 int matchCount, boolean hasPriorityFilter,
-                                                List<String> firstPriority, List<String> secondPriority) {
+                                                List<String> firstPriority, List<String> secondPriority,
+                                                Map<String, Double> chunkScores,
+                                                Map<String, Integer> chunkMatchTypes,
+                                                Map<String, String> chunkMatchedContents) {
         List<FaqEntry> entries = new ArrayList<>();
         Map<String, Long> tagSeqIdMap = new LinkedHashMap<>();
         LinkedHashSet<String> tagIds = new LinkedHashSet<>();
@@ -910,7 +1134,19 @@ public class FaqService {
             if (!"faq".equals(chunk.getChunkType()) || !chunk.isIsEnabled()) {
                 continue;
             }
-            entries.add(chunkToFAQEntry(chunk, kb, tagSeqIdMap));
+            FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+            // Preserve score and match type from search results（Go L1117-1129；
+            // 负例问题过滤已在 HybridSearch 内处理）
+            Double score = chunkScores.get(chunk.getId());
+            Integer matchType = chunkMatchTypes.get(chunk.getId());
+            String matched = chunkMatchedContents.get(chunk.getId());
+            if (score != null || matchType != null || (matched != null && !matched.isEmpty())) {
+                entry = withSearchHit(entry,
+                        score == null ? entry.score() : score,
+                        matchType == null ? entry.matchType() : matchType,
+                        matched == null || matched.isEmpty() ? entry.matchedQuestion() : matched);
+            }
+            entries.add(entry);
         }
         if (hasPriorityFilter) {
             Set<String> firstSet = new LinkedHashSet<>(firstPriority);
@@ -2154,6 +2390,17 @@ public class FaqService {
                 0,
                 chunk.getChunkType(),
                 "");
+    }
+
+    /** 用检索命中覆盖 score/matchType/matchedQuestion（record 重建，Go 的值拷贝同形）。 */
+    private static FaqEntry withSearchHit(FaqEntry entry, double score, int matchType,
+            String matchedQuestion) {
+        return new FaqEntry(entry.id(), entry.chunkId(), entry.knowledgeId(), entry.knowledgeBaseId(),
+                entry.tagId(), entry.tagName(), entry.isEnabled(), entry.isRecommended(),
+                entry.standardQuestion(), entry.similarQuestions(), entry.negativeQuestions(),
+                entry.answers(), entry.answerStrategy(), entry.indexMode(), entry.updatedAt(),
+                entry.createdAt(), score, matchType, entry.chunkType(),
+                matchedQuestion);
     }
 
     private static FaqEntry withTagName(FaqEntry entry, String tagName) {

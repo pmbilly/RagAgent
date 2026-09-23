@@ -15,9 +15,10 @@ import org.springframework.stereotype.Component;
  * 交互式 HTTP 路径直接 passthrough（返回 noop release）。Java 用 ThreadLocal 版的
  * {@link BackgroundTaskContext#isBackgroundTask()} 承载同一标记，判断位置与顺序完全一致。
  *
- * <p>生命周期：Go 在启动时由 container.registerModelConcurrencyLimiter 调 SetGovernor 装配；
- * Java 侧 {@link #setGovernor}/{@link #setGlobalLimit} 对应同一装配点（随阶段 4 的容器配置接入，
- * 装配前 governor=null、limit=0 → 全部放行，与 Go 未装配时一致）。
+ * <p>生命周期：Go 在启动时由 container.registerLiteModelConcurrencyLimiter 调 SetGovernor
+ * 装配；Java 侧由 {@code config.ModelConcurrencyGovernorWiring} 在启动时装配
+ * （2026-09-23 走查批补上——此前装配点缺失，闸门从未生效）。装配前 governor=null、
+ * limit=0 → 全部放行。Redis 分布式版仍是备案（多实例协调不做的同族取舍），恒走 Lite。
  * 该类是无状态 Spring 组件，按构造器注入方式使用（约定：不用 Lombok）。
  */
 @Component
