@@ -1070,3 +1070,29 @@
     拷贝；deprecated provider 回落路径消费）——c1a0528 单独提交。
   - **仍开放**：Go SDK 结构体序 vs map 序的分路径（provider 键缺失时顶层键序不同，
     LLM 批收口）；AgentWebPages 真实 Docker drain E2E（随 install E2E 批）。
+
+- **LLM 分路径键序收口（2026-09-24，§0.-8/§0.-10「SDK vs map 序」备案关闭）**：
+  RemoteApiChat 出站序列化按 Go buildOutbound 的**两条真实路径**分流：
+  - **map 改写路径**（prompt-cache sendKey/sendCacheControl 策略命中 + sessionId 在位
+    → Go `applyPromptCacheToJSONBody` 把 body 转 map）：每层对象按键字节序
+    （goSorted，2c 的既有行为，保留）；
+  - **SDK 结构体直出路径**（provider 未配置/未知 → 空缓存策略；以及 thinking 包装
+    结构体路径）：openai-go v1.41.2 **结构体声明序**（structSorted 新增）。字段序表
+    对照 `chat.go` L263-328（顶层）/ChatCompletionMessage/Tool/FunctionDefinition/
+    StreamOptions/ResponseFormat/ToolCall/FunctionCall 录入；未知键（Qwen 包装的
+    enable_thinking 等）按插入序**尾随**（Go 包装结构体把扩展字段声明在嵌入基座
+    之后）；工具 parameters 子树**原样保留**（Go 是 json.Marshaler，jsonschema 库
+    结构体序=Java 字面量录入序）；metadata/logit_bias 等 Go map 字段理论上应字母
+    序，单键场景与插入序一致，从简未改（备案）。
+  - **Outbound** 增加 cacheRewritten 标记，bodyBytes 按 `cacheRewritten ? goSorted :
+    structSorted` 分流；rawPath（finish_reason 分野，§0.0 第七处）不受影响。
+  - **验证**：结构体路径夹具（md-chat-think，无 provider 键 → 未知 provider → 空缓存
+    策略 + enableThinking 包装）双端全 body 两轮 0 差异，Go 顶层实测
+    `model/messages/max_tokens/stream/tools/stream_options/parallel_tool_calls/
+    enable_thinking`（包装字段尾随）、tools 元素 type 先行——Java 逐字节跟随；
+    map 路径夹具（provider=openai）同样两轮 MATCH（30813+449 字节）——**两条路径
+    均闭合**。RemoteApiChatTest 键序测试重写为双路径断言（structPath 跟随结构体序 +
+    parameters 保留录入序；mapPath 保持字母序）；llm.chat 156 / agent 380 /
+    chatpipeline 43 全绿。
+  - **运维注意**：本轮 Go server 两次在后台被优雅关闭（setsid 缺失的进程组信号），
+    macOS 无 setsid——长跑用 `nohup ... &` 后在同一次调用内完成验证，或挂 launchd。

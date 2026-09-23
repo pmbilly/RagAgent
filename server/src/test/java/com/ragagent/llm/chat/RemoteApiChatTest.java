@@ -354,12 +354,13 @@ class RemoteApiChatTest {
     }
 
     /**
-     * 出站请求体的**键序**逐层等于 Go 的 map 序列化序（2026-09-23 双端实录对拍：
-     * Go 顶层 messages/model/stream/…、messages 元素 content/role、
-     * 工具 schema properties/required/type 全为字母序，而 ObjectNode 默认保持插入序）。
+     * 出站体键序**分路径**（2026-09-24 排查批修正 2c 的单一 map 序认知）：
+     * prompt-cache 改写路径 = Go map 序（字母序，goSorted）；SDK 直出/thinking
+     * 包装路径 = openai-go 结构体声明序（structSorted，包装字段尾随）。
+     * 工具 parameters 子树两路径分别是「map 字母序」/「jsonschema 结构体序=录入序」。
      */
     @Test
-    void outboundKeysAreSortedLikeGoMap() throws Exception {
+    void structPathKeysFollowOpenaiGoStructOrder() throws Exception {
         RemoteApiChat chat = newTestRemoteChat();
         ChatTool tool = new ChatTool();
         tool.getFunction().setName("wiki_read_page");
@@ -371,17 +372,38 @@ class RemoteApiChatTest {
         ChatOptions opts = new ChatOptions();
         opts.setTools(List.of(tool));
 
+        // sessionId=null → prompt-cache 不改写 → Go 走 SDK 结构体直出
         String json = new String(chat.buildOutbound(userMessage("hi"), opts, false, null)
                 .bodyBytes(), java.nio.charset.StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("{\"function\":{\"description\":\"d\",\"name\":\"wiki_read_page\","
-                        + "\"parameters\":{\"properties\":{\"slugs\":{\"description\":\"list\","
-                        + "\"items\":{\"type\":\"string\"},\"type\":\"array\"}},"
-                        + "\"required\":[\"slugs\"],\"type\":\"object\"}},\"type\":\"function\"}"),
-                "tools 段每层键序必须字母序：" + json);
+        // 顶层结构体序：model 在 messages 前（map 序会相反）；tools 在 messages 后
+        assertTrue(json.indexOf("\"model\"") < json.indexOf("\"messages\""),
+                "顶层键序必须结构体序（model 先于 messages）：" + json);
+        assertTrue(json.indexOf("\"messages\"") < json.indexOf("\"tools\""),
+                "messages 在 tools 之前（结构体声明序）：" + json);
+        // tools 元素：type 先于 function（map 序相反）
+        assertTrue(json.contains("\"tools\":[{\"type\":\"function\",\"function\":{"),
+                "tools 元素必须 type 先行：" + json);
+        // function 内：name/description/parameters 结构体序
+        assertTrue(json.contains("\"function\":{\"name\":\"wiki_read_page\",\"description\":\"d\","),
+                "function 键序必须结构体序：" + json);
+        // parameters 子树 = 录入序（jsonschema 结构体序），type 仍在首位
+        assertTrue(json.contains("\"parameters\":{\"type\":\"object\",\"properties\":"),
+                "parameters 子树保持 jsonschema 结构体序：" + json);
+    }
+
+    @Test
+    void mapPathKeysStayAlphabetical() throws Exception {
+        com.fasterxml.jackson.databind.JsonNode body = MAPPER.readTree(
+                "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],"
+                        + "\"stream\":true}");
+        String json = RemoteApiChat.goSorted(body).toString();
+        // map 改写路径：每层对象按键字节序
         assertTrue(json.indexOf("\"messages\"") < json.indexOf("\"model\"")
-                        && json.indexOf("\"model\"") < json.indexOf("\"tools\""),
-                "顶层键序必须字母序：" + json);
+                        && json.indexOf("\"model\"") < json.indexOf("\"stream\""),
+                "map 路径顶层必须字母序：" + json);
+        assertTrue(json.contains("{\"content\":\"hi\",\"role\":\"user\"}"),
+                "map 路径 messages 元素必须字母序：" + json);
     }
 
     // ------------------------------------------------------------------

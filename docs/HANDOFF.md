@@ -1,5 +1,20 @@
 # 交接文档（新会话接手用）
 
+## 0.-11 LLM 分路径键序收口（2026-09-24——最后一个已知保真缺口关闭）
+
+**做了什么**：RemoteApiChat 出站序列化按 Go 的**两条真实路径**分流——map 改写路径
+（prompt-cache 策略命中）保持 goSorted 字母序；SDK 结构体直出/thinking 包装路径
+新增 `structSorted`（openai-go v1.41.2 结构体声明序，包装字段尾随，工具 parameters
+子树保留 jsonschema 结构体序=录入序）。Outbound 增加 cacheRewritten 标记分流；
+rawPath（finish_reason 分野）不变。**验证**：结构体路径夹具（无 provider 键 +
+thinking_control）双端全 body 两轮 0 差异（Go 顶层 model/messages/…/enable_thinking
+尾随、tools type 先行，Java 逐字节跟随）；map 路径夹具两轮 MATCH；RemoteApiChatTest
+键序测试重写为双路径断言；llm.chat 156 / agent 380 / chatpipeline 43 全绿。
+**排查结论**：全仓无真 TODO；路由缺口仅 /swagger（非目标）；「not available」类
+文案全部属备案降级。**仍开放**：真实 Docker drain E2E（install E2E 批）、
+EvaluationService（Owner 暂缓）、γ3/W5δ 平台客户端（XDEP）、Redis 限流器/langfuse
+（备案降级）。
+
 ## 0.-10 agent 出站体 messages/temperature 保真（2026-09-24——A/B 升级全 body 对拍）
 
 **做了什么**：`ab-tools-web.sh` 升级为**全请求体对拍**（标题轮+tools 轮，掩
@@ -460,7 +475,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-24 · **基线：agent 出站体 messages/temperature 保真（全 body A/B 两轮 MATCH，见 §0.-10 与 git log 顶部）· golden 1,719+24**
+> 最后更新：2026-09-24 · **基线：LLM 分路径键序收口（SDK/map 双路径全 body MATCH，见 §0.-11 与 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 
