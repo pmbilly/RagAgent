@@ -52,10 +52,23 @@ bootRun 重启冒烟通过（capabilities/sessions/创建删除 200）。⚠️ 
 @SpringBootTest 是结构性炸，分批是正解）；②后台 agent 并发跑 gradle 会顶满内存放大
 自附风暴，agent 报告期不要另起全量。
 
+**第二轮复查（同日，95a49c4 + 6e8c6d2）**：全仓重扫「未接线/随波/seam/恒空」后
+再修 4 处——①**FAQ 搜索执行面**（SearchFAQEntries L922-1253：双优先级检索 + 命中
+回填 + TagName 批补；原「随波 4 收口」备案，检索引擎已落地）+ FAQ KB 活动审计五处
+（recordKBActivity 调用点）+ **后台并发闸门装配**（ConcurrencyGovernor 零调用点 →
+ModelConcurrencyGovernorWiring，model.max_concurrency DB→env→32，LocalLimiter；
+Redis 分布式版仍备案）；②**RbacInterceptor API-key 主体短路**（Go rbac.go L72-78：
+角色阶梯不适用机器主体；此前拿影子角色评估会误拒 scoped key）+ **BackfillMissingKey
+Hashes 启动钩子**（bootstrap.go L44-52；此前零调用点，迁移旧 Key 永远无法认证）。
+两处「待接线」过期文档清除。
+
 **在册不动**（理由仍成立）：EvaluationService 执行步（Owner 暂缓）、provider-XDEP 族
 （γ3 九渠道/W5δ 终端/tenant_skill install/VLM ollama+weknoracloud）、DataAnalysis
 （DuckDB 依赖）、BrowserSkillManager 执行循环 seam（需浏览器后端）、OIDC enabled 网络步、
-langfuse/Redis 限流器/asynq/jieba/readability 降级族、 tenant_skill install。
+langfuse/Redis 限流器/asynq/jieba/readability 降级族、tenant_skill install。
+**低优先遗留**（退化语义与 Go 的可选接缝缺席分支等价，已注记）：wiki pending-op 的
+KB-active 原子守卫（Go TaskPendingOpsKnowledgeBaseGuard 属 knowledge 删除路径可选
+接线）、KnowledgeService 复制不携带 wiki/reparse 衍生数据（见 :2473 注释）。
 
 ## 0.0 阶段 7 收官（2026-09-22，models/{id}/debug 落地——路由对账真缺口清零）
 
