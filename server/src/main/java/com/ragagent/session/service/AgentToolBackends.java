@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 import javax.sql.DataSource;
 
@@ -22,6 +23,8 @@ import com.ragagent.agent.tools.SearchAuth;
 import com.ragagent.agent.tools.SearchConversationsTool;
 import com.ragagent.agent.tools.SearchMemoryTool;
 import com.ragagent.agent.tools.SearchTarget;
+import com.ragagent.agent.tools.WebFetchTool;
+import com.ragagent.agent.tools.WebSearchTool;
 import com.ragagent.agent.tools.WikiDeletePageTool;
 import com.ragagent.agent.tools.WikiFlagIssueTool;
 import com.ragagent.agent.tools.WikiReadIssueTool;
@@ -88,6 +91,8 @@ public class AgentToolBackends {
     private final MessageService messageService;
     private final MemoryService memoryService;
     private final WikiPageService wikiPageService;
+    private final com.ragagent.websearch.service.WebSearchService webSearchService;
+    private final com.ragagent.auth.service.TenantService tenantService;
     private final JdbcTemplate jdbc;
 
     public AgentToolBackends(KnowledgeBaseService kbService,
@@ -98,6 +103,8 @@ public class AgentToolBackends {
                              MessageService messageService,
                              MemoryService memoryService,
                              WikiPageService wikiPageService,
+                             com.ragagent.websearch.service.WebSearchService webSearchService,
+                             com.ragagent.auth.service.TenantService tenantService,
                              DataSource dataSource) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
@@ -107,6 +114,8 @@ public class AgentToolBackends {
         this.messageService = messageService;
         this.memoryService = memoryService;
         this.wikiPageService = wikiPageService;
+        this.webSearchService = webSearchService;
+        this.tenantService = tenantService;
         this.jdbc = new JdbcTemplate(dataSource);
     }
 
@@ -451,6 +460,80 @@ public class AgentToolBackends {
         }
         return s.substring(0, dot) + (keep > dot + 1 ? s.substring(dot, keep) : "")
                 + s.substring(fracEnd);
+    }
+
+    // ==================================================================
+    // web_search / web_fetch（切片 2d，对照 agent_service.go L1071-1082）
+    // ==================================================================
+
+    /**
+     * Go {@code registerTools} 的 web 构造面：web_search 收 agent 配置的
+     * maxResults/providerID（Go L1071-1078），web_fetch 直构造无参（Go L1079-1082）。
+     * 租户的 WebSearchConfig 在装配期捕获——Go 的 Execute 从 ctx 取 TenantInfo，
+     * 同一回合内取值等价；tenantID 留在执行期读（对照 TenantIDContextKey 的 ==0 拒绝）。
+     */
+    public com.ragagent.agent.tools.AgentTool createWebTool(String toolName,
+            int webSearchMaxResults, String webSearchProviderId) {
+        return switch (toolName) {
+            case com.ragagent.agent.tools.ToolDefinitions.TOOL_WEB_SEARCH -> new WebSearchTool(
+                    webSearchBackend(), webSearchMaxResults, webSearchProviderId,
+                    currentTenantId(), loadTenantWebSearchConfig());
+            case com.ragagent.agent.tools.ToolDefinitions.TOOL_WEB_FETCH -> new WebFetchTool();
+            default -> null;
+        };
+    }
+
+    /** 对照 Tool.ConversationSearch 同款的执行期租户读取（engine 线程已 replay）。 */
+    public static LongSupplier currentTenantId() {
+        return () -> {
+            Long t = TenantContext.currentTenantId();
+            return t == null ? 0L : t;
+        };
+    }
+
+    /** 对照 interfaces.WebSearchService.Search：执行配置直传（类型即 Go 的执行形状）。 */
+    public WebSearchTool.WebSearchBackend webSearchBackend() {
+        return (tenantId, providerId, config, query) ->
+                webSearchService.search(tenantId, providerId, config, query);
+    }
+
+    /**
+     * 对照 Go Execute 里的 {@code types.EffectiveWebSearchConfig(tenant.WebSearchConfig)}
+     * 打底拷贝：租户行缺失/无配置 → null（工具侧落 DefaultWebSearchConfig 缺省）。
+     * 归一化（applyEffective）与 Go 的 Effective 一致：maxResults≤0→10、
+     * blacklist nil→[]。
+     */
+    private com.ragagent.websearch.service.WebSearchService.WebSearchConfig loadTenantWebSearchConfig() {
+        Long tid = TenantContext.currentTenantId();
+        if (tid == null || tid == 0) {
+            return null;
+        }
+        try {
+            com.ragagent.auth.domain.Tenant tenant = tenantService.getTenantById(tid);
+            if (tenant == null || tenant.getWebSearchConfig() == null
+                    || tenant.getWebSearchConfig().isNull()) {
+                return null;
+            }
+            com.ragagent.auth.domain.tenantconfig.WebSearchConfig cfg = JSON.treeToValue(
+                    tenant.getWebSearchConfig(),
+                    com.ragagent.auth.domain.tenantconfig.WebSearchConfig.class);
+            cfg.applyEffective();
+            com.ragagent.websearch.service.WebSearchService.WebSearchConfig out =
+                    new com.ragagent.websearch.service.WebSearchService.WebSearchConfig();
+            out.provider = cfg.getProvider();
+            out.apiKey = cfg.getApiKey();
+            out.maxResults = cfg.getMaxResults();
+            out.includeDate = cfg.isIncludeDate();
+            out.blacklist = cfg.getBlacklist() == null
+                    ? new ArrayList<>() : new ArrayList<>(cfg.getBlacklist());
+            out.embeddingModelId = cfg.getEmbeddingModelId();
+            out.documentFragments = cfg.getDocumentFragments();
+            out.proxyUrl = cfg.getProxyUrl();
+            return out;
+        } catch (RuntimeException | com.fasterxml.jackson.core.JacksonException e) {
+            // 对照 tenant == nil 分支：配置不可得即走缺省
+            return null;
+        }
     }
 
     // ==================================================================

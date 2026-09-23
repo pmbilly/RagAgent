@@ -54,6 +54,8 @@ class AgentToolBackendsKbToolTest {
                 messageService,
                 memoryService,
                 mock(WikiPageService.class),
+                mock(com.ragagent.websearch.service.WebSearchService.class),
+                mock(com.ragagent.auth.service.TenantService.class),
                 mock(DataSource.class));
     }
 
@@ -75,6 +77,17 @@ class AgentToolBackendsKbToolTest {
         assertThat(backends.createTool("web_search", null, null, "o", "s")).isNull();
         assertThat(backends.createTool("wiki_read_page", null, null, "o", "s")).isNull();
         assertThat(backends.createTool("not_a_tool", null, null, "o", "s")).isNull();
+    }
+
+    /** 切片 2d：web 两件经 createWebTool 可构造且名字一致（Go L1071-1082）。 */
+    @Test
+    void webToolsAreConstructible() {
+        for (String name : List.of("web_search", "web_fetch")) {
+            var tool = backends.createWebTool(name, 5, "prov-1");
+            assertThat(tool).as("工具 %s 必须可构造（此前恒走 Unknown tool）", name).isNotNull();
+            assertThat(tool.getName()).isEqualTo(name);
+        }
+        assertThat(backends.createWebTool("not_a_tool", 5, "")).isNull();
     }
 
     /** 会话检索映射：MessageSearchGroupItem → ExchangeView（date 取 LocalDate）。 */

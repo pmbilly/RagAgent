@@ -1,5 +1,30 @@
 # 交接文档（新会话接手用）
 
+## 0.-8 agent 工具接线·切片 2d（2026-09-23——web_search/web_fetch 新翻落地，Unknown tool 清零）
+
+**做了什么**：`WebFetchTool`/`WebSearchTool`（agent/tools）全文新翻（Go
+web_fetch.go/web_search.go；此前 registerTools 对这两名只落 Unknown tool）。
+schema/描述按 Go GenerateSchema 实录逐字节钉（描述的 `%d` 注入 maxResults）。
+接线三处：registerTools switch 两件、`AgentToolBackends.createWebTool`（桥真实
+WebSearchService + TenantService 落 Effective 配置打底）、**registerWebPageFiles**
+（agent_web_pages.go：WithPageReader 共享快照 + read_file 缺席补注册——A/B 抓回
+Go 在 web 启用时经此注册 read_file；存储写字节面走 AgentWebPages 的
+Store/Binding 接缝，缺省 null = Go save-failure 分支，生产实现随存储写字节面批）。
+**A/B 抓回四处真缺陷已修**：①thinking 描述两处行尾双空格被文本块剥掉（4.6b 潜伏，
+`\s\s` 修复——注意 `\s` 行要放公共缩进上）；②getTool 的 Go err 检查翻成 Java 抛
+异常未捕获 → web 开启 QA 恒败；③completeStore 漏摘 inflight → LRU 逐出页读到过期
+快照；④schema 字面量多一个闭合括号且 Jackson 静默吞尾（教训：schema 测试必须断言
+根键数，两份同样错的字符串会互相印证）。
+**线格式分路径备案**：Go 出站体分 SDK 结构体序 vs 裸 HTTP map 序——model 参数带
+`"provider":"openai"` 才走 map（字母序+prompt_cache_key）；Java goSorted 恒 map 序
+只覆盖后者，SDK 路径键序随 LLM 批收口。
+**验收**：`scripts/ab-tools-web.sh` 双端两轮 tools 段 **18825 字节逐字节一致**
+（5 件 read_file/thinking/todo_write/web_fetch/web_search）；新增
+WebToolsRecordingTest 18 用例；agent 380 / session 362 全绿；夹具全退。
+**残留**：AgentWebPages 生产存储接缝、SDK 路径键序、PluginSearch
+effectiveWebSearchConfig 漏拷 apiKey（chatpipeline 既有面备案）、照旧 messages/
+temperature。**agent 工具接线族到此收口**——下一步候选见 §3。
+
 ## 0.-7 agent 工具接线·切片 2c（2026-09-23——wiki 十件落地 + 出站键序一次性收口）
 
 **做了什么**：
@@ -399,7 +424,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-23 · **基线：沙箱/技能执行面工程（批 A→D2 两笔提交 0352cb8+c1a8442，见 §0.-2 与 git log 顶部）· golden 1,719+24 · 真实 Docker 集成测试 4/4**
+> 最后更新：2026-09-23 · **基线：agent 工具接线·切片 2d（web_search/web_fetch 新翻 + registerWebPageFiles，见 §0.-8 与 git log 顶部）· golden 1,719+24 · 双端 stub A/B tools 段 18825 字节 MATCH**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 

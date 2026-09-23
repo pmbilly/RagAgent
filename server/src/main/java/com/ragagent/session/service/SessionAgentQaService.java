@@ -71,6 +71,8 @@ public class SessionAgentQaService {
     private final SessionSandboxExecutionService sandboxExecution;
     private final SessionAttachmentStagingService attachmentStaging;
     private final AgentToolBackends toolBackends;
+    private final com.ragagent.storage.service.ResourceCatalogService resourceCatalog;
+    private final javax.sql.DataSource dataSource;
     /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
     private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
     private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
@@ -84,6 +86,8 @@ public class SessionAgentQaService {
             SessionSandboxExecutionService sandboxExecution,
             SessionAttachmentStagingService attachmentStaging,
             AgentToolBackends toolBackends,
+            com.ragagent.storage.service.ResourceCatalogService resourceCatalog,
+            javax.sql.DataSource dataSource,
             com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
                     ollamaService) {
@@ -98,6 +102,8 @@ public class SessionAgentQaService {
         this.sandboxExecution = sandboxExecution;
         this.attachmentStaging = attachmentStaging;
         this.toolBackends = toolBackends;
+        this.resourceCatalog = resourceCatalog;
+        this.dataSource = dataSource;
     }
 
     // ==================================================================
@@ -596,6 +602,7 @@ public class SessionAgentQaService {
         sandboxExecution.registerSandboxFileTools(toolRegistry, sandboxTenantId,
                 sessionId, config);
         sandboxExecution.initializeSkillsManager(sandboxTenantId, sessionId, config, toolRegistry);
+        registerWebPageFiles(toolRegistry, config, sessionId, assistantMessageId);
         toolRegistry.prepareMcpTools();
 
         // 3. Resolve KB / selected doc metadata（resolveKBAndDocInfos；失败回落 IDs-only）
@@ -665,6 +672,56 @@ public class SessionAgentQaService {
             }
         }
         return ids;
+    }
+
+    /**
+     * registerWebPageFiles（agent_web_pages.go L108-159）：web 抓取页的完整快照面。
+     * web_search 共享会话 web_fetch 的快照缓存（WithPageReader）；read_file 未被
+     * 沙箱路径注册时以 web:// 读取范围注册（描述随来源变化）。存储写字节面
+     * （FileService.SaveBytes/ResourceCatalog.Bind 生产实现）未翻译——经
+     * {@link AgentWebPages} 的接缝落 Go 的 save-failure 分支，见类 Javadoc。
+     */
+    private void registerWebPageFiles(ToolRegistry registry, QaAgentConfig config,
+            String sessionId, String assistantMessageId) {
+        if (config == null || !config.isWebSearchEnabled()) {
+            return;
+        }
+        com.ragagent.agent.tools.AgentTool raw = registry.getTool(ToolDefinitions.TOOL_WEB_FETCH);
+        if (!(raw instanceof com.ragagent.agent.tools.WebFetchTool fetch)) {
+            return;
+        }
+        // 对照 Go L119-123：web_search 是**另一次** GetTool，与 fetch 是两个实例
+        if (registry.getTool(ToolDefinitions.TOOL_WEB_SEARCH)
+                instanceof com.ragagent.agent.tools.WebSearchTool search) {
+            search.withPageReader(fetch);
+        }
+        // handler 已把会话存储钉到 owner 租户（对照 SandboxTenantIDFromContext）
+        Long ctxTenant = com.ragagent.common.context.TenantContext.currentTenantId();
+        long tenantId = ctxTenant == null ? 0L : ctxTenant;
+        if (tenantId == 0 || sessionId == null || sessionId.isEmpty()
+                || assistantMessageId == null || assistantMessageId.isEmpty()) {
+            return;
+        }
+        AgentWebPages pages = new AgentWebPages(dataSource, resourceCatalog, null, null,
+                tenantId, com.ragagent.session.domain.SessionOwnerIds.currentSessionOwnerId(),
+                sessionId, assistantMessageId);
+        fetch.withPageSource(pages);
+        // 对照 Go L149-158 的 GetTool err 检查：缺席即补注册（含 web:// 读取范围的描述）
+        com.ragagent.agent.tools.AgentTool existing;
+        try {
+            existing = registry.getTool(ToolDefinitions.TOOL_READ_FILE);
+        } catch (ToolRegistry.ToolNotFoundException e) {
+            existing = null;
+        }
+        if (existing instanceof com.ragagent.agent.tools.ReadFileTool reader) {
+            reader.withWebPages(pages);
+        } else if (existing != null) {
+            log.warn("Cannot attach saved web pages: read_file is registered by another tool");
+            fetch.withPageSource(null);
+        } else {
+            registry.registerTool(
+                    new com.ragagent.agent.tools.ReadFileTool(null).withWebPages(pages));
+        }
     }
 
     /** registerTools（agent_service.go L837-1141 的注册面；工具集与硬门控逐条保留）。 */
@@ -810,6 +867,10 @@ public class SessionAgentQaService {
                         ToolDefinitions.TOOL_WIKI_READ_ISSUE, ToolDefinitions.TOOL_WIKI_UPDATE_ISSUE ->
                         toolToRegister = toolBackends.createWikiTool(toolName,
                                 config.getSearchTargets(), wikiScopes, wikiKbIds, wikiRoutes);
+                // web 两件（2026-09-23 接线批·切片 2d）：Go L1071-1082
+                case ToolDefinitions.TOOL_WEB_SEARCH, ToolDefinitions.TOOL_WEB_FETCH ->
+                        toolToRegister = toolBackends.createWebTool(toolName,
+                                config.getWebSearchMaxResults(), config.getWebSearchProviderId());
                 case ToolDefinitions.TOOL_SHELL_EXEC, ToolDefinitions.TOOL_READ_FILE,
                         ToolDefinitions.LEGACY_TOOL_READ_SKILL, ToolDefinitions.LEGACY_TOOL_EXECUTE_SKILL_SCRIPT,
                         ToolDefinitions.TOOL_LIST_SANDBOX_FILES, ToolDefinitions.LEGACY_TOOL_READ_SANDBOX_FILE,

@@ -938,3 +938,65 @@
     wiki 读路径按 `knowledge_base_id+slug` 过滤、不看 tenant，所以两端同样无感，但
     `WikiPageMapper` 唯一按 tenant 过滤的那条查询会漏掉这些行）。照旧残留：messages 内容、
     `temperature`、`SkillInstallPipelineImpl:1123`。**下一步 = web_search/web_fetch**（Java 缺件，新翻）。
+
+- **agent 工具接线·切片 2d（2026-09-23，web_search/web_fetch 落地——registerTools「Unknown tool」清零）**：
+  Go `web_search.go`/`web_fetch.go` 全文新翻（Java 无工具类，属新翻而非接线）：
+  `WebFetchTool`（批执行 1..8、两段式 offset-0 先行再续读、pageFlight 单飞合流、
+  LRU 快照缓存 8 页、snapshot_expired/等待超时文案、输出预算分摊、双重编码 items
+  解包、canonicalFetchURL/normalizeGitHubURL、WithPageSource 接缝）+
+  `WebSearchTool`（schema/描述按 Go GenerateSchema 实录逐字节钉、`%d` 注入
+  maxResults（≤0→10、clamp 20）、count/country/freshness 校验文案、租户配置装配期
+  捕获 + tenantID 执行期读、结果过滤 canonical 去重、content=true 前 3 页并行抓取
+  5000 chars/15s 共享预算、applySearchPageFetch 的 Go map 恒写键语义）。
+  - **接线**：`registerTools` switch 两件（agent_service.go L1071-1082）+
+    `AgentToolBackends.createWebTool`（webSearchBackend 桥
+    `WebSearchService.search(tenantId,...)`；`loadTenantWebSearchConfig` 经
+    TenantService 落 `EffectiveWebSearchConfig` 打底拷贝，provider/apiKey/blacklist/
+    proxyUrl 全量带）。
+  - **registerWebPageFiles 补齐**（agent_web_pages.go L108-159）：web_search 共享
+    会话 web_fetch（WithPageReader，注意 Go 是**另一次** GetTool(web_search)，不是
+    对 fetch 自身 instanceof）；read_file 缺席时补注册 `NewReadFileTool(nil)` +
+    WithWebPages——**A/B 抓回 Go 在 web 启用时经此注册 read_file（web:// 读取范围
+    进描述）**，Java 缺这段时 tools 段恒差一件。存储写字节面
+    （FileService.SaveBytes/ResourceCatalog.Bind 生产实现）未翻译 →
+    `AgentWebPages`（session.service，同时实现 ReadFileTool/WebFetchTool 两个同形
+    WebPageSource 接口）的 Store/Binding 接缝缺省 null = Go save-failure 分支
+    （storageError 文案逐字对照），页仍进本轮缓存；与 ArtifactCollector 生产装配
+    共栈，随存储写字节面批（HANDOFF §0.-2 剩余 1）落地。
+  - **A/B 抓回并修复四处**：
+    ① `SequentialThinkingTool` 描述**两处行尾双空格**（Go sequentialthinking.go
+    L52/L58 的 `  ` 行）被 Java 文本块剥掉——`\s\s` 转义修复；坑：`\s` 行要放在
+    **公共缩进**上，放浅一级会多算 2 空格（首差实测 4 vs 2）。4.6b 以来的潜伏差异，
+    2c 的 wiki A/B 无 thinking 工具未覆盖。
+    ② registerWebPageFiles 的 Go `GetTool` err 检查翻成 Java `getTool` 后会抛
+    `ToolNotFoundException` 且未捕获 → web 开启的 agent QA 恒败（Java 必须
+    try/catch 复刻 err 分支）。
+    ③ `completeStore` 漏了 Go `delete(t.inflight, rawURL)` 的等价摘除——被 LRU
+    逐出的页读到过期 flight 的旧快照、不重新下载（单测
+    `fetchCachesPerRunAndEvictsLruBeyond8` 抓回）。
+    ④ WebFetchTool schema 字面量内层 `additionalProperties:false` 后多写一个
+    `}`——根对象提前闭合，Jackson readTree 对 trailing data **静默**，根只剩
+    type/properties 两键。教训：schema 字面量测试要同时断言「readTree 成功 + 根
+    键数」，只断言两份字符串相等会让**同样写错的两份**互相印证
+    （`schemasMatchGoRecording` 首轮抓回）。
+  - **线格式分路径发现（备案，未改）**：Go 出站请求体分 SDK 结构体序 vs 裸 HTTP
+    map 序（`buildOutbound` 的 useRawHTTP）：model 参数带 `"provider":"openai"`
+    → prompt-cache sendKey 策略 → `applyPromptCacheToJSONBody` 把 body 改写成
+    map（**字母序 + prompt_cache_key**）；provider 键缺失（unknown）→ SDK 结构体
+    序（type-first、chat_template_kwargs/enable_thinking 尾随；deepseek 名字走
+    chat_template_kwargs 亦结构体序）。Java `goSorted` 恒 map 序，只覆盖 map 路径
+    ——4.6d 的「Java 单路径合并」在该路径族上不成立，随 LLM 批收口。A/B 夹具模型
+    必须带 `"provider":"openai"` 才能两端同形（ab-tools-web.sh 注释备案）。
+  - **验证**：新增 `scripts/ab-tools-web.sh`（租户 10009 夹具：建 web 临时 agent
+    「allowed_tools 显式四件 + web_search_max_results=7 + thinking:true」、种子
+    provider=openai 模型行指 stub、跑完全删）——**双端两轮 tools 段 18825 字节
+    逐字节一致**（5 件：read_file/thinking/todo_write/web_fetch/web_search；描述
+    「Returns up to 7 results」钉住 %d 注入）。新增 `WebToolsRecordingTest` 18 用例
+    （schema/描述字节钉、批执行/续读/缓存逐出/去重/预算不足/双编解包/空内容/
+    snapshot_expired、search 校验文案/整形/去重/content 抓取页键语义/RFC3339）。
+    回归 agent 380 / session 362 全绿。夹具全退（temp agent、种子模型行、12 个
+    测试会话）。
+  - **残留**：① AgentWebPages 生产 Store/Binding（存储写字节面）；② Go SDK 结构体
+    路径键序 Java 未模拟（见上分路径备案）；③ `PluginSearch.effectiveWebSearchConfig`
+    漏拷 apiKey（Go EffectiveWebSearchConfig 全量拷贝——chatpipeline 既有面，非本
+    切片，备案）；④ 照旧：messages 内容、`temperature`、`SkillInstallPipelineImpl:1123`。
