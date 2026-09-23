@@ -1181,7 +1181,7 @@ onUnmounted(() => {
 }
 
 .org-join-btn {
-  border-color: rgba(7, 192, 95, 0.5);
+  border-color: var(--td-border-level-2-color);
   color: var(--td-brand-color);
   font-weight: 500;
   transition: all 0.2s ease;
@@ -1191,7 +1191,6 @@ onUnmounted(() => {
   }
 
   &:hover {
-    background: rgba(7, 192, 95, 0.08);
     border-color: var(--td-brand-color);
     color: var(--td-brand-color);
 
