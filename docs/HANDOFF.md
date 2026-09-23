@@ -1,5 +1,20 @@
 # 交接文档（新会话接手用）
 
+## 0.-6 agent 工具接线·切片 2b（2026-09-23——data_schema 接线；wiki/web 仍待）
+
+**做了什么**：`data_schema` 接进 `createTool`（KnowledgeLookup/ChunkLister 走
+`KnowledgeService.getKnowledgeByIdOnly` + `ChunkRepository.listPagedChunksByKnowledgeId`，
+tenant 取 knowledge 行；`scopeEnforced` 时挂 `SearchAuth.authorizeKnowledgeInSearchTargets`
+授权器）；schema 字面量按 Go 实录修正键序。
+
+**验收**：A/B 双端同注册 **8 件**（KB 五件 + conversations + database_query + data_schema）→
+**tools 段 14675 字节逐字节一致**；agent 362 / session 349 全绿。
+
+**仍待（切片 2c）**：**wiki 10 件**（需实现 `WikiSupport.WikiPages` 适配器——14 个方法桥到
+wiki 模块真实服务 + `WikiSupport.newWikiScopesFromKbIds` + `new WikiRouteResolver()`，
+仅 `hasWikiKb` 注册；验收需 wiki KB 夹具）＋ **`web_search`/`web_fetch`**（Java 无工具类，
+属新翻，Go ~80/77 行 + 描述/实录）。
+
 ## 0.-5 agent 工具接线·切片 2a（2026-09-23——会话/记忆/DB 三件 + 记忆闸门回收）
 
 **做了什么**：`search_conversations`（owner 装配期捕获 + `MessageService` owner 显式重载）、

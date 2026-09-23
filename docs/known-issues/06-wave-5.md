@@ -881,3 +881,14 @@
     agent 362 / session 349 全绿；新增映射钉（conversations/memory）+ H2 行扫描用例。
   - **遗留**：`data_schema`（需 ScopeAuthorizer 装配）+ wiki 10 件 + web_search/web_fetch
     （Java 无工具类，属新翻）= 切片 2b；外层键序/messages/temperature 三项残留照旧。
+
+- **agent 工具接线·切片 2b（2026-09-23，data_schema 落地）**：`data_schema` 接进
+  `AgentToolBackends.createTool`——KnowledgeLookup/ChunkLister 走
+  `KnowledgeService.getKnowledgeByIdOnly`（拿 tenant）+ `ChunkRepository.listPagedChunksByKnowledgeId`
+  （text 语义同 Go：page{1,100}、chunkTypes=[table_summary,table_column]、enabled）；
+  `searchTargets != null` 时挂 `SearchAuth.authorizeKnowledgeInSearchTargets` 授权器
+  （对照 Go 的 scopeEnforced + WithSearchTargets）。schema 字面量 A/B 抓回键序差（已按实录修）。
+  **验证**：A/B 双端同注册 8 件 → tools 段 14675 字节逐字节一致；agent 362 / session 349 全绿；
+  接线钉新增 `data_schema`。**仍待切片 2c**：wiki 10 件（`WikiSupport.WikiPages` 适配器
+  14 方法 + scopes/routes + hasWikiKb 门控，验收需 wiki KB 夹具）与 `web_search`/`web_fetch`
+  （Java 缺件，属新翻）。

@@ -51,10 +51,11 @@ public class DataSchemaTool extends BaseTool {
     public record ChunkView(String chunkType, String content) {
     }
 
+    /** 键序对照 Go GenerateSchema 输出（字母序：additionalProperties < properties < required < type）。 */
     private static final String SCHEMA_JSON =
-            "{\"type\":\"object\",\"properties\":{\"knowledge_id\":{\"type\":\"string\","
-                    + "\"description\":\"short dN document ID to query\"}},\"required\":[\"knowledge_id\"],"
-                    + "\"additionalProperties\":false}";
+            "{\"additionalProperties\":false,\"properties\":{\"knowledge_id\":"
+                    + "{\"description\":\"short dN document ID to query\",\"type\":\"string\"}},"
+                    + "\"required\":[\"knowledge_id\"],\"type\":\"object\"}";
 
     private static final String DESCRIPTION =
             "Use this tool to get the schema information of a CSV or Excel file loaded into DuckDB. "

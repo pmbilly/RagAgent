@@ -784,7 +784,8 @@ public class SessionAgentQaService {
                         ToolDefinitions.TOOL_QUERY_KNOWLEDGE_GRAPH,
                         ToolDefinitions.TOOL_GET_DOCUMENT_INFO,
                         ToolDefinitions.TOOL_SEARCH_CONVERSATIONS,
-                        ToolDefinitions.TOOL_SEARCH_MEMORY, ToolDefinitions.TOOL_DATABASE_QUERY ->
+                        ToolDefinitions.TOOL_SEARCH_MEMORY, ToolDefinitions.TOOL_DATABASE_QUERY,
+                        ToolDefinitions.TOOL_DATA_SCHEMA ->
                         toolToRegister = toolBackends.createTool(toolName,
                                 config.getSearchTargets(), rerankModel, toolOwnerId, sessionId);
                 case ToolDefinitions.TOOL_SHELL_EXEC, ToolDefinitions.TOOL_READ_FILE,

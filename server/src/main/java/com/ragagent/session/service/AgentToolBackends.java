@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import com.ragagent.agent.tools.DataSchemaTool;
 import com.ragagent.agent.tools.DatabaseQueryTool;
 import com.ragagent.agent.tools.DocChunkSupport;
 import com.ragagent.agent.tools.GrepChunksTool;
@@ -121,6 +122,15 @@ public class AgentToolBackends {
                         Long t = TenantContext.currentTenantId();
                         return t == null ? 0L : t;
                     });
+            case com.ragagent.agent.tools.ToolDefinitions.TOOL_DATA_SCHEMA -> {
+                // 对照 NewDataSchemaTool(knowledgeService, chunkRepo) + WithSearchTargets
+                DataSchemaTool tool = new DataSchemaTool(dataSchemaKnowledgeLookup(),
+                        dataSchemaChunkLister());
+                if (targets != null) {
+                    tool.withScopeAuthorizer(dataSchemaScopeAuthorizer(targets));
+                }
+                yield tool;
+            }
             default -> null;
         };
     }
@@ -168,6 +178,51 @@ public class AgentToolBackends {
                 }
             }
             return new SearchMemoryTool.MemorySearchResultView(r.available(), items);
+        };
+    }
+
+    // ==================================================================
+    // data_schema（切片 2b）
+    // ==================================================================
+
+    /** 对照 data_schema 的 knowledgeService.GetKnowledgeByIDOnly（拿 tenant 用）。 */
+    public DataSchemaTool.KnowledgeLookup dataSchemaKnowledgeLookup() {
+        return knowledgeId -> {
+            Knowledge k = knowledgeService.getKnowledgeByIdOnly(knowledgeId);
+            if (k == null) {
+                return null;
+            }
+            return new DataSchemaTool.KnowledgeView(k.getId(),
+                    k.getTenantId() == null ? 0L : k.getTenantId());
+        };
+    }
+
+    /** 对照 chunkRepo.ListPagedChunksByKnowledgeID（tenant 取 knowledge 行，Go 同款）。 */
+    public DataSchemaTool.ChunkLister dataSchemaChunkLister() {
+        return (knowledgeId, page, pageSize, chunkTypes, enabled) -> {
+            Knowledge k = knowledgeService.getKnowledgeByIdOnly(knowledgeId);
+            long tenant = k == null || k.getTenantId() == null ? 0L : k.getTenantId();
+            int offset = Math.max(page - 1, 0) * Math.max(pageSize, 0);
+            ChunkRepository.ChunkPage p = chunkRepository.listPagedChunksByKnowledgeId(
+                    tenant, knowledgeId, offset, pageSize, chunkTypes, null,
+                    "", "", "", "", enabled);
+            List<DataSchemaTool.ChunkView> out = new ArrayList<>();
+            for (com.ragagent.knowledge.domain.Chunk c : p.items()) {
+                out.add(new DataSchemaTool.ChunkView(nz(c.getChunkType()), c.getContent()));
+            }
+            return out;
+        };
+    }
+
+    /** 对照 authorizeKnowledgeInSearchTargets（scopeEnforced 时的授权器）。 */
+    public DataSchemaTool.ScopeAuthorizer dataSchemaScopeAuthorizer(
+            SearchTarget.SearchTargets targets) {
+        return knowledgeId -> {
+            SearchAuth.KnowledgeView scoped = SearchAuth.authorizeKnowledgeInSearchTargets(
+                    targets, knowledgeId, DocChunkSupport.asScopeReader(knowledgeInfoReader()));
+            Knowledge k = knowledgeService.getKnowledgeByIdOnly(scoped.id());
+            return new DataSchemaTool.KnowledgeView(scoped.id(),
+                    k == null || k.getTenantId() == null ? 0L : k.getTenantId());
         };
     }
 

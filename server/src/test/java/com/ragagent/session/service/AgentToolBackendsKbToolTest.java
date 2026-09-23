@@ -61,7 +61,7 @@ class AgentToolBackendsKbToolTest {
                 List.of(SearchTarget.wholeKb("kb1", 10002)));
         for (String name : List.of("knowledge_search", "grep_chunks",
                 "list_knowledge_chunks", "query_knowledge_graph", "get_document_info",
-                "search_conversations", "search_memory", "database_query")) {
+                "search_conversations", "search_memory", "database_query", "data_schema")) {
             var tool = backends.createTool(name, targets, null, "owner-1", "session-1");
             assertThat(tool).as("工具 %s 必须可构造（此前恒走 Unknown tool）", name).isNotNull();
             assertThat(tool.getName()).as("工具名与注册名一致").isEqualTo(name);
@@ -70,8 +70,8 @@ class AgentToolBackendsKbToolTest {
 
     @Test
     void nonKbNamesReturnNull() {
-        assertThat(backends.createTool("data_schema", null, null, "o", "s")).isNull();
         assertThat(backends.createTool("web_search", null, null, "o", "s")).isNull();
+        assertThat(backends.createTool("wiki_read_page", null, null, "o", "s")).isNull();
         assertThat(backends.createTool("not_a_tool", null, null, "o", "s")).isNull();
     }
 
