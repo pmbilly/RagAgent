@@ -70,6 +70,10 @@ public class SessionAgentQaService {
     private final SessionSandboxExecutionService sandboxExecution;
     private final SessionAttachmentStagingService attachmentStaging;
     private final AgentToolBackends toolBackends;
+    /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
+    private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
+    private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
+            ollamaService;
     public SessionAgentQaService(MessageService messageService,
             ModelService modelService,
             MemoryService memoryService,
@@ -78,7 +82,12 @@ public class SessionAgentQaService {
             com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry,
             SessionSandboxExecutionService sandboxExecution,
             SessionAttachmentStagingService attachmentStaging,
-            AgentToolBackends toolBackends) {
+            AgentToolBackends toolBackends,
+            com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
+            org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
+                    ollamaService) {
+        this.concurrencyGovernor = concurrencyGovernor;
+        this.ollamaService = ollamaService;
         this.messageService = messageService;
         this.modelService = modelService;
         this.memoryService = memoryService;
@@ -811,7 +820,10 @@ public class SessionAgentQaService {
         var p = model.getParameters();
         var config = com.ragagent.llm.domain.ChatConfig.fromModel(model,
                 p == null ? null : p.getAppId(), p == null ? null : p.getAppSecret());
-        return com.ragagent.llm.chat.LlmChatClients.create(config, null, null);
+        // ⚠️ 2026-09-23 修复：governor/ollama 曾传 null——并发闸门装配（95a49c4）后
+        // ConcurrencyChatClient 必调 gateNamedN，agent 路径任何 LLM 调用都会 NPE。
+        return com.ragagent.llm.chat.LlmChatClients.create(config,
+                ollamaService.getIfAvailable(), concurrencyGovernor);
     }
 
     private Reranker rerankModel(String modelId) {

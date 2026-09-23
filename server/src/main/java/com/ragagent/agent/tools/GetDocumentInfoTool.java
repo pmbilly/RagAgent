@@ -25,21 +25,22 @@ import com.ragagent.knowledge.domain.FaqChunkMetadata;
  */
 public class GetDocumentInfoTool extends BaseTool {
 
+    /** 键序对照 Go GenerateSchema 输出（字母序：properties < type；description < items < type）。 */
     private static final String SCHEMA_JSON = """
             {
-              "type": "object",
               "properties": {
-                "knowledge_ids": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "Short dN document IDs for regular documents"
-                },
                 "faq_ids": {
-                  "type": "array",
+                  "description": "Short cN FAQ chunk IDs from retrieval results. Use instead of knowledge_ids for a single FAQ Q&A.",
                   "items": { "type": "string" },
-                  "description": "Short cN FAQ chunk IDs from retrieval results. Use instead of knowledge_ids for a single FAQ Q&A."
+                  "type": "array"
+                },
+                "knowledge_ids": {
+                  "description": "Short dN document IDs for regular documents",
+                  "items": { "type": "string" },
+                  "type": "array"
                 }
-              }
+              },
+              "type": "object"
             }""";
 
     private static final String DESCRIPTION =

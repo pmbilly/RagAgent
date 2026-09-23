@@ -826,3 +826,35 @@
     knowledge_search 等落 `default → "Unknown tool"`；工具实现（4.5b）与检索执行面
     均已就位，`hasVectorKb` 硬网不会删掉有向量库的用例）——分派修好后 agent 真实跑
     引擎但无 KB 工具，须随批补注册。
+
+- **agent 检索工具族接线（2026-09-23，切片 1——KB 五件；双端 stub A/B 抓回四处保真差）**：
+  背景 = `registerTools` 对 knowledge_search / grep_chunks / list_knowledge_chunks /
+  query_knowledge_graph / get_document_info 只落 `default → "Unknown tool"`（工具类 4.5b、
+  检索执行面 3cb4b2e 早已就位）。
+  - **接线**：新增 `session.service.AgentToolBackends`（9 个窄 seam → HybridSearchService /
+    KnowledgeService / ChunkRepository / Reranker / ImageInfoEnricher / JdbcTemplate），
+    `registerTools` 经 `createKbTool` 注册；grep_chunks 按 Go `searchChunks` 整段移植
+    （OR scope / 正则 / LIMIT 500 / enabled 计数回填；方言 PG `~*` / 通用 REGEXP /
+    H2 `REGEXP_LIKE(...,'i')`）；修 `KnowledgeSearchTool` 的 seam 缺口——
+    `KnowledgeSearchBackend.hybridSearch` 补 kbID 参数（Go 两参：`HybridSearch(ctx,kbID,params)`；
+    定向分支此前丢 target KB id）。
+  - **A/B 方法**：`stub-llm-server.py` 增 `STUB_DUMP_DIR`（默认关闭）落 LLM 请求体；
+    双端同指 stub（`SSRF_WHITELIST_EXTRA=127.0.0.1` 重启）→ 同一 agent（smart-reasoning +
+    stub 模型 + stub rerank）跑 `<<SCENARIO:chat>>` → 对拍请求体。
+  - **A/B 抓回四处（均已修）**：① 五件工具 schema 与 Go `GenerateSchema` 输出不一致——
+    query_knowledge_graph 缺 `additionalProperties:false` 与可空数组 `["null","array"]`、
+    grep_chunks 描述里 `\brag\b` 少一层反斜杠、三件 schema **键序**非字母序；② `RemoteApiChat`
+    的 tools 信封键序（Go 字母序：`function` < `type`；`description` < `name` <
+    `parameters`）；③ 出站请求体未做 Go HTML 转义（`< > &` → 小写反斜杠 u 形式；改经
+    `GoJsonEscapes` 的 JsonMapper 序列化，与 embedding/websearch 的既有 GoJson 模式一致）；
+    ④ `SessionAgentQaService.chatModel` 的 governor/ollama 传 null——并发闸门装配
+    （95a49c4）后 **agent 路径任何 LLM 调用必 NPE**（被分派 bug 掩盖，修分派后暴露）；
+    同族还有 `SkillInstallPipelineImpl:1123`（install 管线，未修，随批补）。
+  - **残留（记录待专项，均非本切片主题）**：外层请求体键序（Go 字母序 vs Java 插入序）、
+    messages 差异（system prompt 缺 Go 的 KB 使用段约 860 字符 + user 消息缺
+    `<runtime_context scope="this_turn">` 块）、`temperature`（Java 发 0.7 / Go 不发）。
+  - **验证**：tools 段 9685 字节前缀逐字节一致（五件工具结构与顺序一致）；
+    agent 362 / session 346 / knowledge 193 / llm.chat 154 全绿；新增
+    `AgentToolBackendsKbToolTest`（构造钉）+ `AgentToolBackendsDbTest`（H2：scope/正则/
+    计数/分页/标签）。恢复后端时注意 dev-env：本仓 `.env` 存在时 `WEKNORA_ROOT` 未导出，
+    `go-server-up.sh`（set -u）会炸——需显式 `WEKNORA_ROOT=/Users/billy/WeKnora` 前缀。

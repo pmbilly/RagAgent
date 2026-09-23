@@ -89,6 +89,17 @@ public class RemoteApiChat implements LlmChatClient {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /** 出站请求体序列化器：Go json.Marshal 等价（HTML 转义 < > &，见 §9 差分排查）。 */
+    private static final com.fasterxml.jackson.databind.json.JsonMapper GO_MARSHAL =
+            goMarshal();
+
+    private static com.fasterxml.jackson.databind.json.JsonMapper goMarshal() {
+        com.fasterxml.jackson.databind.json.JsonMapper mapper =
+                com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
+        mapper.getFactory().setCharacterEscapes(new com.ragagent.common.web.GoJsonEscapes());
+        return mapper;
+    }
+
     /** 对照 Go remote_api.go 的 remote_model_name / api_version 两个 extra_config 键。 */
     private static final String EXTRA_REMOTE_MODEL_NAME = "remote_model_name";
     private static final String EXTRA_API_VERSION = "api_version";
@@ -333,14 +344,16 @@ public class RemoteApiChat implements LlmChatClient {
             for (ChatTool tool : opts.getTools()) {
                 FunctionDef fn = tool.getFunction() == null ? new FunctionDef() : tool.getFunction();
                 ObjectNode toolNode = tools.addObject();
-                toolNode.put("type", tool.getType());
+                // ⚠️ 键序对照 Go 的 map 序列化（字母序）：function < type；
+                // description < name < parameters（2026-09-23 A/B 逐字节对拍修正）。
                 ObjectNode fnNode = toolNode.putObject("function");
-                fnNode.put("name", fn.getName());
                 if (fn.getDescription() != null && !fn.getDescription().isEmpty()) {
                     fnNode.put("description", fn.getDescription());
                 }
+                fnNode.put("name", fn.getName());
                 // 对照 go-openai FunctionDefinition：parameters 无 omitempty → nil 时输出 null
                 fnNode.set("parameters", fn.getParameters() == null ? NullNode.getInstance() : fn.getParameters());
+                toolNode.put("type", tool.getType());
             }
         }
 
@@ -527,7 +540,9 @@ public class RemoteApiChat implements LlmChatClient {
 
         byte[] bodyBytes() {
             try {
-                return MAPPER.writeValueAsBytes(body);
+                // Go json.Marshal 等价：HTML 转义（< > & 转小写十六进制反斜杠 u 形式）——
+                // 与 embedding/websearch 等出站请求的既有 GoJson 模式一致（§9 差分排查）。
+                return GO_MARSHAL.writeValueAsBytes(body);
             } catch (IOException e) {
                 throw BizException.internal("marshal request: " + e.getMessage());
             }

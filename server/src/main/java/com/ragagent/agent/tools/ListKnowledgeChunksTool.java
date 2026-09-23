@@ -23,36 +23,37 @@ import com.ragagent.knowledge.domain.Chunk;
  */
 public class ListKnowledgeChunksTool extends BaseTool {
 
+    /** 键序对照 Go GenerateSchema 输出（字母序：properties < type；属性名与字段键均字母序）。 */
     private static final String SCHEMA_JSON = """
             {
-              "type": "object",
               "properties": {
-                "faq_id": {
-                  "type": "string",
-                  "description": "Short cN FAQ chunk ID. Use for FAQ hits instead of the parent dN document ID."
-                },
                 "chunk_id": {
-                  "type": "string",
-                  "description": "Short cN ID for one non-FAQ chunk"
+                  "description": "Short cN ID for one non-FAQ chunk",
+                  "type": "string"
+                },
+                "faq_id": {
+                  "description": "Short cN FAQ chunk ID. Use for FAQ hits instead of the parent dN document ID.",
+                  "type": "string"
                 },
                 "knowledge_id": {
-                  "type": "string",
-                  "description": "Short dN document ID to list all chunks"
+                  "description": "Short dN document ID to list all chunks",
+                  "type": "string"
                 },
                 "limit": {
-                  "type": "integer",
-                  "description": "Chunks per page when using knowledge_id (default 20, max 100)",
                   "default": 20,
+                  "description": "Chunks per page when using knowledge_id (default 20, max 100)",
+                  "maximum": 100,
                   "minimum": 1,
-                  "maximum": 100
+                  "type": "integer"
                 },
                 "offset": {
-                  "type": "integer",
-                  "description": "Start position when using knowledge_id (default 0)",
                   "default": 0,
-                  "minimum": 0
+                  "description": "Start position when using knowledge_id (default 0)",
+                  "minimum": 0,
+                  "type": "integer"
                 }
-              }
+              },
+              "type": "object"
             }""";
 
     private static final String DESCRIPTION =

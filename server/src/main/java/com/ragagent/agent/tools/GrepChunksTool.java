@@ -30,17 +30,18 @@ import com.ragagent.knowledge.domain.Chunk;
  */
 public class GrepChunksTool extends BaseTool {
 
+    /** 键序对照 Go GenerateSchema 输出（字母序：properties < required < type）。 */
     private static final String SCHEMA_JSON = """
             {
-              "type": "object",
               "properties": {
                 "query": {
-                  "type": "string",
                   "description": "A single POSIX regex applied directly to chunk content (case-insensitive). Combine multiple concepts with \\"|\\" alternation in ONE regex (e.g. \\"stardust|skyvault|psionic\\") — do not split into multiple calls.",
-                  "minLength": 1
+                  "minLength": 1,
+                  "type": "string"
                 }
               },
-              "required": ["query"]
+              "required": ["query"],
+              "type": "object"
             }""";
 
     private static final String DESCRIPTION = "Search knowledge base chunk content with a single POSIX regular expression, applied directly in the database (PostgreSQL ~* / MySQL/SQLite REGEXP, case-insensitive). Behaves like `grep -E -i`.\n"
@@ -49,7 +50,7 @@ public class GrepChunksTool extends BaseTool {
             + "Examples:\n"
             + "- Alternation (RECOMMENDED): \"stardust|skyvault|psionic\" (matches any of the words)\n"
             + "- Multiple terms in order: \"psionic.*engine\" (matches both words in order)\n"
-            + "- Word boundary / anchor: \"\\brag\\b\" or \"^chapter\\s+\\d+\"\n"
+            + "- Word boundary / anchor: \"\\\\brag\\\\b\" or \"^chapter\\\\s+\\\\d+\"\n"
             + "- Plain text: \"engine\" (matches literal substring anywhere in chunk content)\n"
             + "IMPORTANT — JSON escaping: every backslash in a regex MUST be written as \\\\ inside the JSON tool arguments (e.g. to search for literal \"C++\" write \"C\\\\+\\\\+\", NOT \"C\\+\\+\"; for \"\\d+\" write \"\\\\d+\"). Plain \"\\+\" / \"\\d\" etc. are invalid JSON escapes and will fail to parse.\n"
             + "Use this to locate candidate chunks by exact identifiers, error codes, product names, or recurring terms.\n"

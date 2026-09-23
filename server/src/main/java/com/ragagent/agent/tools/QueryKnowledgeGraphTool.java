@@ -25,21 +25,27 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
  */
 public class QueryKnowledgeGraphTool extends BaseTool {
 
+    /**
+     * 对照 Go {@code utils.GenerateSchema[QueryKnowledgeGraphInput]()} 的输出
+     * （2026-09-23 A/B 对拍修正：补 {@code additionalProperties:false} 与
+     * 可空数组类型 {@code ["null","array"]}；键序字母序）。
+     */
     private static final String SCHEMA_JSON = """
             {
-              "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "knowledge_base_ids": {
-                  "type": "array",
+                  "description": "Array of short bN knowledge base IDs to query",
                   "items": { "type": "string" },
-                  "description": "Array of short bN knowledge base IDs to query"
+                  "type": ["null", "array"]
                 },
                 "query": {
-                  "type": "string",
-                  "description": "Query content (entity name or query text)"
+                  "description": "Query content (entity name or query text)",
+                  "type": "string"
                 }
               },
-              "required": ["knowledge_base_ids", "query"]
+              "required": ["knowledge_base_ids", "query"],
+              "type": "object"
             }""";
 
     private static final String DESCRIPTION =

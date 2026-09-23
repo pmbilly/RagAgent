@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-4 agent 检索工具族接线·切片 1（2026-09-23——KB 五件接真实服务，Unknown tool 清零）
+
+**做了什么**：`registerTools` 新增 knowledge_search / grep_chunks / list_knowledge_chunks /
+query_knowledge_graph / get_document_info 的构造与注册（此前恒 `Unknown tool`）。新增
+`session.service.AgentToolBackends`（9 个窄 seam → HybridSearchService / KnowledgeService /
+ChunkRepository / Reranker / ImageInfoEnricher / JdbcTemplate；grep_chunks SQL 按 Go 整段移植，
+方言 PG `~*` / 通用 REGEXP / H2 `REGEXP_LIKE`）；修 `KnowledgeSearchTool` seam 缺口
+（`hybridSearch` 补 kbID 参数）；修 `SessionAgentQaService.chatModel` 的 governor/ollama
+漏传（并发闸门装配后 agent 路径 LLM 调用必 NPE，被分派 bug 掩盖）。
+
+**验收（双端 stub 实弹 A/B）**：`stub-llm-server.py` 增 `STUB_DUMP_DIR`（默认关闭）；
+双端同指 stub（`SSRF_WHITELIST_EXTRA=127.0.0.1`）跑同一 smart-reasoning agent →
+**tools 段 9685 字节前缀逐字节一致**（含 schema/键序/HTML 转义，A/B 抓回四处已修）。
+回归：agent 362 / session 346 / knowledge 193 / llm.chat 154 + 新增两测试类。
+
+**残留（待专项，非本切片）**：外层请求体键序（Go 字母序）、messages 差异（system prompt
+缺 Go 的 KB 使用段 + user 消息缺 `<runtime_context>` 块）、`temperature`（Java 发 0.7 /
+Go 不发）、`SkillInstallPipelineImpl:1123` 同款 governor 漏传。**下一步 = 切片 2**
+（search_conversations SQL / search_memory / database_query+data_schema / wiki 10 件；
+web_search/web_fetch 缺件单列）。细节见 known-issues/06-wave-5.md 尾部。
+
 ## 0.-3 agent 模式分派修复（2026-09-23，走查抓回——「智能推理」agent 恒走 RAG 快答）
 
 **做了什么**（两处根因，一次修；此处「走查抓回」= 占位全面复查的最高危项，实弹对拍坐实）：

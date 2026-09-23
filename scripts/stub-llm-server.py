@@ -23,6 +23,7 @@
 - 幂等：无状态，无落盘。
 """
 import json
+import os
 import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -72,6 +73,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) or b"{}"
+        # 可选：请求落盘（STUB_DUMP_DIR=<dir> 时生效，默认关闭）——A/B 对拍
+        # LLM 请求体（如 tools 数组）时用。文件名 = 序号-端点。
+        dump_dir = os.environ.get("STUB_DUMP_DIR")
+        if dump_dir:
+            try:
+                os.makedirs(dump_dir, exist_ok=True)
+                Handler._dump_seq = getattr(Handler, "_dump_seq", 0) + 1
+                name = "%04d-%s.json" % (Handler._dump_seq,
+                                         self.path.strip("/").replace("/", "_"))
+                with open(os.path.join(dump_dir, name), "wb") as fh:
+                    fh.write(body)
+            except OSError:
+                pass
         if self.path.endswith("/chat/completions"):
             return self.chat(json.loads(body or b"{}"))
         if self.path.endswith("/embeddings"):

@@ -29,30 +29,31 @@ import com.ragagent.knowledge.domain.Chunk;
  */
 public class KnowledgeSearchTool extends BaseTool {
 
+    /** 键序对照 Go GenerateSchema 输出（字母序：properties < required < type）。 */
     private static final String SCHEMA_JSON = """
             {
-              "type": "object",
               "properties": {
-                "queries": {
-                  "type": "array",
-                  "description": "REQUIRED: 1-5 semantic questions/topics (e.g., ['What is RAG?', 'RAG benefits'])",
-                  "items": {
-                    "type": "string"
-                  },
-                  "minItems": 1,
-                  "maxItems": 5
-                },
                 "knowledge_base_ids": {
-                  "type": "array",
                   "description": "Optional: bound knowledge-base IDs (the short bN values shown in runtime context)",
                   "items": {
                     "type": "string"
                   },
+                  "maxItems": 10,
                   "minItems": 0,
-                  "maxItems": 10
+                  "type": "array"
+                },
+                "queries": {
+                  "description": "REQUIRED: 1-5 semantic questions/topics (e.g., ['What is RAG?', 'RAG benefits'])",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 5,
+                  "minItems": 1,
+                  "type": "array"
                 }
               },
-              "required": ["queries"]
+              "required": ["queries"],
+              "type": "object"
             }""";
 
     private static final String DESCRIPTION = "Semantic/vector search tool for retrieving knowledge by meaning, intent, and conceptual relevance.\n"
