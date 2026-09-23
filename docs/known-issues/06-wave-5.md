@@ -939,6 +939,43 @@
     `WikiPageMapper` 唯一按 tenant 过滤的那条查询会漏掉这些行）。照旧残留：messages 内容、
     `temperature`、`SkillInstallPipelineImpl:1123`。**下一步 = web_search/web_fetch**（Java 缺件，新翻）。
 
+- **存储写字节面 + ArtifactCollector 生产装配（2026-09-24，§0.-2 剩余 1 收口）**：
+  Go `file/local.go SaveBytes/DeleteFile` + `file/resource_catalog.go`（装饰器全文）+
+  `resource.go Register/Bind/MarkDeleted` 全量翻译：
+  - **写面分层**：`LocalFileContentService` 补 SaveBytes（SafeFileName →
+    baseDir/{tenant}/exports/ → `<base>_<纳秒><ext>` 唯一名 → `local://` 引用；
+    temp 对 local 无效——Go 注释原文）/ DeleteFile；新接口
+    `WritableFileContentService extends FileContentService`（Go FileService 写半边）；
+    `StorageFileResolver` 的 DecoratedFileService 升级实现它：SaveBytes = 物理落盘 →
+    SHA-256 → `catalog.register`（失败尽力回删）→ resource:// 手柄；DeleteFile =
+    物理删 + `catalog.markDeleted` 软删。`globalFileService` 返回类型随之放宽。
+  - **ResourceCatalogService** 补 register（location_hash 命中复用手柄 / handle 4 次
+    撞重试 / provider scheme 白名单）/ bind（owner 校验 + relation 缺省 attachment）/
+    markDeleted；`ResourceRepository` 补 createResource（id/时间戳代码侧生成——H2 无
+    列默认）/ createBinding（**H2 无 ON CONFLICT 语法** → 按"插入失败即已绑定"吞
+    unique/duplicate/primary key 冲突）/ markDeleted。
+  - **ArtifactCollectorWiring**（session.service @Component）：对照 container.go
+    Provide(NewArtifactCollectorFromSandboxManager) + initFileService。结构差异备案：
+    Go collector 是**进程单例**（process-wide manager 断言成 source，会话绑定在
+    manager 内部）；Java bound manager 按回合解析 → collector 按回合构造，
+    **沙箱解析惰性到首次列文件**（回合开始绝不提前 provisioning——首版写成立即
+    解析，走查自查改掉）。
+  - **drain 点接线**（agent_stream_handler.go L726-757）：AgentStreamBridge 完成段、
+    clarify 之前——CollectWithNotify（notify = artifacts_pending 事件补齐，事件 ID
+    `artifacts-pending-<epochMilli>`）→ setArtifacts + rewriteArtifactReferences →
+    ReferencedHistory → clarifyArtifactVersions(previous)。collector 未装配（旧构造
+    器）/source 解析失败时行为与 Go nil/降级分支同形。
+  - **AgentWebPages 生产接线**：Store = 装饰服务（SaveBytes/GetFile 的 resource://
+    链），Binding = catalog::bind——§0.-8 残留 ① 收口。
+  - **坑**：resolvePath 返回的是 **provider 作用域路径**（`local://…`），不是文件系统
+    路径——归一必须走装饰服务/normalizePathForBase，直接 `Path.of` 会拿到
+    `local:/…`（单斜杠）NoSuchFile。location hash 的输入也是 local:// 原形态，
+    重复注册复用手柄时别先剥 scheme。
+  - **验证**：StorageWriteFaceContractTest 6 + AgentWebPagesStoreTest 4（写读回环 /
+    同路径复用手柄 / 软删 / 绑定行 / 消息缺失与租户不符 fail-closed / 8MB 上限文案）；
+    storage 55 / session 366 全绿。真实 Docker 的 drain 全链 E2E 随 §0.-2 剩余 2
+    （真实 LLM install E2E）顺带验证。
+
 - **agent 工具接线·切片 2d（2026-09-23，web_search/web_fetch 落地——registerTools「Unknown tool」清零）**：
   Go `web_search.go`/`web_fetch.go` 全文新翻（Java 无工具类，属新翻而非接线）：
   `WebFetchTool`（批执行 1..8、两段式 offset-0 先行再续读、pageFlight 单飞合流、

@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-9 存储写字节面 + ArtifactCollector 生产装配（2026-09-24——§0.-2 剩余 1 收口）
+
+**做了什么**：Go `file/local.go` 写面 + `file/resource_catalog.go` 装饰器 +
+`resource.go Register/Bind/MarkDeleted` 全量翻译。`LocalFileContentService` 补
+SaveBytes/DeleteFile（exports 目录 + 纳秒唯一名 + SafeFileName）；新接口
+`WritableFileContentService`，装饰器实现之（物理落盘 → SHA-256 → 资源注册 →
+resource:// 手柄；删除 = 物理删 + 软删）。`ResourceCatalogService` 补
+register/bind/markDeleted，`ResourceRepository` 补三写方法（H2 无 ON CONFLICT →
+吞 unique/duplicate/primary key 冲突）。
+**ArtifactCollectorWiring**（对照 container Provide）：字节面 = 全局装饰服务，
+产物存储 = message 仓储投影，绑定 = catalog::bind；collector 按回合构造
+（Go 是进程单例——bound manager Java 按回合解析），**沙箱解析惰性到首次列文件**
+（首版回合开始即解析、可能提前 provisioning，自查改掉）。**drain 点**接进
+AgentStreamBridge 完成段（collectWithNotify + artifacts_pending 事件 + 引用改写 +
+ReferencedHistory + clarify，collector 为 null/降级时与 Go 同形）。
+**AgentWebPages 生产 Store/Binding 接上**（§0.-8 残留 ① 收口）。
+**坑**：resolvePath 返回 provider 作用域路径（local://…）不是文件系统路径——归一
+必须走装饰服务；location hash 输入也是该形态。
+**验收**：StorageWriteFaceContractTest 6 + AgentWebPagesStoreTest 4；storage 55 /
+session 366 全绿。真实 Docker drain E2E 随 §0.-2 剩余 2 顺带验证。
+
 ## 0.-8 agent 工具接线·切片 2d（2026-09-23——web_search/web_fetch 新翻落地，Unknown tool 清零）
 
 **做了什么**：`WebFetchTool`/`WebSearchTool`（agent/tools）全文新翻（Go
@@ -424,7 +445,7 @@ metrics 数值不承诺逐字节（ev-get 属部署差异）；剩余清单（me
 metric_hook 194 行 / CreateKnowledgeFromPassageSync ~300 行 / EvalDataset 147 行 /
 接线）见 known-issues/06 尾部，恢复条件 = 后端出现评估调用需求。
 
-> 最后更新：2026-09-23 · **基线：agent 工具接线·切片 2d（web_search/web_fetch 新翻 + registerWebPageFiles，见 §0.-8 与 git log 顶部）· golden 1,719+24 · 双端 stub A/B tools 段 18825 字节 MATCH**
+> 最后更新：2026-09-24 · **基线：存储写字节面 + ArtifactCollector 生产装配（drain 点 + AgentWebPages 生产接线，见 §0.-9 与 git log 顶部）· golden 1,719+24**
 > 端点覆盖（2026-09-22 程序化对账 `scripts/route-recon.py`：交集 387）：
 > **真缺口候选 1 条** = `/swagger/{}`（Go 工具路由，非翻译目标）
 

@@ -125,6 +125,7 @@ public class KnowledgeQaController {
     private final com.ragagent.session.sse.SseFrameWriter sseFrameWriter;
     private final com.ragagent.storageurl.FileService fileService;
     private final com.ragagent.storageurl.StorageBackendResolver storageBackendResolver;
+    private final com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring;
 
     public KnowledgeQaController(SessionService sessionService,
             MessageService messageService,
@@ -137,7 +138,8 @@ public class KnowledgeQaController {
             StreamEventEmitter emitter,
             com.ragagent.session.sse.SseFrameWriter sseFrameWriter,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.storageurl.FileService> fileService,
-            org.springframework.beans.factory.ObjectProvider<com.ragagent.storageurl.StorageBackendResolver> storageBackendResolver) {
+            org.springframework.beans.factory.ObjectProvider<com.ragagent.storageurl.StorageBackendResolver> storageBackendResolver,
+            com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring) {
         this.sessionService = sessionService;
         this.messageService = messageService;
         this.streamManager = streamManager;
@@ -148,6 +150,7 @@ public class KnowledgeQaController {
         this.steerCoordinator = steerCoordinator;
         this.emitter = emitter;
         this.sseFrameWriter = sseFrameWriter;
+        this.artifactCollectorWiring = artifactCollectorWiring;
         // provider 级文件服务未翻译（5.2 备案延续）：缺 bean 时 Rewriter 禁用（handle 模式同形）
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
@@ -1010,7 +1013,10 @@ public class KnowledgeQaController {
         // AgentStreamBridge 订阅（17 种事件）
         AgentStreamBridge bridge = new AgentStreamBridge(reqCtx.sessionId, reqCtx.assistantMessage.getId(),
                 reqCtx.requestId, sessionTenantId, OffsetDateTime.now(), reqCtx.assistantMessage,
-                streamManager, eventBus);
+                streamManager, eventBus,
+                artifactCollectorWiring.forTurn(sessionTenantId, reqCtx.sessionId,
+                        reqCtx.agentConfig == null ? ""
+                                : reqCtx.agentConfig.path("sandbox_config_id").asText("")));
         bridge.subscribe();
 
         // title 生成（GenerateTitleAsync：session title 为空时；2026-09-23 走查批接线）

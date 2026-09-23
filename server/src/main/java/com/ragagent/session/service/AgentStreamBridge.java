@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.ragagent.agent.domain.AgentStep;
+import com.ragagent.session.domain.MessageArtifact;
 import com.ragagent.agent.tools.SandboxDiffs;
 import com.ragagent.agent.tools.ToolResultPersist;
 import com.ragagent.agent.domain.ToolResult;
@@ -80,6 +81,8 @@ public final class AgentStreamBridge {
     private final Message assistantMessage;
     private final StreamManager streamManager;
     private final EventBus eventBus;
+    /** 回合产物收集器（对照 handler.artifactCollector；未装配时为 null = Go nil 分支）。 */
+    private final ArtifactCollector artifactCollector;
 
     // ---- State tracking ----
     private final List<SearchResult> knowledgeRefs = new ArrayList<>();
@@ -125,6 +128,14 @@ public final class AgentStreamBridge {
             String sessionId, String assistantMessageId, String requestId,
             long tenantId, OffsetDateTime receivedAt, Message assistantMessage,
             StreamManager streamManager, EventBus eventBus) {
+        this(sessionId, assistantMessageId, requestId, tenantId, receivedAt, assistantMessage,
+                streamManager, eventBus, null);
+    }
+
+    public AgentStreamBridge(
+            String sessionId, String assistantMessageId, String requestId,
+            long tenantId, OffsetDateTime receivedAt, Message assistantMessage,
+            StreamManager streamManager, EventBus eventBus, ArtifactCollector artifactCollector) {
         this.sessionId = sessionId;
         this.assistantMessageId = assistantMessageId;
         this.requestId = requestId;
@@ -133,10 +144,34 @@ public final class AgentStreamBridge {
         this.assistantMessage = assistantMessage;
         this.streamManager = streamManager;
         this.eventBus = eventBus;
+        this.artifactCollector = artifactCollector;
     }
 
     public Message getAssistantMessage() {
         return assistantMessage;
+    }
+
+    /**
+     * 对照 emitArtifactsPending（agent_stream_handler.go L841-858）：告知活 UI
+     * 沙箱有文件正在上传。count ≤ 0 直接跳过。
+     */
+    private void emitArtifactsPending(int count) {
+        if (count <= 0) {
+            return;
+        }
+        StreamEvent event = new StreamEvent();
+        event.setId("artifacts-pending-" + System.currentTimeMillis());
+        event.setType(ResponseType.ARTIFACTS_PENDING);
+        event.setTimestamp(OffsetDateTime.now());
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("count", count);
+        event.setData(data);
+        try {
+            streamManager.appendEvent(sessionId, assistantMessageId, event);
+        } catch (RuntimeException e) {
+            log.warn("append artifacts_pending failed session={} message={}: {}",
+                    sessionId, assistantMessageId, e.toString());
+        }
     }
 
     /** 对照 Subscribe：17 种事件订阅序逐字对齐（订阅序即回调序，Go 按此序 On）。 */
@@ -701,12 +736,48 @@ public final class AgentStreamBridge {
                     assistantMessage.setUsage(usage);
                 }
 
-                // 对照 Go L751-760：产物收集后用引用历史澄清版本引用。collector 未装配
-                // （备案 seam）时 previous 为空；current 为空则澄清恒 no-op（dev 双侧同形）。
+                // 对照 Go L726-757：沙箱产物排水（best-effort，任何失败只记日志、
+                // 回合照常落库）。collector 未装配或沙箱无会话文件面时 Collect 返回
+                // null——这些情况不得扰动完成路径。
+                List<MessageArtifact> previous = List.of();
+                if (artifactCollector != null) {
+                    List<MessageArtifact> artifacts;
+                    try {
+                        artifacts = artifactCollector.collect(sessionId, assistantMessageId,
+                                tenantId, com.ragagent.agent.tools.OutputLinks.artifactOutputDir(),
+                                this::emitArtifactsPending);
+                    } catch (RuntimeException e) {
+                        log.warn("artifact collect failed session={} message={}: {}",
+                                sessionId, assistantMessageId, e.toString());
+                        artifacts = null;
+                    }
+                    if (artifacts != null && !artifacts.isEmpty()) {
+                        assistantMessage.setArtifacts(artifacts);
+                        // 答案文本按模型看到的沙箱名引用产物文件；索引空间终定后把
+                        // 名字绑到产物下标，重载会话才能渲染而非断链。
+                        assistantMessage.setContent(
+                                com.ragagent.retrieval.artifact.ArtifactReferenceRewriter
+                                        .rewriteArtifactReferences(assistantMessage.getContent(),
+                                                artifacts.stream()
+                                                        .<com.ragagent.retrieval.artifact.ArtifactReferenceRewriter.Artifact>map(
+                                                                a -> new com.ragagent.retrieval.artifact.ArtifactReferenceRewriter.Artifact(
+                                                                        a.getFileName(), a.getUrl()))
+                                                        .toList(),
+                                                null));
+                        log.info("artifact collect attached {} file(s) to message={} session={}",
+                                artifacts.size(), assistantMessageId, sessionId);
+                    }
+                    List<MessageArtifact> prev = artifactCollector.referencedHistory(
+                            sessionId, assistantMessageId, assistantMessage.getContent());
+                    if (prev != null) {
+                        previous = prev;
+                    }
+                }
+                // 对照 Go L751-760：产物收集后用引用历史澄清版本引用。
                 assistantMessage.setContent(
                         com.ragagent.session.domain.ArtifactVersions.clarifyArtifactVersions(
                                 assistantMessage.getContent(), assistantMessage.getArtifacts(),
-                                List.of(),
+                                previous,
                                 com.ragagent.wiki.service.WikiLanguageSupport
                                         .languageFromContextOrDefault()));
             }

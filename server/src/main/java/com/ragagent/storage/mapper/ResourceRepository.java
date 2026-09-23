@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import javax.sql.DataSource;
 
@@ -90,6 +91,56 @@ public class ResourceRepository {
                 .params(tenantId, locationHash, StoredResource.STATE_ACTIVE)
                 .query(new ResourceMapper())
                 .optional();
+    }
+
+    /**
+     * 对照 Go Create（resource.go repo 段）：注册表行插入。Go 依赖 PG 列默认生成
+     * id（uuid_generate_v4）+ GORM 自动填 created_at/updated_at；H2 测试库无默认，
+     * id/时间戳在代码侧生成（PG 同样接受显式值）。
+     */
+    public void createResource(StoredResource r) {
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.sql("INSERT INTO resources (id, handle, tenant_id, storage_backend_id, provider, "
+                        + "physical_path, location_hash, kind, mime_type, original_name, size, "
+                        + "content_hash, lifecycle, state, created_at, updated_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .params(r.getId() == null ? UUID.randomUUID().toString() : r.getId(),
+                        r.getHandle(), r.getTenantId(), r.getStorageBackendId(), r.getProvider(),
+                        r.getPhysicalPath(), r.getLocationHash(), r.getKind(), r.getMimeType(),
+                        r.getOriginalName(), r.getSize(), r.getContentHash(), r.getLifecycle(),
+                        r.getState() == null ? StoredResource.STATE_ACTIVE : r.getState(),
+                        now, now)
+                .update();
+    }
+
+    /**
+     * 对照 Go CreateBinding（OnConflict DoNothing：重复绑定幂等成功）。H2 测试库
+     * 无 PG 的唯一索引/ON CONFLICT 语法——按"插入失败即视为已绑定"吞掉冲突
+     * （PG 的 unique violation 与 H2 的主键冲突文案都归入此分支）。
+     */
+    public void createBinding(String resourceId, long tenantId, String ownerType,
+            String ownerId, String relation) {
+        try {
+            jdbc.sql("INSERT INTO resource_bindings (id, resource_id, tenant_id, owner_type, "
+                            + "owner_id, relation, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                    .params(UUID.randomUUID().toString(), resourceId, tenantId, ownerType,
+                            ownerId, relation, OffsetDateTime.now())
+                    .update();
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() == null ? "" : e.getMessage().toLowerCase(java.util.Locale.ROOT);
+            if (msg.contains("unique") || msg.contains("duplicate") || msg.contains("conflict")
+                    || msg.contains("primary key")) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    /** 对照 Go MarkDeleted：state=deleted + deleted_at（软删）。 */
+    public void markDeleted(String resourceId) {
+        jdbc.sql("UPDATE resources SET state = ?, deleted_at = ? WHERE id = ?")
+                .params(StoredResource.STATE_DELETED, OffsetDateTime.now(), resourceId)
+                .update();
     }
 
     /** 对照 Go CreateGrant。 */

@@ -16,7 +16,7 @@ import java.util.List;
  * 设置时 {@code GetFileURL} 返回预签名 URL，否则返回 {@code local://…} 原样——
  * dev 部署恒为后者。</p>
  */
-public class LocalFileContentService implements FileContentService {
+public class LocalFileContentService implements WritableFileContentService {
 
     private final String baseDir;
     private final String externalURL;
@@ -101,6 +101,68 @@ public class LocalFileContentService implements FileContentService {
             }
         }
         return sb.toString();
+    }
+
+    // ── SaveBytes / DeleteFile（2026-09-24 存储写字节面批）──────────────────
+
+    /**
+     * 对照 Go {@code localFileService.SaveBytes}（file/local.go L218-249）：
+     * SafeFileName 校验 → baseDir/{tenantID}/exports/ → {@code <base>_<纳秒><ext>}
+     * 唯一名 → 写 0644 → 返回 {@code local://<rel>}。temp 对本地存储无效
+     * （无自动过期支持——Go 注释原文）。
+     */
+    @Override
+    public String saveBytes(byte[] data, long tenantId, String fileName, boolean temp)
+            throws IOException {
+        String safeName = safeFileName(fileName);
+        Path dir = Path.of(joinPath(baseDir, Long.toString(tenantId), "exports"));
+        Files.createDirectories(dir);
+        String ext = extOf(safeName);
+        String baseName = safeName.substring(0, safeName.length() - ext.length());
+        Path filePath = dir.resolve(baseName + "_" + System.nanoTime() + ext);
+        Files.write(filePath, data);
+        String relPath = goRel(baseDir, filePath.toString());
+        return FileContentService.LOCAL_SCHEME + relPath;
+    }
+
+    /** 对照 Go {@code localFileService.DeleteFile}：normalize + 守卫 + 删除。 */
+    @Override
+    public void deleteFile(String filePath) throws IOException {
+        String candidate = normalizePathForBase(filePath == null ? "" : filePath);
+        String resolved = safePathUnderBase(baseDir, candidate);
+        Files.deleteIfExists(Path.of(resolved));
+    }
+
+    /** 对照 Go secutils.SafeFileName（security.go L150-165）。 */
+    public static String safeFileName(String fileName) throws IOException {
+        if (fileName == null || fileName.isEmpty()) {
+            throw new IOException("fileName cannot be empty");
+        }
+        String base = Path.of(cleanPath(fileName)).getFileName() == null
+                ? "" : Path.of(cleanPath(fileName)).getFileName().toString();
+        if (base.isEmpty() || base.equals(".") || base.equals("..")) {
+            throw new IOException("invalid fileName: path traversal or empty name");
+        }
+        if (base.contains("..")) {
+            throw new IOException("invalid fileName: contains path traversal");
+        }
+        if (base.length() > 255) {
+            throw new IOException("fileName too long");
+        }
+        return base;
+    }
+
+    /** 含点扩展名（filepath.Ext 语义）：最后一个 '.' 起（不含目录分隔）。 */
+    private static String extOf(String name) {
+        int dot = name.lastIndexOf('.');
+        if (dot < 0) {
+            return "";
+        }
+        String ext = name.substring(dot);
+        if (ext.contains("/")) {
+            return "";
+        }
+        return ext;
     }
 
     // ── 路径规范化 + 守卫 ───────────────────────────────────────────────────

@@ -253,4 +253,130 @@ public class ResourceCatalogService {
                 repo.knowledgeBaseIdsForBinding(tenantId, resource.getId()),
                 repo.hasMessageArtifactBinding(tenantId, resource.getId(), messageId));
     }
+
+    // ── 注册/绑定写面（2026-09-24 存储写字节面批，对照 resource.go Register/Bind/MarkDeleted）──
+
+    /** 对照 Go interfaces.ResourceRegistration。 */
+    public record ResourceRegistration(String kind, String mimeType, String originalName,
+            long size, String contentHash, boolean temporary) {
+    }
+
+    /** storage://<backendID>/<providerPath> 的拆分（对照 types.ParseStorageBackendPath）。 */
+    record BackendScopedPath(String backendId, String providerPath) {
+    }
+
+    /** 对照 types.ParseStorageBackendPath。 */
+    static BackendScopedPath parseStorageBackendPath(String path) {
+        final String scheme = "storage://";
+        if (path == null || !path.startsWith(scheme)) {
+            return null;
+        }
+        String rest = path.substring(scheme.length());
+        int slash = rest.indexOf('/');
+        if (slash <= 0 || slash == rest.length() - 1) {
+            return null;
+        }
+        return new BackendScopedPath(rest.substring(0, slash), rest.substring(slash + 1));
+    }
+
+    /** 对照 types.ParseProviderScheme：provider:// 前缀提取，未知 → ""。 */
+    static String parseProviderScheme(String filePath) {
+        BackendScopedPath scoped = parseStorageBackendPath(filePath);
+        if (scoped != null) {
+            filePath = scoped.providerPath();
+        }
+        for (String provider : new String[]{"local", "minio", "cos", "tos", "s3", "oss", "ks3",
+                "obs", "dummy"}) {
+            if (filePath.startsWith(provider + "://")) {
+                return provider;
+            }
+        }
+        return "";
+    }
+
+    /** 对照 Go randomResourceToken：16 随机字节的 base64url（无填充）。 */
+    private static String randomResourceToken() {
+        byte[] buf = new byte[16];
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        random.nextBytes(buf);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+    }
+
+    /**
+     * 对照 Go {@code resourceCatalog.Register}：物理路径注册为稳定 resource:// 手柄。
+     * 同 (tenant, location_hash) 已注册 → 复用既有手柄；handle 撞 unique 重试 4 次。
+     */
+    public String register(long tenantId, String physicalPath, ResourceRegistration meta) {
+        physicalPath = physicalPath == null ? "" : physicalPath.trim();
+        if (tenantId == 0 || physicalPath.isEmpty()) {
+            throw new IllegalArgumentException("resource registration requires tenant and physical path");
+        }
+        if (StoragePaths.isResourcePath(physicalPath)) {
+            return physicalPath;
+        }
+        String hash = locationHash(physicalPath);
+        Optional<StoredResource> existing = repo.getByTenantLocation(tenantId, hash);
+        if (existing.isPresent()) {
+            return StoragePaths.buildResourcePath(existing.get().getHandle());
+        }
+        BackendScopedPath scoped = parseStorageBackendPath(physicalPath);
+        String providerPath = scoped == null ? physicalPath : scoped.providerPath();
+        String provider = parseProviderScheme(providerPath);
+        if (provider.isEmpty()) {
+            throw new IllegalArgumentException("resource physical path has unsupported provider scheme");
+        }
+        String lifecycle = meta != null && meta.temporary()
+                ? StoredResource.LIFECYCLE_TEMPORARY : StoredResource.LIFECYCLE_PERSISTENT;
+        for (int attempt = 0; attempt < 4; attempt++) {
+            StoredResource resource = new StoredResource();
+            resource.setHandle(randomResourceToken());
+            resource.setTenantId(tenantId);
+            resource.setStorageBackendId(scoped == null ? "" : scoped.backendId());
+            resource.setProvider(provider);
+            resource.setPhysicalPath(physicalPath);
+            resource.setLocationHash(hash);
+            resource.setKind(meta == null || meta.kind() == null ? "file" : meta.kind());
+            resource.setMimeType(meta == null || meta.mimeType() == null ? "" : meta.mimeType());
+            resource.setOriginalName(meta == null || meta.originalName() == null ? "" : meta.originalName());
+            resource.setSize(meta == null ? 0 : meta.size());
+            resource.setContentHash(meta == null || meta.contentHash() == null ? "" : meta.contentHash());
+            resource.setLifecycle(lifecycle);
+            try {
+                repo.createResource(resource);
+                return StoragePaths.buildResourcePath(resource.getHandle());
+            } catch (RuntimeException e) {
+                String msg = e.getMessage() == null ? "" : e.getMessage().toLowerCase(java.util.Locale.ROOT);
+                if (!msg.contains("unique") && !msg.contains("duplicate") && !msg.contains("conflict")) {
+                    throw e;
+                }
+                Optional<StoredResource> raced = repo.getByTenantLocation(tenantId, hash);
+                if (raced.isPresent()) {
+                    return StoragePaths.buildResourcePath(raced.get().getHandle());
+                }
+            }
+        }
+        throw new IllegalStateException("failed to allocate unique resource handle");
+    }
+
+    /** 对照 Go {@code resourceCatalog.Bind}：解析 → owner 校验 → 绑定行。 */
+    public void bind(String reference, String ownerType, String ownerId, String relation) {
+        StoredResource resource = resolve(reference).orElse(null);
+        if (resource == null) {
+            throw new IllegalArgumentException("resource not found: " + reference);
+        }
+        if (ownerType == null || ownerType.isBlank() || ownerId == null || ownerId.isBlank()) {
+            throw new IllegalArgumentException("resource binding requires owner type and id");
+        }
+        String rel = relation == null || relation.isEmpty() ? "attachment" : relation;
+        repo.createBinding(resource.getId(), resource.getTenantId(), ownerType, ownerId, rel);
+    }
+
+    /** 对照 Go {@code resourceCatalog.MarkDeleted}。 */
+    public void markDeleted(String reference) {
+        StoredResource resource = resolve(reference).orElse(null);
+        if (resource == null) {
+            throw new IllegalArgumentException("resource not found: " + reference);
+        }
+        repo.markDeleted(resource.getId());
+    }
 }

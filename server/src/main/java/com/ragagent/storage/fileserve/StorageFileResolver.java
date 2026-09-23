@@ -431,7 +431,7 @@ public class StorageFileResolver {
      * GetFileURL 对手柄在外部 URL 在位时派生 /r/ 令牌。
      */
     private record DecoratedFileService(FileContentService inner, ResourceCatalogService catalog)
-            implements FileContentService {
+            implements WritableFileContentService {
 
         @Override
         public FileTransport.OpenedFile getFile(String filePath) throws IOException {
@@ -460,18 +460,137 @@ public class StorageFileResolver {
             }
             return inner.getFileURL(physical);
         }
+
+        /**
+         * 对照 Go {@code resourceCatalogFileService.SaveBytes}：物理落盘 →
+         * SHA-256 内容哈希 → 资源注册（失败回删物理文件）→ 返回 resource:// 手柄。
+         */
+        @Override
+        public String saveBytes(byte[] data, long tenantId, String fileName, boolean temp)
+                throws IOException {
+            String physical;
+            if (inner instanceof WritableFileContentService writable) {
+                physical = writable.saveBytes(data, tenantId, fileName, temp);
+            } else {
+                throw new IOException("storage provider does not support saving bytes");
+            }
+            String hash = sha256Hex(data);
+            try {
+                String kind = resourceKind(fileName);
+                String mimeType = probeMimeType(fileName);
+                return catalog.register(tenantId, physical, new ResourceCatalogService.ResourceRegistration(
+                        kind, mimeType, baseName(fileName), data.length, hash, temp));
+            } catch (RuntimeException e) {
+                if (inner instanceof WritableFileContentService w) {
+                    try {
+                        w.deleteFile(physical);
+                    } catch (IOException ignored) {
+                        // 对照 Go：register 失败尽力回删物理文件
+                    }
+                }
+                throw new IOException("register stored resource: " + e.getMessage(), e);
+            }
+        }
+
+        /** 对照 Go {@code resourceCatalogFileService.DeleteFile}：物理删除 + 资源软删。 */
+        @Override
+        public void deleteFile(String filePath) throws IOException {
+            ResourceCatalogService.ResolvedPath resolved = catalog.resolvePath(filePath);
+            if (resolved.error()) {
+                throw new IOException("resource not found");
+            }
+            if (!(inner instanceof WritableFileContentService writable)) {
+                throw new IOException("storage provider does not support deleting files");
+            }
+            writable.deleteFile(resolved.physicalPath());
+            if (resolved.resource() != null) {
+                try {
+                    catalog.markDeleted(filePath);
+                } catch (RuntimeException e) {
+                    throw new IOException("mark resource deleted: " + e.getMessage(), e);
+                }
+            }
+        }
+
+        private static String sha256Hex(byte[] data) {
+            try {
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                StringBuilder sb = new StringBuilder();
+                for (byte b : md.digest(data)) {
+                    sb.append(String.format("%02x", b));
+                }
+                return sb.toString();
+            } catch (java.security.NoSuchAlgorithmException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        /** 对照 Go resourceKind：mime 前缀 → image/audio/video，否则 file。 */
+        private static String resourceKind(String name) {
+            String mimeType = probeMimeType(name);
+            if (mimeType.startsWith("image/")) {
+                return "image";
+            }
+            if (mimeType.startsWith("audio/")) {
+                return "audio";
+            }
+            if (mimeType.startsWith("video/")) {
+                return "video";
+            }
+            return "file";
+        }
+
+        /** mime.TypeByExtension 的有界版：内置表 + Files 探测，未知 → ""。 */
+        private static String probeMimeType(String name) {
+            String ext = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+            int dot = ext.lastIndexOf('.');
+            ext = dot < 0 ? "" : ext.substring(dot);
+            String builtIn = switch (ext) {
+                case ".html", ".htm" -> "text/html; charset=utf-8";
+                case ".css" -> "text/css; charset=utf-8";
+                case ".js", ".mjs" -> "text/javascript; charset=utf-8";
+                case ".json" -> "application/json";
+                case ".pdf" -> "application/pdf";
+                case ".txt" -> "text/plain; charset=utf-8";
+                case ".md", ".markdown" -> "text/markdown; charset=utf-8";
+                case ".svg" -> "image/svg+xml";
+                case ".png" -> "image/png";
+                case ".jpg", ".jpeg" -> "image/jpeg";
+                case ".gif" -> "image/gif";
+                case ".webp" -> "image/webp";
+                case ".avif" -> "image/avif";
+                case ".wasm" -> "application/wasm";
+                case ".xml" -> "text/xml; charset=utf-8";
+                default -> null;
+            };
+            if (builtIn != null) {
+                return builtIn;
+            }
+            try {
+                String probed = java.nio.file.Files.probeContentType(java.nio.file.Path.of("f" + ext));
+                return probed == null ? "" : probed;
+            } catch (IOException e) {
+                return "";
+            }
+        }
+
+        private static String baseName(String name) {
+            String n = name == null ? "" : name;
+            int slash = Math.max(n.lastIndexOf('/'), n.lastIndexOf('\\'));
+            return slash < 0 ? n : n.substring(slash + 1);
+        }
     }
 
     /**
      * 生产装配的进程级默认服务（对照 Go container 的 globalFileService，恒 local 基座）。
      * baseDir 经 Spring 属性注入（env 缺省，测试期可注入——见 FileProxyService）。
      */
-    public FileContentService globalFileService(String localBaseDir) {
+    public WritableFileContentService globalFileService(String localBaseDir) {
         return decorate(new LocalFileContentService(localBaseDir, env("APP_EXTERNAL_URL")));
     }
 
-    /** 测试/装饰辅助：给定 inner 的 resource:// 装饰视图。 */
-    public FileContentService decorate(FileContentService inner) {
+    /** 测试/装饰辅助：给定 inner 的 resource:// 装饰视图（读+写）。 */
+    public WritableFileContentService decorate(FileContentService inner) {
         return new DecoratedFileService(inner, catalog);
     }
 }

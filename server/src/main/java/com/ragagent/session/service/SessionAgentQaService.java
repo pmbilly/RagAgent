@@ -73,6 +73,7 @@ public class SessionAgentQaService {
     private final AgentToolBackends toolBackends;
     private final com.ragagent.storage.service.ResourceCatalogService resourceCatalog;
     private final javax.sql.DataSource dataSource;
+    private final ArtifactCollectorWiring artifactCollectorWiring;
     /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
     private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
     private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
@@ -88,6 +89,7 @@ public class SessionAgentQaService {
             AgentToolBackends toolBackends,
             com.ragagent.storage.service.ResourceCatalogService resourceCatalog,
             javax.sql.DataSource dataSource,
+            ArtifactCollectorWiring artifactCollectorWiring,
             com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
                     ollamaService) {
@@ -104,6 +106,7 @@ public class SessionAgentQaService {
         this.toolBackends = toolBackends;
         this.resourceCatalog = resourceCatalog;
         this.dataSource = dataSource;
+        this.artifactCollectorWiring = artifactCollectorWiring;
     }
 
     // ==================================================================
@@ -702,7 +705,9 @@ public class SessionAgentQaService {
                 || assistantMessageId == null || assistantMessageId.isEmpty()) {
             return;
         }
-        AgentWebPages pages = new AgentWebPages(dataSource, resourceCatalog, null, null,
+        // 生产存储接缝（对照 Go files 回调 = 装饰后的全局 FileService + catalog.Bind）
+        AgentWebPages pages = new AgentWebPages(dataSource, resourceCatalog,
+                artifactCollectorWiring.webPageStore(), artifactCollectorWiring.webPageBinding(),
                 tenantId, com.ragagent.session.domain.SessionOwnerIds.currentSessionOwnerId(),
                 sessionId, assistantMessageId);
         fetch.withPageSource(pages);
