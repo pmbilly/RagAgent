@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-15 W5γ3 进行中：IM 九渠道出站客户端（2026-09-24 起，逐支落地）
+
+**背景**：`com.ragagent.im.runtime` 已翻入站核心（验签/解析/加解密/格式化/流分片），但九支
+渠道适配器（Go `internal/im/{telegram,qqbot,slack,mattermost,wecom,wechat,feishu,dingtalk,
+yunzhijia}`，约 13k 行）在 Java 侧**一支都没有**——`ImService.startChannel` 恒打
+"no adapter factory for platform"。
+
+**已落地**：
+
+| 渠道 | Java | 说明 |
+|---|---|---|
+| telegram | `im/telegram/{TelegramAdapter,TelegramLongPollingClient,TelegramAdapterFactory}` + `config/ImAdapterWiringConfig` | 对照 `telegram/adapter.go`(505) + `longconn.go`(120)：验签（常量时间，失败**返回**异常对象照 Go 的 error 约定）、解析（群聊剥 @bot、document/photo）、sendReply（Markdown + thread_id）、StreamSender（"正在思考..." 占位 + editMessageText 原地替换 + 500ms 节流 + Markdown 失败回落纯文本）、FileDownloader（getFile + file/bot）；webhook 与 long-polling 两模式 |
+
+**坑**：①`AdapterInterfaces.VerifyException` 原是包内非静态嵌套类 → 跨包适配器用不了，改
+`public static`（并纠正 javadoc：验签失败是"返回异常对象"，调用点 `ImCallbackController`
+判空折 401/403，**不是**抛出）；②`@Configuration` 的构造器不能依赖自己 `@Bean` 方法定义的
+bean（`BeanCurrentlyInCreation`）→ 工厂改 `@Component`；③Jackson 的 `readTree(byte[])` 遇
+`cond ? "{}" : bytes` 混合三元推断失败 → 拆成显式分支。
+
+**待办**：qqbot / slack / mattermost / wecom（webhook+ws+longconn）/ wechat / feishu / dingtalk / yunzhijia。
+
 ## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
 
 > 本节为**回填**：2026-09-24 的 A3 之前的几笔提交当时只写了提交信息、没同步本文档

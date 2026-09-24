@@ -17,7 +17,11 @@ public final class AdapterInterfaces {
         /** 平台标识。 */
         String platform();
 
-        /** 校验回调签名/token；通过返回 null，失败抛 {@link VerifyException}。 */
+        /**
+         * 校验回调签名/token；通过返回 null，失败<b>返回</b>异常对象
+         * （对照 Go 的 {@code error} 返回值约定——调用点 {@code ImCallbackController}
+         * 判空即折 401/403，不要改成抛出）。
+         */
         Exception verifyCallback(CallbackExchange exchange);
 
         /**
@@ -32,8 +36,13 @@ public final class AdapterInterfaces {
         boolean handleURLVerification(CallbackExchange exchange);
     }
 
-    /** 验签失败（对照 Go 的 error 返回；文案由各平台适配器给出）。 */
-    class VerifyException extends RuntimeException {
+    /**
+     * 验签失败（对照 Go 的 error 返回；文案由各平台适配器给出）。
+     *
+     * <p>{@code public}：各平台适配器在 {@code com.ragagent.im.<platform>} 包下
+     * （γ3），要能构造它。</p>
+     */
+    public static class VerifyException extends RuntimeException {
         public VerifyException(String message) {
             super(message);
         }
