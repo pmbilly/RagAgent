@@ -14,13 +14,15 @@ yunzhijia}`，约 13k 行）在 Java 侧**一支都没有**——`ImService.star
 | telegram | `im/telegram/{TelegramAdapter,TelegramLongPollingClient,TelegramAdapterFactory}` + `config/ImAdapterWiringConfig` | 对照 `telegram/adapter.go`(505) + `longconn.go`(120)：验签（常量时间，失败**返回**异常对象照 Go 的 error 约定）、解析（群聊剥 @bot、document/photo）、sendReply（Markdown + thread_id）、StreamSender（"正在思考..." 占位 + editMessageText 原地替换 + 500ms 节流 + Markdown 失败回落纯文本）、FileDownloader（getFile + file/bot）；webhook 与 long-polling 两模式 |
 | slack | `im/slack/{SlackAdapter,SlackSocketModeClient,SlackAdapterFactory}` | 对照 `slack/adapter.go`(343) + `longconn.go`(149)：**入站委托已翻核心**（`SlackAdapterCore` + `ImAdapterVerify.slackExpectedSignature`，另加 5 分钟时间戳窗照 slack-go `Ensure`）；出站走 Slack Web API（`chat.postMessage` / `chat.update` / `files.info` + Bearer 私有下载）——sendReply 文本**原样**（Slack 这支不做展示格式化，照 Go）、thread_ts 取 messageId、channel 回落 user_id、update 无节流、endStream 用累积内容收尾；Socket Mode 走 `apps.connections.open` + `java.net.http` WebSocket（先 ack 再处理、disconnect 即重连） |
 
+| qqbot | `im/qqbot/{QqBotClient,QqBotAdapter,QqBotGatewayClient,QqBotAdapterFactory}` | 对照 `qqbot/{client.go 222, adapter.go 127, longconn.go 199, types.go 88, factory.go 47}`：access_token 缓存（60s 余量、`expires_in` 数字/字符串两形态、缺省 7200）、除取 token 外一律 `Authorization: QQBot <token>`、发送体 `{msg_type:2, markdown:{content}, msg_id, msg_seq:1}`、C2C/群两条路径、基址与 gateway 的 SSRF 校验（gateway 必须 wss）；网关 WS：hello→identify（`QQBot <token>`/`intents=1<<25`/`shard [0,1]`）→ 心跳 `op=1`（d=最近 s）→ dispatch 交解析；`op=7/9` 重连、退避 attempt 秒（上限 30s）。**只支持 websocket**（照 Go）。适配器**不验签**（照 Go），无流式/下载面 |
+
 **坑**：①`AdapterInterfaces.VerifyException` 原是包内非静态嵌套类 → 跨包适配器用不了，改
 `public static`（并纠正 javadoc：验签失败是"返回异常对象"，调用点 `ImCallbackController`
 判空折 401/403，**不是**抛出）；②`@Configuration` 的构造器不能依赖自己 `@Bean` 方法定义的
 bean（`BeanCurrentlyInCreation`）→ 工厂改 `@Component`；③Jackson 的 `readTree(byte[])` 遇
 `cond ? "{}" : bytes` 混合三元推断失败 → 拆成显式分支。
 
-**待办**：qqbot / mattermost / wecom（webhook+ws+longconn）/ wechat / feishu / dingtalk / yunzhijia。
+**待办**：mattermost / wecom（webhook+ws+longconn）/ wechat / feishu / dingtalk / yunzhijia。
 
 ## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
 

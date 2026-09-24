@@ -24,8 +24,10 @@ public class ImAdapterWiringConfig {
      */
     public ImAdapterWiringConfig(ImService imService,
                                  TelegramAdapterFactory telegramAdapterFactory,
-                                 SlackAdapterFactory slackAdapterFactory) {
+                                 SlackAdapterFactory slackAdapterFactory,
+                                 com.ragagent.im.qqbot.QqBotAdapterFactory qqBotAdapterFactory) {
         imService.registerAdapterFactory(ImTypes.PLATFORM_TELEGRAM, telegramAdapterFactory);
         imService.registerAdapterFactory(ImTypes.PLATFORM_SLACK, slackAdapterFactory);
+        imService.registerAdapterFactory(ImTypes.PLATFORM_QQBOT, qqBotAdapterFactory);
     }
 }
