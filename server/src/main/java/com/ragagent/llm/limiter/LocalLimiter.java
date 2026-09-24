@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * ⚠️ 与 Go 的差异（后续阶段决策点）：Go 另有 redisLimiter（ZSET + Lua 自愈分布式信号量，
  * 用于多实例部署），本阶段未翻译——多实例下的并发上限不做跨进程协调，与
- * "asynq → 进程内虚拟线程队列"的既有取舍同类（见 translation-conventions §9 阶段 3 已知差异）。
+ * "asynq → 进程内虚拟线程队列"的既有取舍同类（见 docs/known-issues/00-foundation.md 原 §9「阶段 3 已知差异」）。
  */
 public class LocalLimiter implements ModelConcurrencyLimiter {
 

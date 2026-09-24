@@ -56,7 +56,7 @@ import com.ragagent.session.domain.MessageImage;
 import com.ragagent.websearch.service.WebSearchService;
 
 /**
- * chat 管线 + QA 面装配（波 4.6d；conventions §9「波 4.6c 末段」的 11 seam 清单）。
+ * chat 管线 + QA 面装配（波 4.6d；docs/known-issues/05-wave-4.md 原 §9「波 4.6c 补充」的 11 seam 清单）。
  *
  * <p>全部 adapter 是<b>纯新增</b>文件里的静态/内部类，不改既有 service。占位 seam
  * （TenantService/SessionService/WebSearchStateService/WebSearchProviderRepository）

@@ -7,8 +7,8 @@ package com.ragagent.wiki.service;
  * <p><b>为什么是端口而不是直接调 asynq</b>：Go 的 asynq 是 Redis 支撑的分布式任务队列；
  * Java 侧本阶段不引入 Redis 队列，改为<b>进程内虚拟线程队列</b>
  * （{@link InProcessWikiIngestTaskQueue}），与阶段 3 的
- * {@code KnowledgeProcessWorker} 同一取舍（见 {@code translation-conventions.md} §9
- * "阶段 3 已知差异 1"）。端口把"投递语义"与"传输实现"分开，
+ * {@code KnowledgeProcessWorker} 同一取舍（见 {@code docs/known-issues/00-foundation.md}
+ * 原 conventions §9「阶段 3 已知差异 1」）。端口把"投递语义"与"传输实现"分开，
  * 将来接 Redis / MQ 时只需换一个实现。</p>
  *
  * <p><b>必须保留的语义</b>（这些是 wiki ingest 正确性的一部分，不是实现细节）：</p>

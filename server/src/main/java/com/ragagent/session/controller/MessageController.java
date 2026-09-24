@@ -298,7 +298,7 @@ public class MessageController {
 
     /**
      * 已带形态的业务错误必须原样透传（二次包装会把 "error code: N, error message: "
-     * 前缀叠两层——G1 踩过，见 conventions §9 波 1 G1 第 1 条）。
+     * 前缀叠两层——G1 踩过，见 docs/known-issues/02-wave-0-1.md 原 §9「波 1 G1」第 1 条）。
      */
     private static BizException toInternal(RuntimeException e) {
         if (e instanceof BizException biz) {
