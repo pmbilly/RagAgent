@@ -160,8 +160,8 @@ class S3CompatibleFileServiceTest {
         assertEquals("minio", minio.provider());
         assertEquals("minio://", ((S3CompatibleFileService) minio.service()).objectScheme());
 
-        // 批次二 provider 仍明确未实现
-        assertThrows(UnsupportedOperationException.class,
-                () -> FileServiceFactory.fromStorageConfig("oss", minioSec, "/tmp"));
+        // 批次二已补齐：oss 无自己的配置段时是"不完整"
+        assertEquals("incomplete oss config", assertThrows(IllegalArgumentException.class,
+                () -> FileServiceFactory.fromStorageConfig("oss", minioSec, "/tmp")).getMessage());
     }
 }

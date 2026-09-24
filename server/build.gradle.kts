@@ -63,6 +63,13 @@ dependencies {
     // 版本要求：≥2.30（才有 requestChecksumCalculation —— Go 用 RequestChecksumCalculationWhenRequired
     // 放宽尾校验和协商，S3 兼容服务（MinIO/OBS/KS3）常拒绝默认协商）
     implementation("software.amazon.awssdk:s3:2.31.68")
+    // A3 存储后端（批次二）：厂商原生 SDK，逐个对齐 Go 的 oss.go / cos.go / tos.go
+    //   oss → Go: aliyun/alibabacloud-oss-go-sdk-v2   → Java: com.aliyun.oss:aliyun-sdk-oss
+    //   cos → Go: tencentyun/cos-go-sdk-v5            → Java: com.qcloud:cos_api
+    //   tos → Go: volcengine/ve-tos-golang-sdk/v2     → Java: com.volcengine:ve-tos-java-sdk
+    implementation("com.aliyun.oss:aliyun-sdk-oss:3.18.1")
+    implementation("com.qcloud:cos_api:5.6.227")
+    implementation("com.volcengine:ve-tos-java-sdk:2.9.19")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
 

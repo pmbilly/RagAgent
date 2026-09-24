@@ -24,6 +24,16 @@ public final class StorageObjects {
     private StorageObjects() {
     }
 
+    /** 对照 {@code utils.SafeFileName}：只允许纯文件名（禁分隔符与 {@code ..}）。 */
+    public static String safeFileName(String fileName) {
+        String name = fileName == null ? "" : fileName.trim();
+        if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains("..")
+                || name.equals(".")) {
+            throw new IllegalArgumentException("invalid file name: " + fileName);
+        }
+        return name;
+    }
+
     /** 对照 {@code SafeObjectKey}：路径遍历一律拒绝（S3 的 key 允许 {@code /}）。 */
     public static void safeObjectKey(String objectKey) {
         if (objectKey == null || objectKey.isEmpty()) {

@@ -31,10 +31,11 @@ public final class FileServiceFactory {
     /** provider 缺省前缀（照 Go：s3/obs/ks3 均以 {@code weknora/} 起）。 */
     public static final String DEFAULT_PATH_PREFIX = "weknora/";
 
-    /** 批次一已实现。 */
-    static final Set<String> IMPLEMENTED = Set.of("local", "s3", "minio", "obs", "ks3");
-    /** 批次二待实现。 */
-    static final Set<String> PENDING = Set.of("oss", "cos", "tos");
+    /** 已实现的 provider（批次一：local + S3 协议族；批次二：oss/cos/tos）。 */
+    static final Set<String> IMPLEMENTED =
+            Set.of("local", "s3", "minio", "obs", "ks3", "oss", "cos", "tos");
+    /** 批次二已补齐，不再有"未实现"的 provider（保留集合以便扩展时复用判定）。 */
+    static final Set<String> PENDING = Set.of();
 
     private FileServiceFactory() {
     }
@@ -148,6 +149,46 @@ public final class FileServiceFactory {
                 return new Created(new S3CompatibleFileService(new S3CompatibleFileService.Config(
                         "ks3", trim(c.getEndpoint()), trim(c.getAccessKey()), trim(c.getSecretKey()),
                         trim(c.getBucketName()), trim(c.getRegion()), prefix, true),
+                        ssrfGuard), p);
+            }
+            case "oss" -> {
+                StorageEngineConfig.OssEngineConfig c = sec == null ? null : sec.getOss();
+                if (c == null || trim(c.getEndpoint()).isEmpty() || trim(c.getRegion()).isEmpty()
+                        || trim(c.getAccessKey()).isEmpty() || trim(c.getSecretKey()).isEmpty()
+                        || trim(c.getBucketName()).isEmpty()) {
+                    throw new IllegalArgumentException("incomplete oss config");
+                }
+                String prefix = trim(c.getPathPrefix()).isEmpty()
+                        ? DEFAULT_PATH_PREFIX : trim(c.getPathPrefix());
+                String tempBucket = c.isUseTempBucket() ? trim(c.getTempBucketName()) : "";
+                return new Created(new OssFileService(trim(c.getEndpoint()), trim(c.getRegion()),
+                        trim(c.getAccessKey()), trim(c.getSecretKey()), trim(c.getBucketName()),
+                        prefix, tempBucket, trim(c.getTempRegion()), ssrfGuard), p);
+            }
+            case "cos" -> {
+                StorageEngineConfig.CosEngineConfig c = sec == null ? null : sec.getCos();
+                if (c == null || trim(c.getSecretId()).isEmpty() || trim(c.getSecretKey()).isEmpty()
+                        || trim(c.getBucketName()).isEmpty() || trim(c.getRegion()).isEmpty()) {
+                    throw new IllegalArgumentException("incomplete cos config");
+                }
+                // 照 Go：COS 的 prefix 默认 "weknora"（不带斜杠，服务内自行拼接）
+                String prefix = trim(c.getPathPrefix()).isEmpty() ? "weknora"
+                        : trim(c.getPathPrefix());
+                return new Created(new CosFileService(trim(c.getBucketName()), trim(c.getRegion()),
+                        trim(c.getSecretId()), trim(c.getSecretKey()), prefix,
+                        trim(c.getTempBucketName()), trim(c.getTempRegion())), p);
+            }
+            case "tos" -> {
+                StorageEngineConfig.TosEngineConfig c = sec == null ? null : sec.getTos();
+                if (c == null || trim(c.getEndpoint()).isEmpty() || trim(c.getRegion()).isEmpty()
+                        || trim(c.getAccessKey()).isEmpty() || trim(c.getSecretKey()).isEmpty()
+                        || trim(c.getBucketName()).isEmpty()) {
+                    throw new IllegalArgumentException("incomplete tos config");
+                }
+                // 照 Go：TOS 的 pathPrefix 原样传入（不设默认，服务内 trim 斜杠）
+                return new Created(new TosFileService(trim(c.getEndpoint()), trim(c.getRegion()),
+                        trim(c.getAccessKey()), trim(c.getSecretKey()), trim(c.getBucketName()),
+                        c.getPathPrefix(), trim(c.getTempBucketName()), trim(c.getTempRegion()),
                         ssrfGuard), p);
             }
             default -> {

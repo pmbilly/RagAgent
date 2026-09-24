@@ -151,8 +151,10 @@ class LocalFileServiceTest {
                 "local", escaping, base.toString()).service();
         assertEquals(base.toAbsolutePath().normalize(), kept.baseDir());
 
-        assertThrows(UnsupportedOperationException.class,
-                () -> FileServiceFactory.fromStorageConfig("oss", sec, base.toString()));
+        // 批次二已补齐：oss 无配置时是"不完整"（而非"未实现"）
+        assertEquals("incomplete oss config", assertThrows(IllegalArgumentException.class,
+                () -> FileServiceFactory.fromStorageConfig("oss", sec, base.toString()))
+                .getMessage());
         assertThrows(IllegalArgumentException.class,
                 () -> FileServiceFactory.fromStorageConfig("nope", sec, base.toString()));
         assertThrows(IllegalArgumentException.class,

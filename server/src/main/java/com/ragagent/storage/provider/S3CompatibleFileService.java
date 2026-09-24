@@ -178,7 +178,9 @@ public class S3CompatibleFileService implements FileService {
         String ext = StorageObjects.extensionOf(file.fileName());
         String objectName = pathPrefix + tenantId + "/" + knowledgeId + "/"
                 + UUID.randomUUID() + ext;
-        String contentType = StorageObjects.contentTypeByExt(ext);
+        // 对照 Go：优先用上传头里的 Content-Type，缺省才按扩展名推断
+        String contentType = file.contentType().isEmpty()
+                ? StorageObjects.contentTypeByExt(ext) : file.contentType();
         try (InputStream in = file.opener().get()) {
             client.putObject(PutObjectRequest.builder()
                             .bucket(bucketName)

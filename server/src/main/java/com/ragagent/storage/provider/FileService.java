@@ -15,9 +15,25 @@ import java.io.InputStream;
  */
 public interface FileService {
 
-    /** 上传件的最小面（对照 Go {@code *multipart.FileHeader} 的 Filename/Size/Open）。 */
+    /**
+     * 上传件的最小面（对照 Go {@code *multipart.FileHeader} 的 Filename/Size/Open/Header）。
+     *
+     * <p>{@code contentType} 对应 Go 从 multipart 头部取的 {@code Content-Type}：
+     * 为空时各后端按扩展名推断（照 Go 的 {@code GetContentTypeByExt} 兜底）。</p>
+     */
     record UploadFile(String fileName, long size,
-                      java.util.function.Supplier<InputStream> opener) {
+                      java.util.function.Supplier<InputStream> opener,
+                      String contentType) {
+
+        public UploadFile {
+            contentType = contentType == null ? "" : contentType.trim();
+        }
+
+        /** 兼容构造：不带内容类型（由后端按扩展名推断）。 */
+        public UploadFile(String fileName, long size,
+                          java.util.function.Supplier<InputStream> opener) {
+            this(fileName, size, opener, "");
+        }
     }
 
     /** 对照 {@code CheckConnectivity}：后端可达且配置正确（目录存在 / bucket 可访问）。 */
