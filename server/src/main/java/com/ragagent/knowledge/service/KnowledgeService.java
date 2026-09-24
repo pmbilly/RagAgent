@@ -97,6 +97,7 @@ public class KnowledgeService {
     private final ModelRuntimeFactory modelRuntimeFactory;
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ConversationProperties conversationProps;
+    private final KnowledgeBaseService knowledgeBaseService;
     private final com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository;
     private final SpanTracker spanTracker;
     /** 图库仓储（D 批）：知识移动后清源命名空间（对照 Go knowledge_clone_move.go L1342-1352）。 */
@@ -116,7 +117,8 @@ public class KnowledgeService {
                             ConversationProperties conversationProps,
                             com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository,
                             SpanTracker spanTracker,
-                            com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository) {
+                            com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository,
+                            KnowledgeBaseService knowledgeBaseService) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -132,6 +134,7 @@ public class KnowledgeService {
         this.spanRepository = spanRepository;
         this.spanTracker = spanTracker;
         this.graphRepository = graphRepository;
+        this.knowledgeBaseService = knowledgeBaseService;
     }
 
     private static long tenantId() {
@@ -2941,6 +2944,10 @@ public class KnowledgeService {
         target.setCreatorName("");
         KnowledgeBaseService.ensureDefaults(target);
         target.normalizeVectorStoreId();
+        // 对照 Go knowledgebase.go L1244：复制出的 KB 若带 vector_store_id，同样过绑定校验
+        if (target.hasVectorStore()) {
+            knowledgeBaseService.validateVectorStoreBinding(tenantId(), target.getVectorStoreId());
+        }
         kbMapper.insert(target);
         return target;
     }

@@ -34,8 +34,6 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.model.domain.Model;
-import com.ragagent.model.mapper.ModelMapper;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.wiki.service.WikiLanguageSupport;
 import org.slf4j.Logger;
@@ -84,10 +82,13 @@ import org.springframework.stereotype.Service;
  *       （question_count/content/context/doc_name/language）+ 业务指引包裹 + chat
  *       （temp 0.7 / max 512 / thinking=false）+ 行解析，与 Go 逐段对照；revision 冲突
  *       409、向量原子替换走 {@link ChunkVectorIndexer#updateChunkVector}。</li>
- *   <li><b>{@link #deleteGeneratedQuestion} 的向量删除（同批接线）</b>：
- *       {@link VectorStoreService#deleteBySourceId}（Go DeleteBySourceIDList 的删行语义；
- *       失败同样只警告继续）。"failed to create retrieve engine: %w" 分支在本部署不可达
- *       （Java 直接按 source_id 删，无引擎对象），文案按 Go 保留在注释里。</li>
+ *   <li><b>{@link #deleteGeneratedQuestion} 的向量删除（2026-09-25 接线批第 3 步全量接线）</b>：
+ *       Go L832-855 三段照序——引擎创建（{@code CreateRetrieveEngineForKB}：无绑定回落租户
+ *       有效引擎，绑定 store 走归属校验+注册表解析；失败 →
+ *       "failed to create retrieve engine: %w" 包 400，<b>分支已可达</b>）→ 嵌入模型
+ *       （{@code ModelRuntimeFactory.getEmbeddingModel}，文案逐字对照）→
+ *       {@code engine.deleteBySourceIdList}（引擎口扇出；失败只警告继续）。未配
+ *       {@code RETRIEVE_DRIVER} 时引擎列表为空、复合引擎为空壳，删除 no-op——与 Go 同形。</li>
  *   <li><b>requireKBWrite 未翻译</b>：Go 的 loadKnowledgeWrite 末尾还有
  *       {@code requireKBWrite(kb)}（KB 授予/能力判定，消耗中间件写入的 grant）——Java 的
  *       授权在路由层（ChunkAccessGuard/RbacInterceptor），service 层无 grant 语境，略。</li>
@@ -120,29 +121,33 @@ public class ChunkService {
     private final ChunkRepository chunkRepository;
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
-    private final ModelMapper modelMapper;
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ModelRuntimeFactory modelRuntimeFactory;
     private final KnowledgeService knowledgeService;
     private final ConversationProperties conversationProps;
-    private final VectorStoreService vectorStore;
+    private final com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry;
+    private final com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership;
+    private final com.ragagent.auth.service.TenantService tenantService;
 
     public ChunkService(ChunkRepository chunkRepository, KnowledgeMapper knowledgeMapper,
-                        KnowledgeBaseMapper kbMapper, ModelMapper modelMapper,
+                        KnowledgeBaseMapper kbMapper,
                         ChunkVectorIndexer chunkVectorIndexer,
                         ModelRuntimeFactory modelRuntimeFactory,
                         KnowledgeService knowledgeService,
                         ConversationProperties conversationProps,
-                        VectorStoreService vectorStore) {
+                        com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry,
+                        com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership,
+                        com.ragagent.auth.service.TenantService tenantService) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
-        this.modelMapper = modelMapper;
         this.chunkVectorIndexer = chunkVectorIndexer;
         this.modelRuntimeFactory = modelRuntimeFactory;
         this.knowledgeService = knowledgeService;
         this.conversationProps = conversationProps;
-        this.vectorStore = vectorStore;
+        this.retrieveEngineRegistry = retrieveEngineRegistry;
+        this.storeOwnership = storeOwnership;
+        this.tenantService = tenantService;
     }
 
     /** loadKnowledgeWrite 的返回（Go 的 (knowledge, kb, error) 三元）。 */
@@ -461,21 +466,33 @@ public class ChunkService {
 
         // 5. 删除该问题的向量索引。source_id 形如 {chunk_id}-q{hash24}（短 ID 直拼）。
         String sourceId = ChunkSearchUtil.generatedQuestionSourceId(chunkId, questionId);
-        // 5a. 引擎创建（Go L832：CreateRetrieveEngineForKB）——本部署无检索引擎（波 3/4），
-        //     WARN + no-op；Go 对应失败文案为 "failed to create retrieve engine: %w"（不可达，保留注释）。
-        // 5b. 嵌入模型行校验（Go L841 顺序在引擎之后；文案逐字对照 GetModelByID 的两个分支）
-        String embeddingModelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
-        if (embeddingModelId.isEmpty()) {
-            throw BizException.badRequest("failed to get embedding model: model ID cannot be empty");
-        }
-        if (findModelRow(tenantId, embeddingModelId) == null) {
-            throw BizException.badRequest("failed to get embedding model: model not found");
-        }
-        // 5c. 向量删除（Go L850：DeleteBySourceIDList）——2026-09-22 走查批接线到
-        //     VectorStoreService；Go 删除失败（问题未被索引过）只警告继续，不阻断元数据更新。
+        // 5a. 引擎创建（Go L832：CreateRetrieveEngineForKB——2026-09-25 接线批第 3 步）：
+        //     无绑定回落租户有效引擎（RETRIEVE_DRIVER 驱动），绑定 store 走归属校验 +
+        //     注册表解析。失败 → "failed to create retrieve engine: %w"（handler 包 400）。
+        com.ragagent.retrieval.engine.CompositeRetrieveEngine engine;
         try {
-            vectorStore.deleteBySourceId(List.of(sourceId));
+            engine = com.ragagent.retrieval.engine.RetrieveEngineFactories.createForKb(
+                    retrieveEngineRegistry, storeOwnership, tenantId, kb.getVectorStoreId(),
+                    tenantEngines(tenantId));
         } catch (RuntimeException e) {
+            throw BizException.badRequest("failed to create retrieve engine: " + e.getMessage());
+        }
+        // 5b. 嵌入模型（Go L841：GetEmbeddingModel，顺序在引擎之后；文案逐字对照——
+        //     "model ID cannot be empty" / "model not found"，经
+        //     ModelRuntimeFactory.getEmbeddingModel 的 RuntimeException 原文冒出）
+        com.ragagent.embedding.Embedder embeddingModel;
+        try {
+            embeddingModel = modelRuntimeFactory.getEmbeddingModel(
+                    kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId());
+        } catch (RuntimeException e) {
+            throw BizException.badRequest("failed to get embedding model: " + e.getMessage());
+        }
+        // 5c. 向量删除（Go L850：DeleteBySourceIDList，走引擎口扇出）——Go 删除失败
+        //     （问题未被索引过）只警告继续，不阻断元数据更新。
+        try {
+            engine.deleteBySourceIdList(List.of(sourceId), embeddingModel.getDimensions(),
+                    kb.getType());
+        } catch (Exception e) {
             log.warn("Failed to delete vector index for question (may not exist): {}", e.getMessage());
         }
 
@@ -1083,6 +1100,22 @@ public class ChunkService {
     // ── 私有工具 ───────────────────────────────────────────────────────────
 
     /**
+     * 对照 Go 从 ctx 取 {@code TenantInfo.GetEffectiveEngines()}：TenantContext 不携带
+     * 租户载荷，按 id 现读租户行；行缺失/读失败时按 {@code EffectiveEngines.of(null)}
+     * 走 RETRIEVE_DRIVER 缺省（租户行无显式配置的同款语义——请求路径上租户行恒存在，
+     * "ctx 无 TenantInfo" 的哨兵分支在本仓不可达）。
+     */
+    private List<com.ragagent.retrieval.engine.RetrieverEngineParams> tenantEngines(long tenantId) {
+        com.ragagent.auth.domain.Tenant tenant;
+        try {
+            tenant = tenantService.getTenantById(tenantId);
+        } catch (RuntimeException e) {
+            tenant = null;
+        }
+        return com.ragagent.retrieval.engine.EffectiveEngines.of(tenant);
+    }
+
+    /**
      * 对照 Go {@code writeExecutionTenant}（knowledge_write.go L32-38）：租户缺或 0 →
      * 401 "workspace context unavailable"。
      */
@@ -1120,15 +1153,6 @@ public class ChunkService {
         return kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
                 .isNull(KnowledgeBase::getDeletedAt)
-                .last("LIMIT 1"));
-    }
-
-    /** 模型行（tenant + id；Go modelService.GetModelByID 的仓库查询半边）。 */
-    private Model findModelRow(long tenantId, String modelId) {
-        return modelMapper.selectOne(new LambdaQueryWrapper<Model>()
-                .eq(Model::getId, modelId)
-                .eq(Model::getTenantId, tenantId)
-                .isNull(Model::getDeletedAt)
                 .last("LIMIT 1"));
     }
 

@@ -2,6 +2,7 @@ package com.ragagent.knowledge.service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,6 +14,7 @@ import com.ragagent.auth.service.UserService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.error.ErrorCode;
 import com.ragagent.knowledge.domain.KbIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBaseJsons;
 import com.ragagent.knowledge.domain.Knowledge;
@@ -49,6 +51,8 @@ public class KnowledgeBaseService {
     private final TenantService tenantService;
     private final UserService userService;
     private final String retrieveDriver;
+    private final com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry;
+    private final com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership;
 
     public KnowledgeBaseService(KnowledgeBaseMapper kbMapper,
                                 KnowledgeMapper knowledgeMapper,
@@ -56,7 +60,9 @@ public class KnowledgeBaseService {
                                 UserKbPinMapper pinMapper,
                                 StorageBackendMapper storageBackendMapper,
                                 TenantService tenantService,
-                                UserService userService) {
+                                UserService userService,
+                                com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry,
+                                com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership) {
         this.kbMapper = kbMapper;
         this.knowledgeMapper = knowledgeMapper;
         this.chunkMapper = chunkMapper;
@@ -64,6 +70,8 @@ public class KnowledgeBaseService {
         this.storageBackendMapper = storageBackendMapper;
         this.tenantService = tenantService;
         this.userService = userService;
+        this.retrieveEngineRegistry = retrieveEngineRegistry;
+        this.storeOwnership = storeOwnership;
         String env = System.getenv("RETRIEVE_DRIVER");
         this.retrieveDriver = env == null || env.isBlank() ? "postgres" : env;
     }
@@ -100,10 +108,64 @@ public class KnowledgeBaseService {
         applyTenantDefaultStorageProvider(kb);
         applyAndValidateStorageBackend(kb);
         kb.normalizeVectorStoreId();
-        // 阶段 3：显式 vector_store_id 绑定不做 vector_stores 表校验（无绑定表支持），原样存储
+        // 2026-09-25 接线批：vector_store_id 绑定校验（对照 Go validateVectorStoreBinding
+        // knowledgebase.go L231-283——哨兵层级单源 retriever.VerifyBinding）
+        if (kb.hasVectorStore()) {
+            validateVectorStoreBinding(tenantId(), kb.getVectorStoreId());
+        }
         kbMapper.insert(kb);
         log.info("Knowledge base created successfully, ID: {}, name: {}", kb.getId(), kb.getName());
         return kb;
+    }
+
+    /**
+     * 对照 Go {@code validateVectorStoreBinding}（knowledgebase.go L231-283）：走
+     * {@code retriever.VerifyBinding} 让归属 + 注册表哨兵层级保持单源。服务层负责：
+     * ①畸形 UUID 快拒（省一次 DB 往返，也挡 "' OR 1=1 --" 式类型混淆输入）；②哨兵 →
+     * 用户可见的 2200/2201 文案（不含 store UUID——UUID 只进结构化日志，经 sanitizer）。
+     */
+    public void validateVectorStoreBinding(long tenantId, String storeId) {
+        String sanitized = com.ragagent.common.security.LogSanitizer.sanitize(storeId);
+        try {
+            java.util.UUID.fromString(storeId);
+        } catch (IllegalArgumentException e) {
+            log.warn("[kb.create] vector store id is not a valid UUID: tenant_id={} store_id={}",
+                    tenantId, sanitized);
+            throw new BizException(new AppError(
+                    ErrorCode.VECTOR_STORE_BINDING_INVALID.value(),
+                    "vector store not found", null, 400));
+        }
+        try {
+            com.ragagent.retrieval.engine.RetrieveEngineFactories.verifyBinding(
+                    retrieveEngineRegistry, storeOwnership, tenantId, storeId);
+        } catch (RuntimeException err) {
+            if (err instanceof com.ragagent.retrieval.engine.RetrieveEngineException re) {
+                switch (re.kind()) {
+                    case VECTOR_STORE_FORBIDDEN:
+                        log.warn("[kb.create] vector store not owned by tenant: tenant_id={} "
+                                + "store_id={}", tenantId, sanitized);
+                        throw new BizException(new AppError(
+                                ErrorCode.VECTOR_STORE_BINDING_INVALID.value(),
+                                "vector store not found", null, 400));
+                    case VECTOR_STORE_NOT_FOUND:
+                    case VECTOR_STORE_UNAVAILABLE:
+                        log.warn("[kb.create] vector store currently unavailable: tenant_id={} "
+                                + "store_id={}", tenantId, sanitized);
+                        throw new BizException(new AppError(
+                                ErrorCode.VECTOR_STORE_UNAVAILABLE.value(),
+                                "vector store is currently unavailable; check its connection "
+                                        + "configuration", null, 400));
+                    default:
+                        break;
+                }
+            }
+            if (com.ragagent.retrieval.engine.RetrieveEngineException.isCancellation(err)) {
+                throw err;
+            }
+            log.error("[kb.create] binding verification failed: tenant_id={} store_id={} err={}",
+                    tenantId, sanitized, err.toString());
+            throw new BizException(AppError.internal("failed to verify vector store binding"));
+        }
     }
 
     /** 对照 EnsureDefaults（types/knowledgebase.go L727） */
@@ -303,6 +365,7 @@ public class KnowledgeBaseService {
                 .isNull(KnowledgeBase::getDeletedAt)
                 .orderByDesc(KnowledgeBase::getCreatedAt));
         String uid = TenantContext.currentUserId();
+        List<KnowledgeBase> out = new ArrayList<>(all.size());
         for (KnowledgeBase kb : all) {
             fillCounts(kb);
             fillPin(kb, uid);
@@ -311,7 +374,7 @@ public class KnowledgeBaseService {
                 boolean mine = "mine".equals(creator);
                 boolean has = !kb.getCreatorId().isEmpty();
                 if (mine != has) {
-                    kb.setId(" skip");
+                    continue;
                 }
             }
             if (!kb.getCreatorId().isEmpty()) {
@@ -320,9 +383,9 @@ public class KnowledgeBaseService {
                     kb.setCreatorName(user.getUsername());
                 }
             }
+            out.add(kb);
         }
-        all.removeIf(kb -> " skip".equals(kb.getId()));
-        return all;
+        return out;
     }
 
     /** 对照 FillKnowledgeBaseCounts：knowledge_count/chunk_count/is_processing/processing_count */
