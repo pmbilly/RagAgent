@@ -123,7 +123,10 @@ final class W5bStubServers {
             if (method.equals("POST") && path.endsWith("/chat/completions")) {
                 String text = new String(body, StandardCharsets.UTF_8);
                 String content;
-                if (text.contains("<<SCENARIO:graph>>")) {
+                // 标记匹配只认 `SCENARIO:graph`：Go 的 json.Marshal 默认做 HTML 转义
+                // （`<`→`\u003c`），出站体里看不到裸 `<<`——§0.-10/§0.-11 两批做过
+                // 全 body 逐字节对拍，转义形态即 Go 形态。
+                if (text.contains("SCENARIO:graph")) {
                     content = GRAPH_REPLY;
                 } else if (text.contains("Please randomly generate a text")) {
                     // fabri-text 的 with_tag/with_no_tag 模板前缀（服务端拼好发来的）
