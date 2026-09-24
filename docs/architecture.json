@@ -1,0 +1,364 @@
+{
+ "schema_version": 1,
+ "diagram_type": "architecture",
+ "meta": {
+  "title": "ragagent-java 系统架构",
+  "output": "architecture-rendered.html",
+  "quality_profile": "showcase",
+  "views": [
+   {
+    "id": "request-path",
+    "label": "快答主路径",
+    "focus": [
+     "users",
+     "frontend",
+     "api",
+     "pg"
+    ],
+    "note": "浏览器请求经前端代理进入 Spring Boot，直读 ParadeDB。"
+   },
+   {
+    "id": "agent-loop",
+    "label": "Agent 循环",
+    "focus": [
+     "api",
+     "agent",
+     "llm",
+     "retrieval",
+     "sandbox",
+     "pg"
+    ],
+    "note": "AgentEngine 工具循环：出站推理、知识检索、沙箱执行。"
+   },
+   {
+    "id": "infra",
+    "label": "dev 基础设施",
+    "focus": [
+     "pg",
+     "redis",
+     "docreader",
+     "storage"
+    ],
+    "note": "docker compose 提供的三件基础设施与文件存储。"
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "users",
+   "type": "external",
+   "label": "用户浏览器",
+   "sublabel": "Web / Mobile",
+   "pos": [
+    30,
+    300
+   ],
+   "size": [
+    120,
+    60
+   ]
+  },
+  {
+   "id": "frontend",
+   "type": "frontend",
+   "label": "Vue 3 + Vite",
+   "sublabel": ":5173 · 零改动复用",
+   "pos": [
+    220,
+    300
+   ],
+   "size": [
+    140,
+    60
+   ]
+  },
+  {
+   "id": "api",
+   "type": "backend",
+   "label": "Spring Boot",
+   "sublabel": ":8082 · 37 领域包",
+   "pos": [
+    440,
+    300
+   ],
+   "size": [
+    140,
+    64
+   ]
+  },
+  {
+   "id": "agent",
+   "type": "backend",
+   "label": "AgentEngine",
+   "sublabel": "30+ 内置工具",
+   "pos": [
+    660,
+    300
+   ],
+   "size": [
+    140,
+    64
+   ],
+   "tag": "虚拟线程"
+  },
+  {
+   "id": "retrieval",
+   "type": "backend",
+   "label": "混合检索",
+   "sublabel": "RRF 融合",
+   "pos": [
+    900,
+    160
+   ],
+   "size": [
+    130,
+    60
+   ]
+  },
+  {
+   "id": "sandbox",
+   "type": "security",
+   "label": "Docker 沙箱",
+   "sublabel": "docker-java zerodep",
+   "pos": [
+    660,
+    140
+   ],
+   "size": [
+    140,
+    60
+   ],
+   "tag": "镜像快照"
+  },
+  {
+   "id": "llm",
+   "type": "external",
+   "label": "LLM Provider",
+   "sublabel": "OpenAI 兼容 / Ollama",
+   "pos": [
+    900,
+    300
+   ],
+   "size": [
+    130,
+    60
+   ]
+  },
+  {
+   "id": "pg",
+   "type": "database",
+   "label": "ParadeDB",
+   "sublabel": ":15432 · pgvector+BM25",
+   "pos": [
+    1100,
+    300
+   ],
+   "size": [
+    140,
+    64
+   ]
+  },
+  {
+   "id": "redis",
+   "type": "database",
+   "label": "Redis",
+   "sublabel": ":16379 · stream/绑定",
+   "pos": [
+    440,
+    450
+   ],
+   "size": [
+    140,
+    60
+   ]
+  },
+  {
+   "id": "docreader",
+   "type": "backend",
+   "label": "docreader",
+   "sublabel": "gRPC :50051",
+   "pos": [
+    660,
+    450
+   ],
+   "size": [
+    140,
+    60
+   ]
+  },
+  {
+   "id": "storage",
+   "type": "database",
+   "label": "文件存储",
+   "sublabel": "本地 / 对象存储",
+   "pos": [
+    900,
+    450
+   ],
+   "size": [
+    130,
+    60
+   ]
+  }
+ ],
+ "boundaries": [
+  {
+   "kind": "region",
+   "label": "Spring Boot JVM · JDK 21 虚拟线程",
+   "wraps": [
+    "api",
+    "agent",
+    "retrieval",
+    "sandbox"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "dev 基础设施 · docker compose",
+   "wraps": [
+    "pg",
+    "redis",
+    "docreader"
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "id": "users-to-fe",
+   "from": "users",
+   "to": "frontend",
+   "label": "HTTPS"
+  },
+  {
+   "id": "fe-to-api",
+   "from": "frontend",
+   "to": "api",
+   "label": "REST / SSE 代理",
+   "variant": "emphasis"
+  },
+  {
+   "id": "api-dispatch",
+   "from": "api",
+   "to": "agent",
+   "label": "agent 模式分派"
+  },
+  {
+   "id": "api-pg",
+   "from": "api",
+   "to": "pg",
+   "label": "JDBC",
+   "variant": "dashed",
+   "fromSide": "bottom",
+   "toSide": "bottom",
+   "labelAt": [
+    1064,
+    388
+   ]
+  },
+  {
+   "id": "api-redis",
+   "from": "api",
+   "to": "redis",
+   "label": "stream/限流",
+   "labelAt": [
+    392,
+    408
+   ]
+  },
+  {
+   "id": "api-docreader",
+   "from": "api",
+   "to": "docreader",
+   "label": "gRPC 解析",
+   "variant": "dashed",
+   "labelDx": 60,
+   "labelAt": [
+    560,
+    424
+   ]
+  },
+  {
+   "id": "api-storage",
+   "from": "api",
+   "to": "storage",
+   "label": "产物/附件",
+   "variant": "dashed",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelAt": [
+    742,
+    428
+   ]
+  },
+  {
+   "id": "agent-llm",
+   "from": "agent",
+   "to": "llm",
+   "label": "出站推理·SSRF",
+   "variant": "security",
+   "labelAt": [
+    838,
+    340
+   ]
+  },
+  {
+   "id": "agent-retrieval",
+   "from": "agent",
+   "to": "retrieval",
+   "label": "知识检索",
+   "fromSide": "top",
+   "toSide": "bottom",
+   "labelAt": [
+    838,
+    240
+   ]
+  },
+  {
+   "id": "agent-sandbox",
+   "from": "agent",
+   "to": "sandbox",
+   "label": "shell/文件",
+   "fromSide": "top",
+   "toSide": "bottom",
+   "labelAt": [
+    600,
+    252
+   ]
+  },
+  {
+   "id": "retrieval-pg",
+   "from": "retrieval",
+   "to": "pg",
+   "label": "pgvector + BM25"
+  }
+ ],
+ "cards": [
+  {
+   "dot": "cyan",
+   "title": "契约验收",
+   "items": [
+    "1,748 个 golden 实录逐字节比对",
+    "双端 stub A/B 全 body 对拍",
+    "route-recon 对账：真缺口仅 /swagger"
+   ]
+  },
+  {
+   "dot": "emerald",
+   "title": "运行时",
+   "items": [
+    "Spring Boot 3.3 · JDK 21 虚拟线程",
+    "MyBatis-Plus + 手写 JdbcClient",
+    "Flyway 196 个迁移，schema 与 Go 仓一致"
+   ]
+  },
+  {
+   "dot": "rose",
+   "title": "安全",
+   "items": [
+    "RBAC 角色门槛 + API-Key scope 门禁",
+    "SSRF 白名单（出站 LLM/抓取/连接器）",
+    "AES 凭据加密，双端密文互操作"
+   ]
+  }
+ ]
+}

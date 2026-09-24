@@ -1135,3 +1135,12 @@
   路由变更后重跑 `python3 scripts/generate-api-docs.py` 重新生成。
   注意：解析含 route-recon 已备案的启发式局限（类前缀漏解析的少量路由会归到
   other/尾部形态）；domain 标签表在脚本头部的 DOMAIN_LABELS 维护。
+
+- **系统架构交互图（2026-09-24，Archify）**：安装 Agent Skill `archify`
+  （github.com/tt-a1i/archify，MIT，`~/.zcode/skills/archify`）后按其流程生成
+  `docs/architecture.html`（自包含交互 HTML：3 个引导视图 / 双区域边界 / 明暗主题
+  / PNG·SVG 导出），候选源在 `docs/architecture.json`，改架构后重跑：
+  `node ~/.zcode/skills/archify/bin/archify.mjs deliver architecture
+  docs/architecture.json docs/architecture.html --quality showcase`。
+  生成过程按 SKILL 的 showcase 验收走——首轮 7 条布局诊断（标签互撞/端点方向
+  不实），按逐条 suggestedFixes 修到 0 错误 + 9/9 artifact checks。

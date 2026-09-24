@@ -153,6 +153,7 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 ├── scripts/                    75 个脚本：环境装配 / 起服 / golden 录制 / A/B 对拍
 ├── docs/
 │   ├── api/                         API 文档（index.html 双击可看；由脚本生成）
+│   ├── architecture.html            系统架构交互图（Archify 生成；源=architecture.json）
 │   ├── translation-conventions.md   翻译约定（§3 GORM 语义 / §7.5 约束 / §8 日志 / §9 索引）
 │   ├── known-issues/                按批次分片的契约细节与坑（00 ~ 07）
 │   ├── HANDOFF.md                   交接文档（进度基线，新会话必读 §0.x）
