@@ -55,6 +55,14 @@ dependencies {
     // 图库面（D 批）：对照 Go repository/retriever/neo4j（neo4j-go-driver）。
     // NEO4J_ENABLE 未启用时驱动为 null，仓储全部操作为 no-op——与 Go 的 nil driver 分支一致。
     implementation("org.neo4j.driver:neo4j-java-driver:5.28.5")
+    // A3 存储后端（批次一）：S3 协议族（s3/minio/obs/ks3）。对照 Go：
+    //   s3  → aws-sdk-go-v2/service/s3
+    //   obs → aws-sdk-go-v2 + obsEndpointResolver（S3 兼容端点，Go 自己就是这条路）
+    //   ks3 → ks3sdklib/aws-sdk-go（金山云的 AWS SDK 分支）
+    //   minio → minio-go/v7（Java 侧用 S3 协议客户端，MinIO 兼容 S3；差异逐条备案）
+    // 版本要求：≥2.30（才有 requestChecksumCalculation —— Go 用 RequestChecksumCalculationWhenRequired
+    // 放宽尾校验和协商，S3 兼容服务（MinIO/OBS/KS3）常拒绝默认协商）
+    implementation("software.amazon.awssdk:s3:2.31.68")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
 
