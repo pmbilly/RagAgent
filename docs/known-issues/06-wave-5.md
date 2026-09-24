@@ -1156,3 +1156,12 @@
   入参/响应小节；④site 功能模块扩写（22 个模块的功能清单/代表端点/技术要点）。
   坑：解析器正则 `(\-/api…)` 笔误（`\-` 是字面减号）导致类前缀全部失配、routes
   键丢失——用 `importlib` 直跑 `file_routes` 单文件定位，别靠整仓输出猜。
+
+- **外部向量店 driver 的 Go 侧缺陷三则（2026-09-25 W5γ4.1~γ4.3，ES v7/v8）**：按"逐字照抄"落地时
+  复刻了三处 Go 缺陷，用户指示**发现的问题必须修复**（不得把 bug 复制进 Java）——已改"有意偏离 + 备案"
+  （HANDOFF §0.-18）：① v7 `CopyIndices` 的 `saveCopiedIndices` 里 `embeddingMap` 是新建空 map
+  （收集的向量被丢弃）→ 修：向量随 `CopiedHit(indexInfo, embedding)` 回来、按目标 SourceID 为键；
+  ② v7 `processHit` 恒传 `MatchTypeKeywords`（向量结果也标 1）→ 修：按实际检索类型给；
+  ③ v8 `CopyIndices` 键用目标 chunkID 而 `ToDBVectorEmbedding` 按 SourceID 查表（生成问题取不到、
+  同 chunk 互相覆盖）→ 修：键改目标 SourceID。**坑**：查表语义由 `structs.go` 定死为"按 SourceID"，
+  修**键**比改查表小且两版一致；上游若修，反向同步时别把这三处再抄回来。

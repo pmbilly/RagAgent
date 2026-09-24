@@ -512,15 +512,16 @@ class ElasticsearchV8RetrieveRepositoryTest {
         assertEquals("c-new1", doc1.path("source_id").asText(), "普通块：SourceID = 目标 chunkID");
         assertEquals("k-new", doc1.path("knowledge_id").asText());
         assertEquals("kb-new", doc1.path("knowledge_base_id").asText());
-        // 照 Go：embeddingMap 以 <b>目标 chunkID</b> 为键，同批同 chunk 的历史题项会覆盖普通块
-        // （doc2 与 doc1 同属 c1 → 键 c-new1 最终是 doc2 的 [0.7]）；生成问题的目标 SourceID
-        // 是 c-new1-q9 ≠ 键 → 不命中 → embedding 为 null
-        assertEquals(1, doc1.path("embedding").size());
-        assertEquals(0.7, doc1.path("embedding").get(0).asDouble(), 1e-6);
+        // 修复后：向量按"目标 SourceID"为键随行带上——doc1（普通块）拿自己的 [0.25,0.5]；
+        // doc2（生成问题，目标 SourceID c-new1-q9）也拿自己的 [0.7]（Go 会丢/串）
+        assertEquals(2, doc1.path("embedding").size());
+        assertEquals(0.25, doc1.path("embedding").get(0).asDouble(), 1e-6);
 
         JsonNode doc2 = MAPPER.readTree(lines[3]);
         assertEquals("c-new1-q9", doc2.path("source_id").asText(),
                 "生成问题：保留 questionID 段");
+        assertEquals(1, doc2.path("embedding").size(), "生成问题也带自己的向量（Go 取不到）");
+        assertEquals(0.7, doc2.path("embedding").get(0).asDouble(), 1e-6);
 
         JsonNode doc3 = MAPPER.readTree(lines[5]);
         assertTrue(doc3.path("source_id").asText()

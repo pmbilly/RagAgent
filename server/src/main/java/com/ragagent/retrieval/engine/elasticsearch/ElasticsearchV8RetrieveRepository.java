@@ -646,10 +646,6 @@ public class ElasticsearchV8RetrieveRepository {
                             + " skipping", sourceDoc.knowledgeId);
                     continue;
                 }
-                if (sourceDoc.embedding != null && sourceDoc.embedding.length > 0) {
-                    embeddingMap.put(targetChunkId, sourceDoc.embedding);
-                }
-
                 String targetSourceId;
                 if (sourceDoc.sourceId.equals(sourceDoc.chunkId)) {
                     targetSourceId = targetChunkId;
@@ -658,6 +654,12 @@ public class ElasticsearchV8RetrieveRepository {
                     targetSourceId = targetChunkId + "-" + questionId;
                 } else {
                     targetSourceId = UUID.randomUUID().toString();
+                }
+                if (sourceDoc.embedding != null && sourceDoc.embedding.length > 0) {
+                    // 修复（有意偏离 Go v8）：Go 以"目标 chunkID"为键、而查表用的是 SourceID →
+                    // 生成问题（<chunk>-<qid> 形态）取不到向量、同 chunk 多文档互相覆盖；
+                    // 这里改键为目标 SourceID（逐文档唯一），toDbVectorEmbedding 按 SourceID 查表即命中
+                    embeddingMap.put(targetSourceId, sourceDoc.embedding);
                 }
 
                 IndexInfo info = new IndexInfo();

@@ -1,5 +1,25 @@
 # 交接文档（新会话接手用）
 
+## 0.-18 修复三处 Go 侧向量缺陷（2026-09-25——W5γ4.3，有意偏离 Go）
+
+**背景**：W5γ4.1/γ4.2 落地 ES v7/v8 driver 时，按"逐字照抄"把三处 Go 缺陷复刻进了 Java。
+**用户明确指示：发现的问题需要修复**——不是把 bug 复制过来。本批改为"有意偏离 + 逐处备案"。
+
+| # | 位置 | Go 的行为 | 本仓修复 | 影响 |
+|---|---|---|---|---|
+| ① | v7 `CopyIndices`/`saveCopiedIndices` | `embeddingMap` 是**新建空 map**（`processSourceBatch` 收集的向量被丢弃）→ 复制过去的文档不带向量 | 向量随 `CopiedHit(indexInfo, embedding)` 回到 copyIndices，按**目标 SourceID** 为键写入 `additionalParams.embedding` | 复制后检索/重排不再缺向量 |
+| ② | v7 `processHit` | 恒传 `MatchTypeKeywords` → **向量结果也标 1** | 按实际检索类型给（vector → MatchTypeEmbedding=0，keywords → 1），对齐 v8；日志措辞也对齐 | 下游按 matchType 分流不再错 |
+| ③ | v8 `CopyIndices` | `embeddingMap` 以**目标 chunkID** 为键，而 `ToDBVectorEmbedding` 按 **SourceID** 查表 → 生成问题（`<chunk>-<qid>` 形态）取不到向量、同 chunk 多文档互相覆盖 | 键改为**目标 SourceID**（逐文档唯一） | 题项向量不再丢/串 |
+
+**为什么键取 SourceID**：`ToDBVectorEmbedding` 的查表语义由 `structs.go` 定为"按 SourceID"，
+修键比改查表更小、更贴合原意（v7/v8 两处因此语义一致）。
+
+**回归**：`com.ragagent.retrieval.*` 31/31 绿；3 条测试的断言从"照抄缺陷"翻转为"修复后行为"
+（v7 复制带向量、v7 向量命中标 0、v8 复制逐文档带向量）。
+
+**给上游的提示**：三处都是 Go 侧真缺陷（v7 两处 + v8 一处）。若上游修复，Java 侧无需回退
+（本仓行为即修好的那一侧）；反向同步时注意别把这三处"照抄"回来。
+
 ## 0.-17 外部向量店 driver·第 2 支：ES v7 + 补 v8 的 move.go（2026-09-25——W5γ4.2）
 
 **背景**：§0.-16 的续推。协议盘点后的"HTTP 族"里，先做 **ES v7**（1452 行，非 typed client），
@@ -14,12 +34,12 @@
 | `elasticsearch/ElasticsearchV7RetrieveRepository`（新） | 照 v7/repository.go + v7/move.go，**与 v8 的差异逐条照抄**：Support 只报 keywords（Retrieve 也只分派 keywords，vector 直呼才可用）；命中恒标 MatchTypeKeywords（含向量结果——Go 怪癖）；单条坏命中**跳过继续**（v8 整请求报错）；基础条件返回 **JSON 字符串**；建索引 settings 是**数字**、失败文案 `failed to create index <index>`；单条写入 `PUT /{index}/_create/{uuid}`；bulk 动作行 `{ "index" : { "_id" : "<uuid>" } }`（带空格）、`errors:true` 只告警不失败、响应解析失败也放行；改状态/标签的 query 是**直构 terms（不套 bool）**、脚本带 `lang`；move 用 **singular `term`** + 字符串值、脚本带 lang；向量查询无 `_source` 排除、script 源串无空格、`min_score` 是 float64 |
 | `ElasticsearchV7RetrieveRepositoryTest`（新） | 10 条：数字 settings 与 Support、建索引失败文案与后缀、估算与 `_create/{uuid}`、bulk 动作行与容错、terms 删除、关键词检索（含坏命中跳过）、向量直呼与怪癖、直构 terms 与失败文案、CopyIndices 三态、move（term/lang/refresh + 完整性） |
 
-**照抄的 Go 缺陷（备案，不擅修）**：
+**发现并修复的 Go 侧缺陷（原「照抄」两处已于 W5γ4.3 修复，见 §0.-18）**：
 
 - v7 `CopyIndices` 的 `saveCopiedIndices` 里 `embeddingMap` 是**新建空 map**（`processSourceBatch`
-  收集的向量被丢弃）→ 复制过去的文档**不带向量**（测试断言 `embedding: null`）；
-- v7 `processHit` 恒传 `MatchTypeKeywords` → **向量结果也标 1**；
-- （§0.-16 已备案的 v8 `CopyIndices` 同 chunk 后者覆盖，同理。）
+  收集的向量被丢弃）→ 复制过去的文档**不带向量** → **已修（§0.-18 ①）**；
+- v7 `processHit` 恒传 `MatchTypeKeywords` → **向量结果也标 1** → **已修（§0.-18 ②）**；
+- （§0.-16 备案的 v8 `CopyIndices` 键与查表不符 → **已修（§0.-18 ③）**。）
 
 **协议再盘点（决定剩余顺序）**：
 
@@ -65,8 +85,7 @@ Qdrant、Milvus、腾讯 = gRPC/SDK（需单独决策）；SQLite = C 绑定；D
   接线前行为不变；
 - 未录 Go fixture：该批无 golden 面（无调用方、无端点），桩断言即"发出去的 JSON 长什么样"的契约
   （键序按本仓惯例与 Go 声明字段序一致，ES 不敏感键序）；
-- 照抄来的一个怪癖已写进测试注释：`CopyIndices` 的 embeddingMap 以**目标 chunkID** 为键，
-  同批同 chunk 的历史题项会覆盖普通块向量；生成问题的目标 SourceID ≠ 键 → 不命中 → embedding 为 null。
+- ~~照抄来的一个怪癖~~ **该缺陷已于 W5γ4.3 修复**（键改目标 SourceID，见 §0.-18 ③）：`CopyIndices` 的 embeddingMap 原以**目标 chunkID** 为键而查表按 SourceID。
 
 **测试**：`com.ragagent.retrieval.*` 20/20 绿（ES 10 + 既有 10）。
 

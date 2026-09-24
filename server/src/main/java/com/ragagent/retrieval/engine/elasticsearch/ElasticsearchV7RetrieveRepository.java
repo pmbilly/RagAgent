@@ -459,7 +459,7 @@ public class ElasticsearchV7RetrieveRepository {
         body.put("size", params.topK);
 
         HttpResult resp = request("POST", "/" + index + "/_search", body.toString());
-        List<IndexWithScore> results = processSearchResponse(resp);
+        List<IndexWithScore> results = processSearchResponse(resp, EngineTypes.RETRIEVER_VECTOR);
         return List.of(new RetrieveResult(results, EngineTypes.ENGINE_ELASTICSEARCH,
                 EngineTypes.RETRIEVER_VECTOR));
     }
@@ -482,17 +482,20 @@ public class ElasticsearchV7RetrieveRepository {
         body.set("query", MAPPER.createObjectNode().set("bool", bool));
 
         HttpResult resp = request("POST", "/" + index + "/_search", body.toString());
-        List<IndexWithScore> results = processSearchResponse(resp);
+        List<IndexWithScore> results = processSearchResponse(resp, EngineTypes.RETRIEVER_KEYWORDS);
         return List.of(new RetrieveResult(results, EngineTypes.ENGINE_ELASTICSEARCH,
                 EngineTypes.RETRIEVER_KEYWORDS));
     }
 
     /**
      * 对照 v7 {@code processSearchResponse} + {@code processHits}：单条命中缺
-     * {@code _id}/{@code _source}/{@code _score} 时<b>跳过继续</b>（v8 是整请求报错）；
-     * 命中一律标 MatchTypeKeywords（照 Go 的 {@code processHit}，向量结果也是 1）。
+     * {@code _id}/{@code _source}/{@code _score} 时<b>跳过继续</b>（v8 是整请求报错）。
+     *
+     * <p><b>修复（有意偏离 Go v7）</b>：Go v7 的 {@code processHit} 恒传 MatchTypeKeywords，
+     * 向量结果也被标成关键词命中（v8 的同类代码是对的）——这里按实际检索类型给。</p>
      */
-    private List<IndexWithScore> processSearchResponse(HttpResult resp) throws Exception {
+    private List<IndexWithScore> processSearchResponse(HttpResult resp, String retrieverType)
+            throws Exception {
         if (resp.status() < 200 || resp.status() >= 300) {
             throw new IllegalStateException("failed to retrieve: elasticsearch returned "
                     + resp.status() + ": " + resp.body());
@@ -531,14 +534,20 @@ public class ElasticsearchV7RetrieveRepository {
             ElasticsearchV8RetrieveRepository.VectorEmbedding embedding =
                     ElasticsearchV8RetrieveRepository.parseSource(hit.path("_source"));
             embedding.score = score;
-            // 照 Go v7 的 processHit：命中一律标 MatchTypeKeywords（向量结果也是 1）
             results.add(ElasticsearchV8RetrieveRepository.fromDbVectorEmbeddingWithScore(
-                    docId, embedding, EngineTypes.MATCH_KEYWORDS));
+                    docId, embedding, EngineTypes.RETRIEVER_VECTOR.equals(retrieverType)
+                            ? EngineTypes.MATCH_EMBEDDING : EngineTypes.MATCH_KEYWORDS));
         }
         if (results.isEmpty()) {
-            log.warn("[ElasticsearchV7] No matches found");
+            if (EngineTypes.RETRIEVER_KEYWORDS.equals(retrieverType)) {
+                log.warn("[ElasticsearchV7] No keyword matches found");
+            } else {
+                log.warn("[ElasticsearchV7] No vector matches found that meet threshold");
+            }
         } else {
-            log.info("[ElasticsearchV7] Retrieval found {} results", results.size());
+            log.info("[ElasticsearchV7] {} retrieval found {} results",
+                    EngineTypes.RETRIEVER_VECTOR.equals(retrieverType) ? "Vector" : "Keywords",
+                    results.size());
         }
         return results;
     }
@@ -546,10 +555,12 @@ public class ElasticsearchV7RetrieveRepository {
     // ── 复制索引 ────────────────────────────────────────────────────────────
 
     /**
-     * 对照 v7 {@code CopyIndices}（分页 + 改名 + SourceID 三态）。
+     * 对照 v7 {@code CopyIndices}（分页 + 改名 + SourceID 三态 + 目标向量回填）。
      *
-     * <p><b>照抄的 Go 缺陷</b>：{@code saveCopiedIndices} 里 embeddingMap 是新建空 map →
-     * 收集到的向量被丢弃 → 目标文档<b>不带向量</b>（见类注释）。</p>
+     * <p><b>修复（有意偏离 Go v7）</b>：Go 的 {@code saveCopiedIndices} 里 embeddingMap 是
+     * 新建空 map（{@code processSourceBatch} 收集的向量被丢弃）→ 复制过去的文档不带向量；
+     * 且其键为 chunkID 而 {@code ToDBVectorEmbedding} 按 SourceID 查表。这里按目标 SourceID
+     * 为键把向量带上（与 v8 修复后的语义一致）。</p>
      */
     public void copyIndices(String sourceKnowledgeBaseId,
                             Map<String, String> sourceToTargetKbIdMap,
@@ -571,15 +582,22 @@ public class ElasticsearchV7RetrieveRepository {
                 break;
             }
             List<IndexInfo> indexInfoList = new ArrayList<>();
+            Map<String, float[]> embeddingMap = new LinkedHashMap<>();
             for (JsonNode hit : hitsList) {
-                IndexInfo info = processSingleHit(hit, sourceToTargetKbIdMap,
+                CopiedHit copied = processSingleHit(hit, sourceToTargetKbIdMap,
                         sourceToTargetChunkIdMap, targetKnowledgeBaseId);
-                if (info != null) {
-                    indexInfoList.add(info);
+                if (copied != null) {
+                    indexInfoList.add(copied.info());
+                    if (copied.embedding() != null && copied.embedding().length > 0) {
+                        // 修复（有意偏离 Go v7）：Go 在 saveCopiedIndices 里新建空 map，收集的向量被丢弃；
+                        // 且键用 chunkID 而查表按 SourceID → 生成问题取不到。这里键取"目标 SourceID"
+                        // （逐文档唯一）→ toDbVectorEmbedding 按 SourceID 查表即命中
+                        embeddingMap.put(copied.info().sourceId, copied.embedding());
+                    }
                 }
             }
             if (!indexInfoList.isEmpty()) {
-                saveCopiedIndices(indexInfoList);
+                saveCopiedIndices(indexInfoList, embeddingMap);
                 totalCopied += indexInfoList.size();
             }
             from += hitsList.size();
@@ -622,8 +640,8 @@ public class ElasticsearchV7RetrieveRepository {
         return hitsList;
     }
 
-    /** 对照 v7 {@code processSingleHit}：缺字段/映射缺失 → 返回 null（调用方跳过）。 */
-    private IndexInfo processSingleHit(JsonNode hit, Map<String, String> sourceToTargetKbIdMap,
+    /** 对照 v7 {@code processSingleHit}：缺字段/映射缺失 → 返回 null（调用方跳过）；带上源向量。 */
+    private CopiedHit processSingleHit(JsonNode hit, Map<String, String> sourceToTargetKbIdMap,
                                        Map<String, String> sourceToTargetChunkIdMap,
                                        String targetKnowledgeBaseId) {
         JsonNode sourceObj = hit.get("_source");
@@ -682,19 +700,33 @@ public class ElasticsearchV7RetrieveRepository {
         info.isEnabled = isEnabled;
         info.isRecommended = isRecommended;
         info.tagId = tagId;
-        return info;
+
+        float[] embedding = null;
+        JsonNode vector = sourceObj.path("embedding");
+        if (vector.isArray() && !vector.isEmpty()) {
+            embedding = new float[vector.size()];
+            for (int i = 0; i < vector.size(); i++) {
+                embedding[i] = (float) vector.get(i).asDouble();
+            }
+        }
+        return new CopiedHit(info, embedding);
     }
 
-    /** 对照 v7 {@code saveCopiedIndices}：embeddingMap 新建空 → 向量不落（照抄 Go 缺陷）。 */
-    private void saveCopiedIndices(List<IndexInfo> indexInfoList) throws Exception {
+    /** 一条待复制数据：目标索引信息 + 源文档向量（照 Go 的 (indexInfo, embedding, err) 三返）。 */
+    record CopiedHit(IndexInfo info, float[] embedding) {
+    }
+
+    /** 修复（有意偏离 Go v7）：照 Go 时 embeddingMap 是新建空 map → 向量被丢弃；此处用真实映射。 */
+    private void saveCopiedIndices(List<IndexInfo> indexInfoList, Map<String, float[]> embeddingMap)
+            throws Exception {
         if (indexInfoList.isEmpty()) {
             log.info("[ElasticsearchV7] No indices to save, skipping");
             return;
         }
         Map<String, Object> additionalParams = new LinkedHashMap<>();
-        Map<String, float[]> embeddingMap = new LinkedHashMap<>();
-        if (!embeddingMap.isEmpty()) {
+        if (embeddingMap != null && !embeddingMap.isEmpty()) {
             additionalParams.put("embedding", embeddingMap);
+            log.info("[ElasticsearchV7] Found {} embeddings to save", embeddingMap.size());
         }
         batchSave(indexInfoList, additionalParams);
         log.info("[ElasticsearchV7] Successfully saved {} indices", indexInfoList.size());

@@ -274,8 +274,8 @@ class ElasticsearchV7RetrieveRepositoryTest {
     }
 
     @Test
-    @DisplayName("向量检索可直呼：script 源无空格、min_score 是 float64；命中仍标 MatchTypeKeywords（Go 怪癖）")
-    void vectorRetrieveMarksKeywords() throws Exception {
+    @DisplayName("向量检索可直呼：script 源无空格、min_score 是 float64；命中标 MatchTypeEmbedding（修复 Go 的误标）")
+    void vectorRetrieveMarksEmbedding() throws Exception {
         stubFreshIndex(200);
         ElasticsearchV7RetrieveRepository r = repo();
         responder = req -> {
@@ -296,8 +296,8 @@ class ElasticsearchV7RetrieveRepositoryTest {
         params.threshold = 0.25;
         List<RetrieveResult> results = r.vectorRetrieve(params);
 
-        assertEquals(1, results.get(0).results().get(0).matchType,
-                "照 Go 的 processHit：向量结果也标 MatchTypeKeywords=1");
+        assertEquals(0, results.get(0).results().get(0).matchType,
+                "修复后：向量结果标 MatchTypeEmbedding=0（Go v7 会误标 1）");
         JsonNode body = MAPPER.readTree(captured.stream()
                 .filter(c -> c.path().endsWith("/_search")).findFirst().orElseThrow().body());
         JsonNode scriptScore = body.path("query").path("script_score");
@@ -329,8 +329,8 @@ class ElasticsearchV7RetrieveRepositoryTest {
     }
 
     @Test
-    @DisplayName("复制索引：三态 SourceID；照抄 Go 缺陷——目标文档不带向量")
-    void copyIndicesDropsEmbeddingsLikeGo() throws Exception {
+    @DisplayName("复制索引：三态 SourceID + 向量随行带上（修复 Go 的丢向量缺陷）")
+    void copyIndicesCarriesEmbeddings() throws Exception {
         stubFreshIndex(200);
         List<String> searchBodies = new CopyOnWriteArrayList<>();
         responder = req -> {
@@ -369,9 +369,12 @@ class ElasticsearchV7RetrieveRepositoryTest {
         JsonNode doc1 = MAPPER.readTree(lines[1]);
         assertEquals("c-new1", doc1.path("chunk_id").asText());
         assertEquals("c-new1", doc1.path("source_id").asText());
-        assertTrue(doc1.path("embedding").isNull(), "照抄 Go 缺陷：向量被丢弃 → null");
+        assertEquals(2, doc1.path("embedding").size(), "普通块带自己的向量（Go 会丢）");
+        assertEquals(0.25, doc1.path("embedding").get(0).asDouble(), 1e-6);
         JsonNode doc2 = MAPPER.readTree(lines[3]);
         assertEquals("c-new1-q9", doc2.path("source_id").asText(), "生成问题保留 questionID 段");
+        assertEquals(1, doc2.path("embedding").size(), "生成问题也带自己的向量（Go 取不到）");
+        assertEquals(0.7, doc2.path("embedding").get(0).asDouble(), 1e-6);
     }
 
     @Test
