@@ -284,11 +284,6 @@ public class MessageController {
     }
 
     /**
-     * 对照 SessionStreamController 同名方法：Go 从 ctx 取认证中间件放好的租户实体，
-     * Java 的 TenantContext 只存 tenantId——恒返回 null，缺省 provider 的解析本来
-     * 也走不通（provider 级文件服务未翻译）。引用一律保留成 handle。
-     */
-    /**
      * 读者租户实体（A3-3 接线；此前恒 null）——Rewriter 用它解析"引用不带 provider
      * scheme 时的租户默认 provider"。
      */

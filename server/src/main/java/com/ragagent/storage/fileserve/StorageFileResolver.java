@@ -229,7 +229,7 @@ public class StorageFileResolver {
                 if (endpoint.isEmpty() || accessKey.isEmpty() || secretKey.isEmpty() || bucket.isEmpty()) {
                     return new FactoryResult(null, p, "incomplete minio config");
                 }
-                // Go 此处构造 MinIO SDK 客户端（未翻译层）——完备配置的云连通是部署态
+                // 与 Go 同形：完备性检查通过后由工厂构造 MinIO（S3 协议族）客户端
                 return providerBacked(p, sec, baseDir);
             }
             case "cos": {

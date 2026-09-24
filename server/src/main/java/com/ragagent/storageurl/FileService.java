@@ -16,10 +16,14 @@ package com.ragagent.storageurl;
  *   <li>失败时抛 {@link RuntimeException}；{@link Rewriter} 会捕获、WARN、并把引用原样留下。</li>
  * </ul>
  *
- * <p><b>接线状态</b>：本端口目前<b>没有生产实现</b>——Go 侧的实现是
- * {@code internal/application/service/file/*}（local/minio/s3/cos/tos/oss/obs/ks3，
- * 20+ 文件 + 各家云 SDK），属未翻译模块。调用方传 {@code null} 时行为等价于
- * Go 未配置 {@code APP_EXTERNAL_URL} 的部署：引用全部按 handle 保留。</p>
+ * <p><b>接线状态（2026-09-24 A3-3 起）</b>：生产实现是
+ * {@code StorageUrlWiringConfig.storageUrlDefaultFileService}（进程级默认服务，
+ * 照 Go container 的 {@code globalFileService}：local 基座 + resource catalog 装饰，
+ * 于是 {@code resource://} 手柄能派生 {@code /r/<token>} 能力链接）；
+ * provider 级服务由 {@code FileServiceResolver} 经 A3 的工厂按租户配置取用
+ * （{@code internal/application/service/file/*} 那 20+ 文件的对应物）。
+ * 端口仍可为空（缺 bean / 解析失败）——那时行为等价于 Go 未配置
+ * {@code APP_EXTERNAL_URL} 的部署：引用按 handle 保留。</p>
  */
 public interface FileService {
 

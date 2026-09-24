@@ -24,6 +24,9 @@
 | 4 | agent 核心 + tools + chat_pipeline + 前置缺口（4.1–4.6d） | ✅ |
 | 5 | 共享 agent 收口（W5α）/ tenant_skill verify（W5β）/ im 执行体（W5γ）/ provider 终端（W5δ）/ 检索引擎批 | ✅（γ3 平台出站传输与部分 provider 传输层见下） |
 | 7 | models/{id}/debug 模型调试端点（五类运行时工厂 + 24 golden + 双端 A/B） | ✅ |
+| A4/C | 未接线项收口 + langfuse OTLP 追踪全链（渲染/导出/批处理 + 30 处注入 + 8 处显式 span + 端到端验收） | ✅ |
+| D | Neo4j 图库面（三方法 Cypher 照抄 + chunk:extract 写入链）+ 共享 agent 收口 | ✅ |
+| A3 | 存储 provider 层（local + s3/minio/obs/ks3 + oss/cos/tos 原生 SDK + 窄口接线 + 知识/skill/FAQ 改道） | ✅ |
 
 ## 已知剩余（外部 provider 传输层，接缝与验收口径已备案）
 
@@ -31,5 +34,6 @@
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
 - 外部向量店 driver（elasticsearch/milvus/qdrant/…；postgres 引擎已完整）
+- ~~存储 provider 的云 SDK 层~~ ✅ 2026-09-24 A3 落地（local + s3/minio/obs/ks3 + oss/cos/tos；见 known-issues/08）
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）

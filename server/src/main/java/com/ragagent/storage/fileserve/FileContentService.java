@@ -8,8 +8,9 @@ import java.io.IOException;
  *
  * <p>与 storageurl 包的 {@link com.ragagent.storageurl.FileService}（只有
  * GetFileURL 的重写器端口）刻意分开：本端口是 HTTP 流式面，归属
- * {@code com.ragagent.storage} 的实现。云 provider 的 SDK 客户端层未翻译，
- * 只有 local 一支有真实实现（部署态：dev 恒 local）。</p>
+ * {@code com.ragagent.storage} 的实现。八种 provider 都有真实实现
+ * （local 走 {@link LocalFileContentService}；云 provider 经
+ * {@code ProviderFileContentService} 适配 A3 的 provider 层）。</p>
  */
 public interface FileContentService {
 

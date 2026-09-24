@@ -33,7 +33,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
  * 解析多模态与问题生成配置、标签关系、按 KB 的存储引擎选择、asynq 处理任务载荷
  * （含语言/问题数）、入队失败的补偿与审计。Java 侧的 {@link MapperKnowledgeBridge}
  * 只保留"落一行可被后续同步找回的 knowledge + 交给进程内处理队列"这一条最小闭环
- * ——其余部分要么依赖尚未翻译的模块（存储引擎、问题生成），要么对数据源同步这条
+ * ——其余部分要么依赖尚未翻译的模块（问题生成；存储引擎已随 A3 落地），要么对数据源同步这条
  * 路径没有可观察影响（审计埋点由本模块自己记）。<b>写进知识库的内容本身因而弱于
  * Go</b>：解析/分块/向量化仍走阶段 3 的 {@code KnowledgeProcessWorker}。</p>
  *

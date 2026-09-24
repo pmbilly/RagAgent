@@ -151,7 +151,8 @@ public class KnowledgeQaController {
         this.emitter = emitter;
         this.sseFrameWriter = sseFrameWriter;
         this.artifactCollectorWiring = artifactCollectorWiring;
-        // provider 级文件服务未翻译（5.2 备案延续）：缺 bean 时 Rewriter 禁用（handle 模式同形）
+        // 两个端口按 ObjectProvider 取（A3-3 起 StorageBackendResolver 有生产实现）；
+        // 缺 bean 时 Rewriter 按 Go 的 nil 分支降级（handle 模式同形）
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
     }
@@ -232,7 +233,7 @@ public class KnowledgeQaController {
                 knowledgeBaseIds, request.knowledgeIds(), tagScopes, request.query);
 
         // 引用形式（resource_urls）在检索面不带存储引用——Go 走 CopyReferences；
-        // handle 模式为透传（public 模式的直链生成依赖 provider 级文件服务，未翻译备案）。
+        // handle 模式为透传（public 模式的直链生成经 provider 级文件服务，A3-3 起已接线）。
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("success", true);
         out.put("data", searchResults);

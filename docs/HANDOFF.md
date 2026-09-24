@@ -1,5 +1,53 @@
 # 交接文档（新会话接手用）
 
+## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
+
+> 本节为**回填**：2026-09-24 的 A3 之前的几笔提交当时只写了提交信息、没同步本文档
+> （已核对：这些提交未触碰 `docs/`）。内容按提交信息与当轮验收记录整理；
+> 明细以各自提交信息为准（都很详尽）。
+
+| 提交 | 批次 | 要点 | 规模 |
+|---|---|---|---|
+| `dbf4cff` | 追踪 C-1（基建） | langfuse OTLP 链路：span→OTLP 渲染（hex→bytes id、属性全 string、RecordError→exception 事件、错误→Status{ERROR}）、`POST {host}/api/public/otel/v1/traces`（protobuf 体 + Basic + `x-langfuse-ingestion-version:4`）、批处理/配置/注册 | 35 文件 / +4656 |
+| `50d359f` | 追踪 C-4/C-5（接线 + 验收） | 30 处 `InjectTracing` 对应物（载荷平铺 `lf_*` 五键）+ 8 处显式 span（`qa.setup`/`pipeline.*`/`retrieve`/`follow_up.suggestions`/`skill.install`/`skill.maintenance`/`sandbox.collect_artifacts`）+ `RetrievalObs.summarizeRetrieveOutput` 移植 + 端到端 stub OTLP 收集器（真 HTTP → `parseFrom` 断言跨线程续接） | 18 文件 / +550 |
+| `87a82fc` | 评估执行体 | 9 个指标计算器（Precision/Recall/NDCG@3,@10/MRR/MAP/BLEU-1,2,4/ROUGE-1,2,L）+ `MetricSegmenter` 接缝（默认二字滑窗，真实 jieba 待接入，已备案）+ `metric_hook`/数据集执行/段落同步建索引 | 20 文件 / +1805 |
+| `c6c4ffd` | 图库面（D） | `Neo4jGraphRepository` 三方法（`AddGraph`/`DelGraph`/`SearchNode`，Cypher 逐字照抄：`apoc.merge.node` + `apoc.coll.union` 写、`apoc.periodic.iterate` 删、一跳子图 CONTAINS 检索、ENTITY 前缀与连字符换下划线）+ `chunk:extract` 写入链 + 删除接线 + 自检 | 19 文件 / +1569 |
+| `9cd5af2` | 共享 agent（读面） | `SessionLookupScope` 由空标记转真：QA 触发前打标 + 三条派生线程 replay | 4 文件 / +76 |
+| `0d0b89c` | 共享 agent（范围） | `@mention` 收敛（仅"agent 租户 ≠ 会话租户"生效）：KB 按允许集过滤、知识按所属 KB 判定、tag 同规则；共享 KB 并入 | 2 文件 / +257 |
+| `a4b6655` | 标签删除回收 | 向量索引回收由 no-op 改真删（100/批）+ 标签下文档批量删除接线 | 3 文件 / +101 |
+| `5bea818` `089915b` | 一致性 / wiki 生成链 | wiki 图片富化生产 bean、IM 渠道清理、技能进度订阅、chunk 清理；wiki 生成链路接线 + 追踪接入 | 见提交信息 |
+
+**验收**：各批次按模块分批回归绿（追踪 36~37、session 375、wiki+knowledge 747、sandbox 252 等，
+见各提交信息与 `08-storage-a3.md` 的汇总表）。
+
+## 0.-13 存储 provider 层（A3，2026-09-24——「云 provider SDK 层未翻译」从缺口清单划掉）
+
+**做了什么**（五笔提交，明细与坑见 [known-issues/08-storage-a3.md](known-issues/08-storage-a3.md)）：
+
+- **批次一** `6893a80`：provider 接口 + local 后端 + S3 协议族（s3/minio/obs/ks3）+
+  `FileServiceFactory`（八个 provider 的完备性校验文案照 Go）+ 租户级回退；
+- **批次二** `54a544f`：oss/cos/tos 三家**厂商原生 SDK**（阿里云 3.18.1 / 腾讯云 5.6.227 /
+  火山 2.9.19），对象名布局、路径形态、临时桶、预签名 24h、服务端拷贝、跨后端拒绝逐项照抄；
+- **A3-3 接线** `6c46f96`：`storageurl` 两个窄口首次有生产实现（`StorageUrlWiringConfig`
+  的进程级默认服务 + `FileserveStorageBackendResolver`），`resource://` 手柄从此能派生
+  `/r/<token>`；三处 `currentTenant()` 由恒 null 改为按 `TenantContext` 取实体；
+- **A3-3 尾批** `77f5865`：知识**上传/读取/删除**走租户 provider 层（`TenantFileStorage`
+  统一入口；本地 `resource://` 契约逐字节不变，云租户真落对象存储）；
+- **A3 收尾** `ae62567`：FAQ 失败明细 CSV 走 `SaveBytes(temp=true)`（**全项目首次用到临时桶**）、
+  skill 归档新增 `TenantSkillBundleStore`（本地委托）、环境投影补齐 cos/tos/oss/obs、
+  `SafeFileName` 纠正为 Go 的 `Base(Clean(name))`（目录部分丢弃而非拒绝）。
+
+**坑（最贵的四条）**：TOS SDK 版本 2.7.2 不存在且输入类是 V2 命名 + `HttpMethod` 是 String 常量
+接口；COS `CopyObjectRequest` 四参构造靠 `javap -c` 字节码才确认"源在前"；`@JsonUnwrapped`
+不支持 record 的 Creator 参数（追踪载体改为平铺 5 键）；`local://` 是 provider scheme 却归本地盘
+（知识合同测试抓回 500）。
+
+**验收**：storage 78 / storageurl+session.controller 274 / knowledge 210 / datasource 921 /
+sandbox 252 / session 375 全绿；**尚未覆盖**真云连通（需凭据）与环境投影的 env 分支。
+
+**剩余存储话题**：云对象整对象入堆（Go 流式）、OSS 大文件未走分片 Uploader、local 两支实现收敛——
+三条都已备案在 08 分片，均需独立批次。
+
 ## 0.-12 全量回归 + 真实 Docker 排水 E2E（2026-09-24——验证面收口 + 一个真缺陷）
 
 **做了什么**：①**全量分批回归**（本轮多批改动共享面后的全面排查）：8 个批次

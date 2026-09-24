@@ -7,9 +7,11 @@ package com.ragagent.storageurl;
  * <p>Go 的接口有两个方法，本包<b>只用 {@code ResolveFileService}</b>
  * （{@code ResolveBackend} 未收窄进来，用不到）。</p>
  *
- * <p><b>接线状态</b>：与 {@link FileService} 一样，目前<b>无生产实现</b>——
- * 它属于未翻译的存储后端模块。传 {@code null} 时 {@link FileServiceResolver}
- * 会回落到进程级默认服务，与 Go 的 nil 分支一致。</p>
+ * <p><b>接线状态（2026-09-24 A3-3 起）</b>：生产实现是
+ * {@code com.ragagent.storage.fileserve.FileserveStorageBackendResolver}（{@code @Component}）
+ * ——按 tenantId 取租户实体后走 {@code StorageFileResolver} 的完整语义
+ * （backend 优先 / legacy alias / 环境回落 / resource 装饰）。解析不出时回传空，
+ * {@link FileServiceResolver} 即回落到进程级默认服务，与 Go 的 nil 分支一致。</p>
  */
 public interface StorageBackendResolver {
 
