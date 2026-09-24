@@ -16,9 +16,9 @@ import com.ragagent.im.service.ImService;
  * <p>凭据 {@code client_id}/{@code client_secret} 必填，{@code card_template_id} 可选
  * （配了才走 AI 卡片流式，否则退回 sessionWebhook 整段回复）。</p>
  *
- * <p><b>未落地（本子批明确不做）</b>：Go 的 {@code longconn.go} 用钉钉 Stream SDK 的
- * WS 长连接（{@code StreamClient} + {@code BotCallbackDataModel}），且 Go 的默认模式就是
- * websocket——Java 走到 websocket 时明确抛错（不静默假装成功），排 W5γ3 后续子批。</p>
+ * <p>HTTP 适配器<b>两种模式都建</b>（websocket 模式下的回复也走 sessionWebhook/OpenAPI，
+ * 照 Go）；{@code websocket} 额外起 {@link DingtalkStreamClient} 消费事件（照 Go 的
+ * {@code NewLongConnClient} + {@code RunSupervised}），stop 句柄关连接。</p>
  */
 public class DingtalkAdapterFactory implements ImService.AdapterFactory {
 
@@ -52,10 +52,19 @@ public class DingtalkAdapterFactory implements ImService.AdapterFactory {
         switch (mode) {
             case "webhook":
                 return new ImService.AdapterRegistration(adapter, null);
-            case "websocket":
-                throw new UnsupportedOperationException(
-                        "dingtalk websocket mode (stream long-connection) not implemented in"
-                        + " this batch — tracked as W5γ3 follow-up sub-batch");
+            case "websocket": {
+                // Stream 模式：HTTP 适配器两种模式都建（回复同样走 sessionWebhook/OpenAPI），
+                // 额外起 WS 长连接消费事件（照 Go 的 factory.go + RunSupervised）
+                DingtalkStreamClient stream = new DingtalkStreamClient(
+                        ImCredentials.getString(creds, "client_id"),
+                        ImCredentials.getString(creds, "client_secret"),
+                        apiBaseUrl, ssrfGuard, channel.getId(),
+                        (msg, cid) -> msgHandler.accept(msg, cid));
+                Thread thread = new Thread(stream::start, "im-dingtalk-ws-" + channel.getId());
+                thread.setDaemon(true);
+                thread.start();
+                return new ImService.AdapterRegistration(adapter, stream::stop);
+            }
             default:
                 throw new IllegalArgumentException("unsupported dingtalk mode: " + mode);
         }

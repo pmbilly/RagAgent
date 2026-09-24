@@ -398,7 +398,7 @@ class DingtalkAdapterTest {
     // ── 工厂与工具 ──────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("工厂：webhook 建、websocket 明确未落地、未知模式报错；下载白名单按后缀")
+    @DisplayName("工厂：webhook 无 stop、websocket（Go 默认）建长连接并给 stop、未知模式报错；下载白名单按后缀")
     void factoryAndHelpers() {
         ImChannelEntity channel = new ImChannelEntity();
         channel.setId("ch-1");
@@ -410,12 +410,15 @@ class DingtalkAdapterTest {
         assertEquals(ImTypes.PLATFORM_DINGTALK, reg.adapter().platform());
         assertNull(reg.stop());
 
+        // websocket（Go 默认模式）：HTTP 适配器照建 + WS 长连接 + stop 句柄
         ImChannelEntity ws = new ImChannelEntity();
         ws.setId("ch-2");
         ws.setMode("websocket");
         ws.setCredentials("{\"client_id\":\"c\",\"client_secret\":\"s\"}");
-        assertThrows(UnsupportedOperationException.class,
-                () -> new DingtalkAdapterFactory(null, apiBase).create(ws, (m, c) -> { }));
+        var wsReg = new DingtalkAdapterFactory(null, apiBase).create(ws, (m, c) -> { });
+        assertNotNull(wsReg.adapter());
+        assertNotNull(wsReg.stop());
+        wsReg.stop();
 
         ImChannelEntity bad = new ImChannelEntity();
         bad.setId("ch-3");
