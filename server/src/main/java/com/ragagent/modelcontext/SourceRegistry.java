@@ -662,7 +662,11 @@ final class SourceRegistry {
         if (handle != null) {
             return handle;
         }
-        return webs.handleForKey(canonicalWebURL(real));
+        handle = webs.handleForKey(canonicalWebURL(real));
+        // 对照 Go 的 (handle, ok) 双返回：未命中即零值 ""，不能把 null 留给
+        // 调用方（walkJSON 的 encode 分支对返回值直接 isEmpty——MCP 工具参数
+        // 经此路径时曾 NPE）。
+        return handle == null ? "" : handle;
     }
 
     String durableForHandle(String handle) {

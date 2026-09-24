@@ -17,6 +17,7 @@ import com.ragagent.agent.AgentEngine;
 import com.ragagent.agent.AgentPrompts;
 import com.ragagent.agent.AgentToolNames;
 import com.ragagent.agent.skills.Manager;
+import com.ragagent.agent.tools.McpExposure;
 import com.ragagent.agent.tools.ToolDefinitions;
 import com.ragagent.agent.tools.WikiSupport;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
@@ -31,6 +32,7 @@ import com.ragagent.event.MemoryRecalledData;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
+import com.ragagent.mcp.domain.McpService;
 import com.ragagent.memory.service.MemoryService;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.rerank.Reranker;
@@ -46,8 +48,9 @@ import static com.ragagent.session.service.SessionKnowledgeQaService.SearchTarge
  * 历史装载 + agent_service.go 的 CreateAgentEngine 装配路径）。
  *
  * <p>装配边界（对照 agent_service.go L180-295，每一条的取舍已在报告备案）：
- * sandbox/MCP/browser/skills 的生产接线在 dev 部署（无 docker、无 MCP 服务、
- * 无 browser 集成）与 Go 的 nil/disable 分支一致——工具注册的硬门控逐条保留；
+ * MCP 目录随 {@code registerMcpTools} 接线（Go L211 调用 / L297-372 实现）；
+ * sandbox/browser/skills 的生产接线在 dev 部署（无 docker、无 browser 集成）与
+ * Go 的 nil/disable 分支一致——工具注册的硬门控逐条保留；
  * 检索工具族（knowledge_search 等）在检索执行面缺失时注册同样无产出，
  * 因此 dev 路径注册的核心是 thinking/todo_write/工具白名单可达集。</p>
  */
@@ -81,6 +84,12 @@ public class SessionAgentQaService {
     private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
     private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
             ollamaService;
+    /** MCP 服务面（Go agentService 的 mcpServiceService/mcpManager/toolApprovalGate）。 */
+    private final com.ragagent.mcp.service.McpServiceService mcpServiceService;
+    private final com.ragagent.mcp.service.McpMetadataService mcpMetadataService;
+    private final com.ragagent.mcp.protocol.McpClientManager mcpClientManager;
+    private final com.ragagent.agent.approval.Gate toolApprovalGate;
+
     public SessionAgentQaService(MessageService messageService,
             ModelService modelService,
             MemoryService memoryService,
@@ -98,9 +107,17 @@ public class SessionAgentQaService {
             com.ragagent.knowledge.service.FaqService faqService,
             com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
-                    ollamaService) {
+                    ollamaService,
+            com.ragagent.mcp.service.McpServiceService mcpServiceService,
+            com.ragagent.mcp.service.McpMetadataService mcpMetadataService,
+            com.ragagent.mcp.protocol.McpClientManager mcpClientManager,
+            com.ragagent.agent.approval.Gate toolApprovalGate) {
         this.concurrencyGovernor = concurrencyGovernor;
         this.ollamaService = ollamaService;
+        this.mcpServiceService = mcpServiceService;
+        this.mcpMetadataService = mcpMetadataService;
+        this.mcpClientManager = mcpClientManager;
+        this.toolApprovalGate = toolApprovalGate;
         this.messageService = messageService;
         this.modelService = modelService;
         this.memoryService = memoryService;
@@ -314,6 +331,9 @@ public class SessionAgentQaService {
         ac.setHistoryTurns(c.path("history_turns").asInt(0));
         ac.setMemoryEnabled(c.path("memory_enabled").asBoolean(false));
         ac.setMcpSelectionMode(c.path("mcp_selection_mode").asText(""));
+        // Go session_agent_qa.go L309：MCPServices 直取 agent config 的 mcp_services
+        // （mode=selected 时按 ID 列表注册；mode=all 由注册处列全租户）
+        ac.setMcpServices(stringListOf(c.get("mcp_services")));
         ac.setMcpAuthWaitTimeout(c.path("mcp_auth_wait_timeout").asInt(0));
         JsonNode thinking = c.get("thinking");
         ac.setThinking(thinking != null && thinking.isBoolean() ? thinking.asBoolean() : null);
@@ -602,8 +622,9 @@ public class SessionAgentQaService {
             toolRegistry.setMaxToolOutputSize(config.getMaxToolOutputChars());
         }
         registerTools(toolRegistry, config, rerankModel, sessionId);
-        // registerMCPTools：MCP 服务面在 dev 无启用的服务 → Go 的 ListMCPServices 返回
-        // 空集同形（服务注册/发现面为 4.1 既有包，装配随 embed/im QA 面）
+        // registerMCPTools（Go agent_service.go L211 → L297-372）：按 agent 配置的
+        // mcp_selection_mode 注册受限 MCP 目录（按需发现，不连上游、不广告完整 schema）
+        registerMcpTools(toolRegistry, config);
 
         // 沙箱执行面（Go agent_service.go：registerSandboxShellIfAllowed L216 →
         // registerSandboxFileTools L217 → initializeSkillsManager L272）：解析会话
@@ -675,6 +696,79 @@ public class SessionAgentQaService {
         }
 
         return engine;
+    }
+
+    /**
+     * registerMCPTools（Go agent_service.go L297-372）：从本租户的启用服务注册受限
+     * MCP 目录（discover_mcp_tools / call_mcp_tool），不连接上游、不广告完整 schema；
+     * 具体工具定义在模型调用 discover 时按需列举。
+     *
+     * <p>身份与装载参数说明（Java 无 ctx 的显式化，见 McpExposure/McpOAuthSupport 备案）：
+     * {@code hasToolExecContext=false}——装配发生在引擎准备阶段，此处没有 per-turn 的
+     * ToolExecContext；OAuth 服务无快照时给出"先去授权"的方向，与 Go 无 ToolExecContext
+     * 的调用同形。失败只记警告，不影响引擎创建（对照 Go 的 warn 分支）。</p>
+     */
+    private void registerMcpTools(ToolRegistry toolRegistry, QaAgentConfig config) {
+        long tenantId = TenantContext.currentTenantId() == null ? 0L : TenantContext.currentTenantId();
+        if (tenantId == 0) {
+            // 对照 Go 的 tenantID==0 直接 return；Java 侧补一条日志——此前该分支
+            // 完全静默，装配线程丢租户时表现为"MCP 工具凭空消失"（排查成本高）。
+            log.info("Skipping MCP registration: no tenant in execution context");
+            return;
+        }
+        String mcpMode = config.getMcpSelectionMode() == null || config.getMcpSelectionMode().isEmpty()
+                ? "all" : config.getMcpSelectionMode();
+        if ("none".equals(mcpMode)) {
+            log.info("MCP services disabled by agent config (mode: none)");
+            return;
+        }
+
+        List<McpService> services;
+        try {
+            if ("selected".equals(mcpMode)) {
+                List<String> selected = config.getMcpServices();
+                if (selected == null || selected.isEmpty()) {
+                    log.info("MCP services disabled by agent config (mode: selected, no services)");
+                    return;
+                }
+                services = mcpServiceService.listMCPServicesByIDs(tenantId, selected);
+                log.info("Using {} selected MCP services from agent config", services.size());
+            } else {
+                services = mcpServiceService.listMCPServices(tenantId);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Failed to list MCP services: {}", e.toString());
+            return;
+        }
+
+        List<McpService> enabled = new ArrayList<>();
+        for (McpService service : services) {
+            if (service != null && service.isEnabled()) {
+                enabled.add(service);
+            }
+        }
+        if (enabled.isEmpty()) {
+            return;
+        }
+
+        try {
+            int registered = McpExposure.registerMcpTools(
+                    toolRegistry,
+                    enabled,
+                    mcpClientManager,
+                    toolApprovalGate,
+                    config.getMcpAuthWaitTimeout(),
+                    tenantId,
+                    mcpServiceService::getMCPServiceByID,
+                    new McpExposure.McpMetadataIO(
+                            mcpMetadataService::getMCPMetadata,
+                            mcpMetadataService::persistMCPMetadata),
+                    false,
+                    toolApprovalGate::requestOAuthAndWait);
+            log.info("Registered {} MCP service(s) for on-demand discovery", registered);
+        } catch (Exception e) {
+            log.warn("Failed to register MCP directory: {}", e.toString());
+        }
     }
 
     // ── resolveKBAndDocInfos（agent_service.go L368-394 + L1184-1327）────────
