@@ -274,15 +274,36 @@ public class ImChannelController {
     // ═══════════════════ 微信扫码（绑定分支 + 接缝） ═══════════════════
 
     /**
-     * 对照 WeChatGetQRCode：出站 iLink 调用是接缝（golden 刻意不录该错误体的 XDEP 文案），
-     * Java 侧恒走失败分支（500 固定前缀 "failed to generate QR code: "）。
+     * 扫码出站（iLink）：{@code WechatQRCodeService} bean 缺位时保留 W5γ2 的接缝文案
+     * （不阻塞装配）；有 bean 则真调（对照 Go {@code qrcode.go}）。
      */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ragagent.im.wechat.WechatQRCodeService wechatQRCodeService;
+
+    /** 对照 WeChatGetQRCode：200 {"data":{qrcode, qrcode_url}}（gin.H → 键按字典序）。 */
     @PostMapping("/api/v1/wechat/qrcode")
     public ResponseEntity<Map<String, Object>> wechatQrcode() {
-        throw new PlainErrorException(500, "failed to generate QR code: wechat iLink integration is not wired");
+        if (wechatQRCodeService == null) {
+            throw new PlainErrorException(500,
+                    "failed to generate QR code: wechat iLink integration is not wired");
+        }
+        com.ragagent.im.wechat.WechatQRCodeService.QRCodeResult result;
+        try {
+            result = wechatQRCodeService.getLoginQRCode();
+        } catch (Exception e) {
+            // 照 Go：500 + 固定前缀 + err 文案
+            throw new PlainErrorException(500, "failed to generate QR code: " + errText(e));
+        }
+        Map<String, Object> data = new java.util.TreeMap<>();
+        data.put("qrcode", result.qrcode());
+        data.put("qrcode_url", result.qrcodeUrl());
+        return ResponseEntity.ok(new java.util.TreeMap<>(Map.of("data", data)));
     }
 
-    /** 对照 WeChatPollQRCodeStatus：qrcode 必填（一切 bind 失败都是固定文案）。 */
+    /**
+     * 对照 WeChatPollQRCodeStatus：qrcode 必填（一切 bind 失败都是固定文案）；
+     * {@code confirmed} 时才给 credentials（+ 非空 baseurl）——键按 gin.H 的字典序。
+     */
     @PostMapping("/api/v1/wechat/qrcode/status")
     public ResponseEntity<Map<String, Object>> wechatQrcodeStatus(
             @RequestBody(required = false) String rawBody) {
@@ -297,8 +318,38 @@ public class ImChannelController {
         if (req == null || req.qrcode() == null || req.qrcode().isEmpty()) {
             return plain(400, "qrcode is required");
         }
-        // PollQRCodeStatus 出站调用是接缝：恒走失败分支（500 固定文案，对照 Go）
-        return plain(500, "failed to check QR code status");
+        if (wechatQRCodeService == null) {
+            return plain(500, "failed to check QR code status");
+        }
+        com.ragagent.im.wechat.WechatQRCodeService.LoginResult result;
+        try {
+            result = wechatQRCodeService.pollQRCodeStatus(req.qrcode());
+        } catch (Exception e) {
+            return plain(500, "failed to check QR code status");
+        }
+        Map<String, Object> data = new java.util.TreeMap<>();
+        data.put("status", result.status());
+        if ("confirmed".equals(result.status())) {
+            Map<String, Object> credentials = new java.util.TreeMap<>();
+            credentials.put("bot_token", result.botToken());
+            credentials.put("ilink_bot_id", result.ilinkBotId());
+            credentials.put("ilink_user_id", result.ilinkUserId());
+            data.put("credentials", credentials);
+            if (result.baseUrl() != null && !result.baseUrl().isEmpty()) {
+                data.put("baseurl", result.baseUrl());
+            }
+        }
+        return ResponseEntity.ok(new java.util.TreeMap<>(Map.of("data", data)));
+    }
+
+    private static String errText(Exception e) {
+        String message = e.getMessage();
+        return message == null || message.isEmpty() ? e.toString() : message;
+    }
+
+    /** 供测试注入扫码服务（生产走 Spring 字段注入）。 */
+    void wechatQRCodeService(com.ragagent.im.wechat.WechatQRCodeService service) {
+        this.wechatQRCodeService = service;
     }
 
     record QrcodeRequest(@JsonProperty("qrcode") String qrcode) {
