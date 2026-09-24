@@ -2151,10 +2151,9 @@ public class WikiIngestService {
      * 对照 Go {@code beginWikiSubspan}（L453-466）：为该文档在知识追踪树下开一个
      * {@code postprocess.wiki} 子 span。
      *
-     * <p><b>Java 侧未实现 span 追踪</b>（见约定文档 §9 阶段 4.0 已知差异 1：
-     * langfuse / tracing 未翻译）。Go 的返回可能是 nil（没找到父 attempt），
-     * 而 nil 时所有 tracker 辅助方法本来就是 no-op，因此这里恒返回 null
-     * 与"追踪未启用"完全等价。保留方法是为了让 batch 侧的调用点形状不变。</p>
+     * <p>已接线（2026-09-24）：真实实现在 {@link WikiBatchSupport.WikiSpans#beginWikiSubspan}，
+     * batch 通过注入的 {@link com.ragagent.knowledge.service.SpanTracker} 上报；
+     * 本方法保留仅为兼容可能的旧调用点（当前无调用者）。</p>
      */
     public Object beginWikiSubspan(String knowledgeId, Map<String, Object> input) {
         return null;

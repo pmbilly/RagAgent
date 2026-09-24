@@ -29,8 +29,9 @@ import com.ragagent.knowledge.domain.Chunk;
  * （{@code mergedImageInfo == ""}）——此时 Go 也是返回纯文本重建结果。
  * 也就是说：<b>退化路径就是 Go 的空图片信息路径</b>，不是新引入的行为。</p>
  *
- * <p>searchutil 的 imageinfo 模块随知识库富化链路翻译；届时实现本接口并注册为
- * bean 即可生效。</p>
+ * <p>生产实现见 {@link DefaultWikiImageEnricher}（2026-09-24 接线，桥接已翻译的
+ * {@code searchutil.ImageInfoEnricher}）；本接口保留 {@link #identity} 作为显式
+ * 退化形态供测试/裁剪装配使用。</p>
  */
 public interface WikiImageEnricher {
 

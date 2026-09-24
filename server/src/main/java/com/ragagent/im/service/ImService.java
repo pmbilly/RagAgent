@@ -232,6 +232,26 @@ public class ImService {
         }
     }
 
+    /**
+     * 对照 Go {@code DeleteChannelsByAgent}（service.go L3243-3261）：软删该 agent
+     * 的全部 IM 渠道并停止运行中的适配器——概览列表与运行中的适配器不得比 agent
+     * 活得更久（自定义 agent 删除时调用）。
+     *
+     * <p>Go 的 {@code publishChannelConfigChange}（跨实例配置广播）在 Java 单实例
+     * 装配下无对应面，与 Go 单实例行为等价。</p>
+     */
+    public void deleteChannelsByAgent(String agentId, long tenantId) {
+        java.util.List<ImChannelEntity> found = channels.listByAgent(agentId, tenantId);
+        if (found.isEmpty()) {
+            return;
+        }
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+        for (ImChannelEntity ch : found) {
+            channels.softDelete(ch.getId(), tenantId, now);
+            stopChannel(ch.getId());
+        }
+    }
+
     /** 对照 LoadAndStartChannels（L985-1020）：启动时拉起全部 enabled 渠道。 */
     public void loadAndStartChannels() {
         for (ImChannelEntity ch : channels.listEnabled()) {

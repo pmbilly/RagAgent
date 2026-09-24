@@ -32,8 +32,9 @@ import com.ragagent.org.mapper.TenantDisabledSharedAgentMapper;
  *
  * <p>已知降级（均不在 golden/A-B 场景内，报告与测试注释均有声明）：</p>
  * <ul>
- *   <li>imService.DeleteChannelsByAgent：im 模块未翻译，Java 侧 no-op（Go 在无渠道时
- *       同样立即返回，无渠道空间里 HTTP 契约等价）。</li>
+ *   <li>imService.DeleteChannelsByAgent：已接线（2026-09-24）——删除 agent 时软删其
+ *       IM 渠道并停止运行中的适配器（对照 Go handler/custom_agent.go L431 →
+ *       im/service.go L3243-3261）。</li>
  *   <li>suggested-questions 的 wiki fallback（ListRecentForSuggestions）未实现。</li>
  *   <li>kb_selection_mode=all 的能力过滤只实现 quick-answer 的 vector/keyword any-of
  *       基础面，allowed_tools→capability 派生表未移植。</li>
@@ -54,19 +55,29 @@ public class CustomAgentService {
     private final com.ragagent.auth.service.UserService userService;
     private final KnowledgeBaseService kbService;
     private final BuiltinAgentRegistry registry;
+    /**
+     * IM 渠道清理（对照 Go handler 的 {@code h.imService.DeleteChannelsByAgent}）。
+     * ObjectProvider 延迟解析：ImService 直接依赖本类（其字段 agentService），
+     * 构造期硬注入会成环。
+     */
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.ragagent.im.service.ImService> imServiceProvider;
 
     public CustomAgentService(CustomAgentMapper agentMapper,
             AgentQuestionMapper questionMapper,
             TenantDisabledSharedAgentMapper disabledMapper,
             com.ragagent.auth.service.UserService userService,
             KnowledgeBaseService kbService,
-            BuiltinAgentRegistry registry) {
+            BuiltinAgentRegistry registry,
+            org.springframework.beans.factory.ObjectProvider<
+                    com.ragagent.im.service.ImService> imServiceProvider) {
         this.agentMapper = agentMapper;
         this.questionMapper = questionMapper;
         this.disabledMapper = disabledMapper;
         this.userService = userService;
         this.kbService = kbService;
         this.registry = registry;
+        this.imServiceProvider = imServiceProvider;
     }
 
     private static long tenantId() {
@@ -367,6 +378,14 @@ public class CustomAgentService {
             throw new BizException(AppError.forbidden("Cannot delete built-in agent"));
         }
         agentMapper.softDelete(id, tenant);
+
+        // 对照 Go handler/custom_agent.go L431：imService.DeleteChannelsByAgent(id, tenantID)
+        // —— 软删该 agent 的全部 IM 渠道并停止运行中的适配器，避免概览列表与运行中的
+        // 适配器比 agent 活得更久（此前 Java 侧为 no-op）。
+        com.ragagent.im.service.ImService imService = imServiceProvider.getIfAvailable();
+        if (imService != null) {
+            imService.deleteChannelsByAgent(id, tenant);
+        }
     }
 
     /** 对照 CopyAgent：config 深拷贝、名字 + " (副本)"、归属当前调用者。 */

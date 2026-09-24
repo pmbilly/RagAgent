@@ -24,8 +24,8 @@ import org.springframework.stereotype.Component;
  * Java 侧模板 bean 恒在，所以以一次 {@code PING} 探测等价 nil——探测失败即按
  * 无 Redis 处理（Go 的 redis 宕机路径：Warnf + 空结果，语义相同）。</p>
  *
- * <p><b>波 4 接缝</b>：实时订阅通道（Go 的 pub/sub → channel 管道）随安装管线一起
- * 接线——发布方就是管线里的 publishProgress 调用；本批 subscribe 恒返回 nil 通道，
+ * <p><b>实时订阅（2026-09-24 接线）</b>：subscribe 订阅进度广播（channel = 进度 key，
+ * 与 publish 的 convertAndSend 同源），消息泵进有界队列；无 Redis 时仍回落 nil 通道，
  * SSE 端点按 Go 的 {@code events == nil} 分支回落 durable 状态。</p>
  */
 @Component
@@ -122,11 +122,57 @@ public class SkillProgressStore {
     }
 
     /**
-     * 对照 {@code SubscribeProgress}。没有可用的 Redis → {@code events == null} +
-     * no-op closer（调用方回落 durable 状态）。实时通道的接线见类注释（波 4）。
+     * 对照 {@code SubscribeProgress}：订阅进度广播（channel = 进度 key，与
+     * {@link #publish} 的 {@code convertAndSend} 同源），把消息泵进有界队列。
+     * 没有可用的 Redis → {@code events == null} + no-op closer（调用方回落 durable
+     * 状态，与 Go 的 {@code s.redis == nil} 分支一致）。
+     *
+     * <p>Spring Data Redis 的 {@code connection.subscribe} 是阻塞调用（内部收循环），
+     * 放在独立虚拟线程上——与 Go 的"每订阅一个 goroutine 泵消息进 channel"同形；
+     * closer 关闭连接即结束订阅与线程。</p>
      */
     public Subscription subscribe(long tenantId, String configId, String skillId) {
-        return new Subscription(null, () -> {
+        if (!redisUp() || redis.getConnectionFactory() == null) {
+            return new Subscription(null, () -> {
+            });
+        }
+        String channel = skillProgressKey(tenantId, configId, skillId);
+        java.util.concurrent.BlockingQueue<SkillProgress> queue =
+                new java.util.concurrent.LinkedBlockingQueue<>();
+        org.springframework.data.redis.connection.RedisConnection connection;
+        try {
+            connection = redis.getConnectionFactory().getConnection();
+        } catch (RuntimeException e) {
+            log.warn("[skill] subscribe {} failed: {}", channel, e.getMessage());
+            return new Subscription(null, () -> {
+            });
+        }
+        byte[] channelBytes = channel.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Thread.ofVirtual().name("skill-progress-subscriber").start(() -> {
+            try {
+                connection.subscribe((message, pattern) -> {
+                    try {
+                        var node = MAPPER.readTree(new String(message.getBody(),
+                                java.nio.charset.StandardCharsets.UTF_8));
+                        queue.offer(new SkillProgress(
+                                node.path("percent").asInt(0),
+                                node.path("stage").asText(""),
+                                node.hasNonNull("log") ? node.get("log").asText("") : "",
+                                node.hasNonNull("status") ? node.get("status").asText("") : ""));
+                    } catch (Exception ignored) {
+                        // 单条消息解析失败不打断订阅（对照 Go 的松散解析）
+                    }
+                }, channelBytes);
+            } catch (RuntimeException e) {
+                log.info("[skill] progress subscription ended for {}: {}", channel, e.getMessage());
+            }
+        });
+        return new Subscription(queue, () -> {
+            try {
+                connection.close();
+            } catch (RuntimeException ignored) {
+                // 关闭失败无补救动作
+            }
         });
     }
 
