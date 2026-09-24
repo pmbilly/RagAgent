@@ -1204,3 +1204,30 @@
   7. **`EffectiveEngines` 抽取的边界**：先确认 `EngineParams`/`effectiveEngines` **只在
      HybridSearchService 内部被引用**（无测试、无外部调用）才动手；抽取后 HybridSearchService
      只删不增、行为不变，把"会动 golden 锁定读路径"的风险全部留给第 4 步（引擎路由）。
+
+## W5γ4.6：接线批第 3/4 步 + normalizer + 走查评审批（2026-09-25）
+
+1. **Java 源文件里的 NUL 字节字面量**（KnowledgeBaseService 列表过滤哨兵 `"\0skip"`）：
+   `file` 判成 `data`、grep 当二进制静默跳过、Edit 工具直接拒绝写入——"文件读得到改不了"
+   先查控制字符（`LC_ALL=C grep -anP '[\x00-\x08]'`）。修复顺手把哨兵写法改为循环内
+   `continue`，不再污染源文件。
+2. **Long 引用比较复发**（@mention 收敛，`agentRow.getTenantId() != session.getTenantId()`）：
+   两侧都是装箱 Long，租户 10002 超出缓存区间恒不等——own agent 被误判为共享 agent、
+   mention 范围被错误收敛。约定 §5 第 6 条的第 N 次复发：**跨方法传递的租户 id 一律
+   `Objects.equals`**，包括"看起来同源"的两个实体字段。
+3. **嵌入 provider 的调用间非确定性是检索 A/B 的噪声下限**：dashscope 对同一查询文本
+   两次调用返回末位有差异的 float32（~1e-6），导致 vector 命中分数、乃至距离跨过
+   `distance <= 1-threshold` 边界的**条数**都可能在两次请求间抖动。判据：同侧连跑两次
+   亦漂移、跨端分数集合在两次运行间重合——这时差异是 provider 噪声而非翻译缺陷
+   （检索链路的确定性 A/B 要么 stub 嵌入、要么只对齐"公共前缀 + 分数集合"）。
+4. **bootRun 被 kill 后 gradle 守护进程会记着那个失败的 task**：下一次
+   `java-server-up.sh` 的 bootRun 秒退（日志里 `BUILD FAILED in 1h 31m 32s` 是**被杀的
+   旧任务**的时长，不是新任务的）——readiness 探针打到垂死的旧进程造成"起来了"的假象。
+   处置：重启前 `./gradlew --stop`（或确认守护进程空闲），起完以 login 200 为准再验。
+5. **工厂哨兵 → HTTP 的映射**（storegroup 的 classifyFactoryError）：FORBIDDEN→2200、
+   NOT_FOUND/UNAVAILABLE→2201、取消→2201（"绑定没问题，重试可能成功"）、其余原样
+   （handler 折 500 原文）；KB create 的 validateVectorStoreBinding 另有"畸形 UUID 快拒
+   2200"防枚举预言。store UUID 只进结构化日志（LogSanitizer）。
+6. **GORM `default:true` 的 Create 省略语义**（pg CopyIndices 照抄）：目标行 IsEnabled
+   零值 false 被 default tag 省略 → DB 默认 true 生效；Java 侧等价实现 = INSERT 显式
+   省略该列。save/batchSave 的显式 is_enabled 路径不受影响（false 在生产不可达，备案）。

@@ -1,5 +1,30 @@
 # 交接文档（新会话接手用）
 
+## 0.-21 接线批第 3/4 步 + normalizer + 走查评审批（2026-09-25——W5γ4.6）
+
+**做了什么**（§3.-2 的两步 + §0.-20 遗留的 normalizer + 一轮全面评审的修复）：
+
+| 件 | 说明 |
+|---|---|
+| `PgVectorEngineRepository`（新） | postgres 引擎仓库的引擎口适配器（照 Go `repository/retriever/postgres/` 的 `RetrieveEngineRepository` 实现面 + move.go 16 行）：读路径委托既有 `PgVectorRetrieveRepository`（golden 锁定的 SQL 逐字件）、写路径委托 `VectorStoreService`（双方言件）——行为与直连路径逐字节一致，不复制 SQL；检索分派按 `RetrieverType`（未知类型报 `invalid retriever type`）；`moveKnowledgeIndices` 改写 knowledge_base_id 并清 tag_id |
+| `EngineAwareNormalizer` + `ScoreNormalizer`（新，照 normalizer.go 全文） | 只归一化向量分；Milvus 带符号余弦 `(s+1)/2` 再 clamp01；其余已落地引擎 clamp 透传；BM25 原样；NaN→0 保严格弱序 |
+| `RetrievalEngineWiringConfig`（新，照 initRetrieveEngineRegistry） | `EngineRegistry` bean（挂 storeRepo + `StoreEngineFactory.withGuard(ssrfGuard)`）；env-store 注册：RETRIEVE_DRIVER 逐段精确匹配（不 trim，照 Go）——postgres → 适配器、elasticsearch_v7/v8 → env 现场建驱动（guard=null，照 Go env-path 无 SSRF）、其余驱动诚实 WARN 跳过；注册失败只记日志不炸启动；`TenantStoreOwnership` bean |
+| `ChunkService.deleteGeneratedQuestion`（接线，Go chunk.go L832-855 照序） | 引擎创建（`RetrieveEngineFactories.createForKb`：无绑定回落租户有效引擎，失败 → `failed to create retrieve engine: %w` 包 400，**分支已可达**）→ 嵌入模型（`ModelRuntimeFactory.getEmbeddingModel`，文案逐字）→ `engine.deleteBySourceIdList`（失败只警告继续）。未配 RETRIEVE_DRIVER 时引擎列表为空、复合引擎空壳删除 no-op（与 Go 同形——golden `chunk-q-delete*` 双环境皆成立） |
+| `HybridSearchService`（改造，照 storegroup/fanout 两文件） | **拆掉 2201 硬编码**：KB 按 (vectorStoreId, kb.tenantId) 分组 → 逐组 `createForKb` 解析复合引擎 → `buildRetrievalParams`（FAQ/文档分流是逐 KB 属性）→ 单组快速路径直接 Retrieve、多组虚拟线程扇出（上限 4、组超时 `MULTI_STORE_RETRIEVE_TIMEOUT_SEC` 缺省 30s，all-or-nothing → 2201）→ 跨引擎类型过 normalizer；`classifyFactoryError` 哨兵→2200/2201 的 BizException（HTTP 400，UUID 只进日志）；`validateSameEmbeddingModel` 落地（Go 语义：不同嵌入模型的多 KB 检索 400）；`resolveEmbeddingModelKeys` 补属主租户上下文解析（WithExecutionTenant 等价，org-share 跨租户同模型不再误判）；FAQ 迭代路径改按组涨 TopK（引擎复用不重解析）。绑定 ES store 的 KB 从此真实路由（2201 只剩"store 建不起来"的真不可用） |
+| KB 绑定校验（Go knowledgebase.go L156/L231-283/L1244） | `KnowledgeBaseService.validateVectorStoreBinding`（畸形 UUID 快拒 2200 → `RetrieveEngineFactories.verifyBinding`：FORBIDDEN→2200 "vector store not found"、NOT_FOUND/UNAVAILABLE→2201 "…check its connection configuration"、取消透传、其余 500）；接线 createKnowledgeBase 与 duplicateKnowledgeBase 两处 |
+| 评审批修复（见下"全面评审"） | `ImService` 启动拉起渠道 + PreDestroy 停止（对照 container.go L1664 + Service.Stop）；`TemporaryDocumentService.cleanupExpired` + 10 分钟守护 ticker（对照 container.go L1769-1790 + CleanupExpired）；`PluginSearch` 租户 web 配置 port 接线（对照 search.go L597-600——此前恒 null）+ `resolveWebSearchMaxResults` 租户缺省分支（对照 session_knowledge_qa.go L1285-1288）；`SessionKnowledgeQaService` @mention 收敛的 **Long 引用比较**修复（租户 10002 恒误判"跨租户 agent"，约定 §5 第 6 条复发）；`KnowledgeBaseService` 列表过滤的 **NUL 字节哨兵**清理（`"\0skip"` 字面量让 Edit/grep 把文件当二进制，改为提前 continue） |
+
+**与 Go 的差异（备案）**：①适配器 `Save` 统一走 saveIndexRows 的 ON CONFLICT DO NOTHING/MERGE（Go 裸 Create 冲突即错；生产链路无单条 Save 调用方，不可达）；②`CopyIndices` 的目标行不写 is_enabled（照 GORM default:true 的省略语义，DB 默认 true 生效）；③多组扇出的组超时到点即判失败（Java 引擎不收 ctx，无法取消底层调用，超时线程自然跑完结果丢弃）；④嵌入模型构造期 SSRF 校验（Go 在传输层 embed 时才拦）——按既有 `ModelRuntimeFactory` 行为，ChunkServiceTest 相应注 127.0.0.1 白名单；⑤组序/结果序确定（延续检索批备案）。
+
+**验证**：全量五批验收绿（`scripts/acceptance.sh`，B1a/B1b/B2/B3/B4）；新增测试——normalizer 5 / 适配器 7 / 装配 6 / storegroup 8 全绿；**实弹 hybrid-search A/B**（Go:8080 + Java:8082 新代码、同连 dev PG、walkadmin 租户 10122 的 GAC客服 KB）：hybrid 两场景公共前缀**逐字节一致**（含 score 浮点字节）；向量-only 的余差经两侧各自连跑两次交叉对比坐实为 **dashscope 嵌入 API 的调用间非确定性**（同侧两次亦漂移 ~1e-6，且 Java run1 分数集合与 Go run2 完全重合）——环境噪声而非翻译缺陷。
+
+**全面评审（Explore 全仓扫描）其余发现与处置**：已修见上表评审批行。**确认为设计内降级不动**：BrowserSkillManager WS relay（需浏览器后端，在册）、DataAnalysis（DuckDB，在册）、Redis 限流器（在册）。**新立项 follow-up（数据变更型启动逻辑，需专批）**：
+1. **resetPendingTasks / recoverPendingWikiTasks**（Go `container/reset_pending_tasks.go` + container.go:480）：重启后把卡在 processing/finalizing 的知识行复位为 failed（写 "Task interrupted due to application restart"——Java `KnowledgeService:1168` 只读不写该文案的映射，错误码永不可产生）、取消孤儿 span、从 task_pending_ops 重触发 wiki 消费（`TaskPendingOpMapper` 已有表无消费方）；
+2. **HousekeepingService**（Go `knowledge_housekeeping.go` 399 行 + container.go:1737 启动）：卡死行兜底清扫——`ChunkExtractService:297`/`KnowledgeProcessWorker:591`/`SpanTracker:38,161` 四处注释把兜底责任推给这个不存在的组件；
+3. **知识写链的引擎路由**：`syncChunkIndex`/`updateChunkVector`/FAQ 索引删除/知识删除/clone-move/image_multimodal 的向量写仍直连 pg JDBC——绑定 ES store 的 KB **读**已路由（本批），**写**还落错店。需要与 golden 锁定的错误形态（kg-image 族）一起专批改道。
+
+**下一步**：OpenSearch driver（独立店族）→ gRPC 族协议决策（Weaviate/Qdrant/Milvus/腾讯）→ SQLite/Doris → 上述三项 follow-up → provider-XDEP 族 / Owner 决策遗留。
+
 ## 0.-20 接线批·第 2 步：注册表 + 复合引擎 + 工厂函数（2026-09-25——W5γ4.5）
 
 **背景**：§0.-19 落了引擎端口 + KV 包装层 + 引擎工厂，但它们**仍没有调用方**——Java 侧既无
@@ -1084,7 +1109,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
-- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，2487 行）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris。**接线批**：第 1 步（引擎端口 + KV 包装层 + 引擎工厂，§0.-19）与**第 2 步（注册表 + 复合引擎 + 工厂函数，§0.-20）✅ 2026-09-25**；第 3 步 `ChunkService` 的 `CreateRetrieveEngineForKB` 接线与第 4 步 `HybridSearchService` 引擎路由**未做**（拆掉 2201 硬编码前，行为与接线前一致）
+- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，2487 行）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定 ES store 的 KB 读写路由已通；知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）为 follow-up（§0.-21）
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1179,7 +1204,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 
 ## 3. 下一步（总验收已完成，剩余缺口清单见 §0.0）
 
-### 3.-2 当前续推点：接线的第 3~4 步（2026-09-25 起）
+### 3.-2 当前续推点：接线的第 3~4 步（2026-09-25 起）—— ✅ 已收官（W5γ4.6，见 §0.-21）
 
 检索引擎的"驱动层 + 解析层"已齐（§0.-16~§0.-20），但它们**还没有调用方**——下面两步把它接进
 真实链路。**第 4 步是唯一会动已 golden 锁定读路径的一步**，务必单独跑回归 + 真 PG A/B。
