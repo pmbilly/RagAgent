@@ -1,5 +1,43 @@
 # 交接文档（新会话接手用）
 
+## 0.-16 外部向量店 driver·第 1 支：Elasticsearch v8（2026-09-25——W5γ4.1）
+
+**背景**：§2.0「已知剩余」里的"外部向量店 driver"——Go `internal/application/repository/retriever/`
+下 10 个店（doris / elasticsearch / milvus / neo4j / opensearch / postgres / qdrant / sqlite /
+tencentvectordb / weaviate，约 13k 行）里，Java 只落了 postgres（读路径
+`retrieval/engine/PgVectorRetrieveRepository` + 写路径 `knowledge/service/VectorStoreService`，
+均为 JDBC 专用件）。本批起逐店补齐。
+
+**协议盘点（决定顺序）**：ES v7/v8、OpenSearch、Weaviate = HTTP/JSON → 本地 stub 可端到端测 ✓；
+Qdrant、Milvus、腾讯 = gRPC/SDK（需单独决策）；SQLite = C 绑定；Doris = SQL 协议。
+→ **先做 ES v8**（820 行，纯 HTTP）。
+
+**已落地**：
+
+| 件 | 说明 |
+|---|---|
+| `retrieval/engine/EngineTypes` | 照 Go `types/{embedding,retriever}.go`：IndexInfo / RetrieveParams / IndexWithScore / RetrieveResult + 引擎/检索/匹配类型常量（既有 pg 窄口件不动——已 golden/A-B 锁定） |
+| `retrieval/engine/elasticsearch/ElasticsearchV8RetrieveRepository` | 照 `elasticsearch/v8/repository.go`（820 行）+ `elasticsearch/structs.go`：**自举**（HEAD→PUT，settings 值转字符串；GET `_mapping` 判 `chunk_id` 是否 keyword → 决定全查询的 `.keyword` 后缀）、**存储估算**（内容 + 维度×4 + 250 + (内容+向量)×5/10）、**写入**（`_doc` 单条 / `_bulk` NDJSON 的 create 行；空向量报错、空列表跳过）、**三种 terms 删除**、**向量检索**（script_score + `cosineSimilarity(params.query_vector,'embedding')` + `min_score`=float32(threshold)）与**关键词检索**（bool{filter, must:[match content]}）、**update_by_query** 改状态/标签（painless，按值/按 tag 分组）、**CopyIndices**（批 500 分页 + 改名 + SourceID 三态 + 目标向量回填） |
+| `ElasticsearchV8RetrieveRepositoryTest` | 10 条：自举与后缀两态、估算公式、单条/批量写入（含空向量报错与 NDJSON 形状）、三种删除、向量/关键词**请求体形状**与响应解析、改状态/标签（Map.of 无序 → 顺序无关断言）、CopyIndices（三态 SourceID + 分页 + 向量回填） |
+
+**差异与备案**：
+
+- Go 由 `container/engine_factory.go` 建 client（含 SSRF RoundTripper）；Java 在构造器做等价地址校验
+  （guard 可空 = 测试口）+ Basic Auth；
+- **驱动层已落地但未接线**：Go 的 factory/注册表（`engine_factory.go`）、`NewKVHybridRetrieveEngine`
+  包装层、ChunkService 的 `CreateRetrieveEngineForKB`（Java 现为接缝，见 `ChunkService` L464 注释）
+  与 HybridSearchService 的引擎路由，留到"接线批"统一处理——本部署 `RETRIEVE_DRIVER` 未配置，
+  接线前行为不变；
+- 未录 Go fixture：该批无 golden 面（无调用方、无端点），桩断言即"发出去的 JSON 长什么样"的契约
+  （键序按本仓惯例与 Go 声明字段序一致，ES 不敏感键序）；
+- 照抄来的一个怪癖已写进测试注释：`CopyIndices` 的 embeddingMap 以**目标 chunkID** 为键，
+  同批同 chunk 的历史题项会覆盖普通块向量；生成问题的目标 SourceID ≠ 键 → 不命中 → embedding 为 null。
+
+**测试**：`com.ragagent.retrieval.*` 20/20 绿（ES 10 + 既有 10）。
+
+**下一步**：ES v7 / OpenSearch / Weaviate（同族 HTTP，可照法推进）→ **接线批**（factory + ChunkService +
+HybridSearchService 路由）→ gRPC 族（Qdrant/Milvus/腾讯）协议决策。
+
 ## 0.-15 W5γ3 已收官 ✅：IM 九渠道出站客户端（2026-09-24~25，十二笔提交）
 
 **背景**：`com.ragagent.im.runtime` 已翻入站核心（验签/解析/加解密/格式化/流分片），但九支
@@ -914,7 +952,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
-- 外部向量店 driver（elasticsearch/milvus/qdrant/…；postgres 引擎已完整）
+- 外部向量店 driver：**ES v8 ✅ 2026-09-25（W5γ4.1，见 §0.-16）**；仍剩 ES v7 / OpenSearch / Weaviate（HTTP 族，可照法推进）、Qdrant / Milvus / 腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris；**接线**（engine_factory + ChunkService 的 CreateRetrieveEngineForKB + HybridSearchService 引擎路由）未做
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
