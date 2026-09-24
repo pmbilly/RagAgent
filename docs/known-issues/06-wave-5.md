@@ -1171,3 +1171,36 @@
   查表 → 生成问题（`<chunk>-<qid>`）估不到向量字节（低估）。修：占位向量按 SourceID 为键
   （与 §0.-18 ①②③ 同法：**键与查表语义必须一致**）。**坑**：这类"键/查表错配"是 Go 侧的高频形态，
   翻译时看到 `embeddingMap[...] = ...` 就要回头核对查表用的是 `SourceID` 还是 `ChunkID`。
+
+- **接线批第 2 步（2026-09-25 W5γ4.5，注册表 + 复合引擎 + 工厂）——七条备案与坑**：
+
+  1. **singleflight 的时序必须与 Go 一致**：先 `flights.remove(key, mine)` 再 `publish(...)`。
+     反过来的话，后到的调用方会读到一个"已算出结果但仍挂在表里"的航班——白等一次（Go 的
+     `doCall` 也是先删 key 再向 chans 交付）。`shared` 标志要在 `publish` **之前**采样
+     （`waiters>0`），publish 之后 `dups` 不再变。
+  2. **移植 Go 的测试钩子要连调用点一起移**：`onFlightJoin` / `flightObserver` 是两个纯测试口
+     （生产恒 nil），Go 在 `doChanJoin` 里调 `onFlightJoin()`。首版只把**字段**搬进了 Java 却没在
+     挂载点调用 → 「16 个调用方都应挂上航班」的 latch 超时失败。**钩子的语义就是"在哪一刻触发"**，
+     只搬字段等于没搬。修法：把钩子当 `doChan` 的参数传进去，leader 在**开跑构建之前**、等待者在
+     `waiters++` 之后各触发一次。
+  3. **构建超时的等价物**：Go 是 `context.WithTimeout(..., EngineBuildTimeout=10s)` 让工厂自己
+     感知 deadline。Java 无 ctx → 在虚拟线程上跑构建、`CompletableFuture.get(10s)`，超时
+     `interrupt` 并走"建失败 → 冷却 → 可重试哨兵"。语义等价（两条路都归到 UNAVAILABLE + 冷却），
+     但**不要在测试里把超时设到与断言竞争的量级**（本仓留了包内构造器注入 buildTimeout/cooldown）。
+  4. **Java 的 "panic" 是 `Error`，不是 `RuntimeException`**：Go 的 `recover()` 捕一切，且 panic
+     路径**绕过** `markBuildFailed`（不设冷却）。Java 侧 `RuntimeException` 已被"工厂返回 error"
+     那条分支吃掉并进冷却，因此外层 `catch (Throwable)` 的判定是：**`RetrieveEngineException`
+     原样重抛，其余（含 `Error`）折成 UNAVAILABLE 且不进冷却** —— 与 Go 的两条路径一一对应。
+  5. **薄口撤并**：KV 服务原来自造了一个三方法薄口 `Embedder`（`embed`/`batchEmbed`/`dimensions`），
+     与全仓 `com.ragagent.embedding.Embedder`（`embed`/`batchEmbed`/`getModelName`/`getDimensions`/
+     `getModelID`）**同名不同物**。端口一落地就必须二选一：选**统一口**（照 Go——端口收的就是同一个
+     `embedding.Embedder`）。收益是第 3 步的适配器可直接接 `ModelRuntimeFactory.getEmbeddingModel`；
+     代价是测试桩补两个 getter，且桩里 `batchEmbed` **不能再 `throws Exception`**（接口未声明）→
+     失败字段类型要改成 `RuntimeException`。
+  6. **确定性优先于 Go 的随机序（做 A/B 时注意）**：`maps.Values`（engineInfos 的顺序）、
+     并发收集（结果顺序）、`common.Deduplicate`（map 收集后 `maps.Values`）三处 Go 都是**不确定序**；
+     本仓一律保序（引擎序 / 入参序 / 首次出现序）。**多引擎共同支持同一检索类型时 Go 选谁是不确定的**——
+     这种场景不要当作逐字节锚点。
+  7. **`EffectiveEngines` 抽取的边界**：先确认 `EngineParams`/`effectiveEngines` **只在
+     HybridSearchService 内部被引用**（无测试、无外部调用）才动手；抽取后 HybridSearchService
+     只删不增、行为不变，把"会动 golden 锁定读路径"的风险全部留给第 4 步（引擎路由）。

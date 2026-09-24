@@ -27,7 +27,9 @@ import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.retrieval.engine.EffectiveEngines;
 import com.ragagent.retrieval.engine.PgVectorRetrieveRepository;
+import com.ragagent.retrieval.engine.RetrieverEngineParams;
 
 /**
  * HybridSearch 执行面（对照 Go internal/application/service/knowledgebase_search.go
@@ -92,91 +94,10 @@ public class HybridSearchService {
         }
     }
 
-    // ── 有效引擎解析（对照 types/tenant.go GetEffectiveEngines +
-    //    retriever/factory.go 的 env-store 流；SupportRetriever 闸门同源） ──
-
-    /** 对照 types.RetrieverEngineParams。 */
-    public record EngineParams(String retrieverType, String retrieverEngineType) {
-    }
-
-    /** 对照 retrieverEngineMapping（types/tenant.go L17-60）。 */
-    private static final Map<String, List<EngineParams>> RETRIEVER_ENGINE_MAPPING = buildEngineMapping();
-
-    private static Map<String, List<EngineParams>> buildEngineMapping() {
-        Map<String, List<EngineParams>> m = new LinkedHashMap<>();
-        m.put("postgres", List.of(
-                new EngineParams("keywords", "postgres"),
-                new EngineParams("vector", "postgres")));
-        m.put("elasticsearch_v7", List.of(new EngineParams("keywords", "elasticsearch")));
-        m.put("elasticsearch_v8", List.of(
-                new EngineParams("keywords", "elasticsearch"),
-                new EngineParams("vector", "elasticsearch")));
-        m.put("qdrant", List.of(
-                new EngineParams("keywords", "qdrant"),
-                new EngineParams("vector", "qdrant")));
-        m.put("milvus", List.of(
-                new EngineParams("vector", "milvus"),
-                new EngineParams("keywords", "milvus")));
-        m.put("weaviate", List.of(
-                new EngineParams("keywords", "weaviate"),
-                new EngineParams("vector", "weaviate")));
-        m.put("doris", List.of(
-                new EngineParams("keywords", "doris"),
-                new EngineParams("vector", "doris")));
-        m.put("sqlite", List.of(
-                new EngineParams("keywords", "sqlite"),
-                new EngineParams("vector", "sqlite")));
-        m.put("tencent_vectordb", List.of(
-                new EngineParams("keywords", "tencent_vectordb"),
-                new EngineParams("vector", "tencent_vectordb")));
-        m.put("opensearch", List.of(
-                new EngineParams("keywords", "opensearch"),
-                new EngineParams("vector", "opensearch")));
-        return m;
-    }
-
-    /**
-     * 对照 Tenant.GetEffectiveEngines（tenant.go L137-142）：租户显式配置优先，
-     * 否则按 RETRIEVE_DRIVER 派生默认。**RETRIEVE_DRIVER 未配置 → 空集 → 检索
-     * 全关（"No retrievable indexing pipelines"）——本部署的 Go 实测行为**。
-     */
-    List<EngineParams> effectiveEngines(Tenant tenant) {
-        if (tenant != null && tenant.getRetrieverEngines() != null
-                && tenant.getRetrieverEngines().has("engines")
-                && tenant.getRetrieverEngines().get("engines").isArray()
-                && !tenant.getRetrieverEngines().get("engines").isEmpty()) {
-            List<EngineParams> out = new ArrayList<>();
-            for (var n : tenant.getRetrieverEngines().get("engines")) {
-                out.add(new EngineParams(
-                        n.path("retriever_type").asText(""),
-                        n.path("retriever_engine_type").asText("")));
-            }
-            return out;
-        }
-        List<EngineParams> out = new ArrayList<>();
-        String driver = System.getenv("RETRIEVE_DRIVER");
-        if (driver == null || driver.isBlank()) {
-            return out;
-        }
-        for (String d : driver.split(",")) {
-            List<EngineParams> params = RETRIEVER_ENGINE_MAPPING.get(d.strip());
-            if (params != null) {
-                for (EngineParams p : params) {
-                    boolean seen = out.stream().anyMatch(e ->
-                            e.retrieverType().equals(p.retrieverType())
-                                    && e.retrieverEngineType().equals(p.retrieverEngineType()));
-                    if (!seen) {
-                        out.add(p);
-                    }
-                }
-            }
-        }
-        return out;
-    }
-
-    private static boolean supportsRetriever(List<EngineParams> engines, String retrieverType) {
-        return engines.stream().anyMatch(e -> e.retrieverType().equals(retrieverType));
-    }
+    // ── 有效引擎解析 ────────────────────────────────────────────────────────
+    //    2026-09-25 抽出到 EffectiveEngines（接线批第 2 步）：工厂的 env-store 分支与
+    //    HybridSearch 的引擎路由要用同一份映射表与派发规则，共享件比两处各抄一份安全。
+    //    行为不变（同映射表、同 RETRIEVE_DRIVER 语义、同去重规则）。
 
     // ── 入口（对照 HybridSearch，knowledgebase_search.go L125-301） ───────
 
@@ -236,7 +157,7 @@ public class HybridSearchService {
         // tenantInfo.GetEffectiveEngines()) + SupportRetriever）：租户 engines 空
         // 且 RETRIEVE_DRIVER 未配置 → 无任何引擎 → BaseParams 空 → "No retrievable
         // indexing pipelines" → data:null（Go knowledgebase_search.go L226）。
-        List<EngineParams> engines = effectiveEngines(currentTenant());
+        List<RetrieverEngineParams> engines = EffectiveEngines.of(currentTenant());
 
         // buildRetrievalParams（Go L383-472）：FAQ/文档分流 + 阈值/过滤透传。
         List<PgVectorRetrieveRepository.RetrieveResult> results = new ArrayList<>();
@@ -257,8 +178,8 @@ public class HybridSearchService {
                 docKeywordKbIds.add(kb.getId());
             }
         }
-        boolean supportVector = supportsRetriever(engines, "vector");
-        boolean supportKeywords = supportsRetriever(engines, "keywords");
+        boolean supportVector = EffectiveEngines.supportsRetriever(engines, "vector");
+        boolean supportKeywords = EffectiveEngines.supportsRetriever(engines, "keywords");
 
         // 对照 Go knowledgebase_search.go L233-256：retrieve span 包住多存储检索执行段
         //（Input 11 键 / Metadata 4 键照抄；收尾输出走 SummarizeRetrieveOutput）

@@ -1,5 +1,52 @@
 # 交接文档（新会话接手用）
 
+## 0.-20 接线批·第 2 步：注册表 + 复合引擎 + 工厂函数（2026-09-25——W5γ4.5）
+
+**背景**：§0.-19 落了引擎端口 + KV 包装层 + 引擎工厂，但它们**仍没有调用方**——Java 侧既无
+注册表（env-store / DB-store 两张表），也无复合引擎与工厂函数。本步按 Go
+`internal/application/service/retriever/` 的四件（`registry.go` 370 + `composite.go` 353 +
+`factory.go` 260 + `ownership.go` 35 ≈ 1018 行）补齐"解析层"，让驱动层成为**可装配、可分类**的
+服务；ChunkService 接线与 HybridSearch 路由见"下一步"（本步不改任何已 golden 锁定的读路径）。
+
+| 件 | 说明 |
+|---|---|
+| `retrieval/engine/RetrieveEngineService`（新，端口） | 照 `interfaces.RetrieveEngineService`（14 方法）+ `KnowledgeIndexMover` 子口 + `KnowledgeIndexMoveValidator` 能力口（Go 的匿名接口断言 → Java `instanceof`）；`KeywordsVectorHybridRetrieveEngineService` 实现之 |
+| `RetrievalEngineException`（新，哨兵族） | 照 factory.go L17-42 四个 sentinel + registry 两处 `fmt.Errorf` 的分类位。**文案与 Go 逐字一致且不含 store UUID**（防枚举泄漏，租户/store 只进结构化日志）；`isKind` 沿 cause 链等价 `errors.Is`；`isCancellation` = `CancellationException/TimeoutException/InterruptedException`（与 `ImFormat.isCanceledOrDeadline` 同约定） |
+| `EngineRegistry`（新，照 registry.go） | 两张表（byEngineType env-store / byStoreID DB-store）+ **按需重建四道闸**：**冷却 30s**（后端持续宕机时不再每请求赔一次构建超时）、**代数**（构建前后采样复核——构建期间的注册/注销不被这次构建"撤销"）、**singleflight**（按 `tenantID:storeID` 分键折叠并发 miss，防止冷 store 变连接风暴）、**panic 兜底**（Java 的 `Error` → 可重试哨兵，且**不设冷却**，照 Go 的 recover 路径）。内置 `SingleFlight`（`DoChan` 子集：`value/error/shared` + 两个测试口 `onFlightJoin` / `flightObserver`） |
+| `CompositeRetrieveEngine`（新，照 composite.go） | 按检索类型分派（`Retrieve`）+ 对全部引擎扇出；`Index`/`BatchIndex` 自算向量、`BatchIndex` 按 **SourceID** 去重；`EstimateStorageSize` 失败只记日志并返回**部分和**；迁移先**整体预检**（mover 断言 + 可选校验器）再逐个执行 |
+| `RetrieveEngineFactories`（新，照 factory.go） | `createForKb` / `createFromPayload` / `verifyBinding` / `classifyLookupError`：无绑定→租户有效引擎；有绑定→归属校验（跨租户 FORBIDDEN）→注册表解析（未注册 NOT_FOUND）→单引擎仍包成复合（保住 `Support()` 驱动的类型匹配，且**有意压过租户级 effectiveEngines 过滤**，照 Go）。分类规则：取消/超时与三个 store 哨兵原样透传，其余一律 UNAVAILABLE（把未知失败当永久失败才是静默丢单的根源） |
+| `StoreEngineFactory`（新，函数口） | 照 `interfaces.EngineFactory`：注册表只依赖本口，真实构造留在 `EngineFactory.createFromStore`；`withGuard(SsrfGuard)` 是生产装配 |
+| `TenantStoreOwnership` + `VectorStoreRepoOwnership`（新，照 ownership.go） | 仓储 `getByID` 自带租户范围（`WHERE id=? AND tenant_id=?`）⇒ "在该租户下存在"即"属于该租户"，返回值上不必再比一次 tenant |
+| `RetrieverEngineParams` + `EffectiveEngines`（新，抽取） | 把原先内嵌在 `HybridSearchService` 的 `GetEffectiveEngines` + `retrieverEngineMapping`（10 驱动 × 检索类型）抽出成共享件——工厂的 env-store 分支与 HybridSearch 的引擎路由必须用**同一份**；`HybridSearchService` 改为委托，**行为不变**（同映射表、同 `RETRIEVE_DRIVER` 语义、同去重规则） |
+| `KeywordsVectorHybridRetrieveEngineService`（改造） | 实现端口 + mover/validator 两子口；**撤掉内嵌的薄口 `Embedder`**，改用全仓统一的 `com.ragagent.embedding.Embedder`（照 Go：端口收的就是同一个 `embedding.Embedder`，不该为检索引擎另造一个）——第 3 步的适配器因此可直接接 `ModelRuntimeFactory.getEmbeddingModel` |
+
+**与 Go 的差异（备案）**：
+
+- **无请求级取消**：Go 的构建 context 从发起请求上摘下来（`context.WithoutCancel`）+ `DoChan`
+  的 select，让"首个调用方关标签页"不连带失败所有等待者；本仓无请求级取消，构建恒为共享航班，
+  取消语义只保留在 `EngineBuildTimeout` 一处（虚拟线程 + `CompletableFuture.get(timeout)`，
+  超时即打断构建线程 + 进冷却）。因此 Go 的「leader 取消不毒化等待者」在本仓**不可达**，
+  改以「等待者确实加入同一次构建」验证同一意图（工厂调用计数 = 1 + `shared=true`）。
+- **顺序确定（有意偏离 Go 的不确定性）**：`engineInfos`（Go `maps.Values` 随机序）与并发收集的
+  结果（Go 完成序）本仓一律按**引擎序 / 入参序**回填；`common.Deduplicate`（Go 用 map 收集 →
+  无序）→ 本仓**保首次出现顺序**；两表用 `LinkedHashMap` ⇒ `getAllRetrieveEngineServices()`
+  顺序确定（注册序）。同一输入两次运行的结果逐项一致，对 golden 友好。
+- **嵌入失败以 RuntimeException 表达**（Go 是 error 返回值）；`batchEmbedWithBackoff` 的
+  `catch (Exception)` 语义不变。
+- 日志走 slf4j；结构化字段（tenant_id / store_id / reason）照抄。
+
+**测试**：`com.ragagent.retrieval.*` **93/93 绿**（本批 +50：工厂 19 + 注册表 15 + 复合 12 +
+有效引擎 4；既有 43，其中 KV 服务的 `Embedder` 桩随统一口改了签名）。
+覆盖：工厂全部哨兵分支（含"取消不是对 store 的判定"两条路径）、注册表两张表语义 + 双表隔离 +
+并发安全 + 按需重建六态（折叠单次构建 / 失败冷却与注销清冷却 / Error 兜底 / 构建期间注销不复活 /
+代数不被并发注册覆盖 / 缺 repo-factory 降级 / DB 故障与 store 不存在二分 / 构建超时）。
+
+**下一步**：① `ChunkService` 的引擎创建接线（现为 `L464` 接缝注释）+ `Embedder` 适配器
+（接 `ModelRuntimeFactory.getEmbeddingModel`）→ ② `HybridSearchService` 按引擎类型路由
+（拆掉 `vector store is currently unavailable` 的 2201 硬编码；**唯一动 golden 锁定读路径的一步，
+必须单独验回归 + 真 PG A/B**）→ ③ `retriever/normalizer.go`（分数归一化，多引擎路由落地后才有意义）
+→ ④ OpenSearch driver → gRPC 族协议决策。
+
 ## 0.-19 接线批·第 1 步：引擎端口 + KV 包装层 + 引擎工厂（2026-09-25——W5γ4.4）
 
 **背景**：§0.-16/§0.-17 落了 ES v7/v8 driver，但它们**没有调用方**（Java 侧既无引擎工厂、
@@ -1037,7 +1084,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
-- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，2487 行）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris；**接线**（engine_factory + ChunkService 的 CreateRetrieveEngineForKB + HybridSearchService 引擎路由）未做
+- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，2487 行）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris。**接线批**：第 1 步（引擎端口 + KV 包装层 + 引擎工厂，§0.-19）与**第 2 步（注册表 + 复合引擎 + 工厂函数，§0.-20）✅ 2026-09-25**；第 3 步 `ChunkService` 的 `CreateRetrieveEngineForKB` 接线与第 4 步 `HybridSearchService` 引擎路由**未做**（拆掉 2201 硬编码前，行为与接线前一致）
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1131,6 +1178,27 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 
 
 ## 3. 下一步（总验收已完成，剩余缺口清单见 §0.0）
+
+### 3.-2 当前续推点：接线的第 3~4 步（2026-09-25 起）
+
+检索引擎的"驱动层 + 解析层"已齐（§0.-16~§0.-20），但它们**还没有调用方**——下面两步把它接进
+真实链路。**第 4 步是唯一会动已 golden 锁定读路径的一步**，务必单独跑回归 + 真 PG A/B。
+
+1. **`ChunkService` 引擎创建接线 + `Embedder` 适配器**
+   - `server/src/main/java/com/ragagent/knowledge/service/ChunkService.java:464` 现在是接缝注释
+     （Go L832 `CreateRetrieveEngineForKB`，失败文案 `failed to create retrieve engine: %w`，
+     注释里标着"不可达"需改成可达）；
+   - `Embedder` 适配器：`com.ragagent.embedding.Embedder` → `ModelRuntimeFactory.getEmbeddingModel(modelId)`
+     即 Go 的 `GetEmbeddingModel`（§0.-20 已把 KV 服务的薄口统一到该口，这一步只剩装配）；
+   - 顺带扫同类散点：`ChunkService` 里既有 `vectorStore.deleteBySourceId(...)` 等是否该改走引擎口。
+2. **`HybridSearchService` 按引擎类型路由**
+   - 现在 `HybridSearchService.java` 对任何绑定了外部 store 的 KB 直接抛
+     `vector store is currently unavailable`（2201），实际只走 postgres env-store 单路径；
+   - 改为按 store 分组 → registry 解析 → composite 扇出（`EffectiveEngines` 已在 §0.-20 抽出，
+     九类映射表与租户配置解析均已就位）；
+   - **回归要求**：HybridSearch 相关 golden（`knowledge-search` 族 + agent @KB 工具）两轮 A/B 逐字节。
+3. 之后：`retriever/normalizer.go`（分数归一化，多引擎路由落地后才有意义）→ OpenSearch driver
+   → gRPC 族协议决策（Weaviate/Qdrant/Milvus/腾讯）→ provider-XDEP 族 / Owner 决策遗留。
 
 ### 3.-1 收口批（2026-09-25）抓到并修掉的两处（已闭环）
 

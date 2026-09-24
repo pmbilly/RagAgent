@@ -178,7 +178,10 @@
 | A3 存储 provider 层：八个 provider（local + s3/minio/obs/ks3 + oss/cos/tos）+ 工厂 + storageurl 两组窄口接线 + 知识/skill/FAQ 三处消费者改道（2026-09-24，五笔提交） | `internal/application/service/file/*`（20+ 文件全文）、`internal/storageurl/{resolver,rewriter}.go`、`internal/application/service/storagebackend.go`、`internal/types/{storagebackend,tenantconfig}*.go` | `com.ragagent.storage.provider/*`（FileService 接口 / LocalFileService / S3CompatibleFileService / OssFileService / CosFileService / TosFileService / FileServiceFactory / StorageObjects）、`com.ragagent.storage.fileserve/*`（ProviderFileContentService / FileserveStorageBackendResolver / StorageUrlWiringConfig）、`com.ragagent.knowledge.service.TenantFileStorage`、`com.ragagent.sandbox.service.TenantSkillBundleStore` | ✅ | 依赖：aws-sdk s3 2.31.68 / aliyun-sdk-oss 3.18.1 / cos_api 5.6.227 / ve-tos-java-sdk 2.9.19。坑：TOS 版本与 V2 输入类名、COS 拷贝四参参数序（javap 核对）、OSS 异常无状态码、`@JsonUnwrapped` 不支持 record Creator、`local://` 归本地、`SafeFileName` 取 basename。已知差异：云对象整对象入堆、OSS 未走分片 Uploader、local 两支实现。明细见 §9 索引的 `08-storage-a3.md` |
 
 
+| 接线批第 2 步：检索注册表 + 复合引擎 + 工厂函数（W5γ4.5，2026-09-25） | `internal/application/service/retriever/{registry.go 370,composite.go 353,factory.go 260,ownership.go 35}` + `types/interfaces/{retriever.go,vectorstore.go}` 的两接口 + `types/tenant.go` 的 `GetEffectiveEngines`/`retrieverEngineMapping` | `com.ragagent.retrieval.engine` 新增 10 件：`RetrieveEngineService`（端口，含 `KnowledgeIndexMover`/`KnowledgeIndexMoveValidator` 两子口）、`RetrieveEngineException`（哨兵族 + `isKind`/`isCancellation`）、`RetrieveEngineRegistry`（端口）、`EngineRegistry`（实现，含内嵌 `SingleFlight`）、`CompositeRetrieveEngine`、`RetrieveEngineFactories`、`StoreEngineFactory`、`TenantStoreOwnership`、`VectorStoreRepoOwnership`、`RetrieverEngineParams`、`EffectiveEngines`；改造 `KeywordsVectorHybridRetrieveEngineService`（实现端口 + 撤薄口 Embedder 改用全仓统一 `com.ragagent.embedding.Embedder`）与 `HybridSearchService`（有效引擎解析改委托共享件，行为不变） | ✅ | **93/93 绿**（`com.ragagent.retrieval.*`，本批 +50：工厂 19/注册表 15/复合 12/有效引擎 4）。覆盖按需重建四道闸（冷却 30s、代数、singleflight 折叠、Error 兜底）+ 工厂全部哨兵分支（含"取消不是对 store 的判定"）+ 两张表语义与双表隔离。**差异备案**：无请求级取消（构建恒共享航班，超时用虚拟线程 + `CompletableFuture.get`）；engineInfos/结果/去重/`getAll` 一律保序（Go 为随机序）；嵌入失败以 RuntimeException 表达。已知缺口：`ChunkService` 接线与 HybridSearch 路由未做，故接线后行为与接线前一致。明细见 §9 索引的 `06-wave-5.md` |
+
 ## 9. 坑索引（条目 → 分片对照）
+
 
 > 正文在 `docs/known-issues/`；本节只做"条目名 → 文件"的检索表。
 
@@ -274,3 +277,4 @@
 | 占位收口批（2026-09-23，十处「备案理由过期」缺口全修 + SsrfGuard 快照纪律 + DataSource 白名单类顺序修复 + 单发全量自附风暴定性） | [`HANDOFF.md`](HANDOFF.md) §0.-1 与 git log 9eec8a4..7744fab |
 | 存储 provider 层（A3，2026-09-24：八 provider + 工厂 + 窄口接线 + 三处消费者改道；含 TOS/COS/OSS 的 SDK 坑与 SafeFileName 语义纠正） | [`08-storage-a3.md`](known-issues/08-storage-a3.md) |
 | 同日批次回填（2026-09-24：追踪 C-1/C-4/C-5、图库面、评估执行体、共享 agent 两笔、标签回收、一致性批） | [`HANDOFF.md`](HANDOFF.md) §0.-14（明细在各自提交信息） |
+| 接线批第 2 步（2026-09-25 W5γ4.5：singleflight 时序 / 测试钩子的调用点 / 构建超时等价物 / Java 的 panic 是 Error / 薄口撤并 / 确定性优先于 Go 随机序） | [`06-wave-5.md`](known-issues/06-wave-5.md) |

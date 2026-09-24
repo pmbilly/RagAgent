@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
-import com.ragagent.retrieval.engine.KeywordsVectorHybridRetrieveEngineService.Embedder;
+import com.ragagent.embedding.Embedder;
 
 /**
  * KV 混合检索引擎服务（W5γ4.4a）对照 Go
@@ -110,7 +110,7 @@ class KeywordsVectorHybridRetrieveEngineServiceTest {
         final List<List<String>> calls = new CopyOnWriteArrayList<>();
         final List<List<String>> batchCalls = new CopyOnWriteArrayList<>();
         List<float[]> batchResult = List.of(new float[] {1f, 2f});
-        Exception failure;
+        RuntimeException failure;
         int dimensions = 2;
 
         @Override
@@ -120,7 +120,7 @@ class KeywordsVectorHybridRetrieveEngineServiceTest {
         }
 
         @Override
-        public List<float[]> batchEmbed(List<String> texts) throws Exception {
+        public List<float[]> batchEmbed(List<String> texts) {
             batchCalls.add(List.copyOf(texts));
             if (failure != null) {
                 throw failure;
@@ -133,8 +133,18 @@ class KeywordsVectorHybridRetrieveEngineServiceTest {
         }
 
         @Override
-        public int dimensions() {
+        public int getDimensions() {
             return dimensions;
+        }
+
+        @Override
+        public String getModelName() {
+            return "stub-embedder";
+        }
+
+        @Override
+        public String getModelID() {
+            return "stub-embedder-id";
         }
     }
 

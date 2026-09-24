@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.ragagent.embedding.Embedder;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
@@ -51,12 +52,14 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  *   <li>并发用 Java 21 虚拟线程执行器 + {@code Semaphore}（对应 Go 的 errgroup + 信道信号量）；
  *       首批失败即取消其余任务（errgroup 语义）</li>
  *   <li>Go 的 {@code utils.ChunkSlice} → 本类内 {@code chunkSlice}（同语义：末批可短）</li>
- *   <li>{@link Embedder} 是 Go {@code embedding.Embedder} 的薄口（{@code Embed}/
- *       {@code BatchEmbedWithPool} → {@code embed}/{@code batchEmbed} + {@code dimensions}）；
- *       实现由接线批接到 {@code knowledge/service/EmbedderClient}</li>
+ *   <li>嵌入口直接用全仓统一的 {@link com.ragagent.embedding.Embedder}
+ *       （照 Go：{@code interfaces.RetrieveEngineService} 收的就是同一个
+ *       {@code embedding.Embedder}，不再为检索引擎单独造薄口）</li>
  * </ul>
  */
-public class KeywordsVectorHybridRetrieveEngineService {
+public class KeywordsVectorHybridRetrieveEngineService
+        implements RetrieveEngineService, RetrieveEngineService.KnowledgeIndexMover,
+        RetrieveEngineService.KnowledgeIndexMoveValidator {
 
     private static final Logger log =
             LoggerFactory.getLogger(KeywordsVectorHybridRetrieveEngineService.class);
@@ -79,19 +82,6 @@ public class KeywordsVectorHybridRetrieveEngineService {
             Pattern.compile("(?i)data:image/[a-z0-9.+-]+;base64,[a-z0-9+/=]{200,}"),
             Pattern.compile("(?i)data:[a-z0-9.+/-]+;base64,[a-z0-9+/=]{200,}"));
 
-    /** 对照 Go {@code embedding.Embedder} 的薄口。 */
-    public interface Embedder {
-
-        /** 对照 {@code Embed}。 */
-        float[] embed(String text) throws Exception;
-
-        /** 对照 {@code BatchEmbedWithPool}。 */
-        List<float[]> batchEmbed(List<String> texts) throws Exception;
-
-        /** 对照 {@code GetDimensions}。 */
-        int dimensions();
-    }
-
     private final RetrieveEngineRepository indexRepository;
     private final String engineType;
     private final long embedRetryBaseDelayMs;
@@ -110,16 +100,19 @@ public class KeywordsVectorHybridRetrieveEngineService {
     }
 
     /** 对照 {@code EngineType}。 */
+    @Override
     public String engineType() {
         return engineType;
     }
 
     /** 对照 {@code Support}。 */
+    @Override
     public List<String> support() {
         return indexRepository.support();
     }
 
     /** 对照 {@code Retrieve}：纯转发。 */
+    @Override
     public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
         return indexRepository.retrieve(params);
     }
@@ -127,6 +120,7 @@ public class KeywordsVectorHybridRetrieveEngineService {
     // ── 索引 ────────────────────────────────────────────────────────────────
 
     /** 对照 {@code Index}：按需嵌入（向量路）后交给 {@code Save}。 */
+    @Override
     public void index(Embedder embedder, IndexInfo indexInfo, List<String> retrieverTypes)
             throws Exception {
         Map<String, Object> params = new LinkedHashMap<>();
@@ -140,6 +134,7 @@ public class KeywordsVectorHybridRetrieveEngineService {
     }
 
     /** 对照 {@code BatchIndex}：向量路分批 40、非向量路分批 10；批数 ≤5 全并发。 */
+    @Override
     public void batchIndex(Embedder embedder, List<IndexInfo> indexInfoList,
                            List<String> retrieverTypes) throws Exception {
         if (indexInfoList == null || indexInfoList.isEmpty()) {
@@ -314,16 +309,19 @@ public class KeywordsVectorHybridRetrieveEngineService {
 
     // ── 删除 / 复制 / 批量更新 / 估算 / 迁移 ────────────────────────────────
 
+    @Override
     public void deleteByChunkIdList(List<String> indexIdList, int dimension, String knowledgeType)
             throws Exception {
         indexRepository.deleteByChunkIdList(indexIdList, dimension, knowledgeType);
     }
 
+    @Override
     public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
             throws Exception {
         indexRepository.deleteBySourceIdList(sourceIdList, dimension, knowledgeType);
     }
 
+    @Override
     public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
                                         String knowledgeType) throws Exception {
         indexRepository.deleteByKnowledgeIdList(knowledgeIdList, dimension, knowledgeType);
@@ -335,19 +333,21 @@ public class KeywordsVectorHybridRetrieveEngineService {
      * <p><b>修复（有意偏离 Go）</b>：Go 以 {@code ChunkID} 为键，而 {@code ToDBVectorEmbedding}
      * 按 {@code SourceID} 查表 → 生成问题估不到向量；这里按 SourceID 为键。</p>
      */
+    @Override
     public long estimateStorageSize(Embedder embedder, List<IndexInfo> indexInfoList,
                                     List<String> retrieverTypes) {
         Map<String, Object> params = new LinkedHashMap<>();
         if (retrieverTypes != null && retrieverTypes.contains(EngineTypes.RETRIEVER_VECTOR)) {
             Map<String, float[]> embeddingMap = new LinkedHashMap<>();
             for (IndexInfo indexInfo : indexInfoList) {
-                embeddingMap.put(indexInfo.sourceId, new float[embedder.dimensions()]);
+                embeddingMap.put(indexInfo.sourceId, new float[embedder.getDimensions()]);
             }
             params.put("embedding", embeddingMap);
         }
         return indexRepository.estimateStorageSize(indexInfoList, params);
     }
 
+    @Override
     public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
                             Map<String, String> sourceToTargetChunkIdMap,
                             String targetKnowledgeBaseId, int dimension, String knowledgeType)
@@ -359,15 +359,18 @@ public class KeywordsVectorHybridRetrieveEngineService {
                 sourceToTargetChunkIdMap, targetKnowledgeBaseId, dimension, knowledgeType);
     }
 
+    @Override
     public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap) throws Exception {
         indexRepository.batchUpdateChunkEnabledStatus(chunkStatusMap);
     }
 
+    @Override
     public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
         indexRepository.batchUpdateChunkTagID(chunkTagMap);
     }
 
     /** 对照 {@code ValidateKnowledgeIndexMove}：仓库未挂迁移子口即报错。 */
+    @Override
     public void validateKnowledgeIndexMove() {
         if (!(indexRepository instanceof RetrieveEngineRepository.KnowledgeIndexMover)) {
             throw new IllegalStateException(
@@ -376,6 +379,7 @@ public class KeywordsVectorHybridRetrieveEngineService {
     }
 
     /** 对照 {@code MoveKnowledgeIndices}：先校验再转发。 */
+    @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
                                      List<String> chunkIds, int dimension, String knowledgeType)
             throws Exception {

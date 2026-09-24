@@ -18,6 +18,7 @@ frontend/package.json.md5
 .vscode/
 *.iml
 .claude/
+.workbuddy/
 
 # OS
 .DS_Store
