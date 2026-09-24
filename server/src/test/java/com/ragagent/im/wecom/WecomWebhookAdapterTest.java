@@ -277,13 +277,17 @@ class WecomWebhookAdapterTest {
         assertEquals(ImTypes.PLATFORM_WECOM, reg.adapter().platform());
         assertNull(reg.stop());
 
+        // websocket（Go 的默认模式）已落地为长连接适配器（W5γ3.5）：建得出来且带 stop
         ImChannelEntity ws = new ImChannelEntity();
         ws.setId("ch-2");
         ws.setMode("websocket");
-        ws.setCredentials("{}");
-        assertThrows(UnsupportedOperationException.class,
-                () -> new WecomAdapterFactory((com.ragagent.common.security.SsrfGuard) null)
-                        .create(ws, (m, c) -> { }));
+        ws.setCredentials("{\"bot_id\":\"B1\",\"bot_secret\":\"S1\","
+                + "\"ws_endpoint\":\"wss://127.0.0.1:1/\"}");
+        var wsReg = new WecomAdapterFactory((com.ragagent.common.security.SsrfGuard) null)
+                .create(ws, (m, c) -> { });
+        assertNotNull(wsReg.adapter());
+        assertNotNull(wsReg.stop());
+        wsReg.stop().run();
 
         ImChannelEntity unknown = new ImChannelEntity();
         unknown.setId("ch-3");

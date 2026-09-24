@@ -22,9 +22,9 @@ yunzhijia}`，约 13k 行）在 Java 侧**一支都没有**——`ImService.star
 bean（`BeanCurrentlyInCreation`）→ 工厂改 `@Component`；③Jackson 的 `readTree(byte[])` 遇
 `cond ? "{}" : bytes` 混合三元推断失败 → 拆成显式分支。
 
-| wecom（webhook 半支） | `im/wecom/{WecomWebhookAdapter,WecomAdapterFactory}` | 对照 `wecom/webhook_adapter.go` 705 行：验签（`FeishuWecomCrypt.wecomVerifySignature`）、**自持 AES 解密**（共享件不校 corp_id，故适配器自带 AES-CBC+PKCS#7+信封+corp_id 校验）、URL 验证回显、解析（群聊剥 @提及的三种形态、text/image）、发送（群先 `appchat/send` 失败回落 `message/send`，markdown + agentid）、取 token（7200s 缓存留 5 分钟）、文件下载（http(s) 直链或 `media/get`；文件名三级推断；**IM 主机白名单**绕过 SSRF）。**未含** Go 的 `longconn.go` 835 行（智能机器人 WS，即 websocket 模式）——工厂对 websocket 明确抛未落地 |
+| wecom（webhook + 长连接） | `im/wecom/{WecomWebhookAdapter,WecomLongConnClient,WecomWSAdapter,WecomAdapterFactory,WecomSupport}` | 对照 `wecom/{webhook_adapter.go 705, longconn.go 835, ws_adapter.go 181, quote.go 71, factory.go 79}`：webhook 面验签（`FeishuWecomCrypt.wecomVerifySignature`）、**自持 AES 解密**（共享件不校 corp_id → 自带信封 + corp_id 校验）、URL 验证回显、解析（`stripAtMentionBasic` 三形态 / text+image）、发送（群 `appchat/send` 失败回落 `message/send`）、token 缓存 7200s 留 5 分钟、下载三级文件名 + IM 主机白名单；长连接面（智能机器人 WS）：`aibot_subscribe` → `aibot_msg_callback`/`aibot_event_callback` → `aibot_respond_msg` 回帧 + 30s `ping`，读超时 3×心跳、心跳失败即重连、退避 1s·2^n 上限 30s（活过 30s 重置）、**流缓冲跨重连保留**（替换语义）、`EndStream` 重试 3×500ms、`disconnected_event` 触发重连、@提及**学机器人名**、五种消息类型 + quote 上下文、逐消息 `aes_key` 的 AES-CBC 文件解密（填充畸形原样返回，照 Go）。公共件 `WecomSupport` 单源（端点校验/wss 校验/下载/查表/逐消息解密） |
 
-**待办**：**wecom 的 longconn（websocket 模式）** / mattermost / wechat / feishu / dingtalk / yunzhijia。
+**待办**：mattermost / wechat / feishu / dingtalk / yunzhijia。
 
 ## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
 

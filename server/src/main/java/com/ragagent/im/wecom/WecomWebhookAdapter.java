@@ -56,17 +56,6 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
     public static final String DEFAULT_API_BASE_URL = "https://qyapi.weixin.qq.com";
     private static final int PKCS7_BLOCK_SIZE = 32;
 
-    /** 对照 Go {@code allowedIMAPIHosts}：平台自己回在回调里的下载域。 */
-    static final List<String> ALLOWED_IM_API_HOSTS = List.of(
-            "qyapi.weixin.qq.com",
-            "api.weixin.qq.com",
-            "open.work.weixin.qq.com",
-            "novac2c.cdn.weixin.qq.com",
-            "ilinkai.weixin.qq.com");
-
-    private static final Pattern FILENAME_RE =
-            Pattern.compile("filename\\s*=\\s*\"?([^\";]+)\"?", Pattern.CASE_INSENSITIVE);
-
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final String corpId;
@@ -125,43 +114,14 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
                 .build();
     }
 
-    /** 对照 {@code validateEndpointURL}：默认端点放行；自定义必须 https + 过 SSRF 校验。 */
+    /** 对照 {@code validateEndpointURL}（公共件实现）：默认端点放行；自定义必须 https + SSRF。 */
     static void validateEndpointUrl(String endpoint, SsrfGuard ssrfGuard) {
-        if (endpoint == null || endpoint.isEmpty() || endpoint.equals(DEFAULT_API_BASE_URL)) {
-            return;
-        }
-        URI uri;
-        try {
-            uri = URI.create(endpoint);
-        } catch (RuntimeException e) {
-            throw new IllegalArgumentException("invalid endpoint URL: " + e.getMessage());
-        }
-        if (!"https".equals(uri.getScheme())) {
-            throw new IllegalArgumentException("endpoint must use https:// scheme, got "
-                    + uri.getScheme() + "://");
-        }
-        if (ssrfGuard != null) {
-            try {
-                ssrfGuard.validateURLForSSRF(endpoint);
-            } catch (RuntimeException e) {
-                throw new IllegalArgumentException(e.getMessage()
-                        + " (for private deployments on internal networks, add the hostname to"
-                        + " SSRF_WHITELIST)");
-            }
-        }
+        WecomSupport.validateEndpointUrl(endpoint, DEFAULT_API_BASE_URL, "https", ssrfGuard);
     }
 
-    /** 对照 {@code extraHostFromEndpoint}：自定义端点的主机名（默认端点 → ""）。 */
+    /** 对照 {@code extraHostFromEndpoint}（公共件实现）。 */
     static String extraHostFromEndpoint(String endpoint) {
-        if (endpoint == null || endpoint.isEmpty() || endpoint.equals(DEFAULT_API_BASE_URL)) {
-            return "";
-        }
-        try {
-            String host = URI.create(endpoint).getHost();
-            return host == null ? "" : host.toLowerCase(java.util.Locale.ROOT);
-        } catch (RuntimeException e) {
-            return "";
-        }
+        return WecomSupport.extraHostFromEndpoint(endpoint, DEFAULT_API_BASE_URL);
     }
 
     // ── Adapter ─────────────────────────────────────────────────────────────
@@ -390,125 +350,21 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         return downloadFromUrl(apiUrl, fileName);
     }
 
-    /** 对照 {@code downloadFromURL}：白名单绕过 SSRF；文件名三级推断。 */
+    /** 对照 {@code downloadFromURL}（公共件实现）：白名单绕过 SSRF；文件名三级推断。 */
     DownloadedFile downloadFromUrl(String rawUrl, String fileName) throws Exception {
-        if (!isAllowedImApiHost(rawUrl, extraAllowedHost)) {
-            if (ssrfGuard != null) {
-                try {
-                    ssrfGuard.validateURLForSSRF(rawUrl);
-                } catch (RuntimeException e) {
-                    throw new IllegalArgumentException("URL rejected for security reasons: "
-                            + e.getMessage());
-                }
-            }
-        }
-        HttpRequest request = HttpRequest.newBuilder(URI.create(rawUrl))
-                .timeout(Duration.ofSeconds(30))
-                .GET()
-                .build();
-        HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
-        if (response.statusCode() != 200) {
-            throw new IllegalStateException("download failed: status=" + response.statusCode());
-        }
-        String resolved = fileName;
-
-        String disposition = response.headers().firstValue("Content-Disposition").orElse("");
-        if (!disposition.isEmpty()) {
-            Matcher matcher = FILENAME_RE.matcher(disposition);
-            if (matcher.find()) {
-                String extracted = matcher.group(1).trim();
-                if (!extracted.isEmpty()) {
-                    resolved = extracted;
-                }
-            }
-        }
-        if (resolved.contains("%")) {
-            try {
-                String decoded = URLDecoder.decode(resolved, StandardCharsets.UTF_8);
-                if (!decoded.isEmpty()) {
-                    resolved = decoded;
-                }
-            } catch (IllegalArgumentException ignored) {
-                // 保持原样（照 Go：QueryUnescape 失败则不改）
-            }
-        }
-        if (!resolved.contains(".")) {
-            String base = pathBase(rawUrl);
-            if (base != null && !base.isEmpty() && !".".equals(base) && !"/".equals(base)
-                    && base.contains(".")) {
-                try {
-                    resolved = URLDecoder.decode(base, StandardCharsets.UTF_8);
-                } catch (IllegalArgumentException e) {
-                    resolved = base;
-                }
-            }
-        }
-        if (!resolved.contains(".")) {
-            String ext = contentTypeToExt(
-                    response.headers().firstValue("Content-Type").orElse(""));
-            if (!ext.isEmpty()) {
-                resolved = resolved + "." + ext;
-            }
-        }
-        return new DownloadedFile(response.body(), resolved);
+        WecomSupport.Downloaded downloaded = WecomSupport.downloadFromUrl(
+                http, rawUrl, fileName, extraAllowedHost, ssrfGuard);
+        return new DownloadedFile(downloaded.content(), downloaded.fileName());
     }
 
-    /** 对照 {@code isAllowedIMAPIHost}。 */
+    /** 对照 {@code isAllowedIMAPIHost}（公共件实现）。 */
     static boolean isAllowedImApiHost(String rawUrl, String extraHost) {
-        String host;
-        try {
-            host = URI.create(rawUrl).getHost();
-        } catch (RuntimeException e) {
-            return false;
-        }
-        if (host == null) {
-            return false;
-        }
-        host = host.toLowerCase(java.util.Locale.ROOT);
-        if (extraHost != null && !extraHost.isEmpty() && host.equals(extraHost)) {
-            return true;
-        }
-        return ALLOWED_IM_API_HOSTS.contains(host);
+        return WecomSupport.isAllowedImApiHost(rawUrl, extraHost);
     }
 
-    /** 对照 {@code contentTypeToExt}。 */
+    /** 对照 {@code contentTypeToExt}（公共件实现）。 */
     static String contentTypeToExt(String contentType) {
-        String ct = contentType == null ? "" : contentType;
-        int idx = ct.indexOf(';');
-        if (idx >= 0) {
-            ct = ct.substring(0, idx).trim();
-        }
-        ct = ct.toLowerCase(java.util.Locale.ROOT);
-        return switch (ct) {
-            case "application/pdf" -> "pdf";
-            case "application/msword" -> "doc";
-            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx";
-            case "application/vnd.ms-excel" -> "xls";
-            case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "xlsx";
-            case "application/vnd.ms-powerpoint" -> "ppt";
-            case "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> "pptx";
-            case "text/plain" -> "txt";
-            case "text/markdown" -> "md";
-            case "text/csv" -> "csv";
-            case "image/png" -> "png";
-            case "image/jpeg" -> "jpg";
-            case "image/gif" -> "gif";
-            case "image/webp" -> "webp";
-            default -> "";
-        };
-    }
-
-    private static String pathBase(String rawUrl) {
-        try {
-            String path = URI.create(rawUrl).getPath();
-            if (path == null) {
-                return null;
-            }
-            int slash = path.lastIndexOf('/');
-            return slash < 0 ? path : path.substring(slash + 1);
-        } catch (RuntimeException e) {
-            return null;
-        }
+        return WecomSupport.contentTypeToExt(contentType);
     }
 
     // ── 解密（自持：共享件不校 corp_id） ────────────────────────────────────

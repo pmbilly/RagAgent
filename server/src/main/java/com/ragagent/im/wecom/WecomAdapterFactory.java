@@ -57,10 +57,22 @@ public class WecomAdapterFactory implements ImService.AdapterFactory {
                         ImCredentials.getString(creds, "api_base_url"),
                         ssrfGuard), null);
             }
-            case "websocket":
-                throw new UnsupportedOperationException(
-                        "wecom websocket mode (智能机器人长连接) not implemented in this batch"
-                                + " — tracked as W5γ3 follow-up sub-batch");
+            case "websocket": {
+                WecomLongConnClient client = new WecomLongConnClient(
+                        ImCredentials.getString(creds, "bot_id"),
+                        ImCredentials.getString(creds, "bot_secret"),
+                        ImCredentials.getString(creds, "ws_endpoint"),
+                        ImCredentials.getString(creds, "bot_name"),
+                        channel.getId(),
+                        msgHandler,
+                        ssrfGuard);
+                Thread thread = new Thread(client::start, "im-wecom-ws-" + channel.getId());
+                thread.setDaemon(true);
+                thread.start();
+                // 照 Go：先 client.Stop() 再给取消信号（先关 socket 才能同步停投递）
+                return new ImService.AdapterRegistration(
+                        new WecomWSAdapter(client, ssrfGuard), client::stop);
+            }
             default:
                 throw new IllegalArgumentException("unknown WeCom mode: " + mode);
         }
