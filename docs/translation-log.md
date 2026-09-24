@@ -1,89 +1,15 @@
-# Go → Java 翻译约定（AI 翻译会话必读）
+# 翻译日志与坑索引（只增不改）
 
-> 本文件是每一个翻译任务的上下文入口。开始任何翻译前，先读本文件全文。
-> 源仓库：`/Users/billy/WeKnora`（Go，对照参考，只读）。目标仓库：`/Users/billy/ragagent-java`。
-> 铁律：**前端零改动**——所有 HTTP 响应 JSON 逐字段一致，错误格式一致，状态码一致。
+> 本文件是 `docs/translation-conventions.md` 拆分后的**日志/台账族**（2026-09-25 拆分）：
+> - **翻译约定正文（规范）** → `docs/HANDOFF.md` **§7**（§1 技术栈映射 / §2 包结构 /
+>   §3 GORM 清单 / §4 错误与响应格式 / §5 TenantContext / §6 SSE 纪律 / §7 测试规则 / §7.5 派发约束）
+> - **本文件**：§8 翻译日志（每完成一个模块追加一行）+ §7 里的批次细节（原内联在 §7）+ §9 坑索引
+> - **坑与细节正文** → `docs/known-issues/`（按批次分片；本节末的索引表给出条目→分片对照）
+>
+> 维护纪律：每完成一批，§8 追加一行；新的坑按批次追加到 `docs/known-issues/` 对应分片。
+> 文中出现的「§9「X」」是历史引用（原 conventions §9 的条目名），按名在 known-issues 里检索即可。
 
-## 1. 技术栈映射
-
-| Go | Java | 备注 |
-|---|---|---|
-| Gin handler | `@RestController` | 路由路径逐字符相同 |
-| `gin.Context` | 方法参数按需组合：`HttpServletRequest`/`@RequestBody`/`@PathVariable` 等 | 不要注入裸 `HttpServletResponse` 除非必要（SSE 除外） |
-| GORM | MyBatis-Plus | Mapper 接口 + `@TableName` 实体；见 §3 |
-| `context.Context` | `TenantContext`（ThreadLocal，见 §5）+ 显式传参 | 不要把 Context 当参数层层传 |
-| goroutine | 虚拟线程：`Thread.ofVirtual().start(...)` / `Executors.newVirtualThreadPerTaskExecutor()` | 已在 application.yml 开启 `spring.threads.virtual.enabled` |
-| channel | `BlockingQueue` / `CompletableFuture` | |
-| `error` 返回值 | 抛 `BizException`（见 §4） | Go 的 `if err != nil` 日志后返回 → 抛异常，由全局 handler 记日志 |
-| `time.Time` | `java.time.Instant`（DB 存 `OffsetDateTime`） | JSON 序列化格式必须与 Go 的 RFC3339 一致（`yyyy-MM-dd'T'HH:mm:ss'Z'`） |
-| `json:"xxx,omitempty"` | `@JsonInclude(NON_NULL)` | 字段级：`@JsonInclude(NON_NULL)` 放字段上 |
-| `int64`/`float64` | `Long`/`Double` | JSON 数字精度对齐 |
-| option 配置结构体 | `@ConfigurationProperties` record/class | |
-| `sync.Mutex`/RWMutex | `ReentrantLock`/`ReentrantReadWriteLock` 或 `ConcurrentHashMap` | |
-| `defer` | try-finally 或 try-with-resources | |
-
-## 2. 包结构约定
-
-- Go `internal/handler/x.go` → `com.ragagent.x.XController`
-- Go `internal/application/service/x.go` → `com.ragagent.x.XService`
-- Go `internal/application/repository/x.go` → `com.ragagent.x.mapper.XMapper`（MyBatis-Plus 接口）
-- Go `internal/types/x.go` 中的领域类型 → `com.ragagent.x.domain.X`（实体）+ `com.ragagent.x.dto.XxxRequest/XxxResponse`（传输对象）
-- Go `internal/middleware/` → `com.ragagent.common.filter.*`（Servlet Filter 链，顺序 = Go 中间件顺序）
-
-## 3. GORM → MyBatis-Plus 规则（翻译 model 前必做清单）
-
-翻译每个 Go model 前，先扫描并**显式列出**以下隐式行为，翻成 MyBatis-Plus 等效配置：
-
-1. **钩子**：`BeforeCreate`/`AfterFind`/`BeforeUpdate` 等 → MyBatis-Plus `@TableField(fill = ...)` + `MetaObjectHandler`，或在 service 层显式赋值。**列出每个钩子等效为哪段 Java 代码。**
-2. **关联预加载**：`Preload(...)` → 是额外查询就在 service 层 join 查询，标清 N+1 风险。
-3. **软删除**：`gorm.DeletedAt` / `gorm:"softDelete"` → `@TableLogic` 注解。
-4. **默认排序**：`gorm:"default:..."` 和代码里隐式的 `Order(...)` → 显式出现在查询构造中。
-5. **唯一索引/外键**：struct tag 里的 `uniqueIndex`/`index` → 在 `@TableField` 注释或迁移 SQL 核对（**迁移不改**，索引以迁移为准）。
-6. **自动时间戳**：`CreatedAt/UpdatedAt` 自动写 → `MetaObjectHandler`。
-
-翻译一个 model 不出这张清单 = 任务未完成。
-
-## 4. 错误与响应格式（逐字段锁定）
-
-Go 的成功响应统一为：
-
-```json
-{"data": ..., "success": true}
-```
-
-Go 的错误响应有两种形态，**按源文件实际使用的翻译**（看 handler 里写的是 `c.JSON(status, gin.H{"error": ...})` 还是统一 error handler）：
-- `{"error": "消息"}` + 对应 HTTP 状态码（handler 直接写的）
-- 统一 `{"success": false, "message": "...", "code": ...}`（若走全局 error handler——翻译 router/middleware 时确认实际形态，记录到本文件 §8）
-
-Java 实现：`com.ragagent.common.R<T>`（`{data, success}`）+ `@RestControllerAdvice` 全局异常处理器按 Go 实际形态输出。状态码必须一致（400/401/403/404/409/500）。
-
-## 5. TenantContext（对照 Go context.Context）
-
-Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
-
-- `com.ragagent.common.context.TenantContext`：ThreadLocal 持有 `tenantId`、`principalType`、`principalId`、`embedVisitorId`
-- 由 Filter 链（对应 Go middleware 链）填充：auth → rbac → principal 解析
-- service 层需要租户隔离的每个查询必须带 `TenantContext.currentTenantId()`，等效 GORM 的 `Where("tenant_id = ?")`
-- **虚拟线程下 ThreadLocal 安全**（虚拟线程也是线程），但跨虚拟线程传递（异步任务）必须显式传递值，禁止共享 ThreadLocal
-
-## 6. SSE 流式翻译纪律（agent/chat 模块最严格）
-
-翻译任何涉及 `stream_emit` / SSE 的代码时：
-
-1. **先把 Go 侧所有 emit 点列成表**：文件、行号、事件类型、payload 字段。
-2. Java 侧逐一对照：每个 emit 点编号对应，事件顺序一致，`data:` 的 JSON 字段名和结构一致。
-3. `SseEmitter` 用完必须 `complete()`；异常路径必须 `completeWithError()`。
-4. 客户端断开检测：Go 的 `c.Stream` 断流 → `SseEmitter.onCompletion/onTimeout` 注册清理。
-5. 心跳/keepalive 间隔与 Go 一致。
-
-## 7. 测试翻译规则
-
-- Go 表测试（table-driven）→ JUnit 5 `@ParameterizedTest`
-- `testify/assert` → AssertJ
-- Go mock（gomock/mockery）→ Mockito
-- httptest → `@WebMvcTest` + MockMvc
-- ** golden 契约测试**：`server/src/test/resources/contracts/` 下按端点存 Go 版实际响应，Java 集成测试逐字段比对
-- 翻译完成的定义：Go 测试语义对应的 Java 测试全部通过 + golden 通过
+## 批次细节（原 §7 内联，含阶段 4.2 / API Key / audit 三块）
 
 - **阶段 4.2（Wiki）新确认的细节**：
   - **Wiki 的响应形态与知识库/MCP 都不同**，三处都要按实录写：
@@ -177,57 +103,6 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
   3. Wiki 埋点的 details 缺 3 个键（`task_id`/`trigger`/`processing_status`），任务上下文未移植。
   4. `AuditLog.id` 在未落库的内存对象上序列化为 `null`（Go 是 `0`）——读路径恒有值。
 
-## 7.5 派发翻译 agent 的标准约束（每次必带）
-
-每个翻译 agent 的任务书里**必须**包含以下段落。它们对应的是已经踩过的坑，
-省掉任何一条都会以某种形式复发。
-
-```
-【项目强制约束——以下每条都对应踩过的坑】
-
-1. 先读 docs/translation-conventions.md 的 §3（GORM 隐式行为清单）与 §9（已确认细节与坑）。
-   ⚠️ §9 的**正文**已拆到 `docs/known-issues/`（§9 只剩索引）——按你的模块选分片读：
-   动 model/service 前优先 `00-foundation.md`，动 chat/SSE 优先 `01-mcp-stream-session.md`，
-   收尾批看 `06-wave-5.md`。里面的规则都是复发的来源，写代码前逐条对照，别等到 review。
-
-2. 领域对象上**任何** isXxx() / getXxx() 形式的派生访问器，先判断它在 Go 里是**方法**还是**字段**：
-   - 方法 → 必须 @JsonIgnore（否则被 Jackson 当属性写进 jsonb，回读抛
-     UnrecognizedPropertyException，整列不可用）
-   - 这个坑在阶段 3、4.1 各复发一次，是**复发率最高**的错误。
-
-3. 新增/修改的、会落 jsonb 或直接作响应体的类型，必须在
-   `server/src/test/java/com/ragagent/common/JsonContractRoundTripTest.java` 里加一条
-   `assertRoundTrips(...)`（工具见 `com.ragagent.common.JsonRoundTrip`，它用严格映射器
-   自动抓「漏 @JsonIgnore」与「键名漏蛇形」）。
-
-4. JSON 键名**逐字段对照 Go 的 json tag**：本项目 JSON 是契约。Go 的 tag 是蛇形就写
-   @JsonProperty("snake_case")，不要按 Java 字段名输出。MCP/Wiki 里还有协议规定的
-   驼峰（如 inputSchema / mimeType），照抄别改。
-
-5. Go 非指针零值语义：string 字段默认 ""、计数器用原始类型（避免插 NULL）、
-   omitempty 的 0/空/false 要省略（@JsonInclude(NON_DEFAULT)），无 omitempty 的恒输出。
-
-6. jsonb 回读路径的 ObjectMapper 必须容忍未知属性
-   （Go 的 json.Unmarshal 默认忽略，Jackson 默认失败），否则历史行读不出来。
-
-7. 测试**禁止依赖真实网络**：
-   - 不写真实公网域名（本机 DNS 可能把 api.openai.com 解析到 Teredo 段而被 SSRF 拒绝）
-   - 需要出站校验时注入白名单（`SsrfGuard.reloadWhitelist(...)` /
-     `LlmTransport.setSsrfGuard(...)`）或用 stub server
-
-8. 测试命令**只跑你负责的包**，不要跑全量：
-   `./gradlew test --tests "com.ragagent.<你的包>.*"`
-   多个 agent 同时跑全量会争抢 build 目录（OOM / test-results 被并发写坏 → 假失败）。
-
-9. 只改你负责的目录。`config/WebConfig.java` 的路由注册、`TestSchema.java` 的表结构
-   （除非任务明确要求新增表）由主会话统一处理，避免并发写冲突。
-
-10. 报告里必须给出：翻了的文件、**暴露给后续模块的关键签名**、测试数量与结果、
-    与 Go 的已知差异、需要主会话决策的点。
-```
-
-**为什么要降并行度**：并行 agent 争抢 gradle/build 目录造成的 OOM 与"假失败"重跑，
-在阶段 4 浪费了至少两轮。宁可串行，也别让两个 agent 同时跑全量测试。
 
 ## 8. 翻译日志（每完成一个模块更新）
 
@@ -302,7 +177,11 @@ Go 用 `context.Context` 传递 tenant/principal/visitor。Java：
 
 | A3 存储 provider 层：八个 provider（local + s3/minio/obs/ks3 + oss/cos/tos）+ 工厂 + storageurl 两组窄口接线 + 知识/skill/FAQ 三处消费者改道（2026-09-24，五笔提交） | `internal/application/service/file/*`（20+ 文件全文）、`internal/storageurl/{resolver,rewriter}.go`、`internal/application/service/storagebackend.go`、`internal/types/{storagebackend,tenantconfig}*.go` | `com.ragagent.storage.provider/*`（FileService 接口 / LocalFileService / S3CompatibleFileService / OssFileService / CosFileService / TosFileService / FileServiceFactory / StorageObjects）、`com.ragagent.storage.fileserve/*`（ProviderFileContentService / FileserveStorageBackendResolver / StorageUrlWiringConfig）、`com.ragagent.knowledge.service.TenantFileStorage`、`com.ragagent.sandbox.service.TenantSkillBundleStore` | ✅ | 依赖：aws-sdk s3 2.31.68 / aliyun-sdk-oss 3.18.1 / cos_api 5.6.227 / ve-tos-java-sdk 2.9.19。坑：TOS 版本与 V2 输入类名、COS 拷贝四参参数序（javap 核对）、OSS 异常无状态码、`@JsonUnwrapped` 不支持 record Creator、`local://` 归本地、`SafeFileName` 取 basename。已知差异：云对象整对象入堆、OSS 未走分片 Uploader、local 两支实现。明细见 §9 索引的 `08-storage-a3.md` |
 
-## 9. 已确认细节与坑（索引）
+
+## 9. 坑索引（条目 → 分片对照）
+
+> 正文在 `docs/known-issues/`；本节只做"条目名 → 文件"的检索表。
+
 
 > **本节的正文已按批次拆分到 [`docs/known-issues/`](known-issues/)（内容未改动，只挪位置）。**
 > 动任何模块前先读对应分片；代码注释与任务书里的「约定 §9「XXX」」按下面的标题检索。

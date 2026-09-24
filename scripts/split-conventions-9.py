@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""把 `docs/translation-conventions.md` 的 §9（占全文 86%）按批次拆到 `docs/known-issues/`。
+"""【历史工具·2026-09-25 起不再适用】把 `docs/translation-conventions.md` 的 §9 按批次拆到 `docs/known-issues/`。
+
+⚠️ conventions 已于 2026-09-25 拆分：规范正文 → `docs/HANDOFF.md` §7，日志/细则 →
+`docs/translation-log.md`（其末节即 §9 索引），坑正文留在本脚本的目标目录 `docs/known-issues/`。
+因此本脚本的输入文件已不存在——仅供回溯历史拆分方式，勿再执行。
 
 **一次性迁移脚本**（2026-09-21 执行）。日常维护不走本脚本：新增条目直接追加到
 对应的分片文件（W5d 及以后 → `06-wave-5.md`）。
