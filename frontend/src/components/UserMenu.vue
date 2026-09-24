@@ -31,7 +31,7 @@
     <!-- 下拉菜单 -->
     <Transition name="dropdown">
       <div v-if="menuVisible" class="user-dropdown" @click.stop>
-        <!-- 弹出菜单：账号（头像+昵称）／当前空间（名称+权限）；底部侧栏样式不改。 -->
+        <!-- 弹出菜单：账号（头像+昵称）-->
         <div v-if="userName" class="dropdown-user-header is-clickable" role="button" tabindex="0"
           @click="handleQuickNav('userprofile')" @keydown.enter.prevent="handleQuickNav('userprofile')"
           @keydown.space.prevent="handleQuickNav('userprofile')">
@@ -53,25 +53,7 @@
           </div>
         </div>
 
-        <div v-if="userName && !authStore.isLiteMode" ref="tenantMenuItemRef" class="dropdown-tenant-panel" :class="{
-          'is-open': tenantSubmenuOpen,
-          'is-clickable': showTenantSwitcher,
-        }" @mouseenter="showTenantSwitcher && showTenantSubmenu()"
-          @mouseleave="showTenantSwitcher && scheduleHideTenantSubmenu()">
-          <t-icon name="system-sum" class="menu-icon" aria-hidden="true" />
-          <div class="dropdown-tenant-panel-main">
-            <span class="dropdown-tenant-panel-name" :title="activeTenantName || userName">
-              {{ activeTenantName || userName }}
-            </span>
-            <div v-if="currentRoleLabel" class="dropdown-tenant-panel-role">
-              <t-icon v-if="currentRoleIcon" :name="currentRoleIcon" size="12px"
-                class="dropdown-tenant-panel-role-icon" />
-              <span>{{ currentRoleLabel }}</span>
-            </div>
-          </div>
-          <t-icon v-if="showTenantSwitcher" name="swap" class="dropdown-tenant-panel-trail"
-            :title="$t('tenant.switcher.menuLabel')" />
-        </div>
+        
         <div class="menu-divider"></div>
         <!-- 账号与空间是头像菜单的核心上下文；基础设施类配置统一收进「全部设置」。 -->
         <div class="menu-item" @click="handleQuickNav('general')">
@@ -96,7 +78,7 @@
           <t-icon :name="SKILL_ICON" class="menu-icon" />
           <span>{{ $t('settings.skills.title') }}</span>
         </div>
-        <!-- <div class="menu-divider"></div> -->
+        <div class="menu-divider"></div>
         <div class="menu-item" @click="handleSettings">
           <t-icon name="setting" class="menu-icon" />
           <span>{{ $t('general.allSettings') }}</span>
@@ -133,6 +115,28 @@
             </svg>
           </span>
         </div> -->
+
+        <!-- 当前空间（名称+权限）；底部侧栏样式不改。 -->
+        <div v-if="userName && !authStore.isLiteMode" ref="tenantMenuItemRef" class="dropdown-tenant-panel" :class="{
+          'is-open': tenantSubmenuOpen,
+          'is-clickable': showTenantSwitcher,
+        }" @mouseenter="showTenantSwitcher && showTenantSubmenu()"
+          @mouseleave="showTenantSwitcher && scheduleHideTenantSubmenu()">
+          <t-icon name="system-sum" class="menu-icon" aria-hidden="true" />
+          <div class="dropdown-tenant-panel-main">
+            <span class="dropdown-tenant-panel-name" :title="activeTenantName || userName">
+              {{ activeTenantName || userName }}
+            </span>
+            <div v-if="currentRoleLabel" class="dropdown-tenant-panel-role">
+              <t-icon v-if="currentRoleIcon" :name="currentRoleIcon" size="12px"
+                class="dropdown-tenant-panel-role-icon" />
+              <span>{{ currentRoleLabel }}</span>
+            </div>
+          </div>
+          <t-icon v-if="showTenantSwitcher" name="swap" class="dropdown-tenant-panel-trail"
+            :title="$t('tenant.switcher.menuLabel')" />
+        </div>
+
         <template v-if="!authStore.isLiteMode">
           <div class="menu-divider"></div>
           <div class="menu-item danger" @click="handleLogout">
