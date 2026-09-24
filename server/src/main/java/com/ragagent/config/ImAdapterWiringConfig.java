@@ -41,5 +41,7 @@ public class ImAdapterWiringConfig {
         imService.registerAdapterFactory(ImTypes.PLATFORM_LARK,
                 new com.ragagent.im.feishu.FeishuAdapterFactory(
                         com.ragagent.im.feishu.FeishuRegion.LARK, guard));
+        imService.registerAdapterFactory(ImTypes.PLATFORM_DINGTALK,
+                new com.ragagent.im.dingtalk.DingtalkAdapterFactory(guard));
     }
 }
