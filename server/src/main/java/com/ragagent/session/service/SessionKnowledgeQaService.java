@@ -2,6 +2,7 @@ package com.ragagent.session.service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -77,6 +78,9 @@ public class SessionKnowledgeQaService {
     private final com.ragagent.auth.service.TenantService tenantService;
     private final com.ragagent.websearch.mapper.WebSearchProviderRepository webSearchProviderRepository;
     private final javax.sql.DataSource dataSource;
+    /** 共享 KB 列表（对照 Go 的 kbShareService；ObjectProvider 装配避免跨域硬依赖）。 */
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.ragagent.org.service.KbShareService> kbShareService;
 
     public SessionKnowledgeQaService(EventManager eventManager,
             ConversationProperties cfg,
@@ -86,7 +90,9 @@ public class SessionKnowledgeQaService {
             PipelinePorts.ModelService pipelineModelService,
             com.ragagent.auth.service.TenantService tenantService,
             com.ragagent.websearch.mapper.WebSearchProviderRepository webSearchProviderRepository,
-            javax.sql.DataSource dataSource) {
+            javax.sql.DataSource dataSource,
+            org.springframework.beans.factory.ObjectProvider<
+                    com.ragagent.org.service.KbShareService> kbShareService) {
         this.eventManager = eventManager;
         this.cfg = cfg;
         this.modelService = modelService;
@@ -96,6 +102,7 @@ public class SessionKnowledgeQaService {
         this.tenantService = tenantService;
         this.webSearchProviderRepository = webSearchProviderRepository;
         this.dataSource = dataSource;
+        this.kbShareService = kbShareService;
     }
 
     /**
@@ -545,8 +552,17 @@ public class SessionKnowledgeQaService {
 
         if (hasExplicitMention) {
             log.info("Using request-specified targets: kbs={}, docs={}", kbIds, knowledgeIds);
-            // 共享 agent 的 @mention 范围约束：共享 agent 解析未接线（波 5 收口），
-            // 当前不会出现 agent.TenantID != session tenant 的分支。
+            // 共享 agent（agent 属于另一租户）：@mention 必须收敛到 agent 的允许范围，
+            // 防止调用方注入范围外的 KB/知识 id（对照 Go L38-43）
+            if (req.agentRow != null && req.session != null
+                    && req.agentRow.getTenantId() != req.session.getTenantId()) {
+                MentionScope scope = restrictMentionsToAgentScope(req.agentRow, req.agentConfig,
+                        req.session.getTenantId(), kbIds, knowledgeIds);
+                kbIds = scope.kbIds();
+                knowledgeIds = scope.knowledgeIds();
+                req.tagScopes = restrictTagScopesToAgentScope(req.agentRow, req.agentConfig,
+                        req.session.getTenantId(), req.tagScopes);
+            }
         } else if (req.agentConfig != null
                 && req.agentConfig.path("retrieve_kb_only_when_mentioned").asBoolean(false)) {
             kbIds = new ArrayList<>();
@@ -565,7 +581,86 @@ public class SessionKnowledgeQaService {
         return new KnowledgeResolution(kbIds, knowledgeIds);
     }
 
-    /** resolveKnowledgeBasesFromAgent（Go L335-433；共享 KB 分支随共享 agent 收口）。 */
+    /** @mention 收敛结果（对照 Go 的两个多返回值 helper）。 */
+    public record MentionScope(List<String> kbIds, List<String> knowledgeIds) {}
+
+    /**
+     * 对照 Go {@code restrictMentionsToAgentScope}（session_qa_helpers.go L295-340）：
+     * 把 @mention 的 KB/知识收窄到共享 agent 的允许范围——允许集为空则**全部拦下**；
+     * 知识按其所属 KB 是否在允许集内判定（批量取按 **agent 的租户**查）。
+     */
+    public MentionScope restrictMentionsToAgentScope(
+            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg,
+            long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
+        List<String> allowed = resolveKnowledgeBasesFromAgent(agent, agentCfg, sessionTenantId);
+        if (allowed.isEmpty()) {
+            log.warn("Shared agent has no allowed KBs, blocking all @mentions");
+            return new MentionScope(new ArrayList<>(), new ArrayList<>());
+        }
+        Set<String> allowedSet = new HashSet<>(allowed);
+
+        List<String> filteredKbs = new ArrayList<>();
+        for (String id : kbIds) {
+            if (allowedSet.contains(id)) {
+                filteredKbs.add(id);
+            } else {
+                log.warn("Blocking @mentioned KB {}: not in shared agent's allowed scope", id);
+            }
+        }
+
+        List<String> filteredKnowledge = knowledgeIds;
+        if (knowledgeIds != null && !knowledgeIds.isEmpty()) {
+            List<Knowledge> rows;
+            try {
+                rows = knowledgeService.getKnowledgeBatch(agent.getTenantId(), knowledgeIds);
+            } catch (RuntimeException e) {
+                log.warn("Failed to validate knowledge IDs against agent scope: {}, blocking all",
+                        e.toString());
+                rows = null;
+            }
+            filteredKnowledge = new ArrayList<>();
+            if (rows != null) {
+                for (Knowledge k : rows) {
+                    if (k != null && allowedSet.contains(k.getKnowledgeBaseId())) {
+                        filteredKnowledge.add(k.getId());
+                    } else if (k != null) {
+                        log.warn("Blocking @mentioned knowledge {} (KB {}): not in shared agent's allowed scope",
+                                k.getId(), k.getKnowledgeBaseId());
+                    }
+                }
+            }
+        }
+        return new MentionScope(filteredKbs, filteredKnowledge);
+    }
+
+    /**
+     * 对照 Go {@code restrictTagScopesToAgentScope}（session_qa_helpers.go L62-86）：
+     * 按允许 KB 集过滤 tag 范围；空输入返回空列表（Go 返回 nil）。
+     */
+    public List<QaSupport.TagScope> restrictTagScopesToAgentScope(
+            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg,
+            long sessionTenantId, List<QaSupport.TagScope> tagScopes) {
+        if (tagScopes == null || tagScopes.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<String> allowed = resolveKnowledgeBasesFromAgent(agent, agentCfg, sessionTenantId);
+        Set<String> allowedSet = new HashSet<>(allowed);
+        List<QaSupport.TagScope> filtered = new ArrayList<>();
+        for (QaSupport.TagScope scope : tagScopes) {
+            if (allowedSet.contains(scope.knowledgeBaseId)) {
+                filtered.add(scope);
+            } else {
+                log.warn("Blocking @mentioned tag scope for KB {}: not in shared agent's allowed scope",
+                        scope.knowledgeBaseId);
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * resolveKnowledgeBasesFromAgent（Go L335-433）：能力过滤 + "all" 模式下**非共享
+     * agent** 才并入调用方可见的共享 KB（D 批已接线；共享 agent 时显式跳过并入）。
+     */
     public List<String> resolveKnowledgeBasesFromAgent(
             com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId) {
         if (agentCfg == null) {
@@ -575,13 +670,56 @@ public class SessionKnowledgeQaService {
         switch (mode) {
             case "all" -> {
                 // 能力过滤（DeriveKBFilterForAgent）：取 tool 能力面判定，非 wiki/rerank 工具
-                // 只要求 vector/keyword。共享 KB 分支依赖 kbShareService（波 5）。
+                // 只要求 vector/keyword。
                 List<KnowledgeBase> allKbs = knowledgeBaseService.listKnowledgeBases(null);
                 List<String> kbIds = new ArrayList<>();
+                Set<String> kbIdSet = new LinkedHashSet<>();
+                int ownSkipped = 0;
                 for (KnowledgeBase kb : allKbs) {
                     if (kbSatisfiesAgentRequirements(kb, agentCfg)) {
                         kbIds.add(kb.getId());
+                        kbIdSet.add(kb.getId());
+                    } else {
+                        ownSkipped++;
                     }
+                }
+
+                // 对照 Go L377-410：**非**共享 agent 才并入调用方可见的共享 KB——
+                // 共享 agent（会话租户 ≠ agent 租户）并入会把其它组织的 KB 泄漏进检索范围
+                boolean isSharedAgent = sessionTenantId != 0 && sessionTenantId != agent.getTenantId();
+                int sharedSkipped = 0;
+                com.ragagent.org.service.KbShareService shareService = kbShareService.getIfAvailable();
+                String callerUserId = com.ragagent.common.context.TenantContext.currentUserId();
+                if (!isSharedAgent && shareService != null
+                        && callerUserId != null && !callerUserId.isEmpty()) {
+                    Long callerTenant = com.ragagent.common.context.TenantContext.currentTenantId();
+                    try {
+                        List<com.ragagent.org.service.KbShareService.SharedKbInfo> shared =
+                                shareService.listSharedKnowledgeBases(
+                                        callerTenant == null ? 0 : callerTenant,
+                                        com.ragagent.org.service.OrganizationService.callerTenantRole());
+                        for (com.ragagent.org.service.KbShareService.SharedKbInfo info : shared) {
+                            if (info == null || info.knowledgeBase() == null
+                                    || kbIdSet.contains(info.knowledgeBase().getId())) {
+                                continue;
+                            }
+                            if (!kbSatisfiesAgentRequirements(info.knowledgeBase(), agentCfg)) {
+                                sharedSkipped++;
+                                continue;
+                            }
+                            kbIds.add(info.knowledgeBase().getId());
+                            kbIdSet.add(info.knowledgeBase().getId());
+                        }
+                    } catch (RuntimeException e) {
+                        log.warn("Failed to list shared knowledge bases: {}", e.toString());
+                    }
+                } else if (isSharedAgent) {
+                    log.info("Shared agent detected (session tenant {} != agent tenant {}): "
+                            + "skipping user's shared KBs", sessionTenantId, agent.getTenantId());
+                }
+                if (ownSkipped + sharedSkipped > 0) {
+                    log.info("KBSelectionMode=all: tool-capability filter removed {} own + {} shared KBs",
+                            ownSkipped, sharedSkipped);
                 }
                 log.info("KBSelectionMode=all: loaded {} knowledge bases (own + shared)", kbIds.size());
                 return kbIds;
