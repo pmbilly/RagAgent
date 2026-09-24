@@ -29,7 +29,8 @@ export interface SystemInfo {
   edition?: string
   commit_id?: string
   build_time?: string
-  go_version?: string
+  /** JVM runtime version (Java backend; renamed from Go's go_version). */
+  java_version?: string
   keyword_index_engine?: string
   vector_store_engine?: string
   graph_database_engine?: string

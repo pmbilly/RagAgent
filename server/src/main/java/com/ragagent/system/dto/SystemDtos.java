@@ -80,8 +80,13 @@ public final class SystemDtos {
             @JsonProperty("capabilities") Map<String, DeploymentCapability> capabilities) {
     }
 
-    /** 对照 handler.GetSystemInfoResponse（version/edition 恒输出，其余 omitempty）。 */
-    @JsonPropertyOrder({"version", "edition", "commit_id", "build_time", "go_version",
+    /**
+     * 对照 handler.GetSystemInfoResponse（version/edition 恒输出，其余 omitempty）。
+     *
+     * <p>已知差异：{@code go_version} 随实现改名为 {@code java_version}（Java 后端
+     * 没有 Go 版本，输出 JVM 运行时版本）；前端 SystemInfo.vue 与 i18n 已同步。</p>
+     */
+    @JsonPropertyOrder({"version", "edition", "commit_id", "build_time", "java_version",
             "keyword_index_engine", "vector_store_engine", "graph_database_engine",
             "minio_enabled", "db_version", "db_migration_error", "started_at", "uptime_seconds"})
     public record SystemInfoResponse(
@@ -92,7 +97,7 @@ public final class SystemDtos {
             @JsonInclude(JsonInclude.Include.NON_EMPTY)
             @JsonProperty("build_time") String buildTime,
             @JsonInclude(JsonInclude.Include.NON_EMPTY)
-            @JsonProperty("go_version") String goVersion,
+            @JsonProperty("java_version") String javaVersion,
             @JsonInclude(JsonInclude.Include.NON_EMPTY)
             @JsonProperty("keyword_index_engine") String keywordIndexEngine,
             @JsonInclude(JsonInclude.Include.NON_EMPTY)

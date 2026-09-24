@@ -16,7 +16,9 @@ import javax.sql.DataSource;
 import com.ragagent.knowledge.domain.StorageBackend;
 import com.ragagent.storage.StorageAllowList;
 import com.ragagent.storage.mapper.StorageBackendRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +28,12 @@ import org.springframework.stereotype.Service;
  *
  * <p><b>已知差异（部署状态语义，非降级）</b>：</p>
  * <ul>
- *   <li>version/commit_id/build_time/go_version：Go 用 ldflags 注入（dev 恒 "unknown"）；
- *       Java 侧同样取常量 "unknown"（golden 钉住的就是 dev 部署的形态）。</li>
+ *   <li>version/commit_id/build_time：Go 用 ldflags 注入（缺注入的 dev 形态恒 "unknown"）；
+ *       Java 改用 Spring Boot build-info.properties（构建期生成，dev 也有真实值），
+ *       {@code weknora.system.*} 配置仍可覆盖（测试固定值走这条路径）。</li>
+ *   <li>java_version（原 go_version）：字段随实现改名——Java 后端没有 Go 版本，
+ *       此处输出 JVM 运行时版本（{@code System.getProperty("java.version")}）。
+ *       前端 SystemInfo.vue 与 i18n 已同步。</li>
  *   <li>db_version：Go 读 golang-migrate 的缓存版本；Java 读同一 dev 库的
  *       flyway_schema_history（同一套迁移、同一条数据库）。H2 测试库无该表 → 空串省略。</li>
  *   <li>graph_database_engine：Go 看 neo4j driver 是否为 nil；Java 看 NEO4J_ENABLE env
@@ -45,32 +51,78 @@ public class SystemInfoService {
     private final StorageAllowList allowList;
     private final StorageBackendRepository backendRepository;
     private final DataSource dataSource;
+    /** 构建期生成的 META-INF/build-info.properties；缺失（如纯 IDE 运行）时回退 "unknown"。 */
+    private final ObjectProvider<BuildProperties> buildProperties;
 
-    /** Java 侧版本常量（Go ldflags 注入的 dev 形态是 "unknown"/"standard"）。 */
-    @Value("${weknora.system.version:unknown}")
-    private String version;
+    /** 覆盖项（配置/测试可固定值）；为空则取构建信息或运行时值。edition 无构建注入。 */
+    @Value("${weknora.system.version:}")
+    private String versionOverride;
     @Value("${weknora.system.edition:standard}")
     private String edition;
-    @Value("${weknora.system.commit-id:unknown}")
-    private String commitId;
-    @Value("${weknora.system.build-time:unknown}")
-    private String buildTime;
-    @Value("${weknora.system.go-version:unknown}")
-    private String goVersion;
+    @Value("${weknora.system.commit-id:}")
+    private String commitIdOverride;
+    @Value("${weknora.system.build-time:}")
+    private String buildTimeOverride;
+    @Value("${weknora.system.java-version:}")
+    private String javaVersionOverride;
 
     public SystemInfoService(StorageAllowList allowList,
                              StorageBackendRepository backendRepository,
-                             DataSource dataSource) {
+                             DataSource dataSource,
+                             ObjectProvider<BuildProperties> buildProperties) {
         this.allowList = allowList;
         this.backendRepository = backendRepository;
         this.dataSource = dataSource;
+        this.buildProperties = buildProperties;
     }
 
-    public String getVersion() { return version; }
+    public String getVersion() {
+        return orUnknown(firstNonEmpty(versionOverride, buildInfoVersion()));
+    }
+
     public String getEdition() { return edition; }
-    public String getCommitId() { return commitId; }
-    public String getBuildTime() { return buildTime; }
-    public String getGoVersion() { return goVersion; }
+
+    public String getCommitId() {
+        return orUnknown(firstNonEmpty(commitIdOverride, buildInfo("commitId")));
+    }
+
+    public String getBuildTime() {
+        BuildProperties bp = buildProperties.getIfAvailable();
+        String fromBuild = bp == null || bp.getTime() == null ? "" : RFC3339_UTC.format(bp.getTime());
+        return orUnknown(firstNonEmpty(buildTimeOverride, fromBuild));
+    }
+
+    /** 对照 Go 的 runtime.Version()（golden 的 go_version 形态）；Java 输出 JVM 版本。 */
+    public String getJavaVersion() {
+        return orUnknown(firstNonEmpty(javaVersionOverride, System.getProperty("java.version")));
+    }
+
+    private String buildInfoVersion() {
+        BuildProperties bp = buildProperties.getIfAvailable();
+        return bp == null ? "" : bp.getVersion();
+    }
+
+    private String buildInfo(String key) {
+        BuildProperties bp = buildProperties.getIfAvailable();
+        if (bp == null) {
+            return "";
+        }
+        String v = bp.get(key);
+        return v == null ? "" : v;
+    }
+
+    private static String firstNonEmpty(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isEmpty()) {
+                return v;
+            }
+        }
+        return "";
+    }
+
+    private static String orUnknown(String v) {
+        return v == null || v.isEmpty() ? "unknown" : v;
+    }
 
     /**
      * 对照 supportsRetrieverType + getKeywordIndexEngine / getVectorStoreEngine：

@@ -5,6 +5,30 @@ plugins {
     id("com.google.protobuf")
 }
 
+/**
+ * /system/info 的构建信息注入（对照 Go 的 ldflags 机制，Java 侧等价物）：
+ * Spring Boot build-info.properties 在构建期生成（META-INF/），dev/生产都有真实值，
+ * 不像 Go 缺 ldflags 时恒 "unknown"。version 显式对齐前端 package.json 的 0.8.0
+ * —— 否则前端按「后端版本 != 前端版本」显示「版本不匹配」告警。
+ */
+fun gitShortCommit(): String = try {
+    providers.exec {
+        commandLine("git", "rev-parse", "--short", "HEAD")
+        workingDir = rootDir
+    }.standardOutput.asText.get().trim().ifEmpty { "unknown" }
+} catch (_: Exception) {
+    "unknown" // 非 git 检出（如打包好的源码树）→ 与 Go 缺 ldflags 同形
+}
+
+springBoot {
+    buildInfo {
+        properties {
+            version = "0.8.0"
+            additional = mapOf("commitId" to gitShortCommit())
+        }
+    }
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)

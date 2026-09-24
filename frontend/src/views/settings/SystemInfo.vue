@@ -75,18 +75,18 @@
           <p class="desc">{{ $t('system.buildTimeDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ systemInfo.build_time }}</span>
+          <span class="info-value">{{ formatLocalTime(systemInfo.build_time) }}</span>
         </div>
       </div>
 
-      <!-- Go version -->
-      <div v-if="systemInfo?.go_version" class="setting-row">
+      <!-- Java version -->
+      <div v-if="systemInfo?.java_version" class="setting-row">
         <div class="setting-info">
-          <label>{{ $t('system.goVersionLabel') }}</label>
-          <p class="desc">{{ $t('system.goVersionDescription') }}</p>
+          <label>{{ $t('system.javaVersionLabel') }}</label>
+          <p class="desc">{{ $t('system.javaVersionDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ systemInfo.go_version }}</span>
+          <span class="info-value">{{ systemInfo.java_version }}</span>
         </div>
       </div>
 
@@ -97,7 +97,7 @@
           <p class="desc">{{ $t('system.startedAtDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ formatStartedAt(systemInfo.started_at) }}</span>
+          <span class="info-value">{{ formatLocalTime(systemInfo.started_at) }}</span>
         </div>
       </div>
 
@@ -224,7 +224,8 @@ const displayUptimeSeconds = computed(() => {
   return null
 })
 
-function formatStartedAt(iso: string): string {
+/** RFC3339 → 客户端时区本地化显示（构建时间与服务启动时间共用）；解析失败回落原值。 */
+function formatLocalTime(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   return d.toLocaleString(locale.value)

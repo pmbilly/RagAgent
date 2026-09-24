@@ -128,7 +128,7 @@ public class SystemController {
                 infoService.getEdition(),
                 infoService.getCommitId(),
                 infoService.getBuildTime(),
-                infoService.getGoVersion(),
+                infoService.getJavaVersion(),
                 infoService.keywordIndexEngine(),
                 infoService.vectorStoreEngine(),
                 infoService.graphDatabaseEngine(),

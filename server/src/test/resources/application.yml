@@ -13,6 +13,13 @@ spring:
       port: 16379
 
 weknora:
+  # /system/info 的固定值：build-info.properties 在测试 classpath 里同样存在，但
+  # version/commit/build_time 随构建漂移会让 golden 不稳定 → 全部用配置固定。
+  system:
+    version: 0.8.0-test
+    commit-id: testcommit
+    build-time: 2026-01-01T00:00:00Z
+    java-version: test-jvm
   storage:
     local-base-dir: ./build/test-files   # 测试期本地文件落点（KB 文档上传）
 
