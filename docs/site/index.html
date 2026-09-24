@@ -185,7 +185,7 @@ VITE_DEV_PROXY_TARGET=http://localhost:8082 npm run dev</code></pre>
       <div class="crumb">架构</div>
       <h1>总体架构</h1>
       <p class="lead">单 Spring Boot 进程（37 个领域包）+ ParadeDB/Redis/docreader 基础设施 + Docker 沙箱执行面；前端零改动，只认 HTTP/SSE 契约。</p>
-      <iframe src="../architecture/architecture.html" style="height: 620px" loading="lazy"
+      <iframe src="architecture.html" style="height: 620px" loading="lazy"
               title="系统架构交互图"></iframe>
       <p style="color: var(--dim); font-size: 13px">▲ 交互式架构图（可切换视图 / 明暗主题 / 导出）——由
         <code>docs/architecture.json</code> 经 Archify 生成，改架构后重跑
@@ -287,8 +287,8 @@ VITE_DEV_PROXY_TARGET=http://localhost:8082 npm run dev</code></pre>
 
       <h2 id="api-full">完整可搜索参考</h2>
       <p>完整交互式参考（全部 452 条路由，支持正则搜索与方法过滤）见
-        <a href="../api/index.html" target="_blank" rel="noopener">API 文档页 ↗</a>，或直接在下方便携查看：</p>
-      <iframe src="../api/index.html" style="height: 720px" loading="lazy" title="API 可搜索参考"></iframe>
+        <a href="api/index.html" target="_blank" rel="noopener">API 文档页 ↗</a>，或直接在下方便携查看：</p>
+      <iframe src="api/index.html" style="height: 720px" loading="lazy" title="API 可搜索参考"></iframe>
       <div class="callout">重新生成：<code>python3 scripts/generate-api-docs.py</code>（解析控制器注解 + WebConfig RBAC + APIKeyRoutePolicies 策略）。</div>
     </section>
 

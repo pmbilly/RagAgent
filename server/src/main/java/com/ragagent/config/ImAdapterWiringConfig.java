@@ -47,5 +47,7 @@ public class ImAdapterWiringConfig {
                 new com.ragagent.im.wechat.WechatAdapterFactory(guard));
         imService.registerAdapterFactory(ImTypes.PLATFORM_MATTERMOST,
                 new com.ragagent.im.mattermost.MattermostAdapterFactory(guard));
+        imService.registerAdapterFactory(ImTypes.PLATFORM_YUNZHIJIA,
+                new com.ragagent.im.yunzhijia.YunzhijiaAdapterFactory(guard));
     }
 }

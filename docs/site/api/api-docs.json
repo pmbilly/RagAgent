@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-23T23:57:04Z",
+ "generatedAt": "2026-09-24T16:17:50Z",
  "total": 452,
  "groups": [
   {
@@ -42,7 +42,7 @@
     {
      "method": "POST",
      "path": "/api/v1/agent-chat/{}",
-     "source": "session/controller/KnowledgeQaController.java:174",
+     "source": "session/controller/KnowledgeQaController.java:175",
      "handler": "agentQA",
      "description": "",
      "rbac": null,
@@ -1902,7 +1902,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge-chat/{}",
-     "source": "session/controller/KnowledgeQaController.java:161",
+     "source": "session/controller/KnowledgeQaController.java:162",
      "handler": "knowledgeQA",
      "description": "",
      "rbac": null,
@@ -1917,7 +1917,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge-search",
-     "source": "session/controller/KnowledgeQaController.java:200",
+     "source": "session/controller/KnowledgeQaController.java:201",
      "handler": "searchKnowledge",
      "description": "",
      "rbac": {
@@ -2652,7 +2652,7 @@
     {
      "method": "GET",
      "path": "/api/v1/messages/chat-history-stats",
-     "source": "session/controller/MessageController.java:249",
+     "source": "session/controller/MessageController.java:252",
      "handler": "getChatHistoryKbStats",
      "description": "对照 Go {@code GetChatHistoryKBStats}（L311-327）。",
      "rbac": {
@@ -2664,7 +2664,7 @@
     {
      "method": "POST",
      "path": "/api/v1/messages/search",
-     "source": "session/controller/MessageController.java:198",
+     "source": "session/controller/MessageController.java:201",
      "handler": "searchMessages",
      "description": "对照 Go {@code SearchMessages}（L247-287）。",
      "rbac": {
@@ -2676,7 +2676,7 @@
     {
      "method": "GET",
      "path": "/api/v1/messages/{}/load",
-     "source": "session/controller/MessageController.java:95",
+     "source": "session/controller/MessageController.java:98",
      "handler": "loadMessages",
      "description": "对照 Go {@code LoadMessages}（L83-178）。",
      "rbac": null,
@@ -2685,7 +2685,7 @@
     {
      "method": "DELETE",
      "path": "/api/v1/messages/{}/{}",
-     "source": "session/controller/MessageController.java:165",
+     "source": "session/controller/MessageController.java:168",
      "handler": "deleteMessage",
      "description": "对照 Go {@code DeleteMessage}（L193-233）。两个 404 文案**刻意不同**：",
      "rbac": null,
@@ -3339,7 +3339,7 @@
     {
      "method": "GET",
      "path": "/api/v1/sessions/continue-stream/{}",
-     "source": "session/controller/SessionStreamController.java:143",
+     "source": "session/controller/SessionStreamController.java:149",
      "handler": "continueStream",
      "description": "当前租户的实体，供 {@link com.ragagent.storageurl.FileServiceResolver} 读",
      "rbac": null,
@@ -4599,9 +4599,9 @@
     {
      "method": "POST",
      "path": "/api/v1/wechat/qrcode",
-     "source": "im/controller/ImChannelController.java:280",
+     "source": "im/controller/ImChannelController.java:284",
      "handler": "wechatQrcode",
-     "description": "对照 WeChatGetQRCode：出站 iLink 调用是接缝（golden 刻意不录该错误体的 XDEP 文案），",
+     "description": "对照 WeChatGetQRCode：200 {\"data\":{qrcode, qrcode_url}}（gin.H → 键按字典序）。",
      "rbac": {
       "minRole": "ADMIN",
       "orSystemAdmin": false
@@ -4611,9 +4611,9 @@
     {
      "method": "POST",
      "path": "/api/v1/wechat/qrcode/status",
-     "source": "im/controller/ImChannelController.java:286",
+     "source": "im/controller/ImChannelController.java:307",
      "handler": "wechatQrcodeStatus",
-     "description": "对照 WeChatPollQRCodeStatus：qrcode 必填（一切 bind 失败都是固定文案）。",
+     "description": "对照 WeChatPollQRCodeStatus：qrcode 必填（一切 bind 失败都是固定文案）；",
      "rbac": {
       "minRole": "ADMIN",
       "orSystemAdmin": false

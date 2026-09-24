@@ -111,6 +111,175 @@ def handler_hint(text: str, pos: int) -> tuple:
     return name, desc
 
 
+# ---------------------------------------------------------------- 类型字段索引
+
+JAVA_FIELD_RE = re.compile(
+    r'(?:@JsonProperty\("([^"]+)"\)\s*)?\n\s*(?:private|public)\s+(?:final\s+)?'
+    r'([\w<>,.\[\]?]+)\s+(\w+)\s*(?:=|;)')
+JAVA_RECORD_RE = re.compile(r'\brecord\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)', re.S)
+JAVA_ANNOS = re.compile(r'@\w+(?:\([^)]*\))?\s*', re.S)
+
+
+def split_top(s: str):
+    """按顶层逗号拆分（泛型/括号深度归零才切）。"""
+    out, depth, cur = [], 0, []
+    for ch in s:
+        if ch in '(<[':
+            depth += 1
+        elif ch in ')>]':
+            depth -= 1
+        if ch == ',' and depth == 0:
+            out.append(''.join(cur)); cur = []
+        else:
+            cur.append(ch)
+    tail = ''.join(cur).strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def build_type_index(java_root: str):
+    """全仓类型 → wire 字段（@JsonProperty 优先；record 组件剥注解）。"""
+    idx = {}
+    base = os.path.join(java_root, "server", "src", "main", "java", "com", "ragagent")
+    for dirpath, _d, files in os.walk(base):
+        for fn in files:
+            if not fn.endswith('.java'):
+                continue
+            text = open(os.path.join(dirpath, fn), encoding='utf-8').read()
+            for m in JAVA_RECORD_RE.finditer(text):
+                fields = []
+                for seg in split_top(m.group(2)):
+                    clean = JAVA_ANNOS.sub('', seg).strip()
+                    if not clean:
+                        continue
+                    wire = None
+                    wm = re.search(r'@JsonProperty\("([^"]+)"\)', seg)
+                    if wm:
+                        wire = wm.group(1)
+                    parts = clean.split()
+                    if len(parts) >= 2:
+                        fields.append({"name": wire or parts[-1],
+                                       "type": ' '.join(parts[:-1])})
+                if fields:
+                    idx[m.group(1)] = fields
+            # POJO 字段（类名单独取）
+            cm = re.search(r'\b(?:class|enum)\s+(\w+)', text)
+            if not cm:
+                continue
+            fields = []
+            for fm in JAVA_FIELD_RE.finditer(text):
+                wire, ftype, fname = fm.groups()
+                if fname.startswith('this$') or 'static' in ftype:
+                    continue
+                fields.append({"name": wire or fname, "type": ftype})
+            if fields:
+                idx[cm.group(1)] = fields
+    return idx
+
+
+def resolve_fields(type_name: str, idx: dict):
+    """剥常见包装泛型后取字段表（深度 1）。"""
+    if not type_name:
+        return None
+    t = re.sub(r'^(ResponseEntity|Page|List|IPage|Optional|Set|Flux)\s*<', '', type_name.strip())
+    t = re.sub(r'>$', '', t).strip()
+    base = t.split('<')[0].strip()
+    return idx.get(base)
+
+
+def method_block(text: str, anno_pos: int, next_pos: int):
+    """mapping 注解起到下一 mapping/类尾的片段 + 参数串 + 返回类型。"""
+    block = text[anno_pos:next_pos if next_pos > anno_pos else len(text)]
+    # 参数串：第一个 '(' 到与其配对的 ')'
+    p0 = block.find('(')
+    depth, i = 0, p0
+    for i in range(p0, len(block)):
+        if block[i] == '(':
+            depth += 1
+        elif block[i] == ')':
+            depth -= 1
+            if depth == 0:
+                break
+    params = block[p0 + 1:i] if p0 != -1 else ''
+    # 返回类型：'(返回类型 方法名('
+    rt = ''
+    rm = re.search(r'((?:public|protected|private)\s+)?([\w<>,.\[\]?]+)\s+(\w+)\s*\($',
+                   block[:p0].strip())
+    if rm:
+        rt = rm.group(2)
+        name = rm.group(3)
+    else:
+        name = ''
+    return block, params, rt, name
+
+
+def find_body_target(block: str, file_text: str) -> dict:
+    """rawBody 绑定目标：readValue 直连，否则 bind/parse helper 二级追踪。"""
+    m = re.search(r'readValue\(\s*rawBody\s*,\s*([A-Za-z0-9_.]+)\.class', block)
+    if m:
+        return {"type": m.group(1).split('.')[-1]}
+    m = re.search(r'\b((?:bind|parse)\w+)\(\s*rawBody', block)
+    if m:
+        helper = m.group(1)
+        # 同文件找 helper 方法定义体
+        hm = re.search(r'\w+\s+' + helper + r'\s*\([^)]*\)\s*\{', file_text)
+        if hm:
+            body = file_text[hm.end():hm.end() + 3000]
+            m2 = re.search(r'readValue\([^,]*,[\s\n]*([A-Za-z0-9_.]+)\.class', body)
+            if m2:
+                return {"type": m2.group(1).split('.')[-1]}
+    return {"type": "JSON（控制器内手工绑定）"}
+
+
+def parse_params(params: str, block: str, file_text: str):
+    path_vars, query, others = [], [], []
+    body = None
+    for seg in split_top(params):
+        if not seg.strip():
+            continue
+        kind = None
+        name_m = re.search(r'@(?:PathVariable|RequestParam|RequestBody|RequestHeader)'
+                           r'(?:\([^)]*\))?', seg)
+        if not name_m:
+            continue
+        anno = name_m.group(0)
+        if 'PathVariable' in anno:
+            kind = 'path'
+        elif 'RequestParam' in anno:
+            kind = 'query'
+        elif 'RequestBody' in anno:
+            kind = 'body'
+        elif 'RequestHeader' in anno:
+            kind = 'header'
+        clean = JAVA_ANNOS.sub('', seg).strip()
+        parts = clean.split()
+        var = parts[-1] if parts else ''
+        jtype = ' '.join(parts[:-1]) or 'String'
+        val = re.search(r'value\s*=\s*"([^"]+)"', anno)
+        nm = re.search(r'^"([^"]+)"', anno.strip().lstrip('@PathVariable')
+                       .lstrip('@RequestParam').strip())
+        pname = (val.group(1) if val else (nm.group(1) if nm else var))
+        req = 'required = false' not in anno
+        dv = re.search(r'defaultValue\s*=\s*"([^"]*)"', anno)
+        if kind == 'path':
+            path_vars.append({"name": pname, "type": jtype})
+        elif kind == 'query':
+            query.append({"name": pname, "type": jtype, "required": req,
+                          "default": dv.group(1) if dv else None})
+        elif kind == 'body':
+            body = {"declared": jtype, "var": var}
+        else:
+            others.append({"name": pname, "type": jtype})
+    if body is not None:
+        if body['declared'] == 'String':
+            target = find_body_target(block, file_text)
+            body = {"declared": "JSON body", "bindType": target.get('type')}
+        else:
+            body = {"declared": body['declared'], "bindType": body['declared']}
+    return path_vars, query, body, others
+
+
 def collect(java_root: str):
     base_dir = os.path.join(java_root, "server", "src", "main", "java", "com", "ragagent")
     routes = rr.parse_java(java_root)
@@ -190,7 +359,7 @@ def collect(java_root: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--java", default=REPO)
-    ap.add_argument("--out", default=os.path.join(REPO, "docs", "api"))
+    ap.add_argument("--out", default=os.path.join(REPO, "docs", "site", "api"))
     args = ap.parse_args()
 
     groups = collect(args.java)
