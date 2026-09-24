@@ -26,10 +26,20 @@ public class ImAdapterWiringConfig {
                                  TelegramAdapterFactory telegramAdapterFactory,
                                  SlackAdapterFactory slackAdapterFactory,
                                  com.ragagent.im.qqbot.QqBotAdapterFactory qqBotAdapterFactory,
-                                 com.ragagent.im.wecom.WecomAdapterFactory wecomAdapterFactory) {
+                                 com.ragagent.im.wecom.WecomAdapterFactory wecomAdapterFactory,
+                                 org.springframework.beans.factory.ObjectProvider<
+                                         com.ragagent.common.security.SsrfGuard> ssrfGuard) {
         imService.registerAdapterFactory(ImTypes.PLATFORM_TELEGRAM, telegramAdapterFactory);
         imService.registerAdapterFactory(ImTypes.PLATFORM_SLACK, slackAdapterFactory);
         imService.registerAdapterFactory(ImTypes.PLATFORM_QQBOT, qqBotAdapterFactory);
         imService.registerAdapterFactory(ImTypes.PLATFORM_WECOM, wecomAdapterFactory);
+        // 飞书与 Lark 是同一产品两朵隔离云：同一实现、两个平台名
+        com.ragagent.common.security.SsrfGuard guard = ssrfGuard.getIfAvailable();
+        imService.registerAdapterFactory(ImTypes.PLATFORM_FEISHU,
+                new com.ragagent.im.feishu.FeishuAdapterFactory(
+                        com.ragagent.im.feishu.FeishuRegion.FEISHU, guard));
+        imService.registerAdapterFactory(ImTypes.PLATFORM_LARK,
+                new com.ragagent.im.feishu.FeishuAdapterFactory(
+                        com.ragagent.im.feishu.FeishuRegion.LARK, guard));
     }
 }

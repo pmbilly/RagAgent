@@ -24,7 +24,9 @@ bean（`BeanCurrentlyInCreation`）→ 工厂改 `@Component`；③Jackson 的 `
 
 | wecom（webhook + 长连接） | `im/wecom/{WecomWebhookAdapter,WecomLongConnClient,WecomWSAdapter,WecomAdapterFactory,WecomSupport}` | 对照 `wecom/{webhook_adapter.go 705, longconn.go 835, ws_adapter.go 181, quote.go 71, factory.go 79}`：webhook 面验签（`FeishuWecomCrypt.wecomVerifySignature`）、**自持 AES 解密**（共享件不校 corp_id → 自带信封 + corp_id 校验）、URL 验证回显、解析（`stripAtMentionBasic` 三形态 / text+image）、发送（群 `appchat/send` 失败回落 `message/send`）、token 缓存 7200s 留 5 分钟、下载三级文件名 + IM 主机白名单；长连接面（智能机器人 WS）：`aibot_subscribe` → `aibot_msg_callback`/`aibot_event_callback` → `aibot_respond_msg` 回帧 + 30s `ping`，读超时 3×心跳、心跳失败即重连、退避 1s·2^n 上限 30s（活过 30s 重置）、**流缓冲跨重连保留**（替换语义）、`EndStream` 重试 3×500ms、`disconnected_event` 触发重连、@提及**学机器人名**、五种消息类型 + quote 上下文、逐消息 `aes_key` 的 AES-CBC 文件解密（填充畸形原样返回，照 Go）。公共件 `WecomSupport` 单源（端点校验/wss 校验/下载/查表/逐消息解密） |
 
-**待办**：mattermost / wechat / feishu / dingtalk / yunzhijia。
+| feishu + lark（webhook 半支） | `im/feishu/{FeishuRegion,FeishuAdapter,FeishuAdapterFactory}` | 对照 `feishu/{adapter.go 1343, region.go 49, factory.go 69}`：**同一实现两个平台名**（飞书/Lark 两朵隔离云，仅域名与文案不同）；验签（`header.token` 比对，加密体先解密，未配则跳过）、URL 挑战回显（含加密形态）、解析（只认 `im.message.receive_v1`；threadID=root_id 回落 message_id；群聊剥 `@_user_`；text/file/image/post 四型）、发送（reply API 优先，回落码 {230019,230054,230071} 改走 send-message；message_id 含不安全字符直接拒 = 防篡改）、CardKit v1 流式（建卡 → interactive 消息 → PUT 元素带严格递增 seq → 关流时 PATCH settings 关 streaming_mode + 摘要预览 ≤120 字符）、卡片 markdown 图片换 image_key（下载 ≤10MB → multipart 上传；按 app 缓存 + URL 去 query；失败降级为纯链接）、token 缓存留 5 分钟、资源下载（`GetMessageResource`，文件名三级回落）。**未含** `longconn.go` 369 行（lark 官方 SDK 的 WS 事件流，即 websocket 模式）——工厂对 websocket 明确抛未落地 |
+
+**待办**：**feishu/lark 的 longconn（websocket 模式）** / mattermost / wechat / dingtalk / yunzhijia。
 
 ## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
 
