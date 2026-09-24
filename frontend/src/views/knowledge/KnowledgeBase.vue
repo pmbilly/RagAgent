@@ -3272,7 +3272,7 @@ async function createNewSession(value: string): Promise<void> {
     background: var(--td-bg-color-secondarycontainer);
     color: var(--td-text-color-primary);
     font-family: var(--app-font-family);
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1;
     cursor: pointer;
     transition: background 0.2s ease, border-color 0.2s ease;
