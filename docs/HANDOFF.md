@@ -36,7 +36,9 @@ bean（`BeanCurrentlyInCreation`）→ 工厂改 `@Component`；③Jackson 的 `
 
 | wechat 扫码登录（端点接缝补齐） | `im/wechat/WechatQRCodeService` + `ImChannelController` 两端点 | 对照 `wechat/qrcode.go`(165) + `handler/wechat_qrcode.go`(89)：`GET /ilink/bot/get_bot_qrcode?bot_type=3` → `{qrcode,qrcode_img_content}`（空码/非 200 折错）；`GET /ilink/bot/get_qrcode_status?qrcode=` 带 `iLink-App-ClientVersion: 1`，**长轮询 38s**（超时算 `wait` 不报错，照 Go 的 detached ctx 分支）；状态 `wait/scaned/confirmed/expired`，`confirmed` 带 `bot_token/ilink_bot_id/ilink_user_id(+baseurl)`。端点响应照 gin.H（map）→ **键按字典序**：取码 `{data:{qrcode,qrcode_url}}`、轮询 `{data:{status}}` / `{data:{baseurl,credentials,status}}`；失败 500 固定文案、缺 qrcode 400；bean 缺位时保留 W5γ2 接缝文案（不阻塞装配）。**注**：`/wechat/qrcode` 成功/失败与 `/qrcode/status` 出站两路 golden 刻意未录（W5γ2 备案），故端点侧以直连单测锁定响应体 |
 
-**待办**：mattermost / yunzhijia。
+| mattermost（outgoing webhook + REST） | `im/mattermost/{MattermostAdapter,MattermostClient,MattermostAdapterFactory}` | 对照 `mattermost/{adapter.go 357, client.go 245, factory.go 43, form_parse.go 27}`：入站体**三支**（`application/json` 含 `+json` 后缀解 JSON；`x-www-form-urlencoded` **或空 CT** 走表单；其他先试 JSON、token/channel_id 有一个非空才认，否则 `unsupported content-type: X`）；验签 = outgoing token 精确相等（未见配则跳过，走共享 `ImAdapterVerify.mattermostTokenMatches`）；**自环防护** `user_id == bot_user_id` 丢弃、空文本且无 file_ids 丢弃；**线程根三级回落**（`post_to_main` → 空；`root_id` 优先；缺省 `GET /posts/{id}` 查真根，查不到用自身 post_id），落进 extra 的 `thread_root_id`；file_ids 两形态（JSON 数组 / 逗号串），多枚时 extra 拼逗号；发送 `POST /api/v4/posts`（Bearer）+ 403 时给"把机器人加进频道"的提示文案（照 Go）；流式 = 建帖"正在思考..." → `PUT /posts/{id}/patch`（失败只告警）→ EndStream 用累积内容再 patch，**流表无 TTL 回收**（照 Go）；下载名字三级回落（info.name → msg.fileName → fileKey）；工厂**默认 webhook**（与其它平台相反）且非 webhook 报错、`outgoing_token` 必填、`site_url` 校验（必填 + http(s) + SSRF 白名单提示文案照抄） |
+
+**待办**：yunzhijia。
 
 ## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
 
