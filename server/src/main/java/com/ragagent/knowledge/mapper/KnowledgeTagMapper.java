@@ -53,6 +53,24 @@ public interface KnowledgeTagMapper {
     @Delete("DELETE FROM knowledge_tag_relations WHERE knowledge_id = #{knowledgeId}")
     int deleteRelations(String knowledgeId);
 
+    /**
+     * 对照 Go {@code ListIDsByTagIDs}（repository/knowledge.go L1057-1074）：标签关联的
+     * 文档 id（DISTINCT）。GORM 的软删条件在 Java 侧显式写出（{@code deleted_at IS NULL}）。
+     */
+    @Select("""
+            <script>
+            SELECT DISTINCT k.id
+            FROM knowledges k
+            JOIN knowledge_tag_relations ktr ON k.id = ktr.knowledge_id
+            WHERE k.tenant_id = #{tenantId}
+              AND k.knowledge_base_id = #{kbId}
+              AND k.deleted_at IS NULL
+              AND ktr.tag_id IN
+            <foreach collection="tagIds" item="tid" open="(" separator="," close=")">#{tid}</foreach>
+            </script>
+            """)
+    List<String> selectKnowledgeIdsByTagIds(long tenantId, String kbId, List<String> tagIds);
+
     @Insert("INSERT INTO knowledge_tag_relations (knowledge_id, tag_id) "
             + "VALUES (#{knowledgeId}, #{tagId})")
     int insertRelation(String knowledgeId, String tagId);

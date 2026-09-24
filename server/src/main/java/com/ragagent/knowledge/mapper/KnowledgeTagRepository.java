@@ -97,6 +97,18 @@ public class KnowledgeTagRepository {
         tagMapper.deleteByTenantAndId(tenantId, id);
     }
 
+    /**
+     * 对照 Go {@code ListKnowledgeIDsByTagIDs} → {@code ListIDsByTagIDs}
+     * （knowledge.go L842-851 / repository/knowledge.go L1057-1074）：
+     * 携带任一指定标签的文档 id（DISTINCT）。标签删除时用它列出待清理的文档。
+     */
+    public List<String> listKnowledgeIdsByTagIds(long tenantId, String kbId, List<String> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return List.of();
+        }
+        return tagMapper.selectKnowledgeIdsByTagIds(tenantId, kbId, tagIds);
+    }
+
     /** 分页参数的 Go 归一结果 + 行集 + 总数（对照 ListByKB 的返回三元组）。 */
     public record TagPage(List<KnowledgeTag> items, long total, int page, int pageSize) {}
 

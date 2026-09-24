@@ -71,15 +71,32 @@ public class KnowledgeTagService {
     private final KnowledgeTagRepository tagRepo;
     private final ChunkRepository chunkRepo;
     private final AuditLogService auditService;
+    /** 向量索引回收（对照 Go enqueueIndexDeleteTask → ProcessIndexDelete）。 */
+    private final VectorStoreService vectorStore;
+    /**
+     * 标签下文档的批量删除（对照 Go enqueueKnowledgeListDeleteTask →
+     * ProcessKnowledgeListDelete）。ObjectProvider：KnowledgeService 依赖面极广，
+     * 延迟解析规避任何潜在的装配环。
+     */
+    private final org.springframework.beans.factory.ObjectProvider<KnowledgeService>
+            knowledgeServiceProvider;
+
+    /** 对照 Go 的 batchSize = 100（tag.go L453）。 */
+    private static final int INDEX_DELETE_BATCH_SIZE = 100;
 
     public KnowledgeTagService(KnowledgeBaseService kbService,
                                KnowledgeTagRepository tagRepo,
                                ChunkRepository chunkRepo,
-                               AuditLogService auditService) {
+                               AuditLogService auditService,
+                               VectorStoreService vectorStore,
+                               org.springframework.beans.factory.ObjectProvider<KnowledgeService>
+                                       knowledgeServiceProvider) {
         this.kbService = kbService;
         this.tagRepo = tagRepo;
         this.chunkRepo = chunkRepo;
         this.auditService = auditService;
+        this.vectorStore = vectorStore;
+        this.knowledgeServiceProvider = knowledgeServiceProvider;
     }
 
     // ── 读：ListTags（tag.go L66-130） ──────────────────────────────────────
@@ -197,11 +214,11 @@ public class KnowledgeTagService {
         long kCount = counts[0];
         long cCount = counts[1];
 
-        // contentOnly：只清内容保标签。document 型走异步 knowledge 删除（Java no-op，
-        // 见类注释）；否则同步删 chunks（Go 同步）。
+        // contentOnly：只清内容保标签。document 型走异步 knowledge 列表删除
+        // （deleteKnowledgeListUnderTag，2026-09-24 接线）；否则同步删 chunks（Go 同步）。
         if (contentOnly) {
             if (isDocument(kb) && kCount > 0) {
-                enqueueKnowledgeListDeleteNoop(kb, tag);
+                deleteKnowledgeListUnderTag(kb, tag);
             } else if (cCount > 0) {
                 deleteChunksAndNoopIndex(tenantId, kb, tag, excludeUUIDs);
             }
@@ -217,7 +234,7 @@ public class KnowledgeTagService {
         }
         if (force) {
             if (isDocument(kb) && kCount > 0) {
-                enqueueKnowledgeListDeleteNoop(kb, tag);
+                deleteKnowledgeListUnderTag(kb, tag);
             } else if (cCount > 0) {
                 deleteChunksAndNoopIndex(tenantId, kb, tag, excludeUUIDs);
             }
@@ -308,17 +325,59 @@ public class KnowledgeTagService {
             throw BizException.internal("删除标签下的数据失败");
         }
         if (!deleted.isEmpty()) {
-            // 对照 enqueueIndexDeleteTask：向量索引回收随检索引擎批（已知差异，WARN 备案）
-            log.warn("[tag] index delete skipped (vector engine unwired): kb={} chunks={}",
-                    kb.getId(), deleted.size());
+            // 对照 Go enqueueIndexDeleteTask → ProcessIndexDelete（tag.go L381-470）：
+            // 把这些 chunk 的向量索引删掉（100/批，避免压垮后端）。Go 走 asynq 维护
+            // 队列（可重试 + 租户所有权校验）；Java 单实例下用虚拟线程异步执行等价
+            // 动作，失败只 WARN（无任务重试预算，与 Go 处理器失败记 Warn 同形）。
+            scheduleIndexDelete(kb.getId(), deleted);
         }
         log.info("Deleted {} chunks under tag {}", deleted.size(), tag.getId());
     }
 
-    /** 对照 enqueueKnowledgeListDeleteTask：document 型的 knowledge 文件异步删除（Java no-op）。 */
-    private void enqueueKnowledgeListDeleteNoop(KnowledgeBase kb, KnowledgeTag tag) {
-        log.warn("[tag] knowledge list delete skipped (worker unwired): kb={} tag={}",
-                kb.getId(), tag.getId());
+    /** 对照 ProcessIndexDelete 的批量删除循环（tag.go L452-470，batchSize=100）。 */
+    private void scheduleIndexDelete(String kbId, List<String> chunkIds) {
+        List<String> ids = List.copyOf(chunkIds);
+        Thread.ofVirtual().name("tag-index-delete").start(() -> {
+            try {
+                for (int i = 0; i < ids.size(); i += INDEX_DELETE_BATCH_SIZE) {
+                    int end = Math.min(i + INDEX_DELETE_BATCH_SIZE, ids.size());
+                    vectorStore.deleteByChunkId(ids.subList(i, end));
+                }
+                log.info("[tag] deleted index rows for {} chunks (kb={})", ids.size(), kbId);
+            } catch (RuntimeException e) {
+                log.warn("[tag] index delete failed (kb={}, chunks={}): {}",
+                        kbId, ids.size(), e.toString());
+            }
+        });
+    }
+
+    /**
+     * 对照 Go {@code enqueueKnowledgeListDeleteTask} → {@code ProcessKnowledgeListDelete}
+     * （tag.go L292-317）：列出该标签下的文档并批量删除。Go 走 asynq 维护队列
+     * （MaxRetry 3、Timeout 2h）；Java 侧用虚拟线程异步执行等价清理（批量删除可能
+     * 很慢，同步会拖住标签删除请求），失败只 WARN。
+     */
+    private void deleteKnowledgeListUnderTag(KnowledgeBase kb, KnowledgeTag tag) {
+        List<String> knowledgeIds = tagRepo.listKnowledgeIdsByTagIds(
+                tag.getTenantId(), tag.getKnowledgeBaseId(), List.of(tag.getId()));
+        if (knowledgeIds.isEmpty()) {
+            return;
+        }
+        KnowledgeService knowledgeService = knowledgeServiceProvider.getIfAvailable();
+        if (knowledgeService == null) {
+            log.warn("[tag] knowledge service unavailable, skip list delete: kb={} tag={}",
+                    kb.getId(), tag.getId());
+            return;
+        }
+        Thread.ofVirtual().name("tag-knowledge-delete").start(() -> {
+            try {
+                knowledgeService.batchDeleteKnowledge(kb.getId(), knowledgeIds);
+                log.info("[tag] deleted {} knowledge under tag {}", knowledgeIds.size(), tag.getId());
+            } catch (RuntimeException e) {
+                log.warn("[tag] knowledge list delete failed (kb={}, tag={}, count={}): {}",
+                        kb.getId(), tag.getId(), knowledgeIds.size(), e.toString());
+            }
+        });
     }
 
     /** details 组装（成对参数；序列化时按字母序输出，对照 Go map 的键序）。 */
