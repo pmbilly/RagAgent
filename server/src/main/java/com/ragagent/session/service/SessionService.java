@@ -151,6 +151,12 @@ public class SessionService {
         } catch (SessionNotFoundException notFound) {
             if (!isAdmin) {
                 // 非管理员到此为止：连"存在但你看不到"都不该知道
+                // （诊断留痕：owner 推导错/上下文丢失时这里是唯一线索，见
+                //  2026-09-24 embed follow-up 的 SessionNotFound 排查）
+                log.info("[session-read-miss] tenant={}, owner={}, session={}, principalType={}, principalId={}",
+                        tenantId, ownerId, com.ragagent.common.security.LogSanitizer.sanitize(sessionId),
+                        TenantContext.currentPrincipal() == null ? "" : TenantContext.currentPrincipal().type(),
+                        TenantContext.currentPrincipal() == null ? "" : TenantContext.currentPrincipal().id());
                 throw notFound;
             }
             Session byId;
@@ -176,6 +182,12 @@ public class SessionService {
                 && !isAdmin
                 && !runtimeMayBypassAdminConsoleRead(session, imPlatform)) {
             // 刻意复用"不存在"：未授权者不该能区分这两种情况
+            // （诊断留痕：渠道托管会话的运行时放行判定失败时，打印实际上下文）
+            log.info("[session-read-forbidden] tenant={}, owner={}, session={}, principalType={}, principalId={}, role={}",
+                    tenantId, ownerId, com.ragagent.common.security.LogSanitizer.sanitize(sessionId),
+                    TenantContext.currentPrincipal() == null ? "" : TenantContext.currentPrincipal().type(),
+                    TenantContext.currentPrincipal() == null ? "" : TenantContext.currentPrincipal().id(),
+                    TenantContext.currentRole());
             throw new SessionNotFoundException();
         }
         if (!imPlatform.isEmpty()) {
@@ -592,7 +604,11 @@ public class SessionService {
         final String requestId = TenantContext.currentRequestId();
         final String userId = TenantContext.currentUserId();
         Thread.ofVirtual().name("title-" + session.getId()).start(() -> {
-            TenantContext.set(tenantId, null, requestId, false, userId, false);
+            // 第 3 参是 role（不是 requestId！）：此前误把 requestId 传成 role，
+            // 既让角色判定拿到未知串，又丢了 requestId。后台任务无角色 → null
+            // （读取方 fail-closed 默认 Viewer），requestId 走独立 setter。
+            TenantContext.set(tenantId, null, null, false, userId, false);
+            TenantContext.setRequestId(requestId);
             try {
                 if (session.getTitle() != null && !session.getTitle().isEmpty()) {
                     return;

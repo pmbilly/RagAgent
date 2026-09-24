@@ -638,8 +638,19 @@ public class KnowledgeQaController {
             HttpServletResponse response) throws IOException {
         String sessionId = reqCtx.sessionId;
 
-        // 输入条状态（纯 UI memo）异步写
-        Thread.ofVirtual().start(() -> persistLastRequestState(reqCtx, mode));
+        // 输入条状态（纯 UI memo）异步写：新虚拟线程没有 ThreadLocal——纪律 #1
+        // 要求显式捕获-重放。旧实现直接 start，租户读到 0、owner 为空，
+        // updateSessionLastRequestState 按 (tenant, owner) 过滤后静默 0 行。
+        final com.ragagent.event.TenantContextSnapshot memoTenant =
+                com.ragagent.event.TenantContextSnapshot.capture();
+        Thread.ofVirtual().start(() -> {
+            memoTenant.replay();
+            try {
+                persistLastRequestState(reqCtx, mode);
+            } finally {
+                TenantContext.clear();
+            }
+        });
 
         if (mode == QaMode.AGENT) {
             try {
@@ -780,10 +791,16 @@ public class KnowledgeQaController {
                     // 流已终止
                 }
             } finally {
-                TenantContext.clear();
                 if (mode == QaMode.AGENT) {
                     Message am = streamCtx.assistantMessage;
                     // agent 收尾（Go L1224-1270）：steer 交接 + 完成 + ClearLiveRun
+                    //
+                    // 顺序纪律：收尾必须在**本线程上下文仍完整**时进行，clear 放到最后。
+                    // 旧实现先 clear 再 runWithTenant，prev 已空、只剩 tenantId——
+                    // completeAssistantMessage 的异步索引/follow-up 快照因此丢了
+                    // principal/userId，owner 推导成 ""，embed（owner=embed_session:…）
+                    // 与平台（owner=<userId>）会话双双 SessionNotFound。
+                    // 对照 Go：defer 里的 ctx 值仍然完整，不存在这个顺序陷阱。
                     Long sessionTenant = reqCtx.session.getTenantId();
                     runWithTenant(sessionTenant, () -> {
                         if (streamCtx.cancelled) {
@@ -807,6 +824,8 @@ public class KnowledgeQaController {
                         log.info("Agent QA service completed for session: {}", sessionId);
                     });
                 }
+                // 收尾（含身份相关的库写）完成后再清线程上下文
+                TenantContext.clear();
             }
         });
 
@@ -859,22 +878,27 @@ public class KnowledgeQaController {
         return msg != null ? msg : e.getClass().getSimpleName();
     }
 
+    /**
+     * 借用执行租户运行（对照 Go types.WithExecutionTenant：只换执行租户，身份原样保留）。
+     *
+     * <p>纪律 #1：借用必须**保存-恢复**而非 clear。旧实现在 finally 里先
+     * {@code clear()} 再读 {@code currentPrincipal()/currentRole()/currentUserId()}
+     * 去还原——这些读取在 clear 之后恒为 null，等于把调用线程的身份永久抹掉、
+     * 只还原了 tenantId。而本方法的调用点包含**同步 EventBus 的内联 handler**
+     * （723 的 AGENT_FINAL_ANSWER、1006 的 STOP），handler 跑在引擎/流水线/HTTP
+     * 线程上，身份被抹后同线程后续的 owner/权限判定全部失真。</p>
+     */
     private void runWithTenant(Long tenantId, Runnable body) {
-        Long prev = TenantContext.currentTenantId();
+        com.ragagent.event.TenantContextSnapshot prev =
+                com.ragagent.event.TenantContextSnapshot.capture();
         try {
             if (tenantId != null) {
-                TenantContext.set(tenantId, TenantContext.currentPrincipal(), TenantContext.currentRole(),
-                        TenantContext.isSystemAdmin(), TenantContext.currentUserId(),
-                        TenantContext.canAccessAllTenants());
+                prev.withTenantId(tenantId).replay();
             }
             body.run();
         } finally {
-            TenantContext.clear();
-            if (prev != null) {
-                TenantContext.set(prev, TenantContext.currentPrincipal(), TenantContext.currentRole(),
-                        TenantContext.isSystemAdmin(), TenantContext.currentUserId(),
-                        TenantContext.canAccessAllTenants());
-            }
+            // 调用方无上下文时 prev 全空，恢复等价于 clear（新线程场景行为不变）
+            prev.replay();
         }
     }
 
@@ -1428,21 +1452,31 @@ public class KnowledgeQaController {
         final String content = assistantMessage.getContent();
         final String amId = assistantMessage.getId();
         final String sessionId = assistantMessage.getSessionId();
+        // 纪律 #1：新虚拟线程没有 ThreadLocal——必须捕获**完整身份**（不止 tenantId）
+        // 再重放。历史上这里只带 tenantId，principal/userId 丢失后
+        // sessionUserIDForLookup() 推导出 owner=""，embed（owner=embed_session:…）与
+        // 平台（owner=<userId>）会话的索引与 follow-up 全部 SessionNotFoundException。
+        final com.ragagent.event.TenantContextSnapshot asyncTenant =
+                com.ragagent.event.TenantContextSnapshot.capture();
         Thread.ofVirtual().start(() -> {
+            asyncTenant.replay();
             try {
-                runWithTenant(tenantId, () -> messageService.indexMessageToKb(userQuery, content, amId, sessionId));
+                messageService.indexMessageToKb(userQuery, content, amId, sessionId);
             } catch (RuntimeException e) {
                 log.warn("index message to KB failed for message {}: {}", amId, e.toString());
+            } finally {
+                TenantContext.clear();
             }
         });
         if (userQuery != null && !userQuery.isEmpty() && suggestionService != null) {
             Thread.ofVirtual().start(() -> {
+                asyncTenant.replay();
                 try {
-                    // 与上面 indexMessageToKb 同款：虚拟线程不继承 ThreadLocal，
-                    // 对照 Go 协程携 WithoutCancel(ctx)（含 tenant）必须显式 replay。
-                    runWithTenant(tenantId, () -> suggestionService.ensureFollowUps(sessionId, amId, false));
+                    suggestionService.ensureFollowUps(sessionId, amId, false);
                 } catch (RuntimeException e) {
                     log.warn("follow-up suggestion generation failed for message {}: {}", amId, e.toString());
+                } finally {
+                    TenantContext.clear();
                 }
             });
         }

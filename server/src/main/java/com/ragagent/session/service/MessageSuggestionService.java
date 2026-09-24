@@ -400,24 +400,24 @@ public class MessageSuggestionService {
         return new Generated(items, prompt, completion);
     }
 
-    /** 对照 Go 的 ctx 租户切换（AgentTenantID 覆盖 TenantIDContextKey）。 */
+    /**
+     * 对照 Go 的 ctx 租户切换（AgentTenantID 覆盖 TenantIDContextKey）。
+     *
+     * <p>与 KnowledgeQaController#runWithTenant 同款纪律 #1：保存-恢复而非 clear
+     * （clear 后读 currentPrincipal() 等恒为 null，会把调用线程身份抹掉——
+     * 本方法可被 HTTP 线程直达，MessageSuggestionController.ensure）。</p>
+     */
     private <T> T withAgentTenant(long agentTenantId, java.util.function.Supplier<T> body) {
-        Long prev = TenantContext.currentTenantId();
-        if (agentTenantId == 0 || (prev != null && prev == agentTenantId)) {
+        com.ragagent.event.TenantContextSnapshot prev =
+                com.ragagent.event.TenantContextSnapshot.capture();
+        if (agentTenantId == 0 || (prev.tenantId() != null && prev.tenantId() == agentTenantId)) {
             return body.get();
         }
         try {
-            TenantContext.set(agentTenantId, TenantContext.currentPrincipal(),
-                    TenantContext.currentRole(), TenantContext.isSystemAdmin(),
-                    TenantContext.currentUserId(), TenantContext.canAccessAllTenants());
+            prev.withTenantId(agentTenantId).replay();
             return body.get();
         } finally {
-            TenantContext.clear();
-            if (prev != null) {
-                TenantContext.set(prev, TenantContext.currentPrincipal(),
-                        TenantContext.currentRole(), TenantContext.isSystemAdmin(),
-                        TenantContext.currentUserId(), TenantContext.canAccessAllTenants());
-            }
+            prev.replay();
         }
     }
 
