@@ -80,13 +80,18 @@ class S3CompatibleFileServiceTest {
     }
 
     @Test
-    @DisplayName("SaveBytes 的文件名安全校验：分隔符与 .. 拒绝")
+    @DisplayName("SaveBytes 的文件名校验照 Go：Base(Clean(name)) 取 basename，非法名才拒")
     void saveBytesFileNameGuard() {
-        assertThrows(IllegalArgumentException.class,
-                () -> S3CompatibleFileService.safeFileNameOrThrow("../x.txt"));
-        assertThrows(IllegalArgumentException.class,
-                () -> S3CompatibleFileService.safeFileNameOrThrow("a/b.txt"));
+        // Go 的 filepath.Base：目录部分被丢弃（skill 归档 "tenant-skills/catalog/x.zip"、
+        // FAQ 导出等路径形 key 依赖这一行为）
+        assertEquals("x.txt", S3CompatibleFileService.safeFileNameOrThrow("../x.txt"));
+        assertEquals("b.txt", S3CompatibleFileService.safeFileNameOrThrow("a/b.txt"));
         assertEquals("ok.txt", S3CompatibleFileService.safeFileNameOrThrow("ok.txt"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> S3CompatibleFileService.safeFileNameOrThrow(".."));
+        assertThrows(IllegalArgumentException.class,
+                () -> S3CompatibleFileService.safeFileNameOrThrow("a/x..y"));
     }
 
     @Test

@@ -82,9 +82,10 @@ class LocalFileServiceTest {
         // 路径遍历：baseDir 之外一律拒绝
         assertThrows(RuntimeException.class, () -> service.getFile("../../etc/passwd"));
         assertThrows(RuntimeException.class, () -> service.getFile(base.getParent().resolve("x").toString()));
-        // 文件名非法（分隔符 / ..）
-        assertThrows(IllegalArgumentException.class, () -> service.saveBytes(content, 1L, "../x.txt", false));
-        assertThrows(IllegalArgumentException.class, () -> service.saveBytes(content, 1L, "a/b.txt", false));
+        // 文件名照 Go 取 basename（目录部分丢弃，不是拒绝）；只有 "."/".."/含 ".."/超长才拒
+        assertEquals("x.txt", LocalFileService.safeFileName("../x.txt"));
+        assertEquals("b.txt", LocalFileService.safeFileName("a/b.txt"));
+        assertThrows(IllegalArgumentException.class, () -> LocalFileService.safeFileName(".."));
     }
 
     @Test

@@ -490,7 +490,49 @@ public class StorageFileResolver {
                 cfg.put("use_ssl", !"false".equalsIgnoreCase(env("S3_USE_SSL")));
                 cfg.put("force_path_style", "true".equalsIgnoreCase(env("S3_FORCE_PATH_STYLE")));
             }
-            // 其余云 provider 的 env 投影随 SDK 层回补（dev 只 local）
+            case "cos" -> {
+                cfg.put("secret_id", env("COS_SECRET_ID"));
+                cfg.put("secret_key", env("COS_SECRET_KEY"));
+                cfg.put("region", env("COS_REGION"));
+                cfg.put("bucket_name", env("COS_BUCKET_NAME"));
+                cfg.put("app_id", env("COS_APP_ID"));
+                cfg.put("path_prefix", env("COS_PATH_PREFIX"));
+                cfg.put("temp_bucket_name", env("COS_TEMP_BUCKET_NAME"));
+                cfg.put("temp_region", env("COS_TEMP_REGION"));
+            }
+            case "tos" -> {
+                cfg.put("endpoint", env("TOS_ENDPOINT"));
+                cfg.put("region", env("TOS_REGION"));
+                cfg.put("access_key", env("TOS_ACCESS_KEY"));
+                cfg.put("secret_key", env("TOS_SECRET_KEY"));
+                cfg.put("bucket_name", env("TOS_BUCKET_NAME"));
+                cfg.put("path_prefix", env("TOS_PATH_PREFIX"));
+                cfg.put("temp_bucket_name", env("TOS_TEMP_BUCKET_NAME"));
+                cfg.put("temp_region", env("TOS_TEMP_REGION"));
+            }
+            case "oss" -> {
+                cfg.put("endpoint", env("OSS_ENDPOINT"));
+                cfg.put("region", env("OSS_REGION"));
+                cfg.put("access_key", env("OSS_ACCESS_KEY"));
+                cfg.put("secret_key", env("OSS_SECRET_KEY"));
+                cfg.put("bucket_name", env("OSS_BUCKET_NAME"));
+                cfg.put("path_prefix", env("OSS_PATH_PREFIX"));
+                // 对照 Go：没有独立的 use_temp_bucket env，非空临时桶名即启用
+                cfg.put("use_temp_bucket", !env("OSS_TEMP_BUCKET_NAME").isEmpty());
+                cfg.put("temp_bucket_name", env("OSS_TEMP_BUCKET_NAME"));
+                cfg.put("temp_region", env("OSS_TEMP_REGION"));
+            }
+            case "obs" -> {
+                cfg.put("endpoint", env("OBS_ENDPOINT"));
+                cfg.put("region", env("OBS_REGION"));
+                cfg.put("access_key", env("OBS_ACCESS_KEY"));
+                cfg.put("secret_key", env("OBS_SECRET_KEY"));
+                cfg.put("bucket_name", env("OBS_BUCKET_NAME"));
+                cfg.put("path_prefix", env("OBS_PATH_PREFIX"));
+                cfg.put("use_ssl", !"false".equalsIgnoreCase(env("OBS_USE_SSL")));
+            }
+            // 其余 provider（如 ks3）：Go 的 StorageBackendFromEnvironment 也没有 case
+            // （走 default），此处保持同形——返回 null 表示"环境里没有这个 provider 的快照"。
             default -> {
                 return null;
             }

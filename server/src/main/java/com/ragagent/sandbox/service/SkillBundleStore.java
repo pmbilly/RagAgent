@@ -4,10 +4,12 @@ package com.ragagent.sandbox.service;
  * skill 归档的字节存储接缝（对照 Go 的 {@code interfaces.FileService} 面里
  * install 管线实际用到的三个方法：SaveBytes / GetFile / DeleteFile）。
  *
- * <p>Go 经 StorageBackendResolver 按租户解析文件服务；Java 侧本批接本地落盘实现
- * {@code LocalSkillBundleStore}（测试配置 {@code weknora.storage.local-base-dir=./build/test-files}，
- * 生产默认 /data/files，与 Go 的 LOCAL_STORAGE_BASE_DIR 兜底一致）。对象存储后端
- * （minio/oss/s3）的解析面属波 4 接缝——届时补实现即可，调用方形状不变。</p>
+ * <p>Go 经 StorageBackendResolver 按租户解析文件服务；Java 侧装配
+ * {@code TenantSkillBundleStore}（{@code @Primary}，A3-3 尾批）：本地租户委托
+ * {@code LocalSkillBundleStore}（{@code local://} 布局不变；测试配置
+ * {@code weknora.storage.local-base-dir=./build/test-files}，生产默认 /data/files，
+ * 与 Go 的 LOCAL_STORAGE_BASE_DIR 兜底一致），云租户走 A3 的 provider 服务
+ * （SaveBytes/GetFile/DeleteFile）。调用方形状不变。</p>
  *
  * <p>读不到的引用必须抛（对照 Go：GetFile 错误让 trySkillBundle 报"不可用"，
  * 而不是把空字节当内容）。</p>

@@ -24,14 +24,51 @@ public final class StorageObjects {
     private StorageObjects() {
     }
 
-    /** 对照 {@code utils.SafeFileName}：只允许纯文件名（禁分隔符与 {@code ..}）。 */
+    /**
+     * 对照 {@code utils.SafeFileName}（internal/utils/security.go L150-165）:
+     * {@code filepath.Base(filepath.Clean(name))}——<b>目录部分被丢弃，不是拒绝</b>
+     * （所以 {@code "tenant-skills/catalog/x.zip"} 合法，落成 {@code x.zip}，
+     * 这正是 Go 的 skill 归档与 FAQ 导出所依赖的行为），再拒
+     * {@code .}/{@code ..}/含 {@code ..}/超 255。
+     */
     public static String safeFileName(String fileName) {
-        String name = fileName == null ? "" : fileName.trim();
-        if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains("..")
-                || name.equals(".")) {
-            throw new IllegalArgumentException("invalid file name: " + fileName);
+        if (fileName == null || fileName.isEmpty()) {
+            throw new IllegalArgumentException("fileName cannot be empty");
         }
-        return name;
+        String cleaned = cleanPath(fileName.replace('\\', '/'));
+        int slash = cleaned.lastIndexOf('/');
+        String base = slash < 0 ? cleaned : cleaned.substring(slash + 1);
+        if (base.isEmpty() || base.equals(".") || base.equals("..")) {
+            throw new IllegalArgumentException("invalid fileName: path traversal or empty name");
+        }
+        if (base.contains("..")) {
+            throw new IllegalArgumentException("invalid fileName: contains path traversal");
+        }
+        if (base.length() > 255) {
+            throw new IllegalArgumentException("fileName too long");
+        }
+        return base;
+    }
+
+    /** 近似 Go {@code filepath.Clean} 的词法折叠：去空段与 {@code .}、解析 {@code ..}。 */
+    private static String cleanPath(String path) {
+        boolean absolute = path.startsWith("/");
+        java.util.ArrayDeque<String> out = new java.util.ArrayDeque<>();
+        for (String segment : path.split("/", -1)) {
+            if (segment.isEmpty() || ".".equals(segment)) {
+                continue;
+            }
+            if ("..".equals(segment)) {
+                if (!out.isEmpty() && !"..".equals(out.peekLast())) {
+                    out.removeLast();
+                } else if (!absolute) {
+                    out.addLast(segment);
+                }
+                continue;
+            }
+            out.addLast(segment);
+        }
+        return (absolute ? "/" : "") + String.join("/", out);
     }
 
     /** 对照 {@code SafeObjectKey}：路径遍历一律拒绝（S3 的 key 允许 {@code /}）。 */

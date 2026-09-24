@@ -210,14 +210,9 @@ public class LocalFileService implements FileService {
         return resolved;
     }
 
-    /** 对照 {@code SafeFileName}：只允许纯文件名（禁分隔符与 ..）。 */
+    /** 对照 {@code SafeFileName}（取 basename；见 {@link StorageObjects#safeFileName}）。 */
     static String safeFileName(String fileName) {
-        String name = fileName == null ? "" : fileName.trim();
-        if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains("..")
-                || name.equals(".")) {
-            throw new IllegalArgumentException("invalid file name: " + fileName);
-        }
-        return name;
+        return StorageObjects.safeFileName(fileName);
     }
 
     /** 对照 {@code ParseTenantIDFromStoragePath}：从 {@code local://{tenant}/{...}} 取租户 id。 */

@@ -98,6 +98,8 @@ public class FaqService {
     private final ChunkMapper chunkMapper;
     private final ModelMapper modelMapper;
     private final LocalStorageService storage;
+    /** A3-3 尾批：租户感知文件存储（失败明细 CSV 导出走云的临时桶；本地租户保持既有落盘）。 */
+    private final TenantFileStorage fileStorage;
     private final VectorStoreService vectorStore;
     private final EmbedderClient embedder;
     private final TenantStorageService tenantStorage;
@@ -117,6 +119,7 @@ public class FaqService {
                       ChunkMapper chunkMapper,
                       ModelMapper modelMapper,
                       LocalStorageService storage,
+                      TenantFileStorage fileStorage,
                       VectorStoreService vectorStore,
                       EmbedderClient embedder,
                       TenantStorageService tenantStorage,
@@ -132,6 +135,7 @@ public class FaqService {
         this.chunkMapper = chunkMapper;
         this.modelMapper = modelMapper;
         this.storage = storage;
+        this.fileStorage = fileStorage;
         this.vectorStore = vectorStore;
         this.embedder = embedder;
         this.tenantStorage = tenantStorage;
@@ -2038,11 +2042,24 @@ public class FaqService {
         }
         String base = storage.baseDir().toString();
         java.nio.file.Path dir = java.nio.file.Path.of(base, String.valueOf(tenantId), "exports");
+        String unique = "faq_dryrun_failed_" + taskId + "_" + System.nanoTime() + ".csv";
+        byte[] csv = buf.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (fileStorage != null) {
+            // 对照 Go：fileSvc.SaveBytes(..., temp=true) + GetFileURL → 云上落临时桶、回预签名 URL
+            TenantFileStorage.Exported exported =
+                    fileStorage.saveExportedBytesToUrl(tenantId, unique, csv, true);
+            if (exported.handled()) {
+                if (exported.url() == null) {
+                    log.warn("FAQ import task {}: failed to generate failed entries CSV", taskId);
+                }
+                return exported.url();
+            }
+        }
         try {
+            // 本地租户：既有落盘 + local:// 引用（golden 形态）
             java.nio.file.Files.createDirectories(dir);
-            String unique = "faq_dryrun_failed_" + taskId + "_" + System.nanoTime() + ".csv";
             java.nio.file.Path target = dir.resolve(unique);
-            java.nio.file.Files.write(target, buf.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            java.nio.file.Files.write(target, csv);
             return "local://" + tenantId + "/exports/" + unique;
         } catch (java.io.IOException e) {
             log.warn("FAQ import task {}: failed to generate failed entries CSV: {}", taskId, e.getMessage());

@@ -304,14 +304,9 @@ public class S3CompatibleFileService implements FileService {
         return key;
     }
 
-    /** 对照 Go 的 {@code utils.SafeFileName}（对象存储侧同样禁分隔符与 ..）。 */
+    /** 对照 Go 的 {@code utils.SafeFileName}（取 basename；见 {@link StorageObjects#safeFileName}）。 */
     static String safeFileNameOrThrow(String fileName) {
-        String name = fileName == null ? "" : fileName.trim();
-        if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains("..")
-                || name.equals(".")) {
-            throw new IllegalArgumentException("invalid file name: " + fileName);
-        }
-        return name;
+        return StorageObjects.safeFileName(fileName);
     }
 
     /** 供装配/测试观察。 */

@@ -88,6 +88,36 @@ public class TenantFileStorage {
         return local.save(tenantId, knowledgeId, fileName, content);
     }
 
+    /**
+     * 导出结果：{@code handled=false} = "租户走本地存储，调用方自便"；
+     * {@code handled=true} 且 {@code url==null} = 配了云但导出失败（照 Go 返回空串）。
+     */
+    public record Exported(String url, boolean handled) {
+    }
+
+    /**
+     * 落一块"小块导出"并给出下载 URL——对照 Go
+     * {@code fileSvc.SaveBytes(ctx, data, tenantID, fileName, temp)} + {@code GetFileURL}
+     * （知识 FAQ 导入的失败明细 CSV 走这条，temp=true → 云上落临时桶）。
+     *
+     * <p>本地租户返回 {@code handled=false}：调用方保留既有本地落盘与 {@code local://} 引用
+     * （那是 golden 锁定的形态）。</p>
+     */
+    public Exported saveExportedBytesToUrl(long tenantId, String fileName, byte[] data, boolean temp) {
+        StorageFileResolver.ProviderResolution resolved = resolveProvider(tenantId, null);
+        if (resolved.ok()) {
+            String ref = resolved.service().saveBytes(data, tenantId, fileName, temp);
+            String url = resolved.service().getFileURL(ref);
+            log.info("exported bytes on provider {}: ref={}", resolved.provider(), ref);
+            return new Exported(url, true);
+        }
+        if (resolved.error() != null) {
+            log.warn("export to provider failed: {}", resolved.error());
+            return new Exported(null, true);
+        }
+        return new Exported(null, false);
+    }
+
     // ── 读 ──────────────────────────────────────────────────────────────────
 
     /**
