@@ -9,20 +9,14 @@ import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.memory.domain.MemoryKeys;
 
 /**
- * langfuse 追踪的<b>空实现门面</b>（对照 Go
- * {@code internal/tracing/langfuse} 的 {@code GetManager().StartSpan} /
- * {@code SpanOptions} / {@code Span.Finish}）。
+ * 长期记忆模块的 langfuse 观测门面（对照 Go {@code internal/tracing/langfuse} 的
+ * {@code GetManager().StartSpan} / {@code SpanOptions} / {@code Span.Finish}）。
  *
- * <h2>为什么是空实现</h2>
- * <p>与阶段 4.0 的 {@code langfuse_wrapper.go}、阶段 4.1 的 LLM 追踪同一条处置：
- * Java 侧的 langfuse 未实现，等价于 Go 未启用该功能的部署，**零成本**。
- * 保留调用点与 Go 逐行对应，是为了将来接上时不必回头重建调用结构——
- * 每个 span 的名字、Input、output 键名都照抄。</p>
- *
- * <h2>⚠️ 已知差异</h2>
- * <p>Go 的 span 是<b>真的</b>把 {@code Input}/{@code Metadata}/output 发出去；
- * 这里只保留形状。两个 {@code summarize*} 虽然照抄并仍被调用（它们是纯本地计算，
- * 也是本模块少数几个可单测的纯函数），但产出<b>没有任何消费者</b>。</p>
+ * <h2>2026-09-24 C 批接线</h2>
+ * <p>此前是空实现门面（Java 侧 langfuse 未实现时保形不产出）；本批起转真：
+ * {@link #start} 直接向 {@code LangfuseManager} 开 span，{@link Span#finish} 把
+ * output/metadata 原样上报（含两个 {@code summarize*} 的产出）。管理器未启用时
+ * 恒为 no-op 句柄，成本与接线前一致。</p>
  */
 public final class MemoryTrace {
 
@@ -39,17 +33,22 @@ public final class MemoryTrace {
      * （那些 span 的结束点与业务分支一一对应）。</p>
      */
     public static Span start(String name, Map<String, Object> input) {
-        return new Span(name, input);
+        com.ragagent.tracing.langfuse.Span inner = com.ragagent.tracing.langfuse.LangfuseManager.get()
+                .startSpan(new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                        name, input, null));
+        return new Span(name, input, inner);
     }
 
-    /** 对照 Go {@code langfuse.Span}：一个只记形状的 span。 */
+    /** 对照 Go {@code langfuse.Span}：真 span 的薄包装（保留 name/input 访问器供调用点/测试用）。 */
     public static final class Span {
         private final String name;
         private final Map<String, Object> input;
+        private final com.ragagent.tracing.langfuse.Span inner;
 
-        Span(String name, Map<String, Object> input) {
+        Span(String name, Map<String, Object> input, com.ragagent.tracing.langfuse.Span inner) {
             this.name = name;
             this.input = input;
+            this.inner = inner;
         }
 
         public String name() {
@@ -60,9 +59,14 @@ public final class MemoryTrace {
             return input;
         }
 
-        /** 对照 Go {@code Span.Finish(output, metadata, err)}。 */
+        /** 对照 Go {@code Span.Finish(output, metadata, err)}：非空 err → ERROR 状态 + exception 事件。 */
         public void finish(Map<String, Object> output, Map<String, Object> metadata, Throwable error) {
-            // 刻意空实现：langfuse 未接线（见类注释）。保留签名让调用序列与 Go 逐行对应。
+            if (inner == null) {
+                return;
+            }
+            String err = error == null ? null
+                    : (error.getMessage() == null ? error.toString() : error.getMessage());
+            inner.finish(output, metadata, err);
         }
     }
 

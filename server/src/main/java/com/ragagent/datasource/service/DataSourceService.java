@@ -560,11 +560,12 @@ public class DataSourceService implements DataSourceSyncHandler {
         }
 
         String taskId = UUID.randomUUID().toString();
-        DataSourceSyncPayload payload = new DataSourceSyncPayload(
+        // 入队侧注入（对照 Go 的 langfuse.InjectTracing(ctx, payload)）：把请求的
+        // traceparent 打进载荷（平铺 lf_* 键），worker 侧续接同一棵树
+        DataSourceSyncPayload payload = DataSourceSyncPayload.withTracing(
                 taskInitiatorFromContext(), "manual", dsId, ds.getTenantId(),
-                syncLog.getId(), false, 0);
-        // 对照 Go 的 langfuse.InjectTracing(ctx, payload)：追踪未实现（no-op），
-        // 载荷里的 lf_* 五个字段因此缺席——等价于 Go 未启用追踪时的形状。
+                syncLog.getId(), false, 0,
+                com.ragagent.tracing.langfuse.LangfuseTracing.inject());
 
         DataSourceSyncTaskQueue.Outcome outcome;
         try {

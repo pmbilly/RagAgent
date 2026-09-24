@@ -40,6 +40,9 @@ public class InProcessMemoryExtractTaskQueue implements MemoryExtractTaskQueue {
     /** 对照 Go {@code asynq.MaxRetry(2)}。 */
     static final int MAX_RETRY = 2;
 
+    /** 对照 Go {@code types.TypeMemoryExtract}：任务观测的 span/根名。 */
+    static final String TASK_TYPE_MEMORY_EXTRACT = "memory:extract";
+
     /** 调度器：只负责"到点把任务丢出去"，本身不跑业务代码。 */
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor(r -> {
@@ -109,7 +112,18 @@ public class InProcessMemoryExtractTaskQueue implements MemoryExtractTaskQueue {
             return;
         }
         try {
-            handler.handle(MemoryExtractPayload.fromJson(body));
+            MemoryExtractPayload payload = MemoryExtractPayload.fromJson(body);
+            // C 批：任务侧观测（对照 Go 的 AsynqMiddleware）——负载带 traceparent 就续接
+            // 上游 trace，否则以任务类型开独立根；处理体包在 asynq.<type> span 内。
+            try (com.ragagent.tracing.langfuse.LangfuseTaskScope scope =
+                         com.ragagent.tracing.langfuse.LangfuseTaskScope.start(
+                                 TASK_TYPE_MEMORY_EXTRACT, payload.tracing(),
+                                 java.util.Map.of("subject_id", payload.subjectId(),
+                                         "message_id", payload.messageId()),
+                                 com.ragagent.tracing.langfuse.LangfuseTaskScope
+                                         .previewPayload(body))) {
+                handler.handle(payload);
+            }
         } catch (Exception e) {
             if (attempt > MAX_RETRY) {
                 log.warn("memory: extraction task gave up after {} attempts: {}",

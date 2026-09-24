@@ -123,6 +123,44 @@ public class MessageSuggestionService {
                     "follow-up suggestions require a completed assistant message");
         }
 
+        var spanEc = message.getExecutionContext();
+        // 对照 Go message_suggestion.go L266-279：派生请求（晚于 HTTP 根 span 的那次）先按
+        // ExecutionContext 里存的 traceparent 续接**原对话**的 trace，再开
+        // follow_up.suggestions span——否则下游 generation 会自动开一个孤儿根
+        com.ragagent.tracing.langfuse.LangfuseTracing.attachTraceparent(
+                spanEc == null ? null : spanEc.getLangfuseTraceparent());
+        Map<String, Object> spanConfig = followUps(
+                spanEc == null ? null : spanEc.getQuestionSuggestions());
+        Map<String, Object> spanInput = new LinkedHashMap<>();
+        spanInput.put("session_id", sessionId);
+        spanInput.put("assistant_message_id", assistantMessageId);
+        spanInput.put("mode", strVal(spanConfig, "mode"));
+        Map<String, Object> spanMeta = new LinkedHashMap<>();
+        spanMeta.put("count", spanConfig == null ? null : spanConfig.get("count"));
+        spanMeta.put("model_id", strVal(spanConfig, "model_id"));
+        com.ragagent.tracing.langfuse.Span followUpSpan =
+                com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                        new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                                "follow_up.suggestions", spanInput, spanMeta));
+        MessageSuggestionSet result;
+        try {
+            result = ensureFollowUpsInner(message, sessionId, assistantMessageId, regenerate);
+        } catch (RuntimeException e) {
+            followUpSpan.finish(null, null, e.toString());
+            throw e;
+        }
+        // 对照 Go 的 defer：output = {question_count}；失败态带 error_code 收尾
+        followUpSpan.finish(Map.of("question_count",
+                        result.getQuestions() == null ? 0 : result.getQuestions().size()),
+                null,
+                MessageSuggestionSet.STATUS_FAILED.equals(result.getStatus())
+                        ? result.getErrorCode() : null);
+        return result;
+    }
+
+    /** 建议生成主体（对照 Go {@code GenerateSuggestions} 的装配/生成/落库段）。 */
+    private MessageSuggestionSet ensureFollowUpsInner(Message message, String sessionId,
+            String assistantMessageId, boolean regenerate) {
         long tenantId = requireTenantId();
         var ec = message.getExecutionContext();
         String locale = resolveLanguage(ec == null ? null : ec.getLocale());

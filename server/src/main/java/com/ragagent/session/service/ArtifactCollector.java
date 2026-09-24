@@ -106,6 +106,31 @@ public class ArtifactCollector {
             return null;
         }
 
+        // 对照 Go artifact_collector.go L285-297：sandbox.collect_artifacts span 包住收集段
+        //（Input 三键；收尾 output = {artifact_count}，err 经 Finish 上报）
+        java.util.Map<String, Object> spanInput = new java.util.LinkedHashMap<>();
+        spanInput.put("session_id", sessionId);
+        spanInput.put("message_id", messageId);
+        spanInput.put("output_dir", outputDir);
+        com.ragagent.tracing.langfuse.Span span =
+                com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                        new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                                "sandbox.collect_artifacts", spanInput, null));
+        try {
+            List<MessageArtifact> artifacts =
+                    collectInner(sessionId, messageId, tenantId, outputDir, notify);
+            span.finish(java.util.Map.of("artifact_count",
+                    artifacts == null ? 0 : artifacts.size()), null, null);
+            return artifacts;
+        } catch (RuntimeException e) {
+            span.finish(null, null, e.toString());
+            throw e;
+        }
+    }
+
+    /** 收集本体（对照 Go {@code (c *ArtifactCollector) collect}，artifact_collector.go L252+）。 */
+    private List<MessageArtifact> collectInner(String sessionId, String messageId, long tenantId,
+            String outputDir, java.util.function.IntConsumer notify) {
         List<RemoteDirEntry> entries;
         try {
             entries = source.listSessionFiles(sessionId, outputDir);

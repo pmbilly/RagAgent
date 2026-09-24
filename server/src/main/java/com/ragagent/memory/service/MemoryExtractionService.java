@@ -221,8 +221,12 @@ public class MemoryExtractionService {
         if (queue == null) {
             return false;
         }
-        MemoryExtractPayload payload = new MemoryExtractPayload(scope.tenantId(), scope.subjectId(),
-                sessionId, messageId, chatModelId, "");
+        // 入队侧注入（对照 Go 的 langfuse.InjectTracing(ctx, &payload)）：请求线程 capture
+        // 当前 traceparent，worker 侧续接同一棵树
+        MemoryExtractPayload payload = MemoryExtractPayload.withTracing(
+                scope.tenantId(), scope.subjectId(),
+                sessionId, messageId, chatModelId, "",
+                com.ragagent.tracing.langfuse.LangfuseTracing.inject());
         try {
             queue.enqueue(payload, delay);
         } catch (RuntimeException e) {

@@ -63,6 +63,23 @@ public final class TenantSkillReaper {
      * @return 处理的行数
      */
     public int reapStuckRuns() {
+        // 对照 Go tenant_skill_reaper.go L760-762：skill.maintenance span 包住整轮扫描
+        //（Go 的 sweepErr 会把逐项错误 join 上报；Java 侧逐项错误只记日志 → 收尾 err 恒空）
+        com.ragagent.tracing.langfuse.Span span =
+                com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                        com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions
+                                .of("skill.maintenance"));
+        try {
+            int reaped = reapStuckRunsInner();
+            span.finish(null, null, null);
+            return reaped;
+        } catch (RuntimeException e) {
+            span.finish(null, null, e.toString());
+            throw e;
+        }
+    }
+
+    private int reapStuckRunsInner() {
         OffsetDateTime cutoff = clock.get().minus(SKILL_INSTALL_STUCK_TTL);
         List<TenantSkillEntity> stale = skills.listStaleInstalling(cutoff);
         int reaped = 0;

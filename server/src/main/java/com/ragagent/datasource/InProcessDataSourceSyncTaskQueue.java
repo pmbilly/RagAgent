@@ -53,6 +53,9 @@ public class InProcessDataSourceSyncTaskQueue implements DataSourceSyncTaskQueue
 
     private static final Logger log = LoggerFactory.getLogger(InProcessDataSourceSyncTaskQueue.class);
 
+    /** 对照 Go {@code types.TypeDataSourceSync}：任务观测的 span/根名。 */
+    static final String TASK_TYPE_DATASOURCE_SYNC = "datasource:sync";
+
     private final ObjectProvider<DataSourceSyncHandler> handlerProvider;
 
     /** 在途 / 待跑的 TaskID。对照 asynq 的 unique-task 锁。 */
@@ -148,7 +151,19 @@ public class InProcessDataSourceSyncTaskQueue implements DataSourceSyncTaskQueue
         // 独立线程执行，这样超时能靠中断取消（对照 Go 的 asynq.Timeout 取消 ctx）
         Future<?> future;
         try {
-            future = worker.submit(() -> handler.handle(payload));
+            // C 批：任务侧观测（对照 Go 的 AsynqMiddleware）——在 worker 线程上续接上游
+            // trace（无则开独立根），处理体包在 asynq.<type> span 内
+            future = worker.submit(() -> {
+                try (com.ragagent.tracing.langfuse.LangfuseTaskScope scope =
+                             com.ragagent.tracing.langfuse.LangfuseTaskScope.start(
+                                     TASK_TYPE_DATASOURCE_SYNC, payload.tracing(),
+                                     java.util.Map.of("data_source_id", payload.dataSourceId(),
+                                             "sync_log_id", payload.syncLogId()),
+                                     com.ragagent.tracing.langfuse.LangfuseTaskScope
+                                             .previewPayload(body))) {
+                    handler.handle(payload);
+                }
+            });
         } catch (RejectedExecutionException e) {
             log.error("[DataSourceSyncQueue] executor shut down; dropping task");
             return true;

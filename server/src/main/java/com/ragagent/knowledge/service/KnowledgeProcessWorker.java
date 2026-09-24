@@ -58,6 +58,9 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeProcessWorker.class);
 
+    /** 对照 Go {@code types.TypeDocumentProcess}：任务观测的 span/根名（{@code asynq.<type>}）。 */
+    static final String TASK_TYPE_DOCUMENT_PROCESS = "document:process";
+
     /**
      * 对照 Go batch.go：BATCH_EMBED_SIZE env，空 → 5，非法值 → 报错（照抄
      * strconv.Atoi 文案——会落进 knowledge 的 error_message）。走查实案：
@@ -126,10 +129,33 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     @Override
     public void enqueue(String knowledgeId) {
-        executor.submit(() -> process(knowledgeId));
+        // 入队侧注入（对照 Go 的 langfuse.InjectTracing(ctx, &taskPayload)）：在提交线程
+        // （HTTP 请求线程）capture 当前 traceparent，随任务带到 worker 线程续接同一棵树。
+        com.ragagent.common.context.TracingContext tracing =
+                com.ragagent.tracing.langfuse.LangfuseTracing.inject();
+        executor.submit(() -> process(knowledgeId, tracing));
     }
 
-    private void process(String knowledgeId) {
+    /**
+     * 任务入口（对照 Go asynq 的 {@code AsynqMiddleware}）：续接上游 trace（无则开独立根）
+     * + 包一个 {@code asynq.document:process} span；worker 线程归还前由 scope.close() 清上下文（§5）。
+     */
+    private void process(String knowledgeId,
+                         com.ragagent.common.context.TracingContext tracing) {
+        com.ragagent.tracing.langfuse.LangfuseTaskScope scope =
+                com.ragagent.tracing.langfuse.LangfuseTaskScope.start(
+                        TASK_TYPE_DOCUMENT_PROCESS, tracing,
+                        java.util.Map.of("knowledge_id", knowledgeId),
+                        com.ragagent.tracing.langfuse.LangfuseTaskScope.previewPayload(knowledgeId));
+        try {
+            processInner(knowledgeId, scope);
+        } finally {
+            scope.close();
+        }
+    }
+
+    private void processInner(String knowledgeId,
+                              com.ragagent.tracing.langfuse.LangfuseTaskScope scope) {
         // CAS pending → processing（对照 markKnowledgeProcessing 的条件更新语义）
         int updated = knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                 .eq("id", knowledgeId)
@@ -140,10 +166,12 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             return; // 已被抢或已取消
         }
         // 对照 Go processDocument L3355-3365：分配本 attempt 的 span 树（payload.Attempt
-        // 缺省时 OpenAttempt；best-effort——追踪器绝不阻断处理）
+        // 缺省时 OpenAttempt；best-effort——追踪器绝不阻断处理）。trace id 取续接后的
+        // 活跃帧（C 批接线前恒 ""），使落库的 span 树与 Langfuse 走同一棵。
         int attempt = 0;
         try {
-            attempt = spanTracker.openAttempt(knowledgeId, "").attempt();
+            attempt = spanTracker.openAttempt(knowledgeId,
+                    com.ragagent.tracing.langfuse.LangfuseTracing.currentTraceId()).attempt();
         } catch (RuntimeException e) {
             log.warn("[SpanTracker] openAttempt failed kid={}: {}", knowledgeId, e.toString());
         }
@@ -333,9 +361,12 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 throw inner;
             }
         } catch (Exception e) {
+            String message = e.getMessage() == null ? e.toString() : e.getMessage();
+            // 对照 AsynqMiddleware：处理体抛错 → span/根记 outcome=error
+            // （scope.finish 幂等，随后的 close 不会覆盖成 success）
+            scope.finish("error", message);
             log.warn("process knowledge {} failed: {}", knowledgeId, e.toString());
-            failOrComplete(knowledgeId, attempt,
-                    e.getMessage() == null ? e.toString() : e.getMessage());
+            failOrComplete(knowledgeId, attempt, message);
         }
     }
 

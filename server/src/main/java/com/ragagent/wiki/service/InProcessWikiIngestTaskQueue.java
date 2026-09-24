@@ -211,11 +211,20 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
 
     private void dispatch(WikiIngestTaskHandler handler, WikiIngestTask task) {
         WikiIngestPayload payload = parsePayload(task);
-        if (WikiIngestTask.TYPE_WIKI_FINALIZE.equals(task.type())) {
-            handler.processWikiFinalize(payload);
-            return;
+        // C 批：任务侧观测（对照 Go 的 AsynqMiddleware）——负载带 traceparent 就续接上游
+        // trace，否则以任务类型开独立根；处理体包在 asynq.<type> span 内，收尾记 outcome。
+        try (com.ragagent.tracing.langfuse.LangfuseTaskScope scope =
+                     com.ragagent.tracing.langfuse.LangfuseTaskScope.start(
+                             task.type(), payload.tracing(),
+                             java.util.Map.of("knowledge_base_id",
+                                     payload.knowledgeBaseId() == null ? "" : payload.knowledgeBaseId()),
+                             com.ragagent.tracing.langfuse.LangfuseTaskScope.previewPayload(task.payload()))) {
+            if (WikiIngestTask.TYPE_WIKI_FINALIZE.equals(task.type())) {
+                handler.processWikiFinalize(payload);
+                return;
+            }
+            handler.processWikiIngest(payload);
         }
-        handler.processWikiIngest(payload);
     }
 
     private WikiIngestPayload parsePayload(WikiIngestTask task) {

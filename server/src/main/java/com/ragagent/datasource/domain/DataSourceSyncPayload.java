@@ -30,12 +30,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *       {@code trigger} / {@code max_items} 有 omitempty → 空串 / 0 省略。</li>
  * </ol>
  *
- * <h2>⚠️ 与 Go 的一处已知差异：未内嵌 {@code TracingContext}</h2>
- * <p>Go 内嵌 {@code types.TracingContext}（langfuse 的 {@code lf_*} 五个字段）。
- * Java 侧未实现 langfuse 追踪（§9 阶段 4.0 已知差异 1），故按
- * {@code WikiIngestPayload} / {@code MemoryExtractPayload} 的既有处置去掉它们——
- * 等价于 Go 在**未启用追踪**时的载荷（五个字段都是 omitempty，空时不输出）。
- * 这不改变任何外部可见行为：载荷只在进程内队列里流动，不落库、不出响应。</p>
+ * <h2>langfuse 追踪载体（2026-09-24 C 批接线）</h2>
+ * <p>Go 内嵌 {@code types.TracingContext}（langfuse 的 {@code lf_*} 五个字段），匿名字段嵌入
+ * 在 JSON 里是<b>平铺</b>的。Java 侧同形——五个 {@code lf_*} 键直接平铺在 record 上
+ * （{@code @JsonUnwrapped} 不支持 record 的 Creator 参数），空值整键省略，等价于 Go 在
+ * <b>未启用追踪</b>时的载荷。载荷只在进程内队列里流动，不落库、不出响应。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
  * <ol>
@@ -44,7 +43,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * </ol>
  */
 @JsonPropertyOrder({"initiator", "trigger", "data_source_id", "tenant_id", "sync_log_id",
-        "force_full", "max_items"})
+        "force_full", "max_items",
+        "lf_trace_id", "lf_parent_obs_id", "lf_traceparent", "lf_user_id", "lf_session_id"})
 public record DataSourceSyncPayload(
         /**
          * 发起人。**恒输出**（对照 Go 的 struct + 无效 omitempty）——
@@ -60,7 +60,18 @@ public record DataSourceSyncPayload(
         /** 即便配了增量模式也强制全量。无 omitempty → false 恒输出。 */
         @JsonProperty("force_full") boolean forceFull,
         /** 最多抓取多少条（0 = 不限）。omitempty → 0 省略。 */
-        @JsonProperty("max_items") @JsonInclude(JsonInclude.Include.NON_DEFAULT) int maxItems) {
+        @JsonProperty("max_items") @JsonInclude(JsonInclude.Include.NON_DEFAULT) int maxItems,
+        /** 追踪载体五键（平铺成 {@code lf_*}；空值整键省略）。 */
+        @JsonProperty("lf_trace_id")
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
+        @JsonProperty("lf_parent_obs_id")
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
+        @JsonProperty("lf_traceparent")
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
+        @JsonProperty("lf_user_id")
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
+        @JsonProperty("lf_session_id")
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -70,9 +81,39 @@ public record DataSourceSyncPayload(
         trigger = trigger == null ? "" : trigger;
         dataSourceId = dataSourceId == null ? "" : dataSourceId;
         syncLogId = syncLogId == null ? "" : syncLogId;
+        lfTraceId = lfTraceId == null ? "" : lfTraceId;
+        lfParentObsId = lfParentObsId == null ? "" : lfParentObsId;
+        lfTraceparent = lfTraceparent == null ? "" : lfTraceparent;
+        lfUserId = lfUserId == null ? "" : lfUserId;
+        lfSessionId = lfSessionId == null ? "" : lfSessionId;
         // Go 的零值是 TaskInitiator{} 而不是 nil；这里把 null 归一成它，
         // 保证 "initiator 恒输出" 这条在任何构造路径上都成立。
         initiator = initiator == null ? TaskInitiator.empty() : initiator;
+    }
+
+    /** 兼容构造：不带追踪载体（等价于未启用追踪的入队点）。 */
+    public DataSourceSyncPayload(TaskInitiator initiator, String trigger, String dataSourceId,
+                                 long tenantId, String syncLogId, boolean forceFull, int maxItems) {
+        this(initiator, trigger, dataSourceId, tenantId, syncLogId, forceFull, maxItems,
+                "", "", "", "", "");
+    }
+
+    /** 带追踪载体的构造（入队侧用；载体为空时与兼容构造等价）。 */
+    public static DataSourceSyncPayload withTracing(TaskInitiator initiator, String trigger,
+                                                    String dataSourceId, long tenantId,
+                                                    String syncLogId, boolean forceFull, int maxItems,
+                                                    com.ragagent.common.context.TracingContext tracing) {
+        com.ragagent.common.context.TracingContext tc = tracing == null
+                ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
+        return new DataSourceSyncPayload(initiator, trigger, dataSourceId, tenantId, syncLogId,
+                forceFull, maxItems, tc.traceId(), tc.parentObservationId(), tc.traceparent(),
+                tc.userId(), tc.sessionId());
+    }
+
+    /** 追踪载体的结构视图（worker 侧续接用）。 */
+    public com.ragagent.common.context.TracingContext tracing() {
+        return new com.ragagent.common.context.TracingContext(
+                lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
     }
 
     /** 对照 Go 的 {@code json.Marshal(payload)}：载荷以 JSON 形态进队列。 */

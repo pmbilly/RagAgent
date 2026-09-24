@@ -259,28 +259,62 @@ public class HybridSearchService {
         }
         boolean supportVector = supportsRetriever(engines, "vector");
         boolean supportKeywords = supportsRetriever(engines, "keywords");
-        if (supportVector && !params.isDisableVectorMatch()
-                && (!faqVectorKbIds.isEmpty() || !docVectorKbIds.isEmpty())) {
-            float[] embedding = params.getQueryEmbedding() != null
-                    && params.getQueryEmbedding().length > 0
-                            ? params.getQueryEmbedding()
-                            : getQueryEmbedding(primary.getId(), params.getQueryText());
-            if (!docVectorKbIds.isEmpty()) {
-                results.add(pgRepository.vectorRetrieve(params, embedding, docVectorKbIds,
-                        params.getKnowledgeIds(), params.getTagIds(), overMatchCount,
-                        params.getVectorThreshold()));
+
+        // 对照 Go knowledgebase_search.go L233-256：retrieve span 包住多存储检索执行段
+        //（Input 11 键 / Metadata 4 键照抄；收尾输出走 SummarizeRetrieveOutput）
+        Map<String, Object> retrieveInput = new LinkedHashMap<>();
+        retrieveInput.put("query_text", params.getQueryText());
+        retrieveInput.put("kb_ids", searchKbIds);
+        retrieveInput.put("knowledge_ids", params.getKnowledgeIds());
+        retrieveInput.put("tag_ids", params.getTagIds());
+        retrieveInput.put("scope_tag_ids", params.getScopeTagIds());
+        retrieveInput.put("match_count", matchCount);
+        retrieveInput.put("vector_threshold", params.getVectorThreshold());
+        retrieveInput.put("keyword_threshold", params.getKeywordThreshold());
+        retrieveInput.put("disable_vector_match", params.isDisableVectorMatch());
+        retrieveInput.put("disable_keywords_match", params.isDisableKeywordsMatch());
+        retrieveInput.put("group_count", envKbs.size()); // 对照 Go 的 len(groups)
+        Map<String, Object> retrieveMeta = new LinkedHashMap<>();
+        retrieveMeta.put("primary_kb_id", primary.getId());
+        retrieveMeta.put("primary_kb_type", primary.getType());
+        retrieveMeta.put("embedding_model_id", primary.getEmbeddingModelId());
+        retrieveMeta.put("has_query_embedding",
+                params.getQueryEmbedding() != null && params.getQueryEmbedding().length > 0);
+        com.ragagent.tracing.langfuse.Span retrieveSpan =
+                com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                        new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                                "retrieve", retrieveInput, retrieveMeta));
+        try {
+            if (supportVector && !params.isDisableVectorMatch()
+                    && (!faqVectorKbIds.isEmpty() || !docVectorKbIds.isEmpty())) {
+                float[] embedding = params.getQueryEmbedding() != null
+                        && params.getQueryEmbedding().length > 0
+                                ? params.getQueryEmbedding()
+                                : getQueryEmbedding(primary.getId(), params.getQueryText());
+                if (!docVectorKbIds.isEmpty()) {
+                    results.add(pgRepository.vectorRetrieve(params, embedding, docVectorKbIds,
+                            params.getKnowledgeIds(), params.getTagIds(), overMatchCount,
+                            params.getVectorThreshold()));
+                }
+                if (!faqVectorKbIds.isEmpty()) {
+                    results.add(pgRepository.vectorRetrieve(params, embedding, faqVectorKbIds,
+                            params.getKnowledgeIds(), params.getTagIds(), overMatchCount,
+                            params.getVectorThreshold()));
+                }
             }
-            if (!faqVectorKbIds.isEmpty()) {
-                results.add(pgRepository.vectorRetrieve(params, embedding, faqVectorKbIds,
+            if (supportKeywords && !params.isDisableKeywordsMatch() && !docKeywordKbIds.isEmpty()) {
+                results.add(pgRepository.keywordsRetrieve(params, docKeywordKbIds,
                         params.getKnowledgeIds(), params.getTagIds(), overMatchCount,
-                        params.getVectorThreshold()));
+                        params.getQueryText()));
             }
+        } catch (RuntimeException retrieveErr) {
+            // 对照 Go：retrieveFromStores 返回 err → span.Finish(summary, nil, err)
+            retrieveSpan.finish(null, null, retrieveErr.toString());
+            throw retrieveErr;
         }
-        if (supportKeywords && !params.isDisableKeywordsMatch() && !docKeywordKbIds.isEmpty()) {
-            results.add(pgRepository.keywordsRetrieve(params, docKeywordKbIds,
-                    params.getKnowledgeIds(), params.getTagIds(), overMatchCount,
-                    params.getQueryText()));
-        }
+        retrieveSpan.finish(com.ragagent.chatpipeline.RetrievalObs.summarizeRetrieveOutput(results),
+                null, null);
+
         if (results.isEmpty() || results.stream().allMatch(r -> r.results().isEmpty())) {
             log.info("No retrievable indexing pipelines across {} KBs", kbs.size());
             return null;

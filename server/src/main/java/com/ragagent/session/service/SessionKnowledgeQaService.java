@@ -144,7 +144,13 @@ public class SessionKnowledgeQaService {
         log.info("Knowledge base question answering parameters, session ID: {}, query: {}, webSearchEnabled: {}",
                 sessionId, req.query, req.webSearchEnabled);
 
-        // langfuse qa.setup span：no-op seam（4.6a），生命周期调用点保留
+        // 对照 Go L38-47：qa.setup span 包住请求装配段（KB/模型解析、检索目标构建、
+        // agent 覆盖应用）——补上 trace 开始到首个阶段观测之间的可见空档
+        com.ragagent.tracing.langfuse.Span setupSpan =
+                com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                        new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                                "qa.setup", null,
+                                java.util.Map.of("session_id", sessionId == null ? "" : sessionId)));
 
         // Resolve knowledge bases using shared helper
         KnowledgeResolution kb = resolveKnowledgeBases(req);
@@ -284,6 +290,13 @@ public class SessionKnowledgeQaService {
         log.info("Assembled pipeline ({} stages), hasKB={}, webSearch={}, history={}",
                 pipeline.size(), hasKb, req.webSearchEnabled, hasHistory);
 
+        // 对照 Go L218-222：setup span 收尾（stages / KB 列表 / 检索目标数）
+        java.util.Map<String, Object> setupOutput = new java.util.LinkedHashMap<>();
+        setupOutput.put("stages", pipeline.size());
+        setupOutput.put("knowledge_base_ids", kb.kbIds);
+        setupOutput.put("search_targets", searchTargets.size());
+        setupSpan.finish(setupOutput, null, null);
+
         // Trigger（session tenant 设定 + sessionID 传播在 Java 侧由 TenantContext 承担）
         knowledgeQAByEvent(chatManage, pipeline);
         log.info("Knowledge base question answering initiated");
@@ -309,7 +322,18 @@ public class SessionKnowledgeQaService {
         long understandStart = 0;
         for (String eventType : eventList) {
             long stageStart = System.currentTimeMillis();
-            // langfuse stage span：no-op（CHAT_COMPLETION_STREAM 跳过，同 Go）
+            // 对照 Go L698-712：阶段 span 包住本阶段；CHAT_COMPLETION_STREAM 跳过——
+            // 该阶段的 chat.completion.stream generation 已覆盖完整时长，再套一层
+            // 会产出"视觉上超出父节点"的子观测
+            com.ragagent.tracing.langfuse.Span stageSpan = null;
+            if (!PipelineEventType.CHAT_COMPLETION_STREAM.equals(eventType)) {
+                stageSpan = com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                        new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                                "pipeline." + eventType, null,
+                                java.util.Map.of("event_type", eventType,
+                                        "session_id", chatManage.getSessionId() == null
+                                                ? "" : chatManage.getSessionId())));
+            }
             if (PipelineEventType.QUERY_UNDERSTAND.equals(eventType)
                     && PipelineProgress.shouldEmitQueryUnderstandProgress(chatManage)) {
                 understandStart = stageStart;
@@ -336,6 +360,13 @@ public class SessionKnowledgeQaService {
                 retrievalProgress = null;
             }
             long stageDuration = System.currentTimeMillis() - stageStart;
+
+            // 对照 Go L746-753：阶段 span 收尾（输出时长；SEARCH_NOTHING 不算错误）
+            if (stageSpan != null) {
+                String stageErr = err != null && err != PluginError.SEARCH_NOTHING
+                        ? (err.err != null ? err.err.getMessage() : err.description) : null;
+                stageSpan.finish(java.util.Map.of("duration_ms", stageDuration), null, stageErr);
+            }
 
             // 用户停止：先于 ErrSearchNothing 判定（Go L764-771）
             if (cancelled()) {
@@ -463,7 +494,19 @@ public class SessionKnowledgeQaService {
 
         for (String event : searchEvents) {
             log.info("Starting to trigger search event: {}", event);
+            // 对照 Go L898-906：search_knowledge 流的阶段 span（恒开，含 SEARCH_NOTHING）
+            com.ragagent.tracing.langfuse.Span stageSpan =
+                    com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                            new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                                    "pipeline." + event, null,
+                                    java.util.Map.of("event_type", event,
+                                            "flow", "search_knowledge")));
             PluginError err = eventManager.trigger(event, chatManage);
+
+            // 对照 Go L907-911：SEARCH_NOTHING 不算错误；其余带 err.Err 收尾
+            String stageErr = err != null && err != PluginError.SEARCH_NOTHING
+                    ? (err.err != null ? err.err.getMessage() : err.description) : null;
+            stageSpan.finish(null, null, stageErr);
 
             if (err == PluginError.SEARCH_NOTHING) {
                 log.warn("Event {} triggered, search result is empty", event);

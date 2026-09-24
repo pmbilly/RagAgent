@@ -363,13 +363,27 @@ public class TenantSkillService {
             ReentrantLock lock = keyedLocks.computeIfAbsent(
                     skillImageLockKey(tenantId, configId), k -> new ReentrantLock());
             lock.lock();
+            // 对照 Go tenant_skill_install.go L260-266：skill.install span 包住安装步骤链
+            //（元数据 tenant_id / sandbox_config_id / skill_id；错误经 span.Finish 上报）
+            com.ragagent.tracing.langfuse.Span installSpan =
+                    com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
+                            new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
+                                    "skill.install", null,
+                                    java.util.Map.of("tenant_id", tenantId,
+                                            "sandbox_config_id", configId, "skill_id", bgSkillId)));
             try {
-                if (installPipeline != null) {
-                    installPipeline.execute(new SkillInstallPipeline.Entry(tenantId, configId,
-                            bgSkillId, bgBundle, bgInstructions));
-                } else {
-                    runInstallPipelineSeam(tenantId, configId, bgSkillId, bgBundle);
+                try {
+                    if (installPipeline != null) {
+                        installPipeline.execute(new SkillInstallPipeline.Entry(tenantId, configId,
+                                bgSkillId, bgBundle, bgInstructions));
+                    } else {
+                        runInstallPipelineSeam(tenantId, configId, bgSkillId, bgBundle);
+                    }
+                } catch (RuntimeException e) {
+                    installSpan.finish(null, null, e.toString());
+                    throw e;
                 }
+                installSpan.finish(null, null, null);
             } catch (RuntimeException err) {
                 log.error("[skill] install {} failed: {}", bgSkillId, err.getMessage());
             } finally {

@@ -373,8 +373,11 @@ public class WikiIngestService {
      * ProcessIn 30 秒（{@link WikiIngestConstants#INGEST_DELAY}）。</p>
      */
     public void enqueueWikiIngestTrigger(long tenantId, String kbId) {
-        WikiIngestPayload trigger = new WikiIngestPayload(
-                tenantId, kbId, WikiLanguageSupport.languageFromContextOrDefault());
+        // 入队侧注入（对照 Go 的 langfuse.InjectTracing(ctx, &taskPayload)）：把当前
+        // 请求的 traceparent 打进负载，worker 侧续接同一棵树
+        WikiIngestPayload trigger = WikiIngestPayload.withTracing(
+                tenantId, kbId, WikiLanguageSupport.languageFromContextOrDefault(),
+                com.ragagent.tracing.langfuse.LangfuseTracing.inject());
         WikiIngestTaskQueue queue = taskQueue.getIfAvailable();
         if (queue == null) {
             throw new IllegalStateException("enqueue wiki ingest trigger: task queue is not wired");
@@ -431,8 +434,9 @@ public class WikiIngestService {
             return;
         }
 
-        WikiIngestPayload trigger = new WikiIngestPayload(
-                payload.tenantId(), payload.knowledgeBaseId(), payload.language());
+        WikiIngestPayload trigger = WikiIngestPayload.withTracing(
+                payload.tenantId(), payload.knowledgeBaseId(), payload.language(),
+                com.ragagent.tracing.langfuse.LangfuseTracing.inject());
         WikiIngestTaskQueue queue = taskQueue.getIfAvailable();
         if (queue == null) {
             throw new IllegalStateException("wiki retract: task queue is not wired");
