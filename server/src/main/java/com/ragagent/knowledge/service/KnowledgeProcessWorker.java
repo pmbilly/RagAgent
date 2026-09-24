@@ -86,6 +86,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
     private final LocalStorageService storage;
+    /** A3-3 尾批：租户感知文件存储（读 provider 引用；本地契约不变）。 */
+    private final TenantFileStorage fileStorage;
     private final DocReaderClient docReader;
     private final EmbedderClient embedder;
     private final VectorStoreService vectorStore;
@@ -108,6 +110,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   KnowledgeBaseMapper kbMapper,
                                   ChunkMapper chunkMapper,
                                   LocalStorageService storage,
+                                  TenantFileStorage fileStorage,
                                   DocReaderClient docReader,
                                   EmbedderClient embedder,
                                   VectorStoreService vectorStore,
@@ -125,6 +128,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
         this.storage = storage;
+        this.fileStorage = fileStorage;
         this.docReader = docReader;
         this.embedder = embedder;
         this.vectorStore = vectorStore;
@@ -224,7 +228,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                     "file_type", k.getFileType() == null ? "" : k.getFileType(),
                                     "file_name", k.getFileName() == null ? "" : k.getFileName()));
                     try {
-                        byte[] content = storage.read(k.getFilePath());
+                        byte[] content = fileStorage.read(
+                                k.getTenantId() == null ? 0L : k.getTenantId(), k.getFilePath());
                         DocReaderClient.ParseResult parsed = docReader.read(
                                 content, k.getFileName(), k.getFileType(), k.getTitle(), null);
                         markdown = parsed.markdown();

@@ -145,7 +145,9 @@ public class StorageFileResolver {
 
     /** 对照 Go {@code hydrateTenantStorage}：stub Tenant 从库行补 DefaultStorageBackendID/配置。 */
     private Tenant hydrateTenantStorage(Tenant tenant) {
-        if (tenant.getId() == 0) {
+        if (tenant.getId() == 0 || backendRepo == null) {
+            // 仓储缺位（纯单元测试构造）时跳过补全：本方法只是"从库行补 stub 字段"的优化，
+            // 补不了就按调用方给的实体走。
             return tenant;
         }
         if (tenant.getDefaultStorageBackendId() != null && !tenant.getDefaultStorageBackendId().trim().isEmpty()) {
@@ -315,24 +317,90 @@ public class StorageFileResolver {
      * （presigned-preview 折 400），与 Go 的 {@code NewFileService*} 返回 err 同形。</p>
      */
     private static FactoryResult providerBacked(String p, JsonNode sec, String baseDir) {
+        ProviderResolution pr = buildProviderRaw(p, sec, baseDir);
+        if (!pr.ok()) {
+            return new FactoryResult(null, pr.provider(), pr.error());
+        }
+        return new FactoryResult(new ProviderFileContentService(pr.service()), pr.provider(), null);
+    }
+
+    // ── 写面（A3-3 尾批）：知识上传/读取用的**原始** provider 服务 ──────────────
+
+    /** provider 服务的原始解析结果（未经 resource catalog 装饰——写面用）。 */
+    public record ProviderResolution(com.ragagent.storage.provider.FileService service,
+                                     String provider, String error) {
+        public boolean ok() {
+            return error == null && service != null;
+        }
+    }
+
+    /**
+     * 对照 Go {@code ResolveTenantFileServiceWithFallback} 的写面：按
+     * backend 优先 → 环境回归 → 租户 default_provider 的顺序解析出**原始** provider
+     * 服务（知识上传的 {@code SaveFile} / 读取的 {@code GetFile} 直连它，不经过
+     * resource catalog 装饰——装饰层是给 HTTP 流式面用的）。
+     *
+     * <p>{@code local} 或 provider 为空时 {@code service == null} 且 {@code error == null}：
+     * 调用方走 Java 既有的本地契约（{@code resource://…} + {@code LocalStorageService}），
+     * 那是 golden 锁定的落盘形态，不能换成 provider 的 {@code local://…}。</p>
+     */
+    public ProviderResolution resolveProviderService(Tenant tenant, String backendId, String provider,
+            String localBaseDir) {
+        if (tenant == null) {
+            return new ProviderResolution(null, "", "workspace context missing");
+        }
+        Tenant hydrated = hydrateTenantStorage(tenant);
+        BackendResolution backend = resolveBackend(hydrated, backendId, provider);
+        if (backend.error() != null) {
+            return new ProviderResolution(null, "", backend.error());
+        }
+        if (backend.backend() != null) {
+            return buildProviderRaw(backend.backend().getProvider(),
+                    toStorageEngineConfig(backend.backend()), localBaseDir);
+        }
+        JsonNode sec = hydrated.getStorageEngineConfig();
+        String p0 = provider == null ? "" : provider.trim().toLowerCase(java.util.Locale.ROOT);
+        if (p0.isEmpty() && storageEngineDefaultProvider(sec).isEmpty()) {
+            StorageBackend env = storageBackendFromEnvironment(hydrated.getId());
+            if (env != null) {
+                p0 = env.getProvider();
+                if (sec == null) {
+                    sec = toStorageEngineConfig(env);
+                }
+            }
+        }
+        return buildProviderRaw(p0, sec, localBaseDir);
+    }
+
+    /** {@code local}/空 provider → (null, provider, null)；云 → 真客户端或错误文案。 */
+    private static ProviderResolution buildProviderRaw(String provider, JsonNode sec, String baseDir) {
+        String p = provider == null ? "" : provider.trim().toLowerCase(java.util.Locale.ROOT);
+        if (p.isEmpty() && sec != null) {
+            p = storageEngineDefaultProvider(sec);
+        }
+        if (p.isEmpty()) {
+            return new ProviderResolution(null, "", "empty provider");
+        }
+        if ("local".equals(p)) {
+            return new ProviderResolution(null, p, null);
+        }
+        String dir = baseDir == null || baseDir.isEmpty()
+                ? StoragePaths.localStorageBaseDir() : baseDir;
         try {
             com.ragagent.auth.domain.tenantconfig.StorageEngineConfig typed = sec == null
                     ? new com.ragagent.auth.domain.tenantconfig.StorageEngineConfig()
                     : CONFIG_MAPPER.convertValue(sec,
                             com.ragagent.auth.domain.tenantconfig.StorageEngineConfig.class);
             com.ragagent.storage.provider.FileServiceFactory.Created created =
-                    com.ragagent.storage.provider.FileServiceFactory.fromStorageConfig(p, typed, baseDir);
+                    com.ragagent.storage.provider.FileServiceFactory.fromStorageConfig(p, typed, dir);
             if (created == null || created.service() == null) {
-                return new FactoryResult(null, p, "unsupported provider \"" + p + "\"");
+                return new ProviderResolution(null, p, "unsupported provider \"" + p + "\"");
             }
-            return new FactoryResult(new ProviderFileContentService(created.service()), p, null);
-        } catch (IllegalArgumentException e) {
-            String msg = e.getMessage() == null ? e.toString() : e.getMessage();
-            return new FactoryResult(null, p, msg);
+            return new ProviderResolution(created.service(), p, null);
         } catch (RuntimeException e) {
             String msg = e.getMessage() == null ? e.toString() : e.getMessage();
-            log.warn("build cloud file service failed: provider={} err={}", p, msg);
-            return new FactoryResult(null, p, msg);
+            log.warn("build provider file service failed: provider={} err={}", p, msg);
+            return new ProviderResolution(null, p, msg);
         }
     }
 

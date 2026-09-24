@@ -89,6 +89,8 @@ public class KnowledgeService {
     private final ChunkMapper chunkMapper;
     private final KnowledgeTagMapper tagMapper;
     private final LocalStorageService storage;
+    /** A3-3 尾批：租户感知文件存储（本地契约不变；云 provider 租户真正落对象存储）。 */
+    private final TenantFileStorage fileStorage;
     private final KnowledgeProcessWorker worker;
     private final KnowledgeTaskProgressStore progressStore;
     private final ChunkRepository chunkRepo;
@@ -105,6 +107,7 @@ public class KnowledgeService {
                             ChunkMapper chunkMapper,
                             KnowledgeTagMapper tagMapper,
                             LocalStorageService storage,
+                            TenantFileStorage fileStorage,
                             @Lazy KnowledgeProcessWorker worker,
                             KnowledgeTaskProgressStore progressStore,
                             ChunkRepository chunkRepo,
@@ -119,6 +122,7 @@ public class KnowledgeService {
         this.chunkMapper = chunkMapper;
         this.tagMapper = tagMapper;
         this.storage = storage;
+        this.fileStorage = fileStorage;
         this.worker = worker;
         this.progressStore = progressStore;
         this.chunkRepo = chunkRepo;
@@ -190,7 +194,7 @@ public class KnowledgeService {
         k.setFileType(fileType);
         k.setFileSize((long) fileContent.length);
         k.setFileHash(hash);
-        k.setFilePath(storage.save(tenantId(), k.getId(), fileName, fileContent));
+        k.setFilePath(fileStorage.save(tenantId(), k.getId(), fileName, fileContent));
         k.setCustomMetadata(mergeCustomMetadata(customMetadata));
         knowledgeMapper.insert(k);
         worker.enqueue(k.getId());
@@ -224,7 +228,7 @@ public class KnowledgeService {
                 : (fname.contains(".") ? fname.substring(fname.lastIndexOf('.') + 1).toLowerCase() : ""));
         k.setFileSize((long) content.length);
         k.setFileHash(hash);
-        k.setFilePath(storage.save(tenantId(), k.getId(), fname, content));
+        k.setFilePath(fileStorage.save(tenantId(), k.getId(), fname, content));
         k.setCustomMetadata(mergeCustomMetadata(null));
         knowledgeMapper.insert(k);
         worker.enqueue(k.getId());
@@ -580,7 +584,7 @@ public class KnowledgeService {
                 .eq("id", k.getId()).set("deleted_at", now));
         chunkMapper.update(null, new UpdateWrapper<Chunk>()
                 .eq("knowledge_id", k.getId()).set("deleted_at", now));
-        storage.deleteTree(tenantId(), k.getId());
+        fileStorage.delete(tenantId(), k.getId(), k.getFilePath());
         return UUID.randomUUID().toString();
     }
 
@@ -2008,7 +2012,8 @@ public class KnowledgeService {
                     sanitizeManualDownloadFilename(knowledge.getTitle()), true);
         }
         String filePath = knowledge.getFilePath() == null ? "" : knowledge.getFilePath();
-        return new KnowledgeFile(storage.readChecked(filePath), knowledge.getFileName(), false);
+        return new KnowledgeFile(fileStorage.readChecked(tenantId(), filePath),
+                knowledge.getFileName(), false);
     }
 
     /**

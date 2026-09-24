@@ -75,6 +75,8 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
     private final LocalStorageService storage;
+    /** A3-3 尾批：租户感知文件存储（本地契约不变；云 provider 租户落对象存储）。 */
+    private final com.ragagent.knowledge.service.TenantFileStorage fileStorage;
     private final KnowledgeService.KnowledgeProcessWorker worker;
     private final boolean postgres;
 
@@ -82,12 +84,14 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
                                  KnowledgeBaseMapper kbMapper,
                                  ChunkMapper chunkMapper,
                                  LocalStorageService storage,
+                                 com.ragagent.knowledge.service.TenantFileStorage fileStorage,
                                  KnowledgeService.KnowledgeProcessWorker worker,
                                  DataSource dataSource) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
         this.storage = storage;
+        this.fileStorage = fileStorage;
         this.worker = worker;
         this.postgres = detectPostgres(dataSource);
     }
@@ -195,7 +199,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
         Knowledge k = newKnowledge(tenantId, kb, safeName, fileType, channel);
         k.setFileSize((long) content.length);
         k.setFileHash(hash);
-        k.setFilePath(storage.save(tenantId, k.getId(), safeName, content));
+        k.setFilePath(fileStorage.save(tenantId, k.getId(), safeName, content));
         k.setMetadata(metadataNode(metadata));
         knowledgeMapper.insert(k);
         worker.enqueue(k.getId());
@@ -252,7 +256,12 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
                 .eq("id", knowledgeId).eq("tenant_id", tenantId).set("deleted_at", now));
         chunkMapper.update(null, new UpdateWrapper<com.ragagent.knowledge.domain.Chunk>()
                 .eq("knowledge_id", knowledgeId).set("deleted_at", now));
-        storage.deleteTree(tenantId, knowledgeId);
+        // A3-3 尾批：本地目录树恒清 + 若是 provider 引用则额外删对象（best-effort）
+        Knowledge row = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, knowledgeId)
+                .eq(Knowledge::getTenantId, tenantId)
+                .last("LIMIT 1"));
+        fileStorage.delete(tenantId, knowledgeId, row == null ? null : row.getFilePath());
     }
 
     @Override
