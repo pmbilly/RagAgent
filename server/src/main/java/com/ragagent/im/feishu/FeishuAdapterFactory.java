@@ -17,9 +17,8 @@ import com.ragagent.im.service.ImService;
  * 凭据 {@code app_id}/{@code app_secret}/{@code verification_token}/{@code encrypt_key}/
  * {@code api_base_url}（后者经 {@link FeishuAdapter} 校验：http(s) + SSRF，允许明文 http）。</p>
  *
- * <p><b>未落地（本子批明确不做）</b>：Go 的 {@code longconn.go} 369 行用 lark 官方 SDK 的
- * WebSocket 事件流（protobuf 协议）。Java 走到 websocket 时明确抛错（不静默假装成功），
- * 排 W5γ3 后续子批——届时应引入 lark 官方 Java SDK 或用自持 WS 实现。</p>
+ * <p>{@code websocket} 模式额外起 {@link FeishuLongConnClient}（协议自持实现：pbbp2 帧 +
+ * 心跳 + 分片 + 同帧回执，照 lark 官方 Go SDK 的 {@code ws} 包）。</p>
  */
 public class FeishuAdapterFactory implements ImService.AdapterFactory {
 
@@ -56,10 +55,27 @@ public class FeishuAdapterFactory implements ImService.AdapterFactory {
         switch (mode) {
             case "webhook":
                 return new ImService.AdapterRegistration(adapter, null);
-            case "websocket":
-                throw new UnsupportedOperationException(region.platform()
-                        + " websocket mode (long-connection event stream) not implemented in"
-                        + " this batch — tracked as W5γ3 follow-up sub-batch");
+            case "websocket": {
+                // 长连接：HTTP 适配器照建（SendReply 两模式共用），额外起 WS 事件流（照 Go 的
+                // NewLongConnClient + factory 里的 go client.Start）
+                FeishuLongConnClient longConn = new FeishuLongConnClient(region,
+                        ImCredentials.getString(creds, "app_id"),
+                        ImCredentials.getString(creds, "app_secret"),
+                        ImCredentials.getString(creds, "api_base_url"),
+                        ssrfGuard, channel.getId(),
+                        (msg, cid) -> msgHandler.accept(msg, cid));
+                Thread thread = new Thread(() -> {
+                    try {
+                        longConn.start();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }, "im-feishu-ws-" + channel.getId());
+                thread.setDaemon(true);
+                thread.start();
+                // 照 Go：stop 必须真关 socket（SDK 的 ctx 不生效），这里 abort + 置停止位
+                return new ImService.AdapterRegistration(adapter, longConn::stop);
+            }
             default:
                 throw new IllegalArgumentException("unknown " + region.platform() + " mode: "
                         + mode);

@@ -451,12 +451,17 @@ class FeishuAdapterTest {
         assertEquals(ImTypes.PLATFORM_FEISHU, reg.adapter().platform());
         assertNull(reg.stop());
 
+        // websocket（Go 默认）：长连接已落地 → 给 stop 句柄（api_base_url 指向不可达端口，
+        // 长连接线程失败即退避，stop 后立刻退出）
         ImChannelEntity ws = new ImChannelEntity();
         ws.setId("ch-2");
         ws.setMode("websocket");
-        ws.setCredentials("{\"app_id\":\"cli\",\"app_secret\":\"s\"}");
-        assertThrows(UnsupportedOperationException.class,
-                () -> new FeishuAdapterFactory(FeishuRegion.LARK, null).create(ws, (m, c) -> { }));
+        ws.setCredentials("{\"app_id\":\"cli\",\"app_secret\":\"s\","
+                + "\"api_base_url\":\"http://127.0.0.1:1\"}");
+        var wsReg = new FeishuAdapterFactory(FeishuRegion.LARK, null).create(ws, (m, c) -> { });
+        assertNotNull(wsReg.adapter());
+        assertNotNull(wsReg.stop());
+        wsReg.stop();
 
         ImChannelEntity bad = new ImChannelEntity();
         bad.setId("ch-3");

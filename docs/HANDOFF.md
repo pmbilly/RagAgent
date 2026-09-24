@@ -30,7 +30,9 @@ bean（`BeanCurrentlyInCreation`）→ 工厂改 `@Component`；③Jackson 的 `
 
 | dingtalk Stream 长连接 | `im/dingtalk/DingtalkStreamClient`（+ 工厂接 websocket） | 协议逐字描自 Go SDK `client/client.go` + `payload/*.go`（Go 自己的 `longconn.go` 只是壳）：`POST /v1.0/gateway/connections/open`{clientId,clientSecret,subscriptions[SYSTEM/ping,SYSTEM/disconnect,CALLBACK//v1.0/im/bot/messages/get],ua,localIp,extras} → `{endpoint,ticket}`（本仓额外做 wss+SSRF 校验）→ WS `{endpoint}?ticket=` → 数据帧 JSON `{specVersion,type,time,headers{topic,contentType,messageId,time},data}`；回执 `{code,headers{contentType,messageId},message,data}`——普通 200、ping 回 `200+ok+data 原样`、未知 topic 404、处理器异常 500、**disconnect 先回执再关**；心跳 = 每 120s **WS 控制帧 ping**（5s 无 pong 即关，照 SDK 的 keepAliveIdle/pingWait）；SYSTEM 帧在消费线程同步处理（照 SDK：控制帧不被慢处理器饿死）、CALLBACK 交 4 线程池；重连退避 1→30s（SDK 内部循环改由本类承担）；流帧 → 统一消息复用 webhook 解析，`robot_code` 回落 clientId（照 Go 的 fallbackRobotCode） |
 
-**待办**：**feishu/lark 的 websocket（长连接，lark SDK 的 protobuf 帧）** / mattermost / wechat / yunzhijia。
+| feishu/lark 长连接 | `im/feishu/{FeishuLongConnClient,LarkFrame,LarkEventConverter}`（+ 工厂接 websocket） | 协议逐字描自 lark Go SDK 的 `ws` 包（`client.go` + `model.go` + `pbbp2.pb.go`）：`POST {domain}/callback/ws/endpoint`{AppID,AppSecret}（头 `locale: zh`）→ `{code,msg,data{URL,ClientConfig}}`（code 0/1/1000040343 分支；ClientConfig 覆盖 ReconnectCount/Interval/Nonce/PingInterval，默认 -1/120s/30/120s 照 `NewClient`）；WS 直连 URL（`device_id`/`service_id` 从查询串取，后者进 ping 帧）；帧 = **pbbp2 protobuf**（`method=0` 控制〔`type=pong`，payload 可带新配置〕、`method=1` 数据〔`type=event/card` + `sum/seq/message_id/trace_id`〕）——Java 侧手写编解码，**与 Go 逐字节一致**（fixture 由独立 Go 程序录制：字段升序、空串照写 0 长度、payload 非 nil 才写、headers 非空才写，LarkFrameTest 断言解码字段 + 重编码全等）；分片按 message_id 攒片（TTL 5s，照 `combine`）；回执 = **同帧回写** payload `{"code":200|500}` + 追加 `biz_rt`（处理毫秒）；心跳每 PingInterval 秒发控制帧 ping；重连按 count/interval/nonce（首次抖动 ≤nonce 秒）；事件 → 统一消息走 `LarkEventConverter`（照 `convertEvent`：**不设 threadId**、post **取首图按图片消息**——这两处是 Go 里 webhook/longconn 的既有分歧）；WS 地址额外做 wss+SSRF 校验（SDK 不校验） |
+
+**待办**：mattermost / wechat / yunzhijia。
 
 ## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
 
