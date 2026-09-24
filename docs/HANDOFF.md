@@ -22,7 +22,9 @@ yunzhijia}`，约 13k 行）在 Java 侧**一支都没有**——`ImService.star
 bean（`BeanCurrentlyInCreation`）→ 工厂改 `@Component`；③Jackson 的 `readTree(byte[])` 遇
 `cond ? "{}" : bytes` 混合三元推断失败 → 拆成显式分支。
 
-**待办**：mattermost / wecom（webhook+ws+longconn）/ wechat / feishu / dingtalk / yunzhijia。
+| wecom（webhook 半支） | `im/wecom/{WecomWebhookAdapter,WecomAdapterFactory}` | 对照 `wecom/webhook_adapter.go` 705 行：验签（`FeishuWecomCrypt.wecomVerifySignature`）、**自持 AES 解密**（共享件不校 corp_id，故适配器自带 AES-CBC+PKCS#7+信封+corp_id 校验）、URL 验证回显、解析（群聊剥 @提及的三种形态、text/image）、发送（群先 `appchat/send` 失败回落 `message/send`，markdown + agentid）、取 token（7200s 缓存留 5 分钟）、文件下载（http(s) 直链或 `media/get`；文件名三级推断；**IM 主机白名单**绕过 SSRF）。**未含** Go 的 `longconn.go` 835 行（智能机器人 WS，即 websocket 模式）——工厂对 websocket 明确抛未落地 |
+
+**待办**：**wecom 的 longconn（websocket 模式）** / mattermost / wechat / feishu / dingtalk / yunzhijia。
 
 ## 0.-14 同日批次台账回填（2026-09-24：追踪 / 图库 / 评估 / 共享 agent / 标签 / 一致性）
 
