@@ -216,8 +216,18 @@ public class ImService {
             return;
         }
         AtomicReference<Runnable> stopRef = new AtomicReference<>();
-        AdapterRegistration reg = factory.create(channel, (msg, chId) ->
-                handleMessage(msg, chId));
+        AdapterRegistration reg;
+        try {
+            reg = factory.create(channel, (msg, chId) -> handleMessage(msg, chId));
+        } catch (RuntimeException e) {
+            // 照 Go：工厂失败（凭据不全 / 出站校验不过 / 平台未实现该模式）时渠道起不来，
+            // 适配器不入运行态——回调路径因此走 "adapter not active"（503 "channel not
+            // available"），而不是把异常冒成 500。Go 的对应事实：golden
+            // w5a-im-callback-enabled-get.json 即"mattermost 工厂建适配器失败 → 503"。
+            log.warn("[IM] Channel start failed: id={} platform={} mode={} err={}",
+                    channel.getId(), channel.getPlatform(), channel.getMode(), e.toString());
+            return;
+        }
         stopRef.set(reg.stop());
         channelStates.put(channel.getId(), new ChannelState(channel, reg.adapter(), stopRef));
         log.info("[IM] Channel started: id={} platform={} mode={}", channel.getId(),

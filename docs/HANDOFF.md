@@ -1009,6 +1009,26 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 
 ## 3. 下一步（总验收已完成，剩余缺口清单见 §0.0）
 
+### 3.-1 收口批（2026-09-25）抓到的一处真失败（待修）
+
+`W5bInitializationContractTest.upstreamFamily()` —— **单跑也挂**（非批次/顺序假红）：
+
+- 失败点：`POST /api/v1/initialization/extract/text-relation`（文本以 `<<SCENARIO:graph>>` 开头、
+  `model_id` 指向本机 stub）返回 500，体为
+  `{"error":{...,"message":"文本关系提取失败: failed to parse JSON content: Unrecognized token 'stub': ..."}}`；
+- 期望：golden `contracts/w5b-extract-graph.json`（200 + 图 JSON）；
+- 证据链：桩 `W5bStubServers.handleUpstream` 按请求体是否含 `<<SCENARIO:graph>>` 决定回图 JSON，
+  否则回默认 `stub-chat-reply`；报错里出现 `stub` → **桩被命中但走了默认分支** → 发往
+  `/chat/completions` 的 prompt 里没有用户原文（或模板换成了不含原文的那一份）；
+- **非 09-25 IM/存储/文档三批引入**：`W5bInitializationContractTest` 最后改动 = `a8f4ae1`、
+  `InitializationController` = `bbe9a80`、图/抽取相关 = `c6c4ffd`（09-24 D 批）；
+- 下一步诊断（小）：在桩里打印收到的 chat 请求体（或临时把默认分支换成 `{}` 看表现是否改变），
+  判定是"`agentm/extract_config.yaml` 装载换了键"还是"prompt 拼装漏了原文"。
+
+同期还修掉一处本批引入的行为差异：`ImService.startChannel` 原先让工厂异常直接冒到 500，
+Go 的语义是"渠道起不来 → 运行态无适配器 → 回调 503 `channel not available`"（golden
+`w5a-im-callback-enabled-get/post.json` 即此），已在 `startChannel` 折成"记日志 + 不入运行态"。
+
 **新会话开场动作**（按序）：
 1. `git status`（确认在 `/Users/billy/ragagent-java`）+ 读 §0.0。
 2. 真缺口用 `python3 scripts/route-recon.py` 复核（起点应为「真缺口候选 1」=
