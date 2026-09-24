@@ -28,3 +28,7 @@ frontend/package.json.md5
 
 # 测试产物
 server/src/test/resources/contracts/tmp/
+
+# Python 缓存（route-recon 被 generate-api-docs import 时生成）
+__pycache__/
+*.pyc
