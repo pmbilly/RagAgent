@@ -95,6 +95,7 @@ public class ModelService {
         }
         Model model = getByIdVisible(tenantId(), id);
         if (model == null) {
+            log.warn("Model not found for tenant scope: id={}, tenantId={}", id, tenantId());
             throw new ModelNotFoundException();
         }
         return switch (model.getStatus()) {

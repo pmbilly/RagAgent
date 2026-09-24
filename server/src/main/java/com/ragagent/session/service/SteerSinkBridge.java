@@ -61,11 +61,17 @@ public final class SteerSinkBridge implements SteerSink {
 
     @Override
     public List<Map<String, Object>> pollSteer(String sid, String messageId, int lastOffset) {
+        // 借用快照上下文执行：调用方可能是**引擎执行线程本身**（轮首 drainSteerMessages，
+        // 该线程已有租户/身份上下文）——必须保存-恢复，不能 clear，否则引擎后续
+        // 轮次的模型/KB/工具解析全部丢租户（knowledge_search 检索恒空即此因）。
+        // 调用方无上下文时 prev 全空，恢复等价于 clear（跨线程借用场景行为不变）。
+        com.ragagent.event.TenantContextSnapshot prev =
+                com.ragagent.event.TenantContextSnapshot.capture();
         tenant.replay();
         try {
             return pollSteerInner(messageId, lastOffset);
         } finally {
-            TenantContext.clear();
+            prev.replay();
         }
     }
 
@@ -165,11 +171,14 @@ public final class SteerSinkBridge implements SteerSink {
     @Override
     public String persistSteerMessage(String sid, String messageId, String steerId,
             String content, Object mentionedItems, String channel) {
+        // 同 pollSteer：保存-恢复调用方上下文（引擎线程调用时不得清空租户）。
+        com.ragagent.event.TenantContextSnapshot prev =
+                com.ragagent.event.TenantContextSnapshot.capture();
         tenant.replay();
         try {
             return persistSteerInner(messageId, steerId, content, mentionedItems, channel);
         } finally {
-            TenantContext.clear();
+            prev.replay();
         }
     }
 

@@ -13,6 +13,8 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.DocChunkSupport.ImageInfoView;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Chunk;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * knowledge_search 工具（对照 Go {@code knowledge_search.go}，逐字移植）。
@@ -28,6 +30,8 @@ import com.ragagent.knowledge.domain.Chunk;
  * Go 的 allResults 追加序与 seenByID map 序随机，完全并列时 Java 结果可能不同）。</p>
  */
 public class KnowledgeSearchTool extends BaseTool {
+
+    private static final Logger log = LoggerFactory.getLogger(KnowledgeSearchTool.class);
 
     /** 键序对照 Go GenerateSchema 输出（字母序：properties < required < type）。 */
     private static final String SCHEMA_JSON = """
@@ -328,6 +332,10 @@ public class KnowledgeSearchTool extends BaseTool {
         double vectorThreshold = config.vectorThreshold() == 0 ? 0.6 : config.vectorThreshold();
         double keywordThreshold = config.keywordThreshold() == 0 ? 0.5 : config.keywordThreshold();
 
+        log.info("[Tool][KnowledgeSearch] Using {} search targets across {} KBs",
+                searchTargetsList.size(), kbIDs.size());
+        log.info("[Tool][KnowledgeSearch] Starting concurrent search with {} search targets",
+                searchTargetsList.size());
         Map<String, String> kbTypeMap = getKnowledgeBaseTypes(kbIDs);
 
         List<ResultWithMeta> allResults = concurrentSearchByTargets(queries, searchTargetsList,
@@ -458,12 +466,16 @@ public class KnowledgeSearchTool extends BaseTool {
             if (searchableKBs.contains(st.knowledgeBaseId())) {
                 filteredTargets.add(st);
             } else if (knownKBs.contains(st.knowledgeBaseId())) {
+                log.info("[Tool][KnowledgeSearch] Skipping non-searchable KB {} "
+                        + "(no vector/keyword index, likely wiki/graph-only)", st.knowledgeBaseId());
                 continue; // 非检索型 KB，跳过
             } else {
                 filteredTargets.add(st); // 记录取不到，保留暴露下游错误
             }
         }
         if (filteredTargets.isEmpty()) {
+            log.info("[Tool][KnowledgeSearch] No searchable KBs in scope "
+                    + "(all wiki/graph-only); skipping retrieval");
             return List.of();
         }
         searchTargets = filteredTargets;
@@ -500,6 +512,8 @@ public class KnowledgeSearchTool extends BaseTool {
                     try {
                         queryEmbedding = backend.getQueryEmbedding(targets.get(0).knowledgeBaseId(), q);
                     } catch (RuntimeException e) {
+                        log.warn("[Tool][KnowledgeSearch] Failed to pre-compute embedding for model {}: {}",
+                                modelKey, e.toString());
                         queryEmbedding = null; // 对照 Go warn 后 nil
                     }
                 }
@@ -529,7 +543,8 @@ public class KnowledgeSearchTool extends BaseTool {
                             }
                         }
                     } catch (RuntimeException e) {
-                        // 对照 Go warn 跳过
+                        log.warn("[Tool][KnowledgeSearch] Combined search failed for KBs {}: {}",
+                                fullKBIDs, e.toString());
                     }
                 }
 
@@ -548,7 +563,8 @@ public class KnowledgeSearchTool extends BaseTool {
                             }
                         }
                     } catch (RuntimeException e) {
-                        // 对照 Go warn 跳过
+                        log.warn("[Tool][KnowledgeSearch] Failed to search KB {}: {}",
+                                st.knowledgeBaseId(), e.toString());
                     }
                 }
             }

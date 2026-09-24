@@ -480,8 +480,12 @@ public class AgentEngine {
      */
     public AgentState execute(String sessionId, String messageId, String query,
             List<ChatMessage> llmContext, List<String> imageURLs) {
-        log.info("[Agent] Starting execution: session={}, message={}, query_len={}, context_msgs={}",
-                sessionId, messageId, query.length(), llmContext.size());
+        log.info("[Agent] Starting execution: session={}, message={}, query_len={}, context_msgs={}, tenantId={}, principal={}, userId={}",
+                sessionId, messageId, query.length(), llmContext.size(),
+                com.ragagent.common.context.TenantContext.currentTenantId(),
+                com.ragagent.common.context.TenantContext.currentPrincipal() == null ? "<null>"
+                        : com.ragagent.common.context.TenantContext.currentPrincipal().type(),
+                com.ragagent.common.context.TenantContext.currentUserId());
         try {
             return executeInner(sessionId, messageId, query, llmContext, imageURLs);
         } finally {
@@ -770,8 +774,9 @@ public class AgentEngine {
         // 轮首 drain steer：压缩之后（注入文本落在保护尾内）、lastSentMsgCount 更新之前。
         drainSteerMessages(state, messagesRef, sessionId, assistantMessageId);
 
-        log.info("[Agent][Round-{}/{}] Starting: {} messages, {} tools, est_tokens={}",
-                round, maxIterationsDisplay(), messagesRef.items.size(), tools.size(), currentTokens);
+        log.info("[Agent][Round-{}/{}] Starting: {} messages, {} tools, est_tokens={}, tenantId={}",
+                round, maxIterationsDisplay(), messagesRef.items.size(), tools.size(), currentTokens,
+                com.ragagent.common.context.TenantContext.currentTenantId());
         logContextPrediction(round, messagesRef.items, tools, currentTokens);
         log.info("[PIPELINE] stage=Agent action=round_start iteration={} round={} message_count={} pending_tools={} max_iterations={}",
                 state.getCurrentRound(), round, messagesRef.items.size(), tools.size(),
@@ -1374,7 +1379,8 @@ public class AgentEngine {
         List<ChatMessage> messages = messagesRef.items;
 
         final int maxDetailMsgs = 4;
-        log.info("[Agent][Round-{}] Calling LLM: {} messages, {} tools", round, messages.size(), tools.size());
+        log.info("[Agent][Round-{}] Calling LLM: {} messages, {} tools, tenantId={}", round, messages.size(),
+                tools.size(), com.ragagent.common.context.TenantContext.currentTenantId());
         int startIdx = 0;
         if (messages.size() > maxDetailMsgs) {
             startIdx = messages.size() - maxDetailMsgs;
@@ -1727,24 +1733,26 @@ public class AgentEngine {
      */
     ToolCall runToolCall(com.ragagent.llm.domain.ToolCall tc, int i, int iteration, int round,
             String sessionId, String assistantMessageID, TenantContextSnapshot tenant) {
-        runWithTenant(tenant);
+        if (tenant == null) {
+            // 顺序路径：直接用当前线程上下文（引擎线程）
+            return runToolCallInner(tc, i, iteration, round, sessionId, assistantMessageID);
+        }
+        // 借用快照执行：可并发批次的子线程传 null（子线程自行 replay/clear），
+        // 突变屏障分支在**主线程**以非 null 快照调用——必须保存-恢复而非 clear，
+        // 否则引擎线程的租户/身份会被清掉，后续轮次的模型/KB 解析全部失败。
+        TenantContextSnapshot prev = TenantContextSnapshot.capture();
+        tenant.replay();
         try {
             return runToolCallInner(tc, i, iteration, round, sessionId, assistantMessageID);
         } finally {
-            if (tenant != null) {
-                TenantContext.clear();
-            }
-        }
-    }
-
-    private static void runWithTenant(TenantContextSnapshot tenant) {
-        if (tenant != null) {
-            tenant.replay();
+            prev.replay();
         }
     }
 
     private ToolCall runToolCallInner(com.ragagent.llm.domain.ToolCall tc, int i, int iteration,
             int round, String sessionId, String assistantMessageID) {
+        log.info("[Agent][Round-{}][Tool {}] tenantId={}", round, tc.getFunction().getName(),
+                com.ragagent.common.context.TenantContext.currentTenantId());
         tc.setId(NormalizeToolCallId.normalize(tc.getId(), tc.getFunction().getName(), i));
         String total = "?"; // 孤立时未知；调用方记批量大小
         String toolTag = String.format("[Agent][Round-%d][Tool %s (%d/%s)]",
