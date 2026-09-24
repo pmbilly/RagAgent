@@ -84,6 +84,16 @@ export RETRIEVE_DRIVER="${RETRIEVE_DRIVER:-$(env_value RETRIEVE_DRIVER)}"
 export JWT_SECRET="${JWT_SECRET:-java-e2e-jwt-secret-key-0123456789abcdef}"
 export LOCAL_STORAGE_BASE_DIR="${LOCAL_STORAGE_BASE_DIR:-/tmp/weknora-java-files}"
 
+# 本机浏览器 BrowserSkill（可选）：产物用
+#   scripts/build_browserskill.sh artifacts/browserskill darwin/arm64
+# 生成后自动启用；未构建则不导出 → Status.enabled=false（集成关闭，不影响其他功能）。
+# Docker 部署走镜像内置（根 Dockerfile 的 browserskill stage），与此处无关。
+BSK_LOCAL_DIR="${RAGAGENT_ROOT}/artifacts/browserskill"
+if [ -x "${BSK_LOCAL_DIR}/bsk" ]; then
+  export BROWSERSKILL_BINARY="${BROWSERSKILL_BINARY:-${BSK_LOCAL_DIR}/bsk}"
+  export BROWSERSKILL_EXTENSION_PATH="${BROWSERSKILL_EXTENSION_PATH:-${BSK_LOCAL_DIR}/browser-skill-weknora-0.2.1.zip}"
+fi
+
 # 测试账号（阶段 1 建的专用租户 10002）
 export TEST_EMAIL="${TEST_EMAIL:-java-phase1@weknora.test}"
 export TEST_VIEWER_EMAIL="${TEST_VIEWER_EMAIL:-java-phase1-viewer@weknora.test}"

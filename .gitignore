@@ -29,6 +29,9 @@ frontend/package.json.md5
 # 测试产物
 server/src/test/resources/contracts/tmp/
 
+# BrowserSkill 本地构建产物（scripts/build_browserskill.sh 生成，含平台二进制）
+artifacts/
+
 # Python 缓存（route-recon 被 generate-api-docs import 时生成）
 __pycache__/
 *.pyc
