@@ -43,5 +43,7 @@ public class ImAdapterWiringConfig {
                         com.ragagent.im.feishu.FeishuRegion.LARK, guard));
         imService.registerAdapterFactory(ImTypes.PLATFORM_DINGTALK,
                 new com.ragagent.im.dingtalk.DingtalkAdapterFactory(guard));
+        imService.registerAdapterFactory(ImTypes.PLATFORM_WECHAT,
+                new com.ragagent.im.wechat.WechatAdapterFactory(guard));
     }
 }
