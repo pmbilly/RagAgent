@@ -573,10 +573,10 @@ class ElasticsearchV8RetrieveRepositoryTest {
             if (fails) {
                 assertEquals("move indices was incomplete",
                         assertThrows(IllegalStateException.class,
-                                () -> r.moveKnowledgeIndices("source", "target", "doc"))
+                                () -> r.moveKnowledgeIndices("source", "target", "doc", null, 3, "file"))
                                 .getMessage(), (String) c[0]);
             } else {
-                r.moveKnowledgeIndices("source", "target", "doc");
+                r.moveKnowledgeIndices("source", "target", "doc", null, 3, "file");
             }
         }
 

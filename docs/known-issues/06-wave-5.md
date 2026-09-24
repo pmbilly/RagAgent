@@ -1165,3 +1165,9 @@
   ③ v8 `CopyIndices` 键用目标 chunkID 而 `ToDBVectorEmbedding` 按 SourceID 查表（生成问题取不到、
   同 chunk 互相覆盖）→ 修：键改目标 SourceID。**坑**：查表语义由 `structs.go` 定死为"按 SourceID"，
   修**键**比改查表小且两版一致；上游若修，反向同步时别把这三处再抄回来。
+
+- **外部向量店 driver 的 Go 侧缺陷·第 4 例（2026-09-25 W5γ4.4）**：`KeywordsVectorHybridRetrieveEngineService`
+  的 `EstimateStorageSize` 里占位向量以 `ChunkID` 为键，而 `ToDBVectorEmbedding` 按 `SourceID`
+  查表 → 生成问题（`<chunk>-<qid>`）估不到向量字节（低估）。修：占位向量按 SourceID 为键
+  （与 §0.-18 ①②③ 同法：**键与查表语义必须一致**）。**坑**：这类"键/查表错配"是 Go 侧的高频形态，
+  翻译时看到 `embeddingMap[...] = ...` 就要回头核对查表用的是 `SourceID` 还是 `ChunkID`。

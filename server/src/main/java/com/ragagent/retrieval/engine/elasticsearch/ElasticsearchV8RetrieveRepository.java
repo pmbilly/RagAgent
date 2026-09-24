@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.retrieval.engine.EngineTypes;
+import com.ragagent.retrieval.engine.RetrieveEngineRepository;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.retrieval.engine.EngineTypes.IndexWithScore;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
@@ -78,7 +79,8 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  *       {@code NewKVHybridRetrieveEngine} 包装层未在本批——待接线批统一处理</li>
  * </ul>
  */
-public class ElasticsearchV8RetrieveRepository {
+public class ElasticsearchV8RetrieveRepository
+        implements RetrieveEngineRepository, RetrieveEngineRepository.KnowledgeIndexMover {
 
     private static final Logger log =
             LoggerFactory.getLogger(ElasticsearchV8RetrieveRepository.class);
@@ -697,7 +699,9 @@ public class ElasticsearchV8RetrieveRepository {
      * total == updated、未 timed_out、version_conflicts == 0、failures 为空，
      * 否则报 {@code move indices was incomplete}（照 Go）。
      */
-    public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId)
+    @Override
+    public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
+                                     List<String> chunkIds, int dimension, String knowledgeType)
             throws Exception {
         ObjectNode filterBody = MAPPER.createObjectNode();
         ArrayNode filterArray = filterBody.putArray("filter");

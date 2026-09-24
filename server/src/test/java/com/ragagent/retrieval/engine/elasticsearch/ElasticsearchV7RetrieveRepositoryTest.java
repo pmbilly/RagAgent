@@ -396,7 +396,7 @@ class ElasticsearchV7RetrieveRepositoryTest {
                     : "{\"total\":3,\"updated\":2,\"failures\":[{\"id\":\"x\"}]}");
         };
 
-        r.moveKnowledgeIndices("kb-src", "kb-tgt", "k1");
+        r.moveKnowledgeIndices("kb-src", "kb-tgt", "k1", null, 2, "");
         Captured call = captured.stream().filter(c -> c.path().endsWith("/_update_by_query"))
                 .findFirst().orElseThrow();
         assertTrue(call.query() != null && call.query().contains("refresh=true"),
@@ -410,6 +410,6 @@ class ElasticsearchV7RetrieveRepositoryTest {
         complete[0] = false;
         assertEquals("move indices was incomplete",
                 assertThrows(IllegalStateException.class,
-                        () -> r.moveKnowledgeIndices("kb-src", "kb-tgt", "k1")).getMessage());
+                        () -> r.moveKnowledgeIndices("kb-src", "kb-tgt", "k1", null, 2, "")).getMessage());
     }
 }

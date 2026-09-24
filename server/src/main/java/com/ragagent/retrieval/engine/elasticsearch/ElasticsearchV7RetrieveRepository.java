@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.retrieval.engine.EngineTypes;
+import com.ragagent.retrieval.engine.RetrieveEngineRepository;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.retrieval.engine.EngineTypes.IndexWithScore;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
@@ -59,7 +60,8 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  * （{@code processSourceBatch} 里收集的向量被丢弃）→ 复制过去的文档<b>不带向量</b>。本类照抄该行为
  * （与 v8 的"同 chunk 后者覆盖"同理：先保真，不擅自修 Go）。</p>
  */
-public class ElasticsearchV7RetrieveRepository {
+public class ElasticsearchV7RetrieveRepository
+        implements RetrieveEngineRepository, RetrieveEngineRepository.KnowledgeIndexMover {
 
     private static final Logger log =
             LoggerFactory.getLogger(ElasticsearchV7RetrieveRepository.class);
@@ -738,7 +740,9 @@ public class ElasticsearchV7RetrieveRepository {
      * 对照 {@code v7/move.go}：{@code bool.filter} 用 <b>singular {@code term}</b> + 字符串值
      * （v8 是 {@code terms} 数组）；脚本<b>带 lang</b>；{@code ?refresh=true}；完整性校验同 v8。
      */
-    public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId)
+    @Override
+    public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
+                                     List<String> chunkIds, int dimension, String knowledgeType)
             throws Exception {
         ObjectNode boolBody = MAPPER.createObjectNode();
         ArrayNode filterArray = boolBody.putArray("filter");

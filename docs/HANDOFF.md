@@ -1,5 +1,35 @@
 # 交接文档（新会话接手用）
 
+## 0.-19 接线批·第 1 步：引擎端口 + KV 包装层 + 引擎工厂（2026-09-25——W5γ4.4）
+
+**背景**：§0.-16/§0.-17 落了 ES v7/v8 driver，但它们**没有调用方**（Java 侧既无引擎工厂、
+也无包装层与路由）。本步按 Go 的两层补齐"每店层"，让 driver 成为可装配的引擎服务；
+其余两步（registry/composite/`CreateRetrieveEngineForKB` 与 `HybridSearchService` 路由）见"下一步"。
+
+| 件 | 说明 |
+|---|---|
+| `retrieval/engine/RetrieveEngineRepository`（新，端口） | 照 Go `interfaces.RetrieveEngineRepository` + `KnowledgeIndexMover` 子口；ES v7/v8 已实现（`moveKnowledgeIndices` 由 3 参扩到 6 参以对齐 Go 的接口签名，ES 侧忽略后三个） |
+| `retrieval/engine/KeywordsVectorHybridRetrieveEngineService`（新，照 `service/retriever/keywords_vector_hybrid_indexer.go` 383 行） | 骨架纯转发（Retrieve/Support/三类删除/CopyIndices/两类批量更新）；Index/BatchIndex 负责嵌入落库；**净化**（仅含 `base64,` 时跑 4 条内联图正则 → `[image]`，随后按**码点**截断 20000 并告警）；**退避**（5 次、200ms 起翻倍）；**分批**（向量 40 / 非向量 10；批数 ≤5 全并发、否则限 5）；嵌入映射一律**按 SourceID**；迁移能力探测（未挂子口 → `retriever <engine> does not support moving indices`） |
+| `retrieval/engine/EngineFactory`（新，照 `container/engine_factory.go` 391 行） | `createFromStore`：先跑**逐引擎地址策略**（postgres/sqlite 免检；ES/OpenSearch/Milvus/腾讯/Doris 检 `addr`；Qdrant 检 `host:port`、去方括号；Weaviate 检 `host`+`grpc_address`；未知类型 → `vector store engine "<t>" has no SSRF address policy`；失败文案 `<label> failed SSRF validation: <err>`），再按类型建服务——**ES v7/v8 真落地**（版本前缀 `7.` 判定、索引名/shards 缺省 0/replicas 缺省 -1、Basic Auth、构造即自举）；postgres 明确指向既有 JDBC 件；sqlite/Qdrant/Milvus/Weaviate/Doris/腾讯/OpenSearch → 诚实 XDEP |
+
+**修复（有意偏离 Go，同 §0.-18 类）**：④ `EstimateStorageSize` 的占位向量 Go 以 `ChunkID` 为键，
+而查表按 `SourceID` → 生成问题估不到向量字节；本仓按 SourceID 为键（§0.-18 表已补第 ④ 行）。
+
+**与 Go 的差异（备案）**：
+- 并发用 Java 21 虚拟线程 + `Semaphore`（对应 errgroup + 信道信号量），首个失败取消其余；
+  `utils.ChunkSlice` 落到类内 `chunkSlice`（同语义）；
+- 退避底延迟留了包内测试口（默认仍 200ms，照 Go 常量）；
+- `Embedder` 是 Go `embedding.Embedder` 的薄口（`Embed`/`BatchEmbedWithPool`/`GetDimensions`），
+  实现（接 `knowledge/service/EmbedderClient`）留待 `ChunkService` 接线那一步；
+- Go 的 `Index`/`BatchIndex` 走 `Embedder` 抽象（本仓同），`auditSink`（OpenSearch 审计）随 OpenSearch 支。
+
+**测试**：`com.ragagent.retrieval.*` 43/43 绿（引擎层 33：ES v8 11 + v7 10 + KV 包装 7 + 工厂 5；
+既有 10）。
+
+**下一步**：① registry/composite/`factory.go`（`CreateRetrieveEngineForKB` + 租户商店归属校验）
+→ ② `ChunkService` 的引擎创建接线 + `Embedder` 适配器 → ③ `HybridSearchService` 按引擎类型路由
+（动 golden 锁定读路径，单独验回归）。
+
 ## 0.-18 修复三处 Go 侧向量缺陷（2026-09-25——W5γ4.3，有意偏离 Go）
 
 **背景**：W5γ4.1/γ4.2 落地 ES v7/v8 driver 时，按"逐字照抄"把三处 Go 缺陷复刻进了 Java。
@@ -10,6 +40,7 @@
 | ① | v7 `CopyIndices`/`saveCopiedIndices` | `embeddingMap` 是**新建空 map**（`processSourceBatch` 收集的向量被丢弃）→ 复制过去的文档不带向量 | 向量随 `CopiedHit(indexInfo, embedding)` 回到 copyIndices，按**目标 SourceID** 为键写入 `additionalParams.embedding` | 复制后检索/重排不再缺向量 |
 | ② | v7 `processHit` | 恒传 `MatchTypeKeywords` → **向量结果也标 1** | 按实际检索类型给（vector → MatchTypeEmbedding=0，keywords → 1），对齐 v8；日志措辞也对齐 | 下游按 matchType 分流不再错 |
 | ③ | v8 `CopyIndices` | `embeddingMap` 以**目标 chunkID** 为键，而 `ToDBVectorEmbedding` 按 **SourceID** 查表 → 生成问题（`<chunk>-<qid>` 形态）取不到向量、同 chunk 多文档互相覆盖 | 键改为**目标 SourceID**（逐文档唯一） | 题项向量不再丢/串 |
+| ④ | `KeywordsVectorHybridRetrieveEngineService.EstimateStorageSize`（W5γ4.4 落） | 占位向量以 `ChunkID` 为键，而查表按 `SourceID` → 生成问题估不到向量字节（低估） | 占位向量改按 **SourceID** 为键 | 估算不再低估 |
 
 **为什么键取 SourceID**：`ToDBVectorEmbedding` 的查表语义由 `structs.go` 定为"按 SourceID"，
 修键比改查表更小、更贴合原意（v7/v8 两处因此语义一致）。
