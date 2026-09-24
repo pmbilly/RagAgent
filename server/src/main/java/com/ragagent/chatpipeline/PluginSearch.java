@@ -540,9 +540,16 @@ public final class PluginSearch implements Plugin {
         return res;
     }
 
-    /** 租户 web 配置的接缝：Go 从 ctx 取 TenantInfo；4.6d 装配 TenantContext 后由本方法读取。 */
-    static com.ragagent.auth.domain.tenantconfig.WebSearchConfig currentTenantWebSearchConfig() {
-        return null; // 对照 tenant == nil 分支（EffectiveWebSearchConfig(nil)）
+    /**
+     * 租户 web 配置（对照 Go search.go L597-600：ctx 里的 TenantInfo；
+     * 2026-09-25 评审批接线——port 实现在 QaWiring，按 TenantContext 实时读取，
+     * 无租户上下文 → null，走 EffectiveWebSearchConfig(nil) 缺省分支）。
+     */
+    private com.ragagent.auth.domain.tenantconfig.WebSearchConfig currentTenantWebSearchConfig() {
+        if (tenantService == null) {
+            return null;
+        }
+        return tenantService.currentWebSearchConfig();
     }
 
     /** 对照 types.EffectiveWebSearchConfig 的执行面缺省（web_search.go:47 的生效值合并）。 */

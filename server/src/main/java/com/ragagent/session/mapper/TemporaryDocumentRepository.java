@@ -95,6 +95,14 @@ public class TemporaryDocumentRepository {
     }
 
     /** 对照 Go DeleteScoped：软删（gorm DeletedAt）。 */
+    /** 对照 Go ListExpired（temporary_document.go L73-77）：expires_at <= before，按时间升序。 */
+    public List<TemporaryDocument> listExpired(OffsetDateTime before, int limit) {
+        return mapper.selectList(new LambdaQueryWrapper<TemporaryDocument>()
+                .le(TemporaryDocument::getExpiresAt, before)
+                .orderByAsc(TemporaryDocument::getExpiresAt)
+                .last("LIMIT " + limit));
+    }
+
     public void deleteScoped(long tenantId, String sessionId, String documentId) {
         mapper.delete(new LambdaQueryWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)

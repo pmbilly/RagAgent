@@ -11,6 +11,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.chatpipeline.EventManager;
@@ -127,6 +128,35 @@ public class QaWiring {
                         p == null ? null : p.getAppId(),
                         p == null ? null : p.getAppSecret());
                 return RerankerFactory.newReranker(config);
+            }
+        };
+    }
+
+    /**
+     * 对照 ctx TenantInfo 的 chat_pipeline 子集（2026-09-25 评审批接线）：
+     * PluginSearch 的租户 web 配置读取——TenantContext 实时值 + 租户行合并。
+     */
+    @Bean
+    public PipelinePorts.TenantService qaPipelineTenantService(
+            com.ragagent.auth.service.TenantService tenantService) {
+        return new PipelinePorts.TenantService() {
+            @Override
+            public com.ragagent.auth.domain.tenantconfig.WebSearchConfig currentWebSearchConfig() {
+                Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
+                if (tid == null) {
+                    return null;
+                }
+                try {
+                    com.ragagent.auth.domain.Tenant tenant = tenantService.getTenantById(tid);
+                    if (tenant == null || tenant.getWebSearchConfig() == null
+                            || tenant.getWebSearchConfig().isNull()) {
+                        return null;
+                    }
+                    return new ObjectMapper().treeToValue(tenant.getWebSearchConfig(),
+                            com.ragagent.auth.domain.tenantconfig.WebSearchConfig.class);
+                } catch (RuntimeException | JsonProcessingException e) {
+                    return null;
+                }
             }
         };
     }
@@ -371,6 +401,7 @@ public class QaWiring {
             PipelinePorts.MessageService messageService,
             PipelinePorts.MemoryService memoryService,
             PipelinePorts.WebSearch webSearch,
+            PipelinePorts.TenantService tenantService,
             PipelinePorts.RetrieveGraphRepository retrieveGraphRepository,
             PipelineConfig config) {
 
@@ -381,7 +412,7 @@ public class QaWiring {
 
         // 对照 container.go L380-396 的 Invoke 顺序（注册序=执行链序）
         mgr.register(new com.ragagent.chatpipeline.PluginSearch(knowledgeBaseService, knowledgeService,
-                null, config, webSearch, null, null, null, null));
+                null, config, webSearch, tenantService, null, null, null));
         mgr.register(new PluginRerank(modelService));
         mgr.register(new PluginWebFetch());
         mgr.register(new PluginMerge(chunkRepository, null));
@@ -400,7 +431,8 @@ public class QaWiring {
                 retrieveGraphRepository, chunkRepository, knowledgeRepository));
         mgr.register(new PluginSearchParallel(mgr, knowledgeBaseService, knowledgeService,
                 null, config,
-                webSearch, null, null, null, null, retrieveGraphRepository,
+                webSearch, tenantService, null, null, null,
+                retrieveGraphRepository,
                 chunkRepository, knowledgeRepository));
         mgr.register(new PluginWikiBoost(knowledgeBaseService));
         mgr.register(new PluginMemoryAffinity(memoryService));

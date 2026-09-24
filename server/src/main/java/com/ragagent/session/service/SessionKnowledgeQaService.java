@@ -553,9 +553,11 @@ public class SessionKnowledgeQaService {
         if (hasExplicitMention) {
             log.info("Using request-specified targets: kbs={}, docs={}", kbIds, knowledgeIds);
             // 共享 agent（agent 属于另一租户）：@mention 必须收敛到 agent 的允许范围，
-            // 防止调用方注入范围外的 KB/知识 id（对照 Go L38-43）
+            // 防止调用方注入范围外的 KB/知识 id（对照 Go L38-43）。
+            // ⚠️ Long 一律 equals（约定 §5 第 6 条：装箱比较，租户 10002 超出缓存区间恒不等）
             if (req.agentRow != null && req.session != null
-                    && req.agentRow.getTenantId() != req.session.getTenantId()) {
+                    && !java.util.Objects.equals(req.agentRow.getTenantId(),
+                            req.session.getTenantId())) {
                 MentionScope scope = restrictMentionsToAgentScope(req.agentRow, req.agentConfig,
                         req.session.getTenantId(), kbIds, knowledgeIds);
                 kbIds = scope.kbIds();
@@ -1568,6 +1570,26 @@ public class SessionKnowledgeQaService {
             int max = req.agentConfig.path("web_search_max_results").asInt(0);
             if (max > 0) {
                 return max;
+            }
+        }
+        // 租户缺省分支（对照 Go session_knowledge_qa.go L1285-1288：ctx TenantInfo →
+        // EffectiveWebSearchConfig(tenant.WebSearchConfig).MaxResults；2026-09-25 评审批接线）
+        Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
+        if (tid != null) {
+            try {
+                com.ragagent.auth.domain.Tenant tenant = tenantService.getTenantById(tid);
+                if (tenant != null && tenant.getWebSearchConfig() != null
+                        && !tenant.getWebSearchConfig().isNull()) {
+                    com.ragagent.auth.domain.tenantconfig.WebSearchConfig cfg =
+                            JSON.treeToValue(tenant.getWebSearchConfig(),
+                                    com.ragagent.auth.domain.tenantconfig.WebSearchConfig.class);
+                    int max = cfg.getMaxResults();
+                    if (max > 0) {
+                        return max;
+                    }
+                }
+            } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException e) {
+                log.warn("resolveWebSearchMaxResults tenant config parse failed: {}", e.getMessage());
             }
         }
         return 10; // types.DefaultWebSearchMaxResults

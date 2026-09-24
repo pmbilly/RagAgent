@@ -269,6 +269,41 @@ public class ImService {
         }
     }
 
+    /**
+     * 对照 container.go L1664-1667：应用就绪后从库拉起全部 enabled 渠道（2026-09-25
+     * 评审批接线——此前全工程无调用点，重启后渠道全部沉默）。失败只 WARN，不阻塞启动。
+     */
+    @org.springframework.context.event.EventListener(
+            org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void startChannelsOnReady() {
+        try {
+            loadAndStartChannels();
+        } catch (RuntimeException e) {
+            log.warn("[IM] Failed to load channels from database: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 对照 Go {@code Service.Stop()}（service.go L928-945）+ container 的
+     * {@code cleaner.RegisterWithName("IMService", imService.Stop)}：停机时停
+     * QA 队列与全部运行中的渠道适配器。
+     */
+    @jakarta.annotation.PreDestroy
+    public void stop() {
+        try {
+            qaQueue.stop();
+        } catch (RuntimeException e) {
+            log.warn("[IM] qa queue stop failed: {}", e.getMessage());
+        }
+        for (String id : new java.util.ArrayList<>(channelStates.keySet())) {
+            try {
+                stopChannel(id);
+            } catch (RuntimeException e) {
+                log.warn("[IM] channel {} stop failed: {}", id, e.getMessage());
+            }
+        }
+    }
+
     private long channelTenantIdOrThrow(String channelId) {
         ChannelState st = channelStates.get(channelId);
         if (st != null) {

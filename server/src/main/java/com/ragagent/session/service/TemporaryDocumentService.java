@@ -70,12 +70,73 @@ public class TemporaryDocumentService {
     private final AttachmentFileStore fileStore;
     private final DocReaderClient docReader;
 
+    /** 对照 container.go L1776 的 10 分钟 ticker 周期。 */
+    static final java.time.Duration CLEANUP_INTERVAL = java.time.Duration.ofMinutes(10);
+
+    private volatile boolean cleanupStopped;
+
     public TemporaryDocumentService(TemporaryDocumentRepository repo,
                                     AttachmentFileStore fileStore,
                                     DocReaderClient docReader) {
         this.repo = repo;
         this.fileStore = fileStore;
         this.docReader = docReader;
+    }
+
+    /**
+     * 对照 Go {@code CleanupExpired}（temporary_document.go L757-784）：批 100 扫
+     * 过期文档并逐个删除（失败 WARN 继续），直到扫空。由启动 ticker 周期调用
+     * （见 {@link #startCleanupTicker}）；durable 的 expires_at 是真源，ticker 只
+     * 决定存储回收的速度。
+     */
+    public void cleanupExpired() {
+        while (true) {
+            List<TemporaryDocument> documents =
+                    repo.listExpired(OffsetDateTime.now(ZoneId.systemDefault()), 100);
+            if (documents == null || documents.isEmpty()) {
+                return;
+            }
+            for (TemporaryDocument document : documents) {
+                try {
+                    delete(document.getTenantId(), document.getSessionId(), document.getId());
+                } catch (RuntimeException e) {
+                    log.warn("cleanup temporary document failed: document_id={} err={}",
+                            document.getId(), e.getMessage());
+                }
+            }
+            if (documents.size() < 100) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * 对照 Go container.go L1769-1790 的 {@code startTemporaryDocumentCleanup}：
+     * 10 分钟周期的后台回收循环（守护虚拟线程）。
+     */
+    @org.springframework.context.event.EventListener(
+            org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void startCleanupTicker() {
+        Thread.ofVirtual().name("temporary-document-cleanup").start(() -> {
+            while (!cleanupStopped) {
+                try {
+                    Thread.sleep(CLEANUP_INTERVAL.toMillis());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                try {
+                    cleanupExpired();
+                } catch (RuntimeException e) {
+                    log.warn("[TemporaryDocument] cleanup failed: {}", e.getMessage());
+                }
+            }
+        });
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void stopCleanupTicker() {
+        cleanupStopped = true;
     }
 
     /** 校验失败抛 IllegalArgumentException（handler 落 400 + 原文）。 */

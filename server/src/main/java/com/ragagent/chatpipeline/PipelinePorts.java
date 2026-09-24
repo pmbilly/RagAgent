@@ -160,7 +160,18 @@ public final class PipelinePorts {
     // ----- 占位接口（Go 侧同样只判 nil 或从不读方法） -----
 
     /** 对照 interfaces.TenantService：search.go 只判 nil（web 检索启用性开关的装配凭证）。 */
+    /** 租户面端口——chat_pipeline 取 ctx 租户信息的最小子集。 */
     public interface TenantService {
+
+        /**
+         * 对照 Go search.go 的 {@code types.TenantInfoFromContext(ctx)}：
+         * 当前租户的 web 搜索配置（TenantContext 实时读取）；无租户上下文 → null
+         * （调用方走 EffectiveWebSearchConfig(nil) 的缺省分支）。default null =
+         * 2026-09-25 接线前的恒空接缝（未装配 port 的实现方行为不变）。
+         */
+        default com.ragagent.auth.domain.tenantconfig.WebSearchConfig currentWebSearchConfig() {
+            return null;
+        }
     }
 
     /** 对照 interfaces.SessionService：PluginSearch 存而不读（与 Go 一致）。 */
