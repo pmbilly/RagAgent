@@ -152,6 +152,7 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 ├── docker-compose.yml          dev 基础设施（postgres/redis/docreader）
 ├── scripts/                    75 个脚本：环境装配 / 起服 / golden 录制 / A/B 对拍
 ├── docs/
+│   ├── api/                         API 文档（index.html 双击可看；由脚本生成）
 │   ├── translation-conventions.md   翻译约定（§3 GORM 语义 / §7.5 约束 / §8 日志 / §9 索引）
 │   ├── known-issues/                按批次分片的契约细节与坑（00 ~ 07）
 │   ├── HANDOFF.md                   交接文档（进度基线，新会话必读 §0.x）
@@ -170,6 +171,7 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 | 录制 | `scripts/record-*-golden.sh` | 从 Go 侧录 golden（ag/chunk/kg/w5a/w5b/w5c/w5f/model-debug…） |
 | 对拍 | `scripts/ab-*.sh` | 双端掩码后逐字节比对（session/chunk/kb/w5*/qa46d/tools-web…） |
 | 对账 | `scripts/route-recon.py` | Go↔Java 路由缺口程序化对账（当前真缺口仅 `/swagger/{}`，非翻译目标） |
+| API 文档 | `scripts/generate-api-docs.py` | 解析控制器注解 + RBAC/API-Key 策略，生成 `docs/api/`（452 条路由；路由变更后重跑即可） |
 | stub | `scripts/stub-llm-server.py [port]` | LLM/Ollama stub（`STUB_DUMP_DIR` 落盘请求体供 A/B） |
 
 ## 文档索引

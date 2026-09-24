@@ -1,0 +1,4644 @@
+{
+ "generatedAt": "2026-09-23T23:57:04Z",
+ "total": 452,
+ "groups": [
+  {
+   "domain": "agent",
+   "label": "agent",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/agent/mcp-oauth-resolutions/{}",
+     "source": "mcp/controller/McpOAuthController.java:270",
+     "handler": "resolveMcpOAuth",
+     "description": "对照 Go {@code ResolveMCPOAuth}：前端在弹窗授权完成后调用；后端<b>先确认 token",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/agent/mcp-oauth-resolutions/{}/cancel",
+     "source": "mcp/controller/McpOAuthController.java:327",
+     "handler": "cancelMcpOAuth",
+     "description": "对照 Go {@code CancelMCPOAuth}：用户主动跳过授权，以\"拒绝\"解除 Agent 阻塞。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/agent/tool-approvals/{}",
+     "source": "mcp/controller/AgentToolApprovalController.java:53",
+     "handler": "resolveToolApproval",
+     "description": "对照 ResolveToolApproval — Viewer+",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "agent-chat",
+   "label": "Agent 问答",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/agent-chat/{}",
+     "source": "session/controller/KnowledgeQaController.java:174",
+     "handler": "agentQA",
+     "description": "",
+     "rbac": null,
+     "apiKey": "chat(full)(fullAccess("
+    }
+   ]
+  },
+  {
+   "domain": "agents",
+   "label": "Agent",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/agents",
+     "source": "agentm/controller/AgentController.java:72",
+     "handler": "list",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "readAgents( manageAgents(chat(agFull)))"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/agents",
+     "source": "agentm/controller/AgentController.java:99",
+     "handler": "create",
+     "description": "",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageAgents(agFull)"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/agents/placeholders",
+     "source": "agentm/controller/AgentController.java:86",
+     "handler": "placeholders",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "readAgents( manageAgents(chat(agFull)))"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/agents/type-presets",
+     "source": "agentm/controller/AgentController.java:92",
+     "handler": "typePresets",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "readAgents( manageAgents(chat(agFull)))"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/agents/{}",
+     "source": "agentm/controller/AgentController.java:111",
+     "handler": "get",
+     "description": "",
+     "rbac": null,
+     "apiKey": "readAgents( manageAgents(chat(agFull)))"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/agents/{}",
+     "source": "agentm/controller/AgentController.java:121",
+     "handler": "update",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageAgents(agFull)"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/agents/{}",
+     "source": "agentm/controller/AgentController.java:137",
+     "handler": "delete",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageAgents(agFull)"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/agents/{}/copy",
+     "source": "agentm/controller/AgentController.java:147",
+     "handler": "copy",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageAgents(agFull)"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/agents/{}/embed-channels",
+     "source": "embed/controller/EmbedChannelController.java:177",
+     "handler": "listByAgent",
+     "description": "对照 ListEmbedChannels。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/agents/{}/embed-channels",
+     "source": "embed/controller/EmbedChannelController.java:139",
+     "handler": "create",
+     "description": "对照 CreateEmbedChannel：201 + gin.H（字母序）。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/agents/{}/im-channels",
+     "source": "im/controller/ImChannelController.java:133",
+     "handler": "listByAgent",
+     "description": "对照 ListIMChannels：凭据不出现在列表行（IMChannelSummary）。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/agents/{}/im-channels",
+     "source": "im/controller/ImChannelController.java:80",
+     "handler": "create",
+     "description": "对照 CreateIMChannel：200（不是 201）。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/agents/{}/shares",
+     "source": "org/controller/OrganizationController.java:794",
+     "handler": "listAgentShares",
+     "description": "",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/agents/{}/shares",
+     "source": "org/controller/OrganizationController.java:763",
+     "handler": "shareAgent",
+     "description": "",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/agents/{}/shares/{}",
+     "source": "org/controller/OrganizationController.java:823",
+     "handler": "removeAgentShare",
+     "description": "",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/agents/{}/suggested-questions",
+     "source": "agentm/controller/AgentController.java:160",
+     "handler": "suggestedQuestions",
+     "description": "",
+     "rbac": null,
+     "apiKey": "readAgents( manageAgents(chat(agFull)))"
+    }
+   ]
+  },
+  {
+   "domain": "auth",
+   "label": "认证与账号",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/auto-setup",
+     "source": "auth/controller/AuthController.java:211",
+     "handler": "autoSetup",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/change-password",
+     "source": "auth/controller/AuthController.java:491",
+     "handler": "changePassword",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/auth/config",
+     "source": "auth/controller/AuthController.java:372",
+     "handler": "getAuthConfig",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/invitations/lookup",
+     "source": "auth/controller/AuthController.java:248",
+     "handler": "lookupInvitation",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/login",
+     "source": "auth/controller/AuthController.java:148",
+     "handler": "login",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/logout",
+     "source": "auth/controller/AuthController.java:809",
+     "handler": "logout",
+     "description": "POST /auth/logout（对照 Logout，L517-560）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/auth/me",
+     "source": "auth/controller/AuthController.java:411",
+     "handler": "getCurrentUser",
+     "description": "",
+     "rbac": null,
+     "apiKey": "any("
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/auth/me/preferences",
+     "source": "auth/controller/AuthController.java:459",
+     "handler": "updateMyPreferences",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/auth/oidc/callback",
+     "source": "auth/controller/AuthController.java:568",
+     "handler": "oidcRedirectCallback",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/auth/oidc/config",
+     "source": "auth/controller/AuthController.java:532",
+     "handler": "getOidcConfig",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/auth/oidc/start",
+     "source": "auth/controller/AuthController.java:559",
+     "handler": "oidcStart",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/auth/oidc/url",
+     "source": "auth/controller/AuthController.java:542",
+     "handler": "getOidcAuthorizationUrl",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/refresh",
+     "source": "auth/controller/AuthController.java:838",
+     "handler": "refreshToken",
+     "description": "POST /auth/refresh（对照 RefreshToken，L569-611）。noAuthAPI 白名单路径",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/register",
+     "source": "auth/controller/AuthController.java:174",
+     "handler": "register",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/register-by-invite",
+     "source": "auth/controller/AuthController.java:284",
+     "handler": "registerByInvite",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/auth/switch-tenant",
+     "source": "auth/controller/AuthController.java:921",
+     "handler": "switchTenant",
+     "description": "POST /auth/switch-tenant（对照 SwitchTenant，L856-893）。tenant-optional",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/auth/validate",
+     "source": "auth/controller/AuthController.java:385",
+     "handler": "validateToken",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "chunker",
+   "label": "分块预览",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/chunker/preview",
+     "source": "knowledge/controller/ChunkerDebugController.java:213",
+     "handler": "previewChunking",
+     "description": "切分结果 + 诊断（parent-child 时 chunks = children）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "retrieve(ingest(fullAccess("
+    }
+   ]
+  },
+  {
+   "domain": "chunks",
+   "label": "Chunk 编辑",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/chunks/by-id/{}",
+     "source": "knowledge/controller/ChunkController.java:127",
+     "handler": "getChunkByIdOnly",
+     "description": "对照 GetChunkByIDOnly（L53-83）：不需要 knowledge_id。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/chunks/by-id/{}/questions",
+     "source": "knowledge/controller/ChunkController.java:228",
+     "handler": "upsertGeneratedQuestion",
+     "description": "对照 UpsertGeneratedQuestion（L322-339）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/chunks/by-id/{}/questions",
+     "source": "knowledge/controller/ChunkController.java:274",
+     "handler": "deleteGeneratedQuestion",
+     "description": "对照 DeleteGeneratedQuestion（L440-472）：任何 bind 失败都落固定文案。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/chunks/by-id/{}/questions/regenerate",
+     "source": "knowledge/controller/ChunkController.java:257",
+     "handler": "regenerateGeneratedQuestions",
+     "description": "对照 RegenerateGeneratedQuestions（L341-353）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/chunks/{}",
+     "source": "knowledge/controller/ChunkController.java:83",
+     "handler": "listKnowledgeChunks",
+     "description": "对照 ListKnowledgeChunks（L99-152）。分页钳位：page&lt;1→1、size&lt;1→10、size&gt;100→100。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/chunks/{}",
+     "source": "knowledge/controller/ChunkController.java:325",
+     "handler": "deleteChunksByKnowledgeId",
+     "description": "对照 DeleteChunksByKnowledgeID（L403-424）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/chunks/{}/{}",
+     "source": "knowledge/controller/ChunkController.java:162",
+     "handler": "updateChunk",
+     "description": "对照 UpdateChunk（L211-255）。业务失败（fmt.Errorf 族）→ 500 信封 message=原文。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/chunks/{}/{}",
+     "source": "knowledge/controller/ChunkController.java:306",
+     "handler": "deleteChunk",
+     "description": "对照 DeleteChunk（L369-389）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/chunks/{}/{}/revert",
+     "source": "knowledge/controller/ChunkController.java:190",
+     "handler": "revertChunk",
+     "description": "对照 RevertChunk（L276-315）。注意：非 AppError 在这里是 **400** 不是 500。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/chunks/{}/{}/revisions",
+     "source": "knowledge/controller/ChunkController.java:147",
+     "handler": "listChunkRevisions",
+     "description": "对照 ListChunkRevisions（L257-269）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "datasource",
+   "label": "数据源",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/datasource",
+     "source": "datasource/controller/DataSourceController.java:148",
+     "handler": "listDataSources",
+     "description": "对照 Go {@code ListDataSources}（L161-186）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/datasource",
+     "source": "datasource/controller/DataSourceController.java:103",
+     "handler": "createDataSource",
+     "description": "对照 Go {@code CreateDataSource}（L91-122）：成功是 <b>201</b> Created。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/datasource/logs/{}",
+     "source": "datasource/controller/DataSourceController.java:475",
+     "handler": "getSyncLog",
+     "description": "对照 Go {@code GetSyncLog}（L578-600）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/datasource/types",
+     "source": "datasource/controller/DataSourceController.java:89",
+     "handler": "getAvailableConnectors",
+     "description": "对照 Go {@code GetAvailableConnectors}（L609-612）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/datasource/validate-credentials",
+     "source": "datasource/controller/DataSourceController.java:256",
+     "handler": "validateCredentials",
+     "description": "对照 Go {@code ValidateCredentials}（L309-332）：用裸凭据试连，<b>不落库</b>。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/datasource/{}",
+     "source": "datasource/controller/DataSourceController.java:128",
+     "handler": "getDataSource",
+     "description": "对照 Go {@code GetDataSource}（L133-150）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/datasource/{}",
+     "source": "datasource/controller/DataSourceController.java:182",
+     "handler": "updateDataSource",
+     "description": "对照 Go {@code UpdateDataSource}（L199-231）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/datasource/{}",
+     "source": "datasource/controller/DataSourceController.java:210",
+     "handler": "deleteDataSource",
+     "description": "对照 Go {@code DeleteDataSource}（L241-262）：成功是 <b>204</b>，无响应体。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/datasource/{}/credentials",
+     "source": "datasource/controller/DataSourceCredentialsController.java:80",
+     "handler": "put",
+     "description": "对照 Go {@code Put}（L62-95）：整体替换凭据并立刻做一次真实连接校验",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/datasource/{}/credentials/{}",
+     "source": "datasource/controller/DataSourceCredentialsController.java:122",
+     "handler": "deleteField",
+     "description": "对照 Go {@code DeleteField}（L97-115）：只认 {@code \"credentials\"} 这一个字段名。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/datasource/{}/logs",
+     "source": "datasource/controller/DataSourceController.java:429",
+     "handler": "getSyncLogs",
+     "description": "对照 Go {@code GetSyncLogs}（L524-567）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/datasource/{}/pause",
+     "source": "datasource/controller/DataSourceController.java:383",
+     "handler": "pauseDataSource",
+     "description": "对照 Go {@code PauseDataSource}（L459-480）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/datasource/{}/resource-ancestors",
+     "source": "datasource/controller/DataSourceController.java:320",
+     "handler": "resolveResourceAncestors",
+     "description": "对照 Go {@code ResolveResourceAncestors}（L381-412）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/datasource/{}/resources",
+     "source": "datasource/controller/DataSourceController.java:292",
+     "handler": "listAvailableResources",
+     "description": "对照 Go {@code ListAvailableResources}（L343-369）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/datasource/{}/resume",
+     "source": "datasource/controller/DataSourceController.java:402",
+     "handler": "resumeDataSource",
+     "description": "对照 Go {@code ResumeDataSource}（L490-511）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/datasource/{}/sync",
+     "source": "datasource/controller/DataSourceController.java:363",
+     "handler": "manualSync",
+     "description": "对照 Go {@code ManualSync}（L427-449）：返回新建的 sync_log 裸实体。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/datasource/{}/validate",
+     "source": "datasource/controller/DataSourceController.java:231",
+     "handler": "validateConnection",
+     "description": "对照 Go {@code ValidateConnection}（L272-293）：成功回 {@code {\"status\":\"connected\"}}。",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "embed",
+   "label": "嵌入问答",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/agent-chat/{}",
+     "source": "embed/controller/EmbedChannelController.java:438",
+     "handler": "agentChat",
+     "description": "对照 EmbedAgentChat（L464-466）：patch 后按渠道 agent 分派 AgentQA/KnowledgeQA。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed/{}/chunks/{}",
+     "source": "embed/controller/EmbedChannelController.java:381",
+     "handler": "chunk",
+     "description": "对照 GetEmbedChunk。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed/{}/config",
+     "source": "embed/controller/EmbedChannelController.java:341",
+     "handler": "config",
+     "description": "对照 GetEmbedConfig。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/exchange",
+     "source": "embed/controller/EmbedChannelController.java:316",
+     "handler": "exchange",
+     "description": "对照 ExchangeEmbedSession：只有 publish token 能换 session token。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed/{}/files",
+     "source": "embed/controller/EmbedChannelController.java:516",
+     "handler": "embedFiles",
+     "description": "对照 routes_agent.go L255：embed 文件代理与 /files 共用同一 handler 体",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/knowledge-chat/{}",
+     "source": "embed/controller/EmbedChannelController.java:429",
+     "handler": "knowledgeChat",
+     "description": "对照 EmbedKnowledgeChat（L460-462）：patch 后委托 KnowledgeQA。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed/{}/messages/{}/load",
+     "source": "embed/controller/EmbedChannelController.java:523",
+     "handler": "load",
+     "description": "对照 EmbedLoadMessages：先 ensureEmbedSession，再委托 MessageController.LoadMessages。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions",
+     "source": "embed/controller/EmbedChannelController.java:399",
+     "handler": "createSession",
+     "description": "对照 CreateEmbedSession：201 {id, sig}。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/events",
+     "source": "embed/controller/EmbedChannelController.java:578",
+     "handler": "events",
+     "description": "对照 EmbedRelayWebhookEvent：message_sent / message_received 之外全拒；",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/mcp-oauth-resolutions/{}",
+     "source": "embed/controller/EmbedChannelController.java:637",
+     "handler": "mcpResolve",
+     "description": "对照 EmbedResolveMCPOAuth（gate 依赖分支；Gate 未接线时 500，与 Go dev 装配差 = 已知差异）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/mcp-oauth-resolutions/{}/cancel",
+     "source": "embed/controller/EmbedChannelController.java:656",
+     "handler": "mcpResolveCancel",
+     "description": "对照 EmbedCancelMCPOAuth。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/mcp-services/{}/oauth/authorize-url",
+     "source": "embed/controller/EmbedChannelController.java:609",
+     "handler": "mcpAuthorize",
+     "description": "对照 EmbedMCPOAuthAuthorizeURL（委托 McpOAuthController.AuthorizeURL）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed/{}/sessions/{}/mcp-services/{}/oauth/status",
+     "source": "embed/controller/EmbedChannelController.java:628",
+     "handler": "mcpStatus",
+     "description": "对照 EmbedMCPOAuthStatus（委托 McpOAuthController.Status）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed/{}/sessions/{}/messages/{}/suggestions",
+     "source": "embed/controller/EmbedChannelController.java:542",
+     "handler": "suggestionsGet",
+     "description": "对照 EmbedGetMessageSuggestions：channel 级 suppressed 分支优先于委托。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/messages/{}/suggestions",
+     "source": "embed/controller/EmbedChannelController.java:554",
+     "handler": "suggestionsEnsure",
+     "description": "对照 EmbedEnsureMessageSuggestions。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/stop",
+     "source": "embed/controller/EmbedChannelController.java:534",
+     "handler": "stop",
+     "description": "对照 EmbedStopSession：委托 SessionController.StopSession。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/suggestion-events",
+     "source": "embed/controller/EmbedChannelController.java:567",
+     "handler": "suggestionEvents",
+     "description": "对照 EmbedRecordSuggestionEvent：成功 204 无响应体。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed/{}/sessions/{}/tool-approvals/{}",
+     "source": "embed/controller/EmbedChannelController.java:665",
+     "handler": "toolApprovals",
+     "description": "对照 EmbedResolveToolApproval（gate 依赖分支；Gate 未接线时 500 = 已知差异）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed/{}/suggested-questions",
+     "source": "embed/controller/EmbedChannelController.java:348",
+     "handler": "suggestedQuestions",
+     "description": "对照 GetEmbedSuggestedQuestions。",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "embed-channels",
+   "label": "嵌入渠道",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/embed-channels",
+     "source": "embed/controller/EmbedChannelController.java:189",
+     "handler": "listAll",
+     "description": "对照 ListAllEmbedChannels（跨 agent，publish token 永不出现在列表里）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed-channels/{}",
+     "source": "embed/controller/EmbedChannelController.java:199",
+     "handler": "get",
+     "description": "对照 GetEmbedChannel：管理详情**含** publish token。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/embed-channels/{}",
+     "source": "embed/controller/EmbedChannelController.java:210",
+     "handler": "update",
+     "description": "对照 UpdateEmbedChannel：200 + gin.H（不含 publish token）。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/embed-channels/{}",
+     "source": "embed/controller/EmbedChannelController.java:258",
+     "handler": "delete",
+     "description": "对照 DeleteEmbedChannel：{\"success\":true}。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed-channels/{}/preview-session",
+     "source": "embed/controller/EmbedChannelController.java:282",
+     "handler": "preview",
+     "description": "对照 IssuePreviewSession：禁用渠道 → 403 \"embed channel is disabled\"（专用分支）。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/embed-channels/{}/rotate-token",
+     "source": "embed/controller/EmbedChannelController.java:271",
+     "handler": "rotate",
+     "description": "对照 RotateEmbedToken：200 + 含新 token 的行。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/embed-channels/{}/stats",
+     "source": "embed/controller/EmbedChannelController.java:300",
+     "handler": "stats",
+     "description": "对照 GetEmbedChannelStats：{session_count:N}。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "evaluation",
+   "label": "评估",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/evaluation",
+     "source": "evaluation/controller/EvaluationController.java:77",
+     "handler": "getEvaluationResult",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "runEvaluations(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/evaluation",
+     "source": "evaluation/controller/EvaluationController.java:50",
+     "handler": "evaluation",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "runEvaluations(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "faq",
+   "label": "FAQ",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/faq/import/progress/{}",
+     "source": "knowledge/controller/FaqController.java:156",
+     "handler": "getImportProgress",
+     "description": "对照 GetImportProgress（faq.go L507-526）：requireTaskProgressTenant 先于 service 查询。",
+     "rbac": null,
+     "apiKey": "retrieve(ingest(fullAccess("
+    }
+   ]
+  },
+  {
+   "domain": "files",
+   "label": "文件代理",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/files/presigned",
+     "source": "storage/controller/FileProxyController.java:77",
+     "handler": "presigned",
+     "description": "Go 只注册了 GET：gin 对 HEAD 落 NoRoute（404 \"404 page not found\"，",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "HEAD",
+     "path": "/api/v1/files/presigned",
+     "source": "storage/controller/FileProxyController.java:77",
+     "handler": "presigned",
+     "description": "Go 只注册了 GET：gin 对 HEAD 落 NoRoute（404 \"404 page not found\"，",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/files/presigned-preview",
+     "source": "storage/controller/FileProxyController.java:84",
+     "handler": "presignedPreview",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "HEAD",
+     "path": "/api/v1/files/presigned-preview",
+     "source": "storage/controller/FileProxyController.java:101",
+     "handler": "presignedPreviewHead",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/files",
+     "source": "storage/controller/FileProxyController.java:60",
+     "handler": "files",
+     "description": "排除（WebConfig），本控制器",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "HEAD",
+     "path": "/files",
+     "source": "storage/controller/FileProxyController.java:70",
+     "handler": "filesHead",
+     "description": "Go 只注册了 GET：gin 对 HEAD 落 NoRoute（404 \"404 page not found\"，",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "health",
+   "label": "健康检查",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/health",
+     "source": "common/web/HealthController.java:15",
+     "handler": "health",
+     "description": "对照 Go internal/router/router.go 的 /health：{\"status\":\"ok\"}（无需认证）。",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "im",
+   "label": "IM 集成",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/im/callback/{}",
+     "source": "im/controller/ImCallbackController.java:58",
+     "handler": "callbackGet",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/im/callback/{}",
+     "source": "im/controller/ImCallbackController.java:64",
+     "handler": "callbackPost",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "im-channels",
+   "label": "IM 渠道",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/im-channels",
+     "source": "im/controller/ImChannelController.java:155",
+     "handler": "listAll",
+     "description": "对照 ListAllIMChannels：跨 agent 总览（ChannelWithAgent，带 agent_name）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/im-channels/{}",
+     "source": "im/controller/ImChannelController.java:191",
+     "handler": "update",
+     "description": "对照 UpdateIMChannel。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/im-channels/{}",
+     "source": "im/controller/ImChannelController.java:244",
+     "handler": "delete",
+     "description": "对照 DeleteIMChannel：任何失败都落 500 \"failed to delete channel\"。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/im-channels/{}/toggle",
+     "source": "im/controller/ImChannelController.java:260",
+     "handler": "toggle",
+     "description": "对照 ToggleIMChannel：任何失败都落 500 \"failed to toggle channel\"。",
+     "rbac": null,
+     "apiKey": "manageChannels(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "initialization",
+   "label": "初始化向导",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/asr/check",
+     "source": "agentm/controller/InitializationController.java:776",
+     "handler": "asrCheck",
+     "description": "POST /initialization/asr/check——发一段静默 WAV 验证 transcription 端点。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/initialization/config/{}",
+     "source": "agentm/controller/InitializationController.java:135",
+     "handler": "getConfig",
+     "description": "",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess()"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/initialization/config/{}",
+     "source": "agentm/controller/InitializationController.java:212",
+     "handler": "updateConfig",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageKnowledgeBases(fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/embedding/test",
+     "source": "agentm/controller/InitializationController.java:691",
+     "handler": "embeddingTest",
+     "description": "POST /initialization/embedding/test——embed 一次 \"hello\" 并回报维度。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/extract/fabri-tag",
+     "source": "agentm/controller/InitializationController.java:1053",
+     "handler": "fabriTag",
+     "description": "POST /initialization/extract/fabri-tag——随机标签组（无 LLM 调用）。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/extract/fabri-text",
+     "source": "agentm/controller/InitializationController.java:1064",
+     "handler": "fabriText",
+     "description": "POST /initialization/extract/fabri-text——按标签生成示例文本（LLM 驱动）。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/extract/text-relation",
+     "source": "agentm/controller/InitializationController.java:975",
+     "handler": "extractTextRelations",
+     "description": "POST /initialization/extract/text-relation——LLM 驱动的实体关系抽取。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/initialize/{}",
+     "source": "agentm/controller/InitializationController.java:165",
+     "handler": "initialize",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageKnowledgeBases(fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/multimodal/test",
+     "source": "agentm/controller/InitializationController.java:826",
+     "handler": "multimodalTest",
+     "description": "POST /initialization/multimodal/test——multipart 上传图片，走 DocReader 解析。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/initialization/ollama/download/progress/{}",
+     "source": "agentm/controller/InitializationController.java:497",
+     "handler": "downloadProgress",
+     "description": "GET /initialization/ollama/download/progress/:taskId——DownloadTask 按 struct 序输出。",
+     "rbac": null,
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/initialization/ollama/download/tasks",
+     "source": "agentm/controller/InitializationController.java:510",
+     "handler": "downloadTasksList",
+     "description": "GET /initialization/ollama/download/tasks——全量任务列表（map 序随机）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/initialization/ollama/models",
+     "source": "agentm/controller/InitializationController.java:400",
+     "handler": "ollamaModels",
+     "description": "GET /initialization/ollama/models——ListModelsDetailed（name/size/digest/modified_at）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/ollama/models/check",
+     "source": "agentm/controller/InitializationController.java:424",
+     "handler": "ollamaModelsCheck",
+     "description": "POST /initialization/ollama/models/check——逐模型可用性（map 按名字母序）。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/ollama/models/download",
+     "source": "agentm/controller/InitializationController.java:447",
+     "handler": "ollamaModelDownload",
+     "description": "POST /initialization/ollama/models/download——建任务 + 虚拟线程异步拉取。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/initialization/ollama/status",
+     "source": "agentm/controller/InitializationController.java:371",
+     "handler": "ollamaStatus",
+     "description": "GET /initialization/ollama/status——StartService 失败仍是 200 + available:false。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/remote/check",
+     "source": "agentm/controller/InitializationController.java:650",
+     "handler": "remoteCheck",
+     "description": "POST /initialization/remote/check——chat 模块最小化连通性调用。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/initialization/rerank/check",
+     "source": "agentm/controller/InitializationController.java:735",
+     "handler": "rerankCheck",
+     "description": "POST /initialization/rerank/check——rerank 一次 [\"ping\"]/[\"pong\"]。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "knowledge",
+   "label": "文档",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/batch",
+     "source": "knowledge/controller/KnowledgeController.java:197",
+     "handler": "getKnowledgeBatch",
+     "description": "对照 GetKnowledgeBatch（GET /knowledge/batch）。query 绑定：ids required",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge/batch-delete",
+     "source": "knowledge/controller/KnowledgeController.java:505",
+     "handler": "batchDeleteKnowledge",
+     "description": "对照 BatchDeleteKnowledge：dedupe/maxBatch → KB 访问+ownership → 行校验（含",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge/batch-reparse",
+     "source": "knowledge/controller/KnowledgeController.java:537",
+     "handler": "batchReparseKnowledge",
+     "description": "对照 BatchReparseKnowledge：bind 失败固定文案；行校验的 count 文案与 batch-delete 不同。",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge/folder",
+     "source": "knowledge/controller/KnowledgeController.java:585",
+     "handler": "moveKnowledgeToFolder",
+     "description": "对照 MoveKnowledgeToFolder：body 携带 kb_id/folder_path（目的地不存在即创建）",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge/image/{}/{}",
+     "source": "knowledge/controller/KnowledgeController.java:445",
+     "handler": "updateImageInfo",
+     "description": "对照 UpdateImageInfo：ownership + KBAccessWrite + image_info 解析/归属/向量分支",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge/manual/{}",
+     "source": "knowledge/controller/KnowledgeController.java:359",
+     "handler": "updateManualKnowledge",
+     "description": "对照 UpdateManualKnowledge：ownership + KBAccessWrite + 手工内容校验",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge/move",
+     "source": "knowledge/controller/KnowledgeController.java:811",
+     "handler": "moveKnowledge",
+     "description": "对照 MoveKnowledge（POST /knowledge/move，Contributor；body 携带 source/target，",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/move/progress/{}",
+     "source": "knowledge/controller/KnowledgeController.java:949",
+     "handler": "getKnowledgeMoveProgress",
+     "description": "对照 GetKnowledgeMoveProgress：租户隔离（ParseTaskID）→ 进度（404 文案专属）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/search",
+     "source": "knowledge/controller/KnowledgeController.java:674",
+     "handler": "searchKnowledge",
+     "description": "对照 SearchKnowledge（GET /knowledge/search，Viewer、无 KB 守卫——跨库搜索，",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge/tags",
+     "source": "knowledge/controller/KnowledgeController.java:468",
+     "handler": "updateKnowledgeTagBatch",
+     "description": "对照 UpdateKnowledgeTagBatch：body 携带可选 kb_id；无 kb_id 时从首条 knowledge 推导",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/{}",
+     "source": "knowledge/controller/KnowledgeController.java:181",
+     "handler": "getKnowledge",
+     "description": "对照 GetKnowledge：路由带 KBAccessReadFromKnowledgeIDParam（守卫链同款分层）",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge/{}",
+     "source": "knowledge/controller/KnowledgeController.java:1231",
+     "handler": "updateKnowledge",
+     "description": "对照 UpdateKnowledge — 守卫链 + 部分更新，响应 success/message/data（字母序）",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledge/{}",
+     "source": "knowledge/controller/KnowledgeController.java:1250",
+     "handler": "deleteKnowledge",
+     "description": "对照 DeleteKnowledge：守卫链 + RejectMoving + 异步语义（返回 task_id）",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge/{}/cancel-parse",
+     "source": "knowledge/controller/KnowledgeController.java:400",
+     "handler": "cancelKnowledgeParse",
+     "description": "对照 CancelKnowledgeParse：ownership + KBAccessWrite + 状态机（幂等/拒绝）",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/{}/download",
+     "source": "knowledge/controller/KnowledgeController.java:416",
+     "handler": "downloadKnowledgeFile",
+     "description": "对照 DownloadKnowledgeFile：Contributor 路由门 + KBAccessWrite + handler 内 Editor 检查",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/{}/preview",
+     "source": "knowledge/controller/KnowledgeController.java:432",
+     "handler": "previewKnowledgeFile",
+     "description": "对照 PreviewKnowledgeFile：Viewer + KBAccessRead，Content-Type 按扩展名",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge/{}/regenerate-summary",
+     "source": "knowledge/controller/KnowledgeController.java:339",
+     "handler": "regenerateKnowledgeSummary",
+     "description": "对照 RegenerateKnowledgeSummary：ownership + KBAccessWrite + 成功 200 {\"success\",\"data\"}",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge/{}/reparse",
+     "source": "knowledge/controller/KnowledgeController.java:375",
+     "handler": "reparseKnowledge",
+     "description": "对照 ReparseKnowledge：ownership + KBAccessWrite；空 body 保留上传时配置",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/{}/spans",
+     "source": "knowledge/controller/KnowledgeController.java:314",
+     "handler": "getKnowledgeSpans",
+     "description": "对照 GetKnowledgeSpans（/stages 与 /spans 两个路径同 handler；gin.H 键字母序）",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge/{}/stages",
+     "source": "knowledge/controller/KnowledgeController.java:314",
+     "handler": "getKnowledgeSpans",
+     "description": "对照 GetKnowledgeSpans（/stages 与 /spans 两个路径同 handler；gin.H 键字母序）",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "knowledge-bases",
+   "label": "知识库",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases",
+     "source": "knowledge/controller/KnowledgeBaseController.java:166",
+     "handler": "listKnowledgeBases",
+     "description": "对照 ListKnowledgeBases — Viewer+；creator=mine|others 过滤。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases",
+     "source": "knowledge/controller/KnowledgeBaseController.java:78",
+     "handler": "createKnowledgeBase",
+     "description": "对照 CreateKnowledgeBase — Contributor+",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageKnowledgeBases(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/copy",
+     "source": "knowledge/controller/KnowledgeBaseController.java:469",
+     "handler": "copyKnowledgeBase",
+     "description": "对照 CopyKnowledgeBase（POST /knowledge-bases/copy，Contributor；源在 body）。",
+     "rbac": {
+      "minRole": "CONTRIBUTOR",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageKnowledgeBases(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/copy/progress/{}",
+     "source": "knowledge/controller/KnowledgeBaseController.java:580",
+     "handler": "getKBCloneProgress",
+     "description": "对照 GetKBCloneProgress：租户隔离 + 404 \"KB clone task not found\"。",
+     "rbac": null,
+     "apiKey": "retrieve(manageKnowledgeBases(fullAccess("
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}",
+     "source": "knowledge/controller/KnowledgeBaseController.java:210",
+     "handler": "getKnowledgeBase",
+     "description": "对照 GetKnowledgeBase — Viewer+（KBAccessRead：本租户全员可读）",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}",
+     "source": "knowledge/controller/KnowledgeBaseController.java:218",
+     "handler": "updateKnowledgeBase",
+     "description": "对照 UpdateKnowledgeBase — OwnedKBOrAdmin + KBAccessWrite（handler 内 permission 校验阶段 3 简化）",
+     "rbac": null,
+     "apiKey": "manageKnowledgeBases(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledge-bases/{}",
+     "source": "knowledge/controller/KnowledgeBaseController.java:266",
+     "handler": "deleteKnowledgeBase",
+     "description": "对照 DeleteKnowledgeBase — 所有者租户 + Admin",
+     "rbac": null,
+     "apiKey": "manageKnowledgeBases(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/activity",
+     "source": "audit/controller/AuditLogController.java:119",
+     "handler": "listKnowledgeBaseActivity",
+     "description": "对照 Go {@code ListKnowledgeBaseActivity}（L127-170）：单个知识库的 durable 活动投影。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/duplicate",
+     "source": "knowledge/controller/KnowledgeBaseController.java:616",
+     "handler": "duplicateKnowledgeBase",
+     "description": "对照 DuplicateKnowledgeBase（POST /{id}/duplicate，201）：路由 KBAccessRead 先拒",
+     "rbac": null,
+     "apiKey": "manageKnowledgeBases(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries",
+     "source": "knowledge/controller/FaqController.java:76",
+     "handler": "listEntries",
+     "description": "对照 ListEntries（faq.go L81-123）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries",
+     "source": "knowledge/controller/FaqController.java:167",
+     "handler": "upsertEntries",
+     "description": "对照 UpsertEntries（faq.go L159-184）：异步导入，返回 task_id。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries",
+     "source": "knowledge/controller/FaqController.java:258",
+     "handler": "deleteEntries",
+     "description": "对照 DeleteEntries（faq.go L346-366）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries/export",
+     "source": "knowledge/controller/FaqController.java:120",
+     "handler": "exportEntries",
+     "description": "对照 ExportEntries（faq.go L425-456）：CSV（默认，含 BOM）或 JSON（?format=json）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries/fields",
+     "source": "knowledge/controller/FaqController.java:226",
+     "handler": "updateEntryFieldsBatch",
+     "description": "对照 UpdateEntryFieldsBatch（faq.go L300-331）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries/tags",
+     "source": "knowledge/controller/FaqController.java:238",
+     "handler": "updateEntryTagBatch",
+     "description": "对照 UpdateEntryTagBatch（faq.go L280-298）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries/{}",
+     "source": "knowledge/controller/FaqController.java:146",
+     "handler": "getEntry",
+     "description": "对照 GetEntry（faq.go L472-493）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries/{}",
+     "source": "knowledge/controller/FaqController.java:192",
+     "handler": "updateEntry",
+     "description": "对照 UpdateEntry（faq.go L237-265）：先 binding 后 entry_id 解析（Go 的顺序）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/faq/entries/{}/similar-questions",
+     "source": "knowledge/controller/FaqController.java:205",
+     "handler": "addSimilarQuestions",
+     "description": "对照 AddSimilarQuestions（faq.go L579-607）：entry_id 解析在 binding 之前。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/faq/entry",
+     "source": "knowledge/controller/FaqController.java:181",
+     "handler": "createEntry",
+     "description": "对照 CreateEntry（faq.go L199-221）：同步创建。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/faq/import/last-result/display",
+     "source": "knowledge/controller/FaqController.java:298",
+     "handler": "updateLastImportResultDisplayStatus",
+     "description": "对照 UpdateLastImportResultDisplayStatus（faq.go L542-562）。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/faq/search",
+     "source": "knowledge/controller/FaqController.java:278",
+     "handler": "searchFAQ",
+     "description": "对照 SearchFAQ（faq.go L381-409）：matchCount 先钳 [10,200]（service 再钳 50）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/files",
+     "source": "knowledge/controller/KbFileProxyController.java:58",
+     "handler": "files",
+     "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess("
+    },
+    {
+     "method": "HEAD",
+     "path": "/api/v1/knowledge-bases/{}/files",
+     "source": "knowledge/controller/KbFileProxyController.java:52",
+     "handler": "filesHead",
+     "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/hybrid-search",
+     "source": "knowledge/controller/KnowledgeBaseController.java:326",
+     "handler": "hybridSearchGet",
+     "description": "对照 GET /knowledge-bases/{id}/hybrid-search（同 handler，body 语义一致）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/hybrid-search",
+     "source": "knowledge/controller/KnowledgeBaseController.java:318",
+     "handler": "hybridSearchPost",
+     "description": "对照 HybridSearch（POST 为主；GET 携带 JSON body 兼容 #1727——两条路由同一 handler）。",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/knowledge",
+     "source": "knowledge/controller/KnowledgeController.java:147",
+     "handler": "listKnowledge",
+     "description": "对照 ListKnowledge — 真分页，顶层 data/page/page_size/total/success（字母序）",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledge-bases/{}/knowledge",
+     "source": "knowledge/controller/KnowledgeController.java:639",
+     "handler": "clearKnowledgeBaseContents",
+     "description": "对照 ClearKnowledgeBaseContents：Admin 路由门 + 仅 owner 租户可清",
+     "rbac": null,
+     "apiKey": "fullAccess("
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/knowledge/file",
+     "source": "knowledge/controller/KnowledgeController.java:80",
+     "handler": "createFromFile",
+     "description": "对照 CreateKnowledgeFromFile — multipart（字段名严格对照 Go：file/fileName/metadata/tag_ids/channel/process_con",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/knowledge/folders",
+     "source": "knowledge/controller/KnowledgeController.java:175",
+     "handler": "listFolders",
+     "description": "对照 ListKnowledgeFolders",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/knowledge/folders",
+     "source": "knowledge/controller/KnowledgeController.java:605",
+     "handler": "renameKnowledgeFolder",
+     "description": "对照 RenameKnowledgeFolder：路由 ownership（纯字符串）→ 绑定 → handler 链 → service",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/knowledge/manual",
+     "source": "knowledge/controller/KnowledgeController.java:129",
+     "handler": "createManual",
+     "description": "对照 CreateManualKnowledge",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/knowledge/url",
+     "source": "knowledge/controller/KnowledgeController.java:103",
+     "handler": "createFromUrl",
+     "description": "对照 CreateKnowledgeFromURL — 201；SSRF 校验（对照 handler L88 语义）",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/move-targets",
+     "source": "knowledge/controller/KnowledgeBaseController.java:290",
+     "handler": "listMoveTargets",
+     "description": "对照 ListMoveTargets — Viewer+；返回原始实体序列化（struct 声明序）",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/pin",
+     "source": "knowledge/controller/KnowledgeBaseController.java:282",
+     "handler": "togglePin",
+     "description": "对照 TogglePinKnowledgeBase — Viewer+（per-(user,kb)）",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/shares",
+     "source": "org/controller/OrganizationController.java:691",
+     "handler": "listKBShares",
+     "description": "",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/shares",
+     "source": "org/controller/OrganizationController.java:663",
+     "handler": "shareKnowledgeBase",
+     "description": "",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/shares/{}",
+     "source": "org/controller/OrganizationController.java:720",
+     "handler": "updateSharePermission",
+     "description": "",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledge-bases/{}/shares/{}",
+     "source": "org/controller/OrganizationController.java:744",
+     "handler": "removeShare",
+     "description": "",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledge-bases/{}/tags",
+     "source": "knowledge/controller/KnowledgeTagController.java:80",
+     "handler": "listTags",
+     "description": "",
+     "rbac": null,
+     "apiKey": "retrieve(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-bases/{}/tags",
+     "source": "knowledge/controller/KnowledgeTagController.java:113",
+     "handler": "createTag",
+     "description": "",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledge-bases/{}/tags/{}",
+     "source": "knowledge/controller/KnowledgeTagController.java:165",
+     "handler": "updateTag",
+     "description": "",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledge-bases/{}/tags/{}",
+     "source": "knowledge/controller/KnowledgeTagController.java:211",
+     "handler": "deleteTag",
+     "description": "对照 updateTagRequest（tag.go L159-163）：全指针字段，无 binding。",
+     "rbac": null,
+     "apiKey": "ingest(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "knowledge-chat",
+   "label": "知识库问答",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-chat/{}",
+     "source": "session/controller/KnowledgeQaController.java:161",
+     "handler": "knowledgeQA",
+     "description": "",
+     "rbac": null,
+     "apiKey": "chat(full)(fullAccess("
+    }
+   ]
+  },
+  {
+   "domain": "knowledge-search",
+   "label": "知识检索",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledge-search",
+     "source": "session/controller/KnowledgeQaController.java:200",
+     "handler": "searchKnowledge",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "retrieve(fullAccess("
+    }
+   ]
+  },
+  {
+   "domain": "knowledgebase",
+   "label": "知识库(旧形态)",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledgebase/{}/wiki/auto-fix",
+     "source": "wiki/controller/WikiPageController.java:852",
+     "handler": "autoFix",
+     "description": "对照 Go {@code AutoFix}（L1075-1089）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/folders",
+     "source": "wiki/controller/WikiPageController.java:536",
+     "handler": "listFolders",
+     "description": "对照 Go {@code ListFolders}（L153-177）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledgebase/{}/wiki/folders",
+     "source": "wiki/controller/WikiPageController.java:569",
+     "handler": "createFolder",
+     "description": "对照 Go {@code CreateFolder}（L192-209）—— OwnedWikiKBOrAdmin / KBAccessWrite；201。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledgebase/{}/wiki/folders/{}",
+     "source": "wiki/controller/WikiPageController.java:586",
+     "handler": "updateFolder",
+     "description": "对照 Go {@code UpdateFolder}（L226-249）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledgebase/{}/wiki/folders/{}",
+     "source": "wiki/controller/WikiPageController.java:610",
+     "handler": "deleteFolder",
+     "description": "对照 Go {@code DeleteFolder}（L262-278）—— OwnedWikiKBOrAdmin / KBAccessWrite；204。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/graph",
+     "source": "wiki/controller/WikiPageController.java:711",
+     "handler": "getGraph",
+     "description": "对照 Go {@code GetGraph}（L801-878）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/index",
+     "source": "wiki/controller/WikiPageController.java:667",
+     "handler": "getIndex",
+     "description": "对照 Go {@code GetIndex}（L738-769）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/issues",
+     "source": "wiki/controller/WikiPageController.java:870",
+     "handler": "listIssues",
+     "description": "对照 Go {@code ListIssues}（L916-933）—— Viewer+ / KBAccessRead；响应是<b>裸数组</b>。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledgebase/{}/wiki/issues/{}/status",
+     "source": "wiki/controller/WikiPageController.java:890",
+     "handler": "updateIssueStatus",
+     "description": "对照 Go {@code UpdateIssueStatus}（L948-981）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/lint",
+     "source": "wiki/controller/WikiPageController.java:836",
+     "handler": "lint",
+     "description": "对照 Go {@code Lint}（L1050-1064）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledgebase/{}/wiki/move-page",
+     "source": "wiki/controller/WikiPageController.java:631",
+     "handler": "movePage",
+     "description": "对照 Go {@code MovePage}（L292-314）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/pages",
+     "source": "wiki/controller/WikiPageController.java:184",
+     "handler": "listPages",
+     "description": "对照 Go {@code ListPages}（L95-140）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledgebase/{}/wiki/pages",
+     "source": "wiki/controller/WikiPageController.java:236",
+     "handler": "createPage",
+     "description": "对照 Go {@code CreatePage}（L355-390）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/pages/{}",
+     "source": "wiki/controller/WikiPageController.java:273",
+     "handler": "getPage",
+     "description": "对照 Go {@code GetPage}（L416-440）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/knowledgebase/{}/wiki/pages/{}",
+     "source": "wiki/controller/WikiPageController.java:303",
+     "handler": "updatePage",
+     "description": "对照 Go {@code UpdatePage}（L461-547）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/knowledgebase/{}/wiki/pages/{}",
+     "source": "wiki/controller/WikiPageController.java:393",
+     "handler": "deletePage",
+     "description": "对照 Go {@code DeletePage}（L692-720）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledgebase/{}/wiki/rebuild-links",
+     "source": "wiki/controller/WikiPageController.java:819",
+     "handler": "rebuildLinks",
+     "description": "对照 Go {@code RebuildLinks}（L1026-1039）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/knowledgebase/{}/wiki/revert",
+     "source": "wiki/controller/WikiPageController.java:489",
+     "handler": "revertPage",
+     "description": "对照 Go {@code RevertPage}（L640-680）—— OwnedWikiKBOrAdmin / KBAccessWrite。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/revisions/{}",
+     "source": "wiki/controller/WikiPageController.java:430",
+     "handler": "listRevisions",
+     "description": "对照 Go {@code ListRevisions}（L565-621）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/search",
+     "source": "wiki/controller/WikiPageController.java:797",
+     "handler": "searchPages",
+     "description": "对照 Go {@code SearchPages}（L994-1016）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/knowledgebase/{}/wiki/stats",
+     "source": "wiki/controller/WikiPageController.java:778",
+     "handler": "getStats",
+     "description": "对照 Go {@code GetStats}（L889-903）—— Viewer+ / KBAccessRead。",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "local-browser",
+   "label": "本地浏览器",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/local-browser/extension",
+     "source": "browserskill/controller/BrowserSkillGatewayController.java:38",
+     "handler": "extension",
+     "description": "GET /api/v1/local-browser/extension（对照 BrowserSkillExtension → ServeHTTP）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/local-browser/extension/authorize",
+     "source": "browserskill/controller/BrowserSkillGatewayController.java:44",
+     "handler": "authorize",
+     "description": "POST /api/v1/local-browser/extension/authorize（对照 BrowserSkillAuthorize）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/local-browser/internal",
+     "source": "browserskill/controller/BrowserSkillGatewayController.java:50",
+     "handler": "internal",
+     "description": "POST /api/v1/local-browser/internal（对照 BrowserSkillInternal → InternalHTTP）",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "mcp-oauth",
+   "label": "MCP OAuth",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-oauth/callback",
+     "source": "mcp/controller/McpOAuthController.java:159",
+     "handler": "callback",
+     "description": "对照 Go {@code Callback}：<b>公开路由</b>（无 bearer），靠一次性 state 自证。",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "mcp-services",
+   "label": "MCP 服务",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-services",
+     "source": "mcp/controller/McpServiceController.java:194",
+     "handler": "listMCPServices",
+     "description": "对照 ListMCPServices — Viewer+",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/mcp-services",
+     "source": "mcp/controller/McpServiceController.java:153",
+     "handler": "createMCPService",
+     "description": "对照 CreateMCPService — Admin+",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-services/{}",
+     "source": "mcp/controller/McpServiceController.java:208",
+     "handler": "getMCPService",
+     "description": "对照 GetMCPService — Viewer+",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/mcp-services/{}",
+     "source": "mcp/controller/McpServiceController.java:230",
+     "handler": "updateMCPService",
+     "description": "对照 UpdateMCPService — Admin+。",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/mcp-services/{}",
+     "source": "mcp/controller/McpServiceController.java:399",
+     "handler": "deleteMCPService",
+     "description": "对照 DeleteMCPService — Admin+",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/mcp-services/{}/credentials",
+     "source": "mcp/controller/McpCredentialsController.java:71",
+     "handler": "put",
+     "description": "写入（创建或替换）一个或多个凭据字段，并触发连接回收，",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/mcp-services/{}/credentials/{}",
+     "source": "mcp/controller/McpCredentialsController.java:111",
+     "handler": "deleteField",
+     "description": "删除单个凭据字段。可识别的字段只有 {@code api_key} 与 {@code token}；",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-services/{}/metadata",
+     "source": "mcp/controller/McpServiceController.java:475",
+     "handler": "getMCPMetadata",
+     "description": "对照 GetMCPMetadata — Viewer+；只读数据库，不连接上游",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/mcp-services/{}/metadata/refresh",
+     "source": "mcp/controller/McpServiceController.java:486",
+     "handler": "refreshMCPMetadata",
+     "description": "对照 RefreshMCPMetadata — Viewer+（静态鉴权在 handler 内升到 Admin+）。",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/mcp-services/{}/oauth/authorize-url",
+     "source": "mcp/controller/McpOAuthController.java:101",
+     "handler": "authorizeUrl",
+     "description": "对照 Go {@code AuthorizeURL}。",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-services/{}/oauth/status",
+     "source": "mcp/controller/McpOAuthController.java:206",
+     "handler": "status",
+     "description": "对照 Go {@code Status}：不带 {@code authorization_attempt} 时返回 token 生命周期状态；",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/mcp-services/{}/oauth/token",
+     "source": "mcp/controller/McpOAuthController.java:242",
+     "handler": "revoke",
+     "description": "对照 Go {@code Revoke}：204 + 回收缓存连接，让下一次调用重新走授权。",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-services/{}/resources",
+     "source": "mcp/controller/McpServiceController.java:458",
+     "handler": "getMCPServiceResources",
+     "description": "对照 GetMCPServiceResources — Viewer+",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/mcp-services/{}/test",
+     "source": "mcp/controller/McpServiceController.java:425",
+     "handler": "testMCPService",
+     "description": "对照 TestMCPService — Admin+（会主动探测外部基础设施）。",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-services/{}/tool-approvals",
+     "source": "mcp/controller/McpServiceController.java:788",
+     "handler": "listMCPToolApprovals",
+     "description": "对照 ListMCPToolApprovals — Viewer+",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/mcp-services/{}/tool-approvals/{}",
+     "source": "mcp/controller/McpServiceController.java:812",
+     "handler": "setMCPToolApproval",
+     "description": "对照 SetMCPToolApproval — Admin+。",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/mcp-services/{}/tools",
+     "source": "mcp/controller/McpServiceController.java:443",
+     "handler": "getMCPServiceTools",
+     "description": "对照 GetMCPServiceTools — Viewer+（不落库）",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/mcp-services/{}/usage-instructions/generate",
+     "source": "mcp/controller/McpServiceController.java:570",
+     "handler": "generateMCPUsageInstructions",
+     "description": "对照 GenerateMCPUsageInstructions — Admin+。",
+     "rbac": null,
+     "apiKey": "manageMcpServices(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "me",
+   "label": "个人设置",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/me/browser",
+     "source": "browserskill/controller/BrowserSkillAccountController.java:60",
+     "handler": "account",
+     "description": "GET+POST 同一 handler（对照 Go 两条路由共用 BrowserSkillAccount）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/me/browser",
+     "source": "browserskill/controller/BrowserSkillAccountController.java:65",
+     "handler": "bindAccount",
+     "description": "GET+POST 同一 handler（对照 Go 两条路由共用 BrowserSkillAccount）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/me/browser/extension",
+     "source": "browserskill/controller/BrowserSkillAccountController.java:160",
+     "handler": "download",
+     "description": "GET /api/v1/me/browser/extension（对照 BrowserSkillDownload）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/me/env-vars",
+     "source": "sandbox/controller/MeEnvVarController.java:71",
+     "handler": "list",
+     "description": "对照 {@code List}：每配置一组；值永不返回。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/me/env-vars/sandbox",
+     "source": "sandbox/controller/MeEnvVarController.java:98",
+     "handler": "setSandbox",
+     "description": "对照 {@code SetSandbox}：注入到该调用者在此配置上的每次 skill 脚本与 shell。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/me/env-vars/sandbox",
+     "source": "sandbox/controller/MeEnvVarController.java:107",
+     "handler": "deleteSandbox",
+     "description": "对照 {@code DeleteSandbox}。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/me/env-vars/skill",
+     "source": "sandbox/controller/MeEnvVarController.java:80",
+     "handler": "setSkill",
+     "description": "对照 {@code SetSkill}：存调用者自己的值；只为该调用者覆盖工作区值。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/me/env-vars/skill",
+     "source": "sandbox/controller/MeEnvVarController.java:89",
+     "handler": "deleteSkill",
+     "description": "对照 {@code DeleteSkill}：删除后工作区值（若有）重新生效。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/me/invitations",
+     "source": "auth/controller/TenantInvitationController.java:229",
+     "handler": "listMyInvitations",
+     "description": "GET /me/invitations（默认仅 pending；include_terminal=true 带终止态）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/me/invitations/accept-by-token",
+     "source": "auth/controller/TenantInvitationController.java:287",
+     "handler": "acceptMyInvitationByToken",
+     "description": "POST /me/invitations/accept-by-token（已登录用户用共享链接 token 加入；幂等）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/me/invitations/pending-count",
+     "source": "auth/controller/TenantInvitationController.java:249",
+     "handler": "countMyPendingInvitations",
+     "description": "GET /me/invitations/pending-count（头像角标轮询的轻量端点）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/me/invitations/{}/accept",
+     "source": "auth/controller/TenantInvitationController.java:259",
+     "handler": "acceptMyInvitation",
+     "description": "POST /me/invitations/{inv_id}/accept（接受 + 写成员行 + 首空间采纳）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/me/invitations/{}/decline",
+     "source": "auth/controller/TenantInvitationController.java:274",
+     "handler": "declineMyInvitation",
+     "description": "POST /me/invitations/{inv_id}/decline（拒绝；不建成员行）",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "memory",
+   "label": "长期记忆",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/memory/consolidate",
+     "source": "memory/controller/MemoryController.java:453",
+     "handler": "consolidate",
+     "description": "对照 Go {@code Consolidate}（L437-445）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/memory/documents",
+     "source": "memory/controller/MemoryController.java:350",
+     "handler": "listDocuments",
+     "description": "对照 Go {@code ListDocuments}（L213-226）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/memory/documents/{}",
+     "source": "memory/controller/MemoryController.java:365",
+     "handler": "deleteDocument",
+     "description": "对照 Go {@code DeleteDocument}（L237-244）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/memory/export",
+     "source": "memory/controller/MemoryController.java:403",
+     "handler": "export",
+     "description": "对照 Go {@code Export}（L392-427）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/memory/items",
+     "source": "memory/controller/MemoryController.java:170",
+     "handler": "listItems",
+     "description": "对照 Go {@code ListItems}（L97-119）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/memory/items",
+     "source": "memory/controller/MemoryController.java:204",
+     "handler": "createItem",
+     "description": "对照 Go {@code CreateItem}（L262-275）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/memory/items",
+     "source": "memory/controller/MemoryController.java:293",
+     "handler": "clear",
+     "description": "对照 Go {@code Clear}（L374-382）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/memory/items/{}",
+     "source": "memory/controller/MemoryController.java:225",
+     "handler": "updateItem",
+     "description": "对照 Go {@code UpdateItem}（L293-306）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/memory/items/{}",
+     "source": "memory/controller/MemoryController.java:249",
+     "handler": "deleteItem",
+     "description": "对照 Go {@code DeleteItem}（L317-324）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/memory/items/{}/confirm",
+     "source": "memory/controller/MemoryController.java:260",
+     "handler": "confirmItem",
+     "description": "对照 Go {@code ConfirmItem}（L338-346）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/memory/items/{}/reject",
+     "source": "memory/controller/MemoryController.java:277",
+     "handler": "rejectItem",
+     "description": "对照 Go {@code RejectItem}（L357-364）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/memory/settings",
+     "source": "memory/controller/MemoryController.java:119",
+     "handler": "getSettings",
+     "description": "对照 Go {@code GetSettings}（L39-47）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/memory/settings",
+     "source": "memory/controller/MemoryController.java:139",
+     "handler": "updateSettings",
+     "description": "对照 Go {@code UpdateSettings}（L63-84）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/memory/topics",
+     "source": "memory/controller/MemoryController.java:310",
+     "handler": "listTopics",
+     "description": "对照 Go {@code ListTopics}（L151-164）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/memory/topics/{}",
+     "source": "memory/controller/MemoryController.java:337",
+     "handler": "deleteTopic",
+     "description": "对照 Go {@code DeleteTopic}（L194-201）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/memory/topics/{}/promote",
+     "source": "memory/controller/MemoryController.java:325",
+     "handler": "promoteTopic",
+     "description": "对照 Go {@code PromoteTopic}（L175-183）。",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "messages",
+   "label": "消息",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/messages/chat-history-stats",
+     "source": "session/controller/MessageController.java:249",
+     "handler": "getChatHistoryKbStats",
+     "description": "对照 Go {@code GetChatHistoryKBStats}（L311-327）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "messageHistory(full)"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/messages/search",
+     "source": "session/controller/MessageController.java:198",
+     "handler": "searchMessages",
+     "description": "对照 Go {@code SearchMessages}（L247-287）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "messageHistory(full)"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/messages/{}/load",
+     "source": "session/controller/MessageController.java:95",
+     "handler": "loadMessages",
+     "description": "对照 Go {@code LoadMessages}（L83-178）。",
+     "rbac": null,
+     "apiKey": "chat(full)"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/messages/{}/{}",
+     "source": "session/controller/MessageController.java:165",
+     "handler": "deleteMessage",
+     "description": "对照 Go {@code DeleteMessage}（L193-233）。两个 404 文案**刻意不同**：",
+     "rbac": null,
+     "apiKey": "chat(full)"
+    }
+   ]
+  },
+  {
+   "domain": "models",
+   "label": "模型配置",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/models",
+     "source": "model/controller/ModelController.java:141",
+     "handler": "listModels",
+     "description": "对照 ListModels — Viewer+",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/models",
+     "source": "model/controller/ModelController.java:60",
+     "handler": "createModel",
+     "description": "对照 CreateModel — Admin+",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/models/providers",
+     "source": "model/controller/ModelController.java:251",
+     "handler": "listModelProviders",
+     "description": "对照 ListModelProviders — Viewer+；model_type 查询参数做前端→后端映射",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/models/weknoracloud/status",
+     "source": "model/controller/WeKnoraCloudController.java:57",
+     "handler": "status",
+     "description": "对照 Status — Viewer+：返回结构体（字段序 has_models, needs_reinit, reason?）",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/models/{}",
+     "source": "model/controller/ModelController.java:124",
+     "handler": "getModel",
+     "description": "对照 GetModel — Viewer+",
+     "rbac": null,
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/models/{}",
+     "source": "model/controller/ModelController.java:160",
+     "handler": "updateModel",
+     "description": "对照 UpdateModel — Admin+（内置模型 SystemAdmin）。",
+     "rbac": null,
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/models/{}",
+     "source": "model/controller/ModelController.java:231",
+     "handler": "deleteModel",
+     "description": "对照 DeleteModel — Admin+",
+     "rbac": null,
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/models/{}/credentials",
+     "source": "model/controller/ModelCredentialsController.java:40",
+     "handler": "put",
+     "description": "对照 Go internal/handler/model_credentials.go：模型凭证子资源。",
+     "rbac": null,
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/models/{}/credentials/{}",
+     "source": "model/controller/ModelCredentialsController.java:72",
+     "handler": "deleteField",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageModels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/models/{}/debug",
+     "source": "model/controller/ModelDebugController.java:91",
+     "handler": "debugModel",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageModels(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "organizations",
+   "label": "组织协作",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations",
+     "source": "org/controller/OrganizationController.java:113",
+     "handler": "listMyOrganizations",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations",
+     "source": "org/controller/OrganizationController.java:90",
+     "handler": "createOrganization",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations/join",
+     "source": "org/controller/OrganizationController.java:159",
+     "handler": "joinByInviteCode",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations/join-by-id",
+     "source": "org/controller/OrganizationController.java:251",
+     "handler": "joinByOrganizationID",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations/join-request",
+     "source": "org/controller/OrganizationController.java:179",
+     "handler": "submitJoinRequest",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/preview/{}",
+     "source": "org/controller/OrganizationController.java:132",
+     "handler": "previewByInviteCode",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/search",
+     "source": "org/controller/OrganizationController.java:219",
+     "handler": "searchOrganizations",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}",
+     "source": "org/controller/OrganizationController.java:279",
+     "handler": "getOrganization",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/organizations/{}",
+     "source": "org/controller/OrganizationController.java:295",
+     "handler": "updateOrganization",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/organizations/{}",
+     "source": "org/controller/OrganizationController.java:319",
+     "handler": "deleteOrganization",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/agent-shares",
+     "source": "org/controller/OrganizationController.java:872",
+     "handler": "listOrgAgentShares",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations/{}/invite",
+     "source": "org/controller/OrganizationController.java:481",
+     "handler": "inviteMember",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations/{}/invite-code",
+     "source": "org/controller/OrganizationController.java:395",
+     "handler": "generateInviteCode",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/join-requests",
+     "source": "org/controller/OrganizationController.java:606",
+     "handler": "listJoinRequests",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/organizations/{}/join-requests/{}/review",
+     "source": "org/controller/OrganizationController.java:626",
+     "handler": "reviewJoinRequest",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations/{}/leave",
+     "source": "org/controller/OrganizationController.java:334",
+     "handler": "leaveOrganization",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/members",
+     "source": "org/controller/OrganizationController.java:543",
+     "handler": "listMembers",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/organizations/{}/members/{}",
+     "source": "org/controller/OrganizationController.java:568",
+     "handler": "updateMemberRole",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/organizations/{}/members/{}",
+     "source": "org/controller/OrganizationController.java:590",
+     "handler": "removeMember",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/organizations/{}/request-upgrade",
+     "source": "org/controller/OrganizationController.java:362",
+     "handler": "requestRoleUpgrade",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/search-tenants",
+     "source": "org/controller/OrganizationController.java:409",
+     "handler": "searchTenantsForInvite",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/search-users",
+     "source": "org/controller/OrganizationController.java:418",
+     "handler": "searchUsersForInvite",
+     "description": "对照 SearchUsersForInvite：同一 handler 的 deprecated 别名。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/shared-agents",
+     "source": "org/controller/OrganizationController.java:920",
+     "handler": "listOrganizationSharedAgents",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/shared-knowledge-bases",
+     "source": "org/controller/OrganizationController.java:897",
+     "handler": "listOrganizationSharedKnowledgeBases",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/organizations/{}/shares",
+     "source": "org/controller/OrganizationController.java:840",
+     "handler": "listOrgShares",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "other",
+   "label": "其他",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "",
+     "source": "storage/controller/FileProxyController.java:44",
+     "handler": "files",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "r",
+   "label": "短链资源",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/r/{}",
+     "source": "storage/controller/FileProxyController.java:108",
+     "handler": "resourceGrant",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "HEAD",
+     "path": "/r/{}",
+     "source": "storage/controller/FileProxyController.java:108",
+     "handler": "resourceGrant",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "sandbox-configs",
+   "label": "沙箱配置",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs",
+     "source": "sandbox/controller/SandboxConfigController.java:148",
+     "handler": "list",
+     "description": "对照 List：gin.H 三键字母序 data &lt; success &lt; workspace_scripts_disabled。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sandbox-configs",
+     "source": "sandbox/controller/SandboxConfigController.java:196",
+     "handler": "create",
+     "description": "对照 Create：201 + 掩码响应。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sandbox-configs/templates/query",
+     "source": "sandbox/controller/SandboxConfigController.java:177",
+     "handler": "queryTemplates",
+     "description": "对照 QueryTemplates：读未保存连接可见的模板；本批失败分支确定（service 类注释）。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/sandbox-configs/workspace-policy",
+     "source": "sandbox/controller/SandboxConfigController.java:165",
+     "handler": "setWorkspacePolicy",
+     "description": "对照 SetWorkspacePolicy：全工作区切换脚本执行。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}",
+     "source": "sandbox/controller/SandboxConfigController.java:211",
+     "handler": "get",
+     "description": "对照 Get：404 \"sandbox config not found\"（AppError 信封）。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/sandbox-configs/{}",
+     "source": "sandbox/controller/SandboxConfigController.java:224",
+     "handler": "update",
+     "description": "对照 Update：配置拥有活/暂停沙箱时拒绝身份字段变更（409 三态 + 423 cordoned）。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sandbox-configs/{}",
+     "source": "sandbox/controller/SandboxConfigController.java:247",
+     "handler": "delete",
+     "description": "对照 Delete：?force=true 只覆盖无法核实的 provider 清单，从不覆盖确认活着的沙箱。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/sandboxes",
+     "source": "sandbox/controller/SandboxConfigController.java:264",
+     "handler": "inventory",
+     "description": "对照 Inventory：一份配置的活/暂停沙箱清单与受影响 agent 名。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/skills",
+     "source": "sandbox/controller/SandboxSkillController.java:173",
+     "handler": "list",
+     "description": "对照 List。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sandbox-configs/{}/skills",
+     "source": "sandbox/controller/SandboxSkillController.java:207",
+     "handler": "upload",
+     "description": "对照 Upload：zip 走 multipart，application/json 走 source 定位符。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}",
+     "source": "sandbox/controller/SandboxSkillController.java:184",
+     "handler": "get",
+     "description": "对照 Get。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "PATCH",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}",
+     "source": "sandbox/controller/SandboxSkillController.java:317",
+     "handler": "patch",
+     "description": "对照 Patch：可见性与声明值一次写入（全有或全无）。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}",
+     "source": "sandbox/controller/SandboxSkillController.java:349",
+     "handler": "delete",
+     "description": "对照 Delete：受理后异步重建镜像（install-events 跟踪）。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/files",
+     "source": "sandbox/controller/SandboxSkillController.java:191",
+     "handler": "listFiles",
+     "description": "对照 ListFiles：不起沙箱浏览存量归档。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/files/content",
+     "source": "sandbox/controller/SandboxSkillController.java:198",
+     "handler": "getFile",
+     "description": "对照 GetFile：UTF-8 文本 / 小图 base64 / 二进制三态。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/guidance",
+     "source": "sandbox/controller/SandboxSkillController.java:512",
+     "handler": "installGuidance",
+     "description": "对照 InstallGuidance：只暴露本 run 的指引。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/guidance",
+     "source": "sandbox/controller/SandboxSkillController.java:526",
+     "handler": "steerInstall",
+     "description": "对照 SteerInstall：接受管理员对显示中的安装 run 的指引。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/install-events",
+     "source": "sandbox/controller/SandboxSkillController.java:357",
+     "handler": "installEvents",
+     "description": "对照 InstallEvents：安装/移除的 SSE 进度；流必然终止。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/reinstall",
+     "source": "sandbox/controller/SandboxSkillController.java:276",
+     "handler": "reinstall",
+     "description": "对照 Reinstall：从已存归档重试；不重新上传。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/stop",
+     "source": "sandbox/controller/SandboxSkillController.java:304",
+     "handler": "stop",
+     "description": "对照 Stop：中止在途安装（重启后的僵尸行也立即改写）。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sandbox-configs/{}/skills/{}/transcript",
+     "source": "sandbox/controller/SandboxSkillController.java:442",
+     "handler": "installTranscript",
+     "description": "对照 InstallTranscript：installer agent 转写的 SSE 回放 + 活跟踪。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    }
+   ]
+  },
+  {
+   "domain": "sessions",
+   "label": "会话",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions",
+     "source": "session/controller/SessionController.java:205",
+     "handler": "getSessionsByTenant",
+     "description": "对照 Go {@code GetSessionsByTenant}（L243-277）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions",
+     "source": "session/controller/SessionController.java:122",
+     "handler": "createSession",
+     "description": "对照 Go {@code CreateSession}（L123-178）。201 + {\"data\":…,\"success\":true}。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sessions/batch",
+     "source": "session/controller/SessionController.java:369",
+     "handler": "batchDeleteSessions",
+     "description": "对照 Go {@code BatchDeleteSessions}（L455-514）：{@code delete_all=true} 走全量删除；",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/continue-stream/{}",
+     "source": "session/controller/SessionStreamController.java:143",
+     "handler": "continueStream",
+     "description": "当前租户的实体，供 {@link com.ragagent.storageurl.FileServiceResolver} 读",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}",
+     "source": "session/controller/SessionController.java:177",
+     "handler": "getSession",
+     "description": "对照 Go {@code GetSession}（L192-225）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/sessions/{}",
+     "source": "session/controller/SessionController.java:275",
+     "handler": "updateSession",
+     "description": "对照 Go {@code UpdateSession}（L292-348）：更新成功后**重新加载**再返回",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sessions/{}",
+     "source": "session/controller/SessionController.java:346",
+     "handler": "deleteSession",
+     "description": "对照 Go {@code DeleteSession}（L362-392）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/artifacts",
+     "source": "session/controller/SessionController.java:499",
+     "handler": "listSessionArtifacts",
+     "description": "对照 Go {@code ListSessionArtifacts}（artifact_download.go L49-93）：",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/attachments",
+     "source": "session/controller/TemporaryDocumentController.java:121",
+     "handler": "list",
+     "description": "对照 Go ListTemporaryDocuments（L95-108）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/attachments",
+     "source": "session/controller/TemporaryDocumentController.java:56",
+     "handler": "upload",
+     "description": "对照 Go UploadTemporaryDocument（L19-93）。agent 表单字段随波 5（见 service 注释）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/attachments/{}",
+     "source": "session/controller/TemporaryDocumentController.java:146",
+     "handler": "get",
+     "description": "对照 Go GetTemporaryDocument（L110-127）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sessions/{}/attachments/{}",
+     "source": "session/controller/TemporaryDocumentController.java:227",
+     "handler": "delete",
+     "description": "对照 Go DeleteTemporaryDocument（L160-174）：204，幂等。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/attachments/{}/preview",
+     "source": "session/controller/TemporaryDocumentController.java:179",
+     "handler": "preview",
+     "description": "对照 Go PreviewTemporaryDocument（L129-158）+ filetransport.Serve：",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/generate_title",
+     "source": "session/controller/SessionController.java:670",
+     "handler": "generateTitle",
+     "description": "对照 Go {@code GenerateTitle}（title.go L25-76）。写会话行，用严格 owner 范围",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/local-browser",
+     "source": "browserskill/controller/BrowserSkillSessionController.java:68",
+     "handler": "getConnection",
+     "description": "GET /api/v1/sessions/{id}/local-browser（GET 树的通配名是 :id）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/local-browser",
+     "source": "browserskill/controller/BrowserSkillSessionController.java:75",
+     "handler": "postConnection",
+     "description": "POST /api/v1/sessions/{session_id}/local-browser（POST 树的通配名是 :session_id）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sessions/{}/messages",
+     "source": "session/controller/SessionController.java:437",
+     "handler": "clearSessionMessages",
+     "description": "对照 Go {@code ClearSessionMessages}（handler.go L407-435，路由 L59）：",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/messages/{}/artifacts",
+     "source": "session/controller/SessionController.java:526",
+     "handler": "listMessageArtifacts",
+     "description": "对照 Go {@code ListMessageArtifacts}（L103-144）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/messages/{}/artifacts/{}/download",
+     "source": "session/controller/SessionController.java:565",
+     "handler": "downloadMessageArtifact",
+     "description": "对照 Go {@code DownloadMessageArtifact}（L152-258）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/messages/{}/files",
+     "source": "session/controller/MessageFileProxyController.java:60",
+     "handler": "files",
+     "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。",
+     "rbac": null,
+     "apiKey": "chat(full)(fullAccess("
+    },
+    {
+     "method": "HEAD",
+     "path": "/api/v1/sessions/{}/messages/{}/files",
+     "source": "session/controller/MessageFileProxyController.java:52",
+     "handler": "filesHead",
+     "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/messages/{}/suggestions",
+     "source": "session/controller/MessageSuggestionController.java:105",
+     "handler": "get",
+     "description": "对照 Go {@code Get}（L83-94）。Go 的 GET 同时注册在 :session_id 与 :id 两个通配下",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/messages/{}/suggestions",
+     "source": "session/controller/MessageSuggestionController.java:66",
+     "handler": "ensure",
+     "description": "对照 Go {@code Ensure}（L48-71）。⚠️ 请求体<b>只在非空时解析</b>——空 body 合法",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/pin",
+     "source": "session/controller/SessionController.java:457",
+     "handler": "pinSession",
+     "description": "对照 Go {@code PinSession}（L527-529）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sessions/{}/pin",
+     "source": "session/controller/SessionController.java:463",
+     "handler": "unpinSession",
+     "description": "对照 Go {@code UnpinSession}（L542-544）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/sandbox/terminal",
+     "source": "session/controller/SandboxTerminalController.java:166",
+     "handler": "terminalWs",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/sandbox/terminal-ticket",
+     "source": "session/controller/SandboxTerminalController.java:96",
+     "handler": "issueTicket",
+     "description": "",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/sessions/{}/steer",
+     "source": "session/controller/SteerController.java:229",
+     "handler": "listSteerMessages",
+     "description": "对照 Go ListSteerMessages（L693-731）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/steer",
+     "source": "session/controller/SteerController.java:75",
+     "handler": "steerMessage",
+     "description": "对照 Go SteerMessage（L461-598）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/sessions/{}/steer/{}",
+     "source": "session/controller/SteerController.java:260",
+     "handler": "deleteSteerMessage",
+     "description": "对照 Go DeleteSteerMessage（L746-810）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/steer/{}/inject",
+     "source": "session/controller/SteerController.java:183",
+     "handler": "promoteSteerMessage",
+     "description": "对照 Go PromoteSteerMessage（L614-679）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/stop",
+     "source": "session/controller/SessionController.java:721",
+     "handler": "stopSession",
+     "description": "对照 Go {@code StopSession}（stream.go L219-324）。",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/sessions/{}/suggestion-events",
+     "source": "session/controller/MessageSuggestionController.java:129",
+     "handler": "recordEvent",
+     "description": "对照 Go {@code RecordEvent}（L115-133）：成功是 <b>204 无响应体</b>；",
+     "rbac": null,
+     "apiKey": "chat(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "shared-agents",
+   "label": "共享 Agent",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/shared-agents",
+     "source": "org/controller/OrganizationController.java:972",
+     "handler": "listSharedAgents",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageSpaces(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/shared-agents/disabled",
+     "source": "org/controller/OrganizationController.java:994",
+     "handler": "setSharedAgentDisabledByMe",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageSpaces(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "shared-knowledge-bases",
+   "label": "共享知识库",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/shared-knowledge-bases",
+     "source": "org/controller/OrganizationController.java:947",
+     "handler": "listSharedKnowledgeBases",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageSpaces(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "skills",
+   "label": "技能",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/skills",
+     "source": "sandbox/controller/SkillController.java:89",
+     "handler": "listSkills",
+     "description": "对照 {@code ListSkills}：不传 sandbox_config_id 时列表为空（可用 skill 集合",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/skills/catalog",
+     "source": "sandbox/controller/SkillController.java:116",
+     "handler": "listCatalog",
+     "description": "对照 {@code ListCatalog}：工作区每份 skill 定义 + 装在哪些沙箱上。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/skills/catalog",
+     "source": "sandbox/controller/SkillController.java:128",
+     "handler": "registerCatalog",
+     "description": "对照 {@code RegisterCatalog}：multipart 字段 \"file\" 传 zip，或 JSON",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/skills/catalog/{}",
+     "source": "sandbox/controller/SkillController.java:265",
+     "handler": "deleteCatalog",
+     "description": "对照 {@code DeleteCatalog}：任何沙箱仍有安装时拒绝（409 code 1005）。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/skills/catalog/{}/files",
+     "source": "sandbox/controller/SkillController.java:239",
+     "handler": "listCatalogFiles",
+     "description": "对照 {@code ListCatalogFiles}：列存量 catalog bundle，不启沙箱。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/skills/catalog/{}/files/content",
+     "source": "sandbox/controller/SkillController.java:250",
+     "handler": "getCatalogFile",
+     "description": "对照 {@code GetCatalogFile}：UTF-8 文本 / 小图 base64 / 二进制三态。",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/skills/catalog/{}/install",
+     "source": "sandbox/controller/SkillController.java:201",
+     "handler": "installCatalog",
+     "description": "对照 {@code InstallCatalog}：把 catalog skill 用既有快照安装管线装到每个",
+     "rbac": null,
+     "apiKey": "fullAccess()"
+    }
+   ]
+  },
+  {
+   "domain": "storage-backends",
+   "label": "存储后端",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/storage-backends",
+     "source": "storage/controller/StorageBackendController.java:101",
+     "handler": "list",
+     "description": "{\"data\":[...],\"default_storage_backend_id\":...,\"success\":true}（gin.H 字母序）",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/storage-backends",
+     "source": "storage/controller/StorageBackendController.java:90",
+     "handler": "create",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/storage-backends/test",
+     "source": "storage/controller/StorageBackendController.java:72",
+     "handler": "testRaw",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/storage-backends/types",
+     "source": "storage/controller/StorageBackendController.java:67",
+     "handler": "types",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/storage-backends/{}",
+     "source": "storage/controller/StorageBackendController.java:116",
+     "handler": "get",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/storage-backends/{}",
+     "source": "storage/controller/StorageBackendController.java:123",
+     "handler": "update",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/storage-backends/{}",
+     "source": "storage/controller/StorageBackendController.java:136",
+     "handler": "delete",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/storage-backends/{}/default",
+     "source": "storage/controller/StorageBackendController.java:142",
+     "handler": "setDefault",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/storage-backends/{}/test",
+     "source": "storage/controller/StorageBackendController.java:148",
+     "handler": "testByID",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "system",
+   "label": "系统管理",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/system/admin/api-keys",
+     "source": "system/controller/SystemAdminController.java:322",
+     "handler": "listPlatformKeys",
+     "description": "对照 platformAPIKeyCreateRequest：expires_at_unix 是 epoch 秒（不是 RFC3339）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/admin/api-keys",
+     "source": "system/controller/SystemAdminController.java:334",
+     "handler": "createPlatformKey",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/system/admin/api-keys/{}",
+     "source": "system/controller/SystemAdminController.java:371",
+     "handler": "deletePlatformKey",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/admin/audit-log",
+     "source": "audit/controller/AuditLogController.java:178",
+     "handler": "listSystemAuditLog",
+     "description": "对照 Go {@code ListSystemAuditLog}（L211-257）。",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_AUDIT_READ"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/admin/list",
+     "source": "system/controller/SystemAdminController.java:177",
+     "handler": "listAdmins",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/admin/promote",
+     "source": "system/controller/SystemAdminController.java:98",
+     "handler": "promote",
+     "description": "对照 PromoteUserToSystemAdminRequest（user_id 与 email 二选一，user_id 优先）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/admin/revoke",
+     "source": "system/controller/SystemAdminController.java:138",
+     "handler": "revoke",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/admin/runtime/queues",
+     "source": "system/controller/SystemAdminController.java:492",
+     "handler": "runtimeQueues",
+     "description": "Go QueueDefinitions 的队列名（isKnownRuntimeQueue 的判定集）。",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_RUNTIME_READ, com.ragagent.apikey.domain.APIKeyCapability.S"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/system/admin/runtime/queues/{}/archived",
+     "source": "system/controller/SystemAdminController.java:565",
+     "handler": "purgeArchived",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_RUNTIME_MANAGE)"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/admin/runtime/queues/{}/tasks",
+     "source": "system/controller/SystemAdminController.java:526",
+     "handler": "listRuntimeTasks",
+     "description": "对照 ResolveWorkerPoolConcurrency 的 positive 折叠（<1 → fallback）。",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_RUNTIME_READ, com.ragagent.apikey.domain.APIKeyCapability.S"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/admin/runtime/queues/{}/tasks/{}/actions/{}",
+     "source": "system/controller/SystemAdminController.java:554",
+     "handler": "mutateRuntimeTask",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_RUNTIME_MANAGE)"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/admin/settings",
+     "source": "system/controller/SystemAdminController.java:425",
+     "handler": "listSettings",
+     "description": "Go NewValidationError → code 1010（信封形态，message 固定 \"Invalid request data\"？——",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_SETTINGS_READ, com.ragagent.apikey.domain.APIKeyCapability."
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/admin/settings/{}",
+     "source": "system/controller/SystemAdminController.java:434",
+     "handler": "getSetting",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_SETTINGS_READ, com.ragagent.apikey.domain.APIKeyCapability."
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/system/admin/settings/{}",
+     "source": "system/controller/SystemAdminController.java:443",
+     "handler": "updateSetting",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_SETTINGS_MANAGE)"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/system/admin/settings/{}",
+     "source": "system/controller/SystemAdminController.java:466",
+     "handler": "resetSetting",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_SETTINGS_MANAGE)"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/admin/tenants/apply-default-storage-quota",
+     "source": "system/controller/SystemAdminController.java:575",
+     "handler": "applyDefaultStorageQuota",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/admin/users/create",
+     "source": "system/controller/SystemAdminController.java:267",
+     "handler": "createUser",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/admin/users/reset-password",
+     "source": "system/controller/SystemAdminController.java:220",
+     "handler": "resetPassword",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/capabilities",
+     "source": "system/controller/SystemController.java:86",
+     "handler": "capabilities",
+     "description": "对照 GetDeploymentCapabilities：启动快照 + 运行时 docker 覆盖",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/docreader/reconnect",
+     "source": "system/controller/SystemController.java:175",
+     "handler": "reconnectDocReader",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/info",
+     "source": "system/controller/SystemController.java:121",
+     "handler": "info",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/parser-engines",
+     "source": "system/controller/SystemController.java:149",
+     "handler": "listParserEngines",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/parser-engines/check",
+     "source": "system/controller/SystemController.java:157",
+     "handler": "checkParserEngines",
+     "description": "body 形状 = ParserEngineConfig（未保存的表单值）；绑定失败 → {\"code\":1,\"msg\":\"请求体格式错误\"}。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/sandbox-check",
+     "source": "sandbox/controller/SandboxCheckController.java:137",
+     "handler": "checkSandboxConfig",
+     "description": "跳过的探测不影响 ok（对照 L83-86）。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageVectorStores(fullAccess("
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/system/storage-engine-check",
+     "source": "system/controller/SystemController.java:263",
+     "handler": "storageEngineCheck",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/system/storage-engine-status",
+     "source": "system/controller/SystemController.java:215",
+     "handler": "storageEngineStatus",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "tenants",
+   "label": "租户管理",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants",
+     "source": "auth/controller/TenantCatalogController.java:426",
+     "handler": "listTenants",
+     "description": "GET /tenants（对照 ListTenants，L1165-1181）：返回**调用者活动空间**的单元素",
+     "rbac": null,
+     "apiKey": "manageTenantSettings(fullAccess("
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/tenants",
+     "source": "auth/controller/TenantCatalogController.java:190",
+     "handler": "createTenant",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/all",
+     "source": "auth/controller/TenantCatalogController.java:123",
+     "handler": "listAllTenants",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_READ, com.ragagent.apikey.domain.APIKeyCapability.S"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/kv/{}",
+     "source": "auth/controller/TenantCatalogController.java:607",
+     "handler": "getTenantKV",
+     "description": "对照 dto.NewTenantResponse 的 includeSecrets = RoleFromContext ≥ admin。",
+     "rbac": null,
+     "apiKey": "manageTenantSettings(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/tenants/kv/{}",
+     "source": "auth/controller/TenantCatalogController.java:629",
+     "handler": "updateTenantKV",
+     "description": "",
+     "rbac": null,
+     "apiKey": "manageTenantSettings(fullAccess())"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/search",
+     "source": "auth/controller/TenantCatalogController.java:136",
+     "handler": "searchTenants",
+     "description": "",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_READ, com.ragagent.apikey.domain.APIKeyCapability.S"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/{}",
+     "source": "auth/controller/TenantCatalogController.java:444",
+     "handler": "getTenant",
+     "description": "GET /tenants/{id}（对照 GetTenant，L541-578）。URL :id 的合法性由",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_READ, com.ragagent.apikey.domain.APIKeyCapability.S"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/tenants/{}",
+     "source": "auth/controller/TenantCatalogController.java:458",
+     "handler": "updateTenant",
+     "description": "PUT /tenants/{id}（对照 UpdateTenant，L581-657）：白名单只开 name/description",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/tenants/{}",
+     "source": "auth/controller/TenantCatalogController.java:575",
+     "handler": "deleteTenant",
+     "description": "DELETE /tenants/{id}（对照 DeleteTenant，L1123-1162）：repo 层软删成员+租户、",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/{}/api-keys",
+     "source": "apikey/controller/TenantAPIKeyController.java:87",
+     "handler": "list",
+     "description": "对照 {@code ListAPIKeys}：返回**裸数组**（空列表输出 {@code []}，不是 null）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/tenants/{}/api-keys",
+     "source": "apikey/controller/TenantAPIKeyController.java:105",
+     "handler": "create",
+     "description": "对照 {@code CreateAPIKey}：201 + {@code data.token}（明文只此一次）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/tenants/{}/api-keys/{}",
+     "source": "apikey/controller/TenantAPIKeyController.java:155",
+     "handler": "update",
+     "description": "对照 {@code UpdateAPIKey}。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/tenants/{}/api-keys/{}",
+     "source": "apikey/controller/TenantAPIKeyController.java:184",
+     "handler": "delete",
+     "description": "对照 {@code DeleteAPIKey}：响应体只有 {@code {\"success\": true}}。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/{}/api-principal-config",
+     "source": "auth/controller/TenantAPIPrincipalController.java:73",
+     "handler": "getAPIPrincipalConfig",
+     "description": "GET /tenants/{id}/api-principal-config（Owner+）",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_READ, com.ragagent.apikey.domain.APIKeyCapability.S"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/tenants/{}/api-principal-config",
+     "source": "auth/controller/TenantAPIPrincipalController.java:81",
+     "handler": "updateAPIPrincipalConfig",
+     "description": "PUT /tenants/{id}/api-principal-config（Owner+；*** = 保留存量密钥）",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/tenants/{}/api-principal-test-token",
+     "source": "auth/controller/TenantAPIPrincipalController.java:127",
+     "handler": "createAPIPrincipalTestToken",
+     "description": "POST /tenants/{id}/api-principal-test-token（Owner+；HS256，TTL 15min 缺省 / 1h 上限）",
+     "rbac": null,
+     "apiKey": "platform( com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE"
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/{}/audit-log",
+     "source": "audit/controller/AuditLogController.java:74",
+     "handler": "listTenantAuditLog",
+     "description": "对照 Go {@code ListTenantAuditLog}（L53-107）。",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/{}/invitations",
+     "source": "auth/controller/TenantInvitationController.java:76",
+     "handler": "listTenantInvitations",
+     "description": "GET /tenants/{id}/invitations（Viewer+；Owner 及以上附 invite_url）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/tenants/{}/invitations",
+     "source": "auth/controller/TenantInvitationController.java:106",
+     "handler": "createInvitation",
+     "description": "POST /tenants/{id}/invitations（Owner+；auto-accept 开启时直加成员）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/tenants/{}/invitations/{}",
+     "source": "auth/controller/TenantInvitationController.java:165",
+     "handler": "revokeInvitation",
+     "description": "DELETE /tenants/{id}/invitations/{inv_id}（Owner+，撤销 pending）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/tenants/{}/invite-links",
+     "source": "auth/controller/TenantInvitationController.java:193",
+     "handler": "createInviteLink",
+     "description": "POST /tenants/{id}/invite-links（Owner+，多用途共享链接；201 + 带 invite_url）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/tenants/{}/leave",
+     "source": "auth/controller/TenantMemberController.java:196",
+     "handler": "leaveTenant",
+     "description": "POST /tenants/{id}/leave（Viewer+，自助退出；ErrMembershipNotFound → 404 专属文案）",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/tenants/{}/members",
+     "source": "auth/controller/TenantMemberController.java:64",
+     "handler": "listMembers",
+     "description": "GET /tenants/{id}/members（Viewer+，分页 + q 筛选）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/tenants/{}/members",
+     "source": "auth/controller/TenantMemberController.java:103",
+     "handler": "addMember",
+     "description": "POST /tenants/{id}/members（Owner+，直加路径；201 + TenantMemberResponse）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/tenants/{}/members/{}",
+     "source": "auth/controller/TenantMemberController.java:136",
+     "handler": "updateMemberRole",
+     "description": "PUT /tenants/{id}/members/{user_id}（Owner+，改角色；ErrLastOwner → 409）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/tenants/{}/members/{}",
+     "source": "auth/controller/TenantMemberController.java:171",
+     "handler": "removeMember",
+     "description": "DELETE /tenants/{id}/members/{user_id}（Owner+，软删；ErrLastOwner → 409）",
+     "rbac": null,
+     "apiKey": "manageMembers(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "user",
+   "label": "用户",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/user/favorites",
+     "source": "favorite/controller/UserFavoriteController.java:63",
+     "handler": "listFavorites",
+     "description": "对照 Go ListFavorites：?type= 缺失/非法 → 400（空串不命中白名单）。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/user/favorites",
+     "source": "favorite/controller/UserFavoriteController.java:75",
+     "handler": "addFavorite",
+     "description": "对照 Go AddFavorite：body 是 {type,id}，成功只回 success。",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/user/favorites/{}/{}",
+     "source": "favorite/controller/UserFavoriteController.java:85",
+     "handler": "removeFavorite",
+     "description": "对照 Go RemoveFavorite：类型/id 校验失败 400；删 0 行照样 200。",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "vector-stores",
+   "label": "向量库",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/vector-stores",
+     "source": "vectorstore/controller/VectorStoreController.java:133",
+     "handler": "listStores",
+     "description": "env stores 在前、DB stores 在后（Go ListStores 的合并顺序）",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/vector-stores",
+     "source": "vectorstore/controller/VectorStoreController.java:100",
+     "handler": "createStore",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/vector-stores/test",
+     "source": "vectorstore/controller/VectorStoreController.java:82",
+     "handler": "testStoreRaw",
+     "description": "",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/vector-stores/types",
+     "source": "vectorstore/controller/VectorStoreController.java:77",
+     "handler": "listStoreTypes",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/vector-stores/{}",
+     "source": "vectorstore/controller/VectorStoreController.java:146",
+     "handler": "getStore",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/vector-stores/{}",
+     "source": "vectorstore/controller/VectorStoreController.java:160",
+     "handler": "updateStore",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/vector-stores/{}",
+     "source": "vectorstore/controller/VectorStoreController.java:187",
+     "handler": "deleteStore",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/vector-stores/{}/test",
+     "source": "vectorstore/controller/VectorStoreController.java:198",
+     "handler": "testStoreByID",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "web-search",
+   "label": "Web 搜索",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/web-search/providers",
+     "source": "websearch/controller/WebSearchController.java:22",
+     "handler": "getProviders",
+     "description": "对照 Go {@code handler.WebSearchHandler.GetProviders}",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "web-search-providers",
+   "label": "搜索服务商",
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/api/v1/web-search-providers",
+     "source": "websearch/controller/WebSearchProviderController.java:133",
+     "handler": "listProviders",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/web-search-providers",
+     "source": "websearch/controller/WebSearchProviderController.java:99",
+     "handler": "createProvider",
+     "description": "对照 CreateProviderRequest：name/provider required（validator 多字段 struct 序拼接）",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/web-search-providers/test",
+     "source": "websearch/controller/WebSearchProviderController.java:86",
+     "handler": "testProviderRaw",
+     "description": "对照 TestProviderRequest：provider required；parameters 可选",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/web-search-providers/types",
+     "source": "websearch/controller/WebSearchProviderController.java:73",
+     "handler": "listProviderTypes",
+     "description": "",
+     "rbac": {
+      "minRole": "VIEWER",
+      "orSystemAdmin": false
+     },
+     "apiKey": null
+    },
+    {
+     "method": "GET",
+     "path": "/api/v1/web-search-providers/{}",
+     "source": "websearch/controller/WebSearchProviderController.java:141",
+     "handler": "getProvider",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/web-search-providers/{}",
+     "source": "websearch/controller/WebSearchProviderController.java:156",
+     "handler": "updateProvider",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/web-search-providers/{}",
+     "source": "websearch/controller/WebSearchProviderController.java:200",
+     "handler": "deleteProvider",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "PUT",
+     "path": "/api/v1/web-search-providers/{}/credentials",
+     "source": "websearch/controller/WebSearchProviderCredentialsController.java:45",
+     "handler": "put",
+     "description": "对照 webSearchCredentialsPutRequest：api_key 为**指针**——null = 查询状态语义",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "DELETE",
+     "path": "/api/v1/web-search-providers/{}/credentials/{}",
+     "source": "websearch/controller/WebSearchProviderCredentialsController.java:66",
+     "handler": "deleteField",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/web-search-providers/{}/test",
+     "source": "websearch/controller/WebSearchProviderController.java:215",
+     "handler": "testProviderByID",
+     "description": "",
+     "rbac": null,
+     "apiKey": null
+    }
+   ]
+  },
+  {
+   "domain": "wechat",
+   "label": "微信扫码",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/wechat/qrcode",
+     "source": "im/controller/ImChannelController.java:280",
+     "handler": "wechatQrcode",
+     "description": "对照 WeChatGetQRCode：出站 iLink 调用是接缝（golden 刻意不录该错误体的 XDEP 文案），",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageChannels(fullAccess())"
+    },
+    {
+     "method": "POST",
+     "path": "/api/v1/wechat/qrcode/status",
+     "source": "im/controller/ImChannelController.java:286",
+     "handler": "wechatQrcodeStatus",
+     "description": "对照 WeChatPollQRCodeStatus：qrcode 必填（一切 bind 失败都是固定文案）。",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageChannels(fullAccess())"
+    }
+   ]
+  },
+  {
+   "domain": "weknoracloud",
+   "label": "WeKnora Cloud",
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/api/v1/weknoracloud/credentials",
+     "source": "model/controller/WeKnoraCloudController.java:33",
+     "handler": "saveCredentials",
+     "description": "对照 SaveCredentials — Admin+；绑定错误为 validator 原文（gin 格式）",
+     "rbac": {
+      "minRole": "ADMIN",
+      "orSystemAdmin": false
+     },
+     "apiKey": "manageModels(fullAccess())"
+    }
+   ]
+  }
+ ]
+}

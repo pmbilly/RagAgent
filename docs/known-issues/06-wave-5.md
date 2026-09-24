@@ -1125,3 +1125,13 @@
     B4 sandbox+browserskill+embed+system+websearch+webfetch+searchutil+tracing+
     favorite+evaluation+storageurl+root 440 / session 369 / storage 55 / llm.chat
     156——**共 ~4,100 用例全绿，0 失败**。
+
+- **API 文档站点（2026-09-24）**：`scripts/generate-api-docs.py` 解析控制器注解
+  （复用 route-recon 的 parse_java，经 importlib 避免正则漂移）+ WebConfig 的
+  RBAC 规则 + APIKeyRoutePolicies 策略（含策略变量展开），输出
+  `docs/api/{index.html,api-docs.json}`——**452 条路由 / 45 个域分组**。
+  index.html 自包含（数据内嵌，双击 file:// 即开，无外部依赖）：按域导航、
+  正则搜索、方法色标、RBAC 门槛与 API-Key 策略标签、处理器源码定位。
+  路由变更后重跑 `python3 scripts/generate-api-docs.py` 重新生成。
+  注意：解析含 route-recon 已备案的启发式局限（类前缀漏解析的少量路由会归到
+  other/尾部形态）；domain 标签表在脚本头部的 DOMAIN_LABELS 维护。
