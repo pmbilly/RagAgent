@@ -155,16 +155,9 @@ public class ElasticsearchV8RetrieveRepository {
         detectFieldTypes();
     }
 
-    /** 对照 {@code types.ResolveIndexName}：indexName > env > default。 */
+    /** 对照 {@code types.ResolveIndexName}：indexName > env > default（共享助手）。 */
     static String resolveIndexName(String indexName) {
-        if (indexName != null && !indexName.isEmpty()) {
-            return indexName;
-        }
-        String env = System.getenv(ENV_INDEX_KEY);
-        if (env != null && !env.isEmpty()) {
-            return env;
-        }
-        return DEFAULT_INDEX;
+        return EngineTypes.resolveIndexName(indexName, ENV_INDEX_KEY, DEFAULT_INDEX);
     }
 
     /** 对照 {@code idField}：text 映射时 ID 字段要带 .keyword 后缀。 */
@@ -373,7 +366,7 @@ public class ElasticsearchV8RetrieveRepository {
     }
 
     /** 文档 JSON（键序与 Go struct 声明一致，snake_case）。 */
-    private static String docJson(VectorEmbedding doc) {
+    static String docJson(VectorEmbedding doc) {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("content", doc.content);
         node.put("source_id", doc.sourceId);
@@ -574,7 +567,7 @@ public class ElasticsearchV8RetrieveRepository {
     }
 
     /** {@code _source} → 文档（字段缺失按零值，照 Go 的 json.Unmarshal 语义）。 */
-    private static VectorEmbedding parseSource(JsonNode source) {
+    static VectorEmbedding parseSource(JsonNode source) {
         VectorEmbedding doc = new VectorEmbedding();
         doc.content = source.path("content").asText("");
         doc.sourceId = source.path("source_id").asText("");
@@ -690,6 +683,55 @@ public class ElasticsearchV8RetrieveRepository {
             }
         }
         log.info("[Elasticsearch] Index copy completed, total copied: {}", totalCopied);
+    }
+
+    // ── 迁移知识 ────────────────────────────────────────────────────────────
+
+    /**
+     * 对照 {@code v8/move.go} 的 {@code MoveKnowledgeIndices}：把某知识的所有分块挪到目标
+     * kb 并清空 tag；查询是 {@code bool.filter = [terms(kb), terms(knowledge)]}（**terms** 数组），
+     * 脚本**不带 lang**（照 Go 只有 source + params，ES 默认 painless）；带
+     * {@code ?refresh=true}；响应必须"完全成功"——total/updated 都在、total ≥ 0、
+     * total == updated、未 timed_out、version_conflicts == 0、failures 为空，
+     * 否则报 {@code move indices was incomplete}（照 Go）。
+     */
+    public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId)
+            throws Exception {
+        ObjectNode filterBody = MAPPER.createObjectNode();
+        ArrayNode filterArray = filterBody.putArray("filter");
+        filterArray.add(termsQuery(idField("knowledge_base_id"), List.of(sourceKb)));
+        filterArray.add(termsQuery(idField("knowledge_id"), List.of(knowledgeId)));
+        ObjectNode bool = MAPPER.createObjectNode();
+        bool.set("bool", filterBody);
+        ObjectNode query = MAPPER.createObjectNode();
+        query.set("query", bool);
+
+        ObjectNode script = MAPPER.createObjectNode();
+        script.put("source",
+                "ctx._source.knowledge_base_id = params.target; ctx._source.tag_id = ''");
+        script.putObject("params").put("target", targetKb);
+
+        ObjectNode body = MAPPER.createObjectNode();
+        body.set("query", bool);
+        body.set("script", script);
+
+        HttpResult resp = request("POST",
+                "/" + index + "/_update_by_query?refresh=true", body.toString());
+        if (resp.status() < 200 || resp.status() >= 300) {
+            throw new IllegalStateException("move indices: elasticsearch returned "
+                    + resp.status() + ": " + resp.body());
+        }
+        JsonNode result = MAPPER.readTree(resp.body());
+        JsonNode total = result.get("total");
+        JsonNode updated = result.get("updated");
+        boolean incomplete = total == null || total.isNull() || updated == null
+                || updated.isNull() || total.asLong() < 0 || total.asLong() != updated.asLong()
+                || result.path("timed_out").asBoolean(false)
+                || result.path("version_conflicts").asInt(0) != 0
+                || (result.has("failures") && !result.path("failures").isEmpty());
+        if (incomplete) {
+            throw new IllegalStateException("move indices was incomplete");
+        }
     }
 
     // ── 批量改状态 / 标签 ───────────────────────────────────────────────────

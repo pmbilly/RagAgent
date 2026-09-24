@@ -35,6 +35,25 @@ public final class EngineTypes {
     public static final int MATCH_EMBEDDING = 0;
     public static final int MATCH_KEYWORDS = 1;
 
+    /** 索引名解析用的 env 键与缺省值（照各店的 {@code ResolveIndexName} 调用点）。 */
+    public static final String ENV_ELASTICSEARCH_INDEX = "ELASTICSEARCH_INDEX";
+    public static final String DEFAULT_INDEX = "xwrag_default";
+
+    /**
+     * 对照 {@code types.ResolveIndexName}（vectorstore.go L418-426）：
+     * indexCfg.IndexName &gt; env &gt; defaultVal。
+     */
+    public static String resolveIndexName(String indexName, String envKey, String defaultVal) {
+        if (indexName != null && !indexName.isEmpty()) {
+            return indexName;
+        }
+        String env = envKey == null ? null : System.getenv(envKey);
+        if (env != null && !env.isEmpty()) {
+            return env;
+        }
+        return defaultVal;
+    }
+
     /** 对照 types.SourceType（embedding.go L5-14）。 */
     public static final int SOURCE_TYPE_FILE = 0;
     public static final int SOURCE_TYPE_FAQ = 1;

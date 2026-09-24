@@ -1,5 +1,40 @@
 # 交接文档（新会话接手用）
 
+## 0.-17 外部向量店 driver·第 2 支：ES v7 + 补 v8 的 move.go（2026-09-25——W5γ4.2）
+
+**背景**：§0.-16 的续推。协议盘点后的"HTTP 族"里，先做 **ES v7**（1452 行，非 typed client），
+并补上 §0.-16 **漏掉的 v8 `move.go`**（48 行 + Go 侧 9 例完整性表）。
+
+**已落地**：
+
+| 件 | 说明 |
+|---|---|
+| `ElasticsearchV8RetrieveRepository#moveKnowledgeIndices`（补） | 照 v8/move.go：`bool.filter` 用 **terms 数组**、脚本**不带 lang**、`?refresh=true`、完整性校验（total/updated 必在、total ≥ 0、total==updated、未 timed_out、version_conflicts==0、failures 空，否则 `move indices was incomplete`）——Go 的 9 例表全部移植 |
+| `EngineTypes#resolveIndexName`（补） | 照 `types.ResolveIndexName`（vectorstore.go）抽成共享助手，v8 改委托 |
+| `elasticsearch/ElasticsearchV7RetrieveRepository`（新） | 照 v7/repository.go + v7/move.go，**与 v8 的差异逐条照抄**：Support 只报 keywords（Retrieve 也只分派 keywords，vector 直呼才可用）；命中恒标 MatchTypeKeywords（含向量结果——Go 怪癖）；单条坏命中**跳过继续**（v8 整请求报错）；基础条件返回 **JSON 字符串**；建索引 settings 是**数字**、失败文案 `failed to create index <index>`；单条写入 `PUT /{index}/_create/{uuid}`；bulk 动作行 `{ "index" : { "_id" : "<uuid>" } }`（带空格）、`errors:true` 只告警不失败、响应解析失败也放行；改状态/标签的 query 是**直构 terms（不套 bool）**、脚本带 `lang`；move 用 **singular `term`** + 字符串值、脚本带 lang；向量查询无 `_source` 排除、script 源串无空格、`min_score` 是 float64 |
+| `ElasticsearchV7RetrieveRepositoryTest`（新） | 10 条：数字 settings 与 Support、建索引失败文案与后缀、估算与 `_create/{uuid}`、bulk 动作行与容错、terms 删除、关键词检索（含坏命中跳过）、向量直呼与怪癖、直构 terms 与失败文案、CopyIndices 三态、move（term/lang/refresh + 完整性） |
+
+**照抄的 Go 缺陷（备案，不擅修）**：
+
+- v7 `CopyIndices` 的 `saveCopiedIndices` 里 `embeddingMap` 是**新建空 map**（`processSourceBatch`
+  收集的向量被丢弃）→ 复制过去的文档**不带向量**（测试断言 `embedding: null`）；
+- v7 `processHit` 恒传 `MatchTypeKeywords` → **向量结果也标 1**；
+- （§0.-16 已备案的 v8 `CopyIndices` 同 chunk 后者覆盖，同理。）
+
+**协议再盘点（决定剩余顺序）**：
+
+- **OpenSearch**（2487 行、17 文件）是**独立店族**——自有 `transport.go`（SSRF）、`healthcheck.go`、
+  `audit.go`、`errors.go`、`mapping.go`、`crud.go`/`query.go`/`retrieve.go`/`byquery.go`/`copy.go`/`move.go`
+  → 单列一支；
+- **Weaviate**（1304 行）不是纯 HTTP：读/写/删走 REST/GraphQL，但 `client.Batch().ObjectsBatcher()`
+  在 weaviate-go-client **v5 走 gRPC** → 与 Qdrant/Milvus/腾讯同类的"协议决策"族；
+- ES v7/v8 至此**同族两版齐**（HTTP 族只剩 OpenSearch）。
+
+**测试**：`com.ragagent.retrieval.*` 31/31 绿（ES v8 11 + v7 10 + 既有 10）。
+
+**下一步**：OpenSearch（独立一支）→ 接线批（engine_factory + ChunkService + HybridSearchService 路由）
+→ gRPC 族协议决策（Weaviate/Qdrant/Milvus/腾讯）。
+
 ## 0.-16 外部向量店 driver·第 1 支：Elasticsearch v8（2026-09-25——W5γ4.1）
 
 **背景**：§2.0「已知剩余」里的"外部向量店 driver"——Go `internal/application/repository/retriever/`
@@ -952,7 +987,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
-- 外部向量店 driver：**ES v8 ✅ 2026-09-25（W5γ4.1，见 §0.-16）**；仍剩 ES v7 / OpenSearch / Weaviate（HTTP 族，可照法推进）、Qdrant / Milvus / 腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris；**接线**（engine_factory + ChunkService 的 CreateRetrieveEngineForKB + HybridSearchService 引擎路由）未做
+- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，2487 行）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris；**接线**（engine_factory + ChunkService 的 CreateRetrieveEngineForKB + HybridSearchService 引擎路由）未做
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 

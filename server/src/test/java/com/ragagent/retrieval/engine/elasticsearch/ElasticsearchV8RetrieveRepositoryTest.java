@@ -44,7 +44,7 @@ class ElasticsearchV8RetrieveRepositoryTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String INDEX = "xwrag_default";
 
-    private record Captured(String method, String path, String body,
+    private record Captured(String method, String path, String query, String body,
                             Map<String, List<String>> headers) {
     }
 
@@ -66,6 +66,7 @@ class ElasticsearchV8RetrieveRepositoryTest {
             byte[] raw = exchange.getRequestBody().readAllBytes();
             Captured req = new Captured(exchange.getRequestMethod(),
                     exchange.getRequestURI().getPath(),
+                    exchange.getRequestURI().getRawQuery(),
                     new String(raw, StandardCharsets.UTF_8),
                     exchange.getRequestHeaders());
             captured.add(req);
@@ -533,5 +534,63 @@ class ElasticsearchV8RetrieveRepositoryTest {
         assertTrue(captured.isEmpty(), "空映射直接跳过");
 
         assertNotNull(ElasticsearchV8RetrieveRepository.resolveIndexName(INDEX));
+    }
+
+    // ── 迁移知识（v8/move.go，含 Go 的 9 例完整性表） ────────────────────────
+
+    @Test
+    @DisplayName("迁移知识：terms 数组 + bool.filter + refresh=true + 脚本无 lang；9 例完整性校验")
+    void moveKnowledgeIndices() throws Exception {
+        stubFreshIndex();
+        ElasticsearchV8RetrieveRepository r = repo(INDEX, 0, -1);
+        String[] responses = {null};
+        responder = req -> {
+            if (req.method().equals("HEAD")) {
+                return Resp.json(200, "");
+            }
+            if (req.path().endsWith("/_mapping")) {
+                return Resp.json(200, "{\"" + INDEX + "\":{\"mappings\":{\"properties\":"
+                        + "{\"chunk_id\":{\"type\":\"keyword\"}}}}}");
+            }
+            return Resp.json(200, responses[0]);
+        };
+
+        Object[][] cases = {
+                {"{\"total\":100,\"updated\":100}", false},
+                {"{\"total\":0,\"updated\":0}", false},
+                {"{\"total\":100,\"updated\":40}", true},
+                {"{\"updated\":40}", true},
+                {"{\"total\":40}", true},
+                {"{}", true},
+                {"{\"total\":-1,\"updated\":-1}", true},
+                {"{\"total\":1,\"updated\":1,\"version_conflicts\":1}", true},
+                {"{\"total\":1,\"updated\":1,\"timed_out\":true}", true},
+        };
+        for (Object[] c : cases) {
+            responses[0] = (String) c[0];
+            boolean fails = (boolean) c[1];
+            if (fails) {
+                assertEquals("move indices was incomplete",
+                        assertThrows(IllegalStateException.class,
+                                () -> r.moveKnowledgeIndices("source", "target", "doc"))
+                                .getMessage(), (String) c[0]);
+            } else {
+                r.moveKnowledgeIndices("source", "target", "doc");
+            }
+        }
+
+        Captured call = captured.stream().filter(c -> c.path().endsWith("/_update_by_query"))
+                .findFirst().orElseThrow();
+        assertTrue(call.query() != null && call.query().contains("refresh=true"));
+        JsonNode body = MAPPER.readTree(call.body());
+        JsonNode boolBody = body.path("query").path("bool");
+        assertEquals("source", boolBody.path("filter").get(0).path("terms")
+                .path("knowledge_base_id").get(0).asText(), "v8 用 terms 数组");
+        assertEquals("doc", boolBody.path("filter").get(1).path("terms").path("knowledge_id")
+                .get(0).asText());
+        assertEquals("ctx._source.knowledge_base_id = params.target; ctx._source.tag_id = ''",
+                body.path("script").path("source").asText());
+        assertEquals("target", body.path("script").path("params").path("target").asText());
+        assertTrue(body.path("script").path("lang").isMissingNode(), "v8 的脚本不带 lang");
     }
 }
