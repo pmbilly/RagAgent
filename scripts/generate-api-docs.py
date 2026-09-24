@@ -178,40 +178,50 @@ def build_type_index(java_root: str):
     return idx
 
 
+WRAPPERS = ('ResponseEntity', 'Page', 'List', 'IPage', 'Optional', 'Set', 'Flux')
+
+
 def resolve_fields(type_name: str, idx: dict):
-    """剥常见包装泛型后取字段表（深度 1）。"""
+    """剥常见包装泛型后取字段表（深度 1）；Map/动态结构返回 None。"""
     if not type_name:
         return None
-    t = re.sub(r'^(ResponseEntity|Page|List|IPage|Optional|Set|Flux)\s*<', '', type_name.strip())
-    t = re.sub(r'>$', '', t).strip()
+    t = type_name.strip()
+    for _ in range(3):
+        base = t.split('<')[0].strip()
+        if base in ('ResponseEntity', 'Page', 'List', 'IPage', 'Optional', 'Set',
+                    'Flux') and '<' in t:
+            t = t[t.index('<') + 1:].rstrip('>').strip()
+            continue
+        break
     base = t.split('<')[0].strip()
     return idx.get(base)
 
 
+SIG_RE = re.compile(
+    r'(?:public|protected|private)\s+([\w<>,.\[\]?]+?)\s+(\w+)\s*\(')
+
+
 def method_block(text: str, anno_pos: int, next_pos: int):
-    """mapping 注解起到下一 mapping/类尾的片段 + 参数串 + 返回类型。"""
+    """mapping 注解起到下一 mapping/类尾的片段 + 参数串 + (返回类型, 方法名)。
+
+    签名定位用可见性关键字（注解自身也可能带括号，find('(') 会撞上）。
+    """
     block = text[anno_pos:next_pos if next_pos > anno_pos else len(text)]
-    # 参数串：第一个 '(' 到与其配对的 ')'
-    p0 = block.find('(')
+    m = SIG_RE.search(block)
+    if not m:
+        return block, '', '', ''
+    p0 = m.end() - 1  # 签名的 '('
     depth, i = 0, p0
-    for i in range(p0, len(block)):
+    while i < len(block):
         if block[i] == '(':
             depth += 1
         elif block[i] == ')':
             depth -= 1
             if depth == 0:
                 break
-    params = block[p0 + 1:i] if p0 != -1 else ''
-    # 返回类型：'(返回类型 方法名('
-    rt = ''
-    rm = re.search(r'((?:public|protected|private)\s+)?([\w<>,.\[\]?]+)\s+(\w+)\s*\($',
-                   block[:p0].strip())
-    if rm:
-        rt = rm.group(2)
-        name = rm.group(3)
-    else:
-        name = ''
-    return block, params, rt, name
+        i += 1
+    params = block[p0 + 1:i]
+    return block, params, m.group(1), m.group(2)
 
 
 def find_body_target(block: str, file_text: str) -> dict:
@@ -280,6 +290,62 @@ def parse_params(params: str, block: str, file_text: str):
     return path_vars, query, body, others
 
 
+def file_routes(full_path, type_idx):
+    """对单个控制器文件做细粒度扫描：(verb, normpath) → 详情。"""
+    out = {}
+    if not os.path.exists(full_path):
+        return out
+    text = open(full_path, encoding="utf-8").read()
+    class_prefix = ""
+    cm = re.search(r'@(?:[\w.]+\.)?RequestMapping\s*\(\s*(?:value\s*=\s*)?'
+                   r'"(/api[^"]*)"', text)
+    if cm:
+        class_prefix = cm.group(1).rstrip("/")
+    anno_iter = list(rr.JAVA_METHOD_RE.finditer(text))
+    anno_iter += list(rr.JAVA_REQ_METHOD_RE.finditer(text))
+    anno_iter.sort(key=lambda m: m.start())
+    for i, m in enumerate(anno_iter):
+        anno_pos = m.start()
+        next_pos = anno_iter[i + 1].start() if i + 1 < len(anno_iter) else len(text)
+        block, params, rt, name = method_block(text, anno_pos, next_pos)
+        vm = re.search(r'@(?:[\w.]+\.)?(Get|Post|Put|Delete|Patch)Mapping', block)
+        rm2 = re.search(r'method\s*=\s*\{?([^)}]*)', block) if 'RequestMapping' in block.split('(')[0] else None
+        verbs = []
+        sig = SIG_RE.search(block)
+        header = block[:sig.start()] if sig else block
+        if vm and 'Mapping' in block[:vm.end()]:
+            verbs = [vm.group(1).upper()]
+            paths = rr._paths_in(header) or [""]
+        elif rm2:
+            for v in re.findall(r'RequestMethod\.(\w+)', block):
+                verbs.append(v.upper())
+            paths = rr._paths_in(header) or [""]
+        if not verbs or not paths:
+            continue
+        handler, desc = handler_hint(text, anno_pos)
+        path_vars, query, body, others = parse_params(params, block, text)
+        if body is not None and body.get('bindType'):
+            flds = type_idx.get(body['bindType'])
+            if flds:
+                body['fields'] = flds
+        resp = {"type": rt}
+        flds = resolve_fields(rt, type_idx)
+        if flds:
+            resp['fields'] = flds
+        if 'HttpServletResponse' in params or 'SseEmitter' in params:
+            resp['sse'] = True
+        for v in verbs:
+            for pth in paths:
+                full = pth if pth.startswith('/api/') else \
+                    class_prefix + ('/' + pth.lstrip('/') if pth else '')
+                out[(v, rr.norm(full))] = {
+                    "handler": handler, "description": desc, "line": None,
+                    "request": {"pathVars": path_vars, "query": query, "body": body},
+                    "response": resp, "paramsRaw": params[:200],
+                }
+    return out
+
+
 def collect(java_root: str):
     base_dir = os.path.join(java_root, "server", "src", "main", "java", "com", "ragagent")
     routes = rr.parse_java(java_root)
@@ -313,12 +379,21 @@ def collect(java_root: str):
                 key = (method, apikey_norm(pm.group(1)))
                 policies[key] = policy_text(pol_expr, varmap)
 
+    type_idx = build_type_index(java_root)
+
+    detail_cache = {}
+    def details_for(full_path):
+        if full_path not in detail_cache:
+            detail_cache[full_path] = file_routes(full_path, type_idx)
+        return detail_cache[full_path]
+
     groups = defaultdict(list)
     for (verb, path), sources in sorted(routes.items()):
         source = sorted(sources)[0]
         rel, line = source.rsplit(":", 1)
         full_path = os.path.join(base_dir, rel)
         handler, desc = "", ""
+        detail = None
         if os.path.exists(full_path):
             text = open(full_path, encoding="utf-8").read()
             try:
@@ -335,6 +410,8 @@ def collect(java_root: str):
                         handler, desc = handler_hint(text, pos)
                         break
                     acc += len(ln) + 1
+        det_map = details_for(full_path) if os.path.exists(full_path) else {}
+        detail = det_map.get((verb, path))
         segs = [x for x in path.split("/") if x]
         # 剥掉 /api/v1 前缀取首个业务段；形如 /{} 的解析噪声归 other
         if segs[:2] == ["api", "v1"]:
@@ -352,6 +429,8 @@ def collect(java_root: str):
             "description": desc,
             "rbac": rb if rb else None,
             "apiKey": ak,
+            "request": (detail or {}).get("request"),
+            "response": (detail or {}).get("response"),
         })
     return groups
 
@@ -445,6 +524,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
              font-size: 12px; word-break: break-all; }
   .count { color: var(--dim); font-weight: 400; font-size: 12px; }
   .empty { color: var(--dim); padding: 30px 0; text-align: center; display: none; }
+  .sect { margin-top: 10px; }
+  .sect b { color: var(--accent); font-size: 11px; letter-spacing: .06em; }
+  table.sub { width: 100%; margin: 4px 0 10px; font-size: 12px; border: none; }
+  table.sub th { background: var(--bg); color: var(--dim); font-weight: 400;
+                 text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--line); }
+  table.sub td { padding: 3px 8px; border-bottom: 1px solid rgba(38,48,74,.4);
+                 font-family: ui-monospace, Menlo, monospace; }
+  table.sub tr:last-child td { border-bottom: none; }
+  .note { color: var(--dim); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -468,6 +556,58 @@ const METHOD_ORDER = {GET:0, POST:1, PUT:2, PATCH:3, DELETE:4, HEAD:5};
 
 function esc(s) { return String(s == null ? '' : s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function fieldTable(fields) {
+  if (!fields || !fields.length) return '';
+  return '<table class="sub"><tr><th>字段</th><th>类型</th></tr>'
+    + fields.map(f => '<tr><td>' + esc(f.name) + '</td><td>' + esc(f.type)
+      + '</td></tr>').join('') + '</table>';
+}
+
+function reqRespHtml(r) {
+  const req = r.request, resp = r.response;
+  if (!req && !resp) return '';
+  let h = '<div class="body">';
+  if (req) {
+    const pv = req.pathVars || [], q = req.query || [], b = req.body;
+    h += '<div class="sect"><b>入参</b></div>';
+    if (!pv.length && !q.length && !b) {
+      h += '<div class="note">无显式入参</div>';
+    } else {
+      if (pv.length) {
+        h += '<div class="sect"><b>路径参数</b></div><table class="sub">'
+          + '<tr><th>参数</th><th>类型</th></tr>'
+          + pv.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.type)
+            + '</td></tr>').join('') + '</table>';
+      }
+      if (q.length) {
+        h += '<div class="sect"><b>Query 参数</b></div><table class="sub">'
+          + '<tr><th>参数</th><th>类型</th><th>必填</th><th>缺省</th></tr>'
+          + q.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.type)
+            + '</td><td>' + (p.required ? '是' : '否')
+            + '</td><td>' + esc(p.default == null ? '—' : p.default)
+            + '</td></tr>').join('') + '</table>';
+      }
+      if (b) {
+        h += '<div class="sect"><b>请求体</b><span class="note"> '
+          + esc(b.declared) + (b.bindType && b.bindType !== b.declared
+            ? ' · 绑定 ' + esc(b.bindType) : '') + '</span></div>'
+          + fieldTable(b.fields);
+        if (!b.fields) h += '<div class="note">字段由控制器内解析（raw JSON），'
+          + '结构见对应服务实现或上游 API 文档。</div>';
+      }
+    }
+  }
+  if (resp) {
+    h += '<div class="sect"><b>响应</b></div>';
+    if (resp.sse) h += '<div class="note">SSE 流式响应（text/event-stream）</div>';
+    h += '<div class="note">声明类型：<code>' + esc(resp.type || '—') + '</code></div>';
+    if (resp.fields) h += fieldTable(resp.fields);
+    else if (!resp.sse) h += '<div class="note">动态结构（Map/包装类型），'
+      + '字段以实际实现为准。</div>';
+  }
+  return h + '</div>';
+}
 
 function render(q) {
   let rx = null;
@@ -512,7 +652,8 @@ function render(q) {
         + (r.rbac ? '<dt>角色门槛</dt><dd>' + esc(r.rbac.minRole)
           + (r.rbac.orSystemAdmin ? '（或系统管理员）' : '') + '</dd>' : '')
         + (r.apiKey ? '<dt>API-Key 策略</dt><dd>' + esc(r.apiKey) + '</dd>' : '')
-        + '</dl></div>';
+        + '</dl></div>'
+        + reqRespHtml(r);
       sec.appendChild(d);
     }
     content.appendChild(sec);

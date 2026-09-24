@@ -40,6 +40,17 @@
      "storage"
     ],
     "note": "docker compose 提供的三件基础设施与文件存储。"
+   },
+   {
+    "id": "ingest-path",
+    "label": "文档入库",
+    "focus": [
+     "api",
+     "docreader",
+     "storage",
+     "pg"
+    ],
+    "note": "上传 → docreader gRPC 解析 → 分块索引 → 摘要后处理；文件落存储后端。"
    }
   ]
  },
@@ -62,7 +73,7 @@
    "id": "frontend",
    "type": "frontend",
    "label": "Vue 3 + Vite",
-   "sublabel": ":5173 · 零改动复用",
+   "sublabel": "Vue 3.5 + Vite 7 · :5173",
    "pos": [
     220,
     300
@@ -90,7 +101,7 @@
    "id": "agent",
    "type": "backend",
    "label": "AgentEngine",
-   "sublabel": "30+ 内置工具",
+   "sublabel": "AgentEngine · 30+ 工具",
    "pos": [
     660,
     300
@@ -99,13 +110,13 @@
     140,
     64
    ],
-   "tag": "虚拟线程"
+   "tag": "JDK 21 虚拟线程"
   },
   {
    "id": "retrieval",
    "type": "backend",
    "label": "混合检索",
-   "sublabel": "RRF 融合",
+   "sublabel": "pgvector + BM25 · RRF",
    "pos": [
     900,
     160
@@ -176,7 +187,7 @@
    "id": "docreader",
    "type": "backend",
    "label": "docreader",
-   "sublabel": "gRPC :50051",
+   "sublabel": "gRPC :50051 · 官方镜像",
    "pos": [
     660,
     450
@@ -190,7 +201,7 @@
    "id": "storage",
    "type": "database",
    "label": "文件存储",
-   "sublabel": "本地 / 对象存储",
+   "sublabel": "本地 / S3 系 · RFC 2231",
    "pos": [
     900,
     450
@@ -358,6 +369,15 @@
     "RBAC 角色门槛 + API-Key scope 门禁",
     "SSRF 白名单（出站 LLM/抓取/连接器）",
     "AES 凭据加密，双端密文互操作"
+   ]
+  },
+  {
+   "dot": "violet",
+   "title": "数据面",
+   "items": [
+    "ParadeDB：pgvector HNSW + BM25 双路索引",
+    "Redis：stream 断线续流 / 会话绑定 / 限流",
+    "docreader gRPC：官方镜像，proto 本仓化"
    ]
   }
  ]

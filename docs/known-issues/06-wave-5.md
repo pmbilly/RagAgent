@@ -1144,3 +1144,14 @@
   docs/architecture.json docs/architecture.html --quality showcase`。
   生成过程按 SKILL 的 showcase 验收走——首轮 7 条布局诊断（标签互撞/端点方向
   不实），按逐条 suggestedFixes 修到 0 错误 + 9/9 artifact checks。
+
+- **文档门户细化（2026-09-25）**：①`api/` 与 `architecture.*` 归位 `docs/site/`；
+  ②侧栏独立滚动（sticky + overflow-y）；③API 文档新增**入参/响应提取**：
+  生成器解析控制器方法签名（@PathVariable/@RequestParam/@RequestBody）+ 方法体
+  `readValue(rawBody, X.class)` 与 bind/parse helper 二级追踪 + 全仓类型字段索引
+  （POJO 字段与 record 组件，@JsonProperty wire 名优先）→ 每条路由输出路径参数/
+  Query 参数/请求体绑定与字段表/响应声明类型与字段表（447/452 有入节数据；129/154
+  的 body 是 raw JSON 手工绑定，如实标注「控制器内解析」）；api/index.html 渲染
+  入参/响应小节；④site 功能模块扩写（22 个模块的功能清单/代表端点/技术要点）。
+  坑：解析器正则 `(\-/api…)` 笔误（`\-` 是字面减号）导致类前缀全部失配、routes
+  键丢失——用 `importlib` 直跑 `file_routes` 单文件定位，别靠整仓输出猜。
