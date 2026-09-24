@@ -887,12 +887,12 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 > 详细台账：本文件（进度与交接）、`docs/translation-conventions.md`（§8 翻译日志 / §9 已知细节与坑）、
 > `docs/known-issues/`（按批次分片的坑）。本小节只是快速索引，**细节以上述文档为准**。
 
-| 维度 | 状态（2026-09-22 阶段 7 终核） |
+| 维度 | 状态 |
 |---|---|
-| HTTP 路由对账（route-recon） | 交集 387，**功能性缺口清零**（swagger 非翻译目标；models/{id}/debug 已收官） |
-| golden 契约测试 | 1,719+24 全绿（全部录自 Go 实行为准；md-* 24 条为阶段 7 新增） |
-| 全量测试 | 五批分批绿（B4 的 TenantSkillPythonVerifierTest 为本机 pip 环境性失败，干净树同挂，见 known-issues/07） |
-| 双端 A/B | 九族 GET + 写路径 + HybridSearch 两场景 + models/{id}/debug 24 场景逐字节 MATCH |
+| HTTP 路由对账（route-recon） | 交集 387，**功能性缺口清零**（swagger 非翻译目标；models/{id}/debug 已收官）——2026-09-22 阶段 7 终核 |
+| golden 契约测试 | 1,719+24 全绿（全部录自 Go 实行为准；md-* 24 条为阶段 7 新增）——2026-09-22 |
+| 全量测试 | **2026-09-25 收口批复跑：五批全绿**（`scripts/acceptance.sh`；B1a/B1b/B2/B3/B4，其中 B4 1533 条）。⚠️ 纪律两条：①单跑 `:server:test` 必假红（Mockito attach）——用脚本的五批划分；②并发跑测试（同事同时跑）会撞固定端口，出现偶发假红（本次 B2 的 bs-internal-bad-sig 一次 409 即此，单跑即绿）|
+| 双端 A/B | 九族 GET + 写路径 + HybridSearch 两场景 + models/{id}/debug 24 场景逐字节 MATCH——2026-09-22 |
 
 | 波 | 内容 | 状态 |
 |---|---|---|
