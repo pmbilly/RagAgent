@@ -579,6 +579,30 @@ final class Rec46cSupport {
         final Map<String, ChatManage.GraphData> byKB = new LinkedHashMap<>();
         boolean err;
 
+        /** D 批扩展：写/删记录（管线只读，测试可断言写删被调用）。 */
+        final List<ChatManage.GraphData> added = new java.util.ArrayList<>();
+        final List<ChatManage.NameSpace> deleted = new java.util.ArrayList<>();
+
+        @Override
+        public void addGraph(ChatManage.NameSpace namespace, List<ChatManage.GraphData> graphs) {
+            if (err) {
+                throw new RuntimeException("graph unavailable");
+            }
+            if (graphs != null) {
+                added.addAll(graphs);
+            }
+        }
+
+        @Override
+        public void delGraph(List<ChatManage.NameSpace> namespaces) {
+            if (err) {
+                throw new RuntimeException("graph unavailable");
+            }
+            if (namespaces != null) {
+                deleted.addAll(namespaces);
+            }
+        }
+
         @Override
         public ChatManage.GraphData searchNode(ChatManage.NameSpace namespace, List<String> nodes) {
             if (err) {

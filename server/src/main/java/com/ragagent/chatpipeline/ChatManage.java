@@ -153,7 +153,20 @@ public final class ChatManage {
     public record GraphRelation(String node1, String node2, String type) {}
 
     /** 图检索的命名空间（对照 types.NameSpace，internal/types/extract_graph.go:38-41）。 */
-    public record NameSpace(String knowledgeBase, String knowledge) {}
+    public record NameSpace(String knowledgeBase, String knowledge) {
+
+        /** 对照 NameSpace.Labels()：非空部分按 KB → Knowledge 序（两端都空 → 空列表）。 */
+        public List<String> labels() {
+            List<String> res = new ArrayList<>();
+            if (knowledgeBase != null && !knowledgeBase.isEmpty()) {
+                res.add(knowledgeBase);
+            }
+            if (knowledge != null && !knowledge.isEmpty()) {
+                res.add(knowledge);
+            }
+            return res;
+        }
+    }
 
     // ----- 请求段访问器 -----
 

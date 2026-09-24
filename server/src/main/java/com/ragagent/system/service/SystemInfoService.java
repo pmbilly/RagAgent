@@ -53,6 +53,8 @@ public class SystemInfoService {
     private final DataSource dataSource;
     /** 构建期生成的 META-INF/build-info.properties；缺失（如纯 IDE 运行）时回退 "unknown"。 */
     private final ObjectProvider<BuildProperties> buildProperties;
+    /** 图库仓储（D 批）：引擎名按**真实驱动**报告（对照 Go 的 neo4jDriver != nil 判定）。 */
+    private final com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository;
 
     /** 覆盖项（配置/测试可固定值）；为空则取构建信息或运行时值。edition 无构建注入。 */
     @Value("${weknora.system.version:}")
@@ -69,11 +71,13 @@ public class SystemInfoService {
     public SystemInfoService(StorageAllowList allowList,
                              StorageBackendRepository backendRepository,
                              DataSource dataSource,
-                             ObjectProvider<BuildProperties> buildProperties) {
+                             ObjectProvider<BuildProperties> buildProperties,
+                             com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository) {
         this.allowList = allowList;
         this.backendRepository = backendRepository;
         this.dataSource = dataSource;
         this.buildProperties = buildProperties;
+        this.graphRepository = graphRepository;
     }
 
     public String getVersion() {
@@ -165,13 +169,17 @@ public class SystemInfoService {
         return vectorCapable.contains(driver);
     }
 
-    /** 对照 getGraphDatabaseEngine：未启用 → "Not Enabled"，启用 → "Neo4j"。 */
+    /**
+     * 对照 {@code getGraphDatabaseEngine}（system.go L610-616）：Go 看
+     * {@code h.neo4jDriver == nil}；Java 同口径——看仓储的**真实驱动**是否已建
+     * （NEO4J_ENABLE=true 且连上才是 Neo4j；配了但没连上属于启动失败，不会走到这里）。
+     */
     public String graphDatabaseEngine() {
-        String enable = System.getenv("NEO4J_ENABLE");
-        if (enable == null || !"true".equalsIgnoreCase(enable)) {
-            return "Not Enabled";
+        if (graphRepository instanceof com.ragagent.retrieval.graph.Neo4jGraphRepository repo
+                && repo.enabled()) {
+            return "Neo4j";
         }
-        return "Neo4j";
+        return "Not Enabled";
     }
 
     /** 对照 isMinioEnvAvailable。 */

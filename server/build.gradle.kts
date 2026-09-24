@@ -52,6 +52,9 @@ dependencies {
     // 数据库
     implementation("com.baomidou:mybatis-plus-spring-boot3-starter:3.5.7")
     implementation("org.postgresql:postgresql")   // PGobject 等编译期可见（VectorStoreService）
+    // 图库面（D 批）：对照 Go repository/retriever/neo4j（neo4j-go-driver）。
+    // NEO4J_ENABLE 未启用时驱动为 null，仓储全部操作为 no-op——与 Go 的 nil driver 分支一致。
+    implementation("org.neo4j.driver:neo4j-java-driver:5.28.5")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
 

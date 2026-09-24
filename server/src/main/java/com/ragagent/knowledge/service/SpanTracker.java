@@ -223,6 +223,17 @@ public class SpanTracker {
         return new AttemptHandle(handle, attempt);
     }
 
+    /**
+     * 对照 Go {@code attemptSuperseded}（knowledge.go L196-201）：attempt ≤ 0 或 knowledge
+     * 为空 → false（旧版在飞任务不判取代）；否则比 {@link #latestAttempt} 更大即被取代。
+     */
+    public boolean isAttemptSuperseded(String knowledgeId, int attempt) {
+        if (attempt <= 0 || knowledgeId == null || knowledgeId.isEmpty()) {
+            return false;
+        }
+        return latestAttempt(knowledgeId) > attempt;
+    }
+
     /** 对照 LatestAttempt（L288-295）：失败吞成 0。 */
     public int latestAttempt(String knowledgeId) {
         try {

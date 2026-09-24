@@ -68,8 +68,9 @@ import com.ragagent.websearch.service.WebSearchService;
  *       {@code HybridSearchService}（pgvector + ParadeDB BM25 + RRF 融合 +
  *       FAQ 迭代/负例过滤 + 富化装配，对照 knowledgebase_search*.go 全族）。
  *       外部向量店（ES/milvus/…）绑定仍按 2201 unavailable 同形拒绝（provider 批）。</li>
- *   <li><b>RetrieveGraphRepository</b>：图检索（neo4j）未翻译 → 传 null（Go 的
- *       ExtractEntity/SearchEntity 同样有 neo4jEnabled=nil 闸门）。</li>
+ *   <li><b>RetrieveGraphRepository（D 批已接线）</b>：注入 {@code Neo4jGraphConfig} 提供的
+ *       {@code Neo4jGraphRepository}——NEO4J_ENABLE 未启用时其 driver 为 null，检索返回
+ *       null（Go 的 nil driver 分支；ExtractEntity/SearchEntity 同样有 neo4jEnabled 闸门）。</li>
  *   <li><b>WebSearchStateService / WebSearchProviderRepository</b>：Go 当前存而不读，
  *       传 null。</li>
  * </ul>
@@ -370,6 +371,7 @@ public class QaWiring {
             PipelinePorts.MessageService messageService,
             PipelinePorts.MemoryService memoryService,
             PipelinePorts.WebSearch webSearch,
+            PipelinePorts.RetrieveGraphRepository retrieveGraphRepository,
             PipelineConfig config) {
 
         EventManager mgr = new EventManager();
@@ -394,9 +396,12 @@ public class QaWiring {
         mgr.register(new PluginMemoryRecall(memoryService));
         mgr.register(new PluginExtractEntity(modelService, extractEntityTemplate,
                 knowledgeBaseRepository, knowledgeService, knowledgeRepository, neo4jEnabled));
-        mgr.register(new com.ragagent.chatpipeline.PluginSearchEntity(null, chunkRepository, knowledgeRepository));
-        mgr.register(new PluginSearchParallel(mgr, knowledgeBaseService, knowledgeService, null, config,
-                webSearch, null, null, null, null, null, chunkRepository, knowledgeRepository));
+        mgr.register(new com.ragagent.chatpipeline.PluginSearchEntity(
+                retrieveGraphRepository, chunkRepository, knowledgeRepository));
+        mgr.register(new PluginSearchParallel(mgr, knowledgeBaseService, knowledgeService,
+                null, config,
+                webSearch, null, null, null, null, retrieveGraphRepository,
+                chunkRepository, knowledgeRepository));
         mgr.register(new PluginWikiBoost(knowledgeBaseService));
         mgr.register(new PluginMemoryAffinity(memoryService));
         return mgr;

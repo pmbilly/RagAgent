@@ -92,12 +92,17 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final ModelService modelService;
     private final KnowledgeService knowledgeService;
     private final SpanTracker spanTracker;
+    /** 图库仓储（D 批）：重处理前清旧图谱（对照 Go processDocument L354-359）。 */
+    private final com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository;
     /** wiki 交接（对照 Go knowledge_post_process.go 的 willSpawnWiki 分支）；
      *  ObjectProvider 装配：wiki 域与 knowledge 域互不反向依赖，延迟解析更稳。 */
     private final org.springframework.beans.factory.ObjectProvider<
             com.ragagent.wiki.service.WikiIngestService> wikiIngestService;
     private final org.springframework.beans.factory.ObjectProvider<
             com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer;
+    /** 分块图抽取队列（D 批；未接线时 fan-out 直接释放槽位，行不搁浅）。 */
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.ragagent.knowledge.service.ChunkExtractTaskQueue> chunkExtractQueue;
 
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
                                   KnowledgeBaseMapper kbMapper,
@@ -109,10 +114,13 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   ModelService modelService,
                                   @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService,
                                   SpanTracker spanTracker,
+                                  com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository,
                                   org.springframework.beans.factory.ObjectProvider<
                                           com.ragagent.wiki.service.WikiIngestService> wikiIngestService,
                                   org.springframework.beans.factory.ObjectProvider<
-                                          com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer) {
+                                          com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer,
+                                  org.springframework.beans.factory.ObjectProvider<
+                                          com.ragagent.knowledge.service.ChunkExtractTaskQueue> chunkExtractQueue) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -123,8 +131,10 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.modelService = modelService;
         this.knowledgeService = knowledgeService;
         this.spanTracker = spanTracker;
+        this.graphRepository = graphRepository;
         this.wikiIngestService = wikiIngestService;
         this.wikiKnowledgeFinalizer = wikiKnowledgeFinalizer;
+        this.chunkExtractQueue = chunkExtractQueue;
     }
 
     @Override
@@ -195,6 +205,9 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             if (embedConfig != null) {
                 vectorStore.deleteByKnowledgeId(List.of(knowledgeId));
             }
+            // 3) 旧图谱数据（对照 Go processDocument L354-359：DelGraph 失败只记警告，
+            //    不阻断重处理——图里可能本来就没有这条知识）
+            deleteGraphData(k.getKnowledgeBaseId(), knowledgeId);
 
             try {
                 // 3) 取文本：manual 直接取 metadata.content；file 经 docreader 解析
@@ -315,7 +328,14 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 boolean willSpawnWiki = kb.getIndexingStrategy() != null
                         && kb.getIndexingStrategy().isWikiEnabled()
                         && !chunks.isEmpty();
-                if (willSpawnWiki) {
+                // 图抽取 fan-out 的分块选择（对照 Go L191 selectGraphChunks + L243-246：
+                // 仅 eff.GraphEnabled 时计数；与 wiki 是**独立**判定——wiki 关、图开也要跑）
+                List<Chunk> graphChunks = kb.getIndexingStrategy() != null
+                        && kb.getIndexingStrategy().isGraphEnabled()
+                                ? GraphChunkSelector.selectGraphChunks(chunks)
+                                : List.of();
+                boolean willSpawnGraph = !graphChunks.isEmpty();
+                if (willSpawnWiki || willSpawnGraph) {
                     // 对照 Go finalizeIndexedKnowledgeState（knowledge_process.go
                     // L215-242，在 post-process 之前）：索引完成即推进
                     // enable_status/processed_at —— 非 wiki 路径由 failOrComplete 完成
@@ -335,8 +355,16 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                 .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
                         spawnSummaryFanOut(knowledgeId);
                     }
-                    if (promoteFinalizingForWiki(knowledgeId)) {
-                        enqueueWikiIngest(knowledgeId, k);
+                    // 对照 Go L247-255：expectedSubtasks =（wiki 1）+ 图分块数
+                    // （摘要/问题批次的计数 Java 侧沿用既有路径，尚未并入）
+                    int pendingSubtasks = (willSpawnWiki ? 1 : 0) + graphChunks.size();
+                    if (promoteFinalizing(knowledgeId, pendingSubtasks)) {
+                        if (willSpawnWiki) {
+                            enqueueWikiIngest(knowledgeId, k);
+                        }
+                        if (willSpawnGraph) {
+                            enqueueGraphExtracts(knowledgeId, k, kb, graphChunks, attempt);
+                        }
                     }
                     // promote 失败 = 行已被 cancel/delete 抢走 → 跳过富化（对照 Go
                     // default 分支的 else：不得覆盖状态、不得标 completed）
@@ -367,6 +395,16 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             scope.finish("error", message);
             log.warn("process knowledge {} failed: {}", knowledgeId, e.toString());
             failOrComplete(knowledgeId, attempt, message);
+        }
+    }
+
+    /** 对照 Go processDocument L354-359：清该知识在源 KB 命名空间下的旧图谱（失败仅告警）。 */
+    private void deleteGraphData(String knowledgeBaseId, String knowledgeId) {
+        try {
+            graphRepository.delGraph(List.of(new com.ragagent.chatpipeline.ChatManage.NameSpace(
+                    knowledgeBaseId, knowledgeId)));
+        } catch (RuntimeException e) {
+            log.warn("Failed to delete existing graph data (may not exist): {}", e.toString());
         }
     }
 
@@ -453,18 +491,59 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      * <p>返回 false = 行已不在 processing（cancel/delete 抢走）——调用方必须跳过
      * 富化且不得覆盖状态（对照 Go default 分支的 else 注释）。</p>
      */
-    private boolean promoteFinalizingForWiki(String knowledgeId) {
+    private boolean promoteFinalizing(String knowledgeId, int pendingSubtasks) {
         int promoted = knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                 .eq("id", knowledgeId)
                 .eq("parse_status", Knowledge.PARSE_PROCESSING)
                 .set("parse_status", Knowledge.PARSE_FINALIZING)
-                .set("pending_subtasks_count", 1)
+                .set("pending_subtasks_count", pendingSubtasks)
                 .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
         if (promoted > 0) {
-            log.info("[KnowledgePostProcess] Knowledge {} entered finalizing (wiki subtask pending)",
-                    knowledgeId);
+            log.info("[KnowledgePostProcess] Knowledge {} entered finalizing ({} subtask(s) pending)",
+                    knowledgeId, pendingSubtasks);
         }
         return promoted > 0;
+    }
+
+    /**
+     * 图抽取 fan-out（对照 Go L414-431）：逐块入队 {@code chunk:extract}，{@code model_id}
+     * 取 KB 的 {@code SummaryModelID}（照 Go）。入队侧注入追踪载体（C 批约定），
+     * worker 侧续接同一棵树。
+     *
+     * <p>入队失败的槽位<b>立即释放</b>（对照 NewChunkExtractTask 的注释：没入队的槽
+     * 不释放会让父知识永远停在 finalizing）。</p>
+     */
+    private void enqueueGraphExtracts(String knowledgeId, Knowledge k, KnowledgeBase kb,
+                                      List<Chunk> graphChunks, int attempt) {
+        ChunkExtractTaskQueue queue = chunkExtractQueue.getIfAvailable();
+        if (queue == null) {
+            log.warn("[KnowledgePostProcess] chunk extract queue unavailable, releasing {} slot(s) for {}",
+                    graphChunks.size(), knowledgeId);
+            releaseSlots(knowledgeId, graphChunks.size());
+            return;
+        }
+        com.ragagent.common.context.TracingContext tracing =
+                com.ragagent.tracing.langfuse.LangfuseTracing.inject();
+        int index = 0;
+        for (Chunk chunk : graphChunks) {
+            try {
+                queue.enqueue(ExtractChunkPayload.withTracing(k.getTenantId(), chunk.getId(),
+                        kb.getSummaryModelId() == null ? "" : kb.getSummaryModelId(),
+                        knowledgeId, attempt, index, tracing));
+            } catch (RuntimeException e) {
+                log.error("[KnowledgePostProcess] Failed to create chunk extract task for {}: {}",
+                        chunk.getId(), e.toString());
+                releaseSlots(knowledgeId, 1);
+            }
+            index++;
+        }
+    }
+
+    /** 释放 n 个 finalizing 槽（逐次递减+晋升，幂等到计数归零）。 */
+    private void releaseSlots(String knowledgeId, int count) {
+        for (int i = 0; i < count; i++) {
+            releaseWikiSlot(knowledgeId);
+        }
     }
 
     /**

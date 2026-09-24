@@ -97,6 +97,8 @@ public class KnowledgeService {
     private final ConversationProperties conversationProps;
     private final com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository;
     private final SpanTracker spanTracker;
+    /** 图库仓储（D 批）：知识移动后清源命名空间（对照 Go knowledge_clone_move.go L1342-1352）。 */
+    private final com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
                             KnowledgeBaseMapper kbMapper,
@@ -110,7 +112,8 @@ public class KnowledgeService {
                             ChunkVectorIndexer chunkVectorIndexer,
                             ConversationProperties conversationProps,
                             com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository,
-                            SpanTracker spanTracker) {
+                            SpanTracker spanTracker,
+                            com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -124,6 +127,7 @@ public class KnowledgeService {
         this.conversationProps = conversationProps;
         this.spanRepository = spanRepository;
         this.spanTracker = spanTracker;
+        this.graphRepository = graphRepository;
     }
 
     private static long tenantId() {
@@ -2633,6 +2637,7 @@ public class KnowledgeService {
             throw new IllegalStateException("not found");
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        String sourceKbId = row.getKnowledgeBaseId();
         knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                 .eq("id", knowledgeId)
                 .set("knowledge_base_id", targetKbId)
@@ -2641,6 +2646,10 @@ public class KnowledgeService {
                 .eq("knowledge_id", knowledgeId)
                 .set("knowledge_base_id", targetKbId)
                 .set("updated_at", now));
+        // 对照 Go knowledge_clone_move.go L1342-1352：搬走后源 KB 的命名空间不得继续
+        // 暴露该文档（失败上抛——移动任务据此重试；命名空间删除可重复执行）
+        graphRepository.delGraph(List.of(
+                new com.ragagent.chatpipeline.ChatManage.NameSpace(sourceKbId, knowledgeId)));
     }
 
     public void saveKnowledgeMoveProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress p) {
