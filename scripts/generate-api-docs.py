@@ -478,9 +478,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <title>ragagent-java · API 文档</title>
 <style>
   :root {
-    --bg: #0f1420; --panel: #171e2e; --line: #26304a; --text: #dbe2f0;
-    --dim: #8b96ad; --accent: #5aa2ff;
-    --get: #3fb27f; --post: #d9a03f; --put: #5a8bdc; --patch: #a77bdc; --delete: #d95f5f;
+    --bg: #fdfcfa; --panel: #f5f3ee; --line: rgba(16, 31, 56, .12);
+    --text: #101f38; --dim: #40536f; --accent: #b8863b;
+    --get: #2e7d54; --post: #b8863b; --put: #3a6bb5; --patch: #7c5ab8; --delete: #c0504f;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
