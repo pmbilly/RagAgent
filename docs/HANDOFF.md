@@ -344,10 +344,14 @@ Redis 分布式版仍备案）；②**RbacInterceptor API-key 主体短路**（G
 Hashes 启动钩子**（bootstrap.go L44-52；此前零调用点，迁移旧 Key 永远无法认证）。
 两处「待接线」过期文档清除。
 
-**在册不动**（理由仍成立）：EvaluationService 执行步（Owner 暂缓）、provider-XDEP 族
+**在册不动**（理由仍成立）：provider-XDEP 族
 （γ3 九渠道/W5δ 终端/tenant_skill install/VLM ollama+weknoracloud）、DataAnalysis
 （DuckDB 依赖）、BrowserSkillManager 执行循环 seam（需浏览器后端）、OIDC enabled 网络步、
-langfuse/Redis 限流器/asynq/jieba/readability 降级族、tenant_skill install。
+Redis 限流器/asynq/readability 降级族、tenant_skill install。
+~~EvaluationService 执行步~~ ✅ 2026-09-24 `87a82fc` 落地（九指标 + metric hook + 数据集执行 +
+段落同步建索引；jieba 以 `MetricSegmenter` 接缝降级，真实分词库待接入）；
+~~langfuse~~ ✅ 2026-09-24 `dbf4cff`/`50d359f` 落地（见 §0.-14）；
+~~云 provider SDK 层~~ ✅ 2026-09-24 A3 落地（见 §0.-13）。
 **低优先遗留**（退化语义与 Go 的可选接缝缺席分支等价，已注记）：wiki pending-op 的
 KB-active 原子守卫（Go TaskPendingOpsKnowledgeBaseGuard 属 knowledge 删除路径可选
 接线）、KnowledgeService 复制不携带 wiki/reparse 衍生数据（见 :2473 注释）。
@@ -936,10 +940,8 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 3. 之后：**占位扫描已完成**（2026-09-22~23，§0.0 第十九~十三处），FaqService
    索引族全链、updateImageInfo、WebSearchProvider test、评估 dataset 前置、
    会话标题、摘要 fan-out、span 写入侧均已落地；剩余真缺口仅
-   **EvaluationService 执行步——Owner 决策暂缓**（2026-09-23：前端无
-   `/v1/evaluation` 入口 / `CreateKnowledgeFromPassageSync` 无路由 / 需新增
-   jieba 分词依赖 / metrics 数值不承诺逐字节；范围与依赖清单见 known-issues/06
-   尾部，恢复条件：后端出现评估调用需求）；
+   ~~EvaluationService 执行步——Owner 决策暂缓~~ ✅ 2026-09-24 `87a82fc` 执行体补全
+   （当日 Owner 恢复该批；jieba 分词以 `MetricSegmenter` 接缝降级实现，真实分词库仍待接入）；
    波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
    tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
    检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、
