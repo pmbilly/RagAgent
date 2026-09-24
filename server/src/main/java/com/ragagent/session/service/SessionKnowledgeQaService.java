@@ -290,6 +290,11 @@ public class SessionKnowledgeQaService {
         log.info("Assembled pipeline ({} stages), hasKB={}, webSearch={}, history={}",
                 pipeline.size(), hasKb, req.webSearchEnabled, hasHistory);
 
+        // 对照 Go L213：进入 QA 事件处理前打上「按会话属主租户查」标记——管线内的会话/
+        // 消息查询由此走**租户范围**（共享 agent 场景下当前主体不是属主，带 user 范围会查不到）。
+        // 清理在请求收尾处（KnowledgeQaController 的 TenantContext.clear() 旁）。
+        SessionLookupScope.mark();
+
         // 对照 Go L218-222：setup span 收尾（stages / KB 列表 / 检索目标数）
         java.util.Map<String, Object> setupOutput = new java.util.LinkedHashMap<>();
         setupOutput.put("stages", pipeline.size());

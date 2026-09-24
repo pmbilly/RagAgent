@@ -8,13 +8,12 @@ package com.ragagent.session.service;
  * {@code sessionUserIDForLookup} 见到它就返回空 owner——
  * 也就是**跳过 user 范围**做内部查询（否则共享 agent 场景下会查不到本该能读的会话）。</p>
  *
- * <p><b>接线状态：未接线</b>。共享 agent 是阶段 7 的机制，本类只把 Go 的那条分支
- * 落到一个明确的落点上（与 {@code StorageUrlContext} 的处置一致），
- * 现在没有任何生产代码调用 {@link #mark()}——于是分支恒为
- * {@code false}，查询**始终带 user 范围**。</p>
- *
- * <p>这造成的行为差异是<b>偏保守</b>的：Go 在标记存在时放行的查询，Java 侧现在会返回
- * 404。属于安全的默认，不是漏洞；阶段 7 接上共享 agent 时调 {@link #mark()} 即可对齐。</p>
+ * <p><b>接线状态（D 批 2026-09-24 已接线）</b>：Go 在 {@code KnowledgeQA} 的
+ * L213 打标（{@code session_knowledge_qa.go}），并用 ctx 沿整条 QA 流传播。Java 侧对应：
+ * {@code KnowledgeQaController} 的 QA 执行线程在 {@code requestTenant.replay()} 后
+ * {@link #mark()}，两条派生线程（消息索引、follow-up 建议）与状态持久化线程各自
+ * {@code mark()}，四处都在 {@code TenantContext.clear()} 旁 {@link #clear()}——
+ * 与其它线程上下文同一条纪律（设置方负责在收尾清理）。</p>
  */
 public final class SessionLookupScope {
 

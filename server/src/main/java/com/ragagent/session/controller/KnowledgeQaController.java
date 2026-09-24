@@ -645,10 +645,13 @@ public class KnowledgeQaController {
                 com.ragagent.event.TenantContextSnapshot.capture();
         Thread.ofVirtual().start(() -> {
             memoTenant.replay();
+            // 派生线程同样按会话属主租户查（对照 Go 的 ctx 传播）
+            com.ragagent.session.service.SessionLookupScope.mark();
             try {
                 persistLastRequestState(reqCtx, mode);
             } finally {
                 TenantContext.clear();
+                com.ragagent.session.service.SessionLookupScope.clear();
             }
         });
 
@@ -765,6 +768,10 @@ public class KnowledgeQaController {
         runner.start(() -> {
             try {
                 requestTenant.replay();
+                // 对照 Go L213（ctx 沿整条 QA 流传播）：本线程上的会话/消息查询按会话属主
+                // 租户范围——共享 agent 场景下当前主体不是属主，带 user 范围会查不到。
+                // 线程收尾处清理（见下方 finally 的 TenantContext.clear() 旁）。
+                com.ragagent.session.service.SessionLookupScope.mark();
                 resolveTemporaryAttachments(streamCtx, reqCtx);
                 QaSupport.QaRequest qaReq = reqCtx.buildQaRequest();
                 if (mode == QaMode.NORMAL) {
@@ -826,6 +833,7 @@ public class KnowledgeQaController {
                 }
                 // 收尾（含身份相关的库写）完成后再清线程上下文
                 TenantContext.clear();
+                com.ragagent.session.service.SessionLookupScope.clear();
             }
         });
 
@@ -1460,23 +1468,27 @@ public class KnowledgeQaController {
                 com.ragagent.event.TenantContextSnapshot.capture();
         Thread.ofVirtual().start(() -> {
             asyncTenant.replay();
+            com.ragagent.session.service.SessionLookupScope.mark();
             try {
                 messageService.indexMessageToKb(userQuery, content, amId, sessionId);
             } catch (RuntimeException e) {
                 log.warn("index message to KB failed for message {}: {}", amId, e.toString());
             } finally {
                 TenantContext.clear();
+                com.ragagent.session.service.SessionLookupScope.clear();
             }
         });
         if (userQuery != null && !userQuery.isEmpty() && suggestionService != null) {
             Thread.ofVirtual().start(() -> {
                 asyncTenant.replay();
+                com.ragagent.session.service.SessionLookupScope.mark();
                 try {
                     suggestionService.ensureFollowUps(sessionId, amId, false);
                 } catch (RuntimeException e) {
                     log.warn("follow-up suggestion generation failed for message {}: {}", amId, e.toString());
                 } finally {
                     TenantContext.clear();
+                    com.ragagent.session.service.SessionLookupScope.clear();
                 }
             });
         }
