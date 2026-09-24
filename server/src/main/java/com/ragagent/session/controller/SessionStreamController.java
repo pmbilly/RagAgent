@@ -84,6 +84,7 @@ public class SessionStreamController {
     private final StreamEventEmitter emitter;
     private final FileService fileService;
     private final StorageBackendResolver storageBackendResolver;
+    private final com.ragagent.auth.service.TenantService tenantService;
 
     public SessionStreamController(
             SessionService sessionService,
@@ -91,15 +92,17 @@ public class SessionStreamController {
             StreamManager streamManager,
             StreamEventEmitter emitter,
             ObjectProvider<FileService> fileService,
-            ObjectProvider<StorageBackendResolver> storageBackendResolver) {
+            ObjectProvider<StorageBackendResolver> storageBackendResolver,
+            com.ragagent.auth.service.TenantService tenantService) {
         this.sessionService = sessionService;
         this.messageService = messageService;
         this.streamManager = streamManager;
         this.emitter = emitter;
-        // 两个端口目前**没有生产实现**（多 provider 存储后端未翻译），
-        // 缺 bean 时按 Go 的 nil 分支降级：引用一律解析不出 URL，原样保留成 handle。
+        // A3-3 起 StorageBackendResolver 有生产实现（fileserve 桥）；FileService 的
+        // 进程级实现仍属装配项。缺 bean 时按 Go 的 nil 分支降级：引用原样保留成 handle。
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
+        this.tenantService = tenantService;
     }
 
     // ── 对照 Go resource_urls.go 的前两个函数 ────────────────────────────────
@@ -127,15 +130,18 @@ public class SessionStreamController {
      * 当前租户的实体，供 {@link com.ragagent.storageurl.FileServiceResolver} 读
      * {@code storage_engine_config.default_provider}。
      *
-     * <p><b>这一版恒返回 null</b>：Go 从 ctx 里取已加载好的 {@code *types.Tenant}
-     * （认证中间件放进去的），Java 的 {@code TenantContext} 只存 tenantId、不存实体。
-     * 而它唯一的用途是"引用不带 provider scheme 时读者租户默认 provider"——
-     * 那一步在 Java 侧本来也解析不出 HTTP URL（provider 级文件服务未翻译），
-     * 所以传 null 的<b>可见行为与 Go 一致</b>。等存储后端模块落地时，
-     * 这里改成按 tenantId 加载即可。</p>
+     * <p><b>A3-3 接线</b>：Go 从 ctx 里取已加载好的 {@code *types.Tenant}（认证中间件放进去的），
+     * Java 的 {@code TenantContext} 只存 tenantId、不存实体，故此处按 id 取实体
+     * （与 {@code SystemController} / {@code HybridSearchService} 同一写法）。
+     * 取不到时返回 null，等价于 Go 的 ctx 无租户降级。</p>
      */
     private Tenant currentTenant() {
-        return null;
+        Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
+        try {
+            return tid == null || tid <= 0 ? null : tenantService.getTenantById(tid);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     // ── 端点 ───────────────────────────────────────────────────────────────

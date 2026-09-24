@@ -72,15 +72,18 @@ public class MessageController {
     private final MessageService messageService;
     private final FileService fileService;
     private final StorageBackendResolver storageBackendResolver;
+    private final com.ragagent.auth.service.TenantService tenantService;
 
     public MessageController(MessageService messageService,
                              ObjectProvider<FileService> fileService,
-                             ObjectProvider<StorageBackendResolver> storageBackendResolver) {
+                             ObjectProvider<StorageBackendResolver> storageBackendResolver,
+                             com.ragagent.auth.service.TenantService tenantService) {
         this.messageService = messageService;
-        // 两个端口目前没有生产实现（多 provider 存储后端未翻译），
-        // 缺 bean 时按 Go 的 nil 分支降级——与 SessionStreamController 同一模式。
+        // 两个端口按 ObjectProvider 取（A3-3 起 StorageBackendResolver 有生产实现；
+        // FileService 的进程级实现仍属装配项），缺 bean 时按 Go 的 nil 分支降级。
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
+        this.tenantService = tenantService;
     }
 
     // ══════════════════════════ 加载消息历史 ══════════════════════════
@@ -285,8 +288,17 @@ public class MessageController {
      * Java 的 TenantContext 只存 tenantId——恒返回 null，缺省 provider 的解析本来
      * 也走不通（provider 级文件服务未翻译）。引用一律保留成 handle。
      */
-    private static com.ragagent.auth.domain.Tenant currentTenant() {
-        return null;
+    /**
+     * 读者租户实体（A3-3 接线；此前恒 null）——Rewriter 用它解析"引用不带 provider
+     * scheme 时的租户默认 provider"。
+     */
+    private com.ragagent.auth.domain.Tenant currentTenant() {
+        Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
+        try {
+            return tid == null || tid <= 0 ? null : tenantService.getTenantById(tid);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /**

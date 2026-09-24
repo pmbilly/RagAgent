@@ -28,11 +28,14 @@ import com.ragagent.storage.service.ResourceCatalogService;
  *       全局 STORAGE_TYPE 时回落进程级服务）。</li>
  * </ul>
  *
- * <h2>⚠️ 已知差异：云 provider 的 SDK 客户端未翻译</h2>
- * <p>配置完备的 minio/cos/tos/s3/oss/obs/ks3 在 Go 会造出真实 SDK 客户端
- * （20+ 文件），Java 侧只有 local 一支真实实现。配置<b>不完备</b>时的错误文案
- * （"missing minio config" / "incomplete cos config" / {@code unsupported provider "%s"}）
- * 逐字对齐——dev 部署只配 local，完备云配置属于部署态（XDEP）。</p>
+ * <h2>云 provider 的 SDK 客户端（2026-09-24 A3-3 接线）</h2>
+ * <p>配置完备的 minio/cos/tos/s3/oss/obs/ks3 经 {@code FileServiceFactory}
+ * （A3 的八个 provider 实现：local + S3 协议族 + 三家厂商原生 SDK）造真实客户端，
+ * 再由 {@link ProviderFileContentService} 适配回本包的 {@link FileContentService}。
+ * 配置<b>不完备</b>时的错误文案仍由工厂逐字产出
+ * （"missing minio config" / "incomplete cos config" / {@code unsupported provider "%s"}）。
+ * local 一支仍走 W5c 的 {@link LocalFileContentService}（本地语义完全一致，二者都照
+ * Go local.go；收敛为单一实现属清理项，不在本批）。</p>
  *
  * <p>同时承载 Go {@code resourceCatalogFileService} 装饰器的可见行为：
  * 打开 {@code resource://} 手柄先换物理路径；{@code GetFileURL} 对手柄在
@@ -225,7 +228,7 @@ public class StorageFileResolver {
                     return new FactoryResult(null, p, "incomplete minio config");
                 }
                 // Go 此处构造 MinIO SDK 客户端（未翻译层）——完备配置的云连通是部署态
-                return cloudUnavailable(p);
+                return providerBacked(p, sec, baseDir);
             }
             case "cos": {
                 JsonNode c = sec == null ? null : sec.get("cos");
@@ -233,7 +236,7 @@ public class StorageFileResolver {
                         || textOr(c.get("bucket_name"), "").isEmpty() || textOr(c.get("region"), "").isEmpty()) {
                     return new FactoryResult(null, p, "incomplete cos config");
                 }
-                return cloudUnavailable(p);
+                return providerBacked(p, sec, baseDir);
             }
             case "tos": {
                 JsonNode t = sec == null ? null : sec.get("tos");
@@ -242,7 +245,7 @@ public class StorageFileResolver {
                         || textOr(t.get("bucket_name"), "").isEmpty()) {
                     return new FactoryResult(null, p, "incomplete tos config");
                 }
-                return cloudUnavailable(p);
+                return providerBacked(p, sec, baseDir);
             }
             case "s3": {
                 JsonNode s = sec == null ? null : sec.get("s3");
@@ -254,7 +257,7 @@ public class StorageFileResolver {
                 if (hasKey != hasSecret) {
                     return new FactoryResult(null, p, "incomplete s3 config");
                 }
-                return cloudUnavailable(p);
+                return providerBacked(p, sec, baseDir);
             }
             case "obs": {
                 JsonNode o = sec == null ? null : sec.get("obs");
@@ -277,7 +280,7 @@ public class StorageFileResolver {
                 if (endpoint.isEmpty() || accessKey.isEmpty() || secretKey.isEmpty() || bucket.isEmpty()) {
                     return new FactoryResult(null, p, "incomplete obs config");
                 }
-                return cloudUnavailable(p);
+                return providerBacked(p, sec, baseDir);
             }
             case "oss": {
                 JsonNode o = sec == null ? null : sec.get("oss");
@@ -286,7 +289,7 @@ public class StorageFileResolver {
                         || textOr(o.get("bucket_name"), "").isEmpty()) {
                     return new FactoryResult(null, p, "incomplete oss config");
                 }
-                return cloudUnavailable(p);
+                return providerBacked(p, sec, baseDir);
             }
             case "ks3": {
                 JsonNode k = sec == null ? null : sec.get("ks3");
@@ -295,19 +298,48 @@ public class StorageFileResolver {
                         || textOr(k.get("bucket_name"), "").isEmpty()) {
                     return new FactoryResult(null, p, "incomplete ks3 config");
                 }
-                return cloudUnavailable(p);
+                return providerBacked(p, sec, baseDir);
             }
             default:
                 return new FactoryResult(null, p, "unsupported provider \"" + p + "\"");
         }
     }
 
-    private static FactoryResult cloudUnavailable(String p) {
-        // ⚠️ 已知差异（XDEP）：Go 会继续构造 SDK 客户端并成功返回服务。
-        // 该分支只在"配置完备的云后端"部署可达——dev 恒 local。错误文案非 Go 原文，
-        // 调用方会把 resolution 失败折成 400（Go 会给出 200/预签名 URL）。
-        return new FactoryResult(null, p, "cloud storage provider SDK is not available in this build");
+    /**
+     * 配置完备的云 provider → 经 A3 的 {@code FileServiceFactory} 造真实 SDK 客户端
+     * （2026-09-24 A3-3 接线；此前恒返回 {@code cloudUnavailable} 错误）。
+     *
+     * <p>完备性校验的文案由工厂产出（与上面各分支的字符串一致，逐字照 Go），因此
+     * 这里不需要重复校验；{@code IllegalArgumentException} 就是"配置不完整"的通道。
+     * 构造期的凭据/网络失败（真连桶）折成同一 error 通道——调用方按各自映射处理
+     * （presigned-preview 折 400），与 Go 的 {@code NewFileService*} 返回 err 同形。</p>
+     */
+    private static FactoryResult providerBacked(String p, JsonNode sec, String baseDir) {
+        try {
+            com.ragagent.auth.domain.tenantconfig.StorageEngineConfig typed = sec == null
+                    ? new com.ragagent.auth.domain.tenantconfig.StorageEngineConfig()
+                    : CONFIG_MAPPER.convertValue(sec,
+                            com.ragagent.auth.domain.tenantconfig.StorageEngineConfig.class);
+            com.ragagent.storage.provider.FileServiceFactory.Created created =
+                    com.ragagent.storage.provider.FileServiceFactory.fromStorageConfig(p, typed, baseDir);
+            if (created == null || created.service() == null) {
+                return new FactoryResult(null, p, "unsupported provider \"" + p + "\"");
+            }
+            return new FactoryResult(new ProviderFileContentService(created.service()), p, null);
+        } catch (IllegalArgumentException e) {
+            String msg = e.getMessage() == null ? e.toString() : e.getMessage();
+            return new FactoryResult(null, p, msg);
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() == null ? e.toString() : e.getMessage();
+            log.warn("build cloud file service failed: provider={} err={}", p, msg);
+            return new FactoryResult(null, p, msg);
+        }
     }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper CONFIG_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper()
+                    .configure(com.fasterxml.jackson.databind.DeserializationFeature
+                            .FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static String textOrNull(JsonNode n) {
         return n == null || n.isNull() ? null : n.asText();

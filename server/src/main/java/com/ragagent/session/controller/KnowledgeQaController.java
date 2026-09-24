@@ -319,7 +319,7 @@ public class KnowledgeQaController {
         try {
             com.ragagent.storageurl.Mode mode = com.ragagent.storageurl.Mode.resolve(resourceUrls);
             com.ragagent.storageurl.Rewriter rw = com.ragagent.storageurl.Rewriter.forRequest(
-                    mode, null, fileService, storageBackendResolver);
+                    mode, currentTenant(), fileService, storageBackendResolver);
             rc.resourceRewriter = new StreamRewriter(rw);
         } catch (com.ragagent.storageurl.PublicModeForbiddenException e) {
             log.warn("Rejected resource URL mode: {}", e.getMessage());
@@ -575,6 +575,22 @@ public class KnowledgeQaController {
     private com.ragagent.org.service.AgentShareService agentShareServiceField;
     @org.springframework.beans.factory.annotation.Autowired
     private com.ragagent.auth.service.TenantService tenantServiceField;
+
+    /**
+     * 读者租户实体（A3-3 接线）——供 Rewriter 解析"引用不带 provider scheme 时的租户默认
+     * provider"。此前恒传 null，等价于 Go 在 ctx 无租户时的降级（引用一律保留成 handle）；
+     * 现在按 TenantContext 的 id 取实体，与 {@code SystemController} /
+     * {@code HybridSearchService} 同一写法。
+     */
+    private com.ragagent.auth.domain.Tenant currentTenant() {
+        Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
+        try {
+            return tid == null || tid <= 0 || tenantServiceField == null
+                    ? null : tenantServiceField.getTenantById(tid);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
 
     private static ObjectNode parseAgentConfig(CustomAgentEntity row) {
         try {

@@ -79,7 +79,15 @@ class SessionStreamControllerTest {
         streamManager = mock(StreamManager.class);
         emitter = new StreamEventEmitter(new SseFrameWriter(goEscapingMapper()));
         controller = new SessionStreamController(
-                sessionService, messageService, streamManager, emitter, absent(), absent());
+                sessionService, messageService, streamManager, emitter, absent(), absent(),
+                // 租户服务桩：上下文里有 tenantId 但库里没有该租户 → 解析器按"无租户"降级
+                // （与 A3-3 接线前传 null 的可见行为一致）
+                new com.ragagent.auth.service.TenantService(null, null, null) {
+                    @Override
+                    public com.ragagent.auth.domain.Tenant getTenantById(long id) {
+                        return null;
+                    }
+                });
         TenantContext.set(10002L, null, "viewer", false, "u-1", false);
     }
 
