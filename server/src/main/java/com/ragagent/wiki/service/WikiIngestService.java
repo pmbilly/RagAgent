@@ -1004,7 +1004,8 @@ public class WikiIngestService {
                 continue;
             }
             String summarySlug = "summary/" + WikiTextUtils.slugify(r.getKnowledgeId());
-            WikiPage page = wikiService.getPageBySlug(kbId, summarySlug);
+            // 对照 Go：if err != nil || page == nil { continue }
+            WikiPage page = wikiService.findPageBySlug(kbId, summarySlug);
             if (page == null) {
                 continue;
             }
@@ -1058,7 +1059,8 @@ public class WikiIngestService {
         }
         int cleaned = 0;
         for (String slug : affectedSlugs) {
-            WikiPage page = wikiService.getPageBySlug(kbId, slug);
+            // 对照 Go：if err != nil || page == nil { continue }
+            WikiPage page = wikiService.findPageBySlug(kbId, slug);
             if (page == null) {
                 continue;
             }
@@ -1153,7 +1155,8 @@ public class WikiIngestService {
 
         int updated = 0;
         for (String slug : affectedSlugs) {
-            WikiPage page = wikiService.getPageBySlug(kbId, slug);
+            // 对照 Go：if err != nil || page == nil { continue }
+            WikiPage page = wikiService.findPageBySlug(kbId, slug);
             if (page == null) {
                 continue;
             }
@@ -1453,7 +1456,8 @@ public class WikiIngestService {
             return;
         }
         for (String slug : slugs) {
-            WikiPage page = wikiService.getPageBySlug(kbId, slug);
+            // 对照 Go：if err != nil || page == nil { continue }
+            WikiPage page = wikiService.findPageBySlug(kbId, slug);
             if (page == null) {
                 continue;
             }

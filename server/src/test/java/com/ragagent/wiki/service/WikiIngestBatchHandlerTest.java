@@ -71,13 +71,18 @@ class WikiIngestBatchHandlerTest {
     private final ObjectProvider<WikiActivityAudit> auditProvider = mock(ObjectProvider.class);
     @SuppressWarnings("unchecked")
     private final ObjectProvider<WikiIngestTaskQueue> queueProvider = mock(ObjectProvider.class);
+    /** 测试不接线追踪器 → 门面走 NOOP 语义（与 Go 的 nil tracker 同形）。 */
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<com.ragagent.knowledge.service.SpanTracker> spanTrackerProvider =
+            mock(ObjectProvider.class);
 
     private WikiIngestBatchHandler handler() {
         when(auditProvider.getIfAvailable()).thenReturn(audit);
         when(queueProvider.getIfAvailable()).thenReturn(null);
+        when(spanTrackerProvider.getIfAvailable()).thenReturn(null);
         return new WikiIngestBatchHandler(ingestService, wikiService, pendingRepo, citePipeline,
                 taxonomy, dedupService, modelResolver, finalizeLock, chunkMapper, kbMapper,
-                knowledgeMapper, auditProvider, queueProvider);
+                knowledgeMapper, auditProvider, queueProvider, spanTrackerProvider);
     }
 
     private static KnowledgeBase wikiKb() {
@@ -609,7 +614,7 @@ class WikiIngestBatchHandlerTest {
         @Test
         @DisplayName("summary 更新整体覆盖并清空 chunk refs")
         void summaryBranchOverwrites() {
-            when(wikiService.getPageBySlug("kb-1", "summary/kid-1")).thenReturn(null);
+            when(wikiService.findPageBySlug("kb-1", "summary/kid-1")).thenReturn(null);
 
             SlugUpdate u = new SlugUpdate("summary/kid-1", SlugUpdate.TYPE_SUMMARY);
             u.setDocTitle("Doc");
@@ -620,7 +625,7 @@ class WikiIngestBatchHandlerTest {
             u.setSummaryBody("body");
 
             WikiIngestBatchHandler.ReduceOutcome got = h().reduceSlugUpdates(
-                    chatModel, "kb-1", "summary/kid-1", new ArrayList<>(List.of(u)), 7L, batchCtx);
+                    chatModel, "kb-1", "summary/kid-1", new ArrayList<>(List.of(u)), 7L, batchCtx, Map.of());
 
             assertThat(got.changed()).isTrue();
             assertThat(got.affectedType()).isEqualTo("ingest");
@@ -644,7 +649,7 @@ class WikiIngestBatchHandlerTest {
         @Test
         @DisplayName("新增分支写入正文、别名、引用与目录")
         void additionBranchWritesPage() {
-            when(wikiService.getPageBySlug("kb-1", "entity/acme")).thenReturn(null);
+            when(wikiService.findPageBySlug("kb-1", "entity/acme")).thenReturn(null);
             when(ingestService.generateWithTemplate(eq(chatModel), anyString(),
                     org.mockito.ArgumentMatchers.<String, String>anyMap()))
                     .thenReturn("SUMMARY: 一句话\n\n改写后的正文 [ref-1]");
@@ -656,7 +661,7 @@ class WikiIngestBatchHandlerTest {
             WikiIngestBatchHandler.ReduceOutcome got = h().reduceSlugUpdates(
                     chatModel, "kb-1", "entity/acme",
                     new ArrayList<>(List.of(entityAdd("entity/acme", "Acme", "doc summary", "c1"))),
-                    7L, batchCtx);
+                    7L, batchCtx, Map.of());
 
             assertThat(got.changed()).isTrue();
             ArgumentCaptor<com.ragagent.wiki.domain.WikiPage> created =
@@ -680,13 +685,13 @@ class WikiIngestBatchHandlerTest {
         @Test
         @DisplayName("仓储报错时返回 error")
         void repositoryFailureSurfaces() {
-            when(wikiService.getPageBySlug("kb-1", "entity/acme"))
+            when(wikiService.findPageBySlug("kb-1", "entity/acme"))
                     .thenThrow(new IllegalStateException("db down"));
 
             WikiIngestBatchHandler.ReduceOutcome got = h().reduceSlugUpdates(
                     chatModel, "kb-1", "entity/acme",
                     new ArrayList<>(List.of(entityAdd("entity/acme", "Acme", "", "c1"))),
-                    7L, batchCtx);
+                    7L, batchCtx, Map.of());
 
             assertThat(got.error()).isNotNull();
             assertThat(got.changed()).isFalse();
@@ -699,7 +704,7 @@ class WikiIngestBatchHandlerTest {
         @Test
         @DisplayName("生成失败标记 additionFailed 且不再抛错")
         void generationFailureFlagsAddition() {
-            when(wikiService.getPageBySlug("kb-1", "entity/acme")).thenReturn(null);
+            when(wikiService.findPageBySlug("kb-1", "entity/acme")).thenReturn(null);
             when(citePipeline.resolveCitedChunks(eq(7L), anyList())).thenReturn(null);
             when(ingestService.generateWithTemplate(eq(chatModel), anyString(),
                     org.mockito.ArgumentMatchers.<String, String>anyMap()))
@@ -708,7 +713,7 @@ class WikiIngestBatchHandlerTest {
             WikiIngestBatchHandler.ReduceOutcome got = h().reduceSlugUpdates(
                     chatModel, "kb-1", "entity/acme",
                     new ArrayList<>(List.of(entityAdd("entity/acme", "Acme", "", "c1"))),
-                    7L, batchCtx);
+                    7L, batchCtx, Map.of());
 
             assertThat(got.additionFailed()).isTrue();
             assertThat(got.changed()).isFalse();
@@ -723,13 +728,13 @@ class WikiIngestBatchHandlerTest {
         @Test
         @DisplayName("纯 retract 且页面不存在时 no-op")
         void retractWithoutPageIsNoop() {
-            when(wikiService.getPageBySlug("kb-1", "entity/gone")).thenReturn(null);
+            when(wikiService.findPageBySlug("kb-1", "entity/gone")).thenReturn(null);
 
             SlugUpdate u = new SlugUpdate("entity/gone", SlugUpdate.TYPE_RETRACT_STALE);
             u.setKnowledgeId("kid-1");
 
             WikiIngestBatchHandler.ReduceOutcome got = h().reduceSlugUpdates(
-                    chatModel, "kb-1", "entity/gone", new ArrayList<>(List.of(u)), 7L, batchCtx);
+                    chatModel, "kb-1", "entity/gone", new ArrayList<>(List.of(u)), 7L, batchCtx, Map.of());
 
             assertThat(got.changed()).isFalse();
             assertThat(got.error()).isNull();
@@ -746,10 +751,10 @@ class WikiIngestBatchHandlerTest {
             WikiIngestBatchHandler.ReduceOutcome got = handler().reduceSlugUpdates(
                     chatModel, "kb-1", "entity/acme",
                     new ArrayList<>(List.of(entityAdd("entity/acme", "Acme", "", "c1"))),
-                    7L, batchCtx);
+                    7L, batchCtx, Map.of());
 
             assertThat(got.changed()).isFalse();
-            verify(wikiService, never()).getPageBySlug(anyString(), anyString());
+            verify(wikiService, never()).findPageBySlug(anyString(), anyString());
         }
     }
 

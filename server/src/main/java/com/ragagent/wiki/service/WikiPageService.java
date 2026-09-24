@@ -73,6 +73,15 @@ public interface WikiPageService {
     WikiPage getPageBySlug(String kbId, String slug);
 
     /**
+     * {@link #getPageBySlug} 的"调用侧双返回"形态：Go 的调用点是
+     * {@code page, err := GetPageBySlug(...); if err != nil || page == nil { ... }}，
+     * Java 的异常实现需要在这里折成 null，供把 not found 当正常分支的服务内部调用点
+     * （wiki ingest 的清理/发布/交叉链接等）使用。controller 的 404 语义仍走
+     * {@link #getPageBySlug}——那里有显式 catch，不能改。
+     */
+    WikiPage findPageBySlug(String kbId, String slug);
+
+    /**
      * 对照 Go {@code RepairContentLinks}（L1121-1200）：把正文里指向不存在页面的
      * {@code [[slug]]} 重写成最可能的真实目标。<b>只重写、绝不剥离</b>，因此对任何
      * 写入路径都安全。返回「可能被改写的正文 + 是否发生改写」。

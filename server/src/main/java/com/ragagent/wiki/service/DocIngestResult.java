@@ -38,13 +38,11 @@ public class DocIngestResult {
 
     /**
      * 对照 Go {@code WikiSpan}：{@code mapOneDocument} 开头打开的 postprocess.wiki
-     * 子 span。
-     *
-     * <p><b>Java 侧差异</b>：Java 未实现 span 追踪（见约定文档 §9 阶段 4.0 已知差异），
-     * 这里保留字段与接线点但不持有 span 对象；Go 里它可能为 nil（没找到父 attempt），
-     * 而 nil 时所有 tracker 辅助方法本来就是 no-op，所以行为等价。</p>
+     * 子 span（已接 {@link com.ragagent.knowledge.service.SpanTracker}）。
+     * 可能为 null（没找到父 attempt）——nil 时所有 tracker 辅助方法均为 no-op，
+     * 与 Go 的 nil span 同形。
      */
-    private Object wikiSpan;
+    private com.ragagent.knowledge.service.SpanTracker.SpanHandle wikiSpan;
 
     public DocIngestResult() {}
 
@@ -67,6 +65,8 @@ public class DocIngestResult {
     public Map<String, Object> getMapStats() { return mapStats; }
     public void setMapStats(Map<String, Object> v) { mapStats = v; }
 
-    public Object getWikiSpan() { return wikiSpan; }
-    public void setWikiSpan(Object v) { wikiSpan = v; }
+    public com.ragagent.knowledge.service.SpanTracker.SpanHandle getWikiSpan() { return wikiSpan; }
+    public void setWikiSpan(com.ragagent.knowledge.service.SpanTracker.SpanHandle v) {
+        wikiSpan = v;
+    }
 }

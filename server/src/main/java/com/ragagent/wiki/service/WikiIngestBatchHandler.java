@@ -19,6 +19,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
+import com.ragagent.knowledge.service.SpanTracker;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.wiki.controller.WikiActivityAudit;
 import com.ragagent.wiki.domain.TaskPendingOp;
@@ -88,8 +89,8 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     private final ObjectProvider<WikiActivityAudit> auditProvider;
     private final ObjectProvider<WikiIngestTaskQueue> taskQueueProvider;
 
-    /** 对照 Go 的 {@code s.tracker()}：未实现追踪时是纯 no-op 门面 */
-    private final WikiBatchSupport.WikiSpans spans = WikiBatchSupport.WikiSpans.NOOP;
+    /** 对照 Go 的 {@code s.tracker()}：wiki 批次 span 门面（接 SpanTracker 后真实上报）。 */
+    private final WikiBatchSupport.WikiSpans spans;
 
     public WikiIngestBatchHandler(WikiIngestService ingestService,
                                   WikiPageService wikiService,
@@ -103,7 +104,9 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
                                   KnowledgeBaseMapper kbMapper,
                                   KnowledgeMapper knowledgeMapper,
                                   ObjectProvider<WikiActivityAudit> auditProvider,
-                                  ObjectProvider<WikiIngestTaskQueue> taskQueueProvider) {
+                                  ObjectProvider<WikiIngestTaskQueue> taskQueueProvider,
+                                  ObjectProvider<com.ragagent.knowledge.service.SpanTracker>
+                                          spanTrackerProvider) {
         this.ingestService = ingestService;
         this.wikiService = wikiService;
         this.pendingRepo = pendingRepo;
@@ -117,6 +120,8 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         this.knowledgeMapper = knowledgeMapper;
         this.auditProvider = auditProvider;
         this.taskQueueProvider = taskQueueProvider;
+        // tracker 缺席（测试/裁剪装配）→ NOOP 门面，语义等同 Go 的 nil tracker
+        this.spans = new WikiBatchSupport.WikiSpans(spanTrackerProvider.getIfAvailable());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -721,6 +726,14 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         // 贡献永久静默丢失（finalize 只重建索引/交叉链接，不会重跑 reduce）。
         Set<String> unappliedSlugKIDs = new LinkedHashSet<>();
 
+        // reduce 的页级 span 归属映射（对照 Go L618-623：kid → 该文档的 wikiSpan）
+        Map<String, SpanTracker.SpanHandle> kidToWikiMap = new LinkedHashMap<>();
+        for (DocIngestResult r : docResults) {
+            if (r != null && r.getWikiSpan() != null) {
+                kidToWikiMap.put(r.getKnowledgeId(), r.getWikiSpan());
+            }
+        }
+
         List<Runnable> reduceBodies = new ArrayList<>(remappedSlugUpdates.size());
         for (Map.Entry<String, List<SlugUpdate>> entry : remappedSlugUpdates.entrySet()) {
             final String slug = entry.getKey();
@@ -731,14 +744,14 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
                 try {
                     acquired = ingestService.withSlugLock(kbId, slug, () -> {
                         ReduceOutcome r = reduceSlugUpdates(chatModel, kbId, slug, updates,
-                                payload.tenantId(), batchCtx);
+                                payload.tenantId(), batchCtx, kidToWikiMap);
                         outcome[0] = new Reduced(r);
-                        if (r.error() != null) {
-                            throw r.error();
-                        }
                     });
                 } catch (RuntimeException lockErr) {
-                    // 作用域被取消（批次超时 / 关闭）——安静停下
+                    // 锁协调层故障（对照 Go 的 lockErr != nil 分支）：安静停下。
+                    // 注意：reduce 自身的错误以前在这里被 throw 进来一并吞掉，导致
+                    // Go 的 "reduce failed for slug" warn 从未执行（2026-09-24 修复）。
+                    log.warn("wiki ingest: slug lock failed for slug {}: {}", slug, lockErr.getMessage());
                     collectUnapplied(reduceMu, unappliedSlugKIDs, updates);
                     return;
                 }
@@ -1323,8 +1336,10 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         String lang = WikiLanguageSupport.resolveLanguageName(op.getLanguage());
         String kbId = payload.knowledgeBaseId();
 
-        // 对照 Go 的 beginWikiSubspan：Java 侧追踪未实现，恒返回 null
-        Object wikiSpan = spans.beginSubSpan(null, "postprocess.wiki",
+        // 对照 Go beginWikiSubspan（wiki_ingest.go L443-466）：沿 LatestAttempt →
+        // postprocess stage 找父 span，在其下开 postprocess.wiki。找不到父 → null，
+        // 后续 helper 全部 no-op（best-effort，追踪绝不阻断批次）。
+        SpanTracker.SpanHandle wikiSpan = spans.beginWikiSubspan(knowledgeID,
                 Map.of("language", lang, "knowledge_base_id", kbId));
 
         // 守卫 ingest/delete 竞争：用户在任务排队期间（wikiIngestDelay = 30 秒）或更早
@@ -1384,7 +1399,8 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         Map<String, Object> extractInput = new LinkedHashMap<>();
         extractInput.put("content_chars", content.codePointCount(0, content.length()));
         extractInput.put("old_pages", oldPageSlugs == null ? 0 : oldPageSlugs.size());
-        Object extractSpan = spans.beginSubSpan(wikiSpan, "postprocess.wiki.extract", extractInput);
+        SpanTracker.SpanHandle extractSpan = spans.beginSubSpan(wikiSpan,
+                "postprocess.wiki.extract", extractInput);
         try {
             WikiIngestCitePipeline.CandidateSlugs candidates = citePipeline.extractCandidateSlugs(
                     chatModel, kbId, content, lang, oldPageSlugs, batchCtx);
@@ -1452,13 +1468,14 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         Map<String, Object> summaryInput = new LinkedHashMap<>();
         summaryInput.put("content_chars", content.codePointCount(0, content.length()));
         summaryInput.put("extracted_slugs", summaryExtractedPages.size());
-        Object summarySpan = spans.beginSubSpan(wikiSpan, "postprocess.wiki.summary", summaryInput);
+        SpanTracker.SpanHandle summarySpan = spans.beginSubSpan(wikiSpan,
+                "postprocess.wiki.summary", summaryInput);
         Map<String, Object> classifyInput = new LinkedHashMap<>();
         classifyInput.put("chunks", chunks.size());
         classifyInput.put("candidates", extractedEntities.size() + extractedConcepts.size());
         // 两条调用在同一个 wikiSpan 父节点下并行跑——它们的子 span 在 trace 视图里会视觉
         // 重叠，这正确反映了它们的墙钟并发。
-        Object classifySpan = pass0Failed
+        SpanTracker.SpanHandle classifySpan = pass0Failed
                 ? null
                 : spans.beginSubSpan(wikiSpan, "postprocess.wiki.classify", classifyInput);
 
@@ -1779,7 +1796,8 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
                                            String slug,
                                            List<SlugUpdate> updates,
                                            long tenantId,
-                                           WikiBatchContext batchCtx) {
+                                           WikiBatchContext batchCtx,
+                                           Map<String, SpanTracker.SpanHandle> kidToWikiMap) {
         // ingest/delete 竞争的最终安全网：Map（已查过 isKnowledgeGone）与 Reduce 之间有一次
         // 很长的 LLM 调用，源文档可能在此期间被删。丢弃源知识已不存在的新增/摘要更新，
         // 免得复活一个幽灵 source_ref。retract 更新被保留——它们主动移除引用，正是文档消失
@@ -1801,8 +1819,92 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
             }
         }
 
+        // 页级 span（对照 Go L1726-1752 的归属规则 + L1763-1789 的 deferred 收尾）：
+        // 挂在 updates 里第一个有 wikiSpan 的贡献文档下——span 树只允许一个父节点；
+        // 完整 contributors 进 output，供追溯聚合页的多来源归属。
+        SpanTracker.SpanHandle pageSpan = beginPageSpan(slug, updates, contributors, kidToWikiMap);
+        WikiPage[] pageHolder = { null };
+        ReduceOutcome outcome;
         try {
-            WikiPage page = wikiService.getPageBySlug(kbId, slug);
+            outcome = reduceSlugUpdatesBody(chatModel, kbId, slug, updates, tenantId,
+                    batchCtx, pageHolder);
+        } catch (RuntimeException e) {
+            spans.failSpan(pageSpan, "REDUCE_FAILED", e.getMessage(), e);
+            throw e;
+        }
+        finishPageSpan(pageSpan, outcome, contributors, pageHolder[0]);
+        return outcome;
+    }
+
+    /**
+     * 开页级 span（对照 Go 的 contributors 循环 + {@code BeginSubSpan}）：
+     * 父 = updates 里首个有 wikiSpan 的贡献文档；都没有 → null（no-op）。
+     */
+    private SpanTracker.SpanHandle beginPageSpan(String slug, List<SlugUpdate> updates,
+                                                 List<String> contributors,
+                                                 Map<String, SpanTracker.SpanHandle> kidToWikiMap) {
+        if (kidToWikiMap == null || kidToWikiMap.isEmpty()) {
+            return null;
+        }
+        for (String kid : contributors) {
+            SpanTracker.SpanHandle parent = kidToWikiMap.get(kid);
+            if (parent == null) {
+                continue;
+            }
+            Map<String, Object> input = new LinkedHashMap<>();
+            input.put("slug", slug);
+            input.put("updates", updates.size());
+            input.put("contributors", new ArrayList<>(contributors));
+            return spans.beginSubSpan(parent, "postprocess.wiki.page[" + slug + "]", input);
+        }
+        return null;
+    }
+
+    /**
+     * 页级 span 收尾（对照 Go 的 deferred 闭包 L1763-1789）：错误 → FailSpan；
+     * 无变化 → SkipSpan；正常 → EndSpan，output 捕获<b>合并后</b>的页面状态
+     * （title / page_type / summary / content 预览 / refs 计数 / aliases）。
+     */
+    private void finishPageSpan(SpanTracker.SpanHandle pageSpan, ReduceOutcome outcome,
+                                List<String> contributors, WikiPage page) {
+        if (pageSpan == null) {
+            return;
+        }
+        if (outcome.error() != null) {
+            spans.failSpan(pageSpan, "REDUCE_FAILED",
+                    outcome.error().getMessage(), outcome.error());
+            return;
+        }
+        if (!outcome.changed()) {
+            spans.skipSpan(pageSpan, "no_change");
+            return;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("affected_type", outcome.affectedType());
+        out.put("addition_failed", outcome.additionFailed());
+        out.put("contributors", contributors);
+        if (page != null) {
+            out.put("page_title", WikiTextUtils.previewText(page.getTitle(), 160));
+            out.put("page_type", page.getPageType());
+            out.put("page_summary", WikiTextUtils.previewText(page.getSummary(), 200));
+            out.put("content_preview", WikiTextUtils.previewText(page.getContent(), 320));
+            out.put("source_refs", page.getSourceRefs() == null ? 0 : page.getSourceRefs().size());
+            out.put("chunk_refs", page.getChunkRefs() == null ? 0 : page.getChunkRefs().size());
+            out.put("aliases", page.getAliases() == null ? List.of() : page.getAliases());
+        }
+        spans.endSpan(pageSpan, out);
+    }
+
+    /** 原 reduce 主体；页面写入 {@code pageHolder[0]} 供 span 收尾读取最终状态。 */
+    private ReduceOutcome reduceSlugUpdatesBody(LlmChatClient chatModel, String kbId,
+                                                String slug, List<SlugUpdate> updates,
+                                                long tenantId, WikiBatchContext batchCtx,
+                                                WikiPage[] pageHolder) {
+        try {
+            // 对照 Go：page, err := GetPageBySlug(...); exists := (err == nil && page != nil)
+            // —— not found 是正常路径（下面合成新页），不能让它冒泡成 reduce 失败。
+            WikiPage page = wikiService.findPageBySlug(kbId, slug);
+            pageHolder[0] = page;
             boolean exists = page != null;
 
             if (!exists) {
@@ -1820,6 +1922,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
                 }
 
                 page = new WikiPage();
+                pageHolder[0] = page;
                 page.setId(UUID.randomUUID().toString());
                 page.setTenantId(tenantId);
                 page.setKnowledgeBaseId(kbId);

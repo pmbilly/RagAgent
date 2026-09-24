@@ -34,6 +34,12 @@ import java.time.ZoneOffset;
  *   任一步失败 → failed + error_message
  *   deleting/cancelled 检查点短路（对照 isKnowledgeAborted）
  *
+ * <p><b>wiki 交接（2026-09-24 接线，对照 Go knowledge_post_process.go）</b>：
+ * KB 的 indexing_strategy.wiki_enabled 且产出文本 chunk 时，processing 原子翻到
+ * {@code finalizing}（pending_subtasks_count=1 由 wiki 子任务持有）并入队 ingest；
+ * wiki 生成完成后由 {@code DefaultWikiKnowledgeFinalizer} 递减并晋升 completed。
+ * 此前该分支缺失——文档直接 completed，wiki 任务从不入队（除目录占位页外无产出）。</p>
+ *
  * <p><b>2026-09-22 走查修正（对齐 Go 处理管道的三个契约点）</b>：</p>
  * <ol>
  *   <li><b>索引文本形态</b>：嵌入文本与 embeddings.content 均为
@@ -83,6 +89,12 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final ModelService modelService;
     private final KnowledgeService knowledgeService;
     private final SpanTracker spanTracker;
+    /** wiki 交接（对照 Go knowledge_post_process.go 的 willSpawnWiki 分支）；
+     *  ObjectProvider 装配：wiki 域与 knowledge 域互不反向依赖，延迟解析更稳。 */
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.ragagent.wiki.service.WikiIngestService> wikiIngestService;
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer;
 
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
                                   KnowledgeBaseMapper kbMapper,
@@ -93,7 +105,11 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   VectorStoreService vectorStore,
                                   ModelService modelService,
                                   @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService,
-                                  SpanTracker spanTracker) {
+                                  SpanTracker spanTracker,
+                                  org.springframework.beans.factory.ObjectProvider<
+                                          com.ragagent.wiki.service.WikiIngestService> wikiIngestService,
+                                  org.springframework.beans.factory.ObjectProvider<
+                                          com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -104,6 +120,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.modelService = modelService;
         this.knowledgeService = knowledgeService;
         this.spanTracker = spanTracker;
+        this.wikiIngestService = wikiIngestService;
+        this.wikiKnowledgeFinalizer = wikiKnowledgeFinalizer;
     }
 
     @Override
@@ -260,9 +278,51 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 skipStageSpan(attempt, knowledgeId,
                         KnowledgeProcessingSpan.STAGE_MULTIMODAL, "skipped");
 
-                // 7) 完成（无富化快路径：直接 completed + enabled；postprocess 阶段与
-                //    finalize 在 failOrComplete 里记录）
-                failOrComplete(knowledgeId, attempt, null);
+                // 7) 完成 / wiki 交接（对照 Go knowledge_post_process.go L211 判定 +
+                //    L311-340 原子交接 + L436-446 入队）：wiki 启用且有文本 chunk →
+                //    先把 processing 原子翻到 finalizing（pending_subtasks_count=1，
+                //    由 wiki 子任务持有），再入队 ingest；wiki 完成后由
+                //    DefaultWikiKnowledgeFinalizer 递减并晋升 completed。
+                //    未启用 → 无富化快路径：直接 completed（既有行为）。
+                boolean willSpawnWiki = kb.getIndexingStrategy() != null
+                        && kb.getIndexingStrategy().isWikiEnabled()
+                        && !chunks.isEmpty();
+                if (willSpawnWiki) {
+                    // 对照 Go finalizeIndexedKnowledgeState（knowledge_process.go
+                    // L215-242，在 post-process 之前）：索引完成即推进
+                    // enable_status/processed_at —— 非 wiki 路径由 failOrComplete 完成
+                    // 同样的写；wiki 路径此前整段跳过，文档停在 disabled。
+                    markIndexedEnabled(knowledgeId);
+                    // postprocess span 覆盖摘要 fan-out 与 wiki 交接（对照 Go
+                    // post_process.go L142 的 BeginStage(postprocess)）
+                    SpanTracker.SpanHandle postSpan = beginStageSpan(attempt, knowledgeId,
+                            KnowledgeProcessingSpan.STAGE_POST_PROCESS, null);
+                    // 摘要 fan-out 独立于 wiki（Go willSpawnSummary 与 willSpawnWiki
+                    // 是两个判定）；此前 wiki 路径整段跳过，摘要永不生成。
+                    if (hasSummaryModel(kb)) {
+                        // Go finalizeIndexedKnowledgeState：有文本 chunk → summary_status=none
+                        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                                .eq("id", knowledgeId)
+                                .set("summary_status", "none")
+                                .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
+                        spawnSummaryFanOut(knowledgeId);
+                    }
+                    if (promoteFinalizingForWiki(knowledgeId)) {
+                        enqueueWikiIngest(knowledgeId, k);
+                    }
+                    // promote 失败 = 行已被 cancel/delete 抢走 → 跳过富化（对照 Go
+                    // default 分支的 else：不得覆盖状态、不得标 completed）
+                    endStageSpan(postSpan, null);
+                    // root 收口：wiki 交由 finalizing 计数兜底，但 post-process 这个
+                    // attempt 已完成（对照 Go PostProcess → FinalizeAttempt L751-818）
+                    // ——不收口会让 trace 的「知识处理」永远显示计时中。
+                    if (attempt > 0) {
+                        spanTracker.finalizeAttempt(knowledgeId, attempt,
+                                KnowledgeProcessingSpan.STATUS_DONE, null, "", "");
+                    }
+                } else {
+                    failOrComplete(knowledgeId, attempt, null);
+                }
             } catch (Exception inner) {
                 // 对照 Go L629-639：失败时清本次 chunks + 向量行（向量化未启用时只清 chunks）
                 chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
@@ -314,6 +374,121 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         return cfg;
     }
 
+    /** KB 是否配置了摘要模型（对照 Go 的 hasSummaryModel 判定）。 */
+    private static boolean hasSummaryModel(KnowledgeBase kb) {
+        return kb != null && kb.getSummaryModelId() != null && !kb.getSummaryModelId().isEmpty();
+    }
+
+    /**
+     * 摘要 fan-out（对照 Go knowledge_post_process.go L208 的
+     * {@code willSpawnSummary = len(textChunks) > 0} → L562 入队摘要任务）：
+     * 仅当有文本 chunk 时派发。条件化派发的背景见 {@code failOrComplete} 注释
+     * （Java 进程内 worker 会真实处理，无条件派发会污染契约测试的 HTTP 快照）。
+     */
+    private void spawnSummaryFanOut(String knowledgeId) {
+        long textChunkCount = chunkMapper.selectCount(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
+                        .eq(Chunk::getKnowledgeId, knowledgeId)
+                        .eq(Chunk::getChunkType, "text"));
+        if (textChunkCount <= 0) {
+            return;
+        }
+        try {
+            knowledgeService.requestPostProcessSummaryGeneration(knowledgeId);
+        } catch (RuntimeException e) {
+            log.warn("Post-process summary fan-out failed for knowledge {}: {}",
+                    knowledgeId, e.toString());
+        }
+    }
+
+    /**
+     * 对照 Go {@code finalizeIndexedKnowledgeState} 的无条件部分
+     * （knowledge_process.go L236-239）：索引完成 → {@code enable_status=enabled}
+     * + {@code processed_at}。{@code storage_size} 的 Java 侧计算未接线，保持既有形态。
+     */
+    private void markIndexedEnabled(String knowledgeId) {
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", knowledgeId)
+                .set("enable_status", "enabled")
+                .set("processed_at", OffsetDateTime.now(ZoneOffset.UTC))
+                .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
+    }
+
+    /**
+     * 对照 Go {@code SetFinalizing} / {@code SeedKnowledgeFinalizingWithPendingOp} 的
+     * 状态翻转部分：一次条件更新把 {@code processing} 原子翻到 {@code finalizing}，
+     * 并置 {@code pending_subtasks_count=1}（wiki 子任务占用的那个槽）。
+     *
+     * <p>返回 false = 行已不在 processing（cancel/delete 抢走）——调用方必须跳过
+     * 富化且不得覆盖状态（对照 Go default 分支的 else 注释）。</p>
+     */
+    private boolean promoteFinalizingForWiki(String knowledgeId) {
+        int promoted = knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", knowledgeId)
+                .eq("parse_status", Knowledge.PARSE_PROCESSING)
+                .set("parse_status", Knowledge.PARSE_FINALIZING)
+                .set("pending_subtasks_count", 1)
+                .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
+        if (promoted > 0) {
+            log.info("[KnowledgePostProcess] Knowledge {} entered finalizing (wiki subtask pending)",
+                    knowledgeId);
+        }
+        return promoted > 0;
+    }
+
+    /**
+     * 对照 Go L436-446：op 落库 + 防抖触发。op 未被接受（如 KB 已删）或入队异常时
+     * 释放 finalizing 槽（Go 由 shortfall 释放；这里复用 finalizer 的递减+晋升），
+     * 避免行搁浅在 finalizing。触发失败只记警告——op 已落库，不从重追加
+     * （对照 Go「触发错误可与 accepted=true 同时返回」的注释）。
+     */
+    private void enqueueWikiIngest(String knowledgeId, Knowledge k) {
+        com.ragagent.wiki.service.WikiIngestService service = wikiIngestService.getIfAvailable();
+        if (service == null) {
+            log.warn("[KnowledgePostProcess] Wiki ingest service unavailable, releasing slot for {}",
+                    knowledgeId);
+            releaseWikiSlot(knowledgeId);
+            return;
+        }
+        try {
+            com.ragagent.wiki.service.WikiIngestService.EnqueueResult result = service
+                    .enqueueWikiIngest(k.getTenantId(), k.getKnowledgeBaseId(), knowledgeId);
+            if (result.accepted()) {
+                log.info("[KnowledgePostProcess] Enqueued wiki ingest task for {}", knowledgeId);
+                if (result.error() != null) {
+                    log.warn("[KnowledgePostProcess] Wiki trigger enqueue failed for {}: {}",
+                            knowledgeId, result.error().toString());
+                }
+            } else {
+                log.warn("[KnowledgePostProcess] Wiki pending op not accepted for {}: {}",
+                        knowledgeId, result.error() == null ? "" : result.error().toString());
+                releaseWikiSlot(knowledgeId);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[KnowledgePostProcess] Wiki ingest enqueue failed for {}: {}",
+                    knowledgeId, e.toString());
+            releaseWikiSlot(knowledgeId);
+        }
+    }
+
+    /**
+     * 释放 wiki 槽（finalizer 的"递减+晋升"两步写，对照 Go 的 shortfall 释放）。
+     * finalizer 缺席时静默——行由 finalizing housekeeping sweep 兜底。
+     */
+    private void releaseWikiSlot(String knowledgeId) {
+        com.ragagent.wiki.service.WikiKnowledgeFinalizer finalizer =
+                wikiKnowledgeFinalizer.getIfAvailable();
+        if (finalizer == null) {
+            return;
+        }
+        try {
+            finalizer.finalizeWikiSubtask(knowledgeId);
+        } catch (RuntimeException e) {
+            log.warn("[KnowledgePostProcess] Release wiki slot failed for {}: {}",
+                    knowledgeId, e.toString());
+        }
+    }
+
     private void failOrComplete(String knowledgeId, int attempt, String error) {
         if (error == null) {
             // postprocess 阶段埋点（对照 Go post_process.go L142 的 BeginStage(postprocess)：
@@ -330,31 +505,19 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             Knowledge row = knowledgeMapper.selectById(knowledgeId);
             KnowledgeBase rowKb = row == null ? null
                     : kbMapper.selectById(row.getKnowledgeBaseId());
-            boolean hasSummaryModel = rowKb != null && rowKb.getSummaryModelId() != null
-                    && !rowKb.getSummaryModelId().isEmpty();
-            long textChunkCount = chunkMapper.selectCount(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
-                            .eq(Chunk::getKnowledgeId, knowledgeId)
-                            .eq(Chunk::getChunkType, "text"));
+            boolean summaryModelConfigured = hasSummaryModel(rowKb);
             UpdateWrapper<Knowledge> completeUpdate = new UpdateWrapper<Knowledge>()
                     .eq("id", knowledgeId)
                     .set("parse_status", Knowledge.PARSE_COMPLETED)
                     .set("enable_status", "enabled")
                     .set("processed_at", OffsetDateTime.now(ZoneOffset.UTC))
                     .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC));
-            if (hasSummaryModel) {
+            if (summaryModelConfigured) {
                 completeUpdate.set("summary_status", "none");
             }
             knowledgeMapper.update(null, completeUpdate);
-            if (hasSummaryModel && textChunkCount > 0) {
-                // post-process 摘要 fan-out（对照 knowledge_post_process.go L208
-                // willSpawnSummary = len(textChunks) > 0 → L562 入队摘要任务）
-                try {
-                    knowledgeService.requestPostProcessSummaryGeneration(knowledgeId);
-                } catch (RuntimeException e) {
-                    log.warn("Post-process summary fan-out failed for knowledge {}: {}",
-                            knowledgeId, e.toString());
-                }
+            if (summaryModelConfigured) {
+                spawnSummaryFanOut(knowledgeId);
             }
             endStageSpan(postSpan, null);
             // 对照 Go 的 PostProcess → FinalizeAttempt（L751-818）：root 幂等收口 done

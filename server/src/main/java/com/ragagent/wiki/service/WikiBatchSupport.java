@@ -2,10 +2,13 @@ package com.ragagent.wiki.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.regex.Pattern;
 
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
+import com.ragagent.knowledge.service.SpanTracker;
 
 /**
  * 批次执行用到的零散工具：错误分类、正文清洗、有界并发扇出、span 门面。
@@ -259,33 +262,107 @@ public final class WikiBatchSupport {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * span 追踪的<b>空实现门面</b>（对照 Go 的 {@code s.tracker()} 调用面）。
+     * span 追踪门面（对照 Go 的 {@code s.tracker()} 调用面）。
      *
-     * <p>Java 侧未实现 span 追踪（约定文档 §9 阶段 4.0 已知差异 1：langfuse / tracing
-     * 未翻译）。Go 的每次 tracker 调用都容忍 nil span（{@code BeginSubSpan} 找不到父
-     * attempt 时返回 nil，后续 helper 在 nil 上是 no-op），因此恒返回 null +
-     * 全部方法 no-op 与"追踪未启用"完全等价。</p>
-     *
-     * <p>保留这些调用点是为了让 batch 的结构与 Go 逐行对应——将来接入追踪时，
-     * 只需替换本类的实现，调用点一行不用动。</p>
+     * <p>接入 {@link SpanTracker} 后，wiki 批次在父 attempt 的 postprocess 阶段下挂出
+     * {@code postprocess.wiki}（及其 {@code .extract}/{@code .summary}/{@code .classify}/
+     * {@code .page[slug]} 子 span），trace 视图因此可见逐文档的 wiki 处理。
+     * {@link #NOOP}（未注入追踪器）保留纯 no-op 语义——Go 同样容忍 nil span
+     * （{@code BeginSubSpan} 找不到父 attempt 时返回 nil，后续 helper 在 nil 上 no-op），
+     * 两者完全等价。</p>
      */
     public static final class WikiSpans {
 
-        /** 对照 Go 的"父 span 缺席"：所有 span 都是 null。 */
-        public static final WikiSpans NOOP = new WikiSpans();
+        /** 未接线追踪器时的 no-op 形态（对照 Go 的"父 span 缺席"）。 */
+        public static final WikiSpans NOOP = new WikiSpans(null);
 
-        /** 对照 Go {@code tracker().BeginSubSpan(...)}：未启用追踪时返回 null。 */
-        public Object beginSubSpan(Object parent, String name, Object input) {
-            return null;
+        private final SpanTracker tracker;
+
+        public WikiSpans(SpanTracker tracker) {
+            this.tracker = tracker;
+        }
+
+        /**
+         * 对照 Go {@code beginWikiSubspan}（wiki_ingest.go L443-466）：
+         * {@code LatestAttempt} → {@code LookupStage(postprocess)} 找父 span，
+         * 在其下开 {@code postprocess.wiki}。任一步缺失 → null（best-effort：
+         * 追踪绝不阻断业务，与 Go 的 tracker 返回 nil 同形）。
+         *
+         * <p>跨线程说明：wiki 批次跑在独立调度线程，没有引擎的 attempt 上下文；
+         * 这里用 knowledgeId 从 {@link SpanTracker} 反查（Go 也是从 payload 的
+         * knowledgeID 反查 tracker，不依赖调用线程的 ctx 携带 attempt）。</p>
+         */
+        public SpanTracker.SpanHandle beginWikiSubspan(String knowledgeId,
+                                                       Map<String, Object> input) {
+            if (tracker == null || knowledgeId == null || knowledgeId.isEmpty()) {
+                return null;
+            }
+            try {
+                int attempt = tracker.latestAttempt(knowledgeId);
+                if (attempt <= 0) {
+                    return null;
+                }
+                SpanTracker.SpanHandle parent = tracker.lookupStage(knowledgeId, attempt,
+                        KnowledgeProcessingSpan.STAGE_POST_PROCESS);
+                if (parent == null) {
+                    return null;
+                }
+                return tracker.beginSubSpan(parent, "postprocess.wiki",
+                        KnowledgeProcessingSpan.KIND_SUB_SPAN, input);
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+
+        /** 对照 Go {@code tracker().BeginSubSpan(...)}：父缺席 → null。 */
+        public SpanTracker.SpanHandle beginSubSpan(SpanTracker.SpanHandle parent, String name,
+                                                   Map<String, Object> input) {
+            if (tracker == null || parent == null || name == null || name.isEmpty()) {
+                return null;
+            }
+            try {
+                return tracker.beginSubSpan(parent, name,
+                        KnowledgeProcessingSpan.KIND_SUB_SPAN, input);
+            } catch (RuntimeException e) {
+                return null;
+            }
         }
 
         /** 对照 Go {@code tracker().EndSpan(ctx, span, output)} */
-        public void endSpan(Object span, Object output) { }
+        public void endSpan(SpanTracker.SpanHandle span, Map<String, Object> output) {
+            if (tracker == null || span == null) {
+                return;
+            }
+            try {
+                tracker.endSpan(span, output);
+            } catch (RuntimeException e) {
+                // best-effort：追踪失败不阻断批次
+            }
+        }
 
         /** 对照 Go {@code tracker().FailSpan(ctx, span, code, message, err)} */
-        public void failSpan(Object span, String code, String message, Throwable err) { }
+        public void failSpan(SpanTracker.SpanHandle span, String code, String message,
+                             Throwable err) {
+            if (tracker == null || span == null) {
+                return;
+            }
+            try {
+                tracker.failSpan(span, code, message, err);
+            } catch (RuntimeException e) {
+                // best-effort
+            }
+        }
 
         /** 对照 Go {@code tracker().SkipSpan(ctx, span, reason)} */
-        public void skipSpan(Object span, String reason) { }
+        public void skipSpan(SpanTracker.SpanHandle span, String reason) {
+            if (tracker == null || span == null) {
+                return;
+            }
+            try {
+                tracker.skipSpan(span, reason);
+            } catch (RuntimeException e) {
+                // best-effort
+            }
+        }
     }
 }

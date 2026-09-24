@@ -320,6 +320,16 @@ public class WikiPageServiceImpl implements WikiPageService {
         return page;
     }
 
+    /** 对照 Go 调用侧 {@code if err != nil || page == nil} 的 null 形态（见接口注释）。 */
+    @Override
+    public WikiPage findPageBySlug(String kbId, String slug) {
+        try {
+            return getPageBySlug(kbId, slug);
+        } catch (com.ragagent.wiki.domain.WikiPageNotFoundException e) {
+            return null;
+        }
+    }
+
     /** 对照 Go {@code GetPageByID}（L355-362） */
     @Override
     public WikiPage getPageByID(String id) {
