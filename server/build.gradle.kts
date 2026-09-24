@@ -111,6 +111,10 @@ protobuf {
 }
 sourceSets["main"].proto {
     srcDir("../docreader")
+    // OTLP/OTel proto（langfuse OTLP/HTTP 导出用）：源头 vendored 到仓库根 otlp-proto/，
+    // 取自 open-telemetry/opentelemetry-proto v1.10.0 的 common/resource/trace 三文件，
+    // 一字未改（java_package 保持官方 io.opentelemetry.proto.*——fat jar 内无同名依赖）。
+    srcDir("$rootDir/otlp-proto")
 }
 
 // Flyway 要求 V<version>__<desc>.sql 命名；Go 迁移是 000097_xxx.up.sql。

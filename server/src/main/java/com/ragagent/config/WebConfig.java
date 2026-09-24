@@ -726,6 +726,13 @@ public class WebConfig implements WebMvcConfigurer {
         // knowledge-search 六个前缀的 addRule 早已存在（chunks 读组、faq/import/progress、
         // chat 三入口），但拦截器此前不覆盖这些前缀 → 规则空转。im 的 engine 级回调
         // 路由（/api/v1/im/callback/**）刻意不在清单：Go 注册在 Auth 之前、无 RBAC。
+
+        // C 批：langfuse 请求级 trace（对照 Go router.go L202 的 r.Use(langfuse.GinMiddleware())；
+        // 链序 Auth → langfuse → Audit）。order=10 排在门禁之后：被 RBAC/API-Key 拒绝的
+        // 请求不产生 trace（对照 Go 的中间件链——langfuse 在 Auth 的下游）。
+        registry.addInterceptor(new com.ragagent.tracing.langfuse.LangfuseHttpInterceptor())
+                .addPathPatterns("/api/v1/**")
+                .order(10);
     }
 
     /**

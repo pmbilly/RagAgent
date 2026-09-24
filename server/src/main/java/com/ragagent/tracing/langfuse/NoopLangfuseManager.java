@@ -10,7 +10,7 @@ final class NoopLangfuseManager implements LangfuseManager {
 
     static final NoopLangfuseManager INSTANCE = new NoopLangfuseManager();
 
-    private static final Span NOOP_SPAN = new Span() {
+    static final Span NOOP_SPAN = new Span() {
         @Override
         public String getId() {
             return "";
@@ -18,6 +18,35 @@ final class NoopLangfuseManager implements LangfuseManager {
 
         @Override
         public void finish(Object output, Map<String, Object> metadata, String err) {
+            // no-op
+        }
+    };
+
+    static final Trace NOOP_TRACE = new Trace() {
+        @Override
+        public String getId() {
+            return "";
+        }
+
+        @Override
+        public void finish(Object output, Map<String, Object> metadata) {
+            // no-op
+        }
+    };
+
+    static final Generation NOOP_GENERATION = new Generation() {
+        @Override
+        public String getId() {
+            return "";
+        }
+
+        @Override
+        public void finish(Object output, TokenUsage usage, String err) {
+            // no-op
+        }
+
+        @Override
+        public void markCompletionStart() {
             // no-op
         }
     };
@@ -31,7 +60,27 @@ final class NoopLangfuseManager implements LangfuseManager {
     }
 
     @Override
+    public Trace startTrace(TraceOptions options) {
+        return NOOP_TRACE;
+    }
+
+    @Override
+    public Trace resumeTrace(String traceIdHex, String parentSpanIdHex) {
+        return null;
+    }
+
+    @Override
     public Span startSpan(SpanOptions options) {
         return NOOP_SPAN;
+    }
+
+    @Override
+    public Span startChildSpan(SpanOptions options) {
+        return NOOP_SPAN;
+    }
+
+    @Override
+    public Generation startGeneration(GenerationOptions options) {
+        return NOOP_GENERATION;
     }
 }
