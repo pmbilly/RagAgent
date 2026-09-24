@@ -1,6 +1,6 @@
 # 交接文档（新会话接手用）
 
-## 0.-15 W5γ3 进行中：IM 九渠道出站客户端（2026-09-24 起，逐支落地）
+## 0.-15 W5γ3 已收官 ✅：IM 九渠道出站客户端（2026-09-24~25，十二笔提交）
 
 **背景**：`com.ragagent.im.runtime` 已翻入站核心（验签/解析/加解密/格式化/流分片），但九支
 渠道适配器（Go `internal/im/{telegram,qqbot,slack,mattermost,wecom,wechat,feishu,dingtalk,
@@ -882,6 +882,42 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 
 ## 2. 进度总览
 
+### 2.0 波次总表与已知剩余（原 `docs/translation-progress.md`，2026-09-25 并入）
+
+> 详细台账：本文件（进度与交接）、`docs/translation-conventions.md`（§8 翻译日志 / §9 已知细节与坑）、
+> `docs/known-issues/`（按批次分片的坑）。本小节只是快速索引，**细节以上述文档为准**。
+
+| 维度 | 状态（2026-09-22 阶段 7 终核） |
+|---|---|
+| HTTP 路由对账（route-recon） | 交集 387，**功能性缺口清零**（swagger 非翻译目标；models/{id}/debug 已收官） |
+| golden 契约测试 | 1,719+24 全绿（全部录自 Go 实行为准；md-* 24 条为阶段 7 新增） |
+| 全量测试 | 五批分批绿（B4 的 TenantSkillPythonVerifierTest 为本机 pip 环境性失败，干净树同挂，见 known-issues/07） |
+| 双端 A/B | 九族 GET + 写路径 + HybridSearch 两场景 + models/{id}/debug 24 场景逐字节 MATCH |
+
+| 波 | 内容 | 状态 |
+|---|---|---|
+| 0 | memory / datasource | ✅ |
+| 1 | 会话/消息面（CRUD/附件/产物/追问/steer） | ✅ |
+| 2 | chunk / knowledge / faq / infra-config / members / system / 扫尾 | ✅ |
+| 3 | sandbox / 协作 / agents / browserskill | ✅ |
+| 4 | agent 核心 + tools + chat_pipeline + 前置缺口（4.1–4.6d） | ✅ |
+| 5 | 共享 agent 收口（W5α）/ tenant_skill verify（W5β）/ im 执行体（W5γ：γ1 地基 + γ2 service + **γ3 九渠道全落地**）/ provider 终端（W5δ）/ 检索引擎批 | ✅ **W5γ 于 2026-09-25 收官**（九渠道全模式，含 feishu pbbp2 与 dingtalk Stream 自持实现；见 §0.-15）；W5δ 见下 |
+| 7 | models/{id}/debug 模型调试端点（五类运行时工厂 + 24 golden + 双端 A/B） | ✅ |
+| A4/C | 未接线项收口 + langfuse OTLP 追踪全链（渲染/导出/批处理 + 30 处注入 + 8 处显式 span + 端到端验收） | ✅ |
+| D | Neo4j 图库面（三方法 Cypher 照抄 + chunk:extract 写入链）+ 共享 agent 收口 | ✅ |
+| A3 | 存储 provider 层（local + s3/minio/obs/ks3 + oss/cos/tos 原生 SDK + 窄口接线 + 知识/skill/FAQ 改道） | ✅ |
+
+**已知剩余（外部 provider 传输层，接缝与验收口径已备案）**：
+
+- ~~IM 九渠道出站客户端~~ ✅ 2026-09-25 W5γ3 收官（九渠道全模式落地：telegram/slack/qqbot/wecom/feishu+lark/dingtalk/wechat/mattermost/yunzhijia；见 §0.-15）
+- ~~存储 provider 的云 SDK 层~~ ✅ 2026-09-24 A3 落地（local + s3/minio/obs/ks3 + oss/cos/tos；见 known-issues/08）
+- ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
+- cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
+- tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
+- 外部向量店 driver（elasticsearch/milvus/qdrant/…；postgres 引擎已完整）
+- ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
+- VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
+
 ### 2.1 已完成的模块
 
 | 阶段 | 模块 | 状态 | 关键验证 |
@@ -984,10 +1020,10 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    会话标题、摘要 fan-out、span 写入侧均已落地；剩余真缺口仅
    ~~EvaluationService 执行步——Owner 决策暂缓~~ ✅ 2026-09-24 `87a82fc` 执行体补全
    （当日 Owner 恢复该批；jieba 分词以 `MetricSegmenter` 接缝降级实现，真实分词库仍待接入）；
-   波 5 剩余（im 执行体 3,453 行 = W5γ1/γ2/γ3 + W5δ provider 终端执行体；
-   tenant_skill verify/progress 已由 W5β 收官，install 管线体属 provider-XDEP 族）、
-   检索引擎批（HybridSearch 执行面）、执行体批（ArtifactCollector/VLM Predict 生产装配）、
-   ⑱ initialize 契约对齐（Owner 决策）
+   ~~im 执行体（W5γ1/γ2/γ3）~~ ✅ **2026-09-25 收官**（九渠道全模式，见 §0.-15 与 §2.0）；
+   仍剩 **W5δ provider 终端执行体**（cube/e2b PTY SDK 流等——卡在需真实 provider/沙箱，
+   与 install 管线体、ArtifactCollector 文件源、VLM 界面同属 XDEP 族，见 §2.0「已知剩余」）、
+   检索引擎批（HybridSearch 执行面）、⑱ initialize 契约对齐（Owner 决策）
 
 ### 3.0 波 2 扫尾清单（✅ 全部完成，留档备查）
 
@@ -1003,7 +1039,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 | ~~chunker 预览（1）~~ | ✅ **已完成（2026-09-19）**：POST /chunker/preview，12 cprev-* golden（响应全确定零掩码）+ 2 契约测试 + A/B 两轮 ALL MATCH。chunker 补诊断层（SplitWithDiagnostics/splitParentChildWithDiagnostics），核心切分零改动 | — |
 
 **明确推迟（有依赖，别现在做）**：/me/browser + /local-browser（波 3 browserskill）、
-/me/env-vars/{skill,sandbox}（波 3/5）、/wechat/qrcode ×2（波 5 im）、
+/me/env-vars/{skill,sandbox}（波 3/5）、~~/wechat/qrcode ×2~~ ✅ 2026-09-25 `dd996bd` 落地、
 knowledge-chat/agent-chat/knowledge-search（波 4）、models/{id}/debug（阶段 7）、
 /system/sandbox-check（波 3，Java 已 404 占位）。
 

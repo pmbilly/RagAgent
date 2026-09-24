@@ -155,10 +155,8 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 │   ├── site/                        文档门户（index.html；含 api/ 与架构图）
 │   │   └── architecture.html        系统架构交互图（Archify 生成；源=architecture.json）
 │   ├── translation-conventions.md   翻译约定（§3 GORM 语义 / §7.5 约束 / §8 日志 / §9 索引）
-│   ├── known-issues/                按批次分片的契约细节与坑（00 ~ 07）
-│   ├── HANDOFF.md                   交接文档（进度基线，新会话必读 §0.x）
-│   ├── translation-progress.md      模块进度
-│   └── W5-plan.md / W5d-plan.md     批次作战计划（存档）
+│   ├── known-issues/                按批次分片的契约细节与坑（00 ~ 08）
+│   └── HANDOFF.md                   交接文档（进度基线 + 波次总表/已知剩余，新会话必读 §0.x/§2.0）
 └── gradle/                     wrapper
 ```
 
@@ -179,10 +177,9 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 
 | 文档 | 内容 |
 |---|---|
-| [`docs/HANDOFF.md`](docs/HANDOFF.md) | **新会话从这里开始**：进度基线（§0.x 倒序批次志）、验收流程、协作方式 |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md) | **新会话从这里开始**：进度基线（§0.x 倒序批次志）+ §2.0 波次总表与已知剩余、验收流程、协作方式 |
 | [`docs/translation-conventions.md`](docs/translation-conventions.md) | 翻译约定正文（GORM 隐式行为、错误/响应格式、十条强制约束、翻译日志） |
-| [`docs/known-issues/`](docs/known-issues/) | 按批次分片的契约细节与踩坑（00-foundation ~ 07-model-debug） |
-| [`docs/translation-progress.md`](docs/translation-progress.md) | 模块进度表 |
+| [`docs/known-issues/`](docs/known-issues/) | 按批次分片的契约细节与踩坑（00-foundation ~ 08-storage-a3） |
 
 ## 翻译状态与已知边界
 
