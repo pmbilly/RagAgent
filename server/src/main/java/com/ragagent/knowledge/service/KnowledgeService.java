@@ -262,6 +262,102 @@ public class KnowledgeService {
         return k;
     }
 
+    /**
+     * 对照 CreateKnowledgeFromPassageSync（knowledge_create.go L719-724 入口 +
+     * createKnowledgeFromPassageInternal 的 syncMode 分支 + processDocumentFromPassage，
+     * knowledge_process.go L155-186）：段落<b>直接成 chunk</b>（不经 docreader/chunker），
+     * 同步建索引后立即可检索。评估链路（EvalDataset 的临时 "evaluation" KB）专用。
+     *
+     * <p>照抄语义：type="passage"、title 零值 ""、channel 空 → "web"；逐段 ValidateInput
+     * （失败 → 400 "段落 N 包含非法内容"）；ChunkIndex=<b>原段落索引</b>（Go Seq=i，
+     * 空段跳过后索引不回填）、Start/End 按字符数累计（len([]rune) 语义）；终态
+     * enable_status=enabled + processed_at + updated_at，parse_status 有文本 chunk 时
+     * 保持 processing（对照 finalizeIndexedKnowledgeState：唯一晋升者是 post-process——
+     * 评估临时知识不入队 post-process，生命周期由 EvalDataset 的清理步收尾）。</p>
+     *
+     * <p><b>已知差异（备案）</b>：① Go sync 路径的 recordKBActivity 审计未接线
+     * （KnowledgeService 无 audit 依赖，文件/手工路径同形）；② 问题生成
+     * （QuestionGenerationConfig）与多模态未翻（与 worker 路径一致）；③ 向量/keyword
+     * 全关的 KB 走 updateChunkVector 的内部短路（照 Go 的 needsEmbedding 判定）。</p>
+     */
+    public Knowledge createFromPassageSync(String kbId, List<String> passages, String channel) {
+        KnowledgeBase kb = requireKb(kbId);
+
+        List<String> safePassages = new ArrayList<>(passages.size());
+        for (int i = 0; i < passages.size(); i++) {
+            String p = passages.get(i) == null ? "" : passages.get(i);
+            String safe = InputSanitizer.validateInput(p);
+            if (safe == null) {
+                throw new BizException(AppError.validation("段落 " + (i + 1) + " 包含非法内容"));
+            }
+            safePassages.add(safe);
+        }
+
+        Knowledge k = newKnowledge(kb, "passage", "", channel);
+        knowledgeMapper.insert(k);
+
+        // 对照 processDocumentFromPassage 首步：先原子翻 processing 再处理
+        k.setParseStatus(Knowledge.PARSE_PROCESSING);
+        k.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        knowledgeMapper.updateById(k);
+
+        processPassagesSync(kb, k, safePassages);
+        return k;
+    }
+
+    /**
+     * 段落同步处理体（对照 processDocumentFromPassage → processChunks 的段落路径）：
+     * 段落 1:1 成 chunk（空段跳过）→ 落库（前后链）→ 向量化 → 终态落库。
+     */
+    private void processPassagesSync(KnowledgeBase kb, Knowledge k, List<String> passages) {
+        List<Chunk> chunks = new ArrayList<>(passages.size());
+        int start = 0;
+        int end = 0;
+        String prevId = null;
+        for (int i = 0; i < passages.size(); i++) {
+            String p = passages.get(i);
+            if (p.isEmpty()) {
+                continue;
+            }
+            end += p.codePointCount(0, p.length());
+            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+            Chunk c = new Chunk();
+            c.setId(UUID.randomUUID().toString());
+            c.setCreatedAt(now);
+            c.setUpdatedAt(now);
+            c.setTenantId(k.getTenantId());
+            c.setKnowledgeId(k.getId());
+            c.setKnowledgeBaseId(k.getKnowledgeBaseId());
+            c.setContent(p);
+            c.setSourceContent(p);
+            c.setChunkIndex(i); // 对照 Go ChunkIndex = int(chunkData.Seq)（原段落索引）
+            c.setStartAt(start);
+            c.setEndAt(end);
+            c.setChunkType("text");
+            c.setIsEnabled(true); // 对照 Go 的 IsEnabled: true（实体默认亦为 true）
+            c.setPreChunkId(prevId);
+            chunks.add(c);
+            prevId = c.getId();
+            start = end;
+        }
+        for (int i = 0; i < chunks.size(); i++) {
+            if (i + 1 < chunks.size()) {
+                chunks.get(i).setNextChunkId(chunks.get(i + 1).getId());
+            }
+            chunkMapper.insert(chunks.get(i));
+        }
+        if (!chunks.isEmpty()) {
+            chunkVectorIndexer.updateChunkVector(kb.getId(), chunks);
+        }
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        k.setParseStatus(chunks.isEmpty() ? Knowledge.PARSE_COMPLETED : Knowledge.PARSE_PROCESSING);
+        k.setEnableStatus("enabled");
+        k.setProcessedAt(now);
+        k.setUpdatedAt(now);
+        knowledgeMapper.updateById(k);
+    }
+
     private Knowledge newKnowledge(KnowledgeBase kb, String type, String title, String channel) {
         Knowledge k = new Knowledge();
         k.setId(UUID.randomUUID().toString());

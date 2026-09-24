@@ -34,11 +34,11 @@ import org.springframework.test.web.servlet.MvcResult;
  * 评估契约测试（对照 Go routes_infra.go L81-89 的 POST/GET /evaluation）。
  * golden：record-system-golden.sh 的 ev-*（Go dev 实录）。
  *
- * <p><b>部署能力差异（不做 golden 字节比对的条目，报告注明）</b>：Go dev 的后台执行
- * 能真的跑完流水线（终态 status=2 + metrics，见 ev-get.json）；Java 执行步降级为
- * failed（EvaluationService 类注释）→ 终态按 Java 语义断言。创建响应（ev-post）的
- * task+params 形态两侧一致（掩码 task id / start_time 后字节比对——params 里的
- * prompt 常量按 dev 配置固化在 EvaluationPromptDefaults）。</p>
+ * <p><b>执行步（2026-09-24 A4 接线后）</b>：后台真实跑 EvalDataset——本 fixture 的源 KB
+ * 无 embedding 模型，段落同步建索引在 ChunkVectorIndexer 处以 Go 原文
+ * "model ID cannot be empty" 失败（部署有模型时才会跑到 metrics 产出，见 ev-get.json
+ * 的 Go dev 终态）。创建响应（ev-post）的 task+params 形态两侧一致（掩码 task id /
+ * start_time 后字节比对——params 里的 prompt 常量按 dev 配置固化在 EvaluationPromptDefaults）。</p>
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -179,9 +179,9 @@ class EvaluationContractTest {
         assertEquals(0, node.path("data").path("task").path("status").asInt());
     }
 
-    /** 终态：Java 降级为 failed + err_msg（Go dev 真执行到 success——部署能力差异）。 */
+    /** 终态：真实执行（无 embedding 模型 → failed，err_msg = Go 原文）。 */
     @Test
-    void getTerminalIsDegradedFailure() throws Exception {
+    void getTerminalRunsExecution() throws Exception {
         MvcResult created = mockMvc.perform(json(post("/api/v1/evaluation"), owner,
                 "{\"knowledge_base_id\":\"" + KB_ID + "\",\"chat_id\":\"fake-chat-model-id\"}"))
                 .andReturn();
@@ -194,16 +194,13 @@ class EvaluationContractTest {
                 .header("Authorization", viewer)).andReturn();
         assertEquals(200, viewerGet.getResponse().getStatus(), raw(viewerGet));
 
-        // 轮询到终态（降级 failed），params/task 契约形态保持
+        // 轮询到终态（真实执行：段落建索引因无模型失败），params/task 契约形态保持
         MvcResult r = mockMvc.perform(get("/api/v1/evaluation?task_id=" + taskId)
                 .header("Authorization", owner)).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         JsonNode node = MAPPER.readTree(raw(r));
         JsonNode task = node.path("data").path("task");
-        assertThat(task.path("status").asInt()).isIn(1, 3);
-        // 终态 err_msg = 降级文案；params 与创建响应逐字节一致
-        String body = raw(r);
-        for (int i = 0; i < 50 && task.path("status").asInt() == 1; i++) {
+        for (int i = 0; i < 250 && task.path("status").asInt() <= 1; i++) {
             Thread.sleep(20);
             r = mockMvc.perform(get("/api/v1/evaluation?task_id=" + taskId)
                     .header("Authorization", owner)).andReturn();
@@ -211,11 +208,12 @@ class EvaluationContractTest {
             task = node.path("data").path("task");
         }
         assertEquals(3, task.path("status").asInt(), raw(r));
-        assertEquals("evaluation execution is not available in this deployment",
-                task.path("err_msg").asText());
+        // 失败点在 ChunkVectorIndexer.updateChunkVector（KB 无 embedding 模型），
+        // err_msg = AppError 原文（对照 Go err.Error() 语义）
+        assertEquals("model ID cannot be empty", task.path("err_msg").asText());
         JsonNode createdNode = MAPPER.readTree(raw(created));
         assertEquals(createdNode.path("data").path("params"), node.path("data").path("params"));
-        // metric 恒缺省（执行步降级）
+        // 失败早于指标记录 → metric 缺省
         assertThat(node.path("data").has("metric")).isFalse();
     }
 

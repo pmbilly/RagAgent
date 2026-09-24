@@ -16,8 +16,8 @@ import com.ragagent.common.web.GoTimeSerializer;
  *
  * <p>键序 = Go struct 字段声明序；double 字段挂 {@link GoDoubleSerializer}
  * （Go 专用编码器：整数值不带 .0，如 repeat_penalty=1、vector_threshold=0.2）。
- * <b>已知差异</b>：metric 字段（检索/生成指标）随 Go 的真实执行产出——Java 执行步
- * 降级（见 EvaluationService），metric 恒缺省。</p>
+ * metric 字段（检索/生成指标）由执行步（MetricHook + evaluation.metric 包）产出；
+ * 未产出前为 null → 与 Go 的 {@code *MetricResult} + omitempty 同形（整键省略）。</p>
  */
 public final class EvaluationDtos {
 
@@ -128,14 +128,57 @@ public final class EvaluationDtos {
     }
 
     /**
-     * 对照 types.EvaluationDetail：metric 指针 + omitempty → null（未产出）时整键省略。
-     * Java 的执行步降级（EvaluationService 类注释）意味着 metric 恒缺省。
+     * 对照 types.EvaluationDetail：metric 指针 + omitempty → null（未产出）时整键省略
+     * （执行步产出前恒 null；产出后为全字段的 MetricResult）。
      */
     @JsonPropertyOrder({"task", "params", "metric"})
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static final class EvaluationDetail {
         @JsonProperty("task") public EvaluationTask task;
         @JsonProperty("params") public PipelineParams params;
-        @JsonProperty("metric") public Object metric;
+        @JsonProperty("metric") public MetricResult metric;
+    }
+
+    /** 对照 types.MetricResult（无 omitempty → 全字段恒输出；嵌套序照 Go）。 */
+    @JsonPropertyOrder({"retrieval_metrics", "generation_metrics"})
+    public static final class MetricResult {
+        @JsonProperty("retrieval_metrics")
+        public RetrievalMetrics retrievalMetrics = new RetrievalMetrics();
+        @JsonProperty("generation_metrics")
+        public GenerationMetrics generationMetrics = new GenerationMetrics();
+    }
+
+    /** 对照 types.RetrievalMetrics（六项检索指标，键名含 ndcg3/ndcg10）。 */
+    @JsonPropertyOrder({"precision", "recall", "ndcg3", "ndcg10", "mrr", "map"})
+    public static final class RetrievalMetrics {
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("precision") public double precision;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("recall") public double recall;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("ndcg3") public double ndcg3;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("ndcg10") public double ndcg10;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("mrr") public double mrr;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("map") public double map;
+    }
+
+    /** 对照 types.GenerationMetrics（BLEU-1/2/4 + ROUGE-1/2/L；rougel 键名照 Go）。 */
+    @JsonPropertyOrder({"bleu1", "bleu2", "bleu4", "rouge1", "rouge2", "rougel"})
+    public static final class GenerationMetrics {
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("bleu1") public double bleu1;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("bleu2") public double bleu2;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("bleu4") public double bleu4;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("rouge1") public double rouge1;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("rouge2") public double rouge2;
+        @JsonSerialize(using = GoDoubleSerializer.class)
+        @JsonProperty("rougel") public double rougel;
     }
 }

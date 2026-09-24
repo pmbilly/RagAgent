@@ -74,8 +74,11 @@ public class ModelRuntimeFactory {
         log.info("Getting chat model: {}, source: {}", model.getName(), model.getSource());
         String[] creds = resolveWeKnoraCloudCredentials(model.getParameters());
         try {
-            return LlmChatClients.create(ChatConfig.fromModel(model, creds[0], creds[1]),
-                    ollamaService.getIfAvailable(), concurrencyGovernor);
+            // C 批：langfuse generation 装饰（对照 Go NewChat 末段的 wrapChatLangfuse；
+            // 管理器未启用时原样返回，零成本）
+            return com.ragagent.tracing.langfuse.LangfuseChatClient.wrap(
+                    LlmChatClients.create(ChatConfig.fromModel(model, creds[0], creds[1]),
+                            ollamaService.getIfAvailable(), concurrencyGovernor));
         } catch (BizException e) {
             throw new RuntimeException(e.appError().message());
         }
@@ -88,8 +91,11 @@ public class ModelRuntimeFactory {
         String[] creds = resolveWeKnoraCloudCredentials(model.getParameters());
         try {
             // Go 的 pooler 只服务 BatchEmbedWithPool；debug 只走单文本 Embed，传 null
-            return EmbedderFactory.newEmbedder(EmbedderConfig.configFromModel(model, creds[0], creds[1]),
-                    null, ollamaService.getIfAvailable(), concurrencyGovernor);
+            // C 批：langfuse generation 装饰（对照 Go NewEmbedder 末段的 wrapEmbedderLangfuse）
+            return com.ragagent.tracing.langfuse.LangfuseEmbedder.wrap(
+                    EmbedderFactory.newEmbedder(
+                            EmbedderConfig.configFromModel(model, creds[0], creds[1]),
+                            null, ollamaService.getIfAvailable(), concurrencyGovernor));
         } catch (BizException e) {
             throw new RuntimeException(e.appError().message());
         }
@@ -101,7 +107,10 @@ public class ModelRuntimeFactory {
         log.info("Getting rerank model: {}, source: {}", model.getName(), model.getSource());
         String[] creds = resolveWeKnoraCloudCredentials(model.getParameters());
         try {
-            return RerankerFactory.newReranker(RerankerConfig.configFromModel(model, creds[0], creds[1]));
+            // C 批：langfuse generation 装饰（对照 Go NewReranker 末段的 wrapRerankerLangfuse）
+            return com.ragagent.tracing.langfuse.LangfuseReranker.wrap(
+                    RerankerFactory.newReranker(
+                            RerankerConfig.configFromModel(model, creds[0], creds[1])));
         } catch (BizException e) {
             throw new RuntimeException(e.appError().message());
         }
