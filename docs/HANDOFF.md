@@ -10,13 +10,13 @@
 | 观察项 1「早错 SSE 不收流」 | ✅ **确认为真，且两侧同形**，但要分两类：**调用前**失败（模型被 SSRF 拦 / agent 的 chat 模型不存在 / smart 缺 rerank）⇒ `agent_query(done)`+`error(done)` **两帧后不收流**（curl 到点仍在等，rc=28）；**流内**早错（stub `early-error`/`early-close`）⇒ 3 帧后**立刻收流**（0.15s）。⇒ 客户端须按 `done` 或自身超时收流；若要对齐，是**两侧同步**的行为变更，不是单侧修 |
 | 观察项 2「`list_sandbox_files` 注册时机」 | ✅ **代码层与真机双侧确认**（W5γ5.11）：代码层"每用户回合一次、**首帧之前**注册 + 缺它 ⇔ `shell_exec` 在场"；真机（无 KB + smart + stub rerank 的 agent）：**首帧出站即带 tools 段**、双端名集逐一相同（本环境 1 个 `search_conversations`；沙箱族因**能力门** G2/G3 缺席，非时序），帧序列双端同形且正常收流（5 帧 rc=0） |
 | ~~新抓到差异（待修）~~ ✅ **已修 + 线上复验（W5γ5.11→W5γ5.12）** | **真凶是第二个**：终止帧由 `KnowledgeQaController` 的 catch 发出，它**有意**剥成 `appError().message()`（理由"Go 发内层错误不带前缀"被线上 A/B **推翻**：两种 stage Go 都带前缀）；剥离已删，统一 `BizException.wireText`。W5γ5.11 那两处（`AgentEngine` 工具失败取 `getMessage()` / `ToolRegistry` 兜底写死文案）属**另一路**（工具抛异常），一并按 Go 的 `err.Error()` 语义修好。:8082 重启到当前构建后**逐帧 4/4 一致** ✓ |
-| ⚠️ **新发现（待修，单列小批）** | **KB 检索失败时 Java 中止、Go 继续**：同一条 2200，Go 的帧序列是 `tool_call/tool_result(knowledge_search)` → **`answer`×2 → `complete`**（日志 `kb_search_failed` + `stage_failed` 后仍作答 ✓）；Java 同日志后抛 `PipelinePortException` → **整个回合中止** ✗（用户可见：KB 后端暂不可用时 Go 有答案、Java 报错）。属管道错误分级（`search_failed` 应可降级），改前须读准 Go 分级规则 |
+| ⚠️ **新发现（待修，前置=复现）** | **KB 检索失败时 Java 中止、Go 继续**——但 ⚠️ **非确定性**：两次观测（18:13/18:29，两个 Java 构建）Java 硬错中止 ✗，之后**同请求 6/6 两端一致（降级作答）** ✗；且**分级规则两侧实为等价**（Go `ErrSearch.WithError` / `ErrSearchNothing`↔`stage_fallback` 与 Java 同构）⇒ 初始假设被证伪，真触发器（"那次 KB 检索为何抛 2200"）**未钉住**。诊断配方见 `09-e2e-observations` §7.3：常驻栈探针等复发 → 抓引擎解析状态 → 再对齐。~~原判：Go 的帧序列是 `tool_call/tool_result(knowledge_search)` → **`answer`×2 → `complete`**（日志 `kb_search_failed` + `stage_failed` 后仍作答 ✓）；Java 同日志后抛 `PipelinePortException` → **整个回合中止** ✗（用户可见：KB 后端暂不可用时 Go 有答案、Java 报错）。属管道错误分级（`search_failed` 应可降级），改前须读准 Go 分级规则~~ |
 | 运维发现（对后续 E2E/A-B 关键） | `ssrf.whitelist` 是 **DB 侧设置**（管理员 API 可改），且**只被处理该写请求的进程热加载**——**两端要各 PUT 一次**（或起服带 `SSRF_WHITELIST_EXTRA=127.0.0.1`）；本次已追加 `127.0.0.1`（原值保留，可回退） |
 
 **产物**：`scripts/ab-e2e-observations.sh`（可复跑探针）+ `scripts/stub-llm-server.py` 的
 `early-error`/`early-close` 场景与 `STUB_RECORD_DIR` 录制开关（**加法**改动，默认行为不变）。
 
-**收尾（W5γ5.11 + W5γ5.12）**：差异已修（含回归）且**线上复验通过**（`:8082` 重启到当前构建，逐帧 4/4 一致；顺带发现第七节那条待修的行为差）；观察项 2 真机确认完成；**dev 夹具与设置已清理**（白名单两端回退、模型行/agent/测试会话已删、8182 已关；未动并发会话的 `19080/19082` 那对）；**全量五批 PASS 301s**。
+**收尾（W5γ5.11 + W5γ5.12）**：差异已修（含回归）且**线上复验通过**（`:8082` 重启到当前构建，逐帧 4/4 一致；顺带发现第七节那条**状态相关**的行为差（已复跑证伪"确定性"假设 ✗，前置是复现））；观察项 2 真机确认完成；**dev 夹具与设置已清理**（白名单两端回退、模型行/agent/测试会话已删、8182 已关；未动并发会话的 `19080/19082` 那对）；**全量五批 PASS 301s**。
 
 ---
 

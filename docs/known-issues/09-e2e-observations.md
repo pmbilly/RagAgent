@@ -111,19 +111,38 @@ STUB_RECORD_DIR=/tmp/w5obs-rec bash scripts/ab-e2e-observations.sh
 | 临时 stub 8182 | 已关；**8181 保持运行**（跑的是本批更新版脚本：两个早错场景 + 录制开关，默认行为不变） |
 | Java 实例 :8082 | ✅ **已重启三次**（首次换构建 + 两次部署修复；日志 `/tmp/ragagent-java-server-w5g511.log`、`-w5g512.log`）——线上复验通过（逐帧 4/4）；**未动**并发会话的那对 `19080/19082` |
 
-## 七、⚠️ 新发现（W5γ5.12，**待修**）：KB 检索失败时 Java 中止、Go 继续
+## 七、⚠️ 新发现（W5γ5.12→γ5.13，**待修**）：KB 检索失败时 Java 中止、Go 继续
 
-复验用同一条 2200 错误做双端 A/B，除了文案差（已修）还暴露一个**行为差**：
+### 7.1 现象（复现过两次，但**非确定性**）
 
-| 端 | `/knowledge-chat`（KB 无向量库 → 2200）帧序列 |
-|---|---|
-| **Go** | `agent_query` → `tool_call(query_understand)` → `tool_result` → `tool_call(knowledge_search)` → `tool_result` → **`answer`×2 → `complete`**（**继续回答** ✓） |
-| **Java** | `agent_query` → `tool_call(query_understand)` → `tool_result` → `tool_call(knowledge_search)` → **`error(done=false)` + `error(done=true)`**（**整个回合中止** ✗） |
+用同一条 2200 错误做双端 A/B 时，`/knowledge-chat`（KB = `shr-kb-alpha`，无向量库/无 embedding 模型）出现：
 
-Go 侧日志证明它是"**失败但降级**"：`[PIPELINE] stage=Search action=kb_search_failed error="error code: 2200…"`
-与 `stage=Pipeline action=stage_failed description="Failed to search knowledge base"` 之后仍给出答案 ✓；
-Java 侧同样日志之后**抛异常**（`KnowledgeQaController: QA service failed … PipelinePortException`）→ 回合终止 ✗。
+| 端 | `-w5g511`（18:13）与 `-w5g512`（18:29）两次观测 | 之后 6 次重复（同一实例配置） |
+|---|---|---|
+| **Go** | `tool_call/tool_result(knowledge_search)` → **`answer`（降级作答）→ `complete`** ✓ | 6/6 降级作答 ✓ |
+| **Java** | `tool_call(knowledge_search)` → **`error`×2（2200，回合中止）** ✗ | **6/6 降级作答** ✓（不再复现 ✗） |
 
-**影响（用户可见）**：KB 后端存储暂时不可用时，Go 仍能作答（检索为空），Java 直接报错。
-**处置**：**单列小批**——属管道错误分级（`search_failed` 应"可降级"而非"致命"）。改前须把 Go 的分级规则
-逐条读准（哪些 stage 失败致命/哪些继续、降级时事件与日志如何呈现）+ 补回归；本次**不动**。
+两侧日志在失败时刻都完整：`stage=Search action=kb_search_failed error="error code: 2200…"` →
+`stage=Pipeline action=stage_failed description="Failed to search knowledge base" error_type="search_failed"`；
+而成功时刻两侧都只到 `stage=Search action=output result_count=0` / `stage_fallback reason="search_nothing"`。
+⇒ **触发器是状态相关的，尚未钉住**（同一 DB、同一 KB、同一请求；两次失败的 Java 构建各不相同、之后又都不复现）。
+
+### 7.2 已钉准的规则（Go 的错误分级，**与 Java 实为等价**——初始假设被证伪 ✗）
+
+`internal/application/service/chat_pipeline/search.go:127-162`：
+- `kbSearchErr != nil && len(allResults) == 0` → `pipelineError("Search","kb_search_failed")` + **`return ErrSearch.WithError(kbSearchErr)`（硬错）**；
+- `kbSearchErr != nil`（有结果）→ `pipelineWarn("Search","kb_search_partial_failure")` + **继续**；
+- 0 结果 → `return ErrSearchNothing`。
+
+`search_parallel.go:115-130`：并行任务里 **`ErrSearchNothing` 被吞成 nil**（视作成功），硬错才上抛；
+`session_knowledge_qa.go:773-791`：`ErrSearchNothing` → `stage_fallback` + `handleFallbackResponse`（strategy=`model` 且 `FallbackPrompt` 空时退化为固定文案）→ **返回 nil** ✓；
+硬错 → `stage_failed` + `return err.Err` ✗ → `qa.go:1290-1310`：记日志 + `Emit(EventError)`（**不再中止**）。
+
+**Java 侧同构**（`PluginSearch:128-133/380-405`、`PluginSearchParallel:96-155`、`SessionKnowledgeQaService:383-393`、`KnowledgeQaController:799-816`）
+⇒ **分级规则两侧一致**，真正待钉的是"**为什么那两次 Java 的 KB 检索会抛 2200 而 Go 不会**"（同一 KB、同一时刻）。
+
+### 7.3 下一步（诊断配方，已备好未留痕）
+
+1. 在 `PluginSearch` 的三个 catch（`:112` / `:386` / `:402`）临时加 `e.printStackTrace()`，把实例挂上**常驻探针**等它复发，栈会直接给出抛出点；
+2. 同时抓失败时刻的 `storage/engine 解析状态`（`vector_stores` 行、租户有效引擎、`ResolveEmbeddingModelKeys` 的告警序列）；
+3. 钉住后再按"Go 的哪条分支"对齐实现 + 补回归（**预估：小批**，但**前置是复现**；不建议先改代码 ✗）。
