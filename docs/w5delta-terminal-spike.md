@@ -92,3 +92,42 @@ spike 之后同一批把**不依赖真机的那半**做完了（控制面留接�
 - **真机清单 1–7**（第四节）是唯一还需外部条件的部分：**一次带凭据的会话**（半小时级）即可收口；
   若第 1 项不符（E2B 只吃 protobuf），追加"最小 protobuf 编解码"子项（+~200 行，仍零依赖）。
 - **建议**：拿凭据跑清单 1–4 → 写 resolver → 接通控制器装配点 → 本族收口。
+
+---
+
+## 七、真机前的离线收口（2026-09-25，W5γ5.17）：清单↔桩覆盖 + 控制面规格
+
+### 7.1 清单 1–7：哪些**已被桩证明**、哪些真机才需量
+
+| # | 桩已覆盖（测试名在 §三/§五） | 真机仍要量的 |
+|---|---|---|
+| 1 | 本仓传输层说的是 `application/connect+json`（Cube envd 已明确吃 JSON）；一元体裸 JSON + 帧化流已被桩逐项断言 | **E2B 的 envd 是否也吃 JSON**（其 SDK 用 binary protobuf 客户端）——不符则 +~200 行最小 protobuf（仍零依赖） |
+| 2 | **URL 形态已定**：数据面一律 `49983-{id}.{domain}`（Go `sandbox.go:67-68` `CubeEnvdPort=49983`）；**头集合已定**：`X-Access-Token` + `Authorization: Basic base64("<user>:")`（仅当请求无 Authorization 时加，`envd_compat_transport.go:60-97`） | 网关前缀/逐条必需性（"先全带，再逐条去掉"）；Cube 经 proxy 时 Host 头即 `49983-{id}.{cube.app}`（`cube_mock_test.go:330`） |
+| 3 | **超时后的流结束形状**已被桩覆盖两态：end-stream 错误（→`endError()`）与"流结束但无 end 事件"（→错误事件） | `Connect-Timeout-Ms` 的**真实上限**；超时若"直接断连无帧"⇒ 读超时兜底并归类 TIMEOUT |
+| 4 | 中性层已有重连旋钮（`attachPid`） | 24h 是否被接受、网关 idle timeout；长空闲后键击是否仍通 |
+| 5 | Start→PID→data→end→exited 的事件序列与退出码解析已被桩钉住（含 `exit status N`/`signal N`→128+N） | 真机 Start 的完整帧序列（确认 PID 出现在首个含 PID 的事件，与桩一致） |
+| 6 | "重附失败回落 Create"已覆盖 | 对**已退出 shell** 的 `Connect(pid)` 行为（决定回落判据） |
+| 7 | TTL 刷新已实现：立即 + `ttl/3` 钳位、8s 超时（`cube_terminal.go:80` `sb.SetTimeout(ttl)`；`e2b_terminal.go:92` `SetTimeoutWithContext`） | 长会话中沙箱是否真被保活（不支持则落"终端保活=不做"备案） |
+
+⇒ **真机会话要量的其实只剩：①E2B 编解码、②网关头集合、③超时上限、④长空闲、⑥退出后重附**；
+事件序（⑤）与超时形状（③的后半）已由桩证明。
+
+### 7.2 控制面规格（写 resolver 前必须知道的，全部带 Go 出处）
+
+| 事实 | 出处 | 对 Java 的含义 |
+|---|---|---|
+| **traffic token 只在 create 响应里发一次**，connect/resume 都不重复："both persisting it and attaching it are WeKnora's job" | `e2b_remote_client.go:147-155`；Cube 同款注释 `cube_remote_client.go:125-135`（"only at create time and never repeats it on connect or resume, so the lifecycle has to persist it"） | **Java 的沙箱绑定记录必须持久化该 token**（create 时写、attach 时读）——这是当前 Java 侧**尚无的字段** ✗，是写 resolver 的前置项 |
+| 句柄能力面 `RemoteInboundTokenCarrier.TrafficAccessToken()` | `terminal.go:162-168`（`handleTrafficAccessToken`） | Java provider client 需暴露等价能力；**Docker 类后端故意不实现**（无入站凭据，"拿不到"≠"丢了"，`remote_fake_test.go:27-35`）⇒ resolver 需有 tokenless 分支 |
+| 数据面地址 = `49983-{id}.{domain}`；Cube 经 SDK proxy（`sb.GetHost(49983)`） | `sandbox.go:59-68`、`cube_remote_client.go:1178,1201`、`gateway_transport.go:12` | 已可写：E2B 直拼 `https://49983-{id}.{sandboxDomain}`；Cube 走 `cubeProxyUrl` + Host 头 |
+| TTL 刷新 = provider 自己的 `SetTimeout`（cube）/`SetTimeoutWithContext`（e2b） | `cube_terminal.go:80`、`e2b_terminal.go:92` | 对应 Java 的 `Endpoint.ttlRefresher` 回调，**不是**数据面调用 |
+
+### 7.3 真机会话执行手册（半小时级，拿凭据后照此跑）
+
+1. **造一个沙箱**（cube 或 e2b 任一侧即可先量通用项）：记录 create 响应里的 `TrafficAccessToken`；
+2. 数据面探针（清单 1/2）：对 `https://49983-{id}.{domain}` 发**一元** `Resize` 到不存在 PID，
+   用 `application/json` 裸体；全带 `X-Access-Token` + `Basic`，再逐条去掉看变化；
+3. 超时（清单 3）：`Connect-Timeout-Ms: 1000` 建 PTY，等 2s 看收到 end-stream 错误还是断连；
+4. 长空闲（清单 4）：建 PTY 空置 5–10 分钟再发键击；
+5. 重附（清单 6）：杀 shell 后 `Connect(pid)`；
+6. 把结果回填本文件 §四 的"若不符"列，然后写 resolver（Java 侧前置项见 §7.2）+ 接通
+   `SandboxTerminalController:301` 装配点，本族收口。
