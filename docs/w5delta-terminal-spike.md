@@ -116,7 +116,7 @@ spike 之后同一批把**不依赖真机的那半**做完了（控制面留接�
 
 | 事实 | 出处 | 对 Java 的含义 |
 |---|---|---|
-| **traffic token 只在 create 响应里发一次**，connect/resume 都不重复："both persisting it and attaching it are WeKnora's job" | `e2b_remote_client.go:147-155`；Cube 同款注释 `cube_remote_client.go:125-135`（"only at create time and never repeats it on connect or resume, so the lifecycle has to persist it"） | **Java 的沙箱绑定记录必须持久化该 token**（create 时写、attach 时读）——这是当前 Java 侧**尚无的字段** ✗，是写 resolver 的前置项 |
+| **traffic token 只在 create 响应里发一次**，connect/resume 都不重复："both persisting it and attaching it are WeKnora's job" | `e2b_remote_client.go:147-155`；Cube 同款注释 `cube_remote_client.go:125-135`（"only at create time and never repeats it on connect or resume, so the lifecycle has to persist it"） | ~~Java 的沙箱绑定记录必须持久化该 token~~ ✅ **已有**：`SessionSandboxBinding.trafficAccessToken`（`:64`）+ `SessionSandboxBindingStore.replaceTrafficTokenIfMatch`（`:261`）+ `SandboxSessionClient.inboundTokenOf(handle)`（`:241`）——**Java 侧不缺这一环**（初稿误记为"尚无字段" ✗，已纠正） |
 | 句柄能力面 `RemoteInboundTokenCarrier.TrafficAccessToken()` | `terminal.go:162-168`（`handleTrafficAccessToken`） | Java provider client 需暴露等价能力；**Docker 类后端故意不实现**（无入站凭据，"拿不到"≠"丢了"，`remote_fake_test.go:27-35`）⇒ resolver 需有 tokenless 分支 |
 | 数据面地址 = `49983-{id}.{domain}`；Cube 经 SDK proxy（`sb.GetHost(49983)`） | `sandbox.go:59-68`、`cube_remote_client.go:1178,1201`、`gateway_transport.go:12` | 已可写：E2B 直拼 `https://49983-{id}.{sandboxDomain}`；Cube 走 `cubeProxyUrl` + Host 头 |
 | TTL 刷新 = provider 自己的 `SetTimeout`（cube）/`SetTimeoutWithContext`（e2b） | `cube_terminal.go:80`、`e2b_terminal.go:92` | 对应 Java 的 `Endpoint.ttlRefresher` 回调，**不是**数据面调用 |
@@ -129,5 +129,25 @@ spike 之后同一批把**不依赖真机的那半**做完了（控制面留接�
 3. 超时（清单 3）：`Connect-Timeout-Ms: 1000` 建 PTY，等 2s 看收到 end-stream 错误还是断连；
 4. 长空闲（清单 4）：建 PTY 空置 5–10 分钟再发键击；
 5. 重附（清单 6）：杀 shell 后 `Connect(pid)`；
-6. 把结果回填本文件 §四 的"若不符"列，然后写 resolver（Java 侧前置项见 §7.2）+ 接通
+6. 把结果回填本文件 §四 的"若不符"列，然后写 resolver（Java 侧前置项见 §7.4）+ 接通
    `SandboxTerminalController:301` 装配点，本族收口。
+
+### 7.4 Java 侧写 resolver 的**两个真实前置项**（都不是 token 那条）
+
+摸查结论（2026-09-25，W5γ5.17）：
+
+1. **接缝签名与绑定存储不对口**：`EnvdTerminalManager.EndpointResolver.resolve(String sandboxId)` 只拿得到
+   sandboxId，而 Java 绑定存储的键是 `SessionSandboxBindingStore.SessionSandboxKey(tenantId, sessionId)`
+   （`get(key)` `:226`），**没有 by-sandboxId 查询** ✗。Go 的对应流是
+   `openCubePty(ctx, handle RemoteSandboxHandle, opts)` —— **传的是句柄**（自带 id/provider/token）。
+   ⇒ 建议把接缝改成"传**绑定**（或一个 `ResolveContext{binding, client, config}`）"，与 Go 传参形态一致；
+   不建议给存储加 by-id 索引（会引入第二处真源）。
+2. **TTL 刷新缺能力**：Java `SandboxSessionClient` 没有 `SetTimeout`/`SetTimeoutWithContext` 等价方法
+   （接口面只有 create/connect/get/list/delete/exec/文件；全 runtime 目录 grep 无 setTimeout ✗），
+   而 Go 的刷新正是调它（`cube_terminal.go:80`、`e2b_terminal.go:92`）⇒ 目前 `Endpoint.ttlRefresher`
+   只能留 null（管理器容忍 null ✓），"终端保活"记成**待接线**（清单 7 真机跑完再定）。
+
+**其余输入齐备**：域/代理（`EffectiveConfig.cubeSandboxDomain/cubeProxyUrl`、`SandboxIdentity`）、token（§7.2 表）、
+数据面地址形态（`49983-{id}.{domain}`）、头集合（`X-Access-Token` + `Basic user:`）、传输层
+（`EnvdConnectTransport`）与执行体（`EnvdTerminalSession/Manager`）均已在位。
+⇒ 估：resolver 本体 ~150 行 + 桩测 ~100 行（含接缝签名调整）；接通装配点另算小改。
