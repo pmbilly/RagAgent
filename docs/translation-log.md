@@ -191,6 +191,8 @@
 
 | install 真实 LLM E2E（W5γ4.12，2026-09-25） | 无新翻译源——驱动既有安装/执行链路（`sandbox_service` D2 管线 + `agent` 引擎 + `session` 执行面）跑真 docker + 真 LLM | 修复四处：`DockerHostSupport.contextHostFromMeta`（JSON 形状照 Go）／`AgentEngine.execute`（llmContext null 归一）／`SkillInstallPipelineImpl.chatModel`（governor+ollama 透传）+ `ConcurrencyChatClient`/`ConcurrencyEmbedder`（null governor fail-open，照 Go `l == nil`）／三处 `listSessionFiles` 调用方（null → 空集） | ✅ | **全链验证**：沙箱配置（host 留空自动探测）→ 技能上传 → 真实 LLM 安装（9 轮，快照 commit + 指针切换，status=ready）→ 对话执行（技能注入、`skill://` 读、`shell_exec` 跑技能、产出 `/workspace/output/e2e-report.txt`）→ 产物排水（`resource://` artifact + 消息挂载）；sha256 与宿主逐字节一致；五批验收 PASS（含 2 个新回归测试）。四处缺陷全市单测盲区（假对象不传 null）。明细与复跑要点见 §9 索引的 `06-wave-5.md` |
 
+| Weaviate 驱动（W5γ4.13，2026-09-25） | `repository/retriever/weaviate/` 全包 ~1,170 行非测试（repository 1064 + structs 33 + move 77）+ `container/engine_factory.go` createWeaviateEngine + `container.go L1280-1315`（env 路径）+ `vectorstore_healthcheck.go L225-273`（testWeaviateConnection） | `retrieval.engine.weaviate.{WeaviateRetrieveRepository, WeaviateRestClient, WeaviateGql, WeaviateVectorEmbedding}`（**REST 自持**：GraphQL 串按客户端 Build() 的 Go 实录逐字节复刻）+ `EngineFactory` weaviate 分支 + `RetrievalEngineWiringConfig.envWeaviate`（WEAVIATE_HOST/SCHEME/AUTH_ENABLED/API_KEY） | ✅ | **25 测试全绿**：`WeaviateGqlTest` 8（四条 Go 实录串逐字节）+ `WeaviateRetrieveRepositoryTest` 16（桩逐请求断言）+ **`WeaviateDriverLocalIT` 1（真实 Weaviate 1.28.4 全链：建类/写/向量查/关键词查/merge 更新后仍可检索/拷贝/move/删除）**；五批验收 PASS。**真服务端实测抓回四处**：gse 分词需服务端开关（Go 驱动的部署侧缺陷）、`after+where` 被拒（Go 的 copy 恒失败）+ 命名向量须 `vectors{embedding}`、无 merge 的 PUT 会清属性与向量（Go 的两处更新是数据丢失缺陷→本仓改 PATCH）、BM25 score 是字符串（Go 恒 0.0→本仓按意图 1.0）。明细与复跑命令见 §9 索引的 `06-wave-5.md` |
+
 ## 9. 坑索引（条目 → 分片对照）
 
 
@@ -295,3 +297,4 @@
 | Doris 检索引擎（2026-09-25 W5γ4.10：SQL 走执行口缝而非直连 JDBC / DDL 里的双制表符是 Go 原文形状 / "Publish Timeout" 是成功 / 同主机或白名单才转发凭据 / 空 embedding 的判定键是 SourceID / 兼容模式探测三步序 / env-path 无探针） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | Qdrant 驱动（2026-09-25 W5γ4.11：gRPC→REST 映射表与 wait 口径 / 集合前缀是纯字符串前缀 / nil 与空数组在两家店的估算语义相反 / payload 过 CleanInvalidUtf8 / 分词降级要补二次切分 / 点 ID 恒新 UUID） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | install 真实 LLM E2E（2026-09-25 W5γ4.12：Go 的 nil slice 在 Java 无对等物——契约点归一的落点原则 / 注入面漏传是第二类复发坑 / docker context 的 meta.json 形状 / 产物必须落 /workspace/output / agent 含 KB 工具必须配 rerank / 复跑五要点） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
+| Weaviate 驱动（2026-09-25 W5γ4.13：v5 客户端的"GraphQL/批删/批创回落"本就 REST / gse 需服务端开关 / after+where 被拒 / 命名向量取法与写入 / 无 merge 的 PUT 会清属性与向量 / BM25 score 是字符串 / 类名原文拼写 Weknora_） | [`06-wave-5.md`](known-issues/06-wave-5.md) |

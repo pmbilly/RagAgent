@@ -7,6 +7,7 @@ import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV7RetrieveReposi
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveRepository;
 import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
 import com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository;
+import com.ragagent.retrieval.engine.weaviate.WeaviateRetrieveRepository;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
 import com.ragagent.vectorstore.domain.VectorStore;
@@ -30,8 +31,11 @@ import com.ragagent.vectorstore.domain.VectorStore;
  *   <li>**qdrant**：照 {@code createQdrantEngine} 真落地——**REST 自持**（Go 是 gRPC
  *       客户端；本仓照 ES/OpenSearch 先例走 HTTP/JSON：host/port（缺省 6334）/api_key/
  *       use_tls）</li>
- *   <li>**milvus/weaviate/tencent_vectordb**：driver 未落地 →
- *       诚实 XDEP（milvus/weaviate/腾讯属 "协议决策"族）</li>
+ *   <li>**weaviate**：照 {@code createWeaviateEngine} 真落地——**REST 自持**（GraphQL 检索/
+ *       列举与批量删除本就是 REST；批量创建走客户端自身的 REST 回落路径；host 缺省
+ *       {@code weaviate:8080}、scheme 缺省 http、api_key 直取）</li>
+ *   <li>**milvus/tencent_vectordb**：driver 未落地 →
+ *       诚实 XDEP（milvus/腾讯属 "协议决策"族）</li>
  * </ul>
  *
  * <h2>照抄点</h2>
@@ -157,8 +161,22 @@ public final class EngineFactory {
                 return new KeywordsVectorHybridRetrieveEngineService(repo,
                         EngineTypes.ENGINE_QDRANT);
             }
+            case EngineTypes.ENGINE_WEAVIATE: {
+                // 照 Go createWeaviateEngine：host 缺省 weaviate:8080、scheme 缺省 http、
+                // api_key 直取（工厂路径不看 WEAVIATE_AUTH_ENABLED，照 Go 注释）；
+                // grpc_address 缺省 weaviate:50051 但本实现走 REST（见驱动类注释）。
+                ConnectionConfig ccWeaviate = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
+                String weaviateHost = ccWeaviate.host == null || ccWeaviate.host.isEmpty()
+                        ? "weaviate:8080" : ccWeaviate.host;
+                String weaviateScheme = ccWeaviate.scheme == null || ccWeaviate.scheme.isEmpty()
+                        ? "http" : ccWeaviate.scheme;
+                WeaviateRetrieveRepository repo = WeaviateRetrieveRepository.create(weaviateHost,
+                        weaviateScheme, ccWeaviate.apiKey, store.getIndexConfig(), guard);
+                return new KeywordsVectorHybridRetrieveEngineService(repo,
+                        EngineTypes.ENGINE_WEAVIATE);
+            }
             case EngineTypes.ENGINE_MILVUS:
-            case EngineTypes.ENGINE_WEAVIATE:
             case EngineTypes.ENGINE_TENCENT_VECTORDB:
                 throw new EngineNotSupportedException("retriever engine " + engineType
                         + " driver not ported in this batch (tracked as W5γ4 follow-up)");

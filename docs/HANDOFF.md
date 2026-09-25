@@ -1,5 +1,24 @@
 # 交接文档（新会话接手用）
 
+## 0.-28 Weaviate 驱动落地（2026-09-25——W5γ4.13，REST 自持 + 真服务端实测）
+
+**做了什么**（照 Go `repository/retriever/weaviate/` 全包 ~1,170 行非测试；**协议决策**：读 v5 客户端源码确认 GraphQL 检索/列举与批量删除本就是 REST、批量创建也有 REST 回落路径 → 统一 REST 自持，零新依赖）：
+
+| 件 | 说明 |
+|---|---|
+| `WeaviateGql`（新） | GraphQL 串构造，**逐字节对照客户端 `Build()` 的 Go 实录**（四条实录串钉在 `WeaviateGqlTest`）：`{Get {Cls (where:…, nearVector:{certainty: x vector: […]}, limit: N) {fields}}}`；where 内部单空格连接、operands 逗号无空格、字符串 Go `%q` 引号、Contains* 恒数组、bm25 空 query 省略 query 段 |
+| `WeaviateRestClient`（新） | 传输层：`GET /v1/schema[/{cls}]`、`POST /v1/schema`、`POST /v1/objects`（id 在 body，照 Creator）、`POST /v1/batch/objects`（`fields:["ALL"]`，照 v5 的 REST 回落）、`DELETE /v1/batch/objects`（照 BatchDeleter）、`PATCH /v1/objects/{cls}/{id}`（merge，期望 204）、`POST /v1/graphql`、ready/meta 探针；SSRF 构造期校验（Go 是 SSRF HTTP 客户端逐请求） |
+| `WeaviateRetrieveRepository`（新） | 惰性建类（命名向量 `embedding` + hnsw/cosine/efConstruction 128/maxConnections 32/ef 64 + vectorizer none + content gse + 四个可过滤 text + is_enabled bool + 可选 replicationConfig/shardingConfig）；对象 ID = chunkID；三种删除走 ContainsAny 批量删除；向量检索解析 certainty、关键词检索 BM25（单集合失败**直接返回错误**，照 Go——与 Qdrant 相反）；CopyIndices 的 offset 分页与命名向量回搬；move 的 seen-set 循环 + merge；存储估算 HNSW M=32（nil 判定同 Go） |
+| 装配 | **EngineFactory** weaviate 分支（host 缺省 `weaviate:8080`、scheme 缺省 http、api_key 直取）；**RetrievalEngineWiringConfig.envWeaviate**（WEAVIATE_HOST/GRPC_ADDRESS/SCHEME/AUTH_ENABLED+API_KEY，照 Go）；testWeaviate 探针既有实现已是 ready+meta（无需升级） |
+
+**真服务端实测抓回四处（全部落在文档与修正里）**：① `tokenization:"gse"` 需服务端开关 `ENABLE_TOKENIZER_GSE=true`（1.28.4 默认关；Go 驱动同样受影响——部署侧缺陷，Go 仓 compose 缺这一项）；② **`after`+`where` 被服务端拒绝**（Go 的 CopyIndices 恒失败）+ 命名向量类下 `_additional{vector}` 恒空 → 本仓改 `where+limit+offset` + `vectors{embedding}`；③ **无 merge 的 PUT 会清掉未提供属性与向量**（Go 的两处批量更新是数据丢失缺陷）→ 本仓改 PATCH merge；④ **BM25 的 score 是字符串**（Go 的 float64 断言恒失败 → 关键词分数恒 0.0，用 Go 客户端对真服务端实录实锤）→ 本仓按代码意图修正为 1.0。
+
+**验证**：`WeaviateGqlTest` 8 + `WeaviateRetrieveRepositoryTest` 16 + **`WeaviateDriverLocalIT` 1（真实 Weaviate 1.28.4 全链）** 全绿；五批验收 PASS。IT 起容器命令与复跑方式见 `known-issues/06` 的 W5γ4.13 段（本机现留有 `WeKnora-weaviate-local` 容器在 9035）。
+
+**下一步**：gRPC/SDK 族只剩 Milvus（~1,560 行）与腾讯（~870 行）；SQLite（native 分发决策）；以及备案项小账（早错 SSE 不收流、`list_sandbox_files` 注册时机两个观察）。
+
+---
+
 ## 0.-27 install 真实 LLM E2E 通过（2026-09-25——W5γ4.12，抓回并修复四处驱动缺陷）
 
 **做了什么**：把批 D2 的安装管线与技能执行链路在**真 docker + 真 LLM** 上跑通（dev 栈 OrbStack，租户 10009 的真实 deepseek-flash/qwen），**全链验证**：
@@ -1227,7 +1246,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - ~~tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）~~ ✅ 2026-09-23 批 D2 落地 + **2026-09-25 真实 LLM E2E 全链通过**（§0.-27，抓回并修复四处驱动缺陷）
-- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）+ OpenSearch ✅（W5γ4.9，§0.-24）+ Doris ✅（W5γ4.10，§0.-25）+ Qdrant ✅（W5γ4.11，§0.-26，REST 自持）**；仍剩 Weaviate（batch 走 gRPC 的路径决策）、Milvus（REST v2 覆盖度待探）、腾讯（HTTP API 3.0 + TC3 签名）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
+- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（W5γ4.13，§0.-28，REST 自持 + 真服务端 IT）**；仍剩 Milvus（~1,560 行，REST v2 覆盖度待探）、腾讯（~870 行，HTTP API 3.0 + TC3 签名）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1331,9 +1350,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 **下一步候选（2026-09-25 W5γ4.11 刷新）**：
 1. ~~OpenSearch~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）；
    ~~Qdrant~~ ✅ W5γ4.11（§0.-26，gRPC 族首支走 REST 自持）——HTTP/SQL 族收官、gRPC 族已破题；
-2. **Weaviate**（~1,170 行）：REST/GraphQL 覆盖读/写/删；batch 路径需决策
-   （REST `/v1/batch/objects` 已 deprecated vs 用仓库既有 gRPC 基建（`net.devh` +
-   protoc 编译 weaviate proto）——建议先探 REST batch 的服务端版本支持面）；
+2. ~~Weaviate（~1,170 行）~~ ✅ W5γ4.13（§0.-28）：REST 自持落地 + 真服务端 IT；
 3. **Milvus**（~1,560 行）：REST v2 覆盖度先探（collection/index/insert/query/delete），
    不足则引官方 milvus-sdk-java；
 4. **腾讯 VectorDB**（~870 行）：自持 HTTP API 3.0（TC3-HMAC-SHA256 签名）；

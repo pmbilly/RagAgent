@@ -1471,3 +1471,58 @@ verify 门通过 → 快照镜像 commit（`weknora-skill/weknora-sk-…-g1-…`
    `docker images`（快照镜像）、`tenant_sandbox_configs.config.skill_image`（指针）、
    `GET /sandbox-configs/{id}/skills/{sid}/install-events`（终态回放）、
    `GET /sessions/{id}/artifacts`。
+
+## W5γ4.13：Weaviate 驱动（REST 自持，2026-09-25）
+
+### 协议决策（本批的核心判断题）
+
+Go 用 weaviate-go-client v5。读客户端源码后确认：**GraphQL 检索/列举本就是 REST**
+（`GetBuilder` 持 `connection rest`）、**批量删除本就是 REST**（`DELETE /v1/batch/objects`）、
+**批量创建在无 gRPC 客户端时也回落 REST**（`ObjectsBatcher.runREST`，body 为
+`{"fields":["ALL"],"objects":[…]}`）——唯一纯 gRPC 的是 v5 的默认批量创建路径。
+故本仓统一走 REST 自持（零新依赖），端点与报文形状逐条对照客户端源码 + 真实
+Weaviate 1.28.4（compose 里钉的版本）实测。GraphQL 查询串按客户端 `Build()` 的
+**Go 实录**逐字节复刻（`WeaviateGqlTest` 里钉着四条实录串）。
+
+### 真服务端实测抓到的四件事（都写进了代码或测试）
+
+1. **`tokenization: "gse"` 需要服务端开关**：Weaviate 1.28.4 默认关闭该内建中文分词器，
+   建类直接 422 `the GSE tokenizer is not enabled; set 'ENABLE_TOKENIZER_GSE' to 'true'`。
+   Go 驱动同样受影响（部署侧须给 Weaviate 容器加 `ENABLE_TOKENIZER_GSE=true`；
+   Go 仓的 compose 里没有这一项——**部署缺陷，值得回填**）。本仓按 Go 原样保留 `gse`，
+   并在 IT 的 javadoc 里写好起容器的完整命令。
+2. **`after` + `where` 组合被服务端拒绝**：`cursor api: invalid 'after' parameter: where
+   cannot be set with after and limit parameters`。Go 的 `CopyIndices` 正是这么查的
+   → **Go 的 Weaviate 拷贝恒失败**（`move.go` 的注释也承认 after+where 不可用，但 copy
+   没改）。且命名向量类下 `_additional{vector}` 恒返回空数组（须用
+   `_additional{vectors{embedding}}`）——即便跳过第一条，拷贝到的也是空向量。
+   **本仓修正**：`where + limit + offset` 分页 + `vectors{embedding}`（实测可用）。
+3. **无 merge 的 PUT 会清属性与向量**：Go 的 `BatchUpdateChunkEnabledStatus`/
+   `BatchUpdateChunkTagID` 用 `Updater`（不带 merge）→ `PUT /v1/objects/{cls}/{id}`，
+   实测**只发一个字段时其余属性被清空、向量也丢**（真数据丢失缺陷）。
+   **本仓修正**：改用 `PATCH`（merge）——只该变目标字段，且失败语义仍照 Go（逐对象失败只记日志）。
+4. **BM25 的 `_additional.score` 是字符串**：服务端返回 `{"score":"0.48952064"}`；Go 的
+   `.(float64)` 断言恒失败 → Go 的关键词结果分数**恒 0.0**（其 `keywords → 1.0` 分支是死代码）。
+   用 Go 客户端对真服务端录了一次实锤（`score="…" type=string isFloat64=false`）。
+   **本仓修正**：存在 score 值即 1.0（与 Qdrant/Doris 的关键词分数一致），字符串数字也解析进
+   certainty 作容错。
+
+### 复跑（真服务端 IT，env 门控）
+
+```bash
+docker run -d --name WeKnora-weaviate-local -p 9035:8080 -p 50052:50051 \
+  -e DEFAULT_VECTORIZER_MODULE=none -e ENABLE_MODULES=none \
+  -e AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true -e ENABLE_TOKENIZER_GSE=true \
+  semitechnologies/weaviate:1.28.4
+WEKNORA_WEAVIATE_IT=true ./gradlew :server:test --tests "*WeaviateDriverLocalIT*"
+```
+
+IT 覆盖：建类 → 批量写 → 向量检索（certainty）→ 关键词检索（gse 中文）→ **merge 更新后
+对象仍可检索**（修正 ③ 的回归锚点）→ 拷贝（修正 ② 的回归锚点）→ move → 删除。
+
+### 其它
+
+- 类名默认 `Weknora_embeddings`（Go 原文拼写"Weknora"，非 WeKnora）——改名会与既有部署不匹配。
+- Go 的 `weaviate.tokenizeQuery` 是死代码（本包无调用点；词表相关的分词在 Qdrant 用），未翻译。
+- Go 批量更新里的 `if err != nil`（用的是上一个调用的陈旧 err）死分支未复刻。
+- env 侧 `WEAVIATE_GRPC_ADDRESS` 保留在配置面（照 Go 的 env 解析），REST 实现不用它。

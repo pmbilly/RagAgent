@@ -33,9 +33,9 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *   <li><b>env-store 注册</b>：按 {@code RETRIEVE_DRIVER} 逐段注册进程级引擎——
  *       postgres 由 {@link PgVectorEngineRepository} 承担（既有 JDBC 件的引擎口适配）；
  *       elasticsearch_v7/v8 从 {@code ELASTICSEARCH_ADDR/USERNAME/PASSWORD} 现场建驱动；
- *       opensearch / doris / qdrant 同法（{@code OPENSEARCH_*} / {@code DORIS_*} /
- *       {@code QDRANT_*}）；
- *       其余驱动（sqlite/milvus/weaviate/tencent_vectordb）未落地，
+ *       opensearch / doris / qdrant / weaviate 同法（{@code OPENSEARCH_*} / {@code DORIS_*} /
+ *       {@code QDRANT_*} / {@code WEAVIATE_*}）；
+ *       其余驱动（sqlite/milvus/tencent_vectordb）未落地，
  *       明确 WARN（Go 会真注册——诚实降级备案，随 driver 批补）。</li>
  *   <li>{@link TenantStoreOwnership}：store 归属查表（工厂的跨租户防御）。</li>
  * </ul>
@@ -94,6 +94,9 @@ public class RetrievalEngineWiringConfig {
                     break;
                 case "qdrant":
                     envQdrant(registry, guard);
+                    break;
+                case "weaviate":
+                    envWeaviate(registry, guard);
                     break;
                 case "":
                     break;
@@ -215,6 +218,38 @@ public class RetrievalEngineWiringConfig {
                             port, env("QDRANT_API_KEY"), useTls, null, guard);
             register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
                     EngineTypes.ENGINE_QDRANT), label);
+        } catch (RuntimeException e) {
+            log.error("Create {} client failed: {}", label, e.toString());
+        }
+    }
+
+    /**
+     * env-path 的 Weaviate 注册——照 Go container.go L1280-1315：{@code WEAVIATE_HOST}
+     * （缺省 {@code weaviate:8080}）/ {@code WEAVIATE_GRPC_ADDRESS}（缺省
+     * {@code weaviate:50051}；本实现走 REST，仅作配置面保留）/ {@code WEAVIATE_SCHEME}
+     * （缺省 http）/ {@code WEAVIATE_AUTH_ENABLED}（equalFold "true" 且 API key 非空才带）
+     * + {@code WEAVIATE_API_KEY}。地址过 SSRF 校验（Go 是自定义 HTTP 客户端逐请求校验）。
+     */
+    private static void envWeaviate(EngineRegistry registry, SsrfGuard guard) {
+        String label = "weaviate";
+        String host = env("WEAVIATE_HOST");
+        if (host.isEmpty()) {
+            host = "weaviate:8080";
+        }
+        String scheme = env("WEAVIATE_SCHEME");
+        if (scheme.isEmpty()) {
+            scheme = "http";
+        }
+        String apiKey = "";
+        if ("true".equalsIgnoreCase(env("WEAVIATE_AUTH_ENABLED").trim())) {
+            apiKey = env("WEAVIATE_API_KEY").trim();
+        }
+        try {
+            com.ragagent.retrieval.engine.weaviate.WeaviateRetrieveRepository repo =
+                    com.ragagent.retrieval.engine.weaviate.WeaviateRetrieveRepository.create(host,
+                            scheme, apiKey, null, guard);
+            register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
+                    EngineTypes.ENGINE_WEAVIATE), label);
         } catch (RuntimeException e) {
             log.error("Create {} client failed: {}", label, e.toString());
         }

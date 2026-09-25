@@ -207,8 +207,7 @@ class EngineFactoryTest {
                         () -> EngineFactory.createFromStore(store("postgres", pg, null), null))
                         .getMessage());
 
-        for (String engine : List.of("milvus", "weaviate",
-                "tencent_vectordb", "sqlite")) {
+        for (String engine : List.of("milvus", "tencent_vectordb", "sqlite")) {
             String message = assertThrows(EngineNotSupportedException.class,
                     () -> EngineFactory.createFromStore(store(engine, cc, null), null))
                     .getMessage();
@@ -238,6 +237,17 @@ class EngineFactoryTest {
         KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
                 store("doris", doris, null), null);
         assertEquals("doris", svc.engineType());
+        assertEquals(List.of("keywords", "vector"), svc.support());
+    }
+
+    @Test
+    @DisplayName("Weaviate：REST 自持口径（host/scheme 缺省见 Go）；构造不拨号")
+    void buildsWeaviate() {
+        ConnectionConfig weaviate = new ConnectionConfig();
+        weaviate.host = "127.0.0.1:9035";
+        KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
+                store("weaviate", weaviate, null), null);
+        assertEquals("weaviate", svc.engineType());
         assertEquals(List.of("keywords", "vector"), svc.support());
     }
 
