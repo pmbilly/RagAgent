@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-49 用户报障：导入后一直"解析中"（2026-09-25）
+
+**现象**：KB `GAC客服` 的 `05.03-问题发布.md` 一直"解析中"，trace 也一直进行中。
+
+**根因**：`KnowledgeService.doRegenerateKnowledgeSummary` / `failGeneration` 用 `updateKnowledgeRow`
+（**全列写** ✗）落库，把**加载时**的旧 `parse_status`（processing）写回——摘要在后处理的 finalizing
+交接**之后**才跑完 LLM（数十秒），回写就把 `finalizing/completed` 打回 `processing` ✗；而全列写不含
+`pending_subtasks_count`（保持 0）✗ ⇒ 永久停在"解析中"。
+
+**为什么现在暴露**：该 KB（wiki/graph 关）以前走"无富化快路径"、**摘要 fan-out 不派发**；
+W5γ5.19 把问题批并入该分支（正确）后摘要第一次被派发 ⇒ 撞上既有的陈旧回写（wiki/graph 开的 KB 此前同病）。
+
+**修法**（对照 Go 的列级更新 `UpdateKnowledgeColumn(…, "summary_status", …)`）：新增
+`KnowledgeService.updateSummaryColumns`（只写 description/summary_status/metadata/updated_at），
+摘要与失败路径共 7 处改调它。
+
+**处置**：用户那条直接修复为 completed（内容已全生成 ✓）；复刻验证同分支时序 ⇒ 终态 completed ✓ + 3 问题 ✓；
+全库扫同类中招行 0 条 ✓；门 **B3 PASS 67s** ✓。详见 `known-issues/09` §8.3。
+
+---
+
 ## 0.-48 用户报障修复：导入后"推荐问题"不显示（2026-09-25——W5γ5.18）
 
 **根因**：`knowledge_bases.indexing_strategy` 为**零值**（四标志全 false）的 KB，Go 在读路径

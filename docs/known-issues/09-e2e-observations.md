@@ -361,3 +361,37 @@ chunks.metadata.generated_questions → 3 条（"WeKnora 支持哪些检索方�
 
 （dev 夹具**已全部复原**：探针 KB/知识/分块已删、`BQ Alpha/Beta` 配置回原值、自建模型行已删、
 SSRF 白名单两端回退为 `["198.18.0.0/15"]`、本地 stub 已停 ✓；`:8082` 跑当前构建 ✓。）
+
+### 8.3 用户报障（2026-09-25）：导入后一直"解析中"——摘要路径的陈旧全列写
+
+**现象**：KB `GAC客服` 导入 `05.03-问题发布.md` 后一直"解析中"、trace 也一直进行中。
+
+**现场**（知识 `a3156f38`）：`parse_status=processing`、`pending_subtasks_count=0`、
+`summary_status=completed`、分块 28（27 带 `generated_questions`）、span 树 attempt=1 **全 done**
+⇒ **内容其实全部生成完了**，只是状态被"打回"。
+
+**根因**：`KnowledgeService.doRegenerateKnowledgeSummary` / `failGeneration` 用 `updateKnowledgeRow`
+（**全列写**）落库 ✗——它把**加载时**的旧 `parse_status`（=processing）一并写回。摘要在后处理的
+finalizing 交接**之后**才跑完 LLM（数十秒），回写就把 `finalizing/completed` 打回 `processing` ✗；
+而全列写又按 Go 约定**不含** `pending_subtasks_count`（保持 0）✗ ⇒ 行既非 `finalizing`（晋升守卫永不通过）
+又无待办 ⇒ **永久停在"解析中"**（只能等 2h 兜底扫标 failed）。
+
+**为什么现在才暴露**：该 KB（wiki/graph 都关）以前走"无富化快路径"，**摘要 fan-out 根本不会被派发**；
+W5γ5.19 把"问题批"并入该分支（正确 ✓）后摘要第一次被派发 ⇒ 撞上这个**既有**的陈旧回写。
+（即：wiki/graph 开的 KB + 摘要较慢时，此前同样会中招 ✗。）
+
+**对照 Go**：摘要侧只用**列级更新**——`repo.UpdateKnowledgeColumn(ctx, id, "summary_status", …)`
+（`knowledge_summary_refresh.go` L96/L132），**从不写 `parse_status`** ✓。
+
+**修法**：新增 `KnowledgeService.updateSummaryColumns(k)`——只写摘要自己那几列
+（`description` / `summary_status` / `metadata` / `updated_at`），绝不碰 `parse_status`、`enable_status`、
+`pending_subtasks_count`；`doRegenerateKnowledgeSummary`（3 处）与 `failGeneration`（4 处）共 **7 处**改调它
+（publish 流的 `updateKnowledgeRow` 保持不动 ✓）。
+
+**验证**：用户那条直接修复为 `completed` ✓（内容已全）；复刻验证走**同一分支**（KB 开 qg + summary 指向
+stub），时序 `promote(18.774) → 摘要落库(18.845，正在中毒窗口内) → 槽位递减(18.915)` ⇒ 终态 **completed** ✓ +
+3 条问题 ✓（修复前同一时序必然被打回 processing ✗）；全库扫同类中招行 = **0** ✓；门 B3 PASS 67s ✓。
+
+**已卡住的存量行怎么救**：① 若 span 已全 done（内容完整）⇒ 直接
+`UPDATE knowledges SET parse_status='completed', pending_subtasks_count=0, processed_at=now()`；
+② 否则用 `POST /knowledge/{id}/reparse` 重跑（修复后的构建不会再被打回 ✓）。

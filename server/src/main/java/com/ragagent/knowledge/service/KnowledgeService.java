@@ -1259,13 +1259,13 @@ public class KnowledgeService {
             knowledge.setDescription("");
             knowledge.setSummaryStatus(SUMMARY_FAILED);
             knowledge.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
-            updateKnowledgeRow(knowledge, knowledge.getMetadata());
+            updateSummaryColumns(knowledge);
             throw ERR_INSUFFICIENT_SUMMARY_CONTENT;
         }
         textChunks.sort(Comparator.comparingInt(Chunk::getChunkIndex));
         String metadataVersion = customMetadataVersion(knowledge);
         knowledge.setSummaryStatus(SUMMARY_PROCESSING);
-        updateKnowledgeRow(knowledge, knowledge.getMetadata());
+        updateSummaryColumns(knowledge);
 
         LlmChatClient chatModel;
         try {
@@ -1301,7 +1301,7 @@ public class KnowledgeService {
         knowledge.setDescription(summary);
         knowledge.setSummaryStatus(SUMMARY_COMPLETED);
         knowledge.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        updateKnowledgeRow(knowledge, knowledge.getMetadata());
+        updateSummaryColumns(knowledge);
         if (kbNeedsEmbedding(kb)) {
             int maxIndex = 0;
             for (Chunk chunk : allChunks) {
@@ -1357,13 +1357,13 @@ public class KnowledgeService {
             knowledge.setDescription("");
             knowledge.setSummaryStatus(SUMMARY_FAILED);
             knowledge.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
-            updateKnowledgeRow(knowledge, knowledge.getMetadata());
+            updateSummaryColumns(knowledge);
             return generationErr;
         }
         if (willRetry) {
             applyRetryableSummaryFailureState(knowledge, textChunks, true);
             try {
-                updateKnowledgeRow(knowledge, knowledge.getMetadata());
+                updateSummaryColumns(knowledge);
             } catch (RuntimeException e) {
                 log.warn("Failed to mark summary refresh pending for retry: {}", e.toString());
             }
@@ -1376,7 +1376,7 @@ public class KnowledgeService {
         } catch (RuntimeException staleErr) {
             knowledge.setSummaryStatus(SUMMARY_FAILED);
             try {
-                updateKnowledgeRow(knowledge, knowledge.getMetadata());
+                updateSummaryColumns(knowledge);
             } catch (RuntimeException ignored) {
                 // 对照 Go 的 `_ = s.repo.UpdateKnowledge(...)`
             }
@@ -1387,7 +1387,7 @@ public class KnowledgeService {
             return ERR_SUMMARY_REFRESH_STALE;
         }
         applyRetryableSummaryFailureState(knowledge, textChunks, false);
-        updateKnowledgeRow(knowledge, knowledge.getMetadata());
+        updateSummaryColumns(knowledge);
         return generationErr;
     }
 
@@ -1879,6 +1879,31 @@ public class KnowledgeService {
         existing.setMetadata(meta);
         worker.enqueue(existing.getId());
         return existing;
+    }
+
+    /**
+     * 摘要路径的**窄写入**（对照 Go 摘要侧只用列级更新：{@code repo.UpdateKnowledgeColumn(…, "summary_status", …)}，
+     * knowledge_summary_refresh.go L96/L132）。
+     *
+     * <p>❌ 原实现走 {@link #updateKnowledgeRow}（**全列写**）：它会把<b>加载时</b>的旧
+     * {@code parse_status} 一并写回。摘要是在导入后处理的 finalizing 交接**之后**才跑完 LLM
+     * （数十秒），回写就把 `finalizing/completed` 打回加载时的 {@code processing} ✗；而全列写按
+     * Go 约定又<b>不含</b> {@code pending_subtasks_count}（保持 0）✗ ⇒ 知识永久停在"解析中"
+     * （用户报障：`05.03-问题发布.md` 卡 processing ✗）。</p>
+     *
+     * <p>本方法只写摘要自己那几列（description / summary_status / metadata / updated_at），
+     * 绝不碰 parse_status、enable_status、pending_subtasks_count。</p>
+     */
+    private void updateSummaryColumns(Knowledge k) {
+        knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
+                .eq("id", k.getId())
+                .set("description", k.getDescription())
+                .set("summary_status", k.getSummaryStatus())
+                .set("metadata", k.getMetadata() == null
+                                ? com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()
+                                : k.getMetadata(),
+                        "typeHandler=com.ragagent.common.web.PgJsonTypeHandler")
+                .set("updated_at", k.getUpdatedAt() == null ? OffsetDateTime.now(ZoneOffset.UTC) : k.getUpdatedAt()));
     }
 
     /**
