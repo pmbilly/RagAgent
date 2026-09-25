@@ -174,3 +174,18 @@ STUB_RECORD_DIR=/tmp/w5obs-rec bash scripts/ab-e2e-observations.sh
 Java 的某段作用域解析（agent 的 `kb_selection_mode=all`、或 `/knowledge-chat` 的 KB 兜底）把**全部租户 KB**
 纳入了范围，就会吃进这个失效绑定 ✗（Go 同场景亦会 ✗，故仅当两侧作用域解析不同步时才表现为"只 Java 错"）。
 复现时的第一优先观察点：**失败那一发的 `search_targets` 里到底有几个 KB / 是哪些**。
+
+### 7.5 已补回归：分级契约（W5γ5.14）
+
+`chatpipeline/SearchGradingTest`（2 例，非实录型——契约断言，桩注入 2200）：
+
+| 用例 | 钉住的契约（对照 Go `search.go:127-133` / `search_parallel.go:115-130,168-176`） |
+|---|---|
+| `staleStoreBindingIsHardErrorNotDegrade` | **chunk 检索抛错 + 0 命中 ⇒ 硬错上抛**（`search_failed`，**非** `search_nothing`）——单插件与并行阶段都是；原始错误带 `error code: 2200` 前缀（SSE 终止帧文案来源）；**不推进 `next`** |
+| `noErrorNoResultsDegradesToSearchNothing` | **无错 + 0 命中 ⇒ `SEARCH_NOTHING`**（降级分支）；任务级 `SEARCH_NOTHING` 被并行插件**吞成"无错"**，不得被当成硬错上抛 |
+
+覆盖缺口说明：`RetrieveEngineFactoriesTest` / `HybridSearchServiceStoreGroupTest` 已覆盖**工厂层**的
+2200/2201 映射（`crossTenantStoreMapsTo2200`、`unregisteredStoreMapsTo2201`、`notOwned` 等），
+缺的正是**搜索插件的分级行为**（本批补上）；`vector_only_fail` 那个实录只覆盖"embed 失败"的硬错，
+不覆盖"0 命中 + 硬错"的组合（正是失效绑定场景）。
+门：`--changed` → **B1a PASS（15s）**。
