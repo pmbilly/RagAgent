@@ -142,9 +142,28 @@ public final class TerminalTypes {
         boolean finished();
     }
 
+    /**
+     * 终端作用对象的不透明引用（对照 Go {@code RemoteSandboxHandle}，terminal.go L159-177）。
+     *
+     * <p>Go 的 {@code OpenTerminal(ctx, handle, opts)} 传的就是它——句柄自带 provider/id，
+     * 且实现了 {@code RemoteInboundTokenCarrier} 时还带 traffic token（数据面 {@code X-Access-Token}）。
+     * 中性层只读这些稳定标识；provider 适配器负责把绑定（{@code SessionSandboxBinding}）或
+     * SDK 句柄包成它。</p>
+     *
+     * <p>无入站凭据的后端（Docker 类）返回<b>空串</b>——那是"后端本就没有该凭据"，
+     * 与"凭据丢了"不同（Go {@code remote_fake_test.go:27-35} 明确区分）。</p>
+     */
+    public interface RemoteTerminalRef {
+        String provider();
+
+        String sandboxId();
+
+        String trafficAccessToken();
+    }
+
     /** 终端能力接口（对照 Go {@code RemoteTerminalManager}，terminal.go L174-177）。 */
     public interface RemoteTerminalManager {
-        RemoteTerminalSession openTerminal(String sandboxId, RemoteTerminalOptions opts)
+        RemoteTerminalSession openTerminal(RemoteTerminalRef ref, RemoteTerminalOptions opts)
                 throws Exception;
     }
 

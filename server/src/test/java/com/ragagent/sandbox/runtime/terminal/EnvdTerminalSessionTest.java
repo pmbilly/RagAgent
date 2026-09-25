@@ -52,6 +52,30 @@ class EnvdTerminalSessionTest {
         void handle(HttpExchange exchange) throws IOException;
     }
 
+    /** 终端引用的测试替身（provider/id/traffic token）—— 对照 Go 的句柄面。 */
+    private static TerminalTypes.RemoteTerminalRef ref(String id) {
+        return new TerminalTypes.RemoteTerminalRef() {
+            @Override
+            public String provider() {
+                return "cube";
+            }
+
+            @Override
+            public String sandboxId() {
+                return id;
+            }
+
+            @Override
+            public String trafficAccessToken() {
+                return "envd-token";
+            }
+        };
+    }
+
+    /** 最近一次 resolver 收到的引用（验证接缝传的是引用本体，而非裸 id）。 */
+    private final java.util.concurrent.atomic.AtomicReference<TerminalTypes.RemoteTerminalRef> lastRef =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
     @BeforeEach
     void setUp() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -76,12 +100,12 @@ class EnvdTerminalSessionTest {
         server.start();
         client = HttpClient.newBuilder().build();
         manager = new EnvdTerminalManager("cube",
-                sandboxId -> new EnvdTerminalManager.Endpoint(
+                r -> { lastRef.set(r); return new EnvdTerminalManager.Endpoint(
                         URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/"),
                         Map.of("X-Access-Token", "envd-token"),
                         Duration.ofHours(24),
                         Duration.ofMinutes(30),
-                        timeout -> ttlRefreshes.incrementAndGet()),
+                        timeout -> ttlRefreshes.incrementAndGet()); },
                 client);
     }
 
@@ -94,7 +118,7 @@ class EnvdTerminalSessionTest {
     @DisplayName("生命周期：Start→PID→data→end→exited；输入走 SendInput、改窗口走 Update（方法名照 SDK）")
     void sessionLifecycle() throws Exception {
         TerminalTypes.RemoteTerminalOptions opts = new TerminalTypes.RemoteTerminalOptions();
-        TerminalTypes.RemoteTerminalSession session = manager.openTerminal("sbx-1", opts);
+        TerminalTypes.RemoteTerminalSession session = manager.openTerminal(ref("sbx-1"), opts);
 
         assertThat(session.pid()).isEqualTo(4242);
 
@@ -152,7 +176,7 @@ class EnvdTerminalSessionTest {
                 endStream("{}"))));
 
         TerminalTypes.RemoteTerminalSession session =
-                manager.openTerminal("sbx-2", new TerminalTypes.RemoteTerminalOptions());
+                manager.openTerminal(ref("sbx-2"), new TerminalTypes.RemoteTerminalOptions());
 
         List<TerminalTypes.RemoteTerminalEvent> events = readEvents(session, 2);
         assertThat(events.get(0).data).isEqualTo("a".getBytes(StandardCharsets.UTF_8));
@@ -169,7 +193,7 @@ class EnvdTerminalSessionTest {
                 endStream("{\"error\":{\"code\":\"unavailable\",\"message\":\"pty gone\"}}"))));
 
         TerminalTypes.RemoteTerminalSession session =
-                manager.openTerminal("sbx-3", new TerminalTypes.RemoteTerminalOptions());
+                manager.openTerminal(ref("sbx-3"), new TerminalTypes.RemoteTerminalOptions());
 
         List<TerminalTypes.RemoteTerminalEvent> events = readEvents(session, 1);
         assertThat(events.get(0).err).isNotNull();
@@ -185,7 +209,7 @@ class EnvdTerminalSessionTest {
                 endStream("{}"))));
 
         TerminalTypes.RemoteTerminalSession session =
-                manager.openTerminal("sbx-4", new TerminalTypes.RemoteTerminalOptions());
+                manager.openTerminal(ref("sbx-4"), new TerminalTypes.RemoteTerminalOptions());
 
         List<TerminalTypes.RemoteTerminalEvent> events = readEvents(session, 1);
         assertThat(events.get(0).exited).isTrue();
@@ -205,7 +229,7 @@ class EnvdTerminalSessionTest {
 
         TerminalTypes.RemoteTerminalOptions opts = new TerminalTypes.RemoteTerminalOptions();
         opts.attachPid = 777;
-        TerminalTypes.RemoteTerminalSession session = manager.openTerminal("sbx-5", opts);
+        TerminalTypes.RemoteTerminalSession session = manager.openTerminal(ref("sbx-5"), opts);
 
         assertThat(session.pid()).as("回落 Create 后拿到新 PID").isEqualTo(4242);
         assertThat(bodies).containsKey("/process.Process/Connect");
@@ -220,7 +244,7 @@ class EnvdTerminalSessionTest {
     @DisplayName("桥适配：data/exited 逐事件，流终结后 next() 返回 null（= Go 的 channel 关闭）")
     void bridgeAdapterTranslatesEvents() throws Exception {
         TerminalTypes.RemoteTerminalSession session =
-                manager.openTerminal("sbx-6", new TerminalTypes.RemoteTerminalOptions());
+                manager.openTerminal(ref("sbx-6"), new TerminalTypes.RemoteTerminalOptions());
         TerminalBridge.PtySession bridge = TerminalBridge.adapt(session);
 
         TerminalBridge.PtySession.OutputEvent first = bridge.next();
@@ -332,5 +356,17 @@ class EnvdTerminalSessionTest {
         } catch (Exception unexpected) {
             throw new AssertionError("期望 PtyInputClosedException，实得 " + unexpected, unexpected);
         }
+    }
+
+    @Test
+    @DisplayName("resolver 收到引用本体（provider/id/token）——与 Go 传句柄同形，无需反查绑定存储")
+    void resolverReceivesRef() throws Exception {
+        manager.openTerminal(ref("sbx-ref"), new TerminalTypes.RemoteTerminalOptions());
+
+        assertThat(lastRef.get()).as("resolver 必须被调用且拿到引用").isNotNull();
+        assertThat(lastRef.get().sandboxId()).isEqualTo("sbx-ref");
+        assertThat(lastRef.get().provider()).isEqualTo("cube");
+        assertThat(lastRef.get().trafficAccessToken()).as("token 随引用走（Go RemoteInboundTokenCarrier 等价面）")
+                .isEqualTo("envd-token");
     }
 }

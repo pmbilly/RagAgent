@@ -136,12 +136,15 @@ spike 之后同一批把**不依赖真机的那半**做完了（控制面留接�
 
 摸查结论（2026-09-25，W5γ5.17）：
 
-1. **接缝签名与绑定存储不对口**：`EnvdTerminalManager.EndpointResolver.resolve(String sandboxId)` 只拿得到
+1. ✅ **已做（W5γ5.17）** —— ~~接缝签名与绑定存储不对口~~：`EnvdTerminalManager.EndpointResolver.resolve(String sandboxId)` 只拿得到
    sandboxId，而 Java 绑定存储的键是 `SessionSandboxBindingStore.SessionSandboxKey(tenantId, sessionId)`
    （`get(key)` `:226`），**没有 by-sandboxId 查询** ✗。Go 的对应流是
    `openCubePty(ctx, handle RemoteSandboxHandle, opts)` —— **传的是句柄**（自带 id/provider/token）。
-   ⇒ 建议把接缝改成"传**绑定**（或一个 `ResolveContext{binding, client, config}`）"，与 Go 传参形态一致；
-   不建议给存储加 by-id 索引（会引入第二处真源）。
+   ⇒ **已按此改**：中性层新增不透明引用 `TerminalTypes.RemoteTerminalRef{provider, sandboxId, trafficAccessToken}`
+   （照 Go `RemoteSandboxHandle`，token 随引用走 = `RemoteInboundTokenCarrier` 等价面；无凭据后端返回空串），
+   `RemoteTerminalManager.openTerminal(RemoteTerminalRef, opts)` 与 `EndpointResolver.resolve(RemoteTerminalRef)`
+   与 Go `OpenTerminal(ctx, handle, opts)` 同形 ⇒ resolver 不再需要反查绑定存储 ✓。
+   回归：终端包 **16 条**（4 传输 + 7 会话含新增"resolver 收到引用本体" + 5 类型），门 B4 81s ✓。
 2. **TTL 刷新缺能力**：Java `SandboxSessionClient` 没有 `SetTimeout`/`SetTimeoutWithContext` 等价方法
    （接口面只有 create/connect/get/list/delete/exec/文件；全 runtime 目录 grep 无 setTimeout ✗），
    而 Go 的刷新正是调它（`cube_terminal.go:80`、`e2b_terminal.go:92`）⇒ 目前 `Endpoint.ttlRefresher`

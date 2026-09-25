@@ -39,9 +39,16 @@ public final class EnvdTerminalManager implements TerminalTypes.RemoteTerminalMa
             EnvdTerminalSession.TtlRefresher ttlRefresher) {
     }
 
-    /** 控制面接缝：沙箱 id → envd 数据面端点（含 token/头与 TTL 钩子）。 */
+    /**
+     * 控制面接缝：终端引用 → envd 数据面端点（含 token/头与 TTL 钩子）。
+     *
+     * <p>入参是 {@link TerminalTypes.RemoteTerminalRef}（不透明引用：provider/id/traffic token），
+     * 与 Go 的 {@code openCubePty(ctx, handle, opts)} 传句柄同形——这样 resolver 不必反查绑定存储
+     * （Java 绑定存储按 (tenantId, sessionId) 建键，没有 by-sandboxId 查询；见
+     * {@code docs/w5delta-terminal-spike.md} §7.4）。</p>
+     */
     public interface EndpointResolver {
-        Endpoint resolve(String sandboxId) throws Exception;
+        Endpoint resolve(TerminalTypes.RemoteTerminalRef ref) throws Exception;
     }
 
     private final String provider;
@@ -55,9 +62,9 @@ public final class EnvdTerminalManager implements TerminalTypes.RemoteTerminalMa
     }
 
     @Override
-    public TerminalTypes.RemoteTerminalSession openTerminal(String sandboxId,
+    public TerminalTypes.RemoteTerminalSession openTerminal(TerminalTypes.RemoteTerminalRef ref,
             TerminalTypes.RemoteTerminalOptions opts) throws Exception {
-        Endpoint endpoint = resolver.resolve(sandboxId);
+        Endpoint endpoint = resolver.resolve(ref);
         EnvdConnectTransport transport = new EnvdConnectTransport(
                 client, endpoint.dataPlaneBase(), endpoint.headers());
         Duration timeout = endpoint.streamTimeout() == null
@@ -70,7 +77,7 @@ public final class EnvdTerminalManager implements TerminalTypes.RemoteTerminalMa
                 call = transport.openStream(EnvdPtyProtocol.METHOD_CONNECT,
                         EnvdPtyProtocol.connectBody(opts.attachPid), timeout);
                 int pid = readStartPid(call, EnvdPtyProtocol.METHOD_CONNECT);
-                log.info("[{}] terminal reattached sandbox={} pid={}", provider, sandboxId, pid);
+                log.info("[{}] terminal reattached sandbox={} pid={}", provider, ref.sandboxId(), pid);
                 return new EnvdTerminalSession(provider, transport, call, pid,
                         endpoint.sandboxTtl(), endpoint.ttlRefresher());
             } catch (Exception e) {
@@ -87,7 +94,7 @@ public final class EnvdTerminalManager implements TerminalTypes.RemoteTerminalMa
                 EnvdPtyProtocol.createBody(opts, opts.cols(), opts.rows()), timeout);
         try {
             int pid = readStartPid(call, EnvdPtyProtocol.METHOD_START);
-            log.info("[{}] terminal opened sandbox={} pid={}", provider, sandboxId, pid);
+            log.info("[{}] terminal opened sandbox={} pid={}", provider, ref.sandboxId(), pid);
             return new EnvdTerminalSession(provider, transport, call, pid,
                     endpoint.sandboxTtl(), endpoint.ttlRefresher());
         } catch (Exception e) {
