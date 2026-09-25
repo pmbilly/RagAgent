@@ -141,6 +141,24 @@ STUB_RECORD_DIR=/tmp/w5obs-rec bash scripts/ab-e2e-observations.sh
 **Java 侧同构**（`PluginSearch:128-133/380-405`、`PluginSearchParallel:96-155`、`SessionKnowledgeQaService:383-393`、`KnowledgeQaController:799-816`）
 ⇒ **分级规则两侧一致**，真正待钉的是"**为什么那两次 Java 的 KB 检索会抛 2200 而 Go 不会**"（同一 KB、同一时刻）。
 
+### 7.3 结案改判（W5γ5.17，用第一次失败实例的日志回挖）
+
+第一次失败的实例日志仍在（`/tmp/ragagent-java-server-w5g511.log`），回挖出两条结论：
+
+- **18:13 那次（AGENT 流）不是分歧** ✅：`search_targets` 含 **11 个租户 KB**（agent `kb_selection_mode=all`），
+  其中就有失效绑定的 `ks-golden-store` ⇒ `combined_kb_search_error 2200` ⇒ `firstErr` ⇒ 硬错。
+  **这一段与 Go 完全同构**（Go 同范围也硬错 ✓，见 §7.4 的双端表）⇒ 该次属"对齐行为"，
+  **顺带解开了 7.6 前那个"日志与代码对不上"的谜**（`firstErr` 来自 `PluginSearch:386` 的合并检索 catch ✓）。
+- **18:14 那次（NORMAL 单 KB `shr-kb-alpha`）仍无法解释，但已可排除多种原因** ✗：
+  - 该窗口**没有** `combined_kb_search_error`（0 次，非过滤假象）⇒ `:386` 未走；`group_plan` 显示
+    `model_key=""` ⇒ `:320` 未走；`individual_targets=0` ⇒ `:403` 未走 ⇒ **按当前源码，这条日志产不出来** ✗
+    （`firstErr` 只有这三个写入点，`kb_search_failed` 只有 `PluginSearch:132` 一个发射点，均已逐一核对）；
+  - KB 类型是 `document`（非 faq）、`vector_store_id` 为 NULL、`indexing_strategy` 为空 ⇒ 也不是
+    FAQ 后处理/向量开关那些路径；
+  - 同请求后来 **6/6 两端一致**（都降级作答 ✓），且此后 W5γ5.15/16 又把"KB 读权限/API-key 作用域"
+    这一整类原因修掉 ✓。
+  ⇒ 判定：**疑为当时构建/瞬态产物，非确定性**；不按"无现象的猜测"改代码 ✗。若再现，走下面配方。
+
 ### 7.3 下一步（诊断配方，已备好未留痕）
 
 1. 在 `PluginSearch` 的三个 catch（`:112` / `:386` / `:402`）临时加 `e.printStackTrace()`，把实例挂上**常驻探针**等它复发，栈会直接给出抛出点；
