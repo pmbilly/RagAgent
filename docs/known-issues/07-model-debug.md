@@ -68,3 +68,9 @@
 - **B4 `TenantSkillPythonVerifierTest.skillPythonVerifierCaseTable`**：在本机确定性
   失败（2026-09-22 实测，干净树上同样失败——pip/venv 环境行为变化，与代码改动无关）。
   待单独排查 verifier 的 pip 调用口径。
+- **B4 `SystemContractTest.parserEnginesOfflineShape`**：该用例断言"测试机禁网络 ⇒
+  `connected=false` + 各引擎英文描述"，但**本机 dev 栈常驻时**（OrbStack 的 docreader
+  gRPC 占 50051、Go server 8080、Java 8082）探测得到真注册表 → `connected=true` +
+  中文描述，断言落空。2026-09-25 W5γ4.8 实测：**干净树上同样失败**（`git stash -u` 后
+  单跑复现），与本批改动无关。要么跑批前停掉 dev docreader，要么把该用例改成
+  "地址不可达时"的显式注入（同 B2 的 env 依赖性质）。

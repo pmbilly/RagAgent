@@ -1,5 +1,23 @@
 # 交接文档（新会话接手用）
 
+## 0.-23 检索批 follow-up 清零：知识管家清扫 + move 的 reparse 模式（2026-09-25——W5γ4.8）
+
+**做了什么**（§0.-21 立项 follow-up 的 ② 与 ③ 的剩余项）：
+
+| 件 | 说明 |
+|---|---|
+| `HousekeepingService`（新，照 `service/knowledge_housekeeping.go` 399 行） | **清扫 A**：`parse_status ∈ {pending, processing, finalizing}` 且行 `updated_at` 早于阈值 → 判死。**两级判定**：先按 `knowledge_processing_spans` 的最新心跳过滤（有新鲜 span 的行保留——长阶段期间父行会"冻结"），span 查询失败按"全都没有心跳"**失败安全**（宁可多回收）；**第二道闸** `task_pending_ops` 持久闸（wiki ingest 按知识 id 去重）命中即保留、探测失败则**推迟本轮全部候选**（分不清积压与孤儿时多等一个周期），瞬时队列 inspector 为 `null`（Lite 无 asynq）时只关这一项、其探测失败按仍卡死；通过的行批量改 `parse_status=failed` + `error_message="task stuck in processing > <threshold>, recovered by housekeeping"` + `pending_subtasks_count=0`。**清扫 B**：`summary_status=processing` 且 `updated_at` 早于 1 小时 → failed。**周期与开关**：5 分钟（守护虚拟线程 + sleep，同 `TemporaryDocumentService` 约定）；`WEKNORA_HOUSEKEEPING_ENABLED` 缺省开启（只有 0/false/off/no 才关）；`WEKNORA_DOCUMENT_PROCESS_TIMEOUT`（Go duration 解析，缺省 2h）→ `staleThreshold = max(1h, timeout) + 10min`；`@PreDestroy` 停循环 |
+| move 的 **reparse 模式收尾**（照 `moveKnowledgeReparse` L1382-1510 + `enqueueMovedKnowledge`） | `KnowledgeService.moveKnowledgeReparse`：①源侧资源清理（`cleanupKnowledgeResourcesForReparse`：向量行——绑定店走引擎口/未绑定走 pg 适配器、chunks 行软删、源图谱命名空间；失败上抛 `failed to clean up source: ...`）；②清标签关联（KB 作用域）；③行改写到目标 KB 的待解析态（`knowledge_base_id`、`embedding_model_id`=目标 KB、`parse_status=pending`、`error_message=''`、`enable_status=disabled`、`description=''`、`processed_at=NULL`、`storage_size=0`）+ 按 delta 扣减租户 `storage_used`（新增 `TenantStorageService` 注入）；④`worker.enqueue` 重新解析（目标 KB 的 chunker/嵌入模型/多模态/问题生成随之生效） |
+| 顺手修复：reuse_vectors 路径的两处保真缺口 | Go 的搬移分支同时做「清 `knowledge_tag_relations`」与「行落 `parse_status=completed` + `error_message=''`」（`UpdateKnowledgeForTransfer` 的写列），Java 此前两处都漏——搬走后的文档还挂着源 KB 的标签、且行停在原状态。已补齐（两条 move 分支共用清标签） |
+
+**四处理错注释回收**：`KnowledgeProcessWorker:621`、`ChunkExtractService:297`、`SpanTracker:38,161`、`StartupTaskRecovery:38` 都把兜底责任外推给"housekeeping sweep"——本轮起该组件真实存在，注释不再悬空。
+
+**与 Go 的差异（备案）**：① Go 用 robfig/cron，本仓用守护虚拟线程（同 10 分钟 ticker 约定），启动后先睡一个周期（= Go 的"下个整 5 分边界首次触发"）；② span 心跳过滤由"取 `MAX(updated_at)` 再客户端解析字符串"改为**存在性判定**（Go 的字符串解析是为绕开 SQLite 聚合不做类型转换；`EXISTS(updated_at > cutoff)` 语义等价），失败方向一致；③ Go 的 `TaskInspector`（asynq）在本仓无实现（Lite，见 `SystemAdminController` 的 noopTaskInspector 对照）——保留同名注入缝，生产传 `null`，**瞬时队列这道检查因此休眠**（持久闸独立生效）；④ reparse 收尾无 transfer-state 的 `reparse_pending/done` 阶段与 `acknowledgeMovedReparse`（Java 无该状态机）、无图片资源回收（`deleteExtractedImages`，随资源目录面）、无 wiki 侧清理与触发（`cleanupMovedSourceWiki`/`EnqueueWikiIngest`，随 wiki 消费面）、入队无 asynq TaskID 去重（幂等由解析本身承担）。
+
+**验证**：`HousekeepingServiceTest` 15 条（清扫 A/B、心跳新鲜/过期、瞬时队列保留与探测失败、持久 wiki op 命中（inspector=null 下独立生效）、阈值下限/缓冲、Go duration 解析与回落、开关缺省开启与显式关停）+ `KnowledgeMoveReparseTest` 2 条（行改写到目标 KB 待解析态 + 源侧向量/chunks/标签关联清空 + 租户用量 delta 扣减 + 进度终态；`storage_size=0` 时不动用量）全绿；knowledge 定向批绿；全量五批验收 **B1a/B1b/B2/B3 全绿，B4 仅 `SystemContractTest.parserEnginesOfflineShape` 一条环境相关既有失败**（该用例断言"测试机禁网络"，但本机 dev 栈常驻——OrbStack 的 docreader gRPC 占 50051、Go 8080、Java 8082——探测到真注册表；**`git stash -u` 后干净树单跑同样失败**，与本批无关；已记入 `known-issues/07-model-debug.md` 的环境失败清单）。
+
+**follow-up 剩余**：§0.-21 立项的三项**全部清零**。检索批只剩**新店族**（OpenSearch 独立一支；gRPC 族 Weaviate/Qdrant/Milvus/腾讯需协议决策；SQLite/Doris）。
+
 ## 0.-22 写链改道 + 启动恢复（2026-09-25——W5γ4.7）
 
 **做了什么**（§0.-21 立项 follow-up 的 1、3 两项 + 2 的一部分）：
@@ -1104,7 +1122,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 |---|---|
 | HTTP 路由对账（route-recon） | 交集 387，**功能性缺口清零**（swagger 非翻译目标；models/{id}/debug 已收官）——2026-09-22 阶段 7 终核 |
 | golden 契约测试 | 1,719+24 全绿（全部录自 Go 实行为准；md-* 24 条为阶段 7 新增）——2026-09-22 |
-| 全量测试 | **2026-09-25 收口批复跑：五批全绿**（`scripts/acceptance.sh`；B1a/B1b/B2/B3/B4，其中 B4 1533 条）。⚠️ 纪律两条：①单跑 `:server:test` 必假红（Mockito attach）——用脚本的五批划分；②并发跑测试（同事同时跑）会撞固定端口，出现偶发假红（本次 B2 的 bs-internal-bad-sig 一次 409 即此，单跑即绿）|
+| 全量测试 | **2026-09-25 W5γ4.8 复跑：B1a/B1b/B2/B3 全绿，B4 1533 条仅 1 条环境相关既有失败**（`SystemContractTest.parserEnginesOfflineShape`——dev docreader 常驻 50051 时探测到真注册表；干净树同样失败，见 `known-issues/07-model-debug.md` 的环境失败清单，跑批前停掉 dev 栈即可复绿）。⚠️ 纪律两条：①单跑 `:server:test` 必假红（Mockito attach）——用脚本的五批划分；②并发跑测试（同事同时跑）会撞固定端口，出现偶发假红（2026-09-25 收口批 B2 的 bs-internal-bad-sig 一次 409 即此，单跑即绿）|
 | 双端 A/B | 九族 GET + 写路径 + HybridSearch 两场景 + models/{id}/debug 24 场景逐字节 MATCH——2026-09-22 |
 
 | 波 | 内容 | 状态 |
@@ -1127,7 +1145,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
-- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，2487 行）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定 ES store 的 KB 读写路由已通；知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）为 follow-up（§0.-21）
+- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，4332 行/17 文件）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定 ES store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8——检索批无遗留**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1221,6 +1239,20 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 
 
 ## 3. 下一步（总验收已完成，剩余缺口清单见 §0.0）
+
+### 3.-3 检索批已无遗留（2026-09-25——W5γ4.8 收尾，留档）
+
+§0.-21 立项的三项 follow-up：①启动复位（`StartupTaskRecovery`，W5γ4.7）；②`HousekeepingService`
+（W5γ4.8）；③知识写链改道引擎口（W5γ4.7）+ move 的 reparse 模式收尾（W5γ4.8）——**全部落地**。
+`git log` 的 W5γ4.1~γ4.8 八笔即检索批全貌。
+
+**下一步候选（按建议顺序）**：
+1. **OpenSearch 独立店族**（4332 行/17 文件：自有 transport/healthcheck/audit/mapping/crud/query/
+   retrieve/byquery/copy/move）——HTTP 族最后一支，可照 ES v7/v8 的方法推进；
+2. **gRPC 族协议决策**（Weaviate/Qdrant/Milvus/腾讯）——需先定协议与 SDK 取舍；
+3. **SQLite（C 绑定）/ Doris（SQL 协议）**；
+4. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、install 管线体、ArtifactCollector 文件源、
+   VLM 界面、initialize 契约对齐、jieba 真实分词、存储三条备案）——均需真实 provider 或决策输入。
 
 ### 3.-2 当前续推点：接线的第 3~4 步（2026-09-25 起）—— ✅ 已收官（W5γ4.6，见 §0.-21）
 

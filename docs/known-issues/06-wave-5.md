@@ -1256,3 +1256,41 @@
 6. **JdbcTemplate 的 IN 占位符参数序**：`UPDATE ... SET a=?,b=? WHERE id IN (?,?,?)`
    的绑定数组必须是 [SET 参数..., IN 参数...]——先 SET 后 WHERE（本次实踩：
    ids 放前面导致 Parameter #4 not set）。
+
+## W5γ4.8：检索批 follow-up 清零（知识管家清扫 + move reparse 收尾，2026-09-25）
+
+1. **javadoc 里写 cron 表达式会提前闭合注释**：`{@code 0 */5 * * * *}` 里的 `*/` 就是注释
+   结束符——`javac` 从那一行起把类体当顶层内容，报出来的是几十条"class, interface, enum,
+   or record expected / illegal character: '\uff1a'"（中文标点被当成非法字符只是**下游症状**）。
+   教训：**注释里不要出现 `*/`**（改写为文字描述，或拆成 `*` + `/`）；编译报"中文标点是非法字符"
+   时先回头看上文哪个注释提前结束了，别去动中文。
+2. **H2 的 `CURRENT_TIMESTAMP - 180 MINUTE` 会炸**：隐式 `INTERVAL MINUTE` 的默认精度不够
+   （`Value too long for column "INTERVAL MINUTE": "INTERVAL '180' MINUTE (18)"`）。
+   两位数（`- 60 MINUTE`）侥幸能跑，三位数就红。统一改 `DATEADD('MINUTE', -N, CURRENT_TIMESTAMP)`
+   ——凡是要播种"很久以前"的测试数据，一律用它。
+3. **异步搬移的测试等待条件别拿"状态 ≠ pending"当锚**：reparse 搬移的**前置状态可能是
+   completed**，`parse_status != 'pending'` 在跑之前的首轮轮询就成立 → 断言在搬移提交前执行，
+   拿到的是源 KB（本次实踩：kb_id 断言随机红）。正确锚是**被改写的那一列本身**（`kb_id == 目标`），
+   它与 `parse_status=pending` 是同一条 UPDATE 落库的。另：断言只钉 **worker 不会改写的列**
+   （kb_id/embedding_model_id/description/storage_size），入队后的异步解析会把
+   parse_status/error_message 改掉。
+4. **Go 的清理副本 `cleanup.StorageSize = 0` 是防双扣**：`moveKnowledgeReparse` 先把副本的
+   storage_size 置 0 再调 `cleanupKnowledgeResources`——所以清理里那个
+   `if knowledge.StorageSize > 0` 分支永不进，存储扣减只走随后的
+   `UpdateKnowledgeForTransfer` 的 `storage_used += after - before`。翻译时若"顺手"在清理里
+   扣一次，租户用量会**双扣**（还会被负数钳位掩盖成 0）。Java 侧同法：清理不碰用量，
+   扣减在行改写处（`tenantStorage.adjustStorageUsed`）。
+5. **两处失败安全的相反方向是刻意的**（Go 注释写得很细，别"统一"掉）：
+   - span 心跳查询失败 → 当作**全都卡死**（多回收）；
+   - `task_pending_ops` 持久闸探测失败 → **推迟本轮全部候选**（少回收）。
+   理由：前者最坏是多杀一个已经停摆的行；后者最坏是把活文档误杀成 failed，用户无法恢复，
+   而多等一个周期可以。瞬时队列 inspector 探测失败则与前者同向（按仍卡死）。
+6. **Go 的 `TaskInspector` 在本仓无实现**：Lite 无 asynq（`SystemAdminController` 的
+   noopTaskInspector 即此），故 `HousekeepingService` 的 inspector 缝生产传 `null`——
+   照 Go 的 nil-safe 设计，**只关闭瞬时队列这一项检查**，`task_pending_ops` 持久闸独立生效。
+   测试用假 inspector 覆盖"队列仍有活""探测失败"两分支（与 Go 的 fakeTaskInspector 同法）。
+7. **reuse_vectors 路径长期漏了两件 Go 做的事**（本次顺手补上，避免"照抄不齐"的二次返工）：
+   Go 的搬移分支在 `UpdateKnowledgeForTransfer` 里同时写 `parse_status=completed` +
+   `error_message=''`，并在搬移前清 `knowledge_tag_relations`（标签是 KB 作用域的）。Java 此前
+   只改 kb_id + updated_at，搬走后的文档仍挂着源 KB 的标签、行状态停在原值。
+   **排查手法**：把 Go 的 `moveKnowledgeReuseVectors` 尾部逐行对照 Java 的搬行方法，差异一目了然。
