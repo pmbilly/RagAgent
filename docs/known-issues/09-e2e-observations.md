@@ -146,3 +146,31 @@ STUB_RECORD_DIR=/tmp/w5obs-rec bash scripts/ab-e2e-observations.sh
 1. 在 `PluginSearch` 的三个 catch（`:112` / `:386` / `:402`）临时加 `e.printStackTrace()`，把实例挂上**常驻探针**等它复发，栈会直接给出抛出点；
 2. 同时抓失败时刻的 `storage/engine 解析状态`（`vector_stores` 行、租户有效引擎、`ResolveEmbeddingModelKeys` 的告警序列）；
 3. 钉住后再按"Go 的哪条分支"对齐实现 + 补回归（**预估：小批**，但**前置是复现**；不建议先改代码 ✗）。
+
+### 7.4 DB 线索查证结果（W5γ5.13 续）——找到了 2200 的来处，但**未复现**该分歧
+
+查 dev PG（`WeKnora@localhost:15432`；两端共用）现状：
+
+| 事实 | 值 |
+|---|---|
+| `vector_stores` 表 | **0 行**（空的） |
+| 租户 10002 `retriever_engines` | `{"engines": []}`（**无有效引擎**） |
+| 37 个 KB 里唯一带绑定的 | **`ks-golden-store`（`811b7781-249c-4e58-b7d4-83e0b4442c8b`）→ `b1c2d3d4-…-0001`（行已不存在 ✗）**，且 `indexing_strategy.vector_enabled=true`、无 embedding 模型 |
+| 其余 36 个 KB | `vector_store_id = NULL`（如 `shr-kb-alpha`、全部 `ks-golden-*`/`ab-chunk-*`/`faq-*`） |
+
+**用它做了确定性验证**（双端 `/knowledge-chat`，每次新会话）：
+
+| 请求的 KB 范围 | Go | Java |
+|---|---|---|
+| `[ks-golden-store]`（单一） | `error`×2（2200） | `error`×2（2200） |
+| `[shr-kb-alpha, ks-golden-store]`（混挂） | `error`×2（2200） | `error`×2（2200） |
+
+⇒ **"范围里含失效绑定的 KB" → 两端都硬错（2200）——这是对齐行为** ✓，不是分歧 ✗；
+且**这一路径可作回归夹具**（store 行被删而 KB 仍引用 = 真实会发生的运维场景）。
+**但它解释了 2200 的来处、没能解释**"那两次只有 Java 的错误" ✗——当时 Java 的检索范围（日志 `search_targets=1`）与现在完全一致，
+现状下同请求 6/6 两端一致 ⇒ **引发分歧的那份状态已经不在**（触发器消失）。
+
+**新的候选解释（未验证，留给复现时先查）**：`ks-golden-store` 正是**曾经的默认/首个 KB**——若失败时刻
+Java 的某段作用域解析（agent 的 `kb_selection_mode=all`、或 `/knowledge-chat` 的 KB 兜底）把**全部租户 KB**
+纳入了范围，就会吃进这个失效绑定 ✗（Go 同场景亦会 ✗，故仅当两侧作用域解析不同步时才表现为"只 Java 错"）。
+复现时的第一优先观察点：**失败那一发的 `search_targets` 里到底有几个 KB / 是哪些**。
