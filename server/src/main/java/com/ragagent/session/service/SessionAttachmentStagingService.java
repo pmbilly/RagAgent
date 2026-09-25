@@ -236,9 +236,8 @@ public class SessionAttachmentStagingService {
         }
         byte[] content;
         try {
-            content = opened.bytes() != null
-                    ? opened.bytes()
-                    : java.nio.file.Files.readAllBytes(opened.seekable());
+            // 三形态通吃（流形态读完即关）——Go 侧此处也是读全量（带上限校验）
+            content = opened.readAllBytes();
         } catch (Exception e) {
             throw new IllegalStateException("read attachment " + q(attachment.getFileName())
                     + ": " + e.getMessage(), e);

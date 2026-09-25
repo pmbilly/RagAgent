@@ -124,3 +124,17 @@ cmp /tmp/ab-go.bin /tmp/ab-java.bin && diff <(norm_headers /tmp/ab-go.h) <(norm_
 - 逐字节锁定的读面：`w5c-*` 85 + `w5f-*` 18 + `kg-download/preview*` 16 + `w5d-emb-files-*` 6 + `att-preview*` 3 = **128 个文件**（其中 31 个 `*.headers` 逐行锁 `Accept-Ranges`/`Content-Length`/`Content-Type`/`Content-Disposition`/`Cache-Control`）。
 - 重录脚本（若某批确实需要）：`scripts/record-w5c-golden.sh`（w5c/w5f/w5d 同源双端）+ `scripts/ab-w5c.sh`。
 - **本方案 ①a/③B 的预期：零重录**（报文字节不变）；①b 若做，也只影响"云对象"这一**未被 golden 覆盖**的面。
+
+## 7. 执行记录（2026-09-25 W5γ5.1）
+
+- **①a + ③B 已落地**：见 HANDOFF §0.-37 与 `known-issues/08` 的划账行；验收 = `StoragePathGuardTest` 4 +
+  `ProviderWiringTest` 4（流形态/关流/头形态）+ `FileTransportTest` 10 + **B3+B4 全绿（133s）**，
+  **128 个存储 golden 零重录**（方案预测成立：①a 不动报文字节）。
+- **真 A/B（`scripts/ab-storage-stream.sh`，MinIO 真云面）：跑通但未 PASS**，且发现两点（正文见 HANDOFF §0.-37）：
+  1. Go 对 MinIO 走 ServeContent（`Accept-Ranges: bytes`）——minio-go 的 `*minio.Object` 是 `io.ReadSeeker`；
+     "云对象非 seekable"只对 aws-sdk 族成立 → minio 面 Java 给 `none`（既有差异，①a 未回归）；
+  2. Java 侧同一 minio 路径 **404**（Go 200）→ 归 **①a2**（minio 路径解析/env 回退面）。
+- **①a2 待决**：minio 的 seekable 语义（补 Range 重发型 seekable 适配 vs 差异备案）+ Java minio 404 排查；
+  之后才是 **①b**（知识下载面）。
+- 环境：本机 9000/9001 = rustfs、18080-18082 = rocketmq → A/B 用 9100/19080/19082；MinIO 用
+  `brew install minio minio-mc`（docker 镜像站 403 / dl.min.io darwin 410）。

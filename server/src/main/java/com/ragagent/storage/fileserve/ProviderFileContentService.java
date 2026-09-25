@@ -17,11 +17,11 @@ import com.ragagent.storage.provider.FileService;
  *   <li>{@code deleteFile} → {@code deleteFile}</li>
  * </ul>
  *
- * <p><b>与 Go 的一处差异（备案）</b>：Go 的 {@code GetFile} 返回 {@code io.ReadCloser}，
- * 由 HTTP 层流式转发（大对象不占内存）；Java 侧的 {@code OpenedFile} 只有
- * "磁盘路径（可 seek）"与"内存字节"两种形态，云对象落不到前者，故走
- * {@code ofBytes}——<b>整对象读入堆内存</b>。locally-served 的小文件（图片/附件）无碍；
- * 超大对象的流式化需要给 {@code FileTransport} 补第三种形态，属独立课题。</p>
+ * <p><b>W5γ5.1：读面已流式化</b>——{@code getFile} 把 provider 的 {@code InputStream}
+ * 直接交给 {@link FileTransport.OpenedFile#ofStream}（Go 的 SDK body 直转响应），
+ * <b>不再整对象入堆</b>；{@code OpenedFile} 的内存字节形态保留给"手工写响应/需要 bytes"
+ * 的调用方（知识 byte[] 出口、图片 base64 等）。打开动作仍是即时的——provider 的真调用
+ * 与错误在此刻暴露（照 Go 的 {@code GetFile}），保证 404 语义不变。</p>
  */
 public class ProviderFileContentService implements WritableFileContentService {
 
@@ -38,11 +38,12 @@ public class ProviderFileContentService implements WritableFileContentService {
 
     @Override
     public FileTransport.OpenedFile getFile(String filePath) throws IOException {
-        try (InputStream in = inner.getFile(filePath)) {
-            byte[] data = in == null ? new byte[0] : in.readAllBytes();
-            return FileTransport.OpenedFile.ofBytes(data);
-        } catch (IOException e) {
-            throw e;
+        try {
+            // 打开动作即时做（provider 的真调用/错误此刻暴露，照 Go 的 GetFile）；
+            // 只把"读体"交给 HTTP 层直转——不缓冲整个对象（W5γ5.1 ①a）。
+            InputStream in = inner.getFile(filePath);
+            return FileTransport.OpenedFile.ofStream(
+                    in == null ? InputStream.nullInputStream() : in, 0);
         } catch (RuntimeException e) {
             // 对照 Go：打开失败/不存在 → IOException（路由折成 404）
             throw new IOException(e.getMessage() == null ? e.toString() : e.getMessage(), e);

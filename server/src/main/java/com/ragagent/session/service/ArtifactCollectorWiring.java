@@ -144,12 +144,8 @@ public class ArtifactCollectorWiring {
             @Override
             public byte[] readFile(String reference) throws Exception {
                 // 装饰服务内置 resource:// 解析 + local:// 归一（Go 的 inner.GetFile 链）；
-                // OpenedFile 是不可变 record，读 seekable 不需要关闭
-                var opened = globalStorage().getFile(reference);
-                if (opened.bytes() != null) {
-                    return opened.bytes();
-                }
-                return java.nio.file.Files.readAllBytes(opened.seekable());
+                // 三形态通吃（流形态读完即关）——Go 侧此处也是 io.ReadAll
+                return globalStorage().getFile(reference).readAllBytes();
             }
 
             @Override

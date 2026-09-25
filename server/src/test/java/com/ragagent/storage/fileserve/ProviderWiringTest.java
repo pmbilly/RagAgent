@@ -1,5 +1,6 @@
 package com.ragagent.storage.fileserve;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -13,6 +14,8 @@ import java.io.InputStream;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -37,9 +40,11 @@ class ProviderWiringTest {
         ProviderFileContentService svc = new ProviderFileContentService(stub);
 
         FileTransport.OpenedFile opened = svc.getFile("cos://b/r/k.png");
-        assertEquals(3, opened.size());
-        assertEquals(3, opened.bytes().length);
         assertEquals("cos://b/r/k.png", stub.lastPath);
+        // W5γ5.1：读面已是流形态——长度未知（0，照 Go 的 SDK body）、不整对象入堆
+        assertNull(opened.bytes());
+        assertEquals(0, opened.size());
+        assertArrayEquals(new byte[]{1, 2, 3}, opened.readAllBytes());
 
         assertEquals("https://signed", svc.getFileURL("cos://b/r/k.png"));
         assertEquals("cos://b/r/out.csv", svc.saveBytes(new byte[]{1, 2}, 7L, "out.csv", false));
@@ -50,6 +55,35 @@ class ProviderWiringTest {
         stub.fail = true;
         assertThrows(IOException.class, () -> svc.getFile("cos://b/r/k.png"));
         assertThrows(IOException.class, () -> svc.getFileURL("cos://b/r/k.png"));
+    }
+
+    @Test
+    @DisplayName("流式响应：不整对象入堆、头照 Go（none；Content-Length 只认 Options.size）、写完关流")
+    void streamServeShape() throws Exception {
+        StubProvider stub = new StubProvider();
+        ProviderFileContentService svc = new ProviderFileContentService(stub);
+
+        // 1) GET：Accept-Ranges: none，无 Content-Length（Options.size=0，照 Go 的非 seekable 分支）
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FileTransport.serve(response, new MockHttpServletRequest("GET", "/files"),
+                svc.getFile("cos://b/r/k.png"),
+                new FileTransport.Options("k.png", false, "", "", "private, no-store", 0));
+        assertEquals(200, response.getStatus());
+        assertEquals("none", response.getHeader("Accept-Ranges"));
+        assertNull(response.getHeader("Content-Length"));
+        assertArrayEquals(new byte[]{1, 2, 3}, response.getContentAsByteArray());
+        assertTrue(stub.lastStreamClosed, "响应写完后必须关流（Go 的 defer reader.Close()）");
+
+        // 2) HEAD + 已知 size（artifact 形态）：带 Content-Length，不写体，仍关流
+        stub.lastStreamClosed = false;
+        MockHttpServletResponse head = new MockHttpServletResponse();
+        FileTransport.serve(head, new MockHttpServletRequest("HEAD", "/files"),
+                svc.getFile("cos://b/r/k.png"),
+                new FileTransport.Options("k.png", true, "", "", "", 3));
+        assertEquals(200, head.getStatus());
+        assertEquals("3", head.getHeader("Content-Length"));
+        assertEquals(0, head.getContentAsByteArray().length);
+        assertTrue(stub.lastStreamClosed, "HEAD 也要关流");
     }
 
     // ── StorageFileResolver 的云分支（A3-3 接线前恒 cloudUnavailable） ──
@@ -106,6 +140,7 @@ class ProviderWiringTest {
         String lastPath;
         boolean deleted;
         boolean fail;
+        boolean lastStreamClosed;
 
         private void maybeFail() {
             if (fail) {
@@ -133,7 +168,13 @@ class ProviderWiringTest {
         public InputStream getFile(String filePath) {
             maybeFail();
             lastPath = filePath;
-            return new ByteArrayInputStream(new byte[]{1, 2, 3});
+            return new ByteArrayInputStream(new byte[]{1, 2, 3}) {
+                @Override
+                public void close() throws IOException {
+                    lastStreamClosed = true;
+                    super.close();
+                }
+            };
         }
 
         @Override

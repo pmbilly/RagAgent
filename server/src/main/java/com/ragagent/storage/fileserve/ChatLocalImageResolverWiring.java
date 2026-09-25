@@ -146,10 +146,8 @@ public class ChatLocalImageResolverWiring implements InitializingBean, Disposabl
 
             // L530-539: fileSvc.GetFile(物理路径) + io.ReadAll
             FileTransport.OpenedFile opened = resolution.service().getFile(physicalPath);
-            if (opened.bytes() != null) {
-                return opened.bytes();
-            }
-            return Files.readAllBytes(opened.seekable());
+            // 三形态通吃（seekable / stream / bytes）——Go 侧此处同样是"读全量"（多模态 base64）
+            return opened.readAllBytes();
         } catch (RuntimeException | IOException e) {
             // Go: 任何 err → (nil, false)，调用侧回落 LOCAL_STORAGE_BASE_DIR 兜底
             log.debug("[image-resolve] application resolver failed for {}: {}", storageUrl, e.toString());

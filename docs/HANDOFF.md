@@ -1,5 +1,29 @@
 # 交接文档（新会话接手用）
 
+## 0.-37 存储 ①a 读路径流式化 + ③ local 双实现去重（2026-09-25——W5γ5.1）
+
+**做了什么**（`docs/storage-a3-plan.md` 的执行；**golden 零重录**，验证见下）：
+
+| 件 | 说明 |
+|---|---|
+| **①a 流式化** | `FileTransport.OpenedFile` 补**第三形态** `ofStream(InputStream, size)`（+ `readAllBytes()` 三形态通吃）；`serve` 非 seekable 支路分流（流 → `transferTo`，bytes → 原样）；`closeReader` 从 no-op 变**真关流**（照 Go 的 `defer reader.Close()`）；`ProviderFileContentService.getFile` 改 `ofStream`——**打开仍即时**（错误即刻暴露 → 404 语义不变），只把"读体"交给 HTTP 层直转（不再整对象入堆） |
+| **①a 消费点** | 三处 `opened.bytes()`（`ChatLocalImageResolverWiring`/`ArtifactCollectorWiring`/`SessionAttachmentStagingService`）改 `readAllBytes()`（三形态通吃；Go 侧同样是读全量） |
+| **③B 去重** | 新 `StoragePathGuard`（`stripKnownScheme`/`cleanPath`/`safePathUnderBase`，照 Go 的 `filepath.Clean` + `SafePathUnderBase`）；`LocalFileContentService` 与 `knowledge.LocalStorageService` 各自**委托**，保留引用形态/布局/错误通道（IOException→404 vs BizException 信封）——**不合并两支**（Go 侧无对应物） |
+
+**验证**：`StoragePathGuardTest` 4（守卫矩阵 + **两支等价性**：同输入拒绝集合一致）+ `ProviderWiringTest` 4（**流式响应形态**：`Accept-Ranges: none`、`Content-Length` 只认 `Options.size`、写完关流、HEAD 也关流）+ `FileTransportTest` 10 全绿；**受影响批 B3+B4 全绿（133s，`--changed` 门）→ 128 个存储 golden（w5c/w5f/kg/att）零重录** ✓（与方案预测一致）。
+
+**真 A/B（新脚本 `scripts/ab-storage-stream.sh`，MinIO 真云面）：跑通但未 PASS——抓回两条发现**
+
+1. **Go 对 MinIO 走的是 ServeContent（`Accept-Ranges: bytes` + Range）**：minio-go 的 `*minio.Object` 实现 `io.ReadSeeker`（用 Range 请求实现 Seek）——即"云对象 = 非 seekable"这个假设**只对 aws-sdk 族成立**（s3/cos/tos/oss 的 body 是 `io.ReadCloser`）。Java 的流形态给 `none` → minio 面两侧头不同（**既有差异的精确化**：Java 改前也是 `none`，①a 未回归）。待决：补 seekable 适配（流 + Range 重发）或按差异备案。
+2. **Java 侧同一 minio 路径 404（Go 200）**：租户校验已过（先 403 → 带租户前缀后 404），provider 读取失败 → 疑为 Java 的 minio 路径解析/env 回退面。归 ①a2。
+   （环境事实：本机 9000 是 **rustfs**、18080-18082 是 **rocketmq** → A/B 用 9100/19080/19082；MinIO 走 `brew install minio minio-mc`——docker 镜像站对该镜像 403、dl.min.io 的 darwin 构建已 410。）
+
+**顺带修**：`scripts/go-server-up.sh` 在"本仓有 `.env`"时 `WEKNORA_ROOT` 未设 → `set -u` 下 unbound（`--with-ab` 会因此起不来）；已加兜底。
+
+**下一步**：**①a2**（minio 面：seekable 语义决策 + Java minio 404 排查）→ **①b**（知识下载面流式化，有动 `kg-*` 头形态的风险）。
+
+---
+
 ## 0.-36 MCP initialize 契约对齐（2026-09-25——W5γ4.21，⑱ 决策项落地）
 
 **做了什么**（§0.-34 三项决策简报之 ⑱；"差异点无文档描述"其实**不需要 Owner 实录**——两侧代码 + golden 实录就能定位）：

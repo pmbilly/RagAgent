@@ -222,39 +222,9 @@ public class LocalFileContentService implements WritableFileContentService {
         return cleanPath(String.join("/", parts));
     }
 
-    /**
-     * 对照 Go {@code filepath.Clean}（unix 规则）：
-     * 折叠多斜杠、消 {@code .}、解 {@code ..}、根/空的特殊形态。
-     */
+    /** 对照 Go {@code filepath.Clean}（unix 规则）——单一份实现在 {@link StoragePathGuard}（③ 去重）。 */
     static String cleanPath(String path) {
-        if (path.isEmpty()) {
-            return ".";
-        }
-        boolean rooted = path.startsWith("/");
-        List<String> out = new ArrayList<>();
-        for (String part : path.split("/", -1)) {
-            if (part.isEmpty() || part.equals(".")) {
-                continue;
-            }
-            if (part.equals("..")) {
-                if (!out.isEmpty() && !out.get(out.size() - 1).equals("..")) {
-                    out.remove(out.size() - 1);
-                } else if (!rooted) {
-                    out.add("..");
-                }
-                continue;
-            }
-            out.add(part);
-        }
-        StringBuilder sb = new StringBuilder();
-        if (rooted) {
-            sb.append('/');
-        }
-        sb.append(String.join("/", out));
-        if (sb.length() == 0) {
-            return ".";
-        }
-        return sb.toString();
+        return StoragePathGuard.cleanPath(path);
     }
 
     private static String fromSlash(String s) {
@@ -337,16 +307,11 @@ public class LocalFileContentService implements WritableFileContentService {
 
     // ── utils/security.go SafePathUnderBase ─────────────────────────────────
 
-    /** 对照 Go {@code SafePathUnderBase}：返回规范化绝对路径或抛 IOException（逃逸）。 */
+    /**
+     * 对照 Go {@code SafePathUnderBase}：返回规范化绝对路径或抛 IOException（逃逸）。
+     * 单一份实现在 {@link StoragePathGuard}（③ 去重；本支保留 IOException 错误通道）。
+     */
     static String safePathUnderBase(String baseDir, String filePath) throws IOException {
-        if (baseDir.isEmpty() || filePath.isEmpty()) {
-            throw new IOException("baseDir and filePath cannot be empty");
-        }
-        String absBase = Path.of(cleanPath(baseDir)).toAbsolutePath().normalize().toString();
-        String absPath = Path.of(cleanPath(filePath)).toAbsolutePath().normalize().toString();
-        if (!absPath.equals(absBase) && !absPath.startsWith(absBase + "/")) {
-            throw new IOException("invalid file path: path traversal denied: path is outside base directory");
-        }
-        return absPath;
+        return StoragePathGuard.safePathUnderBase(baseDir, filePath);
     }
 }

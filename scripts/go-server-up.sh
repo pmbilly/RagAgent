@@ -13,6 +13,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=dev-env.sh
 source "${SCRIPT_DIR}/dev-env.sh"
 
+# dev-env 在本仓存在 .env 时**不设** WEKNORA_ROOT（见其 37-43 行的分支）→ 这里自兜底，
+# 否则 ${WEKNORA_ROOT} 在 set -u 下直接 unbound（--with-ab 会因此起不来）。
+WEKNORA_ROOT="${WEKNORA_ROOT:-$(cd "${SCRIPT_DIR}/../WeKnora" 2>/dev/null && pwd || true)}"
+[ -n "${WEKNORA_ROOT}" ] || { echo "找不到 Go 仓（../WeKnora，或设 WEKNORA_ROOT）"; exit 1; }
+
 BIN="${WEKNORA_ROOT}/bin/weknora-server"
 LOG="${WEKNORA_LOG:-/tmp/weknora-go-server.log}"
 

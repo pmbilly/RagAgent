@@ -63,7 +63,11 @@
 
 - **云对象整对象入堆**：`ProviderFileContentService.getFile` 走 `OpenedFile.ofBytes`，
   Go 是流式 `io.ReadCloser`（HTTP 层直转）。大对象流式化要给 `FileTransport` 补第三种形态。
-  → **方案稿已出（2026-09-25）**：[`docs/storage-a3-plan.md`](../storage-a3-plan.md) §2。
+  → ✅ **①a 已落地（W5γ5.1，2026-09-25）**：`OpenedFile` 补流形态 + `serve` 分流 + `closeReader` 真关流，
+  `ProviderFileContentService` 改 `ofStream`（打开仍即时 → 404 语义不变）——**golden 零重录**（B3+B4 全绿）。
+  **真 A/B 未 PASS 的两条发现**：① Go 对 MinIO 走 ServeContent（minio-go 的 Object 是 ReadSeeker，
+  `Accept-Ranges: bytes`）→ Java 流形态给 `none`（既有差异精确化，待决：seekable 适配 or 备案）；
+  ② Java 侧同一 minio 路径 404（Go 200）→ 归 ①a2 排查。正文见 [`storage-a3-plan.md`](../storage-a3-plan.md) §7。
   对账修正两点：① **报文字节不受影响**（Java 已在 `FileTransport.java:108-110` 照 Go 用
   `Options.size` 决定 `Content-Length`，与对象长度无关）→ 既有 golden **零重录**，受影响的只有
   两个锁 `ofBytes` 形态的单测；② 偏差分两处（`ProviderFileContentService` 的 HTTP 面 +
@@ -72,7 +76,9 @@
 - **local 有两支实现**：`knowledge.LocalStorageService`（`resource://` 契约，golden 锁定）与
   `fileserve.LocalFileContentService`（provider 的 `local://` 契约）。二者都照 `local.go`，
   收敛属清理项，会影响既有 golden，未在本批动。
-  → **方案稿已出（2026-09-25）**：[`docs/storage-a3-plan.md`](../storage-a3-plan.md) §3。
+  → ✅ **③B 已落地（W5γ5.1，2026-09-25）**：新 `StoragePathGuard`（`stripKnownScheme`/`cleanPath`/
+  `safePathUnderBase`，照 Go）——两支各自**委托**、保留自己的错误通道与引用形态（**不合并两支**）；
+  `StoragePathGuardTest` 4 含**两支等价性**断言；golden 零重录。
   对账修正：**Go 侧根本不存在这两支**（全仓 `fileserve`/`LocalStorageService`/`FileContentService`
   0 命中；Go 是"单 `FileService` + `local.go` 单实现 + backendScoped/resourceCatalog 装饰器 +
   `filetransport` 出口"）——两支是 **Java 侧结构**，且**职责不重叠、两支护栏都正确（只是重复）**。

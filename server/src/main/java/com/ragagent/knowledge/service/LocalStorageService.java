@@ -10,6 +10,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 
 import com.ragagent.common.error.BizException;
+import com.ragagent.storage.fileserve.StoragePathGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -86,25 +87,20 @@ public class LocalStorageService {
         }
     }
 
+    /**
+     * 解析 + 逃逸守卫：三态 scheme 解析与 base 包含判定都走
+     * {@link StoragePathGuard}（③ 去重，单一份实现）；本支保留 BizException 信封错误通道
+     * （{@code local://} + {@code resource://} 的解析顺序敏感，委托后语义不变）。
+     */
     private Path resolveUnderBase(String filePath) {
-        String base = baseDir.toAbsolutePath().normalize().toString();
-        String candidate;
-        if (filePath != null && filePath.startsWith("local://")) {
-            candidate = filePath.substring("local://".length());
-        } else if (filePath != null && filePath.startsWith("resource://")) {
-            candidate = filePath.substring("resource://".length());
-        } else {
-            candidate = filePath == null ? "" : filePath;
-        }
-        Path resolved = java.nio.file.Path.of(candidate).isAbsolute()
-                ? java.nio.file.Path.of(candidate)
-                : baseDir.resolve(candidate);
-        Path abs = resolved.toAbsolutePath().normalize();
-        if (!abs.equals(baseDir.toAbsolutePath().normalize()) && !abs.startsWith(base + "/")) {
+        String candidate = StoragePathGuard.stripKnownScheme(filePath);
+        Path joined = Path.of(candidate).isAbsolute() ? Path.of(candidate) : baseDir.resolve(candidate);
+        try {
+            return Path.of(StoragePathGuard.safePathUnderBase(baseDir.toString(), joined.toString()));
+        } catch (IOException e) {
             throw new BizException(com.ragagent.common.error.AppError.internal("Failed to retrieve file")
-                    .withDetails("invalid file path: path traversal denied: path is outside base directory"));
+                    .withDetails(e.getMessage()));
         }
-        return abs;
     }
 
     public boolean exists(String resourcePath) {

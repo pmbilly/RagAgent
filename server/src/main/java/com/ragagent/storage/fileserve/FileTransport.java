@@ -24,9 +24,10 @@ import jakarta.servlet.http.HttpServletResponse;
  *   <li><b>可 seek</b>（本地盘，Go 的 {@code *os.File}）→ {@code http.ServeContent}
  *       的 Java 移植：Accept-Ranges: bytes、Content-Length、Range→206/416、
  *       If-Match/If-None-Match 预判（零 modtime、无 ETag 形态）。</li>
- *   <li><b>仅流式</b>（Go 的 SDK reader）→ Accept-Ranges: none，不缓冲整个对象
- *       来支持 seek（RFC 9110 §14.2，Go 注释原文）。W5c 只有 local 一支可达；
- *       流式分支保留完整语义。</li>
+ *   <li><b>仅流式</b>（Go 的 SDK reader / {@code OpenedFile.ofStream}）→ Accept-Ranges: none，
+ *       Content-Length 只认调用方的 {@code Options.size}（照 Go），不缓冲整个对象来支持
+ *       seek（RFC 9110 §14.2，Go 注释原文）。W5γ5.1 起云 provider 走这一支
+ *       （{@link ProviderFileContentService}），本地盘仍走 seek 支路。</li>
  * </ul>
  *
  * <p><b>多段 Range（multipart/byteranges）的边界是随机的</b>——Go 侧也随机，
@@ -52,17 +53,42 @@ public final class FileTransport {
     }
 
     /**
-     * 已打开的存储对象：{@code seekable} 在位时走 ServeContent 支路（Go 的
-     * ReadSeeker），否则流式支路（bytes 一次性读出）。
+     * 已打开的存储对象，三形态（对照 Go 的 {@code io.ReadCloser} 家族）：
+     * <ul>
+     *   <li>{@code seekable}：本地盘路径（Go 的 {@code *os.File}，可 seek）→ ServeContent 支路；</li>
+     *   <li>{@code stream}：只能顺序读的流（Go 的 SDK body，云对象）→ 流式支路，**不缓冲整个对象**；</li>
+     *   <li>{@code bytes}：已在内存的字节（Go 侧手工写响应的路由/知识 byte[] 出口）→ 流式支路。</li>
+     * </ul>
      */
-    public record OpenedFile(Path seekable, byte[] bytes, long size) {
+    public record OpenedFile(Path seekable, byte[] bytes, InputStream stream, long size) {
 
         public static OpenedFile ofSeekable(Path path, long size) {
-            return new OpenedFile(path, null, size);
+            return new OpenedFile(path, null, null, size);
         }
 
         public static OpenedFile ofBytes(byte[] data) {
-            return new OpenedFile(null, data, data.length);
+            return new OpenedFile(null, data, null, data.length);
+        }
+
+        /** 只能顺序读的流（Go 的 SDK body）；{@code size} 未知时传 0（照 Go 的 reader 无长度）。 */
+        public static OpenedFile ofStream(InputStream stream, long size) {
+            return new OpenedFile(null, null, stream, size);
+        }
+
+        /** 读全量字节（三形态通吃；流形态读完即关）——Go {@code io.ReadAll} 的对应物。 */
+        public byte[] readAllBytes() throws IOException {
+            if (bytes != null) {
+                return bytes;
+            }
+            if (stream != null) {
+                try (InputStream in = stream) {
+                    return in.readAllBytes();
+                }
+            }
+            if (seekable != null) {
+                return Files.readAllBytes(seekable);
+            }
+            return new byte[0];
         }
     }
 
@@ -112,6 +138,11 @@ public final class FileTransport {
             if ("HEAD".equals(request.getMethod())) {
                 return;
             }
+            if (reader.stream() != null) {
+                // 流形态：provider 的 InputStream 直转响应（Go 的 io.Copy），不缓冲整个对象
+                reader.stream().transferTo(response.getOutputStream());
+                return;
+            }
             try (InputStream in = new java.io.ByteArrayInputStream(reader.bytes())) {
                 in.transferTo(response.getOutputStream());
             }
@@ -121,8 +152,15 @@ public final class FileTransport {
     }
 
     private static void closeReader(OpenedFile reader) {
-        // OpenedFile 持有的是 Path/bytes——没有需要关闭的句柄。
-        // Go 的 defer reader.Close() 对应物是下面的 FileChannel try-with-resources。
+        // 对照 Go 的 defer reader.Close()：流形态必须在响应写完后关闭；
+        // Path/bytes 形态没有句柄可关（seek 支路的 FileChannel 由 try-with-resources 管）。
+        if (reader.stream() != null) {
+            try {
+                reader.stream().close();
+            } catch (IOException ignored) {
+                // 照 Go 的 _ = reader.Close()：关流失败不影响已写出的响应
+            }
+        }
     }
 
     // ── http.ServeContent 的移植（零 modtime / 无 ETag 形态）────────────────
