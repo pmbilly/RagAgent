@@ -1,8 +1,12 @@
 package com.ragagent.storage.provider;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -11,7 +15,13 @@ import org.slf4j.LoggerFactory;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.OSSException;
+import com.aliyun.oss.model.AbortMultipartUploadRequest;
+import com.aliyun.oss.model.CompleteMultipartUploadRequest;
+import com.aliyun.oss.model.InitiateMultipartUploadRequest;
+import com.aliyun.oss.model.InitiateMultipartUploadResult;
 import com.aliyun.oss.model.ObjectMetadata;
+import com.aliyun.oss.model.PartETag;
+import com.aliyun.oss.model.UploadPartRequest;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
@@ -23,9 +33,12 @@ import com.ragagent.common.security.SsrfGuard;
  * 构造期确保桶存在（不存在则建，409 视为已存在）、预签名 24 小时、服务端 CopyObject、
  * 跨后端复制拒绝、取/删/签名时**按路径里的 bucket 选主/临时客户端**。</p>
  *
- * <p><b>与 Go 的一处差异（备案）</b>：Go 对 &gt;10MB 的上传走 SDK 的并发分片 Uploader
- * （10MB/片、3 并发）；Java 侧先用单次 PutObject（SDK 流式 + 重试）。大文件分片留待
- * 需要时补（不影响正确性，只影响大文件上传耗时）。</p>
+ * <p><b>大文件分片（W5γ4.20 已补，消掉原备案）</b>：照 Go 的
+ * {@code Uploader}（{@code uo.PartSize = 10MB}、{@code uo.ParallelNum = 3}）——{@code >10MB}
+ * 走 {@code initiateMultipartUpload → uploadPart ×N（3 并发）→ completeMultipartUpload}，
+ * 失败时 {@code abortMultipartUpload} 清理（best-effort，照 Go SDK Uploader 的收尾）；
+ * 小文件仍走单次 {@code putObject}。错误前缀照 Go：分片 {@code failed to upload file to
+ * OSS (multipart): …}、单次 {@code failed to upload file to OSS: …}。</p>
  */
 public class OssFileService implements FileService {
 
@@ -35,11 +48,21 @@ public class OssFileService implements FileService {
     /** 预签名有效期（对照 Go：{@code oss.PresignExpires(24*time.Hour)}）。 */
     static final long PRESIGN_TTL_MILLIS = 24L * 3600 * 1000;
 
+    /** 分片阈值（照 Go {@code multipartThreshold = 10 * 1024 * 1024}）。 */
+    static final long MULTIPART_THRESHOLD = 10L * 1024 * 1024;
+    /** 每片大小（照 Go {@code uo.PartSize = 10 * 1024 * 1024}）。 */
+    static final long PART_SIZE = 10L * 1024 * 1024;
+    /** 分片并发度（照 Go {@code uo.ParallelNum = 3}）。 */
+    static final int PARALLEL_NUM = 3;
+
     private final OSS client;
     private final OSS tempClient;
     private final String bucketName;
     private final String tempBucketName;
     private final String pathPrefix;
+    /** 分片参数（测试可注入小值；生产即上面的 Go 常量）。 */
+    private final long partSize;
+    private final long multipartThreshold;
 
     public OssFileService(String endpoint, String region, String accessKey, String secretKey,
                           String bucketName, String pathPrefix, String tempBucketName,
@@ -64,6 +87,23 @@ public class OssFileService implements FileService {
         if (tempClient != null) {
             ensureBucket(tempClient, this.tempBucketName);
         }
+        this.partSize = PART_SIZE;
+        this.multipartThreshold = MULTIPART_THRESHOLD;
+    }
+
+    /**
+     * 测试口：注入客户端与分片参数（不建桶、不触网）。生产请用上面的公开构造器。
+     */
+    OssFileService(OSS client, OSS tempClient, String bucketName, String tempBucketName,
+                   String pathPrefix, long partSize, long multipartThreshold) {
+        this.client = client;
+        this.tempClient = tempClient;
+        this.bucketName = bucketName;
+        this.tempBucketName = tempBucketName == null ? "" : tempBucketName.trim();
+        String prefix = pathPrefix == null ? "" : pathPrefix.trim();
+        this.pathPrefix = !prefix.isEmpty() && !prefix.endsWith("/") ? prefix + "/" : prefix;
+        this.partSize = partSize;
+        this.multipartThreshold = multipartThreshold;
     }
 
     private static OSS buildClient(String endpoint, String region, String accessKey,
@@ -115,15 +155,118 @@ public class OssFileService implements FileService {
         String contentType = file.contentType().isEmpty()
                 ? StorageObjects.contentTypeByExt(ext) : file.contentType();
         try (InputStream in = file.opener().get()) {
-            ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentType(contentType);
-            client.putObject(bucketName, objectName, in, metadata);
+            if (file.size() > multipartThreshold) {
+                // 照 Go：>10MB 走 Uploader（10MB/片、3 并发）
+                uploadMultipart(objectName, contentType, in);
+            } else {
+                ObjectMetadata metadata = new ObjectMetadata();
+                metadata.setContentType(contentType);
+                client.putObject(bucketName, objectName, in, metadata);
+            }
+        } catch (MultipartFailure e) {
+            throw new IllegalStateException(
+                    "failed to upload file to OSS (multipart): " + e.getMessage(), e);
         } catch (RuntimeException e) {
             throw new IllegalStateException("failed to upload file to OSS: " + e.getMessage(), e);
         } catch (java.io.IOException e) {
             throw new IllegalStateException("failed to open file: " + e.getMessage(), e);
         }
         return SCHEME + bucketName + "/" + objectName;
+    }
+
+    /** 分片路径的失败标记（用于区分错误前缀；照 Go 的 {@code (multipart)} 分支）。 */
+    private static final class MultipartFailure extends RuntimeException {
+        MultipartFailure(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /**
+     * 照 Go 的 {@code Uploader.UploadFrom}：{@code initiateMultipartUpload} →
+     * {@code uploadPart}（10MB/片、**3 并发**、单遍读流）→ {@code completeMultipartUpload}；
+     * 任一步失败都 best-effort {@code abortMultipartUpload} 后抛错（照 Go SDK Uploader 收尾）。
+     */
+    private void uploadMultipart(String objectName, String contentType, InputStream in) {
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentType(contentType);
+        String uploadId;
+        try {
+            InitiateMultipartUploadResult init = client.initiateMultipartUpload(
+                    new InitiateMultipartUploadRequest(bucketName, objectName, metadata));
+            uploadId = init.getUploadId();
+        } catch (RuntimeException e) {
+            throw new MultipartFailure("initiate: " + e.getMessage(), e);
+        }
+
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(PARALLEL_NUM);
+        try {
+            List<java.util.concurrent.Future<PartETag>> futures = new ArrayList<>();
+            byte[] buffer = new byte[(int) Math.min(partSize, Integer.MAX_VALUE)];
+            int partNumber = 1;
+            while (true) {
+                int filled;
+                try {
+                    filled = readFully(in, buffer);
+                } catch (java.io.IOException e) {
+                    throw new MultipartFailure("read part " + partNumber + ": " + e.getMessage(), e);
+                }
+                if (filled <= 0) {
+                    break;
+                }
+                byte[] payload = Arrays.copyOf(buffer, filled);
+                final int number = partNumber;
+                futures.add(pool.submit(() -> client.uploadPart(new UploadPartRequest(bucketName,
+                        objectName, uploadId, number, new ByteArrayInputStream(payload),
+                        payload.length)).getPartETag()));
+                partNumber++;
+            }
+            List<PartETag> eTags = new ArrayList<>(futures.size());
+            for (java.util.concurrent.Future<PartETag> future : futures) {
+                try {
+                    eTags.add(future.get());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new MultipartFailure("interrupted", e);
+                } catch (java.util.concurrent.ExecutionException e) {
+                    Throwable cause = e.getCause() == null ? e : e.getCause();
+                    throw new MultipartFailure("upload part: " + cause.getMessage(), cause);
+                }
+            }
+            client.completeMultipartUpload(
+                    new CompleteMultipartUploadRequest(bucketName, objectName, uploadId, eTags));
+        } catch (MultipartFailure e) {
+            abortQuietly(objectName, uploadId);
+            throw e;
+        } catch (RuntimeException e) {
+            abortQuietly(objectName, uploadId);
+            throw new MultipartFailure("complete: " + e.getMessage(), e);
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    /** best-effort 清理（失败只记日志——照 Go SDK Uploader 的 abort 收尾姿态）。 */
+    private void abortQuietly(String objectName, String uploadId) {
+        try {
+            client.abortMultipartUpload(
+                    new AbortMultipartUploadRequest(bucketName, objectName, uploadId));
+        } catch (RuntimeException e) {
+            log.warn("failed to abort OSS multipart upload {}: {}", objectName, e.getMessage());
+        }
+    }
+
+    /** 读满 buffer 或到 EOF（单遍读流；返回实际读到的字节数）。 */
+    private static int readFully(InputStream in, byte[] buffer) throws java.io.IOException {
+        int total = 0;
+        while (total < buffer.length) {
+            int n = in.read(buffer, total, buffer.length - total);
+            if (n < 0) {
+                break;
+            }
+            total += n;
+        }
+        return total;
     }
 
     @Override

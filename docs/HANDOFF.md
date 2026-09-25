@@ -1,5 +1,18 @@
 # 交接文档（新会话接手用）
 
+## 0.-35 OSS 大文件分片上传（2026-09-25——W5γ4.20，存储三条备案之②）
+
+**做了什么**（照 Go `file/oss.go` 的 `SaveFile`）：`>10MB` 走**分片上传**——`initiateMultipartUpload`（带 ContentType 元数据）→ `uploadPart` ×N（**10MB/片、3 并发**、单遍读流、按 partNumber 保序）→ `completeMultipartUpload`（有序 ETag）；任一步失败 **best-effort `abortMultipartUpload`** 后抛错（照 Go SDK Uploader 收尾）。小文件仍走单次 `putObject`。**错误前缀照 Go 的两个分支**：分片 `failed to upload file to OSS (multipart): …`、单次 `failed to upload file to OSS: …`。
+
+- 常量照 Go 原文：`MULTIPART_THRESHOLD = 10*1024*1024`、`PART_SIZE = 10*1024*1024`、`PARALLEL_NUM = 3`（片大小/阈值可由包内构造器注入，供测试用小值断言片序）。
+- Java SDK v1 的 `uploadFile` 只收**本地路径**，故走**低层分片 API**（initiate/uploadPart/complete/abort）自持——与 Go 的 Uploader 行为对齐（并发度、片大小、abort 收尾）。
+
+**验证**：`OssMultipartUploadTest` 5 条（Mockito 桩 `OSS`，不触网）：Go 常量钉住 / 小文件单次 putObject（不走分片）/ 大文件三片（partNumber 1..3、片大小 64/64/22、ETag 有序、`maxInFlight ≤ 3`、不 abort）/ uploadPart 失败 → abort + `(multipart)` 前缀 / initiate 失败 → 同前缀且不 abort。存储域回归 + **五批验收 PASS**。
+
+**顺带记录（环境假红）**：本批首次全量跑时 `B1a` 的 `WebToolsRecordingTest.searchWithContentFetchesLeadingPagesViaSharedFetchTool` 偶发失败（断言抓 3 条得 2 条，`a/c` 缺 `b`）——**与本批改动无关**：单跑 3 次连绿、全量重跑绿；属负载敏感型偶发（与既有"并发跑测试撞端口/偶发假红"同族），跑批前尽量降低本机负载。
+
+---
+
 ## 0.-34 provider-XDEP 族收口：weknoracloud VLM 落地 + 三项决策简报（2026-09-25——W5γ4.19）
 
 **落地**（照 Go `vlm/weknoracloud.go` 188 行）：`VlmClient.predictWeKnoraCloud`——`POST /api/v1/chat/completions`（multipart：text + 各图 data URI、`max_tokens=5000`、`temperature=0.1` 用常量、`stream=false`；`extra.remote_model_name` 覆盖模型名；取 `choices[0].message.content`）。

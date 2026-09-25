@@ -204,6 +204,8 @@
 
 | provider-XDEP 族收口（W5γ4.19，2026-09-25） | Go `internal/models/vlm/weknoracloud.go`（188 行）+ `internal/models/utils/signer.go`（Sign，复用既有 Java 实现）+ `modelService.GetVLMModel` 的凭证解析 + W5δ/MCP/存储三项遗留（文档级） | `VlmClient.predictWeKnoraCloud` + `Transport.postWithHeaders`（缺省抛保函数式接口）+ `VlmHttpTransport` 实现 + `HttpStatusException` + `VlmConfig` 补 appId/appSecret + `WeKnoraCloudService.resolveCredentials` + `ModelDebugController` 注入解析（凭证检查先于基址校验，照 Go） | ✅ | `VlmWeKnoraCloudTest` 5 条全绿（形状 / **签名用抓到的头独立重算** / remote_model_name 与空图 / 凭证与非 200/无 choices 文案 / 分派走 postWithHeaders）；测试用真实 `VlmHttpTransport`（临时放行 loopback guard）；**VLM 三界面（openai/ollama/weknoracloud）全落地**；五批验收 PASS。**三项决策简报**（W5δ PTY 需真 provider + zerodep 半关闭评估 / MCP initialize 缺报文实录故不动工 / 存储三条按"②先做、①③排读路径批"拆分）——均待 Owner 输入 |
 
+| OSS 大文件分片（W5γ4.20，2026-09-25） | Go `internal/application/service/file/oss.go` 的 `SaveFile`（`multipartThreshold=10MB` + `Uploader(PartSize=10MB, ParallelNum=3)`） | `storage.provider.OssFileService`（+ 常量三件 / 测试口构造器 / `uploadMultipart` / `abortQuietly` / `readFully` / `MultipartFailure`）+ 新测试 `OssMultipartUploadTest` | ✅ | Java SDK v1 的 `uploadFile` 只收本地路径 → 走**低层分片 API** 自持（initiate → uploadPart×N 保序 → complete；失败 best-effort abort）；错误前缀照 Go 两分支（`(multipart)` / 不带）；**5 条 Mockito 测试**钉住 Go 常量、小文件单次、片序与片大小、并发上限 ≤3、失败 abort 与两种前缀；五批验收 PASS。**顺带记录**：本批首次全量跑遇 `WebToolsRecordingTest` 负载敏感偶发假红（与改动无关，单跑连绿），已入 §8 说明 |
+
 ## 9. 坑索引（条目 → 分片对照）
 
 
@@ -315,3 +317,4 @@
 | 小账批（2026-09-25 W5γ4.17：VLM ollama 落地去一 XDEP / Milvus shardsNum 钉测试 / Weaviate gse 为跨仓提案（未改 Go 仓）/ E2E 两观察项待复跑定位） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | 检索批收官（2026-09-25 W5γ4.18：九店总表与差异汇总 / neo4j 属图仓的澄清 / 待真机联调清单 / 复现命令） | [`retrieval-batch-closure.md`](retrieval-batch-closure.md) |
 | provider-XDEP 收口（2026-09-25 W5γ4.19：weknoracloud VLM 落地（六头签名复用 + 凭证解析口）/ Transport 加 postWithHeaders 保函数式接口 / 三项决策简报（W5δ 需 spike、MCP 缺实录、存储拆分）） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
+| OSS 分片上传（2026-09-25 W5γ4.20：SDK uploadFile 只收路径 → 低层分片 API 自持 / Go 常量 10MB·10MB·3 与 `(multipart)` 错误前缀 / 失败 abort / 负载敏感偶发假红记录） | [`08-storage-a3.md`](known-issues/08-storage-a3.md) |
