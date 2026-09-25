@@ -95,7 +95,7 @@ signal 15→143 / 重附回落 / 桥适配含终结后 `next()==null`），连�
 "逐 token 对照"比"逐值对照端到端"更早定位、更小爆炸半径。
 
 **下一步**：~~决策简报只剩 **W5δ provider 终端执行体**~~ ✅ **传输层 spike 已做（W5γ5.8，§0.-44）**：阻塞点不成立（无双向流、无半关闭）；执行体本体待真机清单 1–4 收口；**存储 ①③ 之外的小账**仍在；
-备案小账剩 Weaviate gse 跨仓提案（**已回填 Go compose，未在 Go 仓提交**）、E2E 两观察项（早错 SSE / `list_sandbox_files` 注册时机）。
+备案小账剩 ~~Weaviate gse 跨仓提案~~ ✅ **已收口（Go 仓 `0277521f`，2026-09-25）**、E2E 两观察项（早错 SSE / `list_sandbox_files` 注册时机）。
 
 ---
 
@@ -114,7 +114,7 @@ signal 15→143 / 重附回落 / 桥适配含终结后 `next()==null`），连�
 
 - **顺带查明**：本地一直没暴露是因为**测试容器当初就是带 flag 手动起的**（`docker inspect` 实录），
   而 compose 文件里没有 → 用 `--profile weaviate` 起的人（含 Go 侧）会踩 422。探针容器已清理（只留 :9035）。
-- Go 仓的这处改动**未在 Go 仓提交**（保持其工作区原样，交由其持有者决定）。
+- ✅ **已提交（Go 仓 `0277521f`，2026-09-25）**：`fix(deploy): enable Weaviate GSE tokenizer in compose`——提交正文含 422 原文、驱动出处与 422→200 实证；compose 注释改为自我完备（驱动路径 + 422 文案，不带跨仓批次号）。注：该仓近期提交多带 `Co-Authored-By: Claude` 尾注，本次**未加**（不冒充作者），需要一致性可 `--amend` 自行补。
 
 ### 二、jieba 真实分词：成本勘察 + 决策（**不塞进小账批**）——✅ **已落地（W5γ5.7，§0.-43）**，
 且勘察被推翻：**词典恒空 → 只需复刻 HMM，零词典资产**
@@ -303,7 +303,7 @@ WARN FileProxyService: [Router] /files get file failed: tenant_id=10002 provider
 
 **教训（可复用）**：协议版本/SDK 版本头/默认参数这类**依赖派生常量**，注释必须钉"照哪个依赖版本"，并在 Go 侧依赖升级时纳入对账（否则静默漂移）。
 
-**下一步**：决策简报只剩 **W5δ provider 终端执行体**（需真实 provider + zerodin stdin 半关闭的 spike）与**存储 ①③**（读路径黄金面专项批）；备案小账剩 Weaviate gse 跨仓提案、E2E 两观察项、jieba 真实分词。
+**下一步**：决策简报只剩 **W5δ provider 终端执行体**（需真实 provider + zerodin stdin 半关闭的 spike）与**存储 ①③**（读路径黄金面专项批）；备案小账剩 ~~Weaviate gse 跨仓提案~~ ✅（Go 仓 `0277521f`）、E2E 两观察项、~~jieba 真实分词~~ ✅（W5γ5.7）。
 
 ---
 
@@ -370,7 +370,7 @@ PipelinePorts.RetrieveGraphRepository`，方法面一一对应，`QaWiring` 装�
 |---|---|
 | **VLM ollama 界面** | ✅ **落地**（照 Go `vlm/ollama.go`）：`VlmClient.predictOllama`（单条 user 消息 + 图片原始字节 → JSON base64、`stream=false`、`options.temperature=0.1`、取 `message.content`；错误族 `Ollama VLM request: …`）+ `ModelDebugController.debugVlm` 放行 ollama（Go 侧对 ollama 基址不做 SSRF 校验）+ `VlmOllamaTest` 4 条（形状/空图丢弃/服务不可用/分派不走传输层）。**weknoracloud 仍是 XDEP**（云 API，需凭据） |
 | **Milvus `shardsNum`** | ✅ 钉测试：`indexCfg.shardsNum>0` 才带键（服务端忽略为已备案差异） |
-| ~~**Weaviate `ENABLE_TOKENIZER_GSE`**~~ | ✅ **2026-09-25 已回填 Go 仓 compose 并实证**（W5γ5.6，§0.-42）：无 flag → 422 / 有 flag → 200（三容器对照）；顺带查明测试容器当初就是手动带 flag 起的，故本地从未暴露 |
+| ~~**Weaviate `ENABLE_TOKENIZER_GSE`**~~ | ✅ **2026-09-25 已回填 Go 仓 compose 并实证**（W5γ5.6，§0.-42）：无 flag → 422 / 有 flag → 200（三容器对照）；顺带查明测试容器当初就是手动带 flag 起的，故本地从未暴露。**跨仓提案已收口：Go 仓 `0277521f`（2026-09-25）** |
 | **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | ✅ **复现清单已写死**（W5γ5.6，§0.-42 三：现象/步骤/需留证据）——仍**不做无现象的猜测式改动**，下次 E2E 一批按清单抓 |
 | ~~**腾讯分词接缝 / jieba**~~ | ✅ **已落地（W5γ5.7，§0.-43）**。~~成本勘察（W5γ5.6）~~：Go 用 `go-ego/gse`（3392 行 + 14MB 中文词典 + HMM）→ 预估"完整移植是独立大批（含 BM25 基准重录）"；**实际勘察推翻**：`LoadDict("")` 是空词典 → 纯 HMM，移植 1 类 + HMM 表资源，无词典资产、无基准重录（token 级差分 20 句全一致；五批全绿 228s） |
 

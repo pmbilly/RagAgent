@@ -85,7 +85,7 @@
 4. 无真例。
 
 ### Weaviate
-1. **`tokenization:"gse"` 需服务端 `ENABLE_TOKENIZER_GSE=true`**（1.28.4 默认关，否则建类 422）——**Go 仓 compose 缺这一项**（跨仓提案，见 §5）。
+1. **`tokenization:"gse"` 需服务端 `ENABLE_TOKENIZER_GSE=true`**（1.28.4 默认关，否则建类 422）——~~**Go 仓 compose 缺这一项**（跨仓提案，见 §5）~~ ✅ **已回填并提交（Go 仓 `0277521f`，2026-09-25）**。
 2. `after`+`where` 被服务端拒 → 本仓改 `where + limit + offset`；命名向量类下 `_additional{vector}` 恒空 → 改 `vectors{embedding}`。
 3. **无 merge 的 PUT 会清掉未提供属性与向量**（Go 两处批量更新是数据丢失缺陷）→ 本仓改 **PATCH merge**。
 4. **BM25 的 score 是字符串**（Go 的 float64 断言恒失败 → 关键词分恒 0）→ 本仓按代码意图取 1.0。
@@ -196,7 +196,7 @@ WEKNORA_MILVUS_IT=true ./gradlew :server:test --tests "*MilvusDriverLocalIT*"
 
 1. **备案小账**（W5γ4.17）：weknoracloud VLM（云 API，需凭据）、E2E 两个观察项
    （早错 SSE 不收流 / `list_sandbox_files` 注册时机，**待复跑抓现象**）、
-   跨仓提案（Go 仓 compose 的 `ENABLE_TOKENIZER_GSE`）、jieba 真实分词接缝
+   ~~跨仓提案（Go 仓 compose 的 `ENABLE_TOKENIZER_GSE`）~~ ✅ 已提交（`0277521f`）、~~jieba 真实分词接缝~~ ✅ 已落地（W5γ5.7）
    （接入后腾讯稀疏向量与 Go 存量互通、Qdrant/Weaviate/Milvus 关键词面同步改善）。
 2. **provider-XDEP 族**：W5δ 终端 PTY、`initialize` 契约对齐、存储三条备案。
 3. **产品库引擎（postgres）**：读路径 golden 已锁；若今后要改 SQL，先跑 A/B。
