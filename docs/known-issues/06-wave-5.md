@@ -1840,3 +1840,59 @@ SDK 的默认构造 `tokenizer.NewJiebaTokenizer(nil)`（`tcvdbtext/encoder/bm25
 若其显式传 `dict_file`/`UserDictFilePath` 或自定义 `TokenizerParams`，**必须按新参数重录基准**
 （重录命令见 `scripts/jieba-diff-probe/main.go` 顶部）。Qdrant 的 `SearchTextUtil` 接缝**未动**
 （其 `tokenizeQuery` 的近似语义与二次空白切分是独立备案，见本分片 W5 的 Qdrant 段）。
+
+---
+
+## W5γ5.8：W5δ 传输层 spike（2026-09-25）——"zerodep stdin 半关闭"阻塞点不成立
+
+### 结论（把两侧 SDK 读到实现级）
+
+envd 的 PTY **既没有双向流，也没有 stdin 半关闭**：
+
+| 操作 | RPC 形态 | 请求体 | 出处 |
+|---|---|---|---|
+| 建/重附 PTY | `POST /process.Process/Start`·`Connect`，**服务端流** | **完整**的帧化 JSON（发完即止） | Cube `pty.go:368`、`envd.go:90` |
+| 喂键击 | `POST /process.Process/SendInput`，**一元** | 裸 JSON | Cube `pty.go:432` |
+| 改窗口 | `POST /process.Process/Resize`，一元 | 裸 JSON | Cube `pty.go:432` |
+
+E2B 侧实现不同、**协议同一套**（connect-go 生成的 `Start/Connect/SendInput/Resize`，
+go-e2b `pty.go:115,158,186,194`）。⇒ **"EOF 不可表达"的后果量化 = 0**（服务端从不依赖请求流的 EOF），
+`java.net.http.HttpClient`（`BodyHandlers.ofInputStream()` + 一元请求并发）即可。
+
+### 协议规格（照 Cube SDK 手写实现，逐条可抄）
+
+- **帧**（`connect.go:17-20,35-62`）：5 字节头 = 1 flag + **大端 uint32** 长度 + payload；
+  `0x01`=压缩（**SDK 拒绝**，`pty.go:605-607`）、`0x02`=end-stream（payload 是 `{"error":{code,message}}`）；
+  上限 **64MB**。
+- **头**：流式 `Content-Type: application/connect+json`；一元 `application/json`；
+  两者都带 `Connect-Protocol-Version: 1`；`Connect-Timeout-Ms` 是**服务端**流上限
+  （Cube 传 **24h**，SDK 默认 60s 会静默掐掉空闲终端；客户端**不设** HTTP 级超时）；
+  认证 `Authorization: Basic base64(user + ":")`（空 user=root）+ `X-Access-Token` + traffic-token 头。
+- **错误**：end-stream 的 `error` → `code: message`（message 空回落 `Connect stream error`）；
+  一元状态 ≥400 → 读体（≤64KB）→ `<method> failed: <message>`。
+
+### 落地与验证
+
+- `sandbox/runtime/terminal/EnvdConnectTransport`（~300 行）：帧编解码（含 64MB 上限与**截断检测**）、
+  一元/流式调用、`StreamingCall`（`next()`/`endError()`/`close()`）、错误映射到 `SandboxException`。
+- `EnvdConnectTransportTest`（**本地 envd 桩**，4 条全绿）：① ★**流未结束时仍能发一元输入**
+  （桩的流处理器阻塞等 `SendInput` 到达才写第二帧；并逐项断言请求形状：帧头自洽、两个 Content-Type、
+  `Connect-Timeout-Ms=86400000`、认证头、一元体是裸 JSON）；② 压缩帧拒绝；③ end-stream 错误文本；
+  ④ 一元 404 → `SandboxException("Resize failed: no such process")`。
+- 桩的副产品值得记：`HttpServer` **默认执行器是单线程**，第一版测试因此失败（流处理器把一元请求堵在门外）——
+  这恰好证明"流与一元调用真交织"是被真实跑过的，而不是想当然。
+- 门：`--changed` 命中域 `sandbox` → **B4 全绿 77s**。
+
+### 真机量化清单（7 项，详见 `docs/w5delta-terminal-spike.md`）
+
+最关键第 1 项：**E2B 的 envd 是否接受 JSON 编解码**——其 SDK 用 binary protobuf 生成客户端，
+而 Cube 的 envd 明确吃 `application/connect+json`（Cube SDK 自己就是 `json.Unmarshal` 解帧）。若 E2B 只吃
+protobuf，则需自带最小 protobuf 编解码（`ProcessEvent`/`PtyInput` 等三五个消息，+~200 行，**仍零依赖**）。
+其余：网关/必需头集合、`Connect-Timeout-Ms` 上限与超时后的流结束形状、长空闲终端存活、
+`Start` 事件序列与 PID 出现位置、重附语义、TTL 刷新与终端的交互——**均需一次带凭据的会话**。
+
+### 本批不动的东西
+
+执行体本体（会话生命周期 / PTY 事件三态 / provider 控制面接线 / WS 桥接）**仍未翻译**，估 ~1.3k 行不变；
+中性层（`RemoteTerminalOptions` 五旋钮、`PtyInputCoalescer`、`TerminalBridge`、idle/TTL 钳位）已在 W5δ
+`ea68238` 落地，本 spike 只补了它下面缺的那层传输。

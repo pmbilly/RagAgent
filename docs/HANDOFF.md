@@ -1,5 +1,33 @@
 # 交接文档（新会话接手用）
 
+## 0.-44 W5δ 传输层 spike：**"zerodep stdin 半关闭"这个阻塞点不成立**（2026-09-25——W5γ5.8）
+
+把两侧 SDK 读到实现级之后，envd 的 PTY **既没有双向流，也没有 stdin 半关闭**：
+
+- **输入是一元 POST**（`/process.Process/SendInput`，裸 JSON 体，`pty.go:432`）——Go 侧还要
+  `ptyInputCoalescer` 聚合突发，正因为每次都是**独立往返**；
+- **输出是服务端流**：建/重附 PTY 的请求体**一次性发完**，再读响应体的 5 字节帧序列
+  （`pty.go:368` + `connect.go:35-62`；帧 = 1 flag + 大端 uint32 长度 + payload，`0x01`=压缩、`0x02`=end-stream）；
+- E2B 侧实现不同、**协议同一套**（connect-go 生成的 `Start/Connect/SendInput/Resize`，`pty.go:115,158,186,194`）。
+
+⇒ **"EOF 不可表达"的后果量化 = 0**（服务端从不依赖请求流的 EOF）；`java.net.http.HttpClient`
+（`BodyHandlers.ofInputStream()` 读流 + 一元请求并发）就是够用的实现面。
+
+**落地（离线可证）**：`sandbox/runtime/terminal/EnvdConnectTransport`（~300 行：帧编解码（含 64MB 上限/截断检测）、
+一元与流式调用、`Connect-Timeout-Ms`、认证头、错误映射到 `SandboxException`）+ `EnvdConnectTransportTest`
+（**本地 envd 桩** 4 条）——★那条"流未结束时仍能发一元输入"把**交织**钉成回归（桩的流处理器阻塞等 `SendInput`
+到达才写第二帧），并逐项断言请求形状（帧头自洽、两个 Content-Type、`Connect-Protocol-Version`、
+`Connect-Timeout-Ms=86400000`、`X-Access-Token`、Basic 头；一元体是**裸 JSON**）。**B4 全绿 77s**。
+
+**真机量化清单 7 项**（含"若不符则…"）：见 [`docs/w5delta-terminal-spike.md`](w5delta-terminal-spike.md)。
+第 1 项最关键：**E2B 的 envd 是否接受 JSON 编解码**（其 SDK 用 binary protobuf 生成客户端；Cube 的 envd 明确吃
+`application/connect+json`）——若只吃 protobuf，则需自带最小 protobuf 编解码（+~200 行，仍零依赖）。
+
+**下一步**：清单 1–4 只需**一次带 cube/e2b 凭据的会话**（半小时级）即可收口；之后再开执行体本体
+（~1.3k 行：会话生命周期 / PTY 事件三态 / provider 控制面接线 / WS 桥接——`TerminalBridge` 与中性层已就位）。
+
+---
+
 ## 0.-43 jieba 真实分词落地（2026-09-25——W5γ5.7，★勘察推翻大半预估）
 
 **结论先行**：Go 侧的分词**不是"jieba 词典 + HMM"，而是纯 HMM**。SDK 默认构造
@@ -39,7 +67,7 @@
 ② **依赖派生常量/行为要钉来源+版本**（同 §0.-36）；③ **差分基准的价值**：Go 侧有可离线复现的探针时，
 "逐 token 对照"比"逐值对照端到端"更早定位、更小爆炸半径。
 
-**下一步**：决策简报只剩 **W5δ provider 终端执行体**（需真实 provider）与**存储 ①③ 之外的小账**；
+**下一步**：~~决策简报只剩 **W5δ provider 终端执行体**~~ ✅ **传输层 spike 已做（W5γ5.8，§0.-44）**：阻塞点不成立（无双向流、无半关闭）；执行体本体待真机清单 1–4 收口；**存储 ①③ 之外的小账**仍在；
 备案小账剩 Weaviate gse 跨仓提案（**已回填 Go compose，未在 Go 仓提交**）、E2E 两观察项（早错 SSE / `list_sandbox_files` 注册时机）。
 
 ---
@@ -280,7 +308,7 @@ WARN FileProxyService: [Router] /files get file failed: tenant_id=10002 provider
 
 | 项 | 阻塞点 | 建议 |
 |---|---|---|
-| W5δ provider 终端执行体 | 需真 provider/沙箱；且要先定 zerodep stdin 无半关闭对双向流的影响 | 先做**传输层 spike 评估**（真实 cube/e2b 会话量化 EOF 不可表达的后果），有结论再谈 ~1.3k 行执行体 |
+| ~~W5δ provider 终端执行体（传输层 spike）~~ | ✅ **已做（W5γ5.8，§0.-44）**：阻塞点**不成立**——PTY 输入是一元 POST、输出是服务端流（请求体一次发完），**既无双向流也无半关闭**；零依赖 `HttpClient` 够用（本地 envd 桩 4 条实证） | 真机只剩清单 1–7（第 1 项：E2B 是否吃 JSON 编解码），见 [`w5delta-terminal-spike.md`](w5delta-terminal-spike.md)；执行体本体 ~1.3k 行待其收口 |
 | ~~⑱ MCP initialize 契约对齐~~ | ✅ **已落地（W5γ4.21，§0.-36）**：差异从两侧代码 + `GoRecording45C` 实录直接定位并修正 | — |
 | 存储三条备案（`known-issues/08`） | ② OSS 分片 ✅ W5γ4.20；①③ **方案稿已出**（[`docs/storage-a3-plan.md`](storage-a3-plan.md)，2026-09-25 两侧逐处对账，含证据与 golden 影响判断） | **①a** provider/HTTP 面流式化（**报文字节不变 → golden 零重录**，可真 A/B：MinIO 双端对拍 + `-Xmx` 内存实证）**＋ ③B** 内部去重（**不合并两支**——Go 侧无对应物，两支职责不重叠）；**①b** 知识下载面另评。**待批准** |
 
