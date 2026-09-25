@@ -1709,9 +1709,9 @@ Go 的 SQLite 引擎**不是**独立存储：`createSQLiteEngine(_ types.VectorS
 |---|---|
 | **VLM ollama 界面** | ✅ **落地**（照 Go `vlm/ollama.go` 74 行）：单条 user 消息（prompt + 图片原始字节 → JSON base64）、`stream=false`、`options.temperature=0.1`、取 `message.content`；`ModelDebugController.debugVlm` 放行 ollama（Go 侧对 ollama 基址不做 SSRF 校验——基址来自 `OLLAMA_BASE_URL`）。**weknoracloud 仍是 XDEP**（云 API，需凭据；`VlmClientTest` 无关，golden 只覆盖 OpenAI 面） |
 | **Milvus `shardsNum`** | ✅ **钉测试**：`indexCfg.shardsNum>0` 才带该键（服务端忽略是已备案差异，配置面照传） |
-| **Weaviate `ENABLE_TOKENIZER_GSE`** | 📋 **跨仓提案（未改 Go 仓）**：Go 仓 `docker-compose.yml` 的 weaviate 服务缺 `-e ENABLE_TOKENIZER_GSE=true`，而 Go 驱动 schema 用了 `tokenization:"gse"` → 1.28.4 默认关时**建类 422**（Go 侧同样受影响）。建议由 Go 仓持有者补该 env（本仓 IT 的启动命令已含它，见 W5γ4.13 段） |
-| **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | 📋 **待复跑时定位**：现有文档只留了名词、没有现象与复现步骤——先补复现（按 W5γ4.12 的"E2E 操作要点"五步起栈），再按现象定修法。**不做无现象的猜测式改动** |
-| **腾讯分词接缝 / jieba 真实分词** | 📋 维持接缝（接上真实 jieba 即与 Go 存量稀疏向量互通；属独立工作，非小账） |
+| ~~**Weaviate `ENABLE_TOKENIZER_GSE`**~~ | ✅ **2026-09-25 已回填 Go 仓 `docker-compose.yml` 并三容器实证**（W5γ5.6）：无 flag 容器建 `tokenization: gse` 类 → **422** `the GSE tokenizer is not enabled; set 'ENABLE_TOKENIZER_GSE' to 'true' to enable`；带 flag → 200。**根因补记**：本地测试容器当初就是手动带 flag 起的（`docker inspect` 实录），故本仓从未暴露；用 compose 起的人会踩。正文见 HANDOFF §0.-42 |
+| **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | ✅ **复现清单已写死（W5γ5.6）**：见 HANDOFF §0.-42 三（现象/步骤/需留证据）。原结论保留：**待复跑抓现象再定修法，不做无现象的猜测式改动**；原描述：📋 **待复跑时定位**
+| **腾讯分词接缝 / jieba 真实分词** | ✅ **成本勘察完成（W5γ5.6）**：Go 侧是 `go-ego/gse`（3392 行 / 14MB zh 词典 / HMM 开 / no-freq）→ 完整移植为独立大批（含 BM25 逐值基准重录）；本仓接缝已齐备。详见 HANDOFF §0.-42 二 |
 
 ## W5γ4.19：provider-XDEP 族收口（2026-09-25）——weknoracloud VLM 落地 + 三项决策简报
 

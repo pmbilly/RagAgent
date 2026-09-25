@@ -1,5 +1,48 @@
 # 交接文档（新会话接手用）
 
+## 0.-42 小账批：Weaviate gse 回填（跨仓）+ jieba 决策 + E2E 两观察项 triage（2026-09-25——W5γ5.6）
+
+### 一、Weaviate `ENABLE_TOKENIZER_GSE` ✅ 已回填 Go 仓 compose（并三容器实证）
+
+- **改动**：Go 仓 `docker-compose.yml` 的 weaviate 服务加 `- ENABLE_TOKENIZER_GSE=true`（带注释）。
+- **实证**（本机 `semitechnologies/weaviate:1.28.4`，同一建类请求 `tokenization: gse`）：
+
+| 容器 | env | `POST /v1/schema` |
+|---|---|---|
+| 新起 :9037 | 无 flag | **422** `the GSE tokenizer is not enabled; set 'ENABLE_TOKENIZER_GSE' to 'true' to enable` |
+| 新起 :9036 | `ENABLE_TOKENIZER_GSE=true` | **200** |
+| 既有 `WeKnora-weaviate-local` :9035 | `ENABLE_TOKENIZER_GSE=true` | 200 |
+
+- **顺带查明**：本地一直没暴露是因为**测试容器当初就是带 flag 手动起的**（`docker inspect` 实录），
+  而 compose 文件里没有 → 用 `--profile weaviate` 起的人（含 Go 侧）会踩 422。探针容器已清理（只留 :9035）。
+- Go 仓的这处改动**未在 Go 仓提交**（保持其工作区原样，交由其持有者决定）。
+
+### 二、jieba 真实分词：成本勘察 + 决策（**不塞进小账批**）
+
+- **Go 侧事实**：腾讯 SDK 的分词是 `github.com/go-ego/gse`——**3392 行 Go**（17 文件）、
+  `LoadNoFreq=true` + `useHmm=true` + `cutAll=false` + `forSearch=false`，中文词典 **14MB**（`data/dict/zh`），
+  另有 COS 下载的停用词表。
+- **本仓现状**：接缝齐备（`TencentVectorDbBm25.Tokenizer` + 默认 `SeamTokenizer` 近似 = 空白 + CJK 二字滑窗），
+  故 Java 写出的稀疏向量与 Go/jieba **不同源** → 同集合不可互通（Go 存量需重导入）。
+- **三条路**：
+  1. **移植 gse 子集**（DAG + HMM Viterbi + 词典加载 + no-freq）：估 **800~1500 行 Java + 14MB 词典资源决策**，
+     且 BM25 的"逐值对照 Go"基准要**重录**——属独立大批。
+  2. 只做可插拔（`SeamTokenizer` 变成可配置 bean）：plumbing，无真实实现时收益弱。
+  3. 维持现状 + 备案（互通靠重导入；向量只求同实现内自洽）。
+- **建议**：要"与 Go 存量互通"就排 ①；否则维持 ③。本批不动代码。
+
+### 三、E2E 两观察项：复现清单（**不做无现象的猜测式改动**）
+
+两项在文档里只有名词，先把"抓什么现象、怎么抓、留什么证据"写死（按 W5γ4.12 的「E2E 操作要点」起栈）：
+
+| 项 | 待抓现象 | 复现步骤 | 需留证据 |
+|---|---|---|---|
+| **早错 SSE 不收流** | 上游（模型/沙箱）在**流早期**报错时：SSE 是立刻收流并给错误帧，还是挂住/只截断 | 用 `scripts/stub-llm-server.py` 造**首帧即 error** 的响应（或在 sandbox 调用上造早错），跑一次 chat | 客户端完整 SSE 帧序列（含是否 FIN）+ 服务端日志 |
+| **`list_sandbox_files` 注册时机** | 该工具在**会话首帧的工具列表**里有没有（是否要先调过别的沙箱工具才注册） | 同一次 E2E：新建会话 → **直接**问"列出沙箱文件"（不经其它沙箱工具）→ 再问一次 | 两次出站 LLM 请求体的 tools 段 + 工具注册日志 |
+
+---
+
+
 ## 0.-41 存储收官：kg 云引用 A/B + 内存实证（2026-09-25——W5γ5.5）
 
 **两发留档项均 PASS**（`scripts/ab-storage-stream.sh` 扩展后一次跑完；`AB_STREAM_KG=1 AB_STREAM_MEM=1`）：
@@ -227,9 +270,9 @@ PipelinePorts.RetrieveGraphRepository`，方法面一一对应，`QaWiring` 装�
 |---|---|
 | **VLM ollama 界面** | ✅ **落地**（照 Go `vlm/ollama.go`）：`VlmClient.predictOllama`（单条 user 消息 + 图片原始字节 → JSON base64、`stream=false`、`options.temperature=0.1`、取 `message.content`；错误族 `Ollama VLM request: …`）+ `ModelDebugController.debugVlm` 放行 ollama（Go 侧对 ollama 基址不做 SSRF 校验）+ `VlmOllamaTest` 4 条（形状/空图丢弃/服务不可用/分派不走传输层）。**weknoracloud 仍是 XDEP**（云 API，需凭据） |
 | **Milvus `shardsNum`** | ✅ 钉测试：`indexCfg.shardsNum>0` 才带键（服务端忽略为已备案差异） |
-| **Weaviate `ENABLE_TOKENIZER_GSE`** | 📋 **跨仓提案（未改 Go 仓）**：Go 仓 compose 的 weaviate 缺该 env，而其 schema 用 `tokenization:"gse"` → 1.28.4 默认关时建类 422（Go 侧同样受影响）——建议由 Go 仓持有者补 |
-| **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | 📋 **待复跑时定位**：文档只有名词、无现象与复现步骤；先按 W5γ4.12 的"E2E 操作要点"复跑抓现象，再做修（**不做猜测式改动**） |
-| **腾讯分词接缝 / jieba** | 📋 维持接缝（接真实 jieba 即与 Go 存量稀疏向量互通；独立工作） |
+| ~~**Weaviate `ENABLE_TOKENIZER_GSE`**~~ | ✅ **2026-09-25 已回填 Go 仓 compose 并实证**（W5γ5.6，§0.-42）：无 flag → 422 / 有 flag → 200（三容器对照）；顺带查明测试容器当初就是手动带 flag 起的，故本地从未暴露 |
+| **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | ✅ **复现清单已写死**（W5γ5.6，§0.-42 三：现象/步骤/需留证据）——仍**不做无现象的猜测式改动**，下次 E2E 一批按清单抓 |
+| **腾讯分词接缝 / jieba** | ✅ **成本勘察完成（W5γ5.6，§0.-42 二）**：Go 用 `go-ego/gse`（3392 行 + 14MB 中文词典 + HMM）→ 完整移植是独立大批（含 BM25 基准重录）；本批不动代码 |
 
 **验证**：`VlmOllamaTest` 4 + Milvus 新增 1 全绿；五批验收 PASS。
 
