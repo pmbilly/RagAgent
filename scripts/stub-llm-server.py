@@ -20,7 +20,12 @@
         asr-modelmissing               → 400 "model stub-model not found"
         asr-500text                    → 500 纯文本 "boom"
         其余                           → 200 verbose_json（text=stub-transcript）
-- 幂等：无状态，无落盘。
+- E2E 观察项扩展（2026-09-25，W5γ5.10）：
+  <<SCENARIO:early-error>> → 200 + **首帧即 error 对象**，随即关流（不发 [DONE]）
+  <<SCENARIO:early-close>> → 200 + **零帧**直接关流（"只截断"形态）
+  环境变量 STUB_RECORD_DIR=<dir> → 每个 chat 请求落盘 <ns>.json（请求体原文）+ .meta（path），
+  用于 E2E 看出站 tools 段/消息（默认不落盘，行为不变）。
+- 幂等：无状态；除非设了 STUB_RECORD_DIR，否则无落盘。
 """
 import json
 import os
@@ -31,6 +36,28 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 USAGE = {"prompt_tokens": 12, "completion_tokens": 9, "total_tokens": 21}
 ID = "chatcmpl-stub46d"
 CREATED = 1735689600  # 固定（2025-01-01），A/B 掩码兜底
+
+RECORD_DIR = os.environ.get("STUB_RECORD_DIR") or ""
+
+
+def record_request(path, body):
+    """STUB_RECORD_DIR 设了就把请求体落盘：<ns>-<seq>.json（原文）+ 同名 .meta（path）。
+
+    用途：E2E 要看出站请求的 `tools` 段（观察项 2）与 messages，而服务端日志未必可得。
+    不设环境变量则完全无副作用（保持 stub 的幂等无落盘默认）。
+    """
+    if not RECORD_DIR:
+        return
+    try:
+        os.makedirs(RECORD_DIR, exist_ok=True)
+        stamp = time.time_ns()
+        with open(os.path.join(RECORD_DIR, f"{stamp}.json"), "w", encoding="utf-8") as f:
+            json.dump(body, f, ensure_ascii=False)
+        with open(os.path.join(RECORD_DIR, f"{stamp}.meta"), "w", encoding="utf-8") as f:
+            f.write(path + "\n")
+    except Exception:
+        pass  # 录制失败不影响 stub 行为
+
 
 SCENARIOS = {
     "chat": ["你好，", "我是知识助手。"],
@@ -137,6 +164,27 @@ class Handler(BaseHTTPRequestHandler):
         stream = bool(body.get("stream"))
         scenario = pick_scenario(body.get("messages"))
         user_text = last_user(body.get("messages"))
+        record_request(self.path, body)
+        if scenario in ("early-error", "early-close"):
+            # E2E 观察项用：上游在**流早期**出问题
+            #   early-error → 200 + 首帧即 error 对象，随即关流（不发 [DONE]）
+            #   early-close → 200 + 零帧直接关流（"只截断"形态）
+            if not stream:
+                return self._json(
+                    {"error": {"message": "stub early failure", "type": "server_error"}},
+                    status=502)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            if scenario == "early-error":
+                self._sse({"error": {"message": "stub early failure",
+                                     "type": "server_error",
+                                     "code": "stub_early_error"}})
+            self.wfile.write(b"0\r\n\r\n")
+            self.wfile.flush()
+            return
         if scenario == "echo":
             chunks = [user_text]
         elif "<<SCENARIO:graph>>" in user_text:

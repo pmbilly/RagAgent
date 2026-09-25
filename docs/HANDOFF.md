@@ -1,5 +1,24 @@
 # 交接文档（新会话接手用）
 
+## 0.-47 E2E 两观察项：复跑结果（2026-09-25——W5γ5.10）
+
+按 §0.-42 三 的复现清单起真机 E2E（双端 + stub），把两项从"只有名词"推进到"有现象、有结论"，
+并顺手抓到一处真差异与一条运维关键发现。**详录：[`docs/known-issues/09-e2e-observations.md`](known-issues/09-e2e-observations.md)**。
+
+| 项 | 结论 |
+|---|---|
+| 观察项 1「早错 SSE 不收流」 | ✅ **确认为真，且两侧同形**，但要分两类：**调用前**失败（模型被 SSRF 拦 / agent 的 chat 模型不存在 / smart 缺 rerank）⇒ `agent_query(done)`+`error(done)` **两帧后不收流**（curl 到点仍在等，rc=28）；**流内**早错（stub `early-error`/`early-close`）⇒ 3 帧后**立刻收流**（0.15s）。⇒ 客户端须按 `done` 或自身超时收流；若要对齐，是**两侧同步**的行为变更，不是单侧修 |
+| 观察项 2「`list_sandbox_files` 注册时机」 | ✅ **代码层同口径**：每用户回合一次、**首帧之前**注册（Go `agent_service.go:180-233` ↔ Java `SessionAgentQaService.java:237,620-641`），迭代内只刷新 MCP；缺它 ⇔ `shell_exec` 在场（设计性兜底，Go `:435-437` ↔ Java `:256-258`）；其余门一一对应；出站 tools 按**工具名升序**两侧同。真机确认卡 dev 前置（本环境出站请求**无 tools 段**，agent 首断于 `rerank model is not configured` / KB 无向量库 2200）——判据与步骤已写死在探针里 |
+| 新抓到差异（待修，**单列小批**） | Java 的**终止错误帧 `content` 丢 `error code: N, error message: ` 前缀**（Go 保留；非终止帧两侧一致）——本仓别处已有同格式助手，属"真缺陷要修"范围，但需沿传播链定位，勿猜改 |
+| 运维发现（对后续 E2E/A-B 关键） | `ssrf.whitelist` 是 **DB 侧设置**（管理员 API 可改），且**只被处理该写请求的进程热加载**——**两端要各 PUT 一次**（或起服带 `SSRF_WHITELIST_EXTRA=127.0.0.1`）；本次已追加 `127.0.0.1`（原值保留，可回退） |
+
+**产物**：`scripts/ab-e2e-observations.sh`（可复跑探针）+ `scripts/stub-llm-server.py` 的
+`early-error`/`early-close` 场景与 `STUB_RECORD_DIR` 录制开关（**加法**改动，默认行为不变）。
+
+**下一步**：① 修上表第三行的终止帧前缀差异（小批，含回归测试）；② dev 前置齐备后补观察项 2 的真机确认。
+
+---
+
 ## 0.-46 三批交付验收：**γ5.7 jieba + γ5.8/γ5.9 W5δ + 跨仓收口**（2026-09-25）
 
 **交付内容**（3 个功能批 + 1 个文档批 + 1 笔跨仓）：
