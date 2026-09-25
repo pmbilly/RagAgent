@@ -54,14 +54,28 @@ Go 的 `AppError.Error()` 就是 `"error code: %d, error message: %s"`（`intern
 Java 侧的终止帧 content 取自流响应内容（`chatpipeline/PluginChatCompletionStream.java:155,162`），
 上游把它填成裸 `getMessage()` → **AppError→SSE 的文案在"终止帧"这一路上丢了前缀**。
 （本仓别处已实现同格式助手：`wiki/controller/WikiPageController.java:1265-1268`，说明格式是已知契约。）
-**处置**：✅ **已修（W5γ5.11）**。根因两处——① `agent/AgentEngine.java` 工具执行失败处
-`r.setError(execError.getMessage())`（`~1948`，丢前缀）；② `agent/tools/ToolRegistry.java` 的
-"工具抛异常"兜底把文案**写死成 `"tool returned no result"`**（比丢前缀更严重）。
-修法：新增 `common/error/BizException.wireText(Throwable)`（沿 cause 链取最近 `BizException` 的
-**已带前缀** message，否则退到最深非空 message——即 Go 的 `err.Error()` 语义），两处改为调它；
-`AgentEngineException` 补 `(message, cause)` 重载保留 cause。
-回归：`ToolRegistryRecordingTest` 新增"工具抛异常 → 文案照 Go 的 err.Error()"（含包装层穿透与裸异常），
-门 B1a+B1b 全绿（49s）。⚠️ 线上复验需重启 Java 实例（当前 :8082 仍是旧构建，本批**未重启**——见下节）。
+**处置**：✅ **已修并线上复验（W5γ5.11 + W5γ5.12）**。这条差异的根因**不止一处，且第一处判断是错的**——
+按"先取证再改"补做线上 A/B 后才找到真凶：
+
+1. **（W5γ5.11，防御性，非本次观测的发源）** `agent/tools/ToolRegistry.java` 的"工具抛异常"兜底把文案
+   **写死成 `"tool returned no result"`**、`agent/AgentEngine.java` 工具失败处取 `getMessage()` —— 都与 Go 的
+   `err.Error()` 语义不符（Go 是 `return nil, err`，AppError 文本自带前缀）。已统一为
+   `common/error/BizException.wireText(Throwable)`（沿 cause 链取最近 BizException 的**已带前缀** message，
+   否则退到最深非空 message）；`AgentEngineException` 补 `(message, cause)` 保留 cause。回归：
+   `ToolRegistryRecordingTest` 新增"工具抛异常 → 文案照 Go 的 `err.Error()`"。
+2. **（W5γ5.12，真凶）** 真正发出终止帧的是 `session/controller/KnowledgeQaController` 的 catch：
+   它**有意**把文案剥成 `appError().message()`，理由是"Go 的 qa.go 发的是内层错误（不含包装前缀）"。
+   线上 A/B 直接推翻该前提——**两种 stage（`knowledge_qa_execution` 与 `agent_execution`）Go 都带前缀**
+   （Go 的"内层错误"就是 AppError 本身，其 `Error()` 含前缀）。该剥离已删除，两模式统一走 `wireText`
+   （旧方法 `errorEventText` 一并删除，理由挪到调用点注释）。
+3. **线上复验**：`:8082` 重启到当前构建后，同一条 2200 错误路径（`/agent-chat`）
+   **逐帧比对 4/4 完全一致**：`agent_query` → `tool_call(knowledge_search)` →
+   `error(done=false, 带前缀)` → `error(done=true, 带前缀)`。
+4. **教训**：本仓那行注释（"Go 发内层错误不带前缀"）读起来完全合理，却是**没取证的对照结论**——
+   而它恰恰写在"故意偏离 Go"的代码旁边（同类坑：§0.-43 jieba 的 `LoadDict("")` 读起来像"加载词典"，
+   实际是空词典）。**注释里的对照结论同样要取证**。
+
+> 复验顺带发现的**行为**差异（不只是文案）见第七节。
 
 ## 四、运维发现（对后续 E2E / A-B 很关键）
 
@@ -95,4 +109,21 @@ STUB_RECORD_DIR=/tmp/w5obs-rec bash scripts/ab-e2e-observations.sh
 | 测试 agent `w5obs-stub-agent` / `w5obs-smart` / `w5obs-tools` | 已删（list 复核只剩原 6 个） |
 | 测试会话（39 个，标题 `w5obs-*`/`obs-*`/`e2e-obs`） | 已删（残留 0） |
 | 临时 stub 8182 | 已关；**8181 保持运行**（跑的是本批更新版脚本：两个早错场景 + 录制开关，默认行为不变） |
-| Java 实例 :8082 | **未重启**（跑的是旧构建）——故"终止错误帧前缀"的**线上复验待一次重启**；单测与门已覆盖 |
+| Java 实例 :8082 | ✅ **已重启三次**（首次换构建 + 两次部署修复；日志 `/tmp/ragagent-java-server-w5g511.log`、`-w5g512.log`）——线上复验通过（逐帧 4/4）；**未动**并发会话的那对 `19080/19082` |
+
+## 七、⚠️ 新发现（W5γ5.12，**待修**）：KB 检索失败时 Java 中止、Go 继续
+
+复验用同一条 2200 错误做双端 A/B，除了文案差（已修）还暴露一个**行为差**：
+
+| 端 | `/knowledge-chat`（KB 无向量库 → 2200）帧序列 |
+|---|---|
+| **Go** | `agent_query` → `tool_call(query_understand)` → `tool_result` → `tool_call(knowledge_search)` → `tool_result` → **`answer`×2 → `complete`**（**继续回答** ✓） |
+| **Java** | `agent_query` → `tool_call(query_understand)` → `tool_result` → `tool_call(knowledge_search)` → **`error(done=false)` + `error(done=true)`**（**整个回合中止** ✗） |
+
+Go 侧日志证明它是"**失败但降级**"：`[PIPELINE] stage=Search action=kb_search_failed error="error code: 2200…"`
+与 `stage=Pipeline action=stage_failed description="Failed to search knowledge base"` 之后仍给出答案 ✓；
+Java 侧同样日志之后**抛异常**（`KnowledgeQaController: QA service failed … PipelinePortException`）→ 回合终止 ✗。
+
+**影响（用户可见）**：KB 后端存储暂时不可用时，Go 仍能作答（检索为空），Java 直接报错。
+**处置**：**单列小批**——属管道错误分级（`search_failed` 应"可降级"而非"致命"）。改前须把 Go 的分级规则
+逐条读准（哪些 stage 失败致命/哪些继续、降级时事件与日志如何呈现）+ 补回归；本次**不动**。

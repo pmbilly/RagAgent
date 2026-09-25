@@ -802,10 +802,13 @@ public class KnowledgeQaController {
                 errEvt.setType(EventType.EVENT_ERROR);
                 errEvt.setSessionId(sessionId);
                 ErrorData errData = new ErrorData();
-                // Go：qa.go 发的是 serviceErr.Error()，而管道返回的是 PluginError.Err
-                // 内层错误（不含包装前缀）——剥掉 BizException 包装取 appError().message()，
-                // 否则错误事件会带出 "com.ragagent...BizException: error code: ..." 前缀。
-                errData.setError(errorEventText(serviceErr));
+                // Go 的 serviceErr.Error() **带** AppError 前缀（W5γ5.12 线上 A/B 实测，两种模式都实测过）：
+                // Go 管道返回的是 PluginError.Err 内层错误，而那个内层错误就是 AppError 本身，
+                // 其 Error() = "error code: N, error message: M"——**不是**裸 message。
+                // 旧实现在这里剥到 appError().message()，理由（"否则会带出 BizException 前缀"）把
+                // Java 的包装类名与 Go 的 AppError 文案混为一谈了：只要不吐 Java 异常类名即可，
+                // 前缀本身是契约（同 §known-issues/09 第三节）。
+                errData.setError(com.ragagent.common.error.BizException.wireText(serviceErr));
                 errData.setStage(mode == QaMode.NORMAL ? "knowledge_qa_execution" : "agent_execution");
                 errData.setSessionId(sessionId);
                 errEvt.setData(errData);
@@ -888,20 +891,8 @@ public class KnowledgeQaController {
         throw new UnsupportedOperationException("superseded by executeQA");
     }
 
-    /**
-     * 错误事件的文案归一（对照 Go qa.go 的 serviceErr.Error()——Go 管道返回
-     * PluginError.Err 内层错误，不带包装前缀）：剥掉 cause 链上的 BizException
-     * 包装取 appError().message()；非 BizException 时退回 getMessage()，null 兜底类名。
-     */
-    private static String errorEventText(RuntimeException e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof BizException be) {
-                return be.appError().message();
-            }
-        }
-        String msg = e.getMessage();
-        return msg != null ? msg : e.getClass().getSimpleName();
-    }
+    // 曾有的 errorEventText（剥 BizException 取 appError().message()）已删除：
+    // 其前提被线上 A/B 推翻（W5γ5.12），现统一走 BizException.wireText，理由见上面的调用点注释。
 
     /**
      * 借用执行租户运行（对照 Go types.WithExecutionTenant：只换执行租户，身份原样保留）。
