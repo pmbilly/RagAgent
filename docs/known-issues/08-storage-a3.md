@@ -63,10 +63,20 @@
 
 - **云对象整对象入堆**：`ProviderFileContentService.getFile` 走 `OpenedFile.ofBytes`，
   Go 是流式 `io.ReadCloser`（HTTP 层直转）。大对象流式化要给 `FileTransport` 补第三种形态。
+  → **方案稿已出（2026-09-25）**：[`docs/storage-a3-plan.md`](../storage-a3-plan.md) §2。
+  对账修正两点：① **报文字节不受影响**（Java 已在 `FileTransport.java:108-110` 照 Go 用
+  `Options.size` 决定 `Content-Length`，与对象长度无关）→ 既有 golden **零重录**，受影响的只有
+  两个锁 `ofBytes` 形态的单测；② 偏差分两处（`ProviderFileContentService` 的 HTTP 面 +
+  `TenantFileStorage.readFromProvider` 的知识下载面），建议拆 **①a/①b** 两步。
 - ~~**OSS 大文件未走分片 Uploader**~~ ✅ **W5γ4.20 已补**：照 Go（`>10MB` 走 `initiateMultipartUpload → uploadPart ×N（10MB/片、3 并发）→ completeMultipartUpload`，失败 best-effort `abortMultipartUpload`；小文件仍单次 `putObject`；错误前缀照 Go 的 `(multipart)` 分支）。`OssMultipartUploadTest` 5 条钉住：Go 常量（10MB/10MB/3）、小文件单次、片序与片大小（64/64/22 形态）、并发上限 ≤3、失败 abort + 两种错误前缀。
 - **local 有两支实现**：`knowledge.LocalStorageService`（`resource://` 契约，golden 锁定）与
   `fileserve.LocalFileContentService`（provider 的 `local://` 契约）。二者都照 `local.go`，
   收敛属清理项，会影响既有 golden，未在本批动。
+  → **方案稿已出（2026-09-25）**：[`docs/storage-a3-plan.md`](../storage-a3-plan.md) §3。
+  对账修正：**Go 侧根本不存在这两支**（全仓 `fileserve`/`LocalStorageService`/`FileContentService`
+  0 命中；Go 是"单 `FileService` + `local.go` 单实现 + backendScoped/resourceCatalog 装饰器 +
+  `filetransport` 出口"）——两支是 **Java 侧结构**，且**职责不重叠、两支护栏都正确（只是重复）**。
+  故不建议"合并成一支"（代价 ≥8 测试类 + ~125 golden 重录、行为零收益），推荐**去重共享内部**。
 - **ks3 无 env 投影**：与 Go 的 `StorageBackendFromEnvironment` 一致（Go 也没有 ks3 的 case，走 default）。
 - **删除语义**：本地目录树恒清；云对象按 `file_path` 的 scheme 判定后 best-effort 删（失败只记日志）。
 
