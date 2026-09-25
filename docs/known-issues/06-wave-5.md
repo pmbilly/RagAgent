@@ -1712,3 +1712,27 @@ Go 的 SQLite 引擎**不是**独立存储：`createSQLiteEngine(_ types.VectorS
 | **Weaviate `ENABLE_TOKENIZER_GSE`** | 📋 **跨仓提案（未改 Go 仓）**：Go 仓 `docker-compose.yml` 的 weaviate 服务缺 `-e ENABLE_TOKENIZER_GSE=true`，而 Go 驱动 schema 用了 `tokenization:"gse"` → 1.28.4 默认关时**建类 422**（Go 侧同样受影响）。建议由 Go 仓持有者补该 env（本仓 IT 的启动命令已含它，见 W5γ4.13 段） |
 | **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | 📋 **待复跑时定位**：现有文档只留了名词、没有现象与复现步骤——先补复现（按 W5γ4.12 的"E2E 操作要点"五步起栈），再按现象定修法。**不做无现象的猜测式改动** |
 | **腾讯分词接缝 / jieba 真实分词** | 📋 维持接缝（接上真实 jieba 即与 Go 存量稀疏向量互通；属独立工作，非小账） |
+
+## W5γ4.19：provider-XDEP 族收口（2026-09-25）——weknoracloud VLM 落地 + 三项决策简报
+
+### 一、weknoracloud VLM ✅ 落地（照 Go `vlm/weknoracloud.go` 188 行）
+
+| 件 | 说明 |
+|---|---|
+| `VlmClient.predictWeKnoraCloud`（新） | `POST {baseURL}/api/v1/chat/completions`：multipart 内容（text + 各图 `data:<mime>;base64,…`）、`max_tokens=5000`、`temperature=0.1`（**用常量，不读 extra 覆盖**——照 Go 的 `float64(defaultTemp)`）、`stream=false`；模型名可被 `extra.remote_model_name` 覆盖（`effectiveModelName`）；取 `choices[0].message.content` |
+| 鉴权 | 复用既有 `embedding.WeknoraCloudSign`（与 chat/embedding/rerank **同一份**签名实现；本批不新增第二份）——六个头 `X-APPID/X-API-Key/X-Request-ID/X-Timestamp/X-Nonce/X-Signature`（md5 over sorted rfc3986 `k=v` & …，body 先取 md5，空体按 `{}`） |
+| 传输 | `VlmClient.Transport` 新增 `postWithHeaders`（**缺省抛**，保持函数式接口——既有 lambda stub 不受影响）；`VlmHttpTransport` 实现之：**不带 Authorization**、非 200 抛 `HttpStatusException(status, body)` → 调用方按 Go 文案报 `weknoracloud VLM: status %d: %s` |
+| 凭证 | `VlmConfig` 补 `appId/appSecret` 字段（`configFromModel(m, appId, appSecret)` 本就收这两个参数、此前**被丢弃**）；新增 `WeKnoraCloudService.resolveCredentials()`（照 Go `resolveWeKnoraCloudCredentials`：租户缺失 → null；未配/解密失败 → 空串对）；`ModelDebugController` 注入该服务并在校验前解析 |
+| 错误族（照 Go 原文） | `WeKnoraCloud VLM: AppID is required` / `AppSecret is required`（**在基址校验之前**，照 `NewWeKnoraCloudVLM` 顺序）；`weknoracloud VLM: do request: …`；`weknoracloud VLM: status %d: %s`；`WeKnoraCloud VLM: no choices in response` |
+
+**验证**：`VlmWeKnoraCloudTest` 5 条——① 请求形状 + 六头齐备 + **签名用抓到的头独立重算一致** + 取 content；② `remote_model_name` 覆盖与空图丢弃；③ 凭证缺失文案；④ 非 200 / 无 choices 文案；⑤ `predict` 分派走 `postWithHeaders`（不落 `post`）。测试用**真实 `VlmHttpTransport`**（临时换放行 loopback 的 `SsrfGuard`，照 `ConnectorHttpTest` 做法，收尾恢复）——顺带覆盖传输层的状态码映射。**至此 VLM 三个界面（openai/ollama/weknoracloud）全部落地**。
+
+### 二、三项决策简报（**均需 Owner 输入，故未动工**）
+
+| 项 | 现状（已核） | 阻塞点 | 我的建议 |
+|---|---|---|---|
+| **W5δ provider 终端执行体** | Java 侧**中性层已全**（`RemoteTerminalOptions` 五旋钮、`SessionTerminalService` / `TerminalBridge` 接缝、`RemoteError` 分类器）；缺的是 cube/e2b/docker 的**远程 PTY 执行体**（Go ~1.3k 行）+ 生产接线（`openOnResolved`/`provisionAndOpen` + 泵组） | ① 需**真实 provider/沙箱**（凭据 + 可达端点）才能联调；② 需先定"zerodep stdin 无半关闭对双向流的影响"这个传输层判断题 | 先做**传输层可行性评估**（写一个 spike：以 zerodep 的 stdin 语义模拟半关闭，跑一个真实 cube/e2b 会话，量化"EOF 不可表达"的后果），评估有结论再谈执行体 |
+| **⑱ MCP initialize 契约对齐** | 两侧都有实现（Java `mcp/protocol/DefaultMcpClient.initialize` + `InitializeResult`/`McpProtocol`；Go `internal/mcp/types.go`），但**差异点没有文档描述**（遗留清单只留了名字，`known-issues/01` 里也没有该条目） | 需 Owner 指明**要对齐哪一点**（协议版本号 / capabilities 字段 / clientInfo / 报错形态），或给一份两侧握手的**报文实录** | 给我一份两侧 `initialize` 的请求与响应实录（或指出具体字段），我按既有"逐字节 golden 对齐"方法论处理（与 model-debug 批同一手法） |
+| **存储三条备案** | 出自 `known-issues/08-storage-a3.md` 的「已知差异」：① 云对象**整对象入堆**（Go 流式 `io.ReadCloser`）→ 要动 `FileTransport` 补第三种形态；② **OSS 大文件未走分片 Uploader**（Go >10MB 用 10MB/片 + 3 并发）；③ **local 有两支实现**（`knowledge.LocalStorageService` 与 `fileserve.LocalFileContentService`）收敛 | ①③ **会动既有 golden 锁定面**（`resource://` 契约）→ 属"改读路径"类，按项目纪律需先批准再动；② 需真 OSS 凭据联调 | 建议**分开处理**：② 最独立（只加分流阈值 + 分片，OSS 上传面自有测试）→ 可先做；①③ 建议排到"读路径黄金面"专门批（附 A/B 方案）再动 |
+
+**验收**：`VlmWeKnoraCloudTest` 5 条全绿 + 模型域/初始化域回归绿 + **五批验收 PASS**。

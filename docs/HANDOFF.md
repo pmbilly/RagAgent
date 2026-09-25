@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-34 provider-XDEP 族收口：weknoracloud VLM 落地 + 三项决策简报（2026-09-25——W5γ4.19）
+
+**落地**（照 Go `vlm/weknoracloud.go` 188 行）：`VlmClient.predictWeKnoraCloud`——`POST /api/v1/chat/completions`（multipart：text + 各图 data URI、`max_tokens=5000`、`temperature=0.1` 用常量、`stream=false`；`extra.remote_model_name` 覆盖模型名；取 `choices[0].message.content`）。
+
+- **鉴权**复用既有 `embedding.WeknoraCloudSign`（chat/embedding/rerank 同一份），六头签名照 Go；
+- `VlmClient.Transport` 新增 `postWithHeaders`（**缺省抛**以保函数式接口）；`VlmHttpTransport` 实现（不带 Authorization；非 200 抛 `HttpStatusException` → 文案 `weknoracloud VLM: status %d: %s`）；
+- `VlmConfig` 补 `appId/appSecret`（此前 `configFromModel` 收了这两个参数却**丢弃**）；新增 `WeKnoraCloudService.resolveCredentials()`（照 Go `resolveWeKnoraCloudCredentials`）；`ModelDebugController` 注入并解析（**凭证检查在基址校验之前**，照 `NewWeKnoraCloudVLM` 顺序）。
+- **至此 VLM 三个界面（openai / ollama / weknoracloud）全部落地**，provider-XDEP 族只剩终端与执行体。
+
+**验证**：`VlmWeKnoraCloudTest` 5 条（形状 + **签名独立重算** + 覆盖/空图 + 凭证文案 + 非 200/无 choices + 分派）全绿——测试用**真实 `VlmHttpTransport`**（临时换放行 loopback 的 guard，照 `ConnectorHttpTest`）；模型域回归绿；五批验收 PASS。
+
+**三项决策简报（均需 Owner 输入，详见 `known-issues/06` 的 W5γ4.19 段）**：
+
+| 项 | 阻塞点 | 建议 |
+|---|---|---|
+| W5δ provider 终端执行体 | 需真 provider/沙箱；且要先定 zerodep stdin 无半关闭对双向流的影响 | 先做**传输层 spike 评估**（真实 cube/e2b 会话量化 EOF 不可表达的后果），有结论再谈 ~1.3k 行执行体 |
+| ⑱ MCP initialize 契约对齐 | **差异点无文档描述**（两侧都有实现：Java `DefaultMcpClient.initialize` / Go `internal/mcp/types.go`） | 给我两侧 `initialize` 的**报文实录**（或指明要对齐的字段），按 golden 逐字节对齐处理 |
+| 存储三条备案（`known-issues/08`） | ①云对象整对象入堆、②OSS 分片上传、③local 双实现——①③ 会动 golden 锁定面 | 拆开：**②**先做（独立、面自有测试）；**①③** 排"读路径黄金面"专门批（附 A/B 方案）再动 |
+
+---
+
 ## 0.-33 检索批收官报告（2026-09-25——W5γ4.18，**范围全部收官**）
 
 **交付**：[`docs/retrieval-batch-closure.md`](retrieval-batch-closure.md)——检索批的一次性收敛报告，含：
@@ -1343,7 +1364,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）~~ ✅ 2026-09-23 批 D2 落地 + **2026-09-25 真实 LLM E2E 全链通过**（§0.-27，抓回并修复四处驱动缺陷）
 - 外部向量店 driver：**九店全部落地、检索批收官**（W5γ4.1~γ4.16：ES v7/v8、OpenSearch、Doris、Qdrant、Weaviate、Milvus、腾讯 VectorDB、SQLite；postgres 走既有 JDBC 件；neo4j 属图仓、更早批已落地）——总表/差异/联调清单见 [`docs/retrieval-batch-closure.md`](retrieval-batch-closure.md)
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
-- VLM 界面：**ollama 已落地（W5γ4.17，§0.-32）**；weknoracloud 仍为诚实 XDEP（云 API 需凭据，provider-XDEP 族）
+- VLM 界面：**三个界面全部落地**（openai/ollama/weknoracloud；ollama 见 §0.-32、weknoracloud 见 §0.-34）
 
 ### 2.1 已完成的模块
 
@@ -1442,7 +1463,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 （W5γ4.8）；③知识写链改道引擎口（W5γ4.7）+ move 的 reparse 模式收尾（W5γ4.8）——**全部落地**。
 `git log` 的 W5γ4.1~γ4.8 八笔即检索批全貌。
 
-**下一步候选（2026-09-25 W5γ4.18 刷新——检索批已收官，报告见 [`retrieval-batch-closure.md`](retrieval-batch-closure.md)）**：
+**下一步候选（2026-09-25 W5γ4.19 刷新——检索批已收官、VLM 三界面齐；报告见 [`retrieval-batch-closure.md`](retrieval-batch-closure.md)）**：
 1. ~~OpenSearch~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）；
    ~~Qdrant~~ ✅ W5γ4.11（§0.-26）；~~Weaviate~~ ✅ W5γ4.13（§0.-28）；
    ~~Milvus~~ ✅ W5γ4.14（§0.-29）；~~腾讯 VectorDB~~ ✅ W5γ4.15（§0.-30）——

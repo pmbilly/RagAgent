@@ -79,13 +79,16 @@ public class ModelDebugController {
     private final ModelService modelService;
     private final ModelRuntimeFactory runtimeFactory;
     private final AsrTranscriber asrTranscriber;
+    private final com.ragagent.model.service.WeKnoraCloudService weKnoraCloudService;
     private final VlmClient.Transport vlmTransport = new VlmHttpTransport();
 
     public ModelDebugController(ModelService modelService, ModelRuntimeFactory runtimeFactory,
-                                AsrTranscriber asrTranscriber) {
+                                AsrTranscriber asrTranscriber,
+                                com.ragagent.model.service.WeKnoraCloudService weKnoraCloudService) {
         this.modelService = modelService;
         this.runtimeFactory = runtimeFactory;
         this.asrTranscriber = asrTranscriber;
+        this.weKnoraCloudService = weKnoraCloudService;
     }
 
     @PostMapping("/{id}/debug")
@@ -324,16 +327,32 @@ public class ModelDebugController {
         } catch (RuntimeException e) {
             return writeResult(startedNanos, requestPreview, null, e.getMessage(), observations);
         }
-        // 对照 vlm.NewVLM → NewRemoteAPIVLM 的构造期 SSRF 校验（factory 错误面：
-        // 失败时 observations 无 answer_characters 键）。**ollama 界面已落地**（照
-        // vlm/ollama.go 走本地 OllamaService，Go 侧不做 SSRF 校验——基址来自
-        // OLLAMA_BASE_URL）；weknoracloud 仍是 provider-XDEP（见 known-issues）。
-        var config = VlmClient.configFromModel(vlmModel, "", "");
-        try {
-            if ("weknoracloud".equals(config.provider())) {
-                throw new RuntimeException("weknoracloud VLM: provider-XDEP (not translated)");
+        // 凭证：照 Go GetVLMModel 的 resolveWeKnoraCloudCredentials（租户级已解密明文；
+        // 租户缺失 → 空串对）。ollama 不校验基址（基址来自 OLLAMA_BASE_URL）；其余界面
+        // （openai/weknoracloud）在构造期校验基址——weknoracloud 的凭证检查在基址之前
+        // （照 NewWeKnoraCloudVLM 的顺序）。
+        String appId = "";
+        String appSecret = "";
+        if (weKnoraCloudService != null) {
+            String[] creds = weKnoraCloudService.resolveCredentials();
+            if (creds != null && creds.length == 2) {
+                appId = creds[0];
+                appSecret = creds[1];
             }
-            runtimeFactory.validateVlmBaseUrl(config.baseUrl());
+        }
+        var config = VlmClient.configFromModel(vlmModel, appId, appSecret);
+        try {
+            if (config.isWeKnoraCloud()) {
+                if (appId.isEmpty()) {
+                    throw new RuntimeException("WeKnoraCloud VLM: AppID is required");
+                }
+                if (appSecret.isEmpty()) {
+                    throw new RuntimeException("WeKnoraCloud VLM: AppSecret is required");
+                }
+            }
+            if (!config.isOllama()) {
+                runtimeFactory.validateVlmBaseUrl(config.baseUrl());
+            }
         } catch (RuntimeException e) {
             return writeResult(startedNanos, requestPreview, null, e.getMessage(), observations);
         }

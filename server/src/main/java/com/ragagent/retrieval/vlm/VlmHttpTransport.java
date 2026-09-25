@@ -31,6 +31,41 @@ public class VlmHttpTransport implements VlmClient.Transport {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(180);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /**
+     * 带自定义头的 POST（WeKnoraCloud 签名头）——**不带** Authorization；非 200 抛
+     * {@link VlmClient.HttpStatusException}（让调用方按 Go 的文案报 status + 响应体）。
+     */
+    @Override
+    public String postWithHeaders(String url, java.util.Map<String, String> headers,
+            Object jsonBody) throws Exception {
+        byte[] body = MAPPER.writeValueAsBytes(jsonBody);
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                .header("Content-Type", "application/json")
+                .timeout(timeout());
+        if (headers != null) {
+            headers.forEach(builder::header);
+        }
+        builder.POST(HttpRequest.BodyPublishers.ofByteArray(body));
+        HttpResponse<InputStream> resp;
+        try {
+            resp = LlmTransport.send(builder.build());
+        } catch (IOException e) {
+            throw new RuntimeException("Post \"" + url + "\": " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Post \"" + url + "\": interrupted");
+        }
+        byte[] respBody;
+        try (InputStream stream = resp.body()) {
+            respBody = stream == null ? new byte[0] : stream.readAllBytes();
+        }
+        if (resp.statusCode() != 200) {
+            throw new VlmClient.HttpStatusException(resp.statusCode(),
+                    new String(respBody, StandardCharsets.UTF_8));
+        }
+        return new String(respBody, StandardCharsets.UTF_8);
+    }
+
     @Override
     public String post(String url, String apiKey, Object jsonBody) throws Exception {
         byte[] body = MAPPER.writeValueAsBytes(jsonBody);

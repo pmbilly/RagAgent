@@ -140,6 +140,33 @@ public class WeKnoraCloudService {
         return result;
     }
 
+    /**
+     * 解析当前租户的 WeKnoraCloud 凭证（{appId, appSecret}）。
+     *
+     * <p>对照 Go {@code modelService.resolveWeKnoraCloudCredentials}：租户信息缺失 → {@code null}
+     * （Go 的 {@code !ok}）；凭证未配 / 解密失败 → 空串对；否则返回已解密明文。
+     * VLM 的 weknoracloud 界面（{@code GetVLMModel} 同源路径）与模型调试端点共用此口。</p>
+     */
+    public String[] resolveCredentials() {
+        Long tid = TenantContext.currentTenantId();
+        if (tid == null) {
+            return null;
+        }
+        Tenant tenant = tenantService.getTenantById(tid);
+        JsonNode creds = tenant == null || tenant.getCredentials() == null
+                ? null : tenant.getCredentials().get("weknoracloud");
+        if (creds == null) {
+            return new String[] {"", ""};
+        }
+        String appId = creds.path("app_id").asText("");
+        var decrypted = cryptoService.decryptStoredSecretLenient(creds.path("app_secret").asText(""));
+        String appSecret = decrypted.ok() ? decrypted.plaintext() : "";
+        if (appId.isEmpty() || appSecret.isEmpty()) {
+            return new String[] {"", ""};
+        }
+        return new String[] {appId, appSecret};
+    }
+
     private static JsonNode credentialsNode(String appId, String encryptedSecret) {
         var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         var root = mapper.createObjectNode();

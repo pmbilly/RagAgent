@@ -202,6 +202,8 @@
 
 | 检索批收官报告（W5γ4.18，2026-09-25） | Go `retriever/` 10 目录（9 向量店 12,299 行非测试 + neo4j 236 行图仓 + postgres 既有件） | 新增交付件 [`retrieval-batch-closure.md`](retrieval-batch-closure.md)：一页结论 + 提交链（16 提交）+ **九店对照总表**（Go 规模 / 协议→自持口径 / 索引与写入模型 / 关键词面 / 验证方式 / 真服务端状态）+ **逐店差异备案 42 条** + 有意偏离（W5γ4.3 三处 Go 缺陷修复）+ 接线批与验收面 + **待真机联调清单 9 行** + 复现命令合集 + 遗留 | ✅ | 范围澄清：`retriever/` 下第 10 个目录 **neo4j 是图仓**（`RetrieveGraphRepository`，Java 侧更早批已落地，勿重复计）；九店（ES v7/v8、OpenSearch、Doris、Qdrant、Weaviate、Milvus、腾讯、SQLite）**全部收官**，两店有真服务端 IT（Weaviate 1.28.4 / Milvus 2.6.11），腾讯 BM25 已对 Go SDK 基准逐值对照 |
 
+| provider-XDEP 族收口（W5γ4.19，2026-09-25） | Go `internal/models/vlm/weknoracloud.go`（188 行）+ `internal/models/utils/signer.go`（Sign，复用既有 Java 实现）+ `modelService.GetVLMModel` 的凭证解析 + W5δ/MCP/存储三项遗留（文档级） | `VlmClient.predictWeKnoraCloud` + `Transport.postWithHeaders`（缺省抛保函数式接口）+ `VlmHttpTransport` 实现 + `HttpStatusException` + `VlmConfig` 补 appId/appSecret + `WeKnoraCloudService.resolveCredentials` + `ModelDebugController` 注入解析（凭证检查先于基址校验，照 Go） | ✅ | `VlmWeKnoraCloudTest` 5 条全绿（形状 / **签名用抓到的头独立重算** / remote_model_name 与空图 / 凭证与非 200/无 choices 文案 / 分派走 postWithHeaders）；测试用真实 `VlmHttpTransport`（临时放行 loopback guard）；**VLM 三界面（openai/ollama/weknoracloud）全落地**；五批验收 PASS。**三项决策简报**（W5δ PTY 需真 provider + zerodep 半关闭评估 / MCP initialize 缺报文实录故不动工 / 存储三条按"②先做、①③排读路径批"拆分）——均待 Owner 输入 |
+
 ## 9. 坑索引（条目 → 分片对照）
 
 
@@ -312,3 +314,4 @@
 | SQLite 驱动（2026-09-25 W5γ4.16：Go 挂产品库→本仓独立文件 / xerial 打包版 FTS5 可用 / vec0→普通表+Java 标量函数平面扫描 / `INSERT OR IGNORE` 去重 / 二元切分与查询 OR / k-then-filter 与空类型双跑两个特例 / 无排除项 / WAL 同连接建表坑） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | 小账批（2026-09-25 W5γ4.17：VLM ollama 落地去一 XDEP / Milvus shardsNum 钉测试 / Weaviate gse 为跨仓提案（未改 Go 仓）/ E2E 两观察项待复跑定位） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | 检索批收官（2026-09-25 W5γ4.18：九店总表与差异汇总 / neo4j 属图仓的澄清 / 待真机联调清单 / 复现命令） | [`retrieval-batch-closure.md`](retrieval-batch-closure.md) |
+| provider-XDEP 收口（2026-09-25 W5γ4.19：weknoracloud VLM 落地（六头签名复用 + 凭证解析口）/ Transport 加 postWithHeaders 保函数式接口 / 三项决策简报（W5δ 需 spike、MCP 缺实录、存储拆分）） | [`06-wave-5.md`](known-issues/06-wave-5.md) |

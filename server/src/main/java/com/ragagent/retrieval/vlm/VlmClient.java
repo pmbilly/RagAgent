@@ -25,10 +25,22 @@ public final class VlmClient {
     private static final int DEFAULT_MAX_TOKS = 5000;
     private static final double DEFAULT_TEMP = 0.1;
 
-    /** 对照 types.VLM 的 Config（消费面子集）。 */
+    /** 对照 types.VLM 的 Config（消费面子集；appId/appSecret 为 WeKnoraCloud 已解密凭证）。 */
     public record VlmConfig(String source, String baseUrl, String modelName, String apiKey,
             String modelId, String interfaceType, String provider,
-            Map<String, String> extra) {
+            Map<String, String> extra, String appId, String appSecret) {
+
+        /** 便捷构造（凭证缺省空——非 WeKnoraCloud 路径用）。 */
+        public VlmConfig(String source, String baseUrl, String modelName, String apiKey,
+                String modelId, String interfaceType, String provider,
+                Map<String, String> extra) {
+            this(source, baseUrl, modelName, apiKey, modelId, interfaceType, provider, extra,
+                    "", "");
+        }
+
+        public boolean isWeKnoraCloud() {
+            return "weknoracloud".equals(provider);
+        }
 
         public double temperature() {
             String v = extra == null ? null : extra.get("temperature");
@@ -66,10 +78,32 @@ public final class VlmClient {
                 : new LinkedHashMap<>(p.getExtraConfig() == null ? Map.of() : p.getExtraConfig());
         return new VlmConfig(m.getSource(), p == null ? "" : p.getBaseUrl(),
                 m.getName(), p == null ? "" : p.getApiKey(), m.getId(), ifType,
-                p == null ? "" : p.getProvider(), extra);
+                p == null ? "" : p.getProvider(), extra, appId == null ? "" : appId,
+                appSecret == null ? "" : appSecret);
     }
 
     private VlmClient() {
+    }
+
+    /** HTTP 非 2xx（带状态码与响应体原文；WeKnoraCloud 的错误文案需要它们）。 */
+    public static final class HttpStatusException extends RuntimeException {
+
+        private final int status;
+        private final String body;
+
+        public HttpStatusException(int status, String body) {
+            super("status " + status + ": " + body);
+            this.status = status;
+            this.body = body;
+        }
+
+        public int status() {
+            return status;
+        }
+
+        public String body() {
+            return body;
+        }
     }
 
     /** Predict 失败（Go 的 error 返回；message 对照 Go 原文）。 */
@@ -91,6 +125,9 @@ public final class VlmClient {
         if (config != null && config.isOllama()) {
             return predictOllama(com.ragagent.llm.ollama.OllamaService.getOllamaService(), config,
                     imgBytesList, prompt);
+        }
+        if (config != null && config.isWeKnoraCloud()) {
+            return predictWeKnoraCloud(config, transport, imgBytesList, prompt);
         }
         // 请求体构建：与 Go openai.ChatCompletionRequest 字段一一对应
         List<Object> parts = new ArrayList<>();
@@ -195,6 +232,98 @@ public final class VlmClient {
         return result[0] == null ? "" : result[0];
     }
 
+    /** WeKnoraCloud 的 VLM 端点（照 Go {@code weKnoraCloudVLMPath}）。 */
+    static final String WEKNORA_CLOUD_VLM_PATH = "/api/v1/chat/completions";
+
+    /**
+     * 对照 Go {@code vlm/weknoracloud.go} 的 {@code Predict}：WeKnoraCloud 的
+     * {@code POST /api/v1/chat/completions}——multipart 内容（text + 每图 data URI）、
+     * {@code max_tokens=5000}、{@code temperature=0.1}（**用常量，不读 extra 覆盖**，照 Go）、
+     * {@code stream=false}；鉴权走 {@code WeknoraCloudSign}（与 embedding/rerank/chat 同一份
+     * 实现）；模型名可被 {@code extra.remote_model_name} 覆盖（{@code effectiveModelName}）。
+     *
+     * <p>错误族照 Go：构造期 {@code WeKnoraCloud VLM: AppID is required} /
+     * {@code AppSecret is required}；运行期 {@code weknoracloud VLM: status %d: %s} /
+     * {@code WeKnoraCloud VLM: no choices in response}。</p>
+     */
+    static String predictWeKnoraCloud(VlmConfig config, Transport transport, byte[][] imgBytesList,
+            String prompt) throws VlmException {
+        if (config.appId() == null || config.appId().isEmpty()) {
+            throw new VlmException("WeKnoraCloud VLM: AppID is required");
+        }
+        if (config.appSecret() == null || config.appSecret().isEmpty()) {
+            throw new VlmException("WeKnoraCloud VLM: AppSecret is required");
+        }
+
+        List<Object> parts = new ArrayList<>();
+        Map<String, Object> textPart = new LinkedHashMap<>();
+        textPart.put("type", "text");
+        textPart.put("text", prompt);
+        parts.add(textPart);
+        for (byte[] img : imgBytesList) {
+            if (img != null && img.length > 0) {
+                Map<String, Object> imageUrl = new LinkedHashMap<>();
+                imageUrl.put("url", "data:" + detectImageMime(img) + ";base64,"
+                        + Base64.getEncoder().encodeToString(img));
+                Map<String, Object> imgPart = new LinkedHashMap<>();
+                imgPart.put("type", "image_url");
+                imgPart.put("image_url", imageUrl);
+                parts.add(imgPart);
+            }
+        }
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("role", "user");
+        message.put("content", parts);
+
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("model", effectiveCloudModelName(config));
+        req.put("messages", List.of(message));
+        req.put("max_tokens", DEFAULT_MAX_TOKS);
+        req.put("temperature", DEFAULT_TEMP);
+        req.put("stream", false);
+
+        String bodyJson;
+        try {
+            bodyJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(req);
+        } catch (Exception e) {
+            throw new VlmException("weknoracloud VLM: marshal: " + e.getMessage());
+        }
+        Map<String, String> headers = com.ragagent.embedding.WeknoraCloudSign.sign(config.appId(),
+                config.appSecret(), java.util.UUID.randomUUID().toString(), bodyJson);
+
+        String baseUrl = config.baseUrl() == null ? "" : config.baseUrl().replaceAll("/+$", "");
+        String respBody;
+        try {
+            respBody = transport.postWithHeaders(baseUrl + WEKNORA_CLOUD_VLM_PATH, headers, req);
+        } catch (HttpStatusException e) {
+            // 照 Go：weknoracloud VLM: status %d: %s
+            throw new VlmException("weknoracloud VLM: status " + e.status() + ": " + e.body());
+        } catch (Exception e) {
+            throw new VlmException("weknoracloud VLM: do request: " + e.getMessage());
+        }
+
+        com.fasterxml.jackson.databind.JsonNode root;
+        try {
+            root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(respBody);
+        } catch (Exception e) {
+            throw new VlmException("weknoracloud VLM: unmarshal: " + e.getMessage());
+        }
+        var choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) {
+            throw new VlmException("WeKnoraCloud VLM: no choices in response");
+        }
+        return choices.get(0).path("message").path("content").asText("");
+    }
+
+    /** 对照 {@code effectiveModelName}：{@code extra.remote_model_name} 优先。 */
+    static String effectiveCloudModelName(VlmConfig config) {
+        String remote = config.extra() == null ? null : config.extra().get("remote_model_name");
+        if (remote != null && !remote.trim().isEmpty()) {
+            return remote.trim();
+        }
+        return config.modelName();
+    }
+
     /**
      * 对照 shapeReasoningVLMRequest（remote_api.go L190-202）：OpenAI reasoning /
      * GPT5 家族把 max_tokens 平移到 max_completion_tokens，采样参数清零。
@@ -258,5 +387,14 @@ public final class VlmClient {
     /** 出站 POST 通道（生产由 HTTP 客户端实现；测试用内存 stub）。 */
     public interface Transport {
         String post(String url, String apiKey, Object jsonBody) throws Exception;
+
+        /**
+         * 带自定义头的 POST（WeKnoraCloud 的签名头走这条；**不带** Authorization）。
+         * 缺省实现抛异常——保持接口的函数式接口性质（现有 lambda stub 不受影响）。
+         */
+        default String postWithHeaders(String url, Map<String, String> headers, Object jsonBody)
+                throws Exception {
+            throw new UnsupportedOperationException("postWithHeaders not supported");
+        }
     }
 }
