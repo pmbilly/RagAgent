@@ -207,7 +207,7 @@ class EngineFactoryTest {
                         () -> EngineFactory.createFromStore(store("postgres", pg, null), null))
                         .getMessage());
 
-        for (String engine : List.of("tencent_vectordb", "sqlite")) {
+        for (String engine : List.of("sqlite")) {
             String message = assertThrows(EngineNotSupportedException.class,
                     () -> EngineFactory.createFromStore(store(engine, cc, null), null))
                     .getMessage();
@@ -238,6 +238,25 @@ class EngineFactoryTest {
                 store("doris", doris, null), null);
         assertEquals("doris", svc.engineType());
         assertEquals(List.of("keywords", "vector"), svc.support());
+    }
+
+    @Test
+    @DisplayName("腾讯 VectorDB：HTTP 自持口径（addr/username/apiKey 必填，照 SDK 的 username or key is empty）")
+    void buildsTencentVectorDb() {
+        ConnectionConfig tencent = new ConnectionConfig();
+        tencent.addr = "127.0.0.1:8100";
+        tencent.username = "root";
+        tencent.apiKey = "key-1";
+        KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
+                store("tencent_vectordb", tencent, null), null);
+        assertEquals("tencent_vectordb", svc.engineType());
+        assertEquals(List.of("keywords", "vector"), svc.support());
+
+        ConnectionConfig noKey = new ConnectionConfig();
+        noKey.addr = "127.0.0.1:8100";
+        noKey.username = "root";
+        assertThrows(IllegalStateException.class,
+                () -> EngineFactory.createFromStore(store("tencent_vectordb", noKey, null), null));
     }
 
     @Test

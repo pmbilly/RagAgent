@@ -1583,3 +1583,71 @@ WEKNORA_MILVUS_IT=true ./gradlew :server:test --tests "*MilvusDriverLocalIT*"
 
 IT 覆盖：建集合（BM25 函数 + 稀疏列 + 索引）→ 批量写 → 向量检索 → BM25 中文检索 →
 tag/enabled 的整行回写（向量必须仍在）→ 拷贝（offset 分页）→ move（带调用方重试）→ 删除。
+
+## W5γ4.15：腾讯 VectorDB 驱动（HTTP 自持 + 客户端 BM25，2026-09-25）
+
+### 协议决策：自持 SDK 的 HTTP 面（Go 走 gRPC）
+
+Go 的 `tcvectordb.RpcClient` 是**混合**的：`/database/*` 走 HTTP，但**集合与文档操作全部走
+gRPC（olama protobuf）**。本仓不引 protobuf，改走同一服务端的 **HTTP 面**（SDK 的
+`tcvectordb.Client` 就是它）：
+
+- 鉴权：`Authorization: Bearer account=<username>&api_key=<key>`（**明文，不是 TC3 签名**）；
+- 头：`Content-Type: application/json` + `Sdk-Version: v1.8.4`；
+- 路径静态、库名/集合名在**请求体**：`/database/list`（GET！）/`create`、
+  `/collection/create|describe|list`、`/document/upsert|search|fullTextSearch|query|delete|update`；
+- 信封：HTTP 非 2xx → `response code is %d, %s`；`code != 0` → `code: %d, message: %s`；
+- 地址：**https 被 SDK 拒**（"not supporting https://"）、空 username/key 被拒
+  （"username or key is empty"）——本仓同款。
+
+### BM25 是客户端算的（本批最重的一块）
+
+稀疏向量 `sparse_vector` 由 **客户端 BM25** 生成（写库与查询各编一次）：
+
+| 件 | 说明 |
+|---|---|
+| 哈希 | **murmur3 32 位**（x86_32，种子 0）→ 无符号 int64；实测对照：`"hello"→613153351`、`"world"→4220927227`、`"中文"→3676729751`、`""→0` |
+| 文档权重 | `tf/(K1*(1-B+B*(len/avgDocLen))+tf)`（B=0.75、K1=1.2） |
+| 查询权重 | `idf=ln((docCount+1)/(df+0.5))` 再按 Σidf 归一（df 缺失按 0 → 拿到大 idf） |
+| 语料统计 | COS 的 `bm25_zh_default.json`：**85 MB / 389 万词条**（doc_count=382835、avg_doc_len=245.61638），**运行时下载**并缓存到 `/tmp/tencent/vectordatabase/data/`（照 Go 的 DefaultStorageDir） |
+| 停用词 | COS 的 `default_stopwords.txt`（1.1 KB / 252 行），同样下载缓存 |
+| 分词 | Go 内嵌 gse/jieba（HMM 开、cutAll 关、forSearch 关） |
+
+**对照验证**（Go 侧跑 SDK 打印基准值，Java 逐值比对，见 `TencentVectorDbBm25Test`）：
+`"中文检索测试 hello"` → ids `[1872693679, 4269123640, 613153351]`、DOC 三项均 `0.7627807`、
+QUERY `{0.44923997, 0.10152008, 0.44923997}`；`"第二条 中文 hello world"` → DOC 均 `0.7606547`、
+QUERY `{0.38338965, 0.16701655, 0.066204146, 0.38338965}`——**哈希与 BM25 数学与 Go 完全一致**。
+
+**唯一的差异是分词**：本仓复用既有分词接缝（`SearchTextUtil.segmenter()`，默认是
+"按空白 + CJK 二字滑窗"的近似实现）。因此 **Java 写出的稀疏向量与 Go/jieba 写出的不逐词一致**
+——同一集合的写与读必须同一实现；从 Go 迁移过来的存量数据需**重导入**才能被 Java 的
+关键词检索命中（向量检索不受影响）。接缝可替换（接入真实 jieba 后即与 Go 同源）。
+
+另：Java 侧把 85 MB 参数表**流式解析进排序长整型数组**（约 47 MB；Go 是
+`map[string]float64`，数百 MB 堆）——查找走二分，结果等价。
+
+### 其余语义（照 Go，别"顺手统一"）
+
+1. **过滤语法与 Milvus 不同**：腾讯是 `key in ("a","b")`（双引号 + 圆括号，照 SDK 的
+   `In`）；`is_enabled`/`source_type` 是 **uint64**，所以基础过滤写 `is_enabled=1`（不是 `true`）。
+2. **集合命名的开关**：`indexCfg.CollectionName` 非空 → **单集合**（无 `_<dim>` 后缀），
+   且前缀匹配变成精确相等；为空/无配置 → 带维度后缀 + 前缀匹配（默认口径）。
+3. **批量更新走 Update API**（`/document/update` + `query.filter`），不是"查整行→回写"；
+   **任一匹配集合失败即抛错**（与 Milvus 的"聚合冒泡"、Weaviate 的"忽略"都不同）。
+4. **关键词检索**：跨匹配集合 `fullTextSearch`；**单个集合失败只 WARN 跳过**，但**全部匹配
+   集合都失败**时抛错，文案提示"集合缺 sparse 索引、需重导入"；结果按 score 降序（稳定）
+   截 `limit`；`limit` 与向量检索一样，TopK≤0 → 10。
+5. **拷贝的第 3 态 SourceID 是 sha256**：`"<targetChunkID>-<sha256(targetChunkID NUL
+   sourceChunkID NUL originalSourceID) 前 16 hex>"`（Milvus 是"新 UUID"、Doris 是"新 UUID"——
+   各店不同，别照抄）；目标文档 **id = 改写后的 SourceID**（不是新 UUID）；kb 映射缺失时
+   保留原 knowledgeId（不跳过）；isEnabled 沿用源值。
+6. **move 只有一发 Update**（kb 改 + tag 清空），没有 Milvus 的 drain/seen 守卫。
+7. 内容入库前过 `cleanInvalidUTF8`（丢 NUL 与非法序列）。
+8. 存储估算：`content 字节 + 4×dim + content 字节×2 + (四个 id 字节 + 256)`——content 计两次
+   （照 Go 原文，非笔误）。
+
+### 验证与"没有真服务端 IT"的说明
+
+腾讯 VectorDB 是云服务（无本地版）→ 本批**没有真服务端 IT**（与 ES/OpenSearch/Milvus 批不同）：
+wire 形状用 stub HTTP 逐请求钉死（auth/path/body/信封），BM25 用 Go SDK 的实跑基准逐值对照。
+真机联调留待有云实例凭据时（配置面已就绪：`TENCENT_VECTORDB_ADDR/USERNAME/API_KEY/DATABASE`）。

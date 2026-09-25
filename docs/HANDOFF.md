@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-30 腾讯 VectorDB 驱动落地（2026-09-25——W5γ4.15，HTTP 自持 + 客户端 BM25）
+
+**做了什么**（照 Go `repository/retriever/tencentvectordb/` 全包 ~870 行非测试；**协议决策**：Go 的 `tcvectordb.RpcClient` 集合/文档操作走 **gRPC（olama）**、仅 database 走 HTTP；本仓自持 SDK 的 **HTTP 面**并**不引 protobuf**）：
+
+| 件 | 说明 |
+|---|---|
+| `TencentVectorDbRestClient`（新） | `Authorization: Bearer account=<user>&api_key=<key>`（明文，非 TC3）+ `Sdk-Version: v1.8.4`；静态路径 + 库名/集合名在请求体：`/database/list`(GET)/`create`、`/collection/create|describe|list`、`/document/upsert|search|fullTextSearch|query|delete|update`；信封非 0 → `code: N, message: …`；**https 与空凭据照 SDK 拒绝**；构造期 SSRF |
+| `TencentVectorDbBm25`（新） | **客户端 BM25**：murmur3 32 位哈希 + 文档 tf 归一 + 查询 idf 归一（B=0.75/K1=1.2）；语料统计从 COS 下 **85 MB** 的 `bm25_zh_default.json`（389 万词条，doc_count=382835、avg_doc_len=245.61638）并缓存 `/tmp/tencent/vectordatabase/data/`；停用词 1.1 KB 同源；**流式解析进排序长整型数组**（~47 MB，Go 是数百 MB 的 map，查找走二分）；分词走仓库既有接缝 |
+| `TencentVectorDbRetrieveRepository`（新） | 集合命名开关（`collectionName` 非空 → 单集合无维度后缀 + 精确匹配）；建集合索引表照 Go（vector HNSW/COSINE/M16/efC200 + sparse_vector inverted/IP + 9 标量 primaryKey/filter）；Upsert（buildIndex=true，稀疏向量随文档写）；删除 `field in ("…")`；**enabled/tag 批量更新走 Update API**（任一集合失败即抛）；向量检索（ef=100、threshold→radius、TopK≤0→10）；关键词检索 = BM25 查询向量 + `fullTextSearch`（单集合失败跳过、**全失败报错**并提示重导入、score 降序截断）；拷贝 offset 500 分页 + **第 3 态 SourceID = sha256 前 16 hex** + 目标 id 改写；move 一发 Update；存储估算（content 计两次，照 Go） |
+| 装配 | **EngineFactory** 腾讯分支（照 createTencentVectorDBEngine：addr/username/apiKey 必填）；**envTencentVectorDb**（TENCENT_VECTORDB_ADDR/USERNAME/API_KEY 三者缺一即跳过 + DATABASE 缺省 weknora）；**testTencentVectorDB** 从 TCP 拨号升级为 ListDatabase 探针（两段错误文案照 Go） |
+
+**BM25 对照验证（本批关键证据）**：在 Go 仓用 SDK v1.8.4 实跑取基准（基准程序已删除，Go 仓干净），Java 逐值比对——murmur3（`"hello"→613153351`、`"world"→4220927227`、`"中文"→3676729751`、`""→0`）与文档/查询权重（`"中文检索测试 hello"` → DOC 均 `0.7627807`；QUERY `{0.44923997, 0.10152008, 0.44923997}`；`"第二条 中文 hello world"` → DOC 均 `0.7606547`）**完全一致**。
+
+**差异备案**：① **分词接缝**——Java 默认分词是仓库既有近似（非 jieba），故稀疏向量与 Go 存量数据**不互通**（同集合需同一实现；Go 迁移来的数据需重导入；接缝可替换为真实 jieba）；② Go 走 gRPC/olama，本仓走 HTTP 面（同服务端、语义等价）；③ **无真服务端 IT**（腾讯 VectorDB 是云服务，无本地版）——wire 形状用 stub 钉死、BM25 用 Go 基准逐值对照，真机联调待云凭据。
+
+**验证**：`TencentVectorDbBm25Test` 4 + 仓储/客户端 stub 16 + 工厂/接线 2 **全绿**；五批验收 PASS；bootRun 重启冒烟 200。
+
+**下一步**：检索批只剩 **SQLite**（~680 行，CGO + sqlite-vec 扩展，native 多平台分发需决策，优先级最低）；其余为备案小账（Milvus shardsNum/模板参数、Weaviate gse 开关回填、腾讯分词接缝、VLM 界面、jieba 等）。
+
+---
+
 ## 0.-29 Milvus 驱动落地（2026-09-25——W5γ4.14，REST v2 自持）
 
 **做了什么**（照 Go `repository/retriever/milvus/` 全包 ~1,560 行非测试；**协议决策**：起真例逐端点验过 REST v2 全覆盖（含 **BM25 文本检索**）→ 零新依赖自持，不走 SDK）：
@@ -1265,7 +1286,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - ~~tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）~~ ✅ 2026-09-23 批 D2 落地 + **2026-09-25 真实 LLM E2E 全链通过**（§0.-27，抓回并修复四处驱动缺陷）
-- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（§0.-28）+ Milvus ✅（W5γ4.14，§0.-29，REST v2 自持 + 真服务端 IT）**；仍剩腾讯（~870 行，HTTP API 3.0 + TC3 签名）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
+- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（§0.-28）+ Milvus ✅（§0.-29）+ 腾讯 VectorDB ✅（W5γ4.15，§0.-30，HTTP 自持 + 客户端 BM25）**；仍剩 **SQLite**（~680 行，CGO + sqlite-vec，native 扩展多平台分发决策）——**其余各家已全部落地**。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1366,17 +1387,18 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 （W5γ4.8）；③知识写链改道引擎口（W5γ4.7）+ move 的 reparse 模式收尾（W5γ4.8）——**全部落地**。
 `git log` 的 W5γ4.1~γ4.8 八笔即检索批全貌。
 
-**下一步候选（2026-09-25 W5γ4.11 刷新）**：
+**下一步候选（2026-09-25 W5γ4.15 刷新）**：
 1. ~~OpenSearch~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）；
-   ~~Qdrant~~ ✅ W5γ4.11（§0.-26，gRPC 族首支走 REST 自持）——HTTP/SQL 族收官、gRPC 族已破题；
-2. ~~Weaviate（~1,170 行）~~ ✅ W5γ4.13（§0.-28）：REST 自持落地 + 真服务端 IT；
-3. ~~Milvus（~1,560 行）~~ ✅ W5γ4.14（§0.-29）：REST v2 覆盖度探明即自持落地 + 真服务端 IT；
-4. **腾讯 VectorDB**（~870 行）：自持 HTTP API 3.0（TC3-HMAC-SHA256 签名）；
-5. **SQLite**——native 扩展（sqlite-vec）多平台分发需决策，优先级最低；
-6. ~~install 真实 LLM E2E 联调~~ ✅ 2026-09-25（§0.-27，四处缺陷已修；原计划 1→2→3 全部完成）；
-7. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、VLM 界面、initialize 契约对齐、jieba 真实分词、
-   存储三条备案；install 管线体与 ArtifactCollector 文件源已于 09-23/09-24 收口）——均需真实
-   provider 或决策输入。
+   ~~Qdrant~~ ✅ W5γ4.11（§0.-26）；~~Weaviate~~ ✅ W5γ4.13（§0.-28）；
+   ~~Milvus~~ ✅ W5γ4.14（§0.-29）；~~腾讯 VectorDB~~ ✅ W5γ4.15（§0.-30）——
+   **除 SQLite 外全部落地**（HTTP 族 / SQL 族 / gRPC 族均已走自持 REST/HTTP 口径）；
+2. **SQLite**（~680 行）：CGO + sqlite-vec 扩展，native 多平台分发需决策（原样引 xerial
+   sqlite-jdbc + 扩展 .dylib/.so 分发，或用纯 Java 近似）——优先级最低，建议先决策再动手；
+3. **备案小账批**：Milvus 的 shardsNum/模板参数差异、Weaviate 的 `ENABLE_TOKENIZER_GSE` 回填
+   Go 仓 compose、腾讯的**分词接缝**（接真实 jieba 可与 Go 存量数据互通）、E2E 抓回的两个
+   观察项（早错 SSE 不收流 / `list_sandbox_files` 注册时机）、VLM 界面文案、jieba 真实分词；
+4. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、initialize 契约对齐、存储三条备案；
+   install 真实 LLM E2E 已于 §0.-27 收官）——均需真实 provider 或决策输入。
 
 ### 3.-2 当前续推点：接线的第 3~4 步（2026-09-25 起）—— ✅ 已收官（W5γ4.6，见 §0.-21）
 

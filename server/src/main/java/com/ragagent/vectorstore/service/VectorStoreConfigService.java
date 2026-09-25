@@ -307,20 +307,25 @@ public class VectorStoreConfigService {
         }
     }
 
+    /**
+     * 对照 testTencentVectorDBConnection（vectorstore_healthcheck.go L201-222）：{@code ListDatabase}
+     * 探针——客户端构造失败（地址/用户名/密钥不合法）→ "connection refused or authentication
+     * failed"；调用失败 → "authentication failed or server error"。版本恒 ""（Go 同款）。
+     */
     private String testTencentVectorDB(ConnectionConfig config) {
-        String addr = config.addr == null ? "" : config.addr;
-        URI uri;
         try {
-            uri = URI.create(addr.contains("://") ? addr : "http://" + addr);
+            return com.ragagent.retrieval.engine.tencentvectordb.TencentVectorDbRetrieveRepository
+                    .testConnection(config.addr, config.username, config.apiKey, ssrfGuard);
+        } catch (com.ragagent.retrieval.engine.tencentvectordb.TencentVectorDbRestClient
+                .TencentVectorDbApiException e) {
+            log.warn("Tencent VectorDB list database failed: {}", e.getMessage());
+            throw new ConnectorFailure(
+                    "failed to connect to tencent vectordb: authentication failed or server error");
         } catch (RuntimeException e) {
-            throw new ConnectorFailure("failed to connect to tencent vectordb: connection refused or authentication failed");
+            log.warn("Tencent VectorDB connection test failed: {}", e.getMessage());
+            throw new ConnectorFailure(
+                    "failed to connect to tencent vectordb: connection refused or authentication failed");
         }
-        int port = uri.getPort() > 0 ? uri.getPort() : 80;
-        if (!dial(uri.getHost(), port)) {
-            throw new ConnectorFailure("failed to connect to tencent vectordb: connection refused or authentication failed");
-        }
-        // 已知差异：Go 走 SDK ListDatabase（鉴权失败为独立文案）；Java 无 SDK → ""
-        return "";
     }
 
     private String testWeaviate(ConnectionConfig config) {

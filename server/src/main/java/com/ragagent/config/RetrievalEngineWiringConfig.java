@@ -34,8 +34,8 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *       postgres 由 {@link PgVectorEngineRepository} 承担（既有 JDBC 件的引擎口适配）；
  *       elasticsearch_v7/v8 从 {@code ELASTICSEARCH_ADDR/USERNAME/PASSWORD} 现场建驱动；
  *       opensearch / doris / qdrant / weaviate / milvus 同法（{@code OPENSEARCH_*} /
- *       {@code DORIS_*} / {@code QDRANT_*} / {@code WEAVIATE_*} / {@code MILVUS_*}）；
- *       其余驱动（sqlite/tencent_vectordb）未落地，
+ *       {@code DORIS_*} / {@code QDRANT_*} / {@code WEAVIATE_*} / {@code MILVUS_*} /
+ *       {@code TENCENT_VECTORDB_*}）；其余驱动（sqlite）未落地，
  *       明确 WARN（Go 会真注册——诚实降级备案，随 driver 批补）。</li>
  *   <li>{@link TenantStoreOwnership}：store 归属查表（工厂的跨租户防御）。</li>
  * </ul>
@@ -100,6 +100,9 @@ public class RetrievalEngineWiringConfig {
                     break;
                 case "milvus":
                     envMilvus(registry, guard);
+                    break;
+                case "tencent_vectordb":
+                    envTencentVectorDb(registry, guard);
                     break;
                 case "":
                     break;
@@ -276,6 +279,33 @@ public class RetrievalEngineWiringConfig {
                             null, guard);
             register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
                     EngineTypes.ENGINE_MILVUS), label);
+        } catch (RuntimeException e) {
+            log.error("Create {} client failed: {}", label, e.toString());
+        }
+    }
+
+    /**
+     * env-path 的腾讯 VectorDB 注册——照 Go container.go L1402-1432：{@code TENCENT_VECTORDB_ADDR}
+     * / {@code TENCENT_VECTORDB_USERNAME} / {@code TENCENT_VECTORDB_API_KEY} <b>三者缺一即拒</b>
+     * （Go 只打 "Missing Tencent VectorDB configuration" 日志并跳过）+ {@code TENCENT_VECTORDB_DATABASE}
+     * （缺省 {@code weknora}）。HTTP 客户端构造不拨号（首个请求才连）。
+     */
+    private static void envTencentVectorDb(EngineRegistry registry, SsrfGuard guard) {
+        String label = "tencent_vectordb";
+        String addr = env("TENCENT_VECTORDB_ADDR");
+        String username = env("TENCENT_VECTORDB_USERNAME");
+        String apiKey = env("TENCENT_VECTORDB_API_KEY");
+        if (addr.isEmpty() || username.isEmpty() || apiKey.isEmpty()) {
+            log.error("Missing Tencent VectorDB configuration");
+            return;
+        }
+        try {
+            com.ragagent.retrieval.engine.tencentvectordb.TencentVectorDbRetrieveRepository repo =
+                    com.ragagent.retrieval.engine.tencentvectordb.TencentVectorDbRetrieveRepository
+                            .create(addr, username, apiKey, env("TENCENT_VECTORDB_DATABASE"),
+                                    null, guard);
+            register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
+                    EngineTypes.ENGINE_TENCENT_VECTORDB), label);
         } catch (RuntimeException e) {
             log.error("Create {} client failed: {}", label, e.toString());
         }

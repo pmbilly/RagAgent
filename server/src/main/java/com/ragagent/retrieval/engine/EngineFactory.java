@@ -8,6 +8,7 @@ import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveReposi
 import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
 import com.ragagent.retrieval.engine.milvus.MilvusRetrieveRepository;
 import com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository;
+import com.ragagent.retrieval.engine.tencentvectordb.TencentVectorDbRetrieveRepository;
 import com.ragagent.retrieval.engine.weaviate.WeaviateRetrieveRepository;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
@@ -38,7 +39,9 @@ import com.ragagent.vectorstore.domain.VectorStore;
  *   <li>**milvus**：照 {@code createMilvusEngine} 真落地——**REST v2 自持**（{@code /v2/vectordb/…}
  *       零新依赖：建集合含 BM25 函数/稀疏列/indexParams、upsert/query/search/delete 均已对真服务端
  *       实测；addr 缺省 {@code localhost:19530}）</li>
- *   <li>**tencent_vectordb**：driver 未落地 → 诚实 XDEP（腾讯属 "协议决策"族）</li>
+ *   <li>**tencent_vectordb**：照 {@code createTencentVectorDBEngine} 真落地——**HTTP API 自持**
+ *       （{@code Authorization: Bearer account=…&api_key=…}；Go 的 RpcClient 走 gRPC，本仓走
+ *       同一服务端的 HTTP 面；BM25 稀疏向量客户端编码）</li>
  * </ul>
  *
  * <h2>照抄点</h2>
@@ -192,9 +195,17 @@ public final class EngineFactory {
                 return new KeywordsVectorHybridRetrieveEngineService(repo,
                         EngineTypes.ENGINE_MILVUS);
             }
-            case EngineTypes.ENGINE_TENCENT_VECTORDB:
-                throw new EngineNotSupportedException("retriever engine " + engineType
-                        + " driver not ported in this batch (tracked as W5γ4 follow-up)");
+            case EngineTypes.ENGINE_TENCENT_VECTORDB: {
+                // 照 Go createTencentVectorDBEngine：addr 必填（SDK 只收 http:// 或裸 host，
+                // https 被拒）、username/apiKey 必填（"username or key is empty"）。
+                ConnectionConfig ccTencent = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
+                TencentVectorDbRetrieveRepository repo = TencentVectorDbRetrieveRepository.create(
+                        ccTencent.addr, ccTencent.username, ccTencent.apiKey, ccTencent.database,
+                        store.getIndexConfig(), guard);
+                return new KeywordsVectorHybridRetrieveEngineService(repo,
+                        EngineTypes.ENGINE_TENCENT_VECTORDB);
+            }
             default:
                 // 照 Go：validate 的 default 分支先报"无地址策略"，此处实际不可达
                 throw new EngineNotSupportedException("unsupported engine type: " + engineType);

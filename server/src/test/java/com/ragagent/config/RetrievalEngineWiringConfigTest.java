@@ -81,9 +81,19 @@ class RetrievalEngineWiringConfigTest {
     void unportedDriversAreSkipped() throws Exception {
         EngineRegistry registry = new EngineRegistry(null, null);
         assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"tencent_vectordb",
-                        "sqlite"}, newAdapter(), null, null)).doesNotThrowAnyException();
-        // 全部未落地 → 无注册、装配不炸
+                new String[] {"sqlite"}, newAdapter(), null, null)).doesNotThrowAnyException();
+        // 未落地 → 无注册、装配不炸
+        assertThat(registry.getAllRetrieveEngineServices()).isEmpty();
+    }
+
+    @Test
+    void tencentVectorDbWithoutEnvConfigIsSkipped() throws Exception {
+        EngineRegistry registry = new EngineRegistry(null, null);
+        // 照 Go：TENCENT_VECTORDB_ADDR/USERNAME/API_KEY 三者缺一 → 只记 "Missing Tencent
+        // VectorDB configuration" 并跳过（本测试环境未配 env → 走该分支）
+        assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
+                new String[] {"tencent_vectordb"}, newAdapter(), null, null))
+                .doesNotThrowAnyException();
         assertThat(registry.getAllRetrieveEngineServices()).isEmpty();
     }
 
