@@ -1294,3 +1294,26 @@
    `error_message=''`，并在搬移前清 `knowledge_tag_relations`（标签是 KB 作用域的）。Java 此前
    只改 kb_id + updated_at，搬走后的文档仍挂着源 KB 的标签、行状态停在原值。
    **排查手法**：把 Go 的 `moveKnowledgeReuseVectors` 尾部逐行对照 Java 的搬行方法，差异一目了然。
+
+## W5γ4.9：OpenSearch k-NN 驱动（2026-09-25）
+
+1. **Go 注释与代码分叉（ensureReady transient 分支）**：Go 的注释声称"Fall through —
+   caller still sees this attempt's err"，但代码在 transient 失败时**不写** initErr，
+   函数尾部读 initErr 返回 nil——当次调用者拿 nil 后继续操作，以后续操作的
+   INDEX_NOT_FOUND 显形。Java 以**代码**为准（不持久化、当次不报错）；别照注释修。
+2. **逐维惰性建索引**（与 ES 的"构造即自举"完全不同）：OpenSearch 在构造期只探针
+   （版本 + 每节点 k-NN 插件），索引在首个带该 dim 的 Save/Retrieve 时创建
+   （`<base>_<dim>` 别名 → `<base>_<dim>_v1` 实体）。测试桩的 HEAD 缺省状态码
+   必须给 404，否则别名探针恒"存在"、惰性路径测不到。
+3. **min_score 直通**：OpenSearch k-NN 的 COSINESIMIL.scoreTranslation 已把分数映射到
+   (1+cos)/2 ∈ [0,1]，调用方 Threshold **原样**传 min_score（不做 1-threshold 之类的
+   距离换算——与 pgvector 驱动相反）。
+4. **CopyIndices 的向量键是目标 SourceID**（BatchSave 按 SourceID 查 embedding），
+   与 ES 驱动的 chunk id 约定**相反**——两个驱动别抄混。同页混合维度会以
+   DIMENSION_MISMATCH 拒绝（Go 同）。
+5. **翻译手误两例（测试抓回）**：move 的 filter 元素缺 `{"term":…}` 包装、第二个 term
+   的键装进了第一个 map——逐请求断言 wire 形状的 stub 测试是抓这类手误的唯一防线
+   （H2/单测编译都发现不了）。
+6. **env-path 的 SSRF 差异**：OpenSearch 的客户端构造（NewOpenSearchClient）内置
+   无条件 SSRF 校验——env-path 也过；ES 的 env-path 用裸 SDK 客户端不过。同是
+   env-store 注册，两个驱动的安全面不同，接线时别对齐。

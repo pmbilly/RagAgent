@@ -1,5 +1,24 @@
 # 交接文档（新会话接手用）
 
+## 0.-24 OpenSearch k-NN 驱动落地（2026-09-25——W5γ4.9，HTTP 族收官）
+
+**做了什么**（照 Go `repository/retriever/opensearch/` 全包 15 文件 ~2380 行，HTTP/JSON 自持——Go 用 opensearch-go v4 SDK，wire 形状逐段对照）：
+
+| 件 | 说明 |
+|---|---|
+| `opensearch.OpenSearchRetrieveRepository`（新） | 实现 `RetrieveEngineRepository` + `KnowledgeIndexMover`。**生命周期**（repository.go）：构造期探针（版本分段拒：非 opensearch/1.x/2.0~2.3；2.4~2.10 WARN 收；2.11+/3.x 收 + 每节点 k-NN 插件检查，缺节点列表照 Go `%v` 形态）**不建索引**——逐维惰性建（ensureReady：dim ∈ (0,16000]，永久错误持久化/瞬时错误重置重试——**照 Go 代码**：瞬时分支连当次调用也不报错，注释与代码的分叉见 known-issues）；索引命名 base=ResolveIndexName(OPENSEARCH_INDEX,"weknora") + DB-store 折叠 storeID 前 12 hex（env-store 前缀 id 折叠为 ""、≥16 规则）+ sanitizeIndexName 正则；别名 `<base>_<dim>`→`<alias>_v1`，keyword 专用索引 `<base>_keywords`（mutex+flag 可重试）；already-exists → 结构指纹比对（漂移 → CONFIG_INVALID "manual reindex required"）；aliasPut 失败尽力删孤儿 |
+| 检索/写入/删除/迁移/批量更新 | **query.go**：knn 查询（embedding.vector/k/filter 内嵌 bool.must + min_score 直通——COSINESIMIL.scoreTranslation 已映射 [0,1]）、BM25 match + 类型化过滤（无 JSON 注入面）、is_enabled=true 隐含子句、TopK ≤0→WARN+10 / cap 10000；**crud.go**：Save 幂等（_id=chunk_id）、缺 embedding 路由 keywords 索引、BatchSave 的 10MB 预估/1000 文档上限 + 混合维度拒 + 逐项错误检视（≤5 条 "[op id] type"，reason 只进 DEBUG）、三种删除走 _delete_by_query terms+refresh、cap 1000；**copy.go**：批 500 分页扫源（from/size 受 max_result_window 界，Go 同缺）+ 三态 SourceID 改写 + **向量按目标 SourceID 回填**（不同于 ES 的 chunk id 约定）+ 逐页 BatchSave；**move.go**：跨维 `<base>_*` update_by_query 改写 knowledge_base_id 清 tag_id（painless + params 绑定防注入），完整性校验（timed_out/version_conflicts/total==updated）；**bulk_update.go**：enabled 按值分组（false 先 true 后）/tag 字典序、组内 id 排序（确定性）；**stubs.go**：EstimateStorageSize 保守下界 n*(1024+4*768+128)（真实现读 _stats 未落地，Go 同——删除守卫 fail-closed） |
+| `opensearch.OpenSearchDriverException`（新） | 九哨兵分类（INDEX_NOT_FOUND/DIMENSION_MISMATCH/AUTH/TRANSPORT/VERSION_UNSUPPORTED/CONFIG_INVALID/BATCH_TOO_LARGE/CIRCUIT_BREAKER/FEATURE_NOT_ENABLED）+ isTransient（TRANSPORT/CIRCUIT_BREAKER）+ isNotFound/isAlreadyExists（404 / 400+resource_already_exists_exception）；集群 reason 不进异常 message（只进 DEBUG，脱敏纪律照 wrapTransport） |
+| 装配两处拆 XDEP/WARN | **EngineFactory.createFromStore** 新增带 audit sink 的重载（照 Go createOpenSearchEngine 的 WithAuditSink；其它引擎忽略——Go 同），opensearch 分支真落地（env-store id 折叠 + 驱动构造）；**RetrievalEngineWiringConfig** env-path：OPENSEARCH_ADDR/USERNAME/PASSWORD/OPENSEARCH_INSECURE_SKIP_VERIFY（equalFold "true"）分段报错（client/repo/Register 互不掩盖），**与 ES env-path 不同：OpenSearch 客户端构造无条件过 SSRF**（Go 的 NewOpenSearchClient 内置）→ 传 guard；DB-store 工厂 lambda 换成带 sink 的 createFromStore |
+| `OpenSearchAuditSinkAdapter`（新，config） | 照 container/audit_sink.go：`AuditAction.OPENSEARCH_INDEX_CREATED/REINDEX_EXECUTED`（常量已预置）、target_type="opensearch_index"、details 只装 alias/dim/src_dst/docs、**无租户上下文 WARN+跳过**（注册期自跳过，Go 同） |
+| test-connection 升级 | `VectorStoreConfigService.testOpenSearch` 从"根端点 200"升级为驱动的完整探针（照 vectorstore_healthcheck.go testOpenSearchConnection→TestConnection：版本 + 每节点插件），失败折叠成原有通用文案 |
+
+**与 Go 的差异（备案）**：①SDK→自持 HTTP：Go 的 TLS 加固（min 1.2、前向保密套件、池 32/90s）由 Java HttpClient 缺省 + insecureSkipVerify 的 trust-all SSLContext 承担（Go 的 InsecureSkipVerify 含主机名校验跳过，Java 侧 trust-all 不跳主机名校验——自签集群若 CN 不匹配需 JVM 系统属性，备案）；Go 的 ResponseHeaderTimeout=30s 与 SSRFValidatingRoundTripper（逐请求重校验）无 Java 等价（构造期一次校验，ES 驱动同姿态）；②map 序列化一律字母序（TreeMap = Go json.Marshal 对 map 的语义）；③分组遍历序排序（Go map 随机）；④审计 sink 适配器在无租户上下文时同样自跳过。
+
+**验证**：stub HTTP 13 条全绿（探针拒/收、惰性建索引 mapping 形状 + 别名动作 + 短路不 emit、save/batchSave wire 形状 + 上限 + 混合维度、knn/keyword 查询体 + min_score 直通 + 隐含子句、删除/移动/批量更新体 + 完整性校验、copy 三态改写 + 向量回填、估算 + 纯函数）。**测试抓回驱动两处真缺陷并已修**：move 的 filter 元素缺 `{"term":…}` 包装、`knowledge_id` 误装进第一个 term map（go 侧无此问题——纯翻译手误）；另照 Go 修正 move/updateByQueryScript 的顶层 `params` 键（Go 只在 script 内）。
+
+**下一步**：HTTP 族（ES v7/v8 + OpenSearch）至此收官。检索批剩 gRPC 族（Weaviate/Qdrant/Milvus/腾讯——需协议决策）、SQLite（C 绑定）/Doris（MySQL 协议）；之外为 provider-XDEP 族与 Owner 决策遗留。
+
 ## 0.-23 检索批 follow-up 清零：知识管家清扫 + move 的 reparse 模式（2026-09-25——W5γ4.8）
 
 **做了什么**（§0.-21 立项 follow-up 的 ② 与 ③ 的剩余项）：

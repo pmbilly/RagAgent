@@ -355,38 +355,27 @@ public class VectorStoreConfigService {
         return "";
     }
 
+    /**
+     * 对照 testOpenSearchConnection（vectorstore_healthcheck.go L330-347）：走驱动的
+     * 连通性探针（版本 + 每节点 k-NN 插件，TestConnection→构造期探针复用）；失败折叠
+     * 成通用文案（不向 API 调用方暴露集群内部细节）。版本在探针内解析但不在此暴露
+     * （lazy index 首用再校验）→ 恒 ""。
+     */
     private String testOpenSearch(ConnectionConfig config) {
         String generic = "failed to connect to opensearch: check address, credentials, version (>= 2.4), "
                 + "and that the k-NN plugin is installed";
         if (empty(config.addr)) {
             throw new ConnectorFailure("failed to create opensearch connection: addr is required");
         }
-        HttpClient client = HttpClient.newBuilder().connectTimeout(TEST_TIMEOUT).build();
-        HttpRequest.Builder builder = HttpRequest.newBuilder().timeout(TEST_TIMEOUT).GET();
         try {
-            builder.uri(URI.create(config.addr));
+            com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository.testConnection(
+                    config.addr, config.username, config.password, config.insecureSkipVerify,
+                    ssrfGuard);
         } catch (RuntimeException e) {
+            log.warn("OpenSearch connection test failed: {}", e.getMessage());
             throw new ConnectorFailure(generic);
         }
-        if (config.username != null && !config.username.isEmpty()) {
-            String token = Base64.getEncoder().encodeToString(
-                    (config.username + ":" + (config.password == null ? "" : config.password))
-                            .getBytes(StandardCharsets.UTF_8));
-            builder.header("Authorization", "Basic " + token);
-        }
-        try {
-            HttpResponse<String> resp = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) {
-                throw new ConnectorFailure(generic);
-            }
-            // Go：版本在探测内解析但不在此暴露（lazy index 首用再校验）→ 恒 ""
-            return "";
-        } catch (IOException e) {
-            throw new ConnectorFailure(generic);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ConnectorFailure(generic);
-        }
+        return "";
     }
 
     // ── 校验（文案逐字对照） ────────────────────────────────────────────

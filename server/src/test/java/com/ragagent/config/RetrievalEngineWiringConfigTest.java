@@ -45,7 +45,7 @@ class RetrievalEngineWiringConfigTest {
     void postgresDriverRegistersEnvStoreEngine() throws Exception {
         EngineRegistry registry = new EngineRegistry(null, null);
         RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"postgres"}, newAdapter());
+                new String[] {"postgres"}, newAdapter(), null, null);
 
         var svc = registry.getRetrieveEngineService(EngineTypes.ENGINE_POSTGRES);
         assertThat(svc).isNotNull();
@@ -56,7 +56,7 @@ class RetrievalEngineWiringConfigTest {
     @Test
     void emptyDriverRegistersNothing() throws Exception {
         EngineRegistry registry = new EngineRegistry(null, null);
-        RetrievalEngineWiringConfig.registerEnvStores(registry, new String[] {""}, newAdapter());
+        RetrievalEngineWiringConfig.registerEnvStores(registry, new String[] {""}, newAdapter(), null, null);
 
         assertThatThrownBy(() ->
                 registry.getRetrieveEngineService(EngineTypes.ENGINE_POSTGRES))
@@ -70,9 +70,9 @@ class RetrievalEngineWiringConfigTest {
         // 两次装配都注册 postgres → 第二次 Register 报"already registered"，
         // 装配路径吞掉只记日志（照 Go 的 Register ... failed 分支）
         RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"postgres"}, adapter);
+                new String[] {"postgres"}, adapter, null, null);
         assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"postgres"}, adapter)).doesNotThrowAnyException();
+                new String[] {"postgres"}, adapter, null, null)).doesNotThrowAnyException();
 
         assertThat(registry.getRetrieveEngineService(EngineTypes.ENGINE_POSTGRES)).isNotNull();
     }
@@ -82,7 +82,7 @@ class RetrievalEngineWiringConfigTest {
         EngineRegistry registry = new EngineRegistry(null, null);
         assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
                 new String[] {"qdrant", "milvus", "weaviate", "doris", "tencent_vectordb",
-                        "opensearch", "sqlite"}, newAdapter())).doesNotThrowAnyException();
+                        "sqlite"}, newAdapter(), null, null)).doesNotThrowAnyException();
         // 全部未落地 → 无注册、装配不炸
         assertThat(registry.getAllRetrieveEngineServices()).isEmpty();
     }
@@ -92,7 +92,7 @@ class RetrievalEngineWiringConfigTest {
         // ELASTICSEARCH_ADDR 未配置 → 建客户端失败 → 只记日志（与 Go 同形）
         EngineRegistry registry = new EngineRegistry(null, null);
         assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"elasticsearch_v8", "elasticsearch_v7"}, newAdapter()))
+                new String[] {"elasticsearch_v8", "elasticsearch_v7"}, newAdapter(), null, null))
                 .doesNotThrowAnyException();
         assertThat(registry.getAllRetrieveEngineServices()).isEmpty();
     }
@@ -101,7 +101,7 @@ class RetrievalEngineWiringConfigTest {
     void compositeCreateOverRegisteredEnvStoreWorks() throws Exception {
         EngineRegistry registry = new EngineRegistry(null, null);
         RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"postgres"}, newAdapter());
+                new String[] {"postgres"}, newAdapter(), null, null);
         CompositeRetrieveEngine composite = CompositeRetrieveEngine.create(registry,
                 List.of(new RetrieverEngineParams(EngineTypes.RETRIEVER_VECTOR,
                         EngineTypes.ENGINE_POSTGRES)));

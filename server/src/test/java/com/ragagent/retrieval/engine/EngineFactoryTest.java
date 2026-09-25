@@ -207,7 +207,7 @@ class EngineFactoryTest {
                         () -> EngineFactory.createFromStore(store("postgres", pg, null), null))
                         .getMessage());
 
-        for (String engine : List.of("opensearch", "qdrant", "milvus", "weaviate", "doris",
+        for (String engine : List.of("qdrant", "milvus", "weaviate", "doris",
                 "tencent_vectordb", "sqlite")) {
             String message = assertThrows(EngineNotSupportedException.class,
                     () -> EngineFactory.createFromStore(store(engine, cc, null), null))

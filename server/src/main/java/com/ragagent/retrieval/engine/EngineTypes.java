@@ -37,7 +37,9 @@ public final class EngineTypes {
 
     /** 索引名解析用的 env 键与缺省值（照各店的 {@code ResolveIndexName} 调用点）。 */
     public static final String ENV_ELASTICSEARCH_INDEX = "ELASTICSEARCH_INDEX";
+    public static final String ENV_OPENSEARCH_INDEX = "OPENSEARCH_INDEX";
     public static final String DEFAULT_INDEX = "xwrag_default";
+    public static final String DEFAULT_OPENSEARCH_INDEX = "weknora";
 
     /**
      * 对照 {@code types.ResolveIndexName}（vectorstore.go L418-426）：

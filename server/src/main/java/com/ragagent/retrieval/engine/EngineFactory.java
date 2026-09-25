@@ -4,6 +4,7 @@ package com.ragagent.retrieval.engine;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV7RetrieveRepository;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveRepository;
+import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
 import com.ragagent.vectorstore.domain.VectorStore;
@@ -20,9 +21,10 @@ import com.ragagent.vectorstore.domain.VectorStore;
  *   <li>**postgres/sqlite**：Go 走 GORM/JDBC 直连（{@code postgresRepo.NewPostgresRetrieveEngineRepository}）；
  *       本仓 postgres 由既有 JDBC 件承担（读 {@code PgVectorRetrieveRepository} / 写
  *       {@code VectorStoreService}），不经本工厂 → 明确指引式 XDEP；sqlite driver 未落地</li>
- *   <li>**qdrant/milvus/weaviate/doris/tencent_vectordb/opensearch**：driver 未落地 →
- *       诚实 XDEP（opensearch 为独立店族，见台账 §0.-17；weaviate/qdrant/milvus/腾讯属
- *       "协议决策"族）</li>
+ *   <li>**opensearch**：照 createOpenSearchEngine 真落地（k-NN 驱动 +
+ *       audit sink 注入；探针在构造期显形）</li>
+ *   <li>**qdrant/milvus/weaviate/doris/tencent_vectordb**：driver 未落地 →
+ *       诚实 XDEP（weaviate/qdrant/milvus/腾讯属 "协议决策"族）</li>
  * </ul>
  *
  * <h2>照抄点</h2>
@@ -58,6 +60,17 @@ public final class EngineFactory {
      */
     public static KeywordsVectorHybridRetrieveEngineService createFromStore(VectorStore store,
                                                                             SsrfGuard guard) {
+        return createFromStore(store, guard, null);
+    }
+
+    /**
+     * 带 audit sink 的重载——Go 的 {@code createOpenSearchEngine} 注入
+     * {@code WithAuditSink}（索引创建/重索引事件）；其它引擎忽略（Go 同）。
+     * {@code sink} 为 null = no-op（测试口）。
+     */
+    public static KeywordsVectorHybridRetrieveEngineService createFromStore(VectorStore store,
+                                                                            SsrfGuard guard,
+                                                                            OpenSearchRetrieveRepository.AuditSink auditSink) {
         validateRuntimeVectorStoreAddresses(store, guard);
         String engineType = store.getEngineType() == null ? "" : store.getEngineType();
         switch (engineType) {
@@ -86,12 +99,29 @@ public final class EngineFactory {
             case EngineTypes.ENGINE_SQLITE:
                 throw new EngineNotSupportedException("retriever engine sqlite driver not ported"
                         + " in this batch (tracked as W5γ4 follow-up)");
+            case EngineTypes.ENGINE_OPENSEARCH: {
+                // 照 Go createOpenSearchEngine：env-store（前缀 id）折叠为 ""——
+                // env store 共享集群、无 per-store 索引前缀；NewRepository 的 ≥16
+                // 字符规则由驱动强制。探针（版本 + k-NN 插件）在构造期显形。
+                ConnectionConfig ccOs = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
+                IndexConfig idxOs = store.getIndexConfig();
+                String storeId = com.ragagent.vectorstore.domain.EnvVectorStores
+                        .isEnvStoreId(store.getId()) ? "" : store.getId();
+                OpenSearchRetrieveRepository repo = new OpenSearchRetrieveRepository(
+                        ccOs.addr, storeId, idxOs, ccOs.username, ccOs.password,
+                        ccOs.insecureSkipVerify, guard);
+                if (auditSink != null) {
+                    repo.withAuditSink(auditSink);
+                }
+                return new KeywordsVectorHybridRetrieveEngineService(repo,
+                        EngineTypes.ENGINE_OPENSEARCH);
+            }
             case EngineTypes.ENGINE_QDRANT:
             case EngineTypes.ENGINE_MILVUS:
             case EngineTypes.ENGINE_WEAVIATE:
             case EngineTypes.ENGINE_DORIS:
             case EngineTypes.ENGINE_TENCENT_VECTORDB:
-            case EngineTypes.ENGINE_OPENSEARCH:
                 throw new EngineNotSupportedException("retriever engine " + engineType
                         + " driver not ported in this batch (tracked as W5γ4 follow-up)");
             default:

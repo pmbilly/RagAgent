@@ -9,9 +9,11 @@ import org.springframework.context.annotation.Configuration;
 
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.knowledge.service.VectorStoreService;
+import com.ragagent.retrieval.engine.EngineFactory;
 import com.ragagent.retrieval.engine.EngineRegistry;
 import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.KeywordsVectorHybridRetrieveEngineService;
+import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
 import com.ragagent.retrieval.engine.PgVectorRetrieveRepository;
 import com.ragagent.retrieval.engine.RetrieveEngineService;
@@ -53,18 +55,23 @@ public class RetrievalEngineWiringConfig {
 
     @Bean
     public EngineRegistry retrievalEngineRegistry(VectorStoreRepository storeRepo, SsrfGuard guard,
-                                                  PgVectorEngineRepository pgAdapter) {
-        EngineRegistry registry = new EngineRegistry(storeRepo, StoreEngineFactory.withGuard(guard));
+                                                  PgVectorEngineRepository pgAdapter,
+                                                  OpenSearchAuditSinkAdapter osAuditSink) {
+        // DB-store 工厂带 OpenSearch 的 audit sink（照 Go createOpenSearchEngine 的
+        // WithAuditSink；其它引擎忽略 sink——Go 同）
+        EngineRegistry registry = new EngineRegistry(storeRepo,
+                store -> EngineFactory.createFromStore(store, guard, osAuditSink));
         // Go: strings.Split(os.Getenv("RETRIEVE_DRIVER"), ",")——不 trim，精确匹配
         String driver = System.getenv("RETRIEVE_DRIVER");
         String[] drivers = driver == null ? new String[] {""} : driver.split(",");
-        registerEnvStores(registry, drivers, pgAdapter);
+        registerEnvStores(registry, drivers, pgAdapter, osAuditSink, guard);
         return registry;
     }
 
     /** env-store 注册主体（抽出便于测试：传定 drivers 而不读进程环境）。 */
     static void registerEnvStores(EngineRegistry registry, String[] drivers,
-                                  PgVectorEngineRepository pgAdapter) {
+                                  PgVectorEngineRepository pgAdapter,
+                                  OpenSearchAuditSinkAdapter osAuditSink, SsrfGuard guard) {
         for (String d : drivers) {
             switch (d == null ? "" : d) {
                 case "postgres":
@@ -77,6 +84,9 @@ public class RetrievalEngineWiringConfig {
                 case "elasticsearch_v7":
                     envElasticsearch(registry, true);
                     break;
+                case "opensearch":
+                    envOpenSearch(registry, osAuditSink, guard);
+                    break;
                 case "":
                     break;
                 default:
@@ -84,6 +94,37 @@ public class RetrievalEngineWiringConfig {
                             + " (tracked as W5γ4 follow-up)", d);
                     break;
             }
+        }
+    }
+
+    /**
+     * env-path 的 OpenSearch 注册——照 Go container.go L1205-1227：连接配置取
+     * OPENSEARCH_ADDR/USERNAME/PASSWORD/OPENSEARCH_INSECURE_SKIP_VERIFY（equalFold
+     * "true"）；client 失败 / repository 失败（探针：版本 + 每节点 k-NN 插件）/
+     * Register 失败分段记 error，互不掩盖。与 ES 的 env-path 不同：OpenSearch 的
+     * 客户端构造<b>无条件过 SSRF 校验</b>（Go 的 NewOpenSearchClient 内置）→ 传 guard。
+     */
+    private static void envOpenSearch(EngineRegistry registry, OpenSearchAuditSinkAdapter sink,
+                                      SsrfGuard guard) {
+        String label = "opensearch";
+        String addr = env("OPENSEARCH_ADDR");
+        if (addr.isEmpty()) {
+            log.error("Create {} client failed: {}", label,
+                    "opensearch: ConnectionConfig.Addr required: opensearch: invalid index config");
+            return;
+        }
+        boolean insecure = "true".equalsIgnoreCase(env("OPENSEARCH_INSECURE_SKIP_VERIFY"));
+        try {
+            OpenSearchRetrieveRepository repo = new OpenSearchRetrieveRepository(addr, "",
+                    null, env("OPENSEARCH_USERNAME"), env("OPENSEARCH_PASSWORD"), insecure,
+                    guard);
+            if (sink != null) {
+                repo.withAuditSink(sink);
+            }
+            register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
+                    EngineTypes.ENGINE_OPENSEARCH), label);
+        } catch (RuntimeException e) {
+            log.error("Create {} repository failed: {}", label, e.getMessage());
         }
     }
 
