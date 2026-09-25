@@ -1231,3 +1231,28 @@
 6. **GORM `default:true` 的 Create 省略语义**（pg CopyIndices 照抄）：目标行 IsEnabled
    零值 false 被 default tag 省略 → DB 默认 true 生效；Java 侧等价实现 = INSERT 显式
    省略该列。save/batchSave 的显式 is_enabled 路径不受影响（false 在生产不可达，备案）。
+
+## W5γ4.7：写链改道 + 启动恢复（2026-09-25）
+
+1. **绑定/未绑定的切分纪律**：写链改道用"绑定店走引擎、未绑定保持 pg 直连"的网关
+   （`KnowledgeVectorWrites`）——golden 锁定的错误形态全在未绑定路径，改道对现有
+   契约零扰动；新增绑定行为全部有 Go 原文对应。不要把"未绑定也走 postgres 引擎"
+   一起翻译（驱动未配置时语义分叉，且无观测收益）。
+2. **KB clone 的向量复制按 Go 是"每个知识一次 CopyIndices"**（含 chunk 新旧 id 映射），
+   不是整 KB 一把梭——映射在建 chunk 行时顺手积累（cloneKnowledgeRow 内），
+   `Map.of(src.getId(), dstKnowledgeId)` 的 knowledge 映射别和 chunk 映射弄混
+   （CopyIndices 的 kbMap 在 chunkMap 之前）。
+3. **move 的 reuse_vectors 有两道前置校验**（同店 + 同嵌入模型），校验失败是
+   "逐条失败"进进度任务 failures（Go 语义），不是整体 400；跨店文案原文
+   "reuse_vectors move across different vector stores is not supported (...); use reparse mode"。
+4. **resetPendingTasks 的 wiki 独槽排除**（NOT-EXISTS 子查询）是分布式/Lite 分野之外
+   的第三重闸：finalizing 且 pending_subtasks_count=1 且唯一 op 是持久化 wiki ingest
+   的行**不复位**——wiki op 独立落库，启动后消费面重建触发器能自然收尾；复位它
+   等于把可自愈的行误判为死。
+5. **分布式模式（REDIS_ADDR 已配置）刻意不复位知识/摘要行**：asynq 队列持久化 +
+   另一副本可能正在执行同一知识，启动钩子无法区分孤儿与未开 span 的积压——
+   Go 把这个判定交给 HousekeepingService（span 活动 + 真队列双检查）。同步日志
+   两种模式都清，分布式只多加 30 分钟陈旧窗。
+6. **JdbcTemplate 的 IN 占位符参数序**：`UPDATE ... SET a=?,b=? WHERE id IN (?,?,?)`
+   的绑定数组必须是 [SET 参数..., IN 参数...]——先 SET 后 WHERE（本次实踩：
+   ids 放前面导致 Parameter #4 not set）。

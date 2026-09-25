@@ -103,6 +103,8 @@ public class FaqService {
     private final VectorStoreService vectorStore;
     private final EmbedderClient embedder;
     private final TenantStorageService tenantStorage;
+    private final KnowledgeVectorWrites vectorWrites;
+    private final com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory;
     /** FAQ 搜索的检索执行面（对照 Go kbService.HybridSearch；波 4 检索引擎批落地）。 */
     private final HybridSearchService hybridSearchService;
     /** KB 活动审计（对照 Go recordKBActivity 的 s.audit）。 */
@@ -124,7 +126,9 @@ public class FaqService {
                       EmbedderClient embedder,
                       TenantStorageService tenantStorage,
                       HybridSearchService hybridSearchService,
-                      AuditLogService auditService) {
+                      AuditLogService auditService,
+                      KnowledgeVectorWrites vectorWrites,
+                      com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
@@ -138,6 +142,8 @@ public class FaqService {
         this.fileStorage = fileStorage;
         this.vectorStore = vectorStore;
         this.embedder = embedder;
+        this.vectorWrites = vectorWrites;
+        this.modelRuntimeFactory = modelRuntimeFactory;
         this.tenantStorage = tenantStorage;
         this.hybridSearchService = hybridSearchService;
         this.auditService = auditService;
@@ -695,11 +701,31 @@ public class FaqService {
         // 检索引擎同步（对照 knowledge_faq.go L838-852）：失败 → 原样上抛（阻断；
         // chunk 行已在上方落库——与 Go 的顺序一致）。
         // 2026-09-22 走查批接线：此前为 WARN + no-op 占位。
-        if (!enabledUpdates.isEmpty()) {
-            vectorStore.batchUpdateChunkEnabledStatus(enabledUpdates);
-        }
-        if (!tagUpdates.isEmpty()) {
-            vectorStore.batchUpdateChunkTagId(tagUpdates);
+        // 2026-09-25 写链改道：绑定 store 的 KB 走引擎口（照 knowledge_faq.go L838-852）
+        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+                (!enabledUpdates.isEmpty() || !tagUpdates.isEmpty())
+                        ? vectorWrites.boundEngine(kb) : null;
+        if (boundEngine != null) {
+            try {
+                if (!enabledUpdates.isEmpty()) {
+                    boundEngine.batchUpdateChunkEnabledStatus(enabledUpdates);
+                }
+                if (!tagUpdates.isEmpty()) {
+                    boundEngine.batchUpdateChunkTagID(tagUpdates);
+                }
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
+            }
+        } else {
+            if (!enabledUpdates.isEmpty()) {
+                vectorStore.batchUpdateChunkEnabledStatus(enabledUpdates);
+            }
+            if (!tagUpdates.isEmpty()) {
+                vectorStore.batchUpdateChunkTagId(tagUpdates);
+            }
         }
         log.info("FAQ fields batch updated: kb={}, by_id={}, by_tag={}",
                 kb.getId(), req.byId() == null ? 0 : req.byId().size(),
@@ -2824,6 +2850,32 @@ public class FaqService {
                 throw new IllegalStateException("Storage quota exceeded");
             }
         }
+        // 2026-09-25 写链改道：绑定 store 的 KB 走引擎口（DeleteByChunkIDList +
+        // BatchIndex——嵌入与分批/退避由 KV 引擎服务承担，照 Go 的 FAQ 索引路径）
+        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+                vectorWrites.boundEngine(kb);
+        if (boundEngine != null) {
+            try {
+                com.ragagent.embedding.Embedder emb =
+                        modelRuntimeFactory.getEmbeddingModel(embeddingModel.getId());
+                boundEngine.deleteByChunkIdList(chunkIds, emb.getDimensions(), kb.getType());
+                boundEngine.batchIndex(emb, faqIndexInfos(kb, rows));
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
+            }
+            if (adjustStorage && size > 0) {
+                tenantStorage.adjustStorageUsed(tid, size);
+                knowledge.setStorageSize(knowledge.getStorageSize() + size);
+            }
+            OffsetDateTime nowIndexed = OffsetDateTime.now();
+            knowledge.setUpdatedAt(nowIndexed);
+            knowledge.setProcessedAt(nowIndexed);
+            knowledgeMapper.updateById(knowledge);
+            return;
+        }
         vectorStore.deleteByChunkId(chunkIds);
         EmbedderClient.EmbedConfig cfg = EmbedderClient.configFrom(embeddingModel);
         int batchSize = ChunkVectorIndexer.embedBatchSize();
@@ -2870,13 +2922,50 @@ public class FaqService {
             chunkIds.add(chunk.getId());
         }
         long size = VectorStoreService.estimateStorageSize(rows, embeddingDimensions(embeddingModel));
-        vectorStore.deleteByChunkId(chunkIds);
+        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+                vectorWrites.boundEngine(kb);
+        if (boundEngine != null) {
+            try {
+                com.ragagent.embedding.Embedder emb =
+                        modelRuntimeFactory.getEmbeddingModel(embeddingModel.getId());
+                boundEngine.deleteByChunkIdList(chunkIds, emb.getDimensions(), kb.getType());
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
+            }
+        } else {
+            vectorStore.deleteByChunkId(chunkIds);
+        }
         if (size > 0) {
             tenantStorage.adjustStorageUsed(tid, -size);
             knowledge.setStorageSize(Math.max(0, knowledge.getStorageSize() - size));
         }
         knowledge.setUpdatedAt(OffsetDateTime.now());
         knowledgeMapper.updateById(knowledge);
+    }
+
+    /** IndexRow → 引擎 IndexInfo（照 types.IndexInfo 字段集；SourceType=ChunkSourceType=0）。 */
+    private static List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> faqIndexInfos(
+            KnowledgeBase kb, List<VectorStoreService.IndexRow> rows) {
+        List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> items =
+                new ArrayList<>(rows.size());
+        for (VectorStoreService.IndexRow row : rows) {
+            com.ragagent.retrieval.engine.EngineTypes.IndexInfo item =
+                    new com.ragagent.retrieval.engine.EngineTypes.IndexInfo();
+            item.sourceId = row.sourceId();
+            item.sourceType = com.ragagent.retrieval.engine.EngineTypes.SOURCE_TYPE_FILE;
+            item.chunkId = row.chunkId();
+            item.knowledgeId = row.knowledgeId();
+            item.knowledgeBaseId = row.knowledgeBaseId();
+            item.knowledgeType = kb.getType();
+            item.tagId = row.tagId() == null ? "" : row.tagId();
+            item.content = row.content();
+            item.isEnabled = row.isEnabled();
+            items.add(item);
+        }
+        return items;
     }
 
     /** 对照 Go embeddingModel.GetDimensions()：模型 embedding_parameters.dimension。 */

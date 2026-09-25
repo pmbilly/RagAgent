@@ -20,6 +20,7 @@ import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.model.domain.Model;
+import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.model.service.ModelService.ModelNotFoundException;
 import org.slf4j.Logger;
@@ -54,17 +55,23 @@ public class ChunkVectorIndexer {
     private final ModelService modelService;
     private final EmbedderClient embedder;
     private final VectorStoreService vectorStore;
+    private final KnowledgeVectorWrites vectorWrites;
+    private final ModelRuntimeFactory modelRuntimeFactory;
 
     public ChunkVectorIndexer(KnowledgeBaseMapper kbMapper,
                               KnowledgeMapper knowledgeMapper,
                               ModelService modelService,
                               EmbedderClient embedder,
-                              VectorStoreService vectorStore) {
+                              VectorStoreService vectorStore,
+                              KnowledgeVectorWrites vectorWrites,
+                              ModelRuntimeFactory modelRuntimeFactory) {
         this.kbMapper = kbMapper;
         this.knowledgeMapper = knowledgeMapper;
         this.modelService = modelService;
         this.embedder = embedder;
         this.vectorStore = vectorStore;
+        this.vectorWrites = vectorWrites;
+        this.modelRuntimeFactory = modelRuntimeFactory;
     }
 
     /**
@@ -125,6 +132,15 @@ public class ChunkVectorIndexer {
 
     /** 共享主体：ids 全删 → （enabled 且非 parent_text 的）chunk 行 + 问题行重建。 */
     private void indexAndStore(KnowledgeBase kb, Model embeddingModel, List<Chunk> chunks) {
+        // 2026-09-25 写链改道：绑定 store 的 KB 走引擎口（照 Go syncChunkIndex/
+        // updateChunkVector 的 CreateRetrieveEngineForKB → DeleteByChunkIDList →
+        // BatchIndex；未绑定保持 pg 直连，golden 锁定行为不变）
+        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+                vectorWrites.boundEngine(kb);
+        if (boundEngine != null) {
+            indexAndStoreViaEngine(kb, boundEngine, chunks);
+            return;
+        }
         EmbedderClient.EmbedConfig cfg = EmbedderClient.configFrom(embeddingModel);
         List<VectorStoreService.IndexRow> rows = new ArrayList<>();
         List<String> ids = new ArrayList<>();
@@ -188,6 +204,92 @@ public class ChunkVectorIndexer {
             }
             vectorStore.saveIndexRows(batchRows, vectors);
         }
+    }
+
+    /**
+     * 绑定 store 的引擎分支——照 Go syncChunkIndex / updateChunkVector 的引擎段：
+     * {@code engine.DeleteByChunkIDList(ids, embedder.GetDimensions(), kb.Type)} →
+     * {@code engine.BatchIndex(embedder, items)}。items 的形状照 IndexInfo 逐字段
+     * （chunk 行 SourceID=chunkID、问题行 SourceID=GeneratedQuestionSourceID、
+     * KnowledgeType=kb.Type）；嵌入与分批/退避由 KV 引擎服务承担（40/10 分批 +
+     * 5 次指数退避，与 Go 引擎路径一致——不走本类的 BATCH_EMBED_SIZE 直连分批）。
+     */
+    private void indexAndStoreViaEngine(KnowledgeBase kb,
+                                        com.ragagent.retrieval.engine.CompositeRetrieveEngine engine,
+                                        List<Chunk> chunks) {
+        com.ragagent.embedding.Embedder embedderRuntime =
+                modelRuntimeFactory.getEmbeddingModel(kb.getEmbeddingModelId());
+        List<String> ids = new ArrayList<>();
+        List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> items = new ArrayList<>();
+        Map<String, Knowledge> knowledgeCache = new HashMap<>();
+        for (Chunk chunk : chunks) {
+            if (chunk.getKnowledgeBaseId() == null
+                    || !chunk.getKnowledgeBaseId().equals(kb.getId())) {
+                log.warn("Knowledge base ID mismatch: {} != {}", chunk.getKnowledgeBaseId(), kb.getId());
+                continue;
+            }
+            ids.add(chunk.getId());
+            if (!chunk.isIsEnabled() || "parent_text".equals(chunk.getChunkType())) {
+                continue;
+            }
+            Knowledge knowledge = knowledgeCache.get(chunk.getKnowledgeId());
+            if (knowledge == null) {
+                knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                        .eq(Knowledge::getId, chunk.getKnowledgeId())
+                        .eq(Knowledge::getTenantId, chunk.getTenantId())
+                        .isNull(Knowledge::getDeletedAt)
+                        .last("LIMIT 1"));
+                if (knowledge == null) {
+                    throw BizException.notFound("record not found");
+                }
+                knowledgeCache.put(chunk.getKnowledgeId(), knowledge);
+            }
+            items.add(indexInfo(kb, knowledge, chunk.getId(), chunk.getId(),
+                    KnowledgeIndexContent.build(knowledge, chunk.embeddingContent()),
+                    chunk.isIsEnabled()));
+            DocumentChunkMetadata meta = chunkDocumentMetadata(chunk);
+            if (meta != null && meta.getGeneratedQuestions() != null) {
+                for (GeneratedQuestion question : meta.getGeneratedQuestions()) {
+                    if (question.getQuestion() == null
+                            || ChunkRepository.goTrimSpace(question.getQuestion()).isEmpty()) {
+                        continue;
+                    }
+                    items.add(indexInfo(kb, knowledge,
+                            ChunkSearchUtil.generatedQuestionSourceId(chunk.getId(), question.getId()),
+                            chunk.getId(),
+                            KnowledgeIndexContent.build(knowledge, question.getQuestion()),
+                            true));
+                }
+            }
+        }
+        try {
+            engine.deleteByChunkIdList(ids, embedderRuntime.getDimensions(), kb.getType());
+            engine.batchIndex(embedderRuntime, items);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            // 引擎口的受检异常（Go 的 error 通道）——调用方按失败面处置
+            throw new IllegalStateException(
+                    e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
+        }
+    }
+
+    /** 照 types.IndexInfo 的字段集（SourceType=ChunkSourceType=0；TagID 零值 ""）。 */
+    private static com.ragagent.retrieval.engine.EngineTypes.IndexInfo indexInfo(
+            KnowledgeBase kb, Knowledge knowledge, String sourceId, String chunkId,
+            String content, boolean enabled) {
+        com.ragagent.retrieval.engine.EngineTypes.IndexInfo item =
+                new com.ragagent.retrieval.engine.EngineTypes.IndexInfo();
+        item.sourceId = sourceId;
+        item.sourceType = com.ragagent.retrieval.engine.EngineTypes.SOURCE_TYPE_FILE;
+        item.chunkId = chunkId;
+        item.knowledgeId = knowledge.getId();
+        item.knowledgeBaseId = kb.getId();
+        item.knowledgeType = kb.getType();
+        item.tagId = "";
+        item.content = content;
+        item.isEnabled = enabled;
+        return item;
     }
 
     /**

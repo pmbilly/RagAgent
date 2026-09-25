@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -98,6 +99,8 @@ public class KnowledgeService {
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ConversationProperties conversationProps;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final KnowledgeVectorWrites vectorWrites;
+    private final com.ragagent.retrieval.engine.PgVectorEngineRepository pgVectorEngineRepository;
     private final com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository;
     private final SpanTracker spanTracker;
     /** 图库仓储（D 批）：知识移动后清源命名空间（对照 Go knowledge_clone_move.go L1342-1352）。 */
@@ -118,7 +121,9 @@ public class KnowledgeService {
                             com.ragagent.knowledge.mapper.KnowledgeSpanRepository spanRepository,
                             SpanTracker spanTracker,
                             com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository,
-                            KnowledgeBaseService knowledgeBaseService) {
+                            KnowledgeBaseService knowledgeBaseService,
+                            KnowledgeVectorWrites vectorWrites,
+                            com.ragagent.retrieval.engine.PgVectorEngineRepository pgVectorEngineRepository) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -135,6 +140,8 @@ public class KnowledgeService {
         this.spanTracker = spanTracker;
         this.graphRepository = graphRepository;
         this.knowledgeBaseService = knowledgeBaseService;
+        this.vectorWrites = vectorWrites;
+        this.pgVectorEngineRepository = pgVectorEngineRepository;
     }
 
     private static long tenantId() {
@@ -2577,9 +2584,11 @@ public class KnowledgeService {
      * pending → processing（total=items）→ 逐条搬行（"Moved X/N knowledge items"）→
      * completed/100（error=""，created_at=0——Go worker 的新对象不带 created_at，实录）。
      *
-     * <p><b>已知差异</b>：只搬 DB 行（knowledges.knowledge_base_id + chunks），向量索引
-     * / wiki / reparse 衍生数据不复制（检索引擎未接线，随波 4）；asynq 的
-     * retry/marker 语义不翻译（既有取舍）。</p>
+     * <p><b>已知差异（2026-09-25 写链改道后更新）</b>：reuse_vectors 模式已搬向量行
+     * （同店 + 同模型校验后 MoveKnowledgeIndices——绑定店走引擎口、未绑定走 postgres
+     * 语义改写）；仍不搬 wiki 衍生数据；reparse 模式的资源清理 + 重新解析入队未翻译
+     * （行为 = 只搬行，向量行残留待目标重解析清理——对照 Go moveKnowledgeReparse 仍属
+     * 缺口，见 HANDOFF follow-up）；asynq 的 retry/marker 语义不翻译（既有取舍）。</p>
      */
     public void startKnowledgeMove(long tenantId, String taskId, List<String> knowledgeIds,
                                    String sourceKbId, String targetKbId, String mode) {
@@ -2592,7 +2601,7 @@ public class KnowledgeService {
         Thread.ofVirtual().start(() -> {
             TenantContext.set(tenantId, null, role, false, userId, false);
             try {
-                runKnowledgeMove(tenantId, taskId, knowledgeIds, sourceKbId, targetKbId);
+                runKnowledgeMove(tenantId, taskId, knowledgeIds, sourceKbId, targetKbId, mode);
             } finally {
                 TenantContext.clear();
             }
@@ -2600,7 +2609,7 @@ public class KnowledgeService {
     }
 
     private void runKnowledgeMove(long tenantId, String taskId, List<String> knowledgeIds,
-                                  String sourceKbId, String targetKbId) {
+                                  String sourceKbId, String targetKbId, String mode) {
         int total = knowledgeIds.size();
         progressStore.saveMove(new KnowledgeMoveProgress(
                 taskId, sourceKbId, targetKbId, "processing", 0, total, 0, 0, "", "", 0, epochNow()));
@@ -2609,7 +2618,7 @@ public class KnowledgeService {
         String failures = null;
         for (String id : knowledgeIds) {
             try {
-                moveOneKnowledgeRow(tenantId, id, targetKbId);
+                moveOneKnowledgeRow(tenantId, id, sourceKbId, targetKbId, mode);
             } catch (RuntimeException e) {
                 failed++;
                 String itemFailure = "knowledge " + id + ": " + e.getMessage();
@@ -2634,8 +2643,14 @@ public class KnowledgeService {
                 "Moved " + (processed - failed) + "/" + total + " knowledge items", "", 0, epochNow()));
     }
 
-    /** 单条搬行：knowledge 行 + chunks 行换 KB（向量索引不搬，见 startKnowledgeMove 差异）。 */
-    private void moveOneKnowledgeRow(long tenantId, String knowledgeId, String targetKbId) {
+    /**
+     * 单条搬行：knowledge 行 + chunks 行换 KB；reuse_vectors 模式再搬向量行
+     * （2026-09-25 写链改道——照 Go moveKnowledgeReuseVectors：同店 + 同嵌入模型校验后
+     * {@code MoveKnowledgeIndices(sourceKB, targetKB, knowledgeID)}；绑定店走引擎口，
+     * 未绑定直接走 postgres 语义的 embeddings 改写（move.go 的 UPDATE））。
+     */
+    private void moveOneKnowledgeRow(long tenantId, String knowledgeId, String sourceKbId,
+                                     String targetKbId, String mode) {
         Knowledge row = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getId, knowledgeId)
                 .eq(Knowledge::getTenantId, tenantId)
@@ -2645,7 +2660,7 @@ public class KnowledgeService {
             throw new IllegalStateException("not found");
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        String sourceKbId = row.getKnowledgeBaseId();
+        String actualSourceKbId = row.getKnowledgeBaseId();
         knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                 .eq("id", knowledgeId)
                 .set("knowledge_base_id", targetKbId)
@@ -2657,7 +2672,66 @@ public class KnowledgeService {
         // 对照 Go knowledge_clone_move.go L1342-1352：搬走后源 KB 的命名空间不得继续
         // 暴露该文档（失败上抛——移动任务据此重试；命名空间删除可重复执行）
         graphRepository.delGraph(List.of(
-                new com.ragagent.chatpipeline.ChatManage.NameSpace(sourceKbId, knowledgeId)));
+                new com.ragagent.chatpipeline.ChatManage.NameSpace(actualSourceKbId, knowledgeId)));
+        if ("reuse_vectors".equals(mode)) {
+            moveKnowledgeVectors(tenantId, knowledgeId, sourceKbId, targetKbId);
+        }
+    }
+
+    /**
+     * reuse_vectors 的向量搬运（照 Go moveKnowledgeReuseVectors L1288-1370）：
+     * ①同店校验（源/目标的 vector_store_id 必须一致——两边都 NULL 视为共享 env-store）；
+     * ②同嵌入模型校验（Go validateMoveItem："knowledge %s uses a different embedding model"）；
+     * ③MoveKnowledgeIndices 原地改写 embeddings 的 knowledge_base_id（并清 tag_id）——
+     * 绑定店走引擎口（含 ES 的 move 语义），未绑定直接走 postgres 语义（move.go UPDATE）。
+     */
+    private void moveKnowledgeVectors(long tenantId, String knowledgeId, String sourceKbId,
+                                      String targetKbId) {
+        Knowledge row = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, knowledgeId)
+                .eq(Knowledge::getTenantId, tenantId)
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+        KnowledgeBase sourceKb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, sourceKbId)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        KnowledgeBase targetKb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, targetKbId)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (row == null || sourceKb == null || targetKb == null) {
+            return;
+        }
+        String srcStore = sourceKb.getVectorStoreId() == null ? "" : sourceKb.getVectorStoreId();
+        String dstStore = targetKb.getVectorStoreId() == null ? "" : targetKb.getVectorStoreId();
+        if (!srcStore.equals(dstStore)) {
+            throw new IllegalStateException(
+                    "reuse_vectors move across different vector stores is not supported "
+                            + "(source KB " + sourceKbId + ", target KB " + targetKbId
+                            + "); use reparse mode");
+        }
+        if (!java.util.Objects.equals(row.getEmbeddingModelId(), sourceKb.getEmbeddingModelId())) {
+            throw new IllegalStateException(
+                    "knowledge " + knowledgeId + " uses a different embedding model");
+        }
+        try {
+            if (vectorWrites.boundEngine(sourceKb) instanceof
+                    com.ragagent.retrieval.engine.CompositeRetrieveEngine engine) {
+                com.ragagent.embedding.Embedder emb =
+                        modelRuntimeFactory.getEmbeddingModel(row.getEmbeddingModelId());
+                engine.moveKnowledgeIndices(sourceKbId, targetKbId, knowledgeId,
+                        List.of(), emb.getDimensions(), sourceKb.getType());
+                return;
+            }
+            pgVectorEngineRepository.moveKnowledgeIndices(sourceKbId, targetKbId, knowledgeId,
+                    List.of(), 0, sourceKb.getType());
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
+        }
     }
 
     public void saveKnowledgeMoveProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress p) {
@@ -2868,6 +2942,7 @@ public class KnowledgeService {
                 .eq(Chunk::getKnowledgeId, src.getId())
                 .eq(Chunk::getTenantId, src.getTenantId())
                 .isNull(Chunk::getDeletedAt));
+        Map<String, String> srcToDstChunkIds = new LinkedHashMap<>();
         for (Chunk c : chunks) {
             Chunk nc = new Chunk();
             nc.setId(UUID.randomUUID().toString());
@@ -2884,6 +2959,52 @@ public class KnowledgeService {
             nc.setCreatedAt(now);
             nc.setUpdatedAt(now);
             chunkMapper.insert(nc);
+            srcToDstChunkIds.put(c.getId(), nc.getId());
+        }
+        copyKnowledgeVectors(src, dst, newId, srcToDstChunkIds);
+    }
+
+    /**
+     * 克隆的向量复制（照 Go CloneChunk L390-421：目标 KB 配了嵌入模型才复制；
+     * CopyIndices 经<b>源</b> KB 的店路由——跨店复制不在此处理，Go 注释原文
+     * "callers that allow source/target KBs to bind to different stores must
+     * perform their own cross-store migration"）。绑定店走引擎口，未绑定走
+     * postgres 语义（pg 适配器的分页 + 三态 SourceID 改写 + ON CONFLICT DO NOTHING）。
+     * Go 的 rollbackIndices 闭包（失败回删目标向量）属 KB clone worker 的回滚机制，
+     * 本仓 clone worker 无对应回滚面——失败时进度任务标 failed（备案）。
+     */
+    private void copyKnowledgeVectors(Knowledge src, KnowledgeBase dst, String dstKnowledgeId,
+                                      Map<String, String> srcToDstChunkIds) {
+        if (srcToDstChunkIds.isEmpty() || dst.getEmbeddingModelId() == null
+                || dst.getEmbeddingModelId().isEmpty()) {
+            return;
+        }
+        KnowledgeBase srcKb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, src.getKnowledgeBaseId())
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        if (srcKb == null) {
+            return;
+        }
+        try {
+            com.ragagent.retrieval.engine.CompositeRetrieveEngine engine =
+                    vectorWrites.boundEngine(srcKb);
+            if (engine != null) {
+                com.ragagent.embedding.Embedder emb =
+                        modelRuntimeFactory.getEmbeddingModel(dst.getEmbeddingModelId());
+                engine.copyIndices(src.getKnowledgeBaseId(),
+                        Map.of(src.getId(), dstKnowledgeId), srcToDstChunkIds, dst.getId(),
+                        emb.getDimensions(), dst.getType());
+                return;
+            }
+            pgVectorEngineRepository.copyIndices(src.getKnowledgeBaseId(),
+                    Map.of(src.getId(), dstKnowledgeId), srcToDstChunkIds, dst.getId(), 0,
+                    dst.getType());
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
         }
     }
 

@@ -92,6 +92,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final EmbedderClient embedder;
     private final VectorStoreService vectorStore;
     private final ModelService modelService;
+    private final KnowledgeVectorWrites vectorWrites;
+    private final com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory;
     private final KnowledgeService knowledgeService;
     private final SpanTracker spanTracker;
     /** 图库仓储（D 批）：重处理前清旧图谱（对照 Go processDocument L354-359）。 */
@@ -115,6 +117,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   EmbedderClient embedder,
                                   VectorStoreService vectorStore,
                                   ModelService modelService,
+                                  KnowledgeVectorWrites vectorWrites,
+                                  com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory,
                                   @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService,
                                   SpanTracker spanTracker,
                                   com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository,
@@ -133,6 +137,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.embedder = embedder;
         this.vectorStore = vectorStore;
         this.modelService = modelService;
+        this.vectorWrites = vectorWrites;
+        this.modelRuntimeFactory = modelRuntimeFactory;
         this.knowledgeService = knowledgeService;
         this.spanTracker = spanTracker;
         this.graphRepository = graphRepository;
@@ -206,9 +212,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             //    删该 knowledge 全部向量行（仅向量化启用且模型可用时）
             chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
                     .eq(Chunk::getKnowledgeId, knowledgeId));
-            if (embedConfig != null) {
-                vectorStore.deleteByKnowledgeId(List.of(knowledgeId));
-            }
+            deleteKnowledgeVectors(k, kb, embedConfig, knowledgeId);
             // 3) 旧图谱数据（对照 Go processDocument L354-359：DelGraph 失败只记警告，
             //    不阻断重处理——图里可能本来就没有这条知识）
             deleteGraphData(k.getKnowledgeBaseId(), knowledgeId);
@@ -388,9 +392,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 // 对照 Go L629-639：失败时清本次 chunks + 向量行（向量化未启用时只清 chunks）
                 chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
                         .eq(Chunk::getKnowledgeId, knowledgeId));
-                if (embedConfig != null) {
-                    vectorStore.deleteByKnowledgeId(List.of(knowledgeId));
-                }
+                deleteKnowledgeVectors(k, kb, embedConfig, knowledgeId);
                 throw inner;
             }
         } catch (Exception e) {
@@ -418,6 +420,34 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      * knowledge 行优先、回落 KB——Java 既有取数口径，已验收）。
      * 模型缺失时抛错，此时预清理尚未执行（既有数据不动，照抄 Go 顺序）。
      */
+    /**
+     * 知识删除/重处理的向量行清理——2026-09-25 写链改道：绑定 store 的 KB 走引擎口
+     * （照 Go knowledge_delete.go L499-514：CreateRetrieveEngineForKB →
+     * GetEmbeddingModel → DeleteByKnowledgeIDList）；未绑定保持 pg 直连（模型缺失时
+     * 跳过清理，与 Go "Skipping vector store cleanup without embedding model" 同形）。
+     */
+    private void deleteKnowledgeVectors(Knowledge k, KnowledgeBase kb,
+                                        EmbedderClient.EmbedConfig embedConfig, String knowledgeId) {
+        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine = vectorWrites.boundEngine(kb);
+        if (boundEngine != null) {
+            try {
+                com.ragagent.embedding.Embedder emb =
+                        modelRuntimeFactory.getEmbeddingModel(kb.getEmbeddingModelId());
+                boundEngine.deleteByKnowledgeIdList(List.of(knowledgeId),
+                        emb.getDimensions(), kb.getType());
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
+            }
+            return;
+        }
+        if (embedConfig != null) {
+            vectorStore.deleteByKnowledgeId(List.of(knowledgeId));
+        }
+    }
+
     private EmbedderClient.EmbedConfig resolveEmbedConfig(Knowledge k, KnowledgeBase kb) {
         if (!(kb.getIndexingStrategy().isVectorEnabled() || kb.getIndexingStrategy().isKeywordEnabled())) {
             return null;

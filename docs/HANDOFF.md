@@ -1,5 +1,23 @@
 # 交接文档（新会话接手用）
 
+## 0.-22 写链改道 + 启动恢复（2026-09-25——W5γ4.7）
+
+**做了什么**（§0.-21 立项 follow-up 的 1、3 两项 + 2 的一部分）：
+
+| 件 | 说明 |
+|---|---|
+| `KnowledgeVectorWrites`（新，网关） | 绑定 store 的 KB → 复合引擎（`createForKb`）；未绑定 → null（调用方保持 pg 直连）。**风险最小切分**：golden 锁定的错误形态全在未绑定路径，行为逐字节不变；Go 对未绑定也走 postgres 引擎，净效果同一段 SQL（驱动未配置时 Go no-op、本仓仍直删——该部署检索同样 no-op，差异无观测面，备案） |
+| `ChunkVectorIndexer` 写链改道 | `indexAndStore` 的绑定分支走引擎：`getEmbeddingModel` → `engine.deleteByChunkIdList` → `engine.batchIndex`（IndexInfo 逐字段照 Go syncChunkIndex/updateChunkVector：KnowledgeType=kb.Type、问题行 GeneratedQuestionSourceID、TagID 零值）。嵌入/分批/退避由 KV 引擎服务承担（40/10 + 5 次退避，不走 BATCH_EMBED_SIZE 直连分批——与 Go 引擎路径一致） |
+| 知识删除改道 | `KnowledgeProcessWorker` 两处预清理/失败清理抽 `deleteKnowledgeVectors`：绑定 → 引擎 `deleteByKnowledgeIDList`（照 knowledge_delete.go L499-514），未绑定保持直删 + 模型缺失跳过（与 Go "Skipping vector store cleanup" 同形） |
+| FAQ 写链改道 | `FaqService` 三触点（批量 enabled/tag 同步、`indexFAQChunks`、`deleteFAQChunkVectors`）：绑定 → 引擎 BatchUpdate*/DeleteByChunkIDList/BatchIndex；配额估算保留在本侧（部署级记账）。separate 模式相似问削减无独立触点（indexFAQChunks 全删重插，净效果等价，照原注释备案） |
+| **move 向量搬运**（照 moveKnowledgeReuseVectors L1288-1370） | mode 贯通到 worker；reuse_vectors 模式搬行后 `MoveKnowledgeIndices` 原地改写 embeddings——同店校验（源/目标 vector_store_id 一致，两边 NULL = 共享 env-store）+ 同嵌入模型校验（"uses a different embedding model"）后，绑定店走引擎口（ES 有自己的 move 语义）、未绑定直接走 pg 适配器（move.go 的 UPDATE + tag_id 清空）。reparse 模式的资源清理 + 重新解析入队**仍未翻译**（行为 = 只搬行，向量残留待目标重解析清理——HANDOFF follow-up 剩余项） |
+| **KB clone 向量复制**（照 CloneChunk L390-421） | `cloneKnowledgeRow` 建 chunk 新旧 id 映射后 `copyKnowledgeVectors`：目标 KB 配了嵌入模型才复制；`CopyIndices` 经**源** KB 的店（绑定→引擎，未绑定→pg 适配器的分页 + 三态 SourceID 改写 + ON CONFLICT DO NOTHING）。Go 的 rollbackIndices 闭包（失败回删）属 clone worker 回滚机制，本仓无对应面——失败标 failed（备案）。**修复的真实功能缺口**：此前克隆/KB clone 只拷行不拷向量，克隆出的知识不可检索 |
+| `StartupTaskRecovery`（新，照 reset_pending_tasks.go 全文） | 启动时复位卡死的处理态任务：①知识解析（仅 Lite=REDIS_ADDR 未配置）pending/processing/finalizing/deleting → failed + "Task interrupted due to application restart" + 子任务计数清零，**wiki 独槽的 finalizing 行排除**（NOT-EXISTS task_pending_ops 子查询照抄——持久化 wiki op 启动后能重建触发器收尾）；复位后按行取消孤儿 span（latestAttempt + cancelAllOpenSpans，SERVER_RESTART）；②摘要（仅 Lite）pending/processing → failed；③同步日志（两模式）running → failed + "Sync interrupted..." + finished_at，分布式加 30 分钟陈旧窗（asynq 队列里可能有未开 span 的积压，照 Go 不敢判死）。**分布式模式刻意不复位知识/摘要**（Go 注释原文：另一副本可能在执行同一知识）——HousekeepingService 的职责。已知差异：摘要状态字面量未提常量（Knowledge 域类型无 SUMMARY_* 常量，"failed"/"pending"/"processing" 直写） |
+
+**验证**：全量五批验收 PASS；新增 `KnowledgeVectorRoutingTest`（move 搬行改写 embeddings + tag 清空；clone 复制向量行三态 SourceID 改写）与 `StartupTaskRecoveryTest` 4 条（Lite 复位/wiki 独槽排除/分布式跳过/同步日志两模式 + 陈旧窗）全绿；knowledge/config/datasource 定向批绿。
+
+**follow-up 剩余**：②HousekeepingService（Go `knowledge_housekeeping.go` 399 行 + container.go:1737 周期清扫——需 span 活动 + 真队列双检查，分布式语义重，专批）；reparse 模式的 move 收尾（清理 + 重新解析入队）。
+
 ## 0.-21 接线批第 3/4 步 + normalizer + 走查评审批（2026-09-25——W5γ4.6）
 
 **做了什么**（§3.-2 的两步 + §0.-20 遗留的 normalizer + 一轮全面评审的修复）：
@@ -18,10 +36,10 @@
 
 **验证**：全量五批验收绿（`scripts/acceptance.sh`，B1a/B1b/B2/B3/B4）；新增测试——normalizer 5 / 适配器 7 / 装配 6 / storegroup 8 全绿；**实弹 hybrid-search A/B**（Go:8080 + Java:8082 新代码、同连 dev PG、walkadmin 租户 10122 的 GAC客服 KB）：hybrid 两场景公共前缀**逐字节一致**（含 score 浮点字节）；向量-only 的余差经两侧各自连跑两次交叉对比坐实为 **dashscope 嵌入 API 的调用间非确定性**（同侧两次亦漂移 ~1e-6，且 Java run1 分数集合与 Go run2 完全重合）——环境噪声而非翻译缺陷。
 
-**全面评审（Explore 全仓扫描）其余发现与处置**：已修见上表评审批行。**确认为设计内降级不动**：BrowserSkillManager WS relay（需浏览器后端，在册）、DataAnalysis（DuckDB，在册）、Redis 限流器（在册）。**新立项 follow-up（数据变更型启动逻辑，需专批）**：
-1. **resetPendingTasks / recoverPendingWikiTasks**（Go `container/reset_pending_tasks.go` + container.go:480）：重启后把卡在 processing/finalizing 的知识行复位为 failed（写 "Task interrupted due to application restart"——Java `KnowledgeService:1168` 只读不写该文案的映射，错误码永不可产生）、取消孤儿 span、从 task_pending_ops 重触发 wiki 消费（`TaskPendingOpMapper` 已有表无消费方）；
+**全面评审（Explore 全仓扫描）其余发现与处置**：已修见上表评审批行。**确认为设计内降级不动**：BrowserSkillManager WS relay（需浏览器后端，在册）、DataAnalysis（DuckDB，在册）、Redis 限流器（在册）。**新立项 follow-up（W5γ4.6 立项；1、3 已于 W5γ4.7 落地，见 §0.-22）**：
+1. ~~resetPendingTasks / recoverPendingWikiTasks~~ ✅ W5γ4.7 落地 `StartupTaskRecovery`（wiki 独槽排除 + 孤儿 span 取消 + 同步日志两模式；"重建触发器"的 wiki 存量行收尾路径即独槽排除的语义，随 wiki 消费面复用）；
 2. **HousekeepingService**（Go `knowledge_housekeeping.go` 399 行 + container.go:1737 启动）：卡死行兜底清扫——`ChunkExtractService:297`/`KnowledgeProcessWorker:591`/`SpanTracker:38,161` 四处注释把兜底责任推给这个不存在的组件；
-3. **知识写链的引擎路由**：`syncChunkIndex`/`updateChunkVector`/FAQ 索引删除/知识删除/clone-move/image_multimodal 的向量写仍直连 pg JDBC——绑定 ES store 的 KB **读**已路由（本批），**写**还落错店。需要与 golden 锁定的错误形态（kg-image 族）一起专批改道。
+3. ~~知识写链的引擎路由~~ ✅ W5γ4.7 落地 `KnowledgeVectorWrites` 网关 + 各写链绑定分支（ChunkVectorIndexer/知识删除/FAQ/KB clone 向量复制/move 的 reuse_vectors 搬行——未绑定路径行为逐字节不变）；reparse 模式 move 收尾（清理 + 重新解析入队）仍开。
 
 **下一步**：OpenSearch driver（独立店族）→ gRPC 族协议决策（Weaviate/Qdrant/Milvus/腾讯）→ SQLite/Doris → 上述三项 follow-up → provider-XDEP 族 / Owner 决策遗留。
 
