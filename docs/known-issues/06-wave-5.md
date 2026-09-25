@@ -1780,3 +1780,63 @@ Go 侧 initialize 由 mcp-go v0.52.0 发出，golden 实录（`GoRecording45C` �
 ### 教训（可复用）
 
 **依赖派生的常量必须钉"来源 + 版本"**：`McpProtocol.PROTOCOL_VERSION` 照的是 Go 依赖里的常量（而非常量本身），Go 升级 mcp-go 时会**静默漂移**——协议版本、SDK 版本头、默认参数这一类常量都该在注释里写清"照哪个 SDK 版本"，并把它们纳入"Go 侧依赖升级 → 对账"的检查项。
+
+---
+
+## W5γ5.7：jieba 真实分词落地（2026-09-25）——★勘察推翻 W5γ5.6 的预估
+
+### 结论：Go 侧是"纯 HMM"，不是"jieba 词典 + HMM"
+
+SDK 的默认构造 `tokenizer.NewJiebaTokenizer(nil)`（`tcvdbtext/encoder/bm25_encoder.go:83`）做三件事：
+`seg.LoadNoFreq = true`、`seg.LoadStop(default_stopwords.txt)`、**`seg.LoadDict("")`**。
+
+而 `LoadDict("")` 在 Go 里传的是**非空 varargs**（`files = [""]`）→ 走 `len(files) > 0` 分支 →
+`DictPaths(dictDir, "")` 返回 nil → 日志 `Warning: dict files is nil.`，且 `len(files) == 0` 的兜底分支
+（那才会读内嵌 `zh/s_1.txt` + `zh/t_1.txt`）**也不会走**（`dict_util.go:150-218`）。
+
+**实证**（`scripts/jieba-diff-probe` 打出的基准）：
+
+```json
+"dict": {"totalFreq": 0, "numTokens": 0, "maxTokenLen": 0},
+"findProbes": {"我们": {"freq": 0, "pos": "", "ok": false}, "向量数据库": {"freq": 0, "pos": "", "ok": false}, ...}
+```
+
+⇒ 词典恒空 ⇒ `calc()` 的 DAG 全是自环（`dag[k] == [k]`）⇒ `cutDAG` 把全部单字累积进 buf，最后
+一次性交给 `seg.hmm(bufString, buf)`；`Find` 必失败 ⇒ **在整串上跑 HMM Viterbi**（`dag.go:203-215, 342-373`）。
+**gse 内嵌的 8.3MB 中文词典在 SDK 路径下是死重量**；`LoadNoFreq` 只影响"行内无 freq 列"的容错
+（`Size()`：`size < 2` 时才用 `seg.TextFreq`，默认被 `Init()` 设成 `"2.0"`）。
+
+### 复刻清单（`retrieval/engine/tencentvectordb/JiebaTokenizer`）
+
+| 段 | Go 出处 | 要点 |
+|---|---|---|
+| 小写化 | `dict_util.go:32-35`（`var ToLower = true`）+ `dag.go:221` | 整串 `strings.ToLower`；Java 用逐码点 `Character.toLowerCase`（与 `unicode.ToLower` 同为简单映射） |
+| HMM 切分 | `hmm/hmm_seg.go:87-131`（`Cut`）+ `:47-73`（`internalCut`） | `\p{Han}+` 段走 Viterbi；非连字段 `(\d+\.\d+\|[a-zA-Z0-9]+)` 整段直出；两者之间的填充文本按"就近切"整块吐（`locJudge`） |
+| 停用词 | `jieba_tokenizer.go:126-133` + `stop.go:69-73` | `len(word)==0 \|\| word==" " \|\| IsStop(word)` 丢弃；`StopWordMap` 由文件**行原样**入表（不 trim）、无包级兜底 |
+
+**Viterbi 三个易错点**（`hmm/viterbi.go`）：
+1. 转移是 jieba 的 `prevStatus`（B←{E,S}、M←{M,B}、S←{S,E}、E←{B,M}）——**非全连接**；
+2. 发射/转移缺失取 `minFloat = -3.14e100`；
+3. **并列时按状态字节降序取胜**（`sort.Sort(sort.Reverse(...))` 的 `(prob, state)` 升序再反转 ⇒
+   `S(0x53) > M(0x4D) > E(0x45) > B(0x42)`），末尾只在 `E`/`S` 间选。
+
+### 产物与验证
+
+- `scripts/jieba-diff-probe/`：Go 探针（**离线可跑**：`GOFLAGS=-mod=mod GOSUMDB=off
+  GOPROXY=file://$(go env GOMODCACHE)/cache/download`，依赖只需 gse+cedar 的 zip）+ `corpus.txt` 20 句
+  （中英混 / 数字单位 / 专名 OOV / 标点符号 / emoji / 大小写边界 `İstanbul`+`Σ` / 长段 / 繁体）。
+  探针只依赖 gse：SDK 的 `Tokenize` 就是 `Cut(s,true)` + 三条件过滤（等价复刻，注释里钉了出处）。
+- `scripts/gen-jieba-hmm.py`：从 gse 源码机械提取 HMM 三表 → `resources/jieba/hmm_model.json`（1.15MB，
+  35,224 条发射；`probEmit`/`probTrans`/`probStart`/`prevStatus` 在 gse 里全是**包内非导出**变量，
+  源码是唯一权威表示；数值走 IEEE754 最短往返表示，逐位一致）。
+- `JiebaTokenizerDiffTest`：① 前提守卫（基准 `dict` 必为 0，Go 侧行为一变即红）；② 裸切分差分；
+  ③ 含停用词差分——**20 句逐 token、逐序全一致**。
+- 验收：`--changed` 因新增 `.json` 资源（`server/src/main/resources/**` 属共享面）**自动升格全量 →
+  五批全绿 228s**。
+
+### 影响与前提
+
+**Java 写出的稀疏向量现与 Go 同源**（此前两侧不同源、跨实现迁移需重导入）。前提：Go 侧仍走 SDK 默认构造；
+若其显式传 `dict_file`/`UserDictFilePath` 或自定义 `TokenizerParams`，**必须按新参数重录基准**
+（重录命令见 `scripts/jieba-diff-probe/main.go` 顶部）。Qdrant 的 `SearchTextUtil` 接缝**未动**
+（其 `tokenizeQuery` 的近似语义与二次空白切分是独立备案，见本分片 W5 的 Qdrant 段）。

@@ -1,5 +1,49 @@
 # 交接文档（新会话接手用）
 
+## 0.-43 jieba 真实分词落地（2026-09-25——W5γ5.7，★勘察推翻大半预估）
+
+**结论先行**：Go 侧的分词**不是"jieba 词典 + HMM"，而是纯 HMM**。SDK 默认构造
+`NewJiebaTokenizer(nil)` 调的是 `seg.LoadDict("")`——Go 里这是**非空 varargs**（`files = [""]`）→
+走 `len(files) > 0` 分支 → `DictPaths(dictDir, "")` 返回 nil → 日志 `Warning: dict files is nil.`，
+**词典恒为空**（实证：`TotalFreq()==0 && NumTokens()==0`，`Find("向量")=(0,"",false)`）。
+⇒ gse 内嵌的那 8.3MB 中文词典在 SDK 路径下**是死重量**；`LoadNoFreq` 也只影响"行内无 freq 列"的容错。
+
+| 项 | 预估（W5γ5.6 勘察） | 实际 |
+|---|---|---|
+| 规模 | 800~1500 行 Java | **1 个类（`JiebaTokenizer`）+ 两个脚本** |
+| 资产 | 8MB 词典（下载/vendor/运营路径 三选） | **零词典资产**；只有 HMM 表 1.1MB（`resources/jieba/hmm_model.json`） |
+| 基准 | BM25"逐值对照 Go"要重录 | **不用重录**：加 **token 级差分**（Go 探针基准）即可 |
+
+**落地（三段复刻，全部钉在代码注释里）**：
+1. **小写化**：gse `var ToLower = true`（`dict_util.go:32-35`）⇒ `cutDAG` 入口整串 `strings.ToLower`；
+2. **HMM 切分**：`hmm.Cut`——`\p{Han}+` 连字段走 Viterbi 定 B/M/E/S（`internalCut`），
+   非连字段用 `(\d+\.\d+|[a-zA-Z0-9]+)` 整段直出，两者之间的填充文本按"就近切"整块吐（`locJudge`）；
+3. **停用词过滤**：SDK `Tokenize` 尾部（`len(word)==0 || word==" " || IsStop(word)`）。
+   **Viterbi 三个易错点**：转移是 jieba 的 `prevStatus`（B←{E,S}/M←{M,B}/S←{S,E}/E←{B,M}，**非全连接**）、
+   缺失值取 `minFloat=-3.14e100`、**并列时按状态字节降序取胜**（`S(0x53)>M(0x4D)>E(0x45)>B(0x42)`，末尾只在 E/S 间选）。
+
+**产物**：`retrieval/engine/tencentvectordb/JiebaTokenizer`（默认分词；删掉近似 `SeamTokenizer`；
+**Qdrant 的 `SearchTextUtil` 接缝不动**）、`scripts/jieba-diff-probe/`（Go 探针 + 20 句语料，**离线可跑**）、
+`scripts/gen-jieba-hmm.py`（从 gse 源码机械提取 HMM 表——`probEmit` 等是包内非导出变量，源码是唯一权威表示）、
+`server/src/test/resources/jieba/jieba_baseline.json`（`cutHmmOn`/`sdkTokenize`/dict 统计三份基准）。
+
+**验证**：`JiebaTokenizerDiffTest` 三条——① 前提守卫（基准里 dict 必为空，Go 侧行为一变即红）；
+② 裸切分差分；③ 含停用词差分（**20 句逐 token、逐序全一致**，含中英混/数字单位/专名 OOV/emoji/大小写边界/长段/繁体）。
+**`--changed` 门**跑出 `.json` 资源属共享面 → 自动升格全量 → **五批全绿 228s（ACCEPTANCE PASS）**。
+
+**影响**：**Java 写出的稀疏向量现与 Go 同源**——同 collection 的跨实现互通不再以"同一实现"为前提
+（前提仍是 Go 侧走 SDK 默认构造；若其显式传 `dict_file`/自定义参数，需按新参数**重录基准**）。
+
+**教训（可复用）**：① **"框架名"≠"实际行为"**——`NewJiebaTokenizer`/`LoadDict("")` 读起来像"加载 jieba 词典"，
+实测是空词典纯 HMM；移植前先**实证参数落点**（本次靠探针把 dict 统计打出来才发现），能省掉 8MB 资产与上千行；
+② **依赖派生常量/行为要钉来源+版本**（同 §0.-36）；③ **差分基准的价值**：Go 侧有可离线复现的探针时，
+"逐 token 对照"比"逐值对照端到端"更早定位、更小爆炸半径。
+
+**下一步**：决策简报只剩 **W5δ provider 终端执行体**（需真实 provider）与**存储 ①③ 之外的小账**；
+备案小账剩 Weaviate gse 跨仓提案（**已回填 Go compose，未在 Go 仓提交**）、E2E 两观察项（早错 SSE / `list_sandbox_files` 注册时机）。
+
+---
+
 ## 0.-42 小账批：Weaviate gse 回填（跨仓）+ jieba 决策 + E2E 两观察项 triage（2026-09-25——W5γ5.6）
 
 ### 一、Weaviate `ENABLE_TOKENIZER_GSE` ✅ 已回填 Go 仓 compose（并三容器实证）
@@ -17,7 +61,8 @@
   而 compose 文件里没有 → 用 `--profile weaviate` 起的人（含 Go 侧）会踩 422。探针容器已清理（只留 :9035）。
 - Go 仓的这处改动**未在 Go 仓提交**（保持其工作区原样，交由其持有者决定）。
 
-### 二、jieba 真实分词：成本勘察 + 决策（**不塞进小账批**）
+### 二、jieba 真实分词：成本勘察 + 决策（**不塞进小账批**）——✅ **已落地（W5γ5.7，§0.-43）**，
+且勘察被推翻：**词典恒空 → 只需复刻 HMM，零词典资产**
 
 - **Go 侧事实**：腾讯 SDK 的分词是 `github.com/go-ego/gse`——**3392 行 Go**（17 文件）、
   `LoadNoFreq=true` + `useHmm=true` + `cutAll=false` + `forSearch=false`，中文词典 **14MB**（`data/dict/zh`），
@@ -272,7 +317,7 @@ PipelinePorts.RetrieveGraphRepository`，方法面一一对应，`QaWiring` 装�
 | **Milvus `shardsNum`** | ✅ 钉测试：`indexCfg.shardsNum>0` 才带键（服务端忽略为已备案差异） |
 | ~~**Weaviate `ENABLE_TOKENIZER_GSE`**~~ | ✅ **2026-09-25 已回填 Go 仓 compose 并实证**（W5γ5.6，§0.-42）：无 flag → 422 / 有 flag → 200（三容器对照）；顺带查明测试容器当初就是手动带 flag 起的，故本地从未暴露 |
 | **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | ✅ **复现清单已写死**（W5γ5.6，§0.-42 三：现象/步骤/需留证据）——仍**不做无现象的猜测式改动**，下次 E2E 一批按清单抓 |
-| **腾讯分词接缝 / jieba** | ✅ **成本勘察完成（W5γ5.6，§0.-42 二）**：Go 用 `go-ego/gse`（3392 行 + 14MB 中文词典 + HMM）→ 完整移植是独立大批（含 BM25 基准重录）；本批不动代码 |
+| ~~**腾讯分词接缝 / jieba**~~ | ✅ **已落地（W5γ5.7，§0.-43）**。~~成本勘察（W5γ5.6）~~：Go 用 `go-ego/gse`（3392 行 + 14MB 中文词典 + HMM）→ 预估"完整移植是独立大批（含 BM25 基准重录）"；**实际勘察推翻**：`LoadDict("")` 是空词典 → 纯 HMM，移植 1 类 + HMM 表资源，无词典资产、无基准重录（token 级差分 20 句全一致；五批全绿 228s） |
 
 **验证**：`VlmOllamaTest` 4 + Milvus 新增 1 全绿；五批验收 PASS。
 
@@ -309,11 +354,11 @@ PipelinePorts.RetrieveGraphRepository`，方法面一一对应，`QaWiring` 装�
 
 **BM25 对照验证（本批关键证据）**：在 Go 仓用 SDK v1.8.4 实跑取基准（基准程序已删除，Go 仓干净），Java 逐值比对——murmur3（`"hello"→613153351`、`"world"→4220927227`、`"中文"→3676729751`、`""→0`）与文档/查询权重（`"中文检索测试 hello"` → DOC 均 `0.7627807`；QUERY `{0.44923997, 0.10152008, 0.44923997}`；`"第二条 中文 hello world"` → DOC 均 `0.7606547`）**完全一致**。
 
-**差异备案**：① **分词接缝**——Java 默认分词是仓库既有近似（非 jieba），故稀疏向量与 Go 存量数据**不互通**（同集合需同一实现；Go 迁移来的数据需重导入；接缝可替换为真实 jieba）；② Go 走 gRPC/olama，本仓走 HTTP 面（同服务端、语义等价）；③ **无真服务端 IT**（腾讯 VectorDB 是云服务，无本地版）——wire 形状用 stub 钉死、BM25 用 Go 基准逐值对照，真机联调待云凭据。
+~~**差异备案**：① **分词接缝**——Java 默认分词是仓库既有近似（非 jieba），故稀疏向量与 Go 存量数据**不互通**（同集合需同一实现；Go 迁移来的数据需重导入；接缝可替换为真实 jieba）~~ ✅ **已对齐（W5γ5.7，§0.-43）**：`JiebaTokenizer` 逐 token 复刻 Go 的实际行为（HMM + 小写化 + 停用词）⇒ 稀疏向量与 Go 同源、跨实现迁移不再需重导入；② Go 走 gRPC/olama，本仓走 HTTP 面（同服务端、语义等价）；③ **无真服务端 IT**（腾讯 VectorDB 是云服务，无本地版）——wire 形状用 stub 钉死、BM25 用 Go 基准逐值对照，真机联调待云凭据。
 
 **验证**：`TencentVectorDbBm25Test` 4 + 仓储/客户端 stub 16 + 工厂/接线 2 **全绿**；五批验收 PASS；bootRun 重启冒烟 200。
 
-**下一步**：检索批只剩 **SQLite**（~680 行，CGO + sqlite-vec 扩展，native 多平台分发需决策，优先级最低）；其余为备案小账（Milvus shardsNum/模板参数、Weaviate gse 开关回填、腾讯分词接缝、VLM 界面、jieba 等）。
+**下一步**：检索批只剩 **SQLite**（~680 行，CGO + sqlite-vec 扩展，native 多平台分发需决策，优先级最低）；其余为备案小账（Milvus shardsNum/模板参数、Weaviate gse 开关回填、~~腾讯分词接缝~~ ✅ W5γ5.7（§0.-43）、VLM 界面、~~jieba~~ ✅ 同批）。
 
 ---
 
@@ -1690,8 +1735,8 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    **除 SQLite 外全部落地**（HTTP 族 / SQL 族 / gRPC 族均已走自持 REST/HTTP 口径）；
 2. ~~SQLite~~ ✅ W5γ4.16（§0.-31）——**九家店全部落地，检索批收官**；
 3. **备案小账批**：Milvus 的 shardsNum/模板参数差异、Weaviate 的 `ENABLE_TOKENIZER_GSE` 回填
-   Go 仓 compose、腾讯的**分词接缝**（接真实 jieba 可与 Go 存量数据互通）、E2E 抓回的两个
-   观察项（早错 SSE 不收流 / `list_sandbox_files` 注册时机）、VLM 界面文案、jieba 真实分词；
+   Go 仓 compose、~~腾讯的**分词接缝**~~ ✅ W5γ5.7（§0.-43，已与 Go 同源，跨实现迁移不再需重导入）、E2E 抓回的两个
+   观察项（早错 SSE 不收流 / `list_sandbox_files` 注册时机）、VLM 界面文案、~~jieba 真实分词~~ ✅ W5γ5.7；
 4. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、存储三条备案之①③；~~initialize 契约对齐~~ ✅ W5γ4.21（§0.-36）；
    install 真实 LLM E2E 已于 §0.-27 收官）——均需真实 provider 或决策输入。
 

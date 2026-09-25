@@ -23,14 +23,15 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import com.ragagent.searchutil.SearchTextUtil;
 
 /**
  * 腾讯 VectorDB 的客户端 BM25 稀疏向量编码——对照 SDK {@code tcvdbtext/encoder} 的
  * {@code BM25Encoder}（v1.8.4）：
  *
  * <ul>
- *   <li><b>分词</b>：Go 用 {@code gse/jieba}（HMM 开、cutAll 关、forSearch 关）+ 停用词表；</li>
+ *   <li><b>分词</b>：Go 用 {@code gse} 的 HMM 切分 + 停用词表——注意
+ *       <b>{@code LoadDict("")} 实际什么都没加载</b>（非空 varargs 走错分支，词典恒为空 ⇒ 纯 HMM），
+ *       勘察结论见 {@link JiebaTokenizer} 类注释；本仓同款复刻；</li>
  *   <li><b>哈希</b>：token → <b>murmur3 32 位</b>（{@code spaolacci/murmur3}，x86_32 种子 0）
  *       → 无符号 int64 的十进制串；</li>
  *   <li><b>文档权重</b>：{@code tf/(K1*(1-B+B*(len/avgDocLen))+tf)}（B=0.75/K1=1.2）；</li>
@@ -42,11 +43,11 @@ import com.ragagent.searchutil.SearchTextUtil;
  *
  * <h2>与 Go 的差异（备案）</h2>
  * <ol>
- *   <li><b>分词接缝</b>：Go 内嵌 gse（jieba 词典 + HMM）；本仓复用既有分词接缝
- *       {@link SearchTextUtil#segmenter()}（默认是"按空白 + CJK 二字滑窗"的近似实现，
- *       见 SearchTextUtil 的降级说明）。因此 <b>Java 写出的稀疏向量与 Go/jieba 写出的
- *       不逐词一致</b>——同一 collection 的读写需同一实现（跨实现迁移需重导入数据）。
- *       接缝可替换：将来接入真实 jieba 后即与 Go 同源。</li>
+ *   <li><b>分词接缝</b>：~~Go 内嵌 gse（jieba 词典 + HMM）vs 本仓近似分词（按空白 + CJK 二字滑窗）
+ *       ⇒ 稀疏向量与 Go 不逐词一致~~ ✅ <b>已对齐（W5γ5.7）</b>：{@link JiebaTokenizer} 照 Go 的
+ *       实际行为（HMM 切分 + 小写化 + 停用词）逐 token 复刻，基线
+ *       {@code src/test/resources/jieba/jieba_baseline.json} + {@code JiebaTokenizerDiffTest}
+ *       逐句守卫——Java 写出的稀疏向量现与 Go 同源（前提：Go 侧仍走 SDK 默认构造）。</li>
  *   <li>统计表解析：Go {@code json.Unmarshal} 进 {@code map[string]float64}（数百 MB 堆）；
  *       本仓用<b>流式解析 + 排序长整型数组</b>（约 47 MB）——查询结果一致，查找走二分。</li>
  *   <li>停用词：Go 默认从 COS 下 {@code default_stopwords.txt}（1.1 KB）并启用；本仓同款
@@ -72,7 +73,7 @@ public final class TencentVectorDbBm25 {
     public record SparseVecItem(long termId, float score) {
     }
 
-    /** 分词接缝（默认走仓库既有近似分词；可替换为真实 jieba）。 */
+    /** 分词接缝（默认 {@link JiebaTokenizer}，已与 Go 同源；测试可注入 {@link #fixedTokenizer}）。 */
     public interface Tokenizer {
 
         List<String> tokens(String text);
@@ -111,7 +112,7 @@ public final class TencentVectorDbBm25 {
         }
         Set<String> stopWords = loadStopWords(dir);
         Params params = parseParams(paramsFile);
-        Tokenizer tokenizer = new SeamTokenizer(stopWords);
+        Tokenizer tokenizer = new JiebaTokenizer(stopWords);
         log.info("[TencentVectorDB] BM25 encoder ready: docCount={}, avgDocLen={}, tokens={}",
                 params.docCount(), params.averageDocLength(), params.tokenKeys().length);
         return new TencentVectorDbBm25(params.b(), params.k1(), params.docCount(),
@@ -347,29 +348,6 @@ public final class TencentVectorDbBm25 {
             log.warn("[TencentVectorDB] stopwords unavailable ({}), continuing without them",
                     e.getMessage());
             return Set.of();
-        }
-    }
-
-    /** 默认分词：仓库既有接缝 + 停用词过滤（照 Go 的 StopWordsEnable=true）。 */
-    static final class SeamTokenizer implements Tokenizer {
-
-        private final Set<String> stopWords;
-
-        SeamTokenizer(Set<String> stopWords) {
-            this.stopWords = stopWords;
-        }
-
-        @Override
-        public List<String> tokens(String text) {
-            List<String> raw = SearchTextUtil.segmenter().cutForSearch(text);
-            List<String> out = new ArrayList<>(raw.size());
-            for (String token : raw) {
-                if (token.isEmpty() || stopWords.contains(token)) {
-                    continue;
-                }
-                out.add(token);
-            }
-            return out;
         }
     }
 
