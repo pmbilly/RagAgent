@@ -2,6 +2,7 @@ package com.ragagent.session.service;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -12,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.sandbox.runtime.terminal.TerminalTypes;
 
 /**
  * 终端桥（对照 Go internal/handler/session/sandbox_terminal_bridge.go 全文 340 行）：
@@ -68,6 +70,70 @@ public final class TerminalBridge {
         void resize(int cols, int rows) throws IOException;
 
         void close();
+    }
+
+    /**
+     * 中性会话 → 桥窄接口（W5δ 执行体批补的装配件；生产接线点在
+     * {@code SandboxTerminalController:300} 一带，此前注释为"随波 5 的 provider 执行体接线"）。
+     *
+     * <p>终结语义：中性会话若实现 {@link TerminalTypes.TerminalSessionState}，则"已终结且队列取空"
+     * 翻译成 <b>null</b>（= Go {@code for event := range Output()} 的 channel 关闭）。收尾事件
+     * （{@code exited}/{@code err}）由会话在此前投递，桥按既有分支发帧并拆除。</p>
+     */
+    public static PtySession adapt(TerminalTypes.RemoteTerminalSession session) {
+        return new PtySession() {
+
+            @Override
+            public OutputEvent next() throws InterruptedException {
+                while (true) {
+                    TerminalTypes.RemoteTerminalEvent event =
+                            session.output().poll(200, TimeUnit.MILLISECONDS);
+                    if (event != null) {
+                        Throwable err = event.err;
+                        return new OutputEvent(event.data, event.exited,
+                                event.exited ? event.exitCode : null,
+                                err == null ? null
+                                        : (err instanceof RuntimeException re ? re
+                                                : new RuntimeException(err.getMessage(), err)));
+                    }
+                    if (session instanceof TerminalTypes.TerminalSessionState state
+                            && state.finished()) {
+                        return null;
+                    }
+                }
+            }
+
+            @Override
+            public void write(byte[] data) throws IOException {
+                try {
+                    session.write(data);
+                } catch (IOException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new IOException(e.getMessage(), e);
+                }
+            }
+
+            @Override
+            public void resize(int cols, int rows) throws IOException {
+                try {
+                    session.resize(cols, rows);
+                } catch (IOException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new IOException(e.getMessage(), e);
+                }
+            }
+
+            @Override
+            public void close() {
+                try {
+                    session.close();
+                } catch (Exception ignored) {
+                    // 收尾失败不影响桥的拆除（照 Go 忽略 close 错误）
+                }
+            }
+        };
     }
 
     /** 控制帧（对照 terminalControlFrame：omitempty 键省略）。 */
@@ -190,6 +256,12 @@ public final class TerminalBridge {
         try {
             while (true) {
                 PtySession.OutputEvent event = pty.next();
+                if (event == null) {
+                    // 中性会话终结（Go 的 `for range Output()` 在 channel 关闭时退出）——
+                    // 收尾事件（exited/err）已在此前投递过，这里静默收工
+                    teardownWith("stream_closed");
+                    return;
+                }
                 if (event.err() != null) {
                     log.warn("[sandbox-terminal] stream error session={}: {}", session,
                             event.err().toString());

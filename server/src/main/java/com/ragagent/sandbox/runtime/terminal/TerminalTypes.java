@@ -130,6 +130,18 @@ public final class TerminalTypes {
         void close() throws Exception;
     }
 
+    /**
+     * 可选能力：会话是否<b>已终结</b>——Go 的 {@code Output() <-chan} 靠 <b>channel 关闭</b>表达
+     * "没有更多事件"，Java 的 {@code BlockingQueue} 没有关闭语义，故用这个接口补上。
+     *
+     * <p>消费方（如 {@code TerminalBridge} 的窄接口）据此把"取不到事件且已终结"翻译成 null
+     * （= 流结束），从而与 Go 的 {@code for event := range Output()} 等价。实现者应保证：
+     * 终结前最后一次投递必是 {@code exited} 或 {@code err} 事件之一（照 Go 的 Wait 判定）。</p>
+     */
+    public interface TerminalSessionState {
+        boolean finished();
+    }
+
     /** 终端能力接口（对照 Go {@code RemoteTerminalManager}，terminal.go L174-177）。 */
     public interface RemoteTerminalManager {
         RemoteTerminalSession openTerminal(String sandboxId, RemoteTerminalOptions opts)

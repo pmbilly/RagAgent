@@ -1,5 +1,31 @@
 # 交接文档（新会话接手用）
 
+## 0.-45 W5δ 执行体骨架落地：**"未翻译"只剩"未接线"**（2026-09-25——W5γ5.9）
+
+spike（§0.-44）之后同一批把**不依赖真机的那半**做完了——执行体本体（会话生命周期 / PTY 事件三态 /
+控制面**接缝**）全部落地，并用本地 envd 桩覆盖；**控制面路由留在接缝后**（与 `RemoteProviderClient`
+的诚实声明同源：路由字面未在真机校准）。
+
+| 件 | 内容 | 对照 Go |
+|---|---|---|
+| `EnvdPtyProtocol` | 请求体构造 + 事件解析 + 退出码解析 + 方法名常量 | `pty.go` 结构体标签；**三个易错点**：改窗口的方法名是 **`Update`**、杀是 **`SendSignal`**、信号值 **`SIGNAL_SIGKILL`**；退出码 `exitCode`→`exit_code`→`status`（`exit status N` / `signal N`→128+N / `exited`→0）→`exited`→0 |
+| `EnvdTerminalSession` | 输出队列（256 背压）、收尾**恰好一次**（end.error → 无 end 事件 → exited 的顺序判定）、幂等 Close（**断开不杀**，可重附）、`PtyInputCoalescer` 喂入、TTL 刷新（**立即**刷 + `ttl/3` 钳位、8s 超时） | `cube_terminal.go:126-183` + `pty.go:250-320`（readLoop/Wait/recordEnd）+ `terminal.go:244-283` |
+| `EnvdTerminalManager` | 解析端点 →（`attachPid>0` 先试 `Connect`，**失败回落 Create**）→ 读 `start` 事件拿 PID → 起会话 | `openCubePty`/`openE2BPty` + `readPtyStartPID` |
+| `TerminalTypes.TerminalSessionState` | 新增可选能力：会话是否终结（**Go 的 channel 关闭**在 Java 的等价物） | `for event := range Output()` |
+| `TerminalBridge.adapt(...)` | 中性会话 → 桥窄接口；`pumpOutput` 补 null 收尾分支 | `sandbox_terminal_bridge.go` 装配 |
+
+**验证**：`EnvdTerminalSessionTest` 6 条（生命周期 Start→PID→data→end→exited 含退出码 7 / 输入线上形状
+`SendInput`+base64+PID / 改窗口走 `Update` 且形状照 SDK / 建流请求形状 `/bin/bash -i -l`+`TERM/LANG/LC_ALL`
+默认+`cwd=/workspace`+80x24 / "流结束但无 end 事件"→ 错误事件 / end-stream 错误原文 / `status` 文本兜底
+signal 15→143 / 重附回落 / 桥适配含终结后 `next()==null`），连同 spike 的 4 条**合计 15 条全绿**；
+门 `--changed` 命中域 sandbox,session → **B4 全绿 80s**。
+
+**剩余（唯一还需外部条件）**：`EndpointResolver` 的真实实现（cube/e2b 控制面路由 + token 头 + TTL 钩子）
+与 `SandboxTerminalController` 装配接通——先跑 [`docs/w5delta-terminal-spike.md`](w5delta-terminal-spike.md)
+第四节的真机清单 1–4（一次带凭据会话，半小时级）。
+
+---
+
 ## 0.-44 W5δ 传输层 spike：**"zerodep stdin 半关闭"这个阻塞点不成立**（2026-09-25——W5γ5.8）
 
 把两侧 SDK 读到实现级之后，envd 的 PTY **既没有双向流，也没有 stdin 半关闭**：
@@ -23,8 +49,9 @@
 第 1 项最关键：**E2B 的 envd 是否接受 JSON 编解码**（其 SDK 用 binary protobuf 生成客户端；Cube 的 envd 明确吃
 `application/connect+json`）——若只吃 protobuf，则需自带最小 protobuf 编解码（+~200 行，仍零依赖）。
 
-**下一步**：清单 1–4 只需**一次带 cube/e2b 凭据的会话**（半小时级）即可收口；之后再开执行体本体
-（~1.3k 行：会话生命周期 / PTY 事件三态 / provider 控制面接线 / WS 桥接——`TerminalBridge` 与中性层已就位）。
+**下一步**：~~执行体本体（~1.3k 行：会话生命周期 / PTY 事件三态 / 控制面接线 / WS 桥接）~~ ✅ **已落地
+（W5γ5.9，§0.-45）**；唯一还缺外部条件的是真机清单 1–4（**一次带 cube/e2b 凭据的会话**，半小时级）→
+据此写 `EndpointResolver` 真实路由并接通控制器装配点。
 
 ---
 
@@ -1398,8 +1425,8 @@ tenants-all 九族 GET + sessions pin 写路径（pin 响应/列表回流/还原
      qqbot/mattermost/telegram/slack 的平台客户端。γ2 的 AdapterFactory 注册面
      已就位（`imService.registerAdapterFactory`），回调控制器/管线/命令族全部
      可用；平台签名验签与载荷解析是各适配器的可单测核心。
-  2. **W5δ provider 终端执行体**（Go ~1.3k 行）：cube/e2b/docker 远程 PTY →
-     W5d 已留 SessionTerminalService/TerminalBridge 接缝；RemoteError 分类器已翻。
+  2. ~~**W5δ provider 终端执行体**（Go ~1.3k 行）~~ ✅ **已落地（W5γ5.9，§0.-45）**：cube/e2b/docker 远程 PTY →
+     传输层 + 执行体 + 桥适配全落地（15 条桩测试）；**只剩 `EndpointResolver` 的真实路由（需真机凭据）**。
   3. **检索引擎批 HybridSearch 执行面**：QaWiring 的 hybridSearch/getQueryEmbedding
      返回空（两侧无 embedding 模型部署行为一致的备案形态）；embedding 客户端
      4.4 已翻，缺 pgvector 检索 + RRF 融合 + 模型解析接线。

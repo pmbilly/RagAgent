@@ -1896,3 +1896,28 @@ protobuf，则需自带最小 protobuf 编解码（`ProcessEvent`/`PtyInput` 等
 执行体本体（会话生命周期 / PTY 事件三态 / provider 控制面接线 / WS 桥接）**仍未翻译**，估 ~1.3k 行不变；
 中性层（`RemoteTerminalOptions` 五旋钮、`PtyInputCoalescer`、`TerminalBridge`、idle/TTL 钳位）已在 W5δ
 `ea68238` 落地，本 spike 只补了它下面缺的那层传输。
+
+---
+
+## W5γ5.9：W5δ 执行体骨架落地（2026-09-25）——"未翻译"只剩"未接线"
+
+spike（W5γ5.8）确证协议无双向流之后，同一批把执行体本体做完（控制面留接缝）：
+
+| 件 | 关键语义 | 对照 Go |
+|---|---|---|
+| `EnvdPtyProtocol` | 请求体/事件/退出码/方法名常量。**三个易错点**：改窗口的方法名是 **`Update`**（不是 `Resize`）、杀是 **`SendSignal`**（不是 `Kill`）、信号值是 **`SIGNAL_SIGKILL`**（不是 `SIGKILL`）；退出码优先级 `exitCode`→`exit_code`→`status`（`exit status N` / `signal N`→128+N / `exited`→0）→`exited`→0 | `pty.go:643-700`、`envd.go:26-72`、`pty.go:577-594` |
+| `EnvdTerminalSession` | 输出队列容量 256（慢消费者**背压**不丢字节）；收尾**恰好一次**，判定顺序照 `Wait`：end-stream 错误 → `end.error` 文本 → **从未见 end 事件**（文案 `PTY stream ended without an end event`）→ exited（缺码兜 0）；Close **断开不杀**（可 `Connect(pid)` 重附）且幂等，关闭后写入抛 `terminal input closed`；TTL 刷新**立即刷一次**再按 `ttl/3`（钳 [15s,2m]）周期，每次 8s 超时 | `cube_terminal.go:126-183`、`pty.go:250-320`、`terminal.go:244-283` |
+| `EnvdTerminalManager` | 解析端点 → `attachPid>0` 先试 `Connect`，**失败回落 Create** → 读 `start` 事件拿 PID（中间事件跳过；流先关报 `<method>: stream closed before start event`）→ 起会话；控制面收在 `EndpointResolver` 接缝后（路由字面未在真机校准） | `openCubePty`/`openE2BPty`、`readPtyStartPID` |
+| `TerminalTypes.TerminalSessionState` | 新增可选能力：会话是否终结——**Go 的 channel 关闭**在 Java 的等价物（`BlockingQueue` 无关闭语义） | Go 的 `for event := range Output()` |
+| `TerminalBridge.adapt(...)` | 中性会话 → 桥窄接口；`pumpOutput` 补 `next()==null` 收尾分支（原实现会 NPE——装配点此前一直留着） | `sandbox_terminal_bridge.go` 装配 |
+
+**验证**：`EnvdTerminalSessionTest` 6 条——生命周期（Start→PID→data→end→exited，退出码 7）、
+输入线上形状（`SendInput` + base64 + PID）、改窗口（`Update` + `{pty:{size:{rows,cols}}}`）、
+建流请求形状（`/bin/bash -i -l` + SDK 默认 `TERM/LANG/LC_ALL` + `cwd=/workspace` + 80x24）、
+"流结束但无 end 事件"→ 错误事件、end-stream 错误原文、`status` 兜底（signal 15→143）、
+attach 回落 Create（Connect 体为**帧化** `ptySelectorRequest`）、桥适配（终结后 `next()==null`）。
+连同 spike 的 4 条与既有 5 条，**终端域 15 条全绿**；门 `--changed` 域 sandbox,session → **B4 全绿 80s**。
+
+**边界（诚实声明）**：`EndpointResolver` 的真实实现（cube/e2b 控制面路由 + token 头 + TTL 钩子）与
+`SandboxTerminalController` 的装配接通**未做**——需真机凭据校准（见 `docs/w5delta-terminal-spike.md`
+第四节清单 1–4）。控制器装配点注释已更新为指向本批装配件（`EnvdTerminalManager` + `TerminalBridge.adapt`）。

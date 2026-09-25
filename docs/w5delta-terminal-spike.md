@@ -61,11 +61,34 @@
 | 6 | 重附语义（`Connect(pid)` 对已退出 shell 的行为） | 杀掉 shell 后再 `Connect` | 决定 `attachPid` 失败回落的判据（Go：失败回落 Create） |
 | 7 | 沙箱 TTL 刷新与终端的交互（Go 每 `ttl/3` 刷 `SetTimeout`） | 观察长会话中沙箱是否被回收 | 保持刷新；不支持则落"终端保活=不做"的备案 |
 
-## 五、成本与建议
+## 五、执行体骨架落地（2026-09-25，W5γ5.9）
 
-- **传输层**：本批已给出（`EnvdConnectTransport` + 4 条桩测试）；真机清单 1–7 只需**一次带凭据的会话**即可收口。
-- **执行体本体**（仍未做，估 **~1.3k 行**不变，但性质已明确）：会话生命周期（PID/attach/TTL 刷新/幂等 Close、
-  "流结束但无 exit 事件"的兜底）、PTY 事件语义（数据/退出/错误三态）、provider 控制面接线
-  （Cube/E2B 的建沙箱 + token 头 + `OutboundUrlGuard`）、`TerminalBridge` 的 WS 桥接（中性层已就位）。
-- **建议**：先按清单 1–4 做一次真机 spike（半小时级），再开执行体批；若第 1 项不符（E2B 只吃 protobuf），
-  执行体批追加"最小 protobuf 编解码"子项。
+spike 之后同一批把**不依赖真机的那半**做完了（控制面留接缝）：
+
+| 件 | 内容 | 对照 Go |
+|---|---|---|
+| `EnvdPtyProtocol` | 请求体构造 + 事件解析 + 退出码解析 + 方法名常量 | `pty.go` 的结构体 JSON 标签（含 **Resize→`Update`、Kill→`SendSignal`、信号值 `SIGNAL_SIGKILL`** 三个易错点）；`exitCodeFromStatus`（`exit status N` / `signal N`→128+N / `exited`→0） |
+| `EnvdTerminalSession` | 输出队列（容量 256 背压）、收尾恰好一次（end.error → 无 end 事件 → exited 的顺序判定）、幂等 Close（断开不杀）、`PtyInputCoalescer` 喂入、TTL 刷新（立即 + `ttl/3` 钳位，8s 超时） | `cube_terminal.go:126-183` + `pty.go:250-320`（readLoop/Wait/recordEnd）+ `terminal.go:244-283`（startTerminalTTLRefresh） |
+| `EnvdTerminalManager` | 解析端点 →（`attachPid>0` 先试 `Connect`，**失败回落 Create**）→ 读 `start` 事件拿 PID → 起会话 | `openCubePty`/`openE2BPty` + `readPtyStartPID` |
+| `TerminalTypes.TerminalSessionState` | 新增可选能力：会话是否终结（**Go channel 关闭**的 Java 等价物） | Go 的 `for range Output()` |
+| `TerminalBridge.adapt(...)` | 中性会话 → 桥窄接口；`pumpOutput` 补 null 收尾 | `sandbox_terminal_bridge.go` 的装配 |
+
+**测试**（本地 envd 桩，6 条）：生命周期（Start→PID→data→end→exited，含退出码 7）、
+输入线上形状（`SendInput` + base64 + PID）、改窗口（**`Update`** + `{pty:{size:{rows,cols}}}`）、
+建流请求形状（`/bin/bash -i -l` + `TERM/LANG/LC_ALL` 默认 + `cwd=/workspace` + 80x24）、
+"流结束但无 end 事件"→ 错误事件、end-stream 错误 → 原文、`status` 文本兜底（signal 15→143）、
+重附回落、桥适配（含终结后 `next()==null`）。合计 **15 条**（含 spike 的 4 条）全绿，门 B4 80s。
+
+**仍未做的部分（诚实边界）**：`EndpointResolver` 的真实实现（cube/e2b 控制面路由 + token 头 + TTL 钩子）
+——需真机校准（第四节清单 1–2）；`SandboxTerminalController:300` 的装配点已留（注释指向本批装配件），
+待 resolver 可用后接通。**执行体本体不再是"未翻译"，只剩"未接线"。**
+
+## 六、成本与建议（按 W5γ5.9 落地后的口径更新）
+
+- **传输层** ✅ 已给出（`EnvdConnectTransport` + 4 条桩测试）。
+- **执行体本体** ✅ 已给出（`EnvdPtyProtocol` + `EnvdTerminalSession` + `EnvdTerminalManager` + 桥适配，
+  6 条桩测试）；**不再是"~1.3k 行未翻译"，而是"只剩未接线"**——剩余为 `EndpointResolver` 的真实实现
+  （cube/e2b 控制面路由 + token 头 + TTL 钩子）与 `SandboxTerminalController` 的装配接通。
+- **真机清单 1–7**（第四节）是唯一还需外部条件的部分：**一次带凭据的会话**（半小时级）即可收口；
+  若第 1 项不符（E2B 只吃 protobuf），追加"最小 protobuf 编解码"子项（+~200 行，仍零依赖）。
+- **建议**：拿凭据跑清单 1–4 → 写 resolver → 接通控制器装配点 → 本族收口。

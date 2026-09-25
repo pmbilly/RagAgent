@@ -297,8 +297,10 @@ public class SandboxTerminalController {
 
         log.info("[sandbox-terminal] opened session={} backend={}", sessionId,
                 opened.terminal().backend());
-        // 对照 bridge 装配（L234-247）：生产 PtySession 随波 5 的 provider 执行体接线。
-        // opened.terminal() 当前恒 null（XDEP），本分支仅承载波 5 的装配形状。
+        // 对照 bridge 装配（L234-247）：装配件已就位（W5γ5.9）——EnvdTerminalManager（中性终端管理器，
+        // 控制面收在 EndpointResolver 接缝后）+ TerminalBridge.adapt(远程会话) → PtySession。
+        // 仍剩 XDEP：resolver 指向真实 cube/e2b 数据面（路由字面未在真机校准，见
+        // docs/w5delta-terminal-spike.md 的清单）；故 opened.terminal() 恒 null 的现状不变。
         throw new IllegalStateException("sandbox terminal pty session requires wave 5 provider runtime");
     }
 
