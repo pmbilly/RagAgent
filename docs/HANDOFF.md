@@ -1352,7 +1352,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 |---|---|
 | HTTP 路由对账（route-recon） | 交集 387，**功能性缺口清零**（swagger 非翻译目标；models/{id}/debug 已收官）——2026-09-22 阶段 7 终核 |
 | golden 契约测试 | 1,719+24 全绿（全部录自 Go 实行为准；md-* 24 条为阶段 7 新增）——2026-09-22 |
-| 全量测试 | **2026-09-25 W5γ4.10 复跑：五批全绿（ACCEPTANCE PASS）**。⚠️ 三件事：①**脚本覆盖面在 W5γ4.10 补全**——`scripts/acceptance.sh` 此前不含 `com.ragagent.retrieval.*` 与 `com.ragagent.config.*`（"五批全量"从未覆盖检索引擎域），现已并入 B4；声称"全量"前先核对脚本包清单与 `server/src/test/java/com/ragagent/` 目录；②单跑 `:server:test` 必假红（Mockito attach）——用脚本的五批划分；③并发跑测试（同事同时跑）会撞固定端口，出现偶发假红（2026-09-25 收口批 B2 的 bs-internal-bad-sig 一次 409 即此，单跑即绿）；dev docreader 常驻 50051 时 `SystemContractTest.parserEnginesOfflineShape` 可能翻红（环境相关，干净树同样失败，见 `known-issues/07-model-debug.md`）|
+| 全量测试 | **2026-09-25 W5γ4.10 复跑：五批全绿（ACCEPTANCE PASS）**。⚠️ 四件事：①**脚本覆盖面在 W5γ4.10 补全**——`scripts/acceptance.sh` 此前不含 `com.ragagent.retrieval.*` 与 `com.ragagent.config.*`（"五批全量"从未覆盖检索引擎域），现已并入 B4；声称"全量"前先核对脚本包清单与 `server/src/test/java/com/ragagent/` 目录；②单跑 `:server:test` 必假红（Mockito attach）——用脚本的五批划分；③并发跑测试（同事同时跑）会撞固定端口，出现偶发假红（2026-09-25 收口批 B2 的 bs-internal-bad-sig 一次 409 即此，单跑即绿）；dev docreader 常驻 50051 时 `SystemContractTest.parserEnginesOfflineShape` 可能翻红（环境相关，干净树同样失败，见 `known-issues/07-model-debug.md`）；④**验收门分档（2026-09-25 起）**：日常提交跑 `scripts/acceptance.sh --changed`（改动文件 → 领域包 → 受影响批，约 30~80s；命中共享面=build/gradle 文件、`gradle.properties`、`settings*`、`server/src` 下根包与资源、`migrations/`、未知新域 → 自动升格全量），批次交付/里程碑才跑无参数全量（约 3.5 分钟）。原因：五个 `--tests` 过滤器互为 task 输入 → 批次间不共享缓存，全量一次实测 216s；`--dry-run` 可先看映射计划 |
 | 双端 A/B | 九族 GET + 写路径 + HybridSearch 两场景 + models/{id}/debug 24 场景逐字节 MATCH——2026-09-22 |
 
 | 波 | 内容 | 状态 |
@@ -1592,7 +1592,8 @@ ab-members/ab-system）与录制脚本参数化模式（XXX_TARGET_PORT/XXX_OUT_
   `agent.approval`、`sandbox` 客户端切片、`SkillFrontmatter`/`SkillBundleParser`/`TenantSkillService`、
   `agentm.BuiltinAgentRegistry`、`BrowserSkillManager`（含 `Sec-WebSocket-Protocol` 校验）
 - **文档/工具（收尾期新增）**：`docs/known-issues/`（坑正文分片）、`docs/translation-log.md`（日志/索引）、
-  `scripts/route-recon.py`（路由缺口对账）、`scripts/acceptance.sh`（五批验收）
+  `scripts/route-recon.py`（路由缺口对账）、`scripts/acceptance.sh`（五批验收：全量 /
+  `--changed` 只跑受影响批 / `--dry-run` / `--base <ref>` / `--with-ab`）
 
 ### 3.3 执行纪律（本会话验证有效）
 

@@ -119,12 +119,16 @@ VITE_DEV_PROXY_TARGET=http://localhost:8082 npm run dev
 ```bash
 export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"   # 换 shell 必设，否则找不到 JRT
 
-# 定向（某领域包）
+# 定向（写码微循环，某领域包）
 ./gradlew :server:test --tests "com.ragagent.session.*"
 
-# 全量必须分批跑（同 JVM 全量会触发 Mockito self-attach 风暴，见 known-issues/00）
-./gradlew :server:test --tests "com.ragagent.agent.*" --tests "com.ragagent.chatpipeline.*"
-./gradlew :server:test --tests "com.ragagent.common.*" --tests "com.ragagent.auth.*"   # …按 B1~B4 分批
+# 日常提交门：只跑受影响批（改动文件 → 领域包 → 批次，约 30~80s）
+./scripts/acceptance.sh --changed
+./scripts/acceptance.sh --changed --dry-run     # 先看映射计划不跑
+
+# 交付门：全量五批（必须分批跑，同 JVM 全量会触发 Mockito self-attach 风暴，见 known-issues/00）
+./scripts/acceptance.sh                         # 约 3.5 分钟
+./scripts/acceptance.sh --with-ab               # 额外 Go/Java 九族冒烟对拍
 
 # 真实 Docker 集成（默认跳过；OrbStack 注意 DOCKER_HOST）
 DOCKER_HOST=unix:///$HOME/.orbstack/run/docker.sock \
