@@ -329,15 +329,35 @@ get/检索路径（`getAllTenantById`、`QaWiring` 的 by-ids）**本已正确**
 **验证**：`QuestionBatchPlannerTest` **5 例**（选块顺序/剔除非文本与空内容/20 分批与边界 id/批数/载荷 JSON 往返）✓；
 编译 ✓ + **Spring 启动即构造成功**（应用能起 ⇒ 新服务与队列 bean 装配可用 ✓）；门 `--changed` → **B3 PASS 67s** ✓。
 
-**⚠️ 未完成的 E2E（诚实记账）**：本想跑通"上传 → 自动生成 → 推荐问题出现"，被 **dev 夹具缺口**挡住 ✗：
-1. 两个可用夹具 KB（`BQ Alpha/Beta`）的 `summary_model_id=m-sum`、`embedding_model_id=m-emb` **在库里都不存在** ✗
-   ——Go 日志实录 `ERROR … Model not found model_id=m-emb` ⇒ 处理直接失败、`chunks` 为 0 ✗；
-2. 问题生成按设计**要求 KB 需要 embedding 模型**（Go `NeedsEmbeddingModel` ⇒ `vector||keyword`）⇒ 无法用"关掉索引"绕过 ✗；
-3. 本地也没有 embedding stub（库里 Embedding 模型全指远端；只有 chat stub 在 `127.0.0.1:8181` ✓，其回复是固定文案 ✓）。
+**✅ 端到端已跑通（W5γ5.19 续），且抓出两个"单测/门全绿、真机才暴露"的 bug**：
 
-**复现配方（三步，约 10 分钟）**：① 起本地 embedding stub（OpenAI 形状 `{"data":[{"embedding":[…]}],"model":…}`）；
-② 建一个 Embedding 模型行指向它（`embedding_parameters.dimension` 必填）；③ 在目标 KB 上开
-`question_generation_config={"enabled":true,"question_count":3}`（并把 summary/embedding 模型指到可用行）后上传小 txt ⇒
-`chunks.metadata.generated_questions` 与 `/agents/{id}/suggested-questions` 应同时出现。
+| bug | 现象 | 根因与修法 |
+|---|---|---|
+| ① **worker 无租户上下文**（致命） | `InProcessQuestionGenerationTaskQueue` 报 `IllegalStateException: model not found`（同一模型在 HTTP 请求里正常） | 进程内 worker 线程没有请求上下文，而 `ModelRuntimeFactory` 的可见性判定读 `TenantContext`（空 ⇒ tid=0 ⇒ 查不到模型行）。**Go 在 worker 开头就 `ctx = context.WithValue(ctx, types.TenantIDContextKey, payload.TenantID)`** ⇒ Java 侧漏了这步。修法：`handle()` 按 `WikiBatchSupport` 同款纪律绑定/恢复租户 |
+| ② **槽位递减时机不对** | 失败且还会重试时就释放了 finalizing 槽 ⇒ 父知识可能在问题落库前完成 | Go：`willDrain = retErr == nil \|\| final`。修法：队列按 `attempt > MAX_RETRY` 传 `terminal`，service 仅在 `succeeded \|\| terminal` 时递减 |
 
-（本轮对 dev 库的探针改动**已全部回退**：`question_generation_config` 置回 NULL、探针知识与分块已删 ✓；`:8082` 跑当前构建 ✓。）
+**真机证据（Java 腿）**：
+```
+KnowledgeProcessWorker I [KnowledgePostProcess] Knowledge <id> entered finalizing (1 subtask(s) pending)
+QuestionGenerationService I Question generation (batch): knowledge=<id> batch=0 chunks_in_batch=1 processed=1 generated=3
+chunks.metadata.generated_questions → 3 条（"WeKnora 支持哪些检索方式？" 等）
+```
+（`wiki/graph` 都关 ⇒ `finalizing (1 subtask)` 那 1 个槽就是**问题批** ⇒ 扇出记账生效 ✓。）
+
+**E2E 配方（约 10 分钟，踩过的坑都在这）**：
+1. 起**本地 LLM stub**（一个 HTTP 服务同时提供 `/v1/chat/completions`（返回 `1. …\n2. …\n3. …`，
+   解析器是"逐行 trim → 裁前缀 → >5 字节才收"）与 `/v1/embeddings`（固定向量，维度与模型行一致））；
+2. 建 chat + Embedding 两个模型行：**必须同租户**（从别的租户的行复制 ⇒ `getByIdVisible` 找不到 ⇒ `model not found`）、
+   **id 用 UUID**、`api_key` 明文亦可；**插入后必须重启 Java**（模型行有启动期缓存）；
+3. SSRF 白名单加 `127.0.0.1`（否则 `baseURL SSRF check failed: hostname 127.0.0.1 is restricted`）；
+4. 目标 KB：`question_generation_config={"enabled":true,"question_count":3}` + 指向上面两个模型行 +
+   `indexing_strategy` 至少开一个（`vector||keyword` —— 问题生成的触发条件之一）；
+5. 建知识用 **`/knowledge/manual`**（`docreader` **不支持 txt**：`docreader parse error: Unsupported file type: txt`）；
+   上传**同名文件会被去重**成同一行（换名再试）；
+6. 查 `chunks.metadata.generated_questions` 与 `/agents/{id}/suggested-questions`。
+
+**Go 腿 A/B 未完成**：Go 侧用同一 stub 模型在嵌入阶段被远端 `401` 挡住（Go 自己的模型缓存/嵌入路径问题），
+按"不追非本批范围"停手。
+
+（dev 夹具**已全部复原**：探针 KB/知识/分块已删、`BQ Alpha/Beta` 配置回原值、自建模型行已删、
+SSRF 白名单两端回退为 `["198.18.0.0/15"]`、本地 stub 已停 ✓；`:8082` 跑当前构建 ✓。）

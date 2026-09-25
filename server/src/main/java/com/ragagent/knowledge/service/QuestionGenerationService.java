@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.tracing.langfuse.LangfuseTaskScope;
+import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -63,29 +64,65 @@ public class QuestionGenerationService {
         this.chunkService = chunkService;
     }
 
-    /** 队列入口：JSON 载荷 → 任务作用域（对照 Go 的 asynq 中间件）→ 处理。 */
+    /** 队列入口：JSON 载荷 → 任务作用域（对照 Go 的 asynq 中间件）→ 处理（默认按终态处理）。 */
     public void handleJson(String payloadJson) {
+        handleJson(payloadJson, true);
+    }
+
+    /**
+     * @param terminal 本次是否是该任务的**最后一次**尝试（队列侧按 {@code attempt > MAX_RETRY} 传入）。
+     *                 对照 Go 的 {@code isFinalAsynqAttempt(ctx)}：槽位只在"成功"或"最后一次尝试"递减
+     *                 （{@code willDrain = retErr == nil || final}）——失败且还会重试时递减会让父知识
+     *                 在问题落库前就完成。
+     */
+    public void handleJson(String payloadJson, boolean terminal) {
         QuestionBatchPayload p = QuestionBatchPayload.fromJson(payloadJson);
         try (LangfuseTaskScope scope = LangfuseTaskScope.start(TASK_TYPE_QUESTION_GENERATION, p.tracing(),
                 Map.of("knowledge_id", p.knowledgeId(),
                         "batch_index", String.valueOf(p.batchIndex())),
                 LangfuseTaskScope.previewPayload(payloadJson))) {
-            handle(p);
+            handle(p, terminal);
         }
     }
 
-    /** 对照 {@code processQuestionGenerationForChunks} 的批次入口。 */
+    /** 对照 {@code processQuestionGenerationForChunks} 的批次入口（默认按终态处理）。 */
     public void handle(QuestionBatchPayload p) {
+        handle(p, true);
+    }
+
+    /** @param terminal 见 {@link #handleJson(String, boolean)}。 */
+    public void handle(QuestionBatchPayload p, boolean terminal) {
         if (spanTracker.isAttemptSuperseded(p.knowledgeId(), p.attempt())) {
             log.info("question generation: attempt {} superseded for {}, skipping stale enrichment",
                     p.attempt(), p.knowledgeId());
             return;
         }
+        // 绑定批任务的租户上下文（对照 Go processQuestionGenerationForChunks 开头的
+        // ctx = context.WithValue(ctx, types.TenantIDContextKey, payload.TenantID)）。
+        // 进程内 worker 线程**没有** HTTP 请求上下文，而模型工厂/仓储的可见性判定都读
+        // TenantContext（空 ⇒ tid=0 ⇒ 解析得 "model not found"）——不绑定这条链路必失败。
+        // 绑定/恢复样式照 WikiBatchSupport 的同款纪律（clear 后仅在原值非空时恢复）。
+        var prevPrincipal = TenantContext.currentPrincipal();
+        Long prevTenant = TenantContext.currentTenantId();
+        String prevRole = TenantContext.currentRole();
+        boolean prevSysAdmin = TenantContext.isSystemAdmin();
+        String prevUser = TenantContext.currentUserId();
+        boolean prevAccessAll = TenantContext.canAccessAllTenants();
+        TenantContext.set(p.tenantId(), null, null, false, null, false);
+        boolean succeeded = false;
         try {
             runBatch(p);
+            succeeded = true;
         } finally {
-            // 终态释放槽位（对照 finalizeSubtaskDetached；Java 的进程内队列无重试 → final 恒真）
-            drainSubtask(p.knowledgeId(), "question_batch[" + p.batchIndex() + "]");
+            TenantContext.clear();
+            if (prevTenant != null || prevPrincipal != null || prevRole != null
+                    || prevUser != null || prevSysAdmin || prevAccessAll) {
+                TenantContext.set(prevTenant, prevPrincipal, prevRole, prevSysAdmin, prevUser, prevAccessAll);
+            }
+            // 终态释放槽位（对照 finalizeSubtaskDetached 的 willDrain = retErr == nil || final）
+            if (succeeded || terminal) {
+                drainSubtask(p.knowledgeId(), "question_batch[" + p.batchIndex() + "]");
+            }
         }
     }
 

@@ -56,7 +56,7 @@ public class InProcessQuestionGenerationTaskQueue implements QuestionGenerationT
 
     private void run(String body, int attempt) {
         try {
-            service.handleJson(body);
+            service.handleJson(body, attempt > MAX_RETRY);
         } catch (RuntimeException e) {
             if (attempt > MAX_RETRY) {
                 log.warn("question generation task gave up after {} attempts: {}", attempt, e.toString());
