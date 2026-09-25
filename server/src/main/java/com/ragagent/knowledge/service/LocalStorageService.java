@@ -10,6 +10,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 
 import com.ragagent.common.error.BizException;
+import com.ragagent.storage.fileserve.FileTransport;
 import com.ragagent.storage.fileserve.StoragePathGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +93,24 @@ public class LocalStorageService {
      * {@link StoragePathGuard}（③ 去重，单一份实现）；本支保留 BizException 信封错误通道
      * （{@code local://} + {@code resource://} 的解析顺序敏感，委托后语义不变）。
      */
+    /**
+     * 流式打开（W5γ5.4 ①b）：本地对象对应 Go 的 {@code *os.File} → **可 seek**
+     * （ServeContent：{@code Accept-Ranges: bytes} + Range/206）。错误通道与
+     * {@link #readChecked} 一致（{@code Failed to retrieve file} 信封，守护卫先行）。
+     *
+     * <p>尺寸在打开时取（{@code Files.size}）：对象缺失即 {@code IOException} → 与 Go 的
+     * {@code os.Open} 失败同口径（404），而不是读一半才炸。</p>
+     */
+    public FileTransport.OpenedFile openChecked(String filePath) {
+        Path resolved = resolveUnderBase(filePath);
+        try {
+            return FileTransport.OpenedFile.ofSeekable(resolved, Files.size(resolved));
+        } catch (IOException e) {
+            throw new BizException(com.ragagent.common.error.AppError.internal("Failed to retrieve file")
+                    .withDetails("failed to open file: " + e.getMessage()));
+        }
+    }
+
     private Path resolveUnderBase(String filePath) {
         String candidate = StoragePathGuard.stripKnownScheme(filePath);
         Path joined = Path.of(candidate).isAbsolute() ? Path.of(candidate) : baseDir.resolve(candidate);

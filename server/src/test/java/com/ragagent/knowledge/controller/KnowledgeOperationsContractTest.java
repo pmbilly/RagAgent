@@ -423,6 +423,25 @@ class KnowledgeOperationsContractTest {
         assertGet("/api/v1/knowledge/" + CROSS_KG + "/preview", "kg-preview-cross.json");
     }
 
+    /**
+     * W5γ5.4 ①b 新增能力：本地文件的 download 走 {@code filetransport.Serve} 的 Seekable 支路
+     * → **支持 Range**（改前是"读满 byte[]"，只有 no-Range 两种形态）。
+     *
+     * <p>这条是**断言型**用例（非 golden）：Go 侧的 kg-* 实录没录 Range 场景，
+     * 故此处不锚 golden，只钉 206/Content-Range 的形状；要升级成 golden 可照
+     * {@code record-w5c-golden.sh} 的手法补录。</p>
+     */
+    @Test
+    void downloadSupportsRange() throws Exception {
+        replayManualUpdates();
+        MvcResult r = mockMvc.perform(get("/api/v1/knowledge/" + KG1 + "/download")
+                .header("Authorization", owner).header("Range", "bytes=0-5")).andReturn();
+        assertEquals(206, r.getResponse().getStatus(), raw(r));
+        assertEquals("bytes", r.getResponse().getHeader("Accept-Ranges"));
+        assertEquals("bytes 0-5/34", r.getResponse().getHeader("Content-Range"));
+        assertEquals(6, r.getResponse().getContentAsByteArray().length);
+    }
+
     // ════════════════ 8) image info ════════════════
 
     @Test

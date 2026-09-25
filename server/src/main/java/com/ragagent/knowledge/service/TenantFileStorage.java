@@ -156,6 +156,36 @@ public class TenantFileStorage {
         }
     }
 
+    /**
+     * 流式打开（W5γ5.4 ①b；对照 Go {@code fileService.GetFile} 的 io.ReadCloser 形态）：
+     * 本地引用 → 可 seek（Go 的 {@code *os.File}）；provider 引用 → 按能力分流
+     * （minio 可 seek / aws-sdk 族流式）——复用文件代理面的同一适配器
+     * （{@link com.ragagent.storage.fileserve.ProviderFileContentService}），不重复一套分流逻辑。
+     *
+     * <p>错误折叠成与 {@link #readChecked} 同一个 {@code Failed to retrieve file} 信封
+     * （golden {@code kg-download-404/traversal} 锁的就是它）。</p>
+     */
+    public com.ragagent.storage.fileserve.FileTransport.OpenedFile open(long tenantId, String filePath) {
+        String provider = StoragePaths.parseProviderScheme(filePath);
+        if (provider.isEmpty() || isLocalScheme(provider)) {
+            return local.openChecked(filePath);
+        }
+        try {
+            StorageFileResolver.ProviderResolution resolved = resolveProvider(tenantId, provider);
+            if (!resolved.ok()) {
+                throw new IllegalStateException("read from provider \"" + provider + "\" failed: "
+                        + resolved.error());
+            }
+            return new com.ragagent.storage.fileserve.ProviderFileContentService(resolved.service())
+                    .getFile(filePath);
+        } catch (BizException e) {
+            throw e;
+        } catch (IOException | RuntimeException e) {
+            String detail = e.getMessage() == null ? e.toString() : e.getMessage();
+            throw new BizException(AppError.internal("Failed to retrieve file").withDetails(detail));
+        }
+    }
+
     // ── 删 ──────────────────────────────────────────────────────────────────
 
     /**

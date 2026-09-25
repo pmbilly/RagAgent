@@ -1,5 +1,27 @@
 # 交接文档（新会话接手用）
 
+## 0.-40 ①b：知识下载/预览面流式化（2026-09-25——W5γ5.4）
+
+**做了什么**（对照 Go：`handler/knowledge.go:1477/1533` → `filetransport.Serve`；改前本仓是"读满 byte[] 再 `ResponseEntity<byte[]>`"）：
+
+| 件 | 说明 |
+|---|---|
+| `KnowledgeService.openKnowledgeFile`（替换 `getKnowledgeFile`） | 返回 `KnowledgeFileStream(filename, opened, manual)`——**不读内容**。manual 知识在内存（照 Go 的 `NopCloser(bytes.Reader)`：**非 seekable** → `none` + 显式 CL）；真实文件走存储层打开 |
+| `TenantFileStorage.open(tenantId, filePath)` | 本地引用 → 可 seek；provider 引用 → 复用 {@code ProviderFileContentService}（**同一套能力分流**，不重复实现）；错误折叠成与 `readChecked` 同一个 `Failed to retrieve file` 信封（kg-404/traversal golden 锁的就是它） |
+| `LocalStorageService.openChecked` | 本地流式打开（`Files.size` 先取长度 → 缺失即信封 404，与 Go 的 `os.Open` 同口径；目录照 Go 允许"打开成功、读时才炸"） |
+| `KnowledgeController` 两端点 | 改为 `void` + `HttpServletRequest/Response` + `FileTransport.serve`；`Content-Description`/`Content-Transfer-Encoding`/`Expires` 照旧在 serve 前设；disposition 仍用既有 `contentDisposition(...)` 助手（golden 逐字不动）|
+
+**顺带获得的能力**：知识下载/预览**支持 Range**（改前没有——`serveFile` 只输出两种无 Range 形态）。
+
+**验证**：`KnowledgeOperationsContractTest` **15/15 全绿**——`kg-download*` / `kg-preview*`（含 manual 的 `none`+CL 与真文件的 `bytes`+CL）**golden 零重录**；新增**断言型**用例 `downloadSupportsRange`：`Range: bytes=0-5` → 206 + `Accept-Ranges: bytes` + `Content-Range: bytes 0-5/34` + 6 字节体（非 golden：Go 侧 kg-* 实录未录 Range，升级成 golden 可照 `record-w5c-golden.sh` 补录）；受影响批 **B3 全绿（58s）**。
+
+**未做（留档）**：知识下载的**云引用**端到端 A/B（`file_path = minio://…` 的知识行）——它复用 `/files` 已 A/B 验证过的同一 `ProviderFileContentService`，但要造 rows；做法：`psql` 把某知识行 `file_path` 临时改为 `minio://weknora-ab/10002/exports/stream-small.bin`（先备份原值）+ 双端起 minio env + `curl /api/v1/knowledge/<id>/download` 对拍 + 还原。
+
+**存储 ①③ 至此全部收官**：①a（流式化）/①a2（凭据解密缺陷）/①a3（minio seekable）/①b（知识面）＋ ③B（守卫去重）。
+
+---
+
+
 ## 0.-39 ①a3：minio seekable 补适配（2026-09-25——W5γ5.3，A/B 全 PASS）
 
 **做了什么**（让 Java 与 Go 一样，对 **minio** 走 `http.ServeContent`：`Accept-Ranges: bytes` + Range/206）：

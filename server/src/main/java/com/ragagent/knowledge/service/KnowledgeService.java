@@ -2001,13 +2001,21 @@ public class KnowledgeService {
      * local://{rel}（Go provider 原生）都支持；路径越界 → Go 的
      * "invalid file path: path traversal denied: ..." 原文（golden 钉住）。
      *
-     * @return (bytes, filename, manual)；manual = 内存 reader（Go 侧非 Seeker →
-     *         Accept-Ranges: none），document = 磁盘文件（Seeker → bytes）
+     * @return (opened, filename, manual)；manual = 内存流（Go 侧 NopCloser(bytes.Reader) →
+     *         非 Seeker → Accept-Ranges: none + 显式 CL），document = 存储层打开
+     *         （本地 *os.File 可 seek → bytes + Range；云按 provider 能力，W5γ5.4 ①b）
      */
-    public record KnowledgeFile(byte[] content, String filename, boolean manual) {
+    public record KnowledgeFileStream(String filename,
+            com.ragagent.storage.fileserve.FileTransport.OpenedFile opened, boolean manual) {
     }
 
-    public KnowledgeFile getKnowledgeFile(String id) {
+    /**
+     * 打开知识文件流（对照 Go {@code GetKnowledgeFile} 的 io.ReadCloser 形态）。
+     *
+     * <p>替换先前"读满 byte[]"的实现（W5γ5.4 ①b）：大文件不再整份入堆，
+     * 且下载/预览因此获得与 Go 相同的 Range 语义（本地 {@code Accept-Ranges: bytes}）。</p>
+     */
+    public KnowledgeFileStream openKnowledgeFile(String id) {
         Knowledge knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getId, id)
                 .eq(Knowledge::getTenantId, tenantId())
@@ -2020,13 +2028,16 @@ public class KnowledgeService {
             String content = knowledge.getMetadata() != null
                     && knowledge.getMetadata().hasNonNull("content")
                     ? knowledge.getMetadata().get("content").asText() : "";
-            return new KnowledgeFile(
-                    content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                    sanitizeManualDownloadFilename(knowledge.getTitle()), true);
+            byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            // 照 Go：manual 分支是 NopCloser(bytes.Reader) —— **非 seekable** → none + 显式 CL
+            return new KnowledgeFileStream(sanitizeManualDownloadFilename(knowledge.getTitle()),
+                    com.ragagent.storage.fileserve.FileTransport.OpenedFile.ofStream(
+                            new java.io.ByteArrayInputStream(bytes), bytes.length),
+                    true);
         }
         String filePath = knowledge.getFilePath() == null ? "" : knowledge.getFilePath();
-        return new KnowledgeFile(fileStorage.readChecked(tenantId(), filePath),
-                knowledge.getFileName(), false);
+        return new KnowledgeFileStream(knowledge.getFileName(),
+                fileStorage.open(tenantId(), filePath), false);
     }
 
     /**

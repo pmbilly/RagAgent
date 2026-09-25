@@ -21,6 +21,9 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.storage.fileserve.FileTransport;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -414,31 +417,45 @@ public class KnowledgeController {
 
     /** 对照 DownloadKnowledgeFile：Contributor 路由门 + KBAccessWrite + handler 内 Editor 检查 */
     @GetMapping("/knowledge/{id}/download")
-    public ResponseEntity<byte[]> downloadKnowledgeFile(@PathVariable("id") String id) {
+    public void downloadKnowledgeFile(@PathVariable("id") String id,
+                                      HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
         String safeId = LogSanitizer.sanitize(id);
         if (safeId.isEmpty()) {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
         }
         resolveKnowledgeByGuard(safeId, false, true);
-        KnowledgeService.KnowledgeFile file = knowledgeService.getKnowledgeFile(safeId);
-        Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("Content-Description", "File Transfer");
-        headers.put("Content-Transfer-Encoding", "binary");
-        headers.put("Expires", "0");
-        return serveFile(file, "application/octet-stream", false, !file.manual(), headers);
+        KnowledgeService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
+        response.setHeader("Content-Description", "File Transfer");
+        response.setHeader("Content-Transfer-Encoding", "binary");
+        response.setHeader("Expires", "0");
+        // W5γ5.4 ①b：改走 filetransport.Serve（本地 Seekable → bytes + Range；云按 provider 能力）
+        FileTransport.serve(response, request, file.opened(), new FileTransport.Options(
+                file.filename(), true, "application/octet-stream",
+                contentDisposition("attachment", safeFilename(file.filename())),
+                "private, no-store", file.opened().size()));
     }
 
     /** 对照 PreviewKnowledgeFile：Viewer + KBAccessRead，Content-Type 按扩展名 */
     @GetMapping("/knowledge/{id}/preview")
-    public ResponseEntity<byte[]> previewKnowledgeFile(@PathVariable("id") String id) {
+    public void previewKnowledgeFile(@PathVariable("id") String id,
+                                     HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
         String safeId = LogSanitizer.sanitize(id);
         if (safeId.isEmpty()) {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
         }
         resolveKnowledgeByGuard(safeId, false);
-        KnowledgeService.KnowledgeFile file = knowledgeService.getKnowledgeFile(safeId);
+        KnowledgeService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
         ContentTypeByFilename.Record safe = ContentTypeByFilename.safe(file.filename());
-        return serveFile(file, safe.contentType(), safe.inline(), !file.manual(), new LinkedHashMap<>());
+        FileTransport.serve(response, request, file.opened(), new FileTransport.Options(
+                file.filename(), !safe.inline(), safe.contentType(),
+                contentDisposition(safe.inline() ? "inline" : "attachment", safeFilename(file.filename())),
+                "private, no-store", file.opened().size()));
+    }
+
+    private static String safeFilename(String filename) {
+        return filename == null ? "" : filename;
     }
 
     /** 对照 UpdateImageInfo：ownership + KBAccessWrite + image_info 解析/归属/向量分支 */
@@ -1189,31 +1206,6 @@ public class KnowledgeController {
             return false;
         }
         return "()<>@,;:\\\"/[]?=".indexOf(c) < 0;
-    }
-
-    /**
-     * 对照 filetransport.Serve 的响应头骨架（下载/预览共用；Range 语义未复刻——
-     * MockMvc 契约只锁头部集合与字节）。
-     *
-     * @param seeker Go 的 io.ReadSeeker 判定：真实文件 → Accept-Ranges: bytes；
-     *               manual（内存 reader）→ Accept-Ranges: none + 显式 Content-Length
-     */
-    private ResponseEntity<byte[]> serveFile(KnowledgeService.KnowledgeFile file, String contentType,
-                                             boolean inline, boolean seeker, Map<String, String> preHeaders) {
-        String filename = file.filename() == null ? "" : file.filename();
-        ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-                .header("Content-Type", contentType)
-                .header("X-Content-Type-Options", "nosniff")
-                .header("Content-Disposition", contentDisposition(inline ? "inline" : "attachment", filename))
-                .header("Cache-Control", "private, no-store")
-                .header("Content-Length", String.valueOf(file.content().length));
-        if (!seeker) {
-            builder.header("Accept-Ranges", "none");
-        } else {
-            builder.header("Accept-Ranges", "bytes");
-        }
-        preHeaders.forEach(builder::header);
-        return builder.body(file.content());
     }
 
     private static String textOrEmpty(JsonNode node, String field) {

@@ -61,7 +61,9 @@
 
 ## 已知差异（备案）
 
-- **云对象整对象入堆**：`ProviderFileContentService.getFile` 走 `OpenedFile.ofBytes`，
+- **云对象整对象入堆**：~~`ProviderFileContentService.getFile` 走 `OpenedFile.ofBytes`~~ ✅ **①a/①a2/①a3/①b 全部落地
+  （W5γ5.1~γ5.4）**：HTTP 面流式化 + 凭据解密 + minio seekable + 知识下载面流式化（含 Range）；
+  原描述留档：`OpenedFile.ofBytes`，
   Go 是流式 `io.ReadCloser`（HTTP 层直转）。大对象流式化要给 `FileTransport` 补第三种形态。
   → ✅ **①a 已落地（W5γ5.1，2026-09-25）**：`OpenedFile` 补流形态 + `serve` 分流 + `closeReader` 真关流，
   `ProviderFileContentService` 改 `ofStream`（打开仍即时 → 404 语义不变）——**golden 零重录**（B3+B4 全绿）。
