@@ -1317,3 +1317,49 @@
 6. **env-path 的 SSRF 差异**：OpenSearch 的客户端构造（NewOpenSearchClient）内置
    无条件 SSRF 校验——env-path 也过；ES 的 env-path 用裸 SDK 客户端不过。同是
    env-store 注册，两个驱动的安全面不同，接线时别对齐。
+
+## W5γ4.10：Doris 检索引擎（2026-09-25）
+
+1. **SQL 面用"执行口"缝，不直连 JDBC**：Doris 方言（`ARRAY<FLOAT>` 字面量、`MATCH_ANY`、
+   `SHOW INDEX` 的列序随小版本漂移、`inner_product_approximate`）没有本地等价库可跑，
+   故抽 `DorisSqlExecutor`（execute/query/scalar + Row 视图），生产实现是 Hikari 池 + MySQL
+   协议，测试实现是记账假执行器——SQL 文本、参数序、扫描分支因此都能逐句钉住。
+   这是本仓第一次把"店"的 SQL 面做成可测缝；Qdrant/Milvus 等后续店可复用同一手法。
+2. **DDL 里的双制表符是 Go 原文形状，不是笔误**：`schema.go` 的模板里 `PROPERTIES(\n\t%s\n)`
+   自带一个制表符，`properties` 串自己又带一个 → 输出 `\t\t"replication_num"=...`；
+   `"metric_type"` 行也是两个制表符。翻译时若"顺手对齐缩进"，DDL 字节就与 Go 分叉
+   （用 `sed -n '146,178p' schema.go | cat -et` 可复核）。
+3. **`Publish Timeout` 是成功状态**：Doris Stream Load 的 `Status` 只有
+   `Success` 与 `Publish Timeout` 两种算成功（后者=数据已写入但发布事务超时）；
+   其余一律失败，报文形态 `status=%s msg=%s err_url=%s` 照 Go。
+4. **Stream Load 的凭据转发比 Go 的通用客户端更严**：FE 会 307 到 BE，Basic 凭据要跟着走；
+   Go 的包装是"同主机或白名单目标才转发"，跨主机非白名单直接拒
+   （`stream load redirect blocked: target host %q is not trusted...`）。Java 侧用
+   `followRedirects(NEVER)` + 手写循环只跟随 307/308（Go 会跟随 301/302/303 并改写 GET——
+   该差异对 Stream Load 无观测面）。另：`Expect: 100-continue` 是 JDK HttpClient 的禁设头，
+   Doris 不依赖它（仅提前拒收优化）。
+5. **两条写路径由兼容模式决定**（别只翻一条）：
+   - `legacy`（UNIQUE KEY + MoW）：批量更新走 Stream Load 的 `partial_columns=true` +
+     `merge_type=APPEND`，body 是 `[{"id":…,"is_enabled":…}]`（Go `json.Marshal` 的 map
+     键字母序 → Java 显式 `TreeMap`）；
+   - `inner_product_duplicate`（DUPLICATE KEY）：**没有** partial update 可言，改为
+     "读整行 → 变异 → delete+insert 重写"，也因此 `ValidateKnowledgeIndexMove` 对
+     reuse_vectors 搬移直接拒（`reuse_vectors move is not supported by Doris ANN tables;
+     use reparse mode`）——失败的 insert 会丢掉唯一向量副本。
+6. **空 embedding 的判定键是 SourceID**：`additionalParams["embedding"]` 是
+   `Map<String, float[]>`（KV 服务按 SourceID 装），查不到即"空向量跳过"（WARN）；
+   单测里若把 embedding 挂到别的键上，行会被静默跳过（本次两处用例就是这么写错的）。
+7. **兼容模式解析是三步序且只算一次**（含错误也缓存，照 `sync.Once`）：
+   显式配置 → 既有表 DDL 探测（`SHOW CREATE TABLE` 判 `duplicate key(`/`unique key(`，
+   混用直接拒）→ 只有 `auto` 且无既有表才跑函数探针
+   （`SELECT inner_product_approximate([1.0],[1.0])` / `cosine_distance_approximate`，
+   都能报错才拒收）。因此**任何**写路径都会先打一次 `information_schema` 列表查询——
+   桩里必须给这条查询留位置（否则会撞 "no query stub"）。
+8. **env-path 不做探针**：Go 的 `container.go` 注册路径只 `sql.Open`（惰性）+ 注册，
+   不建表不探测；Java 侧 Hikari 用 `initializationFailTimeout=-1` 保住"池创建不拨号"，
+   所以 `RETRIEVE_DRIVER=doris` 在无 Doris 的机器上也能完成注册（首个请求才失败——
+   与 Go 同形，也让注册路径的单测不依赖真库）。
+9. **验收脚本的历史遗漏（本批补上）**：`scripts/acceptance.sh` 的五批划分里从未包含
+   `com.ragagent.retrieval.*` 与 `com.ragagent.config.*`——"五批全量"其实一直没覆盖
+   检索引擎域（ES/OpenSearch 批次都是单独跑 `--tests`）。本批把两域补进 B4；
+   今后声称"全量"前先核对脚本覆盖的包清单与 `server/src/test/java/com/ragagent/` 是否一一对应。

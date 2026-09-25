@@ -81,10 +81,23 @@ class RetrievalEngineWiringConfigTest {
     void unportedDriversAreSkipped() throws Exception {
         EngineRegistry registry = new EngineRegistry(null, null);
         assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"qdrant", "milvus", "weaviate", "doris", "tencent_vectordb",
+                new String[] {"qdrant", "milvus", "weaviate", "tencent_vectordb",
                         "sqlite"}, newAdapter(), null, null)).doesNotThrowAnyException();
         // 全部未落地 → 无注册、装配不炸
         assertThat(registry.getAllRetrieveEngineServices()).isEmpty();
+    }
+
+    @Test
+    void dorisDriverRegistersEnvStoreEngine() throws Exception {
+        EngineRegistry registry = new EngineRegistry(null, null);
+        // env 未配置 → Go 的缺省口径（doris-fe:9030 / weknora / root）；构造不拨号
+        // （Hikari initializationFailTimeout=-1 + Stream Load 客户端懒发请求）
+        RetrievalEngineWiringConfig.registerEnvStores(registry,
+                new String[] {"doris"}, newAdapter(), null, null);
+        var svc = registry.getRetrieveEngineService(EngineTypes.ENGINE_DORIS);
+        assertThat(svc).isNotNull();
+        assertThat(svc.support()).containsExactly(EngineTypes.RETRIEVER_KEYWORDS,
+                EngineTypes.RETRIEVER_VECTOR);
     }
 
     @Test

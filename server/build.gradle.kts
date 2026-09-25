@@ -81,6 +81,12 @@ dependencies {
     // DuckDB（数据分析，对照 Go internal/application/service/chat_pipeline/data_analysis.go）
     implementation("org.duckdb:duckdb_jdbc:1.1.3")
 
+    // Doris 检索引擎（W5γ4.10）：MySQL 协议主链路。对照 Go go-sql-driver/mysql
+    // （container.go 的 _ "github.com/go-sql-driver/mysql" 注册 + createDorisEngine 的
+    // sql.Open）；Stream Load（HTTP/8030）由 DorisStreamLoadClient 自持，不用 SDK。
+    // 版本由 Spring Boot BOM 管理。
+    implementation("com.mysql:mysql-connector-j")
+
     // JWT（对照 internal/middleware/auth.go）
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")

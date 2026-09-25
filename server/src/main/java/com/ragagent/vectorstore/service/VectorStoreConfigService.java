@@ -341,18 +341,24 @@ public class VectorStoreConfigService {
         return "";
     }
 
+    /**
+     * 对照 testDorisConnection（vectorstore_healthcheck.go L280-327）：走 MySQL 协议驱动
+     * 的完整探针——连接（Ping 语义）+ {@code SELECT @@version}（失败只 WARN，返回空版本）；
+     * 版本串剥 {@code "Doris-"} 前缀（{@code "5.7.99 Doris-4.1.0"} → {@code "4.1.0"}）。
+     * database 不强制：缺省用 information_schema。
+     */
     private String testDoris(ConnectionConfig config) {
         if (empty(config.addr)) {
             throw new ConnectorFailure("failed to create doris connection: addr is required");
         }
-        // database 不强制；Go Ping 无库时用 information_schema（变量保留对照原文）
-        int idx = config.addr.lastIndexOf(':');
-        int port = idx > 0 ? Integer.parseInt(config.addr.substring(idx + 1)) : 9030;
-        if (!dial(config.addr.substring(0, idx > 0 ? idx : config.addr.length()), port)) {
-            throw new ConnectorFailure("failed to connect to doris: connection refused or authentication failed");
+        try {
+            return com.ragagent.retrieval.engine.doris.DorisRetrieveRepository.testConnection(
+                    config.addr, config.database, config.username, config.password);
+        } catch (java.sql.SQLException e) {
+            log.warn("Doris connection test failed: {}", e.getMessage());
+            throw new ConnectorFailure(
+                    "failed to connect to doris: connection refused or authentication failed");
         }
-        // 已知差异：Go 走 MySQL 协议 SELECT @@version 并剥 "Doris-" 前缀；Java 无驱动 → ""
-        return "";
     }
 
     /**

@@ -41,7 +41,8 @@ run_batch B4  --tests "com.ragagent.rerank.*" --tests "com.ragagent.sandbox.*" \
   --tests "com.ragagent.stream.*" --tests "com.ragagent.system.*" \
   --tests "com.ragagent.tracing.*" --tests "com.ragagent.vectorstore.*" \
   --tests "com.ragagent.webfetch.*" --tests "com.ragagent.websearch.*" \
-  --tests "com.ragagent.wiki.*" --tests "com.ragagent.agentm.*"
+  --tests "com.ragagent.wiki.*" --tests "com.ragagent.agentm.*" \
+  --tests "com.ragagent.retrieval.*" --tests "com.ragagent.config.*"
 
 echo ""
 echo "ACCEPTANCE PASS：五批全量测试全绿"

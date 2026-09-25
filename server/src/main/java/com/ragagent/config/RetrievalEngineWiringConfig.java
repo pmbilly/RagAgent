@@ -33,7 +33,8 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *   <li><b>env-store 注册</b>：按 {@code RETRIEVE_DRIVER} 逐段注册进程级引擎——
  *       postgres 由 {@link PgVectorEngineRepository} 承担（既有 JDBC 件的引擎口适配）；
  *       elasticsearch_v7/v8 从 {@code ELASTICSEARCH_ADDR/USERNAME/PASSWORD} 现场建驱动；
- *       其余驱动（sqlite/qdrant/milvus/weaviate/doris/tencent_vectordb/opensearch）未落地，
+ *       opensearch / doris 同法（{@code OPENSEARCH_*} / {@code DORIS_*}）；
+ *       其余驱动（sqlite/qdrant/milvus/weaviate/tencent_vectordb）未落地，
  *       明确 WARN（Go 会真注册——诚实降级备案，随 driver 批补）。</li>
  *   <li>{@link TenantStoreOwnership}：store 归属查表（工厂的跨租户防御）。</li>
  * </ul>
@@ -87,6 +88,9 @@ public class RetrievalEngineWiringConfig {
                 case "opensearch":
                     envOpenSearch(registry, osAuditSink, guard);
                     break;
+                case "doris":
+                    envDoris(registry, guard);
+                    break;
                 case "":
                     break;
                 default:
@@ -125,6 +129,52 @@ public class RetrievalEngineWiringConfig {
                     EngineTypes.ENGINE_OPENSEARCH), label);
         } catch (RuntimeException e) {
             log.error("Create {} repository failed: {}", label, e.getMessage());
+        }
+    }
+
+    /**
+     * env-path 的 Doris 注册——照 Go container.go L1355-1400：{@code DORIS_ADDR}（缺省
+     * {@code doris-fe:9030}）/ {@code DORIS_DATABASE}（缺省 {@code weknora}）/
+     * {@code DORIS_USERNAME}（缺省 {@code root}）/ {@code DORIS_PASSWORD} /
+     * {@code DORIS_HTTP_PORT}（缺省 8030）；Stream Load 的 HTTP base = addr 的 host + 该端口。
+     * 地址过 SSRF 校验（Go 的全局 MySQL dialer 在拨号时校验；本仓在构造期校验一次——同
+     * ES/OpenSearch 驱动的姿态）。
+     */
+    private static void envDoris(EngineRegistry registry, SsrfGuard guard) {
+        String label = "doris";
+        String addr = env("DORIS_ADDR");
+        if (addr.isEmpty()) {
+            addr = "doris-fe:9030";
+        }
+        String database = env("DORIS_DATABASE");
+        if (database.isEmpty()) {
+            database = "weknora";
+        }
+        String username = env("DORIS_USERNAME");
+        if (username.isEmpty()) {
+            username = "root";
+        }
+        String password = env("DORIS_PASSWORD");
+        int httpPort = 8030;
+        String rawPort = env("DORIS_HTTP_PORT");
+        if (!rawPort.isEmpty()) {
+            try {
+                httpPort = Integer.parseInt(rawPort);
+            } catch (NumberFormatException ignored) {
+                // Go：strconv.Atoi 失败 → 保留缺省
+            }
+        }
+        String httpBase = "http://"
+                + com.ragagent.retrieval.engine.doris.DorisRetrieveRepository.hostFromAddr(addr)
+                + ":" + httpPort;
+        try {
+            com.ragagent.retrieval.engine.doris.DorisRetrieveRepository repo =
+                    com.ragagent.retrieval.engine.doris.DorisRetrieveRepository.create(
+                            addr, httpBase, username, password, database, null, guard);
+            register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
+                    EngineTypes.ENGINE_DORIS), label);
+        } catch (RuntimeException e) {
+            log.error("Create {} client failed: {}", label, e.toString());
         }
     }
 

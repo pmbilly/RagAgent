@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-25 Doris 检索引擎落地（2026-09-25——W5γ4.10，SQL 族收官）
+
+**做了什么**（照 Go `repository/retriever/doris/` 全包 7 非测试文件 ~2,040 行，MySQL 协议主链路 + Stream Load HTTP 自持——Go 用 go-sql-driver/mysql + FE HTTP 8030）：
+
+| 件 | 说明 |
+|---|---|
+| `DorisRetrieveRepository`（新，engine/doris） | 实现 `RetrieveEngineRepository` + `KnowledgeIndexMover`。**表结构按维度分表** `<base>_<dim>`（base=ResolveCollectionName(indexCfg, DORIS_TABLE_PREFIX, "weknora_embeddings")）；**兼容模式**（compat.go 全文）：显式配置 → 既有表 DDL 探测（`SHOW CREATE TABLE` 判 `duplicate key(`/`unique key(`；混用拒收；与显式配置不符按 Go 原文拒）→ 只有 auto 且无既有表才跑函数探针（`inner_product_approximate`/`cosine_distance_approximate` 各试 `SELECT [1.0],[1.0]`，都失败才报错）；结果**含错误只解析一次**（sync.Once 语义 → 双检锁）。legacy=UNIQUE KEY+cosine+MoW，内积副本=DUPLICATE KEY+单位化内积+delete/insert 重写 |
+| 写入/删除/检索 | **BatchSave**：按维度分组（TreeMap 升序，Go map 无序→确定性优先）→ 空向量跳过（WARN）/非有限值拒收（`invalid embedding for chunk %s: doris: embedding[i] is not finite: …`）→ id 兜底（info.ID → SourceID → UUID）→ 逐维 `ensureTable`（information_schema 判存 + 惰性建表 + 后台虚拟线程轮询 `SHOW INDEX` 的 idx_emb FINISHED/NORMAL、30s 上限、未就绪只 WARN）→ legacy 直接 INSERT / 内积副本 DELETE+INSERT。**embedding 列一律字面量内联**（`[0.6,0.8]`，按 Go `FormatFloat('g',-1,32)` 形态）；三种 Delete 走 `IN (?,…)`；**向量检索**：查询向量单位化（非 legacy）→ `inner_product_approximate`（legacy 用 `1 - cosine_distance_approximate`）→ `HAVING score >= ?` + `ORDER BY score DESC LIMIT`（TopK 内联，照 Go 不 clamp）；**关键词检索**：跨维表 `content MATCH_ANY ?`、score 恒 1.0、单表失败只 WARN 跳过 |
+| `CopyIndices` / 批量更新 / move | **拷贝**：64 行分页扫源表 → chunk/knowledge 映射缺失跳过（WARN）→ 三态 SourceID 改写（普通/生成型问题/新 UUID）→ 新 UUID 主键 + 向量回填写回；**批量更新**：内积副本=读整行→变异→delete+insert（含 embedding 原样回写），legacy=Stream Load partial update（只读 `id,chunk_id` 定位）；**move**：内积副本直接拒（`reuse_vectors move is not supported by Doris ANN tables; use reparse mode`）、legacy 走 `UPDATE … SET knowledge_base_id=?, tag_id=''`；`EstimateStorageSize`=payload UTF-8 字节+`dim*4`+HNSW 512+24 |
+| `DorisSqlExecutor` + `JdbcDorisSqlExecutor`（新） | **SQL 面做成可测缝**（本仓首例）：execute/query/scalar + Row 视图；生产实现 = Hikari 池（max 20 / idle 5 / lifetime 1h，照 Go 三参数）+ MySQL 协议 JDBC（`initializationFailTimeout=-1` 保 Go 的惰性建连；`characterEncoding=UTF-8&sslMode=DISABLED&allowPublicKeyRetrieval=true`；`parseTime/loc` 无等价设置——不读时间列） |
+| `DorisStreamLoadClient`（新） | 照 streamload.go：`PUT <feHTTP>/api/<db>/<table>/_stream_load`，头 `Authorization/Content-Type/format/strip_outer_array/partial_columns/columns/merge_type=APPEND`，体=JSON 数组（Go map 字母序 → 显式 TreeMap）；**1 MiB 自动拆批**；`Status ∈ {Success, Publish Timeout}` 视为成功；307/308 手写跟随（`followRedirects(NEVER)` + 凭据只发同主机或 SSRF 白名单目标，跨主机拒转）；每次请求过 SSRF 校验 |
+| 装配三处 | **EngineFactory** 新增 doris 分支（照 createDorisEngine：addr 必填 `doris connection requires addr (host:port)`、database 必填、http_port 缺省 8030、httpBase=addr 的 host+该端口）；**RetrievalEngineWiringConfig.envDoris**（DORIS_ADDR 缺省 `doris-fe:9030`/DORIS_DATABASE 缺省 `weknora`/DORIS_USERNAME 缺省 `root`/DORIS_PASSWORD/DORIS_HTTP_PORT 缺省 8030）；**VectorStoreConfigService.testDoris** 从 TCP 拨号升级为驱动探针（MySQL 协议连接 + `SELECT @@version` 剥 `Doris-` 前缀，版本查询失败只 WARN 返回 ""）；新依赖 `com.mysql:mysql-connector-j`（BOM 管版本） |
+
+**与 Go 的差异（备案）**：① **SSRF 姿态**：Go 注册全局 MySQL dialer 在每次连接建立时校验；Java 在构造期校验一次（同 ES/OpenSearch 驱动的 Java 侧姿态）；② JDK HttpClient 把 `Expect: 100-continue` 列为禁设头（Go 会发；Doris 不依赖，仅提前拒收优化）；③ 重定向只跟随 307/308（Go 会跟随 301/302/303 并改写 GET——对 Stream Load 无观测面）；④ 浮点字面量按 Go `'g'` 形态输出（`1`/`0.0001`/`1e+07`），数值与 Java 最短往返表示一致；⑤ `keywordsRetrieve` 的 `all[:TopK]` 在 TopK≤0 时 Go 会 panic（负下标），本仓 clamp 到 0（防御性偏离，正数 TopK 语义不变）；⑥ 兼容模式探测/建表的 SQL 文本与 Go 逐字对齐（含 DDL 的双制表符形状，见 known-issues/06）。
+
+**验证**：`DorisPureFunctionsTest` 12 条（兼容模式/字面量/解析/校验/单位化/SourceID/DDL 形状/估算/拆批）+ `DorisRetrieveRepositoryTest` 31 条（假执行器钉 SQL 与参数序：分组/替换语义/判存缓存/探测三步序/既有表拒收/三种删除/向量与关键词检索/拷贝三态/批量更新两模式/move/估算/驱动可用性）+ `DorisStreamLoadTest` 14 条（stub FE：wire 头与体/成功与失败状态/非 2xx/拆批/同主机 307 跟随/跨主机拒转/无行短路）**全绿**；**五批验收 PASS**——并且把历史遗漏的 `com.ragagent.retrieval.*`/`com.ragagent.config.*` 两域补进 B4（此前"五批全量"不含检索引擎域，见 known-issues/06 第 9 条）；bootRun 重启冒烟 200（system/info + vector-stores + sandbox-configs）。**未做**：真 Doris 端到端（无本地 Doris 实例，legacy 的 partial update 需实机验证）——与 ES/OpenSearch 批同口径（stub 面全绿、实机留待部署）。
+
+**下一步**：Doris 落地后**SQL 族收官**（检索批剩 gRPC/SDK 族 Weaviate/Qdrant/Milvus/腾讯——需协议决策；SQLite——native 扩展分发决策）。原计划的 1→2→3 里已完成 1（Doris）；2（Qdrant）与 3（install 真实 LLM E2E）待续。
+
+---
+
 ## 0.-24 OpenSearch k-NN 驱动落地（2026-09-25——W5γ4.9，HTTP 族收官）
 
 **做了什么**（照 Go `repository/retriever/opensearch/` 全包 15 文件 ~2380 行，HTTP/JSON 自持——Go 用 opensearch-go v4 SDK，wire 形状逐段对照）：
@@ -1141,7 +1162,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 |---|---|
 | HTTP 路由对账（route-recon） | 交集 387，**功能性缺口清零**（swagger 非翻译目标；models/{id}/debug 已收官）——2026-09-22 阶段 7 终核 |
 | golden 契约测试 | 1,719+24 全绿（全部录自 Go 实行为准；md-* 24 条为阶段 7 新增）——2026-09-22 |
-| 全量测试 | **2026-09-25 W5γ4.8 复跑：B1a/B1b/B2/B3 全绿，B4 1533 条仅 1 条环境相关既有失败**（`SystemContractTest.parserEnginesOfflineShape`——dev docreader 常驻 50051 时探测到真注册表；干净树同样失败，见 `known-issues/07-model-debug.md` 的环境失败清单，跑批前停掉 dev 栈即可复绿）。⚠️ 纪律两条：①单跑 `:server:test` 必假红（Mockito attach）——用脚本的五批划分；②并发跑测试（同事同时跑）会撞固定端口，出现偶发假红（2026-09-25 收口批 B2 的 bs-internal-bad-sig 一次 409 即此，单跑即绿）|
+| 全量测试 | **2026-09-25 W5γ4.10 复跑：五批全绿（ACCEPTANCE PASS）**。⚠️ 三件事：①**脚本覆盖面在 W5γ4.10 补全**——`scripts/acceptance.sh` 此前不含 `com.ragagent.retrieval.*` 与 `com.ragagent.config.*`（"五批全量"从未覆盖检索引擎域），现已并入 B4；声称"全量"前先核对脚本包清单与 `server/src/test/java/com/ragagent/` 目录；②单跑 `:server:test` 必假红（Mockito attach）——用脚本的五批划分；③并发跑测试（同事同时跑）会撞固定端口，出现偶发假红（2026-09-25 收口批 B2 的 bs-internal-bad-sig 一次 409 即此，单跑即绿）；dev docreader 常驻 50051 时 `SystemContractTest.parserEnginesOfflineShape` 可能翻红（环境相关，干净树同样失败，见 `known-issues/07-model-debug.md`）|
 | 双端 A/B | 九族 GET + 写路径 + HybridSearch 两场景 + models/{id}/debug 24 场景逐字节 MATCH——2026-09-22 |
 
 | 波 | 内容 | 状态 |
@@ -1164,7 +1185,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
-- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）**；仍剩 OpenSearch（独立店族，4332 行/17 文件）、Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite / Doris。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定 ES store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8——检索批无遗留**
+- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）+ OpenSearch ✅（W5γ4.9，§0.-24）+ Doris ✅（W5γ4.10，§0.-25）**；仍剩 Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1265,13 +1286,18 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 （W5γ4.8）；③知识写链改道引擎口（W5γ4.7）+ move 的 reparse 模式收尾（W5γ4.8）——**全部落地**。
 `git log` 的 W5γ4.1~γ4.8 八笔即检索批全貌。
 
-**下一步候选（按建议顺序）**：
-1. **OpenSearch 独立店族**（4332 行/17 文件：自有 transport/healthcheck/audit/mapping/crud/query/
-   retrieve/byquery/copy/move）——HTTP 族最后一支，可照 ES v7/v8 的方法推进；
-2. **gRPC 族协议决策**（Weaviate/Qdrant/Milvus/腾讯）——需先定协议与 SDK 取舍；
-3. **SQLite（C 绑定）/ Doris（SQL 协议）**；
-4. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、install 管线体、ArtifactCollector 文件源、
-   VLM 界面、initialize 契约对齐、jieba 真实分词、存储三条备案）——均需真实 provider 或决策输入。
+**下一步候选（2026-09-25 W5γ4.10 刷新）**：
+1. ~~OpenSearch 独立店族~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）——HTTP 族与
+   SQL 族均已收官；
+2. **gRPC/SDK 族协议决策**（Weaviate/Qdrant/Milvus/腾讯）——建议口径：Qdrant/Weaviate 的
+   REST/GraphQL 覆盖度高（可照 ES/OpenSearch 先例自持 HTTP，零新依赖），Milvus 的 REST v2
+   需先探覆盖度、腾讯需自持 HTTP API 3.0（TC3 签名）；若走 SDK 则用仓库既有 gRPC 基建
+   （`net.devh` + protoc 已在，见 `server/build.gradle.kts`）；
+3. **SQLite**——native 扩展（sqlite-vec）多平台分发需决策，优先级最低；
+4. **install 真实 LLM E2E 联调**（批 D2 管线就绪，需 provider + 真模型；原计划 1→2→3 的 3）；
+5. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、VLM 界面、initialize 契约对齐、jieba 真实分词、
+   存储三条备案；install 管线体与 ArtifactCollector 文件源已于 09-23/09-24 收口）——均需真实
+   provider 或决策输入。
 
 ### 3.-2 当前续推点：接线的第 3~4 步（2026-09-25 起）—— ✅ 已收官（W5γ4.6，见 §0.-21）
 

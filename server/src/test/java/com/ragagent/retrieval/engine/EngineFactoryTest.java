@@ -207,7 +207,7 @@ class EngineFactoryTest {
                         () -> EngineFactory.createFromStore(store("postgres", pg, null), null))
                         .getMessage());
 
-        for (String engine : List.of("qdrant", "milvus", "weaviate", "doris",
+        for (String engine : List.of("qdrant", "milvus", "weaviate",
                 "tencent_vectordb", "sqlite")) {
             String message = assertThrows(EngineNotSupportedException.class,
                     () -> EngineFactory.createFromStore(store(engine, cc, null), null))
@@ -215,6 +215,30 @@ class EngineFactoryTest {
             assertTrue(message.contains("driver not ported in this batch"), engine + " → " + message);
             assertTrue(message.contains(engine), engine + " 文案要含引擎名");
         }
+    }
+
+    @Test
+    @DisplayName("Doris：addr/database 必填（Go 原文）；齐备时建成 doris 引擎（构造不拨号）")
+    void buildsDoris() {
+        ConnectionConfig doris = new ConnectionConfig();
+        doris.addr = "127.0.0.1:9030";
+        doris.database = "weknora";
+
+        assertEquals("doris connection requires addr (host:port)",
+                assertThrows(EngineNotSupportedException.class,
+                        () -> EngineFactory.createFromStore(store("doris", new ConnectionConfig(),
+                                null), null)).getMessage());
+        ConnectionConfig noDatabase = new ConnectionConfig();
+        noDatabase.addr = "127.0.0.1:9030";
+        assertEquals("doris connection requires database",
+                assertThrows(EngineNotSupportedException.class,
+                        () -> EngineFactory.createFromStore(store("doris", noDatabase, null), null))
+                        .getMessage());
+
+        KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
+                store("doris", doris, null), null);
+        assertEquals("doris", svc.engineType());
+        assertEquals(List.of("keywords", "vector"), svc.support());
     }
 
     /** 只记录、不拒绝的守卫（观察被检查的地址）。 */

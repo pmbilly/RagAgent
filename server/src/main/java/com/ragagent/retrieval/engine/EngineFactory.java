@@ -2,6 +2,7 @@ package com.ragagent.retrieval.engine;
 
 
 import com.ragagent.common.security.SsrfGuard;
+import com.ragagent.retrieval.engine.doris.DorisRetrieveRepository;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV7RetrieveRepository;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveRepository;
 import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
@@ -23,7 +24,9 @@ import com.ragagent.vectorstore.domain.VectorStore;
  *       {@code VectorStoreService}），不经本工厂 → 明确指引式 XDEP；sqlite driver 未落地</li>
  *   <li>**opensearch**：照 createOpenSearchEngine 真落地（k-NN 驱动 +
  *       audit sink 注入；探针在构造期显形）</li>
- *   <li>**qdrant/milvus/weaviate/doris/tencent_vectordb**：driver 未落地 →
+ *   <li>**doris**：照 {@code createDorisEngine} 真落地（MySQL 协议主链路 + Stream Load
+ *       HTTP；addr 必填、database 必填、http_port 缺省 8030）</li>
+ *   <li>**qdrant/milvus/weaviate/tencent_vectordb**：driver 未落地 →
  *       诚实 XDEP（weaviate/qdrant/milvus/腾讯属 "协议决策"族）</li>
  * </ul>
  *
@@ -117,10 +120,31 @@ public final class EngineFactory {
                 return new KeywordsVectorHybridRetrieveEngineService(repo,
                         EngineTypes.ENGINE_OPENSEARCH);
             }
+            case EngineTypes.ENGINE_DORIS: {
+                // 照 Go createDorisEngine：Addr 承担 host:9030 的 MySQL 端点；
+                // HTTPPort + Addr 的 host 部分组成 Stream Load 的 HTTP base（缺省 FE 8030）。
+                ConnectionConfig ccDoris = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
+                String addr = ccDoris.addr == null ? "" : ccDoris.addr;
+                if (addr.isEmpty()) {
+                    throw new EngineNotSupportedException(
+                            "doris connection requires addr (host:port)");
+                }
+                if (ccDoris.database == null || ccDoris.database.isEmpty()) {
+                    throw new EngineNotSupportedException("doris connection requires database");
+                }
+                int httpPort = ccDoris.httpPort > 0 ? ccDoris.httpPort : 8030;
+                String httpBase = "http://" + DorisRetrieveRepository.hostFromAddr(addr)
+                        + ":" + httpPort;
+                DorisRetrieveRepository repo = DorisRetrieveRepository.create(addr, httpBase,
+                        ccDoris.username, ccDoris.password, ccDoris.database,
+                        store.getIndexConfig(), guard);
+                return new KeywordsVectorHybridRetrieveEngineService(repo,
+                        EngineTypes.ENGINE_DORIS);
+            }
             case EngineTypes.ENGINE_QDRANT:
             case EngineTypes.ENGINE_MILVUS:
             case EngineTypes.ENGINE_WEAVIATE:
-            case EngineTypes.ENGINE_DORIS:
             case EngineTypes.ENGINE_TENCENT_VECTORDB:
                 throw new EngineNotSupportedException("retriever engine " + engineType
                         + " driver not ported in this batch (tracked as W5γ4 follow-up)");
