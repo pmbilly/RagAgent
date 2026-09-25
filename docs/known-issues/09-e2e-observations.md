@@ -189,3 +189,40 @@ Java 的某段作用域解析（agent 的 `kb_selection_mode=all`、或 `/knowle
 缺的正是**搜索插件的分级行为**（本批补上）；`vector_only_fail` 那个实录只覆盖"embed 失败"的硬错，
 不覆盖"0 命中 + 硬错"的组合（正是失效绑定场景）。
 门：`--changed` → **B1a PASS（15s）**。
+
+### 7.6 分歧根因找到并修复（W5γ5.15）：`buildSearchTargets` 缺 KB 读权限过滤
+
+**静态对读**（本项正题）发现一条**确定性**分歧（`SessionKnowledgeQaService.buildSearchTargets`
+的 `resolveKbTenant` vs Go `resolveKBTenant` + `access.KBPermissions.Check`，context.go:79-94）：
+
+| 情形 | Go | 本仓（修前） |
+|---|---|---|
+| KB 行缺失（unknown id） | 租户回落 caller、**保留** | 同 ✓ |
+| KB 行存在且**自有租户** | 保留（`caller==owner && Viewer`） | 保留 ✓ |
+| KB 行存在但**调用方无权读** | `Check` 不过 ⇒ 记 0 ⇒ **`continue` 丢弃该 KB** | **不过滤、照搜** ✗ |
+| 组织共享 ≥ viewer | `p.shares.Check` ⇒ 保留 | `checkTenantKBPermission(...).permits("viewer")` ✓（修后接入） |
+
+**根因**：旧注释假称"跨租户访问由上层可见性拒绝"——又一处**未取证的对照结论**（同 §7 的教训家族）。
+**判决实验（确定性）**：以 tenant 10002 用户拿**外租户 KB**（`shr-kb-gamma`，tenant 10004）检索：
+
+| 端 | `search_targets` | 结果 |
+|---|---|---|
+| Go（修前=修后） | **0**（KB 被丢弃） | `search_nothing` → **降级作答** ✓ |
+| 本仓（修前） | **1**（真去搜它） | **2200 硬错、回合中止** ✗ |
+| 本仓（修后） | 0 | 降级作答 ✓ **与 Go 一致** |
+
+**修法**：`resolveKbTenant` 增可读性判定（`callerCanReadKb` → 静态骨架 `kbReadableByCaller` + 共享判定
+`checkTenantKBPermission(...).permits("viewer")`）；不可读 ⇒ 记 0 ⇒ 调用方 `continue` 丢弃。
+**未移植** Go 另两条"额外放行"（`HasKBGrant` 精确授予、`AuthorizeTenantAPIKeyKnowledgeBases`
+API-key 作用域）——两者只会**放宽**判定，本实现因此"更严不泄漏"，覆盖到的 KB 会与 Go 有差（备案）。
+
+**验证**：① 回归 `SessionKnowledgeQaBuildSearchTargets`…实为 `SessionKnowledgeQaKbScopeTest`（5 例：
+自有可读 / 外租户无共享不可读 / 外租户共享可读 / 缺 caller|owner 不可读 / 共享服务缺失按不可读）全绿；
+② **线上三例 A/B**（:8082 重启到最终构建）：外租户 KB → 两端 `answer→complete` 一致 ✓；
+自有 KB → 一致 ✓；自有**失效绑定** KB（`ks-golden-store`）→ 两端 `error`×2（2200）一致 ✓（未被本修影响）。
+
+**附：本轮门红的两条环境坑**（都与改动无关，已各自定位）：
+- `SystemContractTest.parserEnginesOfflineShape` 假红 = **我的 shell 泄漏了 `DOCREADER_ADDR`**
+  （`dev-env.sh` 导出 → 门继承 → 端点变成 `connected:true`）⇒ **跑门前别在同 shell source dev-env.sh**；
+- `TenantSkillPythonVerifierTest.skillPythonVerifierCaseTable` = **既有环境相关失败**（stash 到 HEAD 复跑同样失败：
+  "a pyproject.toml dependency the venv does not carry"），与本批无关。

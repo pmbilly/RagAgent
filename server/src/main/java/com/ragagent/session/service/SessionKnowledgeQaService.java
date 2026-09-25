@@ -878,6 +878,43 @@ public class SessionKnowledgeQaService {
         return retrievalTenantId;
     }
 
+    /**
+     * 调用方能否读该 KB（对照 Go {@code access.KBPermissions.Check}，context.go:79-94，required=Viewer）：
+     * <b>自有租户 ⇒ 可读</b>；否则看组织共享（{@code checkTenantKBPermission(...).permits("viewer")}，
+     * 即 Go 的 {@code p.shares.Check(kbID, required)}）。
+     *
+     * <p>⚠️ <b>未移植</b> Go 里另外两条"额外放行"：{@code HasKBGrant}（精确授予）与
+     * {@code AuthorizeTenantAPIKeyKnowledgeBases}（API-key 作用域）。两者都只会**放宽**判定，
+     * 所以本实现方向是"更严不泄漏"——被这两条覆盖的 KB 在 Go 会保留、本仓会丢弃，
+     * 差异已备案（09 §7.6）。</p>
+     */
+    private boolean callerCanReadKb(String kbId, long ownerTenantId) {
+        Long callerTenant = TenantContext.currentTenantId();
+        return kbReadableByCaller(callerTenant, ownerTenantId, () -> {
+            com.ragagent.org.service.KbShareService shareService = kbShareService.getIfAvailable();
+            return shareService != null && shareService
+                    .checkTenantKBPermission(kbId, callerTenant == null ? 0L : callerTenant,
+                            com.ragagent.org.service.OrganizationService.callerTenantRole())
+                    .permits("viewer");
+        });
+    }
+
+    /**
+     * 判定骨架（对照 Go {@code access.KBPermissions.Check} 的 ①②③ 步，见 {@link #callerCanReadKb}）：
+     * 无调用方租户 / 属主租户为 0 ⇒ 否；自有租户 ⇒ 是；否则交给共享判定。
+     * 抽成静态纯函数以便脱离 Spring 上下文做回归（Go 侧同款的四路放行只在回调里）。
+     */
+    static boolean kbReadableByCaller(Long callerTenantId, long ownerTenantId,
+                                      java.util.function.BooleanSupplier sharedPermitsViewer) {
+        if (callerTenantId == null || callerTenantId == 0 || ownerTenantId == 0) {
+            return false;
+        }
+        if (callerTenantId == ownerTenantId) {
+            return true;
+        }
+        return sharedPermitsViewer != null && sharedPermitsViewer.getAsBoolean();
+    }
+
     /** buildSearchTargets（Go L441-615）。 */
     public List<SearchTargetView> buildSearchTargets(long tenantId, List<String> knowledgeBaseIds,
             List<String> knowledgeIds, List<TagScope> tagScopes) {
@@ -906,10 +943,16 @@ public class SessionKnowledgeQaService {
                 }
             }
         }
-        // resolveKBTenant：直接共享 KB 的租户解析依赖 org 共享读面（波 3 已有 KB share；
-        // Go 的 permissions.Check 对非共享 KB 落 caller tenant）。Java 等价：KB 行存在
-        // 即归 KB 自己的租户（跨租户 KB 的访问在 parse 面由上层可见性拒绝）。
-        record Resolved(long tenant) {}
+        // resolveKBTenant（对照 Go `resolveKBTenant` + `access.KBPermissions.Check`，
+        // context.go:79-94，required=OrgRoleViewer）：
+        //   ① KB 行缺失 ⇒ 租户回落 caller（**保留**该 target；未知 KB 在检索插件内报 1003，
+        //      A/B 场景 kse-unknown-kb 依赖这一形态）；
+        //   ② KB 行存在但**调用方无权读** ⇒ 记 0 ⇒ 调用方 continue ⇒ **该 KB 不进检索范围**
+        //      （Go：permissions.Check 不过即 `continue` 丢弃）；
+        //   ③ 否则归 KB 自己的租户。
+        // ⚠️ 旧实现按"KB 行存在即归其租户"处理（注释假称"跨租户由上层可见性拒绝"），
+        // 实测与 Go 分歧且**用户可见**：拿外租户 KB 检索时 Go `search_targets=0` 降级作答，
+        // 本仓却真去搜它 ⇒ 命中失效 store 绑定时 2200 硬错中止（W5γ5.15，09 §7.6）。
         java.util.function.Function<String, Long> resolveKbTenant = kbId -> {
             Long cached = kbTenantMap.get(kbId);
             if (cached != null && cached != 0) {
@@ -917,10 +960,12 @@ public class SessionKnowledgeQaService {
             }
             KnowledgeBase kb = kbById.get(kbId);
             if (kb == null) {
-                // Go resolveKBTenant：kb 元数据缺失时租户回落 caller（未知 KB 仍成 target，
-                // 检索插件内报 1003 → 500 信封；A/B 场景 kse-unknown-kb 依赖这一形态）
                 kbTenantMap.put(kbId, tenantId);
                 return tenantId;
+            }
+            if (!callerCanReadKb(kbId, kb.getTenantId())) {
+                kbTenantMap.put(kbId, 0L);
+                return 0L;
             }
             kbTenantMap.put(kbId, kb.getTenantId());
             return kb.getTenantId();
