@@ -589,34 +589,106 @@ public class ChunkService {
             throw new ChunkRevisionConflictException();
         }
         chunk = latest;
+        List<GeneratedQuestion> generated = buildGeneratedQuestions(questions, chunk);
+        try {
+            persistGeneratedQuestions(kb, chunk, generated);
+        } catch (RuntimeException e) {
+            // Go：三步（metadata/updateChunk/updateChunkVector）的 err 都被 handler 包 400 原文
+            throw BizException.badRequest(e.getMessage());
+        }
+        log.info("Successfully regenerated {} questions for chunk {}", generated.size(), chunkId);
+        return generated;
+    }
+
+    /**
+     * worker 语义的"生成 + 落库 + 建索引"（对照 Go {@code processQuestionGenerationForChunks}
+     * 的逐块段，knowledge_process.go:2043-2110）——导入后处理扇出的批任务走这里。
+     *
+     * <p>与 {@link #regenerateChunkQuestions} 共用同一条落库路径，但**没有 handler 语义**：
+     * 期间分块被编辑（revision 变化）时<b>跳过</b>而不是抛 409；单块 LLM 失败只告警并跳过、
+     * 不中断整批（对照 Go 的 {@code llmCallFailed++ / continue}）。</p>
+     *
+     * <p>模型解析失败与落库失败<b>上抛</b>——让队列按 asynq 语义重试
+     * （对照 Go 的 {@code get_chat_model_failed} → 返回错误）。</p>
+     *
+     * @return 写入的问题数；0 = 跳过（内容空 / 生成失败 / revision 变化 / 分块已删）
+     */
+    int generateAndStoreQuestionsForWorker(KnowledgeBase kb, Knowledge knowledge, Chunk chunk,
+            String prevContent, String nextContent, int questionCount, String customInstructions) {
+        int generationRevision = chunk.getContentRevision();
+        LlmChatClient chatModel;
+        try {
+            chatModel = modelRuntimeFactory.getChatModel(kb.getSummaryModelId());
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(
+                    e.getMessage() == null ? "model not found" : e.getMessage(), e);
+        }
+        List<String> questions;
+        try {
+            questions = generateQuestionsWithContext(chatModel, chunk.getContent(), prevContent, nextContent,
+                    knowledge.getTitle(), questionCount, customInstructions);
+        } catch (RuntimeException e) {
+            log.warn("Failed to generate questions for chunk {}: {}", chunk.getId(), e.toString());
+            return 0;
+        }
+        if (questions.isEmpty()) {
+            return 0;
+        }
+        Chunk latest;
+        try {
+            latest = chunkRepository.getChunkById(kb.getTenantId(), chunk.getId());
+        } catch (RuntimeException e) {
+            return 0;
+        }
+        if (latest.getContentRevision() != generationRevision) {
+            // 对照 Go：revision 变化 → 跳过（陈旧问题不落库），不报错
+            log.info("Skipping stale generated questions for chunk {} (revision changed)", chunk.getId());
+            return 0;
+        }
+        List<GeneratedQuestion> generated = buildGeneratedQuestions(questions, latest);
+        try {
+            persistGeneratedQuestions(kb, latest, generated);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(
+                    e.getMessage() == null ? "failed to store generated questions" : e.getMessage(), e);
+        }
+        return generated.size();
+    }
+
+    /** 对照 SetDocumentMetadata 的构建段：GeneratedQuestion 列表（id 新 UUID、revision 取当前）。 */
+    private static List<GeneratedQuestion> buildGeneratedQuestions(List<String> questions, Chunk chunk) {
         List<GeneratedQuestion> generated = new ArrayList<>(questions.size());
         Integer questionRevision = chunk.getContentRevision();
         for (String question : questions) {
             generated.add(new GeneratedQuestion(UUID.randomUUID().toString(), question, questionRevision));
         }
-        // 对照 SetDocumentMetadata：整体替换 metadata（仅 generated_questions 两键，
-        // 空列表/0 由域类型注解的 omitempty 语义省略）
+        return generated;
+    }
+
+    /**
+     * 对照 {@code SetDocumentMetadata} + {@code updateChunk} + {@code updateChunkVector}：
+     * 整体替换 metadata（仅 generated_questions 两键；空列表/0 由域类型注解的 omitempty 省略）
+     * → 落库 → 重建该分块向量索引。
+     */
+    private void persistGeneratedQuestions(KnowledgeBase kb, Chunk chunk, List<GeneratedQuestion> generated) {
         DocumentChunkMetadata meta = new DocumentChunkMetadata();
         meta.setGeneratedQuestions(generated);
         meta.setGeneratedQuestionsRevision(chunk.getContentRevision());
         try {
             chunk.setMetadata(writeDocumentMetadata(meta));
         } catch (JsonProcessingException e) {
-            throw BizException.badRequest("failed to set chunk metadata: " + e.getMessage());
+            throw new IllegalStateException("failed to set chunk metadata: " + e.getMessage(), e);
         }
         try {
             chunkRepository.updateChunk(chunk);
         } catch (RuntimeException e) {
-            throw BizException.badRequest("failed to update chunk: " + e.getMessage());
+            throw new IllegalStateException("failed to update chunk: " + e.getMessage(), e);
         }
         try {
             chunkVectorIndexer.updateChunkVector(kb.getId(), List.of(chunk));
         } catch (RuntimeException e) {
-            // Go：updateChunkVector 的 err 同样被 handler 包 400（此时 metadata 已落库）
-            throw BizException.badRequest(e.getMessage());
+            throw new IllegalStateException(e.getMessage(), e);
         }
-        log.info("Successfully regenerated {} questions for chunk {}", generated.size(), chunkId);
-        return generated;
     }
 
     /**

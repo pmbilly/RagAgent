@@ -301,3 +301,43 @@ python ≥3.11，否则该检查不生效（两端同款 ✗，改需两侧同�
 
 **影响面（不止推荐问题）**：凡走**主列表**的能力过滤都受影响 ✓（KB 选择器/quick-answer 的目标过滤等）；
 get/检索路径（`getAllTenantById`、`QaWiring` 的 by-ids）**本已正确** ✓，无需改动。
+
+### 8.2 第二半：**导入后自动生成**已补（W5γ5.19）
+
+用户报障的另一半是"**文档导入后**推荐问题生成"——上一节修的是"取不到"（读路径 ✓），
+这一节补的是"**根本没有生成**"：本仓此前只有手动路径（`POST /chunks/by-id/{id}/questions/regenerate`），
+自动生成在 `KnowledgeService:300-302` 备案为"未翻" ✗ ⇒ 刚导入的 KB 推荐问题恒为空 ✓。
+
+**Go 的原文**（逐条照抄）：
+- 触发：`willSpawnQuestion = willSpawnSummary && kb.NeedsEmbeddingModel() && qg.Enabled`（`knowledge_post_process.go:209-212`）；
+- 选块：只取 `ChunkTypeText` 且 `chunkHasExtractableText`，按 `StartAt` 排序（`:225-233`）；批大小 **20**（`:596`）；
+- 扇出：`enqueueQuestionGenerationTasks`（`:604-690`）——每批一个任务，载荷**只带 chunk id + 边界邻块 id**（worker 运行时读新内容），
+  `MaxRetry=3 / Timeout=30min`，入队失败的槽位由 shortfall 释放；
+- worker：`processQuestionGenerationForChunks`（`knowledge_process.go:1812-2110`）——supersede / 取消短路 → 取 KB（聊天模型取 **`kb.SummaryModelID`**）→
+  逐块生成（**revision 变化则跳过**）→ 写 metadata + 重建该分块索引 → 终态递减 `pending_subtasks_count`。
+
+**本仓实现**（新增 5 件 + 改 2 件）：
+| 件 | 对照 |
+|---|---|
+| `QuestionBatchPlanner`（纯函数：选块/分批/边界 id） | Go 的 `questionChunks` 收集 + 分批 + `prev/next` 取法 |
+| `QuestionBatchPayload`（只带 id + 追踪载体五键） | `types.QuestionGenerationPayload` |
+| `QuestionGenerationTaskQueue` + `InProcessQuestionGenerationTaskQueue` | asynq `QueueQuestion`/`TypeQuestionGeneration`（重试公式与图队列同款） |
+| `QuestionGenerationService`（批 worker） | `processQuestionGenerationForChunks` |
+| `ChunkService.generateAndStoreQuestionsForWorker`（与手动路径**共用**落库：metadata + `updateChunkVector`） | worker 的逐块段；revision 变化**跳过**（手动路径仍是 409） |
+| `KnowledgeProcessWorker` 扇出 + 计入 `pendingSubtasks`（`+ questionBatchCount`）、入队失败释放槽位 | `willSpawnQuestion` 判定 + `enqueueQuestionGenerationTasks` |
+
+**验证**：`QuestionBatchPlannerTest` **5 例**（选块顺序/剔除非文本与空内容/20 分批与边界 id/批数/载荷 JSON 往返）✓；
+编译 ✓ + **Spring 启动即构造成功**（应用能起 ⇒ 新服务与队列 bean 装配可用 ✓）；门 `--changed` → **B3 PASS 67s** ✓。
+
+**⚠️ 未完成的 E2E（诚实记账）**：本想跑通"上传 → 自动生成 → 推荐问题出现"，被 **dev 夹具缺口**挡住 ✗：
+1. 两个可用夹具 KB（`BQ Alpha/Beta`）的 `summary_model_id=m-sum`、`embedding_model_id=m-emb` **在库里都不存在** ✗
+   ——Go 日志实录 `ERROR … Model not found model_id=m-emb` ⇒ 处理直接失败、`chunks` 为 0 ✗；
+2. 问题生成按设计**要求 KB 需要 embedding 模型**（Go `NeedsEmbeddingModel` ⇒ `vector||keyword`）⇒ 无法用"关掉索引"绕过 ✗；
+3. 本地也没有 embedding stub（库里 Embedding 模型全指远端；只有 chat stub 在 `127.0.0.1:8181` ✓，其回复是固定文案 ✓）。
+
+**复现配方（三步，约 10 分钟）**：① 起本地 embedding stub（OpenAI 形状 `{"data":[{"embedding":[…]}],"model":…}`）；
+② 建一个 Embedding 模型行指向它（`embedding_parameters.dimension` 必填）；③ 在目标 KB 上开
+`question_generation_config={"enabled":true,"question_count":3}`（并把 summary/embedding 模型指到可用行）后上传小 txt ⇒
+`chunks.metadata.generated_questions` 与 `/agents/{id}/suggested-questions` 应同时出现。
+
+（本轮对 dev 库的探针改动**已全部回退**：`question_generation_config` 置回 NULL、探针知识与分块已删 ✓；`:8082` 跑当前构建 ✓。）

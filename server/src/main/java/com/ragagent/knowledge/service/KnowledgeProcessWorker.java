@@ -107,6 +107,9 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     /** 分块图抽取队列（D 批；未接线时 fan-out 直接释放槽位，行不搁浅）。 */
     private final org.springframework.beans.factory.ObjectProvider<
             com.ragagent.knowledge.service.ChunkExtractTaskQueue> chunkExtractQueue;
+    /** 问题生成批队列（W5γ5.19 导入后自动生成；未接线时 fan-out 直接释放槽位，行不搁浅）。 */
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.ragagent.knowledge.service.QuestionGenerationTaskQueue> questionGenerationQueue;
 
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
                                   KnowledgeBaseMapper kbMapper,
@@ -127,7 +130,9 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   org.springframework.beans.factory.ObjectProvider<
                                           com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer,
                                   org.springframework.beans.factory.ObjectProvider<
-                                          com.ragagent.knowledge.service.ChunkExtractTaskQueue> chunkExtractQueue) {
+                                          com.ragagent.knowledge.service.ChunkExtractTaskQueue> chunkExtractQueue,
+                                  org.springframework.beans.factory.ObjectProvider<
+                                          com.ragagent.knowledge.service.QuestionGenerationTaskQueue> questionGenerationQueue) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -145,6 +150,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.wikiIngestService = wikiIngestService;
         this.wikiKnowledgeFinalizer = wikiKnowledgeFinalizer;
         this.chunkExtractQueue = chunkExtractQueue;
+        this.questionGenerationQueue = questionGenerationQueue;
     }
 
     @Override
@@ -344,7 +350,22 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                 ? GraphChunkSelector.selectGraphChunks(chunks)
                                 : List.of();
                 boolean willSpawnGraph = !graphChunks.isEmpty();
-                if (willSpawnWiki || willSpawnGraph) {
+                // 问题生成 fan-out（对照 Go L209-234）：willSpawnSummary（有文本 chunk）
+                // && 需要 embedding 模型 && question_generation_config.enabled；只取文本且仍可
+                // 抽取散文的分块（StartAt 排序），按 20 分批。
+                boolean questionEnabled = kb.getQuestionGenerationConfig() != null
+                        && kb.getQuestionGenerationConfig().path("enabled").asBoolean(false);
+                // 对照 Go kb.NeedsEmbeddingModel() = indexing_strategy 的 vector_enabled || keyword_enabled
+                boolean kbNeedsEmbedding = kb.getIndexingStrategy() != null
+                        && (kb.getIndexingStrategy().isVectorEnabled()
+                                || kb.getIndexingStrategy().isKeywordEnabled());
+                List<Chunk> questionChunks = questionEnabled && kbNeedsEmbedding
+                        && !chunks.isEmpty()
+                                ? QuestionBatchPlanner.selectQuestionChunks(chunks)
+                                : List.of();
+                int questionBatchCount = QuestionBatchPlanner.batchCount(questionChunks.size());
+                boolean willSpawnQuestion = questionBatchCount > 0;
+                if (willSpawnWiki || willSpawnGraph || willSpawnQuestion) {
                     // 对照 Go finalizeIndexedKnowledgeState（knowledge_process.go
                     // L215-242，在 post-process 之前）：索引完成即推进
                     // enable_status/processed_at —— 非 wiki 路径由 failOrComplete 完成
@@ -364,15 +385,20 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                 .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
                         spawnSummaryFanOut(knowledgeId);
                     }
-                    // 对照 Go L247-255：expectedSubtasks =（wiki 1）+ 图分块数
-                    // （摘要/问题批次的计数 Java 侧沿用既有路径，尚未并入）
-                    int pendingSubtasks = (willSpawnWiki ? 1 : 0) + graphChunks.size();
+                    // 对照 Go L247-255：expectedSubtasks =（wiki 1）+ 问题批数 + 图分块数
+                    // （摘要的那 1 个槽 Java 侧沿用既有路径，未并入——其 fan-out 不计入
+                    //  finalizing 计数；这是既有差异，本批只并入问题批次）
+                    int pendingSubtasks = (willSpawnWiki ? 1 : 0) + questionBatchCount
+                            + graphChunks.size();
                     if (promoteFinalizing(knowledgeId, pendingSubtasks)) {
                         if (willSpawnWiki) {
                             enqueueWikiIngest(knowledgeId, k);
                         }
                         if (willSpawnGraph) {
                             enqueueGraphExtracts(knowledgeId, k, kb, graphChunks, attempt);
+                        }
+                        if (willSpawnQuestion) {
+                            enqueueQuestionBatches(knowledgeId, k, kb, questionChunks, attempt);
                         }
                     }
                     // promote 失败 = 行已被 cancel/delete 抢走 → 跳过富化（对照 Go
@@ -571,6 +597,41 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 releaseSlots(knowledgeId, 1);
             }
             index++;
+        }
+    }
+
+    /**
+     * 问题生成 fan-out（对照 Go {@code enqueueQuestionGenerationTasks}，
+     * knowledge_post_process.go:604-690）：按 {@link QuestionBatchPlanner#BATCH_SIZE} 分批入队
+     * {@code question:generation}，载荷只带 chunk id（+ 边界邻块 id），worker 运行时装读内容。
+     *
+     * <p>入队失败的批<b>立即释放</b>该批占用的槽位（对照 Go 的 shortfall-release：没入队的槽
+     * 不释放会让父知识永远停在 finalizing）。</p>
+     */
+    private void enqueueQuestionBatches(String knowledgeId, Knowledge k, KnowledgeBase kb,
+                                        List<Chunk> questionChunks, int attempt) {
+        List<QuestionBatchPlanner.Batch> batches = QuestionBatchPlanner.planBatches(questionChunks);
+        QuestionGenerationTaskQueue queue = questionGenerationQueue.getIfAvailable();
+        if (queue == null) {
+            log.warn("[KnowledgePostProcess] question generation queue unavailable, releasing {} slot(s) for {}",
+                    batches.size(), knowledgeId);
+            releaseSlots(knowledgeId, batches.size());
+            return;
+        }
+        com.ragagent.common.context.TracingContext tracing =
+                com.ragagent.tracing.langfuse.LangfuseTracing.inject();
+        int questionCount = kb.getQuestionGenerationConfig() == null ? 0
+                : kb.getQuestionGenerationConfig().path("question_count").asInt(0);
+        for (QuestionBatchPlanner.Batch batch : batches) {
+            try {
+                queue.enqueue(QuestionBatchPayload.withTracing(k.getTenantId(), kb.getId(), knowledgeId,
+                        questionCount, "", attempt, batch.chunkIds(), batch.index(),
+                        batch.prevChunkId(), batch.nextChunkId(), tracing));
+            } catch (RuntimeException e) {
+                log.error("[KnowledgePostProcess] Failed to enqueue question batch {} for {}: {}",
+                        batch.index(), knowledgeId, e.toString());
+                releaseSlots(knowledgeId, 1);
+            }
         }
     }
 
