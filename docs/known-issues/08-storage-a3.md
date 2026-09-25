@@ -93,6 +93,11 @@
   故不建议"合并成一支"（代价 ≥8 测试类 + ~125 golden 重录、行为零收益），推荐**去重共享内部**。
 - **ks3 无 env 投影**：与 Go 的 `StorageBackendFromEnvironment` 一致（Go 也没有 ks3 的 case，走 default）。
 - **删除语义**：本地目录树恒清；云对象按 `file_path` 的 scheme 判定后 best-effort 删（失败只记日志）。
+- **知识文件的 provider 解析策略（Go 按 backend / 本仓按 scheme）**：Go `resolveFileServiceForPath`
+  三级（KB backend → 租户默认 → 路径推断）**不按 scheme 选 provider**；本仓 `TenantFileStorage.*`
+  先按 path scheme 解析。正常写入路径下等价；跨 scheme 的遗留 `file_path` 会分叉（Go 500 / 本仓可读）
+  ——真 A/B 实录（W5γ5.5）：默认 backend=local 时 Go 报
+  `failed to open file: open /tmp/weknora-files/minio:/weknora-ab/…`。**是否对齐属决策项**。
 
 ## 验收
 

@@ -148,6 +148,10 @@ cmp /tmp/ab-go.bin /tmp/ab-java.bin && diff <(norm_headers /tmp/ab-go.h) <(norm_
   **kg-* golden 零重录** + 新增 Range 断言用例（206 + `Content-Range: bytes 0-5/34`）；
   云引用的 kg 端到端 A/B 未做（做法见 HANDOFF §0.-40）。
   —— 存储 ①③ 至此全部收官。
+- **①a/①b 的收官验证（W5γ5.5）**：`AB_STREAM_KG=1` 的 kg 云引用端到端 A/B **PASS**（全量 200/bytes/CL4096、
+  Range 206/`Content-Range: bytes 0-99/4096`，两场景头逐行一致 + 体一致）；`AB_STREAM_MEM=1` 的**内存实证 PASS**
+  （192MB 对象 / `-Xmx96m` / 0 OOM）。顺带抓到"知识文件 provider 解析策略"差异（Go 按 backend、本仓按 scheme）
+  → 记入 `known-issues/08`，是否对齐属决策项。
   A/B 复验：双端 200、**体逐字节一致**，头只剩 `Accept-Ranges` 一项差异；② **minio seekable 决策 = 补适配**，
   排 **①a3**（`SeekableSource` 抽象 + provider 侧 range 缝 + A/B 判据含 206/Content-Range）；详见 HANDOFF §0.-38。
   `brew install minio minio-mc`（docker 镜像站 403 / dl.min.io darwin 410）。

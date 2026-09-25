@@ -95,6 +95,31 @@ lsof -ti ":${GO_P}" 2>/dev/null | xargs kill >/dev/null 2>&1 || true
 lsof -ti ":${JAVA_P}" 2>/dev/null | xargs kill >/dev/null 2>&1 || true
 sleep 2
 
+# kg 场景要求"租户默认 backend = minio"：Go 的 resolveFileService 按 KB/租户默认解析
+# （**不看 path scheme**，见 known-issues/08 的备案），Java 按 scheme——故起服前临时翻转，
+# 结束（trap）还原。
+if [ "${AB_STREAM_KG:-0}" = "1" ]; then
+  export PGPASSWORD="${PGPASSWORD:-postgres123!@#}"
+  PSQL="psql -q -t -h ${DB_HOST:-localhost} -p ${DB_PORT:-15432} -U ${DB_USER:-postgres} -d ${DB_NAME:-WeKnora}"
+  MINIO_BACKEND_ID="$(${PSQL} -c "select id from storage_backends where tenant_id=${TENANT} and provider='minio' order by updated_at desc limit 1;" | tr -d ' ')"
+  PREV_DEFAULT="$(${PSQL} -c "select coalesce(default_storage_backend_id::text,'') from tenants where id=${TENANT};" | tr -d ' ')"
+  restore_default_backend() {
+    if [ -n "${PREV_DEFAULT}" ]; then
+      ${PSQL} -c "UPDATE tenants SET default_storage_backend_id='${PREV_DEFAULT}' WHERE id=${TENANT};" >/dev/null 2>&1 || true
+    else
+      ${PSQL} -c "UPDATE tenants SET default_storage_backend_id=NULL WHERE id=${TENANT};" >/dev/null 2>&1 || true
+    fi
+  }
+  trap restore_default_backend EXIT
+  if [ -n "${MINIO_BACKEND_ID}" ]; then
+    ${PSQL} -c "UPDATE tenants SET default_storage_backend_id='${MINIO_BACKEND_ID}' WHERE id=${TENANT};" >/dev/null
+    echo "    （租户 ${TENANT} 默认 backend 临时切到 minio 行；结束还原为 '${PREV_DEFAULT}'）"
+  else
+    echo "    找不到 minio 的实例行 → kg 场景跳过"
+    AB_STREAM_KG=0
+  fi
+fi
+
 # Go 直接起二进制（不走 go-server-up.sh：那会重复构建并写共享日志 /tmp/weknora-go-server.log）
 # dev-env 在本仓有 .env 时不设 WEKNORA_ROOT（其 37-43 行分支）→ 这里自兜底
 GO_ROOT="${AB_STREAM_GO_ROOT:-${WEKNORA_ROOT:-$(cd "${SCRIPT_DIR}/../WeKnora" 2>/dev/null && pwd || true)}}"
@@ -172,8 +197,60 @@ else
   echo "    DIFF  体：go=$(( $(wc -c < "${WORK}/go.range.bin") ))B java=$(( $(wc -c < "${WORK}/java.range.bin") ))B"; fail=1
 fi
 
+if [ "${AB_STREAM_KG:-0}" = "1" ]; then
+  echo "==> 4) kg 场景（云引用）：/api/v1/knowledge/<id>/download 双端对拍"
+  OWNER_UID="$(${PSQL} -c "select id from users where email='${TEST_EMAIL}' limit 1;" | tr -d ' ')"
+  KB_ID="ab000000-0000-0000-0000-00000000ab01"
+  KG_ID="ab000000-0000-0000-0000-00000000ab02"
+  cleanup_kg() {
+    ${PSQL} -c "DELETE FROM knowledges WHERE id='${KG_ID}';" >/dev/null 2>&1 || true
+    ${PSQL} -c "DELETE FROM knowledge_bases WHERE id='${KB_ID}';" >/dev/null 2>&1 || true
+  }
+  # 同时还原租户默认 backend（起服前翻转的那一处）
+  trap 'cleanup_kg; restore_default_backend' EXIT
+  ${PSQL} -c "DELETE FROM knowledges WHERE id='${KG_ID}';" >/dev/null 2>&1 || true
+  ${PSQL} -c "DELETE FROM knowledge_bases WHERE id='${KB_ID}';" >/dev/null 2>&1 || true
+  ${PSQL} -c "INSERT INTO knowledge_bases (id, name, tenant_id, description, creator_id, embedding_model_id, summary_model_id) VALUES ('${KB_ID}','ab-stream-kg',${TENANT},'ab-stream','${OWNER_UID}','','');" >/dev/null \
+    || { echo "    INSERT KB 失败"; fail=1; }
+  ${PSQL} -c "INSERT INTO knowledges (id, tenant_id, knowledge_base_id, type, title, source, file_path, file_name) VALUES ('${KG_ID}',${TENANT},'${KB_ID}','document','ab-stream-kg','file','minio://${BUCKET}/${KEY_SMALL}','stream-small.bin');" >/dev/null \
+    || { echo "    INSERT knowledge 失败"; fail=1; }
+
+  kg_fetch() { # $1 port, $2 token, $3 tag, $4 range（可空）
+    local args=(-sD "${WORK}/$3.h" -o "${WORK}/$3.bin" -H "Authorization: Bearer $2")
+    if [ -n "${4:-}" ]; then
+      args+=(-H "Range: $4")
+    fi
+    curl "${args[@]}" "http://localhost:$1/api/v1/knowledge/${KG_ID}/download"
+  }
+  kg_fetch "${GO_P}" "${GTOK}" go-kg ""
+  kg_fetch "${JAVA_P}" "${JTOK}" java-kg ""
+  kg_fetch "${GO_P}" "${GTOK}" go-kg-range "bytes=0-99"
+  kg_fetch "${JAVA_P}" "${JTOK}" java-kg-range "bytes=0-99"
+
+  for pair in "go-kg java-kg" "go-kg-range java-kg-range"; do
+    read -r g j <<< "${pair}"
+    for s in "${g}" "${j}"; do
+      grep -iE '^(HTTP/|accept-ranges|content-range|content-length|content-disposition)' \
+        "${WORK}/${s}.h" 2>/dev/null | sed "s/^/        ${s} /"
+    done
+    if diff <(mask_hdr "${WORK}/${g}.h") <(mask_hdr "${WORK}/${j}.h") > "${WORK}/${g}.diff"; then
+      echo "        MATCH 头（${g} vs ${j}）"
+    else
+      echo "        DIFF  头（${g} vs ${j}）："; sed 's/^/          /' "${WORK}/${g}.diff"; fail=1
+    fi
+    if cmp -s "${WORK}/${g}.bin" "${WORK}/${j}.bin"; then
+      echo "        MATCH 体（$(( $(wc -c < "${WORK}/${g}.bin") )) 字节）"
+    else
+      echo "        DIFF  体（go=$(( $(wc -c < "${WORK}/${g}.bin") ))B java=$(( $(wc -c < "${WORK}/${j}.bin") ))B）"; fail=1
+    fi
+  done
+  cleanup_kg
+  restore_default_backend
+  trap - EXIT
+fi
+
 if [ "${MEM_PROOF}" = "1" ]; then
-  echo "==> 4) 内存实证：Java 侧 -Xmx${SMALL_HEAP} 下载 ${BIG_MB}MB 对象"
+  echo "==> 5) 内存实证：Java 侧 -Xmx${SMALL_HEAP} 下载 ${BIG_MB}MB 对象"
   lsof -ti ":${JAVA_P}" 2>/dev/null | xargs kill >/dev/null 2>&1 || true
   sleep 2
   rm -f /tmp/ragagent-java-server.log

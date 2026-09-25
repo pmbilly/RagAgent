@@ -1,5 +1,29 @@
 # 交接文档（新会话接手用）
 
+## 0.-41 存储收官：kg 云引用 A/B + 内存实证（2026-09-25——W5γ5.5）
+
+**两发留档项均 PASS**（`scripts/ab-storage-stream.sh` 扩展后一次跑完；`AB_STREAM_KG=1 AB_STREAM_MEM=1`）：
+
+| 项 | 做法 | 结果 |
+|---|---|---|
+| **kg 云引用端到端** | 临时造 KB + knowledge 行（`file_path=minio://<bucket>/10002/exports/stream-small.bin`）＋**起服前把租户默认 backend 切到 minio 行**（trap 还原）→ 双端 `GET /api/v1/knowledge/<id>/download`（含 `Range: bytes=0-99`） | 全量：双端 200 / `bytes` / `attachment; filename=stream-small.bin` / CL 4096——**头逐行一致 + 体一致**；Range：双端 206 / `Content-Range: bytes 0-99/4096` / CL 100——**头逐行一致 + 体一致** |
+| **内存实证** | 造 192MB 对象，Java 重启为 `-Xmx96m` 后下载 | **200 + 体逐字节一致 + 0 次 OutOfMemoryError**（"不整对象入堆"从断言升级为实测） |
+
+**新备案（A/B 顺带抓到的语义差异，非本批引入）**：知识文件的 provider 解析策略两侧不同——
+
+- **Go**：`resolveFileServiceForPath` 三级解析（KB 级 backend → 租户默认 backend → 路径推断），
+  **不按 path 的 scheme 选 provider**（实录日志 `resolveFileService selected instance: backend= provider=local`）；
+  故租户默认 backend 是 local 时，一条 `minio://…` 的 `file_path` 被当**本地路径**打开 →
+  500 `Failed to retrieve file`（`failed to open file: open /tmp/weknora-files/minio:/…`）。
+- **Java**：`TenantFileStorage.read/readChecked/open` 先按 path scheme 解析 provider → 更宽容。
+- 影响：正常写入路径下两者一致（Go 写出的 path 与配置 provider 对齐）；只有"切过 provider 的遗留 path"
+  这类场景才分叉（Go 500 / 本仓可读）。**是否对齐属决策项**，已记 `known-issues/08`。
+
+**存储批至此完整收官**（①a/①a2/①a3/①b + ③B + 两发留档项；证据链：golden 零重录 + 真 A/B 全 PASS + 内存实证）。
+
+---
+
+
 ## 0.-40 ①b：知识下载/预览面流式化（2026-09-25——W5γ5.4）
 
 **做了什么**（对照 Go：`handler/knowledge.go:1477/1533` → `filetransport.Serve`；改前本仓是"读满 byte[] 再 `ResponseEntity<byte[]>`"）：
