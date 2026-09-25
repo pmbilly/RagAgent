@@ -266,3 +266,38 @@ python ≥3.11，否则该检查不生效（两端同款 ✗，改需两侧同�
 
 **验收**：两处红在"泄漏环境"下复跑通过 ✓；**全量五批全绿 233s（ACCEPTANCE PASS）** ✓。
 （中途 B1a 出过一次 `WebToolsRecordingTest` 单例 flake ✗：单跑 18/18 过、批内再跑也过，属批内共享态时序，与改动无关。）
+
+## 八、用户报障修复（W5γ5.18，2026-09-25）：导入文档后"推荐问题"不显示
+
+**症状**（用户报）：文档导入后新建提问，看不到生成的推荐问题（追问建议）。
+
+**诊断链**（每步都有证据）：
+
+1. `GET /api/v1/agents/{id}/suggested-questions` **存在**且两侧都 `200` ✓ —— 但**无 KB 范围**时 Go 返回真实推荐问题、
+   Java 返回 `{"questions":[]}` ✗（双端实测）。
+2. **带显式 `knowledge_base_ids`** 时**两端都正常** ✓（同一组 FAQ 问题，仅桶序不同——非契约 ✓）
+   ⇒ 差异在**"all"分支的 KB 能力过滤**，不在池查询/接口 ✓。
+3. 同一 KB 行（`faq-golden-kb`，DB `indexing_strategy` 四标志全 false）**两端读出的能力不同**：
+   Go `capabilities={vector:true,keyword:true,faq:true}` ✓ / Java `{vector:false,keyword:false,faq:true}` ✗
+   ⇒ quick-answer 的能力过滤（`{VECTOR,KEYWORD}` 任一即可）把 Java 这边的 KB 全滤掉 ✗ ⇒ 空数组 ✓。
+4. **根因**：Go 的读路径逐 KB 调 `KnowledgeBase.EnsureDefaults()`（`types/knowledgebase.go:727-770`），
+   其中 **零值策略（四标志全 false）⇒ 回填 `DefaultIndexingStrategy()`（vector+keyword=true）** ✓；
+   Java 的等价实现 `KnowledgeBaseService.ensureDefaults`（`:172`）**早已存在且正确** ✓
+   （get 路径 `getAllTenantById:304` 一直在调 ✓），但 **`listKnowledgeBases`（主列表）漏调** ✗
+   —— 而"all"分支正是走主列表（`CustomAgentService` → `kbService.listKnowledgeBases(null)`）✗。
+
+**修法**：主列表 `listKnowledgeBases` 逐 KB 调用 `ensureDefaults` ✓（照 Go `knowledgebase.go:343/356/367`）。
+
+**踩到的坑（值得记）**：初版把**共享 agent 列表**（`listKnowledgeBasesByTenantId`）也补上了 ✗ ⇒
+`W5sSharedAgentContractTest.kbListAgentBranch` **立刻红** ✗ —— 该 **w5s 实录**（Go 付费录制的响应）
+钉死"共享 agent 列表对零值策略**原样返回**（capabilities 全假）" ✗ ⇒ Go 在这个分支**不归一** ✓。
+故最终**只改主列表**，并在代码里原位写明两分支的差别 ✓。**教训：同一函数名（EnsureDefaults）在两个调用点可以有不同效果，实证优先于推断。**
+
+**验证**：
+- 新测 `KnowledgeBaseEnsureDefaultsTest` **4 条**（零值⇒默认 / 非零原样 / extract_config⇒graph 同步 / 类型与专属配置默认）✓；
+- **线上 A/B**：`builtin-quick-answer` 与 `builtin-smart-reasoning` 两个内置 agent，无 KB 范围时 Go/Java **条数与集合一致** ✓
+  （顺序不同 = 桶序，非契约 ✓）；
+- 门：`--changed` → **B3 PASS 71s** ✓。
+
+**影响面（不止推荐问题）**：凡走**主列表**的能力过滤都受影响 ✓（KB 选择器/quick-answer 的目标过滤等）；
+get/检索路径（`getAllTenantById`、`QaWiring` 的 by-ids）**本已正确** ✓，无需改动。

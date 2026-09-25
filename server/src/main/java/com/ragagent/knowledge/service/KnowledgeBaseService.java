@@ -331,6 +331,8 @@ public class KnowledgeBaseService {
                         .isNull("deleted_at")
                         .orderByDesc("created_at"));
         for (KnowledgeBase kb : all) {
+            // ⚠️ 本分支**不**调 ensureDefaults：w5s 实录（Go 侧）钉住共享 agent 列表
+            // 对零值策略原样返回（capabilities 全假），见 W5sSharedAgentContractTest.kbListAgentBranch。
             fillCountsForSharedList(kb);
         }
         return all;
@@ -367,6 +369,11 @@ public class KnowledgeBaseService {
         String uid = TenantContext.currentUserId();
         List<KnowledgeBase> out = new ArrayList<>(all.size());
         for (KnowledgeBase kb : all) {
+            // 对照 Go ListKnowledgeBases 的 kb.EnsureDefaults()（主列表**要**调：Go
+            // knowledgebase.go:343/356/367 逐 KB 调用；零值策略到此回填 vector+keyword。
+            // 2026-09-25 线上抓回：缺这一步 ⇒ capabilities() 全假 ⇒ quick-answer 能力过滤
+            // 丢弃 KB ⇒ /agents/{id}/suggested-questions 无范围时返回空数组）
+            ensureDefaults(kb);
             fillCounts(kb);
             fillPin(kb, uid);
             // creator=mine/others 内存过滤：空 CreatorID 的行两边都不出现

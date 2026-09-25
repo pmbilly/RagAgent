@@ -1,5 +1,20 @@
 # 交接文档（新会话接手用）
 
+## 0.-48 用户报障修复：导入后"推荐问题"不显示（2026-09-25——W5γ5.18）
+
+**根因**：`knowledge_bases.indexing_strategy` 为**零值**（四标志全 false）的 KB，Go 在读路径
+`EnsureDefaults()` 里回填 `DefaultIndexingStrategy()`（vector+keyword=true）✓，而本仓
+`listKnowledgeBases`（主列表）**漏调** `ensureDefaults` ✗（该函数本已存在、get 路径一直在调）⇒
+`capabilities()` 全假 ⇒ 被 quick-answer 能力过滤丢弃 ⇒ `/agents/{id}/suggested-questions`
+无 KB 范围时返回空数组 ✗（带显式范围两端都正常，据此定位到"all"分支）。
+
+**修法**：主列表逐 KB 调 `ensureDefaults`（照 Go `knowledgebase.go:343/356/367`）；**共享 agent 列表不改**
+（w5s 实录钉住该分支**不**归一 ✗——初版补上后 `W5sSharedAgentContractTest.kbListAgentBranch` 立刻红 ✓）。
+
+**验证**：新测 4 条 ✓；线上 A/B 两个内置 agent 集合一致 ✓；门 **B3 PASS 71s** ✓。详见 `known-issues/09` §八。
+
+---
+
 ## 0.-47 E2E 两观察项：复跑结果（2026-09-25——W5γ5.10）
 
 按 §0.-42 三 的复现清单起真机 E2E（双端 + stub），把两项从"只有名词"推进到"有现象、有结论"，
