@@ -27,12 +27,18 @@
 注释即 "listing is a no-shell fallback"）。其余门（install 模式 / 沙箱可解析 / 会话文件面能力）也一一对应；
 出站 tools 顺序两侧都是**工具名升序**（Go `registry.go:97,116-136` ↔ Java `ToolRegistry.java:117,132`）。
 
-**真机确认（未完成，缺前置）**：本环境跑到 agent-chat（`agent_enabled=true` + 夹具/新建 agent）时，
-出站 LLM 请求**完全没有 `tools` 段**（8 条录制全 `tools=0`），agent 循环以 `knowledge_search` 预检索为主，
-且首先因 **"rerank model is not configured"**（smart 模式）或 **KB 无向量库（error 2200）** 中断 →
-**取不到"首帧 tools 段"这份证据**。待前置齐备（rerank 模型 + 可用沙箱 + 会下发工具的 agent 模式）后按
-`scripts/ab-e2e-observations.sh` 的 `agent-ask1/agent-ask2` 步骤复跑即可；判据已写死在脚本输出里
-（`list_sandbox_files` 与 `shell_exec` 的在场关系）。
+**真机确认（2026-09-25 完成，W5γ5.11）**：绕开两个前置坑的做法——**新建一个"无 KB + smart 模式 +
+stub rerank"的 agent**（`kb_selection_mode:none` 避免 2200；`rerank_model_id` 指 stub 的 `/rerank` 避免
+"rerank model is not configured"），再按清单直问。
+
+实测（双端各一 session，同一会话连问两次）：
+- **首帧出站请求就带 `tools` 段**：本环境为 1 个工具 `search_conversations`（`shell_exec`/
+  `list_sandbox_files` 均不在——因无沙箱/会话文件能力，命中 G2/G3 门，**非时序问题**）；
+- **双端 tools 名集逐一相同**（Go 与 Java 各两问、每问两条 LLM 调用，全部 `tools=1: search_conversations`）；
+- 帧序列双端**逐帧同形**且**正常收流**：`agent_query → answer → answer → answer(done) → complete`（5 帧，rc=0）。
+
+⇒ 观察项 2 的可疑点（"首帧没有、调过别的沙箱工具才有"）在真机层面也不成立：**工具集在轮首即定型、双端一致**；
+缺失的那件是**能力门**决定的（本环境无沙箱），不是注册晚。
 
 ## 三、顺带抓到的一处**真差异**（Java 侧，待修）
 
@@ -48,8 +54,14 @@ Go 的 `AppError.Error()` 就是 `"error code: %d, error message: %s"`（`intern
 Java 侧的终止帧 content 取自流响应内容（`chatpipeline/PluginChatCompletionStream.java:155,162`），
 上游把它填成裸 `getMessage()` → **AppError→SSE 的文案在"终止帧"这一路上丢了前缀**。
 （本仓别处已实现同格式助手：`wiki/controller/WikiPageController.java:1265-1268`，说明格式是已知契约。）
-**处置**：属"真缺陷要修"范围（客户端可见文案），但定位需沿 agent 错误传播链追到 AppError 源头，
-**单列一小批**（避免猜着改影响其他错误路径）。
+**处置**：✅ **已修（W5γ5.11）**。根因两处——① `agent/AgentEngine.java` 工具执行失败处
+`r.setError(execError.getMessage())`（`~1948`，丢前缀）；② `agent/tools/ToolRegistry.java` 的
+"工具抛异常"兜底把文案**写死成 `"tool returned no result"`**（比丢前缀更严重）。
+修法：新增 `common/error/BizException.wireText(Throwable)`（沿 cause 链取最近 `BizException` 的
+**已带前缀** message，否则退到最深非空 message——即 Go 的 `err.Error()` 语义），两处改为调它；
+`AgentEngineException` 补 `(message, cause)` 重载保留 cause。
+回归：`ToolRegistryRecordingTest` 新增"工具抛异常 → 文案照 Go 的 err.Error()"（含包装层穿透与裸异常），
+门 B1a+B1b 全绿（49s）。⚠️ 线上复验需重启 Java 实例（当前 :8082 仍是旧构建，本批**未重启**——见下节）。
 
 ## 四、运维发现（对后续 E2E / A-B 很关键）
 
@@ -57,8 +69,8 @@ Java 侧的终止帧 content 取自流响应内容（`chatpipeline/PluginChatCom
   管理员账号 `walkadmin@weknora.test`）。
 - ⚠️ **热加载是"按进程"的**：经 Java 写入 → Java 立即生效、**Go 不生效**（仍按启动时的值拦 loopback）；
   **两端都要各 PUT 一次**（或起服时带 `SSRF_WHITELIST_EXTRA=127.0.0.1`）。
-- 本次已把 `127.0.0.1` 追加进白名单（**保留原值** `["198.18.0.0/15"]`，即现值
-  `["198.18.0.0/15","127.0.0.1"]`）；需要回退用同一 API 写回原值即可。
+- 本次已把 `127.0.0.1` 追加进白名单（保留原值 `["198.18.0.0/15"]`）；**收尾时已用两端 API 各写一次回退**
+  （现值复核 `["198.18.0.0/15"]` ✓）。
 - 登录响应里 token 在**顶层** `token`（不在 `data` 里）；夹具管理员口令与 `TEST_PASSWORD` 相同。
 
 ## 五、复跑步骤（三步）
@@ -73,3 +85,14 @@ STUB_RECORD_DIR=/tmp/w5obs-rec python3 scripts/stub-llm-server.py 8181 &
 # 3) 探针（观察项 1 全跑；观察项 2 需前置齐备）
 STUB_RECORD_DIR=/tmp/w5obs-rec bash scripts/ab-e2e-observations.sh
 ```
+
+## 六、收尾（W5γ5.11）——夹具与设置已清理
+
+| 项 | 处置 |
+|---|---|
+| `ssrf.whitelist` | 回退为 `["198.18.0.0/15"]`（两端 API 各写一次，双进程热加载 ✓；已复核） |
+| 测试模型行 `stub-early-w5obs` / `stub-rerank-w5obs` | 已删（删除需先解引用：rerank 行被 agent 引用时 400，删 agent 后 200） |
+| 测试 agent `w5obs-stub-agent` / `w5obs-smart` / `w5obs-tools` | 已删（list 复核只剩原 6 个） |
+| 测试会话（39 个，标题 `w5obs-*`/`obs-*`/`e2e-obs`） | 已删（残留 0） |
+| 临时 stub 8182 | 已关；**8181 保持运行**（跑的是本批更新版脚本：两个早错场景 + 录制开关，默认行为不变） |
+| Java 实例 :8082 | **未重启**（跑的是旧构建）——故"终止错误帧前缀"的**线上复验待一次重启**；单测与门已覆盖 |

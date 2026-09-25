@@ -29,6 +29,16 @@ public class AgentEngineException extends RuntimeException {
         this.state = state;
     }
 
+    /**
+     * 携带 cause 的重载（W5γ5.11 加）：供"工具异常 → Go 的 error 通道"使用——
+     * message 取 {@link com.ragagent.common.error.BizException#wireText}（保留 AppError 前缀），
+     * cause 保留原异常便于排障（Go 侧是同一个 error 值，无需这一层）。
+     */
+    public AgentEngineException(String message, Throwable cause) {
+        super(message, cause);
+        this.state = null;
+    }
+
     /** 取消/失败路径上已抢救出的部分状态（可为 null）。 */
     public AgentState getState() {
         return state;

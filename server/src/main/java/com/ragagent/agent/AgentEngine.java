@@ -1942,10 +1942,14 @@ public class AgentEngine {
         toolCall.setProviderMetadata(tc.getProviderMetadata());
 
         if (execError != null) {
-            log.error("{} Failed in {}ms: {}", toolTag, duration, execError.getMessage());
+            // Go 的 err.Error()：AppError 穿到这里要**带着 `error code: N, error message: ` 前缀**
+            // （工具 return nil, err → 上层 err.Error()）。取 getMessage() 会把前缀丢掉，
+            // SSE 终止错误帧的 content 就与 Go 不一致（见 known-issues/09 第三节）。
+            String execText = com.ragagent.common.error.BizException.wireText(execError);
+            log.error("{} Failed in {}ms: {}", toolTag, duration, execText);
             ToolResult r = new ToolResult();
             r.setSuccess(false);
-            r.setError(execError.getMessage());
+            r.setError(execText);
             toolCall.setResult(r);
         } else {
             boolean success = toolCall.getResult() != null && toolCall.getResult().isSuccess();

@@ -6,10 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.BizException;
 
 /**
  * ToolRegistry 的 Go 实录（17 条，探针用 Go mockTool/outcomeTool 复刻注册/
@@ -200,6 +203,62 @@ class ToolRegistryRecordingTest {
             return (String) GoRecording45A.class.getField(name).get(null);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    @DisplayName("工具抛异常 → 文案照 Go 的 err.Error()：AppError 带前缀、裸异常用 message（W5γ5.11）")
+    void thrownToolErrorTextFollowsGoErrError() {
+        ToolRegistry reg = new ToolRegistry();
+        reg.registerTool(new ThrowingTool("kb-broken", new BizException(new AppError(
+                2200, "vector store bound to the knowledge base is not available", null, 400))));
+        reg.registerTool(new ThrowingTool("plain-boom", new IllegalStateException("transport failed")));
+
+        ToolResult broken = reg.executeTool("kb-broken", RecordingSupport.readTree("{}"));
+        assertThat(broken.isSuccess()).isFalse();
+        assertThat(broken.getError()).isEqualTo("error code: 2200, error message: "
+                + "vector store bound to the knowledge base is not available");
+
+        ToolResult plain = reg.executeTool("plain-boom", RecordingSupport.readTree("{}"));
+        assertThat(plain.isSuccess()).isFalse();
+        assertThat(plain.getError()).isEqualTo("transport failed");
+
+        // wireText 还要能穿过包装层（Go 的 err.Error() 在 fmt.Errorf 包裹后仍带内层原文）
+        assertThat(BizException.wireText(new RuntimeException(
+                new BizException(new AppError(2201, "vector store is not registered", null, 400)))))
+                .isEqualTo("error code: 2201, error message: vector store is not registered");
+        assertThat(BizException.wireText(new RuntimeException("boom"))).isEqualTo("boom");
+        assertThat(BizException.wireText(new RuntimeException())).isNotBlank();
+    }
+
+    /** 抛异常的工具（Go 侧等价于 return nil, err）。 */
+    private static class ThrowingTool implements AgentTool {
+        private final String name;
+        private final RuntimeException error;
+
+        ThrowingTool(String name, RuntimeException error) {
+            this.name = name;
+            this.error = error;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getDescription() {
+            return "";
+        }
+
+        @Override
+        public JsonNode getParameters() {
+            return RecordingSupport.readTree("{\"type\":\"object\"}");
+        }
+
+        @Override
+        public ToolResult execute(ToolRequest request) {
+            throw error;
         }
     }
 }

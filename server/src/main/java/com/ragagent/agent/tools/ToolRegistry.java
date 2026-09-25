@@ -245,12 +245,15 @@ public class ToolRegistry {
         try {
             result = tool.execute(new ToolRequest(castArgs, meta, cancel, maxOutput));
         } catch (RuntimeException e) {
-            // Java 侧防御：Go 的 err 返回值通道。工具抛了运行时异常时等价于 (nil, err)。
+            // Java 侧防御：Go 的 err 返回值通道。工具抛了运行时异常时等价于 (nil, err) ——
+            // 文案照 Go 的 err.Error()：BizException（AppError）要带 `error code: N, error message: `
+            // 前缀；裸 getMessage() 会丢前缀（见 known-issues/09 第三节）。
+            String text = com.ragagent.common.error.BizException.wireText(e);
             ToolResult r = new ToolResult();
             r.setSuccess(false);
-            r.setError("tool returned no result");
+            r.setError(text.isEmpty() ? "tool returned no result" : text);
             logExecution("execute_done", meta, Map.of("tool", name, "args", String.valueOf(castArgs),
-                    "error", String.valueOf(e.getMessage())), true);
+                    "error", text), true);
             return r;
         }
         if (result == null) {
