@@ -213,8 +213,17 @@ Java 的某段作用域解析（agent 的 `kb_selection_mode=all`、或 `/knowle
 
 **修法**：`resolveKbTenant` 增可读性判定（`callerCanReadKb` → 静态骨架 `kbReadableByCaller` + 共享判定
 `checkTenantKBPermission(...).permits("viewer")`）；不可读 ⇒ 记 0 ⇒ 调用方 `continue` 丢弃。
-**未移植** Go 另两条"额外放行"（`HasKBGrant` 精确授予、`AuthorizeTenantAPIKeyKnowledgeBases`
-API-key 作用域）——两者只会**放宽**判定，本实现因此"更严不泄漏"，覆盖到的 KB 会与 Go 有差（备案）。
+**② W5γ5.16 补齐**（初版只做"同租户 + 组织共享"，并把另两条误标成"只会放宽"——其中
+`AuthorizeTenantAPIKeyKnowledgeBases` 实为**拒绝**路径 ✗）：
+- **API-key 作用域已接线**：`TenantAPIKeyScope.authorizeKnowledgeBases` 等价物（Java 早已实现，
+  该文件自述"等对应模块接线"）⇒ KB 受限的 Key 指向白名单外 ⇒ 该 KB 被丢弃（Go `Check` 第二步）；
+- **比较基准改用"检索作用域租户"**（`buildSearchTargets` 的 `tenantID`；Go 文档：session 租户或
+  **共享 agent 的生效租户**）而非 ctx 当前租户——否则共享 agent 会把 **agent 自己的 KB** 误丢 ✗
+  （对应 Go 的 `SharedAgentGrantContextKey`）；
+- **唯一仍未移植**：`KBGrantsContextKey`（精确授予，由 KB 传输/导入流注入 ctx：
+  `access/kb_transfer.go:101`、`knowledgebase.go:61-70`）——不经 QA 检索路径，备案。
+回归：`SessionKnowledgeQaKbScopeTest` **6 例**（新增"共享 agent：作用域租户读 agent 自己的 KB ⇒ 可读"）；
+线上三例 A/B 复验（外租户/自有/自有失效绑定）全一致 ✓。
 
 **验证**：① 回归 `SessionKnowledgeQaKbScopeTest`（5 例：
 自有可读 / 外租户无共享不可读 / 外租户共享可读 / 缺 caller|owner 不可读 / 共享服务缺失按不可读）全绿；
@@ -226,3 +235,16 @@ API-key 作用域）——两者只会**放宽**判定，本实现因此"更严�
   （`dev-env.sh` 导出 → 门继承 → 端点变成 `connected:true`）⇒ **跑门前别在同 shell source dev-env.sh**；
 - `TenantSkillPythonVerifierTest.skillPythonVerifierCaseTable` = **既有环境相关失败**（stash 到 HEAD 复跑同样失败：
   "a pyproject.toml dependency the venv does not carry"），与本批无关。
+
+### 7.7 两处"门红"治本（W5γ5.16，dev/测试环境）
+
+| 现象 | 根因（已定位） | 治本 |
+|---|---|---|
+| `SystemContractTest.parserEnginesOfflineShape` 假红（断言 `connected:false`，实得 `true`） | 端点读 `System.getenv("DOCREADER_ADDR")`（`SystemController:750`）；调用者 shell 若 `source scripts/dev-env.sh`（导出 `localhost:50051`），**测试 JVM 继承** ⇒ 真连上 docker docreader | `server/build.gradle.kts` 的 `tasks.withType<Test>` 加 `environment("DOCREADER_ADDR", "")` ⇒ **任何入口跑测试都沙箱化** ✓（空串与未设等价） |
+| `TenantSkillPythonVerifierTest.skillPythonVerifierCaseTable` 假红（"缺依赖的 skill 必须判坏"却 exit 0） | 登录 shell 的 PATH 里 `/usr/bin` 先于 Homebrew ⇒ `python3` 解析到 **macOS 自带 3.9（无 `tomllib`）** ⇒ 产品脚本 `load_pyproject` 静默 `return None` ⇒ pyproject 依赖检查**整段跳过** ⇒ exit 0。**Go 侧脚本逐字节相同**（`diff -q` 一致）⇒ 上游共有脆弱点，本仓不改产品脚本 | 测试侧**解析一个具备 `tomllib` 的解释器**（依次 `python3`/`3.13`/`3.12`/`3.11`），都不可用才整组跳过 ⇒ 依赖用例恢复真判 ✓ |
+
+**备案（上游共有）**：`tenant_skill_verify.py` 缺 `tomllib` 时静默跳过 pyproject 检查 ⇒ 沙箱运行时须保证
+python ≥3.11，否则该检查不生效（两端同款 ✗，改需两侧同步提案）。
+
+**验收**：两处红在"泄漏环境"下复跑通过 ✓；**全量五批全绿 233s（ACCEPTANCE PASS）** ✓。
+（中途 B1a 出过一次 `WebToolsRecordingTest` 单例 flake ✗：单跑 18/18 过、批内再跑也过，属批内共享态时序，与改动无关。）

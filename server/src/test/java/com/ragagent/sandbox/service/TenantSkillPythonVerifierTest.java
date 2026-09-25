@@ -40,10 +40,37 @@ class TenantSkillPythonVerifierTest {
         }
     }
 
-    private static boolean python3Available() {
+    /**
+     * 解析要用的解释器（懒解析一次）。**要求能 import tomllib（>=3.11）**：
+     * 产品校验器 {@code load_pyproject} 在缺 tomllib 时**静默跳过** pyproject 依赖检查
+     * （该脚本与 Go go:embed 的副本逐字节相同 ⇒ 上游同款行为，不在本仓改 ✗），
+     * 于是 "缺依赖必须判坏" 的用例会**假绿**。
+     *
+     * <p>踩过的坑（2026-09-25）：登录 shell 的 PATH 里 {@code /usr/bin} 先于 Homebrew，
+     * {@code python3} 解析到 macOS 自带的 3.9（无 tomllib）⇒ 该用例在门里假红。
+     * 依次尝试 python3 / 3.13 / 3.12 / 3.11，都不可用才整组跳过（沿用 Go t.Skip 的约定）。</p>
+     */
+    private static String pythonWithTomllib() {
+        if (PYTHON == null) {
+            for (String exe : List.of("python3", "python3.13", "python3.12", "python3.11")) {
+                if (hasTomllib(exe)) {
+                    PYTHON = exe;
+                    break;
+                }
+            }
+        }
+        assumeTrue(PYTHON != null,
+                "no python3 with tomllib (>=3.11) on PATH: pyproject dependency cases would silently skip");
+        return PYTHON;
+    }
+
+    private static String PYTHON;
+
+    private static boolean hasTomllib(String exe) {
         try {
-            new ProcessBuilder("python3", "-c", "pass").start().waitFor(10, TimeUnit.SECONDS);
-            return true;
+            Process p = new ProcessBuilder(exe, "-c", "import tomllib").start();
+            p.waitFor(30, TimeUnit.SECONDS);
+            return p.exitValue() == 0;
         } catch (Exception e) {
             return false;
         }
@@ -51,8 +78,8 @@ class TenantSkillPythonVerifierTest {
 
     private static boolean pythonCanEvaluateMarkers() {
         try {
-            Process p = new ProcessBuilder("python3", "-c", "from packaging.markers import Marker")
-                    .start();
+            Process p = new ProcessBuilder(pythonWithTomllib(), "-c",
+                    "from packaging.markers import Marker").start();
             p.waitFor(30, TimeUnit.SECONDS);
             return p.exitValue() == 0;
         } catch (Exception e) {
@@ -66,7 +93,7 @@ class TenantSkillPythonVerifierTest {
     /** 与沙箱命令同一喂法：stdin 进源码、argv 进根目录与文件名单、--optional 收尾。 */
     private static Result runVerifier(String root, List<String> scripts,
             List<String> optional) throws IOException, InterruptedException {
-        List<String> argv = new ArrayList<>(List.of("python3", "-", root));
+        List<String> argv = new ArrayList<>(List.of(pythonWithTomllib(), "-", root));
         argv.addAll(scripts);
         if (!optional.isEmpty()) {
             argv.add("--optional");
@@ -120,7 +147,7 @@ class TenantSkillPythonVerifierTest {
 
     @Test
     void skillPythonVerifierCaseTable(@TempDir Path tmp) throws Exception {
-        assumeTrue(python3Available(), "python3 is not on PATH");
+        pythonWithTomllib(); // 解析解释器；不可用则整组跳过（原 python3Available 的职责 + tomllib 前置）
         // 有 packaging 时 false marker 被静默求值；没有时它是 note。两种环境安装都必须成。
         String unevaluableMarkerNote = pythonCanEvaluateMarkers()
                 ? ""
@@ -217,7 +244,7 @@ class TenantSkillPythonVerifierTest {
     /** 校验必须能在 skill 一 import 就写文件/开套接字时读它，而两者都不发生。 */
     @Test
     void neverExecutesTheSkill(@TempDir Path tmp) throws Exception {
-        assumeTrue(python3Available(), "python3 is not on PATH");
+        pythonWithTomllib(); // 解析解释器；不可用则整组跳过（原 python3Available 的职责 + tomllib 前置）
         Path root = writeSkillTree(tmp, files("scripts/run.py",
                 "import os\nopen(os.path.join(os.path.dirname(__file__), 'SIDE_EFFECT'), 'w').close()\n"));
         Result r = runVerifier(root.toString(), List.of("scripts/run.py"), List.of());
@@ -229,7 +256,7 @@ class TenantSkillPythonVerifierTest {
     /** root 也能读 000 文件，此用例只在非 root 下有意义（Go 同款 skip）。 */
     @Test
     void reportsAnUnreadableScript(@TempDir Path tmp) throws Exception {
-        assumeTrue(python3Available(), "python3 is not on PATH");
+        pythonWithTomllib(); // 解析解释器；不可用则整组跳过（原 python3Available 的职责 + tomllib 前置）
         assumeTrue(!isRoot(), "root can read a 000 file, so this states nothing as root");
         Path root = writeSkillTree(tmp, files("scripts/run.py", "x = 1\n"));
         Files.setPosixFilePermissions(root.resolve("scripts/run.py"),
@@ -259,7 +286,7 @@ class TenantSkillPythonVerifierTest {
      */
     @Test
     void neverJudgesImports(@TempDir Path tmp) throws Exception {
-        assumeTrue(python3Available(), "python3 is not on PATH");
+        pythonWithTomllib(); // 解析解释器；不可用则整组跳过（原 python3Available 的职责 + tomllib 前置）
         Map<String, Map<String, String>> shapes = new LinkedHashMap<>();
         shapes.put("a package the image genuinely does not carry",
                 files("scripts/run.py", "import totally_absent_package\n"));
@@ -317,7 +344,7 @@ class TenantSkillPythonVerifierTest {
     /** 起点：官方 office 工具包的布局——入口脚本与兄弟包同住，库模块按短名 import 兄弟。能解析，就能安装。 */
     @Test
     void acceptsTheOfficeToolkitLayout(@TempDir Path tmp) throws Exception {
-        assumeTrue(python3Available(), "python3 is not on PATH");
+        pythonWithTomllib(); // 解析解释器；不可用则整组跳过（原 python3Available 的职责 + tomllib 前置）
         Map<String, String> files = files(
                 "SKILL.md", "# xlsx\n",
                 "scripts/recalc.py", "import json\nimport sys\nfrom pathlib import Path\n"

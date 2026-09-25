@@ -879,37 +879,48 @@ public class SessionKnowledgeQaService {
     }
 
     /**
-     * 调用方能否读该 KB（对照 Go {@code access.KBPermissions.Check}，context.go:79-94，required=Viewer）：
-     * <b>自有租户 ⇒ 可读</b>；否则看组织共享（{@code checkTenantKBPermission(...).permits("viewer")}，
-     * 即 Go 的 {@code p.shares.Check(kbID, required)}）。
+     * 作用域能否读该 KB（对照 Go {@code access.KBPermissions.Check}，context.go:79-94，required=Viewer）：
+     * ① API-key 作用域（拒绝路径）→ ② 同租户 → ③ 组织共享 ≥ viewer
+     * （{@code checkTenantKBPermission(...).permits("viewer")} = Go 的 {@code p.shares.Check}）。
      *
-     * <p>⚠️ <b>未移植</b> Go 里另外两条"额外放行"：{@code HasKBGrant}（精确授予）与
-     * {@code AuthorizeTenantAPIKeyKnowledgeBases}（API-key 作用域）。两者都只会**放宽**判定，
-     * 所以本实现方向是"更严不泄漏"——被这两条覆盖的 KB 在 Go 会保留、本仓会丢弃，
-     * 差异已备案（09 §7.6）。</p>
+     * <p><b>唯一未移植</b>的是 Go 的 {@code KBGrantsContextKey}（{@code HasKBGrant} 的精确授予，
+     * 由 KB 传输/导入流注入 ctx；见 {@code access/kb_transfer.go:101}、{@code knowledgebase.go:61-70}）——
+     * 那条不经过 QA 检索路径。共享 agent 情形由"用检索作用域租户比较"覆盖（对应 Go 的
+     * {@code SharedAgentGrantContextKey}）。差异备案见 09 §7.6。</p>
      */
-    private boolean callerCanReadKb(String kbId, long ownerTenantId) {
-        Long callerTenant = TenantContext.currentTenantId();
-        return kbReadableByCaller(callerTenant, ownerTenantId, () -> {
+    private boolean callerCanReadKb(String kbId, long ownerTenantId, long retrievalTenantId) {
+        // ① API-key 作用域（对照 Go Check 的第二步 AuthorizeTenantAPIKeyKnowledgeBases，
+        //    tenant_api_key.go:376-385）——**拒绝**路径：KB 受限的 Key 指向白名单外 ⇒ 不可读。
+        //    等价物（TenantAPIKeyScope）早已存在，此前未在会话/QA 模块接线（该文件自述的"需决策点"）。
+        com.ragagent.apikey.domain.TenantAPIKeyScope scope =
+                com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        if (scope != null && scope.isKnowledgeBaseRestricted()
+                && !scope.allowsKnowledgeBases(java.util.List.of(kbId))) {
+            return false;
+        }
+        // ② 租户/共享判定。用**检索作用域租户**（Go 文档：tenantID = session.TenantID 或共享 agent 的
+        //    生效租户）而非 ctx 当前租户——共享 agent 场景下 agent 自己的 KB 正是靠这条放行
+        //    （对应 Go 的 SharedAgentGrant 授予；用 ctx 租户会把这些 KB 误丢）。
+        return kbReadableByCaller(retrievalTenantId, ownerTenantId, () -> {
             com.ragagent.org.service.KbShareService shareService = kbShareService.getIfAvailable();
             return shareService != null && shareService
-                    .checkTenantKBPermission(kbId, callerTenant == null ? 0L : callerTenant,
+                    .checkTenantKBPermission(kbId, retrievalTenantId,
                             com.ragagent.org.service.OrganizationService.callerTenantRole())
                     .permits("viewer");
         });
     }
 
     /**
-     * 判定骨架（对照 Go {@code access.KBPermissions.Check} 的 ①②③ 步，见 {@link #callerCanReadKb}）：
-     * 无调用方租户 / 属主租户为 0 ⇒ 否；自有租户 ⇒ 是；否则交给共享判定。
-     * 抽成静态纯函数以便脱离 Spring 上下文做回归（Go 侧同款的四路放行只在回调里）。
+     * 判定骨架（对照 Go {@code access.KBPermissions.Check} 的③步，见 {@link #callerCanReadKb}）：
+     * 作用域租户为 0 / 属主租户为 0 ⇒ 否；同租户 ⇒ 是；否则交给共享判定。
+     * 抽成静态纯函数以便脱离 Spring 上下文做回归（API-key 作用域与共享判定在调用方装配）。
      */
-    static boolean kbReadableByCaller(Long callerTenantId, long ownerTenantId,
+    static boolean kbReadableByCaller(Long scopeTenantId, long ownerTenantId,
                                       java.util.function.BooleanSupplier sharedPermitsViewer) {
-        if (callerTenantId == null || callerTenantId == 0 || ownerTenantId == 0) {
+        if (scopeTenantId == null || scopeTenantId == 0 || ownerTenantId == 0) {
             return false;
         }
-        if (callerTenantId == ownerTenantId) {
+        if (scopeTenantId == ownerTenantId) {
             return true;
         }
         return sharedPermitsViewer != null && sharedPermitsViewer.getAsBoolean();
@@ -963,7 +974,7 @@ public class SessionKnowledgeQaService {
                 kbTenantMap.put(kbId, tenantId);
                 return tenantId;
             }
-            if (!callerCanReadKb(kbId, kb.getTenantId())) {
+            if (!callerCanReadKb(kbId, kb.getTenantId(), tenantId)) {
                 kbTenantMap.put(kbId, 0L);
                 return 0L;
             }

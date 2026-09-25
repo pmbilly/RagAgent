@@ -182,4 +182,10 @@ tasks.withType<Test> {
     // 波 3 协作/agents/browserskill 三批（每批 +1-2 个上下文变体）后 4g 在
     // MyBatis XML 解析处 OOM：提到 5g。曲线：512MB→1g→2g→3g→4g→5g。
     maxHeapSize = "5g"
+
+    // 测试沙箱化：docreader 地址一律置空。SystemContractTest.parserEnginesOfflineShape
+    // 断言 connected=false，而该端点读 System.getenv("DOCREADER_ADDR")——调用者 shell 里若
+    // source 过 scripts/dev-env.sh（会导出 localhost:50051），测试 JVM 继承后连上真 docreader
+    // 就**假红**（2026-09-25 踩过）。空串与未设等价（端点按 null/空归一成 ""）。
+    environment("DOCREADER_ADDR", "")
 }
