@@ -207,7 +207,7 @@ class EngineFactoryTest {
                         () -> EngineFactory.createFromStore(store("postgres", pg, null), null))
                         .getMessage());
 
-        for (String engine : List.of("milvus", "tencent_vectordb", "sqlite")) {
+        for (String engine : List.of("tencent_vectordb", "sqlite")) {
             String message = assertThrows(EngineNotSupportedException.class,
                     () -> EngineFactory.createFromStore(store(engine, cc, null), null))
                     .getMessage();
@@ -237,6 +237,17 @@ class EngineFactoryTest {
         KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
                 store("doris", doris, null), null);
         assertEquals("doris", svc.engineType());
+        assertEquals(List.of("keywords", "vector"), svc.support());
+    }
+
+    @Test
+    @DisplayName("Milvus：REST v2 自持口径（addr 缺省 localhost:19530、username/password/database）；构造不拨号")
+    void buildsMilvus() {
+        ConnectionConfig milvus = new ConnectionConfig();
+        milvus.addr = "127.0.0.1:19530";
+        KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
+                store("milvus", milvus, null), null);
+        assertEquals("milvus", svc.engineType());
         assertEquals(List.of("keywords", "vector"), svc.support());
     }
 

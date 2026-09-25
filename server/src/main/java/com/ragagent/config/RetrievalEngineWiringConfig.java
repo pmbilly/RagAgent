@@ -33,9 +33,9 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *   <li><b>env-store 注册</b>：按 {@code RETRIEVE_DRIVER} 逐段注册进程级引擎——
  *       postgres 由 {@link PgVectorEngineRepository} 承担（既有 JDBC 件的引擎口适配）；
  *       elasticsearch_v7/v8 从 {@code ELASTICSEARCH_ADDR/USERNAME/PASSWORD} 现场建驱动；
- *       opensearch / doris / qdrant / weaviate 同法（{@code OPENSEARCH_*} / {@code DORIS_*} /
- *       {@code QDRANT_*} / {@code WEAVIATE_*}）；
- *       其余驱动（sqlite/milvus/tencent_vectordb）未落地，
+ *       opensearch / doris / qdrant / weaviate / milvus 同法（{@code OPENSEARCH_*} /
+ *       {@code DORIS_*} / {@code QDRANT_*} / {@code WEAVIATE_*} / {@code MILVUS_*}）；
+ *       其余驱动（sqlite/tencent_vectordb）未落地，
  *       明确 WARN（Go 会真注册——诚实降级备案，随 driver 批补）。</li>
  *   <li>{@link TenantStoreOwnership}：store 归属查表（工厂的跨租户防御）。</li>
  * </ul>
@@ -97,6 +97,9 @@ public class RetrievalEngineWiringConfig {
                     break;
                 case "weaviate":
                     envWeaviate(registry, guard);
+                    break;
+                case "milvus":
+                    envMilvus(registry, guard);
                     break;
                 case "":
                     break;
@@ -250,6 +253,29 @@ public class RetrievalEngineWiringConfig {
                             scheme, apiKey, null, guard);
             register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
                     EngineTypes.ENGINE_WEAVIATE), label);
+        } catch (RuntimeException e) {
+            log.error("Create {} client failed: {}", label, e.toString());
+        }
+    }
+
+    /**
+     * env-path 的 Milvus 注册——照 Go container.go L1318-1355：{@code MILVUS_ADDRESS}
+     * （缺省 {@code localhost:19530}）/ {@code MILVUS_USERNAME} / {@code MILVUS_PASSWORD} /
+     * {@code MILVUS_DB_NAME}（均非空才设，照 Go）。地址过 SSRF 校验（Go 是 gRPC dialer 逐拨号）。
+     */
+    private static void envMilvus(EngineRegistry registry, SsrfGuard guard) {
+        String label = "milvus";
+        String addr = env("MILVUS_ADDRESS");
+        if (addr.isEmpty()) {
+            addr = "localhost:19530";
+        }
+        try {
+            com.ragagent.retrieval.engine.milvus.MilvusRetrieveRepository repo =
+                    com.ragagent.retrieval.engine.milvus.MilvusRetrieveRepository.create(addr,
+                            env("MILVUS_USERNAME"), env("MILVUS_PASSWORD"), env("MILVUS_DB_NAME"),
+                            null, guard);
+            register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
+                    EngineTypes.ENGINE_MILVUS), label);
         } catch (RuntimeException e) {
             log.error("Create {} client failed: {}", label, e.toString());
         }

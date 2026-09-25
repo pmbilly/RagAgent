@@ -1,5 +1,24 @@
 # 交接文档（新会话接手用）
 
+## 0.-29 Milvus 驱动落地（2026-09-25——W5γ4.14，REST v2 自持）
+
+**做了什么**（照 Go `repository/retriever/milvus/` 全包 ~1,560 行非测试；**协议决策**：起真例逐端点验过 REST v2 全覆盖（含 **BM25 文本检索**）→ 零新依赖自持，不走 SDK）：
+
+| 件 | 说明 |
+|---|---|
+| `MilvusRestClient`（新） | REST v2 传输（{@code /v2/vectordb/…}）：`collections/{has,create,load,list}` + `entities/{upsert,query,search,delete}`；信封 `{code,data,message}`（code≠0 → 异常）；认证 `Authorization: Bearer <user>:<password>`；`dbName` 走请求体；构造期 SSRF |
+| `MilvusRetrieveRepository`（新） | 惰性建集合（schema：VarChar PK + FloatVector + content(enable_analyzer/match) + `SparseFloatVector` 稀疏列 + **BM25 函数** `text_bm25_emb` + 五个 VarChar/Int64/Bool；`indexParams`：HNSW(metric=MILVUS_METRIC_TYPE 缺省 IP, M16, efC128) + content_sparse AUTOINDEX(BM25) + 五个标量 AUTOINDEX）、每次 ensure 都 load；行主键恒新 UUID；"更新"= 查询整行→改字段→Upsert 回写（向量随行回写）；删除 `field in [...]`（照 SDK WithStringIDs）；向量检索 threshold → 范围搜索 **radius**；关键词检索 = BM25 全文（文本进 `data`、`annsField=content_sparse`），单集合失败跳过、score 恒 1.0；CopyIndices 的 offset 分页 + 三态 SourceID（isEnabled 沿用源值）；move 的 drain 循环 + seen 守卫 |
+| `MilvusFilter`（新） | 照 filter.go：算子表（eq→`==`/in/not in/between/and/or）、左结合全括号形状、`formatValue`/`escapeDoubleQuotes`；**值内联**（REST 无模板参数——备案） |
+| 装配 | **EngineFactory** milvus 分支（照 buildMilvusClientConfig：addr 缺省 `localhost:19530`、username/password/database 非空才设）；**RetrievalEngineWiringConfig.envMilvus**（MILVUS_ADDRESS/USERNAME/PASSWORD/DB_NAME，照 Go）；**VectorStoreConfigService.testMilvus** 从 TCP 拨号升级为 REST 探针（版本仍照 Go 恒空） |
+
+**真服务端（milvusdb/milvus:v2.6.11）实测抓到的差异与语义（全部落文档）**：① 稀疏列拼写是 `SparseFloatVector`（SDK 叫 SparseVector）；② **REST 无模板参数**（`filterParams` 被忽略）→ 值内联，算子/括号照 Go；③ `dbName` 走请求体（头无效）；④ `shardsNum` 被 REST create 忽略（照传保留配置面）；⑤ load 同步（SDK 异步）；⑥ **enabled 更新失败聚合冒泡**（errors.Join）vs **tag 更新失败只 WARN**——两条别统一；⑦ **move 的"失败换重试"是设计**（`move.go` 注释：重复 ID = 更新未可见，报错让调用方重试，避免静默漏搬）；⑧ **中文关键词按 CJK 连段切分**（标准分析器，非 jieba；Go 同款）——查询词形要与文本分段一致；⑨ 默认 Bounded 一致性：写后读有窗口，IT 用轮询等待。
+
+**验证**：`MilvusFilterTest` 9 + `MilvusRetrieveRepositoryTest` 15 + **`MilvusDriverLocalIT` 1（真实 Milvus 2.6.11：建集合→写→向量查→BM25 中文查→tag/enabled 整行回写→拷贝→move→删除）** 全绿；五批验收 PASS。IT 起容器命令见 `known-issues/06` 的 W5γ4.14 段（本机现留有 `WeKnora-milvus-local` 容器在 19530）。
+
+**下一步**：检索批只剩 **腾讯 VectorDB**（~870 行：HTTP API 3.0 + TC3 签名自持）与 **SQLite**（native 扩展分发决策）；以及备案项小账（Milvus 的 `shardsNum`/模板参数差异、Weaviate 的 gse 开关回填、E2E 抓回的两个观察项）。
+
+---
+
 ## 0.-28 Weaviate 驱动落地（2026-09-25——W5γ4.13，REST 自持 + 真服务端实测）
 
 **做了什么**（照 Go `repository/retriever/weaviate/` 全包 ~1,170 行非测试；**协议决策**：读 v5 客户端源码确认 GraphQL 检索/列举与批量删除本就是 REST、批量创建也有 REST 回落路径 → 统一 REST 自持，零新依赖）：
@@ -1246,7 +1265,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - ~~tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）~~ ✅ 2026-09-23 批 D2 落地 + **2026-09-25 真实 LLM E2E 全链通过**（§0.-27，抓回并修复四处驱动缺陷）
-- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（W5γ4.13，§0.-28，REST 自持 + 真服务端 IT）**；仍剩 Milvus（~1,560 行，REST v2 覆盖度待探）、腾讯（~870 行，HTTP API 3.0 + TC3 签名）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
+- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（§0.-28）+ Milvus ✅（W5γ4.14，§0.-29，REST v2 自持 + 真服务端 IT）**；仍剩腾讯（~870 行，HTTP API 3.0 + TC3 签名）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1351,8 +1370,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 1. ~~OpenSearch~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）；
    ~~Qdrant~~ ✅ W5γ4.11（§0.-26，gRPC 族首支走 REST 自持）——HTTP/SQL 族收官、gRPC 族已破题；
 2. ~~Weaviate（~1,170 行）~~ ✅ W5γ4.13（§0.-28）：REST 自持落地 + 真服务端 IT；
-3. **Milvus**（~1,560 行）：REST v2 覆盖度先探（collection/index/insert/query/delete），
-   不足则引官方 milvus-sdk-java；
+3. ~~Milvus（~1,560 行）~~ ✅ W5γ4.14（§0.-29）：REST v2 覆盖度探明即自持落地 + 真服务端 IT；
 4. **腾讯 VectorDB**（~870 行）：自持 HTTP API 3.0（TC3-HMAC-SHA256 签名）；
 5. **SQLite**——native 扩展（sqlite-vec）多平台分发需决策，优先级最低；
 6. ~~install 真实 LLM E2E 联调~~ ✅ 2026-09-25（§0.-27，四处缺陷已修；原计划 1→2→3 全部完成）；

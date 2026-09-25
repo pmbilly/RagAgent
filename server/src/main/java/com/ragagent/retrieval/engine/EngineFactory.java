@@ -6,6 +6,7 @@ import com.ragagent.retrieval.engine.doris.DorisRetrieveRepository;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV7RetrieveRepository;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveRepository;
 import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
+import com.ragagent.retrieval.engine.milvus.MilvusRetrieveRepository;
 import com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository;
 import com.ragagent.retrieval.engine.weaviate.WeaviateRetrieveRepository;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
@@ -34,8 +35,10 @@ import com.ragagent.vectorstore.domain.VectorStore;
  *   <li>**weaviate**：照 {@code createWeaviateEngine} 真落地——**REST 自持**（GraphQL 检索/
  *       列举与批量删除本就是 REST；批量创建走客户端自身的 REST 回落路径；host 缺省
  *       {@code weaviate:8080}、scheme 缺省 http、api_key 直取）</li>
- *   <li>**milvus/tencent_vectordb**：driver 未落地 →
- *       诚实 XDEP（milvus/腾讯属 "协议决策"族）</li>
+ *   <li>**milvus**：照 {@code createMilvusEngine} 真落地——**REST v2 自持**（{@code /v2/vectordb/…}
+ *       零新依赖：建集合含 BM25 函数/稀疏列/indexParams、upsert/query/search/delete 均已对真服务端
+ *       实测；addr 缺省 {@code localhost:19530}）</li>
+ *   <li>**tencent_vectordb**：driver 未落地 → 诚实 XDEP（腾讯属 "协议决策"族）</li>
  * </ul>
  *
  * <h2>照抄点</h2>
@@ -176,7 +179,19 @@ public final class EngineFactory {
                 return new KeywordsVectorHybridRetrieveEngineService(repo,
                         EngineTypes.ENGINE_WEAVIATE);
             }
-            case EngineTypes.ENGINE_MILVUS:
+            case EngineTypes.ENGINE_MILVUS: {
+                // 照 Go buildMilvusClientConfig：addr 缺省 localhost:19530；username/password/
+                // database 非空才设；本仓走 REST v2（见驱动类注释）。
+                ConnectionConfig ccMilvus = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
+                String milvusAddr = ccMilvus.addr == null || ccMilvus.addr.isEmpty()
+                        ? "localhost:19530" : ccMilvus.addr;
+                MilvusRetrieveRepository repo = MilvusRetrieveRepository.create(milvusAddr,
+                        ccMilvus.username, ccMilvus.password, ccMilvus.database,
+                        store.getIndexConfig(), guard);
+                return new KeywordsVectorHybridRetrieveEngineService(repo,
+                        EngineTypes.ENGINE_MILVUS);
+            }
             case EngineTypes.ENGINE_TENCENT_VECTORDB:
                 throw new EngineNotSupportedException("retriever engine " + engineType
                         + " driver not ported in this batch (tracked as W5γ4 follow-up)");

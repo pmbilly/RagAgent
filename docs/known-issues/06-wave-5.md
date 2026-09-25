@@ -1526,3 +1526,60 @@ IT 覆盖：建类 → 批量写 → 向量检索（certainty）→ 关键词检
 - Go 的 `weaviate.tokenizeQuery` 是死代码（本包无调用点；词表相关的分词在 Qdrant 用），未翻译。
 - Go 批量更新里的 `if err != nil`（用的是上一个调用的陈旧 err）死分支未复刻。
 - env 侧 `WEAVIATE_GRPC_ADDRESS` 保留在配置面（照 Go 的 env 解析），REST 实现不用它。
+
+## W5γ4.14：Milvus 驱动（REST v2 自持，2026-09-25）
+
+### 协议决策：REST v2 全覆盖（实测 milvusdb/milvus:v2.6.11）
+
+Go 用 milvus-sdk-go v2（gRPC）。起真例逐端点验过 **REST v2** 后确认可零新依赖自持：
+建集合（`schema` + `functions`(BM25) + `indexParams` 内联）、`collections/load`、`collections/list`、
+`entities/upsert`、`entities/query`（`outputFields:["*"]` **含向量**——"查整行→改字段→回写"
+的更新路径靠它）、`entities/search`（向量检索与 **BM25 文本检索**）、`entities/delete`
+（过滤表达式）全部可用。
+
+### REST 与 SDK 的差异（实现时必须知道）
+
+1. **稀疏列 dataType 是 `SparseFloatVector`**（SDK 常量叫 `FieldTypeSparseVector`；
+   写 `SparseVector` 会被服务端拒：`data type SparseVector is invalid(case sensitive)`）。
+2. **REST 没有模板参数**：Go 用 `filter: "field in {ids}"` + `WithTemplateParam`；REST 的
+   `filterParams` 被静默忽略（实测报 `the value of expression template variable name {ids}
+   is not found`）→ 本仓把值**内联**（照 `filter.go` 的 `formatValue`/`escapeDoubleQuotes`：
+   字符串加双引号只转义 `"`、布尔 true/false、数值原样）。算子的括号/结合形状照 Go。
+3. **库名走请求体**的 `dbName`（`DbName` 头实测无效）。
+4. **`shardsNum` 被 REST create 忽略**（describe 恒 1）——照传保留配置面（Go 的
+   `WithShardNum` 走 gRPC 字段，是真生效的；差异已备案）。
+5. **load 是同步调用**（SDK 是异步 task + `Await`）；错误文案合并为
+   `failed to load collection: …`。
+
+### 语义要点（照 Go，别"顺手统一"）
+
+- **行主键恒新 UUID**；所谓"更新"是 **查询整行 → 改字段 → Upsert 回写**（three-step），
+  向量随行回写（依赖 query 输出含 `embedding`）。
+- **enabled 批量更新失败会聚合冒泡**（`errors.Join` 语义——"停用必须让索引不可搜"）；
+  **tag 批量更新失败只 WARN 继续**。两条语义不同。
+- **move 的 drain 语义是"失败换重试"，不是 bug**：`move.go` 注释明说"重复 ID = 后端尚未把
+  已确认的更新可见 → 报错让调用方重试，而不是推进检查点静默漏搬"，重复 ID →
+  `invalid or repeated move index`。IT 因此按**调用方姿态重试**（Bounded 一致性下有可见性窗口）。
+- **默认 Bounded 一致性**：写后读有延迟（实测 upsert 后立即 search 为空、数十毫秒后可见）。
+  驱动照 Go 不显式设置一致性；集成测试用轮询等待。
+
+### 中文关键词的真相（易踩，Go 侧同款）
+
+`schema.content` 的 `enable_analyzer=true` 用的是 Milvus **标准分析器**——**按 CJK 连段切词**
+（"中文检索 hello" 的 token 是 `中文检索` 与 `hello`），**不是 jieba 分词**。因此查询词必须与
+文本里的分段一致（探针实录：`"中文"` 命中 `"中文 检索 hello"`、不命中 `"中文检索 hello"`；
+`"hello"` 恒命中）。Go 的 schema 同样如此——中文召回的粒度取决于文档里是否有空格/标点。
+
+### 复跑（真服务端 IT，env 门控）
+
+```bash
+docker run -d --name WeKnora-milvus-local --security-opt seccomp=unconfined \
+  -p 19530:19530 -p 9091:9091 \
+  -e ETCD_USE_EMBED=true -e ETCD_DATA_DIR=/var/lib/milvus/etcd \
+  -e COMMON_STORAGETYPE=local -e DEPLOY_MODE=STANDALONE \
+  milvusdb/milvus:v2.6.11 milvus run standalone
+WEKNORA_MILVUS_IT=true ./gradlew :server:test --tests "*MilvusDriverLocalIT*"
+```
+
+IT 覆盖：建集合（BM25 函数 + 稀疏列 + 索引）→ 批量写 → 向量检索 → BM25 中文检索 →
+tag/enabled 的整行回写（向量必须仍在）→ 拷贝（offset 分页）→ move（带调用方重试）→ 删除。

@@ -290,15 +290,21 @@ public class VectorStoreConfigService {
         }
     }
 
+    /**
+     * 对照 testMilvusConnection（vectorstore_healthcheck.go L177-199）：Go 用 <b>TCP 拨号</b>
+     * （注释明说：避开 milvus-proto 与 qdrant 的 protobuf 命名冲突，不做 SDK 级验证），
+     * 因此<b>版本恒空</b>。本仓已有 REST v2 客户端 → 升级为 {@code collections/list} 探针
+     * （连通性 + 认证都验到，比 TCP 拨号更强），仍返回 ""（Milvus 无版本端点，照 Go 口径）。
+     */
     private String testMilvus(ConnectionConfig config) {
-        String addr = config.addr == null || config.addr.isEmpty() ? "localhost:19530" : config.addr;
-        int idx = addr.lastIndexOf(':');
-        String host = idx > 0 ? addr.substring(0, idx) : addr;
-        int port = idx > 0 ? Integer.parseInt(addr.substring(idx + 1)) : 19530;
-        if (!dial(host, port)) {
-            throw new ConnectorFailure("failed to connect to milvus: connection refused or server unreachable");
+        try {
+            return com.ragagent.retrieval.engine.milvus.MilvusRetrieveRepository.testConnection(
+                    config.addr, config.username, config.password, config.database, ssrfGuard);
+        } catch (RuntimeException e) {
+            log.warn("Milvus connection test failed: {}", e.getMessage());
+            throw new ConnectorFailure(
+                    "failed to connect to milvus: connection refused or server unreachable");
         }
-        return "";
     }
 
     private String testTencentVectorDB(ConnectionConfig config) {
