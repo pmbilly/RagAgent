@@ -35,8 +35,8 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *       elasticsearch_v7/v8 从 {@code ELASTICSEARCH_ADDR/USERNAME/PASSWORD} 现场建驱动；
  *       opensearch / doris / qdrant / weaviate / milvus 同法（{@code OPENSEARCH_*} /
  *       {@code DORIS_*} / {@code QDRANT_*} / {@code WEAVIATE_*} / {@code MILVUS_*} /
- *       {@code TENCENT_VECTORDB_*}）；其余驱动（sqlite）未落地，
- *       明确 WARN（Go 会真注册——诚实降级备案，随 driver 批补）。</li>
+ *       {@code TENCENT_VECTORDB_*} / sqlite（{@code SQLITE_PATH}，独立文件）；
+ *       <b>九家店至此全部落地</b>。</li>
  *   <li>{@link TenantStoreOwnership}：store 归属查表（工厂的跨租户防御）。</li>
  * </ul>
  *
@@ -103,6 +103,9 @@ public class RetrievalEngineWiringConfig {
                     break;
                 case "tencent_vectordb":
                     envTencentVectorDb(registry, guard);
+                    break;
+                case "sqlite":
+                    envSqlite(registry);
                     break;
                 case "":
                     break;
@@ -308,6 +311,25 @@ public class RetrievalEngineWiringConfig {
                     EngineTypes.ENGINE_TENCENT_VECTORDB), label);
         } catch (RuntimeException e) {
             log.error("Create {} client failed: {}", label, e.toString());
+        }
+    }
+
+    /**
+     * env-path 的 SQLite 注册——照 Go container.go L1151-1160（直接用产品库的 {@code db}）。
+     * 本仓产品库是 PG：改为一颗独立 SQLite 文件，路径 {@code SQLITE_PATH}（缺省
+     * {@code ./data/weknora-retrieval.sqlite}）。建表/建 FTS 在构造期完成（照 Go 的
+     * AutoMigrate + initFTS5）；失败只记日志不炸装配（照 Go 的 Register 失败分支）。
+     */
+    private static void envSqlite(EngineRegistry registry) {
+        try {
+            com.ragagent.retrieval.engine.sqlite.SqliteRetrieveRepository repo =
+                    com.ragagent.retrieval.engine.sqlite.SqliteRetrieveRepository.create(
+                            com.ragagent.retrieval.engine.sqlite.SqliteRetrieveRepository
+                                    .resolvePath(null));
+            register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
+                    EngineTypes.ENGINE_SQLITE), "sqlite");
+        } catch (RuntimeException e) {
+            log.error("Register sqlite retrieve engine failed: {}", e.toString());
         }
     }
 

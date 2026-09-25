@@ -325,13 +325,11 @@ public class ModelDebugController {
             return writeResult(startedNanos, requestPreview, null, e.getMessage(), observations);
         }
         // 对照 vlm.NewVLM → NewRemoteAPIVLM 的构造期 SSRF 校验（factory 错误面：
-        // 失败时 observations 无 answer_characters 键）；
-        // ollama / weknoracloud 界面属 provider-XDEP（见 known-issues，dev 双端同形）
+        // 失败时 observations 无 answer_characters 键）。**ollama 界面已落地**（照
+        // vlm/ollama.go 走本地 OllamaService，Go 侧不做 SSRF 校验——基址来自
+        // OLLAMA_BASE_URL）；weknoracloud 仍是 provider-XDEP（见 known-issues）。
         var config = VlmClient.configFromModel(vlmModel, "", "");
         try {
-            if (config.isOllama()) {
-                throw new RuntimeException("ollama VLM interface: provider-XDEP (not translated)");
-            }
             if ("weknoracloud".equals(config.provider())) {
                 throw new RuntimeException("weknoracloud VLM: provider-XDEP (not translated)");
             }

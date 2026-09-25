@@ -81,6 +81,12 @@ dependencies {
     // DuckDB（数据分析，对照 Go internal/application/service/chat_pipeline/data_analysis.go）
     implementation("org.duckdb:duckdb_jdbc:1.1.3")
 
+    // SQLite 检索引擎（W5γ4.16）：照 Go 的 mattn/go-sqlite3（CGO）口径换成 xerial 的纯 JDBC
+    // 驱动——平台 native 由 Maven 构件自带（仓内零二进制）。实测 3.46.1 打包版支持
+    // FTS5 / contentless_delete / bm25()（关键词面与 Go 同构）。
+    // Go 侧无对应依赖（其 sqlite 走产品库的 GORM），故此依赖是本仓的"介质替身"。
+    implementation("org.xerial:sqlite-jdbc:3.46.1.3")
+
     // Doris 检索引擎（W5γ4.10）：MySQL 协议主链路。对照 Go go-sql-driver/mysql
     // （container.go 的 _ "github.com/go-sql-driver/mysql" 注册 + createDorisEngine 的
     // sql.Open）；Stream Load（HTTP/8030）由 DorisStreamLoadClient 自持，不用 SDK。

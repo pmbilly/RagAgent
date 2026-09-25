@@ -186,6 +186,18 @@ class MilvusRetrieveRepositoryTest {
     }
 
     @Test
+    @DisplayName("建集合：indexCfg.shardsNum>0 才带 shardsNum（服务端忽略是已知差异，配置面照传）")
+    void shardsNumPropagation() {
+        MilvusRestClient client = new MilvusRestClient(addr, "", "", "", null);
+        JsonNode withShards = new MilvusRetrieveRepository(client, "base", "IP", 4, 0)
+                .collectionBody("base_2", 2);
+        assertThat(withShards.path("shardsNum").asInt()).isEqualTo(4);
+        JsonNode withoutShards = new MilvusRetrieveRepository(client, "base", "IP", 0, 0)
+                .collectionBody("base_2", 2);
+        assertThat(withoutShards.has("shardsNum")).isFalse();
+    }
+
+    @Test
     @DisplayName("集合已存在：只 load + upsert（不重复建）")
     void existingCollectionOnlyLoads() throws Exception {
         repo("weknora_embeddings").save(info(CHUNK, CHUNK), embeddings(CHUNK, new float[] {1f}));

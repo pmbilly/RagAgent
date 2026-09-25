@@ -1651,3 +1651,64 @@ QUERY `{0.38338965, 0.16701655, 0.066204146, 0.38338965}`——**哈希与 BM25 
 腾讯 VectorDB 是云服务（无本地版）→ 本批**没有真服务端 IT**（与 ES/OpenSearch/Milvus 批不同）：
 wire 形状用 stub HTTP 逐请求钉死（auth/path/body/信封），BM25 用 Go SDK 的实跑基准逐值对照。
 真机联调留待有云实例凭据时（配置面已就绪：`TENCENT_VECTORDB_ADDR/USERNAME/API_KEY/DATABASE`）。
+
+## W5γ4.16：SQLite 驱动（独立文件 + FTS5 照用 + 平面 cosine，2026-09-25）——**九家店全部落地**
+
+### 介质决策（本批的判断题）
+
+Go 的 SQLite 引擎**不是**独立存储：`createSQLiteEngine(_ types.VectorStore, db *gorm.DB)`
+忽略 store 配置、直接用**产品库**（单二进制模式下的 SQLite），并建三张表
+（`lite_embeddings` 元数据 / `lite_embeddings_fts` FTS5 contentless / `vec_embeddings_<dim>`
+是 sqlite-vec 的 `vec0` 虚拟表）。
+
+本仓产品库是 **PostgreSQL**（H2 仅测试），没有"挂产品库的 SQLite"这种形态。判断与落法：
+
+1. **驱动**：`org.xerial:sqlite-jdbc:3.46.1.3`——平台 native 随 Maven 构件分发，
+   **仓内零二进制**（替代 Go 的 CGO 静态链接）。实测打包版 SQLite 3.46.1
+   **支持 FTS5 / contentless_delete / bm25()** → 关键词面与 Go 基本同构。
+2. **介质**：一颗**独立 SQLite 文件**（`SQLITE_PATH`，缺省
+   `./data/weknora-retrieval.sqlite`；另支持系统属性 `weknora.sqlite.path` 供测试/运维，
+   与 store 的 `connection_config.addr`）。引擎名与对外语义不变，介质就近成文件。
+3. **vec0 → 普通表 + Java 标量函数**：`vec_embeddings_<dim>(rowid INTEGER PRIMARY KEY,
+   embedding BLOB)`（小端 float32，与 `sqlite_vec.SerializeFloat32` 同格式）+
+   **注册 `vec_distance_cosine(blob, blob)` Java 函数**做平面扫描；排序/取 k/过滤顺序
+   与 Go 逐句一致（cosine 的 KNN 结果完全相同，仅复杂度从 ANN 变 O(n)）。
+
+### 照抄别改的语义点
+
+1. **写入是 `INSERT OR IGNORE`**（GORM `OnConflict DoNothing`）：靠
+   `(source_id, source_type)` 唯一索引去重——**重复 source 的二次写被静默忽略**
+   （内容/向量都不更新！与其它店的"覆盖写"完全相反）。
+2. **关键词面**：`tokenizeCJKBigram` 把连续汉字切**重叠二元组**（单字保留、非 CJK 整词、
+   空白/标点/符号分隔），入 FTS5 的 content；查询同样切二元组后 `"a" OR "b"` 连接；
+   分数 `bm25(...) * -1000000.0` 变正数。**contentless FTS5 不存原文**——直接
+   `SELECT content FROM ..._fts` 恒 NULL（Go 同款，别拿它做断言；用二元 MATCH 断）。
+3. **向量是"先取 k 近邻、再按过滤收窄"**（照 Go 的 `MATCH ? AND k = ?` 外层
+   `rowid IN (过滤子查询)`）：因此**结果可能少于 TopK**（最近的两条若不过滤条件，topK=2
+   会返回空）。阈值在取回后于内存里 `score < threshold → 跳过`。
+4. **过滤只有三个 IN**（kb/knowledge/tag）——**没有排除项**（`excludeKnowledgeIds` /
+   `excludeChunkIds` 被此店忽略，照 Go 原文）。
+5. **检索分派是特例**：`RetrieverType == ""` 时**关键词与向量两条都跑**并合并返回；
+   **未知类型不报错**（返回空），与其它店的 `invalid retriever type` 不同。
+6. 结果 `id` 是 **rowid 的十进制串**；`EstimateStorageSize = len(content)+200`（字节）；
+   `move` 只有一条 UPDATE（FTS/向量靠 rowid 关联、不动）。
+7. **WAL 快照坑（实测踩到）**：写事务里若用**另一条连接**建向量表，SQLite（WAL）返回
+   `no such table`——写路径必须用**同一条连接**建表（本仓 `ensureVecTable(conn, dim)`）。
+
+### 验证
+
+`SqliteRetrieveRepositoryTest` 12 条（真实 SQLite 文件：建表/FTS/重开、去重语义、二元
+关键词与英文整词、分派特例、cosine 排名与分数、**k-then-filter 语义**、阈值、三种删除、
+批量更新、拷贝（含 FTS/向量复制）、move、估算）+ `SqliteCjkBigramTest` 4 条（切分/查询/
+小端序列化/cosine/UTF-8 清理）**全绿**；`EngineFactoryTest`/`RetrievalEngineWiringConfigTest`
+补齐（sqlite 不再是 XDEP）；五批验收 PASS。
+
+## W5γ4.17：备案小账批（2026-09-25）
+
+| 项 | 结论 |
+|---|---|
+| **VLM ollama 界面** | ✅ **落地**（照 Go `vlm/ollama.go` 74 行）：单条 user 消息（prompt + 图片原始字节 → JSON base64）、`stream=false`、`options.temperature=0.1`、取 `message.content`；`ModelDebugController.debugVlm` 放行 ollama（Go 侧对 ollama 基址不做 SSRF 校验——基址来自 `OLLAMA_BASE_URL`）。**weknoracloud 仍是 XDEP**（云 API，需凭据；`VlmClientTest` 无关，golden 只覆盖 OpenAI 面） |
+| **Milvus `shardsNum`** | ✅ **钉测试**：`indexCfg.shardsNum>0` 才带该键（服务端忽略是已备案差异，配置面照传） |
+| **Weaviate `ENABLE_TOKENIZER_GSE`** | 📋 **跨仓提案（未改 Go 仓）**：Go 仓 `docker-compose.yml` 的 weaviate 服务缺 `-e ENABLE_TOKENIZER_GSE=true`，而 Go 驱动 schema 用了 `tokenization:"gse"` → 1.28.4 默认关时**建类 422**（Go 侧同样受影响）。建议由 Go 仓持有者补该 env（本仓 IT 的启动命令已含它，见 W5γ4.13 段） |
+| **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | 📋 **待复跑时定位**：现有文档只留了名词、没有现象与复现步骤——先补复现（按 W5γ4.12 的"E2E 操作要点"五步起栈），再按现象定修法。**不做无现象的猜测式改动** |
+| **腾讯分词接缝 / jieba 真实分词** | 📋 维持接缝（接上真实 jieba 即与 Go 存量稀疏向量互通；属独立工作，非小账） |

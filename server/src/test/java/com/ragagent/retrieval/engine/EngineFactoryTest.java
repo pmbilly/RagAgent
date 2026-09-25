@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.retrieval.engine.EngineFactory.EngineNotSupportedException;
+import com.ragagent.retrieval.engine.sqlite.SqliteRetrieveRepository;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
 import com.ragagent.vectorstore.domain.VectorStore;
@@ -207,12 +208,36 @@ class EngineFactoryTest {
                         () -> EngineFactory.createFromStore(store("postgres", pg, null), null))
                         .getMessage());
 
-        for (String engine : List.of("sqlite")) {
-            String message = assertThrows(EngineNotSupportedException.class,
-                    () -> EngineFactory.createFromStore(store(engine, cc, null), null))
-                    .getMessage();
-            assertTrue(message.contains("driver not ported in this batch"), engine + " → " + message);
-            assertTrue(message.contains(engine), engine + " 文案要含引擎名");
+        // 九家店至此全部落地：postgres 走既有 JDBC 件，sqlite 走独立文件（见下方用例），
+        // 其余八家在各自用例里断言——XDEP 名单已清空
+    }
+
+    @Test
+    @DisplayName("SQLite：地址当文件路径用（免 SSRF）；临时文件构建真实引擎（建表在构造期）")
+    void buildsSqlite() throws Exception {
+        java.nio.file.Path temp = java.nio.file.Files.createTempDirectory("sqlite-factory");
+        ConnectionConfig sqlite = new ConnectionConfig();
+        sqlite.addr = temp.resolve("factory.sqlite").toString();
+
+        KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
+                store("sqlite", sqlite, null), null);
+        assertEquals("sqlite", svc.engineType());
+        assertEquals(List.of("keywords", "vector"), svc.support());
+
+        ConnectionConfig empty = new ConnectionConfig();
+        String previous = System.getProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH);
+        System.setProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH,
+                temp.resolve("factory-default.sqlite").toString());
+        try {
+            // 空 addr → 回落（系统属性/env/缺省），构造仍不炸
+            assertEquals("sqlite",
+                    EngineFactory.createFromStore(store("sqlite", empty, null), null).engineType());
+        } finally {
+            if (previous == null) {
+                System.clearProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH);
+            } else {
+                System.setProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH, previous);
+            }
         }
     }
 

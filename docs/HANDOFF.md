@@ -1,5 +1,37 @@
 # 交接文档（新会话接手用）
 
+## 0.-32 备案小账批（2026-09-25——W5γ4.17）
+
+| 项 | 结论 |
+|---|---|
+| **VLM ollama 界面** | ✅ **落地**（照 Go `vlm/ollama.go`）：`VlmClient.predictOllama`（单条 user 消息 + 图片原始字节 → JSON base64、`stream=false`、`options.temperature=0.1`、取 `message.content`；错误族 `Ollama VLM request: …`）+ `ModelDebugController.debugVlm` 放行 ollama（Go 侧对 ollama 基址不做 SSRF 校验）+ `VlmOllamaTest` 4 条（形状/空图丢弃/服务不可用/分派不走传输层）。**weknoracloud 仍是 XDEP**（云 API，需凭据） |
+| **Milvus `shardsNum`** | ✅ 钉测试：`indexCfg.shardsNum>0` 才带键（服务端忽略为已备案差异） |
+| **Weaviate `ENABLE_TOKENIZER_GSE`** | 📋 **跨仓提案（未改 Go 仓）**：Go 仓 compose 的 weaviate 缺该 env，而其 schema 用 `tokenization:"gse"` → 1.28.4 默认关时建类 422（Go 侧同样受影响）——建议由 Go 仓持有者补 |
+| **E2E 两个观察项**（早错 SSE 不收流 / `list_sandbox_files` 注册时机） | 📋 **待复跑时定位**：文档只有名词、无现象与复现步骤；先按 W5γ4.12 的"E2E 操作要点"复跑抓现象，再做修（**不做猜测式改动**） |
+| **腾讯分词接缝 / jieba** | 📋 维持接缝（接真实 jieba 即与 Go 存量稀疏向量互通；独立工作） |
+
+**验证**：`VlmOllamaTest` 4 + Milvus 新增 1 全绿；五批验收 PASS。
+
+---
+
+## 0.-31 SQLite 驱动落地（2026-09-25——W5γ4.16）**★ 九家店全部落地**
+
+**做了什么**（照 Go `repository/retriever/sqlite/` 全包 ~680 行非测试；**介质决策**：Go 的 `createSQLiteEngine(_ types.VectorStore, db *gorm.DB)` **忽略 store 配置、用产品库**（单二进制模式的 SQLite）并建 `lite_embeddings` + `lite_embeddings_fts`(FTS5 contentless) + `vec_embeddings_<dim>`(vec0)；本仓产品库是 PostgreSQL → 改**独立 SQLite 文件**）：
+
+| 件 | 说明 |
+|---|---|
+| `SqliteRetrieveRepository`（新） | JDBC + **`org.xerial:sqlite-jdbc:3.46.1.3`**（平台 native 随 Maven 分发，仓内零二进制；实测打包版 **FTS5/contentless_delete/bm25 全可用**→关键词面与 Go 同构）。建表照 Go（含"老 FTS 表非 contentless → 重建 + 二元回填"迁移 + 既有维度补建向量表）；写入 **`INSERT OR IGNORE`**（(source_id, source_type) 唯一索引去重——**重复 source 二次写被静默忽略**，与其它店的覆盖写相反）；关键词 `tokenizeCJKBigram`（重叠二元组）+ FTS5 MATCH + `bm25()×-1000000`；向量**平面扫描**（`vec0` → 普通表 `(rowid, embedding BLOB)` + 注册 Java 标量函数 `vec_distance_cosine`，cosine 的 KNN 结果与 vec0 完全相同）；**先取 k 近邻再按过滤收窄**（结果可能少于 TopK——Go 语义）、阈值取回后衰减；三种删除、批量更新、拷贝（含 FTS/向量复制）、move 一条 UPDATE、估算 `len(content)+200` |
+| `SqliteCjkBigram`（新） | 照 Go 的 `tokenizeCJKBigram` / `sanitizeFTS5Query`（`"a" OR "b"`）+ 小端 float32 序列化（= `sqlite_vec.SerializeFloat32`） |
+| 装配 | **EngineFactory** sqlite 分支（store 的 `connection_config.addr` 当文件路径；免 SSRF 照 Go）+ **RetrievalEngineWiringConfig.envSqlite**（`SQLITE_PATH` 缺省 `./data/weknora-retrieval.sqlite`；另支持系统属性 `weknora.sqlite.path` 供测试/运维） |
+
+**照抄别改的语义点**：① `INSERT OR IGNORE` 去重（内容/向量都不更新）；② 过滤**只有三个 IN**（kb/knowledge/tag，**无排除项**，照 Go）；③ 检索分派特例：**空类型两条都跑并合并**、**未知类型不报错返回空**（其它店是 `invalid retriever type`）；④ contentless FTS5 **不存原文**（`SELECT content` 恒 NULL，别拿它断言）；⑤ 结果 `id` 是 rowid 十进制串。**实测坑**：WAL 下"另一条连接建向量表"在已开事务快照里不可见（`no such table`）→ 写路径必须**同连接建表**（`ensureVecTable(conn, dim)`）。
+
+**验证**：`SqliteRetrieveRepositoryTest` 12（**真实 SQLite 文件**全链）+ `SqliteCjkBigramTest` 4 全绿；工厂/接线测试补齐（sqlite 出 XDEP 名单）；五批验收 PASS。
+
+**下一步**：**九家店（ES v7/v8、OpenSearch、Doris、Qdrant、Weaviate、Milvus、腾讯 VectorDB、SQLite）全部落地**——检索批至此**收官**。后续为：§0.-32 的备案小账（weknoracloud VLM、E2E 两观察项、jieba 接缝）、provider-XDEP 族（W5δ PTY、initialize 契约）、以及建议出一份**检索批收官报告**（九家口径总表 + 差异汇总 + 待真机联调清单）。
+
+---
+
 ## 0.-30 腾讯 VectorDB 驱动落地（2026-09-25——W5γ4.15，HTTP 自持 + 客户端 BM25）
 
 **做了什么**（照 Go `repository/retriever/tencentvectordb/` 全包 ~870 行非测试；**协议决策**：Go 的 `tcvectordb.RpcClient` 集合/文档操作走 **gRPC（olama）**、仅 database 走 HTTP；本仓自持 SDK 的 **HTTP 面**并**不引 protobuf**）：
@@ -1286,9 +1318,9 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - ~~tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）~~ ✅ 2026-09-23 批 D2 落地 + **2026-09-25 真实 LLM E2E 全链通过**（§0.-27，抓回并修复四处驱动缺陷）
-- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（§0.-28）+ Milvus ✅（§0.-29）+ 腾讯 VectorDB ✅（W5γ4.15，§0.-30，HTTP 自持 + 客户端 BM25）**；仍剩 **SQLite**（~680 行，CGO + sqlite-vec，native 扩展多平台分发决策）——**其余各家已全部落地**。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
+- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（§0.-28）+ Milvus ✅（§0.-29）+ 腾讯 VectorDB ✅（W5γ4.15，§0.-30，HTTP 自持 + 客户端 BM25）**；**SQLite 亦已落地（W5γ4.16，§0.-31）——九家店全部收官**（介质差异见 §0.-31：Go 挂产品库、本仓独立 SQLite 文件 + xerial 驱动 + 平面 cosine）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
-- VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
+- VLM 界面：**ollama 已落地（W5γ4.17，§0.-32）**；weknoracloud 仍为诚实 XDEP（云 API 需凭据，provider-XDEP 族）
 
 ### 2.1 已完成的模块
 
@@ -1392,8 +1424,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    ~~Qdrant~~ ✅ W5γ4.11（§0.-26）；~~Weaviate~~ ✅ W5γ4.13（§0.-28）；
    ~~Milvus~~ ✅ W5γ4.14（§0.-29）；~~腾讯 VectorDB~~ ✅ W5γ4.15（§0.-30）——
    **除 SQLite 外全部落地**（HTTP 族 / SQL 族 / gRPC 族均已走自持 REST/HTTP 口径）；
-2. **SQLite**（~680 行）：CGO + sqlite-vec 扩展，native 多平台分发需决策（原样引 xerial
-   sqlite-jdbc + 扩展 .dylib/.so 分发，或用纯 Java 近似）——优先级最低，建议先决策再动手；
+2. ~~SQLite~~ ✅ W5γ4.16（§0.-31）——**九家店全部落地，检索批收官**；
 3. **备案小账批**：Milvus 的 shardsNum/模板参数差异、Weaviate 的 `ENABLE_TOKENIZER_GSE` 回填
    Go 仓 compose、腾讯的**分词接缝**（接真实 jieba 可与 Go 存量数据互通）、E2E 抓回的两个
    观察项（早错 SSE 不收流 / `list_sandbox_files` 注册时机）、VLM 界面文案、jieba 真实分词；

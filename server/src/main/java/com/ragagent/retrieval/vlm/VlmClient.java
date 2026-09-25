@@ -15,7 +15,10 @@ import java.util.Map;
  * （extra_config.temperature 覆盖）、reasoning/GPT5 模型请求整形
  * （max_tokens→max_completion_tokens，采样参数清零）、错误族
  * （no choices / 空 content + finish_reason=length 的截断语义）。
- * ollama interface 经既有 {@code OllamaService}；weknoracloud 源随云契约批。</p>
+ * <b>ollama interface</b>：照 Go {@code vlm/ollama.go} 经既有 {@code OllamaService} 走
+ * {@code POST /api/chat}（images 为原始字节，Jackson 序列化成 base64——Go 的
+ * {@code []ImageData = [][]byte} 同款），stream=false、temperature=0.1，取响应的
+ * {@code message.content}；weknoracloud 源随云契约批（仍是 XDEP）。</p>
  */
 public final class VlmClient {
 
@@ -85,6 +88,10 @@ public final class VlmClient {
      */
     public static String predict(VlmConfig config, Transport transport, byte[][] imgBytesList,
             String prompt) throws VlmException {
+        if (config != null && config.isOllama()) {
+            return predictOllama(com.ragagent.llm.ollama.OllamaService.getOllamaService(), config,
+                    imgBytesList, prompt);
+        }
         // 请求体构建：与 Go openai.ChatCompletionRequest 字段一一对应
         List<Object> parts = new ArrayList<>();
         Map<String, Object> textPart = new LinkedHashMap<>();
@@ -143,6 +150,49 @@ public final class VlmClient {
                     + DEFAULT_MAX_TOKS + " tokens (finish_reason=length)");
         }
         return content;
+    }
+
+    /**
+     * 对照 Go {@code vlm/ollama.go} 的 {@code Predict}：本地 Ollama 的 {@code /api/chat}——
+     * 单条 user 消息（prompt + 各图原始字节）、{@code stream=false}、
+     * {@code options.temperature=0.1}，回调里取最后一次响应的 {@code message.content}。
+     * 错误族照 Go：{@code Ollama VLM request: %w}。
+     */
+    static String predictOllama(com.ragagent.llm.ollama.OllamaService service, VlmConfig config,
+            byte[][] imgBytesList, String prompt) throws VlmException {
+        List<byte[]> images = new ArrayList<>();
+        int totalImageSize = 0;
+        for (byte[] img : imgBytesList) {
+            if (img != null && img.length > 0) {
+                images.add(img);
+                totalImageSize += img.length;
+            }
+        }
+        com.ragagent.llm.ollama.OllamaMessage message =
+                new com.ragagent.llm.ollama.OllamaMessage("user", prompt);
+        message.setImages(images);
+
+        com.ragagent.llm.ollama.OllamaChatRequest request =
+                new com.ragagent.llm.ollama.OllamaChatRequest();
+        request.setModel(config.modelName());
+        request.setMessages(new ArrayList<>(List.of(message)));
+        request.setStream(false);
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("temperature", DEFAULT_TEMP);
+        request.setOptions(options);
+
+        final String[] result = new String[1];
+        try {
+            // 照 Go 的日志口径：model / numImages / totalImageSize
+            service.chat(request, response -> {
+                if (response != null && response.getMessage() != null) {
+                    result[0] = response.getMessage().getContent();
+                }
+            });
+        } catch (RuntimeException e) {
+            throw new VlmException("Ollama VLM request: " + e.getMessage());
+        }
+        return result[0] == null ? "" : result[0];
     }
 
     /**

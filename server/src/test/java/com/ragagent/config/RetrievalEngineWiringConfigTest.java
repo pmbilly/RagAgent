@@ -21,6 +21,7 @@ import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
 import com.ragagent.retrieval.engine.PgVectorRetrieveRepository;
 import com.ragagent.retrieval.engine.RetrieverEngineParams;
+import com.ragagent.retrieval.engine.sqlite.SqliteRetrieveRepository;
 
 /**
  * 检索引擎装配（对照 Go {@code initRetrieveEngineRegistry}）的钉子：
@@ -78,12 +79,27 @@ class RetrievalEngineWiringConfigTest {
     }
 
     @Test
-    void unportedDriversAreSkipped() throws Exception {
+    void sqliteDriverRegistersEnvStoreEngine() throws Exception {
         EngineRegistry registry = new EngineRegistry(null, null);
-        assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"sqlite"}, newAdapter(), null, null)).doesNotThrowAnyException();
-        // 未落地 → 无注册、装配不炸
-        assertThat(registry.getAllRetrieveEngineServices()).isEmpty();
+        String previous = System.getProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH);
+        // 测试用临时文件（避免往仓库里写 ./data/*.sqlite）
+        java.nio.file.Path temp = java.nio.file.Files.createTempDirectory("sqlite-wiring");
+        System.setProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH,
+                temp.resolve("wiring.sqlite").toString());
+        try {
+            RetrievalEngineWiringConfig.registerEnvStores(registry, new String[] {"sqlite"},
+                    newAdapter(), null, null);
+            var svc = registry.getRetrieveEngineService(EngineTypes.ENGINE_SQLITE);
+            assertThat(svc).isNotNull();
+            assertThat(svc.support()).containsExactly(EngineTypes.RETRIEVER_KEYWORDS,
+                    EngineTypes.RETRIEVER_VECTOR);
+        } finally {
+            if (previous == null) {
+                System.clearProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH);
+            } else {
+                System.setProperty(SqliteRetrieveRepository.PROP_SQLITE_PATH, previous);
+            }
+        }
     }
 
     @Test

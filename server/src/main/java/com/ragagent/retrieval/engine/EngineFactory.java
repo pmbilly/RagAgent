@@ -8,6 +8,7 @@ import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveReposi
 import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
 import com.ragagent.retrieval.engine.milvus.MilvusRetrieveRepository;
 import com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository;
+import com.ragagent.retrieval.engine.sqlite.SqliteRetrieveRepository;
 import com.ragagent.retrieval.engine.tencentvectordb.TencentVectorDbRetrieveRepository;
 import com.ragagent.retrieval.engine.weaviate.WeaviateRetrieveRepository;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
@@ -25,7 +26,9 @@ import com.ragagent.vectorstore.domain.VectorStore;
  *       {@link KeywordsVectorHybridRetrieveEngineService}（照 {@code NewKVHybridRetrieveEngine}）</li>
  *   <li>**postgres/sqlite**：Go 走 GORM/JDBC 直连（{@code postgresRepo.NewPostgresRetrieveEngineRepository}）；
  *       本仓 postgres 由既有 JDBC 件承担（读 {@code PgVectorRetrieveRepository} / 写
- *       {@code VectorStoreService}），不经本工厂 → 明确指引式 XDEP；sqlite driver 未落地</li>
+ *       {@code VectorStoreService}），不经本工厂 → 明确指引式 XDEP；
+ *       **sqlite**：照 {@code createSQLiteEngine} 真落地，但介质改独立 SQLite 文件
+ *       （{@code SQLITE_PATH}，见驱动类注释；Go 挂产品库）</li>
  *   <li>**opensearch**：照 createOpenSearchEngine 真落地（k-NN 驱动 +
  *       audit sink 注入；探针在构造期显形）</li>
  *   <li>**doris**：照 {@code createDorisEngine} 真落地（MySQL 协议主链路 + Stream Load
@@ -113,9 +116,18 @@ public final class EngineFactory {
                         "postgres retriever is served by the existing JDBC pieces"
                         + " (PgVectorRetrieveRepository / VectorStoreService), not by this"
                         + " factory");
-            case EngineTypes.ENGINE_SQLITE:
-                throw new EngineNotSupportedException("retriever engine sqlite driver not ported"
-                        + " in this batch (tracked as W5γ4 follow-up)");
+            case EngineTypes.ENGINE_SQLITE: {
+                // 照 Go createSQLiteEngine(_ types.VectorStore, db)：**忽略 store 的
+                // connection_config**（Go 用产品库的 *gorm.DB）；本仓产品库是 PG，故改为一颗
+                // 独立 SQLite 文件——路径取 connection_config.addr（若像路径）→ env SQLITE_PATH
+                // → 缺省 ./data/weknora-retrieval.sqlite。地址免 SSRF（无网络面，照 Go）。
+                ConnectionConfig ccSqlite = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
+                SqliteRetrieveRepository repo = SqliteRetrieveRepository.create(
+                        SqliteRetrieveRepository.resolvePath(ccSqlite.addr));
+                return new KeywordsVectorHybridRetrieveEngineService(repo,
+                        EngineTypes.ENGINE_SQLITE);
+            }
             case EngineTypes.ENGINE_OPENSEARCH: {
                 // 照 Go createOpenSearchEngine：env-store（前缀 id）折叠为 ""——
                 // env store 共享集群、无 per-store 索引前缀；NewRepository 的 ≥16
