@@ -81,10 +81,22 @@ class RetrievalEngineWiringConfigTest {
     void unportedDriversAreSkipped() throws Exception {
         EngineRegistry registry = new EngineRegistry(null, null);
         assertThatCode(() -> RetrievalEngineWiringConfig.registerEnvStores(registry,
-                new String[] {"qdrant", "milvus", "weaviate", "tencent_vectordb",
+                new String[] {"milvus", "weaviate", "tencent_vectordb",
                         "sqlite"}, newAdapter(), null, null)).doesNotThrowAnyException();
         // 全部未落地 → 无注册、装配不炸
         assertThat(registry.getAllRetrieveEngineServices()).isEmpty();
+    }
+
+    @Test
+    void qdrantDriverRegistersEnvStoreEngine() throws Exception {
+        EngineRegistry registry = new EngineRegistry(null, null);
+        // env 未配置 → Go 的缺省口径（localhost:6334）；REST 客户端构造不拨号
+        RetrievalEngineWiringConfig.registerEnvStores(registry,
+                new String[] {"qdrant"}, newAdapter(), null, null);
+        var svc = registry.getRetrieveEngineService(EngineTypes.ENGINE_QDRANT);
+        assertThat(svc).isNotNull();
+        assertThat(svc.support()).containsExactly(EngineTypes.RETRIEVER_KEYWORDS,
+                EngineTypes.RETRIEVER_VECTOR);
     }
 
     @Test

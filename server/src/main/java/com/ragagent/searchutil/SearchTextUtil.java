@@ -119,6 +119,15 @@ public final class SearchTextUtil {
     }
 
     /**
+     * 分词接缝的读取口——Qdrant 驱动的 {@code tokenizeQuery} 需要
+     * {@code CutForSearch} 的<b>原始词序列</b>（Go 侧直接调 {@code types.Jieba.CutForSearch}，
+     * 之后自己做 trim/lower/长度过滤/去重），套 {@code tokenizeSimple} 的归一化会丢序/多滤。
+     */
+    public static Segmenter segmenter() {
+        return jieba;
+    }
+
+    /**
      * 对照 TokenizeSimple：小写 trim 后分词（中文走 jieba 接缝，否则按空白），
      * 过滤单 rune 与纯标点/空白 token，返回唯一 token 集。空文本返回空集
      * （Go 返回 nil——Java 侧空集等价）。

@@ -207,7 +207,7 @@ class EngineFactoryTest {
                         () -> EngineFactory.createFromStore(store("postgres", pg, null), null))
                         .getMessage());
 
-        for (String engine : List.of("qdrant", "milvus", "weaviate",
+        for (String engine : List.of("milvus", "weaviate",
                 "tencent_vectordb", "sqlite")) {
             String message = assertThrows(EngineNotSupportedException.class,
                     () -> EngineFactory.createFromStore(store(engine, cc, null), null))
@@ -238,6 +238,17 @@ class EngineFactoryTest {
         KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
                 store("doris", doris, null), null);
         assertEquals("doris", svc.engineType());
+        assertEquals(List.of("keywords", "vector"), svc.support());
+    }
+
+    @Test
+    @DisplayName("Qdrant：REST 自持口径（host/port 缺省 6334、api_key、use_tls）；构造不拨号")
+    void buildsQdrant() {
+        ConnectionConfig qdrant = new ConnectionConfig();
+        qdrant.host = "127.0.0.1";
+        KeywordsVectorHybridRetrieveEngineService svc = EngineFactory.createFromStore(
+                store("qdrant", qdrant, null), null);
+        assertEquals("qdrant", svc.engineType());
         assertEquals(List.of("keywords", "vector"), svc.support());
     }
 

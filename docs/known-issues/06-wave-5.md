@@ -1363,3 +1363,35 @@
    `com.ragagent.retrieval.*` 与 `com.ragagent.config.*`——"五批全量"其实一直没覆盖
    检索引擎域（ES/OpenSearch 批次都是单独跑 `--tests`）。本批把两域补进 B4；
    今后声称"全量"前先核对脚本覆盖的包清单与 `server/src/test/java/com/ragagent/` 是否一一对应。
+
+## W5γ4.11：Qdrant 驱动（REST 自持，2026-09-25）
+
+1. **协议决策的落地样本（gRPC → REST 映射表）**：Go 用 qdrant/go-client（gRPC），本仓自持
+   REST——`CollectionExists`→`GET /collections/{n}`、`CreateCollection`→`PUT /collections/{n}`、
+   `CreateFieldIndex`→`PUT /collections/{n}/index`、`Upsert`→`PUT …/points`、
+   `Delete`(filter)→`POST …/points/delete`、`Query`→`POST …/points/search`、
+   `Scroll`→`POST …/points/scroll`、`SetPayload`→`POST …/points/payload`、
+   `ListCollections`→`GET /collections`、`HealthCheck`→`GET /`。
+   语义等价点：过滤 DSL（match.value / match.any / match.text / must_not）、score_threshold、
+   with_payload / with_vector、scroll 的 offset=上页最后一个点 ID。**不可等价点**：gRPC 专有字段
+   （ShardKeySelector 等）不适用；`wait` 是 REST 查询参数——照 Go 只在 Move 的 SetPayload 上带
+   `wait=true`，Upsert/Delete/批量 SetPayload 都不带（默认异步），别"顺手"补齐。
+2. **集合前缀规则是纯字符串前缀，不是维度校验**：Go 的判定是
+   `len(name) > len(base) && name[:len(base)] == base`——`weknora_embeddingsX` 这种名字
+   <b>也会</b>被批量更新扇出命中。所以跨集合批量更新的测试要挑一个真正不以前缀开头的集合
+   （如 `other_base`）来验"跳过"，别拿"看起来像维度尾巴"的名字。
+3. **nil 与空数组在两家店的存储估算里语义相反**（照抄时别互抄）：
+   Qdrant 判 `Embedding != nil`（空数组<b>也</b>计 HNSW 256 字节，M=16）；
+   Doris 判 `len > 0`（空数组不计 HNSW 512 字节，M=32）。两处都是 Go 原文，翻译时照各自实现。
+4. **payload 字符串过 CleanInvalidUtf8**：Go 的 `newQdrantValueMap` 对含 NUL/非法 UTF-8 的
+   字符串做清理；Java 侧复用既有的 `com.ragagent.common.CleanInvalidUtf8`（同一语义：
+   非法编码单元/NUL 直接删除，不替换 U+FFFD）。
+5. **分词降级要补一手"二次切分"**：Go 的 `tokenizeQuery` 直接吃 gojieba `CutForSearch` 的
+   词元（拉丁文本按词切、空白自成词元后被 trim+长度过滤丢弃）；本仓 `SearchTextUtil` 的降级
+   分词器把非 Han 连段整块返回（"Hello hello" 是一个词元）——驱动侧须再按空白切分一次，
+   净效果才与 Go 一致。真实分词器接入后该二次切分对其无副作用（jieba 词元本就不含空白）。
+6. **点 ID 恒新 UUID**：Qdrant 不承载业务主键（Go 的 Save/BatchSave/CopyIndices 都 `uuid.New()`）；
+   行身份在 payload 的 source_id/chunk_id 上，别把 IndexInfo.ID 写进点 ID。
+7. **test-connection 升级消除一条已知差异**：此前 Java 对 qdrant 只做 TCP 拨号、版本恒空；
+   现在走 REST `GET /` 返回 version（等价 gRPC HealthCheck）——`VectorStoreConfigService`
+   的"无 gRPC 客户端"备案随之作废。

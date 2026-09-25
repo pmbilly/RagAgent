@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-26 Qdrant 驱动落地（2026-09-25——W5γ4.11，gRPC 族首支·REST 自持）
+
+**做了什么**（照 Go `repository/retriever/qdrant/` 全包 ~1,070 行非测试；**协议决策落地**：Go 走 qdrant/go-client 的 gRPC，本仓照 ES/OpenSearch 先例自持 HTTP/JSON）：
+
+| 件 | 说明 |
+|---|---|
+| `QdrantRetrieveRepository`（新，engine/qdrant） | 实现 `RetrieveEngineRepository` + `KnowledgeIndexMover`。**按维度分集合** `<base>_<dim>`（base=ResolveCollectionName(indexCfg, QDRANT_COLLECTION, "weknora_embeddings")）；**惰性建集合**：GET 探测（404=不存在）→ `PUT /collections/{n}`（size + distance=Cosine + shard/replication 仅在 >0 时带）→ payload 索引六件（keyword：chunk/knowledge/kb/source；bool：is_enabled；text：content + multilingual + lowercase），索引失败只 WARN，结果按维度缓存；**点 ID 恒新 UUID**（Qdrant 不承载业务主键）；payload 字符串过 `CleanInvalidUtf8`（NUL/非法编码单元丢弃） |
+| 写入/删除/检索 | **BatchSave** 按维度分组 + 100 分片 + 空向量 WARN 跳过（全空 → "No valid points to save after filtering"）；**Save** 空向量拒收 `empty embedding vector for chunk ID: %s`；**三种删除** 走 `POST …/points/delete`（match.any 过滤，不带 wait——照 Go）；**向量检索** `POST …/points/search`（filter + limit=TopK + score_threshold + with_payload；集合不存在 → 空结果；失败包 `<collection>: <err>`）；**关键词检索** 跨集合 `POST …/points/scroll`（无 token 时 must 塞原 query，有 token 时 should 逐 token 的 `match.text`；跨集合合并截 TopK、score 恒 1.0、单集合失败只 WARN） |
+| 批量更新 / move / copy | **批量更新**（enabled 按 true/false 分组、tag 按 tagID 分组）× 集合前缀扇出 → `POST …/points/payload?wait=true`；**move** 同端点（kb_id 改写 + tag 清空 + filter）；**CopyIndices** 每页 64 的 scroll（with_payload + with_vector）→ chunk/knowledge 映射缺失跳过 → 三态 SourceID 改写 → 新 UUID + 向量回搬 → 批量 upsert；`EstimateStorageSize` 照 Go（payload 不含 tag_id；HNSW M=16；**nil 判定**——非 null 空数组也计 256 字节，与 Doris 的 `len>0` 相反） |
+| `QdrantRestClient`（新） | 传输层：result 信封解析（`{"result":…}`）、非 2xx → `QdrantHttpException`（status + 报文原文）、`api-key` 头、构造期 SSRF 校验（照 ES/OpenSearch 姿态；Go 是 gRPC dialer 逐连接）、`buildBaseUrl(host, port 缺省 6334, useTls)` |
+| 分词 | `tokenizeQuery` 复用 `SearchTextUtil.segmenter()`（jieba 缝；本仓默认降级为二字滑窗）→ trim/小写/单字符丢弃/去重保序，并**补一手按空白二次切分**对齐 gojieba 的拉丁分词净效果（`SearchTextUtil` 因此新增 `segmenter()` 读取口） |
+| 装配三处 | **EngineFactory** qdrant 分支（host/port 缺省 6334/api_key/use_tls）；**RetrievalEngineWiringConfig.envQdrant**（QDRANT_HOST 缺省 localhost / QDRANT_PORT 缺省 6334（Atoi 失败保缺省）/ QDRANT_API_KEY / QDRANT_USE_TLS 非 "false"/"0" 即开）；**VectorStoreConfigService.testQdrant** 从 TCP 拨号升级为 REST 健康探针（`GET /` 取 version）——**消掉"Java 无 gRPC 客户端 → 版本恒空"这条旧备案** |
+
+**与 Go 的差异（备案）**：① 传输 gRPC→REST（端点映射与不可等价点见 known-issues/06 第 1 条）；② `wait` 只在 move 的 SetPayload 上带（照 Go 的 `wait := true`），Upsert/Delete/批量 SetPayload 均不带；③ 分词降级（jieba 缝 + 二次空白切分为本仓补丁，净效果对齐）；④ TopK≤0 时 Go 的截断会 panic，本仓 clamp 0；⑤ 无真实 Qdrant 实例验证（stub 面全绿，同 ES/OpenSearch 口径）。
+
+**验证**：`QdrantRetrieveRepositoryTest` 14 条（stub HTTP 逐请求断言：建集合与 6 个索引的形状、集合缓存、Save 空向量/新 UUID、BatchSave 101→2 片 + NUL 清理、三种删除的 match any、向量检索体与响应映射、集合不存在短路、关键词 should(text) + 前缀过滤 + TopK 截断 + 单集合失败容忍、批量更新两态 + 非前缀跳过、move、CopyIndices 向量回搬与三态、存储估算 nil/空数组、分词、payload 清理、探针 version/401）**全绿**；**五批验收 PASS**；bootRun 重启冒烟 200。
+
+**下一步**：gRPC/SDK 族还剩 Weaviate（REST/GraphQL + batch 走 gRPC，需决定 batch 路径）、Milvus（REST v2 覆盖度需探）、腾讯（HTTP API 3.0 + TC3 签名）；SQLite 的 native 分发决策；install 真实 LLM E2E（原计划 1→2→3 的 3）。
+
+---
+
 ## 0.-25 Doris 检索引擎落地（2026-09-25——W5γ4.10，SQL 族收官）
 
 **做了什么**（照 Go `repository/retriever/doris/` 全包 7 非测试文件 ~2,040 行，MySQL 协议主链路 + Stream Load HTTP 自持——Go 用 go-sql-driver/mysql + FE HTTP 8030）：
@@ -1185,7 +1206,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
-- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）+ OpenSearch ✅（W5γ4.9，§0.-24）+ Doris ✅（W5γ4.10，§0.-25）**；仍剩 Weaviate/Qdrant/Milvus/腾讯（gRPC/SDK 族，需协议决策）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
+- 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）+ OpenSearch ✅（W5γ4.9，§0.-24）+ Doris ✅（W5γ4.10，§0.-25）+ Qdrant ✅（W5γ4.11，§0.-26，REST 自持）**；仍剩 Weaviate（batch 走 gRPC 的路径决策）、Milvus（REST v2 覆盖度待探）、腾讯（HTTP API 3.0 + TC3 签名）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
 
@@ -1286,16 +1307,18 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 （W5γ4.8）；③知识写链改道引擎口（W5γ4.7）+ move 的 reparse 模式收尾（W5γ4.8）——**全部落地**。
 `git log` 的 W5γ4.1~γ4.8 八笔即检索批全貌。
 
-**下一步候选（2026-09-25 W5γ4.10 刷新）**：
-1. ~~OpenSearch 独立店族~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）——HTTP 族与
-   SQL 族均已收官；
-2. **gRPC/SDK 族协议决策**（Weaviate/Qdrant/Milvus/腾讯）——建议口径：Qdrant/Weaviate 的
-   REST/GraphQL 覆盖度高（可照 ES/OpenSearch 先例自持 HTTP，零新依赖），Milvus 的 REST v2
-   需先探覆盖度、腾讯需自持 HTTP API 3.0（TC3 签名）；若走 SDK 则用仓库既有 gRPC 基建
-   （`net.devh` + protoc 已在，见 `server/build.gradle.kts`）；
-3. **SQLite**——native 扩展（sqlite-vec）多平台分发需决策，优先级最低；
-4. **install 真实 LLM E2E 联调**（批 D2 管线就绪，需 provider + 真模型；原计划 1→2→3 的 3）；
-5. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、VLM 界面、initialize 契约对齐、jieba 真实分词、
+**下一步候选（2026-09-25 W5γ4.11 刷新）**：
+1. ~~OpenSearch~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）；
+   ~~Qdrant~~ ✅ W5γ4.11（§0.-26，gRPC 族首支走 REST 自持）——HTTP/SQL 族收官、gRPC 族已破题；
+2. **Weaviate**（~1,170 行）：REST/GraphQL 覆盖读/写/删；batch 路径需决策
+   （REST `/v1/batch/objects` 已 deprecated vs 用仓库既有 gRPC 基建（`net.devh` +
+   protoc 编译 weaviate proto）——建议先探 REST batch 的服务端版本支持面）；
+3. **Milvus**（~1,560 行）：REST v2 覆盖度先探（collection/index/insert/query/delete），
+   不足则引官方 milvus-sdk-java；
+4. **腾讯 VectorDB**（~870 行）：自持 HTTP API 3.0（TC3-HMAC-SHA256 签名）；
+5. **SQLite**——native 扩展（sqlite-vec）多平台分发需决策，优先级最低；
+6. **install 真实 LLM E2E 联调**（批 D2 管线就绪，需 provider + 真模型；原计划 1→2→3 的 3）；
+7. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、VLM 界面、initialize 契约对齐、jieba 真实分词、
    存储三条备案；install 管线体与 ArtifactCollector 文件源已于 09-23/09-24 收口）——均需真实
    provider 或决策输入。
 

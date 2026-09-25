@@ -6,6 +6,7 @@ import com.ragagent.retrieval.engine.doris.DorisRetrieveRepository;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV7RetrieveRepository;
 import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveRepository;
 import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
+import com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
 import com.ragagent.vectorstore.domain.VectorStore;
@@ -26,8 +27,11 @@ import com.ragagent.vectorstore.domain.VectorStore;
  *       audit sink 注入；探针在构造期显形）</li>
  *   <li>**doris**：照 {@code createDorisEngine} 真落地（MySQL 协议主链路 + Stream Load
  *       HTTP；addr 必填、database 必填、http_port 缺省 8030）</li>
- *   <li>**qdrant/milvus/weaviate/tencent_vectordb**：driver 未落地 →
- *       诚实 XDEP（weaviate/qdrant/milvus/腾讯属 "协议决策"族）</li>
+ *   <li>**qdrant**：照 {@code createQdrantEngine} 真落地——**REST 自持**（Go 是 gRPC
+ *       客户端；本仓照 ES/OpenSearch 先例走 HTTP/JSON：host/port（缺省 6334）/api_key/
+ *       use_tls）</li>
+ *   <li>**milvus/weaviate/tencent_vectordb**：driver 未落地 →
+ *       诚实 XDEP（milvus/weaviate/腾讯属 "协议决策"族）</li>
  * </ul>
  *
  * <h2>照抄点</h2>
@@ -142,7 +146,17 @@ public final class EngineFactory {
                 return new KeywordsVectorHybridRetrieveEngineService(repo,
                         EngineTypes.ENGINE_DORIS);
             }
-            case EngineTypes.ENGINE_QDRANT:
+            case EngineTypes.ENGINE_QDRANT: {
+                // 照 Go createQdrantEngine：host（空=localhost 由客户端缺省）、port 缺省 6334、
+                // api_key、use_tls；地址策略在 validateRuntimeVectorStoreAddresses 已校验。
+                ConnectionConfig ccQdrant = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
+                int port = ccQdrant.port == 0 ? 6334 : ccQdrant.port;
+                QdrantRetrieveRepository repo = QdrantRetrieveRepository.create(ccQdrant.host,
+                        port, ccQdrant.apiKey, ccQdrant.useTls, store.getIndexConfig(), guard);
+                return new KeywordsVectorHybridRetrieveEngineService(repo,
+                        EngineTypes.ENGINE_QDRANT);
+            }
             case EngineTypes.ENGINE_MILVUS:
             case EngineTypes.ENGINE_WEAVIATE:
             case EngineTypes.ENGINE_TENCENT_VECTORDB:

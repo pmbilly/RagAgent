@@ -274,13 +274,20 @@ public class VectorStoreConfigService {
         }
     }
 
+    /**
+     * 对照 testQdrantConnection（vectorstore_healthcheck.go L145-175）：走驱动的健康探针
+     * （gRPC HealthCheck → REST {@code GET /}），返回 {@code version}；失败折叠成通用文案。
+     */
     private String testQdrant(ConnectionConfig config) {
         int port = config.port == 0 ? 6334 : config.port;
-        if (!dial(config.host, port)) {
-            throw new ConnectorFailure("failed to connect to qdrant: connection refused or authentication failed");
+        try {
+            return com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository.testConnection(
+                    config.host, port, config.apiKey, config.useTls, ssrfGuard);
+        } catch (RuntimeException e) {
+            log.warn("Qdrant connection test failed: {}", e.getMessage());
+            throw new ConnectorFailure(
+                    "failed to connect to qdrant: connection refused or authentication failed");
         }
-        // 已知差异：Go 走 gRPC HealthCheck 回 version；Java 无 gRPC 客户端 → ""
-        return "";
     }
 
     private String testMilvus(ConnectionConfig config) {

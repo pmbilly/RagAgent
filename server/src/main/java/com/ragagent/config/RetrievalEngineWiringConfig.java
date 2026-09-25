@@ -33,8 +33,9 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *   <li><b>env-store 注册</b>：按 {@code RETRIEVE_DRIVER} 逐段注册进程级引擎——
  *       postgres 由 {@link PgVectorEngineRepository} 承担（既有 JDBC 件的引擎口适配）；
  *       elasticsearch_v7/v8 从 {@code ELASTICSEARCH_ADDR/USERNAME/PASSWORD} 现场建驱动；
- *       opensearch / doris 同法（{@code OPENSEARCH_*} / {@code DORIS_*}）；
- *       其余驱动（sqlite/qdrant/milvus/weaviate/tencent_vectordb）未落地，
+ *       opensearch / doris / qdrant 同法（{@code OPENSEARCH_*} / {@code DORIS_*} /
+ *       {@code QDRANT_*}）；
+ *       其余驱动（sqlite/milvus/weaviate/tencent_vectordb）未落地，
  *       明确 WARN（Go 会真注册——诚实降级备案，随 driver 批补）。</li>
  *   <li>{@link TenantStoreOwnership}：store 归属查表（工厂的跨租户防御）。</li>
  * </ul>
@@ -90,6 +91,9 @@ public class RetrievalEngineWiringConfig {
                     break;
                 case "doris":
                     envDoris(registry, guard);
+                    break;
+                case "qdrant":
+                    envQdrant(registry, guard);
                     break;
                 case "":
                     break;
@@ -173,6 +177,44 @@ public class RetrievalEngineWiringConfig {
                             addr, httpBase, username, password, database, null, guard);
             register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
                     EngineTypes.ENGINE_DORIS), label);
+        } catch (RuntimeException e) {
+            log.error("Create {} client failed: {}", label, e.toString());
+        }
+    }
+
+    /**
+     * env-path 的 Qdrant 注册——照 Go container.go L1228-1270：{@code QDRANT_HOST}（缺省
+     * {@code localhost}）/ {@code QDRANT_PORT}（缺省 6334，Atoi 失败保缺省）/
+     * {@code QDRANT_API_KEY} / {@code QDRANT_USE_TLS}（非 "false"/"0" 即开，大小写不敏感 +
+     * trim）。地址过 SSRF 校验（Go 的 gRPC dialer 在拨号时校验；本仓构造期一次）。
+     */
+    private static void envQdrant(EngineRegistry registry, SsrfGuard guard) {
+        String label = "qdrant";
+        String host = env("QDRANT_HOST");
+        if (host.isEmpty()) {
+            host = "localhost";
+        }
+        int port = 6334;
+        String rawPort = env("QDRANT_PORT");
+        if (!rawPort.isEmpty()) {
+            try {
+                port = Integer.parseInt(rawPort);
+            } catch (NumberFormatException ignored) {
+                // Go：strconv.Atoi 失败 → 保留缺省
+            }
+        }
+        boolean useTls = false;
+        String rawTls = env("QDRANT_USE_TLS");
+        if (!rawTls.isEmpty()) {
+            String lower = rawTls.trim().toLowerCase(java.util.Locale.ROOT);
+            useTls = !"false".equals(lower) && !"0".equals(lower);
+        }
+        try {
+            com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository repo =
+                    com.ragagent.retrieval.engine.qdrant.QdrantRetrieveRepository.create(host,
+                            port, env("QDRANT_API_KEY"), useTls, null, guard);
+            register(registry, new KeywordsVectorHybridRetrieveEngineService(repo,
+                    EngineTypes.ENGINE_QDRANT), label);
         } catch (RuntimeException e) {
             log.error("Create {} client failed: {}", label, e.toString());
         }
