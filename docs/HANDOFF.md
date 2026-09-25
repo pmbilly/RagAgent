@@ -11,7 +11,17 @@
 **修法**：主列表逐 KB 调 `ensureDefaults`（照 Go `knowledgebase.go:343/356/367`）；**共享 agent 列表不改**
 （w5s 实录钉住该分支**不**归一 ✗——初版补上后 `W5sSharedAgentContractTest.kbListAgentBranch` 立刻红 ✓）。
 
-**验证**：新测 4 条 ✓；线上 A/B 两个内置 agent 集合一致 ✓；门 **B3 PASS 71s** ✓。详见 `known-issues/09` §八。\n\n**第二半（W5γ5.19，同日报障的另一半）**：**导入后自动生成**已补——新增 `QuestionBatchPlanner`（选块/分批/边界 id）、\n`QuestionBatchPayload` + `QuestionGenerationTaskQueue`/`InProcess…`（照 asynq 重试纪律）、`QuestionGenerationService`（批 worker）、\n`ChunkService.generateAndStoreQuestionsForWorker`（与手动路径共用落库），并在 `KnowledgeProcessWorker` 接线扇出\n（`+ questionBatchCount` 计入 finalizing 槽、入队失败释放槽位）。回归 5 例 + 门 **B3 PASS 67s** ✓。\n⚠️ **端到端未跑通**：卡在 dev 夹具（`BQ Alpha/Beta` 的 `m-sum`/`m-emb` 模型行不存在 ⇒ Go 实录 `Model not found` ⇒ 0 分块），\n且问题生成按设计要求 KB 有 embedding 模型、本地无 embedding stub ⇒ 复现配方见 `09` §8.2（三步）。
+**验证**：新测 4 条 ✓；线上 A/B 两个内置 agent 集合一致 ✓；门 **B3 PASS 71s** ✓。详见 `known-issues/09` §八。\n\n**第二半（W5γ5.19，同日报障的另一半）**：**导入后自动生成**已补——新增 `QuestionBatchPlanner`（选块/分批/边界 id）、
+`QuestionBatchPayload` + `QuestionGenerationTaskQueue`/`InProcess…`（照 asynq 重试纪律）、`QuestionGenerationService`（批 worker）、
+`ChunkService.generateAndStoreQuestionsForWorker`（与手动路径共用落库），并在 `KnowledgeProcessWorker` 接线扇出
+（`+ questionBatchCount` 计入 finalizing 槽、入队失败释放槽位）。回归 5 例 + 门 **B3 PASS 67s** ✓。
+
+✅ **端到端已跑通**（同批续修）：真机抓出两个**单测/门全绿但真机必失败**的 bug 并修掉——
+① worker 线程**无租户上下文** ⇒ 模型解析 `model not found`（Go 在 worker 开头 `ctx = context.WithValue(TenantIDContextKey, …)`，Java 漏了
+⇒ 已按 `WikiBatchSupport` 纪律绑定/恢复）；
+② 槽位递减应在"成功或最后一次尝试"（Go `willDrain = retErr == nil || final`）⇒ 队列按 `attempt > MAX_RETRY` 传 `terminal`。
+真机证据：`entered finalizing (1 subtask)` + `Question generation (batch): … generated=3` + `chunks.metadata.generated_questions` 3 条 ✓。
+E2E 配方与踩坑（stub/同租户 UUID 模型行/SSRF 白名单/重启刷新模型缓存/docreader 不支持 txt/manual 入口）见 `known-issues/09` §8.2。
 
 ---
 
