@@ -1,5 +1,28 @@
 # 交接文档（新会话接手用）
 
+## 0.-33 检索批收官报告（2026-09-25——W5γ4.18，**范围全部收官**）
+
+**交付**：[`docs/retrieval-batch-closure.md`](retrieval-batch-closure.md)——检索批的一次性收敛报告，含：
+
+1. **一页结论 + 提交链**（`59a361e` W5γ4.1 → `233707a` W5γ4.16/17，共 16 个提交）；
+2. **九店对照总表**：Go 规模（非测试 12,299 行）/ Go 协议 → 本仓自持口径 / 索引与写入模型 /
+   关键词面 / 验证方式（stub vs 真服务端 IT）/ 真服务端状态；
+3. **逐店差异备案**（42 条，跨店最容易踩的都在这：Milvus 的 CJK 连段切分、Weaviate 的 PUT 清属性、
+   Doris 的双制表符、腾讯的 sha256 第 3 态、SQLite 的 INSERT OR IGNORE 与 k-then-filter…）；
+4. **有意偏离**：W5γ4.3 修的三处 Go 侧向量缺陷（不复制 bug）；
+5. **接线批**（W5γ4.4~γ4.8）与验收面（五批 + B4 已含 retrieval/config 域）；
+6. **待真机联调清单**（9 行：各店前置/操作，含"腾讯存量需重导入""SQLite 迁移需脚本"
+   "Weaviate 容器加 `ENABLE_TOKENIZER_GSE=true`"）；
+7. **复现命令合集**（验收脚本 + Weaviate/Milvus IT 起容器 + SQLite 定向测试）；
+8. **遗留**（小账、provider-XDEP 族、postgres 读路径 golden 约束）。
+
+**范围澄清（避免今后误计）**：Go `retriever/` 下其实是 **10 个目录**——第 10 个 **neo4j 不是向量店**，
+实现的是 `interfaces.RetrieveGraphRepository`（Labels/Label/AddGraph/DelGraph/SearchNode，236 行），
+**已在更早的图管线批落地**（Java `retrieval/graph/Neo4jGraphRepository implements
+PipelinePorts.RetrieveGraphRepository`，方法面一一对应，`QaWiring` 装配）——故本批九店即全范围。
+
+---
+
 ## 0.-32 备案小账批（2026-09-25——W5γ4.17）
 
 | 项 | 结论 |
@@ -1318,7 +1341,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
 - ~~tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）~~ ✅ 2026-09-23 批 D2 落地 + **2026-09-25 真实 LLM E2E 全链通过**（§0.-27，抓回并修复四处驱动缺陷）
-- 外部向量店 driver：**ES v8 ✅ + ES v7/v8 move ✅ + OpenSearch ✅（§0.-24）+ Doris ✅（§0.-25）+ Qdrant ✅（§0.-26）+ Weaviate ✅（§0.-28）+ Milvus ✅（§0.-29）+ 腾讯 VectorDB ✅（W5γ4.15，§0.-30，HTTP 自持 + 客户端 BM25）**；**SQLite 亦已落地（W5γ4.16，§0.-31）——九家店全部收官**（介质差异见 §0.-31：Go 挂产品库、本仓独立 SQLite 文件 + xerial 驱动 + 平面 cosine）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
+- 外部向量店 driver：**九店全部落地、检索批收官**（W5γ4.1~γ4.16：ES v7/v8、OpenSearch、Doris、Qdrant、Weaviate、Milvus、腾讯 VectorDB、SQLite；postgres 走既有 JDBC 件；neo4j 属图仓、更早批已落地）——总表/差异/联调清单见 [`docs/retrieval-batch-closure.md`](retrieval-batch-closure.md)
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 界面：**ollama 已落地（W5γ4.17，§0.-32）**；weknoracloud 仍为诚实 XDEP（云 API 需凭据，provider-XDEP 族）
 
@@ -1419,7 +1442,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 （W5γ4.8）；③知识写链改道引擎口（W5γ4.7）+ move 的 reparse 模式收尾（W5γ4.8）——**全部落地**。
 `git log` 的 W5γ4.1~γ4.8 八笔即检索批全貌。
 
-**下一步候选（2026-09-25 W5γ4.15 刷新）**：
+**下一步候选（2026-09-25 W5γ4.18 刷新——检索批已收官，报告见 [`retrieval-batch-closure.md`](retrieval-batch-closure.md)）**：
 1. ~~OpenSearch~~ ✅ W5γ4.9（§0.-24）；~~Doris~~ ✅ W5γ4.10（§0.-25）；
    ~~Qdrant~~ ✅ W5γ4.11（§0.-26）；~~Weaviate~~ ✅ W5γ4.13（§0.-28）；
    ~~Milvus~~ ✅ W5γ4.14（§0.-29）；~~腾讯 VectorDB~~ ✅ W5γ4.15（§0.-30）——

@@ -200,6 +200,8 @@
 | SQLite 驱动（W5γ4.16，2026-09-25）——**九家店收官** | `repository/retriever/sqlite/` 全包 ~680 行非测试（repository 661 + move 17）+ `container/engine_factory.go` createSQLiteEngine（L169-172；Go 用产品库的 `*gorm.DB`）+ `container.go L1151-1160` | `retrieval.engine.sqlite.{SqliteRetrieveRepository, SqliteCjkBigram}`（**独立 SQLite 文件 + xerial sqlite-jdbc**）+ `EngineFactory` sqlite 分支 + `RetrievalEngineWiringConfig.envSqlite`（`SQLITE_PATH`）+ 新依赖 `org.xerial:sqlite-jdbc:3.46.1.3` | ✅ | **16 测试全绿（真实 SQLite 文件）**：建表/FTS/重开、`INSERT OR IGNORE` 去重、二元关键词、分派特例（空类型双跑 / 未知类型不报错）、cosine 排名与分数、**k-then-filter 语义**、阈值、三种删除、批量更新、拷贝、move、估算 + 纯函数 4 条；五批验收 PASS。**介质决策**：Go 挂产品库（SQLite 形态），本仓产品库是 PG → 改独立 SQLite 文件；**vec0 → 普通表 + Java `vec_distance_cosine` 平面扫描**（实测 xerial 打包版 **FTS5/contentless_delete/bm25 全可用**）；**WAL 快照坑**：写事务里必须同连接建表。明细见 §9 索引的 `06-wave-5.md` |
 | 备案小账批（W5γ4.17，2026-09-25） | Go `internal/models/vlm/ollama.go`（74 行）+ 既有文档备案项 | `VlmClient.predictOllama` + `ModelDebugController.debugVlm` 放行 ollama（weknoracloud 仍 XDEP）+ `VlmOllamaTest` 4 条 + Milvus `shardsNum` 传播钉测试 | ✅ | ollama VLM **去掉一个 XDEP**（请求形状/图片 base64/stream=false/temperature=0.1/content 取法 + 服务不可用错误族全钉）；跨仓提案：Go 仓 compose 的 weaviate 缺 `ENABLE_TOKENIZER_GSE=true`（**未改 Go 仓**，留给持有者）；E2E 两个观察项**待复跑时定位**（缺现象/复现，不做猜测式改动） |
 
+| 检索批收官报告（W5γ4.18，2026-09-25） | Go `retriever/` 10 目录（9 向量店 12,299 行非测试 + neo4j 236 行图仓 + postgres 既有件） | 新增交付件 [`retrieval-batch-closure.md`](retrieval-batch-closure.md)：一页结论 + 提交链（16 提交）+ **九店对照总表**（Go 规模 / 协议→自持口径 / 索引与写入模型 / 关键词面 / 验证方式 / 真服务端状态）+ **逐店差异备案 42 条** + 有意偏离（W5γ4.3 三处 Go 缺陷修复）+ 接线批与验收面 + **待真机联调清单 9 行** + 复现命令合集 + 遗留 | ✅ | 范围澄清：`retriever/` 下第 10 个目录 **neo4j 是图仓**（`RetrieveGraphRepository`，Java 侧更早批已落地，勿重复计）；九店（ES v7/v8、OpenSearch、Doris、Qdrant、Weaviate、Milvus、腾讯、SQLite）**全部收官**，两店有真服务端 IT（Weaviate 1.28.4 / Milvus 2.6.11），腾讯 BM25 已对 Go SDK 基准逐值对照 |
+
 ## 9. 坑索引（条目 → 分片对照）
 
 
@@ -309,3 +311,4 @@
 | 腾讯 VectorDB 驱动（2026-09-25 W5γ4.15：Go 走 gRPC→本仓走 HTTP 面 / BM25 客户端算（85MB 参数表+murmur3+权重逐值对照 Go）/ 分词接缝致存量数据不互通 / `in ("…")` 与 `is_enabled=1` / 集合命名开关 / Update API 批量更新失败即抛 / 关键词全失败报错 / 拷贝第 3 态 sha256） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | SQLite 驱动（2026-09-25 W5γ4.16：Go 挂产品库→本仓独立文件 / xerial 打包版 FTS5 可用 / vec0→普通表+Java 标量函数平面扫描 / `INSERT OR IGNORE` 去重 / 二元切分与查询 OR / k-then-filter 与空类型双跑两个特例 / 无排除项 / WAL 同连接建表坑） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | 小账批（2026-09-25 W5γ4.17：VLM ollama 落地去一 XDEP / Milvus shardsNum 钉测试 / Weaviate gse 为跨仓提案（未改 Go 仓）/ E2E 两观察项待复跑定位） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
+| 检索批收官（2026-09-25 W5γ4.18：九店总表与差异汇总 / neo4j 属图仓的澄清 / 待真机联调清单 / 复现命令） | [`retrieval-batch-closure.md`](retrieval-batch-closure.md) |
