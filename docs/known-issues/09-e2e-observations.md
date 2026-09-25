@@ -216,7 +216,7 @@ Java 的某段作用域解析（agent 的 `kb_selection_mode=all`、或 `/knowle
 **未移植** Go 另两条"额外放行"（`HasKBGrant` 精确授予、`AuthorizeTenantAPIKeyKnowledgeBases`
 API-key 作用域）——两者只会**放宽**判定，本实现因此"更严不泄漏"，覆盖到的 KB 会与 Go 有差（备案）。
 
-**验证**：① 回归 `SessionKnowledgeQaBuildSearchTargets`…实为 `SessionKnowledgeQaKbScopeTest`（5 例：
+**验证**：① 回归 `SessionKnowledgeQaKbScopeTest`（5 例：
 自有可读 / 外租户无共享不可读 / 外租户共享可读 / 缺 caller|owner 不可读 / 共享服务缺失按不可读）全绿；
 ② **线上三例 A/B**（:8082 重启到最终构建）：外租户 KB → 两端 `answer→complete` 一致 ✓；
 自有 KB → 一致 ✓；自有**失效绑定** KB（`ks-golden-store`）→ 两端 `error`×2（2200）一致 ✓（未被本修影响）。
