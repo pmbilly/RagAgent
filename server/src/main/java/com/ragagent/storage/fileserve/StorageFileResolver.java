@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
+import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.knowledge.domain.StorageBackend;
 import com.ragagent.storage.mapper.StorageBackendRepository;
 import com.ragagent.storage.service.ResourceCatalogService;
@@ -45,6 +46,9 @@ import com.ragagent.storage.service.ResourceCatalogService;
 public class StorageFileResolver {
 
     private static final Logger log = LoggerFactory.getLogger(StorageFileResolver.class);
+
+    /** 进程级默认解密器（与 Spring 的 CryptoService 同语义：无状态，getAESKey() 读 env）。 */
+    private static final CryptoService CRYPTO = new CryptoService();
 
     private final StorageBackendRepository backendRepo;
     private final ResourceCatalogService catalog;
@@ -426,6 +430,21 @@ public class StorageFileResolver {
 
     /** 对照 Go {@code StorageBackend.ToStorageEngineConfig}：实例模型 → 单例配置投影。 */
     static JsonNode toStorageEngineConfig(StorageBackend b) {
+        return toStorageEngineConfig(b, CRYPTO);
+    }
+
+    /**
+     * 实例行 → provider 段（W5γ5.2 修正：**凭据必须解密**）。
+     *
+     * <p>jsonb 里的私钥是**存储密文**（{@code enc:v1:…}，见
+     * {@code StorageBackendService.serializeConfig} / {@code configOf}）。此前这里原样回挂，
+     * 云读一律 403（S3: {@code The Access Key Id you provided does not exist in our records}）
+     * ——探测实录见 {@code docs/storage-a3-plan.md} §7。现在按存储层的同一语义
+     * （{@code decryptStoredSecret}：带前缀才解密、无前缀原样）就地解密两族命名。</p>
+     *
+     * <p>测试可注入 crypto：{@code getAESKey()} 读 32 字节 env，单测用子类固定密钥。</p>
+     */
+    static JsonNode toStorageEngineConfig(StorageBackend b, CryptoService crypto) {
         var cfg = new com.fasterxml.jackson.databind.node.ObjectNode(
                 com.fasterxml.jackson.databind.json.JsonMapper.builder().build().getNodeFactory());
         cfg.put("default_provider", b.getProvider());
@@ -437,13 +456,28 @@ public class StorageFileResolver {
             }
             default -> {
                 // 云 provider 的投影随 SDK 层回补；local 之外 W5c 只需 default_provider
-                // 与 provider 段（完备性检查读 sec.<provider>.* —— 从实例行原样回挂）。
+                // 与 provider 段（完备性检查读 sec.<provider>.* —— 从实例行回挂，但**先解密凭据**）。
                 if (c != null) {
-                    cfg.set(b.getProvider(), c.deepCopy());
+                    var copy = c.deepCopy();
+                    decryptCredentials(copy, crypto);
+                    cfg.set(b.getProvider(), copy);
                 }
             }
         }
         return cfg;
+    }
+
+    /** 解密两族凭据命名（只有带 {@code enc:v1:} 前缀的才是密文，其余原样——照存储层语义）。 */
+    private static void decryptCredentials(com.fasterxml.jackson.databind.JsonNode providerConfig,
+            CryptoService crypto) {
+        for (String field : new String[]{
+                "access_key_id", "secret_access_key", "secret_id", "secret_key"}) {
+            com.fasterxml.jackson.databind.JsonNode value = providerConfig.get(field);
+            if (value != null && value.isTextual()) {
+                ((com.fasterxml.jackson.databind.node.ObjectNode) providerConfig)
+                        .put(field, crypto.decryptStoredSecret(value.asText()));
+            }
+        }
     }
 
     private static String textValue(JsonNode node, String field) {

@@ -19,8 +19,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${SCRIPT_DIR}/scripts/dev-env.sh"
 
 BUCKET="${AB_STREAM_BUCKET:-weknora-ab}"
-KEY_SMALL="${AB_STREAM_SMALL_KEY:-stream-small.bin}"
-KEY_BIG="${AB_STREAM_BIG_KEY:-stream-big.bin}"
+# 对象 key 必须带**租户前缀**（两侧布局同为 {tenant}/…）：/files 的路由会校验
+# file_path 里的租户与 token 租户一致（不带前缀 → 双端同为 403 forbidden: file path not accessible）
+TENANT="${AB_STREAM_TENANT:-10002}"
+KEY_SMALL="${AB_STREAM_SMALL_KEY:-${TENANT}/exports/stream-small.bin}"
+KEY_BIG="${AB_STREAM_BIG_KEY:-${TENANT}/exports/stream-big.bin}"
 BIG_MB="${AB_STREAM_BIG_MB:-192}"
 MEM_PROOF="${AB_STREAM_MEM:-0}"
 SMALL_HEAP="${AB_STREAM_HEAP:-96m}"
@@ -61,15 +64,19 @@ for _ in $(seq 1 30); do
 done
 [ "${ready}" = "1" ] || { echo "MinIO 健康检查超时（见 ${WORK}/minio.log）"; exit 1; }
 
-head -c 4096 /dev/urandom > "${WORK}/${KEY_SMALL}"
+LOCAL_SMALL="${WORK}/$(basename "${KEY_SMALL}")"
+LOCAL_BIG="${WORK}/$(basename "${KEY_BIG}")"
+head -c 4096 /dev/urandom > "${LOCAL_SMALL}"
 "${MC_BIN}" alias set ab "http://localhost:${MINIO_PORT}" "${MINIO_USER}" "${MINIO_PASS}" >/dev/null \
   || { echo "mc alias 失败"; exit 1; }
 "${MC_BIN}" mb -p "ab/${BUCKET}" >/dev/null 2>&1 || true
-"${MC_BIN}" cp "${WORK}/${KEY_SMALL}" "ab/${BUCKET}/" >/dev/null || { echo "mc 上传小对象失败"; exit 1; }
+"${MC_BIN}" cp "${LOCAL_SMALL}" "ab/${BUCKET}/${KEY_SMALL}" >/dev/null \
+  || { echo "mc 上传小对象失败"; exit 1; }
 if [ "${MEM_PROOF}" = "1" ]; then
   echo "    造 ${BIG_MB}MB 大对象（内存实证用）"
-  head -c $((BIG_MB * 1024 * 1024)) /dev/urandom > "${WORK}/${KEY_BIG}"
-  "${MC_BIN}" cp "${WORK}/${KEY_BIG}" "ab/${BUCKET}/" >/dev/null || { echo "mc 上传大对象失败"; exit 1; }
+  head -c $((BIG_MB * 1024 * 1024)) /dev/urandom > "${LOCAL_BIG}"
+  "${MC_BIN}" cp "${LOCAL_BIG}" "ab/${BUCKET}/${KEY_BIG}" >/dev/null \
+    || { echo "mc 上传大对象失败"; exit 1; }
 fi
 
 echo "==> 2) 双侧起服（同指 ${BUCKET}，STORAGE_TYPE=minio）"
@@ -153,7 +160,7 @@ if [ "${MEM_PROOF}" = "1" ]; then
     -H "Authorization: Bearer ${JTOK}" \
     "http://localhost:${JAVA_P}/files?file_path=minio://${BUCKET}/${KEY_BIG}")
   echo "        HTTP ${code}（期望 200）"
-  if [ "${code}" = "200" ] && cmp -s <(head -c $((BIG_MB * 1024 * 1024)) "${WORK}/${KEY_BIG}") "${WORK}/java-big.bin"; then
+  if [ "${code}" = "200" ] && cmp -s <(head -c $((BIG_MB * 1024 * 1024)) "${LOCAL_BIG}") "${WORK}/java-big.bin"; then
     echo "        MATCH 体（${BIG_MB}MB 逐字节一致）"
   else
     echo "        DIFF/FAIL 体"; fail=1

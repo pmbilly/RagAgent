@@ -65,7 +65,11 @@
   Go 是流式 `io.ReadCloser`（HTTP 层直转）。大对象流式化要给 `FileTransport` 补第三种形态。
   → ✅ **①a 已落地（W5γ5.1，2026-09-25）**：`OpenedFile` 补流形态 + `serve` 分流 + `closeReader` 真关流，
   `ProviderFileContentService` 改 `ofStream`（打开仍即时 → 404 语义不变）——**golden 零重录**（B3+B4 全绿）。
-  **真 A/B 未 PASS 的两条发现**：① Go 对 MinIO 走 ServeContent（minio-go 的 Object 是 ReadSeeker，
+  **真 A/B 的两条发现与处置**：
+  ① **凭据未解密（真缺陷，W5γ5.2 已修）**：`toStorageEngineConfig` 把 `enc:v1:` 密文当明文喂 provider →
+  云读一律 403（`The Access Key Id you provided does not exist in our records`）；现已就地解密两族命名（回归：
+  `ProviderWiringTest` 第 5 例），修后 A/B 双端 200、**体逐字节一致**；
+  ② Go 对 MinIO 走 ServeContent（minio-go 的 Object 是 ReadSeeker，
   `Accept-Ranges: bytes`）→ Java 流形态给 `none`（既有差异精确化，待决：seekable 适配 or 备案）；
   ② Java 侧同一 minio 路径 404（Go 200）→ 归 ①a2 排查。正文见 [`storage-a3-plan.md`](../storage-a3-plan.md) §7。
   对账修正两点：① **报文字节不受影响**（Java 已在 `FileTransport.java:108-110` 照 Go 用

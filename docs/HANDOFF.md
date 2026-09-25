@@ -1,5 +1,51 @@
 # 交接文档（新会话接手用）
 
+## 0.-38 ①a2：云读凭据解密缺陷（W5γ5.2）+ minio seekable 语义决策（2026-09-25）
+
+**缺陷（真 A/B 抓回的第一个真 bug；影响面不止 minio）**：`/files` 走**实例行**（`storage_backends`）解析 provider 时，
+`StorageFileResolver.toStorageEngineConfig` 把 jsonb 里的私钥**原样当明文**回挂——而存储层的私钥是**存储密文**
+（`enc:v1:…`，见 `StorageBackendService.serializeConfig`/`configOf`）。于是云 provider 的读全部 403，实录：
+
+```
+WARN FileProxyService: [Router] /files get file failed: tenant_id=10002 provider=minio
+  path="minio://weknora-ab/10002/exports/stream-small.bin"
+  err=java.io.IOException: failed to get file from S3: The Access Key Id you provided does not exist in
+  our records. (Service: S3, Status Code: 403, ...)
+```
+
+同 env 下 Go 200（Go 的实例行读路径本身是解密读）→ 定位为**翻译缺口**而非环境问题。
+（实例行来源可查：`storage_backends` 里 `source=env` 的行由 env 物化写入、凭据**加密落库** ✓。）
+
+**修**：`toStorageEngineConfig` 就地解密两族命名（`access_key_id`/`secret_access_key`、`secret_id`/`secret_key`），
+语义照存储层（`decryptStoredSecret`：带 `enc:v1:` 前缀才解密、无前缀原样）；加 `toStorageEngineConfig(b, crypto)`
+重载供测试注入。**回归**：`ProviderWiringTest` 第 5 例（密文必解 + 明文原样），受影响批 **B4 全绿（78s）**。
+
+**A/B 复验（修后）**：双端同 `minio://weknora-ab/10002/exports/stream-small.bin`——
+
+| 侧 | 状态 | Accept-Ranges | Content-Length | 体 |
+|---|---|---|---|---|
+| Go | 200 | `bytes` | 4096 | 4096 B |
+| Java | 200 | `none` | 4096 | **逐字节一致** |
+
+即：**404 缺陷已消；头只剩一项差异 = seekable 语义**。
+
+**minio seekable 语义（A/B 第二个发现）——决策：按"补适配"做，排 ①a3**：
+- 事实：Go 对 MinIO 走 `http.ServeContent`（`Accept-Ranges: bytes` + Range/206），因为 minio-go 的
+  `*minio.Object` 实现 `io.ReadSeeker`（用 Range 请求实现 Seek）；aws-sdk 族（s3/cos/tos/oss）的 body 是
+  `io.ReadCloser` → Go 走非 seekable 流式（`none`，与本仓一致）。
+- 影响：Java 目前对 minio 对象只给 `none`（无 Range）→ **大文件预览/视频拖动不可用**（功能性差异，非纯报文）。
+- 方案（①a3）：① `FileTransport` 抽 `SeekableSource`（`size()` + `open(offset)`），本地盘用 Path 实现
+  （**ServeContent 端口行为不变，由 w5c/w5f/kg 的 Range/206/416 golden 锁验证**）；② provider 侧加
+  `SeekableProvider` 缝（`headObject` 取 size + `getObject(range)` 取段），由 `S3CompatibleFileService` 在 minio
+  形态实现；③ `ProviderFileContentService` 对 seekable provider 走 seekable 形态；④ 判据：A/B 双端头逐行一致
+  （含 206/Content-Range）+ 体一致。
+- 备选（不推荐）：按差异备案——则 minio 面永远无 Range。
+
+**顺带**：A/B 脚本 `scripts/ab-storage-stream.sh` 的默认 key 改带租户前缀（不带 → 双端同为 403
+`forbidden: file path not accessible`），本地临时文件与上传目标分离。
+
+---
+
 ## 0.-37 存储 ①a 读路径流式化 + ③ local 双实现去重（2026-09-25——W5γ5.1）
 
 **做了什么**（`docs/storage-a3-plan.md` 的执行；**golden 零重录**，验证见下）：

@@ -11,7 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.common.crypto.CryptoService;
+import com.ragagent.knowledge.domain.StorageBackend;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -84,6 +88,44 @@ class ProviderWiringTest {
         assertEquals("3", head.getHeader("Content-Length"));
         assertEquals(0, head.getContentAsByteArray().length);
         assertTrue(stub.lastStreamClosed, "HEAD 也要关流");
+    }
+
+    @Test
+    @DisplayName("实例行 → provider 段：凭据密文必须解密（W5γ5.2——此前原样回挂导致云读 403）")
+    void backendRowCredentialsAreDecrypted() {
+        CryptoService crypto = new CryptoService() {
+            @Override
+            public byte[] getAESKey() {
+                return "0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8);
+            }
+        };
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode config = mapper.createObjectNode();
+        config.put("mode", "remote");
+        config.put("endpoint", "localhost:9100");
+        config.put("bucket_name", "weknora-ab");
+        config.put("access_key_id", crypto.encryptAESGCM("AK-minio", crypto.getAESKey()));
+        config.put("secret_access_key", crypto.encryptAESGCM("SK-minio", crypto.getAESKey()));
+        StorageBackend row = new StorageBackend();
+        row.setProvider("minio");
+        row.setConfig(config);
+
+        JsonNode engine = StorageFileResolver.toStorageEngineConfig(row, crypto);
+        assertEquals("minio", engine.path("default_provider").asText());
+        assertEquals("localhost:9100", engine.path("minio").path("endpoint").asText());
+        assertEquals("AK-minio", engine.path("minio").path("access_key_id").asText());
+        assertEquals("SK-minio", engine.path("minio").path("secret_access_key").asText());
+
+        // 无 enc:v1: 前缀 → 原样（照存储层"带前缀才解密"的语义）
+        ObjectNode plain = mapper.createObjectNode();
+        plain.put("access_key_id", "plain-ak");
+        plain.put("secret_access_key", "plain-sk");
+        StorageBackend plainRow = new StorageBackend();
+        plainRow.setProvider("s3");
+        plainRow.setConfig(plain);
+        JsonNode plainEngine = StorageFileResolver.toStorageEngineConfig(plainRow, crypto);
+        assertEquals("plain-ak", plainEngine.path("s3").path("access_key_id").asText());
+        assertEquals("plain-sk", plainEngine.path("s3").path("secret_access_key").asText());
     }
 
     // ── StorageFileResolver 的云分支（A3-3 接线前恒 cloudUnavailable） ──

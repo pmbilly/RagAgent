@@ -138,3 +138,7 @@ cmp /tmp/ab-go.bin /tmp/ab-java.bin && diff <(norm_headers /tmp/ab-go.h) <(norm_
   之后才是 **①b**（知识下载面）。
 - 环境：本机 9000/9001 = rustfs、18080-18082 = rocketmq → A/B 用 9100/19080/19082；MinIO 用
   `brew install minio minio-mc`（docker 镜像站 403 / dl.min.io darwin 410）。
+- **①a2（W5γ5.2）**：① 修**凭据解密缺口**（实例行密文被当明文 → 云读 403；`toStorageEngineConfig` 就地解密）——
+  A/B 复验：双端 200、**体逐字节一致**，头只剩 `Accept-Ranges` 一项差异；② **minio seekable 决策 = 补适配**，
+  排 **①a3**（`SeekableSource` 抽象 + provider 侧 range 缝 + A/B 判据含 206/Content-Range）；详见 HANDOFF §0.-38。
+  `brew install minio minio-mc`（docker 镜像站 403 / dl.min.io darwin 410）。
