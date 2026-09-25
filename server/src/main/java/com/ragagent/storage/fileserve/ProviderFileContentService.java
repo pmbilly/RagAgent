@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import com.ragagent.storage.provider.FileService;
+import com.ragagent.storage.provider.SeekableFileService;
+import com.ragagent.storage.provider.SeekableSource;
 
 /**
  * 把 A3 的 {@link com.ragagent.storage.provider.FileService}（八个 provider 的真实实现）
@@ -39,8 +41,13 @@ public class ProviderFileContentService implements WritableFileContentService {
     @Override
     public FileTransport.OpenedFile getFile(String filePath) throws IOException {
         try {
-            // 打开动作即时做（provider 的真调用/错误此刻暴露，照 Go 的 GetFile）；
-            // 只把"读体"交给 HTTP 层直转——不缓冲整个对象（W5γ5.1 ①a）。
+            // 照 Go 的分流：SDK 对象是 io.ReadSeeker 的 provider（minio-go）走 ServeContent
+            // （Accept-Ranges: bytes + Range/206）；其余（aws-sdk 族的 body）走流式。
+            // 两种形态都在此刻"打开"（错误即刻暴露 → 404），只把读体交给 HTTP 层。
+            if (inner instanceof SeekableFileService seekable && seekable.seekableReads()) {
+                SeekableSource source = seekable.openSeekable(filePath);
+                return FileTransport.OpenedFile.ofSeekableSource(source, source.size());
+            }
             InputStream in = inner.getFile(filePath);
             return FileTransport.OpenedFile.ofStream(
                     in == null ? InputStream.nullInputStream() : in, 0);

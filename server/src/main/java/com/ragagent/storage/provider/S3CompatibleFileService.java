@@ -1,5 +1,6 @@
 package com.ragagent.storage.provider;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
@@ -50,7 +51,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
  * {@code {scheme}{bucket}/{key}}、bucket 不匹配拒绝、{@code SafeObjectKey} 校验、
  * 服务端 CopyObject（数据不出云）、预签名下载 24 小时。</p>
  */
-public class S3CompatibleFileService implements FileService {
+public class S3CompatibleFileService implements SeekableFileService {
 
     private static final Logger log = LoggerFactory.getLogger(S3CompatibleFileService.class);
 
@@ -225,6 +226,53 @@ public class S3CompatibleFileService implements FileService {
         } catch (RuntimeException e) {
             throw new IllegalStateException("failed to get file from S3: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 照 Go：只有 minio 形态走 ServeContent（minio-go 的 {@code *minio.Object} 是
+     * {@code io.ReadSeeker}）；s3/cos/tos/obs/ks3 的 aws-sdk body 是 {@code io.ReadCloser}
+     * → Go 走流式 + {@code Accept-Ranges: none}，本仓同。
+     */
+    @Override
+    public boolean seekableReads() {
+        return "minio://".equals(scheme);
+    }
+
+    /**
+     * 可随机读的字节源：{@code size} 用 HeadObject（相当于 Go 的
+     * {@code Seek(0, io.SeekEnd)}），{@code open(offset)} 用带 Range 的 GetObject
+     * （走 HTTP Range，**不缓冲整个对象**）。
+     */
+    @Override
+    public SeekableSource openSeekable(String filePath) throws IOException {
+        String objectName;
+        try {
+            objectName = parseFilePath(filePath);
+        } catch (RuntimeException e) {
+            throw new IOException(e.getMessage() == null ? e.toString() : e.getMessage(), e);
+        }
+        return new SeekableSource() {
+            @Override
+            public long size() throws IOException {
+                try {
+                    return client.headObject(r -> r.bucket(bucketName).key(objectName)).contentLength();
+                } catch (RuntimeException e) {
+                    throw new IOException("failed to head object from S3: " + e.getMessage(), e);
+                }
+            }
+
+            @Override
+            public InputStream open(long offset) throws IOException {
+                try {
+                    return client.getObject(GetObjectRequest.builder()
+                            .bucket(bucketName).key(objectName)
+                            .range("bytes=" + offset + "-")
+                            .build());
+                } catch (RuntimeException e) {
+                    throw new IOException("failed to get object range from S3: " + e.getMessage(), e);
+                }
+            }
+        };
     }
 
     @Override

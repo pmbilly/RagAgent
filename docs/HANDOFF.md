@@ -1,5 +1,33 @@
 # 交接文档（新会话接手用）
 
+## 0.-39 ①a3：minio seekable 补适配（2026-09-25——W5γ5.3，A/B 全 PASS）
+
+**做了什么**（让 Java 与 Go 一样，对 **minio** 走 `http.ServeContent`：`Accept-Ranges: bytes` + Range/206）：
+
+| 件 | 说明 |
+|---|---|
+| `SeekableSource` / `SeekableFileService`（provider 包新增） | 前者=可随机读字节源（`size()` + `open(offset)`，对照 Go 的 `io.ReadSeeker`）；后者=provider 能力接口（`seekableReads()` 谓词 + `openSeekable()`） |
+| `FileTransport` 泛化 | `OpenedFile.seekable` 由 `Path` 泛化为 `SeekableSource`（本地 = `PathSeekableSource`，`open(offset)` 用 `skipNBytes` 定位）；`serveContent`/multipart/`readAllBytes` 全部走源——**本地行为不变**（w5c/w5f/kg 的 Range/206/416 golden 未重录） |
+| `S3CompatibleFileService` | 实现 seekable 读：`size` = `HeadObject`、`open(offset)` = 带 `Range: bytes=<off>-` 的 `GetObject`（**不缓冲整对象**）；`seekableReads()` 门控为 **`minio://` 独有** |
+| `ProviderFileContentService` | 按能力分流：seekable provider → `ofSeekableSource(source, source.size())`（HEAD 失败即 IOException → 404）；否则流式 |
+
+**为什么只有 minio**（别"顺手统一"）：minio-go 的 `*minio.Object` 实现 `io.ReadSeeker`（用 Range 请求实现 Seek）→ Go 走 ServeContent；aws-sdk 族（s3/cos/tos/oss/obs/ks3）的 body 是 `io.ReadCloser` → Go 走流式 + `none`（本仓同）。这是 **SDK 类型差异**。
+
+**验证**：
+- `ProviderWiringTest` 第 6 例：seekable 形态下 `Range: bytes=2-5` → 206 + `Content-Range: bytes 2-5/10` + 切片体；且断言**不走** `getFile`（不缓冲）；
+- 受影响批 **B4 全绿（81s）**——本地路径的 Range/206/416 golden 全绿 ⇒ 泛化未改本地行为；
+- **真 A/B 全 PASS**（`scripts/ab-storage-stream.sh`，MinIO 真云面）：
+
+| 场景 | Go | Java | 头 diff | 体 |
+|---|---|---|---|---|
+| 全量 GET | 200 / `bytes` / CL 4096 | 200 / `bytes` / CL 4096 | **空** | 一致（4096B） |
+| `Range: bytes=0-99` | 206 / `bytes` / `Content-Range: bytes 0-99/4096` / CL 100 | 同左 | **空** | 一致（100B） |
+
+**角落差异（记档）**：对象缺失时 Go 会在 ServeContent 的 `Seek` 处失败 → **500**；本仓在 `HeadObject` 阶段抛 IOException → **404**。同属"非 200"，影响可忽略（本地路径的 404 语义仍由 golden 锁定）。
+
+---
+
+
 ## 0.-38 ①a2：云读凭据解密缺陷（W5γ5.2）+ minio seekable 语义决策（2026-09-25）
 
 **缺陷（真 A/B 抓回的第一个真 bug；影响面不止 minio）**：`/files` 走**实例行**（`storage_backends`）解析 provider 时，

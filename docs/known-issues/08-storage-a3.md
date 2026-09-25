@@ -69,7 +69,9 @@
   ① **凭据未解密（真缺陷，W5γ5.2 已修）**：`toStorageEngineConfig` 把 `enc:v1:` 密文当明文喂 provider →
   云读一律 403（`The Access Key Id you provided does not exist in our records`）；现已就地解密两族命名（回归：
   `ProviderWiringTest` 第 5 例），修后 A/B 双端 200、**体逐字节一致**；
-  ② Go 对 MinIO 走 ServeContent（minio-go 的 Object 是 ReadSeeker，
+  ② ~~Go 对 MinIO 走 ServeContent~~ ✅ **W5γ5.3 已对齐**（`SeekableSource`/`SeekableFileService` 抽象 +
+  minio 的 HeadObject/Range-GET 读；A/B 全量与 Range 两场景**头逐行一致 + 体一致**）；
+  原发现留档：minio-go 的 Object 是 ReadSeeker，
   `Accept-Ranges: bytes`）→ Java 流形态给 `none`（既有差异精确化，待决：seekable 适配 or 备案）；
   ② Java 侧同一 minio 路径 404（Go 200）→ 归 ①a2 排查。正文见 [`storage-a3-plan.md`](../storage-a3-plan.md) §7。
   对账修正两点：① **报文字节不受影响**（Java 已在 `FileTransport.java:108-110` 照 Go 用

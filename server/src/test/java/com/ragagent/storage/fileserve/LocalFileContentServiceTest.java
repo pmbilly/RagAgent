@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -71,7 +72,8 @@ class LocalFileContentServiceTest {
         Files.writeString(tmp.resolve("10002/exports/ok.txt"), "hello");
         FileTransport.OpenedFile opened = svc.getFile("local://10002/exports/ok.txt");
         assertEquals(5, opened.size());
-        assertEquals("hello", Files.readString(opened.seekable()));
+        // W5γ5.3：seekable 形态已抽象为 SeekableSource（Path 只是其中一种实现）
+        assertEquals("hello", new String(opened.readAllBytes(), StandardCharsets.UTF_8));
         // 逃逸 → 拒绝
         assertTrue(assertThrows(() -> svc.getFile("local://../../etc/passwd")));
         assertTrue(assertThrows(() -> svc.getFile("local://10002/exports/missing.txt")));

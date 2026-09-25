@@ -136,6 +136,10 @@ cmp /tmp/ab-go.bin /tmp/ab-java.bin && diff <(norm_headers /tmp/ab-go.h) <(norm_
   2. Java 侧同一 minio 路径 **404**（Go 200）→ 归 **①a2**（minio 路径解析/env 回退面）。
 - **①a2 待决**：minio 的 seekable 语义（补 Range 重发型 seekable 适配 vs 差异备案）+ Java minio 404 排查；
   之后才是 **①b**（知识下载面）。
+- **①a3（W5γ5.3）**：minio seekable 补适配已落地——`SeekableSource`/`SeekableFileService` 抽象 +
+  `FileTransport` 泛化（本地行为不变，golden 未重录）+ minio 的 HeadObject/Range-GET 读；
+  **A/B 全 PASS**：全量与 `Range: bytes=0-99` 两场景头逐行一致（含 `Content-Range`）+ 体逐字节一致。
+  角落差异记档：缺失对象的 Go=500（ServeContent Seek 失败）/ 本仓=404（HeadObject 阶段）。
 - 环境：本机 9000/9001 = rustfs、18080-18082 = rocketmq → A/B 用 9100/19080/19082；MinIO 用
   `brew install minio minio-mc`（docker 镜像站 403 / dl.min.io darwin 410）。
 - **①a2（W5γ5.2）**：① 修**凭据解密缺口**（实例行密文被当明文 → 云读 403；`toStorageEngineConfig` 就地解密）——

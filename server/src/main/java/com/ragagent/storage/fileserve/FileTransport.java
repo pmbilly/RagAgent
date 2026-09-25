@@ -2,15 +2,13 @@ package com.ragagent.storage.fileserve;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.ragagent.common.web.ContentTypeByFilename;
+import com.ragagent.storage.provider.SeekableSource;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -60,10 +58,18 @@ public final class FileTransport {
      *   <li>{@code bytes}：已在内存的字节（Go 侧手工写响应的路由/知识 byte[] 出口）→ 流式支路。</li>
      * </ul>
      */
-    public record OpenedFile(Path seekable, byte[] bytes, InputStream stream, long size) {
+    public record OpenedFile(SeekableSource seekable, byte[] bytes, InputStream stream, long size) {
 
         public static OpenedFile ofSeekable(Path path, long size) {
-            return new OpenedFile(path, null, null, size);
+            return new OpenedFile(new PathSeekableSource(path), null, null, size);
+        }
+
+        /**
+         * provider 侧的可随机读源（如 minio 形态）：{@code size} 由调用方先取（HEAD）
+         * 传入，避免 ServeContent 再做一次长度探测。
+         */
+        public static OpenedFile ofSeekableSource(SeekableSource source, long size) {
+            return new OpenedFile(source, null, null, size);
         }
 
         public static OpenedFile ofBytes(byte[] data) {
@@ -86,9 +92,32 @@ public final class FileTransport {
                 }
             }
             if (seekable != null) {
-                return Files.readAllBytes(seekable);
+                try (InputStream in = seekable.open(0)) {
+                    return in.readAllBytes();
+                }
             }
             return new byte[0];
+        }
+    }
+
+    /** 本地盘的可随机读源（Go 的 {@code *os.File}）：{@code open(offset)} 用 skipNBytes 定位。 */
+    private record PathSeekableSource(Path path) implements SeekableSource {
+
+        @Override
+        public long size() throws IOException {
+            return Files.size(path);
+        }
+
+        @Override
+        public InputStream open(long offset) throws IOException {
+            InputStream in = Files.newInputStream(path);
+            try {
+                in.skipNBytes(offset);
+            } catch (IOException | RuntimeException e) {
+                in.close();
+                throw e;
+            }
+            return in;
         }
     }
 
@@ -166,8 +195,8 @@ public final class FileTransport {
     // ── http.ServeContent 的移植（零 modtime / 无 ETag 形态）────────────────
 
     private static void serveContent(HttpServletResponse response, HttpServletRequest request,
-            Options options, String contentType, String dispositionValue, Path content, long size)
-            throws IOException {
+            Options options, String contentType, String dispositionValue, SeekableSource content,
+            long size) throws IOException {
         // checkPreconditions（零 modtime、无 ETag）——本服务从不产出 ETag，所以：
         // If-Match 携带 → 永不匹配 → 412（checkIfMatch condFalse）；
         // If-None-Match 携带 → etagWeakMatch(请求 etag, "") 恒 false →
@@ -255,19 +284,15 @@ public final class FileTransport {
             return;
         }
         long start = ranges != null && ranges.size() == 1 ? ranges.get(0).start() : 0;
-        try (FileChannel ch = FileChannel.open(content, StandardOpenOption.READ)) {
-            ch.position(start);
-            ByteBuffer buf = ByteBuffer.allocate(64 * 1024);
+        try (InputStream in = content.open(start)) {
+            byte[] buf = new byte[64 * 1024];
             long remaining = sendSize;
             while (remaining > 0) {
-                buf.clear();
-                buf.limit((int) Math.min(buf.capacity(), remaining));
-                int n = ch.read(buf);
+                int n = in.read(buf, 0, (int) Math.min(buf.length, remaining));
                 if (n < 0) {
                     break;
                 }
-                buf.flip();
-                response.getOutputStream().write(buf.array(), 0, n);
+                response.getOutputStream().write(buf, 0, n);
                 remaining -= n;
             }
             response.getOutputStream().flush();
@@ -397,29 +422,25 @@ public final class FileTransport {
      * 多段 Range → multipart/byteranges 整体缓冲。边界随机（Go 侧也随机，无字节锚）。
      */
     private static byte[] buildMultipartBody(String boundary, String contentType, List<HttpRange> ranges,
-            long size, Path content) throws IOException {
+            long size, SeekableSource content) throws IOException {
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        try (FileChannel ch = FileChannel.open(content, StandardOpenOption.READ)) {
-            for (HttpRange ra : ranges) {
-                out.writeBytes(partHeader(boundary, contentType, ra, size));
-                ch.position(ra.start());
-                ByteBuffer buf = ByteBuffer.allocate(64 * 1024);
+        for (HttpRange ra : ranges) {
+            out.writeBytes(partHeader(boundary, contentType, ra, size));
+            try (InputStream in = content.open(ra.start())) {
+                byte[] buf = new byte[64 * 1024];
                 long remaining = ra.length();
                 while (remaining > 0) {
-                    buf.clear();
-                    buf.limit((int) Math.min(buf.capacity(), remaining));
-                    int n = ch.read(buf);
+                    int n = in.read(buf, 0, (int) Math.min(buf.length, remaining));
                     if (n < 0) {
                         break;
                     }
-                    buf.flip();
-                    out.write(buf.array(), 0, n);
+                    out.write(buf, 0, n);
                     remaining -= n;
                 }
-                out.writeBytes("\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
-            out.writeBytes(("--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            out.writeBytes("\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
+        out.writeBytes(("--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         return out.toByteArray();
     }
 

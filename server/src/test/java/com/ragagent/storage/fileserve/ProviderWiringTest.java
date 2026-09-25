@@ -24,6 +24,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.storage.provider.FileService;
+import com.ragagent.storage.provider.SeekableFileService;
+import com.ragagent.storage.provider.SeekableSource;
 
 /**
  * A3-3 接线测试：provider 服务 → fileserve 读取面（适配器）、云 provider 分支经工厂落地、
@@ -126,6 +128,102 @@ class ProviderWiringTest {
         JsonNode plainEngine = StorageFileResolver.toStorageEngineConfig(plainRow, crypto);
         assertEquals("plain-ak", plainEngine.path("s3").path("access_key_id").asText());
         assertEquals("plain-sk", plainEngine.path("s3").path("secret_access_key").asText());
+    }
+
+    @Test
+    @DisplayName("minio 形态（SeekableFileService）：走 ServeContent——bytes + Range/206，不缓冲整对象")
+    void seekableProviderServesRange() throws Exception {
+        byte[] payload = "0123456789".getBytes(StandardCharsets.UTF_8);
+        ProviderFileContentService svc = new ProviderFileContentService(new SeekableStub(payload));
+
+        FileTransport.OpenedFile opened = svc.getFile("minio://b/k.bin");
+        assertNull(opened.bytes());
+        assertNull(opened.stream());
+        assertEquals(10, opened.size());
+
+        // 单段 Range → 206 + Content-Range + 体切片（照 Go 的 ServeContent）
+        MockHttpServletRequest ranged = new MockHttpServletRequest("GET", "/files");
+        ranged.addHeader("Range", "bytes=2-5");
+        MockHttpServletResponse partial = new MockHttpServletResponse();
+        FileTransport.serve(partial, ranged, opened,
+                new FileTransport.Options("k.bin", false, "", "", "private, no-store", 0));
+        assertEquals(206, partial.getStatus());
+        assertEquals("bytes", partial.getHeader("Accept-Ranges"));
+        assertEquals("bytes 2-5/10", partial.getHeader("Content-Range"));
+        assertEquals("2345", new String(partial.getContentAsByteArray(), StandardCharsets.UTF_8));
+
+        // 无 Range → 200 全量
+        MockHttpServletResponse full = new MockHttpServletResponse();
+        FileTransport.serve(full, new MockHttpServletRequest("GET", "/files"),
+                svc.getFile("minio://b/k.bin"),
+                new FileTransport.Options("k.bin", false, "", "", "", 0));
+        assertEquals(200, full.getStatus());
+        assertEquals("bytes", full.getHeader("Accept-Ranges"));
+        assertEquals("0123456789", new String(full.getContentAsByteArray(), StandardCharsets.UTF_8));
+    }
+
+    /** minio 形态桩：只实现 seekable 读；{@code getFile} 被调用即断言失败。 */
+    private static final class SeekableStub implements SeekableFileService {
+
+        private final byte[] data;
+
+        SeekableStub(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public boolean seekableReads() {
+            return true;
+        }
+
+        @Override
+        public SeekableSource openSeekable(String filePath) {
+            return new SeekableSource() {
+                @Override
+                public long size() {
+                    return data.length;
+                }
+
+                @Override
+                public InputStream open(long offset) {
+                    return new ByteArrayInputStream(data, (int) offset, (int) (data.length - offset));
+                }
+            };
+        }
+
+        @Override
+        public InputStream getFile(String filePath) {
+            throw new AssertionError("seekable 形态不应走 getFile（流式支路）");
+        }
+
+        @Override
+        public void checkConnectivity() {
+        }
+
+        @Override
+        public String saveFile(UploadFile file, long tenantId, String knowledgeId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String saveBytes(byte[] data, long tenantId, String fileName, boolean temp) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void deleteFile(String filePath) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getFileURL(String filePath) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String copyFile(String srcPath, long tenantId, String knowledgeId) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     // ── StorageFileResolver 的云分支（A3-3 接线前恒 cloudUnavailable） ──

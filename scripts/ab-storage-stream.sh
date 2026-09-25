@@ -148,6 +148,30 @@ else
   echo "    DIFF  体：go=$(shasum -a256 < "${WORK}/go.bin" | cut -c1-16) java=$(shasum -a256 < "${WORK}/java.bin" | cut -c1-16)"; fail=1
 fi
 
+echo "==> 3b) Range 对拍：Range: bytes=0-99（期望 206 + Content-Range + 切片体）"
+fetch_range() { # port, token, key, tag
+  curl -sD "${WORK}/$4.range.h" -o "${WORK}/$4.range.bin" \
+    -H "Authorization: Bearer $2" -H "Range: bytes=0-99" \
+    "http://localhost:$1/files?file_path=minio://${BUCKET}/$3"
+}
+fetch_range "${GO_P}" "${GTOK}" "${KEY_SMALL}" go
+fetch_range "${JAVA_P}" "${JTOK}" "${KEY_SMALL}" java
+for side in go java; do
+  echo "    --- ${side}: Range 关键头 ---"
+  grep -iE '^(HTTP/|accept-ranges|content-range|content-length)' "${WORK}/${side}.range.h" \
+    | sed 's/^/        /'
+done
+if diff <(mask_hdr "${WORK}/go.range.h") <(mask_hdr "${WORK}/java.range.h") > "${WORK}/range-hdr.diff"; then
+  echo "    MATCH 头（含 Content-Range）"
+else
+  echo "    DIFF  头："; sed 's/^/        /' "${WORK}/range-hdr.diff"; fail=1
+fi
+if cmp -s "${WORK}/go.range.bin" "${WORK}/java.range.bin"; then
+  echo "    MATCH 体（切片 $(( $(wc -c < "${WORK}/go.range.bin") )) 字节）"
+else
+  echo "    DIFF  体：go=$(( $(wc -c < "${WORK}/go.range.bin") ))B java=$(( $(wc -c < "${WORK}/java.range.bin") ))B"; fail=1
+fi
+
 if [ "${MEM_PROOF}" = "1" ]; then
   echo "==> 4) 内存实证：Java 侧 -Xmx${SMALL_HEAP} 下载 ${BIG_MB}MB 对象"
   lsof -ti ":${JAVA_P}" 2>/dev/null | xargs kill >/dev/null 2>&1 || true
