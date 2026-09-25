@@ -1732,7 +1732,51 @@ Go 的 SQLite 引擎**不是**独立存储：`createSQLiteEngine(_ types.VectorS
 | 项 | 现状（已核） | 阻塞点 | 我的建议 |
 |---|---|---|---|
 | **W5δ provider 终端执行体** | Java 侧**中性层已全**（`RemoteTerminalOptions` 五旋钮、`SessionTerminalService` / `TerminalBridge` 接缝、`RemoteError` 分类器）；缺的是 cube/e2b/docker 的**远程 PTY 执行体**（Go ~1.3k 行）+ 生产接线（`openOnResolved`/`provisionAndOpen` + 泵组） | ① 需**真实 provider/沙箱**（凭据 + 可达端点）才能联调；② 需先定"zerodep stdin 无半关闭对双向流的影响"这个传输层判断题 | 先做**传输层可行性评估**（写一个 spike：以 zerodep 的 stdin 语义模拟半关闭，跑一个真实 cube/e2b 会话，量化"EOF 不可表达"的后果），评估有结论再谈执行体 |
-| **⑱ MCP initialize 契约对齐** | 两侧都有实现（Java `mcp/protocol/DefaultMcpClient.initialize` + `InitializeResult`/`McpProtocol`；Go `internal/mcp/types.go`），但**差异点没有文档描述**（遗留清单只留了名字，`known-issues/01` 里也没有该条目） | 需 Owner 指明**要对齐哪一点**（协议版本号 / capabilities 字段 / clientInfo / 报错形态），或给一份两侧握手的**报文实录** | 给我一份两侧 `initialize` 的请求与响应实录（或指出具体字段），我按既有"逐字节 golden 对齐"方法论处理（与 model-debug 批同一手法） |
+| ~~**⑱ MCP initialize 契约对齐**~~ | ✅ **已落地（2026-09-25 W5γ4.21）**：差异从两侧代码 + golden 实录
+（`GoRecording45C` 的 `mcp_stub/req_00`）直接定位——协议版本 `2024-11-05`→`2025-11-25`、params 键序、
+补 `ValidProtocolVersions` 校验；**无需 Owner 提供实录** | 详见本分片 W5γ4.21 段 |
 | **存储三条备案** | 出自 `known-issues/08-storage-a3.md` 的「已知差异」：① 云对象**整对象入堆**（Go 流式 `io.ReadCloser`）→ 要动 `FileTransport` 补第三种形态；② **OSS 大文件未走分片 Uploader**（Go >10MB 用 10MB/片 + 3 并发）；③ **local 有两支实现**（`knowledge.LocalStorageService` 与 `fileserve.LocalFileContentService`）收敛 | ①③ **会动既有 golden 锁定面**（`resource://` 契约）→ 属"改读路径"类，按项目纪律需先批准再动；② 需真 OSS 凭据联调 | 建议**分开处理**：② 最独立（只加分流阈值 + 分片，OSS 上传面自有测试）→ 可先做；①③ 建议排到"读路径黄金面"专门批（附 A/B 方案）再动 |
 
 **验收**：`VlmWeKnoraCloudTest` 5 条全绿 + 模型域/初始化域回归绿 + **五批验收 PASS**。
+
+---
+
+## W5γ4.21：MCP initialize 契约对齐（2026-09-25，⑱ 决策项落地）
+
+### 差异（实测三处，均已修）
+
+Go 侧 initialize 由 mcp-go v0.52.0 发出，golden 实录（`GoRecording45C` 的 `mcp_stub/req_00`，agent.tools 包内）原文：
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","clientInfo":{"name":"WeKnora","version":"1.0.0"},"capabilities":{}}}
+```
+
+| # | 差异（修复前） | 根因 | 修法 |
+|---|---|---|---|
+| ① | `protocolVersion` 为 `2024-11-05` | `McpProtocol.PROTOCOL_VERSION` 是**依赖派生值**：Go 传 `mcp.LATEST_PROTOCOL_VERSION`（mcp-go v0.52.0，`mcp/types.go:139` = `2025-11-25`），Java 常量停在更早 SDK 时代的字面量 | 常量改 `2025-11-25`，注释钉"照哪个 SDK 版本、Go 升 SDK 时要跟着钉" |
+| ② | params 键序 `protocolVersion→capabilities→clientInfo` | Java 手写 `LinkedHashMap` 的插入序 ≠ mcp-go params **匿名结构字段序**（`client/client.go:206-213`：protocolVersion, clientInfo, capabilities） | 按键序构造 |
+| ③ | 无应答版本校验（空版本也放过） | mcp-go 在应答处校验 `ValidProtocolVersions`，不在表内即报 `UnsupportedProtocolVersionError`（`client/client.go:232-234` + `mcp/errors.go:57-63`） | 加 `McpProtocol.VALID_PROTOCOL_VERSIONS`（四值照 `mcp/types.go:142-147`）+ `isSupportedProtocolVersion()`；校验在**设版本头 / 发 `notifications/initialized` 之前**（照 SDK 顺序），失败时 `initialized` 不置位 |
+
+**错误文案对齐**（两层拼装，逐字节）：内层 `unsupported protocol version: "xxx"`（照 SDK 的 `fmt.Sprintf("unsupported protocol version: %q", v)`），外层 Go 仓储 `fmt.Errorf("failed to initialize: %w")` → 最终 `failed to initialize: unsupported protocol version: "xxx"`。该错误在 Go 侧是 **SDK 自带错误、不对应任何哨兵** → Java 异常 `code == null`（别塞 `NOT_CONNECTED` 之类的码）。
+
+### 有意保留的次要差异（非契约面）
+
+- **capabilities 的解析**：Go 仓储侧 `internal/mcp/types.go` 的 `InitializeResult.Capabilities` **从不被填充**（`client/client.go:436-445` 只拷 ProtocolVersion/Instructions/ServerInfo），Java 解析了 `tools/resources/prompts` 三键。Java 侧**无消费者**（grep 确认），解析是宽进的（缺键 → null）——保留为"信息更全"；**若将来要做按 capability 开关的行为，一律以 Go 的"恒空"为准**。
+- `OAuthHttp` 的 `MCP-Protocol-Version: 2025-03-26` **不是缺陷**：mcp-go 的 `client/transport/oauth.go:537/732` 就是这个硬编码值（OAuth 流程专用），与 initialize 协商出的版本无关。
+
+### 回归守卫（新增/加强）
+
+- `McpClientProtocolTest`：① 握手用例新增**出站报文整串逐字节断言**（含键序）；② 新增"应答版本不在白名单"用例——断言文案、`code==null`、**不发 initialized 通知**、后续 `listTools` → `ErrNotConnected`。
+- `McpStubABTest`：initialize 从"按各自基线断言"**升格为整串逐字节比对**（`javaInit.toString() == goInitBody.toString()`；两端数值 id 都从 1 起步）——旧文档里记的 ⑱ 差异已消除。
+- `McpServerStub`：新增 `requestBodies` 录制（钉键序用）。
+
+### 复跑
+
+```bash
+./scripts/acceptance.sh --changed     # 受影响批：B1a（agent.tools 的 A/B）+ B3（mcp.protocol）
+./gradlew :server:test --tests "com.ragagent.agent.tools.McpStubABTest"   # 单跑 A/B
+```
+
+### 教训（可复用）
+
+**依赖派生的常量必须钉"来源 + 版本"**：`McpProtocol.PROTOCOL_VERSION` 照的是 Go 依赖里的常量（而非常量本身），Go 升级 mcp-go 时会**静默漂移**——协议版本、SDK 版本头、默认参数这一类常量都该在注释里写清"照哪个 SDK 版本"，并把它们纳入"Go 侧依赖升级 → 对账"的检查项。

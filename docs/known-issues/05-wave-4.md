@@ -129,7 +129,10 @@
     StringBuilder 运行期拼接——javac 对字面量 + 常量折叠会撞 CONSTANT_Utf8 64KB 上限）。
   - **MCP stub A/B 双端结论**：tools/list、tools/call、notifications/initialized 的
     method+params 逐字节一致（JSON-RPC id 掩码），工具结果 output 逐字节一致。
-    **initialize 请求体（⑱）不逐字节**：Go 走 mark3labs SDK（protocolVersion
+    ~~**initialize 请求体（⑱）不逐字节**~~ ✅ **2026-09-25 W5γ4.21 已对齐**：Go 走 mark3labs SDK
+    （protocolVersion 2025-11-25、键序 protocolVersion→clientInfo→capabilities）曾是 Java 4.1 的差异
+    （2024-11-05、capabilities 在前）——现已照 mcp-go v0.52.0 修正（含应答版本白名单校验），
+    A/B 的 initialize 升格为整串逐字节比对；正文见 `06-wave-5.md` 的 W5γ4.21。
     2025-11-25、键序 protocolVersion→clientInfo→capabilities），Java 4.1 客户端
     （2024-11-05、protocolVersion→capabilities→clientInfo）——握手语义一致，
     A/B 按各自基线断言；要逐字节就得动 4.1 McpProtocol（决策点，未动手）。

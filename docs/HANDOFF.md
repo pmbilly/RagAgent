@@ -1,5 +1,25 @@
 # 交接文档（新会话接手用）
 
+## 0.-36 MCP initialize 契约对齐（2026-09-25——W5γ4.21，⑱ 决策项落地）
+
+**做了什么**（§0.-34 三项决策简报之 ⑱；"差异点无文档描述"其实**不需要 Owner 实录**——两侧代码 + golden 实录就能定位）：
+
+| # | 差异（修复前） | 修法 |
+|---|---|---|
+| ① | `protocolVersion` = `2024-11-05`（Go 是 mcp-go v0.52.0 的 `LATEST_PROTOCOL_VERSION` = `2025-11-25`——**依赖派生值**，旧值是更早 SDK 时代的字面量） | `McpProtocol.PROTOCOL_VERSION` → `2025-11-25`，注释钉住"照哪个 SDK 版本" |
+| ② | params 键序 `protocolVersion→capabilities→clientInfo`（mcp-go 是 `protocolVersion→clientInfo→capabilities`，client.go:206-213） | 按键序构造 `LinkedHashMap` |
+| ③ | 缺 `ValidProtocolVersions` 白名单校验（应答版本随意，空版本也放过） | 加白名单 + `isSupportedProtocolVersion()`；校验在**设版本头/发 initialized 通知之前**（照 SDK 顺序），失败不置 initialized；文案 `failed to initialize: unsupported protocol version: "xxx"`，异常 `code==null`（Go 侧无哨兵） |
+
+**有意保留的次要差异**（记档）：Java 解析了 `capabilities`（tools/resources/prompts 三键，宽进），而 Go 仓储侧 `InitializeResult.Capabilities` **从不被填充**（client.go:436-445 只拷三件）——Java 无消费者，保留"信息更全"；`OAuthHttp` 的 `MCP-Protocol-Version: 2025-03-26` 是 mcp-go oauth.go:537/732 的硬编码，**非缺陷**。
+
+**验证**：`McpClientProtocolTest` 握手用例新增**出站报文整串逐字节断言** + 新增白名单拒绝用例（文案/`code==null`/不发通知/后续 `ErrNotConnected`）；`McpStubABTest` 的 initialize **升格为整串逐字节比对**（⑱ 差异消除，单跑复确认）；`McpServerStub` 加请求体录制。**用新的 `--changed` 门跑受影响批 B1a + B3：全绿（69s）**。
+
+**教训（可复用）**：协议版本/SDK 版本头/默认参数这类**依赖派生常量**，注释必须钉"照哪个依赖版本"，并在 Go 侧依赖升级时纳入对账（否则静默漂移）。
+
+**下一步**：决策简报只剩 **W5δ provider 终端执行体**（需真实 provider + zerodin stdin 半关闭的 spike）与**存储 ①③**（读路径黄金面专项批）；备案小账剩 Weaviate gse 跨仓提案、E2E 两观察项、jieba 真实分词。
+
+---
+
 ## 0.-35 OSS 大文件分片上传（2026-09-25——W5γ4.20，存储三条备案之②）
 
 **做了什么**（照 Go `file/oss.go` 的 `SaveFile`）：`>10MB` 走**分片上传**——`initiateMultipartUpload`（带 ContentType 元数据）→ `uploadPart` ×N（**10MB/片、3 并发**、单遍读流、按 partNumber 保序）→ `completeMultipartUpload`（有序 ETag）；任一步失败 **best-effort `abortMultipartUpload`** 后抛错（照 Go SDK Uploader 收尾）。小文件仍走单次 `putObject`。**错误前缀照 Go 的两个分支**：分片 `failed to upload file to OSS (multipart): …`、单次 `failed to upload file to OSS: …`。
@@ -29,7 +49,7 @@
 | 项 | 阻塞点 | 建议 |
 |---|---|---|
 | W5δ provider 终端执行体 | 需真 provider/沙箱；且要先定 zerodep stdin 无半关闭对双向流的影响 | 先做**传输层 spike 评估**（真实 cube/e2b 会话量化 EOF 不可表达的后果），有结论再谈 ~1.3k 行执行体 |
-| ⑱ MCP initialize 契约对齐 | **差异点无文档描述**（两侧都有实现：Java `DefaultMcpClient.initialize` / Go `internal/mcp/types.go`） | 给我两侧 `initialize` 的**报文实录**（或指明要对齐的字段），按 golden 逐字节对齐处理 |
+| ~~⑱ MCP initialize 契约对齐~~ | ✅ **已落地（W5γ4.21，§0.-36）**：差异从两侧代码 + `GoRecording45C` 实录直接定位并修正 | — |
 | 存储三条备案（`known-issues/08`） | ①云对象整对象入堆、②OSS 分片上传、③local 双实现——①③ 会动 golden 锁定面 | 拆开：**②**先做（独立、面自有测试）；**①③** 排"读路径黄金面"专门批（附 A/B 方案）再动 |
 
 ---
@@ -1303,7 +1323,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 4. **执行体批**：ArtifactCollector/rewriteArtifactReferences/VLM Predict 的生产装配
    （dev 部署两侧同形 no-op，真部署才需要）
 5. **专项/Owner 决策遗留**：mcp×storage SsrfGuard 互踩（既有问题，W5a 发现）；
-   ⑱ MCP initialize 契约对齐、SkillEnvironment 位置、波 3 SkillFrontmatter snakeyaml
+   ~~⑱ MCP initialize 契约对齐~~ ✅（W5γ4.21，§0.-36）、SkillEnvironment 位置、波 3 SkillFrontmatter snakeyaml
    宽容类型、TenantService 占位是否变真、ConversationProperties 多环境接线
 
 ## 0. 一句话背景
@@ -1485,7 +1505,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 3. **备案小账批**：Milvus 的 shardsNum/模板参数差异、Weaviate 的 `ENABLE_TOKENIZER_GSE` 回填
    Go 仓 compose、腾讯的**分词接缝**（接真实 jieba 可与 Go 存量数据互通）、E2E 抓回的两个
    观察项（早错 SSE 不收流 / `list_sandbox_files` 注册时机）、VLM 界面文案、jieba 真实分词；
-4. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、initialize 契约对齐、存储三条备案；
+4. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、存储三条备案之①③；~~initialize 契约对齐~~ ✅ W5γ4.21（§0.-36）；
    install 真实 LLM E2E 已于 §0.-27 收官）——均需真实 provider 或决策输入。
 
 ### 3.-2 当前续推点：接线的第 3~4 步（2026-09-25 起）—— ✅ 已收官（W5γ4.6，见 §0.-21）
@@ -1545,7 +1565,7 @@ Go 的语义是"渠道起不来 → 运行态无适配器 → 回调 503 `channe
    ~~im 执行体（W5γ1/γ2/γ3）~~ ✅ **2026-09-25 收官**（九渠道全模式，见 §0.-15 与 §2.0）；
    仍剩 **W5δ provider 终端执行体**（cube/e2b PTY SDK 流等——卡在需真实 provider/沙箱，
    与 install 管线体、ArtifactCollector 文件源、VLM 界面同属 XDEP 族，见 §2.0「已知剩余」）、
-   检索引擎批（HybridSearch 执行面）、⑱ initialize 契约对齐（Owner 决策）
+   检索引擎批（HybridSearch 执行面）；~~⑱ initialize 契约对齐~~ ✅ W5γ4.21（§0.-36）
 
 ### 3.0 波 2 扫尾清单（✅ 全部完成，留档备查）
 

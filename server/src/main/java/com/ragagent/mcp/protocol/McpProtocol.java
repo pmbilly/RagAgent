@@ -7,8 +7,27 @@ import java.time.Duration;
  */
 public final class McpProtocol {
 
-    /** initialize 协商的协议版本（对照 Go mcp.LATEST_PROTOCOL_VERSION；MCP 2024-11-05）。 */
-    public static final String PROTOCOL_VERSION = "2024-11-05";
+    /**
+     * initialize 协商的协议版本（照 Go 侧依赖 mcp-go v0.52.0 的
+     * {@code mcp.LATEST_PROTOCOL_VERSION}，见 {@code mcp/types.go:139}）。
+     *
+     * <p><b>该值是依赖派生的</b>——Go 仓升级 mcp-go 时它随之上移，本常量必须跟着钉。
+     * 2026-09-25 对齐：旧值 {@code 2024-11-05} 属于更早的 SDK 时代（Go 已升到 v0.52.0），
+     * 差异与影响见 known-issues/06 的 W5γ4.21。</p>
+     */
+    public static final String PROTOCOL_VERSION = "2025-11-25";
+
+    /**
+     * 服务端应答版本的白名单（照 mcp-go v0.52.0 {@code mcp.ValidProtocolVersions}，
+     * {@code mcp/types.go:142-147}）：initialize 应答里的版本不在此表内即报错。
+     */
+    public static final java.util.List<String> VALID_PROTOCOL_VERSIONS =
+            java.util.List.of(PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05");
+
+    /** 对照 mcp-go 的 {@code slices.Contains(mcp.ValidProtocolVersions, v)}（client/client.go:232）。 */
+    public static boolean isSupportedProtocolVersion(String version) {
+        return version != null && VALID_PROTOCOL_VERSIONS.contains(version);
+    }
 
     /** clientInfo.name（Go 写作 "WeKnora"；Java 侧服务标识沿用同一字符串，前端/服务端日志可对照）。 */
     public static final String CLIENT_NAME = "WeKnora";

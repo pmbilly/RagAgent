@@ -109,13 +109,15 @@ public final class DefaultMcpClient implements McpClient {
         if (!connected.get()) {
             throw new McpException(McpErrorCode.NOT_CONNECTED);
         }
+        // 键序照 mcp-go 的 params 匿名结构字段序（client/client.go:206-213）：
+        // protocolVersion → clientInfo → capabilities
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("protocolVersion", McpProtocol.PROTOCOL_VERSION);
-        params.put("capabilities", Map.of());
         Map<String, Object> clientInfo = new LinkedHashMap<>();
         clientInfo.put("name", McpProtocol.CLIENT_NAME);
         clientInfo.put("version", McpProtocol.CLIENT_VERSION);
         params.put("clientInfo", clientInfo);
+        params.put("capabilities", Map.of());
 
         JsonRpcResponse response;
         try {
@@ -129,7 +131,13 @@ public final class DefaultMcpClient implements McpClient {
                     throw r.errorAsException();
                 }
                 String negotiated = r.result() == null ? "" : r.result().path("protocolVersion").asText("");
-                if (!negotiated.isEmpty() && transport instanceof StreamableHttpTransport streamable) {
+                // 照 mcp-go client/client.go:232-234：应答版本不在白名单 → 报错（文案照
+                // mcp/errors.go:57-63；SDK 自带错误不对应哨兵 → code 为 null），
+                // 且不设版本头、不发 initialized 通知（顺序照 SDK）
+                if (!McpProtocol.isSupportedProtocolVersion(negotiated)) {
+                    throw new McpException("unsupported protocol version: \"" + negotiated + "\"");
+                }
+                if (transport instanceof StreamableHttpTransport streamable) {
                     // 对照 mcp-go：协商出的版本经 Mcp-Protocol-Version 头回传后续请求
                     streamable.setProtocolVersion(negotiated);
                 }

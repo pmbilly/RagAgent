@@ -32,11 +32,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 它发出的请求体（rec.jsonl 的 mcp_stub/req_NN 组）；本测试用同一应答脚本驱动 Java 的
  * McpClientManager → DefaultMcpClient → McpToolWrapper，再逐字节回放比对。</p>
  *
- * <p><b>已知差异（备案）</b>：Go 侧 initialize 走 mark3labs SDK——protocolVersion 是
- * 2025-11-25 且键序 protocolVersion→clientInfo→capabilities；Java 侧是 4.1 的
- * McpProtocol.PROTOCOL_VERSION=2024-11-05、键序 protocolVersion→capabilities→clientInfo。
- * 这是 4.1 既有的客户端契约（McpProtocol.java 不属本波改动），A/B 中 initialize 体按
- * 各自基线断言；tools/list / tools/call / notifications/initialized 逐字节比对（id 掩码）。</p>
+ * <p><b>W5γ4.21 对齐</b>：initialize 报文曾与 Go 有差异（旧常量 2024-11-05，且键序把
+ * capabilities 放在 clientInfo 之前），现已照 mcp-go v0.52.0 对齐——protocolVersion 是
+ * {@code 2025-11-25}、键序 protocolVersion→clientInfo→capabilities。故 <b>initialize 也纳入
+ * 逐字节比对</b>（数值 id 两端都从 1 起步，可整串比）；tools/list / tools/call /
+ * notifications/initialized 照旧比对。</p>
  */
 class McpStubABTest {
 
@@ -205,13 +205,9 @@ class McpStubABTest {
         JsonNode goNotifyBody = M.readTree(goNotify.get("body").asText());
         assertThat(javaNotify.path("method").asText()).isEqualTo(goNotifyBody.path("method").asText());
 
-        // initialize：method 一致；body 的差异（SDK 协议版本/键序）备案不比
+        // initialize：整串逐字节一致（含协议版本与 params 键序；两端数值 id 都从 1 起步）
         JsonNode javaInit = M.readTree(javaBodies.get(0));
         JsonNode goInitBody = M.readTree(goInit.get("body").asText());
-        assertThat(javaInit.path("method").asText()).isEqualTo(goInitBody.path("method").asText());
-        assertThat(javaInit.path("params").path("clientInfo").get("name").asText())
-                .isEqualTo(goInitBody.path("params").path("clientInfo").get("name").asText());
-        assertThat(javaInit.path("params").path("clientInfo").get("version").asText())
-                .isEqualTo(goInitBody.path("params").path("clientInfo").get("version").asText());
+        assertThat(javaInit.toString()).isEqualTo(goInitBody.toString());
     }
 }

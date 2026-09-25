@@ -2,6 +2,7 @@ package com.ragagent.mcp.protocol;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +10,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.mcp.domain.McpAuthConfig;
 import com.ragagent.mcp.domain.McpAuthType;
@@ -70,6 +72,14 @@ class McpClientProtocolTest {
                 InitializeResult result = client.initialize(ctx());
 
                 assertEquals(McpProtocol.PROTOCOL_VERSION, result.protocolVersion());
+                // 线上报文逐字节：协议版本照 mcp-go v0.52.0（2025-11-25），键序
+                // protocolVersion→clientInfo→capabilities（照 SDK 的 params 字段序）
+                String initBody = server.requestBodies.stream()
+                        .filter(b -> b.contains("\"method\":\"initialize\""))
+                        .findFirst().orElseThrow();
+                assertEquals("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":"
+                        + "{\"protocolVersion\":\"2025-11-25\",\"clientInfo\":"
+                        + "{\"name\":\"WeKnora\",\"version\":\"1.0.0\"},\"capabilities\":{}}}", initBody);
                 assertEquals("stub-server", result.serverInfo().name());
                 assertEquals("Stub", result.serverInfo().title());
                 assertEquals("full server instructions", result.instructions());
@@ -85,6 +95,37 @@ class McpClientProtocolTest {
 
                 client.disconnect();
                 assertTrue(!client.isConnected());
+            }
+        }
+
+        @Test
+        @DisplayName("initialize 应答版本不在白名单 → 报错且不置 initialized（照 mcp-go 校验）")
+        void unsupportedProtocolVersionRejected() throws Exception {
+            try (McpServerStub server = new McpServerStub()) {
+                server.responders.put(McpProtocol.METHOD_INITIALIZE, (request, path) -> {
+                    ObjectNode result = McpServerStub.MAPPER.createObjectNode();
+                    result.put("protocolVersion", "1999-01-01");
+                    result.set("capabilities", McpServerStub.MAPPER.createObjectNode());
+                    ObjectNode info = McpServerStub.MAPPER.createObjectNode();
+                    info.put("name", "stub-server");
+                    info.put("version", "9.9.9");
+                    result.set("serverInfo", info);
+                    return result;
+                });
+                McpClient client = McpClientFactory.createClient(
+                        new McpClientConfig(service(server.url("/mcp"))));
+                client.connect(ctx());
+
+                McpException e = assertThrows(McpException.class, () -> client.initialize(ctx()));
+                assertEquals("failed to initialize: unsupported protocol version: \"1999-01-01\"",
+                        e.getMessage());
+                assertNull(e.code(), "SDK 自带错误在 Go 侧不对应任何哨兵");
+                assertTrue(!server.initializedNotificationSeen, "版本校验失败时不得补发 initialized 通知");
+
+                // 握手失败 → initialized 未置位 → 后续调用按"未初始化"拒绝（照 Go 的 initialized 标志）
+                McpException notConnected = assertThrows(McpException.class, () -> client.listTools(ctx()));
+                assertTrue(notConnected.hasCode(McpErrorCode.NOT_CONNECTED));
+                client.disconnect();
             }
         }
 

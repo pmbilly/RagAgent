@@ -36,6 +36,8 @@ final class McpServerStub implements AutoCloseable {
     final Map<String, AtomicInteger> initializeCounts = new ConcurrentHashMap<>();
     /** 收到的 JSON-RPC 方法名（按顺序）。 */
     final List<String> methods = new CopyOnWriteArrayList<>();
+    /** 收到的请求体原文（按顺序）——用于钉线上键序。 */
+    final List<String> requestBodies = new CopyOnWriteArrayList<>();
     /** 收到的 Mcp-Session-Id 头（按顺序）。 */
     final List<String> sessionIdsSeen = new CopyOnWriteArrayList<>();
     /** 收到的 X-API-Key 头（按顺序）。 */
@@ -84,6 +86,9 @@ final class McpServerStub implements AutoCloseable {
         try {
             String path = exchange.getRequestURI().getPath();
             byte[] raw = readAll(exchange.getRequestBody());
+            if (raw.length > 0) {
+                requestBodies.add(new String(raw, StandardCharsets.UTF_8));
+            }
             JsonNode request = raw.length == 0 ? MAPPER.createObjectNode() : MAPPER.readTree(raw);
             String method = request.path("method").asText("");
             String sessionHeader = exchange.getRequestHeaders().getFirst(McpProtocol.HEADER_SESSION_ID);
