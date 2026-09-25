@@ -55,7 +55,11 @@ public final class ConcurrencyEmbedder implements Embedder, EmbedderPooler {
                 : batchEmbed(texts);
     }
 
+    /** 对照 Go {@code GateNamedN} 的 {@code l == nil} 分支：未装配 governor → noop（fail open）。 */
     private Release gate() {
+        if (governor == null) {
+            return Release.NOOP;
+        }
         return governor.gateNamedN(inner.getModelID(), inner.getModelName(), limit);
     }
 

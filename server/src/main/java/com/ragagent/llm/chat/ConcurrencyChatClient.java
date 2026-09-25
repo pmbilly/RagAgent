@@ -67,9 +67,21 @@ public class ConcurrencyChatClient implements LlmChatClient {
         this.abandonTimeoutSeconds = abandonTimeoutSeconds;
     }
 
+    /**
+     * 对照 Go {@code GateNamedN} 的 {@code l == nil} 分支：未装配 governor 时返回 noop
+     * （fail open，永不 panic）。2026-09-25 install E2E 抓回：安装器路径未注入 governor，
+     * 旧实现直接解引用 → 第一次 LLM 调用即 NPE（{@code this.governor is null}）。
+     */
+    private Release gate() {
+        if (governor == null) {
+            return Release.NOOP;
+        }
+        return governor.gateNamedN(delegate.getModelId(), delegate.getModelName(), limit);
+    }
+
     @Override
     public ChatResponse chat(List<ChatMessage> messages, ChatOptions options) {
-        Release release = governor.gateNamedN(delegate.getModelId(), delegate.getModelName(), limit);
+        Release release = gate();
         try {
             return delegate.chat(messages, options);
         } finally {
@@ -79,7 +91,7 @@ public class ConcurrencyChatClient implements LlmChatClient {
 
     @Override
     public BlockingQueue<StreamResponse> chatStream(List<ChatMessage> messages, ChatOptions options) {
-        Release release = governor.gateNamedN(delegate.getModelId(), delegate.getModelName(), limit);
+        Release release = gate();
         BlockingQueue<StreamResponse> inner;
         try {
             inner = delegate.chatStream(messages, options);

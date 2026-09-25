@@ -1,5 +1,26 @@
 # 交接文档（新会话接手用）
 
+## 0.-27 install 真实 LLM E2E 通过（2026-09-25——W5γ4.12，抓回并修复四处驱动缺陷）
+
+**做了什么**：把批 D2 的安装管线与技能执行链路在**真 docker + 真 LLM** 上跑通（dev 栈 OrbStack，租户 10009 的真实 deepseek-flash/qwen），**全链验证**：
+
+1. **docker 沙箱配置**（host 留空自动探测）→ 2. **技能上传**（`sha-digest`，SKILL.md + scripts/digest.py）→ 3. **安装**（installer agent 9 轮真实 LLM：读技能/探测环境/写 `.weknora/install-report.json` → verify 门 → 快照镜像 `weknora-skill/weknora-sk-…-g1-…` commit → 指针切换 → `status=ready`，`skill_image.generation=1`）→ 4. **对话执行**（技能自动注入：`skill://sha-digest/SKILL.md` → `shell_exec` 跑技能脚本 → 真实 sha256 与宿主逐字节一致 → `write_sandbox_file` 落 `/workspace/output/e2e-report.txt`）→ 5. **产物排水**（ArtifactCollector → `resource://…` artifact + 消息挂载，`GET /sessions/{id}/artifacts` 可见）。install-events SSE 终态回放 `{"percent":100,"stage":"done","status":"ready"}`。
+
+**抓回并修复四处驱动缺陷**（全部是单测盲区：假对象不传 null、不通真 docker；详见 `known-issues/06` 的 W5γ4.12 段）：
+
+| # | 缺陷 | 修法 |
+|---|---|---|
+| ① | `DockerHostSupport` 读错 docker context 的 meta.json 形状（Go：顶层 `Name` + `Endpoints` **对象**；Java 读 `Metadata.Name` + `Endpoints` **数组**）→ 自动探测恒空、回落 macOS 上失效的 `/var/run/docker.sock` | 照 Go 重写 + 抽纯函数 + `DockerHostSupportTest` |
+| ② | `AgentEngine.execute` 的 `llmContext` 传 null → 入口日志 NPE（Go：`len(nil slice)=0`）→ 安装器第一轮即失败 | 入口按 Go 语义归一（null → 空表）+ `AgentEngineNullContextTest` |
+| ③ | 安装器 chat 客户端 `LlmChatClients.create(config, null, null)` → `ConcurrencyChatClient` 解引用 null governor（Go 是进程级全局，安装器与交互路径共用闸门；与 2026-09-23 agent 路径同类漏传**第二次**） | 管线注入并透传 governor/ollama（照 `SessionAgentQaService.chatModel`）+ 两个包装器改 **fail-open**（照 Go `GateNamedN` 的 `l == nil → noop`） |
+| ④ | 无活沙箱时 `ListSessionFiles` 返回 null，三处调用方直接 for-each → 首轮 staging NPE（Go 契约：nil 让调用方当空集） | 三处调用方 null → 空集（返回方保持 null，Go 契约 + 既有测试钉住） |
+
+**教训（跨批复发率最高）**：**"Go 的 nil slice"在 Java 没有对等物**——本批 4 处有 2 处属此类；判断归一点的原则是"Go 注释把 nil 当合法入参就在入参归一、当合法返回就在返回契约处让调用方归一"。第二类是**注入面漏传**（governor 这类进程级全局在 Java 变成显式注入后每处新建客户端都要透传）——除补传外，装饰器要有 fail-open 兜底。
+
+**验收**：五批全量 PASS（新增 2 个回归测试：`DockerHostSupportTest`、`AgentEngineNullContextTest`）；真实链路端到端如上。dev 库留存的 E2E 夹具（沙箱配置 `e2e-docker`、agent `e2e-sandbox-agent`、技能 `sha-digest`、快照镜像、10009 的 `builtin-skill-installer` 记录=钉住真实模型）——可留作下次复跑，复跑五要点见 known-issues/06。
+
+---
+
 ## 0.-26 Qdrant 驱动落地（2026-09-25——W5γ4.11，gRPC 族首支·REST 自持）
 
 **做了什么**（照 Go `repository/retriever/qdrant/` 全包 ~1,070 行非测试；**协议决策落地**：Go 走 qdrant/go-client 的 gRPC，本仓照 ES/OpenSearch 先例自持 HTTP/JSON）：
@@ -1205,7 +1226,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
 - ~~存储 provider 的云 SDK 层~~ ✅ 2026-09-24 A3 落地（local + s3/minio/obs/ks3 + oss/cos/tos；见 known-issues/08）
 - ~~`/wechat/qrcode` ×2 端点~~ ✅ 2026-09-25 `dd996bd`（扫码登录端点接真 iLink）
 - cube/e2b 终端 PTY 的 SDK 流传输（中性层已翻，W5d 接缝在）
-- tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）
+- ~~tenant_skill install 管线体（播种/installer agent 对话/快照构建/指针切换；需活沙箱+LLM）~~ ✅ 2026-09-23 批 D2 落地 + **2026-09-25 真实 LLM E2E 全链通过**（§0.-27，抓回并修复四处驱动缺陷）
 - 外部向量店 driver：**ES v8 ✅（W5γ4.1，§0.-16）+ ES v7 与 v8 move ✅ 2026-09-25（W5γ4.2，§0.-17）+ OpenSearch ✅（W5γ4.9，§0.-24）+ Doris ✅（W5γ4.10，§0.-25）+ Qdrant ✅（W5γ4.11，§0.-26，REST 自持）**；仍剩 Weaviate（batch 走 gRPC 的路径决策）、Milvus（REST v2 覆盖度待探）、腾讯（HTTP API 3.0 + TC3 签名）、SQLite（native 扩展分发决策）。**接线批全部收官**：第 1 步（§0.-19）、第 2 步（§0.-20）、第 3/4 步（ChunkService 引擎接线 + HybridSearch 引擎路由，W5γ4.6 §0.-21）✅ 2026-09-25——绑定外部 store 的 KB 读写路由已通；**知识写链改道引擎口（syncChunkIndex/updateChunkVector/FAQ/删除/clone-move）✅ W5γ4.7；检索批三项 follow-up（启动复位、知识管家清扫、move reparse 收尾）✅ W5γ4.7/W5γ4.8；HTTP 族（ES v7/v8 + OpenSearch）与 SQL 族（Doris）收官**
 - ArtifactCollector 的沙箱文件源生产装配（seam 在，需活沙箱）
 - VLM 的 ollama/weknoracloud 界面（debug 端点内为诚实 XDEP 文案，provider-XDEP 族新成员）
@@ -1317,7 +1338,7 @@ Spring 包按 B1b~B4），分批即全绿。其余处置同 conventions §9「�
    不足则引官方 milvus-sdk-java；
 4. **腾讯 VectorDB**（~870 行）：自持 HTTP API 3.0（TC3-HMAC-SHA256 签名）；
 5. **SQLite**——native 扩展（sqlite-vec）多平台分发需决策，优先级最低；
-6. **install 真实 LLM E2E 联调**（批 D2 管线就绪，需 provider + 真模型；原计划 1→2→3 的 3）；
+6. ~~install 真实 LLM E2E 联调~~ ✅ 2026-09-25（§0.-27，四处缺陷已修；原计划 1→2→3 全部完成）；
 7. provider-XDEP 族 / Owner 决策遗留（W5δ PTY、VLM 界面、initialize 契约对齐、jieba 真实分词、
    存储三条备案；install 管线体与 ArtifactCollector 文件源已于 09-23/09-24 收口）——均需真实
    provider 或决策输入。

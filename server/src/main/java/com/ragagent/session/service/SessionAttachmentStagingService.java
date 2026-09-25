@@ -91,8 +91,15 @@ public class SessionAttachmentStagingService {
         @Override
         public List<RemoteDirEntry> listSessionFiles(String sessionId, String dir) {
             List<RemoteDirEntry> out = new ArrayList<>();
-            for (com.ragagent.sandbox.runtime.SandboxSessionClient.DirEntry e
-                    : bound.listSessionFiles(tenantId, sessionId, dir)) {
+            // 照 Go：无绑定沙箱时 ListSessionFiles 返回 nil（不报错），
+            // for range 天然当空集。2026-09-25 install E2E 抓回：Java 的 null
+            // 直接进 for-each → NPE（agent 首轮 staging 即炸）。
+            List<com.ragagent.sandbox.runtime.SandboxSessionClient.DirEntry> entries =
+                    bound.listSessionFiles(tenantId, sessionId, dir);
+            if (entries == null) {
+                return out;
+            }
+            for (com.ragagent.sandbox.runtime.SandboxSessionClient.DirEntry e : entries) {
                 out.add(new RemoteDirEntry(e.name(), e.path(),
                         e.type() == null ? RemoteDirEntry.TYPE_OTHER
                                 : e.type().name().toLowerCase(java.util.Locale.ROOT),

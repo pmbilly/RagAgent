@@ -99,32 +99,46 @@ public final class DockerHostSupport {
             return "";
         }
         try {
-            JsonNode parsed = MAPPER.readTree(metaFile.toFile());
-            JsonNode metadata = parsed.get("Metadata");
-            if (metadata == null) {
-                return "";
-            }
-            JsonNode nameNode = metadata.get("Name");
-            if (nameNode == null || !wantName.equals(nameNode.asText())) {
-                return "";
-            }
-            JsonNode endpoints = parsed.get("Endpoints");
-            if (endpoints == null || !endpoints.isArray()) {
-                return "";
-            }
-            for (JsonNode endpoint : endpoints) {
-                JsonNode hostNode = endpoint.get("Host");
-                if (hostNode != null) {
-                    String host = hostNode.asText();
-                    if (!host.isEmpty()) {
-                        return host;
-                    }
-                }
-            }
+            return contextHostFromMeta(MAPPER.readTree(metaFile.toFile()).toString(), wantName);
         } catch (Exception e) {
             return "";
         }
-        return "";
+    }
+
+    /**
+     * 对照 Go {@code dockerContextHost}（docker_host.go L80-103）解析 {@code meta.json}：
+     * {@code Name} 在<b>顶层</b>（不是 {@code Metadata.Name}——那是用户自定义元数据），
+     * {@code Endpoints} 是<b>对象</b>（形如 {@code {"docker":{"Host":"unix://…"}}}，
+     * 不是数组）；host 取 {@code Endpoints["docker"].Host} 并 trim。
+     *
+     * <p><b>2026-09-25 修复（E2E 抓回）</b>：旧实现读 {@code Metadata.Name} + 把
+     * {@code Endpoints} 当数组遍历，真实 docker CLI 写出的 meta.json 两种形状都不符
+     * → 恒返回 "" → 回落 {@code /var/run/docker.sock}（macOS 上 OrbStack/Colima 的
+     * 默认 socket 都在 $HOME 下，正是本函数存在要解决的场景）。</p>
+     */
+    static String contextHostFromMeta(String metaJson, String wantName) {
+        if (metaJson == null || metaJson.isEmpty()) {
+            return "";
+        }
+        try {
+            JsonNode parsed = MAPPER.readTree(metaJson);
+            JsonNode nameNode = parsed.get("Name");
+            if (nameNode == null || !wantName.equals(nameNode.asText().trim())) {
+                return "";
+            }
+            JsonNode endpoints = parsed.get("Endpoints");
+            if (endpoints == null || !endpoints.isObject()) {
+                return "";
+            }
+            JsonNode docker = endpoints.get("docker");
+            if (docker == null) {
+                return "";
+            }
+            JsonNode hostNode = docker.get("Host");
+            return hostNode == null ? "" : hostNode.asText().trim();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     /**

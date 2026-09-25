@@ -456,7 +456,13 @@ public class SessionSandboxExecutionService {
         public List<RemoteDirEntry> listSessionFiles(String sessionId, String dir)
                 throws Exception {
             List<RemoteDirEntry> out = new ArrayList<>();
-            for (SandboxSessionClient.DirEntry e : bound.listSessionFiles(tenantId, sessionId, dir)) {
+            // 照 Go：无绑定沙箱 → nil（不报错）；null 按空集处理（见 SessionBoundManager 契约）
+            List<SandboxSessionClient.DirEntry> entries =
+                    bound.listSessionFiles(tenantId, sessionId, dir);
+            if (entries == null) {
+                return out;
+            }
+            for (SandboxSessionClient.DirEntry e : entries) {
                 out.add(new RemoteDirEntry(e.name(), e.path(), e.type().name().toLowerCase(),
                         e.size(), e.modTime() == null ? null : e.modTime().toInstant()));
             }

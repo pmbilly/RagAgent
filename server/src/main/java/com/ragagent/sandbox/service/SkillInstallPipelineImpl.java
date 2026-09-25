@@ -170,6 +170,15 @@ public class SkillInstallPipelineImpl implements SkillInstallPipeline {
     private final StreamManager streams;
     @Nullable
     private final MessageRepository messages;
+    /**
+     * 并发闸门与本地 Ollama（照 SessionAgentQaService 的 chatModel 注入面）。
+     * ⚠️ 2026-09-25 install E2E 抓回：安装器模型曾用 {@code LlmChatClients.create(config,
+     * null, null)} 构造——ConcurrencyChatClient 解引用 null governor，第一次 LLM 调用
+     * 即 NPE。Go 的 governor 是进程级全局，安装器与交互路径共用同一闸门。
+     */
+    private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.ragagent.llm.ollama.OllamaService> ollamaService;
 
     /** 对照 now func() time.Time；测试可替换。 */
     private java.util.function.Supplier<OffsetDateTime> clock = OffsetDateTime::now;
@@ -187,7 +196,10 @@ public class SkillInstallPipelineImpl implements SkillInstallPipeline {
             @Nullable com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgents,
             ModelService models,
             @Nullable StreamManager streams,
-            @Nullable MessageRepository messages) {
+            @Nullable MessageRepository messages,
+            com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
+            org.springframework.beans.factory.ObjectProvider<
+                    com.ragagent.llm.ollama.OllamaService> ollamaService) {
         this.skills = skills;
         this.configs = configs;
         this.progress = progress;
@@ -199,6 +211,8 @@ public class SkillInstallPipelineImpl implements SkillInstallPipeline {
         this.models = models;
         this.streams = streams;
         this.messages = messages;
+        this.concurrencyGovernor = concurrencyGovernor;
+        this.ollamaService = ollamaService;
     }
 
     /** 测试注入口（生产恒为墙钟）。 */
@@ -1120,7 +1134,9 @@ public class SkillInstallPipelineImpl implements SkillInstallPipeline {
         var p = model.getParameters();
         ChatConfig config = ChatConfig.fromModel(model,
                 p == null ? null : p.getAppId(), p == null ? null : p.getAppSecret());
-        return LlmChatClients.create(config, null, null);
+        // 照 SessionAgentQaService.chatModel：governor/ollama 必须透传（安装器是后台任务，
+        // Go 侧与交互路径共用同一进程级闸门；2026-09-25 install E2E 抓回 null 传参 NPE）。
+        return LlmChatClients.create(config, ollamaService.getIfAvailable(), concurrencyGovernor);
     }
 
     // ── manifest / env 声明（writeManifestEntry / recordEnvDeclaration） ──

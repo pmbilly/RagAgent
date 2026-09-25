@@ -61,7 +61,14 @@ public final class SessionBoundArtifactSource implements ArtifactCollector.Sandb
     @Override
     public List<RemoteDirEntry> listSessionFiles(String sessionId, String path) {
         List<RemoteDirEntry> out = new ArrayList<>();
-        for (SandboxSessionClient.DirEntry e : bound.listSessionFiles(tenantId, sessionId, path)) {
+        // 照 Go：无绑定沙箱 → nil（不报错）——range nil 就是空集（见 SessionBoundManager
+        // 同名方法的契约；artifact drain 在无沙箱会话上同样走到这里）。
+        List<SandboxSessionClient.DirEntry> entries =
+                bound.listSessionFiles(tenantId, sessionId, path);
+        if (entries == null) {
+            return out;
+        }
+        for (SandboxSessionClient.DirEntry e : entries) {
             out.add(new RemoteDirEntry(e.name(), e.path(),
                     e.type() == null ? RemoteDirEntry.TYPE_OTHER
                             : e.type().name().toLowerCase(Locale.ROOT),

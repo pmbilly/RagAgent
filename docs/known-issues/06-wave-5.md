@@ -1395,3 +1395,79 @@
 7. **test-connection 升级消除一条已知差异**：此前 Java 对 qdrant 只做 TCP 拨号、版本恒空；
    现在走 REST `GET /` 返回 version（等价 gRPC HealthCheck）——`VectorStoreConfigService`
    的"无 gRPC 客户端"备案随之作废。
+
+## W5γ4.12：install 真实 LLM E2E（2026-09-25，抓回并修复四处驱动缺陷）
+
+**E2E 链路（本机 dev 栈，OrbStack + 真 docker + 真 LLM）**：登录 10009 租户（真实
+deepseek-flash / qwen3.7-text-embedding）→ 建 docker 沙箱配置（host 留空自动探测）→
+上传 `sha-digest` 技能包（SKILL.md + scripts/digest.py）到 catalog → install（installer
+agent 9 轮真实 LLM 驱动：读技能、探测运行环境、写 `.weknora/install-report.json`）→
+verify 门通过 → 快照镜像 commit（`weknora-skill/weknora-sk-…-g1-…`）→ 指针切换 →
+`tenant_skills.status=ready` → 对话执行（技能自动注入：读 `skill://sha-digest/SKILL.md`、
+`shell_exec` 跑技能脚本、产出 `/workspace/output/e2e-report.txt`）→ ArtifactCollector
+排水 → `resource://…` artifact + 消息挂载。**sha256 与宿主计算逐字节一致**
+（`622cfb83…409c`），install-events SSE 回放 `{"percent":100,"stage":"done","status":"ready"}`。
+
+### 四处缺陷（全部本批修复 + 回归测试）
+
+1. **`DockerHostSupport.contextHostFromMeta` 读错 JSON 形状**（真驾驶路径全断）：
+   Go `dockerContextHost` 的 meta.json 是 `{"Name":"orbstack","Endpoints":{"docker":{"Host":"unix://…"}}}`
+   ——`Name` 在**顶层**、`Endpoints` 是**对象**；Java 读的是 `Metadata.Name` 且把
+   `Endpoints` 当**数组**遍历 → 恒空 → 回落 `/var/run/docker.sock`（macOS 上 OrbStack/Colima
+   的 socket 都在 $HOME 下，正是该函数存在的意义）。**修法**：照 Go 重写解析，抽
+   `contextHostFromMeta(String, wantName)` 纯函数 + `DockerHostSupportTest` 钉真实形状与
+   "别把数组分支加回来"。修复后同一份配置（host 留空）自动探到
+   `unix:///Users/billy/.orbstack/run/docker.sock`。
+2. **`AgentEngine.execute` 的 `llmContext` null → 入口 NPE**：Go 的 `len(nil slice)=0`、
+   `range nil` 空转；Java 直接在日志行 `llmContext.size()` NPE。安装器的 installer run
+   正是传 null → 第一次安装即 `installer agent failed: Cannot invoke "java.util.List.size()"
+   because "llmContext" is null`。**修法**：入口按 Go 语义归一（`null → List.of()`），
+   新增 `AgentEngineNullContextTest`。
+3. **安装器 chat 客户端漏传 governor/ollama**：`SkillInstallPipelineImpl.chatModel` 用
+   `LlmChatClients.create(config, null, null)` 构造 → `ConcurrencyChatClient` 首调
+   `governor.gateNamedN(...)` NPE。Go 的 governor 是**进程级全局**，安装器与交互路径共用
+   同一闸门；这与 2026-09-23 agent 路径的同类漏传是**同一个坑的第二次出现**。
+   **修法**：管线构造器注入 `ConcurrencyGovernor` + `ObjectProvider<OllamaService>` 并透传
+   （照 `SessionAgentQaService.chatModel`）；同时把 `ConcurrencyChatClient`/
+   `ConcurrencyEmbedder` 的 gate 改成 **fail-open**（`governor == null → Release.NOOP`），
+   对齐 Go `GateNamedN` 的 `l == nil` 分支——这样将来任何漏传都只丢节流、不再炸。
+4. **无活沙箱时列举返回 null 的调用方 NPE**：Go 的 `ListSessionFiles` 契约明说
+   "Returns nil (no error) when the session has no live sandbox so callers can treat
+   'no sandbox' and 'empty output' uniformly"，Go 调用方 `for range nil` 天然安全；Java 三个
+   调用点（`SessionAttachmentStagingService.BoundSessionInputStore`、`SessionBoundArtifactSource`、
+   `SessionSandboxExecutionService.BoundFileStore`）直接 for-each → 首轮 staging 就
+   `Cannot invoke "java.util.List.iterator()" because … is null`。**修法**：调用方 null → 空集
+   （`SessionBoundManager` 保持返回 null——Go 契约，`SessionBoundManagerTest` 已钉住）。
+
+### 教训（跨批复发率最高的一类）
+
+- **"Go 的 nil slice / 空返回值"在 Java 侧没有对等物**：本批四处缺陷有两处（②④）就是这一类
+  ——凡是 Go 侧"返回 nil 让调用方当空集用"或"传 nil 让被调方当空集用"的位置，Java 翻译时
+  必须在**某一侧**显式归一。判断位置的原则：**Go 注释/契约把 nil 当合法输入或输出的地方，
+  Java 侧就在该契约点归一**（如 `ListSessionFiles` 的契约在返回方，则返回方保留 null、
+  调用方归一；`AgentEngine` 的契约在入参，则入口归一）。
+- **注入面漏传是第二类**：governor 这类"进程级全局"在 Java 变成显式注入后，**每一处新建
+  客户端都必须透传**。本批第二次踩（第一次 2026-09-23 agent 路径）。除了补传，还应给
+  装饰器加 fail-open 兜底——Go 的 `l == nil` 分支就是这个兜底。
+- **E2E 的价值就在于此**：这四处全都**单测覆盖不到**（单测用假管理器/假列表，不会传 null；
+  Mockito 桩默认返回空列表而不是 null）。真实链路第一次跑就抓了四处，且都在第一分钟内。
+
+### E2E 操作要点（复跑用）
+
+1. docker 探测依赖 docker CLI 的 context（`~/.docker/config.json` 的 `currentContext` +
+   `contexts/meta/*/meta.json`）；env `DOCKER_HOST` 优先级最高。
+2. 安装器模型 = `builtin-skill-installer` 记录（`custom_agents`，租户可写）的
+   `config.model_id` → 回退工作区默认 KnowledgeQA → 再回退第一个 active KnowledgeQA。
+   dev 库 10009 的 KnowledgeQA 行里混着 stub 模型（`md-chat` 等指向 127.0.0.1:8181），
+   要确保真模型须**钉住该记录**（本次写 `{"model_id": "<deepseek-flash id>"}`）。
+3. 会话侧 agent config 三件套：`model_id` / `sandbox_config_id` / `skills_selection_mode: "all"`
+   + `allowed_tools` 里放沙箱工具（`shell_exec`、`read_file`、`write_sandbox_file`、
+   `edit_sandbox_file`、`list_sandbox_files`）。**若 allowed_tools 含 KB 工具
+   （knowledge_search 等）则 agent 必须配 `rerank_model_id`**，否则首轮即
+   `rerank model is not configured: please set rerank_model_id on the agent`。
+4. 产物必须落在 `/workspace/output`（`SESSION_OUTPUT_ROOT`）才会被 ArtifactCollector
+   排水；写在 `/workspace` 其它位置只对 agent 可见（LLM 自己也说得出这一点）。
+5. 观察面：`tenant_skills.status/installed_snapshot_id`、`tenant_skill_snapshots`、
+   `docker images`（快照镜像）、`tenant_sandbox_configs.config.skill_image`（指针）、
+   `GET /sandbox-configs/{id}/skills/{sid}/install-events`（终态回放）、
+   `GET /sessions/{id}/artifacts`。

@@ -480,14 +480,19 @@ public class AgentEngine {
      */
     public AgentState execute(String sessionId, String messageId, String query,
             List<ChatMessage> llmContext, List<String> imageURLs) {
+        // Go 的 nil slice 在 len()/range 下等价空集——调用方（如 skill 安装器的
+        // installer run）可以合法地传 nil。Java 的 null List 会在入口日志就 NPE
+        // （2026-09-25 install E2E 抓回：installer agent failed: Cannot invoke
+        // "java.util.List.size()" because "llmContext" is null），这里按 Go 语义归一。
+        List<ChatMessage> context = llmContext == null ? List.of() : llmContext;
         log.info("[Agent] Starting execution: session={}, message={}, query_len={}, context_msgs={}, tenantId={}, principal={}, userId={}",
-                sessionId, messageId, query.length(), llmContext.size(),
+                sessionId, messageId, query.length(), context.size(),
                 com.ragagent.common.context.TenantContext.currentTenantId(),
                 com.ragagent.common.context.TenantContext.currentPrincipal() == null ? "<null>"
                         : com.ragagent.common.context.TenantContext.currentPrincipal().type(),
                 com.ragagent.common.context.TenantContext.currentUserId());
         try {
-            return executeInner(sessionId, messageId, query, llmContext, imageURLs);
+            return executeInner(sessionId, messageId, query, context, imageURLs);
         } finally {
             // Ensure tools are cleaned up after execution（defer toolRegistry.Cleanup）
             if (toolRegistry != null) {

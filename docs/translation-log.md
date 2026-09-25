@@ -189,6 +189,8 @@
 
 | Qdrant 驱动（W5γ4.11，2026-09-25） | `repository/retriever/qdrant/repository.go` 1009 + `structs.go` 33 + `move.go` 26（共 ~1,070 行非测试）+ `container/engine_factory.go` createQdrantEngine + `container.go L1228-1270`（env 路径）+ `vectorstore_healthcheck.go L145-175`（testQdrantConnection） | `retrieval.engine.qdrant.{QdrantRetrieveRepository, QdrantRestClient, QdrantVectorEmbedding}`（**REST 自持**：协议决策的落地样本）+ `EngineFactory` qdrant 分支 + `RetrievalEngineWiringConfig.envQdrant` + `VectorStoreConfigService.testQdrant` 升级为驱动探针（GET / 取 version）+ `SearchTextUtil.segmenter()` 读取口（复用 jieba 缝） | ✅ | **定向 14 测试全绿**（stub HTTP 钉 wire 形状：建集合+6 索引/upsert 分片 100/删除 match any/search 体/scroll should(text)/SetPayload 两态/move/copy 向量回搬三态/估算/分词/payload 清理/探针）；五批验收 PASS；bootRun 重启冒烟 200。差异备案：gRPC→REST（wait 只在 move 带，照 Go）；分词降级 + 二次空白切分（净效果对齐 gojieba）；无真实 Qdrant 实例（stub 面全绿，同 ES/OpenSearch 口径）。明细见 §9 索引的 `06-wave-5.md` |
 
+| install 真实 LLM E2E（W5γ4.12，2026-09-25） | 无新翻译源——驱动既有安装/执行链路（`sandbox_service` D2 管线 + `agent` 引擎 + `session` 执行面）跑真 docker + 真 LLM | 修复四处：`DockerHostSupport.contextHostFromMeta`（JSON 形状照 Go）／`AgentEngine.execute`（llmContext null 归一）／`SkillInstallPipelineImpl.chatModel`（governor+ollama 透传）+ `ConcurrencyChatClient`/`ConcurrencyEmbedder`（null governor fail-open，照 Go `l == nil`）／三处 `listSessionFiles` 调用方（null → 空集） | ✅ | **全链验证**：沙箱配置（host 留空自动探测）→ 技能上传 → 真实 LLM 安装（9 轮，快照 commit + 指针切换，status=ready）→ 对话执行（技能注入、`skill://` 读、`shell_exec` 跑技能、产出 `/workspace/output/e2e-report.txt`）→ 产物排水（`resource://` artifact + 消息挂载）；sha256 与宿主逐字节一致；五批验收 PASS（含 2 个新回归测试）。四处缺陷全市单测盲区（假对象不传 null）。明细与复跑要点见 §9 索引的 `06-wave-5.md` |
+
 ## 9. 坑索引（条目 → 分片对照）
 
 
@@ -292,3 +294,4 @@
 | 检索批 follow-up 清零（2026-09-25 W5γ4.8：javadoc 里的 `*/` 会提前闭合注释 / H2 的 INTERVAL 精度 / 异步搬移的测试等待条件 / 清理副本的 storage_size 先置 0 是防双扣 / 两处出错的失败安全方向相反） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | Doris 检索引擎（2026-09-25 W5γ4.10：SQL 走执行口缝而非直连 JDBC / DDL 里的双制表符是 Go 原文形状 / "Publish Timeout" 是成功 / 同主机或白名单才转发凭据 / 空 embedding 的判定键是 SourceID / 兼容模式探测三步序 / env-path 无探针） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
 | Qdrant 驱动（2026-09-25 W5γ4.11：gRPC→REST 映射表与 wait 口径 / 集合前缀是纯字符串前缀 / nil 与空数组在两家店的估算语义相反 / payload 过 CleanInvalidUtf8 / 分词降级要补二次切分 / 点 ID 恒新 UUID） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
+| install 真实 LLM E2E（2026-09-25 W5γ4.12：Go 的 nil slice 在 Java 无对等物——契约点归一的落点原则 / 注入面漏传是第二类复发坑 / docker context 的 meta.json 形状 / 产物必须落 /workspace/output / agent 含 KB 工具必须配 rerank / 复跑五要点） | [`06-wave-5.md`](known-issues/06-wave-5.md) |
