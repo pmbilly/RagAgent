@@ -34,6 +34,11 @@
   var DEFAULT_TITLE = 'AI Assistant';
   var DEFAULT_WIDTH = 420;
   var DEFAULT_HEIGHT = 720;
+  // 未配置渠道 launcher_icon 时的默认图标：内联 SVG（白色对话气泡，随按钮主色）
+  // —— 取代原先的 emoji，避免"先 emoji 再用户图片"的闪烁与平台字体差异。
+  var DEFAULT_LAUNCHER_SVG =
+    '<svg viewBox="0 0 1024 1024" width="26" height="26" aria-hidden="true" ' +
+    'style="display:block;pointer-events:none"><path fill="#ffffff" d="M781.69183326 208.58123803H242.36749291c-9.3092649 0-17.22930884 3.29754663-23.84417772 9.88769507-6.57531762 6.59509253-9.87780761 14.52502465-9.87780761 23.79473901v370.83801222c0 9.37847924 3.30743408 17.30841065 9.87780761 23.90350389 6.61486816 6.59014916 14.53491211 9.88769508 23.84417772 9.88769508h101.13629151v105.07159448l146.9311521-105.07159448h291.27667236c9.31420898 0 17.23425293-3.29754663 23.85900855-9.88769508 6.57037354-6.59509253 9.87780761-14.52502465 9.87780763-23.8985598V242.26367211c0-9.27465844-3.31237817-17.20458984-9.87780763-23.79968309-6.62475562-6.59014916-14.54479957-9.88769508-23.85900855-9.88769508h-0.01977562zM242.34771729 141.21142578h539.32434106c27.89318824 0 51.74725342 9.78881836 71.50286865 29.56420922 19.74572778 19.77539086 29.61364722 43.57507324 29.61364722 71.48803711v370.83801222c0 27.91790796-9.86792016 51.81646704-29.61364722 71.49298119-19.75561523 19.77539086-43.60968041 29.66308594-71.50286865 29.66308594h-269.68688989L276.049927 882.78857422v-168.52587867h-33.70220971c-27.91296386 0-51.74725342-9.88769508-71.50286866-29.66308594C151.08923339 664.9181521 141.21142578 641.0146482 141.21142578 613.10168433V242.26367211C141.21142578 214.34576416 151.08923339 190.55102516 170.84484863 170.775635 190.60046386 151.00024414 214.43475342 141.21142578 242.34771729 141.21142578z"/></svg>';
 
   var instance = null;
   var listeners = {};
@@ -168,6 +173,11 @@
       'box-sizing:border-box',
       'cursor:pointer',
       'font-size:24px',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      // 先隐藏：等渠道配置（主色 + 图标）解析完成再露面，消除"先默认浅色/先 emoji"的闪烁
+      'visibility:hidden',
       'box-shadow:0 4px 16px rgba(0,0,0,.18)',
       'background:' + primaryColor,
       'color:#fff',
@@ -176,6 +186,22 @@
       positionStyles(position, 'launcher'),
     ].join(';');
 
+    var launcherRevealed = false;
+    var launcherRevealTimer = null;
+
+    // 露出按钮：只在"最终外观已就绪"后调用一次（图标 onload/onerror、配置失败、兜底定时器）。
+    function revealLauncher() {
+      if (launcherRevealed) return;
+      launcherRevealed = true;
+      if (launcherRevealTimer) {
+        clearTimeout(launcherRevealTimer);
+        launcherRevealTimer = null;
+      }
+      launcher.style.visibility = 'visible';
+    }
+    // 兜底：配置请求异常挂住时也要露出（优先"不闪"，但不能永不出现）
+    launcherRevealTimer = setTimeout(revealLauncher, 1500);
+
     var launcherIconUrl = '';
     var launcherImg = null;
 
@@ -183,6 +209,7 @@
       launcher.textContent = '';
       if (panelOpen) {
         launcher.textContent = '✕';
+        revealLauncher();
         return;
       }
       if (launcherIconUrl) {
@@ -193,17 +220,20 @@
           launcherImg.style.cssText =
             'width:100%;height:100%;object-fit:cover;border-radius:50%;' +
             'pointer-events:none;display:block';
+          // 图片解码完成后才给按钮露面（渠道图标是 base64 data URL，通常瞬时）
+          launcherImg.onload = revealLauncher;
           launcherImg.onerror = function () {
             launcherIconUrl = '';
             launcherImg = null;
             renderLauncherContent();
+            revealLauncher();
           };
         }
         launcher.style.overflow = 'hidden';
         launcher.appendChild(launcherImg);
         return;
       }
-      launcher.textContent = '💬';
+      launcher.innerHTML = DEFAULT_LAUNCHER_SVG;
     }
     renderLauncherContent();
 
@@ -418,7 +448,10 @@
         return res.json();
       }).then(function (payload) {
         var cfg = payload && payload.data;
-        if (!cfg) return;
+        if (!cfg) {
+          revealLauncher();
+          return;
+        }
         if (typeof cfg.primary_color === 'string' && cfg.primary_color) {
           primaryColor = cfg.primary_color;
           launcher.style.background = primaryColor;
@@ -426,9 +459,14 @@
         if (typeof cfg.launcher_icon === 'string' && cfg.launcher_icon) {
           launcherIconUrl = cfg.launcher_icon;
           launcherImg = null;
-          renderLauncherContent();
+          renderLauncherContent(); // img.onload/onerror 里露出
+          return;
         }
-      }).catch(function () { /* keep snippet-provided appearance */ });
+        revealLauncher();
+      }).catch(function () {
+        // 配置拉取失败：沿用片段里的外观（data-primary-color）并露出
+        revealLauncher();
+      });
     }
     loadChannelAppearance();
 

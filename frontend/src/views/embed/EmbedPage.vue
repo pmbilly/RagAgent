@@ -4,7 +4,8 @@
     <template v-else-if="config">
       <header v-if="sessionId" class="embed-header">
         <span class="embed-header__badge" :style="badgeStyle">
-          <span v-if="config.agent_avatar" class="embed-header__avatar">{{ config.agent_avatar }}</span>
+          <img v-if="headerAvatarImage" class="embed-header__avatar-img" :src="headerAvatarImage" alt="" />
+          <span v-else-if="config.agent_avatar" class="embed-header__avatar">{{ config.agent_avatar }}</span>
           <t-icon v-else :name="headerIcon" size="18px" />
         </span>
         <div class="embed-header__text">
@@ -167,6 +168,18 @@ const headerIcon = computed(() => {
   return agentId && agentId !== 'builtin-quick-answer' ? 'control-platform' : 'chat'
 })
 
+/**
+ * 头部徽标优先显示"渠道里配置的图片"（launcher_icon）；若 agent_avatar 本身就是图片地址
+ * （data URL / http(s) / 站内路径）也用它。都没有时退回 emoji 文本或通用图标。
+ */
+const headerAvatarImage = computed(() => {
+  const cfg = config.value
+  const icon = typeof cfg?.launcher_icon === 'string' ? cfg.launcher_icon.trim() : ''
+  if (icon) return icon
+  const avatar = typeof cfg?.agent_avatar === 'string' ? cfg.agent_avatar.trim() : ''
+  return /^(data:image\/|https?:\/\/|\/)/i.test(avatar) ? avatar : ''
+})
+
 watch(headerTitle, (title) => {
   if (title) document.title = title
 }, { immediate: true })
@@ -223,6 +236,14 @@ watch(headerTitle, (title) => {
   &__avatar {
     font-size: 20px;
     line-height: 1;
+  }
+
+  &__avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    object-fit: cover;
+    display: block;
   }
 
   &__text {
