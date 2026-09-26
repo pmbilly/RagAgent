@@ -1,0 +1,90 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "ragagent-java Agent 工作流",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "docs/site/agent-workflow.html",
+    "views": [
+      {
+        "id": "main-path",
+        "label": "主路径",
+        "focus": ["user", "api", "assemble", "think", "route", "final", "sse"],
+        "note": "从提问到收敛作答：装配 → 推理 → 决策 → 作答 → 帧流回传。"
+      },
+      {
+        "id": "tool-loop",
+        "label": "工具回环",
+        "focus": ["think", "route", "tools", "kbtool"],
+        "note": "工具结果回灌上下文进入下一轮推理；不调用工具即收敛作答。"
+      },
+      {
+        "id": "failure-limit",
+        "label": "失败与上限",
+        "focus": ["think", "limit", "final", "sse"],
+        "note": "推理失败或达到迭代上限时折向降级收敛，再以帧流收尾。"
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "gateway", "label": "接入与回传" },
+    { "id": "agent", "label": "AgentEngine 主循环" },
+    { "id": "tools", "label": "工具执行" },
+    { "id": "guard", "label": "失败与上限", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "接入", "fromCol": 0, "toCol": 1 },
+    { "id": "reason", "label": "推理与决策", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "execute", "label": "执行与收敛", "fromCol": 4, "toCol": 4, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "react_loop", "label": "ReAct 循环", "lane": "agent", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "tool_surface", "label": "工具面", "lane": "tools", "fromCol": 3, "toCol": 4, "variant": "dashed" },
+    { "id": "guard_path", "label": "错误与上限收敛", "lane": "guard", "fromCol": 3, "toCol": 4, "variant": "security" }
+  ],
+  "mainPath": ["user", "api", "assemble", "think", "route", "final", "sse"],
+  "nodes": [
+    { "id": "user", "lane": "gateway", "col": 0, "type": "external", "label": "调用方", "sublabel": "Web / IM / API-Key", "width": 120 },
+    { "id": "api", "lane": "gateway", "col": 1, "type": "backend", "label": "agent-chat 入口", "sublabel": "POST /api/v1/agent-chat/{id}", "width": 150 },
+    { "id": "sse", "lane": "gateway", "col": 4, "type": "frontend", "label": "SSE 帧流", "sublabel": "agent_query → complete 帧", "width": 150 },
+    { "id": "assemble", "lane": "agent", "col": 1, "type": "backend", "label": "Agent 装配", "sublabel": "agent 配置 + 工具集（内置/MCP）", "tag": "max_iterations 预算", "width": 160 },
+    { "id": "think", "lane": "agent", "col": 2, "type": "backend", "label": "推理出站（LLM）", "sublabel": "think_start → think_result", "width": 150 },
+    { "id": "route", "lane": "agent", "col": 3, "type": "backend", "label": "决策：是否调工具", "sublabel": "模型返回 tool_calls", "width": 140 },
+    { "id": "final", "lane": "agent", "col": 4, "type": "backend", "label": "收敛作答", "sublabel": "final_answer_start → done", "width": 150 },
+    { "id": "tools", "lane": "tools", "col": 3, "type": "messagebus", "label": "工具执行", "sublabel": "并发执行 · 整批回灌", "tag": "ExecutionPolicy", "width": 150 },
+    { "id": "kbtool", "lane": "tools", "col": 4, "type": "backend", "label": "知识检索", "sublabel": "knowledge_search · grep_chunks", "width": 150 },
+    { "id": "limit", "lane": "guard", "col": 4, "type": "security", "label": "失败 / 上限收敛", "sublabel": "think_failed · max_iterations", "width": 150 }
+  ],
+  "edges": [
+    { "id": "ask", "from": "user", "to": "api", "label": "HTTP + SSE", "variant": "default" },
+    { "id": "dispatch", "from": "api", "to": "assemble", "label": "按 agent 配置装配", "variant": "default" },
+    { "id": "loop-start", "from": "assemble", "to": "think", "label": "loop_start / round_start", "variant": "emphasis" },
+    { "id": "think-route", "from": "think", "to": "route", "variant": "default" },
+    { "id": "need-tool", "from": "route", "to": "tools", "label": "需要工具", "variant": "emphasis" },
+    { "id": "direct-answer", "from": "route", "to": "final", "label": "无需工具", "variant": "default" },
+    { "id": "tool-kb", "from": "tools", "to": "kbtool", "variant": "default" },
+    { "id": "results-back", "from": "tools", "to": "think", "label": "结果回灌 → 下一轮", "variant": "dashed", "role": "return" },
+    { "id": "answer-frames", "from": "final", "to": "sse", "label": "answer / complete 帧", "variant": "emphasis" },
+    { "id": "fail-limit", "from": "think", "to": "limit", "label": "think_failed / 达上限", "variant": "security", "role": "error" },
+    { "id": "limit-degrade", "from": "limit", "to": "final", "label": "降级合成后作答", "variant": "security", "role": "branch" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "循环与预算",
+      "items": [
+        "配置驱动：agent_mode / model_id / max_iterations / kb_selection_mode",
+        "每轮 = 一次 LLM 推理 + 一批工具调用；超预算压缩后继续（context_compacted）"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "工具面与对外事件",
+      "items": [
+        "knowledge_search / grep_chunks · web_search / database_query / MCP · 沙箱",
+        "帧序：agent_query → tool_call → tool_result → answer → complete（错误为 error）"
+      ]
+    }
+  ]
+}
