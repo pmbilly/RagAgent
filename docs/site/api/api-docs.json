@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-24T18:42:43Z",
+ "generatedAt": "2026-09-26T03:38:06Z",
  "total": 452,
  "groups": [
   {
@@ -3012,7 +3012,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge/batch",
-     "source": "knowledge/controller/KnowledgeController.java:197",
+     "source": "knowledge/controller/KnowledgeController.java:200",
      "handler": "getKnowledgeBatch",
      "description": "对照 GetKnowledgeBatch（GET /knowledge/batch）。query 绑定：ids required",
      "rbac": {
@@ -3057,7 +3057,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge/batch-delete",
-     "source": "knowledge/controller/KnowledgeController.java:505",
+     "source": "knowledge/controller/KnowledgeController.java:522",
      "handler": "batchDeleteKnowledge",
      "description": "对照 BatchDeleteKnowledge：dedupe/maxBatch → KB 访问+ownership → 行校验（含",
      "rbac": {
@@ -3080,7 +3080,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge/batch-reparse",
-     "source": "knowledge/controller/KnowledgeController.java:537",
+     "source": "knowledge/controller/KnowledgeController.java:554",
      "handler": "batchReparseKnowledge",
      "description": "对照 BatchReparseKnowledge：bind 失败固定文案；行校验的 count 文案与 batch-delete 不同。",
      "rbac": {
@@ -3103,7 +3103,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge/folder",
-     "source": "knowledge/controller/KnowledgeController.java:585",
+     "source": "knowledge/controller/KnowledgeController.java:602",
      "handler": "moveKnowledgeToFolder",
      "description": "对照 MoveKnowledgeToFolder：body 携带 kb_id/folder_path（目的地不存在即创建）",
      "rbac": {
@@ -3126,7 +3126,7 @@
     {
      "method": "PUT",
      "path": "/api/v1/knowledge/image/{}/{}",
-     "source": "knowledge/controller/KnowledgeController.java:445",
+     "source": "knowledge/controller/KnowledgeController.java:462",
      "handler": "updateImageInfo",
      "description": "对照 UpdateImageInfo：ownership + KBAccessWrite + image_info 解析/归属/向量分支",
      "rbac": null,
@@ -3155,7 +3155,7 @@
     {
      "method": "PUT",
      "path": "/api/v1/knowledge/manual/{}",
-     "source": "knowledge/controller/KnowledgeController.java:359",
+     "source": "knowledge/controller/KnowledgeController.java:362",
      "handler": "updateManualKnowledge",
      "description": "对照 UpdateManualKnowledge：ownership + KBAccessWrite + 手工内容校验",
      "rbac": null,
@@ -3180,7 +3180,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge/move",
-     "source": "knowledge/controller/KnowledgeController.java:811",
+     "source": "knowledge/controller/KnowledgeController.java:828",
      "handler": "moveKnowledge",
      "description": "对照 MoveKnowledge（POST /knowledge/move，Contributor；body 携带 source/target，",
      "rbac": {
@@ -3203,7 +3203,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge/move/progress/{}",
-     "source": "knowledge/controller/KnowledgeController.java:949",
+     "source": "knowledge/controller/KnowledgeController.java:966",
      "handler": "getKnowledgeMoveProgress",
      "description": "对照 GetKnowledgeMoveProgress：租户隔离（ParseTaskID）→ 进度（404 文案专属）。",
      "rbac": null,
@@ -3225,7 +3225,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge/search",
-     "source": "knowledge/controller/KnowledgeController.java:674",
+     "source": "knowledge/controller/KnowledgeController.java:691",
      "handler": "searchKnowledge",
      "description": "对照 SearchKnowledge（GET /knowledge/search，Viewer、无 KB 守卫——跨库搜索，",
      "rbac": {
@@ -3294,7 +3294,7 @@
     {
      "method": "PUT",
      "path": "/api/v1/knowledge/tags",
-     "source": "knowledge/controller/KnowledgeController.java:468",
+     "source": "knowledge/controller/KnowledgeController.java:485",
      "handler": "updateKnowledgeTagBatch",
      "description": "对照 UpdateKnowledgeTagBatch：body 携带可选 kb_id；无 kb_id 时从首条 knowledge 推导",
      "rbac": {
@@ -3317,7 +3317,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge/{}",
-     "source": "knowledge/controller/KnowledgeController.java:181",
+     "source": "knowledge/controller/KnowledgeController.java:184",
      "handler": "getKnowledge",
      "description": "对照 GetKnowledge：路由带 KBAccessReadFromKnowledgeIDParam（守卫链同款分层）",
      "rbac": null,
@@ -3339,7 +3339,7 @@
     {
      "method": "PUT",
      "path": "/api/v1/knowledge/{}",
-     "source": "knowledge/controller/KnowledgeController.java:1231",
+     "source": "knowledge/controller/KnowledgeController.java:1223",
      "handler": "updateKnowledge",
      "description": "对照 UpdateKnowledge — 守卫链 + 部分更新，响应 success/message/data（字母序）",
      "rbac": null,
@@ -3364,7 +3364,7 @@
     {
      "method": "DELETE",
      "path": "/api/v1/knowledge/{}",
-     "source": "knowledge/controller/KnowledgeController.java:1250",
+     "source": "knowledge/controller/KnowledgeController.java:1242",
      "handler": "deleteKnowledge",
      "description": "对照 DeleteKnowledge：守卫链 + RejectMoving + 异步语义（返回 task_id）",
      "rbac": null,
@@ -3386,7 +3386,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge/{}/cancel-parse",
-     "source": "knowledge/controller/KnowledgeController.java:400",
+     "source": "knowledge/controller/KnowledgeController.java:403",
      "handler": "cancelKnowledgeParse",
      "description": "对照 CancelKnowledgeParse：ownership + KBAccessWrite + 状态机（幂等/拒绝）",
      "rbac": null,
@@ -3408,7 +3408,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge/{}/download",
-     "source": "knowledge/controller/KnowledgeController.java:416",
+     "source": "knowledge/controller/KnowledgeController.java:419",
      "handler": "downloadKnowledgeFile",
      "description": "对照 DownloadKnowledgeFile：Contributor 路由门 + KBAccessWrite + handler 内 Editor 检查",
      "rbac": null,
@@ -3424,13 +3424,14 @@
       "body": null
      },
      "response": {
-      "type": "ResponseEntity<byte[]>"
+      "type": "void",
+      "sse": true
      }
     },
     {
      "method": "GET",
      "path": "/api/v1/knowledge/{}/preview",
-     "source": "knowledge/controller/KnowledgeController.java:432",
+     "source": "knowledge/controller/KnowledgeController.java:440",
      "handler": "previewKnowledgeFile",
      "description": "对照 PreviewKnowledgeFile：Viewer + KBAccessRead，Content-Type 按扩展名",
      "rbac": null,
@@ -3446,13 +3447,14 @@
       "body": null
      },
      "response": {
-      "type": "ResponseEntity<byte[]>"
+      "type": "void",
+      "sse": true
      }
     },
     {
      "method": "POST",
      "path": "/api/v1/knowledge/{}/regenerate-summary",
-     "source": "knowledge/controller/KnowledgeController.java:339",
+     "source": "knowledge/controller/KnowledgeController.java:342",
      "handler": "regenerateKnowledgeSummary",
      "description": "对照 RegenerateKnowledgeSummary：ownership + KBAccessWrite + 成功 200 {\"success\",\"data\"}",
      "rbac": null,
@@ -3474,7 +3476,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge/{}/reparse",
-     "source": "knowledge/controller/KnowledgeController.java:375",
+     "source": "knowledge/controller/KnowledgeController.java:378",
      "handler": "reparseKnowledge",
      "description": "对照 ReparseKnowledge：ownership + KBAccessWrite；空 body 保留上传时配置",
      "rbac": null,
@@ -3499,7 +3501,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge/{}/spans",
-     "source": "knowledge/controller/KnowledgeController.java:314",
+     "source": "knowledge/controller/KnowledgeController.java:317",
      "handler": "getKnowledgeSpans",
      "description": "对照 GetKnowledgeSpans（/stages 与 /spans 两个路径同 handler；gin.H 键字母序）",
      "rbac": null,
@@ -3528,7 +3530,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge/{}/stages",
-     "source": "knowledge/controller/KnowledgeController.java:314",
+     "source": "knowledge/controller/KnowledgeController.java:317",
      "handler": "getKnowledgeSpans",
      "description": "对照 GetKnowledgeSpans（/stages 与 /spans 两个路径同 handler；gin.H 键字母序）",
      "rbac": null,
@@ -4288,7 +4290,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge-bases/{}/knowledge",
-     "source": "knowledge/controller/KnowledgeController.java:147",
+     "source": "knowledge/controller/KnowledgeController.java:150",
      "handler": "listKnowledge",
      "description": "对照 ListKnowledge — 真分页，顶层 data/page/page_size/total/success（字母序）",
      "rbac": null,
@@ -4347,7 +4349,7 @@
     {
      "method": "DELETE",
      "path": "/api/v1/knowledge-bases/{}/knowledge",
-     "source": "knowledge/controller/KnowledgeController.java:639",
+     "source": "knowledge/controller/KnowledgeController.java:656",
      "handler": "clearKnowledgeBaseContents",
      "description": "对照 ClearKnowledgeBaseContents：Admin 路由门 + 仅 owner 租户可清",
      "rbac": null,
@@ -4369,7 +4371,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge-bases/{}/knowledge/file",
-     "source": "knowledge/controller/KnowledgeController.java:80",
+     "source": "knowledge/controller/KnowledgeController.java:83",
      "handler": "createFromFile",
      "description": "对照 CreateKnowledgeFromFile — multipart（字段名严格对照 Go：file/fileName/metadata/tag_ids/channel/process_con",
      "rbac": null,
@@ -4422,7 +4424,7 @@
     {
      "method": "GET",
      "path": "/api/v1/knowledge-bases/{}/knowledge/folders",
-     "source": "knowledge/controller/KnowledgeController.java:175",
+     "source": "knowledge/controller/KnowledgeController.java:178",
      "handler": "listFolders",
      "description": "对照 ListKnowledgeFolders",
      "rbac": null,
@@ -4444,7 +4446,7 @@
     {
      "method": "PUT",
      "path": "/api/v1/knowledge-bases/{}/knowledge/folders",
-     "source": "knowledge/controller/KnowledgeController.java:605",
+     "source": "knowledge/controller/KnowledgeController.java:622",
      "handler": "renameKnowledgeFolder",
      "description": "对照 RenameKnowledgeFolder：路由 ownership（纯字符串）→ 绑定 → handler 链 → service",
      "rbac": null,
@@ -4469,7 +4471,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge-bases/{}/knowledge/manual",
-     "source": "knowledge/controller/KnowledgeController.java:129",
+     "source": "knowledge/controller/KnowledgeController.java:132",
      "handler": "createManual",
      "description": "对照 CreateManualKnowledge",
      "rbac": null,
@@ -4494,7 +4496,7 @@
     {
      "method": "POST",
      "path": "/api/v1/knowledge-bases/{}/knowledge/url",
-     "source": "knowledge/controller/KnowledgeController.java:103",
+     "source": "knowledge/controller/KnowledgeController.java:106",
      "handler": "createFromUrl",
      "description": "对照 CreateKnowledgeFromURL — 201；SSRF 校验（对照 handler L88 语义）",
      "rbac": null,
@@ -6645,7 +6647,7 @@
     {
      "method": "POST",
      "path": "/api/v1/models/{}/debug",
-     "source": "model/controller/ModelDebugController.java:91",
+     "source": "model/controller/ModelDebugController.java:94",
      "handler": "debugModel",
      "description": "",
      "rbac": null,

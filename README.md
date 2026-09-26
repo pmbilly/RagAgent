@@ -1,8 +1,8 @@
 # ragagent-java
 
-WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Java 全量翻译版**：把 Go（Gin/GORM）后端逐文件翻译为 **Spring Boot 3.3 / JDK 21 / MyBatis-Plus**，前端 **零改动** 复用。团队技术栈统一项目。
+WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Java 全量翻译版**：把 Go（Gin/GORM）后端逐文件翻译为 **Spring Boot 3.3 / JDK 21 / MyBatis-Plus**，前端 **以 Go 仓为基线**（品牌/观感层微调）。团队技术栈统一项目。
 
-**验收标准不是"看起来对"，而是字节级一致**：同一请求打到 Go 与 Java 两侧，响应体（含 JSON 键序、HTML 转义、SSE 帧格式、错误文案、时区渲染）必须**逐字节相同**。为此建立了 1,748 个 golden 契约测试、75 个双端 A/B / 录制脚本，以及一套已验证的翻译方法论（见 [`docs/HANDOFF.md`](docs/HANDOFF.md) §7「翻译约定正文」）。
+**验收标准不是"看起来对"，而是字节级一致**：同一请求打到 Go 与 Java 两侧，响应体（含 JSON 键序、HTML 转义、SSE 帧格式、错误文案、时区渲染）必须**逐字节相同**。为此建立了 1,748 个 golden 契约实录、72 个双端 A/B / 录制脚本，以及一套已验证的翻译方法论（见 [`docs/HANDOFF.md`](docs/HANDOFF.md) §7「翻译约定正文」）。
 
 ---
 
@@ -51,7 +51,7 @@ WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Ja
 | 沙箱 | docker-java 3.7.1（**zerodep 传输**——httpclient5 的 exec hijack 不回传输出帧，踩坑实录见 known-issues） |
 | 数据分析 | DuckDB JDBC（`data_analysis` 工具） |
 | 其他 | Flyway、gRPC/protobuf、jjwt、jtokkit、snakeyaml（vendored 提示词模板） |
-| 前端 | Vue 3.5 + Vite 7（从 Go 仓原样复制，不修改） |
+| 前端 | Vue 3.5 + Vite 7（以 Go 仓为基线，品牌/观感层微调） |
 | 测试 | JUnit 5 + AssertJ + MockMvc + H2（内存 DDL 镜像 `TestSchema`）+ stub LLM/stub Ollama |
 
 ## 架构：契约驱动的翻译
@@ -62,7 +62,7 @@ WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Ja
                 └────────────────────────┬────────────────────────────────┘
                                          │ 双端响应掩码后逐字节比对（A/B 脚本族）
    golden ◄── 录制（record-*.sh）────────┘
-   契约测试（1,748 个 contracts/*.json + 4,100+ 测试用例）
+   契约测试（1,748 个 contracts/ 实录 + 4,600+ 测试用例）
 ```
 
 三条铁律：
@@ -77,6 +77,7 @@ WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Ja
 
 ```bash
 # 1) 基础设施：postgres(15432) + redis(16379) + docreader(50051)
+#    与 Go 仓 dev 容器同端口，两套只能起一套（本机已有同端口容器时直接复用）
 docker compose up -d
 
 # 2) 密钥/连接配置（.env 已 gitignore；dev-env.sh 按 key 读取）
@@ -127,7 +128,7 @@ export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"   # 换 shell 必设，否�
 ./scripts/acceptance.sh --changed --dry-run     # 先看映射计划不跑
 
 # 交付门：全量五批（必须分批跑，同 JVM 全量会触发 Mockito self-attach 风暴，见 known-issues/00）
-./scripts/acceptance.sh                         # 约 3.5 分钟
+./scripts/acceptance.sh                         # 约 4 分钟（实测 216~300s）
 ./scripts/acceptance.sh --with-ab               # 额外 Go/Java 九族冒烟对拍
 
 # 真实 Docker 集成（默认跳过；OrbStack 注意 DOCKER_HOST）
@@ -148,16 +149,17 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 ```
 ├── server/                     Spring Boot 后端
 │   └── src/main/java/com/ragagent/    37 个领域包（见能力地图）
-│   └── src/test/java/com/ragagent/    361 个测试类 / 4,118 个用例
+│   └── src/test/java/com/ragagent/    409 个测试类 / 4,600+ 用例
 │       └── resources/contracts/       1,748 个 golden 实录
-├── frontend/                   Vue 3 + Vite（Go 仓原样复制，零改动）
+├── frontend/                   Vue 3 + Vite（Go 仓基线 + 品牌/观感微调）
 ├── migrations/versioned/       196 个 SQL 迁移（schema 一字不改）
 ├── docreader/                  docreader gRPC proto（目录名镜像 Go 仓）
 ├── docker-compose.yml          dev 基础设施（postgres/redis/docreader）
-├── scripts/                    75 个脚本：环境装配 / 起服 / golden 录制 / A/B 对拍
+├── scripts/                    84 个脚本：环境装配 / 起服 / golden 录制 / A/B 对拍 / 验收门
 ├── docs/
-│   ├── site/                        文档门户（index.html；含 api/ 与架构图）
-│   │   └── architecture.html        系统架构交互图（Archify 生成；源=architecture.json）
+│   ├── site/                        文档门户（index.html：图册式设计 + 内置 Agent 工作流对比）
+│   │   ├── architecture.html        系统架构交互图（Archify 生成；源=architecture.json）
+│   │   ├── agent-workflow.html      AgentEngine 主循环图（Archify 生成；源=agent-workflow.json）
 │   ├── translation-log.md          翻译日志 + 批次细节 + 坑索引（规范正文在 HANDOFF §7）
 │   ├── known-issues/                按批次分片的契约细节与坑（00 ~ 08）
 │   └── HANDOFF.md                   交接文档（进度基线 + 波次总表/已知剩余，新会话必读 §0.x/§2.0）
@@ -173,6 +175,7 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 | 取证 | `scripts/token.sh <port>` | 登录取 JWT |
 | 录制 | `scripts/record-*-golden.sh` | 从 Go 侧录 golden（ag/chunk/kg/w5a/w5b/w5c/w5f/model-debug…） |
 | 对拍 | `scripts/ab-*.sh` | 双端掩码后逐字节比对（session/chunk/kb/w5*/qa46d/tools-web…） |
+| 验收 | `scripts/acceptance.sh` | 门禁：`--changed` 只跑受影响批（日常），缺省全量五批（交付门），`--with-ab` 追加冒烟对拍 |
 | 对账 | `scripts/route-recon.py` | Go↔Java 路由缺口程序化对账（当前真缺口仅 `/swagger/{}`，非翻译目标） |
 | API 文档 | `scripts/generate-api-docs.py` | 解析控制器注解 + RBAC/API-Key 策略，生成 `docs/site/api/`（452 条路由；路由变更后重跑即可） |
 | stub | `scripts/stub-llm-server.py [port]` | LLM/Ollama stub（`STUB_DUMP_DIR` 落盘请求体供 A/B） |
@@ -192,7 +195,7 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 
 **明确边界**（都有备案，非缺陷）：
 
-- **provider-XDEP 族**（dev 双侧都到不了真实后端，接缝与测试已备）：IM 九渠道的平台客户端传输、cube/e2b 终端 PTY、真实 LLM install E2E
+- **provider-XDEP 族**（dev 双侧都到不了真实后端，接缝与测试已备）：IM 九渠道的平台客户端传输、cube/e2b 终端（envd PTY 执行体/协议/事件三态已落地并被本地桩覆盖，provider 控制面未接线）、真实 LLM install E2E
 - **Owner 暂缓**：EvaluationService 执行步（前端无入口；恢复条件=出现评估调用需求）
 - **备案降级**：langfuse 追踪（no-op 等价于 Go 未启用）、Redis 分布式限流器（单实例 LocalLimiter）、RSS readability 抽取、chromedp 浏览器渲染（走 Go 自身的 browser-unavailable 分支）、OIDC enabled 后的网络步
 

@@ -3,9 +3,9 @@
 
 用法:  python3 scripts/generate-api-docs.py [--java /Users/billy/ragagent-java]
 
-输出:
-  docs/api/api-docs.json   结构化路由数据
-  docs/api/index.html      自包含静态页（数据内嵌，双击即可打开；也写入 .json 供工具消费）
+输出（默认 docs/site/api/，可用 --out 覆盖）:
+  api-docs.json   结构化路由数据
+  index.html      自包含静态页（数据内嵌，双击即可打开；主题支持 data-theme 属性与系统深色偏好）
 
 数据来源（与 scripts/route-recon.py 同源解析，经 importlib 复用避免两份正则漂移）:
   - 控制器注解: @GetMapping / @PostMapping / @RequestMapping(method=…)（含类级前缀与全限定写法）
@@ -478,59 +478,87 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <title>ragagent-java · API 文档</title>
 <style>
   :root {
-    --bg: #fdfcfa; --panel: #f5f3ee; --line: rgba(16, 31, 56, .12);
-    --text: #101f38; --dim: #40536f; --accent: #b8863b;
-    --get: #2e7d54; --post: #b8863b; --put: #3a6bb5; --patch: #7c5ab8; --delete: #c0504f;
+    --bg: #ffffff; --panel: #fafafa; --line: #e4e4e7; --muted: #f4f4f5;
+    --text: #09090b; --dim: #71717a; --accent: #18181b;
+    --get: #1d4ed8; --post: #15803d; --put: #b45309; --patch: #7c3aed;
+    --delete: #b91c1c; --head: #71717a;
+    --ease: cubic-bezier(.16, 1, .3, 1);
+  }
+  [data-theme="dark"] {
+    --bg: #09090b; --panel: #101012; --line: #27272a; --muted: #1c1c1f;
+    --text: #fafafa; --dim: #a1a1aa; --accent: #fafafa;
+    --get: #93c5fd; --post: #86efac; --put: #fcd34d; --patch: #c4b5fd;
+    --delete: #fca5a5; --head: #a1a1aa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #09090b; --panel: #101012; --line: #27272a; --muted: #1c1c1f;
+      --text: #fafafa; --dim: #a1a1aa; --accent: #fafafa;
+      --get: #93c5fd; --post: #86efac; --put: #fcd34d; --patch: #c4b5fd;
+      --delete: #fca5a5; --head: #a1a1aa;
+    }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
-         font: 14px/1.6 -apple-system, "PingFang SC", "Segoe UI", sans-serif; }
-  header { padding: 22px 28px 14px; border-bottom: 1px solid var(--line);
-           position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  h1 { margin: 0 0 2px; font-size: 19px; }
+         font: 14px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; padding: 18px 24px 12px;
+           border-bottom: 1px solid var(--line);
+           background: color-mix(in oklab, var(--bg) 86%, transparent);
+           backdrop-filter: blur(8px); }
+  h1 { margin: 0 0 3px; font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
   .meta { color: var(--dim); font-size: 12px; }
-  #q { margin-top: 10px; width: 100%; max-width: 560px; padding: 8px 12px;
-       background: var(--panel); color: var(--text); border: 1px solid var(--line);
-       border-radius: 8px; outline: none; }
-  #q:focus { border-color: var(--accent); }
-  .wrap { display: flex; gap: 20px; padding: 18px 28px 60px; }
-  nav { width: 200px; flex: none; position: sticky; top: 118px; align-self: flex-start;
-        max-height: calc(100vh - 140px); overflow: auto; }
-  nav a { display: flex; justify-content: space-between; color: var(--dim);
-          text-decoration: none; padding: 4px 8px; border-radius: 6px; font-size: 13px; }
-  nav a:hover { background: var(--panel); color: var(--text); }
+  #q { margin-top: 10px; width: 100%; max-width: 560px; padding: 7px 12px;
+      background: var(--muted); color: var(--text); border: 1px solid transparent;
+      border-radius: 8px; outline: none; font: inherit; font-size: 13px; }
+  #q:focus { background: var(--bg); border-color: var(--line); }
+  .wrap { display: flex; gap: 24px; padding: 18px 24px 64px; }
+  nav { width: 208px; flex: none; position: sticky; top: 108px; align-self: flex-start;
+        max-height: calc(100vh - 130px); overflow: auto; }
+  nav a { display: flex; justify-content: space-between; gap: 8px; color: var(--dim);
+          text-decoration: none; padding: 5px 8px; border-radius: 8px; font-size: 13px;
+          transition: color .16s var(--ease), background-color .16s var(--ease); }
+  nav a:hover { background: var(--muted); color: var(--text); }
   main { flex: 1; min-width: 0; }
-  section h2 { font-size: 15px; margin: 26px 0 8px; padding-bottom: 6px;
-               border-bottom: 1px solid var(--line); }
+  section h2 { font-size: 15px; font-weight: 600; margin: 26px 0 10px; padding-bottom: 8px;
+              border-bottom: 1px solid var(--line); }
   details { background: var(--panel); border: 1px solid var(--line);
-            border-radius: 8px; margin: 6px 0; }
-  summary { cursor: pointer; padding: 8px 12px; display: flex; gap: 10px;
-            align-items: center; list-style: none; flex-wrap: wrap; }
+           border-radius: 10px; margin: 6px 0; overflow: hidden; }
+  summary { cursor: pointer; padding: 9px 12px; display: flex; gap: 10px;
+           align-items: center; list-style: none; flex-wrap: wrap; }
   summary::-webkit-details-marker { display: none; }
-  .m { font: 11px/1 ui-monospace, Menlo, monospace; color: #fff; padding: 2px 7px;
-       border-radius: 5px; font-weight: 700; flex: none; }
-  .m.GET { background: var(--get); } .m.POST { background: var(--post); }
-  .m.PUT { background: var(--put); } .m.PATCH { background: var(--patch); }
-  .m.DELETE { background: var(--delete); } .m.HEAD { background: #6b768c; }
-  .p { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .m { flex: none; padding: 1px 7px; border: 1px solid; border-radius: 6px;
+      font: 600 11px/1.7 ui-monospace, Menlo, Consolas, monospace; background: transparent; }
+  .m.GET { color: var(--get); border-color: color-mix(in oklab, var(--get) 45%, transparent);
+          background: color-mix(in oklab, var(--get) 10%, transparent); }
+  .m.POST { color: var(--post); border-color: color-mix(in oklab, var(--post) 45%, transparent);
+           background: color-mix(in oklab, var(--post) 10%, transparent); }
+  .m.PUT { color: var(--put); border-color: color-mix(in oklab, var(--put) 45%, transparent);
+          background: color-mix(in oklab, var(--put) 10%, transparent); }
+  .m.PATCH { color: var(--patch); border-color: color-mix(in oklab, var(--patch) 45%, transparent);
+            background: color-mix(in oklab, var(--patch) 10%, transparent); }
+  .m.DELETE { color: var(--delete); border-color: color-mix(in oklab, var(--delete) 45%, transparent);
+             background: color-mix(in oklab, var(--delete) 10%, transparent); }
+  .m.HEAD { color: var(--head); border-color: color-mix(in oklab, var(--head) 45%, transparent);
+           background: color-mix(in oklab, var(--head) 10%, transparent); }
+  .p { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
   .desc { color: var(--dim); font-size: 12px; }
   .tag { font-size: 11px; color: var(--dim); border: 1px solid var(--line);
-         padding: 1px 7px; border-radius: 99px; }
-  .body { padding: 4px 14px 12px; border-top: 1px dashed var(--line);
-          font-size: 13px; }
-  .body dt { color: var(--dim); font-size: 11px; margin-top: 8px;
-             text-transform: uppercase; letter-spacing: .05em; }
-  .body dd { margin: 2px 0 0; font-family: ui-monospace, Menlo, monospace;
-             font-size: 12px; word-break: break-all; }
+        padding: 1px 7px; border-radius: 999px; background: var(--bg); }
+  .body { padding: 6px 14px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+  .body dt { color: var(--dim); font-size: 11px; margin-top: 10px;
+            text-transform: uppercase; letter-spacing: .05em; }
+  .body dd { margin: 3px 0 0; font-family: ui-monospace, Menlo, Consolas, monospace;
+            font-size: 12px; word-break: break-all; }
   .count { color: var(--dim); font-weight: 400; font-size: 12px; }
   .empty { color: var(--dim); padding: 30px 0; text-align: center; display: none; }
   .sect { margin-top: 10px; }
-  .sect b { color: var(--accent); font-size: 11px; letter-spacing: .06em; }
-  table.sub { width: 100%; margin: 4px 0 10px; font-size: 12px; border: none; }
-  table.sub th { background: var(--bg); color: var(--dim); font-weight: 400;
-                 text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--line); }
-  table.sub td { padding: 3px 8px; border-bottom: 1px solid rgba(38,48,74,.4);
-                 font-family: ui-monospace, Menlo, monospace; }
+  .sect b { color: var(--dim); font-size: 11px; letter-spacing: .06em; }
+  table.sub { width: 100%; margin: 4px 0 10px; font-size: 12px; border: none;
+              border-collapse: collapse; }
+  table.sub th { color: var(--dim); font-weight: 500; text-align: left;
+                padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  table.sub td { padding: 4px 8px; border-bottom: 1px solid var(--line);
+                font-family: ui-monospace, Menlo, Consolas, monospace; }
   table.sub tr:last-child td { border-bottom: none; }
   .note { color: var(--dim); font-size: 12px; }
 </style>

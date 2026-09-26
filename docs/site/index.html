@@ -3,224 +3,903 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ragagent-java · 使用文档</title>
+<title>ragagent-java · 校样图册</title>
 <style>
-  /* ==== WeKnora 文档站「纸墨」主题（完全参照 weknora.weixin.qq.com/docs）==== */
-  :root {
-    --wk-ink: #101f38; --wk-ink-deep: #0a1526; --wk-ink-soft: #40536f;
-    --wk-ink-mute: #6d7d94; --wk-gold: #b8863b; --wk-gold-light: #d9a94f;
-    --wk-paper: #fdfcfa; --wk-paper-2: #f5f3ee; --wk-paper-3: #edeae2;
-    --wk-rule: rgba(16, 31, 56, .12); --wk-rule-soft: rgba(16, 31, 56, .07);
-    --wk-header: rgba(253, 252, 250, .96);
-    --wk-accent-text: #886025; --wk-accent-border: #dfd1b9;
-    --vp-nav-height: 64px; --vp-sidebar-width: 288px;
-    --vp-c-brand-1: var(--wk-ink); --vp-c-brand-2: #24395a;
-    --vp-c-brand-3: var(--wk-gold);
-    --vp-c-bg: var(--wk-paper); --vp-c-bg-alt: var(--wk-paper-2);
-    --vp-c-text-1: var(--wk-ink); --vp-c-text-2: var(--wk-ink-soft);
-    --vp-c-text-3: var(--wk-ink-mute); --vp-c-divider: var(--wk-rule);
-    --vp-code-block-bg: #fbf9f5;
-    --vp-font-family-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-      "PingFang SC", "HarmonyOS Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
-    --vp-font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
-      Consolas, "Liberation Mono", monospace;
+/* =====================================================================
+   ragagent-java 文档站 · 参照 ui.shadcn.com/docs 的视觉语言
+   —— 语义 token（:root / .dark 双主题）、中性灰阶、圆角 8–12px、
+      细边框、无阴影或极淡阴影、克制的功能性用色。
+   ===================================================================== */
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --popover: #ffffff;
+  --muted: #f4f4f5;
+  --muted-soft: #fafafa;
+  --muted-foreground: #71717a;
+  --faint-foreground: #a1a1aa;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --input: #e4e4e7;
+  --ring: #a1a1aa;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --accent: #f4f4f5;
+  --success: #15803d;
+  --success-bg: #f0fdf4;
+  --success-border: #bbf7d0;
+  --warning: #b45309;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
+  --danger: #b91c1c;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --info: #1d4ed8;
+  --code-bg: #fafafa;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-lg: 14px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "HarmonyOS Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo,
+    Consolas, "Liberation Mono", monospace;
+  --header-h: 56px;
+  --sidebar-w: 268px;
+  --outline-w: 216px;
+  --content-w: 760px;
+}
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #101012;
+  --card-foreground: #fafafa;
+  --popover: #101012;
+  --muted: #1c1c1f;
+  --muted-soft: #141416;
+  --muted-foreground: #a1a1aa;
+  --faint-foreground: #71717a;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --input: #27272a;
+  --ring: #52525b;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --accent: #27272a;
+  --success: #4ade80;
+  --success-bg: #052e16;
+  --success-border: #166534;
+  --warning: #fbbf24;
+  --warning-bg: #451a03;
+  --warning-border: #92400e;
+  --danger: #f87171;
+  --danger-bg: #450a0a;
+  --danger-border: #991b1b;
+  --info: #93c5fd;
+  --code-bg: #141416;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  margin: 0; min-width: 320px; min-height: 100vh;
+  font-family: var(--font-sans); font-size: 15px; line-height: 1.72;
+  color: var(--foreground); background: var(--background);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+::selection { background: color-mix(in oklab, var(--foreground) 14%, transparent); }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+code, kbd, samp {
+  font-family: var(--font-mono); font-size: .86em;
+  background: var(--muted); color: inherit;
+  padding: .14em .4em; border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+pre {
+  position: relative; margin: 20px 0; padding: 16px 18px;
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: auto; line-height: 1.75;
+}
+pre code { background: none; padding: 0; font-size: 12.8px; border-radius: 0; }
+.skip {
+  position: absolute; left: -9999px; top: 10px; z-index: 80;
+  background: var(--primary); color: var(--primary-foreground);
+  padding: 8px 14px; border-radius: var(--radius-sm); font-size: 13px;
+}
+.skip:focus { left: 10px; }
+
+/* ---------- 顶栏 ---------- */
+.titlebar {
+  position: sticky; top: 0; z-index: 50; height: var(--header-h);
+  display: flex; align-items: center; gap: 4px; padding: 0 16px;
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  backdrop-filter: saturate(1.6) blur(10px);
+  -webkit-backdrop-filter: saturate(1.6) blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.tb-brand {
+  display: flex; align-items: center; gap: 9px; padding-right: 14px;
+  margin-right: 8px; border-right: 1px solid var(--border);
+  white-space: nowrap; height: 28px;
+}
+.tb-brand .mk {
+  display: grid; place-items: center; width: 26px; height: 26px;
+  background: var(--primary); color: var(--primary-foreground);
+  border-radius: 7px; font-family: var(--font-mono); font-size: 11px;
+  font-weight: 600; letter-spacing: .02em;
+}
+.tb-brand .nm { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.tb-nav { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tb-nav::-webkit-scrollbar { display: none; }
+.tb-nav a {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px;
+  padding: 0 10px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--muted-foreground);
+  white-space: nowrap; transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.tb-nav a .no { font-family: var(--font-mono); font-size: 11px; color: var(--faint-foreground); }
+.tb-nav a:hover { color: var(--foreground); background: var(--muted); }
+.tb-nav a.active { color: var(--foreground); background: var(--muted); font-weight: 500; }
+.tb-nav a.active .no { color: var(--foreground); }
+.tb-side { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.tb-status {
+  display: inline-flex; align-items: center; gap: 7px; height: 28px;
+  padding: 0 10px; border: 1px solid var(--border); border-radius: 999px;
+  font-size: 12px; color: var(--muted-foreground); white-space: nowrap;
+}
+.tb-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.tb-theme {
+  display: grid; place-items: center; width: 32px; height: 32px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--background); color: var(--muted-foreground);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.tb-theme:hover { color: var(--foreground); background: var(--muted); }
+.tb-theme svg { width: 15px; height: 15px; }
+.tb-theme .ic-sun { display: none; }
+.dark .tb-theme .ic-sun { display: block; }
+.dark .tb-theme .ic-moon { display: none; }
+
+/* 搜索框 */
+.find {
+  display: flex; align-items: center; gap: 8px; height: 32px; width: 240px;
+  padding: 0 10px; background: var(--muted);
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.find:focus-within { background: var(--background); border-color: var(--border-strong); }
+.find svg { width: 14px; height: 14px; color: var(--muted-foreground); flex: none; }
+.find input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: none;
+  color: var(--foreground); font-family: inherit; font-size: 13px;
+}
+.find input::placeholder { color: var(--muted-foreground); }
+.find-key {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-foreground);
+  border: 1px solid var(--border); background: var(--background);
+  border-radius: 5px; padding: 0 5px; line-height: 17px; flex: none;
+}
+.find-count { font-size: 11.5px; color: var(--muted-foreground); white-space: nowrap; flex: none; }
+
+/* ---------- 版面 ---------- */
+.layout { display: flex; align-items: flex-start; }
+.index {
+  position: sticky; top: var(--header-h); flex: none; width: var(--sidebar-w);
+  height: calc(100vh - var(--header-h)); overflow-y: auto; overscroll-behavior: contain;
+  padding: 22px 14px 64px 20px; scrollbar-width: thin;
+}
+.index::-webkit-scrollbar { width: 6px; }
+.index::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.index .grp {
+  padding: 0 8px; margin: 20px 0 6px;
+  font-size: 12px; font-weight: 500; color: var(--muted-foreground);
+}
+.index .grp:first-child { margin-top: 0; }
+.index a {
+  display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px;
+  border-radius: var(--radius-sm); font-size: 13.5px; color: var(--muted-foreground);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.index a .no { font-family: var(--font-mono); font-size: 11px; color: var(--faint-foreground); }
+.index a:hover { color: var(--foreground); background: var(--muted); }
+.index a.active { color: var(--foreground); background: var(--muted); font-weight: 500; }
+.index a.active .no { color: var(--foreground); }
+.index a.dim { display: none; }
+
+.feed { flex: 1; min-width: 0; display: flex; justify-content: center; padding: 0 20px; }
+.sheet-wrap { display: flex; align-items: flex-start; justify-content: center; gap: 28px; width: 100%; min-width: 0; }
+.sheet { width: min(100%, var(--content-w)); min-width: 0; padding: 36px 0 96px; }
+.outline {
+  position: sticky; top: var(--header-h); flex: none; width: var(--outline-w);
+  height: calc(100vh - var(--header-h)); overflow-y: auto; scrollbar-width: none;
+  padding: 40px 0 48px 4px;
+}
+.outline::-webkit-scrollbar { display: none; }
+.outline .ol-title { font-size: 12px; font-weight: 500; color: var(--muted-foreground); margin-bottom: 8px; }
+.outline a {
+  display: block; padding: 5px 8px 5px 12px; margin-left: -4px;
+  border-left: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.5; color: var(--muted-foreground);
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.outline a.h3 { padding-left: 22px; color: var(--faint-foreground); }
+.outline a:hover { color: var(--foreground); }
+.outline a.active { color: var(--foreground); border-left-color: var(--foreground); font-weight: 500; }
+@media (max-width: 1279px) { .outline { display: none; } }
+@media (max-width: 1063px) { .index { display: none; } }
+
+/* ---------- 页面与排版 ---------- */
+.page { display: none; }
+.page.active { display: block; }
+.vp h2, .vp h3, .sheet-head { scroll-margin-top: calc(var(--header-h) + 16px); }
+.sheet-head { margin-bottom: 28px; }
+.sheet-no {
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  font-size: 12.5px; color: var(--muted-foreground);
+}
+.sheet-no::after { content: ""; }
+.sheet-head h1 {
+  font-size: 30px; line-height: 1.25; font-weight: 650; letter-spacing: -.02em;
+  margin: 0 0 10px;
+}
+.sheet-lead { font-size: 16.5px; line-height: 1.62; color: var(--muted-foreground); margin: 0; }
+.sheet-meta {
+  display: flex; flex-wrap: wrap; gap: 6px 8px; margin-top: 16px;
+}
+.sheet-meta span {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 9px;
+  border: 1px solid var(--border); border-radius: 999px;
+  font-size: 12px; color: var(--muted-foreground);
+}
+.sheet-meta b { color: var(--foreground); font-weight: 500; margin-left: 5px; }
+
+.vp { overflow-wrap: break-word; }
+.vp h2 {
+  font-size: 23px; line-height: 1.35; font-weight: 650; letter-spacing: -.015em;
+  margin: 56px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.vp h2 .hno {
+  display: inline-block; margin-right: 10px; padding: 1px 7px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  color: var(--muted-foreground); vertical-align: 3px;
+}
+.vp h3 { font-size: 16.5px; font-weight: 600; margin: 32px 0 10px; letter-spacing: -.01em; }
+.vp p { margin: 14px 0; }
+.vp ul, .vp ol { margin: 14px 0; padding-left: 24px; }
+.vp li { margin: 6px 0; }
+.vp b, .vp strong { font-weight: 600; }
+.vp hr { border: 0; border-top: 1px solid var(--border); margin: 36px 0; }
+.vp a:not(.rowno) {
+  font-weight: 500;
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
+  transition: text-decoration-color var(--dur-fast) var(--ease-out);
+}
+.vp a:not(.rowno):hover { text-decoration-color: var(--foreground); }
+
+/* 表格 */
+.tbl {
+  width: 100%; margin: 20px 0; font-size: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  border-collapse: separate; border-spacing: 0; overflow: hidden;
+}
+.tbl th {
+  text-align: left; font-weight: 500; font-size: 12.5px;
+  color: var(--muted-foreground); background: var(--muted-soft);
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.tbl td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.66; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tbody tr { transition: background-color var(--dur-fast) var(--ease-out); }
+.tbl tbody tr:hover { background: var(--muted-soft); }
+.tbl .num { font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; color: var(--muted-foreground); }
+.tbl td:first-child { color: var(--muted-foreground); }
+
+/* 宽表格的窄屏滚动容器：由页面脚本为 .tbl / .idx-tbl 自动包裹
+   （列多、内容不可压缩时避免撑开文档、产生横向滚动） */
+.tbl-scroll { overflow-x: auto; margin: 20px 0; scrollbar-width: thin; }
+.tbl-scroll > .tbl, .tbl-scroll > .idx-tbl { margin: 0; }
+.tbl-scroll::-webkit-scrollbar { height: 8px; }
+.tbl-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+/* 提示卡 */
+.note {
+  display: flex; gap: 12px; align-items: flex-start;
+  margin: 20px 0; padding: 14px 16px;
+  background: var(--muted-soft); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.note .note-ic { flex: none; margin-top: 3px; color: var(--muted-foreground); display: flex; }
+.note .note-ic svg { width: 15px; height: 15px; }
+.note-body { min-width: 0; }
+.note .tag {
+  display: block; font-size: 13px; font-weight: 600; margin-bottom: 2px;
+}
+.note p { margin: 0; }
+.note.warn { background: var(--warning-bg); border-color: var(--warning-border); }
+.note.warn .note-ic, .note.warn .tag { color: var(--warning); }
+
+/* 徽章 */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 11.5px; font-weight: 500; color: var(--muted-foreground);
+  background: var(--muted); vertical-align: 2px; margin-left: 8px; white-space: nowrap;
+}
+.pill.done { color: var(--success); border-color: var(--success-border); background: var(--success-bg); }
+.pill.xdep { color: var(--warning); border-color: var(--warning-border); background: var(--warning-bg); }
+.pill.owner { color: var(--muted-foreground); border-color: var(--border); background: var(--muted-soft); }
+
+/* ---------- 对拍带（首页） ---------- */
+.belt {
+  margin: 26px 0 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden; background: var(--card);
+}
+.belt-top {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline;
+  padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--muted-soft);
+}
+.belt-top .t { font-size: 12.5px; font-weight: 600; }
+.belt-top .s { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground); }
+.belt-grid { display: grid; grid-template-columns: 1fr 46px 1fr; }
+.belt-lane { padding: 16px; min-width: 0; }
+.belt-lane .lane-t {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  font-size: 12px; color: var(--muted-foreground);
+}
+.belt-lane .lane-t b {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--foreground);
+  font-weight: 500; background: var(--muted); border-radius: 5px; padding: 1px 6px;
+}
+.belt-lane.go { border-right: 1px solid var(--border); }
+.belt-rail {
+  display: grid; place-items: center; border-right: 1px solid var(--border);
+  background: var(--muted-soft); color: var(--muted-foreground);
+  font-family: var(--font-mono); font-size: 14px;
+}
+.frames { display: flex; flex-wrap: wrap; gap: 6px; }
+.frame {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 8px;
+  background: var(--muted); border: 1px solid transparent; border-radius: 6px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.frame.k { background: var(--card); border-color: var(--border-strong); color: var(--foreground); }
+.belt-verdict {
+  display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
+  padding: 11px 16px; border-top: 1px solid var(--border); background: var(--muted-soft);
+}
+.belt-verdict .v {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 500; color: var(--success);
+}
+.belt-verdict .v svg { width: 14px; height: 14px; }
+.belt-verdict .m { font-size: 12px; color: var(--muted-foreground); }
+.belt-verdict .m b { color: var(--foreground); font-weight: 500; }
+
+/* ---------- 图册索引表（首页） ---------- */
+.idx-tbl {
+  width: 100%; margin: 20px 0; font-size: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  border-collapse: separate; border-spacing: 0; overflow: hidden;
+}
+.idx-tbl th {
+  text-align: left; font-weight: 500; font-size: 12.5px; color: var(--muted-foreground);
+  background: var(--muted-soft); padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.idx-tbl td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.idx-tbl tr:last-child td { border-bottom: 0; }
+.idx-tbl tbody tr { transition: background-color var(--dur-fast) var(--ease-out); }
+.idx-tbl tbody tr:hover { background: var(--muted-soft); }
+.idx-tbl a.rowno {
+  display: inline-grid; place-items: center; width: 28px; height: 24px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground);
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.idx-tbl a.rowno:hover { color: var(--foreground); border-color: var(--border-strong); }
+.idx-tbl .ttl { font-weight: 500; }
+.idx-tbl .desc { color: var(--muted-foreground); font-size: 13.5px; line-height: 1.66; }
+
+/* ---------- 工作流对比（03 页） ---------- */
+.tracks { margin: 22px 0; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--card); }
+.tracks { overflow-x: auto; }
+.tracks-inner { min-width: 660px; }
+.tk-head, .tk-row { display: grid; grid-template-columns: 116px repeat(4, 1fr); }
+.tk-head { background: var(--muted-soft); border-bottom: 1px solid var(--border); }
+.tk-head div {
+  padding: 11px 14px; font-size: 13px; font-weight: 600;
+  border-right: 1px solid var(--border);
+}
+.tk-head div:last-child { border-right: 0; }
+.tk-head .sub {
+  display: block; font-family: var(--font-mono); font-size: 10.5px; font-weight: 400;
+  color: var(--muted-foreground); margin-top: 2px;
+}
+.tk-row { border-bottom: 1px solid var(--border); }
+.tk-row:last-child { border-bottom: 0; }
+.tk-stage {
+  padding: 14px; background: var(--muted-soft);
+  border-right: 1px solid var(--border);
+  font-size: 12.5px; font-weight: 500; line-height: 1.5;
+}
+.tk-stage .sf { display: block; color: var(--muted-foreground); font-size: 11.5px; font-weight: 400; margin-top: 4px; }
+.tk-cell {
+  padding: 14px; border-right: 1px solid var(--border);
+  font-size: 13px; line-height: 1.62; color: var(--muted-foreground); min-width: 0;
+}
+.tk-cell:last-child { border-right: 0; }
+.tk-cell.shared-row { background: var(--muted-soft); }
+.tk-cell.span4 { grid-column: span 4; }
+.tk-cell .c-strong { color: var(--foreground); font-weight: 500; }
+.tk-cell .sub2 {
+  display: block; font-family: var(--font-mono); font-size: 11px;
+  color: var(--muted-foreground); margin: 2px 0 6px;
+}
+.tk-cell .loop {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;
+  padding: 1px 7px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--muted); font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--muted-foreground);
+}
+.tk-note {
+  padding: 12px 16px; font-size: 13px; color: var(--muted-foreground);
+  background: var(--muted-soft); border-top: 1px solid var(--border);
+}
+.tk-note b { color: var(--foreground); font-weight: 500; }
+
+.frames-cmp { margin: 20px 0; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.frames-cmp .fc-row { display: grid; grid-template-columns: 168px 1fr; border-top: 1px solid var(--border); }
+.frames-cmp .fc-row:first-child { border-top: 0; }
+.frames-cmp .fc-lab {
+  padding: 12px 14px; border-right: 1px solid var(--border); background: var(--muted-soft);
+  font-size: 13px; font-weight: 500;
+}
+.frames-cmp .fc-lab .sub {
+  display: block; font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--muted-foreground); font-weight: 400; margin-top: 2px;
+}
+.frames-cmp .fc-frames { padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.frames-cmp .none { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground); }
+
+/* 折叠块 */
+details.block {
+  margin: 18px 0; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); overflow: hidden;
+}
+details.block > summary {
+  cursor: pointer; display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; font-size: 13.5px; font-weight: 500;
+  color: var(--muted-foreground); list-style: none;
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+details.block > summary::-webkit-details-marker { display: none; }
+details.block > summary::before {
+  content: ""; width: 14px; height: 14px; flex: none;
+  background: currentColor; opacity: .55;
+  clip-path: polygon(42% 6%, 42% 94%, 100% 50%);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+details.block[open] > summary::before { transform: rotate(90deg); }
+details.block > summary:hover { color: var(--foreground); background: var(--muted-soft); }
+details.block .body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+details.block .body h4 { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; margin: 18px 0 6px; }
+details.block .body ul { margin: 6px 0; padding-left: 20px; font-size: 13.5px; }
+details.block .body li { margin: 5px 0; }
+details.block iframe { display: block; width: 100%; height: 580px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); margin: 12px 0 4px; }
+
+/* ---------- API 页 ---------- */
+.api-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 20px 0 8px;
+  padding: 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--muted-soft);
+}
+.api-bar .mbtn {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 10px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
+  color: var(--muted-foreground); background: var(--background);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.api-bar .mbtn:hover { color: var(--foreground); border-color: var(--border-strong); }
+.api-bar .mbtn.on { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.api-bar input[type=search] {
+  flex: 1; min-width: 200px; height: 28px; padding: 0 10px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--foreground); background: var(--background);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;
+}
+.api-bar input[type=search]:focus { border-color: var(--border-strong); }
+.api-bar .cnt { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground); white-space: nowrap; }
+
+.api-group { margin: 6px 0; border-bottom: 1px solid var(--border); }
+.api-group > summary {
+  cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
+  padding: 12px 4px; list-style: none;
+}
+.api-group > summary::-webkit-details-marker { display: none; }
+.api-group > summary::before {
+  content: ""; width: 13px; height: 13px; flex: none; align-self: center;
+  background: var(--muted-foreground); opacity: .6;
+  clip-path: polygon(42% 6%, 42% 94%, 100% 50%);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.api-group[open] > summary::before { transform: rotate(90deg); }
+.api-group > summary .g-label { font-size: 14px; font-weight: 600; }
+.api-group > summary .g-dom { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground); }
+.api-group > summary .g-cnt { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground); margin-left: auto; }
+.api-group > summary:hover .g-label { text-decoration: underline; text-underline-offset: 3px; }
+.api-group .tbl { margin: 4px 0 18px; }
+.api-group .mth { font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
+.api-group td:nth-child(2) code { font-size: 12px; }
+.api-group tr.hide, .api-group.hide { display: none; }
+/* 方法徽章配色（功能性用色，低饱和） */
+.mth { font-weight: 500; }
+.api-group td.mth, .api-group .mth { border-radius: 0; }
+.api-group tbody tr td.mth { color: var(--muted-foreground); }
+.api-group tbody tr[data-m="GET"] td.mth { color: #1d4ed8; }
+.api-group tbody tr[data-m="POST"] td.mth { color: #15803d; }
+.api-group tbody tr[data-m="PUT"] td.mth { color: #b45309; }
+.api-group tbody tr[data-m="PATCH"] td.mth { color: #7c3aed; }
+.api-group tbody tr[data-m="DELETE"] td.mth { color: #b91c1c; }
+.dark .api-group tbody tr[data-m="GET"] td.mth { color: #93c5fd; }
+.dark .api-group tbody tr[data-m="POST"] td.mth { color: #86efac; }
+.dark .api-group tbody tr[data-m="PUT"] td.mth { color: #fcd34d; }
+.dark .api-group tbody tr[data-m="PATCH"] td.mth { color: #c4b5fd; }
+.dark .api-group tbody tr[data-m="DELETE"] td.mth { color: #fca5a5; }
+
+/* 代码复制按钮 */
+pre .copy {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  display: inline-flex; align-items: center; height: 26px; padding: 0 9px; cursor: pointer;
+  font-family: var(--font-sans); font-size: 11.5px;
+  color: var(--muted-foreground); background: var(--background);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+pre:hover .copy, pre .copy:focus-visible { opacity: 1; }
+pre .copy:hover { color: var(--foreground); border-color: var(--border-strong); }
+
+/* ---------- 内嵌页：架构图 / 工作流图 / API 参考 ----------
+   含内嵌页的「纸面」自动撑宽：由 flex 在可用空间内分配（自动扣除侧栏与右侧目录），
+   不写死 vw / 负边距，因此任何视口都不会水平溢出。 */
+.sheet:has(iframe.embed-wide) {
+  flex: 1 1 0; width: auto; min-width: 0; max-width: 1120px; border: 1px solid #ccc;
+}
+iframe.embed-wide { display: block; width: 100%; max-width: none; }
+
+/* ---------- 页脚 ---------- */
+.foot {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center;
+  margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border);
+  font-size: 12.5px; color: var(--muted-foreground);
+}
+.foot a { color: var(--muted-foreground); transition: color var(--dur-fast) var(--ease-out); }
+.foot a:hover { color: var(--foreground); }
+.foot a { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong); }
+
+mark.hit { background: color-mix(in oklab, #facc15 45%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1180px) { .tb-status { display: none; } }
+@media (max-width: 1024px) {
+  .find { width: 190px; }
+  .sheet-wrap { gap: 0; }
+}
+@media (max-width: 860px) {
+  .tb-brand .nm { display: none; }
+  .tb-brand { padding-right: 10px; margin-right: 4px; }
+  .find { width: 150px; }
+  .find-key { display: none; }
+}
+@media (max-width: 720px) {
+  .layout { display: block; }
+  .feed { padding: 0 16px; }
+  .sheet { padding: 24px 0 72px; }
+  .sheet-head h1 { font-size: 25px; }
+  .vp h2 { font-size: 20px; }
+  .tb-nav { display: flex; gap: 0; }
+  .tb-nav a { padding: 0 8px; font-size: 0; }
+  .tb-nav a .no { font-size: 12.5px; }
+  .find { width: 110px; }
+  .belt-grid { grid-template-columns: 1fr; }
+  .belt-lane.go { border-right: 0; border-bottom: 1px solid var(--border); }
+  .belt-rail { border-right: 0; border-bottom: 1px solid var(--border); padding: 6px 0; }
+  .frames-cmp .fc-row { grid-template-columns: 1fr; }
+  .frames-cmp .fc-lab { border-right: 0; border-bottom: 1px solid var(--border); }
+  .tbl th, .tbl td { width: auto !important; padding: 10px 12px; }
+  .tbl { font-size: 13px; }
+  .vp h2 .hno { display: none; }
+}
+/* ---------- 动效层（参照 beUI《Motion guide》：动效是说明，不是装饰） ----------
+   令牌：
+     --ease-out  cubic-bezier(.16,1,.3,1)      入场/退场——立即响应，安静落定
+     --ease-in-out cubic-bezier(.77,0,.175,1)  屏内对象加速与减速
+   时长：按压 120ms · tooltip/popover 160ms · dropdown 200ms · 面板 280ms · UI 默认 ≤300ms */
+:root {
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-in-out: cubic-bezier(.77, 0, .175, 1);
+  --dur-press: 120ms;
+  --dur-fast: 160ms;
+  --dur-popover: 200ms;
+  --dur-panel: 280ms;
+}
+
+/* 按压反馈：仅 scale 0.97，无位移无透明度（100–160ms 内完成） */
+.tb-nav a, .tb-gh, .tb-theme, .index a, .mbtn, .idx-tbl a.rowno,
+details.block > summary, .api-group > summary, pre .copy {
+  transition: color var(--dur-fast) var(--ease-out),
+              background-color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              text-decoration-color var(--dur-fast) var(--ease-out),
+              opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-press) var(--ease-out);
+}
+.tb-nav a:active, .tb-gh:active, .tb-theme:active, .index a:active,
+.mbtn:active, .idx-tbl a.rowno:active, pre .copy:active,
+details.block > summary:active, .api-group > summary:active { transform: scale(.97); }
+
+/* 内容揭示：页面切换（opacity 0→1 · translateY 8px→0 · blur 4px→0 · 0.22s） */
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+.page.reveal { animation: reveal .22s var(--ease-out) both; }
+/* 内容切换：小范围视图变化（入场 0.18s · 4px） */
+@keyframes swap-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+details.block[open] > .body { animation: swap-in .18s var(--ease-out) both; }
+.api-group[open] > .tbl { animation: swap-in .18s var(--ease-out) both; }
+.api-bar .mbtn.on { animation: swap-in .12s var(--ease-out) both; }
+
+/* 语义化图标动效：仅悬停设备；主题图标按真实动作摆动 */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .tb-theme:hover .ic-moon, .tb-theme:hover .ic-sun {
+    animation: icon-swing .28s var(--ease-out);
+    transform-origin: top center;
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; width: 100%; min-width: 320px; min-height: 100vh;
-         line-height: 24px; font-family: var(--vp-font-family-base); font-size: 16px;
-         color: var(--vp-c-text-1); background: var(--vp-c-bg);
-         -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-  a { text-decoration: none; color: var(--vp-c-brand-1); }
-  code { background: var(--wk-paper-2); color: var(--vp-c-brand-1);
-         border-radius: 4px; padding: 2px 6px;
-         font-family: var(--vp-font-family-mono); font-size: .875em; }
-  pre { background: var(--vp-code-block-bg); border: 1px solid var(--wk-rule-soft);
-        border-radius: 8px; padding: 14px 16px; overflow: auto; line-height: 1.7; }
-  pre code { background: none; border: none; padding: 0;
-             font-family: var(--vp-font-family-mono); font-size: 13px;
-             color: var(--wk-ink); }
-  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
-  th, td { border: 1px solid var(--vp-c-divider); padding: 8px 12px;
-           text-align: left; vertical-align: top; }
-  th { background: var(--wk-paper-2); font-weight: 600; }
+  @keyframes icon-swing {
+    0% { rotate: 0deg; } 30% { rotate: 12deg; } 60% { rotate: -8deg; }
+    85% { rotate: 4deg; } 100% { rotate: 0deg; }
+  }
+  .tb-nav a.active .no { transition: transform var(--dur-press) var(--ease-out); }
+}
 
-  /* ==== 顶部导航（64px 固定 + 毛玻璃）==== */
-  .VPNav { position: fixed; top: 0; left: 0; right: 0; z-index: 30;
-           height: var(--vp-nav-height); background: var(--wk-header);
-           backdrop-filter: blur(8px);
-           border-bottom: 1px solid var(--vp-c-divider); }
-  .VPNav .wrapper { display: flex; align-items: center; height: 100%; padding: 0 24px; }
-  .VPNavBarTitle { display: flex; align-items: center; gap: 10px; }
-  .VPNavBarTitle .logo-ground { width: 28px; height: 28px; border-radius: 8px;
-    background: var(--wk-ink); color: var(--wk-paper); display: flex; align-items: center;
-    justify-content: center; font-weight: 700; font-size: 14px; }
-  .VPNavBarTitle .title { letter-spacing: 2px; font-size: 19px; font-weight: 700;
-    color: var(--vp-c-text-1); white-space: nowrap; }
-  .VPNavBarMenu { display: flex; align-items: center; margin-left: auto; }
-  .VPNavBarMenuLink { display: flex; align-items: center; padding: 0 12px;
-    line-height: var(--vp-nav-height); font-size: 14px; font-weight: 500;
-    color: var(--vp-c-text-1); transition: color .25s; }
-  .VPNavBarMenuLink.active { color: var(--wk-gold); }
-  .VPNavBarMenuLink:hover { color: var(--wk-gold); text-decoration: none; }
-  .DocSearch-Button { align-items: center; background: var(--wk-paper-2);
-    border: 1px solid var(--wk-rule-soft); border-radius: 40px;
-    color: var(--wk-ink-mute); cursor: pointer; display: flex; font-weight: 500;
-    height: 36px; display: flex; gap: 10px; margin: 0 0 0 16px; padding: 0 14px;
-    width: 150px; font-size: 13px; font-family: inherit; }
-  .DocSearch-Button:focus { outline: 1px solid var(--wk-gold); }
-  .gh-link { margin-left: 14px; font-size: 14px; color: var(--vp-c-text-1); }
+/* 对拍带重放（配合“重放”按钮与首屏自动播放） */
+.belt.replaying .frames .frame { animation: fr .3s var(--ease-out) both; }
+.belt.replaying .frames .frame:nth-child(2) { animation-delay: .05s; }
+.belt.replaying .frames .frame:nth-child(3) { animation-delay: .1s; }
+.belt.replaying .frames .frame:nth-child(4) { animation-delay: .15s; }
+.belt.replaying .frames .frame:nth-child(5) { animation-delay: .2s; }
+.belt.replaying .frames .frame:nth-child(6) { animation-delay: .25s; }
+.belt.replaying .frames .frame:nth-child(7) { animation-delay: .3s; }
+@keyframes fr { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
-  /* ==== 布局：侧栏(288 固定自滚) + 内容(688) + 右侧目录(224 固定) ==== */
-  .Layout { padding-top: var(--vp-nav-height); display: flex;
-            align-items: flex-start; }
-  .VPSidebar { position: sticky; top: var(--vp-nav-height);
-    height: calc(100vh - var(--vp-nav-height)); width: var(--vp-sidebar-width);
-    flex: none; background: var(--vp-c-bg);
-    border-right: 1px solid var(--vp-c-divider); padding: 26px 24px 96px;
-    overflow-y: auto; scrollbar-width: thin; }
-  .VPSidebar::-webkit-scrollbar { width: 5px; }
-  .VPSidebar::-webkit-scrollbar-thumb { background: var(--wk-rule);
-    border-radius: 3px; }
-  .VPSidebar .group-title { margin: 22px 0 6px; font-size: 13px; font-weight: 700;
-    color: var(--vp-c-text-1); }
-  .VPSidebar .group-items { border-left: 1px solid var(--vp-c-divider);
-    padding-left: 16px; }
-  .VPSidebar .group-items a { display: block; padding: 5px 0 5px 2px; font-size: 14px;
-    font-weight: 500; color: var(--vp-c-text-2); line-height: 1.5; }
-  .VPSidebar .group-items a:hover { color: var(--vp-c-text-1); }
-  .VPSidebar .group-items a.active { color: var(--vp-c-brand-1); font-weight: 600; }
+/* 重放按钮 */
+.belt-top .replay {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px;
+  margin-left: auto; padding: 0 10px; cursor: pointer;
+  font-family: var(--font-sans); font-size: 12px; font-weight: 500;
+  color: var(--muted-foreground); background: var(--background);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              transform var(--dur-press) var(--ease-out);
+}
+.belt-top .replay:hover { color: var(--foreground); border-color: var(--border-strong); }
+.belt-top .replay:active { transform: scale(.97); }
+.belt-top .replay svg { width: 13px; height: 13px; }
 
-  .VPContent { flex: 1; min-width: 0; }
-  .VPDoc .container { display: flex; justify-content: center; gap: 8px; }
-  .content-container { max-width: 688px; padding: 44px 24px 96px; width: 100%; }
-  .crumb { color: var(--wk-ink-mute); font-size: 12px; margin-bottom: 8px; }
-  .page { display: none; }
-  .page.active { display: block; }
+/* 选用指引（Purpose / Avoid 卡片，参照 beUI recipe 结构） */
+.use-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+@media (max-width: 720px) { .use-grid { grid-template-columns: 1fr; } }
+.use-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; background: var(--card);
+}
+.use-card h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.use-card .mode { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); }
+.use-card dl { margin: 12px 0 0; font-size: 13px; }
+.use-card dt {
+  display: flex; align-items: center; gap: 6px; margin: 0;
+  font-size: 12px; font-weight: 600; color: var(--success);
+}
+.use-card dt.no { color: var(--danger); margin-top: 10px; }
+.use-card dt svg { width: 12px; height: 12px; }
+.use-card dd { margin: 3px 0 0; color: var(--muted-foreground); line-height: 1.6; }
 
-  /* ==== 正文排版（对照 .vp-doc）==== */
-  .vp-doc h1 { letter-spacing: -.02em; line-height: 40px; font-size: 28px;
-               font-weight: 600; margin: 0 0 16px; }
-  .vp-doc h2 { margin: 48px 0 16px; border-top: 1px solid var(--vp-c-divider);
-               padding-top: 24px; letter-spacing: -.02em; line-height: 32px;
-               font-size: 24px; font-weight: 600; }
-  .vp-doc h3 { margin: 32px 0 0; letter-spacing: -.01em; line-height: 28px;
-               font-size: 20px; font-weight: 600; }
-  .vp-doc p { margin: 16px 0; }
-  .vp-doc .lead { color: var(--wk-ink-soft); }
-  .callout { border-left: 3px solid var(--wk-gold); background: var(--wk-paper-2);
-             padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
-             font-size: 14px; }
-  .callout.warn { border-color: #d9a03f; }
-  iframe { width: 100%; border: 1px solid var(--vp-c-divider); border-radius: 8px;
-           background: var(--wk-paper); }
-  .pill { display: inline-block; font-size: 11px; padding: 1px 8px;
-          border-radius: 99px; margin-left: 6px; vertical-align: 2px; border: 1px solid; }
-  .pill.done { color: var(--wk-accent-text); border-color: var(--wk-accent-border);
-               background: #f7f1e6; }
-  .pill.xdep { color: #8a6d1f; border-color: #d9a03f; background: #fdf6e6; }
-  .pill.owner { color: #7c4dbd; border-color: #b08ae0; background: #f4eefc; }
+/* 减弱动效是设计过的状态：保留透明度与颜色反馈，去掉位移、缩放、模糊 */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .page.reveal { animation: reveal-flat .18s linear both; }
+  @keyframes reveal-flat { from { opacity: 0; } to { opacity: 1; } }
+  details.block[open] > .body, .api-group[open] > .tbl, .api-bar .mbtn.on,
+  .belt.replaying .frames .frame { animation: none !important; }
+  .tb-nav a:active, .tb-gh:active, .tb-theme:active, .index a:active,
+  .mbtn:active, .idx-tbl a.rowno:active, pre .copy:active,
+  details.block > summary:active, .api-group > summary:active,
+  .belt-top .replay:active { transform: none !important; }
+  details.block > summary::before, .api-group > summary::before { transition: none !important; }
+  .tb-theme:hover .ic-moon, .tb-theme:hover .ic-sun { animation: none !important; }
+}
 
-  /* ==== 右侧「本页目录」（224px，固定）==== */
-  .VPDocAside { position: sticky; top: var(--vp-nav-height); align-self: flex-start;
-    width: 224px; flex: none; padding: 44px 16px 48px 0;
-    height: calc(100vh - var(--vp-nav-height)); overflow-y: auto;
-    scrollbar-width: none; }
-  .VPDocAside::-webkit-scrollbar { display: none; }
-  .VPDocAside .outline-title { font-size: 13px; font-weight: 700;
-    color: var(--vp-c-text-1); margin-bottom: 8px; }
-  .VPDocAside .outline { border-left: 1px solid var(--vp-c-divider); }
-  .VPDocAside .outline a { display: block; position: relative; padding: 4px 0 4px 16px;
-    font-size: 13px; color: var(--vp-c-text-2); line-height: 1.4; }
-  .VPDocAside .outline a.h3 { padding-left: 28px; }
-  .VPDocAside .outline a:hover { color: var(--vp-c-text-1); }
-  .VPDocAside .outline a.active { color: var(--vp-c-brand-1); font-weight: 600; }
-  .VPDocAside .outline a.active::before { content: ''; position: absolute; left: -1px;
-    top: 4px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--wk-gold); }
-  @media (max-width: 1279px) { .VPDocAside { display: none; } }
-  @media (max-width: 1080px) { .VPSidebar { display: none; } }
+@media print {
+  .titlebar, .index, .outline, .skip, .api-bar { display: none; }
+  .sheet { width: 100%; padding: 0; }
+  .page { display: block !important; }
+}
 </style>
 </head>
 <body>
-<div class="VPNav">
-  <div class="wrapper">
-    <div class="VPNavBarTitle">
-      <span class="logo-ground">RJ</span>
-      <span class="title">ragagent-java</span>
-    </div>
-    <nav class="VPNavBarMenu" id="topnav">
-      <a class="VPNavBarMenuLink" href="#quick-start" data-page="quick-start">快速开始</a>
-      <a class="VPNavBarMenuLink" href="#architecture" data-page="architecture">架构</a>
-      <a class="VPNavBarMenuLink" href="#modules" data-page="modules">功能模块</a>
-      <a class="VPNavBarMenuLink" href="#api" data-page="api">API 参考</a>
-    </nav>
-    <button class="DocSearch-Button" id="docsearch">
-      <span>🔍 搜索文档</span>
-      <span style="border:1px solid var(--wk-rule);border-radius:4px;padding:0 5px;font-size:12px">K</span>
-    </button>
-    <a class="gh-link" href="https://github.com/Tencent/WeKnora" target="_blank" rel="noopener">GitHub ↗</a>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="titlebar">
+  <div class="tb-brand">
+    <span class="mk">RJ</span>
+    <span class="nm">ragagent-java</span>
   </div>
-</div>
+  <nav class="tb-nav" id="topnav" aria-label="文档导航">
+    <a href="#01" data-page="01" title="快速开始"><span class="no">01</span>快速开始</a>
+    <a href="#02" data-page="02" title="架构"><span class="no">02</span>架构</a>
+    <a href="#03" data-page="03" title="Agent 工作流"><span class="no">03</span>Agent 工作流</a>
+    <a href="#04" data-page="04" title="功能模块"><span class="no">04</span>功能模块</a>
+    <a href="#05" data-page="05" title="API 参考"><span class="no">05</span>API 参考</a>
+  </nav>
+  <div class="tb-side">
+    <span class="tb-status"><span class="dot"></span>1,748 契约 · 452 路由 · 全量批绿</span>
+    <label class="find" for="find">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="find" type="search" placeholder="搜索文档" autocomplete="off">
+      <span class="find-count" id="findCount" hidden></span>
+      <span class="find-key">K</span>
+    </label>
+    <button class="tb-theme" id="themeToggle" type="button" aria-label="切换明暗主题" title="切换明暗主题">
+      <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z"/></svg>
+      <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </div>
+</header>
 
-<div class="Layout">
-  <aside class="VPSidebar" id="sidebar">
-    <div class="group-title">使用文档</div>
-    <div class="group-items">
-      <a href="#quick-start" data-page="quick-start" data-anchor="quick-start">产品介绍</a>
-      <a href="#quick-start-install" data-page="quick-start" data-anchor="quick-start-install">安装部署</a>
-      <a href="#quick-start-usage" data-page="quick-start" data-anchor="quick-start-usage">快速上手</a>
-      <a href="#quick-start-config" data-page="quick-start" data-anchor="quick-start-config">配置详解</a>
-      <a href="#quick-start-faq" data-page="quick-start" data-anchor="quick-start-faq">常见问题</a>
-    </div>
-    <div class="group-title">架构</div>
-    <div class="group-items">
-      <a href="#architecture-overview" data-page="architecture" data-anchor="architecture-overview">总体架构</a>
-      <a href="#architecture-method" data-page="architecture" data-anchor="architecture-method">契约驱动的翻译</a>
-      <a href="#architecture-flow" data-page="architecture" data-anchor="architecture-flow">检索问答全流程</a>
-      <a href="#architecture-ingest" data-page="architecture" data-anchor="architecture-ingest">文档入库流程</a>
-      <a href="#architecture-verify" data-page="architecture" data-anchor="architecture-verify">验收体系</a>
-    </div>
-    <div class="group-title">功能模块</div>
-    <div class="group-items">
-      <a href="#modules-core" data-page="modules" data-anchor="modules-core">会话 · 检索 · 文档</a>
-      <a href="#modules-agent" data-page="modules" data-anchor="modules-agent">Agent · 工具 · 沙箱</a>
-      <a href="#modules-collab" data-page="modules" data-anchor="modules-collab">协作 · 集成 · 平台</a>
-    </div>
-    <div class="group-title">API 参考</div>
-    <div class="group-items">
-      <a href="#api-overview" data-page="api" data-anchor="api-overview">API 总览</a>
-      <a href="#api-groups" data-page="api" data-anchor="api-groups">分组明细</a>
-      <a href="#api-full" data-page="api" data-anchor="api-full">完整可搜索参考</a>
-    </div>
-  </aside>
+<div class="layout">
+  <nav class="index" id="sidebar" aria-label="图册索引">
+    <div class="grp">上手</div>
+    <a href="#01-quick-start" data-page="01" data-anchor="01-quick-start"><span class="no">01</span>快速开始</a>
+    <a href="#01-install" data-page="01" data-anchor="01-install"><span class="no">·</span>安装部署</a>
+    <a href="#01-usage" data-page="01" data-anchor="01-usage"><span class="no">·</span>快速上手</a>
+    <a href="#01-config" data-page="01" data-anchor="01-config"><span class="no">·</span>配置详解</a>
+    <a href="#01-faq" data-page="01" data-anchor="01-faq"><span class="no">·</span>常见问题与排障</a>
+    <div class="grp">机制</div>
+    <a href="#02-overview" data-page="02" data-anchor="02-overview"><span class="no">02</span>总体架构</a>
+    <a href="#02-method" data-page="02" data-anchor="02-method"><span class="no">·</span>契约驱动的翻译</a>
+    <a href="#02-flow" data-page="02" data-anchor="02-flow"><span class="no">·</span>检索问答全流程</a>
+    <a href="#02-ingest" data-page="02" data-anchor="02-ingest"><span class="no">·</span>文档入库流程</a>
+    <a href="#02-verify" data-page="02" data-anchor="02-verify"><span class="no">·</span>验收体系</a>
+    <a href="#03-agents" data-page="03" data-anchor="03-agents"><span class="no">03</span>内置 Agent 对比</a>
+    <a href="#03-frames" data-page="03" data-anchor="03-frames"><span class="no">·</span>SSE 帧序对照</a>
+    <a href="#03-diff" data-page="03" data-anchor="03-diff"><span class="no">·</span>差异一览</a>
+    <a href="#03-pick" data-page="03" data-anchor="03-pick"><span class="no">·</span>选用指引</a>
+    <a href="#03-code" data-page="03" data-anchor="03-code"><span class="no">·</span>代码坐标</a>
+    <div class="grp">参考</div>
+    <a href="#04-core" data-page="04" data-anchor="04-core"><span class="no">04</span>会话 · 检索 · 文档</a>
+    <a href="#04-agent" data-page="04" data-anchor="04-agent"><span class="no">·</span>Agent · 工具 · 沙箱</a>
+    <a href="#04-collab" data-page="04" data-anchor="04-collab"><span class="no">·</span>协作 · 集成 · 平台</a>
+    <a href="#05-overview" data-page="05" data-anchor="05-overview"><span class="no">05</span>API 总览</a>
+    <a href="#05-groups" data-page="05" data-anchor="05-groups"><span class="no">·</span>分组明细</a>
+    <a href="#05-full" data-page="05" data-anchor="05-full"><span class="no">·</span>完整可搜索参考</a>
+  </nav>
 
-  <div class="VPContent">
-    <div class="VPDoc">
-      <div class="container">
-        <div class="content-container">
+  <main class="feed" id="main">
+    <div class="sheet-wrap">
+      <article class="sheet">
 
+    <!-- ============================== 01 快速开始 ============================== -->
+    <section class="page vp" id="page-01">
+      <header class="sheet-head">
+        <div class="sheet-no">Docs / 快速开始</div>
+        <h1>Go 原文，Java 译本，逐字节校对</h1>
+        <p class="sheet-lead">ragagent-java 是 WeKnora（腾讯开源的知识检索与分析系统）后端的 <b>Java 全量翻译版</b>：Go（Gin/GORM）后端逐文件译为 Spring Boot 3.3 / JDK 21 / MyBatis-Plus，前端以 Go 仓为基线（品牌/观感层微调）。本页用于把服务跑起来。</p>
+        <div class="sheet-meta">
+          <span>修订 <b>2026-09-26</b></span>
+          <span>状态 <b>现行</b></span>
+          <span>验收 <b>逐字节一致</b></span>
+        </div>
+      </header>
 
-    <!-- ================= 快速开始 ================= -->
-    <section class="page" id="page-quick-start">
-      <div class="crumb">使用文档 / 快速开始</div>
-      <h1>产品介绍</h1>
-      <p class="lead">ragagent-java 是 WeKnora（腾讯开源的知识检索与分析系统）后端的 <b>Java 全量翻译版</b>——把 Go（Gin/GORM）后端逐文件翻译为 Spring Boot 3.3 / JDK 21 / MyBatis-Plus，前端零改动复用。</p>
-      <p>本项目的验收标准是<b>行为字节级一致</b>：同一请求打到 Go 参考实现与 Java 实现两侧，响应体（JSON 键序、HTML 转义、SSE 帧格式、错误文案、时区渲染）必须逐字节相同。为此建立了 1,748 个 golden 契约测试与 75 个双端 A/B 脚本，HTTP 路由面已全量翻译（程序化对账后唯一留白为 Go 工具路由 <code>/swagger/{}</code>，属非翻译目标）。</p>
-      <div class="callout">上游持续演进时，本项目以 <b>行为等价</b> 为对齐目标：功能对照以 Go 仓为参考实现，本仓文档描述的是 Java 侧的部署与使用。</div>
+      <div class="belt" aria-label="Go 与 Java 双端对拍样例">
+        <div class="belt-top">
+          <span class="t">对拍样例</span>
+          <span class="s">POST /api/v1/agent-chat/{id} · SSE 帧序</span>
+          <button class="replay" id="beltReplay" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+            重放
+          </button>
+        </div>
+        <div class="belt-grid">
+          <div class="belt-lane go">
+            <div class="lane-t">Go 参考实现 <b>:8080</b></div>
+            <div class="frames">
+              <span class="frame k">agent_query</span><span class="frame">thinking</span><span class="frame">tool_call</span><span class="frame">tool_result</span><span class="frame">answer</span><span class="frame">complete</span>
+            </div>
+          </div>
+          <div class="belt-rail" aria-hidden="true">≡</div>
+          <div class="belt-lane java">
+            <div class="lane-t">Java 译本 <b>:8082</b></div>
+            <div class="frames">
+              <span class="frame k">agent_query</span><span class="frame">thinking</span><span class="frame">tool_call</span><span class="frame">tool_result</span><span class="frame">answer</span><span class="frame">complete</span>
+            </div>
+          </div>
+        </div>
+        <div class="belt-verdict">
+          <span class="v">逐帧一致 6/6</span>
+          <span class="v">帧体逐字节相同</span>
+          <span class="m">掩码 <b>UUID / 时间戳</b> · 依据 <b>1,748 条 golden 实录</b></span>
+        </div>
+      </div>
 
-      <h3>技术栈</h3>
-      <table>
-        <tr><th>层</th><th>选型</th></tr>
-        <tr><td>运行时</td><td>JDK 21（虚拟线程：检索并发、工具并行、租户上下文显式拷贝）</td></tr>
-        <tr><td>框架</td><td>Spring Boot 3.3.5 · MyBatis-Plus 3.5.7 · Flyway（196 个迁移）</td></tr>
-        <tr><td>存储</td><td>PostgreSQL 17 / ParadeDB（pgvector HNSW + BM25 · RRF 融合）、Redis 7（stream/绑定/限流）</td></tr>
-        <tr><td>解析</td><td>docreader gRPC（官方镜像 <code>wechatopenai/weknora-docreader</code>）</td></tr>
-        <tr><td>沙箱</td><td>docker-java 3.7.1（zerodep 传输）：技能安装管线 + 镜像快照 + 产物排水</td></tr>
-        <tr><td>前端</td><td>Vue 3.5 + Vite 7（从上游原样复制）</td></tr>
+      <h2 id="01-quick-start"><span class="hno">01-A</span>这套文档怎么读</h2>
+      <table class="idx-tbl">
+        <thead>
+          <tr><th style="width:64px">图号</th><th style="width:170px">图纸</th><th>内容</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a class="rowno" href="#01">01</a></td>
+            <td class="ttl">快速开始</td>
+            <td class="desc">部署四个组件、登录种子账号、认识必需配置；本页。</td>
+          </tr>
+          <tr>
+            <td><a class="rowno" href="#02">02</a></td>
+            <td class="ttl">架构</td>
+            <td class="desc">翻译方法论（文件名 1:1 映射）、检索问答与文档入库两条主流程、三层验收体系。</td>
+          </tr>
+          <tr>
+            <td><a class="rowno" href="#03">03</a></td>
+            <td class="ttl">Agent 工作流</td>
+            <td class="desc">四类内置 Agent 的路径对比：快速问答走固定 RAG 管线，智能推理 / 维基问答 / 数据分析师共用一个工具循环，靠工具白名单与预算分化。</td>
+          </tr>
+          <tr>
+            <td><a class="rowno" href="#04">04</a></td>
+            <td class="ttl">功能模块</td>
+            <td class="desc">37 个领域包覆盖的全部业务面，逐项标注状态（已完成 / 部署依赖 / 暂缓）。</td>
+          </tr>
+          <tr>
+            <td><a class="rowno" href="#05">05</a></td>
+            <td class="ttl">API 参考</td>
+            <td class="desc">452 条路由，按域分组、可搜索、标注角色门槛与 API-Key 策略。</td>
+          </tr>
+        </tbody>
       </table>
 
-      <h2 id="quick-start-install">安装部署</h2>
-      <p>前置：JDK 21、Docker、Node 20+。</p>
+      <h2 id="01-intro"><span class="hno">01-B</span>产品介绍</h2>
+      <p>本项目的验收标准不是「看起来对」，而是<b>行为字节级一致</b>：同一请求打到 Go 参考实现与 Java 实现两侧，响应体（JSON 键序、HTML 转义、SSE 帧格式、错误文案、时区渲染）必须逐字节相同。为此建立了 <b>1,748 条 golden 契约实录</b>与 <b>72 个双端 A/B / 录制脚本</b>；HTTP 路由面已全量翻译，程序化对账后唯一留白是 Go 工具路由 <code>/swagger/{}</code>（非翻译目标）。</p>
+      <div class="note">
+        <span class="tag">为什么</span>
+        WeKnora 上游持续演进，本项目以<b>行为等价</b>为对齐目标：功能对照以 Go 仓为参考实现，本仓文档描述 Java 侧的部署与使用。
+      </div>
+
+      <h3>技术栈</h3>
+      <table class="tbl">
+        <tr><th style="width:72px">层</th><th>选型</th></tr>
+        <tr><td>运行时</td><td>JDK 21（虚拟线程：检索并发、工具并行、租户上下文显式拷贝）</td></tr>
+        <tr><td>框架</td><td>Spring Boot 3.3.5 · MyBatis-Plus 3.5.7 · Flyway（196 个迁移）</td></tr>
+        <tr><td>存储</td><td>PostgreSQL 17 / ParadeDB（pgvector HNSW + BM25 · RRF 融合）、Redis 7（stream / 绑定 / 限流）</td></tr>
+        <tr><td>解析</td><td>docreader gRPC（官方镜像 <code>wechatopenai/weknora-docreader</code>）</td></tr>
+        <tr><td>沙箱</td><td>docker-java 3.7.1（zerodep 传输）：技能安装管线 + 镜像快照 + 产物排水</td></tr>
+        <tr><td>前端</td><td>Vue 3.5 + Vite 7（以 Go 仓为基线，品牌 / 观感层微调）</td></tr>
+        <tr><td>测试</td><td>JUnit 5 + AssertJ + MockMvc + H2（内存 DDL 镜像 <code>TestSchema</code>）+ stub LLM / Ollama</td></tr>
+      </table>
+
+      <h2 id="01-install"><span class="hno">01-C</span>安装部署</h2>
+      <p>前置：JDK 21（<code>/opt/homebrew/opt/openjdk@21</code> 或等效）、Docker、Node 20+。</p>
 <pre><code># 1) 基础设施：postgres/ParadeDB(15432) + redis(16379) + docreader(50051)
+#    与 Go 仓 dev 容器同端口，两套只能起一套（已有同端口容器时直接复用）
 docker compose up -d
 
 # 2) 密钥与连接配置（.env 已 gitignore，必需键见 scripts/dev-env.sh 头注释）
@@ -233,284 +912,886 @@ docker compose up -d
 # 4) 前端（:5173，代理显式指向 Java 后端）
 cd frontend &amp;&amp; npm ci
 VITE_DEV_PROXY_TARGET=http://localhost:8082 npm run dev</code></pre>
-      <div class="callout">ParadeDB 镜像内含 pgvector 与 BM25 索引能力，是混合检索的依赖；普通 postgres 镜像会使向量/关键词检索退化为空。</div>
+      <div class="note">
+        <span class="tag">注意</span>
+        ParadeDB 镜像内含 pgvector 与 BM25 索引能力，是混合检索的依赖；换用普通 postgres 镜像会让向量与关键词检索退化为空。
+      </div>
 
-      <h2 id="quick-start-usage">快速上手</h2>
-      <p>浏览器打开 <code>http://localhost:5173</code>，使用内置账号登录：</p>
-      <table>
+      <h2 id="01-usage"><span class="hno">01-D</span>快速上手</h2>
+      <p>浏览器打开 <code>http://localhost:5173</code>，用内置账号登录：</p>
+      <table class="tbl">
         <tr><th>账号</th><th>密码</th><th>说明</th></tr>
         <tr><td><code>java-phase1@weknora.test</code></td><td rowspan="2"><code>Passw0rd!</code></td><td>租户 10002 的 owner，含种子知识库与文档，日常走查用</td></tr>
         <tr><td><code>walkadmin@weknora.test</code></td><td>平台管理员（<code>is_system_admin</code>），可跨租户并访问系统管理端</td></tr>
       </table>
-      <p>典型链路：新建知识库 → 上传文档（docreader 解析 → 分块 → 向量化）→ 会话中提问（混合检索 + 引用）→ 切换 <b>Agent 模式</b> 让引擎自主调用知识检索 / 网络搜索 / 沙箱等 30+ 内置工具。</p>
+      <p>典型链路：新建知识库 → 上传文档（docreader 解析 → 分块 → 向量化）→ 会话中提问（混合检索 + 引用）→ 切换 <b>Agent 模式</b>，让引擎自主调用知识检索 / 网络搜索 / 沙箱等 30+ 内置工具。四类内置 Agent 的差别见 <a href="#03" style="border-bottom:1px solid var(--rule-2)">图 03</a>。</p>
 
-      <h2 id="quick-start-config">配置详解</h2>
-      <table>
-        <tr><th>变量</th><th>缺省</th><th>说明</th></tr>
-        <tr><td><code>SERVER_PORT</code></td><td>8082</td><td>Java 服务端口</td></tr>
-        <tr><td><code>DB_HOST</code>/<code>DB_PORT</code></td><td>localhost/15432</td><td>ParadeDB 连接</td></tr>
-        <tr><td><code>REDIS_HOST</code>/<code>REDIS_PORT</code></td><td>localhost/16379</td><td>stream、会话绑定、限流</td></tr>
-        <tr><td><code>DOCREADER_ADDR</code></td><td>localhost:50051</td><td>文档解析 gRPC</td></tr>
-        <tr><td><code>LOCAL_STORAGE_BASE_DIR</code></td><td>/data/files</td><td>本地存储根目录</td></tr>
-        <tr><td><code>JWT_SECRET</code> / <code>SYSTEM_AES_KEY</code></td><td>—</td><td>令牌签名与凭据加密（AES，双端一致才可互读）</td></tr>
-        <tr><td><code>SSRF_WHITELIST_EXTRA</code></td><td>—</td><td>出站白名单补充（逗号分隔，支持 <code>*.example.com</code>）</td></tr>
-        <tr><td><code>RETRIEVE_DRIVER</code></td><td>—</td><td>检索引擎选择（需真实导出）</td></tr>
+      <h2 id="01-config"><span class="hno">01-E</span>配置详解</h2>
+      <table class="tbl">
+        <tr><th>变量</th><th style="width:150px">缺省</th><th>说明</th></tr>
+        <tr><td><code>SERVER_PORT</code></td><td class="num">8082</td><td>Java 服务端口</td></tr>
+        <tr><td><code>DB_HOST</code> / <code>DB_PORT</code></td><td class="num">localhost / 15432</td><td>ParadeDB 连接</td></tr>
+        <tr><td><code>REDIS_HOST</code> / <code>REDIS_PORT</code></td><td class="num">localhost / 16379</td><td>stream、会话绑定、限流</td></tr>
+        <tr><td><code>DOCREADER_ADDR</code></td><td class="num">localhost:50051</td><td>文档解析 gRPC</td></tr>
+        <tr><td><code>LOCAL_STORAGE_BASE_DIR</code></td><td class="num">/data/files</td><td>本地存储根目录</td></tr>
+        <tr><td><code>JWT_SECRET</code> / <code>SYSTEM_AES_KEY</code></td><td class="num">—</td><td>令牌签名与凭据加密（AES；双端一致才能互读对方密文）</td></tr>
+        <tr><td><code>SSRF_WHITELIST_EXTRA</code></td><td class="num">—</td><td>出站白名单补充（逗号分隔，支持 <code>*.example.com</code>）</td></tr>
+        <tr><td><code>RETRIEVE_DRIVER</code></td><td class="num">—</td><td>检索引擎选择（需真实导出，不从 .env 静默读）</td></tr>
       </table>
       <p>沙箱 docker 开关、SSRF 白名单、模型并发上限等运行时项存于 <code>system_settings</code>（DB 层即开即用，无需重启），由 <code>SystemSettingService</code> 在 preload 与变更时推送生效。</p>
 
-      <h2 id="quick-start-faq">常见问题与排障</h2>
-      <table>
-        <tr><th>现象</th><th>原因与处理</th></tr>
-        <tr><td>Go 参考实现通、Java 不通</td><td>先 <code>jcmd</code> 查 Gradle 守护进程是否把 shell 代理变量固化成 <code>proxyHost</code>，再查代码</td></tr>
+      <h2 id="01-faq"><span class="hno">01-F</span>常见问题与排障</h2>
+      <table class="tbl">
+        <tr><th style="width:270px">现象</th><th>原因与处理</th></tr>
+        <tr><td>Go 参考实现通、Java 不通</td><td>先 <code>jcmd</code> 查 Gradle 守护进程是否把启动 shell 的代理变量固化成 <code>proxyHost</code>，再怀疑代码</td></tr>
         <tr><td>跑完测试后全站 500 + NoClassDefFoundError</td><td>测试重写了 bootRun 正在用的 <code>build/classes</code>——重启服务即解</td></tr>
         <tr><td>新路由 404</td><td>旧进程占端口：起服前 <code>lsof -ti :8082 | xargs kill</code></td></tr>
-        <tr><td>检索恒为空</td><td>确认 ParadeDB 镜像（非普通 postgres）且 <code>RETRIEVE_DRIVER</code> 已真实导出</td></tr>
-        <tr><td>出站 LLM/抓取被拦</td><td>SSRF 白名单未放行：配 <code>SSRF_WHITELIST_EXTRA</code> 或 <code>system_settings</code></td></tr>
+        <tr><td>检索恒为空</td><td>确认 ParadeDB 镜像（非普通 postgres），且 <code>RETRIEVE_DRIVER</code> 已真实导出</td></tr>
+        <tr><td>出站 LLM / 抓取被拦</td><td>SSRF 白名单未放行：配 <code>SSRF_WHITELIST_EXTRA</code> 或 <code>system_settings</code></td></tr>
       </table>
-      <p>更完整的踩坑实录见 <a href="https://github.com/" style="pointer-events:none;color:var(--text)">仓库</a> <code>docs/known-issues/</code>（按批次分片）。</p>
+      <p>更完整的踩坑实录见仓库 <code>docs/known-issues/</code>（按批次分片）与 <code>docs/HANDOFF.md</code>。</p>
+
     </section>
 
-    <!-- ================= 架构 ================= -->
-    <section class="page" id="page-architecture">
-      <div class="crumb">架构</div>
-      <h1>总体架构</h1>
-      <p class="lead">单 Spring Boot 进程（37 个领域包）+ ParadeDB/Redis/docreader 基础设施 + Docker 沙箱执行面；前端零改动，只认 HTTP/SSE 契约。</p>
-      <iframe src="architecture.html" style="height: 620px" loading="lazy"
-              title="系统架构交互图"></iframe>
-      <p style="color: var(--dim); font-size: 13px">▲ 交互式架构图（可切换视图 / 明暗主题 / 导出）——由
-        <code>docs/architecture.json</code> 经 Archify 生成，改架构后重跑
-        <code>node ~/.zcode/skills/archify/bin/archify.mjs deliver architecture …</code> 即可。</p>
+    <!-- ============================== 02 架构 ============================== -->
+    <section class="page vp" id="page-02">
+      <header class="sheet-head">
+        <div class="sheet-no">Docs / 架构</div>
+        <h1>总体架构</h1>
+        <p class="sheet-lead">单 Spring Boot 进程（37 个领域包）+ ParadeDB / Redis / docreader 基础设施 + Docker 沙箱执行面；前端只认 HTTP / SSE 契约。</p>
+        <div class="sheet-meta">
+          <span>领域包 <b>37</b></span>
+          <span>路由 <b>452</b></span>
+          <span>迁移 <b>196</b></span>
+        </div>
+      </header>
 
-      <h2 id="architecture-method">契约驱动的翻译方法论</h2>
-      <p>37 个领域包与 Go 仓 <code>internal/*</code> 存在系统性映射（<code>handler → controller</code>、<code>application/service → service</code>、<code>application/repository → mapper</code>、<code>types → domain</code>、<code>models → llm</code>、<code>middleware/router → common/web + config/WebConfig</code>）。这套 1:1 映射让每一批翻译都可审计：看 Java 文件名即知 Go 原文位置。</p>
-      <h3>验收的三条铁律</h3>
-      <table>
-        <tr><th>层次</th><th>手段</th><th>规模</th></tr>
-        <tr><td>golden 契约测试</td><td>MockMvc 掩码后逐字节比对（UUID/时间戳等动态字段除外）</td><td>1,748 个实录</td></tr>
-        <tr><td>双端 stub A/B</td><td>双端同指 stub LLM 走真实 HTTP/SSE 全链路，agent 出站请求体已可全 body 对拍</td><td>75 个脚本</td></tr>
-        <tr><td>真实集成</td><td>dev PostgreSQL（jsonb/NOT NULL/时区差异）+ Docker 沙箱 IT + 产物排水全链 IT</td><td>按门控启用</td></tr>
+      <h2 id="02-overview"><span class="hno">02-A</span>交互式架构图</h2>
+      <iframe class="embed-wide" src="architecture.html" style="height: 720px" loading="lazy" title="系统架构交互图"></iframe>
+      <p style="font-size:12.5px; color:var(--ink-3); font-family:var(--mono)">
+        交互式架构图（可切换视图 / 明暗主题 / 导出）；画面偏小可
+        <a href="architecture.html" target="_blank" rel="noopener" style="border-bottom:1px solid var(--rule-2)">在新窗口打开 ↗</a>。
+        源文件 <code>docs/site/architecture.json</code>，改架构后经 Archify 重新生成。
+      </p>
+
+      <h2 id="02-method"><span class="hno">02-B</span>契约驱动的翻译方法</h2>
+      <p>37 个领域包与 Go 仓 <code>internal/*</code> 存在系统性映射：<code>handler → controller</code>、<code>application/service → service</code>、<code>application/repository → mapper</code>、<code>types → domain</code>、<code>models → llm</code>、<code>middleware/router → common/web + config/WebConfig</code>。1:1 映射让每一批翻译都可审计——看 Java 文件名即知 Go 原文位置。</p>
+
+      <h3>验收的三层</h3>
+      <table class="tbl">
+        <tr><th style="width:150px">层次</th><th>手段</th><th style="width:120px">规模</th></tr>
+        <tr><td>golden 契约测试</td><td>MockMvc 掩码后逐字节比对（UUID / 时间戳等动态字段除外）</td><td class="num">1,748 条实录</td></tr>
+        <tr><td>双端 stub A/B</td><td>双端同指 stub LLM，走真实 HTTP / SSE 全链路；agent 出站请求体可全 body 对拍</td><td class="num">72 个脚本</td></tr>
+        <tr><td>真实集成</td><td>dev PostgreSQL（jsonb / NOT NULL / 时区差异）+ Docker 沙箱 IT + 产物排水全链 IT</td><td class="num">门控启用</td></tr>
       </table>
       <p>LLM 出站体按 Go 的两条真实路径分流序列化：prompt-cache 改写路径为 map 字节序，SDK 直出 / thinking 包装路径为 openai-go 结构体声明序——两条路径均与 Go 逐字节对拍验证。</p>
 
-      <h2 id="architecture-flow">检索问答全流程</h2>
-      <table>
-        <tr><th>阶段</th><th>行为</th></tr>
-        <tr><td>1 · 查询理解</td><td>意图分类、改写、（低召回时）本地变体扩展</td></tr>
-        <tr><td>2 · 混合检索</td><td>pgvector HNSW 向量检索 + ParadeDB BM25 关键词检索，RRF 融合排序</td></tr>
-        <tr><td>3 · FAQ 优先级</td><td>FAQ 命中（阈值达标）直出标准问答，否则并入普通引用</td></tr>
-        <tr><td>4 · 重排与富化</td><td>rerank 模型重排、图片信息富化、引用装配</td></tr>
-        <tr><td>5 · 生成</td><td>快答管线直出；Agent 模式进入 AgentEngine 工具循环（知识检索 / wiki / 网络搜索 / 沙箱 / MCP）</td></tr>
-        <tr><td>6 · 回包</td><td>SSE 契约层分帧（final_answer 分片重组、steer 插话、产物挂载），异步落库与标题/追问建议生成</td></tr>
+      <h2 id="02-flow"><span class="hno">02-C</span>检索问答全流程</h2>
+      <table class="tbl">
+        <tr><th style="width:130px">阶段</th><th>行为</th></tr>
+        <tr><td class="num">1 · 查询理解</td><td>意图分类、改写、（低召回时）本地变体扩展</td></tr>
+        <tr><td class="num">2 · 混合检索</td><td>pgvector HNSW 向量检索 + ParadeDB BM25 关键词检索，RRF 融合排序</td></tr>
+        <tr><td class="num">3 · FAQ 优先级</td><td>FAQ 命中（阈值达标）直出标准问答，否则并入普通引用</td></tr>
+        <tr><td class="num">4 · 重排与富化</td><td>rerank 模型重排、图片信息富化、引用装配</td></tr>
+        <tr><td class="num">5 · 生成</td><td>快答管线直出；Agent 模式进入 AgentEngine 工具循环（知识检索 / wiki / 网络搜索 / 沙箱 / MCP）</td></tr>
+        <tr><td class="num">6 · 回包</td><td>SSE 契约层分帧（final_answer 分片重组、steer 插话、产物挂载），异步落库与标题 / 追问建议生成</td></tr>
       </table>
 
-      <h2 id="architecture-ingest">文档入库流程</h2>
-      <table>
-        <tr><th>阶段</th><th>行为</th></tr>
-        <tr><td>1 · 上传</td><td>文件落存储后端，knowledge 行进入处理队列</td></tr>
-        <tr><td>2 · 解析</td><td>docreader gRPC 抽取结构化内容（可观测：spans 时间线，前端可查 Trace）</td></tr>
-        <tr><td>3 · 分块</td><td>chunker 父子分块（可预览），FAQ 走问答对形态</td></tr>
-        <tr><td>4 · 索引</td><td>向量入库（halfvec HNSW）+ BM25 索引；失败有清理与重试语义</td></tr>
-        <tr><td>5 · 后处理</td><td>摘要 fan-out（依赖 KB 配置的 summary model）、问题生成</td></tr>
+      <h2 id="02-ingest"><span class="hno">02-D</span>文档入库流程</h2>
+      <table class="tbl">
+        <tr><th style="width:130px">阶段</th><th>行为</th></tr>
+        <tr><td class="num">1 · 上传</td><td>文件落存储后端，knowledge 行进入处理队列</td></tr>
+        <tr><td class="num">2 · 解析</td><td>docreader gRPC 抽取结构化内容（spans 时间线可观测，前端可查 Trace）</td></tr>
+        <tr><td class="num">3 · 分块</td><td>chunker 父子分块（可预览），FAQ 走问答对形态</td></tr>
+        <tr><td class="num">4 · 索引</td><td>向量入库（halfvec HNSW）+ BM25 索引；失败有清理与重试语义</td></tr>
+        <tr><td class="num">5 · 后处理</td><td>摘要 fan-out（依赖 KB 配置的 summary model）、问题自动生成</td></tr>
       </table>
 
-      <h2 id="architecture-verify">验收体系与回归纪律</h2>
-      <p>全量测试按域分批执行（同一 JVM 全量会触发 Mockito self-attach 风暴）；Docker 集成测试由 <code>WEKNORA_SANDBOX_DOCKER_IT=true</code> 门控，覆盖容器执行面与产物排水全链（容器 → 收集器 → <code>resource://</code> 注册 → 磁盘回环 → 去重与引用历史）。</p>
-      <div class="callout warn">跑 <code>./gradlew test</code> 会重写 bootRun 正在使用的 <code>build/classes</code>——运行中的服务随即全站 500（NoClassDefFoundError），重启服务即解。</div>
+      <h2 id="02-verify"><span class="hno">02-E</span>验收体系与回归纪律</h2>
+      <p>全量测试按域分批执行（同一 JVM 跑全量会触发 Mockito self-attach 风暴）；Docker 集成测试由 <code>WEKNORA_SANDBOX_DOCKER_IT=true</code> 门控，覆盖容器执行面与产物排水全链（容器 → 收集器 → <code>resource://</code> 注册 → 磁盘回环 → 去重与引用历史）。日常提交跑受影响批，交付门跑全量五批。</p>
+      <div class="note">
+        <span class="tag">陷阱</span>
+        跑 <code>./gradlew test</code> 会重写 bootRun 正在使用的 <code>build/classes</code>——运行中的服务随即全站 500（NoClassDefFoundError），重启服务即解。
+      </div>
     </section>
 
-    <!-- ================= 功能模块 ================= -->
-    <section class="page" id="page-modules">
-      <div class="crumb">功能模块</div>
-      <h1>功能模块</h1>
-      <p class="lead">37 个领域包覆盖上游全部业务面；以下按使用视角分组。<span class="pill done">✓ 已完成</span><span class="pill xdep">◆ 部署依赖</span><span class="pill owner">◈ 暂缓</span></p>
+    <!-- ============================== 03 Agent 工作流 ============================== -->
+    <section class="page vp" id="page-03">
+      <header class="sheet-head">
+        <div class="sheet-no">Docs / Agent 工作流</div>
+        <h1>四类内置 Agent：一条固定管线，三个工具循环预设</h1>
+        <p class="sheet-lead">四类 Agent 共享同一个入口与会话装配；分歧发生在装配之后——<b>快速问答</b>走固定的 RAG 插件管线，<b>智能推理 / 维基问答 / 数据分析师</b>共用同一个 ReAct 工具循环，靠预设的工具白名单与迭代预算分化。</p>
+        <div class="sheet-meta">
+          <span>内置角色 <b>6 个</b>（其中问答面 4 个）</span>
+          <span>入口 <b>POST /api/v1/agent-chat/{id}</b></span>
+        </div>
+      </header>
 
-      <h2 id="modules-core">会话 · 检索 · 文档</h2>
+      <h2 id="03-agents"><span class="hno">03-A</span>四类路径对照</h2>
+      <div class="tracks">
+        <div class="tracks-inner">
+          <div class="tk-head">
+            <div>阶段</div>
+            <div>快速问答<span class="sub">quick-answer</span></div>
+            <div>智能推理<span class="sub">rag-qa</span></div>
+            <div>维基问答<span class="sub">wiki-qa</span></div>
+            <div>数据分析师<span class="sub">data-analysis</span></div>
+          </div>
 
-      <h3>知识库与知识管理 <span class="pill done">✓ 已完成</span></h3>
-      <p>KB / 文档 / 文件夹全生命周期：创建（含 FAQ / wiki 能力位）、可见性、配额、软删除与统计；文档上传后进入处理管线（docreader 解析 → 分块 → 向量化 → 摘要 fan-out），全程产出 <b>spans 时间线</b>（前端「查看 Trace」按 attempt/阶段展开）；支持复制 / 移动 / 重处理 / 批量操作；标签体系与按标签检索。</p>
-      <p><b>代表端点</b>：<code>POST/GET/PUT/DELETE /knowledge-bases</code>、<code>POST /knowledge-bases/{id}/knowledge</code>、<code>GET …/files</code>、<code>GET …/copy/progress/{task}</code>。<b>技术要点</b>：EnsureDefaults 钩子（服务层/repo 层两级）、jsonb 列 DEFAULT 语义、ParadeDB 混合索引。</p>
+          <div class="tk-row">
+            <div class="tk-stage">① 接入<span class="sf">四类共享</span></div>
+            <div class="tk-cell span4 shared-row"><span class="c-strong">POST /api/v1/agent-chat/{id}</span>（<code>/knowledge-chat/{id}</code> 恒走快答）→ 会话装配：加载 agent 配置、解析工具集（内置 / MCP）、绑定租户与知识库范围。</div>
+          </div>
 
-      <h3>分块与编辑 <span class="pill done">✓ 已完成</span></h3>
-      <p>chunker 父子分块（可 <code>POST /chunker/preview</code> 预览诊断）；chunk 编辑面 10 条路由：内容/启用状态修订（<b>修订历史 + 乐观锁</b>，冲突返回 409）、问题生成（LLM）、手动向量重建；删除联动向量与 FAQ 清理。</p>
+          <div class="tk-row">
+            <div class="tk-stage">② 运行体<span class="sf">分歧从这里开始</span></div>
+            <div class="tk-cell"><span class="c-strong">chatpipeline</span><span class="sub2">固定插件管线 · QaMode.NORMAL</span>按配置拼装阶段链，不进入工具循环。</div>
+            <div class="tk-cell"><span class="c-strong">AgentEngine</span><span class="sub2">ReAct 循环 · QaMode.AGENT</span>按白名单注册 KB 五件工具。</div>
+            <div class="tk-cell"><span class="c-strong">AgentEngine</span><span class="sub2">同左 · 工具面不同</span>wiki 十件工具，需 wiki 能力 KB 门控。</div>
+            <div class="tk-cell"><span class="c-strong">AgentEngine</span><span class="sub2">同左 · 开反思</span>DuckDB 两件工具，附 reflection。</div>
+          </div>
+
+          <div class="tk-row">
+            <div class="tk-stage">③ 理解 / 推理</div>
+            <div class="tk-cell">查询理解 <span class="c-strong">QUERY_UNDERSTAND</span>：意图分类 / 改写 / 低召回变体扩展。</div>
+            <div class="tk-cell">推理出站 <span class="c-strong">think_start → think_result</span>（thinking 流分离推理与答案）。</div>
+            <div class="tk-cell">先定位再读页：search → read，引用落到具体 wiki 页。</div>
+            <div class="tk-cell">先看表结构（data_schema）再写 SQL，避免盲写。</div>
+          </div>
+
+          <div class="tk-row">
+            <div class="tk-stage">④ 执行</div>
+            <div class="tk-cell">一次检索链：混合检索 → 重排 → 合并 → 截断（无「决策—工具」往返）。</div>
+            <div class="tk-cell">knowledge_search · grep_chunks · list_knowledge_chunks · query_knowledge_graph · get_document_info<span class="loop">↻ 结果回灌 · 预算 50 轮</span></div>
+            <div class="tk-cell">wiki_search · wiki_read_page · wiki_read_source_doc · wiki_flag_issue …（共十件）<span class="loop">↻ 结果回灌 · 预算 30 轮</span></div>
+            <div class="tk-cell">data_schema · data_analysis（DuckDB 内存表：CREATE TABLE → DESCRIBE → SELECT）<span class="loop">↻ 带反思 · 预算 30 轮</span></div>
+          </div>
+
+          <div class="tk-row">
+            <div class="tk-stage">⑤ 收敛</div>
+            <div class="tk-cell"><span class="c-strong">CHAT_COMPLETION_STREAM</span> 流式生成。</div>
+            <div class="tk-cell"><span class="c-strong">final_answer</span>；超预算 / 失败折向降级收敛。</div>
+            <div class="tk-cell"><span class="c-strong">final_answer</span>（引用 wiki 页与源文档）。</div>
+            <div class="tk-cell"><span class="c-strong">final_answer</span>（表格 / 数值结论）。</div>
+          </div>
+
+          <div class="tk-row">
+            <div class="tk-stage">⑥ 回传<span class="sf">四类共享</span></div>
+            <div class="tk-cell span4 shared-row">SSE 帧流收尾一律 <span class="c-strong">answer → complete</span>（错误为 error）。差异在首帧：快答路径不产生 <code>agent_query</code> / <code>thinking</code>，进度改由 <code>tool_call</code> / <code>tool_result</code> 承载阶段名。</div>
+          </div>
+
+          <div class="tk-note">
+            <b>读法</b>：灰底行（① ⑥）为四类共享段，② 起四列分化——快答没有「决策—工具」往返，一次检索链后直接生成；三类智能推理共用引擎，差别只在工具白名单、迭代预算与是否开反思。
+          </div>
+        </div>
+      </div>
+
+      <h2 id="03-frames"><span class="hno">03-B</span>SSE 帧序对照</h2>
+      <p>同一句提问，两条路径回传的帧序不同——这是客户端（前端 / IM 渠道）必须知道的契约差异：快答路径<b>没有</b> <code>agent_query</code> 与 <code>thinking</code> 帧，其进度以 <code>tool_call</code> / <code>tool_result</code> 帧承载阶段名（<code>query_understand</code>、<code>knowledge_search</code>）。</p>
+      <div class="frames-cmp">
+        <div class="fc-row">
+          <div class="fc-lab">快速问答<span class="sub">quick-answer</span></div>
+          <div class="fc-frames">
+            <span class="none">无 agent_query / 无 thinking</span>
+            <span class="frame">tool_call(query_understand)</span><span class="frame">tool_result</span><span class="frame">tool_call(knowledge_search)</span><span class="frame">tool_result</span><span class="frame k">answer</span><span class="frame k">complete</span>
+          </div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-lab">智能推理<span class="sub">rag-qa</span></div>
+          <div class="fc-frames">
+            <span class="frame k">agent_query</span><span class="frame">thinking</span><span class="frame">tool_call</span><span class="frame">tool_result</span><span class="frame">… ↻ 可多轮 …</span><span class="frame k">answer</span><span class="frame k">complete</span>
+          </div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-lab">维基问答<span class="sub">wiki-qa</span></div>
+          <div class="fc-frames">
+            <span class="frame k">agent_query</span><span class="frame">thinking</span><span class="frame">tool_call(wiki_*)</span><span class="frame">tool_result</span><span class="frame k">answer</span><span class="frame k">complete</span>
+          </div>
+        </div>
+        <div class="fc-row">
+          <div class="fc-lab">数据分析师<span class="sub">data-analysis</span></div>
+          <div class="fc-frames">
+            <span class="frame k">agent_query</span><span class="frame">thinking</span><span class="frame">tool_call(data_schema)</span><span class="frame">tool_call(data_analysis)</span><span class="frame">reflection</span><span class="frame k">answer</span><span class="frame k">complete</span>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <span class="tag">契约</span>
+        错误帧为 <code>error</code>；产物挂载另有 <code>artifacts_pending</code>；工具输出流可有 <code>command_output</code>。以上帧序在双端 A/B 脚本中逐帧对拍。
+      </div>
+
+      <h2 id="03-diff"><span class="hno">03-C</span>差异一览</h2>
+      <table class="tbl">
+        <tr><th style="width:132px">维度</th><th>快速问答</th><th>智能推理</th><th>维基问答</th><th>数据分析师</th></tr>
+        <tr>
+          <td>运行体</td>
+          <td>chatpipeline（<code>QaMode.NORMAL</code>）</td>
+          <td>AgentEngine ReAct（<code>QaMode.AGENT</code>）</td>
+          <td>同左</td>
+          <td>同左</td>
+        </tr>
+        <tr>
+          <td>工具循环</td>
+          <td>无（固定插件链）</td>
+          <td>有，预算 <b>50</b></td>
+          <td>有，预算 <b>30</b></td>
+          <td>有，预算 <b>30</b></td>
+        </tr>
+        <tr>
+          <td>工具集</td>
+          <td>管线内置（检索 / 重排 / 合并等插件）</td>
+          <td>KB 五件</td>
+          <td>wiki 十件（读侧）</td>
+          <td>DuckDB 两件</td>
+        </tr>
+        <tr>
+          <td>知识依赖</td>
+          <td>强依赖 KB（RAG 型 KB 能力过滤）</td>
+          <td>KB 可选</td>
+          <td>需 wiki 能力 KB</td>
+          <td>依赖含 CSV / Excel 的 KB 或会话附件</td>
+        </tr>
+        <tr>
+          <td>反思</td>
+          <td>—</td>
+          <td>关</td>
+          <td>关</td>
+          <td><b>开</b>（<code>reflection_enabled: true</code>）</td>
+        </tr>
+        <tr>
+          <td>首帧</td>
+          <td>无 <code>agent_query</code></td>
+          <td colspan="3"><code>agent_query</code>（<code>knowledge-chat</code> 入口不会产生）</td>
+        </tr>
+        <tr>
+          <td>特殊阶段</td>
+          <td>query_understand · rerank · web_fetch · wiki 加成 · DATA_ANALYSIS 阶段</td>
+          <td>thinking · todo · 压缩 compaction · 沙箱 shell_exec · 产物 artifacts_pending</td>
+          <td>wiki 页读写与该 issue 标记；页面<b>生成</b>属摄取管线，不在此路径</td>
+          <td>DuckDB 内存表建模；无沙箱依赖</td>
+        </tr>
+      </table>
+      <div class="note">
+        <span class="tag">边界</span>
+        维基问答与数据分析师<b>不是</b>独立 <code>agent_mode</code>——它们与智能推理同为 <code>smart-reasoning</code>，由 <code>agent_type</code> 预设（<code>wiki-qa</code> / <code>data-analysis</code>）切换工具白名单、系统提示词与预算。内置角色共 6 个，另两个（维基修订、技能安装器）属写侧管线，不在问答对比内。
+      </div>
+
+      <h3 id="03-pick">选用指引</h3>
+      <p>四个角色没有强弱之分，差别是<b>适用边界</b>——按「问题形态」选，而不是按「哪个更强」选。</p>
+      <div class="use-grid">
+        <div class="use-card">
+          <h4>快速问答</h4>
+          <span class="mode">quick-answer</span>
+          <dl>
+            <dt><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>适用</dt>
+            <dd>单轮事实问答；答案在知识库里；对延迟敏感（固定检索链，无工具往返）。</dd>
+            <dt class="no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>别用</dt>
+            <dd>需要多步推理、跨工具编排——它没有工具循环可回旋。</dd>
+          </dl>
+        </div>
+        <div class="use-card">
+          <h4>智能推理</h4>
+          <span class="mode">smart-reasoning · rag-qa</span>
+          <dl>
+            <dt><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>适用</dt>
+            <dd>需要多轮检索与推理：跨多个知识库、查图谱、反复核对引用。</dd>
+            <dt class="no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>别用</dt>
+            <dd>纯闲聊或单轮事实问答——固定管线更快、更省预算。</dd>
+          </dl>
+        </div>
+        <div class="use-card">
+          <h4>维基问答</h4>
+          <span class="mode">smart-reasoning · wiki-qa</span>
+          <dl>
+            <dt><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>适用</dt>
+            <dd>知识库已开 wiki 能力；问题面向条目化知识，需要页级引用与源文档回溯。</dd>
+            <dt class="no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>别用</dt>
+            <dd>KB 未开 wiki（工具被门控）；或只需普通文档检索。</dd>
+          </dl>
+        </div>
+        <div class="use-card">
+          <h4>数据分析师</h4>
+          <span class="mode">smart-reasoning · data-analysis</span>
+          <dl>
+            <dt><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>适用</dt>
+            <dd>会话附件或 KB 里有 CSV / Excel；需要统计、聚合与表格化结论。</dd>
+            <dt class="no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>别用</dt>
+            <dd>纯文本知识问答；对超大表做高频扫描（DuckDB 在会话内建内存表）。</dd>
+          </dl>
+        </div>
+      </div>
+
+      <h2 id="03-code"><span class="hno">03-D</span>代码坐标</h2>
+      <p>以上每条路径都可在仓库内按名核查：</p>
+      <details class="block">
+        <summary>展开类与配置清单（9 项）</summary>
+        <div class="body">
+          <h4>builtin_agents.yaml</h4>
+          <ul>
+            <li>六个内置角色的唯一配置源：<code>server/src/main/resources/agentm/builtin_agents.yaml</code>（模式 / 预算 / 白名单 / 反思开关）</li>
+            <li>装载与列表：<code>agentm/service/BuiltinAgentRegistry.java</code></li>
+            <li>预设详解：<code>agentm/agent_type_presets.yaml</code> · <code>agentm/service/AgentTypePresets.java</code></li>
+          </ul>
+          <h4>入口与分派</h4>
+          <ul>
+            <li><code>session/controller/KnowledgeQaController.java</code>——<code>/knowledge-chat/{id}</code> 恒走快答；<code>/agent-chat/{id}</code> 按 <code>agent_mode</code> 分派</li>
+            <li>分派谓词：<code>SessionKnowledgeQaService.isAgentMode</code></li>
+          </ul>
+          <h4>两条执行体</h4>
+          <ul>
+            <li>快答管线：<code>chatpipeline/PipelineEventType.java</code>（阶段常量）+ <code>session/service/QaWiring.java</code>（插件注册）</li>
+            <li>工具循环：<code>agent/AgentEngine.java</code>（<code>executeLoop</code> / 预算 / 降级收敛）</li>
+          </ul>
+          <h4>工具与回传</h4>
+          <ul>
+            <li>wiki：<code>agent/tools/WikiSearchTool.java</code> 等十件；DuckDB：<code>agent/tools/DataAnalysisTool.java</code> · <code>DataSchemaTool.java</code> · <code>SqlGuard.java</code></li>
+            <li>SSE 帧桥：<code>session/service/AgentStreamBridge.java</code>（17 种事件 → 线上帧）</li>
+          </ul>
+        </div>
+      </details>
+
+      <h2 id="03-diagram"><span class="hno">03-E</span>主循环原图（工具生成）</h2>
+      <p>下面这张交互图由 <code>docs/site/agent-workflow.json</code> 经 Archify 生成，描述的是智能推理（及其两个预设）共用的 ReAct 主路径与失败 / 上限收敛支路。</p>
+      <details class="block">
+        <summary>展开主循环交互图（Archify 生成）</summary>
+        <div class="body">
+          <iframe class="embed-wide" src="agent-workflow.html" style="height: 640px" loading="lazy" title="AgentEngine 主循环交互图"></iframe>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============================== 04 功能模块 ============================== -->
+    <section class="page vp" id="page-04">
+      <header class="sheet-head">
+        <div class="sheet-no">Docs / 功能模块</div>
+        <h1>功能模块</h1>
+        <p class="sheet-lead">37 个领域包覆盖上游全部业务面；以下按使用视角分组，逐项标注状态。</p>
+        <div class="sheet-meta">
+          <span><b>已完成</b> 现行</span>
+          <span><b>部署依赖</b> 接缝已备，真实环境接线</span>
+          <span><b>暂缓</b> 恢复条件已记录</span>
+        </div>
+      </header>
+
+      <h2 id="04-core"><span class="hno">04-A</span>会话 · 检索 · 文档</h2>
+
+      <h3>知识库与知识管理 <span class="pill done">已完成</span></h3>
+      <p>KB / 文档 / 文件夹全生命周期：创建（含 FAQ / wiki 能力位）、可见性、配额、软删除与统计；文档上传后进入处理管线（docreader 解析 → 分块 → 向量化 → 摘要 fan-out），全程产出 <b>spans 时间线</b>（前端「查看 Trace」按 attempt / 阶段展开）；支持复制 / 移动 / 重处理 / 批量操作；标签体系与按标签检索。</p>
+      <p><b>代表端点</b>：<code>POST/GET/PUT/DELETE /knowledge-bases</code>、<code>POST /knowledge-bases/{id}/knowledge</code>、<code>GET …/files</code>、<code>GET …/copy/progress/{task}</code>。<b>技术要点</b>：EnsureDefaults 钩子（服务层 / repo 层两级）、jsonb 列 DEFAULT 语义、ParadeDB 混合索引。</p>
+
+      <h3>分块与编辑 <span class="pill done">已完成</span></h3>
+      <p>chunker 父子分块（可 <code>POST /chunker/preview</code> 预览诊断）；chunk 编辑面 10 条路由：内容 / 启用状态修订（<b>修订历史 + 乐观锁</b>，冲突返回 409）、问题生成（LLM）、手动向量重建；删除联动向量与 FAQ 清理。</p>
       <p><b>代表端点</b>：<code>PUT /chunks/{id}</code>、<code>GET /chunks/{id}/revisions</code>、<code>POST /chunks/{id}/reprocess</code>。<b>技术要点</b>：修订快照、needsEmbedding 判定两级语义、ChunkVectorIndexer。</p>
 
-      <h3>混合检索 <span class="pill done">✓ 已完成</span></h3>
+      <h3>混合检索 <span class="pill done">已完成</span></h3>
       <p>查询理解（意图分类 / 改写 / 低召回变体扩展）→ <b>pgvector HNSW 向量检索 + ParadeDB BM25 关键词检索 → RRF 融合</b> → rerank 重排 → 图片信息富化 → 引用装配；FAQ 命中按阈值直出标准问答（双优先级）。<code>GET /knowledge-bases/{id}/hybrid-search</code> 与会话链路共用同一执行面，dev 双端已逐字节对拍。</p>
 
-      <h3>会话与消息 <span class="pill done">✓ 已完成</span></h3>
-      <p>会话 CRUD / 置顶 / 删除三件套；消息历史（分页 / 搜索 hybrid+vector / 统计 / 删除）；SSE 契约层：<b>final_answer 分片重组、superseded preamble 剔除、错误信封三形态</b>；continue-stream 断线续流；steer 插话（排队/提升/删除）；追问建议（curated + LLM 生成）；产物挂载与 <code>resource://</code> 引用回带。</p>
+      <h3>会话与消息 <span class="pill done">已完成</span></h3>
+      <p>会话 CRUD / 置顶 / 删除三件套；消息历史（分页 / 搜索 hybrid+vector / 统计 / 删除）；SSE 契约层：<b>final_answer 分片重组、superseded preamble 剔除、错误信封三形态</b>；continue-stream 断线续流；steer 插话（排队 / 提升 / 删除）；追问建议（curated + LLM 生成）；产物挂载与 <code>resource://</code> 引用回带。</p>
 
-      <h3>Wiki 能力 <span class="pill done">✓ 已完成</span></h3>
+      <h3>Wiki 能力 <span class="pill done">已完成</span></h3>
       <p>21 端点：页 CRUD / slug 别名 / 反向链接 / lint 检查 / 索引页重建 / 批量导入；生成管线由 agent 驱动（builtin-wiki-researcher 等内建角色）；issue 标记与状态流转；KB 删除级联守卫。</p>
 
-      <h3>FAQ 能力 <span class="pill done">✓ 已完成</span></h3>
+      <h3>FAQ 能力 <span class="pill done">已完成</span></h3>
       <p>问答对 CRUD、批量导入导出（分批执行 + 成功清单）、字段批量更新、双优先级检索直出（score boost 可配）；以 chunk 承载并向量化。</p>
 
-      <h2 id="modules-agent">Agent · 工具 · 沙箱</h2>
+      <h2 id="04-agent"><span class="hno">04-B</span>Agent · 工具 · 沙箱</h2>
 
-      <h3>Agent 引擎 <span class="pill done">✓ 已完成</span></h3>
-      <p>AgentEngine：thinking 流（分离推理与答案）、迭代工具循环（最大轮次 / 上下文预算）、输出预算分摊（批式结果按 max-min 公平切）、steer 运行中插话、压缩（compaction）、事件总线 17 种事件经 AgentStreamBridge 转 SSE。模式分派：knowledge-chat 快答 vs agent-chat 引擎（<code>agent_mode</code> 判定）。</p>
+      <h3>Agent 引擎 <span class="pill done">已完成</span></h3>
+      <p>AgentEngine：thinking 流（分离推理与答案）、迭代工具循环（最大轮次 / 上下文预算）、输出预算分摊（批式结果按 max-min 公平切）、steer 运行中插话、压缩（compaction）、事件总线 17 种事件经 AgentStreamBridge 转 SSE。模式分派：knowledge-chat 快答 vs agent-chat 引擎（<code>agent_mode</code> 判定）——四类路径见 <a href="#03" style="border-bottom:1px solid var(--rule-2)">图 03</a>。</p>
 
-      <h3>内置工具 30+ <span class="pill done">✓ 已完成</span></h3>
-      <p>知识检索族（knowledge_search / grep_chunks / list_knowledge_chunks / query_knowledge_graph / get_document_info / database_query / data_schema）、wiki 十件、<b>web_search / web_fetch</b>（搜索服务商 12+、页面抓取为 Markdown、全页快照存储、读续偏移）、会话/记忆/数据库查询；工具出站与响应均有字节级对拍。</p>
+      <h3>内置工具 30+ <span class="pill done">已完成</span></h3>
+      <p>知识检索族（knowledge_search / grep_chunks / list_knowledge_chunks / query_knowledge_graph / get_document_info / database_query / data_schema）、wiki 十件、<b>web_search / web_fetch</b>（搜索服务商 12+、页面抓取为 Markdown、全页快照存储、读续偏移）、会话 / 记忆 / 数据库查询；工具出站与响应均有字节级对拍。</p>
 
-      <h3>技能与沙箱 <span class="pill done">✓ 已完成</span></h3>
+      <h3>技能与沙箱 <span class="pill done">已完成</span></h3>
       <p>技能目录（上传 / 分类 / 版本）→ <b>安装管线</b>（installer agent 驱动依赖安装、进度事件、镜像快照 ContainerCommit、指针切换指纹复核）→ 会话执行（shell_exec / 文件工具 / 凭据三层注入 / 附件 staging / <b>产物排水</b>：容器文件 → resource:// 注册 → 消息挂载 → 前端下载）。</p>
 
-      <h3>网络搜索与网页抓取 <span class="pill done">✓ 已完成</span></h3>
-      <p>web_search：12+ 服务商（含 Brave 过滤、黑名单）、结果清洗（canonical 去重）与内容直抓（前 3 条并行摘录）；web_fetch：批量读取（1-8 项）、快照缓存与 LRU、续读预算、GitHub blob→raw 归一；完整页可存 <code>web://</code> 快照供 read_file 回读。</p>
+      <h3>网络搜索与网页抓取 <span class="pill done">已完成</span></h3>
+      <p>web_search：12+ 服务商（含 Brave 过滤、黑名单）、结果清洗（canonical 去重）与内容直抓（前 3 条并行摘录）；web_fetch：批量读取（1–8 项）、快照缓存与 LRU、续读预算、GitHub blob→raw 归一；完整页可存 <code>web://</code> 快照供 read_file 回读。</p>
 
-      <h3>MCP 集成 <span class="pill done">✓ 已完成</span></h3>
+      <h3>MCP 集成 <span class="pill done">已完成</span></h3>
       <p>自研 MCP 协议客户端（工具发现 / 调用 / 审批门禁）、OAuth 全链（授权码 + 令牌刷新）、目录与工具动态发布；per-turn @提及范围收窄。</p>
 
-      <h3>数据源导入 <span class="pill done">✓ 已完成</span></h3>
+      <h3>数据源导入 <span class="pill done">已完成</span></h3>
       <p>连接器框架 + gitlab / feishu(云盘 Docx) / notion / yuque / RSS 等连接器：同步任务（增量 cursor / 检查点）、知识桥接（自动打标 / 入库）、连接测试。</p>
 
-      <h2 id="modules-collab">协作 · 集成 · 平台</h2>
+      <h2 id="04-collab"><span class="hno">04-C</span>协作 · 集成 · 平台</h2>
 
-      <h3>租户 / 用户 / 认证 <span class="pill done">✓ 已完成</span></h3>
+      <h3>租户 / 用户 / 认证 <span class="pill done">已完成</span></h3>
       <p>注册 / 登录 / 刷新 / 登出、OIDC（未配置 = disabled 契约）、成员邀请（JWT 邀请链 + 角色升级）、跨租户切换（X-Tenant-ID）、API-Key 体系（scope 能力位 + 数据面 KB 白名单 + gin 风格路由策略）、审计日志（拒绝审计 / request_path 模板）。</p>
 
-      <h3>组织与共享 <span class="pill done">✓ 已完成</span></h3>
-      <p>组织 25 条路由（成员 / 加入审批 / 邀请码）；KB 共享（viewer/editor 两级）、agent 共享（只读 QA 解析链：共享优先 → own 回落 → 404）、消息文件跨租户授予（证据链 fail-closed）；shared-* 读入口。</p>
+      <h3>组织与共享 <span class="pill done">已完成</span></h3>
+      <p>组织 25 条路由（成员 / 加入审批 / 邀请码）；KB 共享（viewer / editor 两级）、agent 共享（只读 QA 解析链：共享优先 → own 回落 → 404）、消息文件跨租户授予（证据链 fail-closed）；shared-* 读入口。</p>
 
-      <h3>IM 集成 <span class="pill done">✓ 已完成</span> <span class="pill xdep">◆ 平台客户端传输</span></h3>
-      <p>IM 服务管线（消息处理 / qaqueue / supervisor / 命令族 / 频道会话映射）+ 渠道回调与出站：企业微信（自持 AES 信封 + 智能机器人 WS）、飞书/Lark（CardKit 流式 + 长连接）、钉钉（Stream 长连接 + AI 卡片）、Mattermost（outgoing webhook + 流式改帖）、微信扫码登录（iLink）、telegram/slack 等验签核心。<b>平台客户端的网络传输层</b>属部署依赖，真实部署时补齐。</p>
+      <h3>IM 集成 <span class="pill done">已完成</span> <span class="pill xdep">平台客户端传输</span></h3>
+      <p>IM 服务管线（消息处理 / qaqueue / supervisor / 命令族 / 频道会话映射）+ 渠道回调与出站：企业微信（自持 AES 信封 + 智能机器人 WS）、飞书 / Lark（CardKit 流式 + 长连接）、钉钉（Stream 长连接 + AI 卡片）、Mattermost（outgoing webhook + 流式改帖）、微信扫码登录（iLink）、telegram / slack 等验签核心。<b>平台客户端的网络传输层</b>属部署依赖，真实部署时补齐。</p>
 
-      <h3>网页嵌入 <span class="pill done">✓ 已完成</span></h3>
+      <h3>网页嵌入 <span class="pill done">已完成</span></h3>
       <p>embed channel 管理、访客会话（embed session）、跨域嵌入脚本、嵌入问答走与主站相同的 QA 管线。</p>
 
-      <h3>模型管理 <span class="pill done">✓ 已完成</span></h3>
-      <p>多供应商模型 CRUD（OpenAI 兼容 / Anthropic / Ollama / WeKnoraCloud…）、AES-GCM 凭据加密（与 Go 双端密文互操作）、连通性测试与 <code>POST /models/{id}/debug</code> 调试端点（24 场景双端逐字节）；多模态（VLM/ASR/Embedding/Rerank 五类）。</p>
+      <h3>模型管理 <span class="pill done">已完成</span></h3>
+      <p>多供应商模型 CRUD（OpenAI 兼容 / Anthropic / Ollama / WeKnoraCloud…）、AES-GCM 凭据加密（与 Go 双端密文互操作）、连通性测试与 <code>POST /models/{id}/debug</code> 调试端点（24 场景双端逐字节）；多模态（VLM / ASR / Embedding / Rerank 五类）。</p>
 
-      <h3>存储后端与文件代理 <span class="pill done">✓ 已完成</span></h3>
+      <h3>存储后端与文件代理 <span class="pill done">已完成</span></h3>
       <p>存储后端 CRUD / 连接测试；文件代理：<code>GET /files</code>、<code>/r/*</code> 能力 URL（2h TTL，派生令牌优先）、预签名 GET/HEAD、KB 与消息两种作用域代理；HTTP Range / 条件请求 / RFC 2231 文件名。</p>
 
-      <h3>长期记忆 <span class="pill done">✓ 已完成</span></h3>
-      <p>16 条路由：记忆抽取（LLM 管线）、主题/主体建模、检索（向量 + 文档亲和）、生命周期（过期/合并）、文档亲和度统计。</p>
+      <h3>长期记忆 <span class="pill done">已完成</span></h3>
+      <p>16 条路由：记忆抽取（LLM 管线）、主题 / 主体建模、检索（向量 + 文档亲和）、生命周期（过期 / 合并）、文档亲和度统计。</p>
 
-      <h3>平台管理与系统管理员 <span class="pill done">✓ 已完成</span></h3>
+      <h3>平台管理与系统管理员 <span class="pill done">已完成</span></h3>
       <p><code>/system</code> 能力查询与 <code>/system/admin</code> 管理端 15 条：系统设置（沙箱开关 / SSRF 白名单 / 并发上限，运行时推送）、sandbox-check 诊断、kv 配置。</p>
 
-      <h3>可观测性与审计 <span class="pill done">✓ 已完成</span></h3>
+      <h3>可观测性与审计 <span class="pill done">已完成</span></h3>
       <p>审计日志（62 个 AuditAction、请求路径模板）；文档处理 spans（attempt / 阶段 / 取消 / 心跳，前端 Trace 视图）；langfuse 追踪为备案降级（no-op 等价于 Go 未启用）。</p>
 
-      <h3>评估能力 <span class="pill owner">◈ 暂缓</span></h3>
+      <h3>评估能力 <span class="pill owner">暂缓</span></h3>
       <p>数据面（dataset 加载 / QaPair）已备；执行步暂缓（前端无入口、需 jieba 依赖；恢复条件 = 出现评估调用需求）。</p>
 
-      <h3>终端 PTY <span class="pill xdep">◆ 部署依赖</span></h3>
-      <p>cube/e2b 远程终端的中性层（RemoteTerminalOptions、事件/会话接口、idle 钳位、输入聚合）已落地；provider 传输属部署依赖（docker 无 PTY）。</p>
-
+      <h3>终端 PTY <span class="pill xdep">部署依赖</span></h3>
+      <p>cube / e2b 远程终端：envd PTY 执行体、协议与事件三态（exited / error / input-closed）已在本地桩覆盖下落地；provider 控制面属部署依赖，真实环境接线后启用。</p>
     </section>
 
-    <!-- ================= API 参考 ================= -->
-    <section class="page" id="page-api">
-      <div class="crumb">API 参考</div>
-      <h1>API 总览</h1>
-      <p class="lead">REST 前缀 <code>/api/v1</code>；鉴权为 Bearer JWT（或具备 scope 的 API-Key）。以下路由分组由控制器注解程序化生成，与实现同步。</p>
-      <table>
-        <tr><th>域</th><th>分组</th><th>路由数</th></tr>
+    <!-- ============================== 05 API 参考 ============================== -->
+    <section class="page vp" id="page-05">
+      <header class="sheet-head">
+        <div class="sheet-no">Docs / API 参考</div>
+        <h1>API 总览</h1>
+        <p class="sheet-lead">REST 前缀 <code>/api/v1</code>；鉴权为 Bearer JWT（或具备 scope 的 API-Key）。以下路由由控制器注解程序化生成，与实现同步。</p>
+        <div class="sheet-meta">
+          <span>路由 <b>452</b></span>
+          <span>分组 <b>45</b></span>
+          <span>生成 <b>scripts/generate-api-docs.py</b></span>
+        </div>
+      </header>
+
+      <h2 id="05-overview"><span class="hno">05-A</span>按域总览</h2>
+      <table class="tbl">
+        <thead><tr><th style="width:210px">域</th><th>分组</th><th style="width:80px">路由数</th></tr></thead>
         <tbody id="api-overview-rows"></tbody>
       </table>
 
-      <h2 id="api-groups">分组明细</h2>
-      <p>下表展开各域的路由构成（方法 / 路径 / RBAC 门槛 / API-Key 策略摘要）。</p>
-      <div id="api-groups-table"></div>
+      <h2 id="05-groups"><span class="hno">05-B</span>分组明细</h2>
+      <p>点开分组查看方法 / 路径 / 角色门槛 / API-Key 策略；也可先过滤再展开。</p>
+      <div class="api-bar" id="apiBar">
+        <button class="mbtn on" data-m="" type="button">全部</button>
+        <button class="mbtn" data-m="GET" type="button">GET</button>
+        <button class="mbtn" data-m="POST" type="button">POST</button>
+        <button class="mbtn" data-m="PUT" type="button">PUT</button>
+        <button class="mbtn" data-m="DELETE" type="button">DELETE</button>
+        <button class="mbtn" data-m="PATCH" type="button">PATCH</button>
+        <button class="mbtn" data-m="HEAD" type="button">HEAD</button>
+        <input type="search" id="apiFind" placeholder="过滤：路径 / 处理器 / 说明" autocomplete="off">
+        <span class="cnt" id="apiCount"></span>
+      </div>
+      <div id="api-groups"></div>
 
-      <h2 id="api-full">完整可搜索参考</h2>
+      <h2 id="05-full"><span class="hno">05-C</span>完整可搜索参考</h2>
       <p>完整交互式参考（全部 452 条路由，支持正则搜索与方法过滤）见
-        <a href="api/index.html" target="_blank" rel="noopener">API 文档页 ↗</a>，或直接在下方便携查看：</p>
-      <iframe src="api/index.html" style="height: 720px" loading="lazy" title="API 可搜索参考"></iframe>
-      <div class="callout">重新生成：<code>python3 scripts/generate-api-docs.py</code>（解析控制器注解 + WebConfig RBAC + APIKeyRoutePolicies 策略）。</div>
+        <a href="api/index.html" target="_blank" rel="noopener" style="border-bottom:1px solid var(--rule-2)">API 文档页 ↗</a>，或直接在下方便携查看：</p>
+      <iframe class="embed-wide" src="api/index.html" style="height: 780px" loading="lazy" title="API 可搜索参考"></iframe>
+      <div class="note">
+        <span class="tag">重新生成</span>
+        <code>python3 scripts/generate-api-docs.py</code>（解析控制器注解 + WebConfig RBAC + APIKeyRoutePolicies 策略）。
+      </div>
     </section>
 
-  
-        </div>
-        <aside class="VPDocAside">
-          <div class="outline-title">本页目录</div>
-          <div class="outline" id="outline"></div>
-        </aside>
-      </div>
+      <footer class="foot">
+        <span>ragagent-java · 校样图册</span>
+        <span>修订 2026-09-26</span>
+        <span>源自 Tencent/WeKnora（Apache-2.0）</span>
+        <a href="../HANDOFF.md">HANDOFF</a>
+        <a href="../translation-log.md">翻译日志</a>
+        <a href="../known-issues/">known-issues</a>
+      </footer>
+
+      </article>
+      <aside class="outline" aria-label="本页条目">
+        <div class="ol-title">本页条目</div>
+        <div id="outline"></div>
+      </aside>
     </div>
-  </div>
+  </main>
 </div>
 
 <script>
 const __API = {"groups": [{"domain": "agent", "label": "agent", "routes": [{"method": "POST", "path": "/api/v1/agent/mcp-oauth-resolutions/{}", "rbac": null, "description": "对照 Go {@code ResolveMCPOAuth}：前端在弹窗授权完成后调用；后端<b>先确认 token", "handler": "resolveMcpOAuth"}, {"method": "POST", "path": "/api/v1/agent/mcp-oauth-resolutions/{}/cancel", "rbac": null, "description": "对照 Go {@code CancelMCPOAuth}：用户主动跳过授权，以\"拒绝\"解除 Agent 阻塞。", "handler": "cancelMcpOAuth"}, {"method": "POST", "path": "/api/v1/agent/tool-approvals/{}", "rbac": null, "description": "对照 ResolveToolApproval — Viewer+", "handler": "resolveToolApproval"}]}, {"domain": "agent-chat", "label": "Agent 问答", "routes": [{"method": "POST", "path": "/api/v1/agent-chat/{}", "rbac": null, "description": "", "handler": "agentQA"}]}, {"domain": "agents", "label": "Agent", "routes": [{"method": "GET", "path": "/api/v1/agents", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "list"}, {"method": "POST", "path": "/api/v1/agents", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "", "handler": "create"}, {"method": "GET", "path": "/api/v1/agents/placeholders", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "placeholders"}, {"method": "GET", "path": "/api/v1/agents/type-presets", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "typePresets"}, {"method": "GET", "path": "/api/v1/agents/{}", "rbac": null, "description": "", "handler": "get"}, {"method": "PUT", "path": "/api/v1/agents/{}", "rbac": null, "description": "", "handler": "update"}, {"method": "DELETE", "path": "/api/v1/agents/{}", "rbac": null, "description": "", "handler": "delete"}, {"method": "POST", "path": "/api/v1/agents/{}/copy", "rbac": null, "description": "", "handler": "copy"}, {"method": "GET", "path": "/api/v1/agents/{}/embed-channels", "rbac": null, "description": "对照 ListEmbedChannels。", "handler": "listByAgent"}, {"method": "POST", "path": "/api/v1/agents/{}/embed-channels", "rbac": null, "description": "对照 CreateEmbedChannel：201 + gin.H（字母序）。", "handler": "create"}, {"method": "GET", "path": "/api/v1/agents/{}/im-channels", "rbac": null, "description": "对照 ListIMChannels：凭据不出现在列表行（IMChannelSummary）。", "handler": "listByAgent"}, {"method": "POST", "path": "/api/v1/agents/{}/im-channels", "rbac": null, "description": "对照 CreateIMChannel：200（不是 201）。", "handler": "create"}, {"method": "GET", "path": "/api/v1/agents/{}/shares", "rbac": null, "description": "", "handler": "listAgentShares"}, {"method": "POST", "path": "/api/v1/agents/{}/shares", "rbac": null, "description": "", "handler": "shareAgent"}, {"method": "DELETE", "path": "/api/v1/agents/{}/shares/{}", "rbac": null, "description": "", "handler": "removeAgentShare"}, {"method": "GET", "path": "/api/v1/agents/{}/suggested-questions", "rbac": null, "description": "", "handler": "suggestedQuestions"}]}, {"domain": "auth", "label": "认证与账号", "routes": [{"method": "POST", "path": "/api/v1/auth/auto-setup", "rbac": null, "description": "", "handler": "autoSetup"}, {"method": "POST", "path": "/api/v1/auth/change-password", "rbac": null, "description": "", "handler": "changePassword"}, {"method": "GET", "path": "/api/v1/auth/config", "rbac": null, "description": "", "handler": "getAuthConfig"}, {"method": "POST", "path": "/api/v1/auth/invitations/lookup", "rbac": null, "description": "", "handler": "lookupInvitation"}, {"method": "POST", "path": "/api/v1/auth/login", "rbac": null, "description": "", "handler": "login"}, {"method": "POST", "path": "/api/v1/auth/logout", "rbac": null, "description": "POST /auth/logout（对照 Logout，L517-560）。", "handler": "logout"}, {"method": "GET", "path": "/api/v1/auth/me", "rbac": null, "description": "", "handler": "getCurrentUser"}, {"method": "PUT", "path": "/api/v1/auth/me/preferences", "rbac": null, "description": "", "handler": "updateMyPreferences"}, {"method": "GET", "path": "/api/v1/auth/oidc/callback", "rbac": null, "description": "", "handler": "oidcRedirectCallback"}, {"method": "GET", "path": "/api/v1/auth/oidc/config", "rbac": null, "description": "", "handler": "getOidcConfig"}, {"method": "GET", "path": "/api/v1/auth/oidc/start", "rbac": null, "description": "", "handler": "oidcStart"}, {"method": "GET", "path": "/api/v1/auth/oidc/url", "rbac": null, "description": "", "handler": "getOidcAuthorizationUrl"}, {"method": "POST", "path": "/api/v1/auth/refresh", "rbac": null, "description": "POST /auth/refresh（对照 RefreshToken，L569-611）。noAuthAPI 白名单路径", "handler": "refreshToken"}, {"method": "POST", "path": "/api/v1/auth/register", "rbac": null, "description": "", "handler": "register"}, {"method": "POST", "path": "/api/v1/auth/register-by-invite", "rbac": null, "description": "", "handler": "registerByInvite"}, {"method": "POST", "path": "/api/v1/auth/switch-tenant", "rbac": null, "description": "POST /auth/switch-tenant（对照 SwitchTenant，L856-893）。tenant-optional", "handler": "switchTenant"}, {"method": "GET", "path": "/api/v1/auth/validate", "rbac": null, "description": "", "handler": "validateToken"}]}, {"domain": "chunker", "label": "分块预览", "routes": [{"method": "POST", "path": "/api/v1/chunker/preview", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "切分结果 + 诊断（parent-child 时 chunks = children）。", "handler": "previewChunking"}]}, {"domain": "chunks", "label": "Chunk 编辑", "routes": [{"method": "GET", "path": "/api/v1/chunks/by-id/{}", "rbac": null, "description": "对照 GetChunkByIDOnly（L53-83）：不需要 knowledge_id。", "handler": "getChunkByIdOnly"}, {"method": "PUT", "path": "/api/v1/chunks/by-id/{}/questions", "rbac": null, "description": "对照 UpsertGeneratedQuestion（L322-339）。", "handler": "upsertGeneratedQuestion"}, {"method": "DELETE", "path": "/api/v1/chunks/by-id/{}/questions", "rbac": null, "description": "对照 DeleteGeneratedQuestion（L440-472）：任何 bind 失败都落固定文案。", "handler": "deleteGeneratedQuestion"}, {"method": "POST", "path": "/api/v1/chunks/by-id/{}/questions/regenerate", "rbac": null, "description": "对照 RegenerateGeneratedQuestions（L341-353）。", "handler": "regenerateGeneratedQuestions"}, {"method": "GET", "path": "/api/v1/chunks/{}", "rbac": null, "description": "对照 ListKnowledgeChunks（L99-152）。分页钳位：page&lt;1→1、size&lt;1→10、size&gt;100→100。", "handler": "listKnowledgeChunks"}, {"method": "DELETE", "path": "/api/v1/chunks/{}", "rbac": null, "description": "对照 DeleteChunksByKnowledgeID（L403-424）。", "handler": "deleteChunksByKnowledgeId"}, {"method": "PUT", "path": "/api/v1/chunks/{}/{}", "rbac": null, "description": "对照 UpdateChunk（L211-255）。业务失败（fmt.Errorf 族）→ 500 信封 message=原文。", "handler": "updateChunk"}, {"method": "DELETE", "path": "/api/v1/chunks/{}/{}", "rbac": null, "description": "对照 DeleteChunk（L369-389）。", "handler": "deleteChunk"}, {"method": "POST", "path": "/api/v1/chunks/{}/{}/revert", "rbac": null, "description": "对照 RevertChunk（L276-315）。注意：非 AppError 在这里是 **400** 不是 500。", "handler": "revertChunk"}, {"method": "GET", "path": "/api/v1/chunks/{}/{}/revisions", "rbac": null, "description": "对照 ListChunkRevisions（L257-269）。", "handler": "listChunkRevisions"}]}, {"domain": "datasource", "label": "数据源", "routes": [{"method": "GET", "path": "/api/v1/datasource", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code ListDataSources}（L161-186）。", "handler": "listDataSources"}, {"method": "POST", "path": "/api/v1/datasource", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 Go {@code CreateDataSource}（L91-122）：成功是 <b>201<\/b> Created。", "handler": "createDataSource"}, {"method": "GET", "path": "/api/v1/datasource/logs/{}", "rbac": null, "description": "对照 Go {@code GetSyncLog}（L578-600）。", "handler": "getSyncLog"}, {"method": "GET", "path": "/api/v1/datasource/types", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code GetAvailableConnectors}（L609-612）。", "handler": "getAvailableConnectors"}, {"method": "POST", "path": "/api/v1/datasource/validate-credentials", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 Go {@code ValidateCredentials}（L309-332）：用裸凭据试连，<b>不落库<\/b>。", "handler": "validateCredentials"}, {"method": "GET", "path": "/api/v1/datasource/{}", "rbac": null, "description": "对照 Go {@code GetDataSource}（L133-150）。", "handler": "getDataSource"}, {"method": "PUT", "path": "/api/v1/datasource/{}", "rbac": null, "description": "对照 Go {@code UpdateDataSource}（L199-231）。", "handler": "updateDataSource"}, {"method": "DELETE", "path": "/api/v1/datasource/{}", "rbac": null, "description": "对照 Go {@code DeleteDataSource}（L241-262）：成功是 <b>204<\/b>，无响应体。", "handler": "deleteDataSource"}, {"method": "PUT", "path": "/api/v1/datasource/{}/credentials", "rbac": null, "description": "对照 Go {@code Put}（L62-95）：整体替换凭据并立刻做一次真实连接校验", "handler": "put"}, {"method": "DELETE", "path": "/api/v1/datasource/{}/credentials/{}", "rbac": null, "description": "对照 Go {@code DeleteField}（L97-115）：只认 {@code \"credentials\"} 这一个字段名。", "handler": "deleteField"}, {"method": "GET", "path": "/api/v1/datasource/{}/logs", "rbac": null, "description": "对照 Go {@code GetSyncLogs}（L524-567）。", "handler": "getSyncLogs"}, {"method": "POST", "path": "/api/v1/datasource/{}/pause", "rbac": null, "description": "对照 Go {@code PauseDataSource}（L459-480）。", "handler": "pauseDataSource"}, {"method": "POST", "path": "/api/v1/datasource/{}/resource-ancestors", "rbac": null, "description": "对照 Go {@code ResolveResourceAncestors}（L381-412）。", "handler": "resolveResourceAncestors"}, {"method": "GET", "path": "/api/v1/datasource/{}/resources", "rbac": null, "description": "对照 Go {@code ListAvailableResources}（L343-369）。", "handler": "listAvailableResources"}, {"method": "POST", "path": "/api/v1/datasource/{}/resume", "rbac": null, "description": "对照 Go {@code ResumeDataSource}（L490-511）。", "handler": "resumeDataSource"}, {"method": "POST", "path": "/api/v1/datasource/{}/sync", "rbac": null, "description": "对照 Go {@code ManualSync}（L427-449）：返回新建的 sync_log 裸实体。", "handler": "manualSync"}, {"method": "POST", "path": "/api/v1/datasource/{}/validate", "rbac": null, "description": "对照 Go {@code ValidateConnection}（L272-293）：成功回 {@code {\"status\":\"connected\"}}。", "handler": "validateConnection"}]}, {"domain": "embed", "label": "嵌入问答", "routes": [{"method": "POST", "path": "/api/v1/embed/{}/agent-chat/{}", "rbac": null, "description": "对照 EmbedAgentChat（L464-466）：patch 后按渠道 agent 分派 AgentQA/KnowledgeQA。", "handler": "agentChat"}, {"method": "GET", "path": "/api/v1/embed/{}/chunks/{}", "rbac": null, "description": "对照 GetEmbedChunk。", "handler": "chunk"}, {"method": "GET", "path": "/api/v1/embed/{}/config", "rbac": null, "description": "对照 GetEmbedConfig。", "handler": "config"}, {"method": "POST", "path": "/api/v1/embed/{}/exchange", "rbac": null, "description": "对照 ExchangeEmbedSession：只有 publish token 能换 session token。", "handler": "exchange"}, {"method": "GET", "path": "/api/v1/embed/{}/files", "rbac": null, "description": "对照 routes_agent.go L255：embed 文件代理与 /files 共用同一 handler 体", "handler": "embedFiles"}, {"method": "POST", "path": "/api/v1/embed/{}/knowledge-chat/{}", "rbac": null, "description": "对照 EmbedKnowledgeChat（L460-462）：patch 后委托 KnowledgeQA。", "handler": "knowledgeChat"}, {"method": "GET", "path": "/api/v1/embed/{}/messages/{}/load", "rbac": null, "description": "对照 EmbedLoadMessages：先 ensureEmbedSession，再委托 MessageController.LoadMessages。", "handler": "load"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions", "rbac": null, "description": "对照 CreateEmbedSession：201 {id, sig}。", "handler": "createSession"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/events", "rbac": null, "description": "对照 EmbedRelayWebhookEvent：message_sent / message_received 之外全拒；", "handler": "events"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/mcp-oauth-resolutions/{}", "rbac": null, "description": "对照 EmbedResolveMCPOAuth（gate 依赖分支；Gate 未接线时 500，与 Go dev 装配差 = 已知差异）。", "handler": "mcpResolve"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/mcp-oauth-resolutions/{}/cancel", "rbac": null, "description": "对照 EmbedCancelMCPOAuth。", "handler": "mcpResolveCancel"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/mcp-services/{}/oauth/authorize-url", "rbac": null, "description": "对照 EmbedMCPOAuthAuthorizeURL（委托 McpOAuthController.AuthorizeURL）。", "handler": "mcpAuthorize"}, {"method": "GET", "path": "/api/v1/embed/{}/sessions/{}/mcp-services/{}/oauth/status", "rbac": null, "description": "对照 EmbedMCPOAuthStatus（委托 McpOAuthController.Status）。", "handler": "mcpStatus"}, {"method": "GET", "path": "/api/v1/embed/{}/sessions/{}/messages/{}/suggestions", "rbac": null, "description": "对照 EmbedGetMessageSuggestions：channel 级 suppressed 分支优先于委托。", "handler": "suggestionsGet"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/messages/{}/suggestions", "rbac": null, "description": "对照 EmbedEnsureMessageSuggestions。", "handler": "suggestionsEnsure"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/stop", "rbac": null, "description": "对照 EmbedStopSession：委托 SessionController.StopSession。", "handler": "stop"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/suggestion-events", "rbac": null, "description": "对照 EmbedRecordSuggestionEvent：成功 204 无响应体。", "handler": "suggestionEvents"}, {"method": "POST", "path": "/api/v1/embed/{}/sessions/{}/tool-approvals/{}", "rbac": null, "description": "对照 EmbedResolveToolApproval（gate 依赖分支；Gate 未接线时 500 = 已知差异）。", "handler": "toolApprovals"}, {"method": "GET", "path": "/api/v1/embed/{}/suggested-questions", "rbac": null, "description": "对照 GetEmbedSuggestedQuestions。", "handler": "suggestedQuestions"}]}, {"domain": "embed-channels", "label": "嵌入渠道", "routes": [{"method": "GET", "path": "/api/v1/embed-channels", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 ListAllEmbedChannels（跨 agent，publish token 永不出现在列表里）。", "handler": "listAll"}, {"method": "GET", "path": "/api/v1/embed-channels/{}", "rbac": null, "description": "对照 GetEmbedChannel：管理详情**含** publish token。", "handler": "get"}, {"method": "PUT", "path": "/api/v1/embed-channels/{}", "rbac": null, "description": "对照 UpdateEmbedChannel：200 + gin.H（不含 publish token）。", "handler": "update"}, {"method": "DELETE", "path": "/api/v1/embed-channels/{}", "rbac": null, "description": "对照 DeleteEmbedChannel：{\"success\":true}。", "handler": "delete"}, {"method": "POST", "path": "/api/v1/embed-channels/{}/preview-session", "rbac": null, "description": "对照 IssuePreviewSession：禁用渠道 → 403 \"embed channel is disabled\"（专用分支）。", "handler": "preview"}, {"method": "POST", "path": "/api/v1/embed-channels/{}/rotate-token", "rbac": null, "description": "对照 RotateEmbedToken：200 + 含新 token 的行。", "handler": "rotate"}, {"method": "GET", "path": "/api/v1/embed-channels/{}/stats", "rbac": null, "description": "对照 GetEmbedChannelStats：{session_count:N}。", "handler": "stats"}]}, {"domain": "evaluation", "label": "评估", "routes": [{"method": "GET", "path": "/api/v1/evaluation", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "getEvaluationResult"}, {"method": "POST", "path": "/api/v1/evaluation", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "evaluation"}]}, {"domain": "faq", "label": "FAQ", "routes": [{"method": "GET", "path": "/api/v1/faq/import/progress/{}", "rbac": null, "description": "对照 GetImportProgress（faq.go L507-526）：requireTaskProgressTenant 先于 service 查询。", "handler": "getImportProgress"}]}, {"domain": "files", "label": "文件代理", "routes": [{"method": "GET", "path": "/api/v1/files/presigned", "rbac": null, "description": "Go 只注册了 GET：gin 对 HEAD 落 NoRoute（404 \"404 page not found\"，", "handler": "presigned"}, {"method": "HEAD", "path": "/api/v1/files/presigned", "rbac": null, "description": "Go 只注册了 GET：gin 对 HEAD 落 NoRoute（404 \"404 page not found\"，", "handler": "presigned"}, {"method": "GET", "path": "/api/v1/files/presigned-preview", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "presignedPreview"}, {"method": "HEAD", "path": "/api/v1/files/presigned-preview", "rbac": null, "description": "", "handler": "presignedPreviewHead"}, {"method": "GET", "path": "/files", "rbac": null, "description": "排除（WebConfig），本控制器", "handler": "files"}, {"method": "HEAD", "path": "/files", "rbac": null, "description": "Go 只注册了 GET：gin 对 HEAD 落 NoRoute（404 \"404 page not found\"，", "handler": "filesHead"}]}, {"domain": "health", "label": "健康检查", "routes": [{"method": "GET", "path": "/health", "rbac": null, "description": "对照 Go internal/router/router.go 的 /health：{\"status\":\"ok\"}（无需认证）。", "handler": "health"}]}, {"domain": "im", "label": "IM 集成", "routes": [{"method": "GET", "path": "/api/v1/im/callback/{}", "rbac": null, "description": "", "handler": "callbackGet"}, {"method": "POST", "path": "/api/v1/im/callback/{}", "rbac": null, "description": "", "handler": "callbackPost"}]}, {"domain": "im-channels", "label": "IM 渠道", "routes": [{"method": "GET", "path": "/api/v1/im-channels", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 ListAllIMChannels：跨 agent 总览（ChannelWithAgent，带 agent_name）。", "handler": "listAll"}, {"method": "PUT", "path": "/api/v1/im-channels/{}", "rbac": null, "description": "对照 UpdateIMChannel。", "handler": "update"}, {"method": "DELETE", "path": "/api/v1/im-channels/{}", "rbac": null, "description": "对照 DeleteIMChannel：任何失败都落 500 \"failed to delete channel\"。", "handler": "delete"}, {"method": "POST", "path": "/api/v1/im-channels/{}/toggle", "rbac": null, "description": "对照 ToggleIMChannel：任何失败都落 500 \"failed to toggle channel\"。", "handler": "toggle"}]}, {"domain": "initialization", "label": "初始化向导", "routes": [{"method": "POST", "path": "/api/v1/initialization/asr/check", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/asr/check——发一段静默 WAV 验证 transcription 端点。", "handler": "asrCheck"}, {"method": "GET", "path": "/api/v1/initialization/config/{}", "rbac": null, "description": "", "handler": "getConfig"}, {"method": "PUT", "path": "/api/v1/initialization/config/{}", "rbac": null, "description": "", "handler": "updateConfig"}, {"method": "POST", "path": "/api/v1/initialization/embedding/test", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/embedding/test——embed 一次 \"hello\" 并回报维度。", "handler": "embeddingTest"}, {"method": "POST", "path": "/api/v1/initialization/extract/fabri-tag", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/extract/fabri-tag——随机标签组（无 LLM 调用）。", "handler": "fabriTag"}, {"method": "POST", "path": "/api/v1/initialization/extract/fabri-text", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/extract/fabri-text——按标签生成示例文本（LLM 驱动）。", "handler": "fabriText"}, {"method": "POST", "path": "/api/v1/initialization/extract/text-relation", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/extract/text-relation——LLM 驱动的实体关系抽取。", "handler": "extractTextRelations"}, {"method": "POST", "path": "/api/v1/initialization/initialize/{}", "rbac": null, "description": "", "handler": "initialize"}, {"method": "POST", "path": "/api/v1/initialization/multimodal/test", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/multimodal/test——multipart 上传图片，走 DocReader 解析。", "handler": "multimodalTest"}, {"method": "GET", "path": "/api/v1/initialization/ollama/download/progress/{}", "rbac": null, "description": "GET /initialization/ollama/download/progress/:taskId——DownloadTask 按 struct 序输出。", "handler": "downloadProgress"}, {"method": "GET", "path": "/api/v1/initialization/ollama/download/tasks", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "GET /initialization/ollama/download/tasks——全量任务列表（map 序随机）。", "handler": "downloadTasksList"}, {"method": "GET", "path": "/api/v1/initialization/ollama/models", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "GET /initialization/ollama/models——ListModelsDetailed（name/size/digest/modified_at）。", "handler": "ollamaModels"}, {"method": "POST", "path": "/api/v1/initialization/ollama/models/check", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/ollama/models/check——逐模型可用性（map 按名字母序）。", "handler": "ollamaModelsCheck"}, {"method": "POST", "path": "/api/v1/initialization/ollama/models/download", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/ollama/models/download——建任务 + 虚拟线程异步拉取。", "handler": "ollamaModelDownload"}, {"method": "GET", "path": "/api/v1/initialization/ollama/status", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "GET /initialization/ollama/status——StartService 失败仍是 200 + available:false。", "handler": "ollamaStatus"}, {"method": "POST", "path": "/api/v1/initialization/remote/check", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/remote/check——chat 模块最小化连通性调用。", "handler": "remoteCheck"}, {"method": "POST", "path": "/api/v1/initialization/rerank/check", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "POST /initialization/rerank/check——rerank 一次 [\"ping\"]/[\"pong\"]。", "handler": "rerankCheck"}]}, {"domain": "knowledge", "label": "文档", "routes": [{"method": "GET", "path": "/api/v1/knowledge/batch", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 GetKnowledgeBatch（GET /knowledge/batch）。query 绑定：ids required", "handler": "getKnowledgeBatch"}, {"method": "POST", "path": "/api/v1/knowledge/batch-delete", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "对照 BatchDeleteKnowledge：dedupe/maxBatch → KB 访问+ownership → 行校验（含", "handler": "batchDeleteKnowledge"}, {"method": "POST", "path": "/api/v1/knowledge/batch-reparse", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "对照 BatchReparseKnowledge：bind 失败固定文案；行校验的 count 文案与 batch-delete 不同。", "handler": "batchReparseKnowledge"}, {"method": "POST", "path": "/api/v1/knowledge/folder", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "对照 MoveKnowledgeToFolder：body 携带 kb_id/folder_path（目的地不存在即创建）", "handler": "moveKnowledgeToFolder"}, {"method": "PUT", "path": "/api/v1/knowledge/image/{}/{}", "rbac": null, "description": "对照 UpdateImageInfo：ownership + KBAccessWrite + image_info 解析/归属/向量分支", "handler": "updateImageInfo"}, {"method": "PUT", "path": "/api/v1/knowledge/manual/{}", "rbac": null, "description": "对照 UpdateManualKnowledge：ownership + KBAccessWrite + 手工内容校验", "handler": "updateManualKnowledge"}, {"method": "POST", "path": "/api/v1/knowledge/move", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "对照 MoveKnowledge（POST /knowledge/move，Contributor；body 携带 source/target，", "handler": "moveKnowledge"}, {"method": "GET", "path": "/api/v1/knowledge/move/progress/{}", "rbac": null, "description": "对照 GetKnowledgeMoveProgress：租户隔离（ParseTaskID）→ 进度（404 文案专属）。", "handler": "getKnowledgeMoveProgress"}, {"method": "GET", "path": "/api/v1/knowledge/search", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 SearchKnowledge（GET /knowledge/search，Viewer、无 KB 守卫——跨库搜索，", "handler": "searchKnowledge"}, {"method": "PUT", "path": "/api/v1/knowledge/tags", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "对照 UpdateKnowledgeTagBatch：body 携带可选 kb_id；无 kb_id 时从首条 knowledge 推导", "handler": "updateKnowledgeTagBatch"}, {"method": "GET", "path": "/api/v1/knowledge/{}", "rbac": null, "description": "对照 GetKnowledge：路由带 KBAccessReadFromKnowledgeIDParam（守卫链同款分层）", "handler": "getKnowledge"}, {"method": "PUT", "path": "/api/v1/knowledge/{}", "rbac": null, "description": "对照 UpdateKnowledge — 守卫链 + 部分更新，响应 success/message/data（字母序）", "handler": "updateKnowledge"}, {"method": "DELETE", "path": "/api/v1/knowledge/{}", "rbac": null, "description": "对照 DeleteKnowledge：守卫链 + RejectMoving + 异步语义（返回 task_id）", "handler": "deleteKnowledge"}, {"method": "POST", "path": "/api/v1/knowledge/{}/cancel-parse", "rbac": null, "description": "对照 CancelKnowledgeParse：ownership + KBAccessWrite + 状态机（幂等/拒绝）", "handler": "cancelKnowledgeParse"}, {"method": "GET", "path": "/api/v1/knowledge/{}/download", "rbac": null, "description": "对照 DownloadKnowledgeFile：Contributor 路由门 + KBAccessWrite + handler 内 Editor 检查", "handler": "downloadKnowledgeFile"}, {"method": "GET", "path": "/api/v1/knowledge/{}/preview", "rbac": null, "description": "对照 PreviewKnowledgeFile：Viewer + KBAccessRead，Content-Type 按扩展名", "handler": "previewKnowledgeFile"}, {"method": "POST", "path": "/api/v1/knowledge/{}/regenerate-summary", "rbac": null, "description": "对照 RegenerateKnowledgeSummary：ownership + KBAccessWrite + 成功 200 {\"success\",\"data\"}", "handler": "regenerateKnowledgeSummary"}, {"method": "POST", "path": "/api/v1/knowledge/{}/reparse", "rbac": null, "description": "对照 ReparseKnowledge：ownership + KBAccessWrite；空 body 保留上传时配置", "handler": "reparseKnowledge"}, {"method": "GET", "path": "/api/v1/knowledge/{}/spans", "rbac": null, "description": "对照 GetKnowledgeSpans（/stages 与 /spans 两个路径同 handler；gin.H 键字母序）", "handler": "getKnowledgeSpans"}, {"method": "GET", "path": "/api/v1/knowledge/{}/stages", "rbac": null, "description": "对照 GetKnowledgeSpans（/stages 与 /spans 两个路径同 handler；gin.H 键字母序）", "handler": "getKnowledgeSpans"}]}, {"domain": "knowledge-bases", "label": "知识库", "routes": [{"method": "GET", "path": "/api/v1/knowledge-bases", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 ListKnowledgeBases — Viewer+；creator=mine|others 过滤。", "handler": "listKnowledgeBases"}, {"method": "POST", "path": "/api/v1/knowledge-bases", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "对照 CreateKnowledgeBase — Contributor+", "handler": "createKnowledgeBase"}, {"method": "POST", "path": "/api/v1/knowledge-bases/copy", "rbac": {"minRole": "CONTRIBUTOR", "orSystemAdmin": false}, "description": "对照 CopyKnowledgeBase（POST /knowledge-bases/copy，Contributor；源在 body）。", "handler": "copyKnowledgeBase"}, {"method": "GET", "path": "/api/v1/knowledge-bases/copy/progress/{}", "rbac": null, "description": "对照 GetKBCloneProgress：租户隔离 + 404 \"KB clone task not found\"。", "handler": "getKBCloneProgress"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}", "rbac": null, "description": "对照 GetKnowledgeBase — Viewer+（KBAccessRead：本租户全员可读）", "handler": "getKnowledgeBase"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}", "rbac": null, "description": "对照 UpdateKnowledgeBase — OwnedKBOrAdmin + KBAccessWrite（handler 内 permission 校验阶段 3 简化）", "handler": "updateKnowledgeBase"}, {"method": "DELETE", "path": "/api/v1/knowledge-bases/{}", "rbac": null, "description": "对照 DeleteKnowledgeBase — 所有者租户 + Admin", "handler": "deleteKnowledgeBase"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/activity", "rbac": null, "description": "对照 Go {@code ListKnowledgeBaseActivity}（L127-170）：单个知识库的 durable 活动投影。", "handler": "listKnowledgeBaseActivity"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/duplicate", "rbac": null, "description": "对照 DuplicateKnowledgeBase（POST /{id}/duplicate，201）：路由 KBAccessRead 先拒", "handler": "duplicateKnowledgeBase"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/faq/entries", "rbac": null, "description": "对照 ListEntries（faq.go L81-123）。", "handler": "listEntries"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/faq/entries", "rbac": null, "description": "对照 UpsertEntries（faq.go L159-184）：异步导入，返回 task_id。", "handler": "upsertEntries"}, {"method": "DELETE", "path": "/api/v1/knowledge-bases/{}/faq/entries", "rbac": null, "description": "对照 DeleteEntries（faq.go L346-366）。", "handler": "deleteEntries"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/faq/entries/export", "rbac": null, "description": "对照 ExportEntries（faq.go L425-456）：CSV（默认，含 BOM）或 JSON（?format=json）。", "handler": "exportEntries"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/faq/entries/fields", "rbac": null, "description": "对照 UpdateEntryFieldsBatch（faq.go L300-331）。", "handler": "updateEntryFieldsBatch"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/faq/entries/tags", "rbac": null, "description": "对照 UpdateEntryTagBatch（faq.go L280-298）。", "handler": "updateEntryTagBatch"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/faq/entries/{}", "rbac": null, "description": "对照 GetEntry（faq.go L472-493）。", "handler": "getEntry"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/faq/entries/{}", "rbac": null, "description": "对照 UpdateEntry（faq.go L237-265）：先 binding 后 entry_id 解析（Go 的顺序）。", "handler": "updateEntry"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/faq/entries/{}/similar-questions", "rbac": null, "description": "对照 AddSimilarQuestions（faq.go L579-607）：entry_id 解析在 binding 之前。", "handler": "addSimilarQuestions"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/faq/entry", "rbac": null, "description": "对照 CreateEntry（faq.go L199-221）：同步创建。", "handler": "createEntry"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/faq/import/last-result/display", "rbac": null, "description": "对照 UpdateLastImportResultDisplayStatus（faq.go L542-562）。", "handler": "updateLastImportResultDisplayStatus"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/faq/search", "rbac": null, "description": "对照 SearchFAQ（faq.go L381-409）：matchCount 先钳 [10,200]（service 再钳 50）。", "handler": "searchFAQ"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/files", "rbac": null, "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。", "handler": "files"}, {"method": "HEAD", "path": "/api/v1/knowledge-bases/{}/files", "rbac": null, "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。", "handler": "filesHead"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/hybrid-search", "rbac": null, "description": "对照 GET /knowledge-bases/{id}/hybrid-search（同 handler，body 语义一致）。", "handler": "hybridSearchGet"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/hybrid-search", "rbac": null, "description": "对照 HybridSearch（POST 为主；GET 携带 JSON body 兼容 #1727——两条路由同一 handler）。", "handler": "hybridSearchPost"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/knowledge", "rbac": null, "description": "对照 ListKnowledge — 真分页，顶层 data/page/page_size/total/success（字母序）", "handler": "listKnowledge"}, {"method": "DELETE", "path": "/api/v1/knowledge-bases/{}/knowledge", "rbac": null, "description": "对照 ClearKnowledgeBaseContents：Admin 路由门 + 仅 owner 租户可清", "handler": "clearKnowledgeBaseContents"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/knowledge/file", "rbac": null, "description": "对照 CreateKnowledgeFromFile — multipart（字段名严格对照 Go：file/fileName/metadata/tag_ids/channel/process_con", "handler": "createFromFile"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/knowledge/folders", "rbac": null, "description": "对照 ListKnowledgeFolders", "handler": "listFolders"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/knowledge/folders", "rbac": null, "description": "对照 RenameKnowledgeFolder：路由 ownership（纯字符串）→ 绑定 → handler 链 → service", "handler": "renameKnowledgeFolder"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/knowledge/manual", "rbac": null, "description": "对照 CreateManualKnowledge", "handler": "createManual"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/knowledge/url", "rbac": null, "description": "对照 CreateKnowledgeFromURL — 201；SSRF 校验（对照 handler L88 语义）", "handler": "createFromUrl"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/move-targets", "rbac": null, "description": "对照 ListMoveTargets — Viewer+；返回原始实体序列化（struct 声明序）", "handler": "listMoveTargets"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/pin", "rbac": null, "description": "对照 TogglePinKnowledgeBase — Viewer+（per-(user,kb)）", "handler": "togglePin"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/shares", "rbac": null, "description": "", "handler": "listKBShares"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/shares", "rbac": null, "description": "", "handler": "shareKnowledgeBase"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/shares/{}", "rbac": null, "description": "", "handler": "updateSharePermission"}, {"method": "DELETE", "path": "/api/v1/knowledge-bases/{}/shares/{}", "rbac": null, "description": "", "handler": "removeShare"}, {"method": "GET", "path": "/api/v1/knowledge-bases/{}/tags", "rbac": null, "description": "", "handler": "listTags"}, {"method": "POST", "path": "/api/v1/knowledge-bases/{}/tags", "rbac": null, "description": "", "handler": "createTag"}, {"method": "PUT", "path": "/api/v1/knowledge-bases/{}/tags/{}", "rbac": null, "description": "", "handler": "updateTag"}, {"method": "DELETE", "path": "/api/v1/knowledge-bases/{}/tags/{}", "rbac": null, "description": "对照 updateTagRequest（tag.go L159-163）：全指针字段，无 binding。", "handler": "deleteTag"}]}, {"domain": "knowledge-chat", "label": "知识库问答", "routes": [{"method": "POST", "path": "/api/v1/knowledge-chat/{}", "rbac": null, "description": "", "handler": "knowledgeQA"}]}, {"domain": "knowledge-search", "label": "知识检索", "routes": [{"method": "POST", "path": "/api/v1/knowledge-search", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "searchKnowledge"}]}, {"domain": "knowledgebase", "label": "知识库(旧形态)", "routes": [{"method": "POST", "path": "/api/v1/knowledgebase/{}/wiki/auto-fix", "rbac": null, "description": "对照 Go {@code AutoFix}（L1075-1089）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "autoFix"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/folders", "rbac": null, "description": "对照 Go {@code ListFolders}（L153-177）—— Viewer+ / KBAccessRead。", "handler": "listFolders"}, {"method": "POST", "path": "/api/v1/knowledgebase/{}/wiki/folders", "rbac": null, "description": "对照 Go {@code CreateFolder}（L192-209）—— OwnedWikiKBOrAdmin / KBAccessWrite；201。", "handler": "createFolder"}, {"method": "PUT", "path": "/api/v1/knowledgebase/{}/wiki/folders/{}", "rbac": null, "description": "对照 Go {@code UpdateFolder}（L226-249）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "updateFolder"}, {"method": "DELETE", "path": "/api/v1/knowledgebase/{}/wiki/folders/{}", "rbac": null, "description": "对照 Go {@code DeleteFolder}（L262-278）—— OwnedWikiKBOrAdmin / KBAccessWrite；204。", "handler": "deleteFolder"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/graph", "rbac": null, "description": "对照 Go {@code GetGraph}（L801-878）—— Viewer+ / KBAccessRead。", "handler": "getGraph"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/index", "rbac": null, "description": "对照 Go {@code GetIndex}（L738-769）—— Viewer+ / KBAccessRead。", "handler": "getIndex"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/issues", "rbac": null, "description": "对照 Go {@code ListIssues}（L916-933）—— Viewer+ / KBAccessRead；响应是<b>裸数组<\/b>。", "handler": "listIssues"}, {"method": "PUT", "path": "/api/v1/knowledgebase/{}/wiki/issues/{}/status", "rbac": null, "description": "对照 Go {@code UpdateIssueStatus}（L948-981）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "updateIssueStatus"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/lint", "rbac": null, "description": "对照 Go {@code Lint}（L1050-1064）—— Viewer+ / KBAccessRead。", "handler": "lint"}, {"method": "PUT", "path": "/api/v1/knowledgebase/{}/wiki/move-page", "rbac": null, "description": "对照 Go {@code MovePage}（L292-314）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "movePage"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/pages", "rbac": null, "description": "对照 Go {@code ListPages}（L95-140）—— Viewer+ / KBAccessRead。", "handler": "listPages"}, {"method": "POST", "path": "/api/v1/knowledgebase/{}/wiki/pages", "rbac": null, "description": "对照 Go {@code CreatePage}（L355-390）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "createPage"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/pages/{}", "rbac": null, "description": "对照 Go {@code GetPage}（L416-440）—— Viewer+ / KBAccessRead。", "handler": "getPage"}, {"method": "PUT", "path": "/api/v1/knowledgebase/{}/wiki/pages/{}", "rbac": null, "description": "对照 Go {@code UpdatePage}（L461-547）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "updatePage"}, {"method": "DELETE", "path": "/api/v1/knowledgebase/{}/wiki/pages/{}", "rbac": null, "description": "对照 Go {@code DeletePage}（L692-720）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "deletePage"}, {"method": "POST", "path": "/api/v1/knowledgebase/{}/wiki/rebuild-links", "rbac": null, "description": "对照 Go {@code RebuildLinks}（L1026-1039）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "rebuildLinks"}, {"method": "POST", "path": "/api/v1/knowledgebase/{}/wiki/revert", "rbac": null, "description": "对照 Go {@code RevertPage}（L640-680）—— OwnedWikiKBOrAdmin / KBAccessWrite。", "handler": "revertPage"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/revisions/{}", "rbac": null, "description": "对照 Go {@code ListRevisions}（L565-621）—— Viewer+ / KBAccessRead。", "handler": "listRevisions"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/search", "rbac": null, "description": "对照 Go {@code SearchPages}（L994-1016）—— Viewer+ / KBAccessRead。", "handler": "searchPages"}, {"method": "GET", "path": "/api/v1/knowledgebase/{}/wiki/stats", "rbac": null, "description": "对照 Go {@code GetStats}（L889-903）—— Viewer+ / KBAccessRead。", "handler": "getStats"}]}, {"domain": "local-browser", "label": "本地浏览器", "routes": [{"method": "GET", "path": "/api/v1/local-browser/extension", "rbac": null, "description": "GET /api/v1/local-browser/extension（对照 BrowserSkillExtension → ServeHTTP）", "handler": "extension"}, {"method": "POST", "path": "/api/v1/local-browser/extension/authorize", "rbac": null, "description": "POST /api/v1/local-browser/extension/authorize（对照 BrowserSkillAuthorize）", "handler": "authorize"}, {"method": "POST", "path": "/api/v1/local-browser/internal", "rbac": null, "description": "POST /api/v1/local-browser/internal（对照 BrowserSkillInternal → InternalHTTP）", "handler": "internal"}]}, {"domain": "mcp-oauth", "label": "MCP OAuth", "routes": [{"method": "GET", "path": "/api/v1/mcp-oauth/callback", "rbac": null, "description": "对照 Go {@code Callback}：<b>公开路由<\/b>（无 bearer），靠一次性 state 自证。", "handler": "callback"}]}, {"domain": "mcp-services", "label": "MCP 服务", "routes": [{"method": "GET", "path": "/api/v1/mcp-services", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 ListMCPServices — Viewer+", "handler": "listMCPServices"}, {"method": "POST", "path": "/api/v1/mcp-services", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 CreateMCPService — Admin+", "handler": "createMCPService"}, {"method": "GET", "path": "/api/v1/mcp-services/{}", "rbac": null, "description": "对照 GetMCPService — Viewer+", "handler": "getMCPService"}, {"method": "PUT", "path": "/api/v1/mcp-services/{}", "rbac": null, "description": "对照 UpdateMCPService — Admin+。", "handler": "updateMCPService"}, {"method": "DELETE", "path": "/api/v1/mcp-services/{}", "rbac": null, "description": "对照 DeleteMCPService — Admin+", "handler": "deleteMCPService"}, {"method": "PUT", "path": "/api/v1/mcp-services/{}/credentials", "rbac": null, "description": "写入（创建或替换）一个或多个凭据字段，并触发连接回收，", "handler": "put"}, {"method": "DELETE", "path": "/api/v1/mcp-services/{}/credentials/{}", "rbac": null, "description": "删除单个凭据字段。可识别的字段只有 {@code api_key} 与 {@code token}；", "handler": "deleteField"}, {"method": "GET", "path": "/api/v1/mcp-services/{}/metadata", "rbac": null, "description": "对照 GetMCPMetadata — Viewer+；只读数据库，不连接上游", "handler": "getMCPMetadata"}, {"method": "POST", "path": "/api/v1/mcp-services/{}/metadata/refresh", "rbac": null, "description": "对照 RefreshMCPMetadata — Viewer+（静态鉴权在 handler 内升到 Admin+）。", "handler": "refreshMCPMetadata"}, {"method": "POST", "path": "/api/v1/mcp-services/{}/oauth/authorize-url", "rbac": null, "description": "对照 Go {@code AuthorizeURL}。", "handler": "authorizeUrl"}, {"method": "GET", "path": "/api/v1/mcp-services/{}/oauth/status", "rbac": null, "description": "对照 Go {@code Status}：不带 {@code authorization_attempt} 时返回 token 生命周期状态；", "handler": "status"}, {"method": "DELETE", "path": "/api/v1/mcp-services/{}/oauth/token", "rbac": null, "description": "对照 Go {@code Revoke}：204 + 回收缓存连接，让下一次调用重新走授权。", "handler": "revoke"}, {"method": "GET", "path": "/api/v1/mcp-services/{}/resources", "rbac": null, "description": "对照 GetMCPServiceResources — Viewer+", "handler": "getMCPServiceResources"}, {"method": "POST", "path": "/api/v1/mcp-services/{}/test", "rbac": null, "description": "对照 TestMCPService — Admin+（会主动探测外部基础设施）。", "handler": "testMCPService"}, {"method": "GET", "path": "/api/v1/mcp-services/{}/tool-approvals", "rbac": null, "description": "对照 ListMCPToolApprovals — Viewer+", "handler": "listMCPToolApprovals"}, {"method": "PUT", "path": "/api/v1/mcp-services/{}/tool-approvals/{}", "rbac": null, "description": "对照 SetMCPToolApproval — Admin+。", "handler": "setMCPToolApproval"}, {"method": "GET", "path": "/api/v1/mcp-services/{}/tools", "rbac": null, "description": "对照 GetMCPServiceTools — Viewer+（不落库）", "handler": "getMCPServiceTools"}, {"method": "POST", "path": "/api/v1/mcp-services/{}/usage-instructions/generate", "rbac": null, "description": "对照 GenerateMCPUsageInstructions — Admin+。", "handler": "generateMCPUsageInstructions"}]}, {"domain": "me", "label": "个人设置", "routes": [{"method": "GET", "path": "/api/v1/me/browser", "rbac": null, "description": "GET+POST 同一 handler（对照 Go 两条路由共用 BrowserSkillAccount）", "handler": "account"}, {"method": "POST", "path": "/api/v1/me/browser", "rbac": null, "description": "GET+POST 同一 handler（对照 Go 两条路由共用 BrowserSkillAccount）", "handler": "bindAccount"}, {"method": "GET", "path": "/api/v1/me/browser/extension", "rbac": null, "description": "GET /api/v1/me/browser/extension（对照 BrowserSkillDownload）", "handler": "download"}, {"method": "GET", "path": "/api/v1/me/env-vars", "rbac": null, "description": "对照 {@code List}：每配置一组；值永不返回。", "handler": "list"}, {"method": "PUT", "path": "/api/v1/me/env-vars/sandbox", "rbac": null, "description": "对照 {@code SetSandbox}：注入到该调用者在此配置上的每次 skill 脚本与 shell。", "handler": "setSandbox"}, {"method": "DELETE", "path": "/api/v1/me/env-vars/sandbox", "rbac": null, "description": "对照 {@code DeleteSandbox}。", "handler": "deleteSandbox"}, {"method": "PUT", "path": "/api/v1/me/env-vars/skill", "rbac": null, "description": "对照 {@code SetSkill}：存调用者自己的值；只为该调用者覆盖工作区值。", "handler": "setSkill"}, {"method": "DELETE", "path": "/api/v1/me/env-vars/skill", "rbac": null, "description": "对照 {@code DeleteSkill}：删除后工作区值（若有）重新生效。", "handler": "deleteSkill"}, {"method": "GET", "path": "/api/v1/me/invitations", "rbac": null, "description": "GET /me/invitations（默认仅 pending；include_terminal=true 带终止态）", "handler": "listMyInvitations"}, {"method": "POST", "path": "/api/v1/me/invitations/accept-by-token", "rbac": null, "description": "POST /me/invitations/accept-by-token（已登录用户用共享链接 token 加入；幂等）", "handler": "acceptMyInvitationByToken"}, {"method": "GET", "path": "/api/v1/me/invitations/pending-count", "rbac": null, "description": "GET /me/invitations/pending-count（头像角标轮询的轻量端点）", "handler": "countMyPendingInvitations"}, {"method": "POST", "path": "/api/v1/me/invitations/{}/accept", "rbac": null, "description": "POST /me/invitations/{inv_id}/accept（接受 + 写成员行 + 首空间采纳）", "handler": "acceptMyInvitation"}, {"method": "POST", "path": "/api/v1/me/invitations/{}/decline", "rbac": null, "description": "POST /me/invitations/{inv_id}/decline（拒绝；不建成员行）", "handler": "declineMyInvitation"}]}, {"domain": "memory", "label": "长期记忆", "routes": [{"method": "POST", "path": "/api/v1/memory/consolidate", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code Consolidate}（L437-445）。", "handler": "consolidate"}, {"method": "GET", "path": "/api/v1/memory/documents", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code ListDocuments}（L213-226）。", "handler": "listDocuments"}, {"method": "DELETE", "path": "/api/v1/memory/documents/{}", "rbac": null, "description": "对照 Go {@code DeleteDocument}（L237-244）。", "handler": "deleteDocument"}, {"method": "GET", "path": "/api/v1/memory/export", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code Export}（L392-427）。", "handler": "export"}, {"method": "GET", "path": "/api/v1/memory/items", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code ListItems}（L97-119）。", "handler": "listItems"}, {"method": "POST", "path": "/api/v1/memory/items", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code CreateItem}（L262-275）。", "handler": "createItem"}, {"method": "DELETE", "path": "/api/v1/memory/items", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code Clear}（L374-382）。", "handler": "clear"}, {"method": "PUT", "path": "/api/v1/memory/items/{}", "rbac": null, "description": "对照 Go {@code UpdateItem}（L293-306）。", "handler": "updateItem"}, {"method": "DELETE", "path": "/api/v1/memory/items/{}", "rbac": null, "description": "对照 Go {@code DeleteItem}（L317-324）。", "handler": "deleteItem"}, {"method": "POST", "path": "/api/v1/memory/items/{}/confirm", "rbac": null, "description": "对照 Go {@code ConfirmItem}（L338-346）。", "handler": "confirmItem"}, {"method": "POST", "path": "/api/v1/memory/items/{}/reject", "rbac": null, "description": "对照 Go {@code RejectItem}（L357-364）。", "handler": "rejectItem"}, {"method": "GET", "path": "/api/v1/memory/settings", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code GetSettings}（L39-47）。", "handler": "getSettings"}, {"method": "PUT", "path": "/api/v1/memory/settings", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code UpdateSettings}（L63-84）。", "handler": "updateSettings"}, {"method": "GET", "path": "/api/v1/memory/topics", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code ListTopics}（L151-164）。", "handler": "listTopics"}, {"method": "DELETE", "path": "/api/v1/memory/topics/{}", "rbac": null, "description": "对照 Go {@code DeleteTopic}（L194-201）。", "handler": "deleteTopic"}, {"method": "POST", "path": "/api/v1/memory/topics/{}/promote", "rbac": null, "description": "对照 Go {@code PromoteTopic}（L175-183）。", "handler": "promoteTopic"}]}, {"domain": "messages", "label": "消息", "routes": [{"method": "GET", "path": "/api/v1/messages/chat-history-stats", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code GetChatHistoryKBStats}（L311-327）。", "handler": "getChatHistoryKbStats"}, {"method": "POST", "path": "/api/v1/messages/search", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code SearchMessages}（L247-287）。", "handler": "searchMessages"}, {"method": "GET", "path": "/api/v1/messages/{}/load", "rbac": null, "description": "对照 Go {@code LoadMessages}（L83-178）。", "handler": "loadMessages"}, {"method": "DELETE", "path": "/api/v1/messages/{}/{}", "rbac": null, "description": "对照 Go {@code DeleteMessage}（L193-233）。两个 404 文案**刻意不同**：", "handler": "deleteMessage"}]}, {"domain": "models", "label": "模型配置", "routes": [{"method": "GET", "path": "/api/v1/models", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 ListModels — Viewer+", "handler": "listModels"}, {"method": "POST", "path": "/api/v1/models", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 CreateModel — Admin+", "handler": "createModel"}, {"method": "GET", "path": "/api/v1/models/providers", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 ListModelProviders — Viewer+；model_type 查询参数做前端→后端映射", "handler": "listModelProviders"}, {"method": "GET", "path": "/api/v1/models/weknoracloud/status", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Status — Viewer+：返回结构体（字段序 has_models, needs_reinit, reason?）", "handler": "status"}, {"method": "GET", "path": "/api/v1/models/{}", "rbac": null, "description": "对照 GetModel — Viewer+", "handler": "getModel"}, {"method": "PUT", "path": "/api/v1/models/{}", "rbac": null, "description": "对照 UpdateModel — Admin+（内置模型 SystemAdmin）。", "handler": "updateModel"}, {"method": "DELETE", "path": "/api/v1/models/{}", "rbac": null, "description": "对照 DeleteModel — Admin+", "handler": "deleteModel"}, {"method": "PUT", "path": "/api/v1/models/{}/credentials", "rbac": null, "description": "对照 Go internal/handler/model_credentials.go：模型凭证子资源。", "handler": "put"}, {"method": "DELETE", "path": "/api/v1/models/{}/credentials/{}", "rbac": null, "description": "", "handler": "deleteField"}, {"method": "POST", "path": "/api/v1/models/{}/debug", "rbac": null, "description": "", "handler": "debugModel"}]}, {"domain": "organizations", "label": "组织协作", "routes": [{"method": "GET", "path": "/api/v1/organizations", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "listMyOrganizations"}, {"method": "POST", "path": "/api/v1/organizations", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "createOrganization"}, {"method": "POST", "path": "/api/v1/organizations/join", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "joinByInviteCode"}, {"method": "POST", "path": "/api/v1/organizations/join-by-id", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "joinByOrganizationID"}, {"method": "POST", "path": "/api/v1/organizations/join-request", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "submitJoinRequest"}, {"method": "GET", "path": "/api/v1/organizations/preview/{}", "rbac": null, "description": "", "handler": "previewByInviteCode"}, {"method": "GET", "path": "/api/v1/organizations/search", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "searchOrganizations"}, {"method": "GET", "path": "/api/v1/organizations/{}", "rbac": null, "description": "", "handler": "getOrganization"}, {"method": "PUT", "path": "/api/v1/organizations/{}", "rbac": null, "description": "", "handler": "updateOrganization"}, {"method": "DELETE", "path": "/api/v1/organizations/{}", "rbac": null, "description": "", "handler": "deleteOrganization"}, {"method": "GET", "path": "/api/v1/organizations/{}/agent-shares", "rbac": null, "description": "", "handler": "listOrgAgentShares"}, {"method": "POST", "path": "/api/v1/organizations/{}/invite", "rbac": null, "description": "", "handler": "inviteMember"}, {"method": "POST", "path": "/api/v1/organizations/{}/invite-code", "rbac": null, "description": "", "handler": "generateInviteCode"}, {"method": "GET", "path": "/api/v1/organizations/{}/join-requests", "rbac": null, "description": "", "handler": "listJoinRequests"}, {"method": "PUT", "path": "/api/v1/organizations/{}/join-requests/{}/review", "rbac": null, "description": "", "handler": "reviewJoinRequest"}, {"method": "POST", "path": "/api/v1/organizations/{}/leave", "rbac": null, "description": "", "handler": "leaveOrganization"}, {"method": "GET", "path": "/api/v1/organizations/{}/members", "rbac": null, "description": "", "handler": "listMembers"}, {"method": "PUT", "path": "/api/v1/organizations/{}/members/{}", "rbac": null, "description": "", "handler": "updateMemberRole"}, {"method": "DELETE", "path": "/api/v1/organizations/{}/members/{}", "rbac": null, "description": "", "handler": "removeMember"}, {"method": "POST", "path": "/api/v1/organizations/{}/request-upgrade", "rbac": null, "description": "", "handler": "requestRoleUpgrade"}, {"method": "GET", "path": "/api/v1/organizations/{}/search-tenants", "rbac": null, "description": "", "handler": "searchTenantsForInvite"}, {"method": "GET", "path": "/api/v1/organizations/{}/search-users", "rbac": null, "description": "对照 SearchUsersForInvite：同一 handler 的 deprecated 别名。", "handler": "searchUsersForInvite"}, {"method": "GET", "path": "/api/v1/organizations/{}/shared-agents", "rbac": null, "description": "", "handler": "listOrganizationSharedAgents"}, {"method": "GET", "path": "/api/v1/organizations/{}/shared-knowledge-bases", "rbac": null, "description": "", "handler": "listOrganizationSharedKnowledgeBases"}, {"method": "GET", "path": "/api/v1/organizations/{}/shares", "rbac": null, "description": "", "handler": "listOrgShares"}]}, {"domain": "other", "label": "其他", "routes": [{"method": "GET", "path": "", "rbac": null, "description": "", "handler": "files"}]}, {"domain": "r", "label": "短链资源", "routes": [{"method": "GET", "path": "/r/{}", "rbac": null, "description": "", "handler": "resourceGrant"}, {"method": "HEAD", "path": "/r/{}", "rbac": null, "description": "", "handler": "resourceGrant"}]}, {"domain": "sandbox-configs", "label": "沙箱配置", "routes": [{"method": "GET", "path": "/api/v1/sandbox-configs", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 List：gin.H 三键字母序 data &lt; success &lt; workspace_scripts_disabled。", "handler": "list"}, {"method": "POST", "path": "/api/v1/sandbox-configs", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 Create：201 + 掩码响应。", "handler": "create"}, {"method": "POST", "path": "/api/v1/sandbox-configs/templates/query", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 QueryTemplates：读未保存连接可见的模板；本批失败分支确定（service 类注释）。", "handler": "queryTemplates"}, {"method": "PUT", "path": "/api/v1/sandbox-configs/workspace-policy", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 SetWorkspacePolicy：全工作区切换脚本执行。", "handler": "setWorkspacePolicy"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}", "rbac": null, "description": "对照 Get：404 \"sandbox config not found\"（AppError 信封）。", "handler": "get"}, {"method": "PUT", "path": "/api/v1/sandbox-configs/{}", "rbac": null, "description": "对照 Update：配置拥有活/暂停沙箱时拒绝身份字段变更（409 三态 + 423 cordoned）。", "handler": "update"}, {"method": "DELETE", "path": "/api/v1/sandbox-configs/{}", "rbac": null, "description": "对照 Delete：?force=true 只覆盖无法核实的 provider 清单，从不覆盖确认活着的沙箱。", "handler": "delete"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/sandboxes", "rbac": null, "description": "对照 Inventory：一份配置的活/暂停沙箱清单与受影响 agent 名。", "handler": "inventory"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/skills", "rbac": null, "description": "对照 List。", "handler": "list"}, {"method": "POST", "path": "/api/v1/sandbox-configs/{}/skills", "rbac": null, "description": "对照 Upload：zip 走 multipart，application/json 走 source 定位符。", "handler": "upload"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/skills/{}", "rbac": null, "description": "对照 Get。", "handler": "get"}, {"method": "PATCH", "path": "/api/v1/sandbox-configs/{}/skills/{}", "rbac": null, "description": "对照 Patch：可见性与声明值一次写入（全有或全无）。", "handler": "patch"}, {"method": "DELETE", "path": "/api/v1/sandbox-configs/{}/skills/{}", "rbac": null, "description": "对照 Delete：受理后异步重建镜像（install-events 跟踪）。", "handler": "delete"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/skills/{}/files", "rbac": null, "description": "对照 ListFiles：不起沙箱浏览存量归档。", "handler": "listFiles"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/skills/{}/files/content", "rbac": null, "description": "对照 GetFile：UTF-8 文本 / 小图 base64 / 二进制三态。", "handler": "getFile"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/skills/{}/guidance", "rbac": null, "description": "对照 InstallGuidance：只暴露本 run 的指引。", "handler": "installGuidance"}, {"method": "POST", "path": "/api/v1/sandbox-configs/{}/skills/{}/guidance", "rbac": null, "description": "对照 SteerInstall：接受管理员对显示中的安装 run 的指引。", "handler": "steerInstall"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/skills/{}/install-events", "rbac": null, "description": "对照 InstallEvents：安装/移除的 SSE 进度；流必然终止。", "handler": "installEvents"}, {"method": "POST", "path": "/api/v1/sandbox-configs/{}/skills/{}/reinstall", "rbac": null, "description": "对照 Reinstall：从已存归档重试；不重新上传。", "handler": "reinstall"}, {"method": "POST", "path": "/api/v1/sandbox-configs/{}/skills/{}/stop", "rbac": null, "description": "对照 Stop：中止在途安装（重启后的僵尸行也立即改写）。", "handler": "stop"}, {"method": "GET", "path": "/api/v1/sandbox-configs/{}/skills/{}/transcript", "rbac": null, "description": "对照 InstallTranscript：installer agent 转写的 SSE 回放 + 活跟踪。", "handler": "installTranscript"}]}, {"domain": "sessions", "label": "会话", "routes": [{"method": "GET", "path": "/api/v1/sessions", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code GetSessionsByTenant}（L243-277）。", "handler": "getSessionsByTenant"}, {"method": "POST", "path": "/api/v1/sessions", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code CreateSession}（L123-178）。201 + {\"data\":…,\"success\":true}。", "handler": "createSession"}, {"method": "DELETE", "path": "/api/v1/sessions/batch", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code BatchDeleteSessions}（L455-514）：{@code delete_all=true} 走全量删除；", "handler": "batchDeleteSessions"}, {"method": "GET", "path": "/api/v1/sessions/continue-stream/{}", "rbac": null, "description": "当前租户的实体，供 {@link com.ragagent.storageurl.FileServiceResolver} 读", "handler": "continueStream"}, {"method": "GET", "path": "/api/v1/sessions/{}", "rbac": null, "description": "对照 Go {@code GetSession}（L192-225）。", "handler": "getSession"}, {"method": "PUT", "path": "/api/v1/sessions/{}", "rbac": null, "description": "对照 Go {@code UpdateSession}（L292-348）：更新成功后**重新加载**再返回", "handler": "updateSession"}, {"method": "DELETE", "path": "/api/v1/sessions/{}", "rbac": null, "description": "对照 Go {@code DeleteSession}（L362-392）。", "handler": "deleteSession"}, {"method": "GET", "path": "/api/v1/sessions/{}/artifacts", "rbac": null, "description": "对照 Go {@code ListSessionArtifacts}（artifact_download.go L49-93）：", "handler": "listSessionArtifacts"}, {"method": "GET", "path": "/api/v1/sessions/{}/attachments", "rbac": null, "description": "对照 Go ListTemporaryDocuments（L95-108）。", "handler": "list"}, {"method": "POST", "path": "/api/v1/sessions/{}/attachments", "rbac": null, "description": "对照 Go UploadTemporaryDocument（L19-93）。agent 表单字段随波 5（见 service 注释）。", "handler": "upload"}, {"method": "GET", "path": "/api/v1/sessions/{}/attachments/{}", "rbac": null, "description": "对照 Go GetTemporaryDocument（L110-127）。", "handler": "get"}, {"method": "DELETE", "path": "/api/v1/sessions/{}/attachments/{}", "rbac": null, "description": "对照 Go DeleteTemporaryDocument（L160-174）：204，幂等。", "handler": "delete"}, {"method": "GET", "path": "/api/v1/sessions/{}/attachments/{}/preview", "rbac": null, "description": "对照 Go PreviewTemporaryDocument（L129-158）+ filetransport.Serve：", "handler": "preview"}, {"method": "POST", "path": "/api/v1/sessions/{}/generate_title", "rbac": null, "description": "对照 Go {@code GenerateTitle}（title.go L25-76）。写会话行，用严格 owner 范围", "handler": "generateTitle"}, {"method": "GET", "path": "/api/v1/sessions/{}/local-browser", "rbac": null, "description": "GET /api/v1/sessions/{id}/local-browser（GET 树的通配名是 :id）。", "handler": "getConnection"}, {"method": "POST", "path": "/api/v1/sessions/{}/local-browser", "rbac": null, "description": "POST /api/v1/sessions/{session_id}/local-browser（POST 树的通配名是 :session_id）。", "handler": "postConnection"}, {"method": "DELETE", "path": "/api/v1/sessions/{}/messages", "rbac": null, "description": "对照 Go {@code ClearSessionMessages}（handler.go L407-435，路由 L59）：", "handler": "clearSessionMessages"}, {"method": "GET", "path": "/api/v1/sessions/{}/messages/{}/artifacts", "rbac": null, "description": "对照 Go {@code ListMessageArtifacts}（L103-144）。", "handler": "listMessageArtifacts"}, {"method": "GET", "path": "/api/v1/sessions/{}/messages/{}/artifacts/{}/download", "rbac": null, "description": "对照 Go {@code DownloadMessageArtifact}（L152-258）。", "handler": "downloadMessageArtifact"}, {"method": "GET", "path": "/api/v1/sessions/{}/messages/{}/files", "rbac": null, "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。", "handler": "files"}, {"method": "HEAD", "path": "/api/v1/sessions/{}/messages/{}/files", "rbac": null, "description": "Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。", "handler": "filesHead"}, {"method": "GET", "path": "/api/v1/sessions/{}/messages/{}/suggestions", "rbac": null, "description": "对照 Go {@code Get}（L83-94）。Go 的 GET 同时注册在 :session_id 与 :id 两个通配下", "handler": "get"}, {"method": "POST", "path": "/api/v1/sessions/{}/messages/{}/suggestions", "rbac": null, "description": "对照 Go {@code Ensure}（L48-71）。⚠️ 请求体<b>只在非空时解析<\/b>——空 body 合法", "handler": "ensure"}, {"method": "POST", "path": "/api/v1/sessions/{}/pin", "rbac": null, "description": "对照 Go {@code PinSession}（L527-529）。", "handler": "pinSession"}, {"method": "DELETE", "path": "/api/v1/sessions/{}/pin", "rbac": null, "description": "对照 Go {@code UnpinSession}（L542-544）。", "handler": "unpinSession"}, {"method": "GET", "path": "/api/v1/sessions/{}/sandbox/terminal", "rbac": null, "description": "", "handler": "terminalWs"}, {"method": "POST", "path": "/api/v1/sessions/{}/sandbox/terminal-ticket", "rbac": null, "description": "", "handler": "issueTicket"}, {"method": "GET", "path": "/api/v1/sessions/{}/steer", "rbac": null, "description": "对照 Go ListSteerMessages（L693-731）。", "handler": "listSteerMessages"}, {"method": "POST", "path": "/api/v1/sessions/{}/steer", "rbac": null, "description": "对照 Go SteerMessage（L461-598）。", "handler": "steerMessage"}, {"method": "DELETE", "path": "/api/v1/sessions/{}/steer/{}", "rbac": null, "description": "对照 Go DeleteSteerMessage（L746-810）。", "handler": "deleteSteerMessage"}, {"method": "POST", "path": "/api/v1/sessions/{}/steer/{}/inject", "rbac": null, "description": "对照 Go PromoteSteerMessage（L614-679）。", "handler": "promoteSteerMessage"}, {"method": "POST", "path": "/api/v1/sessions/{}/stop", "rbac": null, "description": "对照 Go {@code StopSession}（stream.go L219-324）。", "handler": "stopSession"}, {"method": "POST", "path": "/api/v1/sessions/{}/suggestion-events", "rbac": null, "description": "对照 Go {@code RecordEvent}（L115-133）：成功是 <b>204 无响应体<\/b>；", "handler": "recordEvent"}]}, {"domain": "shared-agents", "label": "共享 Agent", "routes": [{"method": "GET", "path": "/api/v1/shared-agents", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "listSharedAgents"}, {"method": "POST", "path": "/api/v1/shared-agents/disabled", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "setSharedAgentDisabledByMe"}]}, {"domain": "shared-knowledge-bases", "label": "共享知识库", "routes": [{"method": "GET", "path": "/api/v1/shared-knowledge-bases", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "listSharedKnowledgeBases"}]}, {"domain": "skills", "label": "技能", "routes": [{"method": "GET", "path": "/api/v1/skills", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 {@code ListSkills}：不传 sandbox_config_id 时列表为空（可用 skill 集合", "handler": "listSkills"}, {"method": "GET", "path": "/api/v1/skills/catalog", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 {@code ListCatalog}：工作区每份 skill 定义 + 装在哪些沙箱上。", "handler": "listCatalog"}, {"method": "POST", "path": "/api/v1/skills/catalog", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 {@code RegisterCatalog}：multipart 字段 \"file\" 传 zip，或 JSON", "handler": "registerCatalog"}, {"method": "DELETE", "path": "/api/v1/skills/catalog/{}", "rbac": null, "description": "对照 {@code DeleteCatalog}：任何沙箱仍有安装时拒绝（409 code 1005）。", "handler": "deleteCatalog"}, {"method": "GET", "path": "/api/v1/skills/catalog/{}/files", "rbac": null, "description": "对照 {@code ListCatalogFiles}：列存量 catalog bundle，不启沙箱。", "handler": "listCatalogFiles"}, {"method": "GET", "path": "/api/v1/skills/catalog/{}/files/content", "rbac": null, "description": "对照 {@code GetCatalogFile}：UTF-8 文本 / 小图 base64 / 二进制三态。", "handler": "getCatalogFile"}, {"method": "POST", "path": "/api/v1/skills/catalog/{}/install", "rbac": null, "description": "对照 {@code InstallCatalog}：把 catalog skill 用既有快照安装管线装到每个", "handler": "installCatalog"}]}, {"domain": "storage-backends", "label": "存储后端", "routes": [{"method": "GET", "path": "/api/v1/storage-backends", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "{\"data\":[...],\"default_storage_backend_id\":...,\"success\":true}（gin.H 字母序）", "handler": "list"}, {"method": "POST", "path": "/api/v1/storage-backends", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "create"}, {"method": "POST", "path": "/api/v1/storage-backends/test", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "testRaw"}, {"method": "GET", "path": "/api/v1/storage-backends/types", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "types"}, {"method": "GET", "path": "/api/v1/storage-backends/{}", "rbac": null, "description": "", "handler": "get"}, {"method": "PUT", "path": "/api/v1/storage-backends/{}", "rbac": null, "description": "", "handler": "update"}, {"method": "DELETE", "path": "/api/v1/storage-backends/{}", "rbac": null, "description": "", "handler": "delete"}, {"method": "PUT", "path": "/api/v1/storage-backends/{}/default", "rbac": null, "description": "", "handler": "setDefault"}, {"method": "POST", "path": "/api/v1/storage-backends/{}/test", "rbac": null, "description": "", "handler": "testByID"}]}, {"domain": "system", "label": "系统管理", "routes": [{"method": "GET", "path": "/api/v1/system/admin/api-keys", "rbac": null, "description": "对照 platformAPIKeyCreateRequest：expires_at_unix 是 epoch 秒（不是 RFC3339）。", "handler": "listPlatformKeys"}, {"method": "POST", "path": "/api/v1/system/admin/api-keys", "rbac": null, "description": "", "handler": "createPlatformKey"}, {"method": "DELETE", "path": "/api/v1/system/admin/api-keys/{}", "rbac": null, "description": "", "handler": "deletePlatformKey"}, {"method": "GET", "path": "/api/v1/system/admin/audit-log", "rbac": null, "description": "对照 Go {@code ListSystemAuditLog}（L211-257）。", "handler": "listSystemAuditLog"}, {"method": "GET", "path": "/api/v1/system/admin/list", "rbac": null, "description": "", "handler": "listAdmins"}, {"method": "POST", "path": "/api/v1/system/admin/promote", "rbac": null, "description": "对照 PromoteUserToSystemAdminRequest（user_id 与 email 二选一，user_id 优先）。", "handler": "promote"}, {"method": "POST", "path": "/api/v1/system/admin/revoke", "rbac": null, "description": "", "handler": "revoke"}, {"method": "GET", "path": "/api/v1/system/admin/runtime/queues", "rbac": null, "description": "Go QueueDefinitions 的队列名（isKnownRuntimeQueue 的判定集）。", "handler": "runtimeQueues"}, {"method": "DELETE", "path": "/api/v1/system/admin/runtime/queues/{}/archived", "rbac": null, "description": "", "handler": "purgeArchived"}, {"method": "GET", "path": "/api/v1/system/admin/runtime/queues/{}/tasks", "rbac": null, "description": "对照 ResolveWorkerPoolConcurrency 的 positive 折叠（<1 → fallback）。", "handler": "listRuntimeTasks"}, {"method": "POST", "path": "/api/v1/system/admin/runtime/queues/{}/tasks/{}/actions/{}", "rbac": null, "description": "", "handler": "mutateRuntimeTask"}, {"method": "GET", "path": "/api/v1/system/admin/settings", "rbac": null, "description": "Go NewValidationError → code 1010（信封形态，message 固定 \"Invalid request data\"？——", "handler": "listSettings"}, {"method": "GET", "path": "/api/v1/system/admin/settings/{}", "rbac": null, "description": "", "handler": "getSetting"}, {"method": "PUT", "path": "/api/v1/system/admin/settings/{}", "rbac": null, "description": "", "handler": "updateSetting"}, {"method": "DELETE", "path": "/api/v1/system/admin/settings/{}", "rbac": null, "description": "", "handler": "resetSetting"}, {"method": "POST", "path": "/api/v1/system/admin/tenants/apply-default-storage-quota", "rbac": null, "description": "", "handler": "applyDefaultStorageQuota"}, {"method": "POST", "path": "/api/v1/system/admin/users/create", "rbac": null, "description": "", "handler": "createUser"}, {"method": "POST", "path": "/api/v1/system/admin/users/reset-password", "rbac": null, "description": "", "handler": "resetPassword"}, {"method": "GET", "path": "/api/v1/system/capabilities", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 GetDeploymentCapabilities：启动快照 + 运行时 docker 覆盖", "handler": "capabilities"}, {"method": "POST", "path": "/api/v1/system/docreader/reconnect", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "reconnectDocReader"}, {"method": "GET", "path": "/api/v1/system/info", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "info"}, {"method": "GET", "path": "/api/v1/system/parser-engines", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "listParserEngines"}, {"method": "POST", "path": "/api/v1/system/parser-engines/check", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "body 形状 = ParserEngineConfig（未保存的表单值）；绑定失败 → {\"code\":1,\"msg\":\"请求体格式错误\"}。", "handler": "checkParserEngines"}, {"method": "POST", "path": "/api/v1/system/sandbox-check", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "跳过的探测不影响 ok（对照 L83-86）。", "handler": "checkSandboxConfig"}, {"method": "POST", "path": "/api/v1/system/storage-engine-check", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "storageEngineCheck"}, {"method": "GET", "path": "/api/v1/system/storage-engine-status", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "storageEngineStatus"}]}, {"domain": "tenants", "label": "租户管理", "routes": [{"method": "GET", "path": "/api/v1/tenants", "rbac": null, "description": "GET /tenants（对照 ListTenants，L1165-1181）：返回**调用者活动空间**的单元素", "handler": "listTenants"}, {"method": "POST", "path": "/api/v1/tenants", "rbac": null, "description": "", "handler": "createTenant"}, {"method": "GET", "path": "/api/v1/tenants/all", "rbac": null, "description": "", "handler": "listAllTenants"}, {"method": "GET", "path": "/api/v1/tenants/kv/{}", "rbac": null, "description": "对照 dto.NewTenantResponse 的 includeSecrets = RoleFromContext ≥ admin。", "handler": "getTenantKV"}, {"method": "PUT", "path": "/api/v1/tenants/kv/{}", "rbac": null, "description": "", "handler": "updateTenantKV"}, {"method": "GET", "path": "/api/v1/tenants/search", "rbac": null, "description": "", "handler": "searchTenants"}, {"method": "GET", "path": "/api/v1/tenants/{}", "rbac": null, "description": "GET /tenants/{id}（对照 GetTenant，L541-578）。URL :id 的合法性由", "handler": "getTenant"}, {"method": "PUT", "path": "/api/v1/tenants/{}", "rbac": null, "description": "PUT /tenants/{id}（对照 UpdateTenant，L581-657）：白名单只开 name/description", "handler": "updateTenant"}, {"method": "DELETE", "path": "/api/v1/tenants/{}", "rbac": null, "description": "DELETE /tenants/{id}（对照 DeleteTenant，L1123-1162）：repo 层软删成员+租户、", "handler": "deleteTenant"}, {"method": "GET", "path": "/api/v1/tenants/{}/api-keys", "rbac": null, "description": "对照 {@code ListAPIKeys}：返回**裸数组**（空列表输出 {@code []}，不是 null）。", "handler": "list"}, {"method": "POST", "path": "/api/v1/tenants/{}/api-keys", "rbac": null, "description": "对照 {@code CreateAPIKey}：201 + {@code data.token}（明文只此一次）。", "handler": "create"}, {"method": "PUT", "path": "/api/v1/tenants/{}/api-keys/{}", "rbac": null, "description": "对照 {@code UpdateAPIKey}。", "handler": "update"}, {"method": "DELETE", "path": "/api/v1/tenants/{}/api-keys/{}", "rbac": null, "description": "对照 {@code DeleteAPIKey}：响应体只有 {@code {\"success\": true}}。", "handler": "delete"}, {"method": "GET", "path": "/api/v1/tenants/{}/api-principal-config", "rbac": null, "description": "GET /tenants/{id}/api-principal-config（Owner+）", "handler": "getAPIPrincipalConfig"}, {"method": "PUT", "path": "/api/v1/tenants/{}/api-principal-config", "rbac": null, "description": "PUT /tenants/{id}/api-principal-config（Owner+；*** = 保留存量密钥）", "handler": "updateAPIPrincipalConfig"}, {"method": "POST", "path": "/api/v1/tenants/{}/api-principal-test-token", "rbac": null, "description": "POST /tenants/{id}/api-principal-test-token（Owner+；HS256，TTL 15min 缺省 / 1h 上限）", "handler": "createAPIPrincipalTestToken"}, {"method": "GET", "path": "/api/v1/tenants/{}/audit-log", "rbac": null, "description": "对照 Go {@code ListTenantAuditLog}（L53-107）。", "handler": "listTenantAuditLog"}, {"method": "GET", "path": "/api/v1/tenants/{}/invitations", "rbac": null, "description": "GET /tenants/{id}/invitations（Viewer+；Owner 及以上附 invite_url）", "handler": "listTenantInvitations"}, {"method": "POST", "path": "/api/v1/tenants/{}/invitations", "rbac": null, "description": "POST /tenants/{id}/invitations（Owner+；auto-accept 开启时直加成员）", "handler": "createInvitation"}, {"method": "DELETE", "path": "/api/v1/tenants/{}/invitations/{}", "rbac": null, "description": "DELETE /tenants/{id}/invitations/{inv_id}（Owner+，撤销 pending）", "handler": "revokeInvitation"}, {"method": "POST", "path": "/api/v1/tenants/{}/invite-links", "rbac": null, "description": "POST /tenants/{id}/invite-links（Owner+，多用途共享链接；201 + 带 invite_url）", "handler": "createInviteLink"}, {"method": "POST", "path": "/api/v1/tenants/{}/leave", "rbac": null, "description": "POST /tenants/{id}/leave（Viewer+，自助退出；ErrMembershipNotFound → 404 专属文案）", "handler": "leaveTenant"}, {"method": "GET", "path": "/api/v1/tenants/{}/members", "rbac": null, "description": "GET /tenants/{id}/members（Viewer+，分页 + q 筛选）", "handler": "listMembers"}, {"method": "POST", "path": "/api/v1/tenants/{}/members", "rbac": null, "description": "POST /tenants/{id}/members（Owner+，直加路径；201 + TenantMemberResponse）", "handler": "addMember"}, {"method": "PUT", "path": "/api/v1/tenants/{}/members/{}", "rbac": null, "description": "PUT /tenants/{id}/members/{user_id}（Owner+，改角色；ErrLastOwner → 409）", "handler": "updateMemberRole"}, {"method": "DELETE", "path": "/api/v1/tenants/{}/members/{}", "rbac": null, "description": "DELETE /tenants/{id}/members/{user_id}（Owner+，软删；ErrLastOwner → 409）", "handler": "removeMember"}]}, {"domain": "user", "label": "用户", "routes": [{"method": "GET", "path": "/api/v1/user/favorites", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go ListFavorites：?type= 缺失/非法 → 400（空串不命中白名单）。", "handler": "listFavorites"}, {"method": "POST", "path": "/api/v1/user/favorites", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go AddFavorite：body 是 {type,id}，成功只回 success。", "handler": "addFavorite"}, {"method": "DELETE", "path": "/api/v1/user/favorites/{}/{}", "rbac": null, "description": "对照 Go RemoveFavorite：类型/id 校验失败 400；删 0 行照样 200。", "handler": "removeFavorite"}]}, {"domain": "vector-stores", "label": "向量库", "routes": [{"method": "GET", "path": "/api/v1/vector-stores", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "env stores 在前、DB stores 在后（Go ListStores 的合并顺序）", "handler": "listStores"}, {"method": "POST", "path": "/api/v1/vector-stores", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "createStore"}, {"method": "POST", "path": "/api/v1/vector-stores/test", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "", "handler": "testStoreRaw"}, {"method": "GET", "path": "/api/v1/vector-stores/types", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "listStoreTypes"}, {"method": "GET", "path": "/api/v1/vector-stores/{}", "rbac": null, "description": "", "handler": "getStore"}, {"method": "PUT", "path": "/api/v1/vector-stores/{}", "rbac": null, "description": "", "handler": "updateStore"}, {"method": "DELETE", "path": "/api/v1/vector-stores/{}", "rbac": null, "description": "", "handler": "deleteStore"}, {"method": "POST", "path": "/api/v1/vector-stores/{}/test", "rbac": null, "description": "", "handler": "testStoreByID"}]}, {"domain": "web-search", "label": "Web 搜索", "routes": [{"method": "GET", "path": "/api/v1/web-search/providers", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "对照 Go {@code handler.WebSearchHandler.GetProviders}", "handler": "getProviders"}]}, {"domain": "web-search-providers", "label": "搜索服务商", "routes": [{"method": "GET", "path": "/api/v1/web-search-providers", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "listProviders"}, {"method": "POST", "path": "/api/v1/web-search-providers", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 CreateProviderRequest：name/provider required（validator 多字段 struct 序拼接）", "handler": "createProvider"}, {"method": "POST", "path": "/api/v1/web-search-providers/test", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 TestProviderRequest：provider required；parameters 可选", "handler": "testProviderRaw"}, {"method": "GET", "path": "/api/v1/web-search-providers/types", "rbac": {"minRole": "VIEWER", "orSystemAdmin": false}, "description": "", "handler": "listProviderTypes"}, {"method": "GET", "path": "/api/v1/web-search-providers/{}", "rbac": null, "description": "", "handler": "getProvider"}, {"method": "PUT", "path": "/api/v1/web-search-providers/{}", "rbac": null, "description": "", "handler": "updateProvider"}, {"method": "DELETE", "path": "/api/v1/web-search-providers/{}", "rbac": null, "description": "", "handler": "deleteProvider"}, {"method": "PUT", "path": "/api/v1/web-search-providers/{}/credentials", "rbac": null, "description": "对照 webSearchCredentialsPutRequest：api_key 为**指针**——null = 查询状态语义", "handler": "put"}, {"method": "DELETE", "path": "/api/v1/web-search-providers/{}/credentials/{}", "rbac": null, "description": "", "handler": "deleteField"}, {"method": "POST", "path": "/api/v1/web-search-providers/{}/test", "rbac": null, "description": "", "handler": "testProviderByID"}]}, {"domain": "wechat", "label": "微信扫码", "routes": [{"method": "POST", "path": "/api/v1/wechat/qrcode", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 WeChatGetQRCode：出站 iLink 调用是接缝（golden 刻意不录该错误体的 XDEP 文案），", "handler": "wechatQrcode"}, {"method": "POST", "path": "/api/v1/wechat/qrcode/status", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 WeChatPollQRCodeStatus：qrcode 必填（一切 bind 失败都是固定文案）。", "handler": "wechatQrcodeStatus"}]}, {"domain": "weknoracloud", "label": "WeKnora Cloud", "routes": [{"method": "POST", "path": "/api/v1/weknoracloud/credentials", "rbac": {"minRole": "ADMIN", "orSystemAdmin": false}, "description": "对照 SaveCredentials — Admin+；绑定错误为 validator 原文（gin 格式）", "handler": "saveCredentials"}]}]};
-const PAGES = ['quick-start', 'architecture', 'modules', 'api'];
-function show(page, anchor) {
-  for (const pg of PAGES) {
-    document.getElementById('page-' + pg).classList.toggle('active', pg === page);
-  }
-  document.querySelectorAll('#topnav a').forEach(a =>
-    a.classList.toggle('active', a.dataset.page === page));
-  document.querySelectorAll('#sidebar a').forEach(a =>
-    a.classList.toggle('active', !!anchor && a.dataset.anchor === anchor));
-  buildOutline(page);
-  if (anchor) {
-    const el = document.getElementById(anchor);
-    if (el) { el.scrollIntoView({ block: 'start' }); return; }
-  }
-  window.scrollTo(0, 0);
-}
-function route() {
-  const h = location.hash.replace(/^#/, '') || 'quick-start';
-  const page = PAGES.find(pg => h === pg || h.startsWith(pg + '-')) || 'quick-start';
-  show(page, h);
-}
-window.addEventListener('hashchange', route);
-route();
+(function () {
+  'use strict';
 
-function buildOutline(page) {
-  const sec = document.getElementById('page-' + page);
-  const out = document.getElementById('outline');
-  out.innerHTML = '';
-  if (!sec) return;
-  sec.querySelectorAll('h2, h3').forEach(h => {
-    if (!h.id) { h.id = 'h-' + h.textContent.trim().slice(0, 24); }
-    const a = document.createElement('a');
-    a.href = '#' + h.id;
-    a.textContent = h.textContent.trim();
-    if (h.tagName === 'H3') a.classList.add('h3');
-    a.addEventListener('click', ev => {
-      ev.preventDefault();
-      h.scrollIntoView({ block: 'start' });
-      out.querySelectorAll('a').forEach(x => x.classList.remove('active'));
-      a.classList.add('active');
+  /* ============ 路由：图号 01–05 与锚点 ============ */
+  var PAGES = ['01', '02', '03', '04', '05'];
+  var sidebar = document.getElementById('sidebar');
+  var topnav = document.getElementById('topnav');
+  var outline = document.getElementById('outline');
+
+  function show(page, anchor) {
+    PAGES.forEach(function (pg) {
+      var el = document.getElementById('page-' + pg);
+      if (el) el.classList.toggle('active', pg === page);
     });
-    out.appendChild(a);
-  });
-}
+    topnav.querySelectorAll('a').forEach(function (a) {
+      a.classList.toggle('active', a.dataset.page === page);
+    });
+    var firstForPage = null;
+    sidebar.querySelectorAll('a').forEach(function (a) {
+      if (a.dataset.page === page && !firstForPage) firstForPage = a;
+    });
+    sidebar.querySelectorAll('a').forEach(function (a) {
+      a.classList.toggle('active', anchor ? a.dataset.anchor === anchor : a === firstForPage);
+    });
+    buildOutline(page);
+    if (anchor) {
+      var el = document.getElementById(anchor);
+      if (el) {
+        // 让 display 切换后的布局先落定，再滚动；否则深链接会滚到空处
+        void document.body.offsetHeight;
+        requestAnimationFrame(function () { el.scrollIntoView({ block: 'start' }); });
+        return;
+      }
+    }
+    window.scrollTo(0, 0);
+  }
 
-document.getElementById('docsearch').addEventListener('click', () => {
-  const q = window.prompt('搜索文档（关键字，过滤侧栏并高亮本页标题）：');
-  if (!q) return;
-  const k = q.toLowerCase();
-  document.querySelectorAll('#sidebar a').forEach(a => {
-    a.style.display = a.textContent.toLowerCase().includes(k) ? '' : 'none';
-  });
-  document.querySelectorAll('.vp-doc h2, .vp-doc h3').forEach(h => {
-    h.style.background = h.textContent.toLowerCase().includes(k)
-      ? 'var(--wk-paper-2)' : '';
-  });
-});
+  function route() {
+    var h = location.hash.replace(/^#/, '') || '01';
+    var page = '01';
+    for (var i = 0; i < PAGES.length; i++) {
+      if (h === PAGES[i] || h.indexOf(PAGES[i] + '-') === 0) { page = PAGES[i]; break; }
+    }
+    show(page, h === page ? null : h);
+  }
+  window.addEventListener('hashchange', route);
 
-function esc(s) { return String(s == null ? '' : s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  /* ============ 本页条目 ============ */
+  function labelOf(h) {
+    var c = h.cloneNode(true);
+    var no = c.querySelector('.hno');
+    if (no) no.remove();
+    return c.textContent.trim();
+  }
+  function buildOutline(page) {
+    var sec = document.getElementById('page-' + page);
+    outline.innerHTML = '';
+    if (!sec) return;
+    sec.querySelectorAll('h2, h3').forEach(function (h) {
+      if (!h.id) h.id = 'h-' + labelOf(h).slice(0, 20);
+      var a = document.createElement('a');
+      a.href = '#' + h.id;
+      a.textContent = labelOf(h);
+      if (h.tagName === 'H3') a.classList.add('h3');
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        h.scrollIntoView({ block: 'start' });
+        outline.querySelectorAll('a').forEach(function (x) { x.classList.remove('active'); });
+        a.classList.add('active');
+      });
+      outline.appendChild(a);
+    });
+  }
 
-document.getElementById('api-overview-rows').innerHTML = __API.groups.map(g =>
-  '<tr><td><code>' + esc(g.domain) + '</code></td><td>' + esc(g.label) +
-  '</td><td>' + g.routes.length + '</td></tr>').join('');
-document.getElementById('api-groups-table').innerHTML = __API.groups.map(g => {
-  const rows = g.routes.map(r =>
-    '<tr><td><code>' + esc(r.method) + '</code></td><td><code>' + esc(r.path) +
-    '</code></td><td>' + esc(r.rbac ? r.rbac.minRole : '默认') +
-    (r.rbac && r.rbac.orSystemAdmin ? ' / 系统管理员' : '') +
-    '</td><td>' + esc(r.description || r.handler || '—') + '</td></tr>').join('');
-  return '<h3>' + esc(g.label) + ' <code>' + esc(g.domain) + '</code> · ' +
-         g.routes.length + '</h3><table><tr><th>方法</th><th>路径</th>' +
-         '<th>角色门槛</th><th>说明</th></tr>' + rows + '</table>';
-}).join('');
+  /* ============ 查找：过滤索引 + 高亮正文 ============ */
+  var findInput = document.getElementById('find');
+  var findCount = document.getElementById('findCount');
+  var marks = [];
+
+  function clearMarks() {
+    marks.forEach(function (m) {
+      var p = m.parentNode;
+      if (!p) return;
+      p.replaceChild(document.createTextNode(m.textContent), m);
+      p.normalize();
+    });
+    marks = [];
+  }
+
+  function highlight(root, q) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        if (!n.nodeValue || n.nodeValue.toLowerCase().indexOf(q) === -1) return NodeFilter.FILTER_REJECT;
+        var p = n.parentNode;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        var tag = p.nodeName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK') return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function (n) {
+      var text = n.nodeValue, low = text.toLowerCase(), frag = document.createDocumentFragment(), i = 0, at;
+      while ((at = low.indexOf(q, i)) !== -1) {
+        if (at > i) frag.appendChild(document.createTextNode(text.slice(i, at)));
+        var m = document.createElement('mark');
+        m.className = 'hit';
+        m.textContent = text.slice(at, at + q.length);
+        frag.appendChild(m);
+        marks.push(m);
+        i = at + q.length;
+      }
+      if (i < text.length) frag.appendChild(document.createTextNode(text.slice(i)));
+      if (n.parentNode) n.parentNode.replaceChild(frag, n);
+    });
+  }
+
+  function runFind() {
+    var raw = findInput.value.trim();
+    var q = raw.toLowerCase();
+    clearMarks();
+    // 索引：按文本过滤
+    sidebar.querySelectorAll('a').forEach(function (a) {
+      a.classList.toggle('dim', q !== '' && a.textContent.toLowerCase().indexOf(q) === -1);
+    });
+    if (!q) {
+      findCount.hidden = true;
+      findCount.textContent = '';
+      return;
+    }
+    var total = 0;
+    document.querySelectorAll('.page').forEach(function (pg) {
+      highlight(pg, q);
+      total += pg.querySelectorAll('mark.hit').length;
+    });
+    findCount.hidden = false;
+    findCount.textContent = total + ' 处';
+    if (!total) findCount.textContent = '无命中';
+  }
+
+  findInput.addEventListener('input', runFind);
+  findInput.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') { findInput.value = ''; runFind(); findInput.blur(); }
+    if (ev.key === 'Enter') {
+      var first = document.querySelector('.page.active mark.hit') ||
+                  document.querySelector('mark.hit');
+      if (first) first.scrollIntoView({ block: 'center' });
+    }
+  });
+  document.addEventListener('keydown', function (ev) {
+    var t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    if (ev.key === 'k' || ev.key === 'K' || ev.key === '/') {
+      ev.preventDefault();
+      findInput.focus();
+      findInput.select();
+    }
+  });
+
+  /* ============ API：总览 / 分组 / 过滤 ============ */
+  var GROUPS = (typeof __API !== 'undefined' && __API.groups) ? __API.groups : [];
+  var TOTAL = 0;
+  GROUPS.forEach(function (g) { TOTAL += g.routes.length; });
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  document.getElementById('api-overview-rows').innerHTML = GROUPS.map(function (g) {
+    return '<tr><td><code>' + esc(g.domain) + '</code></td><td>' + esc(g.label) +
+           '</td><td class="num">' + g.routes.length + '</td></tr>';
+  }).join('');
+
+  document.getElementById('api-groups').innerHTML = GROUPS.map(function (g) {
+    var rows = g.routes.map(function (r) {
+      var meth = r.method || '';
+      var txt = (meth + ' ' + (r.path || '') + ' ' + (r.handler || '') + ' ' + (r.description || '')).toLowerCase();
+      var rbac = r.rbac ? (r.rbac.minRole + (r.rbac.orSystemAdmin ? ' / 系统管理员' : '')) : '默认';
+      return '<tr data-m="' + esc(meth) + '" data-t="' + esc(txt) + '">' +
+             '<td class="mth">' + esc(meth) + '</td>' +
+             '<td><code>' + esc(r.path) + '</code></td>' +
+             '<td class="num">' + esc(rbac) + '</td>' +
+             '<td>' + esc(r.description || r.handler || '—') + '</td></tr>';
+    }).join('');
+    return '<details class="api-group" data-domain="' + esc(g.domain) + '">' +
+           '<summary><span class="g-label">' + esc(g.label) + '</span>' +
+           '<span class="g-dom">' + esc(g.domain) + '</span>' +
+           '<span class="g-cnt">' + g.routes.length + ' 条</span></summary>' +
+           '<table class="tbl"><thead><tr><th style="width:74px">方法</th>' +
+           '<th style="width:34%">路径</th><th style="width:130px">角色门槛</th><th>说明</th></tr></thead>' +
+           '<tbody>' + rows + '</tbody></table></details>';
+  }).join('');
+
+  var apiState = { m: '', q: '' };
+  var apiCount = document.getElementById('apiCount');
+  var apiGroups = document.getElementById('api-groups');
+
+  function applyApiFilter() {
+    var shown = 0;
+    apiGroups.querySelectorAll('.api-group').forEach(function (g) {
+      var vis = 0;
+      g.querySelectorAll('tbody tr').forEach(function (tr) {
+        var ok = (apiState.m === '' || tr.dataset.m === apiState.m) &&
+                 (apiState.q === '' || tr.dataset.t.indexOf(apiState.q) !== -1);
+        tr.classList.toggle('hide', !ok);
+        if (ok) vis++;
+      });
+      g.classList.toggle('hide', vis === 0);
+      g.querySelector('.g-cnt').textContent = vis + ' / ' + vis_all(g) + ' 条';
+      shown += vis;
+    });
+    apiCount.textContent = '显示 ' + shown + ' / ' + TOTAL + ' 条';
+  }
+  function vis_all(g) {
+    return g.querySelectorAll('tbody tr').length;
+  }
+
+  document.getElementById('apiBar').querySelectorAll('.mbtn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      apiState.m = b.dataset.m;
+      document.getElementById('apiBar').querySelectorAll('.mbtn').forEach(function (x) {
+        x.classList.toggle('on', x === b);
+      });
+      applyApiFilter();
+    });
+  });
+  document.getElementById('apiFind').addEventListener('input', function (ev) {
+    apiState.q = ev.target.value.trim().toLowerCase();
+    applyApiFilter();
+  });
+  applyApiFilter();
+
+  /* ============ 启动 ============ */
+  route();
+})();
+
+</script>
+<script>
+/* 明暗主题 / 代码复制 / 提示卡图标 / 对拍结论勾选 —— shadcn 风格交互增强 */
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var KEY = 'ragagent-docs-theme';
+  try {
+    var saved = localStorage.getItem(KEY);
+    var prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    root.classList.toggle('dark', saved ? saved === 'dark' : prefers);
+  } catch (e) {}
+  /* 内嵌页主题同步：把当前明暗注入同源 iframe（Archify 产物与 API 页都认 data-theme） */
+  function syncEmbedTheme() {
+    var mode = root.classList.contains('dark') ? 'dark' : 'light';
+    document.querySelectorAll('iframe').forEach(function (f) {
+      try {
+        var doc = f.contentDocument;
+        if (doc && doc.documentElement) doc.documentElement.setAttribute('data-theme', mode);
+      } catch (e) { /* 跨源（如 file:// 直开）时忽略 */ }
+    });
+  }
+  var btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var dark = !root.classList.contains('dark');
+      root.classList.toggle('dark', dark);
+      try { localStorage.setItem(KEY, dark ? 'dark' : 'light'); } catch (e) {}
+      syncEmbedTheme();
+    });
+  }
+
+  document.querySelectorAll('.vp pre').forEach(function (pre) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'copy';
+    b.textContent = '复制';
+    b.setAttribute('aria-label', '复制代码');
+    b.addEventListener('click', function () {
+      var codeEl = pre.querySelector('code');
+      var text = codeEl ? codeEl.innerText : pre.innerText;
+      function done(ok) {
+        b.textContent = ok ? '已复制' : '复制失败';
+        setTimeout(function () { b.textContent = '复制'; }, 1400);
+      }
+      function legacy() {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+          document.body.appendChild(ta); ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta); done(ok);
+        } catch (e) { done(false); }
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done(true); }, legacy);
+      } else { legacy(); }
+    });
+    pre.appendChild(b);
+  });
+
+  /* 宽表格包一层滚动容器：列多时窄屏可横向滚动，不再撑开文档 */
+  document.querySelectorAll('.vp table.tbl, .vp table.idx-tbl').forEach(function (t) {
+    var p = t.parentNode;
+    if (p && p.classList && p.classList.contains('tbl-scroll')) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'tbl-scroll';
+    p.insertBefore(wrap, t);
+    wrap.appendChild(t);
+  });
+
+  var ICON_INFO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4m0-4h.01"/></svg>';
+  var ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>';
+  document.querySelectorAll('.note').forEach(function (n) {
+    var ic = document.createElement('span');
+    ic.className = 'note-ic';
+    ic.setAttribute('aria-hidden', 'true');
+    ic.innerHTML = n.classList.contains('warn') ? ICON_WARN : ICON_INFO;
+    n.insertBefore(ic, n.firstChild);
+    var body = document.createElement('div');
+    body.className = 'note-body';
+    while (n.childNodes.length > 1) { body.appendChild(n.childNodes[1]); }
+    n.appendChild(body);
+  });
+
+  var NS = 'http://www.w3.org/2000/svg';
+  document.querySelectorAll('.belt-verdict .v').forEach(function (v) {
+    var s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', '2.4');
+    s.setAttribute('stroke-linecap', 'round');
+    s.setAttribute('stroke-linejoin', 'round');
+    s.setAttribute('aria-hidden', 'true');
+    var p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', 'M20 6 9 17l-5-5');
+    s.appendChild(p);
+    v.insertBefore(s, v.firstChild);
+  });
+
+  /* 内容揭示：页面切换播放入场（0.22s；reduced motion 由 CSS 降级为纯透明度）
+     ⚠️ 不要用 MutationObserver 监听 class —— reveal 自身也改 class，会无限回调把页面卡死。 */
+  var lastPageEl = null;
+  function maybeReveal() {
+    var el = document.querySelector('.page.active');
+    if (!el || el === lastPageEl) return;  // 同页锚点跳转不重播
+    lastPageEl = el;
+    el.classList.remove('reveal');
+    void el.offsetWidth;                   // 强制重排以重启 CSS 动画
+    el.classList.add('reveal');
+  }
+  window.addEventListener('hashchange', function () {
+    requestAnimationFrame(maybeReveal);
+  });
+  maybeReveal();
+
+  /* 对拍带重放（beUI 的 Replay 模式） */
+  var belt = document.querySelector('.belt');
+  var replayBtn = document.getElementById('beltReplay');
+  if (replayBtn) {
+    replayBtn.addEventListener('click', function () {
+      if (!belt) return;
+      belt.classList.remove('replaying');
+      void belt.offsetWidth;
+      belt.classList.add('replaying');
+    });
+  }
+  if (belt && window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+    setTimeout(function () { belt.classList.add('replaying'); }, 120);
+  }
+
+  /* iframe 懒加载完成后再同步一次主题（首次调用时其文档可能尚未就绪） */
+  document.querySelectorAll('iframe').forEach(function (f) {
+    f.addEventListener('load', syncEmbedTheme);
+  });
+  syncEmbedTheme();
+})();
 </script>
 </body>
 </html>
