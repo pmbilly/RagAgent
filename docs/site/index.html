@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ragagent-java · 校样图册</title>
+<title>RAGAGENT-JAVA · 校样图册</title>
 <style>
 /* =====================================================================
    ragagent-java 文档站 · 参照 ui.shadcn.com/docs 的视觉语言
@@ -125,7 +125,7 @@ pre code { background: none; padding: 0; font-size: 12.8px; border-radius: 0; }
 }
 .tb-brand {
   display: flex; align-items: center; gap: 9px; padding-right: 14px;
-  margin-right: 8px; border-right: 1px solid var(--border);
+  margin-right: 8px;
   white-space: nowrap; height: 28px;
 }
 .tb-brand .mk {
@@ -140,7 +140,7 @@ pre code { background: none; padding: 0; font-size: 12.8px; border-radius: 0; }
 .tb-nav a {
   display: inline-flex; align-items: center; gap: 7px; height: 32px;
   padding: 0 10px; border-radius: var(--radius-sm);
-  font-size: 13.5px; color: var(--muted-foreground);
+  font-size: 14px; color: var(--muted-foreground);
   white-space: nowrap; transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 .tb-nav a .no { font-family: var(--font-mono); font-size: 11px; color: var(--faint-foreground); }
@@ -203,7 +203,7 @@ pre code { background: none; padding: 0; font-size: 12.8px; border-radius: 0; }
 .index .grp:first-child { margin-top: 0; }
 .index a {
   display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px;
-  border-radius: var(--radius-sm); font-size: 13.5px; color: var(--muted-foreground);
+  border-radius: var(--radius-sm); font-size: 14px; color: var(--muted-foreground);
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 .index a .no { font-family: var(--font-mono); font-size: 11px; color: var(--faint-foreground); }
@@ -248,7 +248,7 @@ pre code { background: none; padding: 0; font-size: 12.8px; border-radius: 0; }
   font-size: 30px; line-height: 1.25; font-weight: 650; letter-spacing: -.02em;
   margin: 0 0 10px;
 }
-.sheet-lead { font-size: 16.5px; line-height: 1.62; color: var(--muted-foreground); margin: 0; }
+.sheet-lead { font-size: 16px; line-height: 1.62; color: var(--muted-foreground); margin: 0; }
 .sheet-meta {
   display: flex; flex-wrap: wrap; gap: 6px 8px; margin-top: 16px;
 }
@@ -270,7 +270,7 @@ pre code { background: none; padding: 0; font-size: 12.8px; border-radius: 0; }
   font-family: var(--font-mono); font-size: 11px; font-weight: 500;
   color: var(--muted-foreground); vertical-align: 3px;
 }
-.vp h3 { font-size: 16.5px; font-weight: 600; margin: 32px 0 10px; letter-spacing: -.01em; }
+.vp h3 { font-size: 16px; font-weight: 600; margin: 32px 0 10px; letter-spacing: -.01em; }
 .vp p { margin: 14px 0; }
 .vp ul, .vp ol { margin: 14px 0; padding-left: 24px; }
 .vp li { margin: 6px 0; }
@@ -407,7 +407,7 @@ pre code { background: none; padding: 0; font-size: 12.8px; border-radius: 0; }
 }
 .idx-tbl a.rowno:hover { color: var(--foreground); border-color: var(--border-strong); }
 .idx-tbl .ttl { font-weight: 500; }
-.idx-tbl .desc { color: var(--muted-foreground); font-size: 13.5px; line-height: 1.66; }
+.idx-tbl .desc { color: var(--muted-foreground); font-size: 14px; line-height: 1.66; }
 
 /* ---------- 工作流对比（03 页） ---------- */
 .tracks { margin: 22px 0; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--card); }
@@ -477,7 +477,7 @@ details.block {
 }
 details.block > summary {
   cursor: pointer; display: flex; align-items: center; gap: 8px;
-  padding: 12px 16px; font-size: 13.5px; font-weight: 500;
+  padding: 12px 16px; font-size: 14px; font-weight: 500;
   color: var(--muted-foreground); list-style: none;
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
@@ -492,7 +492,7 @@ details.block[open] > summary::before { transform: rotate(90deg); }
 details.block > summary:hover { color: var(--foreground); background: var(--muted-soft); }
 details.block .body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
 details.block .body h4 { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; margin: 18px 0 6px; }
-details.block .body ul { margin: 6px 0; padding-left: 20px; font-size: 13.5px; }
+details.block .body ul { margin: 6px 0; padding-left: 20px; font-size: 14px; }
 details.block .body li { margin: 5px 0; }
 details.block iframe { display: block; width: 100%; height: 580px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); margin: 12px 0 4px; }
 
@@ -572,9 +572,9 @@ pre .copy:hover { color: var(--foreground); border-color: var(--border-strong); 
    含内嵌页的「纸面」自动撑宽：由 flex 在可用空间内分配（自动扣除侧栏与右侧目录），
    不写死 vw / 负边距，因此任何视口都不会水平溢出。 */
 .sheet:has(iframe.embed-wide) {
-  flex: 1 1 0; width: auto; min-width: 0; max-width: 1120px; border: 1px solid #ccc;
+  flex: 1 1 0; width: auto; min-width: 0; max-width: 1120px;
 }
-iframe.embed-wide { display: block; width: 100%; max-width: none; }
+iframe.embed-wide { display: block; width: 100%; max-width: none; border: 1px solid #ddd;}
 
 /* ---------- 页脚 ---------- */
 .foot {
@@ -743,17 +743,9 @@ details.block[open] > .body { animation: swap-in .18s var(--ease-out) both; }
 <header class="titlebar">
   <div class="tb-brand">
     <span class="mk">RJ</span>
-    <span class="nm">ragagent-java</span>
+    <span class="nm">RAGAGENT-JAVA</span>
   </div>
-  <nav class="tb-nav" id="topnav" aria-label="文档导航">
-    <a href="#01" data-page="01" title="快速开始"><span class="no">01</span>快速开始</a>
-    <a href="#02" data-page="02" title="架构"><span class="no">02</span>架构</a>
-    <a href="#03" data-page="03" title="Agent 工作流"><span class="no">03</span>Agent 工作流</a>
-    <a href="#04" data-page="04" title="功能模块"><span class="no">04</span>功能模块</a>
-    <a href="#05" data-page="05" title="API 参考"><span class="no">05</span>API 参考</a>
-  </nav>
   <div class="tb-side">
-    <span class="tb-status"><span class="dot"></span>1,748 契约 · 452 路由 · 全量批绿</span>
     <label class="find" for="find">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="find" type="search" placeholder="搜索文档" autocomplete="off">
