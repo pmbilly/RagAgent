@@ -1339,7 +1339,7 @@ public class KnowledgeQaController {
 
     // ── 附件 / 完成 / 状态（qa.go L1417-1768） ───────────────────────────────
 
-    /** resolveTemporaryAttachments（qa.go L1417-1512 的事件形态；内容解析 seam 备案）。 */
+    /** resolveTemporaryAttachments（qa.go L1417-1512）：等待 → ResolveForPrompt → 注入。 */
     private void resolveTemporaryAttachments(SseStreamContext streamCtx, QaRequestContext reqCtx) {
         if (reqCtx.attachmentIDs.isEmpty()) {
             return;
@@ -1377,10 +1377,25 @@ public class KnowledgeQaController {
                 skipped++;
             }
         }
+        TemporaryDocumentService.PromptResult resolved = null;
+        RuntimeException resolveErr = null;
+        if (!readyIds.isEmpty()) {
+            try {
+                resolved = temporaryDocuments.resolveForPrompt(
+                        tenantId, sessionId, readyIds, reqCtx.query);
+            } catch (RuntimeException e) {
+                resolveErr = e;
+            }
+        }
+
         if (!toolCallId.isEmpty()) {
             String output = "已解析 " + readyIds.size() + " 个附件";
             if (skipped > 0) {
                 output += "，" + skipped + " 个未完成已跳过";
+            }
+            boolean success = resolveErr == null;
+            if (resolveErr != null) {
+                output = "附件解析失败: " + resolveErr.getMessage();
             }
             Event evt = new Event();
             evt.setType(EventType.EVENT_AGENT_TOOL_RESULT);
@@ -1389,7 +1404,7 @@ public class KnowledgeQaController {
             data.setToolCallId(toolCallId);
             data.setToolName("attachment_parsing");
             data.setOutput(output);
-            data.setSuccess(true);
+            data.setSuccess(success);
             data.setDurationMs(System.currentTimeMillis() - start);
             data.setIteration(0);
             Map<String, Object> d = new LinkedHashMap<>();
@@ -1400,7 +1415,97 @@ public class KnowledgeQaController {
             evt.setData(data);
             streamCtx.eventBus.emit(evt);
         }
-        // ResolveForPrompt 的内容选择（文本切片/图片 URL 提炼）随附件管线收口（备案）。
+        if (resolveErr != null || resolved == null) {
+            if (resolveErr != null) {
+                log.warn("temporary attachment resolution failed for session {}: {}",
+                        sessionId, resolveErr.getMessage());
+            }
+            return;
+        }
+        List<MessageAttachment> attachments = resolved.attachments();
+        // 对照 Go：handler 侧再按 supported_file_types 过滤一层（不支持的附件不进提示词）
+        if (reqCtx.agentConfig != null && !attachments.isEmpty()) {
+            List<String> supported = stringListOf(reqCtx.agentConfig.get("supported_file_types"));
+            if (!supported.isEmpty()) {
+                attachments.removeIf(att -> {
+                    String ext = att.getFileType() == null
+                            ? "" : att.getFileType().toLowerCase();
+                    if (ext.startsWith(".")) {
+                        ext = ext.substring(1);
+                    }
+                    return !supported.contains(ext);
+                });
+            }
+        }
+        reqCtx.attachments.addAll(attachments);
+        persistResolvedAttachmentContent(reqCtx, attachments);
+        // 图片进 vision：ImageURLs 挂到本回合的 images（与内联 base64 图片同一条下游，
+        // 经 extractImageURLsAndOCRText 读 url）。Go 同样以 ImageUploadEnabled 为闸。
+        if (reqCtx.agentConfig != null
+                && reqCtx.agentConfig.path("image_upload_enabled").asBoolean(false)) {
+            for (String imageUrl : resolved.imageUrls()) {
+                QaSupport.QaRequestsImage image = new QaSupport.QaRequestsImage();
+                image.url = imageUrl;
+                reqCtx.images.add(image);
+            }
+        }
+    }
+
+    /**
+     * 对照 Go {@code persistResolvedAttachmentContent}（qa.go L1516-1560）：把解析出的
+     * 附件内容回写到已存的 user 消息（attachments 列）——消息创建时只带元数据，
+     * 内容在 SSE 起流后才选出；不回写的话多轮历史重建时附件是空的。
+     *
+     * <p>失败只 WARN：丢这次写入只降级后续上下文，不能让本回合失败。</p>
+     */
+    private void persistResolvedAttachmentContent(QaRequestContext reqCtx,
+            List<MessageAttachment> resolved) {
+        if (reqCtx.userMessageID.isEmpty() || resolved.isEmpty()) {
+            return;
+        }
+        Message msg;
+        try {
+            msg = messageService.getMessage(reqCtx.sessionId, reqCtx.userMessageID);
+        } catch (RuntimeException e) {
+            log.warn("persist attachment content: load user message {} failed: {}",
+                    reqCtx.userMessageID, e.getMessage());
+            return;
+        }
+        if (msg == null) {
+            log.warn("persist attachment content: load user message {} failed: not found",
+                    reqCtx.userMessageID);
+            return;
+        }
+        Map<String, MessageAttachment> byId = new LinkedHashMap<>();
+        for (MessageAttachment att : resolved) {
+            if (att.getId() != null && !att.getId().isEmpty()) {
+                byId.put(att.getId(), att);
+            }
+        }
+        boolean changed = false;
+        List<MessageAttachment> stored = msg.getAttachments();
+        if (stored != null) {
+            for (int i = 0; i < stored.size(); i++) {
+                MessageAttachment existing = stored.get(i);
+                if (existing == null || existing.getId() == null || existing.getId().isEmpty()) {
+                    continue;
+                }
+                MessageAttachment enriched = byId.get(existing.getId());
+                if (enriched != null) {
+                    stored.set(i, enriched);
+                    changed = true;
+                }
+            }
+        }
+        if (!changed) {
+            return;
+        }
+        try {
+            messageService.updateMessage(msg);
+        } catch (RuntimeException e) {
+            log.warn("persist attachment content: update user message {} failed: {}",
+                    reqCtx.userMessageID, e.getMessage());
+        }
     }
 
     private boolean hasPendingAttachments(long tenantId, String sessionId, List<String> ids) {

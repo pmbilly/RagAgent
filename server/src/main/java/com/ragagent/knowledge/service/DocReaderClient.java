@@ -70,8 +70,28 @@ public class DocReaderClient {
         this.connected = configured != null && !configured.isBlank();
     }
 
-    /** 解析结果：markdown + 图片数（阶段 3 忽略图片内容） */
-    public record ParseResult(String markdown, int imageCount) {}
+    /**
+     * 解析结果：markdown + 图片数 + 图片引用（含内联字节）。
+     *
+     * <p>图片字节来自 docreader 的 inline 模式（docreader main.py 的 {@code _resolve_images}
+     * 恒填 {@code ImageRef.image_data}、不用 storage_key），与 Go 侧
+     * {@code grpc_parser.go:184-189} 收下的两字段同源；落盘责任在调用方
+     * （Go 注释原文：image persistence is now handled entirely by the App）。</p>
+     */
+    public record ParseResult(String markdown, int imageCount, List<ImageRef> imageRefs) {
+        public ParseResult(String markdown, int imageCount) {
+            this(markdown, imageCount, List.of());
+        }
+    }
+
+    /** 对照 proto {@code docreader.ImageRef} 的应用侧视图（只留落盘需要的四字段）。 */
+    public record ImageRef(String filename, String originalRef, String mimeType, byte[] imageData) {
+    }
+
+    private static ImageRef toImageRef(Docreader.ImageRef ref) {
+        return new ImageRef(ref.getFilename(), ref.getOriginalRef(), ref.getMimeType(),
+                ref.getImageData().toByteArray());
+    }
 
     /**
      * 解析文件（对照 GRPCDocumentReader.Read → ReadStream 优先，UNIMPLEMENTED 回退 unary）。
@@ -132,8 +152,15 @@ public class DocReaderClient {
         if (!meta.getError().isEmpty()) {
             throw new IllegalStateException("docreader parse error: " + meta.getError());
         }
-        int imageCount = meta.getImageCount();
-        return new ParseResult(meta.getMarkdownContent(), imageCount);
+        // 图片帧（首帧之后每帧一张图，对照 proto ReadStreamResponse 的 oneof payload）
+        List<ImageRef> images = new ArrayList<>();
+        for (int i = 1; i < frames.size(); i++) {
+            Docreader.ReadStreamResponse frame = frames.get(i);
+            if (frame.hasImage()) {
+                images.add(toImageRef(frame.getImage()));
+            }
+        }
+        return new ParseResult(meta.getMarkdownContent(), meta.getImageCount(), images);
     }
 
     private ParseResult readUnary(Docreader.ReadRequest request) {
@@ -142,7 +169,11 @@ public class DocReaderClient {
         if (!resp.getError().isEmpty()) {
             throw new IllegalStateException("docreader parse error: " + resp.getError());
         }
-        return new ParseResult(resp.getMarkdownContent(), resp.getImageRefsCount());
+        List<ImageRef> images = new ArrayList<>(resp.getImageRefsCount());
+        for (Docreader.ImageRef ref : resp.getImageRefsList()) {
+            images.add(toImageRef(ref));
+        }
+        return new ParseResult(resp.getMarkdownContent(), resp.getImageRefsCount(), images);
     }
 
     // ── 系统管理端（波 2 收官批）附加能力 ─────────────────────────────────

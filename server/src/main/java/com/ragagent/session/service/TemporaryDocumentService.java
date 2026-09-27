@@ -4,7 +4,10 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -21,6 +24,7 @@ import com.ragagent.knowledge.chunker.ParsedChunk;
 import com.ragagent.knowledge.chunker.SplitterConfig;
 import com.ragagent.knowledge.chunker.Tokens;
 import com.ragagent.knowledge.service.DocReaderClient;
+import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.mapper.TemporaryDocumentRepository;
 
@@ -58,6 +62,33 @@ public class TemporaryDocumentService {
     private static final long DEFAULT_TTL_HOURS = 24;
     private static final int CHUNK_SIZE = 1600;
     private static final int CHUNK_OVERLAP = 160;
+
+    /** 对照 Go {@code temporaryDocumentPromptBudget}。 */
+    static final int PROMPT_BUDGET_TOKENS = 12_000;
+
+    /** 对照 Go {@code temporaryDocumentInlineTokens}：低于它直接给全文。 */
+    static final int PROMPT_INLINE_TOKENS = 12_000;
+
+    /** 对照 Go {@code temporaryDocumentMaxPromptParts}。 */
+    static final int MAX_PROMPT_PARTS = 16;
+
+    /** 对照 Go ResolveForPrompt 的硬编码上限 {@code len(result.ImageURLs) < 4}。 */
+    static final int MAX_IMAGE_URLS = 4;
+
+    /** 对照 Go {@code types.MaxTemporaryAttachmentsPerMessage}。 */
+    public static final int MAX_ATTACHMENTS_PER_MESSAGE = 5;
+
+    /** 对照 Go {@code image_resolver.go} 的图标过滤阈值（minImageDimension / minImageBytes）。 */
+    static final int MIN_IMAGE_DIMENSION = 64;
+    static final int MIN_IMAGE_BYTES = 512;
+
+    /** 对照 Go {@code docparser.imageFormats}（builtin_converter.go L20-24，无点形态）。 */
+    private static final Set<String> IMAGE_EXTENSIONS =
+            Set.of("jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp");
+
+    /** 对照 Go {@code isVisualDocumentQuery} 的标记词表。 */
+    private static final List<String> VISUAL_QUERY_MARKERS =
+            List.of("图", "表格", "截图", "页面", "排版", "chart", "figure", "diagram", "image", "layout");
 
     /** 解析任务的单线程 executor（对照 asynq worker 的串行消费语义）。 */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
@@ -301,11 +332,15 @@ public class TemporaryDocumentService {
                 String extNoDot = ext.startsWith(".") ? ext.substring(1) : ext;
                 DocReaderClient.ParseResult parsed = docReader.read(data, document.getFileName(),
                         extNoDot, document.getFileName(), "auto".equals(engine) ? "" : engine);
-                content = parsed.markdown();
+                // 对照 Go parse 里的 imageResolver.ResolveAndStore（L443-457）：docreader
+                // 直出的 inline ImageRef 落盘并把 markdown 引用改写成可服务 URL；列表写进
+                // image_refs jsonb，供 ResolveForPrompt 提炼给 vision 模型。
+                StoredImages stored = storeDocumentImages(tenantId, document, parsed.imageRefs(),
+                        parsed.markdown());
+                content = stored.markdown();
                 metadata = new java.util.LinkedHashMap<>();
                 metadata.put("parser", engine.isEmpty() ? "document_reader" : engine);
-                // docreader 路径 images 是非 nil 空 slice → "[]"（VLM 图片理解随波 5/7）
-                imageRefs = "[]";
+                imageRefs = stored.imageRefsJson();
             }
         } catch (Exception parseErr) {
             String message = String.valueOf(parseErr.getMessage());
@@ -342,6 +377,369 @@ public class TemporaryDocumentService {
         } catch (Exception e) {
             return "";
         }
+    }
+
+    // ══ 图片落地（对照 Go ImageResolver.ResolveAndStore 的 docreader 直出分支） ══
+
+    /** {@link #storeDocumentImages} 的结果：重写引用后的 markdown + image_refs jsonb。 */
+    record StoredImages(String markdown, String imageRefsJson) {
+    }
+
+    /**
+     * 对照 Go {@code ImageResolver.ResolveAndStore}（image_resolver.go L80-151）对
+     * docreader 直出 {@code ImageRefs} 的处理 + {@code saveReferencedImage}（L156-218）。
+     *
+     * <p><b>本批收敛</b>：只处理带内联字节的 ImageRef——这是聊天附件的唯一来源
+     * （docreader 的 ImageParser 对图片产 {@code ![](images/x.png)} + inline bytes，
+     * main.py 的 {@code _resolve_images} 恒填 {@code image_data} 不用 storage_key）；
+     * data URI / HTML data URI / bare base64 / 相对路径 HTML 四路（KB 文档解析场景的
+     * 边角）备案不实现。</p>
+     *
+     * <p><b>图标过滤</b>照抄 {@code isIconImage}（两轴均 &lt; 64，或解不开且 &lt; 512 字节）；
+     * 图片型附件不过滤——Go 的 SimpleFormatReader 走 {@code imageToResult} 设
+     * {@code IsOriginal=true} 跳过判定，Java 从 gRPC 拿不到该字段，以"来源文件本身是
+     * 图片格式"（{@code docparser.IsImageFormat}）等价对齐。</p>
+     */
+    StoredImages storeDocumentImages(long tenantId, TemporaryDocument document,
+            List<DocReaderClient.ImageRef> refs, String markdown) {
+        if (refs == null || refs.isEmpty()) {
+            return new StoredImages(markdown, "[]");
+        }
+        Map<String, DocReaderClient.ImageRef> refMap = new LinkedHashMap<>();
+        for (DocReaderClient.ImageRef ref : refs) {
+            if (ref.originalRef() != null && !ref.originalRef().isEmpty()) {
+                refMap.put(ref.originalRef(), ref);
+            }
+        }
+        boolean isOriginalDocument = isImageFormat(document.getFileType());
+        Map<String, String> savedByFilename = new java.util.HashMap<>();
+        List<String> jsonItems = new ArrayList<>();
+
+        // 对照 Go：按 markdown 里出现的图片目标逐个处理（scanMarkdownImageTargets），
+        // 命中 refMap 才落盘并改写引用；未被引用的 ref 不落盘。
+        java.util.regex.Pattern target = java.util.regex.Pattern.compile(
+                "(!\\[[^\\]]*\\]\\()\\s*(<[^>]*>|[^)]*?)\\s*(?:\"[^\"]*\"\\s*)?\\)");
+        java.util.regex.Matcher m = target.matcher(markdown);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String rawPath = m.group(2);
+            String path = rawPath.startsWith("<") && rawPath.endsWith(">")
+                    ? rawPath.substring(1, rawPath.length() - 1) : rawPath;
+            DocReaderClient.ImageRef ref = refMap.get(path);
+            if (ref == null || ref.imageData() == null || ref.imageData().length == 0) {
+                continue; // 对照 saveReferencedImage：无内联字节 → 原样保留
+            }
+            byte[] bytes = ref.imageData();
+            if (!isOriginalDocument && isIconImage(bytes)) {
+                continue; // 对照 isIconImage：非原图的图标/装饰元素过滤
+            }
+            String servingUrl = savedByFilename.get(ref.filename());
+            if (servingUrl == null) {
+                String ext = extFromMime(ref.mimeType());
+                if (ext.isEmpty()) {
+                    ext = extOf(ref.filename());
+                }
+                if (ext.isEmpty()) {
+                    ext = ".png";
+                }
+                try {
+                    servingUrl = fileStore.saveBytes(bytes, tenantId,
+                            java.util.UUID.randomUUID() + ext);
+                } catch (RuntimeException e) {
+                    log.warn("failed to save image {}: {}", path, e.getMessage());
+                    continue; // 对照 Go：写失败只 WARN 继续
+                }
+                if (ref.filename() != null && !ref.filename().isEmpty()) {
+                    savedByFilename.put(ref.filename(), servingUrl);
+                }
+            }
+            jsonItems.add("{\"original_ref\":" + quote(path)
+                    + ",\"url\":" + quote(servingUrl)
+                    + ",\"mime_type\":" + quote(ref.mimeType() == null ? "" : ref.mimeType()) + "}");
+            // 只换路径本体：保留原目标的尾部（空白 / title / 右括号）
+            String tail = m.group(0).substring(m.end(2) - m.start());
+            m.appendReplacement(out,
+                    java.util.regex.Matcher.quoteReplacement(m.group(1) + servingUrl + tail));
+        }
+        m.appendTail(out);
+        String updated = jsonItems.isEmpty() ? markdown : out.toString();
+        return new StoredImages(updated, "[" + String.join(",", jsonItems) + "]");
+    }
+
+    /** 对照 Go isIconImage：解码尺寸两轴均 &lt; 64 视为图标；解码失败回退字节数 &lt; 512。 */
+    static boolean isIconImage(byte[] data) {
+        try {
+            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(
+                    new java.io.ByteArrayInputStream(data));
+            if (image == null) {
+                return data.length < MIN_IMAGE_BYTES;
+            }
+            return image.getWidth() < MIN_IMAGE_DIMENSION && image.getHeight() < MIN_IMAGE_DIMENSION;
+        } catch (Exception e) {
+            return data.length < MIN_IMAGE_BYTES;
+        }
+    }
+
+    /** 对照 Go extFromMime（image_resolver.go L220-239）。 */
+    static String extFromMime(String mime) {
+        if (mime == null) {
+            return "";
+        }
+        return switch (mime) {
+            case "image/png" -> ".png";
+            case "image/jpeg" -> ".jpg";
+            case "image/gif" -> ".gif";
+            case "image/webp" -> ".webp";
+            case "image/bmp" -> ".bmp";
+            case "image/svg+xml" -> ".svg";
+            default -> "";
+        };
+    }
+
+    /** 对照 Go {@code docparser.IsImageFormat}（builtin_converter.go L108-110）。 */
+    static boolean isImageFormat(String fileType) {
+        if (fileType == null) {
+            return false;
+        }
+        String t = fileType.toLowerCase(Locale.ROOT);
+        if (t.startsWith(".")) {
+            t = t.substring(1);
+        }
+        return IMAGE_EXTENSIONS.contains(t);
+    }
+
+    // ══ ResolveForPrompt（对照 Go temporary_document.go L597-644） ══
+
+    /** 对照 Go {@code types.TemporaryDocumentPromptResult}。 */
+    public record PromptResult(List<MessageAttachment> attachments, List<String> imageUrls) {
+    }
+
+    /** ResolveForPrompt 的失败（对照 Go 的 error 返回；调用方 warn 后跳过注入）。 */
+    public static class AttachmentResolveException extends RuntimeException {
+        public AttachmentResolveException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * 对照 Go {@code ResolveForPrompt}：把 ready 的临时附件按预算选内容，产出
+     * 提示词附件列表 + 给 vision 模型的图片 URL（≤ {@value #MAX_IMAGE_URLS} 个）。
+     *
+     * <p>错误语义照 Go：文档缺失 / failed / 未 ready 都是 error（调用方记 warn 并
+     * 放弃本轮附件注入，不让回合失败）。</p>
+     */
+    public PromptResult resolveForPrompt(long tenantId, String sessionId,
+            List<String> documentIds, String query) {
+        List<MessageAttachment> attachments = new ArrayList<>();
+        List<String> imageUrls = new ArrayList<>();
+        if (documentIds == null || documentIds.isEmpty()) {
+            return new PromptResult(attachments, imageUrls);
+        }
+        if (documentIds.size() > MAX_ATTACHMENTS_PER_MESSAGE) {
+            throw new AttachmentResolveException("a message can use at most "
+                    + MAX_ATTACHMENTS_PER_MESSAGE + " attachments");
+        }
+        int perDocumentBudget = PROMPT_BUDGET_TOKENS / documentIds.size();
+        Set<String> seen = new java.util.LinkedHashSet<>();
+        for (String documentId : documentIds) {
+            if (!seen.add(documentId)) {
+                continue;
+            }
+            TemporaryDocument document = repo.getScoped(tenantId, sessionId, documentId);
+            if (document == null) {
+                throw new AttachmentResolveException(
+                        "attachment " + documentId + " was not found in this session");
+            }
+            if (!TemporaryDocument.STATUS_READY.equals(document.getStatus())) {
+                if (TemporaryDocument.STATUS_FAILED.equals(document.getStatus())) {
+                    throw new AttachmentResolveException("attachment " + document.getFileName()
+                            + " failed to parse: " + document.getErrorMessage());
+                }
+                throw new AttachmentResolveException("attachment " + document.getFileName()
+                        + " is still being processed");
+            }
+            ContentSelection selection = selectContent(document, parseChunks(document.getChunks()),
+                    query, perDocumentBudget);
+            MessageAttachment att = new MessageAttachment();
+            att.setId(document.getId());
+            att.setUrl(document.getResourceRef());
+            att.setFileName(document.getFileName());
+            att.setFileType(document.getFileType());
+            att.setFileSize(document.getFileSize());
+            att.setContent(selection.content());
+            att.setContentMode(selection.selected() == selection.total()
+                    ? "full" : "selected_chunks");
+            att.setTokenCount(document.getTokenCount());
+            att.setSelectedChunks(selection.selected());
+            att.setTotalChunks(selection.total());
+            attachments.add(att);
+            // 图片型附件恒暴露原图给 vision 模型；文本文档只在问题带视觉意图时附带
+            // 抽取图（对照 Go 注释：避免无谓的多模态时延）。
+            if (isImageFormat(document.getFileType()) || isVisualDocumentQuery(query)) {
+                for (String url : imageUrlsOf(document.getImageRefs())) {
+                    if (imageUrls.size() >= MAX_IMAGE_URLS) {
+                        break;
+                    }
+                    imageUrls.add(url);
+                }
+            }
+        }
+        return new PromptResult(attachments, imageUrls);
+    }
+
+    /** selectContent 的三元返回（对照 Go 的 (content, selected, total)）。 */
+    record ContentSelection(String content, int selected, int total) {
+    }
+
+    /** 对照 Go TemporaryDocumentChunk（jsonb 元素形态）。 */
+    record DocumentChunk(int seq, String content, String contextHeader, int tokenCount) {
+    }
+
+    static List<DocumentChunk> parseChunks(String chunksJson) {
+        List<DocumentChunk> out = new ArrayList<>();
+        for (Map<?, ?> raw : readJsonArray(chunksJson)) {
+            out.add(new DocumentChunk(
+                    intOf(raw.get("seq")),
+                    strOf(raw.get("content")),
+                    strOf(raw.get("context_header")),
+                    intOf(raw.get("token_count"))));
+        }
+        return out;
+    }
+
+    /** 对照 Go temporaryDocumentImageRefs：image_refs jsonb → 非空 URL 列表。 */
+    static List<String> imageUrlsOf(String imageRefsJson) {
+        List<String> out = new ArrayList<>();
+        for (Map<?, ?> ref : readJsonArray(imageRefsJson)) {
+            Object url = ref.get("url");
+            if (url instanceof String s && !s.isEmpty()) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 对照 Go {@code selectTemporaryDocumentContentWithBudget}（L650-705）：
+     * 全文（chunks 空或 token 数不超阈值/预算），否则按查询词打分选块
+     * （score = Σ 出现次数 × (1 + 词长/2)，降序稳定；按预算与 16 块上限装填，
+     * 最后按 seq 升序用 {@code \n\n---\n\n} 拼装）。
+     */
+    static ContentSelection selectContent(TemporaryDocument document, List<DocumentChunk> chunks,
+            String query, int budget) {
+        if (budget <= 0) {
+            budget = PROMPT_BUDGET_TOKENS;
+        }
+        if (chunks.isEmpty()
+                || (document.getTokenCount() <= PROMPT_INLINE_TOKENS
+                        && document.getTokenCount() <= budget)) {
+            return new ContentSelection(document.getContent(), chunks.size(), chunks.size());
+        }
+        List<String> terms = queryTerms(query);
+        List<Integer> order = new ArrayList<>(chunks.size());
+        for (int i = 0; i < chunks.size(); i++) {
+            order.add(i);
+        }
+        List<Integer> scores = new ArrayList<>(chunks.size());
+        for (DocumentChunk chunk : chunks) {
+            String text = (strOf(chunk.contextHeader()) + "\n" + strOf(chunk.content()))
+                    .toLowerCase(Locale.ROOT);
+            int score = 0;
+            for (String term : terms) {
+                score += countOccurrences(text, term)
+                        * (1 + term.codePointCount(0, term.length()) / 2);
+            }
+            scores.add(score);
+        }
+        order.sort((a, b) -> {
+            int cmp = Integer.compare(scores.get(b), scores.get(a));
+            return cmp != 0 ? cmp : Integer.compare(chunks.get(a).seq(), chunks.get(b).seq());
+        });
+        List<DocumentChunk> selected = new ArrayList<>();
+        int tokens = 0;
+        for (int idx : order) {
+            if (selected.size() >= MAX_PROMPT_PARTS) {
+                break;
+            }
+            DocumentChunk candidate = chunks.get(idx);
+            if (tokens > 0 && tokens + candidate.tokenCount() > budget) {
+                continue;
+            }
+            selected.add(candidate);
+            tokens += candidate.tokenCount();
+        }
+        selected.sort((a, b) -> Integer.compare(a.seq(), b.seq()));
+        StringBuilder builder = new StringBuilder();
+        for (DocumentChunk part : selected) {
+            if (builder.length() > 0) {
+                builder.append("\n\n---\n\n");
+            }
+            if (part.contextHeader() != null && !part.contextHeader().isEmpty()) {
+                builder.append(part.contextHeader()).append("\n\n");
+            }
+            builder.append(part.content() == null ? "" : part.content().trim());
+        }
+        return new ContentSelection(builder.toString(), selected.size(), chunks.size());
+    }
+
+    /** 对照 Go temporaryDocumentQueryTerms（L715-739）：词元 + 相邻汉字二元组。 */
+    static List<String> queryTerms(String query) {
+        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        List<String> terms = new ArrayList<>();
+        Set<String> seen = new java.util.LinkedHashSet<>();
+        for (String field : q.split("[\\s\\p{P}]+")) {
+            if (field.codePointCount(0, field.length()) < 2) {
+                continue;
+            }
+            if (seen.add(field)) {
+                terms.add(field);
+            }
+        }
+        int[] cps = q.codePoints().toArray();
+        for (int i = 0; i + 1 < cps.length; i++) {
+            if (isHan(cps[i]) && isHan(cps[i + 1])) {
+                String term = new String(cps, i, 2);
+                if (seen.add(term)) {
+                    terms.add(term);
+                }
+            }
+        }
+        return terms;
+    }
+
+    private static boolean isHan(int codePoint) {
+        return Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN;
+    }
+
+    /** 对照 Go isVisualDocumentQuery（L741-749）。 */
+    static boolean isVisualDocumentQuery(String query) {
+        String lower = query == null ? "" : query.toLowerCase(Locale.ROOT);
+        for (String marker : VISUAL_QUERY_MARKERS) {
+            if (lower.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 对照 Go strings.Count（非重叠子串计数）。 */
+    static int countOccurrences(String text, String term) {
+        if (text == null || term == null || term.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = text.indexOf(term); i >= 0; i = text.indexOf(term, i + term.length())) {
+            count++;
+        }
+        return count;
+    }
+
+    private static int intOf(Object value) {
+        return value instanceof Number n ? n.intValue() : 0;
+    }
+
+    private static String strOf(Object value) {
+        return value == null ? "" : String.valueOf(value);
     }
 
     /** 对照 Go common.CleanInvalidUTF8：替换非法 UTF-8 序列（REPLACE 语义）。 */

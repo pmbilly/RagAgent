@@ -1,5 +1,42 @@
 # 交接文档（新会话接手用）
 
+## 0.-50 用户报障：上传的图片"识别不了"（2026-09-27）
+
+**现象**：前端聊天上传 PNG/WebP，模型回答"无法直接查看或识别您附件中的图片内容"（DB 实据）：
+用户会话的 `temporary_documents` 三行均 `status=ready`，但 `content="![gac.png](images/gac.png)"`、
+`image_refs="[]"`、`token_count=7`。
+
+**根因**（两处备案缺口叠加，图片字节全链路无一处被消费）：
+1. **附件内容从未进提示词**：`TemporaryDocumentService.parse` 把 docreader 对图片的响应
+   只落成 markdown 占位、`image_refs` 硬编码 `[]`；`KnowledgeQaController.resolveTemporaryAttachments`
+   的 ResolveForPrompt 段是备案（"内容解析 seam 随附件管线收口"）⇒ `MessageAttachment.content`
+   恒空 ⇒ `MessageAttachmentsPrompt` 注入 `<note>File content extraction failed or is
+   unsupported.</note>`（模型据此回答"看不到图片"）。
+2. **内联 base64 图片无消费者**：控制器清空 url/caption（SSRF）后只登记 `data`，而
+   `QaSupport.extractImageUrlsAndOcrText` 只读 url/caption ⇒ 静默丢弃。
+
+**修法**（对照 Go `ResolveForPrompt` + `ImageResolver.ResolveAndStore` 的 docreader 分支 + `qa.go` L1417-1560）：
+- `DocReaderClient.ParseResult` 增 `imageRefs`（ReadStream 的 image 帧 / unary 的 image_refs）。
+- `TemporaryDocumentService` 新增 `storeDocumentImages`（内联图片落盘 + markdown 引用改写 +
+  `image_refs` jsonb + 图标过滤；图片型附件不过滤——对齐 Go SimpleFormatReader 的 `IsOriginal`
+  语义）与 `resolveForPrompt`（预算切分 12000/n、按查询词选块、`content_mode` full/selected_chunks、
+  ImageURLs ≤4、`isVisualDocumentQuery` 词表）。
+- `KnowledgeQaController`：接上 ResolveForPrompt（tool_result 的 success/output 按 Go 文案，
+  失败只 WARN 不落回合）、按 `supported_file_types` 过滤、`persistResolvedAttachmentContent`
+  回写消息 attachments 列、ImageURLs → `reqCtx.images`（闸门 `image_upload_enabled`）。
+
+**验证**：新增 `TemporaryDocumentResolveForPromptTest` **22 例全绿**；`acceptance.sh --changed`
+**B3+B4 PASS 143s**；真机端到端（8092 临时实例 + 真 docreader 容器 + 真 PG）上传 PNG ⇒
+`image_refs=[{"original_ref":"images/x.png","url":"local://{tenant}/exports/…"}]` 与 content
+`![x.png](local://…)` 落库 ✓、图片 24841 字节落盘 ✓、`ImageResolver.resolveImageUrlForLlm`
+转 `data:image/png;base64,…` ✓。**docreader 内联模式的实证**：对真服务发探针，PNG 回
+`image_data=24841`（`storage_key` 空）——落盘假设成立（探针用完即删）。
+**踩到的坑**：markdown 正则替换丢了尾部 `)`（`startsWith` 断言漏检 → 改 `isEqualTo` 才钉住）。
+**注意**：`:8082` 上常驻实例是 2026-09-26 启动的旧构建，**需重启才生效**（本次验证用 `:8092`，
+测完已停、测试会话/附件与落盘文件均已清理）。详见 `known-issues/02` 第 7 节第 8 条。
+
+---
+
 ## 0.-49 用户报障：导入后一直"解析中"（2026-09-25）
 
 **现象**：KB `GAC客服` 的 `05.03-问题发布.md` 一直"解析中"，trace 也一直进行中。
