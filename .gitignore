@@ -36,3 +36,8 @@ artifacts/
 # Python 缓存（route-recon 被 generate-api-docs import 时生成）
 __pycache__/
 *.pyc
+
+# Python（mcp-server 工具）
+mcp-server/.venv/
+__pycache__/
+*.egg-info/
