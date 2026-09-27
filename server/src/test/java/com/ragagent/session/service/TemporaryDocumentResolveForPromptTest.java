@@ -212,28 +212,6 @@ class TemporaryDocumentResolveForPromptTest {
     }
 
     @Test
-    void legacyImageRowWithoutRefsFallsBackToSourceFile() {
-        // 收口前的历史行：image_refs 恒 "[]" —— 图片型附件回退到源文件（原图即源文件）
-        TemporaryDocument doc = document("d1", "legacy.png", ".png", TemporaryDocument.STATUS_READY,
-                "![legacy.png](images/legacy.png)", "[]", 7, "[]");
-        when(repo.getScoped(TENANT, SESSION, "d1")).thenReturn(doc);
-
-        assertThat(service().resolveForPrompt(TENANT, SESSION, List.of("d1"), "这是什么").imageUrls())
-                .containsExactly("local://1/exports/d1");
-    }
-
-    @Test
-    void legacyTextRowDoesNotFallBackToSourceFile() {
-        // 文本文档的历史行没有可回退的原图（源文件是 PDF 不是图片）→ 不产出 ImageURL
-        TemporaryDocument doc = document("d1", "legacy.pdf", ".pdf", TemporaryDocument.STATUS_READY,
-                "text", "[]", 7, "[]");
-        when(repo.getScoped(TENANT, SESSION, "d1")).thenReturn(doc);
-
-        assertThat(service().resolveForPrompt(TENANT, SESSION, List.of("d1"), "看一下表格").imageUrls())
-                .isEmpty();
-    }
-
-    @Test
     void imageUrlsAreCappedAtFour() {
         TemporaryDocument doc = document("d1", "gac.png", ".png", TemporaryDocument.STATUS_READY,
                 "x", "[]", 1,

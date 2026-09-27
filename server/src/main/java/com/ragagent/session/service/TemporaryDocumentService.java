@@ -576,18 +576,7 @@ public class TemporaryDocumentService {
             // 图片型附件恒暴露原图给 vision 模型；文本文档只在问题带视觉意图时附带
             // 抽取图（对照 Go 注释：避免无谓的多模态时延）。
             if (isImageFormat(document.getFileType()) || isVisualDocumentQuery(query)) {
-                List<String> refs = imageUrlsOf(document.getImageRefs());
-                if (refs.isEmpty() && isImageFormat(document.getFileType())
-                        && document.getResourceRef() != null && !document.getResourceRef().isEmpty()) {
-                    // Java 侧历史行兜底（Go 无此分支——Go 从未存在 image_refs 为空的行）：
-                    // 本次图片收口（2026-09-27）之前解析的图片附件 image_refs 恒 "[]"，
-                    // 而图片型附件的"原图"就是源文件本身（Go 的 SimpleFormatReader 路径
-                    // 直接把原图字节写进 ImageRefs）⇒ 直接回退到 resource_ref，免重解析、
-                    // 免再落一份副本；新行（含 image_refs）优先走上面的正常分支。
-                    // 源文件已被 TTL 清理时与 Go 的失效 URL 同语义（读不到即回落原文）。
-                    refs = List.of(document.getResourceRef());
-                }
-                for (String url : refs) {
+                for (String url : imageUrlsOf(document.getImageRefs())) {
                     if (imageUrls.size() >= MAX_IMAGE_URLS) {
                         break;
                     }
