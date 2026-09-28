@@ -28,7 +28,8 @@ final class DefaultLangfuseManager implements LangfuseManager {
     /** 测试专用：注入记录出口（对照 Go Config.testExporter + SimpleSpanProcessor 的同步语义）。 */
     DefaultLangfuseManager(LangfuseConfig cfg, BatchSpanProcessor.SpanSink sink) {
         this.cfg = cfg;
-        this.processor = new BatchSpanProcessor(cfg, sink);
+        // 同步导出：测试断言依赖 "Finish 即已导出" 的确定性（生产构造器走后台导出线程）
+        this.processor = new BatchSpanProcessor(cfg, sink, true);
     }
 
     @Override

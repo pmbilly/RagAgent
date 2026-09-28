@@ -94,8 +94,11 @@ public record LangfuseConfig(
                 // 非法 → 保持默认（Go 的 err != nil 分支）
             }
         }
+        // 0 = 全不采样 → 视作整体关闭（此前被悄悄改写成 1.0，旋钮失效）。
+        // (0,1) 区间：trace 根上的概率采样尚未实现（恒采样备案见 LangfuseTracing），
+        // 保持默认全采样与既有行为一致。
         if (sampleRate == 0) {
-            sampleRate = 1.0;
+            enabled = false;
         }
 
         boolean debug = false;

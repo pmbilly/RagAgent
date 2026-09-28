@@ -34,19 +34,40 @@ final class BatchSpanProcessor {
     private final ArrayDeque<RecordedSpan> queue = new ArrayDeque<>();
     private final Object lock = new Object();
     private final ScheduledExecutorService flushTimer;
+    private final java.util.concurrent.ExecutorService exportExecutor;
+    /** 同步导出（测试注入出口的 SimpleSpanProcessor 语义）；生产 = false。 */
+    private final boolean synchronousExport;
     private final AtomicLong dropped = new AtomicLong();
 
     private volatile boolean stopped;
 
     BatchSpanProcessor(LangfuseConfig cfg, SpanSink sink) {
+        this(cfg, sink, false);
+    }
+
+    BatchSpanProcessor(LangfuseConfig cfg, SpanSink sink, boolean synchronousExport) {
         this.cfg = cfg;
         this.sink = sink;
+        this.synchronousExport = synchronousExport;
         long interval = Math.max(cfg.flushIntervalMs(), 100);
         this.flushTimer = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "langfuse-flush");
             t.setDaemon(true);
             return t;
         });
+        // 导出走独立线程：Go 的 BatchSpanProcessor 是后台 goroutine 导出，此前
+        // flushAt 触发的 send 在**调用方线程**同步 HTTP POST（超时默认 10s）——
+        // Langfuse 慢/不可达时用户请求被平白拖住最多 10s。测试注入出口保持同步
+        // （SimpleSpanProcessor 语义，见 DefaultLangfuseManager 测试构造器）。
+        if (synchronousExport) {
+            this.exportExecutor = null;
+        } else {
+            this.exportExecutor = Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "langfuse-export");
+                t.setDaemon(true);
+                return t;
+            });
+        }
         this.flushTimer.scheduleWithFixedDelay(this::flushQuietly, interval, interval,
                 TimeUnit.MILLISECONDS);
     }
@@ -72,7 +93,11 @@ final class BatchSpanProcessor {
             }
         }
         if (batch != null) {
-            send(batch);
+            if (synchronousExport) {
+                send(batch);
+            } else {
+                exportAsync(batch);
+            }
         }
     }
 
@@ -85,7 +110,7 @@ final class BatchSpanProcessor {
         send(batch);
     }
 
-    /** 对照 Manager.Shutdown：停定时器 + 终刷；重复调用幂等。 */
+    /** 对照 Manager.Shutdown：停定时器 + 终刷；重复调用幂等。终刷保持同步（保证退出前落盘）。 */
     void shutdown() {
         if (stopped) {
             return;
@@ -93,6 +118,18 @@ final class BatchSpanProcessor {
         stopped = true;
         flushTimer.shutdownNow();
         flush();
+        if (exportExecutor != null) {
+            exportExecutor.shutdown();
+        }
+    }
+
+    private void exportAsync(List<RecordedSpan> batch) {
+        try {
+            exportExecutor.execute(() -> send(batch));
+        } catch (RuntimeException rejected) {
+            // executor 已 shutdown 等场景：退回同步发送，宁可拖一下也不丢批
+            send(batch);
+        }
     }
 
     private List<RecordedSpan> drainLocked() {
