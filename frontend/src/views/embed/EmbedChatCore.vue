@@ -498,18 +498,8 @@ watch(
     color: var(--td-text-color-primary);
     white-space: pre-wrap;
     word-break: break-word;
-    background: color-mix(
-      in srgb,
-      var(--embed-primary, var(--td-brand-color)) 7%,
-      var(--td-bg-color-container, #fff)
-    );
-    border: 1px solid color-mix(
-      in srgb,
-      var(--embed-primary, var(--td-brand-color)) 14%,
-      var(--td-component-stroke, #e7e7e7)
-    );
+    background: var(--td-bg-color-secondarycontainer);
     border-radius: 4px 14px 14px 14px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   }
 }
 
