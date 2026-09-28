@@ -23,9 +23,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  *
  * <h2>语义</h2>
  * <ul>
- *   <li>JSON {@code null} → {@code null}；</li>
- *   <li>Go 零值字面量 {@code "0001-01-01T00:00:00Z"} → {@code null}
- *       （与 {@link GoTimeSerializer} 互逆，保证往返幂等）；</li>
+ *   <li>JSON {@code null} / 空串 → Go 零值时间（不是 null——Go 的零值时间没有
+ *       "缺省"这回事，回落 null 会让再序列化输出 null，往返不幂等）；</li>
+ *   <li>Go 零值字面量 {@code "0001-01-01T00:00:00Z"} → Go 零值时间
+ *       （与 {@link GoTimeSerializer} 的零值输出互逆）；</li>
  *   <li>其余按 {@link OffsetDateTime#parse(CharSequence)} 解析，**保留串里带的偏移**。</li>
  * </ul>
  */

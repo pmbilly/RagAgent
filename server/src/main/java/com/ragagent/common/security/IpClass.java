@@ -46,11 +46,17 @@ public final class IpClass {
         if (ip.isMulticastAddress()) {
             return new Result(Class.MULTICAST, Class.MULTICAST.reason);
         }
+        byte[] b = ip.getAddress();
+        // fec0::/10 deprecated site-local 必须先于 isSiteLocalAddress：Java 的
+        // Inet6Address.isSiteLocalAddress() 覆盖 fec0::/10，放后面会先命中 PRIVATE，
+        // 文案偏离 Go 的 "restricted range fec0::/10"（此前是永不可达的死分支）
+        if (ip instanceof Inet6Address && b[0] == (byte) 0xfe && (b[1] & 0xc0) == 0xc0) {
+            return new Result(Class.SITE_LOCAL_IPV6, "restricted range fec0::/10");
+        }
         if (ip.isSiteLocalAddress()) {
-            // Java siteLocal = RFC1918 (10/8, 172.16/12, 192.168/16) 与 fc00::/7
+            // Java siteLocal = RFC1918 (10/8, 172.16/12, 192.168/16) 与 fec0::/10
             return new Result(Class.PRIVATE, Class.PRIVATE.reason);
         }
-        byte[] b = ip.getAddress();
         if (ip instanceof Inet4Address) {
             int v = ((b[0] & 0xff) << 24) | ((b[1] & 0xff) << 16) | ((b[2] & 0xff) << 8) | (b[3] & 0xff);
             if (v == 0) {
@@ -74,10 +80,7 @@ public final class IpClass {
     }
 
     private static Result classifyIPv6(byte[] b) {
-        // fec0::/10 deprecated site-local（Go IsPrivate 不覆盖，单列）
-        if (b[0] == (byte) 0xfe && (b[1] & 0xc0) == 0xc0) {
-            return new Result(Class.SITE_LOCAL_IPV6, "restricted range fec0::/10");
-        }
+        // fec0::/10 已在 classify() 里先于 siteLocal 判定处理（Java 谓词覆盖顺序原因）
         // 6to4 2002::/16 —— 内嵌 IPv4 受限则整体受限
         if (b[0] == 0x20 && b[1] == 0x02) {
             int v = ipv4From(b, 2);

@@ -18,7 +18,11 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  */
 public class GoNaiveTimeSerializer extends JsonSerializer<LocalDateTime> {
 
-    private final GoTimeSerializer delegate = new GoTimeSerializer();
+    // 委托 UTC 变体：naive 值补 UTC 偏移后要输出 Z 结尾（本类 javadoc 契约）。
+    // 此前委托系统默认时区的 GoTimeSerializer——atOffset(UTC) 的入参会被
+    // atZoneSameInstant(系统默认) 转回本地偏移（如 +08:00），一旦被复用即输出
+    // 错误字节（该类当前全仓零引用，属"留着会被当正确实现复用"的坑）。
+    private final GoTimeSerializer delegate = new GoTimeSerializer.Utc();
 
     @Override
     public void serialize(LocalDateTime value, JsonGenerator gen, SerializerProvider provider)

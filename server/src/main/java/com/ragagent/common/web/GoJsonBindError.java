@@ -76,6 +76,10 @@ public final class GoJsonBindError {
             }
         }
         int after = start + literal.length();
+        // Go 的 decoder 跳过字面量后的空白再报 next non-space 字符（"null {" → '{'）
+        while (after < body.length() && Character.isWhitespace(body.charAt(after))) {
+            after++;
+        }
         if (after < body.length()) {
             return "invalid character '" + body.charAt(after) + "' after top-level value";
         }
