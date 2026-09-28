@@ -2,14 +2,12 @@ package com.ragagent.llm.chat;
 
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.llm.domain.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.limiter.ConcurrencyGovernor;
 import com.ragagent.llm.limiter.Release;
@@ -192,8 +190,11 @@ public class ConcurrencyChatClient implements LlmChatClient {
 
     /** 排干内层队列，让上游生产者可以正常退出（不消费内容，只腾出空间）。 */
     private static void drain(BlockingQueue<StreamResponse> inner) {
+        // 硬上限：上游若异常地永不收尾（不 done 也不断流 1 秒），不能陪它转成永动
+        // 自旋——排干只为礼貌收尾，超时弃排也只影响那个已经放弃的消费者。
+        long deadlineNanos = System.nanoTime() + DRAIN_HARD_CAP_SECONDS * 1_000_000_000L;
         try {
-            for (;;) {
+            while (System.nanoTime() < deadlineNanos) {
                 StreamResponse r = inner.poll(1, TimeUnit.SECONDS);
                 if (r == null || r.isDone()) {
                     return;
@@ -203,6 +204,9 @@ public class ConcurrencyChatClient implements LlmChatClient {
             Thread.currentThread().interrupt();
         }
     }
+
+    /** {@link #drain} 的硬上限（秒）。 */
+    private static final long DRAIN_HARD_CAP_SECONDS = 30;
 
     @Override
     public String getModelName() {

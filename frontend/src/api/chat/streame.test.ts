@@ -40,26 +40,23 @@ after(async () => {
   else Reflect.deleteProperty(globalThis, 'localStorage')
 })
 
-for (const selected of [true, false, undefined]) {
-  test(`SSE HTTP body preserves browser selection ${selected} alongside other tools`, async () => {
-    let stream!: ReturnType<typeof useStream>
-    await renderToString(createSSRApp({ setup() { stream = useStream(); return () => null } }))
-    try {
-      await stream.startStream({
-        session_id: 'new-session', query: '查一下腾讯股价', method: 'POST', url: '/api/v1/agent-chat',
-        agent_enabled: true, local_browser_enabled: selected, web_search_enabled: true,
-        mcp_service_ids: ['mcp-1'], skill_names: ['report'],
-      })
-      assert.equal(stream.error.value, null)
-      const request = transport.requests.at(-1)!
-      assert.equal(request.url, '/api/v1/agent-chat/new-session')
-      const body = JSON.parse(request.options.body)
-      assert.equal(body.local_browser_enabled, selected)
-      assert.equal(Object.hasOwn(body, 'local_browser_enabled'), selected !== undefined)
-      assert.equal(body.web_search_enabled, true)
-      assert.deepEqual(body.mcp_service_ids, ['mcp-1'])
-      assert.deepEqual(body.skill_names, ['report'])
-      assert.equal(stream.lastStreamRequest.value?.body?.local_browser_enabled, selected)
-    } finally { stream.stopStream() }
-  })
-}
+test('SSE HTTP body preserves web search selection alongside other tools', async () => {
+  let stream!: ReturnType<typeof useStream>
+  await renderToString(createSSRApp({ setup() { stream = useStream(); return () => null } }))
+  try {
+    await stream.startStream({
+      session_id: 'new-session', query: '查一下腾讯股价', method: 'POST', url: '/api/v1/agent-chat',
+      agent_enabled: true, web_search_enabled: true,
+      mcp_service_ids: ['mcp-1'], skill_names: ['report'],
+    })
+    assert.equal(stream.error.value, null)
+    const request = transport.requests.at(-1)!
+    assert.equal(request.url, '/api/v1/agent-chat/new-session')
+    const body = JSON.parse(request.options.body)
+    assert.equal(Object.hasOwn(body, 'local_browser_enabled'), false)
+    assert.equal(body.web_search_enabled, true)
+    assert.deepEqual(body.mcp_service_ids, ['mcp-1'])
+    assert.deepEqual(body.skill_names, ['report'])
+    assert.equal(stream.lastStreamRequest.value?.body?.web_search_enabled, true)
+  } finally { stream.stopStream() }
+})

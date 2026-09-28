@@ -426,7 +426,7 @@ public class FileProxyService {
 
     /**
      * gin 的 c.JSON：Content-Type {@code application/json; charset=utf-8}（带空格，
-     * setHeader 原样写——同 browserskill GinJson 的容器经验），gin.H 键按字母序
+     * setHeader 原样写——同既有的容器经验），gin.H 键按字母序
      * （调用方保证）。体走 UTF-8 字节（getWriter 会受容器默认编码影响）。
      */
     public static void writeJson(HttpServletResponse response, int status, Object body)

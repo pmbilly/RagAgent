@@ -41,7 +41,7 @@ WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Ja
 | 知识库 | `knowledge` `wiki` `faq` `searchutil` `retrieval` `vectorstore` | KB CRUD、文档解析管线（span 时间线）、chunk 编辑/修订、FAQ 双优先级检索、wiki（21 端点+生成管线）、混合检索（pgvector HNSW + ParadeDB BM25 + RRF） |
 | 会话 | `session` `stream` `storage` `storageurl` `webfetch` `websearch` | 会话/消息/SSE 契约层、steer/追问建议/产物、continue-stream、文件代理（Range/预签名/`/r/*` 能力 URL）、agent 网络工具（web_search/web_fetch + 全页快照存储） |
 | Agent | `agent` `agentm` `chatpipeline` `mcp` `modelcontext` | AgentEngine（thinking 流、工具循环、输出预算分摊）、30+ 内置工具（知识检索族/wiki 十件/web 两件/沙箱文件族/MCP）、RAG 快答管线、技能安装管线（installer agent + 镜像快照）、MCP 协议 + OAuth |
-| 沙箱 | `sandbox` `browserskill` | docker-java（zerodep 传输）容器执行面、会话绑定/租约、shell/文件工具、浏览器技能 |
+| 沙箱 | `sandbox` | docker-java（zerodep 传输）容器执行面、会话绑定/租约、shell/文件工具 |
 | 协作与集成 | `org` `im` `embed` `datasource` `favorite` `memory` `system` `evaluation` | 组织/共享（KB/agent/文件跨租户授予链）、IM 九渠道回调管线（含 AES 验签）、嵌入问答、数据源连接器、长期记忆、系统管理端、评估数据面 |
 | 基础设施 | `docreader/` proto | docreader gRPC 契约（解析服务用官方镜像，目录名镜像 Go 仓） |
 
@@ -204,7 +204,7 @@ WEKNORA_SANDBOX_DOCKER_IT=true WEKNORA_SANDBOX_DOCKER_ENABLED=true \
 
 - **provider-XDEP 族**（dev 双侧都到不了真实后端，接缝与测试已备）：IM 九渠道的平台客户端传输、cube/e2b 终端（envd PTY 执行体/协议/事件三态已落地并被本地桩覆盖，provider 控制面未接线）、真实 LLM install E2E
 - **Owner 暂缓**：EvaluationService 执行步（前端无入口；恢复条件=出现评估调用需求）
-- **备案降级**：langfuse 追踪（no-op 等价于 Go 未启用）、Redis 分布式限流器（单实例 LocalLimiter）、RSS readability 抽取、chromedp 浏览器渲染（走 Go 自身的 browser-unavailable 分支）、OIDC enabled 后的网络步
+- **备案降级**：langfuse 追踪（no-op 等价于 Go 未启用）、Redis 分布式限流器（单实例 LocalLimiter）、RSS readability 抽取、OIDC enabled 后的网络步
 
 ## 高频坑速查
 

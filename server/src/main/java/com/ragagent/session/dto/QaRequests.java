@@ -73,8 +73,6 @@ public final class QaRequests {
         @com.fasterxml.jackson.annotation.JsonProperty("agent_source_tenant_id")
         @JsonInclude(Include.NON_DEFAULT)
         public long agentSourceTenantId;
-        @com.fasterxml.jackson.annotation.JsonProperty("local_browser_enabled")
-        public boolean localBrowserEnabled;
         @com.fasterxml.jackson.annotation.JsonProperty("web_search_enabled")
         public boolean webSearchEnabled;
         @com.fasterxml.jackson.annotation.JsonProperty("summary_model_id")

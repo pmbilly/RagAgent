@@ -438,13 +438,12 @@ public class AuthController {
         Map<String, Object> capabilities = new LinkedHashMap<>();
         capabilities.put("auto_accept_invitation", autoAcceptInvitation);
         capabilities.put("can_create_tenant", canCreateTenant);
-        Map<String, Object> preferenceDefaults = new LinkedHashMap<>();
-        preferenceDefaults.put("browser_search_instructions",
-                PasswordPolicy.DEFAULT_BROWSER_SEARCH_INSTRUCTIONS);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("capabilities", capabilities);
         data.put("memberships", memberships);
-        data.put("preference_defaults", preferenceDefaults);
+        // preference_defaults：browser_search_instructions 随浏览器连接裁撤后已无条目，
+        // 保留空 map 以维持响应形状。
+        data.put("preference_defaults", new LinkedHashMap<>());
         data.put("tenant", tenant == null ? null : TenantResponse.from(tenant, contextRoleHasAdmin()));
         data.put("tenant_required", tenant == null);
         data.put("user", userInfo);
@@ -462,16 +461,7 @@ public class AuthController {
         User user = currentUserOr401();
         UpdatePreferencesRequest req = parseBody(rawBody, UpdatePreferencesRequest.class,
                 "Invalid preferences request");
-        // binding：browser_search_instructions omitempty,max=4000（rune 计）
-        if (req.browserSearchInstructions() != null
-                && req.browserSearchInstructions()
-                        .codePointCount(0, req.browserSearchInstructions().length())
-                        > PasswordPolicy.MAX_BROWSER_SEARCH_INSTRUCTIONS_LENGTH) {
-            throw invalidParams("Invalid preferences request",
-                    bindingError("updateMyPreferencesRequest", "BrowserSearchInstructions", "max"));
-        }
         UserPreferences patch = new UserPreferences();
-        patch.setBrowserSearchInstructions(req.browserSearchInstructions());
         patch.setLastActiveTenantId(req.lastActiveTenantId());
         UserPreferences prefs;
         try {

@@ -516,11 +516,9 @@ public final class APIKeyRoutePolicies {
         a.registerGin("GET", "/api/v1/sessions/:id/attachments/:attachment_id", sessions);
         a.registerGin("GET", "/api/v1/sessions/:id/attachments/:attachment_id/preview", sessions);
         a.registerGin("DELETE", "/api/v1/sessions/:id/attachments/:attachment_id", sessions);
-        // 沙箱终端票据 + local-browser 会话面（W5d，routes_chat.go L67-69，同组 chat 能力；
+        // 沙箱终端票据（W5d，routes_chat.go L67-69，同组 chat 能力；
         // WS 升级路由 GET …/sandbox/terminal 注册于 Auth 之前、票据自鉴权，不经 API Key 面）
         a.registerGin("POST", "/api/v1/sessions/:session_id/sandbox/terminal-ticket", sessions);
-        a.registerGin("GET", "/api/v1/sessions/:id/local-browser", sessions);
-        a.registerGin("POST", "/api/v1/sessions/:session_id/local-browser", sessions);
     }
 
     /**

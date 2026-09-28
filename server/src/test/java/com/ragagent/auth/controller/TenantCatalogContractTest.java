@@ -79,7 +79,12 @@ class TenantCatalogContractTest {
     private static final Pattern TS_VALUE = Pattern.compile(
             "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T[0-9:.+\\-Z]+\"");
     private static final Pattern API_KEY = Pattern.compile("\"api_key\":\"[^\"]*\"");
-    private static final Pattern SSRF_IP = Pattern.compile("resolves to restricted IP [0-9.]+");
+    // DNS 是否解析随环境而变（录制机 fake-IP DNS 返回 198.18/15；离线环境解析失败），
+    // 两种都是 SSRF 拒绝，统一归一化到 <ssrf-host> 避免环境依赖。
+    private static final Pattern SSRF_DNS_PREFIX =
+            Pattern.compile("DNS resolution failed for hostname [a-z0-9.-]+example\\.com[^\"]*");
+    private static final Pattern SSRF_HOSTNAME_TAIL =
+            Pattern.compile("hostname [a-z0-9.-]+example\\.com[^\"]*");
 
     @Autowired
     private MockMvc mockMvc;
@@ -457,7 +462,8 @@ class TenantCatalogContractTest {
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");
         out = TS_VALUE.matcher(out).replaceAll("\"$1\":\"<ts>\"");
         out = DATA_ID.matcher(out).replaceAll("\"id\":\"<id>\"");
-        out = SSRF_IP.matcher(out).replaceAll("resolves to restricted IP <ip>");
+        out = SSRF_DNS_PREFIX.matcher(out).replaceAll("<ssrf-host>");
+        out = SSRF_HOSTNAME_TAIL.matcher(out).replaceAll("<ssrf-host>");
         return out;
     }
 }

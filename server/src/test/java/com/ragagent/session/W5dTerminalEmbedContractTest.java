@@ -30,7 +30,7 @@ import com.ragagent.TestSchema;
 import com.ragagent.knowledge.service.LocalStorageService;
 
 /**
- * 收尾批 W5d 契约测试：沙箱终端（w5d-term-*）+ 会话侧 local-browser（w5d-lb-*）+
+ * 收尾批 W5d 契约测试：沙箱终端（w5d-term-*）+
  * embed QA 委托 / 文件代理（w5d-emb-*）。golden 来源：Go dev server 实录
  * （scripts/record-w5d-golden.sh，租户 10008 种子态见脚本头注释）。
  *
@@ -255,24 +255,6 @@ class W5dTerminalEmbedContractTest {
         assertEquals("nosniff", r.getResponse().getHeader("X-Content-Type-Options"));
         String contentType = String.valueOf(r.getResponse().getHeader("Content-Type"));
         assertTrue(contentType.startsWith("text/plain"), () -> "Content-Type: " + contentType);
-    }
-
-    // ══════════════ 二、会话侧 local-browser ══════════════
-
-    @Test
-    void localBrowser() throws Exception {
-        compareJson("w5d-lb-get-404.json", 404,
-                call("GET", "/api/v1/sessions/" + GHOST + "/local-browser",
-                        "Authorization: " + owner));
-        compareJson("w5d-lb-get-ok.json", 200,
-                call("GET", "/api/v1/sessions/" + SES_A + "/local-browser",
-                        "Authorization: " + owner));
-        compareJson("w5d-lb-post-404.json", 404,
-                callJson("/api/v1/sessions/" + GHOST + "/local-browser", "{}",
-                        "Authorization: " + owner));
-        compareJson("w5d-lb-post-unavailable.json", 503,
-                callJson("/api/v1/sessions/" + SES_A + "/local-browser", "{\"action\":\"preview\"}",
-                        "Authorization: " + owner));
     }
 
     // ══════════════ 三、embed QA 委托 + 文件代理 ══════════════

@@ -100,9 +100,13 @@ class McpStubABTest {
         }
     }
 
+    private static SsrfGuard.Whitelist ssrfSnapshot;
+
     @BeforeAll
     static void startStub() throws Exception {
-        // 与 mcp 探针同款：放开 127.0.0.1 的 SSRF 校验（结束后还原，§7 纪律）
+        // 与 mcp 探针同款：放开 127.0.0.1 的 SSRF 校验。白名单是进程级 static，
+        // 必须快照/还原——只换实例会让 127.0.0.1 泄漏给后续契约测试（W5a 互踩家族）。
+        ssrfSnapshot = SsrfGuard.snapshotWhitelist();
         SsrfGuard guard = new SsrfGuard();
         guard.reloadWhitelist("127.0.0.1");
         com.ragagent.mcp.protocol.McpServiceUrls.setSsrfGuard(guard);
@@ -138,6 +142,7 @@ class McpStubABTest {
             server.stop(0);
         }
         com.ragagent.mcp.protocol.McpServiceUrls.setSsrfGuard(new SsrfGuard());
+        SsrfGuard.restoreWhitelist(ssrfSnapshot);
     }
 
     @Test

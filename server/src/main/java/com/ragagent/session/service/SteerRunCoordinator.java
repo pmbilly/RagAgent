@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.ragagent.session.domain.Message;
-import com.ragagent.stream.StreamBatch;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
@@ -236,7 +235,6 @@ public class SteerRunCoordinator {
         copy.mcpServiceIds = new java.util.ArrayList<>(src.mcpServiceIds);
         copy.skillNames = new java.util.ArrayList<>(src.skillNames);
         copy.summaryModelId = src.summaryModelId;
-        copy.localBrowserEnabled = src.localBrowserEnabled;
         copy.webSearchEnabled = src.webSearchEnabled;
         copy.mentionedItems = new java.util.ArrayList<>(src.mentionedItems);
         copy.effectiveTenantId = src.effectiveTenantId;

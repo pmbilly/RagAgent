@@ -197,14 +197,13 @@ class SandboxSkillsMeContractTest {
                 400, "slk-catalog-register-nobody.json");
         assertGolden(json(post("/api/v1/skills/catalog").header("Authorization", owner),
                 "{\"source\":\"\"}"), 400, "slk-catalog-register-invalid.json");
-        // SSRF 拒绝在出站校验层发生（dev 的 fake-ip DNS 把公网域名解进受限段）；
-        // 校验通过后的真实抓取是波 4 接缝——任何分支都不会发出出站请求。
-        // fake-ip 池每次解析回不同地址（录制 198.18.0.122 / 重跑 198.18.0.74）——
-        // IP 是环境锚必须掩码（§9 ct 批"SSRF 解析 IP 掩码族"），受限段文案另行断言。
+        // SSRF 拒绝在出站校验层发生。地址用回环（默认策略必拒、无出站请求、无环境
+        // 依赖——公网域名在外网环境会被真实解析并抓取，录制期的 fake-ip DNS 行为
+        // 不可移植）。
         assertMaskedBody("slk-catalog-register-src.json", actualSourceResponse(owner));
         org.junit.jupiter.api.Assertions.assertTrue(
-                actualSourceResponse(owner).contains("restricted range 198.18.0.0/15"),
-                "SSRF 拒绝必须落在 198.18.0.0/15 受限段");
+                actualSourceResponse(owner).contains("hostname 127.0.0.1 is restricted"),
+                "SSRF 拒绝必须发生在出站校验层");
 
         // ==> 2) catalog 归档注册（本地存储）+ 列表/files
         MvcResult registered = mockMvc.perform(multipart("/api/v1/skills/catalog")
@@ -321,7 +320,7 @@ class SandboxSkillsMeContractTest {
     private String actualSourceResponse(String owner) throws Exception {
         MvcResult r = mockMvc.perform(json(
                         post("/api/v1/skills/catalog").header("Authorization", owner),
-                        "{\"source\":\"https://example.com/not-reachable.zip\"}"))
+                        "{\"source\":\"http://127.0.0.1:9/not-reachable.zip\"}"))
                 .andReturn();
         assertEquals(400, r.getResponse().getStatus(), snippet(r));
         return raw(r);

@@ -41,3 +41,4 @@ __pycache__/
 mcp-server/.venv/
 __pycache__/
 *.egg-info/
+.zcode/

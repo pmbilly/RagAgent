@@ -46,7 +46,7 @@ DOMAIN_LABELS = {
     "initialization": "初始化向导", "api": "API Principal", "tenants-kv": "租户 KV",
     "prompt-templates": "提示词模板", "artifacts": "产物", "steer": "Steer",
     "suggestions": "追问建议", "continue-stream": "续流", "terminal": "终端",
-    "local-browser": "本地浏览器", "browser": "浏览器技能", "kv": "KV 配置",
+    "kv": "KV 配置",
     "search": "搜索", "dataset": "评估数据", "kv": "KV",
     "datasource": "数据源", "embed-channels": "嵌入渠道",
     "knowledgebase": "知识库(旧形态)", "mcp-services": "MCP 服务",

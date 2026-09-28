@@ -390,12 +390,6 @@ public final class AgentPrompts {
                     + "a dependent call. Use the returned tool_ref with call_mcp_tool only when that function is "
                     + "offered; never guess tool names, server IDs, arguments, or references.\n");
         }
-        if (names.contains("local_browser")) {
-            b.append("Use local_browser directly for the connected browser; it requires no shell "
-                    + "command or browser skill installation. Follow its tool definition for task windows, "
-                    + "observation, pause/resume and human help. Do not bypass a pause or browser challenge "
-                    + "through another tool.\n");
-        }
 
         return b.toString();
     }

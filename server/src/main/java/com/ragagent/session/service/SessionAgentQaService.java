@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,11 +11,8 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.agent.AgentConfig;
-import com.ragagent.agent.AgentConsts;
 import com.ragagent.agent.AgentEngine;
 import com.ragagent.agent.AgentPrompts;
-import com.ragagent.agent.AgentToolNames;
-import com.ragagent.agent.skills.Manager;
 import com.ragagent.agent.tools.McpExposure;
 import com.ragagent.agent.tools.ToolDefinitions;
 import com.ragagent.agent.tools.WikiSupport;
@@ -333,7 +329,6 @@ public class SessionAgentQaService {
         // 同形）。内建 agent 的 0.7 来自 agent_type_presets.yaml 显式配置，不靠此缺省。
         ac.setTemperature(c.path("temperature").asDouble(0.0));
         ac.setWebSearchEnabled(c.path("web_search_enabled").asBoolean(false) && req.webSearchEnabled);
-        ac.setLocalBrowserEnabled(req.localBrowserEnabled);
         ac.setWebSearchMaxResults(c.path("web_search_max_results").asInt(0));
         ac.setWebSearchProviderId(c.path("web_search_provider_id").asText(""));
         ac.setMultiTurnEnabled(c.path("multi_turn_enabled").asBoolean(true));
@@ -617,12 +612,6 @@ public class SessionAgentQaService {
         }
         if (chatModel == null) {
             throw new RuntimeException("chat model is nil after initialization");
-        }
-
-        // Local browser：browserSkill 集成未装配 → 与 Go 的 Enabled()==false 分支一致
-        if (config.isLocalBrowserEnabled()) {
-            throw new RuntimeException("local browser is unavailable for this turn; "
-                    + "enable the browser integration or update the input-bar selection");
         }
 
         // 2. Build tool registry

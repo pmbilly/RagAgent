@@ -695,7 +695,6 @@ class JsonContractRoundTripTest {
         state.setMcpServiceIds(List.of("mcp-1"));
         state.setSkillNames(List.of("skill-1"));
         state.setMentionedItems(List.of(new MentionedItem()));
-        state.setLocalBrowserEnabled(true);
         state.setWebSearchEnabled(true);
         s.setLastRequestState(state);
 
@@ -1266,7 +1265,6 @@ class JsonContractRoundTripTest {
         // （与 User 实体序列化的差别）；avatar/tenant_id/preferences 恒输出。
         // 时间字段留空：本工具用的是裸 ObjectMapper（未注册 JSR-310）。
         var prefs = new com.ragagent.auth.domain.UserPreferences();
-        prefs.setBrowserSearchInstructions("instr");
         prefs.setLastActiveTenantId(10002L);
         var info = new com.ragagent.auth.dto.UserInfo(
                 "u-1", "probe", "probe@weknora.test", "", 10002L,

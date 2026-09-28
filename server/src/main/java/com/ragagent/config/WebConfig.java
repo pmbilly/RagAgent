@@ -4,8 +4,6 @@ import java.util.List;
 
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.auth.filter.AuthFilter;
-import com.ragagent.auth.service.TenantMemberService;
-import com.ragagent.auth.service.TenantService;
 import com.ragagent.auth.service.UserService;
 import com.ragagent.common.filter.RequestIdFilter;
 import com.ragagent.common.web.RbacInterceptor;
@@ -367,13 +365,11 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("GET", "/api/v1/sessions/*/messages/*/artifacts", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/sessions/*/messages/*/artifacts/*/download", TenantRole.VIEWER, false);
 
-        // 沙箱终端票据 + local-browser 会话面（W5d，对照 routes_chat.go
-        // RegisterSandboxTerminalRoutes / handler/session/browserskill.go——sessions
-        // 组级 g.Viewer() 同族）。WS 升级路由（GET …/sandbox/terminal）在 Go 注册于
-        // Auth 之前、票据自鉴权，不经过 RBAC，不登记。
+        // 沙箱终端票据（W5d，对照 routes_chat.go
+        // RegisterSandboxTerminalRoutes——sessions 组级 g.Viewer() 同族）。WS 升级路由
+        // （GET …/sandbox/terminal）在 Go 注册于 Auth 之前、票据自鉴权，
+        // 不经过 RBAC，不登记。
         rbac.addRule("POST", "/api/v1/sessions/*/sandbox/terminal-ticket", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/sessions/*/local-browser", TenantRole.VIEWER, false);
-        rbac.addRule("POST", "/api/v1/sessions/*/local-browser", TenantRole.VIEWER, false);
 
         // 消息面（W5a 漂移修复补登记，对照 routes_chat.go RegisterMessageRoutes L28-31）：
         // 四条逐路由 g.Viewer()（组注释原文："message history 是 tenant-wide 面，

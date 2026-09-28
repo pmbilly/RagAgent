@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 @JsonPropertyOrder({
         "agent_id", "agent_enabled", "model_id", "knowledge_base_ids", "knowledge_ids",
         "tag_ids", "mcp_service_ids", "skill_names", "mentioned_items",
-        "local_browser_enabled", "web_search_enabled"
+        "web_search_enabled"
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SessionLastRequestState {
@@ -64,10 +64,6 @@ public class SessionLastRequestState {
     @JsonProperty("mentioned_items")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MentionedItem> mentionedItems;
-
-    /** 无 omitempty：恒输出。 */
-    @JsonProperty("local_browser_enabled")
-    private boolean localBrowserEnabled;
 
     @JsonProperty("web_search_enabled")
     private boolean webSearchEnabled;
@@ -145,14 +141,6 @@ public class SessionLastRequestState {
 
     public void setMentionedItems(List<MentionedItem> v) {
         this.mentionedItems = v;
-    }
-
-    public boolean isLocalBrowserEnabled() {
-        return localBrowserEnabled;
-    }
-
-    public void setLocalBrowserEnabled(boolean v) {
-        this.localBrowserEnabled = v;
     }
 
     public boolean isWebSearchEnabled() {

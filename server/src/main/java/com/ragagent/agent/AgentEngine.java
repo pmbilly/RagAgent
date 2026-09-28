@@ -48,7 +48,6 @@ import com.ragagent.agent.tools.MessageSanitizer;
 import com.ragagent.agent.tools.NormalizeToolCallId;
 import com.ragagent.agent.tools.SandboxDiffs;
 import com.ragagent.agent.tools.ThinkBlocks;
-import com.ragagent.agent.tools.ToolCancellation;
 import com.ragagent.agent.tools.ToolExecContext;
 import com.ragagent.agent.tools.ToolRegistry;
 import com.ragagent.common.context.TenantContext;
@@ -130,9 +129,6 @@ public class AgentEngine {
 
     /** langfuse 工具输出预览上限（对照 langfuseToolOutputPreview）。 */
     private static final int LANGFUSE_TOOL_OUTPUT_PREVIEW = 4000;
-
-    /** local_browser 工具名（Go 侧字面量使用处）。 */
-    private static final String LOCAL_BROWSER_TOOL = "local_browser";
 
     /** 拒执行截断参数的模型可见文案（对照 truncatedArgumentsError）。 */
     static final String TRUNCATED_ARGUMENTS_ERROR = "Tool call was not executed: the model output was cut off "
@@ -325,22 +321,7 @@ public class AgentEngine {
                 ? skillsManager.getAllMetadata() : null;
         if (toolRegistry != null) {
             opts.setSelectedTools(toolRegistry.listTools());
-            try {
-                toolRegistry.getTool(LOCAL_BROWSER_TOOL);
-                // local_browser 在场时隐藏内建 browser 技能（能力重叠）。
-                List<Skill.SkillMetadata> filtered = new ArrayList<>();
-                if (allMetadata != null) {
-                    for (Skill.SkillMetadata item : allMetadata) {
-                        if (item != null && !"browser".equals(item.name())
-                                && !"browser-skill".equals(item.name())) {
-                            filtered.add(item);
-                        }
-                    }
-                }
-                opts.setSkillsMetadata(toAgentSkillMetadata(filtered));
-            } catch (ToolRegistry.ToolNotFoundException e) {
-                opts.setSkillsMetadata(toAgentSkillMetadata(allMetadata));
-            }
+            opts.setSkillsMetadata(toAgentSkillMetadata(allMetadata));
             try {
                 toolRegistry.getTool(ToolDefinitions.TOOL_SHELL_EXEC);
                 opts.setShellExecEnabled(true);

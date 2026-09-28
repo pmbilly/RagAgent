@@ -19,7 +19,6 @@ public class QaAgentConfig extends AgentConfig {
     /** 本轮沙箱镜像里可调用的已安装技能（对照 Go AgentConfig.TenantSkills，实体列表）。 */
     private List<com.ragagent.sandbox.domain.TenantSkillEntity> tenantSkills = new ArrayList<>();
 
-    private boolean localBrowserEnabled;
     private int webSearchMaxResults;
     private String webSearchProviderId = "";
     private int historyTurns;
@@ -40,8 +39,6 @@ public class QaAgentConfig extends AgentConfig {
     private List<String> pinnedMcpServiceIds;
     private List<String> skillDirs = new ArrayList<>();
 
-    public boolean isLocalBrowserEnabled() { return localBrowserEnabled; }
-    public void setLocalBrowserEnabled(boolean v) { localBrowserEnabled = v; }
     public int getWebSearchMaxResults() { return webSearchMaxResults; }
     public void setWebSearchMaxResults(int v) { webSearchMaxResults = v; }
     public String getWebSearchProviderId() { return webSearchProviderId; }

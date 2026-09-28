@@ -2,12 +2,9 @@ package com.ragagent.session.service;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
-import java.util.Enumeration;
 
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletOutputStream;
@@ -18,7 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * 服务端 WebSocket（RFC 6455）最小实现——沙箱终端专用（收尾批 W5d）。
  *
  * <p>对照 Go gorilla/websocket v1.5.3 的 Upgrader/Conn 语义（项目无 spring-websocket
- * 依赖，波 3 browserskill 批的"既有形态"是 HTTP 层手写解析，本类沿用同一打法）：</p>
+ * 依赖，本类沿用 HTTP 层手写解析的既有打法）：</p>
  * <ul>
  *   <li>升级失败族（对照 Upgrade 的检查序 + returnError）：一律
  *       {@code Sec-Websocket-Version: 13} + http.Error 形态——400/405 纯文本

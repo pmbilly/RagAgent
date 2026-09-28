@@ -70,7 +70,6 @@ class AuthRegisterContractTest {
     private static final String INVITE_USER = "reginvite-user";
     private static final String INVITE_TOKEN = "reggoldenfixedtoken0123456789abcdef";
     /** 4001 字符（限 4000，rune 计） */
-    private static final String LONG_PREF = "x".repeat(4001);
 
     private static final Pattern TS_PATTERN = Pattern.compile(
             "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})");
@@ -223,16 +222,6 @@ class AuthRegisterContractTest {
 
         assertGolden(put("/api/v1/auth/me/preferences").header("Authorization", probe),
                 400, "reg-prefs-empty-body.json");
-        assertGolden(json(put("/api/v1/auth/me/preferences").header("Authorization", probe),
-                "{\"browser_search_instructions\":\"Custom search instructions\"}"),
-                200, "reg-prefs-set.json");
-        assertGolden(json(put("/api/v1/auth/me/preferences").header("Authorization", probe),
-                "{\"browser_search_instructions\":\"" + LONG_PREF + "\"}"),
-                400, "reg-prefs-too-long.json");
-        assertGolden(json(put("/api/v1/auth/me/preferences").header("Authorization", probe),
-                "{\"browser_search_instructions\":\"Default search engine: Bing.\\n"
-                        + "Search URL: https://www.bing.com/search?q={query}\"}"),
-                200, "reg-prefs-default-clear.json");
 
         // 录制脚本从 reg-me-ok 取探针主租户 id；此处同样先取再回放
         long probeTenant = currentTenantId(probe);

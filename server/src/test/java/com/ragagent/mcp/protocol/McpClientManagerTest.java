@@ -26,9 +26,14 @@ import org.junit.jupiter.api.Test;
  */
 class McpClientManagerTest {
 
+    private com.ragagent.common.security.SsrfGuard.Whitelist ssrfSnapshot;
+
     @BeforeEach
     void allowLoopback() {
-        // 对照 Go 的 utils.SetSSRFWhitelistFromRaw("127.0.0.1")
+        // 对照 Go 的 utils.SetSSRFWhitelistFromRaw("127.0.0.1")。
+        // SsrfGuard 的白名单是进程级 static（known-issues W5a「互踩」家族），
+        // 必须快照/还原，否则 127.0.0.1 泄漏给同 JVM 的后续契约测试。
+        ssrfSnapshot = SsrfGuard.snapshotWhitelist();
         SsrfGuard guard = new SsrfGuard();
         guard.reloadWhitelist("127.0.0.1");
         McpServiceUrls.setSsrfGuard(guard);
@@ -37,6 +42,7 @@ class McpClientManagerTest {
     @AfterEach
     void resetGuard() {
         McpServiceUrls.setSsrfGuard(new SsrfGuard());
+        SsrfGuard.restoreWhitelist(ssrfSnapshot);
     }
 
     private static McpService service(String id, String url) {

@@ -81,8 +81,6 @@ class KnowledgeQaContractTest {
         assertEnvelope("kch-empty-query", 1000,
                 "Key: 'CreateKnowledgeQARequest.Query' Error:Field validation for 'Query' failed on the 'required' tag");
         assertEnvelope("kch-missing-session", 1003, "Session not found");
-        assertEnvelope("kch-local-browser", 1000,
-                "Local browser requires an agent with tool calling enabled");
     }
 
     @Test

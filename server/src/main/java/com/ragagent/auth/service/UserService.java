@@ -569,8 +569,7 @@ public class UserService {
 
     /**
      * 对照 UpdateUserPreferences：PATCH 语义合并（null = 未携带，保持原值）。
-     * browser_search_instructions trim 后超 4000 rune → PreferencesException；
-     * 空串或等于平台默认值 → 存 null（响应省略）；last_active_tenant_id=0 → 清偏好。
+     * last_active_tenant_id=0 → 清偏好。
      */
     public UserPreferences updateUserPreferences(String userId, UserPreferences patch) {
         User user = getUserById(userId);
@@ -578,17 +577,6 @@ public class UserService {
             throw new PreferencesException("record not found");
         }
         UserPreferences merged = user.getPreferences() != null ? user.getPreferences() : new UserPreferences();
-        if (patch.getBrowserSearchInstructions() != null) {
-            String value = goTrimSpace(patch.getBrowserSearchInstructions());
-            if (value.codePointCount(0, value.length())
-                    > PasswordPolicy.MAX_BROWSER_SEARCH_INSTRUCTIONS_LENGTH) {
-                throw new PreferencesException("browser search instructions must not exceed "
-                        + PasswordPolicy.MAX_BROWSER_SEARCH_INSTRUCTIONS_LENGTH + " characters");
-            }
-            merged.setBrowserSearchInstructions(
-                    value.isEmpty() || value.equals(PasswordPolicy.DEFAULT_BROWSER_SEARCH_INSTRUCTIONS)
-                            ? null : value);
-        }
         if (patch.getLastActiveTenantId() != null) {
             // 0 = 「忘掉我的偏好」哨兵；其余正值直接存（成员关系下次登录时校验）
             merged.setLastActiveTenantId(

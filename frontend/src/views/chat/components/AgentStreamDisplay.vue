@@ -146,8 +146,7 @@
                   <div class="action-header" @click.stop="handleActionHeaderClick(event)"
                     :class="{ 'no-results': !hasActionResult(event) }">
                     <div class="action-title">
-                      <BrowserIcon v-if="event.tool_name === 'local_browser'" class="action-title-icon browser-tool-icon" />
-                      <t-icon v-else-if="event.tool_name" class="action-title-icon"
+                      <t-icon v-if="event.tool_name" class="action-title-icon"
                         :name="getToolIconName(event.tool_name)" />
                       <t-tooltip v-if="event.tool_name === 'todo_write' && event.tool_data?.steps"
                         :content="t('agent.updatePlan')" placement="top">
@@ -216,8 +215,7 @@
 
                     <div v-if="isEventExpanded(event.tool_call_id) && !event.pending && hasExpandableResults(event)"
                     class="action-details">
-                    <BrowserToolDetails v-if="event.tool_name === 'local_browser'" :event="event" />
-                    <div v-else-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
+                    <div v-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
                       <ToolResultRenderer :display-type="resolveToolDisplayType(event)" :tool-data="event.tool_data"
                         :output="mcpToolResultOutput(event)" :arguments="event.arguments" :success="event.success" />
                     </div>
@@ -441,8 +439,7 @@
                 <div class="action-header" @click.stop="handleActionHeaderClick(event)"
                   :class="{ 'no-results': !hasActionResult(event) }">
                   <div class="action-title">
-                    <BrowserIcon v-if="event.tool_name === 'local_browser'" class="action-title-icon browser-tool-icon" />
-                    <t-icon v-else-if="event.tool_name" class="action-title-icon" :name="getToolIconName(event.tool_name)" />
+                    <t-icon v-if="event.tool_name" class="action-title-icon" :name="getToolIconName(event.tool_name)" />
                     <t-tooltip v-if="event.tool_name === 'todo_write' && event.tool_data?.steps"
                       :content="t('agent.updatePlan')" placement="top">
                       <span class="action-name">
@@ -512,8 +509,7 @@
 
                 <div v-if="isEventExpanded(event.tool_call_id) && !event.pending && hasExpandableResults(event)"
                   class="action-details">
-                  <BrowserToolDetails v-if="event.tool_name === 'local_browser'" :event="event" />
-                    <div v-else-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
+                  <div v-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
                     <ToolResultRenderer :display-type="resolveToolDisplayType(event)" :tool-data="event.tool_data"
                       :output="mcpToolResultOutput(event)" :arguments="event.arguments" :success="event.success" />
                   </div>
@@ -684,9 +680,6 @@ import { attachMarkdownEnhancementListeners, refreshMarkdownEnhancements } from 
 import { useTypewriter } from '@/composables/useTypewriter';
 import { vStableHtml } from '@/directives/stableHtml';
 
-import BrowserToolDetails from './BrowserToolDetails.vue';
-import { browserToolTitle } from '@/utils/browserToolDisplay';
-import BrowserIcon from '@/components/icons/BrowserIcon.vue';
 const getToolIconName = getAgentToolIconName;
 
 const router = useRouter();
@@ -735,7 +728,6 @@ const TOOL_NAME_KEYS: Record<string, string> = {
   write_sandbox_file: 'agentStream.tools.writeSandboxFile',
   edit_sandbox_file: 'agentStream.tools.editSandboxFile',
   shell_exec: 'agentStream.tools.shellExec',
-  local_browser: 'localBrowser.local',
   data_analysis: 'agentStream.tools.dataAnalysis',
   data_schema: 'agentStream.tools.dataSchema',
   database_query: 'agentStream.tools.databaseQuery',
@@ -2841,7 +2833,6 @@ const getAttachmentParsingSummary = (event: any): string => {
 
 // Get tool title - prefer summary over description, add query for search tools
 const getToolTitle = (event: any): string => {
-  if (event.tool_name === 'local_browser') return browserToolTitle(t, event);
   const mcpTitle = getMcpToolTitle(t, event)
   if (mcpTitle) return mcpTitle
   if (event.pending) {
@@ -3005,7 +2996,6 @@ const skillScriptCommandLabel = (event: any): string => {
 
 // Tool description
 const getToolDescription = (event: any): string => {
-  if (event.tool_name === 'local_browser') return browserToolTitle(t, event);
   if (event.pending) {
     if (event.tool_name === 'image_analysis') {
       return t('agentStream.toolStatus.imageAnalyzing');
@@ -3502,8 +3492,6 @@ const handleAddToKnowledge = (answerEvent: any) => {
 
   .action-title-icon {
     flex-shrink: 0;
-
-    &.browser-tool-icon { width: 18px; height: 18px; color: var(--agent-step-icon-color); }
 
     &.t-icon {
       width: 18px;

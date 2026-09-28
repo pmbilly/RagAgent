@@ -21,7 +21,6 @@ interface Settings {
   selectedTools?: string[];
   modelConfig: ModelConfig;  // 模型配置
   ollamaConfig: OllamaConfig;  // Ollama配置
-  localBrowserEnabled: boolean; // Explicit source preference; composer activates it only while the extension is online
   webSearchEnabled: boolean;  // 网络搜索是否启用
   conversationModels: ConversationModels;
   selectedAgentId: string;  // 当前选中的智能体ID
@@ -98,7 +97,6 @@ const defaultSettings: Settings = {
     baseUrl: "http://localhost:11434",
     enabled: true
   },
-  localBrowserEnabled: false,
   webSearchEnabled: false,  // 默认关闭网络搜索
   conversationModels: {
     summaryModelId: "",
@@ -167,7 +165,6 @@ export const useSettingsStore = defineStore("settings", {
     modelConfig: (state) => state.settings.modelConfig || defaultSettings.modelConfig,
     
     // 本轮查询来源
-    isLocalBrowserEnabled: (state) => state.settings.localBrowserEnabled === true,
     isWebSearchEnabled: (state) => state.settings.webSearchEnabled || false,
     
     // 是否自动检查并下载更新
@@ -325,11 +322,6 @@ export const useSettingsStore = defineStore("settings", {
       return this.settings.selectedKnowledgeBases || [];
     },
     
-    // 本机浏览器与联网搜索可独立选择。
-    toggleLocalBrowser(enabled: boolean) {
-      this.settings.localBrowserEnabled = enabled;
-      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
-    },
 
     toggleWebSearch(enabled: boolean) {
       this.settings.webSearchEnabled = enabled;
@@ -461,7 +453,6 @@ export const useSettingsStore = defineStore("settings", {
       // 智能体配置只决定是否具备网络搜索能力，不替用户决定是否在本轮使用。
       // 每次选择智能体都默认关闭，之后只能由用户从输入框主动开启。
       this.settings.webSearchEnabled = false;
-      this.settings.localBrowserEnabled = false;
       // 根据智能体类型自动切换 Agent 模式
       if (agentId === BUILTIN_QUICK_ANSWER_ID) {
         this.settings.isAgentEnabled = false;
@@ -578,7 +569,6 @@ export const useSettingsStore = defineStore("settings", {
             .filter(item => item.type === "skill" && item.id)
             .map(item => item.skill_name || item.id);
         }
-        this.settings.localBrowserEnabled = state.local_browser_enabled === true;
         if (typeof state.web_search_enabled === "boolean") {
           this.settings.webSearchEnabled = state.web_search_enabled;
         }
@@ -617,6 +607,5 @@ export interface SessionLastRequestStatePayload {
     kb_name?: string;
     skill_name?: string;
   }>;
-  local_browser_enabled?: boolean;
   web_search_enabled?: boolean;
 }

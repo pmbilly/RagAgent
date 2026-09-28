@@ -7,16 +7,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.session.domain.MentionedItem;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
-import com.ragagent.session.dto.QaRequests.CreateKnowledgeQARequest;
 import com.ragagent.session.dto.QaRequests.MentionedItemRequest;
 import com.ragagent.storageurl.StreamRewriter;
 import com.ragagent.stream.StreamEvent;
-import com.ragagent.stream.StreamManager;
 import com.ragagent.event.EventBus;
 import com.ragagent.agent.SteerSink;
 
@@ -62,7 +58,6 @@ public final class QaSupport {
         public List<String> mcpServiceIds = new ArrayList<>();
         public List<String> skillNames = new ArrayList<>();
         public String summaryModelId = "";
-        public boolean localBrowserEnabled;
         public boolean webSearchEnabled;
         public List<MentionedItem> mentionedItems = new ArrayList<>();
         /** when using shared agent, tenant ID for model/KB/MCP resolution; 0 = use context tenant */
@@ -125,7 +120,6 @@ public final class QaSupport {
             req.imageDescription = ext.ocrText;
             req.userMessageId = userMessageID;
             req.webSearchEnabled = webSearchEnabled;
-            req.localBrowserEnabled = localBrowserEnabled;
             req.attachments = attachments;
             req.steerSink = steerSink;
             return req;
@@ -525,7 +519,6 @@ public final class QaSupport {
         public List<String> imageUrls;
         public String imageDescription = "";
         public String userMessageId = "";
-        public boolean localBrowserEnabled;
         public boolean webSearchEnabled;
         public String quotedContext = "";
         public List<com.ragagent.session.domain.MessageAttachment> attachments = new ArrayList<>();

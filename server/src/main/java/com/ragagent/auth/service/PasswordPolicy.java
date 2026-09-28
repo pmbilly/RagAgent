@@ -23,12 +23,6 @@ public final class PasswordPolicy {
 
     private static final String SPECIAL_CHARS = "!@#$%^&*()_+-=[]{}|;:,.<>?";
 
-    /** /auth/me 的 preference_defaults 与偏好清空的默认值（Go types.DefaultBrowserSearchInstructions）。 */
-    public static final String DEFAULT_BROWSER_SEARCH_INSTRUCTIONS =
-            "Default search engine: Bing.\nSearch URL: https://www.bing.com/search?q={query}";
-    /** Go types.MaxBrowserSearchInstructionsLength。 */
-    public static final int MAX_BROWSER_SEARCH_INSTRUCTIONS_LENGTH = 4000;
-
     private PasswordPolicy() {
     }
 

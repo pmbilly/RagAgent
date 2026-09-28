@@ -1,7 +1,6 @@
 package com.ragagent.agent;
 
 import static com.ragagent.agent.GoRecording.STR_BOUNDARY_PROMPT;
-import static com.ragagent.agent.GoRecording.STR_BROWSER_PROMPT;
 import static com.ragagent.agent.GoRecording.STR_DSUM0;
 import static com.ragagent.agent.GoRecording.STR_DSUM1;
 import static com.ragagent.agent.GoRecording.STR_DSUM2;
@@ -234,10 +233,9 @@ class AgentPromptsTest {
                 List.of("shell_exec"),
                 List.of("write_sandbox_file"),
                 List.of("shell_exec", "read_file", "write_sandbox_file", "edit_sandbox_file"),
-                List.of("discover_mcp_tools"),
-                List.of("local_browser"));
+                List.of("discover_mcp_tools"));
         String[] expected = {
-            STR_GUID0, null, null, null, STR_GUID4, null, null,
+            STR_GUID0, null, null, null, STR_GUID4, null,
         };
         for (int i = 0; i < sets.size(); i++) {
             if (expected[i] != null) {
@@ -246,12 +244,11 @@ class AgentPromptsTest {
             }
         }
         assertThat(AgentPrompts.formatToolGuidance(null)).isEmpty();
-        // 中段完整对照（guid1/guid2/guid3/guid5/guid6 的关键行已含在 full_* 里）
+        // 中段完整对照（guid1/guid2/guid3/guid5 的关键行已含在 full_* 里）
         assertThat(AgentPrompts.formatToolGuidance(List.of("shell_exec"))).contains("Session workspace: /workspace");
         assertThat(AgentPrompts.formatToolGuidance(List.of("read_file"))).doesNotContain("shell_exec");
         assertThat(AgentPrompts.formatToolGuidance(List.of("execute_skill_script")))
                 .doesNotContain("execute_skill_script is available");
-        assertThat(AgentPrompts.formatToolGuidance(List.of("local_browser"))).contains("requires no shell command");
         // 技能安装模式：不带 /workspace 与沙箱产物指引
         String install = AgentPrompts.formatToolGuidanceForMode(
                 List.of("shell_exec", "read_file", "write_sandbox_file"), true);
@@ -270,8 +267,7 @@ class AgentPromptsTest {
                 List.of("web_search", "web_fetch"),
                 List.of("knowledge_search", "grep_chunks", "list_knowledge_chunks",
                         "get_document_info", "wiki_search", "wiki_read_page", "wiki_read_source_doc",
-                        "query_knowledge_graph", "data_schema", "data_analysis", "database_query"),
-                List.of("local_browser", "discover_mcp_tools"));
+                        "query_knowledge_graph", "data_schema", "data_analysis", "database_query"));
         for (int i = 0; i < sets.size(); i++) {
             assertThat(GroundingPrompt.formatGroundingGuidance(sets.get(i)))
                     .as("ground%d", i)
@@ -282,8 +278,7 @@ class AgentPromptsTest {
         assertThat(AgentPrompts.runtimePromptContract()).isEqualTo(STR_RUNTIME_CONTRACT);
         assertThat(PromptInstructions.SOURCED_ANSWER_OUTPUT_PROMPT).isEqualTo(STR_OUTPUT_PROMPT);
         assertThat(PromptInstructions.SOURCE_DATA_BOUNDARY_PROMPT).isEqualTo(STR_BOUNDARY_PROMPT);
-        assertThat(LocalBrowserSourcePrompt.LOCAL_BROWSER_SOURCE_PROMPT).isEqualTo(STR_BROWSER_PROMPT);
-        assertThat(GoRecordingGround.values().length).isEqualTo(7);
+        assertThat(GoRecordingGround.values().length).isEqualTo(6);
     }
 
     /** ground0..6 常量的引用别名（GoRecording 生成的常量名）。 */
@@ -292,7 +287,6 @@ class AgentPromptsTest {
             return new String[] {
                 GoRecording.STR_GROUND0, GoRecording.STR_GROUND1, GoRecording.STR_GROUND2,
                 GoRecording.STR_GROUND3, GoRecording.STR_GROUND4, GoRecording.STR_GROUND5,
-                GoRecording.STR_GROUND6,
             };
         }
 
@@ -338,7 +332,7 @@ class AgentPromptsTest {
     void fullCustomTemplatePromptMatchesGoByteForByte() {
         AgentPrompts.BuildSystemPromptOptions opts = new AgentPrompts.BuildSystemPromptOptions()
                 .setSelectedTools(List.of("knowledge_search", "wiki_search", "read_file",
-                        "local_browser", "web_search"))
+                        "web_search"))
                 .setMemoryPrompt("Saved memory")
                 .setProtocolPrompt("Citation protocol")
                 .setLanguage("English");

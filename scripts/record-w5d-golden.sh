@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # 录收尾批 W5d 的 golden：w5d-term-*（沙箱终端 ticket + WS 错误族）/ w5d-lb-*（会话侧
-# local-browser ×2）/ w5d-emb-*（embed QA 委托 ×2 + embed 文件代理）。
+# w5d-emb-*（embed QA 委托 ×2 + embed 文件代理）。
 #
 # 覆盖端点：
 #   POST /sessions/:sid/sandbox/terminal-ticket     （200 / 404）
 #   GET  /sessions/:sid/sandbox/terminal            （无票/坏票 401、跨会话票 403、
 #                                                    有票无 Upgrade 头 400 text/plain）
-#   GET|POST /sessions/:sid/local-browser           （404 / GET 200 / POST 503）
 #   POST /embed/:cid/knowledge-chat/:sid            （404 / 403 sig / 400 invalid json /
 #                                                    委托后确定性错误）
 #   POST /embed/:cid/agent-chat/:sid                （委托后确定性错误）
@@ -58,7 +57,7 @@ j() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["data
 # ── 固定种子 id（两侧同 id，不需掩码）──
 TENANT=10008
 WU="b0000000-0000-0000-0000-000000000801"    # w5d-batch owner
-SES_A="b5000000-0000-0000-0000-000000000801" # 普通会话（终端/local-browser 主目标）
+SES_A="b5000000-0000-0000-0000-000000000801" # 普通会话（终端主目标）
 SES_B="b5000000-0000-0000-0000-000000000802" # 第二会话（跨会话票 403）
 AG8="b1000000-0000-0000-0000-000000000801"   # embed 渠道的 custom agent
 GHOST="b5999999-0000-0000-0000-000000000801" # 不存在的会话
@@ -114,16 +113,7 @@ req w5d-term-ws-empty-session GET "/sessions/%20/sandbox/terminal?ticket=${TICKE
 # 有票但无 Upgrade 头 → gorilla returnError 形态（400 text/plain + 版本头 + nosniff）
 reqh w5d-term-ws-no-upgrade GET "/sessions/${SES_A}/sandbox/terminal?ticket=${TICKET_A}"
 
-# ══════════════ 二、会话侧 local-browser ×2 ══════════════
-echo "==> w5d-lb-*"
-
-req w5d-lb-get-404 GET "/sessions/${GHOST}/local-browser" -H "${AH}"
-req w5d-lb-get-ok GET "/sessions/${SES_A}/local-browser" -H "${AH}"
-req w5d-lb-post-404 POST "/sessions/${GHOST}/local-browser" -H "${AH}" -H "${CT}" -d '{}'
-req w5d-lb-post-unavailable POST "/sessions/${SES_A}/local-browser" -H "${AH}" -H "${CT}" \
-  -d '{"action":"preview"}'
-
-# ══════════════ 三、embed QA 委托 + 文件代理 ══════════════
+# ══════════════ 二、embed QA 委托 + 文件代理 ══════════════
 echo "==> w5d-emb-*（先建渠道与 embed 会话）"
 
 req w5d-emb-setup-channel POST "/agents/${AG8}/embed-channels" -H "${AH}" -H "${CT}" \

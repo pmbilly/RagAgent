@@ -15,8 +15,6 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.GoJsonBindError;
-import com.ragagent.browserskill.domain.Scope;
-import com.ragagent.browserskill.service.BrowserSkillManager;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
@@ -85,23 +83,13 @@ public class SessionController {
     private final SessionService sessionService;
     private final com.ragagent.session.service.MessageService messageService;
     private final com.ragagent.stream.StreamManager streamManager;
-    private final BrowserSkillManager browserSkillManager;
 
     public SessionController(SessionService sessionService,
                              com.ragagent.session.service.MessageService messageService,
-                             com.ragagent.stream.StreamManager streamManager,
-                             BrowserSkillManager browserSkillManager) {
+                             com.ragagent.stream.StreamManager streamManager) {
         this.sessionService = sessionService;
         this.messageService = messageService;
         this.streamManager = streamManager;
-        this.browserSkillManager = browserSkillManager;
-    }
-
-    /** 对照 browserSkillScope（browserskill.go L13-17）：认证主体 → (tenant, user)。 */
-    private static Scope browserSkillScope() {
-        Long tenant = TenantContext.currentTenantId();
-        String user = TenantContext.currentUserId();
-        return new Scope(tenant == null ? 0 : tenant, user == null ? "" : user);
     }
 
     /**
@@ -357,8 +345,6 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        // Go：h.browserSkill.Forget(browserSkillScope(ctx), []string{id})（返回值忽略）
-        browserSkillManager.forget(browserSkillScope(), List.of(sessionId));
         return messageBody("Session deleted successfully");
     }
 
@@ -377,8 +363,6 @@ public class SessionController {
             } catch (RuntimeException e) {
                 throw toInternal(e);
             }
-            // Go：h.browserSkill.ForgetAll(browserSkillScope(ctx))
-            browserSkillManager.forgetAll(browserSkillScope());
             return messageBody("All sessions deleted successfully");
         }
 
@@ -404,8 +388,6 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        // Go：h.browserSkill.Forget(browserSkillScope(ctx), sanitizedIDs)
-        browserSkillManager.forget(browserSkillScope(), sanitizedIds);
         return messageBody("Sessions deleted successfully");
     }
 

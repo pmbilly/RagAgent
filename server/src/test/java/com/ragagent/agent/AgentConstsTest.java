@@ -53,18 +53,6 @@ class AgentConstsTest {
     void toolExecutionTimeoutTable() {
         assertThat(AgentConsts.toolExecutionTimeout("shell_exec")).isEqualTo(Duration.ofSeconds(605));
         assertThat(AgentConsts.toolExecutionTimeout("web_fetch")).isEqualTo(Duration.ofSeconds(60));
-        assertThat(AgentConsts.toolExecutionTimeout("local_browser", "{\"method\":\"request_help\"}"))
-                .isEqualTo(Duration.ofSeconds(315));
-        assertThat(AgentConsts.toolExecutionTimeout("local_browser", "{\"method\":\"tab_borrow\"}"))
-                .isEqualTo(Duration.ofSeconds(315));
-        assertThat(AgentConsts.toolExecutionTimeout("local_browser", "{\"method\":\"click\"}"))
-                .isEqualTo(Duration.ofSeconds(60));
-        assertThat(AgentConsts.toolExecutionTimeout("local_browser", "{\"method\":\"observe\"}"))
-                .isEqualTo(Duration.ofSeconds(60));
-        assertThat(AgentConsts.toolExecutionTimeout("local_browser", "{"))
-                .isEqualTo(Duration.ofSeconds(60));
-        assertThat(AgentConsts.toolExecutionTimeout("local_browser"))
-                .isEqualTo(Duration.ofSeconds(60));
     }
 
     @Test

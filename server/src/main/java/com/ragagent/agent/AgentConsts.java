@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Locale;
 
 import com.ragagent.agent.compaction.CompactionSettings;
-import com.ragagent.browserskill.service.BrowserSkillManager;
 
 /**
  * agent 常量与判定（对照 Go internal/agent/const.go 的纯逻辑部分）。
@@ -95,37 +94,17 @@ public final class AgentConsts {
     }
 
     /**
-     * 单次工具执行的超时（对照 toolExecutionTimeout）。local_browser 的人机协作步骤
-     * （request_help / tab_borrow）等用户输入，给到 browserskill 的人机窗口超时；
-     * shell_exec 给到略长于其命令超时的专用值；其余一律默认 60 秒。
+     * 单次工具执行的超时（对照 toolExecutionTimeout）。shell_exec 给到略长于其
+     * 命令超时的专用值，让工具能返回结构化超时结果而不是先被 agent 的通用包装取消；
+     * 其余一律默认 60 秒。
      *
      * @param arguments Go 签名是变长 arguments，只消费第一个（JSON）
      */
     public static Duration toolExecutionTimeout(String toolName, String... arguments) {
-        if ("local_browser".equals(toolName) && arguments != null && arguments.length > 0) {
-            String method = extractMethod(arguments[0]);
-            if (method != null && BrowserSkillManager.isHumanStep(method)) {
-                return BrowserSkillManager.HUMAN_STEP_TIMEOUT;
-            }
-        }
         if ("shell_exec".equals(toolName)) {
             return SHELL_EXEC_TOOL_TIMEOUT;
         }
         return DEFAULT_TOOL_EXEC_TIMEOUT;
-    }
-
-    /** arguments[0] 里的 {"method": "..."}（Go 的匿名 struct 解码，失败即忽略）。 */
-    private static String extractMethod(String argumentsJson) {
-        try {
-            com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readTree(argumentsJson == null ? "" : argumentsJson);
-            if (node != null && node.isObject() && node.hasNonNull("method")) {
-                return node.get("method").asText(null);
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     /**

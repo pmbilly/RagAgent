@@ -5,9 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { onBeforeRouteUpdate } from 'vue-router';
 import { MessagePlugin } from "tdesign-vue-next";
 import { useSettingsStore } from '@/stores/settings';
-import { useBrowserConnectionStore } from '@/stores/browserConnection';
 import { useUIStore } from '@/stores/ui';
-import BrowserIcon from '@/components/icons/BrowserIcon.vue';
 import { useMenuStore } from '@/stores/menu';
 import { listKnowledgeBases, searchKnowledge, batchQueryKnowledge, listKnowledgeTags } from '@/api/knowledge-base';
 import { listMCPServices, type MCPService } from '@/api/mcp-service';
@@ -55,7 +53,6 @@ import { SKILL_ICON, type MentionItem, type MentionItemType, type MentionRequest
 const route = useRoute();
 const router = useRouter();
 const settingsStore = useSettingsStore();
-const browserConnection = useBrowserConnectionStore();
 const uiStore = useUIStore();
 const orgStore = useOrganizationStore();
 const menuStore = useMenuStore();
@@ -855,27 +852,6 @@ const isWebSearchConfigured = computed(() => {
 const isWebSearchReadinessKnown = computed(
   () => !settingsStore.selectedAgentSourceTenantId || selectedSharedAgent.value !== undefined
 );
-
-const browserSourceUnavailableHint = computed(() => {
-  if (!browserConnection.enabled) return 'localBrowser.unavailable';
-  if (browserConnection.device) return 'localBrowser.reconnectHint';
-  return 'localBrowser.settingsHint';
-});
-
-const openBrowserConnectionSettings = () => {
-  uiStore.openSettings('browserconnection');
-};
-
-const toggleBrowserSource = () => {
-  showMention.value = false;
-  showModelSelector.value = false;
-  showAgentModeSelector.value = false;
-  if (browserConnection.knownOffline) {
-    openBrowserConnectionSettings();
-    return;
-  }
-  settingsStore.toggleLocalBrowser(!settingsStore.isLocalBrowserEnabled);
-};
 
 const loadWebSearchConfig = async (force = false) => {
   try {
@@ -1833,8 +1809,6 @@ onMounted(() => {
   // Embed 渠道由宿主注入 agent/KB，勿拉取需 JWT 的平台资源
   if (props.embeddedMode) return;
 
-  browserConnection.watchStatus();
-
   // 并行拉取；若 platform 已预取且缓存未过期则直接复用
   initChatModelSelection();
   void Promise.all([
@@ -1906,7 +1880,6 @@ onBeforeUnmount(() => {
 });
 
 onUnmounted(() => {
-  if (!props.embeddedMode) browserConnection.unwatchStatus();
   window.removeEventListener(CHAT_FILE_DROP_EVENT, handleChatFileDrop as EventListener);
   document.removeEventListener('click', closeAgentModeSelector);
   document.removeEventListener('click', closeModelSelector);
@@ -1930,7 +1903,6 @@ watch(() => uiStore.showSettingsModal, (visible, prevVisible) => {
   if (prevVisible && !visible) {
     loadWebSearchConfig(true);
     loadChatModels(true);
-    if (!props.embeddedMode) void browserConnection.refresh();
   }
 });
 
@@ -2714,30 +2686,6 @@ defineExpose({
             :currentAgentId="selectedAgentId" :agents="enabledAgents" :all-models="allModels"
             @close="closeAgentModeSelector" @select="handleSelectAgent" @not-ready="handleAgentNotReady" />
 
-          <t-tooltip v-if="settingsStore.isAgentStreamMode" placement="top" theme="light"
-            :popupProps="{ overlayClassName: 'input-field-tooltip' }">
-            <template #content>
-              <div v-if="!browserConnection.knownOffline" class="browser-source-tooltip">
-                <strong>{{ $t('localBrowser.local') }}</strong>
-                <span>{{ $t('localBrowser.sourceHint') }}</span>
-              </div>
-              <div v-else class="tooltip-with-link">
-                <span>{{ $t(browserSourceUnavailableHint) }}</span>
-                <a href="#" @click.prevent="openBrowserConnectionSettings">{{ $t('localBrowser.openSettings') }}</a>
-              </div>
-            </template>
-            <button type="button" class="control-btn browser-source-btn"
-              :class="{
-                active: settingsStore.isLocalBrowserEnabled && browserConnection.online,
-                disabled: browserConnection.knownOffline,
-              }"
-              :aria-pressed="settingsStore.isLocalBrowserEnabled && browserConnection.online"
-              :aria-disabled="browserConnection.knownOffline"
-              :aria-label="$t('localBrowser.local')"
-              @click.stop="toggleBrowserSource">
-              <BrowserIcon class="control-icon" />
-            </button>
-          </t-tooltip>
 
           <!-- WebSearch 开关按钮（智能体未启用时不显示） -->
           <t-tooltip v-if="showWebSearchButton" placement="top" theme="light"
@@ -3517,44 +3465,6 @@ const getImgSrc = (url: string) => {
     &:hover {
       background: rgba(0, 0, 0, 0.7);
     }
-  }
-}
-
-.browser-source-btn {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  background: transparent;
-
-  &:hover:not(.disabled):not(.active) {
-    color: var(--td-text-color-primary, #333);
-  }
-
-  &.active {
-    color: var(--td-brand-color);
-    background: var(--td-bg-color-secondarycontainer);
-
-    &:hover {
-      color: var(--td-brand-color);
-      background: var(--td-bg-color-secondarycontainer);
-    }
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--td-brand-color);
-    outline-offset: 2px;
-  }
-}
-
-.browser-source-tooltip {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-width: 240px;
-  line-height: 1.5;
-
-  strong {
-    font-weight: 500;
   }
 }
 

@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  */
 @JsonPropertyOrder({
         "agent_config_hash", "question_suggestions", "knowledge_base_ids", "knowledge_ids",
-        "tag_ids", "tag_scopes", "mcp_service_ids", "skill_names", "local_browser_enabled",
+        "tag_ids", "tag_scopes", "mcp_service_ids", "skill_names",
         "web_search_enabled", "locale", "suggestion_attribution", "langfuse_traceparent"
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -61,9 +61,6 @@ public class MessageExecutionContext {
     @JsonProperty("skill_names")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> skillNames;
-
-    @JsonProperty("local_browser_enabled")
-    private boolean localBrowserEnabled;
 
     /** 无 omitempty：恒输出（false 也要出现）。 */
     @JsonProperty("web_search_enabled")
@@ -152,14 +149,6 @@ public class MessageExecutionContext {
 
     public void setSkillNames(List<String> v) {
         this.skillNames = v;
-    }
-
-    public boolean isLocalBrowserEnabled() {
-        return localBrowserEnabled;
-    }
-
-    public void setLocalBrowserEnabled(boolean v) {
-        this.localBrowserEnabled = v;
     }
 
     public boolean isWebSearchEnabled() {

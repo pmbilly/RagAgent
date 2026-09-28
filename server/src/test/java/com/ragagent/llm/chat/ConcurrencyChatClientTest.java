@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.ragagent.llm.LlmChatClient;
@@ -58,8 +57,10 @@ class ConcurrencyChatClientTest {
             Thread.ofVirtual().start(() -> {
                 try {
                     if (streamForever) {
-                        // 持续产出非终态块（模拟思考/长输出），永不发 done
-                        for (;;) {
+                        // 持续产出非终态块（模拟思考/长输出）。必须有限：无限生产会与
+                        // 转发线程的 drain() 组成永动自旋对，偷走 CPU 拖慢后续所有测试
+                        // （实测：满负载下 bcrypt 重的契约类慢 3 倍、疑似挂死）。
+                        for (int i = 0; i < 20_000; i++) {
                             q.put(StreamResponse.of(ResponseType.ANSWER, "chunk", false));
                         }
                     }

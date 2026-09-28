@@ -34,9 +34,6 @@ public final class GroundingPrompt {
                 + "material already supports that content.\n");
 
         List<String> safeNames = names == null ? List.of() : names;
-        if (safeNames.contains("local_browser")) {
-            b.append(LocalBrowserSourcePrompt.LOCAL_BROWSER_SOURCE_PROMPT);
-        }
         List<String> kbTools = new ArrayList<>();
         for (String name : new String[] {
                 AgentToolNames.TOOL_KNOWLEDGE_SEARCH, AgentToolNames.TOOL_GREP_CHUNKS,

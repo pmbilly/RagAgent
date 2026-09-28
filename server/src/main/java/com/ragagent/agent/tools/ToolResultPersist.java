@@ -148,10 +148,6 @@ public final class ToolResultPersist {
                 copyTc.setProviderMetadata(tc.getProviderMetadata());
                 if (tc.getResult() != null) {
                     ToolResult result = shallowCopy(tc.getResult());
-                    if ("local_browser".equals(tc.getName())) {
-                        // Screenshot bytes already live in Data for the result card.
-                        result.setImages(null);
-                    }
                     if (isSandboxContentTool(tc.getName())) {
                         // display_type is for the live card; history still needs the
                         // command, exit, and a head+tail of the streams.

@@ -5,7 +5,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ragagent.agent.SteerSink;
 import com.ragagent.agentm.domain.CustomAgentEntity;
 import com.ragagent.agentm.service.AgentConfigJson;
 import com.ragagent.common.context.TenantContext;
@@ -32,7 +30,6 @@ import com.ragagent.event.EventType;
 import com.ragagent.event.AgentThoughtData;
 import com.ragagent.event.AgentToolCallData;
 import com.ragagent.event.AgentToolResultData;
-import com.ragagent.org.domain.AgentRow;
 import com.ragagent.event.ErrorData;
 import com.ragagent.event.AgentFinalAnswerData;
 import com.ragagent.event.AgentCompleteData;
@@ -46,13 +43,11 @@ import com.ragagent.session.domain.SuggestionAttribution;
 import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.dto.QaRequests.AttachmentUpload;
 import com.ragagent.session.dto.QaRequests.CreateKnowledgeQARequest;
-import com.ragagent.session.dto.QaRequests.MentionedItemRequest;
 import com.ragagent.session.dto.QaRequests.SearchKnowledgeRequest;
 import com.ragagent.session.service.AgentResolver;
 import com.ragagent.session.service.AgentStreamBridge;
 import com.ragagent.session.service.MessageService;
 import com.ragagent.session.service.MessageSuggestionService;
-import com.ragagent.session.service.QaAgentConfig;
 import com.ragagent.session.service.QaSupport;
 import com.ragagent.session.service.QaSupport.QaMode;
 import com.ragagent.session.service.QaSupport.QaRequestContext;
@@ -170,9 +165,6 @@ public class KnowledgeQaController {
             HttpServletResponse response) throws IOException {
         CreateKnowledgeQARequest request = bindQaRequest(rawBody);
         ParsedRequest parsed = parseQARequest(rawSessionId, request, resourceUrls, "KnowledgeQA");
-        if (request.localBrowserEnabled) {
-            throw BizException.badRequest("Local browser requests must use the agent endpoint");
-        }
         executeQA(parsed.reqCtx(), QaMode.NORMAL, !request.disableTitle, response);
     }
 
@@ -385,11 +377,6 @@ public class KnowledgeQaController {
             // 的命中条件是 KB 共享关系；dev 单租户等价于不动）。
         }
 
-        if (request.localBrowserEnabled && (rc.agentConfig == null
-                || !SessionKnowledgeQaService.isAgentMode(rc.agentConfig))) {
-            throw BizException.badRequest("Local browser requires an agent with tool calling enabled");
-        }
-
         // 内联 base64 图片（对照 Go saveImageAttachments：落盘后回填 URL，消息/检索/VLM
         // 三处消费同一引用；SSRF 已在上方清空客户端 url/caption）
         if (!request.images().isEmpty()) {
@@ -537,7 +524,6 @@ public class KnowledgeQaController {
         rc.skillNames = skillNames;
         rc.summaryModelId = request.summaryModelId;
         rc.webSearchEnabled = request.webSearchEnabled;
-        rc.localBrowserEnabled = request.localBrowserEnabled;
         rc.mentionedItems = QaSupport.convertMentionedItems(request.mentionedItems());
         rc.channel = request.channel;
         rc.reqAgentEnabled = request.agentEnabled;
@@ -1554,7 +1540,6 @@ public class KnowledgeQaController {
             state.setSkillNames(reqCtx.skillNames);
             state.setMentionedItems(reqCtx.mentionedItems);
             state.setWebSearchEnabled(reqCtx.webSearchEnabled);
-            state.setLocalBrowserEnabled(reqCtx.localBrowserEnabled);
             sessionService.updateSessionLastRequestState(reqCtx.sessionId, state);
         } catch (RuntimeException e) {
             log.warn("persist last_request_state failed for session {}: {}", reqCtx.sessionId, e.toString());
