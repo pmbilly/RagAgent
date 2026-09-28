@@ -126,17 +126,47 @@ public class SqliteRetrieveRepository
     private Connection open() throws SQLException {
         if (memory) {
             Connection existing = memoryConnection;
-            if (existing != null) {
-                return existing;
-            }
-            synchronized (this) {
-                if (memoryConnection == null) {
-                    memoryConnection = createConnection();
+            if (existing == null) {
+                synchronized (this) {
+                    if (memoryConnection == null) {
+                        memoryConnection = createConnection();
+                    }
+                    existing = memoryConnection;
                 }
-                return memoryConnection;
             }
+            // 共享连接必须不可关闭且串行：调用点全是 try-with-resources，裸共享连接
+            // 会在第一次操作后被 close 掉，:memory: 库随之销毁（第二次 open 返回死连接）。
+            return nonClosingSerial(existing);
         }
         return createConnection();
+    }
+
+    /** memory 模式的共享连接代理：close() no-op，其余调用在仓库锁上串行化。 */
+    private Connection nonClosingSerial(Connection target) {
+        return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                Connection.class.getClassLoader(), new Class<?>[] {Connection.class},
+                (proxy, method, args) -> {
+                    if ("close".equals(method.getName()) && (args == null || args.length == 0)) {
+                        return null;
+                    }
+                    synchronized (SqliteRetrieveRepository.this) {
+                        try {
+                            return method.invoke(target, args);
+                        } catch (java.lang.reflect.InvocationTargetException e) {
+                            Throwable cause = e.getCause() == null ? e : e.getCause();
+                            if (cause instanceof SQLException se) {
+                                throw se;
+                            }
+                            if (cause instanceof RuntimeException re) {
+                                throw re;
+                            }
+                            if (cause instanceof Error err) {
+                                throw err;
+                            }
+                            throw new SQLException(cause);
+                        }
+                    }
+                });
     }
 
     private Connection createConnection() throws SQLException {

@@ -40,6 +40,7 @@ public final class QdrantRestClient {
             guard.validateURLForSSRF(this.baseUrl);
         }
         this.http = HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(15))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
@@ -78,6 +79,7 @@ public final class QdrantRestClient {
      */
     JsonNode request(String method, String path, Object body, boolean allowNotFound) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .timeout(java.time.Duration.ofSeconds(60))
                 .uri(URI.create(baseUrl + path))
                 .header("Content-Type", "application/json");
         if (!apiKey.isEmpty()) {
@@ -132,6 +134,7 @@ public final class QdrantRestClient {
     /** 探针用裸 GET（不解析 result 信封、不抛非 2xx——由调用方判定）。 */
     HttpProbe rawGet(String path) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .timeout(java.time.Duration.ofSeconds(60))
                 .uri(URI.create(baseUrl + path))
                 .GET();
         if (!apiKey.isEmpty()) {

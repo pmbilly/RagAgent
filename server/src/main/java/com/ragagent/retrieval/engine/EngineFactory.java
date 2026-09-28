@@ -95,7 +95,10 @@ public final class EngineFactory {
         String engineType = store.getEngineType() == null ? "" : store.getEngineType();
         switch (engineType) {
             case EngineTypes.ENGINE_ELASTICSEARCH: {
-                ConnectionConfig cc = store.getConnectionConfig();
+                // 与其余分支同款判空：connection_config 为 NULL 的 DB-store 行
+                // （type handler 可能给 null）在启动/重建期会 NPE
+                ConnectionConfig cc = store.getConnectionConfig() == null
+                        ? new ConnectionConfig() : store.getConnectionConfig();
                 IndexConfig idx = store.getIndexConfig();
                 String indexName = idx == null ? "" : idx.indexName;
                 int shards = idx != null && idx.numberOfShards > 0 ? idx.numberOfShards : 0;

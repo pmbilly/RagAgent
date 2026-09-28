@@ -86,6 +86,9 @@ public final class MilvusRestClient {
         }
         this.http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
+                // 连接/请求超时：对端半开/挂起时调用线程会被无限阻塞（ES/OpenSearch
+                // 的驱动均有 15s+60s 预算，此前四家自持客户端为 0）
+                .connectTimeout(java.time.Duration.ofSeconds(15))
                 .build();
     }
 
@@ -97,6 +100,7 @@ public final class MilvusRestClient {
             body.put("dbName", dbName);
         }
         HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .timeout(java.time.Duration.ofSeconds(60))
                 .uri(URI.create(baseUrl + path))
                 .header("Content-Type", "application/json");
         if (!authHeader.isEmpty()) {

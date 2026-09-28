@@ -81,13 +81,15 @@ public final class TencentVectorDbRestClient {
         if (guard != null) {
             guard.validateURLForSSRF(this.baseUrl);
         }
-        this.http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+        this.http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(java.time.Duration.ofSeconds(15)).build();
     }
 
     // ── 低层 ───────────────────────────────────────────────────────────────
 
     private JsonNode send(String method, String path, JsonNode body) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(baseUrl + path))
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .timeout(java.time.Duration.ofSeconds(60)).uri(URI.create(baseUrl + path))
                 .header("Content-Type", "application/json")
                 .header("Authorization", authHeader)
                 .header("Sdk-Version", SDK_VERSION);

@@ -21,9 +21,15 @@ import com.ragagent.chatpipeline.SearchParams;
 public class PgVectorRetrieveRepository {
 
     private final JdbcTemplate jdbc;
+    private final org.springframework.transaction.support.TransactionTemplate tx;
 
-    public PgVectorRetrieveRepository(JdbcTemplate jdbc) {
+    public PgVectorRetrieveRepository(JdbcTemplate jdbc,
+            org.springframework.transaction.PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
+        // SET LOCAL 是事务级 GUC：自动提交连接上只发 WARNING 即被丢弃（不报错），
+        // ef_search/iterative_scan 从未生效。包一层事务让 SET LOCAL 真正落在事务内
+        // （对照 Go 在 tx 内设置 GUC）；降级重试分支同样在事务外直查。
+        this.tx = new org.springframework.transaction.support.TransactionTemplate(txManager);
     }
 
     /** 对照 types.IndexWithScore（检索命中一行）。 */
@@ -206,23 +212,24 @@ public class PgVectorRetrieveRepository {
     /** 向量查询 + HNSW GUC 事务（降级重试路径对照 Go L435-443）。 */
     private List<IndexHit> queryVectorRows(String sql, Object[] vars, int efSearch) {
         try {
-            return jdbc.execute((org.springframework.jdbc.core.ConnectionCallback<List<IndexHit>>) conn -> {
-                try (var st = conn.createStatement()) {
-                    st.execute("SET LOCAL hnsw.ef_search = " + efSearch);
-                    st.execute("SET LOCAL hnsw.iterative_scan = strict_order");
-                } catch (Exception gucErr) {
-                    // 对照 Go：GUC 失败 → 中止事务 → 外层降级重试
-                    throw gucErr;
-                }
-                try (var ps = conn.prepareStatement(sql)) {
-                    for (int i = 0; i < vars.length; i++) {
-                        ps.setObject(i + 1, vars[i]);
-                    }
-                    try (var rs = ps.executeQuery()) {
-                        return mapVectorRows(rs);
-                    }
-                }
-            });
+            return tx.execute(status -> jdbc.execute(
+                    (org.springframework.jdbc.core.ConnectionCallback<List<IndexHit>>) conn -> {
+                        try (var st = conn.createStatement()) {
+                            st.execute("SET LOCAL hnsw.ef_search = " + efSearch);
+                            st.execute("SET LOCAL hnsw.iterative_scan = strict_order");
+                        } catch (Exception gucErr) {
+                            // 对照 Go：GUC 失败 → 中止事务 → 外层降级重试
+                            throw gucErr;
+                        }
+                        try (var ps = conn.prepareStatement(sql)) {
+                            for (int i = 0; i < vars.length; i++) {
+                                ps.setObject(i + 1, vars[i]);
+                            }
+                            try (var rs = ps.executeQuery()) {
+                                return mapVectorRows(rs);
+                            }
+                        }
+                    }));
         } catch (Exception gucFailure) {
             String msg = String.valueOf(gucFailure.getMessage());
             if (msg.contains("hnsw.ef_search") || msg.contains("hnsw.iterative_scan")

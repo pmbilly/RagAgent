@@ -364,7 +364,52 @@ public class ElasticsearchV8RetrieveRepository
             throw new IllegalStateException("failed to do bulk: elasticsearch returned "
                     + resp.status() + ": " + resp.body());
         }
+        inspectBulkResponse(resp.body());
         log.info("[Elasticsearch] Successfully batch saved {} indices", embeddingList.size());
+    }
+
+    /**
+     * bulk 响应逐项检视（照 OpenSearch 的 inspectBulkResponse）：HTTP 200 +
+     * {@code errors:true} 是"部分失败"——此前只查状态码，mapping 冲突等单文档失败
+     * 静默丢数据且无日志。部分失败视为批量失败（与 OpenSearch 语义一致）。
+     */
+    private void inspectBulkResponse(String body) throws Exception {
+        com.fasterxml.jackson.databind.JsonNode root;
+        try {
+            root = MAPPER.readTree(body);
+        } catch (Exception e) {
+            return; // 非 JSON 响应不做逐项检视（状态码已过）
+        }
+        if (!root.path("errors").asBoolean(false)) {
+            return;
+        }
+        int total = 0;
+        List<String> msgs = new ArrayList<>();
+        for (com.fasterxml.jackson.databind.JsonNode item : root.path("items")) {
+            var it = item.fields();
+            if (!it.hasNext()) {
+                continue;
+            }
+            String opName = it.next().getKey();
+            com.fasterxml.jackson.databind.JsonNode op = item.path(opName);
+            com.fasterxml.jackson.databind.JsonNode err = op.path("error");
+            if (err.isMissingNode() || err.isNull()) {
+                continue;
+            }
+            total++;
+            log.debug("[Elasticsearch] bulk item err: op={} id={} type={} reason={}",
+                    opName, op.path("_id").asText(""), err.path("type").asText(""),
+                    err.path("reason").asText(""));
+            if (msgs.size() < 5) {
+                msgs.add("[" + opName + " " + op.path("_id").asText("") + "] "
+                        + err.path("type").asText(""));
+            }
+        }
+        if (total == 0) {
+            return;
+        }
+        throw new IllegalStateException("elasticsearch bulk partial failure ("
+                + total + " items failed, first 5: " + String.join("; ", msgs) + ")");
     }
 
     /** 文档 JSON（键序与 Go struct 声明一致，snake_case）。 */

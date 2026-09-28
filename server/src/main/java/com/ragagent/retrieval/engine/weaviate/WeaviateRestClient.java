@@ -85,6 +85,7 @@ public final class WeaviateRestClient {
             guard.validateURLForSSRF(this.baseUrl);
         }
         this.http = HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(15))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
@@ -105,6 +106,7 @@ public final class WeaviateRestClient {
     /** 发请求并解析 JSON（{@code allowNotFound=true} 时 404 返回 null）。 */
     JsonNode request(String method, String path, Object body, boolean allowNotFound) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .timeout(java.time.Duration.ofSeconds(60))
                 .uri(URI.create(baseUrl + path))
                 .header("Content-Type", "application/json");
         if (!apiKey.isEmpty()) {
