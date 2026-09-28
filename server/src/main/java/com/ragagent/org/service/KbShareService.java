@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -44,12 +45,15 @@ public class KbShareService {
     private final ChunkMapper chunkMapper;
     private final OrganizationService organizationService;
     private final com.ragagent.org.mapper.OrgSqlMapper sqlMapper;
+    /** KB 共享审计（对照 Go recordKBActivity → AuditActionKBShare*；best-effort）。 */
+    private final com.ragagent.audit.service.AuditLogService auditService;
 
     public KbShareService(KbShareMapper shareMapper, OrganizationMapper orgMapper,
                           OrganizationTenantMemberMapper memberMapper, KnowledgeBaseMapper kbMapper,
                           KnowledgeMapper knowledgeMapper, ChunkMapper chunkMapper,
                           OrganizationService organizationService,
-                          com.ragagent.org.mapper.OrgSqlMapper sqlMapper) {
+                          com.ragagent.org.mapper.OrgSqlMapper sqlMapper,
+                          com.ragagent.audit.service.AuditLogService auditService) {
         this.shareMapper = shareMapper;
         this.orgMapper = orgMapper;
         this.memberMapper = memberMapper;
@@ -58,6 +62,7 @@ public class KbShareService {
         this.chunkMapper = chunkMapper;
         this.organizationService = organizationService;
         this.sqlMapper = sqlMapper;
+        this.auditService = auditService;
     }
 
     public KbShare shareKnowledgeBase(String kbId, String orgId, String userId, long tenantId, String permission) {
@@ -89,6 +94,7 @@ public class KbShareService {
             uw.eq("id", existing.getId()).set("permission", existing.getPermission())
                     .set("updated_at", existing.getUpdatedAt());
             shareMapper.update(null, uw);
+            auditShare(existing, com.ragagent.audit.domain.AuditAction.KB_SHARE_ADDED, permission);
             return existing;
         }
         OffsetDateTime now = OffsetDateTime.now();
@@ -102,6 +108,7 @@ public class KbShareService {
         share.setCreatedAt(now);
         share.setUpdatedAt(now);
         shareMapper.insert(share);
+        auditShare(share, com.ragagent.audit.domain.AuditAction.KB_SHARE_ADDED, permission);
         return share;
     }
 
@@ -118,6 +125,7 @@ public class KbShareService {
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
         uw.eq("id", share.getId()).set("permission", permission).set("updated_at", OffsetDateTime.now());
         shareMapper.update(null, uw);
+        auditShare(share, com.ragagent.audit.domain.AuditAction.KB_SHARE_PERMISSION_CHANGED, permission);
     }
 
     public void removeShare(String shareId, String userId, long tenantId) {
@@ -127,6 +135,36 @@ public class KbShareService {
             throw new OrgServiceException(OrgServiceException.Kind.PLAIN, "permission denied for this share operation");
         }
         shareMapper.deleteById(share.getId());
+        auditShare(share, com.ragagent.audit.domain.AuditAction.KB_SHARE_REMOVED, share.getPermission());
+    }
+
+    /**
+     * KB 共享审计（对照 Go recordKBActivity → AuditActionKBShare*）：共享是把数据暴露
+     * 给其他空间的最高影响动作之一，必须落审计。失败仅 WARN（logBestEffort，绝不把
+     * 业务成功翻成异常）。
+     */
+    private void auditShare(KbShare share, String action, String permission) {
+        if (auditService == null || share == null) {
+            return;
+        }
+        try {
+            com.fasterxml.jackson.databind.node.ObjectNode details =
+                    new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+            details.put("knowledge_base_id", share.getKnowledgeBaseId());
+            details.put("organization_id", share.getOrganizationId());
+            details.put("permission", permission == null ? "" : permission);
+            AuditLog entry = new AuditLog();
+            entry.setTenantId(share.getSourceTenantId() == null ? 0L : share.getSourceTenantId());
+            entry.setActorUserId(share.getSharedByUserId());
+            entry.setAction(action);
+            entry.setTargetType("knowledge_base");
+            entry.setTargetId(share.getKnowledgeBaseId());
+            entry.setOutcome(com.ragagent.audit.domain.AuditOutcome.SUCCESS);
+            entry.setDetails(details);
+            auditService.logBestEffort(entry);
+        } catch (RuntimeException e) {
+            // logBestEffort 已兜底；这里再兜一层防构造 details 失败
+        }
     }
 
     public List<KbShare> listSharesByKnowledgeBase(String kbId, long tenantId) {
