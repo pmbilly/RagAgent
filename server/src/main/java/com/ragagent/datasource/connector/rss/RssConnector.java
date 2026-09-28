@@ -94,6 +94,8 @@ public class RssConnector implements Connector {
     private final FeedParser feedParser;
     private final ArticleExtractor articleExtractor;
     private final HtmlToMarkdown markdownConverter;
+    /** 正文抽取能力是否在位（不可用时 resolveItem 直接跳过文章页请求，省一次无效外网调用）。 */
+    private final boolean fullTextAvailable;
 
     /** 三块接缝都用降级实现——生产装配走这个。 */
     public RssConnector() {
@@ -113,6 +115,7 @@ public class RssConnector implements Connector {
         this.feedParser = feedParser;
         this.articleExtractor = articleExtractor;
         this.markdownConverter = htmlToMarkdown;
+        this.fullTextAvailable = !(articleExtractor instanceof UnavailableArticleExtractor);
     }
 
     // ── Connector 实现 ────────────────────────────────────────────────────
@@ -448,8 +451,10 @@ public class RssConnector implements Connector {
         String title = RssUtil.firstNonEmpty(item.title(), "untitled");
 
         // 优先文章全文；失败就回落 feed 内容（Go 的同一分支）。
+        // 抽取器不可用（UnavailableArticleExtractor 恒抛）时直接跳过文章页请求：
+        // 抓回的字节必被丢弃，每个条目白付一次外网请求（2026-09-28 评审修正）。
         String contentHtml = feedContent;
-        if (!RssUtil.goTrim(item.link()).isEmpty()) {
+        if (!RssUtil.goTrim(item.link()).isEmpty() && fullTextAvailable) {
             try {
                 ArticleExtractor.ExtractedArticle article = client.extractArticle(item.link());
                 contentHtml = article.contentHtml();

@@ -429,9 +429,16 @@ class RssConnectorTest {
     void fetchAllDoesNotSendAuthHeadersToArticlePages() throws IOException {
         // 照抄 Go 的 TestConnector_FetchAll_DoesNotSendAuthHeadersToArticles：
         // 文章页在第三方域名上，把凭据发过去就是泄漏。
+        // 2026-09-28 起：抽取器不可用（UnavailableArticleExtractor）时 resolveItem
+        // **直接跳过文章页请求**（抓回的字节必被丢弃，省一次无效外网调用）——
+        // 故注入可用抽取器让文章页真的被抓，鉴权头不泄漏的契约才有观测面。
         try (FakeFeed feed = new FakeFeed()) {
             feed.itemContent("needs-auth");
-            List<FetchedItem> items = new RssConnector()
+            ArticleExtractor passthrough = (body, pageUrl) -> new ArticleExtractor.ExtractedArticle(
+                    new String(body, StandardCharsets.UTF_8), "");
+            RssConnector connector =
+                    new RssConnector(new JdkXmlFeedParser(), passthrough, new JdkHtmlToMarkdown());
+            List<FetchedItem> items = connector
                     .fetchAll(makeConfig(feed.feedUrl(), "X-Test-Auth: secret"), null);
             assertThat(items).hasSize(2);
             assertThat(feed.articleFetches()).isEqualTo(2); // 文章页确实被抓过
@@ -558,7 +565,9 @@ class RssConnectorTest {
                     new RssConnector().fetchIncremental(config, null);
             assertThat(result.items()).hasSize(2);
             assertThat(result.cursor()).isNotNull();
-            assertThat(feed.articleFetches()).isEqualTo(2);
+            // 2026-09-28 起：默认 UnavailableArticleExtractor → 文章页请求整个跳过
+            //（Go 侧抽取器可用会真抓；Java 抓回必弃，省一次无效外网调用）
+            assertThat(feed.articleFetches()).isZero();
         }
     }
 
