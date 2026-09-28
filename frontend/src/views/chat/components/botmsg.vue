@@ -34,6 +34,16 @@
             </template>
             <deepThink :deepSession="session" v-if="session.showThink && !session.isAgentMode"></deepThink>
         </div>
+        <!-- 失败原因落在气泡里：此前错误只弹数秒 toast（agent 模式正文走事件流渲染，
+             error 只写进了 message.content），刷新/回头就什么都看不到。
+             消息级错误块：agent/非 agent 模式都显示（见 useChatStreamHandler 的 error 分支）。 -->
+        <div v-if="errorText" class="error-wrapper">
+            <t-icon name="error-circle" class="error-icon" />
+            <div class="error-body">
+                <div class="error-title">{{ $t('chat.processError') }}</div>
+                <div class="error-message">{{ errorText }}</div>
+            </div>
+        </div>
         <!-- 非 Agent 模式下才显示传统的 markdown 渲染 -->
         <div ref="parentMd" v-if="!session.hideContent && !session.isAgentMode">
             <!-- 直接渲染完整内容，避免切分导致的问题，样式与 thinking 一致 -->
@@ -353,6 +363,16 @@ const hasActualContent = computed(() => {
     return text && text.trim().length > 0;
 });
 
+/**
+ * 失败原因（useChatStreamHandler 在收到 error 帧时打的消息级标记）。
+ * 注意：后端不落错误文案——收到流（当场或页面 attach 重放流期间）才可见；
+ * 更长期的可见性需要后端把文案随消息落库（另案）。
+ */
+const errorText = computed(() => {
+    const err = props.session?.error;
+    return typeof err === 'string' && err.trim() ? err.trim() : '';
+});
+
 // 获取实际内容
 const getActualContent = () => {
     return (props.content || props.session?.content || '').trim();
@@ -469,7 +489,43 @@ onBeforeUnmount(() => {
     gap: 0;
 }
 
-// 内容包装器 - 与 Agent 模式的 answer 样式一致
+// 失败原因块（useChatStreamHandler 的 error 帧 → session.error）：
+// 让失败原因留在对话里，而不只是一个数秒的 toast。
+.error-wrapper {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--td-error-color-3, #fdecee);
+    border-radius: 8px;
+    background: var(--td-error-color-1, #fff0f0);
+    color: var(--td-error-color, #d54941);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.error-icon {
+    flex: none;
+    margin-top: 3px;
+    font-size: 15px;
+}
+
+.error-body {
+    min-width: 0;
+    word-break: break-word;
+}
+
+.error-title {
+    font-weight: 600;
+}
+
+.error-message {
+    margin-top: 2px;
+    color: var(--td-text-color-primary);
+    white-space: pre-wrap;
+}
+
+// 内容包装器 - 与 Agent 模式的样式一致
 .content-wrapper {
     padding: 2px 0;
 }

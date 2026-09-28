@@ -871,6 +871,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           if (responseType === 'error' && !toolName) {
             const errorMsg = String(data.content || t('chat.processError'))
             message.content = errorMsg
+            // 消息级错误标记：气泡（botmsg 的 error-wrapper）据此渲染失败原因——
+            // 只弹 toast 的话，用户回头/刷新就看不到任何提示。
+            message.error = errorMsg
             message.is_completed = true
             isReplying.value = false
             loading.value = false
@@ -882,6 +885,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         } else if (responseType === 'error') {
           const errorMsg = String(data.content || t('chat.processError'))
           message.content = errorMsg
+          message.error = errorMsg
           message.is_completed = true
           isReplying.value = false
           loading.value = false
