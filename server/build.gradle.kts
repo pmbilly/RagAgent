@@ -3,6 +3,18 @@ plugins {
     id("org.springframework.boot")
     id("io.spring.dependency-management")
     id("com.google.protobuf")
+    id("com.diffplug.spotless")
+}
+
+// 格式卫生起步配置（阶段 0）：ratchet 自 seed 起，只检查后续触碰过的文件——
+// 裁剪手术期不做全仓格式化大爆炸（红线：一次只动一个轴）；全量 formatter 留阶段 3+。
+spotless {
+    java {
+        ratchetFrom("seed")
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
 }
 
 /**

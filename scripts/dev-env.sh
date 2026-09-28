@@ -82,7 +82,8 @@ export RETRIEVE_DRIVER="${RETRIEVE_DRIVER:-$(env_value RETRIEVE_DRIVER)}"
 
 # Java 侧自有配置（与 Go 无关）
 export JWT_SECRET="${JWT_SECRET:-java-e2e-jwt-secret-key-0123456789abcdef}"
-export LOCAL_STORAGE_BASE_DIR="${LOCAL_STORAGE_BASE_DIR:-/tmp/weknora-java-files}"
+# 严禁默认 /tmp：macOS 定期清 /tmp 会丢已入库文档的原始文件（preview 500、不可恢复，实测踩坑 2026-09-28）
+export LOCAL_STORAGE_BASE_DIR="${LOCAL_STORAGE_BASE_DIR:-$(env_value LOCAL_STORAGE_BASE_DIR)}"
 
 # 本机浏览器 BrowserSkill（可选）：产物用
 #   scripts/build_browserskill.sh artifacts/browserskill darwin/arm64
