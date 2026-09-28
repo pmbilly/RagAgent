@@ -164,6 +164,16 @@ tasks.named("processResources") { dependsOn(syncMigrations) }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Mockito inline 在 JDK 21+（homebrew OpenJDK 拒绝自挂 attach）会按
+    // MockitoInitializationException 批量假失败：把 byte-buddy-agent 显式挂为
+    // javaagent——其 Installer premain 先行装入 Instrumentation，Mockito 的
+    // ByteBuddyAgent.install() 检测到已装好的 instrumentation 后不再走 attach
+    val byteBuddyAgent = configurations.testRuntimeClasspath.get().files
+        .firstOrNull { it.name.startsWith("byte-buddy-agent-") }
+    if (byteBuddyAgent != null) {
+        jvmArgs("-javaagent:$byteBuddyAgent")
+    }
+    jvmArgs("-XX:+EnableDynamicAgentLoading")
     // 测试 JVM 的默认上限是 512MB（Gradle 默认），而本套件（十余个 @SpringBootTest
     // 上下文 + 共享 H2 内存库）实测峰值已贴近 512MB：把上限压到 448MB 后、
     // **即使排除全部 wiki 测试**也稳定 OOM。阶段 4.2 加入 wiki 测试后就变成偶发
