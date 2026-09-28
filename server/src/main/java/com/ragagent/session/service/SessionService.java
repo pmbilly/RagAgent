@@ -68,7 +68,6 @@ public class SessionService {
     private final ModelRuntimeFactory modelRuntimeFactory;
     private final ConversationProperties conversationProps;
     private final com.ragagent.websearch.service.WebSearchTempKbStateService webSearchTempKbState;
-    private final SessionTerminalService sessionTerminalService;
 
     public SessionService(SessionRepository sessionRepository,
                           MessageRepository messageRepository,
@@ -77,8 +76,7 @@ public class SessionService {
                           ModelService modelService,
                           ModelRuntimeFactory modelRuntimeFactory,
                           ConversationProperties conversationProps,
-                          com.ragagent.websearch.service.WebSearchTempKbStateService webSearchTempKbState,
-                          SessionTerminalService sessionTerminalService) {
+                          com.ragagent.websearch.service.WebSearchTempKbStateService webSearchTempKbState) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.suggestionRepository = suggestionRepository;
@@ -87,7 +85,6 @@ public class SessionService {
         this.modelRuntimeFactory = modelRuntimeFactory;
         this.conversationProps = conversationProps;
         this.webSearchTempKbState = webSearchTempKbState;
-        this.sessionTerminalService = sessionTerminalService;
     }
 
     // ── Go 的包级辅助 ──────────────────────────────────────────────────────
@@ -425,9 +422,8 @@ public class SessionService {
      *
      * <p><b>已知差异（对照 Go）</b>：知识清理 Go 在 goroutine 里异步做（且走
      * cleanup-scope 授权），这里同步尽力而为——HTTP 响应不受影响，但删除请求会等
-     * 知识清完才返回。临时 KB 清理（2026-09-23 走查批接线，
-     * {@code DeleteWebSearchTempKBState}）与 {@code destroyBoundSandbox}（同批接线，
-     * SessionTerminalService.destroyBoundSandbox）失败均被吞，无 HTTP 可见差异。</p>
+     * 知识清完才返回。临时 KB 清理（{@code DeleteWebSearchTempKBState}）失败被吞，
+     * 无 HTTP 可见差异。</p>
      */
     private void cleanupSessionResources(long tenantId, String sessionId) {
         try {
@@ -448,7 +444,6 @@ public class SessionService {
         } catch (RuntimeException e) {
             log.warn("Failed to cleanup temporary KB for session {}: {}", sessionId, e.toString());
         }
-        sessionTerminalService.destroyBoundSandbox(tenantId, sessionId);
     }
 
     /**

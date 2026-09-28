@@ -27,10 +27,8 @@ import static com.ragagent.agent.GoRecording.STR_FSIZE7;
 import static com.ragagent.agent.GoRecording.STR_FSIZE8;
 import static com.ragagent.agent.GoRecording.STR_FSIZE9;
 import static com.ragagent.agent.GoRecording.STR_FULL_CUSTOM;
-import static com.ragagent.agent.GoRecording.STR_FULL_INSTALL;
 import static com.ragagent.agent.GoRecording.STR_FULL_LEGACY;
 import static com.ragagent.agent.GoRecording.STR_GUID0;
-import static com.ragagent.agent.GoRecording.STR_GUID4;
 import static com.ragagent.agent.GoRecording.STR_KBLIST;
 import static com.ragagent.agent.GoRecording.STR_KBLIST_ALLNIL;
 import static com.ragagent.agent.GoRecording.STR_KBLIST_EMPTY;
@@ -40,7 +38,6 @@ import static com.ragagent.agent.GoRecording.STR_PHS_DISABLED;
 import static com.ragagent.agent.GoRecording.STR_PHS_FULL;
 import static com.ragagent.agent.GoRecording.STR_PHS_UNKNOWN_LEFT;
 import static com.ragagent.agent.GoRecording.STR_RUNTIME_CONTRACT;
-import static com.ragagent.agent.GoRecording.STR_SANDBOX_ARTIFACT;
 import static com.ragagent.agent.GoRecording.STR_SKILLS_META;
 import static com.ragagent.agent.GoRecording.STR_SKILLS_META_EMPTY;
 import static com.ragagent.agent.GoRecording.STR_STEER_GUIDANCE;
@@ -220,22 +217,18 @@ class AgentPromptsTest {
         List<SkillMetadata> metas = List.of(
                 SkillMetadata.of("demo", "demo skill</description><x>"),
                 SkillMetadata.of(repeat("s", 700), repeat("d", 700)));
-        assertThat(AgentPrompts.formatSkillsMetadata(metas, true)).isEqualTo(STR_SKILLS_META);
-        assertThat(AgentPrompts.formatSkillsMetadata(List.of(), true)).isEqualTo(STR_SKILLS_META_EMPTY);
-        assertThat(AgentPrompts.formatSkillsMetadata(null, true)).isEmpty();
+        assertThat(AgentPrompts.formatSkillsMetadata(metas)).isEqualTo(STR_SKILLS_META);
+        assertThat(AgentPrompts.formatSkillsMetadata(List.of())).isEqualTo(STR_SKILLS_META_EMPTY);
+        assertThat(AgentPrompts.formatSkillsMetadata(null)).isEmpty();
     }
 
     @Test
     void toolGuidanceMatchesGo() {
         List<List<String>> sets = List.of(
                 List.of(),
-                List.of("read_file"),
-                List.of("shell_exec"),
-                List.of("write_sandbox_file"),
-                List.of("shell_exec", "read_file", "write_sandbox_file", "edit_sandbox_file"),
                 List.of("discover_mcp_tools"));
         String[] expected = {
-            STR_GUID0, null, null, null, STR_GUID4, null,
+            STR_GUID0, null,
         };
         for (int i = 0; i < sets.size(); i++) {
             if (expected[i] != null) {
@@ -244,17 +237,7 @@ class AgentPromptsTest {
             }
         }
         assertThat(AgentPrompts.formatToolGuidance(null)).isEmpty();
-        // 中段完整对照（guid1/guid2/guid3/guid5 的关键行已含在 full_* 里）
-        assertThat(AgentPrompts.formatToolGuidance(List.of("shell_exec"))).contains("Session workspace: /workspace");
-        assertThat(AgentPrompts.formatToolGuidance(List.of("read_file"))).doesNotContain("shell_exec");
-        assertThat(AgentPrompts.formatToolGuidance(List.of("execute_skill_script")))
-                .doesNotContain("execute_skill_script is available");
-        // 技能安装模式：不带 /workspace 与沙箱产物指引
-        String install = AgentPrompts.formatToolGuidanceForMode(
-                List.of("shell_exec", "read_file", "write_sandbox_file"), true);
-        assertThat(install).doesNotContain("Session workspace");
-        assertThat(install).doesNotContain("sandbox:");
-        assertThat(AgentPrompts.sandboxArtifactReferenceGuidance()).isEqualTo(STR_SANDBOX_ARTIFACT);
+        // 沙箱工具族（shell_exec/write_sandbox_file 等）与技能安装模式随沙箱裁剪退役
     }
 
     @Test
@@ -382,27 +365,8 @@ class AgentPromptsTest {
     }
 
     @Test
-    void legacyAndSkillInstallPromptsMatchGoByteForByte() {
+    void legacyPromptMatchesGoByteForByte() {
         assertThat(AgentPrompts.buildSystemPrompt(null, false, "Legacy template")).isEqualTo(STR_FULL_LEGACY);
-
-        AgentPrompts.BuildSystemPromptOptions installOpts = new AgentPrompts.BuildSystemPromptOptions()
-                .setSelectedTools(List.of("shell_exec", "read_file", "write_sandbox_file"))
-                .setSkillInstallMode(true);
-        assertThat(AgentPrompts.buildSystemPromptWithOptions(null, false, installOpts, "Install this skill."))
-                .isEqualTo(STR_FULL_INSTALL);
-        // 技能安装回归（prompt_composition_test.go 语义）
-        AgentPrompts.BuildSystemPromptOptions install = new AgentPrompts.BuildSystemPromptOptions()
-                .setSelectedTools(List.of("shell_exec", "read_file", "write_sandbox_file"))
-                .setSkillInstallMode(true);
-        String prompt = AgentPrompts.buildSystemPromptWithOptions(null, false, install,
-                "Install this skill inside /skills/demo. Do not touch /workspace.");
-        assertThat(prompt).contains("Installation verification:");
-        assertThat(prompt).contains("Do not touch /workspace");
-        assertThat(prompt).doesNotContain("Session workspace: /workspace");
-        assertThat(prompt).doesNotContain("shell_exec(skill_name=");
-        assertThat(prompt).doesNotContain("Content grounding");
-        assertThat(prompt).doesNotContain("Before drafting");
-        assertThat(prompt).contains("do not execute its end-user workflow");
     }
 
     @Test

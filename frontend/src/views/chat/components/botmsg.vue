@@ -62,19 +62,13 @@
                     :title="$t('agent.addToKnowledgeBase')">
                     <t-icon name="bookmark-add" />
                 </t-button>
-                <!-- Skill artifact download: only shown when this reply's
-                     assistant message actually recorded any generated files.
-                     Emptiness is the default: the button stays hidden for
-                     conversational messages that never touched a skill. -->
-                <span v-if="hasArtifacts || artifactsCollecting" class="answer-toolbar__artifact"
-                    :class="{ 'is-collecting': artifactButtonCollecting, 'is-arrived': artifactArrived }"
-                    @animationend="onArtifactArriveEnd">
+                <!-- Legacy artifact drawer entry: only when this reply's
+                     assistant message actually recorded generated files. -->
+                <span v-if="hasArtifacts" class="answer-toolbar__artifact">
                     <t-button size="small" variant="outline" shape="round"
-                        :disabled="artifactButtonCollecting"
-                        :title="hasArtifacts ? $t('agent.artifactDrawer.buttonTitle') : $t('agent.artifactDrawer.collecting')"
+                        :title="$t('agent.artifactDrawer.buttonTitle')"
                         @click.stop="openArtifactDrawer()">
-                        <t-icon v-if="artifactButtonCollecting" name="loading" class="answer-toolbar__artifact-spinner" />
-                        <t-icon v-else name="folder" />
+                        <t-icon name="folder" />
                     </t-button>
                     <span v-if="hasArtifacts" class="answer-toolbar__artifact-count" aria-hidden="true">{{ artifactCount }}</span>
                 </span>
@@ -122,9 +116,6 @@ import ChatRequestInfoButton from '@/components/ChatRequestInfoButton.vue';
 import ChatCitationFloat from '@/components/ChatCitationFloat.vue';
 import picturePreview from '@/components/picture-preview.vue';
 import ChatArtifactsDrawer from './ChatArtifactsDrawer.vue';
-import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
-import { useArtifactArriveMotion } from '@/composables/useArtifactArriveMotion';
-import { useChatSandboxPanel } from '@/composables/useChatSandboxPanel';
 import { persistedAssistantId } from '@/utils/steerStreamFork';
 import { sanitizeMarkdownHTML, safeMarkdownToHTML, createSafeImage, isValidImageURL, hydrateProtectedFileImages } from '@/utils/security';
 import {
@@ -218,17 +209,15 @@ const props = defineProps({
 const showRequestInfo = computed(() => !!(props.session?.request_id || props.session?.id));
 
 // -----------------------------------------------------------------------------
-// Skill artifact download (drawer in embedded mode; sandbox panel otherwise)
+// Legacy artifact drawer (embedded mode)
 // -----------------------------------------------------------------------------
 // The download button is opt-in per message: the toolbar checks
 // `hasArtifacts` and only renders when the assistant message actually
-// recorded a file. In the main app this opens the sandbox panel's artifacts
-// tab. Embedded chat still uses ChatArtifactsDrawer.
+// recorded a file. 产物随沙箱裁剪不再新增；存量渲染面保留.
 //
 // NOTE: this file's <script setup> block is plain JS (no lang="ts"), so we
 // stay away from TypeScript-only syntax like `as any[]`.
 const showArtifactDrawer = ref(false);
-const sandboxPanel = useChatSandboxPanel();
 const artifactList = computed(() => {
     const raw = props.session && props.session.artifacts;
     const list = Array.isArray(raw) ? raw : [];
@@ -240,9 +229,6 @@ const artifactList = computed(() => {
 });
 const hasArtifacts = computed(() => artifactList.value.length > 0);
 const artifactCount = computed(() => artifactList.value.length);
-const { artifactArrived, onArtifactArriveEnd } = useArtifactArriveMotion(artifactCount);
-const artifactsCollecting = computed(() => isCollectingSkillArtifacts(props.session));
-const artifactButtonCollecting = computed(() => artifactsCollecting.value && !hasArtifacts.value);
 const messageIdForArtifacts = computed(() => {
     // Steered segments have synthetic row IDs; artifact APIs address the
     // persisted assistant. Keep request_id as the in-flight fallback.
@@ -253,17 +239,6 @@ const messageIdForArtifacts = computed(() => {
 const artifactPreviewIndex = ref(null);
 function openArtifactDrawer(previewIndex = null) {
     if (!hasArtifacts.value) return;
-    if (sandboxPanel && !props.embeddedMode) {
-        if (previewIndex == null) {
-            sandboxPanel.toggleArtifacts(messageIdForArtifacts.value);
-        } else {
-            sandboxPanel.open('artifacts', {
-                messageId: messageIdForArtifacts.value,
-                previewIndex,
-            });
-        }
-        return;
-    }
     artifactPreviewIndex.value = previewIndex;
     showArtifactDrawer.value = true;
 }

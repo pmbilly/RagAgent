@@ -221,18 +221,6 @@
                 <t-select v-else-if="hasEnum(item)" v-model="editValues[item.key]" :options="enumOptions(item)"
                   :aria-label="keyLabel(item.key)" :disabled="savingKey === item.key" class="setting-input"
                   @change="onChange(item)" />
-                <t-popconfirm v-else-if="item.value_type === 'bool' && isHighRiskKey(item.key)"
-                  v-model:visible="highRiskPopconfirm.visible" :content="highRiskPopconfirm.content"
-                  :theme="highRiskPopconfirm.theme" :confirm-btn="highRiskPopconfirm.confirmBtn"
-                  :cancel-btn="t('system.globalSettings.confirm.cancelBtn')"
-                  :popup-props="PROGRAMMATIC_POPCONFIRM_PROPS" placement="left"
-                  @confirm="highRiskPopconfirm.finish(true)" @cancel="highRiskPopconfirm.finish(false)"
-                  @visible-change="highRiskPopconfirm.onVisibleChange">
-                  <div class="setting-control-anchor">
-                    <t-switch v-model="editValues[item.key]" :aria-label="keyLabel(item.key)"
-                      :disabled="savingKey === item.key" @change="onHighRiskBoolChange(item)" />
-                  </div>
-                </t-popconfirm>
                 <t-switch v-else-if="item.value_type === 'bool'" v-model="editValues[item.key]"
                   :aria-label="keyLabel(item.key)" :disabled="savingKey === item.key" @change="onChange(item)" />
                 <t-input-number v-else-if="item.value_type === 'int'" v-model="editValues[item.key]"
@@ -341,12 +329,10 @@ import {
 import CreateUserDialog from './CreateUserDialog.vue'
 import ResetPasswordDialog from './ResetPasswordDialog.vue'
 import { useAuthStore } from '@/stores/auth'
-import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities'
 import { PASSWORD_SPECIAL_CHARS } from '@/utils/passwordPolicy'
 import { isSettingValueDirty, resolveCurrentSetting } from './systemSettingsEdit'
 
 const authStore = useAuthStore()
-const deploymentCapabilities = useDeploymentCapabilitiesStore()
 const currentUserId = computed(() => authStore.currentUserId)
 
 const { t, tm, te, locale } = useI18n()
@@ -377,14 +363,12 @@ function settingDescription(item: { key: string; description?: string }): string
 // PUT. ssrf.whitelist is not here — it uses per-tag confirm instead.
 const HIGH_RISK_KEYS = new Set<string>([
   'auth.registration_mode',
-  'sandbox.docker_enabled',
 ])
 
 const HIGH_IMPACT_KEYS = new Set<string>([
   'auth.registration_mode',
   'tenant.auto_create_api_key',
   'ssrf.whitelist',
-  'sandbox.docker_enabled',
 ])
 
 function isHighRiskKey(key: string): boolean {
@@ -495,7 +479,7 @@ const SETTINGS_SECTION_KEYS: Record<Exclude<SettingsSection, 'other'>, readonly 
     'asynq.wiki_concurrency',
     'model.max_concurrency',
   ],
-  security: ['ssrf.whitelist', 'sandbox.docker_enabled'],
+  security: ['ssrf.whitelist'],
 }
 
 const activeSettingsSection = ref<SettingsSection>('access')
@@ -754,32 +738,6 @@ async function onHighRiskSelectChange(item: SystemSettingItem) {
   await persistSetting(currentItem)
 }
 
-async function onHighRiskBoolChange(item: SystemSettingItem) {
-  const currentItem = resolveCurrentSetting(settingsByKey.value, item.key)
-  if (!currentItem) return
-  const newValue = editValues[item.key]
-  if (!isDirty(currentItem)) return
-
-  editValues[item.key] = currentItem.value
-  if (newValue !== true) {
-    editValues[item.key] = newValue
-    await persistSetting(currentItem)
-    return
-  }
-
-  const ok = await highRiskPopconfirm.ask({
-    content: t('system.globalSettings.confirm.bodySandboxDockerEnabled'),
-    theme: 'danger',
-    confirmBtn: {
-      content: t('system.globalSettings.confirm.confirmBtn'),
-      theme: 'danger',
-    },
-  })
-  if (!ok) return
-
-  editValues[item.key] = true
-  await persistSetting(currentItem)
-}
 
 function confirmSsrfListEntryChange(
   action: 'add' | 'remove',
@@ -887,11 +845,6 @@ function hasBulkAction(item: SystemSettingItem): boolean {
   return item.key === 'tenant.default_storage_quota_gb'
 }
 
-async function refreshSandboxDockerCapability(key: string) {
-  if (key !== 'sandbox.docker_enabled') return
-  await deploymentCapabilities.ensureLoaded(true)
-}
-
 function bulkActionConfirmBody(item: SystemSettingItem): string {
   // Use the canonical (saved) value, not the in-progress edit, so the
   // operator sees exactly what will be written. The button is disabled
@@ -938,7 +891,6 @@ async function resetSetting(item: SystemSettingItem) {
     await loadSettings()
     markSettingSaved(item)
     MessagePlugin.success(t('system.globalSettings.reset.success'))
-    await refreshSandboxDockerCapability(item.key)
   } catch (err: any) {
     const msg = err?.message || t('system.globalSettings.reset.failed')
     saveAnnouncement.value = msg
@@ -965,7 +917,6 @@ async function persistSetting(item: SystemSettingItem) {
       : updated.value
     markSettingSaved(updated)
     MessagePlugin.success(t('system.globalSettings.messages.saveSuccess'))
-    await refreshSandboxDockerCapability(item.key)
   } catch (err: any) {
     const msg = err?.message || t('system.globalSettings.messages.saveFailed')
     saveAnnouncement.value = msg

@@ -26,11 +26,6 @@ export type DisplayType =
     | 'wiki_replace_text'
     | 'wiki_rename_page'
     | 'wiki_delete_page'
-    | 'shell_exec'
-    | 'list_sandbox_files'
-    | 'write_sandbox_file'
-    | 'edit_sandbox_file'
-    | 'read_skill'
     | 'mcp_discovery'
     | 'mcp_call';
 
@@ -341,63 +336,6 @@ export interface WikiDeletePageData {
     affected_pages?: string[];
 }
 
-export interface ShellExecData {
-    display_type: 'shell_exec';
-    command?: string;
-    work_dir?: string;
-    exit_code?: number;
-    duration_ms?: number;
-    killed?: boolean;
-    truncated?: boolean;
-    stdout?: string;
-    stderr?: string;
-    stdout_binary?: boolean;
-    stderr_binary?: boolean;
-    stdout_truncated?: boolean;
-    stderr_truncated?: boolean;
-}
-
-export interface SandboxFileEntry {
-    name?: string;
-    path: string;
-    size?: number;
-    modified_at?: string;
-}
-
-export interface ListSandboxFilesData {
-    display_type?: 'list_sandbox_files';
-    session_id?: string;
-    path?: string;
-    root?: string;
-    entries?: SandboxFileEntry[];
-    count?: number;
-    truncated?: boolean;
-}
-
-export interface WriteSandboxFileData {
-    display_type?: 'write_sandbox_file' | 'edit_sandbox_file';
-    session_id?: string;
-    path?: string;
-    root?: string;
-    name?: string;
-    size?: number;
-    replacements?: number;
-    added_lines?: number;
-    removed_lines?: number;
-    preview?: string;
-}
-
-export interface ReadSkillData {
-    display_type?: 'read_skill';
-    skill_name?: string;
-    file_path?: string;
-    description?: string;
-    instructions?: string;
-    content?: string;
-    files?: string[];
-    skill_dir?: string;
-}
-
 // Union type for all wiki edit data
 export type WikiEditData = WikiWritePageData | WikiReplaceTextData | WikiRenamePageData | WikiDeletePageData;
 
@@ -419,10 +357,7 @@ export type ToolResultData =
     | WikiWritePageData
     | WikiReplaceTextData
     | WikiRenamePageData
-    | WikiDeletePageData
-    | ShellExecData
-    | ListSandboxFilesData
-    | ReadSkillData;
+    | WikiDeletePageData;
 
 // Action data (from index.vue)
 export interface ActionData {

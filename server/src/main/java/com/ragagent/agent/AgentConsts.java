@@ -36,11 +36,6 @@ public final class AgentConsts {
 
     /** 单次工具执行的默认上限（对照 defaultToolExecTimeout）。 */
     public static final Duration DEFAULT_TOOL_EXEC_TIMEOUT = Duration.ofSeconds(60);
-    /**
-     * 比 shell_exec 自身硬性的 600 秒命令超时略长（对照 shellExecToolTimeout），
-     * 让工具能返回结构化超时结果而不是先被 agent 的通用包装取消。
-     */
-    public static final Duration SHELL_EXEC_TOOL_TIMEOUT = Duration.ofSeconds(605);
 
     /** 瞬态 LLM 错误的最大重试数（对照 maxLLMRetries）。 */
     public static final int MAX_LLM_RETRIES = 2;
@@ -94,16 +89,12 @@ public final class AgentConsts {
     }
 
     /**
-     * 单次工具执行的超时（对照 toolExecutionTimeout）。shell_exec 给到略长于其
-     * 命令超时的专用值，让工具能返回结构化超时结果而不是先被 agent 的通用包装取消；
-     * 其余一律默认 60 秒。
+     * 单次工具执行的超时（对照 toolExecutionTimeout）。一律默认 60 秒
+     * （shell_exec 的专用超时随沙箱裁剪退役）。
      *
      * @param arguments Go 签名是变长 arguments，只消费第一个（JSON）
      */
     public static Duration toolExecutionTimeout(String toolName, String... arguments) {
-        if ("shell_exec".equals(toolName)) {
-            return SHELL_EXEC_TOOL_TIMEOUT;
-        }
         return DEFAULT_TOOL_EXEC_TIMEOUT;
     }
 

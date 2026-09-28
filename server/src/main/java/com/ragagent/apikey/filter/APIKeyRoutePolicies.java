@@ -18,7 +18,7 @@ package com.ragagent.apikey.filter;
  *
  * <h2>覆盖范围（重要）</h2>
  * <p><b>只登记 Java 侧已经翻译出来的路由。</b>Go 的策略表还覆盖 agents / sessions /
- * 会话文件 / sandbox / evaluation / 数据源 / 渠道 / 向量库 / 存储后端 / 组织 / 系统管理等，
+ * evaluation / 数据源 / 渠道 / 向量库 / 存储后端 / 组织 / 系统管理等，
  * 对应模块尚未翻译，登记了也只是死条目。它们随各自模块一起回补——
  * 每条都从对应的 Go {@code routes_*.go} 抄过来即可。</p>
  *
@@ -59,7 +59,6 @@ public final class APIKeyRoutePolicies {
         registerTenantMemberRoutes(authorizer);
         registerSystemRoutes(authorizer);
         registerEvaluationRoutes(authorizer);
-        registerSandboxConfigRoutes(authorizer);
         registerOrganizationRoutes(authorizer);
         registerFileRoutes(authorizer);
     }
@@ -217,8 +216,6 @@ public final class APIKeyRoutePolicies {
      * users/reset-password、users/create、api-keys 的 CRUD 注册在**原始 group**上 →
      * Key default-deny（不能给自己扩权），与 Go 完全一致，刻意不登记。</p>
      *
-     * <p><b>POST /system/sandbox-check 不登记</b>：路由未实现（波 3），
-     * 登记了也只是死条目。</p>
      */
     private static void registerSystemRoutes(APIKeyRouteAuthorizer a) {
         APIKeyRoutePolicy system = APIKeyRoutePolicy.manageVectorStores(APIKeyRoutePolicy.fullAccess());
@@ -516,9 +513,6 @@ public final class APIKeyRoutePolicies {
         a.registerGin("GET", "/api/v1/sessions/:id/attachments/:attachment_id", sessions);
         a.registerGin("GET", "/api/v1/sessions/:id/attachments/:attachment_id/preview", sessions);
         a.registerGin("DELETE", "/api/v1/sessions/:id/attachments/:attachment_id", sessions);
-        // 沙箱终端票据（W5d，routes_chat.go L67-69，同组 chat 能力；
-        // WS 升级路由 GET …/sandbox/terminal 注册于 Auth 之前、票据自鉴权，不经 API Key 面）
-        a.registerGin("POST", "/api/v1/sessions/:session_id/sandbox/terminal-ticket", sessions);
     }
 
     /**
@@ -726,50 +720,6 @@ public final class APIKeyRoutePolicies {
                 APIKeyRoutePolicy.retrieve(APIKeyRoutePolicy.ingest(APIKeyRoutePolicy.fullAccess())));
     }
 
-    /**
-     * 沙箱配置（对照 Go router/routes_infra.go L49-74 RegisterSandboxConfigRoutes）：
-     * 整组 {@code apiKeyGroup(..., apiKeyFullAccess())}——Go 注释原文：这些是持有
-     * provider 凭据的工作区基础设施，scoped key 不能安全地获得部分权限（变更可能
-     * 遗弃远端沙箱），所以只有 full-access key 能进，子批 2 的 skills 子资源同组同档。
-     */
-    private static void registerSandboxConfigRoutes(APIKeyRouteAuthorizer a) {
-        APIKeyRoutePolicy sandboxConfigs = APIKeyRoutePolicy.fullAccess();
-        a.registerGin("GET", "/api/v1/sandbox-configs", sandboxConfigs);
-        a.registerGin("PUT", "/api/v1/sandbox-configs/workspace-policy", sandboxConfigs);
-        a.registerGin("POST", "/api/v1/sandbox-configs/templates/query", sandboxConfigs);
-        a.registerGin("POST", "/api/v1/sandbox-configs", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id", sandboxConfigs);
-        a.registerGin("PUT", "/api/v1/sandbox-configs/:id", sandboxConfigs);
-        a.registerGin("DELETE", "/api/v1/sandbox-configs/:id", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/sandboxes", sandboxConfigs);
-        // 波 3 子批 2：skills 子资源（同组同档 fullAccess）+ sandbox-check（/system 组
-        // 的 manageVectorStores(fullAccess())，与 storage-engine-check 同档）
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills", sandboxConfigs);
-        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId", sandboxConfigs);
-        a.registerGin("PATCH", "/api/v1/sandbox-configs/:id/skills/:skillId", sandboxConfigs);
-        a.registerGin("DELETE", "/api/v1/sandbox-configs/:id/skills/:skillId", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/files", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/files/content", sandboxConfigs);
-        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills/:skillId/reinstall", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/guidance", sandboxConfigs);
-        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills/:skillId/guidance", sandboxConfigs);
-        a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills/:skillId/stop", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/install-events", sandboxConfigs);
-        a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/transcript", sandboxConfigs);
-        // POST /system/sandbox-check 不登记：路由未实现（Spring 404）——见类注释，
-        // 2026-09-28 评审删除了此前误登记的死条目。
-        // 波 3 子批 4（routes_agent.go RegisterSkillRoutes L70-90）：catalogWrite 组
-        // = apiKeyGroup(fullAccess)——catalog 写会烤进沙箱镜像，只有 full-access key
-        // 能进。GET /skills 与 GET /skills/catalog **不登记**：Go 里这两条只挂角色门
-        // 未声明 API-key 能力 → 未声明 = 默认拒绝（与 favorites 同款注释）。
-        APIKeyRoutePolicy catalogWrite = APIKeyRoutePolicy.fullAccess();
-        a.registerGin("POST", "/api/v1/skills/catalog", catalogWrite);
-        a.registerGin("POST", "/api/v1/skills/catalog/:id/install", catalogWrite);
-        a.registerGin("GET", "/api/v1/skills/catalog/:id/files", catalogWrite);
-        a.registerGin("GET", "/api/v1/skills/catalog/:id/files/content", catalogWrite);
-        a.registerGin("DELETE", "/api/v1/skills/catalog/:id", catalogWrite);
-    }
 
     /**
      * MCP 服务（对照 Go router/routes_infra.go L149-185）：
@@ -804,7 +754,7 @@ public final class APIKeyRoutePolicies {
     // ── 尚未翻译、随模块回补的策略（保留在此处作为清单，暂不登记） ──
     //
     // 对照 Go 源，回补时把对应行搬进上面的 registerXxx 即可：
-    //   routes_infra.go        L52-126   sandbox-configs(fullAccess only)、evaluation(run_evaluations)、
+    //   routes_infra.go        L52-126   evaluation(run_evaluations)、
     //                                    initialization(retrieve / manage_kbs / manage_models)、channels
     //   routes_infra.go        L149-201  MCP（已登记）+ /agent/tool-approvals（**default deny**）
     //   routes_infra.go        L210       /web-search/providers（**default deny**，本批确认）

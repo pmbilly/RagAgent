@@ -41,7 +41,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
 @TableName(value = "sessions", autoResultMap = true)
 @JsonPropertyOrder({
         "id", "title", "description", "tenant_id", "user_id", "is_pinned", "pinned_at",
-        "last_request_state", "sandbox_config_id", "created_at", "updated_at", "deleted_at",
+        "last_request_state", "created_at", "updated_at", "deleted_at",
         "im_platform"
 })
 public class Session {
@@ -108,11 +108,6 @@ public class Session {
     @JsonProperty("last_request_state")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private SessionLastRequestState lastRequestState;
-
-    /** 本会话**当前存活的** sandbox 建在哪个配置上；空表示没有存活 sandbox。 */
-    @JsonProperty("sandbox_config_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String sandboxConfigId = "";
 
     @JsonProperty("created_at")
     private OffsetDateTime createdAt;
@@ -266,13 +261,6 @@ public class Session {
         this.lastRequestState = v;
     }
 
-    public String getSandboxConfigId() {
-        return sandboxConfigId;
-    }
-
-    public void setSandboxConfigId(String v) {
-        this.sandboxConfigId = v;
-    }
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;

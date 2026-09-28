@@ -87,7 +87,7 @@ public class SystemController {
     @GetMapping("/capabilities")
     public ResponseEntity<Map<String, Object>> capabilities() {
         SystemDtos.DeploymentCapabilitiesData snapshot = capabilitiesHolder.snapshot();
-        SystemDtos.DeploymentCapabilitiesData data = overlayLiveDockerSandboxCapability(snapshot);
+        SystemDtos.DeploymentCapabilitiesData data = snapshot;
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", 0);
         body.put("data", data);
@@ -95,27 +95,6 @@ public class SystemController {
         return ResponseEntity.ok(body);
     }
 
-    /** 对照 overlayLiveDockerSandboxCapability：用"活值"重算 settings.sandbox.docker。 */
-    private static SystemDtos.DeploymentCapabilitiesData overlayLiveDockerSandboxCapability(
-            SystemDtos.DeploymentCapabilitiesData data) {
-        Map<String, SystemDtos.DeploymentCapability> caps =
-                new LinkedHashMap<>(data.capabilities());
-        boolean sandboxSupported = caps.get("settings.sandbox").supported();
-        // Go: sandbox.Supported && sandbox.DockerBackendEnabled()——活值来自
-        // 三层解析（system_settings 的 sandbox.docker_enabled > env > false），
-        // SystemSettingService 的推送桥在 Update/Reset/启动预载时维护。
-        boolean dockerSupported = com.ragagent.sandbox.runtime.SandboxBackendPolicy
-                .dockerBackendEnabled();
-        String reason = "";
-        if (sandboxSupported && !dockerSupported) {
-            reason = "docker_backend_disabled";
-        } else if (!sandboxSupported) {
-            reason = "route_not_registered";
-        }
-        caps.put("settings.sandbox.docker",
-                new SystemDtos.DeploymentCapability(sandboxSupported && dockerSupported, reason));
-        return new SystemDtos.DeploymentCapabilitiesData(data.edition(), caps);
-    }
 
     // ── GET /info ─────────────────────────────────────────────────────────
 

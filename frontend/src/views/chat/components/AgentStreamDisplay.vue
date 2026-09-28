@@ -155,17 +155,6 @@
                       <t-tooltip v-else :content="getToolTitle(event)" placement="top">
                         <span class="action-name">{{ getToolTitle(event) }}</span>
                       </t-tooltip>
-                      <span v-if="getSandboxDiffStat(event)" class="sandbox-diff-stat">
-                        <span v-if="getSandboxDiffStat(event)?.added" class="diff-add">+{{ getSandboxDiffStat(event)?.added }}</span>
-                        <span v-if="getSandboxDiffStat(event)?.removed" class="diff-del">-{{ getSandboxDiffStat(event)?.removed }}</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div v-if="event.pending && getSandboxFilePreview(event)" class="sandbox-file-preview">
-                    <pre>{{ getSandboxFilePreview(event) }}</pre>
-                    <div v-if="sandboxPreviewRemaining(event) > 0" class="sandbox-file-preview-more">
-                      {{ t('agentStream.sandboxFiles.moreLines', { count: sandboxPreviewRemaining(event) }) }}
                     </div>
                   </div>
 
@@ -202,11 +191,6 @@
                     class="search-results-summary-fixed knowledge-chunks-summary">
                     <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                   </div>
-
-                  <SandboxCommandProgress
-                    v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
-                    :progress="event.command_output"
-                  />
 
                   <div v-if="!event.pending && event.tool_name === 'attachment_parsing'"
                     class="search-results-summary-fixed attachment-parsing-summary">
@@ -394,15 +378,11 @@
                      assistant message recorded any generated files. Agent
                      mode is the primary path for skills, so this is where
                      the button is most likely to appear. -->
-                <span v-if="hasArtifacts || artifactsCollecting" class="answer-toolbar__artifact"
-                  :class="{ 'is-collecting': artifactButtonCollecting, 'is-arrived': artifactArrived }"
-                  @animationend="onArtifactArriveEnd">
+                <span v-if="hasArtifacts" class="answer-toolbar__artifact">
                   <t-button size="small" variant="outline" shape="round"
-                    :disabled="artifactButtonCollecting"
-                    :title="hasArtifacts ? $t('agent.artifactDrawer.buttonTitle') : $t('agent.artifactDrawer.collecting')"
+                    :title="$t('agent.artifactDrawer.buttonTitle')"
                     @click.stop="openArtifactDrawer()">
-                    <t-icon v-if="artifactButtonCollecting" name="loading" class="answer-toolbar__artifact-spinner" />
-                    <t-icon v-else name="folder" />
+                    <t-icon name="folder" />
                   </t-button>
                   <span v-if="hasArtifacts" class="answer-toolbar__artifact-count" aria-hidden="true">{{ artifactCount }}</span>
                 </span>
@@ -449,17 +429,6 @@
                     <t-tooltip v-else :content="getToolTitle(event)" placement="top">
                       <span class="action-name">{{ getToolTitle(event) }}</span>
                     </t-tooltip>
-                    <span v-if="getSandboxDiffStat(event)" class="sandbox-diff-stat">
-                      <span v-if="getSandboxDiffStat(event)?.added" class="diff-add">+{{ getSandboxDiffStat(event)?.added }}</span>
-                      <span v-if="getSandboxDiffStat(event)?.removed" class="diff-del">-{{ getSandboxDiffStat(event)?.removed }}</span>
-                    </span>
-                  </div>
-                </div>
-
-                <div v-if="event.pending && getSandboxFilePreview(event)" class="sandbox-file-preview">
-                  <pre>{{ getSandboxFilePreview(event) }}</pre>
-                  <div v-if="sandboxPreviewRemaining(event) > 0" class="sandbox-file-preview-more">
-                    {{ t('agentStream.sandboxFiles.moreLines', { count: sandboxPreviewRemaining(event) }) }}
                   </div>
                 </div>
 
@@ -496,11 +465,6 @@
                   class="search-results-summary-fixed knowledge-chunks-summary">
                   <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                 </div>
-
-                <SandboxCommandProgress
-                  v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
-                  :progress="event.command_output"
-                />
 
                 <div v-if="!event.pending && event.tool_name === 'attachment_parsing'"
                   class="search-results-summary-fixed attachment-parsing-summary">
@@ -603,7 +567,6 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, onUpdated, nextTick }
 import { useRouter, useRoute } from 'vue-router';
 import { marked } from 'marked';
 import 'katex/dist/katex.min.css';
-import SandboxCommandProgress from '@/components/SandboxCommandProgress.vue';
 import ToolResultRenderer from './ToolResultRenderer.vue';
 import ToolApprovalCard from './ToolApprovalCard.vue';
 import McpOAuthCard from './McpOAuthCard.vue';
@@ -611,9 +574,6 @@ import ChatRequestInfoButton from '@/components/ChatRequestInfoButton.vue';
 import ChatCitationFloat from '@/components/ChatCitationFloat.vue';
 import picturePreview from '@/components/picture-preview.vue';
 import ChatArtifactsDrawer from './ChatArtifactsDrawer.vue';
-import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
-import { useArtifactArriveMotion } from '@/composables/useArtifactArriveMotion';
-import { useChatSandboxPanel } from '@/composables/useChatSandboxPanel';
 import { persistedAssistantId } from '@/utils/steerStreamFork';
 import ChatMemoryStep from './ChatMemoryStep.vue';
 import { useChatMemoryRow, type UsedMemory } from '@/composables/useChatMemoryRow';
@@ -642,16 +602,6 @@ import { unwrapFinalAnswerWrappers, thinkingEqualsAnswer } from '@/utils/finalAn
 import { getAgentToolIconName } from '@/utils/agent-tool-icons';
 import { getMcpToolDisplayType, getMcpToolTitle, mcpToolResultOutput } from '@/utils/mcpToolDisplay';
 import { getQueryText, getWikiPageText } from '@/utils/agent-tool-display';
-import {
-  formatToolTitleWithDetail,
-  getEventSkillName,
-  getReadSkillTarget,
-  getSandboxDiffStat,
-  getSandboxFilePreview,
-  getSandboxToolPath,
-  sandboxPreviewRemaining,
-  skillScriptTitleCommand,
-} from '@/utils/skillToolDisplay';
 import { previewShellCommand } from '@/utils/shellExecResult';
 import type { DisplayType } from '@/types/tool-results';
 import { parseWikiToolReferences } from '@/utils/wikiToolReferences';
@@ -720,14 +670,7 @@ const TOOL_NAME_KEYS: Record<string, string> = {
   image_analysis: 'agentStream.tools.imageAnalysis',
   query_understand: 'agentStream.tools.queryUnderstand',
   query_knowledge_graph: 'agentStream.tools.queryKnowledgeGraph',
-  read_skill: 'agentStream.tools.readSkill',
   read_file: 'agentStream.tools.readFile',
-  execute_skill_script: 'agentStream.tools.executeSkillScript',
-  list_sandbox_files: 'agentStream.tools.listSandboxFiles',
-  read_sandbox_file: 'agentStream.tools.readSandboxFile',
-  write_sandbox_file: 'agentStream.tools.writeSandboxFile',
-  edit_sandbox_file: 'agentStream.tools.editSandboxFile',
-  shell_exec: 'agentStream.tools.shellExec',
   data_analysis: 'agentStream.tools.dataAnalysis',
   data_schema: 'agentStream.tools.dataSchema',
   database_query: 'agentStream.tools.databaseQuery',
@@ -1022,20 +965,15 @@ watch(
 // -----------------------------------------------------------------------------
 // Skill artifact download drawer (Agent path)
 // -----------------------------------------------------------------------------
-// Same contract as botmsg.vue: only render the button when the persisted
-// assistant message actually recorded files, then open the sandbox panel's
-// artifacts tab (or ChatArtifactsDrawer in embedded mode).
+// Legacy artifact drawer: only renders when the persisted assistant message
+// actually recorded files (产物随沙箱裁剪不再新增；存量渲染面保留).
 const showArtifactDrawer = ref(false);
-const sandboxPanel = useChatSandboxPanel();
 const artifactList = computed(() => {
   const list = ((props.session?.artifacts as any[]) || []);
   return list.map((a, i) => ({ index: i, ...a }));
 });
 const hasArtifacts = computed(() => artifactList.value.length > 0);
 const artifactCount = computed(() => artifactList.value.length);
-const { artifactArrived, onArtifactArriveEnd } = useArtifactArriveMotion(artifactCount);
-const artifactsCollecting = computed(() => isCollectingSkillArtifacts(props.session as any));
-const artifactButtonCollecting = computed(() => artifactsCollecting.value && !hasArtifacts.value);
 const sessionIdForArtifacts = computed(() => props.sessionId ?? '');
 const messageIdForArtifacts = computed(() =>
   persistedAssistantId(props.session) || String(props.session?.request_id || ''),
@@ -1045,17 +983,6 @@ const messageIdForArtifacts = computed(() =>
 const artifactPreviewIndex = ref<number | null>(null);
 function openArtifactDrawer(previewIndex: number | null = null) {
   if (!hasArtifacts.value) return;
-  if (sandboxPanel && !props.embeddedMode) {
-    if (previewIndex == null) {
-      sandboxPanel.toggleArtifacts(messageIdForArtifacts.value);
-    } else {
-      sandboxPanel.open('artifacts', {
-        messageId: messageIdForArtifacts.value,
-        previewIndex,
-      });
-    }
-    return;
-  }
   artifactPreviewIndex.value = previewIndex;
   showArtifactDrawer.value = true;
 }
@@ -1182,21 +1109,6 @@ const resolveToolDisplayType = (event: any): DisplayType | undefined => {
   const mcpType = getMcpToolDisplayType(event?.tool_name)
   if (mcpType) return mcpType
   if (event?.display_type) return event.display_type as DisplayType
-  if (event?.tool_name === 'shell_exec' || event?.tool_name === 'execute_skill_script') {
-    return 'shell_exec'
-  }
-  if (event?.tool_name === 'list_sandbox_files' && event?.success !== false) {
-    return 'list_sandbox_files'
-  }
-  if (event?.tool_name === 'write_sandbox_file' && event?.success !== false) {
-    return 'write_sandbox_file'
-  }
-  if (event?.tool_name === 'edit_sandbox_file' && event?.success !== false) {
-    return 'edit_sandbox_file'
-  }
-  if (event?.tool_name === 'read_skill' && event?.success !== false) {
-    return 'read_skill'
-  }
   return undefined
 };
 
@@ -2845,21 +2757,6 @@ const getToolTitle = (event: any): string => {
     if (event.tool_name === 'wiki_search' || event.tool_name === 'wiki_read_page') {
       return `${getLocalizedToolName(event.tool_name)}...`;
     }
-    if (event.tool_name === 'read_skill') {
-      const name = getLocalizedToolName(event.tool_name);
-      return `${formatToolTitleWithDetail(name, getReadSkillTarget(event))}...`;
-    }
-    if (event.tool_name === 'execute_skill_script') {
-      const name = getLocalizedToolName(event.tool_name);
-      return `${formatToolTitleWithDetail(name, getEventSkillName(event))}...`;
-    }
-    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_file' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
-      const name = getLocalizedToolName(event.tool_name);
-      return `${formatToolTitleWithDetail(name, getSandboxToolPath(event))}...`;
-    }
-    if (event.tool_name === 'shell_exec') {
-      return t('agentStream.toolStatus.shellExecRunning');
-    }
     const localizedName = getLocalizedToolName(event.tool_name);
     return t('agentStream.toolStatus.calling', { name: localizedName });
   }
@@ -2955,27 +2852,6 @@ const getToolTitle = (event: any): string => {
     return pageLabel ? `${baseTitle}：「${sanitizeForDisplay(pageLabel)}」` : baseTitle;
   }
 
-  if (toolName === 'read_skill') {
-    return formatToolTitleWithDetail(getToolDescription(event), getReadSkillTarget(event));
-  }
-
-  if (toolName === 'list_sandbox_files' || toolName === 'read_file' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
-    return formatToolTitleWithDetail(getToolDescription(event), getSandboxToolPath(event));
-  }
-
-  if (toolName === 'execute_skill_script') {
-    const command = previewShellCommand(skillScriptCommandLabel(event))
-    const baseTitle = formatToolTitleWithDetail(getToolDescription(event), getEventSkillName(event))
-    const rest = skillScriptTitleCommand(getEventSkillName(event), command)
-    return rest ? `${baseTitle}：${rest}` : baseTitle
-  }
-
-  if (toolName === 'shell_exec') {
-    const command = previewShellCommand(skillScriptCommandLabel(event))
-    const baseTitle = getToolDescription(event)
-    return command ? `${baseTitle}：${command}` : baseTitle
-  }
-
   // Use tool summary if available
   const summary = getToolSummary(event);
   return summary || getToolDescription(event);
@@ -3005,21 +2881,6 @@ const getToolDescription = (event: any): string => {
     }
     if (event.tool_name === 'query_understand') {
       return t('agentStream.toolStatus.queryUnderstanding');
-    }
-    if (event.tool_name === 'read_skill') {
-      const name = getLocalizedToolName(event.tool_name);
-      return `${formatToolTitleWithDetail(name, getReadSkillTarget(event))}...`;
-    }
-    if (event.tool_name === 'execute_skill_script') {
-      const name = getLocalizedToolName(event.tool_name);
-      return `${formatToolTitleWithDetail(name, getEventSkillName(event))}...`;
-    }
-    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_file' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
-      const name = getLocalizedToolName(event.tool_name);
-      return `${formatToolTitleWithDetail(name, getSandboxToolPath(event))}...`;
-    }
-    if (event.tool_name === 'shell_exec') {
-      return t('agentStream.toolStatus.shellExecRunning');
     }
     const localizedName = getLocalizedToolName(event.tool_name);
     return t('agentStream.toolStatus.calling', { name: localizedName });
@@ -3051,7 +2912,7 @@ const getToolDescription = (event: any): string => {
     return success ? t('agentStream.toolStatus.attachmentParsingDone') : t('agentStream.toolStatus.attachmentParsingFailed');
   } else if (toolName === 'query_understand') {
     return success ? t('agentStream.toolStatus.queryUnderstandDone') : t('agentStream.toolStatus.calledFailed', { name: getLocalizedToolName(toolName) });
-  } else if (toolName === 'shell_exec' || toolName === 'execute_skill_script' || toolName === 'read_skill' || toolName === 'list_sandbox_files' || toolName === 'read_file' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
+  } else if (false) {
     const localizedName = getLocalizedToolName(toolName);
     return success ? localizedName : t('agentStream.toolStatus.calledFailed', { name: localizedName });
   } else {
@@ -3667,50 +3528,8 @@ const handleAddToKnowledge = (answerEvent: any) => {
   vertical-align: middle;
 }
 
-.sandbox-diff-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 4px;
-  font-variant-numeric: tabular-nums;
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
-  letter-spacing: 0.02em;
 
-  .diff-add {
-    color: var(--td-success-color);
-  }
 
-  .diff-del {
-    color: var(--td-error-color);
-  }
-}
-
-.sandbox-file-preview {
-  margin: 6px 0 0;
-  padding: 8px 10px;
-  font-family: var(--app-font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--td-text-color-secondary);
-  background: var(--td-bg-color-secondarycontainer);
-  border-radius: 6px;
-
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 180px;
-    overflow: hidden;
-  }
-}
-
-.sandbox-file-preview-more {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--td-text-color-placeholder);
-}
 
 .action-show-icon {
   font-size: 12px;

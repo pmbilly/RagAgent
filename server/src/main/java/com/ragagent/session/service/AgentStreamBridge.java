@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.session.domain.MessageArtifact;
-import com.ragagent.agent.tools.SandboxDiffs;
 import com.ragagent.agent.tools.ToolResultPersist;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.event.Event;
@@ -26,7 +25,6 @@ import com.ragagent.event.AgentReferencesData;
 import com.ragagent.event.AgentThoughtData;
 import com.ragagent.event.AgentToolCallData;
 import com.ragagent.event.AgentToolResultData;
-import com.ragagent.event.CommandOutputData;
 import com.ragagent.event.ContextCompactedData;
 import com.ragagent.event.ErrorData;
 import com.ragagent.event.MCPOAuthRequiredData;
@@ -62,9 +60,6 @@ import com.ragagent.stream.StreamManager;
  *       finalAnswer 为空但有 FinalAnswer 时补发 fallback answer 事件对。</li>
  * </ul>
  *
- * <p>已备案差异：ArtifactCollector（sandbox 产物回收）未装配——collector 为 null 时
- * Go 的行为就是跳过 Collect 并保留引用历史（no-op），本实现与该分支逐行为一致；
- * 真 sandbox 部署的产物面随 sandbox 执行体收口。</p>
  */
 public final class AgentStreamBridge {
 
@@ -81,9 +76,6 @@ public final class AgentStreamBridge {
     private final Message assistantMessage;
     private final StreamManager streamManager;
     private final EventBus eventBus;
-    /** 回合产物收集器（对照 handler.artifactCollector；未装配时为 null = Go nil 分支）。 */
-    private final ArtifactCollector artifactCollector;
-
     // ---- State tracking ----
     private final List<SearchResult> knowledgeRefs = new ArrayList<>();
     private String finalAnswer = "";
@@ -128,14 +120,6 @@ public final class AgentStreamBridge {
             String sessionId, String assistantMessageId, String requestId,
             long tenantId, OffsetDateTime receivedAt, Message assistantMessage,
             StreamManager streamManager, EventBus eventBus) {
-        this(sessionId, assistantMessageId, requestId, tenantId, receivedAt, assistantMessage,
-                streamManager, eventBus, null);
-    }
-
-    public AgentStreamBridge(
-            String sessionId, String assistantMessageId, String requestId,
-            long tenantId, OffsetDateTime receivedAt, Message assistantMessage,
-            StreamManager streamManager, EventBus eventBus, ArtifactCollector artifactCollector) {
         this.sessionId = sessionId;
         this.assistantMessageId = assistantMessageId;
         this.requestId = requestId;
@@ -144,7 +128,6 @@ public final class AgentStreamBridge {
         this.assistantMessage = assistantMessage;
         this.streamManager = streamManager;
         this.eventBus = eventBus;
-        this.artifactCollector = artifactCollector;
     }
 
     public Message getAssistantMessage() {
@@ -179,7 +162,6 @@ public final class AgentStreamBridge {
         eventBus.on(EventType.EVENT_AGENT_THOUGHT, this::handleThought);
         eventBus.on(EventType.EVENT_AGENT_TOOL_CALL, this::handleToolCall);
         eventBus.on(EventType.EVENT_AGENT_TOOL_RESULT, this::handleToolResult);
-        eventBus.on(EventType.EVENT_AGENT_COMMAND_OUTPUT, this::handleCommandOutput);
         eventBus.on(EventType.EVENT_AGENT_REFERENCES, this::handleReferences);
         eventBus.on(EventType.EVENT_MEMORY_RECALLED, this::handleMemoryRecalled);
         eventBus.on(EventType.EVENT_CONTEXT_COMPACTED, this::handleContextCompacted);
@@ -259,8 +241,7 @@ public final class AgentStreamBridge {
         }
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("tool_name", data.getToolName());
-        metadata.put("arguments", SandboxDiffs.sanitizeSandboxFileCallArgs(
-                data.getToolName(), data.getArguments()));
+        metadata.put("arguments", data.getArguments());
         metadata.put("tool_call_id", data.getToolCallId());
 
         StreamEvent se = new StreamEvent();
@@ -735,51 +716,6 @@ public final class AgentStreamBridge {
                 if (data.getUsage() instanceof TokenUsage usage) {
                     assistantMessage.setUsage(usage);
                 }
-
-                // 对照 Go L726-757：沙箱产物排水（best-effort，任何失败只记日志、
-                // 回合照常落库）。collector 未装配或沙箱无会话文件面时 Collect 返回
-                // null——这些情况不得扰动完成路径。
-                List<MessageArtifact> previous = List.of();
-                if (artifactCollector != null) {
-                    List<MessageArtifact> artifacts;
-                    try {
-                        artifacts = artifactCollector.collect(sessionId, assistantMessageId,
-                                tenantId, com.ragagent.agent.tools.OutputLinks.artifactOutputDir(),
-                                this::emitArtifactsPending);
-                    } catch (RuntimeException e) {
-                        log.warn("artifact collect failed session={} message={}: {}",
-                                sessionId, assistantMessageId, e.toString());
-                        artifacts = null;
-                    }
-                    if (artifacts != null && !artifacts.isEmpty()) {
-                        assistantMessage.setArtifacts(artifacts);
-                        // 答案文本按模型看到的沙箱名引用产物文件；索引空间终定后把
-                        // 名字绑到产物下标，重载会话才能渲染而非断链。
-                        assistantMessage.setContent(
-                                com.ragagent.retrieval.artifact.ArtifactReferenceRewriter
-                                        .rewriteArtifactReferences(assistantMessage.getContent(),
-                                                artifacts.stream()
-                                                        .<com.ragagent.retrieval.artifact.ArtifactReferenceRewriter.Artifact>map(
-                                                                a -> new com.ragagent.retrieval.artifact.ArtifactReferenceRewriter.Artifact(
-                                                                        a.getFileName(), a.getUrl()))
-                                                        .toList(),
-                                                null));
-                        log.info("artifact collect attached {} file(s) to message={} session={}",
-                                artifacts.size(), assistantMessageId, sessionId);
-                    }
-                    List<MessageArtifact> prev = artifactCollector.referencedHistory(
-                            sessionId, assistantMessageId, assistantMessage.getContent());
-                    if (prev != null) {
-                        previous = prev;
-                    }
-                }
-                // 对照 Go L751-760：产物收集后用引用历史澄清版本引用。
-                assistantMessage.setContent(
-                        com.ragagent.session.domain.ArtifactVersions.clarifyArtifactVersions(
-                                assistantMessage.getContent(), assistantMessage.getArtifacts(),
-                                previous,
-                                com.ragagent.wiki.service.WikiLanguageSupport
-                                        .languageFromContextOrDefault()));
             }
 
             // Fallback: no answer events streamed but a final answer exists → emit answer pair.
@@ -837,31 +773,6 @@ public final class AgentStreamBridge {
             streamManager.appendEvent(sessionId, assistantMessageId, se);
         } catch (RuntimeException e) {
             log.error("Append complete event to stream failed: {}", e.toString());
-        }
-        return null;
-    }
-
-    // ── handleCommandOutput（Go L884-896） ───────────────────────────────────
-
-    private Object handleCommandOutput(Event evt) {
-        if (!(evt.getData() instanceof CommandOutputData data) || data.getToolCallId().isEmpty()) {
-            return null;
-        }
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("tool_call_id", data.getToolCallId());
-        payload.put("command", data.getCommand());
-        payload.put("started_at", data.getStartedAt());
-        payload.put("output", data.getOutput());
-        payload.put("done", data.isDone());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.COMMAND_OUTPUT);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(payload);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append command output event to stream failed: {}", e.toString());
         }
         return null;
     }
@@ -925,7 +836,6 @@ public final class AgentStreamBridge {
         types.add(EventType.EVENT_AGENT_THOUGHT);
         types.add(EventType.EVENT_AGENT_TOOL_CALL);
         types.add(EventType.EVENT_AGENT_TOOL_RESULT);
-        types.add(EventType.EVENT_AGENT_COMMAND_OUTPUT);
         types.add(EventType.EVENT_AGENT_REFERENCES);
         types.add(EventType.EVENT_MEMORY_RECALLED);
         types.add(EventType.EVENT_CONTEXT_COMPACTED);

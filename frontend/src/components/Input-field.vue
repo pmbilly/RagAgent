@@ -591,7 +591,7 @@ const skillMentionItems = computed<MentionItem[]>(() => {
   return selectedSkillNames.value
     .filter((name: string) => isSkillAllowedByAgent(name))
     .map((name: string) => {
-    const skill = editorResources.skills.find(s => s.name === name);
+    const skill = editorResources.availableSkills.find(s => s.name === name);
     return {
       id: name,
       name: skill?.name || name,
@@ -1369,8 +1369,8 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
 
     const skillsMode = agentSkillsSelectionMode.value;
     if (skillsMode !== 'none') {
-      await editorResources.ensureSkills(currentAgentConfig.value?.sandbox_config_id);
-      skillItems = editorResources.skills
+      await editorResources.ensureSkills();
+      skillItems = editorResources.availableSkills
         .filter(skill => isSkillAllowedByAgent(skill.name))
         .map(skill => ({
           id: skill.name,

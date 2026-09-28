@@ -48,7 +48,7 @@ public class BuiltinAgentRegistry {
             "context_template_id", "model_id", "rerank_model_id", "temperature",
             "max_completion_tokens", "thinking", "citation_enabled", "max_iterations",
             "llm_call_timeout", "allowed_tools", "mcp_selection_mode", "mcp_services",
-            "mcp_auth_wait_timeout", "skills_selection_mode", "selected_skills", "sandbox_config_id",
+            "mcp_auth_wait_timeout", "skills_selection_mode", "selected_skills",
             "kb_selection_mode", "knowledge_bases", "retrieve_kb_only_when_mentioned",
             "retain_retrieval_history", "image_upload_enabled", "vlm_model_id",
             "audio_upload_enabled", "asr_model_id", "image_storage_provider", "supported_file_types",
@@ -85,8 +85,7 @@ public class BuiltinAgentRegistry {
         return id != null && (id.equals("builtin-quick-answer") || id.equals("builtin-smart-reasoning")
                 || id.equals("builtin-wiki-researcher") || id.equals("builtin-deep-researcher")
                 || id.equals("builtin-data-analyst") || id.equals("builtin-knowledge-graph-expert")
-                || id.equals("builtin-document-assistant") || id.equals("builtin-wiki-fixer")
-                || id.equals("builtin-skill-installer"));
+                || id.equals("builtin-document-assistant") || id.equals("builtin-wiki-fixer"));
     }
 
     private void load() {

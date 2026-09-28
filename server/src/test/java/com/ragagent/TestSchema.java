@@ -396,7 +396,6 @@ public final class TestSchema {
                 "is_pinned BOOLEAN NOT NULL DEFAULT FALSE," +
                 "pinned_at TIMESTAMP WITH TIME ZONE," +
                 "agent_config VARCHAR," +
-                "sandbox_config_id VARCHAR(36)," +
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
@@ -825,85 +824,7 @@ public final class TestSchema {
                 "resource_id VARCHAR(64) NOT NULL," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "PRIMARY KEY (user_id, tenant_id, resource_type, resource_id))");
-        // 波 3 子批 1：租户沙箱配置（迁移 000082）。
-        // config 列 jsonb NOT NULL（H2 用 VARCHAR 承载，内含字段级 AES-GCM 密文）；
-        // (tenant_id,name) 部分唯一索引在 H2 用普通唯一索引近似（软删行由测试场景规避）。
-        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_sandbox_configs (" +
-                "id VARCHAR(36) PRIMARY KEY," +
-                "tenant_id BIGINT NOT NULL," +
-                "name VARCHAR(255) NOT NULL," +
-                "description VARCHAR," +
-                "sandbox_type VARCHAR(32) NOT NULL," +
-                "config VARCHAR NOT NULL," +
-                "cordoned_at TIMESTAMP WITH TIME ZONE," +
-                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // 波 3 子批 1 最小只读依赖（迁移 000086/000087/000089/000090 并集，全列建；
-        // skills 管理面在子批 3 使用）。
-        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_skills (" +
-                "id VARCHAR(36) PRIMARY KEY," +
-                "tenant_id BIGINT NOT NULL," +
-                "sandbox_config_id VARCHAR(36) NOT NULL," +
-                "catalog_id VARCHAR(36)," +
-                "name VARCHAR(255) NOT NULL," +
-                "version VARCHAR(64)," +
-                "description VARCHAR," +
-                "instructions VARCHAR," +
-                "bundle_ref VARCHAR(1024)," +
-                "bundle_sha256 VARCHAR(64)," +
-                "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
-                "installed_snapshot_id VARCHAR(255)," +
-                "install_session_id VARCHAR(36)," +
-                "install_message_id VARCHAR(36)," +
-                "envs VARCHAR," +
-                "status VARCHAR(32) NOT NULL," +
-                "error VARCHAR," +
-                "installing_since TIMESTAMP WITH TIME ZONE," +
-                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // 波 3 子批 2：技能快照台账（迁移 000086 第二张表）。
-        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_skill_snapshots (" +
-                "id VARCHAR(36) PRIMARY KEY," +
-                "tenant_id BIGINT NOT NULL," +
-                "sandbox_config_id VARCHAR(36) NOT NULL," +
-                "skill_id VARCHAR(36)," +
-                "snapshot_id VARCHAR(255)," +
-                "parent_snapshot_id VARCHAR(255)," +
-                "planned_name VARCHAR(255)," +
-                "generation INTEGER NOT NULL DEFAULT 0," +
-                "trigger VARCHAR(16) NOT NULL," +
-                "state VARCHAR(16) NOT NULL," +
-                "superseded_at TIMESTAMP WITH TIME ZONE," +
-                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        // 波 3 子批 3：技能目录（迁移 000090 基表；catalog 写面随 /skills 家族批）。
-        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_skill_catalog (" +
-                "id VARCHAR(36) PRIMARY KEY," +
-                "tenant_id BIGINT NOT NULL," +
-                "name VARCHAR(255) NOT NULL," +
-                "version VARCHAR(64)," +
-                "description VARCHAR," +
-                "instructions VARCHAR," +
-                "bundle_ref VARCHAR(1024)," +
-                "bundle_sha256 VARCHAR(64)," +
-                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // 波 3 子批 2：技能声明的环境变量（迁移 000089，逐列对照；
-        // value 是 AES-GCM 密文，任何端点不回显）。
-        jdbc.execute("CREATE TABLE IF NOT EXISTS tenant_user_env_vars (" +
-                "id VARCHAR(36) PRIMARY KEY," +
-                "tenant_id BIGINT NOT NULL," +
-                "principal_type VARCHAR(32) NOT NULL," +
-                "principal_id VARCHAR(512) NOT NULL," +
-                "sandbox_config_id VARCHAR(36) NOT NULL," +
-                "skill_id VARCHAR(36) NOT NULL DEFAULT ''," +
-                "name VARCHAR(255) NOT NULL," +
-                "\"value\" VARCHAR," +
-                "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        // ── 波 3 协作面批次：organizations + shares（迁移 000012 / 000045 / 000046 逐列对照）──d_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         // ── 波 3 协作面批次：organizations + shares（迁移 000012 / 000045 / 000046 逐列对照）──
         jdbc.execute("CREATE TABLE IF NOT EXISTS organizations (" +
                 "id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT," +
@@ -1069,14 +990,6 @@ public final class TestSchema {
         jdbc.execute("DELETE FROM system_settings");
         // 波 2 终扫批：用户收藏
         jdbc.execute("DELETE FROM user_resource_favorites");
-        // 波 3 子批 1：租户沙箱配置 + skills 最小依赖
-        jdbc.execute("DELETE FROM tenant_skills");
-        jdbc.execute("DELETE FROM tenant_sandbox_configs");
-        // 波 3 子批 2
-        jdbc.execute("DELETE FROM tenant_skill_snapshots");
-        jdbc.execute("DELETE FROM tenant_user_env_vars");
-        // 波 3 子批 3
-        jdbc.execute("DELETE FROM tenant_skill_catalog");
         // 波 3 协作面批次
         jdbc.execute("DELETE FROM kb_shares");
         jdbc.execute("DELETE FROM agent_shares");

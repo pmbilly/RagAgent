@@ -27,7 +27,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
 @TableName(value = "sessions", autoResultMap = true)
 @JsonPropertyOrder({
         "id", "title", "description", "tenant_id", "user_id", "is_pinned", "pinned_at",
-        "last_request_state", "sandbox_config_id", "created_at", "updated_at", "deleted_at",
+        "last_request_state", "created_at", "updated_at", "deleted_at",
         "im_platform", "im_chat_id", "im_thread_id", "im_user_id", "im_agent_id", "im_channel_id"
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -63,9 +63,6 @@ public class SessionListItem {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private SessionLastRequestState lastRequestState;
 
-    @JsonProperty("sandbox_config_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String sandboxConfigId;
 
     @JsonProperty("created_at")
     private OffsetDateTime createdAt;
@@ -169,13 +166,6 @@ public class SessionListItem {
         this.lastRequestState = v;
     }
 
-    public String getSandboxConfigId() {
-        return sandboxConfigId;
-    }
-
-    public void setSandboxConfigId(String v) {
-        this.sandboxConfigId = v;
-    }
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;

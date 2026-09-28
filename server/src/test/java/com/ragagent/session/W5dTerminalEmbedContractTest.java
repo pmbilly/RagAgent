@@ -30,22 +30,9 @@ import com.ragagent.TestSchema;
 import com.ragagent.knowledge.service.LocalStorageService;
 
 /**
- * 收尾批 W5d 契约测试：沙箱终端（w5d-term-*）+
- * embed QA 委托 / 文件代理（w5d-emb-*）。golden 来源：Go dev server 实录
- * （scripts/record-w5d-golden.sh，租户 10008 种子态见脚本头注释）。
- *
- * <h2>覆盖边界</h2>
- * <ul>
- *   <li>ticket 是动态 JWT——形状比对（掩 ticket 值）+ 自铸自解析回环
- *       （cross-session / no-upgrade 场景直接用现铸的票驱动）；</li>
- *   <li><b>WS 握手成功路径（101 + close 帧）不在 MockMvc 覆盖</b>——容器升级是真
- *       socket 行为，由 ab-w5d.sh 的 ws-handshake-live 双端实测钉住（101 +
- *       Sec-WebSocket-Accept + close(1008, SANDBOX_NOT_BOUND) 逐字节一致）；</li>
- *   <li>w5d-term-ws-empty-session（路径段是 %20）不经 MockMvc（路径规范化差异），
- *       由 A/B 覆盖；</li>
- *   <li>头部比对归一化容器噪音（status line / Date / X-Request-Id / Vary /
- *       Connection / Access-Control-*——框架 CORS 差异，见 ab-w5d.sh 注释）。</li>
- * </ul>
+ * 收尾批 W5d 契约测试：embed QA 委托 / 文件代理（w5d-emb-*）。golden 来源：Go
+ * dev server 实录（scripts/record-w5d-golden.sh）。沙箱终端族（w5d-term-*）
+ * 随沙箱裁剪退役。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -193,24 +180,6 @@ class W5dTerminalEmbedContractTest {
         compareJson(goldenName, expectedStatus, r, null);
     }
 
-    private static final java.util.regex.Pattern JWT =
-            java.util.regex.Pattern.compile("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
-
-    private static String maskJwt(String s) {
-        return JWT.matcher(s).replaceAll("<JWT>");
-    }
-
-    /** 铸一张真 ticket（驱动后续 WS 场景）。 */
-    private String mintTicket(String sessionId) {
-        MvcResult r = call("POST", "/api/v1/sessions/" + sessionId + "/sandbox/terminal-ticket",
-                "Authorization: " + owner);
-        try {
-            return new ObjectMapper().readTree(raw(r)).path("data").path("ticket").asText();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private String[] embedHeaders() {
         return new String[] {"Authorization: Embed " + PTOKEN, "Origin: https://a.example.com"};
     }
@@ -220,44 +189,7 @@ class W5dTerminalEmbedContractTest {
                 "X-Embed-Session: " + esig};
     }
 
-    // ══════════════ 一、沙箱终端 ticket + WS 错误族 ══════════════
-
-    @Test
-    void terminalTicket() throws Exception {
-        MvcResult ok = call("POST", "/api/v1/sessions/" + SES_A + "/sandbox/terminal-ticket",
-                "Authorization: " + owner);
-        compareJson("w5d-term-ticket-ok.json", 200, ok, W5dTerminalEmbedContractTest::maskJwt);
-
-        compareJson("w5d-term-ticket-404.json", 404,
-                call("POST", "/api/v1/sessions/" + GHOST + "/sandbox/terminal-ticket",
-                        "Authorization: " + owner));
-        compareJson("w5d-term-ticket-noauth.json", 401,
-                call("POST", "/api/v1/sessions/" + SES_A + "/sandbox/terminal-ticket"));
-    }
-
-    @Test
-    void terminalWsErrorFamily() throws Exception {
-        compareJson("w5d-term-ws-no-ticket.json", 401,
-                call("GET", "/api/v1/sessions/" + SES_A + "/sandbox/terminal"));
-        compareJson("w5d-term-ws-bad-ticket.json", 401,
-                call("GET", "/api/v1/sessions/" + SES_A + "/sandbox/terminal?ticket=bogus"));
-
-        String ticket = mintTicket(SES_A);
-        assertTrue(ticket.startsWith("eyJ"), () -> "ticket shape: " + ticket);
-        compareJson("w5d-term-ws-cross-session.json", 403,
-                call("GET", "/api/v1/sessions/" + SES_B + "/sandbox/terminal?ticket=" + ticket));
-
-        // 有票但无 Upgrade 头 → gorilla returnError 形态（400 纯文本 + 版本头 + nosniff）
-        MvcResult r = call("GET", "/api/v1/sessions/" + SES_A + "/sandbox/terminal?ticket=" + ticket);
-        assertEquals(400, r.getResponse().getStatus(), () -> "status, body=" + raw(r));
-        assertEquals(readGolden("w5d-term-ws-no-upgrade"), raw(r), "ws-no-upgrade body");
-        assertEquals("13", r.getResponse().getHeader("Sec-Websocket-Version"));
-        assertEquals("nosniff", r.getResponse().getHeader("X-Content-Type-Options"));
-        String contentType = String.valueOf(r.getResponse().getHeader("Content-Type"));
-        assertTrue(contentType.startsWith("text/plain"), () -> "Content-Type: " + contentType);
-    }
-
-    // ══════════════ 三、embed QA 委托 + 文件代理 ══════════════
+    // ══════════════ 一、embed QA 委托 + 文件代理 ══════════════
 
     @Test
     void embedChatDelegation() throws Exception {

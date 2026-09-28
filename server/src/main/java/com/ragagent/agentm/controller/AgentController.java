@@ -51,17 +51,14 @@ public class AgentController {
     private final CustomAgentService service;
     private final AgentPlaceholders placeholders;
     private final AgentTypePresets typePresets;
-    private final com.ragagent.sandbox.service.TenantSandboxConfigService sandboxConfigs;
     private final com.ragagent.agentm.mapper.CustomAgentMapper agentMapper;
 
     public AgentController(CustomAgentService service, AgentPlaceholders placeholders,
             AgentTypePresets typePresets,
-            com.ragagent.sandbox.service.TenantSandboxConfigService sandboxConfigs,
             com.ragagent.agentm.mapper.CustomAgentMapper agentMapper) {
         this.service = service;
         this.placeholders = placeholders;
         this.typePresets = typePresets;
-        this.sandboxConfigs = sandboxConfigs;
         this.agentMapper = agentMapper;
     }
 
@@ -102,7 +99,6 @@ public class AgentController {
         AgentRequest parsed = bindAgentRequest(rawBody, "CreateAgentRequest");
         ObjectNode cfg = configNode(parsed);
         authorizeKnowledgeScope(cfg);
-        validateSandboxConfig(cfg);
         var result = service.createAgent(parsed.name(), parsed.description(), parsed.avatar(), cfg);
         return ResponseEntity.status(201).body(AgentResponses.dataEnvelope(AgentResponses.agent(result)));
     }
@@ -126,7 +122,6 @@ public class AgentController {
         checkAgentOwnership(id, req);
         ObjectNode cfg = configNode(parsed);
         authorizeKnowledgeScope(cfg);
-        validateSandboxConfig(cfg);
         String locale = BuiltinAgentRegistry.localeFromRequest(req.getHeader("Accept-Language"));
         var result = service.updateAgent(id, parsed.name(), parsed.description(), parsed.avatar(),
                 cfg, locale);
@@ -278,28 +273,6 @@ public class AgentController {
         }
     }
 
-    /** 对照 validateAgentSandboxConfig：空 = 部署默认（恒存在），非空必须可解析。 */
-    private void validateSandboxConfig(ObjectNode cfg) {
-        String configId = cfg.path("sandbox_config_id").asText("").trim();
-        if (configId.isEmpty()) {
-            return;
-        }
-        Long tenant = TenantContext.currentTenantId();
-        if (tenant == null) {
-            throw new BizException(AppError.unauthorized("Missing workspace context"));
-        }
-        try {
-            var stored = sandboxConfigs.get(tenant, configId);
-            if (stored == null) {
-                throw new BizException(AppError.badRequest("所选沙箱后端配置不存在，请重新选择"));
-            }
-        } catch (BizException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BizException(AppError.internal("Failed to verify sandbox config")
-                    .withDetails(String.valueOf(e.getMessage())));
-        }
-    }
 
     /** 对照 OwnedAgentOrAdmin（路由守卫的 controller 内落地）：行存在且非 Admin+ 且非创建者 → 403。 */
     private void checkAgentOwnership(String id, HttpServletRequest req) {

@@ -7,7 +7,6 @@ declare global {
   interface Window {
     __RUNTIME_CONFIG__?: {
       MAX_FILE_SIZE_MB?: number;
-      MAX_SKILL_BUNDLE_SIZE_MB?: number;
       DEFAULT_LOCALE?: string;
     };
   }
@@ -25,21 +24,6 @@ export const MAX_FILE_SIZE_MB = positiveMegabytes(
   50,
 )
 export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
-
-// Skill zips are larger than knowledge files (GitHub zipballs, ppt-master).
-// Never below the knowledge cap; ceiling matches the Go uncompressed archive cap.
-export const MAX_SKILL_BUNDLE_SIZE_MB = Math.min(
-  512,
-  Math.max(
-    positiveMegabytes(
-      window.__RUNTIME_CONFIG__?.MAX_SKILL_BUNDLE_SIZE_MB
-        ?? import.meta.env.VITE_MAX_SKILL_BUNDLE_SIZE_MB,
-      256,
-    ),
-    MAX_FILE_SIZE_MB,
-  ),
-)
-export const MAX_SKILL_BUNDLE_SIZE_BYTES = MAX_SKILL_BUNDLE_SIZE_MB * 1024 * 1024
 
 export function generateRandomString(length: number) {
   let result = "";

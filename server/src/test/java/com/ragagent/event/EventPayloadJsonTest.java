@@ -656,61 +656,6 @@ class EventPayloadJsonTest {
                 write(new MCPOAuthResolvedData("po-1", "svc-2", false, "", false, true)));
     }
 
-    // ===== CommandOutputData =====
-
-    @Test
-    void commandOutputDataZero() {
-        // Go: {"tool_call_id":"","command":"","started_at":"0001-01-01T00:00:00Z","output":"","done":false}
-        // Go 零值 time.Time 输出 year-1 字面量——与时区无关的字节锚点
-        assertEquals("{\"tool_call_id\":\"\",\"command\":\"\",\"started_at\":\"0001-01-01T00:00:00Z\","
-                + "\"output\":\"\",\"done\":false}", write(new CommandOutputData()));
-    }
-
-    @Test
-    void commandOutputDataFull() {
-        // Go（UTC 时间）: {"tool_call_id":"call_5","command":"export SECRET=x \u0026\u0026 echo hi",
-        //      "started_at":"2026-09-18T10:30:00.123456789Z","output":"line1\nline2","done":false}
-        // started_at 的时区文本随 JVM 默认时区变化（Go 侧也是各自 location），故按同一瞬时计算期望并
-        // 额外校验纳秒段不被截断（RFC3339Nano 尾零裁剪对 .123456789 无影响）
-        CommandOutputData d = new CommandOutputData("call_5", "export SECRET=x && echo hi",
-                OffsetDateTime.parse("2026-09-18T10:30:00.123456789Z"), "line1\nline2", false);
-        String json = write(d);
-        String expectedStartedAt = OffsetDateTime.parse("2026-09-18T10:30:00.123456789Z")
-                .atZoneSameInstant(ZoneId.systemDefault())
-                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-        assertEquals("{\"tool_call_id\":\"call_5\","
-                + "\"command\":\"export SECRET=x \\u0026\\u0026 echo hi\","
-                + "\"started_at\":\"" + expectedStartedAt + "\","
-                + "\"output\":\"line1\\nline2\",\"done\":false}", json);
-        assertTrue(json.contains(".123456789"), "nanos must survive: " + json);
-    }
-
-    // ===== toolApprovalDataToMap 线上路径（agent_stream_handler.go:293-303） =====
-
-    @Test
-    void approvalDataToMapRemarshalMatchesGo() {
-        // Go 实录（marshal → unmarshal map → re-marshal，键字母序）：
-        // {"args":{"labels":2,"title":"bug"},"args_json":"{\"title\":\"bug\"}",
-        //  "assistant_message_id":"am-1","description":"Create an issue","mcp_tool_name":"create_issue",
-        //  "pending_id":"p-1","registered_tool_name":"mcp__github__create_issue","request_id":"r-1",
-        //  "requested_at":1726700000,"service_id":"svc-1","service_name":"github","session_id":"s-1",
-        //  "tenant_id":42,"timeout_seconds":300,"tool_call_id":"call_9"}
-        ToolApprovalRequiredData d = new ToolApprovalRequiredData(
-                "p-1", 42, "s-1", "am-1", "svc-1", "github", "create_issue",
-                "mcp__github__create_issue", "Create an issue",
-                mapOf("title", "bug", "labels", 2.0), "{\"title\":\"bug\"}", 300, 1726700000,
-                "call_9", "r-1");
-        Map<String, Object> m = EventJson.readToMap(EventJson.write(d));
-        String remarshal = EventJson.write(m);
-        assertEquals("{\"args\":{\"labels\":2,\"title\":\"bug\"},"
-                + "\"args_json\":\"{\\\"title\\\":\\\"bug\\\"}\","
-                + "\"assistant_message_id\":\"am-1\",\"description\":\"Create an issue\","
-                + "\"mcp_tool_name\":\"create_issue\",\"pending_id\":\"p-1\","
-                + "\"registered_tool_name\":\"mcp__github__create_issue\",\"request_id\":\"r-1\","
-                + "\"requested_at\":1726700000,\"service_id\":\"svc-1\",\"service_name\":\"github\","
-                + "\"session_id\":\"s-1\",\"tenant_id\":42,\"timeout_seconds\":300,"
-                + "\"tool_call_id\":\"call_9\"}", remarshal);
-    }
 
     @Test
     void readToleratesUnknownFields() {
@@ -729,7 +674,6 @@ class EventPayloadJsonTest {
     void eventTypeConstantsMatchGoLiterals() {
         assertEquals("query.received", EventType.EVENT_QUERY_RECEIVED);
         assertEquals("thought", EventType.EVENT_AGENT_THOUGHT);
-        assertEquals("command_output", EventType.EVENT_AGENT_COMMAND_OUTPUT);
         assertEquals("tool_call", EventType.EVENT_AGENT_TOOL_CALL);
         assertEquals("tool_result", EventType.EVENT_AGENT_TOOL_RESULT);
         assertEquals("reflection", EventType.EVENT_AGENT_REFLECTION);

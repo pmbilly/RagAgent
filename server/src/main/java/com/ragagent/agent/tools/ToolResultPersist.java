@@ -375,12 +375,6 @@ public final class ToolResultPersist {
                 String path = stringField(data, "path");
                 int size = intField(data, "size");
                 if (!path.isEmpty()) {
-                    int added = intField(data, "added_lines");
-                    int removed = intField(data, "removed_lines");
-                    String stat = SandboxDiffs.formatSandboxDiffStat(added, removed);
-                    if (!stat.isEmpty()) {
-                        return String.format("Wrote %s (%s, %d bytes)", path, stat, size);
-                    }
                     return String.format("Wrote %s (%d bytes)", path, size);
                 }
             }
@@ -389,12 +383,6 @@ public final class ToolResultPersist {
                 int size = intField(data, "size");
                 int n = intField(data, "replacements");
                 if (!path.isEmpty()) {
-                    int added = intField(data, "added_lines");
-                    int removed = intField(data, "removed_lines");
-                    String stat = SandboxDiffs.formatSandboxDiffStat(added, removed);
-                    if (!stat.isEmpty()) {
-                        return String.format("Edited %s (%s, %d replacement(s), %d bytes)", path, stat, n, size);
-                    }
                     return String.format("Edited %s (%d replacement(s), %d bytes)", path, n, size);
                 }
             }

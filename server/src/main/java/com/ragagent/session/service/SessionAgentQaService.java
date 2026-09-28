@@ -67,8 +67,6 @@ public class SessionAgentQaService {
     private final SessionKnowledgeQaService knowledgeQa;
     private final com.ragagent.agentm.service.CustomAgentService customAgentService;
     private final com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry;
-    private final SessionSandboxExecutionService sandboxExecution;
-    private final SessionAttachmentStagingService attachmentStaging;
     private final AgentToolBackends toolBackends;
     private final com.ragagent.storage.service.ResourceCatalogService resourceCatalog;
     private final javax.sql.DataSource dataSource;
@@ -87,6 +85,8 @@ public class SessionAgentQaService {
     private final com.ragagent.agent.approval.Gate toolApprovalGate;
     /** 工具图片 VLM 描述器装配（对照 agent_service.go L246-256 的 SetImageDescriber 段）。 */
     private final VlmDescriberWiring vlmDescriberWiring;
+    /** 指令型技能的宿主目录（选项 B；weknora.skills.host-dirs，逗号分隔）。 */
+    private final List<String> hostSkillDirs;
 
     public SessionAgentQaService(MessageService messageService,
             ModelService modelService,
@@ -94,8 +94,6 @@ public class SessionAgentQaService {
             SessionKnowledgeQaService knowledgeQa,
             com.ragagent.agentm.service.CustomAgentService customAgentService,
             com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry,
-            SessionSandboxExecutionService sandboxExecution,
-            SessionAttachmentStagingService attachmentStaging,
             AgentToolBackends toolBackends,
             com.ragagent.storage.service.ResourceCatalogService resourceCatalog,
             javax.sql.DataSource dataSource,
@@ -110,8 +108,11 @@ public class SessionAgentQaService {
             com.ragagent.mcp.service.McpMetadataService mcpMetadataService,
             com.ragagent.mcp.protocol.McpClientManager mcpClientManager,
             com.ragagent.agent.approval.Gate toolApprovalGate,
-            VlmDescriberWiring vlmDescriberWiring) {
+            VlmDescriberWiring vlmDescriberWiring,
+            @org.springframework.beans.factory.annotation.Value(
+                    "${weknora.skills.host-dirs:}") String hostSkillDirs) {
         this.vlmDescriberWiring = vlmDescriberWiring;
+        this.hostSkillDirs = parseHostSkillDirs(hostSkillDirs);
         this.concurrencyGovernor = concurrencyGovernor;
         this.ollamaService = ollamaService;
         this.mcpServiceService = mcpServiceService;
@@ -124,8 +125,6 @@ public class SessionAgentQaService {
         this.knowledgeQa = knowledgeQa;
         this.customAgentService = customAgentService;
         this.builtinAgentRegistry = builtinAgentRegistry;
-        this.sandboxExecution = sandboxExecution;
-        this.attachmentStaging = attachmentStaging;
         this.toolBackends = toolBackends;
         this.resourceCatalog = resourceCatalog;
         this.dataSource = dataSource;
@@ -156,21 +155,7 @@ public class SessionAgentQaService {
         // Build AgentConfig
         QaAgentConfig agentConfig = buildAgentConfig(req, agentTenantId);
 
-        // 回合租约（Go session_agent_qa.go L168 的 holdSandboxTurn）：防技能镜像
-        // 变更在回合中途重建 VM；staging 与引擎执行都在租约窗口内。
-        try (var sandboxTurnLease = sandboxExecution.holdSandboxTurn(
-                agentTenantId, sessionId, agentConfig.getSandboxConfigId())) {
-            // 附件 staging（Go session_agent_qa.go L172-196）：把会话持久附件
-            // 物化进沙箱 /workspace/input；staged 清单在查询组合时注入提示。
-            // Go 侧 staging 失败即回合失败——这里同样让异常上抛。
-            List<SessionAttachmentStagingService.StagedSessionAttachment> stagedAttachments =
-                    new ArrayList<>();
-            if (attachmentStaging.sessionSandboxInputStore(
-                    agentTenantId, sessionId, agentConfig.getSandboxConfigId()) != null) {
-                stagedAttachments = attachmentStaging.stageSessionAttachments(
-                        agentTenantId, sessionId, agentConfig.getSandboxConfigId(),
-                        messageService.getSessionAttachments(sessionId));
-            }
+        {
             // VLM runtime field
             String vlm = req.agentConfig.path("vlm_model_id").asText("");
             if (!vlm.isEmpty()) {
@@ -291,13 +276,6 @@ public class SessionAgentQaService {
                 agentQuery += com.ragagent.chatpipeline.MessageAttachmentsPrompt.build(req.attachments);
                 log.info("Appended {} attachment(s) to agent query", req.attachments.size());
             }
-            // sandbox staged 附件提示（Go L261-264：追加发生在 execute 之前，
-            // 否则物化进沙箱 /workspace/input 的附件对模型不可见）
-            if (!stagedAttachments.isEmpty()) {
-                agentQuery += SessionAttachmentStagingService.buildSandboxAttachmentsPrompt(stagedAttachments);
-                log.info("Appended {} staged sandbox attachment path(s) to agent query",
-                        stagedAttachments.size());
-            }
 
             // Execute（Go L272-284：失败 emit error 事件后返回 nil）
             try {
@@ -348,10 +326,8 @@ public class SessionAgentQaService {
         ac.setRetainRetrievalHistory(c.path("retain_retrieval_history").asBoolean(false));
         ac.setSharedAgentReadOnly(req.sharedAgentReadOnly);
 
-        // Sandbox config（L326 的 configureSkillsFromAgent 前段）
-        ac.setSandboxConfigId(c.path("sandbox_config_id").asText(""));
-
-        // skills 配置（configureSkillsFromAgent，Go L616-647）
+        // skills 配置（configureSkillsFromAgent，Go L616-647）；指令型数据源 =
+        // 宿主技能目录（选项 B），不再有沙箱镜像技能集
         String skillsMode = c.path("skills_selection_mode").asText("");
         switch (skillsMode) {
             case "all" -> {
@@ -380,15 +356,9 @@ public class SessionAgentQaService {
             }
         }
 
-        // 然后并入本轮沙箱镜像里已安装的技能（Go L333-343：skillsForRun 以会话
-        // 已 pin 的配置为准——与沙箱解析同路径；行集已按 ready/enabled/快照生效收窄）
-        var runSkills = sandboxExecution.skillsForRun(
-                agentTenantId, req.session.getId(), ac.getSandboxConfigId());
-        ac.setTenantSkills(runSkills.rows());
-        if (!runSkills.rows().isEmpty()) {
-            log.info("Sandbox config {} offers {} installed skill(s) to this run",
-                    runSkills.configId(), runSkills.rows().size());
-        }
+        // 指令型技能（选项 B）：目录来自 weknora.skills.host-dirs，Loader 扫描
+        // SKILL.md；allowedSkills 即 selected_skills 过滤
+        ac.setSkillDirs(hostSkillDirs);
 
         // Resolve knowledge bases
         var kb = knowledgeQa.resolveKnowledgeBases(req);
@@ -624,17 +594,22 @@ public class SessionAgentQaService {
         // mcp_selection_mode 注册受限 MCP 目录（按需发现，不连上游、不广告完整 schema）
         registerMcpTools(toolRegistry, config);
 
-        // 沙箱执行面（Go agent_service.go：registerSandboxShellIfAllowed L216 →
-        // registerSandboxFileTools L217 → initializeSkillsManager L272）：解析会话
-        // 沙箱、注册 shell_exec 与文件工具、构建 skills 管理器并绑定。失败降级为
-        // 无沙箱回合（工具不注册）。
-        long sandboxTenantId = com.ragagent.common.context.TenantContext.currentTenantId() == null
-                ? 0L : com.ragagent.common.context.TenantContext.currentTenantId();
-        sandboxExecution.registerSandboxShellIfAllowed(toolRegistry, sandboxTenantId,
-                sessionId, config);
-        sandboxExecution.registerSandboxFileTools(toolRegistry, sandboxTenantId,
-                sessionId, config);
-        sandboxExecution.initializeSkillsManager(sandboxTenantId, sessionId, config, toolRegistry);
+        // 指令型技能（选项 B）：Manager 只做 SKILL.md 三级注入（元数据/正文/资源），
+        // 模型凭指令用现有工具执行；shell/文件注入与沙箱镜像源已随沙箱退役。
+        com.ragagent.agent.skills.Manager skillsManager = null;
+        if (config.isSkillsEnabled()) {
+            skillsManager = new com.ragagent.agent.skills.Manager(
+                    new com.ragagent.agent.skills.Manager.ManagerConfig(
+                            config.getSkillDirs(), config.getAllowedSkills(), true));
+            try {
+                skillsManager.initialize();
+            } catch (Exception e) {
+                throw new IllegalStateException("failed to initialize skills: " + e.getMessage(), e);
+            }
+            log.info("Instructional skills enabled: {} skill(s) from host dirs {}",
+                    skillsManager.getAllMetadata() == null ? 0 : skillsManager.getAllMetadata().size(),
+                    config.getSkillDirs());
+        }
         registerWebPageFiles(toolRegistry, config, sessionId, assistantMessageId);
         toolRegistry.prepareMcpTools();
 
@@ -675,7 +650,11 @@ public class SessionAgentQaService {
         }
         engine.setPinnedMentions(pinnedMcp, pinnedSkills);
 
-        // Skills manager（offerSkills：TenantSkills/SkillDirs 在 dev 均为空 → 不启用）
+        // 指令型技能注入（Level 1 元数据进系统提示词；Level 2/3 由引擎按需读取）
+        if (skillsManager != null) {
+            engine.setSkillsManager(skillsManager);
+        }
+
         // 工具图片 VLM 描述器（agent_service.go L246-256）：GetVLMModel 成功则
         // SetImageDescriber；失败只记警告继续——引擎随后对无描述能力走 "cannot view"。
         if (!config.getVlmModelId().isEmpty()) {
@@ -927,6 +906,20 @@ public class SessionAgentQaService {
      * （FileService.SaveBytes/ResourceCatalog.Bind 生产实现）未翻译——经
      * {@link AgentWebPages} 的接缝落 Go 的 save-failure 分支，见类 Javadoc。
      */
+    /** weknora.skills.host-dirs（逗号分隔）→ 目录列表；空白项丢弃。 */
+    private static List<String> parseHostSkillDirs(String raw) {
+        List<String> dirs = new ArrayList<>();
+        if (raw != null && !raw.isBlank()) {
+            for (String dir : raw.split(",")) {
+                String clean = dir == null ? "" : dir.strip();
+                if (!clean.isEmpty()) {
+                    dirs.add(clean);
+                }
+            }
+        }
+        return List.copyOf(dirs);
+    }
+
     private void registerWebPageFiles(ToolRegistry registry, QaAgentConfig config,
             String sessionId, String assistantMessageId) {
         if (config == null || !config.isWebSearchEnabled()) {
@@ -954,22 +947,6 @@ public class SessionAgentQaService {
                 tenantId, com.ragagent.session.domain.SessionOwnerIds.currentSessionOwnerId(),
                 sessionId, assistantMessageId);
         fetch.withPageSource(pages);
-        // 对照 Go L149-158 的 GetTool err 检查：缺席即补注册（含 web:// 读取范围的描述）
-        com.ragagent.agent.tools.AgentTool existing;
-        try {
-            existing = registry.getTool(ToolDefinitions.TOOL_READ_FILE);
-        } catch (ToolRegistry.ToolNotFoundException e) {
-            existing = null;
-        }
-        if (existing instanceof com.ragagent.agent.tools.ReadFileTool reader) {
-            reader.withWebPages(pages);
-        } else if (existing != null) {
-            log.warn("Cannot attach saved web pages: read_file is registered by another tool");
-            fetch.withPageSource(null);
-        } else {
-            registry.registerTool(
-                    new com.ragagent.agent.tools.ReadFileTool(null).withWebPages(pages));
-        }
     }
 
     /** registerTools（agent_service.go L837-1141 的注册面；工具集与硬门控逐条保留）。 */

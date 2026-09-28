@@ -1,8 +1,0 @@
-HTTP/1.1 400 Bad Request
-Content-Type: text/plain; charset=utf-8
-Sec-Websocket-Version: 13
-X-Content-Type-Options: nosniff
-X-Request-Id: 034aba0b-f8a3-48ea-af79-ca7027bb2d8c
-Date: Mon, 21 Sep 2026 11:39:39 GMT
-Content-Length: 12
-

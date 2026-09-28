@@ -264,6 +264,6 @@ public final class McpOAuthSupport {
 
     /** Go %q 的普通串形态。 */
     static String quoteGo(String s) {
-        return ListSandboxFilesTool.quoteGo(s);
+        return GoQuoting.quoteGo(s);
     }
 }

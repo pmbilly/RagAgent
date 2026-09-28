@@ -18,7 +18,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.ragagent.agent.tools.SandboxExecuteResult;
+import com.ragagent.common.time.GoDuration;
 import com.ragagent.knowledge.domain.Knowledge;
 
 import jakarta.annotation.PreDestroy;
@@ -491,6 +491,6 @@ public class HousekeepingService {
 
     /** 复用全仓唯一的 Go {@code time.Duration.String()} 复刻（错误文案是契约的一部分）。 */
     private static String goDuration(Duration d) {
-        return SandboxExecuteResult.GoDuration.of(d);
+        return GoDuration.of(d);
     }
 }

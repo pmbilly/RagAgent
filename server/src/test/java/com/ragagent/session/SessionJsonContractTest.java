@@ -65,7 +65,6 @@ class SessionJsonContractTest {
         s.setPinned(true);
         s.setPinnedAt(TS);
         s.setLastRequestState(fullState());
-        s.setSandboxConfigId("sc1");
         s.setCreatedAt(TS);
         s.setUpdatedAt(TS);
         s.setImPlatform("feishu");
@@ -73,12 +72,12 @@ class SessionJsonContractTest {
         // Go: id title description tenant_id user_id is_pinned pinned_at last_request_state
         //     {agent_id agent_enabled model_id knowledge_base_ids
         //      web_search_enabled}
-        //     sandbox_config_id created_at updated_at deleted_at im_platform
+        //     created_at updated_at deleted_at im_platform
         assertEquals(List.of(
                 "id", "title", "description", "tenant_id", "user_id", "is_pinned", "pinned_at",
                 "last_request_state", "agent_id", "agent_enabled", "model_id", "knowledge_base_ids",
                 "web_search_enabled",
-                "sandbox_config_id", "created_at", "updated_at", "deleted_at", "im_platform"),
+                "created_at", "updated_at", "deleted_at", "im_platform"),
                 keys(json(s)));
     }
 
@@ -109,7 +108,6 @@ class SessionJsonContractTest {
         item.setPinned(true);
         item.setPinnedAt(TS);
         item.setLastRequestState(fullState());
-        item.setSandboxConfigId("sc1");
         item.setCreatedAt(TS);
         item.setUpdatedAt(TS);
         item.setImPlatform("feishu");
@@ -123,7 +121,7 @@ class SessionJsonContractTest {
                 "id", "title", "description", "tenant_id", "user_id", "is_pinned", "pinned_at",
                 "last_request_state", "agent_id", "agent_enabled", "model_id", "knowledge_base_ids",
                 "web_search_enabled",
-                "sandbox_config_id", "created_at", "updated_at", "deleted_at",
+                "created_at", "updated_at", "deleted_at",
                 "im_platform", "im_chat_id", "im_thread_id", "im_user_id", "im_agent_id",
                 "im_channel_id"),
                 keys(json(item)));

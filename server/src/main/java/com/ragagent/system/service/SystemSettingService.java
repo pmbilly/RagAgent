@@ -40,9 +40,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>副作用桥（dispatchSideEffects）：ssrf.whitelist 更新后推给
  * {@link SsrfGuard#reloadWhitelist(String)}（含 SSRF_WHITELIST_EXTRA 合并，对照
- * applySSRFWhitelist）；sandbox.docker_enabled 推给
- * {@link SandboxBackendPolicy#setDockerBackendEnabled}（对照 applyDockerBackendEnabled，
- * DB &gt; env &gt; false 三层解析后推运行期覆盖值）。model.max_concurrency 的桥已随
+ * applySSRFWhitelist）。model.max_concurrency 的桥已随
  * 并发闸门装配接线（ConcurrencyGovernorWiring）。</p>
  *
  * <p><b>启动预载</b>（对照 Go preload 的 initial sync，走查补翻）：应用就绪后把
@@ -436,11 +434,6 @@ public class SystemSettingService {
                 merged = merged.isEmpty() ? extra : merged + "," + extra;
             }
             ssrfGuard.reloadWhitelist(merged);
-        } else if ("sandbox.docker_enabled".equals(changedKey)) {
-            // 对照 applyDockerBackendEnabled（system_setting.go L547-550）
-            boolean enabled = getBool("sandbox.docker_enabled", "WEKNORA_SANDBOX_DOCKER_ENABLED", false);
-            com.ragagent.sandbox.runtime.SandboxBackendPolicy.setDockerBackendEnabled(enabled);
-            log.info("[system_settings] sandbox.docker_enabled applied (enabled={})", enabled);
         }
     }
 

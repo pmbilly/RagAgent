@@ -57,7 +57,7 @@ batch_domains() {
     B1b) echo "common event apikey audit auth" ;;
     B2) echo "browserskill datasource embed embedding evaluation favorite" ;;
     B3) echo "im knowledge llm mcp memory model modelcontext org" ;;
-    B4) echo "rerank sandbox searchutil session storage storageurl stream system tracing vectorstore webfetch websearch wiki agentm retrieval config" ;;
+    B4) echo "rerank searchutil session storage storageurl stream system tracing vectorstore webfetch websearch wiki agentm retrieval config" ;;
   esac
 }
 
@@ -200,7 +200,7 @@ if [ "$WITH_AB" = 1 ]; then
   TOKEN_JAVA=$(scripts/token.sh 8082)
   fail=0
   for ep in "agents" "sessions?page=1&page_size=5" "knowledge_bases" "im-channels" \
-    "storage-backends" "web-search-providers" "vector-stores" "sandbox-configs" \
+    "storage-backends" "web-search-providers" "vector-stores" \
     "tenants/all"; do
     curl -s -H "Authorization: Bearer ${TOKEN_GO}" "http://localhost:8080/api/v1/${ep}" > /tmp/ab-g.json
     curl -s -H "Authorization: Bearer ${TOKEN_JAVA}" "http://localhost:8082/api/v1/${ep}" > /tmp/ab-j.json

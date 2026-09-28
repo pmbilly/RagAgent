@@ -39,14 +39,12 @@ import com.ragagent.agent.domain.ToolCallTarget;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.skills.Manager;
 import com.ragagent.agent.skills.Skill;
-import com.ragagent.agent.tools.SandboxExecuteResult;
 import com.ragagent.agent.tools.ToolDefinitions;
 import com.ragagent.agent.tools.ThinkStreamSplitter;
 import com.ragagent.agent.tools.ExecutionPolicy;
 import com.ragagent.agent.tools.JsonRepair;
 import com.ragagent.agent.tools.MessageSanitizer;
 import com.ragagent.agent.tools.NormalizeToolCallId;
-import com.ragagent.agent.tools.SandboxDiffs;
 import com.ragagent.agent.tools.ThinkBlocks;
 import com.ragagent.agent.tools.ToolExecContext;
 import com.ragagent.agent.tools.ToolRegistry;
@@ -314,7 +312,6 @@ public class AgentEngine {
         AgentPrompts.BuildSystemPromptOptions opts = new AgentPrompts.BuildSystemPromptOptions()
                 .setLanguage(WikiLanguageSupport.languageNameFromContext())
                 .setConfig(appConfig)
-                .setSkillInstallMode(config != null && config.isSkillInstallMode())
                 .setMemoryPrompt(memoryPrompt)
                 .setProtocolPrompt(modelContext.protocolPrompt());
         List<Skill.SkillMetadata> allMetadata = skillsManager != null && skillsManager.isEnabled()
@@ -322,12 +319,6 @@ public class AgentEngine {
         if (toolRegistry != null) {
             opts.setSelectedTools(toolRegistry.listTools());
             opts.setSkillsMetadata(toAgentSkillMetadata(allMetadata));
-            try {
-                toolRegistry.getTool(ToolDefinitions.TOOL_SHELL_EXEC);
-                opts.setShellExecEnabled(true);
-            } catch (ToolRegistry.ToolNotFoundException e) {
-                opts.setShellExecEnabled(false);
-            }
         } else {
             opts.setSkillsMetadata(toAgentSkillMetadata(allMetadata));
         }
@@ -419,12 +410,10 @@ public class AgentEngine {
     /** 单轮 ReAct 的补全预算（对照 getCompletionTokenBudget）。 */
     int getCompletionTokenBudget() {
         int configured = 0;
-        String sandboxId = "";
         if (config != null) {
             configured = config.getMaxCompletionTokens();
-            sandboxId = config.getSandboxConfigId();
         }
-        return AgentBudgets.agentRoundMaxCompletionTokensFor(configured, sandboxId);
+        return AgentBudgets.agentRoundMaxCompletionTokens(configured);
     }
 
     private int contextReserveTokens() {
@@ -1137,7 +1126,7 @@ public class AgentEngine {
         // 看门狗取消的是 provider 上下文，流只会冒出泛化取消——改述成停顿。
         if (stalled.get()) {
             result.streamError = "LLM stream stalled: no output for "
-                    + SandboxExecuteResult.GoDuration.of(stallTimeout);
+                    + com.ragagent.common.time.GoDuration.of(stallTimeout);
         }
 
         log.info("[Agent][Stream] Completed: chunks={}, content_len={}, tool_calls={}, type_distribution={}",
@@ -1175,9 +1164,9 @@ public class AgentEngine {
             if (chunk == null) {
                 if (System.nanoTime() - lastChunkAt.get() >= stallTimeout.toNanos()) {
                     log.error("[Agent][Stream] No output for {} (stall timeout {}); cancelling LLM stream",
-                            SandboxExecuteResult.GoDuration.of(
+                            com.ragagent.common.time.GoDuration.of(
                                     Duration.ofNanos(System.nanoTime() - lastChunkAt.get())),
-                            SandboxExecuteResult.GoDuration.of(stallTimeout));
+                            com.ragagent.common.time.GoDuration.of(stallTimeout));
                     stalled.set(true);
                     return null;
                 }
@@ -1876,8 +1865,7 @@ public class AgentEngine {
         String toolHint = formatToolHint(executionName, executionArgs);
         eventBus.emit(new Event(tc.getId() + "-tool-hint", EventType.EVENT_AGENT_TOOL_CALL, sessionId,
                 new AgentToolCallData(tc.getId(), executionName,
-                        deepSortedGoMap(SandboxDiffs.sanitizeSandboxFileCallArgs(executionName,
-                                executionArgs)),
+                        executionArgs,
                         iteration, toolHint), null, ""));
 
         log.info("[PIPELINE] stage=Agent action=tool_call_start iteration={} round={} tool={} tool_call_id={} tool_index={}/{}",

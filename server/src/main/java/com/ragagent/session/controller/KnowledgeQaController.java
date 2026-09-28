@@ -1040,10 +1040,7 @@ public class KnowledgeQaController {
         // AgentStreamBridge 订阅（17 种事件）
         AgentStreamBridge bridge = new AgentStreamBridge(reqCtx.sessionId, reqCtx.assistantMessage.getId(),
                 reqCtx.requestId, sessionTenantId, OffsetDateTime.now(), reqCtx.assistantMessage,
-                streamManager, eventBus,
-                artifactCollectorWiring.forTurn(sessionTenantId, reqCtx.sessionId,
-                        reqCtx.agentConfig == null ? ""
-                                : reqCtx.agentConfig.path("sandbox_config_id").asText("")));
+                streamManager, eventBus);
         bridge.subscribe();
 
         // title 生成（GenerateTitleAsync：session title 为空时；2026-09-23 走查批接线）

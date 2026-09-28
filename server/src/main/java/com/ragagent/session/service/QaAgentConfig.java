@@ -16,9 +16,6 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
  */
 public class QaAgentConfig extends AgentConfig {
 
-    /** 本轮沙箱镜像里可调用的已安装技能（对照 Go AgentConfig.TenantSkills，实体列表）。 */
-    private List<com.ragagent.sandbox.domain.TenantSkillEntity> tenantSkills = new ArrayList<>();
-
     private int webSearchMaxResults;
     private String webSearchProviderId = "";
     private int historyTurns;
@@ -75,8 +72,6 @@ public class QaAgentConfig extends AgentConfig {
     public void setPinnedSkillNames(List<String> v) { pinnedSkillNames = v; }
     public List<String> getPinnedMcpServiceIds() { return pinnedMcpServiceIds; }
     public void setPinnedMcpServiceIds(List<String> v) { pinnedMcpServiceIds = v; }
-    public List<com.ragagent.sandbox.domain.TenantSkillEntity> getTenantSkills() { return tenantSkills; }
-    public void setTenantSkills(List<com.ragagent.sandbox.domain.TenantSkillEntity> v) { tenantSkills = v == null ? new ArrayList<>() : v; }
     public List<String> getSkillDirs() { return skillDirs; }
     public void setSkillDirs(List<String> v) { skillDirs = v == null ? new ArrayList<>() : v; }
 }

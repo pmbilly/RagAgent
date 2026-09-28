@@ -761,7 +761,6 @@ public class SessionKnowledgeQaService {
         if (req.agentConfig != null) {
             configuredAgentModelId = req.agentConfig.path("model_id").asText("").trim();
             if (configuredAgentModelId.isEmpty()
-                    && !com.ragagent.agent.AgentConfig.BUILTIN_SKILL_INSTALLER_ID.equals(req.agentRow.getId())
                     && !"builtin-wiki-fixer".equals(req.agentRow.getId())) {
                 throw new RuntimeException("chat model is not configured: please set model_id on agent "
                         + req.agentRow.getId());

@@ -482,7 +482,7 @@ public class McpToolWrapper implements AgentTool {
     }
 
     static String quoteGo(String s) {
-        return ListSandboxFilesTool.quoteGo(s);
+        return GoQuoting.quoteGo(s);
     }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MCP_JSON = new com.fasterxml.jackson.databind.ObjectMapper();

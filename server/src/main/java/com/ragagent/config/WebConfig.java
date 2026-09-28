@@ -535,49 +535,9 @@ public class WebConfig implements WebMvcConfigurer {
         // 波 3 子批 1（对照 routes_infra.go RegisterSandboxConfigRoutes，Go L52-74）：
         // 静态段（workspace-policy/templates/query）先于 /:id 通配登记（AntPathMatcher
         // 取首个命中）；:id/sandboxes 在 :id 之前。List/Get 是 Viewer+，其余 Admin+。
-        rbac.addRule("GET", "/api/v1/sandbox-configs", TenantRole.VIEWER, false);
-        rbac.addRule("PUT", "/api/v1/sandbox-configs/workspace-policy", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/sandbox-configs/templates/query", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/sandbox-configs", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/sandboxes", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*", TenantRole.VIEWER, false);
-        rbac.addRule("PUT", "/api/v1/sandbox-configs/*", TenantRole.ADMIN, false);
-        rbac.addRule("DELETE", "/api/v1/sandbox-configs/*", TenantRole.ADMIN, false);
-        // 波 3 子批 2（routes_infra.go L60-72，skills 全程 Admin+——注释原文：上传会
-        // 驱动 root shell、产物烤进镜像；events/transcript 是 SSE 只读）：
-        // 静态段（install-events/transcript/reinstall/stop/guidance/files）先于
-        // /:skillId 通配，files/content 先于 files。
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/install-events", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/transcript", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills/*/reinstall", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills/*/stop", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/guidance", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/sandbox-configs/*/skills/*/guidance", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/files/content", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*/files", TenantRole.ADMIN, false);
-        rbac.addRule("PATCH", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
-        rbac.addRule("DELETE", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
-        // POST /api/v1/system/sandbox-check：路由未实现（SystemController 备案）→
-        // Spring 404。守卫登记是死条目，此前登记与「不登记」注释并存自相矛盾
-        //（2026-09-28 评审修正：删除死登记，落地 handler 时随批恢复）。
-        // 波 3 子批 4（对照 routes_agent.go RegisterSkillRoutes L70-90）：
-        // GET /skills 与 GET /skills/catalog 是 Viewer+（catalog 读让 agent 编辑器
-        // 能展示未安装的 skill）；catalogWrite 五条 Admin+（会烤进沙箱镜像）。
-        // 静态段 catalog 先于 /:id 通配；files/content 先于 files。
+        // GET /skills（指令型技能目录，agentm/SkillsCatalogController）：选择器数据源，
+        // Viewer+（对照 routes_agent.go RegisterSkillRoutes 的 GET /skills Viewer）。
         rbac.addRule("GET", "/api/v1/skills", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/skills/catalog", TenantRole.VIEWER, false);
-        rbac.addRule("POST", "/api/v1/skills/catalog", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/skills/catalog/*/install", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/skills/catalog/*/files/content", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/skills/catalog/*/files", TenantRole.ADMIN, false);
-        rbac.addRule("DELETE", "/api/v1/skills/catalog/*", TenantRole.ADMIN, false);
-        // /me/env-vars 五条（routes_auth_tenant.go RegisterMyEnvVarRoutes）：**无角色门**
-        // （Go 注释原文：这些是调用者自己的值，service 从上下文而非请求推导主体）——
-        // 不登记 rbac 规则；拦截器 pattern 也不覆盖 /me/**（与 /me/invitations 同款）。
-
         // ── 波 3 协作面批次（对照 routes_agent.go RegisterOrganizationRoutes L95-216）──
         // organizations 组 Viewer/Admin 混合：create/join*/invite*/member 写/request 复审
         // 与 role 升级全是 Admin+（Go 注释：改整个空间的组织角色不能由 Viewer/Contributor
@@ -715,7 +675,7 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/vector-stores/**", "/api/v1/storage-backends/**",
                 "/api/v1/evaluation/**",
                 "/api/v1/user/favorites/**", "/api/v1/chunker/**",
-                "/api/v1/sandbox-configs/**", "/api/v1/skills/**",
+                "/api/v1/skills/**",
                 "/api/v1/organizations/**", "/api/v1/agents/**",
                 "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**",
                 "/api/v1/initialization/**",
@@ -757,8 +717,7 @@ public class WebConfig implements WebMvcConfigurer {
                 /* mcp */ true,
                 /* webSearch */ true,
                 /* vectorStore */ true,
-                /* storage */ true,
-                /* sandbox */ true); // 波 3 sandbox 批路由全注册（sandbox-configs/skills/sandbox-check/me/env-vars）
+                /* storage */ true);
         return holder;
     }
 }

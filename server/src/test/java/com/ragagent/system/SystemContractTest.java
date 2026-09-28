@@ -42,7 +42,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  *
  * <p><b>部署状态差异（不做 golden 字节比对的条目，报告注明）</b>：</p>
  * <ul>
- *   <li>capabilities：Go dev 已注册 organizations/agents/im/embed/sandbox 路由，
+ *   <li>capabilities：Go dev 已注册 organizations/agents/im/embed 路由，
  *       Java 均未翻译 → supported=false。按 Java 部署断言 + 与 golden 的键集对比；</li>
  *   <li>parser-engines（与 check）：golden 打了真 docreader（connected=true，远端覆盖
  *       builtin 描述/文件类型 + markitdown/opendataloader 追加）；测试禁真实网络 →
@@ -149,7 +149,7 @@ class SystemContractTest {
 
     /**
      * capabilities：响应外壳 + 键集与 Go golden 一致；各能力**值**按 Java 部署断言
-     * （Go dev 的 organizations/agents/im/embed/sandbox=true 是它的部署状态）。
+     * （Go dev 的 organizations/agents/im/embed=true 是它的部署状态）。
      */
     @Test
     void capabilitiesMatchesDeployment() throws Exception {
@@ -170,10 +170,7 @@ class SystemContractTest {
         assertThat(java).contains("\"agents\":{\"supported\":true}");
         assertThat(java).contains("\"integrations.api\":{\"supported\":true}");
         assertThat(java).contains("\"settings.mcp\":{\"supported\":true}");
-        // sandbox 随波 3 sandbox 批注册 → supported=true；docker 活值覆盖：
-        // Java 无 docker 后端执行体接线前 DockerBackendEnabled 恒 false → docker_backend_disabled
-        assertThat(java).contains("\"settings.sandbox\":{\"supported\":true}");
-        assertThat(java).contains("\"settings.sandbox.docker\":{\"supported\":false,\"reason\":\"docker_backend_disabled\"}");
+        // settings.sandbox 两键随沙箱裁剪退役（对照 capabilities 键集同步收缩）
     }
 
     /** 从 golden 提取 map 键名（部署无关的结构对齐检查）。 */

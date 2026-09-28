@@ -2,7 +2,6 @@
 # E2E 两观察项：可复跑探针（2026-09-25，W5γ5.10）
 #
 #   观察项 1「早错 SSE 不收流」：上游在**流早期**报错时，SSE 是立刻收流给错误帧，还是挂住/只截断？
-#   观察项 2「list_sandbox_files 注册时机」：该工具在会话首帧的 tools 里有没有？
 #
 # 前置（本脚本不代起服务）：
 #   1) python3 scripts/stub-llm-server.py 8181       # 标准 stub；需含 early-error/early-close 场景
@@ -103,7 +102,6 @@ for f in sorted(glob.glob(os.path.join(rec, "*.json"))):
 for name, n, tools in rows:
     print(f"{name} tools={n}")
     print("   " + (", ".join(tools) if tools else "(无 tools 段)"))
-    print(f"   含 list_sandbox_files: {'list_sandbox_files' in tools} | 含 shell_exec: {'shell_exec' in tools}")
 PY
   echo "--- ${side}（见 ${OUT}/tools.${side}.txt）---"
   head -6 "${OUT}/tools.${side}.txt"

@@ -611,7 +611,7 @@ public class ToolRegistry {
 
     /** Go %q 的普通串形态（registry 侧 MCP 文案需要）。 */
     static String quotedGo(String s) {
-        return ListSandboxFilesTool.quoteGo(s);
+        return GoQuoting.quoteGo(s);
     }
 
     private static void logExecution(String stage, ToolExecContext meta, Map<String, String> fields) {

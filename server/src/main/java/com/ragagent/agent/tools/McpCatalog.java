@@ -719,7 +719,7 @@ public final class McpCatalog {
     }
 
     static String quoteGo(String s) {
-        return ListSandboxFilesTool.quoteGo(s);
+        return GoQuoting.quoteGo(s);
     }
 
     /** cursor 的 base64url 编码（RawURLEncoding：无 padding）。 */

@@ -7,7 +7,6 @@ import javax.sql.DataSource;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import com.ragagent.agent.tools.ReadFileTool;
 import com.ragagent.agent.tools.WebFetchTool;
 import com.ragagent.storage.service.ResourceCatalogService;
 
@@ -16,8 +15,7 @@ import com.ragagent.storage.service.ResourceCatalogService;
  *
  * <p>复用资源目录与文件驱动：一个 {@code web://} 地址不授予一般资源访问——每次读
  * 都必须匹配「本租户 + 本 owner + 本会话中一条活跃 assistant 消息」的 web_page
- * 绑定。同时实现 {@link ReadFileTool.WebPageSource} 与
- * {@link WebFetchTool.WebPageSource}（Go 两件工具共享同一接口）。</p>
+ * 绑定。实现 {@link WebFetchTool.WebPageSource}。</p>
  *
  * <h2>接缝与备案</h2>
  * <p>文件写字节面（{@code interfaces.FileService.SaveBytes} / 本地 provider 的
@@ -27,7 +25,7 @@ import com.ragagent.storage.service.ResourceCatalogService;
  * {@link #read} 报 "saved web page is no longer available"（Go 的 GetFile 失败
  * 同文案）。存储面落地后把生产 Store 注入即可，无需改本类。</p>
  */
-public class AgentWebPages implements ReadFileTool.WebPageSource, WebFetchTool.WebPageSource {
+public class AgentWebPages implements WebFetchTool.WebPageSource {
 
     /** 对照 webPageRelation / maxSavedWebPageBytes。 */
     public static final String WEB_PAGE_RELATION = "web_page";

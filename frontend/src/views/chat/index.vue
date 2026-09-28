@@ -3,25 +3,8 @@
         'is-embedded': embeddedMode,
         'is-sidebar-collapsed': uiStore.sidebarCollapsed,
         'has-references-panel': referencesDrawerVisible,
-        'has-sandbox-panel': sandboxPanel.visible.value,
-    }" :style="{ '--sandbox-panel-width': `${sandboxPanel.width.value}px` }">
+    }">
         <ChatHeader v-if="!embeddedMode" :session="currentSession" :has-references-panel="referencesDrawerVisible" />
-        <!-- 沙箱面板收起时：图标与左侧栏展开按钮同一套，位置镜像会话左上角三个点。 -->
-        <div v-if="!embeddedMode && !sandboxPanel.visible.value" class="sandbox-header-toggle">
-            <t-tooltip placement="bottom">
-                <template #content>{{ t('chatHeader.toggleSandboxPanel') }}</template>
-                <button type="button" class="sandbox-header-toggle__btn"
-                    :aria-label="t('chatHeader.toggleSandboxPanel')" @click="sandboxPanel.open()">
-                    <svg viewBox="0 0 20 20" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true">
-                        <rect x="1.5" y="1.5" width="17" height="17" rx="3" stroke="currentColor" stroke-width="1.2" />
-                        <line x1="12.5" y1="1.5" x2="12.5" y2="18.5" stroke="currentColor" stroke-width="1.2" />
-                        <line x1="16" y1="7.5" x2="16" y2="12.5" stroke="currentColor" stroke-width="1.2"
-                            stroke-linecap="round" />
-                    </svg>
-                </button>
-            </t-tooltip>
-        </div>
         <div class="chat_thread">
             <div ref="scrollContainer" class="chat_scroll_box" @scroll="handleScroll">
                 <div class="msg_list" :class="{ 'is-embedded': embeddedMode }">
@@ -165,11 +148,7 @@
         @update:visible="(val) => val ? null : uiStore.closeKBEditor()" @success="handleKBEditorSuccess" />
     <ChatReferencesDrawer />
     <ChatAttachmentPreviewDrawer />
-    <SandboxSidePanel v-if="!embeddedMode" :session-id="session_id"
-        :agent-id="useSettingsStoreInstance.selectedAgentId"
-        :agent-source-tenant-id="useSettingsStoreInstance.selectedAgentSourceTenantId"
-        :shifted="referencesDrawerVisible"
-        :artifacts="sessionArtifacts" :artifacts-collecting="sessionArtifactsCollecting" />
+
 </template>
 <script setup>
 import { makeSteerClientId } from '@/utils/steerId';
@@ -214,13 +193,8 @@ import {
 import { provideChatReferencesDrawer } from '@/composables/useChatReferencesDrawer';
 import { provideChatAttachmentPreviewDrawer } from '@/composables/useChatAttachmentPreviewDrawer';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
-import { provideChatSandboxPanel } from '@/composables/useChatSandboxPanel';
-import SandboxSidePanel from '@/components/chat/SandboxSidePanel.vue';
-import { collectSessionArtifacts } from '@/utils/sessionArtifacts';
-import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
 const referencesDrawer = provideChatReferencesDrawer();
 provideChatAttachmentPreviewDrawer();
-const sandboxPanel = provideChatSandboxPanel();
 const { visible: referencesDrawerVisible } = referencesDrawer;
 
 const props = defineProps({
@@ -300,10 +274,6 @@ const inputFieldRef = ref();
 const created_at = ref('');
 const limit = ref(20);
 const messagesList = reactive([]);
-const sessionArtifacts = computed(() => collectSessionArtifacts(messagesList));
-const sessionArtifactsCollecting = computed(() =>
-    messagesList.some((message) => isCollectingSkillArtifacts(message)),
-);
 const steerQueue = ref([]);
 const isReplying = ref(false);
 const currentAssistantMessageId = ref(''); // 当前正在生成的 assistant message ID
@@ -1526,33 +1496,10 @@ onBeforeRouteUpdate((to, from, next) => {
                 padding-top: 0;
             }
 
-            .sandbox-header-toggle {
-                right: 432px;
-            }
         }
     }
 
-    // 沙箱可视化右侧面板：宽度可拖拽调整（--sandbox-panel-width 由
-    // composable 持久化），聊天区 padding 跟随面板宽度让位。
-    &.has-sandbox-panel:not(.is-embedded) {
-        @media (min-width: 960px) {
-            --chat-right-inset: var(--sandbox-panel-width, 420px);
-            padding-right: var(--sandbox-panel-width, 420px);
-            box-sizing: border-box;
-        }
-    }
 
-    &.has-sandbox-panel.has-references-panel:not(.is-embedded) {
-        @media (min-width: 1400px) {
-            --chat-right-inset: calc(420px + var(--sandbox-panel-width, 420px));
-            padding-right: calc(420px + var(--sandbox-panel-width, 420px));
-        }
-
-        @media (max-width: 1399.98px) and (min-width: 960px) {
-            --chat-right-inset: var(--sandbox-panel-width, 420px);
-            padding-right: var(--sandbox-panel-width, 420px);
-        }
-    }
 
     &.is-embedded :deep(.answers-input) {
         position: relative;
@@ -1594,47 +1541,6 @@ onBeforeRouteUpdate((to, from, next) => {
     overflow: hidden;
 }
 
-// 沙箱面板入口：chrome 对齐会话左上角三个点（毛玻璃底 + 24px 图标按钮），
-// 图标是左侧栏 sidebar-toggle 的水平镜像（栏在右侧）。
-.sandbox-header-toggle {
-    position: absolute;
-    top: 10px;
-    right: 12px;
-    z-index: 6;
-    display: inline-flex;
-    align-items: center;
-    padding: 2px;
-    border-radius: 8px;
-    box-sizing: border-box;
-    background: color-mix(in srgb, var(--td-bg-color-container) 88%, transparent);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    pointer-events: auto;
-}
-
-.sandbox-header-toggle__btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: 0;
-    border-radius: 5px;
-    color: var(--td-text-color-placeholder);
-    background: transparent;
-    cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
-
-    &:hover {
-        color: var(--td-text-color-primary);
-        background: var(--td-bg-color-container-hover);
-    }
-
-    &:active {
-        background: var(--td-bg-color-container-active);
-    }
-}
 
 .chat_scroll_box {
     flex: 1;

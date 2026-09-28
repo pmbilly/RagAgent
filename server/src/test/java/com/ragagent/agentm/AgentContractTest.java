@@ -186,10 +186,6 @@ class AgentContractTest {
                 + "{\"enabled\":true,\"mode\":\"curated\",\"items\":[\"  \"],\"count\":1},"
                 + "\"follow_ups\":{\"enabled\":false}}}}"),
                 400, "ag-create-empty-starter-item.json");
-        assertGolden(postH("/api/v1/agents", bearer,
-                "{\"name\":\"ag-bad-sandbox\",\"config\":{\"sandbox_config_id\":\"no-such-sandbox\"}}"),
-                400, "ag-create-bad-sandbox.json");
-
         // ── 5) creator 筛选 ──
         assertGolden(getH("/api/v1/agents?creator=mine", bearer), 200, "ag-list-mine.json");
         assertGolden(getH("/api/v1/agents?creator=others", bearer), 200, "ag-list-others.json");

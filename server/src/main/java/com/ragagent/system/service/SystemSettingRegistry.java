@@ -78,11 +78,6 @@ public final class SystemSettingRegistry {
                         + "每次调用实时读取，修改后立即生效、无需重启。0 或负数表示关闭默认限制"
                         + "（各模型仍会尊重自身在模型管理里配置的上限）。仅影响后台任务，不影响交互式对话。",
                 false, List.of(), 32L);
-        spec("sandbox.docker_enabled", "bool", "WEKNORA_SANDBOX_DOCKER_ENABLED", "security",
-                "是否允许 Docker 沙箱后端。本机 docker.sock 等同宿主机 root，默认关闭。"
-                        + "仅系统管理员可打开；打开后立即生效，无需重启。私有化单机且已挂载 daemon socket，"
-                        + "或配置了带 TLS 的远程 tcp:// 时再启用。",
-                false, List.of(), Boolean.FALSE);
         spec("ssrf.whitelist", "string_list", "SSRF_WHITELIST", "security",
                 "SSRF 防护白名单。可填入 example.com / *.foo.com / 10.0.0.0/8 / 2001:db8::1。"
                         + "修改后立即生效。SSRF_WHITELIST_EXTRA 环境变量仍由部署方维护，不在此处覆盖。",

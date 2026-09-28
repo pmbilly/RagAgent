@@ -51,8 +51,8 @@ class AgentConstsTest {
 
     @Test
     void toolExecutionTimeoutTable() {
-        assertThat(AgentConsts.toolExecutionTimeout("shell_exec")).isEqualTo(Duration.ofSeconds(605));
         assertThat(AgentConsts.toolExecutionTimeout("web_fetch")).isEqualTo(Duration.ofSeconds(60));
+        assertThat(AgentConsts.toolExecutionTimeout("anything_else")).isEqualTo(Duration.ofSeconds(60));
     }
 
     @Test
@@ -76,15 +76,9 @@ class AgentConstsTest {
             {0, 4096}, {4096, 4096}, {24576, 24576}, {2048, 2048}, {-5, 4096},
         };
         for (int[] c : cases) {
-            assertThat(AgentBudgets.agentRoundMaxCompletionTokensFor(c[0], ""))
+            assertThat(AgentBudgets.agentRoundMaxCompletionTokens(c[0]))
                     .as("budget_%d_", c[0]).isEqualTo(c[1]);
         }
-        assertThat(AgentBudgets.agentRoundMaxCompletionTokensFor(0, "sbx-123")).isEqualTo(24576);
-        assertThat(AgentBudgets.agentRoundMaxCompletionTokensFor(4096, "sbx-123")).isEqualTo(8192);
-        assertThat(AgentBudgets.agentRoundMaxCompletionTokensFor(24576, "sbx-123")).isEqualTo(24576);
-        assertThat(AgentBudgets.agentRoundMaxCompletionTokensFor(100000, "sbx-123")).isEqualTo(100000);
-        assertThat(AgentBudgets.agentRoundMaxCompletionTokensFor(8191, "sbx-123")).isEqualTo(8192);
-        assertThat(AgentBudgets.agentRoundMaxCompletionTokensFor(8192, "sbx-123")).isEqualTo(8192);
     }
 
     @Test

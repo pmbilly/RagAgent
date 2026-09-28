@@ -1055,16 +1055,8 @@ public class RemoteApiChat implements LlmChatClient {
      *       + 本次有 arguments 增量 + 该 index 未通知过 + 已有 ID，才发一次；</li>
      *   <li>thinking 工具特例：arguments 里的 thought 字段用 {@link JsonFieldExtractor}
      *       增量抽出，按 thinking 分片下发（Data.source = "thinking_tool"）；</li>
-     *   <li>沙箱 write/edit 工具特例：arguments 增量喂给 {@link SandboxFileProgress} 抽取
-     *       行数进度，命中的 payload 作为 tool_call 事件的 {@code arguments} 附加字段——
-     *       首个"名字稳定"标记事件搭车一次（Go 在此之后把 progressArgs 置 nil），
-     *       后续进度走 else-if 分支独立成事件（对照 Go openai_stream.go:561-593）。</li>
      * </ol>
      *
-     * <p><b>沙箱文件进度</b>（原"未翻译"备案已消除，2026-09-23 接线）：Go 里沙箱写/编辑
-     * 工具的实时进度（sandbox_file_progress.go 的 {@code progressArgs}）会作为 tool_call
-     * 事件的 {@code arguments} 附加字段下发；Java 侧对应 {@link SandboxFileProgress}，
-     * 接线点就是下面两处 emit（与 Go 同构）。</p>
      */
     private void processToolCallsDelta(JsonNode toolCalls, OpenAiStreamState state,
                                        BlockingQueue<StreamResponse> streamChan) throws InterruptedException {
@@ -1127,29 +1119,13 @@ public class RemoteApiChat implements LlmChatClient {
             }
 
             String currName = entry.getFunction().getName();
-            // 沙箱文件进度（对照 Go openai_stream.go:561-571）：write/edit 工具且本 delta
-            // 带 arguments 时喂增量；payload 非空则搭在下面的 tool_call 事件上。
-            // （Go 的条件里 argsUpdated 与 tc.Function.Arguments != "" 本就同一件事，照抄冗余。）
-            Map<String, Object> progressArgs = null;
-            if (SandboxFileProgress.isSandboxMutationTool(currName) && argsUpdated && !argsDelta.isEmpty()) {
-                SandboxFileProgress prog = state.fileProgress.get(toolCallIndex);
-                if (prog == null) {
-                    prog = new SandboxFileProgress(currName);
-                    state.fileProgress.put(toolCallIndex, prog);
-                }
-                progressArgs = prog.feed(argsDelta);
-            }
-
             boolean nameStable = !currName.isEmpty()
                     && currName.equals(state.lastFunctionName.get(toolCallIndex));
             if (nameStable && argsUpdated
                     && !Boolean.TRUE.equals(state.nameNotified.get(toolCallIndex))
                     && !entry.getId().isEmpty()) {
-                streamChan.put(toolCallResponse(currName, entry.getId(), progressArgs));
+                streamChan.put(toolCallResponse(currName, entry.getId(), null));
                 state.nameNotified.put(toolCallIndex, true);
-                progressArgs = null;
-            } else if (progressArgs != null && !entry.getId().isEmpty() && !currName.isEmpty()) {
-                streamChan.put(toolCallResponse(currName, entry.getId(), progressArgs));
             }
 
             state.lastFunctionName.put(toolCallIndex, currName);

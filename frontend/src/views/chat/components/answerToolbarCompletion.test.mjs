@@ -23,38 +23,25 @@ test('agent actions reuse the fully-rendered answer state', () => {
   assert.match(agentStream, /v-if="answerFullyRendered && event\.done/)
 })
 
-test('artifact count is a top-right overlay instead of t-badge', () => {
-  assert.match(botMessage, /class="answer-toolbar__artifact"/)
-  assert.match(agentStream, /class="answer-toolbar__artifact"/)
-  assert.match(botMessage, /class="answer-toolbar__artifact-count"/)
-  assert.match(agentStream, /class="answer-toolbar__artifact-count"/)
-  assert.match(sharedStyles, /answer-toolbar__artifact-count/)
-  assert.match(sharedStyles, /position: absolute/)
-  assert.match(sharedStyles, /td-brand-color/)
-  assert.match(sharedStyles, /artifact-toolbar-arrive/)
-  assert.match(botMessage, /is-arrived': artifactArrived/)
-  assert.match(agentStream, /is-arrived': artifactArrived/)
-  assert.match(botMessage, /useArtifactArriveMotion/)
-  assert.match(agentStream, /useArtifactArriveMotion/)
-  assert.doesNotMatch(botMessage, /<t-badge/)
-  assert.doesNotMatch(agentStream, /<t-badge/)
+test('artifact toolbar renders only when the message recorded artifacts', () => {
+  assert.match(agentStream, /v-if="hasArtifacts" class="answer-toolbar__artifact"/)
+  assert.doesNotMatch(agentStream, /artifactsCollecting/)
+  assert.match(botMessage, /v-if="hasArtifacts" class="answer-toolbar__artifact"/)
+  assert.doesNotMatch(botMessage, /artifactsCollecting/)
 })
 
-test('artifact toolbar opens the sandbox panel artifacts tab', () => {
-  assert.match(botMessage, /sandboxPanel.open\('artifacts'/)
-  assert.match(agentStream, /sandboxPanel.open\('artifacts'/)
-  assert.match(botMessage, /v-if="hasArtifacts && embeddedMode"/)
-  assert.match(agentStream, /v-if="hasArtifacts && embeddedMode/)
+test('artifact toolbar opens the legacy drawer in both modes', () => {
+  assert.doesNotMatch(agentStream, /useChatSandboxPanel/)
+  assert.doesNotMatch(botMessage, /useChatSandboxPanel/)
+  assert.match(agentStream, /showArtifactDrawer\.value = true/)
+  assert.match(botMessage, /showArtifactDrawer\.value = true/)
 })
 
-test('artifact toolbar uses a folder icon and replaces it while collecting', () => {
-  assert.match(botMessage, /answer-toolbar__artifact[\s\S]{0,800}name="folder"/)
-  assert.match(agentStream, /answer-toolbar__artifact[\s\S]{0,800}name="folder"/)
-  assert.match(botMessage, /class="answer-toolbar__artifact-spinner"/)
-  assert.match(agentStream, /class="answer-toolbar__artifact-spinner"/)
-  assert.match(sharedStyles, /answer-toolbar-artifact-spin/)
-  assert.doesNotMatch(botMessage, /answer-toolbar__artifact[\s\S]{0,800}:loading=/)
-  assert.doesNotMatch(agentStream, /answer-toolbar__artifact[\s\S]{0,800}:loading=/)
+test('artifact toolbar uses a folder icon', () => {
+  assert.match(agentStream, /<t-icon name="folder" \/>/)
+  assert.match(botMessage, /<t-icon name="folder" \/>/)
+  assert.doesNotMatch(agentStream, /answer-toolbar__artifact-spinner/)
+  assert.doesNotMatch(botMessage, /answer-toolbar__artifact-spinner/)
 })
 
 test('follow-up loading is shown compactly inside both answer toolbars', () => {

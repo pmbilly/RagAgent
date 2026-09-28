@@ -40,7 +40,7 @@ public class DeploymentCapabilitiesHolder {
      */
     public void bind(boolean organizations, boolean agents, boolean im, boolean embed,
                      boolean api, boolean mcp, boolean webSearch, boolean vectorStore,
-                     boolean storage, boolean sandbox) {
+                     boolean storage) {
         boolean isLite = "lite".equalsIgnoreCase(edition());
         SystemDtos.DeploymentCapability organizationsCap =
                 SystemDtos.DeploymentCapability.notRegistered();
@@ -59,11 +59,6 @@ public class DeploymentCapabilitiesHolder {
         caps.put("integrations.im", capability(im));
         caps.put("organizations", organizationsCap);
         caps.put("settings.mcp", capability(mcp));
-        caps.put("settings.sandbox", capability(sandbox));
-        // 快照里的 docker 与 Go 同构：Sandbox && DockerBackendEnabled()；Java 无 docker 后端
-        caps.put("settings.sandbox.docker", sandbox
-                ? new SystemDtos.DeploymentCapability(false, "docker_backend_disabled")
-                : SystemDtos.DeploymentCapability.notRegistered());
         caps.put("settings.storage", capability(storage));
         caps.put("settings.vectorstore", capability(vectorStore));
         caps.put("settings.websearch", capability(webSearch));

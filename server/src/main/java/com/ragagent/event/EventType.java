@@ -74,7 +74,6 @@ public final class EventType {
     /** Agent 思考过程 */
     public static final String EVENT_AGENT_THOUGHT = "thought";
     /** 有界命令输出（累计尾量） */
-    public static final String EVENT_AGENT_COMMAND_OUTPUT = "command_output";
     /** 工具调用通知 */
     public static final String EVENT_AGENT_TOOL_CALL = "tool_call";
     /** 工具结果 */

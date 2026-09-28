@@ -24,11 +24,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * <h2>方法 vs 字段（§7.5 第 2 条）</h2>
  * <ul>
- *   <li>{@code UnlimitedIterations()}/{@code CitationsEnabled()}/{@code SkillInstallMode()}/
- *       {@code SkillInstallDir()} 在 Go 里是<b>方法</b> → Java 侧 {@code @JsonIgnore}；</li>
- *   <li>{@code skillInstallMode}/{@code skillInstallDir} 在 Go 里是<b>未导出字段</b>——
- *       JSON 到不了，唯一入口 {@link #enableSkillInstallMode(String, String, String)}
- *       （对照 EnableSkillInstallMode，只认内建技能安装 agent）。</li>
+ *   <li>{@code UnlimitedIterations()}/{@code CitationsEnabled()} 在 Go 里是<b>方法</b>
+ *       → Java 侧 {@code @JsonIgnore}；</li>
+ *   <li>技能安装模式族（skillInstallMode/SkillInstallDir/BuiltinSkillInstallerID）与
+ *       sandboxConfigId 随沙箱裁剪退役。</li>
  * </ul>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -40,9 +39,6 @@ public class AgentConfig {
      * {@link #unlimitedIterations()}）。对照 UnlimitedMaxIterations = -1。
      */
     public static final int UNLIMITED_MAX_ITERATIONS = -1;
-
-    /** 内建技能安装 agent 的 ID（对照 BuiltinSkillInstallerID）。 */
-    public static final String BUILTIN_SKILL_INSTALLER_ID = "builtin-skill-installer";
 
     // ---- 引擎消费的持久化字段（json tag 对照 Go）----
     @JsonProperty("max_iterations")
@@ -82,40 +78,6 @@ public class AgentConfig {
     /** 工具图片描述用的 VLM 模型 ID。 */
     @JsonIgnore
     private String vlmModelId = "";
-    /** 工作区沙箱配置 ID（skill 执行 + 补全预算放行用）。 */
-    @JsonIgnore
-    private String sandboxConfigId = "";
-
-    // ---- Go 未导出字段：JSON 不可达，唯一入口 enableSkillInstallMode ----
-    private boolean skillInstallMode;
-    private String skillInstallDir = "";
-
-    /**
-     * 对照 {@code EnableSkillInstallMode}：只把内建技能安装 agent 升进特权安装模式，
-     * 权限与目录一起授予（agentId 在这里校验，审计面只有这一处）。
-     */
-    public void enableSkillInstallMode(String agentId, String skillDir) {
-        if (agentId == null || !agentId.equals(BUILTIN_SKILL_INSTALLER_ID)) {
-            return;
-        }
-        this.skillInstallMode = true;
-        this.skillInstallDir = skillDir == null ? "" : skillDir;
-    }
-
-    /** 本轮是否可用特权安装 shell（对照 SkillInstallMode()，Go 方法 → @JsonIgnore）。 */
-    @JsonIgnore
-    public boolean isSkillInstallMode() {
-        return skillInstallMode;
-    }
-
-    /** 本轮可写的技能目录；非安装模式恒空串（对照 SkillInstallDir()，Go 方法）。 */
-    @JsonIgnore
-    public String getSkillInstallDir() {
-        if (!skillInstallMode) {
-            return "";
-        }
-        return skillInstallDir;
-    }
 
     /** ReAct 循环是否无轮次上限（对照 UnlimitedIterations()，Go 方法）。 */
     @JsonIgnore
@@ -164,6 +126,4 @@ public class AgentConfig {
     public void setChatModelSupportsVision(boolean v) { chatModelSupportsVision = v; }
     public String getVlmModelId() { return vlmModelId; }
     public void setVlmModelId(String v) { vlmModelId = v == null ? "" : v; }
-    public String getSandboxConfigId() { return sandboxConfigId; }
-    public void setSandboxConfigId(String v) { sandboxConfigId = v == null ? "" : v; }
 }

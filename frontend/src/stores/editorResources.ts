@@ -12,7 +12,7 @@ import {
   type SystemInfo,
 } from '@/api/system'
 import { listMCPServices, type MCPService } from '@/api/mcp-service'
-import { listSkillCatalog, listSkills, type SkillCatalogItem, type SkillInfo } from '@/api/skill'
+import { listSkills, type InstructionalSkillInfo } from '@/api/skills'
 import { getAgentTypePresets, getPlaceholders, type AgentTypePreset, type PlaceholdersResponse } from '@/api/agent'
 import { getTenantRetrievalConfig } from '@/api/retrieval'
 import { isStorageConfigDenied } from './storageEngineAccess'
@@ -44,7 +44,6 @@ type EditorResourceKey =
   | 'storageEngine'
   | 'mcpServices'
   | 'skills'
-  | 'skillCatalog'
   | 'agentTypePresets'
   | 'promptTemplates'
   | 'placeholders'
@@ -57,10 +56,8 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
   const storageStatus = ref<StorageEngineStatusItem[]>([])
   const storageAllowedProviders = ref<string[]>([])
   const mcpServices = ref<MCPService[]>([])
-  const skills = ref<SkillInfo[]>([])
+  const availableSkills = ref<InstructionalSkillInfo[]>([])
   const skillsAvailable = ref(false)
-  const skillsConfigId = ref('')
-  const skillCatalog = ref<SkillCatalogItem[]>([])
   const agentTypePresets = ref<AgentTypePreset[]>([])
   const promptTemplates = ref<PromptTemplatesConfig | null>(null)
   const placeholders = ref<PlaceholdersResponse | null>(null)
@@ -122,36 +119,17 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
     })
   }
 
-  async function ensureSkills(sandboxConfigId?: string, force = false): Promise<void> {
-    const configId = sandboxConfigId?.trim() || ''
-    if (configId !== skillsConfigId.value) {
-      force = true
-    }
+  async function ensureSkills(force = false): Promise<void> {
     return runOnce('skills', force, async () => {
-      skillsConfigId.value = configId
-      if (!configId) {
-        skillsAvailable.value = false
-        skills.value = []
-        loadedAt.value.skills = Date.now()
-        return
-      }
       try {
-        const skillsRes = await listSkills(configId)
+        const skillsRes = await listSkills()
         skillsAvailable.value = skillsRes.skills_available !== false
-        skills.value = skillsRes.data && skillsRes.data.length > 0 ? skillsRes.data : []
+        availableSkills.value = skillsRes.data && skillsRes.data.length > 0 ? skillsRes.data : []
       } catch {
         skillsAvailable.value = false
-        skills.value = []
+        availableSkills.value = []
       }
       loadedAt.value.skills = Date.now()
-    })
-  }
-
-  async function ensureSkillCatalog(force = false): Promise<void> {
-    return runOnce('skillCatalog', force, async () => {
-      const res = await listSkillCatalog()
-      skillCatalog.value = Array.isArray(res?.data) ? res.data : []
-      loadedAt.value.skillCatalog = Date.now()
     })
   }
 
@@ -222,10 +200,8 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
       storageStatus.value = []
       storageAllowedProviders.value = []
       mcpServices.value = []
-      skills.value = []
+      availableSkills.value = []
       skillsAvailable.value = false
-      skillsConfigId.value = ''
-      skillCatalog.value = []
       agentTypePresets.value = []
       promptTemplates.value = null
       placeholders.value = null
@@ -246,9 +222,8 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
     storageStatus,
     storageAllowedProviders,
     mcpServices,
-    skills,
+    availableSkills,
     skillsAvailable,
-    skillCatalog,
     agentTypePresets,
     promptTemplates,
     placeholders,
@@ -259,7 +234,6 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
     resolveUsableStorageProvider,
     ensureMcpServices,
     ensureSkills,
-    ensureSkillCatalog,
     ensureAgentTypePresets,
     ensurePromptTemplates,
     ensurePlaceholders,
