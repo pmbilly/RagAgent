@@ -16,11 +16,12 @@
 2. **产品未上线，无数据连续性负担**：schema 可直接做基线合并（见 §5 阶段 1）。
 3. **前端随后端逐步调整**：改契约的后端 PR 同 PR 带前端修改，不设集中适配期。
 4. **契约标准（阶段 2 目标形态）**：字段命名保留 snake_case（`@JsonNaming(SnakeCaseStrategy)` 是标准做法，不改 camelCase）；错误改 RFC 7807 Problem Details；时间用 jackson-datatype-jsr310（ISO-8601，`WRITE_DATES_AS_TIMESTAMPS=false`）；空值策略 `@JsonInclude(NON_NULL)`。
-5. **功能裁剪（2026-09-28 用户定稿，第一批）**：移除「**浏览器连接、沙箱、CLI、Chrome 插件、Claw Skill**」五项——对应后端 `browserskill` + `sandbox` 两包（**沙箱连带技能体系**：installer agent、镜像快照、shell_exec、沙箱文件四件套、PTY 终端、SKILL.md 装载）与前端 integrations 设置的 `cli`/`chrome`/`claw` 三个纯展示 tab（精确清单见 §6.1）。裁完后**聚焦知识库与 Agent 两个域的重构**（§5 阶段 2）。以下为**待排期可选项**（不在第一批，勿主动动手）：`org`（共享空间/跨租户授予）、`im`（九渠道）、`datasource`（连接器，28.3k 行零耦合）、`evaluation`、`favorite`；多引擎检索是否裁到 postgres 单引擎待议。保留：mcp、memory、embed、wiki、知识库/检索/会话主链路。
+5. **功能裁剪（2026-09-28 用户定稿，第一批）**：移除「**浏览器连接、沙箱、CLI、Chrome 插件、Claw Skill**」五项——对应后端 `browserskill` + `sandbox` 两包（沙箱执行面：installer agent、镜像快照、shell_exec、沙箱文件四件套、PTY 终端；**技能体系保留但降级为指令型**，见第 9 条）与前端 integrations 设置的 `cli`/`chrome`/`claw` 三个纯展示 tab（精确清单见 §6.1）。裁完后**聚焦知识库与 Agent 两个域的重构**（§5 阶段 2）。以下为**待排期可选项**（不在第一批，勿主动动手）：`org`（共享空间/跨租户授予）、`im`（九渠道）、`datasource`（连接器，28.3k 行零耦合）、`evaluation`、`favorite`；多引擎检索是否裁到 postgres 单引擎待议。保留：mcp、memory、embed、wiki、知识库/检索/会话主链路。
 6. **自研基础设施保留**：EventBus、StreamManager（Redis Stream）、chatpipeline 插件管线、ToolRegistry、各 Bridge——是架构不是技术债；阶段 4 只做多模块边界固化，不替换。
 7. **Go 兼容序列化层在阶段 2 删除**：`common/web` 下 `GoMapSerializer/GoDoubleSerializer/GoTimeSerializer/GoJsonEscapes` 等（约 110 个引用点回归标准 Jackson；目前 Controller 里还有大量手搓 `ObjectNode`，一并在阶段 3 收敛为 DTO 序列化）。
 8. **神类拆分有现成地图**：41 个千行大类的分段注释就是原 Go 文件边界，沿注释拆即可，不需要重新设计边界。
 9. **Agent 能力取舍已接受**：裁沙箱与浏览器连接后，Agent 剩余工具面 = 知识检索族 + wiki 十件 + web 两件 + MCP + DuckDB 数据分析（DataAnalysisTool 走独立 DuckDB 会话，初步判断不依赖沙箱，动手时验证）；browser skill 工具随 `browserskill` 一并消失。
+10. **技能降级为指令型（2026-09-28 定稿，选项 B）**：技能 = playbook——保留 SKILL.md 提示词注入路径（`agent/skills` 的 Skill/Loader/Manager + `AgentEngine.setSkillsManager` + agent config 的 `skills_selection_mode/selected_skills` 字段 + 前端技能选择器），模型凭指令用现有工具执行；**删除**镜像源（TenantSkillSource）、安装管线、shell/文件注入（范围见 §6.1③）；执行型扩展需求引导走 MCP。
 
 ## 3. 两条红线
 
@@ -63,12 +64,14 @@
 - 后端删整个 `browserskill/` 包：端点族为 `/api/v1/me/browser`（BrowserSkillAccountController）、`/api/v1/sessions/{id}/local-browser`（BrowserSkillSessionController）、BrowserSkillGatewayController；跨包引用仅 2 处——`agent/AgentConsts.java`（常量）、`session/controller/SessionController.java`
 - 前端删：`views/settings/BrowserConnectionSettings.vue`、`BrowserSearchPreferences.vue`（+测试）、`stores/browserConnection.ts`（+测试）、chat 的 `BrowserTaskPreview.vue`/`BrowserToolDetails.vue`、`AgentStreamDisplay.vue` 内 browser 工具展示分支、`Settings.vue` 导航项
 
-**③ 沙箱（sandbox，26.6k 行，连带技能体系）——量最大，8 个跨包引用文件**：
+**③ 沙箱（sandbox，26.6k 行）——量最大，8 个跨包引用文件；技能按选项 B 降级（§2 第 10 条）**：
 - `config/SandboxWiringConfig.java`（装配类，随沙箱整体删）
-- `agent/skills/TenantSkillSource.java`（技能的租户镜像源，技能体系随沙箱裁掉）
+- `agent/skills/TenantSkillSource.java`（租户**镜像**技能源，删；但 `Skill/Loader/Manager` 提示词注入路径**保留**）
 - `session/service/`：`SessionSandboxExecutionService`、`SessionTerminalService`、`TerminalBridge`、`InstallEngineFactoryImpl`、`SessionBoundArtifactSource`、`SessionAttachmentStagingService`
-- 连带清理：agent config 的 `sandboxConfigId/skillsEnabled/skill_selection_mode` 字段；`agentm/builtin_agents.yaml` 的 `builtin-skill-installer` 角色；system_settings 的 `sandbox.docker_enabled` 键；`SessionAgentQaService` 的 `holdSandboxTurn`/沙箱工具注册调用点；docker-java/远程沙箱（Cube/E2B）相关依赖与配置；前端 `SandboxSettings.vue`、`SkillSettings.vue` 及 ~61 个 skill 相关文件（以路由/菜单为准）
-- **待决点（做 PR3 前问用户）——技能体系去留**：技能分三层，仅提示词层（SKILL.md 元数据注入系统提示词，`AgentEngine.setSkillsManager`）不依赖沙箱；资源层投递与执行层（装依赖/镜像快照/shell_exec）全绑容器。选项：A) 全裁（技能选择器、`agent/skills` 整包随沙箱删）；B) **降级为指令型技能**（保留 Loader/Manager 提示词注入路径，裁 `TenantSkillSource` + 安装管线 + shell/文件注入，执行型需求引导走 MCP）；C) 换执行底座（≈换名字的沙箱，不建议）。
+- 技能侧连带删除：安装管线（`sandbox/service/SkillInstallPipelineImpl` 及快照/镜像指针切换/reaper 的镜像部分）、`Manager.prepareShellEnvironment`（shell 环境注入）与技能 staging 进 `/workspace` 的路径、安装器专用工具 `WriteSkillFileTool`/`EditSkillFileTool`、前端技能的**上传/安装/install-events SSE/transcript/reinstall/stop** 页面与 API
+- 技能侧保留：SKILL.md 加载与系统提示词注入、agent config 的 `skills_selection_mode/selected_skills`、前端技能**选择器**
+- 沙箱侧连带清理：agent config 的 `sandboxConfigId` 字段；`agentm/builtin_agents.yaml` 的 `builtin-skill-installer` 角色；system_settings 的 `sandbox.docker_enabled` 键；`SessionAgentQaService` 的 `holdSandboxTurn`/沙箱工具注册调用点；docker-java/远程沙箱（Cube/E2B）相关依赖与配置；前端 `SandboxSettings.vue`
+- **PR3 唯一设计项**：指令型技能的来源——内置静态 SKILL.md（classpath）或简化版 DB 目录（上传 bundle 只存档+注入，去掉"装依赖+验证+快照"步骤）；建议先做内置静态源跑通、DB 目录随后
 
 ### 6.2 待排期可选项（不在第一批，勿主动动手）
 
@@ -80,7 +83,7 @@
 
 - PR1：移除 CLI / Chrome插件 / Claw Skill 三个集成 tab（§6.1①，纯前端最小风险——顺便建立"裁一个功能 = 一个 PR（含测试/前端/i18n）"的节奏模板）。
 - PR2：移除浏览器连接（§6.1②，browserskill 后端包 + 前端设置页/chat 展示组件）。
-- PR3：移除沙箱 + 技能体系（§6.1③，量最大）。
+- PR3：移除沙箱、技能降级为指令型（§6.1③，量最大；唯一设计项=指令型技能来源）。
 - PR4：schema 基线合并（`V1__baseline.sql` = 当前 schema − 裁剪表，删 196 个增量迁移）+ 对比器改 JSON 语义对比 + fixture 重录。
 - 以上 PR 串行合入（红线 #2）；全部合入后进入阶段 2——**知识库域重构从 `KnowledgeService`（153 方法）拆分开局**，Agent 域从 `AgentEngine` 沿七段注释边界拆分跟进。
 
