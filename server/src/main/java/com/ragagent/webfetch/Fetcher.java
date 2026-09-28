@@ -181,7 +181,10 @@ public final class Fetcher {
             throw classifyHttpStatus(resp.statusCode());
         }
         byte[] body = resp.body();
-        if (markdown && body.length > maxBodySize) {
+        // 两种模式各自的上限都生效：pipeline fetcher（markdown=false）的 100KB 上限
+        // 曾被 markdown && 短路成死参数，任意大页面无内存上界（agent 模式 2MB 有检查，
+        // 二者不对称即为此 bug）。
+        if (body.length > maxBodySize) {
             throw new FetchException(Code0.BODY_TOO_LARGE, false,
                     "page exceeds the " + maxBodySize + " byte download limit");
         }
