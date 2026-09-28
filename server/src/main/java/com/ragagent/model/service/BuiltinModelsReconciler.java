@@ -145,19 +145,31 @@ public class BuiltinModelsReconciler implements ApplicationRunner {
         log.info("[builtin-models] applied: {} upserted, {} pruned from {}", applied, pruned, path);
     }
 
-    /** INSERT ... ON CONFLICT(id) DO UPDATE（对照 clause.OnConflict DoUpdates 列集） */
+    /**
+     * INSERT ... ON CONFLICT(id) DO UPDATE（对照 clause.OnConflict DoUpdates 列集）。
+     * 更新路径不携带 created_at：MyBatis-Plus 非空字段全量 SET，实体的 createdAt
+     * 恒为 now，会把已存在行的 created_at 每次启动改写（Go 的 DOUpdates 列集不含它）。
+     */
     private void upsert(Model m) {
         com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Model> uw =
                 new UpdateWrapper<Model>().eq("id", m.getId());
-        // MyBatis-Plus 无原生 upsert：先按 id 尝试更新，影响 0 行则插入（PK 冲突兜底）
-        // 并发安全由 PK 唯一约束保证：插入冲突时重试更新
-        int updated = modelMapper.update(m, uw);
-        if (updated == 0) {
-            try {
-                modelMapper.insert(m);
-            } catch (org.springframework.dao.DuplicateKeyException ex) {
-                modelMapper.update(m, new UpdateWrapper<Model>().eq("id", m.getId()));
+        OffsetDateTime createdAt = m.getCreatedAt();
+        m.setCreatedAt(null);
+        try {
+            // MyBatis-Plus 无原生 upsert：先按 id 尝试更新，影响 0 行则插入（PK 冲突兜底）
+            // 并发安全由 PK 唯一约束保证：插入冲突时重试更新
+            int updated = modelMapper.update(m, uw);
+            if (updated == 0) {
+                m.setCreatedAt(createdAt);
+                try {
+                    modelMapper.insert(m);
+                } catch (org.springframework.dao.DuplicateKeyException ex) {
+                    m.setCreatedAt(null);
+                    modelMapper.update(m, new UpdateWrapper<Model>().eq("id", m.getId()));
+                }
             }
+        } finally {
+            m.setCreatedAt(createdAt);
         }
     }
 
@@ -225,8 +237,4 @@ public class BuiltinModelsReconciler implements ApplicationRunner {
         return Boolean.TRUE.equals(v);
     }
 
-    /** id 生成占位：保持与 ModelService 的 UUID 语义一致（YAML 条目自带 id，不走这里） */
-    static String newId() {
-        return UUID.randomUUID().toString();
-    }
 }
