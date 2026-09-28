@@ -73,10 +73,10 @@
 - 沙箱侧连带清理：agent config 的 `sandboxConfigId` 字段；`agentm/builtin_agents.yaml` 的 `builtin-skill-installer` 角色；system_settings 的 `sandbox.docker_enabled` 键；`SessionAgentQaService` 的 `holdSandboxTurn`/沙箱工具注册调用点；docker-java/远程沙箱（Cube/E2B）相关依赖与配置；前端 `SandboxSettings.vue`
 - **PR3 唯一设计项**：指令型技能的来源——内置静态 SKILL.md（classpath）或简化版 DB 目录（上传 bundle 只存档+注入，去掉"装依赖+验证+快照"步骤）；建议先做内置静态源跑通、DB 目录随后
 
-### 6.2 待排期可选项（不在第一批，勿主动动手）
+### 6.2 可选裁剪项状态
 
+- `org`（空间分享）：**已完成裁撤（2026-09-29，d4d63e0）**——org 包、KB/Agent shares 端点族、跨租户开关（enableCrossTenantAccess）、租户目录发现面（/tenants/all|search）、共享七表（V1__baseline 第二版）；保留面：同空间成员管理、/auth/invitations、个人多空间切换。AgentResolver 已改本租户直查；AgentResponses 内联 agentConfigMap。
 - `datasource` / `evaluation` / `favorite`：**零外部引用**，随时可纯删（datasource 前端在 KB 设置面板 `views/knowledge/settings/DataSource*.vue`）。
-- `org`（6 个跨包引用）：`agentm/service/CustomAgentService`、`agentm/dto/AgentResponses`、`session/service/AgentResolver`（共享优先回落改直查 own）、`session/controller/KnowledgeQaController`、`knowledge/service/SharedAgentAccessResolver`、`wiki/controller/WikiPageController`；连带 KB/Agent shares 端点族、跨租户开关（`TenantProperties.enableCrossTenantAccess`）、embed 渠道绑定共享 agent 的校验。
 - `im`（1 个跨包引用）：`config/ImAdapterWiringConfig.java`（+ im 包内回调 controller 自删）+ 前端渠道设置页（integrations 的 `im` tab）。
 
 ## 7. 阶段 1 执行记录（2026-09-29 完成）与下一周任务
