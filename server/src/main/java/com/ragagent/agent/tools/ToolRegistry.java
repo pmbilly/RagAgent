@@ -492,6 +492,7 @@ public class ToolRegistry {
                         tool.gate, tool.authWaitTimeoutSeconds, tool.tenantId);
                 bound.registeredName = McpCatalog.mcpRegisteredName(tool);
                 bound.serverInstructions = tool.serverInstructions;
+                bound.withOAuthWaiter(tool.oauthWaiter());
                 registerTool(new McpRegisteredTool(bound, c, McpCatalog.mcpToolRef(tool)));
                 deferred.put(ToolDefinitions.TOOL_CALL_MCP_TOOL, false);
             }

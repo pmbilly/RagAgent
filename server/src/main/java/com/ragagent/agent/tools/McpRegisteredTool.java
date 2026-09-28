@@ -20,6 +20,7 @@ public class McpRegisteredTool extends McpToolWrapper implements McpCatalogGuard
                 bound.tenantId);
         this.registeredName = bound.registeredName;
         this.serverInstructions = bound.serverInstructions;
+        this.withOAuthWaiter(bound.oauthWaiter());
         this.catalog = catalog;
         this.ref = ref;
     }

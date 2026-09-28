@@ -33,7 +33,7 @@ import com.ragagent.agent.domain.ToolResult;
  * schema/系统列检查）。Go 侧 pg_query 的 parse 错误文案差异见 SqlGuard 文档；
  * DuckDB driver 错误文案（1.5.2 vs 1.1.3）差异列报告（已知差异⑮）。</p>
  */
-public class DataAnalysisTool extends BaseTool {
+public class DataAnalysisTool extends BaseTool implements Cleanable {
 
     /** schema 字节即契约：Go 实录 {@code utils.GenerateSchema[DataAnalysisInput]()}（探针 _schema 语料）。 */
     private static final String SCHEMA_JSON = """

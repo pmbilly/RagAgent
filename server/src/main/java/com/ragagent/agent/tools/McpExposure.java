@@ -198,6 +198,10 @@ public final class McpExposure {
                 McpToolWrapper tool = new McpToolWrapper(service, definition, mcpManager, gate,
                         authWaitTimeoutSeconds, tenantId);
                 tool.serverInstructions = dir.instructions();
+                // OAuth 等待门必须随工具装配：缺了它，OAuth 型 MCP 服务在 agent 回合内
+                // 永远无法弹授权提示并等待用户完成授权（waitForMcpOauthAuthorization
+                // 在 waiter==null 时直接放弃）。
+                tool.withOAuthWaiter(waiter);
                 tools.add(tool);
             }
             return tools;

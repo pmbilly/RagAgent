@@ -93,6 +93,7 @@ public class AgentToolBackends {
     private final WikiPageService wikiPageService;
     private final com.ragagent.websearch.service.WebSearchService webSearchService;
     private final com.ragagent.auth.service.TenantService tenantService;
+    private final com.ragagent.knowledge.service.TenantFileStorage fileStorage;
     private final JdbcTemplate jdbc;
 
     public AgentToolBackends(KnowledgeBaseService kbService,
@@ -105,6 +106,7 @@ public class AgentToolBackends {
                              WikiPageService wikiPageService,
                              com.ragagent.websearch.service.WebSearchService webSearchService,
                              com.ragagent.auth.service.TenantService tenantService,
+                             com.ragagent.knowledge.service.TenantFileStorage fileStorage,
                              DataSource dataSource) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
@@ -116,6 +118,7 @@ public class AgentToolBackends {
         this.wikiPageService = wikiPageService;
         this.webSearchService = webSearchService;
         this.tenantService = tenantService;
+        this.fileStorage = fileStorage;
         this.jdbc = new JdbcTemplate(dataSource);
     }
 
@@ -162,8 +165,61 @@ public class AgentToolBackends {
                 }
                 yield tool;
             }
+            case com.ragagent.agent.tools.ToolDefinitions.TOOL_DATA_ANALYSIS ->
+                // 对照 Go NewDataAnalysisTool(knowledgeService, fileService, db, sessionID)
+                // + WithSearchTargets：三个 seam 的生产实现（2026-09-28 评审接线——
+                // 此前 UI 可选但 switch 无 case，工具永远注册不上）
+                createDataAnalysisTool(targets, sessionId);
             default -> null;
         };
+    }
+
+    /**
+     * data_analysis 工具的构造面（对照 agent_service.go 的 data_analysis 构造点）：
+     * KnowledgeLoader = GetKnowledgeByIDOnly（无租户过滤，scope 由 WithSearchTargets
+     * 把守）；Materializer = FileService.GetFile + 临时文件（扩展名取 file_path）；
+     * DuckDB = 进程内共享内存连接。
+     */
+    private com.ragagent.agent.tools.AgentTool createDataAnalysisTool(
+            SearchTarget.SearchTargets targets, String sessionId) {
+        com.ragagent.agent.tools.DataAnalysisTool tool =
+                new com.ragagent.agent.tools.DataAnalysisTool(
+                        knowledgeId -> {
+                            Knowledge k = knowledgeService.getKnowledgeByIdOnly(knowledgeId);
+                            if (k == null) {
+                                return null;
+                            }
+                            return new com.ragagent.agent.tools.DataAnalysisTool.KnowledgeData(
+                                    k.getId(), k.getKnowledgeBaseId(),
+                                    k.getTenantId() == null ? 0L : k.getTenantId(),
+                                    k.getFileType(), k.getFilePath());
+                        },
+                        knowledge -> materializeKnowledgeFile(knowledge),
+                        com.ragagent.agent.tools.AnalysisDuckDbJdbc.get(),
+                        sessionId);
+        if (targets != null) {
+            tool.withSearchTargets(targets);
+        }
+        return tool;
+    }
+
+    /** 对照 materializeKnowledgeFile：知识文件 → 带正确扩展名的本地临时文件（用后即删）。 */
+    private java.nio.file.Path materializeKnowledgeFile(
+            com.ragagent.agent.tools.DataAnalysisTool.KnowledgeData knowledge) {
+        if (knowledge == null || knowledge.filePath() == null || knowledge.filePath().isEmpty()) {
+            throw new IllegalArgumentException("knowledge file path is empty");
+        }
+        byte[] content = fileStorage.read(knowledge.tenantId(), knowledge.filePath());
+        String path = knowledge.filePath();
+        int dot = path.lastIndexOf('.');
+        String ext = dot >= 0 ? path.substring(dot) : "";
+        try {
+            java.nio.file.Path tmp = java.nio.file.Files.createTempFile("data-analysis-", ext);
+            java.nio.file.Files.write(tmp, content);
+            return tmp;
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("failed to materialize knowledge file: " + e.getMessage(), e);
+        }
     }
 
     // ==================================================================
