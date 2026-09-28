@@ -72,9 +72,6 @@ public class SteerRunCoordinator {
             QaSupport.SseStreamContext prevStreamCtx, FollowUpLauncher launcher) {
         QaSupport.QaRequestContext followUp = claimNextSteerFollowUp(prevReqCtx, prevStreamCtx);
         if (followUp == null) {
-            followUp = claimNextSteerFollowUp(prevReqCtx, prevStreamCtx);
-        }
-        if (followUp == null) {
             return false;
         }
         launcher.launch(followUp);

@@ -234,6 +234,39 @@ public class TemporaryDocumentService {
         return SUPPORTED_EXTENSIONS.contains(ext);
     }
 
+    /**
+     * 内联 base64 图片（QA 请求 images[].data）的落盘（对照 Go saveImageAttachments
+     * 的本地盘 dev 形态）：按魔数嗅探扩展名后存入附件存储，返回 {@code local://} 引用。
+     * 引用由 ImageResolver 直接解析成字节进 vision，也随用户消息落库供历史渲染。
+     */
+    public String saveInlineImageBytes(long tenantId, byte[] data) {
+        return fileStore.saveBytes(data, tenantId, "inline-image" + imageExtensionOf(data));
+    }
+
+    /** 按魔数嗅探图片扩展名（png/jpeg/gif/webp/bmp），未知回落 .png。 */
+    static String imageExtensionOf(byte[] d) {
+        if (d == null || d.length < 12) {
+            return ".png";
+        }
+        if ((d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G') {
+            return ".png";
+        }
+        if ((d[0] & 0xFF) == 0xFF && (d[1] & 0xFF) == 0xD8 && (d[2] & 0xFF) == 0xFF) {
+            return ".jpg";
+        }
+        if (d[0] == 'G' && d[1] == 'I' && d[2] == 'F') {
+            return ".gif";
+        }
+        if (d[0] == 'R' && d[1] == 'I' && d[2] == 'F' && d[3] == 'F'
+                && d[8] == 'W' && d[9] == 'E' && d[10] == 'B' && d[11] == 'P') {
+            return ".webp";
+        }
+        if ((d[0] & 0xFF) == 0x42 && (d[1] & 0xFF) == 0x4D) {
+            return ".bmp";
+        }
+        return ".png";
+    }
+
     // ── 查询 / 删除 / 打开 ──────────────────────────────
 
     public TemporaryDocument get(long tenantId, String sessionId, String documentId) {

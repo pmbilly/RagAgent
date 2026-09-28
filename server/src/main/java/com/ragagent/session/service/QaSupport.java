@@ -530,5 +530,11 @@ public final class QaSupport {
         public String quotedContext = "";
         public List<com.ragagent.session.domain.MessageAttachment> attachments = new ArrayList<>();
         public SteerSink steerSink;
+        /**
+         * 用户停止（stop）的取消探针（对照 Go 的 ctx 取消贯穿）：null=存活；
+         * 非 null 时返回 null=未取消、非 null=取消错误原文——与引擎
+         * {@code setCancellationSource(Supplier)} 的契约一致。
+         */
+        public java.util.function.Supplier<String> cancellationProbe;
     }
 }

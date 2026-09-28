@@ -1492,6 +1492,10 @@ public class SessionKnowledgeQaService {
         StringBuilder finalContent = new StringBuilder();
         boolean streamCompleted = false;
         var decoder = modelContext.streamDecoder();
+        // 生产者异常/中断时不投终态元素（RemoteApiChat 的 catch-return 路径）——
+        // 无上限的 poll 空转每次回退泄漏一个自旋虚拟线程。连续空读超时即收束
+        // （主流路径 takeQuietly 120s 同款兜底思想）。
+        int emptyPolls = 0;
 
         while (true) {
             StreamResponse response;
@@ -1502,8 +1506,14 @@ public class SessionKnowledgeQaService {
                 break;
             }
             if (response == null) {
+                if (++emptyPolls >= 120) {
+                    log.warn("fallback stream produced no terminal frame after {}s, giving up",
+                            emptyPolls);
+                    break;
+                }
                 continue; // Java 无 channel 关闭：done 收束约定由生产者保证
             }
+            emptyPolls = 0;
             if (response.getResponseType() == ResponseType.ANSWER) {
                 String content = decoder.feed(response.getContent());
                 if (response.isDone()) {

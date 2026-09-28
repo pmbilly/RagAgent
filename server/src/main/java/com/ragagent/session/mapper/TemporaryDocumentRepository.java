@@ -94,19 +94,23 @@ public class TemporaryDocumentRepository {
                 .set(TemporaryDocument::getErrorMessage, message));
     }
 
-    /** 对照 Go DeleteScoped：软删（gorm DeletedAt）。 */
     /** 对照 Go ListExpired（temporary_document.go L73-77）：expires_at <= before，按时间升序。 */
     public List<TemporaryDocument> listExpired(OffsetDateTime before, int limit) {
         return mapper.selectList(new LambdaQueryWrapper<TemporaryDocument>()
                 .le(TemporaryDocument::getExpiresAt, before)
+                // 软删后行仍在表里：不过滤会把已删行反复扫出来，清理循环死转
+                .isNull(TemporaryDocument::getDeletedAt)
                 .orderByAsc(TemporaryDocument::getExpiresAt)
                 .last("LIMIT " + limit));
     }
 
+    /** 对照 Go DeleteScoped：软删（gorm DeletedAt）——此前是物理 DELETE，行直接消失。 */
     public void deleteScoped(long tenantId, String sessionId, String documentId) {
-        mapper.delete(new LambdaQueryWrapper<TemporaryDocument>()
+        mapper.update(null, new LambdaUpdateWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)
                 .eq(TemporaryDocument::getSessionId, sessionId)
-                .eq(TemporaryDocument::getId, documentId));
+                .eq(TemporaryDocument::getId, documentId)
+                .isNull(TemporaryDocument::getDeletedAt)
+                .set(TemporaryDocument::getDeletedAt, OffsetDateTime.now()));
     }
 }

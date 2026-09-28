@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -28,7 +29,6 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventType;
-import com.ragagent.event.AgentQueryData;
 import com.ragagent.event.AgentThoughtData;
 import com.ragagent.event.AgentToolCallData;
 import com.ragagent.event.AgentToolResultData;
@@ -126,6 +126,7 @@ public class KnowledgeQaController {
     private final com.ragagent.storageurl.FileService fileService;
     private final com.ragagent.storageurl.StorageBackendResolver storageBackendResolver;
     private final com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring;
+    private final com.ragagent.memory.service.MemoryExtractionService memoryExtraction;
 
     public KnowledgeQaController(SessionService sessionService,
             MessageService messageService,
@@ -139,7 +140,8 @@ public class KnowledgeQaController {
             com.ragagent.session.sse.SseFrameWriter sseFrameWriter,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.storageurl.FileService> fileService,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.storageurl.StorageBackendResolver> storageBackendResolver,
-            com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring) {
+            com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring,
+            org.springframework.beans.factory.ObjectProvider<com.ragagent.memory.service.MemoryExtractionService> memoryExtraction) {
         this.sessionService = sessionService;
         this.messageService = messageService;
         this.streamManager = streamManager;
@@ -155,6 +157,7 @@ public class KnowledgeQaController {
         // 缺 bean 时 Rewriter 按 Go 的 nil 分支降级（handle 模式同形）
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
+        this.memoryExtraction = memoryExtraction.getIfAvailable();
     }
 
     // ── 端点（qa.go L790-964） ───────────────────────────────────────────────
@@ -385,29 +388,66 @@ public class KnowledgeQaController {
             throw BizException.badRequest("Local browser requires an agent with tool calling enabled");
         }
 
-        // 内联 base64 图片
+        // 内联 base64 图片（对照 Go saveImageAttachments：落盘后回填 URL，消息/检索/VLM
+        // 三处消费同一引用；SSRF 已在上方清空客户端 url/caption）
         if (!request.images().isEmpty()) {
             if (rc.agentConfig == null || !rc.agentConfig.path("image_upload_enabled").asBoolean(false)) {
                 log.warn("[{}] Image upload is not enabled for this agent, rejecting {} images",
                         logPrefix, request.images().size());
                 throw BizException.badRequest("Image upload is not enabled for this agent");
             }
-            // 保存与 VLM 分析的落盘形态同 Go dev（本地盘）；对象存储 provider 未配置时
-            // Go 同样走本地盘兜底。此处仅登记图片（SSE 起流后的异步段消费 URL）。
+            long tenantId = rc.session.getTenantId();
             for (var img : request.images()) {
                 QaSupport.QaRequestsImage view = new QaSupport.QaRequestsImage();
-                view.data = img.data;
+                if (img.data != null && !img.data.isEmpty()) {
+                    byte[] bytes;
+                    try {
+                        bytes = Base64Support.decode(img.data);
+                    } catch (RuntimeException e) {
+                        throw BizException.badRequest("image decode failed: " + e.getMessage());
+                    }
+                    if (bytes.length == 0) {
+                        throw BizException.badRequest("image decode failed: empty payload");
+                    }
+                    if (bytes.length > maxFileBytes()) {
+                        throw BizException.badRequest(
+                                "image exceeds size limit of " + maxFileBytes() + " bytes");
+                    }
+                    try {
+                        view.url = temporaryDocuments.saveInlineImageBytes(tenantId, bytes);
+                    } catch (RuntimeException e) {
+                        throw BizException.internal("failed to save image: " + e.getMessage());
+                    }
+                }
                 rc.images.add(view);
             }
         }
 
-        // 内联附件（base64 直传）
+        // 内联附件（base64 直传，对照 Go：落临时附件表后走既有的 attachment_ids 解析链）
         if (!request.attachmentUploads().isEmpty()) {
             decodeAndValidateAttachmentUploads(request.attachmentUploads(),
                     QaSupport.MAX_ATTACHMENT_UPLOADS_PER_REQUEST,
                     maxFileBytes(),
                     QaSupport.MAX_ATTACHMENT_UPLOAD_TOTAL_BYTES);
-            throw BizException.badRequest("attachment processing failed: attachment storage is not wired");
+            long tenantId = rc.session.getTenantId();
+            int i = 1;
+            for (var up : request.attachmentUploads()) {
+                byte[] data;
+                try {
+                    data = Base64Support.decode(up.data);
+                } catch (RuntimeException e) {
+                    throw BizException.badRequest("attachment " + i + " decode failed: " + e.getMessage());
+                }
+                try {
+                    TemporaryDocument doc = temporaryDocuments.create(tenantId, sessionId,
+                            up.fileName == null || up.fileName.isEmpty() ? "attachment-" + i : up.fileName,
+                            "", up.fileSize, data);
+                    rc.attachmentIDs.add(doc.getId());
+                } catch (IllegalArgumentException e) {
+                    throw BizException.badRequest("attachment " + i + ": " + e.getMessage());
+                }
+                i++;
+            }
         }
 
         // 预上传附件：只取元数据（内容在 SSE 起流后解析）
@@ -653,6 +693,15 @@ public class KnowledgeQaController {
 
     private void executeQA(QaRequestContext reqCtx, QaMode mode, boolean generateTitle,
             HttpServletResponse response) throws IOException {
+        executeQA(reqCtx, mode, generateTitle, response, null);
+    }
+
+    /**
+     * @param asyncDone skipSSE 调用方（steer follow-up）的完成信号：异步 runner 收尾后
+     *                  complete；HTTP 调用方传 null。对照 Go 的 asyncDone channel。
+     */
+    private void executeQA(QaRequestContext reqCtx, QaMode mode, boolean generateTitle,
+            HttpServletResponse response, CompletableFuture<Void> asyncDone) throws IOException {
         String sessionId = reqCtx.sessionId;
 
         // 输入条状态（纯 UI memo）异步写：新虚拟线程没有 ThreadLocal——纪律 #1
@@ -680,20 +729,9 @@ public class KnowledgeQaController {
             }
         }
 
-        // agent 模式：消息创建前发 agent_query 事件
-        if (mode == QaMode.AGENT) {
-            Event evt = new Event();
-            evt.setType(EventType.EVENT_AGENT_QUERY);
-            evt.setSessionId(sessionId);
-            evt.setRequestId(reqCtx.requestId);
-            evt.setData(new AgentQueryData(sessionId, reqCtx.query, reqCtx.requestId, new LinkedHashMap<>()));
-            try {
-                new EventBus().emit(evt);
-            } catch (RuntimeException e) {
-                log.error("Failed to emit agent query event: {}", e.toString());
-                return;
-            }
-        }
+        // agent 模式的 query 帧由 setupSSEStream 内的 writeAgentQueryEvent 直写流
+        // （helpers.go L418-440）。这里不再向空 EventBus 发事件：该实例无任何订阅者，
+        // 纯 no-op（Go 的 Emit(agent.query) 有 middleware 面才需要）。
 
         boolean createdUser = reqCtx.userMessageID.isEmpty();
         boolean createdAssistant = reqCtx.assistantMessage == null || reqCtx.assistantMessage.getId().isEmpty();
@@ -791,6 +829,9 @@ public class KnowledgeQaController {
                 com.ragagent.session.service.SessionLookupScope.mark();
                 resolveTemporaryAttachments(streamCtx, reqCtx);
                 QaSupport.QaRequest qaReq = reqCtx.buildQaRequest();
+                // 用户停止 → 引擎取消（Go 的 ctx 取消贯穿 think/act/审批等待三条路）：
+                // 探针读 streamCtx.cancelled（stop 处理器置位），语义 null=未取消。
+                qaReq.cancellationProbe = () -> streamCtx.cancelled ? "context canceled" : null;
                 if (mode == QaMode.NORMAL) {
                     knowledgeQaService.knowledgeQA(qaReq, streamCtx.eventBus);
                 } else {
@@ -854,10 +895,17 @@ public class KnowledgeQaController {
                 // 收尾（含身份相关的库写）完成后再清线程上下文
                 TenantContext.clear();
                 com.ragagent.session.service.SessionLookupScope.clear();
+                if (asyncDone != null) {
+                    asyncDone.complete(null);
+                }
             }
         });
 
-        // 主线程阻塞推 SSE
+        // 主线程阻塞推 SSE（skipSSE 的 follow-up 无 HTTP 响应体：不推流，
+        // 由 executeQaInternal 的 asyncDone.join() 等异步段收尾，对照 Go L1315-1318）
+        if (response == null) {
+            return;
+        }
         boolean shouldWaitForTitle = generateTitle && reqCtx.session.getTitle() != null
                 && reqCtx.session.getTitle().isEmpty();
         handleAgentEventsForSSE(response, sessionId, reqCtx.assistantMessage.getId(), reqCtx.requestId,
@@ -869,26 +917,54 @@ public class KnowledgeQaController {
         Thread.ofVirtual().start(() -> {
             try {
                 executeQaInternal(followUp, QaMode.AGENT, false, null);
-            } catch (IOException e) {
-                log.error("steer follow-up run failed: {}", e.toString());
+            } catch (Throwable e) {
+                // follow-up 失败必须自救：claimNextSteerFollowUp 已落 user/assistant 两行并
+                // 抢占 live-run，异常路径若不清理会把这个会话的 agent 模式持续 409 锁死。
+                log.error("steer follow-up run failed: {}", e.toString(), e);
+                recoverFailedFollowUp(followUp);
             }
         });
+    }
+
+    /** follow-up 启动失败的兜底：收尾半成品 assistant 行 + 清 live-run（尽力而为）。 */
+    private void recoverFailedFollowUp(QaRequestContext followUp) {
+        try {
+            String amId = followUp.assistantMessage == null ? "" : followUp.assistantMessage.getId();
+            long sessionTenant = followUp.session == null ? 0 : followUp.session.getTenantId();
+            if (followUp.assistantMessage != null && !amId.isEmpty() && sessionTenant != 0) {
+                runWithTenant(sessionTenant, () -> completeAssistantMessage(
+                        followUp.assistantMessage, followUp.query, followUp.userMessageID, sessionTenant));
+            }
+        } catch (RuntimeException e) {
+            log.warn("follow-up completion recovery failed: {}", e.toString());
+        }
+        try {
+            String amId = followUp.assistantMessage == null ? "" : followUp.assistantMessage.getId();
+            if (!amId.isEmpty()) {
+                streamManager.clearLiveRun(followUp.sessionId, amId);
+            }
+        } catch (RuntimeException e) {
+            log.warn("follow-up live-run cleanup failed for session {}: {}",
+                    followUp.sessionId, e.toString());
+        }
     }
 
     private void executeQaInternal(QaRequestContext reqCtx, QaMode mode, boolean generateTitle,
             HttpServletResponse response) throws IOException {
         if (response == null) {
             // skipSSE 路径：等待异步段完成后返回（Go L1315-1318 的 <-asyncDone）
-            executeQACommon(reqCtx, mode, generateTitle, null);
+            CompletableFuture<Void> asyncDone = new CompletableFuture<>();
+            try {
+                executeQA(reqCtx, mode, generateTitle, null, asyncDone);
+            } catch (RuntimeException | IOException e) {
+                // runner 未起就失败：放行等待者，异常交给 runFollowUp 的 recover 路径
+                asyncDone.complete(null);
+                throw e;
+            }
+            asyncDone.join();
             return;
         }
-        executeQACommon(reqCtx, mode, generateTitle, response);
-    }
-
-    private void executeQACommon(QaRequestContext reqCtx, QaMode mode, boolean generateTitle,
-            HttpServletResponse response) throws IOException {
-        // 简化执行体：与 executeQA 共享（本批 follow-up 仅走 agent 分支的复刻）
-        throw new UnsupportedOperationException("superseded by executeQA");
+        executeQA(reqCtx, mode, generateTitle, response, null);
     }
 
     // 曾有的 errorEventText（剥 BizException 取 appError().message()）已删除：
@@ -1604,6 +1680,16 @@ public class KnowledgeQaController {
                     com.ragagent.session.service.SessionLookupScope.clear();
                 }
             });
+        }
+        // 记忆自动蒸馏调度（Go 的 QA 收尾 ScheduleExtraction 点）：enabledScope 读当前
+        // 租户上下文（调用方已 runWithTenant），model_id 沿 assistant 行取。
+        if (memoryExtraction != null) {
+            try {
+                memoryExtraction.scheduleExtraction(sessionId, amId,
+                        assistantMessage.getModelId() == null ? "" : assistantMessage.getModelId());
+            } catch (RuntimeException e) {
+                log.warn("memory extraction scheduling failed for session {}: {}", sessionId, e.toString());
+            }
         }
     }
 
