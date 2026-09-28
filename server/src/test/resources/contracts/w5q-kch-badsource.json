@@ -1,1 +1,0 @@
-{"error":{"code":1000,"details":null,"message":"json: cannot unmarshal string into Go struct field CreateKnowledgeQARequest.agent_source_tenant_id of type uint64"},"success":false}

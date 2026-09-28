@@ -50,9 +50,8 @@ public class RbacInterceptor implements HandlerInterceptor {
      * <p>后三者是不同语义，别混：{@code orSystemAdmin} 是"租户角色达标**或**系统管理员"（放行条件），
      * {@code sysAdminOnly} 是"必须是系统管理员"（限定条件，对照 Go 的 {@code SystemAdmin()}）。
      * 用前者表达后者会把租户 Owner 也放进来。
-     * {@code crossTenant} 对照 Go 的 {@code RequireCrossTenantAccess}（middleware/access.go
-     * L110-141）：命中即改走"flag + CanAccessAllTenants"判定，**不看角色、不受
-     * EnableRBAC 调制、不写拒绝审计**（Go 原文明确 "NOT modulated by EnableRBAC"）。</p>
+     * （历史注记：{@code crossTenant} 曾对照 Go 的 RequireCrossTenantAccess；
+     * 随空间分享裁撤，无规则再置位，判定分支已移除。）</p>
      */
     public record Rule(String method, String pattern, TenantRole minRole, boolean orSystemAdmin,
                        boolean sysAdminOnly, boolean crossTenant) {}
@@ -123,10 +122,6 @@ public class RbacInterceptor implements HandlerInterceptor {
      * 跨空间守卫（对照 Go 的 {@code g.CrossTenant()} → RequireCrossTenantAccess）。
      * 用于 GET /tenants/all、GET /tenants/search：minRole 字段不适用（占位 VIEWER）。
      */
-    public RbacInterceptor addCrossTenantRule(String method, String pattern) {
-        rules.add(new Rule(method, pattern, TenantRole.VIEWER, false, false, true));
-        return this;
-    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -147,24 +142,6 @@ public class RbacInterceptor implements HandlerInterceptor {
         Rule rule = match(request.getMethod(), request.getRequestURI());
         if (rule == null) {
             // 未声明路由：对照 Go 该组默认无守卫时不拦截（API-key default-deny 属 APIKeyGate，未翻译）
-            return true;
-        }
-        if (rule.crossTenant()) {
-            // 对照 RequireCrossTenantAccess：API-Key 主体（平台/租户 Key）已在 preHandle
-            // 顶部短路——Key 侧的目录读由 APIKeyRoutePolicies 的 catalogRead 能力门管，
-            // 这里只管 web 用户。flag 关闭 → 403 "disabled"；非超管 → 403 "Insufficient
-            // permissions"。刻意不走 EnableRBAC 放行、不写拒绝审计（Go 原文如此）。
-            if (!tenantProperties.enableCrossTenantAccess()) {
-                log.warn("[rbac] cross-tenant route blocked (EnableCrossTenantAccess=false): user={} path={}",
-                        TenantContext.currentUserId(), request.getRequestURI());
-                throw new BizException(AppError.forbidden("Cross-workspace access is disabled"));
-            }
-            if (!TenantContext.canAccessAllTenants()) {
-                log.warn("[rbac] cross-tenant route blocked (not a superuser): user={} path={}",
-                        TenantContext.currentUserId(), request.getRequestURI());
-                throw new BizException(AppError.forbidden(
-                        "Insufficient permissions for cross-workspace operation"));
-            }
             return true;
         }
         if (check(rule)) {
@@ -265,9 +242,6 @@ public class RbacInterceptor implements HandlerInterceptor {
         if (role.hasPermission(rule.minRole())) {
             return true;
         }
-        if (tenantProperties.enableCrossTenantAccess() && TenantContext.canAccessAllTenants()) {
-            return true;
-        }
         if (!tenantProperties.isRbacEnforced()) {
             log.warn("[rbac] role insufficient (logged but not enforced): user={} have={} need={}",
                     TenantContext.currentUserId(), role.value(), rule.minRole().value());
@@ -333,9 +307,6 @@ public class RbacInterceptor implements HandlerInterceptor {
         com.ragagent.apikey.domain.TenantAPIKeyScope keyScope =
                 com.ragagent.apikey.domain.APIKeyScopeContext.current();
         if (keyScope != null && keyScope.isPlatform()) {
-            return true;
-        }
-        if (tenantProperties.enableCrossTenantAccess() && TenantContext.canAccessAllTenants()) {
             return true;
         }
         log.warn("[rbac] path-tenant-match rejected: user={} ctx_tenant={} path_tenant={} path={}",

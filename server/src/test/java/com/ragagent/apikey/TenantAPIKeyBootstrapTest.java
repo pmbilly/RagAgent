@@ -82,11 +82,8 @@ class TenantAPIKeyBootstrapTest {
 
     @Test
     void platformTenantOptionalApiTenantCatalogRules() {
-        assertThat(APIKeyAuthChannel.isPlatformTenantOptionalApi("/api/v1/tenants/all", "GET")).isTrue();
-        assertThat(APIKeyAuthChannel.isPlatformTenantOptionalApi("/api/v1/tenants/search", "GET")).isTrue();
         assertThat(APIKeyAuthChannel.isPlatformTenantOptionalApi("/api/v1/tenants", "POST")).isTrue();
         // 方法不匹配 / 其它租户路由都不放行
-        assertThat(APIKeyAuthChannel.isPlatformTenantOptionalApi("/api/v1/tenants/all", "POST")).isFalse();
         assertThat(APIKeyAuthChannel.isPlatformTenantOptionalApi("/api/v1/tenants/42", "GET")).isFalse();
         assertThat(APIKeyAuthChannel.isPlatformTenantOptionalApi("/api/v1/tenants/42/api-keys", "GET")).isFalse();
         assertThat(APIKeyAuthChannel.isPlatformTenantOptionalApi(null, "GET")).isFalse();

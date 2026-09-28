@@ -427,8 +427,7 @@ public class AuthController {
                         user.getEmail(), activeTenantId, e.toString());
             }
         }
-        UserInfo userInfo = UserInfo.from(user,
-                user.isCanAccessAllTenants() && tenantProperties.enableCrossTenantAccess());
+        UserInfo userInfo = UserInfo.from(user, user.isCanAccessAllTenants());
         List<Membership> memberships = userService.buildLoginMemberships(user, tenant);
         boolean canCreateTenant = user.isCanAccessAllTenants()
                 || resolveTenantSelfServiceCreationEnabled();

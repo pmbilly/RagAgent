@@ -868,7 +868,6 @@ import type { FormRules, FormInstanceFunctions } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useOrganizationStore } from '@/stores/organization'
 import {
   listFAQEntries,
   upsertFAQEntries,
@@ -936,17 +935,16 @@ const { t } = useI18n()
 const router = useRouter()
 const uiStore = useUIStore()
 const authStore = useAuthStore()
-const orgStore = useOrganizationStore()
 
-// Permission control: check if current user owns this KB or has edit/manage permission.
+// Permission control: check if current user owns this KB or is tenant Admin+.
 //
 // isOwner used to compare kbInfo.tenant_id against the user's effective tenant id,
 // which silently treated "any KB visible to me in my current tenant" as "I created
 // it" — Viewer / Contributor in their home tenant ended up showing every FAQ
 // CRUD entry on every KB and 403'ing when they clicked. Mirror the rule we settled
-// on in KnowledgeBase.vue: explicit creator_id match, with role / org-share fallbacks
-// inside canEdit / canManage. Legacy KBs with empty creator_id stay tenant-owned
-// (Admin+ may manage).
+// on in KnowledgeBase.vue: explicit creator_id match, with the Admin+ role
+// fallback inside canEdit / canManage. Legacy KBs with empty creator_id stay
+// tenant-owned (Admin+ may manage).
 const isOwner = computed(() => {
   if (!kbInfo.value) return false
   const creatorId = (kbInfo.value as any).creator_id || ''
@@ -955,39 +953,16 @@ const isOwner = computed(() => {
   return creatorId === userId
 })
 
-// Current KB's shared record (when accessed via organization share)
-const currentSharedKb = computed(() =>
-  orgStore.sharedKnowledgeBases.find((s) => s.knowledge_base?.id === props.kbId) ?? null,
-)
-
-// Accessed via organization share: presence in the sharedKnowledgeBases list
-// means we reached this KB through a shared space, so the user's local tenant
-// role is irrelevant — only the share grant counts. tenant_id comparison
-// alone is unreliable (a user can be a member of both source and receiving
-// tenants); share-list presence is the authoritative signal.
-const isViaShare = computed(() => !!currentSharedKb.value)
-
-// Can edit: when accessed via an organization share, ONLY the share grant
-// counts — even if the current user happens to be the original creator of
-// the KB. The backend's RBAC middleware authorizes based on the active
-// tenant, not on creator_id, so a creator viewing their own KB from a
-// different tenant context will be 403'd on write. Otherwise: KB creator
-// (any role) or tenant Admin+ in the home tenant.
+// Can edit: KB creator (any role) or tenant Admin+ in the home tenant.
 const canEdit = computed(() => {
-  if (isViaShare.value) return orgStore.canEditKB(props.kbId, false)
   if (isOwner.value) return true
-  if (authStore.hasRole('admin')) return true
-  return orgStore.canEditKB(props.kbId, false)
+  return authStore.hasRole('admin')
 })
 
-// Can manage (delete, settings, share): same isViaShare-first rule. For
-// shared KBs only an 'admin' share grant qualifies — editor/viewer (and
-// even being the creator viewed via share) never grant delete/settings.
+// Can manage (delete, settings): same rule as canEdit.
 const canManage = computed(() => {
-  if (isViaShare.value) return orgStore.canManageKB(props.kbId, false)
   if (isOwner.value) return true
-  if (authStore.hasRole('admin')) return true
-  return orgStore.canManageKB(props.kbId, false)
+  return authStore.hasRole('admin')
 })
 
 const canSelectEntries = computed(() => canEdit.value || canManage.value)
@@ -1173,26 +1148,11 @@ const loadKnowledgeInfo = async (kbId: string) => {
 const loadKnowledgeList = async () => {
   try {
     const res: any = await listKnowledgeBases()
-    const myKbs: typeof knowledgeList.value = (res?.data || []).map((item: any) => ({
+    knowledgeList.value = (res?.data || []).map((item: any) => ({
       id: String(item.id),
       name: item.name,
       type: item.type,
     }))
-
-    // Also include shared knowledge bases from orgStore
-    const sharedKbs: typeof knowledgeList.value = (orgStore.sharedKnowledgeBases || [])
-      .filter(s => s.knowledge_base != null)
-      .map(s => ({
-        id: String(s.knowledge_base.id),
-        name: s.knowledge_base.name,
-        type: s.knowledge_base.type,
-      }))
-
-    // Merge and deduplicate by id (my KBs take precedence)
-    const myKbIds = new Set(myKbs.map(kb => kb.id))
-    const uniqueSharedKbs = sharedKbs.filter(kb => !myKbIds.has(kb.id))
-
-    knowledgeList.value = [...myKbs, ...uniqueSharedKbs]
   } catch (error) {
     console.error('Failed to load knowledge bases:', error)
   }
@@ -2818,8 +2778,6 @@ const handleResize = () => {
 }
 
 onMounted(async () => {
-  // Ensure shared knowledge bases are loaded before loading the knowledge list
-  orgStore.fetchSharedKnowledgeBases()
   loadKnowledgeList()
   window.addEventListener('resize', handleResize)
   // 如果已有kbId，恢复导入任务状态

@@ -214,15 +214,6 @@ class TenantCatalogContractTest {
                         .header("Authorization", sysTok), 200, "ct-unset-autokey.json");
     }
 
-    // ════════════════ 2) 跨空间守卫（flag-on 的非超管 403） ════════════════
-
-    @Test
-    void crossTenantGuardsMatchGo() throws Exception {
-        assertGolden(get("/api/v1/tenants/all").header("Authorization", viewerTok),
-                403, "ct-all-nonsuper.json");
-        assertGolden(get("/api/v1/tenants/search").header("Authorization", viewerTok),
-                403, "ct-search-nonsuper.json");
-    }
 
     // ════════════════ 3) KV 分发器：unsupported / prompt-templates / 权限门 ═
 

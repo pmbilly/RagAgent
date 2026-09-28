@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * - enableRbac：指针语义（Go *bool），null → 默认 true（对照 IsRBACEnforced：
  *   "operator did not opt out" 即为强制）。env: WEKNORA_TENANT_ENABLE_RBAC
- * - enableCrossTenantAccess：默认 false。env: WEKNORA_TENANT_ENABLE_CROSS_TENANT_ACCESS
+ * - enableCrossTenantAccess：随空间分享裁撤（跨租户授予链已退役）。
  * - selfServiceCreationEnabled：指针语义，null → 默认 true
  *   （对照 TenantConfig.IsSelfServiceCreationEnabled）。
  *   env: WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED
@@ -18,7 +18,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "weknora.tenant")
 public record TenantProperties(
         Boolean enableRbac,
-        boolean enableCrossTenantAccess,
         Boolean selfServiceCreationEnabled,
         Integer maxOwnedPerUser) {
 
@@ -27,18 +26,11 @@ public record TenantProperties(
      * 走默认 bean 实例化找无参构造，启动即 NoSuchMethodException）。
      */
     @org.springframework.boot.context.properties.bind.ConstructorBinding
-    public TenantProperties(Boolean enableRbac, boolean enableCrossTenantAccess,
+    public TenantProperties(Boolean enableRbac,
                             Boolean selfServiceCreationEnabled, Integer maxOwnedPerUser) {
         this.enableRbac = enableRbac;
-        this.enableCrossTenantAccess = enableCrossTenantAccess;
         this.selfServiceCreationEnabled = selfServiceCreationEnabled;
         this.maxOwnedPerUser = maxOwnedPerUser;
-    }
-
-    /** 兼容旧三参构造（maxOwnedPerUser 缺省 null）。 */
-    public TenantProperties(Boolean enableRbac, boolean enableCrossTenantAccess,
-                            Boolean selfServiceCreationEnabled) {
-        this(enableRbac, enableCrossTenantAccess, selfServiceCreationEnabled, null);
     }
 
     /** 对照 TenantConfig.IsRBACEnforced：null 视为 true */

@@ -1,7 +1,7 @@
 <template>
   <div class="agent-list-container">
     <ListSpaceSidebar v-if="!authStore.isLiteMode" v-model="spaceSelection" :count-all="allAgentsCount"
-      :count-mine="agents.length" :count-by-org="effectiveSharedCountByOrg" :count-favorites="agentFavoritesCount"
+      :count-mine="agents.length" :count-favorites="agentFavoritesCount"
       :count-recents="agentRecentsCount" />
     <div class="agent-list-content">
       <div class="header" style="--wails-draggable: drag">
@@ -64,8 +64,7 @@
         <div
           v-if="(spaceSelection === 'all' || spaceSelection === 'favorites' || spaceSelection === 'recents') && filteredAgents.length > 0"
           class="agent-card-wrap">
-          <template v-for="(agent, index) in filteredAgents"
-            :key="agent.isMine ? agent.id : `shared-${agent.share_id}`">
+          <template v-for="(agent, index) in filteredAgents" :key="agent.id">
             <!-- 内置：始终置顶。filteredAgents 在 all 视图里已经把
                  builtin 排到最前；这里只在第一张 builtin 之前打一次标题。 -->
             <div v-if="showShareGroupHeaders
@@ -121,43 +120,10 @@
               <t-icon class="agent-section-toggle"
                 :name="isAgentSectionCollapsed('tenantOthers') ? 'chevron-right' : 'chevron-down'" size="14px" />
             </div>
-            <!-- 共享给我 · 可编辑：仅在「全部」视图过渡处显示分组标题 -->
-            <div v-if="showShareGroupHeaders
-              && !agent.isMine
-              && isSharedAgentEditable((agent as any).permission)
-              && (index === 0 || filteredAgents[index - 1].isMine)" class="agent-section-header" role="button"
-              tabindex="0" @click="toggleAgentSection('sharedEditable')"
-              @keydown.enter.prevent="toggleAgentSection('sharedEditable')"
-              @keydown.space.prevent="toggleAgentSection('sharedEditable')">
-              <t-icon name="usergroup-add" size="14px" />
-              <t-icon name="edit-1" size="12px" class="agent-section-subicon" />
-              <span>{{ $t('agent.sections.sharedEditable') }}</span>
-              <span class="agent-section-count">{{ filteredAgentSectionCounts.sharedEditable }}</span>
-              <t-icon class="agent-section-toggle"
-                :name="isAgentSectionCollapsed('sharedEditable') ? 'chevron-right' : 'chevron-down'" size="14px" />
-            </div>
-            <!-- 共享给我 · 仅查看 -->
-            <div v-if="showShareGroupHeaders
-              && !agent.isMine
-              && !isSharedAgentEditable((agent as any).permission)
-              && (index === 0
-                || filteredAgents[index - 1].isMine
-                || isSharedAgentEditable((filteredAgents[index - 1] as any).permission))" class="agent-section-header"
-              role="button" tabindex="0" @click="toggleAgentSection('sharedReadonly')"
-              @keydown.enter.prevent="toggleAgentSection('sharedReadonly')"
-              @keydown.space.prevent="toggleAgentSection('sharedReadonly')">
-              <t-icon name="usergroup-add" size="14px" />
-              <t-icon name="browse" size="12px" class="agent-section-subicon" />
-              <span>{{ $t('agent.sections.sharedReadonly') }}</span>
-              <span class="agent-section-count">{{ filteredAgentSectionCounts.sharedReadonly }}</span>
-              <t-icon class="agent-section-toggle"
-                :name="isAgentSectionCollapsed('sharedReadonly') ? 'chevron-right' : 'chevron-down'" size="14px" />
-            </div>
             <div v-show="!isAgentRowHidden(agent)" class="agent-card" :class="{
               'is-builtin': agent.is_builtin,
               'agent-mode-normal': agent.config?.agent_mode === 'quick-answer',
-              'agent-mode-agent': agent.config?.agent_mode === 'smart-reasoning',
-              'shared-agent-card': !agent.isMine
+              'agent-mode-agent': agent.config?.agent_mode === 'smart-reasoning'
             }" @click="handleCardClick(agent)">
               <!-- 装饰星星 -->
               <div class="card-decoration">
@@ -195,7 +161,7 @@
                   <span class="card-title" :title="agent.name">{{ agent.name }}</span>
                 </div>
                 <t-popup
-                  v-if="agent.isMine && (canManageAgent(agent) || authStore.hasRole('contributor') || authStore.hasRole('admin'))"
+                  v-if="canManageAgent(agent) || authStore.hasRole('contributor') || authStore.hasRole('admin')"
                   :visible="openMoreAgentId === agent.id" trigger="hover" overlayClassName="card-more-popup"
                   destroy-on-close placement="bottom-right" @visible-change="onVisibleChange"
                   @update:visible="(v: boolean) => { if (!v) openMoreAgentId = null }">
@@ -210,31 +176,9 @@
                       <div v-if="authStore.hasRole('contributor')" class="popup-menu-item" @click="handleCopy(agent)">
                         <t-icon class="menu-icon" name="file-copy" /><span>{{ $t('common.copy') }}</span>
                       </div>
-                      <div v-if="authStore.hasRole('admin')" class="popup-menu-item"
-                        @click="handleToggleDisabled(agent)">
-                        <t-icon class="menu-icon" name="poweroff" />
-                        <span>{{ agent.disabled_by_me ? $t('agent.enable') : $t('agent.disable') }}</span>
-                      </div>
                       <div v-if="!agent.is_builtin && canManageAgent(agent)" class="popup-menu-item delete"
                         @click="handleDelete(agent)"><t-icon class="menu-icon" name="delete" /><span>{{
                           $t('common.delete') }}</span></div>
-                    </div>
-                  </template>
-                </t-popup>
-                <t-popup v-else-if="!agent.isMine && authStore.hasRole('admin')"
-                  :visible="openMoreAgentId === 'shared-' + agent.share_id" trigger="hover"
-                  overlayClassName="card-more-popup" destroy-on-close placement="bottom-right"
-                  @update:visible="(v: boolean) => { if (!v) openMoreAgentId = null }">
-                  <div class="more-wrap" :class="{ 'active-more': openMoreAgentId === 'shared-' + agent.share_id }"
-                    @click.stop="toggleMore($event, 'shared-' + agent.share_id)">
-                    <img class="more-icon" src="@/assets/img/more.png" alt="" />
-                  </div>
-                  <template #content>
-                    <div class="popup-menu">
-                      <div class="popup-menu-item" @click="handleToggleSharedDisabled(agent)">
-                        <t-icon class="menu-icon" name="poweroff" />
-                        <span>{{ agent.disabled_by_me ? $t('agent.enable') : $t('agent.disable') }}</span>
-                      </div>
                     </div>
                   </template>
                 </t-popup>
@@ -245,12 +189,8 @@
               <div class="card-bottom">
                 <div class="bottom-left">
                   <div class="feature-badges">
-                    <t-tag v-if="agent.isMine && agent.disabled_by_me" theme="default" size="small"
-                      class="disabled-badge">{{
-                        $t('agent.disabled') }}</t-tag>
-                    <t-tag v-if="!agent.isMine && agent.disabled_by_me" theme="default" size="small"
-                      class="disabled-badge">{{
-                        $t('agent.disabled') }}</t-tag>
+                    <t-tag v-if="agent.disabled_by_me" theme="default" size="small" class="disabled-badge">{{
+                      $t('agent.disabled') }}</t-tag>
                     <t-tooltip
                       :content="agent.config?.agent_mode === 'smart-reasoning' ? $t('agent.mode.agent') : $t('agent.mode.normal')"
                       placement="top">
@@ -291,12 +231,8 @@
                     </t-tooltip>
                   </div>
                 </div>
-                <!-- 右下角：内置 / 来源徽章 / 空间图标+名称 -->
-                <div v-if="!agent.isMine" class="card-bottom-source">
-                  <img src="@/assets/img/organization-green.svg" class="org-icon" alt="" aria-hidden="true" />
-                  <span class="org-source-text">{{ agent.org_name }}</span>
-                </div>
-                <div v-else-if="showAgentBuiltinBadge(agent)" class="builtin-badge">
+                <!-- 右下角：内置 / 来源徽章 -->
+                <div v-if="showAgentBuiltinBadge(agent)" class="builtin-badge">
                   <t-icon name="lock-on" size="12px" />
                   <span>{{ $t('agent.builtin') }}</span>
                 </div>
@@ -414,11 +350,6 @@
                         <t-icon class="menu-icon" name="file-copy" />
                         <span>{{ $t('common.copy') }}</span>
                       </div>
-                      <div v-if="authStore.hasRole('admin')" class="popup-menu-item"
-                        @click="handleToggleDisabled(agent)">
-                        <t-icon class="menu-icon" name="poweroff" />
-                        <span>{{ agent.disabled_by_me ? $t('agent.enable') : $t('agent.disable') }}</span>
-                      </div>
                       <div v-if="!agent.is_builtin && canManageAgent(agent)" class="popup-menu-item delete"
                         @click="handleDelete(agent)">
                         <t-icon class="menu-icon" name="delete" />
@@ -494,147 +425,6 @@
           </template>
         </div>
 
-        <!-- 按空间筛选：该空间内全部智能体（含我共享的） -->
-        <div v-if="spaceSelectionOrgId && spaceAgentsLoading" class="agent-list-main-loading">
-          <t-loading size="medium" text="" />
-        </div>
-        <div v-else-if="spaceSelectionOrgId && sortedSpaceAgentsList.length > 0" class="agent-card-wrap">
-          <template v-for="(shared, index) in sortedSpaceAgentsList" :key="'shared-' + shared.share_id">
-            <!-- 我共享的：当前用户共享进本空间的智能体，只在首条 is_mine 上挂标题 -->
-            <div v-if="showShareGroupHeaders && shared.is_mine && index === 0" class="agent-section-header"
-              role="button" tabindex="0" @click="toggleAgentSection('sharedByMe')"
-              @keydown.enter.prevent="toggleAgentSection('sharedByMe')"
-              @keydown.space.prevent="toggleAgentSection('sharedByMe')">
-              <t-icon name="share" size="14px" />
-              <span>{{ $t('agent.sections.sharedByMe') }}</span>
-              <span class="agent-section-count">{{ spaceAgentSectionCounts.sharedByMe }}</span>
-              <t-icon class="agent-section-toggle"
-                :name="isAgentSectionCollapsed('sharedByMe') ? 'chevron-right' : 'chevron-down'" size="14px" />
-            </div>
-            <!-- 共享给我 · 可编辑：首次从 is_mine 进入共享 + editable -->
-            <div v-if="showShareGroupHeaders
-              && !shared.is_mine
-              && isSharedAgentEditable(shared.permission)
-              && (index === 0 || sortedSpaceAgentsList[index - 1].is_mine)" class="agent-section-header" role="button"
-              tabindex="0" @click="toggleAgentSection('sharedEditable')"
-              @keydown.enter.prevent="toggleAgentSection('sharedEditable')"
-              @keydown.space.prevent="toggleAgentSection('sharedEditable')">
-              <t-icon name="usergroup-add" size="14px" />
-              <t-icon name="edit-1" size="12px" class="agent-section-subicon" />
-              <span>{{ $t('agent.sections.sharedEditable') }}</span>
-              <span class="agent-section-count">{{ spaceAgentSectionCounts.sharedEditable }}</span>
-              <t-icon class="agent-section-toggle"
-                :name="isAgentSectionCollapsed('sharedEditable') ? 'chevron-right' : 'chevron-down'" size="14px" />
-            </div>
-            <!-- 共享给我 · 仅查看：首次从可编辑 / is_mine 进入 viewer -->
-            <div v-if="showShareGroupHeaders
-              && !shared.is_mine
-              && !isSharedAgentEditable(shared.permission)
-              && (index === 0
-                || sortedSpaceAgentsList[index - 1].is_mine
-                || isSharedAgentEditable(sortedSpaceAgentsList[index - 1].permission))" class="agent-section-header"
-              role="button" tabindex="0" @click="toggleAgentSection('sharedReadonly')"
-              @keydown.enter.prevent="toggleAgentSection('sharedReadonly')"
-              @keydown.space.prevent="toggleAgentSection('sharedReadonly')">
-              <t-icon name="usergroup-add" size="14px" />
-              <t-icon name="browse" size="12px" class="agent-section-subicon" />
-              <span>{{ $t('agent.sections.sharedReadonly') }}</span>
-              <span class="agent-section-count">{{ spaceAgentSectionCounts.sharedReadonly }}</span>
-              <t-icon class="agent-section-toggle"
-                :name="isAgentSectionCollapsed('sharedReadonly') ? 'chevron-right' : 'chevron-down'" size="14px" />
-            </div>
-            <div v-show="!isSpaceAgentCollapsed(shared)" class="agent-card shared-agent-card" :class="{
-              'agent-mode-normal': shared.agent?.config?.agent_mode === 'quick-answer',
-              'agent-mode-agent': shared.agent?.config?.agent_mode === 'smart-reasoning'
-            }" @click="handleSpaceAgentCardClick(shared)">
-              <div class="card-decoration">
-                <svg class="star-icon" width="24" height="24" viewBox="0 0 20 20" fill="none"
-                  xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M10 3L10.8 6.2C10.9 6.7 11.3 7.1 11.8 7.2L15 8L11.8 8.8C11.3 8.9 10.9 9.3 10.8 9.8L10 13L9.2 9.8C9.1 9.3 8.7 8.9 8.2 8.8L5 8L8.2 7.2C8.7 7.1 9.1 6.7 9.2 6.2L10 3Z"
-                    stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"
-                    fill="currentColor" fill-opacity="0.15" />
-                </svg>
-                <svg class="star-icon small" width="14" height="14" viewBox="0 0 20 20" fill="none"
-                  xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M10 3L10.8 6.2C10.9 6.7 11.3 7.1 11.8 7.2L15 8L11.8 8.8C11.3 8.9 10.9 9.3 10.8 9.8L10 13L9.2 9.8C9.1 9.3 8.7 8.9 8.2 8.8L5 8L8.2 7.2C8.7 7.1 9.1 6.7 9.2 6.2L10 3Z"
-                    stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"
-                    fill="currentColor" fill-opacity="0.15" />
-                </svg>
-              </div>
-              <div class="card-header">
-                <div class="card-header-left">
-                  <div v-if="shared.agent?.avatar" class="builtin-avatar agent-emoji">{{ shared.agent.avatar }}</div>
-                  <AgentAvatar v-else :name="shared.agent?.name" size="small" />
-                  <span class="card-title" :title="shared.agent?.name">{{ shared.agent?.name }}</span>
-                </div>
-                <t-popup v-if="!shared.is_mine && authStore.hasRole('admin')"
-                  :visible="openMoreAgentId === 'shared-tab-' + shared.share_id" trigger="hover"
-                  overlayClassName="card-more-popup" destroy-on-close placement="bottom-right"
-                  @update:visible="(v: boolean) => { if (!v) openMoreAgentId = null }">
-                  <div class="more-wrap" :class="{ 'active-more': openMoreAgentId === 'shared-tab-' + shared.share_id }"
-                    @click.stop="toggleMore($event, 'shared-tab-' + shared.share_id)">
-                    <img class="more-icon" src="@/assets/img/more.png" alt="" />
-                  </div>
-                  <template #content>
-                    <div class="popup-menu">
-                      <div class="popup-menu-item" @click="handleToggleSharedDisabledFromShared(shared)">
-                        <t-icon class="menu-icon" name="poweroff" />
-                        <span>{{ shared.disabled_by_me ? $t('agent.enable') : $t('agent.disable') }}</span>
-                      </div>
-                    </div>
-                  </template>
-                </t-popup>
-              </div>
-              <div class="card-content">
-                <div class="card-description">{{ shared.agent?.description || $t('agent.noDescription') }}</div>
-              </div>
-              <div class="card-bottom">
-                <div class="bottom-left">
-                  <div class="feature-badges">
-                    <t-tag v-if="shared.disabled_by_me" theme="default" size="small" class="disabled-badge">{{
-                      $t('agent.disabled') }}</t-tag>
-                    <t-tooltip
-                      :content="shared.agent?.config?.agent_mode === 'smart-reasoning' ? $t('agent.mode.agent') : $t('agent.mode.normal')"
-                      placement="top">
-                      <div class="feature-badge"
-                        :class="{ 'mode-normal': shared.agent?.config?.agent_mode === 'quick-answer', 'mode-agent': shared.agent?.config?.agent_mode === 'smart-reasoning' }">
-                        <t-icon
-                          :name="shared.agent?.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
-                          size="14px" />
-                      </div>
-                    </t-tooltip>
-                    <t-tooltip v-if="shared.agent?.config?.web_search_enabled" :content="$t('agent.features.webSearch')"
-                      placement="top">
-                      <div class="feature-badge web-search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"
-                          xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2" fill="none" />
-                          <ellipse cx="8" cy="8" rx="2.5" ry="6" stroke="currentColor" stroke-width="1.2" fill="none" />
-                          <line x1="2" y1="6" x2="14" y2="6" stroke="currentColor" stroke-width="1.2" />
-                          <line x1="2" y1="10" x2="14" y2="10" stroke="currentColor" stroke-width="1.2" />
-                        </svg></div>
-                    </t-tooltip>
-                    <t-tooltip
-                      v-if="shared.agent?.config?.knowledge_bases?.length || shared.agent?.config?.kb_selection_mode === 'all'"
-                      :content="$t('agent.features.knowledgeBase')" placement="top">
-                      <div class="feature-badge knowledge"><t-icon name="folder" size="16px" /></div>
-                    </t-tooltip>
-                    <t-tooltip
-                      v-if="shared.agent?.config?.mcp_services?.length || shared.agent?.config?.mcp_selection_mode === 'all'"
-                      :content="$t('agent.features.mcp')" placement="top">
-                      <div class="feature-badge mcp"><t-icon name="extension" size="16px" /></div>
-                    </t-tooltip>
-                    <t-tooltip v-if="shared.agent?.config?.multi_turn_enabled" :content="$t('agent.features.multiTurn')"
-                      placement="top">
-                      <div class="feature-badge multi-turn"><t-icon name="chat-bubble" size="16px" /></div>
-                    </t-tooltip>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
 
         <!-- 空状态：全部（保留创建 CTA） -->
         <div v-if="spaceSelection === 'all' && filteredAgents.length === 0 && !loading" class="empty-state">
@@ -706,12 +496,6 @@
             <span>{{ $t('agent.createAgent') }}</span>
           </t-button>
         </div>
-        <!-- 空状态：空间下 -->
-        <div v-if="spaceSelectionOrgId && !spaceAgentsLoading && spaceAgentsList.length === 0" class="empty-state">
-          <img class="empty-img" src="@/assets/img/upload.svg" alt="">
-          <span class="empty-txt">{{ $t('agent.empty.sharedTitle') }}</span>
-          <span class="empty-desc">{{ $t('agent.empty.sharedDescription') }}</span>
-        </div>
       </div>
     </div>
 
@@ -733,72 +517,6 @@
       </div>
     </t-dialog>
 
-    <!-- 共享智能体详情侧边栏 -->
-    <Transition name="shared-detail-drawer">
-      <div v-if="sharedDetailVisible && currentSharedAgent" class="shared-detail-drawer-overlay"
-        @click.self="closeSharedAgentDetail">
-        <div class="shared-detail-drawer">
-          <div class="shared-detail-drawer-header">
-            <h3 class="shared-detail-drawer-title">{{ $t('agent.detail.title') }}</h3>
-            <button type="button" class="shared-detail-drawer-close" @click="closeSharedAgentDetail"
-              :aria-label="$t('general.close')">
-              <t-icon name="close" />
-            </button>
-          </div>
-          <div class="shared-detail-drawer-body">
-            <div class="shared-detail-row">
-              <span class="shared-detail-label">{{ $t('agent.editor.name') }}</span>
-              <span class="shared-detail-value">{{ currentSharedAgent.agent?.name }}</span>
-            </div>
-            <div class="shared-detail-row">
-              <span class="shared-detail-label">{{ $t('knowledgeList.detail.sourceOrg') }}</span>
-              <span class="shared-detail-value shared-detail-org">
-                <img src="@/assets/img/organization-green.svg" class="shared-detail-org-icon" alt=""
-                  aria-hidden="true" />
-                <span>{{ currentSharedAgent.org_name }}</span>
-              </span>
-            </div>
-            <div class="shared-detail-row">
-              <span class="shared-detail-label">{{ $t('knowledgeList.detail.myPermission') }}</span>
-              <span class="shared-detail-value">{{ $t('organization.share.permissionReadonly') }}</span>
-            </div>
-            <!-- 能力范围（与共享范围说明一致） -->
-            <template v-if="currentSharedAgent.agent?.config">
-              <div class="shared-detail-section-title">{{ $t('agent.shareScope.title') }}</div>
-              <div class="shared-detail-row">
-                <span class="shared-detail-label">{{ $t('agent.shareScope.knowledgeBase') }}</span>
-                <span class="shared-detail-value">{{ sharedAgentKbScopeText }}</span>
-              </div>
-              <div class="shared-detail-row">
-                <span class="shared-detail-label">{{ $t('agent.shareScope.chatModel') }}</span>
-                <span class="shared-detail-value">{{ currentSharedAgent.agent.config.model_id ?
-                  $t('agent.shareScope.modelConfigured') : $t('agent.shareScope.modelNotSet') }}</span>
-              </div>
-              <div v-if="sharedAgentUsesKb" class="shared-detail-row">
-                <span class="shared-detail-label">{{ $t('agent.shareScope.rerankModel') }}</span>
-                <span class="shared-detail-value">{{ currentSharedAgent.agent.config.rerank_model_id ?
-                  $t('agent.shareScope.modelConfigured') : $t('agent.shareScope.modelNotSet') }}</span>
-              </div>
-              <div class="shared-detail-row">
-                <span class="shared-detail-label">{{ $t('agent.shareScope.webSearch') }}</span>
-                <span class="shared-detail-value">{{ currentSharedAgent.agent.config.web_search_enabled ?
-                  $t('agent.shareScope.enabled') : $t('agent.shareScope.disabled') }}</span>
-              </div>
-              <div class="shared-detail-row">
-                <span class="shared-detail-label">{{ $t('agent.shareScope.mcp') }}</span>
-                <span class="shared-detail-value">{{ sharedAgentMcpScopeText }}</span>
-              </div>
-            </template>
-          </div>
-          <div class="shared-detail-drawer-footer">
-            <t-button theme="primary" block @click="handleUseSharedAgentInChat(currentSharedAgent)">
-              {{ $t('agent.detail.useInChat') }}
-            </t-button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
     <!-- 智能体编辑器弹窗 -->
     <AgentEditorModal :visible="editorVisible" :mode="editorMode" :agent="editingAgent"
       :initialSection="editorInitialSection"
@@ -819,12 +537,6 @@ import { deleteAgent, copyAgent, type CustomAgent } from '@/api/agent'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { formatStringDate } from '@/utils/index'
 import { useI18n } from 'vue-i18n'
-import { createSessions } from '@/api/chat/index'
-import { useOrganizationStore } from '@/stores/organization'
-import { setSharedAgentDisabledByMe, listOrganizationSharedAgents } from '@/api/organization'
-import { useSettingsStore } from '@/stores/settings'
-import { useMenuStore } from '@/stores/menu'
-import type { SharedAgentInfo, OrganizationSharedAgentItem } from '@/api/organization'
 import AgentEditorModal from './AgentEditorModal.vue'
 import ContextualGuide from '@/components/ContextualGuide.vue'
 import TenantModelsGuide from '@/components/TenantModelsGuide.vue'
@@ -834,7 +546,6 @@ import { useUIStore } from '@/stores/ui'
 import AgentAvatar from '@/components/AgentAvatar.vue'
 import ListSpaceSidebar from '@/components/ListSpaceSidebar.vue'
 import ResourceOriginBadge from '@/components/ResourceOriginBadge.vue'
-import { shouldShowResourceOriginBadge } from '@/utils/card-list-badge'
 import { useAuthStore } from '@/stores/auth'
 import { useListUrlState } from '@/composables/useListUrlState'
 import { useResourcePins } from '@/composables/useResourcePins'
@@ -845,20 +556,17 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const uiStore = useUIStore()
-const orgStore = useOrganizationStore()
 const chatResources = useChatResourcesStore()
 const { loaded: modelsReadyLoaded, isReadyForAgent } = useTenantModelReadiness()
 
 interface AgentWithUI extends CustomAgent {
   showMore?: boolean
-  /** 当前空间在对话下拉中停用（仅影响本空间） */
+  /** 当前空间在对话下拉中停用（仅影响本空间；随空间分享裁撤，恒为 false） */
   disabled_by_me?: boolean
 }
 
-/** Merged agent for "all" tab: my agents (isMine: true) or shared
- *  (isMine: false, org_name, source_tenant_id, share_id, permission, disabled_by_me?).
- *  `permission` drives the「可编辑 / 仅查看」分组，仅在 shared 分支携带。 */
-type DisplayAgent = (AgentWithUI & { isMine: true }) | (CustomAgent & { isMine: false; org_name: string; source_tenant_id: number; share_id: string; permission?: string; showMore?: boolean; disabled_by_me?: boolean })
+/** "all" / favorites / recents 视图里的条目形态：本空间自有 agent。 */
+type DisplayAgent = AgentWithUI & { isMine: true }
 
 // 左侧空间选择：默认根据当前角色决定。
 // 与 KnowledgeBaseList 同款逻辑：Viewer 在当前空间里通常没有自建智能体，
@@ -881,102 +589,29 @@ const agentRecentsCount = computed(
   () => pins.recents.value.filter((e) => e.type === 'agent').length
 )
 const agents = ref<AgentWithUI[]>([])
-const sharedAgents = computed<SharedAgentInfo[]>(() => orgStore.sharedAgents || [])
-const allAgentsCount = computed(() => agents.value.length + sharedAgents.value.length)
+const allAgentsCount = computed(() => agents.value.length)
 
-// Same gotcha as KnowledgeBaseList: keep the reserved-scope set in sync
-// with ListSpaceSidebar's pseudo-scopes (favorites / recents / shared /
-// mine / all). Anything not in here is treated as an org/space id, which
-// is what triggers the per-space fetch + "no shared agents" empty state.
-const RESERVED_SCOPES = new Set(['all', 'mine', 'shared', 'favorites', 'recents'])
-const spaceSelectionOrgId = computed(() => {
-  const s = spaceSelection.value
-  return !!s && !RESERVED_SCOPES.has(s)
-})
-
-const sharedAgentsByOrg = computed(() => {
-  const orgId = spaceSelection.value
-  if (orgId === 'all' || orgId === 'mine') return []
-  return sharedAgents.value.filter(s => s.organization_id === orgId)
-})
-
-// 空间视角：该空间内全部智能体（含我共享的），选中空间时请求新接口
-const spaceAgentsList = ref<OrganizationSharedAgentItem[]>([])
-const spaceAgentsLoading = ref(false)
-const spaceAgentCountByOrg = ref<Record<string, number>>({})
-
-// 各空间下的共享智能体数量（用于侧栏展示）：优先用接口返回的该空间总数
-const sharedCountByOrg = computed<Record<string, number>>(() => {
-  const map: Record<string, number> = {}
-  sharedAgents.value.forEach(s => {
-    const id = s.organization_id
-    if (!id) return
-    map[id] = (map[id] || 0) + 1
-  })
-    ; (orgStore.organizations || []).forEach(org => {
-      if (map[org.id] === undefined) map[org.id] = 0
-    })
-  return map
-})
-const effectiveSharedCountByOrg = computed<Record<string, number>>(() => {
-  const base = sharedCountByOrg.value
-  const merged = { ...base }
-  Object.keys(spaceAgentCountByOrg.value).forEach(orgId => {
-    merged[orgId] = spaceAgentCountByOrg.value[orgId]
-  })
-  return merged
-})
-
-// Favorites / Recents view: hydrate pinned ids against own + shared agents.
+// Favorites / Recents view: hydrate pinned ids against own agents.
 const agentResourceIndex = computed(() => {
-  const map = new Map<string, { agent: any; isMine: boolean; shared?: SharedAgentInfo }>()
-  for (const a of agents.value) map.set(a.id, { agent: a, isMine: true })
-  for (const s of sharedAgents.value) {
-    if (s.agent && !map.has(s.agent.id)) map.set(s.agent.id, { agent: s.agent, isMine: false, shared: s })
-  }
+  const map = new Map<string, AgentWithUI>()
+  for (const a of agents.value) map.set(a.id, a)
   return map
 })
 
 const favoritesAgentList = computed<DisplayAgent[]>(() => {
   return pins.favorites.value
     .filter((e) => e.type === 'agent')
-    .map((e) => {
-      const entry = agentResourceIndex.value.get(e.id)
-      if (!entry) return null
-      if (entry.isMine) return { ...entry.agent, isMine: true as const, showMore: false }
-      const s = entry.shared!
-      return {
-        ...entry.agent,
-        isMine: false as const,
-        org_name: s.org_name,
-        source_tenant_id: s.source_tenant_id,
-        share_id: s.share_id,
-        disabled_by_me: s.disabled_by_me,
-        showMore: false,
-      } as DisplayAgent
-    })
-    .filter((x): x is DisplayAgent => x !== null)
+    .map((e) => agentResourceIndex.value.get(e.id))
+    .filter((agent): agent is AgentWithUI => !!agent)
+    .map((agent) => ({ ...agent, isMine: true as const, showMore: false }))
 })
 
 const recentsAgentList = computed<DisplayAgent[]>(() => {
   return pins.recents.value
     .filter((e) => e.type === 'agent')
-    .map((e) => {
-      const entry = agentResourceIndex.value.get(e.id)
-      if (!entry) return null
-      if (entry.isMine) return { ...entry.agent, isMine: true as const, showMore: false }
-      const s = entry.shared!
-      return {
-        ...entry.agent,
-        isMine: false as const,
-        org_name: s.org_name,
-        source_tenant_id: s.source_tenant_id,
-        share_id: s.share_id,
-        disabled_by_me: s.disabled_by_me,
-        showMore: false,
-      } as DisplayAgent
-    })
-    .filter((x): x is DisplayAgent => x !== null)
+    .map((e) => agentResourceIndex.value.get(e.id))
+    .filter((agent): agent is AgentWithUI => !!agent)
+    .map((agent) => ({ ...agent, isMine: true as const, showMore: false }))
 })
 
 const filteredAgents = computed<DisplayAgent[]>(() => {
@@ -1003,27 +638,6 @@ const filteredAgents = computed<DisplayAgent[]>(() => {
   builtin.forEach(a => list.push({ ...a, isMine: true as const }))
   ownMine.forEach(a => list.push({ ...a, isMine: true as const }))
   teammateMine.forEach(a => list.push({ ...a, isMine: true as const }))
-  // 共享区按 share permission 排序：editor/admin 在前，viewer 在后，
-  // 让「共享给我 · 可编辑 / 仅查看」分组标题正好落在过渡处。即便当前角色
-  // 不显示分组标题，排序也保留——展示更可预测。
-  const sortedShared = [...sharedAgents.value].sort((a, b) => {
-    const aE = isSharedAgentEditable(a.permission) ? 0 : 1
-    const bE = isSharedAgentEditable(b.permission) ? 0 : 1
-    return aE - bE
-  })
-  sortedShared.forEach(shared => {
-    if (!shared.agent) return
-    list.push({
-      ...shared.agent,
-      isMine: false as const,
-      org_name: shared.org_name,
-      source_tenant_id: shared.source_tenant_id,
-      share_id: shared.share_id,
-      permission: shared.permission,
-      disabled_by_me: shared.disabled_by_me,
-      showMore: false
-    } as DisplayAgent)
-  })
   return list
 })
 
@@ -1042,41 +656,9 @@ const sortedMineAgents = computed(() => {
   return [...builtin, ...own, ...teammate]
 })
 
-// 空间视角下的稳定排序：我自己创建的（is_mine）放前面，其余按 permission 切分。
-const sortedSpaceAgentsList = computed(() => {
-  return [...spaceAgentsList.value].sort((a, b) => {
-    const aMine = a.is_mine ? 0 : 1
-    const bMine = b.is_mine ? 0 : 1
-    if (aMine !== bMine) return aMine - bMine
-    const aE = isSharedAgentEditable(a.permission) ? 0 : 1
-    const bE = isSharedAgentEditable(b.permission) ? 0 : 1
-    return aE - bE
-  })
-})
 const loading = ref(false)
 const deleteVisible = ref(false)
 const deletingAgent = ref<AgentWithUI | null>(null)
-const sharedDetailVisible = ref(false)
-const currentSharedAgent = ref<SharedAgentInfo | null>(null)
-const sharedAgentUsesKb = computed(() => {
-  const c = currentSharedAgent.value?.agent?.config
-  if (!c) return false
-  return c.kb_selection_mode !== 'none' && c.kb_selection_mode !== undefined
-})
-const sharedAgentKbScopeText = computed(() => {
-  const c = currentSharedAgent.value?.agent?.config
-  if (!c) return t('agent.shareScope.kbNone')
-  if (c.kb_selection_mode === 'all') return t('agent.shareScope.kbAll')
-  if (c.kb_selection_mode === 'selected' && c.knowledge_bases?.length) return t('agent.shareScope.kbSelected', { count: c.knowledge_bases.length })
-  return t('agent.shareScope.kbNone')
-})
-const sharedAgentMcpScopeText = computed(() => {
-  const c = currentSharedAgent.value?.agent?.config
-  if (!c) return t('agent.shareScope.mcpNone')
-  if (c.mcp_selection_mode === 'all') return t('agent.shareScope.mcpAll')
-  if (c.mcp_selection_mode === 'selected' && c.mcp_services?.length) return t('agent.shareScope.mcpSelected', { count: c.mcp_services.length })
-  return t('agent.shareScope.mcpNone')
-})
 const editorVisible = ref(false)
 const editorMode = ref<'create' | 'edit'>('create')
 const editingAgent = ref<CustomAgent | null>(null)
@@ -1113,29 +695,18 @@ const applyAgentListData = (res: { data: CustomAgent[]; disabled_own_agent_ids: 
 
 const fetchList = (force = false) => {
   loading.value = true
-  return Promise.all([
-    chatResources.fetchAgentsForList({ creator: creatorFilter.value }, force).then(applyAgentListData),
-    orgStore.fetchOrganizations({ force }),
-    orgStore.fetchSharedAgents({ force }),
-  ]).finally(() => { loading.value = false }).then(() => {
-    void checkAndOpenEditModal()
-    // 各空间智能体数量已由 GET /organizations 的 resource_counts 带回，存于 orgStore.resourceCounts
-    const counts = orgStore.resourceCounts?.agents?.by_organization
-    if (counts) spaceAgentCountByOrg.value = { ...counts }
-  })
+  return chatResources
+    .fetchAgentsForList({ creator: creatorFilter.value }, force)
+    .then(applyAgentListData)
+    .finally(() => { loading.value = false })
+    .then(() => {
+      void checkAndOpenEditModal()
+    })
 }
 
 // 检查 URL 参数并打开编辑模态框
-const resolveAgentForEdit = (editId: string, sourceTenantId?: string): CustomAgent | null => {
-  const own = agents.value.find(a => a.id === editId)
-  if (own) return own
-  if (sourceTenantId) {
-    const shared = sharedAgents.value.find(
-      s => s.agent?.id === editId && String(s.source_tenant_id) === sourceTenantId,
-    )
-    if (shared?.agent) return shared.agent as CustomAgent
-  }
-  return null
+const resolveAgentForEdit = (editId: string): CustomAgent | null => {
+  return agents.value.find(a => a.id === editId) || null
 }
 
 let editOpenGeneration = 0
@@ -1144,7 +715,6 @@ const checkAndOpenEditModal = async () => {
   const generation = ++editOpenGeneration
   const editId = route.query.edit as string
   const section = route.query.section as string
-  const sourceTenantId = route.query.sourceTenantId as string | undefined
   if (editId && (section === 'im' || section === 'embed' || section === 'integrations' || section === 'integration-im' || section === 'integration-embed')) {
     const tab = section === 'embed' || section === 'integration-embed' ? 'embed' : 'im'
     router.replace({
@@ -1154,7 +724,7 @@ const checkAndOpenEditModal = async () => {
     return
   }
   if (editId) {
-    const agent = resolveAgentForEdit(editId, sourceTenantId)
+    const agent = resolveAgentForEdit(editId)
     // A route change can remove a creator filter before the corresponding
     // all-agent fetch completes. Keep the deep-link query intact so the list
     // refresh callback can resolve and open the target instead of losing it.
@@ -1199,7 +769,7 @@ const checkAndOpenEditModal = async () => {
 watch(
   () => route.query.edit,
   (v) => {
-    if (v && (agents.value.length > 0 || sharedAgents.value.length > 0)) {
+    if (v && agents.value.length > 0) {
       void checkAndOpenEditModal()
     }
   },
@@ -1211,25 +781,6 @@ const handleOpenAgentEditor = (event: CustomEvent) => {
     openCreateModal()
   }
 }
-
-// 选中空间时请求该空间内全部智能体（含我共享的）
-watch(spaceSelection, (val) => {
-  if (val === 'all' || val === 'mine' || !val) {
-    spaceAgentsList.value = []
-    return
-  }
-  spaceAgentsLoading.value = true
-  listOrganizationSharedAgents(val).then((res) => {
-    if (res.success && res.data) {
-      spaceAgentsList.value = res.data
-      spaceAgentCountByOrg.value = { ...spaceAgentCountByOrg.value, [val]: res.data.length }
-    } else {
-      spaceAgentsList.value = []
-    }
-  }).finally(() => {
-    spaceAgentsLoading.value = false
-  })
-}, { immediate: true })
 
 // Refetch when the creator filter flips so the server applies the
 // predicate uniformly (also keeps built-in agents always present, see
@@ -1263,11 +814,6 @@ const handleCardClick = (agent: DisplayAgent | AgentWithUI) => {
   // Track recency before any branch — Recents should reflect what the
   // user *looked at*, not only what they edited.
   pins.touchRecent('agent', agent.id)
-  if ('isMine' in agent && !agent.isMine) {
-    const shared = sharedAgents.value.find(s => s.agent?.id === agent.id && s.source_tenant_id === agent.source_tenant_id)
-    if (shared) openSharedAgentDetail(shared)
-    return
-  }
   handleEdit(agent as AgentWithUI)
 }
 
@@ -1276,60 +822,6 @@ const toggleFavoriteAgent = (agentId: string, evt?: Event) => {
   pins.toggleFavorite('agent', agentId)
 }
 const isAgentFavorited = (agentId: string) => pins.isFavorite('agent', agentId)
-
-function openSharedAgentDetail(shared: SharedAgentInfo) {
-  currentSharedAgent.value = shared
-  sharedDetailVisible.value = true
-}
-
-/** 空间视角下点击卡片：我共享的进编辑，他人共享的打开详情抽屉 */
-function handleSpaceAgentCardClick(shared: OrganizationSharedAgentItem) {
-  if (shared.is_mine && shared.agent) {
-    handleEdit({ ...shared.agent, showMore: false, disabled_by_me: shared.disabled_by_me } as AgentWithUI)
-  } else {
-    openSharedAgentDetail(shared)
-  }
-}
-
-function closeSharedAgentDetail() {
-  sharedDetailVisible.value = false
-  currentSharedAgent.value = null
-}
-
-/** 在对话中使用共享智能体：创建新会话并跳转 */
-async function handleUseSharedAgentInChat(shared: SharedAgentInfo) {
-  if (!shared.agent?.id) return
-  closeSharedAgentDetail()
-  const settingsStore = useSettingsStore()
-  const menuStore = useMenuStore()
-  settingsStore.selectAgent(shared.agent.id, String(shared.source_tenant_id))
-  try {
-    const res = await createSessions({})
-    if (res?.data?.id) {
-      const sessionId = res.data.id
-      const now = new Date().toISOString()
-      menuStore.updataMenuChildren({
-        title: t('createChat.newSessionTitle'),
-        path: `chat/${sessionId}`,
-        id: sessionId,
-        isMore: false,
-        isNoTitle: true,
-        created_at: now,
-        updated_at: now
-      })
-      menuStore.changeIsFirstSession(false)
-      router.push({
-        path: `/platform/chat/${sessionId}`,
-        query: { agent_id: shared.agent.id, source_tenant_id: String(shared.source_tenant_id) }
-      })
-    } else {
-      MessagePlugin.error(t('createChat.messages.createFailed'))
-    }
-  } catch (e) {
-    console.error('Create session for shared agent failed', e)
-    MessagePlugin.error(t('createChat.messages.createError'))
-  }
-}
 
 const handleEdit = (agent: AgentWithUI) => {
   openMoreAgentId.value = null
@@ -1370,30 +862,24 @@ function agentOriginVariant(agent: { created_by?: string }): 'mine' | 'creator' 
   return isMyAgent(agent) ? 'mine' : 'creator'
 }
 
+// 分组标题可见时，隐藏与标题重复的角标（「我创建的」段内的 mine 徽章、
+// 内置段、无创建者名的同事段），其余照常展示。
 function showAgentOriginBadge(agent: { created_by?: string; creator_name?: string }): boolean {
-  return shouldShowResourceOriginBadge({
-    section: agentSectionOf(agent),
-    variant: agentOriginVariant(agent),
-    creatorName: (agent as any).creator_name,
-    showSectionHeaders: showShareGroupHeaders.value,
-  })
+  if (!showShareGroupHeaders.value) return true
+  const section = agentSectionOf(agent)
+  const variant = agentOriginVariant(agent)
+  if (section === 'mine' && variant === 'mine') return false
+  if (section === 'builtin') return false
+  if (section === 'tenantOthers' && variant === 'creator' && !agent.creator_name?.trim()) return false
+  return true
 }
 
 function showAgentBuiltinBadge(agent: { is_builtin?: boolean }): boolean {
   if (!agent.is_builtin) return false
-  return shouldShowResourceOriginBadge({
-    section: agentSectionOf(agent),
-    variant: 'mine',
-    showSectionHeaders: showShareGroupHeaders.value,
-  })
+  if (!showShareGroupHeaders.value) return true
+  return agentSectionOf(agent) !== 'builtin'
 }
 
-// 共享 agent 的可编辑/只读分组开关，与 KB 列表逻辑保持一致：仅对
-// contributor / editor 中间档展示分组标题。Viewer / Admin+ 不分组。
-const AGENT_EDITABLE_PERMS = new Set(['admin', 'editor'])
-function isSharedAgentEditable(perm: string | undefined): boolean {
-  return !!perm && AGENT_EDITABLE_PERMS.has(perm)
-}
 // 与 KnowledgeBaseList 同理：分组标题对所有角色生效，依据"创建者 + 来源"
 // 这种客观信息分段，不再按当前用户的可写权限筛掉。
 const showShareGroupHeaders = computed(() => true)
@@ -1416,7 +902,7 @@ const tenantSectionIconName = computed(() =>
 
 // 分组折叠：ephemeral，只在当前会话生效。和 KnowledgeBaseList 共用同一套
 // 思路——空 Set = 全展开，避免新增分段还得维护默认值。
-type AgentSectionKey = 'builtin' | 'mine' | 'tenantOthers' | 'sharedByMe' | 'sharedEditable' | 'sharedReadonly'
+type AgentSectionKey = 'builtin' | 'mine' | 'tenantOthers'
 const collapsedAgentSections = ref<Set<AgentSectionKey>>(new Set())
 const isAgentSectionCollapsed = (key: AgentSectionKey) => collapsedAgentSections.value.has(key)
 const toggleAgentSection = (key: AgentSectionKey) => {
@@ -1426,22 +912,14 @@ const toggleAgentSection = (key: AgentSectionKey) => {
   collapsedAgentSections.value = next
 }
 // 根据 agent 数据形态判分组：filteredAgents 元素带 isMine；sortedMineAgents
-// 是原始 agent（永远当作本空间）；sortedSpaceAgentsList 用 is_mine。
+// 是原始 agent（永远当作本空间）。
 //
 // 当前用户自己创建的 agent 在模板里**没有**独立分组标题（不像 KB 那边有
 // "我创建的"段），所以这里返回 null——折叠任何分组都不会影响到它们。
 const agentSectionOf = (item: any): AgentSectionKey | null => {
   // 内置 agent（is_builtin=true）单独成段，置顶展示——它们是空间共有的
-  // 系统资源，跟"我 / 同事 / 共享"几个所有权分类不在同一维度。判定要早于
-  // shared 那一档，因为 filteredAgents 里的 shared 条目也可能携带 is_builtin
-  // （理论上不会，但保守一些）。
+  // 系统资源，跟"我 / 同事"几个所有权分类不在同一维度。
   if (item?.is_builtin === true) return 'builtin'
-  // 跨空间 shared 条目（filteredAgents 拆出来的 isMine=false / 空间视图的
-  // sortedSpaceAgentsList 用 is_mine=false）一律按 permission 分到
-  // sharedEditable / sharedReadonly。
-  if (item?.isMine === false || item?.is_mine === false) {
-    return isSharedAgentEditable(item?.permission) ? 'sharedEditable' : 'sharedReadonly'
-  }
   // 本空间内：我亲手创建 → 'mine'；同事 / 非内置但无 created_by → 'tenantOthers'。
   return isMyAgent(item as AgentWithUI) ? 'mine' : 'tenantOthers'
 }
@@ -1450,18 +928,9 @@ const isAgentRowHidden = (item: any): boolean => {
   return key !== null && isAgentSectionCollapsed(key)
 }
 
-// 空间筛选视图（sortedSpaceAgentsList）的条目结构和 filteredAgents 不同：
-// is_mine=true 表示「我共享给这个空间」，需要独立成段（避免和首页的"我创建的"
-// 共用一个折叠状态）。is_mine=false 仍按 permission 走 sharedEditable / Readonly。
-const spaceAgentSectionOf = (shared: any): AgentSectionKey => {
-  if (shared?.is_mine) return 'sharedByMe'
-  return isSharedAgentEditable(shared?.permission) ? 'sharedEditable' : 'sharedReadonly'
-}
-const isSpaceAgentCollapsed = (shared: any): boolean => isAgentSectionCollapsed(spaceAgentSectionOf(shared))
-
 // 各分组卡片数量——和 KB 列表同思路，组标题上展示"(N)"，方便折叠后核对。
 const emptyAgentCounts = (): Record<AgentSectionKey, number> => ({
-  builtin: 0, mine: 0, tenantOthers: 0, sharedByMe: 0, sharedEditable: 0, sharedReadonly: 0,
+  builtin: 0, mine: 0, tenantOthers: 0,
 })
 const filteredAgentSectionCounts = computed<Record<AgentSectionKey, number>>(() => {
   const c = emptyAgentCounts()
@@ -1477,11 +946,6 @@ const mineAgentSectionCounts = computed<Record<AgentSectionKey, number>>(() => {
     const key = agentSectionOf(a)
     if (key) c[key]++
   })
-  return c
-})
-const spaceAgentSectionCounts = computed<Record<AgentSectionKey, number>>(() => {
-  const c = emptyAgentCounts()
-  sortedSpaceAgentsList.value.forEach(shared => { c[spaceAgentSectionOf(shared)]++ })
   return c
 })
 
@@ -1502,55 +966,6 @@ const handleCopy = (agent: AgentWithUI) => {
     }
   }).catch((e: any) => {
     MessagePlugin.error(e?.message || t('agent.messages.copyFailed'))
-  })
-}
-
-/** 切换「我的」智能体停用状态（仅影响当前空间对话下拉显示） */
-const handleToggleDisabled = (agent: AgentWithUI) => {
-  openMoreAgentId.value = null
-  const nextDisabled = !agent.disabled_by_me
-  setSharedAgentDisabledByMe(agent.id, nextDisabled).then((res: any) => {
-    if (res.success) {
-      MessagePlugin.success(nextDisabled ? t('agent.messages.disabled') : t('agent.messages.enabled'))
-      fetchList(true)
-    } else {
-      MessagePlugin.error(res.message || t('agent.messages.saveFailed'))
-    }
-  }).catch((e: any) => {
-    MessagePlugin.error(e?.message || t('agent.messages.saveFailed'))
-  })
-}
-
-/** 切换共享智能体“停用”状态（仅影响当前用户对话下拉显示） */
-const handleToggleSharedDisabled = (agent: DisplayAgent) => {
-  if (agent.isMine) return
-  openMoreAgentId.value = null
-  const nextDisabled = !agent.disabled_by_me
-  setSharedAgentDisabledByMe(agent.id, nextDisabled).then((res: any) => {
-    if (res.success) {
-      MessagePlugin.success(nextDisabled ? t('agent.messages.disabled') : t('agent.messages.enabled'))
-      orgStore.fetchSharedAgents({ force: true })
-    } else {
-      MessagePlugin.error(res.message || t('agent.messages.saveFailed'))
-    }
-  }).catch((e: any) => {
-    MessagePlugin.error(e?.message || t('agent.messages.saveFailed'))
-  })
-}
-
-const handleToggleSharedDisabledFromShared = (shared: SharedAgentInfo) => {
-  if (!shared.agent) return
-  openMoreAgentId.value = null
-  const nextDisabled = !shared.disabled_by_me
-  setSharedAgentDisabledByMe(shared.agent.id, nextDisabled).then((res: any) => {
-    if (res.success) {
-      MessagePlugin.success(nextDisabled ? t('agent.messages.disabled') : t('agent.messages.enabled'))
-      orgStore.fetchSharedAgents({ force: true })
-    } else {
-      MessagePlugin.error(res.message || t('agent.messages.saveFailed'))
-    }
-  }).catch((e: any) => {
-    MessagePlugin.error(e?.message || t('agent.messages.saveFailed'))
   })
 }
 
@@ -1647,17 +1062,6 @@ defineExpose({
   min-height: 200px;
   padding: 12px;
   background: var(--td-bg-color-container);
-}
-
-.shared-by-me-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 6px;
-  background: rgba(7, 192, 95, 0.1);
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--td-brand-color);
-  margin-left: 6px;
 }
 
 .header {
@@ -1834,34 +1238,6 @@ defineExpose({
   }
 }
 
-.shared-badge {
-  flex-shrink: 0;
-}
-
-.card-bottom-source {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--td-bg-color-container-hover);
-  flex-shrink: 0;
-}
-
-.card-bottom-source .org-icon {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-}
-
-.org-source-text {
-  color: var(--td-text-color-secondary);
-  font-family: var(--app-font-family);
-  font-size: 11px;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
 .custom-badge {
   display: inline-flex;
   align-items: center;
@@ -1922,13 +1298,6 @@ defineExpose({
     margin-left: 4px;
     opacity: 0.7;
     transition: opacity 0.15s ease;
-  }
-
-  // 共享给我的两个子分组：主图标 usergroup-add 表达"共享"语义，
-  // 子图标 (edit / browse) 紧挨主图标用来区分权限。
-  .agent-section-subicon {
-    margin-left: -4px;
-    opacity: 0.75;
   }
 
   // 与 KB 列表口径一致：组里的卡片数量徽标。
@@ -2539,143 +1908,6 @@ defineExpose({
     &:hover {
       opacity: 0.8;
     }
-  }
-}
-</style>
-
-<style lang="less">
-/* 下拉菜单样式已统一至 @/assets/dropdown-menu.less */
-
-// 共享智能体详情侧边栏
-.shared-detail-drawer-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 1000;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.shared-detail-drawer {
-  width: 360px;
-  max-width: 90vw;
-  height: 100%;
-  background: var(--td-bg-color-container);
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
-  display: flex;
-  flex-direction: column;
-  font-family: var(--app-font-family);
-}
-
-.shared-detail-drawer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--td-component-stroke);
-  flex-shrink: 0;
-}
-
-.shared-detail-drawer-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--td-text-color-primary);
-}
-
-.shared-detail-drawer-close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 6px;
-  background: var(--td-bg-color-secondarycontainer);
-  color: var(--td-text-color-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s ease, color 0.2s ease;
-
-  &:hover {
-    background: var(--td-bg-color-secondarycontainer);
-    color: var(--td-text-color-primary);
-  }
-}
-
-.shared-detail-drawer-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.shared-detail-drawer-body .shared-detail-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.shared-detail-drawer-body .shared-detail-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--td-text-color-primary);
-  margin: 20px 0 12px 0;
-  padding-top: 16px;
-  border-top: 1px solid var(--td-component-stroke);
-}
-
-.shared-detail-drawer-body .shared-detail-label {
-  font-size: 12px;
-  color: var(--td-text-color-secondary);
-  line-height: 1.4;
-}
-
-.shared-detail-drawer-body .shared-detail-value {
-  font-size: 14px;
-  color: var(--td-text-color-primary);
-  line-height: 1.5;
-  word-break: break-word;
-
-  &.shared-detail-org {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-}
-
-.shared-detail-drawer-body .shared-detail-org-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.shared-detail-drawer-footer {
-  padding: 16px 24px;
-  border-top: 1px solid var(--td-component-stroke);
-  flex-shrink: 0;
-  background: var(--td-bg-color-container);
-}
-
-.shared-detail-drawer-enter-active,
-.shared-detail-drawer-leave-active {
-  transition: opacity 0.25s ease;
-
-  .shared-detail-drawer {
-    transition: transform 0.25s ease;
-  }
-}
-
-.shared-detail-drawer-enter-from,
-.shared-detail-drawer-leave-to {
-  opacity: 0;
-
-  .shared-detail-drawer {
-    transform: translateX(100%);
   }
 }
 </style>

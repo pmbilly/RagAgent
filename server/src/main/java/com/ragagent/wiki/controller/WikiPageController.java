@@ -11,18 +11,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
-import com.ragagent.org.domain.AgentRow;
-import com.ragagent.org.service.AgentShareService;
-import com.ragagent.org.service.AgentShareSources;
-import com.ragagent.org.service.KbShareService;
-import com.ragagent.org.service.OrganizationService;
-import com.ragagent.org.service.SharedAgentKBScope;
 import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiFolder;
 import com.ragagent.wiki.domain.WikiFolderConflictException;
@@ -153,23 +146,17 @@ public class WikiPageController {
     private final KnowledgeBaseMapper kbMapper;
     private final ObjectMapper json;
     private final ObjectProvider<WikiActivityAudit> activityAudit;
-    private final KbShareService kbShareService;
-    private final AgentShareService agentShareService;
 
     public WikiPageController(WikiPageService wikiService,
                               WikiLintService lintService,
                               KnowledgeBaseMapper kbMapper,
                               ObjectMapper json,
-                              ObjectProvider<WikiActivityAudit> activityAudit,
-                              KbShareService kbShareService,
-                              AgentShareService agentShareService) {
+                              ObjectProvider<WikiActivityAudit> activityAudit) {
         this.wikiService = wikiService;
         this.lintService = lintService;
         this.kbMapper = kbMapper;
         this.json = json;
         this.activityAudit = activityAudit;
-        this.kbShareService = kbShareService;
-        this.agentShareService = agentShareService;
     }
 
     // ════════════════════════════ 页面 CRUD ════════════════════════════
@@ -987,15 +974,8 @@ public class WikiPageController {
         }
 
         if (!tenantId.equals(kb.getTenantId())) {
-            if (write) {
-                // 对照 Go 写路由双守卫：OwnedWikiKBOrAdmin 的 creator 查找对跨租户资源
-                // 拿不到 → ErrResourceNotFound 透传（rbac.go L226-230），授予判定落在
-                // KBAccessWrite(required=Editor)——仅 org-share 一条（共享 agent 分支在
-                // required != Viewer 时直接 forbidden，knowledgebase.go L127）。
-                requireSharedWriteAccess(kb, tenantId);
-            } else {
-                requireSharedReadAccess(kb, tenantId);
-            }
+            // 空间分享裁撤：跨租户授予链（org-share / shared-agent）已退役 → 直接拒绝
+            throw BizException.forbidden("Permission denied to access this knowledge base");
         }
 
         if (write) {
@@ -1015,57 +995,6 @@ public class WikiPageController {
      * wiki 读面的数据查询全部以 kb_id 为键（Go 的守卫把请求上下文改写成源租户后，
      * handler 也是按 kb_id 取数），故授予后无需切换执行租户。
      */
-    private void requireSharedReadAccess(KnowledgeBase kb, long callerTenant) {
-        TenantRole callerRole = OrganizationService.callerTenantRole();
-
-        // ① org-share（ResolveKB L120-126）：CheckTenantKBPermission 的三维帽有效角色
-        //    ≥ viewer 即授予。查询失败不授予（Go `if err == nil && shared && …`）。
-        try {
-            KbShareService.CheckTenantKBPermissionResult share =
-                    kbShareService.checkTenantKBPermission(kb.getId(), callerTenant, callerRole);
-            if (share.permits("viewer")) {
-                return;
-            }
-        } catch (RuntimeException e) {
-            log.warn("wiki org-share lookup failed (deny): kb={} tenant={} err={}",
-                    sanitize(kb.getId()), callerTenant, errText(e));
-        }
-
-        // ② shared-agent（ResolveKB L127-154）：仅 Viewer 级走这条；显式 agent_id 不回落
-        //    到"任意可达 agent"。parse 失败 → ErrInvalidAgentSource → 400（中间件文案）。
-        String agentId = currentQueryParam("agent_id");
-        if (agentId != null && !agentId.isEmpty()) {
-            long source;
-            try {
-                source = AgentShareSources.parse(currentQueryParam("agent_source_tenant_id"));
-            } catch (IllegalArgumentException e) {
-                throw BizException.badRequest("invalid agent_source_tenant_id");
-            }
-            try {
-                AgentRow agent = agentShareService.getSharedAgentForTenant(callerTenant, callerRole,
-                        agentId, source);
-                long kbTenant = kb.getTenantId() == null ? 0L : kb.getTenantId();
-                if (SharedAgentKBScope.includesKb(agent, kb.getId(), kbTenant)) {
-                    return;
-                }
-            } catch (RuntimeException e) {
-                log.warn("wiki shared-agent lookup failed (deny): kb={} agent={} err={}",
-                        sanitize(kb.getId()), sanitize(agentId), errText(e));
-            }
-        } else {
-            try {
-                long kbTenant = kb.getTenantId() == null ? 0L : kb.getTenantId();
-                if (agentShareService.tenantCanAccessKBViaSomeSharedAgent(callerTenant, callerRole,
-                        kb.getId(), kbTenant)) {
-                    return;
-                }
-            } catch (RuntimeException e) {
-                log.warn("wiki shared-agent scan failed (deny): kb={} tenant={} err={}",
-                        sanitize(kb.getId()), callerTenant, errText(e));
-            }
-        }
-        throw BizException.forbidden("Permission denied to access this knowledge base");
-    }
 
     /**
      * 对照 {@code access.ResolveKB} 的写路径（required = OrgRoleEditor，
@@ -1073,20 +1002,6 @@ public class WikiPageController {
      * 共享 agent 分支在 required != Viewer 时不可达（ResolveKB L127 直接
      * ErrForbidden）。查询失败不授予（fail-closed）。
      */
-    private void requireSharedWriteAccess(KnowledgeBase kb, long callerTenant) {
-        TenantRole callerRole = OrganizationService.callerTenantRole();
-        try {
-            KbShareService.CheckTenantKBPermissionResult share =
-                    kbShareService.checkTenantKBPermission(kb.getId(), callerTenant, callerRole);
-            if (share.permits("editor")) {
-                return;
-            }
-        } catch (RuntimeException e) {
-            log.warn("wiki org-share write lookup failed (deny): kb={} tenant={} err={}",
-                    sanitize(kb.getId()), callerTenant, errText(e));
-        }
-        throw BizException.forbidden("Permission denied to access this knowledge base");
-    }
 
     /** 对照 Go {@code KBAccessRequest} 的 {@code c.Query(...)}：从当前请求取 query 参数。 */
     private static String currentQueryParam(String name) {

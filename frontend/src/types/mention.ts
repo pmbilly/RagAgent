@@ -13,7 +13,6 @@ export interface MentionItem {
   count?: number;
   kbName?: string;
   kbId?: string;
-  orgName?: string;
   serviceId?: string;
   serviceName?: string;
   skillName?: string;

@@ -1,7 +1,6 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { knowledgeSemanticSearch } from '@/api/knowledge-base'
 import { searchMessages, type MessageSearchGroupItem } from '@/api/chat-history'
-import { useOrganizationStore } from '@/stores/organization'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { useMenuStore } from '@/stores/menu'
 
@@ -17,8 +16,6 @@ export interface CmdkAgent {
   description?: string
   avatar?: string
   isBuiltin: boolean
-  source: 'own' | 'shared'
-  orgName?: string
 }
 
 export interface CmdkSessionItem {
@@ -82,7 +79,7 @@ export function useCmdkSearch(options: {
   const loading = ref(false)
   const hasSearched = ref(false)
 
-  // All KBs the current user can see (own + shared). Loaded lazily & cached.
+  // All KBs the current user can see. Loaded lazily & cached.
   const knowledgeBases = ref<CmdkKb[]>([])
   const kbsLoaded = ref(false)
   let kbsLoadingPromise: Promise<void> | null = null
@@ -92,12 +89,11 @@ export function useCmdkSearch(options: {
   const totalChunks = ref(0)
   const totalMessages = ref(0)
 
-  // Agents the current user can access (own + builtin + shared via orgs).
+  // Agents the current user can access (own + builtin).
   const agents = ref<CmdkAgent[]>([])
   const agentsLoaded = ref(false)
   let agentsLoadingPromise: Promise<void> | null = null
 
-  const orgStore = useOrganizationStore()
   const menuStore = useMenuStore()
 
   const ensureKbs = async (): Promise<void> => {
@@ -107,21 +103,11 @@ export function useCmdkSearch(options: {
       try {
         const chatResources = useChatResourcesStore()
         await chatResources.ensureKnowledgeBases()
-        const own: CmdkKb[] = chatResources.rawKnowledgeBases.map((kb: any) => ({
+        knowledgeBases.value = chatResources.rawKnowledgeBases.map((kb: any) => ({
           id: String(kb.id),
           name: kb.name || '',
           type: kb.type,
         }))
-        const ownIds = new Set(own.map(k => k.id))
-        const sharedList: CmdkKb[] = (orgStore.sharedKnowledgeBases || [])
-          .filter((s: any) => s?.knowledge_base != null)
-          .map((s: any) => ({
-            id: String(s.knowledge_base.id),
-            name: s.knowledge_base.name || '',
-            type: s.knowledge_base.type,
-          }))
-          .filter((k: CmdkKb) => !ownIds.has(k.id))
-        knowledgeBases.value = [...own, ...sharedList]
         kbsLoaded.value = true
       } catch (e) {
         console.error('[cmdk] failed to load knowledge bases', e)
@@ -148,7 +134,7 @@ export function useCmdkSearch(options: {
       .slice(0, 4)
   })
 
-  // Agents (own + shared). Lazily loaded & cached; no backend search endpoint
+  // Agents (own + builtin). Lazily loaded & cached; no backend search endpoint
   // exists so we always filter client-side.
   const ensureAgents = async (): Promise<void> => {
     if (options.agentsEnabled?.() === false) return
@@ -158,28 +144,13 @@ export function useCmdkSearch(options: {
       try {
         const chatResources = useChatResourcesStore()
         await chatResources.ensureAgents()
-        const own: CmdkAgent[] = chatResources.agents.map((a: any) => ({
+        agents.value = chatResources.agents.map((a: any) => ({
           id: String(a.id),
           name: a.name || '',
           description: a.description,
           avatar: a.avatar,
           isBuiltin: !!a.is_builtin,
-          source: 'own',
         }))
-        const ownIds = new Set(own.map(a => a.id))
-        const sharedList: CmdkAgent[] = (orgStore.sharedAgents || [])
-          .filter((s: any) => s?.agent != null)
-          .map((s: any) => ({
-            id: String(s.agent.id),
-            name: s.agent.name || '',
-            description: s.agent.description,
-            avatar: s.agent.avatar,
-            isBuiltin: !!s.agent.is_builtin,
-            source: 'shared' as const,
-            orgName: s.org_name,
-          }))
-          .filter((a: CmdkAgent) => !ownIds.has(a.id))
-        agents.value = [...own, ...sharedList]
         agentsLoaded.value = true
       } catch (e) {
         console.error('[cmdk] failed to load agents', e)

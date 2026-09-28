@@ -3,11 +3,13 @@
 -- =============================================================================
 -- 生成方式：把退役前的全部增量迁移按序应用到干净 PG（ParadeDB pg17 镜像，
 -- 自带 pg_search + pgvector），pg_dump --schema-only 后整理而成。
+-- 2026-09-29 第二版：空间分享（organizations / organization_* / *_shares /
+-- tenant_disabled_shared_agents）七表随裁剪移除。
 -- 此后 schema 变更正常追加 V2+ 增量迁移；本文件只对全新部署生效
 -- （Flyway 对空库执行 V1 后记录 checksum，不再重放历史迁移）。
 -- 已随裁剪消失的对象：browser_*（浏览器连接）、tenant_sandbox_configs、
 -- tenant_skills/tenant_skill_snapshots/tenant_skill_catalog、tenant_user_env_vars
--- （沙箱与技能安装管线）、sessions.sandbox_config_id。
+-- （沙箱与技能安装管线）、sessions.sandbox_config_id、空间分享七表。
 -- 扩展（镜像自带或迁移自建）在此显式建立：
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pg_search;
@@ -105,23 +107,6 @@ $$;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
-
---
--- Name: agent_shares; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.agent_shares (
-    id character varying(36) DEFAULT public.uuid_generate_v4() NOT NULL,
-    agent_id character varying(36) NOT NULL,
-    organization_id character varying(36) NOT NULL,
-    shared_by_user_id character varying(36) NOT NULL,
-    source_tenant_id integer NOT NULL,
-    permission character varying(32) DEFAULT 'viewer'::character varying NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    deleted_at timestamp with time zone
-);
-
 
 --
 -- Name: audit_logs; Type: TABLE; Schema: public; Owner: -
@@ -416,24 +401,7 @@ CREATE TABLE public.im_channels (
     knowledge_base_id character varying(36) DEFAULT ''::character varying,
     bot_identity character varying(255) DEFAULT ''::character varying NOT NULL,
     session_mode character varying(20) DEFAULT 'user'::character varying NOT NULL,
-    CONSTRAINT chk_im_channels_session_mode CHECK (((session_mode)::text = ANY ((ARRAY['user'::character varying, 'thread'::character varying])::text[])))
-);
-
-
---
--- Name: kb_shares; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.kb_shares (
-    id character varying(36) DEFAULT public.uuid_generate_v4() NOT NULL,
-    knowledge_base_id character varying(36) NOT NULL,
-    organization_id character varying(36) NOT NULL,
-    shared_by_user_id character varying(36) NOT NULL,
-    source_tenant_id integer NOT NULL,
-    permission character varying(32) DEFAULT 'viewer'::character varying NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    deleted_at timestamp with time zone
+    CONSTRAINT chk_im_channels_session_mode CHECK (((session_mode)::text = ANY (ARRAY[('user'::character varying)::text, ('thread'::character varying)::text])))
 );
 
 
@@ -961,82 +929,6 @@ CREATE TABLE public.models (
 
 
 --
--- Name: organization_join_requests; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.organization_join_requests (
-    id character varying(36) DEFAULT public.uuid_generate_v4() NOT NULL,
-    organization_id character varying(36) NOT NULL,
-    user_id character varying(36) NOT NULL,
-    tenant_id integer NOT NULL,
-    status character varying(32) DEFAULT 'pending'::character varying NOT NULL,
-    requested_role character varying(32) DEFAULT 'viewer'::character varying NOT NULL,
-    request_type character varying(32) DEFAULT 'join'::character varying NOT NULL,
-    prev_role character varying(32),
-    message text,
-    reviewed_by character varying(36),
-    reviewed_at timestamp with time zone,
-    review_message text,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
-);
-
-
---
--- Name: organization_members_pre_plan3; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.organization_members_pre_plan3 (
-    id character varying(36) DEFAULT public.uuid_generate_v4() NOT NULL,
-    organization_id character varying(36) NOT NULL,
-    user_id character varying(36) NOT NULL,
-    tenant_id integer NOT NULL,
-    role character varying(32) DEFAULT 'viewer'::character varying NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
-);
-
-
---
--- Name: organization_tenant_members; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.organization_tenant_members (
-    id character varying(36) DEFAULT public.uuid_generate_v4() NOT NULL,
-    organization_id character varying(36) NOT NULL,
-    tenant_id integer NOT NULL,
-    role character varying(32) DEFAULT 'viewer'::character varying NOT NULL,
-    representative_user_id character varying(36) DEFAULT ''::character varying NOT NULL,
-    joined_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-
---
--- Name: organizations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.organizations (
-    id character varying(36) DEFAULT public.uuid_generate_v4() NOT NULL,
-    name character varying(255) NOT NULL,
-    description text,
-    owner_id character varying(36) NOT NULL,
-    invite_code character varying(32),
-    require_approval boolean DEFAULT false,
-    invite_code_expires_at timestamp with time zone,
-    invite_code_validity_days smallint DEFAULT 7 NOT NULL,
-    avatar character varying(512) DEFAULT ''::character varying,
-    searchable boolean DEFAULT false NOT NULL,
-    member_limit integer DEFAULT 50 NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    deleted_at timestamp with time zone,
-    owner_tenant_id bigint NOT NULL
-);
-
-
---
 -- Name: resource_access_grants; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1353,18 +1245,6 @@ CREATE SEQUENCE public.tenant_api_keys_id_seq
 --
 
 ALTER SEQUENCE public.tenant_api_keys_id_seq OWNED BY public.tenant_api_keys.id;
-
-
---
--- Name: tenant_disabled_shared_agents; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.tenant_disabled_shared_agents (
-    tenant_id bigint NOT NULL,
-    agent_id character varying(36) NOT NULL,
-    source_tenant_id bigint NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
-);
 
 
 --
@@ -1753,14 +1633,6 @@ ALTER TABLE ONLY public.tenants ALTER COLUMN id SET DEFAULT nextval('public.tena
 
 
 --
--- Name: agent_shares agent_shares_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.agent_shares
-    ADD CONSTRAINT agent_shares_pkey PRIMARY KEY (id);
-
-
---
 -- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1838,14 +1710,6 @@ ALTER TABLE ONLY public.im_channel_sessions
 
 ALTER TABLE ONLY public.im_channels
     ADD CONSTRAINT im_channels_pkey PRIMARY KEY (id);
-
-
---
--- Name: kb_shares kb_shares_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kb_shares
-    ADD CONSTRAINT kb_shares_pkey PRIMARY KEY (id);
 
 
 --
@@ -2017,38 +1881,6 @@ ALTER TABLE ONLY public.models
 
 
 --
--- Name: organization_join_requests organization_join_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.organization_join_requests
-    ADD CONSTRAINT organization_join_requests_pkey PRIMARY KEY (id);
-
-
---
--- Name: organization_members_pre_plan3 organization_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.organization_members_pre_plan3
-    ADD CONSTRAINT organization_members_pkey PRIMARY KEY (id);
-
-
---
--- Name: organization_tenant_members organization_tenant_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.organization_tenant_members
-    ADD CONSTRAINT organization_tenant_members_pkey PRIMARY KEY (id);
-
-
---
--- Name: organizations organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.organizations
-    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
-
-
---
 -- Name: resource_access_grants resource_access_grants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2166,14 +1998,6 @@ ALTER TABLE ONLY public.tenant_api_keys
 
 ALTER TABLE ONLY public.tenant_api_keys
     ADD CONSTRAINT tenant_api_keys_pkey PRIMARY KEY (id);
-
-
---
--- Name: tenant_disabled_shared_agents tenant_disabled_shared_agents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tenant_disabled_shared_agents
-    ADD CONSTRAINT tenant_disabled_shared_agents_pkey PRIMARY KEY (tenant_id, agent_id, source_tenant_id);
 
 
 --
@@ -2333,41 +2157,6 @@ CREATE INDEX embeddings_search_idx ON public.embeddings USING bm25 (id, knowledg
 --
 
 CREATE UNIQUE INDEX embeddings_unique_source ON public.embeddings USING btree (source_id, source_type);
-
-
---
--- Name: idx_agent_shares_agent_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_agent_shares_agent_id ON public.agent_shares USING btree (agent_id);
-
-
---
--- Name: idx_agent_shares_agent_org; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_agent_shares_agent_org ON public.agent_shares USING btree (agent_id, source_tenant_id, organization_id) WHERE (deleted_at IS NULL);
-
-
---
--- Name: idx_agent_shares_deleted_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_agent_shares_deleted_at ON public.agent_shares USING btree (deleted_at);
-
-
---
--- Name: idx_agent_shares_org_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_agent_shares_org_id ON public.agent_shares USING btree (organization_id);
-
-
---
--- Name: idx_agent_shares_source_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_agent_shares_source_tenant ON public.agent_shares USING btree (source_tenant_id);
 
 
 --
@@ -2676,41 +2465,6 @@ CREATE INDEX idx_im_channels_deleted ON public.im_channels USING btree (deleted_
 --
 
 CREATE INDEX idx_im_channels_tenant ON public.im_channels USING btree (tenant_id);
-
-
---
--- Name: idx_kb_shares_deleted_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_kb_shares_deleted_at ON public.kb_shares USING btree (deleted_at);
-
-
---
--- Name: idx_kb_shares_kb_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_kb_shares_kb_id ON public.kb_shares USING btree (knowledge_base_id);
-
-
---
--- Name: idx_kb_shares_kb_org; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_kb_shares_kb_org ON public.kb_shares USING btree (knowledge_base_id, organization_id) WHERE (deleted_at IS NULL);
-
-
---
--- Name: idx_kb_shares_org_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_kb_shares_org_id ON public.kb_shares USING btree (organization_id);
-
-
---
--- Name: idx_kb_shares_source_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_kb_shares_source_tenant ON public.kb_shares USING btree (source_tenant_id);
 
 
 --
@@ -3106,118 +2860,6 @@ CREATE INDEX idx_models_type ON public.models USING btree (type);
 
 
 --
--- Name: idx_org_join_requests_org_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_join_requests_org_id ON public.organization_join_requests USING btree (organization_id);
-
-
---
--- Name: idx_org_join_requests_org_user_pending; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_org_join_requests_org_user_pending ON public.organization_join_requests USING btree (organization_id, user_id) WHERE ((status)::text = 'pending'::text);
-
-
---
--- Name: idx_org_join_requests_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_join_requests_status ON public.organization_join_requests USING btree (status);
-
-
---
--- Name: idx_org_join_requests_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_join_requests_type ON public.organization_join_requests USING btree (request_type);
-
-
---
--- Name: idx_org_join_requests_user_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_join_requests_user_id ON public.organization_join_requests USING btree (user_id);
-
-
---
--- Name: idx_org_members_org_user_pre_plan3; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_org_members_org_user_pre_plan3 ON public.organization_members_pre_plan3 USING btree (organization_id, user_id);
-
-
---
--- Name: idx_org_members_role_pre_plan3; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_members_role_pre_plan3 ON public.organization_members_pre_plan3 USING btree (role);
-
-
---
--- Name: idx_org_members_tenant_id_pre_plan3; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_members_tenant_id_pre_plan3 ON public.organization_members_pre_plan3 USING btree (tenant_id);
-
-
---
--- Name: idx_org_members_user_id_pre_plan3; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_members_user_id_pre_plan3 ON public.organization_members_pre_plan3 USING btree (user_id);
-
-
---
--- Name: idx_org_tenant_members_by_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_tenant_members_by_tenant ON public.organization_tenant_members USING btree (tenant_id);
-
-
---
--- Name: idx_org_tenant_members_role; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_org_tenant_members_role ON public.organization_tenant_members USING btree (organization_id, role);
-
-
---
--- Name: idx_org_tenant_members_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_org_tenant_members_unique ON public.organization_tenant_members USING btree (organization_id, tenant_id);
-
-
---
--- Name: idx_organizations_deleted_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_organizations_deleted_at ON public.organizations USING btree (deleted_at);
-
-
---
--- Name: idx_organizations_invite_code; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_organizations_invite_code ON public.organizations USING btree (invite_code) WHERE ((invite_code IS NOT NULL) AND (deleted_at IS NULL));
-
-
---
--- Name: idx_organizations_owner_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_organizations_owner_id ON public.organizations USING btree (owner_id);
-
-
---
--- Name: idx_organizations_owner_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_organizations_owner_tenant ON public.organizations USING btree (owner_tenant_id);
-
-
---
 -- Name: idx_resource_access_grants_expires; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3432,13 +3074,6 @@ CREATE INDEX idx_tenant_api_keys_scope_type ON public.tenant_api_keys USING btre
 --
 
 CREATE INDEX idx_tenant_api_keys_tenant ON public.tenant_api_keys USING btree (tenant_id);
-
-
---
--- Name: idx_tenant_disabled_shared_agents_tenant_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_tenant_disabled_shared_agents_tenant_id ON public.tenant_disabled_shared_agents USING btree (tenant_id);
 
 
 --
@@ -3764,33 +3399,10 @@ CREATE INDEX idx_wiki_pages_tree ON public.wiki_pages USING btree (knowledge_bas
 
 
 --
--- Name: uq_org_join_requests_pending_per_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_org_join_requests_pending_per_tenant ON public.organization_join_requests USING btree (organization_id, tenant_id, request_type) WHERE ((status)::text = 'pending'::text);
-
-
---
 -- Name: mcp_services trigger_mcp_services_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trigger_mcp_services_updated_at BEFORE UPDATE ON public.mcp_services FOR EACH ROW EXECUTE FUNCTION public.update_mcp_services_updated_at();
-
-
---
--- Name: agent_shares agent_shares_agent_id_source_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.agent_shares
-    ADD CONSTRAINT agent_shares_agent_id_source_tenant_id_fkey FOREIGN KEY (agent_id, source_tenant_id) REFERENCES public.custom_agents(id, tenant_id) ON DELETE CASCADE;
-
-
---
--- Name: agent_shares agent_shares_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.agent_shares
-    ADD CONSTRAINT agent_shares_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -3815,22 +3427,6 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.im_channel_sessions
     ADD CONSTRAINT im_channel_sessions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(id) ON DELETE CASCADE;
-
-
---
--- Name: kb_shares kb_shares_knowledge_base_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kb_shares
-    ADD CONSTRAINT kb_shares_knowledge_base_id_fkey FOREIGN KEY (knowledge_base_id) REFERENCES public.knowledge_bases(id) ON DELETE CASCADE;
-
-
---
--- Name: kb_shares kb_shares_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kb_shares
-    ADD CONSTRAINT kb_shares_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -3887,30 +3483,6 @@ ALTER TABLE ONLY public.message_suggestion_events
 
 ALTER TABLE ONLY public.message_suggestion_sets
     ADD CONSTRAINT message_suggestion_sets_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
-
-
---
--- Name: organization_join_requests organization_join_requests_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.organization_join_requests
-    ADD CONSTRAINT organization_join_requests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: organization_members_pre_plan3 organization_members_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.organization_members_pre_plan3
-    ADD CONSTRAINT organization_members_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: organization_tenant_members organization_tenant_members_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.organization_tenant_members
-    ADD CONSTRAINT organization_tenant_members_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --

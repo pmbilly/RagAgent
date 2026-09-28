@@ -42,7 +42,7 @@ WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Ja
 | 会话 | `session` `stream` `storage` `storageurl` `webfetch` `websearch` | 会话/消息/SSE 契约层、steer/追问建议/产物、continue-stream、文件代理（Range/预签名/`/r/*` 能力 URL）、agent 网络工具（web_search/web_fetch + 全页快照存储） |
 | Agent | `agent` `agentm` `chatpipeline` `mcp` `modelcontext` | AgentEngine（thinking 流、工具循环、输出预算分摊）、30+ 内置工具（知识检索族/wiki 十件/web 两件/沙箱文件族/MCP）、RAG 快答管线、技能安装管线（installer agent + 镜像快照）、MCP 协议 + OAuth |
 | 沙箱 | `sandbox` | docker-java（zerodep 传输）容器执行面、会话绑定/租约、shell/文件工具 |
-| 协作与集成 | `org` `im` `embed` `datasource` `favorite` `memory` `system` `evaluation` | 组织/共享（KB/agent/文件跨租户授予链）、IM 九渠道回调管线（含 AES 验签）、嵌入问答、数据源连接器、长期记忆、系统管理端、评估数据面 |
+| 协作与集成 | `im` `embed` `datasource` `favorite` `memory` `system` `evaluation` | IM 九渠道回调管线（含 AES 验签）、嵌入问答、数据源连接器、长期记忆、系统管理端、评估数据面（空间分享 org 域已裁撤） |
 | 基础设施 | `docreader/` proto | docreader gRPC 契约（解析服务用官方镜像，目录名镜像 Go 仓） |
 
 数据库迁移 196 个（`migrations/versioned/`，与 Go 仓 schema 一字不改），PostgreSQL 依赖 **ParadeDB**（BM25）与 pgvector（halfvec HNSW）。

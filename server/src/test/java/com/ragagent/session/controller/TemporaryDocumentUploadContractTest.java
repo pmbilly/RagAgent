@@ -27,8 +27,8 @@ import com.ragagent.session.service.TemporaryDocumentService;
 
 /**
  * 附件上传入口的 agent 语义验收（对照 Go UploadTemporaryDocument，L19-93）：
- * 共享 agent 命中/未命中（404）/门控（supported_file_types、音频 ASR）/
- * parser_engine 绑定与 agent 级回落 / resource_tenant_id 写入。
+ * agent 门控（supported_file_types、音频 ASR）/ parser_engine 绑定与
+ * agent 级回落。共享 agent 与 agent_source_tenant_id 面随空间分享裁撤。
  */
 class TemporaryDocumentUploadContractTest {
 
@@ -44,6 +44,9 @@ class TemporaryDocumentUploadContractTest {
         sessionService = mock(SessionService.class);
         temporaryDocuments = mock(TemporaryDocumentService.class);
         agentResolver = mock(AgentResolver.class);
+        when(agentResolver.resolve(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(new AgentResolver.ResolvedAgent(null, 0L, false));
         controller = new TemporaryDocumentController(sessionService, temporaryDocuments,
                 agentResolver);
         TenantContext.set(TENANT, null, null, false, "u-1", false);
@@ -68,8 +71,8 @@ class TemporaryDocumentUploadContractTest {
     private static CustomAgentEntity agent(String configJson) {
         CustomAgentEntity a = new CustomAgentEntity();
         a.setId("a-1");
-        a.setName("shared-agent");
-        a.setTenantId(42L);
+        a.setName("own-agent");
+        a.setTenantId(TENANT);
         a.setConfig(configJson);
         return a;
     }
@@ -87,46 +90,16 @@ class TemporaryDocumentUploadContractTest {
         return captor.getValue();
     }
 
-    @Test
-    void missingSharedAgentIs404() {
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(null, 0, false));
 
-        assertThatThrownBy(() -> controller.upload("s-1", file("notes.txt"), "42", "a-1", "",
-                multipartRequest()))
-                .isInstanceOf(BizException.class)
-                .hasMessageContaining("Shared agent not found");
-    }
 
-    @Test
-    void invalidSourceTenantIs400WithGoText() {
-        assertThatThrownBy(() -> controller.upload("s-1", file("notes.txt"), "42abc", "a-1", "",
-                multipartRequest()))
-                .isInstanceOf(BizException.class)
-                .hasMessageContaining("invalid agent_source_tenant_id: strconv.ParseUint");
-    }
-
-    @Test
-    void sharedAgentUploadsWithResourceTenantAnd202() {
-        CustomAgentEntity shared = agent("{}");
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(shared, 42L, true));
-        stubCreate();
-
-        var response = controller.upload("s-1", file("notes.txt"), "42", "a-1", "",
-                multipartRequest());
-
-        assertThat(response.getStatusCode().value()).isEqualTo(202);
-        assertThat(capturedOptions().resourceTenantId()).isEqualTo(42L);
-    }
 
     @Test
     void unsupportedFileTypeForAgentIs400() {
-        CustomAgentEntity shared = agent("{\"supported_file_types\":[\"pdf\"]}");
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(shared, 42L, true));
+        CustomAgentEntity own = agent("{\"supported_file_types\":[\"pdf\"]}");
+        when(agentResolver.resolve("a-1", 0L))
+                .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
 
-        assertThatThrownBy(() -> controller.upload("s-1", file("notes.txt"), "42", "a-1", "",
+        assertThatThrownBy(() -> controller.upload("s-1", file("notes.txt"), "a-1", "",
                 multipartRequest()))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("file type is not supported by this agent");
@@ -134,12 +107,12 @@ class TemporaryDocumentUploadContractTest {
 
     @Test
     void supportedFileTypeMatchesWithDotAndCase() {
-        CustomAgentEntity shared = agent("{\"supported_file_types\":[\".TXT\"]}");
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(shared, 42L, true));
+        CustomAgentEntity own = agent("{\"supported_file_types\":[\".TXT\"]}");
+        when(agentResolver.resolve("a-1", 0L))
+                .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();
 
-        var response = controller.upload("s-1", file("notes.txt"), "42", "a-1", "",
+        var response = controller.upload("s-1", file("notes.txt"), "a-1", "",
                 multipartRequest());
 
         assertThat(response.getStatusCode().value()).isEqualTo(202);
@@ -147,11 +120,11 @@ class TemporaryDocumentUploadContractTest {
 
     @Test
     void audioWithoutAsrConfigIs400() {
-        CustomAgentEntity shared = agent("{\"audio_upload_enabled\":false}");
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(shared, 42L, true));
+        CustomAgentEntity own = agent("{\"audio_upload_enabled\":false}");
+        when(agentResolver.resolve("a-1", 0L))
+                .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
 
-        assertThatThrownBy(() -> controller.upload("s-1", file("voice.mp3"), "42", "a-1", "",
+        assertThatThrownBy(() -> controller.upload("s-1", file("voice.mp3"), "a-1", "",
                 multipartRequest()))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("audio upload is not enabled or no ASR model is configured");
@@ -159,49 +132,49 @@ class TemporaryDocumentUploadContractTest {
 
     @Test
     void audioWithAsrConfigWritesAsrModelId() {
-        CustomAgentEntity shared = agent(
+        CustomAgentEntity own = agent(
                 "{\"audio_upload_enabled\":true,\"asr_model_id\":\"asr-1\"}");
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(shared, 42L, true));
+        when(agentResolver.resolve("a-1", 0L))
+                .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();
 
-        controller.upload("s-1", file("voice.mp3"), "42", "a-1", "", multipartRequest());
+        controller.upload("s-1", file("voice.mp3"), "a-1", "", multipartRequest());
 
         assertThat(capturedOptions().asrModelId()).isEqualTo("asr-1");
     }
 
     @Test
     void agentParserRuleFillsEngineWhenNotExplicit() {
-        CustomAgentEntity shared = agent(
+        CustomAgentEntity own = agent(
                 "{\"chat_parser_engine_rules\":[{\"file_types\":[\"txt\"],\"engine\":\"markitdown\"}]}");
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(shared, 42L, true));
+        when(agentResolver.resolve("a-1", 0L))
+                .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();
 
-        controller.upload("s-1", file("notes.txt"), "42", "a-1", "auto", multipartRequest());
+        controller.upload("s-1", file("notes.txt"), "a-1", "auto", multipartRequest());
 
         assertThat(capturedOptions().parserEngine()).isEqualTo("markitdown");
     }
 
     @Test
     void explicitParserEngineIsKept() {
-        CustomAgentEntity shared = agent(
+        CustomAgentEntity own = agent(
                 "{\"chat_parser_engine_rules\":[{\"file_types\":[\"txt\"],\"engine\":\"markitdown\"}]}");
-        when(agentResolver.resolve("a-1", 42L))
-                .thenReturn(new AgentResolver.ResolvedAgent(shared, 42L, true));
+        when(agentResolver.resolve("a-1", 0L))
+                .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();
 
-        controller.upload("s-1", file("notes.txt"), "42", "a-1", " simple ", multipartRequest());
+        controller.upload("s-1", file("notes.txt"), "a-1", " simple ", multipartRequest());
 
         assertThat(capturedOptions().parserEngine()).isEqualTo("simple");
     }
 
     @Test
     void withoutAgentKeepsCallerScopeAndEmptyOptions() {
-        when(agentResolver.resolve(null, 0)).thenReturn(new AgentResolver.ResolvedAgent(null, 0, false));
+        when(agentResolver.resolve(null, 0L)).thenReturn(new AgentResolver.ResolvedAgent(null, 0L, false));
         stubCreate();
 
-        var response = controller.upload("s-1", file("notes.txt"), null, null, null,
+        var response = controller.upload("s-1", file("notes.txt"), null, null,
                 multipartRequest());
 
         assertThat(response.getStatusCode().value()).isEqualTo(202);

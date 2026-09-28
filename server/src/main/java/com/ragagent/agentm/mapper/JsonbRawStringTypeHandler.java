@@ -15,7 +15,7 @@ import org.apache.ibatis.type.MappedTypes;
  *
  * <p>写路径 {@code setObject(Types.OTHER)}（对照 PgJsonTypeHandler 的注释：setString 会被
  * PG 拒绝）；读路径原样 getString——键序重排交给响应层
- * （{@link com.ragagent.org.dto.OrgResponses} 同款手法），不做 PG 规范化模拟。</p>
+ * （同款 Jackson 手法），不做 PG 规范化模拟。</p>
  */
 @MappedTypes(String.class)
 public class JsonbRawStringTypeHandler extends BaseTypeHandler<String> {

@@ -38,18 +38,9 @@ public class DeploymentCapabilitiesHolder {
      * 组合根（WebConfig）在装配完成后调用一次——对照 Go 在 NewRouter 尾部的
      * BindDeploymentCapabilities。
      */
-    public void bind(boolean organizations, boolean agents, boolean im, boolean embed,
+    public void bind(boolean agents, boolean im, boolean embed,
                      boolean api, boolean mcp, boolean webSearch, boolean vectorStore,
                      boolean storage) {
-        boolean isLite = "lite".equalsIgnoreCase(edition());
-        SystemDtos.DeploymentCapability organizationsCap =
-                SystemDtos.DeploymentCapability.notRegistered();
-        if (organizations && !isLite) {
-            organizationsCap = SystemDtos.DeploymentCapability.yes();
-        } else if (isLite) {
-            organizationsCap = new SystemDtos.DeploymentCapability(false, "not_supported_in_lite");
-        }
-
         Map<String, SystemDtos.DeploymentCapability> caps = new LinkedHashMap<>();
         // 构造顺序无语义——encoding/json 对 map 恒按字母序输出（Jackson 用 record 声明序
         // 序列化字段、LinkedHashMap 保插入序，因此这里要按 Go 输出的字母序插入）。
@@ -57,7 +48,6 @@ public class DeploymentCapabilitiesHolder {
         caps.put("integrations.api", capability(api));
         caps.put("integrations.embed", capability(embed));
         caps.put("integrations.im", capability(im));
-        caps.put("organizations", organizationsCap);
         caps.put("settings.mcp", capability(mcp));
         caps.put("settings.storage", capability(storage));
         caps.put("settings.vectorstore", capability(vectorStore));

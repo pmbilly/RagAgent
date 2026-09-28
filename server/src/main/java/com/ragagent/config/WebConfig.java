@@ -481,8 +481,6 @@ public class WebConfig implements WebMvcConfigurer {
         // POST /tenants 不登记规则——Go 该路由只有 Auth（自助创建对普通用户开放）。
         // GET /tenants 同样**无角色门**（W5a 补的 ListTenants：只回活动空间自身，
         // Go 注册在裸 tenantRoutes 组、无 g.Viewer()）→ 不登记规则。
-        rbac.addCrossTenantRule("GET", "/api/v1/tenants/all");
-        rbac.addCrossTenantRule("GET", "/api/v1/tenants/search");
         // tenants CRUD 的 per-id 三条（W5a，对照 routes_auth_tenant.go L88-97）：
         // GET=Viewer+（读空间设置）；PUT/DELETE=Owner+（改/删空间——Go 注释矩阵）。
         // PathTenantMatch 对 /api/v1/tenants/{id}/** 自动生效（RbacInterceptor 内建），
@@ -538,54 +536,6 @@ public class WebConfig implements WebMvcConfigurer {
         // GET /skills（指令型技能目录，agentm/SkillsCatalogController）：选择器数据源，
         // Viewer+（对照 routes_agent.go RegisterSkillRoutes 的 GET /skills Viewer）。
         rbac.addRule("GET", "/api/v1/skills", TenantRole.VIEWER, false);
-        // ── 波 3 协作面批次（对照 routes_agent.go RegisterOrganizationRoutes L95-216）──
-        // organizations 组 Viewer/Admin 混合：create/join*/invite*/member 写/request 复审
-        // 与 role 升级全是 Admin+（Go 注释：改整个空间的组织角色不能由 Viewer/Contributor
-        // 发起）；list/get/search/preview/members/shares 读端 Viewer+。
-        // 静态段（preview/join/join-request/search/join-by-id）先于 /organizations/* 通配
-        // 登记（AntPathMatcher 取首个命中）。
-        rbac.addRule("POST", "/api/v1/organizations", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/organizations/preview/*", TenantRole.VIEWER, false);
-        rbac.addRule("POST", "/api/v1/organizations/join", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/organizations/join-request", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations/search", TenantRole.VIEWER, false);
-        rbac.addRule("POST", "/api/v1/organizations/join-by-id", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations/*", TenantRole.VIEWER, false);
-        rbac.addRule("PUT", "/api/v1/organizations/*", TenantRole.ADMIN, false);
-        rbac.addRule("DELETE", "/api/v1/organizations/*", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/organizations/*/leave", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/organizations/*/request-upgrade", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/organizations/*/invite-code", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/search-tenants", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/search-users", TenantRole.ADMIN, false);
-        rbac.addRule("POST", "/api/v1/organizations/*/invite", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/members", TenantRole.VIEWER, false);
-        rbac.addRule("PUT", "/api/v1/organizations/*/members/*", TenantRole.ADMIN, false);
-        rbac.addRule("DELETE", "/api/v1/organizations/*/members/*", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/join-requests", TenantRole.ADMIN, false);
-        rbac.addRule("PUT", "/api/v1/organizations/*/join-requests/*/review", TenantRole.ADMIN, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/shares", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/agent-shares", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/shared-knowledge-bases", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/organizations/*/shared-agents", TenantRole.VIEWER, false);
-        // KB shares：POST/PUT/DELETE 是 OwnedKBOrAdmin（**无角色门**——Viewer 创建的 KB
-        // 其本人可分享），GET 纯读 Viewer+；所有权判定在控制器内（先例同 FAQ）。
-        rbac.addRule("POST", "/api/v1/knowledge-bases/*/shares", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/knowledge-bases/*/shares", TenantRole.VIEWER, false);
-        rbac.addRule("PUT", "/api/v1/knowledge-bases/*/shares/*", TenantRole.VIEWER, false);
-        rbac.addRule("DELETE", "/api/v1/knowledge-bases/*/shares/*", TenantRole.VIEWER, false);
-        // agent shares 三条：全部 OwnedAgentOrAdmin（GET 也是——Go 注释：JWT 侧 owner
-        // 校验），无角色门 → VIEWER 下限；判定在控制器内。
-        rbac.addRule("POST", "/api/v1/agents/*/shares", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/agents/*/shares", TenantRole.VIEWER, false);
-        rbac.addRule("DELETE", "/api/v1/agents/*/shares/*", TenantRole.VIEWER, false);
-        // shared-* 三条：读 Viewer+；"disable by me" 是空间级偏好（写
-        // tenant_disabled_shared_agents 影响整个空间的会话下拉）→ Admin+。
-        rbac.addRule("GET", "/api/v1/shared-knowledge-bases", TenantRole.VIEWER, false);
-        rbac.addRule("GET", "/api/v1/shared-agents", TenantRole.VIEWER, false);
-        rbac.addRule("POST", "/api/v1/shared-agents/disabled", TenantRole.ADMIN, false);
-
         // ── 波 3 agents 批：agents CRUD 家族（对照 routes_agent.go RegisterCustomAgentRoutes）──
         // 静态段先于 /agents/* 通配登记（AntPathMatcher 取首个命中）。
         // placeholders/type-presets/list/get：Viewer+；create/copy：Contributor+；
@@ -676,8 +626,7 @@ public class WebConfig implements WebMvcConfigurer {
                 "/api/v1/evaluation/**",
                 "/api/v1/user/favorites/**", "/api/v1/chunker/**",
                 "/api/v1/skills/**",
-                "/api/v1/organizations/**", "/api/v1/agents/**",
-                "/api/v1/shared-knowledge-bases", "/api/v1/shared-agents/**",
+                "/api/v1/agents/**",
                 "/api/v1/initialization/**",
                 "/api/v1/embed-channels/**", "/api/v1/im-channels/**", "/api/v1/wechat/**",
                 // W5c：presigned-preview 的 ADMIN 规则要有 pattern 才能命中；
@@ -700,16 +649,14 @@ public class WebConfig implements WebMvcConfigurer {
     /**
      * GET /system/capabilities 的启动快照（对照 Go router.NewRouter 尾部的
      * BindDeploymentCapabilities(deploymentCapabilitiesFromRouter(params))）。
-     * Java 侧以"模块是否已翻译注册"等价 Go 的"handler 是否被注入"（当前部署状态：
-     * organizations/agents/im/embed/sandbox 未注册 → route_not_registered，随波 3/4/5/7
-     * 推进在各自批次翻真——这是**部署状态**而非代码契约，A/B 按部署各自断言）。
+     * Java 侧以"模块是否已翻译注册"等价 Go 的"handler 是否被注入"。organizations
+     * 随空间分享裁撤；这是**部署状态**而非代码契约，A/B 按部署各自断言。
      */
     @org.springframework.context.annotation.Bean
     public com.ragagent.system.service.DeploymentCapabilitiesHolder deploymentCapabilitiesHolder(
             com.ragagent.apikey.service.TenantAPIKeyService apiKeyService) {
         var holder = new com.ragagent.system.service.DeploymentCapabilitiesHolder();
         holder.bind(
-                /* organizations */ true,
                 /* agents */ true, // 波 3 agents 批注册了 routes_agent.go 的 agents 家族
                 /* im */ true, // 波 4.3：RegisterIMChannelRoutes 的渠道 CRUD 面落地
                 /* embed */ true, // 波 4.3：RegisterEmbedChannelRoutes/RegisterEmbedPublicRoutes 落地

@@ -59,22 +59,9 @@
                 <span class="kb-info-card-hint">{{ accessPermissionSummary }}</span>
               </span>
             </div>
-            <div v-if="currentSharedKb" class="kb-info-card-row">
-              <span class="kb-info-card-label">{{ t('knowledgeBase.accessInfo.fromOrg') }}</span>
-              <span class="kb-info-card-value">
-                「{{ currentSharedKb.org_name }}」 · {{ t('knowledgeBase.accessInfo.sharedAt') }}
-                {{ formatStringDate(new Date(currentSharedKb.shared_at)) }}
-              </span>
-            </div>
-            <div v-else-if="effectiveKBPermission" class="kb-info-card-row">
+            <div v-if="effectiveKBPermission" class="kb-info-card-row">
               <span class="kb-info-card-label">{{ t('knowledgeBase.infoCard.source') }}</span>
               <span class="kb-info-card-value">{{ t('knowledgeList.detail.sourceTypeAgent') }}</span>
-            </div>
-            <div v-if="(kbInfo.share_count ?? 0) > 0" class="kb-info-card-row">
-              <span class="kb-info-card-label">{{ t('knowledgeBase.infoCard.sharedTo') }}</span>
-              <span class="kb-info-card-value">
-                {{ t('knowledgeList.sharedToOrgs', { count: kbInfo.share_count }) }}
-              </span>
             </div>
           </section>
           <section v-if="capabilities.length" class="setting-drawer__section">
@@ -168,7 +155,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import VectorStoreBadge from '@/components/VectorStoreBadge.vue'
-import { useOrganizationStore } from '@/stores/organization'
 import { useAuthStore } from '@/stores/auth'
 import { formatStringDate } from '@/utils'
 
@@ -185,7 +171,6 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const orgStore = useOrganizationStore()
 const authStore = useAuthStore()
 
 // "Owner" here mirrors the per-page guards: the original creator
@@ -201,18 +186,9 @@ const isOwner = computed<boolean>(() => {
   return creatorId === userId
 })
 
-const currentSharedKb = computed(() => {
-  const id = props.kbInfo?.id
-  if (!id) return null
-  return orgStore.sharedKnowledgeBases?.find?.((s: any) => s.knowledge_base?.id === id) ?? null
-})
+const isViaShare = computed<boolean>(() => false)
 
-const isViaShare = computed<boolean>(() => !!currentSharedKb.value)
-
-const effectiveKBPermission = computed<string>(() => {
-  const id = props.kbInfo?.id || ''
-  return orgStore.getKBPermission?.(id) || props.kbInfo?.my_permission || ''
-})
+const effectiveKBPermission = computed<string>(() => props.kbInfo?.my_permission || '')
 
 const accessRoleLabel = computed<string>(() => {
   if (!isViaShare.value && isOwner.value) return t('knowledgeBase.accessInfo.roleOwner')

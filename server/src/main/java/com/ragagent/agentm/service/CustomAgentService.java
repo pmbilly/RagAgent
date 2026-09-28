@@ -24,7 +24,6 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
-import com.ragagent.org.mapper.TenantDisabledSharedAgentMapper;
 
 /**
  * agents CRUD 家族 service（对照 Go internal/application/service/custom_agent.go +
@@ -51,7 +50,6 @@ public class CustomAgentService {
 
     private final CustomAgentMapper agentMapper;
     private final AgentQuestionMapper questionMapper;
-    private final TenantDisabledSharedAgentMapper disabledMapper;
     private final com.ragagent.auth.service.UserService userService;
     private final KnowledgeBaseService kbService;
     private final BuiltinAgentRegistry registry;
@@ -65,7 +63,6 @@ public class CustomAgentService {
 
     public CustomAgentService(CustomAgentMapper agentMapper,
             AgentQuestionMapper questionMapper,
-            TenantDisabledSharedAgentMapper disabledMapper,
             com.ragagent.auth.service.UserService userService,
             KnowledgeBaseService kbService,
             BuiltinAgentRegistry registry,
@@ -73,7 +70,6 @@ public class CustomAgentService {
                     com.ragagent.im.service.ImService> imServiceProvider) {
         this.agentMapper = agentMapper;
         this.questionMapper = questionMapper;
-        this.disabledMapper = disabledMapper;
         this.userService = userService;
         this.kbService = kbService;
         this.registry = registry;
@@ -190,16 +186,9 @@ public class CustomAgentService {
             result = filtered;
         }
 
-        // disabled_own_agent_ids（tenant_id = source_tenant_id = 当前空间的行）
-        List<String> disabledOwn = new ArrayList<>();
-        for (TenantDisabledSharedAgentMapper.DisabledRow row : disabledMapper.listByTenant(tenant)) {
-            if (row.getSourceTenantId() != null && row.getSourceTenantId() == tenant) {
-                disabledOwn.add(row.getAgentId());
-            }
-        }
-
+        // disabled_own_agent_ids 随空间分享裁撤：恒空列表（信封键保留以稳契约）
         enrichCreatorNames(result);
-        return new ListResult(result, disabledOwn);
+        return new ListResult(result, List.of());
     }
 
     public record ListResult(List<Result> agents, List<String> disabledOwnIds) {}

@@ -75,9 +75,6 @@ public class SessionKnowledgeQaService {
     private final com.ragagent.auth.service.TenantService tenantService;
     private final com.ragagent.websearch.mapper.WebSearchProviderRepository webSearchProviderRepository;
     private final javax.sql.DataSource dataSource;
-    /** 共享 KB 列表（对照 Go 的 kbShareService；ObjectProvider 装配避免跨域硬依赖）。 */
-    private final org.springframework.beans.factory.ObjectProvider<
-            com.ragagent.org.service.KbShareService> kbShareService;
 
     public SessionKnowledgeQaService(EventManager eventManager,
             ConversationProperties cfg,
@@ -87,9 +84,7 @@ public class SessionKnowledgeQaService {
             PipelinePorts.ModelService pipelineModelService,
             com.ragagent.auth.service.TenantService tenantService,
             com.ragagent.websearch.mapper.WebSearchProviderRepository webSearchProviderRepository,
-            javax.sql.DataSource dataSource,
-            org.springframework.beans.factory.ObjectProvider<
-                    com.ragagent.org.service.KbShareService> kbShareService) {
+            javax.sql.DataSource dataSource) {
         this.eventManager = eventManager;
         this.cfg = cfg;
         this.modelService = modelService;
@@ -99,7 +94,6 @@ public class SessionKnowledgeQaService {
         this.tenantService = tenantService;
         this.webSearchProviderRepository = webSearchProviderRepository;
         this.dataSource = dataSource;
-        this.kbShareService = kbShareService;
     }
 
     /**
@@ -683,44 +677,10 @@ public class SessionKnowledgeQaService {
                     }
                 }
 
-                // 对照 Go L377-410：**非**共享 agent 才并入调用方可见的共享 KB——
-                // 共享 agent（会话租户 ≠ agent 租户）并入会把其它组织的 KB 泄漏进检索范围
-                boolean isSharedAgent = sessionTenantId != 0 && sessionTenantId != agent.getTenantId();
-                int sharedSkipped = 0;
-                com.ragagent.org.service.KbShareService shareService = kbShareService.getIfAvailable();
-                String callerUserId = com.ragagent.common.context.TenantContext.currentUserId();
-                if (!isSharedAgent && shareService != null
-                        && callerUserId != null && !callerUserId.isEmpty()) {
-                    Long callerTenant = com.ragagent.common.context.TenantContext.currentTenantId();
-                    try {
-                        List<com.ragagent.org.service.KbShareService.SharedKbInfo> shared =
-                                shareService.listSharedKnowledgeBases(
-                                        callerTenant == null ? 0 : callerTenant,
-                                        com.ragagent.org.service.OrganizationService.callerTenantRole());
-                        for (com.ragagent.org.service.KbShareService.SharedKbInfo info : shared) {
-                            if (info == null || info.knowledgeBase() == null
-                                    || kbIdSet.contains(info.knowledgeBase().getId())) {
-                                continue;
-                            }
-                            if (!kbSatisfiesAgentRequirements(info.knowledgeBase(), agentCfg)) {
-                                sharedSkipped++;
-                                continue;
-                            }
-                            kbIds.add(info.knowledgeBase().getId());
-                            kbIdSet.add(info.knowledgeBase().getId());
-                        }
-                    } catch (RuntimeException e) {
-                        log.warn("Failed to list shared knowledge bases: {}", e.toString());
-                    }
-                } else if (isSharedAgent) {
-                    log.info("Shared agent detected (session tenant {} != agent tenant {}): "
-                            + "skipping user's shared KBs", sessionTenantId, agent.getTenantId());
+                if (ownSkipped > 0) {
+                    log.info("KBSelectionMode=all: tool-capability filter removed {} own KBs", ownSkipped);
                 }
-                if (ownSkipped + sharedSkipped > 0) {
-                    log.info("KBSelectionMode=all: tool-capability filter removed {} own + {} shared KBs",
-                            ownSkipped, sharedSkipped);
-                }
-                log.info("KBSelectionMode=all: loaded {} knowledge bases (own + shared)", kbIds.size());
+                log.info("KBSelectionMode=all: loaded {} knowledge bases (own)", kbIds.size());
                 return kbIds;
             }
             case "selected" -> {
@@ -894,16 +854,8 @@ public class SessionKnowledgeQaService {
                 && !scope.allowsKnowledgeBases(java.util.List.of(kbId))) {
             return false;
         }
-        // ② 租户/共享判定。用**检索作用域租户**（Go 文档：tenantID = session.TenantID 或共享 agent 的
-        //    生效租户）而非 ctx 当前租户——共享 agent 场景下 agent 自己的 KB 正是靠这条放行
-        //    （对应 Go 的 SharedAgentGrant 授予；用 ctx 租户会把这些 KB 误丢）。
-        return kbReadableByCaller(retrievalTenantId, ownerTenantId, () -> {
-            com.ragagent.org.service.KbShareService shareService = kbShareService.getIfAvailable();
-            return shareService != null && shareService
-                    .checkTenantKBPermission(kbId, retrievalTenantId,
-                            com.ragagent.org.service.OrganizationService.callerTenantRole())
-                    .permits("viewer");
-        });
+        // ② 租户判定（空间分享裁撤：跨租户共享授权链已退役，仅本租户可读）。
+        return kbReadableByCaller(retrievalTenantId, ownerTenantId, () -> false);
     }
 
     /**

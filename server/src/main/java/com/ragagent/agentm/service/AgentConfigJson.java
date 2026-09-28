@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *
  * <p>Go 把 jsonb Unmarshal 进 struct（缺键 = 零值）→ 改字段 → 再 Marshal。
  * Java 侧等价操作直接在 Jackson 树上做：缺键视为 Go 零值，默认值显式写回，
- * 序列化仍由 {@link com.ragagent.org.dto.OrgResponses#agentConfigMap} 按
+ * 序列化由 agentm/dto/AgentResponses#agentConfigMap 按
  * struct 声明序 + omitempty 语义输出。</p>
  */
 public final class AgentConfigJson {

@@ -88,19 +88,6 @@
                   <span v-else>
                     {{ $t('mentionDetail.kbCount', { count: detailCache[item.id].data.knowledge_count ?? detailCache[item.id].data.count ?? 0 }) }}
                   </span>
-                  <span v-if="detailCache[item.id].data.org_name || item.orgName" class="detail-org">
-                    <img src="@/assets/img/organization-green.svg" class="detail-icon-img" alt="" aria-hidden="true" />
-                    <span class="detail-label">{{ $t('mentionDetail.belongsToOrg') }}</span>
-                    <span
-                      class="detail-value clickable"
-                      @click.stop="handleOrgClick(detailCache[item.id].data.org_name || item.orgName)"
-                    >
-                      {{ detailCache[item.id].data.org_name || item.orgName }}
-                    </span>
-                  </span>
-                  <span v-if="agentIdForDetail && (detailCache[item.id].data.org_name || item.orgName)" class="detail-readonly-hint">
-                    {{ $t('mentionDetail.readOnlyFromAgent') }}
-                  </span>
                 </div>
               </template>
             </div>
@@ -245,16 +232,6 @@
                       {{ detailCache[item.id].data.knowledge_base_name || item.kbName }}
                     </span>
                   </span>
-                  <span v-if="item.orgName" class="detail-org">
-                    <img src="@/assets/img/organization-green.svg" class="detail-icon-img" alt="" aria-hidden="true" />
-                    <span class="detail-label">{{ $t('mentionDetail.belongsToOrg') }}</span>
-                    <span
-                      class="detail-value clickable"
-                      @click.stop="handleOrgClick(item.orgName)"
-                    >
-                      {{ item.orgName }}
-                    </span>
-                  </span>
                 </div>
               </template>
             </div>
@@ -280,8 +257,6 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getKnowledgeBaseById } from '@/api/knowledge-base';
 import { getKnowledgeDetails } from '@/api/knowledge-base';
-import { useOrganizationStore } from '@/stores/organization';
-import { useSettingsStore } from '@/stores/settings';
 import { SKILL_ICON, type MentionItem, type MentionItemType } from '@/types/mention';
 
 type DetailState = { loading: boolean; error?: string; data?: any };
@@ -305,8 +280,6 @@ const emit = defineEmits(['select', 'update:activeIndex', 'loadMore']);
 
 const router = useRouter();
 const { t } = useI18n();
-const orgStore = useOrganizationStore();
-const settingsStore = useSettingsStore();
 const menuRef = ref<HTMLElement | null>(null);
 const listRef = ref<HTMLElement | null>(null);
 const detailCache = ref<Record<string, DetailState>>({});
@@ -318,14 +291,6 @@ let scrollTimer: ReturnType<typeof setTimeout> | null = null;
 onBeforeUnmount(() => {
   if (scrollTimer) clearTimeout(scrollTimer);
 });
-
-// 共享智能体上下文：用于请求知识库/知识详情时带 agent_id，后端据此校验权限
-const agentIdForDetail = computed(() => {
-  const sourceTenantId = settingsStore.selectedAgentSourceTenantId;
-  const agentId = settingsStore.selectedAgentId;
-  return sourceTenantId && agentId ? agentId : undefined;
-});
-const agentSourceTenantIdForDetail = computed(() => settingsStore.selectedAgentSourceTenantId ?? undefined);
 
 const kbItems = computed(() => props.items.filter(item => item.type === 'kb'));
 const fileItems = computed(() => props.items.filter(item => item.type === 'file'));
@@ -463,11 +428,7 @@ async function fetchKbDetail(item: { id: string }) {
   if (detailCache.value[item.id]?.data || detailCache.value[item.id]?.loading) return;
   detailCache.value = { ...detailCache.value, [item.id]: { loading: true } };
   try {
-    const opts = agentIdForDetail.value ? {
-      agent_id: agentIdForDetail.value,
-      agent_source_tenant_id: agentSourceTenantIdForDetail.value,
-    } : undefined;
-    const res: any = await getKnowledgeBaseById(item.id, opts);
+    const res: any = await getKnowledgeBaseById(item.id);
     detailCache.value = { ...detailCache.value, [item.id]: { loading: false, data: res?.data ?? res } };
   } catch (e: any) {
     detailCache.value = { ...detailCache.value, [item.id]: { loading: false, error: e?.message || 'Failed to load' } };
@@ -478,11 +439,7 @@ async function fetchFileDetail(item: { id: string }) {
   if (detailCache.value[item.id]?.data || detailCache.value[item.id]?.loading) return;
   detailCache.value = { ...detailCache.value, [item.id]: { loading: true } };
   try {
-    const opts = agentIdForDetail.value ? {
-      agent_id: agentIdForDetail.value,
-      agent_source_tenant_id: agentSourceTenantIdForDetail.value,
-    } : undefined;
-    const res: any = await getKnowledgeDetails(item.id, opts);
+    const res: any = await getKnowledgeDetails(item.id);
     detailCache.value = { ...detailCache.value, [item.id]: { loading: false, data: res?.data ?? res } };
   } catch (e: any) {
     detailCache.value = { ...detailCache.value, [item.id]: { loading: false, error: e?.message || 'Failed to load' } };
@@ -492,21 +449,6 @@ async function fetchFileDetail(item: { id: string }) {
 function handleKbClick(kbId: string | undefined) {
   if (!kbId) return;
   router.push(`/platform/knowledge-bases/${kbId}`);
-}
-
-function handleOrgClick(orgName: string) {
-  if (!orgName) return;
-  // 从共享知识库列表中找到对应的组织 ID
-  const sharedKb = orgStore.sharedKnowledgeBases.find(
-    (s: any) => s.org_name === orgName
-  );
-  if (sharedKb?.organization_id) {
-    // 跳转到组织列表页（目前组织详情页可能不存在，先跳转到列表页）
-    router.push('/platform/organizations');
-  } else {
-    // 如果找不到组织 ID，也跳转到组织列表页
-    router.push('/platform/organizations');
-  }
 }
 
 const onScroll = (e: Event) => {
@@ -743,28 +685,6 @@ const scrollToItem = (index: number) => {
   font-size: 16px;
 }
 
-/* 右下角组织角标：柔和小圆 + 绿色/灰色 icon，不刺眼 */
-.org-badge-wrap {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--td-bg-color-secondarycontainer, #f0f2f5);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.org-badge-wrap .org-badge {
-  width: 6px;
-  height: 6px;
-  object-fit: contain;
-}
-
 /* 知识库 / 文件 - 无背景，与整体一致 */
 .kb-icon,
 .faq-icon,
@@ -815,16 +735,6 @@ const scrollToItem = (index: number) => {
 
 .count.is-stale {
   color: var(--td-warning-color, #e37318);
-}
-
-.org-name {
-  flex-shrink: 0;
-  max-width: 72px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--td-font-size-mark-small, 12px);
-  color: var(--td-text-color-placeholder, #999);
 }
 
 .kb-name {
@@ -926,15 +836,7 @@ const scrollToItem = (index: number) => {
   gap: 5px;
   align-items: flex-start;
 }
-.mention-detail-content .detail-readonly-hint {
-  display: block;
-  margin-top: 6px;
-  font-size: var(--td-font-size-mark-small, 12px);
-  color: var(--td-text-color-placeholder, #999);
-  font-style: italic;
-}
 
-.mention-detail-content .detail-org,
 .mention-detail-content .detail-kb {
   display: inline-flex;
   align-items: center;
@@ -954,17 +856,6 @@ const scrollToItem = (index: number) => {
 .mention-detail-content .detail-kb .detail-icon {
   color: var(--td-brand-color);
   font-weight: 600;
-}
-.mention-detail-content .detail-icon-img {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  margin-right: 2px;
-  color: var(--td-text-color-placeholder, #000000);
-  opacity: 0.7;
-  display: inline-block;
-  vertical-align: middle;
-  object-fit: contain;
 }
 .mention-detail-content .detail-label {
   color: var(--td-text-color-placeholder, #999);

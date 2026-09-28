@@ -56,7 +56,7 @@ batch_domains() {
     B1a) echo "agent chatpipeline" ;;
     B1b) echo "common event apikey audit auth" ;;
     B2) echo "browserskill datasource embed embedding evaluation favorite" ;;
-    B3) echo "im knowledge llm mcp memory model modelcontext org" ;;
+    B3) echo "im knowledge llm mcp memory model modelcontext" ;;
     B4) echo "rerank searchutil session storage storageurl stream system tracing vectorstore webfetch websearch wiki agentm retrieval config" ;;
   esac
 }

@@ -40,7 +40,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  *
  * <p><b>部署状态差异（不做 golden 字节比对的条目，报告注明）</b>：</p>
  * <ul>
- *   <li>capabilities：Go dev 已注册 organizations/agents/im/embed 路由，
+ *   <li>capabilities：Go dev 已注册 agents/im/embed 路由，
  *       Java 均未翻译 → supported=false。按 Java 部署断言 + 与 golden 的键集对比；</li>
  *   <li>parser-engines（与 check）：golden 打了真 docreader（connected=true，远端覆盖
  *       builtin 描述/文件类型 + markitdown/opendataloader 追加）；测试禁真实网络 →
@@ -147,7 +147,7 @@ class SystemContractTest {
 
     /**
      * capabilities：响应外壳 + 键集与 Go golden 一致；各能力**值**按 Java 部署断言
-     * （Go dev 的 organizations/agents/im/embed=true 是它的部署状态）。
+     * （Go dev 的 agents/im/embed=true 是它的部署状态；organizations 随空间分享裁撤）。
      */
     @Test
     void capabilitiesMatchesDeployment() throws Exception {

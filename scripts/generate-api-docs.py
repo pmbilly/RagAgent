@@ -38,7 +38,7 @@ DOMAIN_LABELS = {
     "knowledge-chat": "知识库问答", "knowledge-search": "知识检索",
     "mcp": "MCP 服务", "modelcontext": "MCP(旧)",
     "skills": "技能", "me": "个人设置", "system": "系统管理", "evaluation": "评估",
-    "organizations": "组织协作", "shared": "共享入口", "im": "IM 集成",
+    "im": "IM 集成",
     "embed": "嵌入问答", "datasources": "数据源", "favorites": "收藏",
     "web-search-providers": "搜索服务商", "vector-stores": "向量库",
     "storage-backends": "存储后端", "files": "文件代理", "tenants": "租户管理",

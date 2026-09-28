@@ -14,7 +14,6 @@ import com.ragagent.session.service.SessionService;
 import com.ragagent.session.service.TemporaryDocumentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -61,7 +60,6 @@ public class TemporaryDocumentController {
     public ResponseEntity<Map<String, Object>> upload(
             @PathVariable("session_id") String sessionId,
             @RequestParam(value = "file", required = false) MultipartFile file,
-            @RequestParam(value = "agent_source_tenant_id", required = false) String agentSourceTenantId,
             @RequestParam(value = "agent_id", required = false) String agentId,
             @RequestParam(value = "parser_engine", required = false) String parserEngine,
             jakarta.servlet.http.HttpServletRequest request) {
@@ -85,22 +83,11 @@ public class TemporaryDocumentController {
         }
         // 空 size 不在此拒——Go 的 FormFile 收 0 字节文件，由 service 的
         // "file size must be between 1 byte and 50MB" 兜（golden 实测）
-        // agent_source_tenant_id：fail-closed 解析（对照 ParseAgentSourceTenantID 的文案）
-        long sourceTenantId;
-        try {
-            sourceTenantId = com.ragagent.org.service.AgentShareSources.parse(agentSourceTenantId);
-        } catch (IllegalArgumentException e) {
-            throw new BizException(AppError.badRequest(e.getMessage()));
-        }
-        // resolveAgent（Go resolveAgent：共享优先、source==0 才回落 own；
-        // source!=0 且未命中 → 409/404 中的 404 "Shared agent not found"）
-        var resolved = agentResolver.resolve(agentId, sourceTenantId);
+        // agent_source_tenant_id / 共享 agent 分支随空间分享裁撤：只解析自有 agent
+        var resolved = agentResolver.resolve(agentId, 0);
         var agent = resolved.row();
-        if (sourceTenantId != 0 && agent == null) {
-            throw BizException.notFound("Shared agent not found");
-        }
         TemporaryDocumentService.CreateOptions options =
-                agentOptions(agent, resolved, extNoDot(file.getOriginalFilename()), parserEngine);
+                agentOptions(agent, extNoDot(file.getOriginalFilename()), parserEngine);
         byte[] data;
         try {
             data = file.getBytes();
@@ -269,7 +256,6 @@ public class TemporaryDocumentController {
      */
     private static TemporaryDocumentService.CreateOptions agentOptions(
             com.ragagent.agentm.domain.CustomAgentEntity agent,
-            com.ragagent.session.service.AgentResolver.ResolvedAgent resolved,
             String ext, String parserEngine) {
         TemporaryDocumentService.CreateOptions options = TemporaryDocumentService.CreateOptions
                 .empty().withParserEngine(parserEngine == null ? "" : parserEngine.strip());
@@ -278,7 +264,6 @@ public class TemporaryDocumentController {
         }
         com.fasterxml.jackson.databind.node.ObjectNode cfg =
                 com.ragagent.session.service.AgentResolver.parseAgentConfig(agent);
-        options = options.withResourceTenantId(resolved.effectiveTenantId());
         List<String> supported = stringListOf(cfg.get("supported_file_types"));
         if (!supported.isEmpty() && !containsFileType(supported, ext)) {
             throw new BizException(AppError.badRequest("file type is not supported by this agent"));

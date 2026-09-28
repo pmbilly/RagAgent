@@ -14,9 +14,8 @@ import com.ragagent.storage.service.ResourceCatalogService;
 /**
  * KB / 消息两个 scoped 文件代理的授权判定（对照 Go
  * {@code application/access/files.go} 的 ResolveKBFile / ResolveMessageFile /
- * AuthorizeMessageFile / MessageReferencesFile / resolveFile 与
- * {@code application/access/message_files.go} 的 resourceAccessibleViaSharedKB /
- * collectSharedKBEvidenceIDs / collectKBEvidenceFromValue，全文移植）。
+ * AuthorizeMessageFile / MessageReferencesFile / resolveFile，全文移植；
+ * 跨租户双授予链随空间分享裁撤）。
  *
  * <p>错误以 {@link FileAccessException} 抛出，由代理服务按 Go 的
  * {@code fileAccessError} 映射写响应。</p>
@@ -32,19 +31,13 @@ public class FileAccessResolver {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ResourceCatalogService catalog;
-    private final com.ragagent.org.service.AgentShareService agentShareService;
-    private final com.ragagent.org.service.KbShareService kbShareService;
     private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
     private final com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService;
 
     public FileAccessResolver(ResourceCatalogService catalog,
-            com.ragagent.org.service.AgentShareService agentShareService,
-            com.ragagent.org.service.KbShareService kbShareService,
             com.ragagent.knowledge.service.KnowledgeService knowledgeService,
             com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService) {
         this.catalog = catalog;
-        this.agentShareService = agentShareService;
-        this.kbShareService = kbShareService;
         this.knowledgeService = knowledgeService;
         this.knowledgeBaseService = knowledgeBaseService;
     }
@@ -215,48 +208,10 @@ public class FileAccessResolver {
         if ("user".equals(message.getRole()) && owner != callerTenant) {
             throw FileAccessException.forbidden();
         }
-        com.ragagent.auth.domain.TenantRole callerRole =
-                com.ragagent.org.service.OrganizationService.callerTenantRole();
-        boolean kbAuthorized = false;
-        if (resource != null && message.getAgentTenantId() != 0 && message.getAgentTenantId() != owner) {
-            kbAuthorized = resourceAccessibleViaSharedKB(message, resource, callerTenant, callerRole);
-            if (!kbAuthorized) {
-                throw FileAccessException.forbidden();
-            }
-        }
-        if (owner != callerTenant && !kbAuthorized) {
-            if (message.getAgentTenantId() == 0) {
-                kbAuthorized = resourceAccessibleViaSharedKB(message, resource, callerTenant, callerRole);
-            }
-            if (!kbAuthorized) {
-                // shared-agent 授予路径（Go files.go L200-224）
-                if (message.getAgentId() == null || message.getAgentId().isEmpty()) {
-                    throw FileAccessException.forbidden();
-                }
-                com.ragagent.org.domain.AgentRow agent;
-                try {
-                    agent = agentShareService.getSharedAgentForTenant(callerTenant, callerRole,
-                            message.getAgentId(), owner);
-                } catch (RuntimeException e) {
-                    throw FileAccessException.forbidden();
-                }
-                if (agent == null || agent.getTenantId() == null || agent.getTenantId() != owner) {
-                    throw FileAccessException.forbidden();
-                }
-                ResourceCatalogService.MessageFileBindings origins =
-                        catalog.getMessageFileBindings(owner, reference, message.getId());
-                boolean allowed = origins.messageArtifact();
-                com.ragagent.org.service.SharedAgentKBScope scope =
-                        com.ragagent.org.service.SharedAgentKBScope.from(agent);
-                for (String kbId : origins.knowledgeBaseIds()) {
-                    if (scope.allows(kbId, owner) && apiKeyAllowsKb(kbId)) {
-                        allowed = true;
-                    }
-                }
-                if (!allowed) {
-                    throw FileAccessException.forbidden();
-                }
-            }
+        // 空间分享裁撤：跨租户双授予（org-shared KB 证据链 + shared-agent 授予）已退役，
+        // 消息文件授权只认本租户。
+        if (owner != callerTenant) {
+            throw FileAccessException.forbidden();
         }
         if (resource == null) {
             String pathError = StoragePaths.validateStoragePathTenantError(file.path(), owner);
@@ -275,82 +230,6 @@ public class FileAccessResolver {
         } catch (RuntimeException e) {
             return false;
         }
-    }
-
-    // ── org-shared KB 证据链（access/message_files.go L73-112）──────────────
-
-    /**
-     * 对照 Go {@code resourceAccessibleViaSharedKB}：消息的<b>持久化检索证据</b>证明
-     * 资源来自调用方可读的 org-shared KB（自有 agent + 他方 KB 的 #3022 场景）。
-     * 证据要求：规范 resource:// handle 出现在 chunk 文本或 image_info、该 KB 属于
-     * 资源租户、KB org 共享给调用方（≥viewer）、独立存活绑定确认文件仍属于它。
-     * 任何查找失败 fail-closed。
-     */
-    private boolean resourceAccessibleViaSharedKB(Message message, StoredResource resource,
-                                                  long callerTenant,
-                                                  com.ragagent.auth.domain.TenantRole callerRole) {
-        if (message == null || resource == null) {
-            return false;
-        }
-        String handle = StoragePaths.parseResourcePath(
-                StoragePaths.buildResourcePath(resource.getHandle()));
-        if (handle == null) {
-            return false;
-        }
-        java.util.List<String> kbIds = collectSharedKBEvidenceIDs(message, handle);
-        if (kbIds.isEmpty()) {
-            return false;
-        }
-        for (String kbId : kbIds) {
-            KnowledgeBase kb;
-            try {
-                kb = knowledgeBaseService.getAllTenantById(kbId);
-            } catch (RuntimeException e) {
-                return false;
-            }
-            if (kb == null || kb.getTenantId() == null || kb.getTenantId() != resource.getTenantId()) {
-                continue;
-            }
-            boolean shared = kbShareService.checkTenantKBPermission(kb.getId(), callerTenant, callerRole)
-                    .permits("viewer");
-            if (shared && catalog.isReferencedByKnowledgeBase(resource.getTenantId(), kb.getId(),
-                    StoragePaths.buildResourcePath(handle))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** 对照 Go {@code collectSharedKBEvidenceIDs}（KnowledgeReferences + AgentSteps 递归）。 */
-    private java.util.List<String> collectSharedKBEvidenceIDs(Message message, String handle) {
-        java.util.Set<String> seenKB = new java.util.LinkedHashSet<>();
-        java.util.Set<String> seenKnowledge = new java.util.LinkedHashSet<>();
-        if (message.getKnowledgeReferences() != null) {
-            for (var ref : message.getKnowledgeReferences()) {
-                if (ref == null || !searchResultHasResourceHandle(ref, handle)) {
-                    continue;
-                }
-                if (ref.getKnowledgeBaseId() != null && !ref.getKnowledgeBaseId().isEmpty()) {
-                    seenKB.add(ref.getKnowledgeBaseId());
-                } else {
-                    seenKnowledge.add(ref.getKnowledgeId());
-                }
-            }
-        }
-        collectKBEvidenceFromValue(message.getAgentSteps(), handle, "", "", seenKB, seenKnowledge);
-        for (String knowledgeId : seenKnowledge) {
-            com.ragagent.knowledge.domain.Knowledge knowledge;
-            try {
-                knowledge = knowledgeService.getKnowledgeByIdOnly(knowledgeId);
-            } catch (RuntimeException e) {
-                continue;
-            }
-            if (knowledge != null && knowledge.getKnowledgeBaseId() != null
-                    && !knowledge.getKnowledgeBaseId().isEmpty()) {
-                seenKB.add(knowledge.getKnowledgeBaseId());
-            }
-        }
-        return new java.util.ArrayList<>(seenKB);
     }
 
     /** 对照 Go {@code searchResultHasResourceHandle}（content / matched_content / image_info）。 */
@@ -375,51 +254,6 @@ public class FileAccessResolver {
      * knowledge_base_id / knowledge_base / knowledge_id 上下文；命中 handle 的字符串
      * 按当时上下文归因 KB（无 KB 上下文则记 knowledge 待二次解析）。
      */
-    private static void collectKBEvidenceFromValue(Object v, String handle, String kbId,
-                                                   String knowledgeId,
-                                                   java.util.Set<String> addKB,
-                                                   java.util.Set<String> addKnowledge) {
-        switch (v) {
-            case null -> { }
-            case String s -> {
-                if (!textHasResourceHandle(s, handle)) {
-                    return;
-                }
-                if (kbId != null && !kbId.isEmpty()) {
-                    addKB.add(kbId);
-                } else if (knowledgeId != null && !knowledgeId.isEmpty()) {
-                    addKnowledge.add(knowledgeId);
-                }
-            }
-            case com.ragagent.agent.domain.AgentStep step ->
-                    collectKBEvidenceFromValue(step.getToolCalls(), handle, kbId, knowledgeId,
-                            addKB, addKnowledge);
-            case com.ragagent.agent.domain.ToolCall call -> {
-                if (call.getResult() != null) {
-                    collectKBEvidenceFromValue(call.getResult().getOutput(), handle, kbId, knowledgeId,
-                            addKB, addKnowledge);
-                    collectKBEvidenceFromValue(call.getResult().getData(), handle, kbId, knowledgeId,
-                            addKB, addKnowledge);
-                }
-            }
-            case java.util.Map<?, ?> map -> {
-                String nextKB = firstNonEmptyString(
-                        stringFromMap(map, "knowledge_base_id"),
-                        stringFromMap(map, "knowledge_base"),
-                        kbId);
-                String nextKnowledge = firstNonEmptyString(stringFromMap(map, "knowledge_id"), knowledgeId);
-                for (Object nested : map.values()) {
-                    collectKBEvidenceFromValue(nested, handle, nextKB, nextKnowledge, addKB, addKnowledge);
-                }
-            }
-            case java.util.List<?> list -> {
-                for (Object item : list) {
-                    collectKBEvidenceFromValue(item, handle, kbId, knowledgeId, addKB, addKnowledge);
-                }
-            }
-            default -> { }
-        }
-    }
 
     private static String stringFromMap(java.util.Map<?, ?> m, String key) {
         Object v = m.get(key);

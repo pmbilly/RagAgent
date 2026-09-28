@@ -1,5 +1,4 @@
 export const DEPLOYMENT_CAPABILITY_KEYS = [
-  'organizations',
   'agents',
   'integrations.im',
   'integrations.embed',
@@ -29,12 +28,6 @@ export function isDeploymentCapabilitySupported(
   options?: { liteMode?: boolean; edition?: string },
 ): boolean {
   if (!key) return true
-  if (key === 'organizations') {
-    const isLite =
-      options?.liteMode === true ||
-      options?.edition?.trim().toLowerCase() === 'lite'
-    if (isLite) return false
-  }
   return capabilities[key]?.supported !== false
 }
 

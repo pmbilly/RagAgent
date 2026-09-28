@@ -64,16 +64,6 @@ export function buildCommands(ctx: CommandContext): CmdkCommand[] {
       },
     },
     {
-      id: 'open-organizations',
-      label: t('commandPalette.quick.organizations'),
-      icon: 'usergroup',
-      keywords: ['org', 'organization', 'team', 'space', '组织', '共享'],
-      run: () => {
-        close()
-        router.push('/platform/organizations')
-      },
-    },
-    {
       id: 'open-settings',
       label: t('commandPalette.quick.settings'),
       icon: 'setting',

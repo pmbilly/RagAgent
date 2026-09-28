@@ -1083,9 +1083,6 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
     isReplying.value = true;
     loading.value = true;
     const selectedAgentId = props.embeddedMode ? props.agentId : (useSettingsStoreInstance.selectedAgentId || '');
-    const selectedAgentSourceTenantId = props.embeddedMode
-        ? undefined
-        : (useSettingsStoreInstance.selectedAgentSourceTenantId || undefined);
 
     // Images are unified with the attachment pipeline: on the authenticated web
     // client they upload as temporary documents (understood in the background by
@@ -1113,7 +1110,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
             }
             try {
                 const upload = await uploadTemporaryAttachment(
-                    session_id.value, file, selectedAgentId, selectedAgentSourceTenantId, 'auto'
+                    session_id.value, file, selectedAgentId, 'auto'
                 );
                 imageAttachmentIds.push(upload.data.id);
             } catch (e) {
@@ -1134,7 +1131,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
             await Promise.all(localAttachments.map(async (attachment) => {
                 attachment.status = 'uploading';
                 const upload = await uploadTemporaryAttachment(
-                    session_id.value, attachment.file, selectedAgentId, selectedAgentSourceTenantId, 'auto'
+                    session_id.value, attachment.file, selectedAgentId, 'auto'
                 );
                 attachment.documentId = upload.data.id;
                 attachment.status = upload.data.status;
@@ -1242,7 +1239,6 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
         knowledge_ids: knowledgeIds,
         agent_enabled: agentEnabled,
         agent_id: selectedAgentId,
-        agent_source_tenant_id: selectedAgentSourceTenantId,
         web_search_enabled: webSearchEnabled,
         summary_model_id: modelId,
         mcp_service_ids: requestMcpServiceIds,
@@ -1366,12 +1362,10 @@ const handleSessionMutation = (event) => {
 };
 
 onBeforeMount(async () => {
-    // 若从智能体列表点击共享智能体进入，URL 带 agent_id 与 source_tenant_id，同步到 store
+    // URL 带 agent_id 时同步到 store（历史共享智能体链接携带的
+    // source_tenant_id 参数已随空间分享裁撤，直接忽略）
     const agentIdFromQuery = props.agentId || (route.query.agent_id && String(route.query.agent_id));
-    const sourceTenantIdFromQuery = route.query.source_tenant_id && String(route.query.source_tenant_id);
-    if (agentIdFromQuery && sourceTenantIdFromQuery) {
-        useSettingsStoreInstance.selectAgent(agentIdFromQuery, sourceTenantIdFromQuery);
-    } else if (agentIdFromQuery) {
+    if (agentIdFromQuery) {
         useSettingsStoreInstance.selectAgent(agentIdFromQuery, null);
     }
 

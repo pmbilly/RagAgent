@@ -363,9 +363,6 @@ public class APIKeyAuthChannel {
         if (p.equals("/api/v1/system/admin") || p.startsWith("/api/v1/system/admin/")) {
             return true;
         }
-        if ("GET".equals(method) && (p.equals("/api/v1/tenants/all") || p.equals("/api/v1/tenants/search"))) {
-            return true;
-        }
         return "POST".equals(method) && p.equals("/api/v1/tenants");
     }
 

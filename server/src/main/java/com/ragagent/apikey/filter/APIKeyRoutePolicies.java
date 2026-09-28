@@ -59,8 +59,8 @@ public final class APIKeyRoutePolicies {
         registerTenantMemberRoutes(authorizer);
         registerSystemRoutes(authorizer);
         registerEvaluationRoutes(authorizer);
-        registerOrganizationRoutes(authorizer);
         registerFileRoutes(authorizer);
+        registerAgentAndInfraRoutes(authorizer);
     }
 
     /**
@@ -82,61 +82,13 @@ public final class APIKeyRoutePolicies {
                 APIKeyRoutePolicy.chat(APIKeyRoutePolicy.fullAccess()));
     }
 
-    /**
-     * 组织与跨空间共享（波 3 协作面批次，对照 Go routes_agent.go RegisterOrganizationRoutes）。
-     *
-     * <p><b>organizations 组</b> = {@code manageSpaces(fullAccess())}（scoped key 凭
-     * manage_spaces 能力可进——空间协作是它的本职）；<b>kbShares / agentShares</b> 组 =
-     * 纯 {@code fullAccess()}（Go 注释原文：分享管理不通过 capability 授予，manage_spaces
-     * 也不含，scoped key 保持 default-deny）；<b>shared-* 三条</b> = {@code manageSpaces(fullAccess())}。</p>
-     */
-    private static void registerOrganizationRoutes(APIKeyRouteAuthorizer a) {
-        APIKeyRoutePolicy orgs = APIKeyRoutePolicy.manageSpaces(APIKeyRoutePolicy.fullAccess());
-        final String orgBase = "/api/v1/organizations";
-        a.registerGin("POST", orgBase, orgs);
-        a.registerGin("GET", orgBase, orgs);
-        a.registerGin("GET", orgBase + "/preview/:code", orgs);
-        a.registerGin("POST", orgBase + "/join", orgs);
-        a.registerGin("POST", orgBase + "/join-request", orgs);
-        a.registerGin("GET", orgBase + "/search", orgs);
-        a.registerGin("POST", orgBase + "/join-by-id", orgs);
-        a.registerGin("GET", orgBase + "/:id", orgs);
-        a.registerGin("PUT", orgBase + "/:id", orgs);
-        a.registerGin("DELETE", orgBase + "/:id", orgs);
-        a.registerGin("POST", orgBase + "/:id/leave", orgs);
-        a.registerGin("POST", orgBase + "/:id/request-upgrade", orgs);
-        a.registerGin("POST", orgBase + "/:id/invite-code", orgs);
-        a.registerGin("GET", orgBase + "/:id/search-tenants", orgs);
-        a.registerGin("GET", orgBase + "/:id/search-users", orgs);
-        a.registerGin("POST", orgBase + "/:id/invite", orgs);
-        a.registerGin("GET", orgBase + "/:id/members", orgs);
-        a.registerGin("PUT", orgBase + "/:id/members/:tenant_id", orgs);
-        a.registerGin("DELETE", orgBase + "/:id/members/:tenant_id", orgs);
-        a.registerGin("GET", orgBase + "/:id/join-requests", orgs);
-        a.registerGin("PUT", orgBase + "/:id/join-requests/:request_id/review", orgs);
-        a.registerGin("GET", orgBase + "/:id/shares", orgs);
-        a.registerGin("GET", orgBase + "/:id/agent-shares", orgs);
-        a.registerGin("GET", orgBase + "/:id/shared-knowledge-bases", orgs);
-        a.registerGin("GET", orgBase + "/:id/shared-agents", orgs);
-
-        APIKeyRoutePolicy full = APIKeyRoutePolicy.fullAccess();
-        a.registerGin("POST", "/api/v1/knowledge-bases/:id/shares", full);
-        a.registerGin("GET", "/api/v1/knowledge-bases/:id/shares", full);
-        a.registerGin("PUT", "/api/v1/knowledge-bases/:id/shares/:share_id", full);
-        a.registerGin("DELETE", "/api/v1/knowledge-bases/:id/shares/:share_id", full);
-
-        a.registerGin("POST", "/api/v1/agents/:id/shares", full);
-        a.registerGin("GET", "/api/v1/agents/:id/shares", full);
-        a.registerGin("DELETE", "/api/v1/agents/:id/shares/:share_id", full);
-
-        a.registerGin("GET", "/api/v1/shared-knowledge-bases", orgs);
-        a.registerGin("GET", "/api/v1/shared-agents", orgs);
-        a.registerGin("POST", "/api/v1/shared-agents/disabled", orgs);
-
+    /** agents CRUD + initialization + W5b + embed/im 管理面（原 registerOrganizationRoutes 尾段；
+     *  organizations 与 shares 端点族随空间分享裁撤）。 */
+    private static void registerAgentAndInfraRoutes(APIKeyRouteAuthorizer a) {
         // ── 波 3 agents 批（对照 Go routes_agent.go RegisterCustomAgentRoutes L22-51）──
         // agents 组 base=fullAccess；读面 read_agents/manage_agents/chat/full 任一；
         // 写面 manage_agents/full 任一；suggested-questions 注册在组外但能力同读面。
-        // （agents/:id/shares 三条已在上面登记，全 fullAccess。）
+        // （agents/:id/shares 三条随空间分享裁撤。）
         APIKeyRoutePolicy agFull = APIKeyRoutePolicy.fullAccess();
         APIKeyRoutePolicy agRead = APIKeyRoutePolicy.readAgents(
                 APIKeyRoutePolicy.manageAgents(APIKeyRoutePolicy.chat(agFull)));
@@ -321,8 +273,6 @@ public final class APIKeyRoutePolicies {
         APIKeyRoutePolicy catalogRead = APIKeyRoutePolicy.platform(
                 com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_READ,
                 com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE);
-        a.registerGin("GET", "/api/v1/tenants/all", catalogRead);
-        a.registerGin("GET", "/api/v1/tenants/search", catalogRead);
         a.registerGin("POST", "/api/v1/tenants",
                 APIKeyRoutePolicy.platform(
                         com.ragagent.apikey.domain.APIKeyCapability.SYSTEM_TENANTS_MANAGE));
@@ -763,7 +713,7 @@ public final class APIKeyRoutePolicies {
     //   routes_knowledge.go    L19-53    chunker/preview、chunks/**（chunks 段已登记）
     //   routes_knowledge.go    L118-244  标签、copy/duplicate/progress（文档操作面与 FAQ 已登记）
     //   routes_chat.go         L24-131   messages、sessions、knowledge-chat、agent-chat、knowledge-search
-    //   routes_agent.go        L22-136   agents、favorites、skills、organizations、shares
+    //   routes_agent.go        L22-136   agents、favorites、skills
     //   routes_auth_tenant.go  L53-136   members/invitations/api-principal（已登记）；
     //                                    /leave 与 /me/invitations**（default deny，本批确认）
     //   files.go               L336-510  KB 作用域文件代理（retrieve + AllowFileServeAPIKey）

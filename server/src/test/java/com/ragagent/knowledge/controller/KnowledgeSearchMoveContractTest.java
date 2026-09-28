@@ -232,7 +232,6 @@ class KnowledgeSearchMoveContractTest {
         assertGet(owner, "/api/v1/knowledge/search?keyword=a&limit=0", "ks-search-limit-zero.json");
         assertGet(owner, "/api/v1/knowledge/search?keyword=a&limit=101", "ks-search-limit-over.json");
         assertGet(owner, "/api/v1/knowledge/search?keyword=a&limit=abc", "ks-search-limit-nan.json");
-        assertGet(owner, "/api/v1/knowledge/search?keyword=x&agent_id=nope", "ks-search-agent.json");
         assertGet(viewer, "/api/v1/knowledge/search?keyword=ksdoc&limit=1", "ks-search-viewer.json");
         assertGet(owner, "/api/v1/knowledge/search?keyword=zzz&recent=notabool", "ks-search-badbool.json");
     }

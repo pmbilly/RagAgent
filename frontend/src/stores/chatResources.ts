@@ -4,7 +4,6 @@ import { listKnowledgeBases, getKnowledgeBaseById } from '@/api/knowledge-base'
 import { listAgents, type CustomAgent } from '@/api/agent'
 import { listModels, type ModelConfig } from '@/api/model'
 import { listWebSearchProviders, type WebSearchProviderEntity } from '@/api/web-search-provider'
-import { useOrganizationStore } from '@/stores/organization'
 import { getCurrentLanguage } from '@/utils/request'
 import {
   isLocalizedCacheFresh,
@@ -48,8 +47,6 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
   // 不能让保存前发出的 ensureModels 把旧列表写回来。
   let modelsGen = 0
 
-  const agentKbCache = new Map<string, { at: number; data: any[] }>()
-  const agentKbInflight = new Map<string, Promise<any[]>>()
   const kbDetailCache = new Map<string, { at: number; data: any }>()
   const kbDetailInflight = new Map<string, Promise<any | null>>()
 
@@ -124,8 +121,6 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
         const data = res?.data && Array.isArray(res.data) ? res.data : []
         rawKnowledgeBases.value = data
         loadedAt.value.knowledgeBases = Date.now()
-        const orgStore = useOrganizationStore()
-        await orgStore.fetchSharedKnowledgeBases({ force })
         return data
       } finally {
         if (kbAllGen === gen) kbAllInflight = null
@@ -146,14 +141,10 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     force = false,
   ): Promise<{ data: CustomAgent[]; disabled_own_agent_ids: string[] }> {
     const creator = params?.creator ?? 'all'
-    const orgStore = useOrganizationStore()
 
-    // 带 creator 过滤的列表不进缓存，但仍需刷新共享智能体（与全量路径保持一致）。
+    // 带 creator 过滤的列表不进缓存，直接透传请求。
     if (creator !== 'all') {
-      const [agentsRes] = await Promise.all([
-        listAgents({ creator }),
-        orgStore.fetchSharedAgents({ force }),
-      ])
+      const agentsRes = await listAgents({ creator })
       const res = agentsRes as { data?: CustomAgent[]; disabled_own_agent_ids?: string[] }
       return { data: res.data || [], disabled_own_agent_ids: res.disabled_own_agent_ids || [] }
     }
@@ -174,10 +165,7 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     agentsAllInflightLocale = requestLocale
     agentsAllInflight = (async () => {
       try {
-        const [agentsRes] = await Promise.all([
-          listAgents(),
-          orgStore.fetchSharedAgents({ force }),
-        ])
+        const agentsRes = await listAgents()
         const res = agentsRes as { data?: CustomAgent[]; disabled_own_agent_ids?: string[] }
         const data = res.data || []
         const disabled = res.disabled_own_agent_ids || []
@@ -234,54 +222,14 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     })
   }
 
-  /**
-   * 沙箱后端配置，供智能体编辑器的后端选择器使用。
-   *
-   * 不进 prefetchChatInput：只有编辑智能体时才需要，而对话输入栏用不到，
-   * 没必要让每次首屏都多打一次请求。
-   *
-   * 失败只吞掉不抛：这是可选资源——拿不到就只剩「不启用沙箱」一项，
-   * 智能体照样能编辑保存。调用方通常把它和一堆必需资源放在同一个
-   * Promise.all 里，若在这里抛出，整个编辑器的依赖加载都会连坐
-   * （技能可用性拿不到 ⇒ 技能配置分组直接消失）。
-   */
-
   /** 并行预取对话输入栏及列表页常用的空间级资源 */
   async function prefetchChatInput(force = false): Promise<void> {
-    const orgStore = useOrganizationStore()
     await Promise.all([
       ensureKnowledgeBases(force),
       ensureAgents(force),
       ensureModels(force),
       ensureWebSearchProviders(force),
-      orgStore.fetchOrganizations({ force }),
     ])
-  }
-
-  async function ensureAgentKnowledgeBases(agentId: string, sourceTenantId?: string, force = false): Promise<any[]> {
-    const cacheKey = `${agentId}:${sourceTenantId || 'current'}`
-    const cached = agentKbCache.get(cacheKey)
-    if (!force && cached && Date.now() - cached.at < CACHE_TTL_MS) {
-      return cached.data
-    }
-    const existing = agentKbInflight.get(cacheKey)
-    if (existing) return existing
-
-    const p = (async () => {
-      try {
-        const res: any = await listKnowledgeBases({
-          agent_id: agentId,
-          agent_source_tenant_id: sourceTenantId,
-        })
-        const list = res?.data && Array.isArray(res.data) ? res.data : []
-        agentKbCache.set(cacheKey, { at: Date.now(), data: list })
-        return list
-      } finally {
-        agentKbInflight.delete(cacheKey)
-      }
-    })()
-    agentKbInflight.set(cacheKey, p)
-    return p
   }
 
   /** 单个知识库详情（侧栏 + 详情页共用，去重并发请求） */
@@ -330,10 +278,8 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
       disabledOwnAgentIds.value = []
       allModels.value = []
       webSearchProviders.value = []
-      agentKbCache.clear()
       // 同时丢弃所有 inflight 句柄，否则失效后仍在飞行的请求会把旧数据写回缓存。
       inflight.clear()
-      agentKbInflight.clear()
       kbAllInflight = null
       agentsLoadedLocale = ''
       bumpAgentsGeneration()
@@ -346,8 +292,6 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
       inflight.delete(k)
     })
     if (keys.includes('knowledgeBases')) {
-      agentKbCache.clear()
-      agentKbInflight.clear()
       kbAllInflight = null
       invalidateKnowledgeBaseDetail()
     }
@@ -377,7 +321,6 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     replaceModels,
     ensureChatModels,
     ensureWebSearchProviders,
-    ensureAgentKnowledgeBases,
     prefetchChatInput,
     fetchKnowledgeBaseById,
     invalidateKnowledgeBaseDetail,

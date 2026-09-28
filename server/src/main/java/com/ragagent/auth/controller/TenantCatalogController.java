@@ -47,7 +47,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -118,61 +117,6 @@ public class TenantCatalogController {
         this.springMapper = springMapper;
     }
 
-    // ── GET /tenants/all（对照 ListAllTenants） ─────────────────────────────
-
-    @GetMapping("/api/v1/tenants/all")
-    public Map<String, Object> listAllTenants() {
-        List<TenantResponse> items = new ArrayList<>();
-        for (Tenant t : tenantService.listAllTenants()) {
-            // 对照 NewTenantResponsesCrossTenant：恒按 Viewer 裁剪（调用方的
-            // 自家租户角色不能解锁别家秘密）
-            items.add(TenantResponse.from(t, false));
-        }
-        return TenantMemberController.envelope(Map.of("items", items));
-    }
-
-    // ── GET /tenants/search（对照 SearchTenants） ───────────────────────────
-
-    @GetMapping("/api/v1/tenants/search")
-    public Map<String, Object> searchTenants(
-            @RequestParam(value = "keyword", required = false) String keyword,
-            @RequestParam(value = "tenant_id", required = false) String tenant_id,
-            @RequestParam(value = "page", required = false) String page,
-            @RequestParam(value = "page_size", required = false) String page_size) {
-        // 对照 handler 的解析：tenant_id 解析失败→0 忽略；page<1→1；page_size<1→20、>100→100
-        long tenantId = 0;
-        if (tenant_id != null && !tenant_id.isEmpty()) {
-            try {
-                tenantId = Long.parseUnsignedLong(tenant_id.trim());
-            } catch (NumberFormatException e) {
-                tenantId = 0;
-            }
-        }
-        int pageNo = parseIntOr(page, 1);
-        if (pageNo < 1) {
-            pageNo = 1;
-        }
-        int pageSize = parseIntOr(page_size, 20);
-        if (pageSize < 1) {
-            pageSize = 20;
-        }
-        if (pageSize > 100) {
-            pageSize = 100;
-        }
-        TenantService.TenantSearchPage result =
-                tenantService.searchTenants(keyword == null ? "" : keyword, tenantId, pageNo, pageSize);
-        List<TenantResponse> items = new ArrayList<>();
-        for (Tenant t : result.tenants()) {
-            items.add(TenantResponse.from(t, false));
-        }
-        // Go gin.H 序列化键按字母序：items, page, page_size, total
-        Map<String, Object> data = new java.util.LinkedHashMap<>();
-        data.put("items", items);
-        data.put("page", pageNo);
-        data.put("page_size", pageSize);
-        data.put("total", result.total());
-        return TenantMemberController.envelope(data);
-    }
 
     private static int parseIntOr(String raw, int def) {
         if (raw == null) {

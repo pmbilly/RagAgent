@@ -200,9 +200,6 @@ public class WsAuthSupport {
         if (home == targetTenantId) {
             return true;
         }
-        if (tenantProperties.enableCrossTenantAccess() && user.isCanAccessAllTenants()) {
-            return true;
-        }
         TenantMember m = memberService.getMembership(user.getId(), targetTenantId);
         return m != null && TenantMemberService.STATUS_ACTIVE.equals(m.getStatus());
     }

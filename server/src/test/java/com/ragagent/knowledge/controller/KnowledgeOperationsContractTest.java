@@ -297,9 +297,6 @@ class KnowledgeOperationsContractTest {
         assertGet("/api/v1/knowledge/batch?ids=", "kg-batch-empty-ids.json");
         assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&kb_id=" + KB1, "kg-batch-kbscope.json");
         assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&kb_id=" + UNKNOWN, "kg-batch-badkb.json");
-        assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&agent_id=nope", "kg-batch-agent-unknown.json");
-        assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&agent_source_tenant_id=abc",
-                "kg-batch-bad-source.json");
     }
 
     private void assertGetTwoIds(String golden, String id1, String id2) throws Exception {
