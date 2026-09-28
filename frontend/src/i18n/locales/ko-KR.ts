@@ -377,25 +377,6 @@ export default {
     confirmRemove: '제거 확인'
   },
   integrations: {
-    cli: {
-      title: 'WeKnora CLI',
-      subtitle: '터미널에서 지식 베이스와 문서를 관리하고, 콘텐츠를 검색하고, 질문하세요. CLI 또는 MCP로 스크립트와 AI 도구를 연결할 수 있습니다.',
-      docs: 'CLI 문서 보기',
-      docsHint: '설치 안내 및 전체 명령어 참조',
-      quickstart: '빠른 시작',
-      installTitle: 'CLI 설치',
-      installDesc: 'Git과 Go 1.26+로 소스에서 빌드합니다. 아래 macOS / Linux 예제의 PATH 설정은 현재 터미널에만 적용됩니다. 계속 사용하려면 바이너리를 PATH에 포함된 디렉터리에 배치하세요.',
-      connectTitle: '현재 서버에 연결',
-      connectDesc: 'weknora 프로필을 생성하고 활성화한 후 이메일과 비밀번호로 로그인하세요. 같은 이름의 프로필이 있다면 다른 이름을 사용하고 MCP 예제의 프로필 이름도 변경하세요.',
-      verifyTitle: '연결 확인',
-      verifyDesc: '서버 및 인증 상태를 확인하고 현재 계정으로 접근할 수 있는 지식 베이스를 조회합니다.',
-      commandsTitle: '주요 명령어',
-      commandsDesc: 'KB_ID를 지식 베이스 ID로 바꾸고 파일 경로, 검색어, 질문을 수정하세요. 업로드한 문서는 처리가 완료되어야 검색할 수 있습니다.',
-      mcpTitle: 'MCP 클라이언트 연결',
-      mcpDesc: '로그인 후 stdio를 지원하는 MCP 클라이언트에 아래 설정을 추가하세요. 클라이언트가 weknora를 찾지 못하면 command를 바이너리의 절대 경로로 변경하세요.',
-      copy: '복사',
-      copied: '복사됨',
-    },
     title: '게시 및 통합',
     selectAgentPlaceholder: '에이전트를 선택하세요',
     selectAgentHint: '먼저 에이전트를 선택하세요',
@@ -403,114 +384,6 @@ export default {
     filterByAgent: '에이전트별 필터',
     filterByAgentWithName: '에이전트별 필터: {name}',
     filterAllAgents: '전체 에이전트',
-    claw: {
-      title: 'WeKnora Skill',
-      subtitle: 'WeKnora REST API로 문서를 가져오고 하이브리드 검색(벡터+키워드)을 수행합니다. 파일/URL/Markdown 업로드 및 검색에 사용.',
-      capabilitiesTitle: 'Skill 기능',
-      stepsTitle: '구성 단계',
-      openApiSettings: 'API 정보 열기',
-      copy: '복사',
-      copyEnvSuccess: '환경 변수 예시가 복사되었습니다',
-      copyCmdSuccess: '설치 명령이 복사되었습니다',
-      ecosystemNote: 'Skill은 ClawHub({\'@\'}lyingbug/weknora)에 호스팅됩니다. 전체 API 문서는 ClawHub 페이지를 참고하세요.',
-      installCta: 'ClawHub 열기',
-      installCtaHint: 'WeKnora Skill 설치 · 새 탭에서 열림',
-      hubMeta: 'ClawHub · {\'@\'}lyingbug/weknora · MIT-0',
-      steps: {
-        verify: {
-          title: '연결 확인',
-          desc: '에이전트로 지식베이스 목록 또는 검색을 실행해 연결을 확인하세요.'
-        },
-        install: {
-          title: 'Skill 설치',
-          desc: 'OpenClaw CLI가 설치된 환경에서 아래 명령을 실행하거나 ClawHub 안내를 따르세요.'
-        },
-        env: {
-          title: '환경 변수 설정',
-          desc: '셸 또는 ~/.zshrc, ~/.bashrc에 WEKNORA_BASE_URL과 WEKNORA_API_KEY를 설정하세요. 아래 예시는 현재 API 주소를 사용하며, API Key는 실제 값으로 바꾸세요.'
-        },
-        api: {
-          title: 'API 자격 증명',
-          desc: '설정 → API 정보에서 API Key와 주소를 복사하세요.'
-        }
-      },
-      capabilities: {
-        browse: {
-          title: '지식 탐색',
-          desc: '지식베이스·항목 목록, 상세 보기 및 관리.'
-        },
-        search: {
-          title: '하이브리드 검색',
-          desc: '단일 KB hybrid-search 및 교차 KB knowledge-search.'
-        },
-        manual: {
-          title: 'Markdown 작성',
-          desc: 'Markdown으로 지식 항목을 생성·편집.'
-        },
-        url: {
-          title: 'URL 가져오기',
-          desc: 'URL로 웹 페이지를 지식베이스에 가져오고 파싱 상태를 확인.'
-        },
-        upload: {
-          title: '파일 업로드',
-          desc: 'PDF, Word, Excel 등을 업로드하고 자동 파싱·벡터화.'
-        }
-      }
-    },
-    chrome: {
-      title: '지식 관리 어시스턴트',
-      subtitle: '자체 호스팅 WeKnora와 함께: 사이드바에서 질문하고, 웹 페이지를 클리핑하며, Markdown 메모를 지식베이스에 저장하세요.',
-      capabilitiesTitle: '핵심 기능',
-      stepsTitle: '구성 단계',
-      openApiSettings: 'API 정보 열기',
-      copy: '복사',
-      copySuccess: 'API 주소가 복사되었습니다',
-      installCta: 'Chrome 웹 스토어',
-      installCtaHint: '공식 확장 · 새 탭에서 열림',
-      storeMeta: 'Chrome 웹 스토어 · v1.0.0',
-      steps: {
-        connect: {
-          title: '확장에서 연결',
-          desc: '확장 설정에서 기업/개발자 모드를 선택하고 서비스 API 주소와 API Key를 입력하세요. 아래는 현재 서비스 주소입니다.'
-        },
-        install: {
-          title: 'Chrome 확장 설치',
-          desc: 'Chrome 웹 스토어에서 「지식 관리 어시스턴트」를 설치하세요.'
-        },
-        port: {
-          title: '데스크톱: 고정 포트(권장)',
-          desc: 'WeKnora 데스크톱에서는 API 정보에서 고정 포트(예: 37841)를 설정하세요.'
-        },
-        api: {
-          title: 'API 자격 증명',
-          desc: '설정 → API 정보에서 API Key와 API 주소를 복사하세요.'
-        }
-      },
-      scenarios: {
-        research: '자료 조사',
-        learning: '학습 노트',
-        tech: '기술 자료 수집',
-        work: '업무 지식 축적'
-      },
-      capabilities: {
-        shortcuts: {
-          title: '단축키',
-          desc: '질문, 사이드바 열기 등 단축키를 사용자 지정해 효율을 높이세요.'
-        },
-        notes: {
-          title: 'Markdown 빠른 메모',
-          desc: '내장 Markdown 편집기로 아이디어를 기록하고 한 번에 지식베이스에 저장.'
-        },
-        clip: {
-          title: '원클릭 웹 수집',
-          desc: 'URL 저장, AI 본문 추출, 영역 선택으로 지식베이스에 정확히 저장.'
-        },
-        qa: {
-          title: '지식베이스 Q&A',
-          desc: '사이드바 대화, 다중 지식베이스 전환, 빠름/심층/정밀 모드로 페이지를 떠나지 않고 질문.'
-        }
-      }
-    },
     agentEditor: {
       label: '게시 채널',
       desc: 'IM 플랫폼 또는 웹사이트에 에이전트를 게시합니다. 통합 센터에서 관리하세요.'
@@ -682,9 +555,6 @@ export default {
       im: 'IM 통합',
       embed: '웹 임베드',
       api: 'API 연동',
-      chrome: 'Chrome 확장',
-      cli: 'CLI',
-      claw: 'Claw Skill'
     }
   },
   datasource: {

@@ -377,25 +377,6 @@ export default {
     confirmRemove: 'Подтвердить удаление'
   },
   integrations: {
-    cli: {
-      title: 'WeKnora CLI',
-      subtitle: 'Управляйте базами знаний и документами, ищите информацию и задавайте вопросы из терминала. Подключайте скрипты и инструменты ИИ через CLI или MCP.',
-      docs: 'Документация CLI',
-      docsHint: 'Установка и полный справочник команд',
-      quickstart: 'Быстрый старт',
-      installTitle: 'Установка CLI',
-      installDesc: 'Соберите из исходного кода с помощью Git и Go 1.26+. В этом примере для macOS / Linux PATH меняется только для текущего терминала. Для постоянного использования поместите бинарный файл в каталог из PATH.',
-      connectTitle: 'Подключение к этому серверу',
-      connectDesc: 'Создайте и активируйте профиль weknora, затем войдите с электронной почтой и паролем. Если такой профиль уже существует, выберите другое имя и измените имя профиля в примере MCP.',
-      verifyTitle: 'Проверка подключения',
-      verifyDesc: 'Проверьте состояние сервера и авторизации, затем выведите базы знаний, доступные вашей учётной записи.',
-      commandsTitle: 'Основные команды',
-      commandsDesc: 'Замените KB_ID на ID базы знаний и измените путь к файлу, поисковый запрос и вопрос. Загруженные документы доступны для поиска после завершения обработки.',
-      mcpTitle: 'Подключение клиента MCP',
-      mcpDesc: 'После входа добавьте эту конфигурацию в клиент MCP с поддержкой stdio. Если клиент не находит weknora, укажите в command абсолютный путь к бинарному файлу.',
-      copy: 'Копировать',
-      copied: 'Скопировано',
-    },
     title: 'Публикация и интеграция',
     selectAgentPlaceholder: 'Выберите агента',
     selectAgentHint: 'Сначала выберите агента',
@@ -403,114 +384,6 @@ export default {
     filterByAgent: 'Фильтр по агенту',
     filterByAgentWithName: 'Фильтр по агенту: {name}',
     filterAllAgents: 'Все агенты',
-    claw: {
-      title: 'WeKnora Skill',
-      subtitle: 'Импорт документов и гибридный поиск (вектор + ключевые слова) через REST API WeKnora — загрузки, URL, Markdown и поиск.',
-      capabilitiesTitle: 'Возможности Skill',
-      stepsTitle: 'Шаги настройки',
-      openApiSettings: 'Открыть API-информацию',
-      copy: 'Копировать',
-      copyEnvSuccess: 'Пример переменных скопирован',
-      copyCmdSuccess: 'Команда установки скопирована',
-      ecosystemNote: 'Skill размещён на ClawHub ({\'@\'}lyingbug/weknora). Полная документация API — на странице ClawHub.',
-      installCta: 'Открыть ClawHub',
-      installCtaHint: 'Установка WeKnora Skill · откроется в новой вкладке',
-      hubMeta: 'ClawHub · {\'@\'}lyingbug/weknora · MIT-0',
-      steps: {
-        verify: {
-          title: 'Проверка',
-          desc: 'Попросите агента вывести список БЗ или выполнить поиск.'
-        },
-        install: {
-          title: 'Установка Skill',
-          desc: 'Выполните команду ниже в среде с OpenClaw CLI или следуйте инструкциям на ClawHub.'
-        },
-        env: {
-          title: 'Переменные окружения',
-          desc: 'Задайте WEKNORA_BASE_URL и WEKNORA_API_KEY в shell или ~/.zshrc / ~/.bashrc. Пример ниже использует текущий API URL — замените API Key на фактическое значение.'
-        },
-        api: {
-          title: 'API-учётные данные',
-          desc: 'Скопируйте API Key и URL в «Настройки → API-информация».'
-        }
-      },
-      capabilities: {
-        browse: {
-          title: 'Просмотр знаний',
-          desc: 'Списки БЗ и записей, детали и управление контентом.'
-        },
-        search: {
-          title: 'Гибридный поиск',
-          desc: 'hybrid-search по одной БЗ и knowledge-search по нескольким.'
-        },
-        manual: {
-          title: 'Markdown',
-          desc: 'Создание и правка записей в формате Markdown.'
-        },
-        url: {
-          title: 'Импорт URL',
-          desc: 'Загрузка веб-страниц по URL с отслеживанием parse_status.'
-        },
-        upload: {
-          title: 'Загрузка файлов',
-          desc: 'PDF, Word, Excel и др. с автоматическим разбором.'
-        }
-      }
-    },
-    chrome: {
-      title: 'Помощник по знаниям',
-      subtitle: 'Для self-hosted WeKnora: вопросы в боковой панели, клиппинг страниц и Markdown-заметки в базы знаний прямо при просмотре.',
-      capabilitiesTitle: 'Возможности',
-      stepsTitle: 'Шаги настройки',
-      openApiSettings: 'Открыть API-информацию',
-      copy: 'Копировать',
-      copySuccess: 'URL API скопирован',
-      installCta: 'Chrome Web Store',
-      installCtaHint: 'Официальное расширение · откроется в новой вкладке',
-      storeMeta: 'Chrome Web Store · v1.0.0',
-      steps: {
-        connect: {
-          title: 'Подключите в расширении',
-          desc: 'В настройках расширения выберите режим enterprise/developer и введите API URL и API Key. Ниже — текущий URL сервиса.'
-        },
-        install: {
-          title: 'Установите расширение',
-          desc: 'Установите «Помощник по знаниям» из Chrome Web Store.'
-        },
-        port: {
-          title: 'Десктоп: фиксированный порт',
-          desc: 'В WeKnora Desktop задайте фиксированный порт API (например 37841) в API-информации.'
-        },
-        api: {
-          title: 'Получите API-учётные данные',
-          desc: 'Скопируйте API Key и базовый URL в «Настройки → API-информация».'
-        }
-      },
-      scenarios: {
-        research: 'Исследования',
-        learning: 'Учёба',
-        tech: 'Техдокументация',
-        work: 'Рабочие знания'
-      },
-      capabilities: {
-        shortcuts: {
-          title: 'Горячие клавиши',
-          desc: 'Настраиваемые сочетания для вопросов, панели и ускорения работы.'
-        },
-        notes: {
-          title: 'Markdown-заметки',
-          desc: 'Встроенный редактор Markdown с сохранением в базу знаний в один клик.'
-        },
-        clip: {
-          title: 'Сбор веб-контента',
-          desc: 'Сохранение URL, AI-извлечение текста или выбор области на странице.'
-        },
-        qa: {
-          title: 'Q&A по базе знаний',
-          desc: 'Боковая панель, несколько БЗ, режимы быстрый/глубокий/точный — без смены вкладки.'
-        }
-      }
-    },
     agentEditor: {
       label: 'Каналы публикации',
       desc: 'Публикуйте агента в IM или на сайт. Управление — в разделе «Интеграции».'
@@ -682,9 +555,6 @@ export default {
       im: 'IM-интеграция',
       embed: 'Веб-встраивание',
       api: 'API-интеграция',
-      chrome: 'Расширение Chrome',
-      cli: 'CLI',
-      claw: 'Claw Skill'
     }
   },
   datasource: {

@@ -6538,33 +6538,11 @@ export default {
     }
   },
   integrations: {
-    cli: {
-      title: 'WeKnora CLI',
-      subtitle: 'ターミナルからナレッジベースとドキュメントの管理、コンテンツの検索、質問ができます。CLIやMCPを通じてスクリプトやAIツールと連携できます。',
-      docs: 'CLIドキュメント',
-      docsHint: 'インストール手順と完全なコマンドリファレンス',
-      quickstart: 'クイックスタート',
-      installTitle: 'CLIをインストール',
-      installDesc: 'GitとGo 1.26以上を使ってソースからビルドします。このmacOS / Linuxの例ではPATHの設定は現在のターミナルでのみ有効です。継続的に使う場合は、バイナリをPATH上のディレクトリに配置してください。',
-      connectTitle: 'このサーバに接続',
-      connectDesc: 'weknoraという名前のプロファイルを作成して有効化し、メールアドレスとパスワードでサインインします。同名のプロファイルが既にある場合は別の名前を選び、MCPの例もそれに合わせて変更してください。',
-      verifyTitle: '接続を確認',
-      verifyDesc: 'サーバと認証の状態を確認し、アカウントがアクセスできるナレッジベースを一覧表示します。',
-      commandsTitle: 'よく使うコマンド',
-      commandsDesc: 'KB_IDをナレッジベースIDに置き換え、ファイルパス・検索語・質問を必要に応じて変更してください。アップロードしたドキュメントは解析が完了するまで検索できません。',
-      mcpTitle: 'MCPクライアントに接続',
-      mcpDesc: 'サインイン後、この設定をstdio対応のMCPクライアントに追加してください。クライアントがweknoraを見つけられない場合は、commandをバイナリの絶対パスに変更してください。',
-      copy: 'コピー',
-      copied: 'コピーしました',
-    },
     title: '公開と連携',
     tabs: {
       im: 'IM連携',
       embed: 'Web埋め込み',
       api: 'API連携',
-      chrome: 'Chrome拡張機能',
-      cli: 'CLI',
-      claw: 'Clawスキル'
     },
     api: {
       title: 'API連携',
@@ -6739,114 +6717,6 @@ export default {
       label: '公開チャネル',
       desc: 'このエージェントをIMプラットフォームやWebサイトに公開します。管理は「公開と連携」から行います。'
     },
-    chrome: {
-      title: 'ナレッジアシスタント',
-      subtitle: 'セルフホスト版WeKnora向け: ブラウジング中にサイドバーで質問したり、Webページをクリップしたり、Markdownメモをナレッジベースに保存したりできます。',
-      capabilitiesTitle: '主な機能',
-      capabilities: {
-        qa: {
-          title: 'ナレッジベースQ&A',
-          desc: '複数のナレッジベースを切り替えられるサイドバーチャット。高速・詳細・高精度の回答モードで、ページを離れずに質問できます。'
-        },
-        clip: {
-          title: 'ワンクリックWebクリップ',
-          desc: 'ページのURLの保存、AIによる本文抽出、範囲の手動選択で、対象のナレッジベースに保存します。'
-        },
-        notes: {
-          title: 'Markdownクイックメモ',
-          desc: 'アイデアやメモを書けるMarkdownエディタを内蔵。ワンクリックでナレッジベースに保存します。'
-        },
-        shortcuts: {
-          title: 'キーボードショートカット',
-          desc: 'ショートカットをカスタマイズして質問やサイドバーの表示を素早く行い、日々の作業を効率化します。'
-        }
-      },
-      scenarios: {
-        research: '日常の情報リサーチ',
-        learning: '学習ノートの整理',
-        tech: '技術資料の収集',
-        work: '業務ナレッジの蓄積'
-      },
-      stepsTitle: '設定手順',
-      steps: {
-        api: {
-          title: 'API認証情報を取得',
-          desc: '「設定 → API情報」からAPIキーとベースURLをコピーします。'
-        },
-        port: {
-          title: 'デスクトップ版: 固定ポートの設定（推奨）',
-          desc: 'WeKnoraデスクトップ版では、API情報で固定ポート（例: 37841）を設定すると、再起動してもURLが変わりません。'
-        },
-        install: {
-          title: '拡張機能をインストール',
-          desc: 'Chromeウェブストアから「ナレッジアシスタント」をインストールします。'
-        },
-        connect: {
-          title: '拡張機能で接続',
-          desc: '拡張機能の設定を開き、企業/開発者モードを選択して、サービスのAPI URLとAPIキーを入力します。現在のAPI URLは下記のとおりです。'
-        }
-      },
-      openApiSettings: 'API情報を開く',
-      copy: 'コピー',
-      copySuccess: 'API URLをコピーしました',
-      installCta: 'Chromeウェブストア',
-      installCtaHint: '公式拡張機能 · 新しいタブで開きます',
-      storeMeta: 'Chromeウェブストア · v1.0.0'
-    },
-    claw: {
-      title: 'WeKnora Skill',
-      subtitle: 'WeKnora REST API経由でドキュメントをインポートし、ハイブリッド検索（ベクトル＋キーワード）を実行します。ファイルのアップロード、URLインポート、Markdownでの登録、ナレッジベース横断検索に対応します。',
-      capabilitiesTitle: 'スキルの機能',
-      capabilities: {
-        upload: {
-          title: 'ファイルのアップロード',
-          desc: 'PDF、Word、Excelなどをアップロードし、自動で解析・ベクトル化します。'
-        },
-        url: {
-          title: 'URLのインポート',
-          desc: 'URLからWebページを取得してナレッジベースに取り込み、解析ステータスをポーリングします。'
-        },
-        manual: {
-          title: 'Markdownで作成',
-          desc: 'ナレッジをMarkdownとして作成・編集します。議事録の記録に最適です。'
-        },
-        search: {
-          title: 'ハイブリッド検索',
-          desc: 'ベクトルとキーワードのリコールを組み合わせて、ナレッジベース単位のハイブリッド検索とナレッジベース横断検索を行います。'
-        },
-        browse: {
-          title: 'ナレッジの閲覧',
-          desc: 'ナレッジベースとナレッジの一覧表示、詳細の確認、インポート済みコンテンツの管理を行います。'
-        }
-      },
-      stepsTitle: '設定手順',
-      steps: {
-        api: {
-          title: 'API認証情報を取得',
-          desc: '「設定 → API情報」からAPIキーとベースURLをコピーします。'
-        },
-        env: {
-          title: '環境変数を設定',
-          desc: 'シェルまたは~/.zshrc / ~/.bashrcでWEKNORA_BASE_URLとWEKNORA_API_KEYを設定します。下記の例では現在のAPIベースURLを使用しています。APIキーは実際の値に置き換えてください。'
-        },
-        install: {
-          title: 'スキルをインストール',
-          desc: 'OpenClaw CLIをインストール済みの環境で下記のコマンドを実行するか、ClawHubページの手順に従ってください。'
-        },
-        verify: {
-          title: '接続を確認',
-          desc: 'エージェントにナレッジベースの一覧表示や検索を実行させ、認証情報と接続を確認します。'
-        }
-      },
-      openApiSettings: 'API情報を開く',
-      copy: 'コピー',
-      copyEnvSuccess: '環境変数の例をコピーしました',
-      copyCmdSuccess: 'インストールコマンドをコピーしました',
-      ecosystemNote: 'スキルはClawHub（{\'@\'}lyingbug/weknora）でホストされています。完全なAPIドキュメントとバージョン履歴はClawHubページをご覧ください。',
-      installCta: 'ClawHubを開く',
-      installCtaHint: 'WeKnora Skillをインストール · 新しいタブで開きます',
-      hubMeta: 'ClawHub · {\'@\'}lyingbug/weknora · MIT-0'
-    }
   },
   credential: {
     configured: '設定済み',

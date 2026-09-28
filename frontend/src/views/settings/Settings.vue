@@ -476,7 +476,7 @@ const handleNavClick = (item: any) => {
     currentSubSection.value = ''
   }
 
-  // 切换到对应页面，并同步 URL 为 ?section=<navKey>（含 integration-claw）。
+  // 切换到对应页面，并同步 URL 为 ?section=<navKey>（含 integration-im）。
   // 否则从其它 section 点进来时 query 不变，路由监听会把内容拉回去。
   currentSection.value = item.key
   syncSettingsRoute(item.key)

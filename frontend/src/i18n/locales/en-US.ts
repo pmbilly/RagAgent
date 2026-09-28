@@ -6538,33 +6538,11 @@ export default {
     }
   },
   integrations: {
-    cli: {
-      title: 'WeKnora CLI',
-      subtitle: 'Manage knowledge bases and documents, search content, and ask questions from your terminal. Connect scripts and AI tools through the CLI or MCP.',
-      docs: 'CLI documentation',
-      docsHint: 'Installation and complete command reference',
-      quickstart: 'Quick start',
-      installTitle: 'Install the CLI',
-      installDesc: 'Build from source with Git and Go 1.26+. This macOS / Linux example updates PATH for the current terminal only. For regular use, place the binary in a directory on PATH.',
-      connectTitle: 'Connect to this server',
-      connectDesc: 'Create and activate a profile named weknora, then sign in with your email and password. If that profile already exists, choose another name and update the MCP example to match.',
-      verifyTitle: 'Verify the connection',
-      verifyDesc: 'Check server and authentication status, then list the knowledge bases your account can access.',
-      commandsTitle: 'Common commands',
-      commandsDesc: 'Replace KB_ID with a knowledge base ID and adapt the file path, query, and question. Uploaded documents must finish processing before they can be searched.',
-      mcpTitle: 'Connect an MCP client',
-      mcpDesc: 'After signing in, add this configuration to an MCP client that supports stdio. If the client cannot find weknora, set command to the absolute path of the binary.',
-      copy: 'Copy',
-      copied: 'Copied',
-    },
     title: 'Publish & Integrations',
     tabs: {
       im: 'IM Integration',
       embed: 'Web Embed',
       api: 'API Integration',
-      chrome: 'Chrome Extension',
-      cli: 'CLI',
-      claw: 'Claw Skill'
     },
     api: {
       title: 'API Integration',
@@ -6739,114 +6717,6 @@ export default {
       label: 'Publish channels',
       desc: 'Publish this agent to IM platforms or websites. Manage in Integrations.'
     },
-    chrome: {
-      title: 'Knowledge Assistant',
-      subtitle: 'For self-hosted WeKnora: ask questions in a sidebar, clip web pages, and save Markdown notes into your knowledge bases while you browse.',
-      capabilitiesTitle: 'Core capabilities',
-      capabilities: {
-        qa: {
-          title: 'Knowledge-base Q&A',
-          desc: 'Sidebar chat with multi-KB switching and fast/deep/precise answer modes—ask without leaving the page.'
-        },
-        clip: {
-          title: 'One-click web capture',
-          desc: 'Save page URLs, AI-extract main content, or manually select regions into a target knowledge base.'
-        },
-        notes: {
-          title: 'Markdown quick notes',
-          desc: 'Built-in Markdown editor for ideas and notes, saved to your knowledge base in one click.'
-        },
-        shortcuts: {
-          title: 'Keyboard shortcuts',
-          desc: 'Customize shortcuts to ask questions, open the sidebar, and speed up daily workflows.'
-        }
-      },
-      scenarios: {
-        research: 'Daily research',
-        learning: 'Study notes',
-        tech: 'Technical references',
-        work: 'Work knowledge'
-      },
-      stepsTitle: 'Setup steps',
-      steps: {
-        api: {
-          title: 'Get API credentials',
-          desc: 'Copy your API Key and base URL from Settings → API Info.'
-        },
-        port: {
-          title: 'Desktop: fixed port (recommended)',
-          desc: 'On WeKnora Desktop, set a fixed API port (e.g. 37841) in API Info so the URL stays stable across restarts.'
-        },
-        install: {
-          title: 'Install the extension',
-          desc: 'Install “Knowledge Assistant” from the Chrome Web Store.'
-        },
-        connect: {
-          title: 'Connect in the extension',
-          desc: 'Open extension settings, choose enterprise/developer mode, and enter the service API URL and API Key. Your current API URL is shown below.'
-        }
-      },
-      openApiSettings: 'Open API Info',
-      copy: 'Copy',
-      copySuccess: 'API URL copied',
-      installCta: 'Chrome Web Store',
-      installCtaHint: 'Official extension · opens in a new tab',
-      storeMeta: 'Chrome Web Store · v1.0.0'
-    },
-    claw: {
-      title: 'WeKnora Skill',
-      subtitle: 'Import documents and run hybrid retrieval (vector + keyword) via the WeKnora REST API—for uploads, URL imports, Markdown entries, and cross-KB search.',
-      capabilitiesTitle: 'Skill capabilities',
-      capabilities: {
-        upload: {
-          title: 'Upload files',
-          desc: 'Upload PDF, Word, Excel, and more; automatic parsing and vectorization.'
-        },
-        url: {
-          title: 'Import URLs',
-          desc: 'Fetch web pages by URL into a knowledge base with parse-status polling.'
-        },
-        manual: {
-          title: 'Write Markdown',
-          desc: 'Create or edit knowledge entries as Markdown—ideal for meeting notes.'
-        },
-        search: {
-          title: 'Hybrid search',
-          desc: 'Per-KB hybrid-search and cross-KB knowledge-search combining vector and keyword recall.'
-        },
-        browse: {
-          title: 'Browse knowledge',
-          desc: 'List knowledge bases and entries, view details, and manage imported content.'
-        }
-      },
-      stepsTitle: 'Setup steps',
-      steps: {
-        api: {
-          title: 'Get API credentials',
-          desc: 'Copy API Key and base URL from Settings → API Info.'
-        },
-        env: {
-          title: 'Configure environment',
-          desc: 'Set WEKNORA_BASE_URL and WEKNORA_API_KEY in your shell or ~/.zshrc / ~/.bashrc. The example below uses your current API base URL—replace the API Key with your actual value.'
-        },
-        install: {
-          title: 'Install the skill',
-          desc: 'Run the command below in an environment with the OpenClaw CLI installed, or follow the ClawHub page instructions.'
-        },
-        verify: {
-          title: 'Verify connection',
-          desc: 'Ask the agent to list knowledge bases or run a search to confirm credentials and connectivity.'
-        }
-      },
-      openApiSettings: 'Open API Info',
-      copy: 'Copy',
-      copyEnvSuccess: 'Environment example copied',
-      copyCmdSuccess: 'Install command copied',
-      ecosystemNote: 'Skill hosted on ClawHub ({\'@\'}lyingbug/weknora). See the ClawHub page for full API docs and version history.',
-      installCta: 'Open ClawHub',
-      installCtaHint: 'Install WeKnora Skill · opens in a new tab',
-      hubMeta: 'ClawHub · {\'@\'}lyingbug/weknora · MIT-0'
-    }
   },
   credential: {
     configured: 'Configured',
