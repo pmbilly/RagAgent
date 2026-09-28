@@ -42,7 +42,7 @@
 | 阶段 | 内容 | 量级 |
 |---|---|---|
 | 0 起步 | 建仓/环境隔离/CI 骨架/裁剪清单签字（本文档即阶段 0 产物） | 已完成 |
-| 1 五功能移除 | 按 §6.1 清单逐 PR 拆除浏览器连接/沙箱(含技能体系)/CLI/Chrome插件/Claw Skill；schema dump → `V1__baseline.sql`（减裁剪表，196 个增量迁移退役）；测试对比器从字节对比改 **JSON 语义对比**（键序/转义归一化后再比）+ fixture 重录 | 2–3 周 |
+| 1 五功能移除 | 按 §6.1 清单逐 PR 拆除浏览器连接/沙箱(含技能体系)/CLI/Chrome插件/Claw Skill；schema dump → `V1__baseline.sql`（减裁剪表，196 个增量迁移退役）；测试对比器从字节对比改 **JSON 语义对比**（键序/转义归一化后再比）+ fixture 重录 | **已完成（2026-09-29）**：ba04157（CI+环境）→ f073c88（PR1 三 tab）→ 0f72b0f（PR2 浏览器连接）→ caef9d5（PR3 沙箱+技能降级）→ fba0e7a（PR4 基线+语义比较器）；累计净删 ~8.3 万行，4,685 后端测试全绿 |
 | 2 **知识库 + Agent 聚焦重构（当前重心）** | 先只做这两个域：knowledge 四神类（KnowledgeService 3,392 行/153 方法、FaqService 3,089、KnowledgeController 1,312、ChunkService 1,296）与 agent 五神类（AgentEngine 3,266 等）拆分（沿注释边界）；Controller rawBody 手工解析 → DTO + `@Valid`（knowledge 包 68 处手搓 ObjectNode 改 DTO 序列化）；ChunkRepository 等 "GORM 复刻层" 改写为本仓自己的数据访问契约（行为不变、文档重写） | 2–3 人月 |
 | 3 契约换锚（全仓一次性） | 删 Go 序列化层（110 引用点）、Problem Details、jsr310、NON_NULL（§2 第 4 条）；每个端点改完同 PR 带前端 | 2–3 周 |
 | 4 其余域标准化 + 架构调整 | session/wiki/retrieval 等其余神类；getenv 收敛；注释清洗；可选裁剪（org/im/datasource，见 §2 第 5 条）；Gradle 多模块 + ArchUnit 边界规则进 CI | 2–3 人月 |
@@ -79,13 +79,15 @@
 - `org`（6 个跨包引用）：`agentm/service/CustomAgentService`、`agentm/dto/AgentResponses`、`session/service/AgentResolver`（共享优先回落改直查 own）、`session/controller/KnowledgeQaController`、`knowledge/service/SharedAgentAccessResolver`、`wiki/controller/WikiPageController`；连带 KB/Agent shares 端点族、跨租户开关（`TenantProperties.enableCrossTenantAccess`）、embed 渠道绑定共享 agent 的校验。
 - `im`（1 个跨包引用）：`config/ImAdapterWiringConfig.java`（+ im 包内回调 controller 自删）+ 前端渠道设置页（integrations 的 `im` tab）。
 
-## 7. 第一周任务（阶段 1 开局，2026-09-28 按新裁剪范围更新）
+## 7. 阶段 1 执行记录（2026-09-29 完成）与下一周任务
 
-- PR1：移除 CLI / Chrome插件 / Claw Skill 三个集成 tab（§6.1①，纯前端最小风险——顺便建立"裁一个功能 = 一个 PR（含测试/前端/i18n）"的节奏模板）。
-- PR2：移除浏览器连接（§6.1②，browserskill 后端包 + 前端设置页/chat 展示组件）。
-- PR3：移除沙箱、技能降级为指令型（§6.1③，量最大；唯一设计项=指令型技能来源）。
-- PR4：schema 基线合并（`V1__baseline.sql` = 当前 schema − 裁剪表，删 196 个增量迁移）+ 对比器改 JSON 语义对比 + fixture 重录。
-- 以上 PR 串行合入（红线 #2）；全部合入后进入阶段 2——**知识库域重构从 `KnowledgeService`（153 方法）拆分开局**，Agent 域从 `AgentEngine` 沿七段注释边界拆分跟进。
+**阶段 1 已完成**（五个提交见 §5 表格；串行合入，红线 #2 全程遵守）。执行中的增量记录：
+
+- 指令型技能数据源已定稿落地：宿主技能目录 `weknora.skills.host-dirs`（env `WEKNORA_SKILL_HOST_DIRS`，逗号分隔），`agentm/SkillsCatalogController` 提供 `GET /api/v1/skills`，前端技能选择器已切换；未配置目录时 `skills_available=false` 选择器隐藏。
+- 测试对比器：`support/ContractJson`（键排序+数字归一+紧凑序列化）接入 33 个 golden()/27 个 raw() 出口与各 mask() 入口；fixture **无需重录**——语义等价即通过，本仓行为成为唯一契约。邻接键正则的存量断言已就地改 Jackson 树断言（逢触碰必改原则的既成事实清单见 PR4 提交）。
+- 满负载测试暴露并修复了三个 seed 期潜伏缺陷（已随 PR2 提交）：ConcurrencyChatClient.drain 永动自旋（+30s 硬上限）、SsrfGuard static 白名单互踩（W5a 家族补快照/还原）、SSRF 契约用例的 fake-ip DNS 环境依赖（改确定性回环）。
+
+**下一步（阶段 2 开局）**：知识库域重构从 `KnowledgeService`（153 方法）拆分开局，Agent 域从 `AgentEngine` 沿七段注释边界拆分跟进。红线不变：一次只动一个轴；每阶段结束全绿。
 
 ## 8. 环境与运行
 
