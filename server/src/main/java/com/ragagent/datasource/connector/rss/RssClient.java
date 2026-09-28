@@ -83,8 +83,9 @@ final class RssClient {
      * 对照 Go {@code extractArticle}：抓文章页 → 交给 {@link ArticleExtractor} 抽正文。
      *
      * <p>两个步骤刻意分开：<b>抓取</b>这一层与 Go 完全一致（含"不带自定义头"这条安全语义），
-     * 只有<b>抽取</b>那一层是降级接缝。所以即使默认的抽取器永远失败，
-     * 这条路径的 HTTP 行为仍然可以被测试钉住。</p>
+     * 只有<b>抽取</b>那一层是降级接缝。默认抽取器不可用时 {@code resolveItem} 不会走到这里
+     * （直接跳过请求，见 {@link ArticleExtractor}）；测试注入可用实现后，
+     * 这条路径的 HTTP 行为（含鉴权头不泄漏）仍可被钉住。</p>
      */
     ArticleExtractor.ExtractedArticle extractArticle(String articleUrl) {
         byte[] body = fetch(articleUrl, MAX_ARTICLE_SIZE, false);

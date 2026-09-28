@@ -47,7 +47,9 @@
     50 条并发 4）照抄；Authorization 具体值不做跨语言比对（Go 测试也只验含 AK）。
   - **降级接缝三件**（与波 0 RSS 同族）：jieba 分词（Segmenter 接缝默认二字滑窗
     近似，可注入恢复）、chromedp 渲染（BrowserRenderer 接缝恒失败=Go 的
-    browser-unavailable 分支）、readability/html-to-markdown（走 Go 自身回退分支）。
+    browser-unavailable 分支）、readability/html-to-markdown（readability 接缝默认不可用：
+    2026-09-28 起 `resolveItem` 直接跳过文章页请求——有意偏离 Go 的"抓了再弃"；
+    html-to-markdown 仍走 Go 自身回退分支）。
   - **IP pinning 取舍**：JDK 不能换 dialer——用每跳 SSRF+DNS 校验近似
     （LlmTransport 同款，阶段 4.0 已备案）。
   - **GoJson 包内副本收敛**（待办）：embedding/rerank/websearch.provider 三份

@@ -3,8 +3,9 @@ package com.ragagent.datasource.connector.rss;
 /**
  * {@link ArticleExtractor} 的<b>降级默认实现</b>：永远失败。
  *
- * <p>它存在的唯一理由是让 {@code resolveItem} 走 Go 已有的回落分支
- * （feed 内容），从而在没有 readability 依赖的情况下保持控制流等价。
+ * <p>它存在的理由是：让 {@code resolveItem} 在抽取层不可用时以 feed 内容定型——
+ * 并且（2026-09-28 起）<b>连文章页请求一起跳过</b>（抓回的字节必被丢弃，省一次
+ * 无效外网调用；这是本模块唯一有意偏离 Go 控制流之处）。
  * 详细后果见 {@link ArticleExtractor} 的类注释。</p>
  *
  * <h2>为什么不返回整页 HTML 冒充"正文"</h2>

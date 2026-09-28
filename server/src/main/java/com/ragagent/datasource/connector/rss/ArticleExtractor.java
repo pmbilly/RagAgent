@@ -10,9 +10,10 @@ package com.ragagent.datasource.connector.rss;
  * {@link HtmlToMarkdown} 转 Markdown。</p>
  * <p><b>Java 侧没有等价物</b>，且本项目不允许为翻译新增依赖。所以这里做成接缝，
  * 默认实现是 {@link UnavailableArticleExtractor}——它<b>永远抛错</b>。
- * 于是 {@code resolveItem} 恒定走 Go 自己那条"全文抓取失败，回落 feed 内容"的分支
- * （{@code connector.go} 的
- * {@code logger.Warnf(ctx, "[RSS] full-text fetch failed for %s (using feed content): %v", …)}）。</p>
+ * 2026-09-28 起 {@code resolveItem} 检测到抽取器不可用（{@code fullTextAvailable}）
+ * 就<b>直接跳过文章页请求</b>、以 feed 内容定型：抓回的字节必被丢弃，白付一次外网调用。
+ * 这是**唯一一处有意偏离 Go 控制流**的地方（Go 会真抓一次再丢弃）；注入可用实现后
+ * 行为自动回到 Go 等价（"全文抓取失败，回落 feed 内容"的 warn 分支仍在）。</p>
  *
  * <h2>降级后果（逐条）</h2>
  * <ol>
@@ -20,10 +21,11 @@ package com.ragagent.datasource.connector.rss;
  *       RSS 的 {@code <description>} 常见只有一两句。检索质量会明显低于 Go 侧部署。</li>
  *   <li><b>标题回落</b>：Go 在 feed 条目没有 {@code <title>} 时会用文章页的
  *       {@code <title>}；Java 侧恒用 {@code "untitled"}（{@code firstNonEmpty(item.Title, "untitled")}）。</li>
- *   <li><b>网络开销没有省</b>：控制流与 Go 完全一致，所以<b>文章页仍然会被 GET 一次</b>、
- *       拿到正文后被丢弃。这是"保持控制流等价"的直接代价——
- *       见 {@link RssClient#extractArticle}。真要省掉这次抓取，得改
- *       {@code resolveItem} 的分支（那就不是逐行等价了）。</li>
+ *   <li><b>网络开销反而省了（有意偏离 Go）</b>：默认抽取器不可用时 {@code resolveItem}
+ *       直接跳过文章页请求（{@code fullTextAvailable} 判定），Go 则会真抓一次再丢弃——
+ *       2026-09-28 评审修正，见 {@link RssConnector} 的 {@code resolveItem}。
+ *       注入可用抽取器后回到 Go 等价（含鉴权头不泄漏的
+ *       {@link RssClient#extractArticle} 契约）。</li>
  *   <li><b>指纹与 Go 不同</b>：{@code contentFingerprint} 算的是最终 Markdown，
  *       内容不同 → 指纹不同（这在本进程内自洽，但与 Go 写下的游标不通用）。</li>
  * </ol>
@@ -45,7 +47,8 @@ public interface ArticleExtractor {
      * @param pageUrl 文章页 URL（readability 用它解析相对链接）
      * @return 正文 HTML + 页面标题（标题可为 {@code null}/空）
      * @throws ArticleExtractionException 抽不出正文。<b>这会影响日志文案，但不影响控制流</b>
-     *         ——调用方 {@code resolveItem} 一律回落到 feed 内容。
+     *         ——调用方 {@code resolveItem} 一律回落到 feed 内容（默认实现不可用时
+     *         resolveItem 直接跳过本次调用，见类注释）。
      */
     ExtractedArticle extract(byte[] body, String pageUrl);
 
