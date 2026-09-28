@@ -12,10 +12,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * internal/config/config.go 的 ConversationConfig/SummaryConfig 与
  * backfillConversationDefaults；值取自 config/config.yaml dev 缺省）。
  *
- * <p>Go 从 yaml 起服；Java 侧 @ConfigurationProperties 覆盖环境差异，vendor
- * 模板从 classpath agentm/prompt_templates/ 装载（文件与 Go 仓同源同字节）。
+ * <p>Go 从 yaml 起服；Java 侧经 {@code @ConfigurationProperties(prefix="conversation")}
+ * 绑定 application.yml 的 {@code conversation.*}（2026-09-28 评审补注解——此前注解
+ * 缺失、bean 由 QaWiring 手工 new，yml 的 9 个键全是死键），vendor 模板从
+ * classpath agentm/prompt_templates/ 装载（文件与 Go 仓同源同字节）。
  * FindTemplateByID 语义：按 11 个模板文件的注册顺序首个 id 命中即返回 content。</p>
  */
+@org.springframework.boot.context.properties.ConfigurationProperties(prefix = "conversation")
 public class ConversationProperties {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -73,6 +76,7 @@ public class ConversationProperties {
     private String summaryContextTemplate = "";
 
     /** 启动回填（对照 backfillConversationDefaults）。 */
+    @jakarta.annotation.PostConstruct
     public void backfillFromTemplates() {
         Map<String, String[]> byId = loadTemplates();
         fallbackPrompt = content(byId, fallbackPromptId, fallbackPrompt);

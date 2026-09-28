@@ -87,13 +87,9 @@ public class QaWiring {
     }
 
     // ── conversation 配置（对照 Go config.yaml 的 conversation 段） ────────────
-
-    @Bean
-    public ConversationProperties conversationProperties() {
-        ConversationProperties props = new ConversationProperties();
-        props.backfillFromTemplates();
-        return props;
-    }
+    // ConversationProperties 自 2026-09-28 起由 @ConfigurationPropertiesScan 注册
+    // （yml conversation.* 真正绑定进实例），模板回填在其 @PostConstruct 完成；
+    // 此处的手工 @Bean 会让绑定面变成死键，已删除。
 
     // ── 11 seam 的生产 adapter ────────────────────────────────────────────────
 
