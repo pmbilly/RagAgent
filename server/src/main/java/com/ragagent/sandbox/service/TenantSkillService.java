@@ -104,6 +104,18 @@ public class TenantSkillService {
     /** 对照 {@code keyedMutex}：无 Redis 时进程内串行（多副本需 Redis，波 4 接 redislock）。 */
     private final Map<String, ReentrantLock> keyedLocks = new ConcurrentHashMap<>();
 
+    /**
+     * 卡死安装的兜底 reaper（对照 Go 的周期维护 sweep）。provider 侧的探针未随本批
+     * 落地（heal 分支随 provider 批联调），probe 用 unknown：installing 超时 → failed
+     * （释放租户的安装卡死）、removing → 跳过——宁可留着也不误删活镜像里的 skill。
+     */
+    @Nullable
+    private TenantSkillReaper reaper;
+    private volatile boolean reaperStopped;
+
+    /** 对照 Go 的 maintenance sweep 周期（临时文档清理 ticker 同款 10 分钟节奏）。 */
+    private static final long REAP_SWEEP_INTERVAL_MS = 10 * 60 * 1000L;
+
     public TenantSkillService(TenantSkillMapper skills,
             TenantSandboxConfigMapperHolder configsHolder,
             SkillBundleStore bundleStore,
@@ -125,6 +137,48 @@ public class TenantSkillService {
     /** 测试注入口（生产恒为墙钟）。 */
     void setClock(java.util.function.Supplier<OffsetDateTime> clock) {
         this.clock = clock;
+    }
+
+    /**
+     * 启动卡死安装的周期兜底清扫（此前 reaper 状态机零调用方、完全不可达：
+     * 进程重启/kill 后 installing/removing 行永久卡死）。测试直接构造本类时
+     * 不触发（@PostConstruct 只在 Spring 容器里走）。
+     */
+    @jakarta.annotation.PostConstruct
+    void startReaperSweep() {
+        if (skills == null) {
+            return;
+        }
+        this.reaper = new TenantSkillReaper(skills,
+                (tenantId, configId, skillId) ->
+                        TenantSkillReaper.LiveImageProbe.ProbeResult.unknown(),
+                () -> now());
+        Thread.ofVirtual().name("tenant-skill-reaper").start(() -> {
+            while (!reaperStopped) {
+                try {
+                    Thread.sleep(REAP_SWEEP_INTERVAL_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                if (reaperStopped) {
+                    return;
+                }
+                try {
+                    int reaped = reaper.reapStuckRuns();
+                    if (reaped > 0) {
+                        log.info("[skill] reaper healed/failed {} stuck install row(s)", reaped);
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("[skill] reaper sweep failed (ignored): {}", e.toString());
+                }
+            }
+        });
+    }
+
+    @jakarta.annotation.PreDestroy
+    void stopReaperSweep() {
+        reaperStopped = true;
     }
 
     private OffsetDateTime now() {
