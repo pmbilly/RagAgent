@@ -17,7 +17,9 @@ import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.tenantconfig.ChatHistoryConfig;
 import com.ragagent.auth.domain.tenantconfig.RetrievalConfig;
 import com.ragagent.auth.service.TenantService;
+import com.ragagent.agent.tools.ThinkBlocks;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.chatpipeline.SearchParams;
@@ -347,15 +349,86 @@ public class MessageService {
     }
 
     /**
-     * 对照 Go {@code IndexMessageToKB}（message.go L374-...）：把问答对异步入聊天
-     * 历史 KB。Go 起协程（WithoutCancel）；Java 同样交虚拟线程。嵌入模型/聊天历史
-     * KB 未配置时 Go 静默跳过——此处同样的尽力而为语义，失败只记日志。
+     * 对照 Go {@code IndexMessageToKB}（message.go L374-412）：把问答对入聊天历史 KB，
+     * 并把 knowledge_id 回写到消息上。Go 起协程（WithoutCancel）；Java 同样交虚拟
+     * 线程（调用点 KnowledgeQaController 已起）。未配置/未启用/缺 embedding 模型时
+     * 静默跳过——尽力而为，失败只记日志。
+     *
+     * <p><b>已知差异（备案）</b>：Go 的 chunk/向量索引由 asynq worker 异步执行；
+     * Java 侧 passage 走既有的 {@link KnowledgeService#createFromPassageSync}
+     * （逐字段对照 passage 路径），异步性由调用方的后台线程承接——落库与索引语义
+     * 同步完成，HTTP 响应不受影响。</p>
      */
-    public void indexMessageToKb(String userQuery, String assistantAnswer, String messageId, String sessionId) {
-        // 已知差异（波 1 G2 备案延续）：聊天历史 KB 的向量索引进程内未接
-        // embedding 执行面，Go 的 dev 部署同样在无 embedding 模型时静默跳过，
-        // 行为一致；只记调试日志，不影响任何 HTTP 契约。
-        log.debug("indexMessageToKb skipped (chat-history KB indexing not wired), session={}", sessionId);
+    public void indexMessageToKb(String userQuery, String assistantAnswer, String messageId,
+            String sessionId) {
+        // 剥 thinking（<think>…</think>）再入 KB：中间推理会污染检索质量（照 regThinkIndex）
+        String answer = ThinkBlocks.stripThinkBlocks(assistantAnswer == null ? "" : assistantAnswer);
+        String query = userQuery == null ? "" : userQuery;
+
+        if (query.strip().isEmpty() && answer.isEmpty()) {
+            return;
+        }
+
+        ChatHistoryConfig cfg = getChatHistoryConfig();
+        if (cfg == null) {
+            // 与 Go 同：说清为什么跳过——stats 端点只看 Enabled，索引还要求
+            // embedding 模型与已创建的 KB（否则运维看到 indexed=0 而无日志可查）
+            log.info("Skipping message index for message {}: {}", messageId,
+                    describeChatHistorySkip());
+            return;
+        }
+
+        log.info("Indexing message to chat history KB {}, message ID: {}, session ID: {}",
+                cfg.getKnowledgeBaseId(), messageId, sessionId);
+
+        // Q&A 合成一条 passage（照 Go 文案）：同段对语义搜索更友好
+        String passage = "[Session: " + sessionId + "]\nQ: " + query + "\nA: " + answer;
+
+        Knowledge knowledge;
+        try {
+            knowledge = knowledgeService.createFromPassageSync(
+                    cfg.getKnowledgeBaseId(), List.of(passage), "");
+        } catch (RuntimeException e) {
+            log.warn("Failed to index message to chat history KB: {}", e.toString());
+            return;
+        }
+
+        try {
+            messageRepository.updateKnowledgeId(messageId, knowledge.getId());
+        } catch (RuntimeException e) {
+            log.warn("Failed to update message knowledge_id: {}", e.toString());
+            return;
+        }
+
+        log.info("Message indexed to chat history KB: knowledge_id={}, message_id={}",
+                knowledge.getId(), messageId);
+    }
+
+    /**
+     * 对照 Go {@code describeChatHistorySkip}（message.go L423-441）：报出跳过索引时
+     * 缺的是哪一项前置（ChatHistoryConfig.IsConfigured 要求 Enabled + 选中 embedding
+     * 模型 + 已创建的 KB，只开开关不够）。
+     */
+    private String describeChatHistorySkip() {
+        Long tenantId = TenantContext.currentTenantId();
+        if (tenantId == null) {
+            return "no tenant in context";
+        }
+        Tenant tenant = tenantService.getTenantById(tenantId);
+        JsonNode node = tenant == null ? null : tenant.getChatHistoryConfig();
+        if (node == null || node.isNull()) {
+            return "chat history config not set";
+        }
+        if (!node.path("enabled").asBoolean(false)) {
+            return "chat history indexing disabled";
+        }
+        if (node.path("embedding_model_id").asText("").isEmpty()) {
+            return "enabled but no embedding model selected";
+        }
+        if (node.path("knowledge_base_id").asText("").isEmpty()) {
+            return "enabled but chat history knowledge base not created yet";
+        }
+        return "chat history config incomplete";
     }
 
     // ── 搜索 ────────────────────────────────────────────────────────────────

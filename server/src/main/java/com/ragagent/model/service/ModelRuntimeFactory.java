@@ -21,6 +21,7 @@ import com.ragagent.model.service.ModelService.ModelNotFoundException;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.rerank.RerankerConfig;
 import com.ragagent.rerank.RerankerFactory;
+import com.ragagent.retrieval.vlm.VlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -121,6 +122,33 @@ public class ModelRuntimeFactory {
         Model model = getModelDirect(modelId);
         log.info("Getting VLM model: {}, source: {}", model.getName(), model.getSource());
         return model;
+    }
+
+    /**
+     * 对照 GetVLMModel（model.go）的凭证解析 + {@code vlm.NewVLM} 构造期校验段
+     * （模型由 {@link #getVlmModel} 取到，二者合起来是 Go 的一次 GetVLMModel）：
+     * {@code resolveWeKnoraCloudCredentials} → weknoracloud 凭证检查（先于基址，
+     * 照 NewWeKnoraCloudVLM 的顺序）→ 非 ollama 的基址 SSRF 校验
+     * （validateVLMBaseURL；ollama 不校验基址）。
+     *
+     * <p>失败抛 {@link RuntimeException}，message 逐字对照 Go 错误文案——调用方
+     * （模型调试端点、agent 引擎装配）按 Go 的 err 分支处理。</p>
+     */
+    public VlmClient.VlmConfig vlmConfigFor(Model model) {
+        String[] creds = resolveWeKnoraCloudCredentials(model.getParameters());
+        VlmClient.VlmConfig config = VlmClient.configFromModel(model, creds[0], creds[1]);
+        if (config.isWeKnoraCloud()) {
+            if (creds[0].isEmpty()) {
+                throw new RuntimeException("WeKnoraCloud VLM: AppID is required");
+            }
+            if (creds[1].isEmpty()) {
+                throw new RuntimeException("WeKnoraCloud VLM: AppSecret is required");
+            }
+        }
+        if (!config.isOllama()) {
+            validateVlmBaseUrl(config.baseUrl());
+        }
+        return config;
     }
 
     /** 对照 GetASRModel：repo 直取（无状态闸门）。调用方再组 AsrConfig + transcribe。 */

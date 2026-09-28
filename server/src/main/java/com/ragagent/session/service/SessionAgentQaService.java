@@ -89,6 +89,8 @@ public class SessionAgentQaService {
     private final com.ragagent.mcp.service.McpMetadataService mcpMetadataService;
     private final com.ragagent.mcp.protocol.McpClientManager mcpClientManager;
     private final com.ragagent.agent.approval.Gate toolApprovalGate;
+    /** 工具图片 VLM 描述器装配（对照 agent_service.go L246-256 的 SetImageDescriber 段）。 */
+    private final VlmDescriberWiring vlmDescriberWiring;
 
     public SessionAgentQaService(MessageService messageService,
             ModelService modelService,
@@ -111,7 +113,9 @@ public class SessionAgentQaService {
             com.ragagent.mcp.service.McpServiceService mcpServiceService,
             com.ragagent.mcp.service.McpMetadataService mcpMetadataService,
             com.ragagent.mcp.protocol.McpClientManager mcpClientManager,
-            com.ragagent.agent.approval.Gate toolApprovalGate) {
+            com.ragagent.agent.approval.Gate toolApprovalGate,
+            VlmDescriberWiring vlmDescriberWiring) {
+        this.vlmDescriberWiring = vlmDescriberWiring;
         this.concurrencyGovernor = concurrencyGovernor;
         this.ollamaService = ollamaService;
         this.mcpServiceService = mcpServiceService;
@@ -683,17 +687,13 @@ public class SessionAgentQaService {
         engine.setPinnedMentions(pinnedMcp, pinnedSkills);
 
         // Skills manager（offerSkills：TenantSkills/SkillDirs 在 dev 均为空 → 不启用）
-        // VLM image describer（GetVLMModel：VLM 模型运行时随模型面）
+        // 工具图片 VLM 描述器（agent_service.go L246-256）：GetVLMModel 成功则
+        // SetImageDescriber；失败只记警告继续——引擎随后对无描述能力走 "cannot view"。
         if (!config.getVlmModelId().isEmpty()) {
             try {
-                var vlmModel = modelService.getModelByID(config.getVlmModelId());
-                if (vlmModel != null && vlmModel.getParameters() != null) {
-                    // 已知差异（备案）：Java LlmChatClient 无 Predict(bytes,prompt) 形态
-                    // （VLM 图像描述运行时随模型面收口）。Go 在 GetVLMModel 失败时同样
-                    // 只记警告继续——此处与其失败分支同形。
-                    log.warn("VLM model {} resolved but image describer seam is not wired in Java",
-                            config.getVlmModelId());
-                }
+                engine.setImageDescriber(vlmDescriberWiring.create(config.getVlmModelId()));
+                log.info("VLM image describer set for tool result analysis (model: {})",
+                        config.getVlmModelId());
             } catch (RuntimeException e) {
                 log.warn("Failed to load VLM model {} for tool image fallback: {}",
                         config.getVlmModelId(), e.toString());

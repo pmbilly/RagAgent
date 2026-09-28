@@ -23,7 +23,11 @@ import com.ragagent.knowledge.chunker.Chunker;
 import com.ragagent.knowledge.chunker.ParsedChunk;
 import com.ragagent.knowledge.chunker.SplitterConfig;
 import com.ragagent.knowledge.chunker.Tokens;
+import com.ragagent.agentm.service.AsrTranscriber;
+import com.ragagent.auth.service.TenantService;
 import com.ragagent.knowledge.service.DocReaderClient;
+import com.ragagent.knowledge.service.ParserEngineRules;
+import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.mapper.TemporaryDocumentRepository;
@@ -100,6 +104,10 @@ public class TemporaryDocumentService {
     private final TemporaryDocumentRepository repo;
     private final AttachmentFileStore fileStore;
     private final DocReaderClient docReader;
+    /** 共享 agent 的解析依赖（ASR 模型）与租户级引擎规则回落。 */
+    private final ModelRuntimeFactory modelRuntimeFactory;
+    private final AsrTranscriber asrTranscriber;
+    private final TenantService tenantService;
 
     /** 对照 container.go L1776 的 10 分钟 ticker 周期。 */
     static final java.time.Duration CLEANUP_INTERVAL = java.time.Duration.ofMinutes(10);
@@ -108,10 +116,16 @@ public class TemporaryDocumentService {
 
     public TemporaryDocumentService(TemporaryDocumentRepository repo,
                                     AttachmentFileStore fileStore,
-                                    DocReaderClient docReader) {
+                                    DocReaderClient docReader,
+                                    ModelRuntimeFactory modelRuntimeFactory,
+                                    AsrTranscriber asrTranscriber,
+                                    TenantService tenantService) {
         this.repo = repo;
         this.fileStore = fileStore;
         this.docReader = docReader;
+        this.modelRuntimeFactory = modelRuntimeFactory;
+        this.asrTranscriber = asrTranscriber;
+        this.tenantService = tenantService;
     }
 
     /**
@@ -170,9 +184,87 @@ public class TemporaryDocumentService {
         cleanupStopped = true;
     }
 
+    /** 对照 Go {@code docparser.audioFormats}（builtin_converter.go L27-30；无点，不含 aac）。 */
+    private static final Set<String> AUDIO_FORMAT_EXTENSIONS =
+            Set.of("mp3", "wav", "m4a", "flac", "ogg");
+
+    /**
+     * 对照 Go {@code types.TemporaryDocumentCreateOptions}（temporary_document.go L94-110）：
+     * ResourceTenantID 是经验证的共享 agent 来源空间（解析依赖范围）；文档行本身仍属
+     * 上传方 TenantID。jsonb 键序照 Go struct 声明序、omitempty 零值省略。
+     */
+    public record CreateOptions(String parserEngine, long resourceTenantId, String asrModelId,
+                                String vlmModelId, boolean imageUnderstanding, int ocrMaxPages) {
+
+        public CreateOptions {
+            parserEngine = parserEngine == null ? "" : parserEngine;
+            asrModelId = asrModelId == null ? "" : asrModelId;
+            vlmModelId = vlmModelId == null ? "" : vlmModelId;
+        }
+
+        public static CreateOptions empty() {
+            return new CreateOptions("", 0, "", "", false, 0);
+        }
+
+        public CreateOptions withParserEngine(String v) {
+            return new CreateOptions(v == null ? "" : v, resourceTenantId, asrModelId,
+                    vlmModelId, imageUnderstanding, ocrMaxPages);
+        }
+
+        public CreateOptions withResourceTenantId(long v) {
+            return new CreateOptions(parserEngine, v, asrModelId, vlmModelId,
+                    imageUnderstanding, ocrMaxPages);
+        }
+
+        public CreateOptions withAsrModelId(String v) {
+            return new CreateOptions(parserEngine, resourceTenantId, v == null ? "" : v,
+                    vlmModelId, imageUnderstanding, ocrMaxPages);
+        }
+
+        public CreateOptions withVlm(String vlmModelId, boolean imageUnderstanding,
+                                     int ocrMaxPages) {
+            return new CreateOptions(parserEngine, resourceTenantId, asrModelId,
+                    vlmModelId == null ? "" : vlmModelId, imageUnderstanding, ocrMaxPages);
+        }
+
+        /** processing_options 序列化（Go json.Marshal 的 omitempty：零值省略）。 */
+        String toJson() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            if (resourceTenantId != 0) {
+                m.put("resource_tenant_id", resourceTenantId);
+            }
+            if (!asrModelId.isEmpty()) {
+                m.put("asr_model_id", asrModelId);
+            }
+            if (!parserEngine.isEmpty()) {
+                m.put("parser_engine", parserEngine);
+            }
+            if (!vlmModelId.isEmpty()) {
+                m.put("vlm_model_id", vlmModelId);
+            }
+            if (imageUnderstanding) {
+                m.put("image_understanding", true);
+            }
+            if (ocrMaxPages != 0) {
+                m.put("ocr_max_pages", ocrMaxPages);
+            }
+            try {
+                return MAPPER.writeValueAsString(m);
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+    }
+
     /** 校验失败抛 IllegalArgumentException（handler 落 400 + 原文）。 */
     public TemporaryDocument create(long tenantId, String sessionId, String fileName,
             String mimeType, long fileSize, byte[] data) {
+        return create(tenantId, sessionId, fileName, mimeType, fileSize, data,
+                CreateOptions.empty());
+    }
+
+    public TemporaryDocument create(long tenantId, String sessionId, String fileName,
+            String mimeType, long fileSize, byte[] data, CreateOptions options) {
         if (tenantId == 0 || sessionId == null || sessionId.isBlank()) {
             throw new IllegalArgumentException("invalid attachment scope");
         }
@@ -210,7 +302,8 @@ public class TemporaryDocumentService {
         document.setExpiresAt(OffsetDateTime.now(ZoneId.systemDefault()).plusHours(ttlHours()));
         document.setImageRefs("[]");
         document.setMetadata("{}");
-        document.setProcessingOptions("{}");
+        document.setProcessingOptions(
+                (options == null ? CreateOptions.empty() : options).toJson());
         document.setChunks("[]");
         document.setErrorMessage("");
         document.setTokenCount(0);
@@ -351,18 +444,33 @@ public class TemporaryDocumentService {
         String imageRefs;
         Map<String, String> metadata;
         try {
+            CreateOptions options = optionsOf(document);
+            // 资源租户：共享 agent 的解析依赖范围；文档行仍属上传方（照 Go Process 的
+            // "attachment row and file remain scoped to payload.TenantID"）
+            long resourceTenantId = options.resourceTenantId() != 0 ? options.resourceTenantId()
+                    : tenantId;
             byte[] data = fileStore.getFile(document.getResourceRef());
             String ext = document.getFileType();
-            String engine = parseEngineOf(document);
+            String extNoDot = ext.startsWith(".") ? ext.substring(1) : ext;
+            String engine = options.parserEngine();
+            if (engine.isEmpty() || "auto".equals(engine)) {
+                // 租户级规则兜底（照 Go parse：未显式指定时用租户配置解析）
+                engine = tenantParserEngine(resourceTenantId, ext);
+            }
             if (TEXT_EXTENSIONS.contains(ext) && (engine.isEmpty() || engine.equals("auto"))) {
                 content = new String(data, StandardCharsets.UTF_8);
                 metadata = Map.of("parser", "plain_text");
                 // Go：nil slice json.Marshal → 4 字节 "null" 字面量写入 jsonb（不是 SQL NULL，
                 // golden 实测读回渲染 null）——H2 列 NOT NULL，必须写字符串 "null"
                 imageRefs = "null";
+            } else if (AUDIO_FORMAT_EXTENSIONS.contains(extNoDot)) {
+                // 音频：ASR 转写（照 Go parse 的 docparser.IsAudioFormat 分支）
+                content = transcribeAudio(resourceTenantId, options.asrModelId(), data,
+                        document.getFileName());
+                metadata = Map.of("parser", "asr");
+                imageRefs = "null";
             } else {
                 // Go 传给 docreader 的 fileType 去掉点（ReadRequest.FileType）
-                String extNoDot = ext.startsWith(".") ? ext.substring(1) : ext;
                 DocReaderClient.ParseResult parsed = docReader.read(data, document.getFileName(),
                         extNoDot, document.getFileName(), "auto".equals(engine) ? "" : engine);
                 // 对照 Go parse 里的 imageResolver.ResolveAndStore（L443-457）：docreader
@@ -399,16 +507,88 @@ public class TemporaryDocumentService {
 
     // ── 辅助（对照 Go 的包级函数） ──────────────────────────────
 
-    /** 对照 Go processing_options → ParserEngine。 */
-    private static String parseEngineOf(TemporaryDocument document) {
+    /** 对照 Go json.Unmarshal(document.ProcessingOptions, &options)。 */
+    static CreateOptions optionsOf(TemporaryDocument document) {
         try {
-            Map<?, ?> options = MAPPER.readValue(
-                    document.getProcessingOptions() == null ? "{}" : document.getProcessingOptions(),
-                    Map.class);
-            Object engine = options.get("parser_engine");
-            return engine instanceof String s ? s : "";
+            com.fasterxml.jackson.databind.JsonNode node = MAPPER.readTree(
+                    document.getProcessingOptions() == null ? "{}" : document.getProcessingOptions());
+            return new CreateOptions(node.path("parser_engine").asText(""),
+                    node.path("resource_tenant_id").asLong(0),
+                    node.path("asr_model_id").asText(""),
+                    node.path("vlm_model_id").asText(""),
+                    node.path("image_understanding").asBoolean(false),
+                    node.path("ocr_max_pages").asInt(0));
         } catch (Exception e) {
+            return CreateOptions.empty();
+        }
+    }
+
+    /** 对照 Go parse：未显式指定 engine 时用资源租户的 chat 解析规则兜底。 */
+    private String tenantParserEngine(long resourceTenantId, String ext) {
+        try {
+            var tenant = tenantService.getTenantById(resourceTenantId);
+            if (tenant == null || tenant.getParserEngineConfig() == null) {
+                return "";
+            }
+            return ParserEngineRules.resolve(
+                    tenant.getParserEngineConfig().get("chat_parser_engine_rules"), ext);
+        } catch (RuntimeException e) {
+            log.warn("failed to resolve tenant parser engine: {}", e.toString());
             return "";
+        }
+    }
+
+    /** 对照 Go parse 的音频分支：GetASRModel → Transcribe；错误文案逐字（含前缀）。 */
+    private String transcribeAudio(long resourceTenantId, String asrModelId, byte[] data,
+            String fileName) {
+        if (asrModelId.isEmpty()) {
+            throw new RuntimeException("audio transcription model is not configured");
+        }
+        return withResourceTenant(resourceTenantId, () -> {
+            com.ragagent.model.domain.Model model;
+            try {
+                model = modelRuntimeFactory.getAsrModel(asrModelId);
+            } catch (RuntimeException e) {
+                throw new RuntimeException("load ASR model: " + e.getMessage(), e);
+            }
+            var p = model.getParameters();
+            // 对照 asr.ConfigFromModel：language 不从模型来（恒空），customHeaders 透传
+            var config = new AsrTranscriber.AsrConfig(p == null ? "" : p.getBaseUrl(),
+                    model.getName(), p == null ? "" : p.getApiKey(), model.getId(), "",
+                    p == null ? null : p.getCustomHeaders());
+            try {
+                return asrTranscriber.transcribe(config, data, fileName).text();
+            } catch (RuntimeException e) {
+                throw new RuntimeException("transcribe audio: " + e.getMessage(), e);
+            }
+        });
+    }
+
+    /**
+     * 临时把线程租户切到资源租户（对照 Go 的
+     * {@code ctx = WithValue(TenantIDContextKey, resourceTenantID)}）：ASR 模型的
+     * 可见性按共享来源空间解析，调用后恢复原值。
+     */
+    private <T> T withResourceTenant(long resourceTenantId, java.util.function.Supplier<T> body) {
+        Long previous = com.ragagent.common.context.TenantContext.currentTenantId();
+        if (previous != null && previous == resourceTenantId) {
+            return body.get();
+        }
+        com.ragagent.common.context.TenantContext.set(resourceTenantId,
+                com.ragagent.common.context.TenantContext.currentPrincipal(),
+                com.ragagent.common.context.TenantContext.currentRole(),
+                com.ragagent.common.context.TenantContext.isSystemAdmin(),
+                com.ragagent.common.context.TenantContext.currentUserId(),
+                com.ragagent.common.context.TenantContext.canAccessAllTenants());
+        try {
+            return body.get();
+        } finally {
+            com.ragagent.common.context.TenantContext.set(previous,
+                    com.ragagent.common.context.TenantContext.currentPrincipal(),
+                    com.ragagent.common.context.TenantContext.currentRole(),
+                    com.ragagent.common.context.TenantContext.isSystemAdmin(),
+                    com.ragagent.common.context.TenantContext.currentUserId(),
+                    com.ragagent.common.context.TenantContext.canAccessAllTenants());
         }
     }
 

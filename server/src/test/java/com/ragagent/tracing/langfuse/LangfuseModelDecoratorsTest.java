@@ -207,15 +207,41 @@ class LangfuseModelDecoratorsTest {
     }
 
     @Test
+    @DisplayName("vlm：generation 载荷 = prompt/图片计数与总字节；用量按码点估算")
+    void vlmGeneration() throws Exception {
+        LangfuseVlm.PredictFn wrapped = LangfuseVlm.wrap(
+                (images, prompt) -> "a tiny image", "vlm-test", "vlm-1");
+
+        String got = wrapped.predict(new byte[][] {new byte[] {1, 2, 3}}, "描述这张图");
+        assertEquals("a tiny image", got);
+
+        assertEquals(2, exported.size());
+        assertEquals(1, traceRoots());
+        RecordedSpan gen = byName("vlm.predict");
+        assertEquals("vlm-test", gen.attributes.get(LangfuseAttributes.ATTR_OBS_MODEL));
+        // 图片字节不上传：输入只带 prompt 与张数
+        assertEquals("{\"image_count\":1,\"prompt\":\"描述这张图\"}",
+                gen.attributes.get(LangfuseAttributes.ATTR_OBS_INPUT));
+        assertEquals("{\"image_bytes_total\":3,\"image_count\":1,\"model_id\":\"vlm-1\"}",
+                gen.attributes.get(LangfuseAttributes.ATTR_OBS_METADATA));
+        assertEquals("\"a tiny image\"", gen.attributes.get(LangfuseAttributes.ATTR_OBS_OUTPUT));
+        // 用量：prompt 5 码点 → 5/4+1=2；输出 12 码点 → 12/4=3
+        assertEquals("{\"input\":2,\"output\":3,\"total\":5,\"unit\":\"TOKENS\"}",
+                gen.attributes.get(LangfuseAttributes.ATTR_OBS_USAGE_DETAILS));
+    }
+
+    @Test
     @DisplayName("未启用：wrap 原样返回（零成本）")
     void disabledWrapReturnsSameInstance() {
         LangfuseRegistry.installForTest(NoopLangfuseManager.INSTANCE);
         LlmChatClient chat = new FakeChatClient(new ChatResponse());
         Embedder embedder = new FakeEmbedder();
         Reranker reranker = new FakeReranker();
+        LangfuseVlm.PredictFn vlm = (images, prompt) -> "x";
         assertSame(chat, LangfuseChatClient.wrap(chat));
         assertSame(embedder, LangfuseEmbedder.wrap(embedder));
         assertSame(reranker, LangfuseReranker.wrap(reranker));
+        assertSame(vlm, LangfuseVlm.wrap(vlm, "vlm-test", "vlm-1"));
         assertTrue(exported.isEmpty());
     }
 

@@ -42,7 +42,10 @@ class TemporaryDocumentResolveForPromptTest {
     private TemporaryDocumentService service() {
         if (service == null) {
             fileStore = new AttachmentFileStore(tempDir.toString());
-            service = new TemporaryDocumentService(repo, fileStore, docReader);
+            service = new TemporaryDocumentService(repo, fileStore, docReader,
+                    mock(com.ragagent.model.service.ModelRuntimeFactory.class),
+                    mock(com.ragagent.agentm.service.AsrTranscriber.class),
+                    mock(com.ragagent.auth.service.TenantService.class));
         }
         return service;
     }

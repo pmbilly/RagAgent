@@ -48,6 +48,7 @@ import com.ragagent.session.dto.QaRequests.AttachmentUpload;
 import com.ragagent.session.dto.QaRequests.CreateKnowledgeQARequest;
 import com.ragagent.session.dto.QaRequests.MentionedItemRequest;
 import com.ragagent.session.dto.QaRequests.SearchKnowledgeRequest;
+import com.ragagent.session.service.AgentResolver;
 import com.ragagent.session.service.AgentStreamBridge;
 import com.ragagent.session.service.MessageService;
 import com.ragagent.session.service.MessageSuggestionService;
@@ -357,7 +358,8 @@ public class KnowledgeQaController {
         }
 
         // resolveAgent（Go L548-600：共享优先，source==0 才回落 own）
-        ResolvedAgent resolvedAgent = resolveAgent(request.agentId, request.agentSourceTenantId);
+        var resolvedAgent = agentResolverField.resolve(request.agentId,
+                request.agentSourceTenantId);
         CustomAgentEntity customAgent = resolvedAgent.row();
         if (request.agentSourceTenantId != 0 && customAgent == null) {
             throw BizException.notFound("Shared agent not found");
@@ -366,7 +368,7 @@ public class KnowledgeQaController {
         rc.effectiveTenantId = resolvedAgent.effectiveTenantId();
         rc.sharedAgentReadOnly = resolvedAgent.sharedAgentReadOnly();
         if (customAgent != null) {
-            ObjectNode cfg = parseAgentConfig(customAgent);
+            ObjectNode cfg = AgentResolver.parseAgentConfig(customAgent);
             AgentConfigJson.ensureDefaults(cfg);
             rc.agentConfig = cfg;
         }
@@ -543,77 +545,9 @@ public class KnowledgeQaController {
         return new ParsedRequest(rc, request);
     }
 
-    /**
-     * resolveAgent（Go qa.go L548-600 逐行对应）：共享 agent 优先（err 吞掉不外抛），
-     * source==0 才回落 own agent；source!=0 且未命中 → 外层 404 "Shared agent not found"。
-     *
-     * <p>三元组 = (agent 行, effectiveTenantId, sharedAgentReadOnly)。effectiveTenantId
-     * 是共享 agent 的**实际归属租户**（模型/KB/MCP 解析范围），非请求里的 source 参数。</p>
-     */
-    private ResolvedAgent resolveAgent(String agentId, long sourceTenantId) {
-        if (agentId == null || agentId.isEmpty()) {
-            return new ResolvedAgent(null, 0, false);
-        }
-        CustomAgentEntity customAgent = null;
-        long effectiveTenantId = 0;
-        boolean sharedAgentReadOnly = false;
-        Long currentTenant = TenantContext.currentTenantId();
-        String currentUser = TenantContext.currentUserId();
-        if (currentTenant != null && currentTenant != 0 && currentUser != null && !currentUser.isEmpty()) {
-            try {
-                AgentRow shared = agentShareServiceField.getSharedAgentForTenant(currentTenant,
-                        com.ragagent.org.service.OrganizationService.callerTenantRole(),
-                        agentId, sourceTenantId);
-                if (shared != null) {
-                    effectiveTenantId = shared.getTenantId() == null ? 0 : shared.getTenantId();
-                    customAgent = toCustomAgentEntity(shared);
-                    sharedAgentReadOnly = true;
-                    log.info("Using shared agent: ID={}, Name={}, effectiveTenantID={} (retrieval scope)",
-                            customAgent.getId(), customAgent.getName(), effectiveTenantId);
-                }
-            } catch (RuntimeException e) {
-                // Go：share 解析失败静默——source==0 回落 own，source!=0 外层 404
-                log.info("Shared agent resolution miss: agent ID: {}, error: {}", agentId, e.toString());
-            }
-        }
-        // sourceTenantID == 0 时才回落 own agent（Go L584 的守卫语义：
-        // 被拒的共享选择子不许静默跑同 id 的本地内建 agent）
-        if (customAgent == null && sourceTenantId == 0) {
-            try {
-                var result = customAgentServiceField.getAgentByID(agentId, null);
-                customAgent = result == null ? null : result.row();
-            } catch (RuntimeException e) {
-                log.warn("Failed to get custom agent, agent ID: {}, error: {}, using default config",
-                        agentId, e.toString());
-            }
-        }
-        return new ResolvedAgent(customAgent, effectiveTenantId, sharedAgentReadOnly);
-    }
-
-    /** resolveAgent 的三元返回（对照 Go (customAgent, effectiveTenantID, sharedAgentReadOnly)）。 */
-    private record ResolvedAgent(CustomAgentEntity row, long effectiveTenantId,
-                                 boolean sharedAgentReadOnly) {}
-
-    /** AgentRow（org 投影）→ CustomAgentEntity（agentm 消费面）：字段一一同名映射。 */
-    private static CustomAgentEntity toCustomAgentEntity(AgentRow row) {
-        CustomAgentEntity e = new CustomAgentEntity();
-        e.setId(row.getId());
-        e.setName(row.getName());
-        e.setDescription(row.getDescription());
-        e.setAvatar(row.getAvatar());
-        e.setBuiltin(row.isBuiltin());
-        e.setTenantId(row.getTenantId());
-        e.setCreatedBy(row.getCreatedBy());
-        e.setConfig(row.getConfig());
-        e.setCreatedAt(row.getCreatedAt());
-        e.setUpdatedAt(row.getUpdatedAt());
-        return e;
-    }
-
+    /** 共享/自有 agent 解析（Go qa.go 的 resolveAgent；与附件上传入口共用同一组件）。 */
     @org.springframework.beans.factory.annotation.Autowired
-    private com.ragagent.agentm.service.CustomAgentService customAgentServiceField;
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.ragagent.org.service.AgentShareService agentShareServiceField;
+    private AgentResolver agentResolverField;
     @org.springframework.beans.factory.annotation.Autowired
     private com.ragagent.auth.service.TenantService tenantServiceField;
 
@@ -630,15 +564,6 @@ public class KnowledgeQaController {
                     ? null : tenantServiceField.getTenantById(tid);
         } catch (RuntimeException e) {
             return null;
-        }
-    }
-
-    private static ObjectNode parseAgentConfig(CustomAgentEntity row) {
-        try {
-            return (ObjectNode) new com.fasterxml.jackson.databind.ObjectMapper().readTree(
-                    row.getConfig() == null ? "{}" : row.getConfig());
-        } catch (IOException e) {
-            throw new RuntimeException("failed to parse agent config: " + e.getMessage(), e);
         }
     }
 

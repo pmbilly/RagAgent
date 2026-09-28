@@ -79,16 +79,13 @@ public class ModelDebugController {
     private final ModelService modelService;
     private final ModelRuntimeFactory runtimeFactory;
     private final AsrTranscriber asrTranscriber;
-    private final com.ragagent.model.service.WeKnoraCloudService weKnoraCloudService;
     private final VlmClient.Transport vlmTransport = new VlmHttpTransport();
 
     public ModelDebugController(ModelService modelService, ModelRuntimeFactory runtimeFactory,
-                                AsrTranscriber asrTranscriber,
-                                com.ragagent.model.service.WeKnoraCloudService weKnoraCloudService) {
+                                AsrTranscriber asrTranscriber) {
         this.modelService = modelService;
         this.runtimeFactory = runtimeFactory;
         this.asrTranscriber = asrTranscriber;
-        this.weKnoraCloudService = weKnoraCloudService;
     }
 
     @PostMapping("/{id}/debug")
@@ -327,32 +324,12 @@ public class ModelDebugController {
         } catch (RuntimeException e) {
             return writeResult(startedNanos, requestPreview, null, e.getMessage(), observations);
         }
-        // 凭证：照 Go GetVLMModel 的 resolveWeKnoraCloudCredentials（租户级已解密明文；
-        // 租户缺失 → 空串对）。ollama 不校验基址（基址来自 OLLAMA_BASE_URL）；其余界面
-        // （openai/weknoracloud）在构造期校验基址——weknoracloud 的凭证检查在基址之前
-        // （照 NewWeKnoraCloudVLM 的顺序）。
-        String appId = "";
-        String appSecret = "";
-        if (weKnoraCloudService != null) {
-            String[] creds = weKnoraCloudService.resolveCredentials();
-            if (creds != null && creds.length == 2) {
-                appId = creds[0];
-                appSecret = creds[1];
-            }
-        }
-        var config = VlmClient.configFromModel(vlmModel, appId, appSecret);
+        // 凭证 + 构造期校验：照 Go GetVLMModel 的 resolveWeKnoraCloudCredentials
+        // （model 级优先、租户回落）与 vlm.NewVLM（weknoracloud 的凭证检查先于基址；
+        // ollama 不校验基址）——与 agent 侧 VLM 装配共用 vlmConfigFor 同一实现。
+        VlmClient.VlmConfig config;
         try {
-            if (config.isWeKnoraCloud()) {
-                if (appId.isEmpty()) {
-                    throw new RuntimeException("WeKnoraCloud VLM: AppID is required");
-                }
-                if (appSecret.isEmpty()) {
-                    throw new RuntimeException("WeKnoraCloud VLM: AppSecret is required");
-                }
-            }
-            if (!config.isOllama()) {
-                runtimeFactory.validateVlmBaseUrl(config.baseUrl());
-            }
+            config = runtimeFactory.vlmConfigFor(vlmModel);
         } catch (RuntimeException e) {
             return writeResult(startedNanos, requestPreview, null, e.getMessage(), observations);
         }

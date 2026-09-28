@@ -45,11 +45,15 @@ public class TemporaryDocumentController {
 
     private final SessionService sessionService;
     private final TemporaryDocumentService temporaryDocuments;
+    /** 对照 Go handler 的 resolveAgent（qa.go；共享优先、source==0 才回落 own）。 */
+    private final com.ragagent.session.service.AgentResolver agentResolver;
 
     public TemporaryDocumentController(SessionService sessionService,
-                                       TemporaryDocumentService temporaryDocuments) {
+                                       TemporaryDocumentService temporaryDocuments,
+                                       com.ragagent.session.service.AgentResolver agentResolver) {
         this.sessionService = sessionService;
         this.temporaryDocuments = temporaryDocuments;
+        this.agentResolver = agentResolver;
     }
 
     /** 对照 Go UploadTemporaryDocument（L19-93）。agent 表单字段随波 5（见 service 注释）。 */
@@ -58,6 +62,8 @@ public class TemporaryDocumentController {
             @PathVariable("session_id") String sessionId,
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "agent_source_tenant_id", required = false) String agentSourceTenantId,
+            @RequestParam(value = "agent_id", required = false) String agentId,
+            @RequestParam(value = "parser_engine", required = false) String parserEngine,
             jakarta.servlet.http.HttpServletRequest request) {
         String sid = LogSanitizer.sanitize(sessionId);
         // Go 的 FormFile 先查请求是否 multipart：非 multipart 是固定原文（golden 实测）
@@ -79,16 +85,22 @@ public class TemporaryDocumentController {
         }
         // 空 size 不在此拒——Go 的 FormFile 收 0 字节文件，由 service 的
         // "file size must be between 1 byte and 50MB" 兜（golden 实测）
-        if (agentSourceTenantId != null && !agentSourceTenantId.isBlank()) {
-            try {
-                Long.parseLong(agentSourceTenantId.trim());
-            } catch (NumberFormatException e) {
-                throw new BizException(AppError.badRequest(
-                        "invalid agent_source_tenant_id: " + agentSourceTenantId));
-            }
-            // shared-agent 的解析随波 5；本版无 agent 解析能力
+        // agent_source_tenant_id：fail-closed 解析（对照 ParseAgentSourceTenantID 的文案）
+        long sourceTenantId;
+        try {
+            sourceTenantId = com.ragagent.org.service.AgentShareSources.parse(agentSourceTenantId);
+        } catch (IllegalArgumentException e) {
+            throw new BizException(AppError.badRequest(e.getMessage()));
+        }
+        // resolveAgent（Go resolveAgent：共享优先、source==0 才回落 own；
+        // source!=0 且未命中 → 409/404 中的 404 "Shared agent not found"）
+        var resolved = agentResolver.resolve(agentId, sourceTenantId);
+        var agent = resolved.row();
+        if (sourceTenantId != 0 && agent == null) {
             throw BizException.notFound("Shared agent not found");
         }
+        TemporaryDocumentService.CreateOptions options =
+                agentOptions(agent, resolved, extNoDot(file.getOriginalFilename()), parserEngine);
         byte[] data;
         try {
             data = file.getBytes();
@@ -98,7 +110,8 @@ public class TemporaryDocumentController {
         TemporaryDocument document;
         try {
             document = temporaryDocuments.create(currentTenantId(), sid,
-                    file.getOriginalFilename(), file.getContentType(), file.getSize(), data);
+                    file.getOriginalFilename(), file.getContentType(), file.getSize(), data,
+                    options);
         } catch (IllegalArgumentException e) {
             throw new BizException(AppError.badRequest(e.getMessage()));
         } catch (RuntimeException e) {
@@ -247,6 +260,96 @@ public class TemporaryDocumentController {
     }
 
     // ── 辅助 ──────────────────────────────
+
+    /**
+     * 对照 Go UploadTemporaryDocument 的 agent 门控与 options 组装（L52-83）：
+     * supported_file_types 拒收 / 音频需 ASR / agent 级 parser engine 回落（显式 engine
+     * 为空或 auto 时）/ VLM 图片理解选项。租户级 parser 规则由 parse worker 兜底
+     * （照 Go 注释"Tenant-level rules remain the final fallback"）。
+     */
+    private static TemporaryDocumentService.CreateOptions agentOptions(
+            com.ragagent.agentm.domain.CustomAgentEntity agent,
+            com.ragagent.session.service.AgentResolver.ResolvedAgent resolved,
+            String ext, String parserEngine) {
+        TemporaryDocumentService.CreateOptions options = TemporaryDocumentService.CreateOptions
+                .empty().withParserEngine(parserEngine == null ? "" : parserEngine.strip());
+        if (agent == null) {
+            return options;
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode cfg =
+                com.ragagent.session.service.AgentResolver.parseAgentConfig(agent);
+        options = options.withResourceTenantId(resolved.effectiveTenantId());
+        List<String> supported = stringListOf(cfg.get("supported_file_types"));
+        if (!supported.isEmpty() && !containsFileType(supported, ext)) {
+            throw new BizException(AppError.badRequest("file type is not supported by this agent"));
+        }
+        if (isAudioExtension(ext)) {
+            if (!cfg.path("audio_upload_enabled").asBoolean(false)
+                    || cfg.path("asr_model_id").asText("").isEmpty()) {
+                throw new BizException(AppError.badRequest(
+                        "audio upload is not enabled or no ASR model is configured"));
+            }
+            options = options.withAsrModelId(cfg.path("asr_model_id").asText(""));
+        }
+        if (options.parserEngine().isEmpty() || "auto".equals(options.parserEngine())) {
+            String engine = com.ragagent.knowledge.service.ParserEngineRules.resolve(
+                    cfg.get("chat_parser_engine_rules"), ext);
+            if (!engine.isEmpty()) {
+                options = options.withParserEngine(engine);
+            }
+        }
+        if (cfg.path("image_upload_enabled").asBoolean(false)
+                && !cfg.path("vlm_model_id").asText("").isEmpty()) {
+            options = options.withVlm(cfg.path("vlm_model_id").asText(""),
+                    cfg.path("attachment_image_understanding").asBoolean(false),
+                    cfg.path("attachment_ocr_max_pages").asInt(0));
+        }
+        return options;
+    }
+
+    /** 对照 Go filepath.Ext + TrimPrefix(strings.ToLower(...), ".")（handler L54）。 */
+    private static String extNoDot(String fileName) {
+        String name = fileName == null ? "" : fileName;
+        int dot = name.lastIndexOf('.');
+        if (dot < 0) {
+            return "";
+        }
+        return name.substring(dot + 1).toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** 对照 Go isAudioExtension（L192-200）：含 aac，与 parse 的 audioFormats 不是同一张表。 */
+    private static boolean isAudioExtension(String ext) {
+        return switch (ext) {
+            case "mp3", "wav", "m4a", "flac", "ogg", "aac" -> true;
+            default -> false;
+        };
+    }
+
+    /** 对照 Go containsFileType（L183-191）：逐项去点小写后与 ext 比较。 */
+    private static boolean containsFileType(List<String> supported, String ext) {
+        for (String item : supported) {
+            String normalized = item == null ? "" : item.trim().toLowerCase(java.util.Locale.ROOT);
+            if (normalized.startsWith(".")) {
+                normalized = normalized.substring(1);
+            }
+            if (normalized.equals(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> stringListOf(com.fasterxml.jackson.databind.JsonNode arr) {
+        List<String> out = new java.util.ArrayList<>();
+        if (arr != null && arr.isArray()) {
+            for (com.fasterxml.jackson.databind.JsonNode n : arr) {
+                if (n.isTextual()) {
+                    out.add(n.asText());
+                }
+            }
+        }
+        return out;
+    }
 
     private static String sessionParam(String id, String sessionIdFallback) {
         String value = id == null || id.isEmpty() ? sessionIdFallback : id;

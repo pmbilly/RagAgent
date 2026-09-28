@@ -163,6 +163,22 @@ final class LangfusePayloads {
         return usage;
     }
 
+    /**
+     * 对照 VLM 的 langfuse_wrapper.go：VLM 不返回 token usage，按
+     * promptTokens=prompt 码点数/4+1、outputTokens=输出码点数/4 估算
+     * （空输出 → 0；总数为两者之和）。
+     */
+    static TokenUsage approxVlmUsage(String prompt, String result) {
+        int input = codePointCount(prompt) / 4 + 1;
+        int output = codePointCount(result) / 4;
+        TokenUsage usage = new TokenUsage();
+        usage.input = input;
+        usage.output = output;
+        usage.total = input + output;
+        usage.unit = "TOKENS";
+        return usage;
+    }
+
     /** 对照 chat 的 convertUsage：三值全零 → null（不上报）；否则映射 + unit=TOKENS。 */
     static TokenUsage convertUsage(com.ragagent.llm.domain.TokenUsage usage) {
         if (usage == null) {

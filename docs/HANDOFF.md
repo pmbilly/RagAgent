@@ -1,5 +1,31 @@
 # 交接文档（新会话接手用）
 
+## 0.-51 遗留项 #4/#5/#7 修复（2026-09-28 第二批：VLM 描述器 / 聊天历史索引 / 共享 agent 附件）
+
+用户指定修 `known-issues/10` 第一节的三项，均逐行对照 Go 并带单测；详见
+`known-issues/10-review-2026-09-28.md` §四。要点：
+
+1. **VLM 工具图片描述**：`ModelRuntimeFactory.vlmConfigFor`（GetVLMModel 的凭证 + 构造期
+   校验收口）+ `LangfuseVlm`（vlm.predict generation）+ `VlmDescriberWiring`（并发闸门最
+   外层，照 vlm.NewVLM）→ `SessionAgentQaService.setImageDescriber` 接线；
+   `ModelDebugController` 切到同一 vlmConfigFor。**差异备案**：Go 的 60s 批级 ctx 超时未
+   复刻（HTTP 层 180s 兜底）。
+2. **聊天历史 KB 索引**：`MessageService.indexMessageToKb` 落地（think 剥 / 三要素 /
+   passage / `createFromPassageSync` / knowledge_id 回写）+ `describeChatHistorySkip`。
+   **差异备案**：Go 走 asynq 异步，Java 同步（后台线程承接）。
+3. **共享 agent 附件上传**：`agent_id`/`parser_engine` 绑定 + `AgentShareSources.parse` +
+   新共享组件 `AgentResolver`（`KnowledgeQaController` 私有实现删除并切到它）+ 门控
+   （supported_file_types / 音频 ASR / 引擎回落 / VLM 选项）+ `processing_options` 键序
+   写入 + parse 消费 resource_tenant_id 与音频 ASR。**未做**：`applyImageUnderstanding`
+   的 VLM OCR/caption 级联（选项已写、parse 未消费）。
+
+**验证**：新增 32 条单测；门 `acceptance.sh --changed` **B3 PASS 530s**；
+**B4 唯一红 = `SandboxSkillsMeContractTest.recordedScenario`**（fake-ip DNS 环境锚，
+`known-issues/05` 已备案环境性假红，与本批无关；1920/1921 通过）。
+**未做真机 E2E**：需 VLM/ASR provider + 真模型行、组织共享 agent 夹具。
+
+---
+
 ## 0.-50 用户报障：上传的图片"识别不了"（2026-09-27）
 
 **现象**：前端聊天上传 PNG/WebP，模型回答"无法直接查看或识别您附件中的图片内容"（DB 实据）：
