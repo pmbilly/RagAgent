@@ -109,8 +109,14 @@ public class OssFileService implements FileService {
     private static OSS buildClient(String endpoint, String region, String accessKey,
                                    String secretKey) {
         // Java SDK 的 endpoint/region 语义：endpoint 已含 region 信息（如
-        // https://oss-cn-hangzhou.aliyuncs.com），region 仅作备份与签名参考
-        return new OSSClientBuilder().build(endpoint, accessKey, secretKey);
+        // https://oss-cn-hangzhou.aliyuncs.com），region 仅作备份与签名参考。
+        // 裸域名（校验层允许）在 aliyun-sdk-java 下默认按 http:// 拨——AK/SK 与数据
+        // 走明文；Go 的 OSS SDK 同配置默认 Secure=true，这里补齐 https 前缀。
+        String normalized = endpoint == null ? "" : endpoint.trim();
+        if (!normalized.isEmpty() && !normalized.contains("://")) {
+            normalized = "https://" + normalized;
+        }
+        return new OSSClientBuilder().build(normalized, accessKey, secretKey);
     }
 
     /** 对照 {@code ossEnsureBucket}：不存在则建；409（并发建/已存在）视为成功。 */

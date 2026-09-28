@@ -194,7 +194,18 @@ public class StorageBackendService {
                 }
                 dialEndpoint(endpoint, c.useSsl ? 443 : 80, "minio");
             }
-            case "cos" -> dialEndpoint(c.endpoint, 443, "cos");
+            case "cos" -> {
+                // COS 无 endpoint 配置面（前端表单/校验都不收）：按腾讯云规则由
+                // region+bucket 构造探测域名（Go 侧 SDK 用 region+密钥 HEAD bucket，
+                // 同样不需要 endpoint）。此前 dialEndpoint("") 必败，COS 后端
+                // create/update/test 全部 400。
+                String region = c.region == null ? "" : c.region.trim();
+                String bucket = c.bucketName == null ? "" : c.bucketName.trim();
+                if (region.isEmpty() || bucket.isEmpty()) {
+                    throw new ConnectorFailure("dial cos: region and bucket are required");
+                }
+                dialEndpoint(bucket + ".cos." + region + ".myqcloud.com", 443, "cos");
+            }
             case "tos", "s3", "oss", "ks3", "obs" -> dialEndpoint(c.endpoint, 443, b.getProvider());
             default -> throw new ConnectorFailure("unsupported storage provider: " + b.getProvider());
         }
