@@ -68,7 +68,7 @@
 - `agent/skills/TenantSkillSource.java`（技能的租户镜像源，技能体系随沙箱裁掉）
 - `session/service/`：`SessionSandboxExecutionService`、`SessionTerminalService`、`TerminalBridge`、`InstallEngineFactoryImpl`、`SessionBoundArtifactSource`、`SessionAttachmentStagingService`
 - 连带清理：agent config 的 `sandboxConfigId/skillsEnabled/skill_selection_mode` 字段；`agentm/builtin_agents.yaml` 的 `builtin-skill-installer` 角色；system_settings 的 `sandbox.docker_enabled` 键；`SessionAgentQaService` 的 `holdSandboxTurn`/沙箱工具注册调用点；docker-java/远程沙箱（Cube/E2B）相关依赖与配置；前端 `SandboxSettings.vue`、`SkillSettings.vue` 及 ~61 个 skill 相关文件（以路由/菜单为准）
-- 注意：`agent/skills/` 包里 Loader/Manager/Skill 等纯装载类是否保留（MCP 技能无关但同包）——动手时按"还有没有消费方"现场判断
+- **待决点（做 PR3 前问用户）——技能体系去留**：技能分三层，仅提示词层（SKILL.md 元数据注入系统提示词，`AgentEngine.setSkillsManager`）不依赖沙箱；资源层投递与执行层（装依赖/镜像快照/shell_exec）全绑容器。选项：A) 全裁（技能选择器、`agent/skills` 整包随沙箱删）；B) **降级为指令型技能**（保留 Loader/Manager 提示词注入路径，裁 `TenantSkillSource` + 安装管线 + shell/文件注入，执行型需求引导走 MCP）；C) 换执行底座（≈换名字的沙箱，不建议）。
 
 ### 6.2 待排期可选项（不在第一批，勿主动动手）
 
