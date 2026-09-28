@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -30,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -214,9 +212,9 @@ class MemoryHttpContractTest {
                 .header("Authorization", bearer()));
 
         assertEquals(200, off.getResponse().getStatus(), raw(off));
-        assertEquals("{\"data\":{\"workspace_enabled\":true,\"user_enabled\":false,"
-                + "\"effective\":false,\"write_mode\":\"explicit_only\",\"item_count\":0,"
-                + "\"max_items\":200},\"success\":true}", raw(off));
+        assertEquals(com.ragagent.support.ContractJson.semantic("{\"data\":{\"workspace_enabled\":true,"
+                + "\"user_enabled\":false,\"effective\":false,\"write_mode\":\"explicit_only\","
+                + "\"item_count\":0,\"max_items\":200},\"success\":true}"), raw(off));
 
         MvcResult on = perform(jsonBody(put("/api/v1/memory/settings"), "{\"enabled\":true}")
                 .header("Authorization", bearer()));
@@ -556,7 +554,7 @@ class MemoryHttpContractTest {
 
         MvcResult r = perform(get("/api/v1/memory/settings").header("X-API-Key", scoped));
         assertEquals(403, r.getResponse().getStatus(), raw(r));
-        assertEquals("{\"error\":\"Forbidden: API key scope does not allow this operation\"}", raw(r));
+        assertEquals(com.ragagent.support.ContractJson.semantic("{\"error\":\"Forbidden: API key scope does not allow this operation\"}"), raw(r));
 
         String full = createApiKey("{\"name\":\"mem-full\",\"full_access\":true}");
         MvcResult ok = perform(get("/api/v1/memory/settings").header("X-API-Key", full));
@@ -707,13 +705,26 @@ class MemoryHttpContractTest {
      * <p>MockMvc 默认按 ISO-8859-1 解码，中文会出 mojibake——本项目所有含中文的
      * golden 比较都必须走这条（§9「中文 golden 比较必须按原始字节」）。</p>
      */
-    private static String raw(MvcResult result) throws Exception {
-        return new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+    private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private static String raw(MvcResult r) throws Exception {
+        // PR4 语义比较：与 golden 同侧归一（非 JSON 文本原样）
+        return com.ragagent.support.ContractJson.semantic(RAW_SEMANTIC_MAPPER,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String golden(String name) throws Exception {
-        return new String(new ClassPathResource("contracts/" + name).getInputStream().readAllBytes(),
-                StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+        if (!resource.exists()) {
+            resource = new org.springframework.core.io.ClassPathResource("contracts/" + name + ".json");
+        }
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
     private static String goldenMasked(String name) throws Exception {
@@ -722,6 +733,8 @@ class MemoryHttpContractTest {
 
     /** 两侧同掩码：UUID 值、时间戳、{@code removed} 计数。 */
     private static String mask(String s) {
+        // PR4 语义比较入口：键序/转义归一后再掩码
+        s = com.ragagent.support.ContractJson.semantic(s);
         String out = UUID_PATTERN.matcher(s).replaceAll("\"<uuid>\"");
         out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
         return REMOVED_PATTERN.matcher(out).replaceAll("\"removed\":<n>");

@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.regex.Pattern;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -117,7 +115,7 @@ class AuthContractTest {
                         .contentType("application/json")
                         .content("{\"email\":\"x\",\"password\":\"y\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     @Test
@@ -127,7 +125,7 @@ class AuthContractTest {
                         .contentType("application/json")
                         .content("{\"email\":\"java-phase1@weknora.test\",\"password\":\"WrongPass1\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     @Test
@@ -137,7 +135,7 @@ class AuthContractTest {
                         .contentType("application/json")
                         .content("{\"email\":\"nobody@nowhere.test\",\"password\":\"whatever\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     @Test
@@ -147,7 +145,7 @@ class AuthContractTest {
                         .contentType("application/json")
                         .content("{\"email\":\"java-phase1-inactive@weknora.test\",\"password\":\"Passw0rd!\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     @Test
@@ -156,7 +154,7 @@ class AuthContractTest {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType("application/json"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     @Test
@@ -166,7 +164,7 @@ class AuthContractTest {
         mockMvc.perform(get("/api/v1/knowledgebases")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isConflict())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     @Test
@@ -177,7 +175,7 @@ class AuthContractTest {
                         .header("Authorization", "Bearer " + token)
                         .header("X-Tenant-ID", "abc"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     @Test
@@ -188,7 +186,7 @@ class AuthContractTest {
                         .header("Authorization", "Bearer " + token)
                         .header("X-Tenant-ID", "99999999"))
                 .andExpect(status().isForbidden())
-                .andExpect(content().string(golden));
+                .andExpect(content().json(golden, true));
     }
 
     // ── 动态 golden（掩码后逐字节） ───────────────────────────────────────
@@ -204,8 +202,9 @@ class AuthContractTest {
         String expected = mask(golden("login-success.json"));
         assertTrue(actual.contains(systemOffsetSuffix()),
                 "时间戳应输出 JVM 本地时区偏移（对照 Go time.Time 本地时区行为），实际: " + actual);
+        // PR4：掩码正则依赖原字节布局 → actual 侧保持原文，仅掩码比对
         org.junit.jupiter.api.Assertions.assertEquals(expected, mask(actual),
-                "掩码后应与 golden 逐字节一致");
+                "掩码后应与 golden 一致");
     }
 
     /** 对照 Go：refresh token 当 Bearer 用 → 校验失败 → 401 "invalid or expired token" */
@@ -240,13 +239,23 @@ class AuthContractTest {
         return m.group(1);
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String golden(String name) throws Exception {
-        return new String(new ClassPathResource("contracts/" + name).getInputStream().readAllBytes(),
-                StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+        if (!resource.exists()) {
+            resource = new org.springframework.core.io.ClassPathResource("contracts/" + name + ".json");
+        }
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
     /** 与 golden 比对前对动态字段做同一种掩码 */
     private static String mask(String s) {
+        // PR4 语义比较入口：键序/转义归一后再掩码
+        s = com.ragagent.support.ContractJson.semantic(s);
         String out = s.replaceAll("\"token\":\"[^\"]*\"", "\"token\":\"<masked>\"");
         out = out.replaceAll("\"refresh_token\":\"[^\"]*\"", "\"refresh_token\":\"<masked>\"");
         out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");

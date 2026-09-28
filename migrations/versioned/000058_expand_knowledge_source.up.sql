@@ -1,2 +1,0 @@
-ALTER TABLE knowledges
-    ALTER COLUMN source TYPE VARCHAR(2048);

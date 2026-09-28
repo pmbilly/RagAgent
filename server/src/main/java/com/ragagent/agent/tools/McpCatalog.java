@@ -17,7 +17,6 @@ import com.ragagent.agent.approval.McpApproval;
 import com.ragagent.agent.approval.ToolPolicy;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.mcp.domain.McpService;
-import com.ragagent.mcp.domain.McpTool;
 
 /**
  * MCP 目录：一个 Agent 引擎、一个授权主体独有（对照 Go {@code mcp_catalog.go} 的

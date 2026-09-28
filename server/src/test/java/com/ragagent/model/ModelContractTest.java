@@ -276,8 +276,17 @@ class ModelContractTest {
         return m.group(1);
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String golden(String name) throws Exception {
-        return new String(goldenBytes(name), StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+        if (!resource.exists()) {
+            resource = new org.springframework.core.io.ClassPathResource("contracts/" + name + ".json");
+        }
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
     private static byte[] goldenBytes(String name) throws Exception {
@@ -293,6 +302,8 @@ class ModelContractTest {
 
     /** 与 golden 比对前对动态字段做同一种掩码（UUID + 时间戳） */
     private static String mask(String s) {
+        // PR4 语义比较入口：键序/转义归一后再掩码
+        s = com.ragagent.support.ContractJson.semantic(s);
         String out = MODEL_ID_PATTERN.matcher(s).replaceAll("\"id\":\"<id>\"");
         out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
         return out;

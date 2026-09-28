@@ -1,6 +1,5 @@
 package com.ragagent.session.service;
 
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -26,7 +25,6 @@ import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.chatpipeline.PipelineProgress;
 import com.ragagent.chatpipeline.PipelineProgress.StageProgress;
 import com.ragagent.chatpipeline.PluginError;
-import com.ragagent.chatpipeline.ReferencesSupport;
 import com.ragagent.chatpipeline.SummaryConfig;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
@@ -50,7 +48,6 @@ import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.modelcontext.Registry;
 import com.ragagent.retrieval.domain.SearchResult;
-import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.Session;
 
 import static com.ragagent.session.service.QaSupport.TagScope;

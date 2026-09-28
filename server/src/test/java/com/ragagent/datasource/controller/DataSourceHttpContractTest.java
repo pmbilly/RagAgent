@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -383,10 +382,16 @@ class DataSourceHttpContractTest {
         assertEquals(201, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("ds-create.json")), mask(raw(r)));
         // config 里只有 settings（resource_ids 是 nil → omitempty 省略）
-        assertThat(raw(r)).contains("\"config\":{\"type\":\"rss\",\"settings\":{\"feed_urls\":\""
-                + FEED_URL + "\"}}");
-        // credentials 只暴露"配没配"，值永远不出现
-        assertThat(raw(r)).contains("\"credentials\":{\"credentials\":{\"configured\":false}}");
+        // PR4：键序归一后邻接子串不可靠 → 树断言
+        {
+            var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw(r));
+            var cfg = root.path("config");
+            org.assertj.core.api.Assertions.assertThat(cfg.path("type").asText()).isEqualTo("rss");
+            org.assertj.core.api.Assertions.assertThat(
+                    cfg.path("settings").path("feed_urls").asText()).isEqualTo(FEED_URL);
+            var creds = root.path("credentials").path("credentials");
+            org.assertj.core.api.Assertions.assertThat(creds.path("configured").asBoolean()).isFalse();
+        }
         assertThat(raw(r)).doesNotContain("app_token").doesNotContain("enc:v1:");
     }
 
@@ -437,8 +442,13 @@ class DataSourceHttpContractTest {
         assertThat(body).contains("\"status\":\"\"");
         assertThat(body).doesNotContain("should-be-ignored");
         // config 里只剩 settings：credentials 被库里那份（nil）整块替换掉了
-        assertThat(body).contains(
-                "\"config\":{\"type\":\"rss\",\"settings\":{\"feed_urls\":\"" + FEED_URL + "\"}}");
+        {
+            var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+            var cfg = root.path("config");
+            org.assertj.core.api.Assertions.assertThat(cfg.path("type").asText()).isEqualTo("rss");
+            org.assertj.core.api.Assertions.assertThat(
+                    cfg.path("settings").path("feed_urls").asText()).isEqualTo(FEED_URL);
+        }
 
         // 库里真实的行没有被这些零值覆盖：type/status/schedule 都还在
         MvcResult after = perform(get("/api/v1/datasource/" + id).header("Authorization", bearer));
@@ -900,13 +910,26 @@ class DataSourceHttpContractTest {
     }
 
     /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake，§9）。 */
-    private static String raw(MvcResult result) throws Exception {
-        return new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+    private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private static String raw(MvcResult r) throws Exception {
+        // PR4 语义比较：与 golden 同侧归一（非 JSON 文本原样）
+        return com.ragagent.support.ContractJson.semantic(RAW_SEMANTIC_MAPPER,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String golden(String name) throws Exception {
-        return new String(new ClassPathResource("contracts/" + name).getInputStream().readAllBytes(),
-                StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+        if (!resource.exists()) {
+            resource = new org.springframework.core.io.ClassPathResource("contracts/" + name + ".json");
+        }
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
     /**
@@ -916,6 +939,8 @@ class DataSourceHttpContractTest {
      * 从未被赋值"的信号，掩掉就把两种形态混为一谈了。需要它的用例另行显式断言。</p>
      */
     private static String mask(String s) {
+        // PR4 语义比较入口：键序/转义归一后再掩码
+        s = com.ragagent.support.ContractJson.semantic(s);
         // 先把运行时那个临时端口的 feed 地址换回录制时的 18099，再掩 UUID 与时间戳
         String out = normalizeFeed(s);
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");

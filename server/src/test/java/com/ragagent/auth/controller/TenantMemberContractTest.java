@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -813,9 +811,13 @@ class TenantMemberContractTest {
 
     /** 创建响应 data.id（邀请行的自增 id，掩码后与 golden 对齐）。 */
     private static String extractInvitationId(String body) {
-        Matcher m = Pattern.compile("\"data\":\\{\"id\":(\\d+)").matcher(body);
-        assertThat(m.find()).as("创建响应应含 data.id: " + body).isTrue();
-        return m.group(1);
+        // PR4：键序归一后邻接正则不可靠 → Jackson 直取
+        try {
+            var __root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+            return String.valueOf(__root.path("data").path("id").asLong());
+        } catch (Exception e) {
+            throw new IllegalStateException("创建响应应含 data.id: " + body, e);
+        }
     }
 
     /** 从 invite_url 提取明文 token（录制脚本同款提取方式）。 */
@@ -837,13 +839,26 @@ class TenantMemberContractTest {
         return builder;
     }
 
-    private static String raw(MvcResult result) throws Exception {
-        return new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+    private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private static String raw(MvcResult r) throws Exception {
+        // PR4 语义比较：与 golden 同侧归一（非 JSON 文本原样）
+        return com.ragagent.support.ContractJson.semantic(RAW_SEMANTIC_MAPPER,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String golden(String name) throws Exception {
-        return new String(new ClassPathResource("contracts/" + name).getInputStream()
-                .readAllBytes(), StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+        if (!resource.exists()) {
+            resource = new org.springframework.core.io.ClassPathResource("contracts/" + name + ".json");
+        }
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
     /**
@@ -851,6 +866,8 @@ class TenantMemberContractTest {
      * 顺序刻意：先 invite_url（内含 token=，避免被其它规则撕开）、再 JWT。
      */
     private static String mask(String s) {
+        // PR4 语义比较入口：键序/转义归一后再掩码
+        s = com.ragagent.support.ContractJson.semantic(s);
         String out = INVITE_URL.matcher(s).replaceAll("\"invite_url\":\"<invite_url>\"");
         out = JWT.matcher(out).replaceAll("\"token\":\"<jwt>\"");
         out = UNIX_TS.matcher(out).replaceAll("\"expires_at_unix\":\"<unix>\"");

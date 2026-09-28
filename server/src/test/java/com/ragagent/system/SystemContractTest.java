@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -157,10 +155,13 @@ class SystemContractTest {
                 .header("Authorization", owner)).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         String java = raw(r);
-        // 外壳：{"code":0,"data":{...},"msg":"success"}（gin.H 字母序）
-        assertThat(java).startsWith("{\"code\":0,\"data\":{\"edition\":\"standard\",\"capabilities\":{");
-        assertThat(java).endsWith("}},\"msg\":\"success\"}");
-        // 键集与 Go golden 相同（部署无关）
+        // PR4：外壳与键集改树断言（键序已归一）
+        {
+            var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(java);
+            assertThat(root.path("code").asInt()).isEqualTo(0);
+            assertThat(root.path("msg").asText()).isEqualTo("success");
+            assertThat(root.path("data").path("edition").asText()).isEqualTo("standard");
+        }
         String goldenCaps = golden("sys-capabilities.json");
         for (String key : subsetKeys(goldenCaps).split("\\|")) {
             assertThat(java).contains(key);
@@ -235,8 +236,23 @@ class SystemContractTest {
         }
         assertThat(java).doesNotContain("markitdown").doesNotContain("opendataloader");
         // 未连接 → builtin 不可用；simple 恒可用；UnavailableReason 恒输出（Go 无 json tag）
-        assertThat(java).contains("\"Name\":\"builtin\",\"Description\":\"DocReader built-in parser engine\"");
-        assertThat(java).contains("\"Available\":false,\"UnavailableReason\":\"DocReader service not connected\"");
+        // PR4：相邻键子串在键序归一后不可靠 → 树断言
+        {
+            var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(java);
+            var engines = root.path("data");
+            assertThat(engines.isArray()).isTrue();
+            com.fasterxml.jackson.databind.JsonNode hit = null;
+            for (var e : engines) {
+                if ("builtin".equals(e.path("Name").asText())) {
+                    hit = e;
+                    break;
+                }
+            }
+            assertThat(hit).as("builtin engine row").isNotNull();
+            assertThat(hit.path("Available").asBoolean()).isFalse();
+            assertThat(hit.path("UnavailableReason").asText())
+                    .isEqualTo("DocReader service not connected");
+        }
     }
 
     /** storage-engine-status：H2 干净租户 → 与 Go golden 字节一致（全确定性）。 */
@@ -530,9 +546,10 @@ class SystemContractTest {
         assertEquals(mask(golden("adm-key-list.json")), mask(raw(list)));
 
         // 平台 key 打 settings（无 platform 能力 → 403 门禁文案）
-        Matcher tm = Pattern.compile("\"token\":\"(sk-[^\"]+)\"").matcher(raw(created));
-        assertThat(tm.find()).isTrue();
-        String key = tm.group(1);
+        // PR4：键序归一后邻接正则不可靠 → Jackson 直取
+        String key = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(raw(created)).path("data").path("token").asText();
+        assertThat(key).startsWith("sk-");
         MvcResult guard = mockMvc.perform(get("/api/v1/system/admin/settings")
                 .header("X-API-Key", key)).andReturn();
         assertEquals(403, guard.getResponse().getStatus(), raw(guard));
@@ -549,9 +566,10 @@ class SystemContractTest {
         assertEquals(400, dbad.getResponse().getStatus(), raw(dbad));
         assertEquals(golden("adm-key-delete-badid.json"), raw(dbad));
 
-        Matcher im = Pattern.compile("\"data\":\\{\"id\":(\\d+)").matcher(raw(created));
-        assertThat(im.find()).isTrue();
-        MvcResult del = mockMvc.perform(delete("/api/v1/system/admin/api-keys/" + im.group(1))
+        // PR4：键序归一后邻接正则不可靠 → Jackson 直取
+        long delId = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(raw(created)).path("data").path("id").asLong();
+        MvcResult del = mockMvc.perform(delete("/api/v1/system/admin/api-keys/" + delId)
                 .header("Authorization", sysAdmin)).andReturn();
         assertEquals(200, del.getResponse().getStatus(), raw(del));
         assertEquals(golden("adm-key-delete.json"), raw(del));
@@ -661,8 +679,9 @@ class SystemContractTest {
         MvcResult queues = mockMvc.perform(get("/api/v1/system/admin/runtime/queues")
                 .header("Authorization", sysAdmin)).andReturn();
         assertEquals(200, queues.getResponse().getStatus(), raw(queues));
-        String body = QUEUE_TS.matcher(raw(queues)).replaceAll("\"timestamp\":<ts>");
-        assertEquals("{\"available\":false,\"upstream_concurrency\":32,\"parse_concurrency\":32,"
+        String body = com.ragagent.support.ContractJson.semantic(
+                QUEUE_TS.matcher(raw(queues)).replaceAll("\"timestamp\":\"<ts>\""));
+        assertEquals(com.ragagent.support.ContractJson.semantic("{\"available\":false,\"upstream_concurrency\":32,\"parse_concurrency\":32,"
                 + "\"wiki_concurrency\":8,\"pools\":["
                 + "{\"name\":\"core\",\"concurrency\":8,\"queue_count\":2,\"instances\":0,"
                 + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0},"
@@ -676,12 +695,13 @@ class SystemContractTest {
                 + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0},"
                 + "{\"name\":\"wiki\",\"concurrency\":8,\"queue_count\":1,\"instances\":0,"
                 + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0}],"
-                + "\"queues\":[],\"model_limiter_available\":true,\"models\":[],\"timestamp\":<ts>}", body);
+                + "\"queues\":[],\"model_limiter_available\":true,\"models\":[],\"timestamp\":\"<ts>\"}"), body);
 
         MvcResult tasks = mockMvc.perform(get("/api/v1/system/admin/runtime/queues/default/tasks?state=pending")
                 .header("Authorization", sysAdmin)).andReturn();
         assertEquals(200, tasks.getResponse().getStatus(), raw(tasks));
-        assertEquals("{\"available\":false,\"tasks\":[],\"page_size\":20,\"has_more\":false}", raw(tasks));
+        assertEquals(com.ragagent.support.ContractJson.semantic(
+                "{\"available\":false,\"tasks\":[],\"page_size\":20,\"has_more\":false}"), raw(tasks));
 
         MvcResult mutate = mockMvc.perform(
                 post("/api/v1/system/admin/runtime/queues/default/tasks/t1/actions/cancel")
@@ -742,8 +762,13 @@ class SystemContractTest {
         return builder.contentType("application/json").content(body);
     }
 
-    private static String raw(MvcResult result) throws Exception {
-        return new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+    private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private static String raw(MvcResult r) throws Exception {
+        // PR4 语义比较：与 golden 同侧归一（非 JSON 文本原样）
+        return com.ragagent.support.ContractJson.semantic(RAW_SEMANTIC_MAPPER,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     /** 创建用户的新空间 id 是部署态（dev 序列 vs H2 身份列）→ 掩码 */
@@ -751,9 +776,17 @@ class SystemContractTest {
         return s.replaceAll("\"tenant_id\":\\d+", "\"tenant_id\":<tid>");
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String golden(String name) throws Exception {
-        return new String(new ClassPathResource("contracts/" + name).getInputStream()
-                .readAllBytes(), StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+        if (!resource.exists()) {
+            resource = new org.springframework.core.io.ClassPathResource("contracts/" + name + ".json");
+        }
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
     /** info 专属：db_version（部署态：Java/H2 无迁移历史 → 键省略）整体剔除；started_at/uptime 掩码。 */

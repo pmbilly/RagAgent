@@ -361,7 +361,12 @@ class WikiSharedAccessGuardTest {
         return r.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String raw(MvcResult r) throws Exception {
-        return r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        // PR4 语义比较：与 golden 同侧归一（非 JSON 文本原样）
+        return com.ragagent.support.ContractJson.semantic(RAW_SEMANTIC_MAPPER,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 }

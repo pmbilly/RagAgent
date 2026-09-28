@@ -1,12 +1,6 @@
 package com.ragagent.agent.tools;
 
-import java.time.Instant;
 
-import com.ragagent.agent.SkillMetadata;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * 4.5c 测试的内存 fake（对照 Go 探针里复用 /tools 测试文件的

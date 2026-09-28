@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.ragagent.agent.domain.AgentStep;
-import com.ragagent.session.domain.MessageArtifact;
 import com.ragagent.agent.tools.ToolResultPersist;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.event.Event;

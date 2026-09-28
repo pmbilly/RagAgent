@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.regex.Matcher;
@@ -26,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -349,9 +347,9 @@ class AuthRegisterContractTest {
     private long currentTenantId(String bearer) throws Exception {
         MvcResult me = mockMvc.perform(get("/api/v1/auth/me")
                 .header("Authorization", bearer)).andReturn();
-        Matcher m = Pattern.compile("\"user\":\\{[^}]*\"tenant_id\":(\\d+)").matcher(raw(me));
-        assertTrue(m.find(), "me 响应应含 user.tenant_id: " + raw(me));
-        return Long.parseLong(m.group(1));
+        // PR4：键序归一后邻接正则不可靠 → Jackson 直取
+        var __root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw(me));
+        return __root.path("data").path("user").path("tenant_id").asLong();
     }
 
     private String login(String email, String password) throws Exception {
@@ -380,13 +378,26 @@ class AuthRegisterContractTest {
         return req.contentType(MediaType.APPLICATION_JSON).content(body);
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String raw(MvcResult r) throws Exception {
-        return r.getResponse().getContentAsString();
+        // PR4 语义比较：与 golden 同侧归一（非 JSON 文本原样）
+        return com.ragagent.support.ContractJson.semantic(RAW_SEMANTIC_MAPPER,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String golden(String name) throws Exception {
-        return new String(new ClassPathResource("contracts/" + name).getInputStream().readAllBytes(),
-                StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+        if (!resource.exists()) {
+            resource = new org.springframework.core.io.ClassPathResource("contracts/" + name + ".json");
+        }
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
     /** 与 golden 比对前对动态字段做同一种掩码（顺序敏感：先 token/uuid 再时间戳）。 */

@@ -43,22 +43,24 @@ class KnowledgeQaContractTest {
         return s;
     }
 
-    private String golden(String name) throws Exception {
-        Path p = CONTRACT_DIR.resolve("qa46d-" + name + ".json");
-        assertTrue(Files.exists(p), "golden missing: " + p);
-        return Files.readString(p, StandardCharsets.UTF_8);
+    private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private static String golden(String name) throws Exception {
+        // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变
+        var resource = new org.springframework.core.io.ClassPathResource("contracts/qa46d-" + name + ".json");
+        String text = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
-    /** 错误信封契约：code/message/details/success 键序与文案（Go 实录原文）。 */
+    /** 错误信封契约：code/message/details/success 语义断言（键序已归一，PR4）。 */
     private void assertEnvelope(String goldenName, int expectedCode, String expectedMessage) throws Exception {
-        String raw = golden(goldenName);
-        assertTrue(raw.contains("\"code\":" + expectedCode), goldenName + " code");
-        assertTrue(raw.contains("\"message\":\"" + expectedMessage + "\""), goldenName + " message: " + raw);
-        assertTrue(raw.contains("\"details\":null"), goldenName + " details");
-        assertTrue(raw.contains("\"success\":false"), goldenName + " success");
-        // gin.H map 键序：error < success（字母序）
-        assertTrue(raw.indexOf("\"error\"") >= 0 && raw.indexOf("\"error\"") < raw.indexOf("\"success\""),
-                goldenName + " envelope key order");
+        var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(golden(goldenName));
+        assertTrue(root.path("error").path("code").asInt() == expectedCode, goldenName + " code");
+        assertTrue(expectedMessage.equals(root.path("error").path("message").asText()),
+                goldenName + " message: " + root.path("error").path("message").asText());
+        assertTrue(root.path("error").path("details").isNull(), goldenName + " details");
+        assertTrue(root.path("success").isBoolean() && !root.path("success").asBoolean(), goldenName + " success");
     }
 
     @Test

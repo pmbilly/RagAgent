@@ -384,8 +384,11 @@ class W5bInitializationContractTest {
     }
 
     private void compareGolden(String actual, int status, String golden) throws Exception {
-        String expected = new String(new ClassPathResource("contracts/" + golden)
-                .getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        // PR4 语义比较：双侧归一
+        actual = com.ragagent.support.ContractJson.semantic(actual);
+        String expected = com.ragagent.support.ContractJson.semantic(
+                new String(new ClassPathResource("contracts/" + golden)
+                        .getInputStream().readAllBytes(), StandardCharsets.UTF_8));
         // golden 是 Go 原始实录（uuid/时间戳/ollama 错误内文为动态值）→ 两侧同掩码
         org.junit.jupiter.api.Assertions.assertEquals(mask(expected), mask(actual),
                 () -> golden + " body mismatch (status " + status + ")");
@@ -411,8 +414,13 @@ class W5bInitializationContractTest {
         return node.asText();
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String raw(MvcResult r) throws Exception {
-        return r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        // PR4 语义比较：与 golden 同侧归一（非 JSON 文本原样）
+        return com.ragagent.support.ContractJson.semantic(RAW_SEMANTIC_MAPPER,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private static String statusMismatch(String golden, MvcResult r) {

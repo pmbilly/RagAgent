@@ -1,2 +1,0 @@
--- Migration 000011 Down: pg_search extension update cannot be rolled back
--- No-op: ALTER EXTENSION UPDATE has no reverse operation

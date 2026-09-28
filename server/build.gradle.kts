@@ -159,16 +159,12 @@ sourceSets["main"].proto {
     srcDir("$rootDir/otlp-proto")
 }
 
-// Flyway 要求 V<version>__<desc>.sql 命名；Go 迁移是 000097_xxx.up.sql。
-// 这里在构建期生成 Flyway 命名的副本（内容一字不改），canonical 文件留在 migrations/versioned/
+// Flyway 要求 V<version>__<desc>.sql 命名。迁移已基线化为 migrations/versioned/V1__baseline.sql
+// （历史增量 000097_xxx.up.sql 时代在构建期改名副本；2026-09-29 起 V1 基线直通，
+// 后续增量直接以 Flyway 命名入库即可）。
 val syncMigrations = tasks.register<Copy>("syncMigrations") {
     from("$rootDir/migrations/versioned") {
-        include("*.up.sql")
-        rename { name ->
-            val m = Regex("""0*(\d+)_([a-z0-9_]+)\.up\.sql""").matchEntire(name)
-                ?: return@rename name
-            "V${m.groupValues[1]}__${m.groupValues[2]}.sql"
-        }
+        include("V*.sql")
     }
     into(layout.buildDirectory.dir("generated-migrations"))
 }
