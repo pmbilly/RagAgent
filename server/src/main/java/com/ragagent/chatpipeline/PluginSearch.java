@@ -98,6 +98,10 @@ public final class PluginSearch implements Plugin {
         TenantContextSnapshot tenantSnap = TenantContextSnapshot.capture();
         List<SearchResult> allResults = new ArrayList<>();
         Object lock = new Object();
+        // kbErr 必须是每次调用的局部量：本类是单例插件，实例字段会在并发/后续请求间
+        // 泄漏上一次的检索异常，把"检索成功但 0 命中"误判成 search_failed 硬错。
+        java.util.concurrent.atomic.AtomicReference<Throwable> kbErrHolder =
+                new java.util.concurrent.atomic.AtomicReference<>();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var f1 = executor.submit(withTenant(tenantSnap, () -> {
                 try {
@@ -167,9 +171,6 @@ public final class PluginSearch implements Plugin {
         PipelineLog.warn("Search", "output", f);
         return PluginError.SEARCH_NOTHING;
     }
-
-    private final java.util.concurrent.atomic.AtomicReference<Throwable> kbErrHolder =
-            new java.util.concurrent.atomic.AtomicReference<>();
 
     private void logInput(ChatManage chatManage) {
         Map<String, Object> f = new LinkedHashMap<>();
