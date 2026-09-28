@@ -73,6 +73,10 @@ public class KnowledgeTagService {
     private final AuditLogService auditService;
     /** 向量索引回收（对照 Go enqueueIndexDeleteTask → ProcessIndexDelete）。 */
     private final VectorStoreService vectorStore;
+    /** 绑定 store 的向量写路由（绑定 KB 的索引清理走引擎口）。 */
+    private final KnowledgeVectorWrites vectorWrites;
+    /** 引擎路径删除需要的维度解析（照 deleteKnowledgeVectors 的取数口径）。 */
+    private final com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory;
     /**
      * 标签下文档的批量删除（对照 Go enqueueKnowledgeListDeleteTask →
      * ProcessKnowledgeListDelete）。ObjectProvider：KnowledgeService 依赖面极广，
@@ -89,6 +93,8 @@ public class KnowledgeTagService {
                                ChunkRepository chunkRepo,
                                AuditLogService auditService,
                                VectorStoreService vectorStore,
+                               KnowledgeVectorWrites vectorWrites,
+                               com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory,
                                org.springframework.beans.factory.ObjectProvider<KnowledgeService>
                                        knowledgeServiceProvider) {
         this.kbService = kbService;
@@ -96,6 +102,8 @@ public class KnowledgeTagService {
         this.chunkRepo = chunkRepo;
         this.auditService = auditService;
         this.vectorStore = vectorStore;
+        this.vectorWrites = vectorWrites;
+        this.modelRuntimeFactory = modelRuntimeFactory;
         this.knowledgeServiceProvider = knowledgeServiceProvider;
     }
 
@@ -329,24 +337,56 @@ public class KnowledgeTagService {
             // 把这些 chunk 的向量索引删掉（100/批，避免压垮后端）。Go 走 asynq 维护
             // 队列（可重试 + 租户所有权校验）；Java 单实例下用虚拟线程异步执行等价
             // 动作，失败只 WARN（无任务重试预算，与 Go 处理器失败记 Warn 同形）。
-            scheduleIndexDelete(kb.getId(), deleted);
+            scheduleIndexDelete(kb, deleted);
         }
         log.info("Deleted {} chunks under tag {}", deleted.size(), tag.getId());
     }
 
-    /** 对照 ProcessIndexDelete 的批量删除循环（tag.go L452-470，batchSize=100）。 */
-    private void scheduleIndexDelete(String kbId, List<String> chunkIds) {
+    /**
+     * 对照 ProcessIndexDelete 的批量删除循环（tag.go L452-470，batchSize=100）。
+     * 绑定外部 store 的 KB：向量行在外部店，走引擎口删除（2026-09-28 评审补接线）；
+     * 引擎与维度在请求线程上解析（TenantContext 只在这里有效），解析失败只 WARN
+     * 跳过——与 Go 任务失败记 Warn 同形；绝不回落 pg 直删（那会删错店）。
+     */
+    private void scheduleIndexDelete(KnowledgeBase kb, List<String> chunkIds) {
         List<String> ids = List.copyOf(chunkIds);
+        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine = null;
+        int dim = 0;
+        try {
+            boundEngine = vectorWrites.boundEngine(kb);
+            if (boundEngine != null) {
+                dim = modelRuntimeFactory.getEmbeddingModel(kb.getEmbeddingModelId()).getDimensions();
+            }
+        } catch (Exception e) {
+            log.warn("[tag] bound engine resolve failed, external index rows not deleted (kb={}, chunks={}): {}",
+                    kb.getId(), ids.size(), e.toString());
+            return;
+        }
+        if (boundEngine != null) {
+            final com.ragagent.retrieval.engine.CompositeRetrieveEngine engine = boundEngine;
+            final int dimensions = dim;
+            final String kbType = kb.getType();
+            Thread.ofVirtual().name("tag-index-delete").start(() -> {
+                try {
+                    engine.deleteByChunkIdList(ids, dimensions, kbType);
+                    log.info("[tag] deleted index rows for {} chunks (kb={}, engine)", ids.size(), kb.getId());
+                } catch (Exception e) {
+                    log.warn("[tag] index delete failed (kb={}, chunks={}): {}",
+                            kb.getId(), ids.size(), e.toString());
+                }
+            });
+            return;
+        }
         Thread.ofVirtual().name("tag-index-delete").start(() -> {
             try {
                 for (int i = 0; i < ids.size(); i += INDEX_DELETE_BATCH_SIZE) {
                     int end = Math.min(i + INDEX_DELETE_BATCH_SIZE, ids.size());
                     vectorStore.deleteByChunkId(ids.subList(i, end));
                 }
-                log.info("[tag] deleted index rows for {} chunks (kb={})", ids.size(), kbId);
+                log.info("[tag] deleted index rows for {} chunks (kb={})", ids.size(), kb.getId());
             } catch (RuntimeException e) {
                 log.warn("[tag] index delete failed (kb={}, chunks={}): {}",
-                        kbId, ids.size(), e.toString());
+                        kb.getId(), ids.size(), e.toString());
             }
         });
     }

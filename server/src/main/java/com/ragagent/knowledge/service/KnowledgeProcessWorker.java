@@ -308,20 +308,54 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                     "chunks_to_embed", chunks.size(),
                                     "model_id", k.getEmbeddingModelId() == null
                                             ? "" : k.getEmbeddingModelId()));
-                    List<VectorStoreService.IndexRow> rows = new ArrayList<>(chunks.size());
-                    List<String> texts = new ArrayList<>(chunks.size());
-                    for (Chunk c : chunks) {
-                        String text = KnowledgeIndexContent.build(k, c.embeddingContent());
-                        texts.add(text);
-                        // tag_id 传 ""：对照 Go processChunks 的 IndexInfo 不设 TagID（零值）
-                        rows.add(new VectorStoreService.IndexRow(
-                                c.getId(), c.getId(), k.getId(), k.getKnowledgeBaseId(), text, true, ""));
-                    }
-                    int embedBatch = embedBatchSize();
-                    for (int from = 0; from < rows.size(); from += embedBatch) {
-                        int to = Math.min(from + embedBatch, rows.size());
-                        List<float[]> vectors = embedder.embedBatch(embedConfig, texts.subList(from, to));
-                        vectorStore.saveIndexRows(rows.subList(from, to), vectors);
+                    // 绑定外部 store 的 KB 走引擎口（Go processChunks 经 retriever 路由）：
+                    // embedding + 40/10 分批重试由引擎内部承担；本地 pg 直连只服务未绑定 KB。
+                    // 缺了这个分支，绑定店的导入"完成"但店中无数据，永远不可检索。
+                    com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+                            vectorWrites.boundEngine(kb);
+                    if (boundEngine != null) {
+                        com.ragagent.embedding.Embedder embedderRuntime =
+                                modelRuntimeFactory.getEmbeddingModel(kb.getEmbeddingModelId());
+                        List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> items =
+                                new ArrayList<>(chunks.size());
+                        for (Chunk c : chunks) {
+                            com.ragagent.retrieval.engine.EngineTypes.IndexInfo item =
+                                    new com.ragagent.retrieval.engine.EngineTypes.IndexInfo();
+                            item.sourceId = c.getId();
+                            item.sourceType = com.ragagent.retrieval.engine.EngineTypes.SOURCE_TYPE_FILE;
+                            item.chunkId = c.getId();
+                            item.knowledgeId = k.getId();
+                            item.knowledgeBaseId = k.getKnowledgeBaseId();
+                            item.knowledgeType = kb.getType();
+                            // tag_id 传 ""：对照 Go processChunks 的 IndexInfo 不设 TagID（零值）
+                            item.tagId = "";
+                            item.content = KnowledgeIndexContent.build(k, c.embeddingContent());
+                            item.isEnabled = true;
+                            items.add(item);
+                        }
+                        try {
+                            boundEngine.batchIndex(embedderRuntime, items);
+                        } catch (RuntimeException e) {
+                            throw e;
+                        } catch (Exception e) {
+                            throw new IllegalStateException(
+                                    e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
+                        }
+                    } else {
+                        List<VectorStoreService.IndexRow> rows = new ArrayList<>(chunks.size());
+                        List<String> texts = new ArrayList<>(chunks.size());
+                        for (Chunk c : chunks) {
+                            String text = KnowledgeIndexContent.build(k, c.embeddingContent());
+                            texts.add(text);
+                            rows.add(new VectorStoreService.IndexRow(
+                                    c.getId(), c.getId(), k.getId(), k.getKnowledgeBaseId(), text, true, ""));
+                        }
+                        int embedBatch = embedBatchSize();
+                        for (int from = 0; from < rows.size(); from += embedBatch) {
+                            int to = Math.min(from + embedBatch, rows.size());
+                            List<float[]> vectors = embedder.embedBatch(embedConfig, texts.subList(from, to));
+                            vectorStore.saveIndexRows(rows.subList(from, to), vectors);
+                        }
                     }
                     endStageSpan(embedSpan, java.util.Map.of(
                             "chunks_embedded", chunks.size()));
