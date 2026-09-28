@@ -131,15 +131,17 @@ public class RbacInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
+        // 对照 Go 的组级中间件 RequirePathTenantMatch：URL 里的 :id 必须等于活动租户。
+        // 自动对所有 /api/v1/tenants/{id}/** 生效（漏配规则的代价是越权读取别人的审计/密钥列表）。
+        // 必须先于 API-Key 短路执行（Go 里它独立于 RequireRole，对 Key 主体同样生效）——
+        // 否则持有 A 空间 Key 的调用方可把 URL 里的 id 换成 B 空间去增删对方成员/邀请。
+        if (!checkPathTenantMatch(request, response)) {
+            return false;
+        }
         // 对照 Go：RequireRole 对 API-Key 主体直接放行——能力维度由 APIKeyGate 全权判定，
         // 否则 full-access Key 会被这里的角色下限拦住（rbac_api_key_shortcircuit_test.go）
         if (com.ragagent.apikey.domain.APIKeyScopeContext.present()) {
             return true;
-        }
-        // 对照 Go 的组级中间件 RequirePathTenantMatch：URL 里的 :id 必须等于活动租户。
-        // 自动对所有 /api/v1/tenants/{id}/** 生效（漏配规则的代价是越权读取别人的审计/密钥列表）。
-        if (!checkPathTenantMatch(request, response)) {
-            return false;
         }
 
         Rule rule = match(request.getMethod(), request.getRequestURI());
@@ -148,9 +150,10 @@ public class RbacInterceptor implements HandlerInterceptor {
             return true;
         }
         if (rule.crossTenant()) {
-            // 对照 RequireCrossTenantAccess：平台 Key 已在上方短路放行；
-            // flag 关闭 → 403 "disabled"；非超管 → 403 "Insufficient permissions"。
-            // 刻意不走 EnableRBAC 放行、不写拒绝审计（Go 原文如此）。
+            // 对照 RequireCrossTenantAccess：API-Key 主体（平台/租户 Key）已在 preHandle
+            // 顶部短路——Key 侧的目录读由 APIKeyRoutePolicies 的 catalogRead 能力门管，
+            // 这里只管 web 用户。flag 关闭 → 403 "disabled"；非超管 → 403 "Insufficient
+            // permissions"。刻意不走 EnableRBAC 放行、不写拒绝审计（Go 原文如此）。
             if (!tenantProperties.enableCrossTenantAccess()) {
                 log.warn("[rbac] cross-tenant route blocked (EnableCrossTenantAccess=false): user={} path={}",
                         TenantContext.currentUserId(), request.getRequestURI());
@@ -324,6 +327,12 @@ public class RbacInterceptor implements HandlerInterceptor {
             throw new BizException(AppError.unauthorized("workspace context missing"));
         }
         if (pathTenantId == ctxTenantId) {
+            return true;
+        }
+        // 平台 Key 等价跨租户超管（对照 Go RequireSystemAdmin 对平台 Key 的放行形态）
+        com.ragagent.apikey.domain.TenantAPIKeyScope keyScope =
+                com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        if (keyScope != null && keyScope.isPlatform()) {
             return true;
         }
         if (tenantProperties.enableCrossTenantAccess() && TenantContext.canAccessAllTenants()) {

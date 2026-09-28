@@ -498,10 +498,13 @@ public class WebConfig implements WebMvcConfigurer {
 
         // 租户 API Key 管理（对照 routes_auth_tenant.go）：Owner+。
         // 刻意**不**登记进 API-Key 策略表——Key 不能给自己扩权（Go 测试钉住的契约）。
-        rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
-        rbac.addRule("POST", "/api/v1/tenants/*/api-keys", TenantRole.ADMIN, true);
-        rbac.addRule("PUT", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
-        rbac.addRule("DELETE", "/api/v1/tenants/*/api-keys/*", TenantRole.ADMIN, true);
+        // 2026-09-28 评审修正：此前写的是 ADMIN（30 级），与两处注释（本处 +
+        // TenantAPIKeyController javadoc）声称的 Owner+ 矩阵不符——ADMIN 可自建
+        // full-access Key 属权限放大，改回 OWNER 对齐成员管理的同款下限。
+        rbac.addRule("GET", "/api/v1/tenants/*/api-keys", TenantRole.OWNER, true);
+        rbac.addRule("POST", "/api/v1/tenants/*/api-keys", TenantRole.OWNER, true);
+        rbac.addRule("PUT", "/api/v1/tenants/*/api-keys/*", TenantRole.OWNER, true);
+        rbac.addRule("DELETE", "/api/v1/tenants/*/api-keys/*", TenantRole.OWNER, true);
 
         // 空间成员 / 邀请 / API-Principal（波 2 第六批，对照 routes_auth_tenant.go:88-137）：
         // 列表=Viewer+（任意成员可看名册）；一切变更=Owner+（Go 的 g.Owner()，**不是**
@@ -558,9 +561,9 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("PATCH", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
         rbac.addRule("GET", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
         rbac.addRule("DELETE", "/api/v1/sandbox-configs/*/skills/*", TenantRole.ADMIN, false);
-        // 波 3 子批 2：sandbox-check 转正（routes_auth_tenant.go L257，g.Admin()，
-        // 与 storage-engine-check 同档）
-        rbac.addRule("POST", "/api/v1/system/sandbox-check", TenantRole.ADMIN, false);
+        // POST /api/v1/system/sandbox-check：路由未实现（SystemController 备案）→
+        // Spring 404。守卫登记是死条目，此前登记与「不登记」注释并存自相矛盾
+        //（2026-09-28 评审修正：删除死登记，落地 handler 时随批恢复）。
         // 波 3 子批 4（对照 routes_agent.go RegisterSkillRoutes L70-90）：
         // GET /skills 与 GET /skills/catalog 是 Viewer+（catalog 读让 agent 编辑器
         // 能展示未安装的 skill）；catalogWrite 五条 Admin+（会烤进沙箱镜像）。

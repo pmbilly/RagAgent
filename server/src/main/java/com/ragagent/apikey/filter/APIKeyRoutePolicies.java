@@ -757,8 +757,8 @@ public final class APIKeyRoutePolicies {
         a.registerGin("POST", "/api/v1/sandbox-configs/:id/skills/:skillId/stop", sandboxConfigs);
         a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/install-events", sandboxConfigs);
         a.registerGin("GET", "/api/v1/sandbox-configs/:id/skills/:skillId/transcript", sandboxConfigs);
-        a.registerGin("POST", "/api/v1/system/sandbox-check",
-                APIKeyRoutePolicy.manageVectorStores(APIKeyRoutePolicy.fullAccess()));
+        // POST /system/sandbox-check 不登记：路由未实现（Spring 404）——见类注释，
+        // 2026-09-28 评审删除了此前误登记的死条目。
         // 波 3 子批 4（routes_agent.go RegisterSkillRoutes L70-90）：catalogWrite 组
         // = apiKeyGroup(fullAccess)——catalog 写会烤进沙箱镜像，只有 full-access key
         // 能进。GET /skills 与 GET /skills/catalog **不登记**：Go 里这两条只挂角色门

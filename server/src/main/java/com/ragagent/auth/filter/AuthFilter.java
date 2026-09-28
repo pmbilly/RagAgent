@@ -24,8 +24,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *  1. OPTIONS 预检 / noAuthAPI 白名单 → 直接放行
  *  2. Bearer JWT → UserService.validateToken；成功走 authenticateJWTUser
  *     （空间解析 → TENANT_REQUIRED/角色解析，委托 {@link WsAuthSupport}）；失败不立即拒绝，继续通道 3
- *  3. X-API-Key → 阶段 1 未实现 TenantAPIKeyService → 固定
- *     401 {"error":"Unauthorized: API key service is not configured"}（对照 Go apiKeyService==nil 分支）
+ *  3. X-API-Key → TenantAPIKeyService 全量接线（APIKeyAuthChannel，147 行起）：
+ *     租户/平台 Key 鉴权 + 作用域注入
  *  全部未命中 → 401（bearerPresented 决定消息区分"未登录"与"登录态过期"）
  *
  * 覆盖 /*：Go 的 Auth 挂在 engine 全局，未匹配路径同样 401（golden 已锁定）。
@@ -83,6 +83,24 @@ public class AuthFilter extends OncePerRequestFilter {
         if ("OPTIONS".equals(request.getMethod())) {
             chain.doFilter(request, response);
             return;
+        }
+
+        // 通道 0.5：路径穿越守卫（2026-09-28 评审加固）。下方白名单匹配用的
+        // getRequestURI() 是未解码、未规范化的原文，形如 /api/v1/embed/../api/v1/sessions
+        // 的点段路径能混过前缀检查进"无鉴权区"。Spring PathPatternParser 不解析 ..
+        // （大概率落 404 而非越权），但这层安全不应依赖框架巧合：解码后出现 ..
+        // 段一律 400（%2e%2e 会被 URLDecoder 归一成 ..，一并覆盖）。
+        String rawUri = request.getRequestURI();
+        String decodedUri = java.net.URLDecoder.decode(rawUri == null ? "" : rawUri,
+                java.nio.charset.StandardCharsets.UTF_8);
+        for (String seg : decodedUri.split("/")) {
+            if ("..".equals(seg)) {
+                response.setStatus(400);
+                response.setContentType("application/json");
+                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                response.getWriter().write("{\"error\":\"invalid request path\"}");
+                return;
+            }
         }
 
         // 通道 1：白名单
