@@ -1,4 +1,11 @@
-# ragagent-java
+# ragagent
+
+> **本仓已脱离翻译项目语境**：自 `ragagent-java` @ `646aba7`（2026-09-28）seed 分叉演进，不再承担与 Go 仓（WeKnora）的任何契约对齐义务。
+> 背景与已定决策、转型路线图见 **[HANDOFF.md](HANDOFF.md)**——**新会话请先读它**，不要按下方"翻译版 README"描述的字节级一致目标理解本仓。
+
+以下为种子时的原 README，描述翻译期状态，仅作历史参考：
+
+---
 
 WeKnora（[Tencent/WeKnora](https://github.com/Tencent/WeKnora)）后端的 **Java 全量翻译版**：把 Go（Gin/GORM）后端逐文件翻译为 **Spring Boot 3.3 / JDK 21 / MyBatis-Plus**，前端 **以 Go 仓为基线**（品牌/观感层微调）。团队技术栈统一项目。
 
