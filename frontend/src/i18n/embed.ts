@@ -1694,7 +1694,7 @@ const messages = {
       }
     },
     "input": {
-      "placeholder": "Ask questions directly to the model",
+      "placeholder": "Please enter your question",
       "stopGeneration": "Stop Generation",
       "send": "Send",
       "webSearch": {

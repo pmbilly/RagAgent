@@ -3695,7 +3695,7 @@ export default {
     wikiFieldNewSlug: 'Новый путь',
     wikiFieldAffectedPages: 'Затронутые страницы',
     wikiAffectedCount: 'Ссылки на {count} страницах обновлены',
-    processError: 'Ошибка обработки',
+    processError: 'Что-то пошло не так, пожалуйста, попробуйте еще раз позже',
     sessionExcerpt: 'Выдержка из сессии',
     noAnswerContent: '(Нет содержимого ответа)',
     noMatchFound: 'Совпадений не найдено',

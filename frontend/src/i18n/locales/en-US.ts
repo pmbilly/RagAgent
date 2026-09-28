@@ -3667,7 +3667,7 @@ export default {
     wikiFieldNewSlug: 'New slug',
     wikiFieldAffectedPages: 'Affected pages',
     wikiAffectedCount: '{count} page link(s) updated',
-    processError: 'Processing error',
+    processError: 'something went wrong, please try again later',
     sessionExcerpt: 'Session Excerpt',
     noAnswerContent: '(No answer content)',
     noMatchFound: 'No matching content found',

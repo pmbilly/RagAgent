@@ -3697,7 +3697,7 @@ export default {
     wikiFieldNewSlug: '新路径',
     wikiFieldAffectedPages: '受影响页面',
     wikiAffectedCount: '{count} 个页面的链接已更新',
-    processError: '处理出错',
+    processError: '出现了问题，请稍后再试',
     sessionExcerpt: '会话摘录',
     noAnswerContent: '（无回答内容）',
     noMatchFound: '未找到匹配的内容',
