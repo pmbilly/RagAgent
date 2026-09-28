@@ -1666,7 +1666,7 @@ export default {
     },
     empty: {
       noResults: '没有找到匹配结果',
-      askAi: '直接向 AI 提问',
+      askAi: '请直接提问',
       adjustRetrieval: '调整检索参数'
     },
     quick: {

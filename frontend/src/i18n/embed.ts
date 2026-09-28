@@ -530,7 +530,7 @@ const messages = {
       }
     },
     "input": {
-      "placeholder": "直接向模型提问",
+      "placeholder": "请输入您的问题",
       "stopGeneration": "停止生成",
       "send": "发送",
       "webSearch": {
