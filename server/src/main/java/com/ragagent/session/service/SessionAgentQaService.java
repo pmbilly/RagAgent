@@ -268,6 +268,10 @@ public class SessionAgentQaService {
             if (req.steerSink != null) {
                 engine.setSteerSink(req.steerSink);
             }
+            // 用户停止的取消源（此前 seam 零调用方，stop 只翻 SSE 开关、引擎照跑）
+            if (req.cancellationProbe != null) {
+                engine.setCancellationSource(req.cancellationProbe);
+            }
 
             // Query composition（Go L241-263）
             String agentQuery = req.query;
@@ -287,6 +291,13 @@ public class SessionAgentQaService {
                 agentQuery += com.ragagent.chatpipeline.MessageAttachmentsPrompt.build(req.attachments);
                 log.info("Appended {} attachment(s) to agent query", req.attachments.size());
             }
+            // sandbox staged 附件提示（Go L261-264：追加发生在 execute 之前，
+            // 否则物化进沙箱 /workspace/input 的附件对模型不可见）
+            if (!stagedAttachments.isEmpty()) {
+                agentQuery += SessionAttachmentStagingService.buildSandboxAttachmentsPrompt(stagedAttachments);
+                log.info("Appended {} staged sandbox attachment path(s) to agent query",
+                        stagedAttachments.size());
+            }
 
             // Execute（Go L272-284：失败 emit error 事件后返回 nil）
             try {
@@ -302,12 +313,6 @@ public class SessionAgentQaService {
                 errData.setSessionId(sessionId);
                 evt.setData(errData);
                 eventBus.emit(evt);
-            }
-            // sandbox staged 附件提示（Go L261-264）
-            if (!stagedAttachments.isEmpty()) {
-                agentQuery += SessionAttachmentStagingService.buildSandboxAttachmentsPrompt(stagedAttachments);
-                log.info("Appended {} staged sandbox attachment path(s) to agent query",
-                        stagedAttachments.size());
             }
         }
     }
@@ -1110,7 +1115,7 @@ public class SessionAgentQaService {
                         ToolDefinitions.TOOL_GET_DOCUMENT_INFO,
                         ToolDefinitions.TOOL_SEARCH_CONVERSATIONS,
                         ToolDefinitions.TOOL_SEARCH_MEMORY, ToolDefinitions.TOOL_DATABASE_QUERY,
-                        ToolDefinitions.TOOL_DATA_SCHEMA ->
+                        ToolDefinitions.TOOL_DATA_SCHEMA, ToolDefinitions.TOOL_DATA_ANALYSIS ->
                         toolToRegister = toolBackends.createTool(toolName,
                                 config.getSearchTargets(), rerankModel, toolOwnerId, sessionId);
                 // wiki 族 10 件（2026-09-23 接线批·切片 2c）：Go L1093-1116

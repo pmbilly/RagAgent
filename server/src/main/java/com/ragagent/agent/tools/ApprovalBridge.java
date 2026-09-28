@@ -29,10 +29,41 @@ final class ApprovalBridge {
                 return cancellation.cancellationError() != null;
             }
 
+            /**
+             * 工具侧没有"取消时回调"的注册点，曾实现为 no-op——代价是用户点停止后
+             * 10 分钟的人工审批等待照跑（烧 token/占沙箱）。这里用探测线程桥接
+             * 轮询式 ToolCancellation → 回调式 onCancel：轮询到取消即触发 action，
+             * 注册被 close（finally）后停止观察。
+             */
             @Override
             public AutoCloseable onCancel(Runnable action) {
-                return () -> {
-                };
+                if (action == null) {
+                    return () -> {
+                    };
+                }
+                java.util.concurrent.atomic.AtomicBoolean settled =
+                        new java.util.concurrent.atomic.AtomicBoolean();
+                Thread.ofVirtual().name("approval-cancel-watch").start(() -> {
+                    while (!settled.get()) {
+                        if (cancellation.cancellationError() != null) {
+                            if (settled.compareAndSet(false, true)) {
+                                try {
+                                    action.run();
+                                } catch (RuntimeException ignored) {
+                                    // 取消回调失败不外泄（gate 自己的 deliver 会兜底）
+                                }
+                            }
+                            return;
+                        }
+                        try {
+                            Thread.sleep(200);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                    }
+                });
+                return () -> settled.set(true);
             }
         };
     }

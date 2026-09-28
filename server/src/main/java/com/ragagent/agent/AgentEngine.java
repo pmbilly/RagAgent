@@ -1676,6 +1676,16 @@ public class AgentEngine {
                                 assistantMessageID, null);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        log.warn("[Agent][Round-{}] tool call interrupted", round);
+                        results[idx] = crashedToolCall(calls.get(idx), "tool call interrupted");
+                        // 结果槽不允许留 null：留空会让收集循环 emitToolOutcome(null) NPE
+                    } catch (Throwable fatal) {
+                        // 外围（modelContext 解码/langfuse span/eventBus emit）抛错会让
+                        // 线程死亡、results[idx] 保持 null，收集循环直接 NPE 炸掉整轮
+                        // （Go 的 errgroup 收集首错后仍产出结果行）。兜底落失败结果。
+                        log.warn("[Agent][Round-{}] tool call crashed: {}", round, fatal.toString());
+                        results[idx] = crashedToolCall(calls.get(idx),
+                                com.ragagent.common.error.BizException.wireText(fatal));
                     } finally {
                         permits.release();
                         TenantContext.clear();
@@ -1697,6 +1707,18 @@ public class AgentEngine {
             step.getToolCalls().add(toolCall);
             emitToolOutcome(toolCall, iteration, sessionId);
         }
+    }
+
+    /** 崩溃/中断的工具调用的失败占位结果（保证结果槽非 null，对照 emitToolOutcome 的兜底形态）。 */
+    private static ToolCall crashedToolCall(com.ragagent.llm.domain.ToolCall tc, String error) {
+        ToolCall crashed = new ToolCall();
+        crashed.setId(tc.getId());
+        crashed.setName(tc.getToolName());
+        ToolResult r = new ToolResult();
+        r.setSuccess(false);
+        r.setError(error);
+        crashed.setResult(r);
+        return crashed;
     }
 
     /** 一个完成工具调用的结果/动作事件（对照 emitToolOutcome；所有路径共用）。 */
@@ -1922,7 +1944,7 @@ public class AgentEngine {
             try {
                 JsonNode raw = JSON.readTree(tc.getFunction().getArguments() == null ? "null"
                         : tc.getFunction().getArguments());
-                result = toolRegistry.executeTool(ToolCancellation.LIVE, toolExecCtx,
+                result = toolRegistry.executeTool(this::pollCancellation, toolExecCtx,
                         tc.getFunction().getName(), raw);
             } catch (JsonProcessingException e) {
                 execError = new AgentEngineException(e.getMessage());
