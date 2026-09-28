@@ -30,6 +30,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.knowledge.service.KnowledgeTaskIds;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.session.service.SessionKnowledgeQaService;
@@ -195,7 +196,7 @@ public class EvaluationService {
         // 建任务（taskID 契约同 utils.GenerateTaskID："evaluation_<tenant>_<millis>_<8hex>_<biz>"）
         EvaluationDetail detail = new EvaluationDetail();
         EvaluationTask task = new EvaluationTask();
-        task.id = KnowledgeService.generateTaskId("evaluation", tenantId, dsId);
+        task.id = KnowledgeTaskIds.generateTaskId("evaluation", tenantId, dsId);
         task.tenantId = tenantId;
         task.datasetId = dsId;
         task.status = com.ragagent.evaluation.dto.EvaluationDtos.STATUS_PENDING;

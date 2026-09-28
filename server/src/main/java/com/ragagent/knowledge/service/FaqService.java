@@ -9,7 +9,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -27,7 +26,6 @@ import com.ragagent.knowledge.dto.FaqDtos;
 import com.ragagent.knowledge.dto.FaqDtos.FaqEntry;
 import com.ragagent.knowledge.dto.FaqDtos.FaqExportEntry;
 import com.ragagent.knowledge.dto.FaqDtos.FaqFailedEntry;
-import com.ragagent.knowledge.dto.FaqDtos.FaqMergeDetail;
 import com.ragagent.knowledge.dto.FaqDtos.FaqImportProgress;
 import com.ragagent.knowledge.dto.FaqDtos.FaqImportResult;
 import com.ragagent.knowledge.dto.FaqDtos.FaqSuccessEntry;
@@ -1229,7 +1227,7 @@ public class FaqService {
         String taskId = payload.taskId() == null ? "" : payload.taskId().trim();
         final String effectiveTaskId;
         if (taskId.isEmpty()) {
-            effectiveTaskId = KnowledgeService.generateTaskId("faq_import", tid, kbId);
+            effectiveTaskId = KnowledgeTaskIds.generateTaskId("faq_import", tid, kbId);
         } else if (!validateTaskId(taskId)) {
             throw new BizException(AppError.badRequest("task_id 格式不合法"));
         } else {
@@ -2024,7 +2022,7 @@ public class FaqService {
                         tagName = tag.getName();
                     }
                 }
-                successEntries.add(new FaqSuccessEntry(valid.get(k), 
+                successEntries.add(new FaqSuccessEntry(valid.get(k),
                         chunk.getSeqId() == null ? 0 : chunk.getSeqId(), tagID, tagName, standardQ));
             }
 
@@ -3086,4 +3084,3 @@ public class FaqService {
         }
     }
 }
-

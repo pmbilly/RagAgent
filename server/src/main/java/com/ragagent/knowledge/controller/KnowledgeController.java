@@ -20,6 +20,9 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.knowledge.service.KnowledgeSearchService;
+import com.ragagent.knowledge.service.KnowledgeSummaryPipelineService;
+import com.ragagent.knowledge.service.KnowledgeTaskIds;
 import com.ragagent.knowledge.service.LocalStorageService;
 import com.ragagent.storage.fileserve.FileTransport;
 import jakarta.servlet.http.HttpServletRequest;
@@ -341,7 +344,7 @@ public class KnowledgeController {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
         }
         resolveKnowledgeByGuard(safeId, false, true);
-        KnowledgeService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
+        KnowledgeSummaryPipelineService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
         response.setHeader("Content-Description", "File Transfer");
         response.setHeader("Content-Transfer-Encoding", "binary");
         response.setHeader("Expires", "0");
@@ -362,7 +365,7 @@ public class KnowledgeController {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
         }
         resolveKnowledgeByGuard(safeId, false);
-        KnowledgeService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
+        KnowledgeSummaryPipelineService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
         ContentTypeByFilename.Record safe = ContentTypeByFilename.safe(file.filename());
         FileTransport.serve(response, request, file.opened(), new FileTransport.Options(
                 file.filename(), !safe.inline(), safe.contentType(),
@@ -649,14 +652,14 @@ public class KnowledgeController {
                 }
             }
         }
-        KnowledgeService.SearchOutcome outcome;
+        KnowledgeSearchService.SearchOutcome outcome;
         var scope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
         if (scope != null && scope.isKnowledgeBaseRestricted()) {
             // 对照 tenantAPIKeySearchScopes：受限 Key 的搜索范围 = 白名单 KB（本租户）
-            List<KnowledgeService.KnowledgeSearchScope> scopes = new ArrayList<>();
+            List<KnowledgeSearchService.KnowledgeSearchScope> scopes = new ArrayList<>();
             long tid = tenantId();
             for (String kbId : scope.knowledgeBaseIds()) {
-                scopes.add(new KnowledgeService.KnowledgeSearchScope(tid, kbId));
+                scopes.add(new KnowledgeSearchService.KnowledgeSearchScope(tid, kbId));
             }
             outcome = knowledgeService.searchKnowledgeInScopes(scopes, keyword, offset, limit, fileTypes);
         } else {
@@ -756,7 +759,7 @@ public class KnowledgeController {
                         + " is not in completed status (current: " + k.getParseStatus() + ")"));
             }
         }
-        String taskId = KnowledgeService.generateTaskId("kg_move", callerTenant, sourceKbId);
+        String taskId = KnowledgeTaskIds.generateTaskId("kg_move", callerTenant, sourceKbId);
         knowledgeService.startKnowledgeMove(callerTenant, taskId, uniqueIds, sourceKbId, targetKbId, mode);
         var resp = new com.ragagent.knowledge.dto.KnowledgeTaskDtos.MoveKnowledgeResponse(
                 taskId, sourceKbId, targetKbId, uniqueIds.size(), "Knowledge move task started");
@@ -841,7 +844,7 @@ public class KnowledgeController {
 
     /** 对照 requireTaskProgressTenant：坏 id → 400；跨租户 → 404 "task not found"。 */
     private void requireTaskProgressTenant(String taskId) {
-        Long taskTenant = KnowledgeService.taskTenantId(taskId);
+        Long taskTenant = KnowledgeTaskIds.taskTenantId(taskId);
         if (taskTenant == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }

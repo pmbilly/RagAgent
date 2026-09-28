@@ -429,7 +429,7 @@ public class KnowledgeBaseController {
         }
         String taskId = explicitTaskId;
         if (taskId.isEmpty()) {
-            taskId = com.ragagent.knowledge.service.KnowledgeService.generateTaskId("kb_clone", caller, sourceId);
+            taskId = com.ragagent.knowledge.service.KnowledgeTaskIds.generateTaskId("kb_clone", caller, sourceId);
         } else {
             requireTaskProgressTenant(taskId);
         }
@@ -540,7 +540,7 @@ public class KnowledgeBaseController {
 
     /** 对照 requireTaskProgressTenant（与 KnowledgeController 的私有实现同源）。 */
     private void requireTaskProgressTenant(String taskId) {
-        Long taskTenant = com.ragagent.knowledge.service.KnowledgeService.taskTenantId(taskId);
+        Long taskTenant = com.ragagent.knowledge.service.KnowledgeTaskIds.taskTenantId(taskId);
         if (taskTenant == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }

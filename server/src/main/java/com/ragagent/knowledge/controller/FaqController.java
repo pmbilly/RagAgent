@@ -1,6 +1,5 @@
 package com.ragagent.knowledge.controller;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,7 +12,6 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.GoJsonBindError;
-import com.ragagent.knowledge.dto.FaqDtos;
 import com.ragagent.knowledge.dto.FaqDtos.AddSimilarQuestionsRequest;
 import com.ragagent.knowledge.dto.FaqDtos.FaqDeleteRequest;
 import com.ragagent.knowledge.dto.FaqDtos.FaqEntryPayload;
@@ -378,7 +376,7 @@ public class FaqController {
      * FAQSearchRequest 的绑定：query_text required（string 非零值——空串/缺失都失败）。
      */
     private void requireTaskProgressTenant(String taskId) {
-        Long taskTenantId = com.ragagent.knowledge.service.KnowledgeService.taskTenantId(taskId);
+        Long taskTenantId = com.ragagent.knowledge.service.KnowledgeTaskIds.taskTenantId(taskId);
         if (taskTenantId == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }
