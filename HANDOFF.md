@@ -87,7 +87,7 @@
 - 测试对比器：`support/ContractJson`（键排序+数字归一+紧凑序列化）接入 33 个 golden()/27 个 raw() 出口与各 mask() 入口；fixture **无需重录**——语义等价即通过，本仓行为成为唯一契约。邻接键正则的存量断言已就地改 Jackson 树断言（逢触碰必改原则的既成事实清单见 PR4 提交）。
 - 满负载测试暴露并修复了三个 seed 期潜伏缺陷（已随 PR2 提交）：ConcurrencyChatClient.drain 永动自旋（+30s 硬上限）、SsrfGuard static 白名单互踩（W5a 家族补快照/还原）、SSRF 契约用例的 fake-ip DNS 环境依赖（改确定性回环）。
 
-**下一步（阶段 2 开局）**：知识库域重构从 `KnowledgeService`（153 方法）拆分开局，Agent 域从 `AgentEngine` 沿七段注释边界拆分跟进。红线不变：一次只动一个轴；每阶段结束全绿。
+**阶段 2 开局已完成（2026-09-29，8e9b7da）**：`KnowledgeService`（3,392 行/153 方法）沿注释边界拆为门面 + 7 服务——KnowledgeMoveService(405)/KnowledgeCloneService(486)/KnowledgeSearchService(198)/KnowledgeFolderService(409)/KnowledgeSpanService(269)/KnowledgeSummaryPipelineService(1,114)/KnowledgeBatchOpsService(158)/KnowledgeTaskIds(76)；门面保留全部公共方法委托（851 行），18+ 注入点与 Mockito 测试零改动。后续刀：FaqService(3,089) 同款拆分 → ChunkService(1,296) → AgentEngine(3,266) 沿七段边界 → Controller rawBody → DTO。红线不变：一次只动一个轴；每步全绿。
 
 ## 8. 环境与运行
 
