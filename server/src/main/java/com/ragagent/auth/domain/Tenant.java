@@ -29,6 +29,11 @@ import com.fasterxml.jackson.databind.JsonNode;
  * credentials, storage_engine_config, default_storage_backend_id（omitempty）,
  * chat_history_config, retrieval_config, memory_config, created_at, updated_at,
  * deleted_at；api_principal_config json:"-" 恒不输出。其余 null 恒输出显式 null。
+ *
+ * <p>备案（2026-09-28 评审）：DB 列 {@code conversation_config}（000001 建列，
+ * COMMENT "Global Conversation configuration for this tenant"）Java 全仓零读写
+ * ——Go 侧同列亦未见 struct 映射（疑似遗留死列），与 sessions 的同类未映射列
+ * （Session.java 35-38 备案）同款处理：不映射，仅在此记录。</p>
  * 列表/详情等其余 API 输出仍统一经 dto.TenantResponse。
  */
 @TableName(value = "tenants", autoResultMap = true)

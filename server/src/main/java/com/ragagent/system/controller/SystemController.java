@@ -42,7 +42,8 @@ import org.springframework.web.bind.annotation.RestController;
  * </ul>
  *
  * <p><b>POST /system/sandbox-check 未实现</b>（依赖波 3 sandbox）——Go 注册了该路由，
- * Java 侧不映射 → Spring 404。API-Key 策略表也刻意不登记它。</p>
+ * Java 侧不映射 → Spring 404。RBAC 与 API-Key 策略表的同名死登记已于
+ * 2026-09-28 评审删除（落地 handler 时随批恢复）。</p>
  */
 @RestController
 @RequestMapping("/api/v1/system")

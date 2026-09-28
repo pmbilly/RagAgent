@@ -20,9 +20,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
  *
  * <p>JWT 会话（没有 API-Key scope）直通。</p>
  *
- * <p>当前 Java 已翻译的路由里**没有**需要它的（Go 侧唯一的例子是
- * {@code GET /api/v1/files/presigned-preview}，Java 尚未翻译）。
- * 保留类型是为了让后续接入 file-serve 时不必重新推导这条规则——
+ * <p>当前已登记的路由：{@code GET /api/v1/files/presigned-preview}
+ * （WebConfig 699 行起，file-serve 接入时挂上）。保留类型是为了让后续
+ * 同类路由接入时不必重新推导这条规则——
  * 任务要求的 default-deny 语义由 {@link APIKeyGateInterceptor} 的"未声明即拒绝"
  * 承担（例：{@code POST /api/v1/agent/tool-approvals/:pending_id} 在 Go 里
  * 就没有声明策略，因此 API Key 一律 403）。</p>

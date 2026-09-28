@@ -79,7 +79,11 @@ public class KnowledgeController {
         this.kbShareService = kbShareService;
     }
 
-    /** 对照 CreateKnowledgeFromFile — multipart（字段名严格对照 Go：file/fileName/metadata/tag_ids/channel/process_config） */
+    /** 对照 CreateKnowledgeFromFile — multipart（字段名严格对照 Go：file/fileName/metadata/tag_ids/channel/process_config）
+     *  <p><b>已知缺口（2026-09-28 评审备案）</b>：tag_ids / process_config 参数被接收但
+     *  静默丢弃——Go 侧把它们传进处理管线（chunk 级 tag 关联 + 分块/VLM/ASR 逐知识覆盖），
+     *  Java 管线只读 KB 级配置。完整落地需穿越 KnowledgeProcessWorker 的分块与写链，
+     *  待专项收口；此前是无声差异，现显式备案。</p> */
     @PostMapping("/knowledge-bases/{id}/knowledge/file")
     public ResponseEntity<?> createFromFile(@PathVariable("id") String kbId,
                                             @RequestParam("file") MultipartFile file,

@@ -25,8 +25,9 @@ import com.ragagent.llm.provider.ProviderRegistry;
  * **Java 侧未实现的两个装饰器（已在约定文档 §9 登记）**：
  * - `wrapChatDebug`（Go 的 llm_debug_wrapper）：受 LLMDebugEnabled 环境变量控制，
  *   未启用时 Go 也只是返回原对象——Java 侧直接省略，等价于"未启用"
- * - `wrapChatLangfuse`：Go 在未启用 tracing 时不安装包装器（零成本），Java 侧追踪
- *   未实现，同样省略
+ * - `wrapChatLangfuse`：Go 在未启用 tracing 时不安装包装器（零成本）。Java 侧
+ *   的 chat/embedding/rerank 包装发生在 ModelRuntimeFactory 装饰层
+ *   （LangfuseChatClient/Embedder/Reranker.wrap，dbf4cff 起），不再在本类包
  */
 public final class LlmChatClients {
 
