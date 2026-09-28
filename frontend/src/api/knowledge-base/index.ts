@@ -162,6 +162,10 @@ export function updateKnowledgeBase(id: string, data: {
   return put(`/api/v1/knowledge-bases/${id}`, data);
 }
 
+export function rebuildKBIndex(kbId: string) {
+  return post(`/api/v1/knowledge-bases/${kbId}/rebuild-index`, {});
+}
+
 export function deleteKnowledgeBase(id: string) {
   return del(`/api/v1/knowledge-bases/${id}`);
 }

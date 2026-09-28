@@ -152,6 +152,9 @@ public class WebConfig implements WebMvcConfigurer {
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/hybrid-search", TenantRole.VIEWER, false);
         rbac.addRule("GET", "/api/v1/knowledge-bases/*/hybrid-search", TenantRole.VIEWER, false);
         rbac.addRule("POST", "/api/v1/knowledge-bases/*/duplicate", TenantRole.CONTRIBUTOR, false);
+        // 重建索引（2026-09-28 评审补端点）：索引策略变更后的全量重处理，与
+        // duplicate 同档（KB 级重写面，Contributor+）
+        rbac.addRule("POST", "/api/v1/knowledge-bases/*/rebuild-index", TenantRole.CONTRIBUTOR, false);
         // KB 图片代理（W5c，对照 files.go serveKBScopedFiles L336-347：Viewer +
         // KBAccessRead——KB 访问判定在 KbFileProxyController 内）
         rbac.addRule("GET", "/api/v1/knowledge-bases/*/files", TenantRole.VIEWER, false);

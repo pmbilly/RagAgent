@@ -612,6 +612,8 @@ public final class APIKeyRoutePolicies {
         a.registerGin("POST", "/api/v1/knowledge-bases/:id/hybrid-search", kbRead);
         a.registerGin("GET", "/api/v1/knowledge-bases/:id/hybrid-search", kbRead);
         a.registerGin("POST", "/api/v1/knowledge-bases/:id/duplicate", kbManage);
+        // 重建索引（2026-09-28 评审补端点）：与 duplicate 同档（manage_kbs）
+        a.registerGin("POST", "/api/v1/knowledge-bases/:id/rebuild-index", kbManage);
 
         // KB 作用域的文档写入 / 读（routes_knowledge.go:70-81；kb=ingest，kbRead=retrieve；
         // 清空 KB 整库内容只允许 full-access key：kb.With(apiKeyFullAccess()).DELETE(...)）

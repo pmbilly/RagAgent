@@ -2335,6 +2335,28 @@ public class KnowledgeService {
     }
 
     /**
+     * 重建知识库索引（对照 Go POST /knowledge-bases/:id/rebuild-index）：索引策略
+     * （vector/keyword/wiki/graph）变更后对 KB 内全部知识重跑处理管线，使 chunk/
+     * 向量/图谱与新策略一致。复用 reparse 的复位与入队路径（docreader 重解析在
+     * 内——策略变更可能连带分块参数，逐条全量重处理是 Go 同款安全语义）。
+     *
+     * @return 提交重建的知识条数（document_count）
+     */
+    public int rebuildKnowledgeBaseIndex(String kbId) {
+        KnowledgeBase kb = requireKb(kbId);
+        List<Knowledge> rows = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getKnowledgeBaseId, kbId)
+                .eq(Knowledge::getTenantId, tenantId())
+                .isNull(Knowledge::getDeletedAt));
+        for (Knowledge k : rows) {
+            resetKnowledgeForReparse(k, kb);
+            updateKnowledgeRow(k, k.getMetadata());
+            worker.enqueue(k.getId());
+        }
+        return rows.size();
+    }
+
+    /**
      * 对照 ClearKnowledgeBaseContents 的入队面。Go 是 asynq 异步清理（响应只含
      * 列表计数），录制的两次连续 clear 都是 "task submitted" + 相同计数（worker 尚未
      * 动行）——Java 用 parse_status='deleting' 标记 + 计数复刻这个窗口（行为收敛：

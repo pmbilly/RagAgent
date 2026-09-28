@@ -613,6 +613,35 @@ public class KnowledgeBaseController {
      * （缺失 404 小写 / 跨租户 403 信封——handler 的 "Source knowledge base not found"
      * 因此不可达），租户校验后同步克隆**设置**（名字带 " 副本"，重名去重）。
      */
+    /** 重建索引（对照 Go POST /knowledge-bases/:id/rebuild-index）：索引策略变更后
+     *  对 KB 内全部知识重跑处理管线；前端改策略保存后的确认框调用，读
+     *  {@code data.document_count}。守卫与 duplicate 同款（KBAccessRead + 租户归属）。 */
+    @PostMapping("/{id}/rebuild-index")
+    public ResponseEntity<?> rebuildIndex(@PathVariable("id") String id) {
+        log.info("Start rebuilding knowledge base index, ID: {}", id);
+        String kbId = id == null ? "" : id;
+        if (kbId.isEmpty()) {
+            throw new BizException(AppError.badRequest("Knowledge base ID cannot be empty"));
+        }
+        guard.requireKbAccess(kbId);
+        long callerTenant = TenantContext.currentTenantId() == null ? 0 : TenantContext.currentTenantId();
+        KnowledgeBase sourceKb = kbService.getAllTenantById(kbId);
+        if (sourceKb == null) {
+            throw new BizException(AppError.notFound("Knowledge base not found"));
+        }
+        if (sourceKb.getTenantId() == null || sourceKb.getTenantId() != callerTenant) {
+            log.warn("Knowledge base rebuild rejected: belongs to another tenant");
+            throw new BizException(AppError.forbidden("No permission to rebuild this knowledge base"));
+        }
+        int count = knowledgeService.rebuildKnowledgeBaseIndex(kbId);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("document_count", (long) count);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("data", data);
+        out.put("success", true);
+        return ResponseEntity.ok(out);
+    }
+
     @PostMapping("/{id}/duplicate")
     public ResponseEntity<?> duplicateKnowledgeBase(@PathVariable("id") String id) {
         log.info("Start duplicating knowledge base, ID: {}", id);
