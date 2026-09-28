@@ -357,21 +357,6 @@ export async function updateMyPreferences(
 }
 
 /**
- * 获取当前空间信息
- */
-export async function getCurrentTenant(): Promise<{ success: boolean; data?: TenantInfo; message?: string }> {
-  try {
-    const response = await get('/api/v1/auth/tenant')
-    return response as unknown as { success: boolean; data?: TenantInfo; message?: string }
-  } catch (error: any) {
-    return {
-      success: false,
-      message: error.message || t('error.auth.getTenantFailed')
-    }
-  }
-}
-
-/**
  * 刷新Token
  */
 export async function refreshToken(refreshToken: string): Promise<{ success: boolean; data?: { token: string; refreshToken: string }; message?: string }> {
