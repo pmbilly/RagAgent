@@ -254,26 +254,26 @@ export function useCmdkSearch(options: {
     // Group chunks by knowledge_id.
     const fmap = new Map<string, CmdkFileGroup>()
     for (const item of chunks as any[]) {
-      const kid = item.knowledge_id || 'unknown'
+      const kid = item.knowledgeId || 'unknown'
       if (!fmap.has(kid)) {
         fmap.set(kid, {
           knowledgeId: kid,
-          kbId: item.knowledge_base_id || '',
-          title: item.knowledge_title || item.knowledge_filename || kid,
-          kbName: getKbName(item.knowledge_base_id),
+          kbId: item.knowledgeBaseId || '',
+          title: item.knowledgeTitle || item.knowledgeFilename || kid,
+          kbName: getKbName(item.knowledgeBaseId),
           chunks: [],
         })
       }
       fmap.get(kid)!.chunks.push({
         id: item.id,
-        chunk_index: item.chunk_index,
+        chunk_index: item.chunkIndex,
         knowledge_id: kid,
-        knowledge_base_id: item.knowledge_base_id || '',
-        knowledge_title: item.knowledge_title || '',
-        kb_name: getKbName(item.knowledge_base_id),
+        knowledge_base_id: item.knowledgeBaseId || '',
+        knowledge_title: item.knowledgeTitle || '',
+        kb_name: getKbName(item.knowledgeBaseId),
         content: item.content || '',
-        matched_content: item.matched_content,
-        match_type: item.match_type || 'vector',
+        matched_content: item.matchedContent,
+        match_type: item.matchType ?? 0,
         score: item.score || 0,
       })
     }
