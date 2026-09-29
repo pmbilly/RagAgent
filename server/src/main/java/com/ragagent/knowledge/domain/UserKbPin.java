@@ -1,7 +1,6 @@
 package com.ragagent.knowledge.domain;
 
 import java.time.OffsetDateTime;
-
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**

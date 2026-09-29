@@ -1,7 +1,6 @@
 package com.ragagent.knowledge.dto;
 
 import java.time.OffsetDateTime;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.Chunk;
 

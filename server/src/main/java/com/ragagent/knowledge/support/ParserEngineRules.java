@@ -1,7 +1,6 @@
 package com.ragagent.knowledge.support;
 
 import java.util.Locale;
-
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

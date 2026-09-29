@@ -3,7 +3,6 @@ package com.ragagent.knowledge.task;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.List;
-
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;

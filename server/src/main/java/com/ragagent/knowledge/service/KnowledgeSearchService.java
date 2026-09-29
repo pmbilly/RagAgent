@@ -2,7 +2,6 @@ package com.ragagent.knowledge.service;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;

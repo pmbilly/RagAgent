@@ -3,7 +3,6 @@ package com.ragagent.knowledge.security;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;

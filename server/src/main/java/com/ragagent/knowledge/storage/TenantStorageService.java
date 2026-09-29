@@ -2,7 +2,6 @@ package com.ragagent.knowledge.storage;
 
 import java.sql.Timestamp;
 import java.time.Instant;
-
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.mapper.TenantMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
