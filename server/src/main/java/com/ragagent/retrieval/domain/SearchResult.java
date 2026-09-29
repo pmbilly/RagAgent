@@ -56,32 +56,23 @@ import com.ragagent.common.web.GoMapSerializer;
 })
 public class SearchResult {
 
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("content")
     private String content = "";
 
-    @JsonProperty("knowledge_id")
     private String knowledgeId = "";
 
-    @JsonProperty("chunk_index")
     private int chunkIndex;
 
-    @JsonProperty("knowledge_title")
     private String knowledgeTitle = "";
 
-    @JsonProperty("start_at")
     private int startAt;
 
-    @JsonProperty("end_at")
     private int endAt;
 
-    @JsonProperty("seq")
     private int seq;
 
     /** 相似度/融合分。**无 omitempty**：{@code 0} 恒输出（不是 {@code 0.0}，见类注释）。 */
-    @JsonProperty("score")
     @JsonSerialize(using = GoDoubleSerializer.class)
     private double score;
 
@@ -89,11 +80,9 @@ public class SearchResult {
      * 匹配算法（Go {@code MatchType} 是 int 枚举，零值 {@code MatchTypeEmbedding}）。
      * 无 omitempty，恒输出数字。
      */
-    @JsonProperty("match_type")
     private int matchType;
 
     /** 子 chunk ID。**无 omitempty**：nil 输出 {@code null}（不是 {@code []}）。 */
-    @JsonProperty("sub_chunk_id")
     private List<String> subChunkId;
 
     /**
@@ -101,25 +90,18 @@ public class SearchResult {
      * Go 的 {@code map[string]string} 经 {@code json.Marshal} **恒按 key 字母序**输出，
      * 故 setter 归一化为 {@link TreeMap}——无论产出方给的是什么 Map 实现，输出字节都一致。
      */
-    @JsonProperty("metadata")
     private Map<String, String> metadata;
 
-    @JsonProperty("chunk_type")
     private String chunkType = "";
 
-    @JsonProperty("parent_chunk_id")
     private String parentChunkId = "";
 
-    @JsonProperty("image_info")
     private String imageInfo = "";
 
-    @JsonProperty("knowledge_filename")
     private String knowledgeFilename = "";
 
-    @JsonProperty("knowledge_source")
     private String knowledgeSource = "";
 
-    @JsonProperty("knowledge_channel")
     private String knowledgeChannel = "";
 
     /**
@@ -130,27 +112,22 @@ public class SearchResult {
      * {@code {}} 是**会**输出的；Jackson 的 NON_NULL 只看 null。产出方若真写入空对象，
      * 两侧会有差异——实际语义里该字段要么是结构化 JSON 要么不设，暂不复刻这个角落里。</p>
      */
-    @JsonProperty("chunk_metadata")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private JsonNode chunkMetadata;
 
     /** 向量检索实际命中的文本（FAQ 场景是命中的问题）。omitempty。 */
-    @JsonProperty("matched_content")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String matchedContent;
 
     /** 知识条目描述。omitempty。 */
-    @JsonProperty("knowledge_description")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String knowledgeDescription;
 
     /** 用户自撰、可安全下发给模型的上下文。omitempty。 */
-    @JsonProperty("knowledge_custom_metadata")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String knowledgeCustomMetadata;
 
     /** 所属知识库 ID。omitempty。 */
-    @JsonProperty("knowledge_base_id")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String knowledgeBaseId;
 

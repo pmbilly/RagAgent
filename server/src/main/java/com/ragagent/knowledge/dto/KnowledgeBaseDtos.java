@@ -128,8 +128,6 @@ public final class KnowledgeBaseDtos {
             String taskId) {
     }
 
-    public record HybridSearchResponse(Object data, boolean success) {
-    }
 
     /** 重建索引响应（裸资源，无信封；字段名即 Java 字段名）。 */
     public record RebuildIndexResponse(long documentCount) {

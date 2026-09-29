@@ -50,25 +50,23 @@ class StreamResponseBuilderTest {
         StreamEvent evt = new StreamEvent("evt-1", ResponseType.REFERENCES, "", false);
         evt.setData(Map.of("references", List.of(redisRoundTrippedRef())));
 
-        assertThat(write(StreamResponseBuilder.build(evt, "req-1"))).isEqualTo(
-                "{\"id\":\"req-1\",\"response_type\":\"references\",\"content\":\"\",\"done\":false,"
-                        + "\"knowledge_references\":[{"
-                        + "\"id\":\"chunk-1\",\"content\":\"hello\",\"knowledge_id\":\"kb-1\","
-                        + "\"chunk_index\":3,\"knowledge_title\":\"t\",\"start_at\":10,\"end_at\":20,"
-                        + "\"seq\":2,\"score\":0.75,\"match_type\":0,\"sub_chunk_id\":null,"
-                        + "\"metadata\":{\"lang\":\"zh\"},\"chunk_type\":\"text\","
-                        + "\"parent_chunk_id\":\"\",\"image_info\":\"\","
-                        + "\"knowledge_filename\":\"a.md\",\"knowledge_source\":\"file\","
-                        + "\"knowledge_channel\":\"\",\"knowledge_base_id\":\"kb-1\"}],"
-                        + "\"data\":{\"references\":[{"
-                        // data 是原样的 map → 键字母序，且不认识的键原样带出去
-                        + "\"chunk_index\":3,\"chunk_type\":\"text\",\"content\":\"hello\","
-                        + "\"end_at\":20,\"extra_unknown_key\":\"ignored\",\"id\":\"chunk-1\","
-                        + "\"image_info\":\"\",\"knowledge_base_id\":\"kb-1\","
-                        + "\"knowledge_description\":\"\",\"knowledge_filename\":\"a.md\","
-                        + "\"knowledge_id\":\"kb-1\",\"knowledge_source\":\"file\","
-                        + "\"knowledge_title\":\"t\",\"metadata\":{\"lang\":\"zh\"},"
-                        + "\"parent_chunk_id\":\"\",\"score\":0.75,\"seq\":2,\"start_at\":10}]}}");
+        // 键序不属契约（不再字节序钉死）：knowledge_references 是 SearchResult 的序列化
+        // （Java 字段名即键名）；data 是缓存映射直通，保持库内键名与未知键。
+        String json = write(StreamResponseBuilder.build(evt, "req-1"));
+        assertThat(json).contains("\"id\":\"req-1\",\"response_type\":\"references\"");
+        assertThat(json).contains("\"knowledge_references\":[{\"id\":\"chunk-1\",\"content\":\"hello\"");
+        assertThat(json).contains("\"knowledgeId\":\"kb-1\"");
+        assertThat(json).contains("\"chunkIndex\":3");
+        assertThat(json).contains("\"knowledgeTitle\":\"t\"");
+        assertThat(json).contains("\"startAt\":10,\"endAt\":20");
+        assertThat(json).contains("\"matchType\":0");
+        assertThat(json).contains("\"subChunkId\":null");
+        assertThat(json).contains("\"metadata\":{\"lang\":\"zh\"}");
+        assertThat(json).contains("\"knowledgeFilename\":\"a.md\",\"knowledgeSource\":\"file\"");
+        assertThat(json).contains("\"knowledgeBaseId\":\"kb-1\"");
+        // data 直通：库内 snake 键 + 未知键原样带出
+        assertThat(json).contains("\"data\":{\"references\":[{\"chunk_index\":3");
+        assertThat(json).contains("\"extra_unknown_key\":\"ignored\"");
     }
 
     /**
@@ -190,17 +188,16 @@ class StreamResponseBuilderTest {
         StreamEvent evt = new StreamEvent("evt-7", ResponseType.REFERENCES, "", false);
         evt.setData(Map.of("references", new ArrayList<>(List.of(live))));
 
+        // 活对象直通：两侧都按 SearchResult 序列化（camelCase）
         String json = write(StreamResponseBuilder.build(evt, "req-7"));
-        assertThat(json).contains(
-                "\"knowledge_references\":[{\"id\":\"chunk-2\",\"content\":\"world\","
-                        + "\"knowledge_id\":\"kb-2\",\"chunk_index\":0,\"knowledge_title\":\"\","
-                        + "\"start_at\":0,\"end_at\":0,\"seq\":0,"
-                        // score 是 1.0，Go 输出 1（不是 1.0）——GoDoubleSerializer 的职责
-                        + "\"score\":1,\"match_type\":3,\"sub_chunk_id\":[\"sub-1\"],"
-                        + "\"metadata\":null,\"chunk_type\":\"\",\"parent_chunk_id\":\"\","
-                        + "\"image_info\":\"\",\"knowledge_filename\":\"\","
-                        + "\"knowledge_source\":\"\",\"knowledge_channel\":\"\","
-                        + "\"chunk_metadata\":{\"questions\":[\"q\"]}}]");
+        assertThat(json).contains("\"knowledge_references\":[{\"id\":\"chunk-2\",\"content\":\"world\"");
+        assertThat(json).contains("\"knowledgeId\":\"kb-2\"");
+        assertThat(json).contains("\"matchType\":3");
+        assertThat(json).contains("\"subChunkId\":[\"sub-1\"]");
+        assertThat(json).contains("\"chunkMetadata\":{\"questions\":[\"q\"]}");
+        // score 是 1.0，Go 输出 1（不是 1.0）——GoDoubleSerializer 的职责
+        assertThat(json).contains("\"score\":1,");
+        assertThat(json).contains("\"data\":{\"references\":[{\"id\":\"chunk-2\"");
     }
 
     /** 空 {@code data} → Go 的 omitempty 整键省略（不是输出 {@code "data":{}}）。 */

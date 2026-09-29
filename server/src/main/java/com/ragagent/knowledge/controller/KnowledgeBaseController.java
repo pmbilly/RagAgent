@@ -174,7 +174,7 @@ public class KnowledgeBaseController {
 
     /** POST 与 GET 双路由同一 handler（GET 带 JSON body 兼容 #1727）。 */
     @PostMapping("/{id}/hybrid-search")
-    public ResponseEntity<KnowledgeBaseDtos.HybridSearchResponse> hybridSearchPost(
+    public ResponseEntity<List<SearchResult>> hybridSearchPost(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody HybridSearchRequest req,
             @RequestParam(value = "resourceUrls", required = false) String resourceUrls) {
@@ -182,14 +182,14 @@ public class KnowledgeBaseController {
     }
 
     @GetMapping("/{id}/hybrid-search")
-    public ResponseEntity<KnowledgeBaseDtos.HybridSearchResponse> hybridSearchGet(
+    public ResponseEntity<List<SearchResult>> hybridSearchGet(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody HybridSearchRequest req,
             @RequestParam(value = "resourceUrls", required = false) String resourceUrls) {
         return hybridSearch(id, req, resourceUrls);
     }
 
-    private ResponseEntity<KnowledgeBaseDtos.HybridSearchResponse> hybridSearch(String id, HybridSearchRequest req,
+    private ResponseEntity<List<SearchResult>> hybridSearch(String id, HybridSearchRequest req,
             String resourceUrls) {
         log.info("Start hybrid search");
         KnowledgeBase kb = guard.requireKbAccess(id);
@@ -198,7 +198,7 @@ public class KnowledgeBaseController {
                 && Boolean.TRUE.equals(req.disableKeywordsMatch())
                 && !Boolean.TRUE.equals(req.disableVectorMatch());
         if ((req.queryText() == null || req.queryText().trim().isEmpty()) && !precomputedVectorOnly) {
-            throw new BizException(AppError.badRequest("query_text is required"));
+            throw new BizException(AppError.badRequest("queryText is required"));
         }
         // resource_urls：public 拒绝 → 403；其他坏值 → 400
         try {
@@ -253,7 +253,8 @@ public class KnowledgeBaseController {
         params.setKnowledgeBaseIds(searchKbIds);
         List<SearchResult> results =
                 hybridSearchService.hybridSearch(kb.getId(), params);
-        return ResponseEntity.ok(new KnowledgeBaseDtos.HybridSearchResponse(results, true));
+        // 空结果归一为空数组（裸列表契约：不返回空体，也不用 null 表示空）
+        return ResponseEntity.ok(results == null ? List.of() : results);
     }
 
     /** 复制知识库（源在 body）；targetId 缺省 = 创建新库。异步受理 → 202 + 任务信息。 */
