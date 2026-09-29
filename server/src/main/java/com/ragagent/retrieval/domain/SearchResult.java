@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -60,14 +61,19 @@ public class SearchResult {
 
     private String content = "";
 
+    @JsonAlias("knowledge_id")
     private String knowledgeId = "";
 
+    @JsonAlias("chunk_index")
     private int chunkIndex;
 
+    @JsonAlias("knowledge_title")
     private String knowledgeTitle = "";
 
+    @JsonAlias("start_at")
     private int startAt;
 
+    @JsonAlias("end_at")
     private int endAt;
 
     private int seq;
@@ -80,9 +86,11 @@ public class SearchResult {
      * 匹配算法（Go {@code MatchType} 是 int 枚举，零值 {@code MatchTypeEmbedding}）。
      * 无 omitempty，恒输出数字。
      */
+    @JsonAlias("match_type")
     private int matchType;
 
     /** 子 chunk ID。**无 omitempty**：nil 输出 {@code null}（不是 {@code []}）。 */
+    @JsonAlias("sub_chunk_id")
     private List<String> subChunkId;
 
     /**
@@ -92,16 +100,22 @@ public class SearchResult {
      */
     private Map<String, String> metadata;
 
+    @JsonAlias("chunk_type")
     private String chunkType = "";
 
+    @JsonAlias("parent_chunk_id")
     private String parentChunkId = "";
 
+    @JsonAlias("image_info")
     private String imageInfo = "";
 
+    @JsonAlias("knowledge_filename")
     private String knowledgeFilename = "";
 
+    @JsonAlias("knowledge_source")
     private String knowledgeSource = "";
 
+    @JsonAlias("knowledge_channel")
     private String knowledgeChannel = "";
 
     /**
@@ -113,22 +127,27 @@ public class SearchResult {
      * 两侧会有差异——实际语义里该字段要么是结构化 JSON 要么不设，暂不复刻这个角落里。</p>
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonAlias("chunk_metadata")
     private JsonNode chunkMetadata;
 
     /** 向量检索实际命中的文本（FAQ 场景是命中的问题）。omitempty。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonAlias("matched_content")
     private String matchedContent;
 
     /** 知识条目描述。omitempty。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonAlias("knowledge_description")
     private String knowledgeDescription;
 
     /** 用户自撰、可安全下发给模型的上下文。omitempty。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonAlias("knowledge_custom_metadata")
     private String knowledgeCustomMetadata;
 
     /** 所属知识库 ID。omitempty。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonAlias("knowledge_base_id")
     private String knowledgeBaseId;
 
     /** 检索时 chunk 的编辑版本号。**仅内部**（Go 是 {@code json:"-"}），有 gorm 列。 */
