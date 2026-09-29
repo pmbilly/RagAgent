@@ -93,7 +93,7 @@ public class AgentToolBackends {
     private final WikiPageService wikiPageService;
     private final com.ragagent.websearch.service.WebSearchService webSearchService;
     private final com.ragagent.auth.service.TenantService tenantService;
-    private final com.ragagent.knowledge.service.TenantFileStorage fileStorage;
+    private final com.ragagent.knowledge.storage.TenantFileStorage fileStorage;
     private final JdbcTemplate jdbc;
 
     public AgentToolBackends(KnowledgeBaseService kbService,
@@ -106,7 +106,7 @@ public class AgentToolBackends {
                              WikiPageService wikiPageService,
                              com.ragagent.websearch.service.WebSearchService webSearchService,
                              com.ragagent.auth.service.TenantService tenantService,
-                             com.ragagent.knowledge.service.TenantFileStorage fileStorage,
+                             com.ragagent.knowledge.storage.TenantFileStorage fileStorage,
                              DataSource dataSource) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;

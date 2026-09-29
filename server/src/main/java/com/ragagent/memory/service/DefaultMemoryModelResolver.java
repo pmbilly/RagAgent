@@ -2,7 +2,7 @@ package com.ragagent.memory.service;
 
 import java.util.List;
 
-import com.ragagent.knowledge.service.EmbedderClient;
+import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.chat.LlmChatClients;
 import com.ragagent.llm.domain.ChatConfig;

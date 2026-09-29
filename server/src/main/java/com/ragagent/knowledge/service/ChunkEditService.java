@@ -19,6 +19,7 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.knowledge.security.ChunkAccessGuard;
 
 /**
  * chunk 版本化编辑面：乐观锁更新的编辑/回滚/修订历史、软删除、图片子块联动与父内容重建，

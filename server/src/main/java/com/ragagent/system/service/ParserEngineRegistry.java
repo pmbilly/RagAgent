@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.ragagent.knowledge.service.DocReaderClient;
+import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.system.dto.SystemDtos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

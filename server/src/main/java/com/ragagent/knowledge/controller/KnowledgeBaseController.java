@@ -38,14 +38,14 @@ import com.ragagent.chatpipeline.SearchParams;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.CopyKnowledgeBaseResponse;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse;
-import com.ragagent.knowledge.service.KnowledgeAccessGuard;
+import com.ragagent.knowledge.security.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.storageurl.PublicModeForbiddenException;
 import com.ragagent.storageurl.ResourceModeException;
 import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
-import com.ragagent.knowledge.service.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIds;
 import com.ragagent.storageurl.Mode;
 
 /**

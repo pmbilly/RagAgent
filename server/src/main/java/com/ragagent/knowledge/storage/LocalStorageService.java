@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.storage;
 
 import java.io.IOException;
 import java.io.InputStream;

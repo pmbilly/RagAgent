@@ -27,6 +27,10 @@ import org.springframework.stereotype.Service;
 import com.ragagent.chatpipeline.ChatManage.NameSpace;
 import com.ragagent.embedding.Embedder;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
+import com.ragagent.knowledge.task.KnowledgeTaskProgressStore;
+import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
+import com.ragagent.knowledge.task.KnowledgeProcessWorker;
+import com.ragagent.knowledge.storage.TenantStorageService;
 
 /**
  * 知识库 Move（跨库搬移）worker 面。HTTP 契约 = 立即返回 + 进度查询；

@@ -36,6 +36,11 @@ import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.knowledge.task.KnowledgeTaskProgressStore;
+import com.ragagent.knowledge.task.KnowledgeProcessWorker;
+import com.ragagent.knowledge.storage.LocalStorageService;
+import com.ragagent.knowledge.storage.TenantFileStorage;
+import com.ragagent.knowledge.storage.TenantStorageService;
 
 /**
  * （阶段 3 子集：file/url/manual 创建、分页列表、get/update/delete、folders；

@@ -13,7 +13,7 @@ import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.security.SsrfGuard;
-import com.ragagent.knowledge.service.DocReaderClient;
+import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.system.dto.SystemDtos;
 import com.ragagent.system.service.ParserEngineRegistry;
 import com.ragagent.system.service.SystemInfoService;

@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.security;
 
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Knowledge;
@@ -6,6 +6,8 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import org.springframework.stereotype.Component;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.knowledge.security.ChunkAccessGuard;
+import com.ragagent.knowledge.service.KnowledgeService;
 
 /**
  * knowledge 文档操作面路由（第二批）的守卫入口——语义与 {@link ChunkAccessGuard}

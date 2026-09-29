@@ -56,7 +56,7 @@ class AgentToolBackendsKbToolTest {
                 mock(WikiPageService.class),
                 mock(com.ragagent.websearch.service.WebSearchService.class),
                 mock(com.ragagent.auth.service.TenantService.class),
-                mock(com.ragagent.knowledge.service.TenantFileStorage.class),
+                mock(com.ragagent.knowledge.storage.TenantFileStorage.class),
                 mock(DataSource.class));
     }
 

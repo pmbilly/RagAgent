@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.security;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -21,6 +21,7 @@ import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import org.springframework.stereotype.Component;
+import com.ragagent.knowledge.service.KnowledgeService;
 
 /**
  * FAQ 写路径的域守卫：知识库存在性/类型校验、租户越权判定、标签解析与作用域校验、
@@ -219,11 +220,12 @@ public class FaqGuard {
         }
         return result;
     }
+    /** 批量字段更新的工作对象：由 guard 逐步装载、调用方只读遍历。 */
     public static final class FaqFieldPlan {
-        final Map<Long, Chunk> chunks;
-        final Map<String, Chunk> chunksById = new LinkedHashMap<>();
-        final Map<Long, KnowledgeTag> tags = new LinkedHashMap<>();
-        final List<String> excludeIds = new ArrayList<>();
+        public final Map<Long, Chunk> chunks;
+        public final Map<String, Chunk> chunksById = new LinkedHashMap<>();
+        public final Map<Long, KnowledgeTag> tags = new LinkedHashMap<>();
+        public final List<String> excludeIds = new ArrayList<>();
 
         FaqFieldPlan(Map<Long, Chunk> chunks) {
             this.chunks = chunks;

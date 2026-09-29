@@ -16,7 +16,7 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.embedding.Embedder;
-import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.chat.ProviderAdapters;
 import com.ragagent.llm.chat.ThinkingStrategies;

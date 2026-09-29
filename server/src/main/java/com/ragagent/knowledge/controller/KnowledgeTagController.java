@@ -13,7 +13,7 @@ import com.ragagent.knowledge.dto.KnowledgeTagDtos.DeleteTagRequest;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagResponse;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.TagPageResult;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.UpdateTagRequest;
-import com.ragagent.knowledge.service.ChunkAccessGuard;
+import com.ragagent.knowledge.security.ChunkAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeTagService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;

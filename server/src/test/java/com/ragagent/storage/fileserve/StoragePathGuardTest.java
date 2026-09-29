@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.knowledge.storage.LocalStorageService;
 
 /**
  * ③ local 双实现去重的语义验证（W5γ5.1）：单一份实现在 {@link StoragePathGuard}，

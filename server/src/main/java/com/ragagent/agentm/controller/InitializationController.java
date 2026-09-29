@@ -48,7 +48,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.dto.KnowledgeBaseResponse;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
-import com.ragagent.knowledge.service.KnowledgeAccessGuard;
+import com.ragagent.knowledge.security.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.chat.LlmChatClients;
@@ -102,7 +102,7 @@ public class InitializationController {
     private final AsrTranscriber asrTranscriber;
     private final ExtractPrompts extractPrompts;
     private final ConcurrencyGovernor concurrencyGovernor;
-    private final com.ragagent.knowledge.service.DocReaderClient documentReader;
+    private final com.ragagent.knowledge.client.DocReaderClient documentReader;
     private final TenantService tenantService;
     private final CryptoService cryptoService;
 
@@ -112,7 +112,7 @@ public class InitializationController {
             OllamaService ollamaService, OllamaDownloadTaskStore downloadTasks,
             AsrTranscriber asrTranscriber, ExtractPrompts extractPrompts,
             ConcurrencyGovernor concurrencyGovernor,
-            com.ragagent.knowledge.service.DocReaderClient documentReader,
+            com.ragagent.knowledge.client.DocReaderClient documentReader,
             TenantService tenantService, CryptoService cryptoService) {
         this.kbGuard = kbGuard;
         this.kbService = kbService;
@@ -863,7 +863,7 @@ public class InitializationController {
             }
             default -> throw new BizException(AppError.badRequest("无效的存储类型"));
         }
-        long maxSizeMB = com.ragagent.knowledge.service.LocalStorageService.maxFileSizeMb();
+        long maxSizeMB = com.ragagent.knowledge.storage.LocalStorageService.maxFileSizeMb();
         long maxSize = maxSizeMB * 1024 * 1024;
         if (image == null) {
             throw new BizException(AppError.badRequest("获取上传图片失败"));

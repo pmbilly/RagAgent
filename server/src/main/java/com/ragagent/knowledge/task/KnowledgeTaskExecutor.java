@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.task;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

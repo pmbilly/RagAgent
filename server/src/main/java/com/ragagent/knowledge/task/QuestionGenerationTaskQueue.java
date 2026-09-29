@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.task;
 
 import com.ragagent.knowledge.domain.QuestionBatchPayload;
 

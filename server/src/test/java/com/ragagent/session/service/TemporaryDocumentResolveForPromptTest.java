@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.ragagent.knowledge.service.DocReaderClient;
+import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.mapper.TemporaryDocumentRepository;

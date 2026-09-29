@@ -23,7 +23,7 @@ import com.ragagent.agentm.service.AsrTranscriber;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.knowledge.service.DocReaderClient;
+import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;
 import com.ragagent.model.service.ModelRuntimeFactory;

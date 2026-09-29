@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.client;
 
 import java.net.URI;
 import java.net.http.HttpClient;

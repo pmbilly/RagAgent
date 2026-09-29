@@ -30,7 +30,7 @@ import com.ragagent.auth.domain.UserPreferences;
 import com.ragagent.auth.mapper.TenantMapper;
 import com.ragagent.auth.mapper.TenantMemberMapper;
 import com.ragagent.auth.mapper.UserMapper;
-import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.knowledge.storage.LocalStorageService;
 
 /**
  * 文件代理面 8 条路由的契约测试（收尾批 W5c）。golden：w5c-*（76 个，

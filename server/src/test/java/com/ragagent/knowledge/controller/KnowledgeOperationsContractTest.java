@@ -20,7 +20,7 @@ import com.ragagent.auth.domain.UserPreferences;
 import com.ragagent.auth.mapper.TenantMapper;
 import com.ragagent.auth.mapper.TenantMemberMapper;
 import com.ragagent.auth.mapper.UserMapper;
-import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.knowledge.storage.LocalStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

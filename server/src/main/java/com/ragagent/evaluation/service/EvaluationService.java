@@ -30,7 +30,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.knowledge.service.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIds;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.session.service.SessionKnowledgeQaService;

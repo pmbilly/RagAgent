@@ -22,6 +22,7 @@ import com.ragagent.common.time.GoDuration;
 import com.ragagent.knowledge.domain.Knowledge;
 
 import jakarta.annotation.PreDestroy;
+import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 
 /**
  * follow-up 落地）。

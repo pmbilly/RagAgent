@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.task;
 
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
@@ -39,6 +39,19 @@ import com.ragagent.wiki.service.WikiKnowledgeFinalizer;
 import com.ragagent.tracing.langfuse.LangfuseTracing;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
 import com.ragagent.knowledge.domain.QuestionBatchPayload;
+import com.ragagent.knowledge.task.ChunkExtractTaskQueue;
+import com.ragagent.knowledge.task.QuestionGenerationTaskQueue;
+import com.ragagent.knowledge.service.GraphChunkSelector;
+import com.ragagent.knowledge.service.KnowledgeIndexContent;
+import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.knowledge.service.KnowledgeVectorWrites;
+import com.ragagent.knowledge.service.QuestionBatchPlanner;
+import com.ragagent.knowledge.service.SpanTracker;
+import com.ragagent.knowledge.service.VectorStoreService;
+import com.ragagent.knowledge.client.DocReaderClient;
+import com.ragagent.knowledge.client.EmbedderClient;
+import com.ragagent.knowledge.storage.LocalStorageService;
+import com.ragagent.knowledge.storage.TenantFileStorage;
 
 /**
  * 知识处理后台 worker：虚拟线程队列消费 knowledge 的解析主链路

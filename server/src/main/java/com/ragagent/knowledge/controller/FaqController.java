@@ -38,9 +38,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.ragagent.knowledge.service.ChunkAccessGuard;
+import com.ragagent.knowledge.security.ChunkAccessGuard;
 import com.ragagent.common.error.ErrorCode;
-import com.ragagent.knowledge.service.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIds;
 
 /**
  * FAQ 模块 HTTP 面：条目查询/命令/导入三服务的薄绑定层。读路由经

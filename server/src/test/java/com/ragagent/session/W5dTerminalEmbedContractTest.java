@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.TestSchema;
-import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.knowledge.storage.LocalStorageService;
 
 /**
  * 收尾批 W5d 契约测试：embed QA 委托 / 文件代理（w5d-emb-*）。golden 来源：Go

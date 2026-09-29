@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.common.error.AppError;
+import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 
 /**
  * <h2>路由链与 Java 落地</h2>

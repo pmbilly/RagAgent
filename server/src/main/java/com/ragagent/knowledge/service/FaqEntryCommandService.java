@@ -32,6 +32,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
+import com.ragagent.knowledge.task.FaqImportTaskStore;
+import com.ragagent.knowledge.security.FaqGuard;
 
 /**
  * FAQ 条目命令面：创建、更新、相似问追加、批量字段/标签更新与删除，

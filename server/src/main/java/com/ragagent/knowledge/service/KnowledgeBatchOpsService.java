@@ -15,6 +15,7 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 
 /**
  * 批量面：批量删除 / 批量重解析 / 重建索引 / 清空 KB 内容。

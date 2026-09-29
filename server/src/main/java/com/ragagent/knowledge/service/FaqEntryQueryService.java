@@ -28,6 +28,7 @@ import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.knowledge.security.FaqGuard;
 
 /**
  * FAQ 条目查询面：分页列表、详情、导出（CSV/JSON）与混合检索。

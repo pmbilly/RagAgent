@@ -18,7 +18,7 @@ import com.ragagent.knowledge.dto.KnowledgeDtos.MoveToFolderRequest;
 import com.ragagent.knowledge.dto.KnowledgeDtos.RenameFolderRequest;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.service.KnowledgeSearchService;
-import com.ragagent.knowledge.service.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIds;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.security;
 
 import java.util.ArrayList;
 import java.util.List;

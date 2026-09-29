@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.ragagent.TestSchema;
+import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 
 /**
  * 知识管家清扫（对照 Go {@code knowledge_housekeeping.go} + 其测试套件）的 H2 钉子：

@@ -23,7 +23,7 @@ import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.knowledge.storage.LocalStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -77,7 +77,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
     private final ChunkMapper chunkMapper;
     private final LocalStorageService storage;
     /** A3-3 尾批：租户感知文件存储（本地契约不变；云 provider 租户落对象存储）。 */
-    private final com.ragagent.knowledge.service.TenantFileStorage fileStorage;
+    private final com.ragagent.knowledge.storage.TenantFileStorage fileStorage;
     private final KnowledgeService.KnowledgeProcessWorker worker;
     private final boolean postgres;
 
@@ -85,7 +85,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
                                  KnowledgeBaseMapper kbMapper,
                                  ChunkMapper chunkMapper,
                                  LocalStorageService storage,
-                                 com.ragagent.knowledge.service.TenantFileStorage fileStorage,
+                                 com.ragagent.knowledge.storage.TenantFileStorage fileStorage,
                                  KnowledgeService.KnowledgeProcessWorker worker,
                                  DataSource dataSource) {
         this.knowledgeMapper = knowledgeMapper;

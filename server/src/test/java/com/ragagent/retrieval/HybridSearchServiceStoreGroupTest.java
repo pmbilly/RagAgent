@@ -20,7 +20,7 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KbIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkRepository;
-import com.ragagent.knowledge.service.EmbedderClient;
+import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.model.domain.Model;

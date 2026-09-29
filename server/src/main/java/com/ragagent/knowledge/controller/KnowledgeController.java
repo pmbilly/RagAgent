@@ -25,7 +25,7 @@ import com.ragagent.knowledge.dto.KnowledgeDtos.TaskIdResponse;
 import com.ragagent.knowledge.dto.KnowledgeDtos.UpdateManualRequest;
 import com.ragagent.knowledge.service.KnowledgeFileService;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.knowledge.service.LocalStorageService;
+import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.storage.fileserve.FileTransport;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

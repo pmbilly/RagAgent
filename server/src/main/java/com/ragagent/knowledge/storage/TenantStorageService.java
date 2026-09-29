@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.storage;
 
 import java.sql.Timestamp;
 import java.time.Instant;

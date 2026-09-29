@@ -25,7 +25,7 @@ import com.ragagent.knowledge.chunker.SplitterConfig;
 import com.ragagent.knowledge.chunker.Tokens;
 import com.ragagent.agentm.service.AsrTranscriber;
 import com.ragagent.auth.service.TenantService;
-import com.ragagent.knowledge.service.DocReaderClient;
+import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.knowledge.service.ParserEngineRules;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.session.domain.MessageAttachment;
@@ -277,8 +277,8 @@ public class TemporaryDocumentService {
         if (!supportsExtension(ext)) {
             throw new IllegalArgumentException("unsupported file type: " + ext);
         }
-        long maxSize = com.ragagent.knowledge.service.LocalStorageService.maxFileSizeBytes();
-        long maxMb = com.ragagent.knowledge.service.LocalStorageService.maxFileSizeMb();
+        long maxSize = com.ragagent.knowledge.storage.LocalStorageService.maxFileSizeBytes();
+        long maxMb = com.ragagent.knowledge.storage.LocalStorageService.maxFileSizeMb();
         if (fileSize <= 0 || fileSize > maxSize) {
             throw new IllegalArgumentException(
                     "file size must be between 1 byte and " + maxMb + "MB");

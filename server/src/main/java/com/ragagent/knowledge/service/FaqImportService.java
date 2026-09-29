@@ -34,6 +34,12 @@ import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.knowledge.task.FaqImportTaskStore;
+import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
+import com.ragagent.knowledge.task.KnowledgeTaskIds;
+import com.ragagent.knowledge.storage.LocalStorageService;
+import com.ragagent.knowledge.storage.TenantFileStorage;
+import com.ragagent.knowledge.security.FaqGuard;
 
 /**
  * FAQ 条目批量导入（upsert）与进度面：append/replace 两种模式的 dry-run 校验、
