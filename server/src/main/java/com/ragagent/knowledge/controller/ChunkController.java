@@ -6,18 +6,18 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.ApiResponse;
 import com.ragagent.common.web.RejectEmptyBody;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.dto.ChunkDtos.ChunkMessageResponse;
 import com.ragagent.knowledge.dto.ChunkDtos.ChunkPageResponse;
+import com.ragagent.knowledge.dto.ChunkDtos.ChunkRevisionResponse;
 import com.ragagent.knowledge.dto.ChunkDtos.ChunkUpdateResponse;
 import com.ragagent.knowledge.dto.ChunkDtos.DeleteGeneratedQuestionRequest;
 import com.ragagent.knowledge.dto.ChunkDtos.RevertChunkRequest;
+import com.ragagent.knowledge.dto.ChunkDtos.GeneratedQuestionResponse;
 import com.ragagent.knowledge.dto.ChunkDtos.UpdateChunkRequest;
+import com.ragagent.knowledge.dto.ChunkResponse;
 import com.ragagent.knowledge.dto.ChunkDtos.UpsertGeneratedQuestionRequest;
 import com.ragagent.knowledge.mapper.ChunkNotFoundException;
 import com.ragagent.knowledge.mapper.ChunkRevisionConflictException;
@@ -72,11 +72,11 @@ public class ChunkController {
 
     /** 分页钳位：page&lt;1→1、size&lt;1→10、size&gt;100→100（size 的小值是合法值，非 clamp）。 */
     @GetMapping("/api/v1/chunks/{knowledgeId}")
-    public ResponseEntity<ChunkPageResponse<List<Chunk>>> listKnowledgeChunks(
+    public ResponseEntity<ChunkPageResponse> listKnowledgeChunks(
             @PathVariable("knowledgeId") String knowledgeId,
             @RequestParam(value = "page", required = false) String page,
-            @RequestParam(value = "page_size", required = false) String pageSize,
-            @RequestParam(value = "chunk_type", required = false) List<String> chunkType) {
+            @RequestParam(value = "pageSize", required = false) String pageSize,
+            @RequestParam(value = "chunkType", required = false) List<String> chunkType) {
         String kgId = LogSanitizer.sanitize(knowledgeId);
         if (kgId.isEmpty()) {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
@@ -85,7 +85,7 @@ public class ChunkController {
         if (pageValue < 1) {
             pageValue = 1;
         }
-        int sizeValue = bindPagination(pageSize, "page_size", true);
+        int sizeValue = bindPagination(pageSize, "pageSize", true);
         if (sizeValue < 1) {
             sizeValue = 10;
         }
@@ -93,7 +93,7 @@ public class ChunkController {
             sizeValue = 100;
         }
 
-        // Default to text chunks; callers may override via ?chunk_type=image_caption etc.
+        // 默认只取 text 分块；调用方可用 ?chunkType=image_caption 等覆盖
         List<String> types = (chunkType == null || chunkType.isEmpty())
                 ? List.of("text") : chunkType;
 
@@ -102,12 +102,12 @@ public class ChunkController {
         ChunkReadService.ChunkPageView result = chunkRead.listPagedChunks(
                 tenantId(), kgId, (pageValue - 1) * sizeValue, sizeValue, types);
 
-        return ResponseEntity.ok(new ChunkPageResponse<>(
-                result.items(), pageValue, sizeValue, true, result.total()));
+        List<ChunkResponse> items = result.items().stream().map(ChunkResponse::from).toList();
+        return ResponseEntity.ok(new ChunkPageResponse(items, pageValue, sizeValue, result.total()));
     }
 
     @GetMapping("/api/v1/chunks/by-id/{id}")
-    public ResponseEntity<ApiResponse<Chunk>> getChunkByIdOnly(@PathVariable("id") String id) {
+    public ResponseEntity<ChunkResponse> getChunkByIdOnly(@PathVariable("id") String id) {
         String chunkId = LogSanitizer.sanitize(id);
         if (chunkId.isEmpty()) {
             throw new BizException(AppError.badRequest("Chunk ID cannot be empty"));
@@ -119,23 +119,26 @@ public class ChunkController {
         } catch (ChunkNotFoundException e) {
             throw new BizException(AppError.notFound("Chunk not found"));
         }
-        return ResponseEntity.ok(ApiResponse.ok(chunk));
+        return ResponseEntity.ok(ChunkResponse.from(chunk));
     }
 
+    /** 分块修订历史（直接返回数组）。 */
     @GetMapping("/api/v1/chunks/{knowledgeId}/{id}/revisions")
-    public ResponseEntity<ApiResponse<List<ChunkRevision>>> listChunkRevisions(
+    public ResponseEntity<List<ChunkRevisionResponse>> listChunkRevisions(
             @PathVariable("knowledgeId") String knowledgeId,
             @PathVariable("id") String id) {
         Chunk chunk = fetchChunkAndVerifyOwnership(knowledgeId, id);
-        List<ChunkRevision> items = chunkEdit.listChunkRevisions(chunk.getId());
-        return ResponseEntity.ok(ApiResponse.ok(items));
+        List<ChunkRevisionResponse> items = chunkEdit.listChunkRevisions(chunk.getId()).stream()
+                .map(ChunkRevisionResponse::from)
+                .toList();
+        return ResponseEntity.ok(items);
     }
 
     // ══════════════════════════ 更新 / 回滚 ══════════════════════════
 
     /** 业务失败（fmt.Errorf 族）→ 500 信封 message=原文。 */
     @PutMapping("/api/v1/chunks/{knowledgeId}/{id}")
-    public ResponseEntity<ChunkUpdateResponse<Chunk>> updateChunk(
+    public ResponseEntity<ChunkUpdateResponse> updateChunk(
             @PathVariable("knowledgeId") String knowledgeId,
             @PathVariable("id") String id,
             @Valid @RejectEmptyBody @RequestBody(required = false) UpdateChunkRequest req) {
@@ -158,7 +161,7 @@ public class ChunkController {
 
     /** 非 AppError 在这里是 <b>400</b> 不是 500（revert 端点特有）。 */
     @PostMapping("/api/v1/chunks/{knowledgeId}/{id}/revert")
-    public ResponseEntity<ChunkUpdateResponse<Chunk>> revertChunk(
+    public ResponseEntity<ChunkUpdateResponse> revertChunk(
             @PathVariable("knowledgeId") String knowledgeId,
             @PathVariable("id") String id,
             @Valid @RejectEmptyBody @RequestBody(required = false) RevertChunkRequest req) {
@@ -185,7 +188,7 @@ public class ChunkController {
     // ══════════════════════════ 生成问题 ══════════════════════════
 
     @PutMapping("/api/v1/chunks/by-id/{id}/questions")
-    public ResponseEntity<ApiResponse<GeneratedQuestion>> upsertGeneratedQuestion(
+    public ResponseEntity<GeneratedQuestionResponse> upsertGeneratedQuestion(
             @PathVariable("id") String id,
             @Valid @RequestBody UpsertGeneratedQuestionRequest req) {
         String chunkId = LogSanitizer.sanitize(id);
@@ -200,11 +203,12 @@ public class ChunkController {
         guard.requireKbAccess(guard.kbIdFromChunkParam(chunkId));
         GeneratedQuestion item = chunkQuestion.upsertGeneratedQuestion(
                 chunkId, questionId, req.question());
-        return ResponseEntity.ok(ApiResponse.ok(item));
+        return ResponseEntity.ok(GeneratedQuestionResponse.from(item));
     }
 
+    /** 重新生成问题（直接返回数组）。 */
     @PostMapping("/api/v1/chunks/by-id/{id}/questions/regenerate")
-    public ResponseEntity<ApiResponse<List<GeneratedQuestion>>> regenerateGeneratedQuestions(
+    public ResponseEntity<List<GeneratedQuestionResponse>> regenerateGeneratedQuestions(
             @PathVariable("id") String id) {
         String chunkId = LogSanitizer.sanitize(id);
         if (chunkId.isEmpty()) {
@@ -212,8 +216,11 @@ public class ChunkController {
         }
         guard.requireOwnedChunkKbByChunk(chunkId);
         guard.requireKbAccess(guard.kbIdFromChunkParam(chunkId));
-        List<GeneratedQuestion> items = chunkQuestion.regenerateChunkQuestions(chunkId);
-        return ResponseEntity.ok(ApiResponse.ok(items));
+        List<GeneratedQuestionResponse> items = chunkQuestion.regenerateChunkQuestions(chunkId)
+                .stream()
+                .map(GeneratedQuestionResponse::from)
+                .toList();
+        return ResponseEntity.ok(items);
     }
 
     /**
@@ -221,7 +228,7 @@ public class ChunkController {
      * 「Question ID is required」——body 可省，缺字段/空体统一走该固定文案。
      */
     @DeleteMapping("/api/v1/chunks/by-id/{id}/questions")
-    public ResponseEntity<ChunkMessageResponse> deleteGeneratedQuestion(
+    public ResponseEntity<Void> deleteGeneratedQuestion(
             @PathVariable("id") String id,
             @RequestBody(required = false) DeleteGeneratedQuestionRequest req) {
         String chunkId = LogSanitizer.sanitize(id);
@@ -235,13 +242,13 @@ public class ChunkController {
         guard.requireOwnedChunkKbByChunk(chunkId);
         guard.requireKbAccess(guard.kbIdFromChunkParam(chunkId));
         chunkQuestion.deleteGeneratedQuestion(chunkId, questionId);
-        return ResponseEntity.ok(new ChunkMessageResponse("Generated question deleted", true));
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 删除 ══════════════════════════
 
     @DeleteMapping("/api/v1/chunks/{knowledgeId}/{id}")
-    public ResponseEntity<ChunkMessageResponse> deleteChunk(
+    public ResponseEntity<Void> deleteChunk(
             @PathVariable("knowledgeId") String knowledgeId,
             @PathVariable("id") String id) {
         Chunk chunk = fetchChunkAndVerifyOwnership(knowledgeId, id);
@@ -252,11 +259,11 @@ public class ChunkController {
         } catch (RuntimeException e) {
             throw new BizException(AppError.internal(errText(e)));
         }
-        return ResponseEntity.ok(new ChunkMessageResponse("Chunk deleted", true));
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/api/v1/chunks/{knowledgeId}")
-    public ResponseEntity<ChunkMessageResponse> deleteChunksByKnowledgeId(
+    public ResponseEntity<Void> deleteChunksByKnowledgeId(
             @PathVariable("knowledgeId") String knowledgeId) {
         String kgId = LogSanitizer.sanitize(knowledgeId);
         if (kgId.isEmpty()) {
@@ -271,7 +278,7 @@ public class ChunkController {
         } catch (RuntimeException e) {
             throw new BizException(AppError.internal(errText(e)));
         }
-        return ResponseEntity.ok(new ChunkMessageResponse("All chunks under knowledge deleted", true));
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 共用 ══════════════════════════
@@ -301,7 +308,7 @@ public class ChunkController {
     }
 
     /** 更新/回滚的成功响应；knowledge 摘要重载失败仅 WARN（两键缺席）。 */
-    private ResponseEntity<ChunkUpdateResponse<Chunk>> updatedResponse(Chunk chunk, String knowledgeId) {
+    private ResponseEntity<ChunkUpdateResponse> updatedResponse(Chunk chunk, String knowledgeId) {
         Knowledge knowledge = null;
         try {
             knowledge = chunkRead.findForSummaryReload(knowledgeId, tenantId());
@@ -310,12 +317,12 @@ public class ChunkController {
                     LogSanitizer.sanitize(knowledgeId), errText(e));
         }
         if (knowledge == null) {
-            return ResponseEntity.ok(new ChunkUpdateResponse<>(chunk, null, true, null));
+            return ResponseEntity.ok(new ChunkUpdateResponse(ChunkResponse.from(chunk), null, null));
         }
-        return ResponseEntity.ok(new ChunkUpdateResponse<>(chunk,
-                knowledge.getDescription() == null ? "" : knowledge.getDescription(),
-                true,
-                knowledge.getSummaryStatus() == null ? "" : knowledge.getSummaryStatus()));
+        return ResponseEntity.ok(new ChunkUpdateResponse(
+                ChunkResponse.from(chunk),
+                emptyToNull(knowledge.getDescription()),
+                emptyToNull(knowledge.getSummaryStatus())));
     }
 
     /**
@@ -351,6 +358,11 @@ public class ChunkController {
     /** BizException 的 message 已是双前缀形态，直接用（500/400 面的 message=原文）。 */
     private static String errText(RuntimeException e) {
         return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    /** 空串按"未设置"处理（契约：不用空串代替 null）。 */
+    private static String emptyToNull(String v) {
+        return v == null || v.isBlank() ? null : v;
     }
 
     private static long tenantId() {

@@ -79,9 +79,9 @@ class ChunkContractTest {
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
     private static final Pattern UUID_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+            "\"([A-Za-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
+            "\"([A-Za-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
 
     @Autowired
     private MockMvc mockMvc;
@@ -195,7 +195,7 @@ class ChunkContractTest {
     @Test
     void listTypeFilterMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(get("/api/v1/chunks/" + KG1)
-                .queryParam("chunk_type", "image_ocr")
+                .queryParam("chunkType", "image_ocr")
                 .header("Authorization", owner)).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("chunk-list-type-filter.json")), mask(raw(r)));
@@ -204,7 +204,7 @@ class ChunkContractTest {
     @Test
     void listPagedMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(get("/api/v1/chunks/" + KG1)
-                .queryParam("page", "1").queryParam("page_size", "2")
+                .queryParam("page", "1").queryParam("pageSize", "2")
                 .header("Authorization", owner)).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("chunk-list-paged.json")), mask(raw(r)));
@@ -214,7 +214,7 @@ class ChunkContractTest {
     @Test
     void listPageZeroMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(get("/api/v1/chunks/" + KG1)
-                .queryParam("page", "0").queryParam("page_size", "2")
+                .queryParam("page", "0").queryParam("pageSize", "2")
                 .header("Authorization", owner)).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("chunk-list-page0.json")), mask(raw(r)));
@@ -231,7 +231,7 @@ class ChunkContractTest {
     @Test
     void listBadSizeMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(get("/api/v1/chunks/" + KG1)
-                .queryParam("page_size", "-5").header("Authorization", owner)).andReturn();
+                .queryParam("pageSize", "-5").header("Authorization", owner)).andReturn();
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("chunk-list-badsize.json"), raw(r));
     }
@@ -581,7 +581,7 @@ class ChunkContractTest {
     void deleteFlowMatchesGo() throws Exception {
         MvcResult a = mockMvc.perform(delete("/api/v1/chunks/" + KG2 + "/" + C6)
                 .header("Authorization", owner)).andReturn();
-        assertEquals(200, a.getResponse().getStatus(), raw(a));
+        assertEquals(204, a.getResponse().getStatus(), raw(a));
         assertEquals(golden("chunk-delete.json"), raw(a));
 
         MvcResult b = mockMvc.perform(delete("/api/v1/chunks/" + KG2 + "/" + C6)
@@ -591,13 +591,13 @@ class ChunkContractTest {
 
         MvcResult c = mockMvc.perform(delete("/api/v1/chunks/" + KG2)
                 .header("Authorization", owner)).andReturn();
-        assertEquals(200, c.getResponse().getStatus(), raw(c));
+        assertEquals(204, c.getResponse().getStatus(), raw(c));
         assertEquals(golden("chunk-delete-all.json"), raw(c));
 
         // 知识仍在 → 幂等成功（loadKnowledgeWriteBatch 只校验 knowledge）。
         MvcResult d = mockMvc.perform(delete("/api/v1/chunks/" + KG2)
                 .header("Authorization", owner)).andReturn();
-        assertEquals(200, d.getResponse().getStatus(), raw(d));
+        assertEquals(204, d.getResponse().getStatus(), raw(d));
         assertEquals(golden("chunk-delete-all-again.json"), raw(d));
     }
 

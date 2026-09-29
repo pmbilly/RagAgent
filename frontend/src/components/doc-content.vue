@@ -72,7 +72,7 @@ const saveSummary = async () => {
   try {
     const description = summaryDraft.value.trim();
     const result: any = await updateKnowledgeSummary(props.details.id, description);
-    applySummaryState(result?.data?.summaryStatus, result?.data?.description ?? description);
+    applySummaryState(result?.summaryStatus, result?.description ?? description);
     summaryEditing.value = false;
     MessagePlugin.success(t('common.saveSuccess'));
   } catch (error: any) {
@@ -156,8 +156,8 @@ const saveMetadata = async () => {
     const result: any = await updateKnowledgeMetadata(props.details.id, value);
     props.details.customMetadata = value;
     metadataEditing.value = false;
-    if (result?.data) {
-      applySummaryState(result.data.summaryStatus, result.data.description);
+    if (result) {
+      applySummaryState(result.summaryStatus, result.description);
     }
     MessagePlugin.success(t('common.saveSuccess'));
   } catch (error: any) {
@@ -594,8 +594,8 @@ const mergeChunks = (chunks: any[]): string => {
 
   // 按 start_at 排序
   const sortedChunks = [...chunks].sort((a, b) => {
-    const startA = a.start_at ?? a.chunk_index ?? 0;
-    const startB = b.start_at ?? b.chunk_index ?? 0;
+    const startA = a.startAt ?? a.chunkIndex ?? 0;
+    const startB = b.startAt ?? b.chunkIndex ?? 0;
     return startA - startB;
   });
 
@@ -1086,7 +1086,7 @@ const hasStaleGeneratedQuestions = (item: any) => {
   try {
     const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata || '{}') : (item.metadata || {});
     const fallbackRevision = metadata.generated_questions_revision || 0;
-    const currentRevision = item.content_revision || 0;
+    const currentRevision = item.contentRevision || 0;
     return questions.some((question) => (question.content_revision ?? fallbackRevision) !== currentRevision);
   } catch {
     return false;
@@ -1122,9 +1122,9 @@ const upsertChunkGeneratedQuestion = (item: any, questionData: GeneratedQuestion
 };
 
 const notifyChunkMutationOutcome = (item: any, result: any, successMessage?: string) => {
-  Object.assign(item, result.data);
+  Object.assign(item, result.chunk);
   applySummaryState(result.summaryStatus, result.description);
-  if (item.index_status === 'failed') {
+  if (item.indexStatus === 'failed') {
     MessagePlugin.warning(t('knowledgeBase.chunkSavedIndexFailed'));
     return;
   }
@@ -1169,7 +1169,7 @@ const saveChunkEdit = async (item: any) => {
   try {
     const result: any = await updateDocumentChunk(props.details.id, item.id, {
       content: chunkDraft.value,
-      expected_revision: item.content_revision || 0,
+      expected_revision: item.contentRevision || 0,
     });
     editingChunkId.value = '';
     notifyChunkMutationOutcome(item, result, t('common.saveSuccess'));
@@ -1186,7 +1186,7 @@ const toggleChunkEnabled = async (item: any, isEnabled: boolean) => {
   try {
     const result: any = await updateDocumentChunk(props.details.id, item.id, {
       is_enabled: isEnabled,
-      expected_revision: item.content_revision || 0,
+      expected_revision: item.contentRevision || 0,
     });
     notifyChunkMutationOutcome(item, result);
     void refreshChunkHistoryAfterMutation(item);
@@ -1200,10 +1200,10 @@ const toggleChunkEnabled = async (item: any, isEnabled: boolean) => {
 const retryChunkIndex = async (item: any) => {
   try {
     const result: any = await updateDocumentChunk(props.details.id, item.id, {
-      expected_revision: item.content_revision || 0,
+      expected_revision: item.contentRevision || 0,
     });
-    Object.assign(item, result.data);
-    if (item.index_status === 'failed') throw new Error(t('knowledgeBase.indexFailed'));
+    Object.assign(item, result.chunk);
+    if (item.indexStatus === 'failed') throw new Error(t('knowledgeBase.indexFailed'));
     MessagePlugin.success(t('knowledgeBase.indexRetrySuccess'));
   } catch (error: any) {
     MessagePlugin.error(error?.message || t('common.error'));
@@ -1228,7 +1228,7 @@ const loadChunkHistory = async (item: any, force = false, silent = false) => {
   try {
     const result: any = await listChunkRevisions(props.details.id, item.id);
     if (chunkHistoryRequestSequence.value[item.id] === requestSequence) {
-      chunkHistories.value[item.id] = result?.data || [];
+      chunkHistories.value[item.id] = result || [];
     }
   } catch (error: any) {
     if (!silent) MessagePlugin.error(error?.message || t('common.error'));
@@ -1303,14 +1303,14 @@ const diffLinePrefix = (type: ChunkDiffLine['type']) => {
 
 const revisionStatusChanged = (item: any, revisionIndex: number) => {
   const revisions = chunkHistories.value[item.id] || [];
-  const newerEnabled = revisionIndex === 0 ? item.is_enabled : revisions[revisionIndex - 1]?.is_enabled;
-  return revisions[revisionIndex]?.is_enabled !== newerEnabled;
+  const newerEnabled = revisionIndex === 0 ? item.enabled : revisions[revisionIndex - 1]?.enabled;
+  return revisions[revisionIndex]?.enabled !== newerEnabled;
 };
 
 const revertChunk = async (item: any, revision: number) => {
   revertingRevision.value = `${item.id}:${revision}`;
   try {
-    const result: any = await revertDocumentChunk(props.details.id, item.id, revision, item.content_revision || 0);
+    const result: any = await revertDocumentChunk(props.details.id, item.id, revision, item.contentRevision || 0);
     notifyChunkMutationOutcome(item, result, t('knowledgeBase.chunkReverted'));
     await refreshChunkHistoryAfterMutation(item);
   } catch (error: any) {
@@ -1372,7 +1372,7 @@ const addQuestion = async (item: any) => {
     const result: any = await upsertGeneratedQuestion(item.id, question);
     questionDrafts.value[item.id] = '';
     questionComposerChunk.value = '';
-    upsertChunkGeneratedQuestion(item, result.data);
+    upsertChunkGeneratedQuestion(item, result);
     MessagePlugin.success(t('common.saveSuccess'));
   } catch (error: any) {
     MessagePlugin.error(error?.message || t('common.error'));
@@ -1401,8 +1401,8 @@ const saveQuestionEdit = async (item: any, question: GeneratedQuestion) => {
   savingQuestionKey.value = `${item.id}:${question.id}`;
   try {
     const result: any = await upsertGeneratedQuestion(item.id, value, question.id);
-    if (result?.data) {
-      upsertChunkGeneratedQuestion(item, result.data);
+    if (result) {
+      upsertChunkGeneratedQuestion(item, result);
     }
     cancelQuestionEdit();
     MessagePlugin.success(t('common.saveSuccess'));
@@ -1418,8 +1418,8 @@ const regenerateQuestions = async (item: any) => {
   try {
     const result: any = await regenerateGeneratedQuestions(item.id);
     const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata || '{}') : (item.metadata || {});
-    metadata.generated_questions = result?.data || [];
-    metadata.generated_questions_revision = item.content_revision || 0;
+    metadata.generated_questions = result || [];
+    metadata.generated_questions_revision = item.contentRevision || 0;
     item.metadata = metadata;
     questionComposerChunk.value = '';
     MessagePlugin.success(t('knowledgeBase.questionsRegenerated'));
@@ -1480,17 +1480,17 @@ const parentContextPopup = ref('');
 const parentContextCache = ref<Map<string, string>>(new Map());
 const parentContextLoading = ref<Set<number>>(new Set());
 
-const hasParentChunk = (item: any) => !!item?.parent_chunk_id;
+const hasParentChunk = (item: any) => !!item?.parentChunkId;
 
 const loadParentContext = async (item: any, index: number) => {
-  const parentId = item.parent_chunk_id;
+  const parentId = item.parentChunkId;
   if (!parentContextCache.value.has(parentId)) {
     parentContextLoading.value.add(index);
     parentContextLoading.value = new Set(parentContextLoading.value);
     try {
       const result: any = await getChunkByIdOnly(parentId);
-      if (result.success && result.data) {
-        parentContextCache.value.set(parentId, result.data.content || '');
+      if (result) {
+        parentContextCache.value.set(parentId, result.content || '');
         parentContextCache.value = new Map(parentContextCache.value);
       }
     } catch (err) {
@@ -1517,7 +1517,7 @@ const setParentContextPopupVisible = (item: any, index: number, visible: boolean
 };
 
 const getParentContent = (item: any) => {
-  return parentContextCache.value.get(item.parent_chunk_id) || '';
+  return parentContextCache.value.get(item.parentChunkId) || '';
 };
 
 const summaryExpanded = ref(false);
@@ -1868,7 +1868,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
             <template v-else>
               <div v-if="!processedChunks.length" class="no_content">{{ $t('common.noData') }}</div>
               <div v-else class="chunk-list">
-              <div class="chunk-item" :class="{ 'chunk-item--disabled': !chunk.original.is_enabled }"
+              <div class="chunk-item" :class="{ 'chunk-item--disabled': !chunk.original.enabled }"
                 v-for="(chunk, index) in processedChunks" :key="chunk.original.id || index">
                 <div class="chunk-header">
                   <div class="chunk-heading">
@@ -1876,7 +1876,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
                     <span class="chunk-meta">{{ chunk.meta }}</span>
                   </div>
                   <div class="chunk-header-right">
-                    <t-tooltip v-if="chunk.original.index_status === 'failed' && canEditContent"
+                    <t-tooltip v-if="chunk.original.indexStatus === 'failed' && canEditContent"
                       :content="$t('knowledgeBase.retryIndex')" placement="top">
                       <t-button class="icon-action-btn" size="small" theme="danger" variant="text" shape="square"
                         @click="retryChunkIndex(chunk.original)">
@@ -2027,7 +2027,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
                                 </div>
                                 <div class="chunk-history-current">
                                   v{{ chunk.original.content_revision || 0 }} · {{ $t('knowledgeBase.currentVersion') }} ·
-                                  {{ chunk.original.is_enabled ? $t('knowledgeBase.enabledStatus') : $t('knowledgeBase.disabledStatus') }}
+                                  {{ chunk.original.enabled ? $t('knowledgeBase.enabledStatus') : $t('knowledgeBase.disabledStatus') }}
                                 </div>
                               </div>
                               <div class="chunk-history-diff-legend">
@@ -2053,10 +2053,10 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
                                 <button type="button" class="chunk-history-version-row"
                                   @click="selectChunkRevision(chunk.original, revision.revision)">
                                   <span class="chunk-history-version">v{{ revision.revision }}</span>
-                                  <span class="chunk-history-time">{{ new Date(revision.edited_at).toLocaleString() }}</span>
+                                  <span class="chunk-history-time">{{ new Date(revision.editedAt).toLocaleString() }}</span>
                                   <span v-if="revisionStatusChanged(chunk.original, revisionIndex)" class="chunk-history-status-change">
-                                    <t-icon :name="revision.is_enabled ? 'play-circle' : 'stop-circle'" size="13px" />
-                                    {{ revision.is_enabled ? $t('knowledgeBase.enabledStatus') : $t('knowledgeBase.disabledStatus') }}
+                                    <t-icon :name="revision.enabled ? 'play-circle' : 'stop-circle'" size="13px" />
+                                    {{ revision.enabled ? $t('knowledgeBase.enabledStatus') : $t('knowledgeBase.disabledStatus') }}
                                   </span>
                                   <t-icon :name="selectedChunkRevision[chunk.original.id] === revision.revision ? 'chevron-up' : 'chevron-down'"
                                     size="14px" class="chunk-history-row-chevron" />
@@ -2092,10 +2092,10 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
                       </t-popup>
                       <span class="chunk-toolbar-divider" />
                       <t-tooltip
-                        :content="chunk.original.is_enabled ? $t('knowledgeBase.disableChunk') : $t('knowledgeBase.enableChunk')"
+                        :content="chunk.original.enabled ? $t('knowledgeBase.disableChunk') : $t('knowledgeBase.enableChunk')"
                         placement="top">
-                        <t-switch :key="`${chunk.original.id}-${chunk.original.is_enabled}`" size="small"
-                          :value="chunk.original.is_enabled" :loading="chunkStatusLoading === chunk.original.id"
+                        <t-switch :key="`${chunk.original.id}-${chunk.original.enabled}`" size="small"
+                          :value="chunk.original.enabled" :loading="chunkStatusLoading === chunk.original.id"
                           :disabled="chunkStatusLoading === chunk.original.id"
                           @change="(value: boolean) => toggleChunkEnabled(chunk.original, value)" />
                       </t-tooltip>
@@ -2115,7 +2115,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
                       @click="saveChunkEdit(chunk.original)">{{ $t('common.save') }}</t-button>
                   </div>
                 </div>
-                <div v-else class="md-content" :class="{ 'chunk-disabled': !chunk.original.is_enabled }" v-html="chunk.processedContent"></div>
+                <div v-else class="md-content" :class="{ 'chunk-disabled': !chunk.original.enabled }" v-html="chunk.processedContent"></div>
 
               </div>
             </div>

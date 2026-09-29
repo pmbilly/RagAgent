@@ -32,6 +32,8 @@
 | 1.16 | **查询参数与路径变量同样 camelCase** | `pageSize`、`fileTypes`、`tagIds`、`folderPath`、`{tagId}`；校验文案里的字段名同步（如 `pageSize must be between 1 and 1000`） |
 | 1.17 | 不返回服务端生成的 UI 文案 | 受理/操作类响应不带 `message`（文案由前端本地化）；进度类载荷的 `message` 属运行时状态，保留 |
 | 1.18 | 枚举化只用于**取值由代码收敛**的字段 | 反例：文档 `type` 是"来源类型"（file/manual/passage/url/document/faq…，经 String 传参、随接入方式扩展），保留 `String`——强枚举会静默丢值 |
+| 1.19 | **jsonb 字段保持不透明** | `metadata`/`relationChunks`/`indirectRelationChunks` 等 jsonb 载荷的内部键由写入方定义，读路径**不重写**（重写会导致存量数据与契约不一致）；其内部键名沿用历史格式（如 `generated_questions`） |
+| 1.20 | 复合响应体用**具名键**而非并列字段 | 例：分块更新/回滚返回 `{chunk, description, summaryStatus}`（分块本身 + 所属文档摘要），不再把 `data` 与 `description` 平铺 |
 
 ---
 

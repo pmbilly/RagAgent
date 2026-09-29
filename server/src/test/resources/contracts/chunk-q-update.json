@@ -1,1 +1,5 @@
-{"data":{"id":"ccc00001-0000-0000-0000-000000000001","question":"已有问题（改）?","content_revision":0},"success":true}
+{
+  "id": "ccc00001-0000-0000-0000-000000000001",
+  "question": "已有问题（改）?",
+  "contentRevision": 0
+}

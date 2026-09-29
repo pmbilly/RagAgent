@@ -197,7 +197,7 @@ export default function (knowledgeBaseId?: string) {
     getKnowledgeDetailsCon(id, page)
       .then((result: any) => {
         if (requestGeneration !== chunkRequestGeneration || activeKnowledgeId !== id) return;
-        if (result.success && result.data) {
+        if (result) {
           const { items: data, total: totalResult } = result;
           details.md = data;
           details.total = totalResult;

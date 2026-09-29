@@ -1,16 +1,19 @@
 package com.ragagent.knowledge.dto;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.ragagent.knowledge.domain.ChunkRevision;
+import com.ragagent.knowledge.domain.GeneratedQuestion;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * chunk 域传输对象：编辑/回滚/生成问题的请求 record 与列表/更新响应信封。
- * 请求 record 用标准 {@code @JsonNaming(SnakeCaseStrategy)} + 校验注解（消息自含
- * snake_case 字段前缀）；分页响应保持既有五键契约形状。
+ * chunk 域传输对象：编辑/回滚/生成问题的请求 record 与列表/更新响应。
+ *
+ * <p>请求 record 仍用 {@code @JsonNaming(SnakeCaseStrategy)} + 校验注解（请求侧 camelCase
+ * 属独立批次）；<b>响应 record 已按新契约</b>：camelCase、无注解、可空字段显式 null。</p>
  */
 public final class ChunkDtos {
 
@@ -44,20 +47,70 @@ public final class ChunkDtos {
     public record DeleteGeneratedQuestionRequest(String questionId) {
     }
 
-    /** chunk 列表响应：data/page/page_size/success/total 五键（既有契约形状）。 */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ChunkPageResponse<T>(T data, int page,
-            @JsonProperty("page_size") int pageSize,
-            boolean success, long total) {
+    /**
+     * chunk 列表分页响应：{@code {items, page, pageSize, total}}。
+     */
+    public record ChunkPageResponse(List<ChunkResponse> items, int page, int pageSize, long total) {
     }
 
-    /** chunk 更新/回滚响应：knowledge 摘要信息重载失败时 description/summary_status 缺席。 */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ChunkUpdateResponse<T>(T data, String description, boolean success,
-            @JsonProperty("summary_status") String summaryStatus) {
+    /**
+     * chunk 更新/回滚响应：新分块视图 + 所属文档的摘要信息。
+     *
+     * @param chunk         更新后的分块
+     * @param description   所属文档的描述（重载失败时为 {@code null}）
+     * @param summaryStatus 所属文档的摘要状态（重载失败时为 {@code null}）
+     */
+    public record ChunkUpdateResponse(ChunkResponse chunk, String description, String summaryStatus) {
     }
 
-    /** 无 data 的操作确认响应。 */
-    public record ChunkMessageResponse(String message, boolean success) {
+    /**
+     * chunk 修订版本视图（历史留档，只读）。
+     *
+     * <p>内部字段 {@code tenantId} 不下发；空串归一为 {@code null}。</p>
+     */
+    public record ChunkRevisionResponse(
+            String id,
+            String knowledgeBaseId,
+            String knowledgeId,
+            String chunkId,
+            int revision,
+            String content,
+            boolean enabled,
+            String editorId,
+            String editSource,
+            OffsetDateTime editedAt,
+            OffsetDateTime createdAt) {
+
+        public static ChunkRevisionResponse from(ChunkRevision r) {
+            return new ChunkRevisionResponse(
+                    r.getId(),
+                    r.getKnowledgeBaseId(),
+                    r.getKnowledgeId(),
+                    r.getChunkId(),
+                    r.getRevision(),
+                    r.getContent(),
+                    r.isEnabled(),
+                    emptyToNull(r.getEditorId()),
+                    emptyToNull(r.getEditSource()),
+                    r.getEditedAt(),
+                    r.getCreatedAt());
+        }
+    }
+
+    /**
+     * 分块生成的问题视图。
+     *
+     * @param contentRevision 问题所基于的内容修订号（可为 {@code null} = 与修订无关）
+     */
+    public record GeneratedQuestionResponse(String id, String question, Integer contentRevision) {
+
+        public static GeneratedQuestionResponse from(GeneratedQuestion q) {
+            return new GeneratedQuestionResponse(q.getId(), q.getQuestion(), q.getContentRevision());
+        }
+    }
+
+    /** 空串按"未设置"处理（契约：不用空串代替 null）。 */
+    private static String emptyToNull(String v) {
+        return v == null || v.isBlank() ? null : v;
     }
 }
