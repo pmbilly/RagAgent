@@ -128,7 +128,7 @@ class AttachmentContractTest {
                 .contains("\"metadata\":{}")
                 .contains("\"file_name\":\"note.txt\"")
                 .contains("\"file_size\":48")
-                .contains("\"success\":true");
+                .doesNotContain("\"success\"");  // 裸资源：无信封
         assertEquals(mask(golden("att-upload.json")), mask(body));
     }
 

@@ -159,8 +159,8 @@ class MessageHttpContractTest {
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("msg-load.json")), mask(raw(r)));
-        // 信封 map 字母序：data < success
-        assertThat(raw(r)).startsWith("{\"data\":").contains(",\"success\":true}");
+        // 裸数组（无信封）：列表端点直接返回 JSON 数组
+        assertThat(raw(r)).startsWith("[{").doesNotContain("\"success\"");
     }
 
     @Test

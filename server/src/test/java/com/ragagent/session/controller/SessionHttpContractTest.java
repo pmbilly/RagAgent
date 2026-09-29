@@ -211,8 +211,8 @@ class SessionHttpContractTest {
                 .header("Authorization", bearer));
         assertEquals(201, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("session-create.json")), mask(raw(r)));
-        // 信封是 map：data < success（字母序）
-        assertThat(raw(r)).startsWith("{\"data\":").contains(",\"success\":true");
+        // 裸资源（无信封）：直接是会话对象
+        assertThat(raw(r)).startsWith("{\"").doesNotContain("\"success\"");
     }
 
     /** Viewer 也能建会话（sessions 组是 Viewer+，不是 Admin+）。 */

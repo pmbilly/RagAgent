@@ -64,7 +64,7 @@ public class MessageSuggestionController {
      * （不是解析器原文，与其他端点不同）。
      */
     @PostMapping("/api/v1/sessions/{session_id}/messages/{message_id}/suggestions")
-    public ResponseEntity<Map<String, Object>> ensure(
+    public ResponseEntity<MessageSuggestionSet> ensure(
             @PathVariable("session_id") String sessionId,
             @PathVariable("message_id") String messageId,
             @RequestBody(required = false) String rawBody) {
@@ -88,10 +88,7 @@ public class MessageSuggestionController {
         if (set != null && MessageSuggestionSet.STATUS_GENERATING.equals(set.getStatus())) {
             status = HttpStatus.ACCEPTED;
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", set);
-        body.put("success", true);
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(status).body(set);
     }
 
     /** 对照 Go {@code EnsureMessageSuggestionsRequest}。 */
@@ -104,7 +101,7 @@ public class MessageSuggestionController {
      */
     @GetMapping({"/api/v1/sessions/{session_id}/messages/{message_id}/suggestions",
             "/api/v1/sessions/{id}/messages/{message_id}/suggestions"})
-    public ResponseEntity<Map<String, Object>> get(
+    public ResponseEntity<MessageSuggestionSet> get(
             @PathVariable(value = "session_id", required = false) String sessionId,
             @PathVariable(value = "id", required = false) String idFallback,
             @PathVariable("message_id") String messageId) {
@@ -116,10 +113,7 @@ public class MessageSuggestionController {
         } catch (RuntimeException e) {
             throw writeError(e);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", set);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(set);
     }
 
     /**

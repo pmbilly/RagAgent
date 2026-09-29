@@ -108,7 +108,7 @@ public class SessionController {
 
     /** 对照 Go {@code CreateSession}（L123-178）。201 + {"data":…,"success":true}。 */
     @PostMapping("/api/v1/sessions")
-    public ResponseEntity<Map<String, Object>> createSession(
+    public ResponseEntity<Session> createSession(
             @RequestBody(required = false) String rawBody) {
         CreateSessionRequest request = parseCreateBody(rawBody);
 
@@ -137,10 +137,7 @@ public class SessionController {
             throw toInternal(e);
         }
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", saved);
-        body.put("success", true);
-        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     /** 对照 Go {@code CreateSessionRequest}（handler/session/types.go L10-15）。 */
@@ -163,7 +160,7 @@ public class SessionController {
 
     /** 对照 Go {@code GetSession}（L192-225）。 */
     @GetMapping("/api/v1/sessions/{id}")
-    public ResponseEntity<Map<String, Object>> getSession(@PathVariable("id") String id) {
+    public ResponseEntity<Session> getSession(@PathVariable("id") String id) {
         String sessionId = LogSanitizer.sanitize(id);
         if (sessionId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
@@ -177,10 +174,7 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", session);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(session);
     }
 
     /**
@@ -209,10 +203,9 @@ public class SessionController {
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", result.items());
+        body.put("items", result.items());
         body.put("page", result.page());
         body.put("page_size", result.pageSize());
-        body.put("success", true);
         body.put("total", result.total());
         return ResponseEntity.ok(body);
     }
@@ -261,7 +254,7 @@ public class SessionController {
      * （拿完整的落库时间戳），这是响应与请求体不同源的原因。
      */
     @PutMapping("/api/v1/sessions/{id}")
-    public ResponseEntity<Map<String, Object>> updateSession(
+    public ResponseEntity<Session> updateSession(
             @PathVariable("id") String id,
             @RequestBody(required = false) String rawBody) {
         String sessionId = LogSanitizer.sanitize(id);
@@ -295,10 +288,7 @@ public class SessionController {
             throw toInternal(e);
         }
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", updated);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(updated);
     }
 
     /**

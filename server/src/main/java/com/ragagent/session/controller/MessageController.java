@@ -96,7 +96,7 @@ public class MessageController {
      * 且 limit 在 Go 里也过 {@code SanitizeForLog}。</p>
      */
     @GetMapping("/api/v1/messages/{session_id}/load")
-    public ResponseEntity<Map<String, Object>> loadMessages(
+    public ResponseEntity<List<com.ragagent.session.domain.Message>> loadMessages(
             @PathVariable("session_id") String sessionId,
             @RequestParam(name = "limit", required = false) String limit,
             @RequestParam(name = "before_time", required = false) String beforeTime,
@@ -136,10 +136,7 @@ public class MessageController {
             }
         }
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", rewriter.rewriteMessagesResponse(messages));
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(rewriter.rewriteMessagesResponse(messages));
     }
 
     /**
@@ -247,17 +244,14 @@ public class MessageController {
 
     /** 对照 Go {@code GetChatHistoryKBStats}（L311-327）。 */
     @GetMapping("/api/v1/messages/chat-history-stats")
-    public ResponseEntity<Map<String, Object>> getChatHistoryKbStats() {
+    public ResponseEntity<com.ragagent.session.domain.ChatHistoryKbStats> getChatHistoryKbStats() {
         com.ragagent.session.domain.ChatHistoryKbStats stats;
         try {
             stats = messageService.getChatHistoryKbStats();
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", stats);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(stats);
     }
 
     // ══════════════════════════ 公共 ══════════════════════════

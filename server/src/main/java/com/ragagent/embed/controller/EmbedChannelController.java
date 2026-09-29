@@ -521,7 +521,7 @@ public class EmbedChannelController {
 
     /** 对照 EmbedLoadMessages：先 ensureEmbedSession，再委托 MessageController.LoadMessages。 */
     @GetMapping("/api/v1/embed/{channel_id}/messages/{session_id}/load")
-    public ResponseEntity<Map<String, Object>> load(@PathVariable("session_id") String sessionId,
+    public ResponseEntity<List<com.ragagent.session.domain.Message>> load(@PathVariable("session_id") String sessionId,
                                                     @RequestParam(name = "limit", required = false) String limit,
                                                     @RequestParam(name = "before_time", required = false) String beforeTime,
                                                     @RequestParam(name = "resource_urls", required = false) String resourceUrls) {
@@ -540,27 +540,31 @@ public class EmbedChannelController {
 
     /** 对照 EmbedGetMessageSuggestions：channel 级 suppressed 分支优先于委托。 */
     @GetMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/messages/{message_id}/suggestions")
-    public ResponseEntity<Map<String, Object>> suggestionsGet(
+    public ResponseEntity<?> suggestionsGet(
             @PathVariable("session_id") String sessionId,
             @PathVariable("message_id") String messageId) {
         ensureSession(LogSanitizer.sanitize(sessionId));
-        ResponseEntity<Map<String, Object>> suppressed = suppressedIfChannelOff();
-        return suppressed != null ? suppressed
-                : suggestionController.get(LogSanitizer.sanitize(sessionId), null,
-                        LogSanitizer.sanitize(messageId));
+        ResponseEntity<Object> suppressed = suppressedIfChannelOff();
+        if (suppressed != null) {
+            return suppressed;
+        }
+        return suggestionController.get(LogSanitizer.sanitize(sessionId), null,
+                LogSanitizer.sanitize(messageId));
     }
 
     /** 对照 EmbedEnsureMessageSuggestions。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/messages/{message_id}/suggestions")
-    public ResponseEntity<Map<String, Object>> suggestionsEnsure(
+    public ResponseEntity<?> suggestionsEnsure(
             @PathVariable("session_id") String sessionId,
             @PathVariable("message_id") String messageId,
             @RequestBody(required = false) String rawBody) {
         ensureSession(LogSanitizer.sanitize(sessionId));
-        ResponseEntity<Map<String, Object>> suppressed = suppressedIfChannelOff();
-        return suppressed != null ? suppressed
-                : suggestionController.ensure(LogSanitizer.sanitize(sessionId),
-                        LogSanitizer.sanitize(messageId), rawBody);
+        ResponseEntity<Object> suppressed = suppressedIfChannelOff();
+        if (suppressed != null) {
+            return suppressed;
+        }
+        return suggestionController.ensure(LogSanitizer.sanitize(sessionId),
+                LogSanitizer.sanitize(messageId), rawBody);
     }
 
     /** 对照 EmbedRecordSuggestionEvent：成功 204 无响应体。 */
@@ -739,7 +743,7 @@ public class EmbedChannelController {
      * 对照 EmbedGet/EnsureMessageSuggestions 的 channel 级 suppressed 分支（L487-492）：
      * 渠道关闭推荐问题 → 200 + gin.H 字母序 {questions, status, suppression_reason}。
      */
-    private ResponseEntity<Map<String, Object>> suppressedIfChannelOff() {
+    private ResponseEntity<Object> suppressedIfChannelOff() {
         EmbedChannelEntity ch = channel(request0());
         if (ch == null || !ch.isShowSuggestedQuestions()) {
             Map<String, Object> data = new LinkedHashMap<>();

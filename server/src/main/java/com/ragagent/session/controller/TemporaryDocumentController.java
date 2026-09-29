@@ -57,7 +57,7 @@ public class TemporaryDocumentController {
 
     /** 对照 Go UploadTemporaryDocument（L19-93）。agent 表单字段随波 5（见 service 注释）。 */
     @PostMapping("/api/v1/sessions/{session_id}/attachments")
-    public ResponseEntity<Map<String, Object>> upload(
+    public ResponseEntity<TemporaryDocument> upload(
             @PathVariable("session_id") String sessionId,
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "agent_id", required = false) String agentId,
@@ -104,10 +104,7 @@ public class TemporaryDocumentController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", document);
-        body.put("success", true);
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(body);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(document);
     }
 
     /** 超过 multipart 上限：仿 Go MaxBytesReader 的 "http: request body too large"。 */
@@ -119,7 +116,7 @@ public class TemporaryDocumentController {
 
     /** 对照 Go ListTemporaryDocuments（L95-108）。 */
     @GetMapping({"/api/v1/sessions/{id}/attachments", "/api/v1/sessions/{session_id}/attachments"})
-    public ResponseEntity<Map<String, Object>> list(
+    public ResponseEntity<List<TemporaryDocument>> list(
             @PathVariable(value = "id", required = false) String id,
             @PathVariable(value = "session_id", required = false) String sessionIdFallback) {
         String sid = sessionParam(id, sessionIdFallback);
@@ -136,16 +133,13 @@ public class TemporaryDocumentController {
         } catch (RuntimeException e) {
             throw BizException.internal(e.getMessage());
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", documents);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(documents);
     }
 
     /** 对照 Go GetTemporaryDocument（L110-127）。 */
     @GetMapping({"/api/v1/sessions/{id}/attachments/{attachment_id}",
             "/api/v1/sessions/{session_id}/attachments/{attachment_id}"})
-    public ResponseEntity<Map<String, Object>> get(
+    public ResponseEntity<TemporaryDocument> get(
             @PathVariable(value = "id", required = false) String id,
             @PathVariable(value = "session_id", required = false) String sessionIdFallback,
             @PathVariable("attachment_id") String attachmentId) {
@@ -166,10 +160,7 @@ public class TemporaryDocumentController {
         if (document == null) {
             throw BizException.notFound("Attachment not found");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", document);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(document);
     }
 
     /**
