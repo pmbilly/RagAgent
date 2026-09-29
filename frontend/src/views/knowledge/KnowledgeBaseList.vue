@@ -953,16 +953,13 @@ const handleDuplicateById = async (id: string) => {
 
 const duplicateKB = async (id: string) => {
   try {
+    // 新契约：201 直接返回 {sourceId, targetId, knowledgeBase}；失败走 rejection
     const res: any = await duplicateKnowledgeBase(id)
-    if (res?.success) {
-      const newKbId = res.data?.target_id || res.data?.knowledge_base?.id
-      MessagePlugin.success(t('knowledgeList.messages.duplicateSuccess'))
-      await fetchList(true)
-      if (newKbId) {
-        triggerHighlightFlash(newKbId)
-      }
-    } else {
-      MessagePlugin.error(res?.message || t('knowledgeList.messages.duplicateFailed'))
+    const newKbId = res?.targetId || res?.knowledgeBase?.id
+    MessagePlugin.success(t('knowledgeList.messages.duplicateSuccess'))
+    await fetchList(true)
+    if (newKbId) {
+      triggerHighlightFlash(newKbId)
     }
   } catch (e: any) {
     MessagePlugin.error(e?.message || t('knowledgeList.messages.duplicateFailed'))

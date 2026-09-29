@@ -171,10 +171,10 @@ const refreshSummary = async () => {
   summaryRefreshing.value = true;
   try {
     const result: any = await regenerateKnowledgeSummary(props.details.id);
-    if (result?.data) {
-      applySummaryState(result.data.summaryStatus, result.data.description);
+    if (result) {
+      applySummaryState(result.summaryStatus, result.description);
     }
-    const status = result?.data?.summaryStatus;
+    const status = result?.summaryStatus;
     if (status === 'pending' || status === 'processing') {
       MessagePlugin.success(t('knowledgeBase.summaryRefreshQueued'));
     } else {

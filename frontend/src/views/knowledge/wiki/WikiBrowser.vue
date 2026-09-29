@@ -1273,8 +1273,8 @@ async function hydrateSourceRefTitles(refs: string[]) {
     try {
       const res = await getKnowledgeDetails(id)
       if (seq !== sourceRefTitleRequestSeq) return
-      const data = (res as any)?.data ?? res
-      const title = data?.title || data?.file_name || data?.fileName
+      const data: any = res
+      const title = data?.title || data?.fileName
       if (title) sourceRefTitleCache[id] = title
     } catch {
       // Keep truncated-ID fallback when the doc was deleted or is inaccessible.
