@@ -34,8 +34,8 @@ import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 
 /**
- * KB clone（copy 路由 worker 面）+ Duplicate（同步 settings-only）+ 跨库兼容性校验
- * （原 KnowledgeService 三段，阶段 2 拆分独立）。clone 在虚拟线程内驱动状态机；
+ * KB clone（copy 路由 worker 面）+ Duplicate（同步 settings-only）+ 跨库兼容性校验。
+ * clone 在虚拟线程内驱动状态机；
  * duplicate 是同步 settings 级复制（不复制知识内容）。
  */
 @Service

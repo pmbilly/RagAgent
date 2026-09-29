@@ -54,7 +54,7 @@ public class KnowledgeTagRepository {
         return tag;
     }
 
-    // ── W5a：KB 标签 CRUD 的读/改/删 ────────────
+    // ── KB 标签 CRUD 的读/改/删 ────────────────
 
     public KnowledgeTag getById(long tenantId, String id) {
         return tagMapper.selectByTenantAndId(tenantId, id);

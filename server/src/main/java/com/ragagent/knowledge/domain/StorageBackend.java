@@ -11,7 +11,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
  * storage_backends（迁移 000068）：具体对象存储实例。
- * 阶段 3 仅消费解析逻辑（id/provider），配置 jsonb 原样透传。
+ * 本仓只消费解析逻辑（id/provider），配置 jsonb 原样透传。
  */
 @TableName(value = "storage_backends", autoResultMap = true)
 public class StorageBackend {

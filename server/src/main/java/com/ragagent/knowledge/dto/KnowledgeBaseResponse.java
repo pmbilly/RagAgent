@@ -24,7 +24,7 @@ import com.ragagent.knowledge.dto.VlmConfigView;
  *   <li>向量库绑定信息收敛为嵌套对象 {@link VectorStoreView}，无绑定时为 {@code null}。</li>
  * </ul>
  *
- * <p>嵌套的配置对象走 {@link KnowledgeBaseConfigViews} 的视图类型（camelCase），
+ * <p>嵌套的配置对象走 {@link ChunkingConfigView} / {@link ImageProcessingConfigView} 等视图类型（camelCase），
  * 与数据库 jsonb 列共用的领域类型解耦——领域类的 Jackson 注解仍决定落库格式。
  *
  */

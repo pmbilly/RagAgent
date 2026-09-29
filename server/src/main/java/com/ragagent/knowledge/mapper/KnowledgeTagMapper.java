@@ -140,7 +140,7 @@ public interface KnowledgeTagMapper {
             + "AND knowledge_base_id = #{kbId} AND tag_id IS NOT NULL AND tag_id != '' AND deleted_at IS NULL)")
     int deleteUnusedTags(long tenantId, String kbId);
 
-    // ── W5a：KB 标签 CRUD ──────────────────
+    // ── KB 标签 CRUD ─────────────────────
 
     /**
      * struct **没有** 软删列 deleted_at 字段（deleted_at 列恒 NULL、从不写）→

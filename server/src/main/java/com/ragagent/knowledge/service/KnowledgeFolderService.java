@@ -25,8 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 知识文件夹树 + 文件夹移动 / 重命名」与「── 文件夹移动 / 重命名」
- * 两段拆分独立）。
+ * 知识文件夹树与文件夹移动 / 重命名：树的增删改查、移动/重命名的路径重写与冲突校验。
  * <p>门面 helper（requireKb/findKb/tenantId/getKnowledgeBatch）经 {@code @Lazy}
  * 门面调用，不复制；{@link #rejectMovingKnowledge} 同包开放给批量面
  * （KnowledgeBatchOpsService）复用。</p>
@@ -381,7 +380,7 @@ public class KnowledgeFolderService {
     }
 
     /** transfer metadata 里 operation=move 且
-     *  phase=moving → 409（本批路由的固定状态防线）。同包开放（批量清空复用）。 */
+     *  phase=moving → 409（该路由的固定状态防线）。同包开放（批量清空复用）。 */
     static void rejectMovingKnowledge(Knowledge k) {
         JsonNode metadata = k.getMetadata();
         if (metadata == null || !metadata.has("_knowledge_transfer")) {

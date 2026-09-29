@@ -38,7 +38,7 @@ import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
 import com.ragagent.knowledge.domain.KnowledgeBaseImageProcessingConfig;
 
 /**
- * （阶段 3 子集：CRUD + pin + move-targets + 计数回填；
+ * （覆盖 CRUD + pin + move-targets + 计数回填；
  * copy/duplicate/clear-contents/共享访问/审计随后续阶段）。
  * 默认值链：
  *  EnsureDefaults → applyTenantDefaultStorageProvider → applyAndValidateStorageBackend

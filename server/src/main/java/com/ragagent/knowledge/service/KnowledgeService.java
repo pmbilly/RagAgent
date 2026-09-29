@@ -43,7 +43,7 @@ import com.ragagent.knowledge.storage.TenantFileStorage;
 import com.ragagent.knowledge.storage.TenantStorageService;
 
 /**
- * （阶段 3 子集：file/url/manual 创建、分页列表、get/update/delete、folders；
+ * （覆盖 file/url/manual 创建、分页列表、get/update/delete、folders；
  *  处理管道 = pending→processing→(docreader→chunk→embed)→completed/failed，
  *  任务队列 以进程内虚拟线程队列替代（响应契约一致，重试/取消语义见本仓约定））。
  * <p><b>文档操作面扩展</b>：spans 合成树、regenerate-summary（无 summary
@@ -513,7 +513,7 @@ public class KnowledgeService {
     }
 
     /**
-     * 未翻译（本仓约定 阶段 3 差异 3），共享路径的"补捞"只对同租户行有效，而租户内行
+     * 本仓未实现，共享路径的"补捞"只对同租户行有效，而租户内行
      */
     public List<Knowledge> getKnowledgeBatchWithSharedAccess(long tenantId, List<String> ids) {
         return getKnowledgeBatch(tenantId, ids);

@@ -270,7 +270,7 @@ public class KnowledgeMoveService {
     /**
      * knowledge_delete）：向量行（嵌入模型为空则整段跳过）→ chunks 行 →
      * 先置 0，扣减由随后的行改写 delta 完成（见 {@link #moveKnowledgeReparse}）；
-     * 图片资源回收（{@code deleteExtractedImages}）随资源目录面，本批未含。</p>
+     * 图片资源回收（{@code deleteExtractedImages}）随资源目录面处理，不在本方法内。</p>
      */
     private void cleanupKnowledgeResourcesForReparse(Knowledge row, KnowledgeBase kb) {
         String knowledgeId = row.getId();

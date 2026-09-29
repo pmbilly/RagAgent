@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * move / clone 任务的进度存储。
- * <p>Java 侧按既有取舍用进程内 map（任务队列 → 进程内虚拟线程，本仓约定 阶段 3 差异 1）：
+ * <p>Java 侧按既有取舍用进程内 map（任务队列 → 进程内虚拟线程，本仓约定）：
  * 单实例语义一致，多副本部署无跨进程进度可见性。TTL 在读路径检查
  * <p>两条写入口的语义
  * <ul>

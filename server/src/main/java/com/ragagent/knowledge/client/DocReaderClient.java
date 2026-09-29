@@ -21,9 +21,9 @@ import org.springframework.stereotype.Service;
  * 契约（proto 实录）：
  * - 首选 ReadStream（首帧必须 meta，随后每帧一张图）；UNIMPLEMENTED 回退 unary Read
  * - 业务错误走响应 error 字段而非 gRPC status
- * - ReadConfig 3 号字段 reserved（image_storage 已移除）
+ * - ReadConfig 3 号字段 reserved
  * - 单次调用超时 30 分钟
- * 阶段 3 仅消费 meta/markdown（图片帧忽略并记录）。
+ * 本仓只消费 meta/markdown 两帧（图片帧忽略并记录）。
  */
 @Service
 public class DocReaderClient {

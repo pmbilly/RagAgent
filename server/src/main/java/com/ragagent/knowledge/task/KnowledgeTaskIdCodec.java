@@ -3,9 +3,7 @@ package com.ragagent.knowledge.task;
 import java.util.UUID;
 
 /**
- * 任务 ID 编解码：生成与反解 {@code <type>_<tenant>_<millis>_<8hex>[_<biz>]}。
- * 原为 KnowledgeService 内嵌段，
- * 阶段 2 拆分时独立成工具类（纯静态、零依赖）。
+ * 任务 ID 编解码：生成与反解 {@code <type>_<tenant>_<millis>_<8hex>[_<biz>]}。纯静态、零依赖。
  */
 public final class KnowledgeTaskIdCodec {
 

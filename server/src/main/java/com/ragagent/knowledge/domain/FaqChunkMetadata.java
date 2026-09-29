@@ -15,7 +15,7 @@ import com.ragagent.common.text.TextConv;
  * answer_strategy / version / source} 带 omitempty（空省略，{@code NON_DEFAULT}——
  * 空列表与 0/"" 都省，nil 列表同样省）；{@code standard_question} 恒输出。</p>
  * {@code Sanitize/Normalize} 翻成 {@link #sanitize()} / {@link #normalize()}——
- * 不带 get/is 前缀，Jackson 不会当属性吐进 jsonb（阶段 3/4.1 各复发一次的
+ * 不带 get/is 前缀，Jackson 不会当属性吐进 jsonb（历史上两次在此踩坑，
  * UnrecognizedPropertyException）。</p>
  */
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
