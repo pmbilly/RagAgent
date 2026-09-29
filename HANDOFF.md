@@ -222,7 +222,8 @@
 **agent 域余下工作（下会话首项,精确接手面）**：
 1. `agent/domain` 五类型（AgentState/AgentStep/ToolCall/ToolCallTarget/ToolResult）去 30 处注解——经 `messages.agent_steps` jsonb 直达消息 API 响应体,须同批改前端消费组件与重录 `ag-*` fixture;前端消费横跨 SSE（不动）与 steps（要动）两类线,动手前先分清每个键来自哪条线（`useChatStreamHandler.ts`/`agent-tool-display.ts`/`mcpToolDisplay.ts` 等 10 文件）。
 2. agentm 契约换锚（AgentResponses/InitResponses 去 snake+信封,§7 第 5 条 KnowledgeBaseEditorModal legacy 装配块静默默认值缺陷一并修,同批前端）。
-3. Go 锚点注释清扫:余 479 处/140 文件（A 波触碰文件的段界已清洗,余为内联 javadoc"对照"锚）;Playbook=先摘不变量改中性表述再删,§13.13 判据。Go 复刻件类名（GoJsonCodec/GoPath/GoQuoting）**不改**——名字即真相,Task 13 判据裁定。
+3. Go 锚点注释清扫:余 479 处/140 文件（A 波触碰文件的段界已清洗,余为内联 javadoc"对照"锚）;Playbook=先摘不变量改中性表述再删,§13.13 判据。Go 复刻件类名（GoJsonCodec/GoPath/GoQuoting）**不改**——名字即真相,Task 13 判据裁定。终审遗留的顺延项:agentm 服务新写段注释仍带 W5b 代号/L 行号、拆出文件保留容器内缩进、InitializationController 类 javadoc 批次叙述——随本次清扫一并处理。
+4. **范围外发现（终审抓出,动 session 域前必读）**：Gate 发出的 `agent.approval.*Data` 经 `ApprovalBridge.toEventBus` 上的真实 EventBus,而 `AgentStreamBridge` 四个 handler instanceof 的是 `com.ragagent.event.*Data`——类型永不匹配,审批/OAuth 事件的 SSE 流转链路疑似断裂（重构前即如此,本域改造未改变它）。session 域切片动 `AgentStreamBridge` 时必须先核实前端实际经哪条链路收到审批事件。
 
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
