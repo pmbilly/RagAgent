@@ -348,7 +348,7 @@ class ChunkRepositoryTest {
         loaded.setContentRevision(2);
         loaded.setIndexStatus("processing");
         loaded.setLastEditorId("user-1");
-        loaded.setMetadata(json("{\"standard_question\":\"q1\"}"));
+        loaded.setMetadata(json("{\"standardQuestion\":\"q1\"}"));
         // Go service 在调用前显式 chunk.UpdatedAt = now（map 里的 updated_at 键原样写）
         loaded.setUpdatedAt(OffsetDateTime.now());
         // saveChunkRevision 自己负责落库快照——这里只构建，不预插
@@ -362,7 +362,7 @@ class ChunkRepositoryTest {
         assertThat(after.getContentRevision()).isEqualTo(2);
         assertThat(after.getIndexStatus()).isEqualTo("processing");
         assertThat(after.getLastEditorId()).isEqualTo("user-1");
-        assertThat(after.getMetadata()).isEqualTo(json("{\"standard_question\":\"q1\"}"));
+        assertThat(after.getMetadata()).isEqualTo(json("{\"standardQuestion\":\"q1\"}"));
         assertThat(after.getUpdatedAt()).isAfter(PAST);
 
         // 快照已插入

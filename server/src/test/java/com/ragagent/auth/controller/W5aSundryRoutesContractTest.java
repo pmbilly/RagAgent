@@ -201,7 +201,7 @@ class W5aSundryRoutesContractTest {
         assertGolden(get("/api/v1/knowledge-bases/" + kb + "/tags", owner), 200,
                 "w5a-tag-list-empty.json");
         r = expect(201, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
-                "{\"name\":\"w5a-标签A\",\"color\":\"#ff0000\",\"sort_order\":3}"),
+                "{\"name\":\"w5a-标签A\",\"color\":\"#ff0000\",\"sortOrder\":3}"),
                 "w5a-tag-create.json");
         String tagA = jsonPath(r, "id");
         r = expect(201, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
@@ -232,7 +232,7 @@ class W5aSundryRoutesContractTest {
                 "w5a-tag-list-zeropage.json");
 
         assertGolden(putJson("/api/v1/knowledge-bases/" + kb + "/tags/" + tagA, owner,
-                "{\"name\":\"w5a-标签A2\",\"sort_order\":1}"), 200, "w5a-tag-update.json");
+                "{\"name\":\"w5a-标签A2\",\"sortOrder\":1}"), 200, "w5a-tag-update.json");
         Long seqA = jdbc.queryForObject("SELECT seq_id FROM knowledge_tags WHERE id=?", Long.class, tagA);
         assertGolden(putJson("/api/v1/knowledge-bases/" + kb + "/tags/" + seqA, owner,
                 "{\"color\":\"#00ff00\"}"), 200, "w5a-tag-update-seqid.json");
@@ -246,7 +246,7 @@ class W5aSundryRoutesContractTest {
 
         // updates 键是 **knowledge_id**、值是 tag uuid 列表（knowledge.go L955-968）
         assertGolden(putJson("/api/v1/knowledge/tags", owner,
-                "{\"kb_id\":\"" + kb + "\",\"updates\":{\"" + REF_KG + "\":[\"" + tagC + "\"]}}"),
+                "{\"kbId\":\"" + kb + "\",\"updates\":{\"" + REF_KG + "\":[\"" + tagC + "\"]}}"),
                 204, "w5a-tag-ref-assign.json");
         assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagC, owner), 400,
                 "w5a-tag-delete-referenced.json");

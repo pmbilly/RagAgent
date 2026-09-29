@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.KbVlmConfig;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
@@ -20,7 +19,6 @@ public final class KnowledgeBaseDtos {
     }
 
     /** 更新知识库请求：name 传空串校验失败（null = 不变更，controller 判定）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpdateKbRequest(String name, String description, JsonNode config) {
     }
 
@@ -109,7 +107,6 @@ public final class KnowledgeBaseDtos {
     }
 
     /** 混合检索请求：query_text 与 query_embedding 至少其一（precomputed-vector 语义）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record HybridSearchRequest(
             String queryText,
             float[] queryEmbedding,
@@ -125,9 +122,8 @@ public final class KnowledgeBaseDtos {
     }
 
     /** 复制知识库请求：target_id 缺省 = 创建新库。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record CopyKbRequest(
-            @jakarta.validation.constraints.NotBlank(message = "source_id: 不能为空")
+            @jakarta.validation.constraints.NotBlank(message = "sourceId: 不能为空")
             String sourceId,
             String targetId,
             String taskId) {

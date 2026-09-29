@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -99,25 +98,22 @@ public record FaqEntryPage(List<FaqEntry> items, int page, int pageSize, long to
  * <p><b>有意保留 snake_case</b>：它与导入用的 {@code FaqEntryPayload} 是同一套交换格式
  * （导出 → 编辑 → 再导入），必须同批改名以保持往返一致，属"请求侧 camelCase"批次。</p>
  */
-@JsonPropertyOrder({"id", "tag_name", "standard_question", "similar_questions",
-        "negative_questions", "answers", "answer_strategy", "is_enabled", "is_recommended"})
 public record FaqExportEntry(
-        @JsonProperty("id") long id,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("tag_name") String tagName,
-        @JsonProperty("standard_question") String standardQuestion,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("similar_questions") List<String> similarQuestions,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("negative_questions") List<String> negativeQuestions,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("answers") List<String> answers,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("answer_strategy") String answerStrategy,
-        @JsonProperty("is_enabled") boolean isEnabled,
-        @JsonProperty("is_recommended") boolean isRecommended) {
+        long id,
+        String tagName,
+        String standardQuestion,
+        List<String> similarQuestions,
+        List<String> negativeQuestions,
+        List<String> answers,
+        String answerStrategy,
+        boolean enabled,
+        boolean recommended) {
 }
 
     /** 创建/更新条目的请求载荷（创建时 standard_question 必填；更新路径同形复用）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqEntryPayload(
             Long id,
-            @jakarta.validation.constraints.NotBlank(message = "standard_question: 不能为空")
+            @jakarta.validation.constraints.NotBlank(message = "standardQuestion: 不能为空")
             String standardQuestion,
             List<String> similarQuestions,
             List<String> negativeQuestions,
@@ -125,49 +121,40 @@ public record FaqExportEntry(
             String answerStrategy,
             long tagId,
             String tagName,
-            Boolean isEnabled,
-            Boolean isRecommended) {
+            Boolean enabled,
+            Boolean recommended) {
     }
 
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
-@JsonPropertyOrder({"is_enabled", "is_recommended", "tag_id"})
-public record FaqEntryFieldsUpdate(
-        @JsonProperty("is_enabled") Boolean isEnabled,
-        @JsonProperty("is_recommended") Boolean isRecommended,
-        @JsonProperty("tag_id") Long tagId) {
+/** 单条字段更新（三态：不传 = 不变更）。 */
+public record FaqEntryFieldsUpdate(Boolean enabled, Boolean recommended, Long tagId) {
 }
 
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
-@JsonPropertyOrder({"by_id", "by_tag", "exclude_ids"})
+/** 按条目 / 按标签的批量字段更新。 */
 public record FaqEntryFieldsBatchUpdate(
-        @JsonProperty("by_id") Map<Long, FaqEntryFieldsUpdate> byId,
-        @JsonProperty("by_tag") Map<Long, FaqEntryFieldsUpdate> byTag,
-        @JsonProperty("exclude_ids") List<Long> excludeIds) {
+        Map<Long, FaqEntryFieldsUpdate> byId,
+        Map<Long, FaqEntryFieldsUpdate> byTag,
+        List<Long> excludeIds) {
 }
 
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqDeleteRequest(
             @jakarta.validation.constraints.NotEmpty(message = "ids: 不能为空")
             List<Long> ids) {
     }
 
     /** updates 的 value null = 移除标签。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqEntryTagBatchRequest(
             @jakarta.validation.constraints.NotEmpty(message = "updates: 不能为空")
             Map<Long, Long> updates) {
     }
 
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AddSimilarQuestionsRequest(
-            @jakarta.validation.constraints.NotEmpty(message = "similar_questions: 不能为空")
+            @jakarta.validation.constraints.NotEmpty(message = "similarQuestions: 不能为空")
             List<String> similarQuestions) {
     }
 
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpdateLastImportDisplayStatusRequest(
-            @jakarta.validation.constraints.NotBlank(message = "display_status: 不能为空")
-            @jakarta.validation.constraints.Pattern(regexp = "open|close", message = "display_status: 必须为 open 或 close")
+            @jakarta.validation.constraints.NotBlank(message = "displayStatus: 不能为空")
+            @jakarta.validation.constraints.Pattern(regexp = "open|close", message = "displayStatus: 必须为 open 或 close")
             String displayStatus) {
     }
 }

@@ -2,8 +2,6 @@ package com.ragagent.knowledge.dto;
 
 import java.util.List;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * chunker 预览请求（chunking_config 各字段可缺省，缺省值由 Chunker.normalizeSplitterConfig
@@ -14,11 +12,9 @@ public final class ChunkerDtos {
     private ChunkerDtos() {
     }
 
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record PreviewRequest(String text, PreviewPayload chunkingConfig) {
     }
 
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record PreviewPayload(
             Integer chunkSize,
             Integer chunkOverlap,

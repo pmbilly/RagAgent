@@ -3,7 +3,6 @@ package com.ragagent.knowledge.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
@@ -21,15 +20,13 @@ public final class ChunkDtos {
     }
 
     /** chunk 编辑请求：全指针字段，三态（不传 = 不变更）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpdateChunkRequest(
             String content,
-            Boolean isEnabled,
+            Boolean enabled,
             Integer expectedRevision) {
     }
 
     /** chunk 回滚请求：目标修订号必填。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record RevertChunkRequest(
             @NotNull(message = "revision: 不能为空")
             Integer revision,
@@ -37,7 +34,6 @@ public final class ChunkDtos {
     }
 
     /** question 的 null 判定在 controller（空白串放行，由 service 落域文案）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpsertGeneratedQuestionRequest(
             String questionId,
             String question) {

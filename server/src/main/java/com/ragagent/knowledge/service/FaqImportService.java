@@ -391,7 +391,7 @@ public class FaqImportService {
             } else if (!validSimilar.isEmpty()) {
                 entries.set(i, new FaqEntryDtos.FaqEntryPayload(entry.id(), entry.standardQuestion(),
                         validSimilar, entry.negativeQuestions(), entry.answers(), entry.answerStrategy(),
-                        entry.tagId(), entry.tagName(), entry.isEnabled(), entry.isRecommended()));
+                        entry.tagId(), entry.tagName(), entry.enabled(), entry.recommended()));
             }
             if (!removed.isEmpty()) {
                 removedSimilarMap.put(i, removed);
@@ -668,7 +668,7 @@ public class FaqImportService {
     private static FaqFailedEntry failedEntry(int idx, String reason, FaqEntryDtos.FaqEntryPayload entry,
                                               String failureType) {
         boolean answerAll = FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(entry.answerStrategy());
-        boolean isDisabled = entry.isEnabled() != null && !entry.isEnabled();
+        boolean isDisabled = entry.enabled() != null && !entry.enabled();
         return new FaqFailedEntry(idx, reason, failureType, false,
                 entry.tagName(), FaqChunkMetadata.trimSpace(entry.standardQuestion()),
                 entry.similarQuestions(), entry.negativeQuestions(), entry.answers(),
@@ -677,7 +677,7 @@ public class FaqImportService {
     private static FaqFailedEntry partialFailedEntry(int idx, FaqEntryDtos.FaqEntryPayload entry,
                                                      List<String> removedSimilar, List<String> removedNegative) {
         boolean answerAll = FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(entry.answerStrategy());
-        boolean isDisabled = entry.isEnabled() != null && !entry.isEnabled();
+        boolean isDisabled = entry.enabled() != null && !entry.enabled();
         List<String> summary = new ArrayList<>();
         if (!removedSimilar.isEmpty()) {
             summary.add(removedSimilar.size() + "条相似问被移除");
@@ -823,7 +823,7 @@ public class FaqImportService {
                                     + ": " + e.getMessage());
                     return;
                 }
-                boolean isEnabled = entry.isEnabled() == null || entry.isEnabled();
+                boolean isEnabled = entry.enabled() == null || entry.enabled();
                 Chunk chunk = new Chunk();
                 chunk.setId(UUID.randomUUID().toString());
                 chunk.setTenantId(job.tenantId());

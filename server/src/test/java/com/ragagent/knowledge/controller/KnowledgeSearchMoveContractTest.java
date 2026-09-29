@@ -241,9 +241,9 @@ class KnowledgeSearchMoveContractTest {
     @Test
     void hybridSearchMatchesGo() throws Exception {
         assertPostJson("/api/v1/knowledge-bases/" + UNKNOWN + "/hybrid-search",
-                "{\"query_text\":\"x\"}", owner, "ks-hybrid-404.json");
+                "{\"queryText\":\"x\"}", owner, "ks-hybrid-404.json");
         assertPostJson("/api/v1/knowledge-bases/" + CROSS_KB + "/hybrid-search",
-                "{\"query_text\":\"x\"}", owner, "ks-hybrid-cross.json");
+                "{\"queryText\":\"x\"}", owner, "ks-hybrid-cross.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
                 null, owner, "ks-hybrid-nobody.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
@@ -251,26 +251,26 @@ class KnowledgeSearchMoveContractTest {
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
                 "{}", owner, "ks-hybrid-missing.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
-                "{\"query_text\":\"   \"}", owner, "ks-hybrid-blank.json");
+                "{\"queryText\":\"   \"}", owner, "ks-hybrid-blank.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
-                "{\"query_text\":\"probe\"}", owner, "ks-hybrid-empty.json");
+                "{\"queryText\":\"probe\"}", owner, "ks-hybrid-empty.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
-                "{\"query_text\":\"probe\",\"match_count\":5}", owner, "ks-hybrid-matchcount.json");
+                "{\"queryText\":\"probe\",\"matchCount\":5}", owner, "ks-hybrid-matchcount.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
-                "{\"query_text\":\"probe\",\"disable_vector_match\":true}", owner, "ks-hybrid-novec.json");
+                "{\"queryText\":\"probe\",\"disableVectorMatch\":true}", owner, "ks-hybrid-novec.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
-                "{\"query_embedding\":[0.1,0.2],\"disable_keywords_match\":true}", owner,
+                "{\"queryEmbedding\":[0.1,0.2],\"disableKeywordsMatch\":true}", owner,
                 "ks-hybrid-precomputed.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search?resourceUrls=bogus",
-                "{\"query_text\":\"probe\"}", owner, "ks-hybrid-badmode.json");
+                "{\"queryText\":\"probe\"}", owner, "ks-hybrid-badmode.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
-                "{\"query_text\":\"x\",\"knowledge_base_ids\":[\"" + UNKNOWN + "\"]}", owner,
+                "{\"queryText\":\"x\",\"knowledgeBaseIds\":[\"" + UNKNOWN + "\"]}", owner,
                 "ks-hybrid-unknown-multi.json");
         // GET 变体（同 handler；body 语义一致）
         MvcResult r = mockMvc.perform(get("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search")
                         .header("Authorization", owner)
                         .header("Content-Type", "application/json")
-                        .content("{\"query_text\":\"probe\"}")).andReturn();
+                        .content("{\"queryText\":\"probe\"}")).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("ks-hybrid-get.json")), mask(raw(r)));
         assertGet(owner, "/api/v1/knowledge-bases/" + KB3 + "/hybrid-search", "ks-hybrid-get-nobody.json");
@@ -298,13 +298,13 @@ class KnowledgeSearchMoveContractTest {
         assertPostJson("/api/v1/knowledge/move", null, owner, "ks-move-no-body.json");
         assertPostJson("/api/v1/knowledge/move", "{}", owner, "ks-move-empty-body.json");
         assertPostJson("/api/v1/knowledge/move",
-                "{\"knowledge_ids\":[\"" + KG1 + "\"],\"source_kb_id\":\"" + KB1
-                        + "\",\"target_kb_id\":\"" + KB2 + "\"}", owner, "ks-move-missing-mode.json");
+                "{\"knowledgeIds\":[\"" + KG1 + "\"],\"sourceKbId\":\"" + KB1
+                        + "\",\"targetKbId\":\"" + KB2 + "\"}", owner, "ks-move-missing-mode.json");
         assertPostJson("/api/v1/knowledge/move",
-                "{\"knowledge_ids\":[],\"source_kb_id\":\"" + KB1 + "\",\"target_kb_id\":\"" + KB2
+                "{\"knowledgeIds\":[],\"sourceKbId\":\"" + KB1 + "\",\"targetKbId\":\"" + KB2
                         + "\",\"mode\":\"reparse\"}", owner, "ks-move-empty-ids.json");
         assertPostJson("/api/v1/knowledge/move",
-                "{\"knowledge_ids\":[\" \"],\"source_kb_id\":\"" + KB1 + "\",\"target_kb_id\":\"" + KB2
+                "{\"knowledgeIds\":[\" \"],\"sourceKbId\":\"" + KB1 + "\",\"targetKbId\":\"" + KB2
                         + "\",\"mode\":\"reparse\"}", owner, "ks-move-blank-id.json");
         assertPostJson("/api/v1/knowledge/move", moveBody(KG1, KB1, KB4, "reparse"), owner,
                 "ks-move-type-mismatch.json");
@@ -345,36 +345,36 @@ class KnowledgeSearchMoveContractTest {
                 owner, null);
         awaitMoveProgress(extractTaskId(raw(mv)));
         // create 目标（KS3 空库，total=0）
-        postForAccepted("/api/v1/knowledge-bases/copy", "{\"source_id\":\"" + KB3 + "\"}", owner,
+        postForAccepted("/api/v1/knowledge-bases/copy", "{\"sourceId\":\"" + KB3 + "\"}", owner,
                 "ks-copy-create.json");
         // copy 到已有目标（KS7 → KS2）：add=2 remove=2 → total=4；录到的 progress 是这条任务的
         MvcResult cp = postForAccepted("/api/v1/knowledge-bases/copy",
-                "{\"source_id\":\"" + KB7 + "\",\"target_id\":\"" + KB2 + "\"}", owner,
+                "{\"sourceId\":\"" + KB7 + "\",\"targetId\":\"" + KB2 + "\"}", owner,
                 "ks-copy-to-existing.json");
         String taskId = extractTaskId(raw(cp));
         assertEquals(mask(golden("ks-copy-progress.json")), mask(awaitCloneProgress(taskId)),
                 "copy progress 终态不一致");
         // 错误族
-        assertPostJson("/api/v1/knowledge-bases/copy", "{\"source_id\":\"" + UNKNOWN + "\"}", owner,
+        assertPostJson("/api/v1/knowledge-bases/copy", "{\"sourceId\":\"" + UNKNOWN + "\"}", owner,
                 "ks-copy-missing-source.json");
-        assertPostJson("/api/v1/knowledge-bases/copy", "{\"source_id\":\"" + CROSS_KB + "\"}", owner,
+        assertPostJson("/api/v1/knowledge-bases/copy", "{\"sourceId\":\"" + CROSS_KB + "\"}", owner,
                 "ks-copy-cross-source.json");
         assertPostJson("/api/v1/knowledge-bases/copy", null, owner, "ks-copy-no-body.json");
         assertPostJson("/api/v1/knowledge-bases/copy", "{}", owner, "ks-copy-missing-field.json");
         assertPostJson("/api/v1/knowledge-bases/copy",
-                "{\"source_id\":\"" + KB3 + "\",\"task_id\":\"bogus\"}", owner,
+                "{\"sourceId\":\"" + KB3 + "\",\"taskId\":\"bogus\"}", owner,
                 "ks-copy-bad-task-id.json");
         assertPostJson("/api/v1/knowledge-bases/copy",
-                "{\"source_id\":\"" + KB3 + "\",\"task_id\":\"kb_clone_10000_1704628851692_a1b2c3d4_probe\"}",
+                "{\"sourceId\":\"" + KB3 + "\",\"taskId\":\"kb_clone_10000_1704628851692_a1b2c3d4_probe\"}",
                 owner, "ks-copy-cross-task-id.json");
         assertPostJson("/api/v1/knowledge-bases/copy",
-                "{\"source_id\":\"" + KB3 + "\",\"target_id\":\"" + KB2 + "\"}", contrib,
+                "{\"sourceId\":\"" + KB3 + "\",\"targetId\":\"" + KB2 + "\"}", contrib,
                 "ks-copy-contrib-replace.json");
         assertPostJson("/api/v1/knowledge-bases/copy",
-                "{\"source_id\":\"" + KB7 + "\",\"target_id\":\"" + KB4 + "\"}", owner,
+                "{\"sourceId\":\"" + KB7 + "\",\"targetId\":\"" + KB4 + "\"}", owner,
                 "ks-copy-type-mismatch.json");
         assertPostJson("/api/v1/knowledge-bases/copy",
-                "{\"source_id\":\"" + KB7 + "\",\"target_id\":\"" + KB5 + "\"}", owner,
+                "{\"sourceId\":\"" + KB7 + "\",\"targetId\":\"" + KB5 + "\"}", owner,
                 "ks-copy-emb-mismatch.json");
     }
 
@@ -401,8 +401,8 @@ class KnowledgeSearchMoveContractTest {
     // ════════════════ 工具 ════════════════
 
     private static String moveBody(String kg, String source, String target, String mode) {
-        return "{\"knowledge_ids\":[\"" + kg + "\"],\"source_kb_id\":\"" + source
-                + "\",\"target_kb_id\":\"" + target + "\",\"mode\":\"" + mode + "\"}";
+        return "{\"knowledgeIds\":[\"" + kg + "\"],\"sourceKbId\":\"" + source
+                + "\",\"targetKbId\":\"" + target + "\",\"mode\":\"" + mode + "\"}";
     }
 
     /** 异步受理类 POST：期望 202（任务已入队）。 */
@@ -498,7 +498,7 @@ class KnowledgeSearchMoveContractTest {
 
     /** 两侧同掩码：UUID / 文案内嵌 UUID / ISO 时间戳 / task_id / 10 位 Unix 秒。 */
     private static String mask(String s) {
-        String out = TASK_ID.matcher(s).replaceAll("\"task_id\":\"<task>\"");
+        String out = TASK_ID.matcher(s).replaceAll("\"taskId\":\"<task>\"");
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");
         out = UUID_BARE.matcher(out).replaceAll("<uuid>");
         out = TS_VALUE.matcher(out).replaceAll("\"$1\":\"<ts>\"");

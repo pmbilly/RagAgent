@@ -3,7 +3,6 @@ package com.ragagent.knowledge.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import jakarta.validation.constraints.NotBlank;
@@ -75,7 +74,6 @@ public final class KnowledgeTagDtos {
     }
 
     /** 创建标签请求（name 必填；color/sortOrder 可选）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record CreateTagRequest(
             @NotBlank(message = "name: 不能为空")
             String name,
@@ -84,7 +82,6 @@ public final class KnowledgeTagDtos {
     }
 
     /** 更新标签请求：全指针，不传 = 不变更。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpdateTagRequest(
             String name,
             String color,

@@ -77,12 +77,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleBind(org.springframework.validation.BindException ex) {
         boolean pagination = ex.getTarget() instanceof com.ragagent.common.web.PageParams
                 || ex.getBindingResult().getFieldErrors().stream()
-                        .allMatch(fe -> "page".equals(fe.getField()) || "page_size".equals(fe.getField()));
+                        .allMatch(fe -> "page".equals(fe.getField()) || "pageSize".equals(fe.getField())
+                                || "page_size".equals(fe.getField()));
         java.util.List<String> lines = new java.util.ArrayList<>();
         for (org.springframework.validation.FieldError fe : ex.getBindingResult().getFieldErrors()) {
             String msg = translateConstraint(fe);
-            // 校验注解已给出 "snake_field: 说明" 完整文案时直接使用（字段名取 snake_case 键名）
-            lines.add(msg.matches("^[a-z][a-z0-9_]*: .*") ? msg : fe.getField() + ": " + msg);
+            // 校验注解已给出 "field: 说明" 完整文案时直接使用（字段名取线格式键名）
+            lines.add(msg.matches("^[a-z][A-Za-z0-9_]*: .*") ? msg : fe.getField() + ": " + msg);
         }
         if (lines.isEmpty()) {
             lines.add("请求参数不合法");
@@ -102,7 +103,7 @@ public class GlobalExceptionHandler {
         ex.getAllValidationResults().forEach(r ->
                 r.getResolvableErrors().forEach(err -> {
                     String msg = translateMessage(err.getDefaultMessage());
-                    lines.add(msg.matches("^[a-z][a-z0-9_]*: .*") ? msg : extractField(err) + ": " + msg);
+                    lines.add(msg.matches("^[a-z][A-Za-z0-9_]*: .*") ? msg : extractField(err) + ": " + msg);
                 }));
         java.util.Collections.sort(lines); // 与 handleBind 同款：多行 details 取字典序（确定性）
         if (lines.isEmpty()) {

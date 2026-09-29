@@ -364,9 +364,9 @@ class FaqContractTest {
         compareAndStatus("faq-list-noauth.json", 401, "GET", B1 + "/faq/entries", null, null);
         compareAndStatus("faq-list-viewer.json", 200, "GET", B1 + "/faq/entries", viewer, null);
         compareAndStatus("faq-create-contrib.json", 403, "POST", B1 + "/faq/entry", contrib,
-                "{\"standard_question\":\"贡献者创建\",\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"贡献者创建\",\"answers\":[\"答案\"]}");
         compareAndStatus("faq-fields-viewer.json", 403, "PUT", B1 + "/faq/entries/fields", viewer,
-                "{\"by_id\":{\"970001\":{\"is_enabled\":false}}}");
+                "{\"byId\":{\"970001\":{\"enabled\":false}}}");
     }
 
     // ── 2) 详情 ────────────────────────────────────────────────────────
@@ -386,27 +386,27 @@ class FaqContractTest {
         compareAndStatus("faq-create-empty.json", 400, "POST", B1 + "/faq/entry", owner, "");
         compareAndStatus("faq-create-nullbody.json", 400, "POST", B1 + "/faq/entry", owner, "null");
         compareAndStatus("faq-create-noquestion.json", 400, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"\",\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"\",\"answers\":[\"答案\"]}");
         compareAndStatus("faq-create-noanswer.json", 400, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"问题\"}");
+                "{\"standardQuestion\":\"问题\"}");
         compareAndStatus("faq-create-badstrategy.json", 400, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"问题\",\"answers\":[\"答案\"],\"answer_strategy\":\"bogus\"}");
+                "{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"],\"answerStrategy\":\"bogus\"}");
         compareAndStatus("faq-create-simileq.json", 400, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"问题A\",\"similar_questions\":[\"问题A\"],\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"问题A\",\"similarQuestions\":[\"问题A\"],\"answers\":[\"答案\"]}");
         compareAndStatus("faq-create-simidup.json", 400, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"问题B\",\"similar_questions\":[\"重复问\",\"重复问\"],\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"问题B\",\"similarQuestions\":[\"重复问\",\"重复问\"],\"answers\":[\"答案\"]}");
         compareAndStatus("faq-create-badtag.json", 500, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"问题C\",\"answers\":[\"答案\"],\"tag_id\":960999}");
+                "{\"standardQuestion\":\"问题C\",\"answers\":[\"答案\"],\"tagId\":960999}");
         compareAndStatus("faq-create-ghosttag.json", 500, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"问题D\",\"answers\":[\"答案\"],\"tag_name\":\"没人建过这分类\"}");
+                "{\"standardQuestion\":\"问题D\",\"answers\":[\"答案\"],\"tagName\":\"没人建过这分类\"}");
         compareAndStatus("faq-create-dupstd.json", 400, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"退货政策是什么\",\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"退货政策是什么\",\"answers\":[\"答案\"]}");
         compareAndStatus("faq-create-dupsim.json", 400, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"全新问题\",\"similar_questions\":[\"如何绑定手机\"],\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"全新问题\",\"similarQuestions\":[\"如何绑定手机\"],\"answers\":[\"答案\"]}");
         compareAndStatus("faq-create-500.json", 500, "POST", B1 + "/faq/entry", owner,
-                "{\"standard_question\":\"怎么绑定手机？\",\"answers\":[\"见正文\"]}");
+                "{\"standardQuestion\":\"怎么绑定手机？\",\"answers\":[\"见正文\"]}");
         compareAndStatus("faq-create-wrongkb-type.json", 400, "POST", B4 + "/faq/entry", owner,
-                "{\"standard_question\":\"问题\",\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"]}");
     }
 
     // ── 4) 更新（先落库后 500） ─────────────────────────────────────────
@@ -414,14 +414,14 @@ class FaqContractTest {
     @Test
     void section4_update() throws Exception {
         compareAndStatus("faq-update-badid.json", 400, "PUT", B1 + "/faq/entries/abc", owner,
-                "{\"standard_question\":\"问题\",\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"]}");
         compareAndStatus("faq-update-404.json", 404, "PUT", B1 + "/faq/entries/999999", owner,
-                "{\"standard_question\":\"问题\",\"answers\":[\"答案\"]}");
+                "{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"]}");
         compareAndStatus("faq-update-noanswer.json", 400, "PUT", B1 + "/faq/entries/970004", owner,
-                "{\"standard_question\":\"换一个问题\"}");
+                "{\"standardQuestion\":\"换一个问题\"}");
         compareAndStatus("faq-update-500.json", 500, "PUT", B1 + "/faq/entries/970002", owner,
-                "{\"standard_question\":\"退货政策是什么流程\",\"answers\":[\"7天无理由退货\","
-                        + "\"质量问题15天内退\",\"运费险说明\"],\"is_recommended\":true}");
+                "{\"standardQuestion\":\"退货政策是什么流程\",\"answers\":[\"7天无理由退货\","
+                        + "\"质量问题15天内退\",\"运费险说明\"],\"recommended\":true}");
         compareAndStatus("faq-get-after-update.json", 200, "GET", B1 + "/faq/entries/970002", owner, null);
     }
 
@@ -430,14 +430,14 @@ class FaqContractTest {
     @Test
     void section5_addSimilar() throws Exception {
         compareAndStatus("faq-similar-empty.json", 400, "POST",
-                B1 + "/faq/entries/970001/similar-questions", owner, "{\"similar_questions\":[]}");
+                B1 + "/faq/entries/970001/similar-questions", owner, "{\"similarQuestions\":[]}");
         compareAndStatus("faq-similar-nometa.json", 400, "POST",
-                B1 + "/faq/entries/970004/similar-questions", owner, "{\"similar_questions\":[\"新问题\"]}");
+                B1 + "/faq/entries/970004/similar-questions", owner, "{\"similarQuestions\":[\"新问题\"]}");
         compareAndStatus("faq-similar-404.json", 404, "POST",
-                B1 + "/faq/entries/999999/similar-questions", owner, "{\"similar_questions\":[\"新问题\"]}");
+                B1 + "/faq/entries/999999/similar-questions", owner, "{\"similarQuestions\":[\"新问题\"]}");
         compareAndStatus("faq-similar-500.json", 500, "POST",
                 B1 + "/faq/entries/970001/similar-questions", owner,
-                "{\"similar_questions\":[\"在线绑定入口在哪里\"]}");
+                "{\"similarQuestions\":[\"在线绑定入口在哪里\"]}");
         compareAndStatus("faq-get-after-similar.json", 200, "GET", B1 + "/faq/entries/970001", owner, null);
     }
 
@@ -447,17 +447,17 @@ class FaqContractTest {
     void section6_fieldsBatch() throws Exception {
         compareAndStatus("faq-fields-empty.json", 204, "PUT", B1 + "/faq/entries/fields", owner, "{}");
         compareAndStatus("faq-fields-negid.json", 400, "PUT", B1 + "/faq/entries/fields", owner,
-                "{\"by_id\":{\"-5\":{\"is_enabled\":false}}}");
+                "{\"byId\":{\"-5\":{\"enabled\":false}}}");
         compareAndStatus("faq-fields-missing.json", 404, "PUT", B1 + "/faq/entries/fields", owner,
-                "{\"by_id\":{\"999999\":{\"is_enabled\":false}}}");
+                "{\"byId\":{\"999999\":{\"enabled\":false}}}");
         compareAndStatus("faq-fields-badtag.json", 404, "PUT", B1 + "/faq/entries/fields", owner,
-                "{\"by_id\":{\"970003\":{\"tag_id\":960999}}}");
+                "{\"byId\":{\"970003\":{\"tagId\":960999}}}");
         compareAndStatus("faq-fields-foreigntag.json", 403, "PUT", B1 + "/faq/entries/fields", owner,
-                "{\"by_id\":{\"970003\":{\"tag_id\":960002}}}");
+                "{\"byId\":{\"970003\":{\"tagId\":960002}}}");
         compareAndStatus("faq-fields-ok.json", 204, "PUT", B1 + "/faq/entries/fields", owner,
-                "{\"by_id\":{\"970003\":{\"is_enabled\":true,\"is_recommended\":false,\"tag_id\":965001}},"
-                        + "\"by_tag\":{\"965002\":{\"is_enabled\":true,\"tag_id\":965001}},"
-                        + "\"exclude_ids\":[970001]}");
+                "{\"byId\":{\"970003\":{\"enabled\":true,\"recommended\":false,\"tagId\":965001}},"
+                        + "\"byTag\":{\"965002\":{\"enabled\":true,\"tagId\":965001}},"
+                        + "\"excludeIds\":[970001]}");
         compareAndStatus("faq-get-after-fields.json", 200, "GET", B1 + "/faq/entries/970003", owner, null);
     }
 
@@ -481,23 +481,23 @@ class FaqContractTest {
         compareAndStatus("faq-upsert-noentries.json", 400, "POST", B1 + "/faq/entries", owner,
                 "{\"entries\":[]}");
         compareAndStatus("faq-upsert-badmode.json", 400, "POST", B1 + "/faq/entries", owner,
-                "{\"entries\":[{\"standard_question\":\"问题\",\"answers\":[\"答案\"]}],\"mode\":\"bogus\"}");
+                "{\"entries\":[{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"]}],\"mode\":\"bogus\"}");
         compareAndStatus("faq-upsert-badtask.json", 400, "POST", B1 + "/faq/entries", owner,
-                "{\"entries\":[{\"standard_question\":\"问题\",\"answers\":[\"答案\"]}],\"task_id\":\"bad/id\"}");
+                "{\"entries\":[{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"]}],\"taskId\":\"bad/id\"}");
         compareAndStatus("faq-upsert-nomode.json", 400, "POST", B1 + "/faq/entries", owner,
-                "{\"entries\":[{\"standard_question\":\"问题\",\"answers\":[\"答案\"]}]}");
+                "{\"entries\":[{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"]}]}");
         compareAndStatus("faq-upsert-foreigntag.json", 403, "POST", B2 + "/faq/entries", owner,
-                "{\"entries\":[{\"standard_question\":\"问题\",\"answers\":[\"答案\"],\"tag_id\":960002}],"
+                "{\"entries\":[{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"],\"tagId\":960002}],"
                         + "\"mode\":\"append\"}");
         compareAndStatus("faq-upsert-ghosttag.json", 404, "POST", B1 + "/faq/entries", owner,
-                "{\"entries\":[{\"standard_question\":\"问题\",\"answers\":[\"答案\"],\"tag_id\":960999}],"
+                "{\"entries\":[{\"standardQuestion\":\"问题\",\"answers\":[\"答案\"],\"tagId\":960999}],"
                         + "\"mode\":\"append\"}");
 
-        String dryRunBody = "{\"entries\":[{\"standard_question\":\"怎么 绑定 手机？\",\"answers\":[\"重复的标准问\"]},"
-                + "{\"standard_question\":\"\",\"answers\":[]},"
-                + "{\"standard_question\":\"全新问题\",\"similar_questions\":[\"如何绑定手机\","
-                + "\"如何绑定手机\"],\"answers\":[\"新答案\"],\"answer_strategy\":\"random\"}],"
-                + "\"mode\":\"append\",\"dry_run\":true}";
+        String dryRunBody = "{\"entries\":[{\"standardQuestion\":\"怎么 绑定 手机？\",\"answers\":[\"重复的标准问\"]},"
+                + "{\"standardQuestion\":\"\",\"answers\":[]},"
+                + "{\"standardQuestion\":\"全新问题\",\"similarQuestions\":[\"如何绑定手机\","
+                + "\"如何绑定手机\"],\"answers\":[\"新答案\"],\"answerStrategy\":\"random\"}],"
+                + "\"mode\":\"append\",\"dryRun\":true}";
         MvcResult dryRunResult = perform("POST", B1 + "/faq/entries", owner, dryRunBody);
         assertEquals(202, dryRunResult.getResponse().getStatus(), "faq-upsert-dryrun.json status");
         compare("faq-upsert-dryrun.json",
@@ -523,8 +523,8 @@ class FaqContractTest {
         // 该任务在 Go 卡在 asynq 重试窗口（running key 被占数分钟）；Java 直落 failed 并释放
         // ——faq-upsert-running 的 running-key 窗口是 Go 重试语义的存档，Java 不比。
         compareAndStatus("faq-upsert-customtask.json", 202, "POST", B1 + "/faq/entries", owner,
-                "{\"entries\":[{\"standard_question\":\"自定义任务ID问题\",\"answers\":[\"答案\"]}],"
-                        + "\"mode\":\"append\",\"task_id\":\"faqgolden_custom_1\"}");
+                "{\"entries\":[{\"standardQuestion\":\"自定义任务ID问题\",\"answers\":[\"答案\"]}],"
+                        + "\"mode\":\"append\",\"taskId\":\"faqgolden_custom_1\"}");
 
         compareAndStatus("faq-progress-badid.json", 400, "GET",
                 API + "/faq/import/progress/not_a_task", owner, null);
@@ -539,15 +539,15 @@ class FaqContractTest {
     @Test
     void section9_displayStatus() throws Exception {
         compareAndStatus("faq-display-bad.json", 400, "PUT",
-                B1 + "/faq/import/last-result/display", owner, "{\"display_status\":\"bogus\"}");
+                B1 + "/faq/import/last-result/display", owner, "{\"displayStatus\":\"bogus\"}");
         compareAndStatus("faq-display-nokb.json", 404, "PUT",
-                B2 + "/faq/import/last-result/display", owner, "{\"display_status\":\"close\"}");
+                B2 + "/faq/import/last-result/display", owner, "{\"displayStatus\":\"close\"}");
         compareAndStatus("faq-display-noresult.json", 404, "PUT",
-                B3 + "/faq/import/last-result/display", owner, "{\"display_status\":\"close\"}");
+                B3 + "/faq/import/last-result/display", owner, "{\"displayStatus\":\"close\"}");
         compareAndStatus("faq-display-close.json", 204, "PUT",
-                B1 + "/faq/import/last-result/display", owner, "{\"display_status\":\"close\"}");
+                B1 + "/faq/import/last-result/display", owner, "{\"displayStatus\":\"close\"}");
         compareAndStatus("faq-display-open.json", 204, "PUT",
-                B1 + "/faq/import/last-result/display", owner, "{\"display_status\":\"open\"}");
+                B1 + "/faq/import/last-result/display", owner, "{\"displayStatus\":\"open\"}");
     }
 
     // ── 10) 导出（依赖 4-7 的变更，先重放） ─────────────────────────────
@@ -576,14 +576,14 @@ class FaqContractTest {
     @Test
     void section11_search() throws Exception {
         compareAndStatus("faq-search-empty-query.json", 400, "POST", B1 + "/faq/search", owner,
-                "{\"query_text\":\"\"}");
+                "{\"queryText\":\"\"}");
         compareAndStatus("faq-search-noquery.json", 400, "POST", B1 + "/faq/search", owner, "{}");
         compareAndStatus("faq-search-embed-missing.json", 200, "POST", B1 + "/faq/search", owner,
-                "{\"query_text\":\"怎么绑定手机\",\"match_count\":5}");
+                "{\"queryText\":\"怎么绑定手机\",\"matchCount\":5}");
         compareAndStatus("faq-search-kw-std.json", 200, "POST", B1 + "/faq/search", owner,
-                "{\"query_text\":\"退货\",\"match_count\":5}");
+                "{\"queryText\":\"退货\",\"matchCount\":5}");
         compareAndStatus("faq-search-notkb.json", 400, "POST", B4 + "/faq/search", owner,
-                "{\"query_text\":\"退货\"}");
+                "{\"queryText\":\"退货\"}");
     }
 
     // ── 12) 删除（先删后 500） ──────────────────────────────────────────
@@ -606,20 +606,20 @@ class FaqContractTest {
     @Test
     void section13_importRun() throws Exception {
         compareAndStatus("faq-upsert-import.json", 202, "POST", API + "/knowledge-bases/" + FKB5 + "/faq/entries",
-                owner, "{\"entries\":[{\"standard_question\":\"导入一条\",\"answers\":[\"答案\"]}],\"mode\":\"append\"}");
+                owner, "{\"entries\":[{\"standardQuestion\":\"导入一条\",\"answers\":[\"答案\"]}],\"mode\":\"append\"}");
     }
 
     /** 对照录制顺序重放 4-7 段的变更（响应不比，各自的 @Test 已钉住）。 */
     private void replayMutations() throws Exception {
         call("PUT", B1 + "/faq/entries/970002", owner,
-                "{\"standard_question\":\"退货政策是什么流程\",\"answers\":[\"7天无理由退货\","
-                        + "\"质量问题15天内退\",\"运费险说明\"],\"is_recommended\":true}");
+                "{\"standardQuestion\":\"退货政策是什么流程\",\"answers\":[\"7天无理由退货\","
+                        + "\"质量问题15天内退\",\"运费险说明\"],\"recommended\":true}");
         call("POST", B1 + "/faq/entries/970001/similar-questions", owner,
-                "{\"similar_questions\":[\"在线绑定入口在哪里\"]}");
+                "{\"similarQuestions\":[\"在线绑定入口在哪里\"]}");
         call("PUT", B1 + "/faq/entries/fields", owner,
-                "{\"by_id\":{\"970003\":{\"is_enabled\":true,\"is_recommended\":false,\"tag_id\":965001}},"
-                        + "\"by_tag\":{\"965002\":{\"is_enabled\":true,\"tag_id\":965001}},"
-                        + "\"exclude_ids\":[970001]}");
+                "{\"byId\":{\"970003\":{\"enabled\":true,\"recommended\":false,\"tagId\":965001}},"
+                        + "\"byTag\":{\"965002\":{\"enabled\":true,\"tagId\":965001}},"
+                        + "\"excludeIds\":[970001]}");
         call("PUT", B1 + "/faq/entries/tags", owner,
                 "{\"updates\":{\"970002\":965001,\"970003\":null}}");
     }

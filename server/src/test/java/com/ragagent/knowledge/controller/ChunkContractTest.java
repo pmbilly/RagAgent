@@ -283,13 +283,13 @@ class ChunkContractTest {
     void updateThenConflictMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(
                 put("/api/v1/chunks/" + KG1 + "/" + C1), owner,
-                "{\"content\":\"第一段内容（已编辑）\",\"expected_revision\":0}")).andReturn();
+                "{\"content\":\"第一段内容（已编辑）\",\"expectedRevision\":0}")).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("chunk-update.json")), mask(raw(r)));
 
         MvcResult c = mockMvc.perform(jsonBody(
                 put("/api/v1/chunks/" + KG1 + "/" + C1), owner,
-                "{\"content\":\"再改一次\",\"expected_revision\":0}")).andReturn();
+                "{\"content\":\"再改一次\",\"expectedRevision\":0}")).andReturn();
         assertEquals(409, c.getResponse().getStatus(), raw(c));
         assertEquals(golden("chunk-update-conflict.json"), raw(c));
     }
@@ -366,7 +366,7 @@ class ChunkContractTest {
     @Test
     void updateDisableOnlyMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(
-                put("/api/v1/chunks/" + KG1 + "/" + C2), owner, "{\"is_enabled\":false}"))
+                put("/api/v1/chunks/" + KG1 + "/" + C2), owner, "{\"enabled\":false}"))
                 .andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("chunk-update-disable.json")), mask(raw(r)));
@@ -377,7 +377,7 @@ class ChunkContractTest {
     @Test
     void revisionsAfterUpdateMatchGo() throws Exception {
         mockMvc.perform(jsonBody(put("/api/v1/chunks/" + KG1 + "/" + C1), owner,
-                "{\"content\":\"第一段内容（已编辑）\",\"expected_revision\":0}")).andReturn();
+                "{\"content\":\"第一段内容（已编辑）\",\"expectedRevision\":0}")).andReturn();
         MvcResult r = mockMvc.perform(get("/api/v1/chunks/" + KG1 + "/" + C1 + "/revisions")
                 .header("Authorization", owner)).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
@@ -411,7 +411,7 @@ class ChunkContractTest {
     @Test
     void revertAfterEditMatchesGo() throws Exception {
         mockMvc.perform(jsonBody(put("/api/v1/chunks/" + KG1 + "/" + C1), owner,
-                "{\"content\":\"第一段内容（已编辑）\",\"expected_revision\":0}")).andReturn();
+                "{\"content\":\"第一段内容（已编辑）\",\"expectedRevision\":0}")).andReturn();
         MvcResult r = mockMvc.perform(jsonBody(
                 post("/api/v1/chunks/" + KG1 + "/" + C1 + "/revert"), owner,
                 "{\"revision\":0}")).andReturn();
@@ -434,13 +434,13 @@ class ChunkContractTest {
     void questionUpdateAndMissingMatchGo() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(
                 put("/api/v1/chunks/by-id/" + C4 + "/questions"), owner,
-                "{\"question_id\":\"" + Q1 + "\",\"question\":\"已有问题（改）?\"}")).andReturn();
+                "{\"questionId\":\"" + Q1 + "\",\"question\":\"已有问题（改）?\"}")).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("chunk-q-update.json")), mask(raw(r)));
 
         MvcResult m = mockMvc.perform(jsonBody(
                 put("/api/v1/chunks/by-id/" + C4 + "/questions"), owner,
-                "{\"question_id\":\"nope\",\"question\":\"x\"}")).andReturn();
+                "{\"questionId\":\"nope\",\"question\":\"x\"}")).andReturn();
         assertEquals(400, m.getResponse().getStatus(), raw(m));
         assertEquals(golden("chunk-q-update-missing.json"), raw(m));
     }
@@ -450,7 +450,7 @@ class ChunkContractTest {
     void questionBlankMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(
                 put("/api/v1/chunks/by-id/" + C4 + "/questions"), owner,
-                "{\"question_id\":\"" + Q1 + "\",\"question\":\"   \"}")).andReturn();
+                "{\"questionId\":\"" + Q1 + "\",\"question\":\"   \"}")).andReturn();
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("chunk-q-empty.json"), raw(r));
     }
@@ -554,15 +554,15 @@ class ChunkContractTest {
     @Test
     void viewerWriteForbiddenButReadAllowed() throws Exception {
         mockMvc.perform(jsonBody(put("/api/v1/chunks/" + KG1 + "/" + C1), owner,
-                "{\"content\":\"第一段内容（已编辑）\",\"expected_revision\":0}")).andReturn();
+                "{\"content\":\"第一段内容（已编辑）\",\"expectedRevision\":0}")).andReturn();
         mockMvc.perform(jsonBody(put("/api/v1/chunks/" + KG1 + "/" + C2), owner,
-                "{\"is_enabled\":false}")).andReturn();
+                "{\"enabled\":false}")).andReturn();
         mockMvc.perform(jsonBody(post("/api/v1/chunks/" + KG1 + "/" + C1 + "/revert"), owner,
                 "{\"revision\":0}")).andReturn();
         mockMvc.perform(jsonBody(put("/api/v1/chunks/by-id/" + C4 + "/questions"), owner,
                 "{\"question\":\"新问题?\"}")).andReturn();
         mockMvc.perform(jsonBody(put("/api/v1/chunks/by-id/" + C4 + "/questions"), owner,
-                "{\"question_id\":\"" + Q1 + "\",\"question\":\"已有问题（改）?\"}")).andReturn();
+                "{\"questionId\":\"" + Q1 + "\",\"question\":\"已有问题（改）?\"}")).andReturn();
 
         MvcResult d = mockMvc.perform(delete("/api/v1/chunks/" + KG1 + "/" + C2)
                 .header("Authorization", viewer)).andReturn();

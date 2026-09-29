@@ -97,7 +97,7 @@ class KnowledgeOperationsContractTest {
     private static final String C3_IMAGE_INFO =
             "[{\"url\":\"resource://img-2\",\"original_url\":\"\",\"start_pos\":0,\"end_pos\":0,"
                     + "\"caption\":\"别图\",\"ocr_text\":\"别图OCR\"}]";
-    private static final String IMG_BODY = "{\"image_info\":\"[{\\\"url\\\":\\\"resource://img-1\\\","
+    private static final String IMG_BODY = "{\"imageInfo\":\"[{\\\"url\\\":\\\"resource://img-1\\\","
             + "\\\"original_url\\\":\\\"\\\",\\\"start_pos\\\":0,\\\"end_pos\\\":0,"
             + "\\\"caption\\\":\\\"新图说\\\",\\\"ocr_text\\\":\\\"新OCR\\\"}]\"}";
 
@@ -370,7 +370,7 @@ class KnowledgeOperationsContractTest {
     void reparseMatchesGo() throws Exception {
         replayManualUpdates();
         assertPost("/api/v1/knowledge/" + KG10 + "/reparse", null, "kg-reparse.json");
-        assertPost("/api/v1/knowledge/" + KG10 + "/reparse", "{\"process_config\":null}",
+        assertPost("/api/v1/knowledge/" + KG10 + "/reparse", "{\"processConfig\":null}",
                 "kg-reparse-null-config.json");
         assertPost("/api/v1/knowledge/" + KG10 + "/reparse", "not-json", "kg-reparse-bad.json");
         assertPost("/api/v1/knowledge/" + KG4 + "/reparse", null, "kg-reparse-manual.json");
@@ -445,9 +445,9 @@ class KnowledgeOperationsContractTest {
     void imageInfoMatchesGo() throws Exception {
         assertPut("/api/v1/knowledge/image/" + KG11 + "/" + C1, IMG_BODY, "kg-image-update.json");
         assertPut("/api/v1/knowledge/image/" + KG11 + "/" + C1, IMG_BODY, "kg-image-again.json");
-        assertPut("/api/v1/knowledge/image/" + KG11 + "/" + C1, "{\"image_info\":\"[]\"}",
+        assertPut("/api/v1/knowledge/image/" + KG11 + "/" + C1, "{\"imageInfo\":\"[]\"}",
                 "kg-image-empty.json");
-        assertPut("/api/v1/knowledge/image/" + KG11 + "/" + C1, "{\"image_info\":\"not-json\"}",
+        assertPut("/api/v1/knowledge/image/" + KG11 + "/" + C1, "{\"imageInfo\":\"not-json\"}",
                 "kg-image-badjson.json");
         assertPut("/api/v1/knowledge/image/" + KG11 + "/" + C2, IMG_BODY, "kg-image-mismatch.json");
         assertPut("/api/v1/knowledge/image/" + KG11 + "/" + UNKNOWN, IMG_BODY, "kg-image-404.json");
@@ -459,7 +459,7 @@ class KnowledgeOperationsContractTest {
     @Test
     void tagsMatchGo() throws Exception {
         assertPut("/api/v1/knowledge/tags",
-                "{\"updates\":{\"" + KG2 + "\":[\"" + T1 + "\"]},\"kb_id\":\"" + KB1 + "\"}",
+                "{\"updates\":{\"" + KG2 + "\":[\"" + T1 + "\"]},\"kbId\":\"" + KB1 + "\"}",
                 "kg-tags.json");
         assertGet("/api/v1/knowledge/" + KG2, "kg-get-tagged.json");
         assertPut("/api/v1/knowledge/tags",
@@ -469,26 +469,26 @@ class KnowledgeOperationsContractTest {
         assertPut("/api/v1/knowledge/tags", "{\"updates\":{}}", "kg-tags-empty-updates.json");
         assertPutNoBody("/api/v1/knowledge/tags", "kg-tags-missing.json");
         assertPut("/api/v1/knowledge/tags",
-                "{\"updates\":{\"" + KG2 + "\":[\"nope\"]},\"kb_id\":\"" + KB1 + "\"}",
+                "{\"updates\":{\"" + KG2 + "\":[\"nope\"]},\"kbId\":\"" + KB1 + "\"}",
                 "kg-tags-unknown-tag.json");
         assertPut("/api/v1/knowledge/tags",
-                "{\"updates\":{\"" + KG2 + "\":[\"" + T2 + "\"]},\"kb_id\":\"" + KB1 + "\"}",
+                "{\"updates\":{\"" + KG2 + "\":[\"" + T2 + "\"]},\"kbId\":\"" + KB1 + "\"}",
                 "kg-tags-wrong-kb.json");
         assertPut("/api/v1/knowledge/tags",
-                "{\"updates\":{\"" + UNKNOWN + "\":[\"" + T1 + "\"]},\"kb_id\":\"" + KB1 + "\"}",
+                "{\"updates\":{\"" + UNKNOWN + "\":[\"" + T1 + "\"]},\"kbId\":\"" + KB1 + "\"}",
                 "kg-tags-unknown-knowledge.json");
         assertPut("/api/v1/knowledge/tags",
                 "{\"updates\":{\"" + CROSS_KG + "\":[\"" + T1 + "\"]}}", "kg-tags-cross-tenant.json");
         assertPut("/api/v1/knowledge/tags",
-                "{\"updates\":{\"" + KG16 + "\":[\"" + T2 + "\"]},\"kb_id\":\"" + KB1 + "\"}",
+                "{\"updates\":{\"" + KG16 + "\":[\"" + T2 + "\"]},\"kbId\":\"" + KB1 + "\"}",
                 "kg-tags-cross-kb.json");
         assertPut("/api/v1/knowledge/tags",
-                "{\"updates\":{\"" + KG2 + "\":[\"" + T1 + "\"]},\"kb_id\":\"" + UNKNOWN + "\"}",
+                "{\"updates\":{\"" + KG2 + "\":[\"" + T1 + "\"]},\"kbId\":\"" + UNKNOWN + "\"}",
                 "kg-tags-badkb.json");
         MvcResult c = mockMvc.perform(put("/api/v1/knowledge/tags")
                 .header("Authorization", contrib)
                 .contentType("application/json")
-                .content("{\"updates\":{\"" + KG2 + "\":[\"" + T1 + "\"]},\"kb_id\":\"" + KB1 + "\"}"))
+                .content("{\"updates\":{\"" + KG2 + "\":[\"" + T1 + "\"]},\"kbId\":\"" + KB1 + "\"}"))
                 .andReturn();
         assertEquals(403, c.getResponse().getStatus(), raw(c));
         assertEquals(golden("kg-tags-contrib.json"), raw(c));
@@ -499,19 +499,19 @@ class KnowledgeOperationsContractTest {
     @Test
     void batchDeleteMatchesGo() throws Exception {
         assertPost("/api/v1/knowledge/batch-delete",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG3 + "\"]}", "kg-batch-delete.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG3 + "\"]}", "kg-batch-delete.json");
         assertPost("/api/v1/knowledge/batch-delete",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\",\"" + UNKNOWN + "\"]}",
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\",\"" + UNKNOWN + "\"]}",
                 "kg-batch-delete-missing.json");
         assertPost("/api/v1/knowledge/batch-delete",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG16 + "\"]}", "kg-batch-delete-cross.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG16 + "\"]}", "kg-batch-delete-cross.json");
         assertPost("/api/v1/knowledge/batch-delete",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[]}", "kg-batch-delete-empty-ids.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[]}", "kg-batch-delete-empty-ids.json");
         assertPostNoBody("/api/v1/knowledge/batch-delete", "kg-batch-delete-no-body.json");
         assertPost("/api/v1/knowledge/batch-delete",
-                "{\"kb_id\":\"" + UNKNOWN + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-delete-badkb.json");
+                "{\"kbId\":\"" + UNKNOWN + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-delete-badkb.json");
         assertPostContrib("/api/v1/knowledge/batch-delete",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-delete-contrib.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-delete-contrib.json");
     }
 
     // ════════════════ 11) batch-reparse ════════════════
@@ -539,29 +539,29 @@ class KnowledgeOperationsContractTest {
     @Test
     void folderMoveMatchesGo() throws Exception {
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG2 + "\"],\"folder_path\":\"docs/notes\"}",
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG2 + "\"],\"folderPath\":\"docs/notes\"}",
                 "kg-move.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG2 + "\"],\"folder_path\":\"\"}",
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG2 + "\"],\"folderPath\":\"\"}",
                 "kg-move-back.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[]}", "kg-move-empty.json");
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[]}", "kg-move-empty.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + UNKNOWN + "\"]}",
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + UNKNOWN + "\"]}",
                 "kg-move-missing.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG16 + "\"]}", "kg-move-cross.json");
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG16 + "\"]}", "kg-move-cross.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + UNKNOWN + "\",\"knowledge_ids\":[\"" + KG2 + "\"]}",
+                "{\"kbId\":\"" + UNKNOWN + "\",\"knowledgeIds\":[\"" + KG2 + "\"]}",
                 "kg-move-badkb.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG2 + "\"],\"folder_path\":\"<script>x\"}",
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG2 + "\"],\"folderPath\":\"<script>x\"}",
                 "kg-move-badpath.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"knowledge_ids\":[\"" + KG2 + "\"]}", "kg-move-nokb.json");
+                "{\"knowledgeIds\":[\"" + KG2 + "\"]}", "kg-move-nokb.json");
         assertPostNoBody("/api/v1/knowledge/folder", "kg-move-no-body.json");
         assertPostContrib("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG2 + "\"]}", "kg-move-contrib.json");
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG2 + "\"]}", "kg-move-contrib.json");
     }
 
     // ════════════════ 13) folder rename（依赖 batch-delete + move 前缀：folders 计数收敛） ════════════════
@@ -570,16 +570,16 @@ class KnowledgeOperationsContractTest {
     void folderRenameMatchesGo() throws Exception {
         // 前缀 1：batch-delete 消费 KG3（Go 异步、Java 同步，计数收敛）
         assertPost("/api/v1/knowledge/batch-delete",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG3 + "\"]}", "kg-batch-delete.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG3 + "\"]}", "kg-batch-delete.json");
         // 前缀 2：move 链（KG2 最终落在 <scriptx）
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG2 + "\"],\"folder_path\":\"docs/notes\"}",
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG2 + "\"],\"folderPath\":\"docs/notes\"}",
                 "kg-move.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG2 + "\"],\"folder_path\":\"\"}",
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG2 + "\"],\"folderPath\":\"\"}",
                 "kg-move-back.json");
         assertPost("/api/v1/knowledge/folder",
-                "{\"kb_id\":\"" + KB1 + "\",\"knowledge_ids\":[\"" + KG2 + "\"],\"folder_path\":\"<script>x\"}",
+                "{\"kbId\":\"" + KB1 + "\",\"knowledgeIds\":[\"" + KG2 + "\"],\"folderPath\":\"<script>x\"}",
                 "kg-move-badpath.json");
 
         assertPut("/api/v1/knowledge-bases/" + KB1 + "/knowledge/folders",

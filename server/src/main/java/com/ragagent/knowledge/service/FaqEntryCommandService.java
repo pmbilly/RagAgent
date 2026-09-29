@@ -116,8 +116,8 @@ public class FaqEntryCommandService {
             // GetEmbeddingModel：模型行缺失/ID 空 → plain 500（handler c.Error 的非 AppError 分支）
             Model embeddingModel = faqIndexWriter.requireEmbeddingModel(kb);
 
-            boolean isEnabled = payload.isEnabled() == null || payload.isEnabled();
-            int flags = payload.isRecommended() != null && !payload.isRecommended() ? 0 : 1;
+            boolean isEnabled = payload.enabled() == null || payload.enabled();
+            int flags = payload.recommended() != null && !payload.recommended() ? 0 : 1;
 
             Chunk chunk = new Chunk();
             chunk.setId(UUID.randomUUID().toString());
@@ -234,11 +234,11 @@ public class FaqEntryCommandService {
         } else {
             chunk.setTagId("");
         }
-        if (payload.isEnabled() != null) {
-            chunk.setIsEnabled(payload.isEnabled());
+        if (payload.enabled() != null) {
+            chunk.setIsEnabled(payload.enabled());
         }
-        if (payload.isRecommended() != null) {
-            if (payload.isRecommended()) {
+        if (payload.recommended() != null) {
+            if (payload.recommended()) {
                 chunk.setFlags(chunk.getFlags() | 1);
             } else {
                 chunk.setFlags(chunk.getFlags() & ~1);
@@ -422,8 +422,8 @@ public class FaqEntryCommandService {
 
                 int setFlags = 0;
                 int clearFlags = 0;
-                if (update.isRecommended() != null) {
-                    if (update.isRecommended()) {
+                if (update.recommended() != null) {
+                    if (update.recommended()) {
                         setFlags = 1;
                     } else {
                         clearFlags = 1;
@@ -436,14 +436,14 @@ public class FaqEntryCommandService {
                             : "";
                 }
                 List<String> affectedIds = faqChunkRepository.updateChunkFieldsByTagId(
-                        tid, kb.getId(), tag.getId(), update.isEnabled(),
+                        tid, kb.getId(), tag.getId(), update.enabled(),
                         setFlags, clearFlags, newTagUuid, excludeUuids);
 
                 for (String id : affectedIds) {
                     Chunk chunk = plan.chunksById.get(id);
                     if (chunk != null) {
-                        if (update.isEnabled() != null) {
-                            chunk.setIsEnabled(update.isEnabled());
+                        if (update.enabled() != null) {
+                            chunk.setIsEnabled(update.enabled());
                         }
                         chunk.setFlags((chunk.getFlags() | setFlags) & ~clearFlags);
                         if (newTagUuid != null) {
@@ -452,9 +452,9 @@ public class FaqEntryCommandService {
                     }
                 }
                 if (!affectedIds.isEmpty()) {
-                    if (update.isEnabled() != null) {
+                    if (update.enabled() != null) {
                         for (String id : affectedIds) {
-                            enabledUpdates.put(id, update.isEnabled());
+                            enabledUpdates.put(id, update.enabled());
                         }
                     }
                     if (newTagUuid != null) {
@@ -478,15 +478,15 @@ public class FaqEntryCommandService {
                 Chunk chunk = chunkBySeqId.get(entrySeqId);
 
                 boolean needUpdate = false;
-                if (update.isEnabled() != null && chunk.isIsEnabled() != update.isEnabled()) {
-                    chunk.setIsEnabled(update.isEnabled());
-                    enabledUpdates.put(chunk.getId(), update.isEnabled());
+                if (update.enabled() != null && chunk.isIsEnabled() != update.enabled()) {
+                    chunk.setIsEnabled(update.enabled());
+                    enabledUpdates.put(chunk.getId(), update.enabled());
                     needUpdate = true;
                 }
-                if (update.isRecommended() != null) {
+                if (update.recommended() != null) {
                     boolean currentRecommended = (chunk.getFlags() & 1) != 0;
-                    if (currentRecommended != update.isRecommended()) {
-                        if (update.isRecommended()) {
+                    if (currentRecommended != update.recommended()) {
+                        if (update.recommended()) {
                             setFlags.put(chunk.getId(), 1);
                         } else {
                             clearFlags.put(chunk.getId(), 1);

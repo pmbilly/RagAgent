@@ -147,7 +147,7 @@ public class ChunkController {
         Chunk updated;
         try {
             updated = chunkEdit.updateDocumentChunk(
-                    chunk.getId(), body.content(), body.isEnabled(), body.expectedRevision());
+                    chunk.getId(), body.content(), body.enabled(), body.expectedRevision());
         } catch (ChunkRevisionConflictException e) {
             throw new BizException(AppError.conflict(
                     "Chunk was modified by another user; refresh and retry"));

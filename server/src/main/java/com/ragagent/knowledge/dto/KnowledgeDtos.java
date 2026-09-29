@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -21,7 +20,6 @@ public final class KnowledgeDtos {
     }
 
     /** 从 URL 创建：url 必填（SSRF 校验在 controller）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record CreateFromUrlRequest(
             @NotBlank(message = "url: 不能为空")
             String url,
@@ -32,7 +30,6 @@ public final class KnowledgeDtos {
     }
 
     /** 手工创建：title 必填。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record CreateManualRequest(
             @NotBlank(message = "title: 不能为空")
             String title,
@@ -42,17 +39,14 @@ public final class KnowledgeDtos {
     }
 
     /** 手工内容更新：全指针，不传 = 不变更。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpdateManualRequest(String title, String content, String status, String channel) {
     }
 
     /** 图片信息更新：缺省空串（清除语义）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpdateImageInfoRequest(String imageInfo) {
     }
 
     /** 批量标签更新：updates 为 knowledge_id → 标签 ID 列表；kb_id 缺省时从首条推导授权。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record KnowledgeTagBatchRequest(
             @NotEmpty(message = "updates: 不能为空")
             Map<String, List<String>> updates,
@@ -60,24 +54,21 @@ public final class KnowledgeDtos {
     }
 
     /** 批量删除：ids 的 null/空数组校验在 controller（两种原文案不同）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record BatchDeleteRequest(
-            @NotBlank(message = "kb_id: 不能为空")
+            @NotBlank(message = "kbId: 不能为空")
             String kbId,
             List<String> ids) {
     }
 
     /** 跨库搬移（目的地不存在即创建）；knowledge_ids 空数组校验在 controller（原文案）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record MoveToFolderRequest(
-            @NotBlank(message = "kb_id: 不能为空")
+            @NotBlank(message = "kbId: 不能为空")
             String kbId,
             List<String> knowledgeIds,
             String folderPath) {
     }
 
     /** 文件夹重命名。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record RenameFolderRequest(
             @NotBlank(message = "from: 不能为空")
             String from,
@@ -86,13 +77,12 @@ public final class KnowledgeDtos {
     }
 
     /** 跨 KB 搬移：mode 二选一（reuse_vectors 保留向量 / reparse 重析）。 */
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record MoveKnowledgeRequest(
-            @NotEmpty(message = "knowledge_ids: 不能为空")
+            @NotEmpty(message = "knowledgeIds: 不能为空")
             List<String> knowledgeIds,
-            @NotBlank(message = "source_kb_id: 不能为空")
+            @NotBlank(message = "source_kbId: 不能为空")
             String sourceKbId,
-            @NotBlank(message = "target_kb_id: 不能为空")
+            @NotBlank(message = "target_kbId: 不能为空")
             String targetKbId,
             @NotBlank(message = "mode: 不能为空")
             @Pattern(regexp = "reuse_vectors|reparse", message = "mode: 必须为 reuse_vectors 或 reparse")

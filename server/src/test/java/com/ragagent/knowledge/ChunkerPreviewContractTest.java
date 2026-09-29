@@ -131,36 +131,36 @@ class ChunkerPreviewContractTest {
         String md = jsonQuote(MARKDOWN);
 
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
-                "{\"text\":" + md + ",\"chunking_config\":{\"chunk_size\":200,\"chunk_overlap\":20}}"),
+                "{\"text\":" + md + ",\"chunkingConfig\":{\"chunkSize\":200,\"chunkOverlap\":20}}"),
                 200, "cprev-basic-markdown.json");
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
                 "{\"text\":\"Just a plain paragraph. No structure at all. Still needs a second"
-                        + " sentence to be realistic.\",\"chunking_config\":{\"chunk_size\":200,"
-                        + "\"chunk_overlap\":20}}"),
+                        + " sentence to be realistic.\",\"chunkingConfig\":{\"chunkSize\":200,"
+                        + "\"chunkOverlap\":20}}"),
                 200, "cprev-plain-text.json");
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
-                "{\"text\":" + md + ",\"chunking_config\":{\"chunk_size\":200,\"chunk_overlap\":20,"
+                "{\"text\":" + md + ",\"chunkingConfig\":{\"chunkSize\":200,\"chunkOverlap\":20,"
                         + "\"strategy\":\"legacy\"}}"),
                 200, "cprev-explicit-legacy.json");
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
-                "{\"text\":" + md + ",\"chunking_config\":{\"chunk_size\":200,\"chunk_overlap\":20,"
+                "{\"text\":" + md + ",\"chunkingConfig\":{\"chunkSize\":200,\"chunkOverlap\":20,"
                         + "\"strategy\":\"heading\"}}"),
                 200, "cprev-explicit-heading.json");
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
-                "{\"text\":" + md + ",\"chunking_config\":{\"chunk_size\":200,\"chunk_overlap\":20,"
+                "{\"text\":" + md + ",\"chunkingConfig\":{\"chunkSize\":200,\"chunkOverlap\":20,"
                         + "\"strategy\":\"nonsense\"}}"),
                 200, "cprev-unknown-strategy.json");
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
-                "{\"text\":" + md + ",\"chunking_config\":{\"enable_parent_child\":true,"
-                        + "\"parent_chunk_size\":300,\"child_chunk_size\":100}}"),
+                "{\"text\":" + md + ",\"chunkingConfig\":{\"enableParentChild\":true,"
+                        + "\"parentChunkSize\":300,\"childChunkSize\":100}}"),
                 200, "cprev-parent-child.json");
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
-                "{\"text\":" + md + ",\"chunking_config\":{\"chunk_size\":1600,\"chunk_overlap\":160,"
-                        + "\"token_limit\":80}}"),
+                "{\"text\":" + md + ",\"chunkingConfig\":{\"chunkSize\":1600,\"chunkOverlap\":160,"
+                        + "\"tokenLimit\":80}}"),
                 200, "cprev-token-limit.json");
         assertGolden(json(post("/api/v1/chunker/preview").header("Authorization", owner),
-                "{\"text\":" + jsonQuote(CHINESE) + ",\"chunking_config\":{\"chunk_size\":60,"
-                        + "\"chunk_overlap\":10}}"),
+                "{\"text\":" + jsonQuote(CHINESE) + ",\"chunkingConfig\":{\"chunkSize\":60,"
+                        + "\"chunkOverlap\":10}}"),
                 200, "cprev-chinese.json");
     }
 
