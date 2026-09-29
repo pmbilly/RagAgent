@@ -3,6 +3,15 @@
 > 本文档写给在 `~/ragagent` 打开的新会话/新成员。新会话没有旧仓会话的记忆，**一切背景以本文为准**。
 > 种子：自 `~/ragagent-java` @ `646aba7`（2026-09-28）分叉，git 历史完整保留（blame/log 可直接用）。
 
+## 0. 总目标（2026-09-29 用户定稿）
+
+**根据 Java 的标准和思想，全面提升代码的可读性。**
+
+- 这是从翻译期（"忠实复刻 Go"）到 Java 本位期的目标切换：以 Java 生态的主流标准与惯用法为尺度——标准 Jackson 序列化、DTO + `@Valid` 请求绑定、`@ConfigurationProperties` 配置、Spring 装配惯例、常规类规模与命名——让代码读起来像一个原生 Java 项目，而不是 Go 的 Java 转写。
+- 可读性是唯一主线：§5 路线图的各阶段（神类拆分、序列化换锚、DTO 化、注释清洗等）都是达成它的手段，规划优先级以"对可读性的收益"衡量。
+- 行为不变仍是底线（4,600+ 测试是安全网）；可读性改造不得改变对外契约与业务语义，契约形态的显式变更走 §2 第 4 条。
+- **下一步规划由用户在另一个新会话进行**——那个会话应以本文档为唯一背景，围绕本目标展开（候选工作面见 §5 阶段 2/3/4 与 §4 的存量数据）。
+
 ## 1. 仓库身份与分界
 
 - 本仓 = 原 WeKnora Go 后端的 Java 翻译版（ragagent-java）的**后续演进线**。
@@ -12,13 +21,14 @@
 
 ## 2. 已定决策（勿再重新讨论）
 
+0. **总目标 = 按 Java 标准全面提升可读性**（见 §0）：后续所有重构规划的出发点与优先级尺度。
 1. **旧仓零修改**：没有冻结过渡期、没有 fix 回流，本仓即唯一工作仓。
 2. **产品未上线，无数据连续性负担**：schema 可直接做基线合并（见 §5 阶段 1）。
 3. **前端随后端逐步调整**：改契约的后端 PR 同 PR 带前端修改，不设集中适配期。
 4. **契约标准（阶段 2 目标形态）**：字段命名保留 snake_case（`@JsonNaming(SnakeCaseStrategy)` 是标准做法，不改 camelCase）；错误改 RFC 7807 Problem Details；时间用 jackson-datatype-jsr310（ISO-8601，`WRITE_DATES_AS_TIMESTAMPS=false`）；空值策略 `@JsonInclude(NON_NULL)`。
 5. **功能裁剪（2026-09-28 用户定稿，第一批）**：移除「**浏览器连接、沙箱、CLI、Chrome 插件、Claw Skill**」五项——对应后端 `browserskill` + `sandbox` 两包（沙箱执行面：installer agent、镜像快照、shell_exec、沙箱文件四件套、PTY 终端；**技能体系保留但降级为指令型**，见第 9 条）与前端 integrations 设置的 `cli`/`chrome`/`claw` 三个纯展示 tab（精确清单见 §6.1）。裁完后**聚焦知识库与 Agent 两个域的重构**（§5 阶段 2）。以下为**待排期可选项**（不在第一批，勿主动动手）：`org`（共享空间/跨租户授予）、`im`（九渠道）、`datasource`（连接器，28.3k 行零耦合）、`evaluation`、`favorite`；多引擎检索是否裁到 postgres 单引擎待议。保留：mcp、memory、embed、wiki、知识库/检索/会话主链路。
 6. **自研基础设施保留**：EventBus、StreamManager（Redis Stream）、chatpipeline 插件管线、ToolRegistry、各 Bridge——是架构不是技术债；阶段 4 只做多模块边界固化，不替换。
-7. **Go 兼容序列化层在阶段 2 删除**：`common/web` 下 `GoMapSerializer/GoDoubleSerializer/GoTimeSerializer/GoJsonEscapes` 等（约 110 个引用点回归标准 Jackson；目前 Controller 里还有大量手搓 `ObjectNode`，一并在阶段 3 收敛为 DTO 序列化）。
+7. **Go 兼容序列化层退役（可读性主线的一环）**：`common/web` 下 `GoMapSerializer/GoDoubleSerializer/GoTimeSerializer/GoJsonEscapes` 等（约 110 个引用点回归标准 Jackson；Controller 里大量手搓 `ObjectNode` 一并收敛为 DTO 序列化——DTO 化是 Java 本位可读性的核心工作面）。
 8. **神类拆分有现成地图**：41 个千行大类的分段注释就是原 Go 文件边界，沿注释拆即可，不需要重新设计边界。
 9. **Agent 能力取舍已接受**：裁沙箱与浏览器连接后，Agent 剩余工具面 = 知识检索族 + wiki 十件 + web 两件 + MCP + DuckDB 数据分析（DataAnalysisTool 走独立 DuckDB 会话，初步判断不依赖沙箱，动手时验证）；browser skill 工具随 `browserskill` 一并消失。
 10. **技能降级为指令型（2026-09-28 定稿，选项 B）**：技能 = playbook——保留 SKILL.md 提示词注入路径（`agent/skills` 的 Skill/Loader/Manager + `AgentEngine.setSkillsManager` + agent config 的 `skills_selection_mode/selected_skills` 字段 + 前端技能选择器），模型凭指令用现有工具执行；**删除**镜像源（TenantSkillSource）、安装管线、shell/文件注入（范围见 §6.1③）；执行型扩展需求引导走 MCP。
@@ -39,13 +49,15 @@
 
 ## 5. 转型路线图
 
+> 各阶段均为 §0 总目标的手段；具体下一刀的取舍与排序由用户在新会话规划——下表是存量工作面的盘点，不是既定排期。
+
 | 阶段 | 内容 | 量级 |
 |---|---|---|
 | 0 起步 | 建仓/环境隔离/CI 骨架/裁剪清单签字（本文档即阶段 0 产物） | 已完成 |
 | 1 五功能移除 | 按 §6.1 清单逐 PR 拆除浏览器连接/沙箱(含技能体系)/CLI/Chrome插件/Claw Skill；schema dump → `V1__baseline.sql`（减裁剪表，196 个增量迁移退役）；测试对比器从字节对比改 **JSON 语义对比**（键序/转义归一化后再比）+ fixture 重录 | **已完成（2026-09-29）**：ba04157（CI+环境）→ f073c88（PR1 三 tab）→ 0f72b0f（PR2 浏览器连接）→ caef9d5（PR3 沙箱+技能降级）→ fba0e7a（PR4 基线+语义比较器）；累计净删 ~8.3 万行，4,685 后端测试全绿 |
 | 2 **知识库 + Agent 聚焦重构（当前重心）** | 先只做这两个域：knowledge 四神类（KnowledgeService 3,392 行/153 方法、FaqService 3,089、KnowledgeController 1,312、ChunkService 1,296）与 agent 五神类（AgentEngine 3,266 等）拆分（沿注释边界）；Controller rawBody 手工解析 → DTO + `@Valid`（knowledge 包 68 处手搓 ObjectNode 改 DTO 序列化）；ChunkRepository 等 "GORM 复刻层" 改写为本仓自己的数据访问契约（行为不变、文档重写） | 2–3 人月 |
 | 3 契约换锚（全仓一次性） | 删 Go 序列化层（110 引用点）、Problem Details、jsr310、NON_NULL（§2 第 4 条）；每个端点改完同 PR 带前端 | 2–3 周 |
-| 4 其余域标准化 + 架构调整 | session/wiki/retrieval 等其余神类；getenv 收敛；注释清洗；可选裁剪（org/im/datasource，见 §2 第 5 条）；Gradle 多模块 + ArchUnit 边界规则进 CI | 2–3 人月 |
+| 4 其余域标准化 + 架构调整 | session/wiki/retrieval 等其余神类；getenv 收敛；注释清洗；可选裁剪（im/datasource，见 §6.2——org 已清账）；Gradle 多模块 + ArchUnit 边界规则进 CI | 2–3 人月 |
 
 总量约 5–8 人月；2 人并行日历约 2.5–4 个月。阶段 2/3 顺序可对调（语义对比落地后换锚对已拆分代码同样安全），但**序列化层删除必须一次性全仓完成**——半删状态（一部分端点走 Go 格式、一部分走标准 Jackson）最危险。
 
@@ -79,7 +91,7 @@
 - `datasource` / `evaluation` / `favorite`：**零外部引用**，随时可纯删（datasource 前端在 KB 设置面板 `views/knowledge/settings/DataSource*.vue`）。
 - `im`（1 个跨包引用）：`config/ImAdapterWiringConfig.java`（+ im 包内回调 controller 自删）+ 前端渠道设置页（integrations 的 `im` tab）。
 
-## 7. 阶段 1 执行记录（2026-09-29 完成）与下一周任务
+## 7. 执行记录（阶段 1 完成 / org 清账 / 阶段 2 开局）与当前状态
 
 **阶段 1 已完成**（五个提交见 §5 表格；串行合入，红线 #2 全程遵守）。执行中的增量记录：
 
@@ -87,7 +99,14 @@
 - 测试对比器：`support/ContractJson`（键排序+数字归一+紧凑序列化）接入 33 个 golden()/27 个 raw() 出口与各 mask() 入口；fixture **无需重录**——语义等价即通过，本仓行为成为唯一契约。邻接键正则的存量断言已就地改 Jackson 树断言（逢触碰必改原则的既成事实清单见 PR4 提交）。
 - 满负载测试暴露并修复了三个 seed 期潜伏缺陷（已随 PR2 提交）：ConcurrencyChatClient.drain 永动自旋（+30s 硬上限）、SsrfGuard static 白名单互踩（W5a 家族补快照/还原）、SSRF 契约用例的 fake-ip DNS 环境依赖（改确定性回环）。
 
-**阶段 2 开局已完成（2026-09-29，8e9b7da）**：`KnowledgeService`（3,392 行/153 方法）沿注释边界拆为门面 + 7 服务——KnowledgeMoveService(405)/KnowledgeCloneService(486)/KnowledgeSearchService(198)/KnowledgeFolderService(409)/KnowledgeSpanService(269)/KnowledgeSummaryPipelineService(1,114)/KnowledgeBatchOpsService(158)/KnowledgeTaskIds(76)；门面保留全部公共方法委托（851 行），18+ 注入点与 Mockito 测试零改动。后续刀：FaqService(3,089) 同款拆分 → ChunkService(1,296) → AgentEngine(3,266) 沿七段边界 → Controller rawBody → DTO。红线不变：一次只动一个轴；每步全绿。
+**阶段 2 开局已完成（2026-09-29，8e9b7da）**：`KnowledgeService`（3,392 行/153 方法）沿注释边界拆为门面 + 7 服务——KnowledgeMoveService(405)/KnowledgeCloneService(486)/KnowledgeSearchService(198)/KnowledgeFolderService(409)/KnowledgeSpanService(269)/KnowledgeSummaryPipelineService(1,114)/KnowledgeBatchOpsService(158)/KnowledgeTaskIds(76)；门面保留全部公共方法委托（851 行），18+ 注入点与 Mockito 测试零改动。
+
+**当前状态与下一步**：裁剪 + org 清账 + KnowledgeService 拆分均已合入（至 e738719），后端 4,656 测试全绿、前端三绿。**下一步规划由用户在另一个新会话进行**，围绕 §0 总目标（Java 标准可读性）展开；候选工作面（按域未做排序）：
+- 沿注释拆分的剩余神类：FaqService(3,089)/ChunkService(1,296)/KnowledgeController(1,312) → AgentEngine(3,266，七段边界) → wiki 两神类(2,268/2,182) → session 域（SessionAgentQaService 等）
+- Controller rawBody 手工解析 → DTO + `@Valid`（knowledge 包 68 处手搓 ObjectNode 起步）
+- ChunkRepository 等"GORM 复刻层"改写为本仓自己的数据访问契约（行为不变、文档重写）
+- "对照 Go"注释 6,145 处随触碰清洗；裸 `System.getenv()` ~90 处收敛 `@ConfigurationProperties`
+- 契约换锚（§2 第 4 条）与 Gradle 多模块 + ArchUnit（阶段 3/4 面）
 
 ## 8. 环境与运行
 
