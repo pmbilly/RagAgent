@@ -9,7 +9,6 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.security.SsrfGuard;
-import com.ragagent.common.web.ApiResponse;
 import com.ragagent.common.web.ContentTypeByFilename;
 import com.ragagent.common.web.DataMessageResponse;
 import com.ragagent.common.web.MessageResponse;

@@ -6,7 +6,6 @@ import java.util.List;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.ApiResponse;
 import com.ragagent.common.web.DataMessageResponse;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.Knowledge;
