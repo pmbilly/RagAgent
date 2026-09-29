@@ -2,6 +2,7 @@ package com.ragagent.wiki.service;
 
 import java.util.List;
 import java.util.Locale;
+import com.ragagent.common.web.RequestLocale;
 
 /**
  * prompt 语言的解析与命名（对照 Go internal/types/context_helpers.go 的
@@ -125,6 +126,12 @@ public final class WikiLanguageSupport {
     public static String localeName(String locale) {
         if (locale == null) {
             return "";
+        }
+        // 葡萄牙语：Go 只列了 pt-BR/pt，但请求语言判定（RequestLocale.isPortuguese）
+        // 按语言子标签识别，两侧必须一致——否则 pt-PT 用户会拿到 "Write in pt-PT" 这类
+        // 未本地化的插值。此处按 primary subtag 兜住所有 pt-* 变体。
+        if (RequestLocale.isPortuguese(locale)) {
+            return "Portuguese";
         }
         return switch (locale) {
             case "zh-CN", "zh", "zh-Hans" -> "Chinese (Simplified)";

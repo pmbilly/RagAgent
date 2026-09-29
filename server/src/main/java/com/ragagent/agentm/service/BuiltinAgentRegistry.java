@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.common.web.RequestLocale;
 
 /**
  * 内建 agent 注册表（对照 Go internal/types/builtin_agent_config.go +
@@ -252,18 +253,12 @@ public class BuiltinAgentRegistry {
         return entries.get(id);
     }
 
-    /** 对照 middleware/language.go：env → Accept-Language 首个 tag → zh-CN。 */
+    /**
+     * 对照 middleware/language.go：env → Accept-Language 首个 tag → zh-CN。
+     * 解析规则统一在 {@link RequestLocale}（与请求级语言上下文共用，避免两份实现漂移）。
+     */
     public static String localeFromRequest(String acceptLanguage) {
-        String env = System.getenv("WEKNORA_LANGUAGE");
-        if (env != null && !env.trim().isEmpty()) {
-            return env.trim();
-        }
-        String lang = "";
-        if (acceptLanguage != null && !acceptLanguage.isEmpty()) {
-            String first = acceptLanguage.split(",", 2)[0].trim();
-            lang = first.split(";", 2)[0].trim();
-        }
-        return lang.isEmpty() ? "zh-CN" : lang;
+        return RequestLocale.resolve(acceptLanguage);
     }
 
     /** 供测试清理用（Go 的 entries 是进程级单例，本类同样一次装载）。 */
