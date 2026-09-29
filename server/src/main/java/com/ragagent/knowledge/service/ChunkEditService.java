@@ -74,8 +74,8 @@ public class ChunkEditService {
 
     private static long mustTenantId() {
         Long tid = TenantContext.currentTenantId();
-        if (tid == null || tid == 0) {
-            throw new IllegalStateException("tenant context missing");
+        if (tid == null) {
+            throw new IllegalStateException("tenant id is not in context");
         }
         return tid;
     }

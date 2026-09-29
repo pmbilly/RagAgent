@@ -7,6 +7,7 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.ApiResponse;
+import com.ragagent.common.web.RejectEmptyBody;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
@@ -144,7 +145,7 @@ public class ChunkController {
     public ResponseEntity<ChunkUpdateResponse<Chunk>> updateChunk(
             @PathVariable("knowledgeId") String knowledgeId,
             @PathVariable("id") String id,
-            @Valid @RequestBody UpdateChunkRequest req) {
+            @Valid @RejectEmptyBody @RequestBody(required = false) UpdateChunkRequest req) {
         Chunk chunk = fetchChunkAndVerifyOwnership(knowledgeId, id);
         UpdateChunkRequest body = req == null ? new UpdateChunkRequest(null, null, null) : req;
         Chunk updated;
@@ -167,7 +168,7 @@ public class ChunkController {
     public ResponseEntity<ChunkUpdateResponse<Chunk>> revertChunk(
             @PathVariable("knowledgeId") String knowledgeId,
             @PathVariable("id") String id,
-            @Valid @RequestBody RevertChunkRequest req) {
+            @Valid @RejectEmptyBody @RequestBody(required = false) RevertChunkRequest req) {
         Chunk chunk = fetchChunkAndVerifyOwnership(knowledgeId, id);
         RevertChunkRequest body = req == null ? new RevertChunkRequest(null, null) : req;
         if (body.revision() != null && body.revision() < 0) {

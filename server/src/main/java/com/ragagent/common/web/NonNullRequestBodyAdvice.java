@@ -1,6 +1,7 @@
 package com.ragagent.common.web;
 
 import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpInputMessage;
@@ -43,6 +44,9 @@ public class NonNullRequestBodyAdvice implements RequestBodyAdvice {
     @Override
     public Object handleEmptyBody(Object body, HttpInputMessage inputMessage, MethodParameter parameter,
             Type targetType, Class<? extends HttpMessageConverter<?>> converterType) {
+        if (parameter.hasParameterAnnotation(RejectEmptyBody.class)) {
+            throw new BizException(AppError.badRequest("请求参数不合法").withDetails("请求体不能为空"));
+        }
         return body;
     }
 }

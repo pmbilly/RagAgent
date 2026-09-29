@@ -84,17 +84,17 @@ public class ChunkQuestionService {
     private static final ObjectMapper META_MAPPER = new ObjectMapper();
     private static final String CHUNK_TYPE_TEXT = "text";
 
-    private static long mustTenantId() {{
+    private static long mustTenantId() {
         Long tid = TenantContext.currentTenantId();
-        if (tid == null || tid == 0) {{
-            throw new IllegalStateException("tenant context missing");
-        }}
+        if (tid == null) {
+            throw new IllegalStateException("tenant id is not in context");
+        }
         return tid;
-    }}
+    }
 
-    private static String orEmpty(String s) {{
+    private static String orEmpty(String s) {
         return s == null ? "" : s;
-    }}
+    }
 
 
     // ── 生成问题 ───────────────────────────────────────────────────────────

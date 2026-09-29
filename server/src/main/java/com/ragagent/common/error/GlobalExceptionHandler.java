@@ -104,6 +104,7 @@ public class GlobalExceptionHandler {
                     String msg = translateMessage(err.getDefaultMessage());
                     lines.add(msg.matches("^[a-z][a-z0-9_]*: .*") ? msg : extractField(err) + ": " + msg);
                 }));
+        java.util.Collections.sort(lines); // 与 handleBind 同款：多行 details 取字典序（确定性）
         if (lines.isEmpty()) {
             lines.add("请求参数不合法");
         }
@@ -160,7 +161,7 @@ public class GlobalExceptionHandler {
         if (msg == null) {
             return "不合法";
         }
-        if (msg.contains("characters")) {
+        if (msg.contains("characters") && !msg.startsWith("size must be")) {
             return msg; // 自定义消息（如长度说明）原样保留
         }
         if (msg.equals("must not be blank") || msg.equals("must not be null") || msg.equals("must not be empty")) {

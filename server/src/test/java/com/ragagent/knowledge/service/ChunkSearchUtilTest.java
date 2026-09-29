@@ -74,10 +74,10 @@ class ChunkSearchUtilTest {
     }
 
     @Test
-    void goTrimSpaceMatchesUnicodeIsSpaceSet() {
+    void trimSpaceMatchesUnicodeSpaceSet() {
         // Java strip() 缺 U+00A0/U+0085；Go TrimSpace 是 unicode.IsSpace 全集
-        assertThat(ChunkSearchUtil.goTrimSpace("\u00A0\u3000 x \u2028")).isEqualTo("x");
-        assertThat(ChunkSearchUtil.goTrimSpace("  ")).isEmpty();
-        assertThat(ChunkSearchUtil.goTrimSpace(null)).isEmpty();
+        assertThat(ChunkSearchUtil.trimSpace("\u00A0\u3000 x \u2028")).isEqualTo("x");
+        assertThat(ChunkSearchUtil.trimSpace("  ")).isEmpty();
+        assertThat(ChunkSearchUtil.trimSpace(null)).isEmpty();
     }
 }

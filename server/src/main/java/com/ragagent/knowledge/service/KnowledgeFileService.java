@@ -221,18 +221,14 @@ public class KnowledgeFileService {
         return safeName;
     }
 
-    /**
-     * * loadKnowledgeWrite → （override 校验仅当显式传入）→ reset → 落库 → 入队。
-     * @return 响应体 knowledge（内存对象，重置后的状态；时间戳掩码外逐字段一致）
-     */
-
+    /** 文件流的打开句柄（filename 是清洗后的下载名；manual = 内存流）。 */
     public record KnowledgeFileStream(String filename,
             com.ragagent.storage.fileserve.FileTransport.OpenedFile opened, boolean manual) {
     }
 
     /**
-     * 打开知识文件流。
-     * <p>替换先前"读满 byte[]"的实现（W5γ5.4 ①b）：大文件不再整份入堆，
+     * 打开知识文件流。manual 知识直接读 metadata.content，文档走存储层
+     * （本地可 seek → 支持 Range；云按 provider 能力）。不整份读入内存。
      */
     public KnowledgeFileStream openKnowledgeFile(String id) {
         Knowledge knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()

@@ -342,6 +342,14 @@ class ChunkContractTest {
         assertEquals(golden("chunk-update-mismatch.json"), raw(r));
     }
 
+    /** null 字面量体 = 零值绑定（全指针字段全空 = 无变更，200 返回当前 chunk）。 */
+    @Test
+    void updateLiteralNullBodyIsZeroValueBinding() throws Exception {
+        MvcResult r = mockMvc.perform(jsonBody(
+                put("/api/v1/chunks/" + KG1 + "/" + C2), owner, "null")).andReturn();
+        assertEquals(200, r.getResponse().getStatus(), raw(r));
+    }
+
     @Test
     void updateNoBodyAndBadJsonMatchGo() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(
