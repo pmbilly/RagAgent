@@ -9,7 +9,6 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.GuardForbiddenException;
-import com.ragagent.common.web.ApiResponse;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.dto.KnowledgeBaseDtos;
@@ -361,9 +360,9 @@ public class KnowledgeBaseController {
         }
     }
 
-    /** 索引策略变更后对 KB 内全部知识重跑处理管线；前端读 {@code data.document_count}。 */
+    /** 索引策略变更后对 KB 内全部知识重跑处理管线（裸返回重建条数）。 */
     @PostMapping("/{id}/rebuild-index")
-    public ResponseEntity<ApiResponse<RebuildIndexResponse>> rebuildIndex(@PathVariable("id") String id) {
+    public ResponseEntity<RebuildIndexResponse> rebuildIndex(@PathVariable("id") String id) {
         log.info("Start rebuilding knowledge base index, ID: {}", id);
         String kbId = id == null ? "" : id;
         if (kbId.isEmpty()) {
@@ -380,7 +379,7 @@ public class KnowledgeBaseController {
             throw new BizException(AppError.forbidden("No permission to rebuild this knowledge base"));
         }
         int count = knowledgeService.rebuildKnowledgeBaseIndex(kbId);
-        return ResponseEntity.ok(ApiResponse.ok(new RebuildIndexResponse(count)));
+        return ResponseEntity.ok(new RebuildIndexResponse(count));
     }
 
     /** 同步克隆设置（名字带 " 副本"，重名去重）。 */

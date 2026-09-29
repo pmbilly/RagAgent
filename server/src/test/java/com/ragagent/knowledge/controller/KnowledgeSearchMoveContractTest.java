@@ -506,6 +506,24 @@ class KnowledgeSearchMoveContractTest {
         return out;
     }
 
+    // ════════════════ 4) rebuild-index（裸资源，无信封） ════════════════
+
+    @Test
+    void rebuildIndexMatchesContract() throws Exception {
+        // KB3 为无文档库：重建不触发 worker，确定性返回 0
+        MvcResult r = mockMvc.perform(post("/api/v1/knowledge-bases/" + KB3 + "/rebuild-index")
+                        .header("Authorization", owner))
+                .andReturn();
+        assertEquals(200, r.getResponse().getStatus(), raw(r));
+        assertEquals("{\"documentCount\":0}", raw(r), "rebuild-index 应为裸资源且键名为 camelCase");
+
+        // 写权限：viewer 被 RBAC 拒绝
+        MvcResult denied = mockMvc.perform(post("/api/v1/knowledge-bases/" + KB3 + "/rebuild-index")
+                        .header("Authorization", viewer))
+                .andReturn();
+        assertEquals(403, denied.getResponse().getStatus(), raw(denied));
+    }
+
     private String login(String email) throws Exception {
         MvcResult r = mockMvc.perform(post("/api/v1/auth/login")
                 .contentType("application/json")

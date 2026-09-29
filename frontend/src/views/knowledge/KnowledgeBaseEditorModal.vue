@@ -1458,7 +1458,7 @@ const doSubmit = async () => {
               dialog.destroy()
               try {
                 const result: any = await rebuildKBIndex(kbId)
-                const count = result?.data?.document_count ?? 0
+                const count = result?.documentCount ?? 0
                 MessagePlugin.success(t('knowledgeEditor.indexing.rebuildSuccess', { count }))
               } catch (e) {
                 console.error('Rebuild index failed:', e)

@@ -2,7 +2,6 @@ package com.ragagent.knowledge.dto;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.KbVlmConfig;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -132,8 +131,7 @@ public final class KnowledgeBaseDtos {
     public record HybridSearchResponse(Object data, boolean success) {
     }
 
-    /** 重建索引响应。 */
-    public record RebuildIndexResponse(
-            @JsonProperty("document_count") long documentCount) {
+    /** 重建索引响应（裸资源，无信封；字段名即 Java 字段名）。 */
+    public record RebuildIndexResponse(long documentCount) {
     }
 }
