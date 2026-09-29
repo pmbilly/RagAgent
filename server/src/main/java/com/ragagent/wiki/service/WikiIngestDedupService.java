@@ -32,6 +32,8 @@ import org.springframework.stereotype.Service;
  * <p>下面的过滤只保留与某个新条目共享至少一点<b>廉价表层信号</b>的页面。
  * 计算快、无外部调用，而且它只会<b>移除</b> prompt 的候选——下游的
  * {@code validMerge} 校验仍然守着最终写入。</p>
+ * <p>例外说明(§14.5):846 行略超 800——名称 bigram/配对得分/LLM 仲裁是一条
+ * 不可中断的去重链,切段只会制造参数传递层。</p>
  */
 @Service
 public class WikiIngestDedupService implements WikiDedupSupport {

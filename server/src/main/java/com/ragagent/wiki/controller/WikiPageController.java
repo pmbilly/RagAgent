@@ -124,6 +124,9 @@ import org.springframework.web.bind.annotation.RestController;
  *       ——org-share editor 可写；共享 agent 分支对 Editor 不可达。Java 的
  *       {@link #requireSharedWriteAccess} 同构。同租户写仍走创建者/Admin+。</li>
  * </ul>
+ *
+ * <p>例外说明(§14.5):1,342 行超 800 硬顶——全部端点为 raw-JSON gin 对齐形态,
+ * wiki 域 C 波契约换锚时将整体重写为 DTO 端点,当前不做结构重构。</p>
  */
 @RestController
 @RequestMapping("/api/v1/knowledgebase/{kb_id}/wiki")

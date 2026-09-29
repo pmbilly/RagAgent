@@ -59,6 +59,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>GORM 自动时间戳</b>：Go 的 CreatedAt/UpdatedAt 是 GORM 约定字段，Create 时
  * 自动填、Updates 时自动刷新。Java 侧由 {@link #touch} 在写入前补 null，
  * 语义等价（已赋值则不覆盖，与 GORM 只填零值一致）。</p>
+ * <p>例外说明(§14.5):870 行略超 800——GORM 复刻层的查询面按 Go 方法逐字
+ * 对齐,数据访问轴改写时一并重塑,当前切段属一次性投入。</p>
  */
 @Repository
 public class WikiPageRepository {
