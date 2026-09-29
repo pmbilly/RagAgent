@@ -2,7 +2,6 @@ package com.ragagent.wiki.service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -14,17 +13,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.wiki.domain.WikiCategoryPaths;
 import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiException;
 import com.ragagent.wiki.domain.WikiFolder;
-import com.ragagent.wiki.domain.WikiFolderConflictException;
 import com.ragagent.wiki.domain.WikiFolderNode;
-import com.ragagent.wiki.domain.WikiFolderNotFoundException;
-import com.ragagent.wiki.domain.WikiFolderNotEmptyException;
 import com.ragagent.wiki.domain.WikiGraph;
 import com.ragagent.wiki.domain.WikiIndex;
 import com.ragagent.wiki.domain.WikiIndexEntry;
@@ -72,7 +67,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class WikiPageServiceImpl implements WikiPageService {
 
-    private static final Logger log = LoggerFactory.getLogger(WikiPageServiceImpl.class);
+    static final Logger log = LoggerFactory.getLogger(WikiPageServiceImpl.class);
 
     /** 对照 Go {@code wikiLinkRegex}（L23）：{@code \[\[([^\]]+)\]\]} */
     static final Pattern WIKI_LINK_REGEX = Pattern.compile("\\[\\[([^\\]]+)\\]\\]");
@@ -100,12 +95,17 @@ public class WikiPageServiceImpl implements WikiPageService {
     static final String DEFAULT_INDEX_CONTENT =
             "# Wiki Index\n\nThis is the index page. It will be automatically updated as pages are added.\n";
 
-    private final WikiPageRepository repo;
-    private final KnowledgeBaseMapper kbMapper;
-    private final ObjectProvider<WikiChunkCleaner> chunkCleaner;
-    private final ObjectProvider<WikiCrossLinker> crossLinker;
-    private final ObjectProvider<WikiPendingOpsCounter> pendingOps;
-    private final ObjectProvider<WikiActiveFlag> activeFlag;
+    final WikiPageRepository repo;
+    final KnowledgeBaseMapper kbMapper;
+    final ObjectProvider<WikiChunkCleaner> chunkCleaner;
+    final ObjectProvider<WikiCrossLinker> crossLinker;
+    final ObjectProvider<WikiPendingOpsCounter> pendingOps;
+    final ObjectProvider<WikiActiveFlag> activeFlag;
+
+    /** 页面域协作者(构造期装配;只存 service 引用,调用期才解引)。 */
+    final WikiPageFolderSupport folderSupport;
+    final WikiPageLinkRepair linkRepair;
+    final WikiPageViewsSupport views;
 
     public WikiPageServiceImpl(WikiPageRepository repo,
                                KnowledgeBaseMapper kbMapper,
@@ -119,9 +119,10 @@ public class WikiPageServiceImpl implements WikiPageService {
         this.crossLinker = crossLinker;
         this.pendingOps = pendingOps;
         this.activeFlag = activeFlag;
+        this.folderSupport = new WikiPageFolderSupport(this);
+        this.linkRepair = new WikiPageLinkRepair(this);
+        this.views = new WikiPageViewsSupport(this);
     }
-
-    // ════════════════════════════ 页面写入 ════════════════════════════
 
     /** 对照 Go {@code CreatePage}（L70-109） */
     @Override
@@ -294,7 +295,7 @@ public class WikiPageServiceImpl implements WikiPageService {
      * 快照历史。机器作者的快照一旦滑出近期窗口就丢；人工/agent/回滚的快照活到硬上限
      * ——这样热页上的管道churn 挤不掉用户真正在意的编辑。
      */
-    private void pruneRevisions(String pageId, int currentVersion) {
+    final void pruneRevisions(String pageId, int currentVersion) {
         WikiRevisionPruneRequest req = new WikiRevisionPruneRequest(
                 pageId,
                 currentVersion - WikiConstants.MAX_REVISIONS_PER_PAGE,
@@ -309,8 +310,6 @@ public class WikiPageServiceImpl implements WikiPageService {
             log.warn("prune wiki page revisions for {} failed: {}", pageId, e.toString());
         }
     }
-
-    // ════════════════════════════ 页面读取 ════════════════════════════
 
     /** 对照 Go {@code GetPageBySlug}（L345-352） */
     @Override
@@ -336,38 +335,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         WikiPage page = repo.getByID(id);
         stripWikiPageInlineChunkCitations(page);
         return page;
-    }
-
-    /** 对照 Go {@code ListPages}（L365-395） */
-    @Override
-    public WikiPageListResponse listPages(WikiPageListRequest req) {
-        WikiPageRepository.PageList result = repo.list(req);
-        List<WikiPage> pages = result.pages();
-        for (WikiPage page : pages) {
-            stripWikiPageInlineChunkCitations(page);
-            normalizeWikiHierarchy(page);
-        }
-
-        int pageSize = req.getPageSize();
-        if (pageSize < 1) {
-            pageSize = 20;
-        }
-        int page = req.getPage();
-        if (page < 1) {
-            page = 1;
-        }
-        int totalPages = (int) (result.total() / pageSize);
-        if ((int) (result.total() % pageSize) > 0) {
-            totalPages++;
-        }
-
-        WikiPageListResponse resp = new WikiPageListResponse();
-        resp.setPages(pages);
-        resp.setTotal(result.total());
-        resp.setPage(page);
-        resp.setPageSize(pageSize);
-        resp.setTotalPages(totalPages);
-        return resp;
     }
 
     /** 对照 Go {@code DeletePage}（L398-423） */
@@ -403,92 +370,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
     }
 
-    /**
-     * 对照 Go {@code GetIndexView}（L466-545）：结构性索引响应——intro（来自索引行）
-     * + 每个 page_type 一个分页窗口。
-     *
-     * <p>目录不再被物化成多兆的 markdown 字符串；每个类型独立用
-     * {@code ListByTypeLight} 分页，读放大是 O(page_size) 而不是 O(KB 总页数)。</p>
-     */
-    @Override
-    public WikiIndex.Response getIndexView(String kbId, List<String> pageTypes, int limit,
-                                           String cursor) {
-        WikiPage indexPage;
-        try {
-            indexPage = getIndex(kbId);
-        } catch (RuntimeException e) {
-            throw new WikiException("load index page: " + e.getMessage(), e);
-        }
-
-        int lim = limit;
-        if (lim <= 0) {
-            lim = 50;
-        }
-        if (lim > 200) {
-            lim = 200;
-        }
-        int offset = 0;
-        if (cursor != null && !cursor.isEmpty()) {
-            int v;
-            try {
-                v = Integer.parseInt(cursor);
-            } catch (NumberFormatException e) {
-                throw new WikiException("invalid cursor \"" + cursor + "\"");
-            }
-            if (v < 0) {
-                throw new WikiException("invalid cursor \"" + cursor + "\"");
-            }
-            offset = v;
-        }
-
-        // 调用方不传过滤时默认取全部已知内容类型。请求时传入的未知类型<b>原样透传</b>，
-        // 这样将来新版 Go 声明的页面类型一被 LLM 创建就能出现在索引里，无需改 handler。
-        List<String> selected = pageTypes;
-        if (selected == null || selected.isEmpty()) {
-            selected = new ArrayList<>(WIKI_INDEX_CONTENT_PAGE_TYPES);
-        }
-
-        List<WikiIndex.Group> groups = new ArrayList<>(selected.size());
-        for (String pt : selected) {
-            WikiPageRepository.LightList listed;
-            try {
-                listed = repo.listByTypeLight(kbId, pt, lim, offset);
-            } catch (RuntimeException e) {
-                throw new WikiException("list " + pt + " pages: " + e.getMessage(), e);
-            }
-            List<WikiIndexEntry> entries = listed.entries();
-            for (WikiIndexEntry entry : entries) {
-                normalizeWikiIndexEntryHierarchy(entry, pt);
-            }
-            String next = "";
-            // 只有返回了完整一页<b>且</b> offset+limit 之后还有行时才给 cursor。
-            // 短页、或恰好把余量吃完的一页，都应表达「流结束」。
-            if (entries.size() == lim && (long) (offset + entries.size()) < listed.total()) {
-                next = Integer.toString(offset + lim);
-            }
-            WikiIndex.Group group = new WikiIndex.Group();
-            group.setType(pt);
-            group.setTotal(listed.total());
-            group.setItems(entries);
-            group.setNextCursor(next);
-            groups.add(group);
-        }
-
-        // intro 原先存在 indexPage.Summary 上而 indexPage.Content 里是 intro + 目录 markdown。
-        // 目录从 wiki_pages 里搬走之后，content 列只剩 intro。为那些改版后还没重新
-        // 摄取的 KB 回落到 Summary，保证响应永不为空（Go L531-538）。
-        String intro = indexPage.getContent();
-        if (intro.trim().isEmpty()) {
-            intro = indexPage.getSummary();
-        }
-
-        WikiIndex.Response resp = new WikiIndex.Response();
-        resp.setIntro(intro);
-        resp.setVersion(indexPage.getVersion());
-        resp.setGroups(groups);
-        return resp;
-    }
-
     /** 对照 Go {@code GetGraph}（L576-586） */
     @Override
     public WikiGraph.Data getGraph(WikiGraph.Request req) {
@@ -496,77 +377,6 @@ public class WikiPageServiceImpl implements WikiPageService {
             throw new WikiException("wiki graph request is required");
         }
         return WikiGraphCalculator.compute(repo.listAll(req.knowledgeBaseId()), req);
-    }
-
-    /** 对照 Go {@code GetStats}（L813-881） */
-    @Override
-    public WikiStats getStats(String kbId) {
-        Map<String, Long> counts = repo.countByType(kbId);
-        long total = 0;
-        for (Long c : counts.values()) {
-            total += c;
-        }
-
-        long orphans = repo.countOrphans(kbId);
-
-        // 统计总链接数
-        List<WikiPage> pages = repo.listAll(kbId);
-        long totalLinks = 0;
-        for (WikiPage p : pages) {
-            totalLinks += p.getOutLinks().size();
-        }
-
-        // 最近更新（前 10 条）
-        WikiPageListRequest listReq = new WikiPageListRequest();
-        listReq.setKnowledgeBaseId(kbId);
-        listReq.setPage(1);
-        listReq.setPageSize(10);
-        listReq.setSortBy("updated_at");
-        listReq.setSortOrder("desc");
-        List<WikiPage> recentPages = repo.list(listReq).pages();
-
-        long pendingTasks = 0;
-        boolean isActive = false;
-        WikiPendingOpsCounter pending = pendingOps.getIfAvailable();
-        if (pending != null) {
-            // 待处理的 wiki 摄取任务在 task_pending_ops 里，键为
-            // (task_type="wiki:ingest", scope="knowledge_base", scope_id=kbID)。
-            // Go 忽略这里的错误（pendingTasks 保持 0）。
-            try {
-                pendingTasks = pending.pendingCount(WikiPendingOpsCounter.TASK_TYPE_WIKI_INGEST,
-                        WikiPendingOpsCounter.SCOPE_KNOWLEDGE_BASE, kbId);
-            } catch (RuntimeException e) {
-                log.warn("wiki stats: pending count for KB {} failed: {}", kbId, e.toString());
-            }
-        }
-        WikiActiveFlag flag = activeFlag.getIfAvailable();
-        if (flag != null) {
-            // "批次进行中"标志仍是 Redis 独有的短命信号（带 TTL 续期的进程锁）；
-            // 它不承载持久状态，不值得迁移。
-            try {
-                isActive = flag.isActive(kbId);
-            } catch (RuntimeException e) {
-                log.warn("wiki stats: active flag for KB {} failed: {}", kbId, e.toString());
-            }
-        }
-
-        long pendingIssues = 0;
-        try {
-            pendingIssues = listIssues(kbId, "", "pending").size();
-        } catch (RuntimeException e) {
-            log.warn("wiki stats: list pending issues for KB {} failed: {}", kbId, e.toString());
-        }
-
-        WikiStats stats = new WikiStats();
-        stats.setTotalPages(total);
-        stats.setPagesByType(counts);
-        stats.setTotalLinks(totalLinks);
-        stats.setOrphanCount(orphans);
-        stats.setRecentUpdates(recentPages);
-        stats.setPendingTasks(pendingTasks);
-        stats.setPendingIssues(pendingIssues);
-        stats.setActive(isActive);
-        return stats;
     }
 
     /** 对照 Go {@code RebuildLinks}（L884-920） */
@@ -674,8 +484,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         // intentionally no-op（对照 Go L1909-1913）
     }
 
-    // ════════════════════════════ 批量读取 ════════════════════════════
-
     /** 对照 Go {@code ListAllPages}（L923-925） */
     @Override
     public List<WikiPage> listAllPages(String kbId) {
@@ -776,8 +584,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return repo.search(kbId, query, limit);
     }
 
-    // ════════════════════════ 链接解析 / 修复 ════════════════════════
-
     /**
      * 对照 Go {@code parseOutLinks}（L1028-1048）：从 markdown 正文提取
      * {@code [[wiki-link]]} 的 slug。
@@ -832,102 +638,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return i >= 0 ? slug.substring(0, i) : "";
     }
 
-    /**
-     * 对照 Go {@code RepairContentLinks}（L1121-1200）：把 {@code content} 里指向
-     * <b>不存在的页面</b>、但几乎肯定是真实页面被弄花形式的 {@code [[slug]]} /
-     * {@code [[slug|display]]} 引用重写掉。
-     *
-     * <p>典型场景：LLM 重打了一遍摘要页的 UUID slug 并插入/漏掉一个十六进制位
-     * （{@code summary/…06fb5d5b5b5e → summary/…06fb14d5b14b14e}），产生一个 404
-     * 且永远不可能被精确查回的死链。</p>
-     *
-     * <p>与 {@code stripDeadWikiLinks}（ingest 清理通道）不同，本方法是
-     * <b>只重写</b>的：只有当存在高置信的活跃候选时才纠正死链，否则原样保留。
-     * 它<b>绝不</b>把链接剥成纯文本，所以对任何写入路径都安全——包括目标确实
-     * 还不存在的写入（那些就原样留着，等到目标出现为止）。</p>
-     *
-     * <p>每条死链的候选池被限定在<b>同一命名空间前缀</b>的活跃 slug（死的
-     * {@code summary/<uuid>} 只会在活跃的 {@code summary/*} 里解析）。限定命名空间
-     * 让 bigram 相似度这根杠杆保持安全：同命名空间内互不相同的高熵 UUID 不会碰撞，
-     * 而错一位的变形与它真正的来源仍稳稳高于阈值。</p>
-     */
-    @Override
-    public RepairResult repairContentLinks(String kbId, String selfSlug, String content) {
-        if (content == null || content.trim().isEmpty()) {
-            return new RepairResult(content, false);
-        }
-        List<String> outLinks = parseOutLinks(content);
-        if (outLinks.isEmpty()) {
-            return new RepairResult(content, false);
-        }
-
-        Map<String, Boolean> existMap = repo.existsSlugs(kbId, outLinks);
-        Set<String> deadPrefixes = new LinkedHashSet<>();
-        for (String l : outLinks) {
-            if (l.equals(selfSlug) || Boolean.TRUE.equals(existMap.get(l))) {
-                continue;
-            }
-            deadPrefixes.add(slugNamespace(l));
-        }
-        if (deadPrefixes.isEmpty()) {
-            return new RepairResult(content, false);
-        }
-
-        List<String> allSlugs = repo.listAllSlugs(kbId);
-        Map<String, Set<String>> liveByPrefix = new LinkedHashMap<>();
-        List<String> candidateSlugs = new ArrayList<>();
-        for (String sl : allSlugs) {
-            String ns = slugNamespace(sl);
-            if (!deadPrefixes.contains(ns)) {
-                continue;
-            }
-            liveByPrefix.computeIfAbsent(ns, k -> new LinkedHashSet<>()).add(sl);
-            candidateSlugs.add(sl);
-        }
-        if (candidateSlugs.isEmpty()) {
-            return new RepairResult(content, false);
-        }
-
-        // 为候选页建立 title -> slug 反查，好让 display 文本这根杠杆
-        // （最安全、最精确的一根）能生效。范围限定在相关命名空间，所以在
-        // 大 KB 上依然廉价。
-        Map<String, String> titleToSlug = new LinkedHashMap<>();
-        try {
-            Map<String, WikiPageLite> lites = repo.listBySlugs(kbId, candidateSlugs);
-            for (WikiPageLite lp : lites.values()) {
-                if (lp != null && !lp.getTitle().isEmpty()) {
-                    titleToSlug.put(lp.getTitle(), lp.getSlug());
-                }
-            }
-        } catch (RuntimeException ignored) {
-            // 对照 Go：`if lites, lerr := ...; lerr == nil { ... }`——反查失败只是
-            // 少一根杠杆，不阻断修复
-        }
-
-        Map<String, String> resolveCache = new LinkedHashMap<>();
-        SlugFuzzy.RewriteResult r = SlugFuzzy.rewriteDeadWikiLinks(content, (norm, display) -> {
-            if (norm.equals(selfSlug) || Boolean.TRUE.equals(existMap.get(norm))) {
-                return null;
-            }
-            String key = norm + " " + display;
-            if (resolveCache.containsKey(key)) {
-                String cached = resolveCache.get(key);
-                return cached.isEmpty() ? null : cached;
-            }
-            String resolved = SlugFuzzy.resolveDeadSlug(norm, display,
-                    liveByPrefix.getOrDefault(slugNamespace(norm), Set.of()), titleToSlug);
-            if (resolved == null || resolved.equals(norm)) {
-                resolveCache.put(key, "");
-                return null;
-            }
-            resolveCache.put(key, resolved);
-            return resolved;
-        });
-        return new RepairResult(r.content(), r.changed());
-    }
-
-    // ════════════════════════════ 内部工具 ════════════════════════════
-
     /** 对照 Go {@code stripWikiInlineChunkCitations}（L31-33） */
     static String stripWikiInlineChunkCitations(String content) {
         if (content == null || content.isEmpty()) {
@@ -949,7 +659,7 @@ public class WikiPageServiceImpl implements WikiPageService {
      * 对照 Go {@code updateInLinks}（L1203-1217）：把源 slug 加到目标页的 in_links。
      * 目标页不存在时静默跳过（还没建出来）。
      */
-    private void updateInLinks(String kbId, String sourceSlug, List<String> targets) {
+    final void updateInLinks(String kbId, String sourceSlug, List<String> targets) {
         for (String targetSlug : targets) {
             WikiPage targetPage;
             try {
@@ -970,7 +680,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /** 对照 Go {@code removeInLinks}（L1220-1235） */
-    private void removeInLinks(String kbId, String sourceSlug, List<String> targets) {
+    final void removeInLinks(String kbId, String sourceSlug, List<String> targets) {
         for (String targetSlug : targets) {
             WikiPage targetPage;
             try {
@@ -995,7 +705,7 @@ public class WikiPageServiceImpl implements WikiPageService {
      * 对照 Go {@code deleteChunkForPage}（L1240-1248）：删掉页面同步出去的 chunk。
      * chunk 同步是可选接线——没装 chunk 仓储的 service 直接跳过，而不是让删除连带失败。
      */
-    private void deleteChunkForPage(WikiPage page) {
+    final void deleteChunkForPage(WikiPage page) {
         WikiChunkCleaner cleaner = chunkCleaner.getIfAvailable();
         if (cleaner == null) {
             return;
@@ -1009,7 +719,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /** 对照 Go {@code createDefaultPage}（L1251-1276） */
-    private WikiPage createDefaultPage(String kbId, String slug, String title, String pageType,
+    final WikiPage createDefaultPage(String kbId, String slug, String title, String pageType,
                                        String content) {
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
@@ -1145,8 +855,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return c;
     }
 
-    // ════════════════════════════ 修订历史 ════════════════════════════
-
     /**
      * 对照 Go {@code ListRevisions}（L284-300）：某页面存下来的历史快照
      * （最新在前，<b>省略 content</b>）+ 快照总数 + 页面当前版本。
@@ -1205,8 +913,6 @@ public class WikiPageServiceImpl implements WikiPageService {
                 () -> updatePage(target));
     }
 
-    // ════════════════════════════ 页面问题 ════════════════════════════
-
     /** 对照 Go {@code CreateIssue}（L1356-1364） */
     @Override
     public WikiPageIssue createIssue(WikiPageIssue issue) {
@@ -1227,66 +933,6 @@ public class WikiPageServiceImpl implements WikiPageService {
     @Override
     public void updateIssueStatus(String issueID, String status) {
         repo.updateIssueStatus(issueID, status);
-    }
-
-    // ════════════════════════ 文件夹树（wiki_folders） ════════════════════════
-
-    /** 对照 Go {@code GetFolder}（L1410-1412） */
-    @Override
-    public WikiFolder getFolder(String kbId, String id) {
-        return repo.getFolderByID(kbId, id);
-    }
-
-    /**
-     * 对照 Go {@code ListChildFolders}（L1421-1474）。
-     *
-     * <p>PageCount 是<b>递归</b>的（该文件夹的整棵子树），所以父节点反映其下所有内容。
-     * 一个文件夹出现在结果里，当且仅当它的子树里有匹配 pageTypes 的页面；
-     * 完全空的文件夹（子树里任何类型的页面都没有）只在请求多个类型时列出
-     * ——即合并后的 knowledge 视图——这样单类型页签（如 summary）不会冒出空容器。</p>
-     */
-    @Override
-    public List<WikiFolderNode> listChildFolders(String kbId, String parentID,
-                                                 List<String> pageTypes) {
-        List<WikiFolder> all = repo.listAllFolders(kbId);
-        List<String> types = pageTypes == null ? List.of() : pageTypes;
-
-        Map<String, Long> scopedDirect = repo.countPagesByFolder(kbId, types);
-        Map<String, Long> allDirect = scopedDirect;
-        if (!types.isEmpty()) {
-            allDirect = repo.countPagesByFolder(kbId, null);
-        }
-        Map<String, Long> recScoped = recursiveFolderCounts(all, scopedDirect);
-        Map<String, Long> recAll = recursiveFolderCounts(all, allDirect);
-        boolean showEmptyFolders = types.size() > 1;
-
-        // 一个文件夹属于本视图，当且仅当它（递归地）含有请求类型的页面，
-        // 或者——只在合并视图里——它是一个任何类型页面都没有的完全空容器。
-        java.util.function.Predicate<String> relevant = id -> {
-            if (recScoped.getOrDefault(id, 0L) > 0) {
-                return true;
-            }
-            if (showEmptyFolders) {
-                return recAll.getOrDefault(id, 0L) == 0;
-            }
-            return false;
-        };
-
-        List<WikiFolderNode> out = new ArrayList<>();
-        for (WikiFolder f : all) {
-            if (!f.getParentId().equals(parentID) || !relevant.test(f.getId())) {
-                continue;
-            }
-            boolean hasChildren = false;
-            for (WikiFolder g : all) {
-                if (g.getParentId().equals(f.getId()) && relevant.test(g.getId())) {
-                    hasChildren = true;
-                    break;
-                }
-            }
-            out.add(new WikiFolderNode(f, recScoped.getOrDefault(f.getId(), 0L), hasChildren));
-        }
-        return out;
     }
 
     /**
@@ -1328,315 +974,71 @@ public class WikiPageServiceImpl implements WikiPageService {
         return trimmed;
     }
 
-    /** 对照 Go {@code CreateFolder}（L1508-1553） */
+    // ── 委托:实现随协作者(接口契约在门面) ──
+
+    /** 包内 seam:页面应用文件夹语义(写入路径用,实现在 FolderSupport)。 */
+    void applyFolderToPage(WikiPage page) {
+        folderSupport.applyFolderToPage(page);
+    }
+
+    @Override
+    public WikiFolder getFolder(String kbId, String id) {
+        return folderSupport.getFolder(kbId, id);
+    }
+
+    @Override
+    public List<WikiFolderNode> listChildFolders(String kbId, String parentID, List<String> pageTypes) {
+        return folderSupport.listChildFolders(kbId, parentID, pageTypes);
+    }
+
     @Override
     public WikiFolder createFolder(String kbId, Long tenantID, String parentID, String name) {
-        String folderName = validateFolderName(name);
-
-        String parentPath = "";
-        int depth = 1;
-        if (!WikiConstants.FOLDER_ROOT_ID.equals(parentID)) {
-            WikiFolder parent = repo.getFolderByID(kbId, parentID);
-            parentPath = parent.getPath();
-            depth = parent.getDepth() + 1;
-        }
-
-        if (repo.folderNameExists(kbId, parentID, folderName)) {
-            throw new WikiFolderConflictException();
-        }
-
-        String path = folderName;
-        if (!parentPath.isEmpty()) {
-            path = parentPath + "/" + folderName;
-        }
-        OffsetDateTime now = OffsetDateTime.now();
-        WikiFolder folder = new WikiFolder();
-        folder.setId(UUID.randomUUID().toString());
-        folder.setTenantId(tenantID);
-        folder.setKnowledgeBaseId(kbId);
-        folder.setParentId(parentID);
-        folder.setName(folderName);
-        folder.setPath(path);
-        folder.setDepth(depth);
-        folder.setCreatedAt(now);
-        folder.setUpdatedAt(now);
-        // 顺序保持与 Go 一致：先判冲突再写；唯一索引是最后一道防线
-        repo.createFolder(folder);
-        return folder;
+        return folderSupport.createFolder(kbId, tenantID, parentID, name);
     }
 
-    /**
-     * 对照 Go {@code FindOrCreateFolderPath}（L1558-1602）：把分类路径解析到叶子文件夹 id，
-     * 顺路补齐缺失的中间文件夹。对 (kb, parent, name) 唯一约束是并发安全的——
-     * 创建冲突时重新拉取。
-     */
     @Override
     public FindOrCreateResult findOrCreateFolderPath(String kbId, Long tenantID, List<String> path) {
-        List<String> clean = WikiCategoryPaths.cleanCategoryPath(path);
-        if (clean.isEmpty()) {
-            return new FindOrCreateResult(WikiConstants.FOLDER_ROOT_ID, null);
-        }
-        String parentID = WikiConstants.FOLDER_ROOT_ID;
-        String parentPath = "";
-        for (int depth = 0; depth < clean.size(); depth++) {
-            String name = clean.get(depth);
-            WikiFolder child;
-            if (repo.folderNameExists(kbId, parentID, name)) {
-                child = repo.getChildFolderByName(kbId, parentID, name);
-            } else {
-                String fp = name;
-                if (!parentPath.isEmpty()) {
-                    fp = parentPath + "/" + name;
-                }
-                OffsetDateTime now = OffsetDateTime.now();
-                child = new WikiFolder();
-                child.setId(UUID.randomUUID().toString());
-                child.setTenantId(tenantID);
-                child.setKnowledgeBaseId(kbId);
-                child.setParentId(parentID);
-                child.setName(name);
-                child.setPath(fp);
-                child.setDepth(depth + 1);
-                child.setCreatedAt(now);
-                child.setUpdatedAt(now);
-                try {
-                    repo.createFolder(child);
-                } catch (RuntimeException cerr) {
-                    // 创建竞争（或唯一约束冲突）：同名兄弟此刻必然已存在——
-                    // 重新拉取，而不是让整个 plan 失败
-                    try {
-                        child = repo.getChildFolderByName(kbId, parentID, name);
-                    } catch (RuntimeException e) {
-                        throw new WikiException("create wiki folder \"" + fp + "\": "
-                                + cerr.getMessage(), cerr);
-                    }
-                }
-            }
-            parentID = child.getId();
-            parentPath = child.getPath();
-        }
-        return new FindOrCreateResult(parentID, clean);
+        return folderSupport.findOrCreateFolderPath(kbId, tenantID, path);
     }
 
-    /** 对照 Go {@code MovePage}（L1606-1623）：纯记账写入，不动版本号 */
     @Override
     public WikiPage movePage(String kbId, String slug, String folderID) {
-        WikiPage page = repo.getBySlug(kbId, slug);
-        page.setFolderId(folderID == null ? "" : folderID.trim());
-        applyFolderToPage(page);
-        page.setUpdatedAt(OffsetDateTime.now());
-        normalizeWikiHierarchy(page);
-        repo.updateMeta(page);
-        return page;
+        return folderSupport.movePage(kbId, slug, folderID);
     }
 
-    /**
-     * 对照 Go {@code RenameOrMoveFolder}（L1629-1720）：改名和/或换父节点，然后重算
-     * 整棵子树的物化 path/depth 及子树下每个页面的缓存分类路径。防成环（把文件夹
-     * 移进自己或自己的后代）与同级重名。
-     */
     @Override
-    public WikiFolder renameOrMoveFolder(String kbId, String id, String newName,
-                                         String newParentID, boolean moveParent) {
-        WikiFolder folder = repo.getFolderByID(kbId, id);
-
-        String name = folder.getName();
-        if (newName != null && !newName.trim().isEmpty()) {
-            name = validateFolderName(newName);
-        }
-
-        String targetParent = folder.getParentId();
-        if (moveParent) {
-            targetParent = newParentID == null ? "" : newParentID;
-        }
-
-        String parentPath = "";
-        int depthBase = 0;
-        if (!WikiConstants.FOLDER_ROOT_ID.equals(targetParent)) {
-            if (targetParent.equals(folder.getId())) {
-                throw new WikiException("cannot move a folder into itself");
-            }
-            WikiFolder parent = repo.getFolderByID(kbId, targetParent);
-            if (parent.getPath().equals(folder.getPath())
-                    || parent.getPath().startsWith(folder.getPath() + "/")) {
-                throw new WikiException("cannot move a folder into its own descendant");
-            }
-            parentPath = parent.getPath();
-            depthBase = parent.getDepth();
-        }
-
-        if (repo.folderNameExists(kbId, targetParent, name)) {
-            WikiFolder existing = repo.getChildFolderByName(kbId, targetParent, name);
-            if (!existing.getId().equals(folder.getId())) {
-                throw new WikiFolderConflictException();
-            }
-        }
-
-        String oldPath = folder.getPath();
-        String newPath = name;
-        if (!parentPath.isEmpty()) {
-            newPath = parentPath + "/" + name;
-        }
-        if (newPath.equals(oldPath) && targetParent.equals(folder.getParentId())) {
-            return folder; // no-op
-        }
-
-        List<WikiFolder> all = repo.listAllFolders(kbId);
-        OffsetDateTime now = OffsetDateTime.now();
-        List<String> affected = new ArrayList<>();
-        WikiFolder updated = null;
-        for (WikiFolder f : all) {
-            boolean isSelf = f.getId().equals(folder.getId());
-            boolean isDescendant = f.getPath().startsWith(oldPath + "/");
-            if (!isSelf && !isDescendant) {
-                continue;
-            }
-            if (isSelf) {
-                f.setParentId(targetParent);
-                f.setName(name);
-                f.setPath(newPath);
-                f.setDepth(depthBase + 1);
-            } else {
-                f.setPath(newPath + f.getPath().substring(oldPath.length()));
-                f.setDepth(WikiCategoryPaths.folderPathSegments(f.getPath()).size());
-            }
-            f.setUpdatedAt(now);
-            repo.updateFolder(f);
-            affected.add(f.getId());
-            if (isSelf) {
-                updated = f;
-            }
-        }
-
-        recomputePagesForFolders(kbId, affected);
-        return updated == null ? folder : updated;
+    public WikiFolder renameOrMoveFolder(String kbId, String id, String newName, String newParentID,
+            boolean moveParent) {
+        return folderSupport.renameOrMoveFolder(kbId, id, newName, newParentID, moveParent);
     }
 
-    /**
-     * 对照 Go {@code recomputePagesForFolders}（L1725-1744）：刷新归在给定文件夹 id
-     * 之下的每个页面的缓存 category_path/wiki_path/depth（用于文件夹子树被移动/改名之后）。
-     * 纯记账写入，不动版本号。
-     */
-    private void recomputePagesForFolders(String kbId, List<String> folderIDs) {
-        if (folderIDs.isEmpty()) {
-            return;
-        }
-        List<WikiPage> pages = repo.listPagesByFolderIDs(kbId, folderIDs);
-        for (WikiPage page : pages) {
-            applyFolderToPage(page);
-            page.setUpdatedAt(OffsetDateTime.now());
-            normalizeWikiHierarchy(page);
-            try {
-                repo.updateMeta(page);
-            } catch (RuntimeException e) {
-                log.warn("wiki: recompute folder path for page {} failed: {}", page.getSlug(),
-                        e.toString());
-            }
-        }
-    }
-
-    /**
-     * 对照 Go {@code DeleteFolder}（L1748-1767）：只能删既没有页面也没有子文件夹的
-     * 文件夹。UI 必须先把内容移走；这让删除保持非破坏性。
-     */
     @Override
     public void deleteFolder(String kbId, String id) {
-        repo.getFolderByID(kbId, id);
-        List<WikiFolder> children = repo.listChildFolders(kbId, id);
-        if (!children.isEmpty()) {
-            throw new WikiFolderNotEmptyException();
-        }
-        List<WikiPage> pages = repo.listPagesByFolderIDs(kbId, List.of(id));
-        if (!pages.isEmpty()) {
-            throw new WikiFolderNotEmptyException();
-        }
-        repo.deleteFolder(kbId, id);
+        folderSupport.deleteFolder(kbId, id);
     }
 
-    /**
-     * 对照 Go {@code PruneEmptyFolderChains}（L1775-1846）：删掉文档回收之后变空的文件夹，
-     * 再顺着被删除而变空的祖先往上继续。它<b>只</b>考虑传入的文件夹链，所以 wiki 里
-     * 别处刻意留着的空文件夹会被保住。
-     *
-     * <p>调用方必须等该 KB 的摄取队列排空后再调：taxonomy 规划会先建文件夹，
-     * reduce 之后才写入引用它的页面。</p>
-     */
     @Override
     public List<String> pruneEmptyFolderChains(String kbId, List<String> folderIDs) {
-        if (folderIDs == null || folderIDs.isEmpty()) {
-            return null; // 对照 Go `return nil, nil`
-        }
-        List<WikiFolder> all = repo.listAllFolders(kbId);
-        Map<String, WikiFolder> byID = new LinkedHashMap<>(all.size());
-        for (WikiFolder folder : all) {
-            if (folder != null) {
-                byID.put(folder.getId(), folder);
-            }
-        }
-
-        Map<String, WikiFolder> candidates = new LinkedHashMap<>();
-        for (String start : folderIDs) {
-            String id = start;
-            Set<String> seen = new LinkedHashSet<>();
-            while (!WikiConstants.FOLDER_ROOT_ID.equals(id)) {
-                if (!seen.add(id)) {
-                    break; // 环
-                }
-                WikiFolder folder = byID.get(id);
-                if (folder == null) {
-                    break;
-                }
-                candidates.put(id, folder);
-                id = folder.getParentId();
-            }
-        }
-
-        List<WikiFolder> ordered = new ArrayList<>(candidates.values());
-        ordered.sort(Comparator
-                .comparingInt(WikiFolder::getDepth).reversed()
-                .thenComparing(Comparator.comparing(WikiFolder::getPath).reversed()));
-
-        List<String> deleted = new ArrayList<>(ordered.size());
-        for (WikiFolder folder : ordered) {
-            List<WikiFolder> children = repo.listChildFolders(kbId, folder.getId());
-            if (!children.isEmpty()) {
-                continue;
-            }
-            List<WikiPage> pages = repo.listPagesByFolderIDs(kbId, List.of(folder.getId()));
-            if (!pages.isEmpty()) {
-                continue;
-            }
-            try {
-                repo.deleteFolder(kbId, folder.getId());
-            } catch (WikiFolderNotFoundException | WikiFolderNotEmptyException e) {
-                continue;
-            }
-            deleted.add(folder.getId());
-        }
-        return deleted;
+        return folderSupport.pruneEmptyFolderChains(kbId, folderIDs);
     }
 
-    /**
-     * 对照 Go {@code applyFolderToPage}（L1389-1407）：从权威的 FolderID 刷新页面的
-     * 派生 category_path 缓存。根（""）清空路径。解析不到的文件夹 id 视为<b>硬错误</b>，
-     * 这样我们永远不会静默地把页面放错地方。
-     */
-    private void applyFolderToPage(WikiPage page) {
-        if (page == null) {
-            return;
-        }
-        if (page.getFolderId().trim().isEmpty()) {
-            page.setFolderId("");
-            page.setCategoryPath(new ArrayList<>());
-            return;
-        }
-        WikiFolder folder;
-        try {
-            folder = repo.getFolderByID(page.getKnowledgeBaseId(), page.getFolderId());
-        } catch (WikiFolderNotFoundException e) {
-            throw new WikiException("wiki page references unknown folder \""
-                    + page.getFolderId() + "\"");
-        }
-        page.setCategoryPath(WikiCategoryPaths.folderPathSegments(folder.getPath()));
+    @Override
+    public WikiPageService.RepairResult repairContentLinks(String kbId, String selfSlug, String content) {
+        return linkRepair.repairContentLinks(kbId, selfSlug, content);
+    }
+
+    @Override
+    public WikiPageListResponse listPages(WikiPageListRequest req) {
+        return views.listPages(req);
+    }
+
+    @Override
+    public WikiIndex.Response getIndexView(String kbId, List<String> pageTypes, int limit, String cursor) {
+        return views.getIndexView(kbId, pageTypes, limit, cursor);
+    }
+
+    @Override
+    public WikiStats getStats(String kbId) {
+        return views.getStats(kbId);
     }
 }
