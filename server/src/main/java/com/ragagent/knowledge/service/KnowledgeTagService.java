@@ -77,8 +77,11 @@ public class KnowledgeTagService {
             knowledgeServiceProvider;
 
     private static final int INDEX_DELETE_BATCH_SIZE = 100;
+    /** 后台任务执行器（统一命名与关停）。 */
+    private final KnowledgeTaskExecutor taskExecutor;
 
-    public KnowledgeTagService(KnowledgeBaseService kbService,
+
+    public KnowledgeTagService(KnowledgeTaskExecutor taskExecutor, KnowledgeBaseService kbService,
                                KnowledgeTagRepository tagRepo,
                                ChunkRepository chunkRepo,
                                AuditLogService auditService,
@@ -87,6 +90,8 @@ public class KnowledgeTagService {
                                ModelRuntimeFactory modelRuntimeFactory,
                                org.springframework.beans.factory.ObjectProvider<KnowledgeService>
                                        knowledgeServiceProvider) {
+
+        this.taskExecutor = taskExecutor;
         this.kbService = kbService;
         this.tagRepo = tagRepo;
         this.chunkRepo = chunkRepo;
@@ -345,7 +350,7 @@ public class KnowledgeTagService {
             final CompositeRetrieveEngine engine = boundEngine;
             final int dimensions = dim;
             final String kbType = kb.getType();
-            Thread.ofVirtual().name("tag-index-delete").start(() -> {
+            taskExecutor.submit("tag-index-delete", () -> {
                 try {
                     engine.deleteByChunkIdList(ids, dimensions, kbType);
                     log.info("[tag] deleted index rows for {} chunks (kb={}, engine)", ids.size(), kb.getId());
@@ -356,7 +361,7 @@ public class KnowledgeTagService {
             });
             return;
         }
-        Thread.ofVirtual().name("tag-index-delete").start(() -> {
+        taskExecutor.submit("tag-index-delete", () -> {
             try {
                 for (int i = 0; i < ids.size(); i += INDEX_DELETE_BATCH_SIZE) {
                     int end = Math.min(i + INDEX_DELETE_BATCH_SIZE, ids.size());
@@ -386,7 +391,7 @@ public class KnowledgeTagService {
                     kb.getId(), tag.getId());
             return;
         }
-        Thread.ofVirtual().name("tag-knowledge-delete").start(() -> {
+        taskExecutor.submit("tag-knowledge-delete", () -> {
             try {
                 knowledgeService.batchDeleteKnowledge(kb.getId(), knowledgeIds);
                 log.info("[tag] deleted {} knowledge under tag {}", knowledgeIds.size(), tag.getId());

@@ -12,7 +12,6 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.dto.ChunkDtos;
 import com.ragagent.knowledge.dto.ChunkDtos.ChunkMessageResponse;
 import com.ragagent.knowledge.dto.ChunkDtos.ChunkPageResponse;
 import com.ragagent.knowledge.dto.ChunkDtos.ChunkUpdateResponse;

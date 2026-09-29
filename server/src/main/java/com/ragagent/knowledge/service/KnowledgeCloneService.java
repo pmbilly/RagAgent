@@ -55,8 +55,11 @@ public class KnowledgeCloneService {
     private final KnowledgeVectorWrites vectorWrites;
     private final PgVectorEngineRepository pgVectorEngineRepository;
     private final ModelRuntimeFactory modelRuntimeFactory;
+    /** 后台任务执行器（统一命名与关停）。 */
+    private final KnowledgeTaskExecutor taskExecutor;
 
-    public KnowledgeCloneService(KnowledgeMapper knowledgeMapper,
+
+    public KnowledgeCloneService(KnowledgeTaskExecutor taskExecutor, KnowledgeMapper knowledgeMapper,
             KnowledgeBaseMapper kbMapper,
             ChunkMapper chunkMapper,
             KnowledgeBaseService knowledgeBaseService,
@@ -65,6 +68,8 @@ public class KnowledgeCloneService {
             KnowledgeVectorWrites vectorWrites,
             PgVectorEngineRepository pgVectorEngineRepository,
             ModelRuntimeFactory modelRuntimeFactory) {
+
+        this.taskExecutor = taskExecutor;
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -91,7 +96,7 @@ public class KnowledgeCloneService {
         progressStore.saveCloneInitial(new KBCloneProgress(
                 taskId, sourceId, targetId, "pending", 0, 0, 0,
                 "Task queued, waiting to start...", "", epochNow(), epochNow()));
-        Thread.ofVirtual().start(() -> {
+        taskExecutor.submit("kb-clone", () -> {
             TenantContext.set(tenantId, null, null, false, null, false);
             try {
                 runKBClone(tenantId, taskId, sourceId, targetId, createTarget, creatorId);

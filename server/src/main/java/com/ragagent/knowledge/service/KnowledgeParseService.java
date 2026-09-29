@@ -2,45 +2,17 @@ package com.ragagent.knowledge.service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.common.CleanInvalidUtf8;
-import com.ragagent.common.context.TenantContext;
-import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.security.InputSanitizer;
-import com.ragagent.agent.AgentPromptPlaceholders;
-import com.ragagent.config.ConversationProperties;
-import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.mapper.ChunkMapper;
-import com.ragagent.knowledge.mapper.ChunkRepository;
-import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
-import com.ragagent.llm.LlmChatClient;
-import com.ragagent.llm.domain.ChatMessage;
-import com.ragagent.llm.domain.ChatOptions;
-import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.model.service.ModelRuntimeFactory;
-import com.ragagent.searchutil.ImageInfoEnricher;
-import com.ragagent.searchutil.SearchChunkMerge;
-import com.ragagent.wiki.service.WikiImageMarkup;
-import com.ragagent.wiki.service.WikiLanguageSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 解析生命周期操作：重新解析（复位状态后入队）与取消解析（状态机校验 + span 收口）。

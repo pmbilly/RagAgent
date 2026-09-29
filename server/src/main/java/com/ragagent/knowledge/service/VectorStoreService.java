@@ -1,12 +1,10 @@
 package com.ragagent.knowledge.service;
 
-import java.sql.Connection;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import javax.sql.DataSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,15 +40,9 @@ public class VectorStoreService {
     private final JdbcTemplate jdbc;
     private final boolean postgres;
 
-    public VectorStoreService(DataSource dataSource) {
-        this.jdbc = new JdbcTemplate(dataSource);
-        boolean pg = false;
-        try (Connection conn = dataSource.getConnection()) {
-            pg = conn.getMetaData().getDatabaseProductName().toLowerCase().contains("postgres");
-        } catch (Exception e) {
-            log.warn("detect database product failed, assume non-postgres: {}", e.toString());
-        }
-        this.postgres = pg;
+    public VectorStoreService(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(jdbc);
     }
 
     /**

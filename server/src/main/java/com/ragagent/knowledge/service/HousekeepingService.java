@@ -111,18 +111,23 @@ public class HousekeepingService {
         boolean hasQueuedTasksForKnowledge(String knowledgeId);
     }
 
+    /** 后台任务执行器（统一命名与关停）。 */
+    private final KnowledgeTaskExecutor taskExecutor;
+
     @Autowired
-    public HousekeepingService(JdbcTemplate jdbc) {
-        this(jdbc, null, documentProcessTimeoutFromEnv(), housekeepingEnabledFromEnv());
+    public HousekeepingService(JdbcTemplate jdbc, KnowledgeTaskExecutor taskExecutor) {
+        this(jdbc, null, documentProcessTimeoutFromEnv(), housekeepingEnabledFromEnv(), taskExecutor);
     }
 
     /** 测试口：显式给阈值与开关/注入 inspector。 */
     HousekeepingService(JdbcTemplate jdbc, KnowledgeQueueInspector inspector,
-                        Duration documentProcessTimeout, boolean enabled) {
+                        Duration documentProcessTimeout, boolean enabled,
+                        KnowledgeTaskExecutor taskExecutor) {
         this.jdbc = jdbc;
         this.inspector = inspector;
         this.documentProcessTimeout = documentProcessTimeout;
         this.enabled = enabled;
+        this.taskExecutor = taskExecutor;
     }
 
     /**
@@ -141,7 +146,7 @@ public class HousekeepingService {
             started = true;
             stopping = false;
         }
-        Thread.ofVirtual().name("knowledge-housekeeping").start(this::sweepLoop);
+        taskExecutor.submit("knowledge-housekeeping", this::sweepLoop);
         log.info("[Housekeeping] started with 5-minute sweep");
     }
 

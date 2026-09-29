@@ -54,17 +54,9 @@ public class KnowledgeSpanRepository {
 
     public KnowledgeSpanRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        this.postgres = detectPostgres(jdbc);
+        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(jdbc);
     }
 
-    private static boolean detectPostgres(JdbcTemplate jdbc) {
-        try (Connection c = jdbc.getDataSource().getConnection()) {
-            return c.getMetaData().getDatabaseProductName().toLowerCase(java.util.Locale.ROOT)
-                    .contains("postgres");
-        } catch (Exception e) {
-            return false;
-        }
-    }
     public void upsert(KnowledgeProcessingSpan row) {
         if (row == null || row.getKnowledgeId().isEmpty() || row.getSpanId().isEmpty()) {
             throw new IllegalArgumentException(

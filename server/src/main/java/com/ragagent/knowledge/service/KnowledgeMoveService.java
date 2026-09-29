@@ -50,8 +50,11 @@ public class KnowledgeMoveService {
     private final KnowledgeVectorWrites vectorWrites;
     private final PgVectorEngineRepository pgVectorEngineRepository;
     private final RetrieveGraphRepository graphRepository;
+    /** 后台任务执行器（统一命名与关停）。 */
+    private final KnowledgeTaskExecutor taskExecutor;
 
-    public KnowledgeMoveService(KnowledgeMapper knowledgeMapper,
+
+    public KnowledgeMoveService(KnowledgeTaskExecutor taskExecutor, KnowledgeMapper knowledgeMapper,
             KnowledgeBaseMapper kbMapper,
             ChunkMapper chunkMapper,
             ChunkRepository chunkRepo,
@@ -64,6 +67,8 @@ public class KnowledgeMoveService {
             KnowledgeVectorWrites vectorWrites,
             PgVectorEngineRepository pgVectorEngineRepository,
             RetrieveGraphRepository graphRepository) {
+
+        this.taskExecutor = taskExecutor;
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -102,7 +107,7 @@ public class KnowledgeMoveService {
         // 本仓约定：跨虚拟线程显式传值，不共享 ThreadLocal
         final String role = TenantContext.currentRole();
         final String userId = TenantContext.currentUserId();
-        Thread.ofVirtual().start(() -> {
+        taskExecutor.submit("knowledge-move", () -> {
             TenantContext.set(tenantId, null, role, false, userId, false);
             try {
                 runKnowledgeMove(tenantId, taskId, knowledgeIds, sourceKbId, targetKbId, mode);

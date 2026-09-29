@@ -8,7 +8,6 @@ import com.ragagent.auth.mapper.TenantMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
 
 /**
  * 租户存储用量调整——FAQ 索引/删除的执行面依赖
@@ -19,9 +18,9 @@ public class TenantStorageService {
     private final TenantMapper tenantMapper;
     private final JdbcTemplate jdbc;
 
-    public TenantStorageService(TenantMapper tenantMapper, DataSource dataSource) {
+    public TenantStorageService(TenantMapper tenantMapper, JdbcTemplate jdbc) {
         this.tenantMapper = tenantMapper;
-        this.jdbc = new JdbcTemplate(dataSource);
+        this.jdbc = jdbc;
     }
 
     /** 租户行（含 storage_quota / storage_used；不存在返回 null）。 */

@@ -11,12 +11,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.common.CleanInvalidUtf8;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.security.InputSanitizer;
 import com.ragagent.agent.AgentPromptPlaceholders;
 import com.ragagent.config.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
@@ -40,7 +37,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 知识摘要生成管线：同步重生（含 fallback/重试状态机）与异步刷新入队；
@@ -62,8 +58,11 @@ public class KnowledgeSummaryService {
     private final ConversationProperties conversationProps;
     private final KnowledgeFileService knowledgeFileService;
     private final KnowledgeService facade;
+    /** 后台任务执行器（统一命名与关停）。 */
+    private final KnowledgeTaskExecutor taskExecutor;
 
     public KnowledgeSummaryService(
+        KnowledgeTaskExecutor taskExecutor,
                             KnowledgeMapper knowledgeMapper,
                             KnowledgeBaseMapper kbMapper,
                             ChunkMapper chunkMapper,
@@ -74,6 +73,8 @@ public class KnowledgeSummaryService {
                             ConversationProperties conversationProps,
                             KnowledgeFileService knowledgeFileService,
                             @Lazy KnowledgeService facade) {
+
+        this.taskExecutor = taskExecutor;
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -624,7 +625,7 @@ public class KnowledgeSummaryService {
     private void spawnSummaryRefreshWorker(String knowledgeId, long tenantId) {
         final String role = TenantContext.currentRole();
         final String userId = TenantContext.currentUserId();
-        Thread.ofVirtual().start(() -> {
+        taskExecutor.submit("knowledge-summary-refresh", () -> {
             TenantContext.set(tenantId, null, role, false, userId, false);
             try {
                 for (int attempt = 0; ; attempt++) {

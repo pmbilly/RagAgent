@@ -15,8 +15,6 @@ import com.ragagent.common.web.DataMessageResponse;
 import com.ragagent.common.web.MessageResponse;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.dto.KnowledgeDtos;
-import com.ragagent.knowledge.dto.KnowledgeDtos.BatchDeleteRequest;
 import com.ragagent.knowledge.dto.KnowledgeDtos.ClearContentsResponse;
 import com.ragagent.knowledge.dto.KnowledgeDtos.CreateFromUrlRequest;
 import com.ragagent.knowledge.dto.KnowledgeDtos.CreateManualRequest;

@@ -7,8 +7,6 @@ import com.ragagent.knowledge.domain.KnowledgeTag;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.time.OffsetDateTime;
 
 /**
@@ -25,16 +23,7 @@ public class KnowledgeTagRepository {
 
     public KnowledgeTagRepository(KnowledgeTagMapper tagMapper, DataSource dataSource) {
         this.tagMapper = tagMapper;
-        this.postgres = detectPostgres(dataSource);
-    }
-
-    private static boolean detectPostgres(DataSource dataSource) {
-        try (Connection c = dataSource.getConnection()) {
-            String product = c.getMetaData().getDatabaseProductName();
-            return product != null && product.toLowerCase(java.util.Locale.ROOT).contains("postgres");
-        } catch (SQLException e) {
-            return false;
-        }
+        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(dataSource);
     }
 
     /**

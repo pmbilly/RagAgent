@@ -32,16 +32,7 @@ public class FaqChunkRepository {
 
     public FaqChunkRepository(ChunkMapper chunkMapper, javax.sql.DataSource dataSource) {
         this.chunkMapper = chunkMapper;
-        this.postgres = detectPostgres(dataSource);
-    }
-
-    private static boolean detectPostgres(javax.sql.DataSource dataSource) {
-        try (java.sql.Connection c = dataSource.getConnection()) {
-            String product = c.getMetaData().getDatabaseProductName();
-            return product != null && product.toLowerCase(java.util.Locale.ROOT).contains("postgres");
-        } catch (java.sql.SQLException e) {
-            return false;
-        }
+        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(dataSource);
     }
 
     // ── FAQ 条目读写（含 flags 位运算的方言分支） ─────────────

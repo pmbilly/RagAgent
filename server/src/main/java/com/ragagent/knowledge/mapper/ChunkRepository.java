@@ -1,15 +1,12 @@
 package com.ragagent.knowledge.mapper;
 
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ragagent.common.CleanInvalidUtf8;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import org.springframework.stereotype.Component;
 
@@ -66,16 +63,7 @@ public class ChunkRepository {
         this.chunkMapper = chunkMapper;
         this.revisionMapper = revisionMapper;
         this.tx = tx;
-        this.postgres = detectPostgres(dataSource);
-    }
-
-    private static boolean detectPostgres(javax.sql.DataSource dataSource) {
-        try (java.sql.Connection c = dataSource.getConnection()) {
-            String product = c.getMetaData().getDatabaseProductName();
-            return product != null && product.toLowerCase(java.util.Locale.ROOT).contains("postgres");
-        } catch (java.sql.SQLException e) {
-            return false;
-        }
+        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(dataSource);
     }
 
     /** 分页结果：行与总数一并返回（调用方一次拿到两份）。 */

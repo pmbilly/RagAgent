@@ -62,7 +62,7 @@ class HousekeepingServiceTest {
     }
 
     private HousekeepingService service(HousekeepingService.KnowledgeQueueInspector inspector) {
-        return new HousekeepingService(jdbc, inspector, TEST_DOCUMENT_PROCESS_TIMEOUT, true);
+        return new HousekeepingService(jdbc, inspector, TEST_DOCUMENT_PROCESS_TIMEOUT, true, new KnowledgeTaskExecutor());
     }
 
     private HousekeepingService service() {
@@ -228,12 +228,12 @@ class HousekeepingServiceTest {
 
     @Test
     void staleThresholdFollowsDocumentProcessTimeoutWithFloorAndBuffer() {
-        assertThat(new HousekeepingService(jdbc, null, Duration.ofHours(1), true).staleThreshold())
+        assertThat(new HousekeepingService(jdbc, null, Duration.ofHours(1), true, new KnowledgeTaskExecutor()).staleThreshold())
                 .isEqualTo(Duration.ofMinutes(70));
         // 小于 1 小时下限 → 仍取 1h + 10min
-        assertThat(new HousekeepingService(jdbc, null, Duration.ofMinutes(30), true).staleThreshold())
+        assertThat(new HousekeepingService(jdbc, null, Duration.ofMinutes(30), true, new KnowledgeTaskExecutor()).staleThreshold())
                 .isEqualTo(Duration.ofMinutes(70));
-        assertThat(new HousekeepingService(jdbc, null, Duration.ofHours(3), true).staleThreshold())
+        assertThat(new HousekeepingService(jdbc, null, Duration.ofHours(3), true, new KnowledgeTaskExecutor()).staleThreshold())
                 .isEqualTo(Duration.ofMinutes(190));
     }
 
@@ -282,7 +282,7 @@ class HousekeepingServiceTest {
     void disabledServiceLogsAndDoesNotSweep() {
         String id = knowledge("processing", "none", 180, 0);
         HousekeepingService disabled =
-                new HousekeepingService(jdbc, null, TEST_DOCUMENT_PROCESS_TIMEOUT, false);
+                new HousekeepingService(jdbc, null, TEST_DOCUMENT_PROCESS_TIMEOUT, false, new KnowledgeTaskExecutor());
         disabled.start();
 
         assertThat(disabled.enabled()).isFalse();

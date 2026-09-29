@@ -1,13 +1,10 @@
 package com.ragagent.knowledge.service;
 
 import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -19,7 +16,6 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.common.prompt.PromptInstructions;
 import com.ragagent.config.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.Knowledge;

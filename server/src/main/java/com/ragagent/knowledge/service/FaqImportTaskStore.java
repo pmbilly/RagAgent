@@ -1,10 +1,8 @@
 package com.ragagent.knowledge.service;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.ragagent.knowledge.dto.FaqImportDtos;
 import com.ragagent.knowledge.dto.FaqImportDtos.FaqImportProgress;
 import org.springframework.stereotype.Component;
 

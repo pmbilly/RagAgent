@@ -59,8 +59,11 @@ public class FaqImportService {
     private final FaqGuard faqGuard;
     private final FaqChunkCodec faqChunkCodec;
     private final FaqIndexWriter faqIndexWriter;
+    /** 后台任务执行器（统一命名与关停）。 */
+    private final KnowledgeTaskExecutor taskExecutor;
 
-    public FaqImportService(ChunkRepository chunkRepository,
+
+    public FaqImportService(KnowledgeTaskExecutor taskExecutor, ChunkRepository chunkRepository,
                             KnowledgeMapper knowledgeMapper,
                             KnowledgeTagMapper tagMapper,
                             FaqImportTaskStore taskStore,
@@ -70,6 +73,8 @@ public class FaqImportService {
                             FaqChunkCodec faqChunkCodec,
                             FaqIndexWriter faqIndexWriter,
                             FaqChunkRepository faqChunkRepository) {
+
+        this.taskExecutor = taskExecutor;
         this.chunkRepository = chunkRepository;
         this.faqChunkRepository = faqChunkRepository;
         this.knowledgeMapper = knowledgeMapper;
@@ -148,7 +153,7 @@ public class FaqImportService {
 
         // 受理后在虚拟线程内执行；entries 复制成可变列表（校验阶段会就地改写）
         List<FaqEntryDtos.FaqEntryPayload> entries = new ArrayList<>(payload.entries());
-        Thread.ofVirtual().start(() -> processImport(new ImportJob(
+        taskExecutor.submit("faq-import", () -> processImport(new ImportJob(
                 tid, effectiveTaskId, kbId, faqKnowledge.getId(), mode, payload.dryRun(),
                 enqueuedAt, instanceId, entries)));
 
