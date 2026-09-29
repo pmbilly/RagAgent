@@ -47,6 +47,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class KnowledgeService {
 
+    // 规模例外（~830 行）：文档主链路的门面与共享工具（常量/静态助手/直创建路径），
+    // 已按能力拆出 ProcessWorker/Summary/File/Parse/BatchOps 等专项服务，本类保持聚合面。
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（§9 步 3 教训）。 */
@@ -524,13 +527,13 @@ public class KnowledgeService {
         n.put("name", t.getName());
         n.put("color", t.getColor() == null ? "" : t.getColor());
         n.put("sort_order", t.getSortOrder() == null ? 0 : t.getSortOrder());
-        n.put("created_at", t.getCreatedAt() == null ? null : goTimeString(t.getCreatedAt()));
-        n.put("updated_at", t.getUpdatedAt() == null ? null : goTimeString(t.getUpdatedAt()));
+        n.put("created_at", t.getCreatedAt() == null ? null : timeString(t.getCreatedAt()));
+        n.put("updated_at", t.getUpdatedAt() == null ? null : timeString(t.getUpdatedAt()));
         return n;
     }
 
     /** 同包开放（KnowledgeSpanService 渲染 span 时间戳复用，不各自复制）。 */
-    static String goTimeString(OffsetDateTime v) {
+    static String timeString(OffsetDateTime v) {
         return v.atZoneSameInstant(java.time.ZoneId.systemDefault()).toOffsetDateTime()
                 .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }

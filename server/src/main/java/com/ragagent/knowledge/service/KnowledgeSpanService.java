@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * 知识处理 spans 合成树。静态 canonical 时间线复用门面公开常量
- * {@link KnowledgeService#ALL_STAGES}；时间渲染复用门面同包 helper {@code goTimeString}。
+ * {@link KnowledgeService#ALL_STAGES}；时间渲染复用门面同包 helper {@code timeString}。
  */
 @Service
 public class KnowledgeSpanService {
@@ -181,17 +181,17 @@ public class KnowledgeSpanService {
             n.put("error_message", r.getErrorMessage());
         }
         if (r.getStartedAt() != null) {
-            n.put("started_at", KnowledgeService.goTimeString(r.getStartedAt()));
+            n.put("started_at", KnowledgeService.timeString(r.getStartedAt()));
         }
         if (r.getFinishedAt() != null) {
-            n.put("finished_at", KnowledgeService.goTimeString(r.getFinishedAt()));
+            n.put("finished_at", KnowledgeService.timeString(r.getFinishedAt()));
         }
         if (r.getDurationMs() != 0) {
             n.put("duration_ms", r.getDurationMs());
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        n.put("created_at", KnowledgeService.goTimeString(r.getCreatedAt() == null ? now : r.getCreatedAt()));
-        n.put("updated_at", KnowledgeService.goTimeString(r.getUpdatedAt() == null ? now : r.getUpdatedAt()));
+        n.put("created_at", KnowledgeService.timeString(r.getCreatedAt() == null ? now : r.getCreatedAt()));
+        n.put("updated_at", KnowledgeService.timeString(r.getUpdatedAt() == null ? now : r.getUpdatedAt()));
         return n;
     }
 
@@ -208,8 +208,8 @@ public class KnowledgeSpanService {
         n.put("name", name);
         n.put("kind", kind);
         n.put("status", status);
-        n.put("created_at", KnowledgeService.goTimeString(now));
-        n.put("updated_at", KnowledgeService.goTimeString(now));
+        n.put("created_at", KnowledgeService.timeString(now));
+        n.put("updated_at", KnowledgeService.timeString(now));
         return n;
     }
 
@@ -230,7 +230,7 @@ public class KnowledgeSpanService {
             if (spanFailure.getFinishedAt() == null) {
                 e.putNull("finished_at");
             } else {
-                e.put("finished_at", KnowledgeService.goTimeString(spanFailure.getFinishedAt()));
+                e.put("finished_at", KnowledgeService.timeString(spanFailure.getFinishedAt()));
             }
             e.put("message", spanFailure.getErrorMessage());
             e.put("name", spanFailure.getName());
@@ -255,7 +255,7 @@ public class KnowledgeSpanService {
         e.put("error_code", errorCode);
         e.put("error_message", message);
         e.put("finished_at", knowledge.getUpdatedAt() == null
-                ? null : KnowledgeService.goTimeString(knowledge.getUpdatedAt()));
+                ? null : KnowledgeService.timeString(knowledge.getUpdatedAt()));
         e.put("message", message);
         e.put("name", "knowledge_processing");
         e.put("stage", "knowledge_processing");

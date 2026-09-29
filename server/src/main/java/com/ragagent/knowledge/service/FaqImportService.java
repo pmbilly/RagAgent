@@ -44,6 +44,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class FaqImportService {
 
+    // 规模例外（>800 行）：导入是单一状态机（append/replace 校验 → 批次执行 → 终态落库），
+    // 方法间共享导入进度对象的密集读写，再拆会制造 progress 参数的跨类传递。
+
     private static final Logger log = LoggerFactory.getLogger(FaqImportService.class);
 
     private final ChunkRepository chunkRepository;

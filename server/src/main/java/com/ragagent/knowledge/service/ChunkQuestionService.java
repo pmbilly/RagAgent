@@ -105,7 +105,7 @@ public class ChunkQuestionService {
      * metadata 序列化失败文案是 Jackson 的（已知差异族）。
      */
     public GeneratedQuestion upsertGeneratedQuestion(String chunkId, String questionId, String question) {
-        String trimmed = ChunkSearchUtil.goTrimSpace(question);
+        String trimmed = ChunkSearchUtil.trimSpace(question);
         if (trimmed.isEmpty()) {
             throw BizException.badRequest("question cannot be empty");
         }

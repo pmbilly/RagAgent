@@ -109,7 +109,7 @@ public class ChunkEditService {
 
         String newContent = chunk.getContent();
         if (content != null) {
-            newContent = ChunkSearchUtil.goTrimSpace(content);
+            newContent = ChunkSearchUtil.trimSpace(content);
             if (newContent.isEmpty()) {
                 throw new IllegalStateException("chunk content cannot be empty");
             }
@@ -267,7 +267,7 @@ public class ChunkEditService {
      * KB 绑定校验）。requireKBWrite 略（见类注释第 5 条）。
      */
     public void deleteChunksByKnowledgeId(String knowledgeId) {
-        if (knowledgeId == null || ChunkSearchUtil.goTrimSpace(knowledgeId).isEmpty()) {
+        if (knowledgeId == null || ChunkSearchUtil.trimSpace(knowledgeId).isEmpty()) {
             throw BizException.badRequest("resource ID cannot be empty");
         }
         long tenantId = writeExecutionTenant();

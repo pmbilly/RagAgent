@@ -70,7 +70,7 @@ public final class ChunkSearchUtil {
             if (src == null) {
                 continue;
             }
-            String trimmed = goTrimSpace(src);
+            String trimmed = trimSpace(src);
             if (!trimmed.isEmpty()) {
                 urls.add(trimmed);
             }
@@ -187,7 +187,7 @@ public final class ChunkSearchUtil {
      * 缺 U+0085/U+00A0，显式复刻（与 ChunkRepository.trimSpace 同一份表）。
      * 包内可见：ChunkService 的内容编辑 trim 与 HTML src 清洗共用。
      */
-    static String goTrimSpace(String s) {
+    static String trimSpace(String s) {
         if (s == null) {
             return "";
         }

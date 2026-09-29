@@ -17,7 +17,7 @@ public final class ParserEngineRules {
 
     /** TrimSpace + 小写 + 去前导点。 */
     public static String normalize(String fileType) {
-        String s = fileType == null ? "" : goTrimSpace(fileType).toLowerCase(Locale.ROOT);
+        String s = fileType == null ? "" : trimSpace(fileType).toLowerCase(Locale.ROOT);
         return s.startsWith(".") ? s.substring(1) : s;
     }
 
@@ -35,7 +35,7 @@ public final class ParserEngineRules {
                 if (rule == null || !rule.isObject()) {
                     continue;
                 }
-                String engine = goTrimSpace(rule.path("engine").asText(""));
+                String engine = trimSpace(rule.path("engine").asText(""));
                 JsonNode fileTypes = rule.get("file_types");
                 if (fileTypes == null || !fileTypes.isArray()) {
                     continue;
@@ -50,7 +50,7 @@ public final class ParserEngineRules {
         return defaultEngine(fileType);
     }
 
-    static String goTrimSpace(String s) {
+    static String trimSpace(String s) {
         if (s == null) {
             return "";
         }
