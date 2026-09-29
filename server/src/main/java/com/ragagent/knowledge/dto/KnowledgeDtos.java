@@ -3,7 +3,6 @@ package com.ragagent.knowledge.dto;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -100,31 +99,38 @@ public final class KnowledgeDtos {
             String mode) {
     }
 
-    /** 文档列表响应：data/page/page_size/success/total 五键（既有契约形状）。 */
-    public record KnowledgeListResponse(Object data, long page,
-            @JsonProperty("page_size") long pageSize,
-            boolean success, long total) {
+    /**
+     * 跨库搜索响应。
+     *
+     * @param items   命中的文档（按相关性排序）
+     * @param hasMore 是否还有下一页（前端据此决定是否继续加载）
+     * @param total   命中总数
+     */
+    public record KnowledgeSearchResponse(List<KnowledgeResponse> items, boolean hasMore, long total) {
+    }
+
+    /** 文件夹搬移/重命名受理结果。 */
+    public record FolderMoveResponse(String folderPath, long movedCount) {
+    }
+
+    /** 文档列表分页响应：{@code {items, page, pageSize, total}}。 */
+    public record KnowledgeListResponse(List<KnowledgeResponse> items, long page, long pageSize, long total) {
     }
 
     /** 跨 KB 搬移受理响应。 */
-    public record BatchTaskData(
-            @JsonProperty("deleted_count") long deletedCount,
-            @JsonProperty("task_id") String taskId) {
+    public record BatchTaskData(long deletedCount, String taskId) {
     }
 
     /** 批量重析受理响应。 */
-    public record ReparseTaskData(
-            @JsonProperty("reparse_count") long reparseCount,
-            @JsonProperty("task_id") String taskId) {
+    public record ReparseTaskData(long reparseCount, String taskId) {
     }
 
-    /** 单文档删除受理响应。 */
-    public record TaskIdResponse(@JsonProperty("task_id") String taskId) {
+    /** 异步受理响应：只带任务 ID，供前端轮询进度。 */
+    public record TaskIdResponse(String taskId) {
     }
 
-    /** 清空知识库响应。 */
-    public record ClearContentsResponse(
-            @JsonProperty("deleted_count") long deletedCount) {
+    /** 清空知识库受理响应。 */
+    public record ClearContentsResponse(long deletedCount) {
     }
 
     /**

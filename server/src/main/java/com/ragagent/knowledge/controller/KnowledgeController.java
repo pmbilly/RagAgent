@@ -17,6 +17,7 @@ import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.dto.KnowledgeDtos.ClearContentsResponse;
 import com.ragagent.knowledge.dto.KnowledgeDtos.CreateFromUrlRequest;
+import com.ragagent.knowledge.dto.KnowledgeResponse;
 import com.ragagent.knowledge.dto.KnowledgeDtos.CreateManualRequest;
 import com.ragagent.knowledge.dto.KnowledgeDtos.KnowledgeListResponse;
 import com.ragagent.knowledge.dto.KnowledgeDtos.UpdateImageInfoRequest;
@@ -76,16 +77,21 @@ public class KnowledgeController {
     }
 
     /**
-     * multipart 上传。tag_ids / process_config 参数被接收但静默丢弃（管线只读 KB 级
-     * 配置；完整落地需穿越处理分块与写链，待专项收口）。
+     * multipart 上传文档（同步受理，异步解析）。
+     *
+     * <p>返回 201 与新文档视图；真正的"解析 → 分块 → 向量化"由后台流水线执行，
+     * 前端凭响应里的 {@code parseStatus} 与进度接口跟进。</p>
+     *
+     * <p>{@code tag_ids} / {@code process_config} 参数被接收但静默丢弃（管线只读 KB 级配置；
+     * 完整落地需穿越处理分块与写链，待专项收口）。</p>
      */
     @PostMapping("/knowledge-bases/{id}/knowledge/file")
-    public ResponseEntity<ApiResponse<Knowledge>> createFromFile(
+    public ResponseEntity<KnowledgeResponse> createFromFile(
             @PathVariable("id") String kbId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "fileName", required = false) String fileName,
             @RequestParam(value = "metadata", required = false) String metadataJson,
-            @RequestParam(value = "tag_ids", required = false) String tagIds,
+            @RequestParam(value = "tagIds", required = false) String tagIds,
             @RequestParam(value = "channel", required = false) String channel)
             throws IOException {
         log.info("Start creating knowledge from file, KB: {}", kbId);
@@ -95,12 +101,12 @@ public class KnowledgeController {
                 kbId, content,
                 fileName != null && !fileName.isEmpty() ? fileName : file.getOriginalFilename(),
                 fileName, customMetadata, channel);
-        return ResponseEntity.ok(ApiResponse.ok(k));
+        return ResponseEntity.status(HttpStatus.CREATED).body(KnowledgeResponse.from(k));
     }
 
-    /** 201；SSRF 校验先行。 */
+    /** 从 URL 创建：SSRF 校验先行。 */
     @PostMapping("/knowledge-bases/{id}/knowledge/url")
-    public ResponseEntity<ApiResponse<Knowledge>> createFromUrl(
+    public ResponseEntity<KnowledgeResponse> createFromUrl(
             @PathVariable("id") String kbId,
             @Valid @NonNullBody @RequestBody CreateFromUrlRequest req) {
         log.info("Start creating knowledge from URL, KB: {}", kbId);
@@ -111,11 +117,12 @@ public class KnowledgeController {
         }
         Knowledge k = knowledgeService.createFromUrl(kbId, req.url(),
                 req.fileName(), req.fileType(), req.title(), req.channel());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(k));
+        return ResponseEntity.status(HttpStatus.CREATED).body(KnowledgeResponse.from(k));
     }
 
+    /** 手工创建纯文本文档。 */
     @PostMapping("/knowledge-bases/{id}/knowledge/manual")
-    public ResponseEntity<ApiResponse<Knowledge>> createManual(
+    public ResponseEntity<KnowledgeResponse> createManual(
             @PathVariable("id") String kbId,
             @Valid @NonNullBody @RequestBody CreateManualRequest req) {
         log.info("Start creating manual knowledge, KB: {}", kbId);
@@ -123,54 +130,61 @@ public class KnowledgeController {
                 req.content() == null ? "" : req.content(),
                 req.status() == null ? "" : req.status(),
                 req.channel());
-        return ResponseEntity.ok(ApiResponse.ok(k));
+        return ResponseEntity.status(HttpStatus.CREATED).body(KnowledgeResponse.from(k));
     }
 
-    /** 真分页，顶层 data/page/page_size/total/success（既有五键契约）。 */
+    /** 知识库内文档分页列表：{@code {items, page, pageSize, total}}。 */
     @GetMapping("/knowledge-bases/{id}/knowledge")
     public ResponseEntity<KnowledgeListResponse> listKnowledge(
             @PathVariable("id") String kbId,
             @RequestParam(value = "page", defaultValue = "1") long page,
-            @RequestParam(value = "page_size", defaultValue = "20") long pageSize,
+            @RequestParam(value = "pageSize", defaultValue = "20") long pageSize,
             @RequestParam(value = "keyword", required = false) String keyword,
-            @RequestParam(value = "parse_status", required = false) String parseStatus,
-            @RequestParam(value = "file_type", required = false) String fileType,
-            @RequestParam(value = "folder_path", required = false) String folderPath) {
+            @RequestParam(value = "parseStatus", required = false) String parseStatus,
+            @RequestParam(value = "fileType", required = false) String fileType,
+            @RequestParam(value = "folderPath", required = false) String folderPath) {
         log.info("Start listing knowledge, KB: {}", kbId);
         if (page < 1) {
             throw new BizException(AppError.badRequest("page must be at least 1"));
         }
         if (pageSize < 1 || pageSize > 1000) {
-            throw new BizException(AppError.badRequest("page_size must be between 1 and 1000"));
+            throw new BizException(AppError.badRequest("pageSize must be between 1 and 1000"));
         }
         boolean folderPresent = folderPath != null;
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<Knowledge> result =
                 knowledgeService.listKnowledge(
                         kbId, page, pageSize, keyword, parseStatus, fileType, folderPath, folderPresent);
-        return ResponseEntity.ok(new KnowledgeListResponse(
-                result.getRecords(), page, pageSize, true, result.getTotal()));
+        List<KnowledgeResponse> items = result.getRecords().stream()
+                .map(KnowledgeResponse::from)
+                .toList();
+        return ResponseEntity.ok(new KnowledgeListResponse(items, page, pageSize, result.getTotal()));
     }
 
+    /** 文件夹树（结构由数据驱动，保持不透明 JSON 载荷）。 */
     @GetMapping("/knowledge-bases/{id}/knowledge/folders")
-    public ResponseEntity<ApiResponse<Object>> listFolders(@PathVariable("id") String kbId) {
-        return ResponseEntity.ok(ApiResponse.ok(knowledgeService.folderTree(kbId)));
+    public ResponseEntity<com.fasterxml.jackson.databind.JsonNode> listFolders(
+            @PathVariable("id") String kbId) {
+        return ResponseEntity.ok(knowledgeService.folderTree(kbId));
     }
 
     @GetMapping("/knowledge/{id}")
-    public ResponseEntity<ApiResponse<Knowledge>> getKnowledge(@PathVariable("id") String id) {
+    public ResponseEntity<KnowledgeResponse> getKnowledge(@PathVariable("id") String id) {
         log.info("Start retrieving knowledge, ID: {}", id);
         String safeId = requireKnowledgeId(id);
         guards.resolveKnowledgeByGuard(safeId, false);
-        return ResponseEntity.ok(ApiResponse.ok(knowledgeService.getKnowledge(safeId)));
+        return ResponseEntity.ok(KnowledgeResponse.from(knowledgeService.getKnowledge(safeId)));
     }
 
     /**
-     * query 绑定：ids required（"ids=" → [""] 通过绑定，服务层查不到行 → data:[]）。
+     * 按 ID 批量取文档（直接返回数组；查不到的 ID 静默省略）。
+     *
+     * <p>query 绑定：{@code ids} required（{@code "ids="} → {@code [""]} 通过绑定，
+     * 服务层查不到行 → 空数组）。</p>
      */
     @GetMapping("/knowledge/batch")
-    public ResponseEntity<ApiResponse<List<Knowledge>>> getKnowledgeBatch(
+    public ResponseEntity<List<KnowledgeResponse>> getKnowledgeBatch(
             @RequestParam(value = "ids", required = false) List<String> ids,
-            @RequestParam(value = "kb_id", required = false) String kbId) {
+            @RequestParam(value = "kbId", required = false) String kbId) {
         long callerTenant = KnowledgeRouteGuards.tenantId();
         if (callerTenant == 0) {
             throw new BizException(AppError.unauthorized("Unauthorized"));
@@ -188,12 +202,12 @@ public class KnowledgeController {
             knowledges = knowledges.stream()
                     .filter(k -> safeKbId.equals(k.getKnowledgeBaseId())).toList();
         }
-        return ResponseEntity.ok(ApiResponse.ok(knowledges));
+        return ResponseEntity.ok(knowledges.stream().map(KnowledgeResponse::from).toList());
     }
 
-    /** /stages 与 /spans 两个路径同 handler。 */
+    /** {@code /stages} 与 {@code /spans} 两个路径同 handler（不透明 JSON 载荷）。 */
     @GetMapping({"/knowledge/{id}/stages", "/knowledge/{id}/spans"})
-    public ResponseEntity<ApiResponse<Object>> getKnowledgeSpans(
+    public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> getKnowledgeSpans(
             @PathVariable("id") String id,
             @RequestParam(value = "attempt", required = false) String attempt) {
         String safeId = requireKnowledgeId(id);
@@ -210,13 +224,12 @@ public class KnowledgeController {
                 // 非法 attempt 保持 0（取最新）
             }
         }
-        return ResponseEntity.ok(ApiResponse.ok(
-                knowledgeService.knowledgeSpans(knowledge, requestedAttempt)));
+        return ResponseEntity.ok(knowledgeService.knowledgeSpans(knowledge, requestedAttempt));
     }
 
     /** 无既有摘要 → 同步重生；有 → 入队刷新并回读 pending 态。 */
     @PostMapping("/knowledge/{id}/regenerate-summary")
-    public ResponseEntity<ApiResponse<Knowledge>> regenerateKnowledgeSummary(
+    public ResponseEntity<KnowledgeResponse> regenerateKnowledgeSummary(
             @PathVariable("id") String id) {
         String safeId = requireKnowledgeId(id);
         Knowledge knowledge = guards.resolveKnowledgeByGuard(safeId, true);
@@ -228,38 +241,43 @@ public class KnowledgeController {
             knowledgeService.requestKnowledgeSummaryRefresh(safeId);
             result = knowledgeService.getKnowledge(safeId);
         }
-        return ResponseEntity.ok(ApiResponse.ok(result));
+        return ResponseEntity.ok(KnowledgeResponse.from(result));
     }
 
     @PutMapping("/knowledge/manual/{id}")
-    public ResponseEntity<ApiResponse<Knowledge>> updateManualKnowledge(
+    public ResponseEntity<KnowledgeResponse> updateManualKnowledge(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody UpdateManualRequest req) {
         String safeId = requireKnowledgeId(id);
         guards.resolveKnowledgeByGuard(safeId, true);
         Knowledge k = knowledgeService.updateManualKnowledge(safeId,
                 req.title(), req.content(), req.status(), req.channel());
-        return ResponseEntity.ok(ApiResponse.ok(k));
+        return ResponseEntity.ok(KnowledgeResponse.from(k));
     }
 
-    /** 空 body 允许（保留上传时配置）；非空时仅做语法校验。 */
+    /**
+     * 重新解析（异步受理）：返回受理后的文档视图，前端凭 {@code parseStatus} 跟进。
+     *
+     * <p>body 可整体省略（保留上传时配置）；非空时仅做语法校验。</p>
+     */
     @PostMapping("/knowledge/{id}/reparse")
-    public ResponseEntity<DataMessageResponse<Knowledge>> reparseKnowledge(
+    public ResponseEntity<KnowledgeResponse> reparseKnowledge(
             @PathVariable("id") String id,
             @RequestBody(required = false) JsonNode body) {
         String safeId = requireKnowledgeId(id);
         guards.resolveKnowledgeByGuard(safeId, true);
         Knowledge k = knowledgeService.reparseKnowledge(safeId);
-        return ResponseEntity.ok(DataMessageResponse.of(k, "Knowledge reparse task submitted"));
+        return ResponseEntity.ok(KnowledgeResponse.from(k));
     }
 
+    /** 取消进行中的解析（异步受理）。 */
     @PostMapping("/knowledge/{id}/cancel-parse")
-    public ResponseEntity<DataMessageResponse<Knowledge>> cancelKnowledgeParse(
+    public ResponseEntity<KnowledgeResponse> cancelKnowledgeParse(
             @PathVariable("id") String id) {
         String safeId = requireKnowledgeId(id);
         guards.resolveKnowledgeByGuard(safeId, true);
         Knowledge k = knowledgeService.cancelKnowledgeParse(safeId);
-        return ResponseEntity.ok(DataMessageResponse.of(k, "Knowledge parse cancelled"));
+        return ResponseEntity.ok(KnowledgeResponse.from(k));
     }
 
     /** Contributor 路由门 + KBAccessWrite + handler 内 Editor 检查（守卫链 write 分支）。 */
@@ -296,8 +314,9 @@ public class KnowledgeController {
                 "private, no-store", file.opened().size()));
     }
 
+    /** 更新分块图片信息（无响应体）。 */
     @PutMapping("/knowledge/image/{id}/{chunkId}")
-    public ResponseEntity<MessageResponse> updateImageInfo(
+    public ResponseEntity<Void> updateImageInfo(
             @PathVariable("id") String id,
             @PathVariable("chunkId") String chunkId,
             @Valid @NonNullBody @RequestBody UpdateImageInfoRequest req) {
@@ -309,38 +328,42 @@ public class KnowledgeController {
         guards.resolveKnowledgeByGuard(safeId, true);
         String imageInfo = req.imageInfo() == null ? "" : req.imageInfo();
         knowledgeService.updateImageInfo(safeId, safeChunkId, imageInfo);
-        return ResponseEntity.ok(new MessageResponse(
-                "Knowledge chunk image updated successfully", true));
+        return ResponseEntity.noContent().build();
     }
 
     /** 守卫链 + 部分更新（更新字段集合见 {@link UpdateKnowledgeRequest}）。 */
+    /** 文档部分更新（更新字段集合见 {@link UpdateKnowledgeRequest}）。 */
     @PutMapping("/knowledge/{id}")
-    public ResponseEntity<DataMessageResponse<Knowledge>> updateKnowledge(
+    public ResponseEntity<KnowledgeResponse> updateKnowledge(
             @PathVariable("id") String id,
             @RequestBody(required = false) UpdateKnowledgeRequest request) {
         log.info("Start updating knowledge, ID: {}", id);
         String safeId = requireKnowledgeId(id);
         guards.resolveKnowledgeByGuard(safeId, true);
         Knowledge k = knowledgeService.updateKnowledge(safeId, request);
-        return ResponseEntity.ok(DataMessageResponse.of(k, "Knowledge updated successfully"));
+        return ResponseEntity.ok(KnowledgeResponse.from(k));
     }
 
     /** 守卫链 + 搬移中拒绝（service 内）+ 异步删除语义。 */
+    /**
+     * 删除文档：异步受理（索引清理在后台进行）→ 202 + {@code {taskId}}。
+     *
+     * <p>为何不是 204：删除尚未完成，前端需要 taskId 轮询进度；
+     * 同步完成的删除才用 204（见契约文档 §1.13）。</p>
+     */
     @DeleteMapping("/knowledge/{id}")
-    public ResponseEntity<DataMessageResponse<TaskIdResponse>> deleteKnowledge(
-            @PathVariable("id") String id) {
+    public ResponseEntity<TaskIdResponse> deleteKnowledge(@PathVariable("id") String id) {
         log.info("Start deleting knowledge, ID: {}", id);
         String safeId = requireKnowledgeId(id);
         guards.resolveKnowledgeByGuard(safeId, true);
         String taskId = knowledgeService.deleteKnowledge(safeId);
-        DataMessageResponse<TaskIdResponse> resp =
-                DataMessageResponse.of(new TaskIdResponse(taskId), "Delete task submitted");
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new TaskIdResponse(taskId));
     }
 
     /** Admin 路由门 + 仅 owner 租户可清。 */
+    /** 清空知识库内容：异步受理 → 202 + {@code {deletedCount}}。 */
     @DeleteMapping("/knowledge-bases/{id}/knowledge")
-    public ResponseEntity<DataMessageResponse<Object>> clearKnowledgeBaseContents(
+    public ResponseEntity<ClearContentsResponse> clearKnowledgeBaseContents(
             @PathVariable("id") String id) {
         log.info("Start clearing knowledge base contents");
         String kbId = LogSanitizer.sanitize(id);
@@ -353,10 +376,7 @@ public class KnowledgeController {
             throw new BizException(AppError.forbidden("Only knowledge base owner can clear contents"));
         }
         int count = knowledgeService.clearKnowledgeBaseContents(kbId);
-        return ResponseEntity.ok(new DataMessageResponse<>(
-                new ClearContentsResponse(count),
-                count == 0 ? "Knowledge base is already empty"
-                        : "Knowledge base contents clear task submitted", true));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ClearContentsResponse(count));
     }
 
     private String requireKnowledgeId(String id) {

@@ -1006,17 +1006,17 @@ class JsonContractRoundTripTest {
                 "types.KBCloneProgress ← KnowledgeTaskDtos.KBCloneProgress");
 
         var mvResp = new KnowledgeTaskDtos.MoveKnowledgeResponse(
-                "kg_move_10002_1_a", "kb-src", "kb-dst", 1, "Knowledge move task started");
+                "kg_move_10002_1_a", "kb-src", "kb-dst", 1);
         assertRoundTrips(mvResp, KnowledgeTaskDtos.MoveKnowledgeResponse.class,
                 "handler.MoveKnowledgeResponse ← KnowledgeTaskDtos.MoveKnowledgeResponse");
 
         var cpResp = new KnowledgeTaskDtos.CopyKnowledgeBaseResponse(
-                "kb_clone_10002_1_a", "kb-src", "kb-dst", "Knowledge base copy task started");
+                "kb_clone_10002_1_a", "kb-src", "kb-dst");
         assertRoundTrips(cpResp, KnowledgeTaskDtos.CopyKnowledgeBaseResponse.class,
                 "handler.CopyKnowledgeBaseResponse ← KnowledgeTaskDtos.CopyKnowledgeBaseResponse");
 
         var dupResp = new KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse(
-                "kb-src", "kb-dst", "Knowledge base duplicate created", null);
+                "kb-src", "kb-dst", null);
         assertRoundTrips(dupResp, KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse.class,
                 "handler.DuplicateKnowledgeBaseResponse ← KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse");
     }

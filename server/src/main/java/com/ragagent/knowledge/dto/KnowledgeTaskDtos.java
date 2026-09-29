@@ -1,59 +1,54 @@
 package com.ragagent.knowledge.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 搜索与移动/复制批「搜索与移动/复制」的响应体。
- * <p>这些类型只作 HTTP 响应体、不落 jsonb；但仍是响应契约，
- * 已加入 JsonContractRoundTripTest（本仓约定 第 3 条）。进度对象里的
+ * 搬移/复制/清空等异步任务的响应体。
+ *
+ * <p>契约：JSON 字段名 = Java 字段名（camelCase、零注解）；受理类响应只带
+ * 任务标识与计数，不再携带服务端生成的 UI 文案（文案由前端本地化）。</p>
  */
 public final class KnowledgeTaskDtos {
 
     private KnowledgeTaskDtos() {
     }
 
-    @JsonPropertyOrder({"task_id", "source_kb_id", "target_kb_id", "knowledge_count", "message"})
+    /** 跨 KB 搬移受理（202）。 */
     public record MoveKnowledgeResponse(
-            @JsonProperty("task_id") String taskId,
-            @JsonProperty("source_kb_id") String sourceKbId,
-            @JsonProperty("target_kb_id") String targetKbId,
-            @JsonProperty("knowledge_count") int knowledgeCount,
-            @JsonProperty("message") String message) {
+            String taskId,
+            String sourceKbId,
+            String targetKbId,
+            int knowledgeCount) {
     }
 
-    @JsonPropertyOrder({"task_id", "source_id", "target_id", "message"})
+    /** 知识库复制受理（202）。 */
     public record CopyKnowledgeBaseResponse(
-            @JsonProperty("task_id") String taskId,
-            @JsonProperty("source_id") String sourceId,
-            @JsonProperty("target_id") String targetId,
-            @JsonProperty("message") String message) {
+            String taskId,
+            String sourceId,
+            String targetId) {
     }
 
-    @JsonPropertyOrder({"source_id", "target_id", "message", "knowledge_base"})
+    /** 知识库副本创建完成。 */
     public record DuplicateKnowledgeBaseResponse(
-            @JsonProperty("source_id") String sourceId,
-            @JsonProperty("target_id") String targetId,
-            @JsonProperty("message") String message,
-            @JsonProperty("knowledge_base") Object knowledgeBase) {
+            String sourceId,
+            String targetId,
+            KnowledgeBaseResponse knowledgeBase) {
     }
 
-    @JsonPropertyOrder({"task_id", "source_kb_id", "target_kb_id", "status", "progress",
-            "total", "processed", "failed", "message", "error", "created_at", "updated_at"})
+    /** 跨 KB 搬移进度。 */
     public record KnowledgeMoveProgress(
-            @JsonProperty("task_id") String taskId,
-            @JsonProperty("source_kb_id") String sourceKbId,
-            @JsonProperty("target_kb_id") String targetKbId,
-            @JsonProperty("status") String status,
-            @JsonProperty("progress") int progress,
-            @JsonProperty("total") int total,
-            @JsonProperty("processed") int processed,
-            @JsonProperty("failed") int failed,
-            @JsonProperty("message") String message,
-            @JsonProperty("error") String error,
-            @JsonProperty("created_at") long createdAt,
-            @JsonProperty("updated_at") long updatedAt) {
+            String taskId,
+            String sourceKbId,
+            String targetKbId,
+            String status,
+            int progress,
+            int total,
+            int processed,
+            int failed,
+            String message,
+            String error,
+            long createdAt,
+            long updatedAt) {
 
         @JsonIgnore
         public boolean isTerminal() {
@@ -61,23 +56,19 @@ public final class KnowledgeTaskDtos {
         }
     }
 
-    /**
-     * 的差异：中间是 {@code source_id/target_id}、没有 {@code failed} 计数。
-     */
-    @JsonPropertyOrder({"task_id", "source_id", "target_id", "status", "progress",
-            "total", "processed", "message", "error", "created_at", "updated_at"})
+    /** 知识库复制进度（与搬移进度的差异：中间是 sourceId/targetId、无 failed 计数）。 */
     public record KBCloneProgress(
-            @JsonProperty("task_id") String taskId,
-            @JsonProperty("source_id") String sourceId,
-            @JsonProperty("target_id") String targetId,
-            @JsonProperty("status") String status,
-            @JsonProperty("progress") int progress,
-            @JsonProperty("total") int total,
-            @JsonProperty("processed") int processed,
-            @JsonProperty("message") String message,
-            @JsonProperty("error") String error,
-            @JsonProperty("created_at") long createdAt,
-            @JsonProperty("updated_at") long updatedAt) {
+            String taskId,
+            String sourceId,
+            String targetId,
+            String status,
+            int progress,
+            int total,
+            int processed,
+            String message,
+            String error,
+            long createdAt,
+            long updatedAt) {
 
         /** 同上：状态判定便捷方法，@JsonIgnore 防止 Jackson 吐出派生键。 */
         @JsonIgnore

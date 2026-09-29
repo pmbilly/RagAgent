@@ -30,8 +30,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.ragagent.knowledge.dto.KnowledgeResponse;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.MoveKnowledgeResponse;
 import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
@@ -65,13 +68,13 @@ public class KnowledgeOpsController {
      * 只在显式 recent=true 时合法。
      */
     @GetMapping("/knowledge/search")
-    public ResponseEntity<Object> searchKnowledge(
+    public ResponseEntity<KnowledgeDtos.KnowledgeSearchResponse> searchKnowledge(
             @RequestParam(value = "keyword", required = false) String keywordParam,
             @RequestParam(value = "query", required = false) String queryParam,
             @RequestParam(value = "recent", required = false) String recentParam,
             @RequestParam(value = "offset", required = false) String offsetParam,
             @RequestParam(value = "limit", required = false) String limitParam,
-            @RequestParam(value = "file_types", required = false) String fileTypesParam) {
+            @RequestParam(value = "fileTypes", required = false) String fileTypesParam) {
         // 非法 recent 值静默为 false
         boolean recent = Boolean.parseBoolean(recentParam == null ? "false" : recentParam.trim());
         String keyword = keywordParam == null ? "" : keywordParam;
@@ -121,12 +124,9 @@ public class KnowledgeOpsController {
         } else {
             outcome = knowledgeService.searchKnowledge(keyword, offset, limit, fileTypes);
         }
-        var body = new java.util.LinkedHashMap<String, Object>();
-        body.put("data", outcome.knowledges());
-        body.put("has_more", outcome.hasMore());
-        body.put("success", true);
-        body.put("total", outcome.total());
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(new KnowledgeDtos.KnowledgeSearchResponse(
+                outcome.knowledges().stream().map(KnowledgeResponse::from).toList(),
+                outcome.hasMore(), outcome.total()));
     }
 
     private static Integer parseIntStrict(String s) {
@@ -141,7 +141,7 @@ public class KnowledgeOpsController {
 
     /** body 携带可选 kb_id；缺省时从首条 knowledge 推导授权 KB（handler 层守卫）。 */
     @PutMapping("/knowledge/tags")
-    public ResponseEntity<ApiResponse<Void>> updateKnowledgeTagBatch(
+    public ResponseEntity<Void> updateKnowledgeTagBatch(
             @Valid @NonNullBody @RequestBody KnowledgeTagBatchRequest req) {
         if (KnowledgeRouteGuards.tenantId() == 0) {
             throw new BizException(AppError.unauthorized("Unauthorized"));
@@ -158,14 +158,14 @@ public class KnowledgeOpsController {
         }
         guards.batchAccessChecks(authorizedKbId);
         knowledgeService.updateKnowledgeTagBatch(authorizedKbId, req.updates());
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ResponseEntity.noContent().build();
     }
 
     // ── 批量删除 / 重析 ──────────────────────────────────────────────────
 
-    /** dedupe/maxBatch → KB 访问+ownership → 行校验（含搬移中拒绝）→ task_id。 */
+    /** 批量删除（异步受理 → 202）。守卫链：dedupe/maxBatch → KB 访问+ownership → 行校验（含搬移中拒绝）。 */
     @PostMapping("/knowledge/batch-delete")
-    public ResponseEntity<DataMessageResponse<KnowledgeDtos.BatchTaskData>> batchDeleteKnowledge(
+    public ResponseEntity<KnowledgeDtos.BatchTaskData> batchDeleteKnowledge(
             @Valid @NonNullBody @RequestBody BatchDeleteRequest req) {
         String kbId = LogSanitizer.sanitize(req.kbId());
         if (req.ids() == null) {
@@ -185,8 +185,8 @@ public class KnowledgeOpsController {
             }
         }
         String taskId = knowledgeService.batchDeleteKnowledge(kbId, ids);
-        return ResponseEntity.ok(DataMessageResponse.of(
-                new KnowledgeDtos.BatchTaskData(ids.size(), taskId), "Batch delete task submitted"));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new KnowledgeDtos.BatchTaskData(ids.size(), taskId));
     }
 
     /**
@@ -194,7 +194,7 @@ public class KnowledgeOpsController {
      * 标准绑定细节，故此处保留手动绑定。
      */
     @PostMapping("/knowledge/batch-reparse")
-    public ResponseEntity<DataMessageResponse<KnowledgeDtos.ReparseTaskData>> batchReparseKnowledge(
+    public ResponseEntity<KnowledgeDtos.ReparseTaskData> batchReparseKnowledge(
             @RequestBody(required = false) KnowledgeDtos.BatchReparseRequest request) {
         KnowledgeDtos.BatchReparseRequest parsed = requireBatchReparse(request);
         String kbId = LogSanitizer.sanitize(parsed.kbId());
@@ -212,8 +212,8 @@ public class KnowledgeOpsController {
             }
         }
         String taskId = knowledgeService.batchReparseKnowledge(kbId, ids);
-        return ResponseEntity.ok(DataMessageResponse.of(
-                new KnowledgeDtos.ReparseTaskData(ids.size(), taskId), "Batch reparse task submitted"));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new KnowledgeDtos.ReparseTaskData(ids.size(), taskId));
     }
 
     /**
@@ -240,22 +240,20 @@ public class KnowledgeOpsController {
 
     /** 跨库移动到文件夹（目的地不存在即创建）。 */
     @PostMapping("/knowledge/folder")
-    public ResponseEntity<ApiResponse<Object>> moveKnowledgeToFolder(
+    public ResponseEntity<KnowledgeDtos.FolderMoveResponse> moveKnowledgeToFolder(
             @Valid @NonNullBody @RequestBody MoveToFolderRequest req) {
         List<String> ids = guards.requireBatchIds(req.knowledgeIds(), "knowledge_ids");
         String folderPath = req.folderPath() == null ? "" : req.folderPath();
         String kbId = guards.batchAccessChecks(LogSanitizer.sanitize(req.kbId()));
         guards.requireKnowledgeInKb(kbId, ids);
         long affected = knowledgeService.moveKnowledgeToFolder(kbId, ids, folderPath);
-        var data = new java.util.LinkedHashMap<String, Object>();
-        data.put("folder_path", KnowledgeService.normalizeKnowledgeFolderPath(folderPath));
-        data.put("moved_count", affected);
-        return ResponseEntity.ok(ApiResponse.ok(data));
+        return ResponseEntity.ok(new KnowledgeDtos.FolderMoveResponse(
+                KnowledgeService.normalizeKnowledgeFolderPath(folderPath), affected));
     }
 
     /** 路由 ownership（纯字符串，KB 缺失放行）→ KB 访问 + ownership（信封）→ service。 */
     @PutMapping("/knowledge-bases/{id}/knowledge/folders")
-    public ResponseEntity<ApiResponse<Object>> renameKnowledgeFolder(
+    public ResponseEntity<KnowledgeDtos.FolderMoveResponse> renameKnowledgeFolder(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody RenameFolderRequest req) {
         String kbId = LogSanitizer.sanitize(id);
@@ -265,17 +263,15 @@ public class KnowledgeOpsController {
         }
         guards.batchAccessChecks(kbId);
         long affected = knowledgeService.renameKnowledgeFolder(kbId, req.from(), req.to());
-        var data = new java.util.LinkedHashMap<String, Object>();
-        data.put("folder_path", KnowledgeService.normalizeKnowledgeFolderPath(req.to()));
-        data.put("moved_count", affected);
-        return ResponseEntity.ok(ApiResponse.ok(data));
+        return ResponseEntity.ok(new KnowledgeDtos.FolderMoveResponse(
+                KnowledgeService.normalizeKnowledgeFolderPath(req.to()), affected));
     }
 
     // ── 跨 KB 搬移 ───────────────────────────────────────────────────────
 
     /** 源/目标双库守卫链 + 兼容性校验 + 逐行归属/状态校验后入队。 */
     @PostMapping("/knowledge/move")
-    public ResponseEntity<ApiResponse<Object>> moveKnowledge(
+    public ResponseEntity<MoveKnowledgeResponse> moveKnowledge(
             @Valid @NonNullBody @RequestBody MoveKnowledgeRequest req) {
         String sourceKbId = LogSanitizer.sanitize(req.sourceKbId());
         String targetKbId = LogSanitizer.sanitize(req.targetKbId());
@@ -336,13 +332,12 @@ public class KnowledgeOpsController {
         }
         String taskId = KnowledgeTaskIds.generateTaskId("kg_move", callerTenant, sourceKbId);
         knowledgeService.startKnowledgeMove(callerTenant, taskId, uniqueIds, sourceKbId, targetKbId, mode);
-        var resp = new MoveKnowledgeResponse(
-                taskId, sourceKbId, targetKbId, uniqueIds.size(), "Knowledge move task started");
-        return ResponseEntity.ok(ApiResponse.ok(resp));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new MoveKnowledgeResponse(
+                taskId, sourceKbId, targetKbId, uniqueIds.size()));
     }
 
     @GetMapping("/knowledge/move/progress/{taskId}")
-    public ResponseEntity<ApiResponse<Object>> getKnowledgeMoveProgress(
+    public ResponseEntity<KnowledgeMoveProgress> getKnowledgeMoveProgress(
             @PathVariable("taskId") String taskId) {
         if (taskId == null || taskId.isEmpty()) {
             throw new BizException(AppError.badRequest("Task ID cannot be empty"));
@@ -352,6 +347,6 @@ public class KnowledgeOpsController {
         if (progress == null) {
             throw new BizException(AppError.notFound("Knowledge move task not found"));
         }
-        return ResponseEntity.ok(ApiResponse.ok(progress));
+        return ResponseEntity.ok(progress);
     }
 }

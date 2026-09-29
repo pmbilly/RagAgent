@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.CopyKnowledgeBaseResponse;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse;
 import com.ragagent.knowledge.service.KnowledgeAccessGuard;
@@ -177,7 +178,7 @@ public class KnowledgeBaseController {
     public ResponseEntity<KnowledgeBaseDtos.HybridSearchResponse> hybridSearchPost(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody HybridSearchRequest req,
-            @RequestParam(value = "resource_urls", required = false) String resourceUrls) {
+            @RequestParam(value = "resourceUrls", required = false) String resourceUrls) {
         return hybridSearch(id, req, resourceUrls);
     }
 
@@ -185,7 +186,7 @@ public class KnowledgeBaseController {
     public ResponseEntity<KnowledgeBaseDtos.HybridSearchResponse> hybridSearchGet(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody HybridSearchRequest req,
-            @RequestParam(value = "resource_urls", required = false) String resourceUrls) {
+            @RequestParam(value = "resourceUrls", required = false) String resourceUrls) {
         return hybridSearch(id, req, resourceUrls);
     }
 
@@ -256,9 +257,9 @@ public class KnowledgeBaseController {
         return ResponseEntity.ok(new KnowledgeBaseDtos.HybridSearchResponse(results, true));
     }
 
-    /** 复制知识库（源在 body）；target_id 缺省 = 创建新库。 */
+    /** 复制知识库（源在 body）；targetId 缺省 = 创建新库。异步受理 → 202 + 任务信息。 */
     @PostMapping("/copy")
-    public ResponseEntity<ApiResponse<Object>> copyKnowledgeBase(
+    public ResponseEntity<CopyKnowledgeBaseResponse> copyKnowledgeBase(
             @Valid @NonNullBody @RequestBody CopyKbRequest req) {
         log.info("Start copying knowledge base");
         String sourceId = req.sourceId() == null ? "" : req.sourceId();
@@ -310,9 +311,8 @@ public class KnowledgeBaseController {
         }
         String reservedTargetId = targetKb.getId();
         knowledgeService.startKBClone(caller, taskId, sourceId, reservedTargetId, create, creatorId);
-        var resp = new CopyKnowledgeBaseResponse(
-                taskId, sourceId, reservedTargetId, "Knowledge base copy task started");
-        return ResponseEntity.ok(ApiResponse.ok(resp));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new CopyKnowledgeBaseResponse(taskId, sourceId, reservedTargetId));
     }
 
     /** handler 内 KB 访问（Viewer 面）：API-Key 白名单 → 查行 → 租户归属；缺失 404、跨租户 403。 */
@@ -332,17 +332,18 @@ public class KnowledgeBaseController {
         return kb;
     }
 
+    /** 复制进度（前端轮询直到 {@code terminal}）。 */
     @GetMapping("/copy/progress/{taskId}")
-    public ResponseEntity<ApiResponse<Object>> getKBCloneProgress(@PathVariable("taskId") String taskId) {
+    public ResponseEntity<KBCloneProgress> getKBCloneProgress(@PathVariable("taskId") String taskId) {
         if (taskId == null || taskId.isEmpty()) {
             throw new BizException(AppError.badRequest("Task ID cannot be empty"));
         }
         requireTaskProgressTenant(taskId);
-        var progress = knowledgeService.getKBCloneProgress(taskId);
+        KBCloneProgress progress = knowledgeService.getKBCloneProgress(taskId);
         if (progress == null) {
             throw new BizException(AppError.notFound("KB clone task not found"));
         }
-        return ResponseEntity.ok(ApiResponse.ok(progress));
+        return ResponseEntity.ok(progress);
     }
 
     /** 任务租户必须与调用方一致，否则 404（不泄露他租户任务存在性）。 */
@@ -384,7 +385,7 @@ public class KnowledgeBaseController {
 
     /** 同步克隆设置（名字带 " 副本"，重名去重）。 */
     @PostMapping("/{id}/duplicate")
-    public ResponseEntity<ApiResponse<Object>> duplicateKnowledgeBase(@PathVariable("id") String id) {
+    public ResponseEntity<DuplicateKnowledgeBaseResponse> duplicateKnowledgeBase(@PathVariable("id") String id) {
         log.info("Start duplicating knowledge base, ID: {}", id);
         String sourceId = id == null ? "" : id;
         if (sourceId.isEmpty()) {
@@ -402,9 +403,8 @@ public class KnowledgeBaseController {
             throw new BizException(AppError.forbidden("No permission to duplicate this knowledge base"));
         }
         KnowledgeBase targetKb = knowledgeService.duplicateKnowledgeBase(sourceId);
-        var resp = new DuplicateKnowledgeBaseResponse(
-                sourceId, targetKb.getId(), "Knowledge base duplicate created",
-                KnowledgeBaseResponse.from(targetKb, kbService.retrieveDriver()));
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(resp));
+        return ResponseEntity.status(HttpStatus.CREATED).body(new DuplicateKnowledgeBaseResponse(
+                sourceId, targetKb.getId(),
+                KnowledgeBaseResponse.from(targetKb, kbService.retrieveDriver())));
     }
 }
