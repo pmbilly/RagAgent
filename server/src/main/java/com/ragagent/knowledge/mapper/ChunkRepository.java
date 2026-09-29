@@ -14,58 +14,37 @@ import com.ragagent.knowledge.domain.ChunkRevision;
 import org.springframework.stereotype.Component;
 
 /**
- * chunk 仓储（对照 Go internal/application/repository/chunk.go），方法式门面：
- * GORM 隐式行为在 JVM 内显式复刻，service/controller 层不得再猜。
+ * chunk 仓储（文档与 FAQ 的 chunk 行读写，方法式门面）。数据访问契约如下，
+ * 调用方（service/controller）依赖这些语义，不得在其上重新包装猜测：
  *
- * <h2>GORM 隐式行为清单（约定 §3，写代码前逐条对照）</h2>
- * <ol>
- *   <li><b>Save 全字段更新但 Omit SeqID</b>（Go L330）：{@code Save} 对<b>有主键</b>的行
- *       是 {@code Select("*")} 全字段 UPDATE——零值也写（string ""、bool false、int 0、
- *       nil JSON → SQL NULL）；{@code seq_id} 被排除。另外 GORM 给名为 UpdatedAt 的字段
- *       自动刷时间（autoUpdateTime 回调）——Save 把 {@code updated_at} 覆盖为 now 并
- *       <b>回写进调用方的 struct</b>，Java 在 {@link #updateChunk} 里显式复刻这两步。
- *       （已知差异：GORM Save 在影响行数为 0 时回退 INSERT，HTTP 面不可达，未复刻。）</li>
- *   <li><b>SaveChunkRevision 的乐观锁 UPDATE 用 map</b>（Go L342-353）：{@code Updates(map)}
- *       不走"结构体零值跳过"——8 个键无条件写入（含 {@code content} 的空串）；
- *       map 里显式带 {@code updated_at} 键，所以 autoUpdateTime 不会覆盖它。</li>
- *   <li><b>软删除的三张面孔</b>：{@code gorm.DeletedAt} 不只过滤 SELECT——QueryClauses、
- *       UpdateClauses、DeleteClauses 分别给查询加 {@code deleted_at IS NULL}、
- *       给 UPDATE 加同款 WHERE（gorm.io/gorm soft_delete.go 的
- *       SoftDeleteQueryClause/SoftDeleteUpdateClause）、把 DELETE 改写成
- *       {@code SET deleted_at = now WHERE ... AND deleted_at IS NULL}。三个删除方法都是
- *       <b>软删</b>（Go 源没有 Unscoped），重复删除第二次是 no-op（不会刷新时间戳）。</li>
- *   <li><b>Find 对切片初始化为非 nil</b>：GORM {@code Find(&slice)} 查不到也返回空切片
- *       （不是 nil）→ 响应是 {@code "data":[]}。Java 全部列表方法返回空 List，永不返回
- *       null——service 层直接透传即可得到 {@code []}。</li>
- *   <li><b>ListPaged 的 IN 与常量</b>：{@code chunk_type IN (...)} + {@code status IN (2,0)}
- *       （ChunkStatusIndexed/ChunkStatusDefault，注意 Stored=1 <b>不</b>在内）；
- *       排序二选一：FAQ 按 {@code updated_at}（默认 DESC）、文档按 {@code chunk_index}
- *       （默认 ASC）。page/size 在 repo 层直接收<b>已钳位</b>的 offset/limit
- *       （Go 的 {@code Pagination.Offset()/Limit()} 语义，钳位归 handler/service）。</li>
- *   <li><b>First 找不到返回错误</b>：GetChunkByID/GetChunkByIDOnly 把
- *       {@code gorm.ErrRecordNotFound} 翻成 {@code ErrChunkNotFound}
- *       （→ {@link ChunkNotFoundException}）；GetChunkRevision 的 First 错误<b>原样上抛</b>
- *       （Go service 继续透传），Java 按项目惯例返回 null，由 service 层决定 404 文案。</li>
- * </ol>
+ * <h2>写路径</h2>
+ * <ul>
+ *   <li><b>updateChunk = 全字段更新（seq_id 除外）</b>：零值也写（空串/false/0/null JSON
+ *       → SQL NULL），updated_at 刷新为 now 并<b>回写到传入实体</b>；影响行数 0 时不回退
+ *       插入（调用方总是先查后存）；</li>
+ *   <li><b>saveChunkRevision = 乐观锁 UPDATE</b>：8 个键无条件写入（含 content 空串），
+ *       updated_at 显式在 SET 中，不会被自动刷新覆盖；</li>
+ *   <li><b>删除均为软删</b>（SET deleted_at = now），且 WHERE 一律带
+ *       {@code deleted_at IS NULL}——重复删除第二次是 no-op，不刷新时间戳。</li>
+ * </ul>
  *
- * <h2>刻意未翻译（属于后续模块，翻译时再补到这里）</h2>
- * <p>FAQ 专用方法子集已在波 2 第四批补齐（GetChunkBySeqID / ListChunksBySeqID /
- * ListAllFAQChunksByKnowledgeID / ListAllFAQChunksWithMetadataByKnowledgeBaseID /
- * FindFAQChunkWithDuplicateQuestion / ListAllFAQChunksForExport / UpdateChunkFlagsBatch /
- * UpdateChunkFieldsByTagID / UpdateChunks / SaveChunks / DeleteUnindexedChunks）。
- * 仍未翻译：FAQChunkDiff / ListFAQChunkStatusByIDs / ListRecommendedFAQChunks /
- * ListRecentDocumentChunksWithQuestions / CreateChunks（CreateChunks 的 MP insert 等价物在
- * FaqIndexWriter.createChunks）/ MoveChunksByKnowledgeID / CountChunksByKnowledgeBaseID /
- * ListChunksByIDOnly / ListChunksByKnowledgeID(AndTypes) / ListChunksByParentIDs /
- * DeleteChunksByTagID / ListImageInfoByKnowledgeIDs / ListAllChunksByKnowledgeID。</p>
+ * <h2>读路径</h2>
+ * <ul>
+ *   <li><b>软删行不可见</b>：全部 SELECT/UPDATE 附加 {@code deleted_at IS NULL}；</li>
+ *   <li><b>列表查询永不返回 null</b>：查不到返回空列表（响应序列化为 {@code []}）；</li>
+ *   <li><b>单行查询</b>：getChunkById/getChunkByIdOnly 查不到抛
+ *       {@link ChunkNotFoundException}；getChunkRevision 查不到返回 null，由 service 层
+ *       决定 404 文案；</li>
+ *   <li><b>listPagedChunksByKnowledgeId</b>：{@code chunk_type IN (...)} +
+ *       {@code status IN (2,0)}（stored=1 不在内）；排序 FAQ 按 updated_at（默认 DESC）、
+ *       文档按 chunk_index（默认 ASC）；offset/limit 由调用方钳位后传入；</li>
+ *   <li><b>FAQ 关键词搜索</b>：按 searchField 切四条 JSON 路径——PG 用
+ *       {@code ->> + ILIKE}，非 PG 分支是 MySQL 语法（H2 跑不了，留待真 PG e2e）。</li>
+ * </ul>
  *
- * <h2>方言探测</h2>
- * <p>{@code ListPagedChunksByKnowledgeID} 的 FAQ 关键词搜索按数据库产品名切 PG/非 PG 分支
- * （Go 的 {@code db.Dialector.Name() == "postgres"}），探测方式与
- * {@code VectorStoreService}/{@code MessageRepository} 同款（构造期问一次
- * {@code DatabaseProductName}）。H2 走非 PG 分支；非 PG 分支的 SQL 是 MySQL 语法，
- * <b>H2 跑不了 FAQ 关键词搜索</b>（Go 的非 PG 分支本来也只服务 MySQL/SQLite）——
- * FAQ 关键词条留待真 PG 的 e2e 验证。</p>
+ * <h2>方言</h2>
+ * <p>构造期按 {@code DatabaseProductName} 探测一次 PG 与否（FAQ 关键词搜索与 flags
+ * 位运算的分支依据），与 VectorStoreService/MessageRepository 同款。</p>
  */
 @Component
 public class ChunkRepository {
@@ -104,7 +83,7 @@ public class ChunkRepository {
         }
     }
 
-    /** {@code ListPagedChunksByKnowledgeID} 的返回：GORM 语义里它同时返回行与总数。 */
+    /** 分页结果：行与总数一并返回（调用方一次拿到两份）。 */
     public record ChunkPage(List<Chunk> items, long total) {
         public ChunkPage {
             items = items == null ? List.of() : items;
@@ -114,7 +93,7 @@ public class ChunkRepository {
     // ── 读 ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code GetChunkByID}（L73-82）：tenant + id，软删行不可见；
+     * tenant + id，软删行不可见；
      * 找不到抛 {@link ChunkNotFoundException}（Go 的 ErrChunkNotFound）。
      */
     public Chunk getChunkById(long tenantId, String id) {
@@ -129,7 +108,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code GetChunkByIDOnly}（L85-94）：**无租户过滤**（权限解析用）；
+     * **无租户过滤**（权限解析用）；
      * 软删行同样不可见，找不到抛 {@link ChunkNotFoundException}。
      */
     public Chunk getChunkByIdOnly(String id) {
@@ -143,7 +122,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code ListChunksByID}（L109-119）：tenant + id IN，软删行不可见。
+     * tenant + id IN，软删行不可见。
      * <p>Go 的空切片会展开成 {@code IN (NULL)}（匹配零行）；MyBatis-Plus 的空集合
      * {@code IN ()} 是 SQL 语法错误，所以显式短路为空列表——净效果相同。</p>
      */
@@ -158,8 +137,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code ListPagedChunksByKnowledgeID}（L184-294）。
-     *
+     * *
      * @param offset/limit <b>已钳位</b>的偏移与页大小（Go 的 {@code Pagination.Offset()/Limit()}
      *                     是调用方算好的值，本层不做钳位）
      * @param chunkTypes   chunk_type IN 的白名单（Go handler 传的类型列表；空列表在 Go
@@ -178,7 +156,7 @@ public class ChunkRepository {
             List<String> chunkTypes, List<String> tagIds,
             String keyword, String searchField, String sortOrder,
             String knowledgeType, Boolean isEnabled) {
-        String kw = goTrimSpace(keyword);
+        String kw = trimSpace(keyword);
 
         // Go 先 Count（baseFilter 的独立一份），再分页查数据（又一份 baseFilter）
         long total = chunkMapper.selectCount(pagedFilter(
@@ -207,8 +185,8 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code ListChunkByParentID}（L296-308）：tenant + parent_chunk_id，
-     * 软删行不可见。空结果是空列表（GORM Find 非 nil 语义）。
+     * tenant + parent_chunk_id，
+     * 软删行不可见。空结果是空列表。
      */
     public List<Chunk> listChunkByParentId(long tenantId, String parentId) {
         return chunkMapper.selectList(new LambdaQueryWrapper<Chunk>()
@@ -218,7 +196,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code ListChunksByParentIDs}（L310-325）：tenant + parent_chunk_id IN，
+     * tenant + parent_chunk_id IN，
      * 软删行不可见；空 parentIDs 返回空列表（Go 的 nil 展开语义）。
      */
     public List<Chunk> listChunksByParentIDs(long tenantId, List<String> parentIds) {
@@ -232,7 +210,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code ListChunksByKnowledgeID}（L149-161）：**text-only**（chunk_type='text'）
+     * **text-only**（chunk_type='text'）
      * + chunk_index ASC，软删行不可见。摘要/索引管线取「文档正文」都走这里；
      * summary / parent_text / image 类子块走 {@link #listChunksByKnowledgeIDAndTypes}。
      */
@@ -246,7 +224,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code ListChunksByKnowledgeIDAndTypes}（L163-181）：chunk_type IN + ASC；
+     * chunk_type IN + ASC；
      * 空 chunkTypes 返回空列表（Go 的 nil 语义）。
      */
     public List<Chunk> listChunksByKnowledgeIDAndTypes(
@@ -265,15 +243,15 @@ public class ChunkRepository {
     // ── 写 ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code UpdateChunk}（L330）：{@code Omit("SeqID").Save(chunk)} =
+     * {@code Omit("SeqID").Save(chunk)} =
      * 全字段 UPDATE（零值也写）+ updated_at 刷成 now 并回写实体；软删行不可见
-     * （GORM UpdateClauses 给 UPDATE 也加 {@code deleted_at IS NULL}）。
+     * 。
      *
-     * <p>已知差异：GORM Save 影响行数为 0 时回退 INSERT——service 层总是先查后存，
+     * <p>影响行数为 0 时不回退插入——调用方总是先查后存，
      * HTTP 面不可达，未复刻（见类 Javadoc）。</p>
      */
     public void updateChunk(Chunk chunk) {
-        // GORM autoUpdateTime：Save 把 updated_at 覆盖为 now 且回写 struct
+        // updated_at 覆盖为 now 且回写传入实体（updateChunk 契约）
         chunk.setUpdatedAt(java.time.OffsetDateTime.now());
         // Go 的 string 零值语义：Save 写 "" 而非 NULL。chunks 表这三列是 NOT NULL，
         // 而新建的 chunk 内存对象未设它们（Go 侧零值恒 ""）——2026-09-22 走查实案：
@@ -289,18 +267,18 @@ public class ChunkRepository {
         chunkMapper.updateAllFieldsExceptSeqId(chunk);
     }
 
-    /** 对照 Go {@code CreateChunkRevision}（L334-336）：纯 INSERT，ID/时间由调用方赋值。 */
+    /** 纯 INSERT，ID/时间由调用方赋值。 */
     public void createChunkRevision(ChunkRevision revision) {
         revisionMapper.insert(revision);
     }
 
     /**
-     * 对照 Go {@code SaveChunkRevision}（L338-362）：事务内先做
+     * 事务内先做
      * {@code content_revision = expectedRevision} 乐观锁 UPDATE（map 语义——8 列无条件写，
      * content/source_content 过 {@link CleanInvalidUtf8#clean}），影响行数 != 1 抛
      * {@link ChunkRevisionConflictException}（事务回滚，revision 不落库）；否则插入 revision 快照。
      *
-     * <p>WHERE 带 {@code deleted_at IS NULL}（GORM UpdateClauses，与 Go 同款）。
+     * <p>WHERE 带 {@code deleted_at IS NULL}。
      * metadata 是 json 列——wrapper 的 {@code set()} 不带 typeHandler，
      * 必须用 3 参形式显式挂（约定 §9）。</p>
      */
@@ -334,8 +312,8 @@ public class ChunkRepository {
     // ── 修订历史 ────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ListChunkRevisions}（L364-372）：{@code revision DESC}；
-     * chunk_revisions 无软删列。空结果是空列表（GORM Find 非 nil 语义）。
+     * {@code revision DESC}；
+     * chunk_revisions 无软删列。空结果是空列表。
      */
     public List<ChunkRevision> listChunkRevisions(long tenantId, String chunkId) {
         return revisionMapper.selectList(new LambdaQueryWrapper<ChunkRevision>()
@@ -345,8 +323,8 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code GetChunkRevision}（L374-382）：First 找不到时 Go 把
-     * {@code gorm.ErrRecordNotFound} 原样上抛（service 层继续透传成 404 "record not found"）。
+     * First 找不到时 Go 把
+     * 查不到行时由 service 层透传成 404 "record not found"。
      * Java 侧返回 <b>null</b>，404 文案与映射由 service/controller 层决定（约定见
      * MessageRepository.getMessageByRequestId 的同款先例）。
      */
@@ -360,7 +338,7 @@ public class ChunkRepository {
 
     // ── 删除（全部是软删，见类 Javadoc 第 3 条）────────────────────────────
 
-    /** 对照 Go {@code DeleteChunk}（L523-525）：tenant + id 软删；不存在时静默 no-op。 */
+    /** tenant + id 软删；不存在时静默 no-op。 */
     public void deleteChunk(long tenantId, String id) {
         chunkMapper.update(null, new UpdateWrapper<Chunk>()
                 .eq("tenant_id", tenantId)
@@ -370,7 +348,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code DeleteChunks}（L529-544）：tenant + id IN，按 5000 一批
+     * tenant + id IN，按 5000 一批
      * （MySQL Error 1390 防御，照抄）；空列表短路（Go 同款）。
      */
     public void deleteChunks(long tenantId, List<String> ids) {
@@ -388,9 +366,8 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code DeleteChunksByTagID}（chunk.go L583-628，W5a 标签 CRUD 用）：
-     * pluck 该 tag 下全部 chunk id → 排除 excluded → 按 1000 一批软删。
-     * 返回"计划删除"的 id 清单（对照 Go 的索引清理入参，含删除失败时的已删前缀）。
+     * * pluck 该 tag 下全部 chunk id → 排除 excluded → 按 1000 一批软删。
+     * 返回"计划删除"的 id 清单。
      */
     public List<String> deleteChunksByTagId(long tenantId, String kbId, String tagId, List<String> excludeIds) {
         List<String> allIds = chunkMapper.selectIdsByTag(tenantId, kbId, tagId);
@@ -416,7 +393,7 @@ public class ChunkRepository {
         return toDelete;
     }
 
-    /** 对照 Go {@code DeleteChunksByKnowledgeID}（L547-551）：tenant + knowledge 软删。 */
+    /** tenant + knowledge 软删。 */
     public void deleteChunksByKnowledgeId(long tenantId, String knowledgeId) {
         chunkMapper.update(null, new UpdateWrapper<Chunk>()
                 .eq("tenant_id", tenantId)
@@ -426,7 +403,7 @@ public class ChunkRepository {
     }
 
     /**
-     * 对照 Go {@code DeleteByKnowledgeList}（L568-572）：tenant + knowledge IN 软删。
+     * tenant + knowledge IN 软删。
      * Go 没有判空——空列表展开成 {@code IN (NULL)} 删不到任何行；MyBatis-Plus 的
      * {@code IN ()} 是语法错误，显式短路（净效果相同）。
      */
@@ -498,23 +475,23 @@ public class ChunkRepository {
      * （public：knowledge.service 的摘要管线（getSummary/sampleLongContent）同样需要
      * Go 精确裁空语义，跨包复用同一实现。）
      */
-    public static String goTrimSpace(String s) {
+    public static String trimSpace(String s) {
         if (s == null) {
             return "";
         }
         int start = 0;
         int end = s.length();
-        while (start < end && isGoSpace(s.charAt(start))) {
+        while (start < end && isWhitespace(s.charAt(start))) {
             start++;
         }
-        while (end > start && isGoSpace(s.charAt(end - 1))) {
+        while (end > start && isWhitespace(s.charAt(end - 1))) {
             end--;
         }
         return s.substring(start, end);
     }
 
     /** Go unicode.IsSpace 的 BMP 全集（White_Space property）。 */
-    private static boolean isGoSpace(char c) {
+    private static boolean isWhitespace(char c) {
         switch (c) {
             case '\t': case '\n': case '\u000B': case '\f': case '\r':
             case ' ': case '\u0085': case '\u00A0': case '\u1680':

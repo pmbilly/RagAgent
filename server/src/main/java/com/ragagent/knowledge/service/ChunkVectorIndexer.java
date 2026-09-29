@@ -176,7 +176,7 @@ public class ChunkVectorIndexer {
             if (meta != null && meta.getGeneratedQuestions() != null) {
                 for (GeneratedQuestion question : meta.getGeneratedQuestions()) {
                     if (question.getQuestion() == null
-                            || ChunkRepository.goTrimSpace(question.getQuestion()).isEmpty()) {
+                            || ChunkRepository.trimSpace(question.getQuestion()).isEmpty()) {
                         continue;
                     }
                     rows.add(new VectorStoreService.IndexRow(
@@ -251,7 +251,7 @@ public class ChunkVectorIndexer {
             if (meta != null && meta.getGeneratedQuestions() != null) {
                 for (GeneratedQuestion question : meta.getGeneratedQuestions()) {
                     if (question.getQuestion() == null
-                            || ChunkRepository.goTrimSpace(question.getQuestion()).isEmpty()) {
+                            || ChunkRepository.trimSpace(question.getQuestion()).isEmpty()) {
                         continue;
                     }
                     items.add(indexInfo(kb, knowledge,
