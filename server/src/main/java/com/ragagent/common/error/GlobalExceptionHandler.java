@@ -69,6 +69,132 @@ public class GlobalExceptionHandler {
                 .body("404 page not found");
     }
 
+
+    // ── 参数校验异常 → 400 信封（details 为字段级中文文案，多条 "\n" 连接）──
+
+    /** 请求体约束校验失败（@Valid DTO）与 @ModelAttribute 绑定失败。 */
+    @ExceptionHandler(org.springframework.validation.BindException.class)
+    public ResponseEntity<Map<String, Object>> handleBind(org.springframework.validation.BindException ex) {
+        boolean pagination = ex.getTarget() instanceof com.ragagent.common.web.PageParams
+                || ex.getBindingResult().getFieldErrors().stream()
+                        .allMatch(fe -> "page".equals(fe.getField()) || "page_size".equals(fe.getField()));
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        for (org.springframework.validation.FieldError fe : ex.getBindingResult().getFieldErrors()) {
+            lines.add(fe.getField() + ": " + translateConstraint(fe));
+        }
+        if (lines.isEmpty()) {
+            lines.add("请求参数不合法");
+        }
+        AppError e = new AppError(ErrorCode.BAD_REQUEST.value(),
+                pagination ? "分页参数不合法" : "请求参数不合法",
+                String.join("\n", lines), 400);
+        return ResponseEntity.status(400).body(errorBody(e));
+    }
+
+    /** 方法级参数校验失败（Spring 6.1 内建方法校验，如 @ModelAttribute record 上的约束）。 */
+    @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodValidation(
+            org.springframework.web.method.annotation.HandlerMethodValidationException ex) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        ex.getAllValidationResults().forEach(r ->
+                r.getResolvableErrors().forEach(err -> lines.add(extractField(err) + ": " + translateMessage(err.getDefaultMessage()))));
+        if (lines.isEmpty()) {
+            lines.add("请求参数不合法");
+        }
+        AppError e = new AppError(ErrorCode.BAD_REQUEST.value(), "请求参数不合法",
+                String.join("\n", lines), 400);
+        return ResponseEntity.status(400).body(errorBody(e));
+    }
+
+    /** 单个 query 变量类型不匹配（如 page=abc）。 */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        String name = ex.getName();
+        boolean pagination = "page".equals(name) || "page_size".equals(name);
+        AppError e = new AppError(ErrorCode.BAD_REQUEST.value(),
+                pagination ? "分页参数不合法" : "请求参数不合法",
+                name + ": 类型不正确", 400);
+        return ResponseEntity.status(400).body(errorBody(e));
+    }
+
+    /** 请求体不可读：空体 / 畸形 JSON / 字段类型错。 */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleNotReadable(
+            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        String details = "请求体格式不正确";
+        Throwable cause = ex.getCause();
+        if (ex.getMessage() != null && ex.getMessage().contains("Required request body")) {
+            details = "请求体不能为空";
+        } else if (cause instanceof com.fasterxml.jackson.databind.exc.MismatchedInputException mie
+                && !mie.getPath().isEmpty()) {
+            String field = mie.getPath().get(mie.getPath().size() - 1).getFieldName();
+            if (field != null) {
+                details = field + ": 类型不正确";
+            }
+        }
+        AppError e = new AppError(ErrorCode.BAD_REQUEST.value(), "请求参数不合法", details, 400);
+        return ResponseEntity.status(400).body(errorBody(e));
+    }
+
+    /** 约束违规文案的中文归一：自定义消息原样，框架默认英文翻译为统一措辞。 */
+    private String translateConstraint(org.springframework.validation.FieldError fe) {
+        String msg = fe.getDefaultMessage();
+        if (msg == null) {
+            return "不合法";
+        }
+        if (msg.contains("type mismatch") || msg.contains("Failed to convert")
+                || msg.startsWith("Failed to convert")) {
+            return "类型不正确";
+        }
+        return translateMessage(msg);
+    }
+
+    private String translateMessage(String msg) {
+        if (msg == null) {
+            return "不合法";
+        }
+        if (msg.contains("characters")) {
+            return msg; // 自定义消息（如长度说明）原样保留
+        }
+        if (msg.equals("must not be blank") || msg.equals("must not be null") || msg.equals("must not be empty")) {
+            return "不能为空";
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("must be greater than or equal to (\\d+)").matcher(msg);
+        if (m.find()) {
+            return "必须不小于 " + m.group(1);
+        }
+        m = java.util.regex.Pattern.compile("must be less than or equal to (\\d+)").matcher(msg);
+        if (m.find()) {
+            return "必须不大于 " + m.group(1);
+        }
+        m = java.util.regex.Pattern.compile("size must be between (\\d+) and (\\d+)").matcher(msg);
+        if (m.find()) {
+            return "长度必须在 " + m.group(1) + "-" + m.group(2) + " 之间";
+        }
+        if (msg.startsWith("must match")) {
+            return "格式不正确";
+        }
+        return msg;
+    }
+
+    private String extractField(org.springframework.context.MessageSourceResolvable err) {
+        Object[] args = err.getArguments();
+        if (args != null) {
+            for (Object a : args) {
+                if (a instanceof jakarta.validation.ConstraintViolation<?> cv
+                        && cv.getPropertyPath() != null) {
+                    String s = cv.getPropertyPath().toString();
+                    int idx = s.lastIndexOf('.');
+                    return idx < 0 ? s : s.substring(idx + 1);
+                }
+            }
+        }
+        String[] codes = err.getCodes();
+        return codes != null && codes.length > 0 ? codes[codes.length - 1] : "参数";
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleOther(Exception ex) {
         log.error("unhandled exception", ex);
