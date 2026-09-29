@@ -7,7 +7,6 @@ import com.ragagent.auth.filter.AuthFilter;
 import com.ragagent.auth.service.UserService;
 import com.ragagent.common.filter.RequestIdFilter;
 import com.ragagent.common.web.RbacInterceptor;
-import com.ragagent.wiki.filter.WikiLocaleFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -63,18 +62,6 @@ public class WebConfig implements WebMvcConfigurer {
     public FilterRegistrationBean<RequestIdFilter> requestIdFilter() {
         FilterRegistrationBean<RequestIdFilter> bean = new FilterRegistrationBean<>(new RequestIdFilter());
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
-        bean.addUrlPatterns("/*");
-        return bean;
-    }
-
-    /**
-     * 对照 Go 全局链里的 Language 中间件（{@code CORS → RequestID → Language → …}）。
-     * 当前只在请求语言为葡萄牙语时设置 wiki 语言上下文，其他语言保持未接入前的行为。
-     */
-    @Bean
-    public FilterRegistrationBean<WikiLocaleFilter> wikiLocaleFilter() {
-        FilterRegistrationBean<WikiLocaleFilter> bean = new FilterRegistrationBean<>(new WikiLocaleFilter());
-        bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
         bean.addUrlPatterns("/*");
         return bean;
     }

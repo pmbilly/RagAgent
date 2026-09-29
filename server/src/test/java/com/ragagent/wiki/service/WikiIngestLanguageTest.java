@@ -10,7 +10,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.wiki.domain.TaskPendingOp;
@@ -67,35 +66,6 @@ class WikiIngestLanguageTest {
         assertThat(op.getLanguage()).isEqualTo(WikiLanguageSupport.defaultLanguage());
         // 关键不变量：绝不持久化空串
         assertThat(op.getLanguage()).isNotEmpty();
-    }
-
-    // ── 用户语言是葡萄牙语（本次范围的唯一新增语言路径） ──
-
-    @Test
-    @DisplayName("用户语言 = 葡萄牙语：locale 落进 op 载荷，prompt 渲染为 Portuguese")
-    void portugueseUserLanguageChain() throws Exception {
-        WikiLanguageSupport.setCurrentLocale("pt-BR");
-
-        // 1) 入队：请求 locale 落进 op 载荷（不回落默认语言）
-        TaskPendingOp row = new WikiIngestService(null, null, null, null, null, null,
-                null, null, null, null, null, null, null)
-                .newWikiIngestPendingOp(7, "kb-1", "knowledge-1");
-        WikiPendingOp op = MAPPER.treeToValue(row.getPayload(), WikiPendingOp.class);
-        assertThat(op.getLanguage()).isEqualTo("pt-BR");
-
-        // 2) worker 侧：从 op 载荷解析出 prompt 插值用的人类可读名
-        assertThat(WikiLanguageSupport.resolveLanguageName(op.getLanguage())).isEqualTo("Portuguese");
-        assertThat(WikiLanguageSupport.languageNameFromContext()).isEqualTo("Portuguese");
-
-        // 3) 幂等：已解析过的语言名再次解析不变（下游重复插值不会退化）
-        assertThat(WikiLanguageSupport.resolveLanguageName("Portuguese")).isEqualTo("Portuguese");
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"pt", "pt-BR", "pt-PT", "pt-MZ", "pt-br"})
-    @DisplayName("葡萄牙语所有变体都渲染为 Portuguese（与请求语言判定同一口径）")
-    void portugueseVariantsRenderAsPortuguese(String locale) {
-        assertThat(WikiLanguageSupport.localeName(locale)).isEqualTo("Portuguese");
     }
 
     // ── TestResolveLanguageNameRecoversLegacyPendingOp（Go L49-57） ──
