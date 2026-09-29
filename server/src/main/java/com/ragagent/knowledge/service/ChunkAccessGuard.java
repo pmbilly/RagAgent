@@ -1,6 +1,11 @@
 package com.ragagent.knowledge.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
@@ -10,6 +15,8 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
+import com.ragagent.knowledge.mapper.ChunkNotFoundException;
+import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.springframework.stereotype.Component;
@@ -52,13 +59,16 @@ public class ChunkAccessGuard {
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
+    private final ChunkRepository chunkRepository;
 
     public ChunkAccessGuard(KnowledgeMapper knowledgeMapper,
                             KnowledgeBaseMapper kbMapper,
-                            ChunkMapper chunkMapper) {
+                            ChunkMapper chunkMapper,
+                            ChunkRepository chunkRepository) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
+        this.chunkRepository = chunkRepository;
     }
 
     /**
@@ -208,5 +218,205 @@ public class ChunkAccessGuard {
             return; // ErrResourceNotFound → 中间件放行
         }
         checkOwnership(kb);
+    }
+    /** 行级写上下文：chunk 所属 knowledge 与 KB。 */
+    public record KnowledgeWrite(Knowledge knowledge, KnowledgeBase kb) {
+    }
+
+    /** metadata 里跨库搬移状态的键（operation/phase）。 */
+    private static final String KNOWLEDGE_TRANSFER_METADATA_KEY = "_knowledge_transfer";
+
+    /**
+     * 写路径的 chunk 守卫：执行租户 → chunk 存在性/归属 → knowledge 写绑定 →
+     * chunk 挂在其 knowledge 的 KB 上。返回<b>副本</b>，调用方的就地变更不回流仓储层。
+     *
+     * <p>错误形态（全部 BizException 信封）：租户缺 → 401 "workspace context
+     * unavailable"；chunk 缺 → 404 "chunk not found"；knowledge 缺 → 404
+     * "knowledge not found"；KB 不匹配 → 403 "chunk does not belong to its
+     * knowledge base"；moving 中 → 409。</p>
+     */
+    public Chunk writableChunk(String id) {
+        long tenantId = writeExecutionTenant();
+        Chunk chunk;
+        try {
+            chunk = chunkRepository.getChunkById(tenantId, id);
+        } catch (ChunkNotFoundException e) {
+            throw BizException.notFound("chunk not found");
+        }
+        if (chunk == null || !id.equals(chunk.getId()) || !Objects.equals(chunk.getTenantId(), tenantId)) {
+            throw BizException.notFound("chunk not found");
+        }
+        KnowledgeWrite write = loadKnowledgeWrite(chunk.getKnowledgeId());
+        if (!chunk.getKnowledgeBaseId().equals(write.knowledge().getKnowledgeBaseId())) {
+            throw BizException.forbidden("chunk does not belong to its knowledge base");
+        }
+        return copyChunk(chunk);
+    }
+
+    /**
+     * knowledge 写路径绑定：执行租户 → knowledge（tenant 过滤）→ 搬移中拒绝 → KB 解析。
+     * 调用方只读返回值，不做行拷贝。
+     */
+    public KnowledgeWrite loadKnowledgeWrite(String id) {
+        long tenantId = writeExecutionTenant();
+        Knowledge knowledge = findKnowledgeRow(tenantId, id);
+        if (knowledge == null || !id.equals(knowledge.getId())
+                || !Objects.equals(knowledge.getTenantId(), tenantId)) {
+            throw BizException.notFound("knowledge not found");
+        }
+        rejectMovingKnowledge(knowledge);
+        KnowledgeBase kb = knowledgeWriteKB(knowledge);
+        return new KnowledgeWrite(knowledge, kb);
+    }
+
+    /**
+     * 解析 knowledge 的 KB 行：绑定不完整 → 404 "knowledge not found"；KB 行查不到 →
+     * IllegalStateException（500 面）；KB 与 knowledge 跨租户 → 403。
+     */
+    public KnowledgeBase knowledgeWriteKB(Knowledge knowledge) {
+        if (knowledge.getId() == null || knowledge.getId().isEmpty()
+                || knowledge.getKnowledgeBaseId() == null || knowledge.getKnowledgeBaseId().isEmpty()
+                || knowledge.getTenantId() == null || knowledge.getTenantId() == 0L) {
+            throw BizException.notFound("knowledge not found");
+        }
+        KnowledgeBase kb = findKbRow(knowledge.getKnowledgeBaseId());
+        if (kb == null) {
+            throw new IllegalStateException("knowledge base not found");
+        }
+        if (!kb.getId().equals(knowledge.getKnowledgeBaseId())
+                || !Objects.equals(kb.getTenantId(), knowledge.getTenantId())) {
+            throw BizException.forbidden("knowledge does not belong to its knowledge base");
+        }
+        return kb;
+    }
+
+    /**
+     * 拒绝搬移中的 knowledge：metadata 的 _knowledge_transfer 里 operation=move 且
+     * phase=moving → 409 "knowledge has an unfinished move; retry the move first"。
+     * transfer 值非对象/字段非字符串 → IllegalStateException（500 面）。
+     */
+    public static void rejectMovingKnowledge(Knowledge knowledge) {
+        if (knowledge == null) {
+            throw BizException.notFound("knowledge not found");
+        }
+        JsonNode fields = knowledge.getMetadata();
+        if (fields == null || fields.isNull() || !fields.isObject()) {
+            return;
+        }
+        JsonNode raw = fields.get(KNOWLEDGE_TRANSFER_METADATA_KEY);
+        if (raw == null || raw.isNull() || raw.isMissingNode()) {
+            return;
+        }
+        if (!raw.isObject()) {
+            throw new IllegalStateException("malformed knowledge transfer state");
+        }
+        JsonNode opNode = raw.get("operation");
+        JsonNode phaseNode = raw.get("phase");
+        if (opNode != null && !opNode.isNull() && !opNode.isTextual()) {
+            throw new IllegalStateException("malformed knowledge transfer state");
+        }
+        if (phaseNode != null && !phaseNode.isNull() && !phaseNode.isTextual()) {
+            throw new IllegalStateException("malformed knowledge transfer state");
+        }
+        String operation = opNode == null || opNode.isNull() ? "" : opNode.asText();
+        String phase = phaseNode == null || phaseNode.isNull() ? "" : phaseNode.asText();
+        if ("move".equals(operation) && "moving".equals(phase)) {
+            throw BizException.conflict("knowledge has an unfinished move; retry the move first");
+        }
+    }
+
+    /**
+     * 编辑文本块可能连带改写父块与图片子块——首次落 revision 前校验持久化的父子关系。
+     * 父块查不到时让 ChunkNotFoundException 直通（500 面，与 writableChunk 的
+     * 404 形态刻意不同）。子块/父块与编辑块不同文档 → 403。
+     */
+    public void validateDocumentChunkRelations(long tenantId, Chunk chunk) {
+        List<Chunk> parents = new ArrayList<>();
+        parents.add(chunk);
+        if (chunk.getParentChunkId() != null && !chunk.getParentChunkId().isEmpty()) {
+            Chunk parent = chunkRepository.getChunkById(tenantId, chunk.getParentChunkId());
+            if (parent == null || !chunk.getParentChunkId().equals(parent.getId())
+                    || !sameChunkDocument(chunk, parent)) {
+                throw BizException.forbidden("parent chunk does not belong to its document");
+            }
+            parents.add(parent);
+        }
+        for (Chunk parent : parents) {
+            for (Chunk child : chunkRepository.listChunkByParentId(tenantId, parent.getId())) {
+                if (!sameChunkDocument(chunk, child) || !parent.getId().equals(child.getParentChunkId())) {
+                    throw BizException.forbidden("child chunk does not belong to its document");
+                }
+            }
+        }
+    }
+
+    /** 两 chunk 是否同一文档（同租户+同 KB+同 knowledge）。⚠️ Long 比较必须 equals。 */
+    public static boolean sameChunkDocument(Chunk a, Chunk b) {
+        return a != null && b != null
+                && Objects.equals(a.getTenantId(), b.getTenantId())
+                && Objects.equals(a.getKnowledgeBaseId(), b.getKnowledgeBaseId())
+                && Objects.equals(a.getKnowledgeId(), b.getKnowledgeId());
+    }
+
+    /** 执行租户：缺或 0 → 401 "workspace context unavailable"。 */
+    private static long writeExecutionTenant() {
+        Long tid = TenantContext.currentTenantId();
+        if (tid == null || tid == 0L) {
+            throw BizException.unauthorized("workspace context unavailable");
+        }
+        return tid;
+    }
+
+    /** 浅拷贝（各字段皆不可变类型；调用方就地变更不回流仓储行）。 */
+    private static Chunk copyChunk(Chunk c) {
+        Chunk copy = new Chunk();
+        copy.setId(c.getId());
+        copy.setSeqId(c.getSeqId());
+        copy.setTenantId(c.getTenantId());
+        copy.setKnowledgeId(c.getKnowledgeId());
+        copy.setKnowledgeBaseId(c.getKnowledgeBaseId());
+        copy.setTagId(c.getTagId());
+        copy.setContent(c.getContent());
+        copy.setSourceContent(c.getSourceContent());
+        copy.setContentRevision(c.getContentRevision());
+        copy.setIndexStatus(c.getIndexStatus());
+        copy.setLastEditorId(c.getLastEditorId());
+        copy.setChunkIndex(c.getChunkIndex());
+        copy.setIsEnabled(c.isIsEnabled());
+        copy.setFlags(c.getFlags());
+        copy.setStatus(c.getStatus());
+        copy.setStartAt(c.getStartAt());
+        copy.setEndAt(c.getEndAt());
+        copy.setPreChunkId(c.getPreChunkId());
+        copy.setNextChunkId(c.getNextChunkId());
+        copy.setChunkType(c.getChunkType());
+        copy.setParentChunkId(c.getParentChunkId());
+        copy.setRelationChunks(c.getRelationChunks());
+        copy.setIndirectRelationChunks(c.getIndirectRelationChunks());
+        copy.setMetadata(c.getMetadata());
+        copy.setContentHash(c.getContentHash());
+        copy.setImageInfo(c.getImageInfo());
+        copy.setContextHeader(c.getContextHeader());
+        copy.setCreatedAt(c.getCreatedAt());
+        copy.setUpdatedAt(c.getUpdatedAt());
+        copy.setDeletedAt(c.getDeletedAt());
+        return copy;
+    }
+
+    /** 未软删的 knowledge 行（租户过滤）。 */
+    private Knowledge findKnowledgeRow(long tenantId, String id) {
+        return knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
+                .eq(Knowledge::getId, id)
+                .eq(Knowledge::getTenantId, tenantId)
+                .isNull(Knowledge::getDeletedAt)
+                .last("LIMIT 1"));
+    }
+
+    /** 未软删的 KB 行（按 id 直查，无租户过滤——跨租户判定在其后）。 */
+    private KnowledgeBase findKbRow(String kbId) {
+        return kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, kbId)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
     }
 }

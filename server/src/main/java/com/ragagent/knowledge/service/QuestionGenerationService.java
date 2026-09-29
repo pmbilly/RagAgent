@@ -31,7 +31,7 @@ import com.ragagent.wiki.service.DefaultWikiKnowledgeFinalizer;
  * 自动路径在 {@code KnowledgeService} 里备案为"未翻" ⇒ 刚导入的 KB 推荐问题恒为空。</p>
  *
  * <p>逐批顺序照 Go：supersede 跳过 → 知识中止短路 → 取 KB → 逐块生成（复用
- * {@link ChunkService#generateAndStoreQuestionsForWorker}）→ 终态递减 finalizing 槽
+ * {@link ChunkQuestionService#generateAndStoreQuestionsForWorker}）→ 终态递减 finalizing 槽
  * （{@code finalizeSubtaskDetached} 的等价物 {@link DefaultWikiKnowledgeFinalizer#finalizeSubtask}）。</p>
  */
 @Service
@@ -47,7 +47,7 @@ public class QuestionGenerationService {
     private final KnowledgeBaseMapper kbMapper;
     private final SpanTracker spanTracker;
     private final DefaultWikiKnowledgeFinalizer finalizer;
-    private final ChunkService chunkService;
+    private final ChunkQuestionService chunkService;
 
     @Autowired
     public QuestionGenerationService(ChunkRepository chunkRepository,
@@ -55,7 +55,7 @@ public class QuestionGenerationService {
                                      KnowledgeBaseMapper kbMapper,
                                      SpanTracker spanTracker,
                                      DefaultWikiKnowledgeFinalizer finalizer,
-                                     ChunkService chunkService) {
+                                     ChunkQuestionService chunkService) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;

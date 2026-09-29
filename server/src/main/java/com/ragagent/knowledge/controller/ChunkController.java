@@ -19,7 +19,8 @@ import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRevisionConflictException;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.service.ChunkAccessGuard;
-import com.ragagent.knowledge.service.ChunkService;
+import com.ragagent.knowledge.service.ChunkEditService;
+import com.ragagent.knowledge.service.ChunkQuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,16 +63,19 @@ public class ChunkController {
     private static final Logger log = LoggerFactory.getLogger(ChunkController.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final ChunkService chunkService;
+    private final ChunkEditService chunkEdit;
+    private final ChunkQuestionService chunkQuestion;
     private final ChunkRepository chunkRepository;
     private final ChunkAccessGuard guard;
     private final KnowledgeMapper knowledgeMapper;
 
-    public ChunkController(ChunkService chunkService,
+    public ChunkController(ChunkEditService chunkEdit,
+                           ChunkQuestionService chunkQuestion,
                            ChunkRepository chunkRepository,
                            ChunkAccessGuard guard,
                            KnowledgeMapper knowledgeMapper) {
-        this.chunkService = chunkService;
+        this.chunkEdit = chunkEdit;
+        this.chunkQuestion = chunkQuestion;
         this.chunkRepository = chunkRepository;
         this.guard = guard;
         this.knowledgeMapper = knowledgeMapper;
@@ -149,7 +153,7 @@ public class ChunkController {
             @PathVariable("knowledgeId") String knowledgeId,
             @PathVariable("id") String id) {
         Chunk chunk = fetchChunkAndVerifyOwnership(knowledgeId, id);
-        List<ChunkRevision> items = chunkService.listChunkRevisions(chunk.getId());
+        List<ChunkRevision> items = chunkEdit.listChunkRevisions(chunk.getId());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", items);
         body.put("success", true);
@@ -172,7 +176,7 @@ public class ChunkController {
         }
         Chunk updated;
         try {
-            updated = chunkService.updateDocumentChunk(
+            updated = chunkEdit.updateDocumentChunk(
                     chunk.getId(), req.content, req.isEnabled, req.expectedRevision);
         } catch (ChunkRevisionConflictException e) {
             throw new BizException(AppError.conflict(
@@ -208,7 +212,7 @@ public class ChunkController {
         }
         Chunk updated;
         try {
-            updated = chunkService.revertDocumentChunk(chunk.getId(), req.revision,
+            updated = chunkEdit.revertDocumentChunk(chunk.getId(), req.revision,
                     req.expectedRevision);
         } catch (ChunkRevisionConflictException e) {
             throw new BizException(AppError.conflict(
@@ -245,7 +249,7 @@ public class ChunkController {
         }
         guard.requireOwnedChunkKbByChunk(chunkId);
         guard.requireKbAccess(guard.kbIdFromChunkParam(chunkId));
-        GeneratedQuestion item = chunkService.upsertGeneratedQuestion(
+        GeneratedQuestion item = chunkQuestion.upsertGeneratedQuestion(
                 chunkId, req.questionId == null ? "" : req.questionId, req.question);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", item);
@@ -263,7 +267,7 @@ public class ChunkController {
         }
         guard.requireOwnedChunkKbByChunk(chunkId);
         guard.requireKbAccess(guard.kbIdFromChunkParam(chunkId));
-        List<GeneratedQuestion> items = chunkService.regenerateChunkQuestions(chunkId);
+        List<GeneratedQuestion> items = chunkQuestion.regenerateChunkQuestions(chunkId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", items);
         body.put("success", true);
@@ -293,7 +297,7 @@ public class ChunkController {
         }
         guard.requireOwnedChunkKbByChunk(chunkId);
         guard.requireKbAccess(guard.kbIdFromChunkParam(chunkId));
-        chunkService.deleteGeneratedQuestion(chunkId, questionId);
+        chunkQuestion.deleteGeneratedQuestion(chunkId, questionId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("message", "Generated question deleted");
         body.put("success", true);
@@ -309,7 +313,7 @@ public class ChunkController {
             @PathVariable("id") String id) {
         Chunk chunk = fetchChunkAndVerifyOwnership(knowledgeId, id);
         try {
-            chunkService.deleteChunk(chunk.getId());
+            chunkEdit.deleteChunk(chunk.getId());
         } catch (BizException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -332,7 +336,7 @@ public class ChunkController {
         guard.requireOwnedChunkKbByKnowledge(kgId);
         guard.requireKbAccess(guard.kbIdFromKnowledgeParam(kgId));
         try {
-            chunkService.deleteChunksByKnowledgeId(kgId);
+            chunkEdit.deleteChunksByKnowledgeId(kgId);
         } catch (BizException e) {
             throw e;
         } catch (RuntimeException e) {
