@@ -15,10 +15,12 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
+import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagWithStats;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.TagPageResult;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
+import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -56,11 +58,11 @@ public class KnowledgeTagService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     public static final String UNTAGGED_TAG_NAME = "未分类";
 
-    /**  */
     private static final String SCOPE_KNOWLEDGE_BASE = "knowledge_base";
 
     private final KnowledgeBaseService kbService;
     private final KnowledgeTagRepository tagRepo;
+    private final FaqChunkRepository faqChunkRepository;
     private final ChunkRepository chunkRepo;
     private final AuditLogService auditService;
     /** 向量索引回收。 */
@@ -81,7 +83,8 @@ public class KnowledgeTagService {
     private final KnowledgeTaskExecutor taskExecutor;
 
 
-    public KnowledgeTagService(KnowledgeTaskExecutor taskExecutor, KnowledgeBaseService kbService,
+    public KnowledgeTagService(FaqChunkRepository faqChunkRepository,
+                               KnowledgeTaskExecutor taskExecutor, KnowledgeBaseService kbService,
                                KnowledgeTagRepository tagRepo,
                                ChunkRepository chunkRepo,
                                AuditLogService auditService,
@@ -90,6 +93,7 @@ public class KnowledgeTagService {
                                ModelRuntimeFactory modelRuntimeFactory,
                                org.springframework.beans.factory.ObjectProvider<KnowledgeService>
                                        knowledgeServiceProvider) {
+        this.faqChunkRepository = faqChunkRepository;
 
         this.taskExecutor = taskExecutor;
         this.kbService = kbService;
@@ -448,5 +452,58 @@ public class KnowledgeTagService {
                 .forEachOrdered(e -> detailsNode.set(e.getKey(), MAPPER.valueToTree(e.getValue())));
         entry.setDetails(detailsNode);
         auditService.logBestEffort(entry);
+    }
+
+    /**
+     * tag_id 是整数 → 按 seq_id 解析（查不到 → 404「标签不存在」）；否则当作 UUID 原样透传。
+     */
+    public String resolveTagId(String raw) {
+        try {
+            long seqId = Long.parseLong(raw);
+            long tenantId = TenantContext.currentTenantId();
+            KnowledgeTag tag = tagRepo.getBySeqId(tenantId, seqId);
+            if (tag == null) {
+                throw new BizException(AppError.notFound("标签不存在"));
+            }
+            return tag.getId();
+        } catch (NumberFormatException e) {
+            return raw;
+        }
+    }
+
+    /**
+     * 校验排除条目：非法 ID → 400、他库/他租户/非 FAQ chunk → 403、缺失 → 404；
+     * 返回可用的 chunk UUID 列表。
+     */
+    public java.util.List<String> resolveExcludeUUIDs(String kbId, java.util.List<Long> excludeIds) {
+        java.util.List<String> excludeUUIDs = new java.util.ArrayList<>();
+        if (excludeIds == null || excludeIds.isEmpty()) {
+            return excludeUUIDs;
+        }
+        long tenantId = TenantContext.currentTenantId();
+        java.util.Map<Long, Boolean> wanted = new java.util.HashMap<>();
+        for (Long seqId : excludeIds) {
+            if (seqId == null || seqId <= 0) {
+                throw new BizException(AppError.badRequest("排除条目 ID 必须为正整数"));
+            }
+            wanted.put(seqId, Boolean.TRUE);
+        }
+        java.util.List<Chunk> chunks = faqChunkRepository.listChunksBySeqId(tenantId, excludeIds);
+        for (Chunk chunk : chunks) {
+            if (chunk == null || chunk.getSeqId() == null || !wanted.containsKey(chunk.getSeqId())) {
+                continue;
+            }
+            if (chunk.getTenantId() == null || chunk.getTenantId() != tenantId
+                    || !kbId.equals(chunk.getKnowledgeBaseId())
+                    || !"faq".equals(chunk.getChunkType())) {
+                throw new BizException(AppError.forbidden("排除条目不属于当前知识库"));
+            }
+            excludeUUIDs.add(chunk.getId());
+            wanted.remove(chunk.getSeqId());
+        }
+        if (!wanted.isEmpty()) {
+            throw new BizException(AppError.notFound("排除条目不存在"));
+        }
+        return excludeUUIDs;
     }
 }

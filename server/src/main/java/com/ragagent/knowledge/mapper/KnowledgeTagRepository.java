@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.time.OffsetDateTime;
+import com.ragagent.common.jdbc.DatabaseDialects;
 
 /**
  * knowledge_tags 的写入侧仓储，读路径在 {@link KnowledgeTagMapper}。
@@ -23,7 +24,7 @@ public class KnowledgeTagRepository {
 
     public KnowledgeTagRepository(KnowledgeTagMapper tagMapper, DataSource dataSource) {
         this.tagMapper = tagMapper;
-        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(dataSource);
+        this.postgres = DatabaseDialects.isPostgres(dataSource);
     }
 
     /**
@@ -66,7 +67,6 @@ public class KnowledgeTagRepository {
         return tagMapper.selectByTenantKbAndName(tenantId, kbId, name);
     }
 
-    /**  */
     public void update(KnowledgeTag tag) {
         tagMapper.updateTag(tag);
     }
@@ -113,8 +113,6 @@ public class KnowledgeTagRepository {
         };
     }
 
-    /**
-     */
     public java.util.Map<String, long[]> batchCountReferences(long tenantId, String kbId, List<String> tagIds) {
         java.util.Map<String, long[]> result = new java.util.HashMap<>();
         for (String id : tagIds) {

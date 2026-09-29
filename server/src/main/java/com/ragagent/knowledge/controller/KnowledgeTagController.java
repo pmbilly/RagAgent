@@ -1,24 +1,18 @@
 package com.ragagent.knowledge.controller;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.ApiResponse;
 import com.ragagent.common.web.NonNullBody;
-import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.CreateTagRequest;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.DeleteTagRequest;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.TagPageResult;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.UpdateTagRequest;
-import com.ragagent.knowledge.mapper.FaqChunkRepository;
-import com.ragagent.knowledge.mapper.ChunkRepository;
-import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import com.ragagent.knowledge.service.ChunkAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeTagService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,20 +45,11 @@ public class KnowledgeTagController {
 
     private final KnowledgeTagService tagService;
     private final ChunkAccessGuard guard;
-    private final ChunkRepository chunkRepo;
-    private final FaqChunkRepository faqChunkRepository;
-    private final KnowledgeTagRepository tagRepo;
 
     public KnowledgeTagController(KnowledgeTagService tagService,
-                                  ChunkAccessGuard guard,
-                                  ChunkRepository chunkRepo,
-                            FaqChunkRepository faqChunkRepository,
-                                  KnowledgeTagRepository tagRepo) {
+                                  ChunkAccessGuard guard) {
         this.tagService = tagService;
         this.guard = guard;
-        this.chunkRepo = chunkRepo;
-        this.faqChunkRepository = faqChunkRepository;
-        this.tagRepo = tagRepo;
     }
 
     @GetMapping("/api/v1/knowledge-bases/{id}/tags")
@@ -118,7 +103,7 @@ public class KnowledgeTagController {
         guard.requireOwnedKbInCallerSpace(kbId);
         guard.requireKbAccess(kbId);
 
-        String tagId = resolveTagId(LogSanitizer.sanitize(tagIdParam));
+        String tagId = tagService.resolveTagId(LogSanitizer.sanitize(tagIdParam));
         KnowledgeTag tag = tagService.updateTag(tagId, req.name(), req.color(), req.sortOrder());
         return ResponseEntity.ok(ApiResponse.ok(
                 KnowledgeTagResponse.from(tag)));
@@ -135,7 +120,7 @@ public class KnowledgeTagController {
         guard.requireOwnedKbInCallerSpace(kbId);
         guard.requireKbAccess(kbId);
 
-        String tagId = resolveTagId(LogSanitizer.sanitize(tagIdParam));
+        String tagId = tagService.resolveTagId(LogSanitizer.sanitize(tagIdParam));
         boolean forceFlag = "true".equals(force);
         boolean contentOnlyFlag = "true".equals(contentOnly);
 
@@ -143,62 +128,13 @@ public class KnowledgeTagController {
         List<Long> excludeIds = request == null ? null : request.excludeIds();
 
         // exclude_ids → chunk UUID 解析与作用域校验
-        List<String> excludeUUIDs = resolveExcludeUUIDs(kbId, excludeIds);
+        List<String> excludeUUIDs = tagService.resolveExcludeUUIDs(kbId, excludeIds);
 
         tagService.deleteTag(tagId, forceFlag, contentOnlyFlag, excludeUUIDs);
         return ResponseEntity.ok(ApiResponse.ok());
     }
 
-    /** 校验排除条目：非法 ID 400、他库/他租户 403、缺失 404；返回 chunk UUID 列表。 */
-    private List<String> resolveExcludeUUIDs(String kbId, List<Long> excludeIds) {
-        List<String> excludeUUIDs = new ArrayList<>();
-        if (excludeIds == null || excludeIds.isEmpty()) {
-            return excludeUUIDs;
-        }
-        long tenantId = TenantContext.currentTenantId();
-        java.util.Map<Long, Boolean> wanted = new java.util.HashMap<>();
-        for (Long seqId : excludeIds) {
-            if (seqId == null || seqId <= 0) {
-                throw new BizException(AppError.badRequest("排除条目 ID 必须为正整数"));
-            }
-            wanted.put(seqId, Boolean.TRUE);
-        }
-        List<Chunk> chunks = faqChunkRepository.listChunksBySeqId(tenantId, excludeIds);
-        for (Chunk chunk : chunks) {
-            if (chunk == null || chunk.getSeqId() == null || !wanted.containsKey(chunk.getSeqId())) {
-                continue;
-            }
-            if (chunk.getTenantId() == null || chunk.getTenantId() != tenantId
-                    || kbId.equals(chunk.getKnowledgeBaseId()) == false
-                    || !"faq".equals(chunk.getChunkType())) {
-                throw new BizException(AppError.forbidden("排除条目不属于当前知识库"));
-            }
-            excludeUUIDs.add(chunk.getId());
-            wanted.remove(chunk.getSeqId());
-        }
-        if (!wanted.isEmpty()) {
-            throw new BizException(AppError.notFound("排除条目不存在"));
-        }
-        return excludeUUIDs;
-    }
 
-    /**
-     * tag_id 是整数 → 按 seq_id 解析（查不到 → 404「标签不存在」）；否则当 UUID
-     * 原样透传（缺失由 service 层出 plain-500——既有行为）。
-     */
-    private String resolveTagId(String raw) {
-        try {
-            long seqId = Long.parseLong(raw);
-            long tenantId = TenantContext.currentTenantId();
-            KnowledgeTag tag = tagRepo.getBySeqId(tenantId, seqId);
-            if (tag == null) {
-                throw new BizException(AppError.notFound("标签不存在"));
-            }
-            return tag.getId();
-        } catch (NumberFormatException e) {
-            return raw;
-        }
-    }
 
     /** 400 信封（message 类别 + details 说明）。 */
     private static BizException paramError(String message, String details) {

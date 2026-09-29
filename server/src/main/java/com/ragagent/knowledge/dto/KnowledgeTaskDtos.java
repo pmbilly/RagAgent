@@ -39,8 +39,6 @@ public final class KnowledgeTaskDtos {
             @JsonProperty("knowledge_base") Object knowledgeBase) {
     }
 
-    /**
-     */
     @JsonPropertyOrder({"task_id", "source_kb_id", "target_kb_id", "status", "progress",
             "total", "processed", "failed", "message", "error", "created_at", "updated_at"})
     public record KnowledgeMoveProgress(

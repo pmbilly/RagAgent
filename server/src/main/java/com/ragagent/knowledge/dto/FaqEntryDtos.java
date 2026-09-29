@@ -79,8 +79,6 @@ public record FaqEntry(
     }
 }
 
-/**
- */
 @JsonPropertyOrder({"id", "tag_name", "standard_question", "similar_questions",
         "negative_questions", "answers", "answer_strategy", "is_enabled", "is_recommended"})
 public record FaqExportEntry(

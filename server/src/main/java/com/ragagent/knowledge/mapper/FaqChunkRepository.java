@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import org.springframework.stereotype.Component;
+import com.ragagent.common.jdbc.DatabaseDialects;
 
 /**
  * FAQ 条目的 chunk 仓储面（FAQ 条目 = chunk_type=faq 的行）：按 seq_id/知识/KB 的
@@ -32,7 +33,7 @@ public class FaqChunkRepository {
 
     public FaqChunkRepository(ChunkMapper chunkMapper, javax.sql.DataSource dataSource) {
         this.chunkMapper = chunkMapper;
-        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(dataSource);
+        this.postgres = DatabaseDialects.isPostgres(dataSource);
     }
 
     // ── FAQ 条目读写（含 flags 位运算的方言分支） ─────────────

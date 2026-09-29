@@ -22,7 +22,6 @@ final class FaqIndexRows {
 
     private FaqIndexRows() {}
 
-    /**  */
     static List<VectorStoreService.IndexRow> build(KnowledgeBase kb, Chunk chunk) {
         String indexMode = faqIndexMode(kb);
         String questionIndexMode = faqQuestionIndexMode(kb);

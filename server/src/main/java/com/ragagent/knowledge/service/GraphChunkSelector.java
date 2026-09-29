@@ -31,7 +31,6 @@ public final class GraphChunkSelector {
         return !WikiImageMarkup.extractRealText(content).isEmpty();
     }
 
-    /**  */
     public static List<Chunk> selectGraphChunks(List<Chunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return new ArrayList<>();

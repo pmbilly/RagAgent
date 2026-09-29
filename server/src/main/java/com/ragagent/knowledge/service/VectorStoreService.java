@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import com.ragagent.common.jdbc.DatabaseDialects;
 
 /**
  * postgres 向量写/删/更新。
@@ -42,7 +43,7 @@ public class VectorStoreService {
 
     public VectorStoreService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(jdbc);
+        this.postgres = DatabaseDialects.isPostgres(jdbc);
     }
 
     /**

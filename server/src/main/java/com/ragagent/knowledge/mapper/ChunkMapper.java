@@ -13,8 +13,6 @@ import com.ragagent.common.web.PgJsonTypeHandler;
 @Mapper
 public interface ChunkMapper extends BaseMapper<Chunk> {
 
-    /**
-     */
     @Select("SELECT id FROM chunks WHERE tenant_id = #{tenantId} "
             + "AND knowledge_base_id = #{kbId} AND tag_id = #{tagId} AND deleted_at IS NULL")
     java.util.List<String> selectIdsByTag(long tenantId, String kbId, String tagId);

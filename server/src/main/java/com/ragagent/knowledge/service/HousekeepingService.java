@@ -393,8 +393,6 @@ public class HousekeepingService {
                 ? DEFAULT_DOCUMENT_PROCESS_TIMEOUT : parsed;
     }
 
-    /**
-     */
     private static Duration parseGoDuration(String s) {
         if (s.isEmpty()) {
             return null;

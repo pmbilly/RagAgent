@@ -20,13 +20,11 @@ import com.ragagent.knowledge.dto.ChunkDtos.RevertChunkRequest;
 import com.ragagent.knowledge.dto.ChunkDtos.UpdateChunkRequest;
 import com.ragagent.knowledge.dto.ChunkDtos.UpsertGeneratedQuestionRequest;
 import com.ragagent.knowledge.mapper.ChunkNotFoundException;
-import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRevisionConflictException;
-import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.service.ChunkAccessGuard;
 import com.ragagent.knowledge.service.ChunkEditService;
+import com.ragagent.knowledge.service.ChunkReadService;
 import com.ragagent.knowledge.service.ChunkQuestionService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,20 +55,17 @@ public class ChunkController {
 
     private final ChunkEditService chunkEdit;
     private final ChunkQuestionService chunkQuestion;
-    private final ChunkRepository chunkRepository;
+    private final ChunkReadService chunkRead;
     private final ChunkAccessGuard guard;
-    private final KnowledgeMapper knowledgeMapper;
 
     public ChunkController(ChunkEditService chunkEdit,
                            ChunkQuestionService chunkQuestion,
-                           ChunkRepository chunkRepository,
-                           ChunkAccessGuard guard,
-                           KnowledgeMapper knowledgeMapper) {
+                           ChunkReadService chunkRead,
+                           ChunkAccessGuard guard) {
         this.chunkEdit = chunkEdit;
         this.chunkQuestion = chunkQuestion;
-        this.chunkRepository = chunkRepository;
+        this.chunkRead = chunkRead;
         this.guard = guard;
-        this.knowledgeMapper = knowledgeMapper;
     }
 
     // ══════════════════════════ 读 ══════════════════════════
@@ -104,9 +99,8 @@ public class ChunkController {
 
         guard.requireKbAccess(guard.kbIdFromKnowledgeParam(kgId));
 
-        ChunkRepository.ChunkPage result = chunkRepository.listPagedChunksByKnowledgeId(
-                tenantId(), kgId, (pageValue - 1) * sizeValue, sizeValue,
-                types, null, "", "", "", "", null);
+        ChunkReadService.ChunkPageView result = chunkRead.listPagedChunks(
+                tenantId(), kgId, (pageValue - 1) * sizeValue, sizeValue, types);
 
         return ResponseEntity.ok(new ChunkPageResponse<>(
                 result.items(), pageValue, sizeValue, true, result.total()));
@@ -121,7 +115,7 @@ public class ChunkController {
         guard.requireKbAccess(guard.kbIdFromChunkParam(chunkId));
         final Chunk chunk;
         try {
-            chunk = chunkRepository.getChunkByIdOnly(chunkId);
+            chunk = chunkRead.getChunkByIdOnly(chunkId);
         } catch (ChunkNotFoundException e) {
             throw new BizException(AppError.notFound("Chunk not found"));
         }
@@ -296,7 +290,7 @@ public class ChunkController {
         guard.requireKbAccess(guard.kbIdFromKnowledgeParam(kgId));
         final Chunk chunk;
         try {
-            chunk = chunkRepository.getChunkById(tenantId(), chunkId);
+            chunk = chunkRead.getChunkById(tenantId(), chunkId);
         } catch (ChunkNotFoundException e) {
             throw new BizException(AppError.notFound("Chunk not found"));
         }
@@ -310,11 +304,7 @@ public class ChunkController {
     private ResponseEntity<ChunkUpdateResponse<Chunk>> updatedResponse(Chunk chunk, String knowledgeId) {
         Knowledge knowledge = null;
         try {
-            knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
-                    .eq(Knowledge::getId, LogSanitizer.sanitize(knowledgeId))
-                    .eq(Knowledge::getTenantId, tenantId())
-                    .isNull(Knowledge::getDeletedAt)
-                    .last("LIMIT 1"));
+            knowledge = chunkRead.findForSummaryReload(knowledgeId, tenantId());
         } catch (RuntimeException e) {
             log.warn("Chunk updated but failed to reload summary status for {}: {}",
                     LogSanitizer.sanitize(knowledgeId), errText(e));

@@ -153,8 +153,6 @@ public interface KnowledgeTagMapper {
             + "FROM knowledge_tags WHERE tenant_id = #{tenantId} AND id = #{id} LIMIT 1")
     KnowledgeTag selectByTenantAndId(long tenantId, String id);
 
-    /**
-     */
     @Select("""
             <script>
             SELECT id, seq_id AS seqId, tenant_id AS tenantId,

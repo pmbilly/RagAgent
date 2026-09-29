@@ -9,6 +9,7 @@ import com.ragagent.common.CleanInvalidUtf8;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import org.springframework.stereotype.Component;
+import com.ragagent.common.jdbc.DatabaseDialects;
 
 /**
  * chunk 仓储（文档与 FAQ 的 chunk 行读写，方法式门面）。数据访问契约如下，
@@ -63,7 +64,7 @@ public class ChunkRepository {
         this.chunkMapper = chunkMapper;
         this.revisionMapper = revisionMapper;
         this.tx = tx;
-        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(dataSource);
+        this.postgres = DatabaseDialects.isPostgres(dataSource);
     }
 
     /** 分页结果：行与总数一并返回（调用方一次拿到两份）。 */
@@ -384,8 +385,6 @@ public class ChunkRepository {
 
     // ── 私有 ────────────────────────────────────────────────────────────────
 
-    /**
-     */
     private QueryWrapper<Chunk> pagedFilter(long tenantId, String knowledgeId, List<String> chunkTypes,
             List<String> tagIds, String keyword, String searchField, String knowledgeType, Boolean isEnabled) {
         QueryWrapper<Chunk> w = new QueryWrapper<Chunk>()

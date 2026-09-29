@@ -61,7 +61,6 @@ public class ChunkerDebugController {
     /** 响应截断上限（stats 不受影响）。 */
     static final int PREVIEW_MAX_CHUNKS = 500;
 
-    /**  */
     static final long PREVIEW_TIMEOUT_SECONDS = 5;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()

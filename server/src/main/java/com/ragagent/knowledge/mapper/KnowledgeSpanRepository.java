@@ -21,6 +21,7 @@ import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.stereotype.Repository;
+import com.ragagent.common.jdbc.DatabaseDialects;
 
 /**
  * * 每次尝试一棵 span 树的持久化。
@@ -54,7 +55,7 @@ public class KnowledgeSpanRepository {
 
     public KnowledgeSpanRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        this.postgres = com.ragagent.common.jdbc.DatabaseDialects.isPostgres(jdbc);
+        this.postgres = DatabaseDialects.isPostgres(jdbc);
     }
 
     public void upsert(KnowledgeProcessingSpan row) {

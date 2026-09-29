@@ -175,7 +175,6 @@ public class QuestionGenerationService {
         return processed;
     }
 
-    /**  */
     static int clampQuestionCount(int count) {
         if (count <= 0) {
             return 3;
