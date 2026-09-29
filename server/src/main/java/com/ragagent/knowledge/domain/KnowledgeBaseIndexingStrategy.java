@@ -1,6 +1,8 @@
 package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.ragagent.common.web.JsonMappers;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * IndexingStrategy。
@@ -37,5 +39,18 @@ public class KnowledgeBaseIndexingStrategy {
 
     public boolean hasAnyIndexing() {
         return vectorEnabled || keywordEnabled || wikiEnabled || graphEnabled;
+    }
+
+    /** 从 KB 配置 jsonb 读取（null/解析失败 → 默认值）。 */
+    public static KnowledgeBaseIndexingStrategy from(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || node.isNull()) {
+            return KnowledgeBaseIndexingStrategy.defaultStrategy();
+        }
+        try {
+            KnowledgeBaseIndexingStrategy parsed = JsonMappers.lenient().convertValue(node, KnowledgeBaseIndexingStrategy.class);
+            return parsed == null ? KnowledgeBaseIndexingStrategy.defaultStrategy() : parsed;
+        } catch (IllegalArgumentException e) {
+            return KnowledgeBaseIndexingStrategy.defaultStrategy();
+        }
     }
 }

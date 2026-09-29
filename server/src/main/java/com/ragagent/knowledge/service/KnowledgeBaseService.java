@@ -16,7 +16,6 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
 import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
-import com.ragagent.knowledge.domain.KnowledgeBaseJsons;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.StorageBackend;
@@ -35,6 +34,8 @@ import com.ragagent.retrieval.engine.RetrieveEngineRegistry;
 import com.ragagent.retrieval.engine.TenantStoreOwnership;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.retrieval.engine.RetrieveEngineFactories;
+import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseImageProcessingConfig;
 
 /**
  * （阶段 3 子集：CRUD + pin + move-targets + 计数回填；
@@ -445,11 +446,11 @@ public class KnowledgeBaseService {
 
     private static void applyUpdateConfig(KnowledgeBase kb, com.fasterxml.jackson.databind.JsonNode config) {
         if (config.hasNonNull("chunking_config")) {
-            kb.setChunkingConfig(KnowledgeBaseJsons.readChunking(config.get("chunking_config")));
+            kb.setChunkingConfig(KnowledgeBaseChunkingConfig.from(config.get("chunking_config")));
         }
         if (config.hasNonNull("image_processing_config")) {
             kb.setImageProcessingConfig(
-                    KnowledgeBaseJsons.readImageProcessing(config.get("image_processing_config")));
+                    KnowledgeBaseImageProcessingConfig.from(config.get("image_processing_config")));
         }
         if (config.hasNonNull("faq_config")) {
             kb.setFaqConfig(config.get("faq_config"));
@@ -463,7 +464,7 @@ public class KnowledgeBaseService {
         // indexing_strategy：指针语义 nil=不变；HasAnyIndexing 为 false → 400
         if (config.has("indexing_strategy") && config.get("indexing_strategy") != null
                 && config.get("indexing_strategy").isObject()) {
-            KnowledgeBaseIndexingStrategy strategy = KnowledgeBaseJsons.readIndexing(config.get("indexing_strategy"));
+            KnowledgeBaseIndexingStrategy strategy = KnowledgeBaseIndexingStrategy.from(config.get("indexing_strategy"));
             if (!strategy.hasAnyIndexing()) {
                 throw new BizException(AppError.badRequest("at least one indexing strategy must be enabled"));
             }

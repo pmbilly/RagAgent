@@ -3,6 +3,7 @@ package com.ragagent.knowledge.domain;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * ChunkingConfig。
@@ -66,5 +67,18 @@ public class KnowledgeBaseChunkingConfig {
         public void setEngine(String v) { engine = v; }
         public Boolean getXlsxFirstRowAsHeader() { return xlsxFirstRowAsHeader; }
         public void setXlsxFirstRowAsHeader(Boolean v) { xlsxFirstRowAsHeader = v; }
+    }
+
+    /** 从 KB 配置 jsonb 读取（null/解析失败 → 默认值）。 */
+    public static KnowledgeBaseChunkingConfig from(com.fasterxml.jackson.databind.JsonNode node) {
+    if (node == null || node.isNull()) {
+        return new KnowledgeBaseChunkingConfig();
+    }
+    try {
+        KnowledgeBaseChunkingConfig parsed = JsonMappers.lenient().convertValue(node, KnowledgeBaseChunkingConfig.class);
+        return parsed == null ? new KnowledgeBaseChunkingConfig() : parsed;
+    } catch (IllegalArgumentException e) {
+        return new KnowledgeBaseChunkingConfig();
+    }
     }
 }
