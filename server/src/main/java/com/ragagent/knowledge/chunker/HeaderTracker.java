@@ -129,7 +129,7 @@ final class HeaderTracker {
             return false;
         }
         String row = header.substring(0, idx).strip();
-        for (int cp : Runes.of(row)) {
+        for (int cp : CodePoints.of(row)) {
             if (cp != '|' && cp != ' ' && cp != '\t') {
                 return false;
             }
@@ -237,7 +237,7 @@ final class HeaderTracker {
                 continue;
             }
             boolean onlyPipes = true;
-            for (int cp : Runes.of(line)) {
+            for (int cp : CodePoints.of(line)) {
                 if (cp != '|' && cp != ' ' && cp != '\t') {
                     onlyPipes = false;
                     break;

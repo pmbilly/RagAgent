@@ -27,7 +27,7 @@ import com.ragagent.chatpipeline.ChatManage.NameSpace;
 import com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository;
 import com.ragagent.common.context.TracingContext;
 import com.ragagent.embedding.Embedder;
-import com.ragagent.knowledge.domain.KbChunkingConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.retrieval.engine.EngineTypes;
@@ -530,7 +530,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     /** KB 配置 → chunker 配置（0 值回退默认：512/80/separators） */
     private static SplitterConfig toSplitterConfig(
-            KbChunkingConfig kbc) {
+            KnowledgeBaseChunkingConfig kbc) {
         SplitterConfig cfg = new SplitterConfig();
         cfg.setChunkSize(kbc.getChunkSize() <= 0 ? SplitterConfig.DEFAULT_CHUNK_SIZE : kbc.getChunkSize());
         int overlap = kbc.getChunkOverlap() <= 0 ? SplitterConfig.DEFAULT_CHUNK_OVERLAP : kbc.getChunkOverlap();

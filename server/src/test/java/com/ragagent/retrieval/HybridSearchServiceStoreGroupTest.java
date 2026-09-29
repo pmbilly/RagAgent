@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.chatpipeline.SearchParams;
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.client.EmbedderClient;
@@ -84,7 +84,7 @@ class HybridSearchServiceStoreGroupTest {
         k.setType("document");
         k.setEmbeddingModelId(embeddingModelId);
         k.setVectorStoreId(vectorStoreId);
-        KbIndexingStrategy s = new KbIndexingStrategy();
+        KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
         s.setVectorEnabled(true);
         s.setKeywordEnabled(true);
         k.setIndexingStrategy(s);
@@ -94,7 +94,7 @@ class HybridSearchServiceStoreGroupTest {
     /** 零策略（vector+keyword 全关）的 KB——BaseParams 恒空，与引擎注册状态解耦。 */
     private KnowledgeBase zeroStrategyKb(String id, String embeddingModelId) {
         KnowledgeBase k = kb(id, null, embeddingModelId);
-        KbIndexingStrategy s = new KbIndexingStrategy();
+        KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
         s.setVectorEnabled(false);
         s.setKeywordEnabled(false);
         k.setIndexingStrategy(s);

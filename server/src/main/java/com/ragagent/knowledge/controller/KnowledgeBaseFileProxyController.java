@@ -30,13 +30,13 @@ import jakarta.servlet.http.HttpServletResponse;
  * → ResolveKBFile → serveAuthorizedFile。</p>
  */
 @RestController
-public class KbFileProxyController {
+public class KnowledgeBaseFileProxyController {
 
     private final ChunkAccessGuard kbGuard;
     private final FileAccessResolver accessResolver;
     private final FileProxyService proxy;
 
-    public KbFileProxyController(ChunkAccessGuard kbGuard, FileAccessResolver accessResolver,
+    public KnowledgeBaseFileProxyController(ChunkAccessGuard kbGuard, FileAccessResolver accessResolver,
             FileProxyService proxy) {
         this.kbGuard = kbGuard;
         this.accessResolver = accessResolver;

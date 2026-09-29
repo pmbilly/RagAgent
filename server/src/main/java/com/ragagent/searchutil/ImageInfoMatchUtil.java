@@ -62,7 +62,7 @@ public final class ImageInfoMatchUtil {
         if (infos == null || infos.isEmpty()) {
             return "";
         }
-        Set<String> urls = ChunkSearchUtilBridge.imageURLsInContent(content);
+        Set<String> urls = ChunkSearchUtil.imageURLsInContent(content);
         if (urls.isEmpty()) {
             return "";
         }
@@ -82,11 +82,11 @@ public final class ImageInfoMatchUtil {
     public static String pruneMarkdownImagesByImageInfo(String content, String imageInfoJson) {
         // Go：allowed 只在 imageInfoJSON 非空且 Unmarshal 成功时填充——与
         // imageURLsFromInfo 的语义（空串/非法 → 空集）逐分支重合，直接复用。
-        Set<String> allowed = ChunkSearchUtilBridge.imageURLsFromInfo(
+        Set<String> allowed = ChunkSearchUtil.imageURLsFromInfo(
                 imageInfoJson == null ? "" : imageInfoJson);
         String src = content == null ? "" : content;
         java.util.regex.Matcher m =
-                ChunkSearchUtilBridge.MARKDOWN_IMAGE_REGEX.matcher(src);
+                ChunkSearchUtil.MARKDOWN_IMAGE_REGEX.matcher(src);
         StringBuilder out = new StringBuilder();
         int last = 0;
         while (m.find()) {
@@ -116,7 +116,7 @@ public final class ImageInfoMatchUtil {
             return "";
         }
         String window = sliceContentByDocumentRange(parentContent, parentStartAt, matchStart, matchEnd);
-        Set<String> urls = ChunkSearchUtilBridge.imageURLsInContent(window);
+        Set<String> urls = ChunkSearchUtil.imageURLsInContent(window);
         if (urls.isEmpty()) {
             return "";
         }
@@ -142,7 +142,7 @@ public final class ImageInfoMatchUtil {
         record Loc(int start, int end) {
         }
         List<Loc> locs = new ArrayList<>();
-        java.util.regex.Matcher m = ChunkSearchUtilBridge.MARKDOWN_IMAGE_REGEX.matcher(content);
+        java.util.regex.Matcher m = ChunkSearchUtil.MARKDOWN_IMAGE_REGEX.matcher(content);
         while (m.find()) {
             locs.add(new Loc(m.start(), m.end()));
         }

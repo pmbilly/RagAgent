@@ -41,8 +41,8 @@ import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.GoJsonBindError;
-import com.ragagent.knowledge.domain.KbAsrConfig;
-import com.ragagent.knowledge.domain.KbVlmConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseAsrConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.dto.KnowledgeBaseResponse;
@@ -237,8 +237,8 @@ public class InitializationController {
         }
 
         // VLM / ASR 重置后再按请求回填
-        kb.setVlmConfig(new KbVlmConfig());
-        KbVlmConfig vlm = kb.getVlmConfig();
+        kb.setVlmConfig(new KnowledgeBaseVlmConfig());
+        KnowledgeBaseVlmConfig vlm = kb.getVlmConfig();
         JsonNode vlmReq = req.vlmConfig();
         if (vlmReq != null && req.multimodalEnabled() && !vlmReq.path("model_id").asText("").isEmpty()) {
             String vlmModelId = vlmReq.path("model_id").asText("");
@@ -254,8 +254,8 @@ public class InitializationController {
         if (!vlm.isEnabled()) {
             vlm.setModelId("");
         }
-        kb.setAsrConfig(new KbAsrConfig());
-        KbAsrConfig asr = kb.getAsrConfig();
+        kb.setAsrConfig(new KnowledgeBaseAsrConfig());
+        KnowledgeBaseAsrConfig asr = kb.getAsrConfig();
         JsonNode asrReq = req.asrConfig();
         if (asrReq != null && asrReq.path("enabled").asBoolean(false)
                 && !asrReq.path("model_id").asText("").isEmpty()) {
@@ -1378,7 +1378,7 @@ public class InitializationController {
 
     private record KBModelConfigRequest(String llmModelId, String embeddingModelId,
             JsonNode vlmConfig, JsonNode asrConfig, int chunkSize, int chunkOverlap,
-            List<String> separators, List<com.ragagent.knowledge.domain.KbChunkingConfig.ParserEngineRule>
+            List<String> separators, List<com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig.ParserEngineRule>
             parserEngineRules, boolean enableParentChild, Integer parentChunkSize,
             Integer childChunkSize, String strategy, Integer tokenLimit, List<String> languages,
             String tableMetadataInstructions, boolean multimodalEnabled, String storageProvider,
@@ -1414,11 +1414,11 @@ public class InitializationController {
         if (ds != null && ds.get("separators") != null && ds.get("separators").isArray()) {
             ds.get("separators").forEach(s -> seps.add(s.asText()));
         }
-        List<com.ragagent.knowledge.domain.KbChunkingConfig.ParserEngineRule> rules = new ArrayList<>();
+        List<com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig.ParserEngineRule> rules = new ArrayList<>();
         if (ds != null && ds.get("parserEngineRules") != null && ds.get("parserEngineRules").isArray()) {
             for (JsonNode r : ds.get("parserEngineRules")) {
-                com.ragagent.knowledge.domain.KbChunkingConfig.ParserEngineRule rule =
-                        new com.ragagent.knowledge.domain.KbChunkingConfig.ParserEngineRule();
+                com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig.ParserEngineRule rule =
+                        new com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig.ParserEngineRule();
                 rule.setFileTypes(toStringList(r.get("file_types")));
                 rule.setEngine(r.path("engine").asText(""));
                 rule.setXlsxFirstRowAsHeader(r.path("xlsx_first_row_as_header").asBoolean(false));
@@ -1703,7 +1703,7 @@ public class InitializationController {
         chunking.setSeparators(req.separators());
 
         if (req.multimodalEnabled()) {
-            KbVlmConfig vlm = new KbVlmConfig();
+            KnowledgeBaseVlmConfig vlm = new KnowledgeBaseVlmConfig();
             vlm.setEnabled(true);
             vlm.setModelId(vlmId);
             kb.setVlmConfig(vlm);
@@ -1715,7 +1715,7 @@ public class InitializationController {
                 kb.setStorageProvider(storageType);
             }
         } else {
-            kb.setVlmConfig(new KbVlmConfig());
+            kb.setVlmConfig(new KnowledgeBaseVlmConfig());
             kb.setStorageProvider("");
         }
 

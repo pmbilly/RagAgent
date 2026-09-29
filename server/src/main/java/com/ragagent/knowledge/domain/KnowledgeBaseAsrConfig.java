@@ -2,7 +2,7 @@ package com.ragagent.knowledge.domain;
 
 
 /** ASRConfig：三字段恒输出 */
-public class KbAsrConfig {
+public class KnowledgeBaseAsrConfig {
 
     private boolean enabled;
     private String modelId = "";

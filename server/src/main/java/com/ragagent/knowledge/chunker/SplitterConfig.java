@@ -2,7 +2,7 @@ package com.ragagent.knowledge.chunker;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.ragagent.knowledge.domain.KbChunkingConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
 
 /**
  * 文本切分配置。
@@ -49,7 +49,7 @@ public class SplitterConfig {
      * 知识库配置 → chunker 配置。
      * parent/child 派生见 {@link Chunker#deriveParentChildConfigs}。
      */
-    public static SplitterConfig fromKb(KbChunkingConfig kb) {
+    public static SplitterConfig fromKb(KnowledgeBaseChunkingConfig kb) {
         SplitterConfig cfg = new SplitterConfig();
         if (kb == null) {
             return cfg;

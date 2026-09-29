@@ -42,13 +42,13 @@ import com.ragagent.knowledge.domain.DocumentChunkMetadata;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
-import com.ragagent.knowledge.domain.KbAsrConfig;
-import com.ragagent.knowledge.domain.KbChunkingConfig;
-import com.ragagent.knowledge.domain.KbImageProcessingConfig;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
-import com.ragagent.knowledge.domain.KbStorageConfig;
-import com.ragagent.knowledge.domain.KbStorageProviderConfig;
-import com.ragagent.knowledge.domain.KbVlmConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseAsrConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseImageProcessingConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseStorageConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseStorageProviderConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatTool;
@@ -208,7 +208,7 @@ class JsonContractRoundTripTest {
 
     @Test
     void kbConfigsRoundTrip() {
-        KbChunkingConfig chunk = new KbChunkingConfig();
+        KnowledgeBaseChunkingConfig chunk = new KnowledgeBaseChunkingConfig();
         chunk.setChunkSize(512);
         chunk.setChunkOverlap(80);
         chunk.setSeparators(List.of("\n\n", "\n"));
@@ -219,9 +219,9 @@ class JsonContractRoundTripTest {
         chunk.setTokenLimit(1000);
         chunk.setLanguages(List.of("zh"));
         chunk.setTableMetadataInstructions("instr");
-        assertRoundTrips(chunk, KbChunkingConfig.class, "types.ChunkingConfig ← KbChunkingConfig");
+        assertRoundTrips(chunk, KnowledgeBaseChunkingConfig.class, "types.ChunkingConfig ← KnowledgeBaseChunkingConfig");
 
-        KbVlmConfig vlm = new KbVlmConfig();
+        KnowledgeBaseVlmConfig vlm = new KnowledgeBaseVlmConfig();
         vlm.setEnabled(true);
         vlm.setModelId("m1");
         vlm.setDescriptionLanguage("zh");
@@ -230,22 +230,22 @@ class JsonContractRoundTripTest {
         vlm.setBaseUrl("https://x");
         vlm.setApiKey("k");
         vlm.setInterfaceType("openai");
-        assertRoundTrips(vlm, KbVlmConfig.class, "types.VLMConfig ← KbVlmConfig");
+        assertRoundTrips(vlm, KnowledgeBaseVlmConfig.class, "types.VLMConfig ← KnowledgeBaseVlmConfig");
 
-        KbAsrConfig asr = new KbAsrConfig();
+        KnowledgeBaseAsrConfig asr = new KnowledgeBaseAsrConfig();
         asr.setEnabled(true);
         asr.setModelId("m");
         asr.setLanguage("zh");
-        assertRoundTrips(asr, KbAsrConfig.class, "types.ASRConfig ← KbAsrConfig");
+        assertRoundTrips(asr, KnowledgeBaseAsrConfig.class, "types.ASRConfig ← KnowledgeBaseAsrConfig");
 
-        KbIndexingStrategy idx = KbIndexingStrategy.defaultStrategy();
-        assertRoundTrips(idx, KbIndexingStrategy.class, "types.IndexingStrategy ← KbIndexingStrategy");
+        KnowledgeBaseIndexingStrategy idx = KnowledgeBaseIndexingStrategy.defaultStrategy();
+        assertRoundTrips(idx, KnowledgeBaseIndexingStrategy.class, "types.IndexingStrategy ← KnowledgeBaseIndexingStrategy");
 
-        KbImageProcessingConfig img = new KbImageProcessingConfig();
+        KnowledgeBaseImageProcessingConfig img = new KnowledgeBaseImageProcessingConfig();
         img.setModelId("m");
-        assertRoundTrips(img, KbImageProcessingConfig.class, "types.ImageProcessingConfig ← KbImageProcessingConfig");
+        assertRoundTrips(img, KnowledgeBaseImageProcessingConfig.class, "types.ImageProcessingConfig ← KnowledgeBaseImageProcessingConfig");
 
-        KbStorageConfig storage = new KbStorageConfig();
+        KnowledgeBaseStorageConfig storage = new KnowledgeBaseStorageConfig();
         storage.setProvider("local");
         storage.setSecretId("s");
         storage.setSecretKey("k");
@@ -253,12 +253,12 @@ class JsonContractRoundTripTest {
         storage.setBucketName("b");
         storage.setAppId("a");
         storage.setPathPrefix("p");
-        assertRoundTrips(storage, KbStorageConfig.class, "types.StorageConfig ← KbStorageConfig");
+        assertRoundTrips(storage, KnowledgeBaseStorageConfig.class, "types.StorageConfig ← KnowledgeBaseStorageConfig");
 
-        KbStorageProviderConfig provider = new KbStorageProviderConfig();
+        KnowledgeBaseStorageProviderConfig provider = new KnowledgeBaseStorageProviderConfig();
         provider.setProvider("local");
-        assertRoundTrips(provider, KbStorageProviderConfig.class,
-                "types.StorageProviderConfig ← KbStorageProviderConfig");
+        assertRoundTrips(provider, KnowledgeBaseStorageProviderConfig.class,
+                "types.StorageProviderConfig ← KnowledgeBaseStorageProviderConfig");
     }
 
     // ── Wiki 配置（落 knowledge_bases.wiki_config 列） ─────────────────────

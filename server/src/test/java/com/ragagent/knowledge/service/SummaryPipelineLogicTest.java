@@ -12,6 +12,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.retrieval.domain.ImageInfo;
 import com.ragagent.searchutil.ImageInfoEnricher;
 import org.junit.jupiter.api.Test;
+import com.ragagent.searchutil.ChunkSearchUtil;
 
 /**
  * 摘要管线与向量索引的确定性纯逻辑（2026-09-22 走查批补全 regenerate-summary 时新增）。

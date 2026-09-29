@@ -14,7 +14,7 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
@@ -98,7 +98,7 @@ class ChunkQuestionServiceTest {
         k.setName("kb " + id);
         k.setTenantId(TENANT);
         k.setType("document");
-        KbIndexingStrategy s = new KbIndexingStrategy();
+        KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
         s.setVectorEnabled(vectorEnabled);
         s.setKeywordEnabled(vectorEnabled);
         k.setIndexingStrategy(s);

@@ -14,7 +14,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * 仓储行为契约（本仓约定）：
  * - 软删除 → 显式 isNull("deleted_at")
  * - jsonb 配置列：chunking/image/vlm/asr/indexing/storage_config 为**值类型**（Scan NULL → 零值结构，
- *   indexing_strategy Scan NULL → DefaultIndexingStrategy()，见 KbIndexingStrategy 注释）；
+ *   indexing_strategy Scan NULL → DefaultIndexingStrategy()，见 KnowledgeBaseIndexingStrategy 注释）；
  *   storage_provider_config/extract_config/faq_config/wiki_config/question_generation_config/auto_tag_config
  *   为指针（NULL → null）
  * - vector_store_id：空串归一化为 NULL
@@ -33,20 +33,20 @@ public class KnowledgeBase {
     private Long tenantId;
     private String creatorId;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    private KbChunkingConfig chunkingConfig;
+    private KnowledgeBaseChunkingConfig chunkingConfig;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    private KbImageProcessingConfig imageProcessingConfig;
+    private KnowledgeBaseImageProcessingConfig imageProcessingConfig;
     private String embeddingModelId;
     private String summaryModelId;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    private KbVlmConfig vlmConfig;
+    private KnowledgeBaseVlmConfig vlmConfig;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    private KbAsrConfig asrConfig;
+    private KnowledgeBaseAsrConfig asrConfig;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    private KbStorageProviderConfig storageProviderConfig;
+    private KnowledgeBaseStorageProviderConfig storageProviderConfig;
     private String storageBackendId;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    private KbStorageConfig storageConfig;
+    private KnowledgeBaseStorageConfig storageConfig;
     private String vectorStoreId;
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode extractConfig;
@@ -59,7 +59,7 @@ public class KnowledgeBase {
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode wikiConfig;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    private KbIndexingStrategy indexingStrategy;
+    private KnowledgeBaseIndexingStrategy indexingStrategy;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private OffsetDateTime deletedAt;
@@ -100,39 +100,39 @@ public class KnowledgeBase {
      */
     public String getCreatorId() { return creatorId == null ? "" : creatorId; }
     public void setCreatorId(String v) { creatorId = v == null ? "" : v; }
-    public KbChunkingConfig getChunkingConfig() {
-        if (chunkingConfig == null) chunkingConfig = new KbChunkingConfig();
+    public KnowledgeBaseChunkingConfig getChunkingConfig() {
+        if (chunkingConfig == null) chunkingConfig = new KnowledgeBaseChunkingConfig();
         return chunkingConfig;
     }
-    public void setChunkingConfig(KbChunkingConfig v) { chunkingConfig = v; }
-    public KbImageProcessingConfig getImageProcessingConfig() {
-        if (imageProcessingConfig == null) imageProcessingConfig = new KbImageProcessingConfig();
+    public void setChunkingConfig(KnowledgeBaseChunkingConfig v) { chunkingConfig = v; }
+    public KnowledgeBaseImageProcessingConfig getImageProcessingConfig() {
+        if (imageProcessingConfig == null) imageProcessingConfig = new KnowledgeBaseImageProcessingConfig();
         return imageProcessingConfig;
     }
-    public void setImageProcessingConfig(KbImageProcessingConfig v) { imageProcessingConfig = v; }
+    public void setImageProcessingConfig(KnowledgeBaseImageProcessingConfig v) { imageProcessingConfig = v; }
     public String getEmbeddingModelId() { return embeddingModelId; }
     public void setEmbeddingModelId(String v) { embeddingModelId = v == null ? "" : v; }
     public String getSummaryModelId() { return summaryModelId; }
     public void setSummaryModelId(String v) { summaryModelId = v == null ? "" : v; }
-    public KbVlmConfig getVlmConfig() {
-        if (vlmConfig == null) vlmConfig = new KbVlmConfig();
+    public KnowledgeBaseVlmConfig getVlmConfig() {
+        if (vlmConfig == null) vlmConfig = new KnowledgeBaseVlmConfig();
         return vlmConfig;
     }
-    public void setVlmConfig(KbVlmConfig v) { vlmConfig = v; }
-    public KbAsrConfig getAsrConfig() {
-        if (asrConfig == null) asrConfig = new KbAsrConfig();
+    public void setVlmConfig(KnowledgeBaseVlmConfig v) { vlmConfig = v; }
+    public KnowledgeBaseAsrConfig getAsrConfig() {
+        if (asrConfig == null) asrConfig = new KnowledgeBaseAsrConfig();
         return asrConfig;
     }
-    public void setAsrConfig(KbAsrConfig v) { asrConfig = v; }
-    public KbStorageProviderConfig getStorageProviderConfig() { return storageProviderConfig; }
-    public void setStorageProviderConfig(KbStorageProviderConfig v) { storageProviderConfig = v; }
+    public void setAsrConfig(KnowledgeBaseAsrConfig v) { asrConfig = v; }
+    public KnowledgeBaseStorageProviderConfig getStorageProviderConfig() { return storageProviderConfig; }
+    public void setStorageProviderConfig(KnowledgeBaseStorageProviderConfig v) { storageProviderConfig = v; }
     public String getStorageBackendId() { return storageBackendId; }
     public void setStorageBackendId(String v) { storageBackendId = v; }
-    public KbStorageConfig getStorageConfig() {
-        if (storageConfig == null) storageConfig = new KbStorageConfig();
+    public KnowledgeBaseStorageConfig getStorageConfig() {
+        if (storageConfig == null) storageConfig = new KnowledgeBaseStorageConfig();
         return storageConfig;
     }
-    public void setStorageConfig(KbStorageConfig v) { storageConfig = v; }
+    public void setStorageConfig(KnowledgeBaseStorageConfig v) { storageConfig = v; }
     public String getVectorStoreId() { return vectorStoreId; }
     public void setVectorStoreId(String v) { vectorStoreId = v; }
     public JsonNode getExtractConfig() { return extractConfig; }
@@ -145,7 +145,7 @@ public class KnowledgeBase {
     public void setAutoTagConfig(JsonNode v) { autoTagConfig = v; }
     public JsonNode getWikiConfig() { return wikiConfig; }
     public void setWikiConfig(JsonNode v) { wikiConfig = v; }
-    public KbIndexingStrategy getIndexingStrategy() {
+    public KnowledgeBaseIndexingStrategy getIndexingStrategy() {
         // NULL→Default 分支实际到不了）；IsZero→Default 只发生在 service 读路径的
         // EnsureDefaults 调用点（KB list/get），chunk 等路径不做此默认。
         // 历史近似（null→Default）与既有 契约样例 全兼容，仅补 w5s 实录钉住的 carve-out：
@@ -154,9 +154,9 @@ public class KnowledgeBase {
             return indexingStrategy;
         }
         return "faq".equals(type) && faqConfig == null
-                ? new KbIndexingStrategy() : KbIndexingStrategy.defaultStrategy();
+                ? new KnowledgeBaseIndexingStrategy() : KnowledgeBaseIndexingStrategy.defaultStrategy();
     }
-    public void setIndexingStrategy(KbIndexingStrategy v) { indexingStrategy = v; }
+    public void setIndexingStrategy(KnowledgeBaseIndexingStrategy v) { indexingStrategy = v; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) { createdAt = v; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
@@ -192,7 +192,7 @@ public class KnowledgeBase {
     }
 
     public void setStorageProvider(String provider) {
-        KbStorageProviderConfig c = new KbStorageProviderConfig();
+        KnowledgeBaseStorageProviderConfig c = new KnowledgeBaseStorageProviderConfig();
         c.setProvider(provider);
         this.storageProviderConfig = c;
     }
@@ -209,7 +209,7 @@ public class KnowledgeBase {
     }
 
     public Capabilities capabilities() {
-        KbIndexingStrategy s = getIndexingStrategy();
+        KnowledgeBaseIndexingStrategy s = getIndexingStrategy();
         return new Capabilities(s.isVectorEnabled(), s.isKeywordEnabled(), s.isWikiEnabled(),
                 s.isGraphEnabled() && extractConfig != null && extractConfig.path("enabled").asBoolean(false),
                 "faq".equals(type));

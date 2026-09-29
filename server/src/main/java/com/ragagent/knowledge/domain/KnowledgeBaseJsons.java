@@ -12,29 +12,29 @@ public final class KnowledgeBaseJsons {
 
     private KnowledgeBaseJsons() {}
 
-    public static KbChunkingConfig readChunking(JsonNode node) {
+    public static KnowledgeBaseChunkingConfig readChunking(JsonNode node) {
         if (node == null || node.isNull()) {
-            return new KbChunkingConfig();
+            return new KnowledgeBaseChunkingConfig();
         }
-        return MAPPER.convertValue(node, KbChunkingConfig.class);
+        return MAPPER.convertValue(node, KnowledgeBaseChunkingConfig.class);
     }
 
-    public static KbImageProcessingConfig readImageProcessing(JsonNode node) {
+    public static KnowledgeBaseImageProcessingConfig readImageProcessing(JsonNode node) {
         if (node == null || node.isNull()) {
-            return new KbImageProcessingConfig();
+            return new KnowledgeBaseImageProcessingConfig();
         }
-        return MAPPER.convertValue(node, KbImageProcessingConfig.class);
+        return MAPPER.convertValue(node, KnowledgeBaseImageProcessingConfig.class);
     }
 
-    public static KbIndexingStrategy readIndexing(JsonNode node) {
+    public static KnowledgeBaseIndexingStrategy readIndexing(JsonNode node) {
         if (node == null || node.isNull() || !node.isObject()) {
-            return KbIndexingStrategy.defaultStrategy();
+            return KnowledgeBaseIndexingStrategy.defaultStrategy();
         }
         try {
-            KbIndexingStrategy s = MAPPER.convertValue(node, KbIndexingStrategy.class);
-            return s == null ? KbIndexingStrategy.defaultStrategy() : s;
+            KnowledgeBaseIndexingStrategy s = MAPPER.convertValue(node, KnowledgeBaseIndexingStrategy.class);
+            return s == null ? KnowledgeBaseIndexingStrategy.defaultStrategy() : s;
         } catch (IllegalArgumentException e) {
-            return KbIndexingStrategy.defaultStrategy();
+            return KnowledgeBaseIndexingStrategy.defaultStrategy();
         }
     }
 }

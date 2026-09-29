@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * 非指针值类型：chunk_size/chunk_overlap/separators 恒输出（separators null → JSON null）；
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class KbChunkingConfig {
+public class KnowledgeBaseChunkingConfig {
 
     private int chunkSize;
     private int chunkOverlap;

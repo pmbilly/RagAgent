@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.searchutil;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

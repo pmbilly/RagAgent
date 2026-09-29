@@ -97,15 +97,15 @@ class SearchUtilTest {
         String first = "first edited body with no original overlap";
         String second = "second independently edited body";
         assertEquals(first + "\n\n" + second,
-                com.ragagent.knowledge.service.ChunkSearchUtil.joinChunkContent(first, second, "\n\n"));
+                ChunkSearchUtil.joinChunkContent(first, second, "\n\n"));
 
         String overlap = "shared boundary text";
         assertEquals("before " + overlap + " after",
-                com.ragagent.knowledge.service.ChunkSearchUtil.joinChunkContent(
+                ChunkSearchUtil.joinChunkContent(
                         "before " + overlap, overlap + " after", "\n\n"));
 
         String outer = "prefix complete current body suffix";
-        assertEquals(outer, com.ragagent.knowledge.service.ChunkSearchUtil.joinChunkContent(
+        assertEquals(outer, ChunkSearchUtil.joinChunkContent(
                 outer, "complete current body", "\n\n"));
     }
 

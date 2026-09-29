@@ -2,7 +2,7 @@ package com.ragagent.knowledge.domain;
 
 
 /** ImageProcessingConfig：单字段 */
-public class KbImageProcessingConfig {
+public class KnowledgeBaseImageProcessingConfig {
 
     private String modelId = "";
 

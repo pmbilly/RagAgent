@@ -27,7 +27,7 @@ public final class ChunkValidator {
 
         int maxLen = 0;
         for (ParsedChunk c : chunks) {
-            int l = Runes.len(c.getContent());
+            int l = CodePoints.len(c.getContent());
             if (l > maxLen) {
                 maxLen = l;
             }
@@ -36,7 +36,7 @@ public final class ChunkValidator {
         // 除最后一块外都应携带有意义的内容；最后一块允许很小（尾部残留正常）
         int tinyCount = 0;
         for (int i = 0; i < chunks.size() - 1; i++) {
-            if (Runes.len(chunks.get(i).getContent()) < 50) {
+            if (CodePoints.len(chunks.get(i).getContent()) < 50) {
                 tinyCount++;
             }
         }

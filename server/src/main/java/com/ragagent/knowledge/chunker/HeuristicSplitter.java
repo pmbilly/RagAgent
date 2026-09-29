@@ -29,7 +29,7 @@ public final class HeuristicSplitter {
         if (text == null || text.isEmpty()) {
             return List.of();
         }
-        int[] runes = Runes.of(text);
+        int[] runes = CodePoints.of(text);
         int totalRunes = runes.length;
         if (totalRunes <= cfg.getChunkSize()) {
             return LegacySplitter.splitText(text, cfg);
@@ -145,7 +145,7 @@ public final class HeuristicSplitter {
                     bounds.add(new Boundary(runeStart, ChunkPatterns.PRIO_PAGE_FOOTER));
                 }
             }
-            pos += Runes.len(line);
+            pos += CodePoints.len(line);
             if (i < lines.length - 1) {
                 pos++; // \n
             }
@@ -154,7 +154,7 @@ public final class HeuristicSplitter {
         // 连续空行块（\n{3,}）。匹配 run 的 *末尾*，干净地落入下一段
         Matcher m = ChunkPatterns.EXCESSIVE_BLANKS.matcher(text);
         while (m.find()) {
-            int runeStart = Runes.runeIndexAtChar(text, m.end());
+            int runeStart = CodePoints.runeIndexAtChar(text, m.end());
             bounds.add(new Boundary(runeStart, ChunkPatterns.PRIO_BLANK_BLOCK));
         }
 
@@ -205,8 +205,8 @@ public final class HeuristicSplitter {
             return out;
         }
         int pos = 0;
-        for (int cp : Runes.of(text)) {
-            if (Runes.str(new int[]{cp}, 0, 1).equals(needle)) {
+        for (int cp : CodePoints.of(text)) {
+            if (CodePoints.str(new int[]{cp}, 0, 1).equals(needle)) {
                 out.add(pos);
             }
             pos++;
@@ -222,7 +222,7 @@ public final class HeuristicSplitter {
         if (end <= start) {
             return out;
         }
-        String raw = Runes.str(runes, start, end);
+        String raw = CodePoints.str(runes, start, end);
         if (raw.strip().isEmpty()) {
             return out;
         }
@@ -235,7 +235,7 @@ public final class HeuristicSplitter {
         if (end <= start) {
             return out;
         }
-        String subText = Runes.str(runes, start, end);
+        String subText = CodePoints.str(runes, start, end);
         List<ParsedChunk> subs = LegacySplitter.splitText(subText, cfg);
         for (ParsedChunk s : subs) {
             out.add(new ParsedChunk(s.getContent(), "", seq, start + s.getStart(), start + s.getEnd()));

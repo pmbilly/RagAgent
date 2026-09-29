@@ -766,7 +766,7 @@ final class Rec46cSupport {
         k.setId(id);
         k.setType(type);
         k.setEmbeddingModelId("embedding-" + id);
-        var strategy = new com.ragagent.knowledge.domain.KbIndexingStrategy();
+        var strategy = new com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy();
         strategy.setVectorEnabled(vec);
         strategy.setKeywordEnabled(kw);
         strategy.setWikiEnabled(wiki);

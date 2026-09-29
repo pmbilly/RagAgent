@@ -15,7 +15,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBaseJsons;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -180,7 +180,7 @@ public class KnowledgeBaseService {
         }
         // IndexingStrategy 零值 → 默认（vector+keyword）
         if (kb.getIndexingStrategy().isZero()) {
-            kb.setIndexingStrategy(KbIndexingStrategy.defaultStrategy());
+            kb.setIndexingStrategy(KnowledgeBaseIndexingStrategy.defaultStrategy());
         }
         // legacy ExtractConfig.Enabled → GraphEnabled 同步
         if (kb.getExtractConfig() != null && kb.getExtractConfig().path("enabled").asBoolean(false)
@@ -463,7 +463,7 @@ public class KnowledgeBaseService {
         // indexing_strategy：指针语义 nil=不变；HasAnyIndexing 为 false → 400
         if (config.has("indexing_strategy") && config.get("indexing_strategy") != null
                 && config.get("indexing_strategy").isObject()) {
-            KbIndexingStrategy strategy = KnowledgeBaseJsons.readIndexing(config.get("indexing_strategy"));
+            KnowledgeBaseIndexingStrategy strategy = KnowledgeBaseJsons.readIndexing(config.get("indexing_strategy"));
             if (!strategy.hasAnyIndexing()) {
                 throw new BizException(AppError.badRequest("at least one indexing strategy must be enabled"));
             }

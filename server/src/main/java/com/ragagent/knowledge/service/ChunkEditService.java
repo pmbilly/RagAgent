@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.security.ChunkAccessGuard;
+import com.ragagent.searchutil.ChunkSearchUtil;
 
 /**
  * chunk 版本化编辑面：乐观锁更新的编辑/回滚/修订历史、软删除、图片子块联动与父内容重建，
@@ -338,7 +339,7 @@ public class ChunkEditService {
             base = parent.getContent();
             parent.setSourceContent(base);
         }
-        int[] baseRunes = ChunkSearchUtil.toRunes(base);
+        int[] baseRunes = ChunkSearchUtil.toCodePoints(base);
         record Replacement(int start, int end, String content, OffsetDateTime updatedAt) {
         }
         List<Replacement> replacements = new ArrayList<>();
@@ -371,7 +372,7 @@ public class ChunkEditService {
         }
         selected.sort(Comparator.comparingInt(Replacement::start).reversed());
         for (Replacement repl : selected) {
-            int[] content = ChunkSearchUtil.toRunes(repl.content());
+            int[] content = ChunkSearchUtil.toCodePoints(repl.content());
             int[] out = new int[(repl.start()) + content.length + (baseRunes.length - repl.end())];
             int k = 0;
             for (int i = 0; i < repl.start(); i++) {
@@ -385,7 +386,7 @@ public class ChunkEditService {
             }
             baseRunes = out;
         }
-        parent.setContent(ChunkSearchUtil.fromRunes(baseRunes));
+        parent.setContent(ChunkSearchUtil.fromCodePoints(baseRunes));
         for (Replacement conflict : conflicts) {
             parent.setContent(ChunkSearchUtil.joinChunkContent(parent.getContent(), conflict.content(), "\n\n"));
         }

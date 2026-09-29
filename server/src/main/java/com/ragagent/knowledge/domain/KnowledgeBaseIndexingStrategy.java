@@ -6,15 +6,15 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * IndexingStrategy。
  * 注意 Scan 语义：DB NULL（迁移前老行）→ DefaultIndexingStrategy()（vector+keyword=true）。
  */
-public class KbIndexingStrategy {
+public class KnowledgeBaseIndexingStrategy {
 
     private boolean vectorEnabled;
     private boolean keywordEnabled;
     private boolean wikiEnabled;
     private boolean graphEnabled;
 
-    public static KbIndexingStrategy defaultStrategy() {
-        KbIndexingStrategy s = new KbIndexingStrategy();
+    public static KnowledgeBaseIndexingStrategy defaultStrategy() {
+        KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
         s.vectorEnabled = true;
         s.keywordEnabled = true;
         return s;

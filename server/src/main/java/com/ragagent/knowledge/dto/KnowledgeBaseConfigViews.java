@@ -2,11 +2,11 @@ package com.ragagent.knowledge.dto;
 
 import java.util.List;
 
-import com.ragagent.knowledge.domain.KbAsrConfig;
-import com.ragagent.knowledge.domain.KbChunkingConfig;
-import com.ragagent.knowledge.domain.KbImageProcessingConfig;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
-import com.ragagent.knowledge.domain.KbVlmConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseAsrConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseImageProcessingConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 
 /**
  * 知识库配置项的**对外视图**（camelCase 契约形态）。
@@ -44,14 +44,14 @@ public final class KnowledgeBaseConfigViews {
         }
 
         /** 请求侧反向映射（视图 → 领域）。 */
-        public KbChunkingConfig toDomain() {
-            KbChunkingConfig c = new KbChunkingConfig();
+        public KnowledgeBaseChunkingConfig toDomain() {
+            KnowledgeBaseChunkingConfig c = new KnowledgeBaseChunkingConfig();
             c.setChunkSize(chunkSize);
             c.setChunkOverlap(chunkOverlap);
             c.setSeparators(separators);
             if (parserEngineRules != null) {
                 c.setParserEngineRules(parserEngineRules.stream().map(r -> {
-                    KbChunkingConfig.ParserEngineRule rule = new KbChunkingConfig.ParserEngineRule();
+                    KnowledgeBaseChunkingConfig.ParserEngineRule rule = new KnowledgeBaseChunkingConfig.ParserEngineRule();
                     rule.setFileTypes(r.fileTypes());
                     rule.setEngine(r.engine());
                     rule.setXlsxFirstRowAsHeader(r.xlsxFirstRowAsHeader());
@@ -68,7 +68,7 @@ public final class KnowledgeBaseConfigViews {
             return c;
         }
 
-        public static ChunkingConfigView from(KbChunkingConfig c) {
+        public static ChunkingConfigView from(KnowledgeBaseChunkingConfig c) {
             if (c == null) {
                 return null;
             }
@@ -87,12 +87,12 @@ public final class KnowledgeBaseConfigViews {
     /** 图像处理配置（多模态描述用的 VLM 模型）。 */
     public record ImageProcessingConfigView(String modelId) {
 
-        public static ImageProcessingConfigView from(KbImageProcessingConfig c) {
+        public static ImageProcessingConfigView from(KnowledgeBaseImageProcessingConfig c) {
             return c == null ? null : new ImageProcessingConfigView(c.getModelId());
         }
 
-        public KbImageProcessingConfig toDomain() {
-            KbImageProcessingConfig c = new KbImageProcessingConfig();
+        public KnowledgeBaseImageProcessingConfig toDomain() {
+            KnowledgeBaseImageProcessingConfig c = new KnowledgeBaseImageProcessingConfig();
             c.setModelId(modelId);
             return c;
         }
@@ -113,7 +113,7 @@ public final class KnowledgeBaseConfigViews {
             String baseUrl,
             String interfaceType) {
 
-        public static VlmConfigView from(KbVlmConfig c) {
+        public static VlmConfigView from(KnowledgeBaseVlmConfig c) {
             if (c == null) {
                 return null;
             }
@@ -125,12 +125,12 @@ public final class KnowledgeBaseConfigViews {
     /** 语音识别（ASR）配置。 */
     public record AsrConfigView(boolean enabled, String modelId, String language) {
 
-        public static AsrConfigView from(KbAsrConfig c) {
+        public static AsrConfigView from(KnowledgeBaseAsrConfig c) {
             return c == null ? null : new AsrConfigView(c.isEnabled(), c.getModelId(), c.getLanguage());
         }
 
-        public KbAsrConfig toDomain() {
-            KbAsrConfig c = new KbAsrConfig();
+        public KnowledgeBaseAsrConfig toDomain() {
+            KnowledgeBaseAsrConfig c = new KnowledgeBaseAsrConfig();
             c.setEnabled(enabled);
             c.setModelId(modelId);
             c.setLanguage(language);
@@ -142,14 +142,14 @@ public final class KnowledgeBaseConfigViews {
     public record IndexingStrategyView(boolean vectorEnabled, boolean keywordEnabled,
                                        boolean wikiEnabled, boolean graphEnabled) {
 
-        public static IndexingStrategyView from(KbIndexingStrategy s) {
+        public static IndexingStrategyView from(KnowledgeBaseIndexingStrategy s) {
             return s == null ? null
                     : new IndexingStrategyView(s.isVectorEnabled(), s.isKeywordEnabled(),
                             s.isWikiEnabled(), s.isGraphEnabled());
         }
 
-        public KbIndexingStrategy toDomain() {
-            KbIndexingStrategy s = new KbIndexingStrategy();
+        public KnowledgeBaseIndexingStrategy toDomain() {
+            KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
             s.setVectorEnabled(vectorEnabled);
             s.setKeywordEnabled(keywordEnabled);
             s.setWikiEnabled(wikiEnabled);

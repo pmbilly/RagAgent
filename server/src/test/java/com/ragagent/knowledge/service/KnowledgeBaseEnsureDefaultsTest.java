@@ -6,7 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
@@ -30,8 +30,8 @@ class KnowledgeBaseEnsureDefaultsTest {
         return kb;
     }
 
-    private static KbIndexingStrategy allFalse() {
-        return new KbIndexingStrategy();
+    private static KnowledgeBaseIndexingStrategy allFalse() {
+        return new KnowledgeBaseIndexingStrategy();
     }
 
     @Test
@@ -52,7 +52,7 @@ class KnowledgeBaseEnsureDefaultsTest {
     @DisplayName("非零策略原样保留（只要有一个标志为真就不回默认）")
     void nonZeroStrategyUntouched() {
         KnowledgeBase kb = kb("document");
-        KbIndexingStrategy s = allFalse();
+        KnowledgeBaseIndexingStrategy s = allFalse();
         s.setWikiEnabled(true);
         kb.setIndexingStrategy(s);
 
@@ -67,7 +67,7 @@ class KnowledgeBaseEnsureDefaultsTest {
     @DisplayName("legacy extract_config.enabled ⇒ graph_enabled 同步")
     void extractConfigSyncsGraphFlag() throws Exception {
         KnowledgeBase kb = kb("document");
-        KbIndexingStrategy s = allFalse();
+        KnowledgeBaseIndexingStrategy s = allFalse();
         s.setWikiEnabled(true); // 避免零值分支，专测同步
         kb.setIndexingStrategy(s);
         kb.setExtractConfig(MAPPER.readTree("{\"enabled\": true}"));

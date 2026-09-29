@@ -1,7 +1,7 @@
 package com.ragagent.knowledge.domain;
 
 
-public class KbStorageProviderConfig {
+public class KnowledgeBaseStorageProviderConfig {
 
     private String provider = "";
 

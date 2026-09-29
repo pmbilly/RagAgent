@@ -68,7 +68,7 @@ public final class Chunker {
         }
         cfg = ensureDefaults(cfg);
         ChainResolution res = resolveChainWithProfile(text, cfg);
-        int totalChars = Runes.len(text);
+        int totalChars = CodePoints.len(text);
 
         List<ParsedChunk> lastOut = null;
         for (int i = 0; i < res.chain().size(); i++) {
@@ -101,7 +101,7 @@ public final class Chunker {
         cfg = ensureDefaults(cfg);
         ChainResolution res = resolveChainWithProfile(text, cfg);
         diag = new Diagnostics(diag.selectedTier(), res.chain(), diag.rejected(), res.profile());
-        int totalChars = Runes.len(text);
+        int totalChars = CodePoints.len(text);
 
         List<ParsedChunk> lastOut = null;
         DocumentProfiler.StrategyTier lastTier = DocumentProfiler.StrategyTier.LEGACY;

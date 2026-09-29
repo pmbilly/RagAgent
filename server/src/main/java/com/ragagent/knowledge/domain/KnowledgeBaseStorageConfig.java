@@ -3,7 +3,7 @@ package com.ragagent.knowledge.domain;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class KbStorageConfig {
+public class KnowledgeBaseStorageConfig {
 
     private String secretId = "";
     private String secretKey = "";

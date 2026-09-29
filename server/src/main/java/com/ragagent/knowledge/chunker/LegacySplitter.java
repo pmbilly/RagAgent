@@ -84,7 +84,7 @@ public final class LegacySplitter {
         }
         List<RuneSpan> out = new ArrayList<>(charSpans.size());
         for (CharSpan s : charSpans) {
-            out.add(new RuneSpan(Runes.runeIndexAtChar(text, s.start()), Runes.runeIndexAtChar(text, s.end())));
+            out.add(new RuneSpan(CodePoints.runeIndexAtChar(text, s.start()), CodePoints.runeIndexAtChar(text, s.end())));
         }
         return out;
     }
@@ -97,7 +97,7 @@ public final class LegacySplitter {
         if (text.isEmpty() || separators.isEmpty()) {
             return List.of(text);
         }
-        if (chunkSize > 0 && Runes.len(text) <= chunkSize) {
+        if (chunkSize > 0 && CodePoints.len(text) <= chunkSize) {
             return List.of(text);
         }
 
@@ -138,7 +138,7 @@ public final class LegacySplitter {
             List<String> out = new ArrayList<>();
             List<String> remaining = separators.subList(i + 1, separators.size());
             for (String p : pieces) {
-                if (chunkSize > 0 && Runes.len(p) > chunkSize && !remaining.isEmpty()) {
+                if (chunkSize > 0 && CodePoints.len(p) > chunkSize && !remaining.isEmpty()) {
                     out.addAll(splitBySeparators(p, remaining, chunkSize));
                 } else {
                     out.add(p);
@@ -163,19 +163,19 @@ public final class LegacySplitter {
                 List<String> parts = splitBySeparators(pre, separators, chunkSize);
                 int runeOffset = runePos;
                 for (String part : parts) {
-                    int partRuneLen = Runes.len(part);
+                    int partRuneLen = CodePoints.len(part);
                     units.add(new SplitUnit(part, runeOffset, runeOffset + partRuneLen));
                     runeOffset += partRuneLen;
                 }
-                runePos += Runes.len(pre);
+                runePos += CodePoints.len(pre);
             }
 
             String protText = text.substring(p.start(), p.end());
-            int protRuneLen = Runes.len(protText);
+            int protRuneLen = CodePoints.len(protText);
 
             // 保护内容过大时强制切分，防止下游（embedding API）拿到超大 chunk
             if (protRuneLen > maxProtectedSize) {
-                int[] runes = Runes.of(protText);
+                int[] runes = CodePoints.of(protText);
                 int offset = 0;
                 while (offset < runes.length) {
                     int chunkEnd = offset + maxProtectedSize;
@@ -190,7 +190,7 @@ public final class LegacySplitter {
                             }
                         }
                     }
-                    units.add(new SplitUnit(Runes.str(runes, offset, chunkEnd),
+                    units.add(new SplitUnit(CodePoints.str(runes, offset, chunkEnd),
                             runePos + offset, runePos + chunkEnd));
                     offset = chunkEnd;
                 }
@@ -206,7 +206,7 @@ public final class LegacySplitter {
             List<String> parts = splitBySeparators(remaining, separators, chunkSize);
             int runeOffset = runePos;
             for (String part : parts) {
-                int partRuneLen = Runes.len(part);
+                int partRuneLen = CodePoints.len(part);
                 units.add(new SplitUnit(part, runeOffset, runeOffset + partRuneLen));
                 runeOffset += partRuneLen;
             }
@@ -255,7 +255,7 @@ public final class LegacySplitter {
         int curLen = 0;
 
         for (SplitUnit u : units) {
-            int uLen = Runes.len(u.text);
+            int uLen = CodePoints.len(u.text);
 
             // 单个单元超过绝对上限 → 进一步强制切分
             if (uLen > absoluteMaxSize) {
@@ -268,7 +268,7 @@ public final class LegacySplitter {
                 // 超大单元也更新表头状态
                 ht.update(u.text);
 
-                int[] runes = Runes.of(u.text);
+                int[] runes = CodePoints.of(u.text);
                 int offset = 0;
                 while (offset < runes.length) {
                     int chunkEnd = offset + absoluteMaxSize;
@@ -283,7 +283,7 @@ public final class LegacySplitter {
                         }
                     }
                     ParsedChunk c = new ParsedChunk();
-                    c.setContent(Runes.str(runes, offset, chunkEnd));
+                    c.setContent(CodePoints.str(runes, offset, chunkEnd));
                     c.setSeq(chunks.size());
                     c.setStart(u.start + offset);
                     c.setEnd(u.start + chunkEnd);
@@ -302,7 +302,7 @@ public final class LegacySplitter {
                 curLen = 0;
             }
             String headers = ht.getHeaders();
-            int headersLen = Runes.len(headers);
+            int headersLen = CodePoints.len(headers);
             if (headersLen > chunkSize) {
                 headers = "";
                 headersLen = 0;
@@ -320,7 +320,7 @@ public final class LegacySplitter {
                 // 空间不足时继续收缩 overlap，以容纳表头 + 下一单元
                 if (!headers.isEmpty() && headersLen + uLen <= chunkSize) {
                     while (!current.isEmpty() && curLen + uLen + headersLen > chunkSize) {
-                        curLen -= Runes.len(current.get(0).text);
+                        curLen -= CodePoints.len(current.get(0).text);
                         current.remove(0);
                     }
 
@@ -410,7 +410,7 @@ public final class LegacySplitter {
         String windowText = unitsText(window);
         // originalWindowStart 之前是回看点；end-exclusive 语义下 boundaryEnd >= originalWindowStart
         // 等价于分隔符最后一个 rune 位于 -1 或更后
-        int originalWindowStart = Runes.len(windowText) - maxOverlap;
+        int originalWindowStart = CodePoints.len(windowText) - maxOverlap;
         if (originalWindowStart < 0) {
             originalWindowStart = 0;
         }
@@ -422,7 +422,7 @@ public final class LegacySplitter {
         List<SplitUnit> overlap = trimUnitsPrefix(window, br.end());
         int overlapLen = 0;
         for (SplitUnit u : overlap) {
-            overlapLen += Runes.len(u.text);
+            overlapLen += CodePoints.len(u.text);
         }
         if (overlapLen <= 0 || overlapLen > maxOverlap || unitsText(overlap).strip().isEmpty()) {
             return new OverlapResult(List.of(), 0);
@@ -442,7 +442,7 @@ public final class LegacySplitter {
         List<SplitUnit> reversed = new ArrayList<>(current.size());
         for (int i = current.size() - 1; i >= 0 && remaining > 0; i--) {
             SplitUnit u = current.get(i);
-            int uLen = Runes.len(u.text);
+            int uLen = CodePoints.len(u.text);
             if (uLen == 0) {
                 continue;
             }
@@ -457,9 +457,9 @@ public final class LegacySplitter {
                 continue;
             }
 
-            int[] runes = Runes.of(u.text);
+            int[] runes = CodePoints.of(u.text);
             int start = uLen - remaining;
-            reversed.add(new SplitUnit(Runes.str(runes, start, uLen), u.start + start, u.end));
+            reversed.add(new SplitUnit(CodePoints.str(runes, start, uLen), u.start + start, u.end));
             remaining = 0;
         }
 
@@ -485,7 +485,7 @@ public final class LegacySplitter {
      * 先过滤再比较，避免更早但不合格的回看分隔符遮蔽更晚的合格边界。
      */
     static BoundaryResult findSemanticOverlapBoundaryEndingAtOrAfter(String text, int minEnd) {
-        int[] runes = Runes.of(text);
+        int[] runes = CodePoints.of(text);
         if (runes.length == 0) {
             return new BoundaryResult(0, false);
         }
@@ -530,7 +530,7 @@ public final class LegacySplitter {
             }
 
             boolean hasMeaningfulTail(int end) {
-                return end >= 0 && end < runes.length && !Runes.str(runes, end, runes.length).strip().isEmpty();
+                return end >= 0 && end < runes.length && !CodePoints.str(runes, end, runes.length).strip().isEmpty();
             }
         }
         Consider consider = new Consider();
@@ -596,14 +596,14 @@ public final class LegacySplitter {
         int remaining = prefixLen;
         List<SplitUnit> out = new ArrayList<>(units.size());
         for (SplitUnit u : units) {
-            int uLen = Runes.len(u.text);
+            int uLen = CodePoints.len(u.text);
             if (remaining >= uLen) {
                 remaining -= uLen;
                 continue;
             }
             if (remaining > 0) {
-                int[] runes = Runes.of(u.text);
-                u = new SplitUnit(Runes.str(runes, remaining, uLen), u.start + remaining, u.end);
+                int[] runes = CodePoints.of(u.text);
+                u = new SplitUnit(CodePoints.str(runes, remaining, uLen), u.start + remaining, u.end);
                 remaining = 0;
             }
             out.add(u);

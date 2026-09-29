@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * description_language/custom_instructions 带 omitempty。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class KbVlmConfig {
+public class KnowledgeBaseVlmConfig {
 
     private boolean enabled;
     private String modelId = "";

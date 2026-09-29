@@ -45,6 +45,7 @@ import com.ragagent.retrieval.engine.EffectiveEngines;
 import com.ragagent.retrieval.engine.RetrieveEngineFactories;
 import com.ragagent.common.web.JsonMappers;
 import com.ragagent.knowledge.security.ChunkAccessGuard;
+import com.ragagent.searchutil.ChunkSearchUtil;
 
 /**
  * chunk 生成问题面：生成问题的 upsert/删除/重生（LLM 生成 + 邻块上下文拼装 + metadata 落库）。

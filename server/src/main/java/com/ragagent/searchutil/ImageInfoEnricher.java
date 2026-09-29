@@ -222,7 +222,7 @@ public final class ImageInfoEnricher {
         record Match(String whole, String url) {
         }
         List<Match> matches = new ArrayList<>();
-        var md = ChunkSearchUtilBridge.MARKDOWN_IMAGE_REGEX.matcher(content);
+        var md = ChunkSearchUtil.MARKDOWN_IMAGE_REGEX.matcher(content);
         while (md.find()) {
             matches.add(new Match(md.group(), md.group(2)));
         }
@@ -287,11 +287,11 @@ public final class ImageInfoEnricher {
         List<Injection> injections = new ArrayList<>();
 
         // Markdown：分组 2 是 URL；HTML：src 分组且 trim。注入点都在整个匹配的末尾。
-        var md = ChunkSearchUtilBridge.MARKDOWN_IMAGE_REGEX.matcher(content);
+        var md = ChunkSearchUtil.MARKDOWN_IMAGE_REGEX.matcher(content);
         while (md.find()) {
             appendInjection(injections, infoMap, content, md.end(), md.start(2), md.end(2), false);
         }
-        var html = ChunkSearchUtilBridge.HTML_IMAGE_SRC_REGEX.matcher(content);
+        var html = ChunkSearchUtil.HTML_IMAGE_SRC_REGEX.matcher(content);
         while (html.find()) {
             appendInjection(injections, infoMap, content, html.end(),
                     html.start(HTML_IMAGE_SRC_URL_GROUP), html.end(HTML_IMAGE_SRC_URL_GROUP), true);
@@ -414,7 +414,7 @@ public final class ImageInfoEnricher {
         record Match(String whole, String url) {
         }
         List<Match> matches = new ArrayList<>();
-        var md = ChunkSearchUtilBridge.MARKDOWN_IMAGE_REGEX.matcher(content);
+        var md = ChunkSearchUtil.MARKDOWN_IMAGE_REGEX.matcher(content);
         while (md.find()) {
             matches.add(new Match(md.group(), md.group(2)));
         }
@@ -462,7 +462,7 @@ public final class ImageInfoEnricher {
         record Match(String whole, String url) {
         }
         List<Match> matches = new ArrayList<>();
-        var md = ChunkSearchUtilBridge.MARKDOWN_IMAGE_REGEX.matcher(content);
+        var md = ChunkSearchUtil.MARKDOWN_IMAGE_REGEX.matcher(content);
         while (md.find()) {
             matches.add(new Match(md.group(), md.group(2)));
         }

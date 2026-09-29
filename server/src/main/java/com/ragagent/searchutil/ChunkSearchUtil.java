@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.searchutil;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -37,7 +37,7 @@ public final class ChunkSearchUtil {
 
     public static final int HTML_IMAGE_SRC_URL_GROUP = 2;
 
-    private static final int MIN_OVERLAP_RUNES = 12;
+    private static final int MIN_OVERLAP_CODE_POINTS = 12;
     private static final int DEFAULT_SEARCH_SPAN = 400;
 
     private static final int MAX_GENERATED_QUESTION_SOURCE_ID_LENGTH = 64;
@@ -129,15 +129,15 @@ public final class ChunkSearchUtil {
         if (containsChunkContent(next, acc)) {
             return next;
         }
-        int[] accRunes = toRunes(acc);
-        int[] nextRunes = toRunes(next);
-        int maxOverlap = Math.min(accRunes.length, nextRunes.length);
+        int[] accCodePoints = toCodePoints(acc);
+        int[] nextCodePoints = toCodePoints(next);
+        int maxOverlap = Math.min(accCodePoints.length, nextCodePoints.length);
         if (maxOverlap > DEFAULT_SEARCH_SPAN) {
             maxOverlap = DEFAULT_SEARCH_SPAN;
         }
-        for (int overlap = maxOverlap; overlap >= MIN_OVERLAP_RUNES; overlap--) {
-            if (runeSlicesEqual(accRunes, accRunes.length - overlap, nextRunes, 0, overlap)) {
-                return acc + fromRunes(java.util.Arrays.copyOfRange(nextRunes, overlap, nextRunes.length));
+        for (int overlap = maxOverlap; overlap >= MIN_OVERLAP_CODE_POINTS; overlap--) {
+            if (codePointSlicesEqual(accCodePoints, accCodePoints.length - overlap, nextCodePoints, 0, overlap)) {
+                return acc + fromCodePoints(java.util.Arrays.copyOfRange(nextCodePoints, overlap, nextCodePoints.length));
             }
         }
         return acc + separator + next;
@@ -154,7 +154,7 @@ public final class ChunkSearchUtil {
         if (container.equals(contained)) {
             return true;
         }
-        return runeCount(contained) >= MIN_OVERLAP_RUNES && container.contains(contained);
+        return codePointCount(contained) >= MIN_OVERLAP_CODE_POINTS && container.contains(contained);
     }
 
     /**
@@ -187,7 +187,7 @@ public final class ChunkSearchUtil {
      * 缺 U+0085/U+00A0，显式复刻（与 ChunkRepository.trimSpace 同一份表）。
      * 包内可见：ChunkService 的内容编辑 trim 与 HTML src 清洗共用。
      */
-    static String trimSpace(String s) {
+    public static String trimSpace(String s) {
         if (s == null) {
             return "";
         }
@@ -213,7 +213,7 @@ public final class ChunkSearchUtil {
         }
     }
 
-    private static boolean runeSlicesEqual(int[] left, int leftFrom, int[] right, int rightFrom, int len) {
+    private static boolean codePointSlicesEqual(int[] left, int leftFrom, int[] right, int rightFrom, int len) {
         for (int i = 0; i < len; i++) {
             if (left[leftFrom + i] != right[rightFrom + i]) {
                 return false;
@@ -222,19 +222,19 @@ public final class ChunkSearchUtil {
         return true;
     }
 
-    static int[] toRunes(String s) {
+    public static int[] toCodePoints(String s) {
         return s == null ? new int[0] : s.codePoints().toArray();
     }
 
-    static String fromRunes(int[] runes) {
-        StringBuilder b = new StringBuilder(runes.length);
-        for (int r : runes) {
+    public static String fromCodePoints(int[] codePoints) {
+        StringBuilder b = new StringBuilder(codePoints.length);
+        for (int r : codePoints) {
             b.appendCodePoint(r);
         }
         return b.toString();
     }
 
-    static int runeCount(String s) {
+    static int codePointCount(String s) {
         if (s == null || s.isEmpty()) {
             return 0;
         }

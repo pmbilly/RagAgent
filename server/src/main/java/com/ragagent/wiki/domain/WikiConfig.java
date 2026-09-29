@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 知识库的 wiki 专属配置（对照 Go types.WikiConfig，internal/types/wiki_page.go L524-630）。
  *
  * <p>适用于"启用了 wiki 功能"的文档型知识库。wiki 功能<b>是否开启</b>由
- * {@code IndexingStrategy.WikiEnabled} 控制（见 KbIndexingStrategy）；本结构只承载
+ * {@code IndexingStrategy.WikiEnabled} 控制（见 KnowledgeBaseIndexingStrategy）；本结构只承载
  * wiki 专属的调节项。</p>
  *
  * <p>GORM 隐式行为清单（约定 §3）：Go 侧实现了 {@code driver.Valuer}/{@code sql.Scanner}

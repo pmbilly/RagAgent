@@ -27,7 +27,7 @@ public final class Tokens {
         if (s == null || s.isEmpty()) {
             return 0;
         }
-        return approxTokenCountFromRuneLen(Runes.len(s), lang);
+        return approxTokenCountFromRuneLen(CodePoints.len(s), lang);
     }
 
     public static int approxTokenCountFromRuneLen(int runeLen, String lang) {
@@ -51,7 +51,7 @@ public final class Tokens {
             return LANG_MIXED;
         }
         int cjk = 0, latin = 0, umlaut = 0;
-        for (int cp : Runes.of(s)) {
+        for (int cp : CodePoints.of(s)) {
             var script = Character.UnicodeScript.of(cp);
             if (script == Character.UnicodeScript.HAN
                     || script == Character.UnicodeScript.HANGUL

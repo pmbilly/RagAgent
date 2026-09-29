@@ -3,7 +3,7 @@ package com.ragagent.knowledge.dto;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.knowledge.domain.KbVlmConfig;
+import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
@@ -64,8 +64,8 @@ public final class KnowledgeBaseDtos {
                 String apiKey,
                 String interfaceType) {
 
-            public KbVlmConfig toDomain() {
-                KbVlmConfig c = new KbVlmConfig();
+            public KnowledgeBaseVlmConfig toDomain() {
+                KnowledgeBaseVlmConfig c = new KnowledgeBaseVlmConfig();
                 c.setEnabled(Boolean.TRUE.equals(enabled));
                 if (modelId != null) c.setModelId(modelId);
                 c.setDescriptionLanguage(descriptionLanguage);

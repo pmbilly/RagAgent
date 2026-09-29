@@ -46,7 +46,7 @@ class ChunkerTest {
     @Test
     void splitTextChineseStartEndAreRuneOffsets() {
         String text = "你好世界这是一个测试文本用于检验分割位置";
-        int runeCount = Runes.len(text);
+        int runeCount = CodePoints.len(text);
         int byteCount = text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
         assertNotEquals(runeCount, byteCount, "test requires multi-byte characters");
 
@@ -62,7 +62,7 @@ class ChunkerTest {
         String text = "Hello你好World世界Test测试";
         List<ParsedChunk> chunks = LegacySplitter.splitText(text, cfg(100, 0, List.of("\n")));
         assertEquals(1, chunks.size());
-        assertEquals(Runes.len(text), chunks.get(0).getEnd() - chunks.get(0).getStart());
+        assertEquals(CodePoints.len(text), chunks.get(0).getEnd() - chunks.get(0).getStart());
     }
 
     /** 对照 Go TestSplitText_BasicASCII（splitter_test.go:10）：拼接还原原文。 */
@@ -88,16 +88,16 @@ class ChunkerTest {
         List<ParsedChunk> chunks = LegacySplitter.splitText(text, cfg(30, 5, List.of("\n\n", "\n", "。")));
         assertTrue(chunks.size() >= 2, "expected multiple chunks, got " + chunks.size());
 
-        int[] textRunes = Runes.of(text);
+        int[] textRunes = CodePoints.of(text);
         for (int i = 0; i < chunks.size(); i++) {
             ParsedChunk c = chunks.get(i);
-            int contentRuneLen = Runes.len(c.getContent());
+            int contentRuneLen = CodePoints.len(c.getContent());
             int spanLen = c.getEnd() - c.getStart();
             assertEquals(contentRuneLen, spanLen,
                     "chunk[" + i + "]: End-Start must equal rune len of content");
             assertTrue(c.getStart() >= 0, "chunk[" + i + "]: negative Start");
             assertTrue(c.getEnd() <= textRunes.length, "chunk[" + i + "]: End exceeds total runes");
-            assertEquals(Runes.str(textRunes, c.getStart(), c.getEnd()), c.getContent(),
+            assertEquals(CodePoints.str(textRunes, c.getStart(), c.getEnd()), c.getContent(),
                     "chunk[" + i + "]: rune slice must match content");
         }
     }
@@ -124,7 +124,7 @@ class ChunkerTest {
         assertTrue(chunks.size() >= 2, "expected multiple chunks, got " + chunks.size());
         int maxAllowed = cfg.getChunkSize() * 3 / 2;
         for (int i = 0; i < chunks.size(); i++) {
-            int l = Runes.len(chunks.get(i).getContent());
+            int l = CodePoints.len(chunks.get(i).getContent());
             assertTrue(l <= maxAllowed, "chunk " + i + " is " + l + " runes, > 1.5x ChunkSize");
         }
     }
@@ -170,8 +170,8 @@ class ChunkerTest {
         for (Case tc : cases) {
             LegacySplitter.BoundaryResult br = LegacySplitter.findSemanticOverlapBoundary(tc.text());
             assertTrue(br.ok(), tc.name() + ": expected semantic overlap boundary");
-            int[] runes = Runes.of(tc.text());
-            assertEquals(tc.want(), Runes.str(runes, br.end(), runes.length),
+            int[] runes = CodePoints.of(tc.text());
+            assertEquals(tc.want(), CodePoints.str(runes, br.end(), runes.length),
                     tc.name() + ": overlap tail");
         }
     }
@@ -214,8 +214,8 @@ class ChunkerTest {
             LegacySplitter.BoundaryResult br =
                     LegacySplitter.findSemanticOverlapBoundaryEndingAtOrAfter(tc.text(), tc.minEnd());
             assertTrue(br.ok(), tc.name() + ": expected eligible boundary");
-            int[] runes = Runes.of(tc.text());
-            assertEquals(tc.want(), Runes.str(runes, br.end(), runes.length), tc.name());
+            int[] runes = CodePoints.of(tc.text());
+            assertEquals(tc.want(), CodePoints.str(runes, br.end(), runes.length), tc.name());
         }
     }
 
@@ -223,11 +223,11 @@ class ChunkerTest {
     @Test
     void computeOverlapFindsBoundaryInsideLargeUnit() {
         String text = "abcdefgh。尾巴内容";
-        LegacySplitter.SplitUnit unit = new LegacySplitter.SplitUnit(text, 100, 100 + Runes.len(text));
+        LegacySplitter.SplitUnit unit = new LegacySplitter.SplitUnit(text, 100, 100 + CodePoints.len(text));
 
         LegacySplitter.OverlapResult ov = LegacySplitter.computeOverlap(List.of(unit), 8, 32, 8);
         assertEquals("尾巴内容", LegacySplitterUnitsText(ov.units()));
-        assertEquals(Runes.len("尾巴内容"), ov.len());
+        assertEquals(CodePoints.len("尾巴内容"), ov.len());
         assertEquals(1, ov.units().size());
         assertEquals(109, ov.units().get(0).start);
         assertEquals(113, ov.units().get(0).end);
@@ -245,7 +245,7 @@ class ChunkerTest {
     @Test
     void computeOverlapNoBoundaryMeansNoOverlap() {
         String text = "abcdefgh尾巴内容";
-        LegacySplitter.SplitUnit unit = new LegacySplitter.SplitUnit(text, 0, Runes.len(text));
+        LegacySplitter.SplitUnit unit = new LegacySplitter.SplitUnit(text, 0, CodePoints.len(text));
         LegacySplitter.OverlapResult ov = LegacySplitter.computeOverlap(List.of(unit), 8, 32, 8);
         assertEquals(0, ov.units().size());
         assertEquals(0, ov.len());
@@ -255,7 +255,7 @@ class ChunkerTest {
     @Test
     void computeOverlapRespectsNextChunkCapacity() {
         String text = "abcdefgh。尾巴";
-        LegacySplitter.SplitUnit unit = new LegacySplitter.SplitUnit(text, 0, Runes.len(text));
+        LegacySplitter.SplitUnit unit = new LegacySplitter.SplitUnit(text, 0, CodePoints.len(text));
         LegacySplitter.OverlapResult ov = LegacySplitter.computeOverlap(List.of(unit), 10, 8, 5);
         assertEquals("尾巴", LegacySplitterUnitsText(ov.units()));
         assertTrue(ov.len() + 5 <= 8, "overlap plus next content exceeds chunk size");
@@ -273,10 +273,10 @@ class ChunkerTest {
                 new Case("separator crossing original window start is eligible", "abc. WXY", "WXY"));
         for (Case tc : cases) {
             LegacySplitter.SplitUnit unit =
-                    new LegacySplitter.SplitUnit(tc.text(), 0, Runes.len(tc.text()));
+                    new LegacySplitter.SplitUnit(tc.text(), 0, CodePoints.len(tc.text()));
             LegacySplitter.OverlapResult ov = LegacySplitter.computeOverlap(List.of(unit), 4, 20, 4);
             assertEquals(tc.want(), LegacySplitterUnitsText(ov.units()), tc.name());
-            assertEquals(Runes.len(tc.want()), ov.len(), tc.name() + ": overlapLen");
+            assertEquals(CodePoints.len(tc.want()), ov.len(), tc.name() + ": overlapLen");
             assertTrue(ov.len() <= 4, tc.name() + ": overlap exceeds configured limit");
         }
     }
@@ -356,19 +356,19 @@ class ChunkerTest {
                 + "这里还有更多的普通段落。";
 
         List<ParsedChunk> chunks = LegacySplitter.splitText(text, cfg(80, 5, List.of("\n\n", "\n")));
-        int[] textRunes = Runes.of(text);
+        int[] textRunes = CodePoints.of(text);
         for (int i = 0; i < chunks.size(); i++) {
             ParsedChunk c = chunks.get(i);
             assertTrue(c.getStart() >= 0, "chunk[" + i + "]: Start < 0");
             assertTrue(c.getEnd() <= textRunes.length, "chunk[" + i + "]: End exceeds total runes");
             assertTrue(c.getEnd() >= c.getStart(), "chunk[" + i + "]: End < Start");
             // text[Start:End] 必须等于 Content 去掉前置表头后的部分
-            int contentRuneLen = Runes.len(c.getContent());
+            int contentRuneLen = CodePoints.len(c.getContent());
             int headerLen = contentRuneLen - (c.getEnd() - c.getStart());
             assertTrue(headerLen >= 0, "chunk[" + i + "]: content rune len < span len");
             if (c.getEnd() <= textRunes.length) {
-                String originalSlice = Runes.str(textRunes, c.getStart(), c.getEnd());
-                String contentSuffix = Runes.str(Runes.of(c.getContent()), headerLen, contentRuneLen);
+                String originalSlice = CodePoints.str(textRunes, c.getStart(), c.getEnd());
+                String contentSuffix = CodePoints.str(CodePoints.of(c.getContent()), headerLen, contentRuneLen);
                 assertEquals(originalSlice, contentSuffix, "chunk[" + i + "]: text slice != content suffix");
             }
         }
@@ -438,17 +438,17 @@ class ChunkerTest {
         cfg.setStrategy(Chunker.STRATEGY_AUTO);
 
         for (String doc : List.of(headingTier, heuristicTier, recursiveTier)) {
-            int[] runes = Runes.of(doc);
+            int[] runes = CodePoints.of(doc);
             List<ParsedChunk> chunks = Chunker.split(doc, new SplitterConfig(cfg));
             assertFalse(chunks.isEmpty(), "expected chunks");
             for (int i = 0; i < chunks.size(); i++) {
                 ParsedChunk c = chunks.get(i);
-                int contentRuneLen = Runes.len(c.getContent());
+                int contentRuneLen = CodePoints.len(c.getContent());
                 int spanLen = c.getEnd() - c.getStart();
                 assertEquals(contentRuneLen, spanLen, "chunk " + i + ": End-Start != content runes");
                 assertTrue(c.getStart() >= 0 && c.getEnd() <= runes.length,
                         "chunk " + i + ": position out of range");
-                assertEquals(Runes.str(runes, c.getStart(), c.getEnd()), c.getContent(),
+                assertEquals(CodePoints.str(runes, c.getStart(), c.getEnd()), c.getContent(),
                         "chunk " + i + ": runes[Start:End] differs from Content");
             }
         }
@@ -554,7 +554,7 @@ class ChunkerTest {
     }
 
     private static ParsedChunk chunkOf(String content) {
-        return new ParsedChunk(content, "", 0, 0, Runes.len(content));
+        return new ParsedChunk(content, "", 0, 0, CodePoints.len(content));
     }
 
     // ------------------------------------------------------------------

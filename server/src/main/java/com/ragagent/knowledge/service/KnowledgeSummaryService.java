@@ -17,7 +17,7 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.agent.AgentPromptPlaceholders;
 import com.ragagent.config.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
@@ -665,9 +665,9 @@ public class KnowledgeSummaryService {
      * updateImageInfo/regenerate 路径仍被判定为需要 embedding（契约样例 1007 实录）。</p>
      */
     private static boolean kbNeedsEmbedding(KnowledgeBase kb) {
-        KbIndexingStrategy strategy = kb.getIndexingStrategy();
+        KnowledgeBaseIndexingStrategy strategy = kb.getIndexingStrategy();
         if (strategy == null || strategy.isZero()) {
-            strategy = KbIndexingStrategy.defaultStrategy();
+            strategy = KnowledgeBaseIndexingStrategy.defaultStrategy();
         }
         return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
     }

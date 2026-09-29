@@ -90,8 +90,8 @@ public final class DocumentProfiler {
             return p;
         }
 
-        p.totalChars = Runes.len(text);
-        p.formFeedCount = Runes.count(text, "\f");
+        p.totalChars = CodePoints.len(text);
+        p.formFeedCount = CodePoints.count(text, "\f");
 
         String[] lines = text.split("\n", -1);
         p.totalLines = lines.length;
@@ -110,11 +110,11 @@ public final class DocumentProfiler {
                 continue;
             }
             if (inFence) {
-                codeChars += Runes.len(line);
+                codeChars += CodePoints.len(line);
                 continue;
             }
 
-            lengths.add((double) Runes.len(line));
+            lengths.add((double) CodePoints.len(line));
 
             if (matchHeading(line, p.mdHeadingCounts)) {
                 p.mdHeadingTotal++;
@@ -165,7 +165,7 @@ public final class DocumentProfiler {
             p.codeRatio = (double) codeChars / p.totalChars;
         }
 
-        p.blankParagraphBreaks = Runes.count(text, "\n\n\n");
+        p.blankParagraphBreaks = CodePoints.count(text, "\n\n\n");
 
         // 语言检测取样，避免大输入 O(N) 扫描
         String sample = text;

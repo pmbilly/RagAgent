@@ -102,8 +102,8 @@ class WikiContractTest {
         kb.setType("document");
         kb.setTenantId(10002L);
         kb.setCreatorId("11111111-2222-3333-4444-555555555501");
-        com.ragagent.knowledge.domain.KbIndexingStrategy idx =
-                com.ragagent.knowledge.domain.KbIndexingStrategy.defaultStrategy();
+        com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy idx =
+                com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy.defaultStrategy();
         idx.setWikiEnabled(true);
         idx.setGraphEnabled(false);
         kb.setIndexingStrategy(idx);

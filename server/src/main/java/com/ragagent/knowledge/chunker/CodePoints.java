@@ -5,9 +5,9 @@ package com.ragagent.knowledge.chunker;
  * Java 的 {@code char} 是 UTF-16 code unit，增补平面字符（如大部分 CJK 扩展、emoji）
  * 长度一律用 {@link #len(String)}（codePointCount），杜绝 char/char 长度错位。</p>
  */
-final class Runes {
+final class CodePoints {
 
-    private Runes() {
+    private CodePoints() {
     }
 
     static int[] of(String s) {

@@ -26,7 +26,7 @@ import org.springframework.beans.factory.ObjectProvider;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
@@ -89,7 +89,7 @@ class WikiIngestBatchHandlerTest {
         KnowledgeBase kb = new KnowledgeBase();
         kb.setId("kb-1");
         kb.setTenantId(1L);
-        KbIndexingStrategy s = new KbIndexingStrategy();
+        KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
         s.setWikiEnabled(true);
         kb.setIndexingStrategy(s);
         return kb;
@@ -230,7 +230,7 @@ class WikiIngestBatchHandlerTest {
             when(pendingRepo.peekBatch(eq(WikiIngestConstants.FINALIZE_TASK_TYPE), anyString(),
                     eq("kb-1"), anyInt())).thenReturn(List.of(row));
             KnowledgeBase kb = wikiKb();
-            KbIndexingStrategy s = new KbIndexingStrategy();
+            KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
             s.setWikiEnabled(false);
             kb.setIndexingStrategy(s);
             stubKb(kb);
@@ -328,7 +328,7 @@ class WikiIngestBatchHandlerTest {
         @DisplayName("KB 未启用 wiki → 抛错重试")
         void kbNotWikiEnabled() {
             KnowledgeBase kb = wikiKb();
-            KbIndexingStrategy s = new KbIndexingStrategy();
+            KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
             s.setWikiEnabled(false);
             kb.setIndexingStrategy(s);
             when(kbMapper.selectOne(any(Wrapper.class))).thenReturn(kb);

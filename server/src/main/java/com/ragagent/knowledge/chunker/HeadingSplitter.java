@@ -49,7 +49,7 @@ public final class HeadingSplitter {
             return LegacySplitter.splitText(text, cfg);
         }
 
-        int[] runes = Runes.of(text);
+        int[] runes = CodePoints.of(text);
         HeadingHierarchy hierarchy = new HeadingHierarchy();
 
         // 预走每个标题（不只主层级），让层级反映每节开始的完整嵌套上下文
@@ -67,15 +67,15 @@ public final class HeadingSplitter {
             }
             String breadcrumb = hierarchy.breadcrumbWithHashes();
             HeadingHierarchy sectionStart = hierarchy.copy();
-            observeSubHeadings(Runes.str(runes, b.runeStart, endRune), primaryLevel, hierarchy);
+            observeSubHeadings(CodePoints.str(runes, b.runeStart, endRune), primaryLevel, hierarchy);
 
             int secLen = endRune - b.runeStart;
             if (secLen == 0) {
                 continue;
             }
 
-            String sectionContent = Runes.str(runes, b.runeStart, endRune);
-            int bcLen = Runes.len(breadcrumb);
+            String sectionContent = CodePoints.str(runes, b.runeStart, endRune);
+            int bcLen = CodePoints.len(breadcrumb);
             // 单 chunk 节：原样输出，面包屑走 ContextHeader（不占用 Content，保位置不变式）
             if (bcLen + 2 + secLen <= cfg.getChunkSize()) {
                 ParsedChunk c = new ParsedChunk(sectionContent, breadcrumb, seq, b.runeStart, endRune);
@@ -119,11 +119,11 @@ public final class HeadingSplitter {
 
         List<ParsedChunk> out = new ArrayList<>(in.size());
         ParsedChunk cur = in.get(0);
-        int curLen = Runes.len(cur.getContent());
+        int curLen = CodePoints.len(cur.getContent());
 
         for (int i = 1; i < in.size(); i++) {
             ParsedChunk next = in.get(i);
-            int nextLen = Runes.len(next.getContent());
+            int nextLen = CodePoints.len(next.getContent());
             String sharedHeader = commonHeadingPrefix(cur.getContextHeader(), next.getContextHeader());
             // 邻接 + 当前仍小 + 合并不超预算 → 合并
             if (!sharedHeader.isEmpty() && cur.getEnd() == next.getStart()
@@ -195,7 +195,7 @@ public final class HeadingSplitter {
             String trimmed = line.strip();
             if (trimmed.startsWith("```")) {
                 inFence = !inFence;
-                pos += Runes.len(line);
+                pos += CodePoints.len(line);
                 if (i < lines.length - 1) {
                     pos++; // 换行
                 }
@@ -214,7 +214,7 @@ public final class HeadingSplitter {
                     }
                 }
             }
-            pos += Runes.len(line);
+            pos += CodePoints.len(line);
             if (i < lines.length - 1) {
                 pos++; // strings.Split 去掉的 \n
             }
@@ -264,7 +264,7 @@ public final class HeadingSplitter {
             String trimmed = line.strip();
             if (trimmed.startsWith("```")) {
                 inFence = !inFence;
-                pos += Runes.len(line);
+                pos += CodePoints.len(line);
                 if (i < lines.length - 1) {
                     pos++;
                 }
@@ -277,7 +277,7 @@ public final class HeadingSplitter {
                     result.add(new SectionBreadcrumb(pos, h.breadcrumbWithHashes()));
                 }
             }
-            pos += Runes.len(line);
+            pos += CodePoints.len(line);
             if (i < lines.length - 1) {
                 pos++;
             }

@@ -253,8 +253,8 @@ public final class AgentResponses {
         m.put(field, sm);
     }
 
-    private static com.ragagent.knowledge.domain.KbIndexingStrategy zeroStrategy() {
-        return new com.ragagent.knowledge.domain.KbIndexingStrategy();
+    private static com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy zeroStrategy() {
+        return new com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy();
     }
 
     private static JsonNode parse(String raw) {

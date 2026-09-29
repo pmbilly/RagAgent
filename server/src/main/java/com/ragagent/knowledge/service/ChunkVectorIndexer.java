@@ -13,7 +13,7 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
+import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkRepository;
@@ -32,6 +32,7 @@ import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.common.web.JsonMappers;
 import com.ragagent.knowledge.client.EmbedderClient;
+import com.ragagent.searchutil.ChunkSearchUtil;
 
 /**
  * chunk 向量行的重建执行体（2026-09-22 走查批：把「路由在、执行体占位」的两处
@@ -294,9 +295,9 @@ public class ChunkVectorIndexer {
      * 向量分支，即全 false 策略经服务层读法被翻成 Default。</p>
      */
     private static boolean needsEmbeddingServiceLayer(KnowledgeBase kb) {
-        KbIndexingStrategy strategy = kb.getIndexingStrategy();
+        KnowledgeBaseIndexingStrategy strategy = kb.getIndexingStrategy();
         if (strategy == null || strategy.isZero()) {
-            strategy = KbIndexingStrategy.defaultStrategy();
+            strategy = KnowledgeBaseIndexingStrategy.defaultStrategy();
         }
         return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
     }
@@ -307,9 +308,9 @@ public class ChunkVectorIndexer {
      * （2026-09-22 走查批实证：套钩子会让全 false 策略的 KB 误走进真实出站，13 测试红）。
      */
     private static boolean needsEmbeddingRepoLayer(KnowledgeBase kb) {
-        KbIndexingStrategy strategy = kb.getIndexingStrategy();
+        KnowledgeBaseIndexingStrategy strategy = kb.getIndexingStrategy();
         if (strategy == null) {
-            strategy = KbIndexingStrategy.defaultStrategy();
+            strategy = KnowledgeBaseIndexingStrategy.defaultStrategy();
         }
         return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
     }
