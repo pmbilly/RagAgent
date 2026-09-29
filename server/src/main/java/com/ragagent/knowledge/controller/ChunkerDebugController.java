@@ -17,7 +17,10 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoDoubleSerializer;
-import com.ragagent.common.web.GoJsonBindError;
+import com.ragagent.common.web.NonNullBody;
+import com.ragagent.knowledge.dto.ChunkerDtos;
+import com.ragagent.knowledge.dto.ChunkerDtos.PreviewPayload;
+import com.ragagent.knowledge.dto.ChunkerDtos.PreviewRequest;
 import com.ragagent.knowledge.chunker.Chunker;
 import com.ragagent.knowledge.chunker.DocumentProfiler;
 import com.ragagent.knowledge.chunker.ParsedChunk;
@@ -77,23 +80,6 @@ public class ChunkerDebugController {
 
     /** 虚拟线程池：切分 CPU 密集，超时后让线程自然跑完（对照 Go goroutine 语义）。 */
     private static final ExecutorService CHUNKER_POOL = Executors.newVirtualThreadPerTaskExecutor();
-
-    // ── 请求体（对照 PreviewChunkingRequest / PreviewChunkingPayload） ────
-
-    record PreviewRequest(@JsonProperty("text") String text,
-            @JsonProperty("chunking_config") PreviewPayload chunkingConfig) {
-    }
-
-    record PreviewPayload(@JsonProperty("chunk_size") Integer chunkSize,
-            @JsonProperty("chunk_overlap") Integer chunkOverlap,
-            @JsonProperty("separators") List<String> separators,
-            @JsonProperty("enable_parent_child") Boolean enableParentChild,
-            @JsonProperty("parent_chunk_size") Integer parentChunkSize,
-            @JsonProperty("child_chunk_size") Integer childChunkSize,
-            @JsonProperty("strategy") String strategy,
-            @JsonProperty("token_limit") Integer tokenLimit,
-            @JsonProperty("languages") List<String> languages) {
-    }
 
     // ── 响应体（对照 PreviewChunkingResponse 家族，字段序 = Go 声明序） ───
 
@@ -210,19 +196,25 @@ public class ChunkerDebugController {
     private record SplitOutcome(List<ParsedChunk> chunks, Chunker.Diagnostics diag) {
     }
 
+    /**
+     * 绑定失败 → 400 裸错误体 {@code {"error":"invalid request body: …","success":false}}
+     * ——该调试端点专属形态（非标准信封），golden cprev-bad-body 锁定。
+     */
+    @org.springframework.web.bind.annotation.ExceptionHandler({
+            org.springframework.http.converter.HttpMessageNotReadableException.class,
+            com.ragagent.common.error.BizException.class})
+    public ResponseEntity<Map<String, Object>> handleBind(Exception ex) {
+        String detail = ex instanceof com.ragagent.common.error.BizException
+                ? "请求体不能为空" : "请求体格式不正确";
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "invalid request body: " + detail);
+        body.put("success", false);
+        return ResponseEntity.status(400).body(body);
+    }
+
     @PostMapping("/api/v1/chunker/preview")
     public ResponseEntity<Map<String, Object>> previewChunking(
-            @RequestBody(required = false) String rawBody) {
-        PreviewRequest req;
-        try {
-            req = bindBody(rawBody);
-        } catch (GoBindException e) {
-            // 对照 Go：gin.H{"success":false,"error":"invalid request body: "+err.Error()}
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("error", "invalid request body: " + e.getMessage());
-            body.put("success", false);
-            return ResponseEntity.status(400).body(body);
-        }
+            @NonNullBody @RequestBody PreviewRequest req) {
         String text = req.text() == null ? "" : req.text();
 
         if (text.strip().isEmpty()) {
@@ -349,24 +341,6 @@ public class ChunkerDebugController {
         return new SplitOutcome(sr.chunks(), sr.diagnostics());
     }
 
-    private static PreviewRequest bindBody(String rawBody) {
-        if (rawBody == null || rawBody.isBlank()) {
-            throw new GoBindException(GoJsonBindError.message(null, null));
-        }
-        try {
-            PreviewRequest req = MAPPER.readValue(rawBody, PreviewRequest.class);
-            return req == null ? new PreviewRequest("", null) : req;
-        } catch (Exception e) {
-            throw new GoBindException(GoJsonBindError.message(rawBody, e.getMessage()));
-        }
-    }
-
-    /** binding 错误经异常转 400 裸错误体（全局异常处理器不认识它，就地 catch）。 */
-    private static class GoBindException extends RuntimeException {
-        GoBindException(String message) {
-            super(message);
-        }
-    }
 
     /** 对照 computeChunkSizeStats（chunker_debug.go:263）：均值/方差走 float64 再截断。 */
     private static StatsDto computeChunkSizeStats(List<Integer> runeLens) {

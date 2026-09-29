@@ -280,9 +280,9 @@ public class KnowledgeFileService {
         try {
             images = MAPPER.readTree(imageInfo);
         } catch (Exception e) {
-            // metadata 解析失败 → 非 AppError → 500 message=原文
-            throw new BizException(AppError.internal(com.ragagent.common.web.GoJsonBindError
-                    .message(imageInfo, e.getMessage())));
+            // 解析失败 → 非 AppError → 500 message=原文（既有错误形态分层）
+            throw new BizException(AppError.internal(e.getMessage() == null
+                    ? e.toString() : e.getMessage()));
         }
         if (!images.isArray() || images.size() != 1) {
             log.warn("Expected exactly one image info, got {}",

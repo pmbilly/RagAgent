@@ -1,1 +1,1 @@
-{"error":"invalid request body: invalid character 'o' in literal null (expecting 'u')","success":false}
+{"error":"invalid request body: 请求体格式不正确","success":false}
