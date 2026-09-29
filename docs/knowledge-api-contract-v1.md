@@ -34,6 +34,8 @@
 | 1.18 | 枚举化只用于**取值由代码收敛**的字段 | 反例：文档 `type` 是"来源类型"（file/manual/passage/url/document/faq…，经 String 传参、随接入方式扩展），保留 `String`——强枚举会静默丢值 |
 | 1.19 | **jsonb 字段保持不透明** | `metadata`/`relationChunks`/`indirectRelationChunks` 等 jsonb 载荷的内部键由写入方定义，读路径**不重写**（重写会导致存量数据与契约不一致）；其内部键名沿用历史格式（如 `generated_questions`） |
 | 1.20 | 复合响应体用**具名键**而非并列字段 | 例：分块更新/回滚返回 `{chunk, description, summaryStatus}`（分块本身 + 所属文档摘要），不再把 `data` 与 `description` 平铺 |
+| 1.21 | **导入/导出交换格式与请求侧同批改名** | FAQ 的导出 JSON 与导入解析是同一套字段（`standardQuestion` 等），必须一起改以保往返；故本批 FAQ **响应**已 camelCase，而导出/导入载荷按请求侧批次处理 |
+| 1.22 | 落库 jsonb 的 DTO 保留 snake_case | `FaqImportResult`（写入文档 `last_faq_import_result` 列）与 `FaqChunkMetadata`（chunk 元数据）字段名即库内键名；改名等于改存量数据格式 |
 
 ---
 
@@ -108,7 +110,7 @@
 | 10 | 重复文档 409 特殊信封 | 统一标准错误体（§2.2） | 前端错误处理收敛 |
 | 11 | 分页 `data/page/page_size/total/success` | `{items, page, pageSize, total}` | 前端分页组件适配 |
 | 12 | `file_path`/`storage_provider_config` 等内部字段暴露 | 不输出内部字段；**存储提供方名以 `storageProvider` 单独下发**（UI 多模态判断需要）；凭据一律不下发——含 VLM 配置的 `apiKey`（视图层剔除） | 前端改读 `kb.storageProvider`；VLM 表单只回显 enabled/modelId |
-| 13 | FAQ 检索命中 `score`/`match_type`/`matched_question` 条件出现 | 收敛为 `match: {score, type, matchedQuestion}`；无命中 = `null` | 前端检索结果展示调整 |
+| 13 | FAQ 检索命中 `score`/`match_type`/`matched_question` **条件出现** | ✅已落地：收敛为 `match: {score, type, matchedQuestion}`；列表/详情场景 `match: null`，不再有"有时出现有时消失"的键 |
 | 14 | FAQ `tag_id` 为数字，其他 ID 为字符串 | 统一 `String` | 前端类型定义统一 |
 | 15 | 数值错误码 1000–2300 | **保留**（前端已有分支），仅统一外层结构 | 无 |
 

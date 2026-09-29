@@ -16,6 +16,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPage;
 import com.ragagent.knowledge.dto.FaqEntryDtos.FaqExportEntry;
 import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
@@ -71,7 +72,7 @@ public class FaqEntryQueryService {
     /**
      * 分页已由 handler 解析钳位。
      */
-    public Map<String, Object> listEntries(String kbId, int page, int pageSize,
+    public FaqEntryPage listEntries(String kbId, int page, int pageSize,
                                            List<String> tagUuids, long legacyTagSeqId,
                                            String keyword, String searchField,
                                            String sortOrder, Boolean isEnabled) {
@@ -117,17 +118,12 @@ public class FaqEntryQueryService {
             for (Chunk chunk : result.items()) {
                 FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
                 if (!chunk.getTagId().isEmpty()) {
-                    entry = FaqEntry.withTagName(entry, tagNameMap.get(chunk.getTagId()));
+                    entry = entry.withTagName(tagNameMap.get(chunk.getTagId()));
                 }
                 entries.add(entry);
             }
         }
-        Map<String, Object> pageResult = new LinkedHashMap<>();
-        pageResult.put("total", total);
-        pageResult.put("page", page);
-        pageResult.put("page_size", pageSize);
-        pageResult.put("data", entries);
-        return pageResult;
+        return new FaqEntryPage(entries, page, pageSize, total);
     }
 
     // ══════════════════ 详情 ═══════════════════════════════════════════
@@ -163,7 +159,7 @@ public class FaqEntryQueryService {
             KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                     .stream().findFirst().orElse(null);
             if (tag != null) {
-                entry = FaqEntry.withTagName(entry, tag.getName());
+                entry = entry.withTagName(tag.getName());
             }
         }
         return entry;
@@ -372,7 +368,7 @@ public class FaqEntryQueryService {
                     List<FaqEntry> filled = new ArrayList<>(entries.size());
                     for (FaqEntry entry : entries) {
                         String name = entry.tagId() != 0 ? tagNameMap.get(entry.tagId()) : null;
-                        filled.add(name == null ? entry : FaqEntry.withTagName(entry, name));
+                        filled.add(name == null ? entry : entry.withTagName(name));
                     }
                     entries = filled;
                 }
@@ -465,10 +461,11 @@ public class FaqEntryQueryService {
             Integer matchType = chunkMatchTypes.get(chunk.getId());
             String matched = chunkMatchedContents.get(chunk.getId());
             if (score != null || matchType != null || (matched != null && !matched.isEmpty())) {
-                entry = FaqEntry.withSearchHit(entry,
-                        score == null ? entry.score() : score,
-                        matchType == null ? entry.matchType() : matchType,
-                        matched == null || matched.isEmpty() ? entry.matchedQuestion() : matched);
+                // 条目刚由 chunk 组装，尚未带命中信息，直接构造即可
+                entry = entry.withMatch(new FaqEntry.FaqMatch(
+                        score == null ? 0 : score,
+                        matchType == null ? 0 : matchType,
+                        matched == null || matched.isEmpty() ? null : matched));
             }
             entries.add(entry);
         }
@@ -481,16 +478,21 @@ public class FaqEntryQueryService {
                 if (aPriority != bPriority) {
                     return aPriority - bPriority;
                 }
-                return Double.compare(b.score(), a.score());
+                return Double.compare(scoreOf(b), scoreOf(a));
             });
         } else {
-            entries.sort((a, b) -> Double.compare(b.score(), a.score()));
+            entries.sort((a, b) -> Double.compare(scoreOf(b), scoreOf(a)));
         }
         if (entries.size() > matchCount) {
             entries = new ArrayList<>(entries.subList(0, matchCount));
         }
         // 批量补 TagName（L1214-1250；检索未接线时 entries 恒空，骨架保留）
         return entries;
+    }
+
+    /** 检索分数（无命中信息按 0 处理，仅用于排序）。 */
+    private static double scoreOf(FaqEntry entry) {
+        return entry.match() == null ? 0 : entry.match().score();
     }
 
     private static int priorityOf(FaqEntry entry, Set<String> firstSet, Set<String> secondSet) {

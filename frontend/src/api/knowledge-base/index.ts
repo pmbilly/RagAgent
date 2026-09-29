@@ -506,11 +506,11 @@ export function listFAQEntries(
   kbId: string,
   params?: {
     page?: number
-    page_size?: number
-    tag_id?: number
-    tag_ids?: string
+    pageSize?: number
+    tagId?: number
+    tagIds?: string
     keyword?: string
-    is_enabled?: boolean
+    isEnabled?: boolean
   },
 ) {
   const query = buildQuery(params);

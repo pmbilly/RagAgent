@@ -97,10 +97,10 @@ class FaqContractTest {
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern TS_VALUE = Pattern.compile(
             "\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
-    private static final Pattern TASK_ID = Pattern.compile("\"task_id\":\"[^\"]*\"");
+    private static final Pattern TASK_ID = Pattern.compile("\"taskId\":\"[^\"]*\"");
     /** 进度对象的 epoch 秒（10 位）与 CSV URL（内嵌任务 id + 纳秒）。 */
-    private static final Pattern EPOCH = Pattern.compile("\"([a-z_]+)\":(1\\d{9})");
-    private static final Pattern FAILED_URL = Pattern.compile("\"failed_entries_url\":\"[^\"]*\"");
+    private static final Pattern EPOCH = Pattern.compile("\"([A-Za-z_]+)\":(1\\d{9})");
+    private static final Pattern FAILED_URL = Pattern.compile("\"failedEntriesUrl\":\"[^\"]*\"");
 
     @Autowired
     private MockMvc mockMvc;
@@ -327,8 +327,8 @@ class FaqContractTest {
 
     private static String mask(String s) {
         s = UUID_VALUE.matcher(s).replaceAll("\"$1\":\"<uuid>\"");
-        s = TASK_ID.matcher(s).replaceAll("\"task_id\":\"<task>\"");
-        s = FAILED_URL.matcher(s).replaceAll("\"failed_entries_url\":\"<url>\"");
+        s = TASK_ID.matcher(s).replaceAll("\"taskId\":\"<task>\"");
+        s = FAILED_URL.matcher(s).replaceAll("\"failedEntriesUrl\":\"<url>\"");
         s = UUID_BARE.matcher(s).replaceAll("<uuid>");
         s = TS_VALUE.matcher(s).replaceAll("\"<ts>\"");
         s = EPOCH.matcher(s).replaceAll("\"$1\":<epoch>");
@@ -348,17 +348,17 @@ class FaqContractTest {
         compareAndStatus("faq-list-empty.json", 200, "GET", B2 + "/faq/entries", owner, null);
         compareAndStatus("faq-list-badpage.json", 400, "GET", B1 + "/faq/entries?page=abc", owner, null);
         compareAndStatus("faq-list-negpage.json", 400, "GET", B1 + "/faq/entries?page=-1", owner, null);
-        compareAndStatus("faq-list-bigsize.json", 400, "GET", B1 + "/faq/entries?page_size=1001", owner, null);
-        compareAndStatus("faq-list-page0.json", 200, "GET", B1 + "/faq/entries?page=0&page_size=2", owner, null);
-        compareAndStatus("faq-list-paged.json", 200, "GET", B1 + "/faq/entries?page=2&page_size=2", owner, null);
-        compareAndStatus("faq-list-badtag.json", 400, "GET", B1 + "/faq/entries?tag_id=abc", owner, null);
-        compareAndStatus("faq-list-badenabled.json", 400, "GET", B1 + "/faq/entries?is_enabled=xyz", owner, null);
-        compareAndStatus("faq-list-enabled-false.json", 200, "GET", B1 + "/faq/entries?is_enabled=false", owner, null);
-        compareAndStatus("faq-list-tag.json", 200, "GET", B1 + "/faq/entries?tag_id=965001", owner, null);
-        compareAndStatus("faq-list-taguuid.json", 200, "GET", B1 + "/faq/entries?tag_ids=" + FT2, owner, null);
+        compareAndStatus("faq-list-bigsize.json", 400, "GET", B1 + "/faq/entries?pageSize=1001", owner, null);
+        compareAndStatus("faq-list-page0.json", 200, "GET", B1 + "/faq/entries?page=0&pageSize=2", owner, null);
+        compareAndStatus("faq-list-paged.json", 200, "GET", B1 + "/faq/entries?page=2&pageSize=2", owner, null);
+        compareAndStatus("faq-list-badtag.json", 400, "GET", B1 + "/faq/entries?tagId=abc", owner, null);
+        compareAndStatus("faq-list-badenabled.json", 400, "GET", B1 + "/faq/entries?isEnabled=xyz", owner, null);
+        compareAndStatus("faq-list-enabled-false.json", 200, "GET", B1 + "/faq/entries?isEnabled=false", owner, null);
+        compareAndStatus("faq-list-tag.json", 200, "GET", B1 + "/faq/entries?tagId=965001", owner, null);
+        compareAndStatus("faq-list-taguuid.json", 200, "GET", B1 + "/faq/entries?tagIds=" + FT2, owner, null);
         compareAndStatus("faq-list-untagged.json", 200, "GET",
-                B1 + "/faq/entries?tag_ids=__untagged__," + FT2, owner, null);
-        compareAndStatus("faq-list-sortasc.json", 200, "GET", B1 + "/faq/entries?sort_order=asc", owner, null);
+                B1 + "/faq/entries?tagIds=__untagged__," + FT2, owner, null);
+        compareAndStatus("faq-list-sortasc.json", 200, "GET", B1 + "/faq/entries?sortOrder=asc", owner, null);
         compareAndStatus("faq-list-notkb.json", 404, "GET", API + "/knowledge-bases/" + UNKNOWN + "/faq/entries", owner, null);
         compareAndStatus("faq-list-cross.json", 403, "GET", API + "/knowledge-bases/" + CROSS_KB + "/faq/entries", owner, null);
         compareAndStatus("faq-list-noauth.json", 401, "GET", B1 + "/faq/entries", null, null);
@@ -445,7 +445,7 @@ class FaqContractTest {
 
     @Test
     void section6_fieldsBatch() throws Exception {
-        compareAndStatus("faq-fields-empty.json", 200, "PUT", B1 + "/faq/entries/fields", owner, "{}");
+        compareAndStatus("faq-fields-empty.json", 204, "PUT", B1 + "/faq/entries/fields", owner, "{}");
         compareAndStatus("faq-fields-negid.json", 400, "PUT", B1 + "/faq/entries/fields", owner,
                 "{\"by_id\":{\"-5\":{\"is_enabled\":false}}}");
         compareAndStatus("faq-fields-missing.json", 404, "PUT", B1 + "/faq/entries/fields", owner,
@@ -454,7 +454,7 @@ class FaqContractTest {
                 "{\"by_id\":{\"970003\":{\"tag_id\":960999}}}");
         compareAndStatus("faq-fields-foreigntag.json", 403, "PUT", B1 + "/faq/entries/fields", owner,
                 "{\"by_id\":{\"970003\":{\"tag_id\":960002}}}");
-        compareAndStatus("faq-fields-ok.json", 200, "PUT", B1 + "/faq/entries/fields", owner,
+        compareAndStatus("faq-fields-ok.json", 204, "PUT", B1 + "/faq/entries/fields", owner,
                 "{\"by_id\":{\"970003\":{\"is_enabled\":true,\"is_recommended\":false,\"tag_id\":965001}},"
                         + "\"by_tag\":{\"965002\":{\"is_enabled\":true,\"tag_id\":965001}},"
                         + "\"exclude_ids\":[970001]}");
@@ -470,7 +470,7 @@ class FaqContractTest {
         compareAndStatus("faq-tags-nullbody.json", 400, "PUT", B1 + "/faq/entries/tags", owner, "null");
         compareAndStatus("faq-tags-missing.json", 404, "PUT", B1 + "/faq/entries/tags", owner,
                 "{\"updates\":{\"999999\":965001}}");
-        compareAndStatus("faq-tags-ok.json", 200, "PUT", B1 + "/faq/entries/tags", owner,
+        compareAndStatus("faq-tags-ok.json", 204, "PUT", B1 + "/faq/entries/tags", owner,
                 "{\"updates\":{\"970002\":965001,\"970003\":null}}");
     }
 
@@ -499,12 +499,12 @@ class FaqContractTest {
                 + "\"如何绑定手机\"],\"answers\":[\"新答案\"],\"answer_strategy\":\"random\"}],"
                 + "\"mode\":\"append\",\"dry_run\":true}";
         MvcResult dryRunResult = perform("POST", B1 + "/faq/entries", owner, dryRunBody);
-        assertEquals(200, dryRunResult.getResponse().getStatus(), "faq-upsert-dryrun.json status");
+        assertEquals(202, dryRunResult.getResponse().getStatus(), "faq-upsert-dryrun.json status");
         compare("faq-upsert-dryrun.json",
                 dryRunResult.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
         String dryTask = com.jayway.jsonpath.JsonPath.parse(
                 dryRunResult.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
-                .read("$.data.task_id");
+                .read("$.taskId");
 
         // dry_run 异步（进程内虚拟线程）：轮询到 completed（对照录制脚本的 sleep 3）再比对终态；
         // completed 才清 running key——后续 customtask 才能不被锁
@@ -522,7 +522,7 @@ class FaqContractTest {
         // 自定义 task_id：通过 ValidateTaskID、非 dry_run —— 进度查询恒 400（id 无租户段）。
         // 该任务在 Go 卡在 asynq 重试窗口（running key 被占数分钟）；Java 直落 failed 并释放
         // ——faq-upsert-running 的 running-key 窗口是 Go 重试语义的存档，Java 不比。
-        compareAndStatus("faq-upsert-customtask.json", 200, "POST", B1 + "/faq/entries", owner,
+        compareAndStatus("faq-upsert-customtask.json", 202, "POST", B1 + "/faq/entries", owner,
                 "{\"entries\":[{\"standard_question\":\"自定义任务ID问题\",\"answers\":[\"答案\"]}],"
                         + "\"mode\":\"append\",\"task_id\":\"faqgolden_custom_1\"}");
 
@@ -544,9 +544,9 @@ class FaqContractTest {
                 B2 + "/faq/import/last-result/display", owner, "{\"display_status\":\"close\"}");
         compareAndStatus("faq-display-noresult.json", 404, "PUT",
                 B3 + "/faq/import/last-result/display", owner, "{\"display_status\":\"close\"}");
-        compareAndStatus("faq-display-close.json", 200, "PUT",
+        compareAndStatus("faq-display-close.json", 204, "PUT",
                 B1 + "/faq/import/last-result/display", owner, "{\"display_status\":\"close\"}");
-        compareAndStatus("faq-display-open.json", 200, "PUT",
+        compareAndStatus("faq-display-open.json", 204, "PUT",
                 B1 + "/faq/import/last-result/display", owner, "{\"display_status\":\"open\"}");
     }
 
@@ -605,7 +605,7 @@ class FaqContractTest {
 
     @Test
     void section13_importRun() throws Exception {
-        compareAndStatus("faq-upsert-import.json", 200, "POST", API + "/knowledge-bases/" + FKB5 + "/faq/entries",
+        compareAndStatus("faq-upsert-import.json", 202, "POST", API + "/knowledge-bases/" + FKB5 + "/faq/entries",
                 owner, "{\"entries\":[{\"standard_question\":\"导入一条\",\"answers\":[\"答案\"]}],\"mode\":\"append\"}");
     }
 

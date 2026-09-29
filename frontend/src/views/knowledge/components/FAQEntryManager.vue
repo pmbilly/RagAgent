@@ -60,16 +60,16 @@
                   <div class="faq-import-strip faq-import-strip--result faq-import-strip--panel">
                     <span class="faq-import-strip__text">{{ importResultSummary }}</span>
                     <t-tag size="small" variant="light"
-                      :theme="importResult!.import_mode === 'append' ? 'primary' : 'warning'">
-                      {{ importResult!.import_mode === 'append' ? $t('faqManager.import.appendMode') :
+                      :theme="importResult!.importMode === 'append' ? 'primary' : 'warning'">
+                      {{ importResult!.importMode === 'append' ? $t('faqManager.import.appendMode') :
                         $t('faqManager.import.replaceMode') }}
                     </t-tag>
-                    <t-button v-if="importResult!.failed_entries_url && importResult!.failed_count > 0"
+                    <t-button v-if="importResult!.failedEntriesUrl && importResult!.failedCount > 0"
                       variant="text" theme="danger" size="small" class="faq-import-strip__link"
                       @click="downloadFailedEntries">
                       {{ $t('faqManager.import.downloadReasons') }}
                     </t-button>
-                    <span class="faq-import-strip__time">{{ formatImportTime(importResult!.imported_at) }}</span>
+                    <span class="faq-import-strip__time">{{ formatImportTime(importResult!.importedAt) }}</span>
                     <button type="button" class="faq-import-strip__close" :aria-label="$t('common.close')"
                       @click="closeImportResult">
                       <t-icon name="close" size="14px" />
@@ -258,8 +258,8 @@
                   <!-- Card Header -->
                   <div class="faq-card-header">
                     <div class="faq-header-top">
-                      <div class="faq-question" :title="entry.standard_question">
-                        {{ entry.standard_question }}
+                      <div class="faq-question" :title="entry.standardQuestion">
+                        {{ entry.standardQuestion }}
                       </div>
                       <div class="faq-card-actions">
                         <t-popup v-if="canManage" v-model="entry.showMore" overlayClassName="card-more-popup"
@@ -288,19 +288,19 @@
                   <!-- Card Body -->
                   <div class="faq-card-body">
                     <!-- Similar Questions Section -->
-                    <div v-if="entry.similar_questions?.length" class="faq-section similar">
+                    <div v-if="entry.similarQuestions?.length" class="faq-section similar">
                       <div class="faq-section-label clickable"
                         @click.stop="entry.similarCollapsed = !entry.similarCollapsed">
                         <span>{{ $t('knowledgeEditor.faq.similarQuestions') }}</span>
                         <span class="section-count">
-                          ({{ entry.similar_questions.length }})
+                          ({{ entry.similarQuestions.length }})
                         </span>
                         <t-icon :name="entry.similarCollapsed ? 'chevron-right' : 'chevron-down'"
                           class="collapse-icon" />
                       </div>
                       <Transition name="slide-down">
                         <div v-if="!entry.similarCollapsed" class="faq-tags">
-                          <FAQTagTooltip v-for="question in entry.similar_questions" :key="question" :content="question"
+                          <FAQTagTooltip v-for="question in entry.similarQuestions" :key="question" :content="question"
                             type="similar" placement="top">
                             <t-tag size="small" variant="light-outline" class="question-tag">
                               {{ question }}
@@ -311,19 +311,19 @@
                     </div>
 
                     <!-- Negative Questions Section -->
-                    <div v-if="entry.negative_questions?.length" class="faq-section negative">
+                    <div v-if="entry.negativeQuestions?.length" class="faq-section negative">
                       <div class="faq-section-label clickable"
                         @click.stop="entry.negativeCollapsed = !entry.negativeCollapsed">
                         <span>{{ $t('knowledgeEditor.faq.negativeQuestions') }}</span>
                         <span class="section-count">
-                          ({{ entry.negative_questions.length }})
+                          ({{ entry.negativeQuestions.length }})
                         </span>
                         <t-icon :name="entry.negativeCollapsed ? 'chevron-right' : 'chevron-down'"
                           class="collapse-icon" />
                       </div>
                       <Transition name="slide-down">
                         <div v-if="!entry.negativeCollapsed" class="faq-tags">
-                          <FAQTagTooltip v-for="question in entry.negative_questions" :key="question"
+                          <FAQTagTooltip v-for="question in entry.negativeQuestions" :key="question"
                             :content="question" type="negative" placement="top">
                             <t-tag size="small" theme="warning" variant="light-outline" class="question-tag">
                               {{ question }}
@@ -364,27 +364,27 @@
                         <t-dropdown :options="tagDropdownOptions" trigger="click"
                           @click="(data: any) => handleEntryTagChange(entry.id, data.value as string)">
                           <t-tag size="small" variant="light-outline" class="faq-tag-chip">
-                            <span class="tag-text">{{ getTagName(entry.tag_id) || $t('knowledgeBase.untagged') }}</span>
+                            <span class="tag-text">{{ getTagName(entry.tagId) || $t('knowledgeBase.untagged') }}</span>
                           </t-tag>
                         </t-dropdown>
                       </template>
                       <template v-else>
                         <t-tag size="small" variant="light-outline" class="faq-tag-chip">
-                          <span class="tag-text">{{ getTagName(entry.tag_id) || $t('knowledgeBase.untagged') }}</span>
+                          <span class="tag-text">{{ getTagName(entry.tagId) || $t('knowledgeBase.untagged') }}</span>
                         </t-tag>
                       </template>
                     </div>
                     <div class="faq-card-status" @click.stop>
                       <!-- 暂时隐藏推荐开关
                       <t-tooltip
-                        :content="entry.is_recommended ? $t('knowledgeEditor.faq.recommendedEnabled') : $t('knowledgeEditor.faq.recommendedDisabled')"
+                        :content="entry.recommended ? $t('knowledgeEditor.faq.recommendedEnabled') : $t('knowledgeEditor.faq.recommendedDisabled')"
                         placement="top"
                       >
                         <div class="status-item-compact">
                           <t-switch
-                            :key="`${entry.id}-recommended-${entry.is_recommended}`"
+                            :key="`${entry.id}-recommended-${entry.recommended}`"
                             size="small"
-                            :value="entry.is_recommended"
+                            :value="entry.recommended"
                             :loading="!!entryRecommendedLoading[entry.id]"
                             :disabled="!!entryRecommendedLoading[entry.id]"
                             @click.stop
@@ -395,10 +395,10 @@
                       </t-tooltip>
                       -->
                       <t-tooltip
-                        :content="entry.is_enabled ? $t('knowledgeEditor.faq.statusEnabled') : $t('knowledgeEditor.faq.statusDisabled')"
+                        :content="entry.enabled ? $t('knowledgeEditor.faq.statusEnabled') : $t('knowledgeEditor.faq.statusDisabled')"
                         placement="top">
                         <div class="status-item-compact">
-                          <t-switch :key="`${entry.id}-${entry.is_enabled}`" size="small" :value="entry.is_enabled"
+                          <t-switch :key="`${entry.id}-${entry.enabled}`" size="small" :value="entry.enabled"
                             :loading="!!entryStatusLoading[entry.id]"
                             :disabled="!!entryStatusLoading[entry.id] || !canEdit" @click.stop
                             @change="(value: boolean) => handleEntryStatusChange(entry, value)" />
@@ -805,17 +805,17 @@
                   <div class="result-main">
                     <div class="result-question">
                       <span class="result-index">{{ index + 1 }}.</span>
-                      {{ result.standard_question }}
+                      {{ result.standardQuestion }}
                     </div>
-                    <div v-if="result.matched_question && result.matched_question !== result.standard_question"
+                    <div v-if="result.match?.matchedQuestion && result.match?.matchedQuestion !== result.standardQuestion"
                       class="matched-question">
                       <span class="matched-label">{{ $t('knowledgeEditor.faq.matchedQuestion') }}:</span>
-                      <span class="matched-text">{{ result.matched_question }}</span>
+                      <span class="matched-text">{{ result.match?.matchedQuestion }}</span>
                     </div>
                   </div>
                   <div class="result-meta">
                     <t-tag size="small" variant="light-outline" class="score-tag">
-                      {{ (result.score || 0).toFixed(3) }}
+                      {{ (result.match?.score || 0).toFixed(3) }}
                     </t-tag>
                   </div>
                   <t-icon :name="result.expanded ? 'chevron-up' : 'chevron-down'" class="expand-icon" />
@@ -833,10 +833,10 @@
                       </t-tooltip>
                     </div>
                   </div>
-                  <div v-if="result.similar_questions?.length" class="result-section">
+                  <div v-if="result.similarQuestions?.length" class="result-section">
                     <div class="section-label">{{ $t('knowledgeEditor.faq.similarQuestions') }}</div>
                     <div class="result-tags">
-                      <t-tooltip v-for="question in result.similar_questions" :key="question" :content="question"
+                      <t-tooltip v-for="question in result.similarQuestions" :key="question" :content="question"
                         placement="top">
                         <t-tag size="small" variant="light-outline" class="question-tag">
                           {{ question }}
@@ -895,21 +895,20 @@ import { useUIStore } from '@/stores/ui'
 
 interface FAQEntry {
   id: number
-  chunk_id: string
-  knowledge_id: string
+  chunkId: string
+  knowledgeId: string
   knowledgeBaseId: string
-  tag_id?: number
-  is_enabled: boolean
-  is_recommended: boolean
-  standard_question: string
-  similar_questions: string[]
-  negative_questions: string[]
+  tagId?: number
+  enabled: boolean
+  recommended: boolean
+  standardQuestion: string
+  similarQuestions: string[]
+  negativeQuestions: string[]
   answers: string[]
-  updated_at: string
+  updatedAt: string
   showMore?: boolean
-  score?: number
-  match_type?: string
-  matched_question?: string
+  /** 检索命中信息（仅检索响应有值） */
+  match?: { score: number; type: number; matchedQuestion: string | null } | null
   expanded?: boolean
   similarCollapsed?: boolean
   negativeCollapsed?: boolean
@@ -1019,7 +1018,7 @@ const selectedEntries = computed(() => {
   return entries.value.filter(entry => selectedIds.has(entry.id))
 })
 const selectedEnabledCount = computed(() => (
-  selectedEntries.value.filter(entry => entry.is_enabled !== false).length
+  selectedEntries.value.filter(entry => entry.enabled !== false).length
 ))
 const selectedDisabledCount = computed(() => selectedEntries.value.length - selectedEnabledCount.value)
 const batchActionLoading = computed(() => (
@@ -1067,7 +1066,7 @@ const tagMap = computed<Record<string, any>>(() => {
   return map
 })
 
-// tagMapBySeqId uses seq_id as key for looking up by entry.tag_id
+// tagMapBySeqId uses seq_id as key for looking up by entry.tagId
 const tagMapBySeqId = computed<Record<number, any>>(() => {
   const map: Record<number, any> = {}
   tagList.value.forEach((tag) => {
@@ -1136,7 +1135,7 @@ const loadKnowledgeInfo = async (kbId: string) => {
   }
   try {
     const res: any = await getKnowledgeBaseById(kbId)
-    kbInfo.value = res?.data || null
+    kbInfo.value = res || null
     return kbInfo.value
   } catch (error) {
     console.error('Failed to load knowledge base info:', error)
@@ -1148,7 +1147,7 @@ const loadKnowledgeInfo = async (kbId: string) => {
 const loadKnowledgeList = async () => {
   try {
     const res: any = await listKnowledgeBases()
-    knowledgeList.value = (res?.data || []).map((item: any) => ({
+    knowledgeList.value = (res || []).map((item: any) => ({
       id: String(item.id),
       name: item.name,
       type: item.type,
@@ -1197,27 +1196,27 @@ const importState = reactive({
 
 // FAQ导入结果状态（持久化的）
 type FAQImportResultView = {
-  total_entries: number
-  success_count: number
-  failed_count: number
-  skipped_count: number
-  partial_failed_count: number
-  merged_count: number
-  added_count: number
-  import_mode: string
-  imported_at: string
-  task_id: string
-  processing_time: number
+  totalEntries: number
+  successCount: number
+  failedCount: number
+  skippedCount: number
+  partialFailedCount: number
+  mergedCount: number
+  addedCount: number
+  importMode: string
+  importedAt: string
+  taskId: string
+  processingTime: number
   message?: string
-  failed_entries_url?: string
-  success_entries?: Array<{
+  failedEntriesUrl?: string
+  successEntries?: Array<{
     index: number
-    seq_id: number
-    tag_id?: number
-    tag_name?: string
-    standard_question: string
+    seqId: number
+    tagId?: number
+    tagName?: string
+    standardQuestion: string
   }>
-  display_status: string
+  displayStatus: string
 }
 
 const importResult = ref<FAQImportResultView | null>(null)
@@ -1225,7 +1224,7 @@ const importResultExpanded = ref(false)
 
 const showImportResultBadge = computed(() => (
   !!importResult.value
-  && importResult.value.display_status === 'open'
+  && importResult.value.displayStatus === 'open'
   && !importState.taskId
 ))
 
@@ -1241,23 +1240,23 @@ const importResultSummary = computed(() => {
     return result.message.trim()
   }
   const parts: string[] = []
-  parts.push(`${t('faqManager.import.totalData')} ${result.total_entries}`)
-  if (result.merged_count > 0) {
-    if (result.added_count > 0) {
-      parts.push(`${t('faqManager.import.added')} ${result.added_count}`)
+  parts.push(`${t('faqManager.import.totalData')} ${result.totalEntries}`)
+  if (result.mergedCount > 0) {
+    if (result.addedCount > 0) {
+      parts.push(`${t('faqManager.import.added')} ${result.addedCount}`)
     }
-    parts.push(`${t('faqManager.import.merged')} ${result.merged_count}`)
-  } else if (result.success_count > 0) {
-    parts.push(`${t('faqManager.import.success')} ${result.success_count}`)
+    parts.push(`${t('faqManager.import.merged')} ${result.mergedCount}`)
+  } else if (result.successCount > 0) {
+    parts.push(`${t('faqManager.import.success')} ${result.successCount}`)
   }
-  if (result.partial_failed_count > 0) {
-    parts.push(`${t('faqManager.import.partialFailed')} ${result.partial_failed_count}`)
+  if (result.partialFailedCount > 0) {
+    parts.push(`${t('faqManager.import.partialFailed')} ${result.partialFailedCount}`)
   }
-  if (result.failed_count > 0) {
-    parts.push(`${t('faqManager.import.failed')} ${result.failed_count}`)
+  if (result.failedCount > 0) {
+    parts.push(`${t('faqManager.import.failed')} ${result.failedCount}`)
   }
-  if (result.skipped_count > 0) {
-    parts.push(`${t('faqManager.import.skipped')} ${result.skipped_count}`)
+  if (result.skippedCount > 0) {
+    parts.push(`${t('faqManager.import.skipped')} ${result.skippedCount}`)
   }
   return parts.join(' · ')
 })
@@ -1404,7 +1403,7 @@ const loadTags = async (reset = false) => {
 const handleEntryTagChange = async (entryId: number, value?: string) => {
   if (!props.kbId) return
   const targetEntry = entries.value.find((item) => item.id === entryId)
-  const previousTagId = targetEntry ? targetEntry.tag_id : undefined
+  const previousTagId = targetEntry ? targetEntry.tagId : undefined
   const normalizedValue = value ? Number(value) : null
   if (normalizedValue === previousTagId) {
     return
@@ -1416,7 +1415,7 @@ const handleEntryTagChange = async (entryId: number, value?: string) => {
     await loadTags(true)
   } catch (error: any) {
     if (targetEntry) {
-      targetEntry.tag_id = previousTagId
+      targetEntry.tagId = previousTagId
     }
     MessagePlugin.error(error?.message || t('common.operationFailed'))
   }
@@ -1454,19 +1453,19 @@ const handleEntryStatusChange = async (entry: FAQEntry, value: boolean) => {
   }
   // 从数组中获取实际的对象引用，确保使用最新的数据
   const actualEntry = entries.value[entryIndex]
-  const previous = actualEntry.is_enabled
+  const previous = actualEntry.enabled
   if (previous === value) {
     return
   }
   // 直接更新属性，Vue 3 的响应式系统应该能够检测到
-  actualEntry.is_enabled = value
+  actualEntry.enabled = value
   entryStatusLoading[entry.id] = true
   try {
     await updateFAQEntryFieldsBatch(props.kbId, { by_id: { [entry.id]: { is_enabled: value } } })
     MessagePlugin.success(t(value ? 'knowledgeEditor.faq.statusEnableSuccess' : 'knowledgeEditor.faq.statusDisableSuccess'))
   } catch (error: any) {
     // 失败时回滚
-    actualEntry.is_enabled = previous
+    actualEntry.enabled = previous
     MessagePlugin.error(error?.message || t('knowledgeEditor.faq.statusUpdateFailed'))
   } finally {
     entryStatusLoading[entry.id] = false
@@ -1482,17 +1481,17 @@ const handleEntryRecommendedChange = async (entry: FAQEntry, value: boolean) => 
     return
   }
   const actualEntry = entries.value[entryIndex]
-  const previous = actualEntry.is_recommended
+  const previous = actualEntry.recommended
   if (previous === value) {
     return
   }
-  actualEntry.is_recommended = value
+  actualEntry.recommended = value
   entryRecommendedLoading[entry.id] = true
   try {
     await updateFAQEntryFieldsBatch(props.kbId, { by_id: { [entry.id]: { is_recommended: value } } })
     MessagePlugin.success(t(value ? 'knowledgeEditor.faq.recommendedEnableSuccess' : 'knowledgeEditor.faq.recommendedDisableSuccess'))
   } catch (error: any) {
-    actualEntry.is_recommended = previous
+    actualEntry.recommended = previous
     MessagePlugin.error(error?.message || t('knowledgeEditor.faq.recommendedUpdateFailed'))
   } finally {
     entryRecommendedLoading[entry.id] = false
@@ -1530,29 +1529,29 @@ const loadEntries = async (append = false) => {
     if (overallFAQTotal.value === 0 && !append) {
       const totalRes = await listFAQEntries(props.kbId, {
         page: 1,
-        page_size: 1,
+        pageSize: 1,
       })
-      const totalData = (totalRes.data || {}) as { total: number }
+      const totalData = (totalRes || {}) as { total: number }
       overallFAQTotal.value = totalData.total || 0
     }
 
     const res = await listFAQEntries(props.kbId, {
       page: currentPage,
-      page_size: pageSize,
-      tag_ids: selectedTagIds.value.length > 0 ? selectedTagIds.value.join(',') : undefined,
+      pageSize: pageSize,
+      tagIds: selectedTagIds.value.length > 0 ? selectedTagIds.value.join(',') : undefined,
       keyword: entrySearchKeyword.value ? entrySearchKeyword.value.trim() : undefined,
     })
-    const pageData = (res.data || {}) as {
-      data: FAQEntry[]
+    const pageData = (res || {}) as {
+      items: FAQEntry[]
       total: number
     }
-    const newEntries = (pageData.data || []).map(entry => ({
+    const newEntries = (pageData.items || []).map(entry => ({
       ...entry,
       showMore: false,
       similarCollapsed: true,  // 相似问默认折叠
       negativeCollapsed: true,  // 反例默认折叠
       answersCollapsed: true,   // 答案默认折叠
-      is_enabled: entry.is_enabled !== false,
+      enabled: entry.enabled !== false,
     }))
 
     if (append) {
@@ -1645,11 +1644,11 @@ const openEditor = (entry?: FAQEntry) => {
   if (entry) {
     editorMode.value = 'edit'
     currentEntryId.value = entry.id
-    editorForm.standard_question = entry.standard_question
-    editorForm.similar_questions = [...(entry.similar_questions || [])]
-    editorForm.negative_questions = [...(entry.negative_questions || [])]
+    editorForm.standard_question = entry.standardQuestion
+    editorForm.similar_questions = [...(entry.similarQuestions || [])]
+    editorForm.negative_questions = [...(entry.negativeQuestions || [])]
     editorForm.answers = [...(entry.answers || [])]
-    editorForm.tag_id = entry.tag_id || undefined
+    editorForm.tag_id = entry.tagId || undefined
   } else {
     editorMode.value = 'create'
     currentEntryId.value = null
@@ -2051,7 +2050,7 @@ const startPolling = (taskId: string) => {
   importState.pollingInterval = setInterval(async () => {
     try {
       const res: any = await getFAQImportProgress(taskId)
-      const progressData = res?.data
+      const progressData = res
       if (progressData) {
         // 从Redis进度数据中提取状态
         // status: "pending" -> "pending", "processing" -> "running", "completed" -> "success", "failed" -> "failed"
@@ -2186,7 +2185,7 @@ const restoreImportTask = async () => {
   try {
     // 查询Redis中的进度状态
     const res: any = await getFAQImportProgress(savedTaskId)
-    const progressData = res?.data
+    const progressData = res
 
     if (progressData) {
       // 从Redis进度数据中提取状态
@@ -2267,30 +2266,30 @@ const loadImportResult = async () => {
 
   try {
     const res: any = await getFAQImportProgress(lastTaskId)
-    const data = res?.data
+    const data = res
     if (data && data.status === 'completed') {
-      // 检查后端返回的 display_status，如果是 close 则不显示
-      if (data.display_status === 'close') {
+      // 检查后端返回的 displayStatus，如果是 close 则不显示
+      if (data.displayStatus === 'close') {
         importResult.value = null
         return
       }
       // Map progress fields to importResult format
       importResult.value = {
-        total_entries: data.total,
-        success_count: data.success_count || 0,
-        failed_count: data.failed_count || 0,
-        skipped_count: data.skipped_count || 0,
-        partial_failed_count: data.partial_failed_count || 0,
-        merged_count: data.merged_count || 0,
-        added_count: data.added_count || 0,
+        totalEntries: data.total,
+        successCount: data.successCount || 0,
+        failedCount: data.failedCount || 0,
+        skippedCount: data.skippedCount || 0,
+        partialFailedCount: data.partialFailedCount || 0,
+        mergedCount: data.mergedCount || 0,
+        addedCount: data.addedCount || 0,
         message: data.message || '',
-        import_mode: data.import_mode || 'append',
-        imported_at: data.imported_at,
-        task_id: data.task_id,
-        failed_entries_url: data.failed_entries_url,
-        success_entries: data.success_entries,
-        display_status: data.display_status || 'open',
-        processing_time: data.processing_time || 0,
+        importMode: data.importMode || 'append',
+        importedAt: data.importedAt,
+        taskId: data.taskId,
+        failedEntriesUrl: data.failedEntriesUrl,
+        successEntries: data.successEntries,
+        displayStatus: data.displayStatus || 'open',
+        processingTime: data.processingTime || 0,
       }
     } else {
       importResult.value = null
@@ -2308,7 +2307,7 @@ const closeImportResult = async () => {
   try {
     await updateFAQImportResultDisplayStatus(props.kbId, 'close')
     if (importResult.value) {
-      importResult.value.display_status = 'close'
+      importResult.value.displayStatus = 'close'
     }
   } catch (error) {
     console.error('Failed to close import result:', error)
@@ -2317,12 +2316,12 @@ const closeImportResult = async () => {
 
 // 下载失败条目原因
 const downloadFailedEntries = () => {
-  if (!importResult.value?.failed_entries_url) {
+  if (!importResult.value?.failedEntriesUrl) {
     MessagePlugin.warning(t('faqManager.import.noFailedRecords'))
     return
   }
   // 直接打开下载链接
-  window.open(importResult.value.failed_entries_url, '_blank')
+  window.open(importResult.value.failedEntriesUrl, '_blank')
 }
 
 // 格式化导入时间
@@ -2621,7 +2620,7 @@ const handleSearch = async () => {
       vector_threshold: searchForm.vectorThreshold,
       match_count: searchForm.matchCount,
     })
-    const results = (res.data || []).map((entry: FAQEntry) => ({
+    const results = (res || []).map((entry: FAQEntry) => ({
       ...entry,
       similarCollapsed: true,  // 相似问默认折叠
       negativeCollapsed: true,  // 反例默认折叠
@@ -2630,7 +2629,7 @@ const handleSearch = async () => {
     })) as FAQEntry[]
 
     // 按score从大到小排序
-    searchResults.value = results.sort((a, b) => (b.score || 0) - (a.score || 0))
+    searchResults.value = results.sort((a, b) => (b.match?.score || 0) - (a.match?.score || 0))
   } catch (error: any) {
     MessagePlugin.error(error?.message || t('common.operationFailed'))
     searchResults.value = []

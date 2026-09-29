@@ -24,8 +24,8 @@ public final class FaqImportDtos {
     public static final String IMPORT_STATUS_COMPLETED = "completed";
     public static final String IMPORT_STATUS_FAILED = "failed";
 
-    /** 导入受理响应：task_id 供进度轮询。 */
-    public record FaqTaskStartResponse(@JsonProperty("task_id") String taskId) {
+    /** 导入受理响应：{@code taskId} 供进度轮询。 */
+    public record FaqTaskStartResponse(String taskId) {
     }
 
     /** 批量导入（upsert）请求；mode 取值见校验注解。 */
@@ -41,92 +41,95 @@ public final class FaqImportDtos {
             boolean dryRun) {
     }
 
-@JsonPropertyOrder({"index", "reason", "failure_type", "is_partial_failure", "tag_name",
-        "standard_question", "similar_questions", "negative_questions", "answers",
-        "answer_all", "is_disabled", "removed_similar_questions", "removed_negative_questions"})
-public record FaqFailedEntry(
-        @JsonProperty("index") int index,
-        @JsonProperty("reason") String reason,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("failure_type") String failureType,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("is_partial_failure") boolean isPartialFailure,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("tag_name") String tagName,
-        @JsonProperty("standard_question") String standardQuestion,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("similar_questions") List<String> similarQuestions,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("negative_questions") List<String> negativeQuestions,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("answers") List<String> answers,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("answer_all") boolean answerAll,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("is_disabled") boolean isDisabled,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("removed_similar_questions") List<String> removedSimilarQuestions,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("removed_negative_questions") List<String> removedNegativeQuestions) {
-}
-
-@JsonPropertyOrder({"index", "standard_question", "answer_changed",
-        "new_similar_count", "new_negative_count"})
-public record FaqMergeDetail(
-        @JsonProperty("index") int index,
-        @JsonProperty("standard_question") String standardQuestion,
-        @JsonProperty("answer_changed") boolean answerChanged,
-        @JsonProperty("new_similar_count") int newSimilarCount,
-        @JsonProperty("new_negative_count") int newNegativeCount) {
-}
-
-@JsonPropertyOrder({"index", "seq_id", "tag_id", "tag_name", "standard_question"})
-public record FaqSuccessEntry(
-        @JsonProperty("index") int index,
-        @JsonProperty("seq_id") long seqId,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("tag_id") long tagId,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("tag_name") String tagName,
-        @JsonProperty("standard_question") String standardQuestion) {
-}
-
 /**
- * * {@code message}/{@code error} 无 omitempty（恒输出，含 ""）；
- * result 字段（import_mode/imported_at/display_status/processing_time）在
- * completed 且能读到持久化 FAQImportResult 时被覆盖。
+ * 导入失败的条目明细。
+ *
+ * @param partialFailure 部分失败（如答案写入成功但索引失败）
+ * @param disabled       该条目被禁用（replace 模式下已存在且被停用）
  */
-@JsonPropertyOrder({"task_id", "kb_id", "knowledge_id", "status", "progress", "total",
-        "processed", "success_count", "failed_count", "partial_failed_count",
-        "skipped_count", "failed_entries", "failed_entries_url", "success_entries",
-        "valid_entry_indices", "merge_entry_indices", "merged_count", "added_count",
-        "merge_details", "message", "error", "created_at", "updated_at", "dry_run",
-        "import_mode", "imported_at", "display_status", "processing_time"})
-public record FaqImportProgress(
-        @JsonProperty("task_id") String taskId,
-        @JsonProperty("kb_id") String kbId,
-        @JsonProperty("knowledge_id") String knowledgeId,
-        @JsonProperty("status") String status,
-        @JsonProperty("progress") int progress,
-        @JsonProperty("total") int total,
-        @JsonProperty("processed") int processed,
-        @JsonProperty("success_count") int successCount,
-        @JsonProperty("failed_count") int failedCount,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("partial_failed_count") int partialFailedCount,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("skipped_count") int skippedCount,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("failed_entries") List<FaqFailedEntry> failedEntries,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("failed_entries_url") String failedEntriesUrl,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("success_entries") List<FaqSuccessEntry> successEntries,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("valid_entry_indices") List<Integer> validEntryIndices,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("merge_entry_indices") List<Integer> mergeEntryIndices,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("merged_count") int mergedCount,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("added_count") int addedCount,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("merge_details") List<FaqMergeDetail> mergeDetails,
-        @JsonProperty("message") String message,
-        @JsonProperty("error") String error,
-        @JsonProperty("created_at") long createdAt,
-        @JsonProperty("updated_at") long updatedAt,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("dry_run") boolean dryRun,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("import_mode") String importMode,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        @JsonProperty("imported_at") OffsetDateTime importedAt,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("display_status") String displayStatus,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("processing_time") long processingTime) {
+public record FaqFailedEntry(
+        int index,
+        String reason,
+        String failureType,
+        boolean partialFailure,
+        String tagName,
+        String standardQuestion,
+        List<String> similarQuestions,
+        List<String> negativeQuestions,
+        List<String> answers,
+        boolean answerAll,
+        boolean disabled,
+        List<String> removedSimilarQuestions,
+        List<String> removedNegativeQuestions) {
+}
+
+/** 导入时与既有条目合并的明细。 */
+public record FaqMergeDetail(
+        int index,
+        String standardQuestion,
+        boolean answerChanged,
+        int newSimilarCount,
+        int newNegativeCount) {
+}
+
+/** 导入成功的条目摘要。 */
+public record FaqSuccessEntry(
+        int index,
+        long seqId,
+        long tagId,
+        String tagName,
+        String standardQuestion) {
 }
 
 /**
- * */
-@JsonPropertyOrder({"total_entries", "success_count", "failed_count", "partial_failed_count",
-        "skipped_count", "merged_count", "added_count", "import_mode", "imported_at",
-        "task_id", "failed_entries_url", "display_status", "processing_time"})
+ * 导入进度（轮询面）。
+ *
+ * <p>内存态、纯响应体（{@code FaqImportTaskStore} 里的 {@code ConcurrentHashMap}），
+ * 因此按新契约输出：camelCase、<b>无条件键</b>——历史上靠 {@code omitempty} 省略的
+ * 计数与明细，现在恒输出（未发生时为 0 / 空列表 / null），前端不必再判键是否存在。</p>
+ *
+ * <p>{@code importMode}/{@code importedAt}/{@code displayStatus}/{@code processingTime}
+ * 四个字段在 completed 且能读到持久化的 {@link FaqImportResult} 时被覆盖。</p>
+ */
+public record FaqImportProgress(
+        String taskId,
+        String kbId,
+        String knowledgeId,
+        String status,
+        int progress,
+        int total,
+        int processed,
+        int successCount,
+        int failedCount,
+        int partialFailedCount,
+        int skippedCount,
+        List<FaqFailedEntry> failedEntries,
+        String failedEntriesUrl,
+        List<FaqSuccessEntry> successEntries,
+        List<Integer> validEntryIndices,
+        List<Integer> mergeEntryIndices,
+        int mergedCount,
+        int addedCount,
+        List<FaqMergeDetail> mergeDetails,
+        String message,
+        String error,
+        long createdAt,
+        long updatedAt,
+        boolean dryRun,
+        String importMode,
+        OffsetDateTime importedAt,
+        String displayStatus,
+        long processingTime) {
+}
+
+/**
+ * 导入结果（**落 jsonb**：写入文档的 {@code last_faq_import_result} 列）。
+ *
+ * <p><b>有意保留 snake_case</b>：它的字段名就是数据库里 JSON 的键名
+ * （{@code FaqChunkMetadata.JSON.valueToTree(result)} 写入、{@code treeToValue} 读回），
+ * 改名等于改存量数据格式。对外暴露时走文档视图的 {@code lastFaqImportResult} 字段，
+ * 按"jsonb 不透明"约定原样透传。</p>
+ */
 public record FaqImportResult(
         @JsonProperty("total_entries") int totalEntries,
         @JsonProperty("success_count") int successCount,

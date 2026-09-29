@@ -918,7 +918,7 @@ public class FaqImportService {
                 .append('\n');
         for (FaqFailedEntry entry : failedEntries) {
             String answerAll = entry.answerAll() ? "true" : "false";
-            String isDisabled = entry.isDisabled() ? "true" : "false";
+            String isDisabled = entry.disabled() ? "true" : "false";
             buf.append(csvEscape(entry.reason())).append(',')
                     .append(csvEscape(entry.tagName())).append(',')
                     .append(csvEscape(entry.standardQuestion())).append(',')

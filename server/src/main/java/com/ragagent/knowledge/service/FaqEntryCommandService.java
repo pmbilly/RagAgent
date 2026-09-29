@@ -164,7 +164,7 @@ public class FaqEntryCommandService {
                 KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                         .stream().findFirst().orElse(null);
                 if (tag != null) {
-                    entry = FaqEntry.withTagName(entry, tag.getName());
+                    entry = entry.withTagName(tag.getName());
                 }
             }
             log.info("FAQ entry created: kb={}, entry={}", kb.getId(), chunk.getSeqId());
@@ -275,7 +275,7 @@ public class FaqEntryCommandService {
             KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                     .stream().findFirst().orElse(null);
             if (tag != null) {
-                entry = FaqEntry.withTagName(entry, tag.getName());
+                entry = entry.withTagName(tag.getName());
             }
         }
         log.info("FAQ entry updated: kb={}, entry={}", kb.getId(), chunk.getSeqId());
@@ -378,7 +378,7 @@ public class FaqEntryCommandService {
             KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                     .stream().findFirst().orElse(null);
             if (tag != null) {
-                entry = FaqEntry.withTagName(entry, tag.getName());
+                entry = entry.withTagName(tag.getName());
             }
         }
         recordKbActivity(tid, kb.getId(), AuditAction.KNOWLEDGE_UPDATED,

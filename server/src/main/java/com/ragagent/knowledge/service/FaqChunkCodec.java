@@ -82,10 +82,8 @@ public class FaqChunkCodec {
                 faqIndexMode(kb),
                 chunk.getUpdatedAt(),
                 chunk.getCreatedAt(),
-                0,
-                0,
                 chunk.getChunkType(),
-                "");
+                null);
     }
 
     /**

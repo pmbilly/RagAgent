@@ -1081,7 +1081,7 @@ class JsonContractRoundTripTest {
                 "all", "question_only",
                 java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
                 java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
-                0.87, 1, "faq", "如何绑定");
+                "faq", new FaqEntryDtos.FaqEntry.FaqMatch(0.87, 1, "如何绑定"));
         assertRoundTrips(entry, FaqEntryDtos.FaqEntry.class, "types.FAQEntry ← FaqEntryDtos.FaqEntry");
 
         // 导出面：id 无 omitempty（0 恒输出，golden 实录）

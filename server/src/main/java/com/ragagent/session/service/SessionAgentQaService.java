@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.knowledge.dto.FaqEntryDtos;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPage;
+import com.ragagent.knowledge.service.FaqEntryQueryService;
 import com.ragagent.agent.AgentConfig;
 import com.ragagent.agent.AgentEngine;
 import com.ragagent.agent.AgentPrompts;
@@ -74,7 +77,7 @@ public class SessionAgentQaService {
     private final ArtifactCollectorWiring artifactCollectorWiring;
     private final com.ragagent.knowledge.service.KnowledgeBaseService kbService;
     private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
-    private final com.ragagent.knowledge.service.FaqEntryQueryService faqService;
+    private final FaqEntryQueryService faqService;
     /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
     private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
     private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
@@ -101,7 +104,7 @@ public class SessionAgentQaService {
             ArtifactCollectorWiring artifactCollectorWiring,
             com.ragagent.knowledge.service.KnowledgeBaseService kbService,
             com.ragagent.knowledge.service.KnowledgeService knowledgeService,
-            com.ragagent.knowledge.service.FaqEntryQueryService faqService,
+            FaqEntryQueryService faqService,
             com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
                     ollamaService,
@@ -795,11 +798,10 @@ public class SessionAgentQaService {
             // FAQ 库：条目列表；否则/失败回落通用 knowledge 列表（completed 过滤，top 10）
             if ("faq".equals(kb.getType())) {
                 try {
-                    var page = faqService.listEntries(kbId, 1, 10, null, 0, "", "", "", null);
-                    docCount = ((Number) page.getOrDefault("total", 0)).intValue();
-                    @SuppressWarnings("unchecked")
-                    List<com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry> entries =
-                            (List<com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry>) page.get("data");
+                    FaqEntryPage page = faqService.listEntries(kbId, 1, 10, null, 0, "", "", "", null);
+                    docCount = page.total() > Integer.MAX_VALUE ? Integer.MAX_VALUE
+                            : (int) page.total();
+                    List<FaqEntry> entries = page.items();
                     if (entries != null) {
                         for (var entry : entries) {
                             if (recentDocs.size() >= 10) {

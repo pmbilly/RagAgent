@@ -12,9 +12,13 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * FAQ 条目域传输对象：条目视图、导出、载荷与批量更新请求。
- * 响应 record 的键序/键名由 @JsonProperty/@JsonPropertyOrder 锁定（契约面）；
- * 请求 record 用标准 @JsonNaming(SnakeCaseStrategy) + jakarta.validation 校验，
- * 校验消息自含 snake_case 字段前缀（错误 details 的统一形态）。
+ *
+ * <p><b>响应侧已按新契约</b>（{@link FaqEntry} / {@link FaqEntryPage}）：camelCase、零注解、
+ * 条件键收敛为可空字段。</p>
+ *
+ * <p><b>请求侧仍为 snake_case</b>（{@code @JsonNaming(SnakeCaseStrategy)}），与
+ * {@link FaqExportEntry} 同批处理：导出 JSON 与 {@code FaqEntryPayload} 是**同一套交换格式**
+ * （导出 → 改动 → 再导入），必须同时改名，否则破坏往返。</p>
  */
 public final class FaqEntryDtos {
 
@@ -29,56 +33,72 @@ public final class FaqEntryDtos {
     public static final String INDEX_MODE_QUESTION_ONLY = "question_only";
     public static final String INDEX_MODE_QUESTION_ANSWER = "question_answer";
 
-@JsonPropertyOrder({"id", "chunk_id", "knowledge_id", "knowledge_base_id", "tag_id",
-        "tag_name", "is_enabled", "is_recommended", "standard_question",
-        "similar_questions", "negative_questions", "answers", "answer_strategy",
-        "index_mode", "updated_at", "created_at", "score", "match_type",
-        "chunk_type", "matched_question"})
+/**
+ * FAQ 条目对外视图。
+ *
+ * <p>契约要点：camelCase、零注解、布尔不带 {@code is} 前缀（{@code enabled}/{@code recommended}）；
+ * 检索命中信息收敛为嵌套的 {@link FaqMatch}——列表/详情场景为 {@code null}，
+ * 避免历史上"score/match_type/matched_question 有时出现有时消失"的条件键。</p>
+ *
+ * @param indexMode 索引模式（{@code question_only} / {@code question_answer}），取值由常量收敛
+ * @param chunkType 底层分块类型（数据驱动，保持字符串）
+ */
 public record FaqEntry(
-        @JsonProperty("id") long id,
-        @JsonProperty("chunk_id") String chunkId,
-        @JsonProperty("knowledge_id") String knowledgeId,
-        @JsonProperty("knowledge_base_id") String knowledgeBaseId,
-        @JsonProperty("tag_id") long tagId,
-        @JsonProperty("tag_name") String tagName,
-        @JsonProperty("is_enabled") boolean isEnabled,
-        @JsonProperty("is_recommended") boolean isRecommended,
-        @JsonProperty("standard_question") String standardQuestion,
-        @JsonProperty("similar_questions") List<String> similarQuestions,
-        @JsonProperty("negative_questions") List<String> negativeQuestions,
-        @JsonProperty("answers") List<String> answers,
-        @JsonProperty("answer_strategy") String answerStrategy,
-        @JsonProperty("index_mode") String indexMode,
-        @JsonProperty("updated_at") OffsetDateTime updatedAt,
-        @JsonProperty("created_at") OffsetDateTime createdAt,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        @JsonProperty("score") double score,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("match_type") int matchType,
-        @JsonProperty("chunk_type") String chunkType,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("matched_question") String matchedQuestion) {
+        long id,
+        String chunkId,
+        String knowledgeId,
+        String knowledgeBaseId,
+        long tagId,
+        String tagName,
+        boolean enabled,
+        boolean recommended,
+        String standardQuestion,
+        List<String> similarQuestions,
+        List<String> negativeQuestions,
+        List<String> answers,
+        String answerStrategy,
+        String indexMode,
+        OffsetDateTime updatedAt,
+        OffsetDateTime createdAt,
+        String chunkType,
+        FaqMatch match) {
 
-    /** 以检索命中覆盖 score/matchType/matchedQuestion 的视图重建。 */
-    public static FaqEntry withSearchHit(FaqEntry entry, double score, int matchType,
-            String matchedQuestion) {
-        return new FaqEntry(entry.id(), entry.chunkId(), entry.knowledgeId(), entry.knowledgeBaseId(),
-                entry.tagId(), entry.tagName(), entry.isEnabled(), entry.isRecommended(),
-                entry.standardQuestion(), entry.similarQuestions(), entry.negativeQuestions(),
-                entry.answers(), entry.answerStrategy(), entry.indexMode(), entry.updatedAt(),
-                entry.createdAt(), score, matchType, entry.chunkType(),
-                matchedQuestion);
+    /**
+     * 检索命中信息。
+     *
+     * @param score           相似度分数
+     * @param type            命中方式（0 = 关键词，1 = 向量）
+     * @param matchedQuestion 命中的问题原文（命中相似问法时非空）
+     */
+    public record FaqMatch(double score, int type, String matchedQuestion) {
+    }
+
+    /** 覆盖检索命中信息（列表/详情场景传 {@code null} 表示无命中信息）。 */
+    public FaqEntry withMatch(FaqMatch hit) {
+        return new FaqEntry(id, chunkId, knowledgeId, knowledgeBaseId, tagId, tagName, enabled,
+                recommended, standardQuestion, similarQuestions, negativeQuestions, answers,
+                answerStrategy, indexMode, updatedAt, createdAt, chunkType, hit);
     }
 
     /** 覆盖 tagName 的视图重建。 */
-    public static FaqEntry withTagName(FaqEntry entry, String tagName) {
-        return new FaqEntry(entry.id(), entry.chunkId(), entry.knowledgeId(), entry.knowledgeBaseId(),
-                entry.tagId(), tagName == null ? "" : tagName, entry.isEnabled(), entry.isRecommended(),
-                entry.standardQuestion(), entry.similarQuestions(), entry.negativeQuestions(),
-                entry.answers(), entry.answerStrategy(), entry.indexMode(), entry.updatedAt(),
-                entry.createdAt(), entry.score(), entry.matchType(), entry.chunkType(),
-                entry.matchedQuestion());
+    public FaqEntry withTagName(String newTagName) {
+        return new FaqEntry(id, chunkId, knowledgeId, knowledgeBaseId, tagId,
+                newTagName == null ? "" : newTagName, enabled, recommended, standardQuestion,
+                similarQuestions, negativeQuestions, answers, answerStrategy, indexMode,
+                updatedAt, createdAt, chunkType, match);
     }
 }
 
+/** FAQ 条目分页结果。 */
+public record FaqEntryPage(List<FaqEntry> items, int page, int pageSize, long total) {
+}
+
+/**
+ * 导出条目（JSON 导出文件的行）。
+ *
+ * <p><b>有意保留 snake_case</b>：它与导入用的 {@code FaqEntryPayload} 是同一套交换格式
+ * （导出 → 编辑 → 再导入），必须同批改名以保持往返一致，属"请求侧 camelCase"批次。</p>
+ */
 @JsonPropertyOrder({"id", "tag_name", "standard_question", "similar_questions",
         "negative_questions", "answers", "answer_strategy", "is_enabled", "is_recommended"})
 public record FaqExportEntry(
