@@ -11,11 +11,11 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.dto.CopyKbRequest;
+import com.ragagent.knowledge.dto.CopyKnowledgeBaseRequest;
 import com.ragagent.knowledge.dto.HybridSearchRequest;
 import com.ragagent.knowledge.dto.RebuildIndexResponse;
-import com.ragagent.knowledge.dto.UpdateKbRequest;
-import com.ragagent.knowledge.dto.CreateKbRequest;
+import com.ragagent.knowledge.dto.UpdateKnowledgeBaseRequest;
+import com.ragagent.knowledge.dto.CreateKnowledgeBaseRequest;
 import com.ragagent.knowledge.dto.KnowledgeBaseResponse;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.retrieval.HybridSearchService;
@@ -46,11 +46,11 @@ import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.task.KnowledgeTaskIds;
 import com.ragagent.storageurl.Mode;
-import com.ragagent.knowledge.dto.CopyKbRequest;
-import com.ragagent.knowledge.dto.CreateKbRequest;
+import com.ragagent.knowledge.dto.CopyKnowledgeBaseRequest;
+import com.ragagent.knowledge.dto.CreateKnowledgeBaseRequest;
 import com.ragagent.knowledge.dto.HybridSearchRequest;
 import com.ragagent.knowledge.dto.RebuildIndexResponse;
-import com.ragagent.knowledge.dto.UpdateKbRequest;
+import com.ragagent.knowledge.dto.UpdateKnowledgeBaseRequest;
 
 /**
  * 知识库 CRUD 与检索入口：列表/详情/更新/删除、置顶、移动目标、混合检索
@@ -93,10 +93,10 @@ public class KnowledgeBaseController {
     /** 创建知识库：请求体字段全部可选（缺省由服务层默认值链补齐）。 */
     @PostMapping
     public ResponseEntity<KnowledgeBaseResponse> createKnowledgeBase(
-            @RequestBody(required = false) CreateKbRequest request) {
+            @RequestBody(required = false) CreateKnowledgeBaseRequest request) {
         log.info("Start creating knowledge base");
         KnowledgeBase kb = kbService.createKnowledgeBase(
-                request == null ? CreateKbRequest.empty().toEntity() : request.toEntity());
+                request == null ? CreateKnowledgeBaseRequest.empty().toEntity() : request.toEntity());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
     }
@@ -125,7 +125,7 @@ public class KnowledgeBaseController {
     @PutMapping("/{id}")
     public ResponseEntity<KnowledgeBaseResponse> updateKnowledgeBase(
             @PathVariable("id") String id,
-            @Valid @NonNullBody @RequestBody UpdateKbRequest req) {
+            @Valid @NonNullBody @RequestBody UpdateKnowledgeBaseRequest req) {
         log.info("Start updating knowledge base, ID: {}", id);
         KnowledgeBase existing = kbService.getKnowledgeBase(id);
         checkOwnership(existing);
@@ -264,7 +264,7 @@ public class KnowledgeBaseController {
     /** 复制知识库（源在 body）；targetId 缺省 = 创建新库。异步受理 → 202 + 任务信息。 */
     @PostMapping("/copy")
     public ResponseEntity<CopyKnowledgeBaseResponse> copyKnowledgeBase(
-            @Valid @NonNullBody @RequestBody CopyKbRequest req) {
+            @Valid @NonNullBody @RequestBody CopyKnowledgeBaseRequest req) {
         log.info("Start copying knowledge base");
         String sourceId = req.sourceId() == null ? "" : req.sourceId();
         String targetId = req.targetId() == null ? "" : req.targetId();

@@ -5,7 +5,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import java.util.List;
 
-public record CreateKbRequest(
+public record CreateKnowledgeBaseRequest(
         String name,
         String description,
         String type,
@@ -26,8 +26,8 @@ public record CreateKbRequest(
         String vectorStoreId) {
 
     /** 空请求体（全默认创建）。 */
-    public static CreateKbRequest empty() {
-        return new CreateKbRequest(null, null, null, null, null, null, null, null, null,
+    public static CreateKnowledgeBaseRequest empty() {
+        return new CreateKnowledgeBaseRequest(null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
     }
 
