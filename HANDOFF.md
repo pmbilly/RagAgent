@@ -55,7 +55,7 @@
 - 后端测试：**4,670 用例全绿**（含 6 个 skip）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
 - **≥800 行的类（main，全仓）**：AgentEngine 3,235、WikiIngestBatchHandler 2,268、WikiIngestService 2,182、InitializationController 1,981、DataSourceService 1,827、SessionKnowledgeQaService 1,764、MemoryService 1,660、OpenSearchRetrieveRepository 1,652、WikiPageServiceImpl 1,642、KnowledgeQaController 1,616……
 - **knowledge 包（已整治，可作样板）**：**197 文件 / 25,264 行**；最大三个 = `FaqImportService` 1,234、`KnowledgeService` 850、`KnowledgeProcessWorker` 814；13 个子包见 §12；容器类/`*Util` 反模式命名已清零。
-- **agent 域（2026-09-30 A/B 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；`@JsonProperty` 余 30 处（=Task 11 的 domain 落库类型）；Go 锚点 479 处/140 文件（余量为内联 javadoc,段界已在拆分时清洗）；12 个子包全有 package-info。
+- **agent 域（2026-09-30 A/B/E 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；**Go 锚点 0**（479 处/186 文件已清扫,§13.11/13.13 判据,真实不变量改中性陈述保留）；12 个子包全有 package-info；`@JsonProperty` 余 30 处已随落库换锚清零（§11.1）。
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器引用 **408 处 / 94 文件**；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
 - **注释卫生（knowledge 包实测，2026-09-30，可作其余域标准）**：Go 锚点注释 **0 处**、注释掉的代码 **0 处**、TODO **1 处**、注释占比 12.1%、13 个包全有 `package-info`；坏 `{@link}` 0 处。Javadoc 覆盖：**public 类型 91%**（201/221，未写的 20 处是纯 CRUD 请求体——有意留白，名字即语义）、public 方法 33%（**分布是对的**：逻辑密集类 90%+，POJO 访问器 7%）。
 - **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。
@@ -219,10 +219,12 @@
 
 **C 波（部分）**：approval 六个 Redis 内部报文去 56 处 `@JsonProperty` + 失效 `@JsonPropertyOrder`,JSON 键=Java 字段名,双侧同批;`ApprovalWireFormatTest` 五个 Go-tag 钉子重录为 camelCase wire 钉子。**event/ 的 SSE 同键类型保持 snake**（归 session 域切片,前端同批）。
 
-**agent 域余下工作（下会话首项,精确接手面）**：
-1. `agent/domain` 五类型（AgentState/AgentStep/ToolCall/ToolCallTarget/ToolResult）去 30 处注解——经 `messages.agent_steps` jsonb 直达消息 API 响应体,须同批改前端消费组件与重录 `ag-*` fixture;前端消费横跨 SSE（不动）与 steps（要动）两类线,动手前先分清每个键来自哪条线（`useChatStreamHandler.ts`/`agent-tool-display.ts`/`mcpToolDisplay.ts` 等 10 文件）。
-2. agentm 契约换锚（27 端点/17 个 golden·raw fixture/前端三 api 模块约 1,036 行;Task 11 已于 2026-09-30 完成,见 §11.1 末）。要点:①拦截器 `frontend/src/utils/request.ts` 不撕信封,解包在各 api 模块(initialization 的 `response.data` 即信封内 data 字段,agent 的 `del<{success:boolean}>`)——后端去信封后这些解包点逐一改为裸载荷;②`AgentResponses.agentConfigMap` 的 config jsonb 键是 snake 且由前端写入(设置表单)——换锚=前端表单键+后端读取+线格式三方同批(产品未上线无数据包袱,§2 第 2 条);③`AgentContractTest`(9 fixture,agents CRUD)+`W5bInitializationContractTest`(8 fixture,系统级 14 端点)重录;④§7 第 5 条 KnowledgeBaseEditorModal legacy 装配块静默默认值缺陷一并修。**注意此任务原子性强,必须一次会话内完成前后端+fixture,半迁移=向导页断裂**;建议动工前读 AgentResponses/InitResponses 全文与 W5bStubServers。
-3. Go 锚点注释清扫:余 479 处/140 文件（A 波触碰文件的段界已清洗,余为内联 javadoc"对照"锚）;Playbook=先摘不变量改中性表述再删,§13.13 判据。Go 复刻件类名（GoJsonCodec/GoPath/GoQuoting）**不改**——名字即真相,Task 13 判据裁定。终审遗留的顺延项:agentm 服务新写段注释仍带 W5b 代号/L 行号、拆出文件保留容器内缩进、InitializationController 类 javadoc 批次叙述——随本次清扫一并处理。
+**Task 11 已完成（39e3cb6）**：五落库类型去 30 处注解（键=Java 字段名,`is_complete`→`complete` 随字段名）;信封键 `agent_steps` 属 session 域 Message 未动;前端 `useChatStreamHandler`/`steerStreamFork` 内层读取同批适配(合成 SSE 事件键不动);`AgentStepsJsonTest` 重录 + `GoRecording46B` 逐常量上下文敏感重录(EVENTS 仅 agent_steps 跨度内,STATE 全量,SSE 信封键与事件类型值保持)并改为本仓行为契约。
+
+**agent 域余下工作（Task 12 一项,原子任务,接手面已详注）**：
+1. agentm 契约换锚（27 端点/17 fixture/前端三 api 模块;解包点、config jsonb 三方同批、fixture 清单、KnowledgeBaseEditorModal legacy 缺陷——详注见上文第 2 条,2026-09-30 已补）。
+2. agentm 契约换锚要点（2026-09-30 侦察补注）：①拦截器 `frontend/src/utils/request.ts` 不撕信封,解包在各 api 模块(initialization 的 `response.data` 即信封内 data 字段,agent 的 `del<{success:boolean}>`)——后端去信封后这些解包点逐一改为裸载荷;②`AgentResponses.agentConfigMap` 的 config jsonb 键是 snake 且由前端写入(设置表单)——换锚=前端表单键+后端读取+线格式三方同批(产品未上线无数据包袱,§2 第 2 条);③`AgentContractTest`(9 fixture)+`W5bInitializationContractTest`(8 fixture)重录;④§7 第 5 条 KnowledgeBaseEditorModal legacy 装配块静默默认值缺陷一并修。**原子性强:必须一次会话内完成前后端+fixture,半迁移=向导页断裂**;动工前读 AgentResponses/InitResponses 全文与 W5bStubServers。
+3. **Task 13 已完成（f59e35b）**：Go 锚点 479→0、批次代号清零;终审顺延项(服务段横幅/控制器批次叙述)一并落地。经验:清扫注释时 javadoc 里的 `\u00XX` 会被 javac 当 unicode 转义处理(非法十六进制=编译错)——写"U+00XX"形态。
 4. **范围外发现（终审抓出,动 session 域前必读）**：Gate 发出的 `agent.approval.*Data` 经 `ApprovalBridge.toEventBus` 上的真实 EventBus,而 `AgentStreamBridge` 四个 handler instanceof 的是 `com.ragagent.event.*Data`——类型永不匹配,审批/OAuth 事件的 SSE 流转链路疑似断裂（重构前即如此,本域改造未改变它）。session 域切片动 `AgentStreamBridge` 时必须先核实前端实际经哪条链路收到审批事件。
 
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
@@ -322,7 +324,7 @@ knowledge/
 （先决策"删 or 留"再动工）→ ⑤ 其余域。
 **排序依据**：风险随"跨包引用数 × 契约可见面"上升，收益随"神类行数 × Go 债务"上升。
 
-**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` 🔶 A/B 波完成、C 波余落库换锚、E 波余锚点清扫（2026-09-30，见 §11）｜`wiki` ⬜ ｜`session` ⬜ ｜
+**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` 🔶 仅余 Task 12 agentm 契约换锚（A/B/E 波 + domain 落库换锚 + approval 换锚完成,2026-09-30,见 §11.1）｜`wiki` ⬜ ｜`session` ⬜ ｜
 `datasource` ⬜（先定删/留）｜`im` ⬜（先定删/留）｜`memory` ⬜ ｜`llm` ⬜ ｜`retrieval` ⬜ ｜
 `mcp` ⬜ ｜`auth` ⬜ ｜`agentm` ⬜ ｜其余小域 ⬜。
 每完成一个域：把该行改为 ✅、在 §11 追加执行记录、按 §14.2 第 7 步回填数据。
