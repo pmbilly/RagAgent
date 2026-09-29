@@ -9,14 +9,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
 
 /**
- * 分块图抽取任务的载荷（对照 Go {@code types.ExtractChunkPayload}，
- * internal/types/task.go L281-296）。
- *
+ * 分块图抽取任务的载荷。
  * <p>{@code knowledge_id} / {@code attempt} / {@code chunk_index} 三个键带 omitempty：
  * 缺省表示"旧版在飞任务"——worker 侧因此跳过 span 记录（无法挂到父 attempt 的
  * postprocess 阶段）。</p>
- *
- * <p><b>追踪载体</b>：Go 内嵌 {@code types.TracingContext}（平铺的 {@code lf_*} 五键）；
  * Java 侧同形，空值整键省略。</p>
  */
 @JsonPropertyOrder({"tenant_id", "chunk_id", "model_id", "knowledge_id", "attempt", "chunk_index",
@@ -71,7 +67,6 @@ public record ExtractChunkPayload(
         return new TracingContext(lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
     }
 
-    /** 对照 Go 的 {@code json.Marshal(payload)}：载荷以 JSON 形态进队列。 */
     public String toJson() {
         try {
             return MAPPER.writeValueAsString(this);
@@ -80,7 +75,6 @@ public record ExtractChunkPayload(
         }
     }
 
-    /** 对照 Go 的 {@code json.Unmarshal(t.Payload(), &p)}。 */
     public static ExtractChunkPayload fromJson(String json) {
         try {
             return MAPPER.readValue(json, ExtractChunkPayload.class);

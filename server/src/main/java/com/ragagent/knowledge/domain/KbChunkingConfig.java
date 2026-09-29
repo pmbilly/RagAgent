@@ -8,9 +8,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * ChunkingConfig（对照 Go types/knowledgebase.go L244）。
+ * ChunkingConfig。
  * 非指针值类型：chunk_size/chunk_overlap/separators 恒输出（separators null → JSON null）；
- * 其余字段 omitempty（Go tag 带 omitempty）→ 0/空省略。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
@@ -26,7 +25,6 @@ public class KbChunkingConfig {
     @JsonProperty("chunk_overlap")
     private int chunkOverlap;
     @JsonProperty("separators")
-    /** Go 无 omitempty：null 也输出（覆盖类级 NON_NULL） */
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private List<String> separators;
     @JsonProperty("parser_engine_rules")

@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 /**
  * FAQ 条目的 chunk 仓储面（FAQ 条目 = chunk_type=faq 的行）：按 seq_id/知识/KB 的
  * 读取、重复问检测（PG jsonb 与 H2 双方言）、flags 位运算批量更新、按标签批量改字段。
- *
  * <p>方言探测在构造期做一次（PG 的 jsonb/位运算 vs MySQL/H2 的替代语法）；FAQ 关键词
  * 搜索的 jsonb 分支仅真 PG 可跑（H2 集成测试只覆盖排序键）。</p>
  */
@@ -49,7 +48,6 @@ public class FaqChunkRepository {
 
     /**
      * tenant + seq_id，软删行不可见。
-     * Go 的 ErrChunkNotFound 在 FAQ service 层统一翻成 404 "FAQ条目不存在"，
      * 这里返回 null 由调用方决定文案（ChunkRepository 的既有先例）。
      */
     public Chunk getChunkBySeqId(long tenantId, long seqId) {
@@ -74,7 +72,6 @@ public class FaqChunkRepository {
     /**
      * 只取
      * {@code id, content_hash} 投影（replace 模式 hash 比对用），chunk_type='faq'。
-     * Go 按 1000 一批 offset 分页；Java 同款循环。
      */
     public List<Chunk> listAllFAQChunksByKnowledgeId(long tenantId, String knowledgeId) {
         List<Chunk> all = new java.util.ArrayList<>();
@@ -129,10 +126,7 @@ public class FaqChunkRepository {
      * 找单个
      * standard_question 或 similar_questions 与给定问题集重叠的 FAQ chunk
      * （status ∈ {0,1,2} 全算——stored 的兄弟请求也算，软删行不可见）。
-     *
-     * <p>PG 走 Go 的原版 SQL；非 PG（H2 测试）无 {@code ->>} / json_each，
      * 退化为「取候选行后在 JVM 内按同一集合语义过滤」——功能等价、数据量是
-     * 测试级；PG（真 e2e/A-B）不受影响。LIMIT 1 无 ORDER BY（照抄 Go，
      * 多行重叠时取哪一行本就不确定）。</p>
      */
     public Chunk findFAQChunkWithDuplicateQuestion(
@@ -173,7 +167,6 @@ public class FaqChunkRepository {
 
     /**
      * * {@code id, metadata, tag_id, is_enabled, flags} + status=2 + {@code created_at ASC}。
-     * 注意投影不含 seq_id——导出面 FAQExportEntry 的 {@code id} 因此恒 0（Go 实录）。
      */
     public List<Chunk> listAllFAQChunksForExport(long tenantId, String knowledgeId) {
         List<Chunk> all = new java.util.ArrayList<>();
@@ -229,7 +222,6 @@ public class FaqChunkRepository {
 
     /**
      * FAQ metadata 列（json 投影）→ {@link FaqChunkMetadata}；解析失败/空 → null
-     * （Go 的 FAQMetadata() 在 len==0 时返回 (nil,nil)，解析错误上层各按文案处理）。
      */
     public static FaqChunkMetadata parseFaqMetadata(com.fasterxml.jackson.databind.JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode() || node.isEmpty()) {
@@ -259,7 +251,6 @@ public class FaqChunkRepository {
     /**
      * 把某 tag 下（可排除若干 id）
      * 的全部 FAQ chunk 更新 is_enabled / flags / tag_id，返回受影响 id（先 Pluck 后更新）。
-     * flags 的位运算用 SQL 原样表达式（Go 的 gorm Raw 同款）。
      */
     public List<String> updateChunkFieldsByTagId(long tenantId, String kbId, String tagId,
                                                  Boolean isEnabled, int setFlags, int clearFlags,
@@ -317,7 +308,6 @@ public class FaqChunkRepository {
     /**
      * CASE 批量更新 content / is_enabled /
      * tag_id / flags / status + updated_at=NOW()（一条语句一个时刻，列表排序敏感）。
-     * metadata / content_hash 不在此更新（Go 注释明确，需要时用单条 Save）。
      */
     public void updateChunks(List<Chunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {

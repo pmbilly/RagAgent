@@ -21,23 +21,16 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.wiki.service.DefaultWikiKnowledgeFinalizer;
 
 /**
- * 问题生成**批** worker（对照 Go {@code processQuestionGenerationForChunks}，
- * internal/application/service/knowledge_process.go:1812-2110）。
- *
- * <p><b>它补的是哪个洞</b>：Go 在导入后处理里按批扇出 {@code TypeQuestionGeneration} 任务
- * （{@code knowledge_post_process.go:209-238,604-690}），每块生成 Doc2Query 式问题写回 chunk
+ * 问题生成**批** worker。
  * metadata 并重建向量索引——这是"导入文档后，新建提问能看到推荐问题"的**数据来源**。
  * 本仓此前只有手动路径（{@code POST /chunks/by-id/{id}/questions/regenerate}），
  * 自动路径在 {@code KnowledgeService} 里备案为"未翻" ⇒ 刚导入的 KB 推荐问题恒为空。</p>
- *
- * <p>逐批顺序照 Go：supersede 跳过 → 知识中止短路 → 取 KB → 逐块生成（复用
  * {@link ChunkQuestionService#generateAndStoreQuestionsForWorker}）→ 终态递减 finalizing 槽
  * （{@code finalizeSubtaskDetached} 的等价物 {@link DefaultWikiKnowledgeFinalizer#finalizeSubtask}）。</p>
  */
 @Service
 public class QuestionGenerationService {
 
-    /** 对照 Go {@code types.TypeQuestionGeneration = "question:generation"}。 */
     public static final String TASK_TYPE_QUESTION_GENERATION = "question:generation";
 
     private static final Logger log = LoggerFactory.getLogger(QuestionGenerationService.class);
@@ -64,14 +57,13 @@ public class QuestionGenerationService {
         this.chunkService = chunkService;
     }
 
-    /** 队列入口：JSON 载荷 → 任务作用域（对照 Go 的 asynq 中间件）→ 处理（默认按终态处理）。 */
+    /** 队列入口：JSON 载荷 → 任务作用域→ 处理（默认按终态处理）。 */
     public void handleJson(String payloadJson) {
         handleJson(payloadJson, true);
     }
 
     /**
      * @param terminal 本次是否是该任务的**最后一次**尝试（队列侧按 {@code attempt > MAX_RETRY} 传入）。
-     *                 对照 Go 的 {@code isFinalAsynqAttempt(ctx)}：槽位只在"成功"或"最后一次尝试"递减
      *                 （{@code willDrain = retErr == nil || final}）——失败且还会重试时递减会让父知识
      *                 在问题落库前就完成。
      */
@@ -85,7 +77,6 @@ public class QuestionGenerationService {
         }
     }
 
-    /** 对照 {@code processQuestionGenerationForChunks} 的批次入口（默认按终态处理）。 */
     public void handle(QuestionBatchPayload p) {
         handle(p, true);
     }
@@ -97,8 +88,7 @@ public class QuestionGenerationService {
                     p.attempt(), p.knowledgeId());
             return;
         }
-        // 绑定批任务的租户上下文（对照 Go processQuestionGenerationForChunks 开头的
-        // ctx = context.WithValue(ctx, types.TenantIDContextKey, payload.TenantID)）。
+        // 绑定批任务的租户上下文。
         // 进程内 worker 线程**没有** HTTP 请求上下文，而模型工厂/仓储的可见性判定都读
         // TenantContext（空 ⇒ tid=0 ⇒ 解析得 "model not found"）——不绑定这条链路必失败。
         // 绑定/恢复样式照 WikiBatchSupport 的同款纪律（clear 后仅在原值非空时恢复）。
@@ -119,7 +109,7 @@ public class QuestionGenerationService {
                     || prevUser != null || prevSysAdmin || prevAccessAll) {
                 TenantContext.set(prevTenant, prevPrincipal, prevRole, prevSysAdmin, prevUser, prevAccessAll);
             }
-            // 终态释放槽位（对照 finalizeSubtaskDetached 的 willDrain = retErr == nil || final）
+            // 终态释放槽位
             if (succeeded || terminal) {
                 drainSubtask(p.knowledgeId(), "question_batch[" + p.batchIndex() + "]");
             }
@@ -139,7 +129,7 @@ public class QuestionGenerationService {
             log.warn("question generation: knowledge {} not found (old in-flight task?)", p.knowledgeId());
             return 0;
         }
-        // 取消/删除短路（对照 Go 的 knowledge_<status> 跳过）：批式扇出让每个批都白拿一次检查，
+        // 取消/删除短路：批式扇出让每个批都白拿一次检查，
         // 取消即可停掉剩余批次的 LLM 配额消耗。
         if (k.isAborted()) {
             log.info("question generation: knowledge {} aborted ({}), skipping batch {}",
@@ -185,7 +175,7 @@ public class QuestionGenerationService {
         return processed;
     }
 
-    /** 对照 Go 的 count 归一：缺省 3、上限 10。 */
+    /**  */
     static int clampQuestionCount(int count) {
         if (count <= 0) {
             return 3;
@@ -200,7 +190,7 @@ public class QuestionGenerationService {
         try {
             return chunkRepository.getChunkById(tenantId, chunkId);
         } catch (RuntimeException e) {
-            // 消失的分块优雅降级（对照 Go getChunk 的 nil）
+            // 消失的分块优雅降级
             return null;
         }
     }
@@ -209,7 +199,7 @@ public class QuestionGenerationService {
         return c == null || c.getContent() == null ? "" : c.getContent();
     }
 
-    /** 对照 Go 的 {@code finalizeSubtaskDetached}：knowledge 为空则空转（旧版在飞任务）。 */
+    /** knowledge 为空则空转（旧版在飞任务）。 */
     private void drainSubtask(String knowledgeId, String source) {
         if (knowledgeId == null || knowledgeId.isEmpty()) {
             return;

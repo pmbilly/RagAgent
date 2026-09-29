@@ -8,25 +8,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Tier 3 legacy（递归字符）切分器（对照 Go internal/infrastructure/chunker/splitter.go）。
- *
+ * Tier 3 legacy（递归字符）切分器。
  * <p>移植自 Python docreader/splitter/splitter.py 递归文本切分：先找保护区域
  * （LaTeX / 图片 / 链接 / 表格 / 代码块），其余文本按分隔符优先级递归切分为
  * splitUnit，最后带 overlap 地合并为 chunk，并在表格边界前置活动表头。</p>
- *
- * <p>所有长度与偏移均为 rune（code point）语义，对照 Go {@code []rune}。</p>
  */
 public final class LegacySplitter {
 
-    /** 对照 Go span（splitter.go:128）；此处保存 UTF-16 char 偏移（来自 Java 正则）。 */
     record CharSpan(int start, int end) {
     }
 
-    /** rune 偏移的 span（对照 Go protectedSpansRune 输出）。 */
+    /** rune 偏移的 span。 */
     record RuneSpan(int start, int end) {
     }
 
-    /** 对照 Go splitUnit（splitter.go:204）：带原文位置的一段文本。 */
     static final class SplitUnit {
         String text;
         int start;
@@ -39,7 +34,6 @@ public final class LegacySplitter {
         }
     }
 
-    /** 对照 Go protectedPatterns（splitter.go:118）：不可切分内容的正则。 */
     private static final List<Pattern> PROTECTED_PATTERNS = List.of(
             Pattern.compile("(?s)\\$\\$.*?\\$\\$"),                                    // LaTeX 块级公式
             Pattern.compile("!\\[[^\\]]*\\]\\([^)]+\\)"),                             // Markdown 图片
@@ -49,16 +43,14 @@ public final class LegacySplitter {
             Pattern.compile("(?s)```(?:\\w+)?[\\r\\n].*?```"),                        // 围栏代码块
             Pattern.compile("`[^`\\r\\n]+`"));                                        // 行内代码
 
-    /** 语义 overlap 回察看长 = 最长分隔符 "\r\n\r\n"（对照 splitter.go:605）。 */
+    /** 语义 overlap 回察看长 = 最长分隔符 "\r\n\r\n"。 */
     private static final int SEMANTIC_OVERLAP_LOOKBEHIND = 4;
 
-    /** 分隔符正则缓存（Go 每次 MustCompile；Java 缓存避免重复编译）。 */
     private static final ConcurrentHashMap<String, Pattern> SEP_PATTERN_CACHE = new ConcurrentHashMap<>();
 
     private LegacySplitter() {
     }
 
-    /** 对照 Go protectedSpans（splitter.go:162）：所有不重叠保护区域（char 偏移，按 start 升序）。 */
     static List<CharSpan> protectedSpans(String text) {
         List<CharSpan> all = new ArrayList<>();
         for (Pattern pat : PROTECTED_PATTERNS) {
@@ -86,7 +78,6 @@ public final class LegacySplitter {
         return result;
     }
 
-    /** 对照 Go protectedSpansRune（splitter.go:137）：char 偏移 → rune 偏移。 */
     static List<RuneSpan> protectedSpansRune(String text, List<CharSpan> charSpans) {
         if (charSpans.isEmpty()) {
             return List.of();
@@ -99,7 +90,6 @@ public final class LegacySplitter {
     }
 
     /**
-     * 对照 Go splitBySeparators（splitter.go:218）：按优先级递归切分；
      * 某分隔符切出的片段仍大于 chunkSize 时，用剩余（低优先级）分隔符在该片段内递归。
      * chunkSize == 0 关闭大小守卫。
      */
@@ -116,7 +106,6 @@ public final class LegacySplitter {
             if (sep.isEmpty()) {
                 continue;
             }
-            // 对照 Go "(" + QuoteMeta(sep) + ")"：分隔符作为独立片段保留
             Pattern re = SEP_PATTERN_CACHE.computeIfAbsent(
                     sep, s -> Pattern.compile("(" + Pattern.quote(s) + ")"));
             Matcher m = re.matcher(text);
@@ -160,7 +149,6 @@ public final class LegacySplitter {
         return List.of(text);
     }
 
-    /** 对照 Go buildUnitsWithProtection（splitter.go:307）：保护区域作为原子单元，偏移为 rune。 */
     static List<SplitUnit> buildUnitsWithProtection(String text, List<CharSpan> protectedSpans,
             List<String> separators, int chunkSize) {
         final int maxProtectedSize = 7500; // 保护单元上限（留余量给标题等）
@@ -227,7 +215,6 @@ public final class LegacySplitter {
     }
 
     /**
-     * 对照 Go SplitText（splitter.go:272）：带 overlap 的文本切分，尊重保护模式。
      * 这是策略链的最终兜底（Tier 3 legacy）。
      */
     public static List<ParsedChunk> splitText(String text, SplitterConfig cfg) {
@@ -252,7 +239,6 @@ public final class LegacySplitter {
     }
 
     /**
-     * 对照 Go mergeUnits（splitter.go:396）：合并 splitUnit 为带 overlap 的 chunk。
      * 活动上下文表头（如 Markdown 表头）会前置到新 chunk，使每个 chunk 自带表头上下文。
      */
     static List<ParsedChunk> mergeUnits(List<SplitUnit> units, int chunkSize, int chunkOverlap) {
@@ -398,7 +384,6 @@ public final class LegacySplitter {
     }
 
     /**
-     * 对照 Go computeOverlap（splitter.go:607）：配置 overlap 是硬上限而非原始字符切片。
      * 边界检测会额外回看 4 个 rune（最长分隔符 "\r\n\r\n"），使被窗口切断的分隔符仍可见。
      * 优先级：段落 > 行 > 句末；同级取最早边界。无有效语义边界则不留 overlap。
      */
@@ -446,7 +431,6 @@ public final class LegacySplitter {
     }
 
     /**
-     * 对照 Go semanticOverlapWindow（splitter.go:657）：从 current 尾部取至多 maxLen 个
      * 有原文出处的 rune；必要时可在首个保留单元内部切片。零宽合成单元（如重复表头）是硬屏障。
      */
     static List<SplitUnit> semanticOverlapWindow(List<SplitUnit> current, int maxLen) {
@@ -492,13 +476,11 @@ public final class LegacySplitter {
     record BoundaryResult(int end, boolean ok) {
     }
 
-    /** 对照 Go findSemanticOverlapBoundary（splitter.go:711）。 */
     static BoundaryResult findSemanticOverlapBoundary(String text) {
         return findSemanticOverlapBoundaryEndingAtOrAfter(text, 0);
     }
 
     /**
-     * 对照 Go findSemanticOverlapBoundaryEndingAtOrAfter（splitter.go:719）：
      * 仅对 end-exclusive rune 偏移 ≥ minEnd 的候选应用优先级与最早位置规则；
      * 先过滤再比较，避免更早但不合格的回看分隔符遮蔽更晚的合格边界。
      */
@@ -532,7 +514,6 @@ public final class LegacySplitter {
         int[] best = {-1, -1, Integer.MAX_VALUE}; // start, end, priority
         boolean[] found = {false};
         int finalMinEnd = minEnd;
-        // consider 闭包（Go splitter.go:749）
         class Consider {
             void apply(int start, int end, int priority) {
                 if (start < 0 || end <= start || end < finalMinEnd || end > runes.length
@@ -605,7 +586,6 @@ public final class LegacySplitter {
     }
 
     /**
-     * 对照 Go trimUnitsPrefix（splitter.go:814）：移除 unitsText 前 prefixLen 个 rune，
      * 保留剩余单元的原始位置。
      */
     static List<SplitUnit> trimUnitsPrefix(List<SplitUnit> units, int prefixLen) {

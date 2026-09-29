@@ -11,9 +11,7 @@ import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
 
 /**
- * 租户存储用量调整（对照 Go tenantRepository.AdjustStorageUsed，
- * internal/application/repository/tenant.go L134-152）——FAQ 索引/删除的执行面依赖
- * （Go 悲观锁 + Save；Java 用 SQL 增量 + 负数钳位，并发语义等价，2026-09-22 走查批）。
+ * 租户存储用量调整——FAQ 索引/删除的执行面依赖
  */
 @Service
 public class TenantStorageService {
@@ -32,8 +30,7 @@ public class TenantStorageService {
     }
 
     /**
-     * 对照 Go AdjustStorageUsed：{@code storage_used += delta}；负数钳 0
-     * （Go 的日志 + 归零行为）。updated_at 随写刷新（Go 的 Save 全列语义）。
+     * {@code storage_used += delta}；负数钳 0
      */
     public void adjustStorageUsed(long tenantId, long delta) {
         jdbc.update("UPDATE tenants SET storage_used = GREATEST(COALESCE(storage_used, 0) + ?, 0), "

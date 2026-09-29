@@ -12,10 +12,7 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 
 /**
- * knowledge_tags 的写入侧仓储（对照 Go repository/tag.go + tagService.CreateTag 的
- * 落库净效果），读路径在 {@link KnowledgeTagMapper}。
- *
- * <p><b>seq_id 的方言分裂</b>：Go 的 KnowledgeTag 带 {@code autoIncrement} tag——
+ * knowledge_tags 的写入侧仓储，读路径在 {@link KnowledgeTagMapper}。
  * PG/MySQL 由 DB 序列供给，SQLite 走 BeforeCreate 的 {@code MAX(seq_id)+1}。
  * Java 侧 PG 用 {@code NEXTVAL}（insertTagPg）、H2 测试库用 max+1（构造期问一次
  * DatabaseProductName，与 {@link ChunkRepository} 的方言探测同款）。</p>
@@ -41,13 +38,9 @@ public class KnowledgeTagRepository {
     }
 
     /**
-     * 对照 tagService.CreateTag 的净效果（L162-172）：name 已 TrimSpace、
      * "未分类" sort_order=-1 的决策在 service 层；这里只负责 uuid、now、seq_id 分配。
-     *
-     * <p><b>seq_id 回填（W5a golden 纠正了本类旧注释）</b>：Go 的 GORM 对带
      * {@code autoIncrement} 的列在 PG 上走 RETURNING 回填——CreateTag 的 HTTP
      * 响应 {@code seq_id} 是**真值**（w5a-tag-create golden 钉住），不是 0。
-     * PG 侧插入后按 id 回读序列值；H2 走 max+1（同 Go 的 sqlite BeforeCreate）。</p>
      */
     public KnowledgeTag createTag(long tenantId, String kbId, String name, String color, int sortOrder) {
         KnowledgeTag tag = new KnowledgeTag();
@@ -70,36 +63,31 @@ public class KnowledgeTagRepository {
         return tag;
     }
 
-    // ── W5a：KB 标签 CRUD 的读/改/删（对照 Go repository/tag.go） ────────────
+    // ── W5a：KB 标签 CRUD 的读/改/删 ────────────
 
-    /** 对照 {@code GetByID}（tag.go L33-42）。缺失返回 null（调用方区分 404/500 文案）。 */
     public KnowledgeTag getById(long tenantId, String id) {
         return tagMapper.selectByTenantAndId(tenantId, id);
     }
 
-    /** 对照 {@code GetBySeqID}（tag.go L58-67）。 */
     public KnowledgeTag getBySeqId(long tenantId, long seqId) {
         return tagMapper.selectByTenantAndSeqId(tenantId, seqId);
     }
 
-    /** 对照 {@code GetByName}（tag.go L83-92）。 */
     public KnowledgeTag getByName(long tenantId, String kbId, String name) {
         return tagMapper.selectByTenantKbAndName(tenantId, kbId, name);
     }
 
-    /** 对照 {@code Update} = GORM Save：整行覆写。 */
+    /**  */
     public void update(KnowledgeTag tag) {
         tagMapper.updateTag(tag);
     }
 
-    /** 对照 {@code Delete}（tag.go L139-143）：硬删（struct 无 DeletedAt）。 */
     public void delete(long tenantId, String id) {
         tagMapper.deleteByTenantAndId(tenantId, id);
     }
 
     /**
-     * 对照 Go {@code ListKnowledgeIDsByTagIDs} → {@code ListIDsByTagIDs}
-     * （knowledge.go L842-851 / repository/knowledge.go L1057-1074）：
+     * （knowledge / repository/knowledge）：
      * 携带任一指定标签的文档 id（DISTINCT）。标签删除时用它列出待清理的文档。
      */
     public List<String> listKnowledgeIdsByTagIds(long tenantId, String kbId, List<String> tagIds) {
@@ -109,12 +97,9 @@ public class KnowledgeTagRepository {
         return tagMapper.selectKnowledgeIdsByTagIds(tenantId, kbId, tagIds);
     }
 
-    /** 分页参数的 Go 归一结果 + 行集 + 总数（对照 ListByKB 的返回三元组）。 */
     public record TagPage(List<KnowledgeTag> items, long total, int page, int pageSize) {}
 
     /**
-     * 对照 {@code ListByKB}（tag.go L94-137）：keyword 转义（Go escapeLikeKeyword：
-     * \\ → \\\\、% → \%、_ → \_）+ 前后 % 包裹；分页在 Java 侧先按 Go
      * Pagination.GetPage/GetPageSize 归一（page&lt;1→1、size&lt;1→20、&gt;1000→1000）。
      */
     public TagPage listByKb(long tenantId, String kbId, Integer page, Integer pageSize, String keyword) {
@@ -132,7 +117,6 @@ public class KnowledgeTagRepository {
         return new TagPage(items, total, pageNo, size);
     }
 
-    /** 对照 {@code CountReferences}（tag.go L146-173）：{knowledgeCount, chunkCount}。 */
     public long[] countReferences(long tenantId, String kbId, String tagId) {
         return new long[]{
                 tagMapper.countKnowledgeRefs(tenantId, kbId, tagId),
@@ -141,8 +125,6 @@ public class KnowledgeTagRepository {
     }
 
     /**
-     * 对照 {@code BatchCountReferences}（tag.go L175-227）：两条分组 SQL；
-     * 未命中的 tagID 保留零值条目（Go 先给全量初始化零值）。
      */
     public java.util.Map<String, long[]> batchCountReferences(long tenantId, String kbId, List<String> tagIds) {
         java.util.Map<String, long[]> result = new java.util.HashMap<>();

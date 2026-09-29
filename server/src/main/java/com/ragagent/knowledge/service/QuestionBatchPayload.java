@@ -12,13 +12,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
 
 /**
- * 问题生成**批**任务的载荷（对照 Go {@code types.QuestionGenerationPayload}，
- * internal/types/knowledge_process.go；入队见 {@code knowledge_post_process.go:615-690}）。
- *
+ * 问题生成**批**任务的载荷。
  * <p>只带 chunk id（普通键 + 边界邻块 id），<b>不带 chunk 内容</b>——worker 运行时读新内容，
  * 与 {@link ExtractChunkPayload} 同法；批大小固定 {@link QuestionBatchPlanner#BATCH_SIZE}=20
- * （Go {@code questionGenChunkBatchSize}）。</p>
- *
  * <p><b>追踪载体</b>：与 {@code ExtractChunkPayload} 同形（平铺 {@code lf_*} 五键，空值整键省略），
  * worker 侧续接同一棵树。</p>
  */
@@ -87,7 +83,6 @@ public record QuestionBatchPayload(
         return new TracingContext(lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
     }
 
-    /** 对照 Go 的 {@code json.Marshal(payload)}。 */
     public String toJson() {
         try {
             return MAPPER.writeValueAsString(this);
@@ -96,7 +91,6 @@ public record QuestionBatchPayload(
         }
     }
 
-    /** 对照 Go 的 {@code json.Unmarshal(t.Payload(), &p)}。 */
     public static QuestionBatchPayload fromJson(String json) {
         try {
             return MAPPER.readValue(json, QuestionBatchPayload.class);

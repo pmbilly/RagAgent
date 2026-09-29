@@ -5,15 +5,13 @@ import java.util.List;
 import java.util.regex.Matcher;
 
 /**
- * Tier 1：Markdown 标题感知切分（对照 Go internal/infrastructure/chunker/heading_splitter.go）。
- *
+ * Tier 1：Markdown 标题感知切分。
  * <p>有正常标题结构的文档按标题边界切分，每个 chunk 通过 ContextHeader 携带
  * 活动标题面包屑（如 "# Chapter 1\n## Section 1.2"）。无可用标题结构或标题切分
  * 只产生单节时，回退到 legacy 切分器。</p>
  */
 public final class HeadingSplitter {
 
-    /** 对照 Go headingBoundary（heading_splitter.go:20）：首节在 rune 0，后续为 ≤ primaryLevel 的标题。 */
     static final class HeadingBoundary {
         int runeStart;
         String line;
@@ -24,7 +22,6 @@ public final class HeadingSplitter {
         }
     }
 
-    /** 对照 Go sectionBreadcrumb（heading_splitter.go:285）。 */
     record SectionBreadcrumb(int runeStart, String breadcrumb) {
     }
 
@@ -32,8 +29,6 @@ public final class HeadingSplitter {
     }
 
     /**
-     * 对照 Go splitByHeadingsImpl（heading_splitter.go:32）。
-     *
      * @param profile 可为 null（按需自行计算）
      */
     public static List<ParsedChunk> splitByHeadings(String text, SplitterConfig cfg,
@@ -110,7 +105,6 @@ public final class HeadingSplitter {
     }
 
     /**
-     * 对照 Go coalesceTinyChunks（heading_splitter.go:139）：合并共享标题上下文下的相邻小块，
      * 避免 FAQ / 安装日志类文档触发校验器 "too many tiny chunks" 一路回退到 legacy。
      * 只在 cur.End == next.Start 时合并（legacy 子 chunk 因 overlap 可能不邻接，天然跳过）。
      */
@@ -154,7 +148,6 @@ public final class HeadingSplitter {
     }
 
     /**
-     * 对照 Go commonHeadingPrefix（heading_splitter.go:182）：两个面包屑串按行对齐的
      * 最长公共前缀；行内部分截断会破坏面包屑，故只按整行比较。
      */
     static String commonHeadingPrefix(String a, String b) {
@@ -185,7 +178,6 @@ public final class HeadingSplitter {
     }
 
     /**
-     * 对照 Go findHeadingBoundaries（heading_splitter.go:209）：offset 0 一个边界 +
      * 每个围栏代码块之外、层级 ≤ primaryLevel 的标题一个边界。
      */
     static List<HeadingBoundary> findHeadingBoundaries(String text, int primaryLevel) {
@@ -230,7 +222,6 @@ public final class HeadingSplitter {
         return bounds;
     }
 
-    /** 对照 Go observeSubHeadings（heading_splitter.go:257）：把节内深于 primaryLevel 的标题喂给层级栈。 */
     static void observeSubHeadings(String sectionText, int primaryLevel, HeadingHierarchy h) {
         if (sectionText.isEmpty()) {
             return;
@@ -257,7 +248,6 @@ public final class HeadingSplitter {
     }
 
     /**
-     * 对照 Go sectionBreadcrumbs（heading_splitter.go:297）：记录节内每个更深子标题生效的
      * rune 偏移与面包屑；返回序列以偏移 0 的种子面包屑开头。
      */
     static List<SectionBreadcrumb> sectionBreadcrumbs(int[] sectionRunes, int primaryLevel,
@@ -295,7 +285,6 @@ public final class HeadingSplitter {
         return result;
     }
 
-    /** 对照 Go breadcrumbAtOffset（heading_splitter.go:333）：最后一个 runeStart ≤ offset 的面包屑。 */
     static String breadcrumbAtOffset(List<SectionBreadcrumb> bcs, int offset, String fallback) {
         String bc = fallback;
         for (SectionBreadcrumb e : bcs) {

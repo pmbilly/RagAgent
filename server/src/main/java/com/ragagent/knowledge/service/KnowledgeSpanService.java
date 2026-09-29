@@ -14,8 +14,7 @@ import com.ragagent.knowledge.mapper.KnowledgeSpanRepository;
 import org.springframework.stereotype.Service;
 
 /**
- * 知识处理 spans 合成树（对照 Go GetKnowledgeSpans / buildSpanTree；原 KnowledgeService
- * 「── 波 2：文档操作面」段拆分独立）。静态 canonical 时间线复用门面公开常量
+ * 知识处理 spans 合成树。静态 canonical 时间线复用门面公开常量
  * {@link KnowledgeService#ALL_STAGES}；时间渲染复用门面同包 helper {@code goTimeString}。
  */
 @Service
@@ -32,11 +31,10 @@ public class KnowledgeSpanService {
     // ── 波 2：文档操作面 ──────────────────────────────────────────────────
 
     /**
-     * 对照 GetKnowledgeSpans（handler L608-690）：attempt 选择（显式 ?attempt=N 优先，
+     * attempt 选择（显式 ?attempt=N 优先，
      * 否则 spans 表的 latestAttempt）→ ListByAttempt → buildSpanTree（真实行建树 +
      * 缺失 canonical stage 合成）→ last_error（span 失败行优先）。
      * 2026-09-23 起 span 写入侧已接线（此前 spanRepo==nil 分支的备案差异作废）。
-     *
      * @return data 信封内层（gin.H 键按字母序：attempt/current_attempt/current_stage/
      *         knowledge_id/[last_error]/latest_attempt/parse_status/trace）
      */
@@ -71,7 +69,7 @@ public class KnowledgeSpanService {
     }
 
     /**
-     * 对照 buildSpanTree（handler/knowledge.go L748-858）：真实行按 span_id 建索引
+     * 真实行按 span_id 建索引
      * （保 rows 序）→ root（首个 kind=root）/首个 running stage（current_stage）/
      * 末个 failed 行（lastFailure）→ children 按 rows 序链接（无父/孤儿挂 root）→
      * 缺失 canonical stage 合成占位（AllStages 序）。rows 为空时与旧实现逐字节一致
@@ -120,7 +118,6 @@ public class KnowledgeSpanService {
             root = nodes.get(rootRow.getSpanId());
         }
 
-        // 真实 children 链接（按 rows 序——Go 刻意不遍历 map，保证 fan-out 子 span 稳定序）
         for (com.ragagent.knowledge.domain.KnowledgeProcessingSpan r : rows) {
             ObjectNode n = nodes.get(r.getSpanId());
             if (n == null || n == root) {
@@ -152,7 +149,6 @@ public class KnowledgeSpanService {
     }
 
     /**
-     * 真实 span 行的 trace 节点渲染：键序 = Go {@code KnowledgeProcessingSpan} 声明序；
      * omitempty 字段（parent_span_id/input/output/metadata/error_code/error_message/
      * started_at/finished_at/duration_ms）缺席即省略；error_detail 是 {@code json:"-"} 不输出；
      * created_at/updated_at 恒输出。
@@ -218,7 +214,7 @@ public class KnowledgeSpanService {
     }
 
     /**
-     * 对照 knowledgeSpansLastError（handler L697-732）：span 失败行优先（字母序
+     * span 失败行优先（字母序
      * code/error_code/error_message/finished_at/message/name/stage；finished_at 为
      * null 时输出 null）；否则 currentAttempt==latestAttempt 且 parse_status=failed
      * 且 error_message 非空才落知识行回退（SERVER_RESTART 文案 EqualFold 判定照抄）。

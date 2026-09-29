@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
-/** ImageProcessingConfig（对照 Go types/knowledgebase.go L523）：单字段 */
+/** ImageProcessingConfig：单字段 */
 @JsonPropertyOrder({"model_id"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class KbImageProcessingConfig {

@@ -7,19 +7,18 @@ import java.util.Map;
 import java.util.regex.Matcher;
 
 /**
- * 文档画像与策略选择（对照 Go internal/infrastructure/chunker/profiler.go）。
- *
+ * 文档画像与策略选择。
  * <p>对文档单次扫描收集结构信号，驱动 chunking 层级选择（heading 感知 /
  * heuristic 边界 / recursive）。profiling 成本低（几次正则扫描 + rune 计数）。</p>
  */
 public final class DocumentProfiler {
 
-    /** chunking 层级（对照 Go StrategyTier，profiler.go:210）。 */
+    /** chunking 层级。 */
     public enum StrategyTier {
         HEADING, HEURISTIC, LEGACY
     }
 
-    /** 文档级信号（对照 Go DocProfile，profiler.go:17）。 */
+    /** 文档级信号。 */
     public static final class DocProfile {
         public int totalChars;
         public int totalLines;
@@ -50,7 +49,6 @@ public final class DocumentProfiler {
     private DocumentProfiler() {
     }
 
-    /** 对照 Go HeadingDensity（profiler.go:48）。 */
     static double headingDensity(DocProfile p) {
         if (p.totalLines == 0) {
             return 0;
@@ -59,10 +57,9 @@ public final class DocumentProfiler {
     }
 
     /**
-     * 主导标题层级（对照 Go DominantHeadingLevel，profiler.go:63）：
+     * 主导标题层级：
      * 1. 出现 ≥3 次的最浅层级（真正的结构骨架）；
      * 2. 否则取出现过 ≥1 次的最深层级（给小文档更细的边界）。
-     *
      * @return 0 表示无 Markdown 标题。
      */
     public static int dominantHeadingLevel(DocProfile p) {
@@ -82,13 +79,11 @@ public final class DocumentProfiler {
         return 0;
     }
 
-    /** 对照 Go HeuristicMarkerTotal（profiler.go:81）。 */
     static int heuristicMarkerTotal(DocProfile p) {
         return p.numberedSectionCount + p.germanChapterCount + p.englishChapterCount
                 + p.chineseChapterCount + p.allCapsShortLineCount + p.visualSepCount + p.formFeedCount;
     }
 
-    /** 对照 Go ProfileDocument（profiler.go:88）。 */
     public static DocProfile profileDocument(String text) {
         DocProfile p = new DocProfile();
         if (text == null || text.isEmpty()) {
@@ -172,7 +167,7 @@ public final class DocumentProfiler {
 
         p.blankParagraphBreaks = Runes.count(text, "\n\n\n");
 
-        // 语言检测取样，避免大输入 O(N) 扫描（对照 profiler.go:178；Go 按字节截断，此处按 char，语义一致）
+        // 语言检测取样，避免大输入 O(N) 扫描
         String sample = text;
         if (sample.length() > 4096) {
             sample = sample.substring(0, 4096);
@@ -190,7 +185,6 @@ public final class DocumentProfiler {
         return p;
     }
 
-    /** 对照 Go matchHeading（profiler.go:194）。 */
     private static boolean matchHeading(String line, Map<Integer, Integer> counts) {
         Matcher m = ChunkPatterns.MARKDOWN_HEADING.matcher(line);
         if (!m.matches()) {
@@ -205,7 +199,7 @@ public final class DocumentProfiler {
     }
 
     /**
-     * 返回该文档应尝试的有序层级链（对照 Go SelectStrategy，profiler.go:220）。
+     * 返回该文档应尝试的有序层级链。
      * 首层是主选择，后续是 ValidateChunks 拒绝后的回退；legacy 永远兜底。
      */
     public static List<StrategyTier> selectStrategy(DocProfile p) {

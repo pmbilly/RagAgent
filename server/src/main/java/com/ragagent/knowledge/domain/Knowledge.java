@@ -15,15 +15,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * knowledges 表实体（对照 Go types/knowledge.go Knowledge L124-195）。
- *
- * GORM 隐式行为清单：
+ * knowledges 表实体。
+ * 仓储行为契约：
  * - 软删除 → 显式 isNull("deleted_at")
  * - 钩子 BeforeCreate：id UUID + custom_metadata 补 '{}'（Java 由 service 显式赋值，语义等价）
  * - metadata jsonb：文件型文档为内部摄取状态（NULL 常见）；手工知识为 ManualKnowledgeMetadata
- * - tags 为 gorm:"-" 关联（阶段 3 不回填 → 恒 null，对照 golden "tags":null）
- *
- * JSON 输出：**handler 直接序列化实体**（字段序 = struct 声明序），故 @JsonPropertyOrder 必须与 Go 一致。
+ * - tags 为 无列映射标签 关联（阶段 3 不回填 → 恒 null，golden 钉住 "tags":null）
  */
 @TableName(value = "knowledges", autoResultMap = true)
 @JsonPropertyOrder({
@@ -51,7 +48,7 @@ public class Knowledge {
     private Long tenantId;
     @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId;
-    /** gorm:"-" 关联回填；阶段 3 不回填 → null（对照 golden） */
+    /** 无列映射标签 关联回填；阶段 3 不回填 → null */
     @TableField(exist = false)
     @JsonProperty("tags")
     private List<JsonNode> tags;
@@ -59,7 +56,6 @@ public class Knowledge {
     private String type;
     @JsonProperty("title")
     private String title;
-    /** Go 非指针语义：null 读出为 ""，恒输出 */
     @JsonProperty("description")
     private String description = "";
     @JsonProperty("source")
@@ -90,14 +86,14 @@ public class Knowledge {
     private String filePath;
     @JsonProperty("storage_size")
     private long storageSize;
-    /** Go 恒输出：NULL → "metadata":null（对照 golden） */
+    /** 恒输出：NULL → "metadata":null */
     @JsonProperty("metadata")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode metadata;
     @JsonProperty("custom_metadata")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode customMetadata;
-    /** Go 恒输出：NULL → null */
+    /** 恒输出：NULL → null */
     @JsonProperty("last_faq_import_result")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode lastFaqImportResult;
@@ -107,17 +103,15 @@ public class Knowledge {
     private OffsetDateTime updatedAt;
     @JsonProperty("processed_at")
     private OffsetDateTime processedAt;
-    /** Go 非指针语义：恒输出（无错误时 ""） */
     @JsonProperty("error_message")
     private String errorMessage = "";
     @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
-    /** gorm:"-" 查询回填（跨 KB 列表场景；恒输出，默认 ""） */
+    /** 无列映射标签 查询回填（跨 KB 列表场景；恒输出，默认 ""） */
     @TableField(exist = false)
     @JsonProperty("knowledge_base_name")
     private String knowledgeBaseName = "";
 
-    /** partial update 用内部标记（json:"-"），对照 DescriptionSpecified */
     @TableField(exist = false)
     @JsonIgnore
     private boolean descriptionSpecified;
@@ -162,7 +156,6 @@ public class Knowledge {
     public void setFileSize(Long v) { fileSize = v; }
     public String getFileHash() { return fileHash; }
     public void setFileHash(String v) { fileHash = v; }
-    /** Go 非指针 string 零值：NULL 扫描为 ""（波 2 search golden 实录） */
     public String getFilePath() { return filePath == null ? "" : filePath; }
     public void setFilePath(String v) { filePath = v; }
     public long getStorageSize() { return storageSize; }
@@ -186,7 +179,7 @@ public class Knowledge {
     public String getKnowledgeBaseName() { return knowledgeBaseName == null ? "" : knowledgeBaseName; }
     public void setKnowledgeBaseName(String v) { knowledgeBaseName = v == null ? "" : v; }
 
-    /** 对照 isKnowledgeAborted（knowledge.go L409）：deleting/cancelled 即中止 */
+    /** deleting/cancelled 即中止 */
     @JsonIgnore
     public boolean isAborted() {
         return PARSE_DELETING.equals(parseStatus) || PARSE_CANCELLED.equals(parseStatus);

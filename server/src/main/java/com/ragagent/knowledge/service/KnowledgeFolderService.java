@@ -25,11 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 知识文件夹树 + 文件夹移动 / 重命名（对照 Go types.BuildKnowledgeFolderTree /
- * MoveKnowledgeToFolder / RenameKnowledgeFolder / loadKnowledgeWrite*；原
- * KnowledgeService「── folders（波 2 升级）」与「── 文件夹移动 / 重命名（波 2）」
+ * 知识文件夹树 + 文件夹移动 / 重命名」与「── 文件夹移动 / 重命名（波 2）」
  * 两段拆分独立）。
- *
  * <p>门面 helper（requireKb/findKb/tenantId/getKnowledgeBatch）经 {@code @Lazy}
  * 门面调用，不复制；{@link #rejectMovingKnowledge} 同包开放给批量面
  * （KnowledgeBatchOpsService）复用。</p>
@@ -51,16 +48,14 @@ public class KnowledgeFolderService {
         this.facade = facade;
     }
 
-    // ── folders（波 2 升级：对照 types.BuildKnowledgeFolderTree 完整树） ──
 
     /**
-     * 对照 KnowledgeFolderTree：root_document_count/total_document_count/folders。
+     * root_document_count/total_document_count/folders。
      * 计数只排除 parse_status='deleting'（draft 计入）+ 软删行；中间空目录会被
-     * 具体化以保持层级连通；同名排序按 path 字节序（Go strings.&lt;）。
      */
     public JsonNode folderTree(String kbId) {
         facade.requireKb(kbId);
-        // 对照 ListKnowledgeFolderCounts：GROUP BY folder_path（Java 侧取列后内存聚合，
+        // GROUP BY folder_path（Java 侧取列后内存聚合，
         // 语义一致：tenant+kb+parse_status<>'deleting'+deleted_at IS NULL）
         List<Knowledge> docs = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
                 .select(Knowledge::getFolderPath)
@@ -102,7 +97,7 @@ public class KnowledgeFolderService {
                     .mapToLong(c -> c.path("total_count").asLong()).sum();
             node.put("total_count", total);
         }
-        // 对照 sortNodes：children/Folders 都按 name 的小写序排；空 children 整键缺席
+        // 空 children 整键缺席
         //（KnowledgeFolderNode.Children omitempty）
         for (Map.Entry<String, List<ObjectNode>> e : children.entrySet()) {
             List<ObjectNode> list = e.getValue();
@@ -124,7 +119,7 @@ public class KnowledgeFolderService {
     private static final java.util.Comparator<ObjectNode> byNameLower =
             java.util.Comparator.comparing(n -> n.path("name").asText("").toLowerCase(java.util.Locale.ROOT));
 
-    /** 对照 ensure：节点 + 缺失祖先具体化；顶级挂 Folders，子级挂 parent.Children。 */
+    /** 顶级挂 Folders，子级挂 parent.Children。 */
     private static ObjectNode ensureFolderNode(String path, Map<String, ObjectNode> nodes,
                                                Map<String, List<ObjectNode>> children, ArrayNode top) {
         ObjectNode existing = nodes.get(path);
@@ -171,8 +166,7 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 对照 types.NormalizeKnowledgeFolderPath（knowledge_folder.go L38-82）：
-     * \ → /、分段 trim、去尾部 ". "、跳过空/./.. 段、单段 ≤128 字节、深度 ≤16、总长 ≤1024。
+     * * \ → /、分段 trim、去尾部 ". "、跳过空/./.. 段、单段 ≤128 字节、深度 ≤16、总长 ≤1024。
      */
     public static String normalizeKnowledgeFolderPath(String raw) {
         if (raw == null || raw.isEmpty()) {
@@ -220,10 +214,8 @@ public class KnowledgeFolderService {
     // ── 文件夹移动 / 重命名（波 2） ──────────────────────────────────────
 
     /**
-     * 对照 MoveKnowledgeToFolder（service 层）。调用前 handler 已做
-     * requireKnowledgeInKB，这里的 loadKnowledgeWriteBatch/kb 校验属 Go 的双保险，
+     * 调用前 handler 已做
      * Java 保留同序（writeResourceIDs 空 id → 400；跨 KB → 403 "knowledge outside target KB"）。
-     *
      * @return affected 行数（UpdateKnowledgeFolderPath 的 RowsAffected）
      */
     @Transactional
@@ -250,7 +242,7 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 对照 RenameKnowledgeFolder（service 层）：source/target 规范化、同路径短路面、
+     * source/target 规范化、同路径短路面、
      * 不能移进自身子目录、KB 缺失 → 404。@return affected 行数。
      */
     @Transactional
@@ -276,8 +268,7 @@ public class KnowledgeFolderService {
         if (kb == null || !kb.getId().equals(kbId)) {
             throw BizException.notFound("knowledge base not found");
         }
-        // 对照 RenameKnowledgeFolderPath：行级重写（folder_path = source 或 source+"/%"），
-        // 目标 = Normalize(to + suffix)，按目标分组批量 UPDATE（Go 双重循环的净效果）
+        // 行级重写（folder_path = source 或 source+"/%"），
         List<Knowledge> rows = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
                 .select(Knowledge::getId, Knowledge::getFolderPath)
                 .eq(Knowledge::getTenantId, kb.getTenantId())
@@ -307,7 +298,7 @@ public class KnowledgeFolderService {
         return affected;
     }
 
-    /** 对照 normalizeTargetFolderPath：trim → ValidateInput（非法 → 1010）→ Normalize。 */
+    /** trim → ValidateInput（非法 → 1010）→ Normalize。 */
     private static String normalizeTargetFolderPath(String folderPath) {
         String trimmed = folderPath == null ? "" : folderPath.trim();
         if (trimmed.isEmpty()) {
@@ -321,11 +312,9 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 对照 loadKnowledgeWriteBatch（knowledge_write.go L101-145）：逐 id 校验存在性、
+     * 逐 id 校验存在性、
      * moving 状态、KB 绑定与 <b>requireKBWrite 授权</b>；缺行 → 404 "knowledge not
      * found"（小写，golden 钉住）；行落在授权 KB 之外 → 403 "无权修改该知识库"
-     * （golden kg-tags-cross-kb 钉住——Go 的 grant 只覆盖进入 handler 时解析的那一个 KB）。
-     *
      * @param grantedKbId 当前请求已授权的那个 KB（kb_id 路径 = 显式 kb_id；无 kb_id 路径 =
      *                    首条 knowledge 的 KB；单行 loadKnowledgeWrite 的调用方传 null）
      */
@@ -369,7 +358,6 @@ public class KnowledgeFolderService {
         return result;
     }
 
-    /** 对照 loadKnowledgeWrite 的单行版（校验同上 + KB 绑定一致性）。 */
     public Knowledge loadKnowledgeWrite(String id) {
         Knowledge k = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getId, id)
@@ -392,7 +380,7 @@ public class KnowledgeFolderService {
         return k;
     }
 
-    /** 对照 access.RejectMovingKnowledge：transfer metadata 里 operation=move 且
+    /** transfer metadata 里 operation=move 且
      *  phase=moving → 409（本批路由的固定状态防线）。同包开放（批量清空复用）。 */
     static void rejectMovingKnowledge(Knowledge k) {
         JsonNode metadata = k.getMetadata();

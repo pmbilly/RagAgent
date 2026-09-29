@@ -4,19 +4,13 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 
 /**
- * 对照 Go {@code types.KnowledgeProcessingSpan}（types/knowledge_span.go L83-103）：
- * {@code knowledge_processing_spans} 表的一行（每次尝试一棵 span 树）。
- *
+ * * {@code knowledge_processing_spans} 表的一行（每次尝试一棵 span 树）。
  * <p>本类供<b>仓储/追踪器</b>使用；HTTP 响应（trace 树）由读侧手写 ObjectNode 组装
- * （键序/omitempty 与 Go 逐字节一致，见 {@code KnowledgeService.buildSpanTree}）。</p>
- *
- * <p>字段语义同 Go：{@code input/output/metadata} 是 jsonb（null = 「本次不写」，
  * 对应 Upsert 的动态列——EndSpan 只写 output，不得清掉 Begin 写的 input）；
- * {@code errorDetail} 不对 API 暴露（Go json:"-"）。</p>
  */
 public class KnowledgeProcessingSpan {
 
-    // ── span kind（types/knowledge_span.go L18-23） ──────────────────────
+    // ── span kind（types/knowledge_span） ──────────────────────
     public static final String KIND_ROOT = "root";
     public static final String KIND_STAGE = "stage";
     public static final String KIND_SUB_SPAN = "subspan";
@@ -114,7 +108,6 @@ public class KnowledgeProcessingSpan {
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) { updatedAt = v; }
 
-    /** 复制（Go 的 struct 值拷贝语义；map 保持同引用）。 */
     public KnowledgeProcessingSpan copy() {
         KnowledgeProcessingSpan c = new KnowledgeProcessingSpan();
         c.id = id;

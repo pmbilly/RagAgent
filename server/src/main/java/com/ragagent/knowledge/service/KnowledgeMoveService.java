@@ -26,8 +26,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 /**
- * 知识库 Move（跨库搬移）worker 面（对照 Go 的 asynq 任务；原 KnowledgeService
- * 「── Move」段，阶段 2 拆分独立）。HTTP 契约 = 立即返回 + 进度查询；
+ * 知识库 Move（跨库搬移）worker 面。HTTP 契约 = 立即返回 + 进度查询；
  * 虚拟线程内驱动状态机，跨线程显式传值（TenantContext 不共享）。
  */
 @Service
@@ -83,17 +82,13 @@ public class KnowledgeMoveService {
 
 
     /**
-     * 入队 move 任务（对照 handler 的 asynq.Enqueue + SaveKnowledgeMoveProgress）。
+     * 入队 move 任务。
      * 初始进度 SetNX（键已存在不覆写）；worker 在虚拟线程里真实驱动状态机：
      * pending → processing（total=items）→ 逐条搬行（"Moved X/N knowledge items"）→
-     * completed/100（error=""，created_at=0——Go worker 的新对象不带 created_at，实录）。
-     *
      * <p><b>已知差异（2026-09-25 写链改道 + reparse 收尾后更新）</b>：reuse_vectors 模式已搬
      * 向量行（同店 + 同模型校验后 MoveKnowledgeIndices——绑定店走引擎口、未绑定走 postgres
-     * 语义改写）；reparse 模式已按 Go moveKnowledgeReparse 落地源侧清理 + 行改写 + 重新解析
-     * 入队（见 {@link #moveKnowledgeReparse}）；仍不搬 wiki 衍生数据（Go 的
      * cleanupMovedSourceWiki / EnqueueWikiIngest 随 wiki 消费面）、transfer-state 续跑/重试
-     * 语义不翻译（Java 无该状态机，见 {@code moveOneKnowledgeRow} 注释）；asynq 的
+     * 语义不翻译（Java 无该状态机，见 {@code moveOneKnowledgeRow} 注释）；任务队列 的
      * retry/marker 语义不翻译（既有取舍）。</p>
      */
     public void startKnowledgeMove(long tenantId, String taskId, List<String> knowledgeIds,
@@ -150,20 +145,14 @@ public class KnowledgeMoveService {
     }
 
     /**
-     * 单条搬行（对照 Go {@code knowledgeService.moveKnowledge} 的两条分支：
-     * reuse_vectors 走搬移、reparse 走重解析）：
-     *
+     * 单条搬行：
      * <ul>
      *   <li><b>reparse</b> → {@link #moveKnowledgeReparse}：源侧资源清理 + 行改写为目标 KB 的
      *       待解析态 + 重新解析入队；</li>
      *   <li><b>reuse_vectors</b>：knowledge 行 + chunks 行换 KB，并保留既有的 vector 行
-     *       （2026-09-25 写链改道——照 Go moveKnowledgeReuseVectors：标签是 KB 作用域的，
      *       先清关联；同店 + 同嵌入模型校验后 {@code MoveKnowledgeIndices(sourceKB, targetKB,
      *       knowledgeID)}——绑定店走引擎口，未绑定直接走 postgres 语义的 embeddings 改写
-     *       （move.go 的 UPDATE））。</li>
      * </ul>
-     *
-     * <p><b>已知差异</b>：Go 的搬行经 transfer-state（metadata 里的 operation/phase/task id）
      * 做 CAS 与重试幂等，本仓无该状态机——搬行是"尽力一次"，失败由移动任务逐条记入
      * failures（既有取舍，见 {@link #startKnowledgeMove} 注释）。</p>
      */
@@ -186,19 +175,18 @@ public class KnowledgeMoveService {
         knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                 .eq("id", knowledgeId)
                 .set("knowledge_base_id", targetKbId)
-                // 对照 Go moveKnowledgeReuseVectors 的收尾（UpdateKnowledgeForTransfer）：
                 // 搬走后行落在终态 completed、错误清空
                 .set("parse_status", Knowledge.PARSE_COMPLETED)
                 .set("error_message", "")
                 .set("updated_at", now));
         // 标签是 KB 作用域的：搬走后源 KB 的标签不该继续挂着该文档
-        // （对照 Go 的 DeleteKnowledgeTagRelations——两条 move 分支都会清）
+        // 
         tagMapper.deleteRelations(knowledgeId);
         chunkMapper.update(null, new UpdateWrapper<Chunk>()
                 .eq("knowledge_id", knowledgeId)
                 .set("knowledge_base_id", targetKbId)
                 .set("updated_at", now));
-        // 对照 Go knowledge_clone_move.go L1342-1352：搬走后源 KB 的命名空间不得继续
+        // 搬走后源 KB 的命名空间不得继续
         // 暴露该文档（失败上抛——移动任务据此重试；命名空间删除可重复执行）
         graphRepository.delGraph(List.of(
                 new com.ragagent.chatpipeline.ChatManage.NameSpace(actualSourceKbId, knowledgeId)));
@@ -208,29 +196,21 @@ public class KnowledgeMoveService {
     }
 
     /**
-     * reparse 模式的单条收尾（照 Go {@code moveKnowledgeReparse} L1382-1510 +
      * {@code enqueueMovedKnowledge} L1430-1510）：搬走后按目标 KB 的配置重新解析——
      * "向量不跟着走，到目标店重建"。
-     *
      * <ol>
      *   <li><b>源侧资源清理</b>（{@link #cleanupKnowledgeResourcesForReparse}）——向量行、
      *       chunks 行、源图谱命名空间；失败上抛为 {@code failed to clean up source: ...}；</li>
      *   <li><b>清标签关联</b>（照 {@code DeleteKnowledgeTagRelations}）；</li>
-     *   <li><b>行改写到目标 KB 的待解析态</b>——照 Go 的字段集：knowledge_base_id、
      *       embedding_model_id=目标 KB、parse_status=pending、error_message=""、
      *       enable_status=disabled、description=""、processed_at=NULL、storage_size=0；
      *       并按 delta 扣减租户存储用量（照 {@code UpdateKnowledgeForTransfer} 的
      *       {@code storage_used += after-before}，负数钳 0）；</li>
      *   <li><b>重新解析入队</b>——目标 KB 的 chunker/嵌入模型/多模态/问题生成在重新解析时生效
-     *       （照 Go 把目标 KB 配置编进 doc:process payload；本仓 worker 按行上的 KB 现读，
      *       净效果同一段配置）。</li>
      * </ol>
-     *
-     * <p><b>与 Go 的差异（备案）</b>：① 无 transfer-state 的 reparse_pending/done 阶段与
      * {@code acknowledgeMovedReparse} 收尾（Java 无该状态机）；② 图片资源回收
-     * （Go 的 {@code deleteExtractedImages}）随资源目录面本批未含；③ wiki 衍生数据清理
      * （{@code cleanupMovedSourceWiki}）与目标 KB 的 wiki 触发（{@code EnqueueWikiIngest}）
-     * 随 wiki 消费面；④ Go 的入队是精确一次的 asynq TaskID（{@code move-reparse:<task>:<id>}），
      * 本仓进程内队列无去重键（重复入队会重解析，幂等由解析本身承担）。</p>
      */
     private void moveKnowledgeReparse(long tenantId, Knowledge row, String targetKbId) {
@@ -249,7 +229,6 @@ public class KnowledgeMoveService {
         }
         long storageSize = row.getStorageSize();
 
-        // 1) 源侧资源清理（照 Go：清理副本的 storage_size 先置 0，故此处不扣存储用量）
         try {
             cleanupKnowledgeResourcesForReparse(row, sourceKb);
         } catch (RuntimeException e) {
@@ -277,11 +256,7 @@ public class KnowledgeMoveService {
     }
 
     /**
-     * reparse 搬移前的源侧资源清理（照 Go {@code cleanupKnowledgeResources}，
-     * knowledge_delete.go L624-702）：向量行（嵌入模型为空则整段跳过）→ chunks 行 →
-     * 图谱命名空间。单项失败逐项累计（Go 的 {@code errors.Join}），最后一起上抛。
-     *
-     * <p>与原版的差别：<b>不碰租户存储用量</b>——Go 的调用点把清理副本的 storage_size
+     * knowledge_delete）：向量行（嵌入模型为空则整段跳过）→ chunks 行 →
      * 先置 0，扣减由随后的行改写 delta 完成（见 {@link #moveKnowledgeReparse}）；
      * 图片资源回收（{@code deleteExtractedImages}）随资源目录面，本批未含。</p>
      */
@@ -337,11 +312,8 @@ public class KnowledgeMoveService {
     }
 
     /**
-     * reuse_vectors 的向量搬运（照 Go moveKnowledgeReuseVectors L1288-1370）：
      * ①同店校验（源/目标的 vector_store_id 必须一致——两边都 NULL 视为共享 env-store）；
-     * ②同嵌入模型校验（Go validateMoveItem："knowledge %s uses a different embedding model"）；
      * ③MoveKnowledgeIndices 原地改写 embeddings 的 knowledge_base_id（并清 tag_id）——
-     * 绑定店走引擎口（含 ES 的 move 语义），未绑定直接走 postgres 语义（move.go UPDATE）。
      */
     private void moveKnowledgeVectors(long tenantId, String knowledgeId, String sourceKbId,
                                       String targetKbId) {
@@ -396,7 +368,6 @@ public class KnowledgeMoveService {
         progressStore.saveMoveInitial(p);
     }
 
-    /** 查不到（含过期）→ null；对照 Go 的 404 "Knowledge move task not found"。 */
     public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress getKnowledgeMoveProgress(String taskId) {
         return progressStore.getMove(taskId);
     }

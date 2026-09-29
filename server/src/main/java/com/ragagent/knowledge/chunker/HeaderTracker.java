@@ -7,19 +7,16 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 上下文表头追踪（对照 Go internal/infrastructure/chunker/header_tracker.go，
- * 移植自 docreader/splitter/header_hook.py）。
- *
+ * 上下文表头追踪。
  * <p>大 Markdown 表格跨多个 chunk 时，第一个 chunk 之后的 chunk 会丢失表头上下文。
  * HeaderTracker 检测表格表头并通知 merge 逻辑把它前置到后续 chunk。</p>
  */
 final class HeaderTracker {
 
-    /** startPattern 命中 → 该文本成为 active header，直到 endPattern 命中（对照 header_tracker.go:18）。 */
+    /** startPattern 命中 → 该文本成为 active header，直到 endPattern 命中。 */
     private record Hook(Pattern startPattern, Pattern endPattern, int priority) {
     }
 
-    /** 对照 Go defaultHeaderHooks（header_tracker.go:26）。 */
     private static final List<Hook> DEFAULT_HOOKS = List.of(
             new Hook(
                     // Markdown 表头行 + 分隔行（如 "| A | B |\n| --- | --- |\n"）
@@ -28,16 +25,15 @@ final class HeaderTracker {
                     Pattern.compile("(?si)^\\s*$|^\\s*[^|\\s].*$"),
                     15));
 
-    /** 对照 Go markdownTableHookPriority（header_tracker.go:40）。 */
     static final int MARKDOWN_TABLE_HOOK_PRIORITY = 15;
 
     private final List<Hook> hooks;
     private final Map<Integer, String> activeHeaders = new HashMap<>();
     private final Map<Integer, Boolean> endedHeaders = new HashMap<>();
     private final Map<Integer, Boolean> pendingExtend = new HashMap<>();
-    /** 表行单元以段落分隔结尾时空白行被 \n\n 切走；表头保持激活直到看见下一个单元（对照 header_tracker.go:50）。 */
+    /** 表行单元以段落分隔结尾时空白行被 \n\n 切走；表头保持激活直到看见下一个单元。 */
     private boolean pendingTableBreak;
-    /** 新表格开始时（列不匹配或 pendingTableBreak + 表行）通知 mergeUnits 在当前单元前 flush（对照 header_tracker.go:53）。 */
+    /** 新表格开始时（列不匹配或 pendingTableBreak + 表行）通知 mergeUnits 在当前单元前 flush。 */
     private boolean headerEndedThisUnit;
 
     HeaderTracker() {
@@ -48,7 +44,6 @@ final class HeaderTracker {
         return headerEndedThisUnit;
     }
 
-    /** 对照 Go (*headerTracker).update（header_tracker.go:67）。 */
     void update(String split) {
         headerEndedThisUnit = false;
 
@@ -115,7 +110,6 @@ final class HeaderTracker {
         }
     }
 
-    /** 对照 Go (*headerTracker).getHeaders（header_tracker.go:144）：按优先级降序拼接。 */
     String getHeaders() {
         if (activeHeaders.isEmpty()) {
             return "";
@@ -129,7 +123,6 @@ final class HeaderTracker {
         return String.join("\n", parts);
     }
 
-    /** 对照 Go isEmptyTableHeaderRow（header_tracker.go:175）：表头行只含 | 与空白。 */
     static boolean isEmptyTableHeaderRow(String header) {
         int idx = header.indexOf('\n');
         if (idx < 0) {
@@ -144,7 +137,6 @@ final class HeaderTracker {
         return true;
     }
 
-    /** 对照 Go extractSeparatorLine（header_tracker.go:191）。 */
     static String extractSeparatorLine(String header) {
         for (String line : header.split("\n", -1)) {
             if (line.contains("---")) {
@@ -173,7 +165,6 @@ final class HeaderTracker {
         }
     }
 
-    /** 对照 Go splitEndsWithParagraphBreak（header_tracker.go:219）。 */
     private static boolean splitEndsWithParagraphBreak(String split) {
         String trimmed = trimRight(split, " \t\r");
         return trimmed.endsWith("\n\n") || trimmed.endsWith("\r\n\r\n");
@@ -187,13 +178,11 @@ final class HeaderTracker {
         return s.substring(0, end);
     }
 
-    /** 对照 Go tableRowColumnCount（header_tracker.go:224）。 */
     static int tableRowColumnCount(String line) {
         line = line.strip();
         if (!line.startsWith("|")) {
             return 0;
         }
-        // Go strings.Split(line, "|") 保留前导/尾随空段，随后裁掉
         String[] parts = line.split("\\|", -1);
         int start = 0;
         int end = parts.length;
@@ -206,7 +195,6 @@ final class HeaderTracker {
         return end - start;
     }
 
-    /** 对照 Go firstTableRowColumnCount（header_tracker.go:239）。 */
     static int firstTableRowColumnCount(String text) {
         for (String line : text.split("\n", -1)) {
             String trimmed = line.strip();
@@ -217,7 +205,6 @@ final class HeaderTracker {
         return 0;
     }
 
-    /** 对照 Go headerTableColumnCount（header_tracker.go:249）。 */
     static int headerTableColumnCount(String header) {
         for (String line : header.split("\n", -1)) {
             String trimmed = line.strip();
@@ -232,7 +219,6 @@ final class HeaderTracker {
         return 0;
     }
 
-    /** 对照 Go headerAlreadyPresent（splitter.go:531）：列名行已在 overlap 或下一单元中时不再前置。 */
     static boolean headerAlreadyPresent(String headers, String overlapText, String unitText) {
         if (overlapText.contains(headers) || unitText.contains(headers)) {
             return true;
@@ -244,7 +230,6 @@ final class HeaderTracker {
         return overlapText.contains(colRow) || unitText.contains(colRow);
     }
 
-    /** 对照 Go headerColumnRow（splitter.go:550）：取首个有意义的列名行。 */
     static String headerColumnRow(String header) {
         for (String line : header.split("\n", -1)) {
             line = line.strip();
@@ -265,7 +250,6 @@ final class HeaderTracker {
         return "";
     }
 
-    /** 对照 Go headerColumnMismatch（header_tracker.go:264）：下一单元起新表且宽度不同。 */
     static boolean headerColumnMismatch(String headers, String nextUnit) {
         int headerCols = headerTableColumnCount(headers);
         int rowCols = firstTableRowColumnCount(nextUnit);

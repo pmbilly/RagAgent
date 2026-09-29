@@ -19,12 +19,10 @@ import com.ragagent.storage.provider.FileService;
 
 /**
  * 租户感知的文件存储门面（A3-3 尾批）——知识上传 / 读取 / 删除的**唯一入口**。
- *
  * <h2>为什么需要</h2>
  * <p>接线前这三件事直连 {@link LocalStorageService}（本地盘），配了云后端的租户也照落本地：
  * 库里的 {@code file_path} 恒为 {@code resource://{tenant}/{knowledge}/{name}}。本门面按
  * <b>引用形态</b>分流：</p>
- *
  * <ul>
  *   <li><b>本地</b>（无 scheme / {@code local://} / {@code resource://} 或租户 default
  *       provider 为空或 {@code local}）：<b>原样</b>走 {@link LocalStorageService}——
@@ -33,14 +31,11 @@ import com.ragagent.storage.provider.FileService;
  *   <li><b>云</b>（引用带 {@code cos://}/{@code s3://}/{@code oss://}… 或租户 default
  *       provider 是云）：走 A3 的 provider 服务——{@code SaveFile} 落
  *       {@code {prefix}{tenant}/{knowledge}/{uuid}{ext}}、{@code GetFile} 读回、
- *       {@code DeleteFile} 删对象，与 Go 的 {@code fileService.SaveFile/GetFile} 同形。</li>
  * </ul>
- *
- * <h2>失败姿态（照 Go）</h2>
  * <ul>
  *   <li>上传时租户配了云却解析失败（配置不全/凭据错）→ <b>抛出</b>，不静默回落本地
  *       （否则"配置错了却在本地悄悄成功"是最难查的一类事故）；</li>
- *   <li>删除是 best-effort（对照 Go 的日志即弃）：本地目录树恒清，云对象失败只记日志。</li>
+ *   <li>删除是 best-effort：本地目录树恒清，云对象失败只记日志。</li>
  * </ul>
  */
 @Service
@@ -67,8 +62,7 @@ public class TenantFileStorage {
     // ── 写 ──────────────────────────────────────────────────────────────────
 
     /**
-     * 保存知识文件（对照 Go {@code CreateKnowledgeFromFile} 的
-     * {@code fileService.SaveFile(file, tenantID, knowledgeID)}）→ 落库的 file_path。
+     * 保存知识文件→ 落库的 file_path。
      */
     public String save(long tenantId, String knowledgeId, String fileName, byte[] content) {
         StorageFileResolver.ProviderResolution resolved = resolveProvider(tenantId, null);
@@ -90,16 +84,13 @@ public class TenantFileStorage {
 
     /**
      * 导出结果：{@code handled=false} = "租户走本地存储，调用方自便"；
-     * {@code handled=true} 且 {@code url==null} = 配了云但导出失败（照 Go 返回空串）。
      */
     public record Exported(String url, boolean handled) {
     }
 
     /**
-     * 落一块"小块导出"并给出下载 URL——对照 Go
      * {@code fileSvc.SaveBytes(ctx, data, tenantID, fileName, temp)} + {@code GetFileURL}
      * （知识 FAQ 导入的失败明细 CSV 走这条，temp=true → 云上落临时桶）。
-     *
      * <p>本地租户返回 {@code handled=false}：调用方保留既有本地落盘与 {@code local://} 引用
      * （那是 golden 锁定的形态）。</p>
      */
@@ -121,7 +112,7 @@ public class TenantFileStorage {
     // ── 读 ──────────────────────────────────────────────────────────────────
 
     /**
-     * 读回字节（对照 Go {@code fileService.GetFile}）。本地引用保持
+     * 读回字节。本地引用保持
      * {@link LocalStorageService#read(String)} 的既有语义（只认 {@code resource://}）。
      */
     public byte[] read(long tenantId, String filePath) {
@@ -130,7 +121,6 @@ public class TenantFileStorage {
             return local.read(filePath);
         }
         if (isLocalScheme(provider)) {
-            // {@code local://…}（Go local provider 的原生形态）也归本地：
             // LocalStorageService.readChecked 认得它，read 只认 resource://。
             return local.readChecked(filePath);
         }
@@ -138,7 +128,7 @@ public class TenantFileStorage {
     }
 
     /**
-     * 读回字节（对照 Go {@code GetKnowledgeFile} 的错误信封）。非 provider 引用走
+     * 读回字节。非 provider 引用走
      * {@link LocalStorageService#readChecked(String)}（多 scheme 容忍 + 路径穿越守卫 +
      * {@code Failed to retrieve file} 信封）；provider 引用失败折成同一个信封。
      */
@@ -157,11 +147,8 @@ public class TenantFileStorage {
     }
 
     /**
-     * 流式打开（W5γ5.4 ①b；对照 Go {@code fileService.GetFile} 的 io.ReadCloser 形态）：
-     * 本地引用 → 可 seek（Go 的 {@code *os.File}）；provider 引用 → 按能力分流
      * （minio 可 seek / aws-sdk 族流式）——复用文件代理面的同一适配器
      * （{@link com.ragagent.storage.fileserve.ProviderFileContentService}），不重复一套分流逻辑。
-     *
      * <p>错误折叠成与 {@link #readChecked} 同一个 {@code Failed to retrieve file} 信封
      * （golden {@code kg-download-404/traversal} 锁的就是它）。</p>
      */
@@ -189,7 +176,7 @@ public class TenantFileStorage {
     // ── 删 ──────────────────────────────────────────────────────────────────
 
     /**
-     * 删除知识的所有文件（对照 Go {@code DeleteKnowledge} 的 best-effort）：
+     * 删除知识的所有文件：
      * 本地目录树恒清（既有语义），{@code filePath} 是 provider 引用时额外删对象。
      */
     public void delete(long tenantId, String knowledgeId, String filePath) {
@@ -214,7 +201,6 @@ public class TenantFileStorage {
 
     // ── 内部 ────────────────────────────────────────────────────────────────
 
-    /** {@code local} 也是 provider scheme，但它的读法就是本地盘（照 Go 的 local provider）。 */
     private static boolean isLocalScheme(String provider) {
         return "local".equalsIgnoreCase(provider);
     }
@@ -236,7 +222,6 @@ public class TenantFileStorage {
 
     /**
      * 按租户解析 provider 服务；{@code provider} 为空表示"用租户默认"。
-     *
      * <p>取不到租户（无 tenantId / 库里无行）→ (null, "", null)：<b>当作没有云配置</b>，
      * 走本地契约——这与"配了云但解析失败"（错误非空 → 抛出）是两种姿态，
      * 后者不能静默退回本地。</p>

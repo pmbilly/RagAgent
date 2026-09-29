@@ -46,7 +46,6 @@ public final class KnowledgeBaseDtos {
             String taskId) {
     }
 
-    /** 混合检索响应：零命中时 data 为 null（恒输出，Go nil-slice 契约）。 */
     public record HybridSearchResponse(Object data, boolean success) {
     }
 

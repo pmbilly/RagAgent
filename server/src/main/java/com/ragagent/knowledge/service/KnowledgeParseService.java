@@ -113,7 +113,6 @@ public class KnowledgeParseService {
             case Knowledge.PARSE_DELETING ->
                 throw BizException.badRequest("知识正在删除中，无法取消解析");
             default -> {
-                // pending/processing/finalizing/unknown → 可取消（unknown Go 仅记日志放行）
             }
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -140,10 +139,7 @@ public class KnowledgeParseService {
     /**
      * manual 流 metadata.content；
      * document 走本地文件。路径解析：resource:// 与
-     * local://{rel}（Go provider 原生）都支持；路径越界 → Go 的
      * "invalid file path: path traversal denied: ..." 原文（golden 钉住）。
-     *
-     * @return (opened, filename, manual)；manual = 内存流（Go 侧 NopCloser(bytes.Reader) →
      *         非 Seeker → Accept-Ranges: none + 显式 CL），document = 存储层打开
      *         （本地 *os.File 可 seek → bytes + Range；云按 provider 能力，W5γ5.4 ①b）
      */

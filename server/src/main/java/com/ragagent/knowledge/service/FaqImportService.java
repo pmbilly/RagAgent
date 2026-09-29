@@ -38,7 +38,6 @@ import org.springframework.stereotype.Service;
 /**
  * FAQ 条目批量导入（upsert）与进度面：append/replace 两种模式的 dry-run 校验、
  * 分批执行与向量索引、失败明细 CSV、导入结果落库与展示状态更新。
- *
  * <p>执行模型：受理即返回 taskId，导入在虚拟线程内异步推进，进度经
  * {@link FaqImportTaskStore} 查询；失败即终态（不重试）。dry-run 只校验不落库。</p>
  */
@@ -161,7 +160,6 @@ public class FaqImportService {
      * 异步语义：
      * 无 retry/backoff 中间态——任何失败直接落 failed 终态（波 2 第三批同款取舍）。
      * dry_run 只做验证（无 embedding 依赖，确定性）；导入模式在
-     * {@link #requireEmbeddingModelForJob} 处与 Go 同位置失败（无模型 KB 的实录路径）。
      */
     void processImport(ImportJob job) {
         TenantContext.set(job.tenantId(), null, null, false, null, false);
@@ -196,7 +194,6 @@ public class FaqImportService {
                 return;
             }
 
-            // worker 侧重建 progress（Go 的 processing 初始化覆写准入时的 pending）
             FaqImportProgress progress = new FaqImportProgress(
                     job.taskId(), job.kbId(), job.knowledgeId(), "processing", 0,
                     job.entries().size(), 0, 0, 0, 0, 0,
@@ -226,7 +223,6 @@ public class FaqImportService {
             progress = withMessage(progress,
                     "验证完成，开始导入 " + progress.validEntryIndices().size() + " 条有效数据...");
 
-            // 导入执行面：与 Go 同位置过 GetEmbeddingModel（无模型 KB 的实录失败点）
             Model embeddingModel;
             try {
                 embeddingModel = faqIndexWriter.requireEmbeddingModel(kb);
@@ -242,7 +238,6 @@ public class FaqImportService {
 
     /**
      * * append 走四阶段校验（含合并候选与后校验）、replace 走三阶段校验。
-     * 就地改写 job.entries 的相似问/反例（Go 的共享切片语义）；
      * 进度对象不可变（record）——返回更新后的实例并落库。
      */
     private FaqImportProgress executeFAQDryRunValidation(ImportJob job, FaqImportProgress progress) {
@@ -799,8 +794,6 @@ public class FaqImportService {
      * 按 faqImportBatchSize(50) 分批 → 逐条 sanitize/resolveTagID/建 chunk → CreateChunks
      * → faqIndexWriter.indexFAQChunks(adjustStorage=true) → status=2 → 收集成功条目 → 进度落库；
      * 末尾 finalizeImport（completed 终态 + 结果落库 + replace 清未引用标签）。
-     *
-     * <p>已知差异：Go 的 defer recover 会回滚本任务已创建的 chunks 与索引行；Java 无该
      * 事务性回滚（失败直落 failed 终态，残留行由重导/replace 清理）——与 processImport
      * 的既有取舍同款。</p>
      */

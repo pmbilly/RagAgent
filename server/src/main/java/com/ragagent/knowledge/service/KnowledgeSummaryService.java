@@ -106,7 +106,6 @@ public class KnowledgeSummaryService {
     private static final BizException ERR_SUMMARY_REFRESH_STALE =
             new BizException(AppError.badRequest("summary refresh superseded"));
 
-    /** Go summaryFallbackMaxRunes / imageDominatedTextThreshold / defaultMaxInputChars。 */
     private static final int SUMMARY_FALLBACK_MAX_RUNES = 500;
     private static final int IMAGE_DOMINATED_TEXT_THRESHOLD = 200;
     private static final int DEFAULT_SUMMARY_MAX_INPUT_CHARS = 1024 * 24;
@@ -116,7 +115,6 @@ public class KnowledgeSummaryService {
     /**
      * HTTP 同步路径。
      * 刷新 worker 外的路径按终态失败处理。
-     * 失败时按 Go 语义先落库对应状态再抛错误（handler 侧非 AppError → 400 信封原文）。
      */
     public Knowledge regenerateKnowledgeSummary(String id) {
         return doRegenerateKnowledgeSummary(id, false);
@@ -135,7 +133,6 @@ public class KnowledgeSummaryService {
         if (kb.getSummaryModelId() == null || kb.getSummaryModelId().isEmpty()) {
             throw new BizException(AppError.badRequest("summary model is not configured"));
         }
-        // Go ListChunksByKnowledgeID 本身 text-only；此处的类型/启用过滤是双保险（照抄）
         List<Chunk> allChunks = chunkRepo.listChunksByKnowledgeID(KnowledgeService.tenantId(), id);
         List<Chunk> textChunks = new ArrayList<>();
         for (Chunk chunk : allChunks) {
@@ -300,7 +297,7 @@ public class KnowledgeSummaryService {
         if (textChunks.isEmpty() || textChunks.get(0) == null) {
             return "";
         }
-        String fallback = ChunkRepository.goTrimSpace(
+        String fallback = ChunkRepository.trimSpace(
                 textChunks.get(0).getContent() == null ? "" : textChunks.get(0).getContent());
         int count = fallback.codePointCount(0, fallback.length());
         if (count > SUMMARY_FALLBACK_MAX_RUNES) {
@@ -362,9 +359,9 @@ public class KnowledgeSummaryService {
                 continue;
             }
             String text = value.isValueNode() ? value.asText() : value.toString();
-            text = ChunkRepository.goTrimSpace(text);
-            if (!ChunkRepository.goTrimSpace(key).isEmpty() && !text.isEmpty()) {
-                lines.add(ChunkRepository.goTrimSpace(key) + ": " + text);
+            text = ChunkRepository.trimSpace(text);
+            if (!ChunkRepository.trimSpace(key).isEmpty() && !text.isEmpty()) {
+                lines.add(ChunkRepository.trimSpace(key) + ": " + text);
             }
         }
         return String.join("\n", lines);
@@ -397,7 +394,7 @@ public class KnowledgeSummaryService {
             // 解析偏移描述不可变源文；被替换过的 chunk 长度已变，按当前内容拼接
             List<String> parts = new ArrayList<>(sortedChunks.size());
             for (Chunk chunk : sortedChunks) {
-                if (chunk.isIsEnabled() && !ChunkRepository.goTrimSpace(
+                if (chunk.isIsEnabled() && !ChunkRepository.trimSpace(
                         chunk.getContent() == null ? "" : chunk.getContent()).isEmpty()) {
                     parts.add(chunk.getContent());
                 }
@@ -448,7 +445,7 @@ public class KnowledgeSummaryService {
                 conversationProps.getGenerateSummaryPrompt(),
                 Map.of("language", WikiLanguageSupport.languageNameFromContext()));
         ChatOptions options = new ChatOptions();
-        options.setTemperature(0.3); // Go 硬编码 0.3（不用 config 的 summaryTemperature，照抄）
+        options.setTemperature(0.3); // 摘要温度固定 0.3（不用 config 的 summaryTemperature）
         options.setMaxTokens(maxTokens);
         options.setThinking(Boolean.FALSE);
         ChatResponse response;
@@ -470,7 +467,7 @@ public class KnowledgeSummaryService {
         if (response == null) {
             throw ERR_EMPTY_SUMMARY_OUTPUT;
         }
-        String content = ChunkRepository.goTrimSpace(
+        String content = ChunkRepository.trimSpace(
                 response.getContent() == null ? "" : response.getContent());
         if (content.isEmpty()) {
             throw ERR_EMPTY_SUMMARY_OUTPUT;
@@ -545,7 +542,6 @@ public class KnowledgeSummaryService {
 
     /**
      * post-process 的摘要 fan-out。
-     *
      * <p>调用方 {@link KnowledgeProcessWorker} 在索引完成后调用（知识行此时已落
      * {@code summary_status=none}）。
      * 本方法完成三件事：cancelled/deleting → 跳过（L1148-1156）；无 summary model
@@ -663,11 +659,8 @@ public class KnowledgeSummaryService {
      * KB.NeedsEmbeddingModel 的服务层读法（
      * L2302 的 kb 来自 {@code kbService.GetKnowledgeBaseByID} → {@code EnsureDefaults()}：
      * IsZero（4 字段全 false）→ Default），即 vector||keyword。
-     *
-     * <p><b>读层差异（2026-09-22 二次踩坑修正）</b>：Go 的判定按调用点分两层语义——
      * 服务层（kbService，含 EnsureDefaults 钩子）与 repo 层（kbRepository，仅 Scan：
      * NULL→Default、全 false 保持）。本方法对应服务层；{@link ChunkVectorIndexer}
-     * 内部按调用点分别用服务层/repo 层判定。证据：全 false 策略的 KB 在 Go 的
      * updateImageInfo/regenerate 路径仍被判定为需要 embedding（golden 1007 实录）。</p>
      */
     private static boolean kbNeedsEmbedding(KnowledgeBase kb) {

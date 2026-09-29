@@ -87,7 +87,6 @@ public class ChunkEditService {
      * 保留；当前行在重索引失败时仍然落库并暴露 index_status=failed。逐段对照：
      * <ol>
      *   <li>writableChunk（AppError 直通）；非 text 块 → 500 面；关系校验；乐观锁预检；</li>
-     *   <li>内容 trim（Go strings.TrimSpace 全集）/空/字节长校验（500 面）；</li>
      *   <li>无变化路径：index_status=failed 时走"重试索引"（rebuildParent → processing →
      *       syncChunkIndex → ready），否则原样返回；</li>
      *   <li>有变化路径：先 {@code validateEditedChunkImages}（source_content 惰性回填之后），
@@ -96,21 +95,15 @@ public class ChunkEditService {
      *       尝试 summary 刷新入队；最后 syncChunkIndex 定 ready/failed。</li>
      * </ol>
      * 每个失败分支的 index_status/返回语义（失败标 failed 后<b>返回 chunk 不抛</b>）。
-     *
-     * @param content          null = 不改内容（Go 的 *string）
-     * @param isEnabled        null = 不改启用态（Go 的 *bool）
-     * @param expectedRevision null = 不做乐观锁预检（Go 的 *int）
      */
     public Chunk updateDocumentChunk(String chunkId, String content, Boolean isEnabled,
                                      Integer expectedRevision) {
         Chunk chunk = guard.writableChunk(chunkId);
         if (!CHUNK_TYPE_TEXT.equals(chunk.getChunkType())) {
-            // Go: fmt.Errorf("only text chunks can be edited") —— 非 AppError → handler 500
             throw new IllegalStateException("only text chunks can be edited");
         }
         guard.validateDocumentChunkRelations(chunk.getTenantId(), chunk);
         if (expectedRevision != null && expectedRevision != chunk.getContentRevision()) {
-            // Go: ErrChunkRevisionConflict → handler 409（文案在 controller）
             throw new ChunkRevisionConflictException();
         }
 
@@ -121,7 +114,6 @@ public class ChunkEditService {
                 throw new IllegalStateException("chunk content cannot be empty");
             }
             if (newContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_EDITABLE_CHUNK_LENGTH) {
-                // Go: len(newContent) 是 UTF-8 字节数
                 throw new IllegalStateException("chunk content exceeds " + MAX_EDITABLE_CHUNK_LENGTH + " bytes");
             }
         }
@@ -159,7 +151,6 @@ public class ChunkEditService {
             validateEditedChunkImages(sourceContent, newContent);
         }
 
-        // Go: actorID, _ := types.UserIDFromContext(ctx)——缺失时是空串，直接用
         String actorId = TenantContext.currentUserId();
         if (actorId == null) {
             actorId = "";
@@ -175,7 +166,6 @@ public class ChunkEditService {
         revision.setRevision(oldRevision);
         revision.setContent(chunk.getContent());
         revision.setEnabled(chunk.isIsEnabled());
-        // Go 的 LastEditorID 是非指针 string（无 null）——H2 列可空，读回 null 归一成零值 ""
         revision.setEditorId(chunk.getLastEditorId() == null ? "" : chunk.getLastEditorId());
         revision.setEditSource("user");
         revision.setEditedAt(chunk.getUpdatedAt());
@@ -214,7 +204,6 @@ public class ChunkEditService {
             }
         }
         if (bodyChanged || newEnabled != revision.isEnabled()) {
-            // Go: knowledge, getErr := GetKnowledgeByID; if getErr == nil { enqueue }——读失败静默跳过
             Knowledge knowledge = findKnowledgeRow(chunk.getTenantId(), chunk.getKnowledgeId());
             if (knowledge != null) {
                 try {
@@ -240,8 +229,6 @@ public class ChunkEditService {
 
     /**
      * 取修订快照后按其内容/启用态
-     * 走一次 {@link #updateDocumentChunk}。快照不存在 → Go 把
-     * {@code gorm.ErrRecordNotFound} 原文（"record not found"）交 handler 包 400
      * （RevertChunk 对非 AppError 用 NewBadRequestError）——Java 直接抛同文案的
      * BizException.badRequest，HTTP 面一致。
      */
@@ -280,7 +267,6 @@ public class ChunkEditService {
      * KB 绑定校验）。requireKBWrite 略（见类注释第 5 条）。
      */
     public void deleteChunksByKnowledgeId(String knowledgeId) {
-        // Go: writeResourceIDs([]string{knowledgeID})——blank 即 400
         if (knowledgeId == null || ChunkSearchUtil.goTrimSpace(knowledgeId).isEmpty()) {
             throw BizException.badRequest("resource ID cannot be empty");
         }
@@ -301,8 +287,6 @@ public class ChunkEditService {
 
     /**
      * 编辑后的 content 不得
-     * 引入原文没有的图片（Markdown 与 HTML 都算"已有"）。Go 的错误是 fmt.Errorf →
-     * handler 500 面。多 URL 时 Go 遍历 map 顺序随机，Java 按扫描序报第一个——
      * 单个违规 URL 时逐字一致。
      */
     private static void validateEditedChunkImages(String sourceContent, String editedContent) {
@@ -388,7 +372,6 @@ public class ChunkEditService {
                 replacements.add(new Replacement(start, end, child.getContent(), child.getUpdatedAt()));
             }
         }
-        // 最新编辑优先（Go: sort by updatedAt 降序；测试数据时间两两不同，稳定性无感）
         replacements.sort(Comparator.comparing(Replacement::updatedAt).reversed());
         List<Replacement> selected = new ArrayList<>();
         List<Replacement> conflicts = new ArrayList<>();

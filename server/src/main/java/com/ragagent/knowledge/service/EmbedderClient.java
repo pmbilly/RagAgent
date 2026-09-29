@@ -16,8 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 最小 OpenAI 兼容 embedding 客户端（对照 Go internal/models/embedding 的
- * OpenAICompatibleEmbedder 路径；完整 EmbedderPooler 随阶段 7）。
+ * 最小 OpenAI 兼容 embedding 客户端。
  *
  * POST {base_url}/embeddings，Bearer api_key；输入 batch 文本，返回 float 向量。
  */
@@ -31,7 +30,7 @@ public class EmbedderClient {
             .connectTimeout(Duration.ofSeconds(30))
             .build();
 
-    /** 对照 embedding.NewEmbedder 的配置解析：base_url/api_key 来自模型参数 */
+    /** base_url/api_key 来自模型参数 */
     public record EmbedConfig(String baseUrl, String apiKey, String modelName) {}
 
     public static EmbedConfig configFrom(Model model) {
@@ -44,7 +43,7 @@ public class EmbedderClient {
         return new EmbedConfig(base, p.getApiKey(), model.getName());
     }
 
-    /** 批量嵌入（对照 BatchEmbed；失败抛异常，由调用方归类为 failed） */
+    /** 批量嵌入 */
     public List<float[]> embedBatch(EmbedConfig config, List<String> texts) throws Exception {
         var input = MAPPER.createArrayNode();
         texts.forEach(input::add);
@@ -63,7 +62,7 @@ public class EmbedderClient {
         try {
             resp = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         } catch (java.io.IOException e) {
-            // 对照 Go "send request: %w"（url.Error 含方法与地址）：JDK 裸 ConnectException
+            //  %w"（url.Error 含方法与地址）：JDK 裸 ConnectException
             // 常无 message，兜底类名；dial tcp 等传输层内文属已记录的掩码 DIFF 族。
             throw new IllegalStateException(
                     "send request: Post \"" + config.baseUrl() + "/embeddings\": " + ioDetail(e), e);

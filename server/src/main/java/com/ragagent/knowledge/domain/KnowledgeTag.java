@@ -9,18 +9,14 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
- * knowledge_tags 行（对照 Go types/tag.go KnowledgeTag）。
- *
+ * knowledge_tags 行。
  * <p><b>刻意不作响应体</b>：知识详情里的 tags 数组由 service 组装成 ObjectNode
- * （键序 = Go struct 声明序：id/seq_id/tenant_id/knowledge_base_id/name/color/
  * sort_order/created_at/updated_at），见 KnowledgeService.attachTags。
  * 因此本实体不挂 @JsonProperty——若后续要直接序列化，必须补 @JsonPropertyOrder
  * 并加 JsonContractRoundTripTest 条目（约定 §7.5）。</p>
- *
- * GORM 隐式行为清单：
+ * 仓储行为契约：
  * - 软删除 deleted_at → 查询侧显式 isNull（本项目不用 @TableLogic）
  * - seq_id 由 DB 序列供给（PG）；H2 测试播种时显式给值
- * - color 可空 → Go 非指针零值序列化 ""（组装响应时归一）
  */
 @TableName("knowledge_tags")
 public class KnowledgeTag {

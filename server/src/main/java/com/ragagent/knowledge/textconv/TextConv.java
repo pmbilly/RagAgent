@@ -11,14 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 繁体转简体（对照 Go internal/textconv/simplified.go，FAQ 归一化专用）。
- *
+ * 繁体转简体。
  * <p>两本 Apache-2.0 词典（longbridge/opencc v0.3.13 原样数据，已随包内嵌：
  * {@code resources/textconv/TSPhrases.txt} + {@code TSCharacters.txt}，SHA-256 与
- * Go 仓 data/README.md 记录一致）构造两个 dictionary；转换时<b>先词组表后单字表</b>、
  * 每张表内<b>最长匹配</b>（窗口上限 min(10, maxRunes)）、取<b>第一个候选值</b>——
- * 与 Go 的 historical FAQ conversion 逐条对应：</p>
- *
  * <pre>
  * for pos := 0; pos &lt; len(runes); {
  *     for _, d := range c {                     // phrases 先于 characters
@@ -29,10 +25,7 @@ import java.util.Map;
  *     }
  * }
  * </pre>
- *
  * <p>词典行格式 {@code key\tvalue1 value2 ...}，取 {@code values[0]}；空行/缺列跳过。
- * 词典更新会改变 FAQ 归一化与 content_hash——Go 侧把它与代码变更分开 review，
- * Java 侧同理：更新数据文件前先跑 {@code TextConvTest} 的 Go 实录语料。</p>
  */
 public final class TextConv {
 
@@ -80,7 +73,7 @@ public final class TextConv {
         return d;
     }
 
-    /** 对照 Go {@code textconv.ToSimplified}：词组表 → 单字表，表内最长匹配，取第一候选。 */
+    /** 词组表 → 单字表，表内最长匹配，取第一候选。 */
     public static String toSimplified(String text) {
         if (text == null || text.isEmpty()) {
             return text == null ? "" : text;

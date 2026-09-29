@@ -17,20 +17,14 @@ import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * chunks 表实体（对照 Go types/chunk.go Chunk L113-178）。
- *
- * GORM 隐式行为清单：
+ * chunks 表实体。
+ * 仓储行为契约：
  * - 软删除 → 显式 isNull("deleted_at")
- * - CreateChunks 用 Select("*") 显式插入（绕过 GORM default）——is_enabled/flags/status
  *   等零值由写路径显式赋值
  * - start_at/end_at 以 **rune（Unicode code point）** 计，不是 byte（分块器保证）
  * - relation_chunks/indirect_relation_chunks/metadata 为 json 列
- *
- * <p><b>JSON 是契约</b>（chunk 模块起本实体直接作响应体）：字段序 = Go struct
  * 声明序；{@code source_content} 与 {@code context_header} 是 {@code json:"-"}；
- * 三个 json 列对照 Go types.JSON.MarshalJSON——空/NULL 输出字面量 {@code null}；
  * 其余字段全部无 omitempty → 恒输出（含 deleted_at 的 null、is_enabled 的 false）。
- * {@code EmbeddingContent()} 在 Go 是方法（不序列化），Java 侧等价逻辑在
  * 索引同步处，实体上无此方法即无此坑。</p>
  */
 @TableName(value = "chunks", autoResultMap = true)
@@ -113,7 +107,6 @@ public class Chunk {
     @JsonDeserialize(using = GoTimeDeserializer.class)
     @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
-    /** gorm.DeletedAt：活的行 Go 输出 null（Java null 字段不经序列化器，同为 null） */
     @JsonSerialize(using = GoTimeSerializer.class)
     @JsonDeserialize(using = GoTimeDeserializer.class)
     @JsonProperty("deleted_at")
@@ -174,7 +167,7 @@ public class Chunk {
     public void setImageInfo(String v) { imageInfo = v; }
 
     /**
-     * 对照 Go {@code Chunk.EmbeddingContent()}（types/chunk.go L202-211）：发给 embedding
+     * 发给 embedding
      * 模型的文本 = ContextHeader（若有）+ "\n\n" + Content（trim）。方法名刻意不用
      * getter 形态，Jackson 不会把它当序列化属性。
      */

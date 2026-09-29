@@ -8,21 +8,15 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 文档 Chunk 的 metadata 形状（对照 Go types/faq.go DocumentChunkMetadata L54-60）。
- *
+ * 文档 Chunk 的 metadata 形状。
  * <p>存于 {@code chunks.metadata}（jsonb），由 {@link PgJsonTypeHandler} 以
  * JsonNode 透传落库；本类型用于 service 层读写（Upsert/Delete/Regenerate 生成问题）。
  * 响应侧生成问题只以 {@link GeneratedQuestion} 元素出现，本类型本身不出 HTTP 响应。</p>
- *
- * <p>JSON 契约（经 JSON 往返落库，键名/省略语义必须逐字段对照 Go）：</p>
  * <ul>
- *   <li>{@code generated_questions}：slice 的 omitempty —— null <b>或空列表</b>都省略
- *       （{@code NON_EMPTY}），对照 Go len==0 判据；</li>
- *   <li>{@code generated_questions_revision}：int 的 omitempty —— 0 省略
+ *   <li>{@code generated_questions}：列表的空值省略语义 —— null <b>或空列表</b>都省略
+ *   <li>{@code generated_questions_revision}：整型的空值省略语义 —— 0 省略
  *       （{@code NON_DEFAULT}，原始 int 的 0 即默认值），非 0 恒输出。</li>
  * </ul>
- *
- * <p>Go 的 {@code IsQuestionCurrent} / {@code GetQuestionStrings} 是方法（不落 jsonb、
  * 不出响应）；Java 侧按需在 service 内联实现，本类刻意不提供同名访问器，
  * 避免触发「isXxx 派生方法必须 @JsonIgnore」的复发坑（约定 §7.5）。</p>
  */
@@ -44,7 +38,6 @@ public class DocumentChunkMetadata {
     public int getGeneratedQuestionsRevision() { return generatedQuestionsRevision; }
     public void setGeneratedQuestionsRevision(int v) { generatedQuestionsRevision = v; }
 
-    /** Go 的 IsQuestionCurrent（响应/查询侧提示性问题状态，与序列化无关） */
     @JsonIgnore
     public boolean questionCurrent(GeneratedQuestion q, int chunkRevision) {
         if (q.getContentRevision() != null) {

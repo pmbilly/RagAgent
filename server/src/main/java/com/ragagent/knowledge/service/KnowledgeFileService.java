@@ -120,7 +120,6 @@ public class KnowledgeFileService {
         meta.put("format", "markdown");
         meta.put("status", normalizedStatus);
         meta.put("version", version);
-        // Go time.Format(RFC3339)：秒恒输出（秒为 0 时 toString 会塌缩成分钟精度，掩码后仍不同）
         meta.put("updated_at", OffsetDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")));
@@ -161,13 +160,10 @@ public class KnowledgeFileService {
 
     /**
      * 摘要路径的**窄写入**。
-     *
      * <p>❌ 原实现走 {@link #updateKnowledgeRow}（**全列写**）：它会把<b>加载时</b>的旧
      * {@code parse_status} 一并写回。摘要是在导入后处理的 finalizing 交接**之后**才跑完 LLM
      * （数十秒），回写就把 `finalizing/completed` 打回加载时的 {@code processing} ✗；而全列写按
-     * Go 约定又<b>不含</b> {@code pending_subtasks_count}（保持 0）✗ ⇒ 知识永久停在"解析中"
      * （用户报障：`05.03-问题发布.md` 卡 processing ✗）。</p>
-     *
      * <p>本方法只写摘要自己那几列（description / summary_status / metadata / updated_at），
      * 绝不碰 parse_status、enable_status、pending_subtasks_count。</p>
      */
@@ -236,9 +232,7 @@ public class KnowledgeFileService {
 
     /**
      * 打开知识文件流。
-     *
      * <p>替换先前"读满 byte[]"的实现（W5γ5.4 ①b）：大文件不再整份入堆，
-     * 且下载/预览因此获得与 Go 相同的 Range 语义（本地 {@code Accept-Ranges: bytes}）。</p>
      */
     public KnowledgeFileStream openKnowledgeFile(String id) {
         Knowledge knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
@@ -254,7 +248,6 @@ public class KnowledgeFileService {
                     && knowledge.getMetadata().hasNonNull("content")
                     ? knowledge.getMetadata().get("content").asText() : "";
             byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            // 照 Go：manual 分支是 NopCloser(bytes.Reader) —— **非 seekable** → none + 显式 CL
             return new KnowledgeFileStream(sanitizeManualDownloadFilename(knowledge.getTitle()),
                     com.ragagent.storage.fileserve.FileTransport.OpenedFile.ofStream(
                             new java.io.ByteArrayInputStream(bytes), bytes.length),
@@ -266,7 +259,6 @@ public class KnowledgeFileService {
     }
 
     /**
-     * * 解析 image_info（非 JSON → Go json 原文的 500）、恰好 1 张图才动、
      * chunk 归属校验（403）、子块 caption/OCR 同步、缺块补建、
      * {@code updateChunkVector(updateChunks + addChunks)}（模型 ID 空 → 1007
      * "model ID cannot be empty"，golden 钉住）、
@@ -280,14 +272,13 @@ public class KnowledgeFileService {
         try {
             images = MAPPER.readTree(imageInfo);
         } catch (Exception e) {
-            // 解析失败 → 非 AppError → 500 message=Go 风格 JSON 错误原文（既有契约）
             throw new BizException(AppError.internal(com.ragagent.common.web.GoJsonBindError
                     .message(imageInfo, e.getMessage())));
         }
         if (!images.isArray() || images.size() != 1) {
             log.warn("Expected exactly one image info, got {}",
                     images.isArray() ? images.size() : -1);
-            return; // Go 返回 nil → 200
+            return; // 不满足结构 → 静默跳过（响应仍 200）
         }
         JsonNode image = images.get(0);
 
@@ -325,7 +316,7 @@ public class KnowledgeFileService {
             try {
                 childImages = MAPPER.readTree(child.getImageInfo() == null ? "" : child.getImageInfo());
             } catch (Exception e) {
-                continue; // Go WARN + continue
+                continue; // 单块失败仅告警
             }
             if (!childImages.isArray() || childImages.isEmpty()) {
                 continue;

@@ -22,9 +22,7 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.springframework.stereotype.Component;
 
 /**
- * chunk 路由的 KB 访问/所有权守卫（对照 Go 中间件链的 Java 落地）。
- *
- * <p>Go 的 chunk 路由挂着两段守卫（routes_knowledge.go L27-53）：</p>
+ * chunk 路由的 KB 访问/所有权守卫。
  * <ol>
  *   <li><b>所有权</b>：{@code middleware.RequireOwnershipOrRole(Admin, creatorLookup, cfg)}
  *       —— 角色达标或资源创建者本人，否则 403 纯字符串
@@ -34,11 +32,9 @@ import org.springframework.stereotype.Component;
  *   <li><b>KB 访问</b>：{@code middleware.RequireKBAccess(KBIDFromXxxParam, Viewer/Editor, ...)}
  *       —— 解析 KB（404）→ API-Key 白名单 → 同空间授予（跨空间 403 信封）。</li>
  * </ol>
- *
  * <p>Wiki 控制器（{@code WikiPageController#requireWikiKB}）已确立同样的模式；
  * chunk 与 wiki 的差别在解析链多一跳（knowledge_id/chunk_id → kb_id），且
  * by-id 路由的 ownership 查找显式重校验租户（GetChunkByIDOnly 无空间过滤）。</p>
- *
  * <p><b>判定顺序必须逐层复刻</b>（golden 依赖顺序）：</p>
  * <ul>
  *   <li>写路由（:knowledge_id）：ownership（缺失→放行）→ KB 访问（knowledge 缺失→404
@@ -48,10 +44,7 @@ import org.springframework.stereotype.Component;
  *   <li>by-id 写路由：ownership（chunk 缺失/跨租户→放行）→ KB 访问（chunk 缺失→404
  *       "Chunk not found"）→ handler。</li>
  * </ul>
- *
- * <p><b>已知收紧</b>（与 wiki 同源，约定 §9 阶段 3 差异 3）：Go 的 resolveKBAccess
  * 还认 org-share 与 shared-agent 两条路径，Java 侧 kb_shares / agent shares 未翻译，
- * 只保留"同空间"——不放行比 Go 更多的访问。</p>
  */
 @Component
 public class ChunkAccessGuard {
@@ -72,7 +65,6 @@ public class ChunkAccessGuard {
     }
 
     /**
-     * 对照 {@code KBIDFromKnowledgeIDParam}（kb_access.go L89-113）：
      * {@code :knowledge_id} → knowledge（<b>无租户过滤</b>）→ kb_id。
      * knowledge 缺失 → 404 {@code "Knowledge not found"}（AppError 信封）。
      */
@@ -88,11 +80,9 @@ public class ChunkAccessGuard {
     }
 
     /**
-     * 对照 {@code KBIDFromChunkIDParam}（kb_access.go L115-157）：
      * {@code chunk.KnowledgeBaseID} 反范式在行上，单跳即可。
      * chunk 缺失（或 kb_id 为空的 legacy 行）→ 404 {@code "Chunk not found"}。
      * ⚠️ 这里<b>不</b>校验租户——跨租户 chunk 解析出外部 KB，由
-     * {@link #requireKbAccess} 按空间比对出 403（照抄 Go 的行为分布）。
      */
     public String kbIdFromChunkParam(String chunkId) {
         Chunk c = chunkMapper.selectById(chunkId);
@@ -106,10 +96,8 @@ public class ChunkAccessGuard {
     }
 
     /**
-     * 对照 {@code RequireKBAccess} → {@code access.ResolveKB}：
      * <ol>
      *   <li>API-Key KB 白名单（数据面收口点，与 KnowledgeService.requireKb 同源）；</li>
-     *   <li>KB 缺失 → 404 {@code "knowledge base not found"}（小写 k，照抄 Go 文案）；</li>
      *   <li>跨租户 → 403 信封 {@code "Permission denied to access this knowledge base"}。</li>
      * </ol>
      * 成功返回 KB 行（handler/后续守卫复用，免二次查询）。
@@ -132,10 +120,8 @@ public class ChunkAccessGuard {
     }
 
     /**
-     * 对照 {@code OwnedChunkKBOrAdmin}（经 :knowledge_id 的 chunk 变更路由）：
      * 链路 knowledge_id → KB.CreatorID（tenant 范围内查询）。
-     * knowledge 在调用者空间不存在 → <b>放行</b>（对照 ErrResourceNotFound 透传，
-     * 后续 KB 访问守卫会出 404）；存在但调用者既非 Admin+ 也非创建者 → 403 纯字符串。
+     * knowledge 在调用者空间不存在 → <b>放行</b>；存在但调用者既非 Admin+ 也非创建者 → 403 纯字符串。
      */
     public void requireOwnedChunkKbByKnowledge(String knowledgeId) {
         Knowledge k = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
@@ -158,9 +144,7 @@ public class ChunkAccessGuard {
     }
 
     /**
-     * 对照 {@code OwnedChunkKBOrAdminFromChunkID}（by-id 的 questions 变更路由）：
      * 链路 chunk_id → chunk.KnowledgeID → KB.CreatorID。chunk 无空间过滤，
-     * 显式重校验租户（缺失/跨租户 → 放行，与 Go 同）。
      */
     public void requireOwnedChunkKbByChunk(String chunkId) {
         Chunk c = chunkMapper.selectById(chunkId);
@@ -183,7 +167,7 @@ public class ChunkAccessGuard {
     }
 
     /**
-     * 对照 RequireOwnershipOrRole 的判定矩阵：角色 ≥ Admin 直接放行（不查 lookup）；
+     * 角色 ≥ Admin 直接放行（不查 lookup）；
      * 系统管理员放行；创建者空串（tenant-owned/legacy）或非本人 → 403 纯字符串。
      */
     private static void checkOwnership(KnowledgeBase kb) {
@@ -229,7 +213,6 @@ public class ChunkAccessGuard {
     /**
      * 写路径的 chunk 守卫：执行租户 → chunk 存在性/归属 → knowledge 写绑定 →
      * chunk 挂在其 knowledge 的 KB 上。返回<b>副本</b>，调用方的就地变更不回流仓储层。
-     *
      * <p>错误形态（全部 BizException 信封）：租户缺 → 401 "workspace context
      * unavailable"；chunk 缺 → 404 "chunk not found"；knowledge 缺 → 404
      * "knowledge not found"；KB 不匹配 → 403 "chunk does not belong to its

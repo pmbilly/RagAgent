@@ -28,11 +28,9 @@ import java.time.ZoneOffset;
  * 知识处理后台 worker：虚拟线程队列消费 knowledge 的解析主链路
  * （接管 → 预清理 → 取文本 → 分块落库 → 向量化 → 富化 fan-out / 完成），对外仅暴露
  * {@link #enqueue(String)}。跨线程显式传值（TenantContext 不共享，各阶段自行解析租户）。
- *
  * <p>状态机：pending →(CAS)→ processing →（无富化子任务）→ completed +
  * enable_status=enabled + processed_at；任一步失败 → failed + error_message；
  * deleting/cancelled 检查点短路。</p>
- *
  * <p>三个关键不变量：</p>
  * <ol>
  *   <li><b>索引文本形态</b>：嵌入文本与 embeddings.content 一致，均为
@@ -56,7 +54,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     /**
      * 批大小来自 BATCH_EMBED_SIZE env，空 → 5，非法值 → 报错。
      * strconv.Atoi 文案——会落进 knowledge 的 error_message）。走查实案：
-     * 硬编码 40 会被 dashscope 拒（batch size 上限 20），Go 默认 5 无此问题。
      */
     private static int embedBatchSize() {
         String env = System.getenv("BATCH_EMBED_SIZE");
@@ -458,13 +455,11 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     /**
      * 向量化判定 + 模型解析。
-     * 模型缺失时抛错，此时预清理尚未执行（既有数据不动，照抄 Go 顺序）。
      */
     /**
      * 知识删除/重处理的向量行清理——2026-09-25 写链改道：绑定 store 的 KB 走引擎口
      * （经
      * GetEmbeddingModel → DeleteByKnowledgeIDList）；未绑定保持 pg 直连（模型缺失时
-     * 跳过清理，与 Go "Skipping vector store cleanup without embedding model" 同形）。
      */
     private void deleteKnowledgeVectors(Knowledge k, KnowledgeBase kb,
                                         EmbedderClient.EmbedConfig embedConfig, String knowledgeId) {
@@ -560,7 +555,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      * processing 原子晋升 finalizing 并写入子任务计数的
      * 状态翻转部分：一次条件更新把 {@code processing} 原子翻到 {@code finalizing}，
      * 并置 {@code pending_subtasks_count=1}（wiki 子任务占用的那个槽）。
-     *
      * <p>返回 false = 行已不在 processing（cancel/delete 抢走）——调用方必须跳过
      * 富化且不得覆盖状态。</p>
      */
@@ -580,9 +574,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     /**
      * 图抽取 fan-out：逐块入队 {@code chunk:extract}，{@code model_id}
-     * 取 KB 的 {@code SummaryModelID}（照 Go）。入队侧注入追踪载体（C 批约定），
      * worker 侧续接同一棵树。
-     *
      * <p>入队失败的槽位<b>立即释放</b>。</p>
      */
     private void enqueueGraphExtracts(String knowledgeId, Knowledge k, KnowledgeBase kb,
@@ -614,7 +606,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     /**
      * 问题生成 fan-out：按 {@link QuestionBatchPlanner#BATCH_SIZE} 分批入队
      * {@code question:generation}，载荷只带 chunk id（+ 边界邻块 id），worker 运行时装读内容。
-     *
      * <p>入队失败的批<b>立即释放</b>该批占用的槽位。</p>
      */
     private void enqueueQuestionBatches(String knowledgeId, Knowledge k, KnowledgeBase kb,
@@ -653,7 +644,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     /**
      * op 落库 + 防抖触发。op 未被接受（如 KB 已删）或入队异常时
-     * 释放 finalizing 槽（Go 由 shortfall 释放；这里复用 finalizer 的递减+晋升），
      * 避免行搁浅在 finalizing。触发失败只记警告——op 已落库，不从重追加
      * 。
      */
@@ -715,7 +705,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             // 进程内 worker 在契约测试里会真实处理：
             // 录制进程内；无条件推进会让异步副作用污染 HTTP 快照断言（kg-manual-draft
             // 等 3 例实测红）。无 summary model 的 KB 因此不做 none/failed 中间态
-            // （Go 真实运行会推 failed），差异记录于 known-issues。
             Knowledge row = knowledgeMapper.selectById(knowledgeId);
             KnowledgeBase rowKb = row == null ? null
                     : kbMapper.selectById(row.getKnowledgeBaseId());

@@ -9,14 +9,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
- * KB 响应构造器（对照 Go handler/knowledgebase.go buildKBResponse L109-141）。
- *
- * Go 路径：json.Marshal(KnowledgeBase)（MarshalJSON 追加 capabilities）→ 反序列化为
+ * KB 响应构造器。
  * map[string]interface{} → 条件合并 vector_store_* → gin.H 输出。
  * **两次经 map，全部键（含嵌套配置对象）按字母序输出**——Java 用 TreeMap 复刻。
- *
- * 字段来源（对照 golden kb-create.json 锁定）：
- * - 实体全部字段（deleted_at 恒输出 null；description 非 omitempty 恒输出）
+ * 字段来源：
+ * - 实体全部字段（deleted_at 恒输出 null；description 无空值省略、恒输出）
  * - capabilities（vector/keyword/wiki/graph/faq，嵌套同样字母序：faq/graph/keyword/vector/wiki）
  * - vector_store_name/source/engine_type/status：env 回退显示（System default / env / <driver> / available）
  * - 共享视图删除 vector_store_id（阶段 3 不支持跨租户共享，恒保留）
@@ -27,13 +24,12 @@ public final class KnowledgeBaseResponseBuilder {
 
     private KnowledgeBaseResponseBuilder() {}
 
-    /** 对照 buildKBResponse：env 回退 store view（无 vector_stores 绑定的 KB） */
+    /** env 回退 store view（无 vector_stores 绑定的 KB） */
     public static Map<String, Object> build(KnowledgeBase kb, String retrieveDriver) {
         return build(kb, retrieveDriver, true);
     }
 
     /**
-     * {@code includeEngineType=false} 对照 Go 的 storeView.EngineType=="" 分支：
      * {@code m["vector_store_engine_type"] = storeView.EngineType} 只在**非空**时写入键。
      * duplicate 走 resolveKBStoreView → envDefaultStoreView，其 EngineType 取
      * envStores[0]——当前部署（Golden 实录 2026-09-19）envStores 为空 → 键整体缺席。
@@ -50,7 +46,6 @@ public final class KnowledgeBaseResponseBuilder {
         m.put("chunk_count", kb.getChunkCount());
         m.put("chunking_config", treeSorted(kb.getChunkingConfig()));
         m.put("created_at", kb.getCreatedAt());
-        // creator_id：Go 非指针 string，空为 ""（API-key 创建的 KB 为 tenant-owned 空串）
         m.put("creator_id", kb.getCreatorId());
         m.put("deleted_at", kb.getDeletedAt());
         m.put("description", kb.getDescription() == null ? "" : kb.getDescription());
@@ -69,7 +64,6 @@ public final class KnowledgeBaseResponseBuilder {
         m.put("processing_count", kb.getProcessingCount());
         m.put("question_generation_config", json(kb.getQuestionGenerationConfig()));
         m.put("share_count", kb.getShareCount());
-        // storage_backend_id：Go 实体 json 带 omitempty（buildKBResponse 走 json.Marshal
         // 实体 → map），空值键整体缺席；非空才输出（kb-list.json 等旧 golden 有值场景不变）。
         if (kb.getStorageBackendId() != null && !kb.getStorageBackendId().isEmpty()) {
             m.put("storage_backend_id", kb.getStorageBackendId());
@@ -107,7 +101,7 @@ public final class KnowledgeBaseResponseBuilder {
         return m;
     }
 
-    /** RETRIEVE_DRIVER 首段 → 引擎类型显示（对照 golden "postgres"） */
+    /** RETRIEVE_DRIVER 首段 → 引擎类型显示 */
     static String engineType(String retrieveDriver) {
         if (retrieveDriver == null || retrieveDriver.isBlank()) {
             return "postgres";
@@ -117,7 +111,6 @@ public final class KnowledgeBaseResponseBuilder {
     }
 
     /**
-     * 对照 ListMoveTargets 的**原始实体序列化**（struct 声明序，无 map 排序、无 vector_store_* 增强）。
      * omitempty：storage_backend_id / vector_store_id / creator_name。
      */
     public static Map<String, Object> buildRaw(KnowledgeBase kb) {
@@ -163,7 +156,6 @@ public final class KnowledgeBaseResponseBuilder {
         if (kb.getCreatorName() != null && !kb.getCreatorName().isEmpty()) {
             m.put("creator_name", kb.getCreatorName());
         }
-        // raw：Go Capabilities struct 声明序 vector,keyword,wiki,graph,faq
         var c = kb.capabilities();
         Map<String, Object> caps = new java.util.LinkedHashMap<>();
         caps.put("vector", c.vector());
@@ -181,9 +173,7 @@ public final class KnowledgeBaseResponseBuilder {
     }
 
     /**
-     * 对照 EnsureDefaults 的 FAQ 段（types/knowledgebase.go L744-758）：type=faq 时
      * faq_config 物化默认值（NULL → 全默认；缺字段补默认，FAQConfig 仅这两个字段）；
-     * type!=faq → FAQConfig 清空（JSON null）。字段序 = Go struct 声明序（亦字母序）。
      */
     private static JsonNode faqConfigView(KnowledgeBase kb) {
         if (!"faq".equals(kb.getType())) {
@@ -199,7 +189,6 @@ public final class KnowledgeBaseResponseBuilder {
         return out;
     }
 
-    /** raw 序列化：嵌套对象保序（Go struct 声明序 = valueToTree + @JsonPropertyOrder），不排序 */
     private static Object tree(Object pojo) {
         if (pojo == null) {
             return null;
@@ -213,7 +202,6 @@ public final class KnowledgeBaseResponseBuilder {
         return s == null || s.isEmpty() ? null : s;
     }
 
-    /** list 专用：Go buildKBListResponse 比单个 buildKBResponse 多 creator_name */
     public static java.util.Map<String, Object> buildListItem(KnowledgeBase kb, String retrieveDriver) {
         java.util.Map<String, Object> m = build(kb, retrieveDriver);
         m.put("creator_name", nullToEmpty(kb.getCreatorName()));
@@ -221,13 +209,11 @@ public final class KnowledgeBaseResponseBuilder {
     }
 
     /**
-     * 共享 agent 分支的 KB 列表项（W5α，对照 buildKBListResponse 的 view 三态）：
      * <ul>
      *   <li>KB 无 vector_stores 绑定 → envDefaultStoreView（本部署 engine_type 缺席，
      *       与 2026-09-21 w5s 实录一致）；</li>
      *   <li>有绑定且跨租户（agent 分支恒然——share 排除同空间）→ SharedStoreDisplay：
      *       vector_store_id/vector_store_name 删除、source="shared"、status="available"；</li>
-     *   <li>Go 该分支不回填 creator_name，实体 {@code creator_name} 带 omitempty →
      *       键整体缺席（勿用 buildListItem）。</li>
      * </ul>
      */
@@ -241,7 +227,6 @@ public final class KnowledgeBaseResponseBuilder {
         return m;
     }
 
-    /** build() 专用：Go map 序列化嵌套全字母序 */
     private static Object treeSorted(Object pojo) {
         if (pojo == null) {
             return null;
@@ -278,7 +263,6 @@ public final class KnowledgeBaseResponseBuilder {
         return node.asText();
     }
 
-    /** Go string 零值语义：NULL → ""（恒输出键不允许 null） */
     private static String nullToEmpty(String v) {
         return v == null ? "" : v;
     }

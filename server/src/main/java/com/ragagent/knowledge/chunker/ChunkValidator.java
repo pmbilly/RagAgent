@@ -3,21 +3,18 @@ package com.ragagent.knowledge.chunker;
 import java.util.List;
 
 /**
- * 层级输出校验（对照 Go internal/infrastructure/chunker/validator.go）。
- *
+ * 层级输出校验。
  * <p>校验器刻意宽容：只有"明显坏掉"的输出被拒绝，看似合理的差异都被接受，
  * 避免层级间来回震荡。</p>
  */
 public final class ChunkValidator {
 
-    /** 对照 Go ValidationResult（validator.go:11）。 */
     public record ValidationResult(boolean ok, String reason) {
     }
 
     private ChunkValidator() {
     }
 
-    /** 对照 Go ValidateChunks（validator.go:19）。 */
     public static ValidationResult validate(List<ParsedChunk> chunks, int totalChars, int chunkSize) {
         if (chunks == null || chunks.isEmpty()) {
             return new ValidationResult(false, "no chunks produced");

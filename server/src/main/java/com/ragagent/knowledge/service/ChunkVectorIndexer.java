@@ -30,14 +30,10 @@ import org.springframework.stereotype.Service;
 /**
  * chunk 向量行的重建执行体（2026-09-22 走查批：把「路由在、执行体占位」的两处
  * 索引缺口收敛到同一实现）：
- *
  * <ul>
- *   <li>{@link #updateChunkVector} —— 对照 Go {@code knowledgeService.updateChunkVector}
- *       （knowledge_process.go L2859-2940）：多 chunk 版（摘要 chunk 维护 / 问题重生成）；</li>
- *   <li>{@link #syncChunkIndex} —— 对照 Go {@code chunkService.syncChunkIndex}
- *       （chunk.go L669-719）：单 chunk 版（chunk 编辑链路；disabled 块删旧不重建）。</li>
+ *       （knowledge_process）：多 chunk 版（摘要 chunk 维护 / 问题重生成）；</li>
+ *       （chunk）：单 chunk 版（chunk 编辑链路；disabled 块删旧不重建）。</li>
  * </ul>
- *
  * <p><b>source_id 契约</b>：chunk 行 = chunkID（无前缀）；生成问题行 =
  * {@link #generatedQuestionSourceId}（chunkID-qID；超 64 字节折叠
  * {@code chunkID-q<sha256 前 12 字节 hex>}）。索引文本 =
@@ -75,7 +71,6 @@ public class ChunkVectorIndexer {
     }
 
     /**
-     * 对照 Go {@code knowledgeService.updateChunkVector}：删该批 chunk 的全部旧向量行
      * （含生成问题行）→ 批量 embedding → 插入 chunk 行与问题行。KB 缺失 →
      * 404 "knowledge base not found"（知识库链路语义）。
      */
@@ -87,7 +82,6 @@ public class ChunkVectorIndexer {
         if (!needsEmbeddingServiceLayer(kb)) {
             return;
         }
-        // 对照 Go GetModelByID 的 errors.New("model ID cannot be empty")（非 AppError →
         // handler 包 1007 internal 原文；golden kg-image-update/again/mismatch 钉住）
         String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
         if (modelId.isEmpty()) {
@@ -103,7 +97,7 @@ public class ChunkVectorIndexer {
     }
 
     /**
-     * 对照 Go {@code chunkService.syncChunkIndex}（chunk.go L669-719）：KB 缺失/模型
+     * KB 缺失/模型
      * 缺失的错误形态是 500 面（{@link IllegalStateException}，调用方
      * UpdateDocumentChunk 吞成 index_status=failed）；删除旧行后按 enabled 决定是否重建。
      */
@@ -132,7 +126,6 @@ public class ChunkVectorIndexer {
 
     /** 共享主体：ids 全删 → （enabled 且非 parent_text 的）chunk 行 + 问题行重建。 */
     private void indexAndStore(KnowledgeBase kb, Model embeddingModel, List<Chunk> chunks) {
-        // 2026-09-25 写链改道：绑定 store 的 KB 走引擎口（照 Go syncChunkIndex/
         // updateChunkVector 的 CreateRetrieveEngineForKB → DeleteByChunkIDList →
         // BatchIndex；未绑定保持 pg 直连，golden 锁定行为不变）
         com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
@@ -167,7 +160,6 @@ public class ChunkVectorIndexer {
                 }
                 knowledgeCache.put(chunk.getKnowledgeId(), knowledge);
             }
-            // tag_id 传 ""：对照 Go updateChunkVector/syncChunkIndex 的 IndexInfo 不设 TagID（零值）
             rows.add(new VectorStoreService.IndexRow(chunk.getId(), chunk.getId(),
                     chunk.getKnowledgeId(), chunk.getKnowledgeBaseId(),
                     KnowledgeIndexContent.build(knowledge, chunk.embeddingContent()),
@@ -207,12 +199,10 @@ public class ChunkVectorIndexer {
     }
 
     /**
-     * 绑定 store 的引擎分支——照 Go syncChunkIndex / updateChunkVector 的引擎段：
      * {@code engine.DeleteByChunkIDList(ids, embedder.GetDimensions(), kb.Type)} →
      * {@code engine.BatchIndex(embedder, items)}。items 的形状照 IndexInfo 逐字段
      * （chunk 行 SourceID=chunkID、问题行 SourceID=GeneratedQuestionSourceID、
      * KnowledgeType=kb.Type）；嵌入与分批/退避由 KV 引擎服务承担（40/10 分批 +
-     * 5 次指数退避，与 Go 引擎路径一致——不走本类的 BATCH_EMBED_SIZE 直连分批）。
      */
     private void indexAndStoreViaEngine(KnowledgeBase kb,
                                         com.ragagent.retrieval.engine.CompositeRetrieveEngine engine,
@@ -268,7 +258,6 @@ public class ChunkVectorIndexer {
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            // 引擎口的受检异常（Go 的 error 通道）——调用方按失败面处置
             throw new IllegalStateException(
                     e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
         }
@@ -293,12 +282,9 @@ public class ChunkVectorIndexer {
     }
 
     /**
-     * <b>服务层</b>判定（对照 Go {@code kbService.GetKnowledgeBaseByID}：repo 读后调
-     * {@code kb.EnsureDefaults()} —— {@code IndexingStrategy.IsZero()}（4 字段全 false）
+     * <b>服务层</b>判定
      * 翻成 Default（vector+keyword 开））。{@link #updateChunkVector} 走这里。
-     *
      * <p>证据：golden kg-image-update/again/mismatch 的 KB 是显式全 false 策略
-     * （contracts 测试 fixture），实录仍是 1007 "model ID cannot be empty"——Go 走进了
      * 向量分支，即全 false 策略经服务层读法被翻成 Default。</p>
      */
     private static boolean needsEmbeddingServiceLayer(KnowledgeBase kb) {
@@ -310,8 +296,7 @@ public class ChunkVectorIndexer {
     }
 
     /**
-     * <b>repo 层</b>判定（对照 Go {@code kbRepository.GetKnowledgeBaseByID}：仅 GORM
-     * Scan，无 EnsureDefaults）——Scan(nil) 返回 Default（NULL 列 → vector+keyword 开）；
+     * <b>repo 层</b>判定——Scan(nil) 返回 Default（NULL 列 → vector+keyword 开）；
      * 显式全 false / 空 JSON 保持全 false（IsZero 不翻）。{@link #syncChunkIndex} 走这里
      * （2026-09-22 走查批实证：套钩子会让全 false 策略的 KB 误走进真实出站，13 测试红）。
      */
@@ -323,7 +308,6 @@ public class ChunkVectorIndexer {
         return strategy.isVectorEnabled() || strategy.isKeywordEnabled();
     }
 
-    /** kb 行（仅 id，无租户过滤——Go GetKnowledgeBaseByID 同款；软删不可见）。 */
     private KnowledgeBase findKbRow(String kbId) {
         return kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
@@ -331,7 +315,6 @@ public class ChunkVectorIndexer {
                 .last("LIMIT 1"));
     }
 
-    /** 解析 chunk.metadata 的 generated_questions（失败 → null，对照 Go 的 err 忽略）。 */
     private static DocumentChunkMetadata chunkDocumentMetadata(Chunk chunk) {
         JsonNode meta = chunk.getMetadata();
         if (meta == null || meta.isNull()) {
@@ -344,7 +327,6 @@ public class ChunkVectorIndexer {
         }
     }
 
-    /** 对照 Go batch.go 的 BatchEmbedSize（BATCH_EMBED_SIZE env，默认 5，非法值照抄 Atoi 文案）。 */
     static int embedBatchSize() {
         String env = System.getenv("BATCH_EMBED_SIZE");
         if (env == null || env.isEmpty()) {

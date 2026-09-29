@@ -8,10 +8,8 @@ import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
- * FAQ 索引行组装（对照 Go knowledge_faq.go 的 buildFAQIndexInfoList /
- * buildFAQIndexContent，L1890-2005）。2026-09-22 走查批接线：此前的
+ * FAQ 索引行组装。2026-09-22 走查批接线：此前的
  * 索引步是「embedding runtime is not available」占位。
- *
  * <p><b>两种索引模式</b>（kb.faq_config）：</p>
  * <ul>
  *   <li>question_index_mode=combined（默认）：单行，content = 标准问 + 相似问 +
@@ -19,14 +17,12 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
  *   <li>question_index_mode=separate：标准问一行（source_id=chunkID）+ 每个相似问
  *       一行（source_id = {@code chunkID-<序号>}）。</li>
  * </ul>
- *
- * <p>Go 的 IndexInfo.IsRecommended 在 PG 落库面被忽略（pgVector 无该列），故不携带。</p>
  */
 final class FaqIndexRows {
 
     private FaqIndexRows() {}
 
-    /** 对照 buildFAQIndexInfoList：chunk → 索引行列表。 */
+    /**  */
     static List<VectorStoreService.IndexRow> build(KnowledgeBase kb, Chunk chunk) {
         String indexMode = faqIndexMode(kb);
         String questionIndexMode = faqQuestionIndexMode(kb);
@@ -75,7 +71,7 @@ final class FaqIndexRows {
                 }
                 similarContent = sb.toString();
             }
-            // 对照 Go：sourceID = chunkID-{i}
+            // sourceID = chunkID-{i}
             rows.add(new VectorStoreService.IndexRow(chunk.getId() + "-" + i, chunk.getId(),
                     chunk.getKnowledgeId(), chunk.getKnowledgeBaseId(),
                     similarContent, enabled, tagId));
@@ -84,7 +80,7 @@ final class FaqIndexRows {
     }
 
     /**
-     * 对照 buildFAQIndexContent（L1890-1904）：标准问 + 相似问（换行相连）+
+     * 标准问 + 相似问（换行相连）+
      * question_answer 模式时追加答案。
      */
     static String buildFAQIndexContent(FaqChunkMetadata meta, String indexMode) {
@@ -102,14 +98,13 @@ final class FaqIndexRows {
         return sb.toString();
     }
 
-    /** 对照 Go FAQConfig.IndexMode 缺省（EnsureDefaults）：question_answer。 */
     static String faqIndexMode(KnowledgeBase kb) {
         com.fasterxml.jackson.databind.JsonNode cfg = kb.getFaqConfig();
         String mode = cfg == null ? "" : cfg.path("index_mode").asText("");
         return mode.isEmpty() ? "question_answer" : mode;
     }
 
-    /** 对照 Go FAQConfig.QuestionIndexMode 缺省：combined。 */
+    /** combined。 */
     static String faqQuestionIndexMode(KnowledgeBase kb) {
         com.fasterxml.jackson.databind.JsonNode cfg = kb.getFaqConfig();
         String mode = cfg == null ? "" : cfg.path("question_index_mode").asText("");

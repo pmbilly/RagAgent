@@ -10,9 +10,7 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.wiki.service.WikiImageMarkup;
 
 /**
- * 图抽取的分块筛选（对照 Go {@code selectGraphChunks} + {@code chunkHasExtractableText}，
- * knowledge_post_process.go L696-733）。
- *
+ * 图抽取的分块筛选。
  * <p>规则（逐条照抄）：</p>
  * <ol>
  *   <li>先记下所有<b>文本块</b>（{@code text}）；</li>
@@ -22,20 +20,18 @@ import com.ragagent.wiki.service.WikiImageMarkup;
  *   <li>{@code text}：内容剥掉图片标记后有真实文本 → 入选；</li>
  *   <li>其它类型（faq 等）不入图。</li>
  * </ol>
- *
- * <p>返回顺序 = 传入顺序（Go 同），因此 {@code chunk_index} 与文本序一致。</p>
  */
 public final class GraphChunkSelector {
 
     private GraphChunkSelector() {
     }
 
-    /** 对照 {@code chunkHasExtractableText}：剥掉图片标记后是否还有散文。 */
+    /** 剥掉图片标记后是否还有散文。 */
     public static boolean chunkHasExtractableText(String content) {
         return !WikiImageMarkup.extractRealText(content).isEmpty();
     }
 
-    /** 对照 {@code selectGraphChunks}。 */
+    /**  */
     public static List<Chunk> selectGraphChunks(List<Chunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return new ArrayList<>();

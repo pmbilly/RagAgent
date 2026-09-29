@@ -7,8 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Tier 2：启发式边界切分（对照 Go internal/infrastructure/chunker/heuristic_splitter.go）。
- *
+ * Tier 2：启发式边界切分。
  * <p>面向没有 Markdown 标题、但有可识别结构线索（分页符、编号小节、多语言章节标记、
  * 视觉分隔线、全大写标题、页脚）的文档。算法：找出全部候选边界，然后贪心装箱——
  * 把边界间的块累进 chunk 直到下一块超出 ChunkSize。大于 ChunkSize 的块递归交给
@@ -16,7 +15,6 @@ import java.util.regex.Pattern;
  */
 public final class HeuristicSplitter {
 
-    /** 对照 Go boundary（heuristic_splitter.go:23）。 */
     record Boundary(int runeStart, int priority) {
     }
 
@@ -24,8 +22,6 @@ public final class HeuristicSplitter {
     }
 
     /**
-     * 对照 Go splitByHeuristicsImpl（heuristic_splitter.go:34）。
-     *
      * @param profile 当前未使用（该层直接扫描边界），仅为签名一致性保留
      */
     public static List<ParsedChunk> splitByHeuristics(String text, SplitterConfig cfg,
@@ -105,7 +101,6 @@ public final class HeuristicSplitter {
         return out;
     }
 
-    /** 对照 Go findHeuristicBoundaries（heuristic_splitter.go:112）：升序边界；同偏移低优先级丢弃。 */
     static List<Boundary> findHeuristicBoundaries(String text, List<String> langs) {
         List<Boundary> bounds = new ArrayList<>();
 
@@ -182,7 +177,6 @@ public final class HeuristicSplitter {
     }
 
     /**
-     * 对照 Go dropBoundsInsideSpans（heuristic_splitter.go:194）：移除严格落在
      * （rune 偏移）保护 span 内的边界；span 起点/终点的边界保留。
      */
     static List<Boundary> dropBoundsInsideSpans(List<Boundary> bounds, List<LegacySplitter.RuneSpan> spans) {
@@ -205,7 +199,6 @@ public final class HeuristicSplitter {
         return out;
     }
 
-    /** 对照 Go allRuneIndices（heuristic_splitter.go:216）：单 rune 针的全部 rune 偏移。 */
     static List<Integer> allRuneIndices(String text, String needle) {
         List<Integer> out = new ArrayList<>();
         if (needle.isEmpty()) {
@@ -222,7 +215,6 @@ public final class HeuristicSplitter {
     }
 
     /**
-     * 对照 Go appendChunk（heuristic_splitter.go:237）：纯空白切片跳过。
      * Content 是原始切片，Start/End rune 偏移必须与 content 的 rune 长度一致。
      */
     private static List<ParsedChunk> appendChunk(List<ParsedChunk> out, int[] runes,
@@ -238,7 +230,6 @@ public final class HeuristicSplitter {
         return out;
     }
 
-    /** 对照 Go appendOversizeBlock（heuristic_splitter.go:253）：超预算块交给 legacy 递归细分。 */
     private static List<ParsedChunk> appendOversizeBlock(List<ParsedChunk> out, int[] runes,
             int start, int end, SplitterConfig cfg, int seq) {
         if (end <= start) {
@@ -254,7 +245,6 @@ public final class HeuristicSplitter {
     }
 
     /**
-     * 对照 Go applyOverlapAligned（heuristic_splitter.go:280）：目标 curEnd - overlap，
      * 优先吸附窗口 [curEnd-2*overlap, curEnd) 内最近的边界（不含 curEnd 自身，否则 overlap 为 0），
      * 否则回退到前一个换行，最后才用原始目标。
      */

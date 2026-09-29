@@ -18,14 +18,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * DocReader gRPC 客户端（对照 Go internal/infrastructure/docparser/grpc_parser.go）。
- *
+ * DocReader gRPC 客户端。
  * 契约（proto 实录）：
  * - 首选 ReadStream（首帧必须 meta，随后每帧一张图）；UNIMPLEMENTED 回退 unary Read
  * - 业务错误走响应 error 字段而非 gRPC status
  * - ReadConfig 3 号字段 reserved（image_storage 已移除）
- * - 单次调用超时 30 分钟（对照 doc_reader_call_timeout）
- *
+ * - 单次调用超时 30 分钟
  * 阶段 3 仅消费 meta/markdown（图片帧忽略并记录）。
  */
 @Service
@@ -38,7 +36,7 @@ public class DocReaderClient {
     private volatile DocReaderGrpc.DocReaderBlockingStub blocking;
     private volatile DocReaderGrpc.DocReaderStub asyncStub;
 
-    /** 远端可达性（对照 GRPCDocumentReader.IsConnected 的 conn != nil 语义）。 */
+    /** 远端可达性。 */
     private volatile boolean connected;
     private final Object reconnectLock = new Object();
 
@@ -64,7 +62,6 @@ public class DocReaderClient {
         this.blocking = DocReaderGrpc.newBlockingStub(channel);
         this.asyncStub = DocReaderGrpc.newStub(channel);
         // DOCREADER_ADDR 缺省时 DocReaderClient 构造用 localhost:50051 兜底——
-        // 与 Go 的差异：Go 的 addr=="" 时启动"未连接"状态。Java 侧以 env 显式配置
         // 为连接判据（dev/e2e 都显式配置，行为一致）。
         String configured = System.getenv("DOCREADER_ADDR");
         this.connected = configured != null && !configured.isBlank();
@@ -72,11 +69,7 @@ public class DocReaderClient {
 
     /**
      * 解析结果：markdown + 图片数 + 图片引用（含内联字节）。
-     *
      * <p>图片字节来自 docreader 的 inline 模式（docreader main.py 的 {@code _resolve_images}
-     * 恒填 {@code ImageRef.image_data}、不用 storage_key），与 Go 侧
-     * {@code grpc_parser.go:184-189} 收下的两字段同源；落盘责任在调用方
-     * （Go 注释原文：image persistence is now handled entirely by the App）。</p>
      */
     public record ParseResult(String markdown, int imageCount, List<ImageRef> imageRefs) {
         public ParseResult(String markdown, int imageCount) {
@@ -84,7 +77,6 @@ public class DocReaderClient {
         }
     }
 
-    /** 对照 proto {@code docreader.ImageRef} 的应用侧视图（只留落盘需要的四字段）。 */
     public record ImageRef(String filename, String originalRef, String mimeType, byte[] imageData) {
     }
 
@@ -94,7 +86,7 @@ public class DocReaderClient {
     }
 
     /**
-     * 解析文件（对照 GRPCDocumentReader.Read → ReadStream 优先，UNIMPLEMENTED 回退 unary）。
+     * 解析文件。
      * @param parserEngine 引擎名（空 = 服务端默认路由）
      */
     public ParseResult read(byte[] fileContent, String fileName, String fileType,
@@ -152,7 +144,6 @@ public class DocReaderClient {
         if (!meta.getError().isEmpty()) {
             throw new IllegalStateException("docreader parse error: " + meta.getError());
         }
-        // 图片帧（首帧之后每帧一张图，对照 proto ReadStreamResponse 的 oneof payload）
         List<ImageRef> images = new ArrayList<>();
         for (int i = 1; i < frames.size(); i++) {
             Docreader.ReadStreamResponse frame = frames.get(i);
@@ -178,13 +169,12 @@ public class DocReaderClient {
 
     // ── 系统管理端（波 2 收官批）附加能力 ─────────────────────────────────
 
-    /** 远端引擎信息（对照 Go types.ParserEngineInfo——无 json tag，响应键是 Go 字段名）。 */
+    /** 远端引擎信息。 */
     public record RemoteEngine(String name, String description, java.util.List<String> fileTypes,
                                boolean available, String unavailableReason) {}
 
     /**
-     * 对照 GRPCDocumentReader.IsConnected：conn != nil。Java 的 ManagedChannel 惰性连接，
-     * 这里以"启动时配置了 DOCREADER_ADDR 或已 reconnect 成功"为准——与 Go 在
+     * conn != nil。Java 的 ManagedChannel 惰性连接，
      * "配置了地址即连接对象存在"的语义一致。
      */
     public boolean isConnected() {
@@ -192,8 +182,7 @@ public class DocReaderClient {
     }
 
     /**
-     * 对照 GRPCDocumentReader.Reconnect：关旧通道、按新地址重建。失败抛
-     * RuntimeException（handler 落 200 + code:1 "连接失败: %v"，与 Go 相同形态）。
+     * 失败抛
      */
     public void reconnect(String addr) {
         synchronized (reconnectLock) {
@@ -223,7 +212,7 @@ public class DocReaderClient {
     }
 
     /**
-     * 对照 GRPCDocumentReader.ListEngines：gRPC ListEngines RPC → 引擎列表。
+     * gRPC ListEngines RPC → 引擎列表。
      * RPC 失败抛 RuntimeException（调用方 fetchRemoteEngines 记 WARN 后回落静态表）。
      */
     public java.util.List<RemoteEngine> listEngines(java.util.Map<String, String> overrides) {

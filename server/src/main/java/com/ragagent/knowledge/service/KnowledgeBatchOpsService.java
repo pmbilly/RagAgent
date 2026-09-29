@@ -17,10 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 波 2 批量面：批量删除 / 批量重解析 / 重建索引 / 清空 KB 内容（对照 Go 的 asynq
- * 任务提交面，Java 为同步尽力而为、HTTP 契约一致；原 KnowledgeService
- * 「── 波 2：批量删除 / 批量重解析 / 清空」段拆分独立）。
- *
+ * 波 2 批量面：批量删除 / 批量重解析 / 重建索引 / 清空 KB 内容。
  * <p>复位/全列写复用 {@link KnowledgeFileService}/{@link KnowledgeParseService}（同包开放），
  * moving 状态防线复用 {@link KnowledgeFolderService#rejectMovingKnowledge}；
  * 门面 helper（requireKb/getKnowledge/tenantId）经 {@code @Lazy} 门面调用，不复制。</p>
@@ -52,10 +49,9 @@ public class KnowledgeBatchOpsService {
         this.facade = facade;
     }
 
-    // ── 波 2：批量删除 / 批量重解析 / 清空（asynq → 同步尽力而为，响应契约一致） ──
+    // ── 波 2：批量删除 / 批量重解析 / 清空（任务队列 → 同步尽力而为，响应契约一致） ──
 
     /**
-     * 对照 BatchDeleteKnowledge 的 handler 校验链之后的入队（Go 异步清理）。
      * Java 同步软删（chunk + knowledge + 本地文件），HTTP 契约（task_id/文案）一致。
      * 注意调用方已做过 RejectMoving/kb 归属校验。
      */
@@ -75,7 +71,7 @@ public class KnowledgeBatchOpsService {
     }
 
     /**
-     * 对照 ProcessKnowledgeListReparse 的提交面：逐条 reset 到 pending + 入队。
+     * 逐条 reset 到 pending + 入队。
      * 调用方已完成 requireKnowledgeInKB / RejectMoving 校验。
      */
     public String batchReparseKnowledge(String kbId, List<String> ids) {
@@ -90,11 +86,9 @@ public class KnowledgeBatchOpsService {
     }
 
     /**
-     * 重建知识库索引（对照 Go POST /knowledge-bases/:id/rebuild-index）：索引策略
+     * 重建知识库索引：索引策略
      * （vector/keyword/wiki/graph）变更后对 KB 内全部知识重跑处理管线，使 chunk/
      * 向量/图谱与新策略一致。复用 reparse 的复位与入队路径（docreader 重解析在
-     * 内——策略变更可能连带分块参数，逐条全量重处理是 Go 同款安全语义）。
-     *
      * @return 提交重建的知识条数（document_count）
      */
     public int rebuildKnowledgeBaseIndex(String kbId) {
@@ -112,12 +106,10 @@ public class KnowledgeBatchOpsService {
     }
 
     /**
-     * 对照 ClearKnowledgeBaseContents 的入队面。Go 是 asynq 异步清理（响应只含
      * 列表计数），录制的两次连续 clear 都是 "task submitted" + 相同计数（worker 尚未
      * 动行）——Java 用 parse_status='deleting' 标记 + 计数复刻这个窗口（行为收敛：
      * 后续读路径对 KB2 无感知；真正的回收与既有 deleteKnowledge 语义一致地缺位，
      * 见类注释已知差异 ①）。
-     *
      * @return 本次列入清理的条数
      */
     @Transactional

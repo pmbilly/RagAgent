@@ -12,15 +12,10 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.knowledge.textconv.TextConv;
 
 /**
- * FAQ 条目在 chunks.metadata 中的结构（对照 Go types/faq.go 的 FAQChunkMetadata，
- * jsonb 形状 + 归一化/hash 纯函数全家桶随类走）。
- *
+ * FAQ 条目在 chunks.metadata 中的结构。
  * <p><b>JSON 是契约</b>（落库 + 由 {@code FAQEntry}/导出面逐字段搬运）：
- * 字段序 = Go struct 声明序；{@code similar_questions / negative_questions / answers /
  * answer_strategy / version / source} 带 omitempty（空省略，{@code NON_DEFAULT}——
  * 空列表与 0/"" 都省，nil 列表同样省）；{@code standard_question} 恒输出。</p>
- *
- * <p><b>派生方法命名防坑</b>（§7.5 第 2 条，复发率最高的坑）：Go 的方法
  * {@code Sanitize/Normalize} 翻成 {@link #sanitize()} / {@link #normalize()}——
  * 不带 get/is 前缀，Jackson 不会当属性吐进 jsonb（阶段 3/4.1 各复发一次的
  * UnrecognizedPropertyException）。</p>
@@ -34,7 +29,6 @@ public class FaqChunkMetadata {
     public static final String ANSWER_STRATEGY_RANDOM = "random";
 
     /**
-     * jsonb 回读/写入共用的 mapper：容忍未知属性（Go 的 json.Unmarshal 默认忽略，
      * §7.5 第 6 条——历史行/新增字段不能让整行读不出来）。
      */
     public static final com.fasterxml.jackson.databind.ObjectMapper JSON =
@@ -43,7 +37,7 @@ public class FaqChunkMetadata {
                     .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
                             false);
 
-    /** 从 chunks.metadata 的 JsonNode 解析；null/空 → null（对照 Go FAQMetadata 的 len==0 短路）。 */
+    /** 从 chunks.metadata 的 JsonNode 解析；null/空 → null。 */
     public static FaqChunkMetadata fromJson(com.fasterxml.jackson.databind.JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode() || node.isEmpty()) {
             return null;
@@ -55,7 +49,6 @@ public class FaqChunkMetadata {
         }
     }
 
-    /** 序列化为 ObjectNode（写入 chunks.metadata；键序 = Go struct 声明序 + omitempty）。 */
     public com.fasterxml.jackson.databind.node.ObjectNode toJsonNode() {
         return JSON.valueToTree(this);
     }
@@ -81,7 +74,7 @@ public class FaqChunkMetadata {
     @JsonProperty("source")
     public String source = "";
 
-    /** 对照 Go {@code FAQChunkMetadata.Sanitize}：TrimSpace + 列表去空去重，version 兜底 1。 */
+    /** TrimSpace + 列表去空去重，version 兜底 1。 */
     public void sanitize() {
         standardQuestion = trimSpace(standardQuestion);
         similarQuestions = sanitizeStrings(similarQuestions);
@@ -92,7 +85,7 @@ public class FaqChunkMetadata {
         }
     }
 
-    /** 对照 Go {@code FAQChunkMetadata.Normalize}：返回归一化副本（原对象不变）。 */
+    /** 返回归一化副本（原对象不变）。 */
     public FaqChunkMetadata normalize() {
         FaqChunkMetadata copy = new FaqChunkMetadata();
         copy.standardQuestion = normalizeQuestion(standardQuestion);
@@ -105,9 +98,9 @@ public class FaqChunkMetadata {
         return copy;
     }
 
-    // ── 纯函数（对照 Go types/faq.go 包级函数） ─────────────────────────────
+    // ── 纯函数 ─────────────────────────────
 
-    /** 对照 {@code SanitizeStrings}：TrimSpace + 去空 + 去重；空输入/全空 → null。 */
+    /** TrimSpace + 去空 + 去重；空输入/全空 → null。 */
     public static List<String> sanitizeStrings(List<String> values) {
         if (values == null || values.isEmpty()) {
             return null;
@@ -126,7 +119,7 @@ public class FaqChunkMetadata {
         return new ArrayList<>(seen);
     }
 
-    /** 对照 {@code normalizeQuestionStrings}：逐条 NormalizeQuestion 后去重；空 → null。 */
+    /** 逐条 NormalizeQuestion 后去重；空 → null。 */
     public static List<String> normalizeQuestionStrings(List<String> values) {
         if (values == null || values.isEmpty()) {
             return null;
@@ -146,7 +139,7 @@ public class FaqChunkMetadata {
     }
 
     /**
-     * 对照 {@code CalculateFAQContentHash}：hash 基于 标准问 + 相似问（排序后）+
+     * hash 基于 标准问 + 相似问（排序后）+
      * 反例（排序后）+ 答案（排序后），SHA256 hex。
      */
     public static String calculateContentHash(FaqChunkMetadata meta) {
@@ -183,7 +176,6 @@ public class FaqChunkMetadata {
     }
 
     /**
-     * 对照 {@code NormalizeQuestion}：
      * 去首尾空白 → 移除 URL → 转小写 → 去首尾标点 → 繁转简 → 全角转半角 → 智能空格。
      */
     public static String normalizeQuestion(String q) {
@@ -196,7 +188,7 @@ public class FaqChunkMetadata {
         }
         q = trimUrl(q);
         q = q.toLowerCase(java.util.Locale.ROOT);
-        // cutset 逐字节对照 Go：？。，；、：+ ASCII 双引号 x2 + ！?.,;!:' + ASCII 双引号 x2
+        // cutset 逐字节？。，；、：+ ASCII 双引号 x2 + ！?.,;!:' + ASCII 双引号 x2
         q = trimCutset(q, "？。，；、：\"\"！?.,;!:'\"\"");
         q = TextConv.toSimplified(q);
         q = toHalfWidth(q);
@@ -204,7 +196,7 @@ public class FaqChunkMetadata {
         return trimSpace(q);
     }
 
-    /** 对照 {@code toHalfWidth}：全角空格 + 全角 ASCII（U+FF01..U+FF5E → U+0021..U+007E）。 */
+    /** 全角空格 + 全角 ASCII（U+FF01..U+FF5E → U+0021..U+007E）。 */
     public static String toHalfWidth(String s) {
         StringBuilder builder = new StringBuilder(s.length());
         s.codePoints().forEach(r -> {
@@ -219,7 +211,7 @@ public class FaqChunkMetadata {
         return builder.toString();
     }
 
-    /** 对照 {@code normalizeSpaces}：合并连续空白；前后都是 ASCII 字母/数字的空格保留，其余去除。 */
+    /** 前后都是 ASCII 字母/数字的空格保留，其余去除。 */
     public static String normalizeSpaces(String s) {
         s = s.replaceAll("\\s+", " ");
         int[] runes = s.codePoints().toArray();
@@ -249,12 +241,10 @@ public class FaqChunkMetadata {
         return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9');
     }
 
-    /** 对照 {@code trimURL}（URLRemove 模式）：移除 {@code https?://\S+}。 */
     public static String trimUrl(String s) {
         return s.replaceAll("https?://[^\\s]+", "");
     }
 
-    /** Go 的 {@code strings.Trim(cutset)}：按 code point 对照 cutset 去除首尾。 */
     private static String trimCutset(String s, String cutset) {
         Set<Integer> cut = new LinkedHashSet<>();
         cutset.codePoints().forEach(cut::add);
@@ -274,8 +264,7 @@ public class FaqChunkMetadata {
     }
 
     /**
-     * Go 的 {@code strings.TrimSpace}（unicode.IsSpace 全集）。Java 的 {@code strip()}
-     * 差 U+0085/U+00A0，与 ChunkRepository.goTrimSpace 同款显式复刻。
+     * 差 U+0085/U+00A0，与 ChunkRepository.trimSpace 同款显式复刻。
      */
     @JsonIgnore
     public static String trimSpace(String s) {
@@ -293,7 +282,6 @@ public class FaqChunkMetadata {
         return s.substring(start, end);
     }
 
-    /** Go unicode.IsSpace 的 BMP 全集（White_Space property）。 */
     private static boolean isGoSpace(char c) {
         switch (c) {
             case '\t': case '\n': case '\u000B': case '\f': case '\r':

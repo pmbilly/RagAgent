@@ -24,31 +24,22 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * KB 标签 CRUD 面（W5a，对照 Go internal/application/service/tag.go 的
- * knowledgeTagService + tag_access.go，292 行 handler + 507 行 service）。
- *
  * <h2>路由链与 Java 落地</h2>
- * Go 路由（routes_knowledge.go RegisterKnowledgeTagRoutes L264-283）：
  * GET = g.Viewer() + KBAccessRead；POST/PUT/DELETE = g.OwnedKBOrAdmin +
  * KBAccessWrite（**无角色门**）。路由级守卫在 {@link ChunkAccessGuard}
  * （{@code requireKbAccess} / {@code requireOwnedKbInCallerSpace}，控制器调用）；
  * 本类只承担 service 层语义。
- *
- * <h2>错误形态（逐条对照 Go）</h2>
  * <ul>
  *   <li>service 层 AppError → 信封（BizException 直通）：重复名 409 "标签名称已存在"、
  *       空名 400 "标签名称不能为空"、requireKBWrite 403 "无权修改该知识库"、
  *       标签不属于当前知识库 403 "标签不属于当前知识库"、
  *       force 删除仍有引用 400 "标签仍有知识或FAQ条目引用，无法删除"、
  *       排除项校验族（仅 FAQ 型 400 / 跨库 403 / 缺失 404）。</li>
- *   <li>service 层普通 error（如 GetByID 的 gorm "record not found"）→
  *       {@link IllegalStateException} → 控制器本地 handler 输出 500 code=1007
  *       "Internal server error" 无 details 键（FAQ 同款，golden 实录）。</li>
  * </ul>
- *
  * <h2>已知差异（备案）</h2>
  * <ul>
- *   <li>DeleteTag 的 force/content_only 在 Go 是 asynq 异步回收
  *       （TypeKnowledgeListDelete / TypeIndexDelete）：Java 侧索引删除 no-op
  *       （向量索引随检索引擎批），document 型 KB 的 knowledge 文件异步删除同样
  *       不落地——HTTP 契约（{"success":true}）与 FAQ 型 chunk 的同步删除路径一致。</li>
@@ -61,31 +52,29 @@ public class KnowledgeTagService {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeTagService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 types.UntaggedTagName（faq.go L386）。 */
+    /** */
     public static final String UNTAGGED_TAG_NAME = "未分类";
 
-    /** 对照 kb_activity.go 的 scope 常量。 */
+    /**  */
     private static final String SCOPE_KNOWLEDGE_BASE = "knowledge_base";
 
     private final KnowledgeBaseService kbService;
     private final KnowledgeTagRepository tagRepo;
     private final ChunkRepository chunkRepo;
     private final AuditLogService auditService;
-    /** 向量索引回收（对照 Go enqueueIndexDeleteTask → ProcessIndexDelete）。 */
+    /** 向量索引回收。 */
     private final VectorStoreService vectorStore;
     /** 绑定 store 的向量写路由（绑定 KB 的索引清理走引擎口）。 */
     private final KnowledgeVectorWrites vectorWrites;
     /** 引擎路径删除需要的维度解析（照 deleteKnowledgeVectors 的取数口径）。 */
     private final com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory;
     /**
-     * 标签下文档的批量删除（对照 Go enqueueKnowledgeListDeleteTask →
-     * ProcessKnowledgeListDelete）。ObjectProvider：KnowledgeService 依赖面极广，
+     * 标签下文档的批量删除。ObjectProvider：KnowledgeService 依赖面极广，
      * 延迟解析规避任何潜在的装配环。
      */
     private final org.springframework.beans.factory.ObjectProvider<KnowledgeService>
             knowledgeServiceProvider;
 
-    /** 对照 Go 的 batchSize = 100（tag.go L453）。 */
     private static final int INDEX_DELETE_BATCH_SIZE = 100;
 
     public KnowledgeTagService(KnowledgeBaseService kbService,
@@ -107,10 +96,9 @@ public class KnowledgeTagService {
         this.knowledgeServiceProvider = knowledgeServiceProvider;
     }
 
-    // ── 读：ListTags（tag.go L66-130） ──────────────────────────────────────
+    // ── 读：ListTags（tag） ──────────────────────────────────────
 
     /**
-     * @param page/pageSize 已按 Go Pagination 归一前的原始值（null 允许）
      * @return PageResult 形态 {total, page, page_size, data:[tag+stats]}
      */
     public TagPageResult listTags(String kbId, Integer page, Integer pageSize, String keyword) {
@@ -144,7 +132,7 @@ public class KnowledgeTagService {
         return new TagPageResult(result.total(), result.page(), result.pageSize(), data);
     }
 
-    // ── 写：CreateTag（tag.go L133-183） ────────────────────────────────────
+    // ── 写：CreateTag（tag） ────────────────────────────────────
 
     public KnowledgeTag createTag(String kbId, String name, String color, int sortOrder) {
         String trimmedName = name == null ? "" : name.strip();
@@ -155,14 +143,13 @@ public class KnowledgeTagService {
         requireKbWrite(kb);
         long tenantId = kb.getTenantId();
 
-        // 同名检查（GetByName err==nil && tag!=nil → 409；gorm not-found → 继续）
         KnowledgeTag existing = tagRepo.getByName(tenantId, kb.getId(), trimmedName);
         if (existing != null) {
             throw new BizException(com.ragagent.common.error.AppError.conflict("标签名称已存在"));
         }
 
         OffsetDateTime now = OffsetDateTime.now();
-        // "未分类" 标签排最前（对照 L164-166）
+        // "未分类" 标签排最前
         if (UNTAGGED_TAG_NAME.equals(trimmedName)) {
             sortOrder = -1;
         }
@@ -173,7 +160,7 @@ public class KnowledgeTagService {
         return tag;
     }
 
-    // ── 写：UpdateTag（tag.go L186-229） ────────────────────────────────────
+    // ── 写：UpdateTag（tag） ────────────────────────────────────
 
     public KnowledgeTag updateTag(String id, String name, String color, Integer sortOrder) {
         if (id == null || id.isEmpty()) {
@@ -203,7 +190,6 @@ public class KnowledgeTagService {
         return tag;
     }
 
-    // ── 写：DeleteTag（tag.go L234-374 + tag_access.go validateTagDeleteExclusions） ──
 
     /**
      * @param excludeUUIDs handler 已校验并换算过的 chunk UUID（可为空）
@@ -223,7 +209,6 @@ public class KnowledgeTagService {
         long cCount = counts[1];
 
         // contentOnly：只清内容保标签。document 型走异步 knowledge 列表删除
-        // （deleteKnowledgeListUnderTag，2026-09-24 接线）；否则同步删 chunks（Go 同步）。
         if (contentOnly) {
             if (isDocument(kb) && kCount > 0) {
                 deleteKnowledgeListUnderTag(kb, tag);
@@ -266,7 +251,7 @@ public class KnowledgeTagService {
         return "document".equals(kb.getType());
     }
 
-    /** 对照 GetByID 的普通 error 透传：非 AppError → 控制器 plain-500 分支。 */
+    /** 非 AppError → 控制器 plain-500 分支。 */
     private KnowledgeTag loadTagOrInternal(long tenantId, String id) {
         KnowledgeTag tag = tagRepo.getById(tenantId, id);
         if (tag == null) {
@@ -275,7 +260,6 @@ public class KnowledgeTagService {
         return tag;
     }
 
-    /** 对照 tenantID 缺失分支的 "无权修改标签" 403（post-auth 不可达，防御性保留）。 */
     private static long currentTenantIdOrForbidden() {
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || tenantId == 0) {
@@ -284,7 +268,7 @@ public class KnowledgeTagService {
         return tenantId;
     }
 
-    /** 对照 GetKnowledgeBaseByID（service 层）：缺失 → 404 "knowledge base not found"。 */
+    /** 缺失 → 404 "knowledge base not found"。 */
     private KnowledgeBase requireKb(String kbId) {
         KnowledgeBase kb = kbService.getById(
                 TenantContext.currentTenantId() == null ? 0 : TenantContext.currentTenantId(), kbId);
@@ -294,7 +278,7 @@ public class KnowledgeTagService {
         return kb;
     }
 
-    /** 对照 requireKBWrite（knowledgebase_access.go）：同租户即过（org-share 未翻译，放行不扩大）。
+    /** 同租户即过（org-share 未翻译，放行不扩大）。
      *  ⚠️ Long 比较用 equals——10002 超出 Long 缓存区间，`!=` 是引用比较（约定 §5 #6）。 */
     private static void requireKbWrite(KnowledgeBase kb) {
         Long tenantId = TenantContext.currentTenantId();
@@ -304,9 +288,8 @@ public class KnowledgeTagService {
     }
 
     /**
-     * 对照 requireTagWrite（tag_access.go L12-27）：tag → KB 读取 →
+     * tag → KB 读取 →
      * kb.ID/kb.TenantID 与 tag 不一致 → 403 "标签不属于当前知识库" → requireKBWrite。
-     *
      * @return 标签所属 KB
      */
     private KnowledgeBase requireTagWrite(KnowledgeTag tag) {
@@ -329,24 +312,19 @@ public class KnowledgeTagService {
         try {
             deleted = chunkRepo.deleteChunksByTagId(tenantId, kb.getId(), tag.getId(), excludeUUIDs);
         } catch (RuntimeException e) {
-            // 对照 Go：DeleteChunksByTagID err → NewInternalServerError("删除标签下的数据失败")
+            // DeleteChunksByTagID err → NewInternalServerError("删除标签下的数据失败")
             throw BizException.internal("删除标签下的数据失败");
         }
         if (!deleted.isEmpty()) {
-            // 对照 Go enqueueIndexDeleteTask → ProcessIndexDelete（tag.go L381-470）：
-            // 把这些 chunk 的向量索引删掉（100/批，避免压垮后端）。Go 走 asynq 维护
             // 队列（可重试 + 租户所有权校验）；Java 单实例下用虚拟线程异步执行等价
-            // 动作，失败只 WARN（无任务重试预算，与 Go 处理器失败记 Warn 同形）。
             scheduleIndexDelete(kb, deleted);
         }
         log.info("Deleted {} chunks under tag {}", deleted.size(), tag.getId());
     }
 
     /**
-     * 对照 ProcessIndexDelete 的批量删除循环（tag.go L452-470，batchSize=100）。
      * 绑定外部 store 的 KB：向量行在外部店，走引擎口删除（2026-09-28 评审补接线）；
      * 引擎与维度在请求线程上解析（TenantContext 只在这里有效），解析失败只 WARN
-     * 跳过——与 Go 任务失败记 Warn 同形；绝不回落 pg 直删（那会删错店）。
      */
     private void scheduleIndexDelete(KnowledgeBase kb, List<String> chunkIds) {
         List<String> ids = List.copyOf(chunkIds);
@@ -392,8 +370,6 @@ public class KnowledgeTagService {
     }
 
     /**
-     * 对照 Go {@code enqueueKnowledgeListDeleteTask} → {@code ProcessKnowledgeListDelete}
-     * （tag.go L292-317）：列出该标签下的文档并批量删除。Go 走 asynq 维护队列
      * （MaxRetry 3、Timeout 2h）；Java 侧用虚拟线程异步执行等价清理（批量删除可能
      * 很慢，同步会拖住标签删除请求），失败只 WARN。
      */
@@ -420,7 +396,6 @@ public class KnowledgeTagService {
         });
     }
 
-    /** details 组装（成对参数；序列化时按字母序输出，对照 Go map 的键序）。 */
     private static Map<String, Object> details(Object... keyValues) {
         Map<String, Object> m = new java.util.LinkedHashMap<>();
         for (int i = 0; i + 1 < keyValues.length; i += 2) {
@@ -430,7 +405,7 @@ public class KnowledgeTagService {
     }
 
     /**
-     * 对照 recordKBActivity（kb_activity.go L91-160）：尽力而为的 KB 活动审计。
+     * 尽力而为的 KB 活动审计。
      * ScopeType=knowledge_base、ScopeID=kbID、TargetType/TargetID 如实、
      * Outcome=success、details 按字母序（map 序列化语义）。
      */

@@ -14,20 +14,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * postgres 向量写/删/更新（对照 Go retriever/postgres repository.go 的
- * BatchSave / DeleteByChunkIDList / DeleteByKnowledgeIDList / DeleteBySourceIDList /
- * BatchUpdateChunkEnabledStatus / BatchUpdateChunkTagID 与 EstimateStorageSize）。
- *
+ * postgres 向量写/删/更新。
  * <p>halfvec 写入：PG 需 {@code ?::halfvec} 强转（pgvector 类型，PG JDBC 无内建映射）；
  * 测试库 H2 退化为 VARCHAR 存储（H2 分支的 MERGE 语义近似 ON CONFLICT DO NOTHING——
  * H2 无 DO NOTHING 形态，命中 KEY 时覆盖；两侧的调用方都是"先删后插"，无命中场景）。</p>
- *
  * <p><b>source_id 契约</b>：chunk 行 = chunkID（无前缀）；生成问题行 =
  * {@code chunkID-qID}（超 64 字节折叠 {@code chunkID-q<sha256 前 12 字节 hex>}，
- * 见 ChunkSearchUtil）；FAQ 相似问行 = {@code chunkID-<序号>}（Go buildFAQIndexInfoList）。</p>
- *
- * <p><b>tag_id 列</b>：Go 的 IndexInfo.TagID 恒写入（无标签为 ""）——2026-09-22 走查批
- * 补写该列（此前 Java 落 NULL，与 Go 的 "" 在 tag 过滤语义上有别）。</p>
  */
 @Service
 public class VectorStoreService {
@@ -35,9 +27,7 @@ public class VectorStoreService {
     private static final Logger log = LoggerFactory.getLogger(VectorStoreService.class);
 
     /**
-     * 对照 Go types.IndexInfo 落库面（toDBVectorEmbedding 的列投影）：
      * source_type 恒 0（types.ChunkSourceType）；content 是调用方组装好的索引文本；
-     * tagId 无标签为 ""（Go 零值）。
      */
     public record IndexRow(
             String sourceId,
@@ -64,10 +54,9 @@ public class VectorStoreService {
     }
 
     /**
-     * 对照 Go BatchSave：{@code INSERT ... ON CONFLICT DO NOTHING}（source_id+source_type
+     * {@code INSERT ... ON CONFLICT DO NOTHING}（source_id+source_type
      * 唯一）；向量按行序对应（rows[i] ↔ vectors[i]）。调用方负责先删旧行
      * （{@link #deleteByChunkId} / {@link #deleteByKnowledgeId} / {@link #deleteBySourceId}），
-     * Go 的 updateChunkVector 与 FAQ 索引都是"先删后插"。
      */
     public void saveIndexRows(List<IndexRow> rows, List<float[]> vectors) {
         String sql = postgres
@@ -102,7 +91,7 @@ public class VectorStoreService {
         });
     }
 
-    /** 对照 Go DeleteByChunkIDList：{@code DELETE WHERE chunk_id IN (...)}（含生成问题/相似问行）。 */
+    /** {@code DELETE WHERE chunk_id IN (...)}（含生成问题/相似问行）。 */
     public void deleteByChunkId(List<String> chunkIds) {
         if (chunkIds == null || chunkIds.isEmpty()) {
             return;
@@ -112,7 +101,7 @@ public class VectorStoreService {
                 chunkIds.toArray());
     }
 
-    /** 对照 Go DeleteBySourceIDList：{@code DELETE WHERE source_id IN (...)}（删除问题行）。 */
+    /** {@code DELETE WHERE source_id IN (...)}（删除问题行）。 */
     public void deleteBySourceId(List<String> sourceIds) {
         if (sourceIds == null || sourceIds.isEmpty()) {
             return;
@@ -122,7 +111,7 @@ public class VectorStoreService {
                 sourceIds.toArray());
     }
 
-    /** 对照 Go DeleteByKnowledgeIDList：{@code DELETE WHERE knowledge_id IN (...)}。 */
+    /** {@code DELETE WHERE knowledge_id IN (...)}。 */
     public void deleteByKnowledgeId(List<String> knowledgeIds) {
         if (knowledgeIds == null || knowledgeIds.isEmpty()) {
             return;
@@ -133,7 +122,7 @@ public class VectorStoreService {
     }
 
     /**
-     * 对照 Go BatchUpdateChunkEnabledStatus：按启用态分组批量更新
+     * 按启用态分组批量更新
      * {@code UPDATE embeddings SET is_enabled = ? WHERE chunk_id IN (...)}。
      */
     public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap) {
@@ -168,7 +157,7 @@ public class VectorStoreService {
     }
 
     /**
-     * 对照 Go BatchUpdateChunkTagID：按 tagId 分组批量更新
+     * 按 tagId 分组批量更新
      * {@code UPDATE embeddings SET tag_id = ? WHERE chunk_id IN (...)}。
      */
     public void batchUpdateChunkTagId(Map<String, String> chunkTagMap) {
@@ -193,7 +182,6 @@ public class VectorStoreService {
     }
 
     /**
-     * 对照 Go pgRepository.EstimateStorageSize → calculateIndexStorageSize：
      * content 字节 + dim×2（halfvec）+ 200 元数据开销 + 2×向量字节（HNSW 开销）。
      */
     public static long estimateStorageSize(List<IndexRow> rows, int dimension) {

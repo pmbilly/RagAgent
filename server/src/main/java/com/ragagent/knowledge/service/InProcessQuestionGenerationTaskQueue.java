@@ -12,11 +12,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 进程内问题生成队列（对照 Go asynq 的 {@code TypeQuestionGeneration}：Queue=question、
- * MaxRetry=3、Timeout=30min 的语义子集——入队参数见
- * {@code knowledge_post_process.go:684-690}）。
- *
- * <p>与 {@link InProcessChunkExtractTaskQueue} 同款纪律：虚拟线程执行、失败按 asynq 的重试
+ * 进程内问题生成队列。
+ * <p>与 {@link InProcessChunkExtractTaskQueue} 同款纪律：虚拟线程执行、失败按 任务队列 的重试
  * 延迟公式退避（{@code n^4 + 15 + rand(30)*(n+1)} 秒）、超过 {@link #MAX_RETRY} 次放弃并记日志。</p>
  */
 @Component
@@ -24,7 +21,6 @@ public class InProcessQuestionGenerationTaskQueue implements QuestionGenerationT
 
     private static final Logger log = LoggerFactory.getLogger(InProcessQuestionGenerationTaskQueue.class);
 
-    /** 对照 {@code asynq.MaxRetry(3)}。 */
     static final int MAX_RETRY = 3;
 
     private final QuestionGenerationService service;
@@ -74,7 +70,6 @@ public class InProcessQuestionGenerationTaskQueue implements QuestionGenerationT
         }
     }
 
-    /** 对照 asynq 的默认重试延迟 {@code n^4 + 15 + rand(30)*(n+1)} 秒（n 从 1 起）。 */
     long retryDelaySeconds(int attempt) {
         if (retryDelayOverrideSeconds != null) {
             return retryDelayOverrideSeconds;

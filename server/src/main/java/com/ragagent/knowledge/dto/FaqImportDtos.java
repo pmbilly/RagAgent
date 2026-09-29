@@ -43,7 +43,7 @@ public final class FaqImportDtos {
             boolean dryRun) {
     }
 
-/** 对照 types.FAQFailedEntry（index/reason/standard_question 无 omitempty，恒输出）。 */
+/** */
 @JsonPropertyOrder({"index", "reason", "failure_type", "is_partial_failure", "tag_name",
         "standard_question", "similar_questions", "negative_questions", "answers",
         "answer_all", "is_disabled", "removed_similar_questions", "removed_negative_questions"})
@@ -63,7 +63,7 @@ public record FaqFailedEntry(
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("removed_negative_questions") List<String> removedNegativeQuestions) {
 }
 
-/** 对照 types.FAQMergeDetail（全部恒输出）。 */
+/** */
 @JsonPropertyOrder({"index", "standard_question", "answer_changed",
         "new_similar_count", "new_negative_count"})
 public record FaqMergeDetail(
@@ -74,7 +74,7 @@ public record FaqMergeDetail(
         @JsonProperty("new_negative_count") int newNegativeCount) {
 }
 
-/** 对照 types.FAQSuccessEntry（index/seq_id/standard_question 恒输出）。 */
+/** */
 @JsonPropertyOrder({"index", "seq_id", "tag_id", "tag_name", "standard_question"})
 public record FaqSuccessEntry(
         @JsonProperty("index") int index,
@@ -85,8 +85,7 @@ public record FaqSuccessEntry(
 }
 
 /**
- * 对照 types.FAQImportProgress（进度存储 + 响应体同形；键序 = Go struct 序）。
- * {@code message}/{@code error} 无 omitempty（恒输出，含 ""）；
+ * * {@code message}/{@code error} 无 omitempty（恒输出，含 ""）；
  * result 字段（import_mode/imported_at/display_status/processing_time）在
  * completed 且能读到持久化 FAQImportResult 时被覆盖。
  */
@@ -130,9 +129,7 @@ public record FaqImportProgress(
 }
 
 /**
- * 对照 types.FAQImportResult（持久化在 knowledges.last_faq_import_result 的 jsonb；
- * 除 failed_entries_url 外全部无 omitempty，恒输出）。
- */
+ * */
 @JsonPropertyOrder({"total_entries", "success_count", "failed_count", "partial_failed_count",
         "skipped_count", "merged_count", "added_count", "import_mode", "imported_at",
         "task_id", "failed_entries_url", "display_status", "processing_time"})

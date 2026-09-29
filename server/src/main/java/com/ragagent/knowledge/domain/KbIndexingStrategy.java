@@ -6,9 +6,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * IndexingStrategy（对照 Go types/indexing_strategy.go）。
+ * IndexingStrategy。
  * 注意 Scan 语义：DB NULL（迁移前老行）→ DefaultIndexingStrategy()（vector+keyword=true）。
- * 该回退由 KnowledgeBaseMapper 查询侧显式处理（Java 无 GORM Scan 钩子）。
  */
 @JsonPropertyOrder({"vector_enabled", "keyword_enabled", "wiki_enabled", "graph_enabled"})
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -39,8 +38,7 @@ public class KbIndexingStrategy {
     public boolean isGraphEnabled() { return graphEnabled; }
     public void setGraphEnabled(boolean v) { graphEnabled = v; }
 
-    /** 对照 IsZero：全 false（新建请求体未传 strategy 时的判定依据） */
-    /** Go 方法非字段，不参与 JSON */
+    /** 全 false（新建请求体未传 strategy 时的判定依据） */
     @JsonIgnore
     public boolean isZero() {
         return !vectorEnabled && !keywordEnabled && !wikiEnabled && !graphEnabled;

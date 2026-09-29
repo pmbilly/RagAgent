@@ -3,7 +3,7 @@ package com.ragagent.knowledge.service;
 import java.util.UUID;
 
 /**
- * 任务 ID 工具（对照 utils/taskid.go）。原为 KnowledgeService 内嵌段，
+ * 任务 ID 工具。原为 KnowledgeService 内嵌段，
  * 阶段 2 拆分时独立成工具类（纯静态、零依赖）。
  */
 public final class KnowledgeTaskIds {
@@ -12,7 +12,7 @@ public final class KnowledgeTaskIds {
     }
 
     /**
-     * 对照 GenerateTaskID：{@code <type>_<tenant>_<millis>_<8hex>_<business12>}，
+     * {@code <type>_<tenant>_<millis>_<8hex>_<business12>}，
      * business 段取前 12 字符并剔除 - _ :。进度路由按嵌入的租户段做隔离校验。
      */
     public static String generateTaskId(String taskType, long tenantId, String businessId) {
@@ -32,7 +32,7 @@ public final class KnowledgeTaskIds {
     }
 
     /**
-     * 对照 utils.ParseTaskID/TaskTenantID：从 {@code <type>_<tenant>_<ts>_<uuid>[_<biz>]}
+     * 从 {@code <type>_<tenant>_<ts>_<uuid>[_<biz>]}
      * 里定位 (tenant, timestamp) 对（type 段可含下划线）。解析失败返回 null → 调用方出
      * 400 "invalid task ID"。
      */

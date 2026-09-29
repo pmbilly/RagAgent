@@ -18,14 +18,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * 本地存储引擎（对照 Go internal/storage local provider，阶段 3 最小实现）。
- *
+ * 本地存储引擎。
  * 文件路径契约：对外暴露 resource://{key} 不透明串（golden 已锁定此前缀），
- * key 的内部编码与 Go 不同（opaque，不外泄语义），读写自洽即可——
  * preview/download 等回读路径走同一 service。
- *
  * 落盘布局：{LOCAL_STORAGE_BASE_DIR}/{tenantId}/{knowledgeId}/{fileName}
- * （env 未设置时默认 /data/files，与 Go 的 LOCAL_STORAGE_BASE_DIR 一致）。
  */
 @Service
 public class LocalStorageService {
@@ -44,7 +40,7 @@ public class LocalStorageService {
         return baseDir.toAbsolutePath().normalize();
     }
 
-    /** 保存文件内容，返回 resource:// 路径（对照 golden file_path 形态） */
+    /** 保存文件内容，返回 resource:// 路径 */
     public String save(long tenantId, String knowledgeId, String fileName, byte[] content) {
         try {
             Path dir = baseDir.resolve(String.valueOf(tenantId)).resolve(knowledgeId);
@@ -71,10 +67,7 @@ public class LocalStorageService {
     }
 
     /**
-     * 波 2：对照 Go local provider GetFile 的路径解析 + SafePathUnderBase 守卫
-     * （service/file/local.go L111-132 + utils/security.go L110-127）。支持
-     * resource://（阶段 3 布局）与 local://{rel}（Go provider 原生）与裸相对路径；
-     * 解析后不在 baseDir 下 → Go 原文 "invalid file path: path traversal denied: ..."。
+     * （service/file/local + utils/security）。支持
      * 空路径/读失败由调用方翻译成 "Failed to retrieve file" 信封（对照
      * GetKnowledgeFile 的错误链）。
      */
@@ -94,11 +87,8 @@ public class LocalStorageService {
      * （{@code local://} + {@code resource://} 的解析顺序敏感，委托后语义不变）。
      */
     /**
-     * 流式打开（W5γ5.4 ①b）：本地对象对应 Go 的 {@code *os.File} → **可 seek**
      * （ServeContent：{@code Accept-Ranges: bytes} + Range/206）。错误通道与
      * {@link #readChecked} 一致（{@code Failed to retrieve file} 信封，守护卫先行）。
-     *
-     * <p>尺寸在打开时取（{@code Files.size}）：对象缺失即 {@code IOException} → 与 Go 的
      * {@code os.Open} 失败同口径（404），而不是读一半才炸。</p>
      */
     public FileTransport.OpenedFile openChecked(String filePath) {
@@ -147,7 +137,7 @@ public class LocalStorageService {
         }
     }
 
-    /** 对照 Go file_hash：golden 为 32 位小写十六进制（md5） */
+    /** golden 为 32 位小写十六进制（md5） */
     public static String md5Hex(byte[] content) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");

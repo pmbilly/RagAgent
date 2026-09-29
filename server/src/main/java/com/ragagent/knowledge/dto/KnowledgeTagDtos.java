@@ -8,15 +8,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * KB 标签 CRUD 面的响应类型（W5a，对照 Go types/tag.go 的
  * {@code KnowledgeTag} / {@code KnowledgeTagWithStats} 与 types/search.go 的
  * {@code PageResult}）。
- *
- * <p>字段序 = Go struct 声明序（embedding 形态 {@code KnowledgeTagWithStats}：
  * 内嵌 KnowledgeTag 的 9 个字段在前、knowledge_count/chunk_count 在后）；
- * Go 非指针零值语义：color NULL → ""、seq_id/tenant_id/sort_order NULL → 0
  * （由 {@code KnowledgeTagResponse.from} 归一）。</p>
- *
  * <p>ListTags 的外层信封是 gin.H{"success","data"}（字母序 data&lt;success），
  * data 是 PageResult struct（total,page,page_size,data 声明序）——由控制器组装。</p>
  */
@@ -25,7 +20,7 @@ public final class KnowledgeTagDtos {
     private KnowledgeTagDtos() {
     }
 
-    /** 对照 types.KnowledgeTag（JSON 契约面）。 */
+    /** */
     @JsonPropertyOrder({"id", "seq_id", "tenant_id", "knowledge_base_id",
             "name", "color", "sort_order", "created_at", "updated_at"})
     @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -54,7 +49,7 @@ public final class KnowledgeTagDtos {
         }
     }
 
-    /** 对照 types.KnowledgeTagWithStats：KnowledgeTag 字段 + 两个计数。 */
+    /** KnowledgeTag 字段 + 两个计数。 */
     @JsonPropertyOrder({"id", "seq_id", "tenant_id", "knowledge_base_id",
             "name", "color", "sort_order", "created_at", "updated_at",
             "knowledge_count", "chunk_count"})
@@ -81,7 +76,7 @@ public final class KnowledgeTagDtos {
         }
     }
 
-    /** 对照 types.PageResult（total,page,page_size,data 声明序）。 */
+    /** */
     @JsonPropertyOrder({"total", "page", "page_size", "data"})
     @JsonInclude(JsonInclude.Include.ALWAYS)
     public record TagPageResult(

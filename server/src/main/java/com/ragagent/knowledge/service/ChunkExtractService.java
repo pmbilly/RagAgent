@@ -29,10 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 分块图抽取任务（对照 Go {@code ChunkExtractService.Handle}，extract.go L224-408）：
+ * 分块图抽取任务：
  * 每个文本/OCR 分块一次 LLM 抽取 → 实体/关系写入图库 → 释放父知识的 finalizing 槽。
- *
- * <p>执行序（照抄 Go）：</p>
  * <ol>
  *   <li><b>supersede 跳过</b>：更新的 attempt 已取代本次 → 在开 span/计数前直接返回
  *       （该分块已被新 attempt 的清理删掉，递减会误耗新计数）；</li>
@@ -46,7 +44,7 @@ import org.springframework.stereotype.Service;
  *       {@code node.chunks=[chunk_id]} → {@code AddGraph}；</li>
  *   <li>记账 {@code nodes_added}/{@code relations_added} + 前两个样例；</li>
  *   <li>终态（无论成功、跳过还是失败）在 finally 里<b>释放一个 finalizing 槽</b>
- *       （对照 {@code finalizeSubtaskDetached}：Java 侧复用 wiki finalizer 的递减+晋升）。</li>
+ *       。</li>
  * </ol>
  */
 @Service
@@ -54,10 +52,9 @@ public class ChunkExtractService {
 
     private static final Logger log = LoggerFactory.getLogger(ChunkExtractService.class);
 
-    /** 对照 Go {@code types.TypeChunkExtract}：任务观测的 span/根名（{@code asynq.<type>}）。 */
+    /** 任务观测的 span/根名（{@code 任务队列.<type>}）。 */
     public static final String TASK_TYPE_CHUNK_EXTRACT = "chunk:extract";
 
-    /** 对照 Go {@code previewText(content, 200)} 的预览长度。 */
     static final int CHUNK_PREVIEW_RUNES = 200;
 
     private final ModelRuntimeFactory modelRuntimeFactory;
@@ -101,7 +98,7 @@ public class ChunkExtractService {
         this.extractPrompts = extractPrompts;
     }
 
-    /** 队列入口：JSON 载荷 → 任务作用域（对照 Go 的 asynq 中间件）→ 处理。 */
+    /** 队列入口：JSON 载荷 → 任务作用域→ 处理。 */
     public void handleJson(String payloadJson) {
         ExtractChunkPayload p = ExtractChunkPayload.fromJson(payloadJson);
         try (LangfuseTaskScope scope = LangfuseTaskScope.start(TASK_TYPE_CHUNK_EXTRACT, p.tracing(),
@@ -111,9 +108,8 @@ public class ChunkExtractService {
         }
     }
 
-    /** 对照 {@code ChunkExtractService.Handle}（不含 asynq 层的解包/重试）。 */
     public void handle(ExtractChunkPayload p) {
-        // 1) supersede 跳过（对照 Go L234-242）
+        // 1) supersede 跳过
         if (spanTracker.isAttemptSuperseded(p.knowledgeId(), p.attempt())) {
             log.info("graph extract: attempt {} superseded for {}, skipping stale enrichment",
                     p.attempt(), p.knowledgeId());
@@ -144,8 +140,7 @@ public class ChunkExtractService {
             handleErr = e.getMessage() == null ? e.toString() : e.getMessage();
             throw e;
         } finally {
-            // 3) 终态释放槽位（对照 Go 的 finalizeSubtaskDetached：superseded 已在上面提前
-            //    返回，Java 的进程内队列无重试 → final 恒真）
+            // 3) 终态释放槽位
             drainSubtask(p.knowledgeId(), "graph_chunk[" + p.chunkIndex() + "]");
             // 4) 子 span 收尾
             if (gSpan != null) {
@@ -160,7 +155,7 @@ public class ChunkExtractService {
 
     /** @return 失败消息（null = 成功或"按设计跳过"） */
     private String runExtract(ExtractChunkPayload p, Map<String, Object> graphOut) {
-        // 取消/删除短路（对照 Go L282-296）：图抽取是管线里最贵的富化 fan-out，取消即跳
+        // 取消/删除短路：图抽取是管线里最贵的富化 fan-out，取消即跳
         if (!p.knowledgeId().isEmpty()) {
             Knowledge k = knowledgeMapper.selectById(p.knowledgeId());
             if (k != null && k.isAborted()) {
@@ -257,7 +252,7 @@ public class ChunkExtractService {
     }
 
     /**
-     * 组装抽取模板（对照 Go L342-353）：原 {@code extract_graph} 模板的 Description +
+     * 组装抽取模板：原 {@code extract_graph} 模板的 Description +
      * 知识库的 {@code custom_instructions}（标签 {@code graph_extraction}）+
      * Tags + 单条 Example（{@code text}/{@code nodes}/{@code relations} 来自 KB 配置）。
      */
@@ -286,7 +281,7 @@ public class ChunkExtractService {
         return template;
     }
 
-    /** 对照 Go 的 {@code finalizeSubtaskDetached}：knowledge 为空则空转（旧版在飞任务）。 */
+    /** knowledge 为空则空转（旧版在飞任务）。 */
     private void drainSubtask(String knowledgeId, String source) {
         if (knowledgeId == null || knowledgeId.isEmpty()) {
             return;

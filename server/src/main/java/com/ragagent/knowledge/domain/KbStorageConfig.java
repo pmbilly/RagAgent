@@ -6,8 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * StorageConfig（对照 Go types/knowledgebase.go L372），gorm 列 cos_config，JSON 键 storage_config。
- * endpoint/use_ssl/force_path_style 带 omitempty；**Go 现状契约：secret_id/secret_key 原样外发不脱敏**。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({

@@ -5,15 +5,9 @@ import java.util.Locale;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * chat 解析引擎的规则解析（对照 Go {@code types.ParserEngineConfig.ResolveChatParserEngine}
- * / {@code CustomAgentConfig.ResolveChatParserEngine} + {@code DefaultParserEngine} /
- * {@code normalizeParserFileType}：tenant.go L370-388 + knowledgebase.go L288-345 +
- * custom_agent.go L428-443）。
- *
+ * chat 解析引擎的规则解析。
  * <p>两份规则来源语义一致：agent 配置（上传时回落）与租户配置（parse 时最终回落）。
- * 遍历 rules（外层 rules、内层 file_types，照 Go 的双重循环序），命中即返回
  * {@code TrimSpace(engine)}；都不命中或无规则 → 类型默认（仅 ppt/pptx → markitdown，
- * 其余空串）。Go 的 {@code preferParserEngine} 全局钩子在 Go 仓内无赋值点（仅 setter），
  * Java 侧不设该钩子。</p>
  */
 public final class ParserEngineRules {
@@ -21,13 +15,13 @@ public final class ParserEngineRules {
     private ParserEngineRules() {
     }
 
-    /** 对照 normalizeParserFileType：TrimSpace + 小写 + 去前导点。 */
+    /** TrimSpace + 小写 + 去前导点。 */
     public static String normalize(String fileType) {
         String s = fileType == null ? "" : goTrimSpace(fileType).toLowerCase(Locale.ROOT);
         return s.startsWith(".") ? s.substring(1) : s;
     }
 
-    /** 对照 DefaultParserEngine：defaultParserEngineByType 仅 ppt/pptx → markitdown。 */
+    /** defaultParserEngineByType 仅 ppt/pptx → markitdown。 */
     public static String defaultEngine(String fileType) {
         String ft = normalize(fileType);
         return "ppt".equals(ft) || "pptx".equals(ft) ? "markitdown" : "";
@@ -56,7 +50,6 @@ public final class ParserEngineRules {
         return defaultEngine(fileType);
     }
 
-    /** Go strings.TrimSpace（unicode.IsSpace 全集；Java strip() 缺 U+0085/U+00A0）。 */
     static String goTrimSpace(String s) {
         if (s == null) {
             return "";

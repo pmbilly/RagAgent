@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * VLMConfig（对照 Go types/knowledgebase.go L563）。
+ * VLMConfig。
  * enabled/model_id/model_name/base_url/api_key/interface_type 无 omitempty 恒输出；
  * description_language/custom_instructions 带 omitempty。
  */
@@ -53,8 +53,7 @@ public class KbVlmConfig {
     public String getInterfaceType() { return interfaceType; }
     public void setInterfaceType(String v) { interfaceType = v == null ? "" : v; }
 
-    /** 对照 IsEnabled：新版本 Enabled&&ModelID!=""，老版本 ModelName&&BaseURL。
-     *  @JsonIgnore：Go 方法非字段，不参与 JSON（序列化/反序列化都要排除，
+    /** 新版本 Enabled&&ModelID!=""，老版本 ModelName&&BaseURL。
      *  否则写入 jsonb 后回读触发 UnrecognizedPropertyException） */
     @JsonIgnore
     public boolean isMultimodalEnabled() {

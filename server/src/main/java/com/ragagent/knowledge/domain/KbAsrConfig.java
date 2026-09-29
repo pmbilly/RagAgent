@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
-/** ASRConfig（对照 Go types/knowledgebase.go L646）：三字段恒输出 */
+/** ASRConfig：三字段恒输出 */
 @JsonPropertyOrder({"enabled", "model_id", "language"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class KbAsrConfig {

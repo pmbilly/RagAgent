@@ -90,7 +90,7 @@ public class KnowledgeBaseController {
     }
 
     /**
-     * 配置空值归一（对齐 Go 的 omitempty 语义）：这些配置字段是 JsonNode 透传，
+     * 配置空值归一（对齐 JSON 空值省略 语义）：这些配置字段是 JsonNode 透传，
      * 不归一则前端编辑器发来的空串/空数组会原样存库并回显。keep 集合 = 无
      * omitempty 的标签（恒保留）；faq_config 两字段都无 omitempty → 不归一。
      */

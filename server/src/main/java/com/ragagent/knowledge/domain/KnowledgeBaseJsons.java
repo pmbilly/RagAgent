@@ -4,8 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * KB 配置 jsonb 的 Jackson 读取辅助（对照 Go GORM Scan 的 json 反序列化）。
- * 读取失败语义与 Go Scan 一致：解析失败回退默认值（indexing_strategy → 默认策略）。
+ * KB 配置 jsonb 的 Jackson 读取辅助。
  */
 public final class KnowledgeBaseJsons {
 

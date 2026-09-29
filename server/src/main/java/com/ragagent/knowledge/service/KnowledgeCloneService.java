@@ -76,13 +76,11 @@ public class KnowledgeCloneService {
 
 
     /**
-     * 入队 KB clone 任务（对照 handler 的 asynq.Enqueue + SaveKBCloneProgress）。
-     * worker 进程内执行：create 目标时按 Go 保留字段建 KB 行（**不含** indexing_strategy —
+     * 入队 KB clone 任务。
      * EnsureDefaults 补成 vector+keyword）；已有目标做 preflight（add=源里 target 没有的、
      * remove=target 里的多余行；file_hash+completed 二次匹配），total=add+remove，
      * 逐步 "Processed X/N clone operations"，终态 completed/100 +
      * "Knowledge base clone completed successfully"（created_at=0 实录）。
-     *
      * <p><b>已知差异</b>：克隆只到"行级"（KB 行 + knowledge 行 + chunk 行），向量索引/
      * 文件对象/wiki/FAQ tag 映射不复制；transfer-state 续跑/重试语义不翻译。</p>
      */
@@ -121,7 +119,7 @@ public class KnowledgeCloneService {
         try {
             KnowledgeBase dst = targetRowForClone(tenantId, targetId, createTarget, creatorId, source);
             // preflight：add = 源里 target 没有的（file_hash+completed 二次匹配）；
-            // remove = target 里的多余行；源里未完成的行报错（对照 planKnowledgeClone）
+            // remove = target 里的多余行；源里未完成的行报错
             List<Knowledge> srcRows = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
                     .eq(Knowledge::getKnowledgeBaseId, sourceId)
                     .eq(Knowledge::getTenantId, tenantId)
@@ -192,7 +190,6 @@ public class KnowledgeCloneService {
         }
     }
 
-    /** create 目标：按 Go ProcessKBClone/CopyKnowledgeBase 的保留字段建行（索引策略走默认）。 */
     private KnowledgeBase targetRowForClone(long tenantId, String targetId, boolean create,
                                             String creatorId, KnowledgeBase source) {
         if (!create) {
@@ -228,7 +225,7 @@ public class KnowledgeCloneService {
         return kb;
     }
 
-    /** 对照 deleteReferencedKnowledge 的可观测子集：knowledge 软删 + chunk 软删。 */
+    /** knowledge 软删 + chunk 软删。 */
     private void removeKnowledgeRow(String knowledgeId) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
@@ -295,12 +292,9 @@ public class KnowledgeCloneService {
     }
 
     /**
-     * 克隆的向量复制（照 Go CloneChunk L390-421：目标 KB 配了嵌入模型才复制；
-     * CopyIndices 经<b>源</b> KB 的店路由——跨店复制不在此处理，Go 注释原文
      * "callers that allow source/target KBs to bind to different stores must
      * perform their own cross-store migration"）。绑定店走引擎口，未绑定走
      * postgres 语义（pg 适配器的分页 + 三态 SourceID 改写 + ON CONFLICT DO NOTHING）。
-     * Go 的 rollbackIndices 闭包（失败回删目标向量）属 KB clone worker 的回滚机制，
      * 本仓 clone worker 无对应回滚面——失败时进度任务标 failed（备案）。
      */
     private void copyKnowledgeVectors(Knowledge src, KnowledgeBase dst, String dstKnowledgeId,
@@ -342,17 +336,14 @@ public class KnowledgeCloneService {
         progressStore.saveCloneInitial(p);
     }
 
-    /** 查不到（含过期）→ null；对照 Go 的 404 "KB clone task not found"。 */
     public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress getKBCloneProgress(String taskId) {
         return progressStore.getClone(taskId);
     }
 
 
     /**
-     * 对照 knowledgeBaseService.DuplicateKnowledgeBase：JSON 往返克隆配置，新 id/租户，
      * 名字带 " 副本"（zh 缺省；重名 " 2"、" 3"...），creator=调用者（非合成用户），
      * 计数/置顶/临时全清零，EnsureDefaults + Normalize 后落库。**只复制设置**——
-     * knowledge/chunk/索引/分享/置顶都不带（Go 同义）。
      */
     public KnowledgeBase duplicateKnowledgeBase(String sourceId) {
         KnowledgeBase source = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
@@ -366,7 +357,7 @@ public class KnowledgeCloneService {
         KnowledgeBaseService.ensureDefaults(source);
         KnowledgeBase target;
         try {
-            // JSON 往返深拷贝（对照 cloneKnowledgeBaseConfiguration 的 Marshal/Unmarshal）。
+            // JSON 往返深拷贝。
             // 注意 MAPPER 是裸 ObjectMapper（无 JSR310）——KnowledgeBase 带 OffsetDateTime，
             // 必须用带 JavaTimeModule 的独立 mapper（与 AbstractJsonListTypeHandler 的教训同族）。
             target = CLONE_MAPPER.convertValue(source, KnowledgeBase.class);
@@ -394,7 +385,7 @@ public class KnowledgeCloneService {
         target.setCreatorName("");
         KnowledgeBaseService.ensureDefaults(target);
         target.normalizeVectorStoreId();
-        // 对照 Go knowledgebase.go L1244：复制出的 KB 若带 vector_store_id，同样过绑定校验
+        // 复制出的 KB 若带 vector_store_id，同样过绑定校验
         if (target.hasVectorStore()) {
             knowledgeBaseService.validateVectorStoreBinding(TenantContext.currentTenantId(), target.getVectorStoreId());
         }
@@ -402,7 +393,7 @@ public class KnowledgeCloneService {
         return target;
     }
 
-    /** 对照 buildDuplicateKnowledgeBaseName：zh 缺省后缀 " 副本"，重名追加 " 2"/" 3"...。 */
+    /** zh 缺省后缀 " 副本"，重名追加 " 2"/" 3"...。 */
     private String buildDuplicateKnowledgeBaseName(long tid, String sourceName) {
         String baseName = sourceName == null ? "" : sourceName.trim();
         if (baseName.isEmpty()) {
@@ -428,7 +419,6 @@ public class KnowledgeCloneService {
     }
 
 
-    /** 消息逐字对照 Go（handler 包成 400 AppError，message=原文）。 */
     public static void validateKBTransferCompatibility(KnowledgeBase source, KnowledgeBase target,
                                                        String mode) {
         if (!source.getType().equals(target.getType())) {
@@ -464,7 +454,7 @@ public class KnowledgeCloneService {
         }
     }
 
-    /** 对照 KnowledgeBase.SharesStoreWith：两边都没绑定（null/空串）视为共享。 */
+    /** 两边都没绑定（null/空串）视为共享。 */
     static boolean sharesStoreWith(KnowledgeBase a, KnowledgeBase b) {
         String sa = normalizeStore(a);
         String sb = normalizeStore(b);

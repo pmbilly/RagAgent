@@ -292,7 +292,6 @@ public class FaqEntryQueryService {
     /**
      * 参数归一化与
      * searchResults 为空 → {@code []} 的出口逐行保留；<b>HybridSearch 的执行面
-     * （向量/关键词检索）属波 4</b>——Go 在无 embedding 绑定的 dev KB 上同样落到
      * 空结果出口（golden faq-search-embed-missing 钉住 {@code data:[]}）。
      */
     public List<FaqEntry> searchEntries(String kbId, FaqSearchDtos.FaqSearchRequest req) {
@@ -333,9 +332,7 @@ public class FaqEntryQueryService {
         boolean hasPriorityFilter = !firstPriorityTagUuids.isEmpty() || !secondPriorityTagUuids.isEmpty();
 
         // HybridSearch 执行面（2026-09-23 走查批接线——原「随波 4 收口」备案，
-        // 检索引擎已随 3cb4b2e 落地）：优先级过滤时按 Go 语义两级检索、
         // FirstPriority 先结果后 SecondPriority 按 chunkID 去重合并；
-        // 空结果 → Go L1069-1071 的 {@code data:[]} 出口（golden 钉住）。
         List<SearchResult> searchResults = searchFaqChunks(kbId, req.queryText(),
                 vectorThreshold, matchCount, req.onlyRecommended(),
                 hasPriorityFilter, firstPriorityTagUuids, secondPriorityTagUuids);
@@ -343,7 +340,6 @@ public class FaqEntryQueryService {
             return new ArrayList<>();
         }
 
-        // SearchResult.ID = chunkID；分数/命中类型/命中内容按 chunk 回填（Go L1073-1089）
         List<String> chunkIds = new ArrayList<>(searchResults.size());
         Map<String, Double> chunkScores = new LinkedHashMap<>();
         Map<String, Integer> chunkMatchTypes = new LinkedHashMap<>();
@@ -395,7 +391,6 @@ public class FaqEntryQueryService {
      * 优先级过滤时两级各自检索（原实现并发执行，Java
      * 顺序执行——合并序固定为先 First 后 Second，结果序等价）；无过滤单次全量检索。
      * 参数逐字段对照：DisableKeywordsMatch=true（关键词在 messages/FAQ 自身层面）、
-     * TagIDs=优先级标签、OnlyRecommended 透传。任一失败原样上抛（Go 同形）。
      */
     private List<SearchResult> searchFaqChunks(String kbId, String queryText,
             double vectorThreshold, int matchCount, boolean onlyRecommended,
@@ -407,7 +402,6 @@ public class FaqEntryQueryService {
             params.setVectorThreshold(vectorThreshold);
             params.setMatchCount(matchCount);
             params.setDisableKeywordsMatch(true);
-            // Java 引擎以 null 表示「无可检索管线」（Go 的 nil,nil）——按空集处理
             List<SearchResult> results = hybridSearchService.hybridSearch(kbId, params);
             return results == null ? List.of() : results;
         }
@@ -416,7 +410,6 @@ public class FaqEntryQueryService {
                 firstPriorityTagUuids, byLevel, "first");
         fillPriorityLevel(kbId, queryText, vectorThreshold, matchCount, onlyRecommended,
                 secondPriorityTagUuids, byLevel, "second");
-        // 合并：FirstPriority 先、SecondPriority 后，chunkID 去重（Go L1048-1058）
         List<SearchResult> merged = new ArrayList<>();
         Set<String> seenChunkIds = new LinkedHashSet<>();
         for (String level : new String[] {"first", "second"}) {
@@ -433,7 +426,7 @@ public class FaqEntryQueryService {
             int matchCount, boolean onlyRecommended, List<String> tagUuids,
             Map<String, List<SearchResult>> out, String level) {
         if (tagUuids == null || tagUuids.isEmpty()) {
-            return; // Go：该优先级未提供时不发起检索
+            return; // 该优先级未提供时不发起检索
         }
         SearchParams params = new SearchParams();
         params.setQueryText(LogSanitizer.sanitize(queryText));
@@ -473,7 +466,6 @@ public class FaqEntryQueryService {
                 continue;
             }
             FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
-            // Preserve score and match type from search results（Go L1117-1129；
             // 负例问题过滤已在 HybridSearch 内处理）
             Double score = chunkScores.get(chunk.getId());
             Integer matchType = chunkMatchTypes.get(chunk.getId());
@@ -508,7 +500,6 @@ public class FaqEntryQueryService {
     }
 
     private static int priorityOf(FaqEntry entry, Set<String> firstSet, Set<String> secondSet) {
-        // Go 按 chunk.TagID（UUID）比对；entry.tagId 是 seq_id——收口时改为携带 chunk
         return firstSet.contains(entry.chunkId()) ? 0 : secondSet.contains(entry.chunkId()) ? 1 : 2;
     }
 

@@ -10,8 +10,7 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.springframework.stereotype.Service;
 
 /**
- * 知识检索（对照 Go SearchKnowledge / SearchKnowledgeInScopes；原 KnowledgeService
- * 「── 波 2 第三批：搜索」段，阶段 2 拆分独立）。
+ * 知识检索。
  */
 @Service
 public class KnowledgeSearchService {
@@ -25,22 +24,18 @@ public class KnowledgeSearchService {
         this.kbMapper = kbMapper;
     }
 
-    /** 搜索结果（对照 Go 的 (knowledges, hasMore, total, err) 四元返回）。 */
+    /** 搜索结果。 */
     public record SearchOutcome(List<Knowledge> knowledges, boolean hasMore, long total) {}
 
-    /** 对照 types.KnowledgeSearchScope（跨库搜索的 (tenant, kb) 对）。 */
+    /** */
     public record KnowledgeSearchScope(long tenantId, String kbId) {}
 
     // ── 波 2 第三批：搜索与移动/复制（8 条路由的服务面） ──────────────────
 
     /**
-     * 对照 knowledgeService.SearchKnowledge（own + org-shared 文档库的关键词搜索）。
-     * <b>已知差异</b>：org-share（kbShareService）未翻译——共享库的补捞分支恒空，
+     * * <b>已知差异</b>：org-share（kbShareService）未翻译——共享库的补捞分支恒空，
      * 与 ChunkAccessGuard/KnowledgeAccessGuard 的既有收紧同源；本租户文档库路径完整翻译
      * （含 keyword LIKE 转义、file_types 别名、offset/limit+has_more、knowledge_base_name 回填）。
-     *
-     * <p>scopes 为空时 Go 返回 nil 切片 → 响应 {@code "data":null}；查到 0 行时返回
-     * 空**非 nil** 切片 → {@code "data":[]}（GORM make 语义）。Java 用 null data 复刻。</p>
      */
     public SearchOutcome searchKnowledge(String keyword, int offset, int limit, List<String> fileTypes) {
         long tid = com.ragagent.common.context.TenantContext.currentTenantId();
@@ -52,14 +47,12 @@ public class KnowledgeSearchService {
                 scopes.add(new KnowledgeSearchScope(tid, kb.getId()));
             }
         }
-        // org-shared KBs（Go: kbShareService.ListSharedKnowledgeBases）未翻译 → 不补捞
         return searchKnowledgeInScopes(scopes, keyword, offset, limit, fileTypes);
     }
 
     /**
-     * 对照 repo.SearchKnowledgeInScopes：JOIN knowledge_bases 限定 (tenant,kb) 对 +
+     * JOIN knowledge_bases 限定 (tenant,kb) 对 +
      * {@code knowledge_bases.type='document'}，keyword 对 LOWER(file_name)/LOWER(title)
-     * LIKE（%/_/\ 转义，对照 escapeLikeKeyword），file_types 按扩展名别名展开
      * （xlsx↔xls / docx↔doc / jpg↔jpeg↔png，url/html → type='url'），
      * created_at DESC + limit+1 探测 has_more，total 是过滤后的全量计数。
      */
@@ -123,7 +116,7 @@ public class KnowledgeSearchService {
         if (hasMore) {
             rows = rows.subList(0, limit);
         }
-        // knowledge_base_name 回填（对照 JOIN 列；kb 行前面已按 scope 校验存在）
+        // knowledge_base_name 回填
         java.util.Map<String, String> names = new java.util.HashMap<>();
         for (KnowledgeSearchScope s : valid) {
             KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
@@ -141,13 +134,13 @@ public class KnowledgeSearchService {
         return new SearchOutcome(rows, hasMore, total);
     }
 
-    /** 对照 escapeLikeKeyword：\、%、_ 前加反斜杠（LIKE 默认转义符，H2/PG 一致）。 */
+    /** \、%、_ 前加反斜杠（LIKE 默认转义符，H2/PG 一致）。 */
     static String escapeLikeKeyword(String keyword) {
         return keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**
-     * 对照 repo 的 file_types 展开逻辑：小写、去前导点、保序去重、别名互认
+     * 小写、去前导点、保序去重、别名互认
      * （xlsx↔xls / docx↔doc / jpg↔jpeg↔png）；url/html 折成 type='url' 条件（哨兵 &lt;&lt;url&gt;&gt;）。
      */
     static List<String> fileTypePatterns(List<String> fileTypes) {

@@ -1,12 +1,9 @@
 package com.ragagent.knowledge.chunker;
 
 /**
- * 切分输出块（对照 Go internal/types/docparser.go:72 ParsedChunk，
- * 亦即 internal/infrastructure/chunker/splitter.go:26 Chunk 的超集）。
- *
+ * 切分输出块。
  * <p>start / end 为原文的 rune（Unicode code point）偏移，恒有
  * {@code end - start == runeLen(content)}；该不变式被文档重建代码依赖
- * （Go knowledge.go 摘要生成、UI 高亮）。contextHeader（如 Markdown 标题
  * 面包屑）是单独追踪的上下文串，仅在 embedding 时前置，不属于 content。</p>
  */
 public class ParsedChunk {
@@ -14,11 +11,11 @@ public class ParsedChunk {
     private String content = "";
     private String contextHeader = "";
     private int seq;
-    /** rune 偏移（对照 Go ParsedChunk.Start）。 */
+    /** rune 偏移。 */
     private int start;
-    /** rune 偏移，end-exclusive（对照 Go ParsedChunk.End）。 */
+    /** rune 偏移，end-exclusive。 */
     private int end;
-    /** parent-child 分块时指向父块下标；-1 表示无父块（对照 Go ParsedChunk.ParentIndex）。 */
+    /** parent-child 分块时指向父块下标；-1 表示无父块。 */
     private int parentIndex;
 
     public ParsedChunk() {
@@ -35,7 +32,6 @@ public class ParsedChunk {
 
     /**
      * 送入 embedding 模型的文本：contextHeader（若有）+ "\n\n" + trimSpace(content)。
-     * 对照 Go ParsedChunk.EmbeddingContent（types/docparser.go:98）与
      * chunker.Chunk.EmbeddingContent（splitter.go:43）。
      */
     public String embeddingContent() {

@@ -5,10 +5,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 
 /**
- * Markdown 标题层级栈（对照 Go internal/infrastructure/chunker/heading_hierarchy.go）。
- *
+ * Markdown 标题层级栈。
  * <p>维护按层级（1..6）索引的活动标题栈；压入 N 级标题会弹出所有 ≥N 的条目
- * （同级兄弟与其后代不再处于作用域）。与 header_tracker.go（表格表头 start/end 钩子）
  * 概念相似，但 Markdown 标题没有显式结束，故建模为显式层级栈。</p>
  */
 public final class HeadingHierarchy {
@@ -20,7 +18,7 @@ public final class HeadingHierarchy {
     public HeadingHierarchy() {
     }
 
-    /** 复制构造（对照 Go {@code sectionStart := *hierarchy} 值拷贝，heading_splitter.go:73）。 */
+    /** 复制构造。 */
     public HeadingHierarchy(HeadingHierarchy other) {
         System.arraycopy(other.stack, 0, this.stack, 0, 6);
         this.depth = other.depth;
@@ -31,8 +29,7 @@ public final class HeadingHierarchy {
     }
 
     /**
-     * 解析一行并在其为 Markdown 标题时更新层级（对照 Go Observe，heading_hierarchy.go:34）。
-     *
+     * 解析一行并在其为 Markdown 标题时更新层级。
      * @return 标题层级（非标题返回 0）；标题文本经 {@link StringBuilder} 返回不方便，用 {@link #observe} + 需要时自行匹配。
      */
     public int observe(String line) {
@@ -64,7 +61,6 @@ public final class HeadingHierarchy {
         return level;
     }
 
-    /** 对照 Go Breadcrumb（heading_hierarchy.go:67）："Chapter 1 > Section 2 > Subsection a"。 */
     public String breadcrumb() {
         if (depth == 0) {
             return "";
@@ -78,7 +74,6 @@ public final class HeadingHierarchy {
         return String.join(" > ", parts);
     }
 
-    /** 对照 Go BreadcrumbWithHashes（heading_hierarchy.go:83）："# Chapter 1\n## Section 2"。 */
     public String breadcrumbWithHashes() {
         if (depth == 0) {
             return "";
@@ -98,12 +93,10 @@ public final class HeadingHierarchy {
         return sb.toString();
     }
 
-    /** 对照 Go Depth（heading_hierarchy.go:103）。 */
     public int depth() {
         return depth;
     }
 
-    /** 对照 Go Reset（heading_hierarchy.go:106）。 */
     public void reset() {
         for (int i = 0; i < 6; i++) {
             stack[i] = "";

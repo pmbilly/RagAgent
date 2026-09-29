@@ -21,17 +21,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 对照 Go {@code spanTracker}（knowledge_span_tracker.go 全文 879 行）：处理管道面向的
+ * 处理管道面向的
  * per-attempt 进度树记录门面（root / stage / subspan / generation，Langfuse 词汇）。
- *
  * <p><b>生命周期</b>：{@link #openAttempt} 建 root → {@link #beginStage}（每 attempt 的
  * 5 个 canonical 阶段）→ {@link #endSpan}/{@link #failSpan}/{@link #skipSpan}；
  * {@link #finalizeAttempt}/{@link #abortAttempt} 收口 root。</p>
- *
  * <p><b>全部操作 best-effort</b>：DB 错误只记日志并吞掉（追踪器抖动绝不破坏处理管道）；
  * knowledge.parse_status 始终是完成状态的权威来源。</p>
- *
- * <p>与 Go 一致的细节：span_id = 去横线 UUID；duration 优先取进程内 starts 缓存
  * （跨进程调用回退 StartedAt 差值）；{@link #failSpan} 级联取消下游（子 span 用
  * CancelDescendants，依赖 STAGE 用 {@code StageDependencies} 传递闭包），MAIN 阶段
  * 失败时把 root 收口为 failed；{@link #touchKnowledgeHeartbeat} 只对 root/stage
@@ -43,10 +39,10 @@ public class SpanTracker {
 
     private static final Logger log = LoggerFactory.getLogger(SpanTracker.class);
 
-    /** 对照 maxSpanNameLen（name 列 varchar(255)）。 */
+    /** */
     static final int MAX_SPAN_NAME_LEN = 255;
 
-    /** 对照 types.StageDependencies（types/knowledge_span.go L70-76）。 */
+    /** */
     private static final Map<String, List<String>> STAGE_DEPENDENCIES = Map.of(
             KnowledgeProcessingSpan.STAGE_DOC_READER, List.of(),
             KnowledgeProcessingSpan.STAGE_CHUNKING,
@@ -59,7 +55,6 @@ public class SpanTracker {
             List.of(KnowledgeProcessingSpan.STAGE_EMBEDDING,
                     KnowledgeProcessingSpan.STAGE_MULTIMODAL));
 
-    /** 对照 Go 的 Span（in-memory handle）：End/Fail/Skip 回写所需的最小上下文。 */
     public static final class SpanHandle {
         public String knowledgeId = "";
         public int attempt;
@@ -71,14 +66,13 @@ public class SpanTracker {
         public OffsetDateTime startedAt;
     }
 
-    /** openAttempt 的返回对（Go 的多返回值）。 */
     public record AttemptHandle(SpanHandle root, int attempt) {
     }
 
     private final KnowledgeSpanRepository repo;
     private final KnowledgeMapper knowledgeMapper;
 
-    /** 对照 starts map：span_id → started_at（进程内 duration 缓存）。 */
+    /** span_id → started_at（进程内 duration 缓存）。 */
     private final Map<String, OffsetDateTime> starts = new ConcurrentHashMap<>();
 
     public SpanTracker(KnowledgeSpanRepository repo, KnowledgeMapper knowledgeMapper) {
@@ -87,7 +81,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 fitSpanName（L51-68）：超 255 码点时截断并追加
+     * 超 255 码点时截断并追加
      * {@code ~<sha256 前 4 字节 hex>} 后缀（rune 感知，对齐 PG VARCHAR 字符语义）。
      */
     public static String fitSpanName(String name) {
@@ -119,7 +113,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 stagesDependingOn（L677-700）：反查 StageDependencies 的传递闭包
+     * 反查 StageDependencies 的传递闭包
      * （哪些阶段的（直接/间接）上游是 {@code stage}）。
      */
     static List<String> stagesDependingOn(String stage) {
@@ -147,7 +141,7 @@ public class SpanTracker {
         return out;
     }
 
-    /** 对照 isMainPipelineStage（L717-724）：5 个 canonical 阶段之一。 */
+    /** 5 个 canonical 阶段之一。 */
     static boolean isMainPipelineStage(String name) {
         return KnowledgeService.ALL_STAGES.contains(name);
     }
@@ -157,7 +151,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 touchKnowledgeHeartbeat（L183-224）：只对 root/stage 推进
+     * 只对 root/stage 推进
      * knowledge.updated_at（housekeeping 判活），best-effort。
      */
     private void touchKnowledgeHeartbeat(String knowledgeId, String kind) {
@@ -186,7 +180,7 @@ public class SpanTracker {
         return starts.remove(spanId);
     }
 
-    /** 对照 OpenAttempt（L249-286）：分配 attempt + 建 running root。失败抛异常（调用方决定是否吞）。 */
+    /** 分配 attempt + 建 running root。失败抛异常（调用方决定是否吞）。 */
     public AttemptHandle openAttempt(String knowledgeId, String langfuseTraceId) {
         int attempt = repo.nextAttempt(knowledgeId);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -224,7 +218,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 Go {@code attemptSuperseded}（knowledge.go L196-201）：attempt ≤ 0 或 knowledge
+     * attempt ≤ 0 或 knowledge
      * 为空 → false（旧版在飞任务不判取代）；否则比 {@link #latestAttempt} 更大即被取代。
      */
     public boolean isAttemptSuperseded(String knowledgeId, int attempt) {
@@ -234,7 +228,7 @@ public class SpanTracker {
         return latestAttempt(knowledgeId) > attempt;
     }
 
-    /** 对照 LatestAttempt（L288-295）：失败吞成 0。 */
+    /** 失败吞成 0。 */
     public int latestAttempt(String knowledgeId) {
         try {
             return repo.latestAttempt(knowledgeId);
@@ -245,7 +239,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 BeginStage（L297-403）：找 root 作父 + 检测同名 stage 行（重入必须复用
+     * 找 root 作父 + 检测同名 stage 行（重入必须复用
      * 原 span_id，重置为 running 并清终态字段）；无 root 时记录 rootless stage。
      */
     public SpanHandle beginStage(String knowledgeId, int attempt, String stage,
@@ -334,8 +328,8 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 BeginSubSpan（L405-451）：fitSpanName（kind 收敛为 subspan/generation）→
-     * 先按名 supersede 残留 open 行（asynq 重试/重启不产生重复条纹）→ 建 running 子 span。
+     * fitSpanName（kind 收敛为 subspan/generation）→
+     * 先按名 supersede 残留 open 行（任务队列 重试/重启不产生重复条纹）→ 建 running 子 span。
      */
     public SpanHandle beginSubSpan(SpanHandle parent, String name, String kind,
                                    Map<String, Object> input) {
@@ -383,7 +377,7 @@ public class SpanTracker {
         return handle;
     }
 
-    /** 对照 EndSpan（L453-476）：status=done + output + duration。 */
+    /** status=done + output + duration。 */
     public void endSpan(SpanHandle span, Map<String, Object> output) {
         if (span == null) {
             return;
@@ -407,7 +401,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 FailSpan（L478-538）：failed + 截断（detail 8192 / message 1024）→
+     * failed + 截断（detail 8192 / message 1024）→
      * CancelDescendants → STAGE 失败时级联依赖阶段（传递闭包）+ MAIN 阶段失败收口 root。
      */
     public void failSpan(SpanHandle span, String errorCode, String errorMessage,
@@ -464,7 +458,7 @@ public class SpanTracker {
         touchKnowledgeHeartbeat(span.knowledgeId, span.kind);
     }
 
-    /** 对照 SkipSpan（L540-561）：skipped + reason（无 duration）。 */
+    /** skipped + reason（无 duration）。 */
     public void skipSpan(SpanHandle span, String reason) {
         if (span == null) {
             return;
@@ -485,7 +479,7 @@ public class SpanTracker {
         touchKnowledgeHeartbeat(span.knowledgeId, span.kind);
     }
 
-    /** 对照 LookupStage（L563-591）：首个同名 stage 行 → handle。 */
+    /** 首个同名 stage 行 → handle。 */
     public SpanHandle lookupStage(String knowledgeId, int attempt, String stage) {
         List<KnowledgeProcessingSpan> rows;
         try {
@@ -505,7 +499,7 @@ public class SpanTracker {
         return null;
     }
 
-    /** 对照 LookupSpanByName（L593-625）：首个同名行（任意 kind）→ handle；空参守卫。 */
+    /** 首个同名行（任意 kind）→ handle；空参守卫。 */
     public SpanHandle lookupSpanByName(String knowledgeId, int attempt, String name) {
         if (name == null || name.isEmpty() || knowledgeId == null || knowledgeId.isEmpty()
                 || attempt <= 0) {
@@ -530,7 +524,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 cascadeDependentStages（L635-671）：把依赖闭包内的 pending/running
+     * 把依赖闭包内的 pending/running
      * STAGE 行翻 cancelled（UPSTREAM_FAILED + reason），并对其子树再走
      * CancelDescendants（清掉已挂上的 in-flight 子 span）。
      */
@@ -575,7 +569,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 FinalizeAttempt（L751-818）：root 幂等收口（done/failed/cancelled/skipped
+     * root 幂等收口（done/failed/cancelled/skipped
      * 已是终态则 no-op）；duration 从持久化行的 started_at 重算（不吃进程内缓存）。
      */
     public void finalizeAttempt(String knowledgeId, int attempt, String status,
@@ -643,7 +637,7 @@ public class SpanTracker {
     }
 
     /**
-     * 对照 AbortAttempt（L831-855）：平扫全部非终态行为 cancelled（不等 BFS——fan-out
+     * 平扫全部非终态行为 cancelled（不等 BFS——fan-out
      * 阶段的子 span 会在父已 done 后仍 running）→ 收口 root 为 cancelled。
      */
     public void abortAttempt(String knowledgeId, int attempt, String errorCode,

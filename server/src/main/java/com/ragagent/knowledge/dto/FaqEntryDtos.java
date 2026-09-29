@@ -32,7 +32,7 @@ public final class FaqEntryDtos {
     public static final String INDEX_MODE_QUESTION_ONLY = "question_only";
     public static final String INDEX_MODE_QUESTION_ANSWER = "question_answer";
 
-/** 对照 types.FAQEntry（前端 FAQ 条目响应）。 */
+/** */
 @JsonPropertyOrder({"id", "chunk_id", "knowledge_id", "knowledge_base_id", "tag_id",
         "tag_name", "is_enabled", "is_recommended", "standard_question",
         "similar_questions", "negative_questions", "answers", "answer_strategy",
@@ -86,9 +86,6 @@ public record FaqEntry(
 }
 
 /**
- * 对照 types.FAQExportEntry（JSON 导出面，"导出→编辑→再导入"兼容格式）。
- * Go 注释明确：新增字段务必保留 omitempty；{@code id} 无 omitempty（导出实录
- * {@code "id":0}——Go 的导出查询不取 seq_id，照抄别修）。
  */
 @JsonPropertyOrder({"id", "tag_name", "standard_question", "similar_questions",
         "negative_questions", "answers", "answer_strategy", "is_enabled", "is_recommended"})
@@ -121,7 +118,7 @@ public record FaqExportEntry(
             Boolean isRecommended) {
     }
 
-/** 对照 types.FAQEntryFieldsUpdate（单个条目的字段更新，全指针）。 */
+/** */
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 @JsonPropertyOrder({"is_enabled", "is_recommended", "tag_id"})
 public record FaqEntryFieldsUpdate(
@@ -130,7 +127,7 @@ public record FaqEntryFieldsUpdate(
         @JsonProperty("tag_id") Long tagId) {
 }
 
-/** 对照 types.FAQEntryFieldsBatchUpdate（by_id / by_tag / exclude_ids 三态可并存）。 */
+/** */
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 @JsonPropertyOrder({"by_id", "by_tag", "exclude_ids"})
 public record FaqEntryFieldsBatchUpdate(

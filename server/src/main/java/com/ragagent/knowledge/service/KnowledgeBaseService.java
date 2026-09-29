@@ -31,11 +31,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 对照 Go internal/application/service/knowledgebase.go 的 knowledgeBaseService
  * （阶段 3 子集：CRUD + pin + move-targets + 计数回填；
  * copy/duplicate/clear-contents/共享访问/审计随后续阶段）。
- *
- * 默认值链（对照 CreateKnowledgeBase L118-177）：
+ * 默认值链：
  *  EnsureDefaults → applyTenantDefaultStorageProvider → applyAndValidateStorageBackend
  */
 @Service
@@ -87,7 +85,7 @@ public class KnowledgeBaseService {
 
     // ── 创建 ─────────────────────────────────────────────────────────────
 
-    /** 对照 CreateKnowledgeBase（含 EnsureDefaults/存储后端解析） */
+    /** */
     public KnowledgeBase createKnowledgeBase(KnowledgeBase kb) {
         if (kb.getId() == null || kb.getId().isEmpty()) {
             kb.setId(UUID.randomUUID().toString());
@@ -97,19 +95,17 @@ public class KnowledgeBaseService {
         kb.setUpdatedAt(now);
         kb.setTenantId(tenantId());
         String uid = TenantContext.currentUserId();
-        // 对照 L136：合成用户（API key）不记录创建者，KB 归租户所有
+        // 合成用户（API key）不记录创建者，KB 归租户所有
         if (uid != null && !uid.startsWith("system-")) {
             kb.setCreatorId(uid);
         }
         ensureDefaults(kb);
-        // Go string 零值：embedding/summary_model_id 缺省 "" 入库（GORM 写零值非 NULL）
         kb.setEmbeddingModelId(kb.getEmbeddingModelId());
         kb.setSummaryModelId(kb.getSummaryModelId());
         applyTenantDefaultStorageProvider(kb);
         applyAndValidateStorageBackend(kb);
         kb.normalizeVectorStoreId();
-        // 2026-09-25 接线批：vector_store_id 绑定校验（对照 Go validateVectorStoreBinding
-        // knowledgebase.go L231-283——哨兵层级单源 retriever.VerifyBinding）
+        // 2026-09-25 接线批：vector_store_id 绑定校验
         if (kb.hasVectorStore()) {
             validateVectorStoreBinding(tenantId(), kb.getVectorStoreId());
         }
@@ -119,7 +115,7 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 对照 Go {@code validateVectorStoreBinding}（knowledgebase.go L231-283）：走
+     * 走
      * {@code retriever.VerifyBinding} 让归属 + 注册表哨兵层级保持单源。服务层负责：
      * ①畸形 UUID 快拒（省一次 DB 往返，也挡 "' OR 1=1 --" 式类型混淆输入）；②哨兵 →
      * 用户可见的 2200/2201 文案（不含 store UUID——UUID 只进结构化日志，经 sanitizer）。
@@ -168,7 +164,7 @@ public class KnowledgeBaseService {
         }
     }
 
-    /** 对照 EnsureDefaults（types/knowledgebase.go L727） */
+    /** */
     static void ensureDefaults(KnowledgeBase kb) {
         if (kb.getType().isEmpty()) {
             kb.setType("document");
@@ -190,7 +186,7 @@ public class KnowledgeBaseService {
         }
     }
 
-    /** 对照 applyTenantDefaultStorageProvider（L213）：租户默认 → allow-list 首个 */
+    /** 租户默认 → allow-list 首个 */
     private void applyTenantDefaultStorageProvider(KnowledgeBase kb) {
         if (!kb.getStorageProvider().isEmpty()) {
             return;
@@ -210,7 +206,7 @@ public class KnowledgeBaseService {
         kb.setStorageProvider(provider);
     }
 
-    /** 对照 storageallowlist：STORAGE_ALLOW_LIST env（默认仅 local） */
+    /** STORAGE_ALLOW_LIST env（默认仅 local） */
     static boolean isStorageAllowed(String provider) {
         String raw = System.getenv("STORAGE_ALLOW_LIST");
         if (raw == null || raw.isBlank()) {
@@ -238,8 +234,7 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 对照 applyAndValidateStorageBackend（L179）：
-     * 显式 id → 租户默认 → provider legacy alias；命中则写回 storageBackendId+provider。
+     * * 显式 id → 租户默认 → provider legacy alias；命中则写回 storageBackendId+provider。
      */
     private void applyAndValidateStorageBackend(KnowledgeBase kb) {
         Tenant tenant = tenantService.getTenantById(tenantId());
@@ -281,7 +276,7 @@ public class KnowledgeBaseService {
 
     // ── 查询 ─────────────────────────────────────────────────────────────
 
-    /** 对照 repo.GetByID：本租户 + 未删除 */
+    /** 本租户 + 未删除 */
     public KnowledgeBase getById(long tid, String id) {
         return kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, id)
@@ -291,8 +286,7 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 对照 repo.GetKnowledgeBaseByID（**无租户过滤**，EnsureDefaults 在 service 层做）：
-     * move/copy/duplicate 的 handler 链先按 id 找行、再自己判租户——跨租户行"存在"是
+     * * move/copy/duplicate 的 handler 链先按 id 找行、再自己判租户——跨租户行"存在"是
      * 403/404 分歧的前提，不能提前按租户收敛。
      */
     public KnowledgeBase getAllTenantById(String id) {
@@ -306,7 +300,7 @@ public class KnowledgeBaseService {
         return kb;
     }
 
-    /** 对照 GetKnowledgeBase：带计数回填 */
+    /** 带计数回填 */
     public KnowledgeBase getKnowledgeBase(String id) {
         KnowledgeBase kb = getById(tenantId(), id);
         if (kb == null) {
@@ -318,8 +312,7 @@ public class KnowledgeBaseService {
     }
 
     /**
-     * 对照 ListKnowledgeBasesByTenantID（共享 agent 分支专用，W5\u03b1）：
-     * tenant \u5168\u91cf + is_temporary=false + created_at DESC\u3002\u4e0d\u56de\u586b pin/creator_name/
+     * * tenant \u5168\u91cf + is_temporary=false + created_at DESC\u3002\u4e0d\u56de\u586b pin/creator_name/
      * share_count\uff08Go \u8be5\u8def\u5f84\u4e0d\u505a\uff09\uff1b\u8ba1\u6570\u53ea\u8986\u76d6\u7c7b\u578b\u76f8\u5173\u5b57\u6bb5\uff08document\u2192
      * knowledge_count\u3001faq\u2192chunk_count\uff09\uff0cprocessing \u72b6\u6001\u53ea\u7b97 pending/processing\u3002
      */
@@ -331,14 +324,13 @@ public class KnowledgeBaseService {
                         .isNull("deleted_at")
                         .orderByDesc("created_at"));
         for (KnowledgeBase kb : all) {
-            // ⚠️ 本分支**不**调 ensureDefaults：w5s 实录（Go 侧）钉住共享 agent 列表
             // 对零值策略原样返回（capabilities 全假），见 W5sSharedAgentContractTest.kbListAgentBranch。
             fillCountsForSharedList(kb);
         }
         return all;
     }
 
-    /** 对照 Go service L422-437：只覆盖类型相关计数字段，另一个保留库表原值。 */
+    /** 只覆盖类型相关计数字段，另一个保留库表原值。 */
     private void fillCountsForSharedList(KnowledgeBase kb) {
         if ("document".equals(kb.getType())) {
             Long kc = knowledgeMapper.selectCount(new LambdaQueryWrapper<Knowledge>()
@@ -359,9 +351,9 @@ public class KnowledgeBaseService {
         kb.setIsProcessing(pc != null && pc > 0);
     }
 
-    /** 对照 ListKnowledgeBases：全量（无分页）+ 计数/置顶/创建者名回填 */
+    /** 全量（无分页）+ 计数/置顶/创建者名回填 */
     public List<KnowledgeBase> listKnowledgeBases(String creator) {
-        // 对照 repository L88：Order("created_at DESC") 最新在前
+        // Order("created_at DESC") 最新在前
         List<KnowledgeBase> all = kbMapper.selectList(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getTenantId, tenantId())
                 .isNull(KnowledgeBase::getDeletedAt)
@@ -369,8 +361,6 @@ public class KnowledgeBaseService {
         String uid = TenantContext.currentUserId();
         List<KnowledgeBase> out = new ArrayList<>(all.size());
         for (KnowledgeBase kb : all) {
-            // 对照 Go ListKnowledgeBases 的 kb.EnsureDefaults()（主列表**要**调：Go
-            // knowledgebase.go:343/356/367 逐 KB 调用；零值策略到此回填 vector+keyword。
             // 2026-09-25 线上抓回：缺这一步 ⇒ capabilities() 全假 ⇒ quick-answer 能力过滤
             // 丢弃 KB ⇒ /agents/{id}/suggested-questions 无范围时返回空数组）
             ensureDefaults(kb);
@@ -395,7 +385,7 @@ public class KnowledgeBaseService {
         return out;
     }
 
-    /** 对照 FillKnowledgeBaseCounts：knowledge_count/chunk_count/is_processing/processing_count */
+    /** knowledge_count/chunk_count/is_processing/processing_count */
     private void fillCounts(KnowledgeBase kb) {
         Long kc = knowledgeMapper.selectCount(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getKnowledgeBaseId, kb.getId())
@@ -431,7 +421,6 @@ public class KnowledgeBaseService {
 
     // ── 更新 / 删除 / 置顶 ────────────────────────────────────────────────
 
-    /** 对照 UpdateKnowledgeBase 的 config 合并（service L520-560 语义） */
     public KnowledgeBase updateKnowledgeBase(KnowledgeBase existing,
                                              String name, String description,
                                              com.fasterxml.jackson.databind.JsonNode config) {
@@ -476,7 +465,7 @@ public class KnowledgeBaseService {
                 throw new BizException(AppError.badRequest("at least one indexing strategy must be enabled"));
             }
             kb.setIndexingStrategy(strategy);
-            // 对照 L548-556：wiki/graph 联动
+            // wiki/graph 联动
             if (kb.getWikiConfig() == null && strategy.isWikiEnabled()) {
                 com.fasterxml.jackson.databind.ObjectMapper m = new com.fasterxml.jackson.databind.ObjectMapper();
                 kb.setWikiConfig(m.createObjectNode());
@@ -489,7 +478,6 @@ public class KnowledgeBaseService {
         }
     }
 
-    /** 对照 DeleteKnowledgeBase：阶段 3 同步级联软删（Go 为异步任务队列，响应契约一致） */
     public void deleteKnowledgeBase(String id) {
         KnowledgeBase kb = getById(tenantId(), id);
         if (kb == null) {
@@ -507,7 +495,7 @@ public class KnowledgeBaseService {
         log.info("Knowledge base deleted: {}", id);
     }
 
-    /** 对照 TogglePinKnowledgeBase：per-(user,kb) 幂等切换 */
+    /** per-(user,kb) 幂等切换 */
     public KnowledgeBase togglePin(String id) {
         KnowledgeBase kb = getById(tenantId(), id);
         if (kb == null) {
@@ -534,7 +522,7 @@ public class KnowledgeBaseService {
         return kb;
     }
 
-    /** 对照 ListMoveTargets：同 type + 同 embedding_model_id + 非临时 + 排除自身 */
+    /** 同 type + 同 embedding_model_id + 非临时 + 排除自身 */
     public List<KnowledgeBase> listMoveTargets(String id) {
         KnowledgeBase source = getById(tenantId(), id);
         if (source == null) {
@@ -548,7 +536,7 @@ public class KnowledgeBaseService {
                 .eq(KnowledgeBase::isIsTemporary, false)
                 .ne(KnowledgeBase::getId, id)
                 .isNull(KnowledgeBase::getDeletedAt)
-                // 对照 ListKnowledgeBases 复用：created_at DESC
+                // created_at DESC
                 .orderByDesc(KnowledgeBase::getCreatedAt));
     }
 }

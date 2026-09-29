@@ -33,62 +33,52 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * chunker 只读预览端点（对照 Go {@code internal/handler/chunker_debug.go} 全文，
- * 路由对照 {@code routes_knowledge.go} 的 RegisterChunkerDebugRoutes：Viewer+，
- * API key 需 retrieve+ingest）。无状态：不落库、不生成 embedding、不打日志正文。
- *
+ * chunker 只读预览端点。无状态：不落库、不生成 embedding、不打日志正文。
  * <h2>响应形态：struct 声明序 + map 字母序的混合（golden cprev-*.json 全钉）</h2>
  * <p>顶层 {@code gin.H} 字母序 {@code {"data":…,"success":true}}；data 是
  * PreviewChunkingResponse struct——按<b>声明序</b>输出
  * {@code selected_tier, tier_chain, rejected, profile, chunks, stats}。
- * 其中 {@code rejected} 是 Go nil slice：<b>无拒绝时是 null 不是 []</b>；
  * {@code chunks} 用 make 初始化恒 {@code []}。</p>
- *
  * <h2>profile 里的两类编码陷阱</h2>
  * <ul>
  *   <li>double 字段（avg_line_len/std_line_len/code_ratio）挂 {@link GoDoubleSerializer}
- *       ——Go 整值 float64 输出 {@code 91} 而 Jackson 输出 {@code 91.0}（§9.2）</li>
- *   <li>{@code md_heading_counts} 是 Go {@code map[int]int}：键升序输出（数字序），
  *       空表恒 {@code {}}（profiler 恒 make）——Java 用按键排序的 LinkedHashMap</li>
  * </ul>
- *
  * <h2>策略解析的实测契约（golden 钉）</h2>
  * <p>strategy 空串/legacy/recursive → 链 {@code [legacy]}（<b>不是</b> auto！），
  * diag.profile 为 null 由 handler 调 ProfileDocument 物化；未知 strategy 落
  * default 分支走 auto 画像。tier_chain 在响应里恒非 null（文本非空时）。</p>
- *
  * <h2>超时与截断</h2>
  * <p>文本上限 64k rune（超限 413）、分块上限 500（stats 按全集算，
  * truncated_to 记原始数量，omitempty）、5s 超时 504。切分是 CPU 密集且不接受
  * context——Java 用虚拟线程 + Future.get(5s) 仿真，<b>超时不 cancel</b>
- * （对照 Go：goroutine 自然跑完，只是调用方先走）。</p>
+ * 。</p>
  */
 @RestController
 public class ChunkerDebugController {
 
-    /** 对照 previewMaxChars：64k rune 上限（防 goroutine 堆积的主缓解）。 */
+    /** 64k rune 上限（防 goroutine 堆积的主缓解）。 */
     static final int PREVIEW_MAX_CHARS = 64 * 1024;
 
-    /** 对照 previewMaxChunks：响应截断上限（stats 不受影响）。 */
+    /** 响应截断上限（stats 不受影响）。 */
     static final int PREVIEW_MAX_CHUNKS = 500;
 
-    /** 对照 previewTimeout。 */
+    /**  */
     static final long PREVIEW_TIMEOUT_SECONDS = 5;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-    /** 虚拟线程池：切分 CPU 密集，超时后让线程自然跑完（对照 Go goroutine 语义）。 */
+    /** 虚拟线程池：切分 CPU 密集，超时后让线程自然跑完。 */
     private static final ExecutorService CHUNKER_POOL = Executors.newVirtualThreadPerTaskExecutor();
 
-    // ── 响应体（对照 PreviewChunkingResponse 家族，字段序 = Go 声明序） ───
+    // ── 响应体 ───
 
     static final class PreviewResponse {
         @JsonProperty("selected_tier")
         String selectedTier;
         @JsonProperty("tier_chain")
         List<String> tierChain;
-        /** Go nil slice 语义：无拒绝时保持 null。 */
         @JsonProperty("rejected")
         List<TierRejectionDto> rejected;
         @JsonProperty("profile")
@@ -122,7 +112,6 @@ public class ChunkerDebugController {
         @JsonProperty("std_line_len")
         @JsonSerialize(using = GoDoubleSerializer.class)
         double stdLineLen;
-        /** Go map[int]int：键数字升序、空表 {}。 */
         @JsonProperty("md_heading_counts")
         Map<Integer, Integer> mdHeadingCounts = new LinkedHashMap<>();
         @JsonProperty("md_heading_total")
@@ -167,7 +156,7 @@ public class ChunkerDebugController {
         int sizeChars;
         @JsonProperty("size_tokens_approx")
         int sizeTokensApprox;
-        /** Go omitempty：空串省略。 */
+        /** JSON 空值省略：空串省略。 */
         @JsonProperty("context_header")
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         String contextHeader;
@@ -186,7 +175,7 @@ public class ChunkerDebugController {
         int maxChars;
         @JsonProperty("stddev_chars")
         int stddevChars;
-        /** Go omitempty：0 省略。 */
+        /** JSON 空值省略：0 省略。 */
         @JsonProperty("truncated_to")
         @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         int truncatedTo;
@@ -221,7 +210,7 @@ public class ChunkerDebugController {
             return ResponseEntity.status(400).body(errorBody(
                     "text is empty — paste a sample to preview chunking"));
         }
-        // 对照 utf8.RuneCountInString（rune 计，非 char 计）
+        // rune 计数（非 char 计）
         if (text.codePointCount(0, text.length()) > PREVIEW_MAX_CHARS) {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("error", "text exceeds preview limit");
@@ -247,7 +236,7 @@ public class ChunkerDebugController {
         cfg = Chunker.normalizeSplitterConfig(cfg);
         final SplitterConfig effectiveCfg = cfg;
 
-        // 切分在独立虚拟线程上跑（对照 Go goroutine + select 超时）；
+        // 切分在独立虚拟线程上跑；
         // 超时不 cancel——切分会自然跑完，只是调用方先走。
         boolean parentChild = Boolean.TRUE.equals(payload.enableParentChild());
         Future<SplitOutcome> future = CHUNKER_POOL.submit(
@@ -342,7 +331,7 @@ public class ChunkerDebugController {
     }
 
 
-    /** 对照 computeChunkSizeStats（chunker_debug.go:263）：均值/方差走 float64 再截断。 */
+    /** 均值/方差走 float64 再截断。 */
     private static StatsDto computeChunkSizeStats(List<Integer> runeLens) {
         StatsDto stats = new StatsDto();
         stats.count = runeLens.size();
@@ -382,7 +371,6 @@ public class ChunkerDebugController {
         dto.totalLines = p.totalLines;
         dto.avgLineLen = p.avgLineLen;
         dto.stdLineLen = p.stdLineLen;
-        // Go json.Marshal 对 map[int]int 按键数字升序输出
         List<Integer> levels = new ArrayList<>(p.mdHeadingCounts.keySet());
         levels.sort(Integer::compareTo);
         for (int level : levels) {
@@ -405,7 +393,6 @@ public class ChunkerDebugController {
         return dto;
     }
 
-    /** 枚举 → Go StrategyTier 字面量（"heading"/"heuristic"/"legacy"）。 */
     private static String tierToGo(DocumentProfiler.StrategyTier tier) {
         return switch (tier) {
             case HEADING -> "heading";

@@ -23,9 +23,7 @@ import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.stereotype.Repository;
 
 /**
- * 对照 Go {@code knowledgeSpanRepository}（repository/knowledge_span_repo.go 全文）：
- * 每次尝试一棵 span 树的持久化。
- *
+ * * 每次尝试一棵 span 树的持久化。
  * <ul>
  *   <li>{@code upsert} 覆盖 Begin/End/Fail/Skip 的全部状态迁移（单写路径保证行内一致）；
  *       input/output/metadata 是**内容列**——仅当入参非 null 时写入（EndSpan 只写
@@ -34,7 +32,6 @@ import org.springframework.stereotype.Repository;
  *   <li>{@code listByAttempt} 是唯一读路径（handler 在内存里建树，不递归查库）；</li>
  *   <li>cancel 族（descendants/openSpansByName/openSpans）为级联取消与被取消路径服务。</li>
  * </ul>
- *
  * <p><b>方言</b>：PG 用 {@code ON CONFLICT ... DO UPDATE SET <动态列>}；H2（契约测试）
  * 退化为「先查后写」——H2 的 MERGE 是全列覆盖，无法表达「不写 NULL 列」的语义
  * （同 {@code VectorStoreService} 的 H2 分支取舍）。jsonb 列在 PG 用
@@ -48,7 +45,6 @@ public class KnowledgeSpanRepository {
             new TypeReference<>() {
             };
 
-    /** Upsert 的固定更新列（Go L85-94）：name/kind/parent 一旦写入即不可变，不入列。 */
     private static final List<String> BASE_UPDATE_COLS = List.of(
             "status", "error_code", "error_message", "error_detail",
             "started_at", "finished_at", "duration_ms", "updated_at");
@@ -70,7 +66,7 @@ public class KnowledgeSpanRepository {
         }
     }
 
-    /** 对照 Upsert（L58-112）。 */
+    /** */
     public void upsert(KnowledgeProcessingSpan row) {
         if (row == null || row.getKnowledgeId().isEmpty() || row.getSpanId().isEmpty()) {
             throw new IllegalArgumentException(
@@ -241,7 +237,7 @@ public class KnowledgeSpanRepository {
         return s == null || s.isEmpty() ? null : s;
     }
 
-    /** 对照 NextAttempt（L114-124）：MAX(attempt)+1。 */
+    /** MAX(attempt)+1。 */
     public int nextAttempt(String knowledgeId) {
         Integer max = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(attempt), 0) FROM knowledge_processing_spans"
@@ -250,7 +246,7 @@ public class KnowledgeSpanRepository {
         return (max == null ? 0 : max) + 1;
     }
 
-    /** 对照 LatestAttempt（L126-133）。 */
+    /** */
     public int latestAttempt(String knowledgeId) {
         Integer max = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(attempt), 0) FROM knowledge_processing_spans"
@@ -259,7 +255,7 @@ public class KnowledgeSpanRepository {
         return max == null ? 0 : max;
     }
 
-    /** 对照 ListByAttempt（L135-149）：id ASC 保插入序（fan-out 子 span 的稳定渲染序）。 */
+    /** id ASC 保插入序（fan-out 子 span 的稳定渲染序）。 */
     public List<KnowledgeProcessingSpan> listByAttempt(String knowledgeId, int attempt) {
         if (knowledgeId == null || knowledgeId.isEmpty()) {
             return List.of();
@@ -274,7 +270,7 @@ public class KnowledgeSpanRepository {
         return jdbc.query(sql, (rs, rowNum) -> mapRow(rs), args.toArray());
     }
 
-    /** 对照 GetSpan（L151-163）：不存在返回 null。 */
+    /** 不存在返回 null。 */
     public KnowledgeProcessingSpan getSpan(String knowledgeId, int attempt, String spanId) {
         List<KnowledgeProcessingSpan> rows = jdbc.query(
                 "SELECT * FROM knowledge_processing_spans"
@@ -284,7 +280,7 @@ public class KnowledgeSpanRepository {
     }
 
     /**
-     * 对照 CancelDescendants（L165-213）：逐层 BFS（每层把 frontier 的 pending/running
+     * 逐层 BFS（每层把 frontier 的 pending/running
      * 子行翻 cancelled），固定点或 16 层深度上限退出；终态行保持原样。
      */
     public long cancelDescendants(String knowledgeId, int attempt, String parentSpanId,
@@ -335,7 +331,7 @@ public class KnowledgeSpanRepository {
         return totalAffected;
     }
 
-    /** 对照 CancelAllOpenSpans（L215-245）：不设 finished_at/duration_ms（保持可观察）。 */
+    /** 不设 finished_at/duration_ms（保持可观察）。 */
     public long cancelAllOpenSpans(String knowledgeId, int attempt, String errorCode,
                                    String reason) {
         String cleanCode = CleanInvalidUtf8.clean(errorCode);
@@ -352,7 +348,7 @@ public class KnowledgeSpanRepository {
                 KnowledgeProcessingSpan.STATUS_RUNNING);
     }
 
-    /** 对照 CancelOpenSpansByName（L247-271）：重开同名子 span 前清掉残留的 pending/running 行。 */
+    /** 重开同名子 span 前清掉残留的 pending/running 行。 */
     public long cancelOpenSpansByName(String knowledgeId, int attempt, String name,
                                       String errorCode, String reason) {
         if (knowledgeId == null || knowledgeId.isEmpty() || attempt <= 0

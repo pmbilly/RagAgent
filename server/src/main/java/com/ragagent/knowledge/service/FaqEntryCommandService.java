@@ -98,7 +98,6 @@ public class FaqEntryCommandService {
         FaqChunkMetadata meta = faqGuard.sanitizeFAQEntryPayload(payload);
         String tagID = faqGuard.resolveTagID(kb.getId(), payload);
 
-        // 同标准问的进程内串行（Go 的 faqCreateInflight 兜底分支；Redis SetNX 未复刻）
         String guardKey = "faq:create:" + tid + ":" + kb.getId() + ":" + sha256Hex(meta.standardQuestion);
         if (!taskStore.acquireCreateGuard(guardKey)) {
             throw new BizException(AppError.conflict("相同标准问的 FAQ 条目正在创建中，请勿重复提交"));
@@ -141,7 +140,6 @@ public class FaqEntryCommandService {
             faqIndexWriter.createChunks(List.of(chunk));
 
             // 索引步：
-            // 失败 → 按 Go 的失败路径回滚 chunk + "failed to index chunk: %w"
             try {
                 faqIndexWriter.indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, true);
             } catch (RuntimeException indexErr) {
@@ -257,7 +255,6 @@ public class FaqEntryCommandService {
             throw new IllegalStateException("failed to get knowledge: record not found");
         }
 
-        // 增量索引（separate 模式）/ 增量删除 + 全量索引——索引执行面在 Go 也先过
         // GetEmbeddingModel；无模型的 KB 在这里 plain 500（变更已持久化）
         Model embeddingModel = faqIndexWriter.requireEmbeddingModel(kb);
         // separate 模式相似问减少时先删多余 sourceID——Java 的
@@ -522,7 +519,6 @@ public class FaqEntryCommandService {
         }
 
         // 检索引擎同步：失败 → 原样上抛（阻断；
-        // chunk 行已在上方落库——与 Go 的顺序一致）。
         // 2026-09-22 走查批接线：此前为 WARN + no-op 占位。
         // 绑定 store 的 KB 走引擎口（deleteByChunkIdList + batchIndex）
         com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
@@ -778,7 +774,7 @@ public class FaqEntryCommandService {
                 hex.append(Character.forDigit((b >> 4) & 0xF, 16));
                 hex.append(Character.forDigit(b & 0xF, 16));
             }
-            return hex.substring(0, 32); // Go 只取前 16 字节
+            return hex.substring(0, 32); // 契约：内容哈希取前 16 字节
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
