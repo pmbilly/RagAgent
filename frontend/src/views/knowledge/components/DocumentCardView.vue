@@ -426,7 +426,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
                   >
                     <t-icon class="icon" name="root-list" />
                     <span class="move-target-name">{{ kb.name }}</span>
-                    <span v-if="kb.knowledge_count !== undefined" class="move-target-count">{{ kb.knowledge_count }}</span>
+                    <span v-if="kb.knowledgeCount !== undefined" class="move-target-count">{{ kb.knowledgeCount }}</span>
                   </div>
                 </template>
               </div>

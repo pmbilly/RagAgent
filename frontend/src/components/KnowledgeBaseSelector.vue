@@ -43,7 +43,7 @@
             </div>
             <div class="kb-name-wrap">
               <span class="kb-name">{{ kb.name }}</span>
-              <span class="kb-docs">({{ kb.type === 'faq' ? (kb.chunk_count || 0) : (kb.knowledge_count || 0) }})</span>
+              <span class="kb-docs">({{ kb.type === 'faq' ? (kb.chunkCount || 0) : (kb.knowledgeCount || 0) }})</span>
             </div>
           </div>
         </div>
@@ -73,10 +73,10 @@ interface KnowledgeBase {
   id: string
   name: string
   type?: 'document' | 'faq'
-  knowledge_count?: number
-  chunk_count?: number
-  embedding_model_id?: string
-  summary_model_id?: string
+  knowledgeCount?: number
+  chunkCount?: number
+  embeddingModelId?: string
+  summaryModelId?: string
 }
 
 const { t } = useI18n()
@@ -107,7 +107,7 @@ const offsetY = props.offsetY ?? 8
 // 过滤：只显示已初始化（有 embedding & summary）的
 const filteredKnowledgeBases = computed(() => {
   const valid = knowledgeBases.value.filter(
-    k => k.embedding_model_id && k.summary_model_id
+    k => k.embeddingModelId && k.summaryModelId
   )
   if (!searchQuery.value) return valid
   const q = searchQuery.value.toLowerCase()
@@ -165,7 +165,7 @@ const close = () => {
 const loadKnowledgeBases = async () => {
   try {
     const res: any = await listKnowledgeBases()
-    if (res?.data && Array.isArray(res.data)) knowledgeBases.value = res.data
+    if (Array.isArray(res)) knowledgeBases.value = res
   } catch (e) {
     console.error(t('knowledgeBase.loadingFailed'), e)
   }

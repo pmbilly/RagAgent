@@ -19,10 +19,10 @@ type ResourceKey = 'knowledgeBases' | 'agents' | 'models' | 'webSearchProviders'
 export type ListCreatorFilter = 'all' | 'mine' | 'others'
 
 function isKbModelReady(kb: any): boolean {
-  if (!kb.summary_model_id || kb.summary_model_id === '') return false
-  const strategy = kb.indexing_strategy
+  if (!kb.summaryModelId || kb.summaryModelId === '') return false
+  const strategy = kb.indexingStrategy
   const needsEmbedding = !strategy || strategy.vector_enabled || strategy.keyword_enabled
-  if (needsEmbedding && (!kb.embedding_model_id || kb.embedding_model_id === '')) return false
+  if (needsEmbedding && (!kb.embeddingModelId || kb.embeddingModelId === '')) return false
   return true
 }
 
@@ -106,7 +106,7 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     // 带 creator 过滤的列表是列表页专用、不进缓存，直接透传请求。
     if (creator !== 'all') {
       const res: any = await listKnowledgeBases({ creator })
-      return res?.data && Array.isArray(res.data) ? res.data : []
+      return Array.isArray(res) ? res : []
     }
 
     if (!force && isFresh('knowledgeBases')) {
@@ -118,7 +118,7 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     kbAllInflight = (async () => {
       try {
         const res: any = await listKnowledgeBases()
-        const data = res?.data && Array.isArray(res.data) ? res.data : []
+        const data = Array.isArray(res) ? res : []
         rawKnowledgeBases.value = data
         loadedAt.value.knowledgeBases = Date.now()
         return data
@@ -245,7 +245,7 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     const p = (async () => {
       try {
         const res: any = await getKnowledgeBaseById(kbId)
-        const data = res?.data ?? null
+        const data = res ?? null
         if (data) {
           kbDetailCache.set(kbId, { at: Date.now(), data })
         }

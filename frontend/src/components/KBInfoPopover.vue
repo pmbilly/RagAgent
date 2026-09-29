@@ -180,7 +180,7 @@ const authStore = useAuthStore()
 const isOwner = computed<boolean>(() => {
   const kb = props.kbInfo
   if (!kb) return false
-  const creatorId = kb.creator_id || ''
+  const creatorId = kb.creatorId || ''
   const userId = authStore.user?.id || ''
   if (!creatorId) return false
   return creatorId === userId
@@ -244,20 +244,20 @@ const capabilities = computed<Array<{ key: string; label: string; theme: Capabil
   const kb: any = props.kbInfo
   if (!kb) return []
   const items: Array<{ key: string; label: string; theme: CapabilityTheme }> = []
-  if (kb.vlm_config?.enabled) {
+  if (kb.vlmConfig?.enabled) {
     items.push({ key: 'vlm', label: 'VLM', theme: 'primary' })
   }
-  if (kb.asr_config?.enabled) {
+  if (kb.asrConfig?.enabled) {
     items.push({ key: 'asr', label: 'ASR', theme: 'primary' })
   }
-  if (kb.extract_config?.enabled) {
+  if (kb.extractConfig?.enabled) {
     items.push({
       key: 'kg',
       label: t('knowledgeList.features.knowledgeGraph'),
       theme: 'success',
     })
   }
-  if (kb.indexing_strategy?.wiki_enabled) {
+  if (kb.indexingStrategy?.wiki_enabled) {
     items.push({ key: 'wiki', label: 'Wiki', theme: 'warning' })
   }
   return items
@@ -274,7 +274,7 @@ const chunkingStrategyLabel = computed<string>(() => {
 const chunkingRows = computed<Array<{ key: string; label: string; value: string }>>(() => {
   const kb: any = props.kbInfo
   if (!kb || kb.type === 'faq') return []
-  const cfg = kb.chunking_config
+  const cfg = kb.chunkingConfig
   if (!cfg) return []
   const rows: Array<{ key: string; label: string; value: string }> = []
   if (chunkingStrategyLabel.value) {
@@ -328,18 +328,18 @@ const statRows = computed<Array<{ key: string; label: string; value: number | st
   // not meaningful to surface here). Mirrors the same branching used
   // by the list card.
   if (kb.type === 'faq') {
-    if (typeof kb.chunk_count === 'number') {
+    if (typeof kb.chunkCount === 'number') {
       items.push({
         key: 'faq',
         label: t('knowledgeBase.infoCard.faqCount'),
-        value: kb.chunk_count,
+        value: kb.chunkCount,
       })
     }
-  } else if (typeof kb.knowledge_count === 'number') {
+  } else if (typeof kb.knowledgeCount === 'number') {
     items.push({
       key: 'knowledge',
       label: t('knowledgeBase.infoCard.documentCount'),
-      value: kb.knowledge_count,
+      value: kb.knowledgeCount,
     })
   }
   return items

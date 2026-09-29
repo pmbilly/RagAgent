@@ -95,7 +95,7 @@
           class="kb-card-wrap">
           <!-- 置顶分组标题 -->
           <div
-            v-if="filteredKnowledgeBases[0] && filteredKnowledgeBases[0].isMine && filteredKnowledgeBases[0].is_pinned"
+            v-if="filteredKnowledgeBases[0] && filteredKnowledgeBases[0].isMine && filteredKnowledgeBases[0].pinned"
             class="kb-section-header kb-section-header-pinned" role="button" tabindex="0"
             @click="toggleKbSection('pinned')"
             @keydown.enter.prevent="toggleKbSection('pinned')"
@@ -116,9 +116,9 @@
             <div v-if="showShareGroupHeaders
               && kb.isMine
               && isMyKb(kb as KB)
-              && !kb.is_pinned
+              && !kb.pinned
               && (index === 0
-                || (filteredKnowledgeBases[index - 1] as any).is_pinned)" class="kb-section-header" role="button"
+                || (filteredKnowledgeBases[index - 1] as any).pinned)" class="kb-section-header" role="button"
               tabindex="0" @click="toggleKbSection('mine')"
               @keydown.enter.prevent="toggleKbSection('mine')"
               @keydown.space.prevent="toggleKbSection('mine')">
@@ -135,11 +135,11 @@
             <div v-if="showShareGroupHeaders
               && kb.isMine
               && !isMyKb(kb as KB)
-              && !kb.is_pinned
+              && !kb.pinned
               && (index === 0
                 || !filteredKnowledgeBases[index - 1].isMine
                 || isMyKb(filteredKnowledgeBases[index - 1] as KB)
-                || (filteredKnowledgeBases[index - 1] as any).is_pinned)" class="kb-section-header" role="button"
+                || (filteredKnowledgeBases[index - 1] as any).pinned)" class="kb-section-header" role="button"
               tabindex="0" @click="toggleKbSection('tenantOthers')"
               @keydown.enter.prevent="toggleKbSection('tenantOthers')"
               @keydown.space.prevent="toggleKbSection('tenantOthers')">
@@ -182,8 +182,8 @@
                   <template #content>
                     <div class="popup-menu" @click.stop>
                       <div class="popup-menu-item" @click.stop="handleTogglePinById(kb.id)">
-                        <t-icon class="menu-icon" :name="kb.is_pinned ? 'pin-filled' : 'pin'" />
-                        <span>{{ kb.is_pinned ? $t('knowledgeList.pin.unpin') : $t('knowledgeList.pin.pin') }}</span>
+                        <t-icon class="menu-icon" :name="kb.pinned ? 'pin-filled' : 'pin'" />
+                        <span>{{ kb.pinned ? $t('knowledgeList.pin.unpin') : $t('knowledgeList.pin.pin') }}</span>
                       </div>
                       <div v-if="canDuplicateKBCard(kb)" class="popup-menu-item"
                         @click.stop="handleDuplicateById(kb.id)">
@@ -222,24 +222,24 @@
                       <div class="feature-badge"
                         :class="{ 'type-document': (kb.type || 'document') === 'document', 'type-faq': kb.type === 'faq' }">
                         <t-icon :name="kb.type === 'faq' ? 'chat-bubble-help' : 'folder'" size="14px" />
-                        <span class="badge-count">{{ kb.type === 'faq' ? (kb.chunk_count || 0) : (kb.knowledge_count ||
+                        <span class="badge-count">{{ kb.type === 'faq' ? (kb.chunkCount || 0) : (kb.knowledgeCount ||
                           0) }}</span>
-                        <t-icon v-if="kb.isProcessing" name="loading" size="12px" class="processing-icon" />
+                        <t-icon v-if="kb.processing" name="loading" size="12px" class="processing-icon" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="kb.extract_config?.enabled" :content="$t('knowledgeList.features.knowledgeGraph')"
+                    <t-tooltip v-if="kb.extractConfig?.enabled" :content="$t('knowledgeList.features.knowledgeGraph')"
                       placement="top">
                       <div class="feature-badge kg">
                         <t-icon name="relation" size="14px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="kb.vlm_config?.enabled" :content="$t('knowledgeList.features.multimodal')"
+                    <t-tooltip v-if="kb.vlmConfig?.enabled" :content="$t('knowledgeList.features.multimodal')"
                       placement="top">
                       <div class="feature-badge multimodal">
                         <t-icon name="image" size="14px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="kb.question_generation_config?.enabled"
+                    <t-tooltip v-if="kb.questionGenerationConfig?.enabled"
                       :content="$t('knowledgeList.features.questionGeneration')" placement="top">
                       <div class="feature-badge question">
                         <t-icon name="help-circle" size="14px" />
@@ -248,7 +248,7 @@
                   </div>
                 </div>
                 <div v-if="!authStore.isLiteMode && showKbOriginBadge(kb)" class="bottom-right">
-                  <ResourceOriginBadge :variant="kbOriginVariant(kb)" :creator-name="kb.creator_name" />
+                  <ResourceOriginBadge :variant="kbOriginVariant(kb)" :creator-name="kb.creatorName" />
                 </div>
               </div>
             </div>
@@ -257,7 +257,7 @@
 
         <div v-if="spaceSelection === 'mine' && sortedMineKbs.length > 0" class="kb-card-wrap">
           <!-- 置顶分组标题 -->
-          <div v-if="sortedMineKbs[0] && sortedMineKbs[0].is_pinned" class="kb-section-header kb-section-header-pinned"
+          <div v-if="sortedMineKbs[0] && sortedMineKbs[0].pinned" class="kb-section-header kb-section-header-pinned"
             role="button" tabindex="0" @click="toggleKbSection('pinned')"
             @keydown.enter.prevent="toggleKbSection('pinned')"
             @keydown.space.prevent="toggleKbSection('pinned')">
@@ -275,8 +275,8 @@
                  「全部」tab 同处注释。 -->
             <div v-if="showShareGroupHeaders
               && isMyKb(kb)
-              && !kb.is_pinned
-              && (index === 0 || sortedMineKbs[index - 1].is_pinned)" class="kb-section-header" role="button"
+              && !kb.pinned
+              && (index === 0 || sortedMineKbs[index - 1].pinned)" class="kb-section-header" role="button"
               tabindex="0" @click="toggleKbSection('mine')"
               @keydown.enter.prevent="toggleKbSection('mine')"
               @keydown.space.prevent="toggleKbSection('mine')">
@@ -290,10 +290,10 @@
                  要么是我创建、要么是置顶卡片（置顶→非置顶过渡）。 -->
             <div v-if="showShareGroupHeaders
               && !isMyKb(kb)
-              && !kb.is_pinned
+              && !kb.pinned
               && (index === 0
                 || isMyKb(sortedMineKbs[index - 1])
-                || sortedMineKbs[index - 1].is_pinned)" class="kb-section-header" role="button" tabindex="0"
+                || sortedMineKbs[index - 1].pinned)" class="kb-section-header" role="button" tabindex="0"
               @click="toggleKbSection('tenantOthers')"
               @keydown.enter.prevent="toggleKbSection('tenantOthers')"
               @keydown.space.prevent="toggleKbSection('tenantOthers')">
@@ -332,8 +332,8 @@
                   <template #content>
                     <div class="popup-menu" @click.stop>
                       <div class="popup-menu-item" @click.stop="handleTogglePin(kb)">
-                        <t-icon class="menu-icon" :name="kb.is_pinned ? 'pin-filled' : 'pin'" />
-                        <span>{{ kb.is_pinned ? $t('knowledgeList.pin.unpin') : $t('knowledgeList.pin.pin') }}</span>
+                        <t-icon class="menu-icon" :name="kb.pinned ? 'pin-filled' : 'pin'" />
+                        <span>{{ kb.pinned ? $t('knowledgeList.pin.unpin') : $t('knowledgeList.pin.pin') }}</span>
                       </div>
                       <div v-if="canDuplicateKBCard(kb)" class="popup-menu-item" @click.stop="handleDuplicate(kb)">
                         <t-icon class="menu-icon" name="file-copy" />
@@ -371,25 +371,25 @@
                       <div class="feature-badge"
                         :class="{ 'type-document': (kb.type || 'document') === 'document', 'type-faq': kb.type === 'faq' }">
                         <t-icon :name="kb.type === 'faq' ? 'chat-bubble-help' : 'folder'" size="14px" />
-                        <span class="badge-count">{{ kb.type === 'faq' ? (kb.chunk_count || 0) : (kb.knowledge_count ||
+                        <span class="badge-count">{{ kb.type === 'faq' ? (kb.chunkCount || 0) : (kb.knowledgeCount ||
                           0) }}</span>
-                        <t-icon v-if="kb.isProcessing" name="loading" size="12px" class="processing-icon" />
+                        <t-icon v-if="kb.processing" name="loading" size="12px" class="processing-icon" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="kb.extract_config?.enabled" :content="$t('knowledgeList.features.knowledgeGraph')"
+                    <t-tooltip v-if="kb.extractConfig?.enabled" :content="$t('knowledgeList.features.knowledgeGraph')"
                       placement="top">
                       <div class="feature-badge kg">
                         <t-icon name="relation" size="14px" />
                       </div>
                     </t-tooltip>
                     <t-tooltip
-                      v-if="kb.vlm_config?.enabled || (kb.storage_provider_config?.provider && kb.storage_provider_config.provider !== 'local')"
+                      v-if="kb.vlmConfig?.enabled || (kb.storageProvider && kb.storageProvider !== 'local')"
                       :content="$t('knowledgeList.features.multimodal')" placement="top">
                       <div class="feature-badge multimodal">
                         <t-icon name="image" size="14px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="kb.question_generation_config?.enabled"
+                    <t-tooltip v-if="kb.questionGenerationConfig?.enabled"
                       :content="$t('knowledgeList.features.questionGeneration')" placement="top">
                       <div class="feature-badge question">
                         <t-icon name="help-circle" size="14px" />
@@ -398,7 +398,7 @@
                   </div>
                 </div>
                 <div v-if="!authStore.isLiteMode && showKbOriginBadge(kb)" class="bottom-right">
-                  <ResourceOriginBadge :variant="kbOriginVariant(kb)" :creator-name="kb.creator_name" />
+                  <ResourceOriginBadge :variant="kbOriginVariant(kb)" :creator-name="kb.creatorName" />
                 </div>
               </div>
             </div>
@@ -534,29 +534,28 @@ interface KB {
   id: string;
   name: string;
   description?: string;
-  updated_at?: string;
-  created_at?: string;
-  pinned_at?: string;
-  embedding_model_id?: string;
-  summary_model_id?: string;
+  updatedAt?: string;
+  createdAt?: string;
+  pinnedAt?: string;
+  embeddingModelId?: string;
+  summaryModelId?: string;
   type?: 'document' | 'faq';
   showMore?: boolean;
-  vlm_config?: { enabled?: boolean; model_id?: string };
-  extract_config?: { enabled?: boolean };
-  storage_provider_config?: { provider?: string };
-  storage_config?: { provider?: string; bucket_name?: string }; // legacy
-  question_generation_config?: { enabled?: boolean; question_count?: number };
-  knowledge_count?: number;
-  chunk_count?: number;
-  isProcessing?: boolean;
-  processing_count?: number;
-  is_pinned?: boolean;
-  // creator_id is the owner-id matched against authStore.user.id when
-  // gating the per-card more-menu (Settings / Delete). Empty for legacy
-  // KBs created before PR 5; those fall back to the role gate.
-  creator_id?: string;
-  // creator_name 由后端 list 接口回填，仅用于卡片右下角来源徽章的 tooltip。
-  creator_name?: string;
+  vlmConfig?: { enabled?: boolean; model_id?: string };
+  extractConfig?: { enabled?: boolean };
+  // 存储提供方名（local/cos/oss…）：只下发名字，凭据配置不下发（契约 §3 #12）
+  storageProvider?: string;
+  questionGenerationConfig?: { enabled?: boolean; question_count?: number };
+  knowledgeCount?: number;
+  chunkCount?: number;
+  processing?: boolean;
+  processingCount?: number;
+  pinned?: boolean;
+  // creatorId 是 owner-id：卡片 more-menu（设置 / 删除）按它与 authStore.user.id 比对。
+  // 老数据为空串 → 退回角色门禁。
+  creatorId?: string;
+  // creatorName 由后端 list 接口回填，仅用于卡片右下角来源徽章的 tooltip。
+  creatorName?: string;
 }
 
 const kbs = ref<KB[]>([])
@@ -588,19 +587,19 @@ const allKnowledgeBases = computed(() => kbs.value.length)
 // pinned-but-teammate KBs.
 const sortedMineKbs = computed<KB[]>(() => {
   return [...kbs.value].sort((a, b) => {
-    const ap = a.is_pinned ? 0 : 1
-    const bp = b.is_pinned ? 0 : 1
+    const ap = a.pinned ? 0 : 1
+    const bp = b.pinned ? 0 : 1
     if (ap !== bp) return ap - bp
-    if (a.is_pinned && b.is_pinned) {
-      const at = a.pinned_at ? Date.parse(a.pinned_at as string) : 0
-      const bt = b.pinned_at ? Date.parse(b.pinned_at as string) : 0
+    if (a.pinned && b.pinned) {
+      const at = a.pinnedAt ? Date.parse(a.pinnedAt as string) : 0
+      const bt = b.pinnedAt ? Date.parse(b.pinnedAt as string) : 0
       if (at !== bt) return bt - at
     }
     const am = isMyKb(a) ? 0 : 1
     const bm = isMyKb(b) ? 0 : 1
     if (am !== bm) return am - bm
-    const ac = a.created_at ? Date.parse(a.created_at as string) : 0
-    const bc = b.created_at ? Date.parse(b.created_at as string) : 0
+    const ac = a.createdAt ? Date.parse(a.createdAt as string) : 0
+    const bc = b.createdAt ? Date.parse(b.createdAt as string) : 0
     return bc - ac
   })
 })
@@ -684,7 +683,7 @@ const toggleKbSection = (key: KbSectionKey) => {
 // 判断一条 KB 应该归在哪个分组——和模板里几处 v-if 用的是同一套判定，
 // 抽出来是为了 v-show 卡片时复用，避免把各分组的 v-if 重新拼一遍。
 const kbSectionOf = (kb: any): KbSectionKey => {
-  if (kb?.is_pinned) return 'pinned'
+  if (kb?.pinned) return 'pinned'
   return isMyKb(kb) ? 'mine' : 'tenantOthers'
 }
 
@@ -758,10 +757,10 @@ interface UploadSummary {
 const applyKbListData = (data: any[]) => {
   kbs.value = data.map((kb: any) => ({
     ...kb,
-    updated_at: kb.updated_at ? formatStringDate(new Date(kb.updated_at)) : '',
+    updated_at: kb.updatedAt ? formatStringDate(new Date(kb.updatedAt)) : '',
     showMore: false,
-    isProcessing: kb.is_processing || false,
-    processing_count: kb.processing_count || 0
+    isProcessing: kb.processing || false,
+    processing_count: kb.processingCount || 0
   }))
 }
 
@@ -865,7 +864,7 @@ const handleSettings = (kb: KB) => {
 // suddenly unmanageable for everyone.
 function canManageKBCard(kb: KB): boolean {
   const userId = authStore.user?.id || ''
-  if (kb.creator_id && userId && kb.creator_id === userId) return true
+  if (kb.creatorId && userId && kb.creatorId === userId) return true
   return authStore.hasRole('admin')
 }
 
@@ -877,9 +876,9 @@ function canDuplicateKBCard(kb: any): boolean {
 // 与 canManageKBCard 不同：管理权限有 admin 兜底，徽章纯粹按创建者匹配。
 // creator_id 为空（PR 5 RBAC 迁移之前的老 KB）一律按 tenant 处理——避免把
 // 全空间共有的旧 KB 错误地都标成「我创建」。
-function isMyKb(kb: { creator_id?: string }): boolean {
+function isMyKb(kb: { creatorId?: string }): boolean {
   const userId = authStore.user?.id || ''
-  return !!(kb.creator_id && userId && kb.creator_id === userId)
+  return !!(kb.creatorId && userId && kb.creatorId === userId)
 }
 
 // kbOriginVariant 决定卡片右下角徽章的展示形态：
@@ -889,18 +888,18 @@ function isMyKb(kb: { creator_id?: string }): boolean {
 //     角再贴一遍空间名属于重复信息；contributor / admin / owner / viewer
 //     看到的徽章一致。创建者无法解析时，creator 变体自动回退到
 //     resourceOrigin.tenant 文案（"本空间"），不会出现空标签。
-function kbOriginVariant(kb: { creator_id?: string }): 'mine' | 'creator' {
+function kbOriginVariant(kb: { creatorId?: string }): 'mine' | 'creator' {
   return isMyKb(kb) ? 'mine' : 'creator'
 }
 
 // 分组标题可见时，隐藏与标题重复的角标（「我创建的」段内的 mine 徽章、
 // 无创建者名的同事段），其余照常展示。
-function showKbOriginBadge(kb: { creator_id?: string; creator_name?: string }): boolean {
+function showKbOriginBadge(kb: { creatorId?: string; creatorName?: string }): boolean {
   if (!showShareGroupHeaders.value) return true
   const section = kbSectionOf(kb)
   const variant = kbOriginVariant(kb)
   if (section === 'mine' && variant === 'mine') return false
-  if (section === 'tenantOthers' && variant === 'creator' && !kb.creator_name?.trim()) return false
+  if (section === 'tenantOthers' && variant === 'creator' && !kb.creatorName?.trim()) return false
   return true
 }
 
@@ -921,13 +920,11 @@ const handleDeleteById = (id: string) => {
 const handleTogglePin = async (kb: KB) => {
   kb.showMore = false
   try {
-    const res: any = await togglePinKnowledgeBase(kb.id)
-    if (res.success) {
-      MessagePlugin.success(
-        res.data.is_pinned ? t('knowledgeList.pin.pinSuccess') : t('knowledgeList.pin.unpinSuccess')
-      )
-      fetchList(true)
-    }
+    const updated: any = await togglePinKnowledgeBase(kb.id)
+    MessagePlugin.success(
+      updated.pinned ? t('knowledgeList.pin.pinSuccess') : t('knowledgeList.pin.unpinSuccess')
+    )
+    fetchList(true)
   } catch {
     MessagePlugin.error(t('knowledgeList.pin.failed'))
   }
@@ -935,13 +932,11 @@ const handleTogglePin = async (kb: KB) => {
 
 const handleTogglePinById = async (id: string) => {
   try {
-    const res: any = await togglePinKnowledgeBase(id)
-    if (res.success) {
-      MessagePlugin.success(
-        res.data.is_pinned ? t('knowledgeList.pin.pinSuccess') : t('knowledgeList.pin.unpinSuccess')
-      )
-      fetchList(true)
-    }
+    const updated: any = await togglePinKnowledgeBase(id)
+    MessagePlugin.success(
+      updated.pinned ? t('knowledgeList.pin.pinSuccess') : t('knowledgeList.pin.unpinSuccess')
+    )
+    fetchList(true)
   } catch {
     MessagePlugin.error(t('knowledgeList.pin.failed'))
   }
@@ -984,15 +979,12 @@ const handleDelete = (kb: KB) => {
 const confirmDelete = () => {
   if (!deletingKb.value) return
 
-  deleteKnowledgeBase(deletingKb.value.id).then((res: any) => {
-    if (res.success) {
-      MessagePlugin.success(t('knowledgeList.messages.deleted'))
-      deleteVisible.value = false
-      deletingKb.value = null
-      fetchList(true)
-    } else {
-      MessagePlugin.error(res.message || t('knowledgeList.messages.deleteFailed'))
-    }
+  // 删除成功返回 204（无响应体）：走 then 即成功，失败走 catch
+  deleteKnowledgeBase(deletingKb.value.id).then(() => {
+    MessagePlugin.success(t('knowledgeList.messages.deleted'))
+    deleteVisible.value = false
+    deletingKb.value = null
+    fetchList(true)
   }).catch((e: any) => {
     MessagePlugin.error(e?.message || t('knowledgeList.messages.deleteFailed'))
   })
@@ -1000,16 +992,16 @@ const confirmDelete = () => {
 
 const isInitialized = (kb: KB) => {
   // LLM (summary) model is always required
-  if (!kb.summary_model_id || kb.summary_model_id === '') return false
+  if (!kb.summaryModelId || kb.summaryModelId === '') return false
   // Embedding model only required when RAG indexing is enabled (vector or keyword)
-  const strategy = (kb as any).indexing_strategy
+  const strategy = (kb as any).indexingStrategy
   const needsEmbedding = !strategy || strategy.vector_enabled || strategy.keyword_enabled
-  if (needsEmbedding && (!kb.embedding_model_id || kb.embedding_model_id === '')) return false
+  if (needsEmbedding && (!kb.embeddingModelId || kb.embeddingModelId === '')) return false
   return true
 }
 
 const isWikiKb = (kb: unknown) =>
-  !!(kb as { indexing_strategy?: { wiki_enabled?: boolean } } | null | undefined)?.indexing_strategy?.wiki_enabled
+  !!(kb as { indexingStrategy?: { wiki_enabled?: boolean } } | null | undefined)?.indexingStrategy?.wiki_enabled
 
 // 计算是否有未初始化的知识库
 const hasUninitializedKbs = computed(() => {

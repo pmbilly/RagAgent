@@ -1187,7 +1187,7 @@ async function loadKnowledgeBaseOptions() {
   knowledgeBasesLoading.value = true
   try {
     const resp: any = await listKnowledgeBases({ creator: 'all' })
-    const rows = Array.isArray(resp?.data) ? resp.data : []
+    const rows = Array.isArray(resp) ? resp : []
     knowledgeBases.value = rows.map((item: any) => ({
       id: String(item.id),
       name: item.name || item.id,

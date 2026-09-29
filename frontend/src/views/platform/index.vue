@@ -89,15 +89,15 @@ const checkKnowledgeBaseInitialization = async (): Promise<boolean> => {
     
     try {
         const kbResponse = await getKnowledgeBaseById(currentKbId);
-        const kb = kbResponse.data;
+        const kb = kbResponse as any;
         
-        if (!kb.summary_model_id) {
+        if (!kb.summaryModelId) {
             MessagePlugin.warning(t('knowledgeBase.notInitialized'));
             return false;
         }
-        const strategy = kb.indexing_strategy;
+        const strategy = kb.indexingStrategy;
         const needsEmbedding = !strategy || strategy.vector_enabled || strategy.keyword_enabled;
-        if (needsEmbedding && !kb.embedding_model_id) {
+        if (needsEmbedding && !kb.embeddingModelId) {
             MessagePlugin.warning(t('knowledgeBase.notInitialized'));
             return false;
         }

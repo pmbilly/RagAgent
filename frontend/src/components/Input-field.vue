@@ -354,7 +354,7 @@ const kbToScopeCaps = (kb: any): Partial<ScopeCapabilities> => {
       faq: !!kb.capabilities.faq,
     };
   }
-  const s = kb?.indexing_strategy;
+  const s = kb.indexingStrategy;
   return {
     vector: s ? !!s.vector_enabled : false,
     keyword: s ? !!s.keyword_enabled : false,
@@ -1113,7 +1113,7 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
     );
     kbItems = await Promise.all(kbs.map(async (kb: any) => {
       const kbType = kb.type || 'document';
-      let count = kbType === 'faq' ? Number(kb.chunk_count || 0) : Number(kb.knowledge_count || 0);
+      let count = kbType === 'faq' ? Number(kb.chunkCount || 0) : Number(kb.knowledgeCount || 0);
       if (!count) {
         const detail = await chatResources.fetchKnowledgeBaseById(kb.id);
         if (detail) {

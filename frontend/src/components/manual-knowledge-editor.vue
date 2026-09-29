@@ -443,7 +443,7 @@ const loadKnowledgeBases = async () => {
 
     const isDocumentKb = (type?: string) => !type || type === 'document'
 
-    const ownKbs = Array.isArray(ownRes?.data) ? ownRes.data : []
+    const ownKbs = Array.isArray(ownRes) ? ownRes : []
     kbOptions.value = ownKbs
       .filter((item: any) => isDocumentKb(item.type))
       .map((item: any) => ({ label: item.name, value: item.id }))
@@ -622,7 +622,7 @@ const handleSave = async (targetStatus: ManualStatus) => {
       let kbInfo: any
       try {
         const kbRes: any = await getKnowledgeBaseById(form.kbId)
-        kbInfo = kbRes?.data
+        kbInfo = kbRes
       } catch {
         MessagePlugin.error(t('manualEditor.error.fetchDetailFailed'))
         return
