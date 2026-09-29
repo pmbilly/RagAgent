@@ -245,6 +245,18 @@ class KnowledgeContractTest {
                 "doc-upload 应与 golden 一致（掩码后）");
         String docId = extractUuid(uploaded.getResponse().getContentAsString(StandardCharsets.UTF_8), "\"id\":\"");
 
+        // 1b. 重复上传同一内容 → 409 统一错误体（code=2400，details 带已存在文档 ID）
+        MvcResult dup = mockMvc.perform(multipart("/api/v1/knowledge-bases/" + kbId + "/knowledge/file")
+                        .file(new MockMultipartFile("file", "golden-doc.txt", "text/plain", DOC_BYTES))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andReturn();
+        String dupBody = dup.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(dupBody.contains("\"code\":2400"), "重复文档错误码应为 2400: " + dupBody);
+        assertTrue(dupBody.contains("\"message\":\"文件已存在（相同内容）\""), "重复文档文案: " + dupBody);
+        assertTrue(dupBody.contains(docId), "details 应带已存在文档 ID: " + dupBody);
+        assertTrue(dupBody.contains("\"success\":false"), "统一错误体应含 success=false: " + dupBody);
+
         // 2. list/get：结构断言（处理状态由异步 worker 竞态决定）
         MvcResult list = mockMvc.perform(get("/api/v1/knowledge-bases/" + kbId + "/knowledge")
                         .header("Authorization", "Bearer " + token)

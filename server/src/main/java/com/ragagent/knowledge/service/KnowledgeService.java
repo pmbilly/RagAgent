@@ -16,6 +16,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.error.ErrorCode;
+import com.ragagent.knowledge.dto.KnowledgeDtos.DuplicateKnowledgeDetails;
 import com.ragagent.common.security.InputSanitizer;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
@@ -186,7 +188,8 @@ public class KnowledgeService {
                 .isNull(Knowledge::getDeletedAt)
                 .last("LIMIT 1"));
         if (dup != null) {
-            throw new DuplicateKnowledgeException(dup, "duplicate_file", "文件已存在（相同内容）");
+            throw new DuplicateKnowledgeException(dup, ErrorCode.KNOWLEDGE_DUPLICATE_FILE,
+                    "文件已存在（相同内容）");
         }
         String title = displayName != null && !displayName.isEmpty() ? displayName : fileName;
         String fileType = fileName != null && fileName.contains(".")
@@ -221,7 +224,8 @@ public class KnowledgeService {
                 .isNull(Knowledge::getDeletedAt)
                 .last("LIMIT 1"));
         if (dup != null) {
-            throw new DuplicateKnowledgeException(dup, "duplicate_url", "URL 已存在");
+            throw new DuplicateKnowledgeException(dup, ErrorCode.KNOWLEDGE_DUPLICATE_URL,
+                    "URL 已存在");
         }
         String fname = fileName != null && !fileName.isEmpty() ? fileName : extractFileNameFromUrl(url);
         Knowledge k = newKnowledge(kb, "file", title != null && !title.isEmpty() ? title : fname, channel);
@@ -815,18 +819,25 @@ public class KnowledgeService {
         KnowledgeCloneService.validateCloneCompatibility(source, target);
     }
 
-    public static class DuplicateKnowledgeException extends RuntimeException {
+    /**
+     * 上传内容与库内已有文档重复（409）。
+     *
+     * <p>继承 {@link BizException}：错误体由全局异常处理器统一产出
+     * （{@code {error:{code,message,details}, success:false}}），已存在文档的 ID 放
+     * {@code details.existingKnowledgeId} 供前端跳转——取代历史上的特殊信封
+     * （{@code {code,data,message,success}}）。</p>
+     */
+    public static class DuplicateKnowledgeException extends BizException {
         private final Knowledge existing;
-        private final String code;
 
-        public DuplicateKnowledgeException(Knowledge existing, String code, String message) {
-            super(message);
+        public DuplicateKnowledgeException(Knowledge existing, ErrorCode code, String message) {
+            super(new AppError(code.value(), message, null, 409)
+                    .withDetails(existing == null ? null
+                            : new DuplicateKnowledgeDetails(existing.getId())));
             this.existing = existing;
-            this.code = code;
         }
 
         public Knowledge existing() { return existing; }
-        public String code() { return code; }
     }
 
     /** 占位：worker bean 由 KnowledgeProcessWorker 提供（@Lazy 避免循环依赖） */

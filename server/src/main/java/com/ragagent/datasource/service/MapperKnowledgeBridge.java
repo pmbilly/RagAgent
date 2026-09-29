@@ -27,6 +27,7 @@ import com.ragagent.knowledge.service.LocalStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import com.ragagent.common.error.ErrorCode;
 
 /**
  * {@link KnowledgeBridge} 的生产实现：直接用 knowledge 模块的
@@ -193,7 +194,8 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
                 .last("LIMIT 1"));
         if (dup != null) {
             throw new KnowledgeService.DuplicateKnowledgeException(
-                    dup, "duplicate_file", "文件已存在（相同内容）");
+                    dup, ErrorCode.KNOWLEDGE_DUPLICATE_FILE,
+                    "文件已存在（相同内容）");
         }
 
         Knowledge k = newKnowledge(tenantId, kb, safeName, fileType, channel);

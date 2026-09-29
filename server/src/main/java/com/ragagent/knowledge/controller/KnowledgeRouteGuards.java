@@ -160,17 +160,6 @@ public class KnowledgeRouteGuards {
         }
     }
 
-    /** 409 重复信封：{"code","data"(已存在文档),"message","success":false}（字母序）。 */
-    @SuppressWarnings("unchecked")
-    public static <T> ResponseEntity<T> duplicateResponse(KnowledgeService.DuplicateKnowledgeException e) {
-        var body = new java.util.LinkedHashMap<String, Object>();
-        body.put("code", e.code());
-        body.put("data", e.existing());
-        body.put("message", e.getMessage());
-        body.put("success", false);
-        return (ResponseEntity<T>) ResponseEntity.status(HttpStatus.CONFLICT).body(body);
-    }
-
     /** mime.FormatMediaType 的对位：token 安全 → filename=...；否则 RFC2231 编码。 */
     public static String contentDisposition(String disposition, String filename) {
         boolean token = !filename.isEmpty() && filename.chars().allMatch(KnowledgeRouteGuards::isTokenChar);

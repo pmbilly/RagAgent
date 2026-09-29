@@ -141,19 +141,4 @@ public class KnowledgeTagController {
         return new BizException(AppError.badRequest(message).withDetails(details));
     }
 
-    /**
-     * service 的普通 error（fmt.Errorf 族）→ 500 code=1007 固定文案
-     * 「Internal server error」无 details 键（与 AppError 信封刻意不同，契约样例锁定）。
-     */
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<java.util.Map<String, Object>> handleTagPlainInternal(IllegalStateException ex) {
-        log.error("Tag operation failed", ex);
-        java.util.Map<String, Object> error = new java.util.LinkedHashMap<>();
-        error.put("code", ErrorCode.INTERNAL_SERVER.value());
-        error.put("message", "Internal server error");
-        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("error", error);
-        body.put("success", false);
-        return ResponseEntity.status(500).body(body);
-    }
 }

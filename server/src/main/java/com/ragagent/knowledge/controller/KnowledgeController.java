@@ -91,15 +91,11 @@ public class KnowledgeController {
         log.info("Start creating knowledge from file, KB: {}", kbId);
         JsonNode customMetadata = KnowledgeRouteGuards.parseJsonParam(MAPPER, metadataJson, "metadata");
         byte[] content = LocalStorageService.readAll(file.getInputStream());
-        try {
-            Knowledge k = knowledgeService.createFromFile(
-                    kbId, content,
-                    fileName != null && !fileName.isEmpty() ? fileName : file.getOriginalFilename(),
-                    fileName, customMetadata, channel);
-            return ResponseEntity.ok(ApiResponse.ok(k));
-        } catch (KnowledgeService.DuplicateKnowledgeException e) {
-            return KnowledgeRouteGuards.duplicateResponse(e);
-        }
+        Knowledge k = knowledgeService.createFromFile(
+                kbId, content,
+                fileName != null && !fileName.isEmpty() ? fileName : file.getOriginalFilename(),
+                fileName, customMetadata, channel);
+        return ResponseEntity.ok(ApiResponse.ok(k));
     }
 
     /** 201；SSRF 校验先行。 */
@@ -113,13 +109,9 @@ public class KnowledgeController {
         } catch (SsrfGuard.SsrfException e) {
             throw new BizException(AppError.badRequest(ssrfGuard.formatSSRFError("URL", req.url(), e)));
         }
-        try {
-            Knowledge k = knowledgeService.createFromUrl(kbId, req.url(),
-                    req.fileName(), req.fileType(), req.title(), req.channel());
-            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(k));
-        } catch (KnowledgeService.DuplicateKnowledgeException e) {
-            return KnowledgeRouteGuards.duplicateResponse(e);
-        }
+        Knowledge k = knowledgeService.createFromUrl(kbId, req.url(),
+                req.fileName(), req.fileType(), req.title(), req.channel());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(k));
     }
 
     @PostMapping("/knowledge-bases/{id}/knowledge/manual")

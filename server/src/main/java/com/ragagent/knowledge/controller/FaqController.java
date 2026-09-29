@@ -354,22 +354,4 @@ public class FaqController {
         return new BizException(AppError.badRequest("分页参数不合法").withDetails(errText));
     }
 
-    // ══════════════════════════ 错误形态分支 ══════════════════════════
-
-    /**
-     * 非 AppError（如嵌入模型链的 IllegalStateException）→ 500 code=1007 固定文案
-     * 「Internal server error」<b>无 details 键</b>——FAQ 的既有错误形态分层，与
-     * AppError 信封（details:null）刻意不同，契约样例锁定。
-     */
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<java.util.Map<String, Object>> handleFaqPlainInternal(IllegalStateException ex) {
-        log.error("FAQ operation failed", ex);
-        java.util.Map<String, Object> error = new java.util.LinkedHashMap<>();
-        error.put("code", ErrorCode.INTERNAL_SERVER.value());
-        error.put("message", "Internal server error");
-        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("error", error);
-        body.put("success", false);
-        return ResponseEntity.status(500).body(body);
-    }
 }

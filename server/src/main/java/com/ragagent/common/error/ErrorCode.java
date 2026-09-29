@@ -36,7 +36,13 @@ public enum ErrorCode {
     VECTOR_STORE_UNAVAILABLE(2201),
 
     // 模型生命周期 (2300-2399)
-    MODEL_IN_USE(2300);
+    MODEL_IN_USE(2300),
+
+    // 知识库域文档重复 (2400-2499)
+    /** 上传内容与库内已有文档重复。 */
+    KNOWLEDGE_DUPLICATE_FILE(2400),
+    /** URL 与库内已有文档重复。 */
+    KNOWLEDGE_DUPLICATE_URL(2401);
 
     private final int value;
 

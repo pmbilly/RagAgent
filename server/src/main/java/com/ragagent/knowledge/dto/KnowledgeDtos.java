@@ -127,6 +127,14 @@ public final class KnowledgeDtos {
             @JsonProperty("deleted_count") long deletedCount) {
     }
 
+    /**
+     * 文档重复（409）时的 details 载荷。
+     *
+     * @param existingKnowledgeId 库内已存在的同内容文档 ID（前端可据此跳转）
+     */
+    public record DuplicateKnowledgeDetails(String existingKnowledgeId) {
+    }
+
     /** 批量重解析请求（body 可整体省略）。 */
     public record BatchReparseRequest(String kbId, List<String> ids) {
     }
