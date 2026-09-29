@@ -19,6 +19,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
+import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
@@ -42,6 +43,7 @@ public class FaqEntryCommandService {
     private static final Logger log = LoggerFactory.getLogger(FaqEntryCommandService.class);
 
     private final ChunkRepository chunkRepository;
+    private final FaqChunkRepository faqChunkRepository;
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeTagMapper tagMapper;
     private final FaqImportTaskStore taskStore;
@@ -61,8 +63,10 @@ public class FaqEntryCommandService {
                                   AuditLogService auditService,
                                   FaqGuard faqGuard,
                                   FaqChunkCodec faqChunkCodec,
-                                  FaqIndexWriter faqIndexWriter) {
+                                  FaqIndexWriter faqIndexWriter,
+                                  FaqChunkRepository faqChunkRepository) {
         this.chunkRepository = chunkRepository;
+        this.faqChunkRepository = faqChunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
         this.taskStore = taskStore;
@@ -186,7 +190,7 @@ public class FaqEntryCommandService {
         faqGuard.ensureDefaults(kb);
         long tid = tenantId();
 
-        Chunk chunk = chunkRepository.getChunkBySeqId(tid, entrySeqId);
+        Chunk chunk = faqChunkRepository.getChunkBySeqId(tid, entrySeqId);
         if (chunk == null) {
             throw new BizException(AppError.notFound("FAQ条目不存在"));
         }
@@ -293,7 +297,7 @@ public class FaqEntryCommandService {
         faqGuard.ensureDefaults(kb);
         long tid = tenantId();
 
-        Chunk chunk = chunkRepository.getChunkBySeqId(tid, entrySeqId);
+        Chunk chunk = faqChunkRepository.getChunkBySeqId(tid, entrySeqId);
         if (chunk == null) {
             throw new BizException(AppError.notFound("FAQ条目不存在"));
         }
@@ -435,7 +439,7 @@ public class FaqEntryCommandService {
                             ? plan.tags.get(update.tagId()).getId()
                             : "";
                 }
-                List<String> affectedIds = chunkRepository.updateChunkFieldsByTagId(
+                List<String> affectedIds = faqChunkRepository.updateChunkFieldsByTagId(
                         tid, kb.getId(), tag.getId(), update.isEnabled(),
                         setFlags, clearFlags, newTagUuid, excludeUuids);
 
@@ -510,10 +514,10 @@ public class FaqEntryCommandService {
                 }
             }
             if (!chunksToUpdate.isEmpty()) {
-                chunkRepository.updateChunks(chunksToUpdate);
+                faqChunkRepository.updateChunks(chunksToUpdate);
             }
             if (!setFlags.isEmpty() || !clearFlags.isEmpty()) {
-                chunkRepository.updateChunkFlagsBatch(tid, kb.getId(), setFlags, clearFlags);
+                faqChunkRepository.updateChunkFlagsBatch(tid, kb.getId(), setFlags, clearFlags);
             }
         }
 
@@ -729,7 +733,7 @@ public class FaqEntryCommandService {
         allQuestions.add(meta.standardQuestion);
         allQuestions.addAll(similar);
 
-        Chunk dupChunk = chunkRepository.findFAQChunkWithDuplicateQuestion(
+        Chunk dupChunk = faqChunkRepository.findFAQChunkWithDuplicateQuestion(
                 tenantId, kbId, excludeChunkId, allQuestions);
         if (dupChunk == null) {
             return;

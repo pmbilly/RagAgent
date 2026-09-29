@@ -27,6 +27,7 @@ import com.ragagent.knowledge.dto.FaqImportDtos.FaqImportProgress;
 import com.ragagent.knowledge.dto.FaqImportDtos.FaqImportResult;
 import com.ragagent.knowledge.dto.FaqImportDtos.FaqSuccessEntry;
 import com.ragagent.model.domain.Model;
+import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
@@ -47,6 +48,7 @@ public class FaqImportService {
     private static final Logger log = LoggerFactory.getLogger(FaqImportService.class);
 
     private final ChunkRepository chunkRepository;
+    private final FaqChunkRepository faqChunkRepository;
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeTagMapper tagMapper;
     private final FaqImportTaskStore taskStore;
@@ -64,8 +66,10 @@ public class FaqImportService {
                             TenantFileStorage fileStorage,
                             FaqGuard faqGuard,
                             FaqChunkCodec faqChunkCodec,
-                            FaqIndexWriter faqIndexWriter) {
+                            FaqIndexWriter faqIndexWriter,
+                            FaqChunkRepository faqChunkRepository) {
         this.chunkRepository = chunkRepository;
+        this.faqChunkRepository = faqChunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
         this.taskStore = taskStore;
@@ -256,7 +260,7 @@ public class FaqImportService {
     private List<Integer> validateAppendMode(long tenantId, String kbId,
                                              List<FaqEntryDtos.FaqEntryPayload> entries,
                                              FaqImportProgress progress) {
-        List<Chunk> existingChunks = chunkRepository
+        List<Chunk> existingChunks = faqChunkRepository
                 .listAllFAQChunksWithMetadataByKnowledgeBaseId(tenantId, kbId);
 
         Map<String, Chunk> existingStdQToChunk = new LinkedHashMap<>();
@@ -876,7 +880,7 @@ public class FaqImportService {
                 chunk.setStatus(2); // indexed
             }
             try {
-                chunkRepository.updateChunks(chunks);
+                faqChunkRepository.updateChunks(chunks);
             } catch (RuntimeException e) {
                 markImportFailed(job, progress,
                         "FAQ import failed: failed to update chunks status: " + e.getMessage());

@@ -19,6 +19,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
 import com.ragagent.knowledge.dto.FaqEntryDtos.FaqExportEntry;
+import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.chatpipeline.SearchParams;
@@ -39,6 +40,7 @@ public class FaqEntryQueryService {
     private static final Logger log = LoggerFactory.getLogger(FaqEntryQueryService.class);
 
     private final ChunkRepository chunkRepository;
+    private final FaqChunkRepository faqChunkRepository;
     private final KnowledgeTagMapper tagMapper;
     private final HybridSearchService hybridSearchService;
     private final FaqGuard faqGuard;
@@ -50,8 +52,10 @@ public class FaqEntryQueryService {
                                 HybridSearchService hybridSearchService,
                                 FaqGuard faqGuard,
                                 FaqChunkCodec faqChunkCodec,
-                                FaqIndexWriter faqIndexWriter) {
+                                FaqIndexWriter faqIndexWriter,
+                                FaqChunkRepository faqChunkRepository) {
         this.chunkRepository = chunkRepository;
+        this.faqChunkRepository = faqChunkRepository;
         this.tagMapper = tagMapper;
         this.hybridSearchService = hybridSearchService;
         this.faqGuard = faqGuard;
@@ -139,7 +143,7 @@ public class FaqEntryQueryService {
         faqGuard.ensureDefaults(kb);
         long tid = tenantId();
 
-        Chunk chunk = chunkRepository.getChunkBySeqId(tid, entrySeqId);
+        Chunk chunk = faqChunkRepository.getChunkBySeqId(tid, entrySeqId);
         if (chunk == null) {
             throw new BizException(AppError.notFound("FAQ条目不存在"));
         }
@@ -179,7 +183,7 @@ public class FaqEntryQueryService {
         Knowledge faqKnowledge = faqIndexWriter.findFAQKnowledge(tid, kb.getId());
         List<Chunk> chunks = faqKnowledge == null
                 ? List.of()
-                : chunkRepository.listAllFAQChunksForExport(tid, faqKnowledge.getId());
+                : faqChunkRepository.listAllFAQChunksForExport(tid, faqKnowledge.getId());
         Map<String, String> tagMap = buildTagMap(tid, kbId);
         return buildFAQCSV(chunks, tagMap);
     }
@@ -191,7 +195,7 @@ public class FaqEntryQueryService {
         Knowledge faqKnowledge = faqIndexWriter.findFAQKnowledge(tid, kb.getId());
         List<Chunk> chunks = faqKnowledge == null
                 ? List.of()
-                : chunkRepository.listAllFAQChunksForExport(tid, faqKnowledge.getId());
+                : faqChunkRepository.listAllFAQChunksForExport(tid, faqKnowledge.getId());
         Map<String, String> tagMap = buildTagMap(tid, kbId);
         return buildFAQJSON(chunks, tagMap);
     }

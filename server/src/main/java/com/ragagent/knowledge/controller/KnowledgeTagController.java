@@ -16,6 +16,7 @@ import com.ragagent.knowledge.dto.KnowledgeTagDtos.CreateTagRequest;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.DeleteTagRequest;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.TagPageResult;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.UpdateTagRequest;
+import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import com.ragagent.knowledge.service.ChunkAccessGuard;
@@ -50,15 +51,18 @@ public class KnowledgeTagController {
     private final KnowledgeTagService tagService;
     private final ChunkAccessGuard guard;
     private final ChunkRepository chunkRepo;
+    private final FaqChunkRepository faqChunkRepository;
     private final KnowledgeTagRepository tagRepo;
 
     public KnowledgeTagController(KnowledgeTagService tagService,
                                   ChunkAccessGuard guard,
                                   ChunkRepository chunkRepo,
+                            FaqChunkRepository faqChunkRepository,
                                   KnowledgeTagRepository tagRepo) {
         this.tagService = tagService;
         this.guard = guard;
         this.chunkRepo = chunkRepo;
+        this.faqChunkRepository = faqChunkRepository;
         this.tagRepo = tagRepo;
     }
 
@@ -171,7 +175,7 @@ public class KnowledgeTagController {
             }
             wanted.put(seqId, Boolean.TRUE);
         }
-        List<Chunk> chunks = chunkRepo.listChunksBySeqId(tenantId, excludeIds);
+        List<Chunk> chunks = faqChunkRepository.listChunksBySeqId(tenantId, excludeIds);
         for (Chunk chunk : chunks) {
             if (chunk == null || chunk.getSeqId() == null || !wanted.containsKey(chunk.getSeqId())) {
                 continue;

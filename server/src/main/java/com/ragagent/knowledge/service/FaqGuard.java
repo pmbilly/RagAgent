@@ -17,6 +17,7 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
+import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
@@ -34,15 +35,18 @@ public class FaqGuard {
     private final KnowledgeTagMapper tagMapper;
     private final KnowledgeTagRepository tagRepository;
     private final ChunkRepository chunkRepository;
+    private final FaqChunkRepository faqChunkRepository;
 
     public FaqGuard(KnowledgeService knowledgeService,
                     KnowledgeTagMapper tagMapper,
                     KnowledgeTagRepository tagRepository,
-                    ChunkRepository chunkRepository) {
+                    ChunkRepository chunkRepository,
+                    FaqChunkRepository faqChunkRepository) {
         this.knowledgeService = knowledgeService;
         this.tagMapper = tagMapper;
         this.tagRepository = tagRepository;
         this.chunkRepository = chunkRepository;
+        this.faqChunkRepository = faqChunkRepository;
     }
 
     private static long tenantId() {
@@ -200,7 +204,7 @@ public class FaqGuard {
         if (wanted.isEmpty()) {
             return result;
         }
-        List<Chunk> chunks = chunkRepository.listChunksBySeqId(kb.getTenantId(), new ArrayList<>(wanted));
+        List<Chunk> chunks = faqChunkRepository.listChunksBySeqId(kb.getTenantId(), new ArrayList<>(wanted));
         for (Chunk chunk : chunks) {
             if (chunk == null || !wanted.contains(chunk.getSeqId())) {
                 continue;
