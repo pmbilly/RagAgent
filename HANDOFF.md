@@ -25,7 +25,12 @@
 1. **旧仓零修改**：没有冻结过渡期、没有 fix 回流，本仓即唯一工作仓。
 2. **产品未上线，无数据连续性负担**：schema 可直接做基线合并（见 §5 阶段 1）。
 3. **前端随后端逐步调整**：改契约的后端 PR 同 PR 带前端修改，不设集中适配期。
-4. **契约标准（阶段 2 目标形态）**：字段命名保留 snake_case（`@JsonNaming(SnakeCaseStrategy)` 是标准做法，不改 camelCase）；错误改 RFC 7807 Problem Details；时间用 jackson-datatype-jsr310（ISO-8601，`WRITE_DATES_AS_TIMESTAMPS=false`）；空值策略 `@JsonInclude(NON_NULL)`。
+4. **契约标准（2026-09-29 用户改定，取代本文档早前"保留 snake_case + RFC 7807"版本；细则见 `docs/knowledge-api-contract-v1.md` v1.0）**：
+   - **字段命名 = camelCase，且 JSON 字段名 = Java 字段名**（禁止逐字段 `@JsonProperty`、禁止 `@JsonNaming` 下划线转换）；布尔字段不带 `is` 前缀（`pinned`/`enabled`）。
+   - **成功响应不再包 `{data, success}` 信封**：单资源直接返回对象、列表直接返回数组；分页统一 `{"items","page","pageSize","total"}`；删除类接口返回 **HTTP 204**。
+   - **错误响应统一** `{"error":{"code","message","details"}}`（保留数值 code，前端分支不变）。
+   - 时间 ISO-8601 带时区；**可空字段显式输出 `null`**（不用 NON_NULL 省略、不用空串/0 代替）；不使用 `Problem Details`。
+   - 落地范围：**知识库域先行**（本会话执行）；其余域是否跟进、阶段 3 换锚形态如何调整，待知识库域收官后重新评估。
 5. **功能裁剪（2026-09-28 用户定稿，第一批）**：移除「**浏览器连接、沙箱、CLI、Chrome 插件、Claw Skill**」五项——对应后端 `browserskill` + `sandbox` 两包（沙箱执行面：installer agent、镜像快照、shell_exec、沙箱文件四件套、PTY 终端；**技能体系保留但降级为指令型**，见第 9 条）与前端 integrations 设置的 `cli`/`chrome`/`claw` 三个纯展示 tab（精确清单见 §6.1）。裁完后**聚焦知识库与 Agent 两个域的重构**（§5 阶段 2）。以下为**待排期可选项**（不在第一批，勿主动动手）：`org`（共享空间/跨租户授予）、`im`（九渠道）、`datasource`（连接器，28.3k 行零耦合）、`evaluation`、`favorite`；多引擎检索是否裁到 postgres 单引擎待议。保留：mcp、memory、embed、wiki、知识库/检索/会话主链路。
 6. **自研基础设施保留**：EventBus、StreamManager（Redis Stream）、chatpipeline 插件管线、ToolRegistry、各 Bridge——是架构不是技术债；阶段 4 只做多模块边界固化，不替换。
 7. **Go 兼容序列化层退役（可读性主线的一环）**：`common/web` 下 `GoMapSerializer/GoDoubleSerializer/GoTimeSerializer/GoJsonEscapes` 等（约 110 个引用点回归标准 Jackson；Controller 里大量手搓 `ObjectNode` 一并收敛为 DTO 序列化——DTO 化是 Java 本位可读性的核心工作面）。

@@ -1,1 +1,135 @@
-{"data":{"knowledge_base":{"id":"a0000000-0000-0000-0000-000000000101","name":"ag-init-kb","type":"document","is_temporary":false,"description":"kb for initialization batch","tenant_id":10005,"creator_id":"a0000000-0000-0000-0000-000000000001","chunking_config":{"chunk_size":500,"chunk_overlap":50,"separators":["\n\n"]},"image_processing_config":{"model_id":""},"embedding_model_id":"ff218e2f-5f1f-48da-8f61-d5f36c6d17bd","summary_model_id":"018cee97-7379-4759-8715-8142f03c952b","vlm_config":{"enabled":false,"model_id":"","model_name":"","base_url":"","api_key":"","interface_type":""},"asr_config":{"enabled":false,"model_id":"","language":""},"storage_provider_config":{"provider":""},"storage_config":{"secret_id":"","secret_key":"","region":"","bucket_name":"","app_id":"","path_prefix":"","provider":""},"extract_config":null,"faq_config":null,"question_generation_config":null,"auto_tag_config":null,"wiki_config":null,"indexing_strategy":{"vector_enabled":true,"keyword_enabled":true,"wiki_enabled":false,"graph_enabled":false},"is_pinned":false,"pinned_at":null,"created_at":"2026-09-01T16:00:00+08:00","updated_at":"2026-09-19T20:09:16.228671Z","deleted_at":null,"knowledge_count":0,"chunk_count":0,"is_processing":false,"processing_count":0,"share_count":0,"capabilities":{"vector":true,"keyword":true,"wiki":false,"graph":false,"faq":false}},"models":[{"id":"018cee97-7379-4759-8715-8142f03c952b","tenant_id":0,"name":"ag-init-llm","display_name":"","type":"KnowledgeQA","source":"remote","description":"LLM Model for Knowledge QA","parameters":{"base_url":"","api_key":"sk-init","interface_type":"","embedding_parameters":{"dimension":0,"truncate_prompt_tokens":0,"supports_dimension_override":false},"parameter_size":"","provider":"","extra_config":null,"supports_vision":false},"is_default":false,"is_builtin":false,"status":"active","created_at":"2026-09-19T20:09:16.21846Z","updated_at":"2026-09-19T20:09:16.21846Z","deleted_at":null},{"id":"ff218e2f-5f1f-48da-8f61-d5f36c6d17bd","tenant_id":0,"name":"ag-init-embed","display_name":"","type":"Embedding","source":"remote","description":"Embedding Model","parameters":{"base_url":"","api_key":"","interface_type":"","embedding_parameters":{"dimension":1024,"truncate_prompt_tokens":0,"supports_dimension_override":false},"parameter_size":"","provider":"","extra_config":null,"supports_vision":false},"is_default":false,"is_builtin":false,"status":"active","created_at":"2026-09-19T20:09:16.223908Z","updated_at":"2026-09-19T20:09:16.223908Z","deleted_at":null}]},"message":"知识库配置更新成功","success":true}
+{
+  "data": {
+    "knowledge_base": {
+      "id": "a0000000-0000-0000-0000-000000000101",
+      "name": "ag-init-kb",
+      "type": "document",
+      "temporary": false,
+      "description": "kb for initialization batch",
+      "creatorId": "a0000000-0000-0000-0000-000000000001",
+      "chunkingConfig": {
+        "chunk_size": 500,
+        "chunk_overlap": 50,
+        "separators": [
+          "\n\n"
+        ]
+      },
+      "imageProcessingConfig": {
+        "model_id": ""
+      },
+      "embeddingModelId": "ff218e2f-5f1f-48da-8f61-d5f36c6d17bd",
+      "summaryModelId": "018cee97-7379-4759-8715-8142f03c952b",
+      "vlmConfig": {
+        "enabled": false,
+        "model_id": "",
+        "model_name": "",
+        "base_url": "",
+        "api_key": "",
+        "interface_type": ""
+      },
+      "asrConfig": {
+        "enabled": false,
+        "model_id": "",
+        "language": ""
+      },
+      "extractConfig": null,
+      "faqConfig": null,
+      "questionGenerationConfig": null,
+      "autoTagConfig": null,
+      "wikiConfig": null,
+      "indexingStrategy": {
+        "vector_enabled": true,
+        "keyword_enabled": true,
+        "wiki_enabled": false,
+        "graph_enabled": false
+      },
+      "pinned": false,
+      "pinnedAt": null,
+      "createdAt": "2026-09-01T16:00:00+08:00",
+      "updatedAt": "2026-09-19T20:09:16.228671Z",
+      "knowledgeCount": 0,
+      "chunkCount": 0,
+      "processing": false,
+      "processingCount": 0,
+      "shareCount": 0,
+      "capabilities": {
+        "vector": true,
+        "keyword": true,
+        "wiki": false,
+        "graph": false,
+        "faq": false
+      },
+      "vectorStore": {
+        "id": null,
+        "name": "System default",
+        "source": "env",
+        "engineType": "postgres",
+        "status": "available"
+      },
+      "creatorName": null,
+      "storageBackendId": null
+    },
+    "models": [
+      {
+        "id": "018cee97-7379-4759-8715-8142f03c952b",
+        "tenant_id": 0,
+        "name": "ag-init-llm",
+        "display_name": "",
+        "type": "KnowledgeQA",
+        "source": "remote",
+        "description": "LLM Model for Knowledge QA",
+        "parameters": {
+          "base_url": "",
+          "api_key": "sk-init",
+          "interface_type": "",
+          "embedding_parameters": {
+            "dimension": 0,
+            "truncate_prompt_tokens": 0,
+            "supports_dimension_override": false
+          },
+          "parameter_size": "",
+          "provider": "",
+          "extra_config": null,
+          "supports_vision": false
+        },
+        "is_default": false,
+        "is_builtin": false,
+        "status": "active",
+        "created_at": "2026-09-19T20:09:16.21846Z",
+        "updated_at": "2026-09-19T20:09:16.21846Z",
+        "deleted_at": null
+      },
+      {
+        "id": "ff218e2f-5f1f-48da-8f61-d5f36c6d17bd",
+        "tenant_id": 0,
+        "name": "ag-init-embed",
+        "display_name": "",
+        "type": "Embedding",
+        "source": "remote",
+        "description": "Embedding Model",
+        "parameters": {
+          "base_url": "",
+          "api_key": "",
+          "interface_type": "",
+          "embedding_parameters": {
+            "dimension": 1024,
+            "truncate_prompt_tokens": 0,
+            "supports_dimension_override": false
+          },
+          "parameter_size": "",
+          "provider": "",
+          "extra_config": null,
+          "supports_vision": false
+        },
+        "is_default": false,
+        "is_builtin": false,
+        "status": "active",
+        "created_at": "2026-09-19T20:09:16.223908Z",
+        "updated_at": "2026-09-19T20:09:16.223908Z",
+        "deleted_at": null
+      }
+    ]
+  },
+  "message": "知识库配置更新成功",
+  "success": true
+}

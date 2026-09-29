@@ -45,7 +45,7 @@ import com.ragagent.knowledge.domain.KbAsrConfig;
 import com.ragagent.knowledge.domain.KbVlmConfig;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.dto.KnowledgeBaseResponseBuilder;
+import com.ragagent.knowledge.dto.KnowledgeBaseResponse;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.service.KnowledgeAccessGuard;
@@ -197,7 +197,7 @@ public class InitializationController {
         saveKb(kb);
 
         Map<String, Object> data = new TreeMap<>();
-        data.put("knowledge_base", KnowledgeBaseResponseBuilder.buildRaw(kb));
+        data.put("knowledge_base", KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
         // Go 直接 marshal *types.Model（非 NewModelResponse：api_key 留在 parameters、无 credentials）
         data.put("models", processed.stream().map(com.ragagent.agentm.dto.InitResponses::rawModel).toList());
         Map<String, Object> body = new TreeMap<>();

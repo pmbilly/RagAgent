@@ -56,8 +56,8 @@ class KnowledgeContractTest {
     private static final Pattern TS_PATTERN = Pattern.compile(
             "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})");
     private static final Pattern UUID_KEY_PATTERN = Pattern.compile(
-            "\"(id|knowledge_base_id|task_id)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
-    private static final Pattern FILE_PATH_PATTERN = Pattern.compile("\"file_path\":\"[^\"]*\"");
+            "\"(id|knowledge_base_id|knowledgeBaseId|task_id|taskId)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+    private static final Pattern FILE_PATH_PATTERN = Pattern.compile("\"(?:file_path|filePath)\":\"[^\"]*\"");
 
     @Autowired
     private MockMvc mockMvc;

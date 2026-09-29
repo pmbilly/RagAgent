@@ -20,7 +20,7 @@ import com.ragagent.knowledge.dto.KnowledgeBaseDtos.CopyKbRequest;
 import com.ragagent.knowledge.dto.KnowledgeBaseDtos.HybridSearchRequest;
 import com.ragagent.knowledge.dto.KnowledgeBaseDtos.RebuildIndexResponse;
 import com.ragagent.knowledge.dto.KnowledgeBaseDtos.UpdateKbRequest;
-import com.ragagent.knowledge.dto.KnowledgeBaseResponseBuilder;
+import com.ragagent.knowledge.dto.KnowledgeBaseResponse;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.retrieval.HybridSearchService;
 import jakarta.validation.Valid;
@@ -46,8 +46,13 @@ import org.springframework.web.bind.annotation.RestController;
  * KBAccessRead（{@code guard.requireKbAccess}）；copy 的源/目标在 body，handler 内
  * {@link #resolveHandlerKbAccess}——跨租户 403 文案与 move 的 handler 检查刻意不同。</p>
  *
- * <p>create 的请求体直接绑定 {@link KnowledgeBase} 实体（含 legacy cos_config 兼容）；
- * 其余写端点走 DTO。响应 data 经 {@link KnowledgeBaseResponseBuilder} 输出（键字母序）。</p>
+ * <p><b>响应契约</b>（见 {@code docs/knowledge-api-contract-v1.md}）：知识库对象统一由
+ * {@link KnowledgeBaseResponse} 输出（camelCase、可空字段显式 null、内部字段不下发）；
+ * 成功响应不再包 {@code {data, success}} 信封——单资源直接返回对象、列表直接返回数组，
+ * 删除返回 204。</p>
+ *
+ * <p><b>待办</b>：create 仍把请求体直接绑定 {@link KnowledgeBase} 实体（含 legacy cos_config
+ * 兼容），待"请求侧 DTO 化"批次改为独立请求 DTO。</p>
  */
 @RestController
 @RequestMapping("/api/v1/knowledge-bases")
@@ -72,13 +77,13 @@ public class KnowledgeBaseController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Object>> createKnowledgeBase(
+    public ResponseEntity<KnowledgeBaseResponse> createKnowledgeBase(
             @RequestBody(required = false) KnowledgeBase rawBody) {
         log.info("Start creating knowledge base");
         KnowledgeBase kb = bindKnowledgeBase(rawBody);
         kb = kbService.createKnowledgeBase(kb);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(KnowledgeBaseResponseBuilder.build(kb, kbService.retrieveDriver())));
+                .body(KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
     }
 
     /** 空体 = 全零值创建；legacy cos_config → storage_config；配置空值按 omitempty 语义归一。 */
@@ -130,7 +135,7 @@ public class KnowledgeBaseController {
 
     /** 列表；KB 受限的 API Key 只看得到白名单内的库（数据面收口）。 */
     @GetMapping
-    public ResponseEntity<ApiResponse<Object>> listKnowledgeBases(
+    public ResponseEntity<List<KnowledgeBaseResponse>> listKnowledgeBases(
             @RequestParam(value = "creator", required = false) String creator) {
         log.info("Start listing knowledge bases");
         List<KnowledgeBase> kbs = kbService.listKnowledgeBases(creator);
@@ -138,23 +143,19 @@ public class KnowledgeBaseController {
         if (scope != null && scope.isKnowledgeBaseRestricted()) {
             kbs = kbs.stream().filter(kb -> scope.allowsKnowledgeBase(kb.getId())).toList();
         }
-        List<Object> data = new ArrayList<>(kbs.size());
-        for (KnowledgeBase kb : kbs) {
-            data.add(KnowledgeBaseResponseBuilder.buildListItem(kb, kbService.retrieveDriver()));
-        }
-        return ResponseEntity.ok(ApiResponse.ok(data));
+        String driver = kbService.retrieveDriver();
+        return ResponseEntity.ok(kbs.stream().map(kb -> KnowledgeBaseResponse.from(kb, driver)).toList());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Object>> getKnowledgeBase(@PathVariable("id") String id) {
+    public ResponseEntity<KnowledgeBaseResponse> getKnowledgeBase(@PathVariable("id") String id) {
         log.info("Start retrieving knowledge base, ID: {}", id);
         KnowledgeBase kb = kbService.getKnowledgeBase(id);
-        return ResponseEntity.ok(ApiResponse.ok(
-                KnowledgeBaseResponseBuilder.build(kb, kbService.retrieveDriver())));
+        return ResponseEntity.ok(KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Object>> updateKnowledgeBase(
+    public ResponseEntity<KnowledgeBaseResponse> updateKnowledgeBase(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody UpdateKbRequest req) {
         log.info("Start updating knowledge base, ID: {}", id);
@@ -164,8 +165,7 @@ public class KnowledgeBaseController {
             throw new BizException(AppError.badRequest("请求参数不合法").withDetails("name: 不能为空"));
         }
         existing = kbService.updateKnowledgeBase(existing, req.name(), req.description(), req.config());
-        return ResponseEntity.ok(ApiResponse.ok(
-                KnowledgeBaseResponseBuilder.build(existing, kbService.retrieveDriver())));
+        return ResponseEntity.ok(KnowledgeBaseResponse.from(existing, kbService.retrieveDriver()));
     }
 
     /** 创建者本人或 Admin+，否则 403（不泄漏存在性）。 */
@@ -178,8 +178,9 @@ public class KnowledgeBaseController {
         }
     }
 
+    /** 删除知识库；成功返回 204（无响应体，见契约文档 §1.13）。 */
     @DeleteMapping("/{id}")
-    public ResponseEntity<MessageResponse> deleteKnowledgeBase(@PathVariable("id") String id) {
+    public ResponseEntity<Void> deleteKnowledgeBase(@PathVariable("id") String id) {
         log.info("Start deleting knowledge base, ID: {}", id);
         KnowledgeBase existing = kbService.getKnowledgeBase(id);
         checkOwnership(existing);
@@ -187,26 +188,22 @@ public class KnowledgeBaseController {
             throw new BizException(AppError.forbidden("Only knowledge base owner can delete"));
         }
         kbService.deleteKnowledgeBase(id);
-        return ResponseEntity.ok(new MessageResponse("Knowledge base deleted successfully", true));
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/pin")
-    public ResponseEntity<ApiResponse<Object>> togglePin(@PathVariable("id") String id) {
+    public ResponseEntity<KnowledgeBaseResponse> togglePin(@PathVariable("id") String id) {
         log.info("Start toggling pin for knowledge base, ID: {}", id);
         KnowledgeBase kb = kbService.togglePin(id);
-        return ResponseEntity.ok(ApiResponse.ok(
-                KnowledgeBaseResponseBuilder.build(kb, kbService.retrieveDriver())));
+        return ResponseEntity.ok(KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
     }
 
     @GetMapping("/{id}/move-targets")
-    public ResponseEntity<ApiResponse<Object>> listMoveTargets(@PathVariable("id") String id) {
+    public ResponseEntity<List<KnowledgeBaseResponse>> listMoveTargets(@PathVariable("id") String id) {
         log.info("Start listing move targets, ID: {}", id);
         List<KnowledgeBase> targets = kbService.listMoveTargets(id);
-        List<Object> data = new ArrayList<>(targets.size());
-        for (KnowledgeBase kb : targets) {
-            data.add(KnowledgeBaseResponseBuilder.buildRaw(kb));
-        }
-        return ResponseEntity.ok(ApiResponse.ok(data));
+        String driver = kbService.retrieveDriver();
+        return ResponseEntity.ok(targets.stream().map(kb -> KnowledgeBaseResponse.from(kb, driver)).toList());
     }
 
     // ── hybrid-search / copy / duplicate / rebuild-index / copy progress ──
@@ -443,8 +440,7 @@ public class KnowledgeBaseController {
         KnowledgeBase targetKb = knowledgeService.duplicateKnowledgeBase(sourceId);
         var resp = new com.ragagent.knowledge.dto.KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse(
                 sourceId, targetKb.getId(), "Knowledge base duplicate created",
-                // env 默认 store → buildKBResponse 不写 vector_store_engine_type 键（golden 钉住）
-                KnowledgeBaseResponseBuilder.build(targetKb, kbService.retrieveDriver(), false));
+                KnowledgeBaseResponse.from(targetKb, kbService.retrieveDriver()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(resp));
     }
 }

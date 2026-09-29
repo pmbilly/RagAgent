@@ -186,14 +186,12 @@ class W5aSundryRoutesContractTest {
     // ── 3) KB 标签 ──────────────────────────────────────────────────────────
 
     private String tagsFace() throws Exception {
-        // vector_store_engine_type 是部署态键（H2 envStores 有 postgres、录制时 Go 无
-        // 绑定 → 键缺席）——两侧同剥（约定 §9「波 2 knowledge」同款部署漂移）
-        UnaryOperator<String> stripEngineType = s ->
-                s.replaceAll("\"vector_store_engine_type\":\"[^\"]*\",", "");
+        // 新契约（2026-09-29）：KB 创建响应为裸对象，向量库视图内联在 vectorStore 中，
+        // 不再需要"剥 vector_store_engine_type"的部署态补丁
         MvcResult r = expect(201, postJson("/api/v1/knowledge-bases", owner,
                 "{\"name\":\"w5a-tag-kb\",\"description\":\"w5a 标签批\",\"type\":\"document\"}"),
-                "w5a-tag-kb-create.json", stripEngineType);
-        String kb = jsonPath(r, "data.id");
+                "w5a-tag-kb-create.json");
+        String kb = jsonPath(r, "id");
         jdbc.update("INSERT INTO knowledges (id, tenant_id, knowledge_base_id, type, title, source, "
                 + "parse_status, summary_status, enable_status, file_name, file_type, file_size, "
                 + "file_hash, file_path) VALUES "

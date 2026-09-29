@@ -80,11 +80,11 @@ class KnowledgeSearchMoveContractTest {
     private static final Pattern UUID_BARE = Pattern.compile(
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
+            "\"([A-Za-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
     private static final Pattern TASK_ID = Pattern.compile(
-            "\"task_id\":\"([^\"]*)\"");
+            "\"(?:task_id|taskId)\":\"([^\"]*)\"");
     private static final Pattern EPOCH_TS = Pattern.compile(
-            "\"(updated_at)\":1\\d{9}");
+            "\"([A-Za-z_]+)\":1\\d{9}");
 
     @Autowired
     private MockMvc mockMvc;
