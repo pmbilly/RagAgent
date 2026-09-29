@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.support;
 
 import com.ragagent.knowledge.domain.Knowledge;
 

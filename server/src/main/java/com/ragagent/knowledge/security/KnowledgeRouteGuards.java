@@ -12,7 +12,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.security.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.knowledge.task.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -147,7 +147,7 @@ public class KnowledgeRouteGuards {
 
     /** 任务租户必须与调用方一致，否则 404（不泄露他租户任务存在性）。 */
     public void requireTaskProgressTenant(String taskId) {
-        Long taskTenant = KnowledgeTaskIds.taskTenantId(taskId);
+        Long taskTenant = KnowledgeTaskIdCodec.taskTenantId(taskId);
         if (taskTenant == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }

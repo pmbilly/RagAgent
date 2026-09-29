@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.task.FaqImportTaskStore;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
-import com.ragagent.knowledge.task.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
 import com.ragagent.knowledge.security.FaqGuard;
@@ -125,7 +125,7 @@ public class FaqImportService {
         String taskId = payload.taskId() == null ? "" : payload.taskId().trim();
         final String effectiveTaskId;
         if (taskId.isEmpty()) {
-            effectiveTaskId = KnowledgeTaskIds.generateTaskId("faq_import", tid, kbId);
+            effectiveTaskId = KnowledgeTaskIdCodec.generateTaskId("faq_import", tid, kbId);
         } else if (!validateTaskId(taskId)) {
             throw new BizException(AppError.badRequest("task_id 格式不合法"));
         } else {

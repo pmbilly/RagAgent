@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
+import com.ragagent.knowledge.support.ParserEngineRules;
 
 /**
  * 会话附件（临时文档）HTTP 层（对照 Go handler/session/temporary_document.go，
@@ -268,7 +269,7 @@ public class TemporaryDocumentController {
             options = options.withAsrModelId(cfg.path("asr_model_id").asText(""));
         }
         if (options.parserEngine().isEmpty() || "auto".equals(options.parserEngine())) {
-            String engine = com.ragagent.knowledge.service.ParserEngineRules.resolve(
+            String engine = com.ragagent.knowledge.support.ParserEngineRules.resolve(
                     cfg.get("chat_parser_engine_rules"), ext);
             if (!engine.isEmpty()) {
                 options = options.withParserEngine(engine);

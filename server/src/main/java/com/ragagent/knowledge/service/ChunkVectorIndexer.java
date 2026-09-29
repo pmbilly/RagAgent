@@ -33,6 +33,7 @@ import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.common.web.JsonMappers;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.searchutil.ChunkSearchUtil;
+import com.ragagent.knowledge.support.KnowledgeIndexContent;
 
 /**
  * chunk 向量行的重建执行体（2026-09-22 走查批：把「路由在、执行体占位」的两处

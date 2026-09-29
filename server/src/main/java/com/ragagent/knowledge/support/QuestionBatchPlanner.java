@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.knowledge.support;
 
 import java.util.ArrayList;
 import java.util.Comparator;

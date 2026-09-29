@@ -44,7 +44,7 @@ import com.ragagent.storageurl.PublicModeForbiddenException;
 import com.ragagent.storageurl.ResourceModeException;
 import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
-import com.ragagent.knowledge.task.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import com.ragagent.storageurl.Mode;
 import com.ragagent.knowledge.dto.CopyKnowledgeBaseRequest;
 import com.ragagent.knowledge.dto.CreateKnowledgeBaseRequest;
@@ -279,7 +279,7 @@ public class KnowledgeBaseController {
         }
         String taskId = explicitTaskId;
         if (taskId.isEmpty()) {
-            taskId = KnowledgeTaskIds.generateTaskId("kb_clone", caller, sourceId);
+            taskId = KnowledgeTaskIdCodec.generateTaskId("kb_clone", caller, sourceId);
         } else {
             requireTaskProgressTenant(taskId);
         }
@@ -352,7 +352,7 @@ public class KnowledgeBaseController {
 
     /** 任务租户必须与调用方一致，否则 404（不泄露他租户任务存在性）。 */
     private void requireTaskProgressTenant(String taskId) {
-        Long taskTenant = KnowledgeTaskIds.taskTenantId(taskId);
+        Long taskTenant = KnowledgeTaskIdCodec.taskTenantId(taskId);
         if (taskTenant == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }

@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.ragagent.knowledge.security.ChunkAccessGuard;
 import com.ragagent.common.error.ErrorCode;
-import com.ragagent.knowledge.task.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 
 /**
  * FAQ 模块 HTTP 面：条目查询/命令/导入三服务的薄绑定层。读路由经
@@ -273,7 +273,7 @@ public class FaqController {
 
     /** 导入进度面：任务租户必须与调用方一致，否则 404（不泄露他租户任务存在性）。 */
     private void requireTaskProgressTenant(String taskId) {
-        Long taskTenantId = KnowledgeTaskIds.taskTenantId(taskId);
+        Long taskTenantId = KnowledgeTaskIdCodec.taskTenantId(taskId);
         if (taskTenantId == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }

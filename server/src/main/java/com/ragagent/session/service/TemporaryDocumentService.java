@@ -26,7 +26,7 @@ import com.ragagent.knowledge.chunker.Tokens;
 import com.ragagent.agentm.service.AsrTranscriber;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.knowledge.client.DocReaderClient;
-import com.ragagent.knowledge.service.ParserEngineRules;
+import com.ragagent.knowledge.support.ParserEngineRules;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.TemporaryDocument;

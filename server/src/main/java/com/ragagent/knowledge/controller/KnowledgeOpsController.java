@@ -17,7 +17,7 @@ import com.ragagent.knowledge.dto.MoveToFolderRequest;
 import com.ragagent.knowledge.dto.RenameFolderRequest;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.service.KnowledgeSearchService;
-import com.ragagent.knowledge.task.KnowledgeTaskIds;
+import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -339,7 +339,7 @@ public class KnowledgeOpsController {
                         + " is not in completed status (current: " + k.getParseStatus() + ")"));
             }
         }
-        String taskId = KnowledgeTaskIds.generateTaskId("kg_move", callerTenant, sourceKbId);
+        String taskId = KnowledgeTaskIdCodec.generateTaskId("kg_move", callerTenant, sourceKbId);
         knowledgeService.startKnowledgeMove(callerTenant, taskId, uniqueIds, sourceKbId, targetKbId, mode);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(new MoveKnowledgeResponse(
                 taskId, sourceKbId, targetKbId, uniqueIds.size()));
