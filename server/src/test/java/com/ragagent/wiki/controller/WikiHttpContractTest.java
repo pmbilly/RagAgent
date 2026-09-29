@@ -329,8 +329,8 @@ class WikiHttpContractTest {
         String body = body(r);
         assertFalse(body.contains("\"success\""), "实体直出不得带 data/success 信封：" + body);
         int iId = body.indexOf("\"id\":\"");
-        int iTenant = body.indexOf("\"tenantId\":");
-        int iKb = body.indexOf("\"knowledgeBaseId\":");
+        int iTenant = body.indexOf("\"tenant_id\":");
+        int iKb = body.indexOf("\"knowledge_base_id\":");
         int iSlug = body.indexOf("\"slug\":");
         int iTitle = body.indexOf("\"title\":");
         int iPageType = body.indexOf("\"page_type\":");

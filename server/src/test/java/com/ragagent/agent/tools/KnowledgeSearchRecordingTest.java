@@ -165,8 +165,8 @@ class KnowledgeSearchRecordingTest {
         faq.setId("sf1");
         faq.setKnowledgeId("skd2");
         faq.setChunkType("faq");
-        faq.setMetadata(readNode("{\"standard_question\":\"How do I reset the pipeline?\","
-                + "\"similar_questions\":[\"pipeline reset steps\"],"
+        faq.setMetadata(readNode("{\"standardQuestion\":\"How do I reset the pipeline?\","
+                + "\"similarQuestions\":[\"pipeline reset steps\"],"
                 + "\"answers\":[\"Press the red button.\",\"Wait ten seconds.\"]}"));
         c.byID.put("sf1", faq);
         return c;

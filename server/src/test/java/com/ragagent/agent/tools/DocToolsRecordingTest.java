@@ -120,9 +120,9 @@ class DocToolsRecordingTest {
         c.setChunkIndex(0);
         c.setChunkType("faq");
         c.setIsEnabled(true);
-        c.setMetadata(readNode("{\"standard_question\":\"  如何申请退款？  \","
+        c.setMetadata(readNode("{\"standardQuestion\":\"  如何申请退款？  \","
                 + "\"answers\":[\"原路退回\",\"余额退回\"],"
-                + "\"similar_questions\":[\"怎么退款\",\"退款要多久\",\"q3\",\"q4\",\"q5\",\"q6\",\"q7\"]}"));
+                + "\"similarQuestions\":[\"怎么退款\",\"退款要多久\",\"q3\",\"q4\",\"q5\",\"q6\",\"q7\"]}"));
         return c;
     }
 

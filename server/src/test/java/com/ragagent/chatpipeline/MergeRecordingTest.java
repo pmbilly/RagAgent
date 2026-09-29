@@ -311,7 +311,7 @@ class MergeRecordingTest {
     @Test
     void mergeFaq() throws Exception {
         String meta = JSON.writeValueAsString(Map.of(
-                "standard_question", "退货政策是什么？",
+                "standardQuestion", "退货政策是什么？",
                 "answers", List.of("七天内可退货", "需保留包装")));
         Rec46cSupport.StubChunkRepo repo = new Rec46cSupport.StubChunkRepo();
         Chunk faq1 = new Chunk();

@@ -1010,8 +1010,8 @@ public class HybridSearchService {
         try {
             List<String> negatives = new ArrayList<>();
             JsonNode node = chunk.getMetadata();
-            if (node != null && node.has("negative_questions") && node.get("negative_questions").isArray()) {
-                for (JsonNode n : node.get("negative_questions")) {
+            if (node != null && node.has("negativeQuestions") && node.get("negativeQuestions").isArray()) {
+                for (JsonNode n : node.get("negativeQuestions")) {
                     negatives.add(n.asText(""));
                 }
             }

@@ -897,7 +897,7 @@ public class AuthController {
      * UnmarshalTypeError 文案要用；Golden 录制钉住）。
      */
     private static final String SWITCH_ANON_STRUCT_TYPE =
-            "struct { TenantID uint64 \"json:\\\"tenant_id\\\" binding:\\\"required\\\"\"; "
+            "struct { TenantID uint64 \"json:\\\"tenantId\\\" binding:\\\"required\\\"\"; "
                     + "RefreshToken string \"json:\\\"refresh_token\\\"\" }";
 
     /**
@@ -944,7 +944,7 @@ public class AuthController {
      * switch-tenant 的绑定（对照匿名 struct：TenantID uint64 required +
      * RefreshToken string）。Go 顺序 = 先 json.Unmarshal（语法/类型错误）再 validator。
      * uint64 的类型错误文案：`json: cannot unmarshal <kind> into Go struct field
-     * .tenant_id of type uint64`（匿名 struct 无类型名 → ".tenant_id"）。
+     * .tenantId of type uint64`（匿名 struct 无类型名 → ".tenantId"）。
      */
     private long bindSwitchTenantRequest(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
@@ -968,7 +968,7 @@ public class AuthController {
                     "json: cannot unmarshal " + goJsonKind(root) + " into Go value of type "
                             + SWITCH_ANON_STRUCT_TYPE);
         }
-        com.fasterxml.jackson.databind.JsonNode idNode = root.get("tenant_id");
+        com.fasterxml.jackson.databind.JsonNode idNode = root.get("tenantId");
         if (idNode == null || idNode.isNull()) {
             throw invalidParams("Invalid workspace switch request",
                     bindingError(null, "TenantID", "required"));
@@ -976,19 +976,19 @@ public class AuthController {
         if (!idNode.isNumber()) {
             throw invalidParams("Invalid workspace switch request",
                     "json: cannot unmarshal " + goJsonKind(idNode)
-                            + " into Go struct field .tenant_id of type uint64");
+                            + " into Go struct field .tenantId of type uint64");
         }
         // uint64：非负整数，0 也合法解析（validator required 才拒）
         java.math.BigDecimal value = idNode.decimalValue();
         if (value.scale() > 0 && value.stripTrailingZeros().scale() > 0) {
             throw invalidParams("Invalid workspace switch request",
                     "json: cannot unmarshal number " + idNode.asText()
-                            + " into Go struct field .tenant_id of type uint64");
+                            + " into Go struct field .tenantId of type uint64");
         }
         if (value.signum() < 0 || value.compareTo(new java.math.BigDecimal("18446744073709551615")) > 0) {
             throw invalidParams("Invalid workspace switch request",
                     "json: cannot unmarshal number " + idNode.asText()
-                            + " into Go struct field .tenant_id of type uint64");
+                            + " into Go struct field .tenantId of type uint64");
         }
         long parsed = value.longValue();
         if (parsed == 0) {

@@ -77,8 +77,8 @@ class RerankRecordingTest {
         var q2 = ObjectMapperHolder.JSON.createObjectNode();
         q2.put("id", "q2").put("question", "生成的问题二");
         var metaNode = ObjectMapperHolder.JSON.createObjectNode();
-        metaNode.set("generated_questions", ObjectMapperHolder.JSON.createArrayNode().add(q1).add(q2));
-        metaNode.put("generated_questions_revision", 1);
+        metaNode.set("generatedQuestions", ObjectMapperHolder.JSON.createArrayNode().add(q1).add(q2));
+        metaNode.put("generatedQuestionsRevision", 1);
         String meta = ObjectMapperHolder.JSON.writeValueAsString(metaNode);
         var imgNode = ObjectMapperHolder.JSON.createObjectNode();
         imgNode.put("url", "u1").put("original_url", "").put("start_pos", 0)

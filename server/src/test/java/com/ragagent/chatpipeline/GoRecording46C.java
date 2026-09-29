@@ -600,10 +600,10 @@ public final class GoRecording46C {
             "{\"in\":{\"content\":\"带图片的内容\",\"image_info\":\"[{\\\"url\\\":\\\"u1\\\",\\\"original_url\\\":\\\"\\\",\\\"start_pos\\\":0,\\\"end_pos\\\":0,\\\"caption\\\":\\\"图片说明\\\",\\\"ocr_text\\\":\\\"OCR 文本\\\"}]\",\"meta_len\":0},\"out\":\"带图片的内容\\n\\n图片说明\\nOCR 文本\"}";
 
     private static final String R_RERANK_PASSAGE_CASE03 =
-            "{\"in\":{\"content\":\"正文\",\"image_info\":\"\",\"meta_len\":146},\"out\":\"正文\\n\\n生成的问题一; 生成的问题二\"}";
+            "{\"in\":{\"content\":\"正文\",\"image_info\":\"\",\"meta_len\":143},\"out\":\"正文\\n\\n生成的问题一; 生成的问题二\"}";
 
     private static final String R_RERANK_PASSAGE_CASE04 =
-            "{\"in\":{\"content\":\"带图片和问题\",\"image_info\":\"[{\\\"url\\\":\\\"u1\\\",\\\"original_url\\\":\\\"\\\",\\\"start_pos\\\":0,\\\"end_pos\\\":0,\\\"caption\\\":\\\"图片说明\\\",\\\"ocr_text\\\":\\\"OCR 文本\\\"}]\",\"meta_len\":146},\"out\":\"带图片和问题\\n\\n图片说明\\nOCR 文本\\n生成的问题一; 生成的问题二\"}";
+            "{\"in\":{\"content\":\"带图片和问题\",\"image_info\":\"[{\\\"url\\\":\\\"u1\\\",\\\"original_url\\\":\\\"\\\",\\\"start_pos\\\":0,\\\"end_pos\\\":0,\\\"caption\\\":\\\"图片说明\\\",\\\"ocr_text\\\":\\\"OCR 文本\\\"}]\",\"meta_len\":143},\"out\":\"带图片和问题\\n\\n图片说明\\nOCR 文本\\n生成的问题一; 生成的问题二\"}";
 
     private static final String R_RERANK_PASSAGE_CASE05 =
             "{\"in\":{\"content\":\"坏图片 JSON\",\"image_info\":\"[{bad\",\"meta_len\":0},\"out\":\"坏图片 JSON\"}";

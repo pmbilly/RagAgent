@@ -827,8 +827,8 @@ public final class PluginMerge implements Plugin {
         if (meta == null || meta.isNull() || !meta.isObject()) {
             return null;
         }
-        if (!meta.hasNonNull("standard_question") && !meta.hasNonNull("answers")
-                && !meta.hasNonNull("similar_questions")) {
+        if (!meta.hasNonNull("standardQuestion") && !meta.hasNonNull("answers")
+                && !meta.hasNonNull("similarQuestions")) {
             return null;
         }
         try {

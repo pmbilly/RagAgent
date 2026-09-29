@@ -84,8 +84,8 @@ class GrepChunksRecordingTest {
                 "unrelated content about gardening tools", "t", "", "", "", "6"});
         chunks.add(new String[]{"aa45bc05", "aa45bb03", KB_A, "0",
                 "How do I tune the psionic emitter?", "t", "faq",
-                "{\"standard_question\":\"How do I tune the psionic emitter?\","
-                        + "\"similar_questions\":[\"psionic emitter tuning help\",\"emitter FAQ\"],"
+                "{\"standardQuestion\":\"How do I tune the psionic emitter?\","
+                        + "\"similarQuestions\":[\"psionic emitter tuning help\",\"emitter FAQ\"],"
                         + "\"answers\":[\"Turn the knob clockwise.\",\"Check the skyvault manual.\"]}",
                 "", "7"});
         chunks.add(new String[]{"aa45bc06", "aa45bb04", KB_A, "0",
