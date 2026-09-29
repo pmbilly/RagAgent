@@ -226,8 +226,8 @@ public class WikiIngestCitePipeline {
         List<ExtractedItem> concepts = result.getConcepts() == null
                 ? new ArrayList<>() : new ArrayList<>(result.getConcepts());
 
-        WikiIngestService.ExtractedProjection projection =
-                ingestService.deduplicateExtractedBatch(chatModel, kbId, entities, concepts, batchCtx);
+        com.ragagent.wiki.service.WikiIngestExtractDedup.ExtractedProjection projection =
+                ingestService.extractDedup.deduplicateExtractedBatch(chatModel, kbId, entities, concepts, batchCtx);
         entities = projection.entities();
         concepts = projection.concepts();
 
@@ -371,11 +371,11 @@ public class WikiIngestCitePipeline {
     private static void writeCandidate(StringBuilder sb, ExtractedItem item, String kind) {
         String aliases = "";
         if (!item.getAliases().isEmpty()) {
-            aliases = " aliases=" + WikiIngestService.goQuote(String.join(", ", item.getAliases()));
+            aliases = " aliases=" + WikiIngestExtractDedup.goQuote(String.join(", ", item.getAliases()));
         }
         sb.append("- slug: ").append(item.getSlug())
                 .append(", type: ").append(kind)
-                .append(", name: ").append(WikiIngestService.goQuote(item.getName()))
+                .append(", name: ").append(WikiIngestExtractDedup.goQuote(item.getName()))
                 .append(aliases)
                 .append(", description: ").append(item.getDescription())
                 .append('\n');
@@ -395,7 +395,7 @@ public class WikiIngestCitePipeline {
             if (handle == null) {
                 handle = "";
             }
-            sb.append("<c id=").append(WikiIngestService.goQuote(handle))
+            sb.append("<c id=").append(WikiIngestExtractDedup.goQuote(handle))
                     .append(" index=\"").append(c.getChunkIndex()).append("\">\n")
                     .append(c.getContent() == null ? "" : c.getContent())
                     .append("\n</c>\n");

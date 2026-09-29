@@ -2,41 +2,25 @@ package com.ragagent.wiki.service;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.llm.LlmChatClient;
-import com.ragagent.llm.chat.PromptCache;
-import com.ragagent.llm.domain.ChatMessage;
-import com.ragagent.llm.domain.ChatOptions;
-import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.wiki.domain.TaskDeadLetter;
 import com.ragagent.wiki.domain.TaskPendingOp;
-import com.ragagent.wiki.domain.WikiConstants;
-import com.ragagent.wiki.domain.WikiIndexEntry;
-import com.ragagent.wiki.domain.WikiPage;
-import com.ragagent.wiki.domain.WikiPageLite;
 import com.ragagent.wiki.mapper.TaskDeadLetterRepository;
 import com.ragagent.wiki.mapper.TaskPendingOpsRepository;
-import com.ragagent.wiki.prompt.WikiPromptTemplate;
-import com.ragagent.wiki.prompt.WikiPrompts;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,25 +69,25 @@ public class WikiIngestService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** 对照 Go {@code indexIntroSummaryCap} 用到的占位内容（L2134）。 */
-    private static final String LEGACY_INDEX_PLACEHOLDER = "Wiki index - table of contents";
+    static final String LEGACY_INDEX_PLACEHOLDER = "Wiki index - table of contents";
 
     // ═══════════════════════════════════════════════════════════════
     // 依赖（对照 Go 的 wikiIngestService 字段，L363-395）
     // ═══════════════════════════════════════════════════════════════
 
-    private final WikiPageService wikiService;
-    private final TaskPendingOpsRepository pendingRepo;
-    private final ObjectProvider<TaskDeadLetterRepository> deadLetterRepo;
-    private final ObjectProvider<KnowledgeMapper> knowledgeMapper;
-    private final WikiSlugLock slugLock;
-    private final WikiInflightLimiter inflightLimiter;
-    private final ObjectProvider<WikiDeletedTombstoneStore> tombstoneStore;
-    private final ObjectProvider<WikiIngestTaskQueue> taskQueue;
-    private final ObjectProvider<WikiCrossLinker> crossLinker;
-    private final ObjectProvider<WikiDedupSupport> dedupSupport;
-    private final ObjectProvider<WikiKnowledgeFinalizer> knowledgeFinalizer;
-    private final ObjectProvider<WikiImageEnricher> imageEnricher;
-    private final ObjectProvider<WikiIngestTaskHandler> taskHandler;
+    final WikiPageService wikiService;
+    final TaskPendingOpsRepository pendingRepo;
+    final ObjectProvider<TaskDeadLetterRepository> deadLetterRepo;
+    final ObjectProvider<KnowledgeMapper> knowledgeMapper;
+    final WikiSlugLock slugLock;
+    final WikiInflightLimiter inflightLimiter;
+    final ObjectProvider<WikiDeletedTombstoneStore> tombstoneStore;
+    final ObjectProvider<WikiIngestTaskQueue> taskQueue;
+    final ObjectProvider<WikiCrossLinker> crossLinker;
+    final ObjectProvider<WikiDedupSupport> dedupSupport;
+    final ObjectProvider<WikiKnowledgeFinalizer> knowledgeFinalizer;
+    final ObjectProvider<WikiImageEnricher> imageEnricher;
+    final ObjectProvider<WikiIngestTaskHandler> taskHandler;
 
     /**
      * 对照 Go {@code liteLocks sync.Map}（L384）：Lite 模式下的按 KB 互斥。
@@ -113,28 +97,28 @@ public class WikiIngestService {
      * 由 {@link WikiIngestTaskHandler} 的实现在 {@code processWikiIngest} 里使用
      * （Go 的用法就在 ProcessWikiIngest 里），本类提供容器与判据。</p>
      */
-    private final Set<String> liteLocks = ConcurrentHashMap.newKeySet();
+    final Set<String> liteLocks = ConcurrentHashMap.newKeySet();
 
     /**
      * 对照 Go {@code liteFinalizeLocks sync.Map}（L388）：Lite 模式下
      * {@code wiki:finalize:active:<kbID>} 的进程内对应物。
      */
-    private final Set<String> liteFinalizeLocks = ConcurrentHashMap.newKeySet();
+    final Set<String> liteFinalizeLocks = ConcurrentHashMap.newKeySet();
 
     /**
      * 对照 Go {@code llmRequests singleflight.Group}（L391）：
      * 合并进程内<b>字节完全相同</b>的并发 prompt。
      */
-    private final SingleFlight llmRequests = new SingleFlight();
+    final SingleFlight llmRequests = new SingleFlight();
 
     /**
      * 对照 Go {@code promptWarmups sync.Map}（L394）：只串行化同一个可复用 Wiki 页面
      * 前缀的<b>首个</b>请求；其它前缀与已经预热过的同类保持并行。
      */
-    private final ConcurrentHashMap<String, PromptWarmup> promptWarmups = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<String, PromptWarmup> promptWarmups = new ConcurrentHashMap<>();
 
     /** 预热标记的回收器（对照 Go 的 {@code time.AfterFunc(4*time.Minute, ...)}）。 */
-    private final java.util.concurrent.ScheduledExecutorService warmupReaper =
+    final java.util.concurrent.ScheduledExecutorService warmupReaper =
             java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "wiki-prompt-warmup-reaper");
                 t.setDaemon(true);
@@ -142,10 +126,72 @@ public class WikiIngestService {
             });
 
     /** 对照 Go 的 {@code wikiPromptWarmup{done chan, once sync.Once}} */
-    private static final class PromptWarmup {
-        private final CompletableFuture<Void> done = new CompletableFuture<>();
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+    static final class PromptWarmup {
+        final CompletableFuture<Void> done = new CompletableFuture<>();
+        final AtomicBoolean closed = new AtomicBoolean(false);
     }
+
+    // ── seam 委托:实现随协作者(测试与 CitePipeline/Taxonomy 直引) ──
+
+    public void sanitizeDeadSummaryLinks(String kbId, java.util.List<DocIngestResult> docResults,
+            java.util.Set<String> failedAdditionSlugs, WikiBatchContext batchCtx) {
+        pageOps.sanitizeDeadSummaryLinks(kbId, docResults, failedAdditionSlugs, batchCtx);
+    }
+
+    public void cleanDeadLinks(String kbId, java.util.List<String> affectedSlugs, WikiBatchContext batchCtx) {
+        pageOps.cleanDeadLinks(kbId, affectedSlugs, batchCtx);
+    }
+
+    public void injectCrossLinks(String kbId, java.util.List<String> affectedSlugs,
+            java.util.List<WikiCrossLinker.LinkRef> freshRefs, WikiBatchContext batchCtx) {
+        pageOps.injectCrossLinks(kbId, affectedSlugs, freshRefs, batchCtx);
+    }
+
+    public com.ragagent.wiki.service.WikiIngestExtractDedup.ExtractedProjection deduplicateExtractedBatch(
+            LlmChatClient chatModel, String kbId, java.util.List<ExtractedItem> entities,
+            java.util.List<ExtractedItem> concepts, WikiBatchContext batchCtx) {
+        return extractDedup.deduplicateExtractedBatch(chatModel, kbId, entities, concepts, batchCtx);
+    }
+
+    public static String formatExistingTaxonomyForPrompt(java.util.List<java.util.List<String>> paths) {
+        return WikiIngestIndexOps.formatExistingTaxonomyForPrompt(paths);
+    }
+
+    public void publishDraftPages(String kbId, java.util.List<String> slugs) {
+        indexOps.publishDraftPages(kbId, slugs);
+    }
+
+    public int promptWarmupCount() {
+        return llm.promptWarmupCount();
+    }
+
+    static String goQuote(String s) {
+        return WikiIngestExtractDedup.goQuote(s);
+    }
+
+    public Runnable awaitWikiPromptWarmup(String key) throws InterruptedException {
+        return llm.awaitWikiPromptWarmup(key);
+    }
+
+    public java.util.Set<String> getExistingPageSlugsForKnowledge(String kbId, String knowledgeId) {
+        return indexOps.getExistingPageSlugsForKnowledge(kbId, knowledgeId);
+    }
+
+    public String generateWithTemplate(LlmChatClient chatModel, String promptTpl,
+            java.util.Map<String, String> vars) {
+        return llm.generateWithTemplate(chatModel, promptTpl, vars);
+    }
+
+    public void rebuildIndexPage(LlmChatClient chatModel, WikiIngestPayload payload,
+            String changeDesc, String lang, String customInstructions) {
+        indexOps.rebuildIndexPage(chatModel, payload, changeDesc, lang, customInstructions);
+    }
+
+    /** 摄取阶段协作者(构造期装配)。 */
+    final WikiIngestPageOps pageOps;
+    final WikiIngestIndexOps indexOps;
+    final WikiIngestExtractDedup extractDedup;
+    final WikiIngestLlmSupport llm;
 
     public WikiIngestService(WikiPageService wikiService,
                              TaskPendingOpsRepository pendingRepo,
@@ -173,6 +219,10 @@ public class WikiIngestService {
         this.knowledgeFinalizer = knowledgeFinalizer;
         this.imageEnricher = imageEnricher;
         this.taskHandler = taskHandler;
+        this.pageOps = new WikiIngestPageOps(this);
+        this.indexOps = new WikiIngestIndexOps(this);
+        this.extractDedup = new WikiIngestExtractDedup(this);
+        this.llm = new WikiIngestLlmSupport(this);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -983,275 +1033,6 @@ public class WikiIngestService {
         return holder.get();
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 死链清理 / 交叉链接（对照 Go L1512-1892）
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * 对照 Go {@code sanitizeDeadSummaryLinks}（L1534-1587）：重写<b>本批次</b>产出的
-     * 摘要页，修掉那些指向 reduce 阶段生成失败的 entity/concept 页面的
-     * {@code [[slug]]} / {@code [[slug|display]]} 引用。
-     *
-     * <p>纯文本替换，不调用 LLM。作用域限定在本批次的文档摘要 slug
-     * （{@code summary/<slugify(knowledgeID)>}），让工作量与批次大小成正比。</p>
-     */
-    public void sanitizeDeadSummaryLinks(String kbId,
-                                         List<DocIngestResult> docResults,
-                                         Set<String> failedSlugs,
-                                         WikiBatchContext batchCtx) {
-        if (failedSlugs == null || failedSlugs.isEmpty()
-                || docResults == null || docResults.isEmpty()) {
-            return;
-        }
-        for (DocIngestResult r : docResults) {
-            if (r == null || r.getKnowledgeId().isEmpty()) {
-                continue;
-            }
-            String summarySlug = "summary/" + WikiTextUtils.slugify(r.getKnowledgeId());
-            // 对照 Go：if err != nil || page == nil { continue }
-            WikiPage page = wikiService.findPageBySlug(kbId, summarySlug);
-            if (page == null) {
-                continue;
-            }
-
-            // 收集这份摘要实际链接到的 slug（让 resolver 有非空的候选池），
-            // 加上同一文档里成功写出的兄弟页面。这两个集合合起来覆盖了
-            // "LLM 说的" vs "实际存在的" 不匹配，又不必为一次全量扫描付费。
-            Set<String> candidateSlugs = new LinkedHashSet<>(page.getOutLinks());
-            for (DocIngestResult.PageRef ref : r.getPages()) {
-                if (failedSlugs.contains(ref.slug())) {
-                    continue;
-                }
-                candidateSlugs.add(ref.slug());
-            }
-            WikiDeadLinks.ResolvedLiveSlugs resolved =
-                    WikiDeadLinks.resolveLiveSlugs(batchCtx, candidateSlugs);
-
-            WikiDeadLinks.Result stripped = WikiDeadLinks.stripDeadWikiLinks(
-                    page.getContent(), failedSlugs, resolved.liveSlugs(), resolved.titleToSlug());
-            if (!stripped.changed()) {
-                continue;
-            }
-            page.setContent(stripped.content());
-            try {
-                wikiService.updateAutoLinkedContent(page);
-            } catch (Exception e) {
-                log.warn("wiki ingest: failed to sanitize dead links in summary {}: {}",
-                        summarySlug, e.getMessage());
-                continue;
-            }
-            log.info("wiki ingest: sanitized dead [[slug]] refs in summary {}", summarySlug);
-        }
-    }
-
-    /**
-     * 对照 Go {@code cleanDeadLinks}（L1716-1790）：重写本批次受影响页面里指向
-     * 已不存在（或已归档）目标的 {@code [[slug]]}。纯文本清理，不调用 LLM。
-     *
-     * <p>作用域刻意限定在本批次触碰过的 slug：4 万文档规模下，"扫全表页面"的历史路径
-     * 是批次后阶段的主要尾巴，而长尾的历史死链更适合交给 lint AutoFix 管线
-     * （它跑在带外，承担得起全表遍历）。</p>
-     *
-     * <p>流程：取页面 → 用一次批量 {@code ExistsSlugs} 把出链分类成活/死 →
-     * 对每条死链先试 {@code resolveDeadSlug}，能安全还原就改写，否则剥离成纯文本 →
-     * 用 {@code UpdateAutoLinkedContent} 持久化（版本号不变——这是维护性写入，
-     * 不是用户可见的编辑）。</p>
-     */
-    public void cleanDeadLinks(String kbId, List<String> affectedSlugs, WikiBatchContext batchCtx) {
-        if (affectedSlugs == null || affectedSlugs.isEmpty()) {
-            return;
-        }
-        int cleaned = 0;
-        for (String slug : affectedSlugs) {
-            // 对照 Go：if err != nil || page == nil { continue }
-            WikiPage page = wikiService.findPageBySlug(kbId, slug);
-            if (page == null) {
-                continue;
-            }
-            if (WikiConstants.STATUS_ARCHIVED.equals(page.getStatus())) {
-                continue;
-            }
-            if (WikiConstants.PAGE_TYPE_INDEX.equals(page.getPageType())) {
-                continue;
-            }
-            if (page.getOutLinks().isEmpty()) {
-                continue;
-            }
-
-            Map<String, Boolean> liveMap;
-            try {
-                liveMap = wikiService.existsSlugs(kbId, new ArrayList<>(page.getOutLinks()));
-            } catch (Exception e) {
-                log.warn("wiki: ExistsSlugs failed during dead-link cleanup for {}: {}",
-                        slug, e.getMessage());
-                continue;
-            }
-            Set<String> deadSlugs = new LinkedHashSet<>();
-            Set<String> liveSlugs = new LinkedHashSet<>();
-            for (Map.Entry<String, Boolean> e : liveMap.entrySet()) {
-                if (Boolean.TRUE.equals(e.getValue())) {
-                    liveSlugs.add(e.getKey());
-                } else {
-                    deadSlugs.add(e.getKey());
-                }
-            }
-            if (deadSlugs.isEmpty()) {
-                continue;
-            }
-
-            // 只为活跃 slug 取标题——它们才是一条死引用可能被重映射到的候选
-            Map<String, String> titles = batchCtx == null
-                    ? Map.of() : batchCtx.slugTitleMany(new ArrayList<>(page.getOutLinks()));
-            Map<String, String> titleToSlug = new LinkedHashMap<>();
-            for (Map.Entry<String, String> e : titles.entrySet()) {
-                if (e.getValue() != null && !e.getValue().isEmpty()) {
-                    titleToSlug.put(e.getValue(), e.getKey());
-                }
-            }
-
-            WikiDeadLinks.Result stripped =
-                    WikiDeadLinks.stripDeadWikiLinks(page.getContent(), deadSlugs, liveSlugs, titleToSlug);
-            if (!stripped.changed()) {
-                continue;
-            }
-
-            page.setContent(stripped.content());
-            try {
-                wikiService.updateAutoLinkedContent(page);
-            } catch (Exception e) {
-                log.warn("wiki: failed to clean dead links in page {}: {}", page.getSlug(), e.getMessage());
-                continue;
-            }
-            cleaned++;
-        }
-        if (cleaned > 0) {
-            log.info("wiki: cleaned dead links in {} pages", cleaned);
-        }
-    }
-
-    /**
-     * 对照 Go {@code injectCrossLinks}（L1812-1872）：扫描本批次受影响的页面，
-     * 为正文里提到的其它页面标题 / 别名注入 {@code [[wiki-links]]}。
-     * 纯文本替换，不调用 LLM。
-     *
-     * <p>作用域刻意限定在两批 slug：</p>
-     * <ol>
-     *   <li>受影响的页面本身——我们只重写它们的正文；</li>
-     *   <li>候选 ref 来自 (a) 这些页面既有的出链（已通过先前的 linkify 或人工编辑
-     *       证明其相关性）加上 (b) 调用方通过 {@code freshRefs} 传入的、本批次刚写出的
-     *       兄弟 slug。</li>
-     * </ol>
-     *
-     * <p>较之"只为了找链接候选就加载 10 万+ 页面"，这是 O(批次大小) 的查询。
-     * 代价是长尾召回略降（本批次新出现的实体，要等到相关页面被重新编辑时才会
-     * 被链进去），而 lint AutoFix 才是处理那种情况的正道。</p>
-     *
-     * <p>实际匹配（含代码块 / 既有链接 / 词边界排除）由 {@link WikiCrossLinker} 完成。</p>
-     */
-    public void injectCrossLinks(String kbId,
-                                 List<String> affectedSlugs,
-                                 List<WikiCrossLinker.LinkRef> freshRefs,
-                                 WikiBatchContext batchCtx) {
-        if (affectedSlugs == null || affectedSlugs.isEmpty()) {
-            return;
-        }
-        WikiCrossLinker linker = crossLinker.getIfAvailable(WikiCrossLinker.Noop::new);
-
-        int updated = 0;
-        for (String slug : affectedSlugs) {
-            // 对照 Go：if err != nil || page == nil { continue }
-            WikiPage page = wikiService.findPageBySlug(kbId, slug);
-            if (page == null) {
-                continue;
-            }
-            if (WikiConstants.PAGE_TYPE_INDEX.equals(page.getPageType())) {
-                continue;
-            }
-
-            // 逐页候选 ref 集合：既有出链（经批次的标题 fetcher 解析，
-            // 顺带跳过归档 / 系统页面）加上本批次刚写出的兄弟 slug。
-            List<WikiCrossLinker.LinkRef> refs = new ArrayList<>();
-            if (!page.getOutLinks().isEmpty()) {
-                Map<String, String> titles = batchCtx == null
-                        ? Map.of() : batchCtx.slugTitleMany(new ArrayList<>(page.getOutLinks()));
-                for (Map.Entry<String, String> e : titles.entrySet()) {
-                    if (e.getValue() == null || e.getValue().isEmpty()) {
-                        continue;
-                    }
-                    if (e.getKey().equals(slug)) {
-                        continue;
-                    }
-                    refs.add(new WikiCrossLinker.LinkRef(e.getKey(), e.getValue()));
-                }
-            }
-            if (freshRefs != null) {
-                for (WikiCrossLinker.LinkRef fr : freshRefs) {
-                    if (fr.slug().equals(slug)) {
-                        continue;
-                    }
-                    refs.add(fr);
-                }
-            }
-            if (refs.isEmpty()) {
-                continue;
-            }
-
-            WikiCrossLinker.LinkifyResult result = linker.linkify(page.getContent(), refs, page.getSlug());
-            if (!result.changed()) {
-                continue;
-            }
-            page.setContent(result.content());
-            try {
-                wikiService.updateAutoLinkedContent(page);
-            } catch (Exception e) {
-                log.warn("wiki ingest: cross-link injection failed for {}: {}",
-                        page.getSlug(), e.getMessage());
-                continue;
-            }
-            updated++;
-        }
-        if (updated > 0) {
-            log.info("wiki ingest: injected cross-links in {} pages", updated);
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 既有 taxonomy / source-ref 快照（对照 Go L1894-2023）
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * 对照 Go {@code formatExistingTaxonomyForPrompt}（L1966-1987）：把去重后的
-     * category_path 列表渲染成缩进的目录树，供抽取 prompt 使用。
-     *
-     * <p>同级标签按<b>字符串升序</b>输出（对照 Go 的 {@code sort.Strings(keys)}）
-     * ——Go 的 map 迭代是随机的，所以它显式排序；Java 侧照抄，否则 prompt 的字节
-     * 前缀会随批次抖动，provider 前缀缓存会失效。</p>
-     *
-     * @return 空树时返回 ""（对照 Go 的 {@code return ""}）
-     */
-    public static String formatExistingTaxonomyForPrompt(List<List<String>> paths) {
-        if (paths == null || paths.isEmpty()) {
-            return "";
-        }
-        TaxonomyNode root = new TaxonomyNode();
-        for (List<String> path : paths) {
-            insertWikiTaxonomyPath(root, path);
-        }
-        if (root.children.isEmpty()) {
-            return "";
-        }
-        StringBuilder buf = new StringBuilder();
-        // 对照 Go 的 sort.Strings：**字节序**（对 UTF-8 等价于码点序）。
-        // 不能用 Collections.sort 的 UTF-16 码元序——顺序会直接影响 prompt 字节，
-        // 进而决定 provider 前缀缓存是否命中。
-        List<String> keys = new ArrayList<>(root.children.keySet());
-        keys.sort(GoStrings::compareByCodePoints);
-        for (String k : keys) {
-            appendWikiTaxonomyNode(buf, k, root.children.get(k), 0);
-        }
-        return GoStrings.trimSpace(buf.toString());
-    }
-
     /**
      * 对照 Go {@code wikiTaxonomyNode}（L1921-1923）。
      *
@@ -1259,756 +1040,6 @@ public class WikiIngestService {
      * （{@link GoStrings#compareByCodePoints}）而不是 Java 默认的 UTF-16 码元序
      * ——Go 的 {@code sort.Strings} 是字节序，对 UTF-8 等价于码点序。</p>
      */
-    private static final class TaxonomyNode {
-        private final Map<String, TaxonomyNode> children =
-                new java.util.TreeMap<>(GoStrings::compareByCodePoints);
-    }
-
-    /** 对照 Go {@code insertWikiTaxonomyPath}（L1925-1945） */
-    private static void insertWikiTaxonomyPath(TaxonomyNode root, List<String> path) {
-        if (root == null || path == null || path.isEmpty()) {
-            return;
-        }
-        TaxonomyNode cur = root;
-        for (String raw : path) {
-            String part = GoStrings.trimSpace(raw == null ? "" : raw);
-            if (part.isEmpty()) {
-                continue;
-            }
-            cur = cur.children.computeIfAbsent(part, k -> new TaxonomyNode());
-        }
-    }
-
-    /** 对照 Go {@code appendWikiTaxonomyNode}（L1947-1962）：每层两个空格缩进。 */
-    private static void appendWikiTaxonomyNode(StringBuilder buf, String label,
-                                               TaxonomyNode node, int depth) {
-        if (label != null && !label.isEmpty()) {
-            buf.append("  ".repeat(Math.max(0, depth))).append(label).append('\n');
-        }
-        if (node == null || node.children.isEmpty()) {
-            return;
-        }
-        // TreeMap 已保证升序；照 Go 的 sort.Strings 语义
-        for (Map.Entry<String, TaxonomyNode> e : node.children.entrySet()) {
-            appendWikiTaxonomyNode(buf, e.getKey(), e.getValue(), depth + 1);
-        }
-    }
-
-    /**
-     * 对照 Go {@code getExistingPageSlugsForKnowledge}（L2004-2023）：返回当前在
-     * {@code source_refs} 里引用了给定 knowledge id 的全部页面 slug。
-     * 重新摄取前用它快照状态，好让 reduce 阶段调和"新增 vs 撤回"。
-     *
-     * <p>系统页（{@code index}）显式跳过——纵深防御：一个老版本有 bug 的摄取若曾
-     * 误把知识引用盖到系统页上，那些 slug 会出现在重解析的"旧集合"里并搅乱 reduce。</p>
-     *
-     * @return 无命中时返回 <b>null</b>（对照 Go 的 {@code return nil}）
-     */
-    public Set<String> getExistingPageSlugsForKnowledge(String kbId, String knowledgeId) {
-        List<String> slugs;
-        try {
-            slugs = wikiService.listSlugsBySourceRef(kbId, knowledgeId);
-        } catch (Exception e) {
-            log.warn("wiki ingest: ListSlugsBySourceRef({}) failed: {}", knowledgeId, e.getMessage());
-            return null;
-        }
-        if (slugs == null || slugs.isEmpty()) {
-            return null;
-        }
-        Set<String> out = new LinkedHashSet<>(slugs.size());
-        for (String slug : slugs) {
-            if (WikiConstants.PAGE_TYPE_INDEX.equals(slug)) {
-                continue;
-            }
-            out.add(slug);
-        }
-        return out;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 索引页 / 草稿发布（对照 Go L2061-2248）
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * 对照 Go {@code rebuildIndexPage}（L2108-2213）：刷新索引页上由 LLM 生成的导语。
-     *
-     * <p>历史：索引页曾把"导语 + 完整目录"作为单个数 MB 的 markdown blob 存在 content 里，
-     * 每个 ingest 批次都重写整列——在数万页的 KB 上是每批次 O(N) 的 TOAST 写入。
-     * 目录已被提升为结构化的 {@code GET /wiki/index} 端点（{@code GetIndexView}），
-     * 本方法现在只维护导语。</p>
-     *
-     * <p>导语生命周期：</p>
-     * <ul>
-     *   <li>首次（空或历史占位符）：用全部文档摘要经 {@code WikiIndexIntroPrompt} 生成；</li>
-     *   <li>带变更描述的后续调用：经 {@code WikiIndexIntroUpdatePrompt} 增量更新；</li>
-     *   <li>没有变更描述：原样保留既有导语，不动版本号。</li>
-     * </ul>
-     * <p>新导语同时写进 {@code Content} 与 {@code Summary}，让仍回落到 Summary 的读取方
-     * （老客户端、历史迁移数据）与实际渲染的那一列保持同步。</p>
-     */
-    public void rebuildIndexPage(LlmChatClient chatModel,
-                                 WikiIngestPayload payload,
-                                 String changeDesc,
-                                 String lang,
-                                 String customInstructions) {
-        WikiPage indexPage = wikiService.getIndex(payload.knowledgeBaseId());
-        if (indexPage == null) {
-            return;
-        }
-
-        // 导语同时住在 Content 与 Summary。优先 Content（新的索引视图返回的就是它）；
-        // 回落到 Summary 是为了兼容本次重构之前写入的行，
-        // 好让增量更新 prompt 有东西可用。
-        String existingIntro = GoStrings.trimSpace(indexPage.getContent());
-        if (existingIntro.isEmpty()) {
-            existingIntro = GoStrings.trimSpace(indexPage.getSummary());
-        }
-        // 识别历史的"导语 + 目录"载荷：那种行在导语之后紧跟围栏分隔的 "## Summary" 段，
-        // 因此从第一个目录标题起全部裁掉，让回灌进更新 prompt 的导语长度有界。
-        int dirIdx = existingIntro.indexOf("\n## ");
-        if (dirIdx >= 0) {
-            existingIntro = GoStrings.trimSpace(existingIntro.substring(0, dirIdx));
-        }
-
-        String intro;
-        if (existingIntro.isEmpty() || LEGACY_INDEX_PLACEHOLDER.equals(existingIntro)) {
-            // 首次生成：经 lite 投影拉最近更新的 top-N 摘要页。
-            // CountByType 让我们能告诉 LLM "showing N of M"，
-            // 从而在 KB 比采样集更大时诚实地交代。
-            List<WikiIndexEntry> recentSummaries = wikiService.listByTypeRecent(
-                    payload.knowledgeBaseId(), WikiConstants.PAGE_TYPE_SUMMARY,
-                    WikiIngestConstants.INDEX_INTRO_SUMMARY_CAP);
-
-            StringBuilder docSummaries = new StringBuilder();
-            for (WikiIndexEntry e : recentSummaries) {
-                docSummaries.append("<document>\n<title>").append(e.getTitle())
-                        .append("</title>\n<summary>").append(e.getSummary())
-                        .append("</summary>\n</document>\n\n");
-            }
-            long totalSummaries = recentSummaries.size();
-            try {
-                Map<String, Long> counts = wikiService.countByType(payload.knowledgeBaseId());
-                if (counts != null && counts.get(WikiConstants.PAGE_TYPE_SUMMARY) != null) {
-                    totalSummaries = counts.get(WikiConstants.PAGE_TYPE_SUMMARY);
-                }
-            } catch (Exception e) {
-                // 计数失败不阻断导语生成（对照 Go 的 "A failure here doesn't block"）
-                log.debug("wiki ingest: CountByType failed, using sample size for framing hint");
-            }
-            String framing = "";
-            if (totalSummaries > recentSummaries.size() && !recentSummaries.isEmpty()) {
-                framing = "(showing " + recentSummaries.size() + " most recent of "
-                        + totalSummaries + " total documents)\n\n";
-            }
-            if (docSummaries.length() == 0) {
-                docSummaries.append("(no documents yet)");
-            }
-            String generated;
-            try {
-                generated = generateWithTemplate(chatModel, WikiPrompts.WIKI_INDEX_INTRO_PROMPT,
-                        Map.of(
-                                "DocumentSummaries", framing + docSummaries,
-                                "Language", lang,
-                                "CustomInstructions", customInstructions == null ? "" : customInstructions,
-                                "InstructionScope", "wiki_content"));
-                intro = GoStrings.trimSpace(generated);
-            } catch (Exception e) {
-                intro = "# Wiki Index\n\nThis wiki contains knowledge extracted from uploaded documents.\n";
-            }
-        } else if (changeDesc != null && !changeDesc.isEmpty()) {
-            // 增量更新：只把既有导语 + 本批次的变更描述放进 prompt。
-            // 这里刻意不再传完整的 DocumentSummaries——4 万文档时它每个批次都会
-            // 重新灌满上下文，而变更描述块已经编码了 prompt 想要的"刚发生了什么"。
-            String updated;
-            try {
-                updated = generateWithTemplate(chatModel, WikiPrompts.WIKI_INDEX_INTRO_UPDATE_PROMPT,
-                        Map.of(
-                                "ExistingIntro", existingIntro,
-                                "ChangeDescription", changeDesc,
-                                "DocumentSummaries", "",
-                                "Language", lang,
-                                "CustomInstructions", customInstructions == null ? "" : customInstructions,
-                                "InstructionScope", "wiki_content"));
-                intro = GoStrings.trimSpace(updated);
-            } catch (Exception e) {
-                intro = existingIntro; // 出错时保留既有导语
-            }
-        } else {
-            // 没有变更描述且已有导语：原样保留，避免为一次 no-op 递增版本号
-            intro = existingIntro;
-        }
-
-        // 防御：某些 LLM 输出即使 prompt 没要求，也会渗出类似目录的段落。
-        // 若刚生成的导语开始像历史载荷，就按读路径同样的规则在第一个 "\n## " 处裁掉，
-        // 让 indexPage.Content 保持为长度有界的纯导语。
-        int cut = intro.indexOf("\n## ");
-        if (cut >= 0) {
-            intro = GoStrings.trimSpace(intro.substring(0, cut));
-        }
-
-        indexPage.setContent(intro);
-        indexPage.setSummary(intro);
-        wikiService.updatePage(indexPage);
-    }
-
-    /**
-     * 对照 Go {@code publishDraftPages}（L2235-2248）：摄取完成后把草稿页转为已发布，
-     * 确保用户在摄取过程中看不到半成品页面。
-     */
-    public void publishDraftPages(String kbId, List<String> slugs) {
-        if (slugs == null) {
-            return;
-        }
-        for (String slug : slugs) {
-            // 对照 Go：if err != nil || page == nil { continue }
-            WikiPage page = wikiService.findPageBySlug(kbId, slug);
-            if (page == null) {
-                continue;
-            }
-            if (WikiConstants.STATUS_DRAFT.equals(page.getStatus())) {
-                page.setStatus(WikiConstants.STATUS_PUBLISHED);
-                try {
-                    wikiService.updatePageMeta(page);
-                } catch (Exception e) {
-                    log.warn("wiki ingest: failed to publish page {}: {}", slug, e.getMessage());
-                }
-            }
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 去重（对照 Go L2250-2502）
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * 对照 Go {@code writeDedupCandidateGroup}（L2256-2284）：把一个新条目连同
-     * <b>它自己的</b>相似候选页渲染成嵌套在 {@code <candidates>} 下的 XML。
-     *
-     * <p>这种逐条目分组正是把去重模型约束成"局部决策"的机制。候选页保留它们的
-     * aliases，好让模型仍握有接受一次合法合并所需的缩写 / 翻译信号。</p>
-     *
-     * <p>{@code slug=%q} / {@code type=%q} 用 Go 的 {@code fmt %q} 语义——
-     * 对 slug（纯 ASCII）而言就是加双引号并转义 {@code "} 与 {@code \}。
-     * Go 的 %q 还会对不可打印字符用反斜杠转义（{@code \xNN} / {@code uXXXX} 形态），
-     * Java 侧实现了同样的规则（见 {@link #goQuote}）。</p>
-     */
-    static void writeDedupCandidateGroup(StringBuilder buf, ExtractedItem item,
-                                         String itemType, List<WikiPageLite> candidates) {
-        buf.append("  <item slug=").append(goQuote(item.getSlug()))
-                .append(" type=").append(goQuote(itemType)).append(">\n");
-        buf.append("    <name>").append(WikiTextUtils.xmlEscape(item.getName())).append("</name>\n");
-        for (String alias : item.getAliases()) {
-            if (alias == null || alias.isEmpty()) {
-                continue;
-            }
-            buf.append("    <alias>").append(WikiTextUtils.xmlEscape(alias)).append("</alias>\n");
-        }
-        buf.append("    <candidates>\n");
-        for (WikiPageLite p : candidates) {
-            if (p == null) {
-                continue;
-            }
-            buf.append("      <page slug=").append(goQuote(p.getSlug()))
-                    .append(" type=").append(goQuote(p.getPageType())).append(">\n");
-            buf.append("        <name>").append(WikiTextUtils.xmlEscape(p.getTitle())).append("</name>\n");
-            for (String alias : p.getAliases()) {
-                if (alias == null || alias.isEmpty()) {
-                    continue;
-                }
-                buf.append("        <alias>").append(WikiTextUtils.xmlEscape(alias)).append("</alias>\n");
-            }
-            buf.append("      </page>\n");
-        }
-        buf.append("    </candidates>\n");
-        buf.append("  </item>\n");
-    }
-
-    /**
-     * 对照 Go 的 {@code %q} 动词（{@code strconv.Quote}）：给字符串加双引号，
-     * 并转义 {@code "}、{@code \} 以及不可打印字符。
-     *
-     * <p>wiki slug 是 ASCII 且不含引号，因此实际输出就是 {@code "entity/foo"}。
-     * 这里把规则补全是为了将来有人把非 ASCII 内容塞进来时不至于产出非法 XML
-     * （Go 的 %q 同样保留可打印 Unicode 原样，只转义不可打印字符）。</p>
-     */
-    static String goQuote(String s) {
-        if (s == null) {
-            return "\"\"";
-        }
-        StringBuilder out = new StringBuilder(s.length() + 2);
-        out.append('"');
-        for (int i = 0; i < s.length(); ) {
-            int cp = s.codePointAt(i);
-            i += Character.charCount(cp);
-            switch (cp) {
-                case '"' -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                default -> {
-                    if (cp < 0x20 || cp == 0x7F) {
-                        out.append(String.format("\\x%02x", cp));
-                    } else if (cp > 0x7E && Character.getType(cp) == Character.CONTROL) {
-                        out.append(String.format("\\u%04x", cp));
-                    } else {
-                        out.appendCodePoint(cp);
-                    }
-                }
-            }
-        }
-        out.append('"');
-        return out.toString();
-    }
-
-    /**
-     * 对照 Go {@code deduplicateExtractedBatch}（L2306-2502）：用<b>一次 LLM 调用</b>
-     * 把 entities 与 concepts 一起对既有 wiki 页面去重。
-     *
-     * <p>候选预筛走 {@code FindSimilarPages}（PG 侧是 {@code lower(title)} 上的
-     * pg_trgm 三元组索引）：每个新条目发一次探测，所有条目的 top-K 命中并集就是候选集。
-     * 这取代了历史"ListAllPages + Go 侧表面形式 Jaccard"的 O(P × N) 路径。</p>
-     *
-     * <p>另外逐条目记录"为<b>这个</b>条目召回了哪些 slug"（{@code itemCandidates}）。
-     * prompt 只看到扁平化的并集，而 {@code dedupMergeRejectReason} 用这份逐条目作用域
-     * 拒绝"目标是为另一个条目召回的"合并——那正是并集否则会放行的幻觉类型。</p>
-     *
-     * <h2>未接线 {@link WikiDedupSupport} 时的行为</h2>
-     * <p>整个去重退化为"跳过 LLM 调用 + 恒等 stabilize"（见该接口的说明）。
-     * 这是可见的降级，不是静默的错误答案。</p>
-     */
-    public ExtractedProjection deduplicateExtractedBatch(LlmChatClient chatModel,
-                                                         String kbId,
-                                                         List<ExtractedItem> entities,
-                                                         List<ExtractedItem> concepts,
-                                                         WikiBatchContext batchCtx) {
-        WikiDedupSupport dedup = dedupSupport.getIfAvailable();
-        if (dedup == null) {
-            log.info("wiki ingest: dedup support not wired, skipping deduplication for {} + {} items",
-                    entities.size(), concepts.size());
-            return new ExtractedProjection(entities, concepts);
-        }
-
-        Map<String, WikiPageLite> candidatePages = new LinkedHashMap<>();
-        Map<String, Set<String>> itemCandidates = new LinkedHashMap<>();
-
-        // 逐条目探测：用它的 name 与每个 alias 各查一次 top-K，并集即候选
-        for (List<ExtractedItem> group : List.of(entities, concepts)) {
-            for (ExtractedItem item : group) {
-                List<String> queries = new ArrayList<>(1 + item.getAliases().size());
-                if (!item.getName().isEmpty()) {
-                    queries.add(item.getName());
-                }
-                for (String alias : item.getAliases()) {
-                    if (alias != null && !alias.isEmpty()) {
-                        queries.add(alias);
-                    }
-                }
-                Set<String> own = itemCandidates.computeIfAbsent(item.getSlug(), k -> new LinkedHashSet<>());
-                for (String q : queries) {
-                    List<WikiPageLite> pages;
-                    try {
-                        pages = wikiService.findSimilarPages(kbId, q,
-                                List.of(WikiConstants.PAGE_TYPE_ENTITY, WikiConstants.PAGE_TYPE_CONCEPT),
-                                WikiDedupSupport.DEDUP_CANDIDATE_TOP_K);
-                    } catch (Exception e) {
-                        log.warn("wiki ingest: dedup FindSimilarPages({}) failed: {}", q, e.getMessage());
-                        continue;
-                    }
-                    for (WikiPageLite p : pages) {
-                        if (p == null || p.getSlug().isEmpty()) {
-                            continue;
-                        }
-                        candidatePages.putIfAbsent(p.getSlug(), p);
-                        own.add(p.getSlug());
-                    }
-                }
-            }
-        }
-
-        dedup.attachExactIdentityPages(
-                kbId, WikiConstants.PAGE_TYPE_ENTITY, entities, candidatePages, itemCandidates, batchCtx);
-        dedup.attachExactIdentityPages(
-                kbId, WikiConstants.PAGE_TYPE_CONCEPT, concepts, candidatePages, itemCandidates, batchCtx);
-
-        // 在问模型"语义/别名变体"之前，先确定性地解析"同类型同标题"的候选。
-        // 除了省掉明显情形的一次 LLM 调用，它还让已物化的页面在下方的身份预留中成为权威。
-        Map<String, String> exactTargets = new LinkedHashMap<>();
-        Map<String, String> mergeTargets = new LinkedHashMap<>();
-        dedup.collectExactIdentityTargets(
-                entities, WikiConstants.PAGE_TYPE_ENTITY, itemCandidates, candidatePages, exactTargets);
-        dedup.collectExactIdentityTargets(
-                concepts, WikiConstants.PAGE_TYPE_CONCEPT, itemCandidates, candidatePages, exactTargets);
-
-        if (candidatePages.isEmpty()) {
-            log.info("wiki ingest: no similar existing pages found for {} new items",
-                    entities.size() + concepts.size());
-            return stabilize(dedup, kbId, entities, concepts, mergeTargets, exactTargets, batchCtx);
-        }
-        log.info("wiki ingest: {} similar existing pages selected for {} new items",
-                candidatePages.size(), entities.size() + concepts.size());
-
-        // 把每个新条目与<b>只为它自己</b>召回的既有页面分成一组。给模型看两个扁平列表
-        // （全部新条目 × 全部候选）会诱发跨条目错配——它无从判断哪个候选与哪个条目相关，
-        // 于是弱模型会把仅仅共处同一 prompt 的不相干 slug 配成对。逐条目短名单把去重
-        // 变成针对少量真正相似页面的局部 yes/no 决策，跨条目配对在结构上无从表达。
-        // 没有候选的条目整个省略（它们无法合并，只会增加幻觉面与 token）。
-        StringBuilder candBuf = new StringBuilder();
-        int[] groups = {0};
-        for (ExtractedItem item : entities) {
-            renderDedupGroup(candBuf, groups, item, "entity",
-                    itemCandidates, candidatePages, exactTargets);
-        }
-        for (ExtractedItem item : concepts) {
-            renderDedupGroup(candBuf, groups, item, "concept",
-                    itemCandidates, candidatePages, exactTargets);
-        }
-        if (groups[0] == 0) {
-            // 每个条目都已被精确解析，或没有安全的语义候选
-            return stabilize(dedup, kbId, entities, concepts, mergeTargets, exactTargets, batchCtx);
-        }
-
-        String dedupeJson;
-        try {
-            dedupeJson = generateWithTemplate(chatModel, WikiPrompts.WIKI_DEDUPLICATION_PROMPT,
-                    Map.of("Candidates", candBuf.toString()));
-        } catch (Exception e) {
-            log.warn("wiki ingest: deduplication LLM call failed: {}", e.getMessage());
-            return stabilize(dedup, kbId, entities, concepts, mergeTargets, exactTargets, batchCtx);
-        }
-
-        dedupeJson = WikiTextUtils.cleanLLMJSON(dedupeJson);
-        JsonNode parsed;
-        try {
-            parsed = MAPPER.readTree(dedupeJson);
-        } catch (Exception e) {
-            log.warn("wiki ingest: failed to parse dedup JSON: {}\nRaw: {}", e.getMessage(), dedupeJson);
-            return stabilize(dedup, kbId, entities, concepts, mergeTargets, exactTargets, batchCtx);
-        }
-        JsonNode merges = parsed == null ? null : parsed.get("merges");
-
-        for (List<ExtractedItem> group : List.of(entities, concepts)) {
-            for (ExtractedItem item : group) {
-                // 已被确定性精确解析的条目跳过——它们不需要模型判断
-                if (!exactTargets.getOrDefault(item.getSlug(), "").isEmpty()) {
-                    continue;
-                }
-                if (merges == null || !merges.isObject()) {
-                    continue;
-                }
-                JsonNode target = merges.get(item.getSlug());
-                if (target == null || !target.isTextual()) {
-                    continue;
-                }
-                String existingSlug = target.textValue();
-                String reason = dedup.dedupMergeRejectReason(
-                        item.getSlug(), existingSlug, itemCandidates.get(item.getSlug()));
-                if (reason != null && !reason.isEmpty()) {
-                    log.warn("wiki ingest: dedup rejected {} → {} ({})",
-                            item.getSlug(), existingSlug, reason);
-                    continue;
-                }
-                log.info("wiki ingest: dedup merge {} → {}", item.getSlug(), existingSlug);
-                mergeTargets.put(item.getSlug(), existingSlug);
-            }
-        }
-
-        return stabilize(dedup, kbId, entities, concepts, mergeTargets, exactTargets, batchCtx);
-    }
-
-    private void renderDedupGroup(StringBuilder candBuf, int[] groups,
-                                  ExtractedItem item, String itemType,
-                                  Map<String, Set<String>> itemCandidates,
-                                  Map<String, WikiPageLite> candidatePages,
-                                  Map<String, String> exactTargets) {
-        if (!exactTargets.getOrDefault(item.getSlug(), "").isEmpty()) {
-            return;
-        }
-        Set<String> cset = itemCandidates.get(item.getSlug());
-        if (cset == null || cset.isEmpty()) {
-            return;
-        }
-        List<String> slugs = new ArrayList<>(cset.size());
-        for (String slug : cset) {
-            // 跳过条目自己的 slug：slug 完全相同的既有页是"重新摄取/更新"，
-            // 不是合并目标
-            if (slug.equals(item.getSlug())) {
-                continue;
-            }
-            if (candidatePages.containsKey(slug)) {
-                slugs.add(slug);
-            }
-        }
-        if (slugs.isEmpty()) {
-            return;
-        }
-        Collections.sort(slugs);
-        List<WikiPageLite> pages = new ArrayList<>(slugs.size());
-        for (String slug : slugs) {
-            pages.add(candidatePages.get(slug));
-        }
-        writeDedupCandidateGroup(candBuf, item, itemType, pages);
-        groups[0]++;
-    }
-
-    /** 对照 Go 的 {@code stabilize} 闭包（L2386-2392） */
-    private ExtractedProjection stabilize(WikiDedupSupport dedup, String kbId,
-                                          List<ExtractedItem> entities, List<ExtractedItem> concepts,
-                                          Map<String, String> mergeTargets,
-                                          Map<String, String> exactTargets,
-                                          WikiBatchContext batchCtx) {
-        List<ExtractedItem> es = dedup.stabilizeExtractedIdentities(
-                kbId, WikiConstants.PAGE_TYPE_ENTITY, entities, mergeTargets, exactTargets, batchCtx);
-        List<ExtractedItem> cs = dedup.stabilizeExtractedIdentities(
-                kbId, WikiConstants.PAGE_TYPE_CONCEPT, concepts, mergeTargets, exactTargets, batchCtx);
-        return new ExtractedProjection(es, cs);
-    }
-
-    /** 对照 Go {@code deduplicateExtractedBatch} 的 {@code ([]extractedItem, []extractedItem)} 返回。 */
-    public record ExtractedProjection(List<ExtractedItem> entities, List<ExtractedItem> concepts) {}
-
-    // ═══════════════════════════════════════════════════════════════
-    // 带模板的 LLM 调用（对照 Go L2504-2692）
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * 对照 Go {@code generateWithTemplate}（L2521-2644）：执行一个 prompt 模板，
-     * 并对瞬时基础设施错误做<b>有界的指数退避重试</b>。
-     *
-     * <h2>重试策略</h2>
-     * <ul>
-     *   <li>总计最多 {@code LLM_MAX_ATTEMPTS}(3) 次尝试（首次 + 重试）；</li>
-     *   <li>只重试 {@link WikiLlmRetryPolicy#isTransientLlmError} 判为瞬时的错误：
-     *       HTTP 408/429/5xx、父作用域仍存活时的 context deadline exceeded、
-     *       以及通用的 "timeout"/"connection reset" 措辞。4xx（除 408/429）
-     *       是调用方自己的问题，快速失败；</li>
-     *   <li>退避指数基数 2 秒：2s、4s、8s（{@code base << (attempt-1)}）；
-     *       可被线程中断打断，让任务能及时退出。</li>
-     * </ul>
-     *
-     * <p><b>存在理由</b>：wiki ingest 每篇文档要发好几次独立 LLM 调用
-     * （抽取、摘要、去重、引用、导语），上游网关一次瞬时 504 过去会<b>永久</b>丢掉该文档的
-     * 摘要页。重试加上 failedOps 重排队（见 {@code requeueFailedOps}）把这类事件
-     * 变成至多几分钟的抖动。</p>
-     *
-     * <h2>消息布局（provider 前缀缓存的关键）</h2>
-     * <ul>
-     *   <li>{@code WikiPageModifyUserPrompt} 走<b>两条消息</b>：稳定的规则做 system、
-     *       逐页数据做 user——规则因此可跨 reduce 批次缓存；</li>
-     *   <li>其余模板只有一条 user 消息，业务指引追加在其后；</li>
-     *   <li>两者的业务指引都由 {@link WikiPromptInstructions} 以同样的措辞追加。</li>
-     * </ul>
-     *
-     * <h2>图片脱敏</h2>
-     * {@code data} 的每个字段在渲染<b>之前</b>统一脱敏，跨字段共享同一份 URL→token 映射，
-     * 因此同一个 URL 出现在多个字段里也拿到同一个占位符；返回内容统一还原、
-     * 并丢弃模型编造或弄坏的占位符。
-     */
-    public String generateWithTemplate(LlmChatClient chatModel, String promptTpl,
-                                       Map<String, String> data) {
-        Map<String, String> safeData = data == null ? Map.of() : data;
-
-        WikiImageMarkup.MaskedTemplateData maskedData =
-                WikiImageMarkup.maskTemplateDataImageURLs(safeData);
-        Map<String, String> fields = maskedData.masked();
-        String prompt = WikiPromptTemplate.render(promptTpl, fields);
-
-        String purpose = WikiPrompts.purposeOf(promptTpl);
-        List<ChatMessage> messages = new ArrayList<>(2);
-        if (WikiPrompts.WIKI_PAGE_MODIFY_USER_PROMPT.equals(promptTpl)) {
-            String systemPrompt = WikiPromptInstructions.appendCustomPromptInstructions(
-                    WikiPrompts.WIKI_PAGE_MODIFY_SYSTEM_PROMPT,
-                    fields.get("CustomInstructions"), fields.get("InstructionScope"));
-            messages.add(ChatMessage.system(systemPrompt));
-            messages.add(ChatMessage.user(prompt));
-        } else {
-            messages.add(ChatMessage.user(WikiPromptInstructions.appendCustomPromptInstructions(
-                    prompt, fields.get("CustomInstructions"), fields.get("InstructionScope"))));
-        }
-
-        ChatOptions opts = new ChatOptions();
-        opts.setTemperature(0.3);
-        opts.setThinking(Boolean.FALSE);
-        opts.setMaxTokens(WikiIngestConstants.LLM_MAX_TOKENS);
-
-        String prefixFingerprint = PromptCache.promptPrefixFingerprint(messages, opts);
-        String warmupKey = "";
-        Long tenantId = TenantContext.currentTenantId();
-        boolean tenantScoped = tenantId != null;
-        if (WikiPrompts.WIKI_PAGE_MODIFY_USER_PROMPT.equals(promptTpl)) {
-            // 页面修改走"system 消息 + 共享源上下文"作为缓存前缀：
-            // 同一源文档产出的所有页面共享它，页面元数据在它之后才分叉。
-            prefixFingerprint = PromptCache.fingerprintPromptPrefix(
-                    messages.get(0).getContent(), fields.getOrDefault("SharedSourceContexts", ""));
-            if (tenantScoped) {
-                warmupKey = PromptCache.buildPromptCacheKey(
-                        tenantId, chatModel.getModelId(), purpose, prefixFingerprint);
-            }
-        }
-
-        // 对照 Go 的 types.WithLLMCallMetadata：把记账元数据挂到执行线程上
-        String effectivePrefixFingerprint = prefixFingerprint;
-        final String resolvedWarmupKey = warmupKey;
-        String requestKey = PromptCache.buildPromptCacheKey(
-                tenantScoped ? tenantId : 0L,
-                chatModel.getModelId(),
-                "wiki_exact_request",
-                PromptCache.fingerprintPromptPrefix(serializeRequest(messages, opts)));
-
-        java.util.concurrent.Callable<Object> execute = () -> {
-            WikiLlmCallMetadata.set(purpose, effectivePrefixFingerprint);
-
-            // 用长度为 1 的数组承载 release 句柄：lambda 里不能给局部变量重新赋值
-            // （对照 Go 的 defer releaseWarmup()，defer 的接收者是可变变量）
-            Runnable[] warmupHolder = { () -> { } };
-            boolean holdsWarmup = tenantScoped
-                    && WikiPrompts.WIKI_PAGE_MODIFY_USER_PROMPT.equals(promptTpl)
-                    && !GoStrings.trimSpace(fields.getOrDefault("SharedSourceContexts", "")).isEmpty();
-            if (holdsWarmup) {
-                warmupHolder[0] = awaitWikiPromptWarmup(resolvedWarmupKey);
-            }
-            try {
-                Exception lastErr = null;
-                for (int attempt = 1; attempt <= WikiIngestConstants.LLM_MAX_ATTEMPTS; attempt++) {
-                    ChatResponse response = null;
-                    Exception callErr = null;
-                    try {
-                        response = chatModel.chat(messages, opts);
-                    } catch (Exception e) {
-                        callErr = e;
-                    }
-                    if (callErr == null && response != null) {
-                        return response.getContent() == null ? "" : response.getContent();
-                    }
-                    if (callErr == null) {
-                        callErr = new IllegalStateException("LLM returned nil response");
-                    }
-                    lastErr = callErr;
-
-                    if (!WikiLlmRetryPolicy.isTransientLlmError(
-                            Thread.currentThread().isInterrupted(), callErr)) {
-                        throw new IllegalStateException("LLM call failed: " + callErr.getMessage(), callErr);
-                    }
-                    if (attempt == WikiIngestConstants.LLM_MAX_ATTEMPTS) {
-                        break;
-                    }
-                    Duration backoff = WikiIngestConstants.llmBackoff(attempt);
-                    log.warn("wiki ingest: LLM call failed (attempt {}/{}), retrying in {}s: {}",
-                            attempt, WikiIngestConstants.LLM_MAX_ATTEMPTS,
-                            backoff.toSeconds(), callErr.getMessage());
-                    try {
-                        Thread.sleep(backoff.toMillis());
-                    } catch (InterruptedException ie) {
-                        // 对照 Go 的 ctx.Done() 分支：任务正在取消，不再退避
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException(
-                                "LLM call aborted during backoff: interrupted", ie);
-                    }
-                }
-                throw new IllegalStateException("LLM call failed after "
-                        + WikiIngestConstants.LLM_MAX_ATTEMPTS + " attempts: "
-                        + (lastErr == null ? "" : lastErr.getMessage()), lastErr);
-            } finally {
-                WikiLlmCallMetadata.clear();
-                warmupHolder[0].run();
-            }
-        };
-
-        String content;
-        if (!tenantScoped) {
-            // 缺少租户上下文对生产 wiki 工作是异常情况。安全起见<b>跳过跨调用合并</b>，
-            // 而不是把不相关的请求塞进一个合成的 tenant-0 桶里。
-            try {
-                content = (String) execute.call();
-            } catch (Exception e) {
-                throw new IllegalStateException(e.getMessage(), e);
-            }
-            return WikiImageMarkup.unmaskImageURLs(content, maskedData.tokenToUrl());
-        }
-
-        try {
-            CompletableFuture<Object> result = llmRequests.doChan(requestKey, execute);
-            content = (String) SingleFlight.await(result);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("LLM call aborted: interrupted", e);
-        } catch (Exception e) {
-            throw new IllegalStateException(e.getMessage(), e);
-        }
-        return WikiImageMarkup.unmaskImageURLs(content, maskedData.tokenToUrl());
-    }
-
-    /**
-     * 对照 Go 的 {@code requestJSON, _ := json.Marshal(struct{Messages; Options})}（L2569-2572）：
-     * 把消息与选项序列化成"精确请求"指纹的输入。
-     *
-     * <p>字段序分别是 {@code messages, options}（Go struct 声明序）。Java 侧用
-     * {@code ChatMessage} / {@code ChatOptions} 自身的 {@code @JsonPropertyOrder} 与
-     * omitempty 注解产出同样的形状，因此指纹在两侧的意义一致。
-     * 该键只用于<b>进程内</b>的跨调用合并，不落库、不外泄。</p>
-     */
-    private static String serializeRequest(List<ChatMessage> messages, ChatOptions opts) {
-        ObjectNode root = MAPPER.createObjectNode();
-        ArrayNode messagesNode = root.putArray("messages");
-        for (ChatMessage m : messages) {
-            messagesNode.add(MAPPER.valueToTree(m));
-        }
-        root.set("options", MAPPER.valueToTree(opts));
-        try {
-            return MAPPER.writeValueAsString(root);
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    /**
-     * 对照 Go {@code awaitWikiPromptWarmup}（L2669-2692）：只串行化同一个可复用
-     * Wiki 页面前缀的<b>首个</b>请求。
-     *
-     * <p>leader（第一个到达的调用）拿到一个 release 句柄，<b>必须</b>在它的 LLM 调用
-     * 结束后调用（Go 用 {@code defer releaseWarmup()}）；跟随者会阻塞到 leader 释放。
-     * 释放后本地的"已预热"标记保留 4 分钟（覆盖并行的 reduce 突发），
-     * 然后被回收——它不该变成常驻的应用级缓存。</p>
-     *
-     * @return release 句柄
-     * @throws InterruptedException 等待期间线程被中断（对照 Go 的 {@code ctx.Done()} 分支）
-     */
-    public Runnable awaitWikiPromptWarmup(String key) throws InterruptedException {
-        if (key == null || key.isEmpty()) {
-            return () -> { };
-        }
-        PromptWarmup candidate = new PromptWarmup();
-        PromptWarmup existing = promptWarmups.putIfAbsent(key, candidate);
-        if (existing == null) {
-            // leader
-            return () -> {
-                if (candidate.closed.compareAndSet(false, true)) {
-                    candidate.done.complete(null);
-                }
-                // 保持本地"已预热"标记足够久以覆盖并行的 reduce 突发，
-                // 又不至于变成常驻应用缓存
-                warmupReaper.schedule(() -> promptWarmups.remove(key, candidate),
-                        4, TimeUnit.MINUTES);
-            };
-        }
-        // 跟随者：等 leader 完成（对照 Go 的 select ctx.Done / entry.done）
-        try {
-            existing.done.get();
-        } catch (InterruptedException e) {
-            // 对照 Go 的 ctx.Done() 分支：等待期间被取消
-            Thread.currentThread().interrupt();
-            throw e;
-        } catch (java.util.concurrent.ExecutionException e) {
-            // leader 的 future 不会异常完成（只 complete(null)），走到这里说明装配错了
-            throw new IllegalStateException("prompt warmup gate failed", e.getCause());
-        }
-        return () -> { };
-    }
-
-    /** 供测试/可观测：当前的预热标记数 */
-    public int promptWarmupCount() {
-        return promptWarmups.size();
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // 辅助（对照 Go L2789-2909）

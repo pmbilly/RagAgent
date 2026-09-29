@@ -119,7 +119,7 @@ public class WikiIngestTaxonomy {
 
             String raw;
             try {
-                raw = ingestService.generateWithTemplate(chatModel, WikiPrompts.WIKI_TAXONOMY_PLAN_PROMPT,
+                raw = ingestService.llm.generateWithTemplate(chatModel, WikiPrompts.WIKI_TAXONOMY_PLAN_PROMPT,
                         Map.of(
                                 "ExistingTaxonomy", tree,
                                 "Items", itemsBlock.toString(),
