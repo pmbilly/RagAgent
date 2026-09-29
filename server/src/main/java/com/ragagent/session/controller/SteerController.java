@@ -147,7 +147,6 @@ public class SteerController {
                 body.put("delivery", deliveryOf(existingEvent));
                 body.put("status", "queued");
                 body.put("steer_id", steerId);
-                body.put("success", true);
                 return ResponseEntity.ok(body);
             }
         }
@@ -175,7 +174,6 @@ public class SteerController {
         body.put("delivery", delivery);
         body.put("status", "queued");
         body.put("steer_id", steerId);
-        body.put("success", true);
         return ResponseEntity.ok(body);
     }
 
@@ -221,7 +219,6 @@ public class SteerController {
         body.put("delivery", DELIVERY_INJECT);
         body.put("status", "queued");
         body.put("steer_id", steerId);
-        body.put("success", true);
         return ResponseEntity.ok(body);
     }
 
@@ -245,14 +242,12 @@ public class SteerController {
         if (assistantId == null || assistantId.isEmpty()) {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("items", List.of());
-            body.put("success", true);
             return ResponseEntity.ok(body);
         }
         List<StreamEvent> events = steerEventsOr500(sid, assistantId, "Failed to load queued messages");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("assistant_message_id", assistantId);
         body.put("items", pendingQueueItems(events, null));
-        body.put("success", true);
         return ResponseEntity.ok(body);
     }
 
@@ -285,7 +280,6 @@ public class SteerController {
                 body.put("removed", false);
                 body.put("status", "already_injected");
                 body.put("steer_id", steerId);
-                body.put("success", true);
                 return ResponseEntity.ok(body);
             }
         }
@@ -300,7 +294,6 @@ public class SteerController {
         body.put("removed", removed);
         body.put("status", "deleted");
         body.put("steer_id", steerId);
-        body.put("success", true);
         return ResponseEntity.ok(body);
     }
 
@@ -512,9 +505,8 @@ public class SteerController {
         return BizException.internal(e.getMessage());
     }
 
-    /** 键按字母序的两键信封（data 后置 success 由调用方补）。 */
+    /** 直接返回已拼好的载荷（原信封的 success 标记已按契约去除）。 */
     private static ResponseEntity<Map<String, Object>> ok(Map<String, Object> body) {
-        body.put("success", true);
         return ResponseEntity.ok(body);
     }
 

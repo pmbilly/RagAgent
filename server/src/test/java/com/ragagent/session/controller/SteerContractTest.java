@@ -226,7 +226,8 @@ class SteerContractTest {
         assertThat(body).contains("\"status\":\"queued\"")
                 .contains("\"delivery\":\"after\"")
                 .contains("\"assistant_message_id\":\"" + ASSISTANT_ID + "\"")
-                .contains("\"success\":true");
+                // 载荷直出：不再带 success 标记（契约：成功用状态码表达）
+                .doesNotContain("\"success\"");
     }
 
     /** 列表返回未消费事件（overlay 恢复载荷）。 */
