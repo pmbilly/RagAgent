@@ -73,7 +73,7 @@ public class SessionAgentQaService {
     private final ArtifactCollectorWiring artifactCollectorWiring;
     private final com.ragagent.knowledge.service.KnowledgeBaseService kbService;
     private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
-    private final com.ragagent.knowledge.service.FaqService faqService;
+    private final com.ragagent.knowledge.service.FaqEntryQueryService faqService;
     /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
     private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
     private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
@@ -100,7 +100,7 @@ public class SessionAgentQaService {
             ArtifactCollectorWiring artifactCollectorWiring,
             com.ragagent.knowledge.service.KnowledgeBaseService kbService,
             com.ragagent.knowledge.service.KnowledgeService knowledgeService,
-            com.ragagent.knowledge.service.FaqService faqService,
+            com.ragagent.knowledge.service.FaqEntryQueryService faqService,
             com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
                     ollamaService,

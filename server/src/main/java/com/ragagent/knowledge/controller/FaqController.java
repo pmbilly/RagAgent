@@ -21,7 +21,9 @@ import com.ragagent.knowledge.dto.FaqDtos.FaqBatchUpsertPayload;
 import com.ragagent.knowledge.dto.FaqDtos.FaqEntryTagBatchRequest;
 import com.ragagent.knowledge.dto.FaqDtos.UpdateLastImportDisplayStatusRequest;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.service.FaqService;
+import com.ragagent.knowledge.service.FaqEntryCommandService;
+import com.ragagent.knowledge.service.FaqEntryQueryService;
+import com.ragagent.knowledge.service.FaqImportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -59,12 +61,18 @@ public class FaqController {
     private static final Logger log = LoggerFactory.getLogger(FaqController.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final FaqService faqService;
+    private final FaqEntryQueryService faqEntryQuery;
+    private final FaqEntryCommandService faqEntryCommand;
+    private final FaqImportService faqImport;
     private final com.ragagent.knowledge.service.ChunkAccessGuard guard;
 
-    public FaqController(FaqService faqService,
+    public FaqController(FaqEntryQueryService faqEntryQuery,
+                         FaqEntryCommandService faqEntryCommand,
+                         FaqImportService faqImport,
                          com.ragagent.knowledge.service.ChunkAccessGuard guard) {
-        this.faqService = faqService;
+        this.faqEntryQuery = faqEntryQuery;
+        this.faqEntryCommand = faqEntryCommand;
+        this.faqImport = faqImport;
         this.guard = guard;
     }
 
@@ -108,7 +116,7 @@ public class FaqController {
         }
         Boolean isEnabledFilter = parseOptionalFAQEnabled(isEnabled);
 
-        Object result = faqService.listEntries(kbId, pageValue, sizeValue, tagUuids, legacyTagSeqId,
+        Object result = faqEntryQuery.listEntries(kbId, pageValue, sizeValue, tagUuids, legacyTagSeqId,
                 LogSanitizer.sanitize(keyword), LogSanitizer.sanitize(searchField),
                 LogSanitizer.sanitize(sortOrder), isEnabledFilter);
         return ResponseEntity.ok(successData(result));
@@ -123,13 +131,13 @@ public class FaqController {
         requireKbRead(kbId);
         String fmt = format == null ? "" : format.toLowerCase().trim();
         if ("json".equals(fmt)) {
-            byte[] jsonData = faqService.exportJson(kbId);
+            byte[] jsonData = faqEntryQuery.exportJson(kbId);
             return ResponseEntity.ok()
                     .header("Content-Type", "application/json; charset=utf-8")
                     .header("Content-Disposition", "attachment; filename=faq_export.json")
                     .body(jsonData);
         }
-        byte[] csvData = faqService.exportCsv(kbId);
+        byte[] csvData = faqEntryQuery.exportCsv(kbId);
         byte[] bom = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
         byte[] body = new byte[bom.length + csvData.length];
         System.arraycopy(bom, 0, body, 0, bom.length);
@@ -147,7 +155,7 @@ public class FaqController {
         String kbId = LogSanitizer.sanitize(id);
         requireKbRead(kbId);
         long entrySeqId = parseEntryId(entryId);
-        return ResponseEntity.ok(successData(faqService.getEntry(kbId, entrySeqId)));
+        return ResponseEntity.ok(successData(faqEntryQuery.getEntry(kbId, entrySeqId)));
     }
 
     /** 对照 GetImportProgress（faq.go L507-526）：requireTaskProgressTenant 先于 service 查询。 */
@@ -156,7 +164,7 @@ public class FaqController {
             @PathVariable("taskId") String taskId) {
         String task = LogSanitizer.sanitize(taskId);
         requireTaskProgressTenant(task);
-        return ResponseEntity.ok(successData(faqService.getImportProgress(task)));
+        return ResponseEntity.ok(successData(faqImport.getImportProgress(task)));
     }
 
     // ══════════════════════════ 写 ══════════════════════════
@@ -169,7 +177,7 @@ public class FaqController {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         FaqBatchUpsertPayload req = bindUpsertPayload(rawBody);
-        String taskId = faqService.upsertEntries(kbId, req);
+        String taskId = faqImport.upsertEntries(kbId, req);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("task_id", taskId);
         return ResponseEntity.ok(successData(data));
@@ -183,7 +191,7 @@ public class FaqController {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         FaqEntryPayload req = bindEntryPayload(rawBody);
-        return ResponseEntity.ok(successData(faqService.createEntry(kbId, req)));
+        return ResponseEntity.ok(successData(faqEntryCommand.createEntry(kbId, req)));
     }
 
     /** 对照 UpdateEntry（faq.go L237-265）：先 binding 后 entry_id 解析（Go 的顺序）。 */
@@ -196,7 +204,7 @@ public class FaqController {
         requireKbWrite(kbId);
         FaqEntryPayload req = bindEntryPayload(rawBody);
         long entrySeqId = parseEntryId(entryId);
-        return ResponseEntity.ok(successData(faqService.updateEntry(kbId, entrySeqId, req)));
+        return ResponseEntity.ok(successData(faqEntryCommand.updateEntry(kbId, entrySeqId, req)));
     }
 
     /** 对照 AddSimilarQuestions（faq.go L579-607）：entry_id 解析在 binding 之前。 */
@@ -217,7 +225,7 @@ public class FaqController {
         validator(req.similarQuestions().isEmpty(), "Key: 'addSimilarQuestionsRequest.SimilarQuestions' "
                 + "Error:Field validation for 'SimilarQuestions' failed on the 'min' tag");
         return ResponseEntity.ok(successData(
-                faqService.addSimilarQuestions(kbId, entrySeqId, req.similarQuestions())));
+                faqEntryCommand.addSimilarQuestions(kbId, entrySeqId, req.similarQuestions())));
     }
 
     /** 对照 UpdateEntryFieldsBatch（faq.go L300-331）。 */
@@ -228,7 +236,7 @@ public class FaqController {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         FaqEntryFieldsBatchUpdate req = bindBody(rawBody, FaqEntryFieldsBatchUpdate.class);
-        faqService.updateEntryFieldsBatch(kbId, req);
+        faqEntryCommand.updateEntryFieldsBatch(kbId, req);
         return ResponseEntity.ok(successOnly());
     }
 
@@ -248,7 +256,7 @@ public class FaqController {
             throw invalidRequest("Key: 'faqEntryTagBatchRequest.Updates' Error:Field validation "
                     + "for 'Updates' failed on the 'min' tag");
         }
-        faqService.updateEntryTagBatch(kbId, req.updates());
+        faqEntryCommand.updateEntryTagBatch(kbId, req.updates());
         return ResponseEntity.ok(successOnly());
     }
 
@@ -268,7 +276,7 @@ public class FaqController {
             throw invalidRequest("Key: 'faqDeleteRequest.IDs' Error:Field validation for 'IDs' "
                     + "failed on the 'min' tag");
         }
-        faqService.deleteEntries(kbId, req.ids());
+        faqEntryCommand.deleteEntries(kbId, req.ids());
         return ResponseEntity.ok(successOnly());
     }
 
@@ -289,7 +297,7 @@ public class FaqController {
         req = new FaqSearchRequest(LogSanitizer.sanitize(req.queryText()), req.vectorThreshold(),
                 req.matchCount() <= 0 ? 10 : Math.min(req.matchCount(), 200),
                 req.firstPriorityTagIds(), req.secondPriorityTagIds(), req.onlyRecommended());
-        return ResponseEntity.ok(successData(faqService.searchEntries(kbId, req)));
+        return ResponseEntity.ok(successData(faqEntryQuery.searchEntries(kbId, req)));
     }
 
     /** 对照 UpdateLastImportResultDisplayStatus（faq.go L542-562）。 */
@@ -308,7 +316,7 @@ public class FaqController {
         validator(!"open".equals(req.displayStatus()) && !"close".equals(req.displayStatus()),
                 "Key: 'updateLastFAQImportResultDisplayStatusRequest.DisplayStatus' "
                         + "Error:Field validation for 'DisplayStatus' failed on the 'oneof' tag");
-        faqService.updateLastImportResultDisplayStatus(kbId, req.displayStatus());
+        faqImport.updateLastImportResultDisplayStatus(kbId, req.displayStatus());
         return ResponseEntity.ok(successOnly());
     }
 

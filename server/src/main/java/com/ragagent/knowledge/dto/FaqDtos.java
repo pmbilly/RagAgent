@@ -66,7 +66,28 @@ public final class FaqDtos {
             @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("match_type") int matchType,
             @JsonProperty("chunk_type") String chunkType,
             @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("matched_question") String matchedQuestion) {
-    }
+    
+        /** 以检索命中覆盖 score/matchType/matchedQuestion 的视图重建。 */
+        public static FaqEntry withSearchHit(FaqEntry entry, double score, int matchType,
+                String matchedQuestion) {
+            return new FaqEntry(entry.id(), entry.chunkId(), entry.knowledgeId(), entry.knowledgeBaseId(),
+                    entry.tagId(), entry.tagName(), entry.isEnabled(), entry.isRecommended(),
+                    entry.standardQuestion(), entry.similarQuestions(), entry.negativeQuestions(),
+                    entry.answers(), entry.answerStrategy(), entry.indexMode(), entry.updatedAt(),
+                    entry.createdAt(), score, matchType, entry.chunkType(),
+                    matchedQuestion);
+        }
+
+        /** 覆盖 tagName 的视图重建。 */
+        public static FaqEntry withTagName(FaqEntry entry, String tagName) {
+            return new FaqEntry(entry.id(), entry.chunkId(), entry.knowledgeId(), entry.knowledgeBaseId(),
+                    entry.tagId(), tagName == null ? "" : tagName, entry.isEnabled(), entry.isRecommended(),
+                    entry.standardQuestion(), entry.similarQuestions(), entry.negativeQuestions(),
+                    entry.answers(), entry.answerStrategy(), entry.indexMode(), entry.updatedAt(),
+                    entry.createdAt(), entry.score(), entry.matchType(), entry.chunkType(),
+                    entry.matchedQuestion());
+        }
+}
 
     /**
      * 对照 types.FAQExportEntry（JSON 导出面，"导出→编辑→再导入"兼容格式）。

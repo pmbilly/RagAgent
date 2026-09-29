@@ -55,7 +55,7 @@ import org.springframework.stereotype.Component;
  * UpdateChunkFieldsByTagID / UpdateChunks / SaveChunks / DeleteUnindexedChunks）。
  * 仍未翻译：FAQChunkDiff / ListFAQChunkStatusByIDs / ListRecommendedFAQChunks /
  * ListRecentDocumentChunksWithQuestions / CreateChunks（CreateChunks 的 MP insert 等价物在
- * FaqService.createChunks 内联）/ MoveChunksByKnowledgeID / CountChunksByKnowledgeBaseID /
+ * FaqIndexWriter.createChunks）/ MoveChunksByKnowledgeID / CountChunksByKnowledgeBaseID /
  * ListChunksByIDOnly / ListChunksByKnowledgeID(AndTypes) / ListChunksByParentIDs /
  * DeleteChunksByTagID / ListImageInfoByKnowledgeIDs / ListAllChunksByKnowledgeID。</p>
  *

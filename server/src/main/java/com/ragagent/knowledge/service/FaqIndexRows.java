@@ -9,7 +9,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
  * FAQ 索引行组装（对照 Go knowledge_faq.go 的 buildFAQIndexInfoList /
- * buildFAQIndexContent，L1890-2005）。2026-09-22 走查批接线：此前 FaqService 的
+ * buildFAQIndexContent，L1890-2005）。2026-09-22 走查批接线：此前的
  * 索引步是「embedding runtime is not available」占位。
  *
  * <p><b>两种索引模式</b>（kb.faq_config）：</p>
