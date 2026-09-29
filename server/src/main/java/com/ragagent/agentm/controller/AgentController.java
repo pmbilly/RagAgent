@@ -24,7 +24,7 @@ import com.ragagent.agentm.service.AgentPlaceholders;
 import com.ragagent.agentm.service.AgentTypePresets;
 import com.ragagent.agentm.service.BuiltinAgentRegistry;
 import com.ragagent.agentm.service.CustomAgentService;
-import com.ragagent.agentm.service.CustomAgentService.TagScope;
+import com.ragagent.agentm.service.AgentSuggestedQuestions.TagScope;
 import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.auth.domain.TenantRole;

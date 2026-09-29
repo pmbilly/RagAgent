@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.ragagent.agentm.service.AgentSuggestedQuestions;
 import com.ragagent.agentm.service.CustomAgentService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.llm.LlmChatClient;
@@ -28,10 +29,8 @@ import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.searchutil.SearchTextUtil;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageExecutionContext;
-import com.ragagent.session.domain.MessageNotFoundException;
 import com.ragagent.session.domain.MessageSuggestionEvent;
 import com.ragagent.session.domain.MessageSuggestionSet;
-import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.domain.SessionOwnerIds;
 import com.ragagent.session.domain.SuggestionItem;
 import com.ragagent.session.mapper.MessageSuggestionRepository;
@@ -501,7 +500,7 @@ public class MessageSuggestionService {
         }
         List<String> actualIds = preferActualEvidence
                 ? context.actualKnowledgeIds() : knowledgeIds;
-        List<CustomAgentService.TagScope> tagScopes = tagScopes(ec);
+        List<AgentSuggestedQuestions.TagScope> tagScopes = tagScopes(ec);
         final int poolSizeF = poolSize;
         final List<String> actualIdsF = actualIds;
         final List<String> knowledgeIdsF = knowledgeIds;
@@ -555,12 +554,12 @@ public class MessageSuggestionService {
         return out;
     }
 
-    /** ec.tagScopes（jsonb map 形态）→ CustomAgentService.TagScope。 */
-    private static List<CustomAgentService.TagScope> tagScopes(MessageExecutionContext ec) {
+    /** ec.tagScopes（jsonb map 形态）→ AgentSuggestedQuestions.TagScope。 */
+    private static List<AgentSuggestedQuestions.TagScope> tagScopes(MessageExecutionContext ec) {
         if (ec == null || ec.getTagScopes() == null) {
             return List.of();
         }
-        List<CustomAgentService.TagScope> out = new ArrayList<>();
+        List<AgentSuggestedQuestions.TagScope> out = new ArrayList<>();
         for (Map<String, Object> m : ec.getTagScopes()) {
             if (m == null) {
                 continue;
@@ -575,7 +574,7 @@ public class MessageSuggestionService {
                     }
                 }
             }
-            out.add(new CustomAgentService.TagScope(kb == null ? "" : kb.toString(), tagIds));
+            out.add(new AgentSuggestedQuestions.TagScope(kb == null ? "" : kb.toString(), tagIds));
         }
         return out;
     }
