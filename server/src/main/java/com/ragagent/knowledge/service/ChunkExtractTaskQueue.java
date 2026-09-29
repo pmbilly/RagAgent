@@ -1,5 +1,7 @@
 package com.ragagent.knowledge.service;
 
+import com.ragagent.knowledge.domain.ExtractChunkPayload;
+
 /**
  * 分块图抽取任务的投递口。
  * Timeout 30 分钟），Java 侧是进程内队列——契约保持一致（入队即异步执行、

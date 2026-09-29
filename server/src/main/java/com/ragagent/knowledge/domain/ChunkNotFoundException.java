@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.mapper;
+package com.ragagent.knowledge.domain;
 
 /**
  * （internal/application/repository/chunk）。

@@ -46,6 +46,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.knowledge.security.KnowledgeRouteGuards;
 
 /**
  * 知识文档主面：创建（文件/URL/手工）、列表/详情/批量取、解析生命周期

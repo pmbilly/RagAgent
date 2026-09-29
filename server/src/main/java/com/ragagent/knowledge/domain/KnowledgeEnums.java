@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.dto;
+package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;

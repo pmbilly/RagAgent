@@ -1,5 +1,7 @@
 package com.ragagent.knowledge.service;
 
+import com.ragagent.knowledge.domain.QuestionBatchPayload;
+
 /**
  * 问题生成批任务的投递口。
  * 入队即异步执行、失败按重试预算重试、耗尽后放弃并记日志。</p>

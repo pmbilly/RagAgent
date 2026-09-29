@@ -12,6 +12,7 @@ import com.ragagent.common.context.TracingContext;
 import com.ragagent.knowledge.domain.Chunk;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.ragagent.knowledge.domain.ExtractChunkPayload;
 
 /**
  * 图抽取分块筛选测试（对照 Go {@code selectGraphChunks} / {@code chunkHasExtractableText}）

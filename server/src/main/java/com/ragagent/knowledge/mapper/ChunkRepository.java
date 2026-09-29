@@ -10,6 +10,8 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import org.springframework.stereotype.Component;
 import com.ragagent.common.jdbc.DatabaseDialects;
+import com.ragagent.knowledge.domain.ChunkNotFoundException;
+import com.ragagent.knowledge.domain.ChunkRevisionConflictException;
 
 /**
  * chunk 仓储（文档与 FAQ 的 chunk 行读写，方法式门面）。数据访问契约如下，

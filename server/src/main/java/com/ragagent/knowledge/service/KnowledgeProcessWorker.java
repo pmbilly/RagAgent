@@ -37,6 +37,8 @@ import com.ragagent.wiki.service.WikiIngestService;
 import com.ragagent.wiki.service.WikiIngestService.EnqueueResult;
 import com.ragagent.wiki.service.WikiKnowledgeFinalizer;
 import com.ragagent.tracing.langfuse.LangfuseTracing;
+import com.ragagent.knowledge.domain.ExtractChunkPayload;
+import com.ragagent.knowledge.domain.QuestionBatchPayload;
 
 /**
  * 知识处理后台 worker：虚拟线程队列消费 knowledge 的解析主链路

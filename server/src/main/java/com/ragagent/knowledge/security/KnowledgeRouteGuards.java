@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.controller;
+package com.ragagent.knowledge.security;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

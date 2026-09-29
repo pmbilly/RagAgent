@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.textconv;
+package com.ragagent.common.text;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,14 +43,18 @@ public final class TextConv {
 
     private static List<Dictionary> load() {
         List<Dictionary> result = new ArrayList<>();
-        result.add(loadDictionary("/textconv/TSPhrases.txt"));
-        result.add(loadDictionary("/textconv/TSCharacters.txt"));
+        result.add(loadDictionary("/common/text/TSPhrases.txt"));
+        result.add(loadDictionary("/common/text/TSCharacters.txt"));
         return result;
     }
 
     private static Dictionary loadDictionary(String resource) {
         Dictionary d = new Dictionary();
-        try (InputStream in = TextConv.class.getResourceAsStream(resource);
+        InputStream stream = TextConv.class.getResourceAsStream(resource);
+        if (stream == null) {
+            throw new IllegalStateException("classpath resource missing: " + resource);
+        }
+        try (InputStream in = stream;
              BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {

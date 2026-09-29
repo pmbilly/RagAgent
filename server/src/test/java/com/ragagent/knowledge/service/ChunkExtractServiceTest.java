@@ -38,6 +38,7 @@ import com.ragagent.wiki.service.DefaultWikiKnowledgeFinalizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.ragagent.knowledge.domain.ExtractChunkPayload;
 
 /**
  * 分块图抽取服务测试（对照 Go {@code ChunkExtractService.Handle} 的四条出口：

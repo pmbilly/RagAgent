@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.textconv;
+package com.ragagent.common.text;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

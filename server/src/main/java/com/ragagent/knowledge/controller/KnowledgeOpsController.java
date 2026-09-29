@@ -37,6 +37,7 @@ import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress;
 import com.ragagent.knowledge.dto.KnowledgeTaskDtos.MoveKnowledgeResponse;
 import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.knowledge.security.KnowledgeRouteGuards;
 
 /**
  * 知识文档运营操作面：跨库搜索、批量删除/重析、批量标签、跨 KB 搬移与进度、

@@ -19,6 +19,7 @@ import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.wiki.service.DefaultWikiKnowledgeFinalizer;
+import com.ragagent.knowledge.domain.QuestionBatchPayload;
 
 /**
  * 问题生成**批** worker。

@@ -7,7 +7,7 @@ import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.ragagent.knowledge.textconv.TextConv;
+import com.ragagent.common.text.TextConv;
 
 /**
  * FAQ 条目在 chunks.metadata 中的结构。

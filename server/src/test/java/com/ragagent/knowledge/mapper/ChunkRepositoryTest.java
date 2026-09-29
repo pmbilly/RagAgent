@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.ragagent.knowledge.domain.ChunkNotFoundException;
+import com.ragagent.knowledge.domain.ChunkRevisionConflictException;
 
 /**
  * chunk 仓储语义（H2）——对照 Go internal/application/repository/chunk.go 的

@@ -5,9 +5,10 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.dto.KnowledgeEnums.EnableStatus;
-import com.ragagent.knowledge.dto.KnowledgeEnums.ParseStatus;
-import com.ragagent.knowledge.dto.KnowledgeEnums.SummaryStatus;
+import com.ragagent.knowledge.domain.KnowledgeEnums.EnableStatus;
+import com.ragagent.knowledge.domain.KnowledgeEnums.ParseStatus;
+import com.ragagent.knowledge.domain.KnowledgeEnums.SummaryStatus;
+import com.ragagent.knowledge.domain.KnowledgeEnums;
 
 /**
  * 文档（Knowledge）对外视图。
