@@ -139,7 +139,7 @@ public class KnowledgeTagService {
                 data.add(KnowledgeTagWithStats.from(t, c[0], c[1]));
             }
         }
-        return new TagPageResult(result.total(), result.page(), result.pageSize(), data);
+        return new TagPageResult(data, result.page(), result.pageSize(), result.total());
     }
 
     // ── 写：CreateTag（tag） ────────────────────────────────────

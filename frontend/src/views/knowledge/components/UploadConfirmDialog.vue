@@ -1271,8 +1271,8 @@ async function loadTags() {
 
   tagsLoading.value = true
   try {
-    const response: any = await listKnowledgeTags(kbId, { page: 1, page_size: 1000 })
-    const tags = response?.data?.data || []
+    const response: any = await listKnowledgeTags(kbId, { page: 1, pageSize: 1000 })
+    const tags = response?.items || []
     availableTags.value = tags.map((tag: any) => ({
       id: String(tag.id),
       name: String(tag.name || ''),

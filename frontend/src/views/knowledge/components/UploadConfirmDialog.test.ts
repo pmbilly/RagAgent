@@ -11,7 +11,7 @@ test('selects multiple document tags and returns them with the confirmation resu
   assert.match(host, /:tag-ids="uploadConfirmStore\.tagIds"/)
   assert.match(dialog, /v-model="selectedTagIds"/)
   assert.match(dialog, /multiple/)
-  assert.match(dialog, /listKnowledgeTags\(kbId, \{ page: 1, page_size: 1000 \}\)/)
+  assert.match(dialog, /listKnowledgeTags\(kbId, \{ page: 1, pageSize: 1000 \}\)/)
   assert.match(dialog, /tagIds: \[\.\.\.selectedTagIds\.value\]/)
 })
 

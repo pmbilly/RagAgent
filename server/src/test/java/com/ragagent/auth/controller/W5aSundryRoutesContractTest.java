@@ -56,7 +56,7 @@ class W5aSundryRoutesContractTest {
             "\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern JWT_PATTERN = Pattern.compile(
             "\"(access_token|refresh_token|token)\":\"[^\"]*\"");
-    private static final Pattern SEQ_PATTERN = Pattern.compile("\"seq_id\":\\d+");
+    private static final Pattern SEQ_PATTERN = Pattern.compile("\"seqId\":\\d+");
     private static final Pattern NUMERIC_ID_PATTERN = Pattern.compile("\"id\":\\d+");
 
     @Autowired
@@ -200,16 +200,16 @@ class W5aSundryRoutesContractTest {
 
         assertGolden(get("/api/v1/knowledge-bases/" + kb + "/tags", owner), 200,
                 "w5a-tag-list-empty.json");
-        r = expect(200, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
+        r = expect(201, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
                 "{\"name\":\"w5a-标签A\",\"color\":\"#ff0000\",\"sort_order\":3}"),
                 "w5a-tag-create.json");
-        String tagA = jsonPath(r, "data.id");
-        r = expect(200, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
+        String tagA = jsonPath(r, "id");
+        r = expect(201, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
                 "{\"name\":\"w5a-标签B\"}"), "w5a-tag-create-b.json");
-        String tagB = jsonPath(r, "data.id");
-        r = expect(200, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
+        String tagB = jsonPath(r, "id");
+        r = expect(201, postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
                 "{\"name\":\"w5a-标签C\"}"), "w5a-tag-create-c.json");
-        String tagC = jsonPath(r, "data.id");
+        String tagC = jsonPath(r, "id");
         assertGolden(postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
                 "{\"name\":\"w5a-标签A\"}"), 409, "w5a-tag-create-dup.json");
         assertGolden(postJson("/api/v1/knowledge-bases/" + kb + "/tags", owner,
@@ -223,7 +223,7 @@ class W5aSundryRoutesContractTest {
                 .get("/api/v1/knowledge-bases/" + kb + "/tags")
                 .queryParam("keyword", "w5a-标签A")
                 .header("Authorization", owner), 200, "w5a-tag-list-keyword.json");
-        assertGolden(get("/api/v1/knowledge-bases/" + kb + "/tags?page=1&page_size=1", owner), 200,
+        assertGolden(get("/api/v1/knowledge-bases/" + kb + "/tags?page=1&pageSize=1", owner), 200,
                 "w5a-tag-list-page.json");
         assertGolden(get("/api/v1/knowledge-bases/" + kb + "/tags?page=abc", owner), 400,
                 "w5a-tag-list-badpage.json");
@@ -250,9 +250,9 @@ class W5aSundryRoutesContractTest {
                 204, "w5a-tag-ref-assign.json");
         assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagC, owner), 400,
                 "w5a-tag-delete-referenced.json");
-        assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagC + "?content_only=true",
-                owner), 200, "w5a-tag-delete-content-only.json");
-        assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagB, owner), 200,
+        assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagC + "?contentOnly=true",
+                owner), 204, "w5a-tag-delete-content-only.json");
+        assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagB, owner), 204,
                 "w5a-tag-delete-ok.json");
         return kb;
     }
@@ -387,7 +387,7 @@ class W5aSundryRoutesContractTest {
         s = TS_PATTERN.matcher(s).replaceAll("<ts>");
         s = JWT_PATTERN.matcher(s).replaceAll("\"$1\":\"<jwt>\"");
         s = UUID_PATTERN.matcher(s).replaceAll("\"<uuid>\"");
-        s = SEQ_PATTERN.matcher(s).replaceAll("\"seq_id\":<seq>");
+        s = SEQ_PATTERN.matcher(s).replaceAll("\"seqId\":<seq>");
         return s;
     }
 

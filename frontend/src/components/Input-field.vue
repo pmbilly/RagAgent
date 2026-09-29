@@ -1136,9 +1136,8 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
     const tagSources = availableKbs;
     try {
       const tagResults = await Promise.all(tagSources.map(async (kb: any) => {
-        const res: any = await listKnowledgeTags(kb.id, { page: 1, page_size: 20, keyword: tagKeyword || undefined });
-        const payload = res?.data ?? res;
-        const list = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+        const res: any = await listKnowledgeTags(kb.id, { page: 1, pageSize: 20, keyword: tagKeyword || undefined });
+        const list = Array.isArray(res?.items) ? res.items : [];
         return list.map((tag: any) => ({
           id: tag.id,
           name: tag.name,

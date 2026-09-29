@@ -1370,14 +1370,14 @@ const loadTags = async (reset = false) => {
   try {
     const res: any = await listKnowledgeTags(props.kbId, {
       page: currentTagPage,
-      page_size: TAG_PAGE_SIZE,
+      pageSize: TAG_PAGE_SIZE,
       keyword: tagSearchQuery.value || undefined,
     })
-    const pageData = (res?.data || {}) as {
-      data?: any[]
+    const pageData = (res || {}) as {
+      items?: any[]
       total?: number
     }
-    const pageTags = (pageData.data || []).map((tag: any) => ({
+    const pageTags = (pageData.items || []).map((tag: any) => ({
       ...tag,
       id: String(tag.id),
     }))

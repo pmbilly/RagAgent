@@ -154,7 +154,7 @@
                       {{
                         isFaq
                           ? $t('knowledgeBase.tagManageFaqCount', { count: tag.chunkCount || 0 })
-                          : $t('knowledgeBase.tagManageDocCount', { count: tag.knowledge_count || 0 })
+                          : $t('knowledgeBase.tagManageDocCount', { count: tag.knowledgeCount || 0 })
                       }}
                     </span>
                   </span>
@@ -219,9 +219,9 @@ import {
 
 type TagRow = {
   id: string;
-  seq_id: number;
+  seqId: number;
   name: string;
-  knowledge_count?: number;
+  knowledgeCount?: number;
   chunkCount?: number;
 };
 
@@ -315,11 +315,11 @@ const loadTags = async (reset = false) => {
   try {
     const res: any = await listKnowledgeTags(props.kbId, {
       page: currentPage,
-      page_size: TAG_PAGE_SIZE,
+      pageSize: TAG_PAGE_SIZE,
       keyword: searchQuery.value || undefined,
     });
-    const pageData = (res?.data || {}) as { data?: TagRow[]; total?: number };
-    const pageTags = (pageData.data || []).map((tag) => ({
+    const pageData = (res || {}) as { items?: TagRow[]; total?: number };
+    const pageTags = (pageData.items || []).map((tag) => ({
       ...tag,
       id: String(tag.id),
     }));
@@ -425,7 +425,7 @@ const deleteTag = async (tag: TagRow) => {
   cancelCreateTag();
   cancelEditTag();
   try {
-    await deleteKnowledgeBaseTag(props.kbId, tag.seq_id, { force: true });
+    await deleteKnowledgeBaseTag(props.kbId, tag.seqId, { force: true });
     MessagePlugin.success(t('knowledgeBase.tagDeleteSuccess'));
     await loadTags(true);
     emit('changed', { deletedTagId: tag.id });

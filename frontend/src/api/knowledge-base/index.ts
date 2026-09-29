@@ -457,7 +457,7 @@ export function regenerateGeneratedQuestions(chunkId: string) {
 
 export function listKnowledgeTags(
   kbId: string,
-  params?: { page?: number; page_size?: number; keyword?: string },
+  params?: { page?: number; pageSize?: number; keyword?: string },
 ) {
   const query = buildQuery(params);
   return get(`/api/v1/knowledge-bases/${kbId}/tags${query}`);

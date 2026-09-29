@@ -171,7 +171,7 @@ async function handleCreateTag() {
   creatingTag.value = true;
   try {
     const res: any = await createKnowledgeBaseTag(props.kbId, { name });
-    const newTag = res?.data || res;
+    const newTag = res;
     const next = new Set(selectedSet.value);
     next.add(newTag.id);
     selectedSet.value = next;
@@ -199,7 +199,7 @@ async function handleAddNewTag() {
   creatingTag.value = true;
   try {
     const res: any = await createKnowledgeBaseTag(props.kbId, { name });
-    const newTag = res?.data || res;
+    const newTag = res;
     const next = new Set(selectedSet.value);
     next.add(newTag.id);
     selectedSet.value = next;

@@ -1,1 +1,6 @@
-{"data":{"total":0,"page":1,"page_size":20,"data":[]},"success":true}
+{
+  "items": [],
+  "page": 1,
+  "pageSize": 20,
+  "total": 0
+}

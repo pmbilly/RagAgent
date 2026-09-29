@@ -6,11 +6,11 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.ApiResponse;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.CreateTagRequest;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.DeleteTagRequest;
+import com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagResponse;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.TagPageResult;
 import com.ragagent.knowledge.dto.KnowledgeTagDtos.UpdateTagRequest;
 import com.ragagent.knowledge.service.ChunkAccessGuard;
@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -53,10 +54,10 @@ public class KnowledgeTagController {
     }
 
     @GetMapping("/api/v1/knowledge-bases/{id}/tags")
-    public ResponseEntity<ApiResponse<TagPageResult>> listTags(
+    public ResponseEntity<TagPageResult> listTags(
             @PathVariable("id") String id,
             @RequestParam(value = "page", required = false) String page,
-            @RequestParam(value = "page_size", required = false) String pageSize,
+            @RequestParam(value = "pageSize", required = false) String pageSize,
             @RequestParam(value = "keyword", required = false) String keyword) {
         String kbId = LogSanitizer.sanitize(id);
         guard.requireKbAccess(kbId);
@@ -64,9 +65,8 @@ public class KnowledgeTagController {
         Integer pageValue = page == null ? null : bindPaginationInt(page);
         Integer pageSizeValue = pageSize == null ? null : bindPaginationInt(pageSize);
 
-        TagPageResult result = tagService.listTags(kbId, pageValue, pageSizeValue,
-                LogSanitizer.sanitize(keyword));
-        return ResponseEntity.ok(ApiResponse.ok(result));
+        return ResponseEntity.ok(tagService.listTags(kbId, pageValue, pageSizeValue,
+                LogSanitizer.sanitize(keyword)));
     }
 
     /** 分页 query：缺省/null 交给 service；非整数 → 400「page: 类型不正确」。 */
@@ -80,7 +80,7 @@ public class KnowledgeTagController {
     }
 
     @PostMapping("/api/v1/knowledge-bases/{id}/tags")
-    public ResponseEntity<ApiResponse<Object>> createTag(
+    public ResponseEntity<KnowledgeTagResponse> createTag(
             @PathVariable("id") String id,
             @Valid @NonNullBody @RequestBody CreateTagRequest req) {
         String kbId = LogSanitizer.sanitize(id);
@@ -90,14 +90,14 @@ public class KnowledgeTagController {
         KnowledgeTag tag = tagService.createTag(kbId,
                 LogSanitizer.sanitize(req.name()), LogSanitizer.sanitize(req.color()),
                 req.sortOrder() == null ? 0 : req.sortOrder());
-        return ResponseEntity.ok(ApiResponse.ok(
-                KnowledgeTagResponse.from(tag)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(KnowledgeTagResponse.from(tag));
     }
 
-    @PutMapping("/api/v1/knowledge-bases/{id}/tags/{tag_id}")
-    public ResponseEntity<ApiResponse<Object>> updateTag(
+    @PutMapping("/api/v1/knowledge-bases/{id}/tags/{tagId}")
+    public ResponseEntity<KnowledgeTagResponse> updateTag(
             @PathVariable("id") String id,
-            @PathVariable("tag_id") String tagIdParam,
+            @PathVariable("tagId") String tagIdParam,
             @Valid @NonNullBody @RequestBody UpdateTagRequest req) {
         String kbId = LogSanitizer.sanitize(id);
         guard.requireOwnedKbInCallerSpace(kbId);
@@ -105,16 +105,15 @@ public class KnowledgeTagController {
 
         String tagId = tagService.resolveTagId(LogSanitizer.sanitize(tagIdParam));
         KnowledgeTag tag = tagService.updateTag(tagId, req.name(), req.color(), req.sortOrder());
-        return ResponseEntity.ok(ApiResponse.ok(
-                KnowledgeTagResponse.from(tag)));
+        return ResponseEntity.ok(KnowledgeTagResponse.from(tag));
     }
 
-    @DeleteMapping("/api/v1/knowledge-bases/{id}/tags/{tag_id}")
-    public ResponseEntity<ApiResponse<Void>> deleteTag(
+    @DeleteMapping("/api/v1/knowledge-bases/{id}/tags/{tagId}")
+    public ResponseEntity<Void> deleteTag(
             @PathVariable("id") String id,
-            @PathVariable("tag_id") String tagIdParam,
+            @PathVariable("tagId") String tagIdParam,
             @RequestParam(value = "force", required = false) String force,
-            @RequestParam(value = "content_only", required = false) String contentOnly,
+            @RequestParam(value = "contentOnly", required = false) String contentOnly,
             @RequestBody(required = false) DeleteTagRequest request) {
         String kbId = LogSanitizer.sanitize(id);
         guard.requireOwnedKbInCallerSpace(kbId);
@@ -131,7 +130,7 @@ public class KnowledgeTagController {
         List<String> excludeUUIDs = tagService.resolveExcludeUUIDs(kbId, excludeIds);
 
         tagService.deleteTag(tagId, forceFlag, contentOnlyFlag, excludeUUIDs);
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ResponseEntity.noContent().build();
     }
 
 

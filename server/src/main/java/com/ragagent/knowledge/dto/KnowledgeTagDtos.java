@@ -4,106 +4,94 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.ragagent.knowledge.domain.KnowledgeTag;
+import jakarta.validation.constraints.NotBlank;
 
 /**
- * {@code KnowledgeTag} / {@code KnowledgeTagWithStats} 与 types/search.go 的
- * {@code PageResult}）。
- * 内嵌 KnowledgeTag 的 9 个字段在前、knowledge_count/chunk_count 在后）；
- * （由 {@code KnowledgeTagResponse.from} 归一）。</p>
- * <p>ListTags 的外层信封是 gin.H{"success","data"}（字母序 data&lt;success），
- * data 是 PageResult struct（total,page,page_size,data 声明序）——由控制器组装。</p>
+ * 知识库标签的传输对象。
+ *
+ * <p>响应 record 按新契约：camelCase、零注解、内部字段 {@code tenantId} 不下发、
+ * 分页统一 {@code {items, page, pageSize, total}}；请求 record 仍用
+ * {@code @JsonNaming(SnakeCaseStrategy)}（请求侧 camelCase 属独立批次）。</p>
  */
 public final class KnowledgeTagDtos {
 
     private KnowledgeTagDtos() {
     }
-    @JsonPropertyOrder({"id", "seq_id", "tenant_id", "knowledge_base_id",
-            "name", "color", "sort_order", "created_at", "updated_at"})
-    @JsonInclude(JsonInclude.Include.ALWAYS)
+
+    /**
+     * 标签视图。
+     *
+     * @param seqId 展示用序号（实体缺省 0）
+     */
     public record KnowledgeTagResponse(
-            @JsonProperty("id") String id,
-            @JsonProperty("seq_id") long seqId,
-            @JsonProperty("tenant_id") long tenantId,
-            @JsonProperty("knowledge_base_id") String knowledgeBaseId,
-            @JsonProperty("name") String name,
-            @JsonProperty("color") String color,
-            @JsonProperty("sort_order") int sortOrder,
-            @JsonProperty("created_at") OffsetDateTime createdAt,
-            @JsonProperty("updated_at") OffsetDateTime updatedAt) {
+            String id,
+            long seqId,
+            String knowledgeBaseId,
+            String name,
+            String color,
+            int sortOrder,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt) {
 
         public static KnowledgeTagResponse from(KnowledgeTag t) {
             return new KnowledgeTagResponse(
                     t.getId(),
                     t.getSeqId() == null ? 0 : t.getSeqId(),
-                    t.getTenantId() == null ? 0 : t.getTenantId(),
-                    t.getKnowledgeBaseId() == null ? "" : t.getKnowledgeBaseId(),
-                    t.getName() == null ? "" : t.getName(),
-                    t.getColor() == null ? "" : t.getColor(),
+                    t.getKnowledgeBaseId(),
+                    t.getName(),
+                    t.getColor(),
                     t.getSortOrder() == null ? 0 : t.getSortOrder(),
                     t.getCreatedAt(),
                     t.getUpdatedAt());
         }
     }
 
-    /** KnowledgeTag 字段 + 两个计数。 */
-    @JsonPropertyOrder({"id", "seq_id", "tenant_id", "knowledge_base_id",
-            "name", "color", "sort_order", "created_at", "updated_at",
-            "knowledge_count", "chunk_count"})
-    @JsonInclude(JsonInclude.Include.ALWAYS)
+    /** 标签视图 + 引用计数（列表页展示"被 N 篇文档 / M 个分块引用"）。 */
     public record KnowledgeTagWithStats(
-            @JsonProperty("id") String id,
-            @JsonProperty("seq_id") long seqId,
-            @JsonProperty("tenant_id") long tenantId,
-            @JsonProperty("knowledge_base_id") String knowledgeBaseId,
-            @JsonProperty("name") String name,
-            @JsonProperty("color") String color,
-            @JsonProperty("sort_order") int sortOrder,
-            @JsonProperty("created_at") OffsetDateTime createdAt,
-            @JsonProperty("updated_at") OffsetDateTime updatedAt,
-            @JsonProperty("knowledge_count") long knowledgeCount,
-            @JsonProperty("chunk_count") long chunkCount) {
+            String id,
+            long seqId,
+            String knowledgeBaseId,
+            String name,
+            String color,
+            int sortOrder,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt,
+            long knowledgeCount,
+            long chunkCount) {
 
         public static KnowledgeTagWithStats from(KnowledgeTag t,
                                                  long knowledgeCount, long chunkCount) {
             KnowledgeTagResponse base = KnowledgeTagResponse.from(t);
-            return new KnowledgeTagWithStats(base.id(), base.seqId(), base.tenantId(),
-                    base.knowledgeBaseId(), base.name(), base.color(), base.sortOrder(),
+            return new KnowledgeTagWithStats(base.id(), base.seqId(), base.knowledgeBaseId(),
+                    base.name(), base.color(), base.sortOrder(),
                     base.createdAt(), base.updatedAt(), knowledgeCount, chunkCount);
         }
     }
-    @JsonPropertyOrder({"total", "page", "page_size", "data"})
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    public record TagPageResult(
-            @JsonProperty("total") long total,
-            @JsonProperty("page") int page,
-            @JsonProperty("page_size") int pageSize,
-            @JsonProperty("data") List<KnowledgeTagWithStats> data) {
+
+    /** 标签分页结果。 */
+    public record TagPageResult(List<KnowledgeTagWithStats> items, int page, int pageSize, long total) {
     }
 
-/** 创建标签请求（name 必填；color/sort_order 可选）。 */
-@com.fasterxml.jackson.databind.annotation.JsonNaming(
-        com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record CreateTagRequest(
-        @jakarta.validation.constraints.NotBlank(message = "name: 不能为空")
-        String name,
-        String color,
-        Integer sortOrder) {
-}
+    /** 创建标签请求（name 必填；color/sortOrder 可选）。 */
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record CreateTagRequest(
+            @NotBlank(message = "name: 不能为空")
+            String name,
+            String color,
+            Integer sortOrder) {
+    }
 
-/** 更新标签请求：全指针，不传 = 不变更。 */
-@com.fasterxml.jackson.databind.annotation.JsonNaming(
-        com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record UpdateTagRequest(
-        String name,
-        String color,
-        Integer sortOrder) {
-}
+    /** 更新标签请求：全指针，不传 = 不变更。 */
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record UpdateTagRequest(
+            String name,
+            String color,
+            Integer sortOrder) {
+    }
 
-/** 删除标签请求：excludeIds 为保留条目（body 可整体省略）。 */
-public record DeleteTagRequest(java.util.List<Long> excludeIds) {
-}
+    /** 删除标签请求：excludeIds 为保留条目（body 可整体省略）。 */
+    public record DeleteTagRequest(List<Long> excludeIds) {
+    }
 }
