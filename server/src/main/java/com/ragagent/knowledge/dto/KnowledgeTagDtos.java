@@ -3,6 +3,7 @@ package com.ragagent.knowledge.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -109,7 +110,7 @@ public record UpdateTagRequest(
 @com.fasterxml.jackson.databind.annotation.JsonNaming(
         com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record DeleteTagRequest(
-        @com.fasterxml.jackson.annotation.JsonProperty("exclude_ids")
+        @JsonProperty("exclude_ids")
         java.util.List<Long> excludeIds) {
 }
 }

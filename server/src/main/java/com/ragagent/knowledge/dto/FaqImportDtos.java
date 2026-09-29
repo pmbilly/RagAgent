@@ -3,10 +3,12 @@ package com.ragagent.knowledge.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
@@ -30,8 +32,7 @@ public final class FaqImportDtos {
     }
 
     /** 批量导入（upsert）请求；mode 取值见校验注解。 */
-    @com.fasterxml.jackson.databind.annotation.JsonNaming(
-            com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqBatchUpsertPayload(
             @jakarta.validation.constraints.NotNull(message = "entries: 不能为空")
             List<com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPayload> entries,
@@ -43,7 +44,6 @@ public final class FaqImportDtos {
             boolean dryRun) {
     }
 
-/** */
 @JsonPropertyOrder({"index", "reason", "failure_type", "is_partial_failure", "tag_name",
         "standard_question", "similar_questions", "negative_questions", "answers",
         "answer_all", "is_disabled", "removed_similar_questions", "removed_negative_questions"})
@@ -63,7 +63,6 @@ public record FaqFailedEntry(
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("removed_negative_questions") List<String> removedNegativeQuestions) {
 }
 
-/** */
 @JsonPropertyOrder({"index", "standard_question", "answer_changed",
         "new_similar_count", "new_negative_count"})
 public record FaqMergeDetail(
@@ -74,7 +73,6 @@ public record FaqMergeDetail(
         @JsonProperty("new_negative_count") int newNegativeCount) {
 }
 
-/** */
 @JsonPropertyOrder({"index", "seq_id", "tag_id", "tag_name", "standard_question"})
 public record FaqSuccessEntry(
         @JsonProperty("index") int index,

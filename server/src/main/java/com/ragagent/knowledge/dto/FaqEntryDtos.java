@@ -4,10 +4,12 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.GoTimeDeserializer;
@@ -32,7 +34,6 @@ public final class FaqEntryDtos {
     public static final String INDEX_MODE_QUESTION_ONLY = "question_only";
     public static final String INDEX_MODE_QUESTION_ANSWER = "question_answer";
 
-/** */
 @JsonPropertyOrder({"id", "chunk_id", "knowledge_id", "knowledge_base_id", "tag_id",
         "tag_name", "is_enabled", "is_recommended", "standard_question",
         "similar_questions", "negative_questions", "answers", "answer_strategy",
@@ -102,8 +103,7 @@ public record FaqExportEntry(
 }
 
     /** 创建/更新条目的请求载荷（创建时 standard_question 必填；更新路径同形复用）。 */
-    @com.fasterxml.jackson.databind.annotation.JsonNaming(
-            com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqEntryPayload(
             Long id,
             @jakarta.validation.constraints.NotBlank(message = "standard_question: 不能为空")
@@ -118,7 +118,6 @@ public record FaqExportEntry(
             Boolean isRecommended) {
     }
 
-/** */
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 @JsonPropertyOrder({"is_enabled", "is_recommended", "tag_id"})
 public record FaqEntryFieldsUpdate(
@@ -127,7 +126,6 @@ public record FaqEntryFieldsUpdate(
         @JsonProperty("tag_id") Long tagId) {
 }
 
-/** */
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 @JsonPropertyOrder({"by_id", "by_tag", "exclude_ids"})
 public record FaqEntryFieldsBatchUpdate(
@@ -136,30 +134,26 @@ public record FaqEntryFieldsBatchUpdate(
         @JsonProperty("exclude_ids") List<Long> excludeIds) {
 }
 
-    @com.fasterxml.jackson.databind.annotation.JsonNaming(
-            com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqDeleteRequest(
             @jakarta.validation.constraints.NotEmpty(message = "ids: 不能为空")
             List<Long> ids) {
     }
 
     /** updates 的 value null = 移除标签。 */
-    @com.fasterxml.jackson.databind.annotation.JsonNaming(
-            com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqEntryTagBatchRequest(
             @jakarta.validation.constraints.NotEmpty(message = "updates: 不能为空")
             Map<Long, Long> updates) {
     }
 
-    @com.fasterxml.jackson.databind.annotation.JsonNaming(
-            com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AddSimilarQuestionsRequest(
             @jakarta.validation.constraints.NotEmpty(message = "similar_questions: 不能为空")
             List<String> similarQuestions) {
     }
 
-    @com.fasterxml.jackson.databind.annotation.JsonNaming(
-            com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record UpdateLastImportDisplayStatusRequest(
             @jakarta.validation.constraints.NotBlank(message = "display_status: 不能为空")
             @jakarta.validation.constraints.Pattern(regexp = "open|close", message = "display_status: 必须为 open 或 close")

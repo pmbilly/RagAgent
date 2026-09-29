@@ -2,6 +2,7 @@ package com.ragagent.knowledge.dto;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -51,6 +52,6 @@ public final class KnowledgeBaseDtos {
 
     /** 重建索引响应。 */
     public record RebuildIndexResponse(
-            @com.fasterxml.jackson.annotation.JsonProperty("document_count") long documentCount) {
+            @JsonProperty("document_count") long documentCount) {
     }
 }

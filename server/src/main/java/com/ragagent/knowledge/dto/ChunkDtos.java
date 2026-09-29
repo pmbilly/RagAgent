@@ -3,6 +3,7 @@ package com.ragagent.knowledge.dto;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import jakarta.validation.constraints.NotNull;
@@ -48,14 +49,14 @@ public final class ChunkDtos {
     /** chunk 列表响应：data/page/page_size/success/total 五键（既有契约形状）。 */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ChunkPageResponse<T>(T data, int page,
-            @com.fasterxml.jackson.annotation.JsonProperty("page_size") int pageSize,
+            @JsonProperty("page_size") int pageSize,
             boolean success, long total) {
     }
 
     /** chunk 更新/回滚响应：knowledge 摘要信息重载失败时 description/summary_status 缺席。 */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ChunkUpdateResponse<T>(T data, String description, boolean success,
-            @com.fasterxml.jackson.annotation.JsonProperty("summary_status") String summaryStatus) {
+            @JsonProperty("summary_status") String summaryStatus) {
     }
 
     /** 无 data 的操作确认响应。 */

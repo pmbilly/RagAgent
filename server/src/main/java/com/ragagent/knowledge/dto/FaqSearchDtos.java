@@ -3,6 +3,7 @@ package com.ragagent.knowledge.dto;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -13,8 +14,7 @@ public final class FaqSearchDtos {
     private FaqSearchDtos() {
     }
 
-    @com.fasterxml.jackson.databind.annotation.JsonNaming(
-            com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqSearchRequest(
             @jakarta.validation.constraints.NotBlank(message = "query_text: 不能为空")
             String queryText,
