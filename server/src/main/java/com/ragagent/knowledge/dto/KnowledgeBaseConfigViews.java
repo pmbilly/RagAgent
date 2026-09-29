@@ -43,6 +43,31 @@ public final class KnowledgeBaseConfigViews {
                                            Boolean xlsxFirstRowAsHeader) {
         }
 
+        /** 请求侧反向映射（视图 → 领域）。 */
+        public KbChunkingConfig toDomain() {
+            KbChunkingConfig c = new KbChunkingConfig();
+            c.setChunkSize(chunkSize);
+            c.setChunkOverlap(chunkOverlap);
+            c.setSeparators(separators);
+            if (parserEngineRules != null) {
+                c.setParserEngineRules(parserEngineRules.stream().map(r -> {
+                    KbChunkingConfig.ParserEngineRule rule = new KbChunkingConfig.ParserEngineRule();
+                    rule.setFileTypes(r.fileTypes());
+                    rule.setEngine(r.engine());
+                    rule.setXlsxFirstRowAsHeader(r.xlsxFirstRowAsHeader());
+                    return rule;
+                }).toList());
+            }
+            c.setEnableParentChild(enableParentChild);
+            c.setParentChunkSize(parentChunkSize);
+            c.setChildChunkSize(childChunkSize);
+            c.setStrategy(strategy);
+            c.setTokenLimit(tokenLimit);
+            c.setLanguages(languages);
+            c.setTableMetadataInstructions(tableMetadataInstructions);
+            return c;
+        }
+
         public static ChunkingConfigView from(KbChunkingConfig c) {
             if (c == null) {
                 return null;
@@ -64,6 +89,12 @@ public final class KnowledgeBaseConfigViews {
 
         public static ImageProcessingConfigView from(KbImageProcessingConfig c) {
             return c == null ? null : new ImageProcessingConfigView(c.getModelId());
+        }
+
+        public KbImageProcessingConfig toDomain() {
+            KbImageProcessingConfig c = new KbImageProcessingConfig();
+            c.setModelId(modelId);
+            return c;
         }
     }
 
@@ -97,6 +128,14 @@ public final class KnowledgeBaseConfigViews {
         public static AsrConfigView from(KbAsrConfig c) {
             return c == null ? null : new AsrConfigView(c.isEnabled(), c.getModelId(), c.getLanguage());
         }
+
+        public KbAsrConfig toDomain() {
+            KbAsrConfig c = new KbAsrConfig();
+            c.setEnabled(enabled);
+            c.setModelId(modelId);
+            c.setLanguage(language);
+            return c;
+        }
     }
 
     /** 索引策略：向量 / 关键词 / wiki / 图谱 四路开关。 */
@@ -107,6 +146,15 @@ public final class KnowledgeBaseConfigViews {
             return s == null ? null
                     : new IndexingStrategyView(s.isVectorEnabled(), s.isKeywordEnabled(),
                             s.isWikiEnabled(), s.isGraphEnabled());
+        }
+
+        public KbIndexingStrategy toDomain() {
+            KbIndexingStrategy s = new KbIndexingStrategy();
+            s.setVectorEnabled(vectorEnabled);
+            s.setKeywordEnabled(keywordEnabled);
+            s.setWikiEnabled(wikiEnabled);
+            s.setGraphEnabled(graphEnabled);
+            return s;
         }
     }
 }

@@ -42,7 +42,7 @@ test('VLM selection, knowledge-base and agent saves, and deletion preserve the s
   assert.match(selectorSource, /:key="model\.id"[\s\S]*:value="model\.id"/)
   assert.match(selectorSource, /emit\('update:selectedModelId', value \|\| ''\)/)
   assert.match(kbEditorSource, /handleMultimodalVLLMChange[\s\S]*vllmModelId = modelId/)
-  assert.match(kbEditorSource, /vlm_config = \{[\s\S]*model_id:[\s\S]*vllmModelId/)
+  assert.match(kbEditorSource, /vlmConfig = \{[\s\S]*modelId:[\s\S]*vllmModelId/)
   assert.match(agentEditorSource, /model-type="VLLM"[\s\S]*formData\.config\.vlm_model_id[\s\S]*formData\.config\.vlm_model_id = val/)
   assert.match(agentEditorSource, /const payload = \{ \.\.\.formData\.value, config: serializeAgentPrompts/)
   assert.match(agentEditorSource, /updateAgent\(formData\.value\.id, payload\)/)

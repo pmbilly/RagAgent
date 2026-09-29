@@ -20,6 +20,7 @@ import com.ragagent.knowledge.dto.KnowledgeBaseDtos.CopyKbRequest;
 import com.ragagent.knowledge.dto.KnowledgeBaseDtos.HybridSearchRequest;
 import com.ragagent.knowledge.dto.KnowledgeBaseDtos.RebuildIndexResponse;
 import com.ragagent.knowledge.dto.KnowledgeBaseDtos.UpdateKbRequest;
+import com.ragagent.knowledge.dto.KnowledgeBaseDtos.CreateKbRequest;
 import com.ragagent.knowledge.dto.KnowledgeBaseResponse;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.retrieval.HybridSearchService;
@@ -76,61 +77,15 @@ public class KnowledgeBaseController {
         this.hybridSearchService = hybridSearchService;
     }
 
+    /** 创建知识库：请求体字段全部可选（缺省由服务层默认值链补齐）。 */
     @PostMapping
     public ResponseEntity<KnowledgeBaseResponse> createKnowledgeBase(
-            @RequestBody(required = false) KnowledgeBase rawBody) {
+            @RequestBody(required = false) CreateKbRequest request) {
         log.info("Start creating knowledge base");
-        KnowledgeBase kb = bindKnowledgeBase(rawBody);
-        kb = kbService.createKnowledgeBase(kb);
+        KnowledgeBase kb = kbService.createKnowledgeBase(
+                request == null ? CreateKbRequest.empty().toEntity() : request.toEntity());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
-    }
-
-    /** 空体 = 全零值创建；legacy cos_config → storage_config；配置空值按 omitempty 语义归一。 */
-    private KnowledgeBase bindKnowledgeBase(KnowledgeBase body) {
-        if (body == null) {
-            return new KnowledgeBase();
-        }
-        return normalizeConfigOmitEmpty(body);
-    }
-
-    /**
-     * 配置空值归一（对齐 JSON 空值省略 语义）：这些配置字段是 JsonNode 透传，
-     * 不归一则前端编辑器发来的空串/空数组会原样存库并回显。keep 集合 = 无
-     * omitempty 的标签（恒保留）；faq_config 两字段都无 omitempty → 不归一。
-     */
-    private static KnowledgeBase normalizeConfigOmitEmpty(KnowledgeBase kb) {
-        kb.setExtractConfig(dropEmpty(kb.getExtractConfig(), Set.of("enabled")));
-        kb.setWikiConfig(dropEmpty(kb.getWikiConfig(), Set.of("synthesis_model_id", "max_pages_per_ingest")));
-        kb.setAutoTagConfig(dropEmpty(kb.getAutoTagConfig(), Set.of("enabled")));
-        kb.setQuestionGenerationConfig(dropEmpty(kb.getQuestionGenerationConfig(),
-                Set.of("enabled", "question_count")));
-        return kb;
-    }
-
-    /** keep 之外的字段，值为 null/空串/0/空数组/空对象时剔除（bool 不剔——仅 *bool 的 false 保留）。 */
-    private static JsonNode dropEmpty(JsonNode node, Set<String> keep) {
-        if (node == null || !node.isObject()) {
-            return node;
-        }
-        com.fasterxml.jackson.databind.node.ObjectNode obj =
-                (com.fasterxml.jackson.databind.node.ObjectNode) node;
-        List<String> drop = new ArrayList<>();
-        obj.fields().forEachRemaining(e -> {
-            if (keep.contains(e.getKey())) {
-                return;
-            }
-            JsonNode v = e.getValue();
-            boolean empty = v == null || v.isNull()
-                    || (v.isTextual() && v.asText().isEmpty())
-                    || (v.isNumber() && v.numberValue().doubleValue() == 0d)
-                    || (v.isContainerNode() && v.isEmpty());
-            if (empty) {
-                drop.add(e.getKey());
-            }
-        });
-        drop.forEach(obj::remove);
-        return obj;
     }
 
     /** 列表；KB 受限的 API Key 只看得到白名单内的库（数据面收口）。 */

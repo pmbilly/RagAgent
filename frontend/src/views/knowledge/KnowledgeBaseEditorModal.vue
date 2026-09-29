@@ -834,33 +834,33 @@ const loadKBData = async (
       name: kb.name || '',
       description: kb.description || '',
       faqConfig: {
-        indexMode: kb.faq_config?.index_mode || 'question_only',
-        questionIndexMode: kb.faq_config?.question_index_mode || 'separate'
+        indexMode: kb.faqConfig?.index_mode || 'question_only',
+        questionIndexMode: kb.faqConfig?.question_index_mode || 'separate'
       },
       modelConfig: {
-        llmModelId: kb.summary_model_id || '',
-        embeddingModelId: kb.embedding_model_id || '',
-        wikiSynthesisModelId: kb.wiki_config?.synthesis_model_id || ''
+        llmModelId: kb.summaryModelId || '',
+        embeddingModelId: kb.embeddingModelId || '',
+        wikiSynthesisModelId: kb.wikiConfig?.synthesis_model_id || ''
       },
       chunkingConfig: {
-        chunkSize: kb.chunking_config?.chunk_size || 512,
+        chunkSize: kb.chunkingConfig?.chunkSize || 512,
         // Fallback only used when the loaded KB has no chunk_overlap stored.
         // Aligned with chunker.DefaultChunkOverlap on the backend.
-        chunkOverlap: kb.chunking_config?.chunk_overlap || 80,
-        separators: kb.chunking_config?.separators || ['\n\n', '\n', '。', '！', '？', ';', '；'],
-        parserEngineRules: kb.chunking_config?.parser_engine_rules || undefined,
-        enableParentChild: kb.chunking_config?.enable_parent_child || false,
-        parentChunkSize: kb.chunking_config?.parent_chunk_size || 4096,
-        childChunkSize: kb.chunking_config?.child_chunk_size || 384,
+        chunkOverlap: kb.chunkingConfig?.chunkOverlap || 80,
+        separators: kb.chunkingConfig?.separators || ['\n\n', '\n', '。', '！', '？', ';', '；'],
+        parserEngineRules: kb.chunkingConfig?.parserEngineRules || undefined,
+        enableParentChild: kb.chunkingConfig?.enableParentChild || false,
+        parentChunkSize: kb.chunkingConfig?.parentChunkSize || 4096,
+        childChunkSize: kb.chunkingConfig?.childChunkSize || 384,
         // Existing KBs without strategy field render as empty (= legacy behavior).
         // The user has to actively pick a value to opt in to the new tiers.
-        strategy: kb.chunking_config?.strategy || '',
-        tokenLimit: kb.chunking_config?.token_limit || 0,
-        languages: kb.chunking_config?.languages || [],
-        tableMetadataInstructions: kb.chunking_config?.table_metadata_instructions || ''
+        strategy: kb.chunkingConfig?.strategy || '',
+        tokenLimit: kb.chunkingConfig?.tokenLimit || 0,
+        languages: kb.chunkingConfig?.languages || [],
+        tableMetadataInstructions: kb.chunkingConfig?.tableMetadataInstructions || ''
       },
-      storageBackendId: (kb.storage_backend_id || '') as string,
-      storageProvider: (kb.storage_provider_config?.provider || kb.storage_config?.provider || 'local') as string,
+      storageBackendId: (kb.storageBackendId || '') as string,
+      storageProvider: (kb.storageProvider || 'local') as string,
       multimodalConfig: {
         enabled: !!kb.vlmConfig?.enabled,
         vllmModelId: kb.vlmConfig?.modelId || '',
@@ -868,51 +868,51 @@ const loadKBData = async (
         customInstructions: kb.vlmConfig?.customInstructions || ''
       },
       asrConfig: {
-        enabled: !!kb.asr_config?.enabled,
-        modelId: kb.asr_config?.model_id || '',
-        language: kb.asr_config?.language || ''
+        enabled: !!kb.asrConfig?.enabled,
+        modelId: kb.asrConfig?.modelId || '',
+        language: kb.asrConfig?.language || ''
       },
       nodeExtractConfig: {
-        enabled: kb.extract_config?.enabled || false,
-        text: kb.extract_config?.text || '',
-        tags: kb.extract_config?.tags || [],
-        nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
+        enabled: kb.extractConfig?.enabled || false,
+        text: kb.extractConfig?.text || '',
+        tags: kb.extractConfig?.tags || [],
+        nodes: (kb.extractConfig?.nodes || []).map((node: any) => ({
           name: node.name,
           attributes: node.attributes || []
         })),
-        relations: kb.extract_config?.relations || [],
-        customInstructions: kb.extract_config?.custom_instructions || ''
+        relations: kb.extractConfig?.relations || [],
+        customInstructions: kb.extractConfig?.custom_instructions || ''
       },
       questionGenerationConfig: {
-        enabled: kb.question_generation_config?.enabled || false,
-        questionCount: kb.question_generation_config?.question_count || 3,
-        customInstructions: kb.question_generation_config?.custom_instructions || ''
+        enabled: kb.questionGenerationConfig?.enabled || false,
+        questionCount: kb.questionGenerationConfig?.question_count || 3,
+        customInstructions: kb.questionGenerationConfig?.custom_instructions || ''
       },
       autoTagConfig: {
-        enabled: kb.auto_tag_config?.enabled || false,
-        modelId: kb.auto_tag_config?.model_id || '',
-        maxTags: kb.auto_tag_config?.max_tags || 3,
+        enabled: kb.autoTagConfig?.enabled || false,
+        modelId: kb.autoTagConfig?.model_id || '',
+        maxTags: kb.autoTagConfig?.max_tags || 3,
         // Absent on knowledge bases saved before the toggle existed; the
         // backend treats that as "skip", so mirror it here.
-        skipIfTagged: kb.auto_tag_config?.skip_if_tagged ?? true
+        skipIfTagged: kb.autoTagConfig?.skip_if_tagged ?? true
       },
       wikiConfig: {
-        synthesisModelId: kb.wiki_config?.synthesis_model_id || '',
-        maxPagesPerIngest: kb.wiki_config?.max_pages_per_ingest || 0,
+        synthesisModelId: kb.wikiConfig?.synthesis_model_id || '',
+        maxPagesPerIngest: kb.wikiConfig?.max_pages_per_ingest || 0,
         extractionGranularity: (
-          kb.wiki_config?.extraction_granularity === 'focused' ||
-          kb.wiki_config?.extraction_granularity === 'exhaustive'
-            ? kb.wiki_config.extraction_granularity
+          kb.wikiConfig?.extraction_granularity === 'focused' ||
+          kb.wikiConfig?.extraction_granularity === 'exhaustive'
+            ? kb.wikiConfig.extraction_granularity
             : 'standard'
         ) as 'focused' | 'standard' | 'exhaustive',
-        contentInstructions: kb.wiki_config?.content_instructions || '',
-        extractionInstructions: kb.wiki_config?.extraction_instructions || '',
+        contentInstructions: kb.wikiConfig?.content_instructions || '',
+        extractionInstructions: kb.wikiConfig?.extraction_instructions || '',
       },
       indexingStrategy: {
-        vectorEnabled: kb.indexing_strategy?.vectorEnabled ?? true,
-        keywordEnabled: kb.indexing_strategy?.keywordEnabled ?? true,
-        wikiEnabled: kb.indexing_strategy?.wikiEnabled ?? false,
-        graphEnabled: kb.indexing_strategy?.graphEnabled ?? false,
+        vectorEnabled: kb.indexingStrategy?.vectorEnabled ?? true,
+        keywordEnabled: kb.indexingStrategy?.keywordEnabled ?? true,
+        wikiEnabled: kb.indexingStrategy?.wikiEnabled ?? false,
+        graphEnabled: kb.indexingStrategy?.graphEnabled ?? false,
       },
       // Vector-store binding. vectorStoreId is editor-only state; it
       // is only included in the create request, never the update
@@ -1168,30 +1168,30 @@ const validateForm = (): boolean => {
 const buildSubmitData = () => {
   if (!formData.value) return null
 
+  // 新契约（docs/knowledge-api-contract-v1.md）：创建请求为 camelCase DTO，
+  // 分块/索引/多模态/ASR 走类型化视图，JsonNode 透传配置（FAQ/Wiki/问题生成等）内键保持原样。
   const data: any = {
     name: formData.value.name,
     description: formData.value.description,
     type: formData.value.type,
-    chunking_config: {
-      chunk_size: formData.value.chunkingConfig.chunkSize,
-      chunk_overlap: formData.value.chunkingConfig.chunkOverlap,
+    chunkingConfig: {
+      chunkSize: formData.value.chunkingConfig.chunkSize,
+      chunkOverlap: formData.value.chunkingConfig.chunkOverlap,
       separators: formData.value.chunkingConfig.separators,
-      enable_parent_child: formData.value.chunkingConfig.enableParentChild,
-      parent_chunk_size: formData.value.chunkingConfig.parentChunkSize,
-      child_chunk_size: formData.value.chunkingConfig.childChunkSize,
-      // Adaptive chunking fields are always sent (empty/zero values
-      // included) so the user can clear them — backend uses pointer DTOs
-      // to distinguish "not in payload" from "explicitly empty".
+      enableParentChild: formData.value.chunkingConfig.enableParentChild,
+      parentChunkSize: formData.value.chunkingConfig.parentChunkSize,
+      childChunkSize: formData.value.chunkingConfig.childChunkSize,
+      // 自适应分块字段恒发送（含空值），用户可显式清空
       strategy: formData.value.chunkingConfig.strategy ?? '',
-      token_limit: formData.value.chunkingConfig.tokenLimit ?? 0,
+      tokenLimit: formData.value.chunkingConfig.tokenLimit ?? 0,
       languages: formData.value.chunkingConfig.languages ?? [],
-      table_metadata_instructions: formData.value.chunkingConfig.tableMetadataInstructions || '',
-      ...(formData.value.chunkingConfig.parserEngineRules?.length
-        ? { parser_engine_rules: formData.value.chunkingConfig.parserEngineRules }
-        : {})
+      tableMetadataInstructions: formData.value.chunkingConfig.tableMetadataInstructions || '',
+      parserEngineRules: formData.value.chunkingConfig.parserEngineRules?.length
+        ? formData.value.chunkingConfig.parserEngineRules
+        : null
     },
-    embedding_model_id: formData.value.modelConfig.embeddingModelId,
-    summary_model_id: formData.value.modelConfig.llmModelId
+    embeddingModelId: formData.value.modelConfig.embeddingModelId,
+    summaryModelId: formData.value.modelConfig.llmModelId
   }
 
   // Vector-store binding. Only attach the field when the user actively
@@ -1200,23 +1200,23 @@ const buildSubmitData = () => {
   // client that doesn't know about this binding would send — which
   // makes A/B response diffs easier to read.
   if (formData.value.vectorStoreId) {
-    data.vector_store_id = formData.value.vectorStoreId
+    data.vectorStoreId = formData.value.vectorStoreId
   }
 
   // 添加多模态配置
-  data.vlm_config = {
+  data.vlmConfig = {
     enabled: formData.value.multimodalConfig.enabled,
-    model_id: formData.value.multimodalConfig.enabled
+    modelId: formData.value.multimodalConfig.enabled
       ? (formData.value.multimodalConfig.vllmModelId || '')
       : '',
-    description_language: formData.value.multimodalConfig.descriptionLanguage || '',
-    custom_instructions: formData.value.multimodalConfig.customInstructions || ''
+    descriptionLanguage: formData.value.multimodalConfig.descriptionLanguage || '',
+    customInstructions: formData.value.multimodalConfig.customInstructions || ''
   }
 
   // 添加ASR语音识别配置
-  data.asr_config = {
+  data.asrConfig = {
     enabled: formData.value.asrConfig?.enabled || false,
-    model_id: formData.value.asrConfig?.enabled
+    modelId: formData.value.asrConfig?.enabled
       ? (formData.value.asrConfig?.modelId || '')
       : '',
     language: formData.value.asrConfig?.language || ''
@@ -1225,35 +1225,30 @@ const buildSubmitData = () => {
   // storage_backend_id is authoritative. Keep provider projection for old clients
   // and for rolling upgrades where a node has not picked up the new schema yet.
   if (formData.value.storageBackendId) {
-    data.storage_backend_id = formData.value.storageBackendId
+    data.storageBackendId = formData.value.storageBackendId
   }
-  const storageProvider = resolvedStorageProvider()
-  data.storage_provider_config = {
-    provider: storageProvider
-  }
-  data.storage_config = {
-    provider: storageProvider
-  }
+  // 存储提供方改为字符串字段；storage_config / storage_provider_config 已退役
+  data.storageProvider = resolvedStorageProvider()
 
   // 添加知识图谱配置 — now synced via indexingStrategy.graphEnabled
   // extract_config is sent below along with indexing_strategy
 
   // 添加问题生成配置
   if (formData.value.questionGenerationConfig?.enabled) {
-    data.question_generation_config = {
+    data.questionGenerationConfig = {
       enabled: true,
       question_count: formData.value.questionGenerationConfig.questionCount || 3,
       custom_instructions: formData.value.questionGenerationConfig.customInstructions || ''
     }
   } else {
-    data.question_generation_config = {
+    data.questionGenerationConfig = {
       enabled: false,
       question_count: 3,
       custom_instructions: formData.value.questionGenerationConfig?.customInstructions || ''
     }
   }
 
-  data.auto_tag_config = {
+  data.autoTagConfig = {
     enabled: formData.value.autoTagConfig?.enabled || false,
     model_id: formData.value.autoTagConfig?.modelId || '',
     max_tags: formData.value.autoTagConfig?.maxTags || 3,
@@ -1261,7 +1256,7 @@ const buildSubmitData = () => {
   }
 
   if (formData.value.type === 'faq') {
-    data.faq_config = {
+    data.faqConfig = {
       index_mode: formData.value.faqConfig?.indexMode || 'question_only',
       question_index_mode: formData.value.faqConfig?.questionIndexMode || 'separate'
     }
@@ -1270,7 +1265,7 @@ const buildSubmitData = () => {
   // Wiki enablement is carried solely by indexing_strategy.wikiEnabled.
   // wiki_config only holds wiki-specific tunables.
   if (formData.value.type !== 'faq') {
-    data.wiki_config = {
+    data.wikiConfig = {
       synthesis_model_id: formData.value.modelConfig?.wikiSynthesisModelId || '',
       max_pages_per_ingest: formData.value.wikiConfig?.maxPagesPerIngest || 0,
       extraction_granularity: formData.value.wikiConfig?.extractionGranularity || 'standard',
@@ -1281,18 +1276,18 @@ const buildSubmitData = () => {
 
   // Send indexing strategy
   if (formData.value.type !== 'faq') {
-    data.indexing_strategy = {
-      vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
-      keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
-      wiki_enabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
-      graph_enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
+    data.indexingStrategy = {
+      vectorEnabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
+      keywordEnabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
+      wikiEnabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
+      graphEnabled: formData.value.indexingStrategy?.graphEnabled ?? false,
     }
   }
 
   // Always persist extract_config so the toggle state from GraphSettings is saved,
   // regardless of whether the graph indexing strategy is currently enabled.
   if (formData.value.nodeExtractConfig) {
-    data.extract_config = {
+    data.extractConfig = {
       enabled: !!formData.value.nodeExtractConfig.enabled,
       text: formData.value.nodeExtractConfig.text || '',
       tags: formData.value.nodeExtractConfig.tags || [],
@@ -1348,11 +1343,11 @@ const doSubmit = async () => {
 
     if (editorMode.value === 'create') {
       // 创建模式：一次性创建知识库及所有配置
-      const result: any = await createKnowledgeBase(data)
-      if (!result.success || !result.data?.id) {
-        throw new Error(result.message || t('knowledgeEditor.messages.createFailed'))
+      const created: any = await createKnowledgeBase(data)
+      if (!created?.id) {
+        throw new Error(created?.message || t('knowledgeEditor.messages.createFailed'))
       }
-      const createdKbId = result.data.id as string
+      const createdKbId = created.id as string
       savedKbId.value = createdKbId
       currentSection.value = 'basic'
       await loadKBData(createdKbId)
