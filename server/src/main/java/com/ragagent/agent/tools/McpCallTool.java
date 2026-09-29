@@ -7,9 +7,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * call_mcp_tool：解析目录引用并调用其 MCP 目标（对照 Go {@code mcp_catalog.go} 的
- * MCPCallTool，逐字移植）。Parameters 只广告完整定义已在当前函数列表里的引用；
- * 执行仍复验作用域、schema 与策略。
+ * call_mcp_tool：解析目录引用并调用其 MCP 目标。Parameters 只广告完整定义已在
+ * 当前函数列表里的引用；执行仍复验作用域、schema 与策略。
  */
 public class McpCallTool extends BaseTool {
 
@@ -22,7 +21,7 @@ public class McpCallTool extends BaseTool {
         this.registry = registry;
     }
 
-    /** 只广告已 describe 的 refs（对照 Parameters 覆写；mcpPrepared 时来自注册的引用）。 */
+    /** 只广告已 describe 的 refs（mcpPrepared 时来自注册的引用）。 */
     @Override
     public JsonNode getParameters() {
         List<String> refs = new ArrayList<>();
@@ -45,7 +44,7 @@ public class McpCallTool extends BaseTool {
         }
     }
 
-    /** 解析 catalog 目标并跑共享执行管线（对照 Execute）。 */
+    /** 解析 catalog 目标并跑共享执行管线。 */
     @Override
     public ToolResult execute(ToolRequest request) {
         ResolveResult resolved = resolve(request, request.args());
@@ -58,7 +57,7 @@ public class McpCallTool extends BaseTool {
     record ResolveResult(McpToolWrapper tool, JsonNode argsNode, String error) {
     }
 
-    /** 对照 resolve：只在受限定目录内解析，绝不碰全局 registry。 */
+    /** 只在受限定目录内解析，绝不碰全局 registry。 */
     private ResolveResult resolve(ToolRequest request, JsonNode raw) {
         String authErr = catalog.authorizeExecution();
         if (authErr != null) {

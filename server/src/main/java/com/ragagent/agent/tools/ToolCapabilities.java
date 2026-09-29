@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 内建工具对 KB 能力的要求（对照 Go {@code capabilities.go}——它是
- * {@code frontend/src/utils/tool-capabilities.ts} 的 Go 镜像，两者必须同步）。
+ * 内建工具对 KB 能力的要求（与 {@code frontend/src/utils/tool-capabilities.ts}
+ * 镜像，两者必须同步）。
  *
  * <p>前端用它置灰工具、过滤 agent 编辑器与 {@code @} 菜单里的 KB；后端把它作为
  * 检索管线的最后防线——绕过前端过滤的客户端（旧标签页、curl、恶意插件）不能把
@@ -18,7 +18,7 @@ import java.util.Set;
  */
 public final class ToolCapabilities {
 
-    /** KB 能力位（对照 KBCapability；值镜像 types.KBCapabilities 的 JSON 键）。 */
+    /** KB 能力位（值为 KB 能力 JSON 键）。 */
     public enum KbCapability {
         VECTOR("vector"),
         KEYWORD("keyword"),
@@ -33,17 +33,17 @@ public final class ToolCapabilities {
         }
     }
 
-    /** KB 能力快照（对照 types.KBCapabilities 的五个 bool）。 */
+    /** KB 能力快照（五个 bool）。 */
     public record KbCaps(boolean vector, boolean keyword, boolean wiki, boolean graph, boolean faq) {
 
         public static final KbCaps NONE = new KbCaps(false, false, false, false, false);
     }
 
     /**
-     * 工具对 KB 作用域的要求（对照 ToolRequirement）：
+     * 工具对 KB 作用域的要求：
      * anyOf = 作用域至少暴露一个列出的能力；allOf = 全部暴露；consumesFiles =
      * 工具从 knowledge_ids 读用户文件引用（聊天输入据此决定是否给 @file 列表）。
-     * nil/零值 = 无 KB 依赖——永远可用且不关心文件。
+     * null/零值 = 无 KB 依赖——永远可用且不关心文件。
      */
     public record ToolRequirement(List<KbCapability> anyOf, List<KbCapability> allOf, boolean consumesFiles) {
 
@@ -59,7 +59,7 @@ public final class ToolCapabilities {
     }
 
     /**
-     * 工具名 → 能力要求（对照 ToolCapabilityRequirements；不在表里的工具默认
+     * 工具名 → 能力要求（不在表里的工具默认
      * "无要求"，视为永远可用/可能消费文件（宽容回退：未知 MCP 工具不应静默坏掉））。
      * 与 frontend/src/utils/tool-capabilities.ts 保持对齐。
      */
@@ -94,7 +94,6 @@ public final class ToolCapabilities {
         return Map.copyOf(m);
     }
 
-    /** hasCap（对照 Go 同名函数）。 */
     private static boolean hasCap(KbCaps caps, KbCapability c) {
         return switch (c) {
             case VECTOR -> caps.vector();
@@ -105,7 +104,7 @@ public final class ToolCapabilities {
         };
     }
 
-    /** 派生的 "KB 至少暴露其中一个能力" 过滤器（对照 KBFilter；AnyOf 为 null/空 = 无约束）。 */
+    /** 派生的 "KB 至少暴露其中一个能力" 过滤器（anyOf 为 null/空 = 无约束）。 */
     public record KbFilter(List<KbCapability> anyOf) {
 
         public static final KbFilter EMPTY = new KbFilter(List.of());
@@ -157,7 +156,7 @@ public final class ToolCapabilities {
             new KbFilter(List.of(KbCapability.VECTOR, KbCapability.KEYWORD));
 
     /**
-     * 给定 agent 配置派生有效 KB 过滤器（对照 DeriveKBFilterForAgent）：
+     * 给定 agent 配置派生有效 KB 过滤器：
      * agentMode 的隐式约束（quick-answer 强制 vector|keyword）与工具派生过滤器的
      * <b>并集</b>——沿用 any_of 语义：KB 至少暴露其一即通过。
      */
@@ -173,7 +172,7 @@ public final class ToolCapabilities {
         return new KbFilter(new ArrayList<>(seen));
     }
 
-    /** agent 感知版（对照 KBSatisfiesAgentRequirements）：同时强制 agentMode 的隐式能力约束。 */
+    /** agent 感知版：同时强制 agentMode 的隐式能力约束。 */
     public static boolean kbSatisfiesAgentRequirements(KbCaps caps, String agentMode, Collection<String> allowedTools) {
         KbFilter f = deriveKbFilterForAgent(agentMode, allowedTools);
         if (f.isEmpty()) {
@@ -188,7 +187,7 @@ public final class ToolCapabilities {
     }
 
     /**
-     * 放行工具列表里是否有工具能使用用户文件引用（对照 ToolsConsumeFiles），
+     * 放行工具列表里是否有工具能使用用户文件引用，
      * 用于聊天输入的 @file 列表门控。空列表视为"未知 → 宽容"；未知工具
      * （MCP 工具、未登记的新内建）同样按可能消费文件处理——避免刚加了自定义工具
      * 的用户突然找不到文件选择器。

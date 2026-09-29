@@ -18,63 +18,60 @@ import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.llm.chat.LlmTransport;
 
 /**
- * ASR（语音识别）provider 调用接缝（对照 Go internal/models/asr 全包，381 行）。
+ * ASR（语音识别）provider 调用接缝。
  *
- * <p><b>为什么是接缝而不是整个 asr 包照搬</b>：VLM/ASR 是 §2.3 标记的"前置缺口"，
- * 本批不整体翻译 provider 库——但 asr/check 端点的行为验证需要真实出站调用
- * （Go dev 用 stub ASR server 双端同打），因此按 Go 的<b>唯一 provider</b>
- * （OpenAIASR：所有 ASR 厂商共用 OpenAI 兼容 /v1/audio/transcriptions API，
- * asr.go NewASR 注释原文）做一份薄复刻作为缺省实现；将来翻整个 asr 包时
- * 只需替换本接口的实现。</p>
+ * <p><b>为什么是接缝而不是完整 provider 库</b>：asr/check 端点的行为验证需要真实
+ * 出站调用；所有 ASR 厂商共用 OpenAI 兼容 /v1/audio/transcriptions API，
+ * 故以一份薄实现作为缺省实现；将来扩展其他 provider 时只需替换本接口的实现。</p>
  *
- * <p>复刻范围（go-openai@v1.41.2 经由 OpenAIASR 的可观察行为）：</p>
+ * <p>缺省实现的线上行为（错误文案等已被 golden 钉死，不可改字）：</p>
  * <ul>
- *   <li>构造期 {@code validateASRBaseURL}：SSRF 校验，失败报
- *       "base URL SSRF check failed: ..."（对应 Go NewASR 的 error 返回）；</li>
+ *   <li>构造期 SSRF 校验，失败报
+ *       "base URL SSRF check failed: ..."；</li>
  *   <li>multipart POST {baseURL}/audio/transcriptions，字段序
- *       file → model → response_format=verbose_json → language（go-openai audio.go）；
- *       300s 超时（asrDefaultTimeout）；</li>
- *   <li>非 2xx 错误文案<b>逐字节</b>对照 go-openai error.go：
+ *       file → model → response_format=verbose_json → language；
+ *       300s 超时；</li>
+ *   <li>非 2xx 错误文案<b>逐字节</b>钉死：
  *       body 可解析且带合法 message → {@code error, status code: %d, status: %s, message: %s}；
- *       否则 RequestError → {@code error, status code: %d, status: %s, message: %s, body: %s}
- *       （message 段为 json 解析错误原文；Err=nil 时是 Go 的 {@code %!s(<nil>)}）；</li>
- *   <li>200 响应 {text, segments}：text 过 strings.TrimSpace。</li>
+ *       否则 → {@code error, status code: %d, status: %s, message: %s, body: %s}
+ *       （message 段为 json 解析错误原文；无错误对象时是 {@code %!s(<nil>)}）；</li>
+ *   <li>200 响应 {text, segments}：text 去首尾空白。</li>
  * </ul>
  */
 public interface AsrTranscriber {
 
-    /** 对照 Go asr.Config（本端点只用其中这些字段）。 */
+    /** ASR 调用配置（本端点只用这些字段）。 */
     record AsrConfig(String baseUrl, String modelName, String apiKey, String modelId,
                      String language, Map<String, String> customHeaders) {}
 
-    /** 对照 Go TranscriptionResult（text + segments；segments omitempty）。 */
+    /** 转写结果（text + segments；segments 为空时省略）。 */
     record TranscriptionResult(String text, List<Segment> segments) {
         public record Segment(double start, double end, String text) {}
     }
 
-    /** Go NewASR 的 error 形态（message 已含 "base URL SSRF check failed" 等前缀原文）。 */
+    /** 构造失败异常（message 已含 "base URL SSRF check failed" 等前缀原文，文案钉死）。 */
     class AsrCreateException extends RuntimeException {
         public AsrCreateException(String message) { super(message); }
     }
 
-    /** Go Transcribe 的 error 形态（message 已按 "ASR transcription request failed: %w" 包裹）。 */
+    /** 调用失败异常（message 按 "ASR transcription request failed: ..." 包裹，文案钉死）。 */
     class AsrTranscribeException extends RuntimeException {
         public AsrTranscribeException(String message) { super(message); }
     }
 
     /**
-     * 对照 NewASR + Transcribe 的合成入口。构造失败抛 {@link AsrCreateException}，
+     * 转写入口。构造失败抛 {@link AsrCreateException}，
      * 调用失败抛 {@link AsrTranscribeException}，成功返回结果。
      */
     TranscriptionResult transcribe(AsrConfig config, byte[] audioBytes, String fileName);
 
     // ==================================================================
-    // 缺省实现：OpenAI 兼容 transcription（对照 internal/models/asr/openai.go）
+    // 缺省实现：OpenAI 兼容 transcription
     // ==================================================================
 
     class OpenAiAsrTranscriber implements AsrTranscriber {
 
-        /** 对照 asrDefaultTimeout = 300s（audio transcription can be slow）。 */
+        /** 300s 超时（audio transcription can be slow）。 */
         private static final Duration ASR_DEFAULT_TIMEOUT = Duration.ofSeconds(300);
 
         private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -87,7 +84,7 @@ public interface AsrTranscriber {
 
         @Override
         public TranscriptionResult transcribe(AsrConfig config, byte[] audioBytes, String fileName) {
-            // 对照 validateASRBaseURL（NewASR 构造期）
+            // 构造期 SSRF 校验
             if (config.baseUrl() != null && !config.baseUrl().isEmpty()) {
                 try {
                     ssrfGuard.validateURLForSSRF(config.baseUrl());
@@ -117,7 +114,7 @@ public interface AsrTranscriber {
             try {
                 resp = LlmTransport.send(builder.build());
             } catch (IOException e) {
-                // Go：url.Error 形态（Post "...": dial tcp ...），这里取 JDK 消息同语义包裹
+                // 错误文案仿 url.Error 形态（Post "...": ...），格式钉死
                 throw new AsrTranscribeException("ASR transcription request failed: Post \""
                         + url + "\": " + e.getMessage());
             } catch (InterruptedException e) {
@@ -132,7 +129,7 @@ public interface AsrTranscriber {
             }
             int status = resp.statusCode();
             if (status != 200) {
-                // 对照 go-openai handleErrorResp + Error() 的字节形态
+                // 错误文案逐字节钉死（见类注释）
                 throw new AsrTranscribeException(
                         "ASR transcription request failed: " + goOpenAiError(status, respBody));
             }
@@ -155,7 +152,7 @@ public interface AsrTranscriber {
             return new TranscriptionResult(text, segments);
         }
 
-        /** 对照 audioMultipartForm 的字段序：file → model → response_format → language。 */
+        /** multipart 字段序：file → model → response_format → language。 */
         private static byte[] multipartBody(String boundary, AsrConfig config, byte[] audio, String fileName) {
             StringBuilder sb = new StringBuilder();
             String fileContentType = probeContentType(fileName);
@@ -185,7 +182,7 @@ public interface AsrTranscriber {
             return out;
         }
 
-        /** 粗略 MIME 推断（stub A/B 不校验该头；对照 DetectAudioFormat 只留常见后缀）。 */
+        /** 粗略 MIME 推断（按常见后缀）。 */
         private static String probeContentType(String fileName) {
             String lower = fileName.toLowerCase(java.util.Locale.ROOT);
             if (lower.endsWith(".wav")) {
@@ -201,13 +198,10 @@ public interface AsrTranscriber {
         }
 
         /**
-         * 对照 go-openai error.go：APIError（body JSON 且 error.message 可解）与
-         * RequestError（其余）两族的 Error() 文本。
-         */
-        /**
-         * 对照 Go {@code encoding/json} 的顶层解析错误文案（go-openai 把 body 塞进
-         * RequestError.Err 的 {@code %s} 段）。Jackson 的措辞完全不同，这里按
-         * Go 的逐字符扫描规则仿真常见形态：空体 → "unexpected end of JSON input"；
+         * 非 2xx 错误文案的分派：body JSON 且 error.message 可解走
+         * {@code error, status code: ..., message: ...} 形态，其余走带 body 段的形态。
+         * JSON 顶层解析错误文案按逐字符扫描规则仿真钉死形态：
+         * 空体 → "unexpected end of JSON input"；
          * 非 JSON 起始字符 → "invalid character 'x' looking for beginning of value"；
          * 字面量中间坏掉 → "invalid character 'x' in literal ... (expecting 'y')"。
          * 深结构坏掉时回落占位文案（golden 未覆盖，备案）。
@@ -306,7 +300,7 @@ public interface AsrTranscriber {
                     + ", message: %!s(<nil>), body: " + new String(body, StandardCharsets.UTF_8);
         }
 
-        /** 对照 Go http.StatusText（go-openai 的 status: 段直接用 resp.Status）。 */
+        /** status 行短语表（"status: 200 OK" 段用）。 */
         static String reasonPhrase(int statusCode) {
             return switch (statusCode) {
                 case 100 -> "Continue";

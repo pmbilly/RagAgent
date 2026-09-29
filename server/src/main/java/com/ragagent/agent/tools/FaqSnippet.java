@@ -8,21 +8,21 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 
 /**
- * FAQ 元数据在工具输出中的投影（对照 Go {@code faq_snippet.go}，逐字移植）。
+ * FAQ 元数据在工具输出中的投影。
  *
- * <p>四处消费方（4.5b 的知识工具）：knowledge_search 的 {@code <chunk>} 里嵌
+ * <p>四处消费方（知识工具）：knowledge_search 的 {@code <chunk>} 里嵌
  * {@code <faq>} 块（{@link #writeFaqMetadataXml}）；list_knowledge_chunks 的顶层
  * {@code <faq>} 条目（{@link #writeFaqEntryXml}）；结构化 data map 的附加字段
  * （{@link #appendFaqChunkData}/{@link #normalizeFaqChunkDataMap}）；检索命中摘要
  * "Q: … | A: …"（{@link #faqMatchSnippet} / {@link #faqMatchSnippetFromQueries}）。</p>
  *
  * <p>相似问展示上限 5 条，超出追加 {@code <similar_questions_omitted count="N" />}；
- * 空白答案跳过；XML 转义五字符（& ' " < >，对照 xmlEscape 的最小转义——输出由 LLM
+ * 空白答案跳过；XML 转义五字符（& ' " < > 的最小转义——输出由 LLM
  * 宽容解析，不是严格 XML 处理器）。</p>
  */
 public final class FaqSnippet {
 
-    /** 工具输出里相似问的展示上限。对照 faqMaxSimilarQuestionsDisplay。 */
+    /** 工具输出里相似问的展示上限。 */
     public static final int FAQ_MAX_SIMILAR_QUESTIONS_DISPLAY = 5;
 
     // ---- 检索工具命中摘要的边界（grep_chunks / knowledge_search）----
@@ -32,7 +32,7 @@ public final class FaqSnippet {
     private FaqSnippet() {
     }
 
-    /** 展示裁剪（对照 truncateSimilarQuestionsForDisplay：返回展示列表与被省略数）。 */
+    /** 展示裁剪：返回展示列表与被省略数。 */
     public record SimilarQuestionsDisplay(List<String> display, int omitted) {
     }
 
@@ -47,7 +47,7 @@ public final class FaqSnippet {
                 questions.size() - FAQ_MAX_SIMILAR_QUESTIONS_DISPLAY);
     }
 
-    /** 相似问 XML（对照 writeSimilarQuestionsXML；每行一个 <similar_question> + 省略标记）。 */
+    /** 相似问 XML（每行一个 <similar_question> + 省略标记）。 */
     public static void writeSimilarQuestionsXml(StringBuilder b, List<String> questions) {
         SimilarQuestionsDisplay d = truncateSimilarQuestionsForDisplay(questions);
         for (String sq : d.display()) {
@@ -58,7 +58,7 @@ public final class FaqSnippet {
         }
     }
 
-    /** 结构化 chunkData 的相似问附加（对照 appendSimilarQuestionsToChunkData）。 */
+    /** 结构化 chunkData 的相似问附加。 */
     public static void appendSimilarQuestionsToChunkData(java.util.Map<String, Object> chunkData,
                                                          List<String> questions) {
         SimilarQuestionsDisplay d = truncateSimilarQuestionsForDisplay(questions);
@@ -72,7 +72,7 @@ public final class FaqSnippet {
     }
 
     /**
-     * question / similar_question / answer 子元素（无包裹；对照 writeFAQFieldsXML）。
+     * question / similar_question / answer 子元素（无包裹）。
      * meta 为 null 时不输出。
      */
     public static void writeFaqFieldsXml(StringBuilder b, FaqChunkMetadata meta) {
@@ -93,7 +93,7 @@ public final class FaqSnippet {
         }
     }
 
-    /** 字段是否全空（对照 faqFieldsEmpty）。 */
+    /** 字段是否全空。 */
     public static boolean faqFieldsEmpty(FaqChunkMetadata meta) {
         if (meta == null) {
             return true;
@@ -103,7 +103,7 @@ public final class FaqSnippet {
                 && (meta.answers == null || meta.answers.isEmpty());
     }
 
-    /** 嵌套 {@code <faq>} 块（knowledge_search 的 <chunk> 内用；对照 writeFAQMetadataXML）。 */
+    /** 嵌套 {@code <faq>} 块（knowledge_search 的 <chunk> 内用）。 */
     public static void writeFaqMetadataXml(StringBuilder b, FaqChunkMetadata meta) {
         if (faqFieldsEmpty(meta)) {
             return;
@@ -114,7 +114,7 @@ public final class FaqSnippet {
     }
 
     /**
-     * 顶层 FAQ 条目（list_knowledge_chunks 用，不包 <chunk>；对照 writeFAQEntryXML）。
+     * 顶层 FAQ 条目（list_knowledge_chunks 用，不包 <chunk>）。
      * 元数据缺失时若有标准问题则作为 question 属性 + <question> 子元素呈现。
      */
     public static void writeFaqEntryXml(StringBuilder b, Chunk c) {
@@ -142,7 +142,7 @@ public final class FaqSnippet {
 
     /**
      * JSON 载荷里用 faq_id / index 代替 chunk_id / chunk_index
-     * （对照 normalizeFAQChunkDataMap；非 FAQ chunk 或 map 为 null 时不做）。
+     * （非 FAQ chunk 或 map 为 null 时不做）。
      */
     public static void normalizeFaqChunkDataMap(java.util.Map<String, Object> chunkData, Chunk c) {
         if (c == null || !isFaqChunk(c) || chunkData == null) {
@@ -154,7 +154,7 @@ public final class FaqSnippet {
         chunkData.remove("chunk_index");
     }
 
-    /** FAQ 元数据附加进结构化结果 map（对照 appendFAQChunkData）。 */
+    /** FAQ 元数据附加进结构化结果 map。 */
     public static void appendFaqChunkData(java.util.Map<String, Object> chunkData, Chunk c) {
         if (c == null || !isFaqChunk(c)) {
             return;
@@ -176,8 +176,7 @@ public final class FaqSnippet {
     // ---- 命中摘要 ----
 
     /**
-     * knowledge_search 命中的 "Q: … | A: …" 摘要（对照 faqMatchSnippetFromQueries：
-     * 查询词命中的相似问优先于标准问题）。
+     * knowledge_search 命中的 "Q: … | A: …" 摘要（查询词命中的相似问优先于标准问题）。
      */
     public static String faqMatchSnippetFromQueries(FaqChunkMetadata meta, List<String> queries) {
         if (meta == null) {
@@ -191,8 +190,7 @@ public final class FaqSnippet {
     }
 
     /**
-     * grep_chunks 正则命中的 "Q: … | A: …" 摘要（对照 faqMatchSnippet；
-     * compiled 与 patterns 一一对应，null 元素跳过）。
+     * grep_chunks 正则命中的 "Q: … | A: …" 摘要（compiled 与 patterns 一一对应，null 元素跳过）。
      */
     public static String faqMatchSnippet(Chunk chunk, List<java.util.regex.Pattern> compiled) {
         if (chunk == null) {
@@ -212,7 +210,7 @@ public final class FaqSnippet {
         return formatFaqMatchSnippet(question, meta.answers);
     }
 
-    /** "Q: … | A: …" 渲染（对照 formatFAQMatchSnippet；总长 800 rune 上限）。 */
+    /** "Q: … | A: …" 渲染（总长 800 rune 上限）。 */
     static String formatFaqMatchSnippet(String question, List<String> answers) {
         question = question == null ? "" : question.strip();
         if (question.isEmpty()) {
@@ -233,7 +231,7 @@ public final class FaqSnippet {
         return snippet;
     }
 
-    /** 正则命中的相似问优先，其次标准问题（对照 faqMatchedQuestionFromRegex）。 */
+    /** 正则命中的相似问优先，其次标准问题。 */
     static String faqMatchedQuestionFromRegex(FaqChunkMetadata meta, List<java.util.regex.Pattern> compiled) {
         if (meta == null) {
             return "";
@@ -251,7 +249,7 @@ public final class FaqSnippet {
         return meta.standardQuestion;
     }
 
-    /** 查询词命中的相似问优先，其次标准问题（对照 faqMatchedQuestionFromQueries）。 */
+    /** 查询词命中的相似问优先，其次标准问题。 */
     static String faqMatchedQuestionFromQueries(FaqChunkMetadata meta, List<String> queries) {
         if (meta == null) {
             return "";
@@ -270,7 +268,7 @@ public final class FaqSnippet {
         return meta.standardQuestion;
     }
 
-    /** 答案拼接（空白答案跳过，" | " 连接，600 rune 上限；对照 faqAnswersForSnippet）。 */
+    /** 答案拼接（空白答案跳过，" | " 连接，600 rune 上限）。 */
     static String faqAnswersForSnippet(List<String> answers) {
         if (answers == null || answers.isEmpty()) {
             return "";
@@ -289,7 +287,7 @@ public final class FaqSnippet {
         return truncateRunes(joined, SNIPPET_MAX_ANSWER_RUNES);
     }
 
-    /** 全文小写包含判定（对照 textMatchesSearchQueries：整查询优先，再 token）。 */
+    /** 全文小写包含判定（整查询优先，再 token）。 */
     static boolean textMatchesSearchQueries(String text, List<String> queries, List<String> tokens) {
         if (text == null || text.isEmpty()) {
             return false;
@@ -315,7 +313,7 @@ public final class FaqSnippet {
 
     /**
      * 查询分词：按空白与标点切、小写、去重、丢弃 &lt;2 rune 的碎片
-     * （对照 searchQueryTokens 的 FieldsFunc 切分表）。
+     * （切分字符表见实现内注释）。
      */
     public static List<String> searchQueryTokens(List<String> queries) {
         List<String> tokens = new java.util.ArrayList<>();
@@ -327,7 +325,7 @@ public final class FaqSnippet {
             if (q == null) {
                 continue;
             }
-            // 切分表对照 FieldsFunc：' ' \t \n \r , . ; : ? ! ( ) [ ] { } " '
+            // 切分字符表：' ' \t \n \r , . ; : ? ! ( ) [ ] { } " '
             for (String tok : q.split("[ \\t\\n\\r,.;:?!()\\[\\]{}\"']+")) {
                 String t = tok.strip().toLowerCase();
                 if (t.codePointCount(0, t.length()) < 2) {
@@ -348,7 +346,7 @@ public final class FaqSnippet {
     }
 
     /**
-     * chunk 元数据解析（对照 Chunk.FAQMetadata：空 metadata → null；解析失败 → null；
+     * chunk 元数据解析（空 metadata → null；解析失败 → null；
      * 解析后做基础清理）。
      */
     static FaqChunkMetadata faqMetadata(Chunk c) {
@@ -356,7 +354,7 @@ public final class FaqSnippet {
         return adapter.read(c);
     }
 
-    /** 标准问题（trim 后；非 FAQ/无元数据为空串；对照 faqStandardQuestion）。 */
+    /** 标准问题（trim 后；非 FAQ/无元数据为空串）。 */
     public static String faqStandardQuestion(Chunk c) {
         if (c == null || !isFaqChunk(c)) {
             return "";
@@ -370,7 +368,7 @@ public final class FaqSnippet {
 
     // ---- 共享小工具 ----
 
-    /** XML 最小转义（对照 xmlEscape：& ' " < >）。 */
+    /** XML 最小转义（& ' " < >）。 */
     public static String xmlEscape(String s) {
         String replaced = s.replace("&", "&amp;")
                 .replace("<", "&lt;")
@@ -380,7 +378,7 @@ public final class FaqSnippet {
         return replaced;
     }
 
-    /** rune 截断 + "..."（对照 wiki_tools.go 的 truncateRunes）。 */
+    /** rune 截断 + "..."。 */
     public static String truncateRunes(String s, int maxRunes) {
         int runeCount = s.codePointCount(0, s.length());
         if (runeCount <= maxRunes) {
@@ -390,7 +388,7 @@ public final class FaqSnippet {
         return s.substring(0, end) + "...";
     }
 
-    /** 正则命中判定（对照 grep_chunks.go 的 regexMatchesAny：空文本/空表 false，null 模式跳过）。 */
+    /** 正则命中判定（空文本/空表 false，null 模式跳过）。 */
     public static boolean regexMatchesAny(String text, List<java.util.regex.Pattern> compiled) {
         if (text == null || text.isEmpty() || compiled == null || compiled.isEmpty()) {
             return false;

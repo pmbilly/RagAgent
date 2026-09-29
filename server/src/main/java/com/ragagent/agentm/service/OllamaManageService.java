@@ -35,12 +35,12 @@ public final class OllamaManageService {
         this.downloadTasks = downloadTasks;
     }
 
-    // ══════════════ W5b：ollama 管理段（对照 CheckOllamaStatus L923-1246）══════════════
+    // ══════════════ ollama 管理段 ══════════════
 
     /** GET /initialization/ollama/status——StartService 失败仍是 200 + available:false。 */
     public ResponseEntity<Object> ollamaStatus() {
-        // Go：展示用基址的缺省是 host.docker.internal（与 OllamaService 的
-        // localhost:11434 缺省刻意不同，照抄）
+        // 展示用基址的缺省是 host.docker.internal（与 OllamaService 的
+        // localhost:11434 连接缺省刻意不同）
         String envUrl = System.getenv("OLLAMA_BASE_URL");
         String baseURL = envUrl == null || envUrl.isEmpty()
                 ? "http://host.docker.internal:11434" : envUrl;
@@ -205,7 +205,7 @@ public final class OllamaManageService {
         return n;
     }
 
-    /** 对照 downloadModelAsync + pullModelWithProgress（异步下载与进度回写）。 */
+    /** 异步下载与进度回写。 */
     private void downloadModelAsync(String taskId, String modelName) {
         downloadTasks.updateStatus(taskId, "downloading", 0.0, "开始下载模型", OffsetDateTime.now());
         try {
@@ -219,7 +219,7 @@ public final class OllamaManageService {
         }
     }
 
-    /** 进度回调（progress float64 + message；对照 Go func(float64, string)）。 */
+    /** 进度回调（progress + message）。 */
     private interface ProgressListener {
         void onProgress(double progress, String message);
     }

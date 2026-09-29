@@ -35,12 +35,11 @@ import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.common.web.GoJsonBindError;
 
 /**
- * agents CRUD 家族路由（对照 Go internal/handler/custom_agent.go +
- * internal/router/routes_agent.go RegisterCustomAgentRoutes）。
+ * agents CRUD 家族路由。
  *
- * <p>守卫映射（对照 Go rbacGuards）：写路由 OwnedAgentOrAdmin（无角色门、判定在
- * handler——Java 在 controller 内做：行存在且非 Admin+ 且非创建者 → 403 纯字符串；
- * 行不存在 → 放行给 handler 出 404）；读/列表 Viewer 下限由 RbacInterceptor 承担。</p>
+ * <p>守卫层次：写路由在 controller 内做归属校验（行存在且非 Admin+ 且非创建者 →
+ * 403 纯字符串；行不存在 → 放行给 handler 出 404）；读/列表 Viewer 下限由
+ * RbacInterceptor 承担。</p>
  */
 @RestController
 public class AgentController {
@@ -61,7 +60,7 @@ public class AgentController {
         this.agentMapper = agentMapper;
     }
 
-    // ── 请求体（Go CreateAgentRequest/UpdateAgentRequest：仅 name 带 required）──
+    // ── 请求体（仅 name 必填）──
     private record AgentRequest(String name, String description, String avatar, JsonNode config) {}
 
     // ── GET /agents ──
@@ -211,8 +210,8 @@ public class AgentController {
     }
 
     /**
-     * Go ShouldBindJSON 的等价绑定：name required（Create）→ gin validator 文案；
-     * JSON 语法错误 → GoJsonBindError 的 Go 原文消息。两个请求体都把它拼进
+     * 请求体绑定：name 必填（Create）→ 固定校验文案；
+     * JSON 语法错误 → {@link GoJsonBindError} 的钉死消息。两个请求体都把它拼进
      * "Invalid request parameters" 的 details。
      */
     private static AgentRequest bindAgentRequest(String rawBody, String structName) {
@@ -250,7 +249,7 @@ public class AgentController {
                 ? MAPPER.createObjectNode() : (ObjectNode) cfg;
     }
 
-    /** 对照 authorizeAgentKnowledgeScope（API-Key 受限 scope 的 KB 白名单校验）。 */
+    /** API-Key 受限 scope 的 KB 白名单校验。 */
     private static void authorizeKnowledgeScope(ObjectNode cfg) {
         TenantAPIKeyScope scope = APIKeyScopeContext.current();
         if (scope == null || !scope.isKnowledgeBaseRestricted()) {
@@ -273,7 +272,7 @@ public class AgentController {
     }
 
 
-    /** 对照 OwnedAgentOrAdmin（路由守卫的 controller 内落地）：行存在且非 Admin+ 且非创建者 → 403。 */
+    /** 归属校验：行存在且非 Admin+ 且非创建者 → 403。 */
     private void checkAgentOwnership(String id, HttpServletRequest req) {
         String role = TenantContext.currentRole();
         boolean admin = TenantRole.fromString(role == null ? "" : role)
@@ -281,8 +280,7 @@ public class AgentController {
         if (admin) {
             return;
         }
-        // 行存在性：查询交给 mapper（软删过滤同 Go）。行不存在时放行
-        // （对照 ErrResourceNotFound 透传，handler 出 404）。
+        // 行存在性：查询交给 mapper（软删过滤）。行不存在时放行，由 handler 出 404。
         Long tenant = TenantContext.currentTenantId();
         var row = agentMapper.getByIDAndTenant(id, tenant == null ? 0 : tenant);
         if (row != null) {

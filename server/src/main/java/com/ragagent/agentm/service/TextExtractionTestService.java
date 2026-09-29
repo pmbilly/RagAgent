@@ -32,7 +32,7 @@ public final class TextExtractionTestService {
         this.modelTest = modelTest;
     }
 
-    // ══════════════ W5b：抽取段（对照 ExtractTextRelations / FabriTag / FabriText L2383-2605）══════════════
+    // ══════════════ 抽取段 ══════════════
 
     /** POST /initialization/extract/text-relation——LLM 驱动的实体关系抽取。 */
     public ResponseEntity<Object> extractTextRelations(String rawBody) {
@@ -40,7 +40,7 @@ public final class TextExtractionTestService {
         try {
             n = OllamaManageService.bindJsonObject(rawBody);
         } catch (BizException e) {
-            // Go：bind 失败统一是这句固定文案（不是 err.Error()）
+            // bind 失败统一是这句固定文案
             throw new BizException(AppError.badRequest("文本关系提取请求参数错误"));
         }
         String t = ModelConnectivityTestService.text(n, "text");
@@ -48,7 +48,7 @@ public final class TextExtractionTestService {
         String modelId = ModelConnectivityTestService.text(n, "model_id");
         boolean tagsInvalid = n.get("tags") == null || !n.get("tags").isArray() || tags.isEmpty();
         if (t.isEmpty() || tagsInvalid || modelId.isEmpty()) {
-            // Go 的 binding:required 三连；text/tags 缺失时同样先落 bind 错误文案
+            // text/tags 等必填字段缺失时先落 bind 错误文案
             throw new BizException(AppError.badRequest("文本关系提取请求参数错误"));
         }
         if (t.getBytes(java.nio.charset.StandardCharsets.UTF_8).length == 0) {
@@ -94,7 +94,7 @@ public final class TextExtractionTestService {
                 }
             }
         }
-        // Go RemoveUnknownRelation 用 make(...,0) 重建 → relations 恒非 null
+        // relations 恒非 null（无关系时也给空数组）
         ArrayNode relations = data.putArray("relations");
         for (var rel : graph.relation) {
             ObjectNode on = relations.addObject();
@@ -160,7 +160,7 @@ public final class TextExtractionTestService {
         return ModelConnectivityTestService.ok(data);
     }
 
-    /** 对照 RandomSelect：洗牌后取前 n（n 钳到上限）。 */
+    /** 洗牌后取前 n（n 钳到上限）。 */
     private static List<String> randomSelect(List<String> strs, int n) {
         if (n <= 0) {
             return List.of();
@@ -173,12 +173,12 @@ public final class TextExtractionTestService {
         return new ArrayList<>(result.subList(0, n));
     }
 
-    /** 对照 tagOptions。 */
+    /** 关系标签选项表。 */
     private static final List<String> TAG_OPTIONS = List.of(
             "Content", "Culture", "Person", "Event", "Time", "Location",
             "Work", "Author", "Relation", "Attribute");
 
-    /** 对照 Extractor.RemoveUnknownRelation：过滤不在请求 tags 内的关系。 */
+    /** 过滤不在请求 tags 内的关系。 */
     private static void removeUnknownRelation(EntityExtraction.EntityGraph graph, List<String> tags) {
         java.util.Set<String> known = new java.util.HashSet<>(tags);
         List<com.ragagent.chatpipeline.ChatManage.GraphRelation> kept = new ArrayList<>();

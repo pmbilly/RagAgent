@@ -1,13 +1,11 @@
 package com.ragagent.agent.approval;
 
 /**
- * 一次待决审批所需的全部上下文（对照 Go approval.PendingRequest，gate.go:85-100）。
+ * 一次待决审批所需的全部上下文。
  *
- * <p>字段顺序与 Go 声明序一致。{@code args} 是原始 JSON 字符串（Go: {@code json.RawMessage}）。
- * Go 用结构体字面量构造；Java 用 {@link #builder()}（项目约定不使用 Lombok）。</p>
+ * <p>{@code args} 是原始 JSON 字符串。构造用 {@link #builder()}（项目约定不使用 Lombok）。</p>
  *
- * <p><b>userId</b>：发起调用的会话属主，用于 {@code Resolve} 鉴权；为空表示跳过用户校验
- * （与 Go 注释 “empty disables user check” 一致）。</p>
+ * <p><b>userId</b>：发起调用的会话属主，用于 {@code Resolve} 鉴权；为空表示跳过用户校验。</p>
  */
 public record PendingRequest(
         long tenantId,
@@ -46,7 +44,6 @@ public record PendingRequest(
         return new Builder();
     }
 
-    /** 对照 Go 的结构体字面量构造（具名字段） */
     public static final class Builder {
 
         private long tenantId;
@@ -118,7 +115,7 @@ public record PendingRequest(
             return this;
         }
 
-        /** 原始 JSON（Go: json.RawMessage） */
+        /** 原始 JSON。 */
         public Builder args(String v) {
             this.args = v;
             return this;

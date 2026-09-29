@@ -36,8 +36,6 @@ final class SqlTokenizer {
         return idx;
     }
 
-    /** 对照 validateInput。返回 null = 通过。 */
-
     enum TokKind {
         IDENT, QIDENT, STRING, NUMBER, OP, PUNCT, PARAM
     }
@@ -62,7 +60,7 @@ final class SqlTokenizer {
         }
     }
 
-    /** 手写解析失败（对照 pg_query.Parse 的 error 分类）。 */
+    /** 手写解析失败（语法错误、未终止的字符串/注释/标识符等）。 */
     static final class ParseFailure extends Exception {
         ParseFailure(String message) {
             super(message);
@@ -215,7 +213,7 @@ final class SqlTokenizer {
         return out;
     }
 
-    /** 对照 parseResult.Stmts 计数：按顶层分号切段，空段（无 token）不计。 */
+    /** 按顶层分号切段，空段（无 token）不计。 */
     static List<List<Token>> splitStatements(List<Token> tokens) {
         List<List<Token>> statements = new ArrayList<>();
         List<Token> current = new ArrayList<>();

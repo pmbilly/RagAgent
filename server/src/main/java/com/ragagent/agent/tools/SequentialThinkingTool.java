@@ -11,19 +11,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * thinking / 顺序思维工具（对照 Go {@code sequentialthinking.go}，逐字移植）。
+ * thinking / 顺序思维工具。
  *
  * <p>有状态：记录思维历史与分支；输入自适应（thoughtNumber 超过 totalThoughts 时上调总数）。
  * 校验文案逐字：{@code invalid thought: must be a non-empty string}、
  * {@code invalid thoughtNumber: must be >= 1}、{@code invalid totalThoughts: must be >= 1}；
  * 外层包 {@code Validation failed: }；JSON 解析失败包 {@code Failed to parse args: }。</p>
  *
- * <p>分支键列表（branches）Go 侧来自 map 迭代（顺序随机）——Java 用插入序确定性输出
- * （已备案的已知差异；无消费方可依赖 Go 的随机序）。</p>
+ * <p>分支键列表（branches）按插入序确定性输出（消费方不依赖顺序）。</p>
  */
 public class SequentialThinkingTool extends BaseTool {
 
-    /** 输入（对照 SequentialThinkingInput；可省字段用包装类型承载 omitempty 语义）。 */
+    /** 输入（可省字段用包装类型承载缺省不输出语义）。 */
     public record SequentialThinkingInput(
             String thought,
             boolean nextThoughtNeeded,
@@ -179,7 +178,7 @@ public class SequentialThinkingTool extends BaseTool {
                     args.path("branch_id").asText(""),
                     args.path("needs_more_thoughts").asBoolean(false));
         } catch (RuntimeException e) {
-            // 对照 Go 的 "Failed to parse args: %v"（Go 用 encoding/json 消息，Java 用 Jackson——已备案差异）
+            // 解析失败文案固定 "Failed to parse args: "（内层消息因解析器而异——已知差异）
             return failure("Failed to parse args: " + e.getMessage());
         }
 
@@ -240,7 +239,7 @@ public class SequentialThinkingTool extends BaseTool {
         return result;
     }
 
-    /** 输入校验（对照 validate；错误文案逐字）。 */
+    /** 输入校验（错误文案固定）。 */
     private static String validate(SequentialThinkingInput data) {
         if (data.thought().isEmpty()) {
             return "invalid thought: must be a non-empty string";
@@ -254,7 +253,7 @@ public class SequentialThinkingTool extends BaseTool {
         return null;
     }
 
-    /** 仅供测试观察历史长度（对照 Go 测试通过多次 Execute 后的 history_length 观察等价）。 */
+    /** 仅供测试观察历史长度。 */
     int thoughtHistorySizeForTest() {
         return thoughtHistory.size();
     }

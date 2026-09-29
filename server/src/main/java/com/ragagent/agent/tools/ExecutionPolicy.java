@@ -1,7 +1,7 @@
 package com.ragagent.agent.tools;
 
 /**
- * 并发执行白名单（对照 Go {@code execution_policy.go} 的 CanRunConcurrently，逐条照抄）。
+ * 并发执行白名单。
  *
  * <p>只有内建<b>读</b>工具允许并发。写操作、任意代码、未知/MCP 工具都是执行屏障——
  * 尤其是文件写必须在前一个 shell / skill 调用开始前完成。</p>

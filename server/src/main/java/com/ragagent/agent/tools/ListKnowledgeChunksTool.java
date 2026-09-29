@@ -17,13 +17,13 @@ import com.ragagent.agent.tools.DocChunkSupport.PagedChunks;
 import com.ragagent.knowledge.domain.Chunk;
 
 /**
- * list_knowledge_chunks 工具（对照 Go {@code list_knowledge_chunks.go}，逐字移植）。
- * faq_id/chunk_id 单块路径经 {@code chunkById} seam（对照 GetChunkByIDOnly）；
- * 图片富化经 {@link ImageInfoCollector}（对照 CollectImageInfoByChunkIDs）。
+ * list_knowledge_chunks 工具。
+ * faq_id/chunk_id 单块路径经 {@code chunkById} seam；
+ * 图片富化经 {@link ImageInfoCollector}。
  */
 public class ListKnowledgeChunksTool extends BaseTool {
 
-    /** 键序对照 Go GenerateSchema 输出（字母序：properties < type；属性名与字段键均字母序）。 */
+    /** schema 键按字母序：properties < type；属性名与字段键均字母序。 */
     private static final String SCHEMA_JSON = """
             {
               "properties": {
@@ -242,7 +242,7 @@ public class ListKnowledgeChunksTool extends BaseTool {
         return toolResult;
     }
 
-    /** 对照 executeByChunkID：faq_id / chunk_id 单块路径。 */
+    /** faq_id / chunk_id 单块路径。 */
     private ToolResult executeByChunkID(String chunkID) {
         Chunk chunk;
         try {
@@ -310,7 +310,7 @@ public class ListKnowledgeChunksTool extends BaseTool {
         return toolResult;
     }
 
-    /** 对照 lookupKnowledgeTitle：trim 后返回（失败/无服务 → ""）。 */
+    /** 取文档标题（trim 后返回；失败/无服务 → ""）。 */
     private String lookupKnowledgeTitle(String knowledgeID) {
         if (knowledgeReader == null) {
             return "";
@@ -327,7 +327,7 @@ public class ListKnowledgeChunksTool extends BaseTool {
         return knowledge.title().trim();
     }
 
-    /** 对照 buildOutput：XML 输出。 */
+    /** XML 输出。 */
     private String buildOutput(String knowledgeID, String knowledgeTitle, long total,
             int fetched, List<Chunk> chunks) {
         StringBuilder b = new StringBuilder();
@@ -372,7 +372,7 @@ public class ListKnowledgeChunksTool extends BaseTool {
         return b.toString();
     }
 
-    /** 对照 writeChunkImagesMarkdown：逐图 markdown + "\n"。 */
+    /** 逐图 markdown + "\n"。 */
     private static void writeChunkImagesMarkdown(StringBuilder b, Chunk c) {
         if (c == null) {
             return;
@@ -393,12 +393,12 @@ public class ListKnowledgeChunksTool extends BaseTool {
         }
     }
 
-    /** Go 字符串零值规范化（chunk 字段未 set 时 Java 为 null，Go 为 ""）。 */
+    /** 字符串字段 null 规范化为 ""（输出契约）。 */
     static String nz(String v) {
         return v == null ? "" : v;
     }
 
-    /** 对照 summarizeContent。 */
+    /** 内容摘要。 */
     static String summarizeContent(String content) {
         String cleaned = content == null ? "" : content.trim();
         if (cleaned.isEmpty()) {

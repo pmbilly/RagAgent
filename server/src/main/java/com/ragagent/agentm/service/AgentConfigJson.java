@@ -6,12 +6,11 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * CustomAgentConfig 的树级 EnsureDefaults / Validate（对照 Go types/custom_agent.go）。
+ * CustomAgentConfig 的树级补默认 / 校验。
  *
- * <p>Go 把 jsonb Unmarshal 进 struct（缺键 = 零值）→ 改字段 → 再 Marshal。
- * Java 侧等价操作直接在 Jackson 树上做：缺键视为 Go 零值，默认值显式写回，
+ * <p>直接在 Jackson 树上做：缺键视为零值，默认值显式写回，
  * 序列化由 agentm/dto/AgentResponses#agentConfigMap 按
- * struct 声明序 + omitempty 语义输出。</p>
+ * 固定声明序 + 零值键省略语义输出。</p>
  */
 public final class AgentConfigJson {
 
@@ -24,7 +23,7 @@ public final class AgentConfigJson {
 
     private AgentConfigJson() {}
 
-    /** 对照 CustomAgent.EnsureDefaults（tree 原地修改，返回同引用）。 */
+    /** 树级补默认（原地修改，返回同引用）。 */
     public static ObjectNode ensureDefaults(ObjectNode cfg) {
         JsonNode qs = cfg.get("question_suggestions");
         if (qs == null || qs.isNull() || !qs.isObject()) {
@@ -76,7 +75,7 @@ public final class AgentConfigJson {
         return cfg;
     }
 
-    /** EnsureDefaults 时物化的默认 QuestionSuggestionConfig（Go 字面量逐字段）。 */
+    /** 补默认时物化的默认 QuestionSuggestionConfig（逐字段固定）。 */
     private static ObjectNode defaultQuestionSuggestions() {
         ObjectNode qs = MAPPER.createObjectNode();
         ObjectNode starters = qs.putObject("starters");
@@ -97,7 +96,7 @@ public final class AgentConfigJson {
         return qs;
     }
 
-    /** 对照 QuestionSuggestionConfig.EnsureDefaults。 */
+    /** QuestionSuggestionConfig 补默认。 */
     private static void ensureSuggestionDefaults(ObjectNode qs) {
         ObjectNode starters = objectAt(qs, "starters");
         if (starters.path("mode").asText("").isEmpty()) {
@@ -138,7 +137,7 @@ public final class AgentConfigJson {
         return (ObjectNode) n;
     }
 
-    /** 对照 QuestionSuggestionConfig.Validate：null 或首个错误的文案。 */
+    /** QuestionSuggestionConfig 校验：null 或首个错误的文案。 */
     public static String validateSuggestions(JsonNode cfg) {
         JsonNode qs = cfg.get("question_suggestions");
         if (qs == null || qs.isNull() || !qs.isObject()) {
@@ -205,7 +204,7 @@ public final class AgentConfigJson {
         return false;
     }
 
-    /** Go %q 的双引号包裹。 */
+    /** 双引号包裹（%q 风格）。 */
     private static String quote(String s) {
         return "\"" + s + "\"";
     }

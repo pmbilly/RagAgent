@@ -4,16 +4,16 @@ import java.time.Duration;
 import java.util.UUID;
 
 /**
- * Gate 的装配参数（对照 Go {@code NewGate(cfg *config.Config, checker, rdb)} 里读取的配置面）。
+ * Gate 的装配参数。
  *
- * <p>Go 的两个来源：{@code cfg.Agent.ToolApprovalTimeoutSeconds}（&gt; 0 生效，否则 10 分钟）与
- * 环境变量 {@code WEKNORA_AGENT_TOOL_APPROVAL_FAIL_OPEN}（仅当值为 "true"，忽略大小写与空白，
- * 才 fail-open，默认 <b>fail-close</b>：策略查询失败时仍要求人工批准）。</p>
+ * <p>超时来源：{@code toolApprovalTimeoutSeconds}（&gt; 0 生效，否则 10 分钟）；
+ * fail-open 开关：环境变量 {@code WEKNORA_AGENT_TOOL_APPROVAL_FAIL_OPEN}（仅当值为 "true"，
+ * 忽略大小写与空白，才 fail-open，默认 <b>fail-close</b>：策略查询失败时仍要求人工批准）。</p>
  *
- * <p><b>Java 侧新增两个字段（Go 里是硬编码/包级变量）</b>，都带默认值、不影响默认行为：
+ * <p>{@code ackTimeout} 与 {@code instanceId} 均带默认值、不影响默认行为：
  * <ul>
- *   <li>{@code ackTimeout}：跨实例 ack 等待窗口（Go 硬编码 3s），提为可配置以便测试不必真等 3 秒；</li>
- *   <li>{@code instanceId}：本实例标识（Go 是包级 uuid），用于忽略自己发布的 pubsub 报文；
+ *   <li>{@code ackTimeout}：跨实例 ack 等待窗口，提为可配置以便测试不必真等 3 秒；</li>
+ *   <li>{@code instanceId}：本实例标识，用于忽略自己发布的 pubsub 报文；
  *       同一 JVM 内模拟多实例（测试）时必须区分。</li>
  * </ul>
  */
@@ -23,11 +23,11 @@ public record GateOptions(
         Duration ackTimeout,
         String instanceId) {
 
-    /** 对照 Go NewGate 的默认值 {@code timeout := 10 * time.Minute} */
+    /** 默认审批等待时长：10 分钟。 */
     public static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(10);
-    /** 对照 Go resolveCrossInstance 里硬编码的 3 秒 ack 窗口 */
+    /** 默认跨实例 ack 等待窗口：3 秒。 */
     public static final Duration DEFAULT_ACK_TIMEOUT = Duration.ofSeconds(3);
-    /** 对照 Go 包级变量 {@code instanceID = uuid.New().String()} */
+    /** 默认实例标识：随机 UUID。 */
     public static final String DEFAULT_INSTANCE_ID = UUID.randomUUID().toString();
 
     public GateOptions {
@@ -42,11 +42,10 @@ public record GateOptions(
     }
 
     /**
-     * 对照 Go NewGate 的配置读取：
-     * {@code cfg.Agent.ToolApprovalTimeoutSeconds > 0 ? 该值 : 10min}；
+     * 按配置装配：{@code toolApprovalTimeoutSeconds > 0 ? 该值 : 10min}；
      * fail-close 由环境变量决定（见类注释）。
      *
-     * @param toolApprovalTimeoutSeconds 对照 {@code cfg.Agent.ToolApprovalTimeoutSeconds}；null 视同 cfg.Agent == nil
+     * @param toolApprovalTimeoutSeconds 审批等待秒数；null 表示未配置（用默认 10 分钟）
      */
     public static GateOptions fromConfig(Integer toolApprovalTimeoutSeconds) {
         return fromConfig(toolApprovalTimeoutSeconds, failCloseFromEnv());
@@ -62,8 +61,8 @@ public record GateOptions(
     }
 
     /**
-     * 对照 Go：
-     * {@code failClose := !strings.EqualFold(strings.TrimSpace(os.Getenv("WEKNORA_AGENT_TOOL_APPROVAL_FAIL_OPEN")), "true")}
+     * 只有 {@link Gate#FAIL_OPEN_ENV} 的值为 "true"（忽略大小写与空白）才返回 false（fail-open）；
+     * 否则返回 true（fail-close）。
      */
     public static boolean failCloseFromEnv() {
         String raw = System.getenv(Gate.FAIL_OPEN_ENV);

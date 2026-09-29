@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 生成 Python 的嵌套引号体检（对照 Go {@code python_syntax.go}，逐字移植）。
+ * 生成 Python 的嵌套引号体检。
  *
  * <p>常见故障是同种 ASCII 引号出现在同类字符串字面量里（{@code "这不是一个"大干快上"..."}），
  * Python 会把它当字符串结束。在 write/edit 时就抓出来，省掉模型一轮
@@ -13,7 +13,7 @@ import java.util.Set;
 public final class PythonSyntax {
 
     /**
-     * 生成 Python 的短规则（对照 pythonQuoteGuidance）。
+     * 生成 Python 的短规则提示。
      * skill_file 的描述里逐字引用。
      */
     public static final String PYTHON_QUOTE_GUIDANCE =
@@ -35,7 +35,7 @@ public final class PythonSyntax {
     }
 
     /**
-     * 刚写完的文件若有嵌套引号故障则给出提示（对照 pythonScriptSyntaxHint）。
+     * 刚写完的文件若有嵌套引号故障则给出提示。
      * editTool 指明能修复它的工具：同一份提示服务 /workspace 写入与 skill 树写入，
      * 而两者的编辑器名字不同。
      */
@@ -56,7 +56,7 @@ public final class PythonSyntax {
                 + "or use 「」 / \\\" for the inner quotation. Do not execute the script until it parses.";
     }
 
-    /** 对照 pythonSyntaxErrorHint（stderr 里出现 SyntaxError 时的提示）。 */
+    /** stderr 里出现 SyntaxError 时的提示。 */
     public static String pythonSyntaxErrorHint(String stderr) {
         if (stderr == null || !stderr.contains("SyntaxError")) {
             return "";
@@ -66,7 +66,7 @@ public final class PythonSyntax {
                 + "edit_sandbox_file: wrap the text in the other quote, or replace inner quotes with 「」 / \\\".";
     }
 
-    /** Go path.Ext（含点号；无扩展名返回 ""）。 */
+    /** 文件扩展名（含点号；无扩展名返回 ""）。 */
     private static String extOf(String filePath) {
         if (filePath == null) {
             return "";

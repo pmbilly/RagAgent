@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 内容接地（grounding）指引（对照 Go internal/agent/grounding_prompt.go 全文）。
+ * 内容接地（grounding）指引。
  *
  * <p>适用于每一个 agent 模板，包括保存的与自定义的提示词。来源路由走当前注册表，
  * 而不是可能指着被过滤工具的配置开关。这是给模型的指引，不是工具执行闸门：

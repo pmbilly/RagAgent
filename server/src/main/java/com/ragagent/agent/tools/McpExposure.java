@@ -10,24 +10,23 @@ import com.ragagent.mcp.domain.McpService;
 import com.ragagent.mcp.domain.McpTool;
 
 /**
- * MCP 目录装载与注册入口（对照 Go {@code mcp_tool.go} 后半段的 MCPMetadataIO /
- * loadMCPDirectory / RegisterMCPTools / loadMCPServiceTools / MCPToolNamesByServiceID /
- * GetMCPToolsInfo / SerializeMCPToolResult，逐字移植）。
+ * MCP 目录装载与注册入口（持久化元数据读写、目录加载、工具注册、
+ * 工具名分组、工具信息枚举、结果序列化）。
  */
 public final class McpExposure {
 
-    /** 对照 mcpStartupGrace。 */
+    /** 引擎准备阶段等待目录安顿的宽限。 */
     static final java.time.Duration MCP_STARTUP_GRACE = java.time.Duration.ofSeconds(1);
-    /** 对照 mcpCatalogLoadTimeout。 */
+    /** 目录装载总超时。 */
     static final java.time.Duration MCP_CATALOG_LOAD_TIMEOUT = java.time.Duration.ofSeconds(30);
-    /** tools/list 的单次列举超时（对照 loadMCPServiceTools 的 listToolsTimeout）。 */
+    /** tools/list 的单次列举超时。 */
     static final java.time.Duration LIST_TOOLS_TIMEOUT = java.time.Duration.ofSeconds(30);
 
     private McpExposure() {
     }
 
     /**
-     * 读写持久化目录，可选地从已授权的活连接写回快照（对照 MCPMetadataIO）。
+     * 读写持久化目录，可选地从已授权的活连接写回快照。
      * Put 绝不能用于发布不完整的 tools/list。
      */
     public static final class McpMetadataIO {
@@ -55,7 +54,7 @@ public final class McpExposure {
     }
 
     /**
-     * 加载目录（对照 loadMCPDirectory）：非 live 优先取快照（stale 拒绝）、OAuth 未授权
+     * 加载目录：非 live 优先取快照（stale 拒绝）、OAuth 未授权
      * 且无工具执行上下文时给"先去授权"的方向；live/未命中走上游并在 Put 可用时回写。
      * 返回 {tools, instructions} 或抛异常。
      */
@@ -95,14 +94,14 @@ public final class McpExposure {
             try {
                 metadata.put.put(caller.tenantId(), service.getId(), definitions, instructions);
             } catch (Exception persistErr) {
-                // 对照 Go 的 warn 日志：持久化失败不阻断注册
+                // 持久化失败不阻断注册（warn）
             }
         }
         return new LoadedDirectory(definitions, instructions);
     }
 
     /**
-     * 连服务列工具（对照 loadMCPServiceTools）：缓存连接 stale 时断开重连再列一次；
+     * 连服务列工具：缓存连接 stale 时断开重连再列一次；
      * stdio 列完即断。Server instructions 经 {@code client.serverInstructions()} 读取。
      */
     public static List<McpTool> loadMcpServiceTools(
@@ -131,7 +130,7 @@ public final class McpExposure {
                 try {
                     client.disconnect();
                 } catch (Exception ignored) {
-                    // 对照 Go 的 warn 日志
+                    // 显式忽略（warn）
                 }
             }
         }
@@ -143,7 +142,7 @@ public final class McpExposure {
             try {
                 client.disconnect();
             } catch (Exception ignored) {
-                // 对照 Go 的 _ =
+                // 显式忽略
             }
             McpClientRetry retry = new McpClientRetry(mcpManager, service, waiter, oauthSess, toolCallId, caller);
             return retry.fresh().listTools(com.ragagent.mcp.protocol.McpContext.deadline(
@@ -165,7 +164,7 @@ public final class McpExposure {
     }
 
     /**
-     * 安装受限目录与 call 代理，不连接 MCP 服务器、不广告完整 schema（对照 RegisterMCPTools）。
+     * 安装受限目录与 call 代理，不连接 MCP 服务器、不广告完整 schema。
      * 拒绝部分安装或与调用方已注册工具的碰撞。返回装入的服务数。
      */
     public static int registerMcpTools(
@@ -207,8 +206,8 @@ public final class McpExposure {
             return tools;
         };
         McpCatalog catalog = new McpCatalog(tenantId, "", "", services, gate, loader, lookup);
-        // 对照 Go：newMCPCatalog 从 ctx 取 tenant/principal；本入口由装配层传入 tenantId，
-        // principal 用 caller 的 StorageID 形态（引擎侧再以 authorize 校验）。
+        // 本入口由装配层传入 tenantId，principal 用 caller 的 StorageID 形态
+        // （引擎侧再以 authorize 校验）。
         if (catalog.authorizeExecution() != null) {
             throw new IllegalStateException("MCP directory is unavailable for this authorization context");
         }
@@ -227,7 +226,7 @@ public final class McpExposure {
         return catalog.servers.size();
     }
 
-    /** 已注册 MCP 工具名按服务 ID 分组（对照 MCPToolNamesByServiceID；名字排序）。 */
+    /** 已注册 MCP 工具名按服务 ID 分组（名字排序）。 */
     public static Map<String, List<String>> mcpToolNamesByServiceId(ToolRegistry registry) {
         if (registry == null) {
             return null;
@@ -257,7 +256,7 @@ public final class McpExposure {
         return out;
     }
 
-    /** 可用 MCP 工具的信息（对照 GetMCPToolsInfo；15 秒预算按服务尽力而为）。 */
+    /** 可用 MCP 工具的信息（15 秒预算按服务尽力而为）。 */
     public static Map<String, List<String>> getMcpToolsInfo(
             List<McpService> services,
             com.ragagent.mcp.protocol.McpClientManager mcpManager) {
@@ -280,13 +279,13 @@ public final class McpExposure {
                 }
                 result.put(service.getName(), toolNames);
             } catch (Exception e) {
-                // 对照 Go：continue
+                // 单服务失败跳过
             }
         }
         return result;
     }
 
-    /** 为展示序列化 MCP 工具结果（对照 SerializeMCPToolResult）。 */
+    /** 为展示序列化 MCP 工具结果。 */
     public static String serializeMcpToolResult(com.ragagent.agent.domain.ToolResult result) throws Exception {
         if (result == null) {
             throw new IllegalArgumentException("result is nil");
@@ -305,7 +304,7 @@ public final class McpExposure {
                         .writeValueAsString(result.getData());
                 output += "\n\nStructured Data:\n" + dataBytes;
             } catch (Exception ignored) {
-                // 对照 Go 的 err 分支：忽略并返回原 output
+                // 序列化失败忽略，返回原 output
             }
         }
         return output;

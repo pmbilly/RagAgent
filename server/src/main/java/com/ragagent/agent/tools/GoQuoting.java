@@ -1,8 +1,8 @@
 package com.ragagent.agent.tools;
 
 /**
- * Go %q 的普通串形态（registry/MCP 侧文案需要）。原随沙箱工具族，MCP 三处
- * quoteGo 委托它，落位为共享工具件。
+ * 双引号字符串形态（registry/MCP 侧文案需要）：仅转义 {@code " \ \n \r \t}，
+ * 其余控制字符作 U+00XX 形态的转义，非 ASCII 原样保留。
  */
 public final class GoQuoting {
 

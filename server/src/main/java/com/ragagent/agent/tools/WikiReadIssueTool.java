@@ -7,8 +7,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * wiki_read_issue 工具（对照 Go {@code wiki_read_issue.go}，逐字移植）。
- * 读单个 issue（json.MarshalIndent 输出）或按 slug 列 pending issues。
+ * wiki_read_issue 工具。
+ * 读单个 issue（两空格缩进 JSON 输出）或按 slug 列 pending issues。
  */
 public class WikiReadIssueTool extends BaseTool {
 
@@ -91,7 +91,7 @@ public class WikiReadIssueTool extends BaseTool {
             return r;
         }
 
-        // 对照 json.MarshalIndent(issues, "", "  ")：数组形态
+        // 数组形态，元素整体缩进两格
         StringBuilder out = new StringBuilder();
         out.append("[\n");
         for (int i = 0; i < issues.size(); i++) {
@@ -108,7 +108,7 @@ public class WikiReadIssueTool extends BaseTool {
         return r;
     }
 
-    /** 把单行对象缩进一格（Go MarshalIndent 数组元素的形态）。 */
+    /** 把单行对象整体缩进两格（数组元素的输出形态）。 */
     private static String indent(String json) {
         StringBuilder sb = new StringBuilder();
         for (String line : json.split("\n", -1)) {

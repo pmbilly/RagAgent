@@ -12,7 +12,7 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeTagsFetcher;
 
 /**
- * wiki_search 工具（对照 Go {@code wiki_tools.go} 的 wikiSearchTool，逐字移植）。
+ * wiki_search 工具。
  * PostgreSQL POSIX 正则由服务端执行；工具侧只按 scope 过滤与排版。
  */
 public class WikiSearchTool extends BaseTool {
@@ -54,7 +54,7 @@ public class WikiSearchTool extends BaseTool {
     private final KnowledgeTagsFetcher tagsFetcher;
     private final List<WikiScope> scopes;
     private final WikiRouteResolver routes;
-    /** 会话级已见 slug（对照 seenSlugs map[string]bool）。 */
+    /** 会话级已见 slug。 */
     private final Set<String> seenSlugs = ConcurrentHashMap.newKeySet();
 
     public WikiSearchTool(WikiPages wikiService, KnowledgeTagsFetcher tagsFetcher,
@@ -209,7 +209,7 @@ public class WikiSearchTool extends BaseTool {
         return result;
     }
 
-    /** 对照 registerLinkedSlugs。 */
+    /** 把页的出链/入链 slug 记入已见集（去重追加）。 */
     private static void registerLinkedSlugs(Map<String, List<String>> foundKBs, PageView page, String kbId) {
         if (page == null || kbId == null || kbId.isEmpty()) {
             return;

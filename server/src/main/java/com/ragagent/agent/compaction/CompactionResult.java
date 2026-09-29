@@ -5,7 +5,7 @@ import java.util.List;
 import com.ragagent.llm.domain.ChatMessage;
 
 /**
- * 一次压缩做了什么（对照 Go compaction.Result，compactor.go L46-68）。
+ * 一次压缩做了什么。
  */
 public final class CompactionResult {
 
@@ -71,7 +71,7 @@ public final class CompactionResult {
         return splitTurn;
     }
 
-    /** 实际腾出的空间；非正值说明摘要的代价与它替换的历史一样大（对照 Freed）。 */
+    /** 实际腾出的空间；非正值说明摘要的代价与它替换的历史一样大。 */
     public int freed() {
         return tokensBefore - tokensAfter;
     }

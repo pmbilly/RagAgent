@@ -52,7 +52,7 @@ final class ContextDebugEmitter {
         }
     }
 
-    /** 预测 vs provider 实际计费（对照 logContextDrift——估计器完整性的 ground truth）。 */
+    /** 预测 vs provider 实际计费——估计器完整性的 ground truth。 */
     void logContextDrift(int round, int predicted, TokenUsage usage) {
         int actual = usage.getPromptTokens();
         if (actual <= 0 || predicted <= 0) {

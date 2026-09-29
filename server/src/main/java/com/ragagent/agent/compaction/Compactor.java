@@ -11,23 +11,20 @@ import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
 
 /**
- * 压缩器：把会话历史收进一份检查点摘要（对照 Go internal/agent/compaction/compactor.go
- * 全文）。
+ * 压缩器：把会话历史收进一份检查点摘要。
  *
- * <p>摘要调用走 {@link LlmChatClient}。Go 侧每次摘要 attempt 带 60s 超时
- * （summarizationTimeout）与 LLM 调用元数据（llmCallLabel="agent_context_compaction"）；
- * Java 侧超时由调用方传入的客户端/传输层控制（对照约定 §9 阶段 4.0 的取数），
- * purpose 元数据随 llm 模块已登记的差异不单独携带。</p>
+ * <p>摘要调用走 {@link LlmChatClient}，超时由调用方传入的客户端/传输层控制，
+ * 不在此单独设置。</p>
  */
 public final class Compactor {
 
     /**
-     * 单次压缩的重试上限（对照 maxSummarizationAttempts）。每个 attempt 都是一次完整
+     * 单次压缩的重试上限。每个 attempt 都是一次完整
      * 的 LLM 往返；一再失败的压缩，原始档案比卡住整轮更好用。
      */
     private static final int MAX_SUMMARIZATION_ATTEMPTS = 2;
 
-    /** 在追踪与用量记账里标识压缩流量的标签（对照 llmCallLabel）。 */
+    /** 在追踪与用量记账里标识压缩流量的标签。 */
     public static final String LLM_CALL_LABEL = "agent_context_compaction";
 
     private final LlmChatClient chatModel;
@@ -41,7 +38,7 @@ public final class Compactor {
     }
 
     /**
-     * 构建压缩器（对照 New）。无法运行时返回 <b>null</b>——调用方把 null 压缩器当作
+     * 构建压缩器。无法运行时返回 <b>null</b>——调用方把 null 压缩器当作
      * "功能关闭"，不需要第二个开关标志。
      */
     public static Compactor create(LlmChatClient chatModel, TokenEstimator estimator,
@@ -52,13 +49,13 @@ public final class Compactor {
         return new Compactor(chatModel, estimator, settings.normalize());
     }
 
-    /** 归一化后的设置，含派生阈值（对照 Settings()；nil 接收者返回零值）。 */
+    /** 归一化后的设置，含派生阈值。 */
     public CompactionSettings settings() {
         return settings;
     }
 
     /**
-     * 用摘要替换 keep-recent 预算之外的历史（对照 Compact）。
+     * 用摘要替换 keep-recent 预算之外的历史。
      *
      * @throws NothingToCompactException 没有那样的历史时——停止信号，不是重试理由
      */
@@ -85,7 +82,7 @@ public final class Compactor {
     }
 
     /**
-     * 产出检查点文本，摘要器产不出的部分回退到原始档案（对照 buildSummary）。
+     * 产出检查点文本，摘要器产不出的部分回退到原始档案。
      * 返回 [text, degraded]。
      */
     private SummaryWithFlag buildSummary(CompactionPreparation p) {
@@ -135,7 +132,7 @@ public final class Compactor {
     private record SummaryWithFlag(String text, boolean degraded) {
     }
 
-    /** 跑一次带重试的摘要调用（对照 summarize）。 */
+    /** 跑一次带重试的摘要调用。 */
     private String summarize(List<ChatMessage> messages, String previousSummary,
             String instructions, int maxTokens) {
         String prompt = buildSummarizationPrompt(messages, previousSummary, instructions);
@@ -171,13 +168,13 @@ public final class Compactor {
     }
 
     /**
-     * 拒绝不能充当检查点的响应（对照 validateSummary）；null = 通过。
+     * 拒绝不能充当检查点的响应；null = 通过。
      *
      * <p>length 停止值得单说：被 token 上限切断的摘要读起来像份有效摘要，实际上
      * 在小节中间无声结束，之后每一轮都把这份残篇当作被丢历史唯一的记忆。
      * 半份摘要就是失败：它当不了检查点。</p>
      *
-     * @return null 或 Go 版错误文本
+     * @return null 或钉死的错误文本
      */
     static String validateSummary(ChatResponse resp) {
         String content = resp == null || resp.getContent() == null ? "" : resp.getContent();
@@ -196,7 +193,7 @@ public final class Compactor {
     }
 
     /**
-     * 把文字记录包进 tag、指令放最后（对照 buildSummarizationPrompt）——
+     * 把文字记录包进 tag、指令放最后——
      * 摘要器就不会把对话文本误当成自己的指令。
      */
     static String buildSummarizationPrompt(List<ChatMessage> messages, String previousSummary,

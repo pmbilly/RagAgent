@@ -13,7 +13,7 @@ import com.ragagent.llm.domain.MessageContentPart;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * token 估算器（对照 Go internal/agent/token/estimator.go 全文，逐方法翻译）。
+ * token 估算器。
  *
  * <p>token 数的权威来源是模型 API 返回的 Usage；本类只服务两个场景：</p>
  * <ol>
@@ -22,12 +22,10 @@ import com.ragagent.llm.domain.ToolCall;
  *   <li><b>首轮兜底</b>——会话首轮没有 Usage 可用，用估算值代替。</li>
  * </ol>
  *
- * <p><b>编码器</b>：Go 用 {@code tiktoken-go/tokenizer} 的 cl100k_base（近似）。
- * Java 侧用 jtokkit 的 {@link EncodingType#CL100K_BASE}，同一份 OpenAI 词表 +
- * 同一 BPE 合并算法，token 数逐字节一致（Go 实录 36 条语料 + 消息/工具钉住）。
- * 用 {@code encodeOrdinary}（= tiktoken 的 encode_ordinary）：特殊 token
- * （{@code <|endoftext|>} 等）按普通文本切——与 tiktoken-go 一致，它的
- * {@code tokenize} 从不查 specialTokens 表。</p>
+ * <p><b>编码器</b>：jtokkit 的 {@link EncodingType#CL100K_BASE}——同一份 OpenAI 词表 +
+ * 同一 BPE 合并算法，token 数与实录基线逐字节一致（36 条实录语料 + 消息/工具钉住）。
+ * 用 {@code encodeOrdinary}：特殊 token（{@code <|endoftext|>} 等）按普通文本切，
+ * 从不查 special token 表。</p>
  *
  * <p><b>reasoning_content 必须计数</b>：思考类模型（DeepSeek V3.2/V4、MiMo）要求
  * 历轮 reasoning_content 原样回传，它通常数倍于可见回复。漏记曾把 130k 上下文
@@ -36,17 +34,13 @@ import com.ragagent.llm.domain.ToolCall;
  */
 public final class TokenEstimator {
 
-    /** 对照 Go perMessageOverhead。 */
     private static final int PER_MESSAGE_OVERHEAD = 3;
-    /** 对照 Go perConversationTail。 */
     private static final int PER_CONVERSATION_TAIL = 3;
-    /** 对照 Go perToolCallOverhead。 */
     private static final int PER_TOOL_CALL_OVERHEAD = 4;
-    /** 对照 Go perToolDefOverhead。 */
     private static final int PER_TOOL_DEF_OVERHEAD = 8;
 
     /**
-     * 一张图的假定成本（对照 Go estimatedImageTokens）。供应商按 tile 计费，
+     * 一张图的假定成本。供应商按 tile 计费，
      * URL 与 base64 都不可作依据：短 https:// 链接和一兆字节的 data URI 可能同价。
      * 1200 token ≈ 4800 字符（按 4 字符/token 的经验值）。
      */
@@ -59,7 +53,7 @@ public final class TokenEstimator {
     public TokenEstimator() {
     }
 
-    /** 一批消息的估算总 token（对照 EstimateMessages）。全量上下文优先用 API Usage。 */
+    /** 一批消息的估算总 token。全量上下文优先用 API Usage。 */
     public int estimateMessages(List<ChatMessage> messages) {
         int total = 0;
         if (messages != null) {
@@ -70,7 +64,7 @@ public final class TokenEstimator {
         return total + PER_CONVERSATION_TAIL;
     }
 
-    /** 单字符串的 BPE token 数（对照 EstimateString）。 */
+    /** 单字符串的 BPE token 数。 */
     public int estimateString(String s) {
         if (s == null || s.isEmpty()) {
             return 0;
@@ -83,7 +77,7 @@ public final class TokenEstimator {
         }
     }
 
-    /** 单条消息的估算 token（对照 EstimateMessage）。每一个上线字段都要算进去。 */
+    /** 单条消息的估算 token。每一个上线字段都要算进去。 */
     public int estimateMessage(ChatMessage msg) {
         if (msg == null) {
             return PER_MESSAGE_OVERHEAD;
@@ -108,7 +102,7 @@ public final class TokenEstimator {
     }
 
     /**
-     * 多模态内容计数（对照 estimateImageParts）。MultiContent 是实际发给供应商的
+     * 多模态内容计数。MultiContent 是实际发给供应商的
      * 组装形态，所以它在场时裸 Images 列表是同一批图被数第二遍——不计。
      */
     private int estimateImageParts(ChatMessage msg) {
@@ -129,9 +123,9 @@ public final class TokenEstimator {
     }
 
     /**
-     * 随每个请求发送的工具 schema 的 token 成本（对照 EstimateTools）。它们是供应商
+     * 随每个请求发送的工具 schema 的 token 成本。它们是供应商
      * 计费的 prompt 的一部分，但<b>不是</b>压缩触发条件（那只看消息）；用于诊断与
-     * 请求预算钳制，勿用于 ShouldCompact。
+     * 请求预算钳制，勿用于 shouldCompact。
      */
     public int estimateTools(List<ChatTool> tools) {
         int total = 0;
@@ -141,15 +135,14 @@ public final class TokenEstimator {
         for (ChatTool tool : tools) {
             total += estimateString(tool.getFunction().getName());
             total += estimateString(tool.getFunction().getDescription());
-            // Go 侧 Parameters 是 json.RawMessage，string(...) 取原始字节；
-            // Java 侧 FunctionDef.parameters 是 JsonNode，序列化回紧凑 JSON 计数。
+            // FunctionDef.parameters 是 JsonNode，序列化回紧凑 JSON 计数。
             total += estimateString(ParametersJson.write(tool.getFunction().getParameters()));
             total += PER_TOOL_DEF_OVERHEAD;
         }
         return total;
     }
 
-    /** JsonNode → 紧凑 JSON 文本（null 安全；对照 Go string(json.RawMessage)）。 */
+    /** JsonNode → 紧凑 JSON 文本（null 安全）。 */
     private static final class ParametersJson {
         private static String write(com.fasterxml.jackson.databind.JsonNode node) {
             if (node == null || node.isNull() || node.isMissingNode()) {
@@ -163,7 +156,7 @@ public final class TokenEstimator {
         }
     }
 
-    /** Go 的 len(s) 对字符串取字节长度；Java String.length() 是 UTF-16 长度。 */
+    /** 返回 UTF-8 字节长度（String.length() 是 UTF-16 长度，别混用）。 */
     private static int utf8Length(String s) {
         return s.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
     }

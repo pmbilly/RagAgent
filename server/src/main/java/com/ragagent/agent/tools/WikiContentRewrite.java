@@ -13,7 +13,7 @@ import java.util.List;
 
 
     /**
-     * 对照 applyIncomingWikiContentRewrite：更新机器维护的链接（不递增页面版本）。
+     * 更新机器维护的链接（不递增页面版本）。
      * 首个失败即停，返回已应用的变更供调用方补偿。
      */
     public static List<AppliedChange> applyIncomingWikiContentRewrite(
@@ -45,7 +45,7 @@ import java.util.List;
         return changes;
     }
 
-    /** 对照 rollbackWikiContentChanges：倒序回滚；失败聚合。 */
+    /** 倒序回滚已应用变更；失败聚合。 */
     public static void rollbackWikiContentChanges(WikiPages service, List<AppliedChange> changes, String editSource) {
         List<String> failures = new ArrayList<>();
         for (int i = changes.size() - 1; i >= 0; i--) {
@@ -62,7 +62,7 @@ import java.util.List;
         }
     }
 
-    /** 对照 joinWikiMutationErrors。 */
+    /** 多条错误聚合为分号连接文案。 */
     public static String joinWikiMutationErrors(String primary, String... extras) {
         List<String> parts = new ArrayList<>();
         parts.add(primary);

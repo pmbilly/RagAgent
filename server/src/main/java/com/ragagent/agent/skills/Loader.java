@@ -12,7 +12,7 @@ import java.util.stream.Stream;
 import com.ragagent.agent.tools.GoPath;
 
 /**
- * 从文件系统做 skill 发现与加载（对照 Go internal/agent/skills/loader.go，全文移植）。
+ * 从文件系统做 skill 发现与加载。
  * 按 Progressive Disclosure 把元数据发现（Level 1）与指令加载（Level 2/3）分开。
  */
 public final class Loader implements SkillSource {
@@ -26,7 +26,7 @@ public final class Loader implements SkillSource {
         this.skillDirs = skillDirs == null ? List.of() : skillDirs;
     }
 
-    /** 扫描全部配置目录找 SKILL.md，抽元数据（Level 1；对照 DiscoverSkills）。 */
+    /** 扫描全部配置目录找 SKILL.md，抽元数据（Level 1）。 */
     @Override
     public List<Skill.SkillMetadata> discoverSkills() {
         List<Skill.SkillMetadata> allMetadata = new ArrayList<>();
@@ -35,7 +35,7 @@ public final class Loader implements SkillSource {
             try {
                 metadata = discoverInDirectory(dir);
             } catch (Exception e) {
-                // 记 warning 后继续其他目录（Go：continue）
+                // 记 warning 后继续其他目录
                 continue;
             }
             allMetadata.addAll(metadata);
@@ -43,7 +43,7 @@ public final class Loader implements SkillSource {
         return allMetadata;
     }
 
-    /** 扫单个目录下的 skill 子目录（对照 discoverInDirectory）。 */
+    /** 扫单个目录下的 skill 子目录。 */
     private List<Skill.SkillMetadata> discoverInDirectory(String dir) throws IOException {
         List<Skill.SkillMetadata> metadata = new ArrayList<>();
         Path root = Path.of(dir);
@@ -53,7 +53,7 @@ public final class Loader implements SkillSource {
         if (!Files.isDirectory(root)) {
             throw new IOException(dir + " is not a directory");
         }
-        // Go os.ReadDir 按文件名字节序排序
+        // 按文件名字节序排序，保证发现顺序稳定
         List<Path> entries;
         try (Stream<Path> stream = Files.list(root)) {
             entries = new ArrayList<>(stream.toList());
@@ -82,7 +82,7 @@ public final class Loader implements SkillSource {
         return metadata;
     }
 
-    /** 加载一个 skill 的完整指令（Level 2；对照 LoadSkillInstructions）。已加载走缓存。 */
+    /** 加载一个 skill 的完整指令（Level 2）。已加载走缓存。 */
     @Override
     public Skill loadSkillInstructions(String skillName) {
         Skill cached = discoveredSkills.get(skillName);
@@ -99,7 +99,7 @@ public final class Loader implements SkillSource {
         throw new Skill.SkillValidationException("skill not found: " + skillName);
     }
 
-    /** 在指定目录尝试加载 skill（对照 loadSkillFromDirectory）；找不到返回 null。 */
+    /** 在指定目录尝试加载 skill；找不到返回 null。 */
     private Skill loadSkillFromDirectory(String dir, String skillName) {
         // 先按目录名 = skill 名直查
         Path directPath = Path.of(dir, skillName);
@@ -153,7 +153,7 @@ public final class Loader implements SkillSource {
         return skill;
     }
 
-    /** 加载 skill 目录里的一个额外文件（Level 3；对照 LoadSkillFile）。 */
+    /** 加载 skill 目录里的一个额外文件（Level 3）。 */
     @Override
     public Skill.SkillFile loadSkillFile(String skillName, String relativePath) {
         Skill skill = discoveredSkills.get(skillName);
@@ -188,7 +188,7 @@ public final class Loader implements SkillSource {
         return new Skill.SkillFile(relativePath, absFilePath.toString(), new String(content), Skill.isScript(relativePath));
     }
 
-    /** 列出 skill 目录的全部文件（对照 ListSkillFiles）。 */
+    /** 列出 skill 目录的全部文件。 */
     @Override
     public List<String> listSkillFiles(String skillName) {
         Skill skill = discoveredSkills.get(skillName);
@@ -200,7 +200,7 @@ public final class Loader implements SkillSource {
         return files;
     }
 
-    /** Go filepath.Walk 的顺序：目录内按名排序、深度优先。 */
+    /** 目录内按名排序、深度优先的遍历顺序。 */
     private static void walk(Path root, Path dir, List<String> files) {
         List<Path> entries;
         try (Stream<Path> stream = Files.list(dir)) {
@@ -218,12 +218,12 @@ public final class Loader implements SkillSource {
         }
     }
 
-    /** 按名取缓存 skill（对照 GetSkillByName）。 */
+    /** 按名取缓存 skill。 */
     public Skill getSkillByName(String name) {
         return discoveredSkills.get(name);
     }
 
-    /** skill 的基路径（恒绝对；对照 GetSkillBasePath）。 */
+    /** skill 的基路径（恒绝对）。 */
     @Override
     public String getSkillBasePath(String skillName) {
         Skill skill = discoveredSkills.get(skillName);
@@ -233,7 +233,7 @@ public final class Loader implements SkillSource {
         return Path.of(skill.basePath).toAbsolutePath().normalize().toString();
     }
 
-    /** 清缓存并重新发现（对照 Reload）。 */
+    /** 清缓存并重新发现。 */
     public List<Skill.SkillMetadata> reload() {
         discoveredSkills.clear();
         return discoverSkills();

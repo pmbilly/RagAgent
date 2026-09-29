@@ -7,34 +7,31 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * SQL 校验与安全注入（对照 Go {@code internal/utils/inject.go}，database_query 用到的
- * 全配置路径逐字移植）。
+ * SQL 校验与安全注入。
  *
- * <p><b>已决策差异（报告备案）</b>：Go 用 pg_query_go 拿 PostgreSQL 官方解析树；
- * Java 侧无 pg_query 绑定，这里用<b>手写轻量解析器</b>——tokenizer + 关键字级
- * FROM/WHERE 切分——覆盖 database_query 语料支持的单条 SELECT 形态
- * （FROM/JOIN [ON]、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、函数调用、
- * {@code ::} 与 CAST 转型）。解析失败的分类与 Go 一致（parse_error），但底层
- * parse 错误文案不同——该文案不进工具 error（Go 侧 Details 只留在
- * SQLValidationError.Details，工具只透 Message），故工具输出保持逐字一致。
- * Deparse 归一化跳过（直接对原 SQL 注入），单表场景注入结果逐字一致，多表条件
- * 序 Go map 随机、Java 用出现序（已知差异）。</p>
+ * <p><b>已知差异</b>：本类用<b>手写轻量解析器</b>（tokenizer + 关键字级
+ * FROM/WHERE 切分）替代 PostgreSQL 官方 parser——覆盖 database_query 语料支持的单条
+ * SELECT 形态（FROM/JOIN [ON]、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、
+ * 函数调用、{@code ::} 与 CAST 转型）。解析失败同样分类为 parse_error，但底层
+ * parse 错误文案不同——该文案不进工具 error（Details 只留在
+ * SQLValidationError.Details，工具只透 Message），故工具输出不受影响。
+ * Deparse 归一化跳过（直接对原 SQL 注入）；多表条件序按出现序（确定性，已知差异）。</p>
  *
  * <p>校验错误的三元组（type/message/details）与 Phase 顺序（input → parse →
  * statement count → select-only → deep validate → table whitelist → injection
- * risk）逐字对照 Go；注入（tenant/soft-delete/hidden-KB/chunk-enabled/search
- * scope）与 {@code InjectAndConditions} 的字符串重写逐字对照。</p>
+ * risk）固定；注入（tenant/soft-delete/hidden-KB/chunk-enabled/search
+ * scope）按 AND 条件重写原 SQL。</p>
  */
 public final class SqlGuard {
 
     private SqlGuard() {
     }
 
-    /** 对照 SQLValidationError。 */
+    /** 单条校验错误（type/message/details 三元组）。 */
     public record SqlValidationError(String type, String message, String details) {
     }
 
-    /** 对照 SQLValidationResult。 */
+    /** 校验结果（valid + errors 列表，Phase 5/6/7 的错误可叠加）。 */
     public static final class SqlValidationResult {
         boolean valid = true;
         final List<SqlValidationError> errors = new ArrayList<>();
@@ -48,7 +45,7 @@ public final class SqlGuard {
         }
     }
 
-    /** 校验失败时抛出，message = Go 的 Errors[0].Message（对照 ValidateAndSecureSQL 的 errMsg）。 */
+    /** 校验失败时抛出，message = 首条错误的 message。 */
     public static final class SqlGuardException extends Exception {
         public final SqlValidationResult result;
 
@@ -58,11 +55,11 @@ public final class SqlGuard {
         }
     }
 
-    /** 对照 utils.SearchScope。 */
+    /** 检索作用域（知识库 + 知识/标签 ID 约束）。 */
     public record SearchScope(String knowledgeBaseId, List<String> knowledgeIds, List<String> tagIds) {
     }
 
-    /** validate + 注入的合入口（对照 ValidateAndSecureSQL，rewriting 恒启用）。 */
+    /** validate + 注入的合入口（重写恒启用）。 */
     public static String validateAndSecure(String sql, long tenantID, List<SearchScope> scopes)
             throws SqlGuardException {
         SqlValidationResult validation = validate(sql, tenantID, scopes);
@@ -70,7 +67,7 @@ public final class SqlGuard {
             throw new SqlGuardException(validation);
         }
 
-        // 解析出的表→别名（出现序；Go map 序随机，单表场景无差异——已知差异④）。
+        // 解析出的表→别名（出现序，确定；多表场景为已知差异点）。
         Map<String, String> tablesInQuery = SqlSelectDeepChecker.parseTablesInQuery(sql);
 
         String securedSQL = SqlInjectionAnalyzer.injectTenantConditions(sql, tablesInQuery, tenantID);
@@ -81,15 +78,13 @@ public final class SqlGuard {
         return securedSQL;
     }
 
-    // ==================== Phase 1-7 校验（对照 ValidateSQL） ====================
+    // ==================== Phase 1-7 校验 ====================
 
     /**
-     * 校验配置（对照 sqlValidator 的 option 开关组）。两个工厂：
+     * 校验配置（option 开关组）。两个工厂：
      * {@link #securityDefaults()}（database_query 全配置）与
      * {@link #dataAnalysis(String)}（data_analysis：仅单语句 + 危险函数 +
-     * 单表白名单，无 select-only/函数白名单/子查询/CTE/schema/系统列检查——
-     * 与 Go {@code utils.ValidateSQL(WithAllowedTables(t), WithSingleStatement(),}
-     * {@code WithNoDangerousFunctions())} 逐字段对应）。
+     * 单表白名单，无 select-only/函数白名单/子查询/CTE/schema/系统列检查）。
      */
     public static final class GuardConfig {
         boolean inputValidation;
@@ -106,7 +101,7 @@ public final class SqlGuard {
         boolean checkSchemaAccess;
         boolean checkDangerousFuncs;
 
-        /** 对照 WithSecurityDefaults（allowed tables 三表 + 47 函数白名单 + 注入开关）。 */
+        /** 安全默认全配置：allowed tables 三表 + 47 函数白名单 + 全部检查开关。 */
         public static GuardConfig securityDefaults() {
             GuardConfig cfg = new GuardConfig();
             cfg.inputValidation = true;
@@ -127,7 +122,7 @@ public final class SqlGuard {
             return cfg;
         }
 
-        /** 对照 data_analysis 的三选项 ValidateSQL（allowedTables 单表）。 */
+        /** data_analysis 配置（allowedTables 单表）。 */
         public static GuardConfig dataAnalysis(String tableName) {
             GuardConfig cfg = new GuardConfig();
             cfg.singleStatement = true;
@@ -139,23 +134,22 @@ public final class SqlGuard {
     }
 
     /**
-     * 对照 {@code ValidateSQL}（安全默认全配置入口；tenantID/scopes 为注入阶段
-     * 参数，校验本体不使用）。返回的 result 带完整 errors 列表（与 Go 一样，
-     * Phase 5/6/7 的错误可叠加）。
+     * 安全默认全配置入口（tenantID/scopes 为注入阶段
+     * 参数，校验本体不使用）。返回的 result 带完整 errors 列表
+     * （Phase 5/6/7 的错误可叠加）。
      */
     public static SqlValidationResult validate(String sql, long tenantID, List<SearchScope> scopes) {
         return validate(sql, GuardConfig.securityDefaults());
     }
 
     /**
-     * 对照 {@code ValidateSQL}（可配置入口）。非 SELECT 语句（SHOW/EXPLAIN 等）
-     * 在 select-only 关闭时不做任何深检查（对照 Go：stmt.GetSelectStmt() 为 nil
-     * 时 Phase 5/6/7 整体跳过）。
+     * 可配置入口。非 SELECT 语句（SHOW/EXPLAIN 等）
+     * 在 select-only 关闭时不做任何深检查（Phase 5/6/7 整体跳过）。
      */
     public static SqlValidationResult validate(String sql, GuardConfig cfg) {
         SqlValidationResult validationResult = new SqlValidationResult();
 
-        // Phase 1: Basic input validation（对照 validateInput）
+        // Phase 1: Basic input validation
         if (cfg.inputValidation) {
             String inputErr = validateInput(sql);
             if (inputErr != null) {
@@ -166,8 +160,9 @@ public final class SqlGuard {
             }
         }
 
-        // Phase 2: Parse（手写解析器；分类对齐 pg_query：能/不能解析。
-        // DESCRIBE/PRAGMA 等非 PG 语句的 parse 错误文案对照 pg_query 逐字。）
+        // Phase 2: Parse（手写解析器；只分能/不能解析两态。
+        // DESCRIBE/PRAGMA 等非 PG 语句的 parse 失败文案与官方 parser 的
+        // syntax error 模板一致。）
         List<SqlTokenizer.Token> tokens;
         try {
             tokens = SqlTokenizer.tokenize(sql);
@@ -178,7 +173,7 @@ public final class SqlGuard {
             return validationResult;
         }
 
-        // Phase 3: statement count（对照 parseResult.Stmts 计数；空段不计）
+        // Phase 3: statement count（空段不计）
         List<List<SqlTokenizer.Token>> statements = SqlTokenizer.splitStatements(tokens);
         if (statements.isEmpty()) {
             validationResult.valid = false;
@@ -196,7 +191,7 @@ public final class SqlGuard {
 
         List<SqlTokenizer.Token> stmt = statements.get(0);
 
-        // Phase 2.5: 语句种类（对照 pg_query 的可解析集合）：无法识别的首 token
+        // Phase 2.5: 语句种类：无法识别的首 token
         // 是 parse error（如 DESCRIBE/PRAGMA——pg 语法里没有它们），可解析的非
         // SELECT 语句（SHOW/EXPLAIN/DELETE…）继续走后续阶段。
         SqlTokenizer.Token first0 = SqlTokenizer.firstMeaningful(stmt);
@@ -209,8 +204,8 @@ public final class SqlGuard {
             return validationResult;
         }
 
-        // Phase 4: SELECT-only（WITH 开头时跳过 CTE 定义体看主语句——对照 Go 的
-        // stmt.GetSelectStmt()：WITH...SELECT 是 SelectStmt，WITH...DELETE 不是）
+        // Phase 4: SELECT-only（WITH 开头时跳过 CTE 定义体看主语句：
+        // WITH...SELECT 视作 SELECT，WITH...DELETE 不视作）
         SqlTokenizer.Token first = SqlTokenizer.firstMeaningful(stmt);
         boolean startsWithWith = first != null && first.isKeyword("with");
         boolean isSelect = first != null && first.isKeyword("select");
@@ -219,8 +214,7 @@ public final class SqlGuard {
             SqlTokenizer.Token main = idx < stmt.size() ? stmt.get(idx) : null;
             isSelect = main != null && main.isKeyword("select");
             if (isSelect && !cfg.checkCTEs) {
-                // data_analysis：CTE 允许（checkCTEs=false）——CTE 本体不校验
-                // （对照 Go：validateSelectStmt 只在 checkCTEs 时看 WithClause），
+                // data_analysis：CTE 允许（checkCTEs=false）——CTE 本体不校验，
                 // 深检查只对主语句做。
                 stmt = new ArrayList<>(stmt.subList(idx, stmt.size()));
                 startsWithWith = false;
@@ -237,12 +231,12 @@ public final class SqlGuard {
         }
 
         // 非 SELECT 语句（SHOW/EXPLAIN 等，仅 data_analysis 配置可达）：
-        // 对照 Go——selectStmt 为 nil 时不做 Phase 5/6/7，直接通过。
+        // 直接通过（Phase 5/6/7 不做）。
         if (!isSelect) {
             return validationResult;
         }
 
-        // Phase 5: deep inspection（对照 validateSelectStmt，首个错误即 Details）
+        // Phase 5: deep inspection（首个错误即 Details）
         SqlSelectDeepChecker.DeepCheck deep = SqlSelectDeepChecker.deepCheck(stmt, startsWithWith, cfg);
         if (deep.error != null) {
             validationResult.valid = false;
@@ -250,8 +244,7 @@ public final class SqlGuard {
                     "statement_validation_error", "Statement validation failed", deep.error));
         }
 
-        // Phase 6: table whitelist（对照 result.TableNames：出现序去重、Relname
-        // 原始大小写进文案）
+        // Phase 6: table whitelist（出现序去重、表名原始大小写进文案）
         if (cfg.checkTableNames) {
             java.util.LinkedHashSet<String> seenTables = new java.util.LinkedHashSet<>();
             for (String table : deep.tableNames) {
@@ -265,14 +258,14 @@ public final class SqlGuard {
                     validationResult.errors.add(new SqlValidationError(
                             "table_not_allowed",
                             String.format("Table '%s' is not in the allowed list", table),
-                            // Go Details 为 map 键序（随机）；多表时不进工具输出，
+                            // Details 的表序在多表时不进工具输出，
                             // 单表（data_analysis）时序确定。
                             "Allowed tables: " + allowed));
                 }
             }
         }
 
-        // Phase 7: injection risk（对照 checkSQLInjectionRisks；仅真实 WHERE 存在时）
+        // Phase 7: injection risk（仅真实 WHERE 存在时）
         if (cfg.checkInjectionRisk && deep.hasRealWhere) {
             String whereClause = SqlInjectionAnalyzer.extractWhereClauseText(sql);
             List<SqlValidationError> riskErrors = SqlInjectionAnalyzer.checkSqlInjectionRisks(whereClause);
@@ -314,15 +307,15 @@ public final class SqlGuard {
     private static final Map<String, Boolean> ALLOWED_FUNCTIONS = new LinkedHashMap<>();
 
     /**
-     * pg_query 对内建类型的归一化（INTEGER→pg_catalog.int4 等）：Go 的 TypeCast
-     * 检查读 parse tree 归一化后的 TypeName.Names，因此 {@code ::INTEGER} 被拒而
-     * 自定义类型放行。Java tokenizer 看到的是原文，须先查表归一。
+     * PostgreSQL parser 对内建类型的归一化（INTEGER→pg_catalog.int4 等）：CAST
+     * 类型检查读归一化后的类型名，因此 {@code ::INTEGER} 被拒而
+     * 自定义类型放行。tokenizer 看到的是原文，须先查表归一。
      */
     private static final Map<String, String> PG_TYPE_NORMALIZATION = new LinkedHashMap<>();
 
     static {
         for (String f : new String[] {
-                // Aggregate functions（对照 WithDefaultSafeFunctions，47 个，全小写）
+                // Aggregate functions（47 个，全小写）
                 "count", "sum", "avg", "min", "max", "array_agg", "string_agg",
                 "bool_and", "bool_or", "json_agg", "jsonb_agg", "json_object_agg",
                 "jsonb_object_agg",
@@ -335,8 +328,7 @@ public final class SqlGuard {
             ALLOWED_FUNCTIONS.put(f, Boolean.TRUE);
         }
 
-        // 内建 SQL 类型名 → pg_catalog 归一名（对照 pg parse tree 的 Names 列表；
-        // 多词类型键为空白连接小写形式）。
+        // 内建 SQL 类型名 → pg_catalog 归一名（多词类型键为空白连接小写形式）。
         String[][] types = {
                 {"int", "pg_catalog.int4"}, {"integer", "pg_catalog.int4"},
                 {"int4", "pg_catalog.int4"},
@@ -377,7 +369,7 @@ public final class SqlGuard {
     }
 
     /**
-     * 对照 pg parse tree 的 TypeName.Names：内建类型归一为 pg_catalog.*（小写）；
+     * 内建类型归一为 pg_catalog.*（小写，与 PostgreSQL parser 的类型名归一一致）；
      * 自定义类型原样返回点连接形式。多词类型（double precision 等）按空白连接
      * 查表，兼容 tokenizer 吃掉空格后的点连接序列。
      */

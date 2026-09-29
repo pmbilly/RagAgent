@@ -23,7 +23,7 @@ final class McpCatalogPagination {
 
     /**
 
-     * 游标同时绑定查询与其当前可见行（对照 paginateMCP）。权限或快照变化使游标失效，
+     * 游标同时绑定查询与其当前可见行。权限或快照变化使游标失效，
 
      * 而不是跳过未见的条目。
 
@@ -43,7 +43,7 @@ final class McpCatalogPagination {
                 serverIds.add(server.serverId);
             }
         }
-        // fingerprint 的结构体 marshal：Mode/Server/Query + Servers + Tools（Go 字段序）。
+        // fingerprint 的序列化键序固定：Mode/Server/Query + Servers + Tools。
         Map<String, Object> fingerprintSeed = new LinkedHashMap<>();
         fingerprintSeed.put("Mode", args.mode());
         fingerprintSeed.put("Server", args.serverId());

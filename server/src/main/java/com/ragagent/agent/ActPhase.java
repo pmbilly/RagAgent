@@ -94,7 +94,7 @@ final class ActPhase {
     }
 
 
-    /** 内部工具名 → 展示名（对照 toolDisplayNames）。 */
+    /** 内部工具名 → 展示名。 */
     private static final Map<String, String> TOOL_DISPLAY_NAMES = buildToolDisplayNames();
 
     private static Map<String, String> buildToolDisplayNames() {
@@ -126,11 +126,11 @@ final class ActPhase {
         return m;
     }
 
-    /** 参数不该进提示的工具（对照 toolHintSensitiveArgs；SQL 泄漏实现细节）。 */
+    /** 参数不该进提示的工具（SQL 会泄漏实现细节）。 */
     private static final Map<String, Boolean> TOOL_HINT_SENSITIVE_ARGS = Map.of(
             ToolDefinitions.TOOL_DATABASE_QUERY, true);
 
-    /** 工具调用的人读提示，如 `搜索网页("query")`（对照 formatToolHint）。 */
+    /** 工具调用的人读提示，如 `搜索网页("query")`。 */
     static String formatToolHint(String name, Map<String, Object> args) {
         String displayName = TOOL_DISPLAY_NAMES.getOrDefault(name, name);
         if (args == null || args.isEmpty() || Boolean.TRUE.equals(TOOL_HINT_SENSITIVE_ARGS.get(name))) {
@@ -147,7 +147,7 @@ final class ActPhase {
         return displayName;
     }
 
-    /** 本轮全部工具调用入口（对照 executeToolCalls）。 */
+    /** 本轮全部工具调用入口。 */
     void executeToolCalls(ChatResponse response, AgentStep step, int iteration,
             String sessionId, String assistantMessageID) {
         if (response.getToolCalls() == null || response.getToolCalls().isEmpty()) {
@@ -199,7 +199,7 @@ final class ActPhase {
     }
 
     /**
-     * errgroup 并发（读并行、写屏障、并发上限 8；对照 executeToolCallsParallel）。
+     * 并发执行（读并行、写屏障、并发上限 8）。
      * 租户/主体在引擎线程解析成显式值传入虚拟线程——不共享 ThreadLocal。
      */
     private void executeToolCallsParallel(ChatResponse response, AgentStep step, int iteration,
@@ -242,8 +242,7 @@ final class ActPhase {
                         // 结果槽不允许留 null：留空会让收集循环 emitToolOutcome(null) NPE
                     } catch (Throwable fatal) {
                         // 外围（engine.modelContext 解码/langfuse span/engine.eventBus emit）抛错会让
-                        // 线程死亡、results[idx] 保持 null，收集循环直接 NPE 炸掉整轮
-                        // （Go 的 errgroup 收集首错后仍产出结果行）。兜底落失败结果。
+                        // 线程死亡、results[idx] 保持 null，收集循环直接 NPE 炸掉整轮。兜底落失败结果。
                         log.warn("[Agent][Round-{}] tool call crashed: {}", round, fatal.toString());
                         results[idx] = crashedToolCall(calls.get(idx),
                                 com.ragagent.common.error.BizException.wireText(fatal));
@@ -270,7 +269,7 @@ final class ActPhase {
         }
     }
 
-    /** 崩溃/中断的工具调用的失败占位结果（保证结果槽非 null，对照 emitToolOutcome 的兜底形态）。 */
+    /** 崩溃/中断的工具调用的失败占位结果（保证结果槽非 null）。 */
     private static ToolCall crashedToolCall(com.ragagent.llm.domain.ToolCall tc, String error) {
         ToolCall crashed = new ToolCall();
         crashed.setId(tc.getId());
@@ -282,7 +281,7 @@ final class ActPhase {
         return crashed;
     }
 
-    /** 一个完成工具调用的结果/动作事件（对照 emitToolOutcome；所有路径共用）。 */
+    /** 一个完成工具调用的结果/动作事件（所有路径共用）。 */
     private void emitToolOutcome(ToolCall toolCall, int iteration, String sessionId) {
         ToolResult result = toolCall.getResult();
         if (result == null) {
@@ -316,7 +315,7 @@ final class ActPhase {
     }
 
     /**
-     * 单个工具调用：参数解析、执行、日志（对照 runToolCall）。可从多线程调用；
+     * 单个工具调用：参数解析、执行、日志。可从多线程调用；
      * tenant 为 null 时用当前线程上下文（顺序路径）。
      */
     ToolCall runToolCall(com.ragagent.llm.domain.ToolCall tc, int i, int iteration, int round,
@@ -524,9 +523,8 @@ final class ActPhase {
         toolCall.setProviderMetadata(tc.getProviderMetadata());
 
         if (execError != null) {
-            // Go 的 err.Error()：AppError 穿到这里要**带着 `error code: N, error message: ` 前缀**
-            // （工具 return nil, err → 上层 err.Error()）。取 getMessage() 会把前缀丢掉，
-            // SSE 终止错误帧的 content 就与 Go 不一致（见 known-issues/09 第三节）。
+            // 错误文本要**带着 `error code: N, error message: ` 前缀**（BizException.wireText）。
+            // 取 getMessage() 会把前缀丢掉，SSE 终止错误帧的 content 就与既有线格式不一致。
             String execText = com.ragagent.common.error.BizException.wireText(execError);
             log.error("{} Failed in {}ms: {}", toolTag, duration, execText);
             ToolResult r = new ToolResult();
@@ -570,13 +568,13 @@ final class ActPhase {
         return toolCall;
     }
 
-    /** 对照 json.Unmarshal(argsStr, &map[string]any{})；null 输入 → null map。 */
+    /** 解析参数 JSON；"null" 输入 → null map。 */
     private static Map<String, Object> parseArgsMap(String argsStr) throws Exception {
         return JSON.readValue(argsStr == null ? "null" : argsStr,
                 JSON.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class));
     }
 
-    /** Langfuse 工具 span 收尾（对照 finishToolSpan）。 */
+    /** Langfuse 工具 span 收尾。 */
     private static void finishToolSpan(Span span, ToolCall tc, RuntimeException execErr, long durationMs) {
         if (span == null) {
             return;
@@ -618,7 +616,7 @@ final class ActPhase {
         span.finish(output, meta, spanErr);
     }
 
-    /** Go map 键序（UTF-8 字节序）。 */
+    /** 键序按 UTF-8 字节序比较（事件 payload 与既有 jsonb 记录逐字节一致）。 */
     static final Comparator<String> GO_KEY_ORDER = (a, b) -> {
         byte[] x = a.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] y = b.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -637,7 +635,7 @@ final class ActPhase {
         return keys;
     }
 
-    /** 递归按 Go map 键序排序（事件 payload 的 map 契约）；null 原样返回。 */
+    /** 递归按 UTF-8 字节序排序键（事件 payload 的 map 契约）；null 原样返回。 */
     static Map<String, Object> deepSortedGoMap(Map<String, Object> in) {
         if (in == null) {
             return null;
@@ -667,7 +665,7 @@ final class ActPhase {
         return v;
     }
 
-    /** Langfuse 入参双面（对照 buildToolSpanInput：model_arguments + resolved_arguments）。 */
+    /** Langfuse 入参双面（model_arguments + resolved_arguments）。 */
     private static Map<String, Object> buildToolSpanInput(com.ragagent.llm.domain.ToolCall tc,
             Map<String, Object> resolvedArgs, boolean sensitive) {
         String modelArguments = tc.getModelArguments();
@@ -707,7 +705,7 @@ final class ActPhase {
         return out;
     }
 
-    /** 合法 JSON 保结构、坏载荷原样保留（对照 traceArgumentValue）。 */
+    /** 合法 JSON 保结构、坏载荷原样保留。 */
     private static Object traceArgumentValue(String raw) {
         try {
             return JSON.readTree(raw);
@@ -717,9 +715,8 @@ final class ActPhase {
     }
 
     /**
-     * persistStripFields / persistStripFieldsByTool 的引擎侧桥（对照 tools/persist.go 的
-     * SanitizeToolDataForPersist——本波唯一消费点是 emitToolOutcome；SSE 回放/DB 存储
-     * 的其余 persist 函数随 4.6d 落到 tools 包）。
+     * 按工具剥离的持久化字段表（引擎侧桥）。本类唯一消费点是 emitToolOutcome：
+     * SSE 回放/DB 存储前剥掉大字段。
      */
     private static final Map<String, List<String>> PERSIST_STRIP_FIELDS_BY_TOOL = buildPersistStripByTool();
 
@@ -733,12 +730,12 @@ final class ActPhase {
         return m;
     }
 
-    /** display_type 携带的批量字段剥离表（对照 persistStripFields）。 */
+    /** display_type 携带的批量字段剥离表。 */
     private static final Map<String, List<String>> PERSIST_STRIP_FIELDS = Map.of(
             "knowledge_chunks_list", List.of("chunks"),
             "grep_results", List.of("chunk_results"));
 
-    /** 返回一份 DB / SSE 回放安全的 Data 副本（对照 sanitizeToolData）。 */
+    /** 返回一份 DB / SSE 回放安全的 Data 副本。 */
     static Map<String, Object> sanitizeToolDataForPersist(String toolName, Map<String, Object> data) {
         if (data == null) {
             return null;

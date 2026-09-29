@@ -4,8 +4,7 @@ import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 
 /**
- * tools 包 ↔ agent.approval 包的类型桥（4.1 的 approval 面与 4.5c 的工具面之间的
- * 显式适配；不改 4.1 既有文件）。
+ * tools 包 ↔ agent.approval 包的类型桥（两个包面之间的显式适配）。
  *
  * <ul>
  *   <li>{@code ToolCancellation}（ctx.Err() 语义）→ {@code approval.Cancellation}

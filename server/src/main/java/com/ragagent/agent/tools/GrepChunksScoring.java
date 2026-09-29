@@ -19,7 +19,6 @@ final class GrepChunksScoring {
     private GrepChunksScoring() {
     }
 
-    /** 对照 deduplicateChunks。 */
     static List<GrepChunkView> deduplicateChunks(List<GrepChunkView> results) {
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         LinkedHashSet<String> contentSig = new LinkedHashSet<>();
@@ -65,13 +64,13 @@ final class GrepChunksScoring {
         return deduplicated;
     }
 
-    /** 对照 searchutil.BuildContentSignature（小写+TrimSpace+折叠空白后 MD5 hex）。 */
+    /** 内容签名：小写+trim+折叠空白后 MD5 hex。 */
     static String buildContentSignature(String content) {
         String c = GrepChunkView.nz(content).toLowerCase(Locale.ROOT).trim();
         if (c.isEmpty()) {
             return "";
         }
-        // 对照 strings.Join(strings.Fields(c), " ")
+        // 折叠连续空白为单空格
         c = String.join(" ", c.trim().split("\\s+"));
         try {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
@@ -86,7 +85,7 @@ final class GrepChunksScoring {
         }
     }
 
-    /** 对照 scoreChunks（含 title 命中 +0.5 cap 1.0、patternCount 0 时置 1）。 */
+    /** 命中评分：title 命中 +0.5 cap 1.0、patternCount 0 时置 1。 */
     static List<GrepChunkView> scoreChunks(List<GrepChunkView> results, List<Pattern> compiled) {
         List<GrepChunkView> scored = new ArrayList<>(results.size());
         for (GrepChunkView r : results) {
@@ -140,7 +139,7 @@ final class GrepChunksScoring {
         return scored;
     }
 
-    /** 对照 applyMMR：swap-remove，并列取先出现者（严格 &gt;）。 */
+    /** MMR 多样性重排：swap-remove，并列取先出现者（严格 &gt;）。 */
     static List<GrepChunkView> applyMMR(List<GrepChunkView> results, int k, double lambda) {
         if (k <= 0 || results.isEmpty()) {
             return List.of();
@@ -186,8 +185,8 @@ final class GrepChunksScoring {
     }
 
     /**
-     * 对照 searchutil.TokenizeSimple。已知差异：Go 对含中文文本用 jieba 分词，
-     * Java 无对应物，一律走空白分词（英文/纯空白场景逐位一致）。
+     * 轻量空白分词。已知差异：对含中文文本无词典分词，
+     * 一律走空白分词（英文/纯空白场景逐位一致）。
      */
     static Map<String, Boolean> tokenizeSimple(String text) {
         String t = GrepChunkView.nz(text).toLowerCase(Locale.ROOT).trim();
@@ -197,7 +196,7 @@ final class GrepChunksScoring {
         Map<String, Boolean> set = new LinkedHashMap<>();
         for (String w : t.split("\\s+")) {
             w = w.trim();
-            // 对照：len([]rune(w)) > 1 && !isAllPunct(w)
+            // 保留 rune 数 > 1 且非全标点的词
             if (w.codePointCount(0, w.length()) > 1 && !isAllPunct(w)) {
                 set.put(w, Boolean.TRUE);
             }
@@ -205,7 +204,7 @@ final class GrepChunksScoring {
         return set;
     }
 
-    /** 对照 searchutil.isAllPunct（Punct/Space/Symbol 全占）。 */
+    /** 全部字符都是标点/空白/符号。 */
     static boolean isAllPunct(String s) {
         for (int i = 0; i < s.length();) {
             int cp = s.codePointAt(i);
@@ -227,7 +226,7 @@ final class GrepChunksScoring {
         return true;
     }
 
-    /** 对照 searchutil.Jaccard。 */
+    /** Jaccard 相似度（token 集合交并比）。 */
     static double jaccard(Map<String, Boolean> a, Map<String, Boolean> b) {
         if (a.isEmpty() && b.isEmpty()) {
             return 0;

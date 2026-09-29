@@ -44,31 +44,28 @@ import com.ragagent.tracing.langfuse.LangfuseManager;
 import com.ragagent.tracing.langfuse.Span;
 
 /**
- * ReAct agent 引擎（对照 Go internal/agent 根包的 engine/observe/think/act/finalize/
- * steer/context_debug 七个文件——Go 把方法摊在 {@code *AgentEngine} 上，Java 收进同一个
- * 类，分段注释即 Go 文件名）。
+ * ReAct agent 引擎。
  *
  * <h2>无状态跨轮</h2>
- * <p>引擎跨轮无状态：会话历史每轮由调用方（service.LoadAgentHistory，4.6d）从 DB
+ * <p>引擎跨轮无状态：会话历史每轮由调用方从 DB
  * 重建后经 {@code llmContext} 传入。引擎不维护自己的缓存、系统提示词存储或跨轮缓冲。</p>
  *
  * <h2>事件即 SSE 上游</h2>
- * <p>所有事件经 {@link EventBus} 发出（4.1 package-info 的 24 emit 点表中本类占 22 个）；
- * emit 顺序就是将来的 SSE 帧序，逐字对齐 Go。</p>
+ * <p>所有事件经 {@link EventBus} 发出；
+ * emit 顺序就是将来的 SSE 帧序。</p>
  *
- * <h2>Go → Java 语义映射（本波决策，报告备案）</h2>
+ * <h2>语义决策</h2>
  * <ul>
- *   <li><b>(result, error) 双通道</b> → 成功返回值 / 抛 {@link AgentEngineException}
- *       （message 逐字对照 Go 的 fmt.Errorf 文案——它是 error 事件字段原文）。</li>
- *   <li><b>context.Context</b> → 无 ctx；取消探测用
- *       {@link #setCancellationSource(Supplier)}（null=存活，非 null=错误原文，对照
- *       ctx.Err().Error()）；租户/主体在引擎线程解析成<b>显式值</b>传入虚拟线程，
- *       不读 ThreadLocal（纪律 #1）。</li>
- *   <li><b>切片/计数器指针</b>（messagesPtr 等）→ {@link MsgRef} / AtomicInteger /
- *       AtomicReference。</li>
- *   <li><b>complete 事件的 usage 键恒输出</b>：Go 的 typed-nil interface
- *       （nil *TokenUsage 装进 interface{}）不被 omitempty 省略 →
- *       {@code "usage":null}（实录钉住）；Java 用 {@link NullNode} 复刻，4.6d 消费侧按
+ *   <li><b>失败即异常</b>：成功返回值 / 抛 {@link AgentEngineException}
+ *       （message 逐字稳定——它是 error 事件字段原文）。</li>
+ *   <li><b>取消探测</b>用
+ *       {@link #setCancellationSource(Supplier)}（null=存活，非 null=错误原文）；
+ *       租户/主体在引擎线程解析成<b>显式值</b>传入虚拟线程，
+ *       不读 ThreadLocal。</li>
+ *   <li><b>消息列表/计数器</b>用 {@link MsgRef} / AtomicInteger /
+ *       AtomicReference 装箱共享。</li>
+ *   <li><b>complete 事件的 usage 键恒输出</b>：用量缺失也输出
+ *       {@code "usage":null}（实录钉住）；Java 用 {@link NullNode} 复刻，消费侧按
  *       {@code usage instanceof TokenUsage} 判别。</li>
  *   <li><b>LLM 瞬态重试</b>的 sleep（1s/2s）保留。</li>
  * </ul>
@@ -79,14 +76,11 @@ public class AgentEngine {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** agent.execute span 输入里 query 的预览上限（对照 langfuseQueryPreview）。 */
+    /** agent.execute span 输入里 query 的预览上限。 */
     private static final int LANGFUSE_QUERY_PREVIEW = 2000;
 
-    /** 循环结束注入最多多跑一轮（对照 maxSteerOverruns）。 */
+    /** 循环结束注入最多多跑一轮。 */
     static final int MAX_STEER_OVERRUNS = 1;
-
-    /** 工具结果图片的 VLM 描述提示词（对照 toolImageAnalysisPrompt）。 */
-
 
     // ==================================================================
     // 引擎字段
@@ -102,12 +96,12 @@ public class AgentEngine {
     List<AgentPrompts.PinnedMCPServiceInfo> pinnedMCPServices = List.of();
     /** 本轮 @ 指定的技能。 */
     List<AgentPrompts.PinnedSkillInfo> pinnedSkills = List.of();
-    /** 引擎自己的 session id（emitContextCompacted 用它，不是 Execute 的入参）。 */
+    /** 引擎自己的 session id（emitContextCompacted 用它，不是执行入口的入参）。 */
     final String sessionId;
     String systemPromptTemplate;
     String memoryPrompt = "";
     Manager skillsManager;
-    /** 提示词模板解析配置（对照 appConfig；null = 默认 base）。 */
+    /** 提示词模板解析配置；null = 默认 base。 */
     AgentPromptTemplates.TemplatesConfig appConfig;
     /** 工具结果图片的 VLM 描述函数（可选）。 */
     ImageDescriberFunc imageDescriber;
@@ -128,7 +122,7 @@ public class AgentEngine {
 
     boolean allowSteerOverrun;
     int steerOverruns;
-    /** 取消探测（对照 ctx.Done()；null = 永不取消）。 */
+    /** 取消探测；null = 永不取消。 */
     Supplier<String> cancellationSource;
 
     /** ReAct 各段协作者（构造期装配；只存引擎引用，调用期才解引）。 */
@@ -141,10 +135,10 @@ public class AgentEngine {
     final ReActIteration iteration;
     final ContextDebugEmitter contextDebug;
 
-    /** 图片描述函数（对照 Go ImageDescriberFunc：func(ctx, imgBytes, prompt) (string, error)）。 */
+    /** 图片描述函数。 */
     @FunctionalInterface
     public interface ImageDescriberFunc {
-        /** 描述一张图片；失败抛异常（对照 error 通道）。 */
+        /** 描述一张图片；失败抛异常。 */
         String describe(byte[] imgBytes, String prompt);
     }
 
@@ -185,7 +179,7 @@ public class AgentEngine {
         this.contextDebug = new ContextDebugEmitter(this);
     }
 
-    /** 对照 NewAgentEngineWithSkills。 */
+    /** 带技能管理器的构造变体。 */
     public static AgentEngine withSkills(AgentConfig config, LlmChatClient chatModel,
             ToolRegistry toolRegistry, EventBus eventBus,
             List<AgentPrompts.KnowledgeBaseInfo> knowledgeBasesInfo,
@@ -197,24 +191,23 @@ public class AgentEngine {
         return engine;
     }
 
-    /** 对照 SetPinnedMentions：本轮 @mention 范围。 */
+    /** 本轮 @mention 范围。 */
     public void setPinnedMentions(List<AgentPrompts.PinnedMCPServiceInfo> mcpServices,
             List<AgentPrompts.PinnedSkillInfo> skills) {
         this.pinnedMCPServices = mcpServices == null ? List.of() : mcpServices;
         this.pinnedSkills = skills == null ? List.of() : skills;
     }
 
-    /** 对照 SetMemoryPrompt：空输入不改动系统提示词。 */
+    /** 空输入不改动系统提示词。 */
     public void setMemoryPrompt(String prompt) {
         this.memoryPrompt = prompt == null ? "" : prompt;
     }
 
-    /** 对照 SetAppConfig（读 config/prompt_templates/ 的模板解析配置）。 */
+    /** 设置提示词模板解析配置。 */
     public void setAppConfig(AgentPromptTemplates.TemplatesConfig cfg) {
         this.appConfig = cfg;
     }
 
-    /** 对照 SetImageDescriber。 */
     public void setImageDescriber(ImageDescriberFunc fn) {
         this.imageDescriber = fn;
     }
@@ -227,14 +220,14 @@ public class AgentEngine {
         return skillsManager;
     }
 
-    /** 对照 SetSteerSink：null（默认）= 完全禁用运行中注入。 */
+    /** null（默认）= 完全禁用运行中注入。 */
     public void setSteerSink(SteerSink sink) {
         this.steerSink = sink;
     }
 
     /**
-     * 取消探测 seam（对照把 ctx 传进 Execute）：存活返回 null、取消返回
-     * {@code ctx.Err().Error()} 原文的探针；4.6d 的 stop 链路接线它。
+     * 取消探测 seam：存活返回 null、取消返回错误原文；
+     * 调用方在 stop 链路接线它。
      */
     public void setCancellationSource(Supplier<String> source) {
         this.cancellationSource = source;
@@ -244,7 +237,7 @@ public class AgentEngine {
         return cancellationSource == null ? null : cancellationSource.get();
     }
 
-    // ---- 包内测试 seam（Go 同包测试直改字段的对应物；生产装配走构造器/setter）----
+    // ---- 包内测试 seam（生产装配走构造器/setter）----
 
     ToolRegistry getRegistryForTest() {
         return toolRegistry;
@@ -344,7 +337,7 @@ public class AgentEngine {
         return String.valueOf(config == null ? 0 : config.getMaxIterations());
     }
 
-    /** 单轮 ReAct 的补全预算（对照 getCompletionTokenBudget）。 */
+    /** 单轮 ReAct 的补全预算。 */
     int getCompletionTokenBudget() {
         int configured = 0;
         if (config != null) {
@@ -370,7 +363,7 @@ public class AgentEngine {
     }
 
     // ==================================================================
-    // Execute 主入口
+    // 执行主入口
     /** 便捷重载（无图片）。 */
     public AgentState execute(String sessionId, String messageId, String query,
             List<ChatMessage> llmContext) {
@@ -378,17 +371,17 @@ public class AgentEngine {
     }
 
     /**
-     * 执行 agent：带会话历史与流式输出（对照 Execute）。
+     * 执行 agent：带会话历史与流式输出。
      *
-     * @param imageURLs 多模态输入图片（对照变长参只取第一组）
+     * @param imageURLs 多模态输入图片
      * @throws AgentEngineException 失败时（error 事件已在抛出前发出）
      */
     public AgentState execute(String sessionId, String messageId, String query,
             List<ChatMessage> llmContext, List<String> imageURLs) {
-        // Go 的 nil slice 在 len()/range 下等价空集——调用方（如 skill 安装器的
-        // installer run）可以合法地传 nil。Java 的 null List 会在入口日志就 NPE
-        // （2026-09-25 install E2E 抓回：installer agent failed: Cannot invoke
-        // "java.util.List.size()" because "llmContext" is null），这里按 Go 语义归一。
+        // null 列表按空集处理——调用方（如 skill 安装器的 installer run）可以合法传
+        // null，入口日志会直接取 size 而 NPE（2026-09-25 install E2E 抓回：
+        // installer agent failed: Cannot invoke "java.util.List.size()" because
+        // "llmContext" is null），这里归一为空列表。
         List<ChatMessage> context = llmContext == null ? List.of() : llmContext;
         log.info("[Agent] Starting execution: session={}, message={}, query_len={}, context_msgs={}, tenantId={}, principal={}, userId={}",
                 sessionId, messageId, query.length(), context.size(),
@@ -399,7 +392,7 @@ public class AgentEngine {
         try {
             return executeInner(sessionId, messageId, query, context, imageURLs);
         } finally {
-            // Ensure tools are cleaned up after execution（defer toolRegistry.Cleanup）
+            // Ensure tools are cleaned up after execution
             if (toolRegistry != null) {
                 toolRegistry.cleanup();
             }
@@ -476,7 +469,7 @@ public class AgentEngine {
         return state;
     }
 
-    /** 对照 finishAgentSpan：成败共用同一份 span 载荷。 */
+    /** 成败共用同一份 span 载荷。 */
     private static void finishAgentSpan(Span span, AgentState state, String err) {
         if (span == null) {
             return;
@@ -497,7 +490,7 @@ public class AgentEngine {
         span.finish(output, meta, err);
     }
 
-    /** rune 截断 + 尾加 "…"（对照 truncateRunes）。 */
+    /** rune 截断 + 尾加 "…"。 */
     static String truncateRunes(String s, int n) {
         if (n <= 0 || s.isEmpty()) {
             return s;
@@ -510,7 +503,7 @@ public class AgentEngine {
 
     // ==================================================================
     // ReAct 主循环
-    /** Go 的 {@code *[]chat.Message} 参数代理。 */
+    /** 消息列表的可变引用代理（模拟引用传参）。 */
     static final class MsgRef {
         List<ChatMessage> items;
 
@@ -519,7 +512,7 @@ public class AgentEngine {
         }
     }
 
-    /** 一个 ReAct 迭代后的循环走向（对照 iterOutcome；label 供 langfuse 输出）。 */
+    /** 一个 ReAct 迭代后的循环走向（label 供 langfuse 输出）。 */
     enum IterOutcome {
         NEXT("next"), CONTINUE("continue"), BREAK("break");
 
@@ -604,7 +597,7 @@ public class AgentEngine {
     }
 
     /**
-     * 返回下一次模型调用的消息副本（对照 trimToolResultsToBudget）。
+     * 返回下一次模型调用的消息副本。
      * 绝不改 SSE/诊断/持久化共用的 ToolResult 对象；assistant 工具调用消息不动，
      * 保住 provider 要求的 call/result 配对。每个工具结果都是候选——压缩后保留窗口
      * 全部是"近期"的，需要裁的那个大结果在头在尾都可能。
@@ -658,7 +651,7 @@ public class AgentEngine {
         return new TrimOutcome(out, true);
     }
 
-    /** 自然停 finish reason（对照 isNaturalStopFinishReason）。 */
+    /** 自然停 finish reason。 */
     static boolean isNaturalStopFinishReason(String reason) {
         String r = reason == null ? "" : reason.trim().toLowerCase(java.util.Locale.ROOT);
         return switch (r) {
@@ -667,7 +660,7 @@ public class AgentEngine {
         };
     }
 
-    /** 截断 finish reason（对照 isLengthFinishReason）。 */
+    /** 截断 finish reason。 */
     static boolean isLengthFinishReason(String reason) {
         String r = reason == null ? "" : reason.trim().toLowerCase(java.util.Locale.ROOT);
         return switch (r) {
@@ -700,7 +693,7 @@ public class AgentEngine {
         return 0;
     }
 
-    /** LLM 函数调用用的工具列表（对照 buildToolsForLLM）。 */
+    /** LLM 函数调用用的工具列表。 */
     List<ChatTool> buildToolsForLLM() {
         List<FunctionDef> functionDefs = toolRegistry.getModelFunctionDefinitions();
         List<ChatTool> tools = new ArrayList<>(functionDefs.size());

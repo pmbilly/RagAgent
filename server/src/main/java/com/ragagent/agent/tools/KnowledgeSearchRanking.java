@@ -37,14 +37,13 @@ final class KnowledgeSearchRanking {
         try {
             rankResults = rerankScores(query, results);
         } catch (RuntimeException e) {
-            return results; // 对照 Go：rerank 失败用原始结果
+            return results; // rerank 失败回落原始结果
         }
         double threshold = rerankThreshold();
         boolean preserveTop = tool.searchTargets != null && tool.searchTargets.hasRecallThresholdOverride();
         return applyModelRerankScores(results, rankResults, threshold, preserveTop);
     }
 
-    /** 对照 rerankScores。 */
     List<RankResult> rerankScores(String query, List<ResultWithMeta> results) {
         List<String> passages = new ArrayList<>(results.size());
         for (ResultWithMeta result : results) {
@@ -53,12 +52,12 @@ final class KnowledgeSearchRanking {
         return tool.reranker.rerank(query, passages);
     }
 
-    /** 对照 rerankThreshold：tool.config>0 用之，否则 0.3。 */
+    /** 重排阈值：配置 &gt;0 用之，否则 0.3。 */
     double rerankThreshold() {
         return tool.config.rerankThreshold() > 0 ? tool.config.rerankThreshold() : 0.3;
     }
 
-    /** 对照 filterRerankRankResults。 */
+    /** 阈值过滤；全被滤掉时视 preserveTop/兜底分决定是否回落最高分单条。 */
     static List<RankResult> filterRerankRankResults(List<RankResult> rankResults, double threshold,
             boolean preserveTop) {
         if (rankResults == null || rankResults.isEmpty()) {
@@ -84,7 +83,7 @@ final class KnowledgeSearchRanking {
         return filtered;
     }
 
-    /** 对照 applyModelRerankScores：composite 打分 + 按分降序（非稳定）。 */
+    /** composite 打分 + 按分降序。 */
     List<ResultWithMeta> applyModelRerankScores(List<ResultWithMeta> originals, List<RankResult> rankResults,
             double threshold, boolean preserveTop) {
         List<RankResult> filtered = filterRerankRankResults(rankResults, threshold, preserveTop);
@@ -106,7 +105,7 @@ final class KnowledgeSearchRanking {
         return out;
     }
 
-    /** 对照 deduplicateResults：多键 + 内容签名；第二轮同 ID 保留最高分（与 grep 的留先不同）。 */
+    /** 多键 + 内容签名去重；同 ID 保留最高分（与 grep 的留先不同）。 */
     static List<ResultWithMeta> deduplicateResults(List<ResultWithMeta> results) {
         Set<String> seen = new LinkedHashSet<>();
         Set<String> contentSig = new LinkedHashSet<>();
@@ -157,7 +156,7 @@ final class KnowledgeSearchRanking {
         return new ArrayList<>(seenByID.values());
     }
 
-    /** 对照 compositeScore。 */
+    /** composite 打分：0.6 模型分 + 0.3 基础分 + 0.1 来源权重，位置先验乘子，[0,1] 截断。 */
     static double compositeScore(SearchResultView result, double modelScore, double baseScore) {
         double sourceWeight = 1.0;
         if ("web_search".equalsIgnoreCase(nz(result.knowledgeSource))) {
@@ -179,7 +178,7 @@ final class KnowledgeSearchRanking {
         return composite;
     }
 
-    /** 对照 searchutil.ClampFloat。 */
+    /** 区间截断。 */
     static double clampFloat(double v, double minV, double maxV) {
         if (v < minV) {
             return minV;
@@ -191,8 +190,8 @@ final class KnowledgeSearchRanking {
     }
 
     /**
-     * 对照 applyMMR：增量版（maxRedundancy 缓存），与朴素版逐位一致；
-     * 删除用保序 remove（对照 Go append(slice[:i], slice[i+1:]...)——与 grep 的 swap-remove 不同！）。
+     * MMR 增量版（maxRedundancy 缓存），与朴素版逐位一致；
+     * 删除用保序 remove——与 grep 的 swap-remove 不同！
      */
     static List<ResultWithMeta> applyMMR(List<ResultWithMeta> results, int k, double lambda) {
         if (k <= 0 || results.isEmpty()) {
@@ -240,7 +239,7 @@ final class KnowledgeSearchRanking {
         return selected;
     }
 
-    /** 对照 getEnrichedPassage：拼接图片 caption/ocr 文本。 */
+    /** 重排 passage：拼接图片 caption/ocr 文本。 */
     static String getEnrichedPassage(SearchResultView result) {
         if (nz(result.imageInfo).isEmpty()) {
             return nz(result.content);
@@ -274,6 +273,4 @@ final class KnowledgeSearchRanking {
         }
         return combined + String.join("\n", imageTexts);
     }
-
-    /** 对照 getFAQMetadata（cache 命中/未找到都缓存）。 */
 }

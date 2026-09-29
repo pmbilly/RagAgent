@@ -51,7 +51,7 @@ final class ObservePhase {
     private static final int MIN_FREED_FRACTION = 20; // 5%
 
     /**
-     * 上下文过阈值时把老对话摘要掉（对照 manageContextWindow）。
+     * 上下文过阈值时把老对话摘要掉。
      * changed 报告消息是否变了，调用方据此作废自己的 token 估计。
      */
     AgentEngine.WindowOutcome manageContextWindow(List<ChatMessage> messages, int round, int currentTokens) {
@@ -85,7 +85,7 @@ final class ObservePhase {
     }
 
     /**
-     * 执行一次压缩并报告上下文是否真的变小（对照 runCompaction）。
+     * 执行一次压缩并报告上下文是否真的变小。
      * false = 本轮再试也无用，调用方不得继续重试：腾不出空间的压缩照样付一整个
      * 摘要往返。
      */
@@ -148,13 +148,13 @@ final class ObservePhase {
                 null, ""));
     }
 
-    /** 响应是否由满窗口塑形而非我们要求的补全预算（对照 responseHitContextLimit）。 */
+    /** 响应是否由满窗口塑形而非我们要求的补全预算。 */
     boolean responseHitContextLimit(ChatResponse response) {
         int window = engine.config == null ? 0 : engine.config.getMaxContextTokens();
         return CompactionOverflow.responseHitContextLimit(response, window, engine.getCompletionTokenBudget());
     }
 
-    /** 不看阈值直接压缩：provider 已说窗口满了，让估计见鬼去吧（对照 forceCompaction）。 */
+    /** 不看阈值直接压缩：provider 已说窗口满了，让估计见鬼去吧。 */
     List<ChatMessage> forceCompaction(List<ChatMessage> messages, int round) {
         CompactionOutcome compacted = runCompaction(messages, round, CompactionReason.OVERFLOW);
         if (!compacted.ok()) {
@@ -164,12 +164,12 @@ final class ObservePhase {
         return compacted.messages();
     }
 
-    /** Go 的 nil-receiver Settings()（零值 settings）对应物：无窗口时压缩整体停用。 */
+    /** 无压缩器/窗口时压缩整体停用（返回零值 settings）。 */
     CompactionSettings activeCompactionSettings() {
         return engine.compactor == null ? CompactionSettings.ofDefaults() : engine.compactor.settings();
     }
 
-    /** 用预览替换工具输出直到装进窗口的一部分（对照 trimToolResults；最后的兜底）。 */
+    /** 用预览替换工具输出直到装进窗口的一部分（最后的兜底）。 */
     private AgentEngine.WindowOutcome trimToolResults(List<ChatMessage> messages, int round,
             CompactionSettings settings) {
         AgentEngine.TrimOutcome trimmed = AgentEngine.trimToolResultsToBudget(messages, engine.tokenEstimator,
@@ -214,7 +214,7 @@ final class ObservePhase {
                 + ". Re-run the tool with narrower filters or a smaller range if more detail is needed.]";
     }
 
-    /** 单条工具消息压到 maxTokens 内（对照 compactToolMessage：keep 值二分）。 */
+    /** 单条工具消息压到 maxTokens 内（keep 值二分）。 */
     static ChatMessage compactToolMessage(ChatMessage msg, int maxTokens,
             com.ragagent.agent.TokenEstimator estimator) {
         String content = msg.getContent();
@@ -254,7 +254,7 @@ final class ObservePhase {
         return best;
     }
 
-    /** 响应分析的裁决（对照 responseVerdict）。 */
+    /** 响应分析的裁决。 */
 
     /** 一步响应的分析结论（终态判定 + 步骤与答案事件的落点）。 */
     static final class ResponseVerdict {
@@ -341,7 +341,7 @@ final class ObservePhase {
 
 
     /**
-     * 工具结果进轮内消息历史（对照 appendToolResults，OpenAI tool-calling 格式）。
+     * 工具结果进轮内消息历史（OpenAI tool-calling 格式）。
      * 跨轮持久化另行处理：最终 AgentSteps 由 SSE handler 写上 assistant 消息、
      * 下轮由 service.LoadAgentHistory 从 DB 重建。
      */
@@ -378,7 +378,7 @@ final class ObservePhase {
         return messages;
     }
 
-    /** Go json.Marshal(map[string]any) 的字节形态（键序 + HTML 转义 + float 语义）。 */
+    /** map 序列化的字节形态：键序 + HTML 转义 + float 语义（经 GoJsonCodec，与既有事件 payload 逐字节一致）。 */
     private static String goMarshal(Map<String, Object> args) {
         if (args == null) {
             return "null";

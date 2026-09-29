@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 工具基类（对照 Go {@code tool.go} 的 {@code BaseTool}）。
+ * 工具基类。
  * 提供 name/description/schema 三件套与共享的输出格式化函数。
  */
 public abstract class BaseTool implements AgentTool {
@@ -21,7 +21,7 @@ public abstract class BaseTool implements AgentTool {
         this.schema = schema;
     }
 
-    /** schema 以原始 JSON 字符串给出（对照 Go 的 json.RawMessage——解析保序，字节形态不变）。 */
+    /** schema 以原始 JSON 字符串给出（解析保序，字节形态不变）。 */
     protected BaseTool(String name, String description, String schemaJson) {
         this(name, description, parse(schemaJson));
     }
@@ -50,8 +50,8 @@ public abstract class BaseTool implements AgentTool {
     }
 
     /**
-     * 相关度分级（对照 GetRelevanceLevel，tool.go:52-63）。
-     * Go 实录：0.9/0.8→High、0.7/0.6→Medium、0.5/0.4→Low、0.3→Weak。
+     * 相关度分级：≥0.8→High Relevance、≥0.6→Medium Relevance、
+     * ≥0.4→Low Relevance，其余→Weak Relevance。
      */
     public static String getRelevanceLevel(double score) {
         if (score >= 0.8) {
@@ -67,9 +67,8 @@ public abstract class BaseTool implements AgentTool {
     }
 
     /**
-     * MatchType → 人读文案（对照 FormatMatchType，tool.go:66-85）。
-     * Go 的 MatchType 是 iota 序（embedding.go:13-24），Java 侧沿用 int。
-     * Go 实录：0..6 → Vector/Keyword/Adjacent Chunk/History/Parent Chunk/Relation Chunk/Graph
+     * MatchType → 人读文案。MatchType 为 int 枚举：
+     * 0..6 → Vector/Keyword/Adjacent Chunk/History/Parent Chunk/Relation Chunk/Graph
      * Match；其余 {@code Unknown Type(%d)}。
      */
     public static String formatMatchType(int matchType) {

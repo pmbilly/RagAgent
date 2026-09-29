@@ -113,7 +113,7 @@ final class FinalizePhase {
         state.setFinalAnswer(fullAnswer);
     }
 
-    /** 轮次耗尽且无自然停时合成最终答案（对照 handleMaxIterations），置 IsComplete。 */
+    /** 轮次耗尽且无自然停时合成最终答案，置 IsComplete。 */
     void handleMaxIterations(String query, AgentState state, String sessionId,
             List<ChatMessage> messages) {
         log.info("Reached max iterations, generating final answer");
@@ -130,7 +130,7 @@ final class FinalizePhase {
         state.setComplete(true);
     }
 
-    /** 完成事件（对照 emitCompletionEvent；由 executeLoop 的 finally 保证恰好一次）。 */
+    /** 完成事件（由 executeLoop 的 finally 保证恰好一次）。 */
     void emitCompletionEvent(AgentState state, String sessionId, String messageId,
             Instant startTime) {
         List<AgentStep> steps = state.getRoundSteps();
@@ -145,7 +145,7 @@ final class FinalizePhase {
         List<Object> knowledgeRefsInterface = new ArrayList<>(
                 state.getKnowledgeRefs() == null ? List.of() : state.getKnowledgeRefs());
 
-        // Go 的 emitCompletionEvent 不设 AgentCompleteData.SessionID（恒 ""）——照抄。
+        // complete 事件的 SessionID 恒为 ""（既有消费者的线格式约定）。
         engine.eventBus.emit(new Event(EventIds.generateEventID("complete"), EventType.EVENT_AGENT_COMPLETE,
                 sessionId, new AgentCompleteData("", state.getRoundSteps().size(),
                         state.getFinalAnswer(), knowledgeRefsInterface, goSliceAlwaysPresent(steps),
@@ -157,8 +157,8 @@ final class FinalizePhase {
     }
 
     /**
-     * 轮累计用量；无轮上报用量时返回 {@link NullNode}——Go 的 turnUsage 返回 nil 指针
-     * 装进 interface{} 是<b>typed-nil</b>，omitempty 不省略（{@code "usage":null} 恒在）。
+     * 轮累计用量；无轮上报用量时返回 {@link NullNode}——
+     * {@code "usage":null} 恒在，键不省略。
      */
     private static Object turnUsageOf(AgentState state) {
         if (state == null || state.getTurnUsage().getTotalTokens() == 0) {
@@ -168,11 +168,9 @@ final class FinalizePhase {
     }
 
     /**
-     * Go interface{} 字段持切片的 omitempty 语义对应物：interface 非 nil 即<b>恒输出</b>
-     * （空切片输出 {@code []}；对比：声明为切片类型的字段 len 0 才省略）。Go 的
-     * AgentCompleteData.AgentSteps 是 interface{}——{@code "agent_steps":[]} 恒在
-     * （实录钉住）。event 包不可改：空列表用 {@link RawValue} 原文过 NON_EMPTY
-     * （非空列表走 List 序列化器，形状一致）。
+     * {@code agent_steps} 字段的<b>恒输出</b>语义对应物：空列表也要输出
+     * {@code "agent_steps":[]}（实录钉住）。event 包不可改：空列表用 {@link RawValue}
+     * 原文过 NON_EMPTY（非空列表走 List 序列化器，形状一致）。
      */
     private static Object goSliceAlwaysPresent(List<?> value) {
         return value.isEmpty()

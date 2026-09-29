@@ -6,28 +6,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 /**
- * query_knowledge_graph 工具（对照 Go {@code query_knowledge_graph.go}，逐字移植）。
+ * query_knowledge_graph 工具。
  *
- * <p>seam：{@link GraphSearch} 对照 interfaces.KnowledgeBaseService 被用子集
- * （GetKnowledgeBaseByIDOnly + HybridSearch）。Go 的 per-KB goroutine 并发在 Java
- * 顺序执行（结果按入参序汇集，等价）。</p>
+ * <p>seam：{@link GraphSearch}（按 ID 取知识库 + 混合检索）。多 KB 顺序执行
+ * （结果按入参序汇集）。</p>
  *
- * <p>已知差异（继承 Go 行为）：按 score 的 sort.Slice 非稳定；graphConfigs/kbCounts
- * 的 map 迭代序随机——多 KB 时输出文本段序不定（Go 自身亦然），探针只用单 KB
- * 场景做文本比对。</p>
+ * <p>已知差异：按 score 的排序在并列时不保证稳定；graphConfigs/kbCounts
+ * 多 KB 时输出文本段序不定，探针只用单 KB 场景做文本比对。</p>
  */
 public class QueryKnowledgeGraphTool extends BaseTool {
 
     /**
-     * 对照 Go {@code utils.GenerateSchema[QueryKnowledgeGraphInput]()} 的输出
-     * （2026-09-23 A/B 对拍修正：补 {@code additionalProperties:false} 与
+     * schema（2026-09-23 A/B 对拍修正：补 {@code additionalProperties:false} 与
      * 可空数组类型 {@code ["null","array"]}；键序字母序）。
      */
     private static final String SCHEMA_JSON = """
@@ -87,36 +83,36 @@ public class QueryKnowledgeGraphTool extends BaseTool {
                     + "- Cross-KB results are automatically deduplicated\n"
                     + "- Results are sorted by relevance";
 
-    /** 图配置视图（对照 types.ExtractConfig 被用子集）。 */
+    /** 图配置视图（被用字段）。 */
     public record ExtractConfigView(List<GraphNodeView> nodes, List<GraphRelationView> relations) {
     }
 
-    /** 对照 types.GraphNode 被用子集。 */
+    /** 图节点视图（被用字段）。 */
     public record GraphNodeView(String name) {
     }
 
-    /** 对照 types.GraphRelation 被用子集。 */
+    /** 图关系视图（被用字段）。 */
     public record GraphRelationView(String type) {
     }
 
-    /** 知识库视图（对照 types.KnowledgeBase 被用子集）。 */
+    /** 知识库视图（被用字段）。 */
     public record KnowledgeBaseView(String id, ExtractConfigView extractConfig) {
     }
 
-    /** 检索结果视图（对照 types.SearchResult 被用子集；matchType 对照 MatchType int）。 */
+    /** 检索结果视图（matchType 为 int 枚举）。 */
     public record SearchResultView(String id, double score, String content, String knowledgeId,
             String knowledgeBaseId, String knowledgeTitle, int chunkIndex, String chunkType,
             int matchType) {
     }
 
-    /** 对照 interfaces.KnowledgeBaseService 被用子集。hybridSearch 失败抛 RuntimeException。 */
+    /** 图检索接缝。hybridSearch 失败抛 RuntimeException。 */
     public interface GraphSearch {
         KnowledgeBaseView getKnowledgeBaseByIdOnly(String kbId);
 
         List<SearchResultView> hybridSearch(String kbId, String queryText, int matchCount);
     }
 
-    /** 对照 graphConfigSummary。 */
+    /** 图配置摘要渲染。 */
     private record GraphConfigSummary(List<String> nodes, List<String> relations) {
     }
 
@@ -166,7 +162,7 @@ public class QueryKnowledgeGraphTool extends BaseTool {
             return failure("query is required");
         }
 
-        // 逐 KB 查询（Go 并发，Java 顺序，结果等价）
+        // 逐 KB 顺序查询，结果按入参序汇集
         Map<String, GraphQueryResult> kbResults = new LinkedHashMap<>();
         for (String kbID : knowledgeBaseIDs) {
             GraphQueryResult r = new GraphQueryResult();
@@ -239,7 +235,7 @@ public class QueryKnowledgeGraphTool extends BaseTool {
         }
 
         List<SearchResultView> allResults = new ArrayList<>(seenChunks.values());
-        allResults.sort((a, b) -> Double.compare(b.score(), a.score())); // 非稳定，对照 Go sort.Slice
+        allResults.sort((a, b) -> Double.compare(b.score(), a.score())); // 并列时序不定
 
         if (allResults.isEmpty()) {
             ToolResult toolResult = new ToolResult();
@@ -467,7 +463,7 @@ public class QueryKnowledgeGraphTool extends BaseTool {
         return result;
     }
 
-    /** 对照 buildGraphVisualizationData。 */
+    /** 构建图谱可视化数据。 */
     private static Map<String, Object> buildGraphVisualizationData(List<SearchResultView> results) {
         List<Map<String, Object>> nodes = new ArrayList<>();
         List<Map<String, Object>> edges = new ArrayList<>();
@@ -494,7 +490,7 @@ public class QueryKnowledgeGraphTool extends BaseTool {
         return graphData;
     }
 
-    /** Go 的 %v 打印 []string：" [a b c]"。 */
+    /** 列表的输出形态：" [a b c]"。 */
     private static String goSliceString(List<String> items) {
         return "[" + String.join(" ", items) + "]";
     }

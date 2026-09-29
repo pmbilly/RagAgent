@@ -36,7 +36,7 @@ final class SteerIntake {
     }
 
     /**
-     * 轮边界 drain steer（对照 drainSteerMessages）：压缩后、下一次 LLM 调用前，注入文本
+     * 轮边界 drain steer：压缩后、下一次 LLM 调用前，注入文本
      * 落在保护尾内、计入 engine.lastSentMsgCount 的增量、下一次调用立即可见。
      * 持久化先于追加：失败留下事件待下次重试——先追加会让模型看到历史没记录的文本。
      *
@@ -88,14 +88,14 @@ final class SteerIntake {
         return injected;
     }
 
-    /** 只给模型输入加投递上下文；持久化行与 UI 保留原文（对照 types.SteerMessageContent）。 */
+    /** 只给模型输入加投递上下文；持久化行与 UI 保留原文。 */
     static String steerMessageContent(String content) {
         return "<steer_message>\n" + content + "\n</steer_message>\n<continue_task>\n"
                 + "This is guidance for the task in progress. Apply it and continue unfinished work "
                 + "unless the user explicitly changes or cancels the task.\n</continue_task>";
     }
 
-    /** JSON-decoded map 读字符串（对照 types.MapString）。 */
+    /** JSON-decoded map 读字符串；缺键/非字符串返回空串。 */
     static String mapString(Map<String, Object> m, String key) {
         if (m == null) {
             return "";

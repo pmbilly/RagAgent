@@ -12,14 +12,14 @@ public final class WikiPageRendering {
 
 
     /**
-     * 对照 pendingWikiPage：邻居摘要/sources/body 已采集、渲染尺寸未定的页。
+     * 待渲染页：邻居摘要/sources/body 已采集、渲染尺寸未定。
      */
 
 
 
     /**
-     * 对照 renderWikiPagesWithinBudget：返回 (拼接输出, 被截断 slug, 被省略 slug)。
-     * rune 计账与 Go 的 utf8.RuneCountInString 一致（code point 数）。
+     * 预算内渲染多个页面：返回 (拼接输出, 被截断 slug, 被省略 slug)。
+     * rune 计账按 code point 数。
      */
     public static RenderedWikiPages renderWikiPagesWithinBudget(List<PendingWikiPage> pages, int budget) {
         if (pages.isEmpty()) {
@@ -84,18 +84,18 @@ public final class WikiPageRendering {
     }
 
 
-    /** 对照 renderWikiPagesWithinBudget 的三返回值。 */
+    /** 渲染结果三返回值。 */
 
 
-    /** 对照 wikiMaxLinkSummaries。 */
+    /** 链接摘要条数上限。 */
     public static final int WIKI_MAX_LINK_SUMMARIES = 20;
 
-    /** 对照 wikiLinkSummaryMaxRunes。 */
+    /** 单条链接摘要的 rune 上限。 */
     public static final int WIKI_LINK_SUMMARY_MAX_RUNES = 150;
 
-    /** 对照 wikiMinPageBody。 */
+    /** 单页正文的最小保留 rune 数。 */
     public static final int WIKI_MIN_PAGE_BODY = 400;
 
-    /** 对照 wikiBudgetReserve。 */
+    /** 预算预留（省略提示等）。 */
     public static final int WIKI_BUDGET_RESERVE = 600;
 }

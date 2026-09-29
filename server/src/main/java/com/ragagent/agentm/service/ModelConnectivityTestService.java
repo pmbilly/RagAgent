@@ -72,7 +72,7 @@ public final class ModelConnectivityTestService {
         this.documentReader = documentReader;
     }
 
-    // ══════════════ W5b：模型连通性测试段（对照 ModelTestRequest 家族 L1615-2341）══════════════
+    // ══════════════ 模型连通性测试段 ══════════════
 
     /** POST /initialization/remote/check——chat 模块最小化连通性调用。 */
     public ResponseEntity<Object> remoteCheck(String rawBody) {
@@ -93,17 +93,17 @@ public final class ModelConnectivityTestService {
                     ChatConfig.fromModel(model, creds[0], creds[1]), ollamaService, concurrencyGovernor);
             ChatOptions opts = new ChatOptions();
             opts.setMaxTokens(1);
-            opts.setThinking(Boolean.FALSE); // for dashscope.aliyuncs qwen3-32b（Go 注释照抄）
+            opts.setThinking(Boolean.FALSE); // for dashscope.aliyuncs qwen3-32b
             chat.chat(List.of(new ChatMessage("user", "test")), opts);
             available = true;
             message = "连接正常，模型可用";
         } catch (RuntimeException e) {
             // BizException.getMessage() 带 "error code: ..., error message: " 前缀，
-            // 对照 Go 的 error.Error() 原文须拆包取 appError().message()。
+            // 判定须拆包取 appError().message()。
             String raw = e instanceof BizException be ? be.appError().message() : e.getMessage();
             String errMsg = raw == null ? "" : raw;
             if (errMsg.contains("status code: 400")) {
-                // 400 = 端点可达且鉴权通过，仅参数不匹配（照抄 Go 判定）
+                // 400 = 端点可达且鉴权通过，仅参数不匹配
                 available = true;
                 message = "连接正常，模型可用";
             } else {
@@ -124,7 +124,7 @@ public final class ModelConnectivityTestService {
         if (!r.baseUrl().isEmpty()) {
             requireSsrf("Base URL", r.baseUrl());
         }
-        // 阿里云多模态 Embedding 模型暂不支持（照抄 Go 的早期短路）
+        // 阿里云多模态 Embedding 模型暂不支持（早期短路）
         if ("aliyun".equalsIgnoreCase(r.provider())) {
             String lower = r.modelName().toLowerCase(Locale.ROOT);
             if (lower.contains("vision") || lower.contains("multimodal")) {
@@ -143,7 +143,7 @@ public final class ModelConnectivityTestService {
         EmbedderConfig config = EmbedderConfig.configFromModel(model, creds[0], creds[1]);
         Embedder emb;
         try {
-            // pooler：单文本 embed 不触达批路径（Go 的 handler 注入容器 pooler，行为同）
+            // pooler：单文本 embed 不触达批路径
             emb = EmbedderFactory.newEmbedder(config, null, ollamaService, concurrencyGovernor);
         } catch (RuntimeException e) {
             return embeddingResult(false, "创建Embedder失败: " + e.getMessage(), 0);
@@ -238,7 +238,7 @@ public final class ModelConnectivityTestService {
                 available = false;
                 message = "模型不存在，请检查模型名称：" + errMsg;
             } else {
-                // 端点可达（非致命错误）——照抄 Go 的 available=true 分支
+                // 端点可达（非致命错误）——available=true
                 available = true;
                 message = "ASR端点可达（非致命错误: " + errMsg + "）";
             }
@@ -347,7 +347,7 @@ public final class ModelConnectivityTestService {
             error = e.getMessage() == null ? "" : e.getMessage();
         }
         long processingTime = System.currentTimeMillis() - start;
-        // gin.H 字母序：message < processing_time < success / caption < ocr <
+        // 键按字母序：message < processing_time < success / caption < ocr <
         // processing_time < success（ObjectNode 保插入序，必须按字母序插入）
         ObjectNode data = MAPPER.createObjectNode();
         if (error != null) {
@@ -363,7 +363,7 @@ public final class ModelConnectivityTestService {
         return ok(data);
     }
 
-    /** 对照 testMultimodalWithDocReader：ReadRequest(FileContent/FileName/FileType)。 */
+    /** 多模态测试的 DocReader 调用：ReadRequest(FileContent/FileName/FileType)。 */
     private void testMultimodalWithDocReader(byte[] imageContent, String filename,
             List<String> separators) {
         String fileExt = "";
@@ -385,7 +385,7 @@ public final class ModelConnectivityTestService {
         }
     }
 
-    // ══════════════ W5b：ModelTestRequest 绑定与共用件 ══════════════
+    // ══════════════ ModelTestRequest 绑定与共用件 ══════════════
 
     private record ModelTestRequest(String source, String modelName, String baseUrl, String apiKey,
             String provider, String interfaceType, int dimension, boolean supportsDimensionOverride,
@@ -416,8 +416,8 @@ public final class ModelConnectivityTestService {
     }
 
     /**
-     * 对照 fillSecretsFromStoredModel：modelId 命中的存量模型补齐空密钥与 extraConfig
-     * （Go 就地改写 *req；record 不可变 → 返回替换值，调用方重接）。
+     * modelId 命中的存量模型补齐空密钥与 extraConfig
+     * （record 不可变 → 返回替换值，调用方重接）。
      */
     private ModelTestRequest fillSecretsFromStoredModel(ModelTestRequest req) {
         if (req == null || req.modelId().isEmpty()) {
@@ -444,7 +444,7 @@ public final class ModelConnectivityTestService {
                 req.customHeaders(), extra, appSecret, req.modelId());
     }
 
-    /** 对照 buildTestModel：测试请求 → 临时 Model（不落库）。 */
+    /** 测试请求 → 临时 Model（不落库）。 */
     private static Model buildTestModel(ModelTestRequest req, String modelType, String defaultSource) {
         String source = req.source() == null ? "" : req.source().toLowerCase(Locale.ROOT);
         if (source.isEmpty()) {
@@ -469,7 +469,7 @@ public final class ModelConnectivityTestService {
         return m;
     }
 
-    /** 对照 classifyConnectionError：错误串 → 中文短提示。 */
+    /** 错误串 → 中文短提示。 */
     private static String classifyConnectionError(String errMsg) {
         if (errMsg.contains("401") || errMsg.contains("unauthorized")) {
             return "认证失败，请检查API Key";
@@ -490,7 +490,7 @@ public final class ModelConnectivityTestService {
         return "连接失败";
     }
 
-    /** 对照 resolveTenantWeKnoraCloudCreds：null = "!ok"（空间信息未找到）。 */
+    /** 解析当前空间凭证；null = 空间信息未找到。 */
     private String[] resolveTenantWeKnoraCloudCreds() {
         Long tid = TenantContext.currentTenantId();
         if (tid == null) {
@@ -511,7 +511,7 @@ public final class ModelConnectivityTestService {
         return new String[] {appId, appSecret};
     }
 
-    /** 对照 modelService.GetChatModel（无状态闸门版 + WeKnoraCloud 凭证解析）。 */
+    /** 无状态闸门版模型获取 + WeKnoraCloud 凭证解析。 */
     LlmChatClient getChatModelOr400(String modelId) {
         try {
             return getChatModel(modelId);
@@ -548,7 +548,7 @@ public final class ModelConnectivityTestService {
                 ollamaService, concurrencyGovernor);
     }
 
-    /** 对照 handler.decryptModelAppSecret：宽容解密（失败原样返回）。 */
+    /** 宽容解密（失败原样返回）。 */
     private String decryptModelAppSecret(String encrypted) {
         if (encrypted == null || encrypted.isEmpty()) {
             return encrypted;
@@ -601,7 +601,7 @@ public final class ModelConnectivityTestService {
         return ResponseEntity.ok(body);
     }
 
-    /** Go time.Time 的原 offset 输出（JSON 反序列化来的时间不改时区，照 time.Time marshal 语义）。 */
+    /** 时间保持原 offset 输出（JSON 反序列化来的时间不改时区）。 */
     static String goTimeAsIs(OffsetDateTime value) {
         return value == null ? "0001-01-01T00:00:00Z"
                 : value.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);

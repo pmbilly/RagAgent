@@ -7,16 +7,16 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * suggested-questions 的候选 chunk 查询（对照 Go repository/chunk.go 两个推荐方法）。
+ * suggested-questions 的候选 chunk 查询。
  *
- * <p>Go 用 GORM {@code Order("RANDOM()")} 取池；Java 侧同语义（H2 RAND() /
- * PG RANDOM()）。golden 只录确定性场景（单元素池），随机序不进契约。</p>
+ * <p>随机取池（H2 RAND() / PG RANDOM()）。golden 只录确定性场景（单元素池），
+ * 随机序不进契约。</p>
  */
 public interface AgentQuestionMapper {
 
     /**
-     * 对照 ListRecommendedFAQChunks：flags &amp; 1 = ChunkFlagRecommended，
-     * status IN (default=0, indexed=2)，kb/knowledge/tag 三个范围 OR 组合。
+     * 推荐 FAQ chunk：flags 为奇数（最低位是推荐标记），
+     * status IN (0=默认, 2=已索引)，kb/knowledge/tag 三个范围 OR 组合。
      */
     @Select("<script>"
             + "SELECT id, knowledge_id AS \"knowledgeId\", knowledge_base_id AS \"knowledgeBaseId\", "
@@ -44,10 +44,9 @@ public interface AgentQuestionMapper {
             @Param("limit") int limit);
 
     /**
-     * 对照 ListRecentDocumentChunksWithQuestions：metadata 带非空 generated_questions
-     * 的 text chunk。PG 分支的 jsonb_array_length 判断在两侧统一改写成
-     * CAST + LIKE 近似（键名必然出现在 jsonb 原文里；false positive 由 Java 侧
-     * 解析兜底），单语句通吃 PG/H2。
+     * metadata 带非空 generated_questions 的 text chunk。jsonb 数组长度判断
+     * 统一改写成 CAST + LIKE 近似（键名必然出现在 jsonb 原文里；false positive
+     * 由 Java 侧解析兜底），单语句通吃 PG/H2。
      */
     @Select("<script>"
             + "SELECT id, knowledge_id AS \"knowledgeId\", knowledge_base_id AS \"knowledgeBaseId\", "
@@ -81,14 +80,14 @@ public interface AgentQuestionMapper {
             + "</script>")
     List<Map<String, Object>> findKbs(@Param("ids") List<String> ids);
 
-    /** 对照 knowledge_tag repo GetByIDs：按 id + tenant 取 tag 行。 */
+    /** 按 id + tenant 取 tag 行。 */
     @Select("<script>SELECT id AS \"id\", knowledge_base_id AS \"knowledgeBaseId\" FROM knowledge_tags "
             + "WHERE tenant_id = #{tenantId} AND id IN "
             + "<foreach item='i' collection='ids' open='(' separator=',' close=')'>#{i}</foreach>"
             + "</script>")
     List<Map<String, Object>> findTags(@Param("tenantId") long tenantId, @Param("ids") List<String> ids);
 
-    /** 对照 knowledge repo ListIDsByTagIDs（OR 语义 distinct）。 */
+    /** 按 tags 取 knowledge id（OR 语义 distinct）。 */
     @Select("<script>SELECT DISTINCT k.id FROM knowledges k "
             + "JOIN knowledge_tag_relations ktr ON k.id = ktr.knowledge_id "
             + "WHERE k.tenant_id = #{tenantId} AND k.knowledge_base_id = #{kbId} AND ktr.tag_id IN "

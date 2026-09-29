@@ -17,14 +17,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * MCP 工具人工审批门（对照 Go internal/agent/approval/gate.go，issue #1173）。
+ * MCP 工具人工审批门。
  *
- * <p>等待者（waiter）只存在于**发起 RequestAndWait 的那个实例**的内存里。
+ * <p>等待者（waiter）只存在于**发起 {@link #requestAndWait} 的那个实例**的内存里。
  * 当注入了 Redis 客户端时，打到任意副本的 Resolve 会经 Pub/Sub 广播，
  * 由持有 pending 的实例投递决策（跨实例支持）；没有 Redis 时退化为单进程行为
- * （部署必须开粘性会话）——即 Go 的 Lite 模式。</p>
+ * （部署必须开粘性会话）。</p>
  *
- * <p><b>语义要点（逐条对照 Go）</b>：
+ * <p><b>语义要点</b>：
  * <ul>
  *   <li>pending 注册/等待/超时/取消：{@link #requestAndWait}；</li>
  *   <li>Resolve 幂等与冲突：已投递 → {@code ALREADY_RESOLVED}；不存在 → {@code PENDING_NOT_FOUND}；</li>
@@ -34,60 +34,58 @@ import org.slf4j.LoggerFactory;
  *   <li>订阅循环：{@link #runSubscriber} 断线按 1s→30s 指数退避重连。</li>
  * </ul>
  *
- * <p><b>与 Go 的差异（仅此三处，均已在字段注释说明）</b>：
- * ack 窗口可配置（Go 硬编码 3s）、实例 ID 可注入（Go 是包级 uuid，便于同 JVM 模拟多实例）、
- * 多了 {@link #close()} 用于停止订阅线程（Go 的 goroutine 随进程存活）。
- * 单实例（redis == null）行为与 Go 完全一致。</p>
+ * <p><b>可配置性扩展</b>：ack 窗口（{@code ackTimeout}）与实例 ID（{@code instanceId}）
+ * 均可注入，便于测试不必真等 3 秒、可在同一 JVM 模拟多实例；
+ * 并新增 {@link #close()} 用于停止订阅线程（容器关闭/测试隔离需要确定出口）。</p>
  */
 public class Gate implements McpApproval, AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(Gate.class);
 
-    /** 对照 Go {@code pubsubChannelBase}：跨副本广播 Resolve 的 Redis 频道前缀 */
+    /** 跨副本广播 Resolve 的 Redis 频道前缀 */
     public static final String PUBSUB_CHANNEL_BASE = "weknora:mcp_approval:resolve";
 
     /**
-     * 对照 Go {@code pubsubChannel()} 读取的环境变量：频道会追加该命名空间后缀，
+     * 频道命名空间环境变量：频道会追加该后缀，
      * 使共享同一 Redis 的多套部署不互相串台。
      */
     public static final String NAMESPACE_ENV = "WEKNORA_REDIS_NAMESPACE";
 
     /**
-     * 对照 Go 的 fail-open 开关：只有值为 "true"（忽略大小写与首尾空白）才 fail-open；
+     * fail-open 开关：只有值为 "true"（忽略大小写与首尾空白）才 fail-open；
      * 默认 fail-close——策略查询出错时**仍要求审批**，避免瞬时 DB 故障悄悄放行危险工具。
      */
     public static final String FAIL_OPEN_ENV = "WEKNORA_AGENT_TOOL_APPROVAL_FAIL_OPEN";
 
-    /** 对照 Go resolveCrossInstance 里订阅生效的 2s 等待窗口 */
+    /** 订阅生效等待窗口：2 秒 */
     private static final Duration SUBSCRIBE_TIMEOUT = Duration.ofSeconds(2);
-    /** 订阅循环的收消息轮询间隔（仅用于周期性检查关闭标志；Go 是 channel 阻塞语义） */
+    /** 订阅循环的收消息轮询间隔（仅用于周期性检查关闭标志） */
     private static final Duration POLL_INTERVAL = Duration.ofMillis(200);
-    /** 对照 Go runSubscriber 的初始退避 1s */
+    /** 断线重连的初始退避 1s */
     private static final Duration MIN_BACKOFF = Duration.ofSeconds(1);
-    /** 对照 Go runSubscriber 的退避上限 30s */
+    /** 断线重连的退避上限 30s */
     private static final Duration MAX_BACKOFF = Duration.ofSeconds(30);
 
     private final Object mu = new Object();
-    /** 对照 Go {@code pending map[string]*waiter} */
+    /** pendingId → 等待者 */
     private final Map<String, Waiter> pending = new HashMap<>();
-    /** 对照 Go {@code checker Checker}；为 null 表示关闭审批门 */
+    /** 策略查询口；为 null 表示关闭审批门 */
     private final Checker checker;
-    /** 对照 Go {@code timeout time.Duration}（默认 10 分钟） */
+    /** 审批等待时长（默认 10 分钟） */
     private final Duration timeout;
-    /** 对照 Go {@code rdb *redis.Client}；为 null 即单实例（Lite）模式 */
+    /** Redis pubsub；为 null 即单实例模式 */
     private final RedisPubSub redis;
-    /** 对照 Go {@code failClose bool} */
+    /** true = 策略查询失败时仍要求审批 */
     private final boolean failClose;
-    /** Java 侧可注入的实例标识（对照 Go 包级 instanceID） */
+    /** 实例标识（可注入），用于忽略自己发布的 pubsub 报文 */
     private final String instanceId;
-    /** Java 侧可配置的 ack 窗口（对照 Go 硬编码的 3s） */
+    /** 跨实例 ack 等待窗口（可配置） */
     private final Duration ackTimeout;
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Thread subscriberThread;
 
     /**
-     * 对照 Go {@code NewGate(cfg, checker, rdb)}：
      * checker 可为 null（关闭审批门）、options 可为 null（默认值）、redis 可为 null（单实例）。
      */
     public Gate(GateOptions options, Checker checker, RedisPubSub redis) {
@@ -99,7 +97,6 @@ public class Gate implements McpApproval, AutoCloseable {
         this.instanceId = opts.instanceId();
         this.ackTimeout = opts.ackTimeout();
         if (redis != null) {
-            // 对照 Go: go g.runSubscriber()
             this.subscriberThread = Thread.ofVirtual()
                     .name("mcp-approval-subscriber")
                     .start(this::runSubscriber);
@@ -108,12 +105,12 @@ public class Gate implements McpApproval, AutoCloseable {
         }
     }
 
-    /** 便捷构造：对照 Go NewGate(cfg, checker, rdb) 的 cfg == nil 分支之外的常见用法 */
+    /** 便捷构造：默认 options。 */
     public Gate(Checker checker, RedisPubSub redis) {
         this(null, checker, redis);
     }
 
-    /** 对照 Go {@code pubsubChannel()}：namespaced 的 pubsub 频道名 */
+    /** namespaced 的 pubsub 频道名 */
     static String pubsubChannel() {
         String ns = System.getenv(NAMESPACE_ENV);
         if (ns != null && !ns.isBlank()) {
@@ -127,7 +124,7 @@ public class Gate implements McpApproval, AutoCloseable {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code (*Gate).NeedsApproval}：是否需要停下来等人工确认。
+     * 是否需要停下来等人工确认。
      * checker 为 null / 身份缺失 → false；查询出错时按 fail-close（要求审批）或 fail-open（放行）处理。
      */
     @Override
@@ -150,7 +147,7 @@ public class Gate implements McpApproval, AutoCloseable {
     }
 
     /**
-     * 对照 Go {@code (*Gate).IsEnabled}：策略是否允许注册/执行。
+     * 策略是否允许注册/执行。
      * 没有 gate/checker 时工具保持启用；租户或工具身份缺失时 fail-closed。
      */
     @Override
@@ -165,7 +162,7 @@ public class Gate implements McpApproval, AutoCloseable {
         return checker.isEnabled(ctx, tenantId, serviceId, toolName);
     }
 
-    /** 对照 Go {@code (*Gate).EnabledTools}（tool_policy.go:66-77） */
+    /** 目录枚举用的批量启用查询。 */
     public Map<String, Boolean> enabledTools(
             Cancellation ctx, long tenantId, String serviceId, List<String> names) {
         return ToolPolicy.enabledTools(ctx, checker, tenantId, serviceId, names);
@@ -176,13 +173,13 @@ public class Gate implements McpApproval, AutoCloseable {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code (*Gate).RequestAndWait}：先发 “approval required” 事件，
+     * 先发 “approval required” 事件，
      * 再阻塞等待 Resolve / 超时 / ctx 取消三种出口。
      */
     @Override
     public Decision requestAndWait(Cancellation ctx, PendingRequest req) {
         if (checker == null) {
-            // 对照 Go: g == nil || g.checker == nil → Decision{Approved: true}
+            // 未启用审批门 → 直接放行
             return Decision.allow();
         }
         if (req.eventBus() == null) {
@@ -196,7 +193,7 @@ public class Gate implements McpApproval, AutoCloseable {
             pending.put(pendingId, w);
         }
         try {
-            // 对照 Go: var argsObj interface{}; _ = json.Unmarshal(req.Args, &argsObj)
+            // args 解析失败不阻塞：事件体里的 args 保持为 null
             Object argsObj = ApprovalJson.parseLoose(req.args());
             int timeoutSec = timeoutSeconds(timeout);
 
@@ -218,7 +215,7 @@ public class Gate implements McpApproval, AutoCloseable {
                 throw ApprovalException.internal("emit tool approval required: " + e.getMessage(), e);
             }
 
-            // 对照 Go select 的 <-ctx.Done() 分支：注册取消回调
+            // 注册取消回调：取消即投递取消决策
             AutoCloseable cancelReg = ctx.onCancel(() -> w.deliver(Decision.cancel("request canceled")));
             try {
                 Decision d = w.await(timeout);
@@ -226,7 +223,7 @@ public class Gate implements McpApproval, AutoCloseable {
                     emitResolved(req, pendingId, d);
                     return d;
                 }
-                // 对照 Go timer.C 分支：投递超时决策后无条件再取一次——
+                // 投递超时决策后无条件再取一次——
                 // 若投递失败说明 Resolve 抢先，则用它的决策。
                 w.deliver(Decision.timeout("approval timeout"));
                 d = w.await(null);
@@ -236,7 +233,6 @@ public class Gate implements McpApproval, AutoCloseable {
                 closeQuietly(cancelReg);
             }
         } finally {
-            // 对照 Go 的 defer: delete(g.pending, pendingID)
             synchronized (mu) {
                 pending.remove(pendingId);
             }
@@ -244,7 +240,7 @@ public class Gate implements McpApproval, AutoCloseable {
     }
 
     /**
-     * 对照 Go {@code (*Gate).RequestOAuthAndWait}：发 “mcp oauth required” 事件后阻塞等待授权。
+     * 发 “mcp oauth required” 事件后阻塞等待授权。
      *
      * <p>与 {@link #requestAndWait} 不同：<b>不查审批策略</b>——它是由 MCP 传输层返回的
      * “authorization required” 错误被动触发的。返回 {@code approved == true} 表示用户已完成授权、
@@ -262,7 +258,6 @@ public class Gate implements McpApproval, AutoCloseable {
             pending.put(pendingId, w);
         }
         try {
-            // 对照 Go: waitTimeout := g.timeout; if req.WaitTimeout > 0 { waitTimeout = req.WaitTimeout }
             Duration waitTimeout = timeout;
             if (req.waitTimeout() != null && !req.waitTimeout().isZero() && !req.waitTimeout().isNegative()) {
                 waitTimeout = req.waitTimeout();
@@ -312,7 +307,7 @@ public class Gate implements McpApproval, AutoCloseable {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code (*Gate).Resolve}：完成一个待决审批。
+     * 完成一个待决审批。
      *
      * <p>{@code tenantId} 必须与发起等待的租户一致；{@code userId}（非空时）必须是会话属主。
      * 本实例没有该 pending 且配置了 Redis 时，会广播到所有副本并等 ack，
@@ -339,7 +334,7 @@ public class Gate implements McpApproval, AutoCloseable {
     }
 
     /**
-     * 对照 Go {@code (*Gate).resolveCrossInstance}：广播 Resolve 并短暂等待持有者 ack。
+     * 广播 Resolve 并短暂等待持有者 ack。
      *
      * <p>ack 走“每 pending 一个回复频道”，携带与本地路径相同的错误码，
      * 因此即使会话在别的副本上，HTTP 状态码依然准确。</p>
@@ -359,7 +354,7 @@ public class Gate implements McpApproval, AutoCloseable {
                     ResolveMessage.of(tenantId, userId, pendingId, d, replyChannel, instanceId, nonce));
             redis.publish(pubsubChannel(), payload);
 
-            // 对照 Go：ack 窗口很短（UX 上宁可快速返回准确的 404/409，也不要慢慢返回 200）
+            // ack 窗口很短（UX 上宁可快速返回准确的 404/409，也不要慢慢返回 200）
             long deadline = System.nanoTime() + ackTimeout.toNanos();
             while (true) {
                 Duration left = Duration.ofNanos(deadline - System.nanoTime());
@@ -398,7 +393,7 @@ public class Gate implements McpApproval, AutoCloseable {
     }
 
     /**
-     * 对照 Go {@code (*Gate).deliverLocal}：只尝试满足**本实例**上的等待者。
+     * 只尝试满足**本实例**上的等待者。
      *
      * @return null 表示投递成功；否则是对应哨兵异常
      */
@@ -432,7 +427,7 @@ public class Gate implements McpApproval, AutoCloseable {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code (*Gate).runSubscriber}：监听跨实例 Resolve 广播并投递给本地等待者。
+     * 监听跨实例 Resolve 广播并投递给本地等待者。
      * 随进程/本对象存活（直到 {@link #close()}）；Redis 抖动时按上限指数退避重连。
      */
     private void runSubscriber() {
@@ -463,7 +458,7 @@ public class Gate implements McpApproval, AutoCloseable {
             if (closed.get()) {
                 break;
             }
-            // 对照 Go：断线后固定 sleep(backoff)，再把退避翻倍（上限 30s）
+            // 断线后固定 sleep(backoff)，再把退避翻倍（上限 30s）
             sleepQuietly(backoff);
             if (backoff.compareTo(MAX_BACKOFF) < 0) {
                 backoff = backoff.multipliedBy(2);
@@ -474,7 +469,7 @@ public class Gate implements McpApproval, AutoCloseable {
         }
     }
 
-    /** 对照 Go runSubscriber 循环体内的报文处理与 ack 回执 */
+    /** 处理一条 Resolve 广播报文并回执 ack */
     private void handleResolveMessage(String payload) {
         ResolveMessage m = ApprovalJson.read(payload, ResolveMessage.class);
         if (m == null) {
@@ -501,13 +496,13 @@ public class Gate implements McpApproval, AutoCloseable {
             }
         }
 
-        // 对照 Go：投递成功或本副本没有该 pending 都保持安静，其他错误才告警
+        // 投递成功或本副本没有该 pending 都保持安静，其他错误才告警
         if (err != null && err.kind() != ApprovalException.Kind.PENDING_NOT_FOUND) {
             log.warn("mcp approval pubsub deliver: {}", err.toString());
         }
     }
 
-    /** 对照 Go runSubscriber 里 err → status 的 switch（PENDING_NOT_FOUND → 不回执） */
+    /** 错误 → ack status 的映射（PENDING_NOT_FOUND → 不回执） */
     private static String statusOf(ApprovalException err) {
         if (err == null) {
             return ResolveAck.STATUS_OK;
@@ -524,7 +519,7 @@ public class Gate implements McpApproval, AutoCloseable {
     // 事件发送
     // ------------------------------------------------------------------
 
-    /** 对照 Go RequestAndWait 内联的 emitResolved（结果事件失败只吞掉） */
+    /** 发结果事件（失败只吞掉） */
     private void emitResolved(PendingRequest req, String pendingId, Decision d) {
         try {
             req.eventBus().emit(Event.of(
@@ -540,7 +535,7 @@ public class Gate implements McpApproval, AutoCloseable {
         }
     }
 
-    /** 对照 Go RequestOAuthAndWait 内联的 emitResolved */
+    /** 发 OAuth 结果事件（失败只吞掉） */
     private void emitOAuthResolved(OAuthPendingRequest req, String pendingId, Decision d) {
         try {
             req.eventBus().emit(Event.of(
@@ -561,8 +556,7 @@ public class Gate implements McpApproval, AutoCloseable {
     // ------------------------------------------------------------------
 
     /**
-     * 停止跨实例订阅线程（<b>Java 侧新增</b>：Go 的 goroutine 随进程存活，
-     * 但 Spring 容器关闭/测试隔离需要一个确定的出口）。没配 Redis 时为空操作。
+     * 停止跨实例订阅线程（Spring 容器关闭/测试隔离需要一个确定的出口）。没配 Redis 时为空操作。
      */
     @Override
     public void close() {
@@ -576,7 +570,7 @@ public class Gate implements McpApproval, AutoCloseable {
         }
     }
 
-    /** 对照 Go {@code int(g.timeout / time.Second)}，且至少 1 秒（Go: if timeoutSec < 1 { 1 }） */
+    /** 秒数向下取整，且至少 1 秒 */
     private static int timeoutSeconds(Duration d) {
         long sec = d.toSeconds();
         return (int) Math.max(1L, sec);
@@ -597,27 +591,26 @@ public class Gate implements McpApproval, AutoCloseable {
         try {
             c.close();
         } catch (Exception ignored) {
-            // 对照 Go：注销/关闭失败无需处理
+            // 注销/关闭失败无需处理
         }
     }
 
     /**
-     * 待决等待者（对照 Go approval.waiter，gate.go:146-173）。
+     * 待决等待者。
      *
-     * <p>Go 用“容量 1 的 chan + sync.Once + atomic.Bool”；Java 用
-     * “CompletableFuture + CAS 的 AtomicBoolean”。{@code deliver} 的返回值语义完全一致：
-     * 谁赢得竞态谁返回 true，后到者返回 false（→ 上层映射为 ALREADY_RESOLVED）。</p>
+     * <p>用 “CompletableFuture + CAS 的 AtomicBoolean” 表达单次投递：
+     * {@code deliver} 谁赢得竞态谁返回 true，后到者返回 false（→ 上层映射为 ALREADY_RESOLVED）。</p>
      */
     private static final class Waiter {
 
         final long tenantId;
-        /** 空串表示“跳过用户校验”（对照 Go: empty means "skip user check"） */
+        /** 空串表示“跳过用户校验” */
         final String userId;
 
         private final CompletableFuture<Decision> future = new CompletableFuture<>();
         private final AtomicBoolean delivered = new AtomicBoolean(false);
         /**
-         * 对照 Go 的 atomic.Bool resolved：deliverLocal 需在不持锁的情况下读它。
+         * deliverLocal 需在不持锁的情况下读它。
          * 顺序上先置 resolved 再 complete，保证读到时决策一定已可见。
          */
         private final AtomicBoolean resolved = new AtomicBoolean(false);
@@ -627,7 +620,7 @@ public class Gate implements McpApproval, AutoCloseable {
             this.userId = userId == null ? "" : userId;
         }
 
-        /** 对照 Go {@code (*waiter).deliver}：赢得竞态返回 true 并投递 */
+        /** 赢得竞态返回 true 并投递 */
         boolean deliver(Decision d) {
             if (!delivered.compareAndSet(false, true)) {
                 return false;
@@ -638,7 +631,7 @@ public class Gate implements McpApproval, AutoCloseable {
         }
 
         /**
-         * 等待决策。{@code timeout} 为 null 表示不限时（对照 Go 的 {@code d = <-w.ch}）。
+         * 等待决策。{@code timeout} 为 null 表示不限时。
          *
          * @return 决策；超时返回 null（调用方据此走超时/取消分支）
          */

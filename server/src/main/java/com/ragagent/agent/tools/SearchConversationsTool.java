@@ -10,32 +10,32 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * search_conversations 工具（对照 Go {@code search_conversations.go}，逐字移植）。
+ * search_conversations 工具。
  *
- * <p>搜索用户自己的历史会话。Go 注入 {@code interfaces.MessageService} + 构造期捕获的
- * ownerID/currentSessionID（不给模型留改参数的口子）；Java 侧用函数式接口
- * {@link ConversationSearch} 表达，装配期接 session 模块真实实现。</p>
+ * <p>搜索用户自己的历史会话。ownerID/currentSessionID 构造期捕获
+ * （不给模型留改参数的口子）；用函数式接口 {@link ConversationSearch} 表达接缝，
+ * 装配期接 session 模块真实实现。</p>
  */
 public class SearchConversationsTool extends BaseTool {
 
-    /** 历史消息搜索回调（对照 interfaces.MessageService.SearchMessages 的位置）。 */
+    /** 历史消息搜索回调。 */
     @FunctionalInterface
     public interface ConversationSearch {
         /** 失败时抛 RuntimeException（工具折叠为 success=false+error）。 */
         List<ExchangeView> search(String query, int limit, String ownerId);
     }
 
-    /** 一条历史问答视图（对照 types.MessageSearchResultItem 被用字段）。 */
+    /** 一条历史问答视图。 */
     public record ExchangeView(String sessionId, String sessionTitle, LocalDate createdAt,
                                String queryContent, String answerContent) {
     }
 
-    /** 对照 searchConversationsMaxResults。 */
+    /** 返回条数上限。 */
     static final int MAX_RESULTS = 8;
-    /** 对照 searchConversationsSnippetRunes。 */
+    /** 摘要的 rune 上限。 */
     static final int SNIPPET_RUNES = 400;
 
-    /** 键序对照 Go GenerateSchema 输出（字母序：properties < required < type）。 */
+    /** schema 键按字母序：properties < required < type。 */
     private static final String SCHEMA_JSON = """
             {
               "properties": {
@@ -112,7 +112,7 @@ public class SearchConversationsTool extends BaseTool {
         final int effectiveLimit = limit;
         List<ExchangeView> items;
         try {
-            // 超取 limit+2：丢当前会话后不至于空结果（对照 Go 注释）
+            // 超取 limit+2：丢当前会话后不至于空结果
             items = conversationSearch.search(query, effectiveLimit + 2, ownerId);
         } catch (RuntimeException e) {
             return failure("Conversation search failed: " + e.getMessage());
@@ -177,7 +177,7 @@ public class SearchConversationsTool extends BaseTool {
         return result;
     }
 
-    /** 对照 snippet：TrimSpace 后按 rune 截断加 "…"（U+2026）。 */
+    /** 摘要：trim 后按 rune 截断加 "…"（U+2026）。 */
     static String snippet(String text, int maxRunes) {
         if (text == null) {
             return "";

@@ -24,7 +24,7 @@ import java.util.List;
         public PageView page() { return page; }
         public String body() { return body; }
 
-        /** 对照 pendingWikiPage.render 的 XML 模板（逐字节）。 */
+        /** XML 渲染模板（字节级契约）。 */
         public String render(String body) {
             StringBuilder b = new StringBuilder();
             b.append("<wiki_page>\n");

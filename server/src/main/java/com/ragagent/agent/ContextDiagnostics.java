@@ -6,21 +6,20 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatTool;
 
 /**
- * 上下文记账的诊断（对照 Go internal/agent/context_debug.go 的纯逻辑部分：
- * contextBreakdown + breakdownContext + String()）。
+ * 上下文记账的诊断。
  *
  * <p>它要抓的失败天生无声：估算与供应商的账单不一致，正常日志里没有任何一行去
  * 比较它们。reasoning_content 就是这样漏记了足够久，把 130k 的上下文量成 26k——
  * 压缩不停触发、切错位置、什么也腾不出来，而每一行日志单看都合理。</p>
  *
- * <p>引擎侧的 logContextPrediction / logContextDrift（读 compactor 与 lastUsage、
- * 写日志）随波 4.6 接线；漂移判定的纯数学（ratio &gt; 1.5 或 &lt; 0.67 警告、
+ * <p>引擎侧由 {@link ContextDebugEmitter} 消费（读 compactor 与 lastUsage、
+ * 写日志）；漂移判定的纯数学（ratio &gt; 1.5 或 &lt; 0.67 警告、
  * 漂移百分比 &lt; -25% / &gt; 50% 警告）留在调用方展开。</p>
  */
 public final class ContextDiagnostics {
 
     /**
-     * 与估算器逐图常量镜像（对照 estimatedImageTokensForLog）。刻意复制而非导出——
+     * 与估算器的逐图常量刻意复制而非导出——
      * 它只是个上报细节。
      */
     private static final int ESTIMATED_IMAGE_TOKENS_FOR_LOG = 1200;
@@ -29,7 +28,7 @@ public final class ContextDiagnostics {
     }
 
     /**
-     * 把上下文 token 归因到持有它的内容类型（对照 breakdownContext），
+     * 把上下文 token 归因到持有它的内容类型，
      * 意外总量可以追到来源而不是靠猜。
      */
     public static ContextBreakdown breakdownContext(
@@ -87,7 +86,7 @@ public final class ContextDiagnostics {
         return b;
     }
 
-    /** 上下文的归因明细（对照 contextBreakdown）。 */
+    /** 上下文的归因明细。 */
     public static final class ContextBreakdown {
         int messages;
         int total;
@@ -114,7 +113,7 @@ public final class ContextDiagnostics {
         public String getLargestKind() { return largestKind; }
         public int getLargestTokens() { return largestTokens; }
 
-        /** 对照 Go 的 (b contextBreakdown) String()，逐字节同格式。 */
+        /** 输出格式逐字节稳定（供日志比对/告警解析）。 */
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();

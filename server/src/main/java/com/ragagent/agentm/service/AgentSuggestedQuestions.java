@@ -38,14 +38,14 @@ public final class AgentSuggestedQuestions {
         this.questionMapper = questionMapper;
     }
 
-    /** 对照 GetSuggestedQuestions（静态面：curated / 无范围 / FAQ+document chunk 池）。 */
+    /** 推荐问题入口（静态面：curated / 无范围 / FAQ+document chunk 池）。 */
     public ArrayNode getSuggestedQuestions(String agentId, List<String> kbIds,
             List<String> knowledgeIds, List<TagScope> tagScopes, int limit, String locale) {
         return getSuggestedQuestions(agentId, kbIds, knowledgeIds, tagScopes, limit, locale, true);
     }
 
     /**
-     * 对照 GetKnowledgeSuggestedQuestions（custom_agent.go L496-501）：includeCurated=false
+     * 知识推荐分支：includeCurated=false
      * ——不走 starters 门/curated 收集，直接进 FAQ+document chunk 池
      * （追问建议 knowledge 模式的候选来源）。
      */
@@ -192,7 +192,7 @@ public final class AgentSuggestedQuestions {
     private void faqQuery(long groupTenant, List<String> explicitKbIds, List<String> knowledgeIds,
             List<String> tagIds, int fetchLimit, Map<String, List<Object[]>> buckets, Set<String> seen) {
         if (explicitKbIds.isEmpty() && knowledgeIds.isEmpty() && tagIds.isEmpty()) {
-            return; // Go repo：三个范围全空 → 直接返回 nil
+            return; // 三个范围全空 → 直接返回空
         }
         List<Map<String, Object>> rows = questionMapper.listRecommendedFaqChunks(groupTenant,
                 explicitKbIds, !explicitKbIds.isEmpty(),
@@ -225,7 +225,7 @@ public final class AgentSuggestedQuestions {
         }
     }
 
-    /** metadata jsonb → faq standard_question（trim；对照 Chunk.FAQMetadata().StandardQuestion）。 */
+    /** metadata jsonb → faq standard_question（trim）。 */
     static String faqStandardQuestion(String metadata) {
         if (metadata == null || metadata.isEmpty()) {
             return null;
@@ -237,7 +237,7 @@ public final class AgentSuggestedQuestions {
         }
     }
 
-    /** metadata jsonb → generated_questions[0].question（对照 GetQuestionStrings 首个）。 */
+    /** metadata jsonb → generated_questions[0].question。 */
     static String firstGeneratedQuestion(String metadata) {
         if (metadata == null || metadata.isEmpty()) {
             return null;
@@ -278,7 +278,7 @@ public final class AgentSuggestedQuestions {
         return out;
     }
 
-    /** 对照 finalizeStarterSuggestions（curated/hybrid/knowledge 三分支）。 */
+    /** starter 收口（curated/hybrid/knowledge 三分支）。 */
     private ArrayNode finalize(List<Object[]> curated, List<Object[]> knowledge, String mode,
             int limit) {
         if (limit <= 0) {
@@ -294,7 +294,7 @@ public final class AgentSuggestedQuestions {
         }
     }
 
-    /** 对照 mergeHybridStarterSuggestions：knowledge 槽 = ⌈limit/3⌉（limit>1），curated 优先。 */
+    /** hybrid 合并：knowledge 槽 = ⌈limit/3⌉（limit>1），curated 优先。 */
     private ArrayNode mergeHybrid(List<Object[]> curated, List<Object[]> knowledge, int limit) {
         int knowledgeSlots = limit > 1 ? (limit + 1) / 3 : 0;
         int curatedSlots = limit - knowledgeSlots;
@@ -352,7 +352,7 @@ public final class AgentSuggestedQuestions {
     private record ResolvedTags(List<String> knowledgeBaseIds, List<String> knowledgeIds,
             Map<Long, List<String>> tagIdsByTenant) {}
 
-    /** 对照 resolveSuggestionTagScopes：tag 行校验 + knowledge 展开。 */
+    /** tag 行校验 + knowledge 展开。 */
     private ResolvedTags resolveTagScopes(List<TagScope> scopes) {
         Map<String, List<String>> byKb = new LinkedHashMap<>();
         for (TagScope s : scopes) {
@@ -399,7 +399,7 @@ public final class AgentSuggestedQuestions {
         return new ResolvedTags(outKbIds, outKnowledgeIds, tagIdsByTenant);
     }
 
-    /** 对照 groupKBIDsByEffectiveTenant：本空间 KB → 调用者租户；不可达 → 静默丢弃。 */
+    /** 本空间 KB → 调用者租户；不可达 → 静默丢弃。 */
     private Map<Long, List<String>> groupKbIdsByEffectiveTenant(List<String> kbIds) {
         Map<Long, List<String>> out = new LinkedHashMap<>();
         if (kbIds == null || kbIds.isEmpty()) {
@@ -435,7 +435,7 @@ public final class AgentSuggestedQuestions {
         }
     }
 
-    /** 对照 types.IsSyntheticUserID：system-{tenantId} 合成用户不落 created_by。 */
+    /** system-{tenantId} 合成用户不落 created_by。 */
     public static boolean isSyntheticUserId(String uid) {
         return uid != null && uid.startsWith("system-");
     }

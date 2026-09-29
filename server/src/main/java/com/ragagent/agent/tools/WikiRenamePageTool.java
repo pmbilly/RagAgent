@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * wiki_rename_page 工具（对照 Go {@code wiki_rename_page.go}，逐字移植）。
+ * wiki_rename_page 工具。
  * 新 slug 建页 → 改写入链 → 删旧页；任一步失败都回滚+清理。
  */
 public class WikiRenamePageTool extends BaseTool {
@@ -143,7 +143,7 @@ public class WikiRenamePageTool extends BaseTool {
         try {
             wikiPageService.rebuildIndexPage(kbId);
         } catch (RuntimeException ignored) {
-            // 对照 Go：_ = RebuildIndexPage
+            // 重建失败不影响改名结果
         }
 
         String outputMsg = String.format(

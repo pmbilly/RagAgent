@@ -1,14 +1,12 @@
 package com.ragagent.agent.tools;
 
-import java.util.List;
 
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * 绑定一个授权目录与 schema 的模型可见定义（对照 Go {@code mcp_exposure.go} 的
- * MCPRegisteredTool，逐字移植）。它的定义虽然预先广告过，也<b>不得</b>绕过目录的
- * 实时权限与配置检查。实现 {@link McpCatalogGuardedTool}——registry 在 schema 校验
- * 之前先做鉴权（4.5a 预留的接缝在此接入）。
+ * 绑定一个授权目录与 schema 的模型可见定义。它的定义虽然预先广告过，也<b>不得</b>
+ * 绕过目录的实时权限与配置检查。实现 {@link McpCatalogGuardedTool}——registry 在
+ * schema 校验之前先做鉴权（预留的接缝在此接入）。
  */
 public class McpRegisteredTool extends McpToolWrapper implements McpCatalogGuardedTool {
 
@@ -30,7 +28,7 @@ public class McpRegisteredTool extends McpToolWrapper implements McpCatalogGuard
         return ref;
     }
 
-    /** 描述标识外部服务与原始工具（对照 Description 覆写）。 */
+    /** 描述标识外部服务与原始工具。 */
     @Override
     public String getDescription() {
         return String.format("[MCP service %s, server_id=%s, tool=%s (external)] %s",
@@ -40,13 +38,13 @@ public class McpRegisteredTool extends McpToolWrapper implements McpCatalogGuard
                 mcpTool.getDescription());
     }
 
-    /** registry 的鉴权接缝（对照 registry.ExecuteTool 的类型断言分支）。 */
+    /** registry 的鉴权接缝。 */
     @Override
     public String authorizeCatalog() {
         return catalog.authorizeExecution();
     }
 
-    /** 调用前复验目录再执行绑定的工具（对照 Execute 覆写）。 */
+    /** 调用前复验目录再执行绑定的工具。 */
     @Override
     public ToolResult execute(ToolRequest request) {
         McpCatalog.SnapshotResult snap = catalog.snapshot(service.getId(), false);

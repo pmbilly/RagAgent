@@ -11,24 +11,20 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * database_query 工具（对照 Go {@code database_query.go}，逐字移植）。
+ * database_query 工具。
  *
- * <p>SQL 校验与安全注入在 {@link SqlGuard}（对照 {@code internal/utils/inject.go}；
- * 手写轻量解析器替代 pg_query，解析错误文案差异列报告——工具 error 只透
- * Message，故输出逐字一致）。</p>
+ * <p>SQL 校验与安全注入在 {@link SqlGuard}（手写轻量解析器，解析错误文案与
+ * 原生 parser 有差异——工具 error 只透 Message，输出文案不受影响）。</p>
  *
- * <p>DB 执行经 {@link SqlQueryExecutor} seam（对照 {@code t.db.Raw(securedSQL).Rows()}：
- * 4.5c 装配期接真实数据源；回放测试用 JDBC 实现连同一 dev PG 端到端验证）。
- * tenant_id 对照 Go 从 ctx 读 {@code types.TenantIDContextKey}（缺省 0）——Java 无
- * ctx 挂键，改为构造期注入 {@link LongSupplier}（接线列报告）。</p>
+ * <p>DB 执行经 {@link SqlQueryExecutor} seam（回放测试用 JDBC 实现连同一 dev PG
+ * 端到端验证）。tenant_id 由构造期注入 {@link LongSupplier}（缺省 0）。</p>
  *
- * <p>已知差异：Go {@code json.Marshal}/时间格式与 Java 序列化不同（语料避开
- * timestamp 列）；查询执行失败的 driver 错误文案不录语料（pgjdbc vs lib/pq）。</p>
+ * <p>已知差异：时间格式与 Java 序列化不同（语料避开 timestamp 列）；查询执行失败
+ * 的 driver 错误文案不录语料。</p>
  */
 public class DatabaseQueryTool extends BaseTool {
 
-    /** schema 字节即契约：Go 实录 {@code utils.GenerateSchema[DatabaseQueryInput]()}（探针 _schema 语料）。 */
-    /** 键序/字段对照 Go GenerateSchema 输出（字母序：additionalProperties < properties < required < type）。 */
+    /** schema 字节即契约（探针 _schema 语料钉死）；键按字母序：additionalProperties < properties < required < type。 */
     private static final String SCHEMA_JSON = """
             {"additionalProperties":false,"properties":{"sql":{"description":"The SELECT SQL query to execute. DO NOT include tenant_id condition - it will be automatically added for security.","type":"string"}},"required":["sql"],"type":"object"}""";
 
@@ -108,18 +104,17 @@ public class DatabaseQueryTool extends BaseTool {
             + "- Use appropriate JOINs when querying across tables\n"
             + "- All timestamps are in UTC with time zone";
 
-    /** 查询执行 seam（对照 {@code db.Raw(securedSQL).Rows()} 的行扫描）。 */
+    /** 查询执行 seam。 */
     public interface SqlQueryExecutor {
         /**
          * 执行已注入安全条件的 SELECT，返回列名（有序）与行（每行按列序的值）。
-         * 值类型约定对齐 Go 的 {@code rows.Scan(interface{})} + {@code []byte→string}：
-         * 文本→String、整型→Long、浮点→Double、数值→BigDecimal（由工具侧转 Go 字符串形态）、
-         * 布尔→Boolean。
+         * 值类型约定：文本→String、整型→Long、浮点→Double、数值→BigDecimal
+         * （由工具侧转字符串形态）、布尔→Boolean。
          */
         QueryResult query(String securedSQL);
     }
 
-    /** 对照 {@code rows.Columns()} + 行切片。 */
+    /** 列名（有序）+ 行切片。 */
     public record QueryResult(List<String> columns, List<List<Object>> rows) {
     }
 
@@ -141,38 +136,34 @@ public class DatabaseQueryTool extends BaseTool {
 
         long tenantID = tenantIdProvider != null ? tenantIdProvider.getAsLong() : 0;
 
-        // 对照 Go json.Unmarshal(args, &input) + input.SQL == ""（无 trim）。
+        // 取 "sql" 参数；空判断无 trim。
         JsonNode sqlNode = args == null ? null : args.get("sql");
         String sql = sqlNode == null || sqlNode.isNull() ? "" : sqlNode.asText();
         if (sql.isEmpty()) {
             return failure("Missing or invalid 'sql' parameter");
         }
 
-        // 对照 validateAndSecureSQL。
         String securedSQL;
         try {
             securedSQL = validateAndSecureSQL(sql, tenantID);
         } catch (SqlGuard.SqlGuardException e) {
-            // 对照 Execute：fmt.Sprintf("SQL validation failed: %v", err)
-            // —— err 即 ValidateAndSecureSQL 的 Errors[0].Message。
+            // 失败文案即校验器的首条 Message。
             return failure("SQL validation failed: " + e.getMessage());
         } catch (RuntimeException e) {
             return failure("SQL validation failed: " + e.getMessage());
         }
 
-        // 对照 db.Raw(securedSQL).Rows()。
         QueryResult queryResult;
         try {
             queryResult = queryExecutor.query(securedSQL);
         } catch (RuntimeException e) {
-            // 对照 fmt.Sprintf("Query execution failed: %v", err)
-            // （driver 错误文案 pgjdbc vs lib/pq 不同——已知差异，语料不录执行失败）。
+            // driver 错误文案因驱动而异——已知差异，语料不录执行失败。
             return failure("Query execution failed: " + e.getMessage());
         }
         List<String> columns = queryResult.columns() == null ? List.of() : queryResult.columns();
         List<List<Object>> rawRows = queryResult.rows() == null ? List.of() : queryResult.rows();
 
-        // 对照行扫描：[]byte→string、numeric（Go 侧同样经 []byte）→string，其他原样。
+        // 行扫描：byte[]→string、numeric→字符串文本，其他原样。
         List<Map<String, Object>> results = new ArrayList<>();
         for (List<Object> rowValues : rawRows) {
             Map<String, Object> rowMap = new LinkedHashMap<>();
@@ -210,7 +201,7 @@ public class DatabaseQueryTool extends BaseTool {
         return r;
     }
 
-    /** 对照 validateAndSecureSQL（scope 空 → "no effective Agent knowledge scope is available"）。 */
+    /** scope 空 → "no effective Agent knowledge scope is available"。 */
     String validateAndSecureSQL(String sqlQuery, long tenantID) throws SqlGuard.SqlGuardException {
         List<SqlGuard.SearchScope> searchScopes = searchScopesFromTargets(searchTargets);
         if (searchScopes.isEmpty()) {
@@ -221,14 +212,14 @@ public class DatabaseQueryTool extends BaseTool {
 
     private static SqlGuard.SqlValidationResult scopeUnavailableResult() {
         SqlGuard.SqlValidationResult r = new SqlGuard.SqlValidationResult();
-        // 借用 result 承载（message 即 Go 的 fmt.Errorf 文案；不进 Errors 序列化）。
+        // 借用 result 承载（message 直接作异常文案；不进 Errors 序列化）。
         r.errors.add(new SqlGuard.SqlValidationError(
                 "", "no effective Agent knowledge scope is available", ""));
         r.valid = false;
         return r;
     }
 
-    /** 对照 searchScopesFromTargets（scope 授权复用 SearchAuth）。 */
+    /** 从检索目标取 scope（授权复用 SearchAuth）。 */
     static List<SqlGuard.SearchScope> searchScopesFromTargets(SearchTarget.SearchTargets searchTargets) {
         List<SqlGuard.SearchScope> scopes = new ArrayList<>();
         if (searchTargets == null) {
@@ -251,7 +242,7 @@ public class DatabaseQueryTool extends BaseTool {
         return scopes;
     }
 
-    /** 对照 formatQueryResults（逐字；非 string/[]byte 值走 Go json.Marshal 形态）。 */
+    /** 结果渲染；非 string/byte[] 值走 JSON 编码形态（经 GoJsonCodec）。 */
     String formatQueryResults(List<String> columns, List<Map<String, Object>> results) {
         StringBuilder output = new StringBuilder("=== Query Results ===\n\n");
         output.append(String.format("Returned %d rows\n\n", results.size()));
@@ -276,10 +267,10 @@ public class DatabaseQueryTool extends BaseTool {
                 } else if (value instanceof byte[] b) {
                     formattedValue = new String(b, java.nio.charset.StandardCharsets.UTF_8);
                 } else if (value instanceof BigDecimal bd) {
-                    // Go 侧 numeric 经 []byte→string：值即 PG 数值文本。
+                    // numeric 值即 PG 数值文本。
                     formattedValue = bd.toPlainString();
                 } else {
-                    // 对照 json.Marshal 的 Go 格式（经 GoJsonCodec）。
+                    // JSON 编码形态（经 GoJsonCodec）。
                     formattedValue = GoJsonCodec.write(
                             KnowledgeSearchTool.RecordingSupportHolder.MAPPER.valueToTree(value));
                 }

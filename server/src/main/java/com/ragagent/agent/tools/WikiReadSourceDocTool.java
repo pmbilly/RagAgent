@@ -18,10 +18,10 @@ import com.ragagent.agent.tools.DocChunkSupport.PagedChunks;
 import com.ragagent.knowledge.domain.Chunk;
 
 /**
- * wiki_read_source_doc 工具（对照 Go {@code wiki_read_source_doc.go}，逐字移植）。
+ * wiki_read_source_doc 工具。
  *
- * <p>{@code searchTargets != null} 对照 Go 变参"出现即启用"scope 强制（空 scope 失败关闭）。
- * 正则用 {@code (?i)+query} 编译；Go RE2 与 java.util.regex 在交集语法外行为不同
+ * <p>{@code searchTargets != null} 即启用 scope 强制（空 scope 失败关闭）。
+ * 正则用 {@code (?i)+query} 编译；正则方言在交集语法外行为不同
  * （编译失败文案差异列入报告已知差异）。</p>
  */
 public class WikiReadSourceDocTool extends BaseTool {

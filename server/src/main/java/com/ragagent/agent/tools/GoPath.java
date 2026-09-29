@@ -1,8 +1,8 @@
 package com.ragagent.agent.tools;
 
 /**
- * Go {@code path.Clean} 的等价实现（纯字符串、POSIX 斜杠语义；不能用 java.nio.file.Path——
- * 那是平台相关的）。对照 golang.org 源码逐分支移植，sandbox 路径处理（输出目录前缀、
+ * POSIX 斜杠语义的路径清洗（纯字符串实现；不能用 java.nio.file.Path——
+ * 那是平台相关的）。sandbox 路径处理（输出目录前缀、
  * 会话工作目录校验）都依赖它的归一化行为。
  */
 public final class GoPath {
@@ -10,7 +10,7 @@ public final class GoPath {
     private GoPath() {
     }
 
-    /** 等价 path.Clean：消除 .、..、多余斜杠；结果化简为最短路径名。 */
+    /** 消除 .、..、多余斜杠；结果化简为最短路径名。 */
     public static String clean(String path) {
         if (path.isEmpty()) {
             return ".";

@@ -1,12 +1,11 @@
 package com.ragagent.agent.compaction;
 
 /**
- * 压缩摘要提示词（对照 Go internal/agent/compaction/prompts.go 全文，逐常量拷贝）。
+ * 压缩摘要提示词。
  *
  * <p>这些小节不是装饰：摘要是 agent 对被丢弃轮次的唯一记忆，非结构化的散文必然
  * 丢掉下一轮真正需要的两样东西——什么已经完成，以及接下来要做什么。</p>
  *
- * <p>Go 侧为包内常量（unexported）；Java 侧同包可见即可。</p>
  */
 final class CompactionPrompts {
 
@@ -67,7 +66,7 @@ final class CompactionPrompts {
             + "Use this EXACT format:\n\n" + SUMMARY_FORMAT;
 
     /**
-     * 被切开轮次的前缀摘要指令（对照 turnPrefixInstructions）。这与历史摘要是两份工作：
+     * 被切开轮次的前缀摘要指令。这与历史摘要是两份工作：
      * 保留的后缀还在上下文里，这里只需补足后缀自己解释不了的部分——首先是用户
      * 当初要什么。
      */

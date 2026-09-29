@@ -3,17 +3,17 @@ package com.ragagent.agent.tools;
 import java.util.regex.Pattern;
 
 /**
- * 剥离 {@code <think>…</think>} 块（对照 Go {@code strip_think.go} 的 StripThinkBlocks）。
+ * 剥离 {@code <think>…</think>} 块。
  *
  * <p>DeepSeek、Qwen 等模型会把思维链直接嵌在 content 字段的 think 标签里。在展示给用户、
  * 存入 agent 状态/上下文管理器、经 EventBus 发射之前都应剥掉。</p>
  *
- * <p>Go 实录：未闭合的 {@code <think>} 不剥（无闭合标签就没有匹配）；前导的孤立
+ * <p>行为细节：未闭合的 {@code <think>} 不剥（无闭合标签就没有匹配）；前导的孤立
  * {@code </think>} 原样保留；剥完裁掉两侧的 ' ' \n \r \t。</p>
  */
 public final class ThinkBlocks {
 
-    /** 对照 thinkBlockRe = (?s)<think>.*?</think>（(?s) 让 . 匹配换行）。 */
+    /** (?s) 让 . 匹配换行，故能跨行匹配整个 think 块。 */
     private static final Pattern THINK_BLOCK_RE =
             Pattern.compile("(?s)<think>.*?</think>");
 
@@ -30,7 +30,7 @@ public final class ThinkBlocks {
         return trimWhitespace(cleaned);
     }
 
-    /** 只裁 ' ' \n \r \t（对照 Go 的 trimWhitespace，不引入 strings 包的同款）。 */
+    /** 只裁 ' ' \n \r \t（不用 String.trim——它裁掉的空白字符更多）。 */
     private static String trimWhitespace(String s) {
         int start = 0;
         int end = s.length();

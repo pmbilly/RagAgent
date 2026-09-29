@@ -9,23 +9,21 @@ import com.ragagent.agent.domain.ToolCall;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * persist.go 的客户端/存储面（对照 Go internal/agent/tools/persist.go，
- * 波 4.6d 落地——4.6b 只把 SanitizeToolDataForPersist 收进引擎私有静态，
- * SSE 回放与 DB 存储的其余函数按约定「随 4.6d 落 tools 包时收敛」）。
+ * 工具结果的客户端/存储投影。
  *
- * <p>新增文件，零既有 tools 文件改动。纯函数，无状态。</p>
+ * <p>纯函数，无状态。</p>
  */
 public final class ToolResultPersist {
 
     private ToolResultPersist() {}
 
-    /** 对照 persistStripFields：SSE 回放 / DB 存储前丢弃的大块 Data 键。 */
+    /** SSE 回放 / DB 存储前丢弃的大块 Data 键。 */
     private static final Map<String, List<String>> PERSIST_STRIP_FIELDS = Map.of(
             "knowledge_chunks_list", List.of("chunks"),
             "grep_results", List.of("chunk_results"));
 
     /**
-     * 对照 persistStripFieldsByTool：丢二进制/重复大块。stdout/stderr 保留
+     * 按工具丢二进制/重复大块。stdout/stderr 保留
      * （另行压缩），历史回放仍能渲染终端卡片。
      */
     private static final Map<String, List<String>> PERSIST_STRIP_FIELDS_BY_TOOL = Map.of(
@@ -36,14 +34,14 @@ public final class ToolResultPersist {
             ToolDefinitions.TOOL_EDIT_SANDBOX_FILE, List.of("content", "content_base64"));
 
     /**
-     * 对照 clientStripFieldsByTool：live SSE 的轻量丢弃表。UI 需要 stdout/stderr
+     * live SSE 的轻量丢弃表。UI 需要 stdout/stderr
      * 渲染终端卡片（工具侧已截断）；持久化仍用 persist 表。
      */
     private static final Map<String, List<String>> CLIENT_STRIP_FIELDS_BY_TOOL = PERSIST_STRIP_FIELDS_BY_TOOL;
 
     private static final int HISTORICAL_SANDBOX_OUTPUT_CHARS = 4 * 1024;
 
-    /** 对照 ShouldOmitRawToolOutput。 */
+    /** data 带 display_type 时视为"模型面输出已另存"，原始 output 不再下发。 */
     public static boolean shouldOmitRawToolOutput(String toolName, Map<String, Object> data) {
         if (data == null) {
             return false;
@@ -52,12 +50,12 @@ public final class ToolResultPersist {
         return displayType instanceof String s && !s.isEmpty();
     }
 
-    /** 对照 SanitizeToolDataForPersist：DB / SSE 回放安全副本。 */
+    /** DB / SSE 回放安全副本。 */
     public static Map<String, Object> sanitizeToolDataForPersist(String toolName, Map<String, Object> data) {
         return sanitizeToolData(data, PERSIST_STRIP_FIELDS_BY_TOOL.get(toolName));
     }
 
-    /** 对照 sanitizeToolDataForClient（包私有 → Java 公开给桥内使用）。 */
+    /** live SSE 客户端视图。 */
     static Map<String, Object> sanitizeToolDataForClient(String toolName, Map<String, Object> data) {
         List<String> omit = CLIENT_STRIP_FIELDS_BY_TOOL.get(toolName);
         if (omit == null) {
@@ -86,7 +84,7 @@ public final class ToolResultPersist {
         return out;
     }
 
-    /** 对照 SanitizeToolResultForClient：为 UI 组 stream / 持久化 metadata。 */
+    /** 为 UI 组 stream / 持久化 metadata。 */
     public static Map<String, Object> sanitizeToolResultForClient(String toolName, ToolResult result) {
         Map<String, Object> meta = new LinkedHashMap<>();
         if (result == null) {
@@ -101,7 +99,7 @@ public final class ToolResultPersist {
         return meta;
     }
 
-    /** 对照 StreamContentForToolResult：工具结果的短 SSE Content 字段。 */
+    /** 工具结果的短 SSE Content 字段。 */
     public static String streamContentForToolResult(String toolName, boolean success, String errMsg,
             Map<String, Object> data) {
         if (!success) {
@@ -116,7 +114,7 @@ public final class ToolResultPersist {
         return "";
     }
 
-    /** 对照 SanitizeAgentStepsForStorage：剥掉 LLM 专用负载后落库。 */
+    /** 剥掉 LLM 专用负载后落库。 */
     public static List<AgentStep> sanitizeAgentStepsForStorage(List<AgentStep> steps) {
         if (steps == null || steps.isEmpty()) {
             return steps;
@@ -178,7 +176,7 @@ public final class ToolResultPersist {
         return r;
     }
 
-    /** 对照 CompactToolOutputForHistory：历史回放时重建短工具消息。 */
+    /** 历史回放时重建短工具消息。 */
     public static String compactToolOutputForHistory(String toolName, ToolResult result) {
         if (result == null) {
             return "";
@@ -206,7 +204,7 @@ public final class ToolResultPersist {
     }
 
     /**
-     * 对照 failedToolVisibleContent：工具失败时保住 Output 里的 stdout/stderr
+     * 工具失败时保住 Output 里的 stdout/stderr
      * （Error 常常只是一行退出码 + 重试提示；流才是模型改参数的依据）。
      */
     private static String failedToolVisibleContent(String output, String errMsg) {
@@ -405,7 +403,7 @@ public final class ToolResultPersist {
         return "Tool completed (payload omitted from history)";
     }
 
-    /** 对照 stringField（TrimSpace(fmt.Sprint(v)) 语义）。 */
+    /** 取字符串字段（null → ""，值 trim）。 */
     private static String stringField(Map<String, Object> data, String key) {
         if (data == null) {
             return "";
@@ -417,7 +415,7 @@ public final class ToolResultPersist {
         return String.valueOf(v).trim();
     }
 
-    /** 对照 intField（数字族归一）。 */
+    /** 取整数字段（数字族归一，其余 → 0）。 */
     private static int intField(Map<String, Object> data, String key) {
         if (data == null) {
             return 0;

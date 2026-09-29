@@ -1,13 +1,12 @@
 package com.ragagent.agent.approval;
 
 /**
- * 目录批量校验用的单工具查询面（对照 Go approval.enabledChecker，tool_policy.go:10-12）。
+ * 目录批量校验用的单工具查询面。
  *
- * <p>Go 里该接口是 unexported 的，但 {@code EnabledTools} 是 exported 函数——
- * Java 不支持“公开方法 + 非公开参数类型”，故提升为 public（语义不变）。</p>
+ * <p>因 {@link ToolPolicy} 的公开方法签名以本接口为参数类型，
+ * Java 不允许“公开方法暴露非公开类型”，故本接口一并设为 public。</p>
  */
 public interface EnabledChecker {
 
-    /** 对照 Go enabledChecker.IsEnabled */
     boolean isEnabled(Cancellation ctx, long tenantId, String serviceId, String toolName);
 }

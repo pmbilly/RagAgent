@@ -17,25 +17,21 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * data_analysis 工具（对照 Go {@code data_analysis.go}，逐字移植）。
+ * data_analysis 工具。
  *
- * <p>DuckDB 访问经 {@link AnalysisDuckDb} seam（对照 {@code *sql.DB}：
- * CREATE TABLE 装载 / DESCRIBE 取 schema / COUNT / 用户查询 / st_read_meta 枚举
- * sheet——整段 driver 交互在 seam 实现侧，回放测试用 duckdb_jdbc 内存库实现）。
- * 知识文件经 {@link KnowledgeLoader}（对照 KnowledgeService.GetKnowledgeByIDOnly）与
- * {@link KnowledgeFileMaterializer}（对照 FileService.GetFile + 临时文件物化；
- * Go 侧 resolveFileServiceForKnowledge 的 storage 后端解析整体在 4.5c 实现侧）
+ * <p>DuckDB 访问经 {@link AnalysisDuckDb} seam（CREATE TABLE 装载 / DESCRIBE 取 schema /
+ * COUNT / 用户查询 / st_read_meta 枚举 sheet——整段 driver 交互在 seam 实现侧，
+ * 回放测试用 duckdb_jdbc 内存库实现）。知识文件经 {@link KnowledgeLoader}（按 ID 取知识）
+ * 与 {@link KnowledgeFileMaterializer}（取文件 + 临时文件物化；storage 后端解析在实现侧）
  * 两个接缝。</p>
  *
- * <p>SQL 校验复用 {@link SqlGuard} 的可配置入口（对照 Go 的三选项
- * {@code ValidateSQL(WithAllowedTable(t), WithSingleStatement(),}
- * {@code WithNoDangerousFunctions())}——无 select-only/函数白名单/子查询/CTE/
- * schema/系统列检查）。Go 侧 pg_query 的 parse 错误文案差异见 SqlGuard 文档；
- * DuckDB driver 错误文案（1.5.2 vs 1.1.3）差异列报告（已知差异⑮）。</p>
+ * <p>SQL 校验复用 {@link SqlGuard} 的可配置入口（单表白名单 + 单语句 + 无危险函数
+ * ——无 select-only/子查询/CTE/schema/系统列检查）。parse 错误文案差异
+ * 见 SqlGuard 文档；DuckDB driver 错误文案（1.5.2 vs 1.1.3）差异已知。</p>
  */
 public class DataAnalysisTool extends BaseTool implements Cleanable {
 
-    /** schema 字节即契约：Go 实录 {@code utils.GenerateSchema[DataAnalysisInput]()}（探针 _schema 语料）。 */
+    /** schema 字节即契约：以探针 _schema 语料钉死的字节形态为准。 */
     private static final String SCHEMA_JSON = """
             {"type":"object","properties":{"knowledge_id":{"type":"string","description":"short dN document ID to query"},"sql":{"type":"string","description":"SQL to be executed on knowledge"}},"required":["knowledge_id","sql"],"additionalProperties":false}""";
 
@@ -43,49 +39,47 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
             + "For Excel files with multiple sheets, every sheet is loaded into the same table and the source sheet name is exposed as a '__sheet_name' column so you can filter/aggregate per sheet. "
             + "If the user's question requires data statistics, convert the question into SQL and execute it.";
 
-    /** 对照 excelSheetNameColumn。 */
     static final String EXCEL_SHEET_NAME_COLUMN = "__sheet_name";
 
-    /** 知识视图（对照 types.Knowledge 被用字段）。 */
+    /** 知识视图（跨模块最小字段集）。 */
     public record KnowledgeData(String id, String knowledgeBaseId, long tenantId, String fileType,
             String filePath) {
     }
 
-    /** 对照 KnowledgeService.GetKnowledgeByIDOnly：返回 null = "empty result"；抛异常 = err。 */
+    /** 按 ID 取知识：返回 null = "empty result"（记入失败文案）；抛异常 = 装载失败。 */
     public interface KnowledgeLoader {
         KnowledgeData byIdOnly(String knowledgeId);
     }
 
     /**
-     * 对照 materializeKnowledgeFile：把知识文件物化成带正确扩展名的本地临时文件
-     * （工具侧用后即删，对照 Go 的 defer cleanup）。storage 后端解析
-     * （resolveFileServiceForKnowledge 全部分支）在实现侧。
+     * 把知识文件物化成带正确扩展名的本地临时文件（工具侧用后即删）。
+     * storage 后端解析在实现侧。
      */
     public interface KnowledgeFileMaterializer {
         Path materialize(KnowledgeData knowledge);
     }
 
-    /** DuckDB 访问 seam（对照 {@code *sql.DB} 的全部交互）。 */
+    /** DuckDB 访问 seam（本工具的全部 driver 交互）。 */
     public interface AnalysisDuckDb {
-        /** 对照 {@code db.ExecContext}（CREATE TABLE / DROP TABLE）。 */
+        /** 执行写语句（CREATE TABLE / DROP TABLE）。 */
         void exec(String sql);
 
-        /** 对照 {@code db.QueryContext} + 列名/行值（null = SQL NULL）。 */
+        /** 执行查询并返回列名/行值（null = SQL NULL）。 */
         QueryResult query(String sql);
 
-        /** 对照 listExcelSheets（st_read_meta；失败时调用点回退首 sheet）。 */
+        /** 枚举 xlsx 的 sheet（st_read_meta；失败时调用点回退首 sheet）。 */
         List<String> listSheets(String xlsxPath);
     }
 
-    /** 对照 rows.Columns() + 行值切片。 */
+    /** 一次查询的列名 + 行值（null = SQL NULL）。 */
     public record QueryResult(List<String> columns, List<List<Object>> rows) {
     }
 
-    /** 对照 ColumnInfo。 */
+    /** 列信息（名/类型/可空）。 */
     public record ColumnInfo(String name, String type, String nullable) {
     }
 
-    /** 对照 TableSchema（Metadata 只进 Description()，工具输出不用，故不移植）。 */
+    /** 表 schema（表名 + 列 + 行数）。 */
     public record TableSchema(String tableName, List<ColumnInfo> columns, long rowCount) {
     }
 
@@ -106,16 +100,15 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         this.sessionID = sessionID == null ? "" : sessionID;
     }
 
-    /** 对照 WithSearchTargets（scopeEnforced 独立于 slice 长度：无 target 全拒）。 */
+    /** 启用作用域授权（scopeEnforced 独立于列表长度：无 target 全拒）。 */
     public DataAnalysisTool withSearchTargets(SearchTarget.SearchTargets searchTargets) {
         this.searchTargets = searchTargets;
         this.scopeEnforced = true;
         return this;
     }
 
-    // ==================== 装载路径（对照 LoadFrom*） ====================
+    // ==================== 装载路径 ====================
 
-    /** 对照 recordCreatedTable。 */
     boolean recordCreatedTable(String tableName) {
         if (createdTables.contains(tableName)) {
             return false;
@@ -124,19 +117,17 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return true;
     }
 
-    /** 对照 Cleanup。 */
     public void cleanup() {
         for (String tableName : new ArrayList<>(createdTables)) {
             try {
                 duckDb.exec(String.format("DROP TABLE IF EXISTS \"%s\"", tableName));
             } catch (RuntimeException e) {
-                // 对照 Go：单表失败继续清其它表。
+                // 单表失败继续清其它表。
             }
         }
         createdTables.clear();
     }
 
-    /** 对照 LoadFromKnowledgeID。 */
     TableSchema loadFromKnowledgeID(String knowledgeID) {
         KnowledgeData knowledge;
         try {
@@ -151,7 +142,6 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return loadFromKnowledge(knowledge);
     }
 
-    /** 对照 LoadFromKnowledge。 */
     TableSchema loadFromKnowledge(KnowledgeData knowledge) {
         String tableName = tableName(knowledge);
         String fileType = knowledge.fileType() == null ? "" : knowledge.fileType().toLowerCase(Locale.ROOT);
@@ -183,11 +173,10 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         try {
             Files.deleteIfExists(p);
         } catch (java.io.IOException e) {
-            // 对照 Go cleanup：best-effort。
+            // best-effort：删除失败不影响装载结果。
         }
     }
 
-    /** 对照 LoadFromCSV。 */
     TableSchema loadFromCSV(String filename, String tableName) {
         if (recordCreatedTable(tableName)) {
             String createTableSQL = String.format(
@@ -202,7 +191,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return loadFromTable(tableName);
     }
 
-    /** 对照 LoadFromExcel（sheet 枚举失败回退首 sheet）。 */
+    /** sheet 枚举失败回退首 sheet。 */
     TableSchema loadFromExcel(String filename, String tableName) {
         if (recordCreatedTable(tableName)) {
             List<String> sheetNames;
@@ -227,7 +216,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return sheetNames == null ? List.of() : sheetNames;
     }
 
-    /** 对照 buildExcelCreateTableSQL（纯函数，4 分支逐字）。 */
+    /** 纯函数：按 sheet 数量（无/单/多）生成建表 SQL。 */
     static String buildExcelCreateTableSQL(String tableName, String filename, List<String> sheetNames) {
         String escFile = sqlSingleQuoteEscape(filename);
 
@@ -261,7 +250,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
                 String.join("\nUNION ALL BY NAME\n", parts));
     }
 
-    /** 对照 LoadFromTable（DESCRIBE + COUNT）。 */
+    /** DESCRIBE 取列 + COUNT 取行数，组装表 schema。 */
     TableSchema loadFromTable(String tableName) {
         QueryResult describe;
         try {
@@ -288,12 +277,11 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return new TableSchema(tableName, columns, rowCount);
     }
 
-    /** 对照 TableName。 */
     static String tableName(KnowledgeData knowledge) {
         return "k_" + (knowledge.id() == null ? "" : knowledge.id()).replace("-", "_");
     }
 
-    // ==================== Execute（对照 data_analysis.go Execute） ====================
+    // ==================== Execute ====================
 
     @Override
     public ToolResult execute(ToolRequest request) {
@@ -317,7 +305,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
             return failure(String.format("Failed to load knowledge ID '%s': %s", knowledgeID, e.getMessage()));
         }
 
-        // Replace knowledge ID with table name（对照 strings.ReplaceAll——含字符串
+        // Replace knowledge ID with table name（含字符串
         // 字面量内出现的 ID 也替换的怪癖照录）。
         sql = sql.replace(knowledgeID, schema.tableName());
         ReconcileResult reconciled = reconcileSQLColumnsWithSchema(sql, schema);
@@ -386,7 +374,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         };
     }
 
-    /** 对照 executeSingleQuery（行扫描：[]byte→string，其他 %v；nil → "<nil>"）。 */
+    /** 行扫描：byte[]→UTF-8 文本，其余按 {@link #goFormatV} 形态；null → "&lt;nil&gt;"。 */
     List<Map<String, String>> executeSingleQuery(String sqlQuery) {
         QueryResult qr;
         try {
@@ -407,7 +395,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return results;
     }
 
-    /** 对照 fmt.Sprintf("%v", val)：nil→"<nil>"，[]byte→string，其余 Go 默认格式。 */
+    /** 值的输出形态：null→"&lt;nil&gt;"，byte[]→UTF-8 文本，浮点去尾零，其余 toString。 */
     static String goFormatV(Object val) {
         if (val == null) {
             return "<nil>";
@@ -425,7 +413,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
             return val.toString();
         }
         if (val instanceof Double d) {
-            // Go %v 的 float64 = strconv.FormatFloat('g', -1)。
+            // 浮点形态：最短表示、去尾零。
             return BigDecimal.valueOf(d).stripTrailingZeros().toPlainString();
         }
         if (val instanceof Float f) {
@@ -437,7 +425,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return val.toString();
     }
 
-    /** 对照 formatQueryResults（JSONL；record 行内键序 = Go json.Marshal 的 map 排序 + HTML 转义）。 */
+    /** 结果渲染（record 行为 JSONL；行内键按字节序排序 + HTML 转义）。 */
     String formatQueryResults(List<Map<String, String>> results, String query) {
         StringBuilder output = new StringBuilder();
         output.append("=== DuckDB Query Results ===\n\n");
@@ -457,7 +445,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
 
         for (int i = 0; i < results.size(); i++) {
             Map<String, String> record = results.get(i);
-            // Go json.Marshal(map[string]string)：键排序 + HTML 转义（<>& → \u003c…）。
+            // record 行内键按字节序排序 + HTML 转义（<>& → \u003c…）。
             String recordStr = GoJsonCodec.write(
                     KnowledgeSearchTool.RecordingSupportHolder.MAPPER.valueToTree(new TreeMap<>(record)));
             output.append(String.format("record %d: %s\n", i + 1, recordStr));
@@ -472,14 +460,14 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return r;
     }
 
-    // ==================== 标识符调和与错误建议（对照同名纯函数） ====================
+    // ==================== 标识符调和与错误建议 ====================
 
-    /** 对照 sqlSingleQuoteEscape。 */
+    /** 单引号翻倍，防 SQL 字符串字面量逃逸。 */
     static String sqlSingleQuoteEscape(String s) {
         return s == null ? "" : s.replace("'", "''");
     }
 
-    /** 对照 normalizeIdentifierForMatch。 */
+    /** 标识符匹配归一化：trim + 小写 + 去半/全角空格。 */
     static String normalizeIdentifierForMatch(String s) {
         String normalized = s.trim().toLowerCase(Locale.ROOT);
         normalized = normalized.replace(" ", "");
@@ -487,11 +475,11 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return normalized;
     }
 
-    /** 对照 reconcileSQLColumnsWithSchema 的返回值二元组。 */
+    /** 调和结果：改写后的 SQL 与替换清单。 */
     record ReconcileResult(String sql, List<String> fixes) {
     }
 
-    /** 对照 reconcileSQLColumnsWithSchema（双引号标识符规范化）。 */
+    /** 双引号标识符调和：按归一化名替换为 schema 中的规范名。 */
     static ReconcileResult reconcileSQLColumnsWithSchema(String sqlText, TableSchema schema) {
         if (schema == null || schema.columns().isEmpty()) {
             return new ReconcileResult(sqlText, List.of());
@@ -524,7 +512,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return new ReconcileResult(rewritten.toString(), fixes);
     }
 
-    /** 对照 buildMissingColumnSuggestion（DuckDB driver 的 "Referenced column … not found"）。 */
+    /** 从 driver 的 "Referenced column … not found" 错误生成"你是否想要"建议。 */
     static String buildMissingColumnSuggestion(String errMsg, TableSchema schema) {
         if (errMsg == null || schema == null) {
             return "";
@@ -554,12 +542,12 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         return "";
     }
 
-    /** 对照 Go %v 的 []string：[a b]。 */
+    /** 列表的输出形态：[a b]。 */
     private static String goSliceString(List<String> items) {
         return "[" + String.join(" ", items) + "]";
     }
 
-    /** 对照 Go %v 的 []SQLValidationError：[{type message details} …]（空 details 留尾空格）。 */
+    /** 校验错误列表的输出形态：[{type message details} …]（空 details 留尾空格）。 */
     static String goFormatValidationErrors(List<SqlGuard.SqlValidationError> errors) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < errors.size(); i++) {

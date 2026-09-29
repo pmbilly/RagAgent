@@ -1,13 +1,13 @@
 package com.ragagent.agent.tools;
 
 /**
- * 预算分摊（对照 Go {@code output_budget.go} 的 {@code splitBudgetFairly}，逐字移植）。
+ * 预算分摊。
  *
  * <p>registry 把输出上限经 {@link ToolRequest#outputBudget()} 发布给工具；本类给"一次结果渲染
  * 多条记录"的工具做 max-min 公平（water-filling）分配：小于均份额的条目保全长并把富余让给大条目
  * ——批式结果因此按"削 biggest"退化而不是"整条丢弃"。</p>
  *
- * <p>Go 实录：{@code (100,[10,20,30])→[10,20,30]}、{@code (90,[5,1000,1000])→[5,42,42]}、
+ * <p>行为实录：{@code (100,[10,20,30])→[10,20,30]}、{@code (90,[5,1000,1000])→[5,42,42]}、
  * {@code (1000,[700,20,5000,120])→[430,20,430,120]}、{@code (10,[100])→[10]}。</p>
  */
 public final class OutputBudgets {

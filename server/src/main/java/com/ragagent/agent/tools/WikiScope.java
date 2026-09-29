@@ -15,7 +15,7 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 
 
-    /** 对照 NewWikiScopesFromKBIDs（防御性去重——重复 KB ID 会把唯一 slug 误报成 ambiguous）。 */
+    /** 从 KB ID 列表构造 scope（防御性去重——重复 KB ID 会把唯一 slug 误报成 ambiguous）。 */
     public static List<WikiScope> newWikiScopesFromKbIds(List<String> kbIds) {
         List<WikiScope> scopes = new ArrayList<>();
         for (String id : SearchAuth.dedupNonEmptyStrings(kbIds)) {
@@ -25,7 +25,7 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
     }
 
     /**
-     * 对照 NewWikiScopesFromSearchTargets：同一 Wiki KB 的所有 target 合并成一个 scope
+     * 从检索目标构造 scope：同一 Wiki KB 的所有 target 合并成一个 scope
      * （并集语义）；整库 target 覆盖窄目标；畸形空文档 target 不会悄悄变成整库授权。
      */
     public static List<WikiScope> newWikiScopesFromSearchTargets(SearchTargets searchTargets, List<String> wikiKbIds) {
@@ -78,7 +78,7 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
         }
     }
 
-    /** 对照 scopeKnowledgeFilter：返回 (filterSet, hasFilter)。 */
+    /** scope 的 knowledge_ids 过滤集（null = 无过滤）。 */
     public static Map<String, Boolean> scopeKnowledgeFilter(WikiScope scope) {
         Map<String, Boolean> set = new LinkedHashMap<>();
         if (scope.knowledgeIds() == null || scope.knowledgeIds().isEmpty()) {
@@ -92,7 +92,7 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
         return set;
     }
 
-    /** 对照 scopesOutsideKBs。 */
+    /** 不在给定 KB 集内的 scope。 */
     public static List<WikiScope> scopesOutsideKbs(List<WikiScope> scopes, List<WikiScope> excluded) {
         if (excluded == null || excluded.isEmpty()) {
             return scopes;
@@ -110,12 +110,12 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
         return remaining;
     }
 
-    /** 对照 isStructuralPage：index 页不受 knowledge_ids scope 过滤。 */
+    /** 结构页（index 等）不受 knowledge_ids scope 过滤。 */
     public static boolean isStructuralPage(PageView page) {
         return page != null && WikiIndexOverview.WIKI_PAGE_TYPE_INDEX.equals(page.pageType());
     }
 
-    /** 对照 extractSourceKnowledgeIDs：SourceRefs（"uuid" / "uuid|title"）→ 裸 knowledge ID。 */
+    /** SourceRefs（"uuid" / "uuid|title"）→ 裸 knowledge ID。 */
     public static List<String> extractSourceKnowledgeIDs(PageView page) {
         List<String> ids = new ArrayList<>();
         if (page == null || page.sourceRefs() == null) {
@@ -137,7 +137,7 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
         return ids;
     }
 
-    /** 对照 pageIntersectsKnowledgeIDs。 */
+    /** 页的源知识是否与 scope 过滤集相交。 */
     public static boolean pageIntersectsKnowledgeIDs(PageView page, Map<String, Boolean> allowed) {
         if (allowed == null || allowed.isEmpty()) {
             return true;
@@ -151,9 +151,8 @@ import com.ragagent.agent.tools.SearchTarget.SearchTargets;
     }
 
     /**
-     * 对照 pagePassesWikiScope：返回是否通过 scope。tag 查询失败时
-     * fetchTags 的 RuntimeException 自然外抛（调用方捕获后拼 errs 文案，
-     * 对照 Go 的 (bool, error) 二返回）。
+     * 返回页是否通过 scope。tag 查询失败时
+     * fetchTags 的 RuntimeException 自然外抛（调用方捕获后拼 errs 文案）。
      */
     public static boolean pagePassesWikiScope(PageView page, WikiScope scope,
             SearchAuth.KnowledgeTagsFetcher fetchTags) {

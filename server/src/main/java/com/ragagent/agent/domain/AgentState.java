@@ -7,35 +7,34 @@ import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.retrieval.domain.SearchResult;
 
 /**
- * agent 一次执行的运行时状态（对照 Go {@code types.AgentState}，
- * internal/types/agent.go:449-457）。
+ * agent 一次执行的运行时状态。
  *
- * <h2>JSON 契约（Execute 返回值会被 json.Marshal 落库/进事件）</h2>
+ * <h2>JSON 契约（返回值会被序列化落库/进事件）</h2>
  * <ul>
- *   <li>{@code pending_steer_messages} 是 {@code json:"-"}——<b>绝不输出</b>
+ *   <li>{@code pending_steer_messages} <b>绝不输出</b>
  *       （{@code @JsonIgnore}；steer 行 id 只走引擎内部）；</li>
  *   <li>{@code current_round} / {@code is_complete} / {@code final_answer} /
  *       {@code round_steps} / {@code knowledge_refs} / {@code turn_usage}
- *       均<b>无 omitempty</b> → 恒输出（零值 {@code 0}/{@code false}/{@code ""}/
+ *       <b>恒输出</b>，零值也输出（{@code 0}/{@code false}/{@code ""}/
  *       {@code null}/{@code null}/{@code 零值 usage}）；</li>
- *   <li>{@code knowledge_refs} 是 {@code []*SearchResult}：Go 的 nil 切片输出
- *       {@code null}；Execute 初始化为空切片后输出 {@code []}（实录钉住）。</li>
- *   <li>{@code turn_usage} 的 cache_status 走 TokenUsage 自己的 omitempty 规则。</li>
+ *   <li>{@code knowledge_refs}：未初始化时输出 {@code null}；引擎初始化为空列表后
+ *       输出 {@code []}（实录钉住）。</li>
+ *   <li>{@code turn_usage} 的 cache_status 走 TokenUsage 自己的输出规则。</li>
  * </ul>
  *
- * <p>与本包 {@link AgentStep} 的关系：RoundSteps 的元素就是 AgentStep
+ * <p>与本包 {@link AgentStep} 的关系：{@link #roundSteps} 的元素就是 AgentStep
  * （jsonb 列 {@code messages.agent_steps} 的元素同型）。</p>
  */
 public class AgentState {
 
-    /** 已消费、尚未落进某个 AgentStep 的 steer 行 id（json:"-"，不输出）。 */
+    /** 已消费、尚未落进某个 AgentStep 的 steer 行 id（不进 JSON 输出）。 */
     @JsonIgnore
     private List<String> pendingSteerMessages;
 
     /** 当前轮次序号。 */
     private int currentRound;
 
-    /** 本轮已产生的全部步骤。Go nil → {@code null}；Execute 初始化空切片 → {@code []}。 */
+    /** 本轮已产生的全部步骤。null → 输出 {@code null}；引擎初始化空列表后 → {@code []}。 */
     private List<AgentStep> roundSteps;
 
     /** 引擎是否已收束（自然停 / 重试耗尽 / 达到轮次上限 / 卡死检测）。 */
@@ -44,10 +43,10 @@ public class AgentState {
     /** 最终答案。 */
     private String finalAnswer = "";
 
-    /** 收集的知识引用（本波引擎不填充；handler 侧在 complete 事件里回填）。 */
+    /** 收集的知识引用（本引擎不填充；handler 侧在 complete 事件里回填）。 */
     private List<SearchResult> knowledgeRefs;
 
-    /** 本轮累计的 LLM 用量（无 omitempty：恒输出，零值全 0）。 */
+    /** 本轮累计的 LLM 用量（恒输出，零值全 0）。 */
     private TokenUsage turnUsage = new TokenUsage();
 
     public List<String> getPendingSteerMessages() { return pendingSteerMessages; }

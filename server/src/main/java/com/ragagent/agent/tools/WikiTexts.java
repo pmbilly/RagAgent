@@ -11,7 +11,7 @@ public final class WikiTexts {
     }
 
 
-    /** 对照 parseStringOrArray：JSON 字符串或字符串数组 → 非空字符串列表。 */
+    /** JSON 字符串或字符串数组 → 非空字符串列表。 */
     public static List<String> parseStringOrArray(JsonNode val) {
         List<String> result = new ArrayList<>();
         if (val == null || val.isNull()) {
@@ -38,7 +38,7 @@ public final class WikiTexts {
     }
 
 
-    /** 对照 truncateForSummary：首段（去 #/## 前缀），超长按 rune 截 + "..."。 */
+    /** 摘要截断：首段（去 #/## 前缀），超长按 rune 截 + "..."。 */
     public static String truncateForSummary(String content, int maxLen) {
         String first = content == null ? "" : content;
         int para = first.indexOf("\n\n");
@@ -60,9 +60,9 @@ public final class WikiTexts {
 
 
     /**
-     * 对照 extractSnippet：(?i)+query 的首个匹配前后各 60 runes、匹配自身至多 100
-     * runes，压缩空白后以 "... ... ..." 包裹。正则编译失败返回 ""（Go regexp ≠
-     * java.util.regex：语法交集之外的 pattern 行为差异列入报告已知差异）。
+     * 摘要片段：(?i)+query 的首个匹配前后各 60 runes、匹配自身至多 100
+     * runes，压缩空白后以 "... ... ..." 包裹。正则编译失败返回 ""（正则方言
+     * 差异为已知差异点）。
      */
     public static String extractSnippet(String content, String query) {
         if (content == null || content.isEmpty() || query == null || query.isEmpty()) {
@@ -95,7 +95,7 @@ public final class WikiTexts {
     }
 
 
-    /** 前 n runes（对照 []rune(s)[:n]）。 */
+    /** 前 n runes。 */
     static String firstRunes(String s, int n) {
         if (s == null) {
             return "";
@@ -108,7 +108,7 @@ public final class WikiTexts {
     }
 
 
-    /** 后 n runes（对照 []rune(s)[len-n:]）。 */
+    /** 后 n runes。 */
     static String lastRunes(String s, int n) {
         if (s == null) {
             return "";

@@ -10,13 +10,13 @@ public final class WikiIndexOverview {
     }
 
 
-    // ==================== wiki_tools.go 共享 helper ====================
+    // ==================== wiki 工具共享 helper ====================
 
-    /** 对照 wikiIndexAgentTopK。 */
+    /** 索引概览的默认条数上限。 */
     public static final int WIKI_INDEX_AGENT_TOP_K = 20;
 
 
-    /** 对照 renderIndexOverviewForAgent（逐字移植，含 "\n## " 裁剪与 top-K 标注）。 */
+    /** 索引概览渲染（含 "\n## " 裁剪与 top-K 标注）。 */
     public static String renderIndexOverviewForAgent(IndexOverviewView resp) {
         StringBuilder sb = new StringBuilder();
         String intro = resp.intro() == null ? "" : resp.intro().trim();
@@ -72,18 +72,18 @@ public final class WikiIndexOverview {
     }
 
 
-    /** 对照 types.WikiPageTypeEntity。 */
+    /** 页面类型：实体。 */
     public static final String WIKI_PAGE_TYPE_ENTITY = "entity";
 
-    /** 对照 types.WikiPageTypeConcept。 */
+    /** 页面类型：概念。 */
     public static final String WIKI_PAGE_TYPE_CONCEPT = "concept";
 
-    /** 对照 types.WikiPageTypeIndex。 */
+    /** 页面类型：索引。 */
     public static final String WIKI_PAGE_TYPE_INDEX = "index";
 
-    /** 对照 types.WikiPageTypeSynthesis。 */
+    /** 页面类型：综合。 */
     public static final String WIKI_PAGE_TYPE_SYNTHESIS = "synthesis";
 
-    /** 对照 types.WikiPageTypeComparison。 */
+    /** 页面类型：对比。 */
     public static final String WIKI_PAGE_TYPE_COMPARISON = "comparison";
 }

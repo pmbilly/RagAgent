@@ -11,25 +11,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * MCP 工具入参的完整 schema 校验（对照 Go {@code mcp_schema.go} 的
- * {@code (*MCPTool).ValidateArguments}——自带一个 Draft 2020-12 校验器，见下"为什么手写"）。
+ * MCP 工具入参的完整 schema 校验——自带一个 Draft 2020-12 校验器，见下"为什么手写"。
  *
  * <p>语义锚点：</p>
  * <ul>
- *   <li><b>编译一次，按工具快照缓存</b>（对照 schemaOnce；刷新定义会创建新 MCPTool，
- *       波 4.5c 的实例模型天然如此）；内建工具保持既有校验与转换语义不走这里；</li>
+ *   <li><b>编译一次，按工具快照缓存</b>（校验器实例随工具定义走，刷新定义自然换新）；
+ *       内建工具保持既有校验与转换语义不走这里；</li>
  *   <li><b>MCP schema 不可信</b>：解析内嵌的 $defs/definitions/$ref，但<b>绝不</b>抓远程
- *       URL、绝不打开本地文件——Go 的 UseLoader(nil) 让外部 $ref 报
- *       {@code no URLLoader set}（实录钉死该文案片段），本实现对外部引用复刻同一文案；</li>
+ *       URL、绝不打开本地文件——外部 $ref 报
+ *       {@code no URLLoader set}（钉死的文案片段）；</li>
  *   <li>参数 JSON 非法 → {@code invalid MCP arguments JSON: ...}；非对象 →
  *       {@code MCP arguments must be an object}；schema 编译失败 →
- *       {@code MCP input schema cannot be validated: ...}（实录 TestMCPSchemaDoesNotLoadExternalResources
- *       用 "schema cannot be validated" 探测 "properties": 42 这类坏 schema）。</li>
+ *       {@code MCP input schema cannot be validated: ...}（探针用 "schema cannot be validated"
+ *       探测 "properties": 42 这类坏 schema）。</li>
  * </ul>
  *
- * <p><b>为什么手写校验器</b>：Go 用 santhosh-tekuri/jsonschema v6，Maven 无逐字节等价物；
- * 引 networknt 会带来传递依赖且复刻不了 "no URLLoader set" 的边界。MCP 入参校验的特征集
- * 是封闭的（见 mcp_schema_test.go 语料：type 数组/required/additionalProperties/items/
+ * <p><b>为什么手写校验器</b>：Maven 无与既定实现逐字节等价的现成校验器；引第三方库会带来
+ * 传递依赖且复刻不了 "no URLLoader set" 的边界。MCP 入参校验的特征集
+ * 是封闭的（语料：type 数组/required/additionalProperties/items/
  * uniqueItems/oneOf/allOf/anyOf/if-then-else/const/minLength(按 rune)/minimum/$defs+本地
  * $ref/布尔 schema），本实现按该语料全覆盖，深度上限防御恶意递归。</p>
  */
@@ -48,7 +47,7 @@ public final class McpInputSchemaValidator {
         this.schemaJson = schemaJson == null ? "" : schemaJson;
     }
 
-    /** 编译失败或校验失败返回错误文案；通过返回 null（对照 Go 的 error 返回值）。 */
+    /** 编译失败或校验失败返回错误文案；通过返回 null。 */
     public String validateArguments(String argsJson) {
         JsonNode schema = compileIfNeeded();
         if (compileError != null) {
@@ -97,7 +96,7 @@ public final class McpInputSchemaValidator {
         }
     }
 
-    /** 编译期检查：坏 schema（如 "properties": 42）与外部引用在 Go 的 Compile 阶段就失败。 */
+    /** 编译期检查：坏 schema（如 "properties": 42）与外部引用在此即失败。 */
     private String checkCompilable(JsonNode doc, Set<JsonNode> seen) {
         if (doc.isObject()) {
             if (seen.contains(doc)) {
@@ -132,7 +131,7 @@ public final class McpInputSchemaValidator {
         return externalRefError(doc);
     }
 
-    /** 非 "#..." 的 $ref（http/file/urn）一律拒绝——对照 UseLoader(nil) 的效果。 */
+    /** 非 "#..." 的 $ref（http/file/urn）一律拒绝（远程抓取禁用）。 */
     private String externalRefError(JsonNode node) {
         if (!node.isObject()) {
             return null;
@@ -215,7 +214,7 @@ public final class McpInputSchemaValidator {
             }
         }
 
-        // 字符串长度（按 code point，对照 Go 的 utf8.RuneCountInString——实录："中文" 过 minLength 2）
+        // 字符串长度按 code point 计（实录："中文" 过 minLength 2）
         if (value.isTextual()) {
             JsonNode minLength = schema.get("minLength");
             if (minLength != null && minLength.isNumber()
@@ -428,7 +427,7 @@ public final class McpInputSchemaValidator {
         };
     }
 
-    /** JSON 值等值（数字按数值比较——Go 的 1 与 1.0 反序列化后都是 float64，实录 [1,"2] 分界）。 */
+    /** JSON 值等值（数字按数值比较——1 与 1.0 相等，实录 [1,"2] 分界）。 */
     private static boolean jsonEquals(JsonNode a, JsonNode b) {
         if (a.isNumber() && b.isNumber()) {
             return a.decimalValue().compareTo(b.decimalValue()) == 0;

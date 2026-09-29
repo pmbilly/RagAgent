@@ -9,40 +9,40 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
- * 通用参数校验（对照 Go {@code param_validate.go} 的 {@code ValidateParams}，逐字移植）。
+ * 通用参数校验。
  *
- * <p>对照工具声明的 JSON Schema 检查 args，支持的检查：required（存在且非 null）、
+ * <p>按工具声明的 JSON Schema 检查 args，支持的检查：required（存在且非 null）、
  * type（string/number/integer/boolean/array/object）、enum、minimum/maximum、
- * minLength/maxLength。错误文案（含工具参数名的格式化）逐字照抄：</p>
+ * minLength/maxLength。错误文案（含工具参数名的格式化）固定如下：</p>
  * <pre>
  *   required parameter '%s' is missing
  *   parameter '%s' should be type '%s'
  *   parameter '%s' must be one of [%s]
- *   parameter '%s' must be >= %v        // %v 走 Go 浮点格式（实录 ">= 1"）
+ *   parameter '%s' must be >= %v        // %v 走最短浮点格式（实录 ">= 1"）
  *   parameter '%s' must be <= %v
  *   parameter '%s' must have at least %d characters
  *   parameter '%s' must have at most %d characters
  * </pre>
  *
- * <p>已知差异（备案）：Go 对多参数错误用 map 迭代（顺序随机），Java 按参数在 JSON 里的
- * 出现序——required 错误恒在最前（schema 的 required 数组序），这一层两侧一致。</p>
+ * <p>已知差异：多参数错误按参数在 JSON 里的出现序排列——required 错误恒在最前
+ * （schema 的 required 数组序）。</p>
  */
 public final class ParamValidator {
 
     private ParamValidator() {
     }
 
-    /** 单条校验失败（对照 Go 的 ValidationError struct：Param/Message）。 */
+    /** 单条校验失败（参数名 + 文案）。 */
     public record ValidationError(String param, String message) {
     }
 
     /**
-     * 对照 schema 校验 args；合法返回空列表。schema/args 为空或不可解析时不校验
-     * （对照 Go 的 nil 返回）。额外参数放行（LLM 有时会加）。
+     * 按 schema 校验 args；合法返回空列表。schema/args 为空或不可解析时不校验。
+     * 额外参数放行（LLM 有时会加）。
      */
     public static List<ValidationError> validateParams(JsonNode args, JsonNode schema) {
-        // Go 只在 len(args)==0（空 RawMessage）时短路；{} 照样走 required 检查
-        // （Go 实测：registry 对 {} 参数执行 required 校验并报 "required parameter ... is missing"）。
+        // {}（空对象）照样走 required 检查
+        // （实测：对 {} 参数执行 required 校验并报 "required parameter ... is missing"）。
         if (schema == null || schema.isEmpty() || args == null) {
             return List.of();
         }
@@ -73,7 +73,7 @@ public final class ParamValidator {
             }
         }
 
-        // 逐个已提供参数对照其 property schema 校验
+        // 逐个已提供参数按其 property schema 校验
         Iterator<Map.Entry<String, JsonNode>> it = args.fields();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> entry = it.next();
@@ -92,7 +92,7 @@ public final class ParamValidator {
         return errs;
     }
 
-    /** 单参数校验（对照 validateProperty：type 错则短路返回，再 enum、数值界、字符串长度）。 */
+    /** 单参数校验（type 错则短路返回，再 enum、数值界、字符串长度）。 */
     private static List<ValidationError> validateProperty(String name, JsonNode val, JsonNode prop) {
         if (val == null || val.isNull()) {
             return List.of(); // null 由 required 检查处理
@@ -134,7 +134,7 @@ public final class ParamValidator {
             }
         }
 
-        // 字符串长度（Go 的 len(s) 是<b>字节</b>长度——UTF-8，CJK 按字节计账）
+        // 字符串长度按 UTF-8 字节计（CJK 多字节字符按字节计账）
         if (targetType.equals("string") && val.isTextual()) {
             String s = val.textValue();
             int byteLen = s.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
@@ -153,7 +153,7 @@ public final class ParamValidator {
         return errs;
     }
 
-    /** 类型检查（对照 checkType；integer = 数值且等于自身的 int64 化）。 */
+    /** 类型检查（integer = 数值且等于自身的整型化）。 */
     private static boolean checkType(JsonNode val, String targetType) {
         return switch (targetType) {
             case "string" -> val.isTextual();
@@ -172,7 +172,7 @@ public final class ParamValidator {
         };
     }
 
-    /** enum 成员判定：对照 Go 的 fmt.Sprintf("%v") 字符串相等（1 == 1.0 == "1" 的表现一致）。 */
+    /** enum 成员判定：按节点文本形态字符串相等（1 == 1.0 == "1" 视为相同）。 */
     private static boolean isInEnum(JsonNode val, JsonNode enumList) {
         String v = goValueOfNode(val);
         for (JsonNode e : enumList) {
@@ -192,7 +192,7 @@ public final class ParamValidator {
         return String.join(", ", parts);
     }
 
-    /** schema 里的浮点数（对照 getFloat：缺失/非数返回 null）。 */
+    /** schema 里的浮点数（缺失/非数返回 null）。 */
     private static double[] getFloat(JsonNode m, String key) {
         JsonNode v = m.get(key);
         if (v == null || !v.isNumber()) {
@@ -201,12 +201,12 @@ public final class ParamValidator {
         return new double[] {v.doubleValue()};
     }
 
-    /** 数值化（对照 toFloat64：非数返回 0）。 */
+    /** 数值化（非数返回 0）。 */
     private static double toFloat64(JsonNode val) {
         return val.isNumber() ? val.doubleValue() : 0;
     }
 
-    /** Go %v 的节点文本（字符串原样、bool true/false、数字走 Go 浮点格式）。 */
+    /** 节点文本形态（字符串原样、bool true/false、数字走最短浮点格式）。 */
     private static String goValueOfNode(JsonNode n) {
         if (n.isNumber()) {
             return goValue(n.doubleValue());
@@ -220,14 +220,13 @@ public final class ParamValidator {
         return n.isTextual() ? n.textValue() : n.toString();
     }
 
-    /** Go %v 的浮点文本（strconv 'g' 最短形态：1 → "1"、0.5 → "0.5"）。 */
+    /** 浮点文本（'g' 最短形态：1 → "1"、0.5 → "0.5"）。 */
     private static String goValue(double d) {
         return GoDoubleSerializer.format(d);
     }
 
     /**
-     * 错误列表 → 人读文案（对照 FormatValidationErrors）。
-     * Go 实录："Parameter validation failed: " + join("; ")；空列表 → ""。
+     * 错误列表 → 人读文案："Parameter validation failed: " + join("; ")；空列表 → ""。
      */
     public static String formatValidationErrors(List<ValidationError> errs) {
         if (errs == null || errs.isEmpty()) {

@@ -3,7 +3,7 @@ package com.ragagent.agent.skills;
 import java.util.List;
 
 /**
- * skill 的来源（对照 Go internal/agent/skills/source.go）。指令型裁剪后唯一生产
+ * skill 的来源。指令型裁剪后唯一生产
  * 实现是 {@link Loader}（宿主 skill 目录扫描）。
  *
  * <p>方法组就是 agent 请求的 Progressive Disclosure 层级：系统提示词的元数据、

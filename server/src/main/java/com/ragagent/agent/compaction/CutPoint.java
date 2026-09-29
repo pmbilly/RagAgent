@@ -7,7 +7,7 @@ import com.ragagent.agent.TokenEstimator;
 import com.ragagent.llm.domain.ChatMessage;
 
 /**
- * 切点选择（对照 Go internal/agent/compaction/cutpoint.go 全文）。
+ * 切点选择。
  *
  * <p>切点只按 token 预算选——绝不按"保住当前轮完整"。ReAct 一轮能跑二十个 round、
  * 产出十万 token 的工具流量；拒绝碰当前轮的压缩器无事可压，每轮烧一次 LLM 调用
@@ -15,13 +15,13 @@ import com.ragagent.llm.domain.ChatMessage;
  */
 public final class CutPoint {
 
-    /** 原样保留的第一条消息下标（对照 FirstKeptIdx）。 */
+    /** 原样保留的第一条消息下标。 */
     private final int firstKeptIdx;
     /**
-     * 切点所落轮次的 user 消息下标（对照 TurnStartIdx）；切在轮次边界上时为 -1。
+     * 切点所落轮次的 user 消息下标；切在轮次边界上时为 -1。
      */
     private final int turnStartIdx;
-    /** 切点把单个轮次切成了两半（对照 IsSplitTurn）。 */
+    /** 切点把单个轮次切成了两半。 */
     private final boolean splitTurn;
 
     private CutPoint(int firstKeptIdx, int turnStartIdx, boolean splitTurn) {
@@ -47,7 +47,7 @@ public final class CutPoint {
     }
 
     /**
-     * 是否可以在该消息之前立即切割（对照 isCutPointMessage）。除 tool 结果外都可以。
+     * 是否可以在该消息之前立即切割。除 tool 结果外都可以。
      * 排除 tool 结果是因为它必须跟请求它的 assistant 消息待在一起——把两者切开留下
      * 孤儿 tool result，供应商直接拒绝请求。推论是轮内压缩得以安全：落在 assistant
      * 消息上的切点会连它带它后面的所有 tool 结果一起保留，配对从两侧都不会断。
@@ -57,7 +57,7 @@ public final class CutPoint {
     }
 
     /**
-     * 是否开启一个轮次（对照 isTurnStartMessage）。压缩摘要也算：它们替身了之前的一切，
+     * 是否开启一个轮次。压缩摘要也算：它们替身了之前的一切，
      * 其开始的轮次自洽完整。
      */
     static boolean isTurnStartMessage(ChatMessage msg) {
@@ -65,7 +65,7 @@ public final class CutPoint {
     }
 
     /**
-     * 压缩可以触碰的第一个下标（对照 historyStart）。系统提示词永不是候选——
+     * 压缩可以触碰的第一个下标。系统提示词永不是候选——
      * 它承载 agent 的指令，不是历史。
      */
     static int historyStart(List<ChatMessage> messages) {
@@ -80,8 +80,7 @@ public final class CutPoint {
     }
 
     /**
-     * 从最新消息向前累计估算大小，保留仍装得进 keepRecentTokens 的最大后缀
-     * （对照 FindCutPoint）。
+     * 从最新消息向前累计估算大小，保留仍装得进 keepRecentTokens 的最大后缀。
      *
      * <p>预算是<b>天花板不是地板</b>。看到第一条达到预算的消息就停下并连它一起保留，
      * 这个读法很自然但错了：单个 knowledge_search 结果随随便便就上万 token，
@@ -129,7 +128,7 @@ public final class CutPoint {
     }
 
     /**
-     * 找到 entryIdx 所在轮次的 user 消息下标（对照 findTurnStartIdx）；
+     * 找到 entryIdx 所在轮次的 user 消息下标；
      * 轮次在可搜索范围之前开始则 -1。
      */
     private static int findTurnStartIdx(List<ChatMessage> messages, int entryIdx, int start) {

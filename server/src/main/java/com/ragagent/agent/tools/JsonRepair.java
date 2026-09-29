@@ -4,10 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * LLM 输出容错 JSON 修复（对照 Go {@code json_repair.go}，逐字移植；全程按 code point 处理，
- * 与 Go 的 rune 语义一致——含代理对的内容不会被劈开）。
+ * LLM 输出容错 JSON 修复（全程按 code point 处理——含代理对的内容不会被劈开）。
  *
- * <p>修复项（与 Go 一致，实测钉死）：</p>
+ * <p>修复项（实测钉死）：</p>
  * <ul>
  *   <li>截断 JSON（缺闭合括号/花括号）→ balanceBrackets 补齐；</li>
  *   <li>闭合括号前的尾逗号 → 剥掉；</li>
@@ -17,8 +16,8 @@ import java.util.List;
  *   <li>缺外层花括号的 {@code key=value} / 带 {@code :} 文本 → 补花括号包裹。</li>
  * </ul>
  *
- * <p><b>刻意不修</b>（Go 代码就没有，实录钉死）：单引号键值（{@code {'a':1}} 原样返回）、
- * markdown 代码围栏（{@code ```json ... ```} 会被当作普通文本包进花括号——保持 Go 的怪异行为）、
+ * <p><b>刻意不修</b>（实录钉死）：单引号键值（{@code {'a':1}} 原样返回）、
+ * markdown 代码围栏（{@code ```json ... ```} 会被当作普通文本包进花括号——保持既有怪异行为）、
  * {@code //} 注释（不识别，但顶层值截断常能顺带修好）。</p>
  *
  * <p>修不动时原样返回（调用方自行处理解析失败）。空输入返回 {@code "{}"}。</p>
@@ -75,7 +74,7 @@ public final class JsonRepair {
      * 把字符串里非法的 JSON 转义改写成字面反斜杠序列。JSON 只允许反斜杠接
      * {@code " \ / b f n r t u}；字符串里的其他反斜杠（如 {@code \+ \d \w \. \|}）都是解析错误。
      * LLM 传正则时经常忘了双重转义——把 "\+" 改写为 "\\+" 正好还原 LLM 的本意
-     * （解析后的 Go 字符串变回 "\+"，正则引擎要的就是它），且对已合法的 JSON 幂等。
+     * （解析后的字符串变回 "\+"，正则引擎要的就是它），且对已合法的 JSON 幂等。
      */
     static String fixInvalidEscapes(String s) {
         int[] cps = s.codePoints().toArray();
@@ -228,7 +227,7 @@ public final class JsonRepair {
         return -1;
     }
 
-    /** 与 Go unicode.IsSpace 对齐的空白判定（\t \n \v \f \r 空格 U+0085 U+00A0 及 Unicode 空白）。 */
+    /** 空白判定（\t \n \v \f \r 空格 U+0085 U+00A0 及 Unicode 空白）。 */
     private static boolean isGoSpace(int r) {
         switch (r) {
             case '\t', '\n', 0x0B, 0x0C, '\r', ' ', 0x85, 0xA0:

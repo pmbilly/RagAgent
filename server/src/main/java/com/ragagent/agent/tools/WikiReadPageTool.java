@@ -12,10 +12,10 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeTagsFetcher;
 
 /**
- * wiki_read_page 工具（对照 Go {@code wiki_tools.go} 的 wikiReadPageTool，逐字移植）。
+ * wiki_read_page 工具。
  *
- * <p>会话级 {@code seenLinks} 去重（对照 Go 实例字段 + sync.Mutex；Java 用
- * ConcurrentHashMap 等价）。index 页特判走 {@link WikiPages#getIndexView} seam。</p>
+ * <p>会话级 {@code seenLinks} 去重（线程安全集合）。index 页特判走
+ * {@link WikiPages#getIndexView} seam。</p>
  */
 public class WikiReadPageTool extends BaseTool {
 
@@ -41,7 +41,7 @@ public class WikiReadPageTool extends BaseTool {
     private final KnowledgeTagsFetcher tagsFetcher;
     private final List<WikiScope> scopes;
     private final WikiRouteResolver routes;
-    /** 会话级已见链接（对照 seenLinks map[string]bool）。 */
+    /** 会话级已见链接。 */
     private final Set<String> seenLinks = ConcurrentHashMap.newKeySet();
 
     public WikiReadPageTool(WikiPages wikiService, KnowledgeTagsFetcher tagsFetcher,
@@ -53,7 +53,7 @@ public class WikiReadPageTool extends BaseTool {
         this.routes = routes != null ? routes : new WikiRouteResolver();
     }
 
-    /** 对照 seenLinkKey：KB 作用域下的去重键。 */
+    /** KB 作用域下的去重键。 */
     private static String seenLinkKey(String kbId, String slug) {
         return kbId + "\0" + slug;
     }
@@ -187,7 +187,7 @@ public class WikiReadPageTool extends BaseTool {
         return result;
     }
 
-    /** 对照 formatLinks：邻居 slug 列表 → 带摘要的链接描述。 */
+    /** 邻居 slug 列表 → 带摘要的链接描述。 */
     private List<String> formatLinks(List<String> slugs, String kbId) {
         List<String> descs = new ArrayList<>();
         int inlined = 0;
@@ -228,7 +228,7 @@ public class WikiReadPageTool extends BaseTool {
         return descs;
     }
 
-    /** 对照 resolvePage：采集渲染所需的邻居摘要/sources/body（index 页特判）。 */
+    /** 采集渲染所需的邻居摘要/sources/body（index 页特判）。 */
     private PendingWikiPage resolvePage(PageView page, String kbId) {
         List<String> outLinks = formatLinks(page.outLinks(), kbId);
         List<String> inLinks = formatLinks(page.inLinks(), kbId);
@@ -273,7 +273,7 @@ public class WikiReadPageTool extends BaseTool {
         return new PendingWikiPage(page, kbId, outLinks, inLinks, sources, body);
     }
 
-    /** 对照 registerLinkedSlugs：把页的出链/入链 slug 记入 foundKBs（去重追加）。 */
+    /** 把页的出链/入链 slug 记入 foundKBs（去重追加）。 */
     private static void registerLinkedSlugs(Map<String, List<String>> foundKBs, PageView page, String kbId) {
         if (page == null || kbId == null || kbId.isEmpty()) {
             return;
@@ -295,7 +295,7 @@ public class WikiReadPageTool extends BaseTool {
         }
     }
 
-    /** Go 的 %v 打印 []string：" [a b c]"。 */
+    /** 列表的输出形态：" [a b c]"。 */
     private static String goSliceString(List<String> items) {
         return "[" + String.join(" ", items) + "]";
     }

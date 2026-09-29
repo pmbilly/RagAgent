@@ -31,24 +31,20 @@ import com.ragagent.llm.ollama.OllamaService;
 import com.ragagent.model.service.ModelService;
 
 /**
- * initialization 路由（对照 Go internal/handler/initialization.go 全文 +
- * routes_infra.go RegisterInitializationRoutes）。波 3 agents 批落地 config/{kbId}
- * 三条；收尾批 W5b 补齐系统级 14 条（ollama 管理 6 + 模型连通性测试 5 + 抽取 3，
- * routes_infra.go L109-125，JWT 侧 Viewer+/Admin+、API-Key 全部
- * manage_models(fullAccess)）。
+ * initialization 路由。系统级端点（ollama 管理、模型连通性测试、抽取）
+ * 的守卫：JWT 侧 Viewer+/Admin+、API-Key 全部 manage_models(fullAccess)。
  *
  * <p>守卫层次（golden 钉死顺序，不能重排）：</p>
  * <ol>
  *   <li>GET：KBAccessRead → {@code kbGuard.requireKbAccess}（缺失→404 "knowledge base
- *       not found" 信封、跨租户→403 信封——Go handler 里的「知识库不存在」在同租户路径
+ *       not found" 信封、跨租户→403 信封——「知识库不存在」的业务文案在同租户路径
  *       不可达，录到的 404 全是中间件文案）。</li>
  *   <li>POST/PUT：OwnedKBOrAdminFromKbIDParam（缺失→404 守卫文案；存在但非创建者且非
  *       Admin+ → 403 纯字符串）→ KBAccessWrite → handler。</li>
  * </ol>
  *
  * <p>已知降级：PUT 的 storageBackendId 解析分支（StorageBackendResolver）未实现——
- * 本批场景全走 provider 兼容投影；POST 建模型的 Go 既有行为（model 行 tenant_id=0、
- * handler 不回填）照抄。</p>
+ * 现场景全走 provider 兼容投影；POST 建的 model 行 tenant_id=0（不回填租户）。</p>
  */
 @RestController
 public class InitializationController {
@@ -177,7 +173,7 @@ public class InitializationController {
     // ══════════════ multipart 解析失败兜底（controller 侧） ══════════════
 
 
-    /** 非致命 multipart 解析错误（对照 Go "表单参数解析失败"）。 */
+    /** 非致命 multipart 解析错误。 */
     @org.springframework.web.bind.annotation.ExceptionHandler(
             org.springframework.web.multipart.MultipartException.class)
     public ResponseEntity<Object> multipartParseFailure() {

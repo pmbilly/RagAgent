@@ -3,15 +3,15 @@ package com.ragagent.agent.tools;
 import java.util.List;
 
 /**
- * 工具名常量与 UI 元数据（对照 Go {@code definitions.go}，逐条移植）。
+ * 工具名常量与 UI 元数据。
  * 名字字符串是跨端契约（前端 tool-capabilities、agent 配置 allowlist、历史回放都引用）。
  */
 public final class ToolDefinitions {
 
-    /** OpenAI API 对工具/函数名的最大长度。对照 maxFunctionNameLength。 */
+    /** OpenAI API 对工具/函数名的最大长度。 */
     public static final int MAX_FUNCTION_NAME_LENGTH = 64;
 
-    // ---- 工具名常量（definitions.go L8-74）----
+    // ---- 工具名常量 ----
 
     /** 能力域 MCP 发现与调用；不是租户可选的内建工具。 */
     public static final String TOOL_DISCOVER_MCP_TOOLS = "discover_mcp_tools";
@@ -61,13 +61,13 @@ public final class ToolDefinitions {
     private ToolDefinitions() {
     }
 
-    /** 设置类 API 用的工具元数据（对照 AvailableTool struct：name/label/description 三键蛇形输出）。 */
+    /** 设置类 API 用的工具元数据（name/label/description 三键蛇形输出）。 */
     public record AvailableTool(String name, String label, String description) {
     }
 
     /**
-     * 暴露给 UI 的工具清单（对照 AvailableToolDefinitions，顺序 = Go 数组声明序，
-     * JSON 键序 name/label/description。Go 实录 22 条逐字节一致）。
+     * 暴露给 UI 的工具清单（数组序即输出序，
+     * JSON 键序 name/label/description；22 条逐字节为契约）。
      */
     public static List<AvailableTool> availableToolDefinitions() {
         return List.of(
@@ -95,7 +95,7 @@ public final class ToolDefinitions {
     }
 
     /**
-     * 默认放行工具（对照 DefaultAllowedTools，顺序照抄）。
+     * 默认放行工具。
      * search_memory / web_search / sandbox 文件族刻意缺席——由能力开关决定而非 allowlist。
      */
     public static List<String> defaultAllowedTools() {
@@ -108,8 +108,8 @@ public final class ToolDefinitions {
     }
 
     /**
-     * 被移除工具的替代指引（对照 RetiredToolReplacement）；从未是 WeKnora 工具的名字返回 ""。
-     * Go 实录文案逐字（含反引号路径）。
+     * 被移除工具的替代指引；从未是 WeKnora 工具的名字返回 ""。
+     * 文案逐字为契约（含反引号路径）。
      */
     public static String retiredToolReplacement(String name) {
         return switch (name) {

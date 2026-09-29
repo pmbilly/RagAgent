@@ -14,14 +14,14 @@ import com.ragagent.agentm.service.CustomAgentService.Result;
 /**
  * agents CRUD 家族的响应构造（JSON 是契约）。
  *
- * <p>CustomAgent struct 序：id → name → description → avatar → is_builtin →
+ * <p>响应键序固定：id → name → description → avatar → is_builtin →
  * tenant_id → created_by → config → created_at → updated_at → deleted_at →
- * creator_name(omitempty)。config 走 {@link #agentConfigMap}
- * （jsonb→struct 序重排；原 OrgResponses 实现，org 裁撤后内联至此）。</p>
+ * creator_name（空则省略）。config 走 {@link #agentConfigMap}
+ * （jsonb→固定声明序重排；原 OrgResponses 实现，org 裁撤后内联至此）。</p>
  */
 public final class AgentResponses {
 
-    /** Go time.Time 零值的 JSON 形态（注册表内建 agent 无 DB 行）。 */
+    /** 无 DB 行时间时的占位零值时间戳（注册表内建 agent 无 DB 行）。 */
     public static final String GO_ZERO_TIME = "0001-01-01T00:00:00Z";
 
     private AgentResponses() {}
@@ -49,7 +49,7 @@ public final class AgentResponses {
         return m;
     }
 
-    /** 列表信封（gin.H 字母序：data < disabled_own_agent_ids < success）。 */
+    /** 列表信封（键按字母序：data < disabled_own_agent_ids < success）。 */
     public static Map<String, Object> listEnvelope(List<?> agents,
             List<String> disabledOwnIds) {
         Map<String, Object> m = new LinkedHashMap<>();

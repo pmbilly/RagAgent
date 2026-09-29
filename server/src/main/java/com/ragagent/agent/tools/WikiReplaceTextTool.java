@@ -8,7 +8,7 @@ import com.ragagent.agent.tools.SearchAuth.KnowledgeScopeReader;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 /**
- * wiki_replace_text 工具（对照 Go {@code wiki_replace_text.go}，逐字移植）。
+ * wiki_replace_text 工具。
  * 全文精确替换；old_text 出现次数为 0 时给出复制指引错误。
  */
 public class WikiReplaceTextTool extends BaseTool {
@@ -57,7 +57,7 @@ public class WikiReplaceTextTool extends BaseTool {
         this.routes = routes != null ? routes : new WikiRouteResolver();
     }
 
-    /** 对照 WithSearchTargets（链式）。 */
+    /** 启用 Agent 授权边界（链式）。 */
     public WikiReplaceTextTool withSearchTargets(SearchTargets searchTargets) {
         this.searchTargets = searchTargets;
         this.scopeEnforced = true;
@@ -89,7 +89,7 @@ public class WikiReplaceTextTool extends BaseTool {
             return failure(String.format("Failed to fetch page %s: %s", slug, e.getMessage()));
         }
 
-        // 对照 strings.Count：非重叠出现次数
+        // 非重叠出现次数
         int replacementCount = countOccurrences(existingPage.content(), oldText);
         if (replacementCount == 0) {
             return failure("old_text not found in the current page content. Ensure you copy it exactly as it appears.");
@@ -143,7 +143,7 @@ public class WikiReplaceTextTool extends BaseTool {
         return r;
     }
 
-    /** 对照 strings.Count(s, sub)：非重叠计数；空 sub 返回 0（Go 返回 rune 数+1，但 old_text 已拒空）。 */
+    /** 非重叠子串计数；空 sub 返回 0（调用方已拒空 old_text）。 */
     static int countOccurrences(String s, String sub) {
         if (s == null || sub == null || sub.isEmpty()) {
             return 0;

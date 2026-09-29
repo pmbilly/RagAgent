@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * skill 生命周期管理（对照 Go internal/agent/skills/manager.go）——**指令型（playbook）**。
+ * skill 生命周期管理——**指令型（playbook）**。
  *
  * <p>2026-09 裁剪定稿（选项 B）：技能 = 提示词注入的指令文档。模型凭 SKILL.md 指令
  * 用现有工具执行；沙箱镜像源、staging、shell 环境注入随沙箱一起退役（执行型扩展
@@ -23,7 +23,7 @@ public final class Manager {
     private final ReentrantReadWriteLock mu = new ReentrantReadWriteLock();
     private List<Skill.SkillMetadata> metadataCache = new ArrayList<>();
 
-    /** Manager 的配置（对照 ManagerConfig）。 */
+    /** Manager 的配置。 */
     public record ManagerConfig(List<String> skillDirs, List<String> allowedSkills, boolean enabled) {
     }
 
@@ -38,7 +38,7 @@ public final class Manager {
         return enabled;
     }
 
-    /** 发现全部 skills 并缓存元数据；启动时调用（对照 Initialize）。 */
+    /** 发现全部 skills 并缓存元数据；启动时调用。 */
     public void initialize() throws Exception {
         if (!enabled) {
             return;
@@ -69,7 +69,7 @@ public final class Manager {
         return filtered;
     }
 
-    /** 全部已发现 skill 的元数据；系统提示词注入用（Level 1；对照 GetAllMetadata）。 */
+    /** 全部已发现 skill 的元数据；系统提示词注入用（Level 1）。 */
     public List<Skill.SkillMetadata> getAllMetadata() {
         if (!enabled) {
             return null;
@@ -82,19 +82,19 @@ public final class Manager {
         }
     }
 
-    /** 加载一个 skill 的完整指令（Level 2；对照 LoadSkill）。 */
+    /** 加载一个 skill 的完整指令（Level 2）。 */
     public Skill loadSkill(String skillName) throws Exception {
         requireUsable(skillName);
         return loader.loadSkillInstructions(skillName);
     }
 
-    /** 读 skill 目录里的一个额外文件（Level 3；对照 ReadSkillFile）。 */
+    /** 读 skill 目录里的一个额外文件（Level 3）。 */
     public String readSkillFile(String skillName, String filePath) throws Exception {
         requireUsable(skillName);
         return loader.loadSkillFile(skillName, filePath).content();
     }
 
-    /** 列出 skill 目录的全部文件（对照 ListSkillFiles）。 */
+    /** 列出 skill 目录的全部文件。 */
     public List<String> listSkillFiles(String skillName) throws Exception {
         requireUsable(skillName);
         return loader.listSkillFiles(skillName);
@@ -121,7 +121,7 @@ public final class Manager {
         return false;
     }
 
-    /** 详细信息（对照 GetSkillInfo / SkillInfo）。 */
+    /** 详细信息。 */
     public record SkillInfo(String name, String description, String basePath, String instructions, List<String> files) {
     }
 
@@ -137,7 +137,7 @@ public final class Manager {
         return new SkillInfo(skill.name, skill.description, skill.basePath, skill.instructions, files);
     }
 
-    /** 刷新 skill 缓存（对照 Reload）。 */
+    /** 刷新 skill 缓存。 */
     public void reload() throws Exception {
         if (!enabled) {
             return;

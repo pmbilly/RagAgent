@@ -3,7 +3,7 @@ package com.ragagent.agent.approval;
 import java.time.Duration;
 
 /**
- * 一次 OAuth 授权等待所需的全部上下文（对照 Go approval.OAuthPendingRequest，gate.go:111-126）。
+ * 一次 OAuth 授权等待所需的全部上下文。
  *
  * <p>用于“会话中途调用了需 OAuth 的 MCP 服务，弹卡片让用户授权并阻塞等待”的场景。</p>
  *
@@ -42,7 +42,6 @@ public record OAuthPendingRequest(
         return new Builder();
     }
 
-    /** 对照 Go 的结构体字面量构造（具名字段） */
     public static final class Builder {
 
         private long tenantId;
@@ -107,7 +106,7 @@ public record OAuthPendingRequest(
             return this;
         }
 
-        /** 覆盖 gate 默认等待时长（Go: WaitTimeout time.Duration） */
+        /** 覆盖 gate 默认等待时长。 */
         public Builder waitTimeout(Duration v) {
             this.waitTimeout = v;
             return this;

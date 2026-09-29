@@ -16,23 +16,21 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.llm.domain.FunctionDef;
 
 /**
- * 工具注册表（对照 Go {@code registry.go}，逐字移植）。
+ * 工具注册表。
  *
  * <p><b>first-wins 注册</b>：同名工具重复注册时保留先到者（GHSA-67q9-58vj-32qx——
  * 防止借名字冲突劫持工具执行），后到者被拒并记 warn。</p>
  *
  * <p><b>排序决定字节稳定</b>：ListTools / GetFunctionDefinitions 都按工具名排序——
- * Go 的 map 迭代是有意随机化的，不排序则每次请求发给 LLM 的工具块都会重排，
+ * 不排序则每次请求发给 LLM 的工具块都会重排，
  * 按"字节级前缀匹配"做提示词缓存的 provider（如 Qwen 显式缓存）会全部失手。</p>
  *
  * <p><b>deferred 注册</b>：RegisterDeferredTool 保留执行能力但不把完整定义发给模型
  * （GetModelFunctionDefinitions 会滤掉）；注册在执行前已完成，所以按名执行不受影响。</p>
  *
- * <p>Java 侧签名说明：Go 的 {@code ExecuteTool(ctx, name, args) (*ToolResult, error)} 双通道
- * 折叠为返回 {@link ToolResult}——Go 在 ctx 取消/工具不存在/工具返回 err 时
- * {@code result.Error} 都已置好文案，error 通道可从中完整还原。取消探测走
- * {@link ToolCancellation}（对照 ctx.Err()），元数据走 {@link ToolExecContext}
- * （对照 WithToolExecContext）。</p>
+ * <p>错误通道约定：工具不存在/取消/工具抛错都折叠为返回 {@link ToolResult}——
+ * {@code result.Error} 已置好文案。取消探测走
+ * {@link ToolCancellation}，元数据走 {@link ToolExecContext}。</p>
  */
 public class ToolRegistry {
 
@@ -40,13 +38,13 @@ public class ToolRegistry {
 
     private final Map<String, AgentTool> tools = new HashMap<>();
     private final Map<String, Boolean> deferred = new HashMap<>();
-    /** 完整暴露是显式兼容路径。对照 mcpDirect/mcpPrepared：4.5c 接线，本批仅保字段形状。 */
+    /** 完整暴露是显式兼容路径。 */
     private boolean mcpDirect;
     private boolean mcpPrepared;
     /** 工具输出上限（字符数）；0 = 用 DefaultMaxToolOutput。 */
     private int maxToolOutputSize;
 
-    // ---- 校验失败的追加提示（文本属于 4.5b/c 的工具文件，registry 拼接点先就位）----
+    // ---- 校验失败的追加提示（文本属于各工具文件，registry 拼接点先就位）----
     static final String MCP_CALL_ARGUMENTS_HINT = " Pass arguments as a JSON object, not a JSON-encoded string. "
             + "For a tool with no parameters use {\"tool_ref\":\"<describe reference>\",\"arguments\":{}}; "
             + "otherwise match its input_schema. If the definition is unavailable, use "
@@ -64,7 +62,7 @@ public class ToolRegistry {
         this.maxToolOutputSize = maxChars;
     }
 
-    /** 生效的输出上限（对照 getMaxToolOutput）。 */
+    /** 生效的输出上限。 */
     private int effectiveMaxToolOutput() {
         return maxToolOutputSize > 0 ? maxToolOutputSize : ToolOutput.DEFAULT_MAX_TOOL_OUTPUT;
     }
@@ -94,8 +92,7 @@ public class ToolRegistry {
     }
 
     /**
-     * 按名取工具；不存在抛 {@link ToolNotFoundException}（message = Go 的
-     * "tool not found: %s"）。
+     * 按名取工具；不存在抛 {@link ToolNotFoundException}（message = "tool not found: %s"）。
      */
     public synchronized AgentTool getTool(String name) {
         AgentTool tool = tools.get(name);
@@ -105,14 +102,14 @@ public class ToolRegistry {
         return tool;
     }
 
-    /** 工具不存在（对照 Go 的 error "tool not found: %s"）。 */
+    /** 工具不存在（message 固定 "tool not found: %s"）。 */
     public static class ToolNotFoundException extends RuntimeException {
         public ToolNotFoundException(String message) {
             super(message);
         }
     }
 
-    /** 已注册工具名，按字母序（对照 ListTools）。 */
+    /** 已注册工具名，按字母序。 */
     public synchronized List<String> listTools() {
         SortedMap<String, AgentTool> sorted = new TreeMap<>(tools);
         return new ArrayList<>(sorted.keySet());
@@ -142,7 +139,7 @@ public class ToolRegistry {
     }
 
     /**
-     * 按名执行工具（对照 ExecuteTool）：取消检查 → 取工具 → 退役重定向 →
+     * 按名执行工具：取消检查 → 取工具 → 退役重定向 →
      * MCP 目录守卫（鉴权先于 schema 校验）→ {@link #execute}。
      */
     public ToolResult executeTool(ToolCancellation cancellation, ToolExecContext meta, String name, JsonNode args) {
@@ -190,7 +187,7 @@ public class ToolRegistry {
     }
 
     /**
-     * 直连调用与目录解析的 MCP 调用共用的执行管线（对照 execute）。
+     * 直连调用与目录解析的 MCP 调用共用的执行管线。
      * 代理必须对目标 schema 做校验并保留原结果——不能只校验外层参数或绕过执行管线。
      */
     private ToolResult execute(ToolCancellation cancel, ToolExecContext meta, AgentTool tool, JsonNode args) {
@@ -245,8 +242,8 @@ public class ToolRegistry {
         try {
             result = tool.execute(new ToolRequest(castArgs, meta, cancel, maxOutput));
         } catch (RuntimeException e) {
-            // Java 侧防御：Go 的 err 返回值通道。工具抛了运行时异常时等价于 (nil, err) ——
-            // 文案照 Go 的 err.Error()：BizException（AppError）要带 `error code: N, error message: `
+            // 工具抛了运行时异常时折进 error 文案：
+            // BizException（AppError）要带 `error code: N, error message: `
             // 前缀；裸 getMessage() 会丢前缀（见 known-issues/09 第三节）。
             String text = com.ragagent.common.error.BizException.wireText(e);
             ToolResult r = new ToolResult();
@@ -286,7 +283,7 @@ public class ToolRegistry {
         return result;
     }
 
-    /** MCP 目录不可用的统一失败形态（对照 mcpDiscoveryFailure）。 */
+    /** MCP 目录不可用的统一失败形态。 */
     static ToolResult mcpDiscoveryFailure(String err, String status) {
         ToolResult r = new ToolResult();
         r.setSuccess(false);
@@ -298,7 +295,7 @@ public class ToolRegistry {
     }
 
     /**
-     * 会话收尾时释放实现了 {@link Cleanable} 的工具资源（对照 Cleanup；map 迭代序无所谓，
+     * 会话收尾时释放实现了 {@link Cleanable} 的工具资源（map 迭代序无所谓，
      * 各工具清理互不依赖）。
      */
     public synchronized void cleanup() {
@@ -311,10 +308,10 @@ public class ToolRegistry {
     }
 
     // =====================================================================
-    // MCP 目录方法（对照 mcp_exposure.go 的 registry 扩展，波 4.5c 授权改动）
+    // MCP 目录方法
     // =====================================================================
 
-    /** 已安装的 MCP 目录（discover_mcp_tools 持有；无则 null）。对照 mcpCatalog。 */
+    /** 已安装的 MCP 目录（discover_mcp_tools 持有；无则 null）。 */
     public synchronized McpCatalog mcpCatalog() {
         if (tools.get(ToolDefinitions.TOOL_DISCOVER_MCP_TOOLS) instanceof McpDiscoverTool discovery) {
             return discovery.catalog();
@@ -322,12 +319,12 @@ public class ToolRegistry {
         return null;
     }
 
-    /** 目录是否已 Prepare 过（对照 mcpPrepared 字段读取）。 */
+    /** 目录是否已 Prepare 过。 */
     public synchronized boolean isMcpPrepared() {
         return mcpPrepared;
     }
 
-    /** 完整暴露是否开启（对照 mcpDirect 字段读取）。 */
+    /** 完整暴露是否开启。 */
     public synchronized boolean isMcpDirect() {
         return mcpDirect;
     }
@@ -343,20 +340,20 @@ public class ToolRegistry {
         return out;
     }
 
-    /** 目录解析后的共享执行管线入口（对照 MCPCallTool.Execute → r.execute）。 */
+    /** 目录解析后的共享执行管线入口。 */
     ToolResult executeInternal(ToolCancellation cancellation, ToolExecContext meta, AgentTool tool, JsonNode args) {
         return execute(cancellation, meta, tool, args);
     }
 
     /**
-     * 预先广告来源，describe 之后才加载完整函数（对照 PrepareMCPTools）。
+     * 预先广告来源，describe 之后才加载完整函数。
      * 这是应用层的"按需加载"——生产 reader 用持久化元数据，不做上游发现。
      */
     public void prepareMcpTools() {
         prepareMcpToolsWithMode(McpExposure.MCP_STARTUP_GRACE, false);
     }
 
-    /** 完整暴露的兼容路径（对照 PrepareMCPToolsDirect）。 */
+    /** 完整暴露的兼容路径。 */
     public void prepareMcpToolsDirect() {
         prepareMcpToolsWithMode(McpExposure.MCP_STARTUP_GRACE, true);
     }
@@ -428,7 +425,7 @@ public class ToolRegistry {
     }
 
     /**
-     * 在模型请求之间发布就绪定义（对照 RefreshMCPTools）：包括经发现/OAuth 加载的目录
+     * 在模型请求之间发布就绪定义：包括经发现/OAuth 加载的目录
      * 与初始请求后刷新的目录。这里不做网络发现。定义缓存时策略检查依然新鲜。
      * 只在并行工具执行空闲时调用。
      */
@@ -500,8 +497,7 @@ public class ToolRegistry {
     }
 
     /**
-     * 把本会话已 describe 或调用过的工具重新发布，新引擎无需再 describe 一轮
-     * （对照 RememberMCPHistory）。
+     * 把本会话已 describe 或调用过的工具重新发布，新引擎无需再 describe 一轮。
      */
     public void rememberMcpHistory(List<com.ragagent.llm.domain.ChatMessage> messages) {
         McpCatalog c = mcpCatalog();
@@ -522,7 +518,7 @@ public class ToolRegistry {
                             c.historyRefs.put(ref, Boolean.TRUE);
                         }
                     } catch (Exception ignored) {
-                        // 对照 Go 的 json.Unmarshal 失败分支
+                        // 解析失败即忽略该条历史
                     }
                     continue;
                 }
@@ -537,7 +533,7 @@ public class ToolRegistry {
             new com.fasterxml.jackson.databind.ObjectMapper();
 
     /**
-     * UI/审计身份与模型的代理调用分离（对照 MCPCallTarget）。原始调用名、参数、ID 与
+     * UI/审计身份与模型的代理调用分离。原始调用名、参数、ID 与
      * provider 元数据保持可回放。
      */
     public synchronized com.ragagent.agent.domain.ToolCallTarget mcpCallTarget(String name, JsonNode raw) {
@@ -599,8 +595,7 @@ public class ToolRegistry {
     }
 
     /**
-     * 让提示词绑定显式服务提及而无需为了生成工具名前缀急着发现
-     * （对照 HasMCPServer）。
+     * 让提示词绑定显式服务提及而无需为了生成工具名前缀急着发现。
      */
     public synchronized boolean hasMcpServer(String id) {
         if (!(tools.get(ToolDefinitions.TOOL_DISCOVER_MCP_TOOLS) instanceof McpDiscoverTool discovery)) {
@@ -609,7 +604,7 @@ public class ToolRegistry {
         return discovery.catalog().servers.containsKey(id);
     }
 
-    /** Go %q 的普通串形态（registry 侧 MCP 文案需要）。 */
+    /** 双引号字符串形态（registry 侧 MCP 文案需要，经 {@link GoQuoting}）。 */
     static String quotedGo(String s) {
         return GoQuoting.quoteGo(s);
     }

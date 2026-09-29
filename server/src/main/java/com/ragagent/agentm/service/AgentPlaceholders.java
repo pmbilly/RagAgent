@@ -9,8 +9,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * /agents/placeholders 的静态定义（对照 Go internal/types/placeholder.go）。
- * 纯常量面，键序 = struct 声明序 name/label/description；组序 = gin.H 字母序。
+ * /agents/placeholders 的静态定义。
+ * 纯常量面，键序固定 name/label/description；组键按字母序。
  */
 @Component
 public class AgentPlaceholders {
@@ -37,7 +37,7 @@ public class AgentPlaceholders {
             "用户界面的语言偏好，如 Chinese (Simplified)、English、Korean 等，用于控制 LLM 回答语言");
 
     public ObjectNode data() {
-        // gin.H → encoding/json 按键字母序输出（agent_system_prompt < all < … < system_prompt）
+        // 键按字母序输出（agent_system_prompt < all < … < system_prompt）
         ObjectNode data = MAPPER.createObjectNode();
         data.set("agent_system_prompt", list(
                 List.of(KNOWLEDGE_BASES, WEB_SEARCH_STATUS, CURRENT_TIME, LANGUAGE)));

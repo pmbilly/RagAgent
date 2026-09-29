@@ -7,18 +7,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * {@link DataAnalysisTool.AnalysisDuckDb} 的生产实现（对照 Go 侧传入
- * NewDataAnalysisTool 的 {@code *sql.DB} 交互段）。
+ * {@link DataAnalysisTool.AnalysisDuckDb} 的生产实现。
  *
  * <p>共享一条进程内 DuckDB 内存连接（{@code jdbc:duckdb:}）：表名由
  * {@code tableName(knowledge)} 按知识 ID 命名空间（{@code k_<id>}），多会话/多回合
- * 复用同一连接与 Go 的单例 {@code *sql.DB} 同形；会话收尾由 {@link Cleanable}
+ * 复用同一连接；会话收尾由 {@link Cleanable}
  * （DataAnalysisTool.cleanup）按表 DROP。exec/query 在连接上串行——DuckDB 单连接
  * 不保证并发语句安全。</p>
  *
  * <p>依赖 {@code org.duckdb:duckdb_jdbc}（build.gradle 已引入）。{@code read_xlsx}
  * /{@code st_read_meta} 属 DuckDB 扩展（excel/spatial），运行期自动安装失败时
- * Excel 路径报运行时错误、sheet 枚举回落首 sheet——与 Go 环境的失败形态一致；
+ * Excel 路径报运行时错误、sheet 枚举回落首 sheet；
  * CSV 路径（read_csv_auto 为内置）不依赖扩展。</p>
  */
 public final class AnalysisDuckDbJdbc implements DataAnalysisTool.AnalysisDuckDb {
@@ -88,9 +87,8 @@ public final class AnalysisDuckDbJdbc implements DataAnalysisTool.AnalysisDuckDb
 
     @Override
     public List<String> listSheets(String xlsxPath) {
-        // 对照 Go listExcelSheets：st_read_meta（spatial 扩展）枚举 sheet。扩展未装/
-        // 列形态不符时抛 RuntimeException——调用点（loadFromExcel）回落首 sheet，
-        // 与 Go 的 err 路径同形。
+        // st_read_meta（spatial 扩展）枚举 sheet。扩展未装/
+        // 列形态不符时抛 RuntimeException——调用点（loadFromExcel）回落首 sheet。
         synchronized (this) {
             String path = xlsxPath == null ? "" : xlsxPath.replace("'", "''");
             try (Statement st = connection().createStatement();

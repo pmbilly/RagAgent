@@ -6,7 +6,7 @@ import java.util.List;
 import com.ragagent.llm.domain.ChatMessage;
 
 /**
- * LLM 兼容性消息清洗（对照 Go {@code sanitize_messages.go} 的 SanitizeMessages，逐字移植）。
+ * LLM 兼容性消息清洗。
  * 处理会导致 provider API 报错的常见问题：
  * <ul>
  *   <li>连续同角色消息（部分 provider 直接拒绝）→ 合并；</li>
@@ -15,8 +15,8 @@ import com.ragagent.llm.domain.ChatMessage;
  *   <li>空内容消息（会引发 API 错误）→ 丢弃（system 除外）。</li>
  * </ul>
  *
- * <p>Go 实录：合并用 {@code "\n\n"} 连接；降级包裹的转义是 Go {@code html.EscapeString}
- * 语义（{@code " → &#34;}，不是 {@code &quot;}——实录 SANITIZE 6 钉死）；
+ * <p>行为细节：合并用 {@code "\n\n"} 连接；降级包裹的转义把 {@code "} 作
+ * {@code &#34;}（不是 {@code &quot;}）；
  * 孤儿判定查的是<b>原始输入</b>的前缀（messages[:i]），不是清洗后的结果。</p>
  */
 public final class MessageSanitizer {
@@ -46,8 +46,7 @@ public final class MessageSanitizer {
             if (!result.isEmpty() && !"tool".equals(role)) {
                 ChatMessage prev = result.get(result.size() - 1);
                 if (prev.getRole().equals(role) && !"tool".equals(prev.getRole())) {
-                    // 与前一条合并。⚠️ 必须落成<b>新对象</b>：Go 的 []chat.Message 持
-                    // 结构体值，result 里的合并写不回调用方的切片；Java 列表持有共享
+                    // 与前一条合并。⚠️ 必须落成<b>新对象</b>：Java 列表持有共享
                     // 引用，就地 setContent 会把合并泄漏进调用方的消息列表（多轮场景
                     // 下同一条用户消息被反复追加，引擎实录抓回）。
                     ChatMessage merged = shallowCopy(prev);
@@ -63,7 +62,7 @@ public final class MessageSanitizer {
             if ("tool".equals(role) && !toolCallId.isEmpty()) {
                 if (!hasMatchingToolCall(messages.subList(0, i), toolCallId)) {
                     // 保留可恢复的数据，但不把外部输出升格为策略。改写同样落成新对象
-                    // （Go 的 range 循环变量是结构体副本，原始切片不受影响）。
+                    // （不改动调用方的消息对象）。
                     msg = shallowCopy(msg);
                     msg.setRole("user");
                     msg.setContent("<untrusted_tool_result name=\"" + goHtmlEscape(orEmpty(msg.getName()))
@@ -79,7 +78,7 @@ public final class MessageSanitizer {
         return result;
     }
 
-    /** Go 结构体值拷贝的对应物：字段逐个复制（列表字段保持同一引用，语义同 Go 切片头拷贝）。 */
+    /** 浅拷贝：字段逐个复制（列表字段保持同一引用）。 */
     private static ChatMessage shallowCopy(ChatMessage m) {
         ChatMessage c = new ChatMessage(m.getRole(), m.getContent());
         c.setMultiContent(m.getMultiContent());
@@ -107,7 +106,7 @@ public final class MessageSanitizer {
         return false;
     }
 
-    /** Go html.EscapeString：转义 < > & ' "（' → &#39;、" → &#34;）。 */
+    /** 转义 < > & ' "（' → &#39;、" → &#34;）。 */
     static String goHtmlEscape(String s) {
         StringBuilder sb = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); i++) {

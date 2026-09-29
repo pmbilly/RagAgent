@@ -19,13 +19,12 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 
 /**
- * get_document_info 工具（对照 Go {@code get_document_info.go}，逐字移植）。
- * Go 的 goroutine 并发在 Java 顺序执行（输出按入参序组装，结果等价；
- * metadata 多键的 Go map 随机序列入已知差异——探针只用单键）。
+ * get_document_info 工具。
+ * 多文档顺序处理，输出按入参序组装（metadata 多键的顺序为已知差异点——探针只用单键）。
  */
 public class GetDocumentInfoTool extends BaseTool {
 
-    /** 键序对照 Go GenerateSchema 输出（字母序：properties < type；description < items < type）。 */
+    /** schema 键按字母序：properties < type；description < items < type。 */
     private static final String SCHEMA_JSON = """
             {
               "properties": {
@@ -407,7 +406,7 @@ public class GetDocumentInfoTool extends BaseTool {
         return out;
     }
 
-    /** Go 的 %v 打印 []string：" [a b c]"。 */
+    /** 列表的输出形态：" [a b c]"。 */
     private static String goSliceString(List<String> items) {
         return "[" + String.join(" ", items) + "]";
     }

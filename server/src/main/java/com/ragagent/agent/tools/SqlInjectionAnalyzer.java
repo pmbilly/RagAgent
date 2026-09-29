@@ -55,7 +55,7 @@ final class SqlInjectionAnalyzer {
     static final Pattern RE_SQL_OR_ALWAYS_TRUE =
             Pattern.compile("or\\s+(1\\s*=\\s*1|'1'\\s*=\\s*'1'|true)");
 
-    /** 对照 checkSQLInjectionRisks：匹配的规则各产生一条错误（不短路）。 */
+    /** 匹配的规则各产生一条错误（不短路）。 */
     static List<SqlGuard.SqlValidationError> checkSqlInjectionRisks(String whereClause) {
         List<SqlGuard.SqlValidationError> errors = new ArrayList<>();
         if (whereClause == null || whereClause.isEmpty()) {
@@ -86,7 +86,7 @@ final class SqlInjectionAnalyzer {
         return errors;
     }
 
-    /** 对照 extractWhereClauseText（naive 子串扫描，含字符串字面量误配的原始怪癖，照录）。 */
+    /** naive 子串扫描取 WHERE 文本（字符串字面量里的 where 也会命中——照录的怪癖）。 */
     static String extractWhereClauseText(String sql) {
         String lowerSQL = sql.toLowerCase(Locale.ROOT);
         int wherePos = lowerSQL.indexOf("where");
@@ -109,7 +109,7 @@ final class SqlInjectionAnalyzer {
     static final Pattern RE_SQL_TAIL_CLAUSE =
             Pattern.compile("(?i)\\b(GROUP BY|ORDER BY|LIMIT|OFFSET|HAVING|FETCH)\\b");
 
-    /** 对照 InjectAndConditions（逐字：WHERE 正则命中字符串字面量里的 where 的怪癖照录）。 */
+    /** 把过滤条件 AND 进 WHERE（WHERE 正则命中字符串字面量里的 where 的怪癖照录）。 */
     public static String injectAndConditions(String sql, String filter) {
         filter = filter == null ? "" : filter.trim();
         if (filter.isEmpty()) {
@@ -158,7 +158,7 @@ final class SqlInjectionAnalyzer {
         return s.substring(0, i);
     }
 
-    /** 对照 injectTenantConditions（tablesInQuery 出现序遍历；Go map 随机——已知差异④）。 */
+    /** 注入 tenant 条件（tablesInQuery 出现序遍历，条件序确定）。 */
     static String injectTenantConditions(String sql, Map<String, String> tablesInQuery,
             long tenantID) {
         List<String> conditions = new ArrayList<>();
@@ -193,7 +193,7 @@ final class SqlInjectionAnalyzer {
         }
     }
 
-    /** 对照 injectSoftDeleteConditions。 */
+    /** 注入软删条件（deleted_at IS NULL）。 */
     static String injectSoftDeleteConditions(String sql, Map<String, String> tablesInQuery) {
         List<String> conditions = new ArrayList<>();
         for (Map.Entry<String, String> e : tablesInQuery.entrySet()) {
@@ -207,7 +207,7 @@ final class SqlInjectionAnalyzer {
         return injectAndConditions(sql, String.join(" AND ", conditions));
     }
 
-    /** 对照 injectHiddenKBFilter。 */
+    /** 过滤临时知识库（is_temporary = false）。 */
     static String injectHiddenKbFilter(String sql, Map<String, String> tablesInQuery) {
         String alias = tablesInQuery.get("knowledge_bases");
         if (alias == null) {
@@ -216,7 +216,7 @@ final class SqlInjectionAnalyzer {
         return injectAndConditions(sql, String.format("%s.is_temporary = false", alias));
     }
 
-    /** 对照 injectChunkEnabledFilter。 */
+    /** 过滤禁用 chunk（is_enabled = true）。 */
     static String injectChunkEnabledFilter(String sql, Map<String, String> tablesInQuery) {
         String alias = tablesInQuery.get("chunks");
         if (alias == null) {
@@ -225,7 +225,7 @@ final class SqlInjectionAnalyzer {
         return injectAndConditions(sql, String.format("%s.is_enabled = true", alias));
     }
 
-    /** 对照 injectStructuredSearchScopeConditions（database_query 恒走 structured 路径）。 */
+    /** 注入检索 scope 条件（database_query 恒走 structured 路径）。 */
     static String injectStructuredSearchScopeConditions(String sql, Map<String, String> tablesInQuery,
             List<SqlGuard.SearchScope> scopes) {
         List<String> conditions = new ArrayList<>();
@@ -264,7 +264,7 @@ final class SqlInjectionAnalyzer {
         return String.format("%s.id IN (%s)", alias, String.join(", ", quoteStringSlice(kbIDs)));
     }
 
-    /** 对照 buildScopeClause（scope 内 AND、scope 间 OR）。 */
+    /** scope 内条件 AND、scope 间 OR。 */
     static String buildScopeClause(String alias, String knowledgeIDColumn, SqlGuard.SearchScope scope) {
         if (scope.knowledgeBaseId() == null || scope.knowledgeBaseId().isEmpty()) {
             return "";

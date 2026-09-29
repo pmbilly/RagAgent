@@ -9,35 +9,34 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoMapSerializer;
 
 /**
- * 一次工具执行的结果（对照 Go {@code types.ToolResult}，internal/types/agent.go:351-360）。
+ * 一次工具执行的结果。
  *
- * <p>字段序 = Go 声明序。{@code OutputFiles} 是 {@code json:"-"}，
- * 但它是**运行时**字段（沙箱引用），历史用最终答案的持久资源引用——故 {@code @JsonIgnore}。</p>
+ * <p>字段序即线上契约，不要重排。{@code outputFiles} 是**运行时**字段
+ * （沙箱引用；历史用最终答案的持久资源引用）——故 {@code @JsonIgnore}。</p>
  */
 public class ToolResult {
 
     /**
      * 沙箱引用，**仅本次活结果**有效；历史用的是最终答案的持久资源引用。
-     * 对照 Go 的 {@code json:"-"}。
      */
     @JsonIgnore
     private List<String> outputFiles;
 
     private boolean success;
 
-    /** 人能读的输出（Go 无 omitempty → 恒输出，含空串）。 */
+    /** 人能读的输出（恒输出，含空串）。 */
     private String output = "";
 
-    /** 结构化数据，供程序化使用。omitempty。键序递归对齐 Go（map 恒排序）。 */
+    /** 结构化数据，供程序化使用。空时省略。键序递归恒排序（与既有 jsonb 记录逐字节一致）。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, Object> data;
 
-    /** 执行失败时的错误信息。omitempty。 */
+    /** 执行失败时的错误信息。空时省略。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String error;
 
-    /** 工具产出的 base64 data URI（如 MCP 图片内容）。omitempty。 */
+    /** 工具产出的 base64 data URI（如 MCP 图片内容）。空时省略。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> images;
 
@@ -55,7 +54,7 @@ public class ToolResult {
 
     public String getError() { return error == null ? "" : error; }
 
-    /** Go 的 string 零值是 ""，传入 null 归一为 ""（消费侧可直接 isEmpty）。 */
+    /** 字符串零值约定为 ""：传入 null 归一为 ""（消费侧可直接 isEmpty）。 */
     public void setError(String v) { error = v == null ? "" : v; }
 
     public List<String> getImages() { return images; }

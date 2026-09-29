@@ -36,7 +36,7 @@ final class ReActIteration {
     }
 
     /**
-     * 一个 ReAct 步：think → analyze → act → observe（对照 runReActIteration）。
+     * 一个 ReAct 步：think → analyze → act → observe。
      * 整个迭代体在一个 span 作用域里，所有出口都触发 Finish。
      */
     AgentEngine.IterOutcome runReActIteration(

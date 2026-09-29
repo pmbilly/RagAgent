@@ -9,22 +9,22 @@ import java.util.function.Function;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 /**
- * scope 授权（对照 Go {@code scope_authorization.go}，逐字移植）。
+ * scope 授权。
  *
  * <p>每个接受模型可见 dN/knowledge_id 的 Agent 工具的共享授权边界：句柄解码必要但不充分，
  * 文档必须落在服务端持有的检索作用域内。错误以 {@link ScopeAuthException} 抛出，
- * {@code getMessage()} 即 Go 的 error 文案（含包装层）。</p>
+ * {@code getMessage()} 即对模型的错误文案（含包装层）。</p>
  *
  * <p>依赖两个接缝（装配期接 knowledge 模块真实实现）：{@link KnowledgeFetcher}
- * （GetKnowledgeByIDOnly）与 {@link KnowledgeTagsFetcher}（GetKnowledgeTags）。
- * fetcher 契约：返回 null = Go 的 "empty result"；抛异常 = Go 的 err。</p>
+ * （按 ID 取知识）与 {@link KnowledgeTagsFetcher}（取知识标签）。
+ * fetcher 契约：返回 null = "empty result"；抛异常 = 失败。</p>
  */
 public final class SearchAuth {
 
     private SearchAuth() {
     }
 
-    /** 授权失败的错误（对照 Go 的 error 返回值；message 逐字）。 */
+    /** 授权失败的错误（message 即对模型的文案）。 */
     public static final class ScopeAuthException extends RuntimeException {
         public ScopeAuthException(String message) {
             super(message);
@@ -35,45 +35,44 @@ public final class SearchAuth {
         }
     }
 
-    /** 知识视图（对照 types.Knowledge 被用字段）。 */
+    /** 知识视图（被用字段）。 */
     public record KnowledgeView(String id, String knowledgeBaseId, String title, String fileName) {
     }
 
-    /** chunk 视图（对照 types.Chunk 被用字段）。 */
+    /** chunk 视图（被用字段）。 */
     public record ChunkView(String id, String knowledgeId, String knowledgeBaseId, boolean enabled) {
     }
 
-    /** 标签视图（对照 types.KnowledgeTag 被用字段）。 */
+    /** 标签视图（被用字段）。 */
     public record TagView(String id) {
     }
 
-    /** 对照 GetKnowledgeByIDOnly 的位置。 */
+    /** 按 ID 取知识。 */
     @FunctionalInterface
     public interface KnowledgeFetcher {
         /** 返回 null = 不存在（"empty result"）；抛异常 = 服务错误。 */
         KnowledgeView byIdOnly(String knowledgeId);
     }
 
-    /** 对照 interfaces.ChunkService.GetChunkByIDOnly 的位置。 */
+    /** 按 ID 取 chunk。 */
     @FunctionalInterface
     public interface ChunkFetcher {
         ChunkView byIdOnly(String chunkId);
     }
 
-    /** 对照 KnowledgeService.GetKnowledgeTags 的位置（knowledgeID → 其标签）。 */
+    /** 取知识的标签（knowledgeID → 其标签）。 */
     @FunctionalInterface
     public interface KnowledgeTagsFetcher {
         Map<String, List<TagView>> fetchTags(List<String> knowledgeIds);
     }
 
     /**
-     * 知识域读取接缝（对照 Go 直接传 interfaces.KnowledgeService——一个对象同时提供
-     * GetKnowledgeByIDOnly 与 GetKnowledgeTags）。
+     * 知识域读取接缝（一个对象同时提供按 ID 取知识与取标签）。
      */
     public interface KnowledgeScopeReader extends KnowledgeFetcher, KnowledgeTagsFetcher {
     }
 
-    // ---- 对照 dedupNonEmptyStrings（grep_chunks.go:309）----
+    // ---- 去重非空字符串 ----
 
     static List<String> dedupNonEmptyStrings(List<String> values) {
         Map<String, Boolean> seen = new LinkedHashMap<>();
@@ -91,7 +90,7 @@ public final class SearchAuth {
         return out;
     }
 
-    /** 对照 effectiveSearchTargetTagIDs：TagIDs + ScopeTagIDs 去重非空。 */
+    /** target 的 TagIDs + ScopeTagIDs 去重非空。 */
     static List<String> effectiveSearchTargetTagIds(SearchTarget target) {
         if (target == null) {
             return null;
@@ -107,7 +106,7 @@ public final class SearchAuth {
     }
 
     /**
-     * 对照 searchTargetScope：单个目标授权什么。KnowledgeIDs 与标签是交集不是并集；
+     * 单个目标授权什么。KnowledgeIDs 与标签是交集不是并集；
      * 有文档白名单时标签不参与授权。
      */
     static Scope searchTargetScope(SearchTarget target) {
@@ -124,7 +123,7 @@ public final class SearchAuth {
     record Scope(List<String> knowledgeIds, List<String> tagIds) {
     }
 
-    /** 对照 searchTargetIsWholeKB。 */
+    /** 是否整库目标。 */
     static boolean searchTargetIsWholeKb(SearchTarget target) {
         if (target == null) {
             return false;
@@ -135,7 +134,7 @@ public final class SearchAuth {
                 && (scope.tagIds() == null || scope.tagIds().isEmpty());
     }
 
-    /** 对照 authorizeKnowledgeInSearchTargets。 */
+    /** 校验 knowledge_id 在检索作用域内。 */
     public static KnowledgeView authorizeKnowledgeInSearchTargets(
             SearchTargets searchTargets, String knowledgeId, KnowledgeScopeReader knowledgeService) {
         knowledgeId = knowledgeId == null ? "" : knowledgeId.trim();
@@ -154,8 +153,7 @@ public final class SearchAuth {
         if (knowledge == null) {
             throw new ScopeAuthException("document " + knowledgeId + " not found: empty result");
         }
-        // Go 侧 searchTargets 为 slice 类型，nil 时 ContainsKB 返回 false；
-        // Java 的 null 对应同一语义（空范围），不抛 NPE。
+        // searchTargets 为 null 时 containsKb 返回 false（空范围语义），不抛 NPE。
         if (searchTargets == null || !searchTargets.containsKb(knowledge.knowledgeBaseId())) {
             throw new ScopeAuthException(
                     "knowledge base " + knowledge.knowledgeBaseId() + " is not within the current Agent scope");
@@ -175,7 +173,7 @@ public final class SearchAuth {
         return knowledge;
     }
 
-    /** 对照 authorizeChunkInSearchTargets。 */
+    /** 校验 chunk 在检索作用域内。 */
     public static ChunkView authorizeChunkInSearchTargets(
             SearchTargets searchTargets, String chunkId, ChunkFetcher chunkFetcher,
             KnowledgeScopeReader knowledgeService) {
@@ -195,7 +193,7 @@ public final class SearchAuth {
     }
 
     /**
-     * 对照 authorizeChunkInSearchTargets（knowledge 域 Chunk 重载；FAQ 元数据等
+     * chunk 授权（knowledge 域 Chunk 重载；FAQ 元数据等
      * 需要完整 chunk 的工具用）。chunkById 返回 null = 未找到（empty result）。
      */
     public static com.ragagent.knowledge.domain.Chunk authorizeDomainChunkInSearchTargets(
@@ -223,7 +221,7 @@ public final class SearchAuth {
     private record ChunkIdentity(String id, String knowledgeId, String knowledgeBaseId, boolean enabled) {
     }
 
-    /** authorizeChunkInSearchTargets 的共享核心（错误文案逐字对照 Go）。 */
+    /** chunk 授权的共享核心（错误文案固定）。 */
     private static ChunkIdentity authorizeChunkIdentity(
             SearchTargets searchTargets, String chunkId,
             java.util.function.Supplier<ChunkIdentity> fetch,
@@ -264,7 +262,7 @@ public final class SearchAuth {
         return chunk;
     }
 
-    /** 对照 validateKnowledgeBaseIDsInSearchTargets。 */
+    /** 校验用户指定的 KB ID 都在检索作用域内。 */
     public static void validateKnowledgeBaseIdsInSearchTargets(SearchTargets searchTargets, List<String> kbIds) {
         for (String kbId : dedupNonEmptyStrings(kbIds)) {
             if (!searchTargets.containsKb(kbId)) {
@@ -274,7 +272,7 @@ public final class SearchAuth {
         }
     }
 
-    /** 对照 resolveAuthorizedSourceRefs：重建 "uuid|title"，不信模型给的标题。 */
+    /** 重建 "uuid|title"（标题取服务端，不信模型给的）。 */
     public static List<String> resolveAuthorizedSourceRefs(
             SearchTargets searchTargets, List<String> refs, KnowledgeScopeReader knowledgeService) {
         List<String> resolved = new ArrayList<>();
@@ -305,7 +303,7 @@ public final class SearchAuth {
         return resolved;
     }
 
-    /** 对照 searchTargetsAllowKnowledgeID。knowledgeFetcher 为 null 时退化为 false。 */
+    /** knowledge_id 是否被任一 target 授权。knowledgeFetcher 为 null 时退化为 false。 */
     public static boolean searchTargetsAllowKnowledgeId(
             SearchTargets searchTargets, String knowledgeId, String kbId, KnowledgeScopeReader knowledgeService) {
         if (knowledgeId == null || knowledgeId.isEmpty() || kbId == null || kbId.isEmpty()) {
@@ -344,7 +342,7 @@ public final class SearchAuth {
     }
 
     /**
-     * 对照 filterSearchResultsInSearchTargets（知识图谱用）。
+     * 按检索作用域过滤检索结果（知识图谱用）。
      * 结果条目视图 {@code id/knowledgeId/knowledgeBaseId} 之外的数据原样保留，由调用方映射。
      */
     public static <T> List<T> filterSearchResultsInSearchTargets(
@@ -418,7 +416,7 @@ public final class SearchAuth {
         return filtered;
     }
 
-    /** 对照 knowledgeIDsMatchingAnyTag。 */
+    /** 与任一标签匹配的 knowledge ID 集。 */
     public static Map<String, Boolean> knowledgeIdsMatchingAnyTag(
             List<String> knowledgeIds, List<String> tagIds, KnowledgeTagsFetcher fetchTags) {
         Map<String, Boolean> result = new LinkedHashMap<>();

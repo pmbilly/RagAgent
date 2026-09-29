@@ -99,8 +99,8 @@ final class PromptAssembly {
     }
 
     /**
-     * 当前轮的元数据块：current_time + session + 本轮生效的检索范围
-     * （对照 buildRuntimeContextBlock）。注入当前 user 消息、不落历史——回放的用户轮
+     * 当前轮的元数据块：current_time + session + 本轮生效的检索范围。
+     * 注入当前 user 消息、不落历史——回放的用户轮
      * 保持裸 Content，过期的范围快照不会误导追问。
      */
     static String buildRuntimeContextBlock(String sessionId, List<AgentPrompts.KnowledgeBaseInfo> kbs,
@@ -147,7 +147,7 @@ final class PromptAssembly {
         return sb.toString();
     }
 
-    /** @mention 的短提示（对照 buildMustUseBlock；工具名已在 schema 里，此处不列）。 */
+    /** @mention 的短提示（工具名已在 schema 里，此处不列）。 */
     static String buildMustUseBlock(List<AgentPrompts.PinnedMCPServiceInfo> mcpServices,
             List<AgentPrompts.PinnedSkillInfo> skills) {
         List<String> lines = new ArrayList<>();
@@ -204,13 +204,13 @@ final class PromptAssembly {
                 + "user's current explicit restrictions if they narrow or cancel a selection.\n</must_use>";
     }
 
-    /** 去换行与尖括号，名字越不出 must_use 块（对照 sanitizeMustUseField）。 */
+    /** 去换行与尖括号，名字越不出 must_use 块。 */
     static String sanitizeMustUseField(String s) {
         return s.replace("\n", " ").replace("\r", " ").replace("<", " ").replace(">", " ").trim();
     }
 
     /**
-     * MCP 服务注册工具的公共前缀（对照 mcpToolNamePrefix）：工具名是
+     * MCP 服务注册工具的公共前缀：工具名是
      * mcp_{service}_{tool}，service slug 自己可能带下划线——取最长公共前缀再缩回最后
      * 一个段边界，而不是在第一个下划线处傻切。
      */
@@ -252,8 +252,8 @@ final class PromptAssembly {
     }
 
     /**
-     * 当前 LLM 调用的 user-turn 载荷（对照 RenderUserTurnContent，导出）。
-     * 只被 Execute 与 finalize 路径使用；不进 rendered_content / 历史。
+     * 当前 LLM 调用的 user-turn 载荷。
+     * 只被执行入口与 finalize 路径使用；不进 rendered_content / 历史。
      */
     String renderUserTurnContent(String sessionId, String query) {
         registerRuntimeReferences();
@@ -263,7 +263,7 @@ final class PromptAssembly {
         return composeUserTurnContent(List.of(runtimeCtx, mustUse, query));
     }
 
-    /** 绑定 KB / 钉住文档 / 近期 chunk 注册成请求内句柄（对照 registerRuntimeReferences）。 */
+    /** 绑定 KB / 钉住文档 / 近期 chunk 注册成请求内句柄。 */
     void registerRuntimeReferences() {
         if (engine.knowledgeBasesInfo != null) {
             for (AgentPrompts.KnowledgeBaseInfo kb : engine.knowledgeBasesInfo) {
@@ -334,7 +334,7 @@ final class PromptAssembly {
         return m;
     }
 
-    /** 历史 KB 工具结果替换成短标记，防 LLM 复用过期检索数据（对照 redactHistoryKBResults）。 */
+    /** 历史 KB 工具结果替换成短标记，防 LLM 复用过期检索数据。 */
     static List<ChatMessage> redactHistoryKBResults(List<ChatMessage> llmContext) {
         List<ChatMessage> redacted = new ArrayList<>(llmContext.size());
         for (ChatMessage msg : llmContext) {
@@ -348,7 +348,7 @@ final class PromptAssembly {
         return redacted;
     }
 
-    /** 消息数组 + LLM 上下文（对照 buildMessagesWithLLMContext）。 */
+    /** 消息数组 + LLM 上下文。 */
     List<ChatMessage> buildMessagesWithLLMContext(String systemPrompt, String currentQuery,
             String sessionId, List<ChatMessage> llmContext, List<String> imageURLs) {
         List<ChatMessage> messages = new ArrayList<>();

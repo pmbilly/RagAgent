@@ -10,36 +10,35 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * search_memory 工具（对照 Go {@code search_memory.go}，逐字移植）。
+ * search_memory 工具。
  *
- * <p>按需查找用户长期记忆。Go 注入 {@code interfaces.MemoryService}；Java 侧按 4.5a
- * 接缝风格用函数式接口 {@link MemorySearch} 表达，装配期接 memory 模块
- * {@code MemoryService.searchMemory} 的真实实现（4.5c/4.6）。</p>
+ * <p>按需查找用户长期记忆。用函数式接口 {@link MemorySearch} 表达接缝，
+ * 装配期接 memory 模块 {@code MemoryService.searchMemory} 的真实实现。</p>
  *
  * <p>「关闭」与「无匹配」对模型是两个不同答案（三态 XML 输出）；错误通道折叠为
  * {@code success=false}+error，不抛异常。</p>
  */
 public class SearchMemoryTool extends BaseTool {
 
-    /** 记忆查找回调（对照 interfaces.MemoryService.SearchMemory 的位置）。 */
+    /** 记忆查找回调。 */
     @FunctionalInterface
     public interface MemorySearch {
         MemorySearchResultView search(String query, int limit);
     }
 
-    /** 记忆条目视图（对照 types.MemoryItem 被用字段；validFrom 按日期粒度给出）。 */
+    /** 记忆条目视图（validFrom 按日期粒度给出）。 */
     public record MemoryItemView(String kind, String topic, String content, LocalDate validFrom) {
     }
 
-    /** 查找结果视图（对照 interfaces.MemorySearchResult）。 */
+    /** 查找结果视图。 */
     public record MemorySearchResultView(boolean available, List<MemoryItemView> items) {
     }
 
-    /** 对照 types.MemorySearchDefaultItems。 */
+    /** 未配置时的默认返回条数。 */
     static final int MEMORY_SEARCH_DEFAULT_ITEMS = 10;
-    /** 对照 types.MemorySearchMaxItems。 */
+    /** 返回条数硬上限。 */
     static final int MEMORY_SEARCH_MAX_ITEMS = 20;
-    /** 对照 types.MemoryContentMaxRunes。 */
+    /** 单条记忆内容的 rune 上限。 */
     static final int MEMORY_CONTENT_MAX_RUNES = 300;
 
     private static final String SCHEMA_JSON = """
@@ -183,7 +182,7 @@ public class SearchMemoryTool extends BaseTool {
         return result;
     }
 
-    /** 对照 types.SanitizeMemoryContent：换行/控制字符折叠 → 空白压缩 → 300 rune 截断。 */
+    /** 内容消毒：换行/控制字符折叠 → 空白压缩 → 300 rune 截断。 */
     static String sanitizeMemoryContent(String content) {
         if (content == null) {
             return "";
@@ -208,7 +207,7 @@ public class SearchMemoryTool extends BaseTool {
         return joined;
     }
 
-    /** 对照 tools 包 xmlEscape（grep_chunks.go:820）：最小 XML 转义。 */
+    /** 最小 XML 转义（与工具族共用语义）。 */
     static String xmlEscape(String s) {
         if (s == null) {
             return "";

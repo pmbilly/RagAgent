@@ -1,8 +1,7 @@
 package com.ragagent.agent;
 
 /**
- * 技能元数据（对照 Go internal/agent/skills/skill.go L67-71 的 SkillMetadata；
- * 纯逻辑件只消费 Name/Description）。BasePath 随波 4.5/4.6 skills 批展开。
+ * 技能元数据（纯逻辑件，当前只消费 name/description；basePath 预留未消费）。
  */
 public record SkillMetadata(String name, String description, String basePath) {
 

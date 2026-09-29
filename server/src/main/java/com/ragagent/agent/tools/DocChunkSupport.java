@@ -9,20 +9,16 @@ import com.ragagent.knowledge.domain.Chunk;
 
 /**
  * wiki_read_source_doc / get_document_info / list_knowledge_chunks 三工具共享的
- * 接缝与图片富化（对照 Go {@code wiki_read_source_doc.go} 的 enrichChunkImageInfo /
- * enrichChunkContent、{@code searchutil/imageinfo.go} 的
- * BuildImageInfoMarkdownWithURL / buildImageInfoMarkdownMetadata / CollectImageInfoByChunkIDs
- * 消费侧，逐字移植）。
+ * 接缝与图片富化（chunk 内容富化、图片 markdown 组装、批量图片信息收集的消费侧）。
  *
- * <p>seam（接线交 4.5c）：</p>
+ * <p>seam：</p>
  * <ul>
- *   <li>{@link KnowledgeInfoReader}：对照 interfaces.KnowledgeService 被用子集
- *       （GetKnowledgeByIDOnly + GetKnowledgeTags）。</li>
- *   <li>{@link PagedChunks}：对照 ChunkRepository.ListPagedChunksByKnowledgeID
- *       （text/faq 类型 + enabled 过滤已在服务端语义内；Java 收窄为整页返回）。</li>
- *   <li>{@link ImageInfoCollector}：对照 searchutil.CollectImageInfoByChunkIDs
- *       （返回 parent chunk ID → 合并后 ImageInfo JSON 串；null 收集器 = Go chunkRepo nil 跳过）。
- *       其内部合并实现（含 map 迭代序）属 4.5c。</li>
+ *   <li>{@link KnowledgeInfoReader}：按 ID 取知识 + 取知识标签。</li>
+ *   <li>{@link PagedChunks}：按知识分页取 chunk
+ *       （text/faq 类型 + enabled 过滤已在服务端语义内；收窄为整页返回）。</li>
+ *   <li>{@link ImageInfoCollector}：批量收集图片信息
+ *       （返回 parent chunk ID → 合并后 ImageInfo JSON 串；null 收集器 = 跳过富化）。
+ *       其内部合并实现属基础设施侧。</li>
  * </ul>
  */
 public final class DocChunkSupport {
@@ -30,15 +26,15 @@ public final class DocChunkSupport {
     private DocChunkSupport() {
     }
 
-    /** knowledge 文档富视图（对照 types.Knowledge 被用字段；tenantId 对照 uint64）。 */
+    /** knowledge 文档富视图（跨模块被用字段）。 */
     public record KnowledgeInfoView(String id, long tenantId, String knowledgeBaseId, String title,
             String description, String type, String source, String fileName, String fileType,
             long fileSize, String parseStatus, Map<String, Object> metadata) {
     }
 
     /**
-     * 对照 interfaces.KnowledgeService 被用子集（GetKnowledgeByIDOnly/GetKnowledgeTags）。
-     * 返回 null = empty result（对照 Go err==nil 且 knowledge==nil）。
+     * 知识读取接缝（按 ID 取知识 / 取标签）。
+     * 返回 null = empty result（记入失败文案）。
      * 不继承 {@link SearchAuth.KnowledgeScopeReader}（record 无子类型关系），
      * 传给 SearchAuth 时用 {@link #asScopeReader} 适配。
      */
@@ -67,23 +63,23 @@ public final class DocChunkSupport {
         };
     }
 
-    /** 对照 ListPagedChunksByKnowledgeID 的一页结果。 */
+    /** 一页 chunk 结果。 */
     public record ChunkPage(List<Chunk> chunks, long total) {
     }
 
-    /** 对照 ChunkRepository.ListPagedChunksByKnowledgeID（chunkRepo 为 null = 服务不可用）。 */
+    /** 分页取 chunk 接缝（为 null = 服务不可用）。 */
     public interface PagedChunks {
         ChunkPage listPaged(long tenantId, String knowledgeId, int page, int pageSize);
     }
 
-    /** 对照 searchutil.CollectImageInfoByChunkIDs 的位置。 */
+    /** 批量收集图片信息接缝。 */
     public interface ImageInfoCollector {
         Map<String, String> collect(long tenantId, List<String> chunkIds);
     }
 
-    // ==================== ImageInfo（对照 types.ImageInfo 被用字段） ====================
+    // ==================== ImageInfo ====================
 
-    /** 对照 types.ImageInfo 的 URL/Caption/OCRText 三字段。 */
+    /** 图片信息三字段：URL/Caption/OCRText。 */
     public record ImageInfoView(String url, String caption, String ocrText) {
     }
 
@@ -96,7 +92,7 @@ public final class DocChunkSupport {
         }
     }
 
-    /** 对照 json.Unmarshal(chunk.ImageInfo, &[]types.ImageInfo)：失败或空 → null。 */
+    /** 解析 ImageInfo JSON 数组：失败或空 → null。 */
     public static List<ImageInfoView> parseImageInfoList(String imageInfoJson) {
         if (imageInfoJson == null || imageInfoJson.isEmpty()) {
             return null;
@@ -122,7 +118,7 @@ public final class DocChunkSupport {
         }
     }
 
-    /** 对照 buildImageInfoMarkdownMetadata：caption/OCR 的 blockquote 组装；空 → ""。 */
+    /** caption/OCR 的 blockquote 组装；空 → ""。 */
     public static String buildImageInfoMarkdownMetadata(ImageInfoView img) {
         if (img == null) {
             return "";
@@ -143,7 +139,7 @@ public final class DocChunkSupport {
     }
 
     /**
-     * 对照 BuildImageInfoMarkdownWithURL：URL 原样保留；alt = caption 按空白折叠，
+     * 图片 markdown 组装：URL 原样保留；alt = caption 按空白折叠，
      * 空 → "image"，反斜杠与方括号转义。
      */
     public static String buildImageInfoMarkdownWithURL(String url, ImageInfoView img) {
@@ -167,7 +163,7 @@ public final class DocChunkSupport {
         return image + "\n\n" + metadata;
     }
 
-    /** 对照 strings.Join(strings.Fields(s), " ")：空白折叠为单空格。 */
+    /** 空白折叠为单空格。 */
     static String collapseWhitespace(String s) {
         if (s == null) {
             return "";
@@ -193,7 +189,7 @@ public final class DocChunkSupport {
         return sb.toString();
     }
 
-    /** 对照 enrichChunkContent：content + 每个非空图片 markdown（各前置 "\n"）。 */
+    /** 内容富化：content + 每个非空图片 markdown（各前置 "\n"）。 */
     public static String enrichChunkContent(Chunk c) {
         String content = c.getContent() == null ? "" : c.getContent();
         String imageInfo = c.getImageInfo();
@@ -214,8 +210,8 @@ public final class DocChunkSupport {
     }
 
     /**
-     * 对照 enrichChunkImageInfo：给 ImageInfo 为空的父 chunk 补图（已有非空的跳过）。
-     * collector 为 null → 直接返回（Go chunkRepo nil 语义）。
+     * 给 ImageInfo 为空的父 chunk 补图（已有非空的跳过）。
+     * collector 为 null → 直接返回（服务不可用语义）。
      */
     public static void enrichChunkImageInfo(ImageInfoCollector collector, long tenantId, List<Chunk> chunks) {
         if (chunks == null || chunks.isEmpty() || collector == null) {
@@ -247,7 +243,7 @@ public final class DocChunkSupport {
         }
     }
 
-    /** 对照 GetMetadata：空 metadata → 空 map（Go 非 nil）；解析失败 → null。 */
+    /** metadata 视图：空 metadata → 空 map；非字符串值按标量形态转文本；解析失败 → null。 */
     public static Map<String, String> knowledgeMetadataMap(Map<String, Object> metadata) {
         if (metadata == null || metadata.isEmpty()) {
             return new LinkedHashMap<>();
@@ -259,7 +255,7 @@ public final class DocChunkSupport {
         return out;
     }
 
-    /** Go fmt %v 的常见标量形态（metadata 值用；嵌套容器的随机序不进探针）。 */
+    /** 常见标量的输出形态（metadata 值用；嵌套容器的序不保证）。 */
     static String goFmtV(Object v) {
         if (v == null) {
             return "<nil>";

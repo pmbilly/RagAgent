@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * wiki_update_issue 工具（对照 Go {@code wiki_update_issue.go}，逐字移植）。
+ * wiki_update_issue 工具。
  * 先证明 issue 属于允许的 KB（resolveWikiIssue），再改状态。
  */
 public class WikiUpdateIssueTool extends BaseTool {

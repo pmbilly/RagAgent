@@ -11,7 +11,7 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 摘要用对话序列化（对照 Go internal/agent/compaction/serialize.go 全文）。
+ * 摘要用对话序列化。
  *
  * <p>把消息渲染成<b>文字记录</b>而不是作为对话传入：拿到真消息的模型会续写它们；
  * 拿到文字记录才会摘要。</p>
@@ -21,16 +21,16 @@ public final class ConversationSerializer {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**
-     * 摘要请求里单个工具结果的字符上限（对照 toolResultMaxChars）。工具输出是上下文
+     * 摘要请求里单个工具结果的字符上限。工具输出是上下文
      * 体积的最大贡献者，摘要要的是要点不是字节。
      */
     private static final int TOOL_RESULT_MAX_CHARS = 2000;
 
-    /** user/assistant 正文的字符上限（对照 textMaxChars）。很少是问题，但也不该无界。 */
+    /** user/assistant 正文的字符上限。很少是问题，但也不该无界。 */
     private static final int TEXT_MAX_CHARS = 4000;
 
     /**
-     * 工具调用参数的渲染上限（对照 toolArgsMaxChars）。write_sandbox_file 的参数里
+     * 工具调用参数的渲染上限。write_sandbox_file 的参数里
      * 装着整个文件体；摘要需要路径和"写过"这个事实，绝不需要内容。
      */
     private static final int TOOL_ARGS_MAX_CHARS = 400;
@@ -38,13 +38,13 @@ public final class ConversationSerializer {
     private ConversationSerializer() {
     }
 
-    /** 把消息渲染成文字记录（对照 serializeConversation）。 */
+    /** 把消息渲染成文字记录。 */
     public static String serializeConversation(List<ChatMessage> messages) {
         List<String> parts = new ArrayList<>();
         if (messages != null) {
             for (ChatMessage msg : messages) {
-                // Java ChatMessage 的 name/toolCallId/reasoningContent 可为 null
-                //（Go 零值 ""；llm.domain 既有约定），一律 null 安全读取
+                // ChatMessage 的 name/toolCallId/reasoningContent 可为 null
+                //（llm.domain 可空字段约定），一律 null 安全读取
                 String reasoning = nvl(msg.getReasoningContent());
                 String content = nvl(msg.getContent());
                 String name = nvl(msg.getName());
@@ -85,7 +85,7 @@ public final class ConversationSerializer {
         return String.join("\n\n", parts);
     }
 
-    /** 渲染工具调用列表（对照 serializeToolCalls）。 */
+    /** 渲染工具调用列表。 */
     public static String serializeToolCalls(List<ToolCall> calls) {
         if (calls == null || calls.isEmpty()) {
             return "";
@@ -99,12 +99,12 @@ public final class ConversationSerializer {
     }
 
     /**
-     * 把参数 JSON 渲染成 {@code key=value} 对，丢弃超长值（对照 renderToolArgs）。
+     * 把参数 JSON 渲染成 {@code key=value} 对，丢弃超长值。
      * 键排序保证同一调用渲染结果恒定——跨压缩比较文字记录时用得上。
      *
-     * <p>数值语义对齐 Go：{@code json.Unmarshal} 进 {@code any} 后<b>一切数字都是
-     * float64</b>（大整数丢精度、1e21 记成 1e+21），序列化再按 Go 的 float 编码器
-     * 输出。Java 侧把数值节点统一转 double 再用 {@link GoDoubleSerializer}。</p>
+     * <p><b>数值语义</b>：数值节点统一转 double 再由 {@link GoDoubleSerializer}
+     * 编码（最短往返 + 科学计数切换）；大整数会丢精度、1e21 记成 1e+21，
+     * 保证渲染结果确定。</p>
      */
     public static String renderToolArgs(String arguments) {
         JsonNode parsed;
@@ -124,12 +124,12 @@ public final class ConversationSerializer {
             }
             return String.join(", ", pairs);
         } catch (GoMarshalException e) {
-            // Go: 数字超出 float64 范围时整个 Unmarshal 报错 → 回退到截断原文
+            // 数值超出 double 范围时按解析失败处理 → 回退到截断原文
             return truncate(arguments, TOOL_ARGS_MAX_CHARS);
         }
     }
 
-    /** 按字节序排键（Go 的 map 键排序是字节序；Java String.compareTo 是 UTF-16 序）。 */
+    /** 按 UTF-8 字节序排键，保证同一参数渲染结果恒定（String.compareTo 是 UTF-16 序，不等于字节序）。 */
     private static List<String> sortedKeys(JsonNode obj) {
         List<String> keys = new ArrayList<>();
         obj.fieldNames().forEachRemaining(keys::add);
@@ -201,7 +201,7 @@ public final class ConversationSerializer {
         if (node.isNumber()) {
             double d = node.asDouble();
             if (Double.isInfinite(d) || Double.isNaN(d)) {
-                // Go: json.Unmarshal 对越界数字直接报错
+                // 越界数字按解析失败处理
                 throw new GoMarshalException();
             }
             sb.append(GoDoubleSerializer.format(d));
@@ -246,8 +246,8 @@ public final class ConversationSerializer {
     }
 
     /**
-     * 按字符（rune）截断并加省略标记（对照 truncate）。Go 的 TrimSpace 按
-     * unicode.IsSpace（含 NBSP/NEL），Java 的 strip() 不含——单独实现。
+     * 按字符（code point）截断并加省略标记；先做含 NBSP/NEL 的全空格裁剪
+     * （Java 的 strip() 不含这些，见 {@link #goTrimSpace}）。
      */
     public static String truncate(String s, int maxChars) {
         String t = goTrimSpace(s);
@@ -259,12 +259,12 @@ public final class ConversationSerializer {
         return "%s\n\n[... %d more characters truncated]".formatted(head, runes.length - maxChars);
     }
 
-    /** unicode.IsSpace 语义的 TrimSpace（Go strings.TrimSpace）。 */
-    /** Go 零值语义：null 字符串按 "" 处理（llm.domain 可空字段约定）。 */
+    /** null 字符串按空串处理（llm.domain 可空字段约定）。 */
     public static String nvl(String s) {
         return s == null ? "" : s;
     }
 
+    /** unicode 空白语义的全空格裁剪（含 NBSP/NEL，Java 的 strip() 不覆盖）。 */
     public static String goTrimSpace(String s) {
         if (s == null) {
             return "";
@@ -291,7 +291,7 @@ public final class ConversationSerializer {
     }
 
     /**
-     * 摘要器不可用时的兜底档案（对照 rawArchive）。有损且无结构，但保住了下一轮
+     * 摘要器不可用时的兜底档案。有损且无结构，但保住了下一轮
      * 不重做已完成工作所需的工具名和路径。
      */
     public static String rawArchive(List<ChatMessage> messages) {
@@ -322,5 +322,4 @@ public final class ConversationSerializer {
         return sb.toString();
     }
 
-    /** GoDoubleSerializer 已有 Go 的最短往返 + 科学计数切换，直接复用。 */
 }

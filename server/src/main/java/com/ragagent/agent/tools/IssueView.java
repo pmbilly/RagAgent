@@ -5,7 +5,7 @@ import java.util.List;
 
 /** agent wiki 工具的 issue seam 视图。 */
 
-    /** issue 视图（对照 types.WikiPageIssue；时间字段以 Go RFC3339 文本透传保证逐字）。 */
+    /** issue 视图（时间字段以 RFC3339 文本透传保证逐字节输出）。 */
     public final class IssueView {
         private String id = "";
         private long tenantId;
@@ -49,11 +49,11 @@ import java.util.List;
         public void setDeletedAt(String v) { deletedAt = v; }
 
         /**
-         * 对照 json.MarshalIndent(issue, "", "  ") 的字节形态。
-         * gorm.DeletedAt 无效时序列化为 null。
+         * 两空格缩进的 JSON 字节形态。
+         * deletedAt 时间戳无效时序列化为 null。
          */
         public String toGoJsonIndent() {
-            // 对照 json.MarshalIndent(issue, "", "  ")：嵌套数组非空时逐元素换行缩进
+            // 嵌套数组非空时逐元素换行缩进
             StringBuilder b = new StringBuilder();
             b.append("{\n");
             b.append("  \"id\": ").append(goJsonString(id)).append(",\n");

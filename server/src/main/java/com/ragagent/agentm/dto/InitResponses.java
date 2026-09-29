@@ -7,9 +7,9 @@ import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;
 
 /**
- * initialization POST 响应里的 models 序列化（对照 Go json.Marshal(*types.Model)，
- * **不是** NewModelResponse 形态：api_key 留在 parameters 里原样输出、无 credentials 键、
- * managed_by omitempty）。
+ * initialization POST 响应里的 models 序列化（自有契约、内层 snake 键）：
+ * api_key 留在 parameters 里原样输出、无 credentials 键、
+ * managed_by 为空时整键省略。
  */
 public final class InitResponses {
 

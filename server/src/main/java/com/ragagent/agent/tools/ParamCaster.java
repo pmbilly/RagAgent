@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
- * 参数类型矫正（对照 Go {@code param_cast.go} 的 {@code CastParams}，逐字移植）。
+ * 参数类型矫正。
  *
  * <p>LLM 有时返回错误类型（{@code "true"} 代替 true、{@code "123"} 代替 123）。
  * 本类按工具参数的 JSON Schema 做安全转型：</p>
@@ -20,12 +20,12 @@ import com.ragagent.common.web.GoDoubleSerializer;
  *   <li>boolean ← "true"/"1"/"yes"→true、"false"/"0"/"no"→false（大小写不敏感）；数字 0/1 → false/true；</li>
  *   <li>integer ← 整数字符串；整数值浮点（42.0 → 42）；</li>
  *   <li>number ← 可解析字符串（实录：{@code "1e21"} → 1e+21）；</li>
- *   <li>string ← bool / 数字（数字按 strconv 'f' -1：{@code 123.5} → "123.5"）。</li>
+ *   <li>string ← bool / 数字（浮点按最短 'f' 定点形态：{@code 123.5} → "123.5"）。</li>
  * </ul>
  *
  * <p>schema 缺失/不可解析/args 不可解析时原样返回。<b>发生任一转型后整棵 args 按
- * {@link GoJsonCodec}（Go json.Marshal 语义：键序重排 + HTML 转义）重新序列化</b>——
- * 这是 Go 的既有行为（map 重排），不是本类的选择（实录 CAST 17/18 钉死）。</p>
+ * {@link GoJsonCodec}（键序重排 + HTML 转义）重新序列化</b>——序列化形态按既有
+ * 行为钉死（实录 CAST 17/18），不是本类的选择。</p>
  */
 public final class ParamCaster {
 
@@ -76,7 +76,7 @@ public final class ParamCaster {
         if (!changed) {
             return args;
         }
-        // 重新序列化走 Go 的编码器（键序重排 + HTML 转义），解析失败原样返回。
+        // 重新序列化走 GoJsonCodec（键序重排 + HTML 转义），解析失败原样返回。
         try {
             String encoded = GoJsonCodec.write(argsMap);
             return ObjectMapperHolder.MAPPER.readTree(encoded);
@@ -86,7 +86,7 @@ public final class ParamCaster {
     }
 
     /**
-     * 尝试把 val 转成 targetType；返回 null 表示不转（对照 Go 的 (newValue, bool) 双返回）。
+     * 尝试把 val 转成 targetType；返回 null 表示不转。
      */
     static JsonNode castValue(JsonNode val, String targetType) {
         switch (targetType) {
@@ -142,7 +142,7 @@ public final class ParamCaster {
                         // fall through
                     }
                 }
-                // Go 里 JSON 数字是 float64；整数值浮点转 int64
+                // JSON 数字按浮点解析；整数值浮点转整型
                 if (val.isNumber()) {
                     double f = val.doubleValue();
                     if (f == (double) (long) f) {
@@ -170,7 +170,7 @@ public final class ParamCaster {
                     return F.textNode(val.booleanValue() ? "true" : "false");
                 }
                 if (val.isFloatingPointNumber()) {
-                    // 对照 strconv.FormatFloat(v, 'f', -1, 64)（实录：123.5 → "123.5"、42.0 → "42"）
+                    // 最短 'f' 定点形态（实录：123.5 → "123.5"、42.0 → "42"）
                     return F.textNode(goFormatFloat(val.doubleValue()));
                 }
                 if (val.isIntegralNumber()) {
@@ -184,15 +184,15 @@ public final class ParamCaster {
         return val;
     }
 
-    /** strconv.FormatFloat(v, 'f', -1, 64)：最短 'f' 形态（绝无指数）。 */
+    /** 最短 'f' 定点形态（绝无指数）。 */
     private static String goFormatFloat(double v) {
         String s = GoDoubleSerializer.format(v);
         int e = s.indexOf('e');
         if (e < 0) {
             return s;
         }
-        // GoDoubleSerializer 对 |v|<1e-6 或 ≥1e21 走 'e' 形态；'f' -1 需展开为定点
-        // （数字位沿用最短往返位数，正是 Go 的做法：先取最短十进制，再按 'f' 排布）。
+        // GoDoubleSerializer 对 |v|<1e-6 或 ≥1e21 走 'e' 形态；'f' 形态需展开为定点
+        // （先取最短往返十进制，再按定点排布）。
         String mant = s.substring(0, e);
         int exp = Integer.parseInt(s.substring(e + 1));
         return new java.math.BigDecimal(mant).scaleByPowerOfTen(exp).toPlainString();

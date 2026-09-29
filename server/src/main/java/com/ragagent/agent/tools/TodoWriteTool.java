@@ -11,14 +11,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * todo_write 计划工具（对照 Go {@code todo_write.go}，逐字移植）。
+ * todo_write 计划工具。
  *
- * <p>输出格式（Go 实录逐字节）：任务标题、Plan Steps 列表（每步 {@code N. emoji [status] desc}）、
+ * <p>输出格式（字节级契约）：任务标题、Plan Steps 列表（每步 {@code N. emoji [status] desc}）、
  * Task Progress 统计（✅/🔄/⏳ + 计数）、剩余任务的 Important Reminder 或全完成后的
  * You-can-now 段。无步骤时输出建议检索工作流的引导段。status 未知名回落 ⏳，
  * {@code skipped} 有专属 ⏭️。</p>
  *
- * <p>Data map 的键序由序列化层排序（对照 Go 的 map marshal），见
+ * <p>Data map 的键序由序列化层排序，见
  * {@code TodoWriteToolTest} 的字节断言。</p>
  */
 public class TodoWriteTool extends BaseTool {
@@ -26,16 +26,16 @@ public class TodoWriteTool extends BaseTool {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     static {
-        // Go json.Marshal 的 HTML 转义恒开（steps_json 是发给前端/模型的字符串，字节即契约）
+        // HTML 转义恒开（steps_json 是发给前端/模型的字符串，字节即契约）
         MAPPER.getFactory().setCharacterEscapes(new com.ragagent.common.web.GoJsonEscapes());
     }
 
-    /** 单个计划步骤（对照 PlanStep；json 键序 = Go 声明序 id/description/status）。 */
+    /** 单个计划步骤（json 键序固定：id/description/status）。 */
     @JsonPropertyOrder({"id", "description", "status"})
     public record PlanStep(String id, String description, String status) {
     }
 
-    /** 输入（对照 TodoWriteInput：task omitempty → 非必需，steps 必需）。 */
+    /** 输入（task 可省，steps 必需）。 */
     public record TodoWriteInput(String task, List<PlanStep> steps) {
     }
 
@@ -46,8 +46,8 @@ public class TodoWriteTool extends BaseTool {
         super(ToolDefinitions.TOOL_TODO_WRITE, TOOL_DESCRIPTION, SCHEMA_JSON);
     }
 
-    // Go 的 description 字面量（7247 字节）过长，正文语义见 todo_write.go L14-134 的原文；
-    // 这段是发给模型提示词的一部分，逐字节契约由 schema 承担，description 全文照抄如下。
+    // description 字面量过长（7247 字节）；这段是发给模型提示词的一部分，
+    // 逐字节契约由 schema 承担，全文照抄如下。
     private static final String TOOL_DESCRIPTION = """
             Use this tool to create and manage a structured task list for retrieval and research tasks. This helps you track progress, organize complex retrieval operations, and demonstrate thoroughness to the user.
 
@@ -205,8 +205,7 @@ public class TodoWriteTool extends BaseTool {
         return result;
     }
 
-    /** 对照 json.Unmarshal 到 TodoWriteInput：steps 缺省/为 null → nil 切片
-     * （Go marshal 出来是 null，不是 []——实录 R_TODO_NO_STEPS 钉死）。 */
+    /** 解析入参：steps 缺省/为 null → null（序列化输出 null，不是 []——实录 R_TODO_NO_STEPS 钉死）。 */
     private static List<PlanStep> parseSteps(JsonNode stepsNode) {
         if (stepsNode == null || stepsNode.isNull()) {
             return null;
@@ -223,7 +222,7 @@ public class TodoWriteTool extends BaseTool {
         return steps;
     }
 
-    /** 计划输出格式化（对照 generatePlanOutput，逐行照抄）。 */
+    /** 计划输出格式化。 */
     static String generatePlanOutput(String task, List<PlanStep> steps) {
         StringBuilder output = new StringBuilder();
         output.append("Plan created\n\n");
@@ -294,7 +293,7 @@ public class TodoWriteTool extends BaseTool {
         return output.toString();
     }
 
-    /** 单步格式化（对照 formatPlanStep：未知 status 回落 ⏳；skipped → ⏭️）。 */
+    /** 单步格式化（未知 status 回落 ⏳；skipped → ⏭️）。 */
     static String formatPlanStep(int index, PlanStep step) {
         String emoji = switch (step.status()) {
             case "pending" -> "⏳";

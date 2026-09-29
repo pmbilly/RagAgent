@@ -9,7 +9,7 @@ import com.ragagent.agent.tools.SearchAuth.KnowledgeScopeReader;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 /**
- * wiki_write_page 工具（对照 Go {@code wiki_write_page.go}，逐字移植）。
+ * wiki_write_page 工具。
  * 创建或整页覆盖；source_refs 在 scopeEnforced 时经 resolveAuthorizedSourceRefs
  * 鉴权；summary 命名空间禁止手工创建；写前 RepairContentLinks 自动修链（best-effort）。
  */
@@ -72,7 +72,7 @@ public class WikiWritePageTool extends BaseTool {
         this.routes = routes != null ? routes : new WikiRouteResolver();
     }
 
-    /** 对照 WithSearchTargets：启用 source_refs 的 Agent 授权边界（链式）。 */
+    /** 启用 source_refs 的 Agent 授权边界（链式）。 */
     public WikiWritePageTool withSearchTargets(SearchTargets searchTargets) {
         this.searchTargets = searchTargets;
         this.scopeEnforced = true;
@@ -106,7 +106,7 @@ public class WikiWritePageTool extends BaseTool {
         if (sourceRefsNode != null) {
             List<String> sourceRefs = WikiFlagIssueTool.stringList(sourceRefsNode);
             if (sourceRefs == null) {
-                sourceRefs = new ArrayList<>(); // JSON null → Go 的 nil slice
+                sourceRefs = new ArrayList<>(); // JSON null 视为空列表
             }
             if (scopeEnforced) {
                 try {
@@ -201,7 +201,7 @@ public class WikiWritePageTool extends BaseTool {
         try {
             wikiPageService.rebuildIndexPage(kbId);
         } catch (RuntimeException ignored) {
-            // 对照 Go：_ = RebuildIndexPage，恒忽略
+            // 重建失败恒忽略（不影响写入结果）
         }
 
         StringBuilder output = new StringBuilder();

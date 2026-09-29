@@ -11,29 +11,27 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * 提示词模板目录（对照 Go internal/config/config.go 的 loadPromptTemplates /
- * PromptTemplatesConfig / LocalizeTemplates，L337-431 + L1080-1124），
- * 供 {@code GET /api/v1/tenants/kv/prompt-templates} 消费。
+ * 提示词模板目录，供 {@code GET /api/v1/tenants/kv/prompt-templates} 消费。
  *
- * <p>模板文件与 Go 的 config/prompt_templates/ 同源（vendored 到 classpath
- * {@code agentm/prompt_templates/}），启动时装载一次（对照 Go 启动装载语义）。</p>
+ * <p>模板文件 vendored 到 classpath {@code agentm/prompt_templates/}，
+ * 启动时装载一次（进程内缓存）。</p>
  *
  * <p>JSON 保真点：</p>
  * <ul>
- *   <li>模板字段顺序 = Go struct 声明序：id/name/description/content，随后
- *       user/has_knowledge_base/has_web_search/default/mode 带 omitempty
- *       （空串与 false 省略），i18n 是 {@code json:"-"} 从不出现在响应里；</li>
- *   <li>config 字段顺序 = Go struct 声明序；system_prompt/context_template/
- *       rewrite/fallback 无 omitempty（空 → null），其余带 omitempty（空 → 键缺席）；</li>
- *   <li>handler 的 localized 副本只搬 9 个字段——graph_extraction /
- *       generate_questions 不落进 localized（恒 nil → 键恒缺席），照抄。</li>
+ *   <li>模板字段顺序固定：id/name/description/content，随后
+ *       user/has_knowledge_base/has_web_search/default/mode（空串与 false 省略），
+ *       i18n 从不出现在响应里；</li>
+ *   <li>config 字段顺序固定；system_prompt/context_template/
+ *       rewrite/fallback 恒输出（空 → null），其余空 → 键缺席；</li>
+ *   <li>localized 副本只搬 9 个字段——graph_extraction /
+ *       generate_questions 不落进 localized（键恒缺席）。</li>
  * </ul>
  */
 public final class PromptTemplateCatalog {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go PromptTemplate（i18n 只用于本地化，不进 JSON）。 */
+    /** 单个模板（i18n 只用于本地化，不进 JSON）。 */
     public record Template(String id, String name, String description, String content,
                            String user, boolean hasKnowledgeBase, boolean hasWebSearch,
                            boolean dflt, String mode, Map<String, I18n> i18n) {
@@ -49,12 +47,12 @@ public final class PromptTemplateCatalog {
         }
     }
 
-    /** 对照 Go PromptTemplateI18n（name/description 覆盖项）。 */
+    /** name/description 的本地化覆盖项。 */
     public record I18n(String name, String description) {}
 
     /**
-     * 对照 Go PromptTemplatesConfig。{@code null} 列表 = 文件缺失（Go 的 nil slice，
-     * 无 omitempty 字段 marshal 成 null，带 omitempty 的键缺席）。
+     * 模板配置集。{@code null} 列表 = 文件缺失
+     * （恒输出键 → null，可省键 → 键缺席）。
      */
     public record Config(List<Template> systemPrompt, List<Template> contextTemplate,
                          List<Template> rewrite, List<Template> fallback,
@@ -62,14 +60,14 @@ public final class PromptTemplateCatalog {
                          List<Template> keywordsExtraction, List<Template> agentSystemPrompt,
                          List<Template> intentPrompts) {}
 
-    /** 文件 → 字段映射（对照 loadPromptTemplates 的 templateFiles；graph_extraction/generate_questions 不装载——handler 不消费）。 */
+    /** 模板文件目录（graph_extraction/generate_questions 不装载——handler 不消费）。 */
     private static final String DIR = "agentm/prompt_templates/";
 
     private static volatile Config cached;
 
     private PromptTemplateCatalog() {}
 
-    /** 对照 Go 启动时装载一次（进程内缓存；文件缺失 → 对应字段 null）。 */
+    /** 启动时装载一次（进程内缓存；文件缺失 → 对应字段 null）。 */
     public static Config load() {
         Config c = cached;
         if (c == null) {
@@ -101,7 +99,7 @@ public final class PromptTemplateCatalog {
         try (var in = PromptTemplateCatalog.class.getClassLoader()
                 .getResourceAsStream(DIR + fileName)) {
             if (in == null) {
-                return null; // Go: 文件不存在 → 跳过（字段保持 nil）
+                return null; // 文件不存在 → 跳过（对应字段保持 null）
             }
             JsonNode root = MAPPER.valueToTree(new org.yaml.snakeyaml.Yaml().load(in));
             JsonNode list = root == null ? null : root.get("templates");
@@ -138,7 +136,7 @@ public final class PromptTemplateCatalog {
     }
 
     /**
-     * 对照 LocalizeTemplates：深拷贝列表，按 locale 替换 name/description。
+     * 深拷贝列表，按 locale 替换 name/description。
      * 回退链：精确匹配（zh-CN）→ 主语言子标签（zh）→ 保留原文。
      */
     public static List<Template> localize(List<Template> templates, String locale) {
@@ -171,9 +169,9 @@ public final class PromptTemplateCatalog {
     }
 
     /**
-     * 对照 handler GetPromptTemplates 的 localized 副本 + gin JSON 输出：
+     * localized 副本 + JSON 输出：
      * 只搬 9 个字段（graph_extraction/generate_questions 恒缺席），
-     * 键序 = Go struct 声明序，omitempty 逐字段复刻。
+     * 键序固定，空值省略规则逐字段复刻。
      */
     public static ObjectNode toJson(Config cfg, String locale) {
         ObjectNode data = MAPPER.createObjectNode();
@@ -189,7 +187,7 @@ public final class PromptTemplateCatalog {
         return data;
     }
 
-    /** 无 omitempty：空（文件缺失）→ null（Go nil slice 的 marshal 形态）。 */
+    /** 恒输出：空（文件缺失）→ null。 */
     private static void putAlways(ObjectNode data, String key, List<Template> list) {
         if (list == null) {
             data.putNull(key);

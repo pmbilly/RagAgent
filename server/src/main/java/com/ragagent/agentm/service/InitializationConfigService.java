@@ -120,7 +120,7 @@ public final class InitializationConfigService {
 
         Map<String, Object> data = new TreeMap<>();
         data.put("knowledge_base", KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
-        // Go 直接 marshal *types.Model（非 NewModelResponse：api_key 留在 parameters、无 credentials）
+        // 自有契约：api_key 留在 parameters、无 credentials 键
         data.put("models", processed.stream().map(com.ragagent.agentm.dto.InitResponses::rawModel).toList());
         Map<String, Object> body = new TreeMap<>();
         body.put("data", data);
@@ -286,7 +286,7 @@ public final class InitializationConfigService {
         return ResponseEntity.ok(body);
     }
 
-    /** Go time.Time 的 RFC3339Nano + 服务器本地时区（同 GoTimeSerializer 逻辑）。 */
+    /** RFC3339Nano + 服务器本地时区（同 GoTimeSerializer 逻辑）。 */
 
     static Map<String, String> toStringMap(JsonNode n) {
         if (n == null || !n.isObject()) {
@@ -425,7 +425,7 @@ public final class InitializationConfigService {
         m.setDisplayName("");
         m.setIsDefault(false);
         m.setStatus("active");
-        // Go 的 uint 零值语义：handler 不回填 tenant → 行落 tenant_id=0，
+        // 租户不回填 → 行落 tenant_id=0，
         // 后续按租户回读找不到（golden init-get-config-after 无 llm/embedding 键即此因）
         m.setTenantId(0L);
         return m;
@@ -468,7 +468,7 @@ public final class InitializationConfigService {
             kb.setVlmConfig(vlm);
             String storageType = req.multimodal() == null ? ""
                     : req.multimodal().path("storageType").asText("");
-            // cos/minio 凭据落库段依赖部署环境（dev 无），Go 也只在段存在时触达
+            // cos/minio 凭据落库段依赖部署环境（dev 无），只在段存在时触达
             if (("cos".equals(storageType) || "minio".equals(storageType))
                     && req.multimodal().get(storageType) != null) {
                 kb.setStorageProvider(storageType);
@@ -506,7 +506,7 @@ public final class InitializationConfigService {
         kbMapper.updateById(kb);
     }
 
-    // ══════════════ GET config 响应（全 map 字母序，对照 buildConfigResponse）══════════════
+    // ══════════════ GET config 响应（全 map 字母序）══════════════
 
     private Map<String, Object> configResponse(List<Model> models, KnowledgeBase kb,
             boolean hasFiles) {
@@ -701,7 +701,7 @@ public final class InitializationConfigService {
         return scope != null && (scope.fullAccess() || scope.hasCapability("manage_tenant_settings"));
     }
 
-    /** Map.of 乱序 → TreeMap 重排（Go map 序列化 = 键字母序）。 */
+    /** Map.of 乱序 → TreeMap 重排（响应键为字母序）。 */
     private static Map<String, Object> sortedBlock(Map<String, Object> entries) {
         return new TreeMap<>(entries);
     }

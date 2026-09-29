@@ -11,13 +11,12 @@ import com.ragagent.chatpipeline.ChatManage;
 import com.ragagent.chatpipeline.PipelineConfig.PromptTemplateStructured;
 
 /**
- * config.yaml 的 {@code extract} 段装载（对照 Go internal/config ExtractManagerConfig，
- * config.go:462-472 + config/config.yaml L49-107）。
+ * config.yaml 的 {@code extract} 段装载。
  *
- * <p>vendor 资源 {@code agentm/extract_config.yaml} 与 Go 仓 config.yaml 的 extract 段
- * <b>逐字节同源</b>（复制即校验）；YAML 未知键按 Go 强类型 Unmarshal 语义丢弃
- * （snakeyaml 裸 load → 手工取键的等价实现，同 ConversationProperties/BuiltinAgentRegistry
- * 的装载惯例）。text-relation / fabri-text 两条抽取路由消费这里的三份模板。</p>
+ * <p>vendor 资源 {@code agentm/extract_config.yaml} <b>复制即校验</b>；
+ * YAML 未知键丢弃（snakeyaml 裸 load → 手工取键，同
+ * ConversationProperties/BuiltinAgentRegistry 的装载惯例）。
+ * text-relation / fabri-text 两条抽取路由消费这里的三份模板。</p>
  */
 public final class ExtractPrompts {
 
@@ -63,7 +62,7 @@ public final class ExtractPrompts {
         return fabriText;
     }
 
-    /** 对照 types.PromptTemplateStructured 的 yaml 反序列化（缺失字段零值）。 */
+    /** 结构化模板解析（缺失字段取零值）。 */
     @SuppressWarnings("unchecked")
     private static PromptTemplateStructured parseStructured(Map<String, Object> node) {
         PromptTemplateStructured tpl = new PromptTemplateStructured();

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * DataAnalysisTool 包内面的公开桥（波 4.6d 新增文件）。
+ * DataAnalysisTool 包内面的公开桥。
  *
  * <p>chat_pipeline 的 {@code PipelinePorts.DataAnalysisSession} 是 chatpipeline
  * 包私有接口（只能由该包实现），而 {@link DataAnalysisTool#loadFromKnowledge} 是
@@ -16,13 +16,13 @@ public final class DataAnalysisSessionBridge {
 
     private DataAnalysisSessionBridge() {}
 
-    /** 触达包私有 loadFromKnowledge（对照 Go 插件直接调 tool.LoadFromKnowledge）。 */
+    /** 触达包私有 loadFromKnowledge。 */
     public static DataAnalysisTool.TableSchema loadFromKnowledge(DataAnalysisTool tool,
             DataAnalysisTool.KnowledgeData knowledge) {
         return tool.loadFromKnowledge(knowledge);
     }
 
-    /** execute 本就 public；桥内把 JsonNode args 包成 ToolRequest（对照 Go 的 args map 直传）。 */
+    /** execute 本就 public；桥内把 JsonNode args 包成 ToolRequest。 */
     public static ToolResult execute(DataAnalysisTool tool, JsonNode args) {
         return tool.execute(ToolRequest.of(args));
     }

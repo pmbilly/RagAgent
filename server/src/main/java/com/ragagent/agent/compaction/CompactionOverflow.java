@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 import com.ragagent.llm.domain.ChatResponse;
 
 /**
- * 上下文溢出的识别（对照 Go internal/agent/compaction/overflow.go 全文）。
+ * 上下文溢出的识别。
  *
  * <p>精确识别溢出是因为恢复动作是特定的：压缩一次然后重试一次。误读成一般失败会
  * 终止整轮；误读成瞬态错误会把同一个超大的请求原样重试到次数耗尽。模式收集自真实
@@ -14,7 +14,7 @@ import com.ragagent.llm.domain.ChatResponse;
 public final class CompactionOverflow {
 
     private static Pattern goI(String regex) {
-        // Go 的 (?i) 是 Unicode 大小写折叠；Java 需显式加 UNICODE_CASE
+        // 需要的是 Unicode 大小写折叠，Java 里 CASE_INSENSITIVE 默认只做 ASCII 折叠，须显式加 UNICODE_CASE
         return Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     }
 
@@ -46,7 +46,7 @@ public final class CompactionOverflow {
     };
 
     /**
-     * 提到 token 计数但另有所指的错误（对照 nonOverflowPatterns）。Bedrock 限流的
+     * 提到 token 计数但另有所指的错误。Bedrock 限流的
      * 措辞是 "ThrottlingException: Too many tokens, please wait before trying again"，
      * 会命中溢出模式但不是溢出。在消息任意位置匹配而非锚定，因为 WeKnora 看到的是
      * 原始供应商错误，不是预规范化的前缀。
@@ -62,9 +62,9 @@ public final class CompactionOverflow {
     }
 
     /**
-     * 失败的 LLM 调用是否因为请求装不进上下文窗口（对照 IsOverflowError）。
+     * 失败的 LLM 调用是否因为请求装不进上下文窗口。
      *
-     * @param message 错误消息（Go 的 err.Error()）；null 视为无错误
+     * @param message 错误消息；null 视为无错误
      */
     public static boolean isOverflowError(String message) {
         if (message == null) {
@@ -84,8 +84,7 @@ public final class CompactionOverflow {
     }
 
     /**
-     * 一个"成功"的响应是否实际被满窗口而不是被请求的补全预算塑形
-     * （对照 ResponseHitContextLimit）。三种形态：
+     * 一个"成功"的响应是否实际被满窗口而不是被请求的补全预算塑形。三种形态：
      *
      * <ul>
      *   <li>供应商无声地接受了超大的请求，并上报大于窗口的 prompt（z.ai）；</li>

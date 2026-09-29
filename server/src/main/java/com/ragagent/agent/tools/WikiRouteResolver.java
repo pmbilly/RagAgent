@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
             }
         }
 
-        /** 对照 rememberPage：slug + OutLinks + InLinks 全部记住。 */
+        /** 记住页的 slug + 出链 + 入链。 */
         public void rememberPage(PageView page, String kbId) {
             if (page == null || kbId == null || kbId.isEmpty()) {
                 return;
@@ -46,9 +46,9 @@ import java.util.concurrent.ConcurrentHashMap;
         }
 
         /**
-         * 对照 scopesForSlug：仍在本作用域内的缓存 owner；空结果 = 调用方搜全部作用域。
-         * 注意：ConcurrentHashMap 的 keySet 无序——Go 的 map 同样无序，二者都不保证序，
-         * resolveUniqueWikiPage 只受"排序影响查找序"的潜在差异约束（见报告已知差异）。
+         * 仍在本作用域内的缓存 owner；空结果 = 调用方搜全部作用域。
+         * 注意：缓存遍历序不保证确定，resolveUniqueWikiPage 的多 scope 歧义判定
+         * 受"排序影响查找序"影响（已知差异点）。
          */
         public List<WikiScope> scopesForSlug(String slug, List<WikiScope> scopes) {
             if (slug == null || slug.isEmpty() || scopes == null || scopes.isEmpty()) {
@@ -71,7 +71,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 
     /**
-     * 对照 resolveUniqueWikiPage：共享变更/issue 路由边界。检查每个允许的 KB
+     * 共享变更/issue 的唯一页路由。检查每个允许的 KB
      * （缓存 provenance 只影响序），拒绝 ambiguous slug。
      */
     public static ResolvedPage resolveUniqueWikiPage(
@@ -122,7 +122,7 @@ import java.util.concurrent.ConcurrentHashMap;
         }
     }
 
-    /** 对照 resolveWikiCreateKB：只有一个候选时才允许创建。 */
+    /** 创建路由：只有一个候选 KB 时才允许创建。 */
     public static String resolveWikiCreateKb(String slug, List<String> kbIds,
                                              WikiRouteResolver routes, List<String> serverHints) {
         List<WikiScope> scopes = WikiScope.newWikiScopesFromKbIds(kbIds);
@@ -158,7 +158,7 @@ import java.util.concurrent.ConcurrentHashMap;
     }
 
     /**
-     * 对照 wikiKnowledgeBasesForSourceRefs：从 source_refs 里解析出知识所属的 KB
+     * 从 source_refs 里解析出知识所属的 KB
      * （限 allowedKBIDs），作为创建路由的服务端提示。
      */
     public static List<String> wikiKnowledgeBasesForSourceRefs(
@@ -197,7 +197,7 @@ import java.util.concurrent.ConcurrentHashMap;
         return SearchAuth.dedupNonEmptyStrings(kbIds);
     }
 
-    /** 对照 resolveWikiIssue。 */
+    /** 按 ID 解析 issue（校验 scope）。 */
     public static IssueView resolveWikiIssue(WikiPages service, String issueId, List<String> kbIds) {
         issueId = issueId == null ? "" : issueId.trim();
         if (issueId.isEmpty()) {
@@ -227,7 +227,7 @@ import java.util.concurrent.ConcurrentHashMap;
         return match;
     }
 
-    /** 对照 wiki_tools.go resolveSourceRefs：无鉴权路径，纯富化 "uuid|title"。 */
+    /** 无鉴权路径的 source_refs 富化（"uuid|title"）。 */
     public static List<String> resolveSourceRefs(List<String> refs, SearchAuth.KnowledgeScopeReader knowledgeService) {
         if (refs == null || refs.isEmpty() || knowledgeService == null) {
             return refs;
@@ -262,8 +262,8 @@ import java.util.concurrent.ConcurrentHashMap;
         return resolved;
     }
 
-    /** 对照 errWikiPageNotFoundInScope（resolveUniqueWikiPage 的哨兵错误文案）。 */
+    /** "页不在 scope 内"的哨兵错误文案。 */
     public static final String ERR_PAGE_NOT_FOUND_IN_SCOPE = "wiki page not found in current scope";
-    /** 对照 errWikiPageAmbiguous。 */
+    /** "页名歧义"的哨兵错误文案。 */
     public static final String ERR_PAGE_AMBIGUOUS = "wiki page exists in multiple knowledge bases";
 }

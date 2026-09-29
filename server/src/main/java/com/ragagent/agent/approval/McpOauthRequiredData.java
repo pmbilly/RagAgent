@@ -3,8 +3,7 @@ package com.ragagent.agent.approval;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * “该 MCP 服务需要用户 OAuth 授权”事件体
- * （对照 Go {@code event.MCPOAuthRequiredData}，internal/event/event_data.go:281-296）。
+ * “该 MCP 服务需要用户 OAuth 授权”事件体。
  *
  * <p>与 {@link ToolApprovalRequiredData} 的区别：没有 args/description——
  * 它由 MCP 传输层返回的 “authorization required” 错误**被动触发**，
@@ -15,7 +14,7 @@ public record McpOauthRequiredData( String pendingId, long tenantId, String sess
 
     public McpOauthRequiredData {
         if (requestId != null && requestId.isEmpty()) {
-            requestId = null;   // Go: omitempty
+            requestId = null;   // 空串归一为 null，配合 NON_NULL 不序列化该字段
         }
     }
 }

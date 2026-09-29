@@ -7,12 +7,9 @@ import java.util.concurrent.CancellationException;
 import com.ragagent.mcp.domain.McpToolApproval;
 
 /**
- * 把 MCP 工具策略服务适配成 {@link Checker}（对照 Go approval.Adapter，gate.go:685-709 +
- * tool_policy.go:79-118），使 gate 不必 import 服务层包。
+ * 把 MCP 工具策略服务适配成 {@link Checker}，使 gate 不必 import 服务层包。
  *
- * <p>Go 的 {@code Adapter.Svc} 是一个匿名接口（只要 IsRequired/IsEnabled），
- * 并在 {@code EnabledTools} 里对它做**结构化断言**看是否还提供 ListByService。
- * Java 侧对应：{@code svc} 静态类型是 {@link Checker}，
+ * <p>{@code svc} 的静态类型是 {@link Checker}（只需 isRequired/isEnabled），
  * 运行时用 {@code instanceof McpToolPolicySource} 探测批量能力。</p>
  *
  * <p><b>接线</b>：MCP 服务实现（{@code com.ragagent.mcp.service} 下的 McpToolApprovalService）
@@ -20,14 +17,14 @@ import com.ragagent.mcp.domain.McpToolApproval;
  */
 public class Adapter implements Checker, BulkEnabledChecker {
 
-    /** 对照 Go {@code Adapter.Svc}；为 null 时：IsRequired → false、IsEnabled → true */
+    /** 被适配的服务；为 null 时：isRequired → false、isEnabled → true */
     private final Checker svc;
 
     public Adapter(Checker svc) {
         this.svc = svc;
     }
 
-    /** 对照 Go Adapter.IsRequired（Svc 为 nil 时 false） */
+    /** 服务缺失时视为不需要审批。 */
     @Override
     public boolean isRequired(Cancellation ctx, long tenantId, String serviceId, String toolName) {
         if (svc == null) {
@@ -36,7 +33,7 @@ public class Adapter implements Checker, BulkEnabledChecker {
         return svc.isRequired(ctx, tenantId, serviceId, toolName);
     }
 
-    /** 对照 Go Adapter.IsEnabled（Svc 为 nil 时 true——策略表是可选的） */
+    /** 服务缺失时视为启用——策略表是可选的。 */
     @Override
     public boolean isEnabled(Cancellation ctx, long tenantId, String serviceId, String toolName) {
         if (svc == null) {
@@ -46,7 +43,6 @@ public class Adapter implements Checker, BulkEnabledChecker {
     }
 
     /**
-     * 对照 Go {@code (*Adapter).EnabledTools}（tool_policy.go:79-118）：
      * 服务支持 ListByService 时一次批量读策略，否则退化为逐个查。
      */
     @Override
@@ -58,14 +54,13 @@ public class Adapter implements Checker, BulkEnabledChecker {
         if (tenantId == 0 || serviceId == null || serviceId.isEmpty()) {
             throw ApprovalException.internal("MCP policy identity is required");
         }
-        // 对照 Go: lister, ok := a.Svc.(interface{ ListByService(...) }); if !ok { 逐个查 }
-        // Svc 为 null 时 instanceof 恒为 false，与 Go 的 a.Svc == nil 分支汇合到同一退化路径。
+        // svc 为 null 时 instanceof 恒为 false，自然落入退化路径。
         if (!(svc instanceof McpToolPolicySource lister)) {
-            // Go 这里传的是 a（Adapter）本身，Svc 为 nil 时其 IsEnabled 恒 true
+            // 传 this（Adapter）：svc 为 null 时 isEnabled 恒 true，铺出“默认全启用”
             return ToolPolicy.enabledToolsIndividually(ctx, this, tenantId, serviceId, names);
         }
         List<McpToolApproval> rows = lister.listByService(tenantId, serviceId);
-        // 对照 Go：先用 nil checker 铺默认全 true，再由策略表覆盖
+        // 先铺默认全 true，再由策略表覆盖
         Map<String, Boolean> result =
                 ToolPolicy.enabledToolsIndividually(ctx, null, tenantId, serviceId, names);
         if (rows == null) {

@@ -15,36 +15,35 @@ import com.ragagent.retrieval.domain.WebSearchFilters;
 import com.ragagent.retrieval.domain.WebSearchResult;
 
 /**
- * web_search 工具（对照 Go {@code internal/agent/tools/web_search.go} 全文，逐字移植）。
+ * web_search 工具。
  *
  * <p>搜索公网并返回带标题/URL/摘要的结果；{@code content=true} 时对前 3 条并行
  * 抓取可读摘录（各 5000 字符、共享 15s 预算，走内嵌的 {@link WebFetchTool}，
  * 页面快照与 web_fetch 共享）。</p>
  *
- * <p>三处 Go 语义的翻译：</p>
+ * <p>行为要点：</p>
  * <ol>
- *   <li>ctx 里的 TenantID / TenantInfo：Java 侧 tenantID 经 {@link LongSupplier}
- *       在执行期读（对照 {@code ctx.Value(TenantIDContextKey)} 的 ==0 拒绝）；
- *       租户的 WebSearchConfig 在装配期捕获（同一回合内等价，见接缝适配）。</li>
- *   <li>{@code types.EffectiveWebSearchConfig}：租户配置为 null 时用缺省
+ *   <li>tenantID 经 {@link LongSupplier} 在执行期读（==0 拒绝）；
+ *       租户的 WebSearchConfig 在装配期捕获（同一回合内等价）。</li>
+ *   <li>租户配置为 null 时用缺省
  *       （maxResults=10 / blacklist=[]），再被工具覆写 maxResults/filters，
  *       CompressionMethod 强制 "none"（agent 显式读页，RAG 压缩属快答管线）。</li>
  *   <li>provider 端超发/脏行：工具本地按 URL 可用性过滤 + canonical URL 去重 +
- *       maxResults 截断（对照 filtered 段）。</li>
+ *       maxResults 截断。</li>
  * </ol>
  */
 public class WebSearchTool extends BaseTool {
 
-    /** 对照 webSearchContentMaxPages / webSearchContentChars / webSearchContentBudget。 */
+    /** content=true 抓取的前 N 条、每条字符数、共享预算。 */
     static final int CONTENT_MAX_PAGES = 3;
     static final int CONTENT_CHARS = 5000;
     static final long CONTENT_BUDGET_NANOS = 15_000_000_000L;
 
-    /** 对照 DefaultWebSearchMaxResults / 工具级硬上限。 */
+    /** 缺省与硬上限的 maxResults。 */
     static final int DEFAULT_MAX_RESULTS = 10;
     static final int HARD_MAX_RESULTS = 20;
 
-    /** 键序与类型对照 Go GenerateSchema[WebSearchInput] 实录（出站经 goSorted 递归重排）。 */
+    /** schema 键序与类型为钉死契约（出站按字节序递归重排）。 */
     static final String SCHEMA_JSON =
             "{\"type\":\"object\",\"properties\":{"
                     + "\"query\":{\"type\":\"string\",\"description\":\"Search query string\"},"
@@ -54,7 +53,7 @@ public class WebSearchTool extends BaseTool {
                     + "\"content\":{\"type\":\"boolean\",\"description\":\"Fetch page excerpts; default false\"}},"
                     + "\"required\":[\"query\"],\"additionalProperties\":false}";
 
-    /** 描述模板（%d 由构造期 maxResults 注入，对照 fmt.Sprintf(tool.description, maxResults)）。 */
+    /** 描述模板（%d 由构造期归一后的 maxResults 注入）。 */
     private static final String DESCRIPTION_TEMPLATE = """
             Search the public web for current information, documentation, and facts.
             - Use relevant available knowledge sources according to the task; no fixed sequence of KB tools is required.
@@ -76,10 +75,9 @@ public class WebSearchTool extends BaseTool {
             - Do not include private source content or credentials in public search queries.""";
 
     /**
-     * 搜索执行接缝（对照 interfaces.WebSearchService.Search）。config 用
+     * 搜索执行接缝。config 用
      * {@link com.ragagent.websearch.service.WebSearchService.WebSearchConfig}——
-     * 它就是 Go {@code types.WebSearchConfig} 执行形状的既有翻译（含 per-call 的
-     * filters 字段）。
+     * 租户配置的执行形状（含 per-call 的 filters 字段）。
      */
     @FunctionalInterface
     public interface WebSearchBackend {
@@ -110,24 +108,24 @@ public class WebSearchTool extends BaseTool {
         this.tenantConfig = tenantConfig == null
                 ? new com.ragagent.websearch.service.WebSearchService.WebSearchConfig()
                 : tenantConfig;
-        // 对照构造器里的 pages: NewWebFetchTool()（Go L80；WithPageReader 可再共享）
+        // 构造内嵌的页面抓取器（可用 withPageReader 共享 web_fetch 的实例）
         this.pages = new WebFetchTool();
     }
 
-    /** 对照 fmt.Sprintf：仅当 maxResults 处于 Go 的归一后取值时注入（模板只有一个 %d）。 */
+    /** 描述注入：仅当归一后的 maxResults 注入（模板只有一个 %d）。 */
     private static String formatDescription(int maxResults) {
         int effective = maxResults <= 0 ? DEFAULT_MAX_RESULTS : maxResults;
         effective = Math.min(effective, HARD_MAX_RESULTS);
         return String.format(Locale.ROOT, DESCRIPTION_TEMPLATE, effective);
     }
 
-    /** 对照 WithPageReader：与 web_fetch 共享页面快照与完整页存储。 */
+    /** 与 web_fetch 共享页面快照与完整页存储。 */
     public WebSearchTool withPageReader(WebFetchTool reader) {
         this.pages = reader;
         return this;
     }
 
-    /** 解析后的入参（对照 WebSearchInput）。 */
+    /** 解析后的入参。 */
     private record SearchInput(String query, Integer count, String country, String freshness,
             boolean content) {
     }
@@ -169,7 +167,7 @@ public class WebSearchTool extends BaseTool {
 
         // 生效配置：EffectiveWebSearchConfig 拷贝（租户为 null → 缺省），再覆写
         // maxResults/filters；压缩强制 none——agent 显式读页，RAG 压缩属快答管线
-        // （对照 Go L159-166；CompressionMethod 在 search 执行路径不被消费，留注释级）。
+        // （CompressionMethod 在 search 执行路径不被消费，仅声明）。
         com.ragagent.websearch.service.WebSearchService.WebSearchConfig searchConfig =
                 new com.ragagent.websearch.service.WebSearchService.WebSearchConfig();
         searchConfig.provider = tenantConfig.provider;
@@ -269,14 +267,14 @@ public class WebSearchTool extends BaseTool {
         return result;
     }
 
-    /** 对照入参解析（query 必文本；count 可空整型；content 可空布尔）。 */
+    /** 入参解析（query 必文本；count 可空整型；content 可空布尔）。 */
     private static SearchInput parseInput(JsonNode args) {
         JsonNode query = args.path("query");
         JsonNode count = args.path("count");
         JsonNode country = args.path("country");
         JsonNode freshness = args.path("freshness");
         JsonNode content = args.path("content");
-        // 缺失/null → Go 零值 ""（不是 unmarshal 错误；空串由后面的 query 校验拒绝）
+        // 缺失/null → 空串（不是类型错误；空串由后面的 query 校验拒绝）
         if (!query.isTextual() && !(query.isMissingNode() || query.isNull())) {
             throw new IllegalArgumentException(goFieldTypeMessage("WebSearchInput.query",
                     jsonTypeOf(query), "string"));
@@ -332,7 +330,7 @@ public class WebSearchTool extends BaseTool {
     }
 
     /**
-     * 对照 filtered 段：跳过 nil/脏 URL（无 host 或非 http/https）、canonical URL
+     * 结果过滤：跳过脏 URL（无 host 或非 http/https）、canonical URL
      * 去重、maxResults 截断，URL 以再序列化形态回填。
      */
     private static List<WebSearchResult> filterResults(List<WebSearchResult> webResults,
@@ -378,7 +376,7 @@ public class WebSearchTool extends BaseTool {
         return filtered;
     }
 
-    /** 对照 fetchLeadingPages：前 3 条并行抓摘录（5000 字符、15s 共享预算）。 */
+    /** 前 3 条并行抓摘录（5000 字符、15s 共享预算）。 */
     private WebFetchTool.WebFetchItemResult[] fetchLeadingPages(ToolRequest request,
             List<WebSearchResult> results) {
         int n = Math.min(CONTENT_MAX_PAGES, results.size());
@@ -417,7 +415,7 @@ public class WebSearchTool extends BaseTool {
         return pagesOut;
     }
 
-    /** 对照 applySearchPageFetch：结果级页抓取键 + 输出行。 */
+    /** 结果级页抓取键 + 输出行。 */
     private static void applySearchPageFetch(Map<String, Object> resultData,
             StringBuilder output, int index, WebFetchTool.WebFetchItemResult[] pages) {
         if (index >= CONTENT_MAX_PAGES) {
@@ -453,15 +451,15 @@ public class WebSearchTool extends BaseTool {
         output.append("Page fetch failed: ").append(page.data.get("error_message")).append('\n');
     }
 
-    /** 对照 result.PublishedAt.Format(time.RFC3339)：秒精度 + Z/±hh:mm 偏移。 */
+    /** 发布时间按 RFC3339 渲染：秒精度 + Z/±hh:mm 偏移。 */
     static String rfc3339(java.time.OffsetDateTime value) {
         return value.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX"));
     }
 
     /**
-     * 失败折叠（Go 的 {@code (result, err)} 双返回在这里并成一条：registry 对
-     * execErr 的加工只有 success 压 false 与 error 兜底，本构造已等价覆盖）。
+     * 失败折叠：registry 对错误的加工只有 success 压 false 与 error 兜底，
+     * 本构造等价覆盖。
      */
     private static ToolResult fail(String error) {
         ToolResult result = new ToolResult();

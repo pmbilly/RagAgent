@@ -1,9 +1,9 @@
 package com.ragagent.agent.tools;
 
 /**
- * 工具输出截断（对照 Go {@code truncate.go}，逐字移植）。
+ * 工具输出截断。
  *
- * <p>Go 实录锚点（20000 runes 截到 5000）：
+ * <p>实录锚点（20000 runes 截到 5000）：
  * {@code \n\n... [output truncated: 20000 → 5000 chars, showing first 3360 + last 1440] ...\n\n}
  * ——usable = 5000-200 = 4800，head = int(4800*0.7) = 3360，tail = 1440。
  * maxChars 太小（usable ≤ 0）时直接取前 maxChars 个 rune，<b>无 marker</b>（实录：100 个 a 截到 10
@@ -11,13 +11,13 @@ package com.ragagent.agent.tools;
  */
 public final class ToolOutput {
 
-    /** 默认输出上限（rune 数，非字节——CJK 公平计账）。对照 DefaultMaxToolOutput。 */
+    /** 默认输出上限（rune 数，非字节——CJK 公平计账）。 */
     public static final int DEFAULT_MAX_TOOL_OUTPUT = 24000;
 
-    /** 截断时头部占比（70% 头 / 30% 尾）。对照 headRatio。 */
+    /** 截断时头部占比（70% 头 / 30% 尾）。 */
     private static final double HEAD_RATIO = 0.7;
 
-    /** 为截断 marker 本身预留的 rune 预算。对照 truncationMarkerReserve。 */
+    /** 为截断 marker 本身预留的 rune 预算。 */
     public static final int TRUNCATION_MARKER_RESERVE = 200;
 
     private ToolOutput() {
@@ -54,7 +54,7 @@ public final class ToolOutput {
                 + substringByRunes(output, runeCount - tailSize, runeCount);
     }
 
-    /** 按 rune（code point）下标切片；对照 Go 的 []rune(s)[a:b]。 */
+    /** 按 rune（code point）下标切片。 */
     private static String substringByRunes(String s, int fromRune, int toRuneExclusive) {
         int len = s.length();
         int from = Character.offsetByCodePoints(s, 0, fromRune);

@@ -7,9 +7,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * discover_mcp_tools：暴露授权目录与精确工具定义（对照 Go {@code mcp_catalog.go} 的
- * MCPDiscoverTool，逐字移植）。描述与来源摘要伴随 direct 工具发布；具体工具的描述与
- * schema 在各自的函数条目里。
+ * discover_mcp_tools：暴露授权目录与精确工具定义。描述与来源摘要伴随 direct 工具
+ * 发布；具体工具的描述与 schema 在各自的函数条目里。
  */
 public class McpDiscoverTool extends BaseTool {
 
@@ -28,7 +27,7 @@ public class McpDiscoverTool extends BaseTool {
     }
 
     /**
-     * describe 模式允许单个 schema 超出普通文本预算（对照 OutputLimitChars）：
+     * describe 模式允许单个 schema 超出普通文本预算：
      * 到显式硬上限为止保留完整 JSON，而不是悄悄截断参数规则。
      */
     public int outputLimitChars(JsonNode raw) {
@@ -134,7 +133,7 @@ public class McpDiscoverTool extends BaseTool {
                             if (checkErr != null) {
                                 return mcpDiscoveryFailure(checkErr, "unavailable");
                             }
-                            // describe 的完整定义输出（键序 = Go 匿名 struct 声明序）。
+                            // describe 的完整定义输出（键序固定，字节级契约）。
                             java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
                             out.put("notice", McpCatalog.MCP_EXTERNAL_DATA_NOTICE);
                             if (!tool.serverInstructions.isEmpty()) {
@@ -224,7 +223,7 @@ public class McpDiscoverTool extends BaseTool {
     }
 
     /**
-     * 来源级指引伴随 direct 工具一起广告（对照 Description 覆写）。
+     * 来源级指引伴随 direct 工具一起广告。
      * 与 Codex 的 namespace/source 描述模式一致。
      */
     @Override

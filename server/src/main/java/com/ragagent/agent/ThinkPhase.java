@@ -49,7 +49,7 @@ final class ThinkPhase {
         this.engine = engine;
     }
 
-    /** 流式 LLM 调用的累计输出（对照 streamLLMResult）。 */
+    /** 流式 LLM 调用的累计输出。 */
     static final class StreamLLMResult {
         String content = "";
         String reasoningContent = "";
@@ -59,13 +59,13 @@ final class ThinkPhase {
         String streamError = "";
     }
 
-    /** think 阶段的分片发射回调（对照 emitFunc）。 */
+    /** think 阶段的分片发射回调。 */
     interface ThinkChunkEmitter {
         void accept(StreamResponse chunk, String fullContent);
     }
 
     /**
-     * LLM 流经 EventBus 直发（对照 streamLLMToEventBus）。emit 为 null 只累计不发射。
+     * LLM 流经 EventBus 直发。emit 为 null 只累计不发射。
      * 流错误（含停顿）→ 抛 {@link AgentEngineException}（message = "LLM stream error: ..."）。
      */
     StreamLLMResult streamLLMToEventBus(List<ChatMessage> messages, ChatOptions opts,
@@ -159,8 +159,8 @@ final class ThinkPhase {
                 emit.accept(chunk, result.content);
             }
             // 流结束标记：done=true 的 ANSWER/ERROR 块（4.0 生产者的终态元素）。
-            // THINKING + done=true 是生产者中途补的 thinking-done 标记——Go 侧该分片
-            // 之后 channel 仍开，后续分片照常消费；这里同样继续。
+            // THINKING + done=true 是生产者中途补的 thinking-done 标记——该分片
+            // 之后流仍开着，后续分片照常消费；这里同样继续。
             if (chunk.isDone() && chunk.getResponseType() != ResponseType.THINKING) {
                 break;
             }
@@ -212,7 +212,7 @@ final class ThinkPhase {
     }
 
     /**
-     * 停顿看门狗语义（对照 watchStreamStall）：超过 stallTimeout 无输出 → 置位 stalled
+     * 停顿看门狗语义：超过 stallTimeout 无输出 → 置位 stalled
      * 并结束消费。刻意不限制总时长：流大参数的轮次会连续产出走很久。
      */
     private StreamResponse pollChunk(java.util.concurrent.BlockingQueue<StreamResponse> stream,
@@ -249,7 +249,7 @@ final class ThinkPhase {
     }
 
     /**
-     * 思考过程流经 EventBus（对照 streamThinkingToEventBus）：pending/progress 工具事件、
+     * 思考过程流经 EventBus：pending/progress 工具事件、
      * thinking 通道与内联 think 拆分、答案直播。
      */
     ChatResponse streamThinkingToEventBus(List<ChatMessage> messages, List<ChatTool> tools,
@@ -417,7 +417,7 @@ final class ThinkPhase {
     }
 
     /**
-     * 一轮 ReAct 的 LLM 调用（瞬态重试 + 优雅降级；对照 callLLMWithRetry）。
+     * 一轮 ReAct 的 LLM 调用（瞬态重试 + 优雅降级）。
      * 返回 null = 优雅降级成功（state.IsComplete 已置位）。
      */
     ChatResponse callLLMWithRetry(AgentEngine.MsgRef messagesRef, List<ChatTool> tools,

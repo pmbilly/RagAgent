@@ -13,22 +13,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * 内建 agent 注册表（对照 Go internal/types/builtin_agent_config.go +
- * config/builtin_agents.yaml + config/prompt_templates/*.yaml 的启动装载）。
+ * 内建 agent 注册表（config/builtin_agents.yaml + config/prompt_templates/*.yaml 的启动装载）。
  *
- * <p>三个对齐点：</p>
+ * <p>三个要点：</p>
  * <ol>
- *   <li><b>YAML config 的未知键静默丢弃</b>（Go yaml.Unmarshal 进 CustomAgentConfig 强类型）。
- *       Java 用 snakeyaml 解析后按 CustomAgentConfig 已知键过滤——builtin_agents.yaml 里的
- *       {@code reflection_enabled} 就是这样被 Go 悄悄丢掉的，照抄。</li>
- *   <li><b>prompt 引用解析</b>（ResolveBuiltinAgentPromptRefs）：启动时把
+ *   <li><b>YAML config 的未知键静默丢弃</b>：snakeyaml 解析后按 CustomAgentConfig
+ *       已知键过滤（builtin_agents.yaml 里的 {@code reflection_enabled} 即被丢弃）。</li>
+ *   <li><b>prompt 引用解析</b>：启动时把
  *       system_prompt_id/context_template_id 的模板 content 填进 entry config
- *       （仅当对应 content 键为空）。FindTemplateByID 按 Go 的 11 个模板列表固定顺序查找。</li>
- *   <li><b>i18n 解析</b>（resolveI18n）：精确匹配 → 语言前缀匹配（含前缀扫描——Go 的 map
- *       迭代序随机，本仓库 YAML 各 locale 均有 default，不触达该分支）→ default → 第一项。</li>
+ *       （仅当对应 content 键为空）。按 11 个模板列表固定顺序查找。</li>
+ *   <li><b>i18n 解析</b>：精确匹配 → 语言前缀匹配 → default → 第一项。</li>
  * </ol>
  *
- * <p>locale 来源对照 Go middleware/language.go：WEKNORA_LANGUAGE env 优先，
+ * <p>locale 来源：WEKNORA_LANGUAGE env 优先，
  * 其次 Accept-Language 首个 tag，缺省 zh-CN（见 {@link #localeFromRequest}）。</p>
  */
 @Component
@@ -36,13 +33,13 @@ public class BuiltinAgentRegistry {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Go builtinAgentIDsOrdered：ListAgents 的固定展示序（wiki-fixer/skill-installer 刻意不在列）。 */
+    /** 列表接口的固定展示序（wiki-fixer/skill-installer 刻意不在列）。 */
     private static final List<String> ORDERED_IDS = List.of(
             "builtin-quick-answer", "builtin-smart-reasoning", "builtin-wiki-researcher",
             "builtin-deep-researcher", "builtin-data-analyst", "builtin-knowledge-graph-expert",
             "builtin-document-assistant");
 
-    /** CustomAgentConfig 已知键（Go struct json tag 全集，未知键 = Go 强类型 Unmarshal 丢弃）。 */
+    /** CustomAgentConfig 已知键全集（未知键装载时静默丢弃）。 */
     private static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(
             "agent_mode", "agent_type", "system_prompt", "system_prompt_id", "context_template",
             "context_template_id", "model_id", "rerank_model_id", "temperature",
@@ -62,7 +59,7 @@ public class BuiltinAgentRegistry {
             "query_understand_model_id", "fallback_strategy", "fallback_response", "fallback_prompt",
             "intent_prompts", "question_suggestions");
 
-    /** Go loadPromptTemplates 的固定文件 → 列表映射（FindTemplateByID 的查找顺序）。 */
+    /** 模板文件固定装载序（模板查找顺序）。 */
     private static final List<String> TEMPLATE_FILES = List.of(
             "system_prompt.yaml", "context_template.yaml", "rewrite.yaml", "fallback.yaml",
             "generate_session_title.yaml", "generate_summary.yaml", "keywords_extraction.yaml",
@@ -116,7 +113,7 @@ public class BuiltinAgentRegistry {
                         e.getValue().path("name").asText(""),
                         e.getValue().path("description").asText("") }));
             }
-            // 未知键丢弃（Go 强类型 Unmarshal 语义）+ 深拷贝
+            // 未知键丢弃 + 深拷贝
             ObjectNode cfg = MAPPER.createObjectNode();
             JsonNode rawCfg = a.get("config");
             if (rawCfg != null && rawCfg.isObject()) {
@@ -132,7 +129,7 @@ public class BuiltinAgentRegistry {
         resolvePromptRefs();
     }
 
-    /** 对照 resolveBuiltinAgentPromptIDs：id → content 解析（仅当 content 为空时填充）。 */
+    /** id → content 解析（仅当 content 为空时填充）。 */
     private void resolvePromptRefs() {
         Map<String, String> templates = loadTemplates();
         for (Entry e : entries.values()) {
@@ -150,7 +147,7 @@ public class BuiltinAgentRegistry {
         }
     }
 
-    /** FindTemplateByID：按 Go 的 11 个模板列表顺序，首个 id 命中即返回 content。 */
+    /** 按固定模板列表顺序查找，首个 id 命中即返回 content。 */
     private Map<String, String> loadTemplates() {
         Map<String, String> byId = new LinkedHashMap<>();
         for (String file : TEMPLATE_FILES) {
@@ -178,7 +175,7 @@ public class BuiltinAgentRegistry {
         return byId;
     }
 
-    /** 对照 resolveI18n：精确 → 语言前缀 → default → 第一项。 */
+    /** 精确 → 语言前缀 → default → 第一项。 */
     public String[] resolveI18n(Entry entry, String locale) {
         Map<String, String[]> m = entry.i18n();
         if (m.isEmpty()) {
@@ -222,8 +219,8 @@ public class BuiltinAgentRegistry {
     }
 
     /**
-     * 对照 buildAgentFromEntry：entry →（i18n 覆盖 name/description）→ EnsureDefaults。
-     * 返回 config 树（已 defaults）；null = 非注册内建（Go 返回 nil 的分支）。
+     * entry →（i18n 覆盖 name/description）→ 补默认。
+     * 返回 config 树（已 defaults）；null = 非注册内建。
      */
     public ObjectNode builtinAgentConfig(String id, String locale) {
         Entry e = entries.get(id);
@@ -252,7 +249,7 @@ public class BuiltinAgentRegistry {
         return entries.get(id);
     }
 
-    /** 对照 middleware/language.go：env → Accept-Language 首个 tag → zh-CN。 */
+    /** env → Accept-Language 首个 tag → zh-CN。 */
     public static String localeFromRequest(String acceptLanguage) {
         String env = System.getenv("WEKNORA_LANGUAGE");
         if (env != null && !env.trim().isEmpty()) {
@@ -266,7 +263,7 @@ public class BuiltinAgentRegistry {
         return lang.isEmpty() ? "zh-CN" : lang;
     }
 
-    /** 供测试清理用（Go 的 entries 是进程级单例，本类同样一次装载）。 */
+    /** 供测试清理用（entries 是进程级单例，一次装载）。 */
     public List<String> entryIds() {
         return new ArrayList<>(entries.keySet());
     }

@@ -8,7 +8,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Agent Skills（对照 Go internal/agent/skills/skill.go，全文移植），遵循 Claude 的
+ * Agent Skills，遵循 Claude 的
  * Progressive Disclosure 模式：skill 是通过指令文件扩展 agent 能力的模块化能力。
  *
  * <ul>
@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  */
 public final class Skill {
 
-    /** Claude 规范的校验常量（对照 MaxNameLength / MaxDescriptionLength / SkillFileName）。 */
+    /** Claude 规范的校验常量。 */
     public static final int MAX_NAME_LENGTH = 64;
     public static final int MAX_DESCRIPTION_LENGTH = 1024;
     public static final String SKILL_FILE_NAME = "SKILL.md";
@@ -63,14 +63,14 @@ public final class Skill {
      */
     public boolean frontmatterRepaired;
 
-    /** 解析/校验失败（错误文案对照 Go，逐字进上层响应）。 */
+    /** 解析/校验失败；错误文案会逐字进入上层响应，措辞改动需谨慎。 */
     public static final class SkillValidationException extends RuntimeException {
         public SkillValidationException(String message) {
             super(message);
         }
     }
 
-    /** 校验 skill 元数据是否符合 Claude 规范（对照 Validate）。 */
+    /** 校验 skill 元数据是否符合 Claude 规范。 */
     public void validate() {
         if (name == null || name.isEmpty()) {
             throw new SkillValidationException("skill name is required");
@@ -106,7 +106,7 @@ public final class Skill {
     }
 
     /**
-     * 选定目录 / 工具身份（对照 applyInstallName）。第三方 SKILL.md 常把展示标题放
+     * 选定目录 / 工具身份。第三方 SKILL.md 常把展示标题放
      * name（"Word / DOCX"）、kebab-case id 放 slug（"word-docx"）。已是合法身份的
      * 标题保持不动，所以 律师助手 这类中文名保持原样。
      */
@@ -139,7 +139,7 @@ public final class Skill {
         return trimChars(s, "-_");
     }
 
-    /** Go strings.Trim 的等价（按 cutset 字符去首尾）。 */
+    /** 按 cutset 字符去首尾。 */
     private static String trimChars(String s, String cutset) {
         int start = 0;
         int end = s.length();
@@ -152,7 +152,7 @@ public final class Skill {
         return s.substring(start, end);
     }
 
-    /** 轻量元数据表示（对照 ToMetadata / SkillMetadata；Level 1，skill 发现期用）。 */
+    /** 轻量元数据表示（Level 1，skill 发现期用）。 */
     public record SkillMetadata(String name, String description, String basePath) {
     }
 
@@ -160,17 +160,17 @@ public final class Skill {
         return new SkillMetadata(name, description, basePath);
     }
 
-    /** skill 目录里额外文件（Level 3；对照 SkillFile）。 */
+    /** skill 目录里额外文件（Level 3）。 */
     public record SkillFile(String name, String path, String content, boolean script) {
     }
 
     /**
-     * 解析 SKILL.md 内容，抽取元数据与正文（对照 ParseSkillFile）。
+     * 解析 SKILL.md 内容，抽取元数据与正文。
      * 处理 --- 定界的 YAML frontmatter。
      */
     public static Skill parseSkillFile(String content) {
         Skill skill = new Skill();
-        // 某些编辑器带 UTF-8 BOM，strings.TrimSpace 去不掉
+        // 某些编辑器带 UTF-8 BOM，先单独剥掉
         if (content.startsWith("\uFEFF")) {
             content = content.substring(1);
         }
@@ -182,7 +182,7 @@ public final class Skill {
         List<String> bodyLines = new ArrayList<>();
         boolean inFrontmatter = false;
         boolean frontmatterEnded = false;
-        // Go bufio.Scanner（ScanLines）按 \n 分行并去尾部 \r
+        // 按 \n 分行并去尾部 \r
         for (String rawLine : content.split("\n", -1)) {
             String line = rawLine.endsWith("\r") ? rawLine.substring(0, rawLine.length() - 1) : rawLine;
             String trimmed = line.strip();
@@ -217,20 +217,18 @@ public final class Skill {
         try {
             skill.validate();
         } catch (SkillValidationException e) {
-            // Go: fmt.Errorf("skill validation failed: %w", err)
             throw new SkillValidationException("skill validation failed: " + e.getMessage());
         }
         return skill;
     }
 
-    /** 只解析 SKILL.md 的元数据（Level 1 轻量操作；对照 ParseSkillMetadata）。 */
+    /** 只解析 SKILL.md 的元数据（Level 1 轻量操作）。 */
     public static SkillMetadata parseSkillMetadata(String content) {
         return parseSkillFile(content).toMetadata();
     }
 
     /**
-     * path 是否是首用依赖安装器（scripts/install_deps.py 之类）（对照
-     * IsOnDemandInstallerPath）。skill 自带这些把可选包推迟到聊天时装——时机不对：
+     * path 是否是首用依赖安装器（scripts/install_deps.py 之类）。skill 自带这些把可选包推迟到聊天时装——时机不对：
      * 每个从镜像建的会话都重复装、且沙箱无出口时必挂。
      */
     public static boolean isOnDemandInstallerPath(String scriptPath) {
@@ -241,20 +239,20 @@ public final class Skill {
         return base.equals("setup_deps.py") || base.equals("bootstrap_deps.py");
     }
 
-    /** path 是否是可执行脚本（对照 IsScript）。 */
+    /** path 是否是可执行脚本。 */
     public static boolean isScript(String path) {
         String ext = fileExt(path == null ? "" : path);
         return SCRIPT_EXTENSIONS.contains(ext);
     }
 
-    /** 返回脚本文件的解释器（对照 GetScriptLanguage）。 */
+    /** 返回脚本文件的解释器。 */
     public static String getScriptLanguage(String path) {
         String ext = fileExt(path == null ? "" : path);
         String lang = SCRIPT_LANGUAGES.get(ext);
         return lang != null ? lang : "unknown";
     }
 
-    /** Go filepath.Ext：最后一段路径里最后一个点起的尾缀（含点）；无点为 ""。 */
+    /** 最后一段路径里最后一个点起的尾缀（含点）；无点为 ""。 */
     static String fileExt(String path) {
         String base = basename(path);
         int dot = base.lastIndexOf('.');

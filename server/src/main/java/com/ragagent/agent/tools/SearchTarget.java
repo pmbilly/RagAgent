@@ -6,17 +6,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 检索目标（对照 Go {@code types.SearchTarget}，internal/types/search.go:26-47）。
- *
- * <p>本类是波 4.5b 从 types 包翻进 tools 包的公共类型：Agent 请求入口算好的
- * 检索范围（整库 / 指定文档 / 标签约束），wiki 与知识工具族共享。元素可为 null
- * 的语义对照 Go 的 {@code SearchTargets []*SearchTarget}（nil 元素处处跳过）。</p>
+ * 检索目标：Agent 请求入口算好的检索范围（整库 / 指定文档 / 标签约束），
+ * wiki 与知识工具族共享。列表元素可为 null——null 元素处处跳过。
  */
 public final class SearchTarget {
 
-    /** 对照 SearchTargetTypeKnowledgeBase。 */
+    /** 目标类型：整库。 */
     public static final String TYPE_KNOWLEDGE_BASE = "knowledge_base";
-    /** 对照 SearchTargetTypeKnowledge。 */
+    /** 目标类型：单文档。 */
     public static final String TYPE_KNOWLEDGE = "knowledge";
 
     private final String type;
@@ -38,7 +35,7 @@ public final class SearchTarget {
         this.disableRecallThresholds = disableRecallThresholds;
     }
 
-    /** 整库目标（对照 {@code &SearchTarget{Type: knowledge_base, KnowledgeBaseID: kb, TenantID: t}}）。 */
+    /** 整库目标。 */
     public static SearchTarget wholeKb(String knowledgeBaseId, long tenantId) {
         return new SearchTarget(TYPE_KNOWLEDGE_BASE, knowledgeBaseId, tenantId,
                 null, null, null, false);
@@ -52,12 +49,12 @@ public final class SearchTarget {
         return knowledgeBaseId;
     }
 
-    /** 对照 TenantID（uint64 → long）。 */
+    /** 租户 ID。 */
     public long tenantId() {
         return tenantId;
     }
 
-    /** 可能为 null（对照 Go nil slice）。 */
+    /** 可能为 null（null 与空等价处理）。 */
     public List<String> knowledgeIds() {
         return knowledgeIds;
     }
@@ -74,7 +71,7 @@ public final class SearchTarget {
         return disableRecallThresholds;
     }
 
-    /** 对照 {@code (*SearchTarget).RecallThresholds}：禁用阈值时回落 (0,0)。 */
+    /** 召回阈值（禁用时回落 (0,0)）。 */
     public double[] recallThresholds(double vectorThreshold, double keywordThreshold) {
         if (disableRecallThresholds) {
             return new double[] {0, 0};
@@ -82,7 +79,7 @@ public final class SearchTarget {
         return new double[] {vectorThreshold, keywordThreshold};
     }
 
-    /** 目标列表（对照 {@code types.SearchTargets}）。元素可为 null。 */
+    /** 目标列表。元素可为 null。 */
     public static final class SearchTargets {
         private final List<SearchTarget> targets;
 
@@ -94,7 +91,7 @@ public final class SearchTarget {
             return targets;
         }
 
-        /** 对照 HasRecallThresholdOverride。 */
+        /** 是否有任一 target 设置了召回阈值覆盖。 */
         public boolean hasRecallThresholdOverride() {
             for (SearchTarget t : targets) {
                 if (t != null && t.disableRecallThresholds()) {
@@ -104,7 +101,7 @@ public final class SearchTarget {
             return false;
         }
 
-        /** 对照 GetAllKnowledgeBaseIDs（保持出现序去重）。 */
+        /** 全部 KB ID（保持出现序去重）。 */
         public List<String> getAllKnowledgeBaseIds() {
             Map<String, Boolean> seen = new LinkedHashMap<>();
             for (SearchTarget t : targets) {
@@ -116,7 +113,7 @@ public final class SearchTarget {
             return new ArrayList<>(seen.keySet());
         }
 
-        /** 对照 GetKBTenantMap（后出现者覆盖先出现者）。 */
+        /** KB → 租户映射（后出现者覆盖先出现者）。 */
         public Map<String, Long> getKbTenantMap() {
             Map<String, Long> result = new LinkedHashMap<>();
             for (SearchTarget t : targets) {
@@ -127,7 +124,7 @@ public final class SearchTarget {
             return result;
         }
 
-        /** 对照 GetTenantIDForKB（找不到返回 0）。 */
+        /** KB 的租户 ID（找不到返回 0）。 */
         public long getTenantIdForKb(String kbId) {
             for (SearchTarget t : targets) {
                 if (t != null && t.knowledgeBaseId() != null && t.knowledgeBaseId().equals(kbId)) {
@@ -137,7 +134,7 @@ public final class SearchTarget {
             return 0;
         }
 
-        /** 对照 ContainsKB。 */
+        /** 是否包含给定 KB。 */
         public boolean containsKb(String kbId) {
             for (SearchTarget t : targets) {
                 if (t != null && t.knowledgeBaseId() != null && t.knowledgeBaseId().equals(kbId)) {
@@ -147,7 +144,7 @@ public final class SearchTarget {
             return false;
         }
 
-        /** 对照 HasKnowledgeRetrievalScope（legacy KB/文档 ID 与 SearchTargets 并集）。 */
+        /** 是否有知识检索 scope（legacy KB/文档 ID 与本列表并集）。 */
         public static boolean hasKnowledgeRetrievalScope(SearchTargets searchTargets,
                                                          List<String> knowledgeBaseIds, List<String> knowledgeIds) {
             if (knowledgeBaseIds != null) {

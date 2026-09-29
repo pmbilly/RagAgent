@@ -1,15 +1,14 @@
 package com.ragagent.agent.tools;
 
 /**
- * 流式 {@code <think>} 分离器（对照 Go {@code think_stream.go} 的 ThinkStreamSplitter，逐字移植）。
+ * 流式 {@code <think>} 分离器。
  *
  * <p>{@link ThinkBlocks} 处理的是完整字符串；本类按 chunk 增量地把内联思维链与正文分流——
  * 思考部分实时进 "thought" UI 区，正文进 "最终回答" 区，不等整个响应结束。跨 chunk 的标签
  * 边界（一个 chunk 尾部是 {@code <thi}、下个 chunk 开头是 {@code nk>}）靠缓冲"可能仍是标签
  * 前缀的尾部字节"解决；流结束时调 {@link #flush()} 排空缓冲。</p>
  *
- * <p><b>非并发安全</b>：每条流新建一个（与 Go 一致）。Go 实录语料见
- * {@code ThinkStreamSplitterTest}。</p>
+ * <p><b>非并发安全</b>：每条流新建一个。语料见 {@code ThinkStreamSplitterTest}。</p>
  */
 public final class ThinkStreamSplitter {
 

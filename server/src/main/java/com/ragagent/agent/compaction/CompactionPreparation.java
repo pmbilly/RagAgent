@@ -7,7 +7,7 @@ import com.ragagent.agent.TokenEstimator;
 import com.ragagent.llm.domain.ChatMessage;
 
 /**
- * 压缩准备与重建（对照 Go internal/agent/compaction/prepare.go 全文）。
+ * 压缩准备与重建。
  *
  * <p>摘要以 {@code user} 消息注入而非第二条 {@code system}：系统消息是指令，
  * 这是会话历史——会合并或特殊加权 system 消息的供应商不是它的去处。</p>
@@ -38,17 +38,17 @@ public final class CompactionPreparation {
         this.fileOps = fileOps;
     }
 
-    /** 原样尾部开始的下标（对照 FirstKeptIdx）。 */
+    /** 原样尾部开始的下标。 */
     public int getFirstKeptIdx() {
         return firstKeptIdx;
     }
 
-    /** 被散文替换掉的完整轮次（对照 MessagesToSummarize）。 */
+    /** 被散文替换掉的完整轮次。 */
     public List<ChatMessage> getMessagesToSummarize() {
         return messagesToSummarize;
     }
 
-    /** 被切开轮次被丢弃的头部（对照 TurnPrefixMessages）。 */
+    /** 被切开轮次被丢弃的头部。 */
     public List<ChatMessage> getTurnPrefixMessages() {
         return turnPrefixMessages;
     }
@@ -57,7 +57,7 @@ public final class CompactionPreparation {
         return splitTurn;
     }
 
-    /** 上一次压缩的文本，原地更新而非再次摘要（对照 PreviousSummary）。 */
+    /** 上一次压缩的文本，原地更新而非再次摘要。 */
     public String getPreviousSummary() {
         return previousSummary;
     }
@@ -71,7 +71,7 @@ public final class CompactionPreparation {
     }
 
     /**
-     * 选切点并收集切口两侧的消息区间（对照 Prepare）。
+     * 选切点并收集切口两侧的消息区间。
      *
      * <p>无法帮上忙时返回 null——没有消息落在 keep-recent 预算之外，或上一次压缩
      * 已经没剩什么可删。这个 null 挡住"每一轮都对压不动的上下文烧一次摘要调用"
@@ -127,7 +127,7 @@ public final class CompactionPreparation {
     }
 
     /**
-     * 以系统提示词、摘要、原样尾部重建消息列表（对照 Apply）。
+     * 以系统提示词、摘要、原样尾部重建消息列表。
      * 系统提示词与切点之间的任何内容都不保留。
      */
     public static List<ChatMessage> apply(List<ChatMessage> messages, CompactionPreparation p, String summary) {
@@ -142,7 +142,7 @@ public final class CompactionPreparation {
     }
 
     /**
-     * 把摘要文本包进模型看到的信封（对照 SummaryMessage），打上标记让下一次压缩
+     * 把摘要文本包进模型看到的信封，打上标记让下一次压缩
      * 认出这是自己的产物。
      */
     public static ChatMessage summaryMessage(String summary) {
@@ -154,7 +154,7 @@ public final class CompactionPreparation {
     }
 
     /**
-     * 从摘要消息里取回原文（对照 unwrapSummary），去掉信封后交给 update 提示词。
+     * 从摘要消息里取回原文，去掉信封后交给 update 提示词。
      */
     static String unwrapSummary(String content) {
         String c = content == null ? "" : content;

@@ -19,20 +19,19 @@ import com.ragagent.mcp.protocol.McpClientManager;
 import com.ragagent.mcp.protocol.McpContext;
 
 /**
- * MCP 工具的动态包装（对照 Go {@code mcp_tool.go} 的 MCPTool，逐字移植）。
+ * MCP 工具的动态包装。
  *
  * <p>名称格式 {@code mcp_{service}_{tool}}（用人类可读的服务名——服务重连后工具名保持
  * 稳定，#715）。ToolRegistry 的 first-wins 语义防止后来者劫持（GHSA-67q9-58vj-32qx）。
  * 描述前缀 {@code [MCP Service: X (external)]} 标注不可信来源以削弱间接注入。</p>
  *
- * <p><b>Java 侧身份注入（备案）</b>：Go 从 ctx 派生 tenantID/principal；Java 无 ctx，
- * 构造时传入（引擎按 principal 组装 registry）。</p>
+ * <p><b>身份注入</b>：tenantID/principal 构造时传入（引擎按 principal 组装 registry）。</p>
  */
 public class McpToolWrapper implements AgentTool {
 
-    /** 一条 MCP 结果最多提取的图片数（对照 maxMCPImages，同 image_upload.go）。 */
+    /** 一条 MCP 结果最多提取的图片数。 */
     static final int MAX_MCP_IMAGES = 5;
-    /** 解码后图片大小上限 10MB（对照 maxMCPImageSize）。 */
+    /** 解码后图片大小上限 10MB。 */
     static final long MAX_MCP_IMAGE_SIZE = 10L << 20;
 
     private static final Set<String> ALLOWED_IMAGE_MIMES = Set.of("image/png", "image/jpeg", "image/gif", "image/webp");
@@ -47,9 +46,9 @@ public class McpToolWrapper implements AgentTool {
     protected String serverInstructions = "";
     /** 模型可见身份（Java 注入）：tenant + principal.StorageID。 */
     protected final long tenantId;
-    /** 对照 schemaOnce：schema 编译一次按工具快照缓存（见 McpInputSchemaValidator）。 */
+    /** schema 编译一次按工具快照缓存（见 McpInputSchemaValidator）。 */
     private final McpInputSchemaValidator schemaValidator;
-    /** OAuth 等待门（对照 gate.(oauthWaiter) 断言；装配层传 gate::requestOAuthAndWait）。 */
+    /** OAuth 等待门（装配层传 gate::requestOAuthAndWait）。 */
     private volatile McpOAuthSupport.OAuthWaiter oauthWaiter;
 
     /** 子类读取当前等待门。 */
@@ -57,7 +56,7 @@ public class McpToolWrapper implements AgentTool {
         return oauthWaiter;
     }
 
-    /** 挂 OAuth 等待门（对照 Go 的类型断言成功分支；null = 该 gate 不支持等待）。 */
+    /** 挂 OAuth 等待门（null = 该 gate 不支持等待）。 */
     public McpToolWrapper withOAuthWaiter(McpOAuthSupport.OAuthWaiter waiter) {
         this.oauthWaiter = waiter;
         return this;
@@ -74,7 +73,7 @@ public class McpToolWrapper implements AgentTool {
         this.schemaValidator = new McpInputSchemaValidator(parametersJson());
     }
 
-    /** 对照 (*MCPTool).ValidateArguments（mcp_schema.go）：校验失败返回错误文案，通过返回 null。 */
+    /** 参数校验：校验失败返回错误文案，通过返回 null。 */
     public String validateArguments(String argsJson) {
         return schemaValidator.validateArguments(argsJson);
     }
@@ -126,7 +125,7 @@ public class McpToolWrapper implements AgentTool {
     }
 
     /**
-     * 供校验与 ref 计算的 schema 原文（Go json.RawMessage 语义：有就用原字节）。
+     * 供校验与 ref 计算的 schema 原文（有就用原字节）。
      * String 原样返回；JsonNode 用<b>插入序</b>紧凑序列化（保服务器发来的键序）——
      * 不能用 GoJsonCodec（map 排序会改写服务器原文的键序）。
      */
@@ -146,7 +145,7 @@ public class McpToolWrapper implements AgentTool {
     }
 
     /**
-     * 服务级每次调用超时（advanced_config.timeout 秒；对照 serviceCallTimeout）。
+     * 服务级每次调用超时（advanced_config.timeout 秒）。
      * 未设置或非正返回 0。
      */
     Duration serviceCallTimeout() {
@@ -157,7 +156,7 @@ public class McpToolWrapper implements AgentTool {
     }
 
     /**
-     * 实际 CallTool 窗口的超时（对照 callToolTimeout，#3135）：服务超时只在更长时
+     * 实际 CallTool 窗口的超时（#3135）：服务超时只在更长时
      * 延长引擎窗口，绝不缩短。
      */
     Duration callToolTimeout(Duration engineTimeout) {
@@ -191,7 +190,7 @@ public class McpToolWrapper implements AgentTool {
             }
         }
 
-        // 解析 args（Go 的 json.Unmarshal 到 input；在审批门之前发生——
+        // 解析 args（在审批门之前发生——
         // 审批携带的是原始 args，modifiedArgs 批准后整棵重解析）。
         Map<String, Object> input;
         try {
@@ -315,7 +314,7 @@ public class McpToolWrapper implements AgentTool {
         return r;
     }
 
-    /** 连接并调用；非 stdio 失败时断开重连一次（对照 connectAndCall）。 */
+    /** 连接并调用；非 stdio 失败时断开重连一次。 */
     private CallToolResult connectAndCall(McpContext callCtx, boolean isStdio,
             McpOAuthSupport.McpOAuthSession oauthSess, String toolName, String toolCallId,
             McpOAuthSupport.CallerIdentity caller, Map<String, Object> input) throws Exception {
@@ -329,7 +328,7 @@ public class McpToolWrapper implements AgentTool {
                 try {
                     client.disconnect();
                 } catch (Exception derr) {
-                    // 对照 Go 的 warn 日志
+                    // 显式忽略（warn）
                 }
             }
         }
@@ -340,7 +339,7 @@ public class McpToolWrapper implements AgentTool {
             try {
                 client.disconnect();
             } catch (Exception ignored) {
-                // 对照 Go 的 _ =
+                // 显式忽略
             }
             McpClient fresh = McpOAuthSupport.getOrCreateMcpClientWithOAuthRetry(
                     mcpManager, service, waiter, oauthSess, toolName, toolCallId, caller);
@@ -348,14 +347,14 @@ public class McpToolWrapper implements AgentTool {
         }
     }
 
-    // ---- 纯函数区（Go 同名函数逐字移植）----
+    // ---- 纯函数区 ----
 
     /** MCP 内容项的文本 + 图片提取结果。 */
     record ContentExtract(String text, List<String> images, int skippedImages) {
     }
 
     /**
-     * 从 MCP 内容项提取文本与图片 data URI（对照 extractContentAndImages）。文本项
+     * 从 MCP 内容项提取文本与图片 data URI。文本项
      * 拼接为单串；图片项校验（MIME 白名单/大小/数量）并转 base64 data URI 供下游 VLM。
      * 无论图片数据是否被收集，输出都含 {@code [Image: mime]} 占位——非视觉模型也有结构上下文。
      */
@@ -406,7 +405,7 @@ public class McpToolWrapper implements AgentTool {
         return new ContentExtract(text, images, skipped);
     }
 
-    /** 图片 Data 字段替换成大小指示的副本（对照 redactImageData）。 */
+    /** 图片 Data 字段替换成大小指示的副本。 */
     static List<ContentItem> redactImageData(List<ContentItem> content) {
         List<ContentItem> redacted = new ArrayList<>(content == null ? List.of() : content);
         for (int i = 0; i < redacted.size(); i++) {
@@ -419,7 +418,7 @@ public class McpToolWrapper implements AgentTool {
         return redacted;
     }
 
-    /** 错误路径的纯文本提取（对照 extractContentText）。 */
+    /** 错误路径的纯文本提取。 */
     static String extractContentText(List<ContentItem> content) {
         List<String> textParts = new ArrayList<>();
         if (content != null) {
@@ -455,7 +454,7 @@ public class McpToolWrapper implements AgentTool {
         return String.join("\n", textParts);
     }
 
-    /** 对照 disabledMCPToolResult。 */
+    /** 禁用/策略失败时的统一失败结果。 */
     static ToolResult disabledMcpToolResult(String policyErr) {
         String message = "MCP tool is disabled";
         if (policyErr != null) {
@@ -467,7 +466,7 @@ public class McpToolWrapper implements AgentTool {
         return r;
     }
 
-    /** 名字消毒成合法标识符（对照 sanitizeName）。 */
+    /** 名字消毒成合法标识符。 */
     static String sanitizeName(String name) {
         name = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
         name = name.replace(" ", "_");

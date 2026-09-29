@@ -9,7 +9,7 @@ import com.ragagent.agent.tools.SearchAuth.KnowledgeScopeReader;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 /**
- * wiki_flag_issue 工具（对照 Go {@code wiki_flag_issue.go}，逐字移植）。
+ * wiki_flag_issue 工具。
  * 页面路由走 resolveUniqueWikiPage；suspected_knowledge_ids 在 scopeEnforced 时
  * 经 resolveAuthorizedSourceRefs 鉴权重建。
  */
@@ -60,7 +60,7 @@ public class WikiFlagIssueTool extends BaseTool {
         this.routes = routes != null ? routes : new WikiRouteResolver();
     }
 
-    /** 对照 WithKnowledgeScope：启用 Agent 授权边界（链式）。 */
+    /** 启用 Agent 授权边界（链式）。 */
     public WikiFlagIssueTool withKnowledgeScope(KnowledgeScopeReader knowledgeService, SearchTargets searchTargets) {
         this.knowledgeService = knowledgeService;
         this.searchTargets = searchTargets;

@@ -7,7 +7,7 @@ import java.util.List;
 
     // ==================== seam 视图 ====================
 
-    /** 页视图（对照 types.WikiPage 被用字段；可变，对齐 Go 的指针修改）。 */
+    /** Wiki 页视图（可变，供重命名/回滚就地改写字段）。 */
     public final class PageView {
         private String id = "";
         private long tenantId;
@@ -72,7 +72,7 @@ import java.util.List;
         public String pageMetadata() { return pageMetadata; }
         public void setPageMetadata(String v) { pageMetadata = v; }
 
-        /** 深拷贝（对照 rename 里对旧页字段的逐字段复制）。 */
+        /** 深拷贝（逐字段复制）。 */
         public PageView copy() {
             PageView p = new PageView();
             p.id = id;

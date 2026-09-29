@@ -16,37 +16,35 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.webfetch.FetchException;
 
 /**
- * web_fetch 工具（对照 Go {@code internal/agent/tools/web_fetch.go} 全文，逐字移植）。
+ * web_fetch 工具。
  *
  * <p>读公网页面为 Markdown，带本轮缓存的快照：同 URL 的重复读不重复下载；
  * {@code offset>0} 的续读在快照未抓到时报 {@code snapshot_expired}；批内并发项
- * 同 URL 合流（pageFlight），下载完成才落 LRU 缓存（上限 8 页）。</p>
+ * 同 URL 合流（{@link PageFlight}），下载完成才落 LRU 缓存（上限 8 页）。</p>
  *
- * <h2>Go 并发原语的 Java 对应</h2>
+ * <h2>并发语义</h2>
  * <ul>
- *   <li>goroutine 单飞：下载跑在虚拟线程上，等待方在锁外轮询 {@link PageFlight}
- *       （对照 {@code select { case <-wait.done; case <-ctx.Done() }}）。</li>
- *   <li>{@code context.WithoutCancel}：{@link Fetcher#fetch} 是无取消的阻塞调用，
- *       下载天然不受调用方 deadline 影响（Go 该语义的 Java 等价成立）。</li>
+ *   <li>单飞合流：下载跑在虚拟线程上，等待方在锁外轮询 {@link PageFlight}
+ *       （等待可被截止或取消打断，下载线程本身不受影响）。</li>
+ *   <li>无取消下载：{@link Fetcher#fetch} 是无取消的阻塞调用，
+ *       下载天然不受调用方 deadline 影响。</li>
  *   <li>批内 items 与 web_search 的 content=true 前 3 页：虚拟线程并行 + join。</li>
  * </ul>
  *
- * <p>{@link WebPageSource} 是完整页存储接缝（对照 web_fetch.go L88-92 的接口；
- * Go 生产由 agent_web_pages.go 的 agentWebPages 实现，Java 装配随存储写字节面
- * ——{@code FileService.SaveBytes/ResourceCatalog.Bind}——同批落地；缺省 null =
- * Go 的 registerWebPageFiles 早退路径，输出不含 full_output_path 键）。</p>
+ * <p>{@link WebPageSource} 是完整页存储接缝（装配随存储写字节面同批落地；
+ * 缺省 null = 跳过完整页注册，输出不含 full_output_path 键）。</p>
  */
 public class WebFetchTool extends BaseTool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 webPageCacheLimit。 */
+    /** 页面快照 LRU 缓存上限。 */
     static final int WEB_PAGE_CACHE_LIMIT = 8;
-    /** 对照批大小上限与缺省 limit。 */
+    /** 批大小上限与缺省 limit。 */
     static final int MAX_ITEMS = 8;
     static final int DEFAULT_CHAR_LIMIT = 8000;
 
-    /** 键序与类型对照 Go GenerateSchema[WebFetchInput] 实录（出站经 goSorted 递归重排）。 */
+    /** schema 键序与类型为钉死契约（出站按字节序递归重排）。 */
     static final String SCHEMA_JSON =
             "{\"type\":\"object\",\"properties\":{\"items\":{\"type\":[\"null\",\"array\"],"
                     + "\"items\":{\"type\":\"object\",\"properties\":{"
@@ -73,7 +71,7 @@ public class WebFetchTool extends BaseTool {
             - Failed pages do not invalidate successful results. For retryable failures, retry when useful; for permanent
               failures use another relevant source or explain the gap. Never claim a failed fetch verified a page.""";
 
-    /** 完整页快照存取接缝（对照 WebPageSource；与 ReadFileTool 的嵌套接口同形）。 */
+    /** 完整页快照存取接缝。 */
     public interface WebPageSource {
         /** 保存一页完整内容，返回 web:// 地址。 */
         String save(String content) throws Exception;
@@ -82,15 +80,15 @@ public class WebFetchTool extends BaseTool {
         byte[] read(String address) throws Exception;
     }
 
-    /** 对照 WebFetchInput（解析后的批内单项）。 */
+    /** 解析后的批内单项。 */
     record WebFetchItem(String url, int offset, int limit) {
     }
 
-    /** 对照 webPageSnapshot。 */
+    /** 页面快照（全文 + 占位）。 */
     record WebPageSnapshot(String content, String path, String storageError) {
     }
 
-    /** 对照 webFetchItemResult。 */
+    /** 批内单项结果。 */
     static final class WebFetchItemResult {
         final String output;
         final Map<String, Object> data;
@@ -103,14 +101,14 @@ public class WebFetchTool extends BaseTool {
         }
     }
 
-    /** 对照 pageFlight：同 URL 下载的单飞合流点。 */
+    /** 同 URL 下载的单飞合流点。 */
     private static final class PageFlight {
         WebPageSnapshot page;
         RuntimeException err;
         boolean done;
     }
 
-    /** 下载接缝（对照 webContentFetcher；失败抛 RuntimeException = Go 的 (string, error)）。 */
+    /** 下载接缝（失败抛 RuntimeException）。 */
     @FunctionalInterface
     interface PageFetcher {
         String fetch(String url);
@@ -122,18 +120,18 @@ public class WebFetchTool extends BaseTool {
     private final Map<String, WebPageSnapshot> pages = new LinkedHashMap<>();
     private final Map<String, PageFlight> inflight = new HashMap<>();
 
-    /** 对照 NewWebFetchTool：agent 用生产 fetcher（markdown、2MB、60s、浏览器兜底接缝）。 */
+    /** 生产 fetcher（markdown、2MB、60s、浏览器兜底）。 */
     public WebFetchTool() {
         this(com.ragagent.webfetch.Fetcher.newFetcher()::fetch);
     }
 
-    /** 测试注入口（对照 newWebFetchTool(fetcher)，webContentFetcher 接缝）。 */
+    /** 测试注入口。 */
     WebFetchTool(PageFetcher fetcher) {
         super(ToolDefinitions.TOOL_WEB_FETCH, DESCRIPTION, SCHEMA_JSON);
         this.fetcher = fetcher;
     }
 
-    /** 对照 WithPageSource。 */
+    /** 注入完整页存储。 */
     public WebFetchTool withPageSource(WebPageSource pageSource) {
         this.source = pageSource;
         return this;
@@ -152,7 +150,7 @@ public class WebFetchTool extends BaseTool {
 
         WebFetchItemResult[] results = new WebFetchItemResult[items.size()];
         Map<String, Boolean> seenUrls = new HashMap<>();
-        // 给每条结果的 URL/status/续读元数据留余量（对照 Go 的 overhead 起算 1024）
+        // 给每条结果的 URL/status/续读元数据留余量（overhead 起算 1024）
         int overhead = 1024;
         for (WebFetchItem item : items) {
             overhead += Math.min(item.url().codePointCount(0, item.url().length()), 2048) + 512;
@@ -178,14 +176,14 @@ public class WebFetchTool extends BaseTool {
                 later.add(index);
             }
         }
-        // offset-0 的读先把快照抓下来，同批续读再启动（对照 Go 的两段式）
+        // offset-0 的读先把快照抓下来，同批续读再启动（两段式）
         runItems(items, results, first, pageBudget, 0, request.cancellation());
         runItems(items, results, later, pageBudget, 0, request.cancellation());
 
         return buildToolResult(results);
     }
 
-    /** 解析结果（对照 parse 失败路径与双重编码 unwrap 的合并判定）。 */
+    /** 解析结果（失败文案 + 双重编码 unwrap 判定）。 */
     private record ParsedItems(List<WebFetchItem> items, String error) {
     }
 
@@ -202,7 +200,7 @@ public class WebFetchTool extends BaseTool {
             }
             return new ParsedItems(items, null);
         }
-        // items 缺失 / null → Go 的 nil slice（不是 unmarshal 错误，落批大小校验）
+        // items 缺失 / null → 空列表（不是解析错误，落批大小校验）
         if (itemsNode.isMissingNode() || itemsNode.isNull()) {
             return new ParsedItems(List.of(), null);
         }
@@ -233,7 +231,7 @@ public class WebFetchTool extends BaseTool {
         return new ParsedItems(List.of(), goItemsTypeMessage(itemsNode));
     }
 
-    /** 单个 item 的字段解析（url 必为文本，offset/limit 必为整型——Go unmarshal 语义）。 */
+    /** 单个 item 的字段解析（url 必为文本，offset/limit 必为整型）。 */
     private static WebFetchItem parseItemElement(JsonNode element) {
         if (!element.isObject()) {
             return null;
@@ -253,7 +251,7 @@ public class WebFetchTool extends BaseTool {
         return new WebFetchItem(url.asText(), offset.asInt(0), limit.asInt(0));
     }
 
-    /** 对照 Go 解码器的类型错误文案（items 字段）。 */
+    /** 解码器的类型错误文案（items 字段，文案为输出契约）。 */
     private static String goItemsTypeMessage(JsonNode node) {
         String jsonType;
         if (node.isBoolean()) {
@@ -269,7 +267,7 @@ public class WebFetchTool extends BaseTool {
                 + " into Go struct field WebFetchInput.items of type []tools.WebFetchItem";
     }
 
-    /** 对照 runWebFetchItems：一批下标并行抓取（虚拟线程 + join）。 */
+    /** 一批下标并行抓取（虚拟线程 + join）。 */
     private void runItems(List<WebFetchItem> items, WebFetchItemResult[] results,
             List<Integer> indexes, int pageBudget, long waitNanos, ToolCancellation cancellation) {
         List<Thread> threads = new ArrayList<>(indexes.size());
@@ -305,7 +303,7 @@ public class WebFetchTool extends BaseTool {
     }
 
     /**
-     * 对照 fetchItem：单页读取。{@code waitNanos > 0} 时等待快照下载有截止
+     * 单页读取。{@code waitNanos > 0} 时等待快照下载有截止
      * （web_search 的 content=true 15s 预算），超时报 TIMEOUT 可重试。
      */
     WebFetchItemResult fetchItem(WebFetchItem item, int budget, long waitNanos,
@@ -335,7 +333,7 @@ public class WebFetchTool extends BaseTool {
         } catch (FetchException e) {
             return failedWebFetchResult(displayUrl, e.isRetryable(), e.getCode().wire(), e.getMessage());
         } catch (RuntimeException e) {
-            // 对照 ErrorDetails 的默认分支：非 FetchError → connection + retryable
+            // 默认分支：非 FetchException → connection + retryable
             return failedWebFetchResult(displayUrl, FetchException.retryableOf(e),
                     FetchException.codeOf(e).wire(), e.getMessage() == null ? "" : e.getMessage());
         }
@@ -383,7 +381,7 @@ public class WebFetchTool extends BaseTool {
         return new WebFetchItemResult(output, data, "success");
     }
 
-    /** 按 rune 下标切片（对照 string([]rune(s)[a:b]))）。 */
+    /** 按 rune 下标切片。 */
     static String substringByRunes(String s, int fromRune, int toRuneExclusive) {
         int from = Character.offsetByCodePoints(s, 0, Math.min(fromRune, s.codePointCount(0, s.length())));
         int to = from;
@@ -393,7 +391,7 @@ public class WebFetchTool extends BaseTool {
         return s.substring(from, to);
     }
 
-    /** 对照 failedWebFetchResult。 */
+    /** 失败结果（输出行 + data 键）。 */
     static WebFetchItemResult failedWebFetchResult(String rawUrl, boolean retryable,
             String code, String message) {
         rawUrl = ToolOutput.truncateToolOutput(rawUrl, 2048);
@@ -410,7 +408,7 @@ public class WebFetchTool extends BaseTool {
                 data, "failed");
     }
 
-    /** 对照 duplicateWebFetchResult。 */
+    /** 批内重复 URL 的跳过结果。 */
     static WebFetchItemResult duplicateWebFetchResult(WebFetchItem item) {
         String url = ToolOutput.truncateToolOutput(item.url(), 2048);
         String message = "duplicate URL skipped in this batch";
@@ -425,7 +423,7 @@ public class WebFetchTool extends BaseTool {
                 data, "skipped");
     }
 
-    /** 对照 buildWebFetchToolResult：批结果聚合 + 三种 Next Steps。 */
+    /** 批结果聚合 + 三种 Next Steps。 */
     private ToolResult buildToolResult(WebFetchItemResult[] results) {
         StringBuilder builder = new StringBuilder();
         builder.append("=== Web Fetch Results ===\n\n");
@@ -482,14 +480,14 @@ public class WebFetchTool extends BaseTool {
     }
 
     // ==================================================================
-    // 快照缓存（对照 readPage / completeStore / storePage）
+    // 快照缓存（readPage / completeStore / storePage）
     // ==================================================================
 
     /**
-     * 对照 readPage：缓存命中即回；未命中且 offset>0 → snapshot_expired（可重试）；
+     * 读页：缓存命中即回；未命中且 offset>0 → snapshot_expired（可重试）；
      * 否则单飞下载。等待被 {@code waitNanos} 截止或取消打断时报
      * {@code timed out waiting for page snapshot: <cause>}（TIMEOUT，可重试）——
-     * 下载本身继续跑（对照 WithoutCancel），完成后进缓存供后续读。
+     * 下载本身继续跑（无取消），完成后进缓存供后续读。
      */
     private WebPageSnapshot readPage(String rawUrl, int offset, long waitNanos,
             ToolCancellation cancellation) {
@@ -555,7 +553,7 @@ public class WebFetchTool extends BaseTool {
         }
         lock.lock();
         try {
-            // 对照 Go completeStore 的 delete(t.inflight, rawURL)：已完成的 flight
+            // 已完成的 flight 必须从 inflight 摘除，
             // 必须摘除，否则被逐出的页会读到过期 flight 的旧快照而不重新下载。
             inflight.remove(rawUrl, flight);
         } finally {
@@ -568,7 +566,7 @@ public class WebFetchTool extends BaseTool {
     }
 
     /**
-     * 对照 storePage：下载（60s，无取消）→ 空内容拒收 → 尽力存储完整页 →
+     * 下载（60s，无取消）→ 空内容拒收 → 尽力存储完整页 →
      * LRU 入缓存（上限 8，满则逐最旧）。
      */
     private WebPageSnapshot storePage(String rawUrl) {
@@ -610,11 +608,11 @@ public class WebFetchTool extends BaseTool {
     }
 
     // ==================================================================
-    // URL 归一（对照 canonicalFetchURL / normalizeGitHubURL）
+    // URL 归一（canonicalFetchURL / normalizeGitHubURL）
     // ==================================================================
 
     /**
-     * 对照 canonicalFetchURL：GitHub blob → raw.githubusercontent.com；去 fragment；
+     * canonical URL：GitHub blob → raw.githubusercontent.com；去 fragment；
      * host 小写。解析失败或无 host 时返回 trim 后原文。
      */
     static String canonicalFetchURL(String rawUrl) {
@@ -632,7 +630,7 @@ public class WebFetchTool extends BaseTool {
         return rebuildWithoutFragment(parsedUrl);
     }
 
-    /** 去 fragment + host 小写的再序列化（对照 Go 的 URL.String()）。 */
+    /** 去 fragment + host 小写的再序列化。 */
     private static String rebuildWithoutFragment(URI u) {
         try {
             String host = u.getHost().toLowerCase(Locale.ROOT);
@@ -643,7 +641,7 @@ public class WebFetchTool extends BaseTool {
         }
     }
 
-    /** 对照 normalizeGitHubURL：github.com/{owner}/{repo}/blob/… → raw.githubusercontent.com。 */
+    /** github.com/{owner}/{repo}/blob/… → raw.githubusercontent.com。 */
     static String normalizeGitHubURL(String source) {
         URI parsed;
         try {
@@ -670,7 +668,7 @@ public class WebFetchTool extends BaseTool {
         return source;
     }
 
-    /** 对照 strings.SplitN(strings.TrimPrefix(path, "/"), "/", 4)。 */
+    /** 路径前 3 段切分（去掉首个 '/'，至多 4 段，末段含余下全部）。 */
     private static String[] splitPath(String path) {
         String p = path.startsWith("/") ? path.substring(1) : path;
         List<String> parts = new ArrayList<>(4);

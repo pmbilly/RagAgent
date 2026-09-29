@@ -6,18 +6,17 @@ import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.llm.domain.ChatMessage;
 
 /**
- * 工具回传图片的注入（对照 Go internal/agent/tool_images.go 的 appendToolImages）。
+ * 工具回传图片的注入。
  *
  * <p>图片永远跟在全部工具回复之后，供应商就永远不会看到被打断的
  * assistant/tool-call 序列。它们是来自工具的证据，不是用户请求。</p>
  *
- * <p>Go 侧是引擎方法（读 e.config.ChatModelSupportsVision 与 e.imageDescriber，
- * describeImages 带 60s 超时）；Java 侧拆成纯函数 + {@link ImageDescriber} 接缝，
- * 超时与实现由波 4.6 的引擎装配提供。</p>
+ * <p>这里拆成纯函数 + {@link ImageDescriber} 接缝：读配置的视觉开关与图片描述器，
+ * describeImages 实现带 60s 超时、由引擎装配提供。</p>
  */
 public final class ToolImages {
 
-    /** 图片描述接缝（Go 的 imageDescriber 字段；实现随引擎批）。 */
+    /** 图片描述接缝；实现由引擎装配提供。 */
     public interface ImageDescriber {
         List<String> describeImages(List<String> images);
     }
@@ -26,10 +25,9 @@ public final class ToolImages {
     }
 
     /**
-     * 按步骤把工具图片追加进消息列表（对照 appendToolImages）。
+     * 按步骤把工具图片追加进消息列表。
      *
-     * @param supportsVision 配置的聊天模型是否支持视觉（Go 的
-     *                       {@code e.config != nil && e.config.ChatModelSupportsVision}）
+     * @param supportsVision 配置的聊天模型是否支持视觉
      */
     public static List<ChatMessage> appendToolImages(
             List<ChatMessage> messages, AgentStep step, boolean supportsVision,
@@ -55,7 +53,7 @@ public final class ToolImages {
             String note = "Images were captured, but this model cannot view them and no image description is available. "
                     + "Use page text or ask for a vision-capable model; do not claim to have inspected the image.";
             if (imageDescriber != null) {
-                // 对照 Go describeImages：逐条 TrimSpace、丢空条目（engine.go L909-911）
+                // 描述逐条去空白、丢空条目。
                 List<String> raw = imageDescriber.describeImages(call.getResult().getImages());
                 List<String> descriptions = new java.util.ArrayList<>();
                 if (raw != null) {

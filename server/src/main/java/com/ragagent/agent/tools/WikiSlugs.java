@@ -8,10 +8,10 @@ public final class WikiSlugs {
     }
 
 
-    // ==================== slug 工具（对照 wiki_write_page.go:252 起） ====================
+    // ==================== slug 工具 ====================
 
     /**
-     * 对照 normalizeAndValidateWikiSlug：lowercase + trim + 空格转 '-'；
+     * slug 归一化：lowercase + trim + 空格转 '-'；
      * 只许小写字母/数字/'-'/'/'/CJK（0x4E00-0x9FFF）；拒绝空、前/后/重复 '/'。
      */
     public static String normalizeAndValidateWikiSlug(String raw) {
@@ -36,11 +36,11 @@ public final class WikiSlugs {
     }
 
 
-    /** 对照 isSummaryNamespace。 */
+    /** 是否 summary 命名空间（summary/ 前缀）。 */
     public static boolean isSummaryNamespace(String slug) {
         return slug != null && slug.startsWith(WIKI_PAGE_TYPE_SUMMARY + "/");
     }
 
-    /** 对照 types.WikiPageTypeSummary。 */
+    /** 页面类型：摘要。 */
     public static final String WIKI_PAGE_TYPE_SUMMARY = "summary";
 }

@@ -14,23 +14,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * knowledge_search 工具（对照 Go {@code knowledge_search.go}，逐字移植）。
+ * knowledge_search 工具。
  *
- * <p>seam：{@link KnowledgeSearchBackend} 对照 interfaces.KnowledgeBaseService 被用子集
- * （GetKnowledgeBaseByID / GetKnowledgeBasesByIDsOnly / ResolveEmbeddingModelKeys /
- * GetQueryEmbedding / HybridSearch）；{@link ChunkInfoBackend} 对照 ChunkService 被用子集
- * （GetChunkByID 读 FAQ 元数据 / ListPagedChunksByKnowledgeID 取文档总块数）；
- * {@link ImageEnricher} 对照 searchutil.EnrichSearchResultsImageInfo（4.5c 接真实现，
- * null=跳过富化，对照 Go chunkService==nil 分支）；{@link RerankerModel} 对照
- * rerank.Reranker.Rerank。Go 的 goroutine 并发在 Java 顺序执行——final sort 在
+ * <p>seam：{@link KnowledgeSearchBackend}（按 ID 取知识库 / 批量取 / 解析向量模型键 /
+ * 取 query 向量 / 混合检索）；{@link ChunkInfoBackend}（按 ID 取 chunk 读 FAQ 元数据 /
+ * 取文档总块数）；{@link ImageEnricher}（图片富化，null=跳过富化）；
+ * {@link RerankerModel} 重排。检索按 target 顺序执行——final sort 在
  * （score, knowledgeID）唯一时完全确定，MMR/dedup 的输入序差异不可见（已知差异：
- * Go 的 allResults 追加序与 seenByID map 序随机，完全并列时 Java 结果可能不同）。</p>
+ * allResults 追加序不保证，完全并列时结果可能不同）。</p>
  */
 public class KnowledgeSearchTool extends BaseTool {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeSearchTool.class);
 
-    /** 键序对照 Go GenerateSchema 输出（字母序：properties < required < type）。 */
+    /** schema 键按字母序：properties < required < type。 */
     private static final String SCHEMA_JSON = """
             {
               "properties": {
@@ -113,24 +110,24 @@ public class KnowledgeSearchTool extends BaseTool {
             + "Returns chunks ranked by semantic similarity, reranked when applicable.  \n"
             + "Each chunk has a short cN source ID and belongs to a dN document ID. Results represent conceptual relevance, not literal keyword overlap. Use dN for document-level follow-up tool calls.";
 
-    /** 对照 types.KnowledgeBaseTypeFAQ。 */
+    /** FAQ 型知识库的类型值。 */
     static final String KB_TYPE_FAQ = "faq";
-    /** 对照 agentRerankFallbackMinScore。 */
+    /** rerank 全滤时的兜底分。 */
     static final double RERANK_FALLBACK_MIN_SCORE = 0.15;
-    /** 对照 MMR lambda=0.7。 */
+    /** MMR 多样性权重 lambda。 */
     static final double MMR_LAMBDA = 0.7;
 
-    /** 对照 types.SearchParams（被用子集）。 */
+    /** 混合检索入参视图。 */
     public record HybridParams(String queryText, float[] queryEmbedding, List<String> knowledgeBaseIDs,
             List<String> knowledgeIDs, List<String> tagIDs, List<String> scopeTagIDs,
             int matchCount, double vectorThreshold, double keywordThreshold) {
     }
 
-    /** 对照 types.KnowledgeBase 被用子集（type + IsVectorEnabled/IsKeywordEnabled）。 */
+    /** 知识库视图（type + 向量/关键词开关）。 */
     public record KBView(String id, String type, boolean vectorEnabled, boolean keywordEnabled) {
     }
 
-    /** 对照 types.SearchResult（被用子集；score 可变——rerank 改写）。 */
+    /** 检索结果视图（score 可变——rerank 改写）。 */
     public static final class SearchResultView {
         public String id;
         public String content;
@@ -169,54 +166,54 @@ public class KnowledgeSearchTool extends BaseTool {
         }
     }
 
-    /** 对照 rerank.RankResult 被用子集。 */
+    /** 重排结果（原列表下标 + 相关分）。 */
     public record RankResult(int index, double relevanceScore) {
     }
 
-    /** 对照 rerank.Reranker.Rerank。失败抛 RuntimeException（对照 Go 返回 error → 回落原序）。 */
+    /** 重排模型。失败抛 RuntimeException（由调用方回落原序）。 */
     public interface RerankerModel {
         List<RankResult> rerank(String query, List<String> passages);
     }
 
-    /** 对照 interfaces.KnowledgeBaseService 被用子集。 */
+    /** 知识库检索后端。 */
     public interface KnowledgeSearchBackend {
-        /** 对照 GetKnowledgeBaseByID；异常/ null 视为取不到（warn 跳过）。 */
+        /** 按 ID 取知识库；异常/ null 视为取不到（warn 跳过）。 */
         KBView getKnowledgeBaseById(String kbId);
 
-        /** 对照 GetKnowledgeBasesByIDsOnly；异常返回空表。 */
+        /** 批量取知识库；异常返回空表。 */
         List<KBView> getKnowledgeBasesByIdsOnly(List<String> ids);
 
-        /** 对照 ResolveEmbeddingModelKeys（kbID → model key）。 */
+        /** kbID → 向量模型键。 */
         Map<String, String> resolveEmbeddingModelKeys(List<KBView> kbs);
 
-        /** 对照 GetQueryEmbedding；异常返回 null（Go 侧仅 warn，queryEmbedding 为 nil）。 */
+        /** 取 query 向量；异常返回 null（调用方仅 warn，向量置空）。 */
         float[] getQueryEmbedding(String kbId, String queryText);
 
         /**
-         * 对照 {@code HybridSearch(ctx, kbID, params)}；异常对照 Go err 分支（warn 跳过该路）。
+         * 混合检索；异常走 warn 跳过该路。
          *
-         * <p>kbID 与 {@code params.knowledgeBaseIDs} 必须分开传（Go 同签名：单 id 用于
+         * <p>kbID 与 {@code params.knowledgeBaseIDs} 必须分开传（单 id 用于
          * 主库/embedding 解析，列表用于跨库范围）——2026-09-23 接线时修正：此前 seam 只传
          * params，定向（knowledge/tag）分支的 target KB id 会丢，适配器无从路由。</p>
          */
         List<SearchResultView> hybridSearch(String kbId, HybridParams params);
     }
 
-    /** 对照 ChunkService 被用子集。 */
+    /** chunk 信息后端。 */
     public interface ChunkInfoBackend {
-        /** 对照 GetChunkByID（FAQ 元数据路径）。null=未找到。 */
+        /** 按 ID 取 chunk（FAQ 元数据路径）。null=未找到。 */
         Chunk faqChunkById(String chunkId);
 
-        /** 对照 ListPagedChunksByKnowledgeID(text+faq, enabled) 的 total。 */
+        /** 文档总块数（text+faq, enabled）。 */
         long totalChunks(long tenantId, String knowledgeId);
     }
 
-    /** 对照 searchutil.EnrichSearchResultsImageInfo。null=跳过（对照 Go chunkService==nil）。 */
+    /** 图片富化。null=跳过。 */
     public interface ImageEnricher {
         void enrich(long tenantId, List<SearchResultView> results);
     }
 
-    /** 检索配置（对照 config.Conversation 被用子集；0/null 回落硬编码默认）。 */
+    /** 检索配置（0/null 回落硬编码默认）。 */
     public record SearchConfig(int embeddingTopK, double vectorThreshold, double keywordThreshold,
             double rerankThreshold) {
         public static SearchConfig defaults() {
@@ -224,7 +221,7 @@ public class KnowledgeSearchTool extends BaseTool {
         }
     }
 
-    /** 对照 searchResultWithMeta。 */
+    /** 检索结果 + 来源 query 元信息。 */
     static final class ResultWithMeta {
         final SearchResultView sr;
         final String sourceQuery;
@@ -249,7 +246,7 @@ public class KnowledgeSearchTool extends BaseTool {
     /** 排序与输出两个包内协作者（构造期装配）。 */
     private final KnowledgeSearchRanking ranking;
     private final KnowledgeSearchOutputFormatter formatter;
-    /** 会话级已返回 chunk 去重（对照 seenChunks；单实例顺序使用）。 */
+    /** 会话级已返回 chunk 去重（单实例顺序使用）。 */
     final Set<String> seenChunks = new LinkedHashSet<>();
 
     public KnowledgeSearchTool(KnowledgeSearchBackend backend, ChunkInfoBackend chunkBackend,
@@ -289,7 +286,7 @@ public class KnowledgeSearchTool extends BaseTool {
             }
         }
 
-        // 按用户指定 KB 过滤 search targets（对照 Go 的 filteredTargets）。
+        // 按用户指定 KB 过滤 search targets。
         List<SearchTarget> searchTargetsList = searchTargets == null ? List.of() : searchTargets.list();
         if (!userSpecifiedKBs.isEmpty()) {
             Set<String> userKBSet = new LinkedHashSet<>(userSpecifiedKBs);
@@ -330,7 +327,7 @@ public class KnowledgeSearchTool extends BaseTool {
             return failure("queries parameter is required");
         }
 
-        // 参数回落：config → 硬编码默认（对照 Go 的 ==0 判断）。
+        // 参数回落：config 值 ≤0 → 硬编码默认。
         int topK = config.embeddingTopK() == 0 ? 5 : config.embeddingTopK();
         double vectorThreshold = config.vectorThreshold() == 0 ? 0.6 : config.vectorThreshold();
         double keywordThreshold = config.keywordThreshold() == 0 ? 0.5 : config.keywordThreshold();
@@ -377,7 +374,7 @@ public class KnowledgeSearchTool extends BaseTool {
             return nz(a.sr.knowledgeId).compareTo(nz(b.sr.knowledgeId));
         });
 
-        // 图片富化（对照 EnrichSearchResultsImageInfo；null enricher 跳过）。
+        // 图片富化（null enricher 跳过）。
         if (imageEnricher != null && !deduplicatedResults.isEmpty()) {
             Map<Long, List<SearchResultView>> byTenant = new LinkedHashMap<>();
             for (ResultWithMeta r : deduplicatedResults) {
@@ -406,7 +403,7 @@ public class KnowledgeSearchTool extends BaseTool {
         return v == null ? "" : v;
     }
 
-    /** 对照 getKnowledgeBaseTypes。 */
+    /** 取各 KB 的类型（未知/取不到跳过）。 */
     Map<String, String> getKnowledgeBaseTypes(List<String> kbIDs) {
         Map<String, String> kbTypeMap = new LinkedHashMap<>();
         for (String kbID : kbIDs) {
@@ -417,7 +414,7 @@ public class KnowledgeSearchTool extends BaseTool {
             try {
                 kb = backend.getKnowledgeBaseById(kbID);
             } catch (RuntimeException e) {
-                continue; // 对照 Go warn 跳过
+                continue; // warn 后跳过
             }
             if (kb == null) {
                 continue;
@@ -427,7 +424,7 @@ public class KnowledgeSearchTool extends BaseTool {
         return kbTypeMap;
     }
 
-    /** 对照 concurrentSearchByTargets（Go 并发 → Java 顺序；输出序差异被 final sort 吸收）。 */
+    /** 按 target 逐个检索（顺序执行；输出序差异被 final sort 吸收）。 */
     List<ResultWithMeta> concurrentSearchByTargets(List<String> queries, List<SearchTarget> searchTargets,
             int topK, double vectorThreshold, double keywordThreshold, Map<String, String> kbTypeMap) {
         List<String> kbIDs = new ArrayList<>();
@@ -493,7 +490,7 @@ public class KnowledgeSearchTool extends BaseTool {
             modelKeyMap = Map.of();
         }
 
-        // 按 embedding model key 分组（LinkedHashMap 保序，Go map 序随机——final sort 吸收）。
+        // 按 embedding model key 分组（LinkedHashMap 保序）。
         Map<String, List<SearchTarget>> groups = new LinkedHashMap<>();
         for (SearchTarget st : searchTargets) {
             if (st == null || nz(st.knowledgeBaseId()).isEmpty()) {
@@ -517,7 +514,7 @@ public class KnowledgeSearchTool extends BaseTool {
                     } catch (RuntimeException e) {
                         log.warn("[Tool][KnowledgeSearch] Failed to pre-compute embedding for model {}: {}",
                                 modelKey, e.toString());
-                        queryEmbedding = null; // 对照 Go warn 后 nil
+                        queryEmbedding = null; // warn 后置空
                     }
                 }
 
@@ -534,7 +531,7 @@ public class KnowledgeSearchTool extends BaseTool {
 
                 if (!fullKBIDs.isEmpty()) {
                     try {
-                        // 对照 Go L543：kbID = fullKBIDs[0]，范围在 params.KnowledgeBaseIDs 里
+                        // 整库/多库分支：kbID = fullKBIDs[0]，范围在 params.KnowledgeBaseIDs 里
                         List<SearchResultView> kbResults = backend.hybridSearch(fullKBIDs.get(0),
                                 new HybridParams(
                                         q, queryEmbedding, fullKBIDs, null, null, null,
@@ -554,7 +551,7 @@ public class KnowledgeSearchTool extends BaseTool {
                 for (SearchTarget st : knowledgeTargets) {
                     double[] thresholds = st.recallThresholds(vectorThreshold, keywordThreshold);
                     try {
-                        // 对照 Go L582：kbID = st.KnowledgeBaseID（此前 seam 丢了该 id）
+                        // 定向分支：kbID = target 的 KB id（seam 契约要求单 id 单独传）
                         List<SearchResultView> kbResults = backend.hybridSearch(st.knowledgeBaseId(),
                                 new HybridParams(
                                         q, queryEmbedding, null, st.knowledgeIds(), st.tagIds(),
@@ -575,7 +572,7 @@ public class KnowledgeSearchTool extends BaseTool {
         return allResults;
     }
 
-    /** 对照 rerankResults：失败回落原序。 */
+    /** 重排：失败回落原序。 */
     static final class RecordingSupportHolder {
         static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
     }

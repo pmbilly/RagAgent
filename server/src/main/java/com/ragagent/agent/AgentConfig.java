@@ -8,24 +8,22 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * agent 运行时配置（对照 Go {@code types.AgentConfig}，internal/types/agent.go:104-320）。
+ * agent 运行时配置。
  *
  * <h2>⚠️ 与 {@code agentm.service.AgentConfigJson} 不是同一个类型</h2>
  * <p>{@code AgentConfigJson} 是 <b>配置树校验件</b>（custom_agents.config jsonb 的
- * EnsureDefaults/Validate），本类是 <b>运行时消费面</b>：引擎（engine/observe/act/think/
- * finalize）从这里读本轮执行的参数。Go 里同一个 struct 兼任两职（Value/Scan 落 jsonb +
- * 引擎消费）；Java 侧 3.x 已把存储面译成 AgentConfigJson，本类只补引擎用到的字段。
- * 别把两者混为一谈，也别互相顶替。</p>
+ * 默认值补全/校验），本类是 <b>运行时消费面</b>：引擎（engine/observe/act/think/
+ * finalize）从这里读本轮执行的参数。存储面归 {@code AgentConfigJson}，
+ * 本类只收引擎用到的字段。别把两者混为一谈，也别互相顶替。</p>
  *
- * <h2>本波只收引擎消费的字段</h2>
- * <p>Go 全量字段的其余部分（KnowledgeBases/KnowledgeIDs/MCPSelectionMode/SkillsEnabled/
- * AllowedSkills/... 由调用方 agent_service 消费，装配随 4.6d）按需再补；补的时候
- * 逐字段对照 Go json tag。</p>
+ * <h2>只收引擎消费的字段</h2>
+ * <p>其余字段（知识库/技能开关/MCP 选择模式等，由调用方服务消费）尚未收入，
+ * 按需再补；新增字段时键名须与既有 jsonb 记录保持一致。</p>
  *
- * <h2>方法 vs 字段（§7.5 第 2 条）</h2>
+ * <h2>方法 vs 字段</h2>
  * <ul>
- *   <li>{@code UnlimitedIterations()}/{@code CitationsEnabled()} 在 Go 里是<b>方法</b>
- *       → Java 侧 {@code @JsonIgnore}；</li>
+ *   <li>派生判定（{@link #unlimitedIterations()}/{@link #citationsEnabled()}）是
+ *       <b>方法</b>而非持久化字段 → Java 侧 {@code @JsonIgnore}；</li>
  *   <li>技能安装模式族（skillInstallMode/SkillInstallDir/BuiltinSkillInstallerID）与
  *       sandboxConfigId 随沙箱裁剪退役。</li>
  * </ul>
@@ -36,11 +34,11 @@ public class AgentConfig {
 
     /**
      * ReAct 轮次上限。0 = 未设置（用默认）；负数 = 无上限（见
-     * {@link #unlimitedIterations()}）。对照 UnlimitedMaxIterations = -1。
+     * {@link #unlimitedIterations()}）。
      */
     public static final int UNLIMITED_MAX_ITERATIONS = -1;
 
-    // ---- 引擎消费的持久化字段（json tag 对照 Go）----
+    // ---- 引擎消费的持久化字段 ----
     @JsonProperty("max_iterations")
     private int maxIterations;
     @JsonProperty("allowed_tools")
@@ -71,7 +69,7 @@ public class AgentConfig {
     @JsonProperty("parallel_tool_calls")
     private boolean parallelToolCalls;
 
-    // ---- 运行时字段（json:"-"）----
+    // ---- 运行时字段（不持久化）----
     /** 已解析的模型能力，客户端给不了。 */
     @JsonIgnore
     private boolean chatModelSupportsVision;
@@ -79,15 +77,14 @@ public class AgentConfig {
     @JsonIgnore
     private String vlmModelId = "";
 
-    /** ReAct 循环是否无轮次上限（对照 UnlimitedIterations()，Go 方法）。 */
+    /** ReAct 循环是否无轮次上限（派生判定，不持久化）。 */
     @JsonIgnore
     public boolean unlimitedIterations() {
         return maxIterations < 0;
     }
 
     /**
-     * 引用输出开关；旧运行时配置没有该字段（nil）时<b>默认开</b>
-     * （对照 CitationsEnabled()，Go 方法）。
+     * 引用输出开关；旧运行时配置没有该字段（null）时<b>默认开</b>。
      */
     @JsonIgnore
     public boolean citationsEnabled() {

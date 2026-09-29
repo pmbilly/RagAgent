@@ -6,20 +6,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * agent 系统提示词模板的选取与装载（对照 Go internal/config/config.go 的
- * PromptTemplate/PromptTemplatesConfig/DefaultTemplateByMode/DefaultTemplate，
- * L337-408）。
+ * agent 系统提示词模板的选取与装载。
  *
- * <p>模板文件随波 3 vendored 到 {@code agentm/prompt_templates/agent_system_prompt.yaml}
- * （与 Go 的 config/prompt_templates/ 内容同源）；Go 的启动装载读 config 目录，
- * Java 侧读 classpath 等价文件。yaml 解析沿用 agentm BuiltinAgentRegistry 的
+ * <p>模板文件 vendored 到 {@code agentm/prompt_templates/agent_system_prompt.yaml}，
+ * 启动时从 classpath 装载。yaml 解析沿用 agentm BuiltinAgentRegistry 的
  * snakeyaml → ObjectNode 组合（classpath 无 jackson-dataformat-yaml）。</p>
  */
 public final class AgentPromptTemplates {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go config.PromptTemplate（content/mode/default 三个本批消费的字段为主）。 */
+    /** 单个提示词模板（content/mode/default 为主消费字段）。 */
     public record PromptTemplate(
             String id,
             String name,
@@ -37,14 +34,14 @@ public final class AgentPromptTemplates {
         }
     }
 
-    /** 对照 cfg.PromptTemplates（本批只消费 AgentSystemPrompt 列表）。 */
+    /** 模板配置（只消费 agentSystemPrompt 列表）。 */
     public record TemplatesConfig(List<PromptTemplate> agentSystemPrompt) {
     }
 
     private AgentPromptTemplates() {
     }
 
-    /** 返回列表里第一个标记 default 的模板，否则第一个，否则 null（对照 DefaultTemplate）。 */
+    /** 返回列表里第一个标记 default 的模板，否则第一个，否则 null。 */
     public static PromptTemplate defaultTemplate(List<PromptTemplate> templates) {
         if (templates == null) {
             return null;
@@ -57,7 +54,7 @@ public final class AgentPromptTemplates {
         return templates.isEmpty() ? null : templates.get(0);
     }
 
-    /** 按 mode 过滤后的默认模板（对照 DefaultTemplateByMode）。 */
+    /** 按 mode 过滤后的默认模板。 */
     public static PromptTemplate defaultTemplateByMode(List<PromptTemplate> templates, String mode) {
         if (templates != null) {
             for (PromptTemplate t : templates) {
@@ -75,8 +72,7 @@ public final class AgentPromptTemplates {
     }
 
     /**
-     * 从 classpath 装载 agent_system_prompt.yaml 的模板列表
-     * （对照 Go 启动时对 config/prompt_templates/agent_system_prompt.yaml 的装载）。
+     * 从 classpath 装载 agent_system_prompt.yaml 的模板列表。
      * 文件缺失/损坏返回空列表。
      */
     public static List<PromptTemplate> loadAgentSystemPromptTemplates() {
@@ -106,7 +102,7 @@ public final class AgentPromptTemplates {
         }
     }
 
-    /** 便捷：从装载的模板列表按 mode 取默认内容；缺 → ""（对照 DefaultTemplateByMode().Content）。 */
+    /** 便捷：从装载的模板列表按 mode 取默认内容；缺 → ""。 */
     public static String defaultContentByMode(List<PromptTemplate> templates, String mode) {
         PromptTemplate t = defaultTemplateByMode(templates, mode);
         return t == null ? "" : t.content();

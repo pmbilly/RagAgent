@@ -12,18 +12,18 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * agent 类型预设（对照 Go internal/types/agent_type_preset.go + config/agent_type_presets.yaml）。
+ * agent 类型预设。
  *
- * <p>响应形状 = AgentTypePresetEntry struct 序（id → i18n → config → kb_filter），
- * 内层 i18n 是 Go map → JSON 键<b>字母序</b>（resolveAgentTypeI18n 只保留
- * default + 命中 locale 两项）；config/kb_filter 的 omitempty 键在零值时整键省略。</p>
+ * <p>响应键序固定：id → i18n → config → kb_filter，
+ * 内层 i18n 键<b>字母序</b>（只保留
+ * default + 命中 locale 两项）；config/kb_filter 的零值键整键省略。</p>
  */
 @Component
 public class AgentTypePresets {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** YAML 声明序（LoadAgentTypePresetsConfig 的 agentTypePresetIDs）。 */
+    /** YAML 声明序。 */
     private final List<ObjectNode> entries = new ArrayList<>();
 
     public AgentTypePresets() {
@@ -41,7 +41,7 @@ public class AgentTypePresets {
             for (JsonNode e : list) {
                 String id = e.path("id").asText("");
                 if (id.isEmpty()) {
-                    continue; // Go：空 id 跳过
+                    continue; // 空 id 跳过
                 }
                 entries.add(e.deepCopy());
             }
@@ -50,7 +50,7 @@ public class AgentTypePresets {
         }
     }
 
-    /** 对照 ListAgentTypePresetsWithContext。 */
+    /** 按 locale 列出全部预设。 */
     public ArrayNode list(String locale) {
         ArrayNode out = MAPPER.createArrayNode();
         for (ObjectNode e : entries) {
@@ -72,7 +72,7 @@ public class AgentTypePresets {
         return out;
     }
 
-    /** AgentTypePresetConfig struct 序 + omitempty。 */
+    /** 固定键序 + 零值键省略。 */
     private static ObjectNode presetConfig(ObjectNode c) {
         ObjectNode out = MAPPER.createObjectNode();
         String spid = c.path("system_prompt_id").asText("");
@@ -105,7 +105,7 @@ public class AgentTypePresets {
         return out;
     }
 
-    /** 对照 resolveAgentTypeI18n：default + locale 两项（字母序由外层序列化器保证）。 */
+    /** i18n 只保留 default + locale 两项（字母序由外层序列化器保证）。 */
     private static ObjectNode resolveI18n(JsonNode m, String locale) {
         ObjectNode out = MAPPER.createObjectNode();
         if (m == null || !m.isObject()) {

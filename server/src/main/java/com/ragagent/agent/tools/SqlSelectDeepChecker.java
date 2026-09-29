@@ -14,7 +14,7 @@ import java.util.Map;
  */
 final class SqlSelectDeepChecker {
 
-    /** 深检查输出：首个错误文案 + 表→别名（出现序）+ 表名（出现序，Relname 原始大小写）+ 是否有真实 WHERE。 */
+    /** 深检查输出：首个错误文案 + 表→别名（出现序）+ 表名（出现序，原始大小写）+ 是否有真实 WHERE。 */
     static final class DeepCheck {
         String error;
         final Map<String, String> tablesInQuery = new LinkedHashMap<>();
@@ -39,8 +39,8 @@ final class SqlSelectDeepChecker {
     }
 
     /**
-     * PG 可解析的非 SELECT 语句首关键字（对照 pg_query 的语句集合；不在这个
-     * 集合里的首 token——如 DESCRIBE/PRAGMA——pg 侧是 syntax error）。
+     * PG 可解析的非 SELECT 语句首关键字；不在这个集合里的首 token
+     * ——如 DESCRIBE/PRAGMA——在 pg 语法里是 syntax error。
      */
     static boolean isKnownStatementKeyword(String ident) {
         String kw = ident.toLowerCase(Locale.ROOT);
@@ -63,7 +63,7 @@ final class SqlSelectDeepChecker {
             this.cfg = cfg;
         }
 
-        /** 对照 validateNode 的表达式递归检查：子查询 / 函数（schema/危险/白名单）/ 系统列 / pg_ 转型。 */
+        /** 表达式递归检查：子查询 / 函数（schema/危险/白名单）/ 系统列 / pg_ 转型。 */
         void validate(List<SqlTokenizer.Token> tokens) {
             for (int i = 0; i < tokens.size(); i++) {
                 SqlTokenizer.Token t = tokens.get(i);
@@ -73,9 +73,9 @@ final class SqlSelectDeepChecker {
                 if (t.kind == SqlTokenizer.TokKind.PUNCT && t.text.equals("(")) {
                     SqlTokenizer.Token next = i + 1 < tokens.size() ? tokens.get(i + 1) : null;
                     if (next != null && next.isKeyword("select")) {
-                        // 对照 SubLink 检查（checkSubqueries=true）：拒绝；
-                        // checkSubqueries=false（data_analysis）时对照 Go 只校验
-                        // Testexpr、子查询本体跳过——直接跳过多匹配括号。
+                        // 子查询检查（checkSubqueries=true）：拒绝；
+                        // checkSubqueries=false（data_analysis）时只校验 IN 左侧
+                        // 表达式、子查询本体跳过——直接跳到多匹配括号之后。
                         if (cfg.checkSubqueries) {
                             error = "subqueries are not allowed";
                             return;
@@ -144,8 +144,8 @@ final class SqlSelectDeepChecker {
                     SqlTokenizer.Token next = i + 1 < tokens.size() ? tokens.get(i + 1) : null;
                     boolean isFuncCall = next != null && next.text.equals("(");
                     if (isFuncCall) {
-                        // schema 限定函数调用：a.b(...)（对照 validateFuncCall；
-                        // 仅 checkSchemaAccess 时拒绝非 pg_catalog 限定）
+                        // schema 限定函数调用：a.b(...)
+                        // （仅 checkSchemaAccess 时拒绝非 pg_catalog 限定）
                         String funcName = t.text;
                         if (cfg.checkSchemaAccess && i - 1 >= 0
                                 && tokens.get(i - 1).kind == SqlTokenizer.TokKind.PUNCT
@@ -180,7 +180,7 @@ final class SqlSelectDeepChecker {
                     if (!cfg.checkSystemColumns) {
                         continue;
                     }
-                    // 列引用系统列检查（对照 validateColumnRef）
+                    // 列引用系统列检查
                     String colName = t.text.toLowerCase(Locale.ROOT);
                     for (String sysCol : SqlGuard.SYSTEM_COLUMNS) {
                         if (colName.equals(sysCol)) {
@@ -196,9 +196,9 @@ final class SqlSelectDeepChecker {
             }
         }
 
-        /** CAST(x AS type) 的类型名检查（对照 TypeCast 的 pg_ 前缀检查）。 */
+        /** CAST(x AS type) 的类型名检查（拒绝 pg_ 前缀系统类型）。 */
         private void checkCastType(List<SqlTokenizer.Token> tokens, int from, int to) {
-            // 类型名是 AS 之后的部分（对照 TypeName 节点本身；AS 之前是参数表达式）。
+            // 类型名是 AS 之后的部分（AS 之前是参数表达式）。
             int typeStart = from;
             for (int i = from; i < to; i++) {
                 if (tokens.get(i).isKeyword("as")) {
@@ -220,7 +220,7 @@ final class SqlSelectDeepChecker {
         }
     }
 
-    /** 表达式里的非列引用关键字（对照 Go 侧不产生 ColumnRef/FuncCall 的节点）。 */
+    /** 表达式里的非列引用关键字（不会是列名或函数名）。 */
     static boolean isExprKeyword(SqlTokenizer.Token t) {
         return t.isKeyword("select") || t.isKeyword("from") || t.isKeyword("where")
                 || t.isKeyword("and") || t.isKeyword("or") || t.isKeyword("not")
@@ -262,14 +262,14 @@ final class SqlSelectDeepChecker {
     }
 
     /**
-     * 对照 validateSelectStmt：compound/CTE/INTO/locking → FROM 项（schema/子查询/表函数）
+     * 检查序：compound/CTE/INTO/locking → FROM 项（schema/子查询/表函数）
      * → target list / WHERE / GROUP / HAVING / ORDER 的表达式检查 → 至少一张表。
      */
     static DeepCheck deepCheck(List<SqlTokenizer.Token> stmt, boolean startsWithWith, SqlGuard.GuardConfig cfg) {
         DeepCheck out = new DeepCheck();
         ExprValidator validator = new ExprValidator(cfg);
 
-        // WITH clause（对照 stmt.WithClause != nil && checkCTEs）
+        // WITH clause（checkCTEs 开时拒绝）
         if (startsWithWith && cfg.checkCTEs) {
             out.error = "WITH clause (CTEs) is not allowed";
             return out;
@@ -277,12 +277,12 @@ final class SqlSelectDeepChecker {
 
         int n = stmt.size();
         int i = 1; // skip SELECT
-        // SELECT 修饰：DISTINCT / ALL（对照 SelectStmt 的修饰位，无附加检查）
+        // SELECT 修饰：DISTINCT / ALL（无附加检查）
         if (i < n && (stmt.get(i).isKeyword("distinct") || stmt.get(i).isKeyword("all"))) {
             i++;
         }
 
-        // compound（对照 stmt.Op != SETOP_NONE）：深度 0 的 UNION/INTERSECT/EXCEPT
+        // compound：深度 0 的 UNION/INTERSECT/EXCEPT
         for (int k = i; k < n; k++) {
             SqlTokenizer.Token t = stmt.get(k);
             if (t.kind == SqlTokenizer.TokKind.PUNCT && t.text.equals("(")) {
@@ -299,7 +299,7 @@ final class SqlSelectDeepChecker {
             }
         }
 
-        // target list：SELECT ... [INTO ...] FROM —— INTO 在 from 前（对照 IntoClause）
+        // target list：SELECT ... [INTO ...] FROM —— INTO 在 from 前
         int fromIdx = -1;
         int depth = 0;
         for (int k = i; k < n; k++) {
@@ -319,13 +319,13 @@ final class SqlSelectDeepChecker {
 
         if (fromIdx < 0) {
             // 无 FROM：仍是合法 SELECT（如 SELECT 1），但表集为空——由调用点报
-            // "no valid table found in query"；target list 仍需检查（Go 同样校验）。
+            // "no valid table found in query"；target list 仍需检查。
             validator.validate(stmt.subList(i, n));
             out.error = validator.error != null ? validator.error : "no valid table found in query";
             return out;
         }
 
-        // target list 表达式检查（对照 for target := range stmt.TargetList）
+        // target list 表达式检查
         List<SqlTokenizer.Token> targetList = new ArrayList<>(stmt.subList(i, fromIdx));
         stripAliases(targetList);
         validator.validate(targetList);
@@ -334,7 +334,7 @@ final class SqlSelectDeepChecker {
             return out;
         }
 
-        // FROM 项解析（对照 validateFromItem：RangeVar/JoinExpr/RangeSubselect/RangeFunction）
+        // FROM 项解析（表 / JOIN / 子查询 / 表函数）
         i = fromIdx + 1;
         while (i < n) {
             SqlTokenizer.Token t = stmt.get(i);
@@ -350,7 +350,7 @@ final class SqlSelectDeepChecker {
                 continue;
             }
             if (t.isKeyword("on")) {
-                // JOIN quals：扫到下一个 from 项边界（对照 JoinExpr.Quals 的 validateNode）
+                // JOIN quals：扫到下一个 from 项边界
                 int j = i + 1;
                 depth = 0;
                 while (j < n) {
@@ -381,10 +381,9 @@ final class SqlSelectDeepChecker {
                 continue;
             }
             if (t.kind == SqlTokenizer.TokKind.PUNCT && t.text.equals("(")) {
-                // RangeSubselect / 表函数（对照 validateFromItem 的两条路径：
-                // 子查询在 checkSubqueries 时拒绝，否则递归校验（validateSubquery）；
-                // 表函数恒拒绝。白名单的表提取不进子查询——对照 Go
-                // extractTableNamesFromNode 对 RangeSubselect 返回空的怪癖。）
+                // 括号开头：子查询或表函数。子查询在 checkSubqueries 时拒绝，
+                // 否则递归校验；表函数恒拒绝。白名单的表提取不进子查询
+                // （子查询里的表不收录——照录的怪癖）。
                 SqlTokenizer.Token next = i + 1 < n ? stmt.get(i + 1) : null;
                 if (next != null && next.isKeyword("select")) {
                     if (cfg.checkSubqueries) {
@@ -428,17 +427,16 @@ final class SqlSelectDeepChecker {
                     parts.add(stmt.get(j + 1).text);
                     j += 2;
                 }
-                // 表函数（IDENT 后紧跟 '('，如 read_csv_auto(...)）：对照 Go
-                // validateFromItem 对 RangeFunction 直接报错，且
-                // extractTableNamesFromNode 不收录函数名——Java tokenizer 先撞
-                // IDENT 分支，须在此识别，既不记白名单也不记别名映射。
+                // 表函数（IDENT 后紧跟 '('，如 read_csv_auto(...)）：直接报错，
+                // 不收录白名单也不记别名映射——tokenizer 先撞 IDENT 分支，
+                // 须在此识别。
                 if (j < n && stmt.get(j).kind == SqlTokenizer.TokKind.PUNCT && stmt.get(j).text.equals("(")) {
                     out.error = "functions in FROM clause are not allowed";
                     return out;
                 }
                 if (parts.size() > 1 && cfg.checkSchemaAccess) {
-                    // schema 限定（对照 rv.Schemaname != public 检查；取倒数第二段；
-                    // checkSchemaAccess=false 时照录 Go 放行，白名单只看 Relname）
+                    // schema 限定（取倒数第二段；checkSchemaAccess=false 时放行，
+                    // 白名单只看表名）
                     String schema = parts.get(parts.size() - 2);
                     if (!schema.equalsIgnoreCase("public")) {
                         out.error = String.format("access to schema '%s' is not allowed", schema);
@@ -456,8 +454,7 @@ final class SqlSelectDeepChecker {
                     alias = stmt.get(j).text;
                     j++;
                 }
-                // 表名记录用 Relname（最后一段）原始大小写（对照 extractTableNames；
-                // 注入用的别名 map 才小写化）
+                // 表名记录用最后一段的原始大小写；注入用的别名 map 才小写化
                 out.tableNames.add(table);
                 out.tablesInQuery.put(table.toLowerCase(Locale.ROOT), alias.toLowerCase(Locale.ROOT));
                 i = j;
@@ -469,7 +466,7 @@ final class SqlSelectDeepChecker {
             return out;
         }
 
-        // WHERE 子句（对照 stmt.WhereClause 的 validateNode）
+        // WHERE 子句
         if (i < n && stmt.get(i).isKeyword("where")) {
             out.hasRealWhere = true;
             int j = i + 1;
@@ -493,7 +490,7 @@ final class SqlSelectDeepChecker {
             i = j;
         }
 
-        // GROUP BY / HAVING / ORDER BY（对照对应子句的 validateNode；LIMIT/OFFSET 为常量）
+        // GROUP BY / HAVING / ORDER BY（LIMIT/OFFSET 为常量）
         while (i < n) {
             SqlTokenizer.Token t = stmt.get(i);
             if (t.isKeyword("group")) {
@@ -525,7 +522,7 @@ final class SqlSelectDeepChecker {
             } else if (t.isKeyword("limit") || t.isKeyword("offset") || t.isKeyword("fetch")) {
                 i = clauseEnd(stmt, i + 1);
             } else if (t.isKeyword("for")) {
-                // locking（对照 len(stmt.LockingClause) > 0）
+                // locking
                 out.error = "locking clauses (FOR UPDATE, etc.) are not allowed";
                 return out;
             } else if (t.isKeyword("union") || t.isKeyword("intersect") || t.isKeyword("except")) {
@@ -536,7 +533,7 @@ final class SqlSelectDeepChecker {
             }
         }
 
-        // 至少一张表（对照 len(tablesInQuery) == 0）
+        // 至少一张表
         if (out.tablesInQuery.isEmpty()) {
             out.error = "no valid table found in query";
             return out;
@@ -560,7 +557,7 @@ final class SqlSelectDeepChecker {
         return tokens.size();
     }
 
-    /** SELECT 列表/ORDER BY 的别名剥离：去掉 AS x 与尾随裸别名（对照 ResTarget.Name——别名不是 ColumnRef）。 */
+    /** SELECT 列表/ORDER BY 的别名剥离：去掉 AS x 与尾随裸别名（别名不是列引用）。 */
     static void stripAliases(List<SqlTokenizer.Token> tokens) {
         for (int k = 0; k < tokens.size(); k++) {
             SqlTokenizer.Token t = tokens.get(k);

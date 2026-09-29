@@ -10,8 +10,7 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
- * SKILL.md 的 --- 标记之间 YAML 的解码（对照 Go internal/agent/skills/
- * skill_frontmatter.go，全文移植）。
+ * SKILL.md 的 --- 标记之间 YAML 的解码。
  *
  * <p>第三方 skill（ClawHub / SkillHub）常把 {@code version} / {@code description}
  * 缩进在 {@code name:} 之下，或在未加引号的标量里留冒号。严格 YAML 对两者都报
@@ -19,10 +18,9 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
  * 保守修复，让这些归档仍可安装；合法 frontmatter 不变。解码总是先落在临时值上、
  * 成功才拷入 dest，失败的候选不会写坏 dest。修复候选成功时 repaired 为 true。</p>
  *
- * <p>已知差异（备案）：Go 用 yaml.v3 结构化解码，本包与波 3 的
- * {@code sandbox.service.SkillFrontmatter} 一致地用 snakeyaml 安全构造器 +
- * 显式 name/slug/description 抽取；已知键出现非字符串标量时显式报错以贴近
- * yaml.v3 的类型错误。</p>
+ * <p>实现说明：用 snakeyaml 安全构造器 + 显式 name/slug/description 抽取
+ * （与 {@code sandbox.service.SkillFrontmatter} 保持一致）；已知键出现非字符串
+ * 标量时显式报错。</p>
  */
 final class SkillFrontmatter {
 
@@ -75,7 +73,7 @@ final class SkillFrontmatter {
         }
     }
 
-    /** 已知键取字符串标量；键存在但非字符串（嵌套 map/序列/数字）→ 类型错误（对照 yaml.v3）。 */
+    /** 已知键取字符串标量；键存在但非字符串（嵌套 map/序列/数字）→ 类型错误。 */
     private static String stringField(Map<?, ?> map, String key) {
         Object v = map.get(key);
         if (v == null) {
@@ -103,7 +101,7 @@ final class SkillFrontmatter {
     }
 
     /**
-     * 把缩进在纯标量下的键 outdent（对照 repairAccidentalNestedFrontmatter），如
+     * 把缩进在纯标量下的键 outdent，如
      * {@code name: 命理大师} 下一行缩进的 {@code version: 1.2.6}。真嵌套映射
      * （键行无值，如 {@code compatibility:}）是合法 YAML，此步不动它。
      */
@@ -225,7 +223,7 @@ final class SkillFrontmatter {
         return true;
     }
 
-    /** 行首空白字符数（Go leadingWs = len(s) - len(TrimLeft(s, " \t"))）。 */
+    /** 行首空白字符数。 */
     private static int leadingWs(String s) {
         int i = 0;
         while (i < s.length() && (s.charAt(i) == ' ' || s.charAt(i) == '\t')) {

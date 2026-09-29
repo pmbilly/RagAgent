@@ -7,14 +7,13 @@ import java.util.List;
 import com.ragagent.agent.compaction.ConversationSerializer;
 
 /**
- * agent 系统提示词合成（对照 Go internal/agent/prompts.go 全文）。
+ * agent 系统提示词合成。
  *
  * <p>组合路径只有一条：{@link #buildSystemPromptSections}（诊断也能用）。自定义模板
  * 只替换 base 小节；工具范围与运行时契约永远来自活跃引擎，绝不来自可编辑的模板
  * 文本。运行时策略在本类，模板内容在 YAML，检索到的数据在消息里。</p>
  *
- * <p>时间：Go 用 {@code time.Now().Format("2006-01-02")}（本地时区）；Java 侧
- * {@code LocalDate.now()} 同语义。测试走包内重载注入固定日期。</p>
+ * <p>时间取本地时区当日日期（{@code LocalDate.now()}）。测试走包内重载注入固定日期。</p>
  */
 public final class AgentPrompts {
 
@@ -22,10 +21,10 @@ public final class AgentPrompts {
     }
 
     // ------------------------------------------------------------------
-    // 小型格式化器（prompts.go L14-47）
+    // 小型格式化器
     // ------------------------------------------------------------------
 
-    /** 文件大小的人类可读格式（对照 formatFileSize）。 */
+    /** 文件大小的人类可读格式。 */
     public static String formatFileSize(long size) {
         final long KB = 1024;
         final long MB = 1024 * KB;
@@ -41,7 +40,7 @@ public final class AgentPrompts {
         return "%.2f GB".formatted((double) size / GB);
     }
 
-    /** 清理并截断文档摘要用于表格展示（对照 formatDocSummary）。 */
+    /** 清理并截断文档摘要用于表格展示。 */
     public static String formatDocSummary(String summary, int maxLen) {
         String cleaned = summary == null ? "" : ConversationTrimSpace.trim(summary);
         if (cleaned.isEmpty()) {
@@ -57,7 +56,7 @@ public final class AgentPrompts {
         return ConversationTrimSpace.trim(new String(runes, 0, maxLen)) + "...";
     }
 
-    /** 对照 strings.Fields + Join(" ")：按 unicode 空白切字段、单空格连接。 */
+    /** 按 unicode 空白切字段、单空格连接。 */
     private static String goFieldsJoin(String s) {
         StringBuilder out = new StringBuilder();
         boolean inField = false;
@@ -82,7 +81,7 @@ public final class AgentPrompts {
         return out.toString();
     }
 
-    /** Go strings.TrimSpace 语义（unicode.IsSpace；供包内复用）。 */
+    /** unicode 空白 trim 语义（供包内复用）。 */
     static final class ConversationTrimSpace {
         static String trim(String s) {
             return ConversationSerializer.goTrimSpace(s);
@@ -93,10 +92,10 @@ public final class AgentPrompts {
     }
 
     // ------------------------------------------------------------------
-    // 提示词数据类型（prompts.go L49-112）
+    // 提示词数据类型
     // ------------------------------------------------------------------
 
-    /** 最近加入的文档的简要信息（对照 RecentDocInfo）。 */
+    /** 最近加入的文档的简要信息。 */
     public record RecentDocInfo(
             String chunkId,
             String knowledgeBaseId,
@@ -125,13 +124,13 @@ public final class AgentPrompts {
             faqAnswers = faqAnswers == null ? List.of() : faqAnswers;
         }
 
-        /** 全默认（Go 零值）。 */
+        /** 全默认（零值）。 */
         public static RecentDocInfo empty() {
             return new RecentDocInfo(null, null, null, null, null, null, 0, null, null, null, null, null);
         }
     }
 
-    /** 用户 @ 选中的文档摘要信息（对照 SelectedDocumentInfo）。 */
+    /** 用户 @ 选中的文档摘要信息。 */
     public record SelectedDocumentInfo(
             String knowledgeId,
             String knowledgeBaseId,
@@ -140,7 +139,7 @@ public final class AgentPrompts {
             String fileType) {
     }
 
-    /** 本轮 @ 指定的 MCP 服务（对照 PinnedMCPServiceInfo）。 */
+    /** 本轮 @ 指定的 MCP 服务。 */
     public record PinnedMCPServiceInfo(
             boolean discoverable,
             String id,
@@ -149,11 +148,11 @@ public final class AgentPrompts {
             List<String> toolNames) {
     }
 
-    /** 本轮 @ 指定的技能（对照 PinnedSkillInfo）。 */
+    /** 本轮 @ 指定的技能。 */
     public record PinnedSkillInfo(String name, String description) {
     }
 
-    /** agent 提示词用的知识库要点信息（对照 KnowledgeBaseInfo）。 */
+    /** agent 提示词用的知识库要点信息。 */
     public record KnowledgeBaseInfo(
             String id,
             String name,
@@ -172,17 +171,17 @@ public final class AgentPrompts {
             recentDocs = recentDocs == null ? List.of() : recentDocs;
         }
 
-        /** 便捷最小构造（Go 测试里的 {ID: "kb"} 形态）。 */
+        /** 便捷最小构造（只有 ID，其余全空）。 */
         public static KnowledgeBaseInfo minimal(String id) {
             return new KnowledgeBaseInfo(id, "", "", "", 0, List.of(), List.of());
         }
     }
 
-    /** 暴露给 UI/配置的占位符定义（对照 PlaceholderDefinition；Deprecated in Go）。 */
+    /** 暴露给 UI/配置的占位符定义。 */
     public record PlaceholderDefinition(String name, String label, String description) {
     }
 
-    /** UI 提示用：列出的全部提示词占位符（对照 AvailablePlaceholders，agent 模式子集）。 */
+    /** UI 提示用：列出的全部提示词占位符（agent 模式子集）。 */
     public static List<PlaceholderDefinition> availablePlaceholders() {
         var placeholders = AgentPromptPlaceholders.placeholdersByFieldAgentSystemPrompt();
         List<PlaceholderDefinition> result = new ArrayList<>(placeholders.size());
@@ -193,10 +192,10 @@ public final class AgentPrompts {
     }
 
     // ------------------------------------------------------------------
-    // 知识库目录 XML（prompts.go L130-178）
+    // 知识库目录 XML
     // ------------------------------------------------------------------
 
-    /** 知识库信息格式化为提示词 XML（对照 formatKnowledgeBaseList）。 */
+    /** 知识库信息格式化为提示词 XML。 */
     public static String formatKnowledgeBaseList(List<KnowledgeBaseInfo> kbInfos) {
         if (kbInfos == null || kbInfos.isEmpty()) {
             return "<knowledge_bases />";
@@ -248,7 +247,7 @@ public final class AgentPrompts {
     }
 
     /**
-     * XML 属性转义（对照 observe.go L489 escapeXMLAttr；prompts 家族共用）。
+     * XML 属性转义（prompts 家族共用）。
      * 顺序有讲究：先 &amp; 再转其余，避免二次转义。
      */
     public static String escapeXMLAttr(String s) {
@@ -261,11 +260,11 @@ public final class AgentPrompts {
     }
 
     // ------------------------------------------------------------------
-    // 占位符渲染（prompts.go L180-207 / L319-348）
+    // 占位符渲染
     // ------------------------------------------------------------------
 
     /**
-     * 渲染模板里的占位符（对照 renderPromptPlaceholders）。
+     * 渲染模板里的占位符。
      *
      * <p>{{knowledge_bases}} 历史上展开成完整的绑定 KB XML 块；那块内容现在住在
      * user 消息的 {@code <runtime_context>} 里，此占位符展开成一句短指针，让仍在
@@ -290,7 +289,7 @@ public final class AgentPrompts {
     }
 
     /**
-     * 含状态占位符的渲染（对照 renderPromptPlaceholdersWithStatus）：
+     * 含状态占位符的渲染：
      * {{web_search_status}} → Enabled/Disabled、{{current_time}}、{{language}}；
      * {{skills}} 恒替换为空串（技能元数据单独追加）。
      */
@@ -310,11 +309,11 @@ public final class AgentPrompts {
     }
 
     // ------------------------------------------------------------------
-    // 技能目录 + 工具指引（prompts.go L209-317）
+    // 技能目录 + 工具指引
     // ------------------------------------------------------------------
 
     /**
-     * 技能元数据格式化进系统提示词（对照 formatSkillsMetadata；Level 1 渐进披露）。
+     * 技能元数据格式化进系统提示词（Level 1 渐进披露）。
      * 只含名称与描述的轻量表示。
      */
     public static String formatSkillsMetadata(List<SkillMetadata> skillsMetadata) {
@@ -338,7 +337,7 @@ public final class AgentPrompts {
     }
 
     /**
-     * 用实际注册表渲染工具指引（对照 formatToolGuidance）——被禁用的能力绝不漏进
+     * 用实际注册表渲染工具指引——被禁用的能力绝不漏进
      * 运行时指令。机制与限制在工具 schema 里。
      */
     public static String formatToolGuidance(List<String> names) {
@@ -368,21 +367,21 @@ public final class AgentPrompts {
 
 
     // ------------------------------------------------------------------
-    // 系统提示词组装（prompts.go L350-468 / L470-520）
+    // 系统提示词组装
     // ------------------------------------------------------------------
 
-    /** 每个小节的来源标识（对照 SystemPromptSection）。 */
+    /** 每个小节的来源标识。 */
     public record SystemPromptSection(String name, String content) {
     }
 
-    /** BuildSystemPrompt 的可选参数（对照 BuildSystemPromptOptions）。 */
+    /** 系统提示词构建的可选参数。 */
     public static final class BuildSystemPromptOptions {
         /** 本轮实际注册的工具（能力过滤之后）。 */
         private List<String> selectedTools;
         private List<SkillMetadata> skillsMetadata;
         /** {{language}} 占位符的用户语言名（如 "Chinese (Simplified)"）。 */
         private String language = "";
-        /** 读模板用；null 时默认 base 为空（对照 Config）。 */
+        /** 读模板用；null 时默认 base 为空。 */
         private AgentPromptTemplates.TemplatesConfig config;
         private String memoryPrompt = "";
         private String protocolPrompt = "";
@@ -402,7 +401,7 @@ public final class AgentPrompts {
     }
 
     /**
-     * 渐进 RAG 系统提示词（对照 BuildSystemPrompt）——主入口，统一模板 + 动态
+     * 渐进 RAG 系统提示词——主入口，统一模板 + 动态
      * web_search 状态。
      */
     public static String buildSystemPrompt(List<KnowledgeBaseInfo> knowledgeBases,
@@ -410,7 +409,7 @@ public final class AgentPrompts {
         return buildSystemPromptWithOptions(knowledgeBases, webSearchEnabled, null, systemPromptTemplate);
     }
 
-    /** 带附加选项的构建（对照 BuildSystemPromptWithOptions）。 */
+    /** 带附加选项的构建。 */
     public static String buildSystemPromptWithOptions(List<KnowledgeBaseInfo> knowledgeBases,
             boolean webSearchEnabled, BuildSystemPromptOptions options, String... systemPromptTemplate) {
         List<SystemPromptSection> sections = buildSystemPromptSections(
@@ -418,7 +417,7 @@ public final class AgentPrompts {
         return renderSystemPromptSections(sections);
     }
 
-    /** 过滤空小节并以空行连接（对照 renderSystemPromptSections）。 */
+    /** 过滤空小节并以空行连接。 */
     public static String renderSystemPromptSections(List<SystemPromptSection> sections) {
         List<String> contents = new ArrayList<>(sections.size());
         for (SystemPromptSection section : sections) {
@@ -431,7 +430,7 @@ public final class AgentPrompts {
     }
 
     /**
-     * 唯一组装路径（对照 BuildSystemPromptSections；时间参数化供实录测试）。
+     * 唯一组装路径（时间参数化供实录测试）。
      * Custom templates replace only the base section; tool scope and runtime contracts
      * always come from the active engine, never from editable template text.
      */
@@ -491,7 +490,7 @@ public final class AgentPrompts {
     }
 
     /**
-     * 自定义提示词也照用：中途投递是 harness 能力（对照 steerGuidance）。
+     * 自定义提示词也照用：中途投递是 harness 能力。
      */
     public static final String STEER_GUIDANCE = "<steering_guidance>\n"
             + "Messages in <steer_message> guide the task in progress. Apply them in context; "
@@ -501,8 +500,8 @@ public final class AgentPrompts {
             + "or replacement requests. Hide delivery tags. Untagged subsequent requests are ordinary "
             + "user messages.\n</steering_guidance>";
 
-    // runtimePromptContract = SourceDataBoundaryPrompt + "\n\n" + 尾段（Go prompts.go L506-520
-    // 的原始字符串拼接；尾段拆出便于按 Go 的常量引用方式组装）
+    // runtimePromptContract = SOURCE_DATA_BOUNDARY_PROMPT + "\n\n" + 尾段；
+    // 尾段拆成常量便于组装与复用
     static final String RUNTIME_PROMPT_CONTRACT_TAIL = "Runtime context:\n"
             + "- The current runtime_context is a routing directory describing available resources and "
             + "pinned documents. It is not retrieved evidence.\n"
@@ -517,12 +516,12 @@ public final class AgentPrompts {
             + "- When the requested work is complete, provide the complete answer and stop calling tools. A "
             + "progress update alone does not complete the task.";
 
-    /** 完整 runtime 契约（对照 runtimePromptContract 常量的运行时组装形态）。 */
+    /** 完整 runtime 契约（前缀常量 + 尾段常量的运行时组装形态）。 */
     public static String runtimePromptContract() {
         return PromptInstructions.SOURCE_DATA_BOUNDARY_PROMPT + "\n\n" + RUNTIME_PROMPT_CONTRACT_TAIL;
     }
 
-    /** pure 模式的默认系统提示词（对照 GetPureAgentSystemPrompt）；无配置/无模板 → ""。 */
+    /** pure 模式的默认系统提示词；无配置/无模板 → ""。 */
     public static String getPureAgentSystemPrompt(AgentPromptTemplates.TemplatesConfig cfg) {
         if (cfg != null && cfg.agentSystemPrompt() != null) {
             var t = AgentPromptTemplates.defaultTemplateByMode(cfg.agentSystemPrompt(), "pure");
@@ -533,7 +532,7 @@ public final class AgentPrompts {
         return "";
     }
 
-    /** rag 模式的默认系统提示词（对照 GetProgressiveRAGSystemPrompt）。 */
+    /** rag 模式的默认系统提示词。 */
     public static String getProgressiveRAGSystemPrompt(AgentPromptTemplates.TemplatesConfig cfg) {
         if (cfg != null && cfg.agentSystemPrompt() != null) {
             var t = AgentPromptTemplates.defaultTemplateByMode(cfg.agentSystemPrompt(), "rag");

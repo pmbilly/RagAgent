@@ -15,8 +15,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.SubscriptionListener;
 
 /**
- * {@link RedisPubSub} 的 Spring Data Redis（Lettuce）实现，对照 go-redis 的
- * {@code Subscribe} / {@code Receive} / {@code ReceiveMessage} / {@code Publish}。
+ * {@link RedisPubSub} 的 Spring Data Redis（Lettuce）实现。
  *
  * <p>接线方式（后续容器配置里一行即可）：
  * <pre>{@code
@@ -59,7 +58,7 @@ public class SpringRedisPubSub implements RedisPubSub {
         return s.getBytes(StandardCharsets.UTF_8);
     }
 
-    /** 一条独占连接的频道订阅（对照 go-redis 的 {@code *redis.PubSub}） */
+    /** 一条独占连接的频道订阅。 */
     private static final class LettuceSubscription implements RedisPubSub.Subscription, MessageListener, SubscriptionListener {
 
         private final RedisConnection connection;
@@ -115,7 +114,7 @@ public class SpringRedisPubSub implements RedisPubSub {
                 // 关闭订阅连接即完成退订（与 RedisMessageListenerContainer.closeConnection 同）
                 connection.close();
             } catch (RuntimeException ignored) {
-                // 对照 Go: _ = sub.Close()
+                // 关闭失败无需处理
             }
         }
     }

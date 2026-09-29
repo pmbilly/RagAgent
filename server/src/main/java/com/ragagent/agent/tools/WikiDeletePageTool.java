@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 
 /**
- * wiki_delete_page 工具（对照 Go {@code wiki_delete_page.go}，逐字移植）。
+ * wiki_delete_page 工具。
  * 删页前把入链 [[slug]] 替换为可读名、[[slug|text]] 拆为 text；失败回滚。
  */
 public class WikiDeletePageTool extends BaseTool {
@@ -69,7 +69,7 @@ public class WikiDeletePageTool extends BaseTool {
 
         String[] parts = slug.split("/", -1);
         String readableName = parts[parts.length - 1].replace("-", " ");
-        // 对照 regexp `\[\[` + QuoteMeta(slug) + `\|([^\]]+)\]\]`
+        // 管道式双链 `[[slug|text]]` 的匹配模式
         Pattern pipeLink = Pattern.compile(
                 "\\[\\[" + Pattern.quote(slug) + "\\|([^\\]]+)\\]\\]");
         String finalSlug = slug;

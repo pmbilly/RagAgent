@@ -55,7 +55,7 @@ final class KnowledgeSearchOutputFormatter {
         return meta;
     }
 
-    /** 对照 writeKnowledgeMetadataHeader（每文档一次，仅当 custom metadata 非空）。 */
+    /** 文档级 custom metadata 头（每文档一次，仅当非空）。 */
     static void writeKnowledgeMetadataHeader(StringBuilder ob, List<ResultWithMeta> results) {
         Set<String> seen = new LinkedHashSet<>();
         boolean hasMetadata = false;
@@ -86,7 +86,7 @@ final class KnowledgeSearchOutputFormatter {
         ob.append("</documents>\n");
     }
 
-    /** 对照 formatOutput。 */
+    /** 工具输出渲染。 */
     ToolResult formatOutput(List<ResultWithMeta> results, List<String> kbsToSearch, List<String> queries) {
         if (results.isEmpty()) {
             Map<String, Object> data = new LinkedHashMap<>();
@@ -206,7 +206,7 @@ final class KnowledgeSearchOutputFormatter {
                     ob.append(String.format(Locale.ROOT, "<match_snippet>%s</match_snippet>\n",
                             FaqSnippet.xmlEscape(snippet)));
                 }
-                // 对照 Go：content 不做 xmlEscape。
+                // content 原样输出，不做 xmlEscape（输出契约）。
                 ob.append(String.format(Locale.ROOT, "<content>%s</content>\n", nz(result.sr.content)));
 
                 if (!nz(result.sr.imageInfo).isEmpty()) {
@@ -315,7 +315,7 @@ final class KnowledgeSearchOutputFormatter {
         return r;
     }
 
-    /** 对照 knowledge_search 的 ImageInfo JSON 解析（types.ImageInfo 数组）。 */
+    /** ImageInfo JSON 解析（url/caption/ocr_text 数组）。 */
     static List<ImageInfoView> parseImageInfoList(String imageInfoJson) {
         List<ImageInfoView> out = new ArrayList<>();
         JsonNode arr;
@@ -335,7 +335,7 @@ final class KnowledgeSearchOutputFormatter {
     }
 
     /**
-     * 对照 extractSnippetForQueries：query token 最早命中上下文（各 200 runes），
+     * query token 最早命中上下文（各 200 runes），
      * 无命中回落前 400 runes + " ..."；单线折叠空格，"... x ..." 包裹。
      */
     static String extractSnippetForQueries(String content, List<String> queries) {
@@ -383,5 +383,5 @@ final class KnowledgeSearchOutputFormatter {
         return "... " + snippet.trim() + " ...";
     }
 
-    /** 主源码不可引用测试侧 RecordingSupport，经此 holders 取 mapper（对照 Go encoding/json）。 */
+    /** 测试侧 RecordingSupport 不可引用主源码，经此 holders 取 mapper。 */
 }

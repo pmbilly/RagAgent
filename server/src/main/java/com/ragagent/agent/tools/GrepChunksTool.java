@@ -14,23 +14,22 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.knowledge.domain.Chunk;
 
 /**
- * grep_chunks 工具（对照 Go {@code grep_chunks.go}，逐字移植）。
+ * grep_chunks 工具。
  *
- * <p>DB 直查经 {@link GrepChunkSearch} seam（对照 {@code searchChunks} 的 gorm 查询：
- * scopeClause OR 组合、{@code (content ~* ? OR knowledges.title ~* ?)} 正则条件、
+ * <p>DB 直查经 {@link GrepChunkSearch} seam（scopeClause OR 组合、
+ * {@code (content ~* ? OR knowledges.title ~* ?)} 正则条件、
  * {@code ORDER BY created_at DESC LIMIT 500}、按 knowledge_id 的 COUNT(*) 回填
- * totalChunkCount——整段 SQL 方言逻辑落在 seam 实现侧，4.5c 接真实现；
+ * totalChunkCount——整段 SQL 方言逻辑落在 seam 实现侧；
  * 本工具只留 seam 调用）。</p>
  *
- * <p>已知差异（对照 Go，详见报告）：Go RE2 与 {@code java.util.regex} 正则方言不同
- * （编译失败文案不同，探针不录非法 regex）；{@code searchutil.TokenizeSimple} 的
- * jieba 中文分词无 Java 对应物，MMR 冗余度对中文内容可能不同（探针 MMR 场景用英文）；
- * Go map 迭代序/{@code sort.Slice} 非稳定排序在完全并列时序不定（探针语料避开并列）；
- * {@code knowledge_base_ids} 在 Go 侧来自 map 迭代（序随机），Java 用出现序。</p>
+ * <p>已知差异：JDK 正则与 RE2 方言不同（编译失败文案不同，探针不录非法 regex）；
+ * MMR 分词对中文内容走空白分词，冗余度可能不同（探针 MMR 场景用英文）；
+ * 并列分数时排序结果不保证确定（探针语料避开并列）；
+ * {@code knowledge_base_ids} 按出现序遍历。</p>
  */
 public class GrepChunksTool extends BaseTool {
 
-    /** 键序对照 Go GenerateSchema 输出（字母序：properties < required < type）。 */
+    /** schema 键按字母序：properties < required < type。 */
     private static final String SCHEMA_JSON = """
             {
               "properties": {
@@ -59,18 +58,18 @@ public class GrepChunksTool extends BaseTool {
             + "- **FAQ hit** (chunk type faq): call list_knowledge_chunks with **faq_id=cN** from the grep result (NOT the parent dN document ID).\n"
             + "- **Document hit**: call list_knowledge_chunks with **knowledge_id=dN**, or get_document_info with **knowledge_ids=[dN]**.";
 
-    /** 对照 grep_chunks.go 的 const limit = 30。 */
+    /** 单次返回上限（硬编码常量）。 */
     static final int LIMIT = 30;
-    /** 对照 grep_chunks.go 的 const maxKnowledgeRows = 20。 */
+    /** knowledge 元信息查询的行数上限（硬编码常量）。 */
     private static final int MAX_KNOWLEDGE_ROWS = 20;
-    /** 对照 faq_snippet.go 的 snippetContextRunes。 */
+    /** 命中摘要的上下文窗口（rune）。 */
     static final int SNIPPET_CONTEXT_RUNES = 200;
-    /** 对照 faq_snippet.go 的 snippetMaxMatchRunes。 */
+    /** 命中摘要的单个 match 上限（rune）。 */
     static final int SNIPPET_MAX_MATCH_RUNES = 200;
-    /** 对照 faq_snippet.go 的 snippetMaxTotalRunes。 */
+    /** 命中摘要总长上限（rune）。 */
     static final int SNIPPET_MAX_TOTAL_RUNES = 800;
 
-    /** 对照 chunkWithTitle：DB 行视图（chunks 列 + knowledge_title + total_chunk_count）。 */
+    /** DB 行视图（chunks 列 + knowledge_title + total_chunk_count）。 */
     public static final class GrepChunkView {
         public String id;
         public String content;
@@ -82,12 +81,12 @@ public class GrepChunksTool extends BaseTool {
         public String parentChunkId;
         public String knowledgeTitle;
         public int totalChunkCount;
-        // 打分阶段回填（对照 chunkWithTitle 的 MatchScore/MatchedPatterns/TitleMatch）。
+        // 打分阶段回填（MatchScore/MatchedPatterns/TitleMatch）。
         public double matchScore;
         public int matchedPatterns;
         public boolean titleMatch;
 
-        /** Go 零值语义：null 视为 ""。 */
+        /** null 视为 ""（零值语义）。 */
         static String nz(String v) {
             return v == null ? "" : v;
         }
@@ -108,14 +107,14 @@ public class GrepChunksTool extends BaseTool {
     }
 
     /**
-     * DB 直查 seam（对照 {@code GrepChunksTool.searchChunks} 的整段 gorm 查询）。
+     * DB 直查 seam。
      *
      * <p>实现侧负责：{@code chunks} JOIN {@code knowledges}、is_enabled/deleted_at 过滤、
      * scopeClause 的 OR 组合（knowledge_id IN / 标签 EXISTS / kb+tenant 对）、
      * 每个 query 的 {@code (content ~* ? OR knowledges.title ~* ?)}、
      * {@code ORDER BY chunks.created_at DESC LIMIT 500}、以及按 knowledge_id 的
      * {@code COUNT(*)} 回填 {@link GrepChunkView#totalChunkCount}。
-     * 无有效 scope 或 scope 子句为空时返回空表（对照 Go 的两处 early return）。</p>
+     * 无有效 scope 或 scope 子句为空时返回空表（两处 early return）。</p>
      */
     public interface GrepChunkSearch {
         List<GrepChunkView> search(List<String> queries, List<String> fullKbIDs, List<String> knowledgeIDs,
@@ -124,7 +123,7 @@ public class GrepChunksTool extends BaseTool {
 
     private final GrepChunkSearch chunkSearch;
     private final SearchTarget.SearchTargets searchTargets;
-    /** 会话级已返回 chunk 去重（对照 seenChunks map + mutex；单实例单线程使用）。 */
+    /** 会话级已返回 chunk 去重（单实例单线程使用）。 */
     private final LinkedHashSet<String> seenChunks = new LinkedHashSet<>();
 
     public GrepChunksTool(GrepChunkSearch chunkSearch, SearchTarget.SearchTargets searchTargets) {
@@ -137,14 +136,14 @@ public class GrepChunksTool extends BaseTool {
     public ToolResult execute(ToolRequest request) {
         JsonNode args = request.args();
 
-        // 对照 Go：legacy 数组形态（queries/patterns/pattern）在 Go 侧也只是注释说明，
-        // GrepChunksInput 只有 Query 一个字段；JSON 键名逐字段对照。
+        // 入参只有 "query" 一个字段（历史 schema 的数组形态 queries/patterns/pattern
+        // 仅为旧前端兼容别名，不再解析）。
         String query = args.path("query").asText("").trim();
         if (query.isEmpty()) {
             return failure("query parameter is required and must be a non-empty regex string");
         }
 
-        // 对照 regexp.Compile("(?i)" + query)。编译失败文案因正则引擎而异（已知差异）。
+        // 不区分大小写匹配（(?i) 前缀）。编译失败文案因正则引擎而异（已知差异）。
         final Pattern re;
         try {
             re = Pattern.compile("(?i)" + query);
@@ -187,7 +186,7 @@ public class GrepChunksTool extends BaseTool {
             }
         }
 
-        // 对照 sort.Slice：TitleMatch > MatchedPatterns > MatchScore > ChunkIndex（非稳定）。
+        // 排序：TitleMatch > MatchedPatterns > MatchScore > ChunkIndex（并列时序不定）。
         finalResults.sort((a, b) -> {
             if (a.titleMatch != b.titleMatch) {
                 return a.titleMatch ? -1 : 1;
@@ -222,7 +221,7 @@ public class GrepChunksTool extends BaseTool {
         data.put("query", query);
         data.put("queries", queries); // legacy alias for older frontends
         data.put("patterns", queries); // legacy alias for older frontends
-        // Go 零值语义：空表/无 scope 时这些键序列化为 null（nil slice），不是 []。
+        // 空表/无 scope 时这些键序列化为 null，不是 []（输出契约）。
         data.put("chunk_results", chunkResults == null ? null : chunkResults);
         data.put("knowledge_results", knowledgeResultsForUI == null ? null
                 : knowledgeAggregationMaps(knowledgeResultsForUI));
@@ -245,14 +244,14 @@ public class GrepChunksTool extends BaseTool {
         return r;
     }
 
-    /** 对照 resolveGrepScope 的返回值三元组。 */
+    /** scope 解析结果三元组（整库 KB / 知识 ID / 标签目标）。 */
     static final class GrepScope {
         final List<String> fullKBIDs = new ArrayList<>();
         final List<String> knowledgeIDs = new ArrayList<>();
         final List<SearchTarget> tagTargets = new ArrayList<>();
     }
 
-    /** 对照 resolveGrepScope（scope_authorization.go 的 searchTargetScope 在 SearchAuth）。 */
+    /** 解析检索目标为 grep scope（scope 授权复用 SearchAuth）。 */
     GrepScope resolveGrepScope() {
         GrepScope scope = new GrepScope();
         LinkedHashSet<String> seenKB = new LinkedHashSet<>();
@@ -275,7 +274,7 @@ public class GrepChunksTool extends BaseTool {
                 if (tagIDs.isEmpty() || tenantID == 0) {
                     continue;
                 }
-                // 对照 fmt.Sprintf("%s:%d:%s", kb, tenant, strings.Join(tags, "\x00"))
+                // scopeKey = kb:tenant:tagIDs（\0 连接标签）
                 String scopeKey = target.knowledgeBaseId() + ":" + tenantID + ":"
                         + String.join("\u0000", tagIDs);
                 if (!seenTagScope.add(scopeKey)) {
@@ -305,7 +304,7 @@ public class GrepChunksTool extends BaseTool {
 
 
 
-    /** 对照 knowledgeAggregation。 */
+    /** 按知识聚合的 grep 结果。 */
     static final class KnowledgeAggregation {
         String knowledgeID;
         String knowledgeBaseID;
@@ -320,11 +319,11 @@ public class GrepChunksTool extends BaseTool {
         String matchSnippet = "";
     }
 
-    /** 对照 aggregateByKnowledge（TitleMatch &gt; DistinctPatterns &gt; TotalPatternHits &gt; ChunkHitCount &gt; Title，非稳定）。 */
+    /** 按知识聚合（排序：TitleMatch &gt; DistinctPatterns &gt; TotalPatternHits &gt; ChunkHitCount &gt; Title，并列时序不定）。 */
     static List<KnowledgeAggregation> aggregateByKnowledge(List<GrepChunkView> results,
             List<String> queries, List<Pattern> compiled) {
         if (results.isEmpty()) {
-            return null; // 对照 Go return nil（data 里序列化为 null）
+            return null; // 空结果在 data 里序列化为 null（输出契约）
         }
 
         List<String> queryKeys = new ArrayList<>();
@@ -416,11 +415,11 @@ public class GrepChunksTool extends BaseTool {
         return resultSlice;
     }
 
-    /** 对照 buildGrepChunkResults（JSON omitempty 语义：空串/0/false 不入 map）。 */
+    /** 构建结果列表（空串/0/false 的字段不写入 map——输出契约）。 */
     static List<Map<String, Object>> buildGrepChunkResults(List<GrepChunkView> results,
             List<Pattern> compiled) {
         if (results.isEmpty()) {
-            return null; // 对照 Go return nil（data 里序列化为 null）
+            return null; // 空结果在 data 里序列化为 null（输出契约）
         }
         List<Map<String, Object>> out = new ArrayList<>(results.size());
         for (GrepChunkView r : results) {
@@ -462,7 +461,7 @@ public class GrepChunksTool extends BaseTool {
         return out;
     }
 
-    /** 对照 knowledgeAggregation → JSON（omitempty：faq_question/match_snippet 空不入）。 */
+    /** 聚合结果 → JSON map（faq_question/match_snippet 空不入）。 */
     static List<Map<String, Object>> knowledgeAggregationMaps(List<KnowledgeAggregation> entries) {
         List<Map<String, Object>> out = new ArrayList<>(entries.size());
         for (KnowledgeAggregation e : entries) {
@@ -487,7 +486,7 @@ public class GrepChunksTool extends BaseTool {
         return out;
     }
 
-    /** 对照 countRegexHits（key = 原始 query 串，value = 全匹配数）。 */
+    /** 正则命中计数（key = 原始 query 串，value = 全匹配数）。 */
     static Map<String, Integer> countRegexHits(String content, List<Pattern> compiled, List<String> patterns) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         if (content == null || content.isEmpty() || compiled == null || compiled.isEmpty()) {
@@ -508,7 +507,7 @@ public class GrepChunksTool extends BaseTool {
         return counts;
     }
 
-    /** 对照 extractChunkMatchSnippet（FAQ 走 faqMatchSnippet，其他走 extractSnippetRegex）。 */
+    /** 命中摘要提取（FAQ 走 faqMatchSnippet，其他走 extractSnippetRegex）。 */
     static String extractChunkMatchSnippet(GrepChunkView chunk, List<Pattern> compiled) {
         Chunk c = chunk.toChunk();
         if ("faq".equals(c.getChunkType())) {
@@ -521,7 +520,7 @@ public class GrepChunksTool extends BaseTool {
     }
 
     /**
-     * 对照 extractSnippetRegex：跨 pattern 取最早命中（按 rune 位置比较），
+     * 跨 pattern 取最早命中（按 rune 位置比较），
      * 上下文各截 SNIPPET_CONTEXT_RUNES，match 超 200 runes 截+"..."，
      * 换行转空格并折叠连续空格，总长超 800 runes 截+"..."，"... x ..." 包裹。
      */
@@ -576,7 +575,7 @@ public class GrepChunksTool extends BaseTool {
         return "... " + snippet + " ...";
     }
 
-    /** 取前 maxRunes 个 rune（对照 []rune(s)[:n]）。 */
+    /** 取前 maxRunes 个 rune。 */
     static String firstRunes(String s, int maxRunes) {
         if (s.codePointCount(0, s.length()) <= maxRunes) {
             return s;
@@ -584,7 +583,7 @@ public class GrepChunksTool extends BaseTool {
         return s.substring(0, s.offsetByCodePoints(0, maxRunes));
     }
 
-    /** 取后 maxRunes 个 rune（对照 []rune(s)[len-n:]）。 */
+    /** 取后 maxRunes 个 rune。 */
     static String lastRunes(String s, int maxRunes) {
         int total = s.codePointCount(0, s.length());
         if (total <= maxRunes) {
@@ -593,7 +592,7 @@ public class GrepChunksTool extends BaseTool {
         return s.substring(s.offsetByCodePoints(0, total - maxRunes));
     }
 
-    /** 对照 formatOutput（XML；seenChunks 会话级去重 → already_seen）。 */
+    /** XML 输出（seenChunks 会话级去重 → already_seen）。 */
     String formatOutput(List<GrepChunkView> results, List<String> queries, List<Pattern> compiled) {
         StringBuilder b = new StringBuilder();
 
