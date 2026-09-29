@@ -8,10 +8,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -42,7 +38,6 @@ public final class OllamaManageService {
     // ══════════════ W5b：ollama 管理段（对照 CheckOllamaStatus L923-1246）══════════════
 
     /** GET /initialization/ollama/status——StartService 失败仍是 200 + available:false。 */
-    @GetMapping("/api/v1/initialization/ollama/status")
     public ResponseEntity<Object> ollamaStatus() {
         // Go：展示用基址的缺省是 host.docker.internal（与 OllamaService 的
         // localhost:11434 缺省刻意不同，照抄）
@@ -71,7 +66,6 @@ public final class OllamaManageService {
     }
 
     /** GET /initialization/ollama/models——ListModelsDetailed（name/size/digest/modified_at）。 */
-    @GetMapping("/api/v1/initialization/ollama/models")
     public ResponseEntity<Object> ollamaModels() {
         ensureOllamaStarted();
         List<com.ragagent.llm.ollama.OllamaModelInfo> models;
@@ -95,8 +89,7 @@ public final class OllamaManageService {
     }
 
     /** POST /initialization/ollama/models/check——逐模型可用性（map 按名字母序）。 */
-    @PostMapping("/api/v1/initialization/ollama/models/check")
-    public ResponseEntity<Object> ollamaModelsCheck(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> ollamaModelsCheck(String rawBody) {
         List<String> models = bindOllamaModelsCheck(rawBody);
         ensureOllamaStarted();
         Map<String, Boolean> sorted = new TreeMap<>();
@@ -118,8 +111,7 @@ public final class OllamaManageService {
     }
 
     /** POST /initialization/ollama/models/download——建任务 + 虚拟线程异步拉取。 */
-    @PostMapping("/api/v1/initialization/ollama/models/download")
-    public ResponseEntity<Object> ollamaModelDownload(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> ollamaModelDownload(String rawBody) {
         String modelName = bindDownloadRequest(rawBody);
         ensureOllamaStarted();
         boolean available;
@@ -168,8 +160,7 @@ public final class OllamaManageService {
     }
 
     /** GET /initialization/ollama/download/progress/:taskId——DownloadTask 按 struct 序输出。 */
-    @GetMapping("/api/v1/initialization/ollama/download/progress/{taskId}")
-    public ResponseEntity<Object> downloadProgress(@PathVariable("taskId") String taskId) {
+    public ResponseEntity<Object> downloadProgress(String taskId) {
         if (taskId == null || taskId.isEmpty()) {
             throw new BizException(AppError.badRequest("任务ID不能为空"));
         }
@@ -181,7 +172,6 @@ public final class OllamaManageService {
     }
 
     /** GET /initialization/ollama/download/tasks——全量任务列表（map 序随机）。 */
-    @GetMapping("/api/v1/initialization/ollama/download/tasks")
     public ResponseEntity<Object> downloadTasksList() {
         ArrayNode arr = MAPPER.createArrayNode();
         for (var task : downloadTasks.list()) {

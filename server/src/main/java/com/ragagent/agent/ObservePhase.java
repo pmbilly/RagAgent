@@ -386,7 +386,7 @@ final class ObservePhase {
         return com.ragagent.agent.tools.GoJsonCodec.write(JSON.valueToTree(ActPhase.deepSortedGoMap(args)));
     }
 
-    /** 工具图片随结果消息走（对照 appendToolImages；VLM 描述在 describeImages）。 */
+    /** 工具图片随结果消息走（工具结果图片的 VLM 描述内联在图片富化回调里）。 */
     List<ChatMessage> appendToolImages(List<ChatMessage> messages, AgentStep step) {
         return ToolImages.appendToolImages(messages, step,
                 engine.config != null && engine.config.isChatModelSupportsVision(),

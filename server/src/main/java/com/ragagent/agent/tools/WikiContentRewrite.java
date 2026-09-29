@@ -5,6 +5,9 @@ import java.util.List;
 
 /** wiki 链接突变：入站内容重写、失败回滚、错误聚合。 */
     public interface WikiContentRewrite {
+
+    /** 编辑来源标记：agent 发起的 wiki 写入。 */
+    String WIKI_EDIT_SOURCE_AGENT = "agent";
         RewriteResult apply(String content);
 
 
@@ -70,12 +73,4 @@ import java.util.List;
         }
         return String.join("; ", parts);
     }
-
-
-
-/**
-public final class WikiSupport {
-
-    /** 对照 types.WikiEditSourceAgent。 */
-    public static final String WIKI_EDIT_SOURCE_AGENT = "agent";
 }

@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.agentm.service.InitializationConfigService;
 import com.ragagent.agentm.service.ModelConnectivityTestService;
 import com.ragagent.agentm.service.OllamaManageService;
@@ -53,8 +52,6 @@ import com.ragagent.model.service.ModelService;
  */
 @RestController
 public class InitializationController {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
 
     private final InitializationConfigService configService;

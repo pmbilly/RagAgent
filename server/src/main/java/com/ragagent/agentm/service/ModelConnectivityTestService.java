@@ -9,9 +9,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -78,8 +75,7 @@ public final class ModelConnectivityTestService {
     // ══════════════ W5b：模型连通性测试段（对照 ModelTestRequest 家族 L1615-2341）══════════════
 
     /** POST /initialization/remote/check——chat 模块最小化连通性调用。 */
-    @PostMapping("/api/v1/initialization/remote/check")
-    public ResponseEntity<Object> remoteCheck(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> remoteCheck(String rawBody) {
         ModelTestRequest req = fillSecretsFromStoredModel(bindModelTestRequest(rawBody));
         if (req.modelName().isEmpty() || req.baseUrl().isEmpty()) {
             throw new BizException(AppError.badRequest("模型名称和Base URL不能为空"));
@@ -119,8 +115,7 @@ public final class ModelConnectivityTestService {
     }
 
     /** POST /initialization/embedding/test——embed 一次 "hello" 并回报维度。 */
-    @PostMapping("/api/v1/initialization/embedding/test")
-    public ResponseEntity<Object> embeddingTest(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> embeddingTest(String rawBody) {
         ModelTestRequest r = fillSecretsFromStoredModel(bindModelTestRequest(rawBody));
         String source = r.source();
         if (source.isEmpty()) {
@@ -163,8 +158,7 @@ public final class ModelConnectivityTestService {
     }
 
     /** POST /initialization/rerank/check——rerank 一次 ["ping"]/["pong"]。 */
-    @PostMapping("/api/v1/initialization/rerank/check")
-    public ResponseEntity<Object> rerankCheck(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> rerankCheck(String rawBody) {
         ModelTestRequest req = fillSecretsFromStoredModel(bindModelTestRequest(rawBody));
         if (req.modelName().isEmpty() || req.baseUrl().isEmpty()) {
             throw new BizException(AppError.badRequest("模型名称和Base URL不能为空"));
@@ -204,8 +198,7 @@ public final class ModelConnectivityTestService {
     }
 
     /** POST /initialization/asr/check——发一段静默 WAV 验证 transcription 端点。 */
-    @PostMapping("/api/v1/initialization/asr/check")
-    public ResponseEntity<Object> asrCheck(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> asrCheck(String rawBody) {
         ModelTestRequest req = fillSecretsFromStoredModel(bindModelTestRequest(rawBody));
         if (req.modelName().isEmpty() || req.baseUrl().isEmpty()) {
             throw new BizException(AppError.badRequest("模型名称和Base URL不能为空"));
@@ -254,22 +247,21 @@ public final class ModelConnectivityTestService {
     }
 
     /** POST /initialization/multimodal/test——multipart 上传图片，走 DocReader 解析。 */
-    @PostMapping("/api/v1/initialization/multimodal/test")
     public ResponseEntity<Object> multimodalTest(
-            @RequestParam(value = "vlm_model", required = false) String vlmModel,
-            @RequestParam(value = "vlm_base_url", required = false) String vlmBaseUrl,
-            @RequestParam(value = "vlm_interface_type", required = false) String vlmInterfaceType,
-            @RequestParam(value = "storage_type", required = false) String storageType,
-            @RequestParam(value = "cos_secret_id", required = false) String cosSecretId,
-            @RequestParam(value = "cos_secret_key", required = false) String cosSecretKey,
-            @RequestParam(value = "cos_region", required = false) String cosRegion,
-            @RequestParam(value = "cos_bucket_name", required = false) String cosBucketName,
-            @RequestParam(value = "cos_app_id", required = false) String cosAppId,
-            @RequestParam(value = "minio_bucket_name", required = false) String minioBucketName,
-            @RequestParam(value = "chunk_size", required = false) String chunkSizeRaw,
-            @RequestParam(value = "chunk_overlap", required = false) String chunkOverlapRaw,
-            @RequestParam(value = "separators", required = false) String separatorsRaw,
-            @RequestParam(value = "image", required = false) org.springframework.web.multipart.MultipartFile image) {
+            String vlmModel,
+            String vlmBaseUrl,
+            String vlmInterfaceType,
+            String storageType,
+            String cosSecretId,
+            String cosSecretKey,
+            String cosRegion,
+            String cosBucketName,
+            String cosAppId,
+            String minioBucketName,
+            String chunkSizeRaw,
+            String chunkOverlapRaw,
+            String separatorsRaw,
+            org.springframework.web.multipart.MultipartFile image) {
         // ollama 场景自动拼接 base url
         if ("ollama".equals(vlmInterfaceType)) {
             vlmBaseUrl = orEmpty(System.getenv("OLLAMA_BASE_URL")) + "/v1";

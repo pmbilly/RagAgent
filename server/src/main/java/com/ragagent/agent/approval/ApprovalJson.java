@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
  * 本包的 JSON 工具（对照 Go 的 encoding/json 直接调用点）。
  *
  * <p>用独立的 ObjectMapper 而不是注入 Spring 的：本包的 JSON 只用于
- * <b>实例间 pubsub 报文</b>与事件体解析，字段名全部由注解显式钉死，
+ * <b>实例间 pubsub 报文</b>与事件体解析，JSON 键名 = record 组件名（Java 字段名,无逐字段注解），
  * 不应受 web 层 ObjectMapper 定制（时区、命名策略）影响。</p>
  */
 final class ApprovalJson {

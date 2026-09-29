@@ -5,11 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,8 +56,7 @@ public final class InitializationConfigService {
 
     // ══════════════ GET /initialization/config/:kbId ══════════════
 
-    @GetMapping("/api/v1/initialization/config/{kbId}")
-    public ResponseEntity<Object> getConfig(@PathVariable("kbId") String kbId) {
+    public ResponseEntity<Object> getConfig(String kbId) {
         kbGuard.requireKbAccess(kbId);
         KnowledgeBase kb = kbService.getAllTenantById(kbId);
         if (kb == null) {
@@ -91,9 +85,8 @@ public final class InitializationConfigService {
 
     // ══════════════ POST /initialization/initialize/:kbId ══════════════
 
-    @PostMapping("/api/v1/initialization/initialize/{kbId}")
-    public ResponseEntity<Object> initialize(@PathVariable("kbId") String kbId,
-            @RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> initialize(String kbId,
+            String rawBody) {
         InitializationRequests.InitializationRequest req = InitializationRequests.bindInitializationRequest(rawBody);
         KnowledgeBase kb = kbForWrite(kbId);
         validateConfigs(req);
@@ -138,9 +131,8 @@ public final class InitializationConfigService {
 
     // ══════════════ PUT /initialization/config/:kbId ══════════════
 
-    @PutMapping("/api/v1/initialization/config/{kbId}")
-    public ResponseEntity<Object> updateConfig(@PathVariable("kbId") String kbId,
-            @RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> updateConfig(String kbId,
+            String rawBody) {
         InitializationRequests.KBModelConfigRequest req = InitializationRequests.bindKBModelConfigRequest(rawBody);
         kbGuard.requireKbAccess(kbId);
         requireOwned(kbId);

@@ -69,42 +69,7 @@ final class ActPhase {
     }
 
 
-    private List<String> describeImages(List<String> imageDataURIs) {
-        if (engine.imageDescriber == null) {
-            return null;
-        }
-        List<String> descriptions = null;
-        for (int i = 0; i < imageDataURIs.size(); i++) {
-            String dataURI = imageDataURIs.get(i);
-            if (engine.pollCancellation() != null) {
-                log.warn("[Agent] Context cancelled, skipping remaining {} tool result images",
-                        imageDataURIs.size() - i);
-                break;
-            }
-            byte[] imgBytes;
-            try {
-                imgBytes = decodeDataURIBytes(dataURI);
-            } catch (Exception e) {
-                log.warn("[Agent] Failed to decode tool result image {}: {}", i, e.getMessage());
-                continue;
-            }
-            String desc;
-            try {
-                desc = engine.imageDescriber.describe(imgBytes, TOOL_IMAGE_ANALYSIS_PROMPT);
-            } catch (Exception e) {
-                log.warn("[Agent] VLM analysis failed for tool result image {}: {}", i, e.getMessage());
-                continue;
-            }
-            String trimmed = desc == null ? "" : desc.trim();
-            if (!trimmed.isEmpty()) {
-                if (descriptions == null) {
-                    descriptions = new ArrayList<>();
-                }
-                descriptions.add(trimmed);
-            }
-        }
-        return descriptions;
-    }
+
 
     /** "data:mime;base64,..." → 原始字节；标准解码失败退回无填充解码。 */
     static byte[] decodeDataURIBytes(String dataURI) {

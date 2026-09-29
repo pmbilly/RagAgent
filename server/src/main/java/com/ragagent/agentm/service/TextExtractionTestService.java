@@ -3,8 +3,6 @@ package com.ragagent.agentm.service;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -37,8 +35,7 @@ public final class TextExtractionTestService {
     // ══════════════ W5b：抽取段（对照 ExtractTextRelations / FabriTag / FabriText L2383-2605）══════════════
 
     /** POST /initialization/extract/text-relation——LLM 驱动的实体关系抽取。 */
-    @PostMapping("/api/v1/initialization/extract/text-relation")
-    public ResponseEntity<Object> extractTextRelations(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> extractTextRelations(String rawBody) {
         JsonNode n;
         try {
             n = OllamaManageService.bindJsonObject(rawBody);
@@ -115,7 +112,6 @@ public final class TextExtractionTestService {
     }
 
     /** POST /initialization/extract/fabri-tag——随机标签组（无 LLM 调用）。 */
-    @PostMapping("/api/v1/initialization/extract/fabri-tag")
     public ResponseEntity<Object> fabriTag() {
         List<String> tagRandom = randomSelect(TAG_OPTIONS,
                 java.util.concurrent.ThreadLocalRandom.current().nextInt(TAG_OPTIONS.size() - 1) + 1);
@@ -126,8 +122,7 @@ public final class TextExtractionTestService {
     }
 
     /** POST /initialization/extract/fabri-text——按标签生成示例文本（LLM 驱动）。 */
-    @PostMapping("/api/v1/initialization/extract/fabri-text")
-    public ResponseEntity<Object> fabriText(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Object> fabriText(String rawBody) {
         JsonNode n;
         try {
             n = OllamaManageService.bindJsonObject(rawBody);
