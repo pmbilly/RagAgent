@@ -311,7 +311,7 @@ const runPreview = async () => {
       'unknown error'
     error.value = msg
     // Console log so users can debug from DevTools too.
-    console.error('[KBChunkingDebug] previewChunking failed:', e)
+    console.error('[KBChunkingPreview] previewChunking failed:', e)
     // Toast for visibility.
     MessagePlugin.error(t('knowledgeEditor.chunking.debug.errorPrefix') + ': ' + msg)
   } finally {

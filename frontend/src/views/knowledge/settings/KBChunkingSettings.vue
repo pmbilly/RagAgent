@@ -26,7 +26,7 @@
           <!-- Test trigger sits right next to the strategy picker so users
                discover it exactly when they're deciding which strategy to
                use on their content. -->
-          <KBChunkingDebug v-if="!embedded" :config="debugConfig" />
+          <KBChunkingPreview v-if="!embedded" :config="debugConfig" />
         </div>
       </div>
 
@@ -215,7 +215,7 @@
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRightIcon } from 'tdesign-icons-vue-next'
-import KBChunkingDebug from './KBChunkingDebug.vue'
+import KBChunkingPreview from './KBChunkingPreview.vue'
 
 interface ParserEngineRule {
   file_types: string[]

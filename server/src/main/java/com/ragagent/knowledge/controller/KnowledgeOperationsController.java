@@ -56,14 +56,14 @@ import com.ragagent.knowledge.dto.ReparseTaskData;
  */
 @RestController
 @RequestMapping("/api/v1")
-public class KnowledgeOpsController {
+public class KnowledgeOperationsController {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeOpsController.class);
+    private static final Logger log = LoggerFactory.getLogger(KnowledgeOperationsController.class);
 
     private final KnowledgeService knowledgeService;
     private final KnowledgeRouteGuards guards;
 
-    public KnowledgeOpsController(KnowledgeService knowledgeService,
+    public KnowledgeOperationsController(KnowledgeService knowledgeService,
                                   KnowledgeRouteGuards guards) {
         this.knowledgeService = knowledgeService;
         this.guards = guards;

@@ -51,7 +51,7 @@ import com.ragagent.knowledge.security.KnowledgeRouteGuards;
 /**
  * 知识文档主面：创建（文件/URL/手工）、列表/详情/批量取、解析生命周期
  * （重析/取消/进度 span）、下载/预览、图片信息、摘要与单文档更新/删除。
- * 运营操作面（搜索/批量/搬移/标签/文件夹）在 {@link KnowledgeOpsController}。
+ * 运营操作面（搜索/批量/搬移/标签/文件夹）在 {@link KnowledgeOperationsController}。
  *
  * <p>守卫链经 {@link KnowledgeRouteGuards}（全局缺失 404 大写 K → [ownership 403
  * 纯字符串] → KB 访问 404/403）；重复文档 409 为特殊信封

@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ragagent.common.error.BizException;
 
 /**
- * chunker 只读预览端点。无状态：不落库、不生成 embedding、不打日志正文。
+ * chunker 只读预览端点（分块配置预览：文本进、分块结果出）。无状态：不落库、不生成 embedding、不打日志正文。
  * <h2>响应形态：struct 声明序 + map 字母序的混合（契约样例 cprev-*.json 全钉）</h2>
  * <p>顶层 {@code gin.H} 字母序 {@code {"data":…,"success":true}}；data 是
  * PreviewChunkingResponse struct——按<b>声明序</b>输出
@@ -56,7 +56,7 @@ import com.ragagent.common.error.BizException;
  * 。</p>
  */
 @RestController
-public class ChunkerDebugController {
+public class ChunkerPreviewController {
 
     /** 64k rune 上限（防 goroutine 堆积的主缓解）。 */
     static final int PREVIEW_MAX_CHARS = 64 * 1024;
