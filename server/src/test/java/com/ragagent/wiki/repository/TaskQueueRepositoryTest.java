@@ -74,7 +74,7 @@ class TaskQueueRepositoryTest {
         row.setOp(op);
         row.setDedupKey(knowledgeId);
         try {
-            row.setPayload(MAPPER.readTree("{\"op\":\"" + op + "\",\"knowledge_id\":\"" + knowledgeId + "\"}"));
+            row.setPayload(MAPPER.readTree("{\"op\":\"" + op + "\",\"knowledgeId\":\"" + knowledgeId + "\"}"));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

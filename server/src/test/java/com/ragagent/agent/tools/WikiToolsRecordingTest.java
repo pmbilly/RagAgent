@@ -411,10 +411,10 @@ class WikiToolsRecordingTest {
                 searchTool.execute(req("{\"queries\":[\"不存在的词xyz\"]}")),
                 rec("wiki_search_search_empty"));
         assertToolResult("search_kb_restrict",
-                searchTool.execute(req("{\"queries\":[\"甲公司\"],\"knowledge_base_id\":\"kb2\"}")),
+                searchTool.execute(req("{\"queries\":[\"甲公司\"],\"knowledgeBaseId\":\"kb2\"}")),
                 rec("wiki_search_search_kb_restrict"));
         assertToolResult("search_kb_out_of_scope",
-                searchTool.execute(req("{\"queries\":[\"x\"],\"knowledge_base_id\":\"kb9\"}")),
+                searchTool.execute(req("{\"queries\":[\"x\"],\"knowledgeBaseId\":\"kb9\"}")),
                 rec("wiki_search_search_kb_out_of_scope"));
         assertToolResult("search_missing", searchTool.execute(req("{}")),
                 rec("wiki_search_search_missing"));

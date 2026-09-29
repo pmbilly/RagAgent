@@ -304,10 +304,10 @@ class ModelContextRecordingTest {
         r.registerKnowledgeBase("kb-real-uuid-1");
         r.registerDocument("doc-real-uuid-1");
         List<ToolCall> calls = new ArrayList<>();
-        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledge_base_ids\":[\"c1\"]}"));
-        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledge_base_ids\":[\"c77\"]}"));
-        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledge_base_ids\":[\"c1\",\"c77\"]}"));
-        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledge_base_ids\":[\"kb-real-uuid-1\"]}"));
+        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledgeBaseIds\":[\"c1\"]}"));
+        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledgeBaseIds\":[\"c77\"]}"));
+        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledgeBaseIds\":[\"c1\",\"c77\"]}"));
+        calls.add(call("knowledge_search", "{\"query\":\"q\",\"knowledgeBaseIds\":[\"kb-real-uuid-1\"]}"));
         r.decodeToolCalls(calls);
         JsonNode expected = rec(R_TOOL_POLICY_DECODE_STATES).get("out");
         for (int i = 0; i < calls.size(); i++) {
@@ -523,7 +523,7 @@ class ModelContextRecordingTest {
         SourceRegistry rdef = new SourceRegistry(true);
         ToolResult def = new ToolResult();
         def.setSuccess(true);
-        def.setOutput("{\"knowledge_id\":\"def-doc-1\",\"kb\":\"b1\"} meta knowledge_id=\"def-doc-2\" tail");
+        def.setOutput("{\"knowledgeId\":\"def-doc-1\",\"kb\":\"b1\"} meta knowledge_id=\"def-doc-2\" tail");
         assertThat(ModelOutput.modelOutput(rdef, def)).isEqualTo(out(R_MODEL_OUTPUT_DEFAULT_BRANCH));
         // 探针的四个 ref：def-doc-1 与 b1 未注册（整串不是 JSON，结构化注册早退；
         // labeled 只认 attr 形态的 def-doc-2 → d1），后者不在 citable → 全部丢弃
@@ -782,7 +782,7 @@ class ModelContextRecordingTest {
         ChatMessage asst = new ChatMessage("assistant",
                 "cites <kb doc=\"doc-msg-uuid\" chunk_id=\"chunk-msg-uuid\"> here");
         asst.setToolCalls(new ArrayList<>(List.of(
-                call("knowledge_search", "{\"knowledge_base_ids\":[\"kb-msg-uuid\"]}"))));
+                call("knowledge_search", "{\"knowledgeBaseIds\":[\"kb-msg-uuid\"]}"))));
         msgs.add(asst);
         List<ChatMessage> out = r5.encodeMessagesWithPolicies(
                 msgs, ToolPolicy::sourceArgumentAllowed, ToolPolicy::sourceOutputAllowed);

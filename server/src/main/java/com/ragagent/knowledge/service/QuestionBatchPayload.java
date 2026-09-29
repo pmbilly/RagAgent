@@ -5,8 +5,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
@@ -18,28 +16,25 @@ import com.ragagent.common.context.TracingContext;
  * <p><b>追踪载体</b>：与 {@code ExtractChunkPayload} 同形（平铺 {@code lf_*} 五键，空值整键省略），
  * worker 侧续接同一棵树。</p>
  */
-@JsonPropertyOrder({"tenant_id", "knowledge_base_id", "knowledge_id", "question_count", "language",
-        "attempt", "chunk_ids", "batch_index", "prev_chunk_id", "next_chunk_id",
-        "lf_trace_id", "lf_parent_obs_id", "lf_traceparent", "lf_user_id", "lf_session_id"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record QuestionBatchPayload(
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("knowledge_base_id") String knowledgeBaseId,
-        @JsonProperty("knowledge_id") String knowledgeId,
-        @JsonProperty("question_count") int questionCount,
-        @JsonProperty("language") @JsonInclude(JsonInclude.Include.NON_EMPTY) String language,
-        @JsonProperty("attempt") @JsonInclude(JsonInclude.Include.NON_DEFAULT) int attempt,
-        @JsonProperty("chunk_ids") List<String> chunkIds,
-        @JsonProperty("batch_index") int batchIndex,
+        long tenantId,
+        String knowledgeBaseId,
+        String knowledgeId,
+        int questionCount,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String language,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) int attempt,
+        List<String> chunkIds,
+        int batchIndex,
         /** 批窗口前一个文本分块（重建邻接上下文用；无则空）。 */
-        @JsonProperty("prev_chunk_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String prevChunkId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String prevChunkId,
         /** 批窗口后一个文本分块（同 prev）。 */
-        @JsonProperty("next_chunk_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String nextChunkId,
-        @JsonProperty("lf_trace_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
-        @JsonProperty("lf_parent_obs_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
-        @JsonProperty("lf_traceparent") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
-        @JsonProperty("lf_user_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
-        @JsonProperty("lf_session_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String nextChunkId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

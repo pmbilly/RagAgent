@@ -2,37 +2,21 @@ package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "secret_id", "secret_key", "region", "bucket_name", "app_id",
-        "path_prefix", "provider", "endpoint", "use_ssl", "force_path_style"
-})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class KbStorageConfig {
 
-    @JsonProperty("secret_id")
     private String secretId = "";
-    @JsonProperty("secret_key")
     private String secretKey = "";
-    @JsonProperty("region")
     private String region = "";
-    @JsonProperty("bucket_name")
     private String bucketName = "";
-    @JsonProperty("app_id")
     private String appId = "";
-    @JsonProperty("path_prefix")
     private String pathPrefix = "";
-    @JsonProperty("provider")
     private String provider = "";
-    @JsonProperty("endpoint")
     private String endpoint;
-    @JsonProperty("use_ssl")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean useSsl;
-    @JsonProperty("force_path_style")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean forcePathStyle;
 

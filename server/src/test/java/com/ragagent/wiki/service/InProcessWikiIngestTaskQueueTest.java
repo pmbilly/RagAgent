@@ -97,7 +97,7 @@ class InProcessWikiIngestTaskQueueTest {
     private static WikiIngestTask ingest(String kbId, Duration delay, int maxRetry, String taskId) {
         return new WikiIngestTask(
                 WikiIngestTask.TYPE_WIKI_INGEST,
-                "{\"tenant_id\":7,\"knowledge_base_id\":\"" + kbId + "\",\"language\":\"en-US\"}",
+                "{\"tenantId\":7,\"knowledgeBaseId\":\"" + kbId + "\",\"language\":\"en-US\"}",
                 delay, maxRetry, Duration.ofMinutes(60), taskId);
     }
 
@@ -284,7 +284,7 @@ class InProcessWikiIngestTaskQueueTest {
         queue.enqueue(ingest("kb-1", Duration.ZERO, 3, ""));
         queue.enqueue(new WikiIngestTask(
                 WikiIngestTask.TYPE_WIKI_FINALIZE,
-                "{\"tenant_id\":7,\"knowledge_base_id\":\"kb-1\"}",
+                "{\"tenantId\":7,\"knowledgeBaseId\":\"kb-1\"}",
                 Duration.ZERO, 3, Duration.ofMinutes(30), "wiki-finalize-kb-1"));
 
         assertThat(done.await(3, TimeUnit.SECONDS)).isTrue();
@@ -346,7 +346,7 @@ class InProcessWikiIngestTaskQueueTest {
 
         queue.enqueue(new WikiIngestTask(
                 WikiIngestTask.TYPE_WIKI_INGEST,
-                "{\"tenant_id\":7,\"knowledge_base_id\":\"kb-1\"}",
+                "{\"tenantId\":7,\"knowledgeBaseId\":\"kb-1\"}",
                 Duration.ZERO, 0, Duration.ofMillis(200), ""));
 
         assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();

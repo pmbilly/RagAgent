@@ -95,13 +95,13 @@ class DataSourceJsonTest {
     @Test
     void dataSourceZeroMatchesGo() throws Exception {
         assertThat(write(new DataSource())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"knowledge_base_id\":\"\",\"name\":\"\",\"type\":\"\","
+                "{\"id\":\"\",\"tenantId\":0,\"knowledgeBaseId\":\"\",\"name\":\"\",\"type\":\"\","
                         + "\"config\":null,\"sync_schedule\":\"\",\"sync_mode\":\"\",\"status\":\"\","
                         + "\"conflict_strategy\":\"\",\"sync_deletions\":false,\"last_sync_at\":null,"
-                        + "\"last_sync_cursor\":null,\"last_sync_result\":null,\"error_message\":\"\","
+                        + "\"last_sync_cursor\":null,\"last_sync_result\":null,\"errorMessage\":\"\","
                         + "\"sync_log_retention_days\":0,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\",\"deleted_at\":null,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\",\"deletedAt\":null,"
                         + "\"total_items_synced\":0,\"latest_sync_log\":null}");
     }
 
@@ -132,23 +132,23 @@ class DataSourceJsonTest {
         ds.setLatestSyncLog(latest);
 
         assertThat(write(ds)).isEqualTo(
-                "{\"id\":\"d1\",\"tenant_id\":7,\"knowledge_base_id\":\"kb1\",\"name\":\"n\","
+                "{\"id\":\"d1\",\"tenantId\":7,\"knowledgeBaseId\":\"kb1\",\"name\":\"n\","
                         + "\"type\":\"feishu\",\"config\":{\"type\":\"feishu\"},"
                         + "\"sync_schedule\":\"0 */6 * * *\",\"sync_mode\":\"full\",\"status\":\"paused\","
                         + "\"conflict_strategy\":\"skip\",\"sync_deletions\":true,"
                         + "\"last_sync_at\":\"2026-09-18T10:00:00+08:00\","
                         + "\"last_sync_cursor\":{\"last_schema_hash\":\"h\"},"
-                        + "\"last_sync_result\":{\"total\":3},\"error_message\":\"boom\","
+                        + "\"last_sync_result\":{\"total\":3},\"errorMessage\":\"boom\","
                         + "\"sync_log_retention_days\":14,"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\",\"deleted_at\":null,"
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\",\"deletedAt\":null,"
                         + "\"total_items_synced\":42,\"latest_sync_log\":"
-                        + "{\"id\":\"l1\",\"data_source_id\":\"\",\"tenant_id\":0,\"status\":\"\","
-                        + "\"started_at\":\"0001-01-01T00:00:00Z\",\"finished_at\":null,\"items_total\":0,"
+                        + "{\"id\":\"l1\",\"data_source_id\":\"\",\"tenantId\":0,\"status\":\"\","
+                        + "\"startedAt\":\"0001-01-01T00:00:00Z\",\"finished_at\":null,\"items_total\":0,"
                         + "\"items_created\":0,\"items_updated\":0,\"items_deleted\":0,\"items_skipped\":0,"
-                        + "\"items_failed\":0,\"error_message\":\"\",\"result\":null,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}}");
+                        + "\"items_failed\":0,\"errorMessage\":\"\",\"result\":null,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}}");
     }
 
     /** 三个 JSON 列都是 Go 的 {@code types.JSON}：**空就输出 {@code null}**，不省略键。 */
@@ -165,12 +165,12 @@ class DataSourceJsonTest {
     @Test
     void syncLogZeroMatchesGo() throws Exception {
         assertThat(write(new SyncLog())).isEqualTo(
-                "{\"id\":\"\",\"data_source_id\":\"\",\"tenant_id\":0,\"status\":\"\","
-                        + "\"started_at\":\"0001-01-01T00:00:00Z\",\"finished_at\":null,"
+                "{\"id\":\"\",\"data_source_id\":\"\",\"tenantId\":0,\"status\":\"\","
+                        + "\"startedAt\":\"0001-01-01T00:00:00Z\",\"finished_at\":null,"
                         + "\"items_total\":0,\"items_created\":0,\"items_updated\":0,\"items_deleted\":0,"
-                        + "\"items_skipped\":0,\"items_failed\":0,\"error_message\":\"\",\"result\":null,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                        + "\"items_skipped\":0,\"items_failed\":0,\"errorMessage\":\"\",\"result\":null,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -194,14 +194,14 @@ class DataSourceJsonTest {
         log.setUpdatedAt(ten());
 
         assertThat(write(log)).isEqualTo(
-                "{\"id\":\"l1\",\"data_source_id\":\"d1\",\"tenant_id\":7,\"status\":\"success\","
-                        + "\"started_at\":\"2026-09-18T10:00:00+08:00\","
+                "{\"id\":\"l1\",\"data_source_id\":\"d1\",\"tenantId\":7,\"status\":\"success\","
+                        + "\"startedAt\":\"2026-09-18T10:00:00+08:00\","
                         + "\"finished_at\":\"2026-09-18T10:00:05+08:00\","
                         + "\"items_total\":1,\"items_created\":2,\"items_updated\":3,"
                         + "\"items_deleted\":4,\"items_skipped\":5,\"items_failed\":6,"
-                        + "\"error_message\":\"e\",\"result\":{\"total\":1},"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\"}");
+                        + "\"errorMessage\":\"e\",\"result\":{\"total\":1},"
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
     // ── DataSourceConfig ───────────────────────────────────────────────────
@@ -288,8 +288,8 @@ class DataSourceJsonTest {
     void fetchedItemZeroMatchesGo() throws Exception {
         assertThat(write(new FetchedItem())).isEqualTo(
                 "{\"external_id\":\"\",\"title\":\"\",\"content\":null,\"content_type\":\"\","
-                        + "\"file_name\":\"\",\"url\":\"\",\"updated_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\",\"metadata\":null,"
+                        + "\"fileName\":\"\",\"url\":\"\",\"updatedAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\",\"metadata\":null,"
                         + "\"is_deleted\":false,\"source_resource_id\":\"\"}");
     }
 
@@ -312,9 +312,9 @@ class DataSourceJsonTest {
 
         assertThat(write(f)).isEqualTo(
                 "{\"external_id\":\"e1\",\"title\":\"t\",\"content\":\"aGVsbG8=\","
-                        + "\"content_type\":\"text/markdown\",\"file_name\":\"f.md\",\"url\":\"u\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"created_at\":\"2026-09-17T09:00:00+08:00\",\"metadata\":{\"a\":\"b\"},"
+                        + "\"content_type\":\"text/markdown\",\"fileName\":\"f.md\",\"url\":\"u\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"createdAt\":\"2026-09-17T09:00:00+08:00\",\"metadata\":{\"a\":\"b\"},"
                         + "\"is_deleted\":true,\"source_resource_id\":\"s1\","
                         + "\"replaces_subtree\":true,\"subtree_keep\":[\"c1\",\"c2\"]}");
     }
@@ -488,7 +488,7 @@ class DataSourceJsonTest {
     void taskInitiatorMatchesGo() throws Exception {
         assertThat(write(TaskInitiator.empty())).isEqualTo("{}");
         assertThat(write(new TaskInitiator("user-1", "admin")))
-                .isEqualTo("{\"user_id\":\"user-1\",\"role\":\"admin\"}");
+                .isEqualTo("{\"userId\":\"user-1\",\"role\":\"admin\"}");
         // ⚠️ isEmpty() 会变成 JSON 属性 "empty"——所以那个方法叫 blank()
         assertThat(write(TaskInitiator.empty())).doesNotContain("empty");
     }
@@ -498,7 +498,7 @@ class DataSourceJsonTest {
         // initiator 的 omitempty 对 struct 无效 → 空发起人也输出 "initiator":{}
         assertThat(write(new DataSourceSyncPayload(
                 null, null, "", 0L, "", false, 0))).isEqualTo(
-                "{\"initiator\":{},\"data_source_id\":\"\",\"tenant_id\":0,"
+                "{\"initiator\":{},\"data_source_id\":\"\",\"tenantId\":0,"
                         + "\"sync_log_id\":\"\",\"force_full\":false}");
     }
 
@@ -507,8 +507,8 @@ class DataSourceJsonTest {
         DataSourceSyncPayload p = new DataSourceSyncPayload(
                 new TaskInitiator("user-1", "admin"), "manual", "d1", 7L, "l1", true, 10);
         assertThat(write(p)).isEqualTo(
-                "{\"initiator\":{\"user_id\":\"user-1\",\"role\":\"admin\"},"
-                        + "\"trigger\":\"manual\",\"data_source_id\":\"d1\",\"tenant_id\":7,"
+                "{\"initiator\":{\"userId\":\"user-1\",\"role\":\"admin\"},"
+                        + "\"trigger\":\"manual\",\"data_source_id\":\"d1\",\"tenantId\":7,"
                         + "\"sync_log_id\":\"l1\",\"force_full\":true,\"max_items\":10}");
     }
 
@@ -836,7 +836,7 @@ class DataSourceJsonTest {
     void dataSourceDeletedAtSerializesWhenSet() throws Exception {
         DataSource ds = new DataSource();
         ds.setDeletedAt(ten());
-        assertThat(write(ds)).contains("\"deleted_at\":\"2026-09-18T10:00:00+08:00\"");
+        assertThat(write(ds)).contains("\"deletedAt\":\"2026-09-18T10:00:00+08:00\"");
     }
 
     /** {@code DataSourceConfig.toJSON()} 与 Go 的 {@code json.Marshal} 同形。 */

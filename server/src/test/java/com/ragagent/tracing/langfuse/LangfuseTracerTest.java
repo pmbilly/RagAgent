@@ -83,7 +83,7 @@ class LangfuseTracerTest {
         assertEquals("s-1", root.attributes.get(LangfuseAttributes.ATTR_SESSION_ID));
         assertEquals("dev", root.attributes.get(LangfuseAttributes.ATTR_ENVIRONMENT));
         assertEquals("v0.8.0", root.attributes.get(LangfuseAttributes.ATTR_RELEASE));
-        assertEquals("{\"request_id\":\"r-1\"}",
+        assertEquals("{\"requestId\":\"r-1\"}",
                 root.attributes.get(LangfuseAttributes.ATTR_TRACE_METADATA));
 
         assertEquals("qwen", chat.attributes.get(LangfuseAttributes.ATTR_OBS_MODEL));

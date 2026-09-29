@@ -333,7 +333,7 @@ class DataSourceHttpContractTest {
     @Test
     void createWithUnregisteredConnectorIsBadRequest() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"confluence\",\"knowledge_base_id\":\"" + KB_MAIN + "\"}")
+                "{\"name\":\"x\",\"type\":\"confluence\",\"knowledgeBaseId\":\"" + KB_MAIN + "\"}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("ds-create-bad-connector.json"), raw(r));
@@ -342,7 +342,7 @@ class DataSourceHttpContractTest {
     @Test
     void createWithUnknownKbIsNotFound() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"rss\",\"knowledge_base_id\":\"" + UNKNOWN_ID + "\"}")
+                "{\"name\":\"x\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + UNKNOWN_ID + "\"}")
                 .header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("ds-create-bad-kb.json"), raw(r));
@@ -368,7 +368,7 @@ class DataSourceHttpContractTest {
     @Test
     void createWithNullConfigSurfacesConnectorError() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"rss\",\"knowledge_base_id\":\"" + KB_MAIN + "\"}")
+                "{\"name\":\"x\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + KB_MAIN + "\"}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("ds-create-bad-creds.json"), raw(r));
@@ -427,7 +427,7 @@ class DataSourceHttpContractTest {
         String id = createId();
         MvcResult r = perform(jsonBody(put("/api/v1/datasource/" + id),
                 "{\"name\":\"golden-rss-renamed\",\"sync_mode\":\"full\",\"sync_deletions\":false,"
-                        + "\"error_message\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
+                        + "\"errorMessage\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
                         + "{\"feed_urls\":\"" + FEED_URL + "\"},\"credentials\":{\"feed_urls\":\""
                         + FEED_URL + "\",\"api_token\":\"should-be-ignored\"}}}")
                 .header("Authorization", bearer));
@@ -437,7 +437,7 @@ class DataSourceHttpContractTest {
         assertEquals(mask(golden("ds-update.json")), mask(body));
 
         // 反直觉但真实的三条（掩码前单独钉住，否则掩码会把它们抹平）
-        assertThat(body).contains("\"created_at\":\"0001-01-01T00:00:00Z\"");
+        assertThat(body).contains("\"createdAt\":\"0001-01-01T00:00:00Z\"");
         assertThat(body).contains("\"type\":\"\"");
         assertThat(body).contains("\"status\":\"\"");
         assertThat(body).doesNotContain("should-be-ignored");
@@ -462,7 +462,7 @@ class DataSourceHttpContractTest {
         String id = createId();
         perform(jsonBody(put("/api/v1/datasource/" + id),
                 "{\"name\":\"golden-rss-renamed\",\"sync_mode\":\"full\",\"sync_deletions\":false,"
-                        + "\"error_message\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
+                        + "\"errorMessage\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
                         + "{\"feed_urls\":\"" + FEED_URL + "\"},\"credentials\":{\"feed_urls\":\""
                         + FEED_URL + "\",\"api_token\":\"should-be-ignored\"}}}")
                 .header("Authorization", bearer));
@@ -654,7 +654,7 @@ class DataSourceHttpContractTest {
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("ds-sync.json")), mask(raw(r)));
         // 计数器恒输出（无 omitempty），空串 error_message 也照输出
-        assertThat(raw(r)).contains("\"finished_at\":null").contains("\"error_message\":\"\"")
+        assertThat(raw(r)).contains("\"finished_at\":null").contains("\"errorMessage\":\"\"")
                 .contains("\"items_total\":0").contains("\"result\":null");
     }
 
@@ -761,7 +761,7 @@ class DataSourceHttpContractTest {
         assertConnectorTypesMatchGo(raw(types), "ds-types-viewer.json");
 
         MvcResult create = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"rss\",\"knowledge_base_id\":\"" + KB_MAIN + "\"}")
+                "{\"name\":\"x\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + KB_MAIN + "\"}")
                 .header("Authorization", viewerToken));
         assertEquals(403, create.getResponse().getStatus(), raw(create));
         assertEquals(golden("ds-create-forbidden.json"), raw(create));
@@ -855,7 +855,7 @@ class DataSourceHttpContractTest {
 
     private MvcResult createDataSource() throws Exception {
         return perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"golden-rss\",\"type\":\"rss\",\"knowledge_base_id\":\"" + KB_MAIN
+                "{\"name\":\"golden-rss\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + KB_MAIN
                         + "\",\"sync_schedule\":\"0 0 * * * *\",\"config\":{\"type\":\"rss\","
                         + "\"settings\":{\"feed_urls\":\"" + FEED_URL + "\"},"
                         + "\"credentials\":{\"feed_urls\":\"" + FEED_URL + "\"}}}")

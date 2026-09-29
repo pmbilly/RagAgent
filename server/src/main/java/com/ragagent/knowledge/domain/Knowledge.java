@@ -8,8 +8,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
@@ -22,14 +20,6 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * - tags 为 无列映射标签 关联（阶段 3 不回填 → 恒 null，契约样例锁定 "tags":null）
  */
 @TableName(value = "knowledges", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "tenant_id", "knowledge_base_id", "tags", "type", "title", "description",
-        "source", "channel", "parse_status", "pending_subtasks_count", "summary_status",
-        "enable_status", "embedding_model_id", "file_name", "folder_path", "file_type",
-        "file_size", "file_hash", "file_path", "storage_size", "metadata", "custom_metadata",
-        "last_faq_import_result", "created_at", "updated_at", "processed_at", "error_message",
-        "deleted_at", "knowledge_base_name"
-})
 public class Knowledge {
 
     public static final String PARSE_PENDING = "pending";
@@ -41,74 +31,44 @@ public class Knowledge {
     public static final String PARSE_CANCELLED = "cancelled";
 
     @TableId(type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
-    @JsonProperty("tenant_id")
     private Long tenantId;
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId;
     /** 无列映射标签 关联回填；阶段 3 不回填 → null */
     @TableField(exist = false)
-    @JsonProperty("tags")
     private List<JsonNode> tags;
-    @JsonProperty("type")
     private String type;
-    @JsonProperty("title")
     private String title;
-    @JsonProperty("description")
     private String description = "";
-    @JsonProperty("source")
     private String source = "";
-    @JsonProperty("channel")
     private String channel = "web";
-    @JsonProperty("parse_status")
     private String parseStatus = PARSE_PENDING;
-    @JsonProperty("pending_subtasks_count")
     private int pendingSubtasksCount;
-    @JsonProperty("summary_status")
     private String summaryStatus = "none";
-    @JsonProperty("enable_status")
     private String enableStatus = "enabled";
-    @JsonProperty("embedding_model_id")
     private String embeddingModelId = "";
-    @JsonProperty("file_name")
     private String fileName;
-    @JsonProperty("folder_path")
     private String folderPath = "";
-    @JsonProperty("file_type")
     private String fileType;
-    @JsonProperty("file_size")
     private Long fileSize;
-    @JsonProperty("file_hash")
     private String fileHash;
-    @JsonProperty("file_path")
     private String filePath;
-    @JsonProperty("storage_size")
     private long storageSize;
     /** 恒输出：NULL → "metadata":null */
-    @JsonProperty("metadata")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode metadata;
-    @JsonProperty("custom_metadata")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode customMetadata;
     /** 恒输出：NULL → null */
-    @JsonProperty("last_faq_import_result")
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private JsonNode lastFaqImportResult;
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
-    @JsonProperty("processed_at")
     private OffsetDateTime processedAt;
-    @JsonProperty("error_message")
     private String errorMessage = "";
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
     /** 无列映射标签 查询回填（跨 KB 列表场景；恒输出，默认 ""） */
     @TableField(exist = false)
-    @JsonProperty("knowledge_base_name")
     private String knowledgeBaseName = "";
 
     @TableField(exist = false)

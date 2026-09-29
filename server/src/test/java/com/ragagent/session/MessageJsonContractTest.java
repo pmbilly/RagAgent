@@ -88,7 +88,7 @@ class MessageJsonContractTest {
         a.setTruncated(true);
 
         String out = json(a);
-        assertTrue(out.contains("\"is_truncated\":true"), out);
+        assertTrue(out.contains("\"truncated\":true"), out);
         assertFalse(out.contains("\"truncated\""), "多吐了驼峰重复键: " + out);
     }
 

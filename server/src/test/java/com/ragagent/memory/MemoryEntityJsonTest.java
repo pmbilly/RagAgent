@@ -73,12 +73,12 @@ class MemoryEntityJsonTest {
     @Test
     void memorySubjectZeroMatchesGo() throws Exception {
         assertThat(write(new MemorySubject())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"enabled\":false,"
+                "{\"id\":\"\",\"tenantId\":0,\"subject_id\":\"\",\"enabled\":false,"
                         + "\"block_text\":\"\",\"block_updated_at\":null,\"item_count\":0,"
                         + "\"last_extracted_at\":null,\"extract_cursor\":null,\"pending_sessions\":null,"
                         + "\"extract_scheduled_at\":null,\"consolidated_at\":null,"
                         + "\"forced_consolidated_at\":null,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\",\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\",\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -96,13 +96,13 @@ class MemoryEntityJsonTest {
         s.setUpdatedAt(ten());
 
         assertThat(write(s)).isEqualTo(
-                "{\"id\":\"s1\",\"tenant_id\":7,\"subject_id\":\"web_user:u1\",\"enabled\":true,"
+                "{\"id\":\"s1\",\"tenantId\":7,\"subject_id\":\"web_user:u1\",\"enabled\":true,"
                         + "\"block_text\":\"b\",\"block_updated_at\":null,\"item_count\":2,"
                         + "\"last_extracted_at\":null,\"extract_cursor\":null,\"pending_sessions\":[\"a\"],"
                         + "\"extract_scheduled_at\":null,\"consolidated_at\":null,"
                         + "\"forced_consolidated_at\":null,"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\"}");
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
     /** {@code extraction_state} 的 {@code json:"-"}：**一个键都不出**（不是 null、不是 {}）。 */
@@ -116,13 +116,13 @@ class MemoryEntityJsonTest {
     @Test
     void memoryItemZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryItem())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"kind\":\"\",\"content\":\"\","
+                "{\"id\":\"\",\"tenantId\":0,\"subject_id\":\"\",\"kind\":\"\",\"content\":\"\","
                         + "\"topic\":\"\",\"normalized_key\":\"\",\"importance\":0,\"origin\":\"\","
                         + "\"status\":\"\",\"source_session_id\":\"\",\"source_message_id\":\"\","
                         + "\"valid_from\":\"0001-01-01T00:00:00Z\",\"invalid_at\":null,"
-                        + "\"expires_at\":null,\"superseded_by\":\"\",\"last_used_at\":null,"
-                        + "\"use_count\":0,\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                        + "\"expiresAt\":null,\"superseded_by\":\"\",\"last_used_at\":null,"
+                        + "\"use_count\":0,\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -149,14 +149,14 @@ class MemoryEntityJsonTest {
         i.setUpdatedAt(ten());
 
         assertThat(write(i)).isEqualTo(
-                "{\"id\":\"i1\",\"tenant_id\":7,\"subject_id\":\"s\",\"kind\":\"fact\",\"content\":\"c\","
+                "{\"id\":\"i1\",\"tenantId\":7,\"subject_id\":\"s\",\"kind\":\"fact\",\"content\":\"c\","
                         + "\"topic\":\"t\",\"normalized_key\":\"nk\",\"importance\":3,\"origin\":\"extracted\","
                         + "\"status\":\"active\",\"source_session_id\":\"ss\",\"source_message_id\":\"sm\","
                         + "\"valid_from\":\"2026-09-18T10:00:00+08:00\",\"invalid_at\":null,"
-                        + "\"expires_at\":null,\"replaces_id\":\"r1\",\"superseded_by\":\"sb\","
+                        + "\"expiresAt\":null,\"replaces_id\":\"r1\",\"superseded_by\":\"sb\","
                         + "\"last_used_at\":null,\"use_count\":4,"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\"}");
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
     /**
@@ -181,35 +181,35 @@ class MemoryEntityJsonTest {
     @Test
     void memoryTopicStatZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryTopicStat())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"normalized_key\":\"\",\"topic\":\"\","
+                "{\"id\":\"\",\"tenantId\":0,\"subject_id\":\"\",\"normalized_key\":\"\",\"topic\":\"\","
                         + "\"aliases\":null,\"hits\":0,\"last_seen_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"promoted_at\":null,\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                        + "\"promoted_at\":null,\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
     void memoryDocAffinityZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryDocAffinity())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"knowledge_id\":\"\","
-                        + "\"knowledge_base_id\":\"\",\"title\":\"\",\"hits\":0,"
+                "{\"id\":\"\",\"tenantId\":0,\"subject_id\":\"\",\"knowledgeId\":\"\","
+                        + "\"knowledgeBaseId\":\"\",\"title\":\"\",\"hits\":0,"
                         + "\"last_used_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
     void memoryTombstoneZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryTombstone())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"topic\":\"\",\"fingerprint\":\"\","
-                        + "\"source_message_id\":\"\",\"created_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"id\":\"\",\"tenantId\":0,\"subject_id\":\"\",\"topic\":\"\",\"fingerprint\":\"\","
+                        + "\"source_message_id\":\"\",\"createdAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
     void memoryItemEmbeddingZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryItemEmbedding())).isEqualTo(
-                "{\"item_id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"model_id\":\"\",\"dims\":0,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"item_id\":\"\",\"tenantId\":0,\"subject_id\":\"\",\"modelId\":\"\",\"dims\":0,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     /** 三个 {@code json:"-"} 的含义不同：{@code vector} 仍落库、两个 source 连库都不落。 */

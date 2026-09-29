@@ -189,7 +189,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"owner\",\"full_access\":true,"
-                                + "\"knowledge_base_ids\":[\"kb-1\"],\"capabilities\":[\"retrieve\"]}"))
+                                + "\"knowledgeBaseIds\":[\"kb-1\"],\"capabilities\":[\"retrieve\"]}"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -277,7 +277,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"x\",\"full_access\":false,\"capabilities\":[\"retrieve\"],"
-                                + "\"knowledge_base_ids\":[\"kb-foreign\"]}"))
+                                + "\"knowledgeBaseIds\":[\"kb-foreign\"]}"))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1002,"
@@ -291,7 +291,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"x\",\"full_access\":false,\"capabilities\":[\"retrieve\"],"
-                                + "\"knowledge_base_ids\":[\"kb-nope\"]}"))
+                                + "\"knowledgeBaseIds\":[\"kb-nope\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1010,"
@@ -371,7 +371,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\" after \",\"full_access\":false,"
-                                + "\"capabilities\":[\"chat\",\"chat\"],\"knowledge_base_ids\":[\"kb-1\"]}"))
+                                + "\"capabilities\":[\"chat\",\"chat\"],\"knowledgeBaseIds\":[\"kb-1\"]}"))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -391,7 +391,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"full\",\"full_access\":true,"
-                                + "\"capabilities\":[\"retrieve\"],\"knowledge_base_ids\":[\"kb-1\"]}"))
+                                + "\"capabilities\":[\"retrieve\"],\"knowledgeBaseIds\":[\"kb-1\"]}"))
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString()).get("data");

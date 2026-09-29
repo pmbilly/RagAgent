@@ -4,51 +4,33 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * ChunkingConfig。
  * 非指针值类型：chunk_size/chunk_overlap/separators 恒输出（separators null → JSON null）；
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "chunk_size", "chunk_overlap", "separators", "parser_engine_rules",
-        "enable_parent_child", "parent_chunk_size", "child_chunk_size",
-        "strategy", "token_limit", "languages", "table_metadata_instructions"
-})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class KbChunkingConfig {
 
-    @JsonProperty("chunk_size")
     private int chunkSize;
-    @JsonProperty("chunk_overlap")
     private int chunkOverlap;
-    @JsonProperty("separators")
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private List<String> separators;
-    @JsonProperty("parser_engine_rules")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private List<ParserEngineRule> parserEngineRules;
-    @JsonProperty("enable_parent_child")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean enableParentChild;
-    @JsonProperty("parent_chunk_size")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int parentChunkSize;
-    @JsonProperty("child_chunk_size")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int childChunkSize;
-    @JsonProperty("strategy")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String strategy;
-    @JsonProperty("token_limit")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int tokenLimit;
-    @JsonProperty("languages")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private List<String> languages;
-    @JsonProperty("table_metadata_instructions")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String tableMetadataInstructions;
 
@@ -75,13 +57,9 @@ public class KbChunkingConfig {
     public String getTableMetadataInstructions() { return tableMetadataInstructions; }
     public void setTableMetadataInstructions(String v) { tableMetadataInstructions = v; }
 
-    @JsonPropertyOrder({"file_types", "engine", "xlsx_first_row_as_header"})
-    public static class ParserEngineRule {
-        @JsonProperty("file_types")
+        public static class ParserEngineRule {
         private List<String> fileTypes;
-        @JsonProperty("engine")
         private String engine;
-        @JsonProperty("xlsx_first_row_as_header")
         private Boolean xlsxFirstRowAsHeader;
 
         public List<String> getFileTypes() { return fileTypes; }

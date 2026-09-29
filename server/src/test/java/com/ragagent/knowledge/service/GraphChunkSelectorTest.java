@@ -70,13 +70,13 @@ class GraphChunkSelectorTest {
         ObjectMapper mapper = new ObjectMapper();
 
         ExtractChunkPayload bare = new ExtractChunkPayload(7L, "ck-1", "model-1", "", 0, 0);
-        assertEquals("{\"tenant_id\":7,\"chunk_id\":\"ck-1\",\"model_id\":\"model-1\"}",
+        assertEquals("{\"tenantId\":7,\"chunk_id\":\"ck-1\",\"modelId\":\"model-1\"}",
                 mapper.writeValueAsString(bare));
 
         ExtractChunkPayload withTracing = ExtractChunkPayload.withTracing(7L, "ck-1", "model-1",
                 "kn-9", 2, 3, new TracingContext("tr", "", "00-tr-sp-01", "u", "r"));
         String json = mapper.writeValueAsString(withTracing);
-        assertTrue(json.contains("\"knowledge_id\":\"kn-9\""));
+        assertTrue(json.contains("\"knowledgeId\":\"kn-9\""));
         assertTrue(json.contains("\"attempt\":2"));
         assertTrue(json.contains("\"chunk_index\":3"));
         assertTrue(json.contains("\"lf_traceparent\":\"00-tr-sp-01\""));

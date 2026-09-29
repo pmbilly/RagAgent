@@ -7,8 +7,6 @@ import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.knowledge.textconv.TextConv;
 
 /**
@@ -21,8 +19,6 @@ import com.ragagent.knowledge.textconv.TextConv;
  * UnrecognizedPropertyException）。</p>
  */
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-@JsonPropertyOrder({"standard_question", "similar_questions", "negative_questions",
-        "answers", "answer_strategy", "version", "source"})
 public class FaqChunkMetadata {
 
     public static final String ANSWER_STRATEGY_ALL = "all";
@@ -53,25 +49,18 @@ public class FaqChunkMetadata {
         return JSON.valueToTree(this);
     }
 
-    @JsonProperty("standard_question")
     public String standardQuestion = "";
 
-    @JsonProperty("similar_questions")
     public List<String> similarQuestions;
 
-    @JsonProperty("negative_questions")
     public List<String> negativeQuestions;
 
-    @JsonProperty("answers")
     public List<String> answers;
 
-    @JsonProperty("answer_strategy")
     public String answerStrategy = "";
 
-    @JsonProperty("version")
     public int version;
 
-    @JsonProperty("source")
     public String source = "";
 
     /** TrimSpace + 列表去空去重，version 兜底 1。 */

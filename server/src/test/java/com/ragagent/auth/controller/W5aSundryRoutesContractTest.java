@@ -126,11 +126,11 @@ class W5aSundryRoutesContractTest {
         assertGolden(postJson("/api/v1/auth/switch-tenant", owner, "{}"), 400,
                 "w5a-auth-switch-empty.json");
         assertGolden(postJson("/api/v1/auth/switch-tenant", owner,
-                "{\"tenant_id\":\"abc\"}"), 400, "w5a-auth-switch-badtype.json");
+                "{\"tenantId\":\"abc\"}"), 400, "w5a-auth-switch-badtype.json");
         assertGolden(postJson("/api/v1/auth/switch-tenant", owner,
-                "{\"tenant_id\":424242}"), 403, "w5a-auth-switch-not-member.json");
+                "{\"tenantId\":424242}"), 403, "w5a-auth-switch-not-member.json");
         assertGolden(postJson("/api/v1/auth/switch-tenant", owner,
-                "{\"tenant_id\":10002}"), 200, "w5a-auth-switch-ok.json");
+                "{\"tenantId\":10002}"), 200, "w5a-auth-switch-ok.json");
 
         // logout：无头 → Auth 中间件 401（handler 里的 400 是死代码，照录）
         assertGolden(postJson("/api/v1/auth/logout", null, null), 401,

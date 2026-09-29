@@ -5,7 +5,6 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 文档 Chunk 的 metadata 形状。
@@ -24,11 +23,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class DocumentChunkMetadata {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    @JsonProperty("generated_questions")
     private List<GeneratedQuestion> generatedQuestions;
 
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    @JsonProperty("generated_questions_revision")
     private int generatedQuestionsRevision;
 
     public DocumentChunkMetadata() { }

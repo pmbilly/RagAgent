@@ -320,8 +320,8 @@ class ElasticsearchV8RetrieveRepositoryTest {
             }
             return Resp.json(200, "{\"hits\":{\"hits\":[{\"_id\":\"doc1\",\"_score\":0.87,"
                     + "\"_source\":{\"content\":\"命中内容\",\"source_id\":\"s1\","
-                    + "\"source_type\":0,\"chunk_id\":\"c1\",\"knowledge_id\":\"k1\","
-                    + "\"knowledge_base_id\":\"kb1\",\"tag_id\":\"t1\",\"is_enabled\":true}}]}}");
+                    + "\"source_type\":0,\"chunk_id\":\"c1\",\"knowledgeId\":\"k1\","
+                    + "\"knowledgeBaseId\":\"kb1\",\"tag_id\":\"t1\",\"is_enabled\":true}}]}}");
         };
 
         RetrieveParams params = new RetrieveParams();
@@ -382,7 +382,7 @@ class ElasticsearchV8RetrieveRepositoryTest {
             }
             return Resp.json(200, "{\"hits\":{\"hits\":[{\"_id\":\"doc2\",\"_score\":1.5,"
                     + "\"_source\":{\"content\":\"B\",\"chunk_id\":\"c2\","
-                    + "\"knowledge_base_id\":\"kb1\"}}]}}");
+                    + "\"knowledgeBaseId\":\"kb1\"}}]}}");
         };
 
         RetrieveParams params = new RetrieveParams();
@@ -480,13 +480,13 @@ class ElasticsearchV8RetrieveRepositoryTest {
                 return Resp.json(200, "{\"hits\":{\"hits\":["
                         + "{\"_id\":\"d1\",\"_score\":1.0,\"_source\":{\"content\":\"A\","
                         + "\"source_id\":\"c1\",\"source_type\":0,\"chunk_id\":\"c1\","
-                        + "\"knowledge_id\":\"k1\",\"embedding\":[0.25,0.5]}},"
+                        + "\"knowledgeId\":\"k1\",\"embedding\":[0.25,0.5]}},"
                         + "{\"_id\":\"d2\",\"_score\":1.0,\"_source\":{\"content\":\"Q\","
                         + "\"source_id\":\"c1-q9\",\"source_type\":0,\"chunk_id\":\"c1\","
-                        + "\"knowledge_id\":\"k1\",\"embedding\":[0.7]}},"
+                        + "\"knowledgeId\":\"k1\",\"embedding\":[0.7]}},"
                         + "{\"_id\":\"d3\",\"_score\":1.0,\"_source\":{\"content\":\"Z\","
                         + "\"source_id\":\"other-shape\",\"source_type\":0,\"chunk_id\":\"c2\","
-                        + "\"knowledge_id\":\"k1\"}}]}}");
+                        + "\"knowledgeId\":\"k1\"}}]}}");
             }
             return Resp.json(200, "{}");
         };

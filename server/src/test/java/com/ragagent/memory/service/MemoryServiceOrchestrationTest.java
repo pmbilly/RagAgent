@@ -45,7 +45,7 @@ class MemoryServiceOrchestrationTest {
     /** 记忆开着、自动抽取、容量 3、兴趣阈值 2、无向量模型。 */
     private static final String CONFIG = "{\"enabled\":true,\"write_mode\":\"auto\",\"max_items\":3,"
             + "\"extract_delay_seconds\":5,\"extract_min_interval_seconds\":10,"
-            + "\"interest_threshold\":2,\"embedding_model_id\":\"\",\"vector_recall\":false}";
+            + "\"interest_threshold\":2,\"embeddingModelId\":\"\",\"vector_recall\":false}";
 
     @Autowired
     private JdbcTemplate jdbc;

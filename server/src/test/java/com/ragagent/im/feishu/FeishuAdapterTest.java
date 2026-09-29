@@ -126,7 +126,7 @@ class FeishuAdapterTest {
     void verifiesToken() throws Exception {
         FeishuAdapter a = adapter();
 
-        String plain = "{\"header\":{\"event_type\":\"im.message.receive_v1\",\"token\":\"vt-1\"}}";
+        String plain = "{\"header\":{\"eventType\":\"im.message.receive_v1\",\"token\":\"vt-1\"}}";
         assertNull(a.verifyCallback(exchange(plain)));
         assertInstanceOf(AdapterInterfaces.VerifyException.class,
                 a.verifyCallback(exchange("{\"header\":{\"token\":\"nope\"}}")));
@@ -161,7 +161,7 @@ class FeishuAdapterTest {
         assertEquals("c2", encrypted.jsonBody.get("challenge"));
 
         RecordingExchange other = new RecordingExchange("POST",
-                "{\"header\":{\"event_type\":\"x\"}}");
+                "{\"header\":{\"eventType\":\"x\"}}");
         assertFalse(a.handleURLVerification(other));
     }
 
@@ -171,7 +171,7 @@ class FeishuAdapterTest {
         FeishuAdapter a = adapter();
 
         IncomingMessage group = a.parseCallback(exchange(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{"
                         + "\"sender\":{\"sender_id\":{\"open_id\":\"ou_1\"}},"
                         + "\"message\":{\"message_id\":\"m1\",\"root_id\":\"r0\","
                         + "\"message_type\":\"text\",\"chat_type\":\"group\",\"chat_id\":\"oc_1\","
@@ -185,7 +185,7 @@ class FeishuAdapterTest {
         assertEquals("m1", group.messageId);
 
         IncomingMessage direct = a.parseCallback(exchange(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{"
                         + "\"message\":{\"message_id\":\"m2\",\"message_type\":\"text\","
                         + "\"chat_type\":\"p2p\",\"content\":\"{\\\"text\\\":\\\" 你好 \\\"}\"}}}"));
         assertEquals(ImTypes.CHAT_TYPE_DIRECT, direct.chatType);
@@ -194,7 +194,7 @@ class FeishuAdapterTest {
         assertEquals("m2", direct.threadId); // root_id 缺省回落 message_id
 
         IncomingMessage file = a.parseCallback(exchange(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{"
                         + "\"message\":{\"message_id\":\"m3\",\"message_type\":\"file\","
                         + "\"chat_type\":\"p2p\",\"content\":"
                         + "\"{\\\"file_key\\\":\\\"fk1\\\",\\\"file_name\\\":\\\"a.pdf\\\"}\"}}}"));
@@ -203,7 +203,7 @@ class FeishuAdapterTest {
         assertEquals("a.pdf", file.fileName);
 
         IncomingMessage image = a.parseCallback(exchange(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{"
                         + "\"message\":{\"message_id\":\"m4\",\"message_type\":\"image\","
                         + "\"chat_type\":\"p2p\",\"content\":\"{\\\"image_key\\\":\\\"ik1\\\"}\"}}}"));
         assertEquals(ImTypes.MESSAGE_TYPE_IMAGE, image.messageType);
@@ -211,7 +211,7 @@ class FeishuAdapterTest {
         assertEquals("ik1.png", image.fileName);
 
         IncomingMessage post = a.parseCallback(exchange(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{"
                         + "\"message\":{\"message_id\":\"m5\",\"message_type\":\"post\","
                         + "\"chat_type\":\"p2p\",\"content\":\"{\\\"title\\\":\\\"标题\\\","
                         + "\\\"content\\\":[[{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"第一行\\\"}],"
@@ -221,9 +221,9 @@ class FeishuAdapterTest {
         assertEquals("标题\n第一行\n链接", post.content);
 
         // 未知事件类型 / 不支持的 message_type → null
-        assertNull(a.parseCallback(exchange("{\"header\":{\"event_type\":\"other\"}}")));
+        assertNull(a.parseCallback(exchange("{\"header\":{\"eventType\":\"other\"}}")));
         assertNull(a.parseCallback(exchange(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{"
                         + "\"message\":{\"message_id\":\"m6\",\"message_type\":\"audio\","
                         + "\"chat_type\":\"p2p\",\"content\":\"{}\"}}}")));
     }

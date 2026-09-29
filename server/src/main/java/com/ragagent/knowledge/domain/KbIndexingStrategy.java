@@ -2,24 +2,17 @@ package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * IndexingStrategy。
  * 注意 Scan 语义：DB NULL（迁移前老行）→ DefaultIndexingStrategy()（vector+keyword=true）。
  */
-@JsonPropertyOrder({"vector_enabled", "keyword_enabled", "wiki_enabled", "graph_enabled"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class KbIndexingStrategy {
 
-    @JsonProperty("vector_enabled")
     private boolean vectorEnabled;
-    @JsonProperty("keyword_enabled")
     private boolean keywordEnabled;
-    @JsonProperty("wiki_enabled")
     private boolean wikiEnabled;
-    @JsonProperty("graph_enabled")
     private boolean graphEnabled;
 
     public static KbIndexingStrategy defaultStrategy() {

@@ -427,7 +427,7 @@ class RemoteApiChatTest {
                 {
                   "choices":[{
                     "message":{
-                      "tool_calls":[{
+                      "toolCalls":[{
                         "id":"call_1",
                         "type":"function",
                         "function":{"name":"wiki_search","arguments":"{\\"query\\":\\"MACS\\"}"},
@@ -457,7 +457,7 @@ class RemoteApiChatTest {
                 {
                   "choices":[{
                     "delta":{
-                      "tool_calls":[{
+                      "toolCalls":[{
                         "index":0,
                         "id":"call_1",
                         "type":"function",
@@ -498,7 +498,7 @@ class RemoteApiChatTest {
     void cachedTokensHelper() throws IOException {
         assertEquals(0, PromptCache.cachedTokens(null), "nil details must return zero");
         assertEquals(0, PromptCache.cachedTokens(MAPPER.readTree("{}")), "empty details must return zero");
-        assertEquals(1234, PromptCache.cachedTokens(MAPPER.readTree("{\"cached_tokens\":1234}")),
+        assertEquals(1234, PromptCache.cachedTokens(MAPPER.readTree("{\"cachedTokens\":1234}")),
                 "populated cached_tokens must round-trip");
     }
 
@@ -510,8 +510,8 @@ class RemoteApiChatTest {
         JsonNode withDetails = MAPPER.readTree("""
                 {
                   "choices":[{"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],
-                  "usage":{"prompt_tokens":6929,"completion_tokens":42,"total_tokens":6971,
-                           "prompt_tokens_details":{"cached_tokens":6900}}
+                  "usage":{"promptTokens":6929,"completionTokens":42,"totalTokens":6971,
+                           "prompt_tokens_details":{"cachedTokens":6900}}
                 }""");
         ChatResponse got = chat.parseCompletionResponse(withDetails);
         assertEquals(6929, got.getUsage().getPromptTokens());
@@ -528,7 +528,7 @@ class RemoteApiChatTest {
         JsonNode withoutDetails = MAPPER.readTree("""
                 {
                   "choices":[{"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],
-                  "usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110}
+                  "usage":{"promptTokens":100,"completionTokens":10,"totalTokens":110}
                 }""");
         ChatResponse plain = chat.parseCompletionResponse(withoutDetails);
         assertEquals(0, plain.getUsage().getCachedTokens());
@@ -545,7 +545,7 @@ class RemoteApiChatTest {
         usage.setCompletionTokens(10);
         usage.setTotalTokens(4106);
         PromptCache.applyRawPromptCacheUsage(
-                "{\"usage\":{\"prompt_tokens\":4096,\"prompt_cache_hit_tokens\":3072,"
+                "{\"usage\":{\"promptTokens\":4096,\"prompt_cache_hit_tokens\":3072,"
                         + "\"prompt_cache_miss_tokens\":1024}}",
                 usage);
         assertEquals(3072, usage.getCacheReadTokens());
@@ -568,7 +568,7 @@ class RemoteApiChatTest {
         nonZero.setCompletionTokens(5);
         nonZero.setTotalTokens(15);
         nonZero.setPromptCacheUsage(7, 0, 3, true);
-        assertTrue(MAPPER.writeValueAsString(nonZero).contains("\"cached_tokens\":7"));
+        assertTrue(MAPPER.writeValueAsString(nonZero).contains("\"cachedTokens\":7"));
     }
 
     /** 对照 Go removeThinkingContent 的四个分支（>think< 开头才剥、取最后一个闭标签、截断返空）。 */
@@ -644,10 +644,10 @@ class RemoteApiChatTest {
                 byte[] out = """
                         {
                           "choices":[{"message":{"role":"assistant","content":"<think>x</think>hello",
-                                     "tool_calls":[{"id":"call_1","type":"function",
+                                     "toolCalls":[{"id":"call_1","type":"function",
                                        "function":{"name":"wiki_search","arguments":"{}"}}]},
                                      "finish_reason":"tool_calls"}],
-                          "usage":{"prompt_tokens":11,"completion_tokens":2,"total_tokens":13}
+                          "usage":{"promptTokens":11,"completionTokens":2,"totalTokens":13}
                         }""".getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, out.length);
@@ -684,17 +684,17 @@ class RemoteApiChatTest {
     @Test
     void chatStreamEndToEnd() throws Exception {
         String sse = """
-                data: {"choices":[{"index":0,"delta":{"reasoning_content":"think-1"}}]}
+                data: {"choices":[{"index":0,"delta":{"reasoningContent":"think-1"}}]}
 
-                data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"wiki_search"}}]}}]}
+                data: {"choices":[{"index":0,"delta":{"toolCalls":[{"index":0,"id":"call_1","type":"function","function":{"name":"wiki_search"}}]}}]}
 
-                data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"query\\":"}}]}}]}
+                data: {"choices":[{"index":0,"delta":{"toolCalls":[{"index":0,"function":{"arguments":"{\\"query\\":"}}]}}]}
 
-                data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"MACS\\"}"}}]}}]}
+                data: {"choices":[{"index":0,"delta":{"toolCalls":[{"index":0,"function":{"arguments":"\\"MACS\\"}"}}]}}]}
 
                 data: {"choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}
 
-                data: {"choices":[],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}
+                data: {"choices":[],"usage":{"promptTokens":7,"completionTokens":3,"totalTokens":10}}
 
                 data: [DONE]
 
@@ -760,14 +760,14 @@ class RemoteApiChatTest {
 
         // 第一个 delta：名字首次出现 + 已有 arguments + 已有 id → 名字还没稳定，不发
         chat.processStreamDelta(MAPPER.readTree("""
-                {"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function",
+                {"index":0,"delta":{"toolCalls":[{"index":0,"id":"call_1","type":"function",
                  "function":{"name":"wiki_search","arguments":"{\\"query\\":\\"MA"}}]},
                  "finish_reason":""}"""), state, ch, "");
         assertTrue(ch.isEmpty(), "名字首次出现的那一块不能发 tool_call 标记");
 
         // 第二个 delta：同一名字重复发全名（vLLM 行为）+ arguments 增量 → 这回发一次
         chat.processStreamDelta(MAPPER.readTree("""
-                {"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"wiki_search",
+                {"index":0,"delta":{"toolCalls":[{"index":0,"function":{"name":"wiki_search",
                  "arguments":"CS\\"}"}}]},"finish_reason":""}"""), state, ch, "");
         assertEquals(1, ch.size());
         StreamResponse marker = ch.poll();
@@ -777,7 +777,7 @@ class RemoteApiChatTest {
 
         // 第三个 delta：同名再来一次 → 不再重复发
         chat.processStreamDelta(MAPPER.readTree("""
-                {"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":" "}}]},
+                {"index":0,"delta":{"toolCalls":[{"index":0,"function":{"arguments":" "}}]},
                  "finish_reason":""}"""), state, ch, "");
         assertTrue(ch.isEmpty(), "tool_call 标记每个 index 只发一次");
     }
@@ -790,11 +790,11 @@ class RemoteApiChatTest {
         BlockingQueue<StreamResponse> ch = new java.util.concurrent.LinkedBlockingQueue<>();
 
         chat.processStreamDelta(MAPPER.readTree("""
-                {"delta":{"tool_calls":[{"index":0,"id":"call_9","type":"function",
+                {"delta":{"toolCalls":[{"index":0,"id":"call_9","type":"function",
                  "function":{"name":"thinking","arguments":"{\\"thought\\":\\"step "}}]}}"""),
                 state, ch, "");
         chat.processStreamDelta(MAPPER.readTree("""
-                {"delta":{"tool_calls":[{"index":0,"function":{"arguments":"one\\"}"}}]}}"""),
+                {"delta":{"toolCalls":[{"index":0,"function":{"arguments":"one\\"}"}}]}}"""),
                 state, ch, "");
 
         List<StreamResponse> thoughtChunks = new ArrayList<>();

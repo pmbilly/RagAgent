@@ -290,7 +290,7 @@ class OllamaChatTest {
         FakeOllamaService service = new FakeOllamaService();
         service.add("{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"thinking\":\"let me think\"},\"done\":false}");
         service.add("{\"message\":{\"role\":\"assistant\",\"content\":\"answer\"},\"done\":false}");
-        service.add("{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":["
+        service.add("{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"toolCalls\":["
                 + "{\"function\":{\"index\":0,\"name\":\"thinking\",\"arguments\":{\"thought\":\"deep thought\"}}},"
                 + "{\"function\":{\"index\":1,\"name\":\"lookup\",\"arguments\":{\"id\":\"42\"}}}]},\"done\":false}");
         service.add("{\"message\":{\"role\":\"assistant\",\"content\":\"\"},\"done\":true,"

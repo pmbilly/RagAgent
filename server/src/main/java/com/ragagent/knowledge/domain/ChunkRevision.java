@@ -6,8 +6,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * chunk_revisions 表实体。
@@ -26,49 +24,32 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * 按既有 Session.pinned 模式命名为 {@code enabled} + 列名 {@code is_enabled}。</p>
  */
 @TableName("chunk_revisions")
-@JsonPropertyOrder({
-        "id", "tenant_id", "knowledge_base_id", "knowledge_id", "chunk_id",
-        "revision", "content", "is_enabled", "editor_id", "edit_source",
-        "edited_at", "created_at",
-})
 public class ChunkRevision {
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId;
 
-    @JsonProperty("knowledge_id")
     private String knowledgeId;
 
-    @JsonProperty("chunk_id")
     private String chunkId;
 
-    @JsonProperty("revision")
     private int revision;
 
-    @JsonProperty("content")
     private String content;
 
     @TableField("is_enabled")
-    @JsonProperty("is_enabled")
     private boolean enabled;
 
-    @JsonProperty("editor_id")
     private String editorId;
 
-    @JsonProperty("edit_source")
     private String editSource;
 
-    @JsonProperty("edited_at")
     private OffsetDateTime editedAt;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
     public String getId() { return id; }

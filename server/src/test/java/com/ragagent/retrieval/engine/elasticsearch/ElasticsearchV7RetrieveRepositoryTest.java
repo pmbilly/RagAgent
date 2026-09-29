@@ -345,10 +345,10 @@ class ElasticsearchV7RetrieveRepositoryTest {
                 searchBodies.add(req.body());
                 return Resp.json(200, "{\"hits\":{\"hits\":["
                         + "{\"_id\":\"d1\",\"_score\":1.0,\"_source\":{\"content\":\"A\","
-                        + "\"source_id\":\"c1\",\"chunk_id\":\"c1\",\"knowledge_id\":\"k1\","
+                        + "\"source_id\":\"c1\",\"chunk_id\":\"c1\",\"knowledgeId\":\"k1\","
                         + "\"embedding\":[0.25,0.5]}},"
                         + "{\"_id\":\"d2\",\"_score\":1.0,\"_source\":{\"content\":\"Q\","
-                        + "\"source_id\":\"c1-q9\",\"chunk_id\":\"c1\",\"knowledge_id\":\"k1\","
+                        + "\"source_id\":\"c1-q9\",\"chunk_id\":\"c1\",\"knowledgeId\":\"k1\","
                         + "\"embedding\":[0.7]}}]}}");
             }
             return Resp.json(200, "{\"errors\":false,\"items\":[]}");

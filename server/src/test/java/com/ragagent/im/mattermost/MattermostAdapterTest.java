@@ -131,7 +131,7 @@ class MattermostAdapterTest {
     void parsesOutgoingBodies() {
         MattermostAdapter.OutgoingPayload json = MattermostAdapter.parseOutgoingBody(
                 "application/json; charset=utf-8",
-                "{\"token\":\"t1\",\"user_id\":\"u1\",\"channel_id\":\"c1\",\"text\":\"hi\"}"
+                "{\"token\":\"t1\",\"userId\":\"u1\",\"channel_id\":\"c1\",\"text\":\"hi\"}"
                         .getBytes(StandardCharsets.UTF_8));
         assertEquals("t1", json.token());
         assertEquals("c1", json.channelId());
@@ -182,12 +182,12 @@ class MattermostAdapterTest {
         MattermostAdapter a = adapter("tok", "bot-1", false);
 
         assertNull(a.parseCallback(exchange("application/json",
-                "{\"token\":\"tok\",\"user_id\":\"bot-1\",\"text\":\"hi\"}")));
+                "{\"token\":\"tok\",\"userId\":\"bot-1\",\"text\":\"hi\"}")));
         assertNull(a.parseCallback(exchange("application/json",
-                "{\"token\":\"tok\",\"user_id\":\"u1\",\"text\":\"   \"}")));
+                "{\"token\":\"tok\",\"userId\":\"u1\",\"text\":\"   \"}")));
 
         IncomingMessage withRoot = a.parseCallback(exchange("application/json",
-                "{\"token\":\"tok\",\"user_id\":\"u1\",\"user_name\":\"张三\","
+                "{\"token\":\"tok\",\"userId\":\"u1\",\"user_name\":\"张三\","
                         + "\"channel_id\":\"c1\",\"post_id\":\"p1\",\"root_id\":\"r1\","
                         + "\"text\":\" 问题 \"}"));
         assertEquals(ImTypes.PLATFORM_MATTERMOST, withRoot.platform);
@@ -203,7 +203,7 @@ class MattermostAdapterTest {
         // 无 root_id：查 GetPost 拿真根
         responder = c -> "{\"id\":\"p2\",\"root_id\":\"r9\"}";
         IncomingMessage resolved = a.parseCallback(exchange("application/json",
-                "{\"token\":\"tok\",\"user_id\":\"u1\",\"channel_id\":\"c1\","
+                "{\"token\":\"tok\",\"userId\":\"u1\",\"channel_id\":\"c1\","
                         + "\"post_id\":\"p2\",\"text\":\"x\"}"));
         assertEquals("r9", resolved.threadId);
         assertEquals("/api/v4/posts/p2", captured.get(captured.size() - 1).path());
@@ -212,14 +212,14 @@ class MattermostAdapterTest {
         responder = c -> "{}";
         captured.clear();
         IncomingMessage self = a.parseCallback(exchange("application/json",
-                "{\"token\":\"tok\",\"user_id\":\"u1\",\"channel_id\":\"c1\","
+                "{\"token\":\"tok\",\"userId\":\"u1\",\"channel_id\":\"c1\","
                         + "\"post_id\":\"p3\",\"text\":\"x\"}"));
         assertEquals("p3", self.threadId);
 
         // post_to_main=true → 线程根恒空（且不查 GetPost）
         captured.clear();
         IncomingMessage main = adapter("tok", "", true).parseCallback(exchange(
-                "application/json", "{\"token\":\"tok\",\"user_id\":\"u1\","
+                "application/json", "{\"token\":\"tok\",\"userId\":\"u1\","
                         + "\"channel_id\":\"c1\",\"post_id\":\"p4\",\"root_id\":\"r4\","
                         + "\"text\":\"x\"}"));
         assertEquals("", main.threadId);
@@ -227,7 +227,7 @@ class MattermostAdapterTest {
 
         // file_ids（JSON 数组，多枚 → extra 逗号连接）
         IncomingMessage files = a.parseCallback(exchange("application/json",
-                "{\"token\":\"tok\",\"user_id\":\"u1\",\"channel_id\":\"c1\","
+                "{\"token\":\"tok\",\"userId\":\"u1\",\"channel_id\":\"c1\","
                         + "\"post_id\":\"p5\",\"file_ids\":[\"f1\",\"f2\"],\"text\":\"\"}"));
         assertEquals(ImTypes.MESSAGE_TYPE_FILE, files.messageType);
         assertEquals("f1", files.fileKey);

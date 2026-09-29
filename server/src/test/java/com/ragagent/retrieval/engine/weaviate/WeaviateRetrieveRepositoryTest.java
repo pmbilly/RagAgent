@@ -275,7 +275,7 @@ class WeaviateRetrieveRepositoryTest {
         responses.put("POST /v1/graphql",
                 "{\"data\":{\"Get\":{\"Weknora_embeddings_2\":[{\"content\":\"hello\","
                         + "\"source_id\":\"s1\",\"source_type\":0,\"chunk_id\":\"c1\","
-                        + "\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"kb1\",\"tag_id\":\"\","
+                        + "\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"kb1\",\"tag_id\":\"\","
                         + "\"_additional\":{\"id\":\"p1\",\"certainty\":0.93}}]}}}");
         WeaviateRetrieveRepository repo = repo("Weknora_embeddings");
         RetrieveParams params = new RetrieveParams();
@@ -384,12 +384,12 @@ class WeaviateRetrieveRepositoryTest {
         responses.put("POST /v1/graphql",
                 "{\"data\":{\"Get\":{\"Weknora_embeddings_2\":["
                         + "{\"content\":\"a\",\"source_id\":\"" + c1 + "\",\"source_type\":0,"
-                        + "\"chunk_id\":\"" + c1 + "\",\"knowledge_id\":\"k1\","
-                        + "\"knowledge_base_id\":\"srcKb\",\"tag_id\":\"t\","
+                        + "\"chunk_id\":\"" + c1 + "\",\"knowledgeId\":\"k1\","
+                        + "\"knowledgeBaseId\":\"srcKb\",\"tag_id\":\"t\","
                         + "\"_additional\":{\"id\":\"p1\",\"vectors\":{\"embedding\":[0.5,0.25]}}},"
                         + "{\"content\":\"b\",\"source_id\":\"" + c1 + "-q7\",\"source_type\":0,"
-                        + "\"chunk_id\":\"" + c1 + "\",\"knowledge_id\":\"k1\","
-                        + "\"knowledge_base_id\":\"srcKb\",\"tag_id\":\"\","
+                        + "\"chunk_id\":\"" + c1 + "\",\"knowledgeId\":\"k1\","
+                        + "\"knowledgeBaseId\":\"srcKb\",\"tag_id\":\"\","
                         + "\"_additional\":{\"id\":\"p2\",\"vectors\":{\"embedding\":[0.1]}}}"
                         + "]}}}");
         responses.put("PUT /v1/objects", null);

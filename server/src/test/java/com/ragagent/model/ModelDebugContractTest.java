@@ -125,7 +125,7 @@ class ModelDebugContractTest {
         } else if (path.endsWith("/embeddings")) {
             respondJson(ex, 200, "{\"object\":\"list\",\"data\":[{\"object\":\"embedding\",\"index\":0,"
                     + "\"embedding\":[0.1,0.2,0.3]}],\"model\":\"stub-model\","
-                    + "\"usage\":{\"prompt_tokens\":2,\"total_tokens\":2}}");
+                    + "\"usage\":{\"promptTokens\":2,\"totalTokens\":2}}");
         } else if (path.endsWith("/rerank")) {
             respondJson(ex, 200, "{\"results\":[{\"index\":0,\"relevance_score\":0.99}],"
                     + "\"model\":\"stub-model\"}");
@@ -146,7 +146,7 @@ class ModelDebugContractTest {
         }
         String model = req.path("model").asText("stub-model");
         boolean stream = req.path("stream").asBoolean(false);
-        String usage = "\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":9,\"total_tokens\":21}";
+        String usage = "\"usage\":{\"promptTokens\":12,\"completionTokens\":9,\"totalTokens\":21}";
         if (!stream) {
             respondJson(ex, 200, "{\"id\":\"chatcmpl-stub46d\",\"object\":\"chat.completion\","
                     + "\"created\":1735689600,\"model\":\"" + model + "\",\"choices\":[{\"index\":0,"

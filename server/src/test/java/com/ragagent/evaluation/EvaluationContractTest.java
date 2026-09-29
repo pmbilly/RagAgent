@@ -137,7 +137,7 @@ class EvaluationContractTest {
     @Test
     void postUnknownKbMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(json(post("/api/v1/evaluation"), owner,
-                "{\"knowledge_base_id\":\"" + UNKNOWN_KB + "\",\"chat_id\":\"fake-chat-model-id\"}"))
+                "{\"knowledgeBaseId\":\"" + UNKNOWN_KB + "\",\"chat_id\":\"fake-chat-model-id\"}"))
                 .andReturn();
         assertEquals(500, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("ev-post-kb-missing.json"), raw(r));
@@ -168,7 +168,7 @@ class EvaluationContractTest {
     @Test
     void postSuccessMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(json(post("/api/v1/evaluation"), owner,
-                "{\"knowledge_base_id\":\"" + KB_ID + "\",\"chat_id\":\"fake-chat-model-id\"}"))
+                "{\"knowledgeBaseId\":\"" + KB_ID + "\",\"chat_id\":\"fake-chat-model-id\"}"))
                 .andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("ev-post.json")), mask(raw(r)));
@@ -181,7 +181,7 @@ class EvaluationContractTest {
     @Test
     void getTerminalRunsExecution() throws Exception {
         MvcResult created = mockMvc.perform(json(post("/api/v1/evaluation"), owner,
-                "{\"knowledge_base_id\":\"" + KB_ID + "\",\"chat_id\":\"fake-chat-model-id\"}"))
+                "{\"knowledgeBaseId\":\"" + KB_ID + "\",\"chat_id\":\"fake-chat-model-id\"}"))
                 .andReturn();
         Matcher m = TASK_ID.matcher(raw(created));
         assertThat(m.find()).isTrue();

@@ -350,8 +350,8 @@ class WikiConnectorStreamTest {
             int status = failTokens.contains(token) ? 3 : 0;
             FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
                     + "\"file_token\":" + FeishuTestServer.jsonString("file-" + token)
-                    + ",\"file_size\":100,\"job_status\":" + status
-                    + ",\"job_error_msg\":\"rate limited\",\"file_name\":\"exported.docx\"}}}");
+                    + ",\"fileSize\":100,\"job_status\":" + status
+                    + ",\"job_error_msg\":\"rate limited\",\"fileName\":\"exported.docx\"}}}");
         });
 
         DataSourceConfig ds = config(List.of("space1"));

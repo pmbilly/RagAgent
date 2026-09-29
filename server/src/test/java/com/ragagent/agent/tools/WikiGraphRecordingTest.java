@@ -136,7 +136,7 @@ class WikiGraphRecordingTest {
     void graphHit() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("graph_hit", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb1\"],\"query\":\"Docker 和 Kubernetes 的关系\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb1\"],\"query\":\"Docker 和 Kubernetes 的关系\"}")),
                 rec("query_knowledge_graph_graph_hit"));
     }
 
@@ -144,7 +144,7 @@ class WikiGraphRecordingTest {
     void graphNoConfig() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("graph_no_config", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb2\"],\"query\":\"anything\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb2\"],\"query\":\"anything\"}")),
                 rec("query_knowledge_graph_graph_no_config"));
     }
 
@@ -152,7 +152,7 @@ class WikiGraphRecordingTest {
     void graphEmptyConfig() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("graph_empty_config", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb6\"],\"query\":\"anything\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb6\"],\"query\":\"anything\"}")),
                 rec("query_knowledge_graph_graph_empty_config"));
     }
 
@@ -160,7 +160,7 @@ class WikiGraphRecordingTest {
     void graphEmpty() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("graph_empty", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb4\"],\"query\":\"nothing matches\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb4\"],\"query\":\"nothing matches\"}")),
                 rec("query_knowledge_graph_graph_empty"));
     }
 
@@ -168,7 +168,7 @@ class WikiGraphRecordingTest {
     void graphKbMissing() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("graph_kb_missing", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb3\"],\"query\":\"anything\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb3\"],\"query\":\"anything\"}")),
                 rec("query_knowledge_graph_graph_kb_missing"));
     }
 
@@ -176,7 +176,7 @@ class WikiGraphRecordingTest {
     void graphSearchError() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("graph_search_error", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb5\"],\"query\":\"anything\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb5\"],\"query\":\"anything\"}")),
                 rec("query_knowledge_graph_graph_search_error"));
     }
 
@@ -184,7 +184,7 @@ class WikiGraphRecordingTest {
     void graphMixed() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("graph_mixed", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb1\",\"gkb2\"],\"query\":\"Docker\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb1\",\"gkb2\"],\"query\":\"Docker\"}")),
                 rec("query_knowledge_graph_graph_mixed"));
     }
 
@@ -192,13 +192,13 @@ class WikiGraphRecordingTest {
     void validation() {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), null, null);
         assertToolResult("validation_no_kb", tool.execute(req(
-                "{\"knowledge_base_ids\":[],\"query\":\"x\"}")),
+                "{\"knowledgeBaseIds\":[],\"query\":\"x\"}")),
                 rec("query_knowledge_graph_validation_no_kb"));
         assertToolResult("validation_too_many", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\",\"j\",\"k\"],\"query\":\"x\"}")),
+                "{\"knowledgeBaseIds\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\",\"j\",\"k\"],\"query\":\"x\"}")),
                 rec("query_knowledge_graph_validation_too_many"));
         assertToolResult("validation_empty_query", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb1\"],\"query\":\"\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb1\"],\"query\":\"\"}")),
                 rec("query_knowledge_graph_validation_empty_query"));
     }
 
@@ -208,7 +208,7 @@ class WikiGraphRecordingTest {
                 SearchTarget.wholeKb("gkb1", 10002)));
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), targets, null);
         assertToolResult("scope_kb_outside", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb2\"],\"query\":\"x\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb2\"],\"query\":\"x\"}")),
                 rec("query_knowledge_graph_scope_kb_outside"));
     }
 
@@ -219,7 +219,7 @@ class WikiGraphRecordingTest {
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), targets,
                 tagsOf(Map.of()));
         assertToolResult("scope_whole_kb", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb1\"],\"query\":\"Docker\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb1\"],\"query\":\"Docker\"}")),
                 rec("query_knowledge_graph_scope_whole_kb"));
     }
 
@@ -230,7 +230,7 @@ class WikiGraphRecordingTest {
                         List.of("gd1"), null, null, false)));
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), targets, tagsOf(Map.of()));
         assertToolResult("scope_whitelist", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb1\"],\"query\":\"Docker\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb1\"],\"query\":\"Docker\"}")),
                 rec("query_knowledge_graph_scope_whitelist"));
     }
 
@@ -242,7 +242,7 @@ class WikiGraphRecordingTest {
         Map<String, List<TagView>> tags = Map.of("gd2", List.of(new TagView("gt1")));
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(graphKBs(), targets, tagsOf(tags));
         assertToolResult("scope_tag", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb1\"],\"query\":\"Docker\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb1\"],\"query\":\"Docker\"}")),
                 rec("query_knowledge_graph_scope_tag"));
     }
 
@@ -255,7 +255,7 @@ class WikiGraphRecordingTest {
                 new SearchResultView("gc9", 0.9, "wrong kb", "gd9", "gkbX", "别的库", 0, "text", 6))));
         QueryKnowledgeGraphTool tool = new QueryKnowledgeGraphTool(kb, targets, tagsOf(Map.of()));
         assertToolResult("scope_kb_mismatch", tool.execute(req(
-                "{\"knowledge_base_ids\":[\"gkb1\"],\"query\":\"Docker\"}")),
+                "{\"knowledgeBaseIds\":[\"gkb1\"],\"query\":\"Docker\"}")),
                 rec("query_knowledge_graph_scope_kb_mismatch"));
     }
 }

@@ -219,24 +219,24 @@ class DocToolsRecordingTest {
 
         WikiReadSourceDocTool tool = new WikiReadSourceDocTool(kn, repo, collector, null);
 
-        assertToolResult("src_preview", tool.execute(req("{\"knowledge_id\":\"d1\"}")),
+        assertToolResult("src_preview", tool.execute(req("{\"knowledgeId\":\"d1\"}")),
                 rec("wiki_read_source_doc_src_preview"));
-        assertToolResult("src_query", tool.execute(req("{\"knowledge_id\":\"d1\",\"query\":\"退款\"}")),
+        assertToolResult("src_query", tool.execute(req("{\"knowledgeId\":\"d1\",\"query\":\"退款\"}")),
                 rec("wiki_read_source_doc_src_query"));
         assertToolResult("src_query_nomatch",
-                tool.execute(req("{\"knowledge_id\":\"d1\",\"query\":\"不存在xyz\"}")),
+                tool.execute(req("{\"knowledgeId\":\"d1\",\"query\":\"不存在xyz\"}")),
                 rec("wiki_read_source_doc_src_query_nomatch"));
         assertToolResult("src_range",
-                tool.execute(req("{\"knowledge_id\":\"d1\",\"start_chunk_index\":2,\"end_chunk_index\":3}")),
+                tool.execute(req("{\"knowledgeId\":\"d1\",\"start_chunk_index\":2,\"end_chunk_index\":3}")),
                 rec("wiki_read_source_doc_src_range"));
         assertToolResult("src_range_window",
-                tool.execute(req("{\"knowledge_id\":\"d1\",\"start_chunk_index\":2}")),
+                tool.execute(req("{\"knowledgeId\":\"d1\",\"start_chunk_index\":2}")),
                 rec("wiki_read_source_doc_src_range_window"));
         assertToolResult("src_range_oob",
-                tool.execute(req("{\"knowledge_id\":\"d1\",\"start_chunk_index\":10,\"end_chunk_index\":12}")),
+                tool.execute(req("{\"knowledgeId\":\"d1\",\"start_chunk_index\":10,\"end_chunk_index\":12}")),
                 rec("wiki_read_source_doc_src_range_oob"));
         assertToolResult("src_range_clamp",
-                tool.execute(req("{\"knowledge_id\":\"d1\",\"start_chunk_index\":1,\"end_chunk_index\":99}")),
+                tool.execute(req("{\"knowledgeId\":\"d1\",\"start_chunk_index\":1,\"end_chunk_index\":99}")),
                 rec("wiki_read_source_doc_src_range_clamp"));
     }
 
@@ -254,7 +254,7 @@ class DocToolsRecordingTest {
         FakeImageCollector imgCollector = new FakeImageCollector();
         imgCollector.merged.put("q1", MERGED_P1);
         WikiReadSourceDocTool imgTool = new WikiReadSourceDocTool(kn, imgRepo, imgCollector, null);
-        assertToolResult("src_images", imgTool.execute(req("{\"knowledge_id\":\"d1\"}")),
+        assertToolResult("src_images", imgTool.execute(req("{\"knowledgeId\":\"d1\"}")),
                 rec("wiki_read_source_doc_src_images"));
 
         // src_cap20
@@ -268,7 +268,7 @@ class DocToolsRecordingTest {
         capRepo.byKnowledge.put("d1", capChunks);
         capRepo.totals.put("d1", 22L);
         WikiReadSourceDocTool capTool = new WikiReadSourceDocTool(kn, capRepo, null, null);
-        assertToolResult("src_cap20", capTool.execute(req("{\"knowledge_id\":\"d1\",\"query\":\"目标词\"}")),
+        assertToolResult("src_cap20", capTool.execute(req("{\"knowledgeId\":\"d1\",\"query\":\"目标词\"}")),
                 rec("wiki_read_source_doc_src_cap20"));
     }
 
@@ -280,23 +280,23 @@ class DocToolsRecordingTest {
         WikiReadSourceDocTool tool = new WikiReadSourceDocTool(kn, repo, null, null);
         assertToolResult("src_blank_id", tool.execute(req("{}")),
                 rec("wiki_read_source_doc_src_blank_id"));
-        assertToolResult("src_service_err", tool.execute(req("{\"knowledge_id\":\"d9\"}")),
+        assertToolResult("src_service_err", tool.execute(req("{\"knowledgeId\":\"d9\"}")),
                 rec("wiki_read_source_doc_src_service_err"));
 
         FakeKnowledge missing = new FakeKnowledge();
         WikiReadSourceDocTool missingTool = new WikiReadSourceDocTool(missing, repo, null, null);
-        assertToolResult("src_not_found", missingTool.execute(req("{\"knowledge_id\":\"d1\"}")),
+        assertToolResult("src_not_found", missingTool.execute(req("{\"knowledgeId\":\"d1\"}")),
                 rec("wiki_read_source_doc_src_not_found"));
 
         WikiReadSourceDocTool scoped = new WikiReadSourceDocTool(kn, repo, null, kb2OnlyTargets());
-        assertToolResult("src_scope_denied", scoped.execute(req("{\"knowledge_id\":\"d1\"}")),
+        assertToolResult("src_scope_denied", scoped.execute(req("{\"knowledgeId\":\"d1\"}")),
                 rec("wiki_read_source_doc_src_scope_denied"));
 
         FakeImageCollector collector = new FakeImageCollector();
         collector.merged.put("p1", MERGED_P1);
         WikiReadSourceDocTool allowed = new WikiReadSourceDocTool(kn, repo, collector, kb1Targets());
         assertToolResult("src_scope_allowed",
-                allowed.execute(req("{\"knowledge_id\":\"d1\",\"query\":\"退款\"}")),
+                allowed.execute(req("{\"knowledgeId\":\"d1\",\"query\":\"退款\"}")),
                 rec("wiki_read_source_doc_src_scope_allowed"));
     }
 
@@ -332,19 +332,19 @@ class DocToolsRecordingTest {
 
         GetDocumentInfoTool tool = new GetDocumentInfoTool(kn, byID::get, repo, kb1Targets());
 
-        assertToolResult("info_basic", tool.execute(req("{\"knowledge_ids\":[\"d1\",\"d2\"]}")),
+        assertToolResult("info_basic", tool.execute(req("{\"knowledgeIds\":[\"d1\",\"d2\"]}")),
                 rec("get_document_info_info_basic"));
         assertToolResult("info_faq", tool.execute(req("{\"faq_ids\":[\"c1\"]}")),
                 rec("get_document_info_info_faq"));
         assertToolResult("info_mixed",
-                tool.execute(req("{\"knowledge_ids\":[\"d1\",\"d9\"],\"faq_ids\":[\"c1\",\"c2\"]}")),
+                tool.execute(req("{\"knowledgeIds\":[\"d1\",\"d9\"],\"faq_ids\":[\"c1\",\"c2\"]}")),
                 rec("get_document_info_info_mixed"));
-        assertToolResult("info_all_fail", tool.execute(req("{\"knowledge_ids\":[\"d9\"]}")),
+        assertToolResult("info_all_fail", tool.execute(req("{\"knowledgeIds\":[\"d9\"]}")),
                 rec("get_document_info_info_all_fail"));
         assertToolResult("info_empty", tool.execute(req("{}")),
                 rec("get_document_info_info_empty"));
         assertToolResult("info_filesize",
-                tool.execute(req("{\"knowledge_ids\":[\"ds1\",\"ds2\",\"ds3\"]}")),
+                tool.execute(req("{\"knowledgeIds\":[\"ds1\",\"ds2\",\"ds3\"]}")),
                 rec("get_document_info_info_filesize"));
     }
 
@@ -376,17 +376,17 @@ class DocToolsRecordingTest {
         ListKnowledgeChunksTool tool = new ListKnowledgeChunksTool(kn, byID::get, repo,
                 new FakeImageCollector(), kb1Targets());
 
-        assertToolResult("list_knowledge", tool.execute(req("{\"knowledge_id\":\"d1\",\"limit\":2}")),
+        assertToolResult("list_knowledge", tool.execute(req("{\"knowledgeId\":\"d1\",\"limit\":2}")),
                 rec("list_knowledge_chunks_list_knowledge"));
         assertToolResult("list_paged",
-                tool.execute(req("{\"knowledge_id\":\"d1\",\"limit\":1,\"offset\":2}")),
+                tool.execute(req("{\"knowledgeId\":\"d1\",\"limit\":1,\"offset\":2}")),
                 rec("list_knowledge_chunks_list_paged"));
         assertToolResult("list_oob",
-                tool.execute(req("{\"knowledge_id\":\"d1\",\"limit\":2,\"offset\":5}")),
+                tool.execute(req("{\"knowledgeId\":\"d1\",\"limit\":2,\"offset\":5}")),
                 rec("list_knowledge_chunks_list_oob"));
-        assertToolResult("list_empty", tool.execute(req("{\"knowledge_id\":\"d0\"}")),
+        assertToolResult("list_empty", tool.execute(req("{\"knowledgeId\":\"d0\"}")),
                 rec("list_knowledge_chunks_list_empty"));
-        assertToolResult("list_images", tool.execute(req("{\"knowledge_id\":\"d2\"}")),
+        assertToolResult("list_images", tool.execute(req("{\"knowledgeId\":\"d2\"}")),
                 rec("list_knowledge_chunks_list_images"));
         assertToolResult("list_faq", tool.execute(req("{\"faq_id\":\"c1\"}")),
                 rec("list_knowledge_chunks_list_faq"));
@@ -397,7 +397,7 @@ class DocToolsRecordingTest {
 
         ListKnowledgeChunksTool kb2Tool = new ListKnowledgeChunksTool(kn, byID::get, repo,
                 new FakeImageCollector(), kb2OnlyTargets());
-        assertToolResult("list_unauthorized", kb2Tool.execute(req("{\"knowledge_id\":\"d1\"}")),
+        assertToolResult("list_unauthorized", kb2Tool.execute(req("{\"knowledgeId\":\"d1\"}")),
                 rec("list_knowledge_chunks_list_unauthorized"));
     }
 }

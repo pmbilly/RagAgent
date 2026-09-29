@@ -7,8 +7,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
@@ -24,82 +22,46 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * 索引同步处，实体上无此方法即无此坑。</p>
  */
 @TableName(value = "chunks", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "seq_id", "tenant_id", "knowledge_id", "knowledge_base_id", "tag_id",
-        "content", "content_revision", "index_status", "last_editor_id", "chunk_index",
-        "is_enabled", "flags", "status", "start_at", "end_at",
-        "pre_chunk_id", "next_chunk_id", "chunk_type", "parent_chunk_id",
-        "relation_chunks", "indirect_relation_chunks", "metadata",
-        "content_hash", "image_info", "created_at", "updated_at", "deleted_at",
-})
 public class Chunk {
 
     @TableId(type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
-    @JsonProperty("seq_id")
     private Long seqId;
-    @JsonProperty("tenant_id")
     private Long tenantId;
-    @JsonProperty("knowledge_id")
     private String knowledgeId;
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId;
-    @JsonProperty("tag_id")
     private String tagId;
-    @JsonProperty("content")
     private String content;
     /** 不可变解析原文（json:"-"，无 JSON 输出） */
     @JsonIgnore
     private String sourceContent;
-    @JsonProperty("content_revision")
     private int contentRevision;
-    @JsonProperty("index_status")
     private String indexStatus = "ready";
-    @JsonProperty("last_editor_id")
     private String lastEditorId;
-    @JsonProperty("chunk_index")
     private int chunkIndex;
-    @JsonProperty("is_enabled")
     private boolean isEnabled = true;
-    @JsonProperty("flags")
     private int flags = 1;
-    @JsonProperty("status")
     private int status;
     /** rune 偏移 */
-    @JsonProperty("start_at")
     private int startAt;
-    @JsonProperty("end_at")
     private int endAt;
-    @JsonProperty("pre_chunk_id")
     private String preChunkId;
-    @JsonProperty("next_chunk_id")
     private String nextChunkId;
-    @JsonProperty("chunk_type")
     private String chunkType = "text";
-    @JsonProperty("parent_chunk_id")
     private String parentChunkId;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("relation_chunks")
     private JsonNode relationChunks;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("indirect_relation_chunks")
     private JsonNode indirectRelationChunks;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("metadata")
     private JsonNode metadata;
-    @JsonProperty("content_hash")
     private String contentHash;
-    @JsonProperty("image_info")
     private String imageInfo;
     /** 标题面包屑（json:"-"）；索引用 ContextHeader+"\n\n"+Content */
     @JsonIgnore
     private String contextHeader;
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     public String getId() { return id; }
@@ -126,7 +88,6 @@ public class Chunk {
     public void setLastEditorId(String v) { lastEditorId = v; }
     public int getChunkIndex() { return chunkIndex; }
     public void setChunkIndex(int v) { chunkIndex = v; }
-    @JsonProperty("is_enabled")
     public boolean isIsEnabled() { return isEnabled; }
     public void setIsEnabled(boolean v) { isEnabled = v; }
     public int getFlags() { return flags; }

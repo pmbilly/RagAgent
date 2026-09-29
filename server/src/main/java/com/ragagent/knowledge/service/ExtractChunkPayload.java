@@ -2,8 +2,6 @@ package com.ragagent.knowledge.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
@@ -15,23 +13,21 @@ import com.ragagent.common.context.TracingContext;
  * postprocess 阶段）。</p>
  * Java 侧同形，空值整键省略。</p>
  */
-@JsonPropertyOrder({"tenant_id", "chunk_id", "model_id", "knowledge_id", "attempt", "chunk_index",
-        "lf_trace_id", "lf_parent_obs_id", "lf_traceparent", "lf_user_id", "lf_session_id"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ExtractChunkPayload(
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("chunk_id") String chunkId,
-        @JsonProperty("model_id") String modelId,
+        long tenantId,
+        String chunkId,
+        String modelId,
         /** 关联回父 attempt 的 postprocess 阶段（0/"" = 跳过 span 记录）。 */
-        @JsonProperty("knowledge_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String knowledgeId,
-        @JsonProperty("attempt") @JsonInclude(JsonInclude.Include.NON_DEFAULT) int attempt,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String knowledgeId,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) int attempt,
         /** 该分块在父知识文本分块集中的 0 基序数（子 span 名后缀 {@code chunk[i]}）。 */
-        @JsonProperty("chunk_index") @JsonInclude(JsonInclude.Include.NON_DEFAULT) int chunkIndex,
-        @JsonProperty("lf_trace_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
-        @JsonProperty("lf_parent_obs_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
-        @JsonProperty("lf_traceparent") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
-        @JsonProperty("lf_user_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
-        @JsonProperty("lf_session_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) int chunkIndex,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

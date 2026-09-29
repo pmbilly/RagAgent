@@ -303,7 +303,7 @@ class WechatAdapterTest {
 
         IncomingMessage file = c.parseMessage(json("{\"message_type\":1,\"message_id\":44,"
                 + "\"from_user_id\":\"u\",\"item_list\":[{\"type\":4,\"file_item\":"
-                + "{\"file_name\":\"\",\"len\":\"2048\",\"media\":{\"encrypt_query_param\":\"p2\","
+                + "{\"fileName\":\"\",\"len\":\"2048\",\"media\":{\"encrypt_query_param\":\"p2\","
                 + "\"aes_key\":\"b64\"}}}]}"));
         assertEquals(ImTypes.MESSAGE_TYPE_FILE, file.messageType);
         assertEquals("file_44", file.fileName);

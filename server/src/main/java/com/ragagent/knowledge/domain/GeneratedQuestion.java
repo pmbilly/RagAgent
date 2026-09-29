@@ -2,7 +2,6 @@ package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 生成问题。
@@ -17,14 +16,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GeneratedQuestion {
 
-    @JsonProperty("id")
     private String id;
 
-    @JsonProperty("question")
     private String question;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonProperty("content_revision")
     private Integer contentRevision;
 
     public GeneratedQuestion() { }

@@ -103,7 +103,7 @@ class FeishuLongConnClientTest {
         c.setAckSink(sink);
 
         c.handleFrame(dataFrame("event", Map.of(),
-                "{\"schema\":\"2.0\",\"header\":{\"event_type\":\"im.message.receive_v1\"},"
+                "{\"schema\":\"2.0\",\"header\":{\"eventType\":\"im.message.receive_v1\"},"
                         + "\"event\":{\"sender\":{\"sender_id\":{\"open_id\":\"ou_1\"}},"
                         + "\"message\":{\"message_id\":\"m1\",\"message_type\":\"text\","
                         + "\"chat_type\":\"p2p\",\"content\":\"{\\\"text\\\":\\\"你好\\\"}\"}}}"));
@@ -135,7 +135,7 @@ class FeishuLongConnClientTest {
 
         // 未知 event_type → 转换返回 null，但仍回 200（照 Go 的分发器语义）
         c.handleFrame(dataFrame("event", Map.of(),
-                "{\"header\":{\"event_type\":\"im.chat.updated_v1\"},\"event\":{}}"));
+                "{\"header\":{\"eventType\":\"im.chat.updated_v1\"},\"event\":{}}"));
         assertEquals(200, codeOf(sink.frames.get(0)));
         assertTrue(received.isEmpty());
 
@@ -146,7 +146,7 @@ class FeishuLongConnClientTest {
         RecordingSink failSink = new RecordingSink();
         failing.setAckSink(failSink);
         failing.handleFrame(dataFrame("event", Map.of(),
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":"
                         + "{\"message\":{\"message_id\":\"m2\",\"message_type\":\"text\","
                         + "\"content\":\"{\\\"text\\\":\\\"x\\\"}\"}}}"));
         assertEquals(500, codeOf(failSink.frames.get(0)));
@@ -160,7 +160,7 @@ class FeishuLongConnClientTest {
         RecordingSink sink = new RecordingSink();
         c.setAckSink(sink);
 
-        String head = "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":"
+        String head = "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":"
                 + "{\"message\":{\"message_id\":\"m9\",\"message_type\":\"text\",";
         String tail = "\"content\":\"{\\\"text\\\":\\\"拼片\\\"}\"}}}";
 
@@ -213,7 +213,7 @@ class FeishuLongConnClientTest {
     @DisplayName("转换：群聊剥 @_user_；file/image；post 取首图按图片消息；未知类型 null；不设 threadId")
     void convertsEvents() throws Exception {
         IncomingMessage group = LarkEventConverter.convert(FeishuRegion.FEISHU, utf8(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{"
                         + "\"sender\":{\"sender_id\":{\"open_id\":\"ou_9\"}},"
                         + "\"message\":{\"message_id\":\"m1\",\"root_id\":\"r1\","
                         + "\"message_type\":\"text\",\"chat_type\":\"group\",\"chat_id\":\"oc_1\","
@@ -224,7 +224,7 @@ class FeishuLongConnClientTest {
         assertEquals("", group.threadId);   // root_id 存在也不填（照 Go 的长连接分支）
 
         IncomingMessage file = LarkEventConverter.convert(FeishuRegion.FEISHU, utf8(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{\"message\":"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{\"message\":"
                         + "{\"message_id\":\"m2\",\"message_type\":\"file\",\"content\":"
                         + "\"{\\\"file_key\\\":\\\"fk1\\\",\\\"file_name\\\":\\\"a.pdf\\\"}\"}}}"));
         assertEquals(ImTypes.MESSAGE_TYPE_FILE, file.messageType);
@@ -232,7 +232,7 @@ class FeishuLongConnClientTest {
         assertEquals("a.pdf", file.fileName);
 
         IncomingMessage image = LarkEventConverter.convert(FeishuRegion.FEISHU, utf8(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{\"message\":"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{\"message\":"
                         + "{\"message_id\":\"m3\",\"message_type\":\"image\",\"content\":"
                         + "\"{\\\"image_key\\\":\\\"ik1\\\"}\"}}}"));
         assertEquals(ImTypes.MESSAGE_TYPE_IMAGE, image.messageType);
@@ -240,7 +240,7 @@ class FeishuLongConnClientTest {
 
         // post：文本 + 首图 → 图片消息（webhook 分支只取文本，长连接取图——照 Go 的分歧）
         IncomingMessage post = LarkEventConverter.convert(FeishuRegion.FEISHU, utf8(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{\"message\":"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{\"message\":"
                         + "{\"message_id\":\"m4\",\"message_type\":\"post\",\"content\":"
                         + "\"{\\\"title\\\":\\\"标题\\\",\\\"content\\\":[[{\\\"tag\\\":\\\"text\\\","
                         + "\\\"text\\\":\\\"正文\\\"},{\\\"tag\\\":\\\"img\\\",\\\"image_key\\\":"
@@ -252,15 +252,15 @@ class FeishuLongConnClientTest {
 
         // post 仅文本 → 文本消息；全空 → null
         IncomingMessage textOnly = LarkEventConverter.convert(FeishuRegion.FEISHU, utf8(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{\"message\":"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{\"message\":"
                         + "{\"message_id\":\"m5\",\"message_type\":\"post\",\"content\":"
                         + "\"{\\\"content\\\":[[{\\\"tag\\\":\\\"at\\\",\\\"user_id\\\":\\\"u\\\"}]]}\"}}}"));
         assertEquals(null, textOnly);
 
         assertEquals(null, LarkEventConverter.convert(FeishuRegion.FEISHU, utf8(
-                "{\"header\":{\"event_type\":\"im.chat.updated_v1\"},\"event\":{}}")));
+                "{\"header\":{\"eventType\":\"im.chat.updated_v1\"},\"event\":{}}")));
         assertEquals(null, LarkEventConverter.convert(FeishuRegion.FEISHU, utf8(
-                "{\"header\":{\"event_type\":\"im.message.receive_v1\"},\"event\":{\"message\":"
+                "{\"header\":{\"eventType\":\"im.message.receive_v1\"},\"event\":{\"message\":"
                         + "{\"message_id\":\"m6\",\"message_type\":\"audio\",\"content\":\"{}\"}}}")));
 
         assertFalse(FeishuRegion.FEISHU.platform().isEmpty());

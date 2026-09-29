@@ -117,7 +117,7 @@ final class Engine46bStubSupport {
                 }
                 sb.append("{\"type\":").append(jsonStr(e.type()))
                         .append(",\"id\":").append(jsonStr(e.id()))
-                        .append(",\"session_id\":").append(jsonStr(e.sessionId()))
+                        .append(",\"sessionId\":").append(jsonStr(e.sessionId()))
                         .append(",\"data\":").append(e.dataJson()).append('}');
             }
             return sb.append(']').toString();

@@ -90,7 +90,7 @@ class KnowledgeOperationsContractTest {
     private static final String DOC_BYTES = "kg golden download bytes\nline two\n";
     private static final String KG4_METADATA =
             "{\"content\":\"# 手工知识\\n\\n初始内容\",\"format\":\"markdown\","
-                    + "\"status\":\"publish\",\"version\":1,\"updated_at\":\"2026-09-01T00:00:00Z\"}";
+                    + "\"status\":\"publish\",\"version\":1,\"updatedAt\":\"2026-09-01T00:00:00Z\"}";
     private static final String C2_IMAGE_INFO =
             "[{\"url\":\"resource://img-1\",\"original_url\":\"\",\"start_pos\":0,\"end_pos\":0,"
                     + "\"caption\":\"图一\",\"ocr_text\":\"\"}]";

@@ -150,7 +150,7 @@ class APIKeyAuthChannelPrincipalTest {
     void signedTokenAcceptsValidJwt() throws Exception {
         APIPrincipalConfig c = cfg(APIPrincipalConfig.MODE_SIGNED_TOKEN);
         c.hmacSecret = SECRET;
-        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"weknora\",\"tenant_id\":" + TENANT
+        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"weknora\",\"tenantId\":" + TENANT
                 + ",\"exp\":" + (System.currentTimeMillis() / 1000 + 600) + "}");
         MockHttpServletResponse response = authenticateExpecting(c, null, jwt);
         assertThat(response.getStatus()).isEqualTo(200);
@@ -162,7 +162,7 @@ class APIKeyAuthChannelPrincipalTest {
     void signedTokenRejectsTenantMismatch() throws Exception {
         APIPrincipalConfig c = cfg(APIPrincipalConfig.MODE_SIGNED_TOKEN);
         c.hmacSecret = SECRET;
-        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"weknora\",\"tenant_id\":999"
+        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"weknora\",\"tenantId\":999"
                 + ",\"exp\":" + (System.currentTimeMillis() / 1000 + 600) + "}");
         MockHttpServletResponse response = authenticateExpecting(c, null, jwt);
         assertThat(response.getStatus()).isEqualTo(401);
@@ -175,7 +175,7 @@ class APIKeyAuthChannelPrincipalTest {
     void signedTokenRejectsOverlongTtl() throws Exception {
         APIPrincipalConfig c = cfg(APIPrincipalConfig.MODE_SIGNED_TOKEN);
         c.hmacSecret = SECRET;
-        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"weknora\",\"tenant_id\":" + TENANT
+        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"weknora\",\"tenantId\":" + TENANT
                 + ",\"exp\":" + (System.currentTimeMillis() / 1000 + 25 * 3600) + "}");
         MockHttpServletResponse response = authenticateExpecting(c, null, jwt);
         assertThat(response.getStatus()).isEqualTo(401);
@@ -186,7 +186,7 @@ class APIKeyAuthChannelPrincipalTest {
     void signedTokenRejectsWrongAudience() throws Exception {
         APIPrincipalConfig c = cfg(APIPrincipalConfig.MODE_SIGNED_TOKEN);
         c.hmacSecret = SECRET;
-        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"other\",\"tenant_id\":" + TENANT
+        String jwt = hs256("{\"sub\":\"ext-9\",\"aud\":\"other\",\"tenantId\":" + TENANT
                 + ",\"exp\":" + (System.currentTimeMillis() / 1000 + 600) + "}");
         MockHttpServletResponse response = authenticateExpecting(c, null, jwt);
         assertThat(response.getStatus()).isEqualTo(401);

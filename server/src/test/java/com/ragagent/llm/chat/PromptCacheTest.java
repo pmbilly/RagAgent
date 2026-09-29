@@ -315,8 +315,8 @@ class PromptCacheTest {
     @Test
     void tokenUsageFromOpenAi() {
         JsonNode withDetails = parse("""
-                {"prompt_tokens":4096,"completion_tokens":10,"total_tokens":4106,
-                 "prompt_tokens_details":{"cached_tokens":3072}}""");
+                {"promptTokens":4096,"completionTokens":10,"totalTokens":4106,
+                 "prompt_tokens_details":{"cachedTokens":3072}}""");
         TokenUsage u = PromptCache.tokenUsageFromOpenAI(withDetails, ProviderName.OPENAI);
         assertEquals(4096, u.getPromptTokens());
         assertEquals(3072, u.getCacheReadTokens());
@@ -325,13 +325,13 @@ class PromptCacheTest {
 
         // 无 details 且厂商走缓存上报通道 → UNREPORTED
         TokenUsage unreported = PromptCache.tokenUsageFromOpenAI(
-                parse("{\"prompt_tokens\":5,\"total_tokens\":5}"), ProviderName.OPENAI);
+                parse("{\"promptTokens\":5,\"totalTokens\":5}"), ProviderName.OPENAI);
         assertEquals(PromptCacheStatus.UNREPORTED, unreported.getCacheStatus());
         assertFalse(unreported.isCacheReported());
 
         // 无 details 且厂商根本不上报 → UNSUPPORTED
         TokenUsage unsupported = PromptCache.tokenUsageFromOpenAI(
-                parse("{\"prompt_tokens\":5,\"total_tokens\":5}"), ProviderName.ZHIPU);
+                parse("{\"promptTokens\":5,\"totalTokens\":5}"), ProviderName.ZHIPU);
         assertEquals(PromptCacheStatus.UNSUPPORTED, unsupported.getCacheStatus());
 
         // usage 缺失时按 Go 的零值 Usage 处理
@@ -345,7 +345,7 @@ class PromptCacheTest {
     void cachedTokensNilSafe() {
         assertEquals(0, PromptCache.cachedTokens(null));
         assertEquals(0, PromptCache.cachedTokens(parse("{}")));
-        assertEquals(1234, PromptCache.cachedTokens(parse("{\"cached_tokens\":1234}")));
+        assertEquals(1234, PromptCache.cachedTokens(parse("{\"cachedTokens\":1234}")));
     }
 
     /** 对照 remote_api_test.go:526 的 DeepSeek hit/miss 抓取。 */
@@ -354,7 +354,7 @@ class PromptCacheTest {
         TokenUsage usage = new TokenUsage();
         usage.setPromptTokens(4096);
         PromptCache.applyRawPromptCacheUsage(
-                "{\"usage\":{\"prompt_tokens\":4096,\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":1024}}",
+                "{\"usage\":{\"promptTokens\":4096,\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":1024}}",
                 usage);
         assertEquals(3072, usage.getCacheReadTokens());
         assertEquals(1024, usage.getCacheMissTokens());
@@ -380,7 +380,7 @@ class PromptCacheTest {
         TokenUsage usage = new TokenUsage();
         usage.setPromptTokens(100);
         PromptCache.applyRawPromptCacheUsage(
-                "{\"usage\":{\"prompt_tokens_details\":{\"cached_tokens\":80,\"cache_write_tokens\":5}}}", usage);
+                "{\"usage\":{\"prompt_tokens_details\":{\"cachedTokens\":80,\"cacheWriteTokens\":5}}}", usage);
         assertEquals(80, usage.getCacheReadTokens());
         assertEquals(5, usage.getCacheWriteTokens());
         assertEquals(20, usage.getCacheMissTokens());

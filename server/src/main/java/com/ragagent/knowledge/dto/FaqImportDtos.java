@@ -4,8 +4,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPayload;
 
 /**
@@ -128,18 +126,18 @@ public record FaqImportProgress(
  * 按"jsonb 不透明"约定原样透传。</p>
  */
 public record FaqImportResult(
-        @JsonProperty("total_entries") int totalEntries,
-        @JsonProperty("success_count") int successCount,
-        @JsonProperty("failed_count") int failedCount,
-        @JsonProperty("partial_failed_count") int partialFailedCount,
-        @JsonProperty("skipped_count") int skippedCount,
-        @JsonProperty("merged_count") int mergedCount,
-        @JsonProperty("added_count") int addedCount,
-        @JsonProperty("import_mode") String importMode,
-        @JsonProperty("imported_at") OffsetDateTime importedAt,
-        @JsonProperty("task_id") String taskId,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("failed_entries_url") String failedEntriesUrl,
-        @JsonProperty("display_status") String displayStatus,
-        @JsonProperty("processing_time") long processingTime) {
+        int totalEntries,
+        int successCount,
+        int failedCount,
+        int partialFailedCount,
+        int skippedCount,
+        int mergedCount,
+        int addedCount,
+        String importMode,
+        OffsetDateTime importedAt,
+        String taskId,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) String failedEntriesUrl,
+        String displayStatus,
+        long processingTime) {
 }
 }

@@ -315,17 +315,17 @@ class TenantCatalogContractTest {
         long alpha = createAlpha();
         assertGolden(kvGet("chat-history-config", alpha), 200, "ct-kv-chat-get-default.json");
         assertGolden(kvPut("chat-history-config", alpha,
-                "{\"enabled\":false,\"embedding_model_id\":\"\"}"),
+                "{\"enabled\":false,\"embeddingModelId\":\"\"}"),
                 200, "ct-kv-chat-put-off.json");
         // enable：自动建隐藏 KB，knowledge_base_id 是随机 uuid（掩码）；
         // Java KnowledgeBaseService 对无后端租户容忍（backend null 直接返回）
         assertMasked(kvPut("chat-history-config", alpha,
-                "{\"enabled\":true,\"embedding_model_id\":\"" + EMBEDDING_MODEL + "\"}"),
+                "{\"enabled\":true,\"embeddingModelId\":\"" + EMBEDDING_MODEL + "\"}"),
                 200, "ct-kv-chat-put-enable.json");
         assertMasked(kvGet("chat-history-config", alpha), 200, "ct-kv-chat-get-after.json");
         // 再次 enable：模型未变 → 沿用存量 KB（uuid 与上一条相同，掩码后对齐）
         assertMasked(kvPut("chat-history-config", alpha,
-                "{\"enabled\":true,\"embedding_model_id\":\"" + EMBEDDING_MODEL + "\"}"),
+                "{\"enabled\":true,\"embeddingModelId\":\"" + EMBEDDING_MODEL + "\"}"),
                 200, "ct-kv-chat-put-again.json");
     }
 
@@ -357,7 +357,7 @@ class TenantCatalogContractTest {
                 "{\"enabled\":true,\"write_mode\":\"auto\",\"max_items\":500,"
                         + "\"extract_delay_seconds\":30,\"extract_min_interval_seconds\":60,"
                         + "\"extract_instructions\":\"  记笔记  \",\"interest_threshold\":5,"
-                        + "\"embedding_model_id\":\"\",\"vector_recall\":true,"
+                        + "\"embeddingModelId\":\"\",\"vector_recall\":true,"
                         + "\"retrieval_conditioning\":false}"),
                 200, "ct-kv-mem-put.json");
         assertGolden(kvGet("memory-config", alpha), 200, "ct-kv-mem-get-after.json");

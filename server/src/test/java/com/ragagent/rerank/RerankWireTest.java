@@ -122,7 +122,7 @@ class RerankWireTest {
     private static final String STD_RESP =
             "{\"id\":\"r1\",\"results\":[{\"index\":2,\"relevance_score\":0.998,"
             + "\"document\":{\"text\":\"C\"}},{\"index\":0,\"relevance_score\":0.51,"
-            + "\"document\":{\"text\":\"A\"}}],\"usage\":{\"total_tokens\":42}}";
+            + "\"document\":{\"text\":\"A\"}}],\"usage\":{\"totalTokens\":42}}";
 
     // ── 逐字节 A/B ───────────────────────────────────────────────────
 
@@ -188,8 +188,8 @@ class RerankWireTest {
     @Test
     void zhipuRerankBodyDocumentAsString() {
         Stub stub = new Stub(
-                "{\"request_id\":\"rid\",\"id\":\"tid\",\"results\":[{\"index\":1,"
-                + "\"relevance_score\":0.87,\"document\":\"B\"}],\"usage\":{\"total_tokens\":42}}");
+                "{\"requestId\":\"rid\",\"id\":\"tid\",\"results\":[{\"index\":1,"
+                + "\"relevance_score\":0.87,\"document\":\"B\"}],\"usage\":{\"totalTokens\":42}}");
         try {
             Reranker r = new ZhipuReranker(config(stub.url()));
             List<RankResult> results = r.rerank("query", List.of("A", "B", "C"));
@@ -206,7 +206,7 @@ class RerankWireTest {
     void jinaRerankBody() {
         Stub stub = new Stub(
                 "{\"model\":\"m\",\"results\":[{\"index\":2,\"relevance_score\":0.9,"
-                + "\"document\":{\"text\":\"C\"}}],\"usage\":{\"total_tokens\":7}}");
+                + "\"document\":{\"text\":\"C\"}}],\"usage\":{\"totalTokens\":7}}");
         try {
             Reranker r = new JinaReranker(config(stub.url()));
             List<RankResult> results = r.rerank("query", List.of("A", "B", "C"));
