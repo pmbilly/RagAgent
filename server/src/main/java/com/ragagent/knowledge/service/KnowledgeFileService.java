@@ -26,7 +26,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.ragagent.storage.fileserve.FileTransport.OpenedFile;
-import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
 

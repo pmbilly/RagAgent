@@ -1,6 +1,5 @@
 package com.ragagent.knowledge.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /** 搬移任务创建响应：任务 ID + 源/目标库 + 文档数。 */
 public record MoveKnowledgeResponse(

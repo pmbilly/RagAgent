@@ -18,7 +18,6 @@ import com.ragagent.storage.fileserve.StoragePaths;
 import com.ragagent.storage.provider.FileService;
 import com.ragagent.storage.fileserve.FileTransport.OpenedFile;
 import com.ragagent.storage.fileserve.ProviderFileContentService;
-import com.ragagent.knowledge.storage.LocalStorageService;
 
 /**
  * 租户感知的文件存储门面（A3-3 尾批）——知识上传 / 读取 / 删除的**唯一入口**。

@@ -1,11 +1,6 @@
 package com.ragagent.knowledge.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 
 /** FAQ 条目载荷（落库与跨任务传递共用）。 */
 public record FaqEntryPayload(

@@ -10,11 +10,8 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.security.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 

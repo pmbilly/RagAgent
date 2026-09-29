@@ -1,7 +1,5 @@
 package com.ragagent.knowledge.domain;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * 带 wire 值的知识状态枚举：JSON 值与库内存储值一致（小写单词），{@code @JsonValue} 返回原值，

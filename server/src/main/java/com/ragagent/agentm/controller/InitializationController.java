@@ -67,7 +67,7 @@ import com.ragagent.embedding.EmbedderConfig;
 import com.ragagent.embedding.EmbedderFactory;
 
 /**
- * initialization 路由（对照 Go internal/handler/initialization.go 全文 + 
+ * initialization 路由（对照 Go internal/handler/initialization.go 全文 +
  * routes_infra.go RegisterInitializationRoutes）。波 3 agents 批落地 config/{kbId}
  * 三条；收尾批 W5b 补齐系统级 14 条（ollama 管理 6 + 模型连通性测试 5 + 抽取 3，
  * routes_infra.go L109-125，JWT 侧 Viewer+/Admin+、API-Key 全部

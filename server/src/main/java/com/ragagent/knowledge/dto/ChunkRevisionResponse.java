@@ -1,10 +1,7 @@
 package com.ragagent.knowledge.dto;
 
 import com.ragagent.knowledge.domain.ChunkRevision;
-import com.ragagent.knowledge.domain.GeneratedQuestion;
-import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
-import java.util.List;
 
 /** chunk 修订视图：内容 + 编辑者/来源 + 创建/编辑时间。 */
 public record ChunkRevisionResponse(

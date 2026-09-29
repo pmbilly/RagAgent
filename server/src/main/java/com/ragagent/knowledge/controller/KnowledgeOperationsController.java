@@ -2,11 +2,9 @@ package com.ragagent.knowledge.controller;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.DataMessageResponse;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -37,15 +35,10 @@ import com.ragagent.knowledge.dto.MoveKnowledgeResponse;
 import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.security.KnowledgeRouteGuards;
-import com.ragagent.knowledge.dto.BatchDeleteRequest;
 import com.ragagent.knowledge.dto.BatchReparseRequest;
 import com.ragagent.knowledge.dto.BatchTaskData;
 import com.ragagent.knowledge.dto.FolderMoveResponse;
 import com.ragagent.knowledge.dto.KnowledgeSearchResponse;
-import com.ragagent.knowledge.dto.KnowledgeTagBatchRequest;
-import com.ragagent.knowledge.dto.MoveKnowledgeRequest;
-import com.ragagent.knowledge.dto.MoveToFolderRequest;
-import com.ragagent.knowledge.dto.RenameFolderRequest;
 import com.ragagent.knowledge.dto.ReparseTaskData;
 
 /**

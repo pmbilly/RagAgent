@@ -1,10 +1,6 @@
 package com.ragagent.knowledge.dto;
 
-import com.ragagent.knowledge.domain.KnowledgeBaseAsrConfig;
 import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
-import com.ragagent.knowledge.domain.KnowledgeBaseImageProcessingConfig;
-import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
-import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import java.util.List;
 
 /** 分块配置视图：分块尺寸/重叠、分隔符、解析器引擎规则、父子块与语言等。 */

@@ -13,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 
 /**
  * 解析生命周期操作：重新解析（复位状态后入队）与取消解析（状态机校验 + span 收口）。

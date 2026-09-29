@@ -10,7 +10,6 @@ import java.util.regex.Pattern;
 import java.util.function.BiFunction;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.domain.ImageInfo;

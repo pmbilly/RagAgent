@@ -198,7 +198,7 @@ public class KnowledgeSummaryService {
                 }
             }
             // allChunks 是 text-only，永远不含已有 summary chunk——必须按类型另查
-            // 
+            //
             List<Chunk> existingSummaries = chunkRepo.listChunksByKnowledgeIDAndTypes(
                     KnowledgeService.tenantId(), id, List.of("summary"));
             List<Chunk> summaryChunks = new ArrayList<>();

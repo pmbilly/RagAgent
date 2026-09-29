@@ -1,8 +1,5 @@
 package com.ragagent.knowledge.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.ragagent.knowledge.dto.FaqEntryPayload;
-import java.time.OffsetDateTime;
 import java.util.List;
 
 /** FAQ 批量 upsert 载荷：条目 + 模式 + 目标文档/任务 + dryRun。 */

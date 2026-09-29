@@ -1,6 +1,5 @@
 package com.ragagent.session.controller;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,7 +24,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
-import com.ragagent.knowledge.support.ParserEngineRules;
 
 /**
  * 会话附件（临时文档）HTTP 层（对照 Go handler/session/temporary_document.go，

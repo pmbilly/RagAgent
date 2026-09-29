@@ -6,7 +6,6 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import org.springframework.stereotype.Component;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.knowledge.security.ChunkAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
 
 /**

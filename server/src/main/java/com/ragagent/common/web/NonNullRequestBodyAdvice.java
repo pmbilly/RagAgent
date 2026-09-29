@@ -1,7 +1,6 @@
 package com.ragagent.common.web;
 
 import com.ragagent.common.error.AppError;
-import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpInputMessage;

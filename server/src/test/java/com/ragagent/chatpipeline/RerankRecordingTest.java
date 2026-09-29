@@ -3,7 +3,6 @@ package com.ragagent.chatpipeline;
 import static com.ragagent.chatpipeline.Rec46cSupport.assertRec;
 import static com.ragagent.chatpipeline.Rec46cSupport.errOf;
 import static com.ragagent.chatpipeline.Rec46cSupport.json;
-import static com.ragagent.chatpipeline.Rec46cSupport.mask;
 import static com.ragagent.chatpipeline.Rec46cSupport.resultIDs;
 import static com.ragagent.chatpipeline.Rec46cSupport.scores;
 import static com.ragagent.chatpipeline.Rec46cSupport.searchResultsShape;

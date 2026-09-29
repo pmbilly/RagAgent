@@ -2,7 +2,6 @@ package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.common.web.JsonMappers;
-import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * IndexingStrategy。

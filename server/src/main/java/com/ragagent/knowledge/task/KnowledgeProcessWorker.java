@@ -39,8 +39,6 @@ import com.ragagent.wiki.service.WikiKnowledgeFinalizer;
 import com.ragagent.tracing.langfuse.LangfuseTracing;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
 import com.ragagent.knowledge.domain.QuestionBatchPayload;
-import com.ragagent.knowledge.task.ChunkExtractTaskQueue;
-import com.ragagent.knowledge.task.QuestionGenerationTaskQueue;
 import com.ragagent.knowledge.support.GraphChunkSelector;
 import com.ragagent.knowledge.support.KnowledgeIndexContent;
 import com.ragagent.knowledge.service.KnowledgeService;

@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
-import com.ragagent.knowledge.task.ChunkExtractTaskQueue;
 import com.ragagent.knowledge.service.ChunkExtractService;
 
 /**

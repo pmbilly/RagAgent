@@ -2,7 +2,6 @@ package com.ragagent.knowledge.controller;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
@@ -46,11 +45,6 @@ import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import com.ragagent.storageurl.Mode;
-import com.ragagent.knowledge.dto.CopyKnowledgeBaseRequest;
-import com.ragagent.knowledge.dto.CreateKnowledgeBaseRequest;
-import com.ragagent.knowledge.dto.HybridSearchRequest;
-import com.ragagent.knowledge.dto.RebuildIndexResponse;
-import com.ragagent.knowledge.dto.UpdateKnowledgeBaseRequest;
 
 /**
  * 知识库 CRUD 与检索入口：列表/详情/更新/删除、置顶、移动目标、混合检索

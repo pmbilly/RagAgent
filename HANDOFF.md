@@ -57,6 +57,7 @@
 - **knowledge 包（已整治，可作样板）**：**197 文件 / 25,264 行**；最大三个 = `FaqImportService` 1,234、`KnowledgeService` 850、`KnowledgeProcessWorker` 814；13 个子包见 §12；容器类/`*Util` 反模式命名已清零。
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器引用 **408 处 / 94 文件**；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
 - **注释卫生（knowledge 包实测，2026-09-30，可作其余域标准）**：Go 锚点注释 **0 处**、注释掉的代码 **0 处**、TODO **1 处**、注释占比 12.1%、13 个包全有 `package-info`；坏 `{@link}` 0 处。Javadoc 覆盖：**public 类型 91%**（201/221，未写的 20 处是纯 CRUD 请求体——有意留白，名字即语义）、public 方法 33%（**分布是对的**：逻辑密集类 90%+，POJO 访问器 7%）。
+- **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。
 - 历史对照（2026-09-28 裁剪前）：main 1,608 文件 / 32.4 万行、test 448 / 14 万 / 1,783 fixture、frontend 533 / 23.6 万；千行大类 41 个（含 KnowledgeService 3,392 行 / 153 方法、FaqService 3,089、KnowledgeController 1,312——**这些数字均已过时**，knowledge 域已完成拆分）。
 
 ## 5. 转型路线图
@@ -239,3 +240,4 @@ knowledge/
 11. **别把 git 历史与批次代号写进注释**：`原为 X 内嵌段，阶段 N 拆分`、`本批未含`、`W5a：` 这类叙述读者无法解码；按 §4 的原则**摘出真实不变量、删掉阶段/批次代号**（本次已清 knowledge 包 8 处；新写注释也别再引入）。
 12. **别在 shell 双引号里跑含反引号的 `python3 -c`**：zsh 会把反引号当命令替换（`{@link 旧名}`、`阶段 N` 之类的文本会被执行并清空，静默写坏文件）。改写脚本文件再 `python3 /tmp/xxx.py`，或在 Python 里用 chr(96) 拼反引号。
 13. **写 javadoc 的判据（knowledge 包已按此做完）**：写"名字看不出来的"——三态语义（null = 不变更）、乐观锁字段、视图与写入形状的差异（如 VLM 视图不含 `apiKey`）、与仓储类型的对应关系、jsonb 列名；**不写**名字即语义的 CRUD 请求体（写了是噪声）。覆盖目标：承载语义的类型 100%，方法层保持"逻辑密集类 90%+ / 访问器 0%"的分布。
+14. **跑 `test` ≠ 跑了闸门**：仓库早已配好 Spotless（`removeUnusedImports` + `trimTrailingWhitespace` + `endWithNewline`，`ratchetFrom("seed")`），但只跑 `:server:test` 时它**不执行**——每批收尾必须 `:server:spotlessCheck`（或 `check`）。两个已知盲点：①`removeUnusedImports()` **不去重**（本次手删 13 处重复 import，分布在 5 个文件；要根治可加 `importOrder()` 步骤，但那会重排 import，需单独一个轴）；②抽类/拆类时别继承原文件的 import 列表（276 处残留的来源）。

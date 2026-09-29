@@ -2,7 +2,6 @@ package com.ragagent.knowledge.controller;
 
 import java.io.IOException;
 import java.util.List;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.AppError;
@@ -10,8 +9,6 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.common.web.ContentTypeByFilename;
-import com.ragagent.common.web.DataMessageResponse;
-import com.ragagent.common.web.MessageResponse;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.dto.ClearContentsResponse;

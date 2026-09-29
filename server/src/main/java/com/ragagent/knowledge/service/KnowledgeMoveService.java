@@ -29,7 +29,6 @@ import com.ragagent.embedding.Embedder;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.knowledge.task.KnowledgeTaskProgressStore;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
-import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 import com.ragagent.knowledge.storage.TenantStorageService;
 
 /**
@@ -192,7 +191,7 @@ public class KnowledgeMoveService {
                 .set("error_message", "")
                 .set("updated_at", now));
         // 标签是 KB 作用域的：搬走后源 KB 的标签不该继续挂着该文档
-        // 
+        //
         tagMapper.deleteRelations(knowledgeId);
         chunkMapper.update(null, new UpdateWrapper<Chunk>()
                 .eq("knowledge_id", knowledgeId)
