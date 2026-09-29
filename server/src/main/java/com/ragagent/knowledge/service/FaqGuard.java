@@ -1,13 +1,23 @@
 package com.ragagent.knowledge.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.dto.FaqDtos;
+import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import org.springframework.stereotype.Component;
@@ -23,13 +33,16 @@ public class FaqGuard {
     private final KnowledgeService knowledgeService;
     private final KnowledgeTagMapper tagMapper;
     private final KnowledgeTagRepository tagRepository;
+    private final ChunkRepository chunkRepository;
 
     public FaqGuard(KnowledgeService knowledgeService,
                     KnowledgeTagMapper tagMapper,
-                    KnowledgeTagRepository tagRepository) {
+                    KnowledgeTagRepository tagRepository,
+                    ChunkRepository chunkRepository) {
         this.knowledgeService = knowledgeService;
         this.tagMapper = tagMapper;
         this.tagRepository = tagRepository;
+        this.chunkRepository = chunkRepository;
     }
 
     private static long tenantId() {
@@ -169,5 +182,120 @@ public class FaqGuard {
                 || !kbId.equals(tag.getKnowledgeBaseId())) {
             throw new BizException(AppError.forbidden("标签不属于当前知识库"));
         }
+    }
+
+    // ── 批量写计划（命令面与导入面共享） ──
+
+    /** */
+    /** 按条目 ID 装载本 KB 的 FAQ chunk 行；ID 非法 400、他库/他租户 403、缺失 404。 */
+    public Map<Long, Chunk> loadFAQWriteChunks(KnowledgeBase kb, List<Long> ids) {
+        Set<Long> wanted = new LinkedHashSet<>();
+        for (Long id : ids) {
+            if (id == null || id <= 0) {
+                throw new BizException(AppError.badRequest("FAQ 条目 ID 必须为正整数"));
+            }
+            wanted.add(id);
+        }
+        Map<Long, Chunk> result = new LinkedHashMap<>();
+        if (wanted.isEmpty()) {
+            return result;
+        }
+        List<Chunk> chunks = chunkRepository.listChunksBySeqId(kb.getTenantId(), new ArrayList<>(wanted));
+        for (Chunk chunk : chunks) {
+            if (chunk == null || !wanted.contains(chunk.getSeqId())) {
+                continue;
+            }
+            if (chunk.getTenantId() == null || kb.getTenantId() == null
+                    || chunk.getTenantId().longValue() != kb.getTenantId().longValue()
+                    || !kb.getId().equals(chunk.getKnowledgeBaseId())
+                    || !"faq".equals(chunk.getChunkType())) {
+                throw new BizException(AppError.forbidden("FAQ 条目不属于当前知识库"));
+            }
+            result.put(chunk.getSeqId(), chunk);
+        }
+        if (result.size() != wanted.size()) {
+            throw new BizException(AppError.notFound("FAQ 条目不存在"));
+        }
+        return result;
+    }
+
+    /** */
+    public static final class FaqFieldPlan {
+        final Map<Long, Chunk> chunks;
+        final Map<String, Chunk> chunksById = new LinkedHashMap<>();
+        final Map<Long, KnowledgeTag> tags = new LinkedHashMap<>();
+        final List<String> excludeIds = new ArrayList<>();
+
+        FaqFieldPlan(Map<Long, Chunk> chunks) {
+            this.chunks = chunks;
+        }
+    }
+
+    /** 批量字段更新的写计划：按 ID/排除/标签三个维度装载 chunk 与标签并做作用域校验。 */
+    public FaqFieldPlan planFAQFields(KnowledgeBase kb, FaqDtos.FaqEntryFieldsBatchUpdate req) {
+        List<Long> ids = new ArrayList<>();
+        if (req.byId() != null) {
+            ids.addAll(sortedIds(req.byId().keySet()));
+        }
+        if (req.excludeIds() != null) {
+            ids.addAll(req.excludeIds());
+        }
+        Map<Long, Chunk> chunks = loadFAQWriteChunks(kb, ids);
+        FaqFieldPlan plan = new FaqFieldPlan(chunks);
+        for (Chunk chunk : chunks.values()) {
+            plan.chunksById.put(chunk.getId(), chunk);
+        }
+        if (req.excludeIds() != null) {
+            for (Long id : req.excludeIds()) {
+                Chunk c = chunks.get(id);
+                plan.excludeIds.add(c == null ? null : c.getId());
+            }
+        }
+        Set<Long> tagIds = new LinkedHashSet<>();
+        if (req.byTag() != null) {
+            for (Long id : req.byTag().keySet()) {
+                if (id == null || id <= 0) {
+                    throw new BizException(AppError.badRequest("标签 ID 必须为正整数"));
+                }
+                tagIds.add(id);
+            }
+        }
+        if (req.byTag() != null) {
+            for (FaqDtos.FaqEntryFieldsUpdate update : req.byTag().values()) {
+                if (update.tagId() != null && update.tagId() > 0) {
+                    tagIds.add(update.tagId());
+                }
+            }
+        }
+        if (req.byId() != null) {
+            for (FaqDtos.FaqEntryFieldsUpdate update : req.byId().values()) {
+                if (update.tagId() != null && update.tagId() > 0) {
+                    tagIds.add(update.tagId());
+                }
+            }
+        }
+        if (!tagIds.isEmpty()) {
+            List<KnowledgeTag> tags = tagMapper.selectByTenantAndSeqIds(kb.getTenantId(), new ArrayList<>(tagIds));
+            for (KnowledgeTag tag : tags) {
+                if (tag == null || !tagIds.contains(tag.getSeqId())) {
+                    continue;
+                }
+                validateFAQTagScope(tag, kb.getTenantId(), kb.getId());
+                plan.tags.put(tag.getSeqId(), tag);
+            }
+            for (Long id : sortedIds(tagIds)) {
+                if (!plan.tags.containsKey(id)) {
+                    throw new BizException(AppError.notFound("标签 " + id + " 不存在"));
+                }
+            }
+        }
+        return plan;
+    }
+
+    /** 去重升序排序。 */
+    public static List<Long> sortedIds(Set<Long> values) {
+        List<Long> ids = new ArrayList<>(values);
+        ids.sort(Comparator.naturalOrder());
+        return ids;
     }
 }
