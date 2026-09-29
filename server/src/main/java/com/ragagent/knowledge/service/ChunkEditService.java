@@ -13,7 +13,7 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.mapper.ChunkRepository;
+import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.domain.ChunkRevisionConflictException;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.slf4j.Logger;

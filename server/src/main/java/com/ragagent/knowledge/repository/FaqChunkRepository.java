@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.mapper;
+package com.ragagent.knowledge.repository;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,6 +11,7 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import org.springframework.stereotype.Component;
 import com.ragagent.common.jdbc.DatabaseDialects;
+import com.ragagent.knowledge.mapper.ChunkMapper;
 
 /**
  * FAQ 条目的 chunk 仓储面（FAQ 条目 = chunk_type=faq 的行）：按 seq_id/知识/KB 的

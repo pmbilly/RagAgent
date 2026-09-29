@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.mapper;
+package com.ragagent.knowledge.repository;
 
 import java.util.List;
 import java.util.UUID;
@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 import java.time.OffsetDateTime;
 import com.ragagent.common.jdbc.DatabaseDialects;
+import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 
 /**
  * knowledge_tags 的写入侧仓储，读路径在 {@link KnowledgeTagMapper}。

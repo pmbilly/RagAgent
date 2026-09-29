@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.mapper;
+package com.ragagent.knowledge.repository;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;

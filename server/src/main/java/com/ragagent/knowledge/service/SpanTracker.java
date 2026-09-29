@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
-import com.ragagent.knowledge.mapper.KnowledgeSpanRepository;
+import com.ragagent.knowledge.repository.KnowledgeSpanRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

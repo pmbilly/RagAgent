@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.mapper;
+package com.ragagent.knowledge.repository;
 
 import java.util.List;
 
@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import com.ragagent.common.jdbc.DatabaseDialects;
 import com.ragagent.knowledge.domain.ChunkNotFoundException;
 import com.ragagent.knowledge.domain.ChunkRevisionConflictException;
+import com.ragagent.knowledge.mapper.ChunkMapper;
+import com.ragagent.knowledge.mapper.ChunkRevisionMapper;
 
 /**
  * chunk 仓储（文档与 FAQ 的 chunk 行读写，方法式门面）。数据访问契约如下，

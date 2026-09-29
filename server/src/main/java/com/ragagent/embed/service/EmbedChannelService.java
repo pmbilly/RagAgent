@@ -20,7 +20,7 @@ import com.ragagent.embed.EmbedTokens;
 import com.ragagent.embed.domain.EmbedChannelEntity;
 import com.ragagent.embed.mapper.EmbedChannelMapper;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.mapper.ChunkRepository;
+import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.mapper.SessionRepository;

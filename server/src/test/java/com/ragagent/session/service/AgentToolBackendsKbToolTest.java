@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import com.ragagent.agent.tools.SearchTarget;
 import com.ragagent.config.ConversationProperties;
-import com.ragagent.knowledge.mapper.ChunkRepository;
+import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.memory.domain.MemoryItem;

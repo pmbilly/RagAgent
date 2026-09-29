@@ -47,7 +47,7 @@ import com.ragagent.chatpipeline.SearchParams;
 import com.ragagent.config.ConversationProperties;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.mapper.ChunkRepository;
+import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.rerank.RankResult;

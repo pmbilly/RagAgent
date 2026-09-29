@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.mapper;
+package com.ragagent.knowledge.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -20,6 +20,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.ragagent.knowledge.domain.ChunkNotFoundException;
 import com.ragagent.knowledge.domain.ChunkRevisionConflictException;
+import com.ragagent.knowledge.mapper.ChunkMapper;
+import com.ragagent.knowledge.mapper.ChunkRevisionMapper;
 
 /**
  * chunk 仓储语义（H2）——对照 Go internal/application/repository/chunk.go 的

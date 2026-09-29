@@ -21,7 +21,7 @@ import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
-import com.ragagent.knowledge.mapper.ChunkRepository;
+import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.llm.LlmChatClient;

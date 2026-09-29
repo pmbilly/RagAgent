@@ -19,7 +19,7 @@ import com.ragagent.chatpipeline.SearchParams;
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.mapper.ChunkRepository;
+import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;

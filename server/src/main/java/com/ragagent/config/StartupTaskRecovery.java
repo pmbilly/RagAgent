@@ -12,7 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.mapper.KnowledgeSpanRepository;
+import com.ragagent.knowledge.repository.KnowledgeSpanRepository;
 
 /**
  * 启动恢复——对照 Go {@code container/reset_pending_tasks.go}（188 行）的
