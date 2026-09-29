@@ -29,21 +29,18 @@ import com.ragagent.knowledge.dto.FaqDtos.FaqFailedEntry;
 import com.ragagent.knowledge.dto.FaqDtos.FaqImportProgress;
 import com.ragagent.knowledge.dto.FaqDtos.FaqImportResult;
 import com.ragagent.knowledge.dto.FaqDtos.FaqSuccessEntry;
-import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.audit.service.AuditLogService;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.model.mapper.ModelMapper;
 import com.ragagent.model.domain.Model;
 import com.ragagent.chatpipeline.SearchParams;
 import com.ragagent.retrieval.HybridSearchService;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
-import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -89,62 +86,53 @@ public class FaqService {
     private final ChunkRepository chunkRepository;
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeTagMapper tagMapper;
-    private final KnowledgeTagRepository tagRepository;
     private final KnowledgeService knowledgeService;
     private final KnowledgeBaseService kbService;
     private final FaqImportTaskStore taskStore;
-    private final ChunkMapper chunkMapper;
-    private final ModelMapper modelMapper;
     private final LocalStorageService storage;
     /** A3-3 尾批：租户感知文件存储（失败明细 CSV 导出走云的临时桶；本地租户保持既有落盘）。 */
     private final TenantFileStorage fileStorage;
     private final VectorStoreService vectorStore;
-    private final EmbedderClient embedder;
-    private final TenantStorageService tenantStorage;
     private final KnowledgeVectorWrites vectorWrites;
-    private final com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory;
     /** FAQ 搜索的检索执行面（对照 Go kbService.HybridSearch；波 4 检索引擎批落地）。 */
     private final HybridSearchService hybridSearchService;
     /** KB 活动审计（对照 Go recordKBActivity 的 s.audit）。 */
     private final AuditLogService auditService;
+    private final FaqGuard faqGuard;
+    private final FaqChunkCodec faqChunkCodec;
+    private final FaqIndexWriter faqIndexWriter;
 
 
     public FaqService(ChunkRepository chunkRepository,
                       KnowledgeMapper knowledgeMapper,
                       KnowledgeTagMapper tagMapper,
-                      KnowledgeTagRepository tagRepository,
                       KnowledgeService knowledgeService,
                       KnowledgeBaseService kbService,
                       FaqImportTaskStore taskStore,
-                      ChunkMapper chunkMapper,
-                      ModelMapper modelMapper,
                       LocalStorageService storage,
                       TenantFileStorage fileStorage,
                       VectorStoreService vectorStore,
-                      EmbedderClient embedder,
-                      TenantStorageService tenantStorage,
                       HybridSearchService hybridSearchService,
                       AuditLogService auditService,
-                      KnowledgeVectorWrites vectorWrites,
-                      com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory) {
+                      FaqGuard faqGuard,
+                      FaqChunkCodec faqChunkCodec,
+                      FaqIndexWriter faqIndexWriter,
+                      KnowledgeVectorWrites vectorWrites) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
-        this.tagRepository = tagRepository;
         this.knowledgeService = knowledgeService;
         this.kbService = kbService;
         this.taskStore = taskStore;
-        this.chunkMapper = chunkMapper;
-        this.modelMapper = modelMapper;
         this.storage = storage;
         this.fileStorage = fileStorage;
         this.vectorStore = vectorStore;
-        this.embedder = embedder;
         this.vectorWrites = vectorWrites;
-        this.modelRuntimeFactory = modelRuntimeFactory;
-        this.tenantStorage = tenantStorage;
         this.hybridSearchService = hybridSearchService;
         this.auditService = auditService;
+        this.faqGuard = faqGuard;
+        this.faqChunkCodec = faqChunkCodec;
+        this.faqIndexWriter = faqIndexWriter;
     }
 
     private static long tenantId() {
@@ -163,10 +151,10 @@ public class FaqService {
                                            String sortOrder, Boolean isEnabled) {
         keyword = FaqChunkMetadata.trimSpace(keyword);
 
-        KnowledgeBase kb = validateFAQKnowledgeBase(kbId);
-        long effectiveTenant = resolveKBReadTenant(kb);
+        KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
+        long effectiveTenant = faqGuard.resolveKBReadTenant(kb);
 
-        Knowledge faqKnowledge = findFAQKnowledge(effectiveTenant, kb.getId());
+        Knowledge faqKnowledge = faqIndexWriter.findFAQKnowledge(effectiveTenant, kb.getId());
         List<FaqEntry> entries = new ArrayList<>();
         long total = 0;
         if (faqKnowledge != null) {
@@ -199,9 +187,9 @@ public class FaqService {
                 }
             }
 
-            ensureDefaults(kb);
+            faqGuard.ensureDefaults(kb);
             for (Chunk chunk : result.items()) {
-                FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+                FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
                 if (!chunk.getTagId().isEmpty()) {
                     entry = withTagName(entry, tagNameMap.get(chunk.getTagId()));
                 }
@@ -223,8 +211,8 @@ public class FaqService {
         if (entrySeqId <= 0) {
             throw new BizException(AppError.badRequest("条目ID不能为空"));
         }
-        KnowledgeBase kb = validateFAQKnowledgeBase(kbId);
-        ensureDefaults(kb);
+        KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
+        faqGuard.ensureDefaults(kb);
         long tid = tenantId();
 
         Chunk chunk = chunkRepository.getChunkBySeqId(tid, entrySeqId);
@@ -246,7 +234,7 @@ public class FaqService {
                 tagSeqIdMap.put(tag.getId(), tag.getSeqId());
             }
         }
-        FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+        FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
         if (!chunk.getTagId().isEmpty()) {
             KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                     .stream().findFirst().orElse(null);
@@ -265,12 +253,12 @@ public class FaqService {
      * <b>GetEmbeddingModel（plain 500 分支）</b> → 建 chunk → 索引（失败回滚 chunk）。
      */
     public FaqEntry createEntry(String kbId, FaqDtos.FaqEntryPayload payload) {
-        KnowledgeBase kb = writableFAQKnowledgeBase(kbId);
-        ensureDefaults(kb);
+        KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
+        faqGuard.ensureDefaults(kb);
         long tid = tenantId();
 
-        FaqChunkMetadata meta = sanitizeFAQEntryPayload(payload);
-        String tagID = resolveTagID(kb.getId(), payload);
+        FaqChunkMetadata meta = faqGuard.sanitizeFAQEntryPayload(payload);
+        String tagID = faqGuard.resolveTagID(kb.getId(), payload);
 
         // 同标准问的进程内串行（Go 的 faqCreateInflight 兜底分支；Redis SetNX 未复刻）
         String guardKey = "faq:create:" + tid + ":" + kb.getId() + ":" + sha256Hex(meta.standardQuestion);
@@ -280,15 +268,15 @@ public class FaqService {
         try {
             checkFAQQuestionDuplicate(tid, kb.getId(), "", meta);
 
-            Knowledge faqKnowledge = ensureFAQKnowledge(tid, kb);
+            Knowledge faqKnowledge = faqIndexWriter.ensureFAQKnowledge(tid, kb);
             if (faqKnowledge == null) {
                 throw new IllegalStateException("failed to ensure FAQ knowledge: knowledge not found");
             }
 
-            String indexMode = faqIndexMode(kb);
+            String indexMode = faqChunkCodec.faqIndexMode(kb);
 
             // GetEmbeddingModel：模型行缺失/ID 空 → plain 500（handler c.Error 的非 AppError 分支）
-            Model embeddingModel = requireEmbeddingModel(kb);
+            Model embeddingModel = faqIndexWriter.requireEmbeddingModel(kb);
 
             boolean isEnabled = payload.isEnabled() == null || payload.isEnabled();
             int flags = payload.isRecommended() != null && !payload.isRecommended() ? 0 : 1;
@@ -298,7 +286,7 @@ public class FaqService {
             chunk.setTenantId(tid);
             chunk.setKnowledgeId(faqKnowledge.getId());
             chunk.setKnowledgeBaseId(kb.getId());
-            chunk.setContent(buildFAQChunkContent(meta, indexMode));
+            chunk.setContent(faqChunkCodec.buildFAQChunkContent(meta, indexMode));
             chunk.setIsEnabled(isEnabled);
             chunk.setFlags(flags);
             chunk.setChunkType("faq");
@@ -307,17 +295,17 @@ public class FaqService {
             if (payload.id() != null && payload.id() > 0) {
                 chunk.setSeqId(payload.id());
             }
-            setFaqMetadata(chunk, meta);
+            faqChunkCodec.setFaqMetadata(chunk, meta);
             if (chunk.getCreatedAt() == null) {
                 chunk.setCreatedAt(OffsetDateTime.now());
                 chunk.setUpdatedAt(chunk.getCreatedAt());
             }
-            createChunks(List.of(chunk));
+            faqIndexWriter.createChunks(List.of(chunk));
 
-            // 索引步（对照 indexFAQChunks(..., adjustStorage=true, needDelete=false)）：
+            // 索引步（对照 faqIndexWriter.indexFAQChunks(..., adjustStorage=true, needDelete=false)）：
             // 失败 → 按 Go 的失败路径回滚 chunk + "failed to index chunk: %w"
             try {
-                indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, true);
+                faqIndexWriter.indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, true);
             } catch (RuntimeException indexErr) {
                 chunkRepository.deleteChunk(tid, chunk.getId());
                 throw new IllegalStateException("failed to index chunk: " + indexErr.getMessage(), indexErr);
@@ -334,7 +322,7 @@ public class FaqService {
                     tagSeqIdMap.put(tag.getId(), tag.getSeqId());
                 }
             }
-            FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+            FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
             if (!chunk.getTagId().isEmpty()) {
                 KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                         .stream().findFirst().orElse(null);
@@ -361,8 +349,8 @@ public class FaqService {
      * 返回 plain 500 但变更已持久化（golden faq-get-after-update 钉住，照抄别修）。
      */
     public FaqEntry updateEntry(String kbId, long entrySeqId, FaqDtos.FaqEntryPayload payload) {
-        KnowledgeBase kb = writableFAQKnowledgeBase(kbId);
-        ensureDefaults(kb);
+        KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
+        faqGuard.ensureDefaults(kb);
         long tid = tenantId();
 
         Chunk chunk = chunkRepository.getChunkBySeqId(tid, entrySeqId);
@@ -375,7 +363,7 @@ public class FaqService {
         if (!"faq".equals(chunk.getChunkType())) {
             throw new BizException(AppError.badRequest("仅支持更新 FAQ 条目"));
         }
-        FaqChunkMetadata meta = sanitizeFAQEntryPayload(payload);
+        FaqChunkMetadata meta = faqGuard.sanitizeFAQEntryPayload(payload);
 
         checkFAQQuestionDuplicate(tid, kb.getId(), chunk.getId(), meta);
 
@@ -383,11 +371,11 @@ public class FaqService {
         String oldStandardQuestion = "";
         List<String> oldAnswers = null;
         String questionIndexMode = "combined";
-        String qim = faqQuestionIndexMode(kb);
+        String qim = faqChunkCodec.faqQuestionIndexMode(kb);
         if (!qim.isEmpty()) {
             questionIndexMode = qim;
         }
-        FaqChunkMetadata existing = currentFaqMetadata(chunk);
+        FaqChunkMetadata existing = faqChunkCodec.currentFaqMetadata(chunk);
         if (existing != null) {
             meta.version = existing.version + 1;
             if ("separate".equals(questionIndexMode)) {
@@ -396,10 +384,10 @@ public class FaqService {
                 oldAnswers = existing.answers;
             }
         }
-        setFaqMetadata(chunk, meta);
+        faqChunkCodec.setFaqMetadata(chunk, meta);
 
-        String indexMode = faqIndexMode(kb);
-        chunk.setContent(buildFAQChunkContent(meta, indexMode));
+        String indexMode = faqChunkCodec.faqIndexMode(kb);
+        chunk.setContent(faqChunkCodec.buildFAQChunkContent(meta, indexMode));
 
         if (payload.tagId() > 0) {
             KnowledgeTag tag = tagMapper.selectByTenantAndSeqId(tid, payload.tagId());
@@ -434,10 +422,10 @@ public class FaqService {
 
         // 增量索引（separate 模式）/ 增量删除 + 全量索引——索引执行面在 Go 也先过
         // GetEmbeddingModel；无模型的 KB 在这里 plain 500（变更已持久化）
-        Model embeddingModel = requireEmbeddingModel(kb);
+        Model embeddingModel = faqIndexWriter.requireEmbeddingModel(kb);
         // 对照 Go L430-450：separate 模式相似问减少时先删多余 sourceID——Java 的
         // indexFAQChunks 全删该 chunk 行后重插（净效果等价）；索引失败原样返回
-        indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, false);
+        faqIndexWriter.indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, false);
 
         Map<String, Long> tagSeqIdMap = new LinkedHashMap<>();
         if (!chunk.getTagId().isEmpty()) {
@@ -447,7 +435,7 @@ public class FaqService {
                 tagSeqIdMap.put(tag.getId(), tag.getSeqId());
             }
         }
-        FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+        FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
         if (!chunk.getTagId().isEmpty()) {
             KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                     .stream().findFirst().orElse(null);
@@ -468,8 +456,8 @@ public class FaqService {
         if (questions == null || questions.isEmpty()) {
             throw new BizException(AppError.badRequest("相似问列表不能为空"));
         }
-        KnowledgeBase kb = writableFAQKnowledgeBase(kbId);
-        ensureDefaults(kb);
+        KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
+        faqGuard.ensureDefaults(kb);
         long tid = tenantId();
 
         Chunk chunk = chunkRepository.getChunkBySeqId(tid, entrySeqId);
@@ -482,7 +470,7 @@ public class FaqService {
         if (!"faq".equals(chunk.getChunkType())) {
             throw new BizException(AppError.badRequest("仅支持更新 FAQ 条目"));
         }
-        FaqChunkMetadata meta = currentFaqMetadata(chunk);
+        FaqChunkMetadata meta = faqChunkCodec.currentFaqMetadata(chunk);
         if (meta == null) {
             throw new BizException(AppError.badRequest("获取 FAQ 元数据失败"));
         }
@@ -512,7 +500,7 @@ public class FaqService {
             }
         }
         if (newQuestions.isEmpty()) {
-            return chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+            return faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
         }
 
         FaqChunkMetadata tempMeta = new FaqChunkMetadata();
@@ -531,10 +519,10 @@ public class FaqService {
         meta.similarQuestions.addAll(newQuestions);
         meta.version++;
 
-        setFaqMetadata(chunk, meta);
+        faqChunkCodec.setFaqMetadata(chunk, meta);
 
-        String indexMode = faqIndexMode(kb);
-        chunk.setContent(buildFAQChunkContent(meta, indexMode));
+        String indexMode = faqChunkCodec.faqIndexMode(kb);
+        chunk.setContent(faqChunkCodec.buildFAQChunkContent(meta, indexMode));
         chunk.setUpdatedAt(OffsetDateTime.now());
         chunkRepository.updateChunk(chunk);
 
@@ -546,11 +534,11 @@ public class FaqService {
         if (faqKnowledge == null) {
             throw new IllegalStateException("failed to get knowledge: record not found");
         }
-        Model embeddingModel = requireEmbeddingModel(kb);
+        Model embeddingModel = faqIndexWriter.requireEmbeddingModel(kb);
         // 对照 Go L603（similar questions 追加后的全量重索引）：失败原样返回
-        indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, false);
+        faqIndexWriter.indexFAQChunks(kb, faqKnowledge, List.of(chunk), embeddingModel, false);
 
-        FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+        FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
         if (!chunk.getTagId().isEmpty()) {
             KnowledgeTag tag = tagMapper.selectByTenantAndIds(tid, List.of(chunk.getTagId()))
                     .stream().findFirst().orElse(null);
@@ -585,7 +573,7 @@ public class FaqService {
                 && (req.byTag() == null || req.byTag().isEmpty()))) {
             return;
         }
-        KnowledgeBase kb = writableFAQKnowledgeBase(kbId);
+        KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
         long tid = tenantId();
 
         Map<String, Boolean> enabledUpdates = new LinkedHashMap<>();
@@ -745,7 +733,7 @@ public class FaqService {
         if (entrySeqIds == null || entrySeqIds.isEmpty()) {
             throw new BizException(AppError.badRequest("请选择需要删除的 FAQ 条目"));
         }
-        KnowledgeBase kb = writableFAQKnowledgeBase(kbId);
+        KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
         long tid = tenantId();
 
         Map<Long, Chunk> selected = loadFAQWriteChunks(kb, entrySeqIds);
@@ -775,7 +763,7 @@ public class FaqService {
             chunkRepository.deleteChunk(tid, chunk.getId());
         }
         for (Map.Entry<String, List<Chunk>> e : groups.entrySet()) {
-            deleteFAQChunkVectors(kb, knowledges.get(e.getKey()), e.getValue());
+            faqIndexWriter.deleteFAQChunkVectors(kb, knowledges.get(e.getKey()), e.getValue());
         }
         log.info("FAQ entries deleted: kb={}, count={}", kb.getId(), chunksToRemove.size());
         Map<String, Object> details = new LinkedHashMap<>();
@@ -792,7 +780,7 @@ public class FaqService {
 
     /** 对照 faqChunkQuestion（knowledge_faq.go L1580-1592）：标准问（trim）。 */
     private String faqChunkQuestion(Chunk chunk) {
-        FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
+        FaqChunkMetadata meta = faqChunkCodec.sanitizedFaqMetadata(chunk);
         if (meta == null) {
             return "";
         }
@@ -868,9 +856,9 @@ public class FaqService {
 
     /** 对照 ExportFAQEntries（CSV，8 列 + BOM；knowledge_faq.go L1319-1348, L1434-1482）。 */
     public byte[] exportCsv(String kbId) {
-        KnowledgeBase kb = validateFAQKnowledgeBase(kbId);
+        KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
         long tid = tenantId();
-        Knowledge faqKnowledge = findFAQKnowledge(tid, kb.getId());
+        Knowledge faqKnowledge = faqIndexWriter.findFAQKnowledge(tid, kb.getId());
         List<Chunk> chunks = faqKnowledge == null
                 ? List.of()
                 : chunkRepository.listAllFAQChunksForExport(tid, faqKnowledge.getId());
@@ -880,9 +868,9 @@ public class FaqService {
 
     /** 对照 ExportFAQEntriesJSON（L1352-1378）；空库输出 {@code []}。 */
     public byte[] exportJson(String kbId) {
-        KnowledgeBase kb = validateFAQKnowledgeBase(kbId);
+        KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
         long tid = tenantId();
-        Knowledge faqKnowledge = findFAQKnowledge(tid, kb.getId());
+        Knowledge faqKnowledge = faqIndexWriter.findFAQKnowledge(tid, kb.getId());
         List<Chunk> chunks = faqKnowledge == null
                 ? List.of()
                 : chunkRepository.listAllFAQChunksForExport(tid, faqKnowledge.getId());
@@ -913,7 +901,7 @@ public class FaqService {
                 .append("是否停用(选填-默认FALSE),是否禁止被推荐(选填-默认False 可被推荐)")
                 .append('\n');
         for (Chunk chunk : chunks) {
-            FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
+            FaqChunkMetadata meta = faqChunkCodec.sanitizedFaqMetadata(chunk);
             if (meta == null) {
                 continue;
             }
@@ -939,7 +927,7 @@ public class FaqService {
     private byte[] buildFAQJSON(List<Chunk> chunks, Map<String, String> tagMap) {
         List<FaqExportEntry> entries = new ArrayList<>();
         for (Chunk chunk : chunks) {
-            FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
+            FaqChunkMetadata meta = faqChunkCodec.sanitizedFaqMetadata(chunk);
             if (meta == null) {
                 continue;
             }
@@ -986,7 +974,7 @@ public class FaqService {
      * 空结果出口（golden faq-search-embed-missing 钉住 {@code data:[]}）。
      */
     public List<FaqEntry> searchEntries(String kbId, FaqDtos.FaqSearchRequest req) {
-        KnowledgeBase kb = validateFAQKnowledgeBase(kbId);
+        KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
 
         double vectorThreshold = req.vectorThreshold();
         if (vectorThreshold <= 0) {
@@ -1157,12 +1145,12 @@ public class FaqService {
                 tagSeqIdMap.put(t.getId(), t.getSeqId());
             }
         }
-        ensureDefaults(kb);
+        faqGuard.ensureDefaults(kb);
         for (Chunk chunk : chunks) {
             if (!"faq".equals(chunk.getChunkType()) || !chunk.isIsEnabled()) {
                 continue;
             }
-            FaqEntry entry = chunkToFAQEntry(chunk, kb, tagSeqIdMap);
+            FaqEntry entry = faqChunkCodec.chunkToFAQEntry(chunk, kb, tagSeqIdMap);
             // Preserve score and match type from search results（Go L1117-1129；
             // 负例问题过滤已在 HybridSearch 内处理）
             Double score = chunkScores.get(chunk.getId());
@@ -1220,7 +1208,7 @@ public class FaqService {
             throw new BizException(AppError.badRequest("模式仅支持 append 或 replace"));
         }
 
-        KnowledgeBase kb = writableFAQKnowledgeBase(kbId);
+        KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
         validateFAQImportTags(kb, payload.entries());
         long tid = tenantId();
 
@@ -1240,7 +1228,7 @@ public class FaqService {
                     "该知识库已有导入任务正在进行中（任务ID: " + runningTaskId + "），请等待完成后再试"));
         }
 
-        Knowledge faqKnowledge = ensureFAQKnowledge(tid, kb);
+        Knowledge faqKnowledge = faqIndexWriter.ensureFAQKnowledge(tid, kb);
         if (faqKnowledge == null) {
             throw new IllegalStateException("failed to ensure FAQ knowledge: knowledge not found");
         }
@@ -1295,7 +1283,7 @@ public class FaqService {
         try {
             KnowledgeBase kb;
             try {
-                kb = validateFAQKnowledgeBase(job.kbId());
+                kb = faqGuard.validateFAQKnowledgeBase(job.kbId());
             } catch (BizException e) {
                 log.warn("FAQ import task {} aborted: KB invalid: {}", job.taskId(), e.getMessage());
                 return;
@@ -1346,7 +1334,7 @@ public class FaqService {
             // 导入执行面：与 Go 同位置过 GetEmbeddingModel（无模型 KB 的实录失败点）
             Model embeddingModel;
             try {
-                embeddingModel = requireEmbeddingModel(kb);
+                embeddingModel = faqIndexWriter.requireEmbeddingModel(kb);
             } catch (IllegalStateException e) {
                 markImportFailed(job, progress, e.getMessage());
                 return;
@@ -1386,7 +1374,7 @@ public class FaqService {
         Map<String, Set<String>> existingChunkQuestions = new LinkedHashMap<>();
         Map<String, String> existingChunkIDToStdQ = new LinkedHashMap<>();
         for (Chunk chunk : existingChunks) {
-            FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
+            FaqChunkMetadata meta = faqChunkCodec.sanitizedFaqMetadata(chunk);
             if (meta == null) {
                 continue;
             }
@@ -1557,7 +1545,7 @@ public class FaqService {
             if (mergeChunk == null) {
                 continue;
             }
-            FaqChunkMetadata existingMeta = sanitizedFaqMetadata(mergeChunk);
+            FaqChunkMetadata existingMeta = faqChunkCodec.sanitizedFaqMetadata(mergeChunk);
             if (existingMeta == null) {
                 continue;
             }
@@ -1915,7 +1903,7 @@ public class FaqService {
      * 对照 executeFAQImport 的导入执行循环（knowledge_faq_import.go L1499-1671）——
      * 2026-09-22 走查批接线（此前是「embedding runtime is not available」占位）：
      * 按 faqImportBatchSize(50) 分批 → 逐条 sanitize/resolveTagID/建 chunk → CreateChunks
-     * → indexFAQChunks(adjustStorage=true) → status=2 → 收集成功条目 → 进度落库；
+     * → faqIndexWriter.indexFAQChunks(adjustStorage=true) → status=2 → 收集成功条目 → 进度落库；
      * 末尾 finalizeImport（completed 终态 + 结果落库 + replace 清未引用标签）。
      *
      * <p>已知差异：Go 的 defer recover 会回滚本任务已创建的 chunks 与索引行；Java 无该
@@ -1928,7 +1916,7 @@ public class FaqService {
         int totalEntries = progress.total();
         int skippedCount = progress.skippedCount();
         int actualProcessed = skippedCount + progress.mergedCount();
-        String indexMode = faqIndexMode(kb);
+        String indexMode = faqChunkCodec.faqIndexMode(kb);
         List<FaqSuccessEntry> successEntries = progress.successEntries() == null
                 ? new ArrayList<>() : new ArrayList<>(progress.successEntries());
 
@@ -1940,7 +1928,7 @@ public class FaqService {
                 FaqDtos.FaqEntryPayload entry = job.entries().get(entryIdx);
                 FaqChunkMetadata meta;
                 try {
-                    meta = sanitizeFAQEntryPayload(entry);
+                    meta = faqGuard.sanitizeFAQEntryPayload(entry);
                 } catch (RuntimeException e) {
                     markImportFailed(job, progress,
                             "FAQ import failed: failed to sanitize entry at index " + entryIdx
@@ -1949,7 +1937,7 @@ public class FaqService {
                 }
                 String tagID;
                 try {
-                    tagID = resolveTagID(job.kbId(), entry);
+                    tagID = faqGuard.resolveTagID(job.kbId(), entry);
                 } catch (RuntimeException e) {
                     markImportFailed(job, progress,
                             "FAQ import failed: failed to resolve tag for entry at index " + entryIdx
@@ -1962,7 +1950,7 @@ public class FaqService {
                 chunk.setTenantId(job.tenantId());
                 chunk.setKnowledgeId(faqKnowledge.getId());
                 chunk.setKnowledgeBaseId(kb.getId());
-                chunk.setContent(buildFAQChunkContent(meta, indexMode));
+                chunk.setContent(faqChunkCodec.buildFAQChunkContent(meta, indexMode));
                 chunk.setIsEnabled(isEnabled);
                 chunk.setChunkType("faq");
                 chunk.setTagId(tagID);
@@ -1970,7 +1958,7 @@ public class FaqService {
                 if (entry.id() != null && entry.id() > 0) {
                     chunk.setSeqId(entry.id());
                 }
-                setFaqMetadata(chunk, meta);
+                faqChunkCodec.setFaqMetadata(chunk, meta);
                 // 对照 Go：导入建的 chunk 不设 Flags（推荐位零值）
                 chunk.setCreatedAt(OffsetDateTime.now());
                 chunk.setUpdatedAt(chunk.getCreatedAt());
@@ -1981,14 +1969,14 @@ public class FaqService {
                 chunkIds.add(chunk.getId());
             }
             try {
-                createChunks(chunks);
+                faqIndexWriter.createChunks(chunks);
             } catch (RuntimeException e) {
                 markImportFailed(job, progress,
                         "FAQ import failed: failed to create chunks: " + e.getMessage());
                 return;
             }
             try {
-                indexFAQChunks(kb, faqKnowledge, chunks, embeddingModel, true);
+                faqIndexWriter.indexFAQChunks(kb, faqKnowledge, chunks, embeddingModel, true);
             } catch (RuntimeException e) {
                 markImportFailed(job, progress,
                         "FAQ import failed: failed to index chunks: " + e.getMessage());
@@ -2008,7 +1996,7 @@ public class FaqService {
             // 收集成功条目（对照 Go L1606-1630：index/seq_id/tag_id/tag_name/标准问）
             for (int k = 0; k < chunks.size(); k++) {
                 Chunk chunk = chunks.get(k);
-                FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
+                FaqChunkMetadata meta = faqChunkCodec.sanitizedFaqMetadata(chunk);
                 String standardQ = meta == null || meta.standardQuestion == null
                         ? "" : meta.standardQuestion;
                 long tagID = 0;
@@ -2290,7 +2278,7 @@ public class FaqService {
         if (!"open".equals(displayStatus) && !"close".equals(displayStatus)) {
             throw new BizException(AppError.badRequest("invalid display status, must be 'open' or 'close'"));
         }
-        KnowledgeBase kb = writableFAQKnowledgeBase(kbId);
+        KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
         long tid = kb.getTenantId() == null ? tenantId() : kb.getTenantId();
 
         List<Knowledge> knowledgeList = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
@@ -2319,119 +2307,8 @@ public class FaqService {
         knowledgeMapper.updateById(faqKnowledge);
     }
 
-    // ══════════════════ 私有：KB/守卫 ══════════════════════════════════
+    // ══════════════════ 私有：条目视图重建（record 变换，随 Task 3 迁 DTO） ════
 
-    /** 对照 validateFAQKnowledgeBase（knowledge_faq.go L1501-1517）。 */
-    private KnowledgeBase validateFAQKnowledgeBase(String kbId) {
-        if (kbId == null || kbId.isEmpty()) {
-            throw new BizException(AppError.badRequest("知识库 ID 不能为空"));
-        }
-        KnowledgeBase kb = knowledgeService.findKb(kbId);
-        if (kb == null || !kb.getId().equals(kbId)) {
-            throw new BizException(AppError.notFound("知识库不存在"));
-        }
-        ensureDefaults(kb);
-        if (!"faq".equals(kb.getType())) {
-            throw new BizException(AppError.badRequest("仅 FAQ 知识库支持该操作"));
-        }
-        return kb;
-    }
-
-    /** 对照 resolveKBReadTenant（org-share 未翻译：仅同租户，越权 403——与路由守卫一致）。 */
-    private long resolveKBReadTenant(KnowledgeBase kb) {
-        Long current = TenantContext.currentTenantId();
-        if (kb != null && current != null && current.equals(kb.getTenantId())) {
-            return kb.getTenantId();
-        }
-        throw new BizException(AppError.forbidden("无权访问该知识库"));
-    }
-
-    /** 对照 writableFAQKnowledgeBase（requireKBWrite 未翻译，同 ChunkService 先例）。 */
-    private KnowledgeBase writableFAQKnowledgeBase(String kbId) {
-        return validateFAQKnowledgeBase(kbId);
-    }
-
-    /**
-     * 对照 KnowledgeBase.EnsureDefaults 的 FAQ 段（types/knowledgebase.go L727-770）：
-     * FAQConfig 缺失 → question_answer/combined；字段空 → 各自默认。
-     * Java 的 faq_config 是 JsonNode——这里只读出有效值，不改 KB 行。
-     */
-    private void ensureDefaults(KnowledgeBase kb) {
-        // 空实现：faqIndexMode/faqQuestionIndexMode 负责缺省值（EnsureDefaults 的读路径净效果）
-    }
-
-    private String faqIndexMode(KnowledgeBase kb) {
-        JsonNode cfg = kb.getFaqConfig();
-        String mode = cfg == null ? "" : cfg.path("index_mode").asText("");
-        return mode.isEmpty() ? "question_answer" : mode;
-    }
-
-    private String faqQuestionIndexMode(KnowledgeBase kb) {
-        JsonNode cfg = kb.getFaqConfig();
-        String mode = cfg == null ? "" : cfg.path("question_index_mode").asText("");
-        return mode.isEmpty() ? "combined" : mode;
-    }
-
-    // ══════════════════ 私有：条目 ↔ chunk 转换 ════════════════════════
-
-    /** Go 的 chunk.FAQMetadata()：解析 + Sanitize。 */
-    private FaqChunkMetadata sanitizedFaqMetadata(Chunk chunk) {
-        FaqChunkMetadata meta = FaqChunkMetadata.fromJson(chunk.getMetadata());
-        if (meta != null) {
-            meta.sanitize();
-        }
-        return meta;
-    }
-
-    /** UpdateEntry 用：解析失败不影响（Go 的 err==nil && existing!=nil 判定）。 */
-    private FaqChunkMetadata currentFaqMetadata(Chunk chunk) {
-        return sanitizedFaqMetadata(chunk);
-    }
-
-    private void setFaqMetadata(Chunk chunk, FaqChunkMetadata meta) {
-        meta.sanitize();
-        chunk.setMetadata(meta.toJsonNode());
-        chunk.setContentHash(FaqChunkMetadata.calculateContentHash(meta.normalize()));
-    }
-
-    /**
-     * 对照 chunkToFAQEntry（knowledge_faq.go L1592-1631）。nil 列表保持 null
-     * （Go nil slice → JSON null，FAQEntry 无 omitempty——golden 实录，别归一成 []）。
-     */
-    private FaqEntry chunkToFAQEntry(Chunk chunk, KnowledgeBase kb, Map<String, Long> tagSeqIdMap) {
-        FaqChunkMetadata meta = sanitizedFaqMetadata(chunk);
-        if (meta == null) {
-            meta = new FaqChunkMetadata();
-            meta.standardQuestion = chunk.getContent();
-        }
-        String answerStrategy = meta.answerStrategy == null || meta.answerStrategy.isEmpty()
-                ? "all" : meta.answerStrategy;
-        long tagSeqId = 0;
-        if (!chunk.getTagId().isEmpty() && tagSeqIdMap != null) {
-            tagSeqId = tagSeqIdMap.getOrDefault(chunk.getTagId(), 0L);
-        }
-        return new FaqEntry(
-                chunk.getSeqId() == null ? 0 : chunk.getSeqId(),
-                chunk.getId(),
-                chunk.getKnowledgeId(),
-                chunk.getKnowledgeBaseId(),
-                tagSeqId,
-                "",
-                chunk.isIsEnabled(),
-                (chunk.getFlags() & 1) != 0,
-                meta.standardQuestion,
-                meta.similarQuestions,
-                meta.negativeQuestions,
-                meta.answers,
-                answerStrategy,
-                faqIndexMode(kb),
-                chunk.getUpdatedAt(),
-                chunk.getCreatedAt(),
-                0,
-                0,
-                chunk.getChunkType(),
-                "");
-    }
 
     /** 用检索命中覆盖 score/matchType/matchedQuestion（record 重建，Go 的值拷贝同形）。 */
     private static FaqEntry withSearchHit(FaqEntry entry, double score, int matchType,
@@ -2451,104 +2328,6 @@ public class FaqService {
                 entry.answers(), entry.answerStrategy(), entry.indexMode(), entry.updatedAt(),
                 entry.createdAt(), entry.score(), entry.matchType(), entry.chunkType(),
                 entry.matchedQuestion());
-    }
-
-    /** 对照 buildFAQChunkContent（knowledge_faq.go L1633-1651）。 */
-    private static String buildFAQChunkContent(FaqChunkMetadata meta, String mode) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("Q: ").append(meta.standardQuestion).append('\n');
-        if (meta.similarQuestions != null && !meta.similarQuestions.isEmpty()) {
-            builder.append("Similar Questions:\n");
-            for (String q : meta.similarQuestions) {
-                builder.append("- ").append(q).append('\n');
-            }
-        }
-        if ("question_answer".equals(mode) && meta.answers != null && !meta.answers.isEmpty()) {
-            builder.append("Answers:\n");
-            for (String ans : meta.answers) {
-                builder.append("- ").append(ans).append('\n');
-            }
-        }
-        return builder.toString();
-    }
-
-    // ══════════════════ 私有：payload 校验 / tag 解析 ══════════════════
-
-    /** 对照 sanitizeFAQEntryPayload（knowledge_faq.go L1860-1888）。 */
-    private FaqChunkMetadata sanitizeFAQEntryPayload(FaqDtos.FaqEntryPayload payload) {
-        String answerStrategy = "all";
-        if (payload.answerStrategy() != null && !payload.answerStrategy().isEmpty()) {
-            if (FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(payload.answerStrategy())
-                    || FaqChunkMetadata.ANSWER_STRATEGY_RANDOM.equals(payload.answerStrategy())) {
-                answerStrategy = payload.answerStrategy();
-            } else {
-                throw new BizException(AppError.badRequest("answer_strategy 必须是 'all' 或 'random'"));
-            }
-        }
-        FaqChunkMetadata meta = new FaqChunkMetadata();
-        meta.standardQuestion = FaqChunkMetadata.trimSpace(payload.standardQuestion());
-        meta.similarQuestions = payload.similarQuestions();
-        meta.negativeQuestions = payload.negativeQuestions();
-        meta.answers = payload.answers();
-        meta.answerStrategy = answerStrategy;
-        meta.version = 1;
-        meta.source = "faq";
-        meta.normalize();
-        if (meta.standardQuestion == null || meta.standardQuestion.isEmpty()) {
-            throw new BizException(AppError.badRequest("标准问不能为空"));
-        }
-        if (meta.answers == null || meta.answers.isEmpty()) {
-            throw new BizException(AppError.badRequest("至少提供一个答案"));
-        }
-        return meta;
-    }
-
-    /** 对照 resolveTagID（knowledge_faq.go L1828-1858）：tag_id 优先、tag_name、未分类兜底。 */
-    private String resolveTagID(String kbId, FaqDtos.FaqEntryPayload payload) {
-        long tid = tenantId();
-        if (payload.tagId() != 0) {
-            KnowledgeTag tag = tagMapper.selectByTenantAndSeqId(tid, payload.tagId());
-            if (tag == null) {
-                throw new IllegalStateException("failed to find tag by seq_id " + payload.tagId() + ": record not found");
-            }
-            validateFAQTagScope(tag, tid, kbId);
-            return tag.getId();
-        }
-        if (payload.tagName() != null && !payload.tagName().isEmpty()) {
-            KnowledgeTag tag = findOrCreateTagByName(kbId, payload.tagName());
-            return tag.getId();
-        }
-        return findOrCreateTagByName(kbId, FaqDtos.UNTAGGED_TAG_NAME).getId();
-    }
-
-    /** 对照 tagService.FindOrCreateTagByName（tag.go L476-508）。 */
-    private KnowledgeTag findOrCreateTagByName(String kbId, String name) {
-        name = FaqChunkMetadata.trimSpace(name);
-        if (kbId == null || kbId.isEmpty() || name.isEmpty()) {
-            throw new BizException(AppError.badRequest("知识库ID和标签名称不能为空"));
-        }
-        KnowledgeBase kb = knowledgeService.findKb(kbId);
-        if (kb == null) {
-            throw new BizException(AppError.notFound("knowledge base not found"));
-        }
-        long tid = kb.getTenantId();
-        KnowledgeTag existing = tagMapper.selectByTenantKbAndName(tid, kbId, name);
-        if (existing != null) {
-            return existing;
-        }
-        int sortOrder = FaqDtos.UNTAGGED_TAG_NAME.equals(name) ? -1 : 0;
-        return tagRepository.createTag(tid, kbId, name, "", sortOrder);
-    }
-
-    /** 对照 validateFAQTagScope（knowledge_faq_batch.go L124-132）。 */
-    private void validateFAQTagScope(KnowledgeTag tag, long tenantId, String kbId) {
-        if (tag == null) {
-            throw new BizException(AppError.notFound("标签不存在"));
-        }
-        if (tag.getTenantId() == null || tag.getTenantId().longValue() != tenantId
-                || !kbId.equals(tag.getKnowledgeBaseId())) {
-            throw new BizException(AppError.forbidden("标签不属于当前知识库"));
-        }
     }
 
     // ══════════════════ 私有：重复检查 / 批量计划 ══════════════════════
@@ -2599,7 +2378,7 @@ public class FaqService {
         if (dupChunk == null) {
             return;
         }
-        FaqChunkMetadata existingMeta = sanitizedFaqMetadata(dupChunk);
+        FaqChunkMetadata existingMeta = faqChunkCodec.sanitizedFaqMetadata(dupChunk);
         if (existingMeta == null) {
             throw new BizException(AppError.badRequest("标准问或相似问与已有条目重复"));
         }
@@ -2720,7 +2499,7 @@ public class FaqService {
                 if (tag == null || !tagIds.contains(tag.getSeqId())) {
                     continue;
                 }
-                validateFAQTagScope(tag, kb.getTenantId(), kb.getId());
+                faqGuard.validateFAQTagScope(tag, kb.getTenantId(), kb.getId());
                 plan.tags.put(tag.getSeqId(), tag);
             }
             for (Long id : sortedIds(tagIds)) {
@@ -2747,241 +2526,6 @@ public class FaqService {
         List<Long> ids = new ArrayList<>(values);
         ids.sort(Comparator.naturalOrder());
         return ids;
-    }
-
-    // ══════════════════ 私有：容器 / chunk 写 / embedding 门槛 ══════════
-
-    /** 对照 findFAQKnowledge（knowledge_faq.go L1519-1534）。 */
-    private Knowledge findFAQKnowledge(long tenantId, String kbId) {
-        List<Knowledge> knowledges = knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>()
-                .eq(Knowledge::getTenantId, tenantId)
-                .eq(Knowledge::getKnowledgeBaseId, kbId)
-                .isNull(Knowledge::getDeletedAt));
-        for (Knowledge knowledge : knowledges) {
-            if ("faq".equals(knowledge.getType())) {
-                return knowledge;
-            }
-        }
-        return null;
-    }
-
-    /** 对照 ensureFAQKnowledge（knowledge_faq.go L1536-1566）。 */
-    private Knowledge ensureFAQKnowledge(long tenantId, KnowledgeBase kb) {
-        Knowledge existing = findFAQKnowledge(tenantId, kb.getId());
-        if (existing != null) {
-            return existing;
-        }
-        Knowledge knowledge = new Knowledge();
-        knowledge.setId(UUID.randomUUID().toString());
-        knowledge.setTenantId(tenantId);
-        knowledge.setKnowledgeBaseId(kb.getId());
-        knowledge.setType("faq");
-        knowledge.setChannel("web");
-        String name = FaqChunkMetadata.trimSpace(kb.getName());
-        knowledge.setTitle(name.isEmpty() ? "FAQ" : name);
-        knowledge.setDescription("FAQ 条目容器");
-        knowledge.setSource("faq");
-        knowledge.setParseStatus("completed");
-        knowledge.setEnableStatus("enabled");
-        knowledge.setEmbeddingModelId(kb.getEmbeddingModelId());
-        OffsetDateTime now = OffsetDateTime.now();
-        knowledge.setCreatedAt(now);
-        knowledge.setUpdatedAt(now);
-        knowledgeMapper.insert(knowledge);
-        return knowledge;
-    }
-
-    /**
-     * GetEmbeddingModel 门槛：ID 空 → Go 的 errors.New("model ID cannot be empty")；
-     * 行缺失 → gorm 的 "record not found"。两支都包成
-     * {@code failed to get embedding model: %w} 后以 plain 500 冒泡。
-     */
-    private Model requireEmbeddingModel(KnowledgeBase kb) {
-        String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
-        if (modelId.isEmpty()) {
-            throw new IllegalStateException("failed to get embedding model: model ID cannot be empty");
-        }
-        Model model = findModelRow(tenantId(), modelId);
-        if (model == null) {
-            throw new IllegalStateException("failed to get embedding model: record not found");
-        }
-        return model;
-    }
-
-    /** 模型行存在性（对照 GetModelByID：ID 空 / 行缺失两支；行存在 → 运行时降级见类注释）。 */
-    private Model findModelRow(long tenantId, String modelId) {
-        return modelMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Model>()
-                .eq(Model::getId, modelId)
-                .eq(Model::getTenantId, tenantId)
-                .last("LIMIT 1"));
-    }
-
-    /**
-     * 对照 indexFAQChunks（knowledge_faq_import.go L2019-2130）——2026-09-22 走查批接线：
-     * 组装索引行（{@link FaqIndexRows}）→ adjustStorage 时估算大小 + 配额检查（超限 →
-     * "Storage quota exceeded"）→ 删旧行（Go 的 needDelete=false 靠 EFPutDocument 覆盖，
-     * Java 的 DO NOTHING 语义下显式先删（净效果等价：该 chunk 的全部新行重插））→
-     * 分批 embedding → 写库 → adjustStorage 时配额累加 → UpdateKnowledge(processed_at)。
-     */
-    private void indexFAQChunks(KnowledgeBase kb, Knowledge knowledge, List<Chunk> chunks,
-                                Model embeddingModel, boolean adjustStorage) {
-        if (chunks == null || chunks.isEmpty()) {
-            return;
-        }
-        long tid = tenantId();
-        List<VectorStoreService.IndexRow> rows = new ArrayList<>();
-        List<String> chunkIds = new ArrayList<>();
-        for (Chunk chunk : chunks) {
-            rows.addAll(FaqIndexRows.build(kb, chunk));
-            chunkIds.add(chunk.getId());
-        }
-        int dimensions = embeddingDimensions(embeddingModel);
-        long size = 0;
-        if (adjustStorage) {
-            size = VectorStoreService.estimateStorageSize(rows, dimensions);
-            com.ragagent.auth.domain.Tenant tenantInfo = tenantStorage.getTenant(tid);
-            long quota = tenantInfo == null || tenantInfo.getStorageQuota() == null
-                    ? 0 : tenantInfo.getStorageQuota();
-            long used = tenantInfo == null || tenantInfo.getStorageUsed() == null
-                    ? 0 : tenantInfo.getStorageUsed();
-            if (quota > 0 && used + size > quota) {
-                throw new IllegalStateException("Storage quota exceeded");
-            }
-        }
-        // 2026-09-25 写链改道：绑定 store 的 KB 走引擎口（DeleteByChunkIDList +
-        // BatchIndex——嵌入与分批/退避由 KV 引擎服务承担，照 Go 的 FAQ 索引路径）
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
-                vectorWrites.boundEngine(kb);
-        if (boundEngine != null) {
-            try {
-                com.ragagent.embedding.Embedder emb =
-                        modelRuntimeFactory.getEmbeddingModel(embeddingModel.getId());
-                boundEngine.deleteByChunkIdList(chunkIds, emb.getDimensions(), kb.getType());
-                boundEngine.batchIndex(emb, faqIndexInfos(kb, rows));
-            } catch (RuntimeException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new IllegalStateException(
-                        e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
-            }
-            if (adjustStorage && size > 0) {
-                tenantStorage.adjustStorageUsed(tid, size);
-                knowledge.setStorageSize(knowledge.getStorageSize() + size);
-            }
-            OffsetDateTime nowIndexed = OffsetDateTime.now();
-            knowledge.setUpdatedAt(nowIndexed);
-            knowledge.setProcessedAt(nowIndexed);
-            knowledgeMapper.updateById(knowledge);
-            return;
-        }
-        vectorStore.deleteByChunkId(chunkIds);
-        EmbedderClient.EmbedConfig cfg = EmbedderClient.configFrom(embeddingModel);
-        int batchSize = ChunkVectorIndexer.embedBatchSize();
-        for (int from = 0; from < rows.size(); from += batchSize) {
-            int to = Math.min(from + batchSize, rows.size());
-            List<VectorStoreService.IndexRow> batchRows = rows.subList(from, to);
-            List<String> texts = new ArrayList<>(batchRows.size());
-            for (VectorStoreService.IndexRow row : batchRows) {
-                texts.add(row.content());
-            }
-            List<float[]> vectors;
-            try {
-                vectors = embedder.embedBatch(cfg, texts);
-            } catch (Exception e) {
-                throw new IllegalStateException(e.getMessage() == null ? e.toString() : e.getMessage(), e);
-            }
-            vectorStore.saveIndexRows(batchRows, vectors);
-        }
-        if (adjustStorage && size > 0) {
-            tenantStorage.adjustStorageUsed(tid, size);
-            knowledge.setStorageSize(knowledge.getStorageSize() + size);
-        }
-        OffsetDateTime now = OffsetDateTime.now();
-        knowledge.setUpdatedAt(now);
-        knowledge.setProcessedAt(now);
-        knowledgeMapper.updateById(knowledge);
-    }
-
-    /**
-     * 对照 deleteFAQChunkVectors（knowledge_faq_import.go L2132-2179）：GetEmbeddingModel
-     * 门槛（失败原样抛）→ 估算大小 → DeleteByChunkIDList → 配额回退（storage_used 负数
-     * 钳 0 在 TenantStorageService 内；knowledge.storage_size 钳 0）→ UpdateKnowledge。
-     */
-    private void deleteFAQChunkVectors(KnowledgeBase kb, Knowledge knowledge, List<Chunk> chunks) {
-        if (chunks == null || chunks.isEmpty()) {
-            return;
-        }
-        Model embeddingModel = requireEmbeddingModel(kb);
-        long tid = tenantId();
-        List<VectorStoreService.IndexRow> rows = new ArrayList<>();
-        List<String> chunkIds = new ArrayList<>();
-        for (Chunk chunk : chunks) {
-            rows.addAll(FaqIndexRows.build(kb, chunk));
-            chunkIds.add(chunk.getId());
-        }
-        long size = VectorStoreService.estimateStorageSize(rows, embeddingDimensions(embeddingModel));
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
-                vectorWrites.boundEngine(kb);
-        if (boundEngine != null) {
-            try {
-                com.ragagent.embedding.Embedder emb =
-                        modelRuntimeFactory.getEmbeddingModel(embeddingModel.getId());
-                boundEngine.deleteByChunkIdList(chunkIds, emb.getDimensions(), kb.getType());
-            } catch (RuntimeException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new IllegalStateException(
-                        e.getMessage() == null ? String.valueOf(e) : e.getMessage(), e);
-            }
-        } else {
-            vectorStore.deleteByChunkId(chunkIds);
-        }
-        if (size > 0) {
-            tenantStorage.adjustStorageUsed(tid, -size);
-            knowledge.setStorageSize(Math.max(0, knowledge.getStorageSize() - size));
-        }
-        knowledge.setUpdatedAt(OffsetDateTime.now());
-        knowledgeMapper.updateById(knowledge);
-    }
-
-    /** IndexRow → 引擎 IndexInfo（照 types.IndexInfo 字段集；SourceType=ChunkSourceType=0）。 */
-    private static List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> faqIndexInfos(
-            KnowledgeBase kb, List<VectorStoreService.IndexRow> rows) {
-        List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> items =
-                new ArrayList<>(rows.size());
-        for (VectorStoreService.IndexRow row : rows) {
-            com.ragagent.retrieval.engine.EngineTypes.IndexInfo item =
-                    new com.ragagent.retrieval.engine.EngineTypes.IndexInfo();
-            item.sourceId = row.sourceId();
-            item.sourceType = com.ragagent.retrieval.engine.EngineTypes.SOURCE_TYPE_FILE;
-            item.chunkId = row.chunkId();
-            item.knowledgeId = row.knowledgeId();
-            item.knowledgeBaseId = row.knowledgeBaseId();
-            item.knowledgeType = kb.getType();
-            item.tagId = row.tagId() == null ? "" : row.tagId();
-            item.content = row.content();
-            item.isEnabled = row.isEnabled();
-            items.add(item);
-        }
-        return items;
-    }
-
-    /** 对照 Go embeddingModel.GetDimensions()：模型 embedding_parameters.dimension。 */
-    private static int embeddingDimensions(Model model) {
-        if (model == null || model.getParameters() == null
-                || model.getParameters().getEmbeddingParameters() == null) {
-            return 0;
-        }
-        return model.getParameters().getEmbeddingParameters().getDimension();
-    }
-
-    private void createChunks(List<Chunk> chunks) {
-        // 对照 CreateChunks（chunk.go L69 Select("*").CreateInBatches）：
-        // MP insert 对 null 字段省列（seq_id 省列 → DB 序列默认）；is_enabled/flags/status
-        // 是原始类型恒写；时间戳由调用方显式赋值（GORM autoCreateTime 的复刻点）
-        for (Chunk c : chunks) {
-            chunkMapper.insert(c);
-        }
     }
 
     private static String sha256Hex(String input) {
@@ -3033,54 +2577,4 @@ public class FaqService {
                      List<FaqDtos.FaqEntryPayload> entries) {
     }
 
-    /**
-     * 导入/验证进度与 running 锁的进程内存储（对照 Go 的 redisClient==nil 兜底分支：
-     * memFAQProgress / memFAQRunningImport，键形状 faq_import_progress:&lt;task&gt; 与
-     * faq_import_running:&lt;kb&gt; 的单实例等价物；TTL 是 Redis 专属，内存版无）。
-     */
-    @org.springframework.stereotype.Component
-    public static class FaqImportTaskStore {
-
-        /** 对照 runningFAQImportInfo。 */
-        public record RunningInfo(String taskId, long enqueuedAt, String instanceId) {
-        }
-
-        private final ConcurrentHashMap<String, FaqImportProgress> progress = new ConcurrentHashMap<>();
-        private final ConcurrentHashMap<String, RunningInfo> running = new ConcurrentHashMap<>();
-        private final Set<String> createGuards = ConcurrentHashMap.newKeySet();
-
-        public FaqImportProgress getProgress(String taskId) {
-            return progress.get(taskId);
-        }
-
-        public void saveProgress(FaqImportProgress p) {
-            progress.put(p.taskId(), p);
-        }
-
-        public String getRunningTaskId(String kbId) {
-            RunningInfo info = running.get(kbId);
-            return info == null ? "" : info.taskId();
-        }
-
-        public void setRunningInfo(String kbId, RunningInfo info) {
-            running.put(kbId, info);
-        }
-
-        public void clearRunningInfoIfMatches(String kbId, String taskId, String instanceId, long enqueuedAt) {
-            RunningInfo info = running.get(kbId);
-            if (info != null && info.taskId().equals(taskId)
-                    && (info.instanceId().isEmpty() || instanceId.isEmpty()
-                    || info.instanceId().equals(instanceId))) {
-                running.remove(kbId);
-            }
-        }
-
-        public boolean acquireCreateGuard(String key) {
-            return createGuards.add(key);
-        }
-
-        public void releaseCreateGuard(String key) {
-            createGuards.remove(key);
-        }
-    }
 }
