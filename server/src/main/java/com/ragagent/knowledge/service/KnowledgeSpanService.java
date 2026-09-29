@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.mapper.KnowledgeSpanRepository;
 import org.springframework.stereotype.Service;
+import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
 
 /**
  * 知识处理 spans 合成树。静态 canonical 时间线复用门面公开常量
@@ -41,7 +42,7 @@ public class KnowledgeSpanService {
     public ObjectNode knowledgeSpans(Knowledge knowledge, int requestedAttempt) {
         int latestAttempt = spanRepository.latestAttempt(knowledge.getId());
         int currentAttempt = requestedAttempt > 0 ? requestedAttempt : latestAttempt;
-        List<com.ragagent.knowledge.domain.KnowledgeProcessingSpan> rows =
+        List<KnowledgeProcessingSpan> rows =
                 currentAttempt > 0
                         ? spanRepository.listByAttempt(knowledge.getId(), currentAttempt)
                         : List.of();
@@ -65,7 +66,7 @@ public class KnowledgeSpanService {
     }
 
     record SpanTree(ObjectNode root, String currentStage,
-                    com.ragagent.knowledge.domain.KnowledgeProcessingSpan lastFailure) {
+                    KnowledgeProcessingSpan lastFailure) {
     }
 
     /**
@@ -77,7 +78,7 @@ public class KnowledgeSpanService {
      */
     private static SpanTree buildSpanTree(
             String knowledgeId, int attempt,
-            List<com.ragagent.knowledge.domain.KnowledgeProcessingSpan> rows,
+            List<KnowledgeProcessingSpan> rows,
             String parseStatus) {
         String syntheticStatus = "pending";
         if (Knowledge.PARSE_COMPLETED.equals(parseStatus)) {
@@ -88,12 +89,12 @@ public class KnowledgeSpanService {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         Map<String, ObjectNode> nodes = new java.util.LinkedHashMap<>();
-        com.ragagent.knowledge.domain.KnowledgeProcessingSpan rootRow = null;
-        Map<String, com.ragagent.knowledge.domain.KnowledgeProcessingSpan> stageRowByName =
+        KnowledgeProcessingSpan rootRow = null;
+        Map<String, KnowledgeProcessingSpan> stageRowByName =
                 new java.util.LinkedHashMap<>();
         String currentStage = "";
-        com.ragagent.knowledge.domain.KnowledgeProcessingSpan lastFailure = null;
-        for (com.ragagent.knowledge.domain.KnowledgeProcessingSpan r : rows) {
+        KnowledgeProcessingSpan lastFailure = null;
+        for (KnowledgeProcessingSpan r : rows) {
             nodes.put(r.getSpanId(), spanNodeFromRow(r));
             if ("root".equals(r.getKind()) && rootRow == null) {
                 rootRow = r;
@@ -118,7 +119,7 @@ public class KnowledgeSpanService {
             root = nodes.get(rootRow.getSpanId());
         }
 
-        for (com.ragagent.knowledge.domain.KnowledgeProcessingSpan r : rows) {
+        for (KnowledgeProcessingSpan r : rows) {
             ObjectNode n = nodes.get(r.getSpanId());
             if (n == null || n == root) {
                 continue;
@@ -154,7 +155,7 @@ public class KnowledgeSpanService {
      * created_at/updated_at 恒输出。
      */
     private static ObjectNode spanNodeFromRow(
-            com.ragagent.knowledge.domain.KnowledgeProcessingSpan r) {
+            KnowledgeProcessingSpan r) {
         ObjectNode n = MAPPER.createObjectNode();
         n.put("knowledge_id", r.getKnowledgeId());
         n.put("attempt", r.getAttempt());
@@ -221,7 +222,7 @@ public class KnowledgeSpanService {
      */
     private static JsonNode knowledgeSpansLastError(
             int currentAttempt, int latestAttempt, Knowledge knowledge,
-            com.ragagent.knowledge.domain.KnowledgeProcessingSpan spanFailure) {
+            KnowledgeProcessingSpan spanFailure) {
         if (spanFailure != null) {
             ObjectNode e = MAPPER.createObjectNode();
             e.put("code", spanFailure.getErrorCode());

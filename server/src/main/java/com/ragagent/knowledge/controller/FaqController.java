@@ -37,6 +37,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.ragagent.knowledge.service.ChunkAccessGuard;
+import com.ragagent.common.error.ErrorCode;
+import com.ragagent.knowledge.service.KnowledgeTaskIds;
 
 /**
  * FAQ 模块 HTTP 面：条目查询/命令/导入三服务的薄绑定层。读路由经
@@ -51,12 +54,12 @@ public class FaqController {
     private final FaqEntryQueryService faqEntryQuery;
     private final FaqEntryCommandService faqEntryCommand;
     private final FaqImportService faqImport;
-    private final com.ragagent.knowledge.service.ChunkAccessGuard guard;
+    private final ChunkAccessGuard guard;
 
     public FaqController(FaqEntryQueryService faqEntryQuery,
                          FaqEntryCommandService faqEntryCommand,
                          FaqImportService faqImport,
-                         com.ragagent.knowledge.service.ChunkAccessGuard guard) {
+                         ChunkAccessGuard guard) {
         this.faqEntryQuery = faqEntryQuery;
         this.faqEntryCommand = faqEntryCommand;
         this.faqImport = faqImport;
@@ -270,7 +273,7 @@ public class FaqController {
 
     /** 导入进度面：任务租户必须与调用方一致，否则 404（不泄露他租户任务存在性）。 */
     private void requireTaskProgressTenant(String taskId) {
-        Long taskTenantId = com.ragagent.knowledge.service.KnowledgeTaskIds.taskTenantId(taskId);
+        Long taskTenantId = KnowledgeTaskIds.taskTenantId(taskId);
         if (taskTenantId == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }
@@ -364,7 +367,7 @@ public class FaqController {
     public ResponseEntity<java.util.Map<String, Object>> handleFaqPlainInternal(IllegalStateException ex) {
         log.error("FAQ operation failed", ex);
         java.util.Map<String, Object> error = new java.util.LinkedHashMap<>();
-        error.put("code", com.ragagent.common.error.ErrorCode.INTERNAL_SERVER.value());
+        error.put("code", ErrorCode.INTERNAL_SERVER.value());
         error.put("message", "Internal server error");
         java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("error", error);

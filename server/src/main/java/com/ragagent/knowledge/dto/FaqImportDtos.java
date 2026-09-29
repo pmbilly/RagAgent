@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPayload;
 
 /**
  * FAQ 导入域传输对象：批量 upsert 请求、失败/合并/成功明细、导入进度与持久化结果。
@@ -31,7 +32,7 @@ public final class FaqImportDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FaqBatchUpsertPayload(
             @jakarta.validation.constraints.NotNull(message = "entries: 不能为空")
-            List<com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPayload> entries,
+            List<FaqEntryPayload> entries,
             @jakarta.validation.constraints.NotBlank(message = "mode: 必须为 append 或 replace")
             @jakarta.validation.constraints.Pattern(regexp = "append|replace", message = "mode: 必须为 append 或 replace")
             String mode,

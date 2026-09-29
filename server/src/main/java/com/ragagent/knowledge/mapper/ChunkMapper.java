@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
+import com.ragagent.common.web.PgJsonTypeHandler;
 
 @Mapper
 public interface ChunkMapper extends BaseMapper<Chunk> {
@@ -84,7 +85,7 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
     @Results({
             @Result(column = "id", property = "id"),
             @Result(column = "metadata", property = "metadata",
-                    typeHandler = com.ragagent.common.web.PgJsonTypeHandler.class),
+                    typeHandler = PgJsonTypeHandler.class),
     })
     Chunk findFaqDuplicateChunk(@Param("tenantId") long tenantId,
                                 @Param("kbId") String kbId,

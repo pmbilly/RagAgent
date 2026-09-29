@@ -26,6 +26,10 @@ import com.ragagent.model.service.ModelService.ModelNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
+import com.ragagent.retrieval.engine.EngineTypes;
+import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 
 /**
  * chunk 向量行的重建执行体（2026-09-22 走查批：把「路由在、执行体占位」的两处
@@ -128,7 +132,7 @@ public class ChunkVectorIndexer {
     private void indexAndStore(KnowledgeBase kb, Model embeddingModel, List<Chunk> chunks) {
         // updateChunkVector 的 CreateRetrieveEngineForKB → DeleteByChunkIDList →
         // BatchIndex；未绑定保持 pg 直连，契约样例锁定行为不变）
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+        CompositeRetrieveEngine boundEngine =
                 vectorWrites.boundEngine(kb);
         if (boundEngine != null) {
             indexAndStoreViaEngine(kb, boundEngine, chunks);
@@ -205,12 +209,12 @@ public class ChunkVectorIndexer {
      * KnowledgeType=kb.Type）；嵌入与分批/退避由 KV 引擎服务承担（40/10 分批 +
      */
     private void indexAndStoreViaEngine(KnowledgeBase kb,
-                                        com.ragagent.retrieval.engine.CompositeRetrieveEngine engine,
+                                        CompositeRetrieveEngine engine,
                                         List<Chunk> chunks) {
-        com.ragagent.embedding.Embedder embedderRuntime =
+        Embedder embedderRuntime =
                 modelRuntimeFactory.getEmbeddingModel(kb.getEmbeddingModelId());
         List<String> ids = new ArrayList<>();
-        List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> items = new ArrayList<>();
+        List<IndexInfo> items = new ArrayList<>();
         Map<String, Knowledge> knowledgeCache = new HashMap<>();
         for (Chunk chunk : chunks) {
             if (chunk.getKnowledgeBaseId() == null
@@ -264,13 +268,13 @@ public class ChunkVectorIndexer {
     }
 
     /** 照 types.IndexInfo 的字段集（SourceType=ChunkSourceType=0；TagID 零值 ""）。 */
-    private static com.ragagent.retrieval.engine.EngineTypes.IndexInfo indexInfo(
+    private static IndexInfo indexInfo(
             KnowledgeBase kb, Knowledge knowledge, String sourceId, String chunkId,
             String content, boolean enabled) {
-        com.ragagent.retrieval.engine.EngineTypes.IndexInfo item =
-                new com.ragagent.retrieval.engine.EngineTypes.IndexInfo();
+        IndexInfo item =
+                new IndexInfo();
         item.sourceId = sourceId;
-        item.sourceType = com.ragagent.retrieval.engine.EngineTypes.SOURCE_TYPE_FILE;
+        item.sourceType = EngineTypes.SOURCE_TYPE_FILE;
         item.chunkId = chunkId;
         item.knowledgeId = knowledge.getId();
         item.knowledgeBaseId = kb.getId();

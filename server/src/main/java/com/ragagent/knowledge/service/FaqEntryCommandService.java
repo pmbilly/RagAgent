@@ -31,6 +31,7 @@ import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 
 /**
  * FAQ 条目命令面：创建、更新、相似问追加、批量字段/标签更新与删除，
@@ -519,7 +520,7 @@ public class FaqEntryCommandService {
         // 检索引擎同步：失败 → 原样上抛（阻断；
         // 2026-09-22 走查批接线：此前为 WARN + no-op 占位。
         // 绑定 store 的 KB 走引擎口（deleteByChunkIdList + batchIndex）
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+        CompositeRetrieveEngine boundEngine =
                 (!enabledUpdates.isEmpty() || !tagUpdates.isEmpty())
                         ? vectorWrites.boundEngine(kb) : null;
         if (boundEngine != null) {
@@ -651,17 +652,17 @@ public class FaqEntryCommandService {
         }
         long tid = tenantId;
         if (tid == 0) {
-            Long ctxTenant = com.ragagent.common.context.TenantContext.currentTenantId();
+            Long ctxTenant = TenantContext.currentTenantId();
             tid = ctxTenant == null ? 0L : ctxTenant;
         }
         if (tid == 0) {
             return;
         }
-        String actorId = com.ragagent.common.context.TenantContext.currentUserId() == null
-                ? "" : com.ragagent.common.context.TenantContext.currentUserId();
+        String actorId = TenantContext.currentUserId() == null
+                ? "" : TenantContext.currentUserId();
         String actorRole = actorId.isEmpty() ? ""
-                : com.ragagent.common.context.TenantContext.currentRole() == null
-                ? "" : com.ragagent.common.context.TenantContext.currentRole();
+                : TenantContext.currentRole() == null
+                ? "" : TenantContext.currentRole();
 
         AuditLog entry = new AuditLog();
         entry.setTenantId(tid);

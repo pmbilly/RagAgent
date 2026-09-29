@@ -1,5 +1,7 @@
 package com.ragagent.knowledge.service;
 
+import com.ragagent.knowledge.domain.Knowledge;
+
 /**
  * 索引文本 = 文档 title 前缀 + 内容（标题与疑问式查询的语义对齐）。
  * 自定义元数据保持文档级作用域——只喂给答案模型/摘要模型一次，
@@ -10,7 +12,7 @@ public final class KnowledgeIndexContent {
     private KnowledgeIndexContent() {}
 
     /** title（trim 后）为空则原样返回。 */
-    public static String build(com.ragagent.knowledge.domain.Knowledge knowledge, String content) {
+    public static String build(Knowledge knowledge, String content) {
         if (knowledge == null) {
             return content;
         }

@@ -24,6 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import com.ragagent.chatpipeline.ChatManage.NameSpace;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 
 /**
  * 知识库 Move（跨库搬移）worker 面。HTTP 契约 = 立即返回 + 进度查询；
@@ -93,7 +96,7 @@ public class KnowledgeMoveService {
      */
     public void startKnowledgeMove(long tenantId, String taskId, List<String> knowledgeIds,
                                    String sourceKbId, String targetKbId, String mode) {
-        progressStore.saveMoveInitial(new com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress(
+        progressStore.saveMoveInitial(new KnowledgeMoveProgress(
                 taskId, sourceKbId, targetKbId, "pending", 0, knowledgeIds.size(), 0, 0,
                 "Task queued, waiting to start...", "", epochNow(), epochNow()));
         // 本仓约定：跨虚拟线程显式传值，不共享 ThreadLocal
@@ -189,7 +192,7 @@ public class KnowledgeMoveService {
         // 搬走后源 KB 的命名空间不得继续
         // 暴露该文档（失败上抛——移动任务据此重试；命名空间删除可重复执行）
         graphRepository.delGraph(List.of(
-                new com.ragagent.chatpipeline.ChatManage.NameSpace(actualSourceKbId, knowledgeId)));
+                new NameSpace(actualSourceKbId, knowledgeId)));
         if ("reuse_vectors".equals(mode)) {
             moveKnowledgeVectors(tenantId, knowledgeId, sourceKbId, targetKbId);
         }
@@ -278,7 +281,7 @@ public class KnowledgeMoveService {
         }
         try {
             graphRepository.delGraph(List.of(
-                    new com.ragagent.chatpipeline.ChatManage.NameSpace(kb.getId(), knowledgeId)));
+                    new NameSpace(kb.getId(), knowledgeId)));
         } catch (RuntimeException e) {
             failures.add("delete knowledge graph data: " + e.getMessage());
         }
@@ -295,8 +298,8 @@ public class KnowledgeMoveService {
     private void deleteKnowledgeVectorRows(Knowledge row, KnowledgeBase kb, String embeddingModelId) {
         try {
             if (vectorWrites.boundEngine(kb) instanceof
-                    com.ragagent.retrieval.engine.CompositeRetrieveEngine engine) {
-                com.ragagent.embedding.Embedder emb =
+                    CompositeRetrieveEngine engine) {
+                Embedder emb =
                         modelRuntimeFactory.getEmbeddingModel(embeddingModelId);
                 engine.deleteByKnowledgeIdList(List.of(row.getId()), emb.getDimensions(),
                         row.getType());
@@ -347,8 +350,8 @@ public class KnowledgeMoveService {
         }
         try {
             if (vectorWrites.boundEngine(sourceKb) instanceof
-                    com.ragagent.retrieval.engine.CompositeRetrieveEngine engine) {
-                com.ragagent.embedding.Embedder emb =
+                    CompositeRetrieveEngine engine) {
+                Embedder emb =
                         modelRuntimeFactory.getEmbeddingModel(row.getEmbeddingModelId());
                 engine.moveKnowledgeIndices(sourceKbId, targetKbId, knowledgeId,
                         List.of(), emb.getDimensions(), sourceKb.getType());
@@ -364,11 +367,11 @@ public class KnowledgeMoveService {
         }
     }
 
-    public void saveKnowledgeMoveProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress p) {
+    public void saveKnowledgeMoveProgress(KnowledgeMoveProgress p) {
         progressStore.saveMoveInitial(p);
     }
 
-    public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress getKnowledgeMoveProgress(String taskId) {
+    public KnowledgeMoveProgress getKnowledgeMoveProgress(String taskId) {
         return progressStore.getMove(taskId);
     }
 

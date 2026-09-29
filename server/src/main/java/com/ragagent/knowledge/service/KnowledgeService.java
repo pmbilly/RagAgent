@@ -28,6 +28,12 @@ import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository;
+import com.ragagent.knowledge.dto.KnowledgeDtos.UpdateKnowledgeRequest;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress;
+import com.ragagent.retrieval.engine.PgVectorEngineRepository;
+import com.ragagent.apikey.domain.TenantAPIKeyScope;
 
 /**
  * （阶段 3 子集：file/url/manual 创建、分页列表、get/update/delete、folders；
@@ -72,10 +78,10 @@ public class KnowledgeService {
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final KnowledgeBaseService knowledgeBaseService;
     private final KnowledgeVectorWrites vectorWrites;
-    private final com.ragagent.retrieval.engine.PgVectorEngineRepository pgVectorEngineRepository;
+    private final PgVectorEngineRepository pgVectorEngineRepository;
     private final TenantStorageService tenantStorage;
     /** 图库仓储（D 批）：知识移动后清源命名空间。 */
-    private final com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository;
+    private final RetrieveGraphRepository graphRepository;
     private final KnowledgeMoveService moveService;
     private final KnowledgeCloneService cloneService;
     private final KnowledgeSearchService searchService;
@@ -95,10 +101,10 @@ public class KnowledgeService {
                             @Lazy KnowledgeProcessWorker worker,
                             KnowledgeTaskProgressStore progressStore,
                             ChunkVectorIndexer chunkVectorIndexer,
-                            com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository,
+                            RetrieveGraphRepository graphRepository,
                             KnowledgeBaseService knowledgeBaseService,
                             KnowledgeVectorWrites vectorWrites,
-                            com.ragagent.retrieval.engine.PgVectorEngineRepository pgVectorEngineRepository,
+                            PgVectorEngineRepository pgVectorEngineRepository,
                             KnowledgeMoveService moveService,
                             KnowledgeCloneService cloneService,
                             KnowledgeSearchService searchService,
@@ -150,7 +156,7 @@ public class KnowledgeService {
 
     public KnowledgeBase requireKb(String kbId) {
         // KB 受限的 API Key 不能触碰白名单外的库。
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
+        TenantAPIKeyScope.authorizeKnowledgeBases(
                 kbId == null ? java.util.List.of() : java.util.List.of(kbId));
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
@@ -459,7 +465,7 @@ public class KnowledgeService {
         }
         // 按 knowledgeId 操作的端点，
         // 用其所属 KB 做 scope 校验（KB 受限的 Key 不得越界）。
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
+        TenantAPIKeyScope.authorizeKnowledgeBases(
                 java.util.List.of(k.getKnowledgeBaseId()));
         // 回填 tags（knowledge_tag_relations 连接查；
         // 无关系 → 保持 null，与 契约样例 "tags":null 一致）
@@ -537,7 +543,7 @@ public class KnowledgeService {
     }
 
     /** title/description(指针)/custom_metadata 部分更新 */
-    public Knowledge updateKnowledge(String id, com.ragagent.knowledge.dto.KnowledgeDtos.UpdateKnowledgeRequest req) {
+    public Knowledge updateKnowledge(String id, UpdateKnowledgeRequest req) {
         Knowledge k = getKnowledge(id);
         if (req != null) {
             if (req.title() != null) {
@@ -773,11 +779,11 @@ public class KnowledgeService {
         moveService.startKnowledgeMove(tenantId, taskId, knowledgeIds, sourceKbId, targetKbId, mode);
     }
 
-    public void saveKnowledgeMoveProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress p) {
+    public void saveKnowledgeMoveProgress(KnowledgeMoveProgress p) {
         moveService.saveKnowledgeMoveProgress(p);
     }
 
-    public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress getKnowledgeMoveProgress(String taskId) {
+    public KnowledgeMoveProgress getKnowledgeMoveProgress(String taskId) {
         return moveService.getKnowledgeMoveProgress(taskId);
     }
 
@@ -788,11 +794,11 @@ public class KnowledgeService {
         cloneService.startKBClone(tenantId, taskId, sourceId, targetId, createTarget, creatorId);
     }
 
-    public void saveKBCloneProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress p) {
+    public void saveKBCloneProgress(KBCloneProgress p) {
         cloneService.saveKBCloneProgress(p);
     }
 
-    public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress getKBCloneProgress(String taskId) {
+    public KBCloneProgress getKBCloneProgress(String taskId) {
         return cloneService.getKBCloneProgress(taskId);
     }
 

@@ -29,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import com.ragagent.common.error.BizException;
 
 /**
  * chunker 只读预览端点。无状态：不落库、不生成 embedding、不打日志正文。
@@ -186,9 +187,9 @@ public class ChunkerDebugController {
      */
     @org.springframework.web.bind.annotation.ExceptionHandler({
             org.springframework.http.converter.HttpMessageNotReadableException.class,
-            com.ragagent.common.error.BizException.class})
+            BizException.class})
     public ResponseEntity<Map<String, Object>> handleBind(Exception ex) {
-        String detail = ex instanceof com.ragagent.common.error.BizException
+        String detail = ex instanceof BizException
                 ? "请求体不能为空" : "请求体格式不正确";
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", "invalid request body: " + detail);

@@ -17,6 +17,7 @@ import com.ragagent.knowledge.service.KnowledgeTaskIds;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import com.ragagent.apikey.domain.TenantAPIKeyScope;
 
 /**
  * 知识文档路由共用的守卫与解析面（两个控制器共享）：
@@ -65,7 +66,7 @@ public class KnowledgeRouteGuards {
         if (global == null) {
             throw new BizException(AppError.notFound("Knowledge not found"));
         }
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
+        TenantAPIKeyScope.authorizeKnowledgeBases(
                 List.of(global.getKnowledgeBaseId()));
         Long caller = TenantContext.currentTenantId();
         if (global.getTenantId() == null || !global.getTenantId().equals(caller)) {

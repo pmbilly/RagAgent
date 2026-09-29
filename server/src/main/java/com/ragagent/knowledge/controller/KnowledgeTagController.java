@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagResponse;
 
 /**
  * KB 标签 CRUD 面：列表（分页/关键字）、创建、更新、删除（含排除条目）。
@@ -105,7 +106,7 @@ public class KnowledgeTagController {
                 LogSanitizer.sanitize(req.name()), LogSanitizer.sanitize(req.color()),
                 req.sortOrder() == null ? 0 : req.sortOrder());
         return ResponseEntity.ok(ApiResponse.ok(
-                com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagResponse.from(tag)));
+                KnowledgeTagResponse.from(tag)));
     }
 
     @PutMapping("/api/v1/knowledge-bases/{id}/tags/{tag_id}")
@@ -120,7 +121,7 @@ public class KnowledgeTagController {
         String tagId = resolveTagId(LogSanitizer.sanitize(tagIdParam));
         KnowledgeTag tag = tagService.updateTag(tagId, req.name(), req.color(), req.sortOrder());
         return ResponseEntity.ok(ApiResponse.ok(
-                com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagResponse.from(tag)));
+                KnowledgeTagResponse.from(tag)));
     }
 
     @DeleteMapping("/api/v1/knowledge-bases/{id}/tags/{tag_id}")

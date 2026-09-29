@@ -4,6 +4,8 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import org.springframework.stereotype.Component;
+import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.context.TenantContext;
 
 /**
  * knowledge 文档操作面路由（第二批）的守卫入口——语义与 {@link ChunkAccessGuard}
@@ -61,10 +63,10 @@ public class KnowledgeAccessGuard {
      *  与路由守卫不同，这里出的是 <b>AppError 信封</b>（404 "knowledge base not found" /
      *  403 "No permission to operate on this knowledge base"），不是纯字符串。 */
     public void requireKbOwnershipOrAdminEnvelope(KnowledgeBase kb) {
-        String role = com.ragagent.common.context.TenantContext.currentRole();
-        String uid = com.ragagent.common.context.TenantContext.currentUserId();
-        boolean admin = com.ragagent.auth.domain.TenantRole.fromString(role)
-                .hasPermission(com.ragagent.auth.domain.TenantRole.ADMIN);
+        String role = TenantContext.currentRole();
+        String uid = TenantContext.currentUserId();
+        boolean admin = TenantRole.fromString(role)
+                .hasPermission(TenantRole.ADMIN);
         if (!admin && (kb == null || kb.getCreatorId() == null || kb.getCreatorId().isEmpty()
                 || !kb.getCreatorId().equals(uid))) {
             throw BizException.forbidden("No permission to operate on this knowledge base");

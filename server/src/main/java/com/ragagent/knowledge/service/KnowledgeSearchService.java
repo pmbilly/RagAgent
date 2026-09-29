@@ -8,6 +8,8 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.springframework.stereotype.Service;
+import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
+import com.ragagent.common.context.TenantContext;
 
 /**
  * 知识检索。
@@ -16,10 +18,10 @@ import org.springframework.stereotype.Service;
 public class KnowledgeSearchService {
 
     private final KnowledgeMapper knowledgeMapper;
-    private final com.ragagent.knowledge.mapper.KnowledgeBaseMapper kbMapper;
+    private final KnowledgeBaseMapper kbMapper;
 
     public KnowledgeSearchService(KnowledgeMapper knowledgeMapper,
-            com.ragagent.knowledge.mapper.KnowledgeBaseMapper kbMapper) {
+            KnowledgeBaseMapper kbMapper) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
     }
@@ -36,7 +38,7 @@ public class KnowledgeSearchService {
      * （含 keyword LIKE 转义、file_types 别名、offset/limit+has_more、knowledge_base_name 回填）。
      */
     public SearchOutcome searchKnowledge(String keyword, int offset, int limit, List<String> fileTypes) {
-        long tid = com.ragagent.common.context.TenantContext.currentTenantId();
+        long tid = TenantContext.currentTenantId();
         List<KnowledgeSearchScope> scopes = new ArrayList<>();
         for (KnowledgeBase kb : kbMapper.selectList(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getTenantId, tid)

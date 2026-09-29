@@ -38,6 +38,15 @@ import com.ragagent.wiki.service.WikiLanguageSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.auth.domain.Tenant;
+import com.ragagent.auth.service.TenantService;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
+import com.ragagent.retrieval.engine.RetrieveEngineRegistry;
+import com.ragagent.retrieval.engine.RetrieverEngineParams;
+import com.ragagent.retrieval.engine.TenantStoreOwnership;
+import com.ragagent.retrieval.engine.EffectiveEngines;
+import com.ragagent.retrieval.engine.RetrieveEngineFactories;
 
 /**
  * chunk 生成问题面：生成问题的 upsert/删除/重生（LLM 生成 + 邻块上下文拼装 + metadata 落库）。
@@ -53,9 +62,9 @@ public class ChunkQuestionService {
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ModelRuntimeFactory modelRuntimeFactory;
-    private final com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry;
-    private final com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership;
-    private final com.ragagent.auth.service.TenantService tenantService;
+    private final RetrieveEngineRegistry retrieveEngineRegistry;
+    private final TenantStoreOwnership storeOwnership;
+    private final TenantService tenantService;
     private final ConversationProperties conversationProps;
     private final ChunkAccessGuard guard;
 
@@ -64,9 +73,9 @@ public class ChunkQuestionService {
                                 KnowledgeBaseMapper kbMapper,
                                 ChunkVectorIndexer chunkVectorIndexer,
                                 ModelRuntimeFactory modelRuntimeFactory,
-                                com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry,
-                                com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership,
-                                com.ragagent.auth.service.TenantService tenantService,
+                                RetrieveEngineRegistry retrieveEngineRegistry,
+                                TenantStoreOwnership storeOwnership,
+                                TenantService tenantService,
                                 ConversationProperties conversationProps,
                                 ChunkAccessGuard guard) {
         this.chunkRepository = chunkRepository;
@@ -224,9 +233,9 @@ public class ChunkQuestionService {
         String sourceId = ChunkSearchUtil.generatedQuestionSourceId(chunkId, questionId);
         //     无绑定回落租户有效引擎（RETRIEVE_DRIVER 驱动），绑定 store 走归属校验 +
         //     注册表解析。失败 → "failed to create retrieve engine: %w"（handler 包 400）。
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine engine;
+        CompositeRetrieveEngine engine;
         try {
-            engine = com.ragagent.retrieval.engine.RetrieveEngineFactories.createForKb(
+            engine = RetrieveEngineFactories.createForKb(
                     retrieveEngineRegistry, storeOwnership, tenantId, kb.getVectorStoreId(),
                     tenantEngines(tenantId));
         } catch (RuntimeException e) {
@@ -234,7 +243,7 @@ public class ChunkQuestionService {
         }
         //     "model ID cannot be empty" / "model not found"，经
         //     ModelRuntimeFactory.getEmbeddingModel 的 RuntimeException 原文冒出）
-        com.ragagent.embedding.Embedder embeddingModel;
+        Embedder embeddingModel;
         try {
             embeddingModel = modelRuntimeFactory.getEmbeddingModel(
                     kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId());
@@ -549,14 +558,14 @@ public class ChunkQuestionService {
     }
 
 
-    private List<com.ragagent.retrieval.engine.RetrieverEngineParams> tenantEngines(long tenantId) {
-        com.ragagent.auth.domain.Tenant tenant;
+    private List<RetrieverEngineParams> tenantEngines(long tenantId) {
+        Tenant tenant;
         try {
             tenant = tenantService.getTenantById(tenantId);
         } catch (RuntimeException e) {
             tenant = null;
         }
-        return com.ragagent.retrieval.engine.EffectiveEngines.of(tenant);
+        return EffectiveEngines.of(tenant);
     }
 
     /**

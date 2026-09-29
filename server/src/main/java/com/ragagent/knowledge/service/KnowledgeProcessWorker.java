@@ -23,6 +23,20 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import com.ragagent.chatpipeline.ChatManage.NameSpace;
+import com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository;
+import com.ragagent.common.context.TracingContext;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.knowledge.domain.KbChunkingConfig;
+import com.ragagent.model.service.ModelRuntimeFactory;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
+import com.ragagent.retrieval.engine.EngineTypes;
+import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
+import com.ragagent.tracing.langfuse.LangfuseTaskScope;
+import com.ragagent.wiki.service.WikiIngestService;
+import com.ragagent.wiki.service.WikiIngestService.EnqueueResult;
+import com.ragagent.wiki.service.WikiKnowledgeFinalizer;
+import com.ragagent.tracing.langfuse.LangfuseTracing;
 
 /**
  * 知识处理后台 worker：虚拟线程队列消费 knowledge 的解析主链路
@@ -82,23 +96,23 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final VectorStoreService vectorStore;
     private final ModelService modelService;
     private final KnowledgeVectorWrites vectorWrites;
-    private final com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory;
+    private final ModelRuntimeFactory modelRuntimeFactory;
     private final KnowledgeService knowledgeService;
     private final SpanTracker spanTracker;
     /** 图库仓储（D 批）：重处理前清旧图谱。 */
-    private final com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository;
+    private final RetrieveGraphRepository graphRepository;
     /** wiki 交接；
      *  ObjectProvider 装配：wiki 域与 knowledge 域互不反向依赖，延迟解析更稳。 */
     private final org.springframework.beans.factory.ObjectProvider<
-            com.ragagent.wiki.service.WikiIngestService> wikiIngestService;
+            WikiIngestService> wikiIngestService;
     private final org.springframework.beans.factory.ObjectProvider<
-            com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer;
+            WikiKnowledgeFinalizer> wikiKnowledgeFinalizer;
     /** 分块图抽取队列（D 批；未接线时 fan-out 直接释放槽位，行不搁浅）。 */
     private final org.springframework.beans.factory.ObjectProvider<
-            com.ragagent.knowledge.service.ChunkExtractTaskQueue> chunkExtractQueue;
+            ChunkExtractTaskQueue> chunkExtractQueue;
     /** 问题生成批队列（W5γ5.19 导入后自动生成；未接线时 fan-out 直接释放槽位，行不搁浅）。 */
     private final org.springframework.beans.factory.ObjectProvider<
-            com.ragagent.knowledge.service.QuestionGenerationTaskQueue> questionGenerationQueue;
+            QuestionGenerationTaskQueue> questionGenerationQueue;
 
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
                                   KnowledgeBaseMapper kbMapper,
@@ -110,18 +124,18 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   VectorStoreService vectorStore,
                                   ModelService modelService,
                                   KnowledgeVectorWrites vectorWrites,
-                                  com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory,
+                                  ModelRuntimeFactory modelRuntimeFactory,
                                   @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService,
                                   SpanTracker spanTracker,
-                                  com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository,
+                                  RetrieveGraphRepository graphRepository,
                                   org.springframework.beans.factory.ObjectProvider<
-                                          com.ragagent.wiki.service.WikiIngestService> wikiIngestService,
+                                          WikiIngestService> wikiIngestService,
                                   org.springframework.beans.factory.ObjectProvider<
-                                          com.ragagent.wiki.service.WikiKnowledgeFinalizer> wikiKnowledgeFinalizer,
+                                          WikiKnowledgeFinalizer> wikiKnowledgeFinalizer,
                                   org.springframework.beans.factory.ObjectProvider<
-                                          com.ragagent.knowledge.service.ChunkExtractTaskQueue> chunkExtractQueue,
+                                          ChunkExtractTaskQueue> chunkExtractQueue,
                                   org.springframework.beans.factory.ObjectProvider<
-                                          com.ragagent.knowledge.service.QuestionGenerationTaskQueue> questionGenerationQueue) {
+                                          QuestionGenerationTaskQueue> questionGenerationQueue) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -146,8 +160,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     public void enqueue(String knowledgeId) {
         // 入队侧注入：在提交线程
         // （HTTP 请求线程）capture 当前 traceparent，随任务带到 worker 线程续接同一棵树。
-        com.ragagent.common.context.TracingContext tracing =
-                com.ragagent.tracing.langfuse.LangfuseTracing.inject();
+        TracingContext tracing =
+                LangfuseTracing.inject();
         executor.submit(() -> process(knowledgeId, tracing));
     }
 
@@ -156,12 +170,12 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      * + 包一个 document:process span；worker 线程归还前由 scope.close() 清上下文。
      */
     private void process(String knowledgeId,
-                         com.ragagent.common.context.TracingContext tracing) {
-        com.ragagent.tracing.langfuse.LangfuseTaskScope scope =
-                com.ragagent.tracing.langfuse.LangfuseTaskScope.start(
+                         TracingContext tracing) {
+        LangfuseTaskScope scope =
+                LangfuseTaskScope.start(
                         TASK_TYPE_DOCUMENT_PROCESS, tracing,
                         java.util.Map.of("knowledge_id", knowledgeId),
-                        com.ragagent.tracing.langfuse.LangfuseTaskScope.previewPayload(knowledgeId));
+                        LangfuseTaskScope.previewPayload(knowledgeId));
         try {
             processInner(knowledgeId, scope);
         } finally {
@@ -170,7 +184,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     }
 
     private void processInner(String knowledgeId,
-                              com.ragagent.tracing.langfuse.LangfuseTaskScope scope) {
+                              LangfuseTaskScope scope) {
         // CAS pending → processing：被抢/已取消则静默退出
         int updated = knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                 .eq("id", knowledgeId)
@@ -184,7 +198,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         int attempt = 0;
         try {
             attempt = spanTracker.openAttempt(knowledgeId,
-                    com.ragagent.tracing.langfuse.LangfuseTracing.currentTraceId()).attempt();
+                    LangfuseTracing.currentTraceId()).attempt();
         } catch (RuntimeException e) {
             log.warn("[SpanTracker] openAttempt failed kid={}: {}", knowledgeId, e.toString());
         }
@@ -322,18 +336,18 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                         "chunks_to_embed", chunks.size(),
                         "model_id", k.getEmbeddingModelId() == null
                                 ? "" : k.getEmbeddingModelId()));
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+        CompositeRetrieveEngine boundEngine =
                 vectorWrites.boundEngine(kb);
         if (boundEngine != null) {
-            com.ragagent.embedding.Embedder embedderRuntime =
+            Embedder embedderRuntime =
                     modelRuntimeFactory.getEmbeddingModel(kb.getEmbeddingModelId());
-            List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> items =
+            List<IndexInfo> items =
                     new ArrayList<>(chunks.size());
             for (Chunk c : chunks) {
-                com.ragagent.retrieval.engine.EngineTypes.IndexInfo item =
-                        new com.ragagent.retrieval.engine.EngineTypes.IndexInfo();
+                IndexInfo item =
+                        new IndexInfo();
                 item.sourceId = c.getId();
-                item.sourceType = com.ragagent.retrieval.engine.EngineTypes.SOURCE_TYPE_FILE;
+                item.sourceType = EngineTypes.SOURCE_TYPE_FILE;
                 item.chunkId = c.getId();
                 item.knowledgeId = k.getId();
                 item.knowledgeBaseId = k.getKnowledgeBaseId();
@@ -446,7 +460,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     /** 清该知识在源 KB 命名空间下的旧图谱（失败仅告警——图里可能本来就没有这条知识）。 */
     private void deleteGraphData(String knowledgeBaseId, String knowledgeId) {
         try {
-            graphRepository.delGraph(List.of(new com.ragagent.chatpipeline.ChatManage.NameSpace(
+            graphRepository.delGraph(List.of(new NameSpace(
                     knowledgeBaseId, knowledgeId)));
         } catch (RuntimeException e) {
             log.warn("Failed to delete existing graph data (may not exist): {}", e.toString());
@@ -463,10 +477,10 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      */
     private void deleteKnowledgeVectors(Knowledge k, KnowledgeBase kb,
                                         EmbedderClient.EmbedConfig embedConfig, String knowledgeId) {
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine = vectorWrites.boundEngine(kb);
+        CompositeRetrieveEngine boundEngine = vectorWrites.boundEngine(kb);
         if (boundEngine != null) {
             try {
-                com.ragagent.embedding.Embedder emb =
+                Embedder emb =
                         modelRuntimeFactory.getEmbeddingModel(kb.getEmbeddingModelId());
                 boundEngine.deleteByKnowledgeIdList(List.of(knowledgeId),
                         emb.getDimensions(), kb.getType());
@@ -501,7 +515,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
 
     /** KB 配置 → chunker 配置（0 值回退默认：512/80/separators） */
     private static SplitterConfig toSplitterConfig(
-            com.ragagent.knowledge.domain.KbChunkingConfig kbc) {
+            KbChunkingConfig kbc) {
         SplitterConfig cfg = new SplitterConfig();
         cfg.setChunkSize(kbc.getChunkSize() <= 0 ? SplitterConfig.DEFAULT_CHUNK_SIZE : kbc.getChunkSize());
         int overlap = kbc.getChunkOverlap() <= 0 ? SplitterConfig.DEFAULT_CHUNK_OVERLAP : kbc.getChunkOverlap();
@@ -586,8 +600,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             releaseSlots(knowledgeId, graphChunks.size());
             return;
         }
-        com.ragagent.common.context.TracingContext tracing =
-                com.ragagent.tracing.langfuse.LangfuseTracing.inject();
+        TracingContext tracing =
+                LangfuseTracing.inject();
         int index = 0;
         for (Chunk chunk : graphChunks) {
             try {
@@ -618,8 +632,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             releaseSlots(knowledgeId, batches.size());
             return;
         }
-        com.ragagent.common.context.TracingContext tracing =
-                com.ragagent.tracing.langfuse.LangfuseTracing.inject();
+        TracingContext tracing =
+                LangfuseTracing.inject();
         int questionCount = kb.getQuestionGenerationConfig() == null ? 0
                 : kb.getQuestionGenerationConfig().path("question_count").asInt(0);
         for (QuestionBatchPlanner.Batch batch : batches) {
@@ -648,7 +662,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      * 。
      */
     private void enqueueWikiIngest(String knowledgeId, Knowledge k) {
-        com.ragagent.wiki.service.WikiIngestService service = wikiIngestService.getIfAvailable();
+        WikiIngestService service = wikiIngestService.getIfAvailable();
         if (service == null) {
             log.warn("[KnowledgePostProcess] Wiki ingest service unavailable, releasing slot for {}",
                     knowledgeId);
@@ -656,7 +670,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
             return;
         }
         try {
-            com.ragagent.wiki.service.WikiIngestService.EnqueueResult result = service
+            EnqueueResult result = service
                     .enqueueWikiIngest(k.getTenantId(), k.getKnowledgeBaseId(), knowledgeId);
             if (result.accepted()) {
                 log.info("[KnowledgePostProcess] Enqueued wiki ingest task for {}", knowledgeId);
@@ -681,7 +695,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      * finalizer 缺席时静默——行由 finalizing housekeeping sweep 兜底。
      */
     private void releaseWikiSlot(String knowledgeId) {
-        com.ragagent.wiki.service.WikiKnowledgeFinalizer finalizer =
+        WikiKnowledgeFinalizer finalizer =
                 wikiKnowledgeFinalizer.getIfAvailable();
         if (finalizer == null) {
             return;

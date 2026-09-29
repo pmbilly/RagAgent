@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.ragagent.knowledge.domain.KnowledgeTag;
 
 /**
  * {@code KnowledgeTag} / {@code KnowledgeTagWithStats} 与 types/search.go 的
@@ -34,7 +35,7 @@ public final class KnowledgeTagDtos {
             @JsonProperty("created_at") OffsetDateTime createdAt,
             @JsonProperty("updated_at") OffsetDateTime updatedAt) {
 
-        public static KnowledgeTagResponse from(com.ragagent.knowledge.domain.KnowledgeTag t) {
+        public static KnowledgeTagResponse from(KnowledgeTag t) {
             return new KnowledgeTagResponse(
                     t.getId(),
                     t.getSeqId() == null ? 0 : t.getSeqId(),
@@ -66,7 +67,7 @@ public final class KnowledgeTagDtos {
             @JsonProperty("knowledge_count") long knowledgeCount,
             @JsonProperty("chunk_count") long chunkCount) {
 
-        public static KnowledgeTagWithStats from(com.ragagent.knowledge.domain.KnowledgeTag t,
+        public static KnowledgeTagWithStats from(KnowledgeTag t,
                                                  long knowledgeCount, long chunkCount) {
             KnowledgeTagResponse base = KnowledgeTagResponse.from(t);
             return new KnowledgeTagWithStats(base.id(), base.seqId(), base.tenantId(),

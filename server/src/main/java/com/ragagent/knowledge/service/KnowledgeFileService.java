@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.ragagent.storage.fileserve.FileTransport.OpenedFile;
 
 /**
  * 知识文件/行写面：manual 知识更新（全列写语义）、文件下载流、图片信息更新与
@@ -223,7 +224,7 @@ public class KnowledgeFileService {
 
     /** 文件流的打开句柄（filename 是清洗后的下载名；manual = 内存流）。 */
     public record KnowledgeFileStream(String filename,
-            com.ragagent.storage.fileserve.FileTransport.OpenedFile opened, boolean manual) {
+            OpenedFile opened, boolean manual) {
     }
 
     /**
@@ -245,7 +246,7 @@ public class KnowledgeFileService {
                     ? knowledge.getMetadata().get("content").asText() : "";
             byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             return new KnowledgeFileStream(sanitizeManualDownloadFilename(knowledge.getTitle()),
-                    com.ragagent.storage.fileserve.FileTransport.OpenedFile.ofStream(
+                    OpenedFile.ofStream(
                             new java.io.ByteArrayInputStream(bytes), bytes.length),
                     true);
         }

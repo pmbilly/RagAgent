@@ -22,6 +22,9 @@ import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.model.service.ModelRuntimeFactory;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
+import com.ragagent.common.error.AppError;
 
 /**
  * <h2>路由链与 Java 落地</h2>
@@ -65,7 +68,7 @@ public class KnowledgeTagService {
     /** 绑定 store 的向量写路由（绑定 KB 的索引清理走引擎口）。 */
     private final KnowledgeVectorWrites vectorWrites;
     /** 引擎路径删除需要的维度解析（照 deleteKnowledgeVectors 的取数口径）。 */
-    private final com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory;
+    private final ModelRuntimeFactory modelRuntimeFactory;
     /**
      * 标签下文档的批量删除。ObjectProvider：KnowledgeService 依赖面极广，
      * 延迟解析规避任何潜在的装配环。
@@ -81,7 +84,7 @@ public class KnowledgeTagService {
                                AuditLogService auditService,
                                VectorStoreService vectorStore,
                                KnowledgeVectorWrites vectorWrites,
-                               com.ragagent.model.service.ModelRuntimeFactory modelRuntimeFactory,
+                               ModelRuntimeFactory modelRuntimeFactory,
                                org.springframework.beans.factory.ObjectProvider<KnowledgeService>
                                        knowledgeServiceProvider) {
         this.kbService = kbService;
@@ -143,7 +146,7 @@ public class KnowledgeTagService {
 
         KnowledgeTag existing = tagRepo.getByName(tenantId, kb.getId(), trimmedName);
         if (existing != null) {
-            throw new BizException(com.ragagent.common.error.AppError.conflict("标签名称已存在"));
+            throw new BizException(AppError.conflict("标签名称已存在"));
         }
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -326,7 +329,7 @@ public class KnowledgeTagService {
      */
     private void scheduleIndexDelete(KnowledgeBase kb, List<String> chunkIds) {
         List<String> ids = List.copyOf(chunkIds);
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine = null;
+        CompositeRetrieveEngine boundEngine = null;
         int dim = 0;
         try {
             boundEngine = vectorWrites.boundEngine(kb);
@@ -339,7 +342,7 @@ public class KnowledgeTagService {
             return;
         }
         if (boundEngine != null) {
-            final com.ragagent.retrieval.engine.CompositeRetrieveEngine engine = boundEngine;
+            final CompositeRetrieveEngine engine = boundEngine;
             final int dimensions = dim;
             final String kbType = kb.getType();
             Thread.ofVirtual().name("tag-index-delete").start(() -> {

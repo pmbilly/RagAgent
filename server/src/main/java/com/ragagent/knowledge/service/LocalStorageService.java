@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import com.ragagent.common.error.AppError;
 
 /**
  * 本地存储引擎。
@@ -76,7 +77,7 @@ public class LocalStorageService {
         try {
             return Files.readAllBytes(resolved);
         } catch (IOException e) {
-            throw new BizException(com.ragagent.common.error.AppError.internal("Failed to retrieve file")
+            throw new BizException(AppError.internal("Failed to retrieve file")
                     .withDetails("failed to open file: " + e.getMessage()));
         }
     }
@@ -96,7 +97,7 @@ public class LocalStorageService {
         try {
             return FileTransport.OpenedFile.ofSeekable(resolved, Files.size(resolved));
         } catch (IOException e) {
-            throw new BizException(com.ragagent.common.error.AppError.internal("Failed to retrieve file")
+            throw new BizException(AppError.internal("Failed to retrieve file")
                     .withDetails("failed to open file: " + e.getMessage()));
         }
     }
@@ -107,7 +108,7 @@ public class LocalStorageService {
         try {
             return Path.of(StoragePathGuard.safePathUnderBase(baseDir.toString(), joined.toString()));
         } catch (IOException e) {
-            throw new BizException(com.ragagent.common.error.AppError.internal("Failed to retrieve file")
+            throw new BizException(AppError.internal("Failed to retrieve file")
                     .withDetails(e.getMessage()));
         }
     }

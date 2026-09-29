@@ -38,6 +38,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.CopyKnowledgeBaseResponse;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse;
+import com.ragagent.knowledge.service.KnowledgeAccessGuard;
+import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.storageurl.PublicModeForbiddenException;
+import com.ragagent.storageurl.ResourceModeException;
+import com.ragagent.apikey.domain.APIKeyScopeContext;
+import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.knowledge.service.KnowledgeTaskIds;
+import com.ragagent.storageurl.Mode;
 
 /**
  * 知识库 CRUD 与检索入口：列表/详情/更新/删除、置顶、移动目标、混合检索
@@ -63,13 +75,13 @@ public class KnowledgeBaseController {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final KnowledgeBaseService kbService;
-    private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
-    private final com.ragagent.knowledge.service.KnowledgeAccessGuard guard;
+    private final KnowledgeService knowledgeService;
+    private final KnowledgeAccessGuard guard;
     private final HybridSearchService hybridSearchService;
 
     public KnowledgeBaseController(KnowledgeBaseService kbService,
-                                   com.ragagent.knowledge.service.KnowledgeService knowledgeService,
-                                   com.ragagent.knowledge.service.KnowledgeAccessGuard guard,
+                                   KnowledgeService knowledgeService,
+                                   KnowledgeAccessGuard guard,
                                    HybridSearchService hybridSearchService) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
@@ -94,7 +106,7 @@ public class KnowledgeBaseController {
             @RequestParam(value = "creator", required = false) String creator) {
         log.info("Start listing knowledge bases");
         List<KnowledgeBase> kbs = kbService.listKnowledgeBases(creator);
-        var scope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        var scope = APIKeyScopeContext.current();
         if (scope != null && scope.isKnowledgeBaseRestricted()) {
             kbs = kbs.stream().filter(kb -> scope.allowsKnowledgeBase(kb.getId())).toList();
         }
@@ -193,11 +205,11 @@ public class KnowledgeBaseController {
         }
         // resource_urls：public 拒绝 → 403；其他坏值 → 400
         try {
-            com.ragagent.storageurl.Mode.resolve(resourceUrls);
-        } catch (com.ragagent.storageurl.PublicModeForbiddenException e) {
+            Mode.resolve(resourceUrls);
+        } catch (PublicModeForbiddenException e) {
             log.warn("Rejected resource URL mode: {}", e.getMessage());
             throw new BizException(AppError.forbidden(e.getMessage()));
-        } catch (com.ragagent.storageurl.ResourceModeException e) {
+        } catch (ResourceModeException e) {
             log.warn("Rejected resource URL mode: {}", e.getMessage());
             throw new BizException(AppError.badRequest(e.getMessage()));
         }
@@ -205,7 +217,7 @@ public class KnowledgeBaseController {
         List<String> searchKbIds = req.knowledgeBaseIds() != null && !req.knowledgeBaseIds().isEmpty()
                 ? new ArrayList<>(req.knowledgeBaseIds())
                 : List.of(kb.getId());
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(searchKbIds);
+        TenantAPIKeyScope.authorizeKnowledgeBases(searchKbIds);
         List<KnowledgeBase> kbs = new ArrayList<>();
         for (String kbId : searchKbIds) {
             KnowledgeBase row = kbService.getAllTenantById(kbId);
@@ -228,7 +240,7 @@ public class KnowledgeBaseController {
             throw new BizException(AppError.notFound("knowledge base not found"));
         }
         // 检索执行：pgvector + ParadeDB BM25 + RRF + FAQ 后处理 + 富化装配
-        com.ragagent.chatpipeline.SearchParams params = new com.ragagent.chatpipeline.SearchParams();
+        SearchParams params = new SearchParams();
         params.setQueryText(req.queryText() == null ? "" : req.queryText());
         if (req.queryEmbedding() != null && req.queryEmbedding().length > 0) {
             params.setQueryEmbedding(req.queryEmbedding());
@@ -242,7 +254,7 @@ public class KnowledgeBaseController {
         params.setKnowledgeIds(req.knowledgeIds() == null ? List.of() : req.knowledgeIds());
         params.setTagIds(req.tagIds() == null ? List.of() : req.tagIds());
         params.setKnowledgeBaseIds(searchKbIds);
-        List<com.ragagent.retrieval.domain.SearchResult> results =
+        List<SearchResult> results =
                 hybridSearchService.hybridSearch(kb.getId(), params);
         return ResponseEntity.ok(new KnowledgeBaseDtos.HybridSearchResponse(results, true));
     }
@@ -265,7 +277,7 @@ public class KnowledgeBaseController {
         }
         String taskId = explicitTaskId;
         if (taskId.isEmpty()) {
-            taskId = com.ragagent.knowledge.service.KnowledgeTaskIds.generateTaskId("kb_clone", caller, sourceId);
+            taskId = KnowledgeTaskIds.generateTaskId("kb_clone", caller, sourceId);
         } else {
             requireTaskProgressTenant(taskId);
         }
@@ -293,7 +305,7 @@ public class KnowledgeBaseController {
                 throw new BizException(AppError.forbidden("No permission to replace this knowledge base's contents"));
             }
             try {
-                com.ragagent.knowledge.service.KnowledgeService.validateCloneCompatibility(sourceKb, existing);
+                KnowledgeService.validateCloneCompatibility(sourceKb, existing);
             } catch (IllegalArgumentException e) {
                 throw new BizException(AppError.badRequest(e.getMessage()));
             }
@@ -301,7 +313,7 @@ public class KnowledgeBaseController {
         }
         String reservedTargetId = targetKb.getId();
         knowledgeService.startKBClone(caller, taskId, sourceId, reservedTargetId, create, creatorId);
-        var resp = new com.ragagent.knowledge.dto.KnowledgeTaskDtos.CopyKnowledgeBaseResponse(
+        var resp = new CopyKnowledgeBaseResponse(
                 taskId, sourceId, reservedTargetId, "Knowledge base copy task started");
         return ResponseEntity.ok(ApiResponse.ok(resp));
     }
@@ -311,7 +323,7 @@ public class KnowledgeBaseController {
         if (kbId == null || kbId.isEmpty()) {
             throw new BizException(AppError.badRequest("Knowledge base ID cannot be empty"));
         }
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(List.of(kbId));
+        TenantAPIKeyScope.authorizeKnowledgeBases(List.of(kbId));
         KnowledgeBase kb = kbService.getAllTenantById(kbId);
         if (kb == null) {
             throw new BizException(AppError.notFound("knowledge base not found"));
@@ -338,7 +350,7 @@ public class KnowledgeBaseController {
 
     /** 任务租户必须与调用方一致，否则 404（不泄露他租户任务存在性）。 */
     private void requireTaskProgressTenant(String taskId) {
-        Long taskTenant = com.ragagent.knowledge.service.KnowledgeTaskIds.taskTenantId(taskId);
+        Long taskTenant = KnowledgeTaskIds.taskTenantId(taskId);
         if (taskTenant == null) {
             throw new BizException(AppError.badRequest("invalid task ID"));
         }
@@ -393,7 +405,7 @@ public class KnowledgeBaseController {
             throw new BizException(AppError.forbidden("No permission to duplicate this knowledge base"));
         }
         KnowledgeBase targetKb = knowledgeService.duplicateKnowledgeBase(sourceId);
-        var resp = new com.ragagent.knowledge.dto.KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse(
+        var resp = new DuplicateKnowledgeBaseResponse(
                 sourceId, targetKb.getId(), "Knowledge base duplicate created",
                 KnowledgeBaseResponse.from(targetKb, kbService.retrieveDriver()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(resp));

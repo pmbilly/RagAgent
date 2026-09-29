@@ -16,6 +16,8 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.storage.fileserve.StorageFileResolver;
 import com.ragagent.storage.fileserve.StoragePaths;
 import com.ragagent.storage.provider.FileService;
+import com.ragagent.storage.fileserve.FileTransport.OpenedFile;
+import com.ragagent.storage.fileserve.ProviderFileContentService;
 
 /**
  * 租户感知的文件存储门面（A3-3 尾批）——知识上传 / 读取 / 删除的**唯一入口**。
@@ -152,7 +154,7 @@ public class TenantFileStorage {
      * <p>错误折叠成与 {@link #readChecked} 同一个 {@code Failed to retrieve file} 信封
      * （契约样例 {@code kg-download-404/traversal} 锁的就是它）。</p>
      */
-    public com.ragagent.storage.fileserve.FileTransport.OpenedFile open(long tenantId, String filePath) {
+    public OpenedFile open(long tenantId, String filePath) {
         String provider = StoragePaths.parseProviderScheme(filePath);
         if (provider.isEmpty() || isLocalScheme(provider)) {
             return local.openChecked(filePath);
@@ -163,7 +165,7 @@ public class TenantFileStorage {
                 throw new IllegalStateException("read from provider \"" + provider + "\" failed: "
                         + resolved.error());
             }
-            return new com.ragagent.storage.fileserve.ProviderFileContentService(resolved.service())
+            return new ProviderFileContentService(resolved.service())
                     .getFile(filePath);
         } catch (BizException e) {
             throw e;

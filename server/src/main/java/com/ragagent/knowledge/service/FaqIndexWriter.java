@@ -16,6 +16,12 @@ import com.ragagent.model.domain.Model;
 import com.ragagent.model.mapper.ModelMapper;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import org.springframework.stereotype.Component;
+import com.ragagent.auth.domain.Tenant;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
+import com.ragagent.retrieval.engine.EngineTypes;
+import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
+import com.ragagent.knowledge.domain.FaqChunkMetadata;
 
 /**
  * FAQ 条目的落库与向量索引写路径：FAQ 容器 knowledge 的查找/惰性创建、嵌入模型
@@ -92,7 +98,7 @@ public class FaqIndexWriter {
         knowledge.setKnowledgeBaseId(kb.getId());
         knowledge.setType("faq");
         knowledge.setChannel("web");
-        String name = com.ragagent.knowledge.domain.FaqChunkMetadata.trimSpace(kb.getName());
+        String name = FaqChunkMetadata.trimSpace(kb.getName());
         knowledge.setTitle(name.isEmpty() ? "FAQ" : name);
         knowledge.setDescription("FAQ 条目容器");
         knowledge.setSource("faq");
@@ -143,7 +149,7 @@ public class FaqIndexWriter {
         long size = 0;
         if (adjustStorage) {
             size = VectorStoreService.estimateStorageSize(rows, dimensions);
-            com.ragagent.auth.domain.Tenant tenantInfo = tenantStorage.getTenant(tid);
+            Tenant tenantInfo = tenantStorage.getTenant(tid);
             long quota = tenantInfo == null || tenantInfo.getStorageQuota() == null
                     ? 0 : tenantInfo.getStorageQuota();
             long used = tenantInfo == null || tenantInfo.getStorageUsed() == null
@@ -152,11 +158,11 @@ public class FaqIndexWriter {
                 throw new IllegalStateException("Storage quota exceeded");
             }
         }
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+        CompositeRetrieveEngine boundEngine =
                 vectorWrites.boundEngine(kb);
         if (boundEngine != null) {
             try {
-                com.ragagent.embedding.Embedder emb =
+                Embedder emb =
                         modelRuntimeFactory.getEmbeddingModel(embeddingModel.getId());
                 boundEngine.deleteByChunkIdList(chunkIds, emb.getDimensions(), kb.getType());
                 boundEngine.batchIndex(emb, faqIndexInfos(kb, rows));
@@ -221,11 +227,11 @@ public class FaqIndexWriter {
             chunkIds.add(chunk.getId());
         }
         long size = VectorStoreService.estimateStorageSize(rows, embeddingDimensions(embeddingModel));
-        com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
+        CompositeRetrieveEngine boundEngine =
                 vectorWrites.boundEngine(kb);
         if (boundEngine != null) {
             try {
-                com.ragagent.embedding.Embedder emb =
+                Embedder emb =
                         modelRuntimeFactory.getEmbeddingModel(embeddingModel.getId());
                 boundEngine.deleteByChunkIdList(chunkIds, emb.getDimensions(), kb.getType());
             } catch (RuntimeException e) {
@@ -256,15 +262,15 @@ public class FaqIndexWriter {
     }
 
     /** 索引行 → 检索引擎的 IndexInfo（SourceType 固定 FILE）。 */
-    private static List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> faqIndexInfos(
+    private static List<IndexInfo> faqIndexInfos(
             KnowledgeBase kb, List<VectorStoreService.IndexRow> rows) {
-        List<com.ragagent.retrieval.engine.EngineTypes.IndexInfo> items =
+        List<IndexInfo> items =
                 new ArrayList<>(rows.size());
         for (VectorStoreService.IndexRow row : rows) {
-            com.ragagent.retrieval.engine.EngineTypes.IndexInfo item =
-                    new com.ragagent.retrieval.engine.EngineTypes.IndexInfo();
+            IndexInfo item =
+                    new IndexInfo();
             item.sourceId = row.sourceId();
-            item.sourceType = com.ragagent.retrieval.engine.EngineTypes.SOURCE_TYPE_FILE;
+            item.sourceType = EngineTypes.SOURCE_TYPE_FILE;
             item.chunkId = row.chunkId();
             item.knowledgeId = row.knowledgeId();
             item.knowledgeBaseId = row.knowledgeBaseId();

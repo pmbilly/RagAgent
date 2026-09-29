@@ -27,6 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 
 /**
  * KB clone（copy 路由 worker 面）+ Duplicate（同步 settings-only）+ 跨库兼容性校验
@@ -86,7 +88,7 @@ public class KnowledgeCloneService {
      */
     public void startKBClone(long tenantId, String taskId, String sourceId, String targetId,
                              boolean createTarget, String creatorId) {
-        progressStore.saveCloneInitial(new com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress(
+        progressStore.saveCloneInitial(new KBCloneProgress(
                 taskId, sourceId, targetId, "pending", 0, 0, 0,
                 "Task queued, waiting to start...", "", epochNow(), epochNow()));
         Thread.ofVirtual().start(() -> {
@@ -311,10 +313,10 @@ public class KnowledgeCloneService {
             return;
         }
         try {
-            com.ragagent.retrieval.engine.CompositeRetrieveEngine engine =
+            CompositeRetrieveEngine engine =
                     vectorWrites.boundEngine(srcKb);
             if (engine != null) {
-                com.ragagent.embedding.Embedder emb =
+                Embedder emb =
                         modelRuntimeFactory.getEmbeddingModel(dst.getEmbeddingModelId());
                 engine.copyIndices(src.getKnowledgeBaseId(),
                         Map.of(src.getId(), dstKnowledgeId), srcToDstChunkIds, dst.getId(),
@@ -332,11 +334,11 @@ public class KnowledgeCloneService {
         }
     }
 
-    public void saveKBCloneProgress(com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress p) {
+    public void saveKBCloneProgress(KBCloneProgress p) {
         progressStore.saveCloneInitial(p);
     }
 
-    public com.ragagent.knowledge.dto.KnowledgeTaskDtos.KBCloneProgress getKBCloneProgress(String taskId) {
+    public KBCloneProgress getKBCloneProgress(String taskId) {
         return progressStore.getClone(taskId);
     }
 

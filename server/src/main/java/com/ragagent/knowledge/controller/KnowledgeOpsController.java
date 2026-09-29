@@ -32,6 +32,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.ragagent.knowledge.dto.KnowledgeTaskDtos.MoveKnowledgeResponse;
+import com.ragagent.apikey.domain.APIKeyScopeContext;
+import com.ragagent.apikey.domain.TenantAPIKeyScope;
 
 /**
  * 知识文档运营操作面：跨库搜索、批量删除/重析、批量标签、跨 KB 搬移与进度、
@@ -106,7 +109,7 @@ public class KnowledgeOpsController {
             }
         }
         KnowledgeSearchService.SearchOutcome outcome;
-        var scope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        var scope = APIKeyScopeContext.current();
         if (scope != null && scope.isKnowledgeBaseRestricted()) {
             // 受限 API Key 的搜索范围 = 白名单 KB（本租户）
             List<KnowledgeSearchService.KnowledgeSearchScope> scopes = new ArrayList<>();
@@ -284,7 +287,7 @@ public class KnowledgeOpsController {
         if (callerTenant == 0) {
             throw new BizException(AppError.unauthorized("Unauthorized"));
         }
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
+        TenantAPIKeyScope.authorizeKnowledgeBases(
                 List.of(sourceKbId, targetKbId));
         // 源库：存在性（404 大写 S）→ 租户（403）→ ownership（信封）；目标库同链
         KnowledgeBase sourceKb = knowledgeService.findKb(sourceKbId);
@@ -333,7 +336,7 @@ public class KnowledgeOpsController {
         }
         String taskId = KnowledgeTaskIds.generateTaskId("kg_move", callerTenant, sourceKbId);
         knowledgeService.startKnowledgeMove(callerTenant, taskId, uniqueIds, sourceKbId, targetKbId, mode);
-        var resp = new com.ragagent.knowledge.dto.KnowledgeTaskDtos.MoveKnowledgeResponse(
+        var resp = new MoveKnowledgeResponse(
                 taskId, sourceKbId, targetKbId, uniqueIds.size(), "Knowledge move task started");
         return ResponseEntity.ok(ApiResponse.ok(resp));
     }

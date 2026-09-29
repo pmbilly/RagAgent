@@ -29,6 +29,12 @@ import com.ragagent.knowledge.mapper.UserKbPinMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.knowledge.domain.Chunk;
+import com.ragagent.retrieval.engine.RetrieveEngineException;
+import com.ragagent.retrieval.engine.RetrieveEngineRegistry;
+import com.ragagent.retrieval.engine.TenantStoreOwnership;
+import com.ragagent.common.security.LogSanitizer;
+import com.ragagent.retrieval.engine.RetrieveEngineFactories;
 
 /**
  * （阶段 3 子集：CRUD + pin + move-targets + 计数回填；
@@ -49,8 +55,8 @@ public class KnowledgeBaseService {
     private final TenantService tenantService;
     private final UserService userService;
     private final String retrieveDriver;
-    private final com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry;
-    private final com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership;
+    private final RetrieveEngineRegistry retrieveEngineRegistry;
+    private final TenantStoreOwnership storeOwnership;
 
     public KnowledgeBaseService(KnowledgeBaseMapper kbMapper,
                                 KnowledgeMapper knowledgeMapper,
@@ -59,8 +65,8 @@ public class KnowledgeBaseService {
                                 StorageBackendMapper storageBackendMapper,
                                 TenantService tenantService,
                                 UserService userService,
-                                com.ragagent.retrieval.engine.RetrieveEngineRegistry retrieveEngineRegistry,
-                                com.ragagent.retrieval.engine.TenantStoreOwnership storeOwnership) {
+                                RetrieveEngineRegistry retrieveEngineRegistry,
+                                TenantStoreOwnership storeOwnership) {
         this.kbMapper = kbMapper;
         this.knowledgeMapper = knowledgeMapper;
         this.chunkMapper = chunkMapper;
@@ -98,6 +104,7 @@ public class KnowledgeBaseService {
             kb.setCreatorId(uid);
         }
         ensureDefaults(kb);
+        // 下面两行是 null → "" 规整：setter 承担归一，读回再写回即完成（非冗余赋值）
         kb.setEmbeddingModelId(kb.getEmbeddingModelId());
         kb.setSummaryModelId(kb.getSummaryModelId());
         applyTenantDefaultStorageProvider(kb);
@@ -119,7 +126,7 @@ public class KnowledgeBaseService {
      * 用户可见的 2200/2201 文案（不含 store UUID——UUID 只进结构化日志，经 sanitizer）。
      */
     public void validateVectorStoreBinding(long tenantId, String storeId) {
-        String sanitized = com.ragagent.common.security.LogSanitizer.sanitize(storeId);
+        String sanitized = LogSanitizer.sanitize(storeId);
         try {
             java.util.UUID.fromString(storeId);
         } catch (IllegalArgumentException e) {
@@ -130,10 +137,10 @@ public class KnowledgeBaseService {
                     "vector store not found", null, 400));
         }
         try {
-            com.ragagent.retrieval.engine.RetrieveEngineFactories.verifyBinding(
+            RetrieveEngineFactories.verifyBinding(
                     retrieveEngineRegistry, storeOwnership, tenantId, storeId);
         } catch (RuntimeException err) {
-            if (err instanceof com.ragagent.retrieval.engine.RetrieveEngineException re) {
+            if (err instanceof RetrieveEngineException re) {
                 switch (re.kind()) {
                     case VECTOR_STORE_FORBIDDEN:
                         log.warn("[kb.create] vector store not owned by tenant: tenant_id={} "
@@ -153,7 +160,7 @@ public class KnowledgeBaseService {
                         break;
                 }
             }
-            if (com.ragagent.retrieval.engine.RetrieveEngineException.isCancellation(err)) {
+            if (RetrieveEngineException.isCancellation(err)) {
                 throw err;
             }
             log.error("[kb.create] binding verification failed: tenant_id={} store_id={} err={}",
@@ -334,9 +341,9 @@ public class KnowledgeBaseService {
                     .isNull(Knowledge::getDeletedAt));
             kb.setKnowledgeCount(kc == null ? 0 : kc);
         } else if ("faq".equals(kb.getType())) {
-            Long cc = chunkMapper.selectCount(new LambdaQueryWrapper<com.ragagent.knowledge.domain.Chunk>()
-                    .eq(com.ragagent.knowledge.domain.Chunk::getKnowledgeBaseId, kb.getId())
-                    .isNull(com.ragagent.knowledge.domain.Chunk::getDeletedAt));
+            Long cc = chunkMapper.selectCount(new LambdaQueryWrapper<Chunk>()
+                    .eq(Chunk::getKnowledgeBaseId, kb.getId())
+                    .isNull(Chunk::getDeletedAt));
             kb.setChunkCount(cc == null ? 0 : cc);
         }
         Long pc = knowledgeMapper.selectCount(new LambdaQueryWrapper<Knowledge>()
@@ -386,9 +393,9 @@ public class KnowledgeBaseService {
         Long kc = knowledgeMapper.selectCount(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getKnowledgeBaseId, kb.getId())
                 .isNull(Knowledge::getDeletedAt));
-        Long cc = chunkMapper.selectCount(new LambdaQueryWrapper<com.ragagent.knowledge.domain.Chunk>()
-                .eq(com.ragagent.knowledge.domain.Chunk::getKnowledgeBaseId, kb.getId())
-                .isNull(com.ragagent.knowledge.domain.Chunk::getDeletedAt));
+        Long cc = chunkMapper.selectCount(new LambdaQueryWrapper<Chunk>()
+                .eq(Chunk::getKnowledgeBaseId, kb.getId())
+                .isNull(Chunk::getDeletedAt));
         Long pc = knowledgeMapper.selectCount(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getKnowledgeBaseId, kb.getId())
                 .isNull(Knowledge::getDeletedAt)
@@ -438,11 +445,11 @@ public class KnowledgeBaseService {
 
     private static void applyUpdateConfig(KnowledgeBase kb, com.fasterxml.jackson.databind.JsonNode config) {
         if (config.hasNonNull("chunking_config")) {
-            kb.setChunkingConfig(com.ragagent.knowledge.domain.KnowledgeBaseJsons.readChunking(config.get("chunking_config")));
+            kb.setChunkingConfig(KnowledgeBaseJsons.readChunking(config.get("chunking_config")));
         }
         if (config.hasNonNull("image_processing_config")) {
             kb.setImageProcessingConfig(
-                    com.ragagent.knowledge.domain.KnowledgeBaseJsons.readImageProcessing(config.get("image_processing_config")));
+                    KnowledgeBaseJsons.readImageProcessing(config.get("image_processing_config")));
         }
         if (config.hasNonNull("faq_config")) {
             kb.setFaqConfig(config.get("faq_config"));
@@ -484,7 +491,7 @@ public class KnowledgeBaseService {
                 .eq("id", id).set("deleted_at", now));
         knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                 .eq("knowledge_base_id", id).set("deleted_at", now));
-        chunkMapper.update(null, new UpdateWrapper<com.ragagent.knowledge.domain.Chunk>()
+        chunkMapper.update(null, new UpdateWrapper<Chunk>()
                 .eq("knowledge_base_id", id).set("deleted_at", now));
         pinMapper.delete(new LambdaQueryWrapper<UserKbPin>()
                 .eq(UserKbPin::getKnowledgeBaseId, id));

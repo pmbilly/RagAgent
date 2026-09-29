@@ -46,6 +46,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.context.TenantContext;
 
 /**
  * 知识文档主面：创建（文件/URL/手工）、列表/详情/批量取、解析生命周期
@@ -353,10 +355,10 @@ public class KnowledgeController {
         log.info("Start clearing knowledge base contents");
         String kbId = LogSanitizer.sanitize(id);
         var kb = guards.requireKbAccess(kbId);
-        Long callerTenant = com.ragagent.common.context.TenantContext.currentTenantId();
-        String role = com.ragagent.common.context.TenantContext.currentRole();
-        boolean admin = com.ragagent.auth.domain.TenantRole.fromString(role)
-                .hasPermission(com.ragagent.auth.domain.TenantRole.ADMIN);
+        Long callerTenant = TenantContext.currentTenantId();
+        String role = TenantContext.currentRole();
+        boolean admin = TenantRole.fromString(role)
+                .hasPermission(TenantRole.ADMIN);
         if (kb.getTenantId() == null || !kb.getTenantId().equals(callerTenant) || !admin) {
             throw new BizException(AppError.forbidden("Only knowledge base owner can clear contents"));
         }
