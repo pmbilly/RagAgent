@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.knowledge.dto.FaqEntryDtos;
 import com.ragagent.agent.AgentConfig;
 import com.ragagent.agent.AgentEngine;
 import com.ragagent.agent.AgentPrompts;
@@ -797,8 +798,8 @@ public class SessionAgentQaService {
                     var page = faqService.listEntries(kbId, 1, 10, null, 0, "", "", "", null);
                     docCount = ((Number) page.getOrDefault("total", 0)).intValue();
                     @SuppressWarnings("unchecked")
-                    List<com.ragagent.knowledge.dto.FaqDtos.FaqEntry> entries =
-                            (List<com.ragagent.knowledge.dto.FaqDtos.FaqEntry>) page.get("data");
+                    List<com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry> entries =
+                            (List<com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry>) page.get("data");
                     if (entries != null) {
                         for (var entry : entries) {
                             if (recentDocs.size() >= 10) {

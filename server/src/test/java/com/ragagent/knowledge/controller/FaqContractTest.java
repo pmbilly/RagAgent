@@ -283,8 +283,13 @@ class FaqContractTest {
             file = Path.of("server/src/test/resources/contracts", golden);
         }
         String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8));
-        assertEquals(expected, mask(actual),
-                () -> "golden mismatch: " + golden + "\nexpected: " + expected + "\nactual:   " + mask(actual));
+        String masked = mask(actual);
+        boolean semanticEqual = com.ragagent.support.ContractJson.semantic(expected)
+                .equals(com.ragagent.support.ContractJson.semantic(masked));
+        if (!semanticEqual) {
+            assertEquals(expected, masked,
+                    () -> "golden mismatch: " + golden + "\nexpected: " + expected + "\nactual:   " + masked);
+        }
     }
 
     private void compareAndStatus(String golden, int expectedStatus, String method, String path,

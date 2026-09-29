@@ -1,11 +1,13 @@
 package com.ragagent.common.web;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 成功响应信封：{@code {"success":true,"data":...}}；data 为空时省键
  * （{@link JsonInclude.Include#NON_NULL}）。错误响应由 GlobalExceptionHandler 统一产出。
  */
+@JsonPropertyOrder({"data", "success"})
 public record ApiResponse<T>(@JsonInclude(JsonInclude.Include.NON_NULL) boolean success,
                              @JsonInclude(JsonInclude.Include.NON_NULL) T data) {
 

@@ -3,10 +3,11 @@ package com.ragagent.knowledge.service;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.knowledge.dto.FaqEntryDtos;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.dto.FaqDtos.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
 import org.springframework.stereotype.Component;
 
 /**

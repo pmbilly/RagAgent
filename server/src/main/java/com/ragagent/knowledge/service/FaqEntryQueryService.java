@@ -10,14 +10,15 @@ import java.util.UUID;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.knowledge.dto.FaqEntryDtos;
+import com.ragagent.knowledge.dto.FaqSearchDtos;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
-import com.ragagent.knowledge.dto.FaqDtos;
-import com.ragagent.knowledge.dto.FaqDtos.FaqEntry;
-import com.ragagent.knowledge.dto.FaqDtos.FaqExportEntry;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqExportEntry;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.chatpipeline.SearchParams;
@@ -290,7 +291,7 @@ public class FaqEntryQueryService {
      * （向量/关键词检索）属波 4</b>——Go 在无 embedding 绑定的 dev KB 上同样落到
      * 空结果出口（golden faq-search-embed-missing 钉住 {@code data:[]}）。
      */
-    public List<FaqEntry> searchEntries(String kbId, FaqDtos.FaqSearchRequest req) {
+    public List<FaqEntry> searchEntries(String kbId, FaqSearchDtos.FaqSearchRequest req) {
         KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
 
         double vectorThreshold = req.vectorThreshold();

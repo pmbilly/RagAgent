@@ -80,7 +80,9 @@ public class GlobalExceptionHandler {
                         .allMatch(fe -> "page".equals(fe.getField()) || "page_size".equals(fe.getField()));
         java.util.List<String> lines = new java.util.ArrayList<>();
         for (org.springframework.validation.FieldError fe : ex.getBindingResult().getFieldErrors()) {
-            lines.add(fe.getField() + ": " + translateConstraint(fe));
+            String msg = translateConstraint(fe);
+            // 校验注解已给出 "snake_field: 说明" 完整文案时直接使用（字段名取 snake_case 键名）
+            lines.add(msg.matches("^[a-z][a-z0-9_]*: .*") ? msg : fe.getField() + ": " + msg);
         }
         if (lines.isEmpty()) {
             lines.add("请求参数不合法");
@@ -97,7 +99,10 @@ public class GlobalExceptionHandler {
             org.springframework.web.method.annotation.HandlerMethodValidationException ex) {
         java.util.List<String> lines = new java.util.ArrayList<>();
         ex.getAllValidationResults().forEach(r ->
-                r.getResolvableErrors().forEach(err -> lines.add(extractField(err) + ": " + translateMessage(err.getDefaultMessage()))));
+                r.getResolvableErrors().forEach(err -> {
+                    String msg = translateMessage(err.getDefaultMessage());
+                    lines.add(msg.matches("^[a-z][a-z0-9_]*: .*") ? msg : extractField(err) + ": " + msg);
+                }));
         if (lines.isEmpty()) {
             lines.add("请求参数不合法");
         }

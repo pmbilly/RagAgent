@@ -12,13 +12,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
+import com.ragagent.knowledge.dto.FaqEntryDtos;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
-import com.ragagent.knowledge.dto.FaqDtos;
-import com.ragagent.knowledge.dto.FaqDtos.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
@@ -86,7 +86,7 @@ public class FaqEntryCommandService {
      * sanitize → tag 解析 → create guard → 重复检查 → 容器 → index mode →
      * <b>GetEmbeddingModel（plain 500 分支）</b> → 建 chunk → 索引（失败回滚 chunk）。
      */
-    public FaqEntry createEntry(String kbId, FaqDtos.FaqEntryPayload payload) {
+    public FaqEntry createEntry(String kbId, FaqEntryDtos.FaqEntryPayload payload) {
         KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
         faqGuard.ensureDefaults(kb);
         long tid = tenantId();
@@ -181,7 +181,7 @@ public class FaqEntryCommandService {
      * * <b>先落库后失败</b>：UpdateChunk 在 GetEmbeddingModel 之前——无模型 KB 上
      * 返回 plain 500 但变更已持久化（golden faq-get-after-update 钉住，照抄别修）。
      */
-    public FaqEntry updateEntry(String kbId, long entrySeqId, FaqDtos.FaqEntryPayload payload) {
+    public FaqEntry updateEntry(String kbId, long entrySeqId, FaqEntryDtos.FaqEntryPayload payload) {
         KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
         faqGuard.ensureDefaults(kb);
         long tid = tenantId();
@@ -390,18 +390,18 @@ public class FaqEntryCommandService {
 
     /** nil tag = 0 = 移除标签。 */
     public void updateEntryTagBatch(String kbId, Map<Long, Long> updates) {
-        Map<Long, FaqDtos.FaqEntryFieldsUpdate> byId = new LinkedHashMap<>();
+        Map<Long, FaqEntryDtos.FaqEntryFieldsUpdate> byId = new LinkedHashMap<>();
         if (updates != null) {
             updates.forEach((id, tag) -> {
                 long value = tag == null ? 0 : tag;
-                byId.put(id, new FaqDtos.FaqEntryFieldsUpdate(null, null, value));
+                byId.put(id, new FaqEntryDtos.FaqEntryFieldsUpdate(null, null, value));
             });
         }
-        updateEntryFieldsBatch(kbId, new FaqDtos.FaqEntryFieldsBatchUpdate(byId, null, null));
+        updateEntryFieldsBatch(kbId, new FaqEntryDtos.FaqEntryFieldsBatchUpdate(byId, null, null));
     }
 
     /** */
-    public void updateEntryFieldsBatch(String kbId, FaqDtos.FaqEntryFieldsBatchUpdate req) {
+    public void updateEntryFieldsBatch(String kbId, FaqEntryDtos.FaqEntryFieldsBatchUpdate req) {
         if (req == null || ((req.byId() == null || req.byId().isEmpty())
                 && (req.byTag() == null || req.byTag().isEmpty()))) {
             return;
@@ -417,7 +417,7 @@ public class FaqEntryCommandService {
 
         if (req.byTag() != null && !req.byTag().isEmpty()) {
             for (Long tagSeqId : FaqGuard.sortedIds(req.byTag().keySet())) {
-                FaqDtos.FaqEntryFieldsUpdate update = req.byTag().get(tagSeqId);
+                FaqEntryDtos.FaqEntryFieldsUpdate update = req.byTag().get(tagSeqId);
                 KnowledgeTag tag = plan.tags.get(tagSeqId);
 
                 int setFlags = 0;
@@ -474,7 +474,7 @@ public class FaqEntryCommandService {
             List<Chunk> chunksToUpdate = new ArrayList<>();
 
             for (Long entrySeqId : FaqGuard.sortedIds(req.byId().keySet())) {
-                FaqDtos.FaqEntryFieldsUpdate update = req.byId().get(entrySeqId);
+                FaqEntryDtos.FaqEntryFieldsUpdate update = req.byId().get(entrySeqId);
                 Chunk chunk = chunkBySeqId.get(entrySeqId);
 
                 boolean needUpdate = false;
