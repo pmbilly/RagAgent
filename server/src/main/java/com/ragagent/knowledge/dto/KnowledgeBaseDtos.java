@@ -5,12 +5,11 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.KbVlmConfig;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * 知识库域传输对象：更新、混合检索、复制请求与重建索引响应。
- * 请求 record 用标准 {@code @JsonNaming(SnakeCaseStrategy)}；跨字段条件校验
- * （如 hybrid-search 的 query_text/embedding 二选一）在 controller 内判定。
+ * 线格式 = Java 字段名（camelCase）；跨字段条件校验
+ * （如 hybrid-search 的 queryText/embedding 二选一）在 controller 内判定。
  */
 public final class KnowledgeBaseDtos {
 

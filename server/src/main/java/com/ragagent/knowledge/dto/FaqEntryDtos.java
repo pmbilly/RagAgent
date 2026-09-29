@@ -7,7 +7,6 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * FAQ 条目域传输对象：条目视图、导出、载荷与批量更新请求。
@@ -15,9 +14,8 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
  * <p><b>响应侧已按新契约</b>（{@link FaqEntry} / {@link FaqEntryPage}）：camelCase、零注解、
  * 条件键收敛为可空字段。</p>
  *
- * <p><b>请求侧仍为 snake_case</b>（{@code @JsonNaming(SnakeCaseStrategy)}），与
- * {@link FaqExportEntry} 同批处理：导出 JSON 与 {@code FaqEntryPayload} 是**同一套交换格式**
- * （导出 → 改动 → 再导入），必须同时改名，否则破坏往返。</p>
+ * <p>线格式 = Java 字段名（camelCase）。{@link FaqExportEntry} 与 {@code FaqEntryPayload}
+ * 是**同一套交换格式**（导出 → 改动 → 再导入），故两者同批改名以保持往返一致。</p>
  */
 public final class FaqEntryDtos {
 

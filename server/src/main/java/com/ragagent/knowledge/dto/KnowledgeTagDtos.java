@@ -3,7 +3,6 @@ package com.ragagent.knowledge.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import jakarta.validation.constraints.NotBlank;
 
@@ -11,8 +10,7 @@ import jakarta.validation.constraints.NotBlank;
  * 知识库标签的传输对象。
  *
  * <p>响应 record 按新契约：camelCase、零注解、内部字段 {@code tenantId} 不下发、
- * 分页统一 {@code {items, page, pageSize, total}}；请求 record 仍用
- * {@code @JsonNaming(SnakeCaseStrategy)}（请求侧 camelCase 属独立批次）。</p>
+ * 分页统一 {@code {items, page, pageSize, total}}；线格式 = Java 字段名（camelCase），零命名注解。</p>
  */
 public final class KnowledgeTagDtos {
 

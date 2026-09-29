@@ -3,7 +3,6 @@ package com.ragagent.knowledge.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import jakarta.validation.constraints.NotNull;
@@ -11,8 +10,8 @@ import jakarta.validation.constraints.NotNull;
 /**
  * chunk 域传输对象：编辑/回滚/生成问题的请求 record 与列表/更新响应。
  *
- * <p>请求 record 仍用 {@code @JsonNaming(SnakeCaseStrategy)} + 校验注解（请求侧 camelCase
- * 属独立批次）；<b>响应 record 已按新契约</b>：camelCase、无注解、可空字段显式 null。</p>
+ * <p>请求与响应 record 均按新契约：线格式 = Java 字段名（camelCase）、零命名注解、
+ * 可空字段显式 null；校验注解的文案自含 camelCase 字段前缀。</p>
  */
 public final class ChunkDtos {
 

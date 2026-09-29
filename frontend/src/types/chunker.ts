@@ -10,49 +10,49 @@ export interface TierRejection {
 }
 
 export interface DocProfile {
-  total_chars: number
-  total_lines: number
-  avg_line_len: number
-  std_line_len: number
-  md_heading_counts: Record<string, number>
-  md_heading_total: number
-  numbered_section_count: number
-  all_caps_short_line_count: number
-  blank_paragraph_breaks: number
-  form_feed_count: number
-  visual_sep_count: number
-  german_chapter_count: number
-  english_chapter_count: number
-  chinese_chapter_count: number
-  repeated_footer_count: number
-  has_tables: boolean
-  has_code: boolean
-  code_ratio: number
-  detected_langs: string[]
+  totalChars: number
+  totalLines: number
+  avgLineLen: number
+  stdLineLen: number
+  mdHeadingCounts: Record<string, number>
+  mdHeadingTotal: number
+  numberedSectionCount: number
+  allCapsShortLineCount: number
+  blankParagraphBreaks: number
+  formFeedCount: number
+  visualSepCount: number
+  germanChapterCount: number
+  englishChapterCount: number
+  chineseChapterCount: number
+  repeatedFooterCount: number
+  hasTables: boolean
+  hasCode: boolean
+  codeRatio: number
+  detectedLangs: string[]
 }
 
 export interface PreviewChunk {
   seq: number
   start: number
   end: number
-  size_chars: number
-  size_tokens_approx: number
-  context_header?: string
+  sizeChars: number
+  sizeTokensApprox: number
+  contextHeader?: string
   content: string
 }
 
 export interface PreviewChunkingStats {
   count: number
-  avg_chars: number
-  min_chars: number
-  max_chars: number
-  stddev_chars: number
-  truncated_to?: number
+  avgChars: number
+  minChars: number
+  maxChars: number
+  stddevChars: number
+  truncatedTo?: number
 }
 
 export interface PreviewChunkingResponse {
-  selected_tier: StrategyTier
-  tier_chain: StrategyTier[]
+  selectedTier: StrategyTier
+  tierChain: StrategyTier[]
   rejected: TierRejection[]
   profile: DocProfile
   chunks: PreviewChunk[]
@@ -61,15 +61,15 @@ export interface PreviewChunkingResponse {
 
 export interface PreviewChunkingRequest {
   text: string
-  chunking_config: {
-    chunk_size: number
-    chunk_overlap: number
+  chunkingConfig: {
+    chunkSize: number
+    chunkOverlap: number
     separators: string[]
-    enable_parent_child?: boolean
-    parent_chunk_size?: number
-    child_chunk_size?: number
+    enableParentChild?: boolean
+    parentChunkSize?: number
+    childChunkSize?: number
     strategy?: string
-    token_limit?: number
+    tokenLimit?: number
     languages?: string[]
   }
 }

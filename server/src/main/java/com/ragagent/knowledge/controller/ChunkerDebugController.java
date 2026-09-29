@@ -15,6 +15,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.BizException;
+import com.ragagent.common.error.ErrorCode;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.dto.ChunkerDtos.PreviewPayload;
 import com.ragagent.knowledge.dto.ChunkerDtos.PreviewRequest;
@@ -72,25 +75,17 @@ public class ChunkerDebugController {
     // ── 响应体 ───
 
     static final class PreviewResponse {
-        @JsonProperty("selected_tier")
-        String selectedTier;
-        @JsonProperty("tier_chain")
-        List<String> tierChain;
-        @JsonProperty("rejected")
-        List<TierRejectionDto> rejected;
-        @JsonProperty("profile")
-        ProfileDto profile;
-        @JsonProperty("chunks")
-        List<ChunkDto> chunks = new ArrayList<>();
-        @JsonProperty("stats")
-        StatsDto stats;
+        public String selectedTier;
+        public List<String> tierChain;
+        public List<TierRejectionDto> rejected;
+        public ProfileDto profile;
+        public List<ChunkDto> chunks = new ArrayList<>();
+        public StatsDto stats;
     }
 
     static final class TierRejectionDto {
-        @JsonProperty("tier")
-        String tier;
-        @JsonProperty("reason")
-        String reason;
+        public String tier;
+        public String reason;
 
         TierRejectionDto(String tier, String reason) {
             this.tier = tier;
@@ -99,80 +94,48 @@ public class ChunkerDebugController {
     }
 
     static final class ProfileDto {
-        @JsonProperty("total_chars")
-        int totalChars;
-        @JsonProperty("total_lines")
-        int totalLines;
-        @JsonProperty("avg_line_len")
-        double avgLineLen;
-        @JsonProperty("std_line_len")
-        double stdLineLen;
-        @JsonProperty("md_heading_counts")
-        Map<Integer, Integer> mdHeadingCounts = new LinkedHashMap<>();
-        @JsonProperty("md_heading_total")
-        int mdHeadingTotal;
-        @JsonProperty("numbered_section_count")
-        int numberedSectionCount;
-        @JsonProperty("all_caps_short_line_count")
-        int allCapsShortLineCount;
-        @JsonProperty("blank_paragraph_breaks")
-        int blankParagraphBreaks;
-        @JsonProperty("form_feed_count")
-        int formFeedCount;
-        @JsonProperty("visual_sep_count")
-        int visualSepCount;
-        @JsonProperty("german_chapter_count")
-        int germanChapterCount;
-        @JsonProperty("english_chapter_count")
-        int englishChapterCount;
-        @JsonProperty("chinese_chapter_count")
-        int chineseChapterCount;
-        @JsonProperty("repeated_footer_count")
-        int repeatedFooterCount;
-        @JsonProperty("has_tables")
-        boolean hasTables;
-        @JsonProperty("has_code")
-        boolean hasCode;
-        @JsonProperty("code_ratio")
-        double codeRatio;
-        @JsonProperty("detected_langs")
-        List<String> detectedLangs = new ArrayList<>();
+        public int totalChars;
+        public int totalLines;
+        public double avgLineLen;
+        public double stdLineLen;
+        public Map<Integer, Integer> mdHeadingCounts = new LinkedHashMap<>();
+        public int mdHeadingTotal;
+        public int numberedSectionCount;
+        public int allCapsShortLineCount;
+        public int blankParagraphBreaks;
+        public int formFeedCount;
+        public int visualSepCount;
+        public int germanChapterCount;
+        public int englishChapterCount;
+        public int chineseChapterCount;
+        public int repeatedFooterCount;
+        public boolean hasTables;
+        public boolean hasCode;
+        public double codeRatio;
+        public List<String> detectedLangs = new ArrayList<>();
     }
 
     static final class ChunkDto {
-        @JsonProperty("seq")
-        int seq;
-        @JsonProperty("start")
-        int start;
-        @JsonProperty("end")
-        int end;
-        @JsonProperty("size_chars")
-        int sizeChars;
-        @JsonProperty("size_tokens_approx")
-        int sizeTokensApprox;
+        public int seq;
+        public int start;
+        public int end;
+        public int sizeChars;
+        public int sizeTokensApprox;
         /** JSON 空值省略：空串省略。 */
-        @JsonProperty("context_header")
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
-        String contextHeader;
-        @JsonProperty("content")
-        String content;
+        public String contextHeader;
+        public String content;
     }
 
     static final class StatsDto {
-        @JsonProperty("count")
-        int count;
-        @JsonProperty("avg_chars")
-        int avgChars;
-        @JsonProperty("min_chars")
-        int minChars;
-        @JsonProperty("max_chars")
-        int maxChars;
-        @JsonProperty("stddev_chars")
-        int stddevChars;
+        public int count;
+        public int avgChars;
+        public int minChars;
+        public int maxChars;
+        public int stddevChars;
         /** JSON 空值省略：0 省略。 */
-        @JsonProperty("truncated_to")
         @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        int truncatedTo;
+        public int truncatedTo;
     }
 
     /** 切分结果 + 诊断（parent-child 时 chunks = children）。 */
@@ -183,34 +146,20 @@ public class ChunkerDebugController {
      * 绑定失败 → 400 裸错误体 {@code {"error":"invalid request body: …","success":false}}
      * ——该调试端点专属形态（非标准信封），契约样例 cprev-bad-body 锁定。
      */
-    @org.springframework.web.bind.annotation.ExceptionHandler({
-            org.springframework.http.converter.HttpMessageNotReadableException.class,
-            BizException.class})
-    public ResponseEntity<Map<String, Object>> handleBind(Exception ex) {
-        String detail = ex instanceof BizException
-                ? "请求体不能为空" : "请求体格式不正确";
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", "invalid request body: " + detail);
-        body.put("success", false);
-        return ResponseEntity.status(400).body(body);
-    }
 
     @PostMapping("/api/v1/chunker/preview")
-    public ResponseEntity<Map<String, Object>> previewChunking(
+    public ResponseEntity<PreviewResponse> previewChunking(
             @NonNullBody @RequestBody PreviewRequest req) {
         String text = req.text() == null ? "" : req.text();
 
         if (text.strip().isEmpty()) {
-            return ResponseEntity.status(400).body(errorBody(
+            throw new BizException(AppError.badRequest(
                     "text is empty — paste a sample to preview chunking"));
         }
         // rune 计数（非 char 计）
         if (text.codePointCount(0, text.length()) > PREVIEW_MAX_CHARS) {
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("error", "text exceeds preview limit");
-            body.put("limit", PREVIEW_MAX_CHARS);
-            body.put("success", false);
-            return ResponseEntity.status(413).body(body);
+            throw new BizException(new AppError(ErrorCode.KNOWLEDGE_PREVIEW_TOO_LARGE.value(),
+                    "text exceeds preview limit", "limit: " + PREVIEW_MAX_CHARS, 413));
         }
         String normalized = TextNormalizer.normalizeLineEndings(text);
 
@@ -239,12 +188,15 @@ public class ChunkerDebugController {
         try {
             outcome = future.get(PREVIEW_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
-            return ResponseEntity.status(504).body(errorBody("chunker preview timed out"));
+            throw new BizException(new AppError(ErrorCode.KNOWLEDGE_PREVIEW_TIMEOUT.value(),
+                    "chunker preview timed out", null, 504));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return ResponseEntity.status(500).body(errorBody("chunker preview interrupted"));
+            throw new BizException(new AppError(ErrorCode.INTERNAL_SERVER.value(),
+                    "chunker preview interrupted", null, 500));
         } catch (ExecutionException e) {
-            return ResponseEntity.status(500).body(errorBody("chunker preview failed"));
+            throw new BizException(new AppError(ErrorCode.INTERNAL_SERVER.value(),
+                    "chunker preview failed", null, 500));
         }
 
         List<ParsedChunk> chunks = outcome.chunks();
@@ -303,10 +255,7 @@ public class ChunkerDebugController {
         }
         resp.stats = stats;
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", resp);
-        body.put("success", true);
-        return ResponseEntity.status(200).body(body);
+        return ResponseEntity.ok(resp);
     }
 
     // ── 内部 ─────────────────────────────────────────────────────────────
@@ -396,12 +345,6 @@ public class ChunkerDebugController {
     }
 
     /** preview 的错误体是裸 gin.H（非 AppError 信封）：键字母序。 */
-    private static Map<String, Object> errorBody(String message) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", message);
-        body.put("success", false);
-        return body;
-    }
 
     private static int orZero(Integer v) {
         return v == null ? 0 : v;

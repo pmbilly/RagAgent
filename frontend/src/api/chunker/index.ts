@@ -10,6 +10,6 @@ import type {
 
 export function previewChunking(
   body: PreviewChunkingRequest
-): Promise<{ success: boolean; data: PreviewChunkingResponse }> {
+): Promise<PreviewChunkingResponse> {
   return post('/api/v1/chunker/preview', body)
 }

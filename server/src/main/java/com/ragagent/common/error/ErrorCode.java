@@ -42,7 +42,11 @@ public enum ErrorCode {
     /** 上传内容与库内已有文档重复。 */
     KNOWLEDGE_DUPLICATE_FILE(2400),
     /** URL 与库内已有文档重复。 */
-    KNOWLEDGE_DUPLICATE_URL(2401);
+    KNOWLEDGE_DUPLICATE_URL(2401),
+    /** 分块预览超限（输入字符数超过上限）。 */
+    KNOWLEDGE_PREVIEW_TOO_LARGE(2402),
+    /** 分块预览超时（切分线程未在时限内完成）。 */
+    KNOWLEDGE_PREVIEW_TIMEOUT(2403);
 
     private final int value;
 

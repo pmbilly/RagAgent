@@ -4,15 +4,14 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 
 /**
  * 知识文档域传输对象：创建/更新/批量操作/搬移/文件夹的请求与列表响应。
- * 请求 record 用标准 {@code @JsonNaming(SnakeCaseStrategy)} + 校验注解（消息自含
- * snake_case 字段前缀，多条失败按 record 组件序以 "\n" 连接）。
+ * 线格式 = Java 字段名（camelCase）+ 校验注解（消息自含 camelCase 字段前缀，
+ * 多条失败按 record 组件序以 "\n" 连接）。
  */
 public final class KnowledgeDtos {
 

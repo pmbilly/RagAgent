@@ -90,11 +90,11 @@
             <div class="tier-row">
               <span class="result-label">{{ $t('knowledgeEditor.chunking.debug.selectedTier') }}:</span>
               <t-tag
-                :theme="tierTheme(result.selected_tier)"
+                :theme="tierTheme(result.selectedTier)"
                 variant="light-outline"
                 size="medium"
               >
-                {{ tierDisplay(result.selected_tier) }}
+                {{ tierDisplay(result.selectedTier) }}
               </t-tag>
               <span v-if="fallbackWarning" class="fallback-warning">
                 {{ $t('knowledgeEditor.chunking.debug.fallbackWarning') }}
@@ -119,33 +119,33 @@
           <!-- Profile stats -->
           <div class="profile-grid">
             <div class="profile-cell">
-              <div class="cell-value">{{ result.profile.total_lines }}</div>
+              <div class="cell-value">{{ result.profile.totalLines }}</div>
               <div class="cell-label">{{ $t('knowledgeEditor.chunking.debug.profile.lines') }}</div>
             </div>
             <div class="profile-cell">
-              <div class="cell-value">{{ result.profile.total_chars }}</div>
+              <div class="cell-value">{{ result.profile.totalChars }}</div>
               <div class="cell-label">{{ $t('knowledgeEditor.chunking.debug.profile.chars') }}</div>
             </div>
             <div class="profile-cell">
-              <div class="cell-value">{{ result.profile.md_heading_total }}</div>
+              <div class="cell-value">{{ result.profile.mdHeadingTotal }}</div>
               <div class="cell-label">{{ $t('knowledgeEditor.chunking.debug.profile.headings') }}</div>
             </div>
             <div class="profile-cell">
-              <div class="cell-value">{{ result.profile.form_feed_count }}</div>
+              <div class="cell-value">{{ result.profile.formFeedCount }}</div>
               <div class="cell-label">{{ $t('knowledgeEditor.chunking.debug.profile.pageBreaks') }}</div>
             </div>
             <div class="profile-cell">
               <div class="cell-value">
                 {{
-                  result.profile.german_chapter_count +
-                  result.profile.english_chapter_count +
-                  result.profile.chinese_chapter_count
+                  result.profile.germanChapterCount +
+                  result.profile.englishChapterCount +
+                  result.profile.chineseChapterCount
                 }}
               </div>
               <div class="cell-label">{{ $t('knowledgeEditor.chunking.debug.profile.chapterMarkers') }}</div>
             </div>
             <div class="profile-cell">
-              <div class="cell-value">{{ (result.profile.detected_langs || []).join(', ') || '—' }}</div>
+              <div class="cell-value">{{ (result.profile.detectedLangs || []).join(', ') || '—' }}</div>
               <div class="cell-label">{{ $t('knowledgeEditor.chunking.debug.profile.languages') }}</div>
             </div>
           </div>
@@ -157,15 +157,15 @@
               {{ $t('knowledgeEditor.chunking.debug.stats.chunks') }}
             </span>
             <span class="stats-sep">·</span>
-            <span>Ø {{ result.stats.avg_chars }}</span>
+            <span>Ø {{ result.stats.avgChars }}</span>
             <span class="stats-sep">·</span>
-            <span>σ {{ result.stats.stddev_chars }}</span>
+            <span>σ {{ result.stats.stddevChars }}</span>
             <span class="stats-sep">·</span>
-            <span>min {{ result.stats.min_chars }}</span>
+            <span>min {{ result.stats.minChars }}</span>
             <span class="stats-sep">·</span>
-            <span>max {{ result.stats.max_chars }}</span>
-            <span v-if="result.stats.truncated_to" class="truncation-hint">
-              {{ $t('knowledgeEditor.chunking.debug.stats.truncated', { total: result.stats.truncated_to }) }}
+            <span>max {{ result.stats.maxChars }}</span>
+            <span v-if="result.stats.truncatedTo" class="truncation-hint">
+              {{ $t('knowledgeEditor.chunking.debug.stats.truncated', { total: result.stats.truncatedTo }) }}
             </span>
           </div>
 
@@ -186,12 +186,12 @@
               >
                 <span class="chunk-seq">#{{ c.seq }}</span>
                 <span class="chunk-size">
-                  {{ c.size_chars }} {{ $t('knowledgeEditor.chunking.characters') }}
-                  <span class="chunk-tokens">· ~{{ c.size_tokens_approx }} tok</span>
+                  {{ c.sizeChars }} {{ $t('knowledgeEditor.chunking.characters') }}
+                  <span class="chunk-tokens">· ~{{ c.sizeTokensApprox }} tok</span>
                 </span>
                 <span class="chunk-pos">{{ c.start }}–{{ c.end }}</span>
-                <span v-if="c.context_header" class="chunk-context-pill" :title="c.context_header">
-                  {{ c.context_header }}
+                <span v-if="c.contextHeader" class="chunk-context-pill" :title="c.contextHeader">
+                  {{ c.contextHeader }}
                 </span>
                 <chevron-down-icon class="chunk-toggle" :class="{ open: expandedChunks.has(c.seq) }" />
               </button>
@@ -270,7 +270,7 @@ const loadSample = (id: string) => {
 
 const fallbackWarning = computed(() => {
   if (!result.value) return false
-  return result.value.selected_tier === 'legacy' && (result.value.rejected || []).length > 0
+  return result.value.selectedTier === 'legacy' && (result.value.rejected || []).length > 0
 })
 
 const runPreview = async () => {
@@ -284,33 +284,24 @@ const runPreview = async () => {
     // the buildSubmitData convention in KnowledgeBaseEditorModal.
     const resp = await previewChunking({
       text: sample.value,
-      chunking_config: {
-        chunk_size: props.config.chunkSize,
-        chunk_overlap: props.config.chunkOverlap,
+      chunkingConfig: {
+        chunkSize: props.config.chunkSize,
+        chunkOverlap: props.config.chunkOverlap,
         separators: props.config.separators,
-        enable_parent_child: props.config.enableParentChild,
-        parent_chunk_size: props.config.parentChunkSize,
-        child_chunk_size: props.config.childChunkSize,
+        enableParentChild: props.config.enableParentChild,
+        parentChunkSize: props.config.parentChunkSize,
+        childChunkSize: props.config.childChunkSize,
         strategy: props.config.strategy ?? '',
-        token_limit: props.config.tokenLimit ?? 0,
+        tokenLimit: props.config.tokenLimit ?? 0,
         languages: props.config.languages ?? []
       }
     })
-    // The axios interceptor in utils/request.ts already unwraps the
-    // outer envelope and returns the response body. So resp here is
-    // { success: true, data: PreviewChunkingResponse } directly.
-    // If the backend ever responds with 200 + { success: false, error },
-    // surface that error instead of swallowing it under a generic message.
+    // 端点为裸资源：响应体即 PreviewChunkingResponse（无 {success,data} 信封）。
+    // 失败一律走 HTTP 错误 + 标准错误体，由 catch 分支呈现。
     if (!resp) {
       throw new Error('empty response')
     }
-    if (resp.success !== true) {
-      throw new Error((resp as any).error || 'preview failed')
-    }
-    if (!resp.data) {
-      throw new Error('response missing data')
-    }
-    result.value = resp.data
+    result.value = resp
   } catch (e: any) {
     // Pull a useful message out of the error shapes our request layer
     // produces: rejected interceptor sends { status, message, ... }.
