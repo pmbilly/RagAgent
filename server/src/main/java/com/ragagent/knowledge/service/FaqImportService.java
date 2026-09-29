@@ -15,17 +15,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.dto.FaqEntryDtos;
-import com.ragagent.knowledge.dto.FaqImportDtos;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.dto.FaqImportDtos.FaqFailedEntry;
-import com.ragagent.knowledge.dto.FaqImportDtos.FaqImportProgress;
-import com.ragagent.knowledge.dto.FaqImportDtos.FaqImportResult;
-import com.ragagent.knowledge.dto.FaqImportDtos.FaqSuccessEntry;
+import com.ragagent.knowledge.dto.FaqFailedEntry;
+import com.ragagent.knowledge.dto.FaqImportProgress;
+import com.ragagent.knowledge.dto.FaqImportResult;
+import com.ragagent.knowledge.dto.FaqSuccessEntry;
 import com.ragagent.model.domain.Model;
 import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
@@ -40,6 +38,10 @@ import com.ragagent.knowledge.task.KnowledgeTaskIds;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
 import com.ragagent.knowledge.security.FaqGuard;
+import com.ragagent.knowledge.dto.FaqEntryPayload;
+import com.ragagent.knowledge.dto.FaqBatchUpsertPayload;
+import com.ragagent.knowledge.dto.FaqEntryFieldsBatchUpdate;
+import com.ragagent.knowledge.dto.FaqEntryFieldsUpdate;
 
 /**
  * FAQ 条目批量导入（upsert）与进度面：append/replace 两种模式的 dry-run 校验、
@@ -106,7 +108,7 @@ public class FaqImportService {
      * 空条目 → writable → tag scope → task_id 合法性 → running 锁 → 容器 →
      * 进度初始化 → 入队。
      */
-    public String upsertEntries(String kbId, FaqImportDtos.FaqBatchUpsertPayload payload) {
+    public String upsertEntries(String kbId, FaqBatchUpsertPayload payload) {
         if (payload == null || payload.entries() == null || payload.entries().isEmpty()) {
             throw new BizException(AppError.badRequest("FAQ 条目不能为空"));
         }
@@ -158,7 +160,7 @@ public class FaqImportService {
                 taskId, kbId, payload.entries().size(), payload.dryRun());
 
         // 受理后在虚拟线程内执行；entries 复制成可变列表（校验阶段会就地改写）
-        List<FaqEntryDtos.FaqEntryPayload> entries = new ArrayList<>(payload.entries());
+        List<FaqEntryPayload> entries = new ArrayList<>(payload.entries());
         taskExecutor.submit("faq-import", () -> processImport(new ImportJob(
                 tid, effectiveTaskId, kbId, faqKnowledge.getId(), mode, payload.dryRun(),
                 enqueuedAt, instanceId, entries)));
@@ -265,7 +267,7 @@ public class FaqImportService {
         return progress;
     }
     private List<Integer> validateAppendMode(long tenantId, String kbId,
-                                             List<FaqEntryDtos.FaqEntryPayload> entries,
+                                             List<FaqEntryPayload> entries,
                                              FaqImportProgress progress) {
         List<Chunk> existingChunks = faqChunkRepository
                 .listAllFAQChunksWithMetadataByKnowledgeBaseId(tenantId, kbId);
@@ -306,7 +308,7 @@ public class FaqImportService {
                 ? List.of() : progress.failedEntries());
         int failedCount = progress.failedCount();
         for (int i = 0; i < entries.size(); i++) {
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             String basicError = validateEntryPayloadBasic(entry);
             if (basicError != null) {
                 failedCount++;
@@ -340,7 +342,7 @@ public class FaqImportService {
         // 第二次迭代：相似问冲突检测
         Map<String, Integer> batchAllQuestions = new LinkedHashMap<>();
         for (int i : validIndicesAfterStdQ) {
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             batchAllQuestions.putIfAbsent(FaqChunkMetadata.trimSpace(entry.standardQuestion()), i);
             if (entry.similarQuestions() != null) {
                 for (String q : entry.similarQuestions()) {
@@ -357,7 +359,7 @@ public class FaqImportService {
 
         for (int idx = 0; idx < validIndicesAfterStdQ.size(); idx++) {
             int i = validIndicesAfterStdQ.get(idx);
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             String standardQ = FaqChunkMetadata.trimSpace(entry.standardQuestion());
             Set<String> ownChunkQuestions = mergeChunkMap.containsKey(i)
                     ? existingChunkQuestions.get(mergeChunkMap.get(i).getId()) : null;
@@ -395,7 +397,7 @@ public class FaqImportService {
                 entries.get(i).similarQuestions().clear();
                 entries.get(i).similarQuestions().addAll(validSimilar);
             } else if (!validSimilar.isEmpty()) {
-                entries.set(i, new FaqEntryDtos.FaqEntryPayload(entry.id(), entry.standardQuestion(),
+                entries.set(i, new FaqEntryPayload(entry.id(), entry.standardQuestion(),
                         validSimilar, entry.negativeQuestions(), entry.answers(), entry.answerStrategy(),
                         entry.tagId(), entry.tagName(), entry.enabled(), entry.recommended()));
             }
@@ -407,7 +409,7 @@ public class FaqImportService {
         // 第三次迭代：反例冲突检测（预校验，仅检查新条目自身数据）
         for (int idx = 0; idx < validIndicesAfterStdQ.size(); idx++) {
             int i = validIndicesAfterStdQ.get(idx);
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             String standardQ = FaqChunkMetadata.trimSpace(entry.standardQuestion());
             Set<String> currentQAQuestions = new LinkedHashSet<>();
             currentQAQuestions.add(standardQ);
@@ -450,7 +452,7 @@ public class FaqImportService {
             if (existingMeta == null) {
                 continue;
             }
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             List<String> mergedSimilar = unionStrings(existingMeta.similarQuestions, entry.similarQuestions());
             List<String> mergedNegative = unionStrings(existingMeta.negativeQuestions, entry.negativeQuestions());
             Set<String> mergedPositiveSet = new LinkedHashSet<>();
@@ -503,7 +505,7 @@ public class FaqImportService {
                 progress.partialFailedCount());
         return validIndicesAfterStdQ;
     }
-    private List<Integer> validateReplaceMode(List<FaqEntryDtos.FaqEntryPayload> entries,
+    private List<Integer> validateReplaceMode(List<FaqEntryPayload> entries,
                                               FaqImportProgress progress) {
         Map<String, Integer> batchStandardQuestions = new LinkedHashMap<>();
         List<Integer> validIndicesAfterStdQ = new ArrayList<>();
@@ -511,7 +513,7 @@ public class FaqImportService {
                 ? List.of() : progress.failedEntries());
         int failedCount = progress.failedCount();
         for (int i = 0; i < entries.size(); i++) {
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             String basicError = validateEntryPayloadBasic(entry);
             if (basicError != null) {
                 failedCount++;
@@ -532,7 +534,7 @@ public class FaqImportService {
 
         Map<String, Integer> batchAllQuestions = new LinkedHashMap<>();
         for (int i : validIndicesAfterStdQ) {
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             batchAllQuestions.putIfAbsent(FaqChunkMetadata.trimSpace(entry.standardQuestion()), i);
             if (entry.similarQuestions() != null) {
                 for (String q : entry.similarQuestions()) {
@@ -549,7 +551,7 @@ public class FaqImportService {
 
         for (int idx = 0; idx < validIndicesAfterStdQ.size(); idx++) {
             int i = validIndicesAfterStdQ.get(idx);
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             String standardQ = FaqChunkMetadata.trimSpace(entry.standardQuestion());
             List<String> validSimilar = new ArrayList<>();
             List<String> removed = new ArrayList<>();
@@ -583,7 +585,7 @@ public class FaqImportService {
 
         for (int idx = 0; idx < validIndicesAfterStdQ.size(); idx++) {
             int i = validIndicesAfterStdQ.get(idx);
-            FaqEntryDtos.FaqEntryPayload entry = entries.get(i);
+            FaqEntryPayload entry = entries.get(i);
             String standardQ = FaqChunkMetadata.trimSpace(entry.standardQuestion());
             Set<String> currentQAQuestions = new LinkedHashSet<>();
             currentQAQuestions.add(standardQ);
@@ -631,7 +633,7 @@ public class FaqImportService {
         taskStore.saveProgress(progress);
         return validIndicesAfterStdQ;
     }
-    private static String validateEntryPayloadBasic(FaqEntryDtos.FaqEntryPayload entry) {
+    private static String validateEntryPayloadBasic(FaqEntryPayload entry) {
         if (entry == null) {
             return "条目不能为空";
         }
@@ -671,7 +673,7 @@ public class FaqImportService {
         }
         return result;
     }
-    private static FaqFailedEntry failedEntry(int idx, String reason, FaqEntryDtos.FaqEntryPayload entry,
+    private static FaqFailedEntry failedEntry(int idx, String reason, FaqEntryPayload entry,
                                               String failureType) {
         boolean answerAll = FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(entry.answerStrategy());
         boolean isDisabled = entry.enabled() != null && !entry.enabled();
@@ -680,7 +682,7 @@ public class FaqImportService {
                 entry.similarQuestions(), entry.negativeQuestions(), entry.answers(),
                 answerAll, isDisabled, null, null);
     }
-    private static FaqFailedEntry partialFailedEntry(int idx, FaqEntryDtos.FaqEntryPayload entry,
+    private static FaqFailedEntry partialFailedEntry(int idx, FaqEntryPayload entry,
                                                      List<String> removedSimilar, List<String> removedNegative) {
         boolean answerAll = FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(entry.answerStrategy());
         boolean isDisabled = entry.enabled() != null && !entry.enabled();
@@ -810,7 +812,7 @@ public class FaqImportService {
             List<Chunk> chunks = new ArrayList<>(end - i);
             for (int k = i; k < end; k++) {
                 int entryIdx = valid.get(k); // dry-run 校验给出的原始条目下标
-                FaqEntryDtos.FaqEntryPayload entry = job.entries().get(entryIdx);
+                FaqEntryPayload entry = job.entries().get(entryIdx);
                 FaqChunkMetadata meta;
                 try {
                     meta = faqGuard.sanitizeFAQEntryPayload(entry);
@@ -1185,14 +1187,14 @@ public class FaqImportService {
         faqKnowledge.setLastFaqImportResult(FaqChunkMetadata.JSON.valueToTree(updated));
         knowledgeMapper.updateById(faqKnowledge);
     }
-    private void validateFAQImportTags(KnowledgeBase kb, List<FaqEntryDtos.FaqEntryPayload> entries) {
-        Map<Long, FaqEntryDtos.FaqEntryFieldsUpdate> byTag = new LinkedHashMap<>();
-        for (FaqEntryDtos.FaqEntryPayload entry : entries) {
+    private void validateFAQImportTags(KnowledgeBase kb, List<FaqEntryPayload> entries) {
+        Map<Long, FaqEntryFieldsUpdate> byTag = new LinkedHashMap<>();
+        for (FaqEntryPayload entry : entries) {
             if (entry.tagId() != 0) {
-                byTag.putIfAbsent(entry.tagId(), new FaqEntryDtos.FaqEntryFieldsUpdate(null, null, null));
+                byTag.putIfAbsent(entry.tagId(), new FaqEntryFieldsUpdate(null, null, null));
             }
         }
-        faqGuard.planFAQFields(kb, new FaqEntryDtos.FaqEntryFieldsBatchUpdate(null, byTag, null));
+        faqGuard.planFAQFields(kb, new FaqEntryFieldsBatchUpdate(null, byTag, null));
     }
 
     /** ：≤128 且仅 [A-Za-z0-9_-]。 */
@@ -1227,6 +1229,6 @@ public class FaqImportService {
     /** 进程内导入任务的参数。 */
     record ImportJob(long tenantId, String taskId, String kbId, String knowledgeId,
                      String mode, boolean dryRun, long enqueuedAt, String instanceId,
-                     List<FaqEntryDtos.FaqEntryPayload> entries) {
+                     List<FaqEntryPayload> entries) {
     }
 }

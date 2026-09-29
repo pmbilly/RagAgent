@@ -9,15 +9,14 @@ import java.util.Set;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.dto.FaqSearchDtos;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
-import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
-import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPage;
-import com.ragagent.knowledge.dto.FaqEntryDtos.FaqExportEntry;
+import com.ragagent.knowledge.dto.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryPage;
+import com.ragagent.knowledge.dto.FaqExportEntry;
 import com.ragagent.knowledge.mapper.FaqChunkRepository;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.common.security.LogSanitizer;
@@ -29,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.security.FaqGuard;
+import com.ragagent.knowledge.dto.FaqSearchRequest;
 
 /**
  * FAQ 条目查询面：分页列表、详情、导出（CSV/JSON）与混合检索。
@@ -285,7 +285,7 @@ public class FaqEntryQueryService {
      * searchResults 为空 → {@code []} 的出口逐行保留；<b>HybridSearch 的执行面
      * 空结果出口（契约样例 faq-search-embed-missing 钉住 {@code data:[]}）。
      */
-    public List<FaqEntry> searchEntries(String kbId, FaqSearchDtos.FaqSearchRequest req) {
+    public List<FaqEntry> searchEntries(String kbId, FaqSearchRequest req) {
         KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
 
         double vectorThreshold = req.vectorThreshold();

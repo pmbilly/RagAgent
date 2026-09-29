@@ -12,7 +12,7 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository;
-import com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress;
+import com.ragagent.knowledge.dto.KnowledgeMoveProgress;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;

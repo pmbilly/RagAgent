@@ -9,9 +9,6 @@ import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.knowledge.dto.FaqEntryDtos;
-import com.ragagent.knowledge.dto.FaqImportDtos;
-import com.ragagent.knowledge.dto.FaqSearchDtos;
 import com.ragagent.apikey.domain.TenantAPIKey;
 import com.ragagent.audit.controller.AuditLogListResponse;
 import com.ragagent.audit.domain.AuditAction;
@@ -39,7 +36,6 @@ import com.ragagent.apikey.domain.TenantAPIKeyResponse;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
-import com.ragagent.knowledge.dto.KnowledgeTaskDtos;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.knowledge.domain.KnowledgeBaseAsrConfig;
@@ -98,6 +94,23 @@ import com.ragagent.wiki.service.WikiIngestConstants;
 import com.ragagent.wiki.service.WikiIngestPayload;
 import com.ragagent.wiki.service.WikiPendingOp;
 import org.junit.jupiter.api.Test;
+import com.ragagent.knowledge.dto.FaqEntryPayload;
+import com.ragagent.knowledge.dto.FaqBatchUpsertPayload;
+import com.ragagent.knowledge.dto.FaqSearchRequest;
+import com.ragagent.knowledge.dto.CopyKnowledgeBaseResponse;
+import com.ragagent.knowledge.dto.DuplicateKnowledgeBaseResponse;
+import com.ragagent.knowledge.dto.KBCloneProgress;
+import com.ragagent.knowledge.dto.KnowledgeMoveProgress;
+import com.ragagent.knowledge.dto.MoveKnowledgeResponse;
+import com.ragagent.knowledge.dto.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryFieldsBatchUpdate;
+import com.ragagent.knowledge.dto.FaqEntryFieldsUpdate;
+import com.ragagent.knowledge.dto.FaqExportEntry;
+import com.ragagent.knowledge.dto.FaqFailedEntry;
+import com.ragagent.knowledge.dto.FaqImportProgress;
+import com.ragagent.knowledge.dto.FaqImportResult;
+import com.ragagent.knowledge.dto.FaqMergeDetail;
+import com.ragagent.knowledge.dto.FaqSuccessEntry;
 
 /**
  * 契约实体的 JSON 往返体检——覆盖所有**会落 jsonb 或直接作响应体**的类型。
@@ -992,33 +1005,33 @@ class JsonContractRoundTripTest {
     void knowledgeTaskDtosRoundTrip() {
         // 波 2 第三批的响应体（move/copy 的任务面）。进度对象是响应契约（不落 jsonb）：
         // 字段恒输出（Go 无 omitempty），isTerminal() 派生访问器必须 @JsonIgnore（§7.5 第 2 条）。
-        var move = new KnowledgeTaskDtos.KnowledgeMoveProgress(
+        var move = new KnowledgeMoveProgress(
                 "kg_move_10002_1704628851692_a1b2c3d4_kb789", "kb-src", "kb-dst",
                 "completed", 100, 3, 3, 0, "Moved 3/3 knowledge items", "", 0, 1789767737L);
-        assertRoundTrips(move, KnowledgeTaskDtos.KnowledgeMoveProgress.class,
-                "types.KnowledgeMoveProgress ← KnowledgeTaskDtos.KnowledgeMoveProgress");
+        assertRoundTrips(move, KnowledgeMoveProgress.class,
+                "types.KnowledgeMoveProgress ← KnowledgeMoveProgress");
 
-        var clone = new KnowledgeTaskDtos.KBCloneProgress(
+        var clone = new KBCloneProgress(
                 "kb_clone_10002_1704628851692_a1b2c3d4_kb789", "kb-src", "kb-dst",
                 "completed", 100, 4, 4, "Knowledge base clone completed successfully", "", 0,
                 1789767745L);
-        assertRoundTrips(clone, KnowledgeTaskDtos.KBCloneProgress.class,
-                "types.KBCloneProgress ← KnowledgeTaskDtos.KBCloneProgress");
+        assertRoundTrips(clone, KBCloneProgress.class,
+                "types.KBCloneProgress ← KBCloneProgress");
 
-        var mvResp = new KnowledgeTaskDtos.MoveKnowledgeResponse(
+        var mvResp = new MoveKnowledgeResponse(
                 "kg_move_10002_1_a", "kb-src", "kb-dst", 1);
-        assertRoundTrips(mvResp, KnowledgeTaskDtos.MoveKnowledgeResponse.class,
-                "handler.MoveKnowledgeResponse ← KnowledgeTaskDtos.MoveKnowledgeResponse");
+        assertRoundTrips(mvResp, MoveKnowledgeResponse.class,
+                "handler.MoveKnowledgeResponse ← MoveKnowledgeResponse");
 
-        var cpResp = new KnowledgeTaskDtos.CopyKnowledgeBaseResponse(
+        var cpResp = new CopyKnowledgeBaseResponse(
                 "kb_clone_10002_1_a", "kb-src", "kb-dst");
-        assertRoundTrips(cpResp, KnowledgeTaskDtos.CopyKnowledgeBaseResponse.class,
-                "handler.CopyKnowledgeBaseResponse ← KnowledgeTaskDtos.CopyKnowledgeBaseResponse");
+        assertRoundTrips(cpResp, CopyKnowledgeBaseResponse.class,
+                "handler.CopyKnowledgeBaseResponse ← CopyKnowledgeBaseResponse");
 
-        var dupResp = new KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse(
+        var dupResp = new DuplicateKnowledgeBaseResponse(
                 "kb-src", "kb-dst", null);
-        assertRoundTrips(dupResp, KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse.class,
-                "handler.DuplicateKnowledgeBaseResponse ← KnowledgeTaskDtos.DuplicateKnowledgeBaseResponse");
+        assertRoundTrips(dupResp, DuplicateKnowledgeBaseResponse.class,
+                "handler.DuplicateKnowledgeBaseResponse ← DuplicateKnowledgeBaseResponse");
     }
 
     @Test
@@ -1076,66 +1089,66 @@ class JsonContractRoundTripTest {
         assertRoundTrips(emptyMeta, FaqChunkMetadata.class,
                 "types.FAQChunkMetadata ← FaqChunkMetadata（零值：仅 standard_question 恒输出）");
 
-        var entry = new FaqEntryDtos.FaqEntry(970001L, "chunk-1", "kg-1", "kb-1", 965001L, "热门问题",
+        var entry = new FaqEntry(970001L, "chunk-1", "kg-1", "kb-1", 965001L, "热门问题",
                 true, true, "怎么绑定手机", List.of("如何绑定"), null, List.of("答案"),
                 "all", "question_only",
                 java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
                 java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
-                "faq", new FaqEntryDtos.FaqEntry.FaqMatch(0.87, 1, "如何绑定"));
-        assertRoundTrips(entry, FaqEntryDtos.FaqEntry.class, "types.FAQEntry ← FaqEntryDtos.FaqEntry");
+                "faq", new FaqEntry.FaqMatch(0.87, 1, "如何绑定"));
+        assertRoundTrips(entry, FaqEntry.class, "types.FAQEntry ← FaqEntry");
 
         // 导出面：id 无 omitempty（0 恒输出，golden 实录）
-        var exportEntry = new FaqEntryDtos.FaqExportEntry(0L, "", "问题", null, null, List.of("答案"),
+        var exportEntry = new FaqExportEntry(0L, "", "问题", null, null, List.of("答案"),
                 "all", true, false);
-        assertRoundTrips(exportEntry, FaqEntryDtos.FaqExportEntry.class,
-                "types.FAQExportEntry ← FaqEntryDtos.FaqExportEntry（id=0 恒输出）");
+        assertRoundTrips(exportEntry, FaqExportEntry.class,
+                "types.FAQExportEntry ← FaqExportEntry（id=0 恒输出）");
 
-        var payload = new FaqEntryDtos.FaqEntryPayload(5L, "问题", List.of("相似问"), null,
+        var payload = new FaqEntryPayload(5L, "问题", List.of("相似问"), null,
                 List.of("答案"), "random", 965001L, "分类", false, true);
-        assertRoundTrips(payload, FaqEntryDtos.FaqEntryPayload.class,
-                "types.FAQEntryPayload ← FaqEntryDtos.FaqEntryPayload");
+        assertRoundTrips(payload, FaqEntryPayload.class,
+                "types.FAQEntryPayload ← FaqEntryPayload");
 
-        var upsert = new FaqImportDtos.FaqBatchUpsertPayload(List.of(payload), "append", "kg-1",
+        var upsert = new FaqBatchUpsertPayload(List.of(payload), "append", "kg-1",
                 "faq_import_10002_1_a", true);
-        assertRoundTrips(upsert, FaqImportDtos.FaqBatchUpsertPayload.class,
-                "types.FAQBatchUpsertPayload ← FaqImportDtos.FaqBatchUpsertPayload");
+        assertRoundTrips(upsert, FaqBatchUpsertPayload.class,
+                "types.FAQBatchUpsertPayload ← FaqBatchUpsertPayload");
 
-        var search = new FaqSearchDtos.FaqSearchRequest("怎么绑定手机", 0.7, 10,
+        var search = new FaqSearchRequest("怎么绑定手机", 0.7, 10,
                 List.of(965001L), null, true);
-        assertRoundTrips(search, FaqSearchDtos.FaqSearchRequest.class,
-                "types.FAQSearchRequest ← FaqSearchDtos.FaqSearchRequest");
+        assertRoundTrips(search, FaqSearchRequest.class,
+                "types.FAQSearchRequest ← FaqSearchRequest");
 
-        var fieldsBatch = new FaqEntryDtos.FaqEntryFieldsBatchUpdate(
-                Map.of(970001L, new FaqEntryDtos.FaqEntryFieldsUpdate(true, false, 965001L)),
-                Map.of(965002L, new FaqEntryDtos.FaqEntryFieldsUpdate(null, null, null)),
+        var fieldsBatch = new FaqEntryFieldsBatchUpdate(
+                Map.of(970001L, new FaqEntryFieldsUpdate(true, false, 965001L)),
+                Map.of(965002L, new FaqEntryFieldsUpdate(null, null, null)),
                 List.of(970003L));
-        assertRoundTrips(fieldsBatch, FaqEntryDtos.FaqEntryFieldsBatchUpdate.class,
-                "types.FAQEntryFieldsBatchUpdate ← FaqEntryDtos.FaqEntryFieldsBatchUpdate");
+        assertRoundTrips(fieldsBatch, FaqEntryFieldsBatchUpdate.class,
+                "types.FAQEntryFieldsBatchUpdate ← FaqEntryFieldsBatchUpdate");
 
-        var failed = new FaqImportDtos.FaqFailedEntry(0, "标准问不能为空", "pre_validation", false,
+        var failed = new FaqFailedEntry(0, "标准问不能为空", "pre_validation", false,
                 "分类", "问题", List.of("相似问"), null, List.of("答案"),
                 true, false, List.of("被移除的相似问"), null);
-        assertRoundTrips(failed, FaqImportDtos.FaqFailedEntry.class, "types.FAQFailedEntry ← FaqImportDtos.FaqFailedEntry");
+        assertRoundTrips(failed, FaqFailedEntry.class, "types.FAQFailedEntry ← FaqFailedEntry");
 
-        var success = new FaqImportDtos.FaqSuccessEntry(0, 970002L, 0, "", "问题");
-        assertRoundTrips(success, FaqImportDtos.FaqSuccessEntry.class,
-                "types.FAQSuccessEntry ← FaqImportDtos.FaqSuccessEntry（tag_id=0/tag_name 空省略）");
+        var success = new FaqSuccessEntry(0, 970002L, 0, "", "问题");
+        assertRoundTrips(success, FaqSuccessEntry.class,
+                "types.FAQSuccessEntry ← FaqSuccessEntry（tag_id=0/tag_name 空省略）");
 
-        var merge = new FaqImportDtos.FaqMergeDetail(1, "标准问", true, 2, 0);
-        assertRoundTrips(merge, FaqImportDtos.FaqMergeDetail.class, "types.FAQMergeDetail ← FaqImportDtos.FaqMergeDetail");
+        var merge = new FaqMergeDetail(1, "标准问", true, 2, 0);
+        assertRoundTrips(merge, FaqMergeDetail.class, "types.FAQMergeDetail ← FaqMergeDetail");
 
-        var progress = new FaqImportDtos.FaqImportProgress("faq_import_10002_1_a", "kb-1", "kg-1",
+        var progress = new FaqImportProgress("faq_import_10002_1_a", "kb-1", "kg-1",
                 "completed", 100, 3, 3, 1, 1, 0, 0,
                 null, "local://10002/exports/x.csv", null, List.of(0, 2), List.of(0),
                 0, 1, null, "验证完成 / 上传 3 条", "", 1789771866L, 1789771867L, true,
                 "append", java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), "open", 5L);
-        assertRoundTrips(progress, FaqImportDtos.FaqImportProgress.class,
-                "types.FAQImportProgress ← FaqImportDtos.FaqImportProgress（message/error 恒输出）");
+        assertRoundTrips(progress, FaqImportProgress.class,
+                "types.FAQImportProgress ← FaqImportProgress（message/error 恒输出）");
 
-        var result = new FaqImportDtos.FaqImportResult(2, 1, 1, 0, 0, 0, 1, "append",
+        var result = new FaqImportResult(2, 1, 1, 0, 0, 0, 1, "append",
                 java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), "task", null, "open", 5L);
-        assertRoundTrips(result, FaqImportDtos.FaqImportResult.class,
-                "types.FAQImportResult ← FaqImportDtos.FaqImportResult（last_faq_import_result jsonb）");
+        assertRoundTrips(result, FaqImportResult.class,
+                "types.FAQImportResult ← FaqImportResult（last_faq_import_result jsonb）");
     }
 
     @Test

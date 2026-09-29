@@ -5,11 +5,11 @@ import java.time.OffsetDateTime;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.AsrConfigView;
-import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.ChunkingConfigView;
-import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.ImageProcessingConfigView;
-import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.IndexingStrategyView;
-import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.VlmConfigView;
+import com.ragagent.knowledge.dto.AsrConfigView;
+import com.ragagent.knowledge.dto.ChunkingConfigView;
+import com.ragagent.knowledge.dto.ImageProcessingConfigView;
+import com.ragagent.knowledge.dto.IndexingStrategyView;
+import com.ragagent.knowledge.dto.VlmConfigView;
 
 /**
  * 知识库的对外响应体（详情 / 列表项 / 初始化回执统一用这一个形态）。

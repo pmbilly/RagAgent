@@ -11,7 +11,6 @@ import java.util.Set;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.dto.FaqEntryDtos;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -22,6 +21,10 @@ import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import org.springframework.stereotype.Component;
 import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.knowledge.dto.FaqEntryPayload;
+import com.ragagent.knowledge.dto.FaqEntryFieldsBatchUpdate;
+import com.ragagent.knowledge.dto.FaqEntryFieldsUpdate;
+import com.ragagent.knowledge.dto.FaqEntry;
 
 /**
  * FAQ 写路径的域守卫：知识库存在性/类型校验、租户越权判定、标签解析与作用域校验、
@@ -104,7 +107,7 @@ public class FaqGuard {
      * 条目载荷清洗与校验：answer_strategy 合法值检查、去空白、normalize 后的
      * 非空断言（标准问/答案）。返回可直接落库的 metadata。
      */
-    public FaqChunkMetadata sanitizeFAQEntryPayload(FaqEntryDtos.FaqEntryPayload payload) {
+    public FaqChunkMetadata sanitizeFAQEntryPayload(FaqEntryPayload payload) {
         String answerStrategy = "all";
         if (payload.answerStrategy() != null && !payload.answerStrategy().isEmpty()) {
             if (FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(payload.answerStrategy())
@@ -136,7 +139,7 @@ public class FaqGuard {
      * 解析条目归属标签：tag_id 优先（须存在且属于本 KB），其次 tag_name（按需创建），
      * 兜底"未分类"标签。tag_id 无效 → IllegalStateException（500 plain 形态）。
      */
-    public String resolveTagID(String kbId, FaqEntryDtos.FaqEntryPayload payload) {
+    public String resolveTagID(String kbId, FaqEntryPayload payload) {
         long tid = tenantId();
         if (payload.tagId() != 0) {
             KnowledgeTag tag = tagMapper.selectByTenantAndSeqId(tid, payload.tagId());
@@ -150,7 +153,7 @@ public class FaqGuard {
             KnowledgeTag tag = findOrCreateTagByName(kbId, payload.tagName());
             return tag.getId();
         }
-        return findOrCreateTagByName(kbId, FaqEntryDtos.UNTAGGED_TAG_NAME).getId();
+        return findOrCreateTagByName(kbId, FaqEntry.UNTAGGED_TAG_NAME).getId();
     }
 
     /**
@@ -171,7 +174,7 @@ public class FaqGuard {
         if (existing != null) {
             return existing;
         }
-        int sortOrder = FaqEntryDtos.UNTAGGED_TAG_NAME.equals(name) ? -1 : 0;
+        int sortOrder = FaqEntry.UNTAGGED_TAG_NAME.equals(name) ? -1 : 0;
         return tagRepository.createTag(tid, kbId, name, "", sortOrder);
     }
 
@@ -233,7 +236,7 @@ public class FaqGuard {
     }
 
     /** 批量字段更新的写计划：按 ID/排除/标签三个维度装载 chunk 与标签并做作用域校验。 */
-    public FaqFieldPlan planFAQFields(KnowledgeBase kb, FaqEntryDtos.FaqEntryFieldsBatchUpdate req) {
+    public FaqFieldPlan planFAQFields(KnowledgeBase kb, FaqEntryFieldsBatchUpdate req) {
         List<Long> ids = new ArrayList<>();
         if (req.byId() != null) {
             ids.addAll(sortedIds(req.byId().keySet()));
@@ -262,14 +265,14 @@ public class FaqGuard {
             }
         }
         if (req.byTag() != null) {
-            for (FaqEntryDtos.FaqEntryFieldsUpdate update : req.byTag().values()) {
+            for (FaqEntryFieldsUpdate update : req.byTag().values()) {
                 if (update.tagId() != null && update.tagId() > 0) {
                     tagIds.add(update.tagId());
                 }
             }
         }
         if (req.byId() != null) {
-            for (FaqEntryDtos.FaqEntryFieldsUpdate update : req.byId().values()) {
+            for (FaqEntryFieldsUpdate update : req.byId().values()) {
                 if (update.tagId() != null && update.tagId() > 0) {
                     tagIds.add(update.tagId());
                 }

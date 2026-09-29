@@ -10,9 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.knowledge.dto.FaqEntryDtos;
-import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntry;
-import com.ragagent.knowledge.dto.FaqEntryDtos.FaqEntryPage;
+import com.ragagent.knowledge.dto.FaqEntry;
+import com.ragagent.knowledge.dto.FaqEntryPage;
 import com.ragagent.knowledge.service.FaqEntryQueryService;
 import com.ragagent.agent.AgentConfig;
 import com.ragagent.agent.AgentEngine;

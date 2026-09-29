@@ -8,11 +8,11 @@ import com.ragagent.common.error.ErrorCode;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.KnowledgeTag;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.CreateTagRequest;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.DeleteTagRequest;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagResponse;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.TagPageResult;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.UpdateTagRequest;
+import com.ragagent.knowledge.dto.CreateTagRequest;
+import com.ragagent.knowledge.dto.DeleteTagRequest;
+import com.ragagent.knowledge.dto.KnowledgeTagResponse;
+import com.ragagent.knowledge.dto.TagPageResult;
+import com.ragagent.knowledge.dto.UpdateTagRequest;
 import com.ragagent.knowledge.security.ChunkAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeTagService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagResponse;
+import com.ragagent.knowledge.dto.KnowledgeTagResponse;
 
 /**
  * KB 标签 CRUD 面：列表（分页/关键字）、创建、更新、删除（含排除条目）。

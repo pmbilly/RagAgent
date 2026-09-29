@@ -16,8 +16,8 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.KnowledgeTagWithStats;
-import com.ragagent.knowledge.dto.KnowledgeTagDtos.TagPageResult;
+import com.ragagent.knowledge.dto.KnowledgeTagWithStats;
+import com.ragagent.knowledge.dto.TagPageResult;
 import com.ragagent.knowledge.mapper.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeTagRepository;
 import com.ragagent.knowledge.mapper.FaqChunkRepository;
@@ -57,6 +57,7 @@ public class KnowledgeTagService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeTagService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    /** 未打标签的 FAQ 条目统一显示名。 */
     public static final String UNTAGGED_TAG_NAME = "未分类";
 
     private static final String SCOPE_KNOWLEDGE_BASE = "knowledge_base";
