@@ -133,7 +133,7 @@ final class KnowledgeSearchRanking {
                 continue;
             }
 
-            String sig = GrepChunksTool.buildContentSignature(nz(r.sr.content));
+            String sig = GrepChunksScoring.buildContentSignature(nz(r.sr.content));
             if (!sig.isEmpty() && !contentSig.add(sig)) {
                 continue;
             }
@@ -204,7 +204,7 @@ final class KnowledgeSearchRanking {
 
         List<Map<String, Boolean>> tokenSets = new ArrayList<>(candidates.size());
         for (ResultWithMeta r : candidates) {
-            tokenSets.add(GrepChunksTool.tokenizeSimple(getEnrichedPassage(r.sr)));
+            tokenSets.add(GrepChunksScoring.tokenizeSimple(getEnrichedPassage(r.sr)));
         }
 
         List<Double> maxRedundancy = new ArrayList<>();
@@ -233,7 +233,7 @@ final class KnowledgeSearchRanking {
 
             for (int i = 0; i < candidates.size(); i++) {
                 maxRedundancy.set(i,
-                        Math.max(maxRedundancy.get(i), GrepChunksTool.jaccard(tokenSets.get(i), chosenTokens)));
+                        Math.max(maxRedundancy.get(i), GrepChunksScoring.jaccard(tokenSets.get(i), chosenTokens)));
             }
         }
 
