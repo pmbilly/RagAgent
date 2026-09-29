@@ -186,7 +186,7 @@ public class McpDiscoverTool extends BaseTool {
                 return mcpDiscoveryFailure("unknown mode; use list_servers, list_tools, describe, or search", "error");
             }
         }
-        return McpCatalog.paginateMcp(page,
+        return McpCatalogPagination.paginateMcp(page,
                 new McpCatalog.McpDiscoveryArgs(args.mode(), args.serverId(), args.toolName(), args.query(),
                         args.cursor(), effectiveLimit, args.refresh()),
                 request.outputBudget());

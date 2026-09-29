@@ -223,7 +223,7 @@ public final class McpExposure {
                 // 未注册 → 继续
             }
         }
-        McpCatalog.installMcpCatalog(registry, catalog);
+        McpCatalogPagination.installMcpCatalog(registry, catalog);
         return catalog.servers.size();
     }
 
