@@ -216,7 +216,7 @@ export function useCmdkSearch(options: {
     loading.value = true
     hasSearched.value = true
 
-    // Determine knowledge_base_ids for chunk search. A non-empty lockedKbIds
+    // Determine knowledgeBaseIds for chunk search. A non-empty lockedKbIds
     // narrows the scope and also disables message search (out of scope).
     const locked = options.lockedKbIds?.() || []
     const scoped = locked.length > 0
@@ -229,7 +229,7 @@ export function useCmdkSearch(options: {
     }
 
     const knowledgePromise = kbIds.length > 0
-      ? knowledgeSemanticSearch({ query: q, knowledge_base_ids: kbIds })
+      ? knowledgeSemanticSearch({ query: q, knowledgeBaseIds: kbIds })
           .then((res: any) => (res?.success && res.data ? res.data : []))
           .catch((e) => {
             console.error('[cmdk] knowledge search failed', e)

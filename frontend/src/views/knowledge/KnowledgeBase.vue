@@ -185,12 +185,12 @@ const supportedFileTypes = computed<Set<string>>(() => {
   const engines = parserEngines.value
   if (!engines.length) return new Set<string>()
 
-  const rules: { file_types: string[]; engine: string }[] =
-    kbInfo.value?.chunking_config?.parser_engine_rules || []
+  const rules: { fileTypes: string[]; engine: string }[] =
+    kbInfo.value?.chunkingConfig?.parserEngineRules || []
 
   const ruleMap = new Map<string, string>()
   for (const r of rules) {
-    for (const ft of r.file_types) ruleMap.set(ft, r.engine)
+    for (const ft of r.fileTypes) ruleMap.set(ft, r.engine)
   }
 
   const available = new Set<string>()
@@ -1434,9 +1434,9 @@ const handleMoveConfirm = async () => {
   moveSubmitting.value = true;
   try {
     const res: any = await moveKnowledge({
-      knowledge_ids: [moveKnowledgeId.value],
-      source_kb_id: kbId.value,
-      target_kb_id: moveSelectedTargetId.value,
+      knowledgeIds: [moveKnowledgeId.value],
+      sourceKbId: kbId.value,
+      targetKbId: moveSelectedTargetId.value,
       mode: moveMode.value,
     });
     const taskId = res.data?.task_id;
@@ -1608,13 +1608,13 @@ const executeUploadBatch = async (
         file: File
         tagIds?: string[]
         fileName?: string
-        process_config?: KnowledgeProcessOverrides
+        processConfig?: KnowledgeProcessOverrides
       } = { file, tagIds: tagIdsToUpload };
 
       const fileName = getFolderUploadFileName(file, options.targetFolder || ROOT_FOLDER_PATH);
       if (fileName) uploadData.fileName = fileName;
       if (options.processConfig) {
-        uploadData.process_config = options.processConfig;
+        uploadData.processConfig = options.processConfig;
       }
 
       const responseData: any = await uploadKnowledgeFile(targetKbId, uploadData);
@@ -1674,7 +1674,7 @@ const executeUrlImport = async (
     const responseData: any = await createKnowledgeFromURL(targetKbId, {
       url,
       tagIds: tagIdsToUpload,
-      process_config: processConfig,
+      processConfig: processConfig,
     });
     window.dispatchEvent(new CustomEvent('knowledgeFileUploaded', {
       detail: { kbId: targetKbId },
@@ -1883,7 +1883,7 @@ const confirmRebuildKnowledge = async (index: number, item: KnowledgeCard) => {
 
 const submitReparse = async (id: string, processConfig?: KnowledgeProcessOverrides) => {
   try {
-    await reparseKnowledge(id, processConfig ? { process_config: processConfig } : undefined);
+    await reparseKnowledge(id, processConfig ? { processConfig: processConfig } : undefined);
     delete traceAvailableById[id];
     traceAvailableById[id] = true;
     MessagePlugin.success(t('knowledgeBase.rebuildSubmitted'));

@@ -454,7 +454,7 @@
                 <p class="desc">{{ $t('knowledgeEditor.faq.standardQuestionDesc') }}</p>
               </div>
               <div class="setting-control">
-                <t-input v-model="editorForm.standard_question" :maxlength="200" class="full-width-input" />
+                <t-input v-model="editorForm.standardQuestion" :maxlength="200" class="full-width-input" />
               </div>
             </div>
 
@@ -469,13 +469,13 @@
                   <t-input v-model="similarInput" :placeholder="$t('knowledgeEditor.faq.similarPlaceholder')"
                     @enter="addSimilar" class="full-width-input" />
                   <t-button theme="primary" variant="outline"
-                    :disabled="!similarInput.trim() || editorForm.similar_questions.length >= 10" @click="addSimilar"
+                    :disabled="!similarInput.trim() || editorForm.similarQuestions.length >= 10" @click="addSimilar"
                     class="add-item-btn" size="small">
                     <t-icon name="add" size="16px" />
                   </t-button>
                 </div>
-                <div v-if="editorForm.similar_questions.length > 0" class="item-list">
-                  <div v-for="(question, index) in editorForm.similar_questions" :key="index" class="item-row">
+                <div v-if="editorForm.similarQuestions.length > 0" class="item-list">
+                  <div v-for="(question, index) in editorForm.similarQuestions" :key="index" class="item-row">
                     <div class="item-content">{{ question }}</div>
                     <t-button theme="default" variant="text" size="small" @click="removeSimilar(index)"
                       class="remove-item-btn">
@@ -497,13 +497,13 @@
                   <t-input v-model="negativeInput" :placeholder="$t('knowledgeEditor.faq.negativePlaceholder')"
                     @enter="addNegative" class="full-width-input" />
                   <t-button theme="primary" variant="outline"
-                    :disabled="!negativeInput.trim() || editorForm.negative_questions.length >= 10" @click="addNegative"
+                    :disabled="!negativeInput.trim() || editorForm.negativeQuestions.length >= 10" @click="addNegative"
                     class="add-item-btn" size="small">
                     <t-icon name="add" size="16px" />
                   </t-button>
                 </div>
-                <div v-if="editorForm.negative_questions.length > 0" class="item-list">
-                  <div v-for="(question, index) in editorForm.negative_questions" :key="index"
+                <div v-if="editorForm.negativeQuestions.length > 0" class="item-list">
+                  <div v-for="(question, index) in editorForm.negativeQuestions" :key="index"
                     class="item-row negative">
                     <div class="item-content">{{ question }}</div>
                     <t-button theme="default" variant="text" size="small" @click="removeNegative(index)"
@@ -556,7 +556,7 @@
                 <p class="desc">{{ $t('knowledgeEditor.faq.tagDesc') }}</p>
               </div>
               <div class="setting-control">
-                <t-select v-model="editorForm.tag_id" class="full-width-input" :options="tagSelectOptions" clearable
+                <t-select v-model="editorForm.tagId" class="full-width-input" :options="tagSelectOptions" clearable
                   :placeholder="$t('knowledgeEditor.faq.tagPlaceholder')" />
               </div>
             </div>
@@ -651,7 +651,7 @@
                   <div class="preview-list">
                     <div v-for="(item, index) in importState.preview.slice(0, 5)" :key="index" class="preview-item">
                       <span class="preview-index">{{ index + 1 }}</span>
-                      <span class="preview-question">{{ item.standard_question }}</span>
+                      <span class="preview-question">{{ item.standardQuestion }}</span>
                     </div>
                   </div>
                   <p v-if="importState.preview.length > 5" class="preview-more">
@@ -916,14 +916,14 @@ interface FAQEntry {
 }
 
 interface FAQEntryPayload {
-  standard_question: string
-  similar_questions: string[]
-  negative_questions: string[]
+  standardQuestion: string
+  similarQuestions: string[]
+  negativeQuestions: string[]
   answers: string[]
-  tag_id?: number
-  tag_name?: string
-  is_enabled?: boolean
-  is_recommended?: boolean
+  tagId?: number
+  tagName?: string
+  enabled?: boolean
+  recommended?: boolean
 }
 
 const props = defineProps<{
@@ -1161,11 +1161,11 @@ const editorVisible = ref(false)
 const editorMode = ref<'create' | 'edit'>('create')
 const currentEntryId = ref<number | null>(null)
 const editorForm = reactive<FAQEntryPayload>({
-  standard_question: '',
-  similar_questions: [],
-  negative_questions: [],
+  standardQuestion: '',
+  similarQuestions: [],
+  negativeQuestions: [],
   answers: [],
-  tag_id: undefined,
+  tagId: undefined,
 })
 const editorFormRef = ref<FormInstanceFunctions>()
 const savingEntry = ref(false)
@@ -1461,7 +1461,7 @@ const handleEntryStatusChange = async (entry: FAQEntry, value: boolean) => {
   actualEntry.enabled = value
   entryStatusLoading[entry.id] = true
   try {
-    await updateFAQEntryFieldsBatch(props.kbId, { by_id: { [entry.id]: { is_enabled: value } } })
+    await updateFAQEntryFieldsBatch(props.kbId, { byId: { [entry.id]: { enabled: value } } })
     MessagePlugin.success(t(value ? 'knowledgeEditor.faq.statusEnableSuccess' : 'knowledgeEditor.faq.statusDisableSuccess'))
   } catch (error: any) {
     // 失败时回滚
@@ -1488,7 +1488,7 @@ const handleEntryRecommendedChange = async (entry: FAQEntry, value: boolean) => 
   actualEntry.recommended = value
   entryRecommendedLoading[entry.id] = true
   try {
-    await updateFAQEntryFieldsBatch(props.kbId, { by_id: { [entry.id]: { is_recommended: value } } })
+    await updateFAQEntryFieldsBatch(props.kbId, { byId: { [entry.id]: { recommended: value } } })
     MessagePlugin.success(t(value ? 'knowledgeEditor.faq.recommendedEnableSuccess' : 'knowledgeEditor.faq.recommendedDisableSuccess'))
   } catch (error: any) {
     actualEntry.recommended = previous
@@ -1499,7 +1499,7 @@ const handleEntryRecommendedChange = async (entry: FAQEntry, value: boolean) => 
 }
 
 const editorRules: FormRules<FAQEntryPayload> = {
-  standard_question: [
+  standardQuestion: [
     { required: true, message: t('knowledgeEditor.messages.nameRequired') },
   ],
   answers: [
@@ -1525,7 +1525,7 @@ const loadEntries = async (append = false) => {
   }
 
   try {
-    // If overallFAQTotal is not initialized, fetch it first (without tag_id filter)
+    // If overallFAQTotal is not initialized, fetch it first (without tagId filter)
     if (overallFAQTotal.value === 0 && !append) {
       const totalRes = await listFAQEntries(props.kbId, {
         page: 1,
@@ -1630,11 +1630,11 @@ const clearFAQSelection = () => {
 }
 
 const resetEditorForm = () => {
-  editorForm.standard_question = ''
-  editorForm.similar_questions = []
-  editorForm.negative_questions = []
+  editorForm.standardQuestion = ''
+  editorForm.similarQuestions = []
+  editorForm.negativeQuestions = []
   editorForm.answers = []
-  editorForm.tag_id = undefined
+  editorForm.tagId = undefined
   answerInput.value = ''
   similarInput.value = ''
   negativeInput.value = ''
@@ -1644,11 +1644,11 @@ const openEditor = (entry?: FAQEntry) => {
   if (entry) {
     editorMode.value = 'edit'
     currentEntryId.value = entry.id
-    editorForm.standard_question = entry.standardQuestion
-    editorForm.similar_questions = [...(entry.similarQuestions || [])]
-    editorForm.negative_questions = [...(entry.negativeQuestions || [])]
+    editorForm.standardQuestion = entry.standardQuestion
+    editorForm.similarQuestions = [...(entry.similarQuestions || [])]
+    editorForm.negativeQuestions = [...(entry.negativeQuestions || [])]
     editorForm.answers = [...(entry.answers || [])]
-    editorForm.tag_id = entry.tagId || undefined
+    editorForm.tagId = entry.tagId || undefined
   } else {
     editorMode.value = 'create'
     currentEntryId.value = null
@@ -1686,29 +1686,29 @@ const removeAnswer = (index: number) => {
 // 添加相似问
 const addSimilar = () => {
   const trimmed = similarInput.value.trim()
-  if (trimmed && editorForm.similar_questions.length < 10 && !editorForm.similar_questions.includes(trimmed)) {
-    editorForm.similar_questions.push(trimmed)
+  if (trimmed && editorForm.similarQuestions.length < 10 && !editorForm.similarQuestions.includes(trimmed)) {
+    editorForm.similarQuestions.push(trimmed)
     similarInput.value = ''
   }
 }
 
 // 删除相似问
 const removeSimilar = (index: number) => {
-  editorForm.similar_questions.splice(index, 1)
+  editorForm.similarQuestions.splice(index, 1)
 }
 
 // 添加反例
 const addNegative = () => {
   const trimmed = negativeInput.value.trim()
-  if (trimmed && editorForm.negative_questions.length < 10 && !editorForm.negative_questions.includes(trimmed)) {
-    editorForm.negative_questions.push(trimmed)
+  if (trimmed && editorForm.negativeQuestions.length < 10 && !editorForm.negativeQuestions.includes(trimmed)) {
+    editorForm.negativeQuestions.push(trimmed)
     negativeInput.value = ''
   }
 }
 
 // 删除反例
 const removeNegative = (index: number) => {
-  editorForm.negative_questions.splice(index, 1)
+  editorForm.negativeQuestions.splice(index, 1)
 }
 
 const handleSubmitEntry = async () => {
@@ -1719,11 +1719,11 @@ const handleSubmitEntry = async () => {
   savingEntry.value = true
   try {
     const payload: FAQEntryPayload = {
-      standard_question: editorForm.standard_question,
-      similar_questions: [...editorForm.similar_questions],
-      negative_questions: [...editorForm.negative_questions],
+      standardQuestion: editorForm.standardQuestion,
+      similarQuestions: [...editorForm.similarQuestions],
+      negativeQuestions: [...editorForm.negativeQuestions],
       answers: [...editorForm.answers],
-      tag_id: editorForm.tag_id || undefined,
+      tagId: editorForm.tagId || undefined,
     }
     if (editorMode.value === 'create') {
       await createFAQEntry(props.kbId, payload)
@@ -1794,11 +1794,11 @@ const handleBatchStatusChange = async (isEnabled: boolean) => {
   const selectedIds = [...selectedRowKeys.value]
   batchStatusAction.value = isEnabled ? 'enable' : 'disable'
   try {
-    const by_id: Record<number, { is_enabled: boolean }> = {}
+    const byId: Record<number, { enabled: boolean }> = {}
     selectedIds.forEach(id => {
-      by_id[id] = { is_enabled: isEnabled }
+      byId[id] = { enabled: isEnabled }
     })
-    await updateFAQEntryFieldsBatch(props.kbId, { by_id })
+    await updateFAQEntryFieldsBatch(props.kbId, { byId })
     MessagePlugin.success(t(isEnabled ? 'knowledgeEditor.faq.statusEnableSuccess' : 'knowledgeEditor.faq.statusDisableSuccess'))
     selectedRowKeys.value = []
     await loadEntries()
@@ -1812,11 +1812,11 @@ const handleBatchStatusChange = async (isEnabled: boolean) => {
 const handleBatchRecommendedChange = async (isRecommended: boolean) => {
   if (!selectedRowKeys.value.length || !props.kbId) return
   try {
-    const by_id: Record<number, { is_recommended: boolean }> = {}
+    const byId: Record<number, { recommended: boolean }> = {}
     selectedRowKeys.value.forEach(id => {
-      by_id[id] = { is_recommended: isRecommended }
+      byId[id] = { recommended: isRecommended }
     })
-    await updateFAQEntryFieldsBatch(props.kbId, { by_id })
+    await updateFAQEntryFieldsBatch(props.kbId, { byId })
     MessagePlugin.success(t(isRecommended ? 'knowledgeEditor.faq.recommendedEnableSuccess' : 'knowledgeEditor.faq.recommendedDisableSuccess'))
     selectedRowKeys.value = []
     await loadEntries()
@@ -1933,13 +1933,13 @@ const parseCSVFile = async (file: File): Promise<FAQEntryPayload[]> => {
             const isDisabled = parseBooleanField(record['是否停用'], false)
             payloads.push(
               normalizePayload({
-                standard_question: record['问题'] || record['standard_question'] || record['question'] || '',
+                standardQuestion: record['问题'] || record['standardQuestion'] || record['question'] || '',
                 answers: splitByDelimiter(record['机器人回答'] || record['answers']),
-                similar_questions: splitByDelimiter(record['相似问题'] || record['similar_questions']),
-                negative_questions: splitByDelimiter(record['反例问题'] || record['negative_questions']),
-                tag_id: record['tag_id'] ? Number(record['tag_id']) : undefined,
-                tag_name: record['标签'] || record['分类'] || record['tag_name'] || '',
-                is_enabled: isDisabled !== undefined ? !isDisabled : undefined, // 是否停用：FALSE表示启用，TRUE表示停用，所以取反
+                similarQuestions: splitByDelimiter(record['相似问题'] || record['similarQuestions']),
+                negativeQuestions: splitByDelimiter(record['反例问题'] || record['negativeQuestions']),
+                tagId: record['tagId'] ? Number(record['tagId']) : undefined,
+                tagName: record['标签'] || record['分类'] || record['tagName'] || '',
+                enabled: isDisabled !== undefined ? !isDisabled : undefined, // 是否停用：FALSE表示启用，TRUE表示停用，所以取反
               }),
             )
           })
@@ -1980,13 +1980,13 @@ const parseExcelFile = async (file: File): Promise<FAQEntryPayload[]> => {
 
     const isDisabled = parseBooleanField(normalizedRow['是否停用'], false)
     return normalizePayload({
-      standard_question: normalizedRow['问题'] || normalizedRow['standard_question'] || normalizedRow['question'] || '',
+      standardQuestion: normalizedRow['问题'] || normalizedRow['standardQuestion'] || normalizedRow['question'] || '',
       answers: splitByDelimiter(normalizedRow['机器人回答'] || normalizedRow['answers']),
-      similar_questions: splitByDelimiter(normalizedRow['相似问题'] || normalizedRow['similar_questions']),
-      negative_questions: splitByDelimiter(normalizedRow['反例问题'] || normalizedRow['negative_questions']),
-      tag_id: normalizedRow['tag_id'] ? Number(normalizedRow['tag_id']) : undefined,
-      tag_name: normalizedRow['标签'] || normalizedRow['分类'] || normalizedRow['tag_name'] || '',
-      is_enabled: isDisabled !== undefined ? !isDisabled : undefined, // 是否停用：FALSE表示启用，TRUE表示停用，所以取反
+      similarQuestions: splitByDelimiter(normalizedRow['相似问题'] || normalizedRow['similarQuestions']),
+      negativeQuestions: splitByDelimiter(normalizedRow['反例问题'] || normalizedRow['negativeQuestions']),
+      tagId: normalizedRow['tagId'] ? Number(normalizedRow['tagId']) : undefined,
+      tagName: normalizedRow['标签'] || normalizedRow['分类'] || normalizedRow['tagName'] || '',
+      enabled: isDisabled !== undefined ? !isDisabled : undefined, // 是否停用：FALSE表示启用，TRUE表示停用，所以取反
     })
   })
 }
@@ -2023,13 +2023,13 @@ const parseBooleanField = (value?: string, defaultValue: boolean = true): boolea
 }
 
 const normalizePayload = (payload: Partial<FAQEntryPayload>): FAQEntryPayload => ({
-  standard_question: payload.standard_question || '',
+  standardQuestion: payload.standardQuestion || '',
   answers: payload.answers?.filter(Boolean) || [],
-  similar_questions: payload.similar_questions?.filter(Boolean) || [],
-  negative_questions: payload.negative_questions?.filter(Boolean) || [],
-  tag_id: payload.tag_id || undefined,
-  tag_name: payload.tag_name || '',
-  is_enabled: payload.is_enabled !== undefined ? payload.is_enabled : undefined,
+  similarQuestions: payload.similarQuestions?.filter(Boolean) || [],
+  negativeQuestions: payload.negativeQuestions?.filter(Boolean) || [],
+  tagId: payload.tagId || undefined,
+  tagName: payload.tagName || '',
+  enabled: payload.enabled !== undefined ? payload.enabled : undefined,
 })
 
 const stopPolling = () => {
@@ -2361,7 +2361,7 @@ const handleImport = async () => {
       mode: importState.mode,
     })
 
-    const taskId = res?.data?.task_id
+    const taskId = res?.data?.taskId
     if (taskId) {
       importState.taskId = taskId
       importState.taskStatus = {
@@ -2408,18 +2408,18 @@ const downloadExampleOptions = computed(() => [
 // 示例数据
 const exampleData: FAQEntryPayload[] = [
   {
-    standard_question: '什么是 WeKnora？',
+    standardQuestion: '什么是 WeKnora？',
     answers: ['WeKnora 是一个智能知识库管理系统', '它支持多种知识库类型和导入方式'],
-    similar_questions: ['WeKnora 是什么？', '介绍一下 WeKnora'],
-    negative_questions: ['这不是 WeKnora', '与 WeKnora 无关'],
-    tag_name: '产品介绍',
+    similarQuestions: ['WeKnora 是什么？', '介绍一下 WeKnora'],
+    negativeQuestions: ['这不是 WeKnora', '与 WeKnora 无关'],
+    tagName: '产品介绍',
   },
   {
-    standard_question: '如何创建知识库？',
+    standardQuestion: '如何创建知识库？',
     answers: ['点击"新建知识库"按钮', '选择知识库类型并填写相关信息', '完成创建后即可开始使用'],
-    similar_questions: ['怎么创建知识库？', '如何新建知识库？'],
-    negative_questions: [],
-    tag_name: '使用指南',
+    similarQuestions: ['怎么创建知识库？', '如何新建知识库？'],
+    negativeQuestions: [],
+    tagName: '使用指南',
   },
 ]
 
@@ -2458,10 +2458,10 @@ const downloadCSVExample = () => {
   const headers = ['标签(必填)', '问题(必填)', '相似问题(选填-多个用##分隔)', '反例问题(选填-多个用##分隔)', '机器人回答(必填-多个用##分隔)', '是否全部回复(选填-默认FALSE)', '是否停用(选填-默认FALSE)', '是否禁止被推荐(选填-默认False 可被推荐)']
   const rows = exampleData.map((item) => {
     return [
-      item.tag_name || '', // 标签
-      item.standard_question,
-      item.similar_questions.join('##'),
-      item.negative_questions.join('##'),
+      item.tagName || '', // 标签
+      item.standardQuestion,
+      item.similarQuestions.join('##'),
+      item.negativeQuestions.join('##'),
       item.answers.join('##'),
       'FALSE', // 是否全部回复
       'FALSE', // 是否停用
@@ -2493,10 +2493,10 @@ const downloadCSVExample = () => {
 const downloadExcelExample = () => {
   const worksheet = XLSX.utils.json_to_sheet(
     exampleData.map((item) => ({
-      '标签(必填)': item.tag_name || '',
-      '问题(必填)': item.standard_question,
-      '相似问题(选填-多个用##分隔)': item.similar_questions.join('##'),
-      '反例问题(选填-多个用##分隔)': item.negative_questions.join('##'),
+      '标签(必填)': item.tagName || '',
+      '问题(必填)': item.standardQuestion,
+      '相似问题(选填-多个用##分隔)': item.similarQuestions.join('##'),
+      '反例问题(选填-多个用##分隔)': item.negativeQuestions.join('##'),
       '机器人回答(必填-多个用##分隔)': item.answers.join('##'),
       '是否全部回复(选填-默认FALSE)': 'FALSE',
       '是否停用(选填-默认FALSE)': 'FALSE',
@@ -2616,9 +2616,9 @@ const handleSearch = async () => {
   hasSearched.value = true
   try {
     const res = await searchFAQEntries(props.kbId, {
-      query_text: searchForm.query.trim(),
-      vector_threshold: searchForm.vectorThreshold,
-      match_count: searchForm.matchCount,
+      queryText: searchForm.query.trim(),
+      vectorThreshold: searchForm.vectorThreshold,
+      matchCount: searchForm.matchCount,
     })
     const results = (res || []).map((entry: FAQEntry) => ({
       ...entry,

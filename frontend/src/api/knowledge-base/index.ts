@@ -84,45 +84,45 @@ export function createKnowledgeBase(data: {
   name: string;
   description?: string;
   type?: 'document' | 'faq';
-  chunking_config?: any;
+  chunkingConfig?: any;
   embeddingModelId?: string;
   summaryModelId?: string;
-  auto_tag_config?: { enabled: boolean; model_id?: string; max_tags?: number; skip_if_tagged?: boolean };
+  autoTagConfig?: { enabled: boolean; model_id?: string; max_tags?: number; skip_if_tagged?: boolean };
   // Opt-in binding to a specific tenant-owned VectorStore. Omit (or
   // send undefined / empty string) to fall back to the env-configured
   // store. Immutable after creation — UpdateKnowledgeBase intentionally
   // does not accept this field.
-  vector_store_id?: string;
+  vectorStoreId?: string;
   // Concrete tenant-owned storage instance. When omitted, the tenant default
   // backend is bound by the server at creation time.
-  storage_backend_id?: string;
-  vlm_config?: {
+  storageBackendId?: string;
+  vlmConfig?: {
     enabled: boolean;
-    model_id?: string;
-    description_language?: string;
-    custom_instructions?: string;
+    modelId?: string;
+    descriptionLanguage?: string;
+    customInstructions?: string;
   };
-  storage_provider_config?: { provider: string };
-  storage_config?: any; // legacy, kept for backward compat (dual-write)
-  asr_config?: {
+  storageProviderConfig?: { provider: string };
+  storageConfig?: any; // legacy, kept for backward compat (dual-write)
+  asrConfig?: {
     enabled: boolean;
-    model_id?: string;
+    modelId?: string;
     language?: string;
   };
-  extract_config?: any;
-  faq_config?: { index_mode: string; question_index_mode?: string };
-  wiki_config?: {
+  extractConfig?: any;
+  faqConfig?: { index_mode: string; question_index_mode?: string };
+  wikiConfig?: {
     synthesis_model_id?: string;
     max_pages_per_ingest?: number;
     extraction_granularity?: 'focused' | 'standard' | 'exhaustive';
     content_instructions?: string;
     extraction_instructions?: string;
   };
-  indexing_strategy?: {
-    vector_enabled: boolean;
-    keyword_enabled: boolean;
-    wiki_enabled: boolean;
-    graph_enabled: boolean;
+  indexingStrategy?: {
+    vectorEnabled: boolean;
+    keywordEnabled: boolean;
+    wikiEnabled: boolean;
+    graphEnabled: boolean;
   };
 }) {
   return post(`/api/v1/knowledge-bases`, data);
@@ -185,9 +185,9 @@ export function listMoveTargets(sourceKbId: string) {
 
 // 移动知识到其他知识库
 export function moveKnowledge(data: {
-  knowledge_ids: string[];
-  source_kb_id: string;
-  target_kb_id: string;
+  knowledgeIds: string[];
+  sourceKbId: string;
+  targetKbId: string;
   mode: 'reuse_vectors' | 'reparse';
 }) {
   return post('/api/v1/knowledge/move', data);
@@ -210,7 +210,7 @@ export function uploadKnowledgeFile(
     file: File
     tagIds?: string[]
     fileName?: string
-    process_config?: KnowledgeProcessOverrides | string
+    processConfig?: KnowledgeProcessOverrides | string
     [key: string]: any
   } = { file: new File([], '') },
   onProgress?: (progressEvent: any) => void,
@@ -221,7 +221,7 @@ export function uploadKnowledgeFile(
     if (value === undefined) return;
     if (key === 'tagIds' && Array.isArray(value)) {
       formData.append(key, value.join(','));
-    } else if (key === 'process_config' && value && typeof value !== 'string') {
+    } else if (key === 'processConfig' && value && typeof value !== 'string') {
       formData.append(key, JSON.stringify(value));
     } else {
       formData.append(key, value);
@@ -234,7 +234,7 @@ export function uploadKnowledgeFile(
 // data.tagIds: 可选，指定知识所属的多个标签 ID
 export function createKnowledgeFromURL(
   kbId: string,
-  data: { url: string; enable_multimodel?: boolean; tagIds?: string[]; process_config?: KnowledgeProcessOverrides },
+  data: { url: string; enableMultimodel?: boolean; tagIds?: string[]; processConfig?: KnowledgeProcessOverrides },
 ) {
   return post(`/api/v1/knowledge-bases/${kbId}/knowledge/url`, data);
 }
@@ -248,7 +248,7 @@ export function createManualKnowledge(
     content: string
     status: string
     tagIds?: string[]
-    process_config?: KnowledgeProcessOverrides
+    processConfig?: KnowledgeProcessOverrides
   },
 ) {
   return post(`/api/v1/knowledge-bases/${kbId}/knowledge/manual`, data);
@@ -330,8 +330,8 @@ export function listKnowledgeFolders(kbId: string) {
  */
 export function moveKnowledgeToFolder(kbId: string, ids: string[], folderPath: string) {
   return post('/api/v1/knowledge/folder', {
-    kb_id: kbId,
-    knowledge_ids: ids,
+    kbId: kbId,
+    knowledgeIds: ids,
     folderPath: folderPath,
   });
 }
@@ -351,12 +351,12 @@ export function getKnowledgeDetails(id: string, options?: { agent_id?: string; a
 
 export function updateManualKnowledge(
   id: string,
-  data: { title: string; content: string; status: string; process_config?: KnowledgeProcessOverrides },
+  data: { title: string; content: string; status: string; processConfig?: KnowledgeProcessOverrides },
 ) {
   return put(`/api/v1/knowledge/manual/${id}`, data);
 }
 
-export function reparseKnowledge(id: string, data?: { process_config?: KnowledgeProcessOverrides }) {
+export function reparseKnowledge(id: string, data?: { processConfig?: KnowledgeProcessOverrides }) {
   return post(`/api/v1/knowledge/${id}/reparse`, data);
 }
 
@@ -373,9 +373,9 @@ export function delKnowledgeDetails(id: string) {
   return del(`/api/v1/knowledge/${id}`);
 }
 
-// 批量删除（同一知识库内）。后端会校验所有 id 隶属于 kb_id 且具有编辑权限。
+// 批量删除（同一知识库内）。后端会校验所有 id 隶属于 kbId 且具有编辑权限。
 export function batchDeleteKnowledge(kbId: string, ids: string[]) {
-  return post(`/api/v1/knowledge/batch-delete`, { kb_id: kbId, ids });
+  return post(`/api/v1/knowledge/batch-delete`, { kbId: kbId, ids });
 }
 
 export function downKnowledgeDetails(id: string) {
@@ -403,8 +403,8 @@ export function getKnowledgeDetailsCon(id: string, page: number) {
 
 export interface ChunkEditPayload {
   content?: string;
-  is_enabled?: boolean;
-  expected_revision?: number;
+  enabled?: boolean;
+  expectedRevision?: number;
 }
 
 export function updateDocumentChunk(knowledgeId: string, chunkId: string, data: ChunkEditPayload) {
@@ -418,7 +418,7 @@ export function listChunkRevisions(knowledgeId: string, chunkId: string) {
 export function revertDocumentChunk(knowledgeId: string, chunkId: string, revision: number, expectedRevision: number) {
   return post(`/api/v1/chunks/${knowledgeId}/${chunkId}/revert`, {
     revision,
-    expected_revision: expectedRevision,
+    expectedRevision: expectedRevision,
   });
 }
 
@@ -446,7 +446,7 @@ export function deleteGeneratedQuestion(chunkId: string, questionId: string) {
 
 export function upsertGeneratedQuestion(chunkId: string, question: string, questionId?: string) {
   return put(`/api/v1/chunks/by-id/${chunkId}/questions`, {
-    question_id: questionId || '',
+    questionId: questionId || '',
     question,
   });
 }
@@ -529,20 +529,20 @@ export function updateFAQEntry(kbId: string, entryId: number, data: any) {
   return put(`/api/v1/knowledge-bases/${kbId}/faq/entries/${entryId}`, data);
 }
 
-// Unified batch update API - supports is_enabled, is_recommended, tag_id
+// Unified batch update API - supports enabled, recommended, tagId
 // Supports two modes:
-// 1. By entry ID: use by_id field
-// 2. By Tag: use by_tag field to apply the same update to all entries under a tag
+// 1. By entry ID: use byId field
+// 2. By Tag: use byTag field to apply the same update to all entries under a tag
 export interface FAQEntryFieldsUpdate {
-  is_enabled?: boolean
-  is_recommended?: boolean
-  tag_id?: number | null
+  enabled?: boolean
+  recommended?: boolean
+  tagId?: number | null
 }
 
 export interface FAQEntryFieldsBatchRequest {
-  by_id?: Record<number, FAQEntryFieldsUpdate>
-  by_tag?: Record<number, FAQEntryFieldsUpdate>
-  exclude_ids?: number[]
+  byId?: Record<number, FAQEntryFieldsUpdate>
+  byTag?: Record<number, FAQEntryFieldsUpdate>
+  excludeIds?: number[]
 }
 
 export function updateFAQEntryFieldsBatch(kbId: string, data: FAQEntryFieldsBatchRequest) {
@@ -556,9 +556,9 @@ export function deleteFAQEntries(kbId: string, ids: number[]) {
 export function searchFAQEntries(
   kbId: string,
   data: {
-    query_text: string
-    vector_threshold?: number
-    match_count?: number
+    queryText: string
+    vectorThreshold?: number
+    matchCount?: number
   }
 ) {
   return post(`/api/v1/knowledge-bases/${kbId}/faq/search`, data);
@@ -572,44 +572,13 @@ export async function exportFAQEntries(kbId: string, format: 'csv' | 'json' = 'c
 }
 
 // FAQ Import Progress API
-export interface FAQBlockedEntry {
-  index: number
-  standard_question: string
-  reason: string
-}
-
-export interface FAQSuccessEntry {
-  index: number
-  seq_id: number
-  tag_id?: number
-  tag_name?: string
-  standard_question: string
-}
-
-export interface FAQImportProgress {
-  task_id: string
-  kb_id: string
-  knowledge_id: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  progress: number
-  total: number
-  processed: number
-  blocked: number
-  blocked_entries?: FAQBlockedEntry[]
-  success_entries?: FAQSuccessEntry[]
-  message: string
-  error: string
-  created_at: number
-  updated_at: number
-}
-
 export function getFAQImportProgress(taskId: string) {
   return get(`/api/v1/faq/import/progress/${taskId}`);
 }
 
 export function updateFAQImportResultDisplayStatus(knowledgeBaseId: string, displayStatus: 'open' | 'close') {
   return put(`/api/v1/knowledge-bases/${knowledgeBaseId}/faq/import/last-result/display`, {
-    display_status: displayStatus
+    displayStatus: displayStatus
   });
 }
 
@@ -637,8 +606,8 @@ export function searchKnowledge(
 
 export function knowledgeSemanticSearch(data: {
   query: string;
-  knowledge_base_ids?: string[];
-  knowledge_ids?: string[];
+  knowledgeBaseIds?: string[];
+  knowledgeIds?: string[];
 }) {
   return post('/api/v1/knowledge-search', data);
 }
