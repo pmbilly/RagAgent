@@ -3424,8 +3424,8 @@ const mapKbToOption = (kb: any) => {
     type: kb.type || 'document',
     count: kb.type === 'faq' ? (kb.chunk_count || 0) : (kb.knowledge_count || 0),
     shared: false,
-    ragEnabled: caps ? (caps.vector || caps.keyword) : (!strategy || strategy.vector_enabled || strategy.keyword_enabled),
-    wikiEnabled: caps ? caps.wiki : (strategy?.wiki_enabled || false),
+    ragEnabled: caps ? (caps.vector || caps.keyword) : (!strategy || strategy.vectorEnabled || strategy.keywordEnabled),
+    wikiEnabled: caps ? caps.wiki : (strategy?.wikiEnabled || false),
     capabilities: caps,
   };
 };

@@ -98,7 +98,7 @@
 | 9 | Java 侧 `isIsPinned()` 双 is | Java 字段 `pinned`，JSON `pinned` ✅定稿 | 前端取值改为 `kb.pinned` |
 | 10 | 重复文档 409 特殊信封 | 统一标准错误体（§2.2） | 前端错误处理收敛 |
 | 11 | 分页 `data/page/page_size/total/success` | `{items, page, pageSize, total}` | 前端分页组件适配 |
-| 12 | `file_path`/`storage_provider_config` 等内部字段暴露 | 不输出内部字段；**存储提供方名仍以 `storageProvider`（如 local/cos/oss）单独下发**（UI 多模态判断需要），凭据配置不下发 | 前端改读 `kb.storageProvider` |
+| 12 | `file_path`/`storage_provider_config` 等内部字段暴露 | 不输出内部字段；**存储提供方名以 `storageProvider` 单独下发**（UI 多模态判断需要）；凭据一律不下发——含 VLM 配置的 `apiKey`（视图层剔除） | 前端改读 `kb.storageProvider`；VLM 表单只回显 enabled/modelId |
 | 13 | FAQ 检索命中 `score`/`match_type`/`matched_question` 条件出现 | 收敛为 `match: {score, type, matchedQuestion}`；无命中 = `null` | 前端检索结果展示调整 |
 | 14 | FAQ `tag_id` 为数字，其他 ID 为字符串 | 统一 `String` | 前端类型定义统一 |
 | 15 | 数值错误码 1000–2300 | **保留**（前端已有分支），仅统一外层结构 | 无 |
@@ -481,3 +481,14 @@
 - 本规范是重构方案（v2/v3）中 **Phase 2 的契约基线**；
 - Phase 0–1 期间 JSON 保持不变（结构重构 + 测试护栏），本规范自 Phase 2 起生效；
 - 字段盘点脚本与原始输出可在评审时索取复跑，确保与源码同步。
+
+---
+
+## 8. 实施进度（滚动更新）
+
+| 批次 | 内容 | 状态 |
+|---|---|---|
+| **1** | 知识库对象：camelCase + 裸资源信封 + 删除 204 + 内部字段收敛（含 `storageProvider`） | ✅ 2026-09-29（后端 `8dab32e`/`cb960a8`、前端 `87c090b`；后端 4665 用例 + 前端 685 用例全绿） |
+| **2** | 嵌套配置对象：`chunkingConfig`/`imageProcessingConfig`/`vlmConfig`/`asrConfig`/`indexingStrategy` 改**视图 DTO**（camelCase + 显式 null + 去 apiKey） | ✅ 2026-09-29（新增 `KnowledgeBaseConfigViews`；领域类 Jackson 注解继续决定 jsonb 落库格式，二者解耦） |
+| 3 | 请求侧 DTO 化：4 个控制器 19 处 `rawBody`/手搓 ObjectNode → record + `@Valid`；请求内键同步 camelCase（复用批次 2 的视图） | ⏳ 待办 |
+| 4 | 知识库内停用 `Go*` 序列化器 + 注释/JavaDoc 逐文件打磨 | ⏳ 待办 |

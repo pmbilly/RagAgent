@@ -8,28 +8,37 @@
       "description": "kb for initialization batch",
       "creatorId": "a0000000-0000-0000-0000-000000000001",
       "chunkingConfig": {
-        "chunk_size": 500,
-        "chunk_overlap": 50,
+        "chunkSize": 500,
+        "chunkOverlap": 50,
         "separators": [
           "\n\n"
-        ]
+        ],
+        "parserEngineRules": null,
+        "enableParentChild": false,
+        "parentChunkSize": 0,
+        "childChunkSize": 0,
+        "strategy": null,
+        "tokenLimit": 0,
+        "languages": null,
+        "tableMetadataInstructions": null
       },
       "imageProcessingConfig": {
-        "model_id": ""
+        "modelId": ""
       },
       "embeddingModelId": "ff218e2f-5f1f-48da-8f61-d5f36c6d17bd",
       "summaryModelId": "018cee97-7379-4759-8715-8142f03c952b",
       "vlmConfig": {
         "enabled": false,
-        "model_id": "",
-        "model_name": "",
-        "base_url": "",
-        "api_key": "",
-        "interface_type": ""
+        "modelId": "",
+        "descriptionLanguage": null,
+        "customInstructions": null,
+        "modelName": "",
+        "baseUrl": "",
+        "interfaceType": ""
       },
       "asrConfig": {
         "enabled": false,
-        "model_id": "",
+        "modelId": "",
         "language": ""
       },
       "extractConfig": null,
@@ -38,10 +47,10 @@
       "autoTagConfig": null,
       "wikiConfig": null,
       "indexingStrategy": {
-        "vector_enabled": true,
-        "keyword_enabled": true,
-        "wiki_enabled": false,
-        "graph_enabled": false
+        "vectorEnabled": true,
+        "keywordEnabled": true,
+        "wikiEnabled": false,
+        "graphEnabled": false
       },
       "pinned": false,
       "pinnedAt": null,

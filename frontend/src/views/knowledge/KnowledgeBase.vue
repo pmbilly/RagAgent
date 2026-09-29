@@ -84,7 +84,7 @@ const uploading = ref(false);
 const kbLoading = ref(false);
 const docListLoading = ref(true);
 const isFAQ = computed(() => (kbInfo.value?.type || '') === 'faq');
-const isWiki = computed(() => !!kbInfo.value?.indexing_strategy?.wiki_enabled);
+const isWiki = computed(() => !!kbInfo.value?.indexing_strategy?.wikiEnabled);
 const validTabs = ['documents', 'wiki', 'graph'] as const
 type KbTab = typeof validTabs[number]
 const initTab = validTabs.includes(route.query.tab as any) ? (route.query.tab as KbTab) : 'documents'
@@ -1526,7 +1526,7 @@ const ensureDocumentKbReady = () => {
   }
   // Embedding model only required when RAG indexing is enabled
   const strategy = (kbInfo.value as any).indexing_strategy
-  const needsEmbedding = !strategy || strategy.vector_enabled || strategy.keyword_enabled
+  const needsEmbedding = !strategy || strategy.vectorEnabled || strategy.keywordEnabled
   if (needsEmbedding && !kbInfo.value.embedding_model_id) {
     MessagePlugin.warning(t('knowledgeBase.notInitialized'));
     return false;

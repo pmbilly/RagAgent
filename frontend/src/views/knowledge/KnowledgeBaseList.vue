@@ -995,13 +995,13 @@ const isInitialized = (kb: KB) => {
   if (!kb.summaryModelId || kb.summaryModelId === '') return false
   // Embedding model only required when RAG indexing is enabled (vector or keyword)
   const strategy = (kb as any).indexingStrategy
-  const needsEmbedding = !strategy || strategy.vector_enabled || strategy.keyword_enabled
+  const needsEmbedding = !strategy || strategy.vectorEnabled || strategy.keywordEnabled
   if (needsEmbedding && (!kb.embeddingModelId || kb.embeddingModelId === '')) return false
   return true
 }
 
 const isWikiKb = (kb: unknown) =>
-  !!(kb as { indexingStrategy?: { wiki_enabled?: boolean } } | null | undefined)?.indexingStrategy?.wiki_enabled
+  !!(kb as { indexingStrategy?: { wikiEnabled?: boolean } } | null | undefined)?.indexingStrategy?.wikiEnabled
 
 // 计算是否有未初始化的知识库
 const hasUninitializedKbs = computed(() => {

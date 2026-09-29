@@ -96,7 +96,7 @@ const checkKnowledgeBaseInitialization = async (): Promise<boolean> => {
             return false;
         }
         const strategy = kb.indexingStrategy;
-        const needsEmbedding = !strategy || strategy.vector_enabled || strategy.keyword_enabled;
+        const needsEmbedding = !strategy || strategy.vectorEnabled || strategy.keywordEnabled;
         if (needsEmbedding && !kb.embeddingModelId) {
             MessagePlugin.warning(t('knowledgeBase.notInitialized'));
             return false;

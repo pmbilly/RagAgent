@@ -1122,7 +1122,7 @@ function initFromKbInfo(kb: any) {
       customInstructions: kb.question_generation_config?.custom_instructions || '',
     },
     nodeExtractConfig: {
-      enabled: !!kb.extract_config?.enabled && !!kb.indexing_strategy?.graph_enabled,
+      enabled: !!kb.extractConfig?.enabled && !!kb.indexing_strategy?.graphEnabled,
       text: kb.extract_config?.text || '',
       tags: kb.extract_config?.tags || [],
       nodes: (kb.extract_config?.nodes || []).map((node: any) => ({
@@ -1132,7 +1132,7 @@ function initFromKbInfo(kb: any) {
       relations: kb.extract_config?.relations || [],
       customInstructions: kb.extract_config?.custom_instructions || '',
     },
-    graphEnabled: kb.indexing_strategy?.graph_enabled ?? false,
+    graphEnabled: kb.indexing_strategy?.graphEnabled ?? false,
     pdfForceScanned: false,
   }
 }

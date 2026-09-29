@@ -21,7 +21,7 @@ export type ListCreatorFilter = 'all' | 'mine' | 'others'
 function isKbModelReady(kb: any): boolean {
   if (!kb.summaryModelId || kb.summaryModelId === '') return false
   const strategy = kb.indexingStrategy
-  const needsEmbedding = !strategy || strategy.vector_enabled || strategy.keyword_enabled
+  const needsEmbedding = !strategy || strategy.vectorEnabled || strategy.keywordEnabled
   if (needsEmbedding && (!kb.embeddingModelId || kb.embeddingModelId === '')) return false
   return true
 }

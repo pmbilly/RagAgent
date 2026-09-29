@@ -4,12 +4,12 @@ import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.knowledge.domain.KbAsrConfig;
-import com.ragagent.knowledge.domain.KbChunkingConfig;
-import com.ragagent.knowledge.domain.KbImageProcessingConfig;
-import com.ragagent.knowledge.domain.KbIndexingStrategy;
-import com.ragagent.knowledge.domain.KbVlmConfig;
 import com.ragagent.knowledge.domain.KnowledgeBase;
+import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.AsrConfigView;
+import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.ChunkingConfigView;
+import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.ImageProcessingConfigView;
+import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.IndexingStrategyView;
+import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.VlmConfigView;
 
 /**
  * 知识库的对外响应体（详情 / 列表项 / 初始化回执统一用这一个形态）。
@@ -24,9 +24,9 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
  *   <li>向量库绑定信息收敛为嵌套对象 {@link VectorStoreView}，无绑定时为 {@code null}。</li>
  * </ul>
  *
- * <p>嵌套的配置对象（分块/图像/VLM/ASR/索引策略）目前直接复用领域类型，
- * 其内部键名仍是下划线形式——它们与数据库 jsonb 列共用同一套序列化注解，
- * 单独改名会连带改变落库格式，因此留待"嵌套配置统一"批次处理。
+ * <p>嵌套的配置对象走 {@link KnowledgeBaseConfigViews} 的视图类型（camelCase），
+ * 与数据库 jsonb 列共用的领域类型解耦——领域类的 Jackson 注解仍决定落库格式。
+ *
  */
 public record KnowledgeBaseResponse(
         String id,
@@ -44,15 +44,15 @@ public record KnowledgeBaseResponse(
         long processingCount,
         long shareCount,
         KnowledgeBase.Capabilities capabilities,
-        KbChunkingConfig chunkingConfig,
-        KbImageProcessingConfig imageProcessingConfig,
+        ChunkingConfigView chunkingConfig,
+        ImageProcessingConfigView imageProcessingConfig,
         String embeddingModelId,
         String summaryModelId,
-        KbVlmConfig vlmConfig,
-        KbAsrConfig asrConfig,
+        VlmConfigView vlmConfig,
+        AsrConfigView asrConfig,
         String storageBackendId,
         String storageProvider,
-        KbIndexingStrategy indexingStrategy,
+        IndexingStrategyView indexingStrategy,
         JsonNode extractConfig,
         JsonNode faqConfig,
         JsonNode questionGenerationConfig,
@@ -188,15 +188,15 @@ public record KnowledgeBaseResponse(
                 kb.getProcessingCount(),
                 kb.getShareCount(),
                 kb.capabilities(),
-                kb.getChunkingConfig(),
-                kb.getImageProcessingConfig(),
+                ChunkingConfigView.from(kb.getChunkingConfig()),
+                ImageProcessingConfigView.from(kb.getImageProcessingConfig()),
                 emptyToNull(kb.getEmbeddingModelId()),
                 emptyToNull(kb.getSummaryModelId()),
-                kb.getVlmConfig(),
-                kb.getAsrConfig(),
+                VlmConfigView.from(kb.getVlmConfig()),
+                AsrConfigView.from(kb.getAsrConfig()),
                 emptyToNull(kb.getStorageBackendId()),
                 emptyToNull(kb.getStorageProvider()),
-                kb.getIndexingStrategy(),
+                IndexingStrategyView.from(kb.getIndexingStrategy()),
                 kb.getExtractConfig(),
                 kb.getFaqConfig(),
                 kb.getQuestionGenerationConfig(),

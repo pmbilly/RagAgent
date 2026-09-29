@@ -1,8 +1,8 @@
 {
   "asrConfig": {
     "enabled": false,
-    "language": "",
-    "model_id": ""
+    "modelId": "",
+    "language": ""
   },
   "autoTagConfig": null,
   "capabilities": {
@@ -14,9 +14,17 @@
   },
   "chunkCount": 0,
   "chunkingConfig": {
-    "chunk_overlap": 0,
-    "chunk_size": 0,
-    "separators": null
+    "chunkSize": 0,
+    "chunkOverlap": 0,
+    "separators": null,
+    "parserEngineRules": null,
+    "enableParentChild": false,
+    "parentChunkSize": 0,
+    "childChunkSize": 0,
+    "strategy": null,
+    "tokenLimit": 0,
+    "languages": null,
+    "tableMetadataInstructions": null
   },
   "createdAt": "2026-09-17T19:35:58.976351+08:00",
   "creatorId": "11111111-2222-3333-4444-555555555501",
@@ -26,13 +34,13 @@
   "faqConfig": null,
   "id": "882a3361-fa2d-402b-a383-2a302f9c0184",
   "imageProcessingConfig": {
-    "model_id": ""
+    "modelId": ""
   },
   "indexingStrategy": {
-    "graph_enabled": false,
-    "keyword_enabled": true,
-    "vector_enabled": true,
-    "wiki_enabled": false
+    "vectorEnabled": true,
+    "keywordEnabled": true,
+    "wikiEnabled": false,
+    "graphEnabled": false
   },
   "pinned": true,
   "processing": false,
@@ -48,12 +56,13 @@
   "type": "document",
   "updatedAt": "2026-09-17T19:35:59.23996+08:00",
   "vlmConfig": {
-    "api_key": "",
-    "base_url": "",
     "enabled": false,
-    "interface_type": "",
-    "model_id": "",
-    "model_name": ""
+    "modelId": "",
+    "descriptionLanguage": null,
+    "customInstructions": null,
+    "modelName": "",
+    "baseUrl": "",
+    "interfaceType": ""
   },
   "wikiConfig": null,
   "vectorStore": {

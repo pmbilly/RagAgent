@@ -257,7 +257,7 @@ const capabilities = computed<Array<{ key: string; label: string; theme: Capabil
       theme: 'success',
     })
   }
-  if (kb.indexingStrategy?.wiki_enabled) {
+  if (kb.indexingStrategy?.wikiEnabled) {
     items.push({ key: 'wiki', label: 'Wiki', theme: 'warning' })
   }
   return items
@@ -285,34 +285,34 @@ const chunkingRows = computed<Array<{ key: string; label: string; value: string 
     })
   }
   const chars = t('knowledgeEditor.chunking.characters')
-  if (typeof cfg.chunk_size === 'number' && cfg.chunk_size > 0) {
+  if (typeof cfg.chunkSize === 'number' && cfg.chunkSize > 0) {
     rows.push({
       key: 'size',
       label: t('knowledgeEditor.chunking.sizeLabel'),
-      value: `${cfg.chunk_size} ${chars}`,
+      value: `${cfg.chunkSize} ${chars}`,
     })
   }
-  if (typeof cfg.chunk_overlap === 'number') {
+  if (typeof cfg.chunkOverlap === 'number') {
     rows.push({
       key: 'overlap',
       label: t('knowledgeEditor.chunking.overlapLabel'),
-      value: `${cfg.chunk_overlap} ${chars}`,
+      value: `${cfg.chunkOverlap} ${chars}`,
     })
   }
-  if (cfg.enable_parent_child) {
-    const parent = cfg.parent_chunk_size || 4096
-    const child = cfg.child_chunk_size || 384
+  if (cfg.enableParentChild) {
+    const parent = cfg.parentChunkSize || 4096
+    const child = cfg.childChunkSize || 384
     rows.push({
       key: 'parent-child',
       label: t('knowledgeEditor.chunking.parentChildLabel'),
       value: `${t('knowledgeBase.infoCard.parentShort')} ${parent} / ${t('knowledgeBase.infoCard.childShort')} ${child}`,
     })
   }
-  if (typeof cfg.token_limit === 'number' && cfg.token_limit > 0) {
+  if (typeof cfg.tokenLimit === 'number' && cfg.tokenLimit > 0) {
     rows.push({
       key: 'token-limit',
       label: t('knowledgeEditor.chunking.tokenLimitLabel'),
-      value: String(cfg.token_limit),
+      value: String(cfg.tokenLimit),
     })
   }
   return rows

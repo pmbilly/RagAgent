@@ -7,26 +7,35 @@
     "description": null,
     "creatorId": "11111111-2222-3333-4444-555555555501",
     "chunkingConfig": {
-      "chunk_size": 0,
-      "chunk_overlap": 0,
-      "separators": null
+      "chunkSize": 0,
+      "chunkOverlap": 0,
+      "separators": null,
+      "parserEngineRules": null,
+      "enableParentChild": false,
+      "parentChunkSize": 0,
+      "childChunkSize": 0,
+      "strategy": null,
+      "tokenLimit": 0,
+      "languages": null,
+      "tableMetadataInstructions": null
     },
     "imageProcessingConfig": {
-      "model_id": ""
+      "modelId": ""
     },
     "embeddingModelId": null,
     "summaryModelId": null,
     "vlmConfig": {
       "enabled": false,
-      "model_id": "",
-      "model_name": "",
-      "base_url": "",
-      "api_key": "",
-      "interface_type": ""
+      "modelId": "",
+      "descriptionLanguage": null,
+      "customInstructions": null,
+      "modelName": "",
+      "baseUrl": "",
+      "interfaceType": ""
     },
     "asrConfig": {
       "enabled": false,
-      "model_id": "",
+      "modelId": "",
       "language": ""
     },
     "storageBackendId": "c730730a-70f5-4d86-a7e1-58972cf27567",
@@ -36,10 +45,10 @@
     "autoTagConfig": null,
     "wikiConfig": null,
     "indexingStrategy": {
-      "vector_enabled": true,
-      "keyword_enabled": true,
-      "wiki_enabled": false,
-      "graph_enabled": false
+      "vectorEnabled": true,
+      "keywordEnabled": true,
+      "wikiEnabled": false,
+      "graphEnabled": false
     },
     "pinned": false,
     "pinnedAt": null,
@@ -75,26 +84,35 @@
     "description": null,
     "creatorId": "11111111-2222-3333-4444-555555555501",
     "chunkingConfig": {
-      "chunk_size": 0,
-      "chunk_overlap": 0,
-      "separators": null
+      "chunkSize": 0,
+      "chunkOverlap": 0,
+      "separators": null,
+      "parserEngineRules": null,
+      "enableParentChild": false,
+      "parentChunkSize": 0,
+      "childChunkSize": 0,
+      "strategy": null,
+      "tokenLimit": 0,
+      "languages": null,
+      "tableMetadataInstructions": null
     },
     "imageProcessingConfig": {
-      "model_id": ""
+      "modelId": ""
     },
     "embeddingModelId": null,
     "summaryModelId": null,
     "vlmConfig": {
       "enabled": false,
-      "model_id": "",
-      "model_name": "",
-      "base_url": "",
-      "api_key": "",
-      "interface_type": ""
+      "modelId": "",
+      "descriptionLanguage": null,
+      "customInstructions": null,
+      "modelName": "",
+      "baseUrl": "",
+      "interfaceType": ""
     },
     "asrConfig": {
       "enabled": false,
-      "model_id": "",
+      "modelId": "",
       "language": ""
     },
     "storageBackendId": "c730730a-70f5-4d86-a7e1-58972cf27567",
@@ -104,10 +122,10 @@
     "autoTagConfig": null,
     "wikiConfig": null,
     "indexingStrategy": {
-      "vector_enabled": true,
-      "keyword_enabled": true,
-      "wiki_enabled": false,
-      "graph_enabled": false
+      "vectorEnabled": true,
+      "keywordEnabled": true,
+      "wikiEnabled": false,
+      "graphEnabled": false
     },
     "pinned": false,
     "pinnedAt": null,

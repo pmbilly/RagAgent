@@ -862,10 +862,10 @@ const loadKBData = async (
       storageBackendId: (kb.storage_backend_id || '') as string,
       storageProvider: (kb.storage_provider_config?.provider || kb.storage_config?.provider || 'local') as string,
       multimodalConfig: {
-        enabled: !!kb.vlm_config?.enabled,
-        vllmModelId: kb.vlm_config?.model_id || '',
-        descriptionLanguage: kb.vlm_config?.description_language || '',
-        customInstructions: kb.vlm_config?.custom_instructions || ''
+        enabled: !!kb.vlmConfig?.enabled,
+        vllmModelId: kb.vlmConfig?.modelId || '',
+        descriptionLanguage: kb.vlmConfig?.descriptionLanguage || '',
+        customInstructions: kb.vlmConfig?.customInstructions || ''
       },
       asrConfig: {
         enabled: !!kb.asr_config?.enabled,
@@ -909,10 +909,10 @@ const loadKBData = async (
         extractionInstructions: kb.wiki_config?.extraction_instructions || '',
       },
       indexingStrategy: {
-        vectorEnabled: kb.indexing_strategy?.vector_enabled ?? true,
-        keywordEnabled: kb.indexing_strategy?.keyword_enabled ?? true,
-        wikiEnabled: kb.indexing_strategy?.wiki_enabled ?? false,
-        graphEnabled: kb.indexing_strategy?.graph_enabled ?? false,
+        vectorEnabled: kb.indexing_strategy?.vectorEnabled ?? true,
+        keywordEnabled: kb.indexing_strategy?.keywordEnabled ?? true,
+        wikiEnabled: kb.indexing_strategy?.wikiEnabled ?? false,
+        graphEnabled: kb.indexing_strategy?.graphEnabled ?? false,
       },
       // Vector-store binding. vectorStoreId is editor-only state; it
       // is only included in the create request, never the update
@@ -1267,7 +1267,7 @@ const buildSubmitData = () => {
     }
   }
 
-  // Wiki enablement is carried solely by indexing_strategy.wiki_enabled.
+  // Wiki enablement is carried solely by indexing_strategy.wikiEnabled.
   // wiki_config only holds wiki-specific tunables.
   if (formData.value.type !== 'faq') {
     data.wiki_config = {
