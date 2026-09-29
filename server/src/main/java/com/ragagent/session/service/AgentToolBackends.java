@@ -31,7 +31,15 @@ import com.ragagent.agent.tools.WikiReadIssueTool;
 import com.ragagent.agent.tools.WikiReadPageTool;
 import com.ragagent.agent.tools.WikiRenamePageTool;
 import com.ragagent.agent.tools.WikiReplaceTextTool;
-import com.ragagent.agent.tools.WikiSupport;
+import com.ragagent.agent.tools.IndexEntryView;
+import com.ragagent.agent.tools.IndexGroupView;
+import com.ragagent.agent.tools.IndexOverviewView;
+import com.ragagent.agent.tools.IssueView;
+import com.ragagent.agent.tools.PageView;
+import com.ragagent.agent.tools.RepairResult;
+import com.ragagent.agent.tools.WikiPages;
+import com.ragagent.agent.tools.WikiRouteResolver;
+import com.ragagent.agent.tools.WikiScope;
 import com.ragagent.agent.tools.WikiUpdateIssueTool;
 import com.ragagent.agent.tools.WikiWritePageTool;
 import com.ragagent.agent.tools.WikiSearchTool;
@@ -234,9 +242,9 @@ public class AgentToolBackends {
      * @param routes 请求级共享的 slug→KB 路由记忆（Go L870 一个引擎一个实例）
      */
     public com.ragagent.agent.tools.AgentTool createWikiTool(String toolName,
-            SearchTarget.SearchTargets targets, List<WikiSupport.WikiScope> scopes,
-            List<String> wikiKbIds, WikiSupport.WikiRouteResolver routes) {
-        WikiSupport.WikiPages pages = wikiPages();
+            SearchTarget.SearchTargets targets, List<WikiScope> scopes,
+            List<String> wikiKbIds, WikiRouteResolver routes) {
+        WikiPages pages = wikiPages();
         SearchAuth.KnowledgeScopeReader scopeReader =
                 DocChunkSupport.asScopeReader(knowledgeInfoReader());
         return switch (toolName) {
@@ -286,11 +294,11 @@ public class AgentToolBackends {
      *       IssueView 以字符串承载，故在此格式化（Go 读库得到 UTC location）。</li>
      * </ol>
      */
-    public WikiSupport.WikiPages wikiPages() {
-        return new WikiSupport.WikiPages() {
+    public WikiPages wikiPages() {
+        return new WikiPages() {
 
             @Override
-            public WikiSupport.PageView getPageBySlug(String kbId, String slug) {
+            public PageView getPageBySlug(String kbId, String slug) {
                 try {
                     return toPageView(wikiPageService.getPageBySlug(kbId, slug));
                 } catch (WikiPageNotFoundException e) {
@@ -299,7 +307,7 @@ public class AgentToolBackends {
             }
 
             @Override
-            public WikiSupport.PageView createPage(WikiSupport.PageView page, String editSource) {
+            public PageView createPage(PageView page, String editSource) {
                 WikiPage entity = toEntity(page);
                 // Go 的两个调用点（wiki_write_page / wiki_rename_page）都用字段字面量建页，
                 // ID 恒为空串 → CreatePage 生成新 UUID。Java 工具经 PageView.copy()
@@ -311,13 +319,13 @@ public class AgentToolBackends {
             }
 
             @Override
-            public void updatePage(WikiSupport.PageView page, String editSource) {
+            public void updatePage(PageView page, String editSource) {
                 WikiEditContext.callWith(editSource,
                         () -> wikiPageService.updatePage(toEntity(page)));
             }
 
             @Override
-            public void updateAutoLinkedContent(WikiSupport.PageView page, String editSource) {
+            public void updateAutoLinkedContent(PageView page, String editSource) {
                 WikiEditContext.runWith(editSource,
                         () -> wikiPageService.updateAutoLinkedContent(toEntity(page)));
             }
@@ -328,11 +336,11 @@ public class AgentToolBackends {
             }
 
             @Override
-            public WikiSupport.RepairResult repairContentLinks(String kbId, String slug, String content) {
+            public RepairResult repairContentLinks(String kbId, String slug, String content) {
                 try {
                     WikiPageService.RepairResult r =
                             wikiPageService.repairContentLinks(kbId, slug, content);
-                    return r == null ? null : new WikiSupport.RepairResult(r.content(), r.changed());
+                    return r == null ? null : new RepairResult(r.content(), r.changed());
                 } catch (RuntimeException e) {
                     // Go: if rerr == nil { content = repaired } —— 修复失败永不阻塞写入
                     return null;
@@ -350,8 +358,8 @@ public class AgentToolBackends {
             }
 
             @Override
-            public List<WikiSupport.IssueView> listIssues(String kbId, String slug, String status) {
-                List<WikiSupport.IssueView> out = new ArrayList<>();
+            public List<IssueView> listIssues(String kbId, String slug, String status) {
+                List<IssueView> out = new ArrayList<>();
                 for (WikiPageIssue issue : wikiPageService.listIssues(kbId, slug, status)) {
                     if (issue != null) {
                         out.add(toIssueView(issue));
@@ -361,7 +369,7 @@ public class AgentToolBackends {
             }
 
             @Override
-            public WikiSupport.IssueView createIssue(WikiSupport.IssueView issue) {
+            public IssueView createIssue(IssueView issue) {
                 WikiPageIssue entity = new WikiPageIssue();
                 entity.setTenantId(issue.tenantId());
                 entity.setKnowledgeBaseId(issue.knowledgeBaseId());
@@ -380,8 +388,8 @@ public class AgentToolBackends {
             }
 
             @Override
-            public List<WikiSupport.PageView> searchPages(String kbId, String query, int limit) {
-                List<WikiSupport.PageView> out = new ArrayList<>();
+            public List<PageView> searchPages(String kbId, String query, int limit) {
+                List<PageView> out = new ArrayList<>();
                 for (WikiPage page : wikiPageService.searchPages(kbId, query, limit)) {
                     if (page != null) {
                         out.add(toPageView(page));
@@ -391,7 +399,7 @@ public class AgentToolBackends {
             }
 
             @Override
-            public WikiSupport.IndexOverviewView getIndexView(String kbId, int topK) {
+            public IndexOverviewView getIndexView(String kbId, int topK) {
                 try {
                     // Go: GetIndexView(ctx, kbID, nil, wikiIndexAgentTopK, "")
                     WikiIndex.Response resp =
@@ -406,8 +414,8 @@ public class AgentToolBackends {
     }
 
     /** 对照 types.WikiPage → 工具侧页视图。 */
-    static WikiSupport.PageView toPageView(WikiPage page) {
-        WikiSupport.PageView view = WikiSupport.PageView.of(page.getKnowledgeBaseId(),
+    static PageView toPageView(WikiPage page) {
+        PageView view = PageView.of(page.getKnowledgeBaseId(),
                 page.getSlug());
         view.setId(page.getId());
         view.setTenantId(page.getTenantId() == null ? 0L : page.getTenantId());
@@ -430,7 +438,7 @@ public class AgentToolBackends {
     }
 
     /** 对照工具侧页视图 → types.WikiPage（service 就地补全 ID/Status/Version/OutLinks）。 */
-    static WikiPage toEntity(WikiSupport.PageView view) {
+    static WikiPage toEntity(PageView view) {
         WikiPage entity = new WikiPage();
         entity.setId(view.id());
         entity.setTenantId(view.tenantId());
@@ -455,8 +463,8 @@ public class AgentToolBackends {
     }
 
     /** 对照 types.WikiPageIssue → 工具侧 issue 视图（时间以 Go RFC3339 文本透传）。 */
-    static WikiSupport.IssueView toIssueView(WikiPageIssue issue) {
-        WikiSupport.IssueView view = new WikiSupport.IssueView();
+    static IssueView toIssueView(WikiPageIssue issue) {
+        IssueView view = new IssueView();
         view.setId(issue.getId());
         view.setTenantId(issue.getTenantId() == null ? 0L : issue.getTenantId());
         view.setKnowledgeBaseId(issue.getKnowledgeBaseId());
@@ -474,20 +482,20 @@ public class AgentToolBackends {
     }
 
     /** 对照 types.WikiIndexResponse → 工具侧 overview 视图。 */
-    static WikiSupport.IndexOverviewView toIndexOverviewView(WikiIndex.Response resp) {
+    static IndexOverviewView toIndexOverviewView(WikiIndex.Response resp) {
         if (resp == null) {
             return null;
         }
-        List<WikiSupport.IndexGroupView> groups = new ArrayList<>();
+        List<IndexGroupView> groups = new ArrayList<>();
         for (WikiIndex.Group g : resp.getGroups()) {
-            List<WikiSupport.IndexEntryView> items = new ArrayList<>();
+            List<IndexEntryView> items = new ArrayList<>();
             for (WikiIndexEntry entry : g.getItems()) {
-                items.add(new WikiSupport.IndexEntryView(entry.getSlug(), entry.getTitle(),
+                items.add(new IndexEntryView(entry.getSlug(), entry.getTitle(),
                         entry.getSummary()));
             }
-            groups.add(new WikiSupport.IndexGroupView(g.getType(), g.getTotal(), items));
+            groups.add(new IndexGroupView(g.getType(), g.getTotal(), items));
         }
-        return new WikiSupport.IndexOverviewView(resp.getIntro(), groups);
+        return new IndexOverviewView(resp.getIntro(), groups);
     }
 
     /**

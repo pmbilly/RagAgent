@@ -6,12 +6,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeScopeReader;
-import com.ragagent.agent.tools.SearchAuth.ScopeAuthException;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
-import com.ragagent.agent.tools.WikiSupport.IssueView;
-import com.ragagent.agent.tools.WikiSupport.ResolvedPage;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
 
 /**
  * wiki_flag_issue 工具（对照 Go {@code wiki_flag_issue.go}，逐字移植）。
@@ -79,7 +74,7 @@ public class WikiFlagIssueTool extends BaseTool {
         String slug = args.path("slug").asText("").trim();
         String normalizedSlug;
         try {
-            normalizedSlug = WikiSupport.normalizeAndValidateWikiSlug(slug);
+            normalizedSlug = WikiSlugs.normalizeAndValidateWikiSlug(slug);
         } catch (IllegalArgumentException e) {
             return failure(e.getMessage());
         }
@@ -91,7 +86,7 @@ public class WikiFlagIssueTool extends BaseTool {
 
         ResolvedPage resolved;
         try {
-            resolved = WikiSupport.resolveUniqueWikiPage(wikiService, slug, kbIds, routes);
+            resolved = WikiRouteResolver.resolveUniqueWikiPage(wikiService, slug, kbIds, routes);
         } catch (RuntimeException e) {
             return failure(e.getMessage());
         }

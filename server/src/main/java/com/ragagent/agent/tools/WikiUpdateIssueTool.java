@@ -4,7 +4,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
 
 /**
  * wiki_update_issue 工具（对照 Go {@code wiki_update_issue.go}，逐字移植）。
@@ -57,7 +56,7 @@ public class WikiUpdateIssueTool extends BaseTool {
             return failure("No knowledge bases available");
         }
         try {
-            WikiSupport.resolveWikiIssue(wikiService, issueId, kbIds);
+            WikiRouteResolver.resolveWikiIssue(wikiService, issueId, kbIds);
         } catch (RuntimeException e) {
             return failure(e.getMessage());
         }

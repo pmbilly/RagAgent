@@ -10,14 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeTagsFetcher;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.PendingWikiPage;
-import com.ragagent.agent.tools.WikiSupport.RenderedWikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
-import com.ragagent.agent.tools.WikiSupport.WikiScope;
-import com.ragagent.agent.tools.WikiSupport.IndexGroupView;
-import com.ragagent.agent.tools.WikiSupport.IndexOverviewView;
 
 /**
  * wiki_read_page 工具（对照 Go {@code wiki_tools.go} 的 wikiReadPageTool，逐字移植）。
@@ -71,8 +63,8 @@ public class WikiReadPageTool extends BaseTool {
         JsonNode args = request.args();
 
         List<String> slugsToFetch = new ArrayList<>();
-        slugsToFetch.addAll(WikiSupport.parseStringOrArray(args.get("slugs")));
-        slugsToFetch.addAll(WikiSupport.parseStringOrArray(args.get("slug")));
+        slugsToFetch.addAll(WikiTexts.parseStringOrArray(args.get("slugs")));
+        slugsToFetch.addAll(WikiTexts.parseStringOrArray(args.get("slug")));
         slugsToFetch = SearchAuth.dedupNonEmptyStrings(slugsToFetch);
 
         if (slugsToFetch.isEmpty()) {
@@ -93,7 +85,7 @@ public class WikiReadPageTool extends BaseTool {
             List<WikiScope> cachedScopes = routes.scopesForSlug(slug, scopes);
             // provenance 只是排序提示，永远检查所有合法 scope
             List<WikiScope> effectiveScopes = new ArrayList<>(cachedScopes);
-            effectiveScopes.addAll(WikiSupport.scopesOutsideKbs(scopes, cachedScopes));
+            effectiveScopes.addAll(WikiScope.scopesOutsideKbs(scopes, cachedScopes));
 
             for (WikiScope sc : effectiveScopes) {
                 String kbId = sc.knowledgeBaseId();
@@ -122,7 +114,7 @@ public class WikiReadPageTool extends BaseTool {
 
                 boolean passesScope;
                 try {
-                    passesScope = WikiSupport.pagePassesWikiScope(page, sc, tagsFetcher);
+                    passesScope = WikiScope.pagePassesWikiScope(page, sc, tagsFetcher);
                 } catch (RuntimeException e) {
                     errs.add("Failed to validate wiki scope for '" + slug + "' in KB "
                             + actualKBID + ": " + e.getMessage());
@@ -163,7 +155,7 @@ public class WikiReadPageTool extends BaseTool {
         }
 
         RenderedWikiPages rendered =
-                WikiSupport.renderWikiPagesWithinBudget(pending, request.outputBudget());
+                WikiPageRendering.renderWikiPagesWithinBudget(pending, request.outputBudget());
         StringBuilder finalOutput = new StringBuilder(rendered.output());
         if (!rendered.omittedSlugs().isEmpty()) {
             finalOutput.append("\n\n<omitted_pages reason=\"output budget exceeded\">\n")
@@ -203,7 +195,7 @@ public class WikiReadPageTool extends BaseTool {
             if (s == null || s.isEmpty()) {
                 continue;
             }
-            if (inlined >= WikiSupport.WIKI_MAX_LINK_SUMMARIES) {
+            if (inlined >= WikiPageRendering.WIKI_MAX_LINK_SUMMARIES) {
                 descs.add("[[" + s + "]]");
                 continue;
             }
@@ -223,8 +215,8 @@ public class WikiReadPageTool extends BaseTool {
                 continue;
             }
             String summary = linkPage.summary();
-            if (summary.codePointCount(0, summary.length()) > WikiSupport.WIKI_LINK_SUMMARY_MAX_RUNES) {
-                summary = WikiSupport.firstRunes(summary, WikiSupport.WIKI_LINK_SUMMARY_MAX_RUNES) + "...";
+            if (summary.codePointCount(0, summary.length()) > WikiPageRendering.WIKI_LINK_SUMMARY_MAX_RUNES) {
+                summary = WikiTexts.firstRunes(summary, WikiPageRendering.WIKI_LINK_SUMMARY_MAX_RUNES) + "...";
             }
             descs.add("[[" + s + "]] (" + summary + ")");
             inlined++;
@@ -261,10 +253,10 @@ public class WikiReadPageTool extends BaseTool {
             }
         }
 
-        if (WikiSupport.WIKI_PAGE_TYPE_INDEX.equals(page.pageType())) {
-            IndexOverviewView overview = wikiService.getIndexView(kbId, WikiSupport.WIKI_INDEX_AGENT_TOP_K);
+        if (WikiIndexOverview.WIKI_PAGE_TYPE_INDEX.equals(page.pageType())) {
+            IndexOverviewView overview = wikiService.getIndexView(kbId, WikiIndexOverview.WIKI_INDEX_AGENT_TOP_K);
             if (overview != null) {
-                body = WikiSupport.renderIndexOverviewForAgent(overview);
+                body = WikiIndexOverview.renderIndexOverviewForAgent(overview);
                 if (overview.groups() != null) {
                     for (IndexGroupView group : overview.groups()) {
                         if (group.items() == null) {

@@ -7,7 +7,14 @@ import java.util.List;
 
 import com.ragagent.TestSchema;
 import com.ragagent.agent.tools.ToolDefinitions;
-import com.ragagent.agent.tools.WikiSupport;
+import com.ragagent.agent.tools.IndexOverviewView;
+import com.ragagent.agent.tools.WikiIndexOverview;
+import com.ragagent.agent.tools.IssueView;
+import com.ragagent.agent.tools.PageView;
+import com.ragagent.agent.tools.WikiPages;
+import com.ragagent.agent.tools.WikiRouteResolver;
+import com.ragagent.agent.tools.WikiContentRewrite;
+import com.ragagent.agent.tools.WikiScope;
 import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.domain.WikiPageNotFoundException;
 import com.ragagent.wiki.service.WikiPageService;
@@ -18,7 +25,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * wiki 工具族接缝（2026-09-23 接线批·切片 2c）：{@link WikiSupport.WikiPages}
+ * wiki 工具族接缝（2026-09-23 接线批·切片 2c）：{@link WikiPages}
  * 桥到真实 {@link WikiPageService}（H2 真库）的映射与契约翻译。
  *
  * <p>工具自身的输出字节由 {@code GoRecording45A/B} 对照 Go 实录钉住；本测试覆盖
@@ -39,7 +46,7 @@ class AgentToolBackendsWikiTest {
     @Autowired
     private JdbcTemplate jdbc;
 
-    private WikiSupport.WikiPages pages;
+    private WikiPages pages;
 
     @BeforeEach
     void seed() {
@@ -48,8 +55,8 @@ class AgentToolBackendsWikiTest {
         pages = backends.wikiPages();
     }
 
-    private WikiSupport.PageView view(String slug) {
-        WikiSupport.PageView v = WikiSupport.PageView.of(KB, slug);
+    private PageView view(String slug) {
+        PageView v = PageView.of(KB, slug);
         v.setTenantId(TENANT);
         v.setTitle("甲公司");
         v.setPageType("entity");
@@ -73,11 +80,11 @@ class AgentToolBackendsWikiTest {
     /** 建页：接缝把 PageView 字段落到库，再读回来一字不差（含 jsonb 数组与 page_metadata）。 */
     @Test
     void createThenReadBackRoundTrips() {
-        WikiSupport.PageView created = pages.createPage(view("entity/acme-corp"),
-                WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+        PageView created = pages.createPage(view("entity/acme-corp"),
+                WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         assertThat(created.id()).isNotBlank();
 
-        WikiSupport.PageView read = pages.getPageBySlug(KB, "entity/acme-corp");
+        PageView read = pages.getPageBySlug(KB, "entity/acme-corp");
         assertThat(read).isNotNull();
         assertThat(read.title()).isEqualTo("甲公司");
         assertThat(read.pageType()).isEqualTo("entity");
@@ -96,12 +103,12 @@ class AgentToolBackendsWikiTest {
      */
     @Test
     void createAlwaysAssignsFreshId() {
-        WikiSupport.PageView original = pages.createPage(view("entity/acme-corp"),
-                WikiSupport.WIKI_EDIT_SOURCE_AGENT);
-        WikiSupport.PageView renamed = original.copy();
+        PageView original = pages.createPage(view("entity/acme-corp"),
+                WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
+        PageView renamed = original.copy();
         renamed.setSlug("entity/acme-corp-2");
 
-        WikiSupport.PageView created = pages.createPage(renamed, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+        PageView created = pages.createPage(renamed, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         assertThat(created.id()).isNotEqualTo(original.id());
         assertThat(pages.getPageBySlug(KB, "entity/acme-corp-2")).isNotNull();
         assertThat(pages.getPageBySlug(KB, "entity/acme-corp")).isNotNull();
@@ -110,7 +117,7 @@ class AgentToolBackendsWikiTest {
     /** 写归因：Go 的 WithWikiEditSource(ctx, agent) → last_edit_source='agent'。 */
     @Test
     void writePathsStampAgentEditSource() {
-        pages.createPage(view("entity/acme-corp"), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+        pages.createPage(view("entity/acme-corp"), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         assertThat(jdbc.queryForObject(
                 "SELECT last_edit_source FROM wiki_pages WHERE slug = ?", String.class,
                 "entity/acme-corp")).isEqualTo("agent");
@@ -130,13 +137,13 @@ class AgentToolBackendsWikiTest {
     /** updatePage：改后的 PageView 落库，读回一致（wiki_write_page / wiki_replace_text 路径）。 */
     @Test
     void updatePagePersistsEditedFields() {
-        pages.createPage(view("entity/acme-corp"), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
-        WikiSupport.PageView read = pages.getPageBySlug(KB, "entity/acme-corp");
+        pages.createPage(view("entity/acme-corp"), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
+        PageView read = pages.getPageBySlug(KB, "entity/acme-corp");
         read.setContent("改过的正文，没有链接了。");
         read.setTitle("甲公司（改名）");
-        pages.updatePage(read, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+        pages.updatePage(read, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
 
-        WikiSupport.PageView after = pages.getPageBySlug(KB, "entity/acme-corp");
+        PageView after = pages.getPageBySlug(KB, "entity/acme-corp");
         assertThat(after.title()).isEqualTo("甲公司（改名）");
         assertThat(after.content()).isEqualTo("改过的正文，没有链接了。");
         assertThat(after.outLinks()).isEmpty();
@@ -145,16 +152,16 @@ class AgentToolBackendsWikiTest {
     /** deletePage 后读不到（Go 软删；接缝契约同 getPageBySlug → null）。 */
     @Test
     void deletePageRemovesFromReadPath() {
-        pages.createPage(view("entity/acme-corp"), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
-        pages.deletePage(KB, "entity/acme-corp", WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+        pages.createPage(view("entity/acme-corp"), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
+        pages.deletePage(KB, "entity/acme-corp", WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         assertThat(pages.getPageBySlug(KB, "entity/acme-corp")).isNull();
     }
 
     /** searchPages 映射成页视图（wiki_search 的执行面）。 */
     @Test
     void searchPagesMapsToViews() {
-        pages.createPage(view("entity/acme-corp"), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
-        List<WikiSupport.PageView> hits = pages.searchPages(KB, "甲公司", 10);
+        pages.createPage(view("entity/acme-corp"), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
+        List<PageView> hits = pages.searchPages(KB, "甲公司", 10);
         assertThat(hits).isNotEmpty();
         assertThat(hits).allSatisfy(h -> assertThat(h.slug()).isEqualTo("entity/acme-corp"));
     }
@@ -173,9 +180,9 @@ class AgentToolBackendsWikiTest {
                 + "'2026-09-01 08:00:00.100000+00', '2026-09-02 08:00:00+00')",
                 TENANT, KB);
 
-        List<WikiSupport.IssueView> issues = pages.listIssues(KB, "entity/acme-corp", "pending");
+        List<IssueView> issues = pages.listIssues(KB, "entity/acme-corp", "pending");
         assertThat(issues).hasSize(1);
-        WikiSupport.IssueView issue = issues.get(0);
+        IssueView issue = issues.get(0);
         assertThat(issue.id()).isEqualTo("i1");
         assertThat(issue.createdAt()).isEqualTo("2026-09-01T08:00:00.1Z");
         assertThat(issue.updatedAt()).isEqualTo("2026-09-02T08:00:00Z");
@@ -198,12 +205,12 @@ class AgentToolBackendsWikiTest {
                         + "FROM wiki_page_issues WHERE id = ?", String.class, id))
                 .isEqualTo("mixed_entities/pending/wiki-researcher-agent");
 
-        assertThat(pages.listIssues(KB, "", "")).extracting(WikiSupport.IssueView::id)
+        assertThat(pages.listIssues(KB, "", "")).extracting(IssueView::id)
                 .containsExactly(id);
     }
 
     private String seedIssue() {
-        WikiSupport.IssueView issue = new WikiSupport.IssueView();
+        IssueView issue = new IssueView();
         issue.setTenantId(TENANT);
         issue.setKnowledgeBaseId(KB);
         issue.setSlug("entity/acme-corp");
@@ -227,19 +234,19 @@ class AgentToolBackendsWikiTest {
     /** overview 缺失/服务异常时接缝返回 null（Go 的 err != nil 静默跳过分支）。 */
     @Test
     void indexOverviewIsBestEffort() {
-        pages.createPage(view("entity/acme-corp"), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
-        WikiSupport.IndexOverviewView overview =
-                pages.getIndexView(KB, WikiSupport.WIKI_INDEX_AGENT_TOP_K);
+        pages.createPage(view("entity/acme-corp"), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
+        IndexOverviewView overview =
+                pages.getIndexView(KB, WikiIndexOverview.WIKI_INDEX_AGENT_TOP_K);
         // wiki_pages 里没有 index 行时 Go 侧 getIndex 会建默认页；两条路径都必须是可用视图
         assertThat(overview == null || overview.groups() != null).isTrue();
-        assertThat(pages.getIndexView("no-such-kb", WikiSupport.WIKI_INDEX_AGENT_TOP_K)).isNull();
+        assertThat(pages.getIndexView("no-such-kb", WikiIndexOverview.WIKI_INDEX_AGENT_TOP_K)).isNull();
     }
 
     /** wiki 十件全部可构造（此前恒走 "Unknown tool"），且注册名与工具自报名一致。 */
     @Test
     void wikiFamilyIsConstructible() {
-        WikiSupport.WikiRouteResolver routes = new WikiSupport.WikiRouteResolver();
-        List<WikiSupport.WikiScope> scopes = List.of(WikiSupport.WikiScope.kb(KB));
+        WikiRouteResolver routes = new WikiRouteResolver();
+        List<WikiScope> scopes = List.of(WikiScope.kb(KB));
         for (String name : List.of(ToolDefinitions.TOOL_WIKI_READ_PAGE,
                 ToolDefinitions.TOOL_WIKI_SEARCH, ToolDefinitions.TOOL_WIKI_READ_SOURCE_DOC,
                 ToolDefinitions.TOOL_WIKI_FLAG_ISSUE, ToolDefinitions.TOOL_WIKI_WRITE_PAGE,

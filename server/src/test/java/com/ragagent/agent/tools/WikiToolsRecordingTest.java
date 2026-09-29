@@ -14,12 +14,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeTagsFetcher;
 import com.ragagent.agent.tools.SearchAuth.TagView;
-import com.ragagent.agent.tools.WikiSupport.IndexGroupView;
-import com.ragagent.agent.tools.WikiSupport.IndexOverviewView;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
-import com.ragagent.agent.tools.WikiSupport.WikiScope;
 
 /**
  * 波 4.5b 回放：wiki_read_page / wiki_search（对照 Go 实录，
@@ -113,7 +107,7 @@ class WikiToolsRecordingTest {
         }
 
         @Override
-        public WikiSupport.RepairResult repairContentLinks(String kbId, String slug, String content) {
+        public RepairResult repairContentLinks(String kbId, String slug, String content) {
             throw new UnsupportedOperationException();
         }
 
@@ -128,12 +122,12 @@ class WikiToolsRecordingTest {
         }
 
         @Override
-        public List<WikiSupport.IssueView> listIssues(String kbId, String slug, String status) {
+        public List<IssueView> listIssues(String kbId, String slug, String status) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public WikiSupport.IssueView createIssue(WikiSupport.IssueView issue) {
+        public IssueView createIssue(IssueView issue) {
             throw new UnsupportedOperationException();
         }
 
@@ -296,8 +290,8 @@ class WikiToolsRecordingTest {
                 "Wiki 导言\n## 旧目录\n[[entity/a]]",
                 List.of(
                         new IndexGroupView("entity", 25, List.of(
-                                new WikiSupport.IndexEntryView("entity/a", "甲", "甲摘要"),
-                                new WikiSupport.IndexEntryView("entity/b", "", ""))),
+                                new IndexEntryView("entity/a", "甲", "甲摘要"),
+                                new IndexEntryView("entity/b", "", ""))),
                         new IndexGroupView("concept", 0, List.of())));
         wiki.indexViews.put("kb1", overview);
 

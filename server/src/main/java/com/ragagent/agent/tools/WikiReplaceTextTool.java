@@ -5,12 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeScopeReader;
-import com.ragagent.agent.tools.SearchAuth.ScopeAuthException;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.ResolvedPage;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
 
 /**
  * wiki_replace_text 工具（对照 Go {@code wiki_replace_text.go}，逐字移植）。
@@ -81,14 +76,14 @@ public class WikiReplaceTextTool extends BaseTool {
         }
         String slug;
         try {
-            slug = WikiSupport.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
+            slug = WikiSlugs.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
         } catch (IllegalArgumentException e) {
             return failure(e.getMessage());
         }
 
         PageView existingPage;
         try {
-            ResolvedPage resolved = WikiSupport.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
+            ResolvedPage resolved = WikiRouteResolver.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
             existingPage = resolved.page();
         } catch (RuntimeException e) {
             return failure(String.format("Failed to fetch page %s: %s", slug, e.getMessage()));
@@ -117,12 +112,12 @@ public class WikiReplaceTextTool extends BaseTool {
                 }
                 existingPage.setSourceRefs(resolvedRefs);
             } else {
-                existingPage.setSourceRefs(WikiSupport.resolveSourceRefs(sourceRefs, knowledgeService));
+                existingPage.setSourceRefs(WikiRouteResolver.resolveSourceRefs(sourceRefs, knowledgeService));
             }
         }
 
         try {
-            wikiPageService.updatePage(existingPage, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            wikiPageService.updatePage(existingPage, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         } catch (RuntimeException e) {
             return failure("Failed to update page: " + e.getMessage());
         }

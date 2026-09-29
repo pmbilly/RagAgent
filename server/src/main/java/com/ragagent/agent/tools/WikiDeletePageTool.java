@@ -6,12 +6,6 @@ import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.agent.tools.WikiSupport.AppliedChange;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.ResolvedPage;
-import com.ragagent.agent.tools.WikiSupport.WikiContentRewrite;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
 
 /**
  * wiki_delete_page 工具（对照 Go {@code wiki_delete_page.go}，逐字移植）。
@@ -56,7 +50,7 @@ public class WikiDeletePageTool extends BaseTool {
         }
         String slug;
         try {
-            slug = WikiSupport.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
+            slug = WikiSlugs.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
         } catch (IllegalArgumentException e) {
             return failure(e.getMessage());
         }
@@ -65,7 +59,7 @@ public class WikiDeletePageTool extends BaseTool {
         PageView existingPage;
         String kbId;
         try {
-            ResolvedPage resolved = WikiSupport.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
+            ResolvedPage resolved = WikiRouteResolver.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
             existingPage = resolved.page();
             kbId = resolved.kbId();
         } catch (RuntimeException e) {
@@ -82,37 +76,37 @@ public class WikiDeletePageTool extends BaseTool {
         WikiContentRewrite rewrite = content -> {
             String updated = content.replace("[[" + finalSlug + "]]", readableName);
             updated = pipeLink.matcher(updated).replaceAll("$1");
-            return new WikiSupport.RewriteResult(updated, !updated.equals(content));
+            return new RewriteResult(updated, !updated.equals(content));
         };
 
         List<String> updatedSlugs = new ArrayList<>();
         List<AppliedChange> changes;
         try {
-            changes = WikiSupport.applyIncomingWikiContentRewrite(
-                    wikiPageService, kbId, inLinks, WikiSupport.WIKI_EDIT_SOURCE_AGENT, rewrite, updatedSlugs);
-        } catch (WikiSupport.WikiRewriteException rewriteErr) {
+            changes = WikiContentRewrite.applyIncomingWikiContentRewrite(
+                    wikiPageService, kbId, inLinks, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT, rewrite, updatedSlugs);
+        } catch (WikiRewriteException rewriteErr) {
             String rollbackErr = null;
             try {
-                WikiSupport.rollbackWikiContentChanges(
-                        wikiPageService, rewriteErr.changes(), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                WikiContentRewrite.rollbackWikiContentChanges(
+                        wikiPageService, rewriteErr.changes(), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException rb) {
                 rollbackErr = rb.getMessage();
             }
             return failure("Delete aborted while cleaning incoming links: "
-                    + WikiSupport.joinWikiMutationErrors(rewriteErr.getMessage(), rollbackErr));
+                    + WikiContentRewrite.joinWikiMutationErrors(rewriteErr.getMessage(), rollbackErr));
         }
 
         try {
-            wikiPageService.deletePage(kbId, slug, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            wikiPageService.deletePage(kbId, slug, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         } catch (RuntimeException e) {
             String rollbackErr = null;
             try {
-                WikiSupport.rollbackWikiContentChanges(wikiPageService, changes, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                WikiContentRewrite.rollbackWikiContentChanges(wikiPageService, changes, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException rb) {
                 rollbackErr = rb.getMessage();
             }
             return failure("Delete aborted because the page could not be removed: "
-                    + WikiSupport.joinWikiMutationErrors(e.getMessage(), rollbackErr));
+                    + WikiContentRewrite.joinWikiMutationErrors(e.getMessage(), rollbackErr));
         }
         routes.forget(slug, kbId);
         int updatedCount = updatedSlugs.size();

@@ -3,7 +3,6 @@ package com.ragagent.agent.tools;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,12 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.agent.tools.WikiSupport.IssueView;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.RepairResult;
-import com.ragagent.agent.tools.WikiSupport.ResolvedPage;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
 
 /**
  * wiki 小件（wiki_support 行为 + write/replace/delete/rename/flag/read_issue/update_issue）
@@ -240,7 +233,7 @@ class WikiSmallRecordingTest {
             String out;
             String error = "";
             try {
-                out = WikiSupport.normalizeAndValidateWikiSlug(in);
+                out = WikiSlugs.normalizeAndValidateWikiSlug(in);
             } catch (IllegalArgumentException e) {
                 out = "";
                 error = e.getMessage();
@@ -255,50 +248,50 @@ class WikiSmallRecordingTest {
         // resolve_unique_hit
         FakeWiki wiki = resolveWikiSeed();
         WikiRouteResolver routes = new WikiRouteResolver();
-        ResolvedPage hit = WikiSupport.resolveUniqueWikiPage(wiki, "entity/a", List.of("kb1"), routes);
+        ResolvedPage hit = WikiRouteResolver.resolveUniqueWikiPage(wiki, "entity/a", List.of("kb1"), routes);
         JsonNode r = rec("wiki_support_resolve_unique_hit");
         assertThat(hit.kbId()).isEqualTo(r.get("kb").asText());
         assertThat(hit.page().title()).isEqualTo(r.get("title").asText());
 
         // ambiguous（录制在探针里以 Contains 断言记录语义：直接复演错误文案）
-        assertThatThrownByWiki(() -> WikiSupport.resolveUniqueWikiPage(
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveUniqueWikiPage(
                 resolveWikiSeed(), "entity/a", List.of("kb1", "kb2"), new WikiRouteResolver()),
                 "wiki page exists in multiple knowledge bases: slug entity/a belongs to kb1, kb2");
 
         JsonNode missing = rec("wiki_support_resolve_unique_missing");
-        assertThatThrownByWiki(() -> WikiSupport.resolveUniqueWikiPage(
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveUniqueWikiPage(
                 resolveWikiSeed(), "missing/x", List.of("kb1"), new WikiRouteResolver()), missing.get("error").asText());
 
         JsonNode mismatch = rec("wiki_support_resolve_unique_kb_mismatch");
-        assertThatThrownByWiki(() -> WikiSupport.resolveUniqueWikiPage(
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveUniqueWikiPage(
                 resolveWikiSeed(), "bad/kb", List.of("kb3"), new WikiRouteResolver()), mismatch.get("error").asText());
 
         FakeWiki errWiki = resolveWikiSeed();
         errWiki.getErr.put(FakeWiki.key("kb1", "missing/x"), new RuntimeException("db down"));
         JsonNode svcErr = rec("wiki_support_resolve_unique_service_err");
-        assertThatThrownByWiki(() -> WikiSupport.resolveUniqueWikiPage(
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveUniqueWikiPage(
                 errWiki, "missing/x", List.of("kb1"), new WikiRouteResolver()), svcErr.get("error").asText());
 
         // create_kb_provenance：remember("new/page","kb2") → kb2
         WikiRouteResolver r1 = new WikiRouteResolver();
         r1.remember("new/page", "kb2");
         JsonNode prov = rec("wiki_support_create_kb_provenance");
-        assertThat(WikiSupport.resolveWikiCreateKb("new/page", List.of("kb1", "kb2"), r1, null))
+        assertThat(WikiRouteResolver.resolveWikiCreateKb("new/page", List.of("kb1", "kb2"), r1, null))
                 .isEqualTo(prov.get("out").asText());
 
         WikiRouteResolver r2 = new WikiRouteResolver();
         r2.remember("new/page", "kb1");
         r2.remember("new/page", "kb2");
         JsonNode conflict = rec("wiki_support_create_kb_conflict");
-        assertThatThrownByWiki(() -> WikiSupport.resolveWikiCreateKb("new/page", List.of("kb1", "kb2"), r2, null),
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveWikiCreateKb("new/page", List.of("kb1", "kb2"), r2, null),
                 conflict.get("error").asText());
 
         JsonNode single = rec("wiki_support_create_kb_single_scope");
-        assertThat(WikiSupport.resolveWikiCreateKb("new/page", List.of("kb1"), new WikiRouteResolver(), null))
+        assertThat(WikiRouteResolver.resolveWikiCreateKb("new/page", List.of("kb1"), new WikiRouteResolver(), null))
                 .isEqualTo(single.get("out").asText());
 
         JsonNode multi = rec("wiki_support_create_kb_multi_scope");
-        assertThatThrownByWiki(() -> WikiSupport.resolveWikiCreateKb(
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveWikiCreateKb(
                 "new/page", List.of("kb1", "kb2"), new WikiRouteResolver(), null), multi.get("error").asText());
     }
 
@@ -330,21 +323,21 @@ class WikiSmallRecordingTest {
         wiki.issues.put("kb2", new ArrayList<>(List.of(newIssue("i1", "kb2", "entity/a", "out_of_date", "内容过期", "pending"))));
         wiki.issues.put("kb3", new ArrayList<>(List.of(newIssue("i2", "kb3", "entity/a", "other", "别的", "resolved"))));
 
-        IssueView hit = WikiSupport.resolveWikiIssue(wiki, "i2", List.of("kb1", "kb3"));
+        IssueView hit = WikiRouteResolver.resolveWikiIssue(wiki, "i2", List.of("kb1", "kb3"));
         JsonNode r = rec("wiki_support_resolve_issue_hit");
         assertThat(hit.id()).isEqualTo(r.get("issue_id").asText());
         assertThat(hit.slug()).isEqualTo(r.get("slug").asText());
 
         JsonNode ambiguous = rec("wiki_support_resolve_issue_ambiguous");
-        assertThatThrownByWiki(() -> WikiSupport.resolveWikiIssue(wiki, "i1", List.of("kb1", "kb2")),
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveWikiIssue(wiki, "i1", List.of("kb1", "kb2")),
                 ambiguous.get("error").asText());
 
         JsonNode miss = rec("wiki_support_resolve_issue_missing");
-        assertThatThrownByWiki(() -> WikiSupport.resolveWikiIssue(wiki, "i9", List.of("kb1")),
+        assertThatThrownByWiki(() -> WikiRouteResolver.resolveWikiIssue(wiki, "i9", List.of("kb1")),
                 miss.get("error").asText());
 
-        assertThat(WikiSupport.isSummaryNamespace("summary/abc")).isTrue();
-        assertThat(WikiSupport.isSummaryNamespace("entity/abc")).isFalse();
+        assertThat(WikiSlugs.isSummaryNamespace("summary/abc")).isTrue();
+        assertThat(WikiSlugs.isSummaryNamespace("entity/abc")).isFalse();
     }
 
     // ==================== 工具 execute 回放 ====================

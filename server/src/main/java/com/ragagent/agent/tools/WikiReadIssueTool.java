@@ -5,8 +5,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.agent.tools.WikiSupport.IssueView;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
 
 /**
  * wiki_read_issue 工具（对照 Go {@code wiki_read_issue.go}，逐字移植）。
@@ -58,7 +56,7 @@ public class WikiReadIssueTool extends BaseTool {
         if (!issueId.isEmpty()) {
             IssueView issue;
             try {
-                issue = WikiSupport.resolveWikiIssue(wikiService, issueId, kbIds);
+                issue = WikiRouteResolver.resolveWikiIssue(wikiService, issueId, kbIds);
             } catch (RuntimeException e) {
                 return failure(e.getMessage());
             }

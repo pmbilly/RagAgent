@@ -18,7 +18,8 @@ import com.ragagent.agent.AgentEngine;
 import com.ragagent.agent.AgentPrompts;
 import com.ragagent.agent.tools.McpExposure;
 import com.ragagent.agent.tools.ToolDefinitions;
-import com.ragagent.agent.tools.WikiSupport;
+import com.ragagent.agent.tools.WikiRouteResolver;
+import com.ragagent.agent.tools.WikiScope;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 import com.ragagent.agent.tools.ToolRegistry;
 import com.ragagent.agentm.service.AgentConfigJson;
@@ -988,17 +989,17 @@ public class SessionAgentQaService {
         // Go L886-895：dedup → 由 SearchTargets 解析出带 doc/tag 窄化的 scope → **再用 scope
         // 重建 KB 清单**。hasWikiKb 必须看窄化后的结果：畸形空 target 不会变成整库授权，
         // 因而该 KB 也不该挂 wiki 工具。
-        List<WikiSupport.WikiScope> wikiScopes = detectedWikiKbIds.isEmpty()
+        List<WikiScope> wikiScopes = detectedWikiKbIds.isEmpty()
                 ? List.of()
-                : WikiSupport.newWikiScopesFromSearchTargets(config.getSearchTargets(), detectedWikiKbIds);
+                : WikiScope.newWikiScopesFromSearchTargets(config.getSearchTargets(), detectedWikiKbIds);
         List<String> wikiKbIds = new ArrayList<>();
-        for (WikiSupport.WikiScope scope : wikiScopes) {
+        for (WikiScope scope : wikiScopes) {
             wikiKbIds.add(scope.knowledgeBaseId());
         }
         boolean hasWikiKb = !wikiKbIds.isEmpty();
         // Go L870：一个引擎一个 WikiRouteResolver，wiki 十件共享（search 见过的 slug
         // 会偏置 read_page 的查找序）
-        WikiSupport.WikiRouteResolver wikiRoutes = new WikiSupport.WikiRouteResolver();
+        WikiRouteResolver wikiRoutes = new WikiRouteResolver();
         boolean hasKnowledge = !config.getKnowledgeBases().isEmpty() || !config.getKnowledgeIds().isEmpty()
                 || (config.getSearchTargets() != null
                         && com.ragagent.agent.tools.SearchTarget.SearchTargets

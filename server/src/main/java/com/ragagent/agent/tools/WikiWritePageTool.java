@@ -6,14 +6,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeScopeReader;
-import com.ragagent.agent.tools.SearchAuth.ScopeAuthException;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
-import com.ragagent.agent.tools.WikiSupport.AppliedChange;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.RepairResult;
-import com.ragagent.agent.tools.WikiSupport.ResolvedPage;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
 
 /**
  * wiki_write_page 工具（对照 Go {@code wiki_write_page.go}，逐字移植）。
@@ -102,7 +95,7 @@ public class WikiWritePageTool extends BaseTool {
 
         String slug;
         try {
-            slug = WikiSupport.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
+            slug = WikiSlugs.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
         } catch (IllegalArgumentException e) {
             return failure(e.getMessage());
         }
@@ -122,7 +115,7 @@ public class WikiWritePageTool extends BaseTool {
                     return failure("Invalid source_refs: " + e.getMessage());
                 }
             } else {
-                resolvedRefs = WikiSupport.resolveSourceRefs(sourceRefs, knowledgeService);
+                resolvedRefs = WikiRouteResolver.resolveSourceRefs(sourceRefs, knowledgeService);
             }
         }
 
@@ -130,22 +123,22 @@ public class WikiWritePageTool extends BaseTool {
         PageView existingPage = null;
         String kbId = null;
         try {
-            ResolvedPage resolved = WikiSupport.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
+            ResolvedPage resolved = WikiRouteResolver.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
             existingPage = resolved.page();
             kbId = resolved.kbId();
         } catch (IllegalArgumentException e) {
-            if (!e.getMessage().startsWith(WikiSupport.ERR_PAGE_NOT_FOUND_IN_SCOPE)) {
+            if (!e.getMessage().startsWith(WikiRouteResolver.ERR_PAGE_NOT_FOUND_IN_SCOPE)) {
                 return failure("Failed to resolve wiki target: " + e.getMessage());
             }
             // 新页：source_refs 提供服务端 KB 提示
             List<String> sourceKbHints;
             try {
-                sourceKbHints = WikiSupport.wikiKnowledgeBasesForSourceRefs(resolvedRefs, knowledgeService, kbIds);
+                sourceKbHints = WikiRouteResolver.wikiKnowledgeBasesForSourceRefs(resolvedRefs, knowledgeService, kbIds);
             } catch (RuntimeException e2) {
                 return failure("Failed to resolve source_refs routing: " + e2.getMessage());
             }
             try {
-                kbId = WikiSupport.resolveWikiCreateKb(slug, kbIds, routes, sourceKbHints);
+                kbId = WikiRouteResolver.resolveWikiCreateKb(slug, kbIds, routes, sourceKbHints);
             } catch (RuntimeException e2) {
                 return failure("Failed to resolve wiki target: " + e2.getMessage());
             }
@@ -154,8 +147,8 @@ public class WikiWritePageTool extends BaseTool {
         }
 
         // summary 页是系统拥有的：只允许更新已存在的，不允许手工创建
-        if (existingPage == null && (WikiSupport.isSummaryNamespace(slug)
-                || WikiSupport.WIKI_PAGE_TYPE_SUMMARY.equalsIgnoreCase(pageType))) {
+        if (existingPage == null && (WikiSlugs.isSummaryNamespace(slug)
+                || WikiSlugs.WIKI_PAGE_TYPE_SUMMARY.equalsIgnoreCase(pageType))) {
             return failure("summary pages are generated automatically from source documents and cannot be created manually. "
                     + "Use page_type 'synthesis'/'comparison'/'entity'/'concept' for authored pages, "
                     + "or target an existing summary page to update it.");
@@ -180,7 +173,7 @@ public class WikiWritePageTool extends BaseTool {
                 existingPage.setSourceRefs(resolvedRefs);
             }
             try {
-                wikiPageService.updatePage(existingPage, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                wikiPageService.updatePage(existingPage, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException e) {
                 return failure("Failed to update page: " + e.getMessage());
             }
@@ -196,7 +189,7 @@ public class WikiWritePageTool extends BaseTool {
                 newPage.setAliases(WikiFlagIssueTool.stringList(args.get("aliases")));
             }
             try {
-                wikiPageService.createPage(newPage, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                wikiPageService.createPage(newPage, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException e) {
                 return failure("Failed to create page: " + e.getMessage());
             }

@@ -5,12 +5,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.agent.tools.WikiSupport.AppliedChange;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.ResolvedPage;
-import com.ragagent.agent.tools.WikiSupport.WikiContentRewrite;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
 
 /**
  * wiki_rename_page 工具（对照 Go {@code wiki_rename_page.go}，逐字移植）。
@@ -60,8 +54,8 @@ public class WikiRenamePageTool extends BaseTool {
         String slug;
         String newSlug;
         try {
-            slug = WikiSupport.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
-            newSlug = WikiSupport.normalizeAndValidateWikiSlug(args.path("new_slug").asText(""));
+            slug = WikiSlugs.normalizeAndValidateWikiSlug(args.path("slug").asText(""));
+            newSlug = WikiSlugs.normalizeAndValidateWikiSlug(args.path("new_slug").asText(""));
         } catch (IllegalArgumentException e) {
             return failure(e.getMessage());
         }
@@ -72,7 +66,7 @@ public class WikiRenamePageTool extends BaseTool {
         PageView existingPage;
         String kbId;
         try {
-            ResolvedPage resolved = WikiSupport.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
+            ResolvedPage resolved = WikiRouteResolver.resolveUniqueWikiPage(wikiPageService, slug, kbIds, routes);
             existingPage = resolved.page();
             kbId = resolved.kbId();
         } catch (RuntimeException e) {
@@ -86,7 +80,7 @@ public class WikiRenamePageTool extends BaseTool {
         newPage.setKnowledgeBaseId(kbId);
         newPage.setSlug(newSlug);
         try {
-            wikiPageService.createPage(newPage, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            wikiPageService.createPage(newPage, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         } catch (RuntimeException e) {
             return failure("Failed to create renamed page: " + e.getMessage());
         }
@@ -96,51 +90,51 @@ public class WikiRenamePageTool extends BaseTool {
         WikiContentRewrite rewrite = content -> {
             String updated = content.replace("[[" + finalSlug + "]]", "[[" + finalNewSlug + "]]");
             updated = updated.replace("[[" + finalSlug + "|", "[[" + finalNewSlug + "|");
-            return new WikiSupport.RewriteResult(updated, !updated.equals(content));
+            return new RewriteResult(updated, !updated.equals(content));
         };
 
         List<String> updatedSlugs = new ArrayList<>();
         List<AppliedChange> changes;
         try {
-            changes = WikiSupport.applyIncomingWikiContentRewrite(
-                    wikiPageService, kbId, inLinks, WikiSupport.WIKI_EDIT_SOURCE_AGENT, rewrite, updatedSlugs);
-        } catch (WikiSupport.WikiRewriteException rewriteErr) {
+            changes = WikiContentRewrite.applyIncomingWikiContentRewrite(
+                    wikiPageService, kbId, inLinks, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT, rewrite, updatedSlugs);
+        } catch (WikiRewriteException rewriteErr) {
             String rollbackErr = null;
             try {
-                WikiSupport.rollbackWikiContentChanges(
-                        wikiPageService, rewriteErr.changes(), WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                WikiContentRewrite.rollbackWikiContentChanges(
+                        wikiPageService, rewriteErr.changes(), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException rb) {
                 rollbackErr = rb.getMessage();
             }
             String cleanupErr = null;
             try {
-                wikiPageService.deletePage(kbId, newSlug, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                wikiPageService.deletePage(kbId, newSlug, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException ce) {
                 cleanupErr = ce.getMessage();
             }
             return failure("Rename aborted while updating incoming links: "
-                    + WikiSupport.joinWikiMutationErrors(rewriteErr.getMessage(), rollbackErr, cleanupErr));
+                    + WikiContentRewrite.joinWikiMutationErrors(rewriteErr.getMessage(), rollbackErr, cleanupErr));
         }
         int updatedCount = updatedSlugs.size();
 
         try {
-            wikiPageService.deletePage(kbId, slug, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+            wikiPageService.deletePage(kbId, slug, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         } catch (RuntimeException e) {
             String rollbackErr = null;
             try {
-                WikiSupport.rollbackWikiContentChanges(
-                        wikiPageService, changes, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                WikiContentRewrite.rollbackWikiContentChanges(
+                        wikiPageService, changes, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException rb) {
                 rollbackErr = rb.getMessage();
             }
             String cleanupErr = null;
             try {
-                wikiPageService.deletePage(kbId, newSlug, WikiSupport.WIKI_EDIT_SOURCE_AGENT);
+                wikiPageService.deletePage(kbId, newSlug, WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
             } catch (RuntimeException ce) {
                 cleanupErr = ce.getMessage();
             }
             return failure("Rename aborted because the old page could not be deleted: "
-                    + WikiSupport.joinWikiMutationErrors(e.getMessage(), rollbackErr, cleanupErr));
+                    + WikiContentRewrite.joinWikiMutationErrors(e.getMessage(), rollbackErr, cleanupErr));
         }
         routes.forget(slug, kbId);
         routes.remember(newSlug, kbId);

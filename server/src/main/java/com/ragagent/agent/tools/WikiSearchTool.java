@@ -10,10 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.SearchAuth.KnowledgeTagsFetcher;
-import com.ragagent.agent.tools.WikiSupport.PageView;
-import com.ragagent.agent.tools.WikiSupport.WikiPages;
-import com.ragagent.agent.tools.WikiSupport.WikiRouteResolver;
-import com.ragagent.agent.tools.WikiSupport.WikiScope;
 
 /**
  * wiki_search 工具（对照 Go {@code wiki_tools.go} 的 wikiSearchTool，逐字移植）。
@@ -79,8 +75,8 @@ public class WikiSearchTool extends BaseTool {
         JsonNode args = request.args();
 
         List<String> queriesToRun = new ArrayList<>();
-        queriesToRun.addAll(WikiSupport.parseStringOrArray(args.get("queries")));
-        queriesToRun.addAll(WikiSupport.parseStringOrArray(args.get("query")));
+        queriesToRun.addAll(WikiTexts.parseStringOrArray(args.get("queries")));
+        queriesToRun.addAll(WikiTexts.parseStringOrArray(args.get("query")));
 
         if (queriesToRun.isEmpty()) {
             return failure("Missing 'queries' parameter");
@@ -138,7 +134,7 @@ public class WikiSearchTool extends BaseTool {
                     }
                     boolean passesScope;
                     try {
-                        passesScope = WikiSupport.pagePassesWikiScope(p, sc, tagsFetcher);
+                        passesScope = WikiScope.pagePassesWikiScope(p, sc, tagsFetcher);
                     } catch (RuntimeException e) {
                         searchErrors.add("Failed to validate Wiki search result \"" + p.slug()
                                 + "\" in KB " + kbId + ": " + e.getMessage());
@@ -176,7 +172,7 @@ public class WikiSearchTool extends BaseTool {
                 boolean seen = seenSlugs.contains(key);
                 seenSlugs.add(key);
 
-                String snippet = WikiSupport.extractSnippet(p.content(), query);
+                String snippet = WikiTexts.extractSnippet(p.content(), query);
                 String snippetTag = snippet.isEmpty() ? ""
                         : "\n<match_snippet>" + snippet + "</match_snippet>";
 
