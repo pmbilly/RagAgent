@@ -223,7 +223,7 @@
 
 **agent 域余下工作（Task 12 一项,原子任务,接手面已详注）**：
 1. agentm 契约换锚（27 端点/17 fixture/前端三 api 模块;解包点、config jsonb 三方同批、fixture 清单、KnowledgeBaseEditorModal legacy 缺陷——详注见上文第 2 条,2026-09-30 已补）。
-2. agentm 契约换锚要点（2026-09-30 侦察补注）：①拦截器 `frontend/src/utils/request.ts` 不撕信封,解包在各 api 模块(initialization 的 `response.data` 即信封内 data 字段,agent 的 `del<{success:boolean}>`)——后端去信封后这些解包点逐一改为裸载荷;②`AgentResponses.agentConfigMap` 的 config jsonb 键是 snake 且由前端写入(设置表单)——换锚=前端表单键+后端读取+线格式三方同批(产品未上线无数据包袱,§2 第 2 条);③`AgentContractTest`(9 fixture)+`W5bInitializationContractTest`(8 fixture)重录;④§7 第 5 条 KnowledgeBaseEditorModal legacy 装配块静默默认值缺陷一并修。**原子性强:必须一次会话内完成前后端+fixture,半迁移=向导页断裂**;动工前读 AgentResponses/InitResponses 全文与 W5bStubServers。
+2. agentm 契约换锚 ✅ 已完成（9cb74b4,2026-09-30）。**新登记边界**:agent config jsonb 的内层键(agent_mode/system_prompt/kb_selection_mode/chat_parser_engine_rules 族)保持 snake——它是跨 agentm/engine(AgentConfig)/embed(EmbedChannelService)/session(QaAgentConfig) 五包共享的自洽 schema,前端设置表单同款写入;翻转=五包+表单三方同批,漏一个读者=静默默认值,独立切片任务另做(仿 chat SSE 先例)。占位符名(agent_system_prompt 等)=模板令牌({{...}}),同理保持。
 3. **Task 13 已完成（f59e35b）**：Go 锚点 479→0、批次代号清零;终审顺延项(服务段横幅/控制器批次叙述)一并落地。经验:清扫注释时 javadoc 里的 `\u00XX` 会被 javac 当 unicode 转义处理(非法十六进制=编译错)——写"U+00XX"形态。
 4. **范围外发现（终审抓出,动 session 域前必读）**：Gate 发出的 `agent.approval.*Data` 经 `ApprovalBridge.toEventBus` 上的真实 EventBus,而 `AgentStreamBridge` 四个 handler instanceof 的是 `com.ragagent.event.*Data`——类型永不匹配,审批/OAuth 事件的 SSE 流转链路疑似断裂（重构前即如此,本域改造未改变它）。session 域切片动 `AgentStreamBridge` 时必须先核实前端实际经哪条链路收到审批事件。
 
@@ -324,7 +324,7 @@ knowledge/
 （先决策"删 or 留"再动工）→ ⑤ 其余域。
 **排序依据**：风险随"跨包引用数 × 契约可见面"上升，收益随"神类行数 × Go 债务"上升。
 
-**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` 🔶 仅余 Task 12 agentm 契约换锚（A/B/E 波 + domain 落库换锚 + approval 换锚完成,2026-09-30,见 §11.1）｜`wiki` ⬜ ｜`session` ⬜ ｜
+**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` ✅ 完成（含 Task 12 契约换锚 9cb74b4,2026-09-30;config jsonb 内层键为登记边界,见 §11 边界清单）｜`wiki` ⬜ ｜`session` ⬜ ｜
 `datasource` ⬜（先定删/留）｜`im` ⬜（先定删/留）｜`memory` ⬜ ｜`llm` ⬜ ｜`retrieval` ⬜ ｜
 `mcp` ⬜ ｜`auth` ⬜ ｜`agentm` ⬜ ｜其余小域 ⬜。
 每完成一个域：把该行改为 ✅、在 §11 追加执行记录、按 §14.2 第 7 步回填数据。
