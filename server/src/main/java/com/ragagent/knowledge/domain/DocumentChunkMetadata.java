@@ -18,7 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *       （{@code NON_DEFAULT}，原始 int 的 0 即默认值），非 0 恒输出。</li>
  * </ul>
  * 不出响应）；Java 侧按需在 service 内联实现，本类刻意不提供同名访问器，
- * 避免触发「isXxx 派生方法必须 @JsonIgnore」的复发坑（约定 §7.5）。</p>
+ * 避免触发「isXxx 派生方法必须 @JsonIgnore」的复发坑（本仓约定）。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DocumentChunkMetadata {

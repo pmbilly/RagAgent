@@ -84,8 +84,6 @@ public class KnowledgeBaseService {
     }
 
     // ── 创建 ─────────────────────────────────────────────────────────────
-
-    /** */
     public KnowledgeBase createKnowledgeBase(KnowledgeBase kb) {
         if (kb.getId() == null || kb.getId().isEmpty()) {
             kb.setId(UUID.randomUUID().toString());
@@ -163,8 +161,6 @@ public class KnowledgeBaseService {
             throw new BizException(AppError.internal("failed to verify vector store binding"));
         }
     }
-
-    /** */
     static void ensureDefaults(KnowledgeBase kb) {
         if (kb.getType().isEmpty()) {
             kb.setType("document");

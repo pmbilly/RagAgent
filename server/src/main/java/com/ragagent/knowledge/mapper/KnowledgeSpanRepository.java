@@ -35,7 +35,7 @@ import org.springframework.stereotype.Repository;
  * <p><b>方言</b>：PG 用 {@code ON CONFLICT ... DO UPDATE SET <动态列>}；H2（契约测试）
  * 退化为「先查后写」——H2 的 MERGE 是全列覆盖，无法表达「不写 NULL 列」的语义
  * （同 {@code VectorStoreService} 的 H2 分支取舍）。jsonb 列在 PG 用
- * {@code setObject(Types.OTHER)}、H2 用 {@code setString}（§9 阶段 2 的教训）。</p>
+ * {@code setObject(Types.OTHER)}、H2 用 {@code setString}（本仓约定 阶段 2 的教训）。</p>
  */
 @Repository
 public class KnowledgeSpanRepository {
@@ -65,8 +65,6 @@ public class KnowledgeSpanRepository {
             return false;
         }
     }
-
-    /** */
     public void upsert(KnowledgeProcessingSpan row) {
         if (row == null || row.getKnowledgeId().isEmpty() || row.getSpanId().isEmpty()) {
             throw new IllegalArgumentException(
@@ -245,8 +243,6 @@ public class KnowledgeSpanRepository {
                 Integer.class, knowledgeId);
         return (max == null ? 0 : max) + 1;
     }
-
-    /** */
     public int latestAttempt(String knowledgeId) {
         Integer max = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(attempt), 0) FROM knowledge_processing_spans"

@@ -5,9 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 波 2 第三批「搜索与移动/复制」的响应体。
+ * 搜索与移动/复制批「搜索与移动/复制」的响应体。
  * <p>这些类型只作 HTTP 响应体、不落 jsonb；但仍是响应契约，
- * 已加入 JsonContractRoundTripTest（§7.5 第 3 条）。进度对象里的
+ * 已加入 JsonContractRoundTripTest（本仓约定 第 3 条）。进度对象里的
  */
 public final class KnowledgeTaskDtos {
 

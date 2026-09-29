@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 知识文件夹树 + 文件夹移动 / 重命名」与「── 文件夹移动 / 重命名（波 2）」
+ * 知识文件夹树 + 文件夹移动 / 重命名」与「── 文件夹移动 / 重命名」
  * 两段拆分独立）。
  * <p>门面 helper（requireKb/findKb/tenantId/getKnowledgeBatch）经 {@code @Lazy}
  * 门面调用，不复制；{@link #rejectMovingKnowledge} 同包开放给批量面
@@ -211,7 +211,7 @@ public class KnowledgeFolderService {
         return s;
     }
 
-    // ── 文件夹移动 / 重命名（波 2） ──────────────────────────────────────
+    // ── 文件夹移动 / 重命名 ──────────────────────────────────────
 
     /**
      * 调用前 handler 已做
@@ -314,7 +314,7 @@ public class KnowledgeFolderService {
     /**
      * 逐 id 校验存在性、
      * moving 状态、KB 绑定与 <b>requireKBWrite 授权</b>；缺行 → 404 "knowledge not
-     * found"（小写，golden 钉住）；行落在授权 KB 之外 → 403 "无权修改该知识库"
+     * found"（小写，契约样例锁定）；行落在授权 KB 之外 → 403 "无权修改该知识库"
      * @param grantedKbId 当前请求已授权的那个 KB（kb_id 路径 = 显式 kb_id；无 kb_id 路径 =
      *                    首条 knowledge 的 KB；单行 loadKnowledgeWrite 的调用方传 null）
      */

@@ -189,8 +189,6 @@ public class FaqGuard {
     }
 
     // ── 批量写计划（命令面与导入面共享） ──
-
-    /** */
     /** 按条目 ID 装载本 KB 的 FAQ chunk 行；ID 非法 400、他库/他租户 403、缺失 404。 */
     public Map<Long, Chunk> loadFAQWriteChunks(KnowledgeBase kb, List<Long> ids) {
         Set<Long> wanted = new LinkedHashSet<>();
@@ -222,8 +220,6 @@ public class FaqGuard {
         }
         return result;
     }
-
-    /** */
     public static final class FaqFieldPlan {
         final Map<Long, Chunk> chunks;
         final Map<String, Chunk> chunksById = new LinkedHashMap<>();

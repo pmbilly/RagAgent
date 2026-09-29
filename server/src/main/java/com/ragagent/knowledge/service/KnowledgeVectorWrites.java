@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * {@code retriever.CreateRetrieveEngineForKB} 路由——绑定外部 store 的 KB 写进自己的店。
  * Java 侧历史路径直连 pg JDBC（{@code VectorStoreService}），绑定店写落错店。</p>
  * <p><b>改道策略（风险最小切分）</b>：绑定 store（{@code hasVectorStore()}）的 KB 走引擎口
- * （本网关解析）；未绑定的 KB 保持既有 pg 直连路径不变——golden 锁定的错误形态
+ * （本网关解析）；未绑定的 KB 保持既有 pg 直连路径不变——契约样例锁定的错误形态
  * （kg-image 族、ChunkServiceTest 桩）全部在未绑定路径上，行为逐字节不变。
  * no-op（无引擎），向量行属残留数据，差异无观测面（备案）。</p>
  */

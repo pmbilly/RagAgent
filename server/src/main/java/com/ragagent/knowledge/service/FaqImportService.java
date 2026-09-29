@@ -161,7 +161,7 @@ public class FaqImportService {
 
     /**
      * 异步语义：
-     * 无 retry/backoff 中间态——任何失败直接落 failed 终态（波 2 第三批同款取舍）。
+     * 无 retry/backoff 中间态——任何失败直接落 failed 终态（搜索与移动/复制批同款取舍）。
      * dry_run 只做验证（无 embedding 依赖，确定性）；导入模式在
      */
     void processImport(ImportJob job) {
@@ -253,8 +253,6 @@ public class FaqImportService {
         taskStore.saveProgress(progress);
         return progress;
     }
-
-    /** */
     private List<Integer> validateAppendMode(long tenantId, String kbId,
                                              List<FaqEntryDtos.FaqEntryPayload> entries,
                                              FaqImportProgress progress) {
@@ -494,8 +492,6 @@ public class FaqImportService {
                 progress.partialFailedCount());
         return validIndicesAfterStdQ;
     }
-
-    /** */
     private List<Integer> validateReplaceMode(List<FaqEntryDtos.FaqEntryPayload> entries,
                                               FaqImportProgress progress) {
         Map<String, Integer> batchStandardQuestions = new LinkedHashMap<>();
@@ -624,8 +620,6 @@ public class FaqImportService {
         taskStore.saveProgress(progress);
         return validIndicesAfterStdQ;
     }
-
-    /** */
     private static String validateEntryPayloadBasic(FaqEntryDtos.FaqEntryPayload entry) {
         if (entry == null) {
             return "条目不能为空";
@@ -649,8 +643,6 @@ public class FaqImportService {
         }
         return null;
     }
-
-    /** */
     private static List<String> unionStrings(List<String> a, List<String> b) {
         Set<String> seen = new LinkedHashSet<>();
         List<String> result = new ArrayList<>();
@@ -668,8 +660,6 @@ public class FaqImportService {
         }
         return result;
     }
-
-    /** */
     private static FaqFailedEntry failedEntry(int idx, String reason, FaqEntryDtos.FaqEntryPayload entry,
                                               String failureType) {
         boolean answerAll = FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(entry.answerStrategy());
@@ -679,8 +669,6 @@ public class FaqImportService {
                 entry.similarQuestions(), entry.negativeQuestions(), entry.answers(),
                 answerAll, isDisabled, null, null);
     }
-
-    /** */
     private static FaqFailedEntry partialFailedEntry(int idx, FaqEntryDtos.FaqEntryPayload entry,
                                                      List<String> removedSimilar, List<String> removedNegative) {
         boolean answerAll = FaqChunkMetadata.ANSWER_STRATEGY_ALL.equals(entry.answerStrategy());
@@ -776,8 +764,6 @@ public class FaqImportService {
                 job.taskId(), job.dryRun(), progress.successCount(), progress.addedCount(),
                 progress.mergedCount(), progress.failedCount(), progress.partialFailedCount());
     }
-
-    /** */
     private void markImportFailed(ImportJob job, FaqImportProgress progress, String error) {
         progress = withStatus(progress, "failed", 0, progress.total());
         progress = withMessage(progress, "导入失败");
@@ -787,8 +773,6 @@ public class FaqImportService {
         taskStore.clearRunningInfoIfMatches(job.kbId(), job.taskId(), job.instanceId(), job.enqueuedAt());
         log.warn("FAQ import task {} failed: {}", job.taskId(), error);
     }
-
-    /** */
     private static final int FAQ_IMPORT_BATCH_SIZE = 50;
 
     /**
@@ -958,7 +942,7 @@ public class FaqImportService {
             }
         }
         try {
-            // 本地租户：既有落盘 + local:// 引用（golden 形态）
+            // 本地租户：既有落盘 + local:// 引用（契约样例 形态）
             java.nio.file.Files.createDirectories(dir);
             java.nio.file.Path target = dir.resolve(unique);
             java.nio.file.Files.write(target, csv);
@@ -978,8 +962,6 @@ public class FaqImportService {
         }
         return s;
     }
-
-    /** */
     private void saveImportResultToDatabase(ImportJob job, FaqImportProgress progress, int originalTotalEntries) {
         Knowledge knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getId, job.knowledgeId())
@@ -1010,8 +992,6 @@ public class FaqImportService {
                 job.knowledgeId(), job.taskId(), originalTotalEntries, progress.successCount(),
                 progress.failedCount());
     }
-
-    /** */
     private static String buildImportResultMessage(String prefix, FaqImportProgress p) {
         List<String> parts = new ArrayList<>();
         parts.add(prefix);
@@ -1162,8 +1142,6 @@ public class FaqImportService {
         }
         return progress;
     }
-
-    /** */
     public void updateLastImportResultDisplayStatus(String kbId, String displayStatus) {
         if (!"open".equals(displayStatus) && !"close".equals(displayStatus)) {
             throw new BizException(AppError.badRequest("invalid display status, must be 'open' or 'close'"));
@@ -1196,9 +1174,6 @@ public class FaqImportService {
         faqKnowledge.setLastFaqImportResult(FaqChunkMetadata.JSON.valueToTree(updated));
         knowledgeMapper.updateById(faqKnowledge);
     }
-
-
-    /** */
     private void validateFAQImportTags(KnowledgeBase kb, List<FaqEntryDtos.FaqEntryPayload> entries) {
         Map<Long, FaqEntryDtos.FaqEntryFieldsUpdate> byTag = new LinkedHashMap<>();
         for (FaqEntryDtos.FaqEntryPayload entry : entries) {

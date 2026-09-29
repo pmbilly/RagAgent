@@ -7,11 +7,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
-import com.ragagent.common.web.GoTimeSerializer;
 
 /**
  * FAQ 导入域传输对象：批量 upsert 请求、失败/合并/成功明细、导入进度与持久化结果。
@@ -120,8 +116,7 @@ public record FaqImportProgress(
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("dry_run") boolean dryRun,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("import_mode") String importMode,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        @JsonSerialize(using = GoTimeSerializer.class)
-        @JsonDeserialize(using = GoTimeDeserializer.class) @JsonProperty("imported_at") OffsetDateTime importedAt,
+        @JsonProperty("imported_at") OffsetDateTime importedAt,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("display_status") String displayStatus,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("processing_time") long processingTime) {
 }
@@ -140,8 +135,7 @@ public record FaqImportResult(
         @JsonProperty("merged_count") int mergedCount,
         @JsonProperty("added_count") int addedCount,
         @JsonProperty("import_mode") String importMode,
-        @JsonSerialize(using = GoTimeSerializer.class)
-        @JsonDeserialize(using = GoTimeDeserializer.class) @JsonProperty("imported_at") OffsetDateTime importedAt,
+        @JsonProperty("imported_at") OffsetDateTime importedAt,
         @JsonProperty("task_id") String taskId,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("failed_entries_url") String failedEntriesUrl,
         @JsonProperty("display_status") String displayStatus,

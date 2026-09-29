@@ -8,16 +8,12 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
-import com.ragagent.common.web.GoTimeSerializer;
 
 /**
  * chunk_revisions 表实体。
  * <p><b>JSON 是契约</b>：handler 直接序列化本实体（{@code ListChunkRevisions} 的
  * 恒输出（is_enabled 的 false 也输出）。</p>
- * <p>仓储行为契约（约定 §3）：</p>
+ * <p>仓储行为契约（本仓约定）：</p>
  * <ol>
  *   <li><b>钩子/自动时间戳</b>：无 BeforeCreate；{@code created_at} 由 service 显式赋值
  *   <li><b>唯一约束</b>：{@code (chunk_id, revision)} 唯一索引（迁移 000078 的
@@ -26,7 +22,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   <li><b>零值语义</b>：字符串列 NOT NULL DEFAULT ''，Java 侧由写入方显式赋值
  *       （editor_id 可为 ""）。</li>
  * </ol>
- * <p><b>字段名不取 {@code isEnabled}</b>（约定 §7.5：is 前缀字段会让 Jackson 多吐一个键），
+ * <p><b>字段名不取 {@code isEnabled}</b>（本仓约定：is 前缀字段会让 Jackson 多吐一个键），
  * 按既有 Session.pinned 模式命名为 {@code enabled} + 列名 {@code is_enabled}。</p>
  */
 @TableName("chunk_revisions")
@@ -69,13 +65,9 @@ public class ChunkRevision {
     @JsonProperty("edit_source")
     private String editSource;
 
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     @JsonProperty("edited_at")
     private OffsetDateTime editedAt;
 
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 

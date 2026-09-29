@@ -6,7 +6,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import org.springframework.stereotype.Component;
 
 /**
- * knowledge 文档操作面路由（波 2 第二批）的守卫入口——语义与 {@link ChunkAccessGuard}
+ * knowledge 文档操作面路由（第二批）的守卫入口——语义与 {@link ChunkAccessGuard}
  * <ul>
  *   <li><b>读路由</b>（/stages /spans /preview）：KBAccessReadFromKnowledgeIDParam ——
  *       knowledge 缺失 → 404 "Knowledge not found"（大写 K）；KB 缺失 → 404
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  *   <li><b>写路由</b>（regenerate-summary / manual / reparse / cancel-parse / image /
  *       download）：先 {@code OwnedKnowledgeKBOrAdmin}（Admin+ 或 KB 创建者本人；
  *       knowledge 在调用者空间不存在 → <b>放行</b>，交给后续守卫出 404），再走
- *       KBAccessWrite。判定顺序 golden 依赖，不能重排。</li>
+ *       KBAccessWrite。判定顺序 契约样例依赖，不能重排。</li>
  * </ul>
  * <p>已知收紧（与 ChunkAccessGuard 同源）：org-share / shared-agent 两条授予路径
  */
@@ -51,7 +51,7 @@ public class KnowledgeAccessGuard {
 
     /**
      * handler 内的兜底加载：按调用者租户取 knowledge，缺失 → 404 "Knowledge not found"
-     * （code 1003，golden 钉住）；附带 API-Key KB 白名单收口（getKnowledge 内置）。
+     * （code 1003，契约样例锁定）；附带 API-Key KB 白名单收口（getKnowledge 内置）。
      */
     public Knowledge requireKnowledgeInCallerSpace(KnowledgeService knowledgeService, String id) {
         return knowledgeService.getKnowledge(id);

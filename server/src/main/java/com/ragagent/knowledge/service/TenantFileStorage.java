@@ -26,8 +26,8 @@ import com.ragagent.storage.provider.FileService;
  * <ul>
  *   <li><b>本地</b>（无 scheme / {@code local://} / {@code resource://} 或租户 default
  *       provider 为空或 {@code local}）：<b>原样</b>走 {@link LocalStorageService}——
- *       {@code resource://} 是 golden 锁定的落盘契约，不能换成 provider 的 {@code local://…}
- *       （换了会让既有行读不回来、golden 全红）；</li>
+ *       {@code resource://} 是 契约样例锁定的落盘契约，不能换成 provider 的 {@code local://…}
+ *       （换了会让既有行读不回来、契约样例 全红）；</li>
  *   <li><b>云</b>（引用带 {@code cos://}/{@code s3://}/{@code oss://}… 或租户 default
  *       provider 是云）：走 A3 的 provider 服务——{@code SaveFile} 落
  *       {@code {prefix}{tenant}/{knowledge}/{uuid}{ext}}、{@code GetFile} 读回、
@@ -92,7 +92,7 @@ public class TenantFileStorage {
      * {@code fileSvc.SaveBytes(ctx, data, tenantID, fileName, temp)} + {@code GetFileURL}
      * （知识 FAQ 导入的失败明细 CSV 走这条，temp=true → 云上落临时桶）。
      * <p>本地租户返回 {@code handled=false}：调用方保留既有本地落盘与 {@code local://} 引用
-     * （那是 golden 锁定的形态）。</p>
+     * （那是 契约样例锁定的形态）。</p>
      */
     public Exported saveExportedBytesToUrl(long tenantId, String fileName, byte[] data, boolean temp) {
         StorageFileResolver.ProviderResolution resolved = resolveProvider(tenantId, null);
@@ -150,7 +150,7 @@ public class TenantFileStorage {
      * （minio 可 seek / aws-sdk 族流式）——复用文件代理面的同一适配器
      * （{@link com.ragagent.storage.fileserve.ProviderFileContentService}），不重复一套分流逻辑。
      * <p>错误折叠成与 {@link #readChecked} 同一个 {@code Failed to retrieve file} 信封
-     * （golden {@code kg-download-404/traversal} 锁的就是它）。</p>
+     * （契约样例 {@code kg-download-404/traversal} 锁的就是它）。</p>
      */
     public com.ragagent.storage.fileserve.FileTransport.OpenedFile open(long tenantId, String filePath) {
         String provider = StoragePaths.parseProviderScheme(filePath);

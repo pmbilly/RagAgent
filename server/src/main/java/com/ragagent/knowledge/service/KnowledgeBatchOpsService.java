@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 波 2 批量面：批量删除 / 批量重解析 / 重建索引 / 清空 KB 内容。
+ * 批量面：批量删除 / 批量重解析 / 重建索引 / 清空 KB 内容。
  * <p>复位/全列写复用 {@link KnowledgeFileService}/{@link KnowledgeParseService}（同包开放），
  * moving 状态防线复用 {@link KnowledgeFolderService#rejectMovingKnowledge}；
  * 门面 helper（requireKb/getKnowledge/tenantId）经 {@code @Lazy} 门面调用，不复制。</p>
@@ -49,7 +49,7 @@ public class KnowledgeBatchOpsService {
         this.facade = facade;
     }
 
-    // ── 波 2：批量删除 / 批量重解析 / 清空（任务队列 → 同步尽力而为，响应契约一致） ──
+    // ── 批量删除 / 批量重解析 / 清空（任务队列 → 同步尽力而为，响应契约一致） ──
 
     /**
      * Java 同步软删（chunk + knowledge + 本地文件），HTTP 契约（task_id/文案）一致。

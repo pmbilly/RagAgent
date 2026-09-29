@@ -29,7 +29,7 @@ public class FaqChunkMetadata {
     public static final String ANSWER_STRATEGY_RANDOM = "random";
 
     /**
-     * §7.5 第 6 条——历史行/新增字段不能让整行读不出来）。
+     * 本仓约定 第 6 条——历史行/新增字段不能让整行读不出来）。
      */
     public static final com.fasterxml.jackson.databind.ObjectMapper JSON =
             new com.fasterxml.jackson.databind.ObjectMapper()

@@ -36,7 +36,7 @@ import org.springframework.stereotype.Service;
  *       force 删除仍有引用 400 "标签仍有知识或FAQ条目引用，无法删除"、
  *       排除项校验族（仅 FAQ 型 400 / 跨库 403 / 缺失 404）。</li>
  *       {@link IllegalStateException} → 控制器本地 handler 输出 500 code=1007
- *       "Internal server error" 无 details 键（FAQ 同款，golden 实录）。</li>
+ *       "Internal server error" 无 details 键（FAQ 同款，契约样例 实录）。</li>
  * </ul>
  * <h2>已知差异（备案）</h2>
  * <ul>
@@ -51,8 +51,6 @@ public class KnowledgeTagService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeTagService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    /** */
     public static final String UNTAGGED_TAG_NAME = "未分类";
 
     /**  */
@@ -279,7 +277,7 @@ public class KnowledgeTagService {
     }
 
     /** 同租户即过（org-share 未翻译，放行不扩大）。
-     *  ⚠️ Long 比较用 equals——10002 超出 Long 缓存区间，`!=` 是引用比较（约定 §5 #6）。 */
+     *  ⚠️ Long 比较用 equals——10002 超出 Long 缓存区间，`!=` 是引用比较（本仓约定 #6）。 */
     private static void requireKbWrite(KnowledgeBase kb) {
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || kb.getTenantId() == null || !tenantId.equals(kb.getTenantId())) {

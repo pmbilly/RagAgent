@@ -86,7 +86,7 @@ public class FaqEntryCommandService {
     // ══════════════════ 创建 ═══════════════════════════════════════════
 
     /**
-     * 判定顺序 golden 依赖：
+     * 判定顺序 契约样例依赖：
      * sanitize → tag 解析 → create guard → 重复检查 → 容器 → index mode →
      * <b>GetEmbeddingModel（plain 500 分支）</b> → 建 chunk → 索引（失败回滚 chunk）。
      */
@@ -181,7 +181,7 @@ public class FaqEntryCommandService {
 
     /**
      * * <b>先落库后失败</b>：UpdateChunk 在 GetEmbeddingModel 之前——无模型 KB 上
-     * 返回 plain 500 但变更已持久化（golden faq-get-after-update 钉住，照抄别修）。
+     * 返回 plain 500 但变更已持久化（契约样例 faq-get-after-update 钉住，照抄别修）。
      */
     public FaqEntry updateEntry(String kbId, long entrySeqId, FaqEntryDtos.FaqEntryPayload payload) {
         KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
@@ -400,8 +400,6 @@ public class FaqEntryCommandService {
         }
         updateEntryFieldsBatch(kbId, new FaqEntryDtos.FaqEntryFieldsBatchUpdate(byId, null, null));
     }
-
-    /** */
     public void updateEntryFieldsBatch(String kbId, FaqEntryDtos.FaqEntryFieldsBatchUpdate req) {
         if (req == null || ((req.byId() == null || req.byId().isEmpty())
                 && (req.byTag() == null || req.byTag().isEmpty()))) {

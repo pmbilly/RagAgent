@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * <p><b>刻意不作响应体</b>：知识详情里的 tags 数组由 service 组装成 ObjectNode
  * sort_order/created_at/updated_at），见 KnowledgeService.attachTags。
  * 因此本实体不挂 @JsonProperty——若后续要直接序列化，必须补 @JsonPropertyOrder
- * 并加 JsonContractRoundTripTest 条目（约定 §7.5）。</p>
+ * 并加 JsonContractRoundTripTest 条目（本仓约定）。</p>
  * 仓储行为契约：
  * - 软删除 deleted_at → 查询侧显式 isNull（本项目不用 @TableLogic）
  * - seq_id 由 DB 序列供给（PG）；H2 测试播种时显式给值

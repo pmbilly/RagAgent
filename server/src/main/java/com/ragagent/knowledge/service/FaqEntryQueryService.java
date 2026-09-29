@@ -133,8 +133,6 @@ public class FaqEntryQueryService {
     }
 
     // ══════════════════ 详情 ═══════════════════════════════════════════
-
-    /** */
     public FaqEntry getEntry(String kbId, long entrySeqId) {
         if (entrySeqId <= 0) {
             throw new BizException(AppError.badRequest("条目ID不能为空"));
@@ -175,8 +173,6 @@ public class FaqEntryQueryService {
 
 
     // ══════════════════ 导出 ═══════════════════════════════════════════
-
-    /** */
     public byte[] exportCsv(String kbId) {
         KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
         long tid = tenantId();
@@ -292,7 +288,7 @@ public class FaqEntryQueryService {
     /**
      * 参数归一化与
      * searchResults 为空 → {@code []} 的出口逐行保留；<b>HybridSearch 的执行面
-     * 空结果出口（golden faq-search-embed-missing 钉住 {@code data:[]}）。
+     * 空结果出口（契约样例 faq-search-embed-missing 钉住 {@code data:[]}）。
      */
     public List<FaqEntry> searchEntries(String kbId, FaqSearchDtos.FaqSearchRequest req) {
         KnowledgeBase kb = faqGuard.validateFAQKnowledgeBase(kbId);
@@ -331,7 +327,7 @@ public class FaqEntryQueryService {
 
         boolean hasPriorityFilter = !firstPriorityTagUuids.isEmpty() || !secondPriorityTagUuids.isEmpty();
 
-        // HybridSearch 执行面（2026-09-23 走查批接线——原「随波 4 收口」备案，
+        // HybridSearch 执行面（2026-09-23 走查批接线——原「随收口」备案，
         // FirstPriority 先结果后 SecondPriority 按 chunkID 去重合并；
         List<SearchResult> searchResults = searchFaqChunks(kbId, req.queryText(),
                 vectorThreshold, matchCount, req.onlyRecommended(),

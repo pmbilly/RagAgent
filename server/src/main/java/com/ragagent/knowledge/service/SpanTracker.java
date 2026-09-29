@@ -38,11 +38,7 @@ import org.springframework.stereotype.Component;
 public class SpanTracker {
 
     private static final Logger log = LoggerFactory.getLogger(SpanTracker.class);
-
-    /** */
     static final int MAX_SPAN_NAME_LEN = 255;
-
-    /** */
     private static final Map<String, List<String>> STAGE_DEPENDENCIES = Map.of(
             KnowledgeProcessingSpan.STAGE_DOC_READER, List.of(),
             KnowledgeProcessingSpan.STAGE_CHUNKING,

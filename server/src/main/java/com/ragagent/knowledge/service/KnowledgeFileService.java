@@ -257,7 +257,7 @@ public class KnowledgeFileService {
     /**
      * chunk 归属校验（403）、子块 caption/OCR 同步、缺块补建、
      * {@code updateChunkVector(updateChunks + addChunks)}（模型 ID 空 → 1007
-     * "model ID cannot be empty"，golden 钉住）、
+     * "model ID cannot be empty"，契约样例锁定）、
      * knowledge.file_hash = md5(knowledgeID+fileHash+imageInfo)。
      */
     @Transactional
@@ -268,8 +268,9 @@ public class KnowledgeFileService {
         try {
             images = MAPPER.readTree(imageInfo);
         } catch (Exception e) {
-            throw new BizException(AppError.internal(com.ragagent.common.web.GoJsonBindError
-                    .message(imageInfo, e.getMessage())));
+            // 只保留解析器首行信息（Jackson 的完整 message 附带源码片段与位置，噪声大）
+            String detail = e.getMessage() == null ? "parse failed" : e.getMessage().split("\n", 2)[0];
+            throw new BizException(AppError.internal("invalid image info payload: " + detail));
         }
         if (!images.isArray() || images.size() != 1) {
             log.warn("Expected exactly one image info, got {}",
@@ -355,7 +356,7 @@ public class KnowledgeFileService {
         }
         // 向量同步（更新既有 + 新增图片子块两批）：
         // 内部过 NeedsEmbedding（策略判定在 ChunkVectorIndexer）→ GetEmbeddingModel；
-        // 模型 ID 空 → 1007 "model ID cannot be empty"（golden kg-image-update/again 钉住）
+        // 模型 ID 空 → 1007 "model ID cannot be empty"（契约样例 kg-image-update/again 钉住）
         List<Chunk> vectorChunks = new ArrayList<>(updateChunks.size() + addChunks.size());
         vectorChunks.addAll(updateChunks);
         vectorChunks.addAll(addChunks);

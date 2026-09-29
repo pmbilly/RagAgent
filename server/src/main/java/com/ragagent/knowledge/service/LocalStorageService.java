@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * 本地存储引擎。
- * 文件路径契约：对外暴露 resource://{key} 不透明串（golden 已锁定此前缀），
+ * 文件路径契约：对外暴露 resource://{key} 不透明串（契约样例 已锁定此前缀），
  * preview/download 等回读路径走同一 service。
  * 落盘布局：{LOCAL_STORAGE_BASE_DIR}/{tenantId}/{knowledgeId}/{fileName}
  */
@@ -137,7 +137,7 @@ public class LocalStorageService {
         }
     }
 
-    /** golden 为 32 位小写十六进制（md5） */
+    /** 契约样例 为 32 位小写十六进制（md5） */
     public static String md5Hex(byte[] content) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");

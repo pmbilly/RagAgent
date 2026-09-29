@@ -261,7 +261,7 @@ public class ChunkRepository {
      * {@link ChunkRevisionConflictException}（事务回滚，revision 不落库）；否则插入 revision 快照。
      * <p>WHERE 带 {@code deleted_at IS NULL}。
      * metadata 是 json 列——wrapper 的 {@code set()} 不带 typeHandler，
-     * 必须用 3 参形式显式挂（约定 §9）。</p>
+     * 必须用 3 参形式显式挂（本仓约定）。</p>
      */
     public void saveChunkRevision(Chunk chunk, ChunkRevision revision, int expectedRevision) {
         tx.inTransaction(() -> {

@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
  * KB 标签 CRUD 面：列表（分页/关键字）、创建、更新、删除（含排除条目）。
  * 读路由 = 拦截器 VIEWER 下限 + {@link ChunkAccessGuard#requireKbAccess}；
  * 写路由 = 所有权判定先行（非创建者且非 Admin+ → 403 纯字符串）再 KB 访问层，
- * 判定顺序为既有契约（golden 依赖）。
+ * 判定顺序为既有契约（契约样例依赖）。
  */
 @RestController
 public class KnowledgeTagController {
@@ -206,7 +206,7 @@ public class KnowledgeTagController {
 
     /**
      * service 的普通 error（fmt.Errorf 族）→ 500 code=1007 固定文案
-     * 「Internal server error」无 details 键（与 AppError 信封刻意不同，golden 锁定）。
+     * 「Internal server error」无 details 键（与 AppError 信封刻意不同，契约样例锁定）。
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<java.util.Map<String, Object>> handleTagPlainInternal(IllegalStateException ex) {

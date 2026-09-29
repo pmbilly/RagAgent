@@ -167,7 +167,7 @@ public class DocReaderClient {
         return new ParseResult(resp.getMarkdownContent(), resp.getImageRefsCount(), images);
     }
 
-    // ── 系统管理端（波 2 收官批）附加能力 ─────────────────────────────────
+    // ── 系统管理端（收官批）附加能力 ─────────────────────────────────
 
     /** 远端引擎信息。 */
     public record RemoteEngine(String name, String description, java.util.List<String> fileTypes,

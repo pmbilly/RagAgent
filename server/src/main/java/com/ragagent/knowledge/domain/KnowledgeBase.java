@@ -12,7 +12,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
  * knowledge_bases 表实体。
- * 仓储行为契约（约定 §3）：
+ * 仓储行为契约（本仓约定）：
  * - 软删除 → 显式 isNull("deleted_at")
  * - jsonb 配置列：chunking/image/vlm/asr/indexing/cos_config 为**值类型**（Scan NULL → 零值结构，
  *   indexing_strategy Scan NULL → DefaultIndexingStrategy()，见 KbIndexingStrategy 注释）；
@@ -179,7 +179,7 @@ public class KnowledgeBase {
     public KbIndexingStrategy getIndexingStrategy() {
         // NULL→Default 分支实际到不了）；IsZero→Default 只发生在 service 读路径的
         // EnsureDefaults 调用点（KB list/get），chunk 等路径不做此默认。
-        // 历史近似（null→Default）与既有 golden 全兼容，仅补 w5s 实录钉住的 carve-out：
+        // 历史近似（null→Default）与既有 契约样例 全兼容，仅补 w5s 实录钉住的 carve-out：
         // faq 且 faq_config 为 NULL → EnsureDefaults 提前 return，策略保持零值。
         if (indexingStrategy != null) {
             return indexingStrategy;

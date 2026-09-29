@@ -20,7 +20,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * - 软删除 → 显式 isNull("deleted_at")
  * - 钩子 BeforeCreate：id UUID + custom_metadata 补 '{}'（Java 由 service 显式赋值，语义等价）
  * - metadata jsonb：文件型文档为内部摄取状态（NULL 常见）；手工知识为 ManualKnowledgeMetadata
- * - tags 为 无列映射标签 关联（阶段 3 不回填 → 恒 null，golden 钉住 "tags":null）
+ * - tags 为 无列映射标签 关联（阶段 3 不回填 → 恒 null，契约样例锁定 "tags":null）
  */
 @TableName(value = "knowledges", autoResultMap = true)
 @JsonPropertyOrder({

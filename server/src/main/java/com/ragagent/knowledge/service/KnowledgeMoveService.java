@@ -96,7 +96,7 @@ public class KnowledgeMoveService {
         progressStore.saveMoveInitial(new com.ragagent.knowledge.dto.KnowledgeTaskDtos.KnowledgeMoveProgress(
                 taskId, sourceKbId, targetKbId, "pending", 0, knowledgeIds.size(), 0, 0,
                 "Task queued, waiting to start...", "", epochNow(), epochNow()));
-        // §5：跨虚拟线程显式传值，不共享 ThreadLocal
+        // 本仓约定：跨虚拟线程显式传值，不共享 ThreadLocal
         final String role = TenantContext.currentRole();
         final String userId = TenantContext.currentUserId();
         Thread.ofVirtual().start(() -> {

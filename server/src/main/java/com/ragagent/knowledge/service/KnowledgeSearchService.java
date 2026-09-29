@@ -26,11 +26,9 @@ public class KnowledgeSearchService {
 
     /** 搜索结果。 */
     public record SearchOutcome(List<Knowledge> knowledges, boolean hasMore, long total) {}
-
-    /** */
     public record KnowledgeSearchScope(long tenantId, String kbId) {}
 
-    // ── 波 2 第三批：搜索与移动/复制（8 条路由的服务面） ──────────────────
+    // ── 搜索与移动/复制批：搜索与移动/复制（8 条路由的服务面） ──────────────────
 
     /**
      * * <b>已知差异</b>：org-share（kbShareService）未翻译——共享库的补捞分支恒空，

@@ -18,8 +18,6 @@ import com.ragagent.knowledge.domain.Chunk;
  * post-process 大函数里，只能靠实录间接覆盖）。</p>
  */
 public final class QuestionBatchPlanner {
-
-    /** */
     public static final int BATCH_SIZE = 20;
 
     private QuestionBatchPlanner() {
@@ -71,8 +69,6 @@ public final class QuestionBatchPlanner {
         }
         return out;
     }
-
-    /** */
     public static int batchCount(int chunkCount) {
         if (chunkCount <= 0) {
             return 0;

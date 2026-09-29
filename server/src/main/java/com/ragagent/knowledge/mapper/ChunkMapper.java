@@ -21,7 +21,7 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
     /**
      * 全字段 UPDATE。
      * <p>写成显式 SQL 而不是 wrapper，是因为 wrapper 的 {@code set()} 不套实体上的
-     * {@code typeHandler}（三个 json 列必须 3 参 set 或显式注解，见约定 §9）。
+     * {@code typeHandler}（三个 json 列必须 3 参 set 或显式注解，见本仓约定）。
      * 三条 json 列挂 {@code PgJsonTypeHandler, jdbcType=OTHER}（null 也走
      * 可空时间列显式 {@code jdbcType=TIMESTAMP_WITH_TIMEZONE}（memory 模块同款先例）。</p>
      * SoftDeleteUpdateClause），照抄。</p>
@@ -66,7 +66,7 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
     /**
      * （chunk）：standard_question IN / similar_questions 数组交集。
      * status ∈ {default 0, stored 1, indexed 2}（stored 的兄弟请求也算，防重试插重行），
-     * {@code @Results}（自定义 @Select 不套实体 typeHandler，约定 §9）。
+     * {@code @Results}（自定义 @Select 不套实体 typeHandler，本仓约定）。
      */
     @Select("<script>"
             + "SELECT id, metadata FROM chunks "

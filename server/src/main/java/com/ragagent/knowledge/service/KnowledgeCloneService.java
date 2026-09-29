@@ -38,7 +38,7 @@ public class KnowledgeCloneService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeCloneService.class);
 
-    /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（§9 步 3 教训）。 */
+    /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（本仓约定 步 3 教训）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper CLONE_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper()
                     .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())

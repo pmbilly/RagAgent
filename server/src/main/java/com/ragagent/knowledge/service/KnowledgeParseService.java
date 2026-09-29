@@ -78,8 +78,6 @@ public class KnowledgeParseService {
         worker.enqueue(existing.getId());
         return existing;
     }
-
-    /** */
     static void resetKnowledgeForReparse(Knowledge k, KnowledgeBase kb) {
         k.setParseStatus(Knowledge.PARSE_PENDING);
         k.setEnableStatus("disabled");
@@ -139,7 +137,7 @@ public class KnowledgeParseService {
     /**
      * manual 流 metadata.content；
      * document 走本地文件。路径解析：resource:// 与
-     * "invalid file path: path traversal denied: ..." 原文（golden 钉住）。
+     * "invalid file path: path traversal denied: ..." 原文（契约样例锁定）。
      *         非 Seeker → Accept-Ranges: none + 显式 CL），document = 存储层打开
      *         （本地 *os.File 可 seek → bytes + Range；云按 provider 能力，W5γ5.4 ①b）
      */

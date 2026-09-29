@@ -47,7 +47,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><b>守卫链</b>：写路径 = ownership → KB 访问 → handler；读路径 = KB 访问 → handler
  * （判定顺序为既有契约，不能重排，详见 {@link ChunkAccessGuard}）。</p>
  *
- * <p><b>错误形态分层</b>（golden 锁定）：update/delete 的业务失败 → 500 且
+ * <p><b>错误形态分层</b>（契约样例锁定）：update/delete 的业务失败 → 500 且
  * message=原文；revert 的同类错误 → 400——同一 service 异常在两个端点的 HTTP
  * 形态刻意不同，异常映射按端点分开写。</p>
  */

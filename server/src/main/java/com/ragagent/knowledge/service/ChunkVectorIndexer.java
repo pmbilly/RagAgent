@@ -82,7 +82,7 @@ public class ChunkVectorIndexer {
         if (!needsEmbeddingServiceLayer(kb)) {
             return;
         }
-        // handler 包 1007 internal 原文；golden kg-image-update/again/mismatch 钉住）
+        // handler 包 1007 internal 原文；契约样例 kg-image-update/again/mismatch 钉住）
         String modelId = kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId();
         if (modelId.isEmpty()) {
             throw new BizException(AppError.internal("model ID cannot be empty"));
@@ -127,7 +127,7 @@ public class ChunkVectorIndexer {
     /** 共享主体：ids 全删 → （enabled 且非 parent_text 的）chunk 行 + 问题行重建。 */
     private void indexAndStore(KnowledgeBase kb, Model embeddingModel, List<Chunk> chunks) {
         // updateChunkVector 的 CreateRetrieveEngineForKB → DeleteByChunkIDList →
-        // BatchIndex；未绑定保持 pg 直连，golden 锁定行为不变）
+        // BatchIndex；未绑定保持 pg 直连，契约样例锁定行为不变）
         com.ragagent.retrieval.engine.CompositeRetrieveEngine boundEngine =
                 vectorWrites.boundEngine(kb);
         if (boundEngine != null) {
@@ -284,7 +284,7 @@ public class ChunkVectorIndexer {
     /**
      * <b>服务层</b>判定
      * 翻成 Default（vector+keyword 开））。{@link #updateChunkVector} 走这里。
-     * <p>证据：golden kg-image-update/again/mismatch 的 KB 是显式全 false 策略
+     * <p>证据：契约样例 kg-image-update/again/mismatch 的 KB 是显式全 false 策略
      * 向量分支，即全 false 策略经服务层读法被翻成 Default。</p>
      */
     private static boolean needsEmbeddingServiceLayer(KnowledgeBase kb) {

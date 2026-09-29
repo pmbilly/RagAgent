@@ -10,10 +10,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
-import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
@@ -99,16 +95,10 @@ public class Chunk {
     /** 标题面包屑（json:"-"）；索引用 ContextHeader+"\n\n"+Content */
     @JsonIgnore
     private String contextHeader;
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     @JsonProperty("created_at")
     private OffsetDateTime createdAt;
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 

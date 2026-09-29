@@ -32,8 +32,6 @@ public interface KnowledgeTagMapper {
             </script>
             """)
     List<KnowledgeTag> selectTagsWithKnowledgeId(List<String> knowledgeIds);
-
-    /** */
     @Select("""
             <script>
             SELECT id, seq_id AS seqId, tenant_id AS tenantId,

@@ -32,8 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * （阶段 3 子集：file/url/manual 创建、分页列表、get/update/delete、folders；
  *  处理管道 = pending→processing→(docreader→chunk→embed)→completed/failed，
- *  任务队列 以进程内虚拟线程队列替代（响应契约一致，重试/取消语义见约定 §9））。
- * <p><b>波 2 扩展（文档操作面）</b>：spans 合成树、regenerate-summary（无 summary
+ *  任务队列 以进程内虚拟线程队列替代（响应契约一致，重试/取消语义见本仓约定））。
+ * <p><b>文档操作面扩展</b>：spans 合成树、regenerate-summary（无 summary
  * model 的确定性 400）、manual 更新、reparse/cancel-parse、download/preview 文件解析、
  * image info、tags 批量、batch-delete/batch-reparse/clear-contents（任务队列 →
  * 同步尽力而为，HTTP 契约 = task_id + 文案）、folders 树升级为完整
@@ -52,7 +52,7 @@ public class KnowledgeService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（§9 步 3 教训）。 */
+    /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（本仓约定 步 3 教训）。 */
     private static final ObjectMapper CLONE_MAPPER = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
@@ -164,8 +164,6 @@ public class KnowledgeService {
     }
 
     // ── 创建 ─────────────────────────────────────────────────────────────
-
-    /** */
     public Knowledge createFromFile(String kbId, byte[] fileContent, String fileName,
                                     String displayName, JsonNode customMetadata, String channel) {
         KnowledgeBase kb = requireKb(kbId);
@@ -367,7 +365,7 @@ public class KnowledgeService {
         // Source 按来源各异——file 上传为零值 ""，url 记 url，manual 记 manual
         k.setTitle(title == null ? "" : title);
         k.setParseStatus(Knowledge.PARSE_PENDING);
-        k.setEnableStatus("disabled"); // golden 锁定：上传后 disabled，处理完成转 enabled
+        k.setEnableStatus("disabled"); // 契约样例锁定：上传后 disabled，处理完成转 enabled
         k.setEmbeddingModelId(kb.getEmbeddingModelId());
         k.setChannel(channel == null || channel.isEmpty() ? "web" : channel); // 缺省 web
         k.setFolderPath(""); // PG 列 NOT NULL，空串为缺省
@@ -464,7 +462,7 @@ public class KnowledgeService {
         com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(
                 java.util.List.of(k.getKnowledgeBaseId()));
         // 回填 tags（knowledge_tag_relations 连接查；
-        // 无关系 → 保持 null，与 golden "tags":null 一致）
+        // 无关系 → 保持 null，与 契约样例 "tags":null 一致）
         attachTags(k);
         return k;
     }
@@ -500,7 +498,7 @@ public class KnowledgeService {
     }
 
     /**
-     * 未翻译（约定 §9 阶段 3 差异 3），共享路径的"补捞"只对同租户行有效，而租户内行
+     * 未翻译（本仓约定 阶段 3 差异 3），共享路径的"补捞"只对同租户行有效，而租户内行
      */
     public List<Knowledge> getKnowledgeBatchWithSharedAccess(long tenantId, List<String> ids) {
         return getKnowledgeBatch(tenantId, ids);
@@ -577,8 +575,6 @@ public class KnowledgeService {
     public JsonNode folderTree(String kbId) {
         return folderService.folderTree(kbId);
     }
-
-    /** */
     public static String normalizeKnowledgeFolderPath(String raw) {
         return KnowledgeFolderService.normalizeKnowledgeFolderPath(raw);
     }
@@ -601,7 +597,7 @@ public class KnowledgeService {
         return folderService.loadKnowledgeWrite(id);
     }
 
-    // ── 波 2：文档操作面（委托 KnowledgeSpanService） ─────────────────────
+    // ── 文档操作面（委托 KnowledgeSpanService） ─────────────────────
 
     public ObjectNode knowledgeSpans(Knowledge knowledge, int requestedAttempt) {
         return spanService.knowledgeSpans(knowledge, requestedAttempt);
@@ -643,7 +639,7 @@ public class KnowledgeService {
         knowledgeFileService.updateImageInfo(knowledgeId, chunkId, rawImageInfo);
     }
 
-    // ── 波 2：tags 批量 ──────────────────────────────────────────────────
+    // ── tags 批量 ──────────────────────────────────────────────────
 
     /**
      * * authorizedKBID 为空 = 未显式给 kb_id（由首条 knowledge 推导的授权范围）。
@@ -729,7 +725,7 @@ public class KnowledgeService {
         }
     }
 
-    // ── 波 2：批量删除 / 批量重解析 / 清空（委托 KnowledgeBatchOpsService） ──
+    // ── 批量删除 / 批量重解析 / 清空（委托 KnowledgeBatchOpsService） ──
 
     @Transactional
     public String batchDeleteKnowledge(String kbId, List<String> ids) {

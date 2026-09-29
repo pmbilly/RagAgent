@@ -259,7 +259,7 @@ public class FaqController {
 
     /**
      * 写路由：所有权判定先行（非创建者且非 Admin+ → 403 纯字符串），再 KB 访问层。
-     * 判定顺序 golden 依赖（faq-create-contrib / faq-list-cross），不能重排。
+     * 判定顺序 契约样例依赖（faq-create-contrib / faq-list-cross），不能重排。
      */
     private KnowledgeBase requireKbWrite(String kbId) {
         guard.requireOwnedKbInCallerSpace(kbId);
@@ -358,7 +358,7 @@ public class FaqController {
     /**
      * 非 AppError（如嵌入模型链的 IllegalStateException）→ 500 code=1007 固定文案
      * 「Internal server error」<b>无 details 键</b>——FAQ 的既有错误形态分层，与
-     * AppError 信封（details:null）刻意不同，golden 锁定。
+     * AppError 信封（details:null）刻意不同，契约样例锁定。
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<java.util.Map<String, Object>> handleFaqPlainInternal(IllegalStateException ex) {

@@ -102,7 +102,7 @@ public final class KnowledgeBaseConfigViews {
      * 多模态（VLM）配置视图。
      *
      * <p>⚠️ 有意剔除 {@code apiKey}：凭据只进不出，前端如需展示"是否已配置"应改读
-     * {@code enabled}/{@code modelId}（见契约文档 §3 第 12 条）。</p>
+     * {@code enabled}/{@code modelId}（见契约文档 本仓约定 第 12 条）。</p>
      */
     public record VlmConfigView(
             boolean enabled,

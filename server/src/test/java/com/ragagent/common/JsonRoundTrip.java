@@ -35,8 +35,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public final class JsonRoundTrip {
 
-    /** 严格映射器：多出的键即失败——这正是抓 @JsonIgnore 缺失的手段。 */
+    /**
+     * 严格映射器：多出的键即失败——这正是抓 @JsonIgnore 缺失的手段。
+     *
+     * <p>挂 jsr310 模块（标准 Java 时间序列化）：领域类不再自带 Go 时间序列化注解后，
+     * {@code OffsetDateTime} 的读写由 JavaTimeModule 承担。</p>
+     */
     private static final ObjectMapper STRICT = new ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
 
     private JsonRoundTrip() {

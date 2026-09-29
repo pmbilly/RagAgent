@@ -15,8 +15,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.dto.ChunkerDtos;
 import com.ragagent.knowledge.dto.ChunkerDtos.PreviewPayload;
@@ -34,17 +32,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * chunker 只读预览端点。无状态：不落库、不生成 embedding、不打日志正文。
- * <h2>响应形态：struct 声明序 + map 字母序的混合（golden cprev-*.json 全钉）</h2>
+ * <h2>响应形态：struct 声明序 + map 字母序的混合（契约样例 cprev-*.json 全钉）</h2>
  * <p>顶层 {@code gin.H} 字母序 {@code {"data":…,"success":true}}；data 是
  * PreviewChunkingResponse struct——按<b>声明序</b>输出
  * {@code selected_tier, tier_chain, rejected, profile, chunks, stats}。
  * {@code chunks} 用 make 初始化恒 {@code []}。</p>
  * <h2>profile 里的两类编码陷阱</h2>
  * <ul>
- *   <li>double 字段（avg_line_len/std_line_len/code_ratio）挂 {@link GoDoubleSerializer}
- *       空表恒 {@code {}}（profiler 恒 make）——Java 用按键排序的 LinkedHashMap</li>
+ *   <li>double 字段（avg_line_len/std_line_len/code_ratio）走标准 Jackson 输出（整数值带 {@code .0}）</li>
+ *   <li>空表恒 {@code {}}（profiler 恒 make）——Java 用按键排序的 LinkedHashMap</li>
  * </ul>
- * <h2>策略解析的实测契约（golden 钉）</h2>
+ * <h2>策略解析的实测契约（契约样例锁定）</h2>
  * <p>strategy 空串/legacy/recursive → 链 {@code [legacy]}（<b>不是</b> auto！），
  * diag.profile 为 null 由 handler 调 ProfileDocument 物化；未知 strategy 落
  * default 分支走 auto 画像。tier_chain 在响应里恒非 null（文本非空时）。</p>
@@ -107,10 +105,8 @@ public class ChunkerDebugController {
         @JsonProperty("total_lines")
         int totalLines;
         @JsonProperty("avg_line_len")
-        @JsonSerialize(using = GoDoubleSerializer.class)
         double avgLineLen;
         @JsonProperty("std_line_len")
-        @JsonSerialize(using = GoDoubleSerializer.class)
         double stdLineLen;
         @JsonProperty("md_heading_counts")
         Map<Integer, Integer> mdHeadingCounts = new LinkedHashMap<>();
@@ -139,7 +135,6 @@ public class ChunkerDebugController {
         @JsonProperty("has_code")
         boolean hasCode;
         @JsonProperty("code_ratio")
-        @JsonSerialize(using = GoDoubleSerializer.class)
         double codeRatio;
         @JsonProperty("detected_langs")
         List<String> detectedLangs = new ArrayList<>();
@@ -187,7 +182,7 @@ public class ChunkerDebugController {
 
     /**
      * 绑定失败 → 400 裸错误体 {@code {"error":"invalid request body: …","success":false}}
-     * ——该调试端点专属形态（非标准信封），golden cprev-bad-body 锁定。
+     * ——该调试端点专属形态（非标准信封），契约样例 cprev-bad-body 锁定。
      */
     @org.springframework.web.bind.annotation.ExceptionHandler({
             org.springframework.http.converter.HttpMessageNotReadableException.class,

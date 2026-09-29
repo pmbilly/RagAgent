@@ -8,12 +8,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoDoubleSerializer;
-import com.ragagent.common.web.GoTimeDeserializer;
-import com.ragagent.common.web.GoTimeSerializer;
 
 /**
  * FAQ 条目域传输对象：条目视图、导出、载荷与批量更新请求。
@@ -54,12 +49,10 @@ public record FaqEntry(
         @JsonProperty("answers") List<String> answers,
         @JsonProperty("answer_strategy") String answerStrategy,
         @JsonProperty("index_mode") String indexMode,
-        @JsonSerialize(using = GoTimeSerializer.class)
-        @JsonDeserialize(using = GoTimeDeserializer.class) @JsonProperty("updated_at") OffsetDateTime updatedAt,
-        @JsonSerialize(using = GoTimeSerializer.class)
-        @JsonDeserialize(using = GoTimeDeserializer.class) @JsonProperty("created_at") OffsetDateTime createdAt,
+        @JsonProperty("updated_at") OffsetDateTime updatedAt,
+        @JsonProperty("created_at") OffsetDateTime createdAt,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        @JsonSerialize(using = GoDoubleSerializer.class) @JsonProperty("score") double score,
+        @JsonProperty("score") double score,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("match_type") int matchType,
         @JsonProperty("chunk_type") String chunkType,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) @JsonProperty("matched_question") String matchedQuestion) {

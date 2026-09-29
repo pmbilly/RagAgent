@@ -7,8 +7,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * chunker 预览请求（chunking_config 各字段可缺省，缺省值由 Chunker.normalizeSplitterConfig
- * 兜底）。响应形状由 ChunkerDebugController 内的响应装配类锁定（含 GoDoubleSerializer
- * 等序列化注解）。
+ * 兜底）。响应形状由 ChunkerDebugController 内的响应装配类定义（标准 Jackson 序列化）。
  */
 public final class ChunkerDtos {
 

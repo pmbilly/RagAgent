@@ -35,7 +35,7 @@ import org.springframework.stereotype.Component;
  * <p>Wiki 控制器（{@code WikiPageController#requireWikiKB}）已确立同样的模式；
  * chunk 与 wiki 的差别在解析链多一跳（knowledge_id/chunk_id → kb_id），且
  * by-id 路由的 ownership 查找显式重校验租户（GetChunkByIDOnly 无空间过滤）。</p>
- * <p><b>判定顺序必须逐层复刻</b>（golden 依赖顺序）：</p>
+ * <p><b>判定顺序必须逐层复刻</b>（契约样例依赖顺序）：</p>
  * <ul>
  *   <li>写路由（:knowledge_id）：ownership（缺失→放行）→ KB 访问（knowledge 缺失→404
  *       "Knowledge not found"；KB 缺失→404 "knowledge base not found"；跨租户→403）→
@@ -179,7 +179,7 @@ public class ChunkAccessGuard {
         }
     }
 
-    /** 波 2：KB 已在手的所有权判定（OwnedKBOrAdmin 的路由级形态，供复用）。 */
+    /** KB 已在手的所有权判定（OwnedKBOrAdmin 的路由级形态，供复用）。 */
     public void requireOwnedKb(KnowledgeBase kb) {
         if (kb == null) {
             return; // 与 ErrResourceNotFound 放行语义一致
@@ -188,9 +188,9 @@ public class ChunkAccessGuard {
     }
 
     /**
-     * 波 2 FAQ（OwnedKBOrAdmin 的 URL :id 直指 KB 形态）：先在<b>调用者空间</b>查 KB
+     * FAQ（OwnedKBOrAdmin 的 URL :id 直指 KB 形态）：先在<b>调用者空间</b>查 KB
      * （缺失 → 放行，交给后续 KBAccess 层出 404/403），存在则判创建者/Admin+。
-     * FAQ 的写路由（POST /entry 等）用这条；判定顺序 golden 依赖，不能重排。
+     * FAQ 的写路由（POST /entry 等）用这条；判定顺序 契约样例依赖，不能重排。
      */
     public void requireOwnedKbInCallerSpace(String kbId) {
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()

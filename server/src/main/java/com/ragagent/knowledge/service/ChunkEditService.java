@@ -298,8 +298,6 @@ public class ChunkEditService {
             }
         }
     }
-
-    /** */
     private static boolean imageChildMatchesContent(Chunk child, Set<String> contentUrls) {
         for (String url : ChunkSearchUtil.imageURLsFromInfo(child.getImageInfo())) {
             if (contentUrls.contains(url)) {

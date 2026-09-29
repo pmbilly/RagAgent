@@ -1,1 +1,8 @@
-{"error":{"code":1007,"details":null,"message":"invalid character 'o' in literal null (expecting 'u')"},"success":false}
+{
+  "error": {
+    "code": 1007,
+    "details": null,
+    "message": "invalid image info payload: Unrecognized token 'not': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"
+  },
+  "success": false
+}

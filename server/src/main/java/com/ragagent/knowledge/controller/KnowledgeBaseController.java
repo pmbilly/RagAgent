@@ -43,7 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 知识库 CRUD 与检索入口：列表/详情/更新/删除、置顶、移动目标、混合检索
  * （POST+GET 双路由）、复制/副本/重建索引与复制进度。
  *
- * <p><b>守卫顺序</b>（golden 依赖，不能重排）：hybrid-search/duplicate 的路由带
+ * <p><b>守卫顺序</b>（契约样例依赖，不能重排）：hybrid-search/duplicate 的路由带
  * KBAccessRead（{@code guard.requireKbAccess}）；copy 的源/目标在 body，handler 内
  * {@link #resolveHandlerKbAccess}——跨租户 403 文案与 move 的 handler 检查刻意不同。</p>
  *

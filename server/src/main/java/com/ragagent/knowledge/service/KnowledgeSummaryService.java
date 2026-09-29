@@ -96,7 +96,7 @@ public class KnowledgeSummaryService {
     /**
      * 三个哨兵错误（内容不足 / 空输出 /
      * ErrSummaryRefreshStale）：非 AppError → handler 包 {@code NewBadRequestError(err.Error())}
-     * → 400 信封 + 原文案（既有 golden 钉住 "summary model is not configured" 同款形态）。
+     * → 400 信封 + 原文案（既有 契约样例锁定 "summary model is not configured" 同款形态）。
      * 用实例身份（==）判别，避免文案比较。
      */
     private static final BizException ERR_INSUFFICIENT_SUMMARY_CONTENT =
@@ -333,8 +333,6 @@ public class KnowledgeSummaryService {
         }
         return false;
     }
-
-    /** */
     private static String customMetadataVersion(Knowledge knowledge) {
         return knowledge.getCustomMetadata() == null ? "" : knowledge.getCustomMetadata().toString();
     }
@@ -619,7 +617,7 @@ public class KnowledgeSummaryService {
 
     /**
      * 刷新分支（重试上限 MaxRetry(3）：
-     * 虚拟线程内显式拷 TenantContext（§5：不跨虚拟线程共享 ThreadLocal）；
+     * 虚拟线程内显式拷 TenantContext（本仓约定：不跨虚拟线程共享 ThreadLocal）；
      * stale / insufficient 静默丢弃（状态已由 doRegenerate 落库），其余错误按
      * 「还有重试额度 → pending」重试，耗尽后由 willRetry=false 分支落终态。
      */
@@ -661,7 +659,7 @@ public class KnowledgeSummaryService {
      * IsZero（4 字段全 false）→ Default），即 vector||keyword。
      * 服务层（kbService，含 EnsureDefaults 钩子）与 repo 层（kbRepository，仅 Scan：
      * NULL→Default、全 false 保持）。本方法对应服务层；{@link ChunkVectorIndexer}
-     * updateImageInfo/regenerate 路径仍被判定为需要 embedding（golden 1007 实录）。</p>
+     * updateImageInfo/regenerate 路径仍被判定为需要 embedding（契约样例 1007 实录）。</p>
      */
     private static boolean kbNeedsEmbedding(KnowledgeBase kb) {
         KbIndexingStrategy strategy = kb.getIndexingStrategy();

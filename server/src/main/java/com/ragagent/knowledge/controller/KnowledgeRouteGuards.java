@@ -58,7 +58,7 @@ public class KnowledgeRouteGuards {
     /**
      * handler 层守卫（无路由级 KBAccess 中间件的 body 路由）：跨租户 403 文案是
      * "Permission denied to access this knowledge"——与路由层的 "...knowledge base"
-     * 一字之差，golden 钉住。
+     * 一字之差，契约样例锁定。
      */
     public Knowledge resolveKnowledgeHandlerLevel(String knowledgeId, boolean write) {
         Knowledge global = knowledgeService.getKnowledgeByIdOnly(knowledgeId);

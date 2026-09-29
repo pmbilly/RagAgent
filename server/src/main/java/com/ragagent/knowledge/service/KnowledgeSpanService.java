@@ -28,7 +28,7 @@ public class KnowledgeSpanService {
         this.spanRepository = spanRepository;
     }
 
-    // ── 波 2：文档操作面 ──────────────────────────────────────────────────
+    // ── 文档操作面 ──────────────────────────────────────────────────
 
     /**
      * attempt 选择（显式 ?attempt=N 优先，
@@ -249,7 +249,7 @@ public class KnowledgeSpanService {
             errorCode = "SERVER_RESTART";
         }
         // gin.H → encoding/json 键按字母序输出（code < error_code < error_message <
-        // finished_at < message < name < stage），golden 钉住
+        // finished_at < message < name < stage），契约样例锁定
         ObjectNode e = MAPPER.createObjectNode();
         e.put("code", errorCode);
         e.put("error_code", errorCode);

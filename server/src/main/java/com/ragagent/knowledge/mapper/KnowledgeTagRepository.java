@@ -40,7 +40,7 @@ public class KnowledgeTagRepository {
     /**
      * "未分类" sort_order=-1 的决策在 service 层；这里只负责 uuid、now、seq_id 分配。
      * {@code autoIncrement} 的列在 PG 上走 RETURNING 回填——CreateTag 的 HTTP
-     * 响应 {@code seq_id} 是**真值**（w5a-tag-create golden 钉住），不是 0。
+     * 响应 {@code seq_id} 是**真值**（w5a-tag-create 契约样例锁定），不是 0。
      */
     public KnowledgeTag createTag(long tenantId, String kbId, String name, String color, int sortOrder) {
         KnowledgeTag tag = new KnowledgeTag();

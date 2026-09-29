@@ -20,8 +20,6 @@ public final class KnowledgeTagDtos {
 
     private KnowledgeTagDtos() {
     }
-
-    /** */
     @JsonPropertyOrder({"id", "seq_id", "tenant_id", "knowledge_base_id",
             "name", "color", "sort_order", "created_at", "updated_at"})
     @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -76,8 +74,6 @@ public final class KnowledgeTagDtos {
                     base.createdAt(), base.updatedAt(), knowledgeCount, chunkCount);
         }
     }
-
-    /** */
     @JsonPropertyOrder({"total", "page", "page_size", "data"})
     @JsonInclude(JsonInclude.Include.ALWAYS)
     public record TagPageResult(
