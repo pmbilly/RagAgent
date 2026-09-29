@@ -1,8 +1,6 @@
 package com.ragagent.knowledge.domain;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbStorageProviderConfig {
 
     private String provider = "";

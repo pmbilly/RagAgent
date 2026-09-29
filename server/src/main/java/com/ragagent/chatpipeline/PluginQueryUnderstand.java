@@ -11,6 +11,7 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.session.domain.Message;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * QUERY_UNDERSTAND 阶段插件（对照 Go chat_pipeline/query_understand.go）：
@@ -33,7 +34,7 @@ import com.ragagent.session.domain.Message;
  */
 public final class PluginQueryUnderstand implements Plugin {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMappers.lenient();
 
     private final PipelinePorts.ModelService modelService;
     private final PipelinePorts.MessageService messageService;

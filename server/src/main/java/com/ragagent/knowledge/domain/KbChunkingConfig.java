@@ -2,7 +2,6 @@ package com.ragagent.knowledge.domain;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -10,7 +9,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * 非指针值类型：chunk_size/chunk_overlap/separators 恒输出（separators null → JSON null）；
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbChunkingConfig {
 
     private int chunkSize;

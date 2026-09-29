@@ -8,6 +8,10 @@ server:
 spring:
   application:
     name: ragagent
+  jackson:
+    deserialization:
+      # 未知属性不报错（与 JsonMappers.lenient() 同一策略：落库/外部 JSON 常带旧键）
+      fail-on-unknown-properties: false
   servlet:
     multipart:
       # 对照 Go 的 MaxBytesReader（GetMaxFileSizeMB()*1MB + 1MB，默认 51MB）——

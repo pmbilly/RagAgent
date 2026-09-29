@@ -1,6 +1,5 @@
 package com.ragagent.knowledge.domain;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -13,7 +12,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * {@code Integer + NON_NULL} 表达，service 侧允许放 0（chunk.ContentRevision
  * 从未被编辑过时就是 0）。</p>
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class GeneratedQuestion {
 
     private String id;

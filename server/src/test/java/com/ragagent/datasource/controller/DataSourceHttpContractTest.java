@@ -240,7 +240,7 @@ class DataSourceHttpContractTest {
 
     private void seedKb(String id, String name) {
         jdbc.update("INSERT INTO knowledge_bases (id, name, tenant_id, description, creator_id, "
-                        + "chunking_config, cos_config, indexing_strategy) "
+                        + "chunking_config, storage_config, indexing_strategy) "
                         + "VALUES (?, ?, ?, 'datasource golden', ?, '{}', '{}', '{}')",
                 id, name, TENANT, USER_ID);
     }

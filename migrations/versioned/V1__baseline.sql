@@ -418,7 +418,7 @@ CREATE TABLE public.knowledge_bases (
     image_processing_config jsonb DEFAULT '{"model_id": "", "enable_multimodal": false}'::jsonb NOT NULL,
     embedding_model_id character varying(64) NOT NULL,
     summary_model_id character varying(64) NOT NULL,
-    cos_config jsonb DEFAULT '{}'::jsonb NOT NULL,
+    storage_config jsonb DEFAULT '{}'::jsonb NOT NULL,
     vlm_config jsonb DEFAULT '{}'::jsonb NOT NULL,
     extract_config jsonb,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
@@ -1383,7 +1383,7 @@ ALTER SEQUENCE public.tenants_id_seq OWNED BY public.tenants.id;
 CREATE TABLE public.user_kb_pins (
     tenant_id bigint NOT NULL,
     user_id character varying(36) NOT NULL,
-    kb_id character varying(36) NOT NULL,
+    knowledge_base_id character varying(36) NOT NULL,
     pinned_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -2037,7 +2037,7 @@ ALTER TABLE ONLY public.knowledge_processing_spans
 --
 
 ALTER TABLE ONLY public.user_kb_pins
-    ADD CONSTRAINT user_kb_pins_pkey PRIMARY KEY (tenant_id, user_id, kb_id);
+    ADD CONSTRAINT user_kb_pins_pkey PRIMARY KEY (tenant_id, user_id, knowledge_base_id);
 
 
 --

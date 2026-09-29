@@ -1,7 +1,6 @@
 package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -10,7 +9,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * description_language/custom_instructions 带 omitempty。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbVlmConfig {
 
     private boolean enabled;

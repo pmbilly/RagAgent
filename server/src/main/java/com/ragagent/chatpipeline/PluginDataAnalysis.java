@@ -14,6 +14,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * DATA_ANALYSIS 阶段插件（对照 Go chat_pipeline/data_analysis.go）：
@@ -28,7 +29,7 @@ import com.ragagent.retrieval.domain.SearchResult;
  */
 public final class PluginDataAnalysis implements Plugin {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMappers.lenient();
 
     /** 对照 utils.GenerateSchema[tools.DataAnalysisInput]()（4.5b 的字节实录常量）。 */
     public static final String FORMAT_SCHEMA_JSON = """

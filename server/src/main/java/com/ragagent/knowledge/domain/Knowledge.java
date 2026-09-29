@@ -71,10 +71,6 @@ public class Knowledge {
     @TableField(exist = false)
     private String knowledgeBaseName = "";
 
-    @TableField(exist = false)
-    @JsonIgnore
-    private boolean descriptionSpecified;
-
     public String getId() { return id; }
     public void setId(String v) { id = v; }
     public Long getTenantId() { return tenantId; }
@@ -89,8 +85,6 @@ public class Knowledge {
     public void setTitle(String v) { title = v; }
     public String getDescription() { return description; }
     public void setDescription(String v) { description = v == null ? "" : v; }
-    public boolean isDescriptionSpecified() { return descriptionSpecified; }
-    public void setDescriptionSpecified(boolean v) { descriptionSpecified = v; }
     public String getSource() { return source; }
     public void setSource(String v) { source = v == null ? "" : v; }
     public String getChannel() { return channel; }

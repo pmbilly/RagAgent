@@ -80,7 +80,7 @@ public final class TestSchema {
                 "is_temporary BOOLEAN NOT NULL DEFAULT FALSE, description TEXT, creator_id VARCHAR(36)," +
                 "chunking_config VARCHAR NOT NULL DEFAULT '{}'," +
                 "storage_provider_config VARCHAR, storage_backend_id VARCHAR(36)," +
-                "cos_config VARCHAR NOT NULL DEFAULT '{}', vector_store_id VARCHAR(36)," +
+                "storage_config VARCHAR NOT NULL DEFAULT '{}', vector_store_id VARCHAR(36)," +
                 "extract_config VARCHAR, faq_config VARCHAR," +
                 "question_generation_config VARCHAR, auto_tag_config VARCHAR," +
                 "indexing_strategy VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
@@ -142,7 +142,7 @@ public final class TestSchema {
                 "edited_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS user_kb_pins (" +
-                "user_id VARCHAR(36) NOT NULL, kb_id VARCHAR(36) NOT NULL," +
+                "user_id VARCHAR(36) NOT NULL, knowledge_base_id VARCHAR(36) NOT NULL," +
                 "pinned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
         // ── 波 2：knowledge_tags + knowledge_tag_relations（列序/类型以 Go 迁移
         // 000001 §10 与 000063 为准；seq_id 是迁移 000010 加的 NOT NULL 序列列，

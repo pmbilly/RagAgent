@@ -20,7 +20,7 @@ import com.ragagent.knowledge.dto.KnowledgeBaseConfigViews.VlmConfigView;
  *   <li>可空字段显式输出 {@code null}，不用空串/0 代替，也不做"有时出现有时消失"的条件键；</li>
  *   <li>布尔字段不带 {@code is} 前缀（{@code pinned}/{@code processing}/{@code temporary}）；</li>
  *   <li>不输出内部字段：{@code tenantId}、{@code deletedAt}、{@code storageProviderConfig}、
- *       存储凭据配置（原 {@code storageConfig}/{@code cos_config} 含 secret 字段）；</li>
+ *       存储凭据配置（{@code storageConfig}，DB 列为 {@code storage_config}，含 secret 字段）；</li>
  *   <li>向量库绑定信息收敛为嵌套对象 {@link VectorStoreView}，无绑定时为 {@code null}。</li>
  * </ul>
  *

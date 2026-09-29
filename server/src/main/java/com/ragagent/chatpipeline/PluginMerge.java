@@ -15,6 +15,7 @@ import com.ragagent.searchutil.ImageInfoEnricher;
 import com.ragagent.searchutil.ImageInfoMatchUtil;
 import com.ragagent.searchutil.SearchChunkMerge;
 import com.ragagent.searchutil.SearchTextUtil;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * CHUNK_MERGE 阶段插件（对照 Go chat_pipeline 的 merge.go + merge_expand.go +
@@ -32,7 +33,7 @@ import com.ragagent.searchutil.SearchTextUtil;
  */
 public final class PluginMerge implements Plugin {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMappers.lenient();
 
     private final PipelinePorts.ChunkRepository chunkRepo;
     private final PipelinePorts.ChunkService chunkService; // 父块解析预留（与 Go 一致当前未用）

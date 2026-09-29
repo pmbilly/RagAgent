@@ -61,7 +61,7 @@ import com.ragagent.storageurl.Mode;
  * 成功响应不再包 {@code {data, success}} 信封——单资源直接返回对象、列表直接返回数组，
  * 删除返回 204。</p>
  *
- * <p><b>待办</b>：create 仍把请求体直接绑定 {@link KnowledgeBase} 实体（含 legacy cos_config
+ * <p><b>待办</b>：create 仍把请求体直接绑定 {@link KnowledgeBase} 实体（含 storage_config
  * 兼容），待"请求侧 DTO 化"批次改为独立请求 DTO。</p>
  */
 @RestController

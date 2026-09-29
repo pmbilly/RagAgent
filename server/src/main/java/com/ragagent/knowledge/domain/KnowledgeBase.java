@@ -13,7 +13,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * knowledge_bases 表实体。
  * 仓储行为契约（本仓约定）：
  * - 软删除 → 显式 isNull("deleted_at")
- * - jsonb 配置列：chunking/image/vlm/asr/indexing/cos_config 为**值类型**（Scan NULL → 零值结构，
+ * - jsonb 配置列：chunking/image/vlm/asr/indexing/storage_config 为**值类型**（Scan NULL → 零值结构，
  *   indexing_strategy Scan NULL → DefaultIndexingStrategy()，见 KbIndexingStrategy 注释）；
  *   storage_provider_config/extract_config/faq_config/wiki_config/question_generation_config/auto_tag_config
  *   为指针（NULL → null）
@@ -45,7 +45,7 @@ public class KnowledgeBase {
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbStorageProviderConfig storageProviderConfig;
     private String storageBackendId;
-    @TableField(value = "cos_config", typeHandler = PgJsonTypeHandler.class)
+    @TableField(typeHandler = PgJsonTypeHandler.class)
     private KbStorageConfig storageConfig;
     private String vectorStoreId;
     @TableField(typeHandler = PgJsonTypeHandler.class)

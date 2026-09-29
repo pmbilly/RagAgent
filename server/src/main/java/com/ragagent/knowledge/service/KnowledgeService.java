@@ -553,7 +553,6 @@ public class KnowledgeService {
                 k.setTitle(req.title());
             }
             if (req.description() != null) {
-                k.setDescriptionSpecified(true);
                 k.setDescription(req.description().isNull() ? "" : req.description().asText());
                 // description 显式更新联动 summary_status
                 k.setSummaryStatus(k.getDescription().isEmpty() ? "none" : "completed");

@@ -418,7 +418,7 @@ public class KnowledgeBaseService {
                 .last("LIMIT 1"));
         if (pin != null) {
             kb.setIsPinned(true);
-            kb.setPinnedAt(pin.getCreatedAt());
+            kb.setPinnedAt(pin.getPinnedAt());
         }
     }
 
@@ -517,7 +517,7 @@ public class KnowledgeBaseService {
             UserKbPin pin = new UserKbPin();
             pin.setUserId(uid);
             pin.setKnowledgeBaseId(id);
-            pin.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+            pin.setPinnedAt(OffsetDateTime.now(ZoneOffset.UTC));
             pinMapper.insert(pin);
         }
         fillCounts(kb);

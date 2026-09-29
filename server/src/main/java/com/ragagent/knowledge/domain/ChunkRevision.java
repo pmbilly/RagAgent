@@ -41,6 +41,7 @@ public class ChunkRevision {
 
     private String content;
 
+    /** 列名沿用仓库 is_* 列惯例（embeddings/chunks 同列），Java 侧仍叫 enabled。 */
     @TableField("is_enabled")
     private boolean enabled;
 

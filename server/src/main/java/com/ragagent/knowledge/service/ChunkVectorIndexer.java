@@ -30,6 +30,7 @@ import com.ragagent.embedding.Embedder;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * chunk 向量行的重建执行体（2026-09-22 走查批：把「路由在、执行体占位」的两处
@@ -48,7 +49,7 @@ public class ChunkVectorIndexer {
 
     private static final Logger log = LoggerFactory.getLogger(ChunkVectorIndexer.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     private final KnowledgeBaseMapper kbMapper;
     private final KnowledgeMapper knowledgeMapper;

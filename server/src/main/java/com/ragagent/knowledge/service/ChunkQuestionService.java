@@ -43,6 +43,7 @@ import com.ragagent.retrieval.engine.RetrieverEngineParams;
 import com.ragagent.retrieval.engine.TenantStoreOwnership;
 import com.ragagent.retrieval.engine.EffectiveEngines;
 import com.ragagent.retrieval.engine.RetrieveEngineFactories;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * chunk 生成问题面：生成问题的 upsert/删除/重生（LLM 生成 + 邻块上下文拼装 + metadata 落库）。
@@ -86,7 +87,8 @@ public class ChunkQuestionService {
         this.guard = guard;
     }
 
-    private static final ObjectMapper META_MAPPER = new ObjectMapper();
+    /** 元数据可能含未知键（历史行/新增字段）→ 宽松读。 */
+    private static final ObjectMapper META_MAPPER = JsonMappers.lenient();
     private static final String CHUNK_TYPE_TEXT = "text";
 
     private static long mustTenantId() {

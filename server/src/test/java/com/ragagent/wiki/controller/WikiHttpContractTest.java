@@ -141,7 +141,7 @@ class WikiHttpContractTest {
     /** 对照 Go 测试的 {@code stubWikiKBLookup} 夹具：KB 行带 tenant_id + creator_id */
     private void insertKb(String kbId, long tenantId, String creatorId, boolean wikiEnabled) {
         jdbc.update("INSERT INTO knowledge_bases (id, name, tenant_id, type, creator_id, "
-                        + "indexing_strategy, chunking_config, cos_config) "
+                        + "indexing_strategy, chunking_config, storage_config) "
                         + "VALUES (?, ?, ?, 'document', ?, ?, '{}', '{}')",
                 kbId, kbId, tenantId, creatorId,
                 "{\"vectorEnabled\":false,\"keywordEnabled\":false,\"wikiEnabled\":"

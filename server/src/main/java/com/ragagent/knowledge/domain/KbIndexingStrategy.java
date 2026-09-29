@@ -1,13 +1,11 @@
 package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
  * IndexingStrategy。
  * 注意 Scan 语义：DB NULL（迁移前老行）→ DefaultIndexingStrategy()（vector+keyword=true）。
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbIndexingStrategy {
 
     private boolean vectorEnabled;

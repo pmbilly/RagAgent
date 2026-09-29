@@ -3,11 +3,11 @@ package com.ragagent.knowledge.service;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * 问题生成**批**任务的载荷。
@@ -16,7 +16,6 @@ import com.ragagent.common.context.TracingContext;
  * <p><b>追踪载体</b>：与 {@code ExtractChunkPayload} 同形（平铺 {@code lf_*} 五键，空值整键省略），
  * worker 侧续接同一棵树。</p>
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public record QuestionBatchPayload(
         long tenantId,
         String knowledgeBaseId,
@@ -36,8 +35,7 @@ public record QuestionBatchPayload(
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     public QuestionBatchPayload {
         knowledgeBaseId = knowledgeBaseId == null ? "" : knowledgeBaseId;

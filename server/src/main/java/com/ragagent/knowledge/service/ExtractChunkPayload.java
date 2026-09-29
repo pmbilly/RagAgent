@@ -1,10 +1,10 @@
 package com.ragagent.knowledge.service;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * 分块图抽取任务的载荷。
@@ -13,7 +13,6 @@ import com.ragagent.common.context.TracingContext;
  * postprocess 阶段）。</p>
  * Java 侧同形，空值整键省略。</p>
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public record ExtractChunkPayload(
         long tenantId,
         String chunkId,
@@ -29,8 +28,7 @@ public record ExtractChunkPayload(
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     public ExtractChunkPayload {
         chunkId = chunkId == null ? "" : chunkId;

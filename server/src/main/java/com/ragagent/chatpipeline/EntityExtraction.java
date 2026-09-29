@@ -15,6 +15,7 @@ import com.ragagent.chatpipeline.PipelineConfig.PromptTemplateStructured;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * 实体抽取的提示词生成与 LLM 输出解析（对照 Go chat_pipeline/extract_entity.go 的
@@ -27,7 +28,7 @@ import com.ragagent.llm.domain.ChatOptions;
  */
 public final class EntityExtraction {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = JsonMappers.lenient();
 
     private EntityExtraction() {}
 

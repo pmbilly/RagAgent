@@ -30,8 +30,9 @@ public class PgJsonTypeHandler extends JacksonTypeHandler {
         ps.setObject(i, toJson(parameter), java.sql.Types.OTHER);
     }
 
+    /** 落库 JSON 可能含旧键/未知键 → 统一宽松读（见 JsonMappers）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper READER =
-            new com.fasterxml.jackson.databind.ObjectMapper();
+            JsonMappers.lenient();
 
     /**
      * 读路径 jsonb 规范化：PG jsonb 不保留键序，对象键按（长度, 字节序）排序

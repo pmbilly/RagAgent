@@ -1,9 +1,7 @@
 package com.ragagent.knowledge.domain;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /** ASRConfig：三字段恒输出 */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class KbAsrConfig {
 
     private boolean enabled;

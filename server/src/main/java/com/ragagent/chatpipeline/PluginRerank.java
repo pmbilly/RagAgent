@@ -21,6 +21,7 @@ import com.ragagent.agent.tools.SearchTarget;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.tracing.langfuse.LangfuseManager;
+import com.ragagent.common.web.JsonMappers;
 
 /**
  * CHUNK_RERANK 阶段插件（对照 Go chat_pipeline/rerank.go 全文）。
@@ -648,7 +649,7 @@ public final class PluginRerank implements Plugin {
 
     private static DocumentChunkMetadata parseDocMeta(JsonNode node) {
         try {
-            return new ObjectMapper().treeToValue(node, DocumentChunkMetadata.class);
+            return JsonMappers.lenient().treeToValue(node, DocumentChunkMetadata.class);
         } catch (Exception e) {
             return null;
         }
