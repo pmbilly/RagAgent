@@ -230,7 +230,8 @@ export function useCmdkSearch(options: {
 
     const knowledgePromise = kbIds.length > 0
       ? knowledgeSemanticSearch({ query: q, knowledgeBaseIds: kbIds })
-          .then((res: any) => (res?.success && res.data ? res.data : []))
+          // 裸数组：响应体即检索结果
+          .then((res: any) => (Array.isArray(res) ? res : []))
           .catch((e) => {
             console.error('[cmdk] knowledge search failed', e)
             return []

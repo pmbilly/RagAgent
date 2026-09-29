@@ -195,7 +195,7 @@ public class KnowledgeQaController {
     }
 
     @PostMapping("/api/v1/knowledge-search")
-    public Map<String, Object> searchKnowledge(@RequestBody(required = false) String rawBody) {
+    public List<SearchResult> searchKnowledge(@RequestBody(required = false) String rawBody) {
         SearchKnowledgeRequest request = bindSearchRequest(rawBody);
         if (request.query.isEmpty()) {
             // Go 的手动分支被 binding:required 拦截（不可达），保留对应物
@@ -228,12 +228,10 @@ public class KnowledgeQaController {
         List<SearchResult> searchResults = knowledgeQaService.searchKnowledge(
                 knowledgeBaseIds, request.knowledgeIds(), tagScopes, request.query);
 
+        // 裸列表（无 {success,data} 信封）：检索结果直出。
         // 引用形式（resource_urls）在检索面不带存储引用——Go 走 CopyReferences；
         // handle 模式为透传（public 模式的直链生成经 provider 级文件服务，A3-3 起已接线）。
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("success", true);
-        out.put("data", searchResults);
-        return out;
+        return searchResults;
     }
 
     // ── ShouldBindJSON 对应物（Go binding:required 文案逐字对齐） ─────────────
