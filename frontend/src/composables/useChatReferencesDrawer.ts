@@ -1,5 +1,6 @@
 import { inject, provide, ref, type InjectionKey, type Ref } from 'vue'
 import type { KnowledgeReferenceLike, ReferenceHighlightTarget } from '@/utils/referenceSources'
+import { normalizeKnowledgeReference } from '@/utils/referenceSources'
 
 export type ChatReferencesDrawerOpenOptions = {
   references: KnowledgeReferenceLike[]
@@ -41,7 +42,10 @@ export function provideChatReferencesDrawer(): ChatReferencesDrawerContext {
   }
 
   const open = (options: ChatReferencesDrawerOpenOptions) => {
-    references.value = Array.isArray(options.references) ? options.references : []
+    // 归一：列表可能来自 SSE 重建段（camelCase）或历史库存（snake）
+    references.value = Array.isArray(options.references)
+      ? options.references.map((r) => normalizeKnowledgeReference(r as Record<string, any>))
+      : []
     highlight.value = options.highlight ?? null
     messageId.value = options.messageId || ''
     sourceKey.value = getFallbackSourceKey(options)

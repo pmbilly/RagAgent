@@ -4,9 +4,11 @@ import {
   buildReferenceSections,
   buildReferenceList,
   getDomainFromUrl,
+  normalizeKnowledgeReference,
   normalizeReferenceUrl,
   resolveReferenceHighlightKey,
 } from './referenceSources.ts'
+import { resolveCitationChunkId } from './citationMarkdown.ts'
 
 test('buildReferenceList separates web and document references', () => {
   const items = buildReferenceList([
@@ -177,4 +179,64 @@ test('formatReferenceSnippet strips markdown noise from preview text', async () 
 
 test('getDomainFromUrl strips www prefix', () => {
   assert.equal(getDomainFromUrl('https://www.example.com/x'), 'example.com')
+})
+
+// ── SSE references 两种拼写归一（重建段 camelCase / 缓存直通与历史库存 snake） ──
+
+const CAMEL_REF = {
+  id: 'chunk-1',
+  knowledgeId: 'doc-1',
+  knowledgeTitle: '手册.pdf',
+  knowledgeFilename: 'manual.pdf',
+  knowledgeBaseId: 'kb-1',
+  chunkIndex: 3,
+  chunkType: 'text',
+  content: '正文',
+  metadata: { url: 'https://example.com/a' },
+}
+
+const SNAKE_REF = {
+  id: 'chunk-1',
+  knowledge_id: 'doc-1',
+  knowledge_title: '手册.pdf',
+  knowledge_filename: 'manual.pdf',
+  knowledge_base_id: 'kb-1',
+  chunk_index: 3,
+  chunk_type: 'text',
+  content: '正文',
+  metadata: { url: 'https://example.com/a' },
+}
+
+test('normalizeKnowledgeReference accepts both spellings', () => {
+  assert.deepEqual(normalizeKnowledgeReference(CAMEL_REF), normalizeKnowledgeReference(SNAKE_REF))
+  assert.equal(normalizeKnowledgeReference(CAMEL_REF).knowledge_title, '手册.pdf')
+  assert.equal(normalizeKnowledgeReference(CAMEL_REF).knowledge_base_id, 'kb-1')
+  assert.equal(normalizeKnowledgeReference(CAMEL_REF).chunk_index, 3)
+})
+
+test('normalizeKnowledgeReference tolerates empty input', () => {
+  assert.deepEqual(normalizeKnowledgeReference(null), {})
+  assert.deepEqual(normalizeKnowledgeReference(undefined), {})
+})
+
+test('buildReferenceList yields identical items for both spellings', () => {
+  const camel = buildReferenceList([CAMEL_REF])
+  const snake = buildReferenceList([SNAKE_REF])
+  assert.equal(camel.length, 1)
+  assert.deepEqual(camel, snake)
+  assert.equal(camel[0].knowledgeId, 'doc-1')
+})
+
+test('buildReferenceSections aggregates equally for both spellings', () => {
+  const camel = buildReferenceSections([CAMEL_REF, { id: 'chunk-2', chunkType: 'faq', knowledgeTitle: 'Q' }])
+  const snake = buildReferenceSections([SNAKE_REF, { id: 'chunk-2', chunk_type: 'faq', knowledge_title: 'Q' }])
+  assert.deepEqual(camel, snake)
+})
+
+test('resolveCitationChunkId resolves camelCase refs too', () => {
+  assert.equal(resolveCitationChunkId('DOC-1', { doc: '手册.pdf' }, [CAMEL_REF]), 'chunk-1')
+  assert.equal(
+    resolveCitationChunkId('DOC-1', { doc: '手册.pdf' }, [SNAKE_REF]),
+    resolveCitationChunkId('DOC-1', { doc: '手册.pdf' }, [CAMEL_REF]),
+  )
 })

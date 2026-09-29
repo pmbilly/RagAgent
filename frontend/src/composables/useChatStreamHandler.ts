@@ -1,4 +1,5 @@
 import { applyFinalArtifactContent } from '@/utils/finalArtifactContent'
+import { normalizeKnowledgeReference } from '@/utils/referenceSources'
 import { markRaw, nextTick, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ensureRagPipelineHistoryStream } from '@/utils/rag-pipeline-history'
@@ -160,7 +161,8 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       dataPayload?.references ||
       dataPayload?.knowledge_references ||
       []
-    return Array.isArray(refs) ? refs : []
+    // 同一数组可能两种来源/拼写（重建段 camelCase、直通段与历史库存 snake）→ 统一归一
+    return Array.isArray(refs) ? refs.map((r) => normalizeKnowledgeReference(r)) : []
   }
 
   const replaySegments = new Map<string, ChatMessage>()
@@ -527,7 +529,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       message.thinkContent = payload.thinkContent
       message.showThink = payload.showThink
       if (!message.knowledge_references) {
-        message.knowledge_references = payload.knowledge_references
+        message.knowledge_references = Array.isArray(payload.knowledge_references)
+          ? payload.knowledge_references.map((r) => normalizeKnowledgeReference(r))
+          : payload.knowledge_references
       }
       if (payload.is_fallback) message.is_fallback = true
       if (payload.is_completed) message.is_completed = true

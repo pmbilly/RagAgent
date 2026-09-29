@@ -13,6 +13,31 @@ export type KnowledgeReferenceLike = {
   metadata?: Record<string, string>
 }
 
+/**
+ * 归一单条引用，供 UI 侧统一消费。
+ *
+ * SSE `references` 事件的同一个数组有两处来源、两种键名：
+ * - `knowledge_references`（服务端重建的检索结果视图）→ camelCase
+ * - `data.references`（缓存映射直通，保留库内键名；agent 工具结果载荷同形）→ snake_case
+ * 因此这里同时接受两种拼写（camelCase 优先）。聊天/工具域载荷转为 camelCase 后，
+ * snake 分支即可收掉。
+ */
+export function normalizeKnowledgeReference(raw: Record<string, any> | null | undefined): KnowledgeReferenceLike {
+  if (!raw) return {}
+  return {
+    id: raw.id,
+    chunk_ids: raw.chunkIds ?? raw.chunk_ids,
+    knowledge_id: raw.knowledgeId ?? raw.knowledge_id,
+    knowledge_title: raw.knowledgeTitle ?? raw.knowledge_title,
+    knowledge_filename: raw.knowledgeFilename ?? raw.knowledge_filename,
+    knowledge_base_id: raw.knowledgeBaseId ?? raw.knowledge_base_id,
+    chunk_index: raw.chunkIndex ?? raw.chunk_index,
+    chunk_type: raw.chunkType ?? raw.chunk_type,
+    content: raw.content,
+    metadata: raw.metadata,
+  }
+}
+
 export type ReferenceListItem = {
   key: string
   kind: ReferenceItemKind
@@ -262,7 +287,10 @@ function mergeWebReferences(refs: KnowledgeReferenceLike[]): KnowledgeReferenceL
 export function buildReferenceSections(
   refs: KnowledgeReferenceLike[] | null | undefined,
 ): ReferenceDrawerSection[] {
-  const list = Array.isArray(refs) ? refs.filter(Boolean) : []
+  // 归一：调用方可能给到 SSE 重建段（camelCase）或缓存直通/历史库存（snake）
+  const list = Array.isArray(refs)
+    ? refs.map((r) => normalizeKnowledgeReference(r as Record<string, any>)).filter(Boolean)
+    : []
   if (!list.length) return []
 
   const webReferences: KnowledgeReferenceLike[] = []

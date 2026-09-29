@@ -1,5 +1,7 @@
 /** Shared citation tag preprocessing for chat markdown (QA + agent). */
 
+import { normalizeKnowledgeReference } from '../utils/referenceSources'
+
 /** Self-closing or unclosed `<kb/>` / `<web/>` tags from model output. */
 export const KB_WEB_TAG_RE = /<(?:kb|web)\b[^>]*?\s*\/?>/g
 const KB_TAG_ATTR_RE = /<kb\b([^>]*?)\s*\/?>/g
@@ -89,7 +91,10 @@ export function resolveCitationChunkId(
   const raw = String(rawChunkId || '').trim()
   if (!raw || UUID_RE.test(raw)) return raw
 
-  const list = (refs || []).filter((r) => r && r.chunk_type !== 'web_search')
+  // 归一：refs 可能来自 SSE 重建段（camelCase）或历史库存（snake）
+  const list = (refs || [])
+    .map((r) => (r ? normalizeKnowledgeReference(r as Record<string, any>) : null))
+    .filter((r): r is NonNullable<typeof r> => !!r && r.chunk_type !== 'web_search')
   if (!list.length) return raw
 
   const doc = (attrs.doc || '').trim()
