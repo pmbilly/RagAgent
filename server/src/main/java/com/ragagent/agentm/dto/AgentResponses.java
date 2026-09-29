@@ -36,15 +36,15 @@ public final class AgentResponses {
         m.put("name", nz(row.getName()));
         m.put("description", nz(row.getDescription()));
         m.put("avatar", nz(row.getAvatar()));
-        m.put("is_builtin", row.isBuiltin());
-        m.put("tenant_id", row.getTenantId() == null ? 0L : row.getTenantId());
-        m.put("created_by", nz(row.getCreatedBy()));
+        m.put("builtin", row.isBuiltin());
+        m.put("tenantId", row.getTenantId() == null ? 0L : row.getTenantId());
+        m.put("createdBy", nz(row.getCreatedBy()));
         m.put("config", agentConfigMap(asTree(config)));
-        m.put("created_at", row.getCreatedAt() == null ? GO_ZERO_TIME : row.getCreatedAt());
-        m.put("updated_at", row.getUpdatedAt() == null ? GO_ZERO_TIME : row.getUpdatedAt());
-        m.put("deleted_at", null);
+        m.put("createdAt", row.getCreatedAt() == null ? GO_ZERO_TIME : row.getCreatedAt());
+        m.put("updatedAt", row.getUpdatedAt() == null ? GO_ZERO_TIME : row.getUpdatedAt());
+        m.put("deletedAt", null);
         if (row.getCreatorName() != null && !row.getCreatorName().isEmpty()) {
-            m.put("creator_name", row.getCreatorName());
+            m.put("creatorName", row.getCreatorName());
         }
         return m;
     }
@@ -53,27 +53,12 @@ public final class AgentResponses {
     public static Map<String, Object> listEnvelope(List<?> agents,
             List<String> disabledOwnIds) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("data", agents);
-        m.put("disabled_own_agent_ids", disabledOwnIds == null ? List.of() : disabledOwnIds);
-        m.put("success", true);
+        m.put("agents", agents);
+        m.put("disabledOwnAgentIds", disabledOwnIds == null ? List.of() : disabledOwnIds);
         return m;
     }
 
-    /** {"data":..., "success":true}（data < success）。 */
-    public static Map<String, Object> dataEnvelope(Object data) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("data", data);
-        m.put("success", true);
-        return m;
-    }
 
-    /** 删除信封（message < success）。 */
-    public static Map<String, Object> deletedEnvelope() {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("message", "Agent deleted successfully");
-        m.put("success", true);
-        return m;
-    }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();

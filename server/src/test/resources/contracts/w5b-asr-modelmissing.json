@@ -1,1 +1,4 @@
-{"data":{"available":false,"message":"模型不存在，请检查模型名称：ASR transcription request failed: error, status code: 400, status: 400 Bad Request, message: model stub-model not found"},"success":true}
+{
+  "available": false,
+  "message": "模型不存在，请检查模型名称：ASR transcription request failed: error, status code: 400, status: 400 Bad Request, message: model stub-model not found"
+}

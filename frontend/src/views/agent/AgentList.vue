@@ -69,10 +69,10 @@
                  builtin 排到最前；这里只在第一张 builtin 之前打一次标题。 -->
             <div v-if="showShareGroupHeaders
               && agent.isMine
-              && agent.is_builtin
+              && agent.builtin
               && (index === 0
                 || !filteredAgents[index - 1].isMine
-                || !(filteredAgents[index - 1] as AgentWithUI).is_builtin)" class="agent-section-header" role="button"
+                || !(filteredAgents[index - 1] as AgentWithUI).builtin)" class="agent-section-header" role="button"
               tabindex="0" @click="toggleAgentSection('builtin')"
               @keydown.enter.prevent="toggleAgentSection('builtin')"
               @keydown.space.prevent="toggleAgentSection('builtin')">
@@ -87,11 +87,11 @@
                  要么是同事创建。与 KB 列表对齐。 -->
             <div v-if="showShareGroupHeaders
               && agent.isMine
-              && !agent.is_builtin
+              && !agent.builtin
               && isMyAgent(agent)
               && (index === 0
                 || !filteredAgents[index - 1].isMine
-                || (filteredAgents[index - 1] as AgentWithUI).is_builtin
+                || (filteredAgents[index - 1] as AgentWithUI).builtin
                 || !isMyAgent(filteredAgents[index - 1] as AgentWithUI))" class="agent-section-header" role="button"
               tabindex="0" @click="toggleAgentSection('mine')"
               @keydown.enter.prevent="toggleAgentSection('mine')"
@@ -105,11 +105,11 @@
             <!-- 本空间 · 仅查看 / 其他成员：本空间里非内置且非我创建的同事 agent。 -->
             <div v-if="showShareGroupHeaders
               && agent.isMine
-              && !agent.is_builtin
+              && !agent.builtin
               && !isMyAgent(agent)
               && (index === 0
                 || !filteredAgents[index - 1].isMine
-                || (filteredAgents[index - 1] as AgentWithUI).is_builtin
+                || (filteredAgents[index - 1] as AgentWithUI).builtin
                 || isMyAgent(filteredAgents[index - 1] as AgentWithUI))" class="agent-section-header" role="button"
               tabindex="0" @click="toggleAgentSection('tenantOthers')"
               @keydown.enter.prevent="toggleAgentSection('tenantOthers')"
@@ -121,7 +121,7 @@
                 :name="isAgentSectionCollapsed('tenantOthers') ? 'chevron-right' : 'chevron-down'" size="14px" />
             </div>
             <div v-show="!isAgentRowHidden(agent)" class="agent-card" :class="{
-              'is-builtin': agent.is_builtin,
+              'is-builtin': agent.builtin,
               'agent-mode-normal': agent.config?.agent_mode === 'quick-answer',
               'agent-mode-agent': agent.config?.agent_mode === 'smart-reasoning'
             }" @click="handleCardClick(agent)">
@@ -151,7 +151,7 @@
               </button>
               <div class="card-header">
                 <div class="card-header-left">
-                  <div v-if="agent.is_builtin" class="builtin-avatar"
+                  <div v-if="agent.builtin" class="builtin-avatar"
                     :class="agent.config?.agent_mode === 'smart-reasoning' ? 'agent' : 'normal'">
                     <t-icon :name="agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                       size="18px" />
@@ -176,7 +176,7 @@
                       <div v-if="authStore.hasRole('contributor')" class="popup-menu-item" @click="handleCopy(agent)">
                         <t-icon class="menu-icon" name="file-copy" /><span>{{ $t('common.copy') }}</span>
                       </div>
-                      <div v-if="!agent.is_builtin && canManageAgent(agent)" class="popup-menu-item delete"
+                      <div v-if="!agent.builtin && canManageAgent(agent)" class="popup-menu-item delete"
                         @click="handleDelete(agent)"><t-icon class="menu-icon" name="delete" /><span>{{
                           $t('common.delete') }}</span></div>
                     </div>
@@ -237,7 +237,7 @@
                   <span>{{ $t('agent.builtin') }}</span>
                 </div>
                 <ResourceOriginBadge v-else-if="showAgentOriginBadge(agent)" :variant="agentOriginVariant(agent)"
-                  :creator-name="(agent as any).creator_name" />
+                  :creator-name="(agent as any).creatorName" />
               </div>
             </div>
           </template>
@@ -248,8 +248,8 @@
           <template v-for="(agent, index) in sortedMineAgents" :key="agent.id">
             <!-- 内置：始终置顶。sortedMineAgents 已按 内置→我→同事 排序。 -->
             <div v-if="showShareGroupHeaders
-              && agent.is_builtin
-              && (index === 0 || !sortedMineAgents[index - 1].is_builtin)" class="agent-section-header" role="button"
+              && agent.builtin
+              && (index === 0 || !sortedMineAgents[index - 1].builtin)" class="agent-section-header" role="button"
               tabindex="0" @click="toggleAgentSection('builtin')"
               @keydown.enter.prevent="toggleAgentSection('builtin')"
               @keydown.space.prevent="toggleAgentSection('builtin')">
@@ -261,10 +261,10 @@
             </div>
             <!-- 我创建的：第一张非内置且我亲手创建的卡片前打标题 -->
             <div v-if="showShareGroupHeaders
-              && !agent.is_builtin
+              && !agent.builtin
               && isMyAgent(agent)
               && (index === 0
-                || sortedMineAgents[index - 1].is_builtin
+                || sortedMineAgents[index - 1].builtin
                 || !isMyAgent(sortedMineAgents[index - 1]))" class="agent-section-header" role="button"
               tabindex="0" @click="toggleAgentSection('mine')"
               @keydown.enter.prevent="toggleAgentSection('mine')"
@@ -277,10 +277,10 @@
             </div>
             <!-- 本空间 · 仅查看 / 其他成员：非内置且非我创建的同事 agent -->
             <div v-if="showShareGroupHeaders
-              && !agent.is_builtin
+              && !agent.builtin
               && !isMyAgent(agent)
               && (index === 0
-                || sortedMineAgents[index - 1].is_builtin
+                || sortedMineAgents[index - 1].builtin
                 || isMyAgent(sortedMineAgents[index - 1]))" class="agent-section-header" role="button"
               tabindex="0" @click="toggleAgentSection('tenantOthers')"
               @keydown.enter.prevent="toggleAgentSection('tenantOthers')"
@@ -292,7 +292,7 @@
                 :name="isAgentSectionCollapsed('tenantOthers') ? 'chevron-right' : 'chevron-down'" size="14px" />
             </div>
             <div v-show="!isAgentRowHidden(agent)" class="agent-card" :class="{
-              'is-builtin': agent.is_builtin,
+              'is-builtin': agent.builtin,
               'agent-mode-normal': agent.config?.agent_mode === 'quick-answer',
               'agent-mode-agent': agent.config?.agent_mode === 'smart-reasoning'
             }" @click="handleCardClick(agent)">
@@ -323,7 +323,7 @@
               <div class="card-header">
                 <div class="card-header-left">
                   <!-- 内置智能体使用简洁图标 -->
-                  <div v-if="agent.is_builtin" class="builtin-avatar"
+                  <div v-if="agent.builtin" class="builtin-avatar"
                     :class="agent.config?.agent_mode === 'smart-reasoning' ? 'agent' : 'normal'">
                     <t-icon :name="agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                       size="18px" />
@@ -350,7 +350,7 @@
                         <t-icon class="menu-icon" name="file-copy" />
                         <span>{{ $t('common.copy') }}</span>
                       </div>
-                      <div v-if="!agent.is_builtin && canManageAgent(agent)" class="popup-menu-item delete"
+                      <div v-if="!agent.builtin && canManageAgent(agent)" class="popup-menu-item delete"
                         @click="handleDelete(agent)">
                         <t-icon class="menu-icon" name="delete" />
                         <span>{{ $t('common.delete') }}</span>
@@ -419,7 +419,7 @@
                   <span>{{ $t('agent.builtin') }}</span>
                 </div>
                 <ResourceOriginBadge v-else-if="showAgentOriginBadge(agent)" :variant="agentOriginVariant(agent)"
-                  :creator-name="(agent as any).creator_name" />
+                  :creator-name="(agent as any).creatorName" />
               </div>
             </div>
           </template>
@@ -623,15 +623,15 @@ const filteredAgents = computed<DisplayAgent[]>(() => {
   if (spaceSelection.value !== 'all') return []
   const list: DisplayAgent[] = []
   // 本空间内的 agent 拆成 内置 → 我创建 → 同事创建 三段。
-  // 内置（is_builtin=true）和"个人所有权"是两个维度的概念，置顶为单独
-  // 一段；它们的 created_by 始终为空，跟在「同事/无创建者」桶里反而让
+  // 内置（builtin=true）和"个人所有权"是两个维度的概念，置顶为单独
+  // 一段；它们的 createdBy 始终为空，跟在「同事/无创建者」桶里反而让
   // tenantOthers 段同时混入"系统内置 + 历史无 owner 的自定义"两类，
   // 语义不清。
   const builtin: AgentWithUI[] = []
   const ownMine: AgentWithUI[] = []
   const teammateMine: AgentWithUI[] = []
   agents.value.forEach(a => {
-    if (a.is_builtin) builtin.push(a)
+    if (a.builtin) builtin.push(a)
     else if (isMyAgent(a)) ownMine.push(a)
     else teammateMine.push(a)
   })
@@ -649,7 +649,7 @@ const sortedMineAgents = computed(() => {
   const own: AgentWithUI[] = []
   const teammate: AgentWithUI[] = []
   agents.value.forEach(a => {
-    if (a.is_builtin) builtin.push(a)
+    if (a.builtin) builtin.push(a)
     else if (isMyAgent(a)) own.push(a)
     else teammate.push(a)
   })
@@ -834,48 +834,48 @@ const handleEdit = (agent: AgentWithUI) => {
 
 // canManageAgent mirrors the server-side OwnedAgentOrAdmin guard
 // (PR 5 #1303): the agent's creator may always edit / delete; otherwise
-// Admin+ is required. Built-in agents have created_by="" → only Admin+
+// Admin+ is required. Built-in agents have createdBy="" → only Admin+
 // matches, which lines up with the "Admin can mutate tenant-owned
 // agents" rule. The server still enforces the same matrix on every
 // mutation; this gate just hides buttons the user has no authority
 // to use.
 function canManageAgent(agent: AgentWithUI): boolean {
   const userId = authStore.user?.id || ''
-  const creatorId = (agent as any).created_by || ''
+  const creatorId = (agent as any).createdBy || ''
   if (creatorId && userId && creatorId === userId) return true
   return authStore.hasRole('admin')
 }
 
 // isMyAgent 仅用于卡片来源徽章在「我创建」与「同空间其他成员创建」之间切换。
-// 跟 canManageAgent 区别：管理权限有 admin 兜底；徽章纯粹按 created_by 匹配。
-// 内建 agent（created_by=""）也归到非 mine 一档，由模板上的 builtin 分支
+// 跟 canManageAgent 区别：管理权限有 admin 兜底；徽章纯粹按 createdBy 匹配。
+// 内建 agent（createdBy=""）也归到非 mine 一档，由模板上的 builtin 分支
 // 提前拦截，不会落到 ResourceOriginBadge。
-function isMyAgent(agent: { created_by?: string }): boolean {
+function isMyAgent(agent: { createdBy?: string }): boolean {
   const userId = authStore.user?.id || ''
-  return !!(agent.created_by && userId && agent.created_by === userId)
+  return !!(agent.createdBy && userId && agent.createdBy === userId)
 }
 
 // agentOriginVariant 跟 kbOriginVariant 对齐：右下角徽章不再重复空间名
 // （顶部 TenantSelector 已经标了空间身份），所有角色都用 creator 变体。
 // 内建 agent 走 v-else 前的 builtin 分支，到不了这里。
-function agentOriginVariant(agent: { created_by?: string }): 'mine' | 'creator' {
+function agentOriginVariant(agent: { createdBy?: string }): 'mine' | 'creator' {
   return isMyAgent(agent) ? 'mine' : 'creator'
 }
 
 // 分组标题可见时，隐藏与标题重复的角标（「我创建的」段内的 mine 徽章、
 // 内置段、无创建者名的同事段），其余照常展示。
-function showAgentOriginBadge(agent: { created_by?: string; creator_name?: string }): boolean {
+function showAgentOriginBadge(agent: { createdBy?: string; creatorName?: string }): boolean {
   if (!showShareGroupHeaders.value) return true
   const section = agentSectionOf(agent)
   const variant = agentOriginVariant(agent)
   if (section === 'mine' && variant === 'mine') return false
   if (section === 'builtin') return false
-  if (section === 'tenantOthers' && variant === 'creator' && !agent.creator_name?.trim()) return false
+  if (section === 'tenantOthers' && variant === 'creator' && !agent.creatorName?.trim()) return false
   return true
 }
 
-function showAgentBuiltinBadge(agent: { is_builtin?: boolean }): boolean {
-  if (!agent.is_builtin) return false
+function showAgentBuiltinBadge(agent: { builtin?: boolean }): boolean {
+  if (!agent.builtin) return false
   if (!showShareGroupHeaders.value) return true
   return agentSectionOf(agent) !== 'builtin'
 }
@@ -917,10 +917,10 @@ const toggleAgentSection = (key: AgentSectionKey) => {
 // 当前用户自己创建的 agent 在模板里**没有**独立分组标题（不像 KB 那边有
 // "我创建的"段），所以这里返回 null——折叠任何分组都不会影响到它们。
 const agentSectionOf = (item: any): AgentSectionKey | null => {
-  // 内置 agent（is_builtin=true）单独成段，置顶展示——它们是空间共有的
+  // 内置 agent（builtin=true）单独成段，置顶展示——它们是空间共有的
   // 系统资源，跟"我 / 同事"几个所有权分类不在同一维度。
-  if (item?.is_builtin === true) return 'builtin'
-  // 本空间内：我亲手创建 → 'mine'；同事 / 非内置但无 created_by → 'tenantOthers'。
+  if (item?.builtin === true) return 'builtin'
+  // 本空间内：我亲手创建 → 'mine'；同事 / 非内置但无 createdBy → 'tenantOthers'。
   return isMyAgent(item as AgentWithUI) ? 'mine' : 'tenantOthers'
 }
 const isAgentRowHidden = (item: any): boolean => {

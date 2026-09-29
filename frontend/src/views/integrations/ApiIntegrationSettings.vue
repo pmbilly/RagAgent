@@ -981,7 +981,7 @@ const canAutoSave = computed(() => {
 })
 
 const agentOptions = computed(() => agents.value.map((agent) => ({
-  label: `${agent.name}${agent.is_builtin ? ` · ${t('integrations.api.playgroundBuiltin')}` : ''}`,
+  label: `${agent.name}${agent.builtin ? ` · ${t('integrations.api.playgroundBuiltin')}` : ''}`,
   value: agent.id,
 })))
 

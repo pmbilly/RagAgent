@@ -158,7 +158,7 @@ class W5bInitializationContractTest {
         // 建任务 → 轮询到 completed（stub 剧本固定 → 终态确定）
         MvcResult created = expect(200, post("/api/v1/initialization/ollama/models/download",
                 bearer, "{\"modelName\":\"fresh-model\"}"), "w5b-download-created.json");
-        String taskId = jsonPath(created, "data.taskId");
+        String taskId = jsonPath(created, "taskId");
         String finalBody = "";
         for (int i = 0; i < 50; i++) {
             MvcResult progress = result(get(
@@ -250,19 +250,19 @@ class W5bInitializationContractTest {
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer, "{}"), 400,
                 "w5b-extract-badbody.json");
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer,
-                "{\"text\":\"" + "a".repeat(5001) + "\",\"tags\":[\"Author\"],\"model_id\":\""
+                "{\"text\":\"" + "a".repeat(5001) + "\",\"tags\":[\"Author\"],\"modelId\":\""
                         + MD_STUB + "\"}"), 400, "w5b-extract-toolong.json");
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer,
-                "{\"text\":\"x\",\"tags\":[\"Author\"],\"model_id\":\"nope\"}"), 400,
+                "{\"text\":\"x\",\"tags\":[\"Author\"],\"modelId\":\"nope\"}"), 400,
                 "w5b-extract-model-missing.json");
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer,
-                "{\"text\":\"" + GRAPH_TEXT + "\",\"tags\":[\"Author\"],\"model_id\":\""
+                "{\"text\":\"" + GRAPH_TEXT + "\",\"tags\":[\"Author\"],\"modelId\":\""
                         + MD_STUB + "\"}"), 200, "w5b-extract-graph.json");
         assertGolden(post("/api/v1/initialization/extract/fabri-text", bearer,
-                "{\"tags\":[\"Author\",\"Alias\"],\"model_id\":\"" + MD_STUB + "\"}"), 200,
+                "{\"tags\":[\"Author\",\"Alias\"],\"modelId\":\"" + MD_STUB + "\"}"), 200,
                 "w5b-fabritext.json");
         assertGolden(post("/api/v1/initialization/extract/fabri-text", bearer,
-                "{\"tags\":[],\"model_id\":\"nope\"}"), 400, "w5b-fabritext-model-missing.json");
+                "{\"tags\":[],\"modelId\":\"nope\"}"), 400, "w5b-fabritext-model-missing.json");
 
         // ── multimodal 校验族（不触 docreader） ──
         MockMultipartFile png = new MockMultipartFile(
@@ -270,31 +270,31 @@ class W5bInitializationContractTest {
         assertGolden(multipart("/api/v1/initialization/multimodal/test"), 400,
                 "w5b-mm-missing-vlm.json");
         assertGolden(multipart("/api/v1/initialization/multimodal/test")
-                        .param("vlm_model", "vlm-stub").param("vlm_base_url", base)
-                        .param("storage_type", "s3"), 400, "w5b-mm-badstorage.json");
+                        .param("vlmModel", "vlm-stub").param("vlmBaseUrl", base)
+                        .param("storageType", "s3"), 400, "w5b-mm-badstorage.json");
         assertGolden(multipart("/api/v1/initialization/multimodal/test")
-                        .param("vlm_model", "vlm-stub").param("vlm_base_url", base)
-                        .param("storage_type", "cos"), 400, "w5b-mm-cos-incomplete.json");
+                        .param("vlmModel", "vlm-stub").param("vlmBaseUrl", base)
+                        .param("storageType", "cos"), 400, "w5b-mm-cos-incomplete.json");
         assertGolden(multipart("/api/v1/initialization/multimodal/test")
-                        .param("vlm_model", "vlm-stub").param("vlm_base_url", base)
-                        .param("storage_type", "minio"), 400, "w5b-mm-minio-incomplete.json");
-        assertGolden(multipart("/api/v1/initialization/multimodal/test")
-                        .file(png)
-                        .param("vlm_model", "vlm-stub").param("vlm_base_url", base)
-                        .param("storage_type", "minio").param("minio_bucket_name", "b")
-                        .param("chunk_size", "abc"), 400, "w5b-mm-chunksize.json");
+                        .param("vlmModel", "vlm-stub").param("vlmBaseUrl", base)
+                        .param("storageType", "minio"), 400, "w5b-mm-minio-incomplete.json");
         assertGolden(multipart("/api/v1/initialization/multimodal/test")
                         .file(png)
-                        .param("vlm_model", "vlm-stub").param("vlm_base_url", base)
-                        .param("storage_type", "minio").param("minio_bucket_name", "b")
-                        .param("chunk_size", "1000").param("chunk_overlap", "abc"), 400,
+                        .param("vlmModel", "vlm-stub").param("vlmBaseUrl", base)
+                        .param("storageType", "minio").param("minioBucketName", "b")
+                        .param("chunkSize", "abc"), 400, "w5b-mm-chunksize.json");
+        assertGolden(multipart("/api/v1/initialization/multimodal/test")
+                        .file(png)
+                        .param("vlmModel", "vlm-stub").param("vlmBaseUrl", base)
+                        .param("storageType", "minio").param("minioBucketName", "b")
+                        .param("chunkSize", "1000").param("chunkOverlap", "abc"), 400,
                 "w5b-mm-chunkoverlap.json");
         assertGolden(multipart("/api/v1/initialization/multimodal/test")
                         .file(new MockMultipartFile("image", "tiny.txt", "text/plain",
                                 "hello".getBytes(StandardCharsets.UTF_8)))
-                        .param("vlm_model", "vlm-stub").param("vlm_base_url", base)
-                        .param("storage_type", "minio").param("minio_bucket_name", "b")
-                        .param("chunk_size", "1000").param("chunk_overlap", "200"), 400,
+                        .param("vlmModel", "vlm-stub").param("vlmBaseUrl", base)
+                        .param("storageType", "minio").param("minioBucketName", "b")
+                        .param("chunkSize", "1000").param("chunkOverlap", "200"), 400,
                 "w5b-mm-badtype.json");
     }
 
@@ -317,7 +317,7 @@ class W5bInitializationContractTest {
         org.junit.jupiter.api.Assertions.assertEquals(expected, masked);
         com.fasterxml.jackson.databind.JsonNode tags =
                 new com.fasterxml.jackson.databind.ObjectMapper().readTree(body)
-                        .path("data").path("tags");
+                        .path("tags");
         assertTrue(tags.isArray() && !tags.isEmpty());
         Set<String> options = Set.of("Content", "Culture", "Person", "Event", "Time",
                 "Location", "Work", "Author", "Relation", "Attribute");

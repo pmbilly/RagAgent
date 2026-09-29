@@ -138,18 +138,18 @@ public class InitializationController {
 
     @PostMapping("/api/v1/initialization/multimodal/test")
     public ResponseEntity<Object> multimodalTest(
-            @RequestParam(value = "vlm_model", required = false) String vlmModel,
-            @RequestParam(value = "vlm_base_url", required = false) String vlmBaseUrl,
-            @RequestParam(value = "vlm_interface_type", required = false) String vlmInterfaceType,
-            @RequestParam(value = "storage_type", required = false) String storageType,
-            @RequestParam(value = "cos_secret_id", required = false) String cosSecretId,
-            @RequestParam(value = "cos_secret_key", required = false) String cosSecretKey,
-            @RequestParam(value = "cos_region", required = false) String cosRegion,
-            @RequestParam(value = "cos_bucket_name", required = false) String cosBucketName,
-            @RequestParam(value = "cos_app_id", required = false) String cosAppId,
-            @RequestParam(value = "minio_bucket_name", required = false) String minioBucketName,
-            @RequestParam(value = "chunk_size", required = false) String chunkSizeRaw,
-            @RequestParam(value = "chunk_overlap", required = false) String chunkOverlapRaw,
+            @RequestParam(value = "vlmModel", required = false) String vlmModel,
+            @RequestParam(value = "vlmBaseUrl", required = false) String vlmBaseUrl,
+            @RequestParam(value = "vlmInterfaceType", required = false) String vlmInterfaceType,
+            @RequestParam(value = "storageType", required = false) String storageType,
+            @RequestParam(value = "cosSecretId", required = false) String cosSecretId,
+            @RequestParam(value = "cosSecretKey", required = false) String cosSecretKey,
+            @RequestParam(value = "cosRegion", required = false) String cosRegion,
+            @RequestParam(value = "cosBucketName", required = false) String cosBucketName,
+            @RequestParam(value = "cosAppId", required = false) String cosAppId,
+            @RequestParam(value = "minioBucketName", required = false) String minioBucketName,
+            @RequestParam(value = "chunkSize", required = false) String chunkSizeRaw,
+            @RequestParam(value = "chunkOverlap", required = false) String chunkOverlapRaw,
             @RequestParam(value = "separators", required = false) String separatorsRaw,
             @RequestParam(value = "image", required = false) org.springframework.web.multipart.MultipartFile image) {
         return modelTest.multimodalTest(vlmModel, vlmBaseUrl, vlmInterfaceType, storageType, cosSecretId, cosSecretKey, cosRegion, cosBucketName, cosAppId, minioBucketName, chunkSizeRaw, chunkOverlapRaw, separatorsRaw, image);

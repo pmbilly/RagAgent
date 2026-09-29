@@ -1,1 +1,6 @@
-{"data":{"models":{"absent-model":false,"stub-model":true}},"success":true}
+{
+  "models": {
+    "absent-model": false,
+    "stub-model": true
+  }
+}

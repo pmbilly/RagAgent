@@ -77,10 +77,7 @@ public final class InitializationConfigService {
                 // Go：Warn 后 continue
             }
         }
-        Map<String, Object> body = new TreeMap<>();
-        body.put("data", configResponse(models, kb, hasFiles(kbId)));
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(configResponse(models, kb, hasFiles(kbId)));
     }
 
     // ══════════════ POST /initialization/initialize/:kbId ══════════════
@@ -119,14 +116,11 @@ public final class InitializationConfigService {
         saveKb(kb);
 
         Map<String, Object> data = new TreeMap<>();
-        data.put("knowledge_base", KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
+        data.put("knowledgeBase", KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
         // 自有契约：api_key 留在 parameters、无 credentials 键
         data.put("models", processed.stream().map(com.ragagent.agentm.dto.InitResponses::rawModel).toList());
-        Map<String, Object> body = new TreeMap<>();
-        body.put("data", data);
-        body.put("message", "知识库配置更新成功");
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        data.put("message", "知识库配置更新成功");
+        return ResponseEntity.ok(data);
     }
 
     // ══════════════ PUT /initialization/config/:kbId ══════════════
@@ -161,8 +155,8 @@ public final class InitializationConfigService {
         kb.setVlmConfig(new KnowledgeBaseVlmConfig());
         KnowledgeBaseVlmConfig vlm = kb.getVlmConfig();
         JsonNode vlmReq = req.vlmConfig();
-        if (vlmReq != null && req.multimodalEnabled() && !vlmReq.path("model_id").asText("").isEmpty()) {
-            String vlmModelId = vlmReq.path("model_id").asText("");
+        if (vlmReq != null && req.multimodalEnabled() && !vlmReq.path("modelId").asText("").isEmpty()) {
+            String vlmModelId = vlmReq.path("modelId").asText("");
             try {
                 if (modelService.getModelByID(vlmModelId) != null) {
                     vlm.setEnabled(vlmReq.path("enabled").asBoolean(false));
@@ -179,11 +173,11 @@ public final class InitializationConfigService {
         KnowledgeBaseAsrConfig asr = kb.getAsrConfig();
         JsonNode asrReq = req.asrConfig();
         if (asrReq != null && asrReq.path("enabled").asBoolean(false)
-                && !asrReq.path("model_id").asText("").isEmpty()) {
+                && !asrReq.path("modelId").asText("").isEmpty()) {
             try {
-                if (modelService.getModelByID(asrReq.path("model_id").asText()) != null) {
+                if (modelService.getModelByID(asrReq.path("modelId").asText()) != null) {
                     asr.setEnabled(true);
-                    asr.setModelId(asrReq.path("model_id").asText());
+                    asr.setModelId(asrReq.path("modelId").asText());
                     asr.setLanguage(asrReq.path("language").asText(""));
                 }
             } catch (Exception ignored) {
@@ -227,8 +221,8 @@ public final class InitializationConfigService {
             vlm.setModelId("");
         }
         if (vlmReq != null) {
-            vlm.setDescriptionLanguage(vlmReq.path("description_language").asText("").trim());
-            vlm.setCustomInstructions(vlmReq.path("custom_instructions").asText("").trim());
+            vlm.setDescriptionLanguage(vlmReq.path("descriptionLanguage").asText("").trim());
+            vlm.setCustomInstructions(vlmReq.path("customInstructions").asText("").trim());
         }
 
         // 存储引擎：provider 兼容投影
@@ -250,7 +244,7 @@ public final class InitializationConfigService {
             extract.set("tags", MAPPER.valueToTree(req.nodeExtractTags()));
             extract.set("nodes", MAPPER.valueToTree(req.nodeExtractNodes()));
             extract.set("relations", MAPPER.valueToTree(req.nodeExtractRelations()));
-            extract.put("custom_instructions", req.nodeExtractCustomInstructions().trim());
+            extract.put("customInstructions", req.nodeExtractCustomInstructions().trim());
             kb.setExtractConfig(extract);
         } else if (kb.getExtractConfig() != null) {
             ((ObjectNode) kb.getExtractConfig()).put("enabled", false);
@@ -271,19 +265,16 @@ public final class InitializationConfigService {
                 count = 10;
             }
             qg.put("enabled", true);
-            qg.put("question_count", count);
-            qg.put("custom_instructions", req.questionGenerationInstructions().trim());
+            qg.put("questionCount", count);
+            qg.put("customInstructions", req.questionGenerationInstructions().trim());
         } else {
             qg.put("enabled", false);
-            qg.put("custom_instructions", req.questionGenerationInstructions().trim());
+            qg.put("customInstructions", req.questionGenerationInstructions().trim());
         }
         kb.setQuestionGenerationConfig(qg);
 
         saveKb(kb);
-        Map<String, Object> body = new TreeMap<>();
-        body.put("message", "配置更新成功");
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(java.util.Collections.singletonMap("message", "配置更新成功"));
     }
 
     /** RFC3339Nano + 服务器本地时区（同 GoTimeSerializer 逻辑）。 */
@@ -645,7 +636,7 @@ public final class InitializationConfigService {
             ne.put("tags", extract.get("tags"));
             ne.put("nodes", extract.get("nodes"));
             ne.put("relations", extract.get("relations"));
-            String ci = extract.path("custom_instructions").asText("");
+            String ci = extract.path("customInstructions").asText("");
             if (!ci.isEmpty()) {
                 ne.put("customInstructions", ci);
             }
@@ -658,8 +649,8 @@ public final class InitializationConfigService {
         if (qg != null) {
             config.put("questionGeneration", sortedBlock(Map.of(
                     "enabled", qg.path("enabled").asBoolean(false),
-                    "questionCount", qg.path("question_count").asInt(0),
-                    "customInstructions", qg.path("custom_instructions").asText(""))));
+                    "questionCount", qg.path("questionCount").asInt(0),
+                    "customInstructions", qg.path("customInstructions").asText(""))));
         } else {
             config.put("questionGeneration", sortedBlock(Map.of("enabled", false)));
         }

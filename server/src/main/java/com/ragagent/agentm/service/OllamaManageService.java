@@ -83,7 +83,7 @@ public final class OllamaManageService {
             n.put("digest", m.digest());
             // Go：time.Time 经 json 反序列化保留 UTC location → marshal 仍是 Z，
             // 不做服务器本地时区转换（与 startTime 的 time.Now() 本地时区路径刻意不同）
-            n.put("modified_at", ModelConnectivityTestService.goTimeAsIs(m.modifiedAt()));
+            n.put("modifiedAt", ModelConnectivityTestService.goTimeAsIs(m.modifiedAt()));
         }
         return ModelConnectivityTestService.ok(data);
     }
@@ -125,11 +125,8 @@ public final class OllamaManageService {
             data.put("modelName", modelName);
             data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(GoDoubleSerializer.format(100.0)));
             data.put("status", "completed");
-            Map<String, Object> body = new TreeMap<>();
-            body.put("data", data);
-            body.put("message", "模型已存在");
-            body.put("success", true);
-            return ResponseEntity.ok(body);
+            data.put("message", "模型已存在");
+            return ResponseEntity.ok(data);
         }
         var existing = downloadTasks.findActiveByModel(modelName);
         if (existing != null) {
@@ -152,11 +149,8 @@ public final class OllamaManageService {
         data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(GoDoubleSerializer.format(0.0)));
         data.put("status", "pending");
         data.put("taskId", taskId);
-        Map<String, Object> body = new TreeMap<>();
-        body.put("data", data);
-        body.put("message", "模型下载任务已创建");
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        data.put("message", "模型下载任务已创建");
+        return ResponseEntity.ok(data);
     }
 
     /** GET /initialization/ollama/download/progress/:taskId——DownloadTask 按 struct 序输出。 */

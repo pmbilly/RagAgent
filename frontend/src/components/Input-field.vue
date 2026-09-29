@@ -162,7 +162,7 @@ const selectedAgent = computed(() => {
   return {
     id: BUILTIN_QUICK_ANSWER_ID,
     name: t('input.normalMode'),
-    is_builtin: true,
+    builtin: true,
     config: { agent_mode: 'quick-answer' as const }
   } as CustomAgent;
 });
@@ -170,13 +170,13 @@ const selectedAgent = computed(() => {
 // 判断是否为自定义智能体（非内置）
 const isCustomAgent = computed(() => {
   const agent = selectedAgent.value;
-  return agent && !agent.is_builtin;
+  return agent && !agent.builtin;
 });
 
 // 判断是否有智能体配置（包括内置智能体）
 const hasAgentConfig = computed(() => {
   const agent = selectedAgent.value;
-  if (agent?.is_builtin) {
+  if (agent?.builtin) {
     const builtinAgent = agents.value.find(a => a.id === agent.id);
     return !!builtinAgent?.config;
   }
@@ -186,7 +186,7 @@ const hasAgentConfig = computed(() => {
 // 获取当前智能体的实际配置（内置智能体从 agents 列表获取）
 const currentAgentConfig = computed(() => {
   const agent = selectedAgent.value;
-  if (agent?.is_builtin) {
+  if (agent?.builtin) {
     const builtinAgent = agents.value.find(a => a.id === agent.id);
     return builtinAgent?.config || {};
   }
@@ -1796,7 +1796,7 @@ const createSession = async (val: string, delivery: 'inject' | 'after' = 'after'
   // 发送前校验当前选中的智能体（含默认快速问答）是否已配置完成
   const agentToCheck = selectedAgent.value;
   let actualAgent = agentToCheck;
-  if (agentToCheck.is_builtin) {
+  if (agentToCheck.builtin) {
     let builtin = agents.value.find(a => a.id === selectedAgentId.value);
     if (!builtin) {
       await loadAgents();
@@ -2000,7 +2000,7 @@ const handleSelectAgent = async (agent: CustomAgent) => {
   const isAgentType = agent.config?.agent_mode === 'smart-reasoning';
 
   // 统一检查智能体是否就绪（内置和自定义智能体使用相同逻辑）
-  const actualAgent = agent.is_builtin
+  const actualAgent = agent.builtin
     ? (agents.value.find(a => a.id === agent.id) || agent)
     : agent;
 
@@ -2205,7 +2205,7 @@ const collectAgentNotReadyReasons = (
   });
   return {
     keys,
-    labels: formatAgentNotReadyReasons(keys, agent.is_builtin),
+    labels: formatAgentNotReadyReasons(keys, agent.builtin),
   };
 };
 

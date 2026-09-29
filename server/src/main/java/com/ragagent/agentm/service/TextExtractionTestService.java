@@ -45,7 +45,7 @@ public final class TextExtractionTestService {
         }
         String t = ModelConnectivityTestService.text(n, "text");
         List<String> tags = InitializationRequests.toStringList(n.get("tags"));
-        String modelId = ModelConnectivityTestService.text(n, "model_id");
+        String modelId = ModelConnectivityTestService.text(n, "modelId");
         boolean tagsInvalid = n.get("tags") == null || !n.get("tags").isArray() || tags.isEmpty();
         if (t.isEmpty() || tagsInvalid || modelId.isEmpty()) {
             // text/tags 等必填字段缺失时先落 bind 错误文案
@@ -130,7 +130,7 @@ public final class TextExtractionTestService {
             throw new BizException(AppError.badRequest("invalid fabri text request parameters"));
         }
         List<String> tags = InitializationRequests.toStringList(n.get("tags"));
-        String modelId = ModelConnectivityTestService.text(n, "model_id");
+        String modelId = ModelConnectivityTestService.text(n, "modelId");
         if (modelId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid fabri text request parameters"));
         }

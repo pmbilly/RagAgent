@@ -56,17 +56,17 @@ public final class InitializationRequests {
             for (JsonNode r : ds.get("parserEngineRules")) {
                 com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig.ParserEngineRule rule =
                         new com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig.ParserEngineRule();
-                rule.setFileTypes(toStringList(r.get("file_types")));
+                rule.setFileTypes(toStringList(r.get("fileTypes")));
                 rule.setEngine(r.path("engine").asText(""));
-                rule.setXlsxFirstRowAsHeader(r.path("xlsx_first_row_as_header").asBoolean(false));
+                rule.setXlsxFirstRowAsHeader(r.path("xlsxFirstRowAsHeader").asBoolean(false));
                 rules.add(rule);
             }
         }
         return new KBModelConfigRequest(
                 llmModelId,
                 ModelConnectivityTestService.text(n, "embeddingModelId"),
-                n.get("vlm_config"),
-                n.get("asr_config"),
+                n.get("vlmConfig"),
+                n.get("asrConfig"),
                 ds == null ? 0 : ds.path("chunkSize").asInt(0),
                 ds == null ? 0 : ds.path("chunkOverlap").asInt(0),
                 seps,

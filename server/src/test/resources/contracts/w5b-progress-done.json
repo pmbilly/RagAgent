@@ -1,1 +1,9 @@
-{"data":{"id":"159a14ee-5f08-4d27-a9a3-093861490259","modelName":"fresh-model","status":"completed","progress":100,"message":"下载完成","startTime":"2026-09-21T09:30:35.106711+08:00","endTime":"2026-09-21T09:30:35.107938+08:00"},"success":true}
+{
+  "id": "159a14ee-5f08-4d27-a9a3-093861490259",
+  "modelName": "fresh-model",
+  "status": "completed",
+  "progress": 100,
+  "message": "下载完成",
+  "startTime": "2026-09-21T09:30:35.106711+08:00",
+  "endTime": "2026-09-21T09:30:35.107938+08:00"
+}

@@ -79,15 +79,15 @@ public class AgentController {
 
     // ── GET /agents/placeholders ──
     @GetMapping("/api/v1/agents/placeholders")
-    public ResponseEntity<Object> placeholders() {
-        return ResponseEntity.ok(placeholders.data());
+    public ResponseEntity<Map<String, Object>> placeholders() {
+        return ResponseEntity.ok(AgentResponses.dataEnvelope(placeholders.data()));
     }
 
     // ── GET /agents/type-presets ──
     @GetMapping("/api/v1/agents/type-presets")
-    public ResponseEntity<Object> typePresets(HttpServletRequest req) {
+    public ResponseEntity<Map<String, Object>> typePresets(HttpServletRequest req) {
         String locale = BuiltinAgentRegistry.localeFromRequest(req.getHeader("Accept-Language"));
-        return ResponseEntity.ok(typePresets.list(locale));
+        return ResponseEntity.ok(AgentResponses.dataEnvelope(typePresets.list(locale)));
     }
 
     // ── POST /agents ──
@@ -98,7 +98,7 @@ public class AgentController {
         ObjectNode cfg = configNode(parsed);
         authorizeKnowledgeScope(cfg);
         var result = service.createAgent(parsed.name(), parsed.description(), parsed.avatar(), cfg);
-        return ResponseEntity.status(201).body(AgentResponses.agent(result));
+        return ResponseEntity.status(201).body(AgentResponses.dataEnvelope(AgentResponses.agent(result)));
     }
 
     // ── GET /agents/:id ──
@@ -108,7 +108,7 @@ public class AgentController {
         requireNonEmpty(id);
         String locale = BuiltinAgentRegistry.localeFromRequest(req.getHeader("Accept-Language"));
         var result = service.getAgentByID(id, locale);
-        return ResponseEntity.ok(AgentResponses.agent(result));
+        return ResponseEntity.ok(AgentResponses.dataEnvelope(AgentResponses.agent(result)));
     }
 
     // ── PUT /agents/:id ──
@@ -123,17 +123,17 @@ public class AgentController {
         String locale = BuiltinAgentRegistry.localeFromRequest(req.getHeader("Accept-Language"));
         var result = service.updateAgent(id, parsed.name(), parsed.description(), parsed.avatar(),
                 cfg, locale);
-        return ResponseEntity.ok(AgentResponses.agent(result));
+        return ResponseEntity.ok(AgentResponses.dataEnvelope(AgentResponses.agent(result)));
     }
 
     // ── DELETE /agents/:id ──
     @DeleteMapping("/api/v1/agents/{id}")
-    public ResponseEntity<Void> delete(@PathVariable("id") String id,
+    public ResponseEntity<Map<String, Object>> delete(@PathVariable("id") String id,
             HttpServletRequest req) {
         requireNonEmpty(id);
         checkAgentOwnership(id, req);
         service.deleteAgent(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(AgentResponses.deletedEnvelope());
     }
 
     // ── POST /agents/:id/copy ──
@@ -146,15 +146,15 @@ public class AgentController {
         var source = service.getAgentByID(id, locale);
         authorizeKnowledgeScope(source.config());
         var result = service.copyAgent(id, locale);
-        return ResponseEntity.status(201).body(AgentResponses.agent(result));
+        return ResponseEntity.status(201).body(AgentResponses.dataEnvelope(AgentResponses.agent(result)));
     }
 
     // ── GET /agents/:id/suggested-questions ──
     @GetMapping("/api/v1/agents/{id}/suggested-questions")
-    public ResponseEntity<Object> suggestedQuestions(@PathVariable("id") String id,
-            @RequestParam(value = "knowledgeBaseIds", required = false) String kbIdsStr,
-            @RequestParam(value = "knowledgeIds", required = false) String knowledgeIdsStr,
-            @RequestParam(value = "tagScopes", required = false) String tagScopesStr,
+    public ResponseEntity<Map<String, Object>> suggestedQuestions(@PathVariable("id") String id,
+            @RequestParam(value = "knowledge_base_ids", required = false) String kbIdsStr,
+            @RequestParam(value = "knowledge_ids", required = false) String knowledgeIdsStr,
+            @RequestParam(value = "tag_scopes", required = false) String tagScopesStr,
             @RequestParam(value = "limit", required = false) String limitStr,
             HttpServletRequest req) {
         requireNonEmpty(id);
@@ -167,19 +167,19 @@ public class AgentController {
                 if (arr.isArray()) {
                     for (JsonNode e : arr) {
                         List<String> tagIds = new ArrayList<>();
-                        JsonNode ids = e.get("tagIds");
+                        JsonNode ids = e.get("tag_ids");
                         if (ids != null && ids.isArray()) {
                             for (JsonNode t : ids) {
                                 tagIds.add(t.asText(""));
                             }
                         }
-                        tagScopes.add(new TagScope(e.path("knowledgeBaseId").asText(""), tagIds));
+                        tagScopes.add(new TagScope(e.path("knowledge_base_id").asText(""), tagIds));
                     }
                 } else {
                     throw new IllegalArgumentException("not an array");
                 }
             } catch (Exception ex) {
-                throw new BizException(AppError.badRequest("tagScopes must be valid JSON"));
+                throw new BizException(AppError.badRequest("tag_scopes must be valid JSON"));
             }
         }
         int limit = 0;
@@ -196,7 +196,9 @@ public class AgentController {
         String locale = BuiltinAgentRegistry.localeFromRequest(req.getHeader("Accept-Language"));
         var questions = service.getSuggestedQuestions(id, kbIds, knowledgeIds, tagScopes, limit,
                 locale);
-        return ResponseEntity.ok(questions);
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("questions", questions);
+        return ResponseEntity.ok(AgentResponses.dataEnvelope(data));
     }
 
     // ── handler 私有段 ──

@@ -55,9 +55,8 @@ public class SkillsCatalogController {
     public ResponseEntity<Map<String, Object>> listSkills() {
         Map<String, Object> body = new TreeMap<>();
         if (hostSkillDirs.isEmpty()) {
-            body.put("data", List.of());
-            body.put("skills_available", false);
-            body.put("success", true);
+            body.put("skills", List.of());
+            body.put("skillsAvailable", false);
             return ResponseEntity.ok(body);
         }
         List<SkillInfoResponse> response = new ArrayList<>();
@@ -70,8 +69,8 @@ public class SkillsCatalogController {
         } catch (Exception e) {
             log.warn("[skills] scan host skill dirs {}: {}", hostSkillDirs, e.getMessage());
         }
-        body.put("data", response);
-        body.put("skills_available", true);
+        body.put("skills", response);
+        body.put("skillsAvailable", true);
         body.put("success", true);
         return ResponseEntity.ok(body);
     }

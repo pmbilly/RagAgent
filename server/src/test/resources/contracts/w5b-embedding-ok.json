@@ -1,1 +1,5 @@
-{"data":{"available":true,"dimension":3,"message":"测试成功，向量维度=3"},"success":true}
+{
+  "available": true,
+  "dimension": 3,
+  "message": "测试成功，向量维度=3"
+}

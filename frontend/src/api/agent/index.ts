@@ -146,14 +146,14 @@ export interface CustomAgent {
   name: string;
   description?: string;
   avatar?: string;
-  is_builtin: boolean;
-  tenant_id?: number;
-  created_by?: string;
-  // creator_name 由后端 list 接口批量回填，仅用于列表卡片来源徽章。
-  creator_name?: string;
+  builtin: boolean;
+  tenantId?: number;
+  createdBy?: string;
+  // creatorName 由后端 list 接口批量回填，仅用于列表卡片来源徽章。
+  creatorName?: string;
   config: CustomAgentConfig;
-  created_at?: string;
-  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // 创建智能体请求
@@ -186,46 +186,46 @@ export const BUILTIN_AGENT_NORMAL_ID = BUILTIN_QUICK_ANSWER_ID;
 export const BUILTIN_AGENT_AGENT_ID = BUILTIN_SMART_REASONING_ID;
 
 // 获取智能体列表（包括内置智能体）
-// disabled_own_agent_ids: 当前空间在对话下拉中停用的「我的」智能体 ID，仅影响本空间
+// disabledOwnAgentIds: 当前空间在对话下拉中停用的「我的」智能体 ID，仅影响本空间
 export function listAgents(params?: {
   /**
    * Optional creator filter; mirrors listKnowledgeBases. Built-in agents
-   * (is_builtin=true) are always returned regardless of this filter so
+   * (builtin=true) are always returned regardless of this filter so
    * the conversation dropdown never silently loses quick-answer /
    * smart-reasoning when a user picks "Created by me".
    */
   creator?: 'all' | 'mine' | 'others';
 }) {
   const qs = params?.creator && params.creator !== 'all' ? `?creator=${params.creator}` : '';
-  return get<{ data: CustomAgent[]; disabled_own_agent_ids?: string[] }>(`/api/v1/agents${qs}`);
+  return get<{ agents: CustomAgent[]; disabledOwnAgentIds?: string[] }>(`/api/v1/agents${qs}`);
 }
 
 // 获取智能体详情
 export function getAgentById(id: string) {
-  return get<{ data: CustomAgent }>(`/api/v1/agents/${id}`);
+  return get<CustomAgent>(`/api/v1/agents/${id}`);
 }
 
 // 创建智能体
 export function createAgent(data: CreateAgentRequest) {
-  return post<{ data: CustomAgent }>('/api/v1/agents', data);
+  return post<CustomAgent>('/api/v1/agents', data);
 }
 
 // 更新智能体
 export function updateAgent(id: string, data: UpdateAgentRequest) {
-  return put<{ data: CustomAgent }>(`/api/v1/agents/${id}`, data);
+  return put<CustomAgent>(`/api/v1/agents/${id}`, data);
 }
 
 // 删除智能体
 export function deleteAgent(id: string) {
-  return del<{ success: boolean }>(`/api/v1/agents/${id}`);
+  return del<void>(`/api/v1/agents/${id}`);
 }
 
 // 复制智能体
 export function copyAgent(id: string) {
-  return post<{ data: CustomAgent }>(`/api/v1/agents/${id}/copy`);
+  return post<CustomAgent>(`/api/v1/agents/${id}/copy`);
 }
 
-// 判断是否为内置智能体（通过 agent.is_builtin 字段或 ID 前缀判断）
+// 判断是否为内置智能体（通过 agent.builtin 字段或 ID 前缀判断）
 export function isBuiltinAgent(agentId: string): boolean {
   return agentId.startsWith('builtin-');
 }
@@ -377,18 +377,17 @@ export function getSuggestedQuestions(
   agentId: string,
   params?: {
     knowledge_base_ids?: string[];
-    knowledge_ids?: string[];
-    tag_scopes?: Array<{ knowledge_base_id: string; tag_ids: string[] }>;
+    knowledgeIds?: string[];
+    tagScopes?: Array<{ knowledgeBaseId: string; tagIds: string[] }>;
     limit?: number;
   }
 ) {
   const query = new URLSearchParams();
-  if (params?.knowledge_base_ids?.length) query.set('knowledge_base_ids', params.knowledge_base_ids.join(','));
-  if (params?.knowledge_ids?.length) query.set('knowledge_ids', params.knowledge_ids.join(','));
-  if (params?.tag_scopes?.length) query.set('tag_scopes', JSON.stringify(params.tag_scopes));
+  if (params?.knowledgeIds?.length) query.set('knowledgeIds', params.knowledgeIds.join(','));
+  if (params?.tagScopes?.length) query.set('tagScopes', JSON.stringify(params.tagScopes));
   if (params?.limit) query.set('limit', String(params.limit));
   const qs = query.toString();
-  return get<{ data: { questions: SuggestedQuestion[] } }>(`/api/v1/agents/${agentId}/suggested-questions${qs ? '?' + qs : ''}`);
+  return get<SuggestedQuestion[]>(`/api/v1/agents/${agentId}/suggested-questions${qs ? '?' + qs : ''}`);
 }
 // ===== WeChat QR Code Login =====
 

@@ -106,15 +106,15 @@ export interface DownloadTask {
 export interface KBModelConfigRequest {
     llmModelId: string
     embeddingModelId: string
-    vlm_config?: {
+    vlmConfig?: {
         enabled: boolean
-        model_id?: string
-        description_language?: string
-        custom_instructions?: string
+        modelId?: string
+        descriptionLanguage?: string
+        customInstructions?: string
     }
-    asr_config?: {
+    asrConfig?: {
         enabled: boolean
-        model_id?: string
+        modelId?: string
         language?: string
     }
     documentSplitting: {
@@ -122,9 +122,9 @@ export interface KBModelConfigRequest {
         chunkOverlap: number
         separators: string[]
         parserEngineRules?: {
-            file_types: string[]
+            fileTypes: string[]
             engine: string
-            xlsx_first_row_as_header?: boolean
+            xlsxFirstRowAsHeader?: boolean
         }[]
         enableParentChild?: boolean
         parentChunkSize?: number
@@ -199,7 +199,7 @@ export function checkOllamaStatus(): Promise<{ available: boolean; version?: str
     return new Promise((resolve, reject) => {
         get('/api/v1/initialization/ollama/status')
             .then((response: any) => {
-                resolve(response.data || { available: false });
+                resolve(response || { available: false });
             })
             .catch((error: any) => {
                 console.error('Failed to check Ollama status:', error);
@@ -221,7 +221,7 @@ export function listOllamaModels(): Promise<OllamaModelInfo[]> {
     return new Promise((resolve, reject) => {
         get('/api/v1/initialization/ollama/models')
             .then((response: any) => {
-                resolve((response.data && response.data.models) || []);
+                resolve((response?.models) || []);
             })
             .catch((error: any) => {
                 console.error('Failed to list Ollama models:', error);
@@ -235,7 +235,7 @@ export function checkOllamaModels(models: string[]): Promise<{ models: Record<st
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/ollama/models/check', { models })
             .then((response: any) => {
-                resolve(response.data || { models: {} });
+                resolve(response || { models: {} });
             })
             .catch((error: any) => {
                 console.error('Failed to check Ollama models:', error);
@@ -249,7 +249,7 @@ export function downloadOllamaModel(modelName: string): Promise<{ taskId: string
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/ollama/models/download', { modelName })
             .then((response: any) => {
-                resolve(response.data || { taskId: '', modelName, status: 'failed', progress: 0 });
+                resolve(response || { taskId: '', modelName, status: 'failed', progress: 0 });
             })
             .catch((error: any) => {
                 console.error('Failed to start Ollama model download:', error);
@@ -263,7 +263,7 @@ export function getDownloadProgress(taskId: string): Promise<DownloadTask> {
     return new Promise((resolve, reject) => {
         get(`/api/v1/initialization/ollama/download/progress/${taskId}`)
             .then((response: any) => {
-                resolve(response.data);
+                resolve(response);
             })
             .catch((error: any) => {
                 console.error('Failed to get download progress:', error);
@@ -277,7 +277,7 @@ export function listDownloadTasks(): Promise<DownloadTask[]> {
     return new Promise((resolve, reject) => {
         get('/api/v1/initialization/ollama/download/tasks')
             .then((response: any) => {
-                resolve(response.data || []);
+                resolve(response || []);
             })
             .catch((error: any) => {
                 console.error('Failed to list download tasks:', error);
@@ -291,7 +291,7 @@ export function getCurrentConfigByKB(kbId: string): Promise<InitializationConfig
     return new Promise((resolve, reject) => {
         get(`/api/v1/initialization/config/${kbId}`)
             .then((response: any) => {
-                resolve(response.data || {});
+                resolve(response || {});
             })
             .catch((error: any) => {
                 console.error('Failed to get KB config:', error);
@@ -327,7 +327,7 @@ export function checkRemoteModel(modelConfig: {
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/remote/check', modelConfig)
             .then((response: any) => {
-                resolve(response.data || {});
+                resolve(response || {});
             })
             .catch((error: any) => {
                 console.error('Failed to check remote model:', error);
@@ -350,7 +350,7 @@ export function testEmbeddingModel(modelConfig: {
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/embedding/test', modelConfig)
             .then((response: any) => {
-                resolve(response.data || {});
+                resolve(response || {});
             })
             .catch((error: any) => {
                 console.error('Failed to test Embedding model:', error);
@@ -373,7 +373,7 @@ export function checkRerankModel(modelConfig: {
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/rerank/check', modelConfig)
             .then((response: any) => {
-                resolve(response.data || {});
+                resolve(response || {});
             })
             .catch((error: any) => {
                 console.error('Failed to check Rerank model:', error);
@@ -396,7 +396,7 @@ export function checkASRModel(modelConfig: {
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/asr/check', modelConfig)
             .then((response: any) => {
-                resolve(response.data || {});
+                resolve(response || {});
             })
             .catch((error: any) => {
                 console.error('Failed to check ASR model:', error);
@@ -408,9 +408,9 @@ export function checkASRModel(modelConfig: {
 export function testMultimodalFunction(testData: {
     image: File;
     vlm_model: string;
-    vlm_base_url: string;
-    vlm_api_key?: string;
-    vlm_interface_type?: string;
+    vlmBaseUrl: string;
+    vlmApiKey?: string;
+    vlmInterfaceType?: string;
     storage_type?: 'cos' | 'minio';
     // COS optional fields (required only when storage_type === 'cos')
     cos_secret_id?: string;
@@ -420,7 +420,7 @@ export function testMultimodalFunction(testData: {
     cos_app_id?: string;
     cos_path_prefix?: string;
     // MinIO optional fields
-    minio_bucket_name?: string;
+    minioBucketName?: string;
     minio_path_prefix?: string;
     chunk_size: number;
     chunk_overlap: number;
@@ -435,31 +435,31 @@ export function testMultimodalFunction(testData: {
     return new Promise((resolve, reject) => {
         const formData = new FormData();
         formData.append('image', testData.image);
-        formData.append('vlm_model', testData.vlm_model);
-        formData.append('vlm_base_url', testData.vlm_base_url);
-        if (testData.vlm_api_key) {
-            formData.append('vlm_api_key', testData.vlm_api_key);
+        formData.append('vlmModel', testData.vlm_model);
+        formData.append('vlmBaseUrl', testData.vlmBaseUrl);
+        if (testData.vlmApiKey) {
+            formData.append('vlmApiKey', testData.vlmApiKey);
         }
-        if (testData.vlm_interface_type) {
-            formData.append('vlm_interface_type', testData.vlm_interface_type);
+        if (testData.vlmInterfaceType) {
+            formData.append('vlmInterfaceType', testData.vlmInterfaceType);
         }
         if (testData.storage_type) {
-            formData.append('storage_type', testData.storage_type);
+            formData.append('storageType', testData.storage_type);
         }
         // Append COS fields only when storage_type is COS
         if (testData.storage_type === 'cos') {
-            if (testData.cos_secret_id) formData.append('cos_secret_id', testData.cos_secret_id);
-            if (testData.cos_secret_key) formData.append('cos_secret_key', testData.cos_secret_key);
-            if (testData.cos_region) formData.append('cos_region', testData.cos_region);
-            if (testData.cos_bucket_name) formData.append('cos_bucket_name', testData.cos_bucket_name);
-            if (testData.cos_app_id) formData.append('cos_app_id', testData.cos_app_id);
-            if (testData.cos_path_prefix) formData.append('cos_path_prefix', testData.cos_path_prefix);
+            if (testData.cos_secret_id) formData.append('cosSecretId', testData.cos_secret_id);
+            if (testData.cos_secret_key) formData.append('cosSecretKey', testData.cos_secret_key);
+            if (testData.cos_region) formData.append('cosRegion', testData.cos_region);
+            if (testData.cos_bucket_name) formData.append('cosBucketName', testData.cos_bucket_name);
+            if (testData.cos_app_id) formData.append('cosAppId', testData.cos_app_id);
+            if (testData.cos_path_prefix) formData.append('cosPathPrefix', testData.cos_path_prefix);
         }
         // MinIO fields
-        if (testData.minio_bucket_name) formData.append('minio_bucket_name', testData.minio_bucket_name);
-        if (testData.minio_path_prefix) formData.append('minio_path_prefix', testData.minio_path_prefix);
-        formData.append('chunk_size', testData.chunk_size.toString());
-        formData.append('chunk_overlap', testData.chunk_overlap.toString());
+        if (testData.minioBucketName) formData.append('minioBucketName', testData.minioBucketName);
+        if (testData.minio_path_prefix) formData.append('minioPathPrefix', testData.minio_path_prefix);
+        formData.append('chunkSize', testData.chunk_size.toString());
+        formData.append('chunkOverlap', testData.chunk_overlap.toString());
         formData.append('separators', JSON.stringify(testData.separators));
 
         // 获取鉴权Token
@@ -483,13 +483,14 @@ export function testMultimodalFunction(testData: {
             headers,
             body: formData
         })
-            .then(response => response.json())
-            .then((data: any) => {
-                if (data.success) {
-                    resolve(data.data || {});
-                } else {
-                    resolve({ success: false, message: data.message || t('error.initialization.testFailed') });
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then((err: any) => {
+                        resolve({ success: false,
+                            message: err?.error?.message || t('error.initialization.testFailed') });
+                    });
                 }
+                return response.json().then((data: any) => resolve(data || {}));
             })
             .catch((error: any) => {
                 console.error('Failed multimodal test:', error);
@@ -526,7 +527,7 @@ export function extractTextRelations(request: TextRelationExtractionRequest): Pr
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/extract/text-relation', request, { timeout: 60000 })
             .then((response: any) => {
-                resolve(response.data || { nodes: [], relations: [] });
+                resolve(response || { nodes: [], relations: [] });
             })
             .catch((error: any) => {
                 console.error('Failed to extract text relations:', error);
@@ -549,7 +550,7 @@ export function fabriText(request: FabriTextRequest): Promise<FabriTextResponse>
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/extract/fabri-text', request)
             .then((response: any) => {
-                resolve(response.data || { text: '' });
+                resolve(response || { text: '' });
             })
             .catch((error: any) => {
                 console.error('Failed to generate text:', error);
@@ -570,7 +571,7 @@ export function fabriTag(request: FabriTagRequest): Promise<FabriTagResponse> {
     return new Promise((resolve, reject) => {
         post('/api/v1/initialization/extract/fabri-tag', request)
             .then((response: any) => {
-                resolve(response.data || { tags: [] as string[] });
+                resolve(response || { tags: [] as string[] });
             })
             .catch((error: any) => {
                 console.error('Failed to generate tags:', error);
@@ -596,7 +597,7 @@ export function listModelProviders(modelType?: string): Promise<ModelProviderOpt
             : '/api/v1/models/providers';
         get(url)
             .then((response: any) => {
-                resolve(response.data || []);
+                resolve(response || []);
             })
             .catch((error: any) => {
                 console.error('Failed to list model providers:', error);

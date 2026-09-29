@@ -263,7 +263,7 @@ class W5aSundryRoutesContractTest {
         MvcResult r = expect(201, postJson("/api/v1/agents", owner,
                 "{\"name\":\"w5a-im-agent\",\"description\":\"w5a im agent\",\"config\":{}}"),
                 "w5a-agent-create.json");
-        String agent = jsonPath(r, "data.id");
+        String agent = jsonPath(r, "id");
         assertGolden(get("/api/v1/im/callback/00000000-0000-0000-0000-000000000000"), 404,
                 "w5a-im-callback-unknown-get.json");
         assertGolden(postJson("/api/v1/im/callback/00000000-0000-0000-0000-000000000000", null, "{}"),

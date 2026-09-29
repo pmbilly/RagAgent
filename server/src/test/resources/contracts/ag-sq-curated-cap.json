@@ -1,1 +1,1 @@
-{"data":{"questions":[{"question":"问题A","source":"agent_config"},{"question":"问题B","source":"agent_config"}]},"success":true}
+[{"question": "问题A", "source": "agent_config"}, {"question": "问题B", "source": "agent_config"}]

@@ -763,7 +763,7 @@ function agentForChannel(channel: IMChannel | IMChannelOverview): CustomAgent | 
   return {
     id: channel.agent_id,
     name: overviewName,
-    is_builtin: false,
+    builtin: false,
     config: {},
   };
 }
@@ -928,7 +928,7 @@ async function loadChannels() {
       chatResources.ensureKnowledgeBases(),
     ]);
     allChannels.value = channelRes.data || [];
-    agents.value = agentRes?.data || [];
+    agents.value = agentRes?.agents || [];
     knowledgeBases.value = chatResources.rawKnowledgeBases.map((kb: any) => ({ id: kb.id, name: kb.name }));
   } catch {
     allChannels.value = [];

@@ -1,1 +1,4 @@
-{"data":{"available":true,"message":"ASR端点可达（非致命错误: ASR transcription request failed: error, status code: 500, status: 500 Internal Server Error, message: invalid character 'b' looking for beginning of value, body: boom）"},"success":true}
+{
+  "available": true,
+  "message": "ASR端点可达（非致命错误: ASR transcription request failed: error, status code: 500, status: 500 Internal Server Error, message: invalid character 'b' looking for beginning of value, body: boom）"
+}

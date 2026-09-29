@@ -746,7 +746,7 @@ const load = async () => {
       listAgents(),
     ])
     allChannels.value = res?.data || []
-    agents.value = agentRes?.data || []
+    agents.value = agentRes?.agents || []
     await Promise.all(allChannels.value.map(async (ch) => {
       try {
         const statsRes = await getEmbedChannelStats(ch.id)

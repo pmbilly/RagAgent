@@ -10,5 +10,5 @@ export interface InstructionalSkillInfo {
 }
 
 export function listSkills() {
-  return get<{ data: InstructionalSkillInfo[]; skills_available: boolean }>('/api/v1/skills')
+  return get<{ skills: InstructionalSkillInfo[]; skillsAvailable: boolean }>('/api/v1/skills')
 }

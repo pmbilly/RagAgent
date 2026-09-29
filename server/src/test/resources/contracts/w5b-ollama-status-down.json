@@ -1,1 +1,5 @@
-{"data":{"available":false,"baseUrl":"http://host.docker.internal:11434","error":"ollama service unavailable: Head \"http://localhost:11434/\": dial tcp [::1]:11434: connect: connection refused"},"success":true}
+{
+  "available": false,
+  "baseUrl": "http://host.docker.internal:11434",
+  "error": "ollama service unavailable: Head \"http://localhost:11434/\": dial tcp [::1]:11434: connect: connection refused"
+}

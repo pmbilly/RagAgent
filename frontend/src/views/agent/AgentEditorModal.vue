@@ -2343,7 +2343,7 @@ const navGroups = computed(() => {
 const defaultFormData = {
   name: '',
   description: '',
-  is_builtin: false,
+  builtin: false,
   config: {
     // 基础设置
     agent_mode: 'smart-reasoning' as 'quick-answer' | 'smart-reasoning',
@@ -2981,7 +2981,7 @@ const thinkingEnabled = computed({
 
 // 是否为内置智能体
 const isBuiltinAgent = computed(() => {
-  return formData.value.is_builtin === true;
+  return formData.value.builtin === true;
 });
 
 // 系统提示词的 placeholder

@@ -123,8 +123,8 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
     return runOnce('skills', force, async () => {
       try {
         const skillsRes = await listSkills()
-        skillsAvailable.value = skillsRes.skills_available !== false
-        availableSkills.value = skillsRes.data && skillsRes.data.length > 0 ? skillsRes.data : []
+        skillsAvailable.value = skillsRes.skillsAvailable !== false
+        availableSkills.value = skillsRes.skills && skillsRes.skills.length > 0 ? skillsRes.skills : []
       } catch {
         skillsAvailable.value = false
         availableSkills.value = []

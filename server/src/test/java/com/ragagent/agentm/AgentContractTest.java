@@ -154,17 +154,17 @@ class AgentContractTest {
         MvcResult r = expect(201, postH("/api/v1/agents", bearer,
                 "{\"name\":\"ag-empty\",\"description\":\"empty config agent\",\"config\":{}}"),
                 "ag-create-empty.json");
-        agEmpty = jsonPath(r, "data.id");
+        agEmpty = jsonPath(r, "id");
         assertGolden(getH("/api/v1/agents/" + agEmpty, bearer), 200, "ag-get-created.json");
 
         r = expect(201, postH("/api/v1/agents", bearer, FULL_CONFIG), "ag-create-full.json");
-        agFull = jsonPath(r, "data.id");
+        agFull = jsonPath(r, "id");
 
         r = expect(201, postH("/api/v1/agents", bearer, "{\"name\":\"ag-kbref\","
                 + "\"description\":\"kb reference agent\",\"config\":{\"agent_mode\":\"quick-answer\","
                 + "\"kb_selection_mode\":\"selected\",\"knowledge_bases\":[\"" + KB_FAQ + "\"]}}"),
                 "ag-create-kbref.json");
-        agKbref = jsonPath(r, "data.id");
+        agKbref = jsonPath(r, "id");
 
         assertGolden(postH("/api/v1/agents", bearer, "{\"description\":\"no name\"}"),
                 400, "ag-create-missing-name.json");
@@ -200,14 +200,15 @@ class AgentContractTest {
                 404, "ag-update-missing.json");
 
         // ── 7) delete 家族 ──
-        assertGolden(delH("/api/v1/agents/" + agKbref, bearer), 200, "ag-delete.json");
+                var delResp = mockMvc.perform(delH("/api/v1/agents/" + agKbref, bearer)).andReturn();
+        assertEquals(204, delResp.getResponse().getStatus());
         assertGolden(delH("/api/v1/agents/" + agKbref, bearer), 404, "ag-delete-again.json");
         assertGolden(delH("/api/v1/agents/builtin-quick-answer", bearer), 403,
                 "ag-delete-builtin.json");
 
         // ── 8) copy 家族 ──
         r = expect(201, postH("/api/v1/agents/" + agFull + "/copy", bearer, null), "ag-copy.json");
-        agCopy = jsonPath(r, "data.id");
+        agCopy = jsonPath(r, "id");
         assertGolden(getH("/api/v1/agents/" + agCopy, bearer), 200, "ag-get-copy.json");
         assertGolden(postH("/api/v1/agents/" + MISSING + "/copy", bearer, null), 404,
                 "ag-copy-missing.json");
@@ -234,11 +235,11 @@ class AgentContractTest {
                 200, "ag-sq-curated-cap.json");
         assertGolden(getH("/api/v1/agents/" + agEmpty + "/suggested-questions", bearer), 200,
                 "ag-sq-default.json");
-        assertGolden(getH("/api/v1/agents/" + agFull + "/suggested-questions?tag_scopes=not-json",
+        assertGolden(getH("/api/v1/agents/" + agFull + "/suggested-questions?tagScopes=not-json",
                 bearer), 400, "ag-sq-badtagscopes.json");
-        assertGolden(getH("/api/v1/agents/" + agEmpty + "/suggested-questions?knowledge_base_ids="
+        assertGolden(getH("/api/v1/agents/" + agEmpty + "/suggested-questions?knowledgeBaseIds="
                 + KB_FAQ, bearer), 200, "ag-sq-faq.json");
-        assertGolden(getH("/api/v1/agents/" + agEmpty + "/suggested-questions?knowledge_ids="
+        assertGolden(getH("/api/v1/agents/" + agEmpty + "/suggested-questions?knowledgeIds="
                 + KN_FAQ, bearer), 200, "ag-sq-faq-knowledge.json");
 
         // ── 11) initialization ──

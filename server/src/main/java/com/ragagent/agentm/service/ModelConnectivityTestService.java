@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import org.springframework.http.ResponseEntity;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -352,12 +351,12 @@ public final class ModelConnectivityTestService {
         ObjectNode data = MAPPER.createObjectNode();
         if (error != null) {
             data.put("message", error);
-            data.put("processing_time", processingTime);
+            data.put("processingTime", processingTime);
             data.put("success", false);
         } else {
             data.put("caption", "");
             data.put("ocr", "");
-            data.put("processing_time", processingTime);
+            data.put("processingTime", processingTime);
             data.put("success", true);
         }
         return ok(data);
@@ -595,10 +594,7 @@ public final class ModelConnectivityTestService {
     }
 
     static ResponseEntity<Object> ok(Object data) {
-        Map<String, Object> body = new TreeMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(data);
     }
 
     /** 时间保持原 offset 输出（JSON 反序列化来的时间不改时区）。 */

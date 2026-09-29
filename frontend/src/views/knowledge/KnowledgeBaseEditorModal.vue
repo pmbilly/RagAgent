@@ -1397,16 +1397,16 @@ const doSubmit = async () => {
       const config: KBModelConfigRequest = {
         llmModelId: data.summaryModelId,
         embeddingModelId: data.embeddingModelId,
-        vlm_config: data.vlm_config,
-        asr_config: data.asr_config,
+        vlmConfig: data.vlmConfig,
+        asrConfig: data.asrConfig,
         documentSplitting: {
-          chunkSize: data.chunking_config.chunk_size,
-          chunkOverlap: data.chunking_config.chunk_overlap,
-          separators: data.chunking_config.separators,
-          parserEngineRules: data.chunking_config.parser_engine_rules || undefined,
-          enableParentChild: data.chunking_config.enable_parent_child || false,
-          parentChunkSize: data.chunking_config.parent_chunk_size || 4096,
-          childChunkSize: data.chunking_config.child_chunk_size || 384,
+          chunkSize: data.chunkingConfig.chunkSize,
+          chunkOverlap: data.chunkingConfig.chunkOverlap,
+          separators: data.chunkingConfig.separators,
+          parserEngineRules: data.chunkingConfig.parserEngineRules || undefined,
+          enableParentChild: data.chunkingConfig.enableParentChild || false,
+          parentChunkSize: data.chunkingConfig.parentChunkSize || 4096,
+          childChunkSize: data.chunkingConfig.childChunkSize || 384,
           // Always send strategy / tokenLimit / languages — backend treats
           // empty/0/[] as a valid clear, so we must include them in the
           // payload to let users reset back to defaults.
@@ -1419,19 +1419,19 @@ const doSubmit = async () => {
           enabled: !!data.vlm_config?.enabled
         },
         storageBackendId: formData.value?.storageBackendId || '',
-        storageProvider: data.storage_provider_config?.provider || data.storage_config?.provider || 'local',
+        storageProvider: data.storageProvider || 'local',
         nodeExtract: {
-          enabled: data.extract_config?.enabled || false,
-          text: data.extract_config?.text || '',
-          tags: data.extract_config?.tags || [],
-          nodes: data.extract_config?.nodes || [],
-          relations: data.extract_config?.relations || [],
-          customInstructions: data.extract_config?.custom_instructions || ''
+          enabled: data.extractConfig?.enabled || false,
+          text: data.extractConfig?.text || '',
+          tags: data.extractConfig?.tags || [],
+          nodes: data.extractConfig?.nodes || [],
+          relations: data.extractConfig?.relations || [],
+          customInstructions: data.extractConfig?.customInstructions || ''
         },
         questionGeneration: {
-          enabled: data.question_generation_config?.enabled || false,
-          questionCount: data.question_generation_config?.question_count || 3,
-          customInstructions: data.question_generation_config?.custom_instructions || ''
+          enabled: data.questionGenerationConfig?.enabled || false,
+          questionCount: data.questionGenerationConfig?.questionCount || 3,
+          customInstructions: data.questionGenerationConfig?.customInstructions || ''
         }
       }
 

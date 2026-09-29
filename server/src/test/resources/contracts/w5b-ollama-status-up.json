@@ -1,1 +1,5 @@
-{"data":{"available":true,"baseUrl":"http://host.docker.internal:11434","version":"w5b-stub"},"success":true}
+{
+  "available": true,
+  "baseUrl": "http://host.docker.internal:11434",
+  "version": "w5b-stub"
+}

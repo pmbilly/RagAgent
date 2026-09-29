@@ -143,7 +143,7 @@ const fetchSuggestedQuestions = async () => {
         if (fetchId === suggestedQuestionsFetchId) {
             sqCardsRevealed.value = false;
             sqRenderKey.value++;
-            suggestedQuestions.value = res?.data?.questions || [];
+            suggestedQuestions.value = res || [];
         }
     } catch (err) {
         console.warn('[SuggestedQuestions] Failed to fetch:', err);

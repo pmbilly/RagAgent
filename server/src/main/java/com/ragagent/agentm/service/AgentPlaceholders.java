@@ -37,7 +37,7 @@ public class AgentPlaceholders {
             "用户界面的语言偏好，如 Chinese (Simplified)、English、Korean 等，用于控制 LLM 回答语言");
 
     public ObjectNode data() {
-        // 键按字母序输出（agent_system_prompt < all < … < system_prompt）
+        // 键按字母序输出(键 = config 模板键,保持 config schema 的 snake);P 名 = 模板令牌
         ObjectNode data = MAPPER.createObjectNode();
         data.set("agent_system_prompt", list(
                 List.of(KNOWLEDGE_BASES, WEB_SEARCH_STATUS, CURRENT_TIME, LANGUAGE)));

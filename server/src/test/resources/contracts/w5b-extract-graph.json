@@ -1,1 +1,23 @@
-{"data":{"nodes":[{"name":"张三","attributes":["研究员"]},{"name":"李四"},{"name":"王五"}],"relations":[{"node1":"张三","node2":"李四","type":"Author"}]},"success":true}
+{
+  "nodes": [
+    {
+      "name": "张三",
+      "attributes": [
+        "研究员"
+      ]
+    },
+    {
+      "name": "李四"
+    },
+    {
+      "name": "王五"
+    }
+  ],
+  "relations": [
+    {
+      "node1": "张三",
+      "node2": "李四",
+      "type": "Author"
+    }
+  ]
+}

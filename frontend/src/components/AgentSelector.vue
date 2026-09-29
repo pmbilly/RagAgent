@@ -203,7 +203,7 @@ const agentsList = computed(() => props.agents ?? []);
 const webSearchProviders = computed(() => chatResources.webSearchProviders);
 
 const builtinAgents = computed(() => {
-  const apiBuiltins = agentsList.value.filter(a => a.is_builtin);
+  const apiBuiltins = agentsList.value.filter(a => a.builtin);
   return apiBuiltins.map(agent => {
     if (agent.id === BUILTIN_QUICK_ANSWER_ID) {
       return { ...agent, name: t('input.normalMode'), description: t('input.normalModeDesc') };
@@ -215,7 +215,7 @@ const builtinAgents = computed(() => {
   });
 });
 
-const customAgents = computed(() => agentsList.value.filter(a => !a.is_builtin));
+const customAgents = computed(() => agentsList.value.filter(a => !a.builtin));
 
 const isMyAgentSelected = (agent: CustomAgent) =>
   props.currentAgentId === agent.id;
@@ -324,7 +324,7 @@ const getAgentNotReadyReasonKeysFor = (agent: CustomAgent) => {
 const getAgentNotReadyLabels = (agent: CustomAgent): string[] => {
   return formatAgentNotReadyReasons(
     getAgentNotReadyReasonKeysFor(agent),
-    agent.is_builtin,
+    agent.builtin,
   );
 };
 
@@ -334,7 +334,7 @@ const formatNotReadyHint = (agent: CustomAgent): string => {
 
 const emitAgentNotReady = (agent: CustomAgent) => {
   const keys = getAgentNotReadyReasonKeysFor(agent);
-  const labels = formatAgentNotReadyReasons(keys, agent.is_builtin);
+  const labels = formatAgentNotReadyReasons(keys, agent.builtin);
   emit('not-ready', agent, labels, keys);
 };
 
