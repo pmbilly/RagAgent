@@ -52,6 +52,7 @@ public class SpanTracker {
             List.of(KnowledgeProcessingSpan.STAGE_EMBEDDING,
                     KnowledgeProcessingSpan.STAGE_MULTIMODAL));
 
+    /** 一个处理进度 span 的内存句柄（公共字段，直接读写）。 */
     public static final class SpanHandle {
         public String knowledgeId = "";
         public int attempt;
@@ -63,6 +64,7 @@ public class SpanTracker {
         public OffsetDateTime startedAt;
     }
 
+    /** 一次解析尝试的句柄：根 span 与 attempt 序号。 */
     public record AttemptHandle(SpanHandle root, int attempt) {
     }
 

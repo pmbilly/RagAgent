@@ -7,6 +7,7 @@ import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import java.util.List;
 
+/** ASR（音频转写）配置视图。 */
 public record AsrConfigView(boolean enabled, String modelId, String language) {
 
     public static AsrConfigView from(KnowledgeBaseAsrConfig c) {

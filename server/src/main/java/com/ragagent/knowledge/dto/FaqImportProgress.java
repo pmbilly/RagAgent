@@ -5,6 +5,7 @@ import com.ragagent.knowledge.dto.FaqEntryPayload;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/** FAQ 导入进度：计数 + 成功/失败/合并明细。 */
 public record FaqImportProgress(
         String taskId,
         String kbId,

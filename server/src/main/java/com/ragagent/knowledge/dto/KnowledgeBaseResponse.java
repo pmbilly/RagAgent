@@ -94,6 +94,7 @@ public record KnowledgeBaseResponse(
      */
     public record VectorStoreView(String id, String name, Source source, String engineType, Status status) {
 
+        /** 向量库来源（env / custom）。 */
         public enum Source {
             ENV("env"),
             USER("user"),
@@ -111,6 +112,7 @@ public record KnowledgeBaseResponse(
             }
         }
 
+        /** 向量库可用状态。 */
         public enum Status {
             AVAILABLE("available"),
             UNAVAILABLE("unavailable");

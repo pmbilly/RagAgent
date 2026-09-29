@@ -7,5 +7,6 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
 
+/** 跨库搜索响应（{@code items/hasMore/total}）。 */
 public record KnowledgeSearchResponse(List<KnowledgeResponse> items, boolean hasMore, long total) {
 }

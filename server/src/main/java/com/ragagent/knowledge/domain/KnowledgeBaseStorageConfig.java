@@ -3,6 +3,7 @@ package com.ragagent.knowledge.domain;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
+/** 知识库的对象存储配置（jsonb 列 {@code storage_config}）：凭据、桶、路径前缀与 S3 兼容开关。 */
 public class KnowledgeBaseStorageConfig {
 
     private String secretId = "";

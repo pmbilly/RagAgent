@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/** 标签视图 + 文档数 / 分块数。 */
 public record KnowledgeTagWithStats(
         String id,
         long seqId,

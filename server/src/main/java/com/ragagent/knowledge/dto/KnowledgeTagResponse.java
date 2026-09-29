@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/** 标签视图。 */
 public record KnowledgeTagResponse(
         String id,
         long seqId,

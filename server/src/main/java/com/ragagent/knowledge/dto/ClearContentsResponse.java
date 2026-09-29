@@ -7,5 +7,6 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
 
+/** 清空内容响应：删除条数。 */
 public record ClearContentsResponse(long deletedCount) {
 }

@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
+/** 更新「上次导入结果」显示状态的请求。 */
 public record UpdateLastImportDisplayStatusRequest(
         @jakarta.validation.constraints.NotBlank(message = "displayStatus: 不能为空")
         @jakarta.validation.constraints.Pattern(regexp = "open|close", message = "displayStatus: 必须为 open 或 close")

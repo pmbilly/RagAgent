@@ -215,5 +215,6 @@ public class KnowledgeBase {
                 "faq".equals(type));
     }
 
+    /** 知识库的检索能力开关快照：由各检索开关列派生，供响应直接输出（不落库）。 */
     public record Capabilities(boolean vector, boolean keyword, boolean wiki, boolean graph, boolean faq) {}
 }

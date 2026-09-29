@@ -28,6 +28,7 @@ public class KnowledgeSearchService {
 
     /** 搜索结果。 */
     public record SearchOutcome(List<Knowledge> knowledges, boolean hasMore, long total) {}
+    /** 检索作用域：租户 ID + 目标知识库 ID。 */
     public record KnowledgeSearchScope(long tenantId, String kbId) {}
 
     // ── 搜索与移动/复制批：搜索与移动/复制（8 条路由的服务面） ──────────────────

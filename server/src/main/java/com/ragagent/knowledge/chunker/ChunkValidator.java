@@ -9,6 +9,7 @@ import java.util.List;
  */
 public final class ChunkValidator {
 
+    /** 分块校验结果：{@code ok=false} 时 {@code reason} 说明拒绝原因（供预览端点回给用户）。 */
     public record ValidationResult(boolean ok, String reason) {
     }
 

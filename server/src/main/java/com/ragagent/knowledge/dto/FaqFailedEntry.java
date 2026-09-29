@@ -5,6 +5,7 @@ import com.ragagent.knowledge.dto.FaqEntryPayload;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/** FAQ 导入失败条目：原因/类型/是否部分失败 + 原条目内容。 */
 public record FaqFailedEntry(
         int index,
         String reason,

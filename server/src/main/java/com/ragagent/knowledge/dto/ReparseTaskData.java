@@ -7,5 +7,6 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
 
+/** 批量重析结果：重析条数 + 任务 ID。 */
 public record ReparseTaskData(long reparseCount, String taskId) {
 }

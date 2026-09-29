@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
+/** FAQ 条目载荷（落库与跨任务传递共用）。 */
 public record FaqEntryPayload(
         Long id,
         @jakarta.validation.constraints.NotBlank(message = "standardQuestion: 不能为空")

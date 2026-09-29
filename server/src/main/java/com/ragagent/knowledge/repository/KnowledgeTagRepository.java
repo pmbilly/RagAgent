@@ -87,6 +87,7 @@ public class KnowledgeTagRepository {
         return tagMapper.selectKnowledgeIdsByTagIds(tenantId, kbId, tagIds);
     }
 
+    /** 标签分页结果（仓储内使用；对外形状见 {@code dto.TagPageResult}）。 */
     public record TagPage(List<KnowledgeTag> items, long total, int page, int pageSize) {}
 
     /**

@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
+/** FAQ 导出条目：答案、相似问/负例、策略与开关。 */
 public record FaqExportEntry(
         long id,
         String tagName,

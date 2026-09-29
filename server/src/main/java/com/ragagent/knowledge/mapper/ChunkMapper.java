@@ -11,6 +11,7 @@ import org.apache.ibatis.annotations.Update;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 @Mapper
+/** {@code chunks} 表的 MyBatis-Plus mapper。 */
 public interface ChunkMapper extends BaseMapper<Chunk> {
 
     @Select("SELECT id FROM chunks WHERE tenant_id = #{tenantId} "

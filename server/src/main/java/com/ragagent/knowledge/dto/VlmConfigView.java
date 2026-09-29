@@ -7,6 +7,7 @@ import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import java.util.List;
 
+/** VLM（图像描述）配置视图——**不含** {@code apiKey}。 */
 public record VlmConfigView(
         boolean enabled,
         String modelId,

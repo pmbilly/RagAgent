@@ -5,6 +5,7 @@ import com.ragagent.knowledge.dto.FaqEntryPayload;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/** FAQ 批量 upsert 载荷：条目 + 模式 + 目标文档/任务 + dryRun。 */
 public record FaqBatchUpsertPayload(
         @jakarta.validation.constraints.NotNull(message = "entries: 不能为空")
         List<FaqEntryPayload> entries,

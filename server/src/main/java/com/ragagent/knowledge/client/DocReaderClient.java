@@ -76,6 +76,7 @@ public class DocReaderClient {
         }
     }
 
+    /** docreader 返回的图片引用：文件名、原始引用串、MIME 与内联字节。 */
     public record ImageRef(String filename, String originalRef, String mimeType, byte[] imageData) {
     }
 

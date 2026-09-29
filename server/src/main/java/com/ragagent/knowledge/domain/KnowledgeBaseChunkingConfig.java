@@ -56,6 +56,7 @@ public class KnowledgeBaseChunkingConfig {
     public String getTableMetadataInstructions() { return tableMetadataInstructions; }
     public void setTableMetadataInstructions(String v) { tableMetadataInstructions = v; }
 
+        /** 单条解析器引擎匹配规则：按文件扩展名选引擎，可带 xlsx 首行作表头开关。 */
         public static class ParserEngineRule {
         private List<String> fileTypes;
         private String engine;

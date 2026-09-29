@@ -7,6 +7,7 @@ import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import java.util.List;
 
+/** 图像处理配置视图（仅模型 ID，描述由 VLM 配置驱动）。 */
 public record ImageProcessingConfigView(String modelId) {
 
     public static ImageProcessingConfigView from(KnowledgeBaseImageProcessingConfig c) {

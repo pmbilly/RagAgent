@@ -7,5 +7,6 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
 
+/** 文档列表分页响应。 */
 public record KnowledgeListResponse(List<KnowledgeResponse> items, long page, long pageSize, long total) {
 }

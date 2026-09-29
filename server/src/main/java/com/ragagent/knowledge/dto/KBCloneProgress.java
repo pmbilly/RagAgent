@@ -2,6 +2,7 @@ package com.ragagent.knowledge.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+/** KB 副本克隆进度（轮询用）。 */
 public record KBCloneProgress(
         String taskId,
         String sourceId,

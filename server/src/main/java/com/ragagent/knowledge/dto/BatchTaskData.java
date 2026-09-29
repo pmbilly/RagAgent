@@ -7,5 +7,6 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
 
+/** 批量删除结果：删除条数 + 任务 ID。 */
 public record BatchTaskData(long deletedCount, String taskId) {
 }

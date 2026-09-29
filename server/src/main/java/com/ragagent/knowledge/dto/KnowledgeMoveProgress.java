@@ -2,6 +2,7 @@ package com.ragagent.knowledge.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+/** 跨库搬移进度（轮询 {@code GET /knowledge/move/progress/{taskId}}）。 */
 public record KnowledgeMoveProgress(
         String taskId,
         String sourceKbId,

@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.domain;
 
 
+/** 存储提供方配置的 jsonb 形状（列 {@code storage_provider_config}），仅含 {@code provider}。 */
 public class KnowledgeBaseStorageProviderConfig {
 
     private String provider = "";
