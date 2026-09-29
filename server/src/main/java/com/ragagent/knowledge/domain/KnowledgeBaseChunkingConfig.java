@@ -1,7 +1,6 @@
 package com.ragagent.knowledge.domain;
 
 import java.util.List;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ragagent.common.web.JsonMappers;
 

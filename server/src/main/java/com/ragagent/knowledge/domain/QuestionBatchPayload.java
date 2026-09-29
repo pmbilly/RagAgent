@@ -2,7 +2,6 @@ package com.ragagent.knowledge.domain;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
