@@ -199,7 +199,7 @@ public class MessageController {
      * <p>{@code query} 还要过一遍 {@code SanitizeForLog} 才进搜索（Go handler L266）。</p>
      */
     @PostMapping("/api/v1/messages/search")
-    public ResponseEntity<Map<String, Object>> searchMessages(
+    public ResponseEntity<MessageSearchResult> searchMessages(
             @RequestBody(required = false) String rawBody) {
         SearchMessagesRequest request = bindBody(rawBody);
         if (request.query() == null || request.query().isEmpty()) {
@@ -220,18 +220,15 @@ public class MessageController {
             throw toInternal(e);
         }
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", result);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(result);
     }
 
-    /** 对照 Go {@code SearchMessagesRequest}（L290-299）。 */
+    /** 对照 Go {@code SearchMessagesRequest}（L290-299）；线格式 = Java 字段名。 */
     private record SearchMessagesRequest(
-            @JsonProperty("query") String query,
-            @JsonProperty("mode") String mode,
-            @JsonProperty("limit") Integer limit,
-            @JsonProperty("session_ids") List<String> sessionIds) {
+            String query,
+            String mode,
+            Integer limit,
+            List<String> sessionIds) {
     }
 
     private SearchMessagesRequest bindBody(String rawBody) {

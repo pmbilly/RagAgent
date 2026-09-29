@@ -240,7 +240,8 @@ export function useCmdkSearch(options: {
     const messagesPromise = scoped
       ? Promise.resolve({ items: [], total: 0 })
       : searchMessages({ query: q, mode: 'hybrid', limit: 30 })
-          .then((res: any) => (res?.success && res.data ? res.data : { items: [], total: 0 }))
+          // 裸资源：响应体即 { items, total }
+          .then((res: any) => (res && Array.isArray(res.items) ? res : { items: [], total: 0 }))
           .catch((e) => {
             console.error('[cmdk] message search failed', e)
             return { items: [], total: 0 }
