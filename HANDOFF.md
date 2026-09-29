@@ -55,6 +55,7 @@
 - 后端测试：**4,670 用例全绿**（含 6 个 skip）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
 - **≥800 行的类（main，全仓）**：AgentEngine 3,235、WikiIngestBatchHandler 2,268、WikiIngestService 2,182、InitializationController 1,981、DataSourceService 1,827、SessionKnowledgeQaService 1,764、MemoryService 1,660、OpenSearchRetrieveRepository 1,652、WikiPageServiceImpl 1,642、KnowledgeQaController 1,616……
 - **knowledge 包（已整治，可作样板）**：**197 文件 / 25,264 行**；最大三个 = `FaqImportService` 1,234、`KnowledgeService` 850、`KnowledgeProcessWorker` 814；13 个子包见 §12；容器类/`*Util` 反模式命名已清零。
+- **agent 域（2026-09-30 A/B 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；`@JsonProperty` 余 30 处（=Task 11 的 domain 落库类型）；Go 锚点 479 处/140 文件（余量为内联 javadoc,段界已在拆分时清洗）；12 个子包全有 package-info。
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器引用 **408 处 / 94 文件**；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
 - **注释卫生（knowledge 包实测，2026-09-30，可作其余域标准）**：Go 锚点注释 **0 处**、注释掉的代码 **0 处**、TODO **1 处**、注释占比 12.1%、13 个包全有 `package-info`；坏 `{@link}` 0 处。Javadoc 覆盖：**public 类型 91%**（201/221，未写的 20 处是纯 CRUD 请求体——有意留白，名字即语义）、public 方法 33%（**分布是对的**：逻辑密集类 90%+，POJO 访问器 7%）。
 - **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。
@@ -201,6 +202,28 @@
 
 **④ knowledge 目录整治（`10ac41f` → `8ca2fa0`，六个提交）**：见 §12 地图；操作经验见 §13。
 
+
+## 11.1 执行记录（2026-09-30 会话）：agent 域 A/B 波 + approval 换锚（方案 `docs/superpowers/plans/2026-09-30-agent-module-java-refactor.md`）
+
+> 工作方式同 §11：改一步 → 全量 4,670+ 用例验证 → 提交。分支 `refactor/knowledge-java-idioms`，提交 cb835e4..6c0be66。
+
+**A 波（神类拆分,七个 ≥800 类清零——拆后 agent+agentm 全域无 ≥800 行类）**：
+- `AgentEngine` 3,235 → 门面 752 + 八个同包协作者（Think/Act/Observe/PromptAssembly/Finalize/SteerIntake/ContextDebugEmitter/ReActIteration,持 engine 回引,构造期装配）;门面保留 Execute/主循环/token 预算与 4 个包内 seam 委托桥（EngineRecordingTest 直引面,测试零改动）。
+- `SqlGuard` 1,590 → 442 + SqlTokenizer/SqlSelectDeepChecker/SqlInjectionAnalyzer（全静态,公共面不动）。
+- `KnowledgeSearchTool` 1,178 → 585 + KnowledgeSearchRanking/KnowledgeSearchOutputFormatter。
+- `WikiSupport` 1,148 容器 → 19 个顶层类型（§2 第 13 条容器反模式清零;215 处消费方引用符号级改写,18 文件）。
+- `McpCatalog` 923 → 744 + McpCatalogPagination;`GrepChunksTool` 897 → 675 + GrepChunksScoring。
+- agentm:`InitializationController` 1,981 → 229 端点薄层 + 四服务（InitializationConfigService 754/OllamaManageService 363/ModelConnectivityTestService 659/TextExtractionTestService 245）+ InitializationRequests 绑定器族;`CustomAgentService` 882 → 425 + AgentSuggestedQuestions 516。
+
+**B 波**：agent/agentm 12 个子包 package-info 职责地图;根包文件归位顺延（裁定:扰动/收益比不划算）。
+
+**C 波（部分）**：approval 六个 Redis 内部报文去 56 处 `@JsonProperty` + 失效 `@JsonPropertyOrder`,JSON 键=Java 字段名,双侧同批;`ApprovalWireFormatTest` 五个 Go-tag 钉子重录为 camelCase wire 钉子。**event/ 的 SSE 同键类型保持 snake**（归 session 域切片,前端同批）。
+
+**agent 域余下工作（下会话首项,精确接手面）**：
+1. `agent/domain` 五类型（AgentState/AgentStep/ToolCall/ToolCallTarget/ToolResult）去 30 处注解——经 `messages.agent_steps` jsonb 直达消息 API 响应体,须同批改前端消费组件与重录 `ag-*` fixture;前端消费横跨 SSE（不动）与 steps（要动）两类线,动手前先分清每个键来自哪条线（`useChatStreamHandler.ts`/`agent-tool-display.ts`/`mcpToolDisplay.ts` 等 10 文件）。
+2. agentm 契约换锚（AgentResponses/InitResponses 去 snake+信封,§7 第 5 条 KnowledgeBaseEditorModal legacy 装配块静默默认值缺陷一并修,同批前端）。
+3. Go 锚点注释清扫:余 479 处/140 文件（A 波触碰文件的段界已清洗,余为内联 javadoc"对照"锚）;Playbook=先摘不变量改中性表述再删,§13.13 判据。Go 复刻件类名（GoJsonCodec/GoPath/GoQuoting）**不改**——名字即真相,Task 13 判据裁定。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 ```
@@ -244,6 +267,7 @@ knowledge/
 12. **别在 shell 双引号里跑含反引号的 `python3 -c`**：zsh 会把反引号当命令替换（`{@link 旧名}`、`阶段 N` 之类的文本会被执行并清空，静默写坏文件）。改写脚本文件再 `python3 /tmp/xxx.py`，或在 Python 里用 chr(96) 拼反引号。
 13. **写 javadoc 的判据（knowledge 包已按此做完）**：写"名字看不出来的"——三态语义（null = 不变更）、乐观锁字段、视图与写入形状的差异（如 VLM 视图不含 `apiKey`）、与仓储类型的对应关系、jsonb 列名；**不写**名字即语义的 CRUD 请求体（写了是噪声）。覆盖目标：承载语义的类型 100%，方法层保持"逻辑密集类 90%+ / 访问器 0%"的分布。
 14. **跑 `test` ≠ 跑了闸门**：仓库早已配好 Spotless（`removeUnusedImports` + `trimTrailingWhitespace` + `endWithNewline`，`ratchetFrom("seed")`），但只跑 `:server:test` 时它**不执行**——每批收尾必须 `:server:spotlessCheck`（或 `check`）。两个已知盲点：①`removeUnusedImports()` **不去重**（本次手删 13 处重复 import，分布在 5 个文件；要根治可加 `importOrder()` 步骤，但那会重排 import，需单独一个轴）；②抽类/拆类时别继承原文件的 import 列表（276 处残留的来源）。
+15. **本会话新增三条**：(a) 被中止的 gradle 测试 run 会留孤儿 Test Executor 占固定端口 stub（11434）,下一轮误报"failed to start stub"——先 `lsof -ti :11434` 清进程再判回归；(b) 去逐字段 `@JsonProperty` 时,**失效的 `@JsonPropertyOrder` 旧名名单必须同删**——属性对 order 表不可见时 Jackson 序列化静默丢属性（approval 线上抓到）;(c) 闸门命令链不要依赖退出码（`cmd | tail` 恒 0）——用 `grep -q 'BUILD SUCCESSFUL'` 之类的字符串断言收口,否则红灯也会照常 commit（本轮 amend 修复过一次）。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
@@ -297,7 +321,7 @@ knowledge/
 （先决策"删 or 留"再动工）→ ⑤ 其余域。
 **排序依据**：风险随"跨包引用数 × 契约可见面"上升，收益随"神类行数 × Go 债务"上升。
 
-**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` ⬜ ｜`wiki` ⬜ ｜`session` ⬜ ｜
+**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` 🔶 A/B 波完成、C 波余落库换锚、E 波余锚点清扫（2026-09-30，见 §11）｜`wiki` ⬜ ｜`session` ⬜ ｜
 `datasource` ⬜（先定删/留）｜`im` ⬜（先定删/留）｜`memory` ⬜ ｜`llm` ⬜ ｜`retrieval` ⬜ ｜
 `mcp` ⬜ ｜`auth` ⬜ ｜`agentm` ⬜ ｜其余小域 ⬜。
 每完成一个域：把该行改为 ✅、在 §11 追加执行记录、按 §14.2 第 7 步回填数据。
