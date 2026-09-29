@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 任务提交面，Java 为同步尽力而为、HTTP 契约一致；原 KnowledgeService
  * 「── 波 2：批量删除 / 批量重解析 / 清空」段拆分独立）。
  *
- * <p>复位/全列写复用 {@link KnowledgeSummaryPipelineService}（同包开放），
+ * <p>复位/全列写复用 {@link KnowledgeFileService}/{@link KnowledgeParseService}（同包开放），
  * moving 状态防线复用 {@link KnowledgeFolderService#rejectMovingKnowledge}；
  * 门面 helper（requireKb/getKnowledge/tenantId）经 {@code @Lazy} 门面调用，不复制。</p>
  */
@@ -32,20 +32,23 @@ public class KnowledgeBatchOpsService {
     private final ChunkMapper chunkMapper;
     private final KnowledgeService.KnowledgeProcessWorker worker;
     private final KnowledgeFolderService folderService;
-    private final KnowledgeSummaryPipelineService summaryService;
+    private final KnowledgeParseService knowledgeParseService;
+    private final KnowledgeFileService knowledgeFileService;
     private final KnowledgeService facade;
 
     public KnowledgeBatchOpsService(KnowledgeMapper knowledgeMapper,
                                     ChunkMapper chunkMapper,
                                     @Lazy KnowledgeService.KnowledgeProcessWorker worker,
                                     KnowledgeFolderService folderService,
-                                    KnowledgeSummaryPipelineService summaryService,
+                                    KnowledgeParseService knowledgeParseService,
+                                    KnowledgeFileService knowledgeFileService,
                                     @Lazy KnowledgeService facade) {
         this.knowledgeMapper = knowledgeMapper;
         this.chunkMapper = chunkMapper;
         this.worker = worker;
         this.folderService = folderService;
-        this.summaryService = summaryService;
+        this.knowledgeParseService = knowledgeParseService;
+        this.knowledgeFileService = knowledgeFileService;
         this.facade = facade;
     }
 
@@ -79,8 +82,8 @@ public class KnowledgeBatchOpsService {
         KnowledgeBase kb = facade.requireKb(kbId);
         for (String id : ids) {
             Knowledge k = facade.getKnowledge(id);
-            summaryService.resetKnowledgeForReparse(k, kb);
-            summaryService.updateKnowledgeRow(k, k.getMetadata());
+            KnowledgeParseService.resetKnowledgeForReparse(k, kb);
+            knowledgeFileService.updateKnowledgeRow(k, k.getMetadata());
             worker.enqueue(k.getId());
         }
         return UUID.randomUUID().toString();
@@ -101,8 +104,8 @@ public class KnowledgeBatchOpsService {
                 .eq(Knowledge::getTenantId, KnowledgeService.tenantId())
                 .isNull(Knowledge::getDeletedAt));
         for (Knowledge k : rows) {
-            summaryService.resetKnowledgeForReparse(k, kb);
-            summaryService.updateKnowledgeRow(k, k.getMetadata());
+            KnowledgeParseService.resetKnowledgeForReparse(k, kb);
+            knowledgeFileService.updateKnowledgeRow(k, k.getMetadata());
             worker.enqueue(k.getId());
         }
         return rows.size();

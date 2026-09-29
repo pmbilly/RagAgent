@@ -83,7 +83,9 @@ public class KnowledgeService {
     private final KnowledgeSearchService searchService;
     private final KnowledgeFolderService folderService;
     private final KnowledgeSpanService spanService;
-    private final KnowledgeSummaryPipelineService summaryService;
+    private final KnowledgeSummaryService knowledgeSummaryService;
+    private final KnowledgeFileService knowledgeFileService;
+    private final KnowledgeParseService knowledgeParseService;
     private final KnowledgeBatchOpsService batchOpsService;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
@@ -104,7 +106,9 @@ public class KnowledgeService {
                             KnowledgeSearchService searchService,
                             KnowledgeFolderService folderService,
                             KnowledgeSpanService spanService,
-                            KnowledgeSummaryPipelineService summaryService,
+                            KnowledgeSummaryService knowledgeSummaryService,
+                            KnowledgeFileService knowledgeFileService,
+                            KnowledgeParseService knowledgeParseService,
                             KnowledgeBatchOpsService batchOpsService,
                             TenantStorageService tenantStorage) {
         this.knowledgeMapper = knowledgeMapper;
@@ -122,7 +126,9 @@ public class KnowledgeService {
         this.searchService = searchService;
         this.folderService = folderService;
         this.spanService = spanService;
-        this.summaryService = summaryService;
+        this.knowledgeSummaryService = knowledgeSummaryService;
+        this.knowledgeFileService = knowledgeFileService;
+        this.knowledgeParseService = knowledgeParseService;
         this.batchOpsService = batchOpsService;
         this.knowledgeBaseService = knowledgeBaseService;
         this.vectorWrites = vectorWrites;
@@ -622,40 +628,40 @@ public class KnowledgeService {
         return spanService.knowledgeSpans(knowledge, requestedAttempt);
     }
 
-    // ── 解析状态机 + 摘要管线（委托 KnowledgeSummaryPipelineService） ────
+    // ── 解析状态机 + 摘要管线（委托专项服务） ────
 
     public Knowledge regenerateKnowledgeSummary(String id) {
-        return summaryService.regenerateKnowledgeSummary(id);
+        return knowledgeSummaryService.regenerateKnowledgeSummary(id);
     }
 
     public void requestPostProcessSummaryGeneration(String knowledgeId) {
-        summaryService.requestPostProcessSummaryGeneration(knowledgeId);
+        knowledgeSummaryService.requestPostProcessSummaryGeneration(knowledgeId);
     }
 
     public void requestKnowledgeSummaryRefresh(String id) {
-        summaryService.requestKnowledgeSummaryRefresh(id);
+        knowledgeSummaryService.requestKnowledgeSummaryRefresh(id);
     }
 
     public Knowledge updateManualKnowledge(String id, String title, String content,
                                            String status, String channel) {
-        return summaryService.updateManualKnowledge(id, title, content, status, channel);
+        return knowledgeFileService.updateManualKnowledge(id, title, content, status, channel);
     }
 
     public Knowledge reparseKnowledge(String id) {
-        return summaryService.reparseKnowledge(id);
+        return knowledgeParseService.reparseKnowledge(id);
     }
 
     public Knowledge cancelKnowledgeParse(String id) {
-        return summaryService.cancelKnowledgeParse(id);
+        return knowledgeParseService.cancelKnowledgeParse(id);
     }
 
-    public KnowledgeSummaryPipelineService.KnowledgeFileStream openKnowledgeFile(String id) {
-        return summaryService.openKnowledgeFile(id);
+    public KnowledgeFileService.KnowledgeFileStream openKnowledgeFile(String id) {
+        return knowledgeFileService.openKnowledgeFile(id);
     }
 
     @Transactional
     public void updateImageInfo(String knowledgeId, String chunkId, String rawImageInfo) {
-        summaryService.updateImageInfo(knowledgeId, chunkId, rawImageInfo);
+        knowledgeFileService.updateImageInfo(knowledgeId, chunkId, rawImageInfo);
     }
 
     // ── 波 2：tags 批量 ──────────────────────────────────────────────────

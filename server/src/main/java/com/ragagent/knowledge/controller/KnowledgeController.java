@@ -21,7 +21,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.service.KnowledgeSearchService;
-import com.ragagent.knowledge.service.KnowledgeSummaryPipelineService;
+import com.ragagent.knowledge.service.KnowledgeFileService;
 import com.ragagent.knowledge.service.KnowledgeTaskIds;
 import com.ragagent.knowledge.service.LocalStorageService;
 import com.ragagent.storage.fileserve.FileTransport;
@@ -344,7 +344,7 @@ public class KnowledgeController {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
         }
         resolveKnowledgeByGuard(safeId, false, true);
-        KnowledgeSummaryPipelineService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
+        KnowledgeFileService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
         response.setHeader("Content-Description", "File Transfer");
         response.setHeader("Content-Transfer-Encoding", "binary");
         response.setHeader("Expires", "0");
@@ -365,7 +365,7 @@ public class KnowledgeController {
             throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));
         }
         resolveKnowledgeByGuard(safeId, false);
-        KnowledgeSummaryPipelineService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
+        KnowledgeFileService.KnowledgeFileStream file = knowledgeService.openKnowledgeFile(safeId);
         ContentTypeByFilename.Record safe = ContentTypeByFilename.safe(file.filename());
         FileTransport.serve(response, request, file.opened(), new FileTransport.Options(
                 file.filename(), !safe.inline(), safe.contentType(),
