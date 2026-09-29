@@ -306,7 +306,7 @@ knowledge/
 
 | 域 | 文件 | 行数 | 最大类 | ≥800 | Go 锚点 | `@JsonProperty` | 未用 import | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| **wiki** | 120 | 23,444 | WikiIngestBatchHandler 2,268 | 6 | **1,378** | 218 | 4 | Go 债务最重;**步骤 0 体检完成(2026-09-30)**:≥800 六类=IngestBatchHandler 2,268/IngestService 2,182/PageServiceImpl 1,642/PageController 1,342/PageRepository 870/IngestDedupService 846;rawBody 0;子包 service 69/domain 38/mapper 9/controller 2/prompt 2,无 package-info;Entity 层 snake 为 §11 已登记边界 |
+| **wiki** | 124 | ~24.1k | WikiIngestService 1,213(门面+seam) | 4 | 锚点已清(见下) | 218 | 4 | Go 债务最重;**步骤 2 半程(2026-09-30)**:BatchHandler 2,268→522+四协作者(RunSupport 670/MapPhase 500/ReducePhase 524/FinalizePhase ~287,4cd8701);IngestService 2,182→1,213+四协作者(PageOps/IndexOps/ExtractDedup/LlmSupport,7f3df4e)。**余四神类**:PageServiceImpl 1,642/PageController 1,342/PageRepository 870/IngestDedupService 846;Entity 层 snake 为 §11 已登记边界 |
 | **agent** | 131 | 29,590 | AgentEngine 3,236 | 6 | 466 | 96 | 5 | §5 阶段 2 的另一半（已列名） |
 | **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
 | **session** | 73 | 21,525 | SessionKnowledgeQaService 1,765 | **8** | 627 | 188 | 3 | 神类最分散；`wip/chat-sse-slice2` 在途 |
