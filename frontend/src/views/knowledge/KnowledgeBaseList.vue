@@ -859,7 +859,7 @@ const handleSettings = (kb: KB) => {
 // route only requires KB read access, so anyone who can see the card
 // should be able to pin it for themselves.
 //
-// Legacy KBs created before PR 5 have an empty creator_id; treat
+// Legacy KBs created before PR 5 have an empty creatorId; treat
 // those as tenant-owned (Admin+ may manage) so existing KBs aren't
 // suddenly unmanageable for everyone.
 function canManageKBCard(kb: KB): boolean {
@@ -874,7 +874,7 @@ function canDuplicateKBCard(kb: any): boolean {
 
 // isMyKb 仅用于卡片右下角徽章在「我创建」与「同空间其他成员创建」之间切换。
 // 与 canManageKBCard 不同：管理权限有 admin 兜底，徽章纯粹按创建者匹配。
-// creator_id 为空（PR 5 RBAC 迁移之前的老 KB）一律按 tenant 处理——避免把
+// creatorId 为空（PR 5 RBAC 迁移之前的老 KB）一律按 tenant 处理——避免把
 // 全空间共有的旧 KB 错误地都标成「我创建」。
 function isMyKb(kb: { creatorId?: string }): boolean {
   const userId = authStore.user?.id || ''

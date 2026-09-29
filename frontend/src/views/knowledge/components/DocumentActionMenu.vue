@@ -4,10 +4,10 @@ import { useI18n } from 'vue-i18n';
 
 interface KnowledgeItem {
   id: string;
-  file_name?: string;
+  fileName?: string;
   title?: string;
   type?: string;
-  parse_status?: string;
+  parseStatus?: string;
 }
 
 const props = defineProps<{
@@ -36,10 +36,10 @@ const { t } = useI18n();
 const CANCELABLE_PARSE_STATUSES = new Set(['pending', 'processing', 'finalizing']);
 
 const isParseInFlight = computed(() =>
-  CANCELABLE_PARSE_STATUSES.has(String(props.item.parse_status ?? ''))
+  CANCELABLE_PARSE_STATUSES.has(String(props.item.parseStatus ?? ''))
 );
 
-const fileName = computed(() => props.item.file_name || props.item.title || props.item.id);
+const fileName = computed(() => props.item.fileName || props.item.title || props.item.id);
 </script>
 
 <template>

@@ -14,14 +14,14 @@ interface Tag {
 
 interface KnowledgeItem {
   id: string;
-  file_name: string;
-  folder_path?: string;
-  file_type?: string;
-  file_size?: number | string;
+  fileName: string;
+  folderPath?: string;
+  fileType?: string;
+  fileSize?: number | string;
   type?: string;
   tags?: Tag[];
-  parse_status?: string;
-  summary_status?: string;
+  parseStatus?: string;
+  summaryStatus?: string;
   updated_at?: string;
   source?: string;
   description?: string;
@@ -133,7 +133,7 @@ interface StatusInfo {
   spin?: boolean;
 }
 const computeStatus = (item: KnowledgeItem): StatusInfo => {
-  if (item.parse_status === 'pending' || item.parse_status === 'processing') {
+  if (item.parseStatus === 'pending' || item.parseStatus === 'processing') {
     return { label: t('knowledgeBase.statusProcessing'), theme: 'primary', icon: 'loading', spin: true };
   }
   // finalizing = primary parse done, enrichment subtasks still running.
@@ -142,31 +142,31 @@ const computeStatus = (item: KnowledgeItem): StatusInfo => {
   // where this label was tied to completed+summary_pending). Otherwise
   // fall back to the generic "finalizing" label — covers question gen
   // and graph extract, which the user historically had no visibility on.
-  if (item.parse_status === 'finalizing') {
-    if (item.summary_status === 'pending' || item.summary_status === 'processing') {
+  if (item.parseStatus === 'finalizing') {
+    if (item.summaryStatus === 'pending' || item.summaryStatus === 'processing') {
       return { label: t('knowledgeBase.generatingSummary'), theme: 'primary', icon: 'loading', spin: true };
     }
     return { label: t('knowledgeBase.statusFinalizing'), theme: 'primary', icon: 'loading', spin: true };
   }
-  if (item.parse_status === 'failed') {
+  if (item.parseStatus === 'failed') {
     return { label: t('knowledgeBase.statusFailed'), theme: 'danger', icon: 'close-circle' };
   }
-  if (item.parse_status === 'cancelled') {
+  if (item.parseStatus === 'cancelled') {
     return { label: t('knowledgeBase.statusCancelled'), theme: 'warning', icon: 'close-circle' };
   }
-  if (item.parse_status === 'draft') {
+  if (item.parseStatus === 'draft') {
     return { label: t('knowledgeBase.statusDraft'), theme: 'warning' };
   }
   // Legacy completed+summary_pending path: kept as a defensive fallback
   // for rows that bypassed finalizing (no enrichment configured, or
   // upgraded mid-flight from a pre-finalizing build).
   if (
-    item.parse_status === 'completed' &&
-    (item.summary_status === 'pending' || item.summary_status === 'processing')
+    item.parseStatus === 'completed' &&
+    (item.summaryStatus === 'pending' || item.summaryStatus === 'processing')
   ) {
     return { label: t('knowledgeBase.generatingSummary'), theme: 'primary', icon: 'loading', spin: true };
   }
-  if (item.parse_status === 'completed') {
+  if (item.parseStatus === 'completed') {
     return { label: t('knowledgeBase.statusCompleted'), theme: 'success' };
   }
   return { label: '--', theme: 'default' };
@@ -305,7 +305,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
         :class="{ selected: selectedIds.has(item.id), 'menu-open': moreOpen === item.id }" :data-select-id="item.id"
         role="row" @click="emit('open', item)">
         <div class="cell cell-check" @click.stop>
-          <t-checkbox class="doc-list-check" size="small" :checked="selectedIds.has(item.id)" :title="item.file_name"
+          <t-checkbox class="doc-list-check" size="small" :checked="selectedIds.has(item.id)" :title="item.fileName"
             @change="(c: boolean, ctx?: { e?: Event }) => onRowCheckboxChange(item, c, ctx)" />
         </div>
 
@@ -314,11 +314,11 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
             <t-icon :name="getFileIcon(item)" />
           </span>
           <div class="row-file-text">
-            <span class="row-file-name" :title="item.file_name">{{ item.file_name }}</span>
-            <button v-if="showFolderPath && item.folder_path" type="button" class="row-file-folder"
-              :title="item.folder_path" @click.stop="emit('open-folder', item.folder_path)">
+            <span class="row-file-name" :title="item.fileName">{{ item.fileName }}</span>
+            <button v-if="showFolderPath && item.folderPath" type="button" class="row-file-folder"
+              :title="item.folderPath" @click.stop="emit('open-folder', item.folderPath)">
               <t-icon name="folder" />
-              <span>{{ item.folder_path }}</span>
+              <span>{{ item.folderPath }}</span>
             </button>
             <span v-if="item.description" class="row-file-desc" :title="item.description">{{ item.description }}</span>
           </div>
@@ -357,7 +357,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
         </div>
 
         <div class="cell cell-size">
-          <span class="row-mono">{{ formatFileSize(item.file_size) || '--' }}</span>
+          <span class="row-mono">{{ formatFileSize(item.fileSize) || '--' }}</span>
         </div>
 
         <div class="cell cell-status">
@@ -390,7 +390,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
               <div v-if="folderPickerItemId === item.id" class="card-menu move-menu">
                 <FolderPickerMenu
                   :options="folderOptions || []"
-                  :current-path="item.folder_path || ''"
+                  :current-path="item.folderPath || ''"
                   show-back
                   @back="folderPickerItemId = null"
                   @confirm="(path: string) => onFolderPicked(item, path)"
@@ -403,7 +403,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
                   :item="item"
                   :can-download="canDownload"
                   :can-mutate-knowledge="canMutateKnowledge"
-                  :trace-visible="!!traceVisibleIds[item.id] || (item.parse_status === 'pending' || item.parse_status === 'processing' || item.parse_status === 'finalizing')"
+                  :trace-visible="!!traceVisibleIds[item.id] || (item.parseStatus === 'pending' || item.parseStatus === 'processing' || item.parseStatus === 'finalizing')"
                   @download="handleAction('download', item)"
                   @edit="handleAction('edit', item)"
                   @view-trace="handleAction('view-trace', item)"

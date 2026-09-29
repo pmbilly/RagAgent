@@ -28,12 +28,12 @@ export default function (knowledgeBaseId?: string) {
     type: "",
     source: "",
     channel: "",
-    file_type: "",
+    fileType: "",
     description: "",
-    summary_status: "",
-    parse_status: "",
-    error_message: "",
-	custom_metadata: {} as Record<string, unknown>,
+    summaryStatus: "",
+    parseStatus: "",
+    errorMessage: "",
+	customMetadata: {} as Record<string, unknown>,
     chunkLoading: false,
     chunkLoadError: "",
     tags: [] as Array<{ id: string; name: string; color?: string }>,
@@ -44,17 +44,17 @@ export default function (knowledgeBaseId?: string) {
   const getKnowled = (
     query: {
       page: number;
-      page_size: number;
+      pageSize: number;
       tag_ids?: string;
       keyword?: string;
-      file_type?: string;
-      parse_status?: string;
+      fileType?: string;
+      parseStatus?: string;
       source?: string;
       start_time?: string;
       end_time?: string;
-      folder_path?: string;
-      folder_recursive?: boolean;
-    } = { page: 1, page_size: 35 },
+      folderPath?: string;
+      folderRecursive?: boolean;
+    } = { page: 1, pageSize: 35 },
     kbId?: string,
   ): Promise<void> => {
     const targetKbId = kbId || knowledgeBaseId;
@@ -68,21 +68,21 @@ export default function (knowledgeBaseId?: string) {
         const currentRouteKbId = (route.params as any)?.kbId as string | undefined;
         if (currentRouteKbId && currentRouteKbId !== targetKbId) return;
 
-        const { data, total: totalResult } = result;
+        const { items: data, total: totalResult } = result;
     const cardList_ = data.map((item: any) => {
-      const rawName = item.file_name || item.title || item.source || t('knowledgeBase.untitledDocument')
+      const rawName = item.fileName || item.title || item.source || t('knowledgeBase.untitledDocument')
       const dotIndex = rawName.lastIndexOf('.')
       const displayName = dotIndex > 0 ? rawName.substring(0, dotIndex) : rawName
-      const fileTypeSource = item.file_type || (item.type === 'manual' ? 'MANUAL' : '')
+      const fileTypeSource = item.fileType || (item.type === 'manual' ? 'MANUAL' : '')
       return {
         ...item,
-        original_file_name: item.file_name,
+        original_file_name: item.fileName,
         display_name: displayName,
-        file_name: displayName,
-        folder_path: item.folder_path || '',
+        fileName: displayName,
+        folderPath: item.folderPath || '',
         updated_at: formatStringDate(new Date(item.updated_at)),
         isMore: false,
-        file_type: fileTypeSource ? String(fileTypeSource).toLocaleUpperCase() : '',
+        fileType: fileTypeSource ? String(fileTypeSource).toLocaleUpperCase() : '',
       }
     });
         
@@ -131,20 +131,17 @@ export default function (knowledgeBaseId?: string) {
     const uiStore = useUIStore();
     const tagIdsToUpload = uiStore.selectedTagIds.length > 0 ? [...uiStore.selectedTagIds] : undefined;
 
-    uploadKnowledgeFile(currentKbId, { file, tag_ids: tagIdsToUpload })
-      .then((result: any) => {
-        if (result.success) {
-          MessagePlugin.info(t('knowledgeBase.uploadSuccess'));
-          getKnowled({ page: 1, page_size: 35 }, currentKbId);
-        } else {
-          const errorMessage = result.error?.message || result.message || t('knowledgeBase.uploadFailed');
-          MessagePlugin.error(result.code === 'duplicate_file' ? t('knowledgeBase.fileExists') : errorMessage);
-        }
+    // 新契约：201 直接返回新文档（无 {success,data} 信封）；失败走 rejection
+    // （内容重复是 409 + error.code=2400，见错误码表）。
+    uploadKnowledgeFile(currentKbId, { file, tagIds: tagIdsToUpload })
+      .then(() => {
+        MessagePlugin.info(t('knowledgeBase.uploadSuccess'));
+        getKnowled({ page: 1, pageSize: 35 }, currentKbId);
         uploadInput.value.value = "";
       })
       .catch((err: any) => {
         const errorMessage = err.error?.message || err.message || t('knowledgeBase.uploadFailed');
-        MessagePlugin.error(err.code === 'duplicate_file' ? t('knowledgeBase.fileExists') : errorMessage);
+        MessagePlugin.error(err.error?.code === 2400 ? t('knowledgeBase.fileExists') : errorMessage);
         uploadInput.value.value = "";
       });
   };
@@ -159,32 +156,32 @@ export default function (knowledgeBaseId?: string) {
       type: "",
       source: "",
       channel: "",
-      file_type: "",
+      fileType: "",
       description: "",
-      summary_status: "",
-      parse_status: "",
-      error_message: "",
-	  custom_metadata: {},
+      summaryStatus: "",
+      parseStatus: "",
+      errorMessage: "",
+	  customMetadata: {},
       chunkLoadError: "",
       tags: item?.tags ? [...item.tags] : [],
     });
     getKnowledgeDetails(item.id)
       .then((result: any) => {
-        if (result.success && result.data) {
-          const { data } = result;
+        if (result) {
+          const data = result;
           Object.assign(details, {
-            title: data.file_name || data.title || data.source || t('knowledgeBase.untitledDocument'),
-            time: formatStringDate(new Date(data.updated_at)),
+            title: data.fileName || data.title || data.source || t('knowledgeBase.untitledDocument'),
+            time: formatStringDate(new Date(data.updatedAt)),
             id: data.id,
             type: data.type || 'file',
             source: data.source || '',
             channel: data.channel || '',
-            file_type: data.file_type || '',
+            fileType: data.fileType || '',
             description: data.description || '',
-            summary_status: data.summary_status || '',
-            parse_status: data.parse_status || '',
-            error_message: data.error_message || '',
-			custom_metadata: data.custom_metadata || {},
+            summaryStatus: data.summaryStatus || '',
+            parseStatus: data.parseStatus || '',
+            errorMessage: data.errorMessage || '',
+			customMetadata: data.customMetadata || {},
             tags: data.tags?.length ? data.tags : (item?.tags || []),
           });
         }
@@ -201,7 +198,7 @@ export default function (knowledgeBaseId?: string) {
       .then((result: any) => {
         if (requestGeneration !== chunkRequestGeneration || activeKnowledgeId !== id) return;
         if (result.success && result.data) {
-          const { data, total: totalResult } = result;
+          const { items: data, total: totalResult } = result;
           details.md = data;
           details.total = totalResult;
         } else {

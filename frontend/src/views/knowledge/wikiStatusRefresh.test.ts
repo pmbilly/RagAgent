@@ -6,8 +6,8 @@ import { shouldRefreshWikiStatusAfterKnowledgePoll } from './wikiStatusRefresh.t
 test('refreshes wiki status when a polled document leaves an in-flight state', () => {
   assert.equal(
     shouldRefreshWikiStatusAfterKnowledgePoll(
-      { parse_status: 'finalizing', summary_status: 'processing' },
-      { parse_status: 'completed', summary_status: 'completed' },
+      { parseStatus: 'finalizing', summaryStatus: 'processing' },
+      { parseStatus: 'completed', summaryStatus: 'completed' },
     ),
     true,
   )
@@ -16,8 +16,8 @@ test('refreshes wiki status when a polled document leaves an in-flight state', (
 test('does not refresh wiki status for ordinary in-flight polling updates', () => {
   assert.equal(
     shouldRefreshWikiStatusAfterKnowledgePoll(
-      { parse_status: 'pending' },
-      { parse_status: 'processing' },
+      { parseStatus: 'pending' },
+      { parseStatus: 'processing' },
     ),
     false,
   )

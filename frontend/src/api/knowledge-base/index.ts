@@ -32,10 +32,10 @@ export function listKnowledgeBases(params?: {
   agent_source_tenant_id?: string;
   /**
    * Optional creator filter. Server-side semantics:
-   *   - "mine"   → only KBs whose creator_id matches the caller
+   *   - "mine"   → only KBs whose creatorId matches the caller
    *   - "others" → only KBs created by someone else in this tenant
    *   - omitted/"all" → no filter
-   * KBs predating the RBAC backfill (creator_id="") never match
+   * KBs predating the RBAC backfill (creatorId="") never match
    * mine/others — they fall out of both views by design.
    */
   creator?: 'all' | 'mine' | 'others';
@@ -85,8 +85,8 @@ export function createKnowledgeBase(data: {
   description?: string;
   type?: 'document' | 'faq';
   chunking_config?: any;
-  embedding_model_id?: string;
-  summary_model_id?: string;
+  embeddingModelId?: string;
+  summaryModelId?: string;
   auto_tag_config?: { enabled: boolean; model_id?: string; max_tags?: number; skip_if_tagged?: boolean };
   // Opt-in binding to a specific tenant-owned VectorStore. Omit (or
   // send undefined / empty string) to fall back to the env-configured
@@ -203,12 +203,12 @@ export function togglePinKnowledgeBase(id: string) {
 }
 
 // 知识文件 API（基于具体知识库）
-// data.tag_ids: 可选，指定知识所属的多个标签 ID
+// data.tagIds: 可选，指定知识所属的多个标签 ID
 export function uploadKnowledgeFile(
   kbId: string,
   data: {
     file: File
-    tag_ids?: string[]
+    tagIds?: string[]
     fileName?: string
     process_config?: KnowledgeProcessOverrides | string
     [key: string]: any
@@ -219,7 +219,7 @@ export function uploadKnowledgeFile(
   Object.keys(data).forEach(key => {
     const value = data[key];
     if (value === undefined) return;
-    if (key === 'tag_ids' && Array.isArray(value)) {
+    if (key === 'tagIds' && Array.isArray(value)) {
       formData.append(key, value.join(','));
     } else if (key === 'process_config' && value && typeof value !== 'string') {
       formData.append(key, JSON.stringify(value));
@@ -231,10 +231,10 @@ export function uploadKnowledgeFile(
 }
 
 // 从URL创建知识
-// data.tag_ids: 可选，指定知识所属的多个标签 ID
+// data.tagIds: 可选，指定知识所属的多个标签 ID
 export function createKnowledgeFromURL(
   kbId: string,
-  data: { url: string; enable_multimodel?: boolean; tag_ids?: string[]; process_config?: KnowledgeProcessOverrides },
+  data: { url: string; enable_multimodel?: boolean; tagIds?: string[]; process_config?: KnowledgeProcessOverrides },
 ) {
   return post(`/api/v1/knowledge-bases/${kbId}/knowledge/url`, data);
 }
@@ -247,7 +247,7 @@ export function createManualKnowledge(
     title: string
     content: string
     status: string
-    tag_ids?: string[]
+    tagIds?: string[]
     process_config?: KnowledgeProcessOverrides
   },
 ) {
@@ -258,37 +258,41 @@ export function listKnowledgeFiles(
   kbId: string,
   params: {
     page: number;
-    page_size: number;
+    pageSize: number;
+    /** 已废弃：后端未实现该过滤（保留仅为不改变调用方签名）。 */
     tag_ids?: string;
     keyword?: string;
-    file_type?: string;
-    parse_status?: string;
+    fileType?: string;
+    parseStatus?: string;
+    /** 已废弃：后端未实现。 */
     source?: string;
+    /** 已废弃：后端未实现。 */
     start_time?: string;
+    /** 已废弃：后端未实现。 */
     end_time?: string;
     /**
      * Folder to browse. An empty string means the knowledge base root, so the
      * parameter is only sent when it is defined — leaving it out lists every
      * folder (the flat view).
      */
-    folder_path?: string;
-    /** Include documents stored in sub-folders of folder_path. */
-    folder_recursive?: boolean;
+    folderPath?: string;
+    /** Include documents stored in sub-folders of folderPath（后端未实现）。 */
+    folderRecursive?: boolean;
   },
 ) {
   const query = new URLSearchParams();
   query.append('page', String(params.page));
-  query.append('page_size', String(params.page_size));
+  query.append('pageSize', String(params.pageSize));
   if (params.tag_ids) query.append('tag_ids', params.tag_ids);
   if (params.keyword) query.append('keyword', params.keyword);
-  if (params.file_type) query.append('file_type', params.file_type);
-  if (params.parse_status) query.append('parse_status', params.parse_status);
+  if (params.fileType) query.append('fileType', params.fileType);
+  if (params.parseStatus) query.append('parseStatus', params.parseStatus);
   if (params.source) query.append('source', params.source);
   if (params.start_time) query.append('start_time', params.start_time);
   if (params.end_time) query.append('end_time', params.end_time);
-  if (params.folder_path !== undefined) {
-    query.append('folder_path', params.folder_path);
-    if (params.folder_recursive) query.append('folder_recursive', 'true');
+  if (params.folderPath !== undefined) {
+    query.append('folderPath', params.folderPath);
+    if (params.folderRecursive) query.append('folderRecursive', 'true');
   }
   const qs = query.toString();
   return get(`/api/v1/knowledge-bases/${kbId}/knowledge?${qs}`);
@@ -328,7 +332,7 @@ export function moveKnowledgeToFolder(kbId: string, ids: string[], folderPath: s
   return post('/api/v1/knowledge/folder', {
     kb_id: kbId,
     knowledge_ids: ids,
-    folder_path: folderPath,
+    folderPath: folderPath,
   });
 }
 
@@ -385,7 +389,7 @@ export function previewKnowledgeFile(id: string) {
 /** @param idsQueryString - query string with ids (e.g. ids=xxx&ids=yyy) */
 export function batchQueryKnowledge(idsQueryString: string, kbId?: string, agentId?: string, agentSourceTenantId?: string) {
   let qs = idsQueryString;
-  if (kbId) qs += `&kb_id=${encodeURIComponent(kbId)}`;
+  if (kbId) qs += `&kbId=${encodeURIComponent(kbId)}`;
   if (agentId) qs += `&agent_id=${encodeURIComponent(agentId)}`;
   if (agentSourceTenantId) qs += `&agent_source_tenant_id=${encodeURIComponent(agentSourceTenantId)}`;
   return get(`/api/v1/knowledge/batch?${qs}`);
@@ -623,7 +627,7 @@ export function searchKnowledge(
   query.set('offset', String(offset));
   query.set('limit', String(limit));
   if (fileTypes && fileTypes.length > 0) {
-    query.set('file_types', fileTypes.join(','));
+    query.set('fileTypes', fileTypes.join(','));
   }
   if (options?.agent_id) query.set('agent_id', options.agent_id);
   if (options?.agent_source_tenant_id) query.set('agent_source_tenant_id', options.agent_source_tenant_id);

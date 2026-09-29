@@ -83,7 +83,7 @@
                 <p v-if="detailCache[item.id].data.description" class="detail-desc">{{ detailCache[item.id].data.description }}</p>
                 <div class="detail-meta">
                   <span v-if="detailCache[item.id].data.type === 'faq'">
-                    {{ $t('mentionDetail.faqCount', { count: detailCache[item.id].data.chunk_count ?? detailCache[item.id].data.count ?? 0 }) }}
+                    {{ $t('mentionDetail.faqCount', { count: detailCache[item.id].data.chunkCount ?? detailCache[item.id].data.count ?? 0 }) }}
                   </span>
                   <span v-else>
                     {{ $t('mentionDetail.kbCount', { count: detailCache[item.id].data.knowledge_count ?? detailCache[item.id].data.count ?? 0 }) }}
@@ -218,18 +218,18 @@
               </template>
               <template v-else-if="detailCache[item.id]?.data">
                 <div class="detail-header">
-                  <span class="detail-name">{{ detailCache[item.id].data.title || detailCache[item.id].data.file_name || item.name }}</span>
+                  <span class="detail-name">{{ detailCache[item.id].data.title || detailCache[item.id].data.fileName || item.name }}</span>
                 </div>
                 <p v-if="detailCache[item.id].data.description" class="detail-desc">{{ detailCache[item.id].data.description }}</p>
                 <div class="detail-meta">
-                  <span v-if="detailCache[item.id].data.knowledge_base_name || item.kbName" class="detail-kb">
+                  <span v-if="detailCache[item.id].data.knowledgeBaseName || item.kbName" class="detail-kb">
                     <t-icon name="folder" class="detail-icon" />
                     <span class="detail-label">{{ $t('mentionDetail.belongsToKb') }}</span>
                     <span
                       class="detail-value clickable"
-                      @click.stop="handleKbClick(detailCache[item.id].data.knowledge_base_id || (item as any).kbId)"
+                      @click.stop="handleKbClick(detailCache[item.id].data.knowledgeBaseId || (item as any).kbId)"
                     >
-                      {{ detailCache[item.id].data.knowledge_base_name || item.kbName }}
+                      {{ detailCache[item.id].data.knowledgeBaseName || item.kbName }}
                     </span>
                   </span>
                 </div>
@@ -429,7 +429,7 @@ async function fetchKbDetail(item: { id: string }) {
   detailCache.value = { ...detailCache.value, [item.id]: { loading: true } };
   try {
     const res: any = await getKnowledgeBaseById(item.id);
-    detailCache.value = { ...detailCache.value, [item.id]: { loading: false, data: res?.data ?? res } };
+    detailCache.value = { ...detailCache.value, [item.id]: { loading: false, data: res } };
   } catch (e: any) {
     detailCache.value = { ...detailCache.value, [item.id]: { loading: false, error: e?.message || 'Failed to load' } };
   }
@@ -440,7 +440,7 @@ async function fetchFileDetail(item: { id: string }) {
   detailCache.value = { ...detailCache.value, [item.id]: { loading: true } };
   try {
     const res: any = await getKnowledgeDetails(item.id);
-    detailCache.value = { ...detailCache.value, [item.id]: { loading: false, data: res?.data ?? res } };
+    detailCache.value = { ...detailCache.value, [item.id]: { loading: false, data: res } };
   } catch (e: any) {
     detailCache.value = { ...detailCache.value, [item.id]: { loading: false, error: e?.message || 'Failed to load' } };
   }

@@ -7,7 +7,7 @@ test('prefers the original filename over the extensionless display name', () => 
   assert.equal(resolveKnowledgeDownloadFileName({
     id: 'knowledge-1',
     original_file_name: 'quarterly-report.pdf',
-    file_name: 'quarterly-report',
+    fileName: 'quarterly-report',
     type: 'file',
   }), 'quarterly-report.pdf');
 });
@@ -15,7 +15,7 @@ test('prefers the original filename over the extensionless display name', () => 
 test('falls back to the backend filename when no original filename is present', () => {
   assert.equal(resolveKnowledgeDownloadFileName({
     id: 'knowledge-2',
-    file_name: 'notes.txt',
+    fileName: 'notes.txt',
     type: 'file',
   }), 'notes.txt');
 });

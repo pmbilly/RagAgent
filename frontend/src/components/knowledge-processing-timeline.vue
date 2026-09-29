@@ -27,7 +27,7 @@ interface SpansResponse {
   attempt: number
   latest_attempt: number
   current_attempt?: number
-  parse_status: string
+  parseStatus: string
   current_stage?: string
   trace: SpanNode
   last_error?: LastError | null
@@ -46,12 +46,12 @@ const props = withDefaults(
     compact?: boolean
     // gracePoll selects the polling rule. See shouldPollNow() for
     // the full semantics:
-    //   true  — follow parse_status + any running subspan + a
+    //   true  — follow parseStatus + any running subspan + a
     //           QUIESCE_GRACE_MS grace window after the tree quiesces.
     //           This is what the user-visible drawer mount wants:
     //           late-arriving subspans (wiki has a 30s debounce, etc.)
     //           surface without forcing a manual refresh.
-    //   false — strict mode. Poll ONLY while parse_status itself is
+    //   false — strict mode. Poll ONLY while parseStatus itself is
     //           non-terminal; ignore post-pipeline async subspans.
     //           This is what background mounts (the hidden badge
     //           driver in doc-content.vue) want, so they stop firing
@@ -114,7 +114,7 @@ const scrollRef = ref<HTMLElement | null>(null)
 // reopened by the next fetch's re-evaluation pass.
 const userToggledRows = ref<Set<string>>(new Set())
 // Tracks consecutive fetch failures so the "更新于" caption can surface
-// staleness. When the parse_status is mid-flight but every fetch is
+// staleness. When the parseStatus is mid-flight but every fetch is
 // hitting an error, the loop keeps going silently — without this
 // indicator the user sees a spinning auto-refresh icon while the
 // caption ages without explanation.
@@ -216,7 +216,7 @@ function isHardTerminal(status?: string): boolean {
 
 // True if any node in the trace is still running/pending. Crucial for
 // postprocess — its subspans (summary/question/graph.chunk[*]) run
-// asynchronously AFTER the main pipeline closes, so parse_status
+// asynchronously AFTER the main pipeline closes, so parseStatus
 // flips to 'completed' while there's plenty of work still happening.
 // Without checking the tree we'd stop polling at that moment and
 // strand the user staring at half-rendered postprocess until they
@@ -235,18 +235,18 @@ function spanTreeActive(node?: SpanNode): boolean {
 const traceActive = computed<boolean>(() => spanTreeActive(data.value?.trace))
 
 // Drives BOTH the LIVE badge AND polling. Single source of truth:
-//   1. If we have data: still live while parse_status is polling
+//   1. If we have data: still live while parseStatus is polling
 //      OR the span tree has any running descendant.
 //   2. If we don't have data yet (initial paint): trust the parent's
 //      parseStatus hint so the UI shows LIVE immediately.
 const isLive = computed<boolean>(() => {
   if (data.value) {
-    // Hard-terminal parse_status wins over a stale traceActive: cancel
+    // Hard-terminal parseStatus wins over a stale traceActive: cancel
     // and irrecoverable failure can leave child spans stranded as
     // 'running' (worker process died, cancel raced FailSpan, etc.),
     // and we must NOT keep polling forever on those.
-    if (isHardTerminal(data.value.parse_status)) return false
-    return isPolling(data.value.parse_status) || traceActive.value
+    if (isHardTerminal(data.value.parseStatus)) return false
+    return isPolling(data.value.parseStatus) || traceActive.value
   }
   if (isHardTerminal(props.parseStatus)) return false
   return isPolling(props.parseStatus)
@@ -280,7 +280,7 @@ function spanTreeLastActivity(node?: SpanNode): number {
 // Async post-pipeline tasks (summary, question, graph.chunk[*],
 // wiki) open their postprocess.* subspans AFTER the parse pipeline
 // has finalised — wiki in particular fires 30s after enqueue thanks
-// to wikiIngestDelay. At that exact moment parse_status is already
+// to wikiIngestDelay. At that exact moment parseStatus is already
 // 'completed' AND every existing span is 'done', so isLive flips to
 // false and polling stops. The user is then stranded watching a
 // stale tree until they hit refresh.
@@ -313,7 +313,7 @@ const isWithinQuiesceGrace = computed<boolean>(() => {
 //
 //   gracePoll = true  (default — for the visible drawer mount):
 //     Follow the trace through everything the user might want to see
-//     live: the main parse pipeline (parse_status), any running
+//     live: the main parse pipeline (parseStatus), any running
 //     subspan (traceActive), AND the QUIESCE_GRACE_MS window after
 //     the tree quiesces (so wiki ingest's 30s-debounced subspan
 //     surfaces on its own without a manual refresh).
@@ -334,7 +334,7 @@ function shouldPollNow(): boolean {
   if (props.gracePoll) {
     return isLive.value || isWithinQuiesceGrace.value
   }
-  return isPolling(data.value.parse_status)
+  return isPolling(data.value.parseStatus)
 }
 
 async function fetchSpans(opts: { manual?: boolean } = {}) {
@@ -378,7 +378,7 @@ async function fetchSpans(opts: { manual?: boolean } = {}) {
       expandedRows.value = expanded
       const latestAttempt = data.value.latest_attempt || data.value.attempt || 0
       const tabStatus = resolveTimelineHeaderStatus({
-        parseStatus: data.value.parse_status,
+        parseStatus: data.value.parseStatus,
         traceStatus: data.value.trace?.status,
         isLatestAttempt: data.value.attempt === latestAttempt,
       }) || 'running'
@@ -420,7 +420,7 @@ function ensureAttemptStatuses() {
       .then((res: any) => {
         if (res?.success && res.data?.trace) {
           attemptStatuses.set(n, resolveTimelineHeaderStatus({
-            parseStatus: res.data.parse_status,
+            parseStatus: res.data.parseStatus,
             traceStatus: res.data.trace?.status,
             isLatestAttempt: n === latest,
           }) || 'running')
@@ -479,7 +479,7 @@ const cancelling = ref(false)
 // finalizing). Uses the freshest status we have: live span data first,
 // the parent's hint before the first fetch lands.
 const canCancelParse = computed<boolean>(() => {
-  const status = data.value?.parse_status ?? props.parseStatus
+  const status = data.value?.parseStatus ?? props.parseStatus
   return isPolling(status)
 })
 
@@ -536,10 +536,10 @@ async function fetchProcessOverrides() {
   if (props.compact || !props.knowledgeId) return
   try {
     const res: any = await getKnowledgeDetails(props.knowledgeId)
-    if (res?.success && res.data) {
-      processOverrides.value = res.data.metadata?.process_overrides ?? null
+    if (res) {
+      processOverrides.value = res.metadata?.process_overrides ?? null
       currentKnowledgeFileType.value = normalizeFileType(
-        res.data.file_type || getFileTypeFromName(res.data.file_name || res.data.title || ''),
+        res.fileType || getFileTypeFromName(res.fileName || res.title || ''),
       )
     }
   } catch {
@@ -658,7 +658,7 @@ const tEnd = computed<number | null>(() => {
     candidate = candidate === null ? max : Math.max(candidate, max)
   }
   // Extend the right edge to "now" whenever the trace is still
-  // actively producing spans — this covers both parse_status mid-flight
+  // actively producing spans — this covers both parseStatus mid-flight
   // AND the postprocess-async case where the top-level status closes
   // but subspans keep ticking. Both conditions are captured by isLive.
   if (isLive.value) {
@@ -789,7 +789,7 @@ function barStyle(node: SpanNode): Record<string, string> {
   // whenever it's plausibly still running — either the trace overall
   // is live, or this individual span's status says it's in flight.
   // Without the second clause, postprocess subspans that survived past
-  // parse_status='completed' would collapse to zero width.
+  // parseStatus='completed' would collapse to zero width.
   const liveBar = isLive.value || node.status === 'running' || node.status === 'pending'
   const end = nodeEnd(node) ?? (liveBar ? nowTick.value : start)
   const leftPct = ((start - t0.value) / total) * 100
@@ -1130,7 +1130,7 @@ function attemptGlyph(status: string): { ch: string; cls: string } {
 // True when the panel is showing the most recent attempt (or there's
 // only one). Historical attempts must keep their own per-attempt
 // trace.status; only the latest attempt's header should defer to the
-// knowledge-level parse_status.
+// knowledge-level parseStatus.
 const viewingLatestAttempt = computed<boolean>(() => {
   const latest = data.value?.latest_attempt || 0
   if (latest <= 1) return true
@@ -1146,7 +1146,7 @@ const viewingLatestAttempt = computed<boolean>(() => {
 // including terminal ones. Historical attempts keep their own root status.
 const headerStatus = computed(() => {
   return resolveTimelineHeaderStatus({
-    parseStatus: data.value?.parse_status,
+    parseStatus: data.value?.parseStatus,
     traceStatus: data.value?.trace?.status,
     isLatestAttempt: viewingLatestAttempt.value,
   })
@@ -1175,7 +1175,7 @@ const headerStatusTheme = computed(() => {
 })
 
 const showLastError = computed(() =>
-  Boolean(data.value?.last_error && data.value?.parse_status === 'failed'),
+  Boolean(data.value?.last_error && data.value?.parseStatus === 'failed'),
 )
 
 const stagesStatDisplay = computed(() => {
@@ -1218,7 +1218,7 @@ const headMetaParts = computed(() => {
       completed: postprocess.completed,
     }))
   }
-  if (data.value.parse_status === 'completed' && postprocess.running > 0) {
+  if (data.value.parseStatus === 'completed' && postprocess.running > 0) {
     parts.push(t('knowledgeStages.head.completedWithActiveTrace', {
       n: postprocess.running,
     }))
@@ -1475,7 +1475,7 @@ const processConfigLines = computed<string[]>(() => {
                   <t-icon :name="cancelling ? 'loading' : 'close-circle'" size="15px" />
                 </button>
               </t-popconfirm>
-              <t-button v-if="data?.parse_status === 'failed'" size="small" theme="primary" variant="outline"
+              <t-button v-if="data?.parseStatus === 'failed'" size="small" theme="primary" variant="outline"
                 @click="onRetry">
                 <t-icon name="refresh" size="14px" />
                 <span style="margin-left: 4px">{{ t('knowledgeStages.retry') }}</span>

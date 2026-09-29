@@ -1,19 +1,18 @@
 interface KnowledgeDeletionRow {
   id: string;
-  parse_status?: string;
+  parseStatus?: string;
 }
 
-interface KnowledgeDeletionResponse {
-  success?: boolean;
-  data?: KnowledgeDeletionRow[] | null;
-}
+/** 批量取文档的响应体：新契约下是**裸数组**（无 `{success,data}` 信封），
+ *  且空结果可能是 `[]` 或 `null`（两种写法都表示"已无这些文档"）。 */
+type KnowledgeDeletionRows = KnowledgeDeletionRow[] | null | undefined;
 
 type DeletionResult = 'completed' | 'pending' | 'failed' | 'cancelled';
 
 /** Query exact IDs, including deleting rows, instead of the filtered document list. */
 export async function waitForKnowledgeDeletion(
   ids: string[],
-  fetchRows: (ids: string[]) => Promise<KnowledgeDeletionResponse>,
+  fetchRows: (ids: string[]) => Promise<KnowledgeDeletionRows>,
   options: {
     isActive?: () => boolean;
     attempts?: number;
@@ -34,20 +33,20 @@ export async function waitForKnowledgeDeletion(
       if (!isActive()) return 'cancelled';
       const response = await fetchRows(ids.slice(start, start + 50));
       if (!isActive()) return 'cancelled';
-      // A missing/invalid payload is not evidence of deletion. The Go batch
-      // endpoint can encode an empty slice as either [] or null.
-      if (response.success !== true || (response.data !== null && !Array.isArray(response.data))) {
+      // 载荷不合法时不能当作"已删除"的证据：空集可能是 [] 或 null，
+      // 其余非数组形态（信封残留、字段改名后的旧形状）一律视为不可信。
+      if (response != null && !Array.isArray(response)) {
         throw new Error('Invalid knowledge deletion status response');
       }
-      rows.push(...(response.data ?? []));
+      rows.push(...(response ?? []));
     }
     const remaining = rows.filter(row => requested.has(row.id));
     if (remaining.length === 0) return 'completed';
     for (const row of remaining) {
-      if (row.parse_status === 'deleting') deleting.add(row.id);
+      if (row.parseStatus === 'deleting') deleting.add(row.id);
       // A document may already have a failed parse/delete before this request
       // starts. Only a failure after observing deletion belongs to this run.
-      if (deleting.has(row.id) && row.parse_status === 'failed') return 'failed';
+      if (deleting.has(row.id) && row.parseStatus === 'failed') return 'failed';
     }
     if (i + 1 < attempts) await delay();
   }

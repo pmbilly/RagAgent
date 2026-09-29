@@ -50,7 +50,7 @@ export function isFolderUpload(file: UploadFileLike): boolean {
 
 /**
  * Build the path-qualified `fileName` form field that the backend splits into
- * folder_path + file_name. Two sources are combined: the destination folder
+ * folderPath + fileName. Two sources are combined: the destination folder
  * chosen for the batch and the browser's webkitRelativePath, whose picked
  * directory becomes a folder under that destination.
  *

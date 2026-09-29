@@ -844,7 +844,7 @@ const tagOptions = computed(() => availableTags.value.map(tag => ({
   value: tag.id,
 })))
 
-const llmModelId = computed(() => props.kbInfo?.summary_model_id || '')
+const llmModelId = computed(() => props.kbInfo?.summaryModelId || '')
 
 const hasImages = computed(() => {
   if (props.mode === 'manual' && props.manualPreview?.content) {

@@ -15,25 +15,25 @@ interface Tag {
 
 interface KnowledgeCard {
   id: string;
-  knowledge_base_id?: string;
-  parse_status: string;
-  summary_status?: string;
+  knowledgeBaseId?: string;
+  parseStatus: string;
+  summaryStatus?: string;
   description?: string;
-  file_name?: string;
-  folder_path?: string;
+  fileName?: string;
+  folderPath?: string;
   original_file_name?: string;
   display_name?: string;
   title?: string;
   type?: string;
   updated_at?: string;
-  file_type?: string;
+  fileType?: string;
   isMore?: boolean;
   metadata?: any;
   error_message?: string;
   tags?: Array<{ id: string; name: string; color?: string }>;
   source?: string;
   created_at?: string;
-  file_size?: number | string;
+  fileSize?: number | string;
   channel?: string;
 }
 
@@ -113,13 +113,13 @@ const isParseInFlight = (status?: string): boolean =>
 
 const isTraceMenuVisible = (item: KnowledgeCard): boolean => {
   if (!item?.id) return false;
-  if (isParseInFlight(item.parse_status)) return true;
+  if (isParseInFlight(item.parseStatus)) return true;
   return props.traceAvailableById[item.id] === true;
 };
 
 const inFlightCardStatusText = (item: KnowledgeCard): string => {
-  if (item.parse_status === 'finalizing') {
-    if (item.summary_status === 'pending' || item.summary_status === 'processing') {
+  if (item.parseStatus === 'finalizing') {
+    if (item.summaryStatus === 'pending' || item.summaryStatus === 'processing') {
       return t('knowledgeBase.generatingSummary');
     }
     return t('knowledgeBase.statusFinalizing');
@@ -143,7 +143,7 @@ const formatDocTime = (time?: string) => {
 const getKnowledgeType = (item: KnowledgeCard) => {
   if (item.type === 'url') return t('knowledgeBase.typeURL') || 'URL';
   if (item.type === 'manual') return t('knowledgeBase.typeManual');
-  if (item.file_type) return item.file_type.toUpperCase();
+  if (item.fileType) return item.fileType.toUpperCase();
   return '--';
 };
 
@@ -352,11 +352,11 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
               class="card-select-checkbox"
               size="small"
               :checked="selectedIds.has(item.id)"
-              :title="item.file_name"
+              :title="item.fileName"
               @change="(checked: boolean, ctx?: { e?: Event }) => emit('toggle-checkbox', item.id, checked, ctx)"
             />
           </div>
-          <span class="card-content-title" :title="item.file_name">{{ item.file_name }}</span>
+          <span class="card-content-title" :title="item.fileName">{{ item.fileName }}</span>
           <t-popup
             v-if="canEdit"
             v-model="item.isMore"
@@ -379,7 +379,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
               <div v-if="folderPickerItemId === item.id" class="card-menu move-menu">
                 <FolderPickerMenu
                   :options="folderOptions || []"
-                  :current-path="item.folder_path || ''"
+                  :current-path="item.folderPath || ''"
                   show-back
                   @back="folderPickerItemId = null"
                   @confirm="(path: string) => onFolderPicked(item, path)"
@@ -479,7 +479,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
         </div>
 
         <!-- Parse status display -->
-        <div v-if="isParseInFlight(item.parse_status)" class="card-analyze card-analyze-trace">
+        <div v-if="isParseInFlight(item.parseStatus)" class="card-analyze card-analyze-trace">
           <t-icon name="loading" class="card-analyze-loading"></t-icon>
           <span
             class="card-analyze-txt card-analyze-trace-link"
@@ -500,7 +500,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
             <t-icon name="chart-line" />
           </button>
         </div>
-        <div v-else-if="item.parse_status === 'failed'" class="card-analyze failure card-analyze-trace">
+        <div v-else-if="item.parseStatus === 'failed'" class="card-analyze failure card-analyze-trace">
           <t-icon name="close-circle" class="card-analyze-loading failure"></t-icon>
           <span
             class="card-analyze-txt failure card-analyze-trace-link"
@@ -521,27 +521,27 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
             <t-icon name="chart-bar" />
           </button>
         </div>
-        <div v-else-if="item.parse_status === 'draft'" class="card-draft">
+        <div v-else-if="item.parseStatus === 'draft'" class="card-draft">
           <t-tag size="small" theme="warning" variant="light-outline">{{ $t('knowledgeBase.draft') }}</t-tag>
           <span class="card-draft-tip">{{ $t('knowledgeBase.draftTip') }}</span>
         </div>
         <div
-          v-else-if="item.parse_status === 'completed' && (item.summary_status === 'pending' || item.summary_status === 'processing')"
+          v-else-if="item.parseStatus === 'completed' && (item.summaryStatus === 'pending' || item.summaryStatus === 'processing')"
           class="card-analyze"
         >
           <t-icon name="loading" class="card-analyze-loading"></t-icon>
           <span class="card-analyze-txt">{{ $t('knowledgeBase.generatingSummary') }}</span>
         </div>
-        <div v-else-if="item.parse_status === 'completed'" class="card-content-txt">
+        <div v-else-if="item.parseStatus === 'completed'" class="card-content-txt">
           {{ item.description }}
         </div>
       </div>
 
       <div class="card-bottom">
-        <button v-if="showFolderPath && item.folder_path" type="button" class="card-folder"
-          :title="item.folder_path" @click.stop="emit('open-folder', item.folder_path)">
+        <button v-if="showFolderPath && item.folderPath" type="button" class="card-folder"
+          :title="item.folderPath" @click.stop="emit('open-folder', item.folderPath)">
           <t-icon name="folder" />
-          <span>{{ item.folder_path }}</span>
+          <span>{{ item.folderPath }}</span>
         </button>
         <span v-else class="card-time">{{ formatDocTime(item.updated_at) }}</span>
         <div class="card-bottom-right">
@@ -626,24 +626,24 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
       :style="{ left: cardPopoverPos.x + 'px', top: cardPopoverPos.y + 'px' }"
     >
       <template v-if="hoveredCardItem">
-        <div class="card-popover-title">{{ hoveredCardItem.file_name }}</div>
-        <div v-if="isParseInFlight(hoveredCardItem.parse_status)" class="card-popover-status parsing">
+        <div class="card-popover-title">{{ hoveredCardItem.fileName }}</div>
+        <div v-if="isParseInFlight(hoveredCardItem.parseStatus)" class="card-popover-status parsing">
           <KnowledgeProcessingTimeline
             :knowledge-id="hoveredCardItem.id"
-            :parse-status="hoveredCardItem.parse_status"
+            :parse-status="hoveredCardItem.parseStatus"
             :auto-poll="false"
             :compact="true"
           />
         </div>
-        <div v-else-if="hoveredCardItem.parse_status === 'failed'" class="card-popover-status failure">
+        <div v-else-if="hoveredCardItem.parseStatus === 'failed'" class="card-popover-status failure">
           <KnowledgeProcessingTimeline
             :knowledge-id="hoveredCardItem.id"
-            :parse-status="hoveredCardItem.parse_status"
+            :parse-status="hoveredCardItem.parseStatus"
             :auto-poll="false"
             :compact="true"
           />
         </div>
-        <div v-else-if="hoveredCardItem.parse_status === 'draft'" class="card-popover-status draft">
+        <div v-else-if="hoveredCardItem.parseStatus === 'draft'" class="card-popover-status draft">
           {{ $t('knowledgeBase.draft') }}
         </div>
         <template v-else>
@@ -655,8 +655,8 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
             <span v-if="(hoveredCardItem as any).created_at" class="card-popover-created">
               {{ $t('knowledgeBase.createdAt') }}：{{ formatDocTime((hoveredCardItem as any).created_at) }}
             </span>
-            <span v-if="formatFileSize((hoveredCardItem as any).file_size)" class="card-popover-size">
-              {{ formatFileSize((hoveredCardItem as any).file_size) }}
+            <span v-if="formatFileSize((hoveredCardItem as any).fileSize)" class="card-popover-size">
+              {{ formatFileSize((hoveredCardItem as any).fileSize) }}
             </span>
           </div>
         </template>

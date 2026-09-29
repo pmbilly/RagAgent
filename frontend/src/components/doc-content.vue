@@ -72,7 +72,7 @@ const saveSummary = async () => {
   try {
     const description = summaryDraft.value.trim();
     const result: any = await updateKnowledgeSummary(props.details.id, description);
-    applySummaryState(result?.data?.summary_status, result?.data?.description ?? description);
+    applySummaryState(result?.data?.summaryStatus, result?.data?.description ?? description);
     summaryEditing.value = false;
     MessagePlugin.success(t('common.saveSuccess'));
   } catch (error: any) {
@@ -103,7 +103,7 @@ const makeMetadataRow = (key = '', value: unknown = ''): MetadataDraftRow => {
 };
 
 const syncMetadataDraft = () => {
-  metadataDraft.value = Object.entries(props.details?.custom_metadata || {})
+  metadataDraft.value = Object.entries(props.details?.customMetadata || {})
     .map(([key, value]) => makeMetadataRow(key, value));
 };
 
@@ -154,10 +154,10 @@ const saveMetadata = async () => {
     }
     metadataSaving.value = true;
     const result: any = await updateKnowledgeMetadata(props.details.id, value);
-    props.details.custom_metadata = value;
+    props.details.customMetadata = value;
     metadataEditing.value = false;
     if (result?.data) {
-      applySummaryState(result.data.summary_status, result.data.description);
+      applySummaryState(result.data.summaryStatus, result.data.description);
     }
     MessagePlugin.success(t('common.saveSuccess'));
   } catch (error: any) {
@@ -172,9 +172,9 @@ const refreshSummary = async () => {
   try {
     const result: any = await regenerateKnowledgeSummary(props.details.id);
     if (result?.data) {
-      applySummaryState(result.data.summary_status, result.data.description);
+      applySummaryState(result.data.summaryStatus, result.data.description);
     }
-    const status = result?.data?.summary_status;
+    const status = result?.data?.summaryStatus;
     if (status === 'pending' || status === 'processing') {
       MessagePlugin.success(t('knowledgeBase.summaryRefreshQueued'));
     } else {
@@ -205,8 +205,8 @@ const headerIconName = computed(() => {
 
 const showSummarySection = computed(() =>
   Boolean(props.details?.description)
-  || props.details?.summary_status === 'pending'
-  || props.details?.summary_status === 'processing'
+  || props.details?.summaryStatus === 'pending'
+  || props.details?.summaryStatus === 'processing'
   || Boolean(props.details?.id && canEditContent.value),
 );
 
@@ -241,12 +241,12 @@ mermaid.initialize({
     topPadding: 50
   }
 });
-const props = defineProps(["visible", "details", "knowledgeType", "sourceInfo", "canEditKB", "canDownloadKB", "parse_status", "kbId"]);
+const props = defineProps(["visible", "details", "knowledgeType", "sourceInfo", "canEditKB", "canDownloadKB", "parseStatus", "kbId"]);
 const emit = defineEmits(["closeDoc", "getDoc", "questionDeleted", "summaryStateChange"]);
 
 const applySummaryState = (summaryStatus?: string, description?: string) => {
   if (typeof summaryStatus === 'string' && summaryStatus) {
-    props.details.summary_status = summaryStatus;
+    props.details.summaryStatus = summaryStatus;
   }
   if (typeof description === 'string') {
     props.details.description = description;
@@ -254,14 +254,14 @@ const applySummaryState = (summaryStatus?: string, description?: string) => {
   if (props.details?.id) {
     emit('summaryStateChange', {
       id: props.details.id,
-      summary_status: props.details.summary_status,
+      summaryStatus: props.details.summaryStatus,
       description: props.details.description,
     });
   }
 };
 
 const isSummaryStatusInFlight = (status?: string) => status === 'pending' || status === 'processing';
-const summaryStatusRefreshing = computed(() => isSummaryStatusInFlight(props.details?.summary_status));
+const summaryStatusRefreshing = computed(() => isSummaryStatusInFlight(props.details?.summaryStatus));
 const canEditSummary = computed(() => canEditContent.value && !summaryStatusRefreshing.value);
 let summaryStatusPollTimer: ReturnType<typeof setTimeout> | null = null;
 let summaryStatusPollGeneration = 0;
@@ -276,7 +276,7 @@ const stopSummaryStatusPolling = () => {
 
 const scheduleSummaryStatusPoll = () => {
   if (summaryStatusPollTimer !== null || !props.visible || !props.details?.id ||
-    !isSummaryStatusInFlight(props.details?.summary_status)) return;
+    !isSummaryStatusInFlight(props.details?.summaryStatus)) return;
 
   const knowledgeID = props.details.id;
   const generation = summaryStatusPollGeneration;
@@ -286,21 +286,21 @@ const scheduleSummaryStatusPoll = () => {
     try {
       const result: any = await getKnowledgeDetails(knowledgeID);
       if (generation !== summaryStatusPollGeneration || props.details?.id !== knowledgeID) return;
-      if (result?.success && result.data) {
-        applySummaryState(result.data.summary_status, result.data.description);
+      if (result) {
+        applySummaryState(result.summaryStatus, result.description);
       }
     } catch {
       // Keep the current status visible and retry while the drawer remains open.
     }
     if (generation === summaryStatusPollGeneration && props.visible && props.details?.id === knowledgeID &&
-      isSummaryStatusInFlight(props.details?.summary_status)) {
+      isSummaryStatusInFlight(props.details?.summaryStatus)) {
       scheduleSummaryStatusPoll();
     }
   }, 1500);
 };
 
 watch(
-  () => [props.visible, props.details?.id, props.details?.summary_status],
+  () => [props.visible, props.details?.id, props.details?.summaryStatus],
   ([visible, knowledgeID, summaryStatus]) => {
     if (visible && knowledgeID && isSummaryStatusInFlight(summaryStatus as string)) {
       scheduleSummaryStatusPoll();
@@ -742,7 +742,7 @@ const processedChunks = computed(() => {
 
 const canPreview = (): boolean => {
   if (props.details?.type !== 'file') return false;
-  const ft = resolveFilePreviewExt(props.details?.title, props.details?.file_type);
+  const ft = resolveFilePreviewExt(props.details?.title, props.details?.fileType);
   if (!ft) return false;
   if (audioExtensions.has(ft)) return false; // 音频不走预览tab，播放器已内嵌
   return isKnownPreviewableExt(ft);
@@ -756,7 +756,7 @@ watch(() => props.details?.id, (newId) => {
     audioBlobUrl.value = '';
   }
   if (!newId) return;
-  if (isAudioFile(props.details?.file_type)) {
+  if (isAudioFile(props.details?.fileType)) {
     viewMode.value = 'merged'; // 音频默认全文视图，播放器已内嵌
     loadAudioPreview();
   } else if (props.details?.type === 'file' && canPreview()) {
@@ -990,7 +990,7 @@ const getTypeLabel = () => {
     case 'manual':
       return t('knowledgeBase.typeManual');
     case 'file':
-      return props.details.file_type ? props.details.file_type.toUpperCase() : t('knowledgeBase.typeFile');
+      return props.details.fileType ? props.details.fileType.toUpperCase() : t('knowledgeBase.typeFile');
     default:
       return '';
   }
@@ -1123,7 +1123,7 @@ const upsertChunkGeneratedQuestion = (item: any, questionData: GeneratedQuestion
 
 const notifyChunkMutationOutcome = (item: any, result: any, successMessage?: string) => {
   Object.assign(item, result.data);
-  applySummaryState(result.summary_status, result.description);
+  applySummaryState(result.summaryStatus, result.description);
   if (item.index_status === 'failed') {
     MessagePlugin.warning(t('knowledgeBase.chunkSavedIndexFailed'));
     return;
@@ -1610,7 +1610,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
            link's status dot / duration stays live even before the user
            opens the secondary drawer. -->
       <div class="kp-trigger-shadow" aria-hidden="true">
-        <KnowledgeProcessingTimeline v-if="details.id" :knowledge-id="details.id" :parse-status="details.parse_status"
+        <KnowledgeProcessingTimeline v-if="details.id" :knowledge-id="details.id" :parse-status="details.parseStatus"
           :compact="true" :grace-poll="false" @update:has-spans="hasTimelineSpans = $event"
           @update:summary="timelineSummary = $event" />
       </div>
@@ -1630,7 +1630,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
         @close="closeTimeline">
         <div class="kp-drawer-shell" :class="{ 'kp-drawer-shell--resizing': timelineDrawerResizing }">
           <KnowledgeProcessingTimeline v-if="details.id && timelineDrawerVisible" :knowledge-id="details.id"
-            :parse-status="details.parse_status" :doc-title="details.title" show-close @close="closeTimeline" />
+            :parse-status="details.parseStatus" :doc-title="details.title" show-close @close="closeTimeline" />
         </div>
       </t-drawer>
 
@@ -1678,8 +1678,8 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
               <t-tooltip :content="$t('knowledgeBase.metadataCapabilityHint')" placement="top">
                 <t-icon name="info-circle" size="14px" class="metadata-capability-icon" />
               </t-tooltip>
-              <span v-if="Object.keys(details.custom_metadata || {}).length" class="metadata-count">
-                {{ Object.keys(details.custom_metadata || {}).length }}/20
+              <span v-if="Object.keys(details.customMetadata || {}).length" class="metadata-count">
+                {{ Object.keys(details.customMetadata || {}).length }}/20
               </span>
             </h4>
             <t-tooltip v-if="canEditContent && !metadataEditing" :content="$t('common.edit')" placement="top">
@@ -1690,8 +1690,8 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
           </div>
 
           <div v-if="!metadataEditing" class="metadata-display">
-            <div v-if="Object.keys(details.custom_metadata || {}).length" class="metadata-grid">
-              <div v-for="(value, key) in (details.custom_metadata || {})" :key="key" class="metadata-item">
+            <div v-if="Object.keys(details.customMetadata || {}).length" class="metadata-grid">
+              <div v-for="(value, key) in (details.customMetadata || {})" :key="key" class="metadata-item">
                 <span class="metadata-item-key">{{ key }}</span>
                 <span class="metadata-item-value">{{ formatMetadataValue(value) }}</span>
               </div>
@@ -1794,7 +1794,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
             </div>
           </div>
           <div v-else class="summary_loading">
-            <template v-if="details.summary_status === 'pending' || details.summary_status === 'processing'">
+            <template v-if="details.summaryStatus === 'pending' || details.summaryStatus === 'processing'">
               <t-loading size="small" />
               <span>{{ $t('knowledgeBase.generatingSummary') }}</span>
             </template>
@@ -1837,7 +1837,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
           </div>
 
           <!-- 音频播放器（音频文件时固定显示在内容区顶部） -->
-          <div v-if="isAudioFile(details.file_type)" class="audio-player-section">
+          <div v-if="isAudioFile(details.fileType)" class="audio-player-section">
             <div v-if="audioLoading" class="audio-loading">
               <t-loading size="small" />
               <span>{{ $t('preview.audioLoading') }}</span>
@@ -2131,7 +2131,7 @@ const handleChunkPageChange = (pageInfo: { current: number }) => {
           </div>
 
           <div v-else-if="viewMode === 'preview'">
-            <DocumentPreview :knowledgeId="details.id" :fileType="details.file_type" :fileName="details.title"
+            <DocumentPreview :knowledgeId="details.id" :fileType="details.fileType" :fileName="details.title"
               :active="viewMode === 'preview'" />
           </div>
         </section>

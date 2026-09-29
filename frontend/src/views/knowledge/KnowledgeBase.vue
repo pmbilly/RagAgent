@@ -247,9 +247,9 @@ const goToParserSettings = () => {
 // non-creator may edit / manage.
 const isOwner = computed(() => {
   if (!kbInfo.value) return false;
-  const creatorId = (kbInfo.value as any).creator_id || '';
+  const creatorId = (kbInfo.value as any).creatorId || '';
   const userId = authStore.user?.id || '';
-  // creator_id may be empty for legacy KBs created before PR 5; treat
+  // creatorId may be empty for legacy KBs created before PR 5; treat
   // those as tenant-owned so the role gate applies (Admin+ can manage,
   // Viewer cannot).
   if (!creatorId) return false;
@@ -334,7 +334,7 @@ function isParseInFlight(status?: string): boolean {
 
 function isTraceMenuVisible(item: KnowledgeCard): boolean {
   if (!item?.id) return false;
-  if (isParseInFlight(item.parse_status)) {
+  if (isParseInFlight(item.parseStatus)) {
     return true;
   }
   return traceAvailableById[item.id] === true;
@@ -343,7 +343,7 @@ function isTraceMenuVisible(item: KnowledgeCard): boolean {
 async function probeTraceAvailable(item: KnowledgeCard) {
   const id = item.id;
   if (!id || traceProbeInflight.has(id)) return;
-  if (isParseInFlight(item.parse_status)) {
+  if (isParseInFlight(item.parseStatus)) {
     traceAvailableById[id] = true;
     return;
   }
@@ -429,8 +429,8 @@ const applyOptimisticBatchReparse = (ids: string[]) => {
   for (const card of cardList.value) {
     if (!idSet.has(card.id)) continue;
     pendingReparseAck.value.add(card.id);
-    card.parse_status = 'pending';
-    card.summary_status = undefined;
+    card.parseStatus = 'pending';
+    card.summaryStatus = undefined;
     card.description = '';
     delete traceAvailableById[card.id];
     traceAvailableById[card.id] = true;
@@ -441,7 +441,7 @@ const syncReparseAckFromServer = (ids: string[]) => {
   for (const id of ids) {
     if (!pendingReparseAck.value.has(id)) continue;
     const card = cardList.value.find((c) => c.id === id);
-    if (card && isParseInFlight(card.parse_status)) {
+    if (card && isParseInFlight(card.parseStatus)) {
       pendingReparseAck.value.delete(id);
     }
   }
@@ -464,7 +464,7 @@ const confirmBatchReparse = async () => {
   const allIds = Array.from(selectedIds.value);
   const ids = allIds.filter((id) => {
     const item = cardList.value.find((c) => c.id === id);
-    return !item || !isParseInFlight(item.parse_status);
+    return !item || !isParseInFlight(item.parseStatus);
   });
   const skipped = allIds.length - ids.length;
   if (ids.length === 0) {
@@ -631,17 +631,17 @@ const folderBreadcrumbs = computed(() => buildFolderBreadcrumbs(selectedFolderPa
 const filterParams = computed(() => {
   const [start, end] = updatedTimeRange.value || [];
   return {
-    tag_ids: selectedTagIds.value.length > 0 ? selectedTagIds.value.join(',') : undefined,
+    tagIds: selectedTagIds.value.length > 0 ? selectedTagIds.value.join(',') : undefined,
     keyword: docSearchKeyword.value ? docSearchKeyword.value.trim() : undefined,
-    file_type: selectedFileType.value || undefined,
-    parse_status: selectedParseStatus.value || undefined,
+    fileType: selectedFileType.value || undefined,
+    parseStatus: selectedParseStatus.value || undefined,
     source: selectedSource.value || undefined,
     start_time: start ? `${start} 00:00:00` : undefined,
     end_time: end ? `${end} 23:59:59` : undefined,
-    folder_path: selectedFolderPath.value,
+    folderPath: selectedFolderPath.value,
     // Searching descends into sub-folders; browsing shows one level, with the
     // sub-folders themselves rendered as entries in the list.
-    folder_recursive: isFiltering.value,
+    folderRecursive: isFiltering.value,
   };
 });
 const tagMap = computed<Record<string, any>>(() => {
@@ -729,7 +729,7 @@ const loadKnowledgeFiles = (kbIdValue: string): Promise<void> => {
   return getKnowled(
     {
       page: 1,
-      page_size: pageSize,
+      pageSize: pageSize,
       ...filterParams.value,
     },
     kbIdValue,
@@ -774,7 +774,7 @@ const handleFolderSelect = (path: string) => {
 };
 
 // ── Re-filing documents and renaming folders ──
-// folder_path is display-only, so both operations are a plain column update:
+// folderPath is display-only, so both operations are a plain column update:
 // nothing is re-parsed, re-chunked or re-embedded.
 
 // Flat folder list shared by every "move to folder" picker.
@@ -1191,10 +1191,10 @@ const tryAutoOpenDocument = async () => {
   try {
     const response: any = await getKnowledgeDetails(targetId);
     if (request !== autoOpenRequest) return;
-    const detail = response?.data || response;
+    const detail = response ?? null;
     if (detail && typeof detail === 'object') {
       target = { ...target, ...detail, id: targetId } as KnowledgeCard;
-      selectedFolderPath.value = detail.folder_path || ROOT_FOLDER_PATH;
+      selectedFolderPath.value = detail.folderPath || ROOT_FOLDER_PATH;
     }
   } catch (error) {
     // Keep the previous ID-only fallback: getCardDetails will surface the
@@ -1272,17 +1272,17 @@ watch(() => cardList.value, (newValue) => {
 }, { deep: true })
 type KnowledgeCard = {
   id: string;
-  knowledge_base_id?: string;
-  parse_status: string;
-  summary_status?: string;
+  knowledgeBaseId?: string;
+  parseStatus: string;
+  summaryStatus?: string;
   description?: string;
-  file_name?: string;
+  fileName?: string;
   original_file_name?: string;
   display_name?: string;
   title?: string;
   type?: string;
   updated_at?: string;
-  file_type?: string;
+  fileType?: string;
   isMore?: boolean;
   metadata?: any;
   error_message?: string;
@@ -1313,31 +1313,31 @@ const updateStatus = (analyzeList: KnowledgeCard[]) => {
     batchQueryKnowledge(query).then((result: any) => {
       let hasChanges = false;
       let shouldRefreshWikiStatus = false;
-      if (result.success && result.data) {
-        (result.data as KnowledgeCard[]).forEach((item: KnowledgeCard) => {
+      if (Array.isArray(result)) {
+        (result as KnowledgeCard[]).forEach((item: KnowledgeCard) => {
           const index = cardList.value.findIndex(card => card.id == item.id);
           if (index == -1) return;
 
-          let parseStatus = item.parse_status;
+          let parseStatus = item.parseStatus;
           if (pendingReparseAck.value.has(item.id)) {
-            if (isParseInFlight(item.parse_status)) {
+            if (isParseInFlight(item.parseStatus)) {
               pendingReparseAck.value.delete(item.id);
             } else {
               parseStatus = 'pending';
             }
           }
 
-          if (cardList.value[index].parse_status !== parseStatus ||
-            cardList.value[index].summary_status !== item.summary_status ||
+          if (cardList.value[index].parseStatus !== parseStatus ||
+            cardList.value[index].summaryStatus !== item.summaryStatus ||
             cardList.value[index].description !== item.description) {
             shouldRefreshWikiStatus ||= shouldRefreshWikiStatusAfterKnowledgePoll(
               cardList.value[index],
-              { ...item, parse_status: parseStatus },
+              { ...item, parseStatus: parseStatus },
             );
 
             // Always update the card data
-            cardList.value[index].parse_status = parseStatus;
-            cardList.value[index].summary_status = item.summary_status;
+            cardList.value[index].parseStatus = parseStatus;
+            cardList.value[index].summaryStatus = item.summaryStatus;
             cardList.value[index].description = item.description;
             delete traceAvailableById[item.id];
             hasChanges = true;
@@ -1394,7 +1394,7 @@ const confirmDeleteKnowledge = (index: number, item: KnowledgeCard) => {
 };
 
 const onReparseMenuClick = (index: number, item: KnowledgeCard) => {
-  if (isParseInFlight(item.parse_status)) {
+  if (isParseInFlight(item.parseStatus)) {
     MessagePlugin.info(t('knowledgeBase.rebuildInProgress'));
   }
 };
@@ -1520,14 +1520,14 @@ const ensureDocumentKbReady = () => {
     MessagePlugin.warning(t('knowledgeEditor.messages.missingId'));
     return false;
   }
-  if (!kbInfo.value || !kbInfo.value.summary_model_id) {
+  if (!kbInfo.value || !kbInfo.value.summaryModelId) {
     MessagePlugin.warning(t('knowledgeBase.notInitialized'));
     return false;
   }
   // Embedding model only required when RAG indexing is enabled
   const strategy = (kbInfo.value as any).indexing_strategy
   const needsEmbedding = !strategy || strategy.vectorEnabled || strategy.keywordEnabled
-  if (needsEmbedding && !kbInfo.value.embedding_model_id) {
+  if (needsEmbedding && !kbInfo.value.embeddingModelId) {
     MessagePlugin.warning(t('knowledgeBase.notInitialized'));
     return false;
   }
@@ -1606,10 +1606,10 @@ const executeUploadBatch = async (
     try {
       const uploadData: {
         file: File
-        tag_ids?: string[]
+        tagIds?: string[]
         fileName?: string
         process_config?: KnowledgeProcessOverrides
-      } = { file, tag_ids: tagIdsToUpload };
+      } = { file, tagIds: tagIdsToUpload };
 
       const fileName = getFolderUploadFileName(file, options.targetFolder || ROOT_FOLDER_PATH);
       if (fileName) uploadData.fileName = fileName;
@@ -1673,7 +1673,7 @@ const executeUrlImport = async (
   try {
     const responseData: any = await createKnowledgeFromURL(targetKbId, {
       url,
-      tag_ids: tagIdsToUpload,
+      tagIds: tagIdsToUpload,
       process_config: processConfig,
     });
     window.dispatchEvent(new CustomEvent('knowledgeFileUploaded', {
@@ -1804,7 +1804,7 @@ const handleManualEdit = (index: number, item: KnowledgeCard) => {
   }
   uiStore.openManualEditor({
     mode: 'edit',
-    kbId: item.knowledge_base_id || kbId.value,
+    kbId: item.knowledgeBaseId || kbId.value,
     knowledgeId: item.id,
     onSuccess: manualEditorSuccess,
   });
@@ -1815,7 +1815,7 @@ const handleManualEdit = (index: number, item: KnowledgeCard) => {
 // body so it renders independent of its host's visibility; we just
 // need `details` populated so the timeline component knows which
 // knowledge_id to fetch. getCardDetails resets details synchronously
-// then fills asynchronously, so we re-stamp the id/parse_status
+// then fills asynchronously, so we re-stamp the id/parseStatus
 // right after the call to avoid the brief empty-id window that
 // would otherwise prevent the drawer from mounting.
 const docContentRef = ref<any>(null);
@@ -1826,7 +1826,7 @@ const handleViewTrace = (index: number, item: KnowledgeCard) => {
   moreIndex.value = -1;
   getCardDetails(item);
   details.id = item.id;
-  details.parse_status = item.parse_status;
+  details.parseStatus = item.parseStatus;
   nextTick(() => {
     docContentRef.value?.openTimeline?.();
   });
@@ -1839,7 +1839,7 @@ const confirmRebuildKnowledge = async (index: number, item: KnowledgeCard) => {
     MessagePlugin.warning(t('knowledgeEditor.messages.missingId'));
     return;
   }
-  if (isParseInFlight(item.parse_status)) {
+  if (isParseInFlight(item.parseStatus)) {
     MessagePlugin.info(t('knowledgeBase.rebuildInProgress'));
     return;
   }
@@ -1854,14 +1854,14 @@ const confirmRebuildKnowledge = async (index: number, item: KnowledgeCard) => {
 
   // Prefill the confirm dialog with the overrides this doc was last parsed with.
   let processOverrides: KnowledgeProcessOverrides | null = item.metadata?.process_overrides ?? null;
-  let fileName = item.file_name || item.title || '';
-  let fileType = item.file_type || '';
+  let fileName = item.fileName || item.title || '';
+  let fileType = item.fileType || '';
   try {
     const detail: any = await getKnowledgeDetails(item.id);
-    if (detail?.success && detail.data) {
-      processOverrides = detail.data.metadata?.process_overrides ?? processOverrides;
-      fileName = detail.data.file_name || detail.data.title || fileName;
-      fileType = detail.data.file_type || fileType;
+    if (detail) {
+      processOverrides = detail.metadata?.process_overrides ?? processOverrides;
+      fileName = detail.fileName || detail.title || fileName;
+      fileType = detail.fileType || fileType;
     }
   } catch {
     // fall back to the list item's fields
@@ -1909,7 +1909,7 @@ const handleScroll = () => {
       if (cardList.value.length < total.value && page < pageNum) {
         page++;
         scrollLoading = true;
-        getKnowled({ page, page_size: pageSize, ...filterParams.value }, currentKbId).finally(() => {
+        getKnowled({ page, pageSize: pageSize, ...filterParams.value }, currentKbId).finally(() => {
           if (isCurrentKb(currentKbId)) {
             scrollLoading = false;
           }
@@ -1922,12 +1922,12 @@ const getDoc = (page: number) => {
   getfDetails(details.id, page)
 };
 
-const syncDocumentSummaryState = (state: { id?: string; summary_status?: string; description?: string }) => {
+const syncDocumentSummaryState = (state: { id?: string; summaryStatus?: string; description?: string }) => {
   if (!state?.id) return;
   const card = cardList.value.find((item: KnowledgeCard) => item.id === state.id);
   if (!card) return;
-  if (typeof state.summary_status === 'string' && state.summary_status) {
-    card.summary_status = state.summary_status;
+  if (typeof state.summaryStatus === 'string' && state.summaryStatus) {
+    card.summaryStatus = state.summaryStatus;
   }
   if (typeof state.description === 'string') {
     card.description = state.description;
@@ -2016,7 +2016,7 @@ const {
 });
 
 const isManualDraftKnowledge = (item: KnowledgeCard) =>
-  item.type === 'manual' && item.parse_status === 'draft';
+  item.type === 'manual' && item.parseStatus === 'draft';
 
 const openKnowledgeItem = (item: KnowledgeCard) => {
   if (shouldSuppressDocClick()) return;
@@ -2179,7 +2179,7 @@ const handleCardAction = (
   if (action === 'download') return downloadKnowledge(item);
   if (action === 'edit') return handleManualEdit(idx, item);
   if (action === 'reparse') {
-    if (isParseInFlight(item.parse_status)) return onReparseMenuClick(idx, item);
+    if (isParseInFlight(item.parseStatus)) return onReparseMenuClick(idx, item);
     return confirmRebuildKnowledge(idx, item);
   }
   if (action === 'cancel-parse') return confirmCancelParseKnowledge(item);
@@ -2690,7 +2690,7 @@ async function createNewSession(value: string): Promise<void> {
 
   <!-- 标签编辑弹窗 -->
   <TagEditDialog :visible="tagEditDialogVisible"
-    :knowledge-name="tagEditTarget?.display_name || tagEditTarget?.file_name || tagEditTarget?.title || ''"
+    :knowledge-name="tagEditTarget?.display_name || tagEditTarget?.fileName || tagEditTarget?.title || ''"
     :kb-id="kbId" :tag-list="tagList" :selected-tags="tagEditTarget?.tags || []" :can-manage="canEdit"
     @update:visible="tagEditDialogVisible = $event" @confirm="onTagEditConfirm" @tag-created="loadTags(kbId, true)"
     @open-manage="openTagManageFromEditDialog" />

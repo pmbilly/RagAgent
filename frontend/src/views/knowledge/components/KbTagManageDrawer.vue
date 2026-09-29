@@ -153,7 +153,7 @@
                     <span class="tag-tile__count">
                       {{
                         isFaq
-                          ? $t('knowledgeBase.tagManageFaqCount', { count: tag.chunk_count || 0 })
+                          ? $t('knowledgeBase.tagManageFaqCount', { count: tag.chunkCount || 0 })
                           : $t('knowledgeBase.tagManageDocCount', { count: tag.knowledge_count || 0 })
                       }}
                     </span>
@@ -222,7 +222,7 @@ type TagRow = {
   seq_id: number;
   name: string;
   knowledge_count?: number;
-  chunk_count?: number;
+  chunkCount?: number;
 };
 
 type TagInputInstance = ComponentPublicInstance<{ focus: () => void; select: () => void }>;

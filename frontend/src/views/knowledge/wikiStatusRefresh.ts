@@ -1,6 +1,6 @@
 export type KnowledgePollStatus = {
-  parse_status?: string
-  summary_status?: string
+  parseStatus?: string
+  summaryStatus?: string
 }
 
 export function isKnowledgeParseInFlight(status?: string): boolean {
@@ -8,9 +8,9 @@ export function isKnowledgeParseInFlight(status?: string): boolean {
 }
 
 export function knowledgeNeedsStatusPolling(item: KnowledgePollStatus): boolean {
-  if (isKnowledgeParseInFlight(item.parse_status)) return true
-  return item.parse_status === 'completed' &&
-    (item.summary_status === 'pending' || item.summary_status === 'processing')
+  if (isKnowledgeParseInFlight(item.parseStatus)) return true
+  return item.parseStatus === 'completed' &&
+    (item.summaryStatus === 'pending' || item.summaryStatus === 'processing')
 }
 
 export function shouldRefreshWikiStatusAfterKnowledgePoll(

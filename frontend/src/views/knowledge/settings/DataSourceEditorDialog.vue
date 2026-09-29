@@ -266,7 +266,7 @@ async function loadDriveRoot() {
     if (!tempDsId.value) {
       const res = await createDataSource({
         ...form.value,
-        knowledge_base_id: props.kbId,
+        knowledgeBaseId: props.kbId,
         status: 'paused',
       } as any)
       const created = res?.data || res
@@ -277,7 +277,7 @@ async function loadDriveRoot() {
       // updates in edit mode, leaving listResources reading the old folder_token.
       await updateDataSource(tempDsId.value, {
         ...form.value,
-        knowledge_base_id: props.kbId,
+        knowledgeBaseId: props.kbId,
       } as any)
     }
 
@@ -794,7 +794,7 @@ async function testConnection() {
     if (isEdit.value && tempDsId.value) {
       await updateDataSource(tempDsId.value, {
         ...form.value,
-        knowledge_base_id: props.kbId,
+        knowledgeBaseId: props.kbId,
       } as any)
       await validateConnection(tempDsId.value)
     } else {
@@ -822,7 +822,7 @@ async function loadResources() {
     if (!tempDsId.value) {
       const res = await createDataSource({
         ...form.value,
-        knowledge_base_id: props.kbId,
+        knowledgeBaseId: props.kbId,
         status: 'paused',
       } as any)
       const created = res?.data || res
@@ -830,7 +830,7 @@ async function loadResources() {
     } else if (!isEdit.value) {
       await updateDataSource(tempDsId.value, {
         ...form.value,
-        knowledge_base_id: props.kbId,
+        knowledgeBaseId: props.kbId,
       } as any)
     }
 
@@ -1089,14 +1089,14 @@ async function handleSubmit() {
       await updateDataSource(tempDsId.value, {
         ...form.value,
         config: buildConfigPayload(),
-        knowledge_base_id: props.kbId,
+        knowledgeBaseId: props.kbId,
         status: 'active',
       } as any)
     } else {
       const res = await createDataSource({
         ...form.value,
         config: buildConfigPayload(),
-        knowledge_base_id: props.kbId,
+        knowledgeBaseId: props.kbId,
         status: 'active',
       } as any)
       const created = res?.data || res

@@ -23,17 +23,17 @@ interface KnowledgeBaseOption {
 
 interface KnowledgeDetailResponse {
   id: string
-  knowledge_base_id: string
+  knowledgeBaseId: string
   title?: string
-  file_name?: string
+  fileName?: string
   metadata?: any
-  parse_status?: string
+  parseStatus?: string
   tags?: Array<{ id: string }>
 }
 
 type ManualStatus = 'draft' | 'publish'
 
-/** Derive editor status from metadata + parse_status (parse pipeline wins when indexed or in flight). */
+/** Derive editor status from metadata + parseStatus (parse pipeline wins when indexed or in flight). */
 const resolveManualKnowledgeStatus = (
   metaStatus: ManualStatus | undefined,
   parseStatus?: string,
@@ -503,21 +503,21 @@ const loadKnowledgeContent = async () => {
   contentLoading.value = true
   try {
     const res: any = await getKnowledgeDetails(currentKnowledgeId.value)
-    const data: KnowledgeDetailResponse | undefined = res?.data
+    const data: KnowledgeDetailResponse | undefined = res
     if (!data) {
       MessagePlugin.error(t('manualEditor.error.fetchDetailFailed'))
       return
     }
 
-    form.kbId = data.knowledge_base_id || form.kbId
+    form.kbId = data.knowledgeBaseId || form.kbId
     const meta = parseManualMetadata(data.metadata)
     form.title =
       data.title ||
-      data.file_name?.replace(/\.md$/i, '') ||
+      data.fileName?.replace(/\.md$/i, '') ||
       uiStore.manualEditorInitialTitle ||
       ''
     form.content = meta?.content || uiStore.manualEditorInitialContent || ''
-    form.status = resolveManualKnowledgeStatus(meta?.status, data.parse_status)
+    form.status = resolveManualKnowledgeStatus(meta?.status, data.parseStatus)
     manualTagIds.value = (data.tags || []).map(tag => String(tag.id))
     if (meta?.updatedAt) {
       lastUpdatedAt.value = meta.updatedAt
@@ -659,13 +659,13 @@ const handleSave = async (targetStatus: ManualStatus) => {
       response = await updateManualKnowledge(currentKnowledgeId.value, payload)
     } else {
       response = await createManualKnowledge(form.kbId, payload)
-      knowledgeID = response?.data?.id || knowledgeID
+      knowledgeID = response?.id || knowledgeID
       currentKnowledgeId.value = knowledgeID || null
       uiStore.manualEditorKnowledgeId = currentKnowledgeId.value
       kbId = form.kbId
     }
 
-    if (response?.success) {
+    if (response) {
       MessagePlugin.success(
         targetStatus === 'draft'
           ? t('manualEditor.success.draftSaved')

@@ -813,7 +813,7 @@ const loadKBData = async (
   try {
     const [kbInfo, filesResult] = await Promise.all([
       getKnowledgeBaseById(kbId),
-      listKnowledgeFiles(kbId, { page: 1, page_size: 1 })
+      listKnowledgeFiles(kbId, { page: 1, pageSize: 1 })
     ])
 
     if (!isCurrentKBLoad(generation, kbId)) return
@@ -824,7 +824,7 @@ const loadKBData = async (
 
     const kb = kbInfo.data
     hasFiles.value = (filesResult as any)?.total > 0
-    kbCreatorId.value = (kb as any).creator_id || ''
+    kbCreatorId.value = (kb as any).creatorId || ''
     kbTenantId.value = Number((kb as any).tenant_id || 0)
 
     // 设置表单数据
@@ -1395,8 +1395,8 @@ const doSubmit = async () => {
 
       // 2. 更新完整配置（模型、分块、多模态、存储引擎、知识图谱等）
       const config: KBModelConfigRequest = {
-        llmModelId: data.summary_model_id,
-        embeddingModelId: data.embedding_model_id,
+        llmModelId: data.summaryModelId,
+        embeddingModelId: data.embeddingModelId,
         vlm_config: data.vlm_config,
         asr_config: data.asr_config,
         documentSplitting: {

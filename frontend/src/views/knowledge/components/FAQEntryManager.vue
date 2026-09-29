@@ -142,11 +142,11 @@
                             type="button"
                             class="tag-filter-chip"
                             :class="{ active: isTagFilterActive(tag.id) }"
-                            :title="`${tag.name} (${tag.chunk_count || 0})`"
+                            :title="`${tag.name} (${tag.chunkCount || 0})`"
                             @click="handleTagRowClick(tag.id)"
                           >
                             <span class="tag-filter-chip__label">{{ tag.name }}</span>
-                            <span class="tag-filter-chip__count">{{ tag.chunk_count || 0 }}</span>
+                            <span class="tag-filter-chip__count">{{ tag.chunkCount || 0 }}</span>
                           </button>
                         </div>
                         <div v-if="!sidebarTags.length" class="tag-empty-state">
@@ -897,7 +897,7 @@ interface FAQEntry {
   id: number
   chunk_id: string
   knowledge_id: string
-  knowledge_base_id: string
+  knowledgeBaseId: string
   tag_id?: number
   is_enabled: boolean
   is_recommended: boolean
@@ -942,12 +942,12 @@ const authStore = useAuthStore()
 // which silently treated "any KB visible to me in my current tenant" as "I created
 // it" — Viewer / Contributor in their home tenant ended up showing every FAQ
 // CRUD entry on every KB and 403'ing when they clicked. Mirror the rule we settled
-// on in KnowledgeBase.vue: explicit creator_id match, with the Admin+ role
-// fallback inside canEdit / canManage. Legacy KBs with empty creator_id stay
+// on in KnowledgeBase.vue: explicit creatorId match, with the Admin+ role
+// fallback inside canEdit / canManage. Legacy KBs with empty creatorId stay
 // tenant-owned (Admin+ may manage).
 const isOwner = computed(() => {
   if (!kbInfo.value) return false
-  const creatorId = (kbInfo.value as any).creator_id || ''
+  const creatorId = (kbInfo.value as any).creatorId || ''
   const userId = authStore.user?.id || ''
   if (!creatorId) return false
   return creatorId === userId

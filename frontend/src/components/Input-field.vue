@@ -680,8 +680,8 @@ const loadFiles = async () => {
       const query = new URLSearchParams();
       batchIds.forEach((id: string) => query.append('ids', id));
       const res: any = await batchQueryKnowledge(query.toString(), kbId);
-      if (res.data && Array.isArray(res.data)) {
-        res.data.forEach((f: any) => allNewFiles.push({ id: f.id, name: f.title || f.file_name }));
+      if (Array.isArray(res)) {
+        res.forEach((f: any) => allNewFiles.push({ id: f.id, name: f.title || f.fileName }));
       }
     };
 
@@ -811,7 +811,7 @@ const writeLastChatModelID = (id: string) => {
 // Initial chat-model selection priority: per-user last pick
 // (localStorage) > current store value (e.g. carried over from
 // settings page) > first available model. The tenant-level
-// conversation-config used to feed summary_model_id/rerank_model_id
+// conversation-config used to feed summaryModelId/rerank_model_id
 // into the dropdown, but those fields were removed: per-user last pick
 // belongs in localStorage, agent-level model belongs on the agent.
 const initChatModelSelection = () => {
@@ -1118,7 +1118,7 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
         const detail = await chatResources.fetchKnowledgeBaseById(kb.id);
         if (detail) {
           count = detail.type === 'faq'
-            ? Number(detail.chunk_count || 0)
+            ? Number(detail.chunkCount || 0)
             : Number(detail.knowledge_count || 0);
         }
       }
@@ -1211,8 +1211,8 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
         searchOptions
       );
       console.log('[Mention] searchKnowledge response:', res);
-      if (res.data && Array.isArray(res.data)) {
-        let files = res.data;
+      if (res.items && Array.isArray(res.items)) {
+        let files = res.items;
         const rawTotal = typeof res.total === 'number' ? res.total : undefined;
         const apiPageSize = res.data.length;
         // 按当前 @ 会话的兼容 KB 集合过滤：
@@ -1223,17 +1223,17 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
         if (mentionAllowedKbIds.value) {
           const allowed = mentionAllowedKbIds.value;
           files = files.filter((f: any) => {
-            const kbId = f.knowledge_base_id ?? f.kb_id;
+            const kbId = f.knowledgeBaseId ?? f.kb_id;
             return kbId != null && allowed.has(String(kbId));
           });
         }
         fileItems = files.map((f: any) => {
-          const kbId = f.knowledge_base_id ?? f.kb_id;
+          const kbId = f.knowledgeBaseId ?? f.kb_id;
           return {
             id: f.id,
-            name: f.title || f.file_name,
+            name: f.title || f.fileName,
             type: 'file' as const,
-            kbName: f.knowledge_base_name || '',
+            kbName: f.knowledgeBaseName || '',
             kbId: kbId || undefined
           };
         });
@@ -1246,7 +1246,7 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
           }
         }
       }
-      mentionHasMore.value = res.has_more || false;
+      mentionHasMore.value = res.hasMore || false;
       mentionOffset.value += fileItems.length;
     } catch (e) {
       console.error('[Mention] searchKnowledge error:', e);
