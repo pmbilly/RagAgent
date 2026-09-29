@@ -283,8 +283,8 @@ export function expandSteerForksInHistory(messages: ChatMessage[]): ChatMessage[
 
 export function steerStepEvents(step: ChatMessage): ChatMessage[] {
   const events: ChatMessage[] = []
-  if (Array.isArray(step.user_messages_before)) {
-    for (const id of step.user_messages_before) {
+  if (Array.isArray(step.userMessagesBefore)) {
+    for (const id of step.userMessagesBefore) {
       events.push({ type: 'user_message_injected', user_message_id: id })
     }
   }

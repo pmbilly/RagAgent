@@ -3,8 +3,6 @@ package com.ragagent.agent.domain;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoMapSerializer;
 
@@ -18,22 +16,17 @@ import com.ragagent.common.web.GoMapSerializer;
  *
  * <p>四个字段都**没有 omitempty**：恒输出（字符串为空串、args 为 {@code null}）。</p>
  */
-@JsonPropertyOrder({"name", "args", "service_name", "tool_name"})
 public class ToolCallTarget {
 
-    @JsonProperty("name")
     private String name = "";
 
     /** 键序递归对齐 Go（map 恒排序）。无 omitempty：nil → {@code null}。 */
-    @JsonProperty("args")
     @JsonSerialize(using = GoMapSerializer.class)
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private Map<String, Object> args;
 
-    @JsonProperty("service_name")
     private String serviceName = "";
 
-    @JsonProperty("tool_name")
     private String toolName = "";
 
     public String getName() { return name; }

@@ -4,8 +4,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoMapSerializer;
@@ -34,39 +32,31 @@ import com.ragagent.common.web.GoMapSerializer;
  *       nil 输出 {@code "result":null}（实测确认，见 {@code AgentStepsJsonTest}）。</li>
  * </ul>
  */
-@JsonPropertyOrder({"target", "id", "name", "args", "result", "reflection", "duration", "provider_metadata"})
 public class ToolCall {
 
     /** 解析后的实际目标。omitempty（Go 是指针）。 */
-    @JsonProperty("target")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private ToolCallTarget target;
 
     /** 来自 LLM 的 function call ID。 */
-    @JsonProperty("id")
     private String id = "";
 
     /** 工具名。 */
-    @JsonProperty("name")
     private String name = "";
 
     /** 工具参数。无 omitempty：nil → {@code null}；键序递归对齐 Go（map 恒排序）。 */
-    @JsonProperty("args")
     @JsonSerialize(using = GoMapSerializer.class)
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private Map<String, Object> args;
 
     /** 执行结果（内含 Output）。**无 omitempty**：nil → {@code null}。 */
-    @JsonProperty("result")
     private ToolResult result;
 
     /** agent 对该结果的反思（启用时才有）。omitempty。 */
-    @JsonProperty("reflection")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String reflection;
 
     /** 执行耗时（毫秒）。无 omitempty：{@code 0} 恒输出。 */
-    @JsonProperty("duration")
     private long duration;
 
     /**
@@ -74,7 +64,6 @@ public class ToolCall {
      * Go 是 {@code ToolCallMetadata = map[string]json.RawMessage}——**值原样内联**
      * （不是字符串），故 Java 用 {@link JsonNode}。
      */
-    @JsonProperty("provider_metadata")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, JsonNode> providerMetadata;

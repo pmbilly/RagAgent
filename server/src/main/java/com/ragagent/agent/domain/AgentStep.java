@@ -6,8 +6,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoTimeDeserializer;
@@ -35,23 +33,18 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   [{"iteration":0,"thought":"","tool_calls":null,"timestamp":"0001-01-01T00:00:00Z"}]
  * </pre>
  */
-@JsonPropertyOrder({"iteration", "thought", "user_messages_before", "intermediate_answer",
-        "reasoning_content", "tool_calls", "timestamp"})
 public class AgentStep {
 
     /** 轮次序号（0 起）。 */
-    @JsonProperty("iteration")
     private int iteration;
 
     /** 本轮 Think 阶段的推理/思考文本。 */
-    @JsonProperty("thought")
     private String thought = "";
 
     /**
      * 本轮模型响应**之前**已消费的 steer 行，按投递顺序。
      * 与时间戳不同，这在回放时不歧义。omitempty。
      */
-    @JsonProperty("user_messages_before")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> userMessagesBefore;
 
@@ -59,7 +52,6 @@ public class AgentStep {
      * 一个普通回答之后紧接着一次循环结束的 steer —— 用它保住那个回答。
      * 规范的最终答案仍然存在 {@code Message.content} 里。omitempty。
      */
-    @JsonProperty("intermediate_answer")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean intermediateAnswer;
 
@@ -68,12 +60,10 @@ public class AgentStep {
      * 存在 AgentStep 上是为了跨轮回放能把它放回 assistant 消息——MiMo / DeepSeek V3.2+
      * 的思考模式要求如此，不认这个字段的厂商会忽略它。omitempty。
      */
-    @JsonProperty("reasoning_content")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String reasoningContent;
 
     /** 本轮 Act 阶段调用的工具。**无 omitempty**：nil → {@code null}。 */
-    @JsonProperty("tool_calls")
     private List<ToolCall> toolCalls;
 
     /**
@@ -82,7 +72,6 @@ public class AgentStep {
      * <p>序列化与反序列化都自带（jsonb 读路径用的是没有 {@code JavaTimeModule} 的裸 mapper，
      * 只挂一半会在读回时炸）。</p>
      */
-    @JsonProperty("timestamp")
     @JsonSerialize(using = GoTimeSerializer.class)
     @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime timestamp = GoTimeSerializer.GO_ZERO_DATE_TIME;

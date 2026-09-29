@@ -334,12 +334,12 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         const step = rawStep as ChatMessage
         events.push(...steerStepEvents(step))
         const stepTimestamp = step.timestamp ? new Date(String(step.timestamp)).getTime() : 0
-        const toolCalls = step.tool_calls
+        const toolCalls = step.toolCalls
         const hasToolCalls = toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0
 
         const reasoningText =
-          step.reasoning_content && String(step.reasoning_content).trim()
-            ? String(step.reasoning_content)
+          step.reasoningContent && String(step.reasoningContent).trim()
+            ? String(step.reasoningContent)
             : ''
         if (reasoningText) {
           events.push({
@@ -353,7 +353,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           })
         }
         const preambleText = step.thought && String(step.thought).trim() ? String(step.thought) : ''
-        if (preambleText && step.intermediate_answer) {
+        if (preambleText && step.intermediateAnswer) {
           events.push({ type: 'answer', event_id: `step-${step.iteration}-answer`,
             content: preambleText, done: true, intermediate_answer: true, timestamp: stepTimestamp || undefined })
         }

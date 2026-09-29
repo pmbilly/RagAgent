@@ -271,7 +271,7 @@ test('replay walks successive existing segments rather than duplicating earlier 
 })
 
 test('step boundary events retain the server delivery order', () => {
-  assert.deepEqual(steerStepEvents({ user_messages_before: ['u2', 'u1'] }).map(e => e.user_message_id), ['u2', 'u1'])
+  assert.deepEqual(steerStepEvents({ userMessagesBefore: ['u2', 'u1'] }).map(e => e.user_message_id), ['u2', 'u1'])
 })
 
 test('only run completion ends the task; draft completion and sealed prefixes do not', () => {

@@ -5,8 +5,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoMapSerializer;
 
@@ -16,7 +14,6 @@ import com.ragagent.common.web.GoMapSerializer;
  * <p>字段序 = Go 声明序。{@code OutputFiles} 是 {@code json:"-"}，
  * 但它是**运行时**字段（沙箱引用），历史用最终答案的持久资源引用——故 {@code @JsonIgnore}。</p>
  */
-@JsonPropertyOrder({"success", "output", "data", "error", "images"})
 public class ToolResult {
 
     /**
@@ -26,26 +23,21 @@ public class ToolResult {
     @JsonIgnore
     private List<String> outputFiles;
 
-    @JsonProperty("success")
     private boolean success;
 
     /** 人能读的输出（Go 无 omitempty → 恒输出，含空串）。 */
-    @JsonProperty("output")
     private String output = "";
 
     /** 结构化数据，供程序化使用。omitempty。键序递归对齐 Go（map 恒排序）。 */
-    @JsonProperty("data")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, Object> data;
 
     /** 执行失败时的错误信息。omitempty。 */
-    @JsonProperty("error")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String error;
 
     /** 工具产出的 base64 data URI（如 MCP 图片内容）。omitempty。 */
-    @JsonProperty("images")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> images;
 
