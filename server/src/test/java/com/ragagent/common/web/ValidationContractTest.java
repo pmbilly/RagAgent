@@ -110,7 +110,7 @@ class ValidationContractTest {
     @RequestMapping("/test-only/validation")
     static class ProbeController {
         @PostMapping("/body")
-        String body(@RequestBody @Valid SampleRequest req) {
+        String body(@NonNullBody @RequestBody @Valid SampleRequest req) {
             return "ok";
         }
 

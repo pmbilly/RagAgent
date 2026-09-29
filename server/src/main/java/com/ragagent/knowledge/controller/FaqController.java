@@ -8,6 +8,7 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.ApiResponse;
+import com.ragagent.common.web.NonNullBody;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.dto.FaqEntryDtos;
 import com.ragagent.knowledge.dto.FaqEntryDtos.AddSimilarQuestionsRequest;
@@ -156,7 +157,7 @@ public class FaqController {
     @PostMapping("/api/v1/knowledge-bases/{id}/faq/entries")
     public ResponseEntity<ApiResponse<FaqTaskStartResponse>> upsertEntries(
             @PathVariable("id") String id,
-            @Valid @RequestBody FaqBatchUpsertPayload req) {
+            @Valid @NonNullBody @RequestBody FaqBatchUpsertPayload req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         String taskId = faqImport.upsertEntries(kbId, req);
@@ -166,7 +167,7 @@ public class FaqController {
     @PostMapping("/api/v1/knowledge-bases/{id}/faq/entry")
     public ResponseEntity<ApiResponse<Object>> createEntry(
             @PathVariable("id") String id,
-            @Valid @RequestBody FaqEntryPayload req) {
+            @Valid @NonNullBody @RequestBody FaqEntryPayload req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         return ResponseEntity.ok(ApiResponse.ok(faqEntryCommand.createEntry(kbId, req)));
@@ -176,7 +177,7 @@ public class FaqController {
     public ResponseEntity<ApiResponse<Object>> updateEntry(
             @PathVariable("id") String id,
             @PathVariable("entryId") String entryId,
-            @Valid @RequestBody FaqEntryPayload req) {
+            @Valid @NonNullBody @RequestBody FaqEntryPayload req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         long entrySeqId = parseEntryId(entryId);
@@ -187,7 +188,7 @@ public class FaqController {
     public ResponseEntity<ApiResponse<Object>> addSimilarQuestions(
             @PathVariable("id") String id,
             @PathVariable("entryId") String entryId,
-            @Valid @RequestBody AddSimilarQuestionsRequest req) {
+            @Valid @NonNullBody @RequestBody AddSimilarQuestionsRequest req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         long entrySeqId = parseEntryId(entryId);
@@ -198,7 +199,7 @@ public class FaqController {
     @PutMapping("/api/v1/knowledge-bases/{id}/faq/entries/fields")
     public ResponseEntity<ApiResponse<Void>> updateEntryFieldsBatch(
             @PathVariable("id") String id,
-            @Valid @RequestBody FaqEntryFieldsBatchUpdate req) {
+            @Valid @NonNullBody @RequestBody FaqEntryFieldsBatchUpdate req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         faqEntryCommand.updateEntryFieldsBatch(kbId, req);
@@ -208,7 +209,7 @@ public class FaqController {
     @PutMapping("/api/v1/knowledge-bases/{id}/faq/entries/tags")
     public ResponseEntity<ApiResponse<Void>> updateEntryTagBatch(
             @PathVariable("id") String id,
-            @Valid @RequestBody FaqEntryTagBatchRequest req) {
+            @Valid @NonNullBody @RequestBody FaqEntryTagBatchRequest req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         faqEntryCommand.updateEntryTagBatch(kbId, req.updates());
@@ -218,7 +219,7 @@ public class FaqController {
     @DeleteMapping("/api/v1/knowledge-bases/{id}/faq/entries")
     public ResponseEntity<ApiResponse<Void>> deleteEntries(
             @PathVariable("id") String id,
-            @Valid @RequestBody FaqDeleteRequest req) {
+            @Valid @NonNullBody @RequestBody FaqDeleteRequest req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         faqEntryCommand.deleteEntries(kbId, req.ids());
@@ -229,7 +230,7 @@ public class FaqController {
     @PostMapping("/api/v1/knowledge-bases/{id}/faq/search")
     public ResponseEntity<ApiResponse<Object>> searchFAQ(
             @PathVariable("id") String id,
-            @Valid @RequestBody FaqSearchRequest raw) {
+            @Valid @NonNullBody @RequestBody FaqSearchRequest raw) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbRead(kbId);
         FaqSearchRequest req = new FaqSearchRequest(LogSanitizer.sanitize(raw.queryText()),
@@ -242,7 +243,7 @@ public class FaqController {
     @PutMapping("/api/v1/knowledge-bases/{id}/faq/import/last-result/display")
     public ResponseEntity<ApiResponse<Void>> updateLastImportResultDisplayStatus(
             @PathVariable("id") String id,
-            @Valid @RequestBody UpdateLastImportDisplayStatusRequest req) {
+            @Valid @NonNullBody @RequestBody UpdateLastImportDisplayStatusRequest req) {
         String kbId = LogSanitizer.sanitize(id);
         requireKbWrite(kbId);
         faqImport.updateLastImportResultDisplayStatus(kbId, req.displayStatus());
