@@ -2,7 +2,7 @@
 
 > 本文档写给在 `~/ragagent` 打开的新会话/新成员。新会话没有旧仓会话的记忆，**一切背景以本文为准**。
 > 种子：自 `~/ragagent-java` @ `646aba7`（2026-09-28）分叉，git 历史完整保留（blame/log 可直接用）。
-> **最近更新 2026-09-30**：§2 补第 11–14 条（落库格式 / 宽松读统一策略 / 包结构 / 命名政策，**均为已定，勿再重新讨论**）；§4 指标复核；§5 进度刷新；§7 当前状态重写（**接手先读这里**）；§11 本阶段执行记录（契约换锚 + 落库 de-Go + knowledge 目录整治）。
+> **最近更新 2026-09-30**（本次会话）：§2 补第 11–14 条（落库格式 / 宽松读统一策略 / 包结构 / 命名政策，**均为已定，勿再重新讨论**）；§4 指标复核；§5 进度刷新；§7 当前状态重写（**接手先读这里**）；§9 补验证命令；新增 §11 执行记录 / §12 knowledge 包结构地图 / §13 操作经验备忘。
 > **接手第一件事**：`git log --oneline -30` 看 `refactor/knowledge-java-idioms` 分支近提交；跑一次 §9 的三条验证命令确认基线全绿。
 
 ## 0. 总目标（2026-09-29 用户定稿）
@@ -112,9 +112,9 @@
 
 **阶段 2 开局已完成（2026-09-29，8e9b7da）**：`KnowledgeService`（3,392 行/153 方法）沿注释边界拆为门面 + 7 服务——KnowledgeMoveService(405)/KnowledgeCloneService(486)/KnowledgeSearchService(198)/KnowledgeFolderService(409)/KnowledgeSpanService(269)/KnowledgeSummaryPipelineService(1,114)/KnowledgeBatchOpsService(158)/KnowledgeTaskIds(76)；门面保留全部公共方法委托（851 行），18+ 注入点与 Mockito 测试零改动。
 
-**当前状态（2026-09-30，接手先读这一段）**：工作分支 **`refactor/knowledge-java-idioms` @ `8ca2fa0`**（`main` 停在 `32a5354` = 本文档定稿点；工作区干净）。基线：**后端 4,670 用例全绿 + 前端 `vue-tsc` 0 错误 / 690 用例全绿**（命令见 §9）。
+**当前状态（2026-09-30，接手先读这一段）**：工作分支 **`refactor/knowledge-java-idioms`**（`main` 停在 `32a5354` = 本文档定稿点；工作区干净）。接手时用 `git log --oneline -20` 看实际顶端（本文档自身的提交就在顶端附近）。基线：**后端 4,670 用例全绿 + 前端 `vue-tsc` 0 错误 / 690 用例全绿**（命令见 §9）。
 
-**自本文档定稿以来（71 提交）已完成三块**（细节与教训见 §11）：
+**自本文档定稿以来（70+ 提交）已完成三块**（细节与教训见 §11）：
 1. **契约换锚（前端可见面）**：知识库域 → 检索域 → 会话/消息/附件/建议 → chunker-preview，按 §2 第 4 条全部落地（camelCase 且 JSON 名 = Java 字段名、去 `{data,success}` 信封、删除返 204、可空显式 `null`），后端与前端同批改完；
 2. **落库格式去 snake（§2 第 11 条）**：知识库 18 个落库类型 + `SearchResult` 去 193 处 `@JsonProperty`，jsonb 内容改用 Java 字段名（无别名、无历史包袱）；
 3. **knowledge 域目录整治（§2 第 13/14 条）**：`mapper/repository/service/support/task/client/storage/security` 分层、`dto/` 一类型一文件（59 个类型拆出）、容器类与缩写命名清零。
