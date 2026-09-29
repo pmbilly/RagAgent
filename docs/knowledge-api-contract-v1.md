@@ -36,6 +36,9 @@
 | 1.20 | 复合响应体用**具名键**而非并列字段 | 例：分块更新/回滚返回 `{chunk, description, summaryStatus}`（分块本身 + 所属文档摘要），不再把 `data` 与 `description` 平铺 |
 | 1.21 | **导入/导出交换格式与请求侧同批改名** | FAQ 的导出 JSON 与导入解析是同一套字段（`standardQuestion` 等），必须一起改以保往返；故本批 FAQ **响应**已 camelCase，而导出/导入载荷按请求侧批次处理 |
 | 1.22 | 落库 jsonb 的 DTO 保留 snake_case | `FaqImportResult`（写入文档 `last_faq_import_result` 列）与 `FaqChunkMetadata`（chunk 元数据）字段名即库内键名；改名等于改存量数据格式 |
+| 1.23 | **请求体同样 camelCase**（去 `@JsonNaming`） | 请求 DTO 的线格式 = Java 字段名；校验文案自含的字段前缀同步改名（`standardQuestion: 不能为空`），全局处理器按"消息是否自含字段名"判定、故前缀风格需与线格式一致 |
+| 1.24 | 请求侧布尔字段不带 `is` 前缀 | `enabled`/`recommended`（响应侧同款命名，读写一致） |
+| 1.25 | **KB 配置分两条路** | 创建走**类型化字段**（`chunkingConfig`/`indexingStrategy`/`vlmConfig`… 内层亦 camelCase，后端映射进领域对象）；更新走 `config` **jsonb 对象**（内层沿用库内 snake 键，后端按 key 读取） |
 
 ---
 
