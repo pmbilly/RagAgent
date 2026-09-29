@@ -225,17 +225,17 @@ public class ChunkController {
 
     /**
      * 一切 bind 失败（EOF/缺字段/畸形 JSON/null 字面量）都落固定文案
-     * 「Question ID is required」——兜底文案优先于标准绑定细节，故此处保留手动绑定。
+     * 「Question ID is required」——body 可省，缺字段/空体统一走该固定文案。
      */
     @DeleteMapping("/api/v1/chunks/by-id/{id}/questions")
     public ResponseEntity<ChunkMessageResponse> deleteGeneratedQuestion(
             @PathVariable("id") String id,
-            @RequestBody(required = false) String rawBody) {
+            @RequestBody(required = false) DeleteGeneratedQuestionRequest req) {
         String chunkId = LogSanitizer.sanitize(id);
         if (chunkId.isEmpty()) {
             throw new BizException(AppError.badRequest("Chunk ID cannot be empty"));
         }
-        String questionId = parseQuestionIdOrBlank(rawBody);
+        String questionId = req == null || req.questionId() == null ? "" : req.questionId();
         if (questionId.isEmpty()) {
             throw new BizException(AppError.badRequest("Question ID is required"));
         }
@@ -327,20 +327,6 @@ public class ChunkController {
                 knowledge.getDescription() == null ? "" : knowledge.getDescription(),
                 true,
                 knowledge.getSummaryStatus() == null ? "" : knowledge.getSummaryStatus()));
-    }
-
-    /** null 字面量体 → 空串（走「Question ID is required」）；解析/绑定失败同文案。 */
-    private String parseQuestionIdOrBlank(String rawBody) {
-        try {
-            if (rawBody == null || rawBody.isBlank()) {
-                return "";
-            }
-            DeleteGeneratedQuestionRequest req = new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readValue(rawBody, DeleteGeneratedQuestionRequest.class);
-            return req.questionId() == null ? "" : req.questionId();
-        } catch (Exception e) {
-            return "";
-        }
     }
 
     /**

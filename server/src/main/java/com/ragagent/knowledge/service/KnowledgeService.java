@@ -539,21 +539,21 @@ public class KnowledgeService {
     }
 
     /** title/description(指针)/custom_metadata 部分更新 */
-    public Knowledge updateKnowledge(String id, JsonNode body) {
+    public Knowledge updateKnowledge(String id, com.ragagent.knowledge.dto.KnowledgeDtos.UpdateKnowledgeRequest req) {
         Knowledge k = getKnowledge(id);
-        if (body != null) {
-            if (body.hasNonNull("title")) {
-                k.setTitle(body.get("title").asText());
+        if (req != null) {
+            if (req.title() != null) {
+                k.setTitle(req.title());
             }
-            if (body.has("description")) {
+            if (req.description() != null) {
                 k.setDescriptionSpecified(true);
-                k.setDescription(body.get("description").isNull() ? "" : body.get("description").asText());
+                k.setDescription(req.description().isNull() ? "" : req.description().asText());
                 // description 显式更新联动 summary_status
                 k.setSummaryStatus(k.getDescription().isEmpty() ? "none" : "completed");
             }
-            if (body.has("custom_metadata")) {
-                JsonNode cm = body.get("custom_metadata");
-                k.setCustomMetadata(cm != null && cm.isObject() ? cm : MAPPER.createObjectNode());
+            JsonNode cm = req.customMetadata();
+            if (cm != null) {
+                k.setCustomMetadata(cm.isObject() ? cm : MAPPER.createObjectNode());
             }
         }
         k.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));

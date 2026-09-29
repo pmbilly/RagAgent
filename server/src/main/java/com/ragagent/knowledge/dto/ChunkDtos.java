@@ -41,9 +41,8 @@ public final class ChunkDtos {
             String question) {
     }
 
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    public record DeleteGeneratedQuestionRequest(
-            String questionId) {
+    /** 删除生成问题请求（body 可整体省略）。 */
+    public record DeleteGeneratedQuestionRequest(String questionId) {
     }
 
     /** chunk 列表响应：data/page/page_size/success/total 五键（既有契约形状）。 */

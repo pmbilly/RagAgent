@@ -480,17 +480,17 @@ class ChunkContractTest {
         assertThat(cm.find()).as("创建响应应含问题 id: " + raw(created)).isTrue();
 
         MvcResult a = mockMvc.perform(jsonBody(delete(path), owner,
-                "{\"question_id\":\"" + Q1 + "\"}")).andReturn();
+                "{\"questionId\":\"" + Q1 + "\"}")).andReturn();
         assertEquals(400, a.getResponse().getStatus(), raw(a));
         assertEquals(golden("chunk-q-delete.json"), raw(a));
 
         MvcResult b = mockMvc.perform(jsonBody(delete(path), owner,
-                "{\"question_id\":\"" + cm.group(1) + "\"}")).andReturn();
+                "{\"questionId\":\"" + cm.group(1) + "\"}")).andReturn();
         assertEquals(400, b.getResponse().getStatus(), raw(b));
         assertEquals(golden("chunk-q-delete-created.json"), raw(b));
 
         MvcResult c = mockMvc.perform(jsonBody(delete(path), owner,
-                "{\"question_id\":\"" + Q1 + "\"}")).andReturn();
+                "{\"questionId\":\"" + Q1 + "\"}")).andReturn();
         assertEquals(400, c.getResponse().getStatus(), raw(c));
         assertEquals(golden("chunk-q-delete-none.json"), raw(c));
     }

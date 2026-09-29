@@ -129,7 +129,7 @@ public class KnowledgeTagController {
             @PathVariable("tag_id") String tagIdParam,
             @RequestParam(value = "force", required = false) String force,
             @RequestParam(value = "content_only", required = false) String contentOnly,
-            @RequestBody(required = false) String rawBody) {
+            @RequestBody(required = false) DeleteTagRequest request) {
         String kbId = LogSanitizer.sanitize(id);
         guard.requireOwnedKbInCallerSpace(kbId);
         guard.requireKbAccess(kbId);
@@ -138,27 +138,14 @@ public class KnowledgeTagController {
         boolean forceFlag = "true".equals(force);
         boolean contentOnlyFlag = "true".equals(contentOnly);
 
-        // body 可省（EOF 容忍）；非 EOF 的绑定错误 → 400「删除选项不合法」（无 details）
-        List<Long> excludeIds = parseExcludeIds(rawBody);
+        // body 可整体省略；excludeIds 缺省 = 不排除任何条目
+        List<Long> excludeIds = request == null ? null : request.excludeIds();
 
         // exclude_ids → chunk UUID 解析与作用域校验
         List<String> excludeUUIDs = resolveExcludeUUIDs(kbId, excludeIds);
 
         tagService.deleteTag(tagId, forceFlag, contentOnlyFlag, excludeUUIDs);
         return ResponseEntity.ok(ApiResponse.ok());
-    }
-
-    /** body 可省；null 体按空对象；解析失败 → 400「删除选项不合法」。 */
-    private List<Long> parseExcludeIds(String rawBody) {
-        if (rawBody == null || rawBody.isBlank() || "null".equals(rawBody.trim())) {
-            return null;
-        }
-        try {
-            DeleteTagRequest parsed = MAPPER.readValue(rawBody, DeleteTagRequest.class);
-            return parsed == null ? null : parsed.excludeIds();
-        } catch (Exception e) {
-            throw new BizException(AppError.badRequest("删除选项不合法"));
-        }
     }
 
     /** 校验排除条目：非法 ID 400、他库/他租户 403、缺失 404；返回 chunk UUID 列表。 */

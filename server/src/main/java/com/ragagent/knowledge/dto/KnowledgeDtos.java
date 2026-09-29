@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import jakarta.validation.constraints.NotBlank;
@@ -124,5 +125,18 @@ public final class KnowledgeDtos {
     /** 清空知识库响应。 */
     public record ClearContentsResponse(
             @JsonProperty("deleted_count") long deletedCount) {
+    }
+
+    /** 批量重解析请求（body 可整体省略）。 */
+    public record BatchReparseRequest(String kbId, List<String> ids) {
+    }
+
+    /**
+     * 文档更新请求（部分更新语义）。
+     *
+     * <p>{@code title} 为 null = 不变更；{@code description}/{@code customMetadata}
+     * 用 JsonNode 承载"缺省 vs 显式 null"的区分——缺省 = 不变更，显式 null = 置空。</p>
+     */
+    public record UpdateKnowledgeRequest(String title, JsonNode description, JsonNode customMetadata) {
     }
 }

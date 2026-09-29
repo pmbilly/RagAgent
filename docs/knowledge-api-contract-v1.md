@@ -491,5 +491,5 @@
 | **1** | 知识库对象：camelCase + 裸资源信封 + 删除 204 + 内部字段收敛（含 `storageProvider`） | ✅ 2026-09-29（后端 `8dab32e`/`cb960a8`、前端 `87c090b`；后端 4665 用例 + 前端 685 用例全绿） |
 | **2** | 嵌套配置对象：`chunkingConfig`/`imageProcessingConfig`/`vlmConfig`/`asrConfig`/`indexingStrategy` 改**视图 DTO**（camelCase + 显式 null + 去 apiKey） | ✅ 2026-09-29（新增 `KnowledgeBaseConfigViews`；领域类 Jackson 注解继续决定 jsonb 落库格式，二者解耦） |
 | **3a** | **创建知识库**请求 DTO 化（不再绑定数据库实体）：新增 `CreateKbRequest`（复用批次 2 视图 + VLM 请求形态含 apiKey），删除 omitempty 归一三辅助；前端创建载荷同步 camelCase | ✅ 2026-09-29 |
-| 3b | 其余请求侧：`updateKnowledgeBase`（config 透传形态 → 显式 DTO）+ 4 处 `String rawBody`/`JsonNode body` 手搓（ChunkController / KnowledgeOpsController / KnowledgeTagController / KnowledgeController） | ⏳ 待办 |
+| **3b** | 其余请求侧 DTO 化：`updateKnowledge`（显式部分更新 DTO）、chunk 删除生成问题、批量重解析、标签删除（复用既有 DTO 并去 snake_case）；4 处手搓解析全部删除。仅 `POST /knowledge/{id}/reparse` 保留忽略体（有意为之：只做语法校验） | ✅ 2026-09-29 |
 | 4 | 知识库内停用 `Go*` 序列化器 + 注释/JavaDoc 逐文件打磨 | ⏳ 待办 |

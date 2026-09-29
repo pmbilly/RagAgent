@@ -106,11 +106,7 @@ public record UpdateTagRequest(
         Integer sortOrder) {
 }
 
-/** 删除标签请求：exclude_ids 为保留条目（body 可整体省略）。 */
-@com.fasterxml.jackson.databind.annotation.JsonNaming(
-        com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record DeleteTagRequest(
-        @JsonProperty("exclude_ids")
-        java.util.List<Long> excludeIds) {
+/** 删除标签请求：excludeIds 为保留条目（body 可整体省略）。 */
+public record DeleteTagRequest(java.util.List<Long> excludeIds) {
 }
 }

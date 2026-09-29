@@ -519,19 +519,19 @@ class KnowledgeOperationsContractTest {
     @Test
     void batchReparseMatchesGo() throws Exception {
         assertPost("/api/v1/knowledge/batch-reparse",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-reparse.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-reparse.json");
         assertPost("/api/v1/knowledge/batch-reparse",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\",\"" + UNKNOWN + "\"]}",
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\",\"" + UNKNOWN + "\"]}",
                 "kg-batch-reparse-missing.json");
         assertPost("/api/v1/knowledge/batch-reparse",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[]}", "kg-batch-reparse-empty-ids.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[]}", "kg-batch-reparse-empty-ids.json");
         assertPostNoBody("/api/v1/knowledge/batch-reparse", "kg-batch-reparse-no-body.json");
         assertPost("/api/v1/knowledge/batch-reparse",
-                "{\"kb_id\":\"" + UNKNOWN + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-reparse-badkb.json");
+                "{\"kbId\":\"" + UNKNOWN + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-reparse-badkb.json");
         assertPost("/api/v1/knowledge/batch-reparse",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG16 + "\"]}", "kg-batch-reparse-cross.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG16 + "\"]}", "kg-batch-reparse-cross.json");
         assertPostContrib("/api/v1/knowledge/batch-reparse",
-                "{\"kb_id\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-reparse-contrib.json");
+                "{\"kbId\":\"" + KB1 + "\",\"ids\":[\"" + KG2 + "\"]}", "kg-batch-reparse-contrib.json");
     }
 
     // ════════════════ 12) folder move ════════════════

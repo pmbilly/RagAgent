@@ -192,8 +192,8 @@ public class KnowledgeOpsController {
      */
     @PostMapping("/knowledge/batch-reparse")
     public ResponseEntity<DataMessageResponse<KnowledgeDtos.ReparseTaskData>> batchReparseKnowledge(
-            @RequestBody(required = false) String rawBody) {
-        Req parsed = parseBatchReparse(rawBody);
+            @RequestBody(required = false) KnowledgeDtos.BatchReparseRequest request) {
+        KnowledgeDtos.BatchReparseRequest parsed = requireBatchReparse(request);
         String kbId = LogSanitizer.sanitize(parsed.kbId());
         List<String> ids = parsed.ids();
         guards.batchAccessChecks(kbId);
@@ -213,33 +213,24 @@ public class KnowledgeOpsController {
                 new KnowledgeDtos.ReparseTaskData(ids.size(), taskId), "Batch reparse task submitted"));
     }
 
-    private record Req(String kbId, List<String> ids) {
-    }
-
-    private Req parseBatchReparse(String rawBody) {
-        if (rawBody == null || rawBody.isBlank()) {
+    /**
+     * 校验批量重解析请求：空体 / 缺 kbId / 缺 ids → 固定文案；ids 去重后为空 → 专属文案；
+     * 单批上限 200。
+     */
+    private static KnowledgeDtos.BatchReparseRequest requireBatchReparse(
+            KnowledgeDtos.BatchReparseRequest request) {
+        if (request == null || request.kbId() == null || request.kbId().isBlank()
+                || request.ids() == null) {
             throw new BizException(AppError.badRequest("invalid batch reparse knowledge request parameters"));
         }
-        com.fasterxml.jackson.databind.JsonNode body;
-        try {
-            body = new com.fasterxml.jackson.databind.ObjectMapper().readTree(rawBody);
-        } catch (Exception e) {
-            throw new BizException(AppError.badRequest("invalid batch reparse knowledge request parameters"));
-        }
-        if (body == null || !body.isObject() || !body.hasNonNull("kb_id")
-                || body.path("kb_id").asText("").isEmpty() || !body.has("ids") || !body.get("ids").isArray()) {
-            throw new BizException(AppError.badRequest("invalid batch reparse knowledge request parameters"));
-        }
-        List<String> rawIds = new ArrayList<>();
-        body.get("ids").forEach(n -> rawIds.add(n.asText()));
-        List<String> ids = KnowledgeRouteGuards.dedupeIds(rawIds);
+        List<String> ids = KnowledgeRouteGuards.dedupeIds(request.ids());
         if (ids.isEmpty()) {
             throw new BizException(AppError.badRequest("no knowledge IDs provided for batch reparse"));
         }
         if (ids.size() > 200) {
             throw new BizException(AppError.badRequest("too many ids (max 200 per batch)"));
         }
-        return new Req(body.path("kb_id").asText(""), ids);
+        return new KnowledgeDtos.BatchReparseRequest(request.kbId(), ids);
     }
 
     // ── 文件夹 ───────────────────────────────────────────────────────────

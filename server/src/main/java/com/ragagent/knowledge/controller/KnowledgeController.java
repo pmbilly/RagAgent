@@ -22,6 +22,7 @@ import com.ragagent.knowledge.dto.KnowledgeDtos.CreateFromUrlRequest;
 import com.ragagent.knowledge.dto.KnowledgeDtos.CreateManualRequest;
 import com.ragagent.knowledge.dto.KnowledgeDtos.KnowledgeListResponse;
 import com.ragagent.knowledge.dto.KnowledgeDtos.UpdateImageInfoRequest;
+import com.ragagent.knowledge.dto.KnowledgeDtos.UpdateKnowledgeRequest;
 import com.ragagent.knowledge.dto.KnowledgeDtos.TaskIdResponse;
 import com.ragagent.knowledge.dto.KnowledgeDtos.UpdateManualRequest;
 import com.ragagent.knowledge.service.KnowledgeFileService;
@@ -320,15 +321,15 @@ public class KnowledgeController {
                 "Knowledge chunk image updated successfully", true));
     }
 
-    /** 守卫链 + 部分更新（动态字段集合由 service 解释）。 */
+    /** 守卫链 + 部分更新（更新字段集合见 {@link UpdateKnowledgeRequest}）。 */
     @PutMapping("/knowledge/{id}")
     public ResponseEntity<DataMessageResponse<Knowledge>> updateKnowledge(
             @PathVariable("id") String id,
-            @RequestBody(required = false) JsonNode body) {
+            @RequestBody(required = false) UpdateKnowledgeRequest request) {
         log.info("Start updating knowledge, ID: {}", id);
         String safeId = requireKnowledgeId(id);
         guards.resolveKnowledgeByGuard(safeId, true);
-        Knowledge k = knowledgeService.updateKnowledge(safeId, body);
+        Knowledge k = knowledgeService.updateKnowledge(safeId, request);
         return ResponseEntity.ok(DataMessageResponse.of(k, "Knowledge updated successfully"));
     }
 

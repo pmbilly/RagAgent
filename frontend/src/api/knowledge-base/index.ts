@@ -419,7 +419,7 @@ export function revertDocumentChunk(knowledgeId: string, chunkId: string, revisi
 }
 
 export function updateKnowledgeMetadata(knowledgeId: string, customMetadata: Record<string, unknown>) {
-  return put(`/api/v1/knowledge/${knowledgeId}`, { custom_metadata: customMetadata });
+  return put(`/api/v1/knowledge/${knowledgeId}`, { customMetadata });
 }
 
 export function updateKnowledgeSummary(knowledgeId: string, description: string) {
@@ -437,7 +437,7 @@ export function getChunkByIdOnly(chunkId: string) {
 
 // Delete a single generated question from a chunk by question ID
 export function deleteGeneratedQuestion(chunkId: string, questionId: string) {
-  return del(`/api/v1/chunks/by-id/${chunkId}/questions`, { question_id: questionId });
+  return del(`/api/v1/chunks/by-id/${chunkId}/questions`, { questionId });
 }
 
 export function upsertGeneratedQuestion(chunkId: string, question: string, questionId?: string) {
@@ -641,8 +641,7 @@ export function knowledgeSemanticSearch(data: {
 
 export function batchReparseKnowledge(kbId: string, ids: string[], processConfig?: KnowledgeProcessOverrides) {
   return post(`/api/v1/knowledge/batch-reparse`, {
-    kb_id: kbId,
+    kbId,
     ids,
-    process_config: processConfig,
   });
 }
