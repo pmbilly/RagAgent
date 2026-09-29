@@ -1,1 +1,35 @@
-{"data":{"id":"afa00001-0000-0000-0000-000000000004","tenant_id":10002,"knowledge_base_id":"b69dd7e0-d1cb-425d-b428-450164756f7b","tags":null,"type":"manual","title":"手工知识（改）","description":"","source":"manual","channel":"web","parse_status":"pending","pending_subtasks_count":0,"summary_status":"completed","enable_status":"disabled","embedding_model_id":"","file_name":"手工知识（改）.md","folder_path":"","file_type":"manual","file_size":40,"file_hash":"0000000000000000000000000000000d","file_path":"","storage_size":0,"metadata":{"content":"# 手工知识\n\n更新后的正文","format":"markdown","status":"publish","version":2,"updated_at":"2026-09-18T20:23:37Z"},"custom_metadata":{},"last_faq_import_result":null,"created_at":"2026-09-19T04:23:37.218866+08:00","updated_at":"2026-09-18T20:23:37.722342Z","processed_at":null,"error_message":"","deleted_at":null,"knowledge_base_name":""},"success":true}
+{
+  "id": "afa00001-0000-0000-0000-000000000004",
+  "knowledgeBaseId": "b69dd7e0-d1cb-425d-b428-450164756f7b",
+  "tags": null,
+  "type": "manual",
+  "title": "手工知识（改）",
+  "description": null,
+  "source": "manual",
+  "channel": "web",
+  "parseStatus": "pending",
+  "pendingSubtasksCount": 0,
+  "summaryStatus": "completed",
+  "enableStatus": "disabled",
+  "embeddingModelId": null,
+  "fileName": "手工知识（改）.md",
+  "folderPath": "",
+  "fileType": "manual",
+  "fileSize": 40,
+  "fileHash": "0000000000000000000000000000000d",
+  "storageSize": 0,
+  "metadata": {
+    "content": "# 手工知识\n\n更新后的正文",
+    "format": "markdown",
+    "status": "publish",
+    "version": 2,
+    "updated_at": "2026-09-18T20:23:37Z"
+  },
+  "customMetadata": {},
+  "lastFaqImportResult": null,
+  "createdAt": "2026-09-19T04:23:37.218866+08:00",
+  "updatedAt": "2026-09-18T20:23:37.722342Z",
+  "processedAt": null,
+  "errorMessage": null,
+  "knowledgeBaseName": null
+}

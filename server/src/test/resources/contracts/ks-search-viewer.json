@@ -1,1 +1,35 @@
-{"data":[{"id":"a2e00001-0000-0000-0000-000000000006","tenant_id":10002,"knowledge_base_id":"b7171cc4-e709-44be-b931-ef850ecd461c","tags":null,"type":"document","title":"第二库的 ksdoc","description":"","source":"manual","channel":"web","parse_status":"completed","pending_subtasks_count":0,"summary_status":"none","enable_status":"enabled","embedding_model_id":"","file_name":"ksdoc-sixth.txt","folder_path":"","file_type":"txt","file_size":10,"file_hash":"000000000000000000000000000000a6","file_path":"","storage_size":0,"metadata":null,"custom_metadata":{},"last_faq_import_result":null,"created_at":"2026-09-19T05:42:14.946304+08:00","updated_at":"2026-09-19T05:42:14.946304+08:00","processed_at":null,"error_message":"","deleted_at":null,"knowledge_base_name":"ks-golden-second"}],"has_more":true,"success":true,"total":7}
+{
+  "items": [
+    {
+      "id": "a2e00001-0000-0000-0000-000000000006",
+      "knowledgeBaseId": "b7171cc4-e709-44be-b931-ef850ecd461c",
+      "tags": null,
+      "type": "document",
+      "title": "第二库的 ksdoc",
+      "description": null,
+      "source": "manual",
+      "channel": "web",
+      "parseStatus": "completed",
+      "pendingSubtasksCount": 0,
+      "summaryStatus": "none",
+      "enableStatus": "enabled",
+      "embeddingModelId": null,
+      "fileName": "ksdoc-sixth.txt",
+      "folderPath": "",
+      "fileType": "txt",
+      "fileSize": 10,
+      "fileHash": "000000000000000000000000000000a6",
+      "storageSize": 0,
+      "metadata": null,
+      "customMetadata": {},
+      "lastFaqImportResult": null,
+      "createdAt": "2026-09-19T05:42:14.946304+08:00",
+      "updatedAt": "2026-09-19T05:42:14.946304+08:00",
+      "processedAt": null,
+      "errorMessage": null,
+      "knowledgeBaseName": "ks-golden-second"
+    }
+  ],
+  "hasMore": true,
+  "total": 7
+}

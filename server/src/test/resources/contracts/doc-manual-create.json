@@ -1,1 +1,35 @@
-{"data":{"id":"573f35ae-c92c-41c4-b439-7756edaa23da","tenant_id":10002,"knowledge_base_id":"882a3361-fa2d-402b-a383-2a302f9c0184","tags":null,"type":"manual","title":"golden-manual","description":"","source":"manual","channel":"web","parse_status":"draft","pending_subtasks_count":0,"summary_status":"none","enable_status":"disabled","embedding_model_id":"","file_name":"golden-manual.md","folder_path":"","file_type":"manual","file_size":0,"file_hash":"","file_path":"","storage_size":0,"metadata":{"content":"# Golden Manual\n\nhello manual knowledge","format":"markdown","status":"draft","version":1,"updated_at":"2026-09-17T11:57:42Z"},"custom_metadata":{},"last_faq_import_result":null,"created_at":"2026-09-17T19:57:42.26618+08:00","updated_at":"2026-09-17T19:57:42.26618+08:00","processed_at":null,"error_message":"","deleted_at":null,"knowledge_base_name":""},"success":true}
+{
+  "id": "573f35ae-c92c-41c4-b439-7756edaa23da",
+  "knowledgeBaseId": "882a3361-fa2d-402b-a383-2a302f9c0184",
+  "tags": null,
+  "type": "manual",
+  "title": "golden-manual",
+  "description": null,
+  "source": "manual",
+  "channel": "web",
+  "parseStatus": "draft",
+  "pendingSubtasksCount": 0,
+  "summaryStatus": "none",
+  "enableStatus": "disabled",
+  "embeddingModelId": null,
+  "fileName": "golden-manual.md",
+  "folderPath": "",
+  "fileType": "manual",
+  "fileSize": 0,
+  "fileHash": "",
+  "storageSize": 0,
+  "metadata": {
+    "content": "# Golden Manual\n\nhello manual knowledge",
+    "format": "markdown",
+    "status": "draft",
+    "version": 1,
+    "updated_at": "2026-09-17T11:57:42Z"
+  },
+  "customMetadata": {},
+  "lastFaqImportResult": null,
+  "createdAt": "2026-09-17T19:57:42.26618+08:00",
+  "updatedAt": "2026-09-17T19:57:42.26618+08:00",
+  "processedAt": null,
+  "errorMessage": null,
+  "knowledgeBaseName": null
+}

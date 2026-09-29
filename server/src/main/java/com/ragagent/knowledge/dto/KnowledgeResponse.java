@@ -6,7 +6,6 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.dto.KnowledgeEnums.EnableStatus;
-import com.ragagent.knowledge.dto.KnowledgeEnums.KnowledgeType;
 import com.ragagent.knowledge.dto.KnowledgeEnums.ParseStatus;
 import com.ragagent.knowledge.dto.KnowledgeEnums.SummaryStatus;
 
@@ -19,7 +18,9 @@ import com.ragagent.knowledge.dto.KnowledgeEnums.SummaryStatus;
  *   <li>可空字段<b>显式输出 null</b>——不再用空串代替"未设置"；</li>
  *   <li>内部字段（{@code tenantId}、{@code deletedAt}、{@code filePath}）一律不下发；
  *       存储路径由下载接口按 ID 解析，前端无需也不应看到物理路径；</li>
- *   <li>状态类字段枚举化（{@link KnowledgeEnums}），取值与库内存储值一致。</li>
+ *   <li>状态类字段枚举化（{@link KnowledgeEnums}），取值与库内存储值一致；</li>
+ *   <li><b>{@code type} 有意保留字符串</b>：它是"来源类型"（file/manual/passage/url/document/faq…），
+ *       由写入路径经 String 传参产生、取值随来源扩展，强枚举会静默丢值。</li>
  * </ul>
  *
  * <p><b>有意保留空串</b>的字段：{@code folderPath}——空串表示"知识库根目录"，是有效取值而非缺失。</p>
@@ -28,7 +29,7 @@ public record KnowledgeResponse(
         String id,
         String knowledgeBaseId,
         List<JsonNode> tags,
-        KnowledgeType type,
+        String type,
         String title,
         String description,
         String source,
@@ -59,7 +60,7 @@ public record KnowledgeResponse(
                 k.getId(),
                 k.getKnowledgeBaseId(),
                 k.getTags(),
-                KnowledgeType.from(k.getType()),
+                k.getType(),
                 k.getTitle(),
                 emptyToNull(k.getDescription()),
                 emptyToNull(k.getSource()),

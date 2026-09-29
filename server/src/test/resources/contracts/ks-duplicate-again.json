@@ -1,85 +1,81 @@
 {
-  "data": {
-    "source_id": "80bde2e1-30c3-4edc-be60-1f9e63f95454",
-    "target_id": "523a6cf6-0ca2-4fc0-9f12-3d4d789b0128",
-    "message": "Knowledge base duplicate created",
-    "knowledge_base": {
-      "asrConfig": {
-        "enabled": false,
-        "modelId": "",
-        "language": ""
-      },
-      "autoTagConfig": null,
-      "capabilities": {
-        "faq": false,
-        "graph": false,
-        "keyword": true,
-        "vector": true,
-        "wiki": false
-      },
-      "chunkCount": 0,
-      "chunkingConfig": {
-        "chunkSize": 0,
-        "chunkOverlap": 0,
-        "separators": null,
-        "parserEngineRules": null,
-        "enableParentChild": false,
-        "parentChunkSize": 0,
-        "childChunkSize": 0,
-        "strategy": null,
-        "tokenLimit": 0,
-        "languages": null,
-        "tableMetadataInstructions": null
-      },
-      "createdAt": "2026-09-19T05:42:28.792867+08:00",
-      "creatorId": "11111111-2222-3333-4444-555555555501",
-      "description": "ks golden 专用",
-      "embeddingModelId": null,
-      "extractConfig": null,
-      "faqConfig": null,
-      "id": "523a6cf6-0ca2-4fc0-9f12-3d4d789b0128",
-      "imageProcessingConfig": {
-        "modelId": ""
-      },
-      "indexingStrategy": {
-        "vectorEnabled": true,
-        "keywordEnabled": true,
-        "wikiEnabled": false,
-        "graphEnabled": false
-      },
-      "pinned": false,
-      "processing": false,
-      "temporary": false,
-      "knowledgeCount": 0,
-      "name": "ks-golden-kb 副本 2",
-      "pinnedAt": null,
-      "processingCount": 0,
-      "questionGenerationConfig": null,
-      "shareCount": 0,
-      "storageBackendId": "c730730a-70f5-4d86-a7e1-58972cf27567",
-      "summaryModelId": null,
-      "type": "document",
-      "updatedAt": "2026-09-19T05:42:28.792867+08:00",
-      "vlmConfig": {
-        "enabled": false,
-        "modelId": "",
-        "descriptionLanguage": null,
-        "customInstructions": null,
-        "modelName": "",
-        "baseUrl": "",
-        "interfaceType": ""
-      },
-      "wikiConfig": null,
-      "vectorStore": {
-        "id": null,
-        "name": "System default",
-        "source": "env",
-        "engineType": "postgres",
-        "status": "available"
-      },
-      "creatorName": null,
-      "storageProvider": "local"
-    }
-  },
-  "success": true
+  "sourceId": "80bde2e1-30c3-4edc-be60-1f9e63f95454",
+  "targetId": "523a6cf6-0ca2-4fc0-9f12-3d4d789b0128",
+  "knowledgeBase": {
+    "asrConfig": {
+      "enabled": false,
+      "modelId": "",
+      "language": ""
+    },
+    "autoTagConfig": null,
+    "capabilities": {
+      "faq": false,
+      "graph": false,
+      "keyword": true,
+      "vector": true,
+      "wiki": false
+    },
+    "chunkCount": 0,
+    "chunkingConfig": {
+      "chunkSize": 0,
+      "chunkOverlap": 0,
+      "separators": null,
+      "parserEngineRules": null,
+      "enableParentChild": false,
+      "parentChunkSize": 0,
+      "childChunkSize": 0,
+      "strategy": null,
+      "tokenLimit": 0,
+      "languages": null,
+      "tableMetadataInstructions": null
+    },
+    "createdAt": "2026-09-19T05:42:28.792867+08:00",
+    "creatorId": "11111111-2222-3333-4444-555555555501",
+    "description": "ks golden 专用",
+    "embeddingModelId": null,
+    "extractConfig": null,
+    "faqConfig": null,
+    "id": "523a6cf6-0ca2-4fc0-9f12-3d4d789b0128",
+    "imageProcessingConfig": {
+      "modelId": ""
+    },
+    "indexingStrategy": {
+      "vectorEnabled": true,
+      "keywordEnabled": true,
+      "wikiEnabled": false,
+      "graphEnabled": false
+    },
+    "pinned": false,
+    "processing": false,
+    "temporary": false,
+    "knowledgeCount": 0,
+    "name": "ks-golden-kb 副本 2",
+    "pinnedAt": null,
+    "processingCount": 0,
+    "questionGenerationConfig": null,
+    "shareCount": 0,
+    "storageBackendId": "c730730a-70f5-4d86-a7e1-58972cf27567",
+    "summaryModelId": null,
+    "type": "document",
+    "updatedAt": "2026-09-19T05:42:28.792867+08:00",
+    "vlmConfig": {
+      "enabled": false,
+      "modelId": "",
+      "descriptionLanguage": null,
+      "customInstructions": null,
+      "modelName": "",
+      "baseUrl": "",
+      "interfaceType": ""
+    },
+    "wikiConfig": null,
+    "vectorStore": {
+      "id": null,
+      "name": "System default",
+      "source": "env",
+      "engineType": "postgres",
+      "status": "available"
+    },
+    "creatorName": null,
+    "storageProvider": "local"
+  }
 }

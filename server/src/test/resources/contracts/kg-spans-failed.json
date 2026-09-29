@@ -1,1 +1,79 @@
-{"data":{"attempt":0,"current_attempt":0,"current_stage":"","knowledge_id":"afa00001-0000-0000-0000-000000000006","last_error":{"code":"UNKNOWN","error_code":"UNKNOWN","error_message":"解析失败：文档格式不支持","finished_at":"2026-09-19T04:23:37.218866+08:00","message":"解析失败：文档格式不支持","name":"knowledge_processing","stage":"knowledge_processing"},"latest_attempt":0,"parse_status":"failed","trace":{"knowledge_id":"afa00001-0000-0000-0000-000000000006","attempt":0,"span_id":"","name":"knowledge_processing","kind":"root","status":"failed","created_at":"2026-09-19T04:23:37.484328+08:00","updated_at":"2026-09-19T04:23:37.484328+08:00","children":[{"knowledge_id":"afa00001-0000-0000-0000-000000000006","attempt":0,"span_id":"","name":"docreader","kind":"stage","status":"failed","created_at":"2026-09-19T04:23:37.484328+08:00","updated_at":"2026-09-19T04:23:37.484328+08:00"},{"knowledge_id":"afa00001-0000-0000-0000-000000000006","attempt":0,"span_id":"","name":"chunking","kind":"stage","status":"failed","created_at":"2026-09-19T04:23:37.484328+08:00","updated_at":"2026-09-19T04:23:37.484328+08:00"},{"knowledge_id":"afa00001-0000-0000-0000-000000000006","attempt":0,"span_id":"","name":"embedding","kind":"stage","status":"failed","created_at":"2026-09-19T04:23:37.484328+08:00","updated_at":"2026-09-19T04:23:37.484328+08:00"},{"knowledge_id":"afa00001-0000-0000-0000-000000000006","attempt":0,"span_id":"","name":"multimodal","kind":"stage","status":"failed","created_at":"2026-09-19T04:23:37.484328+08:00","updated_at":"2026-09-19T04:23:37.484328+08:00"},{"knowledge_id":"afa00001-0000-0000-0000-000000000006","attempt":0,"span_id":"","name":"postprocess","kind":"stage","status":"failed","created_at":"2026-09-19T04:23:37.484328+08:00","updated_at":"2026-09-19T04:23:37.484328+08:00"}]}},"success":true}
+{
+  "attempt": 0,
+  "currentAttempt": 0,
+  "currentStage": "",
+  "knowledgeId": "afa00001-0000-0000-0000-000000000006",
+  "lastError": {
+    "code": "UNKNOWN",
+    "errorCode": "UNKNOWN",
+    "errorMessage": "解析失败：文档格式不支持",
+    "finishedAt": "2026-09-19T04:23:37.218866+08:00",
+    "message": "解析失败：文档格式不支持",
+    "name": "knowledge_processing",
+    "stage": "knowledge_processing"
+  },
+  "latestAttempt": 0,
+  "parseStatus": "failed",
+  "trace": {
+    "knowledgeId": "afa00001-0000-0000-0000-000000000006",
+    "attempt": 0,
+    "spanId": "",
+    "name": "knowledge_processing",
+    "kind": "root",
+    "status": "failed",
+    "createdAt": "2026-09-19T04:23:37.484328+08:00",
+    "updatedAt": "2026-09-19T04:23:37.484328+08:00",
+    "children": [
+      {
+        "knowledgeId": "afa00001-0000-0000-0000-000000000006",
+        "attempt": 0,
+        "spanId": "",
+        "name": "docreader",
+        "kind": "stage",
+        "status": "failed",
+        "createdAt": "2026-09-19T04:23:37.484328+08:00",
+        "updatedAt": "2026-09-19T04:23:37.484328+08:00"
+      },
+      {
+        "knowledgeId": "afa00001-0000-0000-0000-000000000006",
+        "attempt": 0,
+        "spanId": "",
+        "name": "chunking",
+        "kind": "stage",
+        "status": "failed",
+        "createdAt": "2026-09-19T04:23:37.484328+08:00",
+        "updatedAt": "2026-09-19T04:23:37.484328+08:00"
+      },
+      {
+        "knowledgeId": "afa00001-0000-0000-0000-000000000006",
+        "attempt": 0,
+        "spanId": "",
+        "name": "embedding",
+        "kind": "stage",
+        "status": "failed",
+        "createdAt": "2026-09-19T04:23:37.484328+08:00",
+        "updatedAt": "2026-09-19T04:23:37.484328+08:00"
+      },
+      {
+        "knowledgeId": "afa00001-0000-0000-0000-000000000006",
+        "attempt": 0,
+        "spanId": "",
+        "name": "multimodal",
+        "kind": "stage",
+        "status": "failed",
+        "createdAt": "2026-09-19T04:23:37.484328+08:00",
+        "updatedAt": "2026-09-19T04:23:37.484328+08:00"
+      },
+      {
+        "knowledgeId": "afa00001-0000-0000-0000-000000000006",
+        "attempt": 0,
+        "spanId": "",
+        "name": "postprocess",
+        "kind": "stage",
+        "status": "failed",
+        "createdAt": "2026-09-19T04:23:37.484328+08:00",
+        "updatedAt": "2026-09-19T04:23:37.484328+08:00"
+      }
+    ]
+  }
+}

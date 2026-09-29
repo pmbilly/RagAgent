@@ -247,7 +247,7 @@ class W5aSundryRoutesContractTest {
         // updates 键是 **knowledge_id**、值是 tag uuid 列表（knowledge.go L955-968）
         assertGolden(putJson("/api/v1/knowledge/tags", owner,
                 "{\"kb_id\":\"" + kb + "\",\"updates\":{\"" + REF_KG + "\":[\"" + tagC + "\"]}}"),
-                200, "w5a-tag-ref-assign.json");
+                204, "w5a-tag-ref-assign.json");
         assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagC, owner), 400,
                 "w5a-tag-delete-referenced.json");
         assertGolden(delete("/api/v1/knowledge-bases/" + kb + "/tags/" + tagC + "?content_only=true",

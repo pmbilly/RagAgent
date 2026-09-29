@@ -1,1 +1,40 @@
-{"data":{"id":"afa00001-0000-0000-0000-000000000002","tenant_id":10002,"knowledge_base_id":"b69dd7e0-d1cb-425d-b428-450164756f7b","tags":[{"id":"bfb00001-0000-0000-0000-000000000001","seq_id":960001,"tenant_id":10002,"knowledge_base_id":"b69dd7e0-d1cb-425d-b428-450164756f7b","name":"重要","color":"","sort_order":0,"created_at":"2026-09-19T04:23:37.218866+08:00","updated_at":"2026-09-19T04:23:37.218866+08:00"}],"type":"document","title":"文档二","description":"","source":"manual","channel":"web","parse_status":"completed","pending_subtasks_count":0,"summary_status":"none","enable_status":"enabled","embedding_model_id":"","file_name":"doc2.txt","folder_path":"","file_type":"txt","file_size":10,"file_hash":"0000000000000000000000000000000b","file_path":"","storage_size":0,"metadata":null,"custom_metadata":{},"last_faq_import_result":null,"created_at":"2026-09-19T04:23:37.218866+08:00","updated_at":"2026-09-19T04:23:37.218866+08:00","processed_at":null,"error_message":"","deleted_at":null,"knowledge_base_name":""},"success":true}
+{
+  "id": "afa00001-0000-0000-0000-000000000002",
+  "knowledgeBaseId": "b69dd7e0-d1cb-425d-b428-450164756f7b",
+  "tags": [
+    {
+      "id": "bfb00001-0000-0000-0000-000000000001",
+      "seqId": 960001,
+      "knowledgeBaseId": "b69dd7e0-d1cb-425d-b428-450164756f7b",
+      "name": "重要",
+      "color": "",
+      "sortOrder": 0,
+      "createdAt": "2026-09-19T04:23:37.218866+08:00",
+      "updatedAt": "2026-09-19T04:23:37.218866+08:00"
+    }
+  ],
+  "type": "document",
+  "title": "文档二",
+  "description": null,
+  "source": "manual",
+  "channel": "web",
+  "parseStatus": "completed",
+  "pendingSubtasksCount": 0,
+  "summaryStatus": "none",
+  "enableStatus": "enabled",
+  "embeddingModelId": null,
+  "fileName": "doc2.txt",
+  "folderPath": "",
+  "fileType": "txt",
+  "fileSize": 10,
+  "fileHash": "0000000000000000000000000000000b",
+  "storageSize": 0,
+  "metadata": null,
+  "customMetadata": {},
+  "lastFaqImportResult": null,
+  "createdAt": "2026-09-19T04:23:37.218866+08:00",
+  "updatedAt": "2026-09-19T04:23:37.218866+08:00",
+  "processedAt": null,
+  "errorMessage": null,
+  "knowledgeBaseName": null
+}

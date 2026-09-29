@@ -51,16 +51,16 @@ public class KnowledgeSpanService {
 
         ObjectNode resp = MAPPER.createObjectNode();
         resp.put("attempt", currentAttempt);
-        resp.put("current_attempt", currentAttempt);
-        resp.put("current_stage", tree.currentStage());
-        resp.put("knowledge_id", knowledge.getId());
+        resp.put("currentAttempt", currentAttempt);
+        resp.put("currentStage", tree.currentStage());
+        resp.put("knowledgeId", knowledge.getId());
         JsonNode lastError = knowledgeSpansLastError(currentAttempt, latestAttempt,
                 knowledge, tree.lastFailure());
         if (lastError != null) {
-            resp.set("last_error", lastError);
+            resp.set("lastError", lastError);
         }
-        resp.put("latest_attempt", latestAttempt);
-        resp.put("parse_status", knowledge.getParseStatus() == null ? "" : knowledge.getParseStatus());
+        resp.put("latestAttempt", latestAttempt);
+        resp.put("parseStatus", knowledge.getParseStatus() == null ? "" : knowledge.getParseStatus());
         resp.set("trace", tree.root());
         return resp;
     }
@@ -157,11 +157,11 @@ public class KnowledgeSpanService {
     private static ObjectNode spanNodeFromRow(
             KnowledgeProcessingSpan r) {
         ObjectNode n = MAPPER.createObjectNode();
-        n.put("knowledge_id", r.getKnowledgeId());
+        n.put("knowledgeId", r.getKnowledgeId());
         n.put("attempt", r.getAttempt());
-        n.put("span_id", r.getSpanId());
+        n.put("spanId", r.getSpanId());
         if (!r.getParentSpanId().isEmpty()) {
-            n.put("parent_span_id", r.getParentSpanId());
+            n.put("parentSpanId", r.getParentSpanId());
         }
         n.put("name", r.getName());
         n.put("kind", r.getKind());
@@ -176,23 +176,23 @@ public class KnowledgeSpanService {
             n.set("metadata", MAPPER.valueToTree(r.getMetadata()));
         }
         if (!r.getErrorCode().isEmpty()) {
-            n.put("error_code", r.getErrorCode());
+            n.put("errorCode", r.getErrorCode());
         }
         if (!r.getErrorMessage().isEmpty()) {
-            n.put("error_message", r.getErrorMessage());
+            n.put("errorMessage", r.getErrorMessage());
         }
         if (r.getStartedAt() != null) {
-            n.put("started_at", KnowledgeService.timeString(r.getStartedAt()));
+            n.put("startedAt", KnowledgeService.timeString(r.getStartedAt()));
         }
         if (r.getFinishedAt() != null) {
-            n.put("finished_at", KnowledgeService.timeString(r.getFinishedAt()));
+            n.put("finishedAt", KnowledgeService.timeString(r.getFinishedAt()));
         }
         if (r.getDurationMs() != 0) {
-            n.put("duration_ms", r.getDurationMs());
+            n.put("durationMs", r.getDurationMs());
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        n.put("created_at", KnowledgeService.timeString(r.getCreatedAt() == null ? now : r.getCreatedAt()));
-        n.put("updated_at", KnowledgeService.timeString(r.getUpdatedAt() == null ? now : r.getUpdatedAt()));
+        n.put("createdAt", KnowledgeService.timeString(r.getCreatedAt() == null ? now : r.getCreatedAt()));
+        n.put("updatedAt", KnowledgeService.timeString(r.getUpdatedAt() == null ? now : r.getUpdatedAt()));
         return n;
     }
 
@@ -200,17 +200,17 @@ public class KnowledgeSpanService {
                                        String name, String kind, String status,
                                        String parentSpanId, OffsetDateTime now) {
         ObjectNode n = MAPPER.createObjectNode();
-        n.put("knowledge_id", knowledgeId);
+        n.put("knowledgeId", knowledgeId);
         n.put("attempt", attempt);
-        n.put("span_id", spanId);
+        n.put("spanId", spanId);
         if (parentSpanId != null && !parentSpanId.isEmpty()) {
-            n.put("parent_span_id", parentSpanId);
+            n.put("parentSpanId", parentSpanId);
         }
         n.put("name", name);
         n.put("kind", kind);
         n.put("status", status);
-        n.put("created_at", KnowledgeService.timeString(now));
-        n.put("updated_at", KnowledgeService.timeString(now));
+        n.put("createdAt", KnowledgeService.timeString(now));
+        n.put("updatedAt", KnowledgeService.timeString(now));
         return n;
     }
 
@@ -226,12 +226,12 @@ public class KnowledgeSpanService {
         if (spanFailure != null) {
             ObjectNode e = MAPPER.createObjectNode();
             e.put("code", spanFailure.getErrorCode());
-            e.put("error_code", spanFailure.getErrorCode());
-            e.put("error_message", spanFailure.getErrorMessage());
+            e.put("errorCode", spanFailure.getErrorCode());
+            e.put("errorMessage", spanFailure.getErrorMessage());
             if (spanFailure.getFinishedAt() == null) {
                 e.putNull("finished_at");
             } else {
-                e.put("finished_at", KnowledgeService.timeString(spanFailure.getFinishedAt()));
+                e.put("finishedAt", KnowledgeService.timeString(spanFailure.getFinishedAt()));
             }
             e.put("message", spanFailure.getErrorMessage());
             e.put("name", spanFailure.getName());
@@ -253,9 +253,9 @@ public class KnowledgeSpanService {
         // finished_at < message < name < stage），契约样例锁定
         ObjectNode e = MAPPER.createObjectNode();
         e.put("code", errorCode);
-        e.put("error_code", errorCode);
-        e.put("error_message", message);
-        e.put("finished_at", knowledge.getUpdatedAt() == null
+        e.put("errorCode", errorCode);
+        e.put("errorMessage", message);
+        e.put("finishedAt", knowledge.getUpdatedAt() == null
                 ? null : KnowledgeService.timeString(knowledge.getUpdatedAt()));
         e.put("message", message);
         e.put("name", "knowledge_processing");

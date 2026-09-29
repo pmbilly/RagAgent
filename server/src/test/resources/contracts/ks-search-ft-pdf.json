@@ -1,1 +1,35 @@
-{"data":[{"id":"a2e00001-0000-0000-0000-000000000003","tenant_id":10002,"knowledge_base_id":"80bde2e1-30c3-4edc-be60-1f9e63f95454","tags":null,"type":"document","title":"ksdoc gamma 手册","description":"","source":"manual","channel":"web","parse_status":"completed","pending_subtasks_count":0,"summary_status":"none","enable_status":"enabled","embedding_model_id":"","file_name":"ksdoc-gamma.pdf","folder_path":"","file_type":"pdf","file_size":10,"file_hash":"000000000000000000000000000000a3","file_path":"","storage_size":0,"metadata":null,"custom_metadata":{},"last_faq_import_result":null,"created_at":"2026-09-19T05:12:14.946304+08:00","updated_at":"2026-09-19T05:12:14.946304+08:00","processed_at":null,"error_message":"","deleted_at":null,"knowledge_base_name":"ks-golden-kb"}],"has_more":false,"success":true,"total":1}
+{
+  "items": [
+    {
+      "id": "a2e00001-0000-0000-0000-000000000003",
+      "knowledgeBaseId": "80bde2e1-30c3-4edc-be60-1f9e63f95454",
+      "tags": null,
+      "type": "document",
+      "title": "ksdoc gamma 手册",
+      "description": null,
+      "source": "manual",
+      "channel": "web",
+      "parseStatus": "completed",
+      "pendingSubtasksCount": 0,
+      "summaryStatus": "none",
+      "enableStatus": "enabled",
+      "embeddingModelId": null,
+      "fileName": "ksdoc-gamma.pdf",
+      "folderPath": "",
+      "fileType": "pdf",
+      "fileSize": 10,
+      "fileHash": "000000000000000000000000000000a3",
+      "storageSize": 0,
+      "metadata": null,
+      "customMetadata": {},
+      "lastFaqImportResult": null,
+      "createdAt": "2026-09-19T05:12:14.946304+08:00",
+      "updatedAt": "2026-09-19T05:12:14.946304+08:00",
+      "processedAt": null,
+      "errorMessage": null,
+      "knowledgeBaseName": "ks-golden-kb"
+    }
+  ],
+  "hasMore": false,
+  "total": 1
+}

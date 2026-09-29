@@ -1,1 +1,3 @@
-{"data":{"deleted_count":0},"message":"Knowledge base is already empty","success":true}
+{
+  "deletedCount": 0
+}

@@ -238,7 +238,7 @@ class KnowledgeContractTest {
         MvcResult uploaded = mockMvc.perform(multipart("/api/v1/knowledge-bases/" + kbId + "/knowledge/file")
                         .file(file)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         assertEquals(mask(golden("doc-upload-file.json")),
                 mask(uploaded.getResponse().getContentAsString(StandardCharsets.UTF_8)),
@@ -291,7 +291,7 @@ class KnowledgeContractTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"title\":\"golden-manual\",\"content\":\"# Golden Manual\\n\\nhello manual knowledge\",\"status\":\"draft\"}"))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
         assertEquals(mask(golden("doc-manual-create.json")),
                 mask(manual.getResponse().getContentAsString(StandardCharsets.UTF_8)),
@@ -317,10 +317,10 @@ class KnowledgeContractTest {
                 mask(updated.getResponse().getContentAsString(StandardCharsets.UTF_8)),
                 "doc-update 应与 golden 一致（掩码后）");
 
-        // 8. delete → 掩码比对（task_id 动态）
+        // 8. delete → 202 异步受理 + 掩码比对（taskId 动态）
         MvcResult deleted = mockMvc.perform(delete("/api/v1/knowledge/" + manualId)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
+                .andExpect(status().isAccepted())
                 .andReturn();
         assertEquals(mask(golden("doc-delete.json")),
                 mask(deleted.getResponse().getContentAsString(StandardCharsets.UTF_8)),

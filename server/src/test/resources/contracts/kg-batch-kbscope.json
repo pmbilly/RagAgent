@@ -1,1 +1,31 @@
-{"data":[{"id":"afa00001-0000-0000-0000-000000000001","tenant_id":10002,"knowledge_base_id":"b69dd7e0-d1cb-425d-b428-450164756f7b","tags":null,"type":"document","title":"文档一","description":"","source":"manual","channel":"web","parse_status":"completed","pending_subtasks_count":0,"summary_status":"none","enable_status":"enabled","embedding_model_id":"","file_name":"kg-doc.txt","folder_path":"","file_type":"txt","file_size":38,"file_hash":"0000000000000000000000000000000a","file_path":"local://kgdocs/kg-doc.txt","storage_size":0,"metadata":null,"custom_metadata":{},"last_faq_import_result":null,"created_at":"2026-09-19T04:23:37.218866+08:00","updated_at":"2026-09-19T04:23:37.218866+08:00","processed_at":null,"error_message":"","deleted_at":null,"knowledge_base_name":""}],"success":true}
+[
+  {
+    "id": "afa00001-0000-0000-0000-000000000001",
+    "knowledgeBaseId": "b69dd7e0-d1cb-425d-b428-450164756f7b",
+    "tags": null,
+    "type": "document",
+    "title": "文档一",
+    "description": null,
+    "source": "manual",
+    "channel": "web",
+    "parseStatus": "completed",
+    "pendingSubtasksCount": 0,
+    "summaryStatus": "none",
+    "enableStatus": "enabled",
+    "embeddingModelId": null,
+    "fileName": "kg-doc.txt",
+    "folderPath": "",
+    "fileType": "txt",
+    "fileSize": 38,
+    "fileHash": "0000000000000000000000000000000a",
+    "storageSize": 0,
+    "metadata": null,
+    "customMetadata": {},
+    "lastFaqImportResult": null,
+    "createdAt": "2026-09-19T04:23:37.218866+08:00",
+    "updatedAt": "2026-09-19T04:23:37.218866+08:00",
+    "processedAt": null,
+    "errorMessage": null,
+    "knowledgeBaseName": null
+  }
+]

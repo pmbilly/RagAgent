@@ -1,1 +1,20 @@
-{"data":{"root_document_count":10,"total_document_count":13,"folders":[{"path":"\u003cscript\u003ex","name":"\u003cscript\u003ex","document_count":2,"total_count":3,"children":[{"path":"\u003cscript\u003ex/readme","name":"readme","document_count":1,"total_count":1}]}]},"success":true}
+{
+  "rootDocumentCount": 10,
+  "totalDocumentCount": 13,
+  "folders": [
+    {
+      "path": "<script>x",
+      "name": "<script>x",
+      "documentCount": 2,
+      "totalCount": 3,
+      "children": [
+        {
+          "path": "<script>x/readme",
+          "name": "readme",
+          "documentCount": 1,
+          "totalCount": 1
+        }
+      ]
+    }
+  ]
+}

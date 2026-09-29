@@ -50,7 +50,7 @@ public class KnowledgeFolderService {
 
 
     /**
-     * root_document_count/total_document_count/folders。
+     * rootDocumentCount/totalDocumentCount/folders。
      * 计数只排除 parse_status='deleting'（draft 计入）+ 软删行；中间空目录会被
      */
     public JsonNode folderTree(String kbId) {
@@ -82,9 +82,9 @@ public class KnowledgeFolderService {
                 continue;
             }
             ObjectNode node = ensureFolderNode(path, nodes, children, top);
-            node.put("document_count", node.path("document_count").asLong() + count);
+            node.put("documentCount", node.path("documentCount").asLong() + count);
         }
-        // 对照：深度优先回卷 total_count（深路径先算，父级累加子树）
+        // 深度优先回卷 totalCount：深路径先算，父级累加子树
         List<String> paths = new ArrayList<>(nodes.keySet());
         paths.sort((a, b) -> {
             int da = countChar(a, '/'), db = countChar(b, '/');
@@ -92,10 +92,10 @@ public class KnowledgeFolderService {
         });
         for (String path : paths) {
             ObjectNode node = nodes.get(path);
-            long total = node.path("document_count").asLong() + children
+            long total = node.path("documentCount").asLong() + children
                     .getOrDefault(path, List.of()).stream()
-                    .mapToLong(c -> c.path("total_count").asLong()).sum();
-            node.put("total_count", total);
+                    .mapToLong(c -> c.path("totalCount").asLong()).sum();
+            node.put("totalCount", total);
         }
         // 空 children 整键缺席
         //（KnowledgeFolderNode.Children omitempty）
@@ -110,8 +110,8 @@ public class KnowledgeFolderService {
         top.removeAll();
         topList.forEach(top::add);
         ObjectNode tree = MAPPER.createObjectNode();
-        tree.put("root_document_count", rootCount);
-        tree.put("total_document_count", totalCount);
+        tree.put("rootDocumentCount", rootCount);
+        tree.put("totalDocumentCount", totalCount);
         tree.set("folders", top);
         return tree;
     }
@@ -129,8 +129,8 @@ public class KnowledgeFolderService {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("path", path);
         node.put("name", folderName(path));
-        node.put("document_count", 0);
-        node.put("total_count", 0);
+        node.put("documentCount", 0);
+        node.put("totalCount", 0);
         nodes.put(path, node);
         String parent = folderParent(path);
         if (parent.isEmpty()) {

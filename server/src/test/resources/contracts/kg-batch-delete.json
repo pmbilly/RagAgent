@@ -1,1 +1,4 @@
-{"data":{"deleted_count":1,"task_id":"b3c20a06-f6c6-4bc6-bef8-924aba6528b1"},"message":"Batch delete task submitted","success":true}
+{
+  "deletedCount": 1,
+  "taskId": "b3c20a06-f6c6-4bc6-bef8-924aba6528b1"
+}

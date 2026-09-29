@@ -103,12 +103,12 @@ class KnowledgeOperationsContractTest {
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
     private static final Pattern UUID_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+            "\"([A-Za-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     /** 错误 message 文案里内嵌的 uuid（如 "Knowledge X does not belong to knowledge base Y"） */
     private static final Pattern UUID_BARE = Pattern.compile(
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
+            "\"([A-Za-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
 
     @Autowired
     private MockMvc mockMvc;
@@ -295,8 +295,8 @@ class KnowledgeOperationsContractTest {
         assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&ids=" + UNKNOWN, "kg-batch-missing.json");
         assertGet("/api/v1/knowledge/batch", "kg-batch-no-ids.json");
         assertGet("/api/v1/knowledge/batch?ids=", "kg-batch-empty-ids.json");
-        assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&kb_id=" + KB1, "kg-batch-kbscope.json");
-        assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&kb_id=" + UNKNOWN, "kg-batch-badkb.json");
+        assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&kbId=" + KB1, "kg-batch-kbscope.json");
+        assertGet("/api/v1/knowledge/batch?ids=" + KG1 + "&kbId=" + UNKNOWN, "kg-batch-badkb.json");
     }
 
     private void assertGetTwoIds(String golden, String id1, String id2) throws Exception {
@@ -748,6 +748,12 @@ class KnowledgeOperationsContractTest {
                 case "kg-image-update.json", "kg-image-again.json", "kg-image-badjson.json",
                      "kg-image-mismatch.json", "kg-image-404.json", "kg-download-traversal.json",
                      "kg-preview-traversal.json" -> 500;
+                // 异步受理（删除/重析/清空/文件夹搬移）：任务已入队但未完成
+                case "kg-batch-delete.json", "kg-batch-reparse.json", "kg-clear-empty.json",
+                     "kg-clear-nonempty.json", "kg-clear-again.json" -> 202;
+                // 无响应体的操作
+                case "kg-image-empty.json", "kg-tags.json", "kg-tags-clear.json",
+                     "kg-tags-no-kbid.json" -> 204;
                 default -> 200;
         };
     }

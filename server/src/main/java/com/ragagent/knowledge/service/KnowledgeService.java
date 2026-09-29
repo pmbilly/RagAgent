@@ -529,14 +529,13 @@ public class KnowledgeService {
     public static ObjectNode tagView(KnowledgeTag t) {
         ObjectNode n = MAPPER.createObjectNode();
         n.put("id", t.getId());
-        n.put("seq_id", t.getSeqId() == null ? 0L : t.getSeqId());
-        n.put("tenant_id", t.getTenantId() == null ? 0L : t.getTenantId());
-        n.put("knowledge_base_id", t.getKnowledgeBaseId());
+        n.put("seqId", t.getSeqId() == null ? 0L : t.getSeqId());
+        n.put("knowledgeBaseId", t.getKnowledgeBaseId());
         n.put("name", t.getName());
         n.put("color", t.getColor() == null ? "" : t.getColor());
-        n.put("sort_order", t.getSortOrder() == null ? 0 : t.getSortOrder());
-        n.put("created_at", t.getCreatedAt() == null ? null : timeString(t.getCreatedAt()));
-        n.put("updated_at", t.getUpdatedAt() == null ? null : timeString(t.getUpdatedAt()));
+        n.put("sortOrder", t.getSortOrder() == null ? 0 : t.getSortOrder());
+        n.put("createdAt", t.getCreatedAt() == null ? null : timeString(t.getCreatedAt()));
+        n.put("updatedAt", t.getUpdatedAt() == null ? null : timeString(t.getUpdatedAt()));
         return n;
     }
 

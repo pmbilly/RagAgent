@@ -1,1 +1,6 @@
-{"data":{"task_id":"kg_move_10002_1789767736229_faf92658_80bde2e130c","source_kb_id":"80bde2e1-30c3-4edc-be60-1f9e63f95454","target_kb_id":"b7171cc4-e709-44be-b931-ef850ecd461c","knowledge_count":1,"message":"Knowledge move task started"},"success":true}
+{
+  "taskId": "kg_move_10002_1789767736229_faf92658_80bde2e130c",
+  "sourceKbId": "80bde2e1-30c3-4edc-be60-1f9e63f95454",
+  "targetKbId": "b7171cc4-e709-44be-b931-ef850ecd461c",
+  "knowledgeCount": 1
+}

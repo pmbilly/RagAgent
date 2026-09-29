@@ -151,7 +151,7 @@ class KnowledgeSearchMoveContractTest {
         seedDoc(KG6, KB2, "第二库的 ksdoc", "ksdoc-sixth.txt", "txt", 10, "a6", "completed", 0);
         seedDoc(KG7, KB7, "clone 源一", "clone-src-one.txt", "txt", 10, "a7", "completed", 45);
         seedDoc(KG8, KB7, "clone 源二", "clone-src-two.txt", "txt", 10, "a8", "completed", 44);
-        // url 类型行（source=file_type='url'，file_types=url 走 type 分支）
+        // url 类型行（source=fileType='url'，fileTypes=url 走 type 分支）
         jdbc.update("INSERT INTO knowledges (id, tenant_id, knowledge_base_id, type, title, "
                 + "source, parse_status, summary_status, enable_status, file_name, file_type, "
                 + "file_size, file_hash, file_path, custom_metadata, created_at, updated_at) VALUES "
@@ -221,10 +221,10 @@ class KnowledgeSearchMoveContractTest {
         assertGetQ(owner, "/api/v1/knowledge/search", new String[][] {{"keyword", "指南"}},
                 "ks-search-title.json");
         assertGet(owner, "/api/v1/knowledge/search?keyword=zzzznope", "ks-search-none.json");
-        assertGet(owner, "/api/v1/knowledge/search?recent=true&file_types=url", "ks-search-recent-url.json");
-        assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&file_types=pdf", "ks-search-ft-pdf.json");
-        assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&file_types=xls", "ks-search-ft-xls-alias.json");
-        assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&file_types=pdf,txt", "ks-search-ft-multi.json");
+        assertGet(owner, "/api/v1/knowledge/search?recent=true&fileTypes=url", "ks-search-recent-url.json");
+        assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&fileTypes=pdf", "ks-search-ft-pdf.json");
+        assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&fileTypes=xls", "ks-search-ft-xls-alias.json");
+        assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&fileTypes=pdf,txt", "ks-search-ft-multi.json");
         assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&offset=1&limit=2", "ks-search-page.json");
         assertGet(owner, "/api/v1/knowledge/search?keyword=ksdoc&offset=99&limit=2", "ks-search-offset-beyond.json");
         assertGet(owner, "/api/v1/knowledge/search?keyword=a&offset=-1", "ks-search-offset-neg.json");
@@ -261,7 +261,7 @@ class KnowledgeSearchMoveContractTest {
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
                 "{\"query_embedding\":[0.1,0.2],\"disable_keywords_match\":true}", owner,
                 "ks-hybrid-precomputed.json");
-        assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search?resource_urls=bogus",
+        assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search?resourceUrls=bogus",
                 "{\"query_text\":\"probe\"}", owner, "ks-hybrid-badmode.json");
         assertPostJson("/api/v1/knowledge-bases/" + KB3 + "/hybrid-search",
                 "{\"query_text\":\"x\",\"knowledge_base_ids\":[\"" + UNKNOWN + "\"]}", owner,
@@ -317,7 +317,7 @@ class KnowledgeSearchMoveContractTest {
         assertPostJson("/api/v1/knowledge/move", moveBody(KG1, KB1, CROSS_KB, "reparse"), owner,
                 "ks-move-cross-target.json");
         // happy path：真实搬 KG2（KB1 → KB2, reuse_vectors）
-        MvcResult mv = postForOk("/api/v1/knowledge/move", moveBody(KG2, KB1, KB2, "reuse_vectors"),
+        MvcResult mv = postForAccepted("/api/v1/knowledge/move", moveBody(KG2, KB1, KB2, "reuse_vectors"),
                 owner, "ks-move-ok.json");
         String taskId = extractTaskId(raw(mv));
         // 等 worker 完成（Java 进程内虚拟线程），比对终态进度
@@ -341,14 +341,14 @@ class KnowledgeSearchMoveContractTest {
     void copyMatchesGo() throws Exception {
         // 复刻录制序前置：copy 之前 KG2 已被 move 搬进 KS2（进度 total=4 依赖这个状态：
         // remove = KS2 里的 KG2+KG6 两行）。本用例只驱动状态，golden 断言在 moveMatchesGo。
-        MvcResult mv = postForOk("/api/v1/knowledge/move", moveBody(KG2, KB1, KB2, "reuse_vectors"),
+        MvcResult mv = postForAccepted("/api/v1/knowledge/move", moveBody(KG2, KB1, KB2, "reuse_vectors"),
                 owner, null);
         awaitMoveProgress(extractTaskId(raw(mv)));
         // create 目标（KS3 空库，total=0）
-        postForOk("/api/v1/knowledge-bases/copy", "{\"source_id\":\"" + KB3 + "\"}", owner,
+        postForAccepted("/api/v1/knowledge-bases/copy", "{\"source_id\":\"" + KB3 + "\"}", owner,
                 "ks-copy-create.json");
         // copy 到已有目标（KS7 → KS2）：add=2 remove=2 → total=4；录到的 progress 是这条任务的
-        MvcResult cp = postForOk("/api/v1/knowledge-bases/copy",
+        MvcResult cp = postForAccepted("/api/v1/knowledge-bases/copy",
                 "{\"source_id\":\"" + KB7 + "\",\"target_id\":\"" + KB2 + "\"}", owner,
                 "ks-copy-to-existing.json");
         String taskId = extractTaskId(raw(cp));
@@ -405,13 +405,14 @@ class KnowledgeSearchMoveContractTest {
                 + "\",\"target_kb_id\":\"" + target + "\",\"mode\":\"" + mode + "\"}";
     }
 
-    private MvcResult postForOk(String path, String body, String auth, String goldenName)
+    /** 异步受理类 POST：期望 202（任务已入队）。 */
+    private MvcResult postForAccepted(String path, String body, String auth, String goldenName)
             throws Exception {
         MvcResult r = mockMvc.perform(post(path)
                         .header("Authorization", auth)
                         .header("Content-Type", "application/json")
                         .content(body == null ? "" : body)).andReturn();
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
+        assertEquals(202, r.getResponse().getStatus(), raw(r));
         if (goldenName != null) {
             assertEquals(mask(golden(goldenName)), mask(raw(r)));
         }

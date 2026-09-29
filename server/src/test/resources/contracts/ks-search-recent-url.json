@@ -1,1 +1,35 @@
-{"data":[{"id":"a2e00001-0000-0000-0000-000000000009","tenant_id":10002,"knowledge_base_id":"80bde2e1-30c3-4edc-be60-1f9e63f95454","tags":null,"type":"url","title":"ksdoc url 页","description":"","source":"url","channel":"web","parse_status":"completed","pending_subtasks_count":0,"summary_status":"none","enable_status":"enabled","embedding_model_id":"","file_name":"https://example.com/ksdoc-page","folder_path":"","file_type":"url","file_size":0,"file_hash":"000000000000000000000000000000a9","file_path":"","storage_size":0,"metadata":null,"custom_metadata":{},"last_faq_import_result":null,"created_at":"2026-09-19T05:32:14.946304+08:00","updated_at":"2026-09-19T05:32:14.946304+08:00","processed_at":null,"error_message":"","deleted_at":null,"knowledge_base_name":"ks-golden-kb"}],"has_more":false,"success":true,"total":1}
+{
+  "items": [
+    {
+      "id": "a2e00001-0000-0000-0000-000000000009",
+      "knowledgeBaseId": "80bde2e1-30c3-4edc-be60-1f9e63f95454",
+      "tags": null,
+      "type": "url",
+      "title": "ksdoc url 页",
+      "description": null,
+      "source": "url",
+      "channel": "web",
+      "parseStatus": "completed",
+      "pendingSubtasksCount": 0,
+      "summaryStatus": "none",
+      "enableStatus": "enabled",
+      "embeddingModelId": null,
+      "fileName": "https://example.com/ksdoc-page",
+      "folderPath": "",
+      "fileType": "url",
+      "fileSize": 0,
+      "fileHash": "000000000000000000000000000000a9",
+      "storageSize": 0,
+      "metadata": null,
+      "customMetadata": {},
+      "lastFaqImportResult": null,
+      "createdAt": "2026-09-19T05:32:14.946304+08:00",
+      "updatedAt": "2026-09-19T05:32:14.946304+08:00",
+      "processedAt": null,
+      "errorMessage": null,
+      "knowledgeBaseName": "ks-golden-kb"
+    }
+  ],
+  "hasMore": false,
+  "total": 1
+}
