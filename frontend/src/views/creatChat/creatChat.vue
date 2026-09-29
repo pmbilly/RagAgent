@@ -207,9 +207,10 @@ async function createNewSession(value: string, modelId: string, mentionedItems: 
     };
 
     try {
-        const res = await createSessions(sessionData);
-        if (res.data && res.data.id) {
-            await navigateToSession(res.data.id, value, modelId, mentionedItems, imageFiles, attachmentFiles);
+        const res: any = await createSessions(sessionData);
+        // 裸对象：响应体即会话
+        if (res && res.id) {
+            await navigateToSession(res.id, value, modelId, mentionedItems, imageFiles, attachmentFiles);
         } else {
             console.error('[createChat] Failed to create session');
             MessagePlugin.error(t('createChat.messages.createFailed'));

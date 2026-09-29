@@ -124,10 +124,11 @@ const loadConfig = async () => {
 const loadStats = async () => {
   try {
     const response = await getChatHistoryKBStats()
-    if (response.data) {
-      stats.value = response.data
+    // 裸对象：响应体即统计
+    if (response) {
+      stats.value = response
       // Lock model if there are indexed messages
-      modelLocked.value = response.data.has_indexed_messages === true
+      modelLocked.value = response.has_indexed_messages === true
     }
   } catch (error: any) {
     console.error('Failed to load chat history stats:', error)

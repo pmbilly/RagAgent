@@ -3604,9 +3604,10 @@ async function handleIssueIgnore(issueId: string) {
 
 async function startFixSession(prompt: string) {
   try {
-    const res = await createSessions({})
-    if (res && (res as any).data && (res as any).data.id) {
-      const sessionId = (res as any).data.id
+    const res: any = await createSessions({})
+    // 裸对象：响应体即会话
+    if (res && res.id) {
+      const sessionId = res.id
       const now = new Date().toISOString()
 
       menuStore.updataMenuChildren({

@@ -149,12 +149,12 @@ const uploadAttachment = async (attachment: AttachmentFile) => {
         emitFiles();
       },
     );
-    attachment.documentId = response.data.id;
+    attachment.documentId = response.id;
     if (disposed || !attachments.value.some(item => item.id === attachment.id)) {
-      await deleteTemporaryAttachment(props.sessionId, response.data.id).catch(() => undefined);
+      await deleteTemporaryAttachment(props.sessionId, response.id).catch(() => undefined);
       return;
     }
-    attachment.status = response.data.status;
+    attachment.status = response.status;
     attachment.progress = 100;
     emitFiles();
     if (attachment.status !== 'ready' && attachment.status !== 'failed') {
@@ -176,8 +176,8 @@ const pollStatus = async (attachment: AttachmentFile) => {
   if (!props.sessionId || !attachment.documentId || !attachments.value.some(item => item.id === attachment.id)) return;
   try {
     const response = await getTemporaryAttachment(props.sessionId, attachment.documentId);
-    attachment.status = response.data.status;
-    attachment.error = response.data.error_message;
+    attachment.status = response.status;
+    attachment.error = response.error_message;
     emitFiles();
     if (attachment.status !== 'ready' && attachment.status !== 'failed') scheduleStatusPoll(attachment);
   } catch (error: any) {

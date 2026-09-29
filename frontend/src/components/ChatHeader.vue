@@ -277,10 +277,11 @@ async function copyMarkdown(): Promise<void> {
         created_at: beforeTime,
         limit,
       })
-      if (!response?.success || !Array.isArray(response.data)) {
+      // 裸数组：响应体即消息列表
+      if (!Array.isArray(response)) {
         throw new Error(response?.message || 'failed to load session messages')
       }
-      return response.data
+      return response
     })
     const markdown = buildSessionMarkdown({
       sessionId: session.id,

@@ -787,7 +787,8 @@ const loadBucketPage = async (key: string, page?: number, token?: number) => {
     try {
         const res: any = await getSessionsList(nextPage, SIDEBAR_BUCKET_PAGE_SIZE, bucket.apiSource);
         if (activeToken !== bucketRequestToken) return;
-        const rows = (res?.data || []).map((item: any) => mapSessionRow(item));
+        // 会话列表：{items,total}（原 {data,success,total}）
+        const rows = (res?.items || []).map((item: any) => mapSessionRow(item));
         const current = sessionBuckets.value[key];
         sessionBuckets.value = {
             ...sessionBuckets.value,
@@ -836,11 +837,12 @@ const syncActiveBucketFromChat = async (sessionId: string | undefined) => {
     if (!bucketKey) {
         try {
             const res: any = await getSession(sessionId);
+            // 裸对象：响应体即会话
             const candidate = originGroupKey(resolveSessionOrigin({
                 id: sessionId,
-                im_platform: res?.data?.im_platform || '',
-                description: res?.data?.description || '',
-                user_id: res?.data?.user_id || '',
+                im_platform: res?.im_platform || '',
+                description: res?.description || '',
+                user_id: res?.user_id || '',
             }));
             if (sessionBuckets.value[candidate]) {
                 bucketKey = candidate;

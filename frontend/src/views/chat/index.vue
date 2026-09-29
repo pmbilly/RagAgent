@@ -261,9 +261,10 @@ const loadSessionAndHydrate = async (sid) => {
     const preserveDraft = Boolean(firstQuery.value);
     try {
         const sessionRes = await getSession(sid);
-        if (sessionRes?.data && sid === session_id.value) {
-            currentSession.value = sessionRes.data;
-            const lastState = sessionRes.data.last_request_state;
+        // 裸对象：响应体即会话
+        if (sessionRes && sid === session_id.value) {
+            currentSession.value = sessionRes;
+            const lastState = sessionRes.last_request_state;
             useSettingsStoreInstance.hydrateSessionInputState(lastState, preserveDraft);
         }
     } catch (error) {
@@ -423,12 +424,12 @@ const loadFollowUpSuggestions = async (message, ensure = false, regenerate = fal
         let response = ensure
             ? await ensureMessageSuggestions(targetSessionId, messageId, regenerate)
             : await getMessageSuggestions(targetSessionId, messageId);
-        let set = response?.data;
+        let set = response;  // 裸资源：响应体即建议集
         for (let attempt = 0; set?.status === 'generating' && attempt < 120; attempt++) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
             if (session_id.value !== targetSessionId || message.suggestionsDismissed) return;
             response = await getMessageSuggestions(targetSessionId, messageId);
-            set = response?.data;
+            set = response;
         }
         message.suggestionSet = set?.status === 'ready' ? set : null;
     } catch (error) {
@@ -737,7 +738,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
         historyLoadingMore.value = true;
     }
     fetchMessageList(data).then(async (res) => {
-        const batch = res?.data;
+        const batch = res;  // 裸数组：响应体即消息列表
         if (!batch?.length) {
             if (isScrollType) {
                 hasMoreHistory.value = false;
@@ -1003,7 +1004,7 @@ const attachSteerFollowUp = async (completedAssistantId) => {
             if (sessionChanged()) return;
             const res = await getMessageList({ session_id: sessionId, limit: 30, created_at: '' });
             if (sessionChanged()) return;
-            const batch = res?.data || [];
+            const batch = Array.isArray(res) ? res : [];
             const newAssistant = [...batch].reverse().find((m) =>
                 m.role === 'assistant' && !m.is_completed && m.id && m.id !== completedAssistantId
             );
@@ -1275,7 +1276,7 @@ const recoverIncompleteMessage = () => {
         attempts++;
         try {
             const res = await getMessageList({ session_id: targetSession, limit: limit.value, created_at: '' });
-            const target = (res?.data || []).find((m) => m.id === targetMessageId);
+            const target = (Array.isArray(res) ? res : []).find((m) => m.id === targetMessageId);
             if (target && target.is_completed) {
                 created_at.value = '';
                 messagesList.splice(0);

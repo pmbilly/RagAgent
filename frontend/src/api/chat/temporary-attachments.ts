@@ -17,18 +17,13 @@ export interface TemporaryAttachment {
   expires_at: string;
 }
 
-interface AttachmentResponse {
-  success: boolean;
-  data: TemporaryAttachment;
-}
-
 export function uploadTemporaryAttachment(
   sessionId: string,
   file: File,
   agentId?: string,
   parserEngine?: string,
   onProgress?: (percent: number) => void,
-): Promise<AttachmentResponse> {
+): Promise<TemporaryAttachment> {
   const form = new FormData();
   form.append('file', file);
   if (agentId) form.append('agent_id', agentId);
@@ -42,7 +37,7 @@ export function uploadTemporaryAttachment(
   );
 }
 
-export function getTemporaryAttachment(sessionId: string, attachmentId: string): Promise<AttachmentResponse> {
+export function getTemporaryAttachment(sessionId: string, attachmentId: string): Promise<TemporaryAttachment> {
   return get(`/api/v1/sessions/${sessionId}/attachments/${attachmentId}`);
 }
 
