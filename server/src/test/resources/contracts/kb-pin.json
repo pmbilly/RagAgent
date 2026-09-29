@@ -63,5 +63,6 @@
     "engineType": "postgres",
     "status": "available"
   },
-  "creatorName": null
+  "creatorName": null,
+  "storageProvider": "local"
 }

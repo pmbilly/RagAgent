@@ -64,7 +64,8 @@
       "source": "env",
       "engineType": "postgres",
       "status": "available"
-    }
+    },
+    "storageProvider": "local"
   },
   {
     "asrConfig": {
@@ -131,6 +132,7 @@
       "source": "env",
       "engineType": "postgres",
       "status": "available"
-    }
+    },
+    "storageProvider": "local"
   }
 ]

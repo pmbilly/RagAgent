@@ -64,7 +64,8 @@
       "engineType": "postgres",
       "status": "available"
     },
-    "creatorName": null
+    "creatorName": null,
+    "storageProvider": "local"
   },
   {
     "id": "793fcc0f-2f4d-4db6-871a-0a7aaf82ae9a",
@@ -131,6 +132,7 @@
       "engineType": "postgres",
       "status": "available"
     },
-    "creatorName": null
+    "creatorName": null,
+    "storageProvider": "local"
   }
 ]

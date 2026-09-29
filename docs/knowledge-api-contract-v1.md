@@ -94,11 +94,11 @@
 | 5 | `creator_id` 空串表示"系统创建" | `creatorId: null` 表示系统 / 未记录 | 前端展示"系统"分支调整 |
 | 6 | `vector_store_name: "System default"` 魔法字符串 + 三个扁平字段 | 收敛为 `vectorStore: {id, name, source, engineType, status}`；无绑定 = `null` | 前端取值路径变更 |
 | 7 | 全部键按字母序（TreeMap 复刻 Go map） | 按 DTO 声明顺序 | 前端不得依赖顺序（现状也不应依赖） |
-| 8 | 4 种隐式响应形态（`build`/`buildRaw`/`buildListItem`/`buildSharedListItem`） | 显式 2 种 DTO：`KnowledgeBaseResponse`（详情）/ `KnowledgeBaseBrief`（列表项） | 需逐字段核对两种形态的差异并落成文档 |
+| 8 | 4 种隐式响应形态 | **统一为 1 个 `KnowledgeBaseResponse`**（实测 `buildSharedListItem` 是死代码，其余仅键序/两三个字段差异） | 已落地（2026-09-29 批次 1） |
 | 9 | Java 侧 `isIsPinned()` 双 is | Java 字段 `pinned`，JSON `pinned` ✅定稿 | 前端取值改为 `kb.pinned` |
 | 10 | 重复文档 409 特殊信封 | 统一标准错误体（§2.2） | 前端错误处理收敛 |
 | 11 | 分页 `data/page/page_size/total/success` | `{items, page, pageSize, total}` | 前端分页组件适配 |
-| 12 | `file_path`/`storage_provider_config` 等内部字段暴露 | 不输出（白名单原则） | 前端如有使用需确认替代方案 |
+| 12 | `file_path`/`storage_provider_config` 等内部字段暴露 | 不输出内部字段；**存储提供方名仍以 `storageProvider`（如 local/cos/oss）单独下发**（UI 多模态判断需要），凭据配置不下发 | 前端改读 `kb.storageProvider` |
 | 13 | FAQ 检索命中 `score`/`match_type`/`matched_question` 条件出现 | 收敛为 `match: {score, type, matchedQuestion}`；无命中 = `null` | 前端检索结果展示调整 |
 | 14 | FAQ `tag_id` 为数字，其他 ID 为字符串 | 统一 `String` | 前端类型定义统一 |
 | 15 | 数值错误码 1000–2300 | **保留**（前端已有分支），仅统一外层结构 | 无 |

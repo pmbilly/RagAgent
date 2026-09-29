@@ -67,7 +67,8 @@
         "status": "available"
       },
       "creatorName": null,
-      "storageBackendId": null
+      "storageBackendId": null,
+      "storageProvider": null
     },
     "models": [
       {
