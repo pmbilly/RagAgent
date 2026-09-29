@@ -70,7 +70,7 @@
 | 1 五功能移除 | 按 §6.1 清单逐 PR 拆除浏览器连接/沙箱(含技能体系)/CLI/Chrome插件/Claw Skill；schema dump → `V1__baseline.sql`（减裁剪表，196 个增量迁移退役）；测试对比器从字节对比改 **JSON 语义对比**（键序/转义归一化后再比）+ fixture 重录 | **已完成（2026-09-29）**：ba04157（CI+环境）→ f073c88（PR1 三 tab）→ 0f72b0f（PR2 浏览器连接）→ caef9d5（PR3 沙箱+技能降级）→ fba0e7a（PR4 基线+语义比较器）；累计净删 ~8.3 万行，4,685 后端测试全绿 |
 | 2 **知识库 + Agent 聚焦重构** | knowledge 四神类 + agent 五神类拆分（沿注释边界）；Controller rawBody → DTO + `@Valid`；GORM 复刻层改写为自有数据访问契约 | **knowledge 域已完成**（2026-09-29/30，见 §11）：神类全拆（最大 1,234 行）、34 个 rawBody 端点 DTO 化、目录整治 13 子包。**剩 agent 域五神类**（AgentEngine 3,235 为首）与其余域的 GORM 复刻层 |
 | 3 契约换锚（全仓一次性） | 删 Go 序列化层（408 处引用 / 94 文件）、Problem Details、jsr310、NON_NULL（§2 第 4 条）；每个端点改完同 PR 带前端 | **部分已执行**：knowledge / retrieval / 会话-消息-附件-建议 / chunker-preview 的前端可见契约已换锚（§11），**落库格式也已去 snake（§2 第 11 条）**；**Go 序列化器本体删除未动**——按红线仍须一次性全仓完成 |
-| 4 其余域标准化 + 架构调整 | session/wiki/retrieval 等其余神类；getenv 收敛；注释清洗；可选裁剪（im/datasource，见 §6.2——org 已清账）；Gradle 多模块 + ArchUnit 边界规则进 CI | 2–3 人月（未开始） |
+| 4 其余域标准化 + 架构调整 | **按 §14 逐包重构范式推进**（knowledge 为范本）：session/wiki/retrieval/memory/llm 等其余神类；getenv 收敛；注释清洗；可选裁剪（im/datasource，见 §6.2——org 已清账）；Gradle 多模块 + ArchUnit 边界规则进 CI | 2–3 人月（未开始） |
 
 总量约 5–8 人月；2 人并行日历约 2.5–4 个月。阶段 2/3 顺序可对调（语义对比落地后换锚对已拆分代码同样安全），但**序列化层删除必须一次性全仓完成**——半删状态（一部分端点走 Go 格式、一部分走标准 Jackson）最危险。
 
@@ -122,6 +122,9 @@
 3. **knowledge 域目录整治（§2 第 13/14 条）**：`mapper/repository/service/support/task/client/storage/security` 分层、`dto/` 一类型一文件（59 个类型拆出）、容器类与缩写命名清零。
 
 **下一步候选（按建议优先级）**：
+
+> **推进方式已定稿：§14 逐包重构范式（knowledge 为范本，逐步重构其他包）**——先读 §14.2 的七步 SOP 与 §14.3 的候选域盘点，再选下一个域。
+
 1. **③ 错误文案 + 手写绑定器 DTO 化**（收益明确、风险低）：gin 风格校验文案（`Key: 'X' Error:Field validation for 'X' failed on the 'required' tag`、`json: cannot unmarshal … into Go struct field .tenant_id`）→ Java 惯用写法；连带把 **Go 复刻手写绑定器**（如 `AuthController.bindSwitchTenantRequest`）改成 DTO + `@Valid`。⚠️ 这类绑定器里藏着**真实缺陷**：请求侧早已 camelCase 但它们仍按旧键读 → 前端字段静默丢失（§11 已修一处，建议全仓 grep 同类）。
 2. **agent 域五神类拆分**（`AgentEngine` 3,235 行，七段注释边界）——阶段 2 的另一半。
 3. **Go 序列化层删除（阶段 3 收尾）**：408 处引用 / 94 文件回归标准 Jackson（`common/web` 的 `GoMapSerializer`/`GoDoubleSerializer`/`GoTimeSerializer`/`GoJsonEscapes`），Controller 手搓 `ObjectNode` 一并收敛——**红线要求一次性全仓完成**，不能按域分批。
@@ -241,3 +244,98 @@ knowledge/
 12. **别在 shell 双引号里跑含反引号的 `python3 -c`**：zsh 会把反引号当命令替换（`{@link 旧名}`、`阶段 N` 之类的文本会被执行并清空，静默写坏文件）。改写脚本文件再 `python3 /tmp/xxx.py`，或在 Python 里用 chr(96) 拼反引号。
 13. **写 javadoc 的判据（knowledge 包已按此做完）**：写"名字看不出来的"——三态语义（null = 不变更）、乐观锁字段、视图与写入形状的差异（如 VLM 视图不含 `apiKey`）、与仓储类型的对应关系、jsonb 列名；**不写**名字即语义的 CRUD 请求体（写了是噪声）。覆盖目标：承载语义的类型 100%，方法层保持"逻辑密集类 90%+ / 访问器 0%"的分布。
 14. **跑 `test` ≠ 跑了闸门**：仓库早已配好 Spotless（`removeUnusedImports` + `trimTrailingWhitespace` + `endWithNewline`，`ratchetFrom("seed")`），但只跑 `:server:test` 时它**不执行**——每批收尾必须 `:server:spotlessCheck`（或 `check`）。两个已知盲点：①`removeUnusedImports()` **不去重**（本次手删 13 处重复 import，分布在 5 个文件；要根治可加 `importOrder()` 步骤，但那会重排 import，需单独一个轴）；②抽类/拆类时别继承原文件的 import 列表（276 处残留的来源）。
+
+## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
+
+> **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
+> §12 是"拆完长什么样"，本节是"**怎么拆**"——把 knowledge 那 40+ 个提交里可复制的部分固化成 SOP。
+> knowledge 的量化基线（目标形态，实测 2026-09-30）：197 文件 / 25,138 行 / 最大类 1,234 行 /
+> ≥800 行 3 个（皆有 javadoc 注明的例外理由）/**Go 锚点 0 / rawBody 0 / 逐字段 `@JsonProperty` 0 / 未使用 import 0**。
+
+### 14.1 三条内核（范本之所以有效的地方）
+
+1. **沿注释边界拆，不按行数硬切**：神类里的 `// ── X 段 ──` 分割线就是拆解点（`KnowledgeService`
+   3,392 行 → 门面 + 7 切片服务就是照这个来的）。拆完"门面保留全部公共委托"→ 18+ 注入点与
+   Mockito 测试**零改动**，这是能把大手术做小的关键。
+2. **每步全绿再走下一步**：`:server:test`（4,670 用例）+ `:server:spotlessCheck`；**纯移动也走这一套**。
+   这是"种子 fork + 渐进转型"优于重写的全部意义（§9）。
+3. **一次只动一个轴**（§3 红线 1）：拆类期不改契约、换锚期不拆类、卫生期不动逻辑。
+   轴混了就退化成大爆炸重写。
+
+### 14.2 单域 SOP（七步，每步独立提交、独立全绿）
+
+| 步 | 动作 | 关键点 / 产出 |
+|---|---|---|
+| 0 侦察 | 按 §14.4 命令出该域体检表 | 规模 / 神类 / Go 锚点 / `@JsonProperty` / rawBody / 未用 import |
+| 1 边界 | 判"该域哪些**不能动**" + 列跨包缝合点 | 对照 §11 边界清单；缝合点用 `git grep` 实测，别凭印象 |
+| 2 拆分 | 神类沿注释边界 → 门面 + 切片；容器类 → 一类型一文件 | 测试随被拆类**同包 `git mv`**；容器级常量/私有 helper 先安置（§13.4/13.5） |
+| 3 分层 | `controller/service/support/task/client/storage/security/repository/mapper/domain/dto` | 每包一份 `package-info.java`（职责地图） |
+| 4 契约 Java 化 | controller 入参 → DTO + `@Valid`；去 `@JsonNaming` / 逐字段 `@JsonProperty` / 信封 | **顺手消灭手写绑定器**（那是真实缺陷温床，§7 第 1 条）；同批带前端 |
+| 5 数据访问去 Go | 落库 jsonb 去 snake（若该域有此面）| 改完必须 `grep` 全仓"按旧键读取"的代码（§11 ② 的 4 处真实缺陷） |
+| 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
+| 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
+
+### 14.3 候选域盘点（2026-09-30 实测；`knowledge` 为已完成参照）
+
+| 域 | 文件 | 行数 | 最大类 | ≥800 | Go 锚点 | `@JsonProperty` | 未用 import | 备注 |
+|---|---|---|---|---|---|---|---|---|
+| **wiki** | 120 | 23,564 | WikiIngestBatchHandler 2,269 | 6 | **1,312** | 218 | 4 | Go 债务最重 |
+| **agent** | 131 | 29,590 | AgentEngine 3,236 | 6 | 466 | 96 | 5 | §5 阶段 2 的另一半（已列名） |
+| **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
+| **session** | 73 | 21,525 | SessionKnowledgeQaService 1,765 | **8** | 627 | 188 | 3 | 神类最分散；`wip/chat-sse-slice2` 在途 |
+| **memory** | 62 | 13,166 | MemoryService 1,661 | 3 | 559 | 134 | 2 | |
+| **llm** | 94 | 10,826 | RemoteApiChat 1,367 | 1 | 476 | 171 | 1 | |
+| **retrieval** | 58 | 19,404 | OpenSearchRetrieveRepository 1,653 | **10** | 267 | 19 | 2 | 契约已换锚（§11 ①） |
+| **im** | 63 | 16,006 | ImService 1,447 | 2 | 200 | 17 | 11 | §6.2：可裁（1 个跨包引用） |
+| **mcp** | 109 | 12,812 | McpServiceController 938 | 2 | 532 | 110 | 1 | |
+| **auth** | 57 | 9,335 | AuthController 1,168 | 3 | 151 | 208 | 3 | 手写绑定器已修一处（§11 ②） |
+| **agentm** | 19 | 5,265 | InitializationController 1,982 | 2 | 60 | 0 | 0 | 自有契约、内层 snake（§7 第 5 条） |
+| 其余小域 | ≤44 | ≤8.9k | ≤1,146 | 0–2 | ≤244 | ≤86 | ≤8 | 顺手标准化即可 |
+
+**建议顺序**（用户可按需调整）：① **agent**（阶段 2 的另一半，边界已明确、收益最大）→ ② **wiki**
+（Go 债务最重）→ ③ **session**（神类最多，且已有在途切片分支）→ ④ **datasource / im**
+（先决策"删 or 留"再动工）→ ⑤ 其余域。
+**排序依据**：风险随"跨包引用数 × 契约可见面"上升，收益随"神类行数 × Go 债务"上升。
+
+**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` ⬜ ｜`wiki` ⬜ ｜`session` ⬜ ｜
+`datasource` ⬜（先定删/留）｜`im` ⬜（先定删/留）｜`memory` ⬜ ｜`llm` ⬜ ｜`retrieval` ⬜ ｜
+`mcp` ⬜ ｜`auth` ⬜ ｜`agentm` ⬜ ｜其余小域 ⬜。
+每完成一个域：把该行改为 ✅、在 §11 追加执行记录、按 §14.2 第 7 步回填数据。
+
+### 14.4 体检命令（复制即用）
+
+```bash
+cd ~/ragagent
+# 神类/大文件排行（全仓）
+git ls-files 'server/src/main/java/**/*.java' | xargs wc -l | sort -rn | head -25
+# Go 债务：锚点注释 / 逐字段 @JsonProperty / 手写 rawBody 绑定
+git grep -cE '对照 Go|GORM|Go 的' -- 'server/src/main/java/**/*.java' | sort -t: -k2 -nr | head -15
+git grep -c '@JsonProperty(' -- 'server/src/main/java/**/*.java' | sort -t: -k2 -nr | head -15
+git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/java/**/*.java'
+# 卫生闸门（ratchet：只覆盖 seed 后触碰过的文件，这是设计不是遗漏）
+./gradlew :server:spotlessCheck
+# 每步收尾的三条（§9）
+./gradlew :server:test && (cd frontend && npx vue-tsc --build --force && npm test)
+```
+
+### 14.5 完成判据（Acceptance，逐项核对）
+
+- [ ] 该域最大类 < 800 行；例外必须在类 javadoc 写明理由（对齐 knowledge 的 3 个例外）
+- [ ] Go 锚点注释 0 / 注释掉的代码 0 / 坏 `{@link}` 0 / 批次与阶段代号 0
+- [ ] 请求侧无 `@JsonNaming`、无逐字段 `@JsonProperty`；无 `{data,success}` 信封；删除返 204；可空显式 `null`
+- [ ] controller 入参全部 `@Valid` DTO（multipart 与"固定文案兜底"端点可保留手绑，但须在 javadoc 注明）
+- [ ] 每个子包有 `package-info.java`；`*Util`/容器类等反模式命名清零
+- [ ] 触点变更后：`:server:test` 全绿 + `:server:spotlessCheck` 绿 +（触及前端契约时）`vue-tsc` 0 错误 / `npm test` 全绿
+- [ ] §4 数据、§12 地图、§13 经验、本节候选表四处同步更新
+
+### 14.6 不要做什么（踩过的坑，别再踩）
+
+- **别把"Go 序列化层删除"拆到各域**：409 处引用 / 94 文件的那一刀按 §3 红线必须**一次性全仓完成**。
+  按域先换锚（同 PR 带前端）是允许的，删序列化器本体不是。
+- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、wiki 域实体、
+  agent 域 fixture（`ag-*`）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档——
+  这些"仍是 snake"是**对的**。
+- **别为数字写注释**：getter/POJO 访问器保持 0 javadoc（§13.13）。
+- **别做全仓文本替换**：先用单文件验证再决定扩大（§13.2 的两次翻车）。
+- **别跳过闸门**：只跑 `:server:test` 会漏掉 Spotless（§13.14）。
+
