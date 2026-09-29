@@ -4,14 +4,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.agent.tools.DocChunkSupport.ImageInfoView;
-import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Chunk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -243,13 +240,17 @@ public class KnowledgeSearchTool extends BaseTool {
     }
 
     private final KnowledgeSearchBackend backend;
-    private final ChunkInfoBackend chunkBackend;
+    final ChunkInfoBackend chunkBackend;
     private final ImageEnricher imageEnricher;
-    private final RerankerModel reranker;
-    private final SearchTarget.SearchTargets searchTargets;
-    private final SearchConfig config;
+    final RerankerModel reranker;
+    final SearchTarget.SearchTargets searchTargets;
+    final SearchConfig config;
+
+    /** 排序与输出两个包内协作者（构造期装配）。 */
+    private final KnowledgeSearchRanking ranking;
+    private final KnowledgeSearchOutputFormatter formatter;
     /** 会话级已返回 chunk 去重（对照 seenChunks；单实例顺序使用）。 */
-    private final Set<String> seenChunks = new LinkedHashSet<>();
+    final Set<String> seenChunks = new LinkedHashSet<>();
 
     public KnowledgeSearchTool(KnowledgeSearchBackend backend, ChunkInfoBackend chunkBackend,
             ImageEnricher imageEnricher, RerankerModel reranker,
@@ -261,6 +262,8 @@ public class KnowledgeSearchTool extends BaseTool {
         this.reranker = reranker;
         this.searchTargets = searchTargets;
         this.config = config == null ? SearchConfig.defaults() : config;
+        this.ranking = new KnowledgeSearchRanking(this);
+        this.formatter = new KnowledgeSearchOutputFormatter(this);
     }
 
     @Override
@@ -341,13 +344,13 @@ public class KnowledgeSearchTool extends BaseTool {
         List<ResultWithMeta> allResults = concurrentSearchByTargets(queries, searchTargetsList,
                 topK, vectorThreshold, keywordThreshold, kbTypeMap);
 
-        List<ResultWithMeta> deduplicatedBeforeRerank = deduplicateResults(allResults);
+        List<ResultWithMeta> deduplicatedBeforeRerank = KnowledgeSearchRanking.deduplicateResults(allResults);
 
         String rerankQuery = queries.size() > 1 ? String.join(" ", queries) : queries.get(0);
 
         List<ResultWithMeta> filteredResults;
         if (reranker != null && !deduplicatedBeforeRerank.isEmpty() && !rerankQuery.isEmpty()) {
-            filteredResults = rerankResults(rerankQuery, deduplicatedBeforeRerank);
+            filteredResults = ranking.rerankResults(rerankQuery, deduplicatedBeforeRerank);
         } else {
             filteredResults = deduplicatedBeforeRerank;
         }
@@ -360,13 +363,13 @@ public class KnowledgeSearchTool extends BaseTool {
             if (mmrK < 1) {
                 mmrK = 1;
             }
-            List<ResultWithMeta> mmrResults = applyMMR(filteredResults, mmrK, MMR_LAMBDA);
+            List<ResultWithMeta> mmrResults = KnowledgeSearchRanking.applyMMR(filteredResults, mmrK, MMR_LAMBDA);
             if (!mmrResults.isEmpty()) {
                 filteredResults = mmrResults;
             }
         }
 
-        List<ResultWithMeta> deduplicatedResults = deduplicateResults(filteredResults);
+        List<ResultWithMeta> deduplicatedResults = KnowledgeSearchRanking.deduplicateResults(filteredResults);
         deduplicatedResults.sort((a, b) -> {
             if (a.sr.score != b.sr.score) {
                 return Double.compare(b.sr.score, a.sr.score);
@@ -389,7 +392,7 @@ public class KnowledgeSearchTool extends BaseTool {
             }
         }
 
-        return formatOutput(deduplicatedResults, kbIDs, queries);
+        return formatter.formatOutput(deduplicatedResults, kbIDs, queries);
     }
 
     private ToolResult failure(String message) {
@@ -573,605 +576,6 @@ public class KnowledgeSearchTool extends BaseTool {
     }
 
     /** 对照 rerankResults：失败回落原序。 */
-    List<ResultWithMeta> rerankResults(String query, List<ResultWithMeta> results) {
-        if (results.isEmpty() || reranker == null) {
-            return results;
-        }
-        List<RankResult> rankResults;
-        try {
-            rankResults = rerankScores(query, results);
-        } catch (RuntimeException e) {
-            return results; // 对照 Go：rerank 失败用原始结果
-        }
-        double threshold = rerankThreshold();
-        boolean preserveTop = searchTargets != null && searchTargets.hasRecallThresholdOverride();
-        return applyModelRerankScores(results, rankResults, threshold, preserveTop);
-    }
-
-    /** 对照 rerankScores。 */
-    List<RankResult> rerankScores(String query, List<ResultWithMeta> results) {
-        List<String> passages = new ArrayList<>(results.size());
-        for (ResultWithMeta result : results) {
-            passages.add(getEnrichedPassage(result.sr));
-        }
-        return reranker.rerank(query, passages);
-    }
-
-    /** 对照 rerankThreshold：config>0 用之，否则 0.3。 */
-    double rerankThreshold() {
-        return config.rerankThreshold() > 0 ? config.rerankThreshold() : 0.3;
-    }
-
-    /** 对照 filterRerankRankResults。 */
-    static List<RankResult> filterRerankRankResults(List<RankResult> rankResults, double threshold,
-            boolean preserveTop) {
-        if (rankResults == null || rankResults.isEmpty()) {
-            return null;
-        }
-        List<RankResult> filtered = new ArrayList<>(rankResults.size());
-        for (RankResult r : rankResults) {
-            if (r.relevanceScore() >= threshold) {
-                filtered.add(r);
-            }
-        }
-        if (filtered.isEmpty()) {
-            RankResult top = rankResults.get(0);
-            for (RankResult r : rankResults.subList(1, rankResults.size())) {
-                if (r.relevanceScore() > top.relevanceScore()) {
-                    top = r;
-                }
-            }
-            if (preserveTop || top.relevanceScore() >= RERANK_FALLBACK_MIN_SCORE) {
-                return List.of(top);
-            }
-        }
-        return filtered;
-    }
-
-    /** 对照 applyModelRerankScores：composite 打分 + 按分降序（非稳定）。 */
-    List<ResultWithMeta> applyModelRerankScores(List<ResultWithMeta> originals, List<RankResult> rankResults,
-            double threshold, boolean preserveTop) {
-        List<RankResult> filtered = filterRerankRankResults(rankResults, threshold, preserveTop);
-        List<ResultWithMeta> out = new ArrayList<>();
-        if (filtered != null) {
-            for (RankResult rr : filtered) {
-                if (rr.index() < 0 || rr.index() >= originals.size()) {
-                    continue;
-                }
-                SearchResultView copy = originals.get(rr.index()).sr.copy();
-                double baseScore = copy.score;
-                double modelScore = rr.relevanceScore();
-                copy.score = compositeScore(copy, modelScore, baseScore);
-                out.add(new ResultWithMeta(copy, originals.get(rr.index()).sourceQuery,
-                        originals.get(rr.index()).queryType, originals.get(rr.index()).knowledgeBaseType));
-            }
-        }
-        out.sort((a, b) -> Double.compare(b.sr.score, a.sr.score));
-        return out;
-    }
-
-    /** 对照 deduplicateResults：多键 + 内容签名；第二轮同 ID 保留最高分（与 grep 的留先不同）。 */
-    static List<ResultWithMeta> deduplicateResults(List<ResultWithMeta> results) {
-        Set<String> seen = new LinkedHashSet<>();
-        Set<String> contentSig = new LinkedHashSet<>();
-        List<ResultWithMeta> uniqueResults = new ArrayList<>();
-
-        for (ResultWithMeta r : results) {
-            List<String> keys = new ArrayList<>();
-            keys.add(nz(r.sr.id));
-            if (!nz(r.sr.parentChunkId).isEmpty()) {
-                keys.add("parent:" + nz(r.sr.parentChunkId));
-            }
-            if (!nz(r.sr.knowledgeId).isEmpty()) {
-                keys.add("kb:" + nz(r.sr.knowledgeId) + "#" + r.sr.chunkIndex);
-            }
-
-            boolean dup = false;
-            for (String k : keys) {
-                if (seen.contains(k)) {
-                    dup = true;
-                    break;
-                }
-            }
-            if (dup) {
-                continue;
-            }
-
-            String sig = GrepChunksTool.buildContentSignature(nz(r.sr.content));
-            if (!sig.isEmpty() && !contentSig.add(sig)) {
-                continue;
-            }
-
-            seen.addAll(keys);
-            uniqueResults.add(r);
-        }
-
-        // 同 ID 不同分：留最高分。
-        Map<String, ResultWithMeta> seenByID = new LinkedHashMap<>();
-        for (ResultWithMeta r : uniqueResults) {
-            ResultWithMeta existing = seenByID.get(nz(r.sr.id));
-            if (existing != null) {
-                if (r.sr.score > existing.sr.score) {
-                    seenByID.put(nz(r.sr.id), r);
-                }
-            } else {
-                seenByID.put(nz(r.sr.id), r);
-            }
-        }
-        return new ArrayList<>(seenByID.values());
-    }
-
-    /** 对照 compositeScore。 */
-    static double compositeScore(SearchResultView result, double modelScore, double baseScore) {
-        double sourceWeight = 1.0;
-        if ("web_search".equalsIgnoreCase(nz(result.knowledgeSource))) {
-            sourceWeight = 0.95;
-        }
-        double positionPrior = 1.0;
-        if (result.startAt >= 0 && result.endAt > result.startAt) {
-            double positionRatio = 1.0 - result.startAt / (double) (result.endAt + 1);
-            positionPrior += clampFloat(positionRatio, -0.05, 0.05);
-        }
-        double composite = 0.6 * modelScore + 0.3 * baseScore + 0.1 * sourceWeight;
-        composite *= positionPrior;
-        if (composite < 0) {
-            composite = 0;
-        }
-        if (composite > 1) {
-            composite = 1;
-        }
-        return composite;
-    }
-
-    /** 对照 searchutil.ClampFloat。 */
-    static double clampFloat(double v, double minV, double maxV) {
-        if (v < minV) {
-            return minV;
-        }
-        if (v > maxV) {
-            return maxV;
-        }
-        return v;
-    }
-
-    /**
-     * 对照 applyMMR：增量版（maxRedundancy 缓存），与朴素版逐位一致；
-     * 删除用保序 remove（对照 Go append(slice[:i], slice[i+1:]...)——与 grep 的 swap-remove 不同！）。
-     */
-    static List<ResultWithMeta> applyMMR(List<ResultWithMeta> results, int k, double lambda) {
-        if (k <= 0 || results.isEmpty()) {
-            return null;
-        }
-
-        List<ResultWithMeta> selected = new ArrayList<>(k);
-        List<ResultWithMeta> candidates = new ArrayList<>(results);
-
-        List<Map<String, Boolean>> tokenSets = new ArrayList<>(candidates.size());
-        for (ResultWithMeta r : candidates) {
-            tokenSets.add(GrepChunksTool.tokenizeSimple(getEnrichedPassage(r.sr)));
-        }
-
-        List<Double> maxRedundancy = new ArrayList<>();
-        for (int i = 0; i < candidates.size(); i++) {
-            maxRedundancy.add(0.0);
-        }
-
-        while (selected.size() < k && !candidates.isEmpty()) {
-            int bestIdx = 0;
-            double bestScore = -1.0;
-
-            for (int i = 0; i < candidates.size(); i++) {
-                double mmr = lambda * candidates.get(i).sr.score - (1.0 - lambda) * maxRedundancy.get(i);
-                if (mmr > bestScore) {
-                    bestScore = mmr;
-                    bestIdx = i;
-                }
-            }
-
-            ResultWithMeta chosen = candidates.get(bestIdx);
-            Map<String, Boolean> chosenTokens = tokenSets.get(bestIdx);
-            selected.add(chosen);
-            candidates.remove(bestIdx);
-            tokenSets.remove(bestIdx);
-            maxRedundancy.remove(bestIdx);
-
-            for (int i = 0; i < candidates.size(); i++) {
-                maxRedundancy.set(i,
-                        Math.max(maxRedundancy.get(i), GrepChunksTool.jaccard(tokenSets.get(i), chosenTokens)));
-            }
-        }
-
-        return selected;
-    }
-
-    /** 对照 getEnrichedPassage：拼接图片 caption/ocr 文本。 */
-    static String getEnrichedPassage(SearchResultView result) {
-        if (nz(result.imageInfo).isEmpty()) {
-            return nz(result.content);
-        }
-        JsonNode arr;
-        try {
-            arr = RecordingSupportHolder.MAPPER.readTree(result.imageInfo);
-        } catch (java.io.IOException e) {
-            return nz(result.content);
-        }
-        if (arr == null || !arr.isArray() || arr.isEmpty()) {
-            return nz(result.content);
-        }
-        List<String> imageTexts = new ArrayList<>();
-        for (JsonNode img : arr) {
-            String caption = img.path("caption").asText("");
-            if (!caption.isEmpty()) {
-                imageTexts.add("Image Caption: " + caption);
-            }
-            String ocr = img.path("ocr_text").asText("");
-            if (!ocr.isEmpty()) {
-                imageTexts.add("Image Text: " + ocr);
-            }
-        }
-        if (imageTexts.isEmpty()) {
-            return nz(result.content);
-        }
-        String combined = nz(result.content);
-        if (!combined.isEmpty()) {
-            combined += "\n\n";
-        }
-        return combined + String.join("\n", imageTexts);
-    }
-
-    /** 对照 getFAQMetadata（cache 命中/未找到都缓存）。 */
-    FaqChunkMetadata getFAQMetadata(String chunkID, Map<String, FaqChunkMetadata> cache) {
-        if (chunkID.isEmpty() || chunkBackend == null) {
-            return null;
-        }
-        if (cache.containsKey(chunkID)) {
-            return cache.get(chunkID);
-        }
-        Chunk chunk;
-        try {
-            chunk = chunkBackend.faqChunkById(chunkID);
-        } catch (RuntimeException e) {
-            cache.put(chunkID, null);
-            return null;
-        }
-        if (chunk == null) {
-            cache.put(chunkID, null);
-            return null;
-        }
-        FaqChunkMetadata meta = FaqSnippet.faqMetadata(chunk);
-        cache.put(chunkID, meta);
-        return meta;
-    }
-
-    /** 对照 writeKnowledgeMetadataHeader（每文档一次，仅当 custom metadata 非空）。 */
-    static void writeKnowledgeMetadataHeader(StringBuilder ob, List<ResultWithMeta> results) {
-        Set<String> seen = new LinkedHashSet<>();
-        boolean hasMetadata = false;
-        StringBuilder documents = new StringBuilder();
-        for (ResultWithMeta result : results) {
-            if (result == null || result.sr == null || nz(result.sr.knowledgeId).isEmpty()
-                    || nz(result.sr.knowledgeCustomMetadata).isEmpty()) {
-                continue;
-            }
-            if (!seen.add(result.sr.knowledgeId)) {
-                continue;
-            }
-            hasMetadata = true;
-            documents.append(String.format(Locale.ROOT,
-                    "<document knowledge_id=\"%s\" knowledge_base_id=\"%s\" title=\"%s\">\n",
-                    FaqSnippet.xmlEscape(result.sr.knowledgeId),
-                    FaqSnippet.xmlEscape(result.sr.knowledgeBaseId),
-                    FaqSnippet.xmlEscape(result.sr.knowledgeTitle)));
-            documents.append(String.format(Locale.ROOT, "<metadata>%s</metadata>\n",
-                    FaqSnippet.xmlEscape(result.sr.knowledgeCustomMetadata)));
-            documents.append("</document>\n");
-        }
-        if (!hasMetadata) {
-            return;
-        }
-        ob.append("<documents>\n");
-        ob.append(documents);
-        ob.append("</documents>\n");
-    }
-
-    /** 对照 formatOutput。 */
-    ToolResult formatOutput(List<ResultWithMeta> results, List<String> kbsToSearch, List<String> queries) {
-        if (results.isEmpty()) {
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("knowledge_base_ids", kbsToSearch);
-            data.put("results", List.of());
-            data.put("count", 0);
-            if (!queries.isEmpty()) {
-                data.put("queries", queries);
-            }
-            String output = String.format(Locale.ROOT,
-                    "No relevant content found in %d knowledge base(s).\n\n", kbsToSearch.size())
-                    + "=== ⚠️ CRITICAL - Next Steps ===\n"
-                    + "- ❌ DO NOT use training data or general knowledge to answer\n"
-                    + "- ✅ If web_search is enabled: You MUST use web_search to find information\n"
-                    + "- ✅ If web_search is disabled: State 'I couldn't find relevant information in the knowledge base'\n"
-                    + "- NEVER fabricate or infer answers - ONLY use retrieved content\n";
-            ToolResult r = new ToolResult();
-            r.setSuccess(true);
-            r.setOutput(output);
-            r.setData(data);
-            return r;
-        }
-
-        Map<String, Integer> kbCounts = new LinkedHashMap<>();
-        for (ResultWithMeta r : results) {
-            kbCounts.merge(nz(r.sr.knowledgeBaseId), 1, Integer::sum);
-        }
-
-        StringBuilder ob = new StringBuilder();
-        ob.append(String.format(Locale.ROOT, "<search_results count=\"%d\">\n", results.size()));
-        for (String q : queries) {
-            ob.append(String.format(Locale.ROOT, "<query>%s</query>\n", FaqSnippet.xmlEscape(q)));
-        }
-        writeKnowledgeMetadataHeader(ob, results);
-
-        List<Map<String, Object>> formattedResults = new ArrayList<>(results.size());
-        Map<String, FaqChunkMetadata> faqMetadataCache = new LinkedHashMap<>();
-        Map<String, Set<Integer>> knowledgeChunkMap = new LinkedHashMap<>();
-        Map<String, Long> knowledgeTotalMap = new LinkedHashMap<>();
-        Map<String, String> knowledgeTitleMap = new LinkedHashMap<>();
-
-        for (int i = 0; i < results.size(); i++) {
-            ResultWithMeta result = results.get(i);
-            FaqChunkMetadata faqMeta = null;
-            if (KB_TYPE_FAQ.equals(result.knowledgeBaseType)) {
-                faqMeta = getFAQMetadata(nz(result.sr.id), faqMetadataCache);
-            }
-
-            knowledgeChunkMap.computeIfAbsent(nz(result.sr.knowledgeId), k -> new LinkedHashSet<>())
-                    .add(result.sr.chunkIndex);
-            knowledgeTitleMap.put(nz(result.sr.knowledgeId), nz(result.sr.knowledgeTitle));
-
-            if (!knowledgeTotalMap.containsKey(nz(result.sr.knowledgeId))) {
-                long effectiveTenantID = searchTargets == null ? 0
-                        : searchTargets.getTenantIdForKb(nz(result.sr.knowledgeBaseId));
-                if (effectiveTenantID == 0) {
-                    knowledgeTotalMap.put(nz(result.sr.knowledgeId), 0L);
-                } else {
-                    long total;
-                    try {
-                        total = chunkBackend.totalChunks(effectiveTenantID, nz(result.sr.knowledgeId));
-                    } catch (RuntimeException e) {
-                        total = 0;
-                    }
-                    knowledgeTotalMap.put(nz(result.sr.knowledgeId), total);
-                }
-            }
-
-            boolean seen = !seenChunks.add(nz(result.sr.id));
-            boolean isFAQ = faqMeta != null;
-
-            String sourceQuery = nz(result.sourceQuery);
-            if (seen) {
-                if (isFAQ) {
-                    ob.append(String.format(Locale.ROOT,
-                            "<faq rank=\"%d\" faq_id=\"%s\" index=\"%d\" knowledge_base_id=\"%s\" knowledge_title=\"%s\" score=\"%.3f\" source_query=\"%s\" already_seen=\"true\">\n",
-                            i + 1, FaqSnippet.xmlEscape(nz(result.sr.id)), result.sr.chunkIndex,
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeBaseId)),
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeTitle)),
-                            result.sr.score, FaqSnippet.xmlEscape(sourceQuery)));
-                } else {
-                    ob.append(String.format(Locale.ROOT,
-                            "<chunk rank=\"%d\" chunk_id=\"%s\" chunk_index=\"%d\" knowledge_id=\"%s\" knowledge_base_id=\"%s\" knowledge_title=\"%s\" score=\"%.3f\" source_query=\"%s\" already_seen=\"true\">\n",
-                            i + 1, FaqSnippet.xmlEscape(nz(result.sr.id)), result.sr.chunkIndex,
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeId)),
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeBaseId)),
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeTitle)),
-                            result.sr.score, FaqSnippet.xmlEscape(sourceQuery)));
-                }
-                ob.append("<note>(content omitted, already returned in a previous knowledge_search call this session)</note>\n");
-                ob.append(isFAQ ? "</faq>\n" : "</chunk>\n");
-            } else {
-                if (isFAQ) {
-                    ob.append(String.format(Locale.ROOT,
-                            "<faq rank=\"%d\" faq_id=\"%s\" index=\"%d\" knowledge_base_id=\"%s\" knowledge_title=\"%s\" score=\"%.3f\" source_query=\"%s\">\n",
-                            i + 1, FaqSnippet.xmlEscape(nz(result.sr.id)), result.sr.chunkIndex,
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeBaseId)),
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeTitle)),
-                            result.sr.score, FaqSnippet.xmlEscape(sourceQuery)));
-                } else {
-                    ob.append(String.format(Locale.ROOT,
-                            "<chunk rank=\"%d\" chunk_id=\"%s\" chunk_index=\"%d\" knowledge_id=\"%s\" knowledge_base_id=\"%s\" knowledge_title=\"%s\" score=\"%.3f\" source_query=\"%s\">\n",
-                            i + 1, FaqSnippet.xmlEscape(nz(result.sr.id)), result.sr.chunkIndex,
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeId)),
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeBaseId)),
-                            FaqSnippet.xmlEscape(nz(result.sr.knowledgeTitle)),
-                            result.sr.score, FaqSnippet.xmlEscape(sourceQuery)));
-                }
-                String snippet = "";
-                if (faqMeta != null) {
-                    snippet = FaqSnippet.faqMatchSnippetFromQueries(faqMeta, queries);
-                }
-                if (snippet.isEmpty()) {
-                    snippet = extractSnippetForQueries(nz(result.sr.content), queries);
-                }
-                if (!snippet.isEmpty()) {
-                    ob.append(String.format(Locale.ROOT, "<match_snippet>%s</match_snippet>\n",
-                            FaqSnippet.xmlEscape(snippet)));
-                }
-                // 对照 Go：content 不做 xmlEscape。
-                ob.append(String.format(Locale.ROOT, "<content>%s</content>\n", nz(result.sr.content)));
-
-                if (!nz(result.sr.imageInfo).isEmpty()) {
-                    List<ImageInfoView> imageInfos = parseImageInfoList(result.sr.imageInfo);
-                    for (ImageInfoView img : imageInfos) {
-                        String md = DocChunkSupport.buildImageInfoMarkdownWithURL(img.url(), img);
-                        if (!md.isEmpty()) {
-                            ob.append(md).append('\n');
-                        }
-                    }
-                }
-
-                if (isFAQ) {
-                    FaqSnippet.writeFaqFieldsXml(ob, faqMeta);
-                    ob.append("</faq>\n");
-                } else {
-                    ob.append("</chunk>\n");
-                }
-            }
-
-            Map<String, Object> formatted = new LinkedHashMap<>();
-            formatted.put("result_index", i + 1);
-            formatted.put("content", nz(result.sr.content));
-            formatted.put("knowledge_id", nz(result.sr.knowledgeId));
-            formatted.put("knowledge_base_id", nz(result.sr.knowledgeBaseId));
-            formatted.put("knowledge_title", nz(result.sr.knowledgeTitle));
-            formatted.put("knowledge_metadata", nz(result.sr.knowledgeCustomMetadata));
-            formatted.put("match_type", result.sr.matchType);
-            formatted.put("source_query", sourceQuery);
-            formatted.put("query_type", nz(result.queryType));
-            formatted.put("knowledge_base_type", nz(result.knowledgeBaseType));
-            formattedResults.add(formatted);
-
-            Map<String, Object> last = formatted;
-
-            if (!nz(result.sr.imageInfo).isEmpty()) {
-                List<Map<String, String>> imageList = new ArrayList<>();
-                for (ImageInfoView img : parseImageInfoList(result.sr.imageInfo)) {
-                    Map<String, String> imgData = new LinkedHashMap<>();
-                    if (!nz(img.url()).isEmpty()) {
-                        imgData.put("url", img.url());
-                    }
-                    if (!nz(img.caption()).isEmpty()) {
-                        imgData.put("caption", img.caption());
-                    }
-                    if (!nz(img.ocrText()).isEmpty()) {
-                        imgData.put("ocr_text", img.ocrText());
-                    }
-                    if (!imgData.isEmpty()) {
-                        imageList.add(imgData);
-                    }
-                }
-                if (!imageList.isEmpty()) {
-                    last.put("images", imageList);
-                }
-            }
-
-            if (faqMeta != null) {
-                last.put("faq_id", nz(result.sr.id));
-                last.put("index", result.sr.chunkIndex);
-                if (!nz(faqMeta.standardQuestion).isEmpty()) {
-                    last.put("faq_standard_question", faqMeta.standardQuestion);
-                }
-                FaqSnippet.appendSimilarQuestionsToChunkData(last, faqMeta.similarQuestions);
-                if (faqMeta.answers != null && !faqMeta.answers.isEmpty()) {
-                    last.put("faq_answers", faqMeta.answers);
-                }
-            } else {
-                last.put("chunk_id", nz(result.sr.id));
-                last.put("chunk_index", result.sr.chunkIndex);
-            }
-        }
-
-        ob.append("<retrieval_statistics>\n");
-        for (Map.Entry<String, Set<Integer>> e : knowledgeChunkMap.entrySet()) {
-            String knowledgeID = e.getKey();
-            long totalChunks = knowledgeTotalMap.getOrDefault(knowledgeID, 0L);
-            int retrievedCount = e.getValue().size();
-            String title = knowledgeTitleMap.getOrDefault(knowledgeID, "");
-            if (totalChunks > 0) {
-                long remaining = totalChunks - retrievedCount;
-                double percentage = retrievedCount / (double) totalChunks * 100;
-                ob.append(String.format(Locale.ROOT,
-                        "<document_stat knowledge_id=\"%s\" title=\"%s\" total_chunks=\"%d\" retrieved=\"%d\" remaining=\"%d\" coverage=\"%.1f%%\" />\n",
-                        FaqSnippet.xmlEscape(knowledgeID), FaqSnippet.xmlEscape(title), totalChunks,
-                        retrievedCount, remaining, percentage));
-            }
-        }
-        ob.append("</retrieval_statistics>\n");
-        ob.append("</search_results>");
-
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("knowledge_base_ids", kbsToSearch);
-        data.put("results", formattedResults);
-        data.put("count", formattedResults.size());
-        data.put("kb_counts", kbCounts);
-        data.put("display_type", "search_results");
-        if (!queries.isEmpty()) {
-            data.put("queries", queries);
-        }
-
-        ToolResult r = new ToolResult();
-        r.setSuccess(true);
-        r.setOutput(ob.toString());
-        r.setData(data);
-        return r;
-    }
-
-    /** 对照 knowledge_search 的 ImageInfo JSON 解析（types.ImageInfo 数组）。 */
-    static List<ImageInfoView> parseImageInfoList(String imageInfoJson) {
-        List<ImageInfoView> out = new ArrayList<>();
-        JsonNode arr;
-        try {
-            arr = RecordingSupportHolder.MAPPER.readTree(imageInfoJson);
-        } catch (java.io.IOException e) {
-            return out;
-        }
-        if (arr == null || !arr.isArray()) {
-            return out;
-        }
-        for (JsonNode img : arr) {
-            out.add(new ImageInfoView(img.path("url").asText(""),
-                    img.path("caption").asText(""), img.path("ocr_text").asText("")));
-        }
-        return out;
-    }
-
-    /**
-     * 对照 extractSnippetForQueries：query token 最早命中上下文（各 200 runes），
-     * 无命中回落前 400 runes + " ..."；单线折叠空格，"... x ..." 包裹。
-     */
-    static String extractSnippetForQueries(String content, List<String> queries) {
-        content = nz(content).trim();
-        if (content.isEmpty()) {
-            return "";
-        }
-
-        List<String> tokens = FaqSnippet.searchQueryTokens(queries);
-
-        String lowered = content.toLowerCase(Locale.ROOT);
-        int earliest = -1;
-        int earliestEnd = -1;
-        for (String tok : tokens) {
-            int idx = lowered.indexOf(tok);
-            if (idx < 0) {
-                continue;
-            }
-            int end = idx + tok.length();
-            if (earliest < 0 || idx < earliest) {
-                earliest = idx;
-                earliestEnd = end;
-            }
-        }
-
-        if (earliest < 0) {
-            if (content.codePointCount(0, content.length()) > 400) {
-                return content.substring(0, content.offsetByCodePoints(0, 400)).trim() + " ...";
-            }
-            return content;
-        }
-
-        String matchStr = content.substring(earliest, earliestEnd);
-        String before = content.substring(0, earliest);
-        String after = content.substring(earliestEnd);
-
-        String beforeRunes = GrepChunksTool.lastRunes(before, 200);
-        String afterRunes = GrepChunksTool.firstRunes(after, 200);
-
-        String snippet = beforeRunes + matchStr + afterRunes;
-        snippet = snippet.replace("\n", " ");
-        while (snippet.contains("  ")) {
-            snippet = snippet.replace("  ", " ");
-        }
-        return "... " + snippet.trim() + " ...";
-    }
-
-    /** 主源码不可引用测试侧 RecordingSupport，经此 holders 取 mapper（对照 Go encoding/json）。 */
     static final class RecordingSupportHolder {
         static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
     }
