@@ -65,7 +65,7 @@ class MemoryContractTest {
                 "{\"enabled\":true,\"write_mode\":\"auto\",\"extract_model_id\":\"m1\","
                         + "\"max_items\":200,\"extract_delay_seconds\":30,"
                         + "\"extract_min_interval_seconds\":60,\"extract_instructions\":\"instr\","
-                        + "\"interest_threshold\":3,\"embeddingModelId\":\"e1\","
+                        + "\"interest_threshold\":3,\"embedding_model_id\":\"e1\","
                         + "\"vector_recall\":true,\"retrieval_conditioning\":false}");
     }
 
@@ -78,7 +78,7 @@ class MemoryContractTest {
                 "{\"enabled\":false,\"write_mode\":\"\",\"extract_model_id\":\"\",\"max_items\":0,"
                         + "\"extract_delay_seconds\":0,\"extract_min_interval_seconds\":0,"
                         + "\"extract_instructions\":\"\",\"interest_threshold\":0,"
-                        + "\"embeddingModelId\":\"\",\"vector_recall\":null,"
+                        + "\"embedding_model_id\":\"\",\"vector_recall\":null,"
                         + "\"retrieval_conditioning\":null}");
     }
 
@@ -169,7 +169,7 @@ class MemoryContractTest {
         d.setLastUsedAt(localTime(10));
 
         assertThat(write(d)).isEqualTo(
-                "{\"id\":\"d1\",\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"kb1\","
+                "{\"id\":\"d1\",\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"kb1\","
                         + "\"title\":\"t\",\"hits\":4,"
                         + "\"last_used_at\":\"2026-09-18T10:00:00+08:00\"}");
     }

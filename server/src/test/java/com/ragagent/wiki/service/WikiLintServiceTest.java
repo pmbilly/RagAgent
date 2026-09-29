@@ -434,8 +434,8 @@ class WikiLintServiceTest {
         jdbc.update("INSERT INTO knowledge_bases (id, name, tenant_id, type, indexing_strategy) "
                         + "VALUES (?, ?, ?, 'document', ?)",
                 kbId, kbId, tenantId,
-                "{\"vector_enabled\":false,\"keyword_enabled\":false,\"wiki_enabled\":"
-                        + wikiEnabled + ",\"graph_enabled\":false}");
+                "{\"vectorEnabled\":false,\"keywordEnabled\":false,\"wikiEnabled\":"
+                        + wikiEnabled + ",\"graphEnabled\":false}");
     }
 
     /** {@code deletedAt} 非空表示软删——陈旧引用检测的目标 */

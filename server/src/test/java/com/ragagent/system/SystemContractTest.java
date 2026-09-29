@@ -360,7 +360,7 @@ class SystemContractTest {
         assertEquals(golden("adm-promote-missing.json"), raw(missing));
         // 2) unknown id → 404
         MvcResult nf = mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"userId\":\"" + UNKNOWN + "\"}")).andReturn();
+                "{\"user_id\":\"" + UNKNOWN + "\"}")).andReturn();
         assertEquals(404, nf.getResponse().getStatus(), raw(nf));
         assertEquals(golden("adm-promote-404.json"), raw(nf));
         // 3) list（只有 sysadmin 一行；掩码 UUID/时间戳）
@@ -370,34 +370,34 @@ class SystemContractTest {
         assertEquals(mask(golden("adm-list.json")), mask(raw(list)));
         // 4) promote self → 幂等 200
         MvcResult self = mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"userId\":\"" + SYS_ADMIN + "\"}")).andReturn();
+                "{\"user_id\":\"" + SYS_ADMIN + "\"}")).andReturn();
         assertEquals(200, self.getResponse().getStatus(), raw(self));
         assertEquals(mask(golden("adm-promote-self.json")), mask(raw(self)));
         // 5) promote owner（真实）→ is_system_admin=true
         MvcResult po = mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
+                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
         assertEquals(200, po.getResponse().getStatus(), raw(po));
         assertEquals(mask(golden("adm-promote-owner.json")), mask(raw(po)));
         // 6) revoke self → 400
         MvcResult rs = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"userId\":\"" + SYS_ADMIN + "\"}")).andReturn();
+                "{\"user_id\":\"" + SYS_ADMIN + "\"}")).andReturn();
         assertEquals(400, rs.getResponse().getStatus(), raw(rs));
         assertEquals(golden("adm-revoke-self.json"), raw(rs));
         // 7) revoke owner（此时 owner 已是管理员 → 真实撤销）
         MvcResult rn = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
+                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
         assertEquals(200, rn.getResponse().getStatus(), raw(rn));
         assertEquals(mask(golden("adm-revoke-noop.json")), mask(raw(rn)));
         // 8) 再提权 + 再撤销（真实撤销形态）
         mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
+                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
         MvcResult ro = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
+                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
         assertEquals(200, ro.getResponse().getStatus(), raw(ro));
         assertEquals(mask(golden("adm-revoke-owner.json")), mask(raw(ro)));
         // 9) revoke 未知 → 404；{} → validator 原文
         MvcResult r404 = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"userId\":\"" + UNKNOWN + "\"}")).andReturn();
+                "{\"user_id\":\"" + UNKNOWN + "\"}")).andReturn();
         assertEquals(404, r404.getResponse().getStatus(), raw(r404));
         assertEquals(golden("adm-revoke-404.json"), raw(r404));
         MvcResult rbad = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin, "{}"))
@@ -406,7 +406,7 @@ class SystemContractTest {
         assertEquals(golden("adm-revoke-badbody.json"), raw(rbad));
         // 10) 非管理员 revoke → 幂等 200（changed=false 形态同 200 + is_system_admin=false）
         MvcResult rn2 = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"userId\":\"" + VIEWER + "\"}")).andReturn();
+                "{\"user_id\":\"" + VIEWER + "\"}")).andReturn();
         assertEquals(200, rn2.getResponse().getStatus(), raw(rn2));
         // 11) 终态 list
         MvcResult after = mockMvc.perform(get("/api/v1/system/admin/list")
@@ -773,7 +773,7 @@ class SystemContractTest {
 
     /** 创建用户的新空间 id 是部署态（dev 序列 vs H2 身份列）→ 掩码 */
     private static String maskTenant(String s) {
-        return s.replaceAll("\"tenantId\":\\d+", "\"tenantId\":<tid>");
+        return s.replaceAll("\"tenant_id\":\\d+", "\"tenant_id\":<tid>");
     }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
@@ -792,7 +792,7 @@ class SystemContractTest {
     /** info 专属：db_version（部署态：Java/H2 无迁移历史 → 键省略）整体剔除；started_at/uptime 掩码。 */
     private static String maskInfo(String s) {
         String out = s.replaceAll("\"db_version\":\"[^\"]*\",?", "");
-        out = out.replaceAll("\"startedAt\":\"[^\"]*\"", "\"startedAt\":\"<ts>\"");
+        out = out.replaceAll("\"started_at\":\"[^\"]*\"", "\"started_at\":\"<ts>\"");
         out = out.replaceAll("\"uptime_seconds\":\\d+", "\"uptime_seconds\":0");
         return out;
     }

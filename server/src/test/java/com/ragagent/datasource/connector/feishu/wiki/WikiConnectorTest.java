@@ -982,8 +982,8 @@ class WikiConnectorTest {
                 "{\"code\":0,\"msg\":\"\",\"data\":{\"ticket\":\"ticket-123\"}}"));
         server.handle("/open-apis/drive/v1/export_tasks/ticket-123", (ex, body) ->
                 FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
-                        + "\"file_token\":\"ft-abc\",\"fileSize\":100,\"job_status\":0,"
-                        + "\"job_error_msg\":\"\",\"fileName\":\"Sales Report\"}}}"));
+                        + "\"file_token\":\"ft-abc\",\"file_size\":100,\"job_status\":0,"
+                        + "\"job_error_msg\":\"\",\"file_name\":\"Sales Report\"}}}"));
         server.handle("/open-apis/drive/v1/export_tasks/file/ft-abc/download", (ex, body) ->
                 FeishuTestServer.sendBytes(ex, "application/octet-stream",
                         "x".getBytes(StandardCharsets.UTF_8)));
@@ -1001,8 +1001,8 @@ class WikiConnectorTest {
                 "{\"code\":0,\"msg\":\"\",\"data\":{\"ticket\":\"ticket-123\"}}"));
         server.handle("/open-apis/drive/v1/export_tasks/ticket-123", (ex, body) ->
                 FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
-                        + "\"file_token\":\"\",\"fileSize\":0,\"job_status\":3,"
-                        + "\"job_error_msg\":\"rate limited\",\"fileName\":\"\"}}}"));
+                        + "\"file_token\":\"\",\"file_size\":0,\"job_status\":3,"
+                        + "\"job_error_msg\":\"rate limited\",\"file_name\":\"\"}}}"));
 
         List<FetchedItem> items = connector().fetchAll(config(List.of("space1")),
                 List.of("space1"));

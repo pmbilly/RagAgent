@@ -101,13 +101,13 @@ class LangfuseModelDecoratorsTest {
         assertEquals("qwen-test", gen.attributes.get(LangfuseAttributes.ATTR_OBS_MODEL));
         assertEquals("[{\"content\":\"hello\",\"role\":\"user\"}]",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_INPUT));
-        assertEquals("{\"content\":\"hi there\",\"finish_reason\":\"stop\",\"toolCalls\":null}",
+        assertEquals("{\"content\":\"hi there\",\"finish_reason\":\"stop\",\"tool_calls\":null}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_OUTPUT));
         assertEquals("{\"input\":10,\"output\":5,\"total\":15,\"unit\":\"TOKENS\"}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_USAGE_DETAILS));
         assertEquals("{\"max_completion_tokens\":128,\"temperature\":0.7}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_MODEL_PARAMS));
-        assertEquals("{\"call_purpose\":\"\",\"has_tools\":false,\"modelId\":\"m-1\","
+        assertEquals("{\"call_purpose\":\"\",\"has_tools\":false,\"model_id\":\"m-1\","
                         + "\"prompt_prefix_fingerprint\":\"\",\"streaming\":false}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_METADATA));
     }
@@ -149,7 +149,7 @@ class LangfuseModelDecoratorsTest {
         assertEquals(1, traceRoots());
         RecordedSpan gen = byName("chat.completion.stream");
         assertEquals("{\"content\":\"hello world\",\"finish_reason\":\"stop\","
-                        + "\"reasoningContent\":\"let me think\",\"toolCalls\":null}",
+                        + "\"reasoning_content\":\"let me think\",\"tool_calls\":null}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_OUTPUT));
         assertEquals("{\"input\":7,\"output\":3,\"total\":10,\"unit\":\"TOKENS\"}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_USAGE_DETAILS));
@@ -171,7 +171,7 @@ class LangfuseModelDecoratorsTest {
         // 用量估算：码点数/4 + 1 = 2
         assertEquals("{\"input\":2,\"total\":2,\"unit\":\"TOKENS\"}",
                 single.attributes.get(LangfuseAttributes.ATTR_OBS_USAGE_DETAILS));
-        assertEquals("{\"dimensions\":4,\"modelId\":\"emb-1\"}",
+        assertEquals("{\"dimensions\":4,\"model_id\":\"emb-1\"}",
                 single.attributes.get(LangfuseAttributes.ATTR_OBS_METADATA));
 
         wrapped.batchEmbed(List.of("abcd", "ef"));
@@ -180,7 +180,7 @@ class LangfuseModelDecoratorsTest {
         RecordedSpan batch = byName("embedding.batch_embed");
         assertEquals("{\"count\":2,\"preview\":[\"abcd\",\"ef\"]}",
                 batch.attributes.get(LangfuseAttributes.ATTR_OBS_INPUT));
-        assertEquals("{\"batch_size\":2,\"dimensions\":4,\"modelId\":\"emb-1\"}",
+        assertEquals("{\"batch_size\":2,\"dimensions\":4,\"model_id\":\"emb-1\"}",
                 batch.attributes.get(LangfuseAttributes.ATTR_OBS_METADATA));
     }
 
@@ -198,7 +198,7 @@ class LangfuseModelDecoratorsTest {
                         + "{\"index\":0,\"length\":5,\"preview\":\"doc-a\"},"
                         + "{\"index\":1,\"length\":5,\"preview\":\"doc-b\"}],\"query\":\"q\"}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_INPUT));
-        assertEquals("{\"avg_doc_chars\":5,\"modelId\":\"rr-1\",\"num_queries\":1,\"total_chars\":11}",
+        assertEquals("{\"avg_doc_chars\":5,\"model_id\":\"rr-1\",\"num_queries\":1,\"total_chars\":11}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_METADATA));
         assertEquals("{\"results\":[{\"index\":0,\"model_score\":0.9,\"preview\":\"doc-a\",\"rank\":1},"
                         + "{\"index\":1,\"model_score\":0.5,\"preview\":\"doc-b\",\"rank\":2}],"
@@ -222,7 +222,7 @@ class LangfuseModelDecoratorsTest {
         // 图片字节不上传：输入只带 prompt 与张数
         assertEquals("{\"image_count\":1,\"prompt\":\"描述这张图\"}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_INPUT));
-        assertEquals("{\"image_bytes_total\":3,\"image_count\":1,\"modelId\":\"vlm-1\"}",
+        assertEquals("{\"image_bytes_total\":3,\"image_count\":1,\"model_id\":\"vlm-1\"}",
                 gen.attributes.get(LangfuseAttributes.ATTR_OBS_METADATA));
         assertEquals("\"a tiny image\"", gen.attributes.get(LangfuseAttributes.ATTR_OBS_OUTPUT));
         // 用量：prompt 5 码点 → 5/4+1=2；输出 12 码点 → 12/4=3

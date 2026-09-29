@@ -225,7 +225,7 @@ class SteerContractTest {
         String body = raw(r);
         assertThat(body).contains("\"status\":\"queued\"")
                 .contains("\"delivery\":\"after\"")
-                .contains("\"assistantMessageId\":\"" + ASSISTANT_ID + "\"")
+                .contains("\"assistant_message_id\":\"" + ASSISTANT_ID + "\"")
                 // 载荷直出：不再带 success 标记（契约：成功用状态码表达）
                 .doesNotContain("\"success\"");
     }
@@ -240,7 +240,7 @@ class SteerContractTest {
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         String body = raw(r);
-        assertThat(body).contains("\"assistantMessageId\":\"" + ASSISTANT_ID + "\"")
+        assertThat(body).contains("\"assistant_message_id\":\"" + ASSISTANT_ID + "\"")
                 .contains("\"content\":\"第二问\"")
                 .contains("\"delivery\":\"after\"")
                 .contains("\"items\":");

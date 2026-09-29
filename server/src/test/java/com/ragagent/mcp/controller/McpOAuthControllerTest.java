@@ -277,7 +277,7 @@ class McpOAuthControllerTest {
     void resolveWithoutGateIsServerError() throws Exception {
         mvc(null, null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"serviceId\":\"" + SERVICE_ID + "\"}"))
+                        .content("{\"service_id\":\"" + SERVICE_ID + "\"}"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error.message").value("OAuth gate is not configured"));
     }
@@ -294,7 +294,7 @@ class McpOAuthControllerTest {
     void resolveRequiresServiceId() throws Exception {
         mvc(mock(Gate.class), null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"serviceId\":\"\"}"))
+                        .content("{\"service_id\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("service_id is required"));
     }
@@ -303,7 +303,7 @@ class McpOAuthControllerTest {
     void resolveRejectsUnknownDecision() throws Exception {
         mvc(mock(Gate.class), null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"serviceId\":\"" + SERVICE_ID + "\",\"decision\":\"maybe\"}"))
+                        .content("{\"service_id\":\"" + SERVICE_ID + "\",\"decision\":\"maybe\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("decision must be authorize or cancel"));
     }
@@ -313,7 +313,7 @@ class McpOAuthControllerTest {
     void resolveRequiresCompletedAuthorization() throws Exception {
         mvc(mock(Gate.class), null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"serviceId\":\"" + SERVICE_ID + "\"}"))
+                        .content("{\"service_id\":\"" + SERVICE_ID + "\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.message")
                         .value("authorization not completed yet for this MCP service"));
@@ -329,7 +329,7 @@ class McpOAuthControllerTest {
         Gate gate = mock(Gate.class);
         mvc(gate, null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"serviceId\":\"" + SERVICE_ID + "\"}"))
+                        .content("{\"service_id\":\"" + SERVICE_ID + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
         org.mockito.Mockito.verify(gate).resolve(anyLong(), anyString(), anyString(), any(Decision.class));

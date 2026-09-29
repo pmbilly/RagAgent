@@ -270,7 +270,7 @@ class TencentVectorDbRetrieveRepositoryTest {
         responses.put("POST /document/search",
                 "{\"code\":0,\"documents\":[[{\"id\":\"p1\",\"content\":\"hello\","
                         + "\"source_id\":\"s1\",\"source_type\":2,\"chunk_id\":\"c1\","
-                        + "\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"kb1\","
+                        + "\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"kb1\","
                         + "\"tag_id\":\"t\",\"is_enabled\":1,\"score\":0.93}]]}");
         TencentVectorDbRetrieveRepository repo = repo("weknora_embeddings", true);
         RetrieveParams params = new RetrieveParams();
@@ -373,8 +373,8 @@ class TencentVectorDbRetrieveRepositoryTest {
         responses.put("POST /document/query",
                 "{\"code\":0,\"count\":3,\"documents\":["
                         + "{\"id\":\"p1\",\"content\":\"hello\",\"source_id\":\"" + c1 + "\","
-                        + "\"source_type\":0,\"chunk_id\":\"" + c1 + "\",\"knowledgeId\":\"k1\","
-                        + "\"knowledgeBaseId\":\"srcKb\",\"tag_id\":\"t\",\"is_enabled\":0,"
+                        + "\"source_type\":0,\"chunk_id\":\"" + c1 + "\",\"knowledge_id\":\"k1\","
+                        + "\"knowledge_base_id\":\"srcKb\",\"tag_id\":\"t\",\"is_enabled\":0,"
                         + "\"vector\":[0.5,0.25,0]}"
                         + "]}");
         TencentVectorDbRetrieveRepository repo = repo("weknora_embeddings", true);

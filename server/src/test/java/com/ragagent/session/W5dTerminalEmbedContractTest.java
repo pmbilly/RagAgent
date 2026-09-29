@@ -49,7 +49,7 @@ class W5dTerminalEmbedContractTest {
     private static final String ESID8 = "b5000000-0000-0000-0000-000000000803";
     private static final String PTOKEN = "w5dpublishtoken0000000001";
     private static final String AG8_CONFIG = "{\"kb_selection_mode\":\"all\","
-            + "\"webSearchEnabled\":false,\"image_upload_enabled\":false}";
+            + "\"web_search_enabled\":false,\"image_upload_enabled\":false}";
 
     @Autowired
     private MockMvc mockMvc;

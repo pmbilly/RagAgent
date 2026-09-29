@@ -138,13 +138,13 @@ final class W5bStubServers {
                         + "\"created\":1735689600,\"model\":\"stub-model\",\"choices\":[{\"index\":0,"
                         + "\"message\":{\"role\":\"assistant\",\"content\":\"" + jsonEscape(content)
                         + "\"},\"finish_reason\":\"stop\"}],"
-                        + "\"usage\":{\"promptTokens\":12,\"completionTokens\":9,\"totalTokens\":21}}");
+                        + "\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":9,\"total_tokens\":21}}");
                 return;
             }
             if (method.equals("POST") && path.endsWith("/embeddings")) {
                 respond(ex, 200, "application/json", "{\"object\":\"list\",\"data\":["
                         + "{\"object\":\"embedding\",\"index\":0,\"embedding\":[0.1,0.2,0.3]}],"
-                        + "\"model\":\"stub-model\",\"usage\":{\"promptTokens\":2,\"totalTokens\":2}}");
+                        + "\"model\":\"stub-model\",\"usage\":{\"prompt_tokens\":2,\"total_tokens\":2}}");
                 return;
             }
             if (method.equals("POST") && path.endsWith("/rerank")) {

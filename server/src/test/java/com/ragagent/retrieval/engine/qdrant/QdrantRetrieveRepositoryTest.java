@@ -251,7 +251,7 @@ class QdrantRetrieveRepositoryTest {
         responseOverrides.put("POST /collections/weknora_embeddings_2/points/search",
                 "{\"result\":[{\"id\":\"p1\",\"score\":0.91,\"payload\":{\"content\":\"hello\","
                         + "\"source_id\":\"s1\",\"source_type\":0,\"chunk_id\":\"c1\","
-                        + "\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"kb1\",\"tag_id\":\"\"}}],"
+                        + "\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"kb1\",\"tag_id\":\"\"}}],"
                         + "\"status\":\"ok\"}");
         QdrantRetrieveRepository repo = repo("weknora_embeddings");
         RetrieveParams params = new RetrieveParams();
@@ -304,7 +304,7 @@ class QdrantRetrieveRepositoryTest {
         responseOverrides.put("POST /collections/weknora_embeddings_2/points/scroll",
                 "{\"result\":{\"points\":[{\"id\":\"p1\",\"payload\":{\"content\":\"a\","
                         + "\"source_id\":\"s1\",\"source_type\":0,\"chunk_id\":\"c1\","
-                        + "\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"kb1\",\"tag_id\":\"\"}},"
+                        + "\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"kb1\",\"tag_id\":\"\"}},"
                         + "{\"id\":\"p2\",\"payload\":{}},{\"id\":\"p3\",\"payload\":{}}],"
                         + "\"next_page_offset\":null},\"status\":\"ok\"}");
         QdrantRetrieveRepository repo = repo("weknora_embeddings");
@@ -409,13 +409,13 @@ class QdrantRetrieveRepositoryTest {
         responseOverrides.put("POST /collections/weknora_embeddings_2/points/scroll",
                 "{\"result\":{\"points\":[{\"id\":\"p1\",\"vector\":[0.5,0.25],"
                         + "\"payload\":{\"content\":\"a\",\"source_id\":\"c1\",\"source_type\":0,"
-                        + "\"chunk_id\":\"c1\",\"knowledgeId\":\"k1\","
-                        + "\"knowledgeBaseId\":\"srcKb\",\"tag_id\":\"t\"}},"
+                        + "\"chunk_id\":\"c1\",\"knowledge_id\":\"k1\","
+                        + "\"knowledge_base_id\":\"srcKb\",\"tag_id\":\"t\"}},"
                         + "{\"id\":\"p2\",\"vector\":[0.1],\"payload\":{\"source_id\":\"c1-q7\","
-                        + "\"chunk_id\":\"c1\",\"knowledgeId\":\"k1\","
-                        + "\"knowledgeBaseId\":\"srcKb\",\"is_enabled\":false}},"
+                        + "\"chunk_id\":\"c1\",\"knowledge_id\":\"k1\","
+                        + "\"knowledge_base_id\":\"srcKb\",\"is_enabled\":false}},"
                         + "{\"id\":\"p3\",\"payload\":{\"chunk_id\":\"c9\","
-                        + "\"knowledgeId\":\"k1\"}}],\"next_page_offset\":null},\"status\":\"ok\"}");
+                        + "\"knowledge_id\":\"k1\"}}],\"next_page_offset\":null},\"status\":\"ok\"}");
         QdrantRetrieveRepository repo = repo("weknora_embeddings");
         repo.copyIndices("srcKb", Map.of("k1", "tk1"), Map.of("c1", "tc1"), "targetKb", 2,
                 "document");

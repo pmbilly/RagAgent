@@ -147,8 +147,8 @@ class KnowledgeOperationsContractTest {
         seedUser(VIEWER, "kgviewer", VIEWER_EMAIL, "viewer");
         seedUser(CONTRIBUTOR, "kgcontrib", CONTRA_EMAIL, "contributor");
 
-        String strategy = "{\"vector_enabled\":false,\"keyword_enabled\":false,"
-                + "\"wiki_enabled\":false,\"graph_enabled\":false}";
+        String strategy = "{\"vectorEnabled\":false,\"keywordEnabled\":false,"
+                + "\"wikiEnabled\":false,\"graphEnabled\":false}";
         seedKb(KB1, "kg-golden-kb", strategy);
         seedKb(KB2, "kg-second-kb", strategy);
         seedKb(KB3, "kg-clear-kb", strategy);

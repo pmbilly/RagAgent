@@ -160,7 +160,7 @@ class EmbeddingWireTest {
     void aliyunMultimodalRequestAndIndexReorder() {
         Stub stub = new Stub(
                 "{\"output\":{\"embeddings\":[{\"embedding\":[0.3,0.4],\"text_index\":1},"
-                + "{\"embedding\":[0.1,0.2],\"text_index\":0}]},\"usage\":{\"totalTokens\":10}}");
+                + "{\"embedding\":[0.1,0.2],\"text_index\":0}]},\"usage\":{\"total_tokens\":10}}");
         try {
             Embedder e = new AliyunEmbedder("sk-test", stub.url(), "multimodal-embedding-v1",
                     511, 0, "emb-2", null);
@@ -195,7 +195,7 @@ class EmbeddingWireTest {
     void volcengineEmbedsOneByOne() {
         Stub stub = new Stub(
                 "{\"object\":\"embedding\",\"data\":{\"embedding\":[0.5,0.6]},\"model\":\"m\","
-                + "\"usage\":{\"promptTokens\":1,\"totalTokens\":2}}");
+                + "\"usage\":{\"prompt_tokens\":1,\"total_tokens\":2}}");
         try {
             Embedder e = new VolcengineEmbedder("sk-test", stub.url(), "doubao-embedding",
                     511, 0, "emb-3", null);

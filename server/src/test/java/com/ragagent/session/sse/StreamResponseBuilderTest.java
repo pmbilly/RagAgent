@@ -54,7 +54,7 @@ class StreamResponseBuilderTest {
         // （Java 字段名即键名）；data 是缓存映射直通，保持库内键名与未知键。
         String json = write(StreamResponseBuilder.build(evt, "req-1"));
         assertThat(json).contains("\"id\":\"req-1\",\"response_type\":\"references\"");
-        assertThat(json).contains("\"knowledgeReferences\":[{\"id\":\"chunk-1\",\"content\":\"hello\"");
+        assertThat(json).contains("\"knowledge_references\":[{\"id\":\"chunk-1\",\"content\":\"hello\"");
         assertThat(json).contains("\"knowledgeId\":\"kb-1\"");
         assertThat(json).contains("\"chunkIndex\":3");
         assertThat(json).contains("\"knowledgeTitle\":\"t\"");
@@ -109,8 +109,8 @@ class StreamResponseBuilderTest {
 
         assertThat(write(StreamResponseBuilder.build(evt, "req-2"))).isEqualTo(
                 "{\"id\":\"req-2\",\"response_type\":\"agent_query\",\"content\":\"\",\"done\":true,"
-                        + "\"sessionId\":\"sess-1\",\"assistantMessageId\":\"msg-1\","
-                        + "\"data\":{\"assistantMessageId\":\"msg-1\",\"sessionId\":\"sess-1\"}}");
+                        + "\"session_id\":\"sess-1\",\"assistant_message_id\":\"msg-1\","
+                        + "\"data\":{\"assistant_message_id\":\"msg-1\",\"session_id\":\"sess-1\"}}");
     }
 
     /** 非 agent_query 事件即便带了这两个键也<b>不</b>提取（Go 只在 agent_query 分支里取）。 */
@@ -125,8 +125,8 @@ class StreamResponseBuilderTest {
 
         assertThat(write(StreamResponseBuilder.build(evt, "req-6"))).isEqualTo(
                 "{\"id\":\"req-6\",\"response_type\":\"answer\",\"content\":\"hi\",\"done\":false,"
-                        + "\"data\":{\"assistantMessageId\":\"m9\",\"event_id\":\"e1\","
-                        + "\"sessionId\":\"sess-9\"}}");
+                        + "\"data\":{\"assistant_message_id\":\"m9\",\"event_id\":\"e1\","
+                        + "\"session_id\":\"sess-9\"}}");
     }
 
     // ── 场景 C/D/E：references 数据不成立时的三种退路 ───────────────────────
@@ -190,7 +190,7 @@ class StreamResponseBuilderTest {
 
         // 活对象直通：两侧都按 SearchResult 序列化（camelCase）
         String json = write(StreamResponseBuilder.build(evt, "req-7"));
-        assertThat(json).contains("\"knowledgeReferences\":[{\"id\":\"chunk-2\",\"content\":\"world\"");
+        assertThat(json).contains("\"knowledge_references\":[{\"id\":\"chunk-2\",\"content\":\"world\"");
         assertThat(json).contains("\"knowledgeId\":\"kb-2\"");
         assertThat(json).contains("\"matchType\":3");
         assertThat(json).contains("\"subChunkId\":[\"sub-1\"]");

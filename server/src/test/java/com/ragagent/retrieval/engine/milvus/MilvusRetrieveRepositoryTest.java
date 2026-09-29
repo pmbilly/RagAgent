@@ -286,8 +286,8 @@ class MilvusRetrieveRepositoryTest {
         responses.put("POST /v2/vectordb/entities/query",
                 "{\"code\":0,\"data\":[{\"id\":\"" + CHUNK + "\",\"content\":\"c\","
                         + "\"source_id\":\"" + CHUNK + "\",\"source_type\":0,"
-                        + "\"chunk_id\":\"" + CHUNK + "\",\"knowledgeId\":\"k1\","
-                        + "\"knowledgeBaseId\":\"kb1\",\"tag_id\":\"\","
+                        + "\"chunk_id\":\"" + CHUNK + "\",\"knowledge_id\":\"k1\","
+                        + "\"knowledge_base_id\":\"kb1\",\"tag_id\":\"\","
                         + "\"is_enabled\":true,\"embedding\":[0.5,0.25]}]}");
         MilvusRetrieveRepository repo = repo("weknora_embeddings");
         repo.batchUpdateChunkEnabledStatus(Map.of(CHUNK, false));
@@ -327,7 +327,7 @@ class MilvusRetrieveRepositoryTest {
         responses.put("POST /v2/vectordb/entities/search",
                 "{\"code\":0,\"data\":[{\"id\":\"p1\",\"content\":\"hello\","
                         + "\"source_id\":\"s1\",\"source_type\":0,\"chunk_id\":\"c1\","
-                        + "\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"kb1\","
+                        + "\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"kb1\","
                         + "\"tag_id\":\"\",\"is_enabled\":true,\"embedding\":[1,0],"
                         + "\"distance\":0.93}],\"topks\":[1]}");
         MilvusRetrieveRepository repo = repo("weknora_embeddings");
@@ -436,7 +436,7 @@ class MilvusRetrieveRepositoryTest {
                 "{\"code\":0,\"data\":["
                         + "{\"id\":\"p1\",\"content\":\"a\",\"source_id\":\"" + c1 + "\","
                         + "\"source_type\":2,\"chunk_id\":\"" + c1 + "\","
-                        + "\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"srcKb\","
+                        + "\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"srcKb\","
                         + "\"tag_id\":\"t\",\"is_enabled\":false,\"embedding\":[0.5,0.25]}"
                         + "]}");
         MilvusRetrieveRepository repo = repo("weknora_embeddings");
@@ -463,7 +463,7 @@ class MilvusRetrieveRepositoryTest {
         String id1 = UUID.randomUUID().toString();
         responses.put("POST /v2/vectordb/entities/query",
                 "{\"code\":0,\"data\":[{\"id\":\"" + id1 + "\",\"chunk_id\":\"c1\","
-                        + "\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"srcKb\","
+                        + "\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"srcKb\","
                         + "\"tag_id\":\"t\",\"embedding\":[1]}],\"topks\":[1]}");
         MilvusRetrieveRepository repo = repo("weknora_embeddings");
         assertThatThrownBy(() -> repo.moveKnowledgeIndices("srcKb", "targetKb", "k1",

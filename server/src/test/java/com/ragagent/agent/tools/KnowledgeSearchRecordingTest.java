@@ -272,7 +272,7 @@ class KnowledgeSearchRecordingTest {
         KnowledgeSearchTool tool = new KnowledgeSearchTool(kbSvc(), chunkSvc(), null, null,
                 skb1Targets(), null);
         assertToolResult("kb_filter", tool.execute(
-                req("{\"queries\":[\"What is RAG retrieval?\"],\"knowledgeBaseIds\":[\"skb1\"]}")),
+                req("{\"queries\":[\"What is RAG retrieval?\"],\"knowledge_base_ids\":[\"skb1\"]}")),
                 rec("knowledge_search_kb_filter"));
     }
 
@@ -281,7 +281,7 @@ class KnowledgeSearchRecordingTest {
         KnowledgeSearchTool tool = new KnowledgeSearchTool(kbSvc(), chunkSvc(), null, null,
                 skb1Targets(), null);
         assertToolResult("kb_filter_outside", tool.execute(
-                req("{\"queries\":[\"q\"],\"knowledgeBaseIds\":[\"nope\"]}")),
+                req("{\"queries\":[\"q\"],\"knowledge_base_ids\":[\"nope\"]}")),
                 rec("knowledge_search_kb_filter_outside"));
     }
 

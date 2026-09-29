@@ -172,15 +172,15 @@ class AgentContractTest {
         assertGolden(postH("/api/v1/agents", bearer, "{\"name\":\"   \"}"),
                 400, "ag-create-blank-name.json");
         assertGolden(postH("/api/v1/agents", bearer,
-                "{\"name\":\"ag-bad-count\",\"config\":{\"questionSuggestions\":{\"starters\":"
+                "{\"name\":\"ag-bad-count\",\"config\":{\"question_suggestions\":{\"starters\":"
                 + "{\"enabled\":true,\"mode\":\"curated\",\"count\":9},\"follow_ups\":{\"enabled\":false}}}}"),
                 400, "ag-create-bad-starters-count.json");
         assertGolden(postH("/api/v1/agents", bearer,
-                "{\"name\":\"ag-bad-mode\",\"config\":{\"questionSuggestions\":{\"starters\":"
+                "{\"name\":\"ag-bad-mode\",\"config\":{\"question_suggestions\":{\"starters\":"
                 + "{\"enabled\":true,\"mode\":\"nonsense\",\"count\":2},\"follow_ups\":{\"enabled\":false}}}}"),
                 400, "ag-create-bad-starter-mode.json");
         assertGolden(postH("/api/v1/agents", bearer,
-                "{\"name\":\"ag-bad-item\",\"config\":{\"questionSuggestions\":{\"starters\":"
+                "{\"name\":\"ag-bad-item\",\"config\":{\"question_suggestions\":{\"starters\":"
                 + "{\"enabled\":true,\"mode\":\"curated\",\"items\":[\"  \"],\"count\":1},"
                 + "\"follow_ups\":{\"enabled\":false}}}}"),
                 400, "ag-create-empty-starter-item.json");
@@ -310,7 +310,7 @@ class AgentContractTest {
         + "\"config\":{"
         + "\"agent_mode\":\"smart-reasoning\",\"agent_type\":\"rag-qa\","
         + "\"system_prompt\":\"you are full\",\"context_template\":\"ctx {{query}}\","
-        + "\"modelId\":\"shr-model-1\",\"rerank_model_id\":\"shr-rerank-1\","
+        + "\"model_id\":\"shr-model-1\",\"rerank_model_id\":\"shr-rerank-1\","
         + "\"temperature\":0.5,\"max_completion_tokens\":4096,"
         + "\"thinking\":true,\"citation_enabled\":false,\"max_iterations\":-1,"
         + "\"llm_call_timeout\":120,"
@@ -328,7 +328,7 @@ class AgentContractTest {
         + "\"attachment_ocr_max_pages\":5,\"attachment_parse_wait_timeout_sec\":30,"
         + "\"data_analysis_enabled\":true,"
         + "\"faq_priority_enabled\":true,\"faq_direct_answer_threshold\":0.8,\"faq_score_boost\":1.5,"
-        + "\"webSearchEnabled\":true,\"web_search_max_results\":8,"
+        + "\"web_search_enabled\":true,\"web_search_max_results\":8,"
         + "\"web_search_provider_id\":\"wsp-1\",\"web_fetch_enabled\":true,\"web_fetch_top_n\":4,"
         + "\"history_turns\":3,"
         + "\"memory_enabled\":true,"
@@ -339,13 +339,13 @@ class AgentContractTest {
         + "\"query_understand_model_id\":\"qu-model\","
         + "\"fallback_strategy\":\"fixed\",\"fallback_response\":\"sorry\",\"fallback_prompt\":\"fp\","
         + "\"intent_prompts\":{\"greeting\":\"hi there\"},"
-        + "\"questionSuggestions\":{"
+        + "\"question_suggestions\":{"
         + "\"starters\":{\"enabled\":true,\"mode\":\"curated\",\"items\":[\"问题A\",\"问题B\"],\"count\":2},"
-        + "\"follow_ups\":{\"enabled\":true,\"mode\":\"hybrid\",\"count\":2,\"modelId\":\"fu-model\","
+        + "\"follow_ups\":{\"enabled\":true,\"mode\":\"hybrid\",\"count\":2,\"model_id\":\"fu-model\","
         + "\"additional_instruction\":\"be nice\",\"categories\":[\"clarify\",\"deepen\"],"
         + "\"max_context_turns\":3,\"suppress_on_fallback\":true,"
         + "\"suppress_when_answer_asks_question\":true,\"knowledge_fallback\":true,"
-        + "\"allowRegenerate\":true}}}}";
+        + "\"allow_regenerate\":true}}}}";
 
     private static final String INIT_REQUEST = "{"
         + "\"llm\":{\"source\":\"remote\",\"modelName\":\"ag-init-llm\",\"baseUrl\":\"\",\"apiKey\":\"sk-init\"},"

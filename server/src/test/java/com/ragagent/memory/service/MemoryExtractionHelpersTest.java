@@ -146,7 +146,7 @@ class MemoryExtractionHelpersTest {
 
         @Test
         void parsesAPlainObject() {
-            // Go 实录：[{"action":"add",...,"content":"c","importance":0,"expiresAt":"","inferred":false}]
+            // Go 实录：[{"action":"add",...,"content":"c","importance":0,"expires_at":"","inferred":false}]
             MemoryExtractionService.ExtractionResponse parsed = MemoryExtractionService
                     .parseExtractionResponse("{\"memories\":[{\"action\":\"add\",\"kind\":\"fact\","
                             + "\"topic\":\"t\",\"content\":\"c\"}],\"topics\":[\"x\"]}");
@@ -365,9 +365,9 @@ class MemoryExtractionHelpersTest {
         void omitsBlankChatModelAndLanguage() throws Exception {
             MemoryExtractPayload payload = new MemoryExtractPayload(
                     7, "web_user:u1", "s", "m", "", "");
-            // Go 实录：{"tenantId":7,"subject_id":"web_user:u1","sessionId":"s","message_id":"m"}
+            // Go 实录：{"tenant_id":7,"subject_id":"web_user:u1","session_id":"s","message_id":"m"}
             assertThat(mapper.writeValueAsString(payload)).isEqualTo(
-                    "{\"tenantId\":7,\"subject_id\":\"web_user:u1\",\"sessionId\":\"s\","
+                    "{\"tenant_id\":7,\"subject_id\":\"web_user:u1\",\"session_id\":\"s\","
                             + "\"message_id\":\"m\"}");
         }
 
@@ -377,7 +377,7 @@ class MemoryExtractionHelpersTest {
                     7, "web_user:u1", "s", "m", "chat-1", "Chinese (Simplified)");
             // Go 实录：...{"chat_model_id":"chat-1","language":"Chinese (Simplified)"}
             assertThat(mapper.writeValueAsString(payload)).isEqualTo(
-                    "{\"tenantId\":7,\"subject_id\":\"web_user:u1\",\"sessionId\":\"s\","
+                    "{\"tenant_id\":7,\"subject_id\":\"web_user:u1\",\"session_id\":\"s\","
                             + "\"message_id\":\"m\",\"chat_model_id\":\"chat-1\","
                             + "\"language\":\"Chinese (Simplified)\"}");
             assertThat(payload.scope().valid()).isTrue();
@@ -391,7 +391,7 @@ class MemoryExtractionHelpersTest {
             assertThat(MemoryExtractPayload.fromJson(payload.toJson())).isEqualTo(payload);
             // Go 的 json.Unmarshal 忽略未知字段；负载加了新键后旧消费者必须还能读。
             MemoryExtractPayload read =
-                    MemoryExtractPayload.fromJson("{\"tenantId\":1,\"subject_id\":\"a\",\"extra\":1}");
+                    MemoryExtractPayload.fromJson("{\"tenant_id\":1,\"subject_id\":\"a\",\"extra\":1}");
             assertThat(read.subjectId()).isEqualTo("a");
         }
 

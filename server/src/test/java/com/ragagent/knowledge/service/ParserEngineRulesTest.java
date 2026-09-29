@@ -50,7 +50,7 @@ class ParserEngineRulesTest {
 
     @Test
     void noHitFallsBackToDefaultEngine() {
-        JsonNode rules = rules("[{\"file_types\":[\"pdf\"],\"engine\":\"mineru\"}]");
+        JsonNode rules = rules("[{\"fileTypes\":[\"pdf\"],\"engine\":\"mineru\"}]");
         assertThat(ParserEngineRules.resolve(rules, "ppt")).isEqualTo("markitdown");
         assertThat(ParserEngineRules.resolve(rules, "txt")).isEmpty();
     }

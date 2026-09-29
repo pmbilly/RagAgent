@@ -495,7 +495,7 @@ class WebSearchProviderExecTest {
 
     @Test
     void zhipuBodyTruncationAndMapping() {
-        Stub stub = new Stub("{\"id\":\"search-id\",\"requestId\":\"request-id\","
+        Stub stub = new Stub("{\"id\":\"search-id\",\"request_id\":\"request-id\","
                 + "\"search_result\":["
                 + "{\"title\":\"Result 1\",\"link\":\"https://example.com/1\",\"content\":\"Summary 1\",\"publish_date\":\"2026-07-16\"},"
                 + "{\"title\":\"Result 2\",\"link\":\"https://example.com/2\",\"content\":\"Summary 2\"}]}");

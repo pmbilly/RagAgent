@@ -175,8 +175,8 @@ final class WikiFixtures {
                 "{\"code\":0,\"msg\":\"\",\"data\":{\"ticket\":\"ticket-123\"}}"));
         server.handle("/open-apis/drive/v1/export_tasks/ticket-123", (ex, body) ->
                 FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
-                        + "\"file_token\":\"ft-abc\",\"fileSize\":100,\"job_status\":0,"
-                        + "\"job_error_msg\":\"\",\"fileName\":\"exported.docx\"}}}"));
+                        + "\"file_token\":\"ft-abc\",\"file_size\":100,\"job_status\":0,"
+                        + "\"job_error_msg\":\"\",\"file_name\":\"exported.docx\"}}}"));
         server.handle("/open-apis/drive/v1/export_tasks/file/ft-abc/download", (ex, body) ->
                 FeishuTestServer.sendBytes(ex, "application/octet-stream",
                         downloadContent.getBytes(StandardCharsets.UTF_8)));

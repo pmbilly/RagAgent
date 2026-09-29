@@ -48,11 +48,11 @@ class SessionG6ContractTest {
     private static final String A3 = "fff00001-0000-0000-0000-000000000003";
 
     private static final String ARTIFACT_JSON =
-            "[{\"url\":\"resource://abcdefghijklmnopqrstuv\",\"fileName\":\"report.pdf\","
-                    + "\"fileType\":\"pdf\",\"fileSize\":1234,"
-                    + "\"sourcePath\":\"/tmp/report.pdf\","
-                    + "\"modTime\":\"2026-09-18T21:00:00+08:00\","
-                    + "\"createdAt\":\"2026-09-18T21:00:00+08:00\"}]";
+            "[{\"url\":\"resource://abcdefghijklmnopqrstuv\",\"file_name\":\"report.pdf\","
+                    + "\"file_type\":\"pdf\",\"file_size\":1234,"
+                    + "\"source_path\":\"/tmp/report.pdf\","
+                    + "\"mod_time\":\"2026-09-18T21:00:00+08:00\","
+                    + "\"created_at\":\"2026-09-18T21:00:00+08:00\"}]";
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
     private static final Pattern UUID_VALUE = Pattern.compile(
@@ -229,7 +229,7 @@ class SessionG6ContractTest {
     @Test
     void generateTitleExistingMatchesGo() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + titledSid + "/generate_title"),
-                "{\"messages\":[{\"role\":\"user\",\"content\":\"第一问\",\"completed\":true}]}")
+                "{\"messages\":[{\"role\":\"user\",\"content\":\"第一问\",\"is_completed\":true}]}")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("g6-title-existing.json"), raw(r));
@@ -239,7 +239,7 @@ class SessionG6ContractTest {
     @Test
     void generateTitleWithoutUserMessageMatchesGo() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/generate_title"),
-                "{\"messages\":[{\"role\":\"assistant\",\"content\":\"答\",\"completed\":true}]}")
+                "{\"messages\":[{\"role\":\"assistant\",\"content\":\"答\",\"is_completed\":true}]}")
                 .header("Authorization", bearer));
         assertEquals(500, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("g6-title-no-user.json"), raw(r));

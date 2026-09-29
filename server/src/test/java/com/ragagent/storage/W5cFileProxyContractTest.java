@@ -398,7 +398,7 @@ class W5cFileProxyContractTest {
         String full = createApiKey("{\"name\":\"w5c-full\",\"full_access\":true}");
         String retr = createApiKey("{\"name\":\"w5c-retrieve\",\"capabilities\":[\"retrieve\"]}");
         String kbre = createApiKey("{\"name\":\"w5c-kbrestricted\",\"capabilities\":[\"retrieve\"],"
-                + "\"knowledgeBaseIds\":[\"" + KB_MAIN + "\"]}");
+                + "\"knowledge_base_ids\":[\"" + KB_MAIN + "\"]}");
         compareJson("w5c-files-key-kbrestricted.json", 403, "GET",
                 "/files?file_path=" + TXT, null, "X-API-Key: " + kbre);
         compareBinary("w5c-files-key-full", 200, "GET", "/files?file_path=" + TXT,
@@ -500,7 +500,7 @@ class W5cFileProxyContractTest {
         compareHead("w5c-kbfiles-head.hdr", 404, "HEAD",
                 "/api/v1/knowledge-bases/" + KB_MAIN + "/files?file_path=" + TXT_ENC, owner);
         String kbre = createApiKey("{\"name\":\"w5c-kbrestricted\",\"capabilities\":[\"retrieve\"],"
-                + "\"knowledgeBaseIds\":[\"" + KB_MAIN + "\"]}");
+                + "\"knowledge_base_ids\":[\"" + KB_MAIN + "\"]}");
         compareJson("w5c-kbfiles-key-kbrestricted.json", 403, "GET",
                 "/api/v1/knowledge-bases/" + KB_MAIN + "/files?file_path=" + TXT,
                 null, "X-API-Key: " + kbre);

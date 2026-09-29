@@ -118,8 +118,8 @@ class TelegramAdapterTest {
 
         IncomingMessage file = a.parseCallback(exchange(
                 "{\"message\":{\"message_id\":9,\"chat\":{\"id\":1,\"type\":\"private\"},"
-                        + "\"document\":{\"file_id\":\"F1\",\"fileName\":\"a.pdf\","
-                        + "\"fileSize\":1234}}}"));
+                        + "\"document\":{\"file_id\":\"F1\",\"file_name\":\"a.pdf\","
+                        + "\"file_size\":1234}}}"));
         assertEquals(ImTypes.MESSAGE_TYPE_FILE, file.messageType);
         assertEquals("F1", file.fileKey);
         assertEquals("a.pdf", file.fileName);
@@ -127,8 +127,8 @@ class TelegramAdapterTest {
 
         IncomingMessage photo = a.parseCallback(exchange(
                 "{\"message\":{\"message_id\":10,\"chat\":{\"id\":1,\"type\":\"private\"},"
-                        + "\"photo\":[{\"file_id\":\"small\",\"fileSize\":10},"
-                        + "{\"file_id\":\"big\",\"fileSize\":99}]}}"));
+                        + "\"photo\":[{\"file_id\":\"small\",\"file_size\":10},"
+                        + "{\"file_id\":\"big\",\"file_size\":99}]}}"));
         assertEquals(ImTypes.MESSAGE_TYPE_IMAGE, photo.messageType);
         assertEquals("big", photo.fileKey); // 取最大那张（末位，照 Go）
         assertEquals("photo.jpg", photo.fileName);

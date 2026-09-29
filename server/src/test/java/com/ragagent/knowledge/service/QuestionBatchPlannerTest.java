@@ -104,10 +104,10 @@ class QuestionBatchPlannerTest {
 
         String json = p.toJson();
 
-        assertThat(json).contains("\"chunk_ids\":[\"c1\",\"c2\"]");
-        assertThat(json).contains("\"batch_index\":1");
-        assertThat(json).contains("\"prev_chunk_id\":\"c0\"");
-        assertThat(json).contains("\"lf_trace_id\":\"tid\"");
+        assertThat(json).contains("\"chunkIds\":[\"c1\",\"c2\"]");
+        assertThat(json).contains("\"batchIndex\":1");
+        assertThat(json).contains("\"prevChunkId\":\"c0\"");
+        assertThat(json).contains("\"lfTraceId\":\"tid\"");
         QuestionBatchPayload back = QuestionBatchPayload.fromJson(json);
         assertThat(back.tenantId()).isEqualTo(10002);
         assertThat(back.knowledgeBaseId()).isEqualTo("kb-1");

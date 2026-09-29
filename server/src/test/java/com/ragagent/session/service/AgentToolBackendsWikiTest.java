@@ -185,7 +185,7 @@ class AgentToolBackendsWikiTest {
                 .isEqualTo("0001-01-01T00:00:00Z");
         // toGoJsonIndent 的字段序 = Go struct 声明序
         assertThat(issue.toGoJsonIndent()).startsWith("{\n  \"id\": \"i1\",\n")
-                .contains("\"deletedAt\": null\n}");
+                .contains("\"deleted_at\": null\n}");
     }
 
     /** createIssue：工具侧视图的字段（含 page 带出的 tenant）落库。 */

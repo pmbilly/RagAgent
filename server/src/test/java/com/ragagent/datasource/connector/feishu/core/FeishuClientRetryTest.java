@@ -248,8 +248,8 @@ class FeishuClientRetryTest {
                 "{\"code\":0,\"msg\":\"\",\"data\":{\"ticket\":\"ticket-x\"}}"));
         server.handle("/open-apis/drive/v1/export_tasks/ticket-x", (ex, body) ->
                 FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
-                        + "\"file_token\":\"\",\"fileSize\":0,\"job_status\":2,"
-                        + "\"job_error_msg\":\"\",\"fileName\":\"\"}}}"));
+                        + "\"file_token\":\"\",\"file_size\":0,\"job_status\":2,"
+                        + "\"job_error_msg\":\"\",\"file_name\":\"\"}}}"));
 
         Duration savedTimeout = FeishuClient.exportTimeout;
         Duration savedPoll = FeishuClient.exportPollInterval;
@@ -273,8 +273,8 @@ class FeishuClientRetryTest {
                 "{\"code\":0,\"msg\":\"\",\"data\":{\"ticket\":\"ticket-y\"}}"));
         server.handle("/open-apis/drive/v1/export_tasks/ticket-y", (ex, body) ->
                 FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
-                        + "\"file_token\":\"ft-y\",\"fileSize\":3,\"job_status\":0,"
-                        + "\"job_error_msg\":\"\",\"fileName\":\"季度报告.docx\"}}}"));
+                        + "\"file_token\":\"ft-y\",\"file_size\":3,\"job_status\":0,"
+                        + "\"job_error_msg\":\"\",\"file_name\":\"季度报告.docx\"}}}"));
         server.handle("/open-apis/drive/v1/export_tasks/file/ft-y/download", (ex, body) ->
                 FeishuTestServer.sendBytes(ex, "application/octet-stream",
                         "abc".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
@@ -291,8 +291,8 @@ class FeishuClientRetryTest {
                 "{\"code\":0,\"msg\":\"\",\"data\":{\"ticket\":\"ticket-z\"}}"));
         server.handle("/open-apis/drive/v1/export_tasks/ticket-z", (ex, body) ->
                 FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
-                        + "\"file_token\":\"ft-z\",\"fileSize\":3,\"job_status\":0,"
-                        + "\"job_error_msg\":\"\",\"fileName\":\"\"}}}"));
+                        + "\"file_token\":\"ft-z\",\"file_size\":3,\"job_status\":0,"
+                        + "\"job_error_msg\":\"\",\"file_name\":\"\"}}}"));
         server.handle("/open-apis/drive/v1/export_tasks/file/ft-z/download", (ex, body) ->
                 FeishuTestServer.sendBytes(ex, "application/octet-stream", new byte[]{1}));
 

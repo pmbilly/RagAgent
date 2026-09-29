@@ -46,14 +46,14 @@ class EventPayloadJsonTest {
 
     @Test
     void queryDataZero() {
-        // Go: {"original_query":"","sessionId":""}
-        assertEquals("{\"original_query\":\"\",\"sessionId\":\"\"}", write(new QueryData()));
+        // Go: {"original_query":"","session_id":""}
+        assertEquals("{\"original_query\":\"\",\"session_id\":\"\"}", write(new QueryData()));
     }
 
     @Test
     void queryDataFull() {
         // Go: {"original_query":"What is \u003cRAG\u003e \u0026 why?","rewritten_query":"explain retrieval-augmented generation",
-        //      "sessionId":"sess-1","userId":"u-1","extra":{"alpha":true,"mid":"m","zebra":1}}
+        //      "session_id":"sess-1","user_id":"u-1","extra":{"alpha":true,"mid":"m","zebra":1}}
         QueryData d = new QueryData();
         d.setOriginalQuery("What is <RAG> & why?");
         d.setRewrittenQuery("explain retrieval-augmented generation");
@@ -63,29 +63,29 @@ class EventPayloadJsonTest {
         d.setExtra(mapOf("zebra", 1, "alpha", true, "mid", "m"));
         assertEquals("{\"original_query\":\"What is \\u003cRAG\\u003e \\u0026 why?\","
                 + "\"rewritten_query\":\"explain retrieval-augmented generation\","
-                + "\"sessionId\":\"sess-1\",\"userId\":\"u-1\","
+                + "\"session_id\":\"sess-1\",\"user_id\":\"u-1\","
                 + "\"extra\":{\"alpha\":true,\"mid\":\"m\",\"zebra\":1}}", write(d));
     }
 
     @Test
     void queryDataEmptyExtraOmitted() {
-        // Go: {"original_query":"q","sessionId":"s"}——空 map 也被 omitempty 省略
+        // Go: {"original_query":"q","session_id":"s"}——空 map 也被 omitempty 省略
         QueryData d = new QueryData("q", "", "s", "", new LinkedHashMap<>());
-        assertEquals("{\"original_query\":\"q\",\"sessionId\":\"s\"}", write(d));
+        assertEquals("{\"original_query\":\"q\",\"session_id\":\"s\"}", write(d));
     }
 
     // ===== RetrievalData =====
 
     @Test
     void retrievalDataZero() {
-        // Go: {"query":"","knowledgeBaseId":"","top_k":0,"threshold":0,"retrieval_type":"","result_count":0}
-        assertEquals("{\"query\":\"\",\"knowledgeBaseId\":\"\",\"top_k\":0,\"threshold\":0,"
+        // Go: {"query":"","knowledge_base_id":"","top_k":0,"threshold":0,"retrieval_type":"","result_count":0}
+        assertEquals("{\"query\":\"\",\"knowledge_base_id\":\"\",\"top_k\":0,\"threshold\":0,"
                 + "\"retrieval_type\":\"\",\"result_count\":0}", write(new RetrievalData()));
     }
 
     @Test
     void retrievalDataFull() {
-        // Go: {"query":"q","knowledgeBaseId":"kb-1","top_k":10,"threshold":0.5,"retrieval_type":"vector",
+        // Go: {"query":"q","knowledge_base_id":"kb-1","top_k":10,"threshold":0.5,"retrieval_type":"vector",
         //      "result_count":2,"results":[{"content":"c","score":0.9}],"duration_ms":123,"extra":{"k":"v"}}
         RetrievalData d = new RetrievalData();
         d.setQuery("q");
@@ -97,7 +97,7 @@ class EventPayloadJsonTest {
         d.setResults(listOf(mapOf("score", 0.9, "content", "c")));
         d.setDurationMs(123);
         d.setExtra(mapOf("k", "v"));
-        assertEquals("{\"query\":\"q\",\"knowledgeBaseId\":\"kb-1\",\"top_k\":10,\"threshold\":0.5,"
+        assertEquals("{\"query\":\"q\",\"knowledge_base_id\":\"kb-1\",\"top_k\":10,\"threshold\":0.5,"
                 + "\"retrieval_type\":\"vector\",\"result_count\":2,"
                 + "\"results\":[{\"content\":\"c\",\"score\":0.9}],\"duration_ms\":123,\"extra\":{\"k\":\"v\"}}",
                 write(d));
@@ -105,10 +105,10 @@ class EventPayloadJsonTest {
 
     @Test
     void retrievalDataZeroThresholdAlwaysOutput() {
-        // Go: {"query":"q","knowledgeBaseId":"kb","top_k":0,"threshold":0,"retrieval_type":"keyword","result_count":0}
+        // Go: {"query":"q","knowledge_base_id":"kb","top_k":0,"threshold":0,"retrieval_type":"keyword","result_count":0}
         // threshold 无 omitempty：0 也输出
         RetrievalData d = new RetrievalData("q", "kb", 0, 0.0, "keyword", 0, null, 0, null);
-        assertEquals("{\"query\":\"q\",\"knowledgeBaseId\":\"kb\",\"top_k\":0,\"threshold\":0,"
+        assertEquals("{\"query\":\"q\",\"knowledge_base_id\":\"kb\",\"top_k\":0,\"threshold\":0,"
                 + "\"retrieval_type\":\"keyword\",\"result_count\":0}", write(d));
     }
 
@@ -116,17 +116,17 @@ class EventPayloadJsonTest {
 
     @Test
     void rerankDataZero() {
-        // Go: {"query":"","input_count":0,"output_count":0,"modelId":"","threshold":0}
-        assertEquals("{\"query\":\"\",\"input_count\":0,\"output_count\":0,\"modelId\":\"\",\"threshold\":0}",
+        // Go: {"query":"","input_count":0,"output_count":0,"model_id":"","threshold":0}
+        assertEquals("{\"query\":\"\",\"input_count\":0,\"output_count\":0,\"model_id\":\"\",\"threshold\":0}",
                 write(new RerankData()));
     }
 
     @Test
     void rerankDataFull() {
-        // Go: {"query":"q","input_count":10,"output_count":5,"modelId":"m-1","threshold":0.3,
+        // Go: {"query":"q","input_count":10,"output_count":5,"model_id":"m-1","threshold":0.3,
         //      "results":["a","b"],"duration_ms":45}
         RerankData d = new RerankData("q", 10, 5, "m-1", 0.3, new ArrayList<>(List.of("a", "b")), 45, null);
-        assertEquals("{\"query\":\"q\",\"input_count\":10,\"output_count\":5,\"modelId\":\"m-1\","
+        assertEquals("{\"query\":\"q\",\"input_count\":10,\"output_count\":5,\"model_id\":\"m-1\","
                 + "\"threshold\":0.3,\"results\":[\"a\",\"b\"],\"duration_ms\":45}", write(d));
     }
 
@@ -150,17 +150,17 @@ class EventPayloadJsonTest {
 
     @Test
     void chatDataZero() {
-        // Go: {"query":"","modelId":"","is_stream":false}——is_stream 无 omitempty
-        assertEquals("{\"query\":\"\",\"modelId\":\"\",\"is_stream\":false}", write(new ChatData()));
+        // Go: {"query":"","model_id":"","is_stream":false}——is_stream 无 omitempty
+        assertEquals("{\"query\":\"\",\"model_id\":\"\",\"is_stream\":false}", write(new ChatData()));
     }
 
     @Test
     void chatDataFull() {
-        // Go: {"query":"q","modelId":"m","response":"r","stream_chunk":"sc","tokenCount":42,
+        // Go: {"query":"q","model_id":"m","response":"r","stream_chunk":"sc","token_count":42,
         //      "duration_ms":99,"is_stream":true,"extra":{"a":1.5}}
         ChatData d = new ChatData("q", "m", "r", "sc", 42, 99, true, mapOf("a", 1.5));
-        assertEquals("{\"query\":\"q\",\"modelId\":\"m\",\"response\":\"r\",\"stream_chunk\":\"sc\","
-                + "\"tokenCount\":42,\"duration_ms\":99,\"is_stream\":true,\"extra\":{\"a\":1.5}}",
+        assertEquals("{\"query\":\"q\",\"model_id\":\"m\",\"response\":\"r\",\"stream_chunk\":\"sc\","
+                + "\"token_count\":42,\"duration_ms\":99,\"is_stream\":true,\"extra\":{\"a\":1.5}}",
                 write(d));
     }
 
@@ -168,18 +168,18 @@ class EventPayloadJsonTest {
 
     @Test
     void errorDataZero() {
-        // Go: {"error":"","stage":"","sessionId":""}
-        assertEquals("{\"error\":\"\",\"stage\":\"\",\"sessionId\":\"\"}", write(new ErrorData()));
+        // Go: {"error":"","stage":"","session_id":""}
+        assertEquals("{\"error\":\"\",\"stage\":\"\",\"session_id\":\"\"}", write(new ErrorData()));
     }
 
     @Test
     void errorDataFull() {
-        // Go: {"error":"boom \u003cx\u003e\u0026","errorCode":"E-1","stage":"agent_execution",
-        //      "sessionId":"s-1","query":"q","extra":{"attempt":2}}
+        // Go: {"error":"boom \u003cx\u003e\u0026","error_code":"E-1","stage":"agent_execution",
+        //      "session_id":"s-1","query":"q","extra":{"attempt":2}}
         // extra 里的 float64(2.0) 输出 2（Go 编码器整数不补 .0）
         ErrorData d = new ErrorData("boom <x>&", "E-1", "agent_execution", "s-1", "q", mapOf("attempt", 2.0));
-        assertEquals("{\"error\":\"boom \\u003cx\\u003e\\u0026\",\"errorCode\":\"E-1\","
-                + "\"stage\":\"agent_execution\",\"sessionId\":\"s-1\",\"query\":\"q\","
+        assertEquals("{\"error\":\"boom \\u003cx\\u003e\\u0026\",\"error_code\":\"E-1\","
+                + "\"stage\":\"agent_execution\",\"session_id\":\"s-1\",\"query\":\"q\","
                 + "\"extra\":{\"attempt\":2}}", write(d));
     }
 
@@ -212,17 +212,17 @@ class EventPayloadJsonTest {
 
     @Test
     void agentStepDataZero() {
-        // Go: {"iteration":0,"thought":"","toolCalls":null,"duration_ms":0}
-        assertEquals("{\"iteration\":0,\"thought\":\"\",\"toolCalls\":null,\"duration_ms\":0}",
+        // Go: {"iteration":0,"thought":"","tool_calls":null,"duration_ms":0}
+        assertEquals("{\"iteration\":0,\"thought\":\"\",\"tool_calls\":null,\"duration_ms\":0}",
                 write(new AgentStepData()));
     }
 
     @Test
     void agentStepDataFull() {
-        // Go: {"iteration":2,"thought":"thinking","toolCalls":[{"name":"web_search"}],"duration_ms":300}
+        // Go: {"iteration":2,"thought":"thinking","tool_calls":[{"name":"web_search"}],"duration_ms":300}
         AgentStepData d = new AgentStepData(2, "thinking", listOf(mapOf("name", "web_search")), 300);
         assertEquals("{\"iteration\":2,\"thought\":\"thinking\","
-                + "\"toolCalls\":[{\"name\":\"web_search\"}],\"duration_ms\":300}", write(d));
+                + "\"tool_calls\":[{\"name\":\"web_search\"}],\"duration_ms\":300}", write(d));
     }
 
     // ===== AgentActionData =====
@@ -260,15 +260,15 @@ class EventPayloadJsonTest {
 
     @Test
     void agentQueryDataZero() {
-        // Go: {"sessionId":"","query":""}
-        assertEquals("{\"sessionId\":\"\",\"query\":\"\"}", write(new AgentQueryData()));
+        // Go: {"session_id":"","query":""}
+        assertEquals("{\"session_id\":\"\",\"query\":\"\"}", write(new AgentQueryData()));
     }
 
     @Test
     void agentQueryDataFull() {
-        // Go: {"sessionId":"s","query":"q","requestId":"r-1","extra":{"src":"embed"}}
+        // Go: {"session_id":"s","query":"q","request_id":"r-1","extra":{"src":"embed"}}
         AgentQueryData d = new AgentQueryData("s", "q", "r-1", mapOf("src", "embed"));
-        assertEquals("{\"sessionId\":\"s\",\"query\":\"q\",\"requestId\":\"r-1\","
+        assertEquals("{\"session_id\":\"s\",\"query\":\"q\",\"request_id\":\"r-1\","
                 + "\"extra\":{\"src\":\"embed\"}}", write(d));
     }
 
@@ -276,17 +276,17 @@ class EventPayloadJsonTest {
 
     @Test
     void agentCompleteDataZero() {
-        // Go: {"sessionId":"","total_steps":0,"final_answer":"","total_duration_ms":0}
-        assertEquals("{\"sessionId\":\"\",\"total_steps\":0,\"final_answer\":\"\",\"total_duration_ms\":0}",
+        // Go: {"session_id":"","total_steps":0,"final_answer":"","total_duration_ms":0}
+        assertEquals("{\"session_id\":\"\",\"total_steps\":0,\"final_answer\":\"\",\"total_duration_ms\":0}",
                 write(new AgentCompleteData()));
     }
 
     @Test
     void agentCompleteDataFull() {
-        // Go: {"sessionId":"s","total_steps":3,"final_answer":"the answer",
-        //      "knowledge_refs":[{"id":"c1","score":0.88}],"agentSteps":["think","act"],
-        //      "usage":{"completionTokens":5,"promptTokens":10},"total_duration_ms":1234,
-        //      "message_id":"m-1","requestId":"r-1","extra":{"ch":"web"}}
+        // Go: {"session_id":"s","total_steps":3,"final_answer":"the answer",
+        //      "knowledge_refs":[{"id":"c1","score":0.88}],"agent_steps":["think","act"],
+        //      "usage":{"completion_tokens":5,"prompt_tokens":10},"total_duration_ms":1234,
+        //      "message_id":"m-1","request_id":"r-1","extra":{"ch":"web"}}
         // usage 的 float64 整数输出 5/10（Go 编码器）
         AgentCompleteData d = new AgentCompleteData();
         d.setSessionId("s");
@@ -299,21 +299,21 @@ class EventPayloadJsonTest {
         d.setMessageId("m-1");
         d.setRequestId("r-1");
         d.setExtra(mapOf("ch", "web"));
-        assertEquals("{\"sessionId\":\"s\",\"total_steps\":3,\"final_answer\":\"the answer\","
+        assertEquals("{\"session_id\":\"s\",\"total_steps\":3,\"final_answer\":\"the answer\","
                 + "\"knowledge_refs\":[{\"id\":\"c1\",\"score\":0.88}],"
-                + "\"agentSteps\":[\"think\",\"act\"],"
-                + "\"usage\":{\"completionTokens\":5,\"promptTokens\":10},"
-                + "\"total_duration_ms\":1234,\"message_id\":\"m-1\",\"requestId\":\"r-1\","
+                + "\"agent_steps\":[\"think\",\"act\"],"
+                + "\"usage\":{\"completion_tokens\":5,\"prompt_tokens\":10},"
+                + "\"total_duration_ms\":1234,\"message_id\":\"m-1\",\"request_id\":\"r-1\","
                 + "\"extra\":{\"ch\":\"web\"}}", write(d));
     }
 
     @Test
     void agentCompleteDataEmptyRefsOmitted() {
-        // Go: {"sessionId":"s","total_steps":1,"final_answer":"a","total_duration_ms":10}
+        // Go: {"session_id":"s","total_steps":1,"final_answer":"a","total_duration_ms":10}
         // 空列表也被 omitempty 省略
         AgentCompleteData d = new AgentCompleteData("s", 1, "a", new ArrayList<>(), null,
                 null, 10, "", "", null);
-        assertEquals("{\"sessionId\":\"s\",\"total_steps\":1,\"final_answer\":\"a\",\"total_duration_ms\":10}",
+        assertEquals("{\"session_id\":\"s\",\"total_steps\":1,\"final_answer\":\"a\",\"total_duration_ms\":10}",
                 write(d));
     }
 
@@ -429,8 +429,8 @@ class EventPayloadJsonTest {
 
     @Test
     void agentFinalAnswerDataFull() {
-        // Go: {"content":"answer chunk","done":true,"fallback":true}
-        assertEquals("{\"content\":\"answer chunk\",\"done\":true,\"fallback\":true}",
+        // Go: {"content":"answer chunk","done":true,"is_fallback":true}
+        assertEquals("{\"content\":\"answer chunk\",\"done\":true,\"is_fallback\":true}",
                 write(new AgentFinalAnswerData("answer chunk", true, true)));
         // Go: doneOnly => {"content":"","done":true}
         assertEquals("{\"content\":\"\",\"done\":true}",
@@ -505,30 +505,30 @@ class EventPayloadJsonTest {
 
     @Test
     void sessionTitleDataZero() {
-        // Go: {"sessionId":"","title":""}
-        assertEquals("{\"sessionId\":\"\",\"title\":\"\"}", write(new SessionTitleData()));
+        // Go: {"session_id":"","title":""}
+        assertEquals("{\"session_id\":\"\",\"title\":\"\"}", write(new SessionTitleData()));
     }
 
     @Test
     void sessionTitleDataFull() {
-        // Go: {"sessionId":"s-1","title":"New Title"}
-        assertEquals("{\"sessionId\":\"s-1\",\"title\":\"New Title\"}",
+        // Go: {"session_id":"s-1","title":"New Title"}
+        assertEquals("{\"session_id\":\"s-1\",\"title\":\"New Title\"}",
                 write(new SessionTitleData("s-1", "New Title")));
     }
 
     @Test
     void stopDataZero() {
-        // Go: {"sessionId":"","message_id":""}
-        assertEquals("{\"sessionId\":\"\",\"message_id\":\"\"}", write(new StopData()));
+        // Go: {"session_id":"","message_id":""}
+        assertEquals("{\"session_id\":\"\",\"message_id\":\"\"}", write(new StopData()));
     }
 
     @Test
     void stopDataFullAndNoReason() {
-        // Go: {"sessionId":"s-1","message_id":"m-1","reason":"user_requested"}
-        assertEquals("{\"sessionId\":\"s-1\",\"message_id\":\"m-1\",\"reason\":\"user_requested\"}",
+        // Go: {"session_id":"s-1","message_id":"m-1","reason":"user_requested"}
+        assertEquals("{\"session_id\":\"s-1\",\"message_id\":\"m-1\",\"reason\":\"user_requested\"}",
                 write(new StopData("s-1", "m-1", "user_requested")));
-        // Go: noReason => {"sessionId":"s-1","message_id":"m-1"}
-        assertEquals("{\"sessionId\":\"s-1\",\"message_id\":\"m-1\"}",
+        // Go: noReason => {"session_id":"s-1","message_id":"m-1"}
+        assertEquals("{\"session_id\":\"s-1\",\"message_id\":\"m-1\"}",
                 write(new StopData("s-1", "m-1", "")));
     }
 
@@ -536,11 +536,11 @@ class EventPayloadJsonTest {
 
     @Test
     void toolApprovalRequiredDataZero() {
-        // Go: {"pending_id":"","tenantId":0,"sessionId":"","assistantMessageId":"","serviceId":"",
+        // Go: {"pending_id":"","tenant_id":0,"session_id":"","assistant_message_id":"","service_id":"",
         //      "service_name":"","mcp_tool_name":"","registered_tool_name":"","description":"",
         //      "timeout_seconds":0,"requested_at":0,"tool_call_id":""}
-        assertEquals("{\"pending_id\":\"\",\"tenantId\":0,\"sessionId\":\"\","
-                + "\"assistantMessageId\":\"\",\"serviceId\":\"\",\"service_name\":\"\","
+        assertEquals("{\"pending_id\":\"\",\"tenant_id\":0,\"session_id\":\"\","
+                + "\"assistant_message_id\":\"\",\"service_id\":\"\",\"service_name\":\"\","
                 + "\"mcp_tool_name\":\"\",\"registered_tool_name\":\"\",\"description\":\"\","
                 + "\"timeout_seconds\":0,\"requested_at\":0,\"tool_call_id\":\"\"}",
                 write(new ToolApprovalRequiredData()));
@@ -548,21 +548,21 @@ class EventPayloadJsonTest {
 
     @Test
     void toolApprovalRequiredDataFull() {
-        // Go: {"pending_id":"p-1","tenantId":42,"sessionId":"s-1","assistantMessageId":"am-1",
-        //      "serviceId":"svc-1","service_name":"github","mcp_tool_name":"create_issue",
+        // Go: {"pending_id":"p-1","tenant_id":42,"session_id":"s-1","assistant_message_id":"am-1",
+        //      "service_id":"svc-1","service_name":"github","mcp_tool_name":"create_issue",
         //      "registered_tool_name":"mcp__github__create_issue","description":"Create an issue",
         //      "args":{"title":"bug \u003ca\u003e\u0026"},"args_json":"{\"title\":\"bug\"}",
-        //      "timeout_seconds":300,"requested_at":1726700000,"tool_call_id":"call_9","requestId":"r-1"}
+        //      "timeout_seconds":300,"requested_at":1726700000,"tool_call_id":"call_9","request_id":"r-1"}
         ToolApprovalRequiredData d = new ToolApprovalRequiredData(
                 "p-1", 42, "s-1", "am-1", "svc-1", "github", "create_issue",
                 "mcp__github__create_issue", "Create an issue",
                 mapOf("title", "bug <a>&"), "{\"title\":\"bug\"}", 300, 1726700000, "call_9", "r-1");
-        assertEquals("{\"pending_id\":\"p-1\",\"tenantId\":42,\"sessionId\":\"s-1\","
-                + "\"assistantMessageId\":\"am-1\",\"serviceId\":\"svc-1\",\"service_name\":\"github\","
+        assertEquals("{\"pending_id\":\"p-1\",\"tenant_id\":42,\"session_id\":\"s-1\","
+                + "\"assistant_message_id\":\"am-1\",\"service_id\":\"svc-1\",\"service_name\":\"github\","
                 + "\"mcp_tool_name\":\"create_issue\",\"registered_tool_name\":\"mcp__github__create_issue\","
                 + "\"description\":\"Create an issue\",\"args\":{\"title\":\"bug \\u003ca\\u003e\\u0026\"},"
                 + "\"args_json\":\"{\\\"title\\\":\\\"bug\\\"}\",\"timeout_seconds\":300,"
-                + "\"requested_at\":1726700000,\"tool_call_id\":\"call_9\",\"requestId\":\"r-1\"}",
+                + "\"requested_at\":1726700000,\"tool_call_id\":\"call_9\",\"request_id\":\"r-1\"}",
                 write(d));
     }
 
@@ -571,8 +571,8 @@ class EventPayloadJsonTest {
         // Go: minimal => pending_id 之外全零值，args/args_json/request_id 省略
         ToolApprovalRequiredData d = new ToolApprovalRequiredData("p-2", 0, "", "", "", "", "",
                 "", "", null, "", 0, 0, "", "");
-        assertEquals("{\"pending_id\":\"p-2\",\"tenantId\":0,\"sessionId\":\"\","
-                + "\"assistantMessageId\":\"\",\"serviceId\":\"\",\"service_name\":\"\","
+        assertEquals("{\"pending_id\":\"p-2\",\"tenant_id\":0,\"session_id\":\"\","
+                + "\"assistant_message_id\":\"\",\"service_id\":\"\",\"service_name\":\"\","
                 + "\"mcp_tool_name\":\"\",\"registered_tool_name\":\"\",\"description\":\"\","
                 + "\"timeout_seconds\":0,\"requested_at\":0,\"tool_call_id\":\"\"}", write(d));
     }
@@ -602,33 +602,33 @@ class EventPayloadJsonTest {
 
     @Test
     void mcpOAuthRequiredDataZero() {
-        // Go: {"pending_id":"","tenantId":0,"sessionId":"","assistantMessageId":"","serviceId":"",
+        // Go: {"pending_id":"","tenant_id":0,"session_id":"","assistant_message_id":"","service_id":"",
         //      "service_name":"","mcp_tool_name":"","timeout_seconds":0,"requested_at":0,"tool_call_id":""}
-        assertEquals("{\"pending_id\":\"\",\"tenantId\":0,\"sessionId\":\"\","
-                + "\"assistantMessageId\":\"\",\"serviceId\":\"\",\"service_name\":\"\","
+        assertEquals("{\"pending_id\":\"\",\"tenant_id\":0,\"session_id\":\"\","
+                + "\"assistant_message_id\":\"\",\"service_id\":\"\",\"service_name\":\"\","
                 + "\"mcp_tool_name\":\"\",\"timeout_seconds\":0,\"requested_at\":0,\"tool_call_id\":\"\"}",
                 write(new MCPOAuthRequiredData()));
     }
 
     @Test
     void mcpOAuthRequiredDataFull() {
-        // Go: {"pending_id":"po-1","tenantId":7,"sessionId":"s-2","assistantMessageId":"am-2",
-        //      "serviceId":"svc-2","service_name":"notion","mcp_tool_name":"search",
-        //      "timeout_seconds":120,"requested_at":1726700001,"tool_call_id":"call_10","requestId":"r-2"}
+        // Go: {"pending_id":"po-1","tenant_id":7,"session_id":"s-2","assistant_message_id":"am-2",
+        //      "service_id":"svc-2","service_name":"notion","mcp_tool_name":"search",
+        //      "timeout_seconds":120,"requested_at":1726700001,"tool_call_id":"call_10","request_id":"r-2"}
         MCPOAuthRequiredData d = new MCPOAuthRequiredData("po-1", 7, "s-2", "am-2", "svc-2",
                 "notion", "search", 120, 1726700001, "call_10", "r-2");
-        assertEquals("{\"pending_id\":\"po-1\",\"tenantId\":7,\"sessionId\":\"s-2\","
-                + "\"assistantMessageId\":\"am-2\",\"serviceId\":\"svc-2\",\"service_name\":\"notion\","
+        assertEquals("{\"pending_id\":\"po-1\",\"tenant_id\":7,\"session_id\":\"s-2\","
+                + "\"assistant_message_id\":\"am-2\",\"service_id\":\"svc-2\",\"service_name\":\"notion\","
                 + "\"mcp_tool_name\":\"search\",\"timeout_seconds\":120,\"requested_at\":1726700001,"
-                + "\"tool_call_id\":\"call_10\",\"requestId\":\"r-2\"}", write(d));
+                + "\"tool_call_id\":\"call_10\",\"request_id\":\"r-2\"}", write(d));
     }
 
     @Test
     void mcpOAuthRequiredDataNoticeOnly() {
         // Go: noticeOnly => timeout_seconds 0 也输出（无 omitempty），request_id 省略
         MCPOAuthRequiredData d = new MCPOAuthRequiredData("", 7, "s", "", "svc", "n", "t", 0, 0, "", "");
-        assertEquals("{\"pending_id\":\"\",\"tenantId\":7,\"sessionId\":\"s\","
-                + "\"assistantMessageId\":\"\",\"serviceId\":\"svc\",\"service_name\":\"n\","
+        assertEquals("{\"pending_id\":\"\",\"tenant_id\":7,\"session_id\":\"s\","
+                + "\"assistant_message_id\":\"\",\"service_id\":\"svc\",\"service_name\":\"n\","
                 + "\"mcp_tool_name\":\"t\",\"timeout_seconds\":0,\"requested_at\":0,\"tool_call_id\":\"\"}",
                 write(d));
     }
@@ -637,19 +637,19 @@ class EventPayloadJsonTest {
 
     @Test
     void mcpOAuthResolvedDataZero() {
-        // Go: {"pending_id":"","serviceId":"","authorized":false}
-        assertEquals("{\"pending_id\":\"\",\"serviceId\":\"\",\"authorized\":false}",
+        // Go: {"pending_id":"","service_id":"","authorized":false}
+        assertEquals("{\"pending_id\":\"\",\"service_id\":\"\",\"authorized\":false}",
                 write(new MCPOAuthResolvedData()));
     }
 
     @Test
     void mcpOAuthResolvedDataVariants() {
-        // Go authorized => {"pending_id":"po-1","serviceId":"svc-2","authorized":true,"reason":"authorized"}
-        assertEquals("{\"pending_id\":\"po-1\",\"serviceId\":\"svc-2\",\"authorized\":true,"
+        // Go authorized => {"pending_id":"po-1","service_id":"svc-2","authorized":true,"reason":"authorized"}
+        assertEquals("{\"pending_id\":\"po-1\",\"service_id\":\"svc-2\",\"authorized\":true,"
                 + "\"reason\":\"authorized\"}",
                 write(new MCPOAuthResolvedData("po-1", "svc-2", true, "authorized", false, false)));
-        // Go canceled => {"pending_id":"po-1","serviceId":"svc-2","authorized":false,"canceled":true}
-        assertEquals("{\"pending_id\":\"po-1\",\"serviceId\":\"svc-2\",\"authorized\":false,\"canceled\":true}",
+        // Go canceled => {"pending_id":"po-1","service_id":"svc-2","authorized":false,"canceled":true}
+        assertEquals("{\"pending_id\":\"po-1\",\"service_id\":\"svc-2\",\"authorized\":false,\"canceled\":true}",
                 write(new MCPOAuthResolvedData("po-1", "svc-2", false, "", false, true)));
     }
 

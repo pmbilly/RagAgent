@@ -144,8 +144,8 @@ class WikiHttpContractTest {
                         + "indexing_strategy, chunking_config, cos_config) "
                         + "VALUES (?, ?, ?, 'document', ?, ?, '{}', '{}')",
                 kbId, kbId, tenantId, creatorId,
-                "{\"vector_enabled\":false,\"keyword_enabled\":false,\"wiki_enabled\":"
-                        + wikiEnabled + ",\"graph_enabled\":false}");
+                "{\"vectorEnabled\":false,\"keywordEnabled\":false,\"wikiEnabled\":"
+                        + wikiEnabled + ",\"graphEnabled\":false}");
     }
 
     // ══════════════════════════ 越权（对照 router_wiki_test.go） ══════════════════════════

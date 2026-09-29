@@ -71,8 +71,8 @@ class ChunkContractTest {
     private static final String C5_CONTENT =
             "带图 ![img](resource://a.png) 与 HTML <img src=\"resource://b.png\"> 的段落";
     private static final String C4_METADATA =
-            "{\"generated_questions\":[{\"id\":\"" + Q1 + "\",\"question\":\"已有问题?\","
-                    + "\"content_revision\":0}],\"generated_questions_revision\":0}";
+            "{\"generatedQuestions\":[{\"id\":\"" + Q1 + "\",\"question\":\"已有问题?\","
+                    + "\"contentRevision\":0}],\"generatedQuestionsRevision\":0}";
     private static final String C3_IMAGE_INFO =
             "[{\"url\":\"resource://img-1\",\"original_url\":\"\",\"start_pos\":0,\"end_pos\":0,"
                     + "\"caption\":\"图一\",\"ocr_text\":\"OCR文字\"}]";
@@ -122,8 +122,8 @@ class ChunkContractTest {
                 + "creator_id, summary_model_id, embedding_model_id, indexing_strategy) "
                 + "VALUES (?, 'chunk-golden-kb', ?, 'document', 'chunk golden 专用', ?, '', '', ?)",
                 KB1, TENANT, OWNER,
-                "{\"vector_enabled\":false,\"keyword_enabled\":false,"
-                        + "\"wiki_enabled\":false,\"graph_enabled\":false}");
+                "{\"vectorEnabled\":false,\"keywordEnabled\":false,"
+                        + "\"wikiEnabled\":false,\"graphEnabled\":false}");
         jdbc.update("INSERT INTO knowledge_bases (id, name, tenant_id, type, creator_id) "
                 + "VALUES (?, 'cross-kb', 10000, 'document', ?)", CROSS_KB, OWNER);
 

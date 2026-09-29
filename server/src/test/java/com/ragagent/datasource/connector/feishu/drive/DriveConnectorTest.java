@@ -651,8 +651,8 @@ class DriveConnectorTest {
                 "{\"code\":0,\"msg\":\"\",\"data\":{\"ticket\":\"ticket-drv\"}}"));
         server.handle("/open-apis/drive/v1/export_tasks/ticket-drv", (ex, body) ->
                 FeishuTestServer.sendJson(ex, "{\"code\":0,\"msg\":\"\",\"data\":{\"result\":{"
-                        + "\"file_token\":\"ft-export-drv\",\"fileSize\":512,\"job_status\":0,"
-                        + "\"job_error_msg\":\"\",\"fileName\":\"drive-fallback.docx\"}}}"));
+                        + "\"file_token\":\"ft-export-drv\",\"file_size\":512,\"job_status\":0,"
+                        + "\"job_error_msg\":\"\",\"file_name\":\"drive-fallback.docx\"}}}"));
         server.handle("/open-apis/drive/v1/export_tasks/file/ft-export-drv/download",
                 (ex, body) -> FeishuTestServer.sendBytes(ex, "application/octet-stream",
                         downloadContent.getBytes(StandardCharsets.UTF_8)));

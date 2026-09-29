@@ -75,7 +75,7 @@ class AuthRegisterContractTest {
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern TOKEN_VALUE = Pattern.compile("\"token\":\"[^\"]*\"");
     private static final Pattern REFRESH_VALUE = Pattern.compile("\"refresh_token\":\"[^\"]*\"");
-    private static final Pattern TENANT_ID_VALUE = Pattern.compile("\"tenantId\":\\d+");
+    private static final Pattern TENANT_ID_VALUE = Pattern.compile("\"tenant_id\":\\d+");
     private static final Pattern LAST_ACTIVE_VALUE = Pattern.compile("\"last_active_tenant_id\":\\d+");
     private static final Pattern NUMERIC_ID = Pattern.compile("\"id\":\\d+");
 
@@ -405,7 +405,7 @@ class AuthRegisterContractTest {
         String out = TOKEN_VALUE.matcher(s).replaceAll("\"token\":\"<masked>\"");
         out = REFRESH_VALUE.matcher(out).replaceAll("\"refresh_token\":\"<masked>\"");
         out = UUID_VALUE.matcher(out).replaceAll("<uuid>");
-        out = TENANT_ID_VALUE.matcher(out).replaceAll("\"tenantId\":<tid>");
+        out = TENANT_ID_VALUE.matcher(out).replaceAll("\"tenant_id\":<tid>");
         out = LAST_ACTIVE_VALUE.matcher(out).replaceAll("\"last_active_tenant_id\":<tid>");
         out = NUMERIC_ID.matcher(out).replaceAll("\"id\":<tid>");
         out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");

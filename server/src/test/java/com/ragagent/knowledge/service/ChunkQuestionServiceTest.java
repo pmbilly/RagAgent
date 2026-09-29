@@ -197,24 +197,24 @@ class ChunkQuestionServiceTest {
         assertThat(created.getContentRevision()).isEqualTo(0);
 
         JsonNode meta = json(metadataJson(c.getId()));
-        assertThat(meta.path("generated_questions")).hasSize(1);
-        assertThat(meta.path("generated_questions").get(0).path("id").asText())
+        assertThat(meta.path("generatedQuestions")).hasSize(1);
+        assertThat(meta.path("generatedQuestions").get(0).path("id").asText())
                 .isEqualTo(created.getId());
         // generated_questions_revision=0 被 omitempty 省略（Go 同款）
-        assertThat(meta.has("generated_questions_revision")).isFalse();
+        assertThat(meta.has("generatedQuestionsRevision")).isFalse();
 
         // 更新（同 ID 覆盖问题文本）
         GeneratedQuestion updated = service.upsertGeneratedQuestion(c.getId(), created.getId(), "What is Y?");
         assertThat(updated.getId()).isEqualTo(created.getId());
         assertThat(updated.getQuestion()).isEqualTo("What is Y?");
-        assertThat(json(metadataJson(c.getId())).path("generated_questions")).hasSize(1);
+        assertThat(json(metadataJson(c.getId())).path("generatedQuestions")).hasSize(1);
 
         // revision 提升后，再次更新把 content_revision 钉到新版本
         chunkEdit.updateDocumentChunk(c.getId(), "edited body", null, null);
         GeneratedQuestion repinned = service.upsertGeneratedQuestion(c.getId(), created.getId(), "What is Z?");
         assertThat(repinned.getContentRevision()).isEqualTo(1);
-        assertThat(json(metadataJson(c.getId())).path("generated_questions").get(0)
-                .path("content_revision").asInt()).isEqualTo(1);
+        assertThat(json(metadataJson(c.getId())).path("generatedQuestions").get(0)
+                .path("contentRevision").asInt()).isEqualTo(1);
     }
 
     @Test
@@ -223,7 +223,7 @@ class ChunkQuestionServiceTest {
         knowledge(DOC, KB);
         Chunk c = chunk(DOC, "body");
         jdbc.update("UPDATE chunks SET metadata = ? WHERE id = ?",
-                json("{\"generated_questions\":[{\"id\":\"q1\",\"question\":\"A\"}],\"future_key\":123}")
+                json("{\"generatedQuestions\":[{\"id\":\"q1\",\"question\":\"A\"}],\"future_key\":123}")
                         .toString(),
                 c.getId());
 
@@ -272,15 +272,15 @@ class ChunkQuestionServiceTest {
         jdbc.update("UPDATE knowledge_bases SET embedding_model_id = 'emb-1' WHERE id = ?", KB);
         Chunk c = chunk(DOC, "body");
         jdbc.update("UPDATE chunks SET metadata = ? WHERE id = ?",
-                json("{\"generated_questions\":[{\"id\":\"q1\",\"question\":\"A\"},{\"id\":\"q2\",\"question\":\"B\"}]}")
+                json("{\"generatedQuestions\":[{\"id\":\"q1\",\"question\":\"A\"},{\"id\":\"q2\",\"question\":\"B\"}]}")
                         .toString(),
                 c.getId());
 
         service.deleteGeneratedQuestion(c.getId(), "q1");
 
         JsonNode meta = json(metadataJson(c.getId()));
-        assertThat(meta.path("generated_questions")).hasSize(1);
-        assertThat(meta.path("generated_questions").get(0).path("id").asText()).isEqualTo("q2");
+        assertThat(meta.path("generatedQuestions")).hasSize(1);
+        assertThat(meta.path("generatedQuestions").get(0).path("id").asText()).isEqualTo("q2");
 
         // 再删不存在的 → Go 原文
         assertThatThrownBy(() -> service.deleteGeneratedQuestion(c.getId(), "q1"))
@@ -306,7 +306,7 @@ class ChunkQuestionServiceTest {
         // 嵌入模型未配置（KB 无 embedding_model_id）→ Go 的
         // "failed to get embedding model: model ID cannot be empty"
         jdbc.update("UPDATE chunks SET metadata = ? WHERE id = ?",
-                json("{\"generated_questions\":[{\"id\":\"q1\",\"question\":\"A\"}]}").toString(), c.getId());
+                json("{\"generatedQuestions\":[{\"id\":\"q1\",\"question\":\"A\"}]}").toString(), c.getId());
         assertThatThrownBy(() -> service.deleteGeneratedQuestion(c.getId(), "q1"))
                 .isInstanceOfSatisfying(BizException.class, e -> {
                     assertThat(e.appError().message())

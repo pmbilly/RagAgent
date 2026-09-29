@@ -88,7 +88,7 @@ class ImContractTest {
 
         // ── 三个渠道 ──
         MvcResult r = expect(200, postJson("/api/v1/agents/" + AG + "/im-channels", owner,
-                "{\"platform\":\"telegram\",\"name\":\"tg-bot\",\"knowledgeBaseId\":\"\","
+                "{\"platform\":\"telegram\",\"name\":\"tg-bot\",\"knowledge_base_id\":\"\","
                         + "\"credentials\":{\"bot_token\":\"7654321:AAEmbtoken123\"},\"enabled\":true}"),
                 "imc-create.json");
         String imc1 = jsonPath(r, "data.id");
@@ -123,13 +123,13 @@ class ImContractTest {
 
         // ── update 家族 ──
         assertGolden(putJson("/api/v1/im-channels/" + imc1, owner,
-                "{\"name\":\"tg-bot-renamed\",\"knowledgeBaseId\":\"" + KB_A + "\","
+                "{\"name\":\"tg-bot-renamed\",\"knowledge_base_id\":\"" + KB_A + "\","
                         + "\"credentials\":{\"bot_token\":\"7654321:AAEmbtoken123\"},\"enabled\":false}"),
                 200, "imc-update.json");
         assertGolden(putJson("/api/v1/im-channels/b9999999-0000-0000-0000-000000000001", owner,
                 "{\"name\":\"x\"}"), 404, "imc-update-404.json");
         assertGolden(putJson("/api/v1/im-channels/" + imc1, owner,
-                "{\"agentId\":\"ghost-agent\"}"), 400, "imc-update-badagent.json");
+                "{\"agent_id\":\"ghost-agent\"}"), 400, "imc-update-badagent.json");
         assertGolden(putJson("/api/v1/im-channels/" + imc4, owner,
                 "{\"credentials\":{\"bot_token\":\"7654321:AAEmbtoken123\"}}"), 409,
                 "imc-update-dup.json");

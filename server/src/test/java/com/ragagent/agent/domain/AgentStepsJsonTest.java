@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
  * <p>这份语料同时钉住三件容易看走眼的事：</p>
  * <ol>
  *   <li>{@code result} <b>没有</b> omitempty（Go 是指针）→ nil 也要输出 {@code "result":null}；</li>
- *   <li>{@code tool_calls} <b>没有</b> omitempty → nil 输出 {@code "toolCalls":null}；</li>
+ *   <li>{@code tool_calls} <b>没有</b> omitempty → nil 输出 {@code "tool_calls":null}；</li>
  *   <li>{@code timestamp} 是 Go 的**值类型** → 零值输出 {@code "0001-01-01T00:00:00Z"}。</li>
  * </ol>
  */
@@ -89,8 +89,8 @@ class AgentStepsJsonTest {
         step.setTimestamp(localTime(10));
 
         assertThat(write(List.of(step))).isEqualTo(
-                "[{\"iteration\":0,\"thought\":\"thinking\",\"userMessagesBefore\":[\"m1\"],"
-                        + "\"intermediateAnswer\":true,\"reasoningContent\":\"rc\",\"toolCalls\":[{"
+                "[{\"iteration\":0,\"thought\":\"thinking\",\"user_messages_before\":[\"m1\"],"
+                        + "\"intermediate_answer\":true,\"reasoning_content\":\"rc\",\"tool_calls\":[{"
                         + "\"target\":{\"name\":\"svc.tool\",\"args\":{\"a\":2,\"b\":1},"
                         + "\"service_name\":\"svc\",\"tool_name\":\"tool\"},"
                         + "\"id\":\"call-1\",\"name\":\"search\",\"args\":{\"alpha\":\"a\",\"zeta\":\"z\"},"
@@ -110,7 +110,7 @@ class AgentStepsJsonTest {
         step.setTimestamp(localTime(10));
 
         assertThat(write(List.of(step))).isEqualTo(
-                "[{\"iteration\":0,\"thought\":\"\",\"toolCalls\":null,"
+                "[{\"iteration\":0,\"thought\":\"\",\"tool_calls\":null,"
                         + "\"timestamp\":\"2026-09-18T10:00:00+08:00\"}]");
     }
 
@@ -118,7 +118,7 @@ class AgentStepsJsonTest {
     @Test
     void zeroStepMatchesGo() throws Exception {
         assertThat(write(List.of(new AgentStep()))).isEqualTo(
-                "[{\"iteration\":0,\"thought\":\"\",\"toolCalls\":null,"
+                "[{\"iteration\":0,\"thought\":\"\",\"tool_calls\":null,"
                         + "\"timestamp\":\"0001-01-01T00:00:00Z\"}]");
     }
 
@@ -138,7 +138,7 @@ class AgentStepsJsonTest {
         step.setToolCalls(List.of(call));
 
         assertThat(write(List.of(step))).isEqualTo(
-                "[{\"iteration\":0,\"thought\":\"\",\"toolCalls\":[{"
+                "[{\"iteration\":0,\"thought\":\"\",\"tool_calls\":[{"
                         + "\"id\":\"c\",\"name\":\"\",\"args\":null,\"result\":null,\"duration\":0}],"
                         + "\"timestamp\":\"0001-01-01T00:00:00Z\"}]");
     }
@@ -206,7 +206,7 @@ class AgentStepsJsonTest {
 
     @Test
     void readsBackThroughTheBareMapper() throws Exception {
-        String raw = "[{\"iteration\":2,\"thought\":\"t\",\"toolCalls\":null,"
+        String raw = "[{\"iteration\":2,\"thought\":\"t\",\"tool_calls\":null,"
                 + "\"timestamp\":\"2026-09-18T10:00:00+08:00\"}]";
         List<AgentStep> steps = MAPPER.readValue(raw,
                 new com.fasterxml.jackson.core.type.TypeReference<List<AgentStep>>() {});
@@ -221,7 +221,7 @@ class AgentStepsJsonTest {
      */
     @Test
     void zeroTimeLiteralRoundTripsToItself() throws Exception {
-        String raw = "[{\"iteration\":0,\"thought\":\"\",\"toolCalls\":null,"
+        String raw = "[{\"iteration\":0,\"thought\":\"\",\"tool_calls\":null,"
                 + "\"timestamp\":\"0001-01-01T00:00:00Z\"}]";
         List<AgentStep> steps = MAPPER.readValue(raw,
                 new com.fasterxml.jackson.core.type.TypeReference<List<AgentStep>>() {});
@@ -234,7 +234,7 @@ class AgentStepsJsonTest {
     /** 未知键必须被容忍（Go 的 json.Unmarshal 默认忽略），否则历史行整条读不出来。 */
     @Test
     void unknownKeysAreTolerated() throws Exception {
-        String raw = "[{\"iteration\":0,\"toolCalls\":null,"
+        String raw = "[{\"iteration\":0,\"tool_calls\":null,"
                 + "\"timestamp\":\"0001-01-01T00:00:00Z\",\"future_field\":123}]";
         List<AgentStep> steps = tolerantMapper().readValue(raw,
                 new com.fasterxml.jackson.core.type.TypeReference<List<AgentStep>>() {});

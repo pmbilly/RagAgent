@@ -250,19 +250,19 @@ class W5bInitializationContractTest {
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer, "{}"), 400,
                 "w5b-extract-badbody.json");
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer,
-                "{\"text\":\"" + "a".repeat(5001) + "\",\"tags\":[\"Author\"],\"modelId\":\""
+                "{\"text\":\"" + "a".repeat(5001) + "\",\"tags\":[\"Author\"],\"model_id\":\""
                         + MD_STUB + "\"}"), 400, "w5b-extract-toolong.json");
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer,
-                "{\"text\":\"x\",\"tags\":[\"Author\"],\"modelId\":\"nope\"}"), 400,
+                "{\"text\":\"x\",\"tags\":[\"Author\"],\"model_id\":\"nope\"}"), 400,
                 "w5b-extract-model-missing.json");
         assertGolden(post("/api/v1/initialization/extract/text-relation", bearer,
-                "{\"text\":\"" + GRAPH_TEXT + "\",\"tags\":[\"Author\"],\"modelId\":\""
+                "{\"text\":\"" + GRAPH_TEXT + "\",\"tags\":[\"Author\"],\"model_id\":\""
                         + MD_STUB + "\"}"), 200, "w5b-extract-graph.json");
         assertGolden(post("/api/v1/initialization/extract/fabri-text", bearer,
-                "{\"tags\":[\"Author\",\"Alias\"],\"modelId\":\"" + MD_STUB + "\"}"), 200,
+                "{\"tags\":[\"Author\",\"Alias\"],\"model_id\":\"" + MD_STUB + "\"}"), 200,
                 "w5b-fabritext.json");
         assertGolden(post("/api/v1/initialization/extract/fabri-text", bearer,
-                "{\"tags\":[],\"modelId\":\"nope\"}"), 400, "w5b-fabritext-model-missing.json");
+                "{\"tags\":[],\"model_id\":\"nope\"}"), 400, "w5b-fabritext-model-missing.json");
 
         // ── multimodal 校验族（不触 docreader） ──
         MockMultipartFile png = new MockMultipartFile(

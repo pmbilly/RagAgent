@@ -123,11 +123,11 @@ class AttachmentContractTest {
         assertEquals(202, r.getResponse().getStatus(), raw(r));
         String body = raw(r);
         assertThat(body).contains("\"status\":\"uploaded\"")
-                .contains("\"fileType\":\".txt\"")
-                .contains("\"imageRefs\":[]")
+                .contains("\"file_type\":\".txt\"")
+                .contains("\"image_refs\":[]")
                 .contains("\"metadata\":{}")
-                .contains("\"fileName\":\"note.txt\"")
-                .contains("\"fileSize\":48")
+                .contains("\"file_name\":\"note.txt\"")
+                .contains("\"file_size\":48")
                 .doesNotContain("\"success\"");  // 裸资源：无信封
         assertEquals(mask(golden("att-upload.json")), mask(body));
     }
@@ -198,9 +198,9 @@ class AttachmentContractTest {
         MvcResult got = awaitReady(attId);
         String body = raw(got);
         assertThat(body).contains("\"metadata\":{\"parser\":\"plain_text\"}")
-                .contains("\"imageRefs\":null")
-                .contains("\"tokenCount\":11")
-                .contains("\"chunkCount\":1");
+                .contains("\"image_refs\":null")
+                .contains("\"token_count\":11")
+                .contains("\"chunk_count\":1");
         assertEquals(mask(golden("att-get.json")), mask(body));
 
         MvcResult list = perform(get("/api/v1/sessions/" + sid + "/attachments")

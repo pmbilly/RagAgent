@@ -1273,7 +1273,7 @@ class JsonContractRoundTripTest {
         assertRoundTrips(info, com.ragagent.auth.dto.UserInfo.class,
                 "types.UserInfo ← auth.dto.UserInfo（无 deleted_at，preferences 恒输出）");
 
-        // RegisterResponse：201 响应体，内嵌的是 **User 实体**（含 "deletedAt":null），
+        // RegisterResponse：201 响应体，内嵌的是 **User 实体**（含 "deleted_at":null），
         // 与 UserInfo 投影的差异正是 golden 钉住的点
         var user = new com.ragagent.auth.domain.User();
         user.setId("u-1");

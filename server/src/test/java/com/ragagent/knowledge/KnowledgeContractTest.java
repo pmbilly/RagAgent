@@ -372,7 +372,7 @@ class KnowledgeContractTest {
         s = com.ragagent.support.ContractJson.semantic(s);
         String out = UUID_KEY_PATTERN.matcher(s).replaceAll("\"$1\":\"<id>\"");
         out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
-        out = FILE_PATH_PATTERN.matcher(out).replaceAll("\"file_path\":\"<path>\"");
+        out = FILE_PATH_PATTERN.matcher(out).replaceAll("\"filePath\":\"<path>\"");
         return out;
     }
 }

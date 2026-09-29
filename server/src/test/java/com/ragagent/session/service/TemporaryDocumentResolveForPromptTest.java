@@ -82,7 +82,7 @@ class TemporaryDocumentResolveForPromptTest {
         if (contextHeader != null) {
             sb.append(",\"context_header\":\"").append(contextHeader).append('"');
         }
-        return sb.append(",\"start\":0,\"end\":0,\"tokenCount\":").append(tokenCount).append('}')
+        return sb.append(",\"start\":0,\"end\":0,\"token_count\":").append(tokenCount).append('}')
                 .toString();
     }
 
@@ -186,7 +186,7 @@ class TemporaryDocumentResolveForPromptTest {
         TemporaryDocument doc = document("d1", "gac.png", ".png", TemporaryDocument.STATUS_READY,
                 "![gac.png](local://1/exports/gac.png)", "[]", 7,
                 "[{\"original_ref\":\"images/gac.png\",\"url\":\"local://1/exports/gac.png\","
-                        + "\"mimeType\":\"image/png\"}]");
+                        + "\"mime_type\":\"image/png\"}]");
         when(repo.getScoped(TENANT, SESSION, "d1")).thenReturn(doc);
 
         TemporaryDocumentService.PromptResult result =
@@ -288,7 +288,7 @@ class TemporaryDocumentResolveForPromptTest {
                 .endsWith(".png)");
         assertThat(stored.imageRefsJson())
                 .contains("\"original_ref\":\"images/gac.png\"")
-                .contains("\"mimeType\":\"image/png\"");
+                .contains("\"mime_type\":\"image/png\"");
         // 落盘字节可读回（真文件存储）
         String url = TemporaryDocumentService.imageUrlsOf(stored.imageRefsJson()).get(0);
         assertThat(stored.markdown()).isEqualTo("![gac.png](" + url + ")");

@@ -253,14 +253,14 @@ public class ChunkExtractService {
 
     /**
      * 组装抽取模板：原 {@code extract_graph} 模板的 Description +
-     * 知识库的 {@code custom_instructions}（标签 {@code graph_extraction}）+
+     * 载荷的 {@code customInstructions}（标签 {@code graph_extraction}）+
      * Tags + 单条 Example（{@code text}/{@code nodes}/{@code relations} 来自 KB 配置）。
      */
     PipelineConfig.PromptTemplateStructured buildTemplate(JsonNode cfg) {
         PipelineConfig.PromptTemplateStructured template = new PipelineConfig.PromptTemplateStructured();
         template.setDescription(PromptInstructions.appendCustomPromptInstructions(
                 extractPrompts.extractGraph().getDescription(),
-                text(cfg, "custom_instructions"), "graph_extraction"));
+                text(cfg, "customInstructions"), "graph_extraction"));
         template.setTags(stringList(cfg, "tags"));
 
         PipelineConfig.PromptTemplateStructured.Example example =

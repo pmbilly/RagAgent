@@ -73,22 +73,22 @@ class FaqContractTest {
     private static final String FE3 = "fbc00001-0000-0000-0000-000000000003";
     private static final String FE4 = "fbc00001-0000-0000-0000-000000000004";
 
-    private static final String META1 = "{\"standard_question\":\"怎么 绑定 手机？\","
-            + "\"similar_questions\":[\"如何绑定手机\",\"How to bind phone\"],"
-            + "\"negative_questions\":[\"怎么解绑手机\"],"
-            + "\"answers\":[\"进入设置，选择设备，点击绑定。\"],\"answer_strategy\":\"all\","
+    private static final String META1 = "{\"standardQuestion\":\"怎么 绑定 手机？\","
+            + "\"similarQuestions\":[\"如何绑定手机\",\"How to bind phone\"],"
+            + "\"negativeQuestions\":[\"怎么解绑手机\"],"
+            + "\"answers\":[\"进入设置，选择设备，点击绑定。\"],\"answerStrategy\":\"all\","
             + "\"version\":1,\"source\":\"faq\"}";
-    private static final String META2 = "{\"standard_question\":\"退货政策是什么\","
-            + "\"answers\":[\"7天无理由退货\",\"质量问题15天内退\"],\"answer_strategy\":\"random\","
+    private static final String META2 = "{\"standardQuestion\":\"退货政策是什么\","
+            + "\"answers\":[\"7天无理由退货\",\"质量问题15天内退\"],\"answerStrategy\":\"random\","
             + "\"version\":1,\"source\":\"faq\"}";
-    private static final String META3 = "{\"standard_question\":\"如何退款\","
-            + "\"similar_questions\":[\"退款流程\"],\"answers\":[\"请参见帮助中心。\"],"
-            + "\"answer_strategy\":\"all\",\"version\":1,\"source\":\"faq\"}";
-    private static final String RESULT1 = "{\"total_entries\":2,\"success_count\":1,"
-            + "\"failed_count\":1,\"partial_failed_count\":0,\"skipped_count\":0,"
-            + "\"merged_count\":0,\"added_count\":1,\"import_mode\":\"append\","
-            + "\"imported_at\":\"2026-09-01T08:00:00+08:00\",\"task_id\":\"faqgolden-seed\","
-            + "\"display_status\":\"open\",\"processing_time\":5}";
+    private static final String META3 = "{\"standardQuestion\":\"如何退款\","
+            + "\"similarQuestions\":[\"退款流程\"],\"answers\":[\"请参见帮助中心。\"],"
+            + "\"answerStrategy\":\"all\",\"version\":1,\"source\":\"faq\"}";
+    private static final String RESULT1 = "{\"totalEntries\":2,\"successCount\":1,"
+            + "\"failedCount\":1,\"partialFailedCount\":0,\"skippedCount\":0,"
+            + "\"mergedCount\":0,\"addedCount\":1,\"importMode\":\"append\","
+            + "\"importedAt\":\"2026-09-01T08:00:00+08:00\",\"taskId\":\"faqgolden-seed\","
+            + "\"displayStatus\":\"open\",\"processingTime\":5}";
 
     /** uuid 值（带键名）→ "<uuid>"；错误文案里的裸 uuid 也掩码。 */
     private static final Pattern UUID_VALUE = Pattern.compile(
@@ -137,8 +137,8 @@ class FaqContractTest {
         seedUser(VIEWER, "faqviewer", VIEWER_EMAIL, "viewer");
         seedUser(CONTRIBUTOR, "faqcontrib", CONTRA_EMAIL, "contributor");
 
-        String strategy = "{\"vector_enabled\":false,\"keyword_enabled\":false,"
-                + "\"wiki_enabled\":false,\"graph_enabled\":false}";
+        String strategy = "{\"vectorEnabled\":false,\"keywordEnabled\":false,"
+                + "\"wikiEnabled\":false,\"graphEnabled\":false}";
         seedKb(FKB1, "faq-golden-kb", "faq",
                 "{\"index_mode\":\"question_only\",\"question_index_mode\":\"combined\"}", strategy);
         seedKb(FKB2, "faq-empty-kb", "faq", null, strategy);

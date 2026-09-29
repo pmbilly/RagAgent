@@ -188,7 +188,7 @@ class ChunkExtractServiceTest {
         when(kbMapper.selectById("kb-1")).thenReturn(kbWithExtractConfig(
                 "{\"enabled\":true,\"text\":\"示例\",\"nodes\":[{\"name\":\"张三\"}],"
                 + "\"relations\":[{\"node1\":\"张三\",\"node2\":\"腾讯\",\"type\":\"works_at\"}],"
-                + "\"tags\":[\"人物\"],\"custom_instructions\":\"只抽人物\"}"));
+                + "\"tags\":[\"人物\"],\"customInstructions\":\"只抽人物\"}"));
 
         service.handle(payload());
 
@@ -204,7 +204,7 @@ class ChunkExtractServiceTest {
         var cfg = JSON.readTree("{\"enabled\":true,\"text\":\"示例文本\",\"tags\":[\"人物\",\"公司\"],"
                 + "\"nodes\":[{\"name\":\"张三\"},{\"name\":\"腾讯\"}],"
                 + "\"relations\":[{\"node1\":\"张三\",\"node2\":\"腾讯\",\"type\":\"works_at\"}],"
-                + "\"custom_instructions\":\"只抽人物与公司\"}");
+                + "\"customInstructions\":\"只抽人物与公司\"}");
 
         var template = service.buildTemplate(cfg);
 

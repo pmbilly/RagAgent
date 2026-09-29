@@ -311,8 +311,8 @@ class OpenSearchRetrieveRepositoryTest {
         OpenSearchRetrieveRepository r = newRepo();
         bodyOverrides.put("POST /weknora_2/_search",
                 "{\"hits\":{\"hits\":[{\"_id\":\"c1\",\"_score\":0.87,\"_source\":"
-                        + "{\"chunk_id\":\"c1\",\"knowledgeId\":\"doc-1\","
-                        + "\"knowledgeBaseId\":\"kb-1\",\"source_id\":\"c1\","
+                        + "{\"chunk_id\":\"c1\",\"knowledge_id\":\"doc-1\","
+                        + "\"knowledge_base_id\":\"kb-1\",\"source_id\":\"c1\","
                         + "\"source_type\":0,\"tag_id\":\"\",\"content\":\"x\","
                         + "\"is_enabled\":true}}]}}");
         RetrieveParams p = new RetrieveParams();
@@ -350,8 +350,8 @@ class OpenSearchRetrieveRepositoryTest {
         OpenSearchRetrieveRepository r = newRepo();
         bodyOverrides.put("POST /weknora_*/_search",
                 "{\"hits\":{\"hits\":[{\"_id\":\"c1\",\"_score\":3.5,\"_source\":"
-                        + "{\"chunk_id\":\"c1\",\"knowledgeId\":\"doc-1\","
-                        + "\"knowledgeBaseId\":\"kb-1\",\"source_id\":\"c1\","
+                        + "{\"chunk_id\":\"c1\",\"knowledge_id\":\"doc-1\","
+                        + "\"knowledge_base_id\":\"kb-1\",\"source_id\":\"c1\","
                         + "\"source_type\":0,\"tag_id\":\"\",\"content\":\"x\","
                         + "\"is_enabled\":true}}]}}");
         RetrieveParams p = new RetrieveParams();
@@ -466,15 +466,15 @@ class OpenSearchRetrieveRepositoryTest {
     void copyIndicesShape() throws Exception {
         String page = "{\"hits\":{\"hits\":["
                 + "{\"_source\":{\"content\":\"x\",\"source_id\":\"c1\",\"source_type\":0,"
-                + "\"chunk_id\":\"c1\",\"knowledgeId\":\"doc-1\",\"knowledgeBaseId\":\"kb-src\","
+                + "\"chunk_id\":\"c1\",\"knowledge_id\":\"doc-1\",\"knowledge_base_id\":\"kb-src\","
                 + "\"tag_id\":\"t1\",\"is_enabled\":true,\"is_recommended\":false,"
                 + "\"embedding\":[1.0,2.0]}},"
                 + "{\"_source\":{\"content\":\"q\",\"source_id\":\"c1-q1\",\"source_type\":0,"
-                + "\"chunk_id\":\"c1\",\"knowledgeId\":\"doc-1\",\"knowledgeBaseId\":\"kb-src\","
+                + "\"chunk_id\":\"c1\",\"knowledge_id\":\"doc-1\",\"knowledge_base_id\":\"kb-src\","
                 + "\"tag_id\":\"\",\"is_enabled\":true,\"is_recommended\":false,"
                 + "\"embedding\":[3.0,4.0]}},"
                 + "{\"_source\":{\"content\":\"o\",\"source_id\":\"other\",\"source_type\":0,"
-                + "\"chunk_id\":\"c9\",\"knowledgeId\":\"doc-9\",\"knowledgeBaseId\":\"kb-src\","
+                + "\"chunk_id\":\"c9\",\"knowledge_id\":\"doc-9\",\"knowledge_base_id\":\"kb-src\","
                 + "\"tag_id\":\"\",\"is_enabled\":true,\"is_recommended\":false}}]}}";
         bodyOverrides.put("POST /weknora_2/_search", page);
         List<String> auditEvents = new ArrayList<>();

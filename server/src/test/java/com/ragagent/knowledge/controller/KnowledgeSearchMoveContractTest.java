@@ -121,8 +121,8 @@ class KnowledgeSearchMoveContractTest {
         seedUser(VIEWER, "ksviewer", VIEWER_EMAIL, "viewer");
         seedUser(CONTRIBUTOR, "kscontrib", CONTRA_EMAIL, "contributor");
 
-        String off = "{\"vector_enabled\":false,\"keyword_enabled\":false,"
-                + "\"wiki_enabled\":false,\"graph_enabled\":false}";
+        String off = "{\"vectorEnabled\":false,\"keywordEnabled\":false,"
+                + "\"wikiEnabled\":false,\"graphEnabled\":false}";
         // 对照 Go dev：API 建 KB 时 applyAndValidateStorageBackend 会把租户的
         // System LOCAL（legacy alias, source=env）回填进 storage_backend_id + provider=local——
         // duplicate 响应里的这两个字段依赖它（golden 钉住）。

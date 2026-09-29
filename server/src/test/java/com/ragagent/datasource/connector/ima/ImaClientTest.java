@@ -180,7 +180,7 @@ class ImaClientTest {
             client.getKnowledgeList("kb1", "", "", ImaClient.DEFAULT_PAGE_SIZE);
             client.getKnowledgeList("kb1", "f1", "", ImaClient.DEFAULT_PAGE_SIZE);
 
-            assertThat(stub.requestBody(0)).contains("\"knowledgeBaseId\":\"kb1\"")
+            assertThat(stub.requestBody(0)).contains("\"knowledge_base_id\":\"kb1\"")
                     .doesNotContain("folder_id");
             assertThat(stub.requestBody(1)).contains("\"folder_id\":\"f1\"");
         }
