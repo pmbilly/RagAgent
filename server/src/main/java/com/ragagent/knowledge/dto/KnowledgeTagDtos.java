@@ -90,4 +90,31 @@ public final class KnowledgeTagDtos {
             @JsonProperty("page_size") int pageSize,
             @JsonProperty("data") List<KnowledgeTagWithStats> data) {
     }
+
+/** 创建标签请求（name 必填；color/sort_order 可选）。 */
+@com.fasterxml.jackson.databind.annotation.JsonNaming(
+        com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+public record CreateTagRequest(
+        @jakarta.validation.constraints.NotBlank(message = "name: 不能为空")
+        String name,
+        String color,
+        Integer sortOrder) {
+}
+
+/** 更新标签请求：全指针，不传 = 不变更。 */
+@com.fasterxml.jackson.databind.annotation.JsonNaming(
+        com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+public record UpdateTagRequest(
+        String name,
+        String color,
+        Integer sortOrder) {
+}
+
+/** 删除标签请求：exclude_ids 为保留条目（body 可整体省略）。 */
+@com.fasterxml.jackson.databind.annotation.JsonNaming(
+        com.fasterxml.jackson.databind.PropertyNamingStrategies.SnakeCaseStrategy.class)
+public record DeleteTagRequest(
+        @com.fasterxml.jackson.annotation.JsonProperty("exclude_ids")
+        java.util.List<Long> excludeIds) {
+}
 }
