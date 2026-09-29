@@ -87,6 +87,7 @@ public class GlobalExceptionHandler {
         if (lines.isEmpty()) {
             lines.add("请求参数不合法");
         }
+        java.util.Collections.sort(lines); // 校验器不保证字段顺序，多行 details 取字典序（确定性）
         AppError e = new AppError(ErrorCode.BAD_REQUEST.value(),
                 pagination ? "分页参数不合法" : "请求参数不合法",
                 String.join("\n", lines), 400);
