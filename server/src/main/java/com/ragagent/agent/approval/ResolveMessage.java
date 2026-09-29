@@ -1,7 +1,6 @@
 package com.ragagent.agent.approval;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -15,18 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * {@code timed_out}/{@code canceled} 为 false 时字段缺失，对端读到的默认值同样是 false。</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-record ResolveMessage(
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("user_id") String userId,
-        @JsonProperty("pending_id") String pendingId,
-        @JsonProperty("approved") boolean approved,
-        @JsonProperty("modified_args") JsonNode modifiedArgs,
-        @JsonProperty("reason") String reason,
-        @JsonProperty("timed_out") Boolean timedOut,
-        @JsonProperty("canceled") Boolean canceled,
-        @JsonProperty("reply_channel") String replyChannel,
-        @JsonProperty("origin_id") String originId,
-        @JsonProperty("request_nonce") String requestNonce) {
+record ResolveMessage( long tenantId, String userId, String pendingId, boolean approved, JsonNode modifiedArgs, String reason, Boolean timedOut, Boolean canceled, String replyChannel, String originId, String requestNonce) {
 
     /** 由决策构造报文（对照 Go resolveCrossInstance 里的结构体字面量） */
     static ResolveMessage of(long tenantId, String userId, String pendingId, Decision d,

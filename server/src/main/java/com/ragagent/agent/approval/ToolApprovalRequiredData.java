@@ -1,8 +1,6 @@
 package com.ragagent.agent.approval;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 危险 MCP 工具即将执行时的“请求批准”事件体
@@ -14,28 +12,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p>字段名与类型说明见字段注释；{@code args} 是解析后的 JSON 对象，
  * {@code argsJson} 是原始 JSON 串（Go 同时给两者：前者给 UI 渲染表单，后者给回填）。</p>
  */
-@JsonPropertyOrder({
-        "pending_id", "tenant_id", "session_id", "assistant_message_id", "service_id", "service_name",
-        "mcp_tool_name", "registered_tool_name", "description", "args", "args_json",
-        "timeout_seconds", "requested_at", "tool_call_id", "request_id"
-})
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record ToolApprovalRequiredData(
-        @JsonProperty("pending_id") String pendingId,
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("session_id") String sessionId,
-        @JsonProperty("assistant_message_id") String assistantMessageId,
-        @JsonProperty("service_id") String serviceId,
-        @JsonProperty("service_name") String serviceName,
-        @JsonProperty("mcp_tool_name") String mcpToolName,
-        @JsonProperty("registered_tool_name") String registeredToolName,
-        @JsonProperty("description") String description,
-        @JsonProperty("args") Object args,
-        @JsonProperty("args_json") String argsJson,
-        @JsonProperty("timeout_seconds") int timeoutSeconds,
-        @JsonProperty("requested_at") long requestedAtUnix,
-        @JsonProperty("tool_call_id") String toolCallId,
-        @JsonProperty("request_id") String requestId) {
+public record ToolApprovalRequiredData( String pendingId, long tenantId, String sessionId, String assistantMessageId, String serviceId, String serviceName, String mcpToolName, String registeredToolName, String description, Object args, String argsJson, int timeoutSeconds, long requestedAtUnix, String toolCallId, String requestId) {
 
     public ToolApprovalRequiredData {
         if (argsJson != null && argsJson.isEmpty()) {
