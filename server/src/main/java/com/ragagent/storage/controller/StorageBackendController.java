@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
-import com.ragagent.knowledge.domain.StorageBackend;
+import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.storage.dto.StorageBackendResponse;
 import com.ragagent.storage.dto.StorageConfig;

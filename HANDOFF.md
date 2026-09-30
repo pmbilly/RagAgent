@@ -384,6 +384,18 @@
    ② **纯规则搬 common**：`MAX_FILE_SIZE_MB` 限额规则从 `knowledge.storage.LocalStorageService` 的静态方法提为
    `common/storage/UploadLimits`（原方法改委托，11 个使用者零感知）；model 调试端点改用它 → 消 `knowledge ⇄ model`
    （该环的反向只有这 1 行）。
+
+   ✅ **④-d `knowledge ⇄ storage` 已完成（2026-09-30，环 11 → 10）**：① **实体归位**——`storage_backends` 表的实体
+   `StorageBackend` 一直存在 `knowledge.domain`（storage 5 文件 + system 2 + knowledge 2 在用；auth 仅 javadoc 提及，
+   **不会重建** `auth ⇄ storage`）→ 搬到 `storage/domain`，10 处引用改写；② **清死依赖**——`storage/fileserve/FileAccessResolver`
+   注入了知识域的 `KnowledgeService`/`KnowledgeBaseService` 却从未调用（死注入），形参 `KnowledgeBase kb` 只用 `getTenantId()`
+   → 改为 `Long kbTenantId`（调用点 1 处）→ `storage → knowledge` 归零，环断。
+
+   📋 **另五环（本轮侦察结论，按性价比）**：`chatpipeline ⇄ knowledge/retrieval/session` 三环被**同一批契约类型**卡住
+   （`ChatManage` 394 行 **40 文件**、`PipelinePorts` 212 行 **30 文件**、`SearchParams` 11、`ChunkTypes` 10）——
+   **一次搬迁（建议 common/chatpipeline）可同时解三环**，是本批唯一的"规模效应"机会，但需先核对 `ChatManage` 自身依赖；
+   `knowledge ⇄ retrieval` 反向 5 文件（用到 `Chunk` 实体 + `ChunkRepository`/`EmbedderClient`/`KnowledgeBaseService`，较重）；
+   `knowledge ⇄ wiki` 反向 6 文件、切 `knowledge → wiki` 需 wiki 服务端口（4 类型）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

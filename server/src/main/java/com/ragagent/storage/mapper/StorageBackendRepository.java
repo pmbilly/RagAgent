@@ -8,9 +8,8 @@ import java.util.Optional;
 
 import javax.sql.DataSource;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.knowledge.domain.StorageBackend;
+import com.ragagent.storage.domain.StorageBackend;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;

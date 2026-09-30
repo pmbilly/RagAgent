@@ -15,7 +15,7 @@ import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.SsrfGuard;
-import com.ragagent.knowledge.domain.StorageBackend;
+import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.storage.dto.StorageConfig;
 import com.ragagent.storage.mapper.StorageBackendRepository;

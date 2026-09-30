@@ -439,8 +439,8 @@ public class SystemController {
      */
     private ResponseEntity<Map<String, Object>> connectivityFallback(
             String provider, JsonNode cfg, String endpoint, String bucketName) {
-        com.ragagent.knowledge.domain.StorageBackend backend =
-                new com.ragagent.knowledge.domain.StorageBackend();
+        com.ragagent.storage.domain.StorageBackend backend =
+                new com.ragagent.storage.domain.StorageBackend();
         backend.setTenantId(currentTenantId());
         backend.setProvider(provider);
         ObjectNode config = MAPPER.createObjectNode();

@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.storage.domain.StoredResource;
 import com.ragagent.storage.service.ResourceCatalogService;
 
@@ -30,15 +29,9 @@ public class FileAccessResolver {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ResourceCatalogService catalog;
-    private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
-    private final com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService;
 
-    public FileAccessResolver(ResourceCatalogService catalog,
-            com.ragagent.knowledge.service.KnowledgeService knowledgeService,
-            com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService) {
+    public FileAccessResolver(ResourceCatalogService catalog) {
         this.catalog = catalog;
-        this.knowledgeService = knowledgeService;
-        this.knowledgeBaseService = knowledgeBaseService;
     }
 
     // ── resolveFile（access/files.go L28-54）────────────────────────────────
@@ -79,9 +72,10 @@ public class FileAccessResolver {
      *
      * API-Key KB 白名单的越界异常由 requireKbAccess 按中间件形态抛出。
      */
-    public FileAccess resolveKbFile(KnowledgeBase kb, String kbId, String reference) {
+        /** 形参由 KB 实体改为其租户 id（本方法只用这一个字段；存储域不应持有知识域实体）。 */
+    public FileAccess resolveKbFile(Long kbTenantId, String kbId, String reference) {
         // grant 检查通过后：owner = grant.EffectiveTenantID（= KB 行的租户）
-        long owner = kb == null || kb.getTenantId() == null ? 0 : kb.getTenantId();
+        long owner = kbTenantId == null ? 0 : kbTenantId;
         ResolvedFile resolved = resolveFile(reference);
         FileAccess file = resolved.file();
         StoredResource resource = resolved.resource();

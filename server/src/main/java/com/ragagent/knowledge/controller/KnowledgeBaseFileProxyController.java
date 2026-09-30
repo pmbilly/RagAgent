@@ -60,7 +60,7 @@ public class KnowledgeBaseFileProxyController {
         }
         FileAccess file;
         try {
-            file = accessResolver.resolveKbFile(kb, id, reference);
+            file = accessResolver.resolveKbFile(kb == null ? null : kb.getTenantId(), id, reference);
         } catch (FileAccessException e) {
             FileProxyService.fileAccessError(response, e);
             return;

@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.domain;
+package com.ragagent.storage.domain;
 
 import java.time.OffsetDateTime;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -10,6 +10,8 @@ import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
  * storage_backends（迁移 000068）：具体对象存储实例。
+ *
+ * <p>原在 {@code knowledge.domain}；本表属存储域，storage/system/knowledge 三处共用，留原处会让后两者反向依赖知识域（{@code knowledge ⇄ storage} 环的一半），故归位。</p>
  * 本仓只消费解析逻辑（id/provider），配置 jsonb 原样透传。
  */
 @TableName(value = "storage_backends", autoResultMap = true)

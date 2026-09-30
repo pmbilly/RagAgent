@@ -13,7 +13,7 @@ import java.util.Set;
 
 import javax.sql.DataSource;
 
-import com.ragagent.knowledge.domain.StorageBackend;
+import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.storage.mapper.StorageBackendRepository;
 import org.springframework.beans.factory.ObjectProvider;
