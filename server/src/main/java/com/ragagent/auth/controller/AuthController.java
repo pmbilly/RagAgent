@@ -49,7 +49,6 @@ import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.common.tenant.TenantProperties;
 import com.ragagent.common.settings.SystemSettingRegistry;
 import com.ragagent.common.settings.SystemSettingGateway;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -115,9 +114,11 @@ public class AuthController {
     private final TenantInvitationService invitationService;
     private final SystemSettingGateway settingService;
     private final TenantProperties tenantProperties;
-    private final OidcConfig oidcConfig;
-    private final OidcService oidcService;
-    private final OidcStateCodec oidcStateCodec;
+    final OidcConfig oidcConfig;
+    final OidcService oidcService;
+    final OidcStateCodec oidcStateCodec;
+
+    final AuthOidcOps oidcOps;
 
     /** 对照 handler.Edition（构建期注入，默认 "standard"）。 */
     @Value("${weknora.system.edition:standard}")
@@ -143,6 +144,7 @@ public class AuthController {
         this.oidcConfig = oidcConfig;
         this.oidcService = oidcService;
         this.oidcStateCodec = oidcStateCodec;
+        this.oidcOps = new AuthOidcOps(this);
     }
 
     @PostMapping("/login")
@@ -516,43 +518,23 @@ public class AuthController {
         return ResponseEntity.ok(body);
     }
 
-    // ── GET /oidc/config（对照 auth.go L383-401，无鉴权公共读） ─────────────
 
     @GetMapping("/oidc/config")
     public ResponseEntity<OidcConfigResponse> getOidcConfig() {
-        boolean enabled = oidcConfig != null && oidcConfig.isEnable();
-        String providerDisplayName = oidcConfig == null ? ""
-                : UserService.goTrimSpace(oidcConfig.getProviderDisplayName());
-        return ResponseEntity.ok(new OidcConfigResponse(true, enabled, providerDisplayName));
+        return oidcOps.getOidcConfig();
     }
-
-    // ── GET /oidc/url（对照 auth.go L311-332） ──────────────────────────────
 
     @GetMapping("/oidc/url")
     public ResponseEntity<OidcAuthUrlResponse> getOidcAuthorizationUrl(
             @RequestParam(value = "redirect_uri", required = false) String redirectUri,
             HttpServletRequest request, HttpServletResponse response) {
-        String trimmed = UserService.goTrimSpace(redirectUri == null ? "" : redirectUri);
-        if (trimmed.isEmpty()) {
-            throw new BizException(AppError.validation("redirect_uri is required"));
-        }
-        OidcService.AuthorizationUrl result = authorizationUrlOr403(trimmed);
-        // 绑定 state nonce 到浏览器，防授权码被重放到受害者回调（对照 setOIDCNonceCookie）
-        setOidcNonceCookie(request, response, result.nonce());
-        return ResponseEntity.ok(new OidcAuthUrlResponse(true, result.providerDisplayName(),
-                result.authorizationUrl(), result.state()));
+        return oidcOps.getOidcAuthorizationUrl(redirectUri, request, response);
     }
-
-    // ── GET /oidc/start（对照 auth.go L365-379：直接 302 到 IdP） ───────────
 
     @GetMapping("/oidc/start")
     public ResponseEntity<String> oidcStart(HttpServletRequest request, HttpServletResponse response) {
-        OidcService.AuthorizationUrl result = authorizationUrlOr403(oidcCallbackUrl(request));
-        setOidcNonceCookie(request, response, result.nonce());
-        return redirectFound(result.authorizationUrl());
+        return oidcOps.oidcStart(request, response);
     }
-
-    // ── GET /oidc/callback（对照 auth.go L413-472） ─────────────────────────
 
     @GetMapping("/oidc/callback")
     public ResponseEntity<String> oidcRedirectCallback(
@@ -561,165 +543,7 @@ public class AuthController {
             @RequestParam(value = "state", required = false) String state,
             @RequestParam(value = "code", required = false) String code,
             HttpServletRequest request, HttpServletResponse response) {
-        final String frontendRedirectUri = "/";
-
-        String err = UserService.goTrimSpace(providerError == null ? "" : providerError);
-        if (!err.isEmpty()) {
-            String redirectUrl = frontendRedirectUri + "#oidc_error=" + urlQueryEscape(err);
-            String desc = UserService.goTrimSpace(errorDescription == null ? "" : errorDescription);
-            if (!desc.isEmpty()) {
-                redirectUrl += "&oidc_error_description=" + urlQueryEscape(desc);
-            }
-            return redirectFound(redirectUrl);
-        }
-
-        OidcStateCodec.Payload decoded = decodeOidcState(
-                UserService.goTrimSpace(state == null ? "" : state), request);
-        if (decoded == null) {
-            return redirectFound(frontendRedirectUri + "#oidc_error=" + urlQueryEscape("invalid_state"));
-        }
-        // 一次性：校验后立即清除绑定 cookie（对照 c.SetCookie(name, "", -1, ...) 的字节形态）
-        response.addHeader("Set-Cookie", OIDC_NONCE_COOKIE_NAME + "=; Path=/; Max-Age=0; HttpOnly");
-
-        String trimmedCode = UserService.goTrimSpace(code == null ? "" : code);
-        if (trimmedCode.isEmpty()) {
-            return redirectFound(frontendRedirectUri + "#oidc_error=" + urlQueryEscape("missing_code"));
-        }
-
-        try {
-            oidcService.loginWithOidc(trimmedCode, UserService.goTrimSpace(decoded.redirectUri()),
-                    resolveDefaultTenantMode());
-        } catch (OidcService.OidcException e) {
-            return redirectFound(frontendRedirectUri + "#oidc_error=" + urlQueryEscape("login_failed")
-                    + "&oidc_error_description=" + urlQueryEscape(e.getMessage()));
-        }
-        // 成功分支不可达：loginWithOIDC 的网络步整体推迟（§9 deferral），必抛 OidcException。
-        // encodeOIDCCallbackPayload / !resp.Success 分支随之推迟。
-        throw new BizException(AppError.internal("OIDC callback success path is not available"));
-    }
-
-    // ── OIDC 共享辅助（对照 auth.go L335-361 + L474-505） ───────────────────
-
-    /** 对照 oidcNonceCookieName / oidcNonceCookieMaxAge */
-    private static final String OIDC_NONCE_COOKIE_NAME = "weknora_oidc_nonce";
-    private static final int OIDC_NONCE_COOKIE_MAX_AGE = 600;
-
-    /** 对照 GetOIDCAuthorizationURL/OIDCStart 的 service 错误 → 403 分派 */
-    private OidcService.AuthorizationUrl authorizationUrlOr403(String redirectUri) {
-        try {
-            return oidcService.getAuthorizationUrl(redirectUri);
-        } catch (OidcService.OidcException e) {
-            log.error("Failed to generate OIDC authorization URL: {}", e.getMessage());
-            throw new BizException(AppError.forbidden("OIDC authorization unavailable")
-                    .withDetails(e.getMessage()));
-        }
-    }
-
-    /**
-     * 对照 setOIDCNonceCookie（auth.go L335-346）：SameSite=Lax，secure=TLS 或
-     * X-Forwarded-Proto=https。Set-Cookie 字节序对照 Go Cookie.String()：
-     * Path; Max-Age; Secure; HttpOnly; SameSite。
-     */
-    private static void setOidcNonceCookie(HttpServletRequest request, HttpServletResponse response,
-                                           String nonce) {
-        if (nonce == null || nonce.isEmpty()) {
-            return;
-        }
-        boolean secure = request.isSecure()
-                || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
-        StringBuilder sb = new StringBuilder(OIDC_NONCE_COOKIE_NAME).append('=').append(nonce)
-                .append("; Path=/; Max-Age=").append(OIDC_NONCE_COOKIE_MAX_AGE);
-        if (secure) {
-            sb.append("; Secure");
-        }
-        sb.append("; HttpOnly; SameSite=Lax");
-        response.addHeader("Set-Cookie", sb.toString());
-    }
-
-    /** 对照 oidcCallbackURL（auth.go L352-361）：由请求自身的 scheme + Host 推导 */
-    private static String oidcCallbackUrl(HttpServletRequest request) {
-        String scheme = "http";
-        if (request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"))) {
-            scheme = "https";
-        }
-        return scheme + "://" + request.getHeader("Host") + "/api/v1/auth/oidc/callback";
-    }
-
-    /**
-     * 对照 decodeOIDCState（auth.go L474-491）：verify + nonce cookie 绑定校验，
-     * 一切失败返回 null（handler 坍缩成 invalid_state 302）。
-     */
-    private OidcStateCodec.Payload decodeOidcState(String rawState, HttpServletRequest request) {
-        OidcStateCodec.Payload payload;
-        try {
-            payload = oidcStateCodec.verify(rawState);
-        } catch (OidcStateCodec.StateException e) {
-            return null;
-        }
-        String cookieNonce = null;
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie c : cookies) {
-                if (OIDC_NONCE_COOKIE_NAME.equals(c.getName())) {
-                    cookieNonce = c.getValue();
-                    break;
-                }
-            }
-        }
-        if (cookieNonce == null || UserService.goTrimSpace(cookieNonce).isEmpty()) {
-            return null;
-        }
-        if (!cookieNonce.equals(payload.nonce())) {
-            return null;
-        }
-        return payload;
-    }
-
-    /**
-     * 复刻 gin Redirect 的字节行为（GET）：Location 原样进头，
-     * body = `<a href="<html.EscapeString(Location)>">Found</a>.\n\n`，
-     * Content-Type: text/html; charset=utf-8（Spring 默认 302 无 body，需手写）。
-     */
-    private static ResponseEntity<String> redirectFound(String location) {
-        String body = "<a href=\"" + htmlEscapeString(location) + "\">Found</a>.\n\n";
-        return ResponseEntity.status(302)
-                .header("Location", location)
-                .header("Content-Type", "text/html; charset=utf-8")
-                .body(body);
-    }
-
-    /** 对照 Go html.EscapeString：& ' < > " 单趟替换 */
-    private static String htmlEscapeString(String s) {
-        StringBuilder sb = new StringBuilder(s.length());
-        for (int i = 0; i < s.length(); i++) {
-            switch (s.charAt(i)) {
-                case '&' -> sb.append("&amp;");
-                case '\'' -> sb.append("&#39;");
-                case '<' -> sb.append("&lt;");
-                case '>' -> sb.append("&gt;");
-                case '"' -> sb.append("&#34;");
-                default -> sb.append(s.charAt(i));
-            }
-        }
-        return sb.toString();
-    }
-
-    /** 对照 urlQueryEscape（auth.go L494-505）：定制 replacer，只转义 7 个字符 */
-    private static String urlQueryEscape(String value) {
-        StringBuilder sb = new StringBuilder(value.length());
-        for (int i = 0; i < value.length(); i++) {
-            switch (value.charAt(i)) {
-                case '%' -> sb.append("%25");
-                case ' ' -> sb.append("%20");
-                case '#' -> sb.append("%23");
-                case '&' -> sb.append("%26");
-                case '+' -> sb.append("%2B");
-                case '=' -> sb.append("%3D");
-                case '?' -> sb.append("%3F");
-                default -> sb.append(value.charAt(i));
-            }
-        }
-        return sb.toString();
+        return oidcOps.oidcRedirectCallback(providerError, errorDescription, state, code, request, response);
     }
 
     // ── 策略解析（对照 auth.go L85-157 + tenant_policy.go） ────────────────
@@ -733,7 +557,7 @@ public class AuthController {
     }
 
     /** 对照 resolveDefaultTenantMode：DB > ENV > cfg（cfg 兜底 create_personal） */
-    private String resolveDefaultTenantMode() {
+    String resolveDefaultTenantMode() {
         String mode = settingService.getString("auth.default_tenant_mode",
                 "WEKNORA_AUTH_DEFAULT_TENANT_MODE", "create_personal");
         return "tenantless".equals(mode)
