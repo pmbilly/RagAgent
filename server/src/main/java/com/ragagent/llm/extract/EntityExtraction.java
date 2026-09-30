@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.llm.extract;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,11 +11,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.graph.GraphNode;
 import com.ragagent.common.graph.GraphRelation;
-import com.ragagent.chatpipeline.PipelineConfig.PromptTemplateStructured;
+import com.ragagent.llm.extract.PipelineConfig.PromptTemplateStructured;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.common.web.JsonMappers;
+import com.ragagent.common.web.GoJsonMarshal;
+import com.ragagent.common.web.GoValueStr;
 
 /**
  * 实体抽取的提示词生成与 LLM 输出解析（对照 Go chat_pipeline/extract_entity.go 的

@@ -7,7 +7,7 @@ import java.util.Map;
 
 import org.yaml.snakeyaml.Yaml;
 
-import com.ragagent.chatpipeline.PipelineConfig.PromptTemplateStructured;
+import com.ragagent.llm.extract.PipelineConfig.PromptTemplateStructured;
 import com.ragagent.common.graph.GraphNode;
 import com.ragagent.common.graph.GraphRelation;
 

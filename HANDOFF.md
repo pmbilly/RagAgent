@@ -409,6 +409,13 @@
    这种不存在的名字；javadoc 的 `{@link}` 会把跨域依赖带进 common（**新环 `chatpipeline ⇄ common` 就是这么冒出来的**，守卫当场拦下，
    改 `{@code}` 内联全名后消失）；跨包调用需放宽 `RetrievalObs.goFmt4`/`MessageAttachmentsPrompt.escapeHtml` 等包私有成员。
    余下 `chatpipeline ⇄ knowledge/session`：仍卡 `PipelinePorts`（各域实现的端口接口，逐接口下沉才解）。
+
+   ✅ **④-f-① `chatpipeline ⇄ knowledge` 已完成（2026-09-30，环 9 → 8）**：knowledge → chatpipeline 只剩 **1 文件 2 类型**
+   （`ChunkExtractService` 的 `EntityExtraction` + `PipelineConfig`）。处理：`PipelineConfig`(68 行，只依赖 common.graph) 与
+   `EntityExtraction`(526 行，依赖 llm) **一起落到 `llm/extract`**（不能进 common——会造成 common → llm）；搬运中发现
+   `EntityExtraction` 还隐式用 `GoJsonMarshal`/`GoValueStr`（chatpipeline 里的自足 Go 兼容助手）→ 一并搬到 `common/web`
+   （与 `JsonMappers` 同族），否则 `llm → chatpipeline` 会造出**新环**。测试侧 4 文件的隐式使用补 import。
+   剩余 `chatpipeline ⇄ session`：`session/QaWiring` 装配了 14+ 个 chatpipeline 插件（功能性依赖），另案。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

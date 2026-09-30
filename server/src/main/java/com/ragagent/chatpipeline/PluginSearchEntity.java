@@ -13,6 +13,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.common.graph.GraphRelation;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
+import com.ragagent.common.web.GoValueStr;
 
 /**
  * ENTITY_SEARCH 阶段插件（对照 Go chat_pipeline/search_entity.go）：

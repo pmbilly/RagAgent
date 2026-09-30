@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
+import com.ragagent.llm.extract.PipelineConfig;
 
 /**
  * 回归（W5γ5.14，2026-09-25 E2E 抓回）：KB 检索的 <b>"硬错 vs 降级" 分级</b>。

@@ -16,9 +16,9 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import com.ragagent.llm.LlmChatClient;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageAttachment;
+import com.ragagent.llm.extract.PipelineConfig;
 
 /**
  * 实录回放：query_understand 族 + load_history + history_messages

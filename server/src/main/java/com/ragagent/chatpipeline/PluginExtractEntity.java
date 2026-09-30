@@ -8,6 +8,8 @@ import java.util.Map;
 import com.ragagent.common.graph.GraphNode;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.Knowledge;
+import com.ragagent.llm.extract.EntityExtraction;
+import com.ragagent.llm.extract.PipelineConfig;
 
 /**
  * QUERY_UNDERSTAND 附加插件（对照 Go chat_pipeline/extract_entity.go 的 PluginExtractEntity）：

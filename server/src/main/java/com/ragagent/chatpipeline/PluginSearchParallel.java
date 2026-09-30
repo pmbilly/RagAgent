@@ -7,6 +7,7 @@ import java.util.Map;
 
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
+import com.ragagent.llm.extract.PipelineConfig;
 
 /**
  * CHUNK_SEARCH_PARALLEL 阶段插件（对照 Go chat_pipeline/search_parallel.go）：

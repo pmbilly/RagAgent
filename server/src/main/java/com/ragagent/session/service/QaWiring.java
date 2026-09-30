@@ -15,7 +15,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.chatpipeline.EventManager;
-import com.ragagent.chatpipeline.PipelineConfig;
+import com.ragagent.llm.extract.PipelineConfig;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.chatpipeline.PluginChatCompletion;
 import com.ragagent.chatpipeline.PluginChatCompletionStream;

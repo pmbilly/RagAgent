@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.llm.extract;
 
 import java.util.LinkedHashMap;
 import java.util.List;

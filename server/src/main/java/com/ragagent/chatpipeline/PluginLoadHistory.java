@@ -3,6 +3,7 @@ package com.ragagent.chatpipeline;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.ragagent.llm.extract.PipelineConfig;
 
 /**
  * LOAD_HISTORY 阶段插件（对照 Go chat_pipeline/load_history.go）：

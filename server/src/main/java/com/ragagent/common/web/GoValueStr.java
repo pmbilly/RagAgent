@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.common.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

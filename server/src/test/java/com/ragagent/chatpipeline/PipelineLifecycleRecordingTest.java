@@ -20,6 +20,8 @@ import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.common.graph.GraphData;
 import com.ragagent.common.graph.GraphNode;
 import com.ragagent.common.graph.GraphRelation;
+import com.ragagent.llm.extract.EntityExtraction;
+import com.ragagent.llm.extract.PipelineConfig;
 
 /**
  * 实录回放：progress / into_chat / references / completion / stream / entity / web_fetch
