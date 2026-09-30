@@ -839,6 +839,26 @@
 - 忠实性核验：11 项逐字一致；常规档闸门（重编 + session 域 27s + `spotlessCheck`）绿。
 - **文档修正**：§11.24 的替换曾把 `## 12. knowledge 包结构地图` 标题吞掉，本次一并补回。
 
+## 11.26 刀 4 侦察：KnowledgeQaController 请求解析簇边界修正（2026-09-30，规格已定未落刀）
+
+**结论：原定"请求解析簇 ~350 一把切"要拆两小刀**——挡路的是一个 `@Autowired` 字段，不是类型嵌套：
+
+- **4a（~90 行，可切）**：`BIND_JSON` + `bindQaRequest` + `bindSearchRequest` + `parseOrBindError` +
+  `bindingError` + `decodeAndValidateAttachmentUploads`（静态、参数化、无字段依赖）+ `appendAll`
+  （调用点仅 487/489/491，全在解析簇）。
+- **4b（`parseQARequest` 主体 237 行，需先定方案）**：它读 `agentResolverField`（348 行）——该字段是
+  `@Autowired private AgentResolver`（Go `resolveAgent` 接线），**普通协作者拿不到**（不能 ctor 快照一个可能为
+  null 的字段，也不该把控制器自身传进协作者）→ 方案：把 `AgentResolver`/解析结果作**参数**传给解析方法
+  （私有方法改签名无对外契约影响），随 4b 落地；4a 先落不影响它。
+- **共享项留控制器（按调用点核过）**：`stringListOf`（455 在解析簇、**1407 在附件簇** → 双用）、
+  `tenantServiceField`（544/545 在 `currentTenant`、**720 在 `executeQA`** → 双用）、`currentTenant`（随前者）、
+  `ParsedRequest`（1 行私有 record，被 `agentQA`（174）与解析簇共用 → 放宽为**包内嵌套**，协作者按
+  `KnowledgeQaController.ParsedRequest` 引用，同 §11.25 `SearchTargetView` 手法）。
+- **侦察口径修正（值得记）**：`QaRequestContext`/`SseStreamContext`/`CreateKnowledgeQARequest`/
+  `SearchKnowledgeRequest` **都是外部导入的顶层类型**，不是控制器嵌套类型——"嵌套上下文挡路"的第一印象是错的；
+  真挡路的只有 1 行 `ParsedRequest` 与两个 `@Autowired` 字段。**先 grep 类型声明（`record X|class X` + `import`）
+  再判断能不能切。**
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
 
@@ -1148,7 +1168,8 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 | 1 | SessionAgentQaService 1,430 | 历史/消息装配簇（`loadAgentHistory` + `buildTurnBodyMessages` + `build*HistoryMessage` + `buildAgentStepMessages` + `finalAnswerHistoryMessage` + `filterNonT…` + `templateContentByIdAndFile`） | ~235 |
 | 2 | 同 | 配置装配簇（`buildAgentConfig` + `resolveAgentPrompts` + `applyPerRequest*Scope` + `resolvePerRequestMcpScope` + `pinPreservingRequestOrder` + `agentRequiresRerankModel`） | ~280 |
 | 3 | 同 | 引擎/工具装配簇（`createAgentEngine` + `registerMcpTools` + `knowledgeBaseScopesForPrompt` + `getKnowledgeBaseInfos` + `getSelectedDocumentInfos` + `registerWebPageFiles` + `registerTools`） | ~500 → 门面 ~350 出榜 |
-| 4 | KnowledgeQaController 1,613 | 请求解析簇（`parseQARequest` 237 + `parseOrBindError` + `decodeAndValidateAttachmentUploads` + binder） | ~350 |
+| 4a | KnowledgeQaController 1,613 | 静态解析助手簇（binder + `parseOrBindError` + `decodeAndValidateAttachmentUploads` + `appendAll`；见 §11.26） | ~90 |
+| 4b | 同 | `parseQARequest` 主体（需把 `AgentResolver` 作参数传入；共享项 `stringListOf`/`currentTenant`/`ParsedRequest` 留控制器） | ~260 |
 | 5 | 同 | SSE 编排簇（`setupSSEStream` + `writeAgentQueryEvent` + `startStopWatcher` + `handleAgentEventsForSSE` + quick answer timeline） | ~320 |
 | 6-7 | 同 | 执行编排/落库/附件与收尾（`executeQA` 212 + `runFollowUp`/`recoverFailedFollowUp` + `persist*`/`rollback` + `resolveTemporaryAttachments` + `completeAssistantMessage`）分两刀 | ~600 → 门面 ~400 出榜 |
 | 8 | SessionQaResolution 2,906 | 模型选择簇（`resolveChatModelId` + `findModel` + `selectChatModelId`） | ~380 |
