@@ -8,6 +8,7 @@ import java.util.Map;
 import com.ragagent.retrieval.support.SearchChunkMerge;
 import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
  * search.go 的包级函数（对照 chat_pipeline/search.go:165-324）：

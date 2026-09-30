@@ -26,6 +26,10 @@ import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.Message;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.NameSpace;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
+import com.ragagent.common.pipeline.SearchParams;
 
 /**
  * 4.6c 实录回放的替身与掩码工具（对照 Go 探针的 zz_ 前缀同款）。
@@ -193,7 +197,7 @@ final class Rec46cSupport {
         return out;
     }
 
-    static Object graphShape(ChatManage.GraphData g) {
+    static Object graphShape(GraphData g) {
         if (g == null) {
             return null;
         }
@@ -575,16 +579,16 @@ final class Rec46cSupport {
     }
 
     /** 对照 zzGraphRepo。 */
-    static final class StubGraphRepo implements PipelinePorts.RetrieveGraphRepository {
-        final Map<String, ChatManage.GraphData> byKB = new LinkedHashMap<>();
+    static final class StubGraphRepo implements RetrieveGraphRepository {
+        final Map<String, GraphData> byKB = new LinkedHashMap<>();
         boolean err;
 
         /** D 批扩展：写/删记录（管线只读，测试可断言写删被调用）。 */
-        final List<ChatManage.GraphData> added = new java.util.ArrayList<>();
-        final List<ChatManage.NameSpace> deleted = new java.util.ArrayList<>();
+        final List<GraphData> added = new java.util.ArrayList<>();
+        final List<NameSpace> deleted = new java.util.ArrayList<>();
 
         @Override
-        public void addGraph(ChatManage.NameSpace namespace, List<ChatManage.GraphData> graphs) {
+        public void addGraph(NameSpace namespace, List<GraphData> graphs) {
             if (err) {
                 throw new RuntimeException("graph unavailable");
             }
@@ -594,7 +598,7 @@ final class Rec46cSupport {
         }
 
         @Override
-        public void delGraph(List<ChatManage.NameSpace> namespaces) {
+        public void delGraph(List<NameSpace> namespaces) {
             if (err) {
                 throw new RuntimeException("graph unavailable");
             }
@@ -604,16 +608,16 @@ final class Rec46cSupport {
         }
 
         @Override
-        public ChatManage.GraphData searchNode(ChatManage.NameSpace namespace, List<String> nodes) {
+        public GraphData searchNode(NameSpace namespace, List<String> nodes) {
             if (err) {
                 throw new RuntimeException("graph unavailable");
             }
             if (namespace.knowledge() != null && !namespace.knowledge().isEmpty()) {
                 var d = byKB.get(namespace.knowledge());
-                return d != null ? d : new ChatManage.GraphData(new ArrayList<>(), new ArrayList<>());
+                return d != null ? d : new GraphData(new ArrayList<>(), new ArrayList<>());
             }
             var d = byKB.get(namespace.knowledgeBase());
-            return d != null ? d : new ChatManage.GraphData(new ArrayList<>(), new ArrayList<>());
+            return d != null ? d : new GraphData(new ArrayList<>(), new ArrayList<>());
         }
     }
 

@@ -1,12 +1,11 @@
 package com.ragagent.chatpipeline;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.ragagent.agent.tools.SearchTarget;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.pipeline.ChunkTypes;
 
 /**
  * CHUNK_RERANK 附加插件（对照 Go chat_pipeline/wiki_boost.go）：rerank 链之后的

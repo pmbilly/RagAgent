@@ -6,11 +6,10 @@ import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.initialization.service.ExtractPrompts;
-import com.ragagent.chatpipeline.ChatManage;
 import com.ragagent.chatpipeline.EntityExtraction;
 import com.ragagent.chatpipeline.PipelineConfig;
-import com.ragagent.chatpipeline.PipelinePorts;
-import com.ragagent.chatpipeline.RetrievalObs;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
+import com.ragagent.retrieval.obs.RetrievalObs;
 import com.ragagent.common.prompt.PromptInstructions;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
@@ -28,6 +27,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.GraphRelation;
+import com.ragagent.common.graph.NameSpace;
 
 /**
  * 分块图抽取任务：
@@ -63,7 +66,7 @@ public class ChunkExtractService {
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final SpanTracker spanTracker;
-    private final PipelinePorts.RetrieveGraphRepository graphRepository;
+    private final RetrieveGraphRepository graphRepository;
     private final DefaultWikiKnowledgeFinalizer finalizer;
     private final ExtractPrompts extractPrompts;
 
@@ -74,7 +77,7 @@ public class ChunkExtractService {
                                KnowledgeMapper knowledgeMapper,
                                KnowledgeBaseMapper kbMapper,
                                SpanTracker spanTracker,
-                               PipelinePorts.RetrieveGraphRepository graphRepository,
+                               RetrieveGraphRepository graphRepository,
                                DefaultWikiKnowledgeFinalizer finalizer) {
         this(modelRuntimeFactory, chunkRepository, knowledgeMapper, kbMapper, spanTracker,
                 graphRepository, finalizer, new ExtractPrompts());
@@ -86,7 +89,7 @@ public class ChunkExtractService {
                         KnowledgeMapper knowledgeMapper,
                         KnowledgeBaseMapper kbMapper,
                         SpanTracker spanTracker,
-                        PipelinePorts.RetrieveGraphRepository graphRepository,
+                        RetrieveGraphRepository graphRepository,
                         DefaultWikiKnowledgeFinalizer finalizer,
                         ExtractPrompts extractPrompts) {
         this.modelRuntimeFactory = modelRuntimeFactory;
@@ -214,16 +217,16 @@ public class ChunkExtractService {
             return null;
         }
 
-        List<ChatManage.GraphNode> nodes = graph.node == null ? new ArrayList<>() : graph.node;
-        List<ChatManage.GraphRelation> relations = graph.relation == null
+        List<GraphNode> nodes = graph.node == null ? new ArrayList<>() : graph.node;
+        List<GraphRelation> relations = graph.relation == null
                 ? new ArrayList<>() : graph.relation;
-        for (ChatManage.GraphNode node : nodes) {
+        for (GraphNode node : nodes) {
             node.setChunks(List.of(again.getId()));
         }
         try {
             graphRepository.addGraph(
-                    new ChatManage.NameSpace(again.getKnowledgeBaseId(), again.getKnowledgeId()),
-                    List.of(new ChatManage.GraphData(nodes, relations)));
+                    new NameSpace(again.getKnowledgeBaseId(), again.getKnowledgeId()),
+                    List.of(new GraphData(nodes, relations)));
         } catch (RuntimeException e) {
             log.error("failed to add graph: {}", e.toString());
             return "failed to add graph: " + e.getMessage();
@@ -233,18 +236,18 @@ public class ChunkExtractService {
         graphOut.put("relations_added", relations.size());
         // 各取前两个样例（再多会撑爆 span 行；全图另可查询）
         if (!nodes.isEmpty()) {
-            List<ChatManage.GraphNode> samples = nodes.size() > 2 ? nodes.subList(0, 2) : nodes;
+            List<GraphNode> samples = nodes.size() > 2 ? nodes.subList(0, 2) : nodes;
             List<String> names = new ArrayList<>();
-            for (ChatManage.GraphNode n : samples) {
+            for (GraphNode n : samples) {
                 names.add(n.getName());
             }
             graphOut.put("sample_nodes", names);
         }
         if (!relations.isEmpty()) {
-            List<ChatManage.GraphRelation> samples = relations.size() > 2
+            List<GraphRelation> samples = relations.size() > 2
                     ? relations.subList(0, 2) : relations;
             List<String> rendered = new ArrayList<>();
-            for (ChatManage.GraphRelation r : samples) {
+            for (GraphRelation r : samples) {
                 rendered.add(r.node1() + " --[" + r.type() + "]--> " + r.node2());
             }
             graphOut.put("sample_relations", rendered);
@@ -267,14 +270,14 @@ public class ChunkExtractService {
         PipelineConfig.PromptTemplateStructured.Example example =
                 new PipelineConfig.PromptTemplateStructured.Example();
         example.setText(text(cfg, "text"));
-        List<ChatManage.GraphNode> nodes = new ArrayList<>();
+        List<GraphNode> nodes = new ArrayList<>();
         for (JsonNode node : cfg.path("nodes")) {
-            nodes.add(new ChatManage.GraphNode(text(node, "name"), null, null));
+            nodes.add(new GraphNode(text(node, "name"), null, null));
         }
         example.setNode(nodes);
-        List<ChatManage.GraphRelation> relations = new ArrayList<>();
+        List<GraphRelation> relations = new ArrayList<>();
         for (JsonNode rel : cfg.path("relations")) {
-            relations.add(new ChatManage.GraphRelation(
+            relations.add(new GraphRelation(
                     text(rel, "node1"), text(rel, "node2"), text(rel, "type")));
         }
         example.setRelation(relations);

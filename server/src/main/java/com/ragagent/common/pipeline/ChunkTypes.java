@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.common.pipeline;
 
 /**
  * Chunk 类型常量（对照 Go {@code types.ChunkType} string 别名族，internal/types/chunk.go:12-39）。

@@ -54,7 +54,7 @@ public class SystemInfoService {
     /** 构建期生成的 META-INF/build-info.properties；缺失（如纯 IDE 运行）时回退 "unknown"。 */
     private final ObjectProvider<BuildProperties> buildProperties;
     /** 图库仓储（D 批）：引擎名按**真实驱动**报告（对照 Go 的 neo4jDriver != nil 判定）。 */
-    private final com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository;
+    private final com.ragagent.retrieval.graph.RetrieveGraphRepository graphRepository;
 
     /** 覆盖项（配置/测试可固定值）；为空则取构建信息或运行时值。edition 无构建注入。 */
     @Value("${weknora.system.version:}")
@@ -72,7 +72,7 @@ public class SystemInfoService {
                              StorageBackendRepository backendRepository,
                              DataSource dataSource,
                              ObjectProvider<BuildProperties> buildProperties,
-                             com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository graphRepository) {
+                             com.ragagent.retrieval.graph.RetrieveGraphRepository graphRepository) {
         this.allowList = allowList;
         this.backendRepository = backendRepository;
         this.dataSource = dataSource;

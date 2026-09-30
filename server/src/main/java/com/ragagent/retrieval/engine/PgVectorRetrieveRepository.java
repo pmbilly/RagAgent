@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.common.pipeline.SearchParams;
 
 /**
  * PostgreSQL 检索引擎仓库（对照 Go internal/application/repository/retriever/

@@ -396,6 +396,19 @@
    **一次搬迁（建议 common/chatpipeline）可同时解三环**，是本批唯一的"规模效应"机会，但需先核对 `ChatManage` 自身依赖；
    `knowledge ⇄ retrieval` 反向 5 文件（用到 `Chunk` 实体 + `ChunkRepository`/`EmbedderClient`/`KnowledgeBaseService`，较重）；
    `knowledge ⇄ wiki` 反向 6 文件、切 `knowledge → wiki` 需 wiki 服务端口（4 类型）。
+
+   ✅ **④-e `chatpipeline ⇄ retrieval` 已完成（2026-09-30，环 10 → 9）——契约类型搬迁第一批**：
+   侦察先证伪了"一次搬迁解三环"：`ChatManage`(394 行)/`PipelinePorts`(212 行) **都不可搬**（前者拖 agent/llm/retrieval/session，
+   后者拖 llm/memory/retrieval）；但外部域**只碰它们的嵌套类型**（值记录 / 端口接口），从不调用其方法。据此分开处理：
+   - `ChatManage.GraphData/GraphNode/GraphRelation/NameSpace` → `common/graph`（顶层记录，三域共用；`GraphNode` 需去 `static`）；
+   - `SearchParams`/`ChunkTypes` → `common/pipeline`（零域依赖）；`RetrievalObs` → `retrieval/obs`（依赖 `retrieval.domain.SearchResult`）；
+   - `PipelinePorts.RetrieveGraphRepository`（由 retrieval 实现）→ `retrieval/graph`（端口下沉到实现方）；
+   - `MessageAttachmentsPrompt`（依赖 `session.domain.MessageAttachment`）→ `session`；
+   - `EventManager` **搬不得**（同包隐式用 `ChatManage`/`Plugin`/`PluginError`）→ 原样留在 chatpipeline。
+   坑：整包替换 import 会顶掉同文件的 `PipelinePorts` import（应逐类型改）；FQN 收窄会造出 `chatpipeline.RetrieveGraphRepository`
+   这种不存在的名字；javadoc 的 `{@link}` 会把跨域依赖带进 common（**新环 `chatpipeline ⇄ common` 就是这么冒出来的**，守卫当场拦下，
+   改 `{@code}` 内联全名后消失）；跨包调用需放宽 `RetrievalObs.goFmt4`/`MessageAttachmentsPrompt.escapeHtml` 等包私有成员。
+   余下 `chatpipeline ⇄ knowledge/session`：仍卡 `PipelinePorts`（各域实现的端口接口，逐接口下沉才解）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

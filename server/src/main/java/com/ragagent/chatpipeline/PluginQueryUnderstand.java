@@ -12,6 +12,7 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.session.domain.Message;
 import com.ragagent.common.web.JsonMappers;
+import com.ragagent.session.MessageAttachmentsPrompt;
 
 /**
  * QUERY_UNDERSTAND 阶段插件（对照 Go chat_pipeline/query_understand.go）：

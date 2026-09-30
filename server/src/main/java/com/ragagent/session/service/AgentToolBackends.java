@@ -51,7 +51,7 @@ import com.ragagent.memory.service.MemorySearchResult;
 import com.ragagent.memory.service.MemoryService;
 import com.ragagent.session.domain.MessageSearchGroupItem;
 import com.ragagent.session.domain.MessageSearchResult;
-import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.common.pipeline.SearchParams;
 import com.ragagent.common.settings.ConversationProperties;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -89,7 +89,7 @@ public class AgentToolBackends {
 
     /** 对照 ListPagedChunksByKnowledgeID 的 text+faq 类型过滤。 */
     private static final List<String> TEXT_FAQ_TYPES =
-            List.of(com.ragagent.chatpipeline.ChunkTypes.TEXT, com.ragagent.chatpipeline.ChunkTypes.FAQ);
+            List.of(com.ragagent.common.pipeline.ChunkTypes.TEXT, com.ragagent.common.pipeline.ChunkTypes.FAQ);
 
     private final KnowledgeBaseService kbService;
     private final KnowledgeService knowledgeService;

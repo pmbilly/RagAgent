@@ -22,8 +22,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import com.ragagent.chatpipeline.ChatManage.NameSpace;
-import com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository;
+import com.ragagent.common.graph.NameSpace;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.common.context.TracingContext;
 import com.ragagent.embedding.Embedder;
 import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import org.springframework.beans.factory.ObjectProvider;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 
 /**
  * 知识处理后台 worker：虚拟线程队列消费 knowledge 的解析主链路

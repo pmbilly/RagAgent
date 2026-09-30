@@ -13,6 +13,8 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.service.WebSearchService;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
+import com.ragagent.common.pipeline.SearchParams;
 
 /**
  * chat 管线消费面的窄 seam 接口集合（对照 Go {@code types/interfaces} 的对应接口，
@@ -137,26 +139,6 @@ public final class PipelinePorts {
     public interface WebSearch {
         List<WebSearchResult> search(String providerId, WebSearchService.WebSearchConfig config, String query);
     }
-
-    /**
-     * 对照 interfaces.RetrieveGraphRepository（types/interfaces/retriever_graph.go 全文）：
-     * 图库的写（AddGraph）/删（DelGraph）/读（SearchNode）。
-     *
-     * <p>D 批起由 {@code com.ragagent.retrieval.graph.Neo4jGraphRepository} 提供真实实现
-     * （NEO4J_ENABLE=true 才建驱动；否则 driver 为 null，三个操作都告警并静默——照 Go 的
-     * nil driver 分支）。流水线只用 {@link #searchNode}；写/删由抽取与清理链路调用。</p>
-     */
-    public interface RetrieveGraphRepository {
-        /** 对照 AddGraph：把一批图写进仓库（driver 缺失 → 告警 + 静默返回）。 */
-        void addGraph(ChatManage.NameSpace namespace, List<ChatManage.GraphData> graphs);
-
-        /** 对照 DelGraph：按命名空间删除（driver 缺失 → 告警 + 静默返回）。 */
-        void delGraph(List<ChatManage.NameSpace> namespaces);
-
-        /** 对照 SearchNode：按节点名（CONTAINS）匹配并取回一跳子图。 */
-        ChatManage.GraphData searchNode(ChatManage.NameSpace namespace, List<String> nodes);
-    }
-
     // ----- 占位接口（Go 侧同样只判 nil 或从不读方法） -----
 
     /** 对照 interfaces.TenantService：search.go 只判 nil（web 检索启用性开关的装配凭证）。 */

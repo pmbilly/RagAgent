@@ -19,8 +19,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.chatpipeline.ChatManage;
-import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -38,6 +37,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.NameSpace;
 
 /**
  * 分块图抽取服务测试（对照 Go {@code ChunkExtractService.Handle} 的四条出口：
@@ -49,22 +51,22 @@ class ChunkExtractServiceTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** 录制式图仓储（写/删记录 + 检索恒空）。 */
-    static final class RecordingGraphRepo implements PipelinePorts.RetrieveGraphRepository {
-        final List<ChatManage.NameSpace> addedNamespaces = new ArrayList<>();
-        final List<List<ChatManage.GraphData>> addedGraphs = new ArrayList<>();
+    static final class RecordingGraphRepo implements RetrieveGraphRepository {
+        final List<NameSpace> addedNamespaces = new ArrayList<>();
+        final List<List<GraphData>> addedGraphs = new ArrayList<>();
 
         @Override
-        public void addGraph(ChatManage.NameSpace namespace, List<ChatManage.GraphData> graphs) {
+        public void addGraph(NameSpace namespace, List<GraphData> graphs) {
             addedNamespaces.add(namespace);
             addedGraphs.add(graphs);
         }
 
         @Override
-        public void delGraph(List<ChatManage.NameSpace> namespaces) {
+        public void delGraph(List<NameSpace> namespaces) {
         }
 
         @Override
-        public ChatManage.GraphData searchNode(ChatManage.NameSpace namespace, List<String> nodes) {
+        public GraphData searchNode(NameSpace namespace, List<String> nodes) {
             return null;
         }
     }
@@ -215,7 +217,7 @@ class ChunkExtractServiceTest {
         var example = template.getExamples().get(0);
         assertEquals("示例文本", example.getText());
         assertEquals(List.of("张三", "腾讯"),
-                example.getNode().stream().map(ChatManage.GraphNode::getName).toList());
+                example.getNode().stream().map(GraphNode::getName).toList());
         assertEquals("works_at", example.getRelation().get(0).type());
         assertFalse(example.getNode().isEmpty());
     }

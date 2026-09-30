@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 
 /**
  * CHUNK_SEARCH_PARALLEL 阶段插件（对照 Go chat_pipeline/search_parallel.go）：
@@ -26,7 +27,7 @@ public final class PluginSearchParallel implements Plugin {
     private final PipelinePorts.TenantService tenantService;
     private final PipelinePorts.SessionService sessionService;
 
-    private final PipelinePorts.RetrieveGraphRepository graphRepo;
+    private final RetrieveGraphRepository graphRepo;
     private final PipelinePorts.ChunkRepository chunkRepo;
     private final PipelinePorts.KnowledgeRepository knowledgeRepo;
 
@@ -43,7 +44,7 @@ public final class PluginSearchParallel implements Plugin {
                                 PipelinePorts.SessionService sessionService,
                                 PipelinePorts.WebSearchStateService webSearchStateService,
                                 PipelinePorts.WebSearchProviderRepository webSearchProviderRepo,
-                                PipelinePorts.RetrieveGraphRepository graphRepository,
+                                RetrieveGraphRepository graphRepository,
                                 PipelinePorts.ChunkRepository chunkRepository,
                                 PipelinePorts.KnowledgeRepository knowledgeRepository) {
         // 内部插件不注册到 manager（对照 Go 的未注册构造）

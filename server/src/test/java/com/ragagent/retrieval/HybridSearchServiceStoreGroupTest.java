@@ -14,7 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.ragagent.auth.service.TenantService;
-import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.common.pipeline.SearchParams;
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBase;

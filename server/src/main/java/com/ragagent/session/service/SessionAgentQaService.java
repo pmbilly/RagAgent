@@ -278,7 +278,7 @@ public class SessionAgentQaService {
                 agentQuery += "\n\n" + req.quotedContext;
             }
             if (!req.attachments.isEmpty()) {
-                agentQuery += com.ragagent.chatpipeline.MessageAttachmentsPrompt.build(req.attachments);
+                agentQuery += com.ragagent.session.MessageAttachmentsPrompt.build(req.attachments);
                 log.info("Appended {} attachment(s) to agent query", req.attachments.size());
             }
 
@@ -1287,7 +1287,7 @@ public class SessionAgentQaService {
             }
         }
         if (m.getAttachments() != null && !m.getAttachments().isEmpty()) {
-            content += com.ragagent.chatpipeline.MessageAttachmentsPrompt.build(m.getAttachments());
+            content += com.ragagent.session.MessageAttachmentsPrompt.build(m.getAttachments());
         }
         ChatMessage msg = new ChatMessage();
         msg.setRole("user");

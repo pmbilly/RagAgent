@@ -5,12 +5,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.ragagent.chatpipeline.ChatManage.GraphData;
-import com.ragagent.chatpipeline.ChatManage.GraphNode;
-import com.ragagent.chatpipeline.ChatManage.NameSpace;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.NameSpace;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.graph.GraphRelation;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 
 /**
  * ENTITY_SEARCH 阶段插件（对照 Go chat_pipeline/search_entity.go）：
@@ -24,11 +26,11 @@ import com.ragagent.retrieval.domain.SearchResult;
  */
 public final class PluginSearchEntity implements Plugin {
 
-    private final PipelinePorts.RetrieveGraphRepository graphRepo;
+    private final RetrieveGraphRepository graphRepo;
     private final PipelinePorts.ChunkRepository chunkRepo;
     private final PipelinePorts.KnowledgeRepository knowledgeRepo;
 
-    public PluginSearchEntity(PipelinePorts.RetrieveGraphRepository graphRepository,
+    public PluginSearchEntity(RetrieveGraphRepository graphRepository,
                               PipelinePorts.ChunkRepository chunkRepository,
                               PipelinePorts.KnowledgeRepository knowledgeRepository) {
         this.graphRepo = graphRepository;
@@ -61,7 +63,7 @@ public final class PluginSearchEntity implements Plugin {
         }
 
         List<GraphNode> allNodes = new ArrayList<>();
-        List<ChatManage.GraphRelation> allRelations = new ArrayList<>();
+        List<GraphRelation> allRelations = new ArrayList<>();
 
         if (entityKnowledge != null && !entityKnowledge.isEmpty()) {
             for (Map.Entry<String, String> e : entityKnowledge.entrySet()) {
@@ -130,7 +132,7 @@ public final class PluginSearchEntity implements Plugin {
     }
 
     private void searchInto(String knowledgeBaseId, String knowledgeId, List<String> entity,
-                            List<GraphNode> allNodes, List<ChatManage.GraphRelation> allRelations) {
+                            List<GraphNode> allNodes, List<GraphRelation> allRelations) {
         GraphData graph;
         try {
             graph = graphRepo.searchNode(new NameSpace(knowledgeBaseId, knowledgeId), entity);

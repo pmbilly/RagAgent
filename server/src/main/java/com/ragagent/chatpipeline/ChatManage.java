@@ -11,8 +11,8 @@ import com.ragagent.event.EventBusInterface;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.MessageAttachment;
-import com.ragagent.session.domain.MessageImage;
 import com.ragagent.session.domain.UsedMemory;
+import com.ragagent.common.graph.GraphData;
 
 /**
  * 一次 chat 管线执行的全部配置、状态与运行时句柄
@@ -125,49 +125,9 @@ public final class ChatManage {
     private String userMessageId = "";
 
     /** 对照 types.GraphData（管线只消费 Node/Relation 两个切片）。 */
-    public record GraphData(List<GraphNode> node, List<GraphRelation> relation) {}
-
     /** 对照 types.GraphNode（name/chunks/attributes 三个被管线消费的字段）。 */
-    public static final class GraphNode {
-        private String name = "";
-        private List<String> chunks;
-        private List<String> attributes;
-
-        public GraphNode() {}
-
-        public GraphNode(String name, List<String> chunks, List<String> attributes) {
-            this.name = name == null ? "" : name;
-            this.chunks = chunks;
-            this.attributes = attributes;
-        }
-
-        public String getName() { return name; }
-        public void setName(String v) { name = v == null ? "" : v; }
-        public List<String> getChunks() { return chunks; }
-        public void setChunks(List<String> v) { chunks = v; }
-        public List<String> getAttributes() { return attributes; }
-        public void setAttributes(List<String> v) { attributes = v; }
-    }
-
     /** 对照 types.GraphRelation。 */
-    public record GraphRelation(String node1, String node2, String type) {}
-
     /** 图检索的命名空间（对照 types.NameSpace，internal/types/extract_graph.go:38-41）。 */
-    public record NameSpace(String knowledgeBase, String knowledge) {
-
-        /** 对照 NameSpace.Labels()：非空部分按 KB → Knowledge 序（两端都空 → 空列表）。 */
-        public List<String> labels() {
-            List<String> res = new ArrayList<>();
-            if (knowledgeBase != null && !knowledgeBase.isEmpty()) {
-                res.add(knowledgeBase);
-            }
-            if (knowledge != null && !knowledge.isEmpty()) {
-                res.add(knowledge);
-            }
-            return res;
-        }
-    }
-
     // ----- 请求段访问器 -----
 
     public String getQuery() { return query; }

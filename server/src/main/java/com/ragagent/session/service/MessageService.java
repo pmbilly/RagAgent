@@ -22,7 +22,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.model.service.ModelRuntimeFactory;
-import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.common.pipeline.SearchParams;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.HybridSearchService;

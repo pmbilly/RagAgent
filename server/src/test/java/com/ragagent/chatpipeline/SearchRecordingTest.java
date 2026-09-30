@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.retrieval.support.SearchTextUtil;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.GraphNode;
 
 /**
  * 实录回放：查询扩展 / 去重 / 部分重叠 / filter_top_k / search / search_by_targets /
@@ -501,9 +503,9 @@ class SearchRecordingTest {
                 Rec46cSupport.sr("chunk-1", "文档命中", "k1", 0.8),
                 Rec46cSupport.sr("dup-1", "重复", "k1", 0.7))));
         Rec46cSupport.StubGraphRepo graph = new Rec46cSupport.StubGraphRepo();
-        graph.byKB.put("kb-1", new ChatManage.GraphData(List.of(
-                new ChatManage.GraphNode("实体A", List.of("chunk-1", "ent-1"), null),
-                new ChatManage.GraphNode("实体B", List.of("ent-2"), null)),
+        graph.byKB.put("kb-1", new GraphData(List.of(
+                new GraphNode("实体A", List.of("chunk-1", "ent-1"), null),
+                new GraphNode("实体B", List.of("ent-2"), null)),
                 new ArrayList<>()));
         Rec46cSupport.StubKnowledgeRepo knowledgeRepo = new Rec46cSupport.StubKnowledgeRepo();
         knowledgeRepo.items.put("k1", knowledge("k1"));

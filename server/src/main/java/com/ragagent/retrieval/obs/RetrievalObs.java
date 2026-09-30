@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.retrieval.obs;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -18,7 +18,7 @@ import com.ragagent.retrieval.domain.SearchResult;
  */
 public final class RetrievalObs {
 
-    static final int DEFAULT_HIT_PREVIEW_LIMIT = 25;
+    public static final int DEFAULT_HIT_PREVIEW_LIMIT = 25;
 
     private RetrievalObs() {}
 
@@ -135,7 +135,7 @@ public final class RetrievalObs {
     }
 
     /** Go 的 fmt.Sprintf("%.4f")（四舍五入到 4 位小数，toFixed 语义）。 */
-    static String goFmt4(double v) {
+    public static String goFmt4(double v) {
         return String.format(java.util.Locale.ROOT, "%.4f", v);
     }
 
@@ -187,7 +187,7 @@ public final class RetrievalObs {
     }
 
     /** 对照 summarizeIndexHits：分数降序、chunk_id 决序，截前 limit 条（空 → null）。 */
-    static List<Map<String, Object>> summarizeIndexHits(
+    public static List<Map<String, Object>> summarizeIndexHits(
             List<com.ragagent.retrieval.engine.PgVectorRetrieveRepository.IndexHit> hits, int limit) {
         if (hits == null || hits.isEmpty()) {
             return null;

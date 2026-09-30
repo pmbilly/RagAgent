@@ -11,6 +11,7 @@ import com.ragagent.event.MemoryRecalledData;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.memory.domain.MemoryUsedMemories;
 import com.ragagent.session.domain.UsedMemory;
+import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
  * MEMORY_RECALL 阶段插件（对照 Go chat_pipeline/memory_recall.go）：

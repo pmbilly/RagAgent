@@ -7,8 +7,9 @@ import java.util.Map;
 
 import org.yaml.snakeyaml.Yaml;
 
-import com.ragagent.chatpipeline.ChatManage;
 import com.ragagent.chatpipeline.PipelineConfig.PromptTemplateStructured;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.GraphRelation;
 
 /**
  * config.yaml 的 {@code extract} 段装载。
@@ -90,7 +91,7 @@ public final class ExtractPrompts {
                     example.setText(String.valueOf(ex.get("text")));
                 }
                 if (ex.get("node") instanceof List<?> nodes) {
-                    List<ChatManage.GraphNode> nodeList = new ArrayList<>();
+                    List<GraphNode> nodeList = new ArrayList<>();
                     for (Object n : nodes) {
                         if (!(n instanceof Map<?, ?> nm)) {
                             continue;
@@ -101,19 +102,19 @@ public final class ExtractPrompts {
                                 attrs.add(String.valueOf(a));
                             }
                         }
-                        nodeList.add(new ChatManage.GraphNode(
+                        nodeList.add(new GraphNode(
                                 nm.get("name") == null ? "" : String.valueOf(nm.get("name")),
                                 null, attrs));
                     }
                     example.setNode(nodeList);
                 }
                 if (ex.get("relation") instanceof List<?> rels) {
-                    List<ChatManage.GraphRelation> relList = new ArrayList<>();
+                    List<GraphRelation> relList = new ArrayList<>();
                     for (Object r : rels) {
                         if (!(r instanceof Map<?, ?> rm)) {
                             continue;
                         }
-                        relList.add(new ChatManage.GraphRelation(
+                        relList.add(new GraphRelation(
                                 rm.get("node1") == null ? "" : String.valueOf(rm.get("node1")),
                                 rm.get("node2") == null ? "" : String.valueOf(rm.get("node2")),
                                 rm.get("type") == null ? "" : String.valueOf(rm.get("type"))));

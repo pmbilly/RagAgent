@@ -18,6 +18,7 @@ import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.MessageImage;
+import com.ragagent.session.MessageAttachmentsPrompt;
 
 /**
  * 管线共享工具（对照 Go chat_pipeline 的 common.go / chat_pipeline.go 包级函数）。

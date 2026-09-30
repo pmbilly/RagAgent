@@ -17,6 +17,9 @@ import org.junit.jupiter.api.Test;
 
 import com.ragagent.common.llm.ResponseType;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.GraphRelation;
 
 /**
  * 实录回放：progress / into_chat / references / completion / stream / entity / web_fetch
@@ -594,7 +597,7 @@ class PipelineLifecycleRecordingTest {
             rec.put("in", cases.get(i));
             try {
                 EntityExtraction.EntityGraph graph = f.parseGraph(cases.get(i));
-                rec.put("graph", Rec46cSupport.graphShape(new ChatManage.GraphData(graph.node, graph.relation)));
+                rec.put("graph", Rec46cSupport.graphShape(new GraphData(graph.node, graph.relation)));
             } catch (RuntimeException e) {
                 // 备案：Go json.Unmarshal 的错误文案（"invalid character ..."）与 Jackson 不同，
                 // 错误分支只锁 "failed to parse JSON content: " 前缀
@@ -627,9 +630,9 @@ class PipelineLifecycleRecordingTest {
         PipelineConfig.PromptTemplateStructured.Example ex = new PipelineConfig.PromptTemplateStructured.Example();
         ex.setText("张三在 北京大学 工作。");
         ex.setNode(new ArrayList<>(List.of(
-                new ChatManage.GraphNode("张三", null, List.of("人")),
-                new ChatManage.GraphNode("北京大学", null, List.of("组织")))));
-        ex.setRelation(new ArrayList<>(List.of(new ChatManage.GraphRelation("张三", "北京大学", "works_at"))));
+                new GraphNode("张三", null, List.of("人")),
+                new GraphNode("北京大学", null, List.of("组织")))));
+        ex.setRelation(new ArrayList<>(List.of(new GraphRelation("张三", "北京大学", "works_at"))));
         tpl.setExamples(new ArrayList<>(List.of(ex)));
         EntityExtraction.QAPromptGenerator qa = new EntityExtraction.QAPromptGenerator(f, tpl);
         assertRec("entity_format", "system", json(Map.of("prompt", qa.system())));

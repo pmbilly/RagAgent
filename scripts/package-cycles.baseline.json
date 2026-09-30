@@ -10,10 +10,6 @@
     ],
     [
       "chatpipeline",
-      "retrieval"
-    ],
-    [
-      "chatpipeline",
       "session"
     ],
     [

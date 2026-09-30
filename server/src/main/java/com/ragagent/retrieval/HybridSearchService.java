@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.service.TenantService;
-import com.ragagent.chatpipeline.SearchParams;
+import com.ragagent.common.pipeline.SearchParams;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
@@ -255,7 +255,7 @@ public class HybridSearchService {
             retrieveSpan.finish(null, null, retrieveErr.toString());
             throw retrieveErr;
         }
-        retrieveSpan.finish(com.ragagent.chatpipeline.RetrievalObs.summarizeRetrieveOutput(results),
+        retrieveSpan.finish(com.ragagent.retrieval.obs.RetrievalObs.summarizeRetrieveOutput(results),
                 null, null);
 
         if (results.isEmpty() || results.stream().allMatch(r -> r.results().isEmpty())) {

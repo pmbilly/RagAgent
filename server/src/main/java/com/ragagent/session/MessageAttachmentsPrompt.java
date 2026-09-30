@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.session;
 
 import java.util.List;
 
@@ -19,7 +19,7 @@ public final class MessageAttachmentsPrompt {
     private MessageAttachmentsPrompt() {}
 
     /** Go html.EscapeString 的五字符转义。 */
-    static String escapeHtml(String s) {
+    public static String escapeHtml(String s) {
         String v = s == null ? "" : s;
         StringBuilder sb = new StringBuilder(v.length());
         for (int i = 0; i < v.length(); i++) {

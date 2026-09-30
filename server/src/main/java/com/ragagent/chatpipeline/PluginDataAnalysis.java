@@ -15,6 +15,7 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.common.web.JsonMappers;
+import com.ragagent.common.pipeline.ChunkTypes;
 
 /**
  * DATA_ANALYSIS 阶段插件（对照 Go chat_pipeline/data_analysis.go）：

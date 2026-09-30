@@ -8,6 +8,9 @@ import java.util.Map;
 import com.ragagent.common.security.InputSanitizer;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.retrieval.support.ImageInfoEnricher;
+import com.ragagent.common.pipeline.ChunkTypes;
+import com.ragagent.retrieval.obs.RetrievalObs;
+import com.ragagent.session.MessageAttachmentsPrompt;
 
 /**
  * INTO_CHAT_MESSAGE 阶段插件（对照 Go chat_pipeline/into_chat_message.go）：

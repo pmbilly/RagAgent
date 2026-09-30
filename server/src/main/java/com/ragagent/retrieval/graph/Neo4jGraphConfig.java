@@ -1,6 +1,5 @@
 package com.ragagent.retrieval.graph;
 
-import com.ragagent.chatpipeline.PipelinePorts;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
@@ -31,7 +30,7 @@ public class Neo4jGraphConfig {
     static final long RETRY_INTERVAL_MS = 2000L;
 
     @Bean
-    public PipelinePorts.RetrieveGraphRepository retrieveGraphRepository() {
+    public RetrieveGraphRepository retrieveGraphRepository() {
         return new Neo4jGraphRepository(createDriverIfEnabled());
     }
 

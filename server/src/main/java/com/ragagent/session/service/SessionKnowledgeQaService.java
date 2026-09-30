@@ -19,7 +19,6 @@ import com.ragagent.chatpipeline.EventManager;
 import com.ragagent.chatpipeline.PipelineBuilder;
 import com.ragagent.chatpipeline.PipelineEventType;
 import com.ragagent.chatpipeline.PipelineLog;
-import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.chatpipeline.PipelineProgress;
 import com.ragagent.chatpipeline.PipelineProgress.StageProgress;
 import com.ragagent.chatpipeline.PluginError;
@@ -45,6 +44,7 @@ import com.ragagent.modelcontext.Registry;
 import com.ragagent.retrieval.domain.SearchResult;
 
 import static com.ragagent.session.service.QaSupport.TagScope;
+import com.ragagent.chatpipeline.PipelinePorts;
 
 /**
  * 知识问答 service 面（对照 Go internal/application/service/session_knowledge_qa.go
@@ -297,7 +297,7 @@ public class SessionKnowledgeQaService {
                 userContent += "\n\n" + req.quotedContext;
             }
             if (!req.attachments.isEmpty()) {
-                userContent += com.ragagent.chatpipeline.MessageAttachmentsPrompt.build(req.attachments);
+                userContent += com.ragagent.session.MessageAttachmentsPrompt.build(req.attachments);
             }
             chatManage.setUserContent(userContent);
 

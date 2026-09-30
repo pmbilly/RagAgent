@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.ragagent.chatpipeline.ChatManage;
-import com.ragagent.chatpipeline.PipelinePorts;
 import org.neo4j.driver.AccessMode;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
@@ -20,6 +18,10 @@ import org.neo4j.driver.types.Node;
 import org.neo4j.driver.types.Relationship;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.GraphRelation;
+import com.ragagent.common.graph.NameSpace;
 
 /**
  * Neo4j 图仓储（对照 Go {@code internal/application/repository/retriever/neo4j/repository.go}
@@ -41,7 +43,7 @@ import org.slf4j.LoggerFactory;
  * <p>对照 Go 的 {@code n.driver == nil} 三个分支：告警 {@code NOT SUPPORT RETRIEVE GRAPH}
  * 后静默返回（写/删返回 void，检索返回 null）。因此 NEO4J_ENABLE 未启用时，调用方无需判空。</p>
  */
-public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphRepository {
+public class Neo4jGraphRepository implements RetrieveGraphRepository {
 
     private static final Logger log = LoggerFactory.getLogger(Neo4jGraphRepository.class);
 
@@ -107,7 +109,7 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
     }
 
     /** 对照 {@code Labels}：命名空间各段加 {@code ENTITY} 前缀。 */
-    public List<String> labels(ChatManage.NameSpace namespace) {
+    public List<String> labels(NameSpace namespace) {
         List<String> res = new ArrayList<>();
         if (namespace == null) {
             return res;
@@ -119,14 +121,14 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
     }
 
     /** 对照 {@code Label}：以 {@code :} 连接（Cypher 标签表达式）。 */
-    public String label(ChatManage.NameSpace namespace) {
+    public String label(NameSpace namespace) {
         return String.join(":", labels(namespace));
     }
 
     // ── 写（对照 AddGraph / addGraph） ──
 
     @Override
-    public void addGraph(ChatManage.NameSpace namespace, List<ChatManage.GraphData> graphs) {
+    public void addGraph(NameSpace namespace, List<GraphData> graphs) {
         if (driver == null) {
             log.warn("NOT SUPPORT RETRIEVE GRAPH");
             return;
@@ -134,16 +136,16 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
         if (graphs == null) {
             return;
         }
-        for (ChatManage.GraphData graph : graphs) {
+        for (GraphData graph : graphs) {
             if (graph != null) {
                 addGraphOne(namespace, graph);
             }
         }
     }
 
-    private void addGraphOne(ChatManage.NameSpace namespace, ChatManage.GraphData graph) {
+    private void addGraphOne(NameSpace namespace, GraphData graph) {
         List<Map<String, Object>> nodeData = new ArrayList<>();
-        for (ChatManage.GraphNode node : graph.node() == null ? List.<ChatManage.GraphNode>of() : graph.node()) {
+        for (GraphNode node : graph.node() == null ? List.<GraphNode>of() : graph.node()) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("name", node.getName());
             row.put("knowledge_id", namespace.knowledge());
@@ -156,8 +158,8 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
         }
 
         List<Map<String, Object>> relData = new ArrayList<>();
-        for (ChatManage.GraphRelation rel : graph.relation() == null
-                ? List.<ChatManage.GraphRelation>of() : graph.relation()) {
+        for (GraphRelation rel : graph.relation() == null
+                ? List.<GraphRelation>of() : graph.relation()) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("source", rel.node1());
             row.put("target", rel.node2());
@@ -185,7 +187,7 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
     // ── 删（对照 DelGraph） ──
 
     @Override
-    public void delGraph(List<ChatManage.NameSpace> namespaces) {
+    public void delGraph(List<NameSpace> namespaces) {
         if (driver == null) {
             log.warn("NOT SUPPORT RETRIEVE GRAPH");
             return;
@@ -196,7 +198,7 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
         try (Session session = driver.session(SessionConfig.builder()
                 .withDefaultAccessMode(AccessMode.WRITE).build())) {
             session.executeWrite(tx -> {
-                for (ChatManage.NameSpace namespace : namespaces) {
+                for (NameSpace namespace : namespaces) {
                     String labelExpr = label(namespace);
                     Map<String, Object> params = Map.of("knowledge_id",
                             namespace.knowledge() == null ? "" : namespace.knowledge());
@@ -214,7 +216,7 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
     // ── 读（对照 SearchNode） ──
 
     @Override
-    public ChatManage.GraphData searchNode(ChatManage.NameSpace namespace, List<String> nodes) {
+    public GraphData searchNode(NameSpace namespace, List<String> nodes) {
         if (driver == null) {
             log.warn("NOT SUPPORT RETRIEVE GRAPH");
             return null;
@@ -225,8 +227,8 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
             List<Record> records = session.executeRead(tx ->
                     tx.run(query, Map.of("nodes", nodes == null ? List.of() : nodes)).list());
 
-            List<ChatManage.GraphNode> outNodes = new ArrayList<>();
-            List<ChatManage.GraphRelation> outRelations = new ArrayList<>();
+            List<GraphNode> outNodes = new ArrayList<>();
+            List<GraphRelation> outRelations = new ArrayList<>();
             Set<String> seen = new HashSet<>();
             for (Record record : records) {
                 Node n = record.get("n").asNode();
@@ -236,17 +238,17 @@ public class Neo4jGraphRepository implements PipelinePorts.RetrieveGraphReposito
                 for (Node each : List.of(n, m)) {
                     String name = each.get("name").asString("");
                     if (seen.add(name)) {
-                        outNodes.add(new ChatManage.GraphNode(name,
+                        outNodes.add(new GraphNode(name,
                                 listI2listS(each.get("chunks")),
                                 listI2listS(each.get("attributes"))));
                     }
                 }
-                outRelations.add(new ChatManage.GraphRelation(
+                outRelations.add(new GraphRelation(
                         n.get("name").asString(""),
                         m.get("name").asString(""),
                         rel.type()));
             }
-            return new ChatManage.GraphData(outNodes, outRelations);
+            return new GraphData(outNodes, outRelations);
         } catch (RuntimeException e) {
             log.error("search node failed: {}", e.toString());
             throw e;

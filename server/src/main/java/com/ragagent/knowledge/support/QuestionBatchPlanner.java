@@ -3,7 +3,7 @@ package com.ragagent.knowledge.support;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import com.ragagent.chatpipeline.ChunkTypes;
+import com.ragagent.common.pipeline.ChunkTypes;
 import com.ragagent.knowledge.domain.Chunk;
 
 /**

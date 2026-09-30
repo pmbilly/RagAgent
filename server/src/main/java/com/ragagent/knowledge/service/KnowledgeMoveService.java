@@ -10,7 +10,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.knowledge.dto.KnowledgeMoveProgress;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.repository.ChunkRepository;
@@ -21,7 +21,7 @@ import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import com.ragagent.chatpipeline.ChatManage.NameSpace;
+import com.ragagent.common.graph.NameSpace;
 import com.ragagent.embedding.Embedder;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.knowledge.task.KnowledgeTaskProgressStore;
@@ -29,6 +29,7 @@ import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 import com.ragagent.knowledge.storage.TenantStorageService;
 import java.time.Instant;
 import java.util.Objects;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 
 /**
  * 知识库 Move（跨库搬移）worker 面。HTTP 契约 = 立即返回 + 进度查询；

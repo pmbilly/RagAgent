@@ -181,7 +181,7 @@ public final class TextExtractionTestService {
     /** 过滤不在请求 tags 内的关系。 */
     private static void removeUnknownRelation(EntityExtraction.EntityGraph graph, List<String> tags) {
         java.util.Set<String> known = new java.util.HashSet<>(tags);
-        List<com.ragagent.chatpipeline.ChatManage.GraphRelation> kept = new ArrayList<>();
+        List<com.ragagent.common.graph.GraphRelation> kept = new ArrayList<>();
         for (var relation : graph.relation) {
             if (known.contains(relation.type())) {
                 kept.add(relation);

@@ -7,9 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
-import com.ragagent.chatpipeline.ChatManage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.ragagent.common.graph.GraphData;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.GraphRelation;
+import com.ragagent.common.graph.NameSpace;
 
 /**
  * 图仓储的离线契约测试（对照 Go repository.go 的标签推导与 Cypher 文本）：
@@ -18,8 +21,8 @@ import org.junit.jupiter.api.Test;
  */
 class Neo4jGraphRepositoryTest {
 
-    private static ChatManage.NameSpace ns(String kb, String knowledge) {
-        return new ChatManage.NameSpace(kb, knowledge);
+    private static NameSpace ns(String kb, String knowledge) {
+        return new NameSpace(kb, knowledge);
     }
 
     @Test
@@ -42,9 +45,9 @@ class Neo4jGraphRepositoryTest {
         assertFalse(repo.enabled());
 
         repo.addGraph(ns("kb", "kn"), List.of(
-                new ChatManage.GraphData(
-                        List.of(new ChatManage.GraphNode("A", List.of("c1"), List.of("attr"))),
-                        List.of(new ChatManage.GraphRelation("A", "B", "REL")))));
+                new GraphData(
+                        List.of(new GraphNode("A", List.of("c1"), List.of("attr"))),
+                        List.of(new GraphRelation("A", "B", "REL")))));
         repo.delGraph(List.of(ns("kb", "kn")));
         assertNull(repo.searchNode(ns("kb", "kn"), List.of("A")));
     }

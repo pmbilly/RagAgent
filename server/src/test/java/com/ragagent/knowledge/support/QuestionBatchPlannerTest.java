@@ -7,7 +7,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.ragagent.chatpipeline.ChunkTypes;
+import com.ragagent.common.pipeline.ChunkTypes;
 import com.ragagent.common.context.TracingContext;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.QuestionBatchPayload;

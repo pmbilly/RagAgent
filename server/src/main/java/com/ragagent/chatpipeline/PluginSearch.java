@@ -20,6 +20,7 @@ import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.retrieval.support.WebResultConverter;
 import com.ragagent.knowledge.domain.KnowledgeBase;
+import com.ragagent.common.pipeline.SearchParams;
 
 /**
  * CHUNK_SEARCH 阶段插件（对照 Go chat_pipeline/search.go 的 PluginSearch +

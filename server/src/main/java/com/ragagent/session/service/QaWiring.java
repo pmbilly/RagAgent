@@ -16,7 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.chatpipeline.EventManager;
 import com.ragagent.chatpipeline.PipelineConfig;
-import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.chatpipeline.PluginChatCompletion;
 import com.ragagent.chatpipeline.PluginChatCompletionStream;
 import com.ragagent.chatpipeline.PluginExtractEntity;
@@ -56,6 +56,7 @@ import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.websearch.service.WebSearchService;
 import com.ragagent.model.service.ModelRuntimeConfigs;
+import com.ragagent.chatpipeline.PipelinePorts;
 
 /**
  * chat 管线 + QA 面装配（波 4.6d；docs/known-issues/05-wave-4.md 原 §9「波 4.6c 补充」的 11 seam 清单）。
@@ -182,14 +183,14 @@ public class QaWiring {
             }
 
             @Override
-            public List<SearchResult> hybridSearch(String knowledgeBaseId, com.ragagent.chatpipeline.SearchParams params) {
+            public List<SearchResult> hybridSearch(String knowledgeBaseId, com.ragagent.common.pipeline.SearchParams params) {
                 // KB 元数据缺失时保持 Go 同形的 1003 错误（A/B 场景 kse-unknown-kb 依赖）。
                 if (kbService.getAllTenantById(knowledgeBaseId) == null) {
                     throw new PipelinePorts.PipelinePortException(
                             "error code: 1003, error message: knowledge base not found");
                 }
                 // Go 侧 params 是值拷贝（归一化不回传调用方）——Java 显式浅拷贝。
-                com.ragagent.chatpipeline.SearchParams local = new com.ragagent.chatpipeline.SearchParams();
+                com.ragagent.common.pipeline.SearchParams local = new com.ragagent.common.pipeline.SearchParams();
                 local.setQueryText(params.getQueryText());
                 local.setQueryEmbedding(params.getQueryEmbedding());
                 local.setVectorThreshold(params.getVectorThreshold());
@@ -399,7 +400,7 @@ public class QaWiring {
             PipelinePorts.MemoryService memoryService,
             PipelinePorts.WebSearch webSearch,
             PipelinePorts.TenantService tenantService,
-            PipelinePorts.RetrieveGraphRepository retrieveGraphRepository,
+            RetrieveGraphRepository retrieveGraphRepository,
             PipelineConfig config) {
 
         EventManager mgr = new EventManager();

@@ -21,6 +21,8 @@ import com.ragagent.knowledge.domain.DocumentChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
 import com.ragagent.tracing.langfuse.LangfuseManager;
 import com.ragagent.common.web.JsonMappers;
+import com.ragagent.common.pipeline.ChunkTypes;
+import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
  * CHUNK_RERANK 阶段插件（对照 Go chat_pipeline/rerank.go 全文）。

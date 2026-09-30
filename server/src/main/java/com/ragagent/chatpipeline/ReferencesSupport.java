@@ -9,6 +9,7 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.modelcontext.Registry;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.pipeline.ChunkTypes;
 
 /**
  * references.go 的模型上下文装配（对照 chat_pipeline/references.go 全文）：

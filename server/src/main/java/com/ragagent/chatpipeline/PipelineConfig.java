@@ -3,6 +3,8 @@ package com.ragagent.chatpipeline;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.ragagent.common.graph.GraphNode;
+import com.ragagent.common.graph.GraphRelation;
 
 /**
  * 管线消费的配置切片（对照 Go {@code config.Config} 被 chat_pipeline 读到的部分：
@@ -52,15 +54,15 @@ public final class PipelineConfig {
         /** 对照 GraphData 例子的管线消费面（Text + Node/Relation 切片）。 */
         public static final class Example {
             private String text = "";
-            private List<ChatManage.GraphNode> node;
-            private List<ChatManage.GraphRelation> relation;
+            private List<GraphNode> node;
+            private List<GraphRelation> relation;
 
             public String getText() { return text; }
             public void setText(String v) { text = v == null ? "" : v; }
-            public List<ChatManage.GraphNode> getNode() { return node; }
-            public void setNode(List<ChatManage.GraphNode> v) { node = v; }
-            public List<ChatManage.GraphRelation> getRelation() { return relation; }
-            public void setRelation(List<ChatManage.GraphRelation> v) { relation = v; }
+            public List<GraphNode> getNode() { return node; }
+            public void setNode(List<GraphNode> v) { node = v; }
+            public List<GraphRelation> getRelation() { return relation; }
+            public void setRelation(List<GraphRelation> v) { relation = v; }
         }
     }
 }

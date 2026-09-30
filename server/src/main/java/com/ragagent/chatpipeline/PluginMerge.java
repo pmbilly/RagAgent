@@ -16,6 +16,8 @@ import com.ragagent.retrieval.support.ImageInfoMatchUtil;
 import com.ragagent.retrieval.support.SearchChunkMerge;
 import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.common.web.JsonMappers;
+import com.ragagent.common.pipeline.ChunkTypes;
+import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
  * CHUNK_MERGE 阶段插件（对照 Go chat_pipeline 的 merge.go + merge_expand.go +
