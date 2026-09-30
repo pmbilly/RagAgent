@@ -58,7 +58,7 @@
 - **agent 域（2026-09-30 A/B/E 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；**Go 锚点 0**（479 处/186 文件已清扫,§13.11/13.13 判据,真实不变量改中性陈述保留）；12 个子包全有 package-info；`@JsonProperty` 余 30 处已随落库换锚清零（§11.1）。
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器引用 **408 处 / 94 文件**；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
 - **注释卫生（knowledge 包实测，2026-09-30，可作其余域标准）**：Go 锚点注释 **0 处**、注释掉的代码 **0 处**、TODO **1 处**、注释占比 12.1%、13 个包全有 `package-info`；坏 `{@link}` 0 处。Javadoc 覆盖：**public 类型 91%**（201/221，未写的 20 处是纯 CRUD 请求体——有意留白，名字即语义）、public 方法 33%（**分布是对的**：逻辑密集类 90%+，POJO 访问器 7%）。
-- **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。**死 logger（声明却未使用）**：主干 15 处 / 测试 0 处；knowledge 已清零（`88c8054`，-24 行），余 7 处散在 `agent/tools`、`model/controller`、`auth/service`、`wiki/service`，随各自批次清。**死依赖（只注入不读取）**：全仓 1,670 个 final 依赖中 **24 处**（原 36，knowledge 已清 12，`662dece`）；`agentm/ModelConnectivityTestService` 一个类占 3 处。
+- **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。**死 logger（声明却未使用）**：主干 15 处 / 测试 0 处；knowledge 已清零（`88c8054`，-24 行），余 7 处散在 `agent/tools`、`model/controller`、`auth/service`、`wiki/service`，随各自批次清。**死成员**：knowledge 已清零（logger 8 + MAPPER 5 + 死局部变量 4 + 死方法 1 + 死依赖 16 + 遮蔽 import 2）；全仓候选 **66 处**（字段 51 / 私有方法 14 / 遮蔽 import 1，`7bf963e` 口径，**含误报类**，需逐条人工确认）；`agentm/ModelConnectivityTestService` 一个类占 3 处死依赖。
 - 历史对照（2026-09-28 裁剪前）：main 1,608 文件 / 32.4 万行、test 448 / 14 万 / 1,783 fixture、frontend 533 / 23.6 万；千行大类 41 个（含 KnowledgeService 3,392 行 / 153 方法、FaqService 3,089、KnowledgeController 1,312——**这些数字均已过时**，knowledge 域已完成拆分）。
 
 ## 5. 转型路线图
@@ -155,6 +155,9 @@
   cd ~/ragagent/frontend && npm test
   ```
 - 已知偶发：`WebToolsRecordingTest.searchWithContentFetchesLeadingPagesViaSharedFetchTool` 在全量并发下**偶发失败**（单独重跑通过，与代码改动无关）；遇到它单独重跑确认即可，别误判为回归。
+- 已知偶发（第二个）：`EvaluationContractTest.getTerminalRunsExecution` 在**全量并发**下偶发失败
+  （期望 `model ID cannot be empty`、实际空串；单独 `--tests "*EvaluationContractTest"` 重跑通过）。
+  与代码改动无关，遇到时先单独重跑确认（2026-09-30 首次观察到）。
 - 裁剪功能的测试/fixture 随 PR 删除；阶段 1 末对比器改 **JSON 语义对比**后，fixture 锚定的是**本仓自己的行为**，与 Go 再无关系（键序/转义差异不算失败）。
 - A/B 对拍脚本与 `artifacts/` 产物未带入本仓（留在旧仓）。
 
@@ -273,120 +276,4 @@ knowledge/
 15. **核查"这个成员是不是没用"的标准做法**（用户逐条抽查时用的口径）：①私有字段/方法/局部变量 = 数**声明行之外**的引用（为 0 即死）；公开成员不能这样判（有外部消费者）；②**删之前先做来历追溯**——`git show <拆分类的引入提交>^:<原文件> | grep <名字>`：若拆分前也无调用点 → 翻译期遗留，可删；若拆分前**有**调用点 → 说明拆分把调用方留在了别处，先确认那边有等价实现（本次 `orEmpty` 就属后者：调用点落在 `ChunkEditService`，本处是重复遗留）；③**别按"删一行"的直觉动手**：声明可能跨行（链式调用、多行泛型、注解行），本次 `MAPPER = new ObjectMapper()` 换行接 `.disable(...)` 就差点留下悬空续行——Spotless 的 lint（`illegal start of type`）会兜住，所以**删完先跑 `spotlessApply`**。死成员清单：`88c8054`（logger ×8）、本次 `73e2343`（MAPPER ×5 + 死局部变量 ×4 + 死方法 ×1）。
     **④「只注入不读取」的依赖（662dece：knowledge 清 12 处，全仓 36 → 24）**：判据 = `private final` 字段的全部出现只落在「构造参数行 + `this.x = x;` 赋值行」上（别处零引用）。这类残留同样源自「抽类搬构造清单」——**它与「字段未使用」是两个不同口径**，粗算「声明外引用次数」会把构造赋值算成使用而**漏报**。
     **⑤按行号删代码必须逆序执行**：先删构造参数、再按旧行号删赋值行 → 误删相邻行（首次尝试即踩，diff 复核发现后回退重做）；两种形态要单独收拾：**末位参数**（行尾是 `) {`，删行后要给上一参数去掉逗号）与**参数与他人同行**（只抠片段，别删整行）。
-15. **本会话新增三条**：(a) 被中止的 gradle 测试 run 会留孤儿 Test Executor 占固定端口 stub（11434）,下一轮误报"failed to start stub"——先 `lsof -ti :11434` 清进程再判回归；(b) 去逐字段 `@JsonProperty` 时,**失效的 `@JsonPropertyOrder` 旧名名单必须同删**——属性对 order 表不可见时 Jackson 序列化静默丢属性（approval 线上抓到）;(c) 闸门命令链不要依赖退出码（`cmd | tail` 恒 0）——用 `grep -q 'BUILD SUCCESSFUL'` 之类的字符串断言收口,否则红灯也会照常 commit（本轮 amend 修复过一次）。
-
-## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
-
-> **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
-> §12 是"拆完长什么样"，本节是"**怎么拆**"——把 knowledge 那 40+ 个提交里可复制的部分固化成 SOP。
-> knowledge 的量化基线（目标形态，实测 2026-09-30）：197 文件 / 25,138 行 / 最大类 1,234 行 /
-> ≥800 行 3 个（皆有 javadoc 注明的例外理由）/**Go 锚点 0 / rawBody 0 / 逐字段 `@JsonProperty` 0 / 未使用 import 0**。
-
-### 14.1 三条内核（范本之所以有效的地方）
-
-1. **沿注释边界拆，不按行数硬切**：神类里的 `// ── X 段 ──` 分割线就是拆解点（`KnowledgeService`
-   3,392 行 → 门面 + 7 切片服务就是照这个来的）。拆完"门面保留全部公共委托"→ 18+ 注入点与
-   Mockito 测试**零改动**，这是能把大手术做小的关键。
-2. **每步全绿再走下一步**：`:server:test`（4,670 用例）+ `:server:spotlessCheck`；**纯移动也走这一套**。
-   这是"种子 fork + 渐进转型"优于重写的全部意义（§9）。
-3. **一次只动一个轴**（§3 红线 1）：拆类期不改契约、换锚期不拆类、卫生期不动逻辑。
-   轴混了就退化成大爆炸重写。
-
-### 14.2 单域 SOP（七步，每步独立提交、独立全绿）
-
-| 步 | 动作 | 关键点 / 产出 |
-|---|---|---|
-| 0 侦察 | 按 §14.4 命令出该域体检表 | 规模 / 神类 / Go 锚点 / `@JsonProperty` / rawBody / 未用 import |
-| 1 边界 | 判"该域哪些**不能动**" + 列跨包缝合点 | 对照 §11 边界清单；缝合点用 `git grep` 实测，别凭印象 |
-| 2 拆分 | 神类沿注释边界 → 门面 + 切片；容器类 → 一类型一文件 | 测试随被拆类**同包 `git mv`**；容器级常量/私有 helper 先安置（§13.4/13.5） |
-| 3 分层 | `controller/service/support/task/client/storage/security/repository/mapper/domain/dto` | 每包一份 `package-info.java`（职责地图） |
-| 4 契约 Java 化 | controller 入参 → DTO + `@Valid`；去 `@JsonNaming` / 逐字段 `@JsonProperty` / 信封 | **顺手消灭手写绑定器**（那是真实缺陷温床，§7 第 1 条）；同批带前端 |
-| 5 数据访问去 Go | 落库 jsonb 去 snake（若该域有此面）| 改完必须 `grep` 全仓"按旧键读取"的代码（§11 ② 的 4 处真实缺陷） |
-| 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
-| 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
-
-### 14.3 候选域盘点（2026-09-30 实测；`knowledge` 为已完成参照）
-
-| 域 | 文件 | 行数 | 最大类 | ≥800 | Go 锚点 | `@JsonProperty` | 未用 import | 备注 |
-|---|---|---|---|---|---|---|---|---|
-| **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波完成(e026138)+ C 波完成(b407769:实体去 202 处注解转 camel/查询参数 Java 字段名/前端同批/wiki-* fixture 重录;PageController raw 形态保留但键已换锚,DTO 端点化随数据访问轴)**。**余**:数据访问轴(GORM 复刻层重塑) |
-| **agent** | 131 | 29,590 | AgentEngine 3,236 | 6 | 466 | 96 | 5 | §5 阶段 2 的另一半（已列名） |
-| **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
-| **session** | 73 | 21,460 | SessionKnowledgeQaService(门面+两协作者) | 8(1 已拆) | 721 | 188 | 12 | **步骤 0/1 完成,步骤 2 半程(2026-09-30)**:SKQA 1,764→门面+Resolution/Fallback(89a4e44);余七类=QaController 1,616/AgentQaService 1,446/AgentToolBackends 1,266/Suggestion 1,087/TempDoc 1,075/MessageService 1,028/StreamBridge 853;@RequestBody 直绑 12;子包 6 个无 package-info;`wip/chat-sse-slice2` 已裁定不并入(见 §14.8) |
-| **memory** | 62 | 13,166 | MemoryService 1,661 | 3 | 559 | 134 | 2 | |
-| **llm** | 94 | 10,826 | RemoteApiChat 1,367 | 1 | 476 | 171 | 1 | |
-| **retrieval** | 58 | 19,404 | OpenSearchRetrieveRepository 1,653 | **10** | 267 | 19 | 2 | 契约已换锚（§11 ①） |
-| **im** | 63 | 16,006 | ImService 1,447 | 2 | 200 | 17 | 11 | §6.2：可裁（1 个跨包引用） |
-| **mcp** | 109 | 12,812 | McpServiceController 938 | 2 | 532 | 110 | 1 | |
-| **auth** | 57 | 9,335 | AuthController 1,168 | 3 | 151 | 208 | 3 | 手写绑定器已修一处（§11 ②） |
-| **agentm** | 19 | 5,265 | InitializationController 1,982 | 2 | 60 | 0 | 0 | 自有契约、内层 snake（§7 第 5 条） |
-| 其余小域 | ≤44 | ≤8.9k | ≤1,146 | 0–2 | ≤244 | ≤86 | ≤8 | 顺手标准化即可 |
-
-**建议顺序**（用户可按需调整）：① **agent**（阶段 2 的另一半，边界已明确、收益最大）→ ② **wiki**
-（Go 债务最重）→ ③ **session**（神类最多，且已有在途切片分支）→ ④ **datasource / im**
-（先决策"删 or 留"再动工）→ ⑤ 其余域。
-**排序依据**：风险随"跨包引用数 × 契约可见面"上升，收益随"神类行数 × Go 债务"上升。
-
-**进度跟踪**：`knowledge` ✅ 完成（范本，§12 地图 + §11 记录）｜`agent` ✅ 完成（含 Task 12 契约换锚 9cb74b4,2026-09-30;config jsonb 内层键为登记边界,见 §11 边界清单）｜`wiki` ⬜ ｜`session` ⬜ ｜
-`datasource` ⬜（先定删/留）｜`im` ⬜（先定删/留）｜`memory` ⬜ ｜`llm` ⬜ ｜`retrieval` ⬜ ｜
-`mcp` ⬜ ｜`auth` ⬜ ｜`agentm` ⬜ ｜其余小域 ⬜。
-每完成一个域：把该行改为 ✅、在 §11 追加执行记录、按 §14.2 第 7 步回填数据。
-
-### 14.4 体检命令（复制即用）
-
-```bash
-cd ~/ragagent
-# 神类/大文件排行（全仓）
-git ls-files 'server/src/main/java/**/*.java' | xargs wc -l | sort -rn | head -25
-# Go 债务：锚点注释 / 逐字段 @JsonProperty / 手写 rawBody 绑定
-git grep -cE '对照 Go|GORM|Go 的' -- 'server/src/main/java/**/*.java' | sort -t: -k2 -nr | head -15
-git grep -c '@JsonProperty(' -- 'server/src/main/java/**/*.java' | sort -t: -k2 -nr | head -15
-git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/java/**/*.java'
-# 卫生闸门（ratchet：只覆盖 seed 后触碰过的文件，这是设计不是遗漏）
-./gradlew :server:spotlessCheck
-# 每步收尾的三条（§9）
-./gradlew :server:test && (cd frontend && npx vue-tsc --build --force && npm test)
-```
-
-### 14.5 完成判据（Acceptance，逐项核对）
-
-- [ ] 该域最大类 < 800 行；例外必须在类 javadoc 写明理由（对齐 knowledge 的 3 个例外）
-- [ ] Go 锚点注释 0 / 注释掉的代码 0 / 坏 `{@link}` 0 / 批次与阶段代号 0
-- [ ] 请求侧无 `@JsonNaming`、无逐字段 `@JsonProperty`；无 `{data,success}` 信封；删除返 204；可空显式 `null`
-- [ ] controller 入参全部 `@Valid` DTO（multipart 与"固定文案兜底"端点可保留手绑，但须在 javadoc 注明）
-- [ ] 每个子包有 `package-info.java`；`*Util`/容器类等反模式命名清零
-- [ ] **死成员清零**：未使用 logger / `ObjectMapper` / 私有方法 / 局部变量 / **只注入不读取的 final 依赖**（口径见 §13.15 ①④）；javac 不报未使用私有成员、Spotless 也只查 import，**必须主动扫**
-- [ ] 触点变更后：`:server:test` 全绿 + `:server:spotlessCheck` 绿 +（触及前端契约时）`vue-tsc` 0 错误 / `npm test` 全绿
-- [ ] §4 数据、§12 地图、§13 经验、本节候选表四处同步更新
-
-### 14.6 不要做什么（踩过的坑，别再踩）
-
-- **别把"Go 序列化层删除"拆到各域**：409 处引用 / 94 文件的那一刀按 §3 红线必须**一次性全仓完成**。
-  按域先换锚（同 PR 带前端）是允许的，删序列化器本体不是。
-- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、agent 域 fixture（`ag-*`）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档——
-  这些"仍是 snake"是**对的**。**注意该清单会随各域推进而变动**：`wiki 域实体` 条目已作废
-  （`b407769` C 波把 `wiki/domain` 换锚为 camelCase），`wiki/service` 残留的 `@JsonProperty` 载荷随其批次处理；
-  **引用前先看 §14.3 该域的进度栏，别照抄旧结论**。
-- **别为数字写注释**：getter/POJO 访问器保持 0 javadoc（§13.13）。
-- **别做全仓文本替换**：先用单文件验证再决定扩大（§13.2 的两次翻车）。
-- **别跳过闸门**：只跑 `:server:test` 会漏掉 Spotless（§13.14）。
-
-
-### 14.7 wiki 域步骤 1 边界判定（2026-09-30）
-
-- **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
-- **跨包缝合点（git grep 实测,11 文件）**：`service.WikiLanguageSupport`（agent PromptAssembly + knowledge×4 + session×2,消费最广）；`service.WikiIngestService`(+EnqueueResult)/`WikiKnowledgeFinalizer`/`DefaultWikiKnowledgeFinalizer`/`WikiImageMarkup`（knowledge 加工链）；`service.WikiPageService`/`WikiEditContext` + `domain.Wiki*`（session AgentToolBackends → agent wiki 工具,经 WikiPages seam 接口）；`controller.WikiActivityAudit`（audit）。
-- **拆分纪律**：A 波门面保全部 public 成员与上述类型不动；WikiIngestBatchHandler 为 wiki 内部驱动（无跨包消费者），可自由拆。
-
-### 14.8 session 域步骤 1 边界判定 + wip 分支裁定（2026-09-30）
-
-- **wip/chat-sse-slice2(785cdc7)裁定:不并入**。理由:①用了 @JsonAlias 兼容别名,与现行 §2 第 11 条"无别名"政策冲突;②仅完成切片②后端主体,自带约 40 个失败、前端未动;③当前分支已领先 59 提交,session 域多处被触碰,合并即冲突。**处置**:保留分支作工作清单参考(其提交说明是完整的键清单与任务分解),session C 波在当前分支按 wiki C 波同法重做(去注解无别名)。
-- **不动**:session/domain 实体 jsonb 键在 C 波前保持 snake(§11 边界);chat SSE 信封(event/*Data)归 session C 波切片③(与前端同批);工具输出自有 schema 不动。
-- **跨包缝合点(git grep 实测,15 文件)**:chatpipeline×6、embed×2、evaluation/im/memory×3、storage×2 消费 session 类型;session 出向依赖 retrieval.SearchResult(10)/event.EventBus/agent.AgentStep(5)/knowledge 服务族。
-- **C 波工作清单(自 wip 提交说明整理)**:20 实体+2 落库类型约 200 处注解;SessionController 8 键+3 解封+4 去 success;SteerController 11 键;KnowledgeQaController 2 处;删除/清空类端点 204;43 个 session-*/sug-* fixture;前端 93 键约 200+ 处读取(与 SSE 信封同名,切片③同批)。
-
-### 14.9 session 步骤 2 半程（2026-09-30）
-
-- SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
-- **余七神类**:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 1,075、MessageService 1,028、AgentStreamBridge 853。
-- 教训:切片协作者时 record(MentionScope/SearchTargetView)容易随 take 溢出/误限定——**record 一律留在门面**(测试与外部直引面),协作者经门面限定引用;声明行误加 service. 前缀的恢复统一按"4 空格缩进+修饰符开头"行匹配(勿对调用点盲替)。
+    **⑥自查脚本的六个盲区（`7bf963e` 修正后 knowledge 才归零）**：①**注释/javadoc 里的同名词**别算读取（`worker`/`storage` 就是这样被漏报的）；②**import/package 行里的包名**别算读取（`import ...storage.LocalStorageService` 让 `storage` 显得被用）；③**跨行声明**要认（`MAPPER = new ObjectMapper()` 换行接 `.registerModule(...)`）；④`this::method` **方法引用**要算使用；⑤`serialVersionUID` 永远别报（Java 序列化隐式使用）；⑥**遮蔽 import** 单独查——类里声明了同名嵌套类型时，import 静默失效（javac/Spotless 都不报，只有 IDE 提示）。
