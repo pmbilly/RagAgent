@@ -15,7 +15,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.common.graph.GraphData;

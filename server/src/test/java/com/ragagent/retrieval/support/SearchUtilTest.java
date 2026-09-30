@@ -456,7 +456,7 @@ class SearchUtilTest {
         web.add(r2);
 
         // 缺省 seqFunc 恒 1
-        List<com.ragagent.retrieval.domain.SearchResult> results =
+        List<com.ragagent.common.retrieval.SearchResult> results =
                 WebResultConverter.convert(web);
         assertEquals(2, results.size());
         var first = results.get(0);
@@ -475,7 +475,7 @@ class SearchUtilTest {
         assertEquals(first.getContent().codePointCount(0, first.getContent().length()), first.getEndAt());
 
         // seq 覆盖（service 层传 idx）
-        List<com.ragagent.retrieval.domain.SearchResult> withSeq =
+        List<com.ragagent.common.retrieval.SearchResult> withSeq =
                 WebResultConverter.convert(web, idx -> idx);
         assertEquals(0, withSeq.get(0).getSeq());
     }

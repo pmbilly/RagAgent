@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoMapSerializer;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.llm.ResponseType;
 
 /**

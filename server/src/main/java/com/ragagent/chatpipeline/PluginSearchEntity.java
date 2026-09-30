@@ -10,7 +10,7 @@ import com.ragagent.common.graph.GraphNode;
 import com.ragagent.common.graph.NameSpace;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.graph.GraphRelation;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.common.web.GoValueStr;

@@ -33,7 +33,7 @@ import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.common.model.ModelFacts;
 import com.ragagent.common.model.ModelGateway;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.retrieval.engine.EffectiveEngines;
 import com.ragagent.retrieval.engine.EngineAwareNormalizer;

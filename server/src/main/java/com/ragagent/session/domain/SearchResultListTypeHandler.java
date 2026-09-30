@@ -3,7 +3,7 @@ package com.ragagent.session.domain;
 import java.util.List;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 
 /**
  * {@code messages} 表上 {@code knowledge_references}（Go {@code types.References}）列的处理器。

@@ -17,7 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.ragagent.memory.service.MemoryRecall;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 
 /**
  * 实录回放：rerank（清洗/段落/编排）+ wiki_boost + memory_recall/affinity + progress

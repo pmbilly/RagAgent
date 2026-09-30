@@ -12,7 +12,7 @@ import com.ragagent.event.EventBusInterface;
 import com.ragagent.event.EventType;
 import com.ragagent.event.AgentToolCallData;
 import com.ragagent.event.AgentToolResultData;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 
 /**
  * 管线进度事件（对照 Go chat_pipeline/progress.go）。

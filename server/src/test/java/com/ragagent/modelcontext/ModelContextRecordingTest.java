@@ -19,7 +19,7 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatTool;
 import com.ragagent.llm.domain.FunctionCall;
 import com.ragagent.llm.domain.ToolCall;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 
 /**
  * 4.6a modelcontext 包的 Go 实录回放（探针见 /tmp/toolrec46a/internal/modelcontext/

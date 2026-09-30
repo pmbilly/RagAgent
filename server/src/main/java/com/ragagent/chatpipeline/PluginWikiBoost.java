@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.ragagent.agent.tools.SearchTarget;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.pipeline.ChunkTypes;
 
 /**

@@ -51,7 +51,7 @@ import com.ragagent.model.service.ModelService;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.rerank.RerankerConfig;
 import com.ragagent.rerank.RerankerFactory;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.websearch.service.WebSearchService;

@@ -429,6 +429,13 @@
    ④ **import 修复改为编译错误驱动**（写了个循环修复器：只给报错的文件补对应类型的 import，main 2 轮 + test 3 轮）——
    **不再按标识符做粗暴遍**（上轮教训）。测试侧 `ChunkExtractServiceTest` 的桩同步换端口；wiki 自己的
    `WikiKnowledgeFinalizerTest` 保持不动（误伤已回退）。
+
+   ✅ **④-h `llm ⇄ retrieval` 已完成（2026-09-30，环 7 → 6）**：精确侦察定案——`llm → retrieval` 只有一处
+   （`StreamResponse.knowledgeReferences` 的 `List<SearchResult>`，即 SSE 契约字段 `knowledge_references`），
+   而 `SearchResult` 本体零域依赖（只 java/Jackson/`common.web` 两个序列化器）且被 43 文件引用 →
+   按"共享契约类型搬 common"处置：`retrieval.domain.SearchResult` → `common/retrieval/`（先例 `ResponseType`）。
+   搬迁用本批修正后的流程：import/FQN 改写 57 文件 → 编译错误驱动修复器（main/test 各 1 轮即通过，零误伤）。
+   反向 `retrieval → llm`（`VlmClient` FQN + `VlmHttpTransport` 用 `LlmTransport`）仍在，但**单向不成环**，故不处理。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

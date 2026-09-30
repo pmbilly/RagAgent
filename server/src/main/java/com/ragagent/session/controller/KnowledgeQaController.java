@@ -34,7 +34,7 @@ import com.ragagent.event.ErrorData;
 import com.ragagent.event.AgentFinalAnswerData;
 import com.ragagent.event.AgentCompleteData;
 import com.ragagent.common.llm.ResponseType;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageAttachment;

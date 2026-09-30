@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.memory.service.MemoryRecall;
 import com.ragagent.memory.service.MemoryRetrievalContext;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.retrieval.domain.WebSearchResult;

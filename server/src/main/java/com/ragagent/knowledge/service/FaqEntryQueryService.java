@@ -22,7 +22,7 @@ import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.pipeline.SearchParams;
 import com.ragagent.retrieval.HybridSearchService;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

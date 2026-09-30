@@ -15,7 +15,7 @@ import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.llm.domain.ChatTool;
 import com.ragagent.llm.domain.FunctionDef;
 import com.ragagent.llm.domain.ToolCall;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 
 /**
  * 请求局部模型句柄的唯一边界（对照 Go internal/modelcontext/registry.go +

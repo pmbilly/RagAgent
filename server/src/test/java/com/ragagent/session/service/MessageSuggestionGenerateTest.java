@@ -3,7 +3,6 @@ package com.ragagent.session.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -157,22 +156,22 @@ class MessageSuggestionGenerateTest {
     @Test
     void evidenceSortedDedupedAndCapped() {
         Message current = new Message();
-        com.ragagent.retrieval.domain.SearchResult low =
-                new com.ragagent.retrieval.domain.SearchResult();
+        com.ragagent.common.retrieval.SearchResult low =
+                new com.ragagent.common.retrieval.SearchResult();
         low.setId("r1");
         low.setScore(0.2);
         low.setKnowledgeId("k-1");
         low.setKnowledgeTitle("文档一");
         low.setContent("低分证据内容");
-        com.ragagent.retrieval.domain.SearchResult high =
-                new com.ragagent.retrieval.domain.SearchResult();
+        com.ragagent.common.retrieval.SearchResult high =
+                new com.ragagent.common.retrieval.SearchResult();
         high.setId("r2");
         high.setScore(0.9);
         high.setKnowledgeId("k-2");
         high.setKnowledgeTitle("文档二");
         high.setContent("高分证据内容");
-        com.ragagent.retrieval.domain.SearchResult dup =
-                new com.ragagent.retrieval.domain.SearchResult();
+        com.ragagent.common.retrieval.SearchResult dup =
+                new com.ragagent.common.retrieval.SearchResult();
         dup.setId("r1"); // 与 low 同 id（0.8 分）→ 先于 low(0.2) 处理，low 被去重
         dup.setScore(0.8);
         dup.setKnowledgeId("k-1");

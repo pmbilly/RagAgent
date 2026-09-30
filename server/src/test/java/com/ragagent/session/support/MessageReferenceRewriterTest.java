@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.agent.domain.ToolCall;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.storage.support.FileService;

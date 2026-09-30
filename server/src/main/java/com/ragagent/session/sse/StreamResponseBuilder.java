@@ -7,7 +7,7 @@ import java.util.Map;
 
 import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.stream.StreamEvent;
 
 /**

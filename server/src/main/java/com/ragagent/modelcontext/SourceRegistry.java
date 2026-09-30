@@ -262,11 +262,11 @@ final class SourceRegistry {
         return raw.substring(0, schemeEnd + 3 + hash);
     }
 
-    void registerSearchResults(List<com.ragagent.retrieval.domain.SearchResult> results) {
+    void registerSearchResults(List<com.ragagent.common.retrieval.SearchResult> results) {
         if (results == null) {
             return;
         }
-        for (com.ragagent.retrieval.domain.SearchResult result : results) {
+        for (com.ragagent.common.retrieval.SearchResult result : results) {
             if (result == null) {
                 continue;
             }

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.ragagent.TestSchema;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageArtifact;
 import com.ragagent.session.domain.MessageAttachment;

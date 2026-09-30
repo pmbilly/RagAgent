@@ -24,7 +24,7 @@ import com.ragagent.memory.service.MemoryRetrievalContext;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.rerank.Reranker;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.common.graph.GraphData;
 import com.ragagent.common.graph.NameSpace;

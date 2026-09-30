@@ -1,4 +1,4 @@
-package com.ragagent.retrieval.domain;
+package com.ragagent.common.retrieval;
 
 import java.util.List;
 import java.util.Map;
@@ -45,6 +45,10 @@ import com.ragagent.common.web.GoMapSerializer;
  * 由 {@link GoDoubleSerializer} 复刻，见该类注释。</p>
  */
 public class SearchResult {
+
+    // 原在 retrieval.domain；它是 SSE 契约字段 knowledge_references 的载荷，且零域依赖
+    // （只 java/Jackson/common.web 序列化器），被 43 文件引用 → 按共享契约类型搬 common。
+
 
     private String id = "";
 

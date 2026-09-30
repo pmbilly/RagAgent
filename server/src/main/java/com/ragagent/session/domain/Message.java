@@ -15,7 +15,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.ragagent.llm.domain.TokenUsage;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 
 /**
  * messages 表实体（对照 Go {@code types.Message}，internal/types/message.go L308-378）。
@@ -45,7 +45,7 @@ import com.ragagent.retrieval.domain.SearchResult;
  * <h2>跨模块类型的处置</h2>
  * <p>{@code knowledge_references} 与 {@code agent_steps} 原先按**不透明**的
  * {@code List<Object>} 透传，阶段 5.2 步 3 起已收紧成有类型的列表
- * （{@link com.ragagent.retrieval.domain.SearchResult} / {@link AgentStep}）——
+ * （{@link com.ragagent.common.retrieval.SearchResult} / {@link AgentStep}）——
  * 二者都直接出现在消息响应体里，透传时读回来的元素是 {@code LinkedHashMap}，
  * 键序变成 PG jsonb 的规范化序而非 Go 的 struct 声明序，**是实打实的契约偏差**。</p>
  * <p>仍按不透明类型处理的一处：{@code execution_context} 的字段本身是 {@code json:"-"}，

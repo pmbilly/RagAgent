@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.security.SsrfGuard;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.domain.WebSearchFilters;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;

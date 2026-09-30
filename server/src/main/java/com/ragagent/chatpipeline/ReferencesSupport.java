@@ -8,7 +8,7 @@ import java.util.Map;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.modelcontext.Registry;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.pipeline.ChunkTypes;
 
 /**

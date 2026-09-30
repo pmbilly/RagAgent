@@ -35,7 +35,7 @@ import com.ragagent.event.ToolApprovalResolvedData;
 import com.ragagent.event.UserMessageInjectedData;
 import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.TokenUsage;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.UsedMemory;
 import com.ragagent.stream.StreamEvent;

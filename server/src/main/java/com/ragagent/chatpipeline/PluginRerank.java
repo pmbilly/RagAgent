@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.domain.ImageInfo;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.support.ImageInfoMatchUtil;
 import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.agent.tools.SearchTarget;

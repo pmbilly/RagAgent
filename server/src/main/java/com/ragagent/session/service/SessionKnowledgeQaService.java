@@ -41,7 +41,7 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.modelcontext.Registry;
-import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.retrieval.SearchResult;
 
 import static com.ragagent.session.service.QaSupport.TagScope;
 import com.ragagent.chatpipeline.PipelinePorts;

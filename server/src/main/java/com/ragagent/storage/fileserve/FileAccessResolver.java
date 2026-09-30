@@ -237,7 +237,7 @@ public class FileAccessResolver {
 
     /** 对照 Go {@code searchResultHasResourceHandle}（content / matched_content / image_info）。 */
     private static boolean searchResultHasResourceHandle(
-            com.ragagent.retrieval.domain.SearchResult ref, String handle) {
+            com.ragagent.common.retrieval.SearchResult ref, String handle) {
         return textHasResourceHandle(ref.getContent(), handle)
                 || textHasResourceHandle(ref.getMatchedContent(), handle)
                 || textHasResourceHandle(ref.getImageInfo(), handle);
