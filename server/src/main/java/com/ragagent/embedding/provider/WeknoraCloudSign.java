@@ -1,4 +1,4 @@
-package com.ragagent.embedding;
+package com.ragagent.embedding.provider;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

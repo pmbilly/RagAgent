@@ -18,6 +18,14 @@ import com.ragagent.common.security.SsrfGuard;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.ragagent.model.service.ModelRuntimeConfigs;
+import com.ragagent.rerank.provider.AliyunReranker;
+import com.ragagent.rerank.provider.JinaReranker;
+import com.ragagent.rerank.provider.LkeapReranker;
+import com.ragagent.rerank.provider.NvidiaReranker;
+import com.ragagent.rerank.provider.OpenAiReranker;
+import com.ragagent.rerank.provider.VolcengineReranker;
+import com.ragagent.rerank.provider.WeknoraCloudReranker;
+import com.ragagent.rerank.provider.ZhipuReranker;
 
 /**
  * rerank 客户端的 stub server A/B：请求体与 Go 实录（wire/*.json）逐字节比对 +

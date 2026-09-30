@@ -1,9 +1,8 @@
-package com.ragagent.rerank;
+package com.ragagent.rerank.provider;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Semaphore;
 
 import javax.crypto.Mac;
@@ -11,7 +10,11 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.rerank.GoJson;
+import com.ragagent.rerank.RankResult;
+import com.ragagent.rerank.RerankHttp;
+import com.ragagent.rerank.Reranker;
+import com.ragagent.rerank.RerankerConfig;
 
 /**
  * 火山引擎（托管知识服务）rerank 客户端（对照 Go
@@ -38,7 +41,7 @@ public final class VolcengineReranker implements Reranker {
     static final String DEFAULT_REGION = "cn-beijing";
     static final String DEFAULT_INSTRUCTION =
             "Whether the Document answers the Query or matches the content retrieval intent";
-    static final int MAX_DOCUMENTS = 50;
+public     static final int MAX_DOCUMENTS = 50;
     static final int MAX_CONCURRENCY = 4;
 
     private final String modelName;

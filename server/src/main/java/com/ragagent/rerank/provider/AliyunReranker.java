@@ -1,12 +1,16 @@
-package com.ragagent.rerank;
+package com.ragagent.rerank.provider;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.rerank.GoJson;
+import com.ragagent.rerank.RankResult;
+import com.ragagent.rerank.RerankHttp;
+import com.ragagent.rerank.Reranker;
+import com.ragagent.rerank.RerankerConfig;
 
 /**
  * 阿里云 DashScope rerank 客户端（对照 Go {@code rerank/aliyun_reranker.go} 全文）。
@@ -35,7 +39,7 @@ public final class AliyunReranker implements Reranker {
         this.customHeaders = config.getCustomHeaders();
     }
 
-    void setCustomHeaders(Map<String, String> headers) {
+    public void setCustomHeaders(Map<String, String> headers) {
         this.customHeaders = headers;
     }
 

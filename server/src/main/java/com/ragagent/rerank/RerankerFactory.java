@@ -2,6 +2,14 @@ package com.ragagent.rerank;
 
 import com.ragagent.llm.provider.ProviderName;
 import com.ragagent.llm.provider.ProviderRegistry;
+import com.ragagent.rerank.provider.AliyunReranker;
+import com.ragagent.rerank.provider.JinaReranker;
+import com.ragagent.rerank.provider.LkeapReranker;
+import com.ragagent.rerank.provider.NvidiaReranker;
+import com.ragagent.rerank.provider.OpenAiReranker;
+import com.ragagent.rerank.provider.VolcengineReranker;
+import com.ragagent.rerank.provider.WeknoraCloudReranker;
+import com.ragagent.rerank.provider.ZhipuReranker;
 
 /**
  * reranker 工厂（对照 Go {@code rerank/reranker.go} 的

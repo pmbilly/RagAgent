@@ -271,7 +271,7 @@ public final class VlmClient {
         } catch (Exception e) {
             throw new VlmException("weknoracloud VLM: marshal: " + e.getMessage());
         }
-        Map<String, String> headers = com.ragagent.embedding.WeknoraCloudSign.sign(config.appId(),
+        Map<String, String> headers = com.ragagent.embedding.provider.WeknoraCloudSign.sign(config.appId(),
                 config.appSecret(), java.util.UUID.randomUUID().toString(), bodyJson);
 
         String baseUrl = config.baseUrl() == null ? "" : config.baseUrl().replaceAll("/+$", "");

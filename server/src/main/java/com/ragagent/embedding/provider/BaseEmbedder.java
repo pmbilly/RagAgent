@@ -1,14 +1,17 @@
-package com.ragagent.embedding;
+package com.ragagent.embedding.provider;
 
 import java.util.List;
 import java.util.Map;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.embedding.EmbedderPooler;
+import com.ragagent.embedding.EmbeddingHttp;
 
 /**
  * 各 HTTP embedder 的公共骨架（对照 Go 各 embedder 结构体的公共字段与方法）：
  * {@code Embed} 的三次重试取首个非空批、{@code supportsDimensionsParam} 的
  * 「显式覆盖 + 正数维度」双条件、getter 三件套。
  */
-abstract class BaseEmbedder implements Embedder {
+public abstract class BaseEmbedder implements Embedder {
 
     String modelName;
     String apiKey = "";
@@ -45,11 +48,11 @@ abstract class BaseEmbedder implements Embedder {
         return supportsDimensionOverride && dimensions > 0;
     }
 
-    void setCustomHeaders(Map<String, String> headers) {
+    public void setCustomHeaders(Map<String, String> headers) {
         this.customHeaders = headers;
     }
 
-    void setSupportsDimensionOverride(boolean supported) {
+public     void setSupportsDimensionOverride(boolean supported) {
         this.supportsDimensionOverride = supported;
     }
 
@@ -58,7 +61,7 @@ abstract class BaseEmbedder implements Embedder {
     }
 
     /** Go 的工厂在 NewEmbedder 上对支持该能力的实现统一调 SetSupportsDimensionOverride。 */
-    static void applyDimensionOverride(Embedder e, boolean supported) {
+    public static void applyDimensionOverride(Embedder e, boolean supported) {
         if (e instanceof BaseEmbedder be) {
             be.setSupportsDimensionOverride(supported);
         }

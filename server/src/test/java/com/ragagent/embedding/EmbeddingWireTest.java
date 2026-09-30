@@ -16,6 +16,15 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.security.SsrfGuard;
+import com.ragagent.embedding.provider.AliyunEmbedder;
+import com.ragagent.embedding.provider.AzureOpenAiEmbedder;
+import com.ragagent.embedding.provider.GeminiEmbedder;
+import com.ragagent.embedding.provider.JinaEmbedder;
+import com.ragagent.embedding.provider.NvidiaEmbedder;
+import com.ragagent.embedding.provider.OpenAiEmbedder;
+import com.ragagent.embedding.provider.VolcengineEmbedder;
+import com.ragagent.embedding.provider.WeknoraCloudEmbedder;
+import com.ragagent.embedding.provider.ZhipuEmbedder;
 import com.ragagent.llm.limiter.ConcurrencyGovernor;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;

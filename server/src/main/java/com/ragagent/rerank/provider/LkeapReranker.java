@@ -1,4 +1,4 @@
-package com.ragagent.rerank;
+package com.ragagent.rerank.provider;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -9,6 +9,11 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.rerank.GoJson;
+import com.ragagent.rerank.RankResult;
+import com.ragagent.rerank.RerankHttp;
+import com.ragagent.rerank.Reranker;
+import com.ragagent.rerank.RerankerConfig;
 
 /**
  * 腾讯云 LKEAP rerank 客户端（对照 Go {@code rerank/lkeap_reranker.go} 全文）。
@@ -89,11 +94,11 @@ public final class LkeapReranker implements Reranker {
         return results;
     }
 
-    record Batch(int start, List<String> documents) {
+    public record Batch(int start, List<String> documents) {
     }
 
     /** 对照 lkeapRerankBatches：60 条/2000 字符双限切批；单条超限即错。 */
-    static List<Batch> lkeapRerankBatches(String query, List<String> documents) {
+    public static List<Batch> lkeapRerankBatches(String query, List<String> documents) {
         int queryLength = runeCount(query);
         if (queryLength >= MAX_REQUEST_CHARACTERS) {
             throw new RerankHttp.RerankException("LKEAP rerank query is " + queryLength

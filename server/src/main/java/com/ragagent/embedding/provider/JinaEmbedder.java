@@ -1,4 +1,4 @@
-package com.ragagent.embedding;
+package com.ragagent.embedding.provider;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -6,26 +6,28 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.embedding.EmbedderPooler;
+import com.ragagent.embedding.EmbeddingHttp;
+import com.ragagent.embedding.GoJson;
 
 /**
- * NVIDIA embedding 客户端（对照 Go {@code internal/models/embedding/nvidia.go} 全文）。
+ * Jina AI embedding 客户端（对照 Go {@code internal/models/embedding/jina.go} 全文）。
  *
- * <p>请求体 = Go {@code NvidiaEmbedRequest}（model/input/encoding_format/dimensions/
- * truncate_prompt_tokens/input_type）；{@code input_type} 默认 {@code "passage"}，
- * {@link EmbedQueryContext#isQuery()} 时改 {@code "query"}（对照 Go 的 ctx value）。
- * 构造器<b>不收</b> truncatePromptTokens（Go 的 NewNvidiaEmbedder 无此参、字段恒 0 →
- * omitempty 恒省略）。</p>
+ * <p>Jina 与 OpenAI 兼容但<b>不支持</b> {@code truncate_prompt_tokens}（Go 结构体
+ * 根本没有该字段、也不存 truncatePromptTokens）；用 {@code truncate:true} 布尔
+ * 开启长文本截断；{@code dimensions} 仅在 supportsDimensionsParam 时出现。</p>
  */
-public final class NvidiaEmbedder extends BaseEmbedder {
+public final class JinaEmbedder extends BaseEmbedder {
 
     private final String baseUrl;
     private final Duration timeout = EmbeddingHttp.DEFAULT_TIMEOUT;
 
-    public NvidiaEmbedder(String apiKey, String baseUrl, String modelName,
-                          int dimensions, String modelId, EmbedderPooler pooler) {
-        super(modelName, 0, dimensions, modelId, pooler);
+    public JinaEmbedder(String apiKey, String baseUrl, String modelName,
+                        int truncatePromptTokens, int dimensions, String modelId,
+                        EmbedderPooler pooler) {
+        super(modelName, truncatePromptTokens, dimensions, modelId, pooler);
         if (baseUrl == null || baseUrl.isEmpty()) {
-            baseUrl = "https://integrate.api.nvidia.com/v1";
+            baseUrl = "https://api.jina.ai/v1";
         }
         if (modelName == null || modelName.isEmpty()) {
             throw new EmbeddingHttp.EmbeddingException("model name is required");
@@ -37,15 +39,14 @@ public final class NvidiaEmbedder extends BaseEmbedder {
 
     @Override
     public List<float[]> batchEmbed(List<String> texts) {
+        // 对照 JinaEmbedRequest：model/input/truncate/dimensions；truncate:true 恒发
         ObjectNode reqBody = GoJson.object();
         reqBody.put("model", modelName);
         reqBody.set("input", GoJson.arrayOfStrings(texts));
-        reqBody.put("encoding_format", "float");
+        reqBody.put("truncate", true);
         if (supportsDimensionsParam()) {
             reqBody.put("dimensions", dimensions);
         }
-        // truncate_prompt_tokens 恒 0 → omitempty 恒省略
-        reqBody.put("input_type", EmbedQueryContext.isQuery() ? "query" : "passage");
         byte[] jsonData = GoJson.marshal(reqBody);
 
         EmbeddingHttp.Result resp;

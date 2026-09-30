@@ -3,6 +3,17 @@ package com.ragagent.embedding;
 import java.util.Locale;
 import java.util.Map;
 
+import com.ragagent.embedding.provider.AliyunEmbedder;
+import com.ragagent.embedding.provider.AzureOpenAiEmbedder;
+import com.ragagent.embedding.provider.BaseEmbedder;
+import com.ragagent.embedding.provider.GeminiEmbedder;
+import com.ragagent.embedding.provider.JinaEmbedder;
+import com.ragagent.embedding.provider.NvidiaEmbedder;
+import com.ragagent.embedding.provider.OllamaEmbedder;
+import com.ragagent.embedding.provider.OpenAiEmbedder;
+import com.ragagent.embedding.provider.VolcengineEmbedder;
+import com.ragagent.embedding.provider.WeknoraCloudEmbedder;
+import com.ragagent.embedding.provider.ZhipuEmbedder;
 import com.ragagent.llm.limiter.ConcurrencyGovernor;
 import com.ragagent.llm.ollama.OllamaService;
 import com.ragagent.llm.provider.ProviderName;

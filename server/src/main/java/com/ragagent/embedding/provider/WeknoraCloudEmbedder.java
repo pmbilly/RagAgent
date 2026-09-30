@@ -1,4 +1,4 @@
-package com.ragagent.embedding;
+package com.ragagent.embedding.provider;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -13,6 +13,11 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.embedding.Embedder;
+import com.ragagent.embedding.EmbedderConfig;
+import com.ragagent.embedding.EmbedderPooler;
+import com.ragagent.embedding.EmbeddingHttp;
+import com.ragagent.embedding.GoJson;
 
 /**
  * WeKnoraCloud embedding 客户端（对照 Go
