@@ -5,14 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
-import com.ragagent.common.tenant.TenantRole;
-import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.wiki.domain.WikiActivityAudit;
@@ -91,8 +86,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 写端点：创建者本人或 Admin+（否则 403）+ KB 写权限
  * </pre>
  * <p>Java 的 {@code RbacInterceptor} 只能表达"角色下限"，无法表达 KB 访问的
- * "own / org-shared / via shared agent" 解析，故 <b>KB 访问与所有权判定在本控制器内完成</b>
- * （{@link #requireWikiKB}），角色下限仍由 WebConfig 注册的规则负责。跨空间的两条授予路径
+ * "own / org-shared / via shared agent" 解析，故 <b>KB 访问与所有权判定由 {@link WikiKbAccessGuard} 承接</b>
+ * （门面 {@link #requireWikiKB} 薄委托），角色下限仍由 WebConfig 注册的规则负责。跨空间的两条授予路径
  * 复用 org 模块已落地的积木（{@code com.ragagent.org} 包的 {@code KbShareService} /
  * {@code AgentShareService} / {@code SharedAgentKBScope}）。</p>
  *
@@ -135,7 +130,7 @@ public class WikiPageController {
 
     private final WikiPageService wikiService;
     private final WikiLintService lintService;
-    private final KnowledgeBaseMapper kbMapper;
+    private final WikiKbAccessGuard kbGuard;
     private final ObjectMapper json;
     private final ObjectProvider<WikiActivityAudit> activityAudit;
 
@@ -146,7 +141,7 @@ public class WikiPageController {
                               ObjectProvider<WikiActivityAudit> activityAudit) {
         this.wikiService = wikiService;
         this.lintService = lintService;
-        this.kbMapper = kbMapper;
+        this.kbGuard = new WikiKbAccessGuard(kbMapper);
         this.json = json;
         this.activityAudit = activityAudit;
     }
@@ -899,83 +894,11 @@ public class WikiPageController {
 
     // ══════════════════════════ 守卫 / 校验 ══════════════════════════
 
-    /**
-     * KB 访问与所有权判定（对应原实现路由上的访问守卫）。
-     *
-     * <p>判定顺序与原实现的中间件链一致（角色下限由 WebConfig 的 RbacInterceptor 先行）：</p>
-     * <ol>
-     *   <li>API-Key 数据面 KB 白名单：KB 受限 Key 指向白名单外 → 403；
-     *       web 用户 / full-access Key 恒放行。在 KB 查找<b>之前</b>做。</li>
-     *   <li>调用方租户为空/0 → <b>401</b> "Unauthorized"（同样在 KB 查找之前）。</li>
-     *   <li>KB 不存在 → <b>404</b> {@code {"success":false,"error":{"code":1003,...,"message":"knowledge base not found"}}}
-     *       ——走全局错误处理（BizException.notFound）。</li>
-     *   <li>KB 属于别的空间 → 直接 <b>403</b>
-     *       {@code {"success":false,"error":{"code":1002,...,"message":"Permission denied to
-     *       access this knowledge base"}}}——跨租户授予链（org-share / shared-agent）已裁撤。</li>
-     *   <li><b>写路径不经过共享授予</b>：共享场景一律 read-only——写端点一律 403 同文案，
-     *       不放大权限。</li>
-     *   <li>写路径：创建者本人或 Admin+，否则 <b>403</b> "must own the resource or have the required role"
-     *       （文案与 {@code KnowledgeBaseController} 的所有权检查一致）。</li>
-     *   <li>KB 未启用 wiki → <b>400</b> 且是 handler 直写的
-     *       {@code {"error":"error code: 400, error message: Wiki feature is not enabled for this knowledge base"}}。</li>
-     * </ol>
-     *
-     * <p>共享 agent 的 {@code agent_id}/{@code agent_source_tenant_id} 取自 query——经
-     * {@code RequestContextHolder} 取当前请求，不改动端点签名。</p>
-     *
-     * @param write 该端点是否属于写一侧
-     */
+    /** KB 访问与所有权判定——实现与完整判定矩阵见 {@link WikiKbAccessGuard#requireWikiKB}。 */
     private KnowledgeBase requireWikiKB(String kbId, boolean write) {
-        if (kbId == null || kbId.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                    appErrorText(400, "Knowledge base ID is required"));
-        }
-
-        // API-Key 数据面 KB 白名单（在 KB 查找之前）：
-        // KB 受限 Key 指向白名单外 → 403；其余主体恒放行（与 KnowledgeService.requireKb 同源收口）。
-        TenantAPIKeyScope.authorizeKnowledgeBases(List.of(kbId));
-
-        Long tenantId = TenantContext.currentTenantId();
-        if (tenantId == null || tenantId == 0L) {
-            // caller 租户为 0 → 401（同样在 KB 查找之前）。
-            throw BizException.unauthorized("Unauthorized");
-        }
-
-        // 必须先按 id 找到（原实现按 id 查询不带空间过滤），
-        // 才能把"库里没有"（404）与"不是你的"（403）区分开。
-        KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
-                .eq(KnowledgeBase::getId, kbId)
-                .isNull(KnowledgeBase::getDeletedAt)
-                .last("LIMIT 1"));
-        if (kb == null) {
-            throw BizException.notFound("knowledge base not found");
-        }
-
-        if (!tenantId.equals(kb.getTenantId())) {
-            // 空间分享裁撤：跨租户授予链（org-share / shared-agent）已退役 → 直接拒绝
-            throw BizException.forbidden("Permission denied to access this knowledge base");
-        }
-
-        if (write) {
-            checkOwnership(kb);
-        }
-
-        if (!kb.getIndexingStrategy().isWikiEnabled()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                    appErrorText(400, "Wiki feature is not enabled for this knowledge base"));
-        }
-        return kb;
+        return kbGuard.requireWikiKB(kbId, write);
     }
 
-    /** 所有权判定：创建者本人或 Admin+，否则 403（同 KnowledgeBaseController 的检查语义）。 */
-    private static void checkOwnership(KnowledgeBase kb) {
-        String role = TenantContext.currentRole();
-        String uid = TenantContext.currentUserId();
-        boolean admin = TenantRole.fromString(role).hasPermission(TenantRole.ADMIN);
-        if (!admin && (kb.getCreatorId().isEmpty() || !kb.getCreatorId().equals(uid))) {
-            throw GuardForbiddenException.mustOwnResourceOrHaveRole();
-        }
-    }
 
     /**
      * 把人工页面变更投影进知识库活动流。
