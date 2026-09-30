@@ -988,6 +988,26 @@
 - **扫描口径补记**：字段依赖扫描只读 `private final` 会**漏掉 `@Autowired` 字段**（4b 的 `agentResolverField`、
   本刀的 `tenantServiceField` 都栽在这）→ **口径＝`private final` + `@Autowired` 两类都扫**。
 - 忠实性核验：8 个名字（9 块）逐字一致（重命名与 1 处限定反向归一）；常规档闸门绿。
+- **落刀 harness 的两条硬约束（本轮踩过）**：① Gradle 调用必须**显式 `./gradlew`**（chain 里 `$GW` 未导出 → 命令静默变 `command not found`）；
+  ② 守卫必须断言**正向证据**（`BUILD SUCCESSFUL` / 测试计数）——"没出现 error 字样"抓不到 shell 错误，本轮因此误推过一次坏提交（`278f6fe` → 回退 `d6dc315` → 重落 `1c7df23`）。
+
+## 11.33 SessionQaResolution 侦察与刀 8-10 计划（2026-09-30，域内最后一个真神类）
+
+**外部面极小 → 切片低风险**：全仓只有一个字段依赖 `private final SessionKnowledgeQaService service;`，
+外部引用仅 2 个文件（`SessionKnowledgeQaService` 宿主 + `TemporaryDocumentPromptResolver`），**没有任何测试直接引用本类**
+（覆盖经 `SessionKnowledgeQaKbScopeTest` / `SessionKnowledgeQaServiceAgentModeTest` 间接生效）。类无 Spring 注解、
+由宿主手工构造 → 新协作者沿用同款构造（把 `service` 当普通依赖注入，与现有风格一致）。
+
+| 刀 | 簇 | 成员（规模） | 小计 |
+|---|---|---|---|
+| 8 | 模型选择 | `resolveChatModelId` 140 + `findModel` 36 + `selectChatModelId` 208 | ~384 |
+| 9 | KB 范围 | `resolveKnowledgeBasesFromAgent` 192 + `kbSatisfiesAgentRequirements` 36(S) + `findKnowledgeBase` 16 + `findKb` 36 + `resolveRetrievalTenantId` 96 + `callerCanReadKb` 60 | ~436 |
+| 10 | mention/tag 收敛 | `MentionScope` 28(record) + `resolveKnowledgeBases` 184 + `restrictMentionsToAgentScope` 192 + `restrictTagScopesToAgentScope` 96 | ~500 |
+| 待立项 | 两个巨型方法 | `buildSearchTargets` **684** / `applyAgentOverridesToChatManage` **424** | ~1,108 |
+| 剩余 | 零散 | `resolveCustomAgentPrompts` 140 + `templateContentByIdAndFile` 90(S) + `isAgentMode` 16 | ~246 |
+
+- 刀 8-10 全落 ≈ 2,906 → ~1,320（仍 ≥800）→ **要出榜必须做巨型方法的内部提取**（先补契约测试，单独立项）。
+- 每刀仍走：三类依赖扫描（字段含 `@Autowired` / 方法 / 常量）+ 共享值 vs 共享行为判据 + harness（正向守卫）。
 
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
