@@ -56,7 +56,7 @@
 
 ### P3 命名与文档
 
-- [x] **顶层 `package-info` 补齐至 33/34**（2026-09-30，`f9` 批）：新增 28 个（apikey/audit/auth/chatpipeline/common/config/datasource/embed/embedding/
+- [x] **顶层 `package-info` 补齐至 33/34**（2026-09-30，`809115c`）：新增 28 个（apikey/audit/auth/chatpipeline/common/config/datasource/embed/embedding/
       evaluation/favorite/im/llm/mcp/memory/model/modelcontext/rerank/retrieval/searchutil/storage/storageurl/stream/system/
       tracing/vectorstore/webfetch/websearch）。**`session` 故意留空**——该域批次正在进行（步骤 2 半程），由该批次一并补，避免撞车；
 - [ ] `model` 既是顶层域又是层名（`model/domain` vs `auth/domain`）→ 至少在文档里点名，改名后议；
