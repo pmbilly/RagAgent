@@ -188,7 +188,7 @@ class AgentToolBackendsWikiTest {
         assertThat(issue.updatedAt()).isEqualTo("2026-09-02T08:00:00Z");
         assertThat(issue.deletedAtValid()).isFalse();
         // 对照 Go：time.Time 零值 → 0001-01-01T00:00:00Z，不是 null
-        assertThat(AgentToolBackends.goTimeText(null))
+        assertThat(AgentToolWikiBackends.goTimeText(null))
                 .isEqualTo("0001-01-01T00:00:00Z");
         // toGoJsonIndent 的字段序 = Go struct 声明序
         assertThat(issue.toGoJsonIndent()).startsWith("{\n  \"id\": \"i1\",\n")
