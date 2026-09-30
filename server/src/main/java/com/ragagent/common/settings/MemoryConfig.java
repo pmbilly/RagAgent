@@ -1,11 +1,12 @@
-package com.ragagent.memory.domain;
+package com.ragagent.common.settings;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 工作区级记忆开关，作为 JSONB 存在 {@code tenants} 上
- * （对照 Go {@code types.MemoryConfig}，internal/types/memory.go:333-381）。
+ * （对照 Go {@code types.MemoryConfig}（2026-09-30 由 memory/domain 下沉至此：它是 tenants 表的 jsonb 载荷，
+ * auth 读写自己表的列时不该反向依赖 memory 域），internal/types/memory.go:333-381）。
  *
  * <h2>零值取舍（逐字段对照 json tag）</h2>
  * <p><b>本类型所有字段都没有 omitempty</b>，所以恒输出：字符串写 {@code ""}、

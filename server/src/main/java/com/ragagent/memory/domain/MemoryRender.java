@@ -1,5 +1,7 @@
 package com.ragagent.memory.domain;
 
+import com.ragagent.common.settings.MemoryKinds;
+import com.ragagent.common.settings.MemoryKeys;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

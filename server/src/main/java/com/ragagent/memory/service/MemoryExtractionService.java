@@ -23,12 +23,12 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.memory.domain.MemoryConfig;
+import com.ragagent.common.settings.MemoryConfig;
 import com.ragagent.memory.domain.MemoryExtractionBatch;
 import com.ragagent.memory.domain.MemoryExtractionFailure;
 import com.ragagent.memory.domain.MemoryExtractionSession;
 import com.ragagent.memory.domain.MemoryItem;
-import com.ragagent.memory.domain.MemoryKinds;
+import com.ragagent.common.settings.MemoryKinds;
 import com.ragagent.memory.domain.MemoryMessageCursor;
 import com.ragagent.memory.domain.MemoryScope;
 import com.ragagent.memory.domain.MemorySubject;
@@ -538,8 +538,8 @@ public class MemoryExtractionService {
 
     /** 对照 Go {@code string([]rune(s)[:n])}。 */
     private static String runeSlice(String s, int maxRunes) {
-        return com.ragagent.memory.domain.MemoryKeys.runeLength(s) > maxRunes
-                ? com.ragagent.memory.domain.MemoryKeys.runeSlice(s, maxRunes)
+        return com.ragagent.common.settings.MemoryKeys.runeLength(s) > maxRunes
+                ? com.ragagent.common.settings.MemoryKeys.runeSlice(s, maxRunes)
                 : s;
     }
 
@@ -1064,7 +1064,7 @@ public class MemoryExtractionService {
                     target = existing.get(decision.target);
                 } else {
                     target = repo.findActiveByKey(scope,
-                            com.ragagent.memory.domain.MemoryKeys.itemKey(topic, decision.content));
+                            com.ragagent.common.settings.MemoryKeys.itemKey(topic, decision.content));
                     if (target == null) {
                         continue;
                     }
@@ -1072,7 +1072,7 @@ public class MemoryExtractionService {
                 topic = target.getTopic();
             }
 
-            String key = com.ragagent.memory.domain.MemoryKeys.itemKey(topic, decision.content);
+            String key = com.ragagent.common.settings.MemoryKeys.itemKey(topic, decision.content);
             if (!key.isEmpty() && seenTopics.contains(key)) {
                 continue;
             }

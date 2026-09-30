@@ -14,7 +14,7 @@ import com.ragagent.memory.domain.MemoryConflictException;
 import com.ragagent.memory.domain.MemoryConsolidationResult;
 import com.ragagent.memory.domain.MemoryDocView;
 import com.ragagent.memory.domain.MemoryItem;
-import com.ragagent.memory.domain.MemoryKinds;
+import com.ragagent.common.settings.MemoryKinds;
 import com.ragagent.memory.domain.MemorySettings;
 import com.ragagent.memory.domain.MemoryTopicView;
 import com.ragagent.memory.mapper.MemoryRepository;

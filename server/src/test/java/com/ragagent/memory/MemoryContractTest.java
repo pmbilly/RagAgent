@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.memory.domain.MemoryConfig;
+import com.ragagent.common.settings.MemoryConfig;
 import com.ragagent.memory.domain.MemoryConsolidationResult;
 import com.ragagent.memory.domain.MemoryDocView;
 import com.ragagent.memory.domain.MemorySettings;

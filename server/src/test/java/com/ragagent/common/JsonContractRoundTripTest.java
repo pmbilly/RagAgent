@@ -57,7 +57,7 @@ import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
-import com.ragagent.memory.domain.MemoryConfig;
+import com.ragagent.common.settings.MemoryConfig;
 import com.ragagent.memory.domain.MemoryConsolidationResult;
 import com.ragagent.memory.domain.MemoryDocView;
 import com.ragagent.memory.domain.MemorySettings;

@@ -333,7 +333,11 @@
    **端口模式定式（本批确立，后续 ③ 照此办）**：端口接口放 `common/<领域>`（最底层、零依赖），
    由**提供方的域**实现（`implements`），消费方注入接口；**写侧/列表等能力不出端口**，保持最小面。
    **踩点**：跨包后 `SystemSettingRegistry.goTypeName(...)` 原为 package-private → 编译报错，按需放宽为 public（§13.1 的老坑）。
-3. **`auth → memory`**（背边 1 文件 `MemoryConfig`）、**`auth → storage`**（背边 2 文件 `StorageAllowList`+`StorageBackendRepository`）、
+3. ✅ **`auth → memory` 已完成（2026-09-30，环 21 → 20）**：[`auth → memory` 已消] `MemoryConfig`（**tenants 表的 jsonb 载荷**，
+   auth 读写自己表的列时不该反向依赖 memory 域）+ 其同包依赖 `MemoryKinds`/`MemoryKeys` 一并下沉 `common/settings/`。
+   **判定要点**：这属于"**共享 jsonb 载荷 / 表 schema 类型 → 下沉 common**"，与 `TenantProperties`/`ConversationProperties` 同一原则；
+   注意搬之前先看它引用了哪些同包兄弟（否则 `common` 会反向依赖源域，编译器会拦）。
+   余下 **`auth → storage`**（背边 2 文件 `StorageAllowList`+`StorageBackendRepository`）、
    **`audit → knowledge`** 与 **`auth → knowledge`**（各 2–3 文件，直查 `KnowledgeBaseMapper`/`KnowledgeBaseService`）：
    统一手法 = 下层域提供**只读窄接口**（如 `KnowledgeBaseLookup`），上层注入接口而非 mapper。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）

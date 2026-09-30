@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.memory.domain.MemoryKeys;
+import com.ragagent.common.settings.MemoryKeys;
 import com.ragagent.memory.domain.MemoryScope;
 import com.ragagent.memory.domain.MemoryText;
 import com.ragagent.memory.domain.MemoryTopicStat;

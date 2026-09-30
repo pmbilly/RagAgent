@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 
-import com.ragagent.memory.domain.MemoryKinds;
-import com.ragagent.memory.domain.MemoryKeys;
+import com.ragagent.common.settings.MemoryKinds;
+import com.ragagent.common.settings.MemoryKeys;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.memory.domain.MemoryRender;
 import com.ragagent.memory.domain.MemoryText;

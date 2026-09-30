@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.ragagent.memory.domain.MemoryItem;
-import com.ragagent.memory.domain.MemoryKinds;
+import com.ragagent.common.settings.MemoryKinds;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -86,23 +86,23 @@ class MemoryVectorLogicTest {
                 org.mockito.Mockito.mock(MemoryModelResolver.class));
         assertThat(svc.embedder(null)).isNull();
 
-        com.ragagent.memory.domain.MemoryConfig off = new com.ragagent.memory.domain.MemoryConfig();
+        com.ragagent.common.settings.MemoryConfig off = new com.ragagent.common.settings.MemoryConfig();
         assertThat(svc.embedder(off)).isNull();
 
-        com.ragagent.memory.domain.MemoryConfig onButBlank = new com.ragagent.memory.domain.MemoryConfig();
+        com.ragagent.common.settings.MemoryConfig onButBlank = new com.ragagent.common.settings.MemoryConfig();
         onButBlank.setEnabled(true);
         onButBlank.setEmbeddingModelId("");
         onButBlank.setVectorRecall(true);
         assertThat(svc.embedder(onButBlank)).isNull();
 
-        com.ragagent.memory.domain.MemoryConfig on = new com.ragagent.memory.domain.MemoryConfig();
+        com.ragagent.common.settings.MemoryConfig on = new com.ragagent.common.settings.MemoryConfig();
         on.setEnabled(true);
         on.setEmbeddingModelId("emb-1");
         on.setVectorRecall(true);
         assertThat(svc.embedder(on)).isEqualTo("emb-1");
 
         // vector_recall 显式 false → 关（null 才是"有模型就开"）
-        com.ragagent.memory.domain.MemoryConfig explicitlyOff = new com.ragagent.memory.domain.MemoryConfig();
+        com.ragagent.common.settings.MemoryConfig explicitlyOff = new com.ragagent.common.settings.MemoryConfig();
         explicitlyOff.setEnabled(true);
         explicitlyOff.setEmbeddingModelId("emb-1");
         explicitlyOff.setVectorRecall(false);
