@@ -860,6 +860,14 @@
   或调用点传实例）再动刀。
   机械面另一课：**给多个调用点补实参要先收集全部调用点、从右到左插**——本轮出现「同一处插了两次、另一处漏插」，
   编译期才暴露（`parseQARequest cannot be applied to given types`）。
+- **刀 5（SSE 编排簇）首探受阻（2026-09-30，已回退到全绿）**：该簇回调三个**实例方法**——`runWithTenant`（16 行）、
+  `completeAssistantMessage`（57 行）、以及 `writeAgentQueryEvent` 自身也是实例。`private`/包内**实例**方法不能像
+  `stringListOf`（静态）那样按类名限定（编译器直接报 non-static ... cannot be referenced from a static context），
+  更不能把控制器自身传进协作者 → **协作者不该回调宿主**。三条出路，选一后再动刀：① 把两个小包装**随簇一起搬走**，
+  控制器侧调用反转为 `sseOrchestrator.xxx()`（"宿主回调"变"持有协作者"）；② 只搬**不回调宿主**的部分先拿收益；
+  ③ 调整批次顺序：先落刀 7（收尾簇），再看本簇依赖是否变简单。
+  **教训（与 4b 对照）：切片前要区分「共享值」（可参数化：`agentResolver`/租户/`maxFileBytes`）与「共享行为」
+  （实例方法：只能搬走，或反转调用方向）。**
 - **侦察口径修正（值得记）**：`QaRequestContext`/`SseStreamContext`/`CreateKnowledgeQARequest`/
   `SearchKnowledgeRequest` **都是外部导入的顶层类型**，不是控制器嵌套类型——"嵌套上下文挡路"的第一印象是错的；
   真挡路的只有 1 行 `ParsedRequest` 与两个 `@Autowired` 字段。**先 grep 类型声明（`record X|class X` + `import`）
