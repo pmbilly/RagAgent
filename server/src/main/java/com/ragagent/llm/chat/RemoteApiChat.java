@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,7 +24,6 @@ import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.domain.TokenUsage;
-import com.ragagent.llm.domain.ToolCall;
 import com.ragagent.llm.provider.ProviderBaseURLs;
 import com.ragagent.llm.provider.ProviderName;
 import com.ragagent.llm.provider.ProviderRegistry;
@@ -106,6 +104,9 @@ public class RemoteApiChat implements LlmChatClient {
     /** 来自 extra_config.thinking_control，非 null 时覆盖 adapter.thinking()。 */
     private final ThinkingStrategy thinkingOverride;
 
+    /** 响应解析协作者（对照 openai_stream.go 前半）。 */
+    final RemoteApiResponseOps responseOps;
+
     /** 流式解析协作者（对照 openai_stream.go 流式段）。 */
     final RemoteApiStreamOps streamOps;
 
@@ -184,6 +185,7 @@ public class RemoteApiChat implements LlmChatClient {
         this.requestOps = new RemoteApiRequestOps(this);
         this.httpOps = new RemoteHttpOps(this);
         this.streamOps = new RemoteApiStreamOps(this);
+        this.responseOps = new RemoteApiResponseOps(this);
     }
 
     /**
@@ -408,91 +410,20 @@ public class RemoteApiChat implements LlmChatClient {
     void applyStreamToolCallMetadata(JsonNode chunk, OpenAiStreamState state) {
         streamOps.applyStreamToolCallMetadata(chunk, state);
     }
-    // ------------------------------------------------------------------
-    // 非流式响应解析（对照 openai_stream.go 前半）
-    // ------------------------------------------------------------------
-
-    /** 对照 Go parseCompletionResponse：取 choices[0]，剥 thinking 标签，带出 tool_calls 与 usage。 */
+    /** 薄委托：见 {@link RemoteApiResponseOps#parseCompletionResponse}。 */
     ChatResponse parseCompletionResponse(JsonNode resp) {
-        JsonNode choices = resp == null ? null : resp.get("choices");
-        if (choices == null || !choices.isArray() || choices.isEmpty()) {
-            throw BizException.internal("no response from API");
-        }
-        JsonNode choice = choices.get(0);
-        JsonNode message = choice.path("message");
-
-        ChatResponse response = new ChatResponse();
-        response.setContent(removeThinkingContent(textOrEmpty(message.get("content"))));
-        response.setFinishReason(textOrEmpty(choice.get("finish_reason")));
-        response.setUsage(PromptCache.tokenUsageFromOpenAI(resp.get("usage"), provider));
-
-        JsonNode toolCalls = message.get("tool_calls");
-        if (toolCalls != null && toolCalls.isArray() && !toolCalls.isEmpty()) {
-            List<ToolCall> out = new ArrayList<>(toolCalls.size());
-            for (JsonNode tc : toolCalls) {
-                ToolCall call = new ToolCall();
-                call.setId(textOrEmpty(tc.get("id")));
-                call.setType(textOrEmpty(tc.get("type")));
-                JsonNode fn = tc.path("function");
-                call.getFunction().setName(textOrEmpty(fn.get("name")));
-                call.getFunction().setArguments(textOrEmpty(fn.get("arguments")));
-                out.add(call);
-            }
-            response.setToolCalls(out);
-        }
-        return response;
+        return responseOps.parseCompletionResponse(resp);
     }
 
-    /**
-     * 对照 Go applyCompletionToolCallMetadata：用**原始响应体**里的 tool_call 对象抽取
-     * 厂商特有状态（Gemini 的 extra_content），按 index 回填。
-     */
+    /** 薄委托：见 {@link RemoteApiResponseOps#applyCompletionToolCallMetadata}。 */
     void applyCompletionToolCallMetadata(JsonNode body, ChatResponse result) {
-        if (result == null || result.getToolCalls() == null || result.getToolCalls().isEmpty()) {
-            return;
-        }
-        JsonNode choices = body == null ? null : body.get("choices");
-        if (choices == null || !choices.isArray() || choices.isEmpty()) {
-            return;
-        }
-        JsonNode toolCalls = choices.get(0).path("message").get("tool_calls");
-        if (toolCalls == null || !toolCalls.isArray()) {
-            return;
-        }
-        int fallbackIndex = 0;
-        for (JsonNode rawToolCall : toolCalls) {
-            int idx = rawToolCall.hasNonNull("index") ? rawToolCall.get("index").asInt() : fallbackIndex;
-            if (idx >= 0 && idx < result.getToolCalls().size()) {
-                result.getToolCalls().get(idx)
-                        .setProviderMetadata(adapter.extractToolCallMetadata(rawToolCall));
-            }
-            fallbackIndex++;
-        }
+        responseOps.applyCompletionToolCallMetadata(body, result);
     }
 
-    /**
-     * 对照 Go removeThinkingContent：移除思考模型输出里的 {@code <think>...</think>}。
-     * 仅当内容以 {@code <think>} 开头才处理；取**最后一个** {@code </think>}（容忍嵌套）；
-     * 找不到闭标签（思考被截断）返回空串。
-     */
+    /** 薄委托：见 {@link RemoteApiResponseOps#removeThinkingContent}。 */
     static String removeThinkingContent(String content) {
-        final String thinkStartTag = "<think>";
-        final String thinkEndTag = "</think>";
-        if (content == null) {
-            return "";
-        }
-        String trimmed = content.trim();
-        if (!trimmed.startsWith(thinkStartTag)) {
-            return content;
-        }
-        int lastEndIdx = trimmed.lastIndexOf(thinkEndTag);
-        if (lastEndIdx != -1) {
-            String result = trimmed.substring(lastEndIdx + thinkEndTag.length()).trim();
-            return result.isEmpty() ? "" : result;
-        }
-        return "";
+        return RemoteApiResponseOps.removeThinkingContent(content);
     }
-
     // ------------------------------------------------------------------
     // 日志与访问器
     // ------------------------------------------------------------------
