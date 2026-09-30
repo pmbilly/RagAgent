@@ -833,6 +833,18 @@ knowledge/
    所以 §11.16 统一的口径还要再叠一条"需为 clean 构建的结果"）；③**IDE Problems 是这类断链最早的哨兵**
    ——用户视角看得见，助手侧应主动对刚动过的目录 `read_lints`。
 
+22. **IDE 报「Gradle CONFIGURE FAILED」通常不是仓库问题（2026-09-30 排查记录）**：现象是
+   `CONFIGURE FAILED in 69ms / The supplied build action failed with an exception`，
+   真因在 IDE 的 `1-Gradle for Java.log`（`~/Library/Application Support/CodeBuddy CN/logs/<会话>/window*/exthost/*/`）：
+   `BUG! exception in phase 'semantic analysis' in source unit '_BuildScript_' Unsupported class file major version 70`
+   —— IDE 的 Gradle 扩展解析到本机**默认 JDK 26**（`/opt/homebrew/Cellar/openjdk/26.0.2.1`），
+   而 Gradle 8.10.2 不支持；项目 `server/build.gradle.kts` 的 toolchain 是 **21**。
+   修法：在本地（`.vscode/` 已在 `.gitignore`，不入库）`.vscode/settings.json` 钉
+   `java.import.gradle.java.home` 与 `java.jdt.ls.java.home` = `/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`，
+   然后 Reload Window（若仍失败：先停掉 IDE 里 JDK 26 起的旧 daemon，或 `./gradlew --stop` —— 注意它会连带停掉并行会话的 daemon）。
+   **CLI 一直正常是因为每条命令都显式带 `JAVA_HOME=openjdk@21`。** 另注：同一份日志里还夹着
+   `/Users/billy/ragagent-java`（旧副本的另一个窗口）的同名错误，与当前仓库无关。
+
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
 > **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
