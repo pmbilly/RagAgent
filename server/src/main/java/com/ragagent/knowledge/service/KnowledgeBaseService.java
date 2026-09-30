@@ -2,6 +2,7 @@ package com.ragagent.knowledge.service;
 
 import com.ragagent.common.knowledge.KnowledgeBaseFacts;
 import com.ragagent.common.knowledge.KnowledgeBaseGateway;
+import com.ragagent.common.knowledge.KnowledgeBaseProvisioner;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *  EnsureDefaults → applyTenantDefaultStorageProvider → applyAndValidateStorageBackend
  */
 @Service
-public class KnowledgeBaseService implements KnowledgeBaseGateway {
+public class KnowledgeBaseService implements KnowledgeBaseGateway, KnowledgeBaseProvisioner {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeBaseService.class);
 
@@ -292,6 +293,23 @@ public class KnowledgeBaseService implements KnowledgeBaseGateway {
                 .eq(KnowledgeBase::getTenantId, tid)
                 .isNull(KnowledgeBase::getDeletedAt)
                 .last("LIMIT 1"));
+    }
+
+    /**
+     * 跨域命令端口的实现（{@link KnowledgeBaseProvisioner}）：建聊天历史隐藏 KB。
+     *
+     * <p>归属调整：实体构造原先发生在聊天历史配置端点（auth），现收回本域；
+     * 字段与描述逐字保持原样，出处标注 L1696-1716 一并保留。</p>
+     */
+    @Override
+    public String provisionChatHistoryKnowledgeBase(String embeddingModelId) {
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setName("__chat_history__");
+        kb.setType("document");
+        kb.setIsTemporary(true);
+        kb.setDescription("Auto-managed knowledge base for chat history message indexing");
+        kb.setEmbeddingModelId(embeddingModelId);
+        return createKnowledgeBase(kb).getId();
     }
 
     /**

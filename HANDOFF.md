@@ -350,9 +350,15 @@
    auth 只留自己的事务编排（建 → 回写 `default_storage_backend_id` → 失败补偿删行）。
    副产物：`TenantService` 连 `knowledge.domain.StorageBackend` 的 import 一并消失（`auth → knowledge` 只剩 1 文件）。
 
-   余下 **`auth → knowledge`**（仅剩 `TenantCatalogController` 的租户开通建默认 KB：`new KnowledgeBase()` +
-   `knowledgeBaseService.create(...)`——**跨域命令**，端口需带 create 方法 + 请求载荷，不是纯读，单独设计）。
-   手法沿用：只读用**只读端口**（如 `KnowledgeBaseGateway`），写用**命令端口**（如 `StorageBackendProvisioner`）。
+   ✅ **`auth → knowledge` 已完成（2026-09-30，环 18 → 17）——批 2（P0 端口化）全部收口**：真实形态不是"租户开通建默认 KB"，
+   而是聊天历史配置端点的**自动建隐藏 KB**（`__chat_history__`）。新增**命令端口** `common/knowledge/KnowledgeBaseProvisioner`
+   （`provisionChatHistoryKnowledgeBase(embeddingModelId)`：只传模型 id、只回 id），实体语义（名字/类型/临时标记/描述）收回知识域；
+   错误信封包装（"Failed to create chat history knowledge base" + details）留在 auth 原样。`auth` 对 `knowledge` 的 import 归零。
+   ⚠️ 知识模块有注释门禁（`KnowledgeCodeConventionsTest` 禁 `golden|波 N|对照 Go` 字面词）——在新写的 javadoc 里写"对照 Go L1696"会被拦，
+   出处置写"对照 L1696-1716"（不带 Go）即可。
+
+   批 2 全景：**环 32 → 17**（批 1 消 8；批 2 消 7），端口三型 = 只读端口（`KnowledgeBaseGateway`）/ 命令端口
+   （`StorageBackendProvisioner`、`KnowledgeBaseProvisioner`）/ 共享类型搬家（`MemoryConfig`、`StorageAllowList`）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

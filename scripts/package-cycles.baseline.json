@@ -9,10 +9,6 @@
       "modelcontext"
     ],
     [
-      "auth",
-      "knowledge"
-    ],
-    [
       "chatpipeline",
       "knowledge"
     ],

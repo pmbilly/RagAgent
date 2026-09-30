@@ -33,8 +33,7 @@ import com.ragagent.common.error.ErrorCode;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.common.tenant.TenantProperties;
-import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.service.KnowledgeBaseService;
+import com.ragagent.common.knowledge.KnowledgeBaseProvisioner;
 import com.ragagent.common.settings.MemoryConfig;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.common.settings.SystemSettingGateway;
@@ -87,7 +86,7 @@ public class TenantCatalogController {
     private final UserService userService;
     private final SystemSettingGateway systemSettingService;
     private final TenantAPIKeyService apiKeyService;
-    private final KnowledgeBaseService knowledgeBaseService;
+    private final KnowledgeBaseProvisioner knowledgeProvisioner;
     private final TenantProperties tenantProperties;
     private final SsrfGuard ssrfGuard;
     private final StorageAllowList storageAllowList;
@@ -100,7 +99,7 @@ public class TenantCatalogController {
                                    UserService userService,
                                    SystemSettingGateway systemSettingService,
                                    TenantAPIKeyService apiKeyService,
-                                   KnowledgeBaseService knowledgeBaseService,
+                                   KnowledgeBaseProvisioner knowledgeProvisioner,
                                    TenantProperties tenantProperties,
                                    SsrfGuard ssrfGuard,
                                    StorageAllowList storageAllowList,
@@ -110,7 +109,7 @@ public class TenantCatalogController {
         this.userService = userService;
         this.systemSettingService = systemSettingService;
         this.apiKeyService = apiKeyService;
-        this.knowledgeBaseService = knowledgeBaseService;
+        this.knowledgeProvisioner = knowledgeProvisioner;
         this.tenantProperties = tenantProperties;
         this.ssrfGuard = ssrfGuard;
         this.storageAllowList = storageAllowList;
@@ -822,20 +821,15 @@ public class TenantCatalogController {
         // 对照 L1696-1716：enabled + 有模型 + 无 KB → 自动建隐藏 KB
         if (cfg.isEnabled() && !cfg.getEmbeddingModelId().isEmpty()
                 && cfg.getKnowledgeBaseId().isEmpty()) {
-            KnowledgeBase kb = new KnowledgeBase();
-            kb.setName("__chat_history__");
-            kb.setType("document");
-            kb.setIsTemporary(true);
-            kb.setDescription("Auto-managed knowledge base for chat history message indexing");
-            kb.setEmbeddingModelId(cfg.getEmbeddingModelId());
-            KnowledgeBase createdKb;
+            // 实体语义（名字/类型/临时标记/描述）归知识域，本域只传模型 id、只消费 id
+            String kbId;
             try {
-                createdKb = knowledgeBaseService.createKnowledgeBase(kb);
+                kbId = knowledgeProvisioner.provisionChatHistoryKnowledgeBase(cfg.getEmbeddingModelId());
             } catch (RuntimeException e) {
                 throw new BizException(AppError.internal("Failed to create chat history knowledge base")
                         .withDetails(e.getMessage()));
             }
-            cfg.setKnowledgeBaseId(createdKb.getId());
+            cfg.setKnowledgeBaseId(kbId);
         }
 
         tenant.setChatHistoryConfig(MAPPER.valueToTree(cfg));
