@@ -36,11 +36,11 @@ import com.ragagent.memory.domain.MemoryText;
 import com.ragagent.memory.domain.MemoryTombstone;
 import com.ragagent.memory.domain.MemoryTopicStat;
 import com.ragagent.memory.mapper.MemoryRepository;
-import com.ragagent.session.domain.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+import com.ragagent.common.session.SessionMessagePort;
 
 /**
  * 后台蒸馏：把一段对话变成记忆（对照 Go
@@ -122,20 +122,20 @@ public class MemoryExtractionService {
     private final MemoryRepository repo;
     private final MemoryService memoryService;
     private final MemoryVectorService vectorService;
-    private final MemoryMessageReader messages;
+    private final SessionMessagePort sessionMessages;
     private final MemoryConsolidationService consolidationService;
     private final ObjectProvider<MemoryExtractTaskQueue> queueProvider;
 
     public MemoryExtractionService(MemoryRepository repo,
                                    MemoryService memoryService,
                                    MemoryVectorService vectorService,
-                                   MemoryMessageReader messages,
+                                   SessionMessagePort sessionMessages,
                                    MemoryConsolidationService consolidationService,
                                    ObjectProvider<MemoryExtractTaskQueue> queueProvider) {
         this.repo = repo;
         this.memoryService = memoryService;
         this.vectorService = vectorService;
-        this.messages = messages;
+        this.sessionMessages = sessionMessages;
         this.consolidationService = consolidationService;
         this.queueProvider = queueProvider;
     }
@@ -423,9 +423,9 @@ public class MemoryExtractionService {
      * 就被冲刷，所以水位线不会一步跨过它。</p>
      */
     CollectedSegments collectSessionSegments(MemoryExtractionSession session) {
-        List<Message> rows;
+        List<SessionMessagePort.SessionMessageView> rows;
         try {
-            rows = messages.listAfterCursor(session.getSessionId(), session.getCursor(),
+            rows = sessionMessages.listAfterCursor(session.getSessionId(), session.getCursor().getAt(), session.getCursor().getId(),
                     EXTRACT_MAX_MESSAGES_PER_RUN + 1);
         } catch (RuntimeException e) {
             throw new IllegalStateException("load session messages: " + e.getMessage(), e);
@@ -441,16 +441,16 @@ public class MemoryExtractionService {
         OffsetDateTime[] lastAt = {null};
         boolean[] hasRows = {false};
 
-        for (Message message : rows) {
+        for (SessionMessagePort.SessionMessageView message : rows) {
             if (message == null) {
                 continue;
             }
-            String content = MemoryScopes.trimSpace(message.getContent());
-            boolean isUser = "user".equals(message.getRole()) && !content.isEmpty();
+            String content = MemoryScopes.trimSpace(message.content());
+            boolean isUser = "user".equals(message.role()) && !content.isEmpty();
             if (isUser && lastAt[0] != null && !GoTimeSerializer.isGoZero(lastAt[0])
-                    && message.getCreatedAt() != null
-                    && message.getCreatedAt().isAfter(lastAt[0])
-                    && Duration.between(lastAt[0], message.getCreatedAt()).compareTo(EXTRACT_SEGMENT_GAP) > 0) {
+                    && message.createdAt() != null
+                    && message.createdAt().isAfter(lastAt[0])
+                    && Duration.between(lastAt[0], message.createdAt()).compareTo(EXTRACT_SEGMENT_GAP) > 0) {
                 if (hasRows[0]) {
                     segments.add(current[0]);
                     current[0] = new TranscriptSegment();
@@ -458,16 +458,16 @@ public class MemoryExtractionService {
                     hasRows[0] = false;
                 }
             }
-            current[0].end = message.getCreatedAt();
-            current[0].endId = message.getId();
+            current[0].end = message.createdAt();
+            current[0].endId = message.id();
             hasRows[0] = true;
             if (!isUser) {
                 continue;
             }
-            lastAt[0] = message.getCreatedAt();
+            lastAt[0] = message.createdAt();
             content = runeSlice(content, EXTRACT_MAX_LINE_RUNES);
-            current[0].lines.add(new TranscriptLine(session.getSessionId(), message.getId(),
-                    message.getCreatedAt(), content));
+            current[0].lines.add(new TranscriptLine(session.getSessionId(), message.id(),
+                    message.createdAt(), content));
         }
         if (hasRows[0]) {
             segments.add(current[0]);
@@ -498,19 +498,19 @@ public class MemoryExtractionService {
         if (lines.isEmpty()) {
             return null;
         }
-        List<Message> before;
+        List<SessionMessagePort.SessionMessageView> before;
         try {
-            before = messages.listBeforeTime(sessionId, lines.get(0).at, EXTRACT_CONTEXT_LINES * 4);
+            before = sessionMessages.listBeforeTime(sessionId, lines.get(0).at, EXTRACT_CONTEXT_LINES * 4);
         } catch (RuntimeException e) {
             log.warn("memory: load prior context failed: {}", e.toString());
             return null;
         }
         List<TranscriptLine> previous = new ArrayList<>();
-        for (Message message : before) {
-            if (message == null || !"user".equals(message.getRole())) {
+        for (SessionMessagePort.SessionMessageView message : before) {
+            if (message == null || !"user".equals(message.role())) {
                 continue;
             }
-            String content = MemoryScopes.trimSpace(message.getContent());
+            String content = MemoryScopes.trimSpace(message.content());
             if (content.isEmpty()) {
                 continue;
             }

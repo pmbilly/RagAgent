@@ -19,10 +19,6 @@
     [
       "knowledge",
       "retrieval"
-    ],
-    [
-      "memory",
-      "session"
     ]
   ],
   "depend_on_config": [

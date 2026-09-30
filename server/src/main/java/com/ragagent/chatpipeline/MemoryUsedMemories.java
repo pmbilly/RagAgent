@@ -1,9 +1,11 @@
-package com.ragagent.memory.domain;
+package com.ragagent.chatpipeline;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import com.ragagent.session.domain.UsedMemory;
+import com.ragagent.memory.domain.MemoryItem;
+import com.ragagent.memory.domain.MemoryText;
 
 /**
  * {@code memory_items} → 客户端可见形态的投影

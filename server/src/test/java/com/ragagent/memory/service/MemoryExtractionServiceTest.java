@@ -33,13 +33,13 @@ import com.ragagent.memory.domain.MemoryMessageCursor;
 import com.ragagent.memory.domain.MemoryScope;
 import com.ragagent.memory.domain.MemorySubject;
 import com.ragagent.memory.mapper.MemoryRepository;
-import com.ragagent.session.domain.Message;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import com.ragagent.common.session.SessionMessagePort;
 
 /**
  * 蒸馏编排的对等测试（对照 Go extract.go 的 {@code Handle} /
@@ -59,7 +59,7 @@ class MemoryExtractionServiceTest {
     private final MemoryRepository repo = mock(MemoryRepository.class);
     private final MemoryService memoryService = mock(MemoryService.class);
     private final MemoryVectorService vectorService = mock(MemoryVectorService.class);
-    private final MemoryMessageReader messages = mock(MemoryMessageReader.class);
+    private final SessionMessagePort sessionMessages = mock(SessionMessagePort.class);
     private final MemoryConsolidationService consolidation = mock(MemoryConsolidationService.class);
     @SuppressWarnings("unchecked")
     private final ObjectProvider<MemoryExtractTaskQueue> queueProvider = mock(ObjectProvider.class);
@@ -98,14 +98,9 @@ class MemoryExtractionServiceTest {
         return s;
     }
 
-    private static Message message(String id, String role, String content, OffsetDateTime at) {
-        Message m = new Message();
-        m.setId(id);
-        m.setSessionId("sess-1");
-        m.setRole(role);
-        m.setContent(content);
-        m.setCreatedAt(at);
-        return m;
+    private static SessionMessagePort.SessionMessageView message(
+            String id, String role, String content, OffsetDateTime at) {
+        return new SessionMessagePort.SessionMessageView(id, role, content, at);
     }
 
     private static OffsetDateTime at(String iso) {
@@ -115,7 +110,7 @@ class MemoryExtractionServiceTest {
     @BeforeEach
     void setUp() {
         when(queueProvider.getIfAvailable()).thenReturn(queue);
-        service = new MemoryExtractionService(repo, memoryService, vectorService, messages,
+        service = new MemoryExtractionService(repo, memoryService, vectorService, sessionMessages,
                 consolidation, queueProvider);
         when(memoryService.workspaceConfig(TENANT)).thenReturn(autoCfg());
     }
@@ -212,7 +207,7 @@ class MemoryExtractionServiceTest {
             MemoryExtractionSession s = session("sess-1");
             when(repo.claimPendingSessions(eq(SCOPE), anyString(), anyString(), any()))
                     .thenReturn(MemoryExtractionBatch.of(List.of(s)));
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of());
             when(repo.hasPendingExtraction(SCOPE)).thenReturn(false);
 
             service.handle(payloadHolder().build());
@@ -240,7 +235,7 @@ class MemoryExtractionServiceTest {
             MemoryExtractionSession s = session("sess-1");
             when(repo.claimPendingSessions(eq(SCOPE), anyString(), anyString(), any()))
                     .thenReturn(MemoryExtractionBatch.of(List.of(s)));
-            when(messages.listAfterCursor(eq("sess-1"), any(), eq(MemoryExtractionService.EXTRACT_MAX_MESSAGES_PER_RUN + 1)))
+            when(sessionMessages.listAfterCursor(eq("sess-1"), any(), any(), eq(MemoryExtractionService.EXTRACT_MAX_MESSAGES_PER_RUN + 1)))
                     .thenReturn(List.of());
             when(repo.hasPendingExtraction(SCOPE)).thenReturn(false);
 
@@ -262,7 +257,7 @@ class MemoryExtractionServiceTest {
             MemoryExtractionSession s = session("sess-1");
             when(repo.claimPendingSessions(eq(SCOPE), anyString(), anyString(), any()))
                     .thenReturn(MemoryExtractionBatch.of(List.of(s)));
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of());
             when(repo.hasPendingExtraction(SCOPE)).thenReturn(true);
             MemorySubject snapshot = new MemorySubject();
             when(repo.enqueuePendingSession(eq(SCOPE), eq(""),
@@ -283,7 +278,7 @@ class MemoryExtractionServiceTest {
             MemoryExtractionSession s = session("sess-1");
             when(repo.claimPendingSessions(eq(SCOPE), anyString(), anyString(), any()))
                     .thenReturn(MemoryExtractionBatch.of(List.of(s)));
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of());
             when(repo.hasPendingExtraction(SCOPE)).thenReturn(false);
 
             service.handle(payloadHolder().build());
@@ -310,7 +305,7 @@ class MemoryExtractionServiceTest {
             MemoryExtractionSession s = session("sess-1");
             when(repo.claimPendingSessions(eq(SCOPE), anyString(), anyString(), any()))
                     .thenReturn(MemoryExtractionBatch.of(List.of(s)));
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                     message("m1", "user", "生产库用的是 MySQL", at("2026-03-02T09:05:00Z"))));
             when(repo.recordExtractionFailure(eq(SCOPE), anyString(), any()))
                     .thenReturn(false);
@@ -335,7 +330,7 @@ class MemoryExtractionServiceTest {
             MemoryExtractionSession s = session("sess-1");
             when(repo.claimPendingSessions(eq(SCOPE), anyString(), anyString(), any()))
                     .thenReturn(MemoryExtractionBatch.of(List.of(s)));
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                     message("m1", "user", "生产库用的是 MySQL", at("2026-03-02T09:05:00Z"))));
             when(repo.recordExtractionFailure(eq(SCOPE), anyString(), any())).thenReturn(true);
             when(repo.hasPendingExtraction(SCOPE)).thenReturn(false);
@@ -355,12 +350,12 @@ class MemoryExtractionServiceTest {
 
         @Test
         void aLongSilenceBetweenUserMessagesStartsANewSegment() {
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                     message("m1", "user", "第一段", at("2026-03-02T09:00:00Z")),
                     message("m2", "assistant", "好的", at("2026-03-02T09:01:00Z")),
                     // 与上一条用户消息相隔 > 1 小时 → 冲断
                     message("m3", "user", "第二段", at("2026-03-02T11:30:00Z"))));
-            when(messages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
             var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
 
@@ -376,11 +371,11 @@ class MemoryExtractionServiceTest {
 
         @Test
         void nonUserAndBlankRowsNeverBecomeExtractableLines() {
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                     message("m1", "assistant", "我先说", at("2026-03-02T09:00:00Z")),
                     message("m2", "user", "   ", at("2026-03-02T09:01:00Z")),
                     message("m3", "user", " 有内容 ", at("2026-03-02T09:02:00Z"))));
-            when(messages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
             var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
 
@@ -393,12 +388,12 @@ class MemoryExtractionServiceTest {
 
         @Test
         void aPageOverTheCapReportsMoreAndKeepsOnlyTheFirstForty() {
-            List<Message> rows = new ArrayList<>();
+            List<SessionMessagePort.SessionMessageView> rows = new ArrayList<>();
             for (int i = 0; i < MemoryExtractionService.EXTRACT_MAX_MESSAGES_PER_RUN + 1; i++) {
                 rows.add(message("m" + i, "user", "行" + i, at("2026-03-02T09:00:00Z").plusMinutes(i)));
             }
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(rows);
-            when(messages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(rows);
+            when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
             var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
 
@@ -409,14 +404,14 @@ class MemoryExtractionServiceTest {
 
         @Test
         void laterSegmentsTakeTheirContextFromThePreviousSegmentsTail() {
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                     message("m1", "user", "一", at("2026-03-02T09:00:00Z")),
                     message("m2", "user", "二", at("2026-03-02T09:01:00Z")),
                     message("m3", "user", "三", at("2026-03-02T09:02:00Z")),
                     message("m4", "user", "四", at("2026-03-02T09:03:00Z")),
                     message("m5", "user", "五", at("2026-03-02T09:04:00Z")),
                     message("m6", "user", "六", at("2026-03-02T12:00:00Z"))));
-            when(messages.listBeforeTime(eq("sess-1"), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listBeforeTime(eq("sess-1"), any(), anyInt())).thenReturn(List.of());
 
             var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
 
@@ -429,9 +424,9 @@ class MemoryExtractionServiceTest {
 
         @Test
         void priorContextReadsBackwardsAndKeepsOnlyTheLastFourUserLines() {
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                     message("m9", "user", "新的", at("2026-03-02T12:00:00Z"))));
-            when(messages.listBeforeTime(eq("sess-1"), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listBeforeTime(eq("sess-1"), any(), anyInt())).thenReturn(List.of(
                     message("a1", "assistant", "忽略我", at("2026-03-02T09:00:00Z")),
                     message("a2", "user", "c1", at("2026-03-02T09:01:00Z")),
                     message("a3", "user", "c2", at("2026-03-02T09:02:00Z")),
@@ -448,9 +443,9 @@ class MemoryExtractionServiceTest {
         @Test
         void aVeryLongPastedLineIsTruncatedToOneThousandRunes() {
             String long_ = "字".repeat(MemoryExtractionService.EXTRACT_MAX_LINE_RUNES + 500);
-            when(messages.listAfterCursor(anyString(), any(), anyInt())).thenReturn(List.of(
+            when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(List.of(
                     message("m1", "user", long_, at("2026-03-02T09:00:00Z"))));
-            when(messages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
+            when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
             var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
 

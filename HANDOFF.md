@@ -436,6 +436,14 @@
    按"共享契约类型搬 common"处置：`retrieval.domain.SearchResult` → `common/retrieval/`（先例 `ResponseType`）。
    搬迁用本批修正后的流程：import/FQN 改写 57 文件 → 编译错误驱动修复器（main/test 各 1 轮即通过，零误伤）。
    反向 `retrieval → llm`（`VlmClient` FQN + `VlmHttpTransport` 用 `LlmTransport`）仍在，但**单向不成环**，故不处理。
+
+   ✅ **④-i `memory ⇄ session` 已完成（2026-09-30，环 6 → 5）**：取**便宜侧**（`memory → session` 仅 3 文件）。侦察发现
+   `MemoryMessageReader`（70 行）是 `MessageRepository` 上两个方法的**纯转发**（还带着死注入的 `MessageMapper`），
+   而 memory 蒸馏只读 4 个字段（id/role/content/createdAt）→ 新增只读端口 `common/session/SessionMessagePort`
+   （2 方法 + `SessionMessageView` 视图，由 `session/mapper/MessageRepository` 实现并复用既有查询）；`MemoryExtractionService`
+   改注入端口（视图是 record，getter 改访问器）、删除冗余 reader；`MemoryUsedMemories`（构造 session 的 `UsedMemory`）
+   唯一调用方是 chatpipeline → 归位 `chatpipeline`。测试桩同步换端口。
+   **反向 `session → memory`（5 文件、7 类型）未动**——单向不成环。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

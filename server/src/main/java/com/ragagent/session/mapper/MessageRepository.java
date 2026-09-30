@@ -21,6 +21,7 @@ import com.ragagent.session.domain.MessageNotFoundException;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.MessageWithSession;
 import org.springframework.stereotype.Component;
+import com.ragagent.common.session.SessionMessagePort;
 
 /**
  * 消息仓储（对照 Go internal/application/repository/message.go）。
@@ -44,7 +45,7 @@ import org.springframework.stereotype.Component;
  * memory 游标分页在 {@link MessageMapper}。</p>
  */
 @Component
-public class MessageRepository {
+public class MessageRepository implements SessionMessagePort {
 
     /** jsonb 列的类型处理器全限定名（3 参 set 的 mapping 串）。 */
     private static final String PG_JSON = "com.ragagent.common.web.PgJsonTypeHandler";
@@ -546,5 +547,28 @@ public class MessageRepository {
             out.add(new MessageWithSession(m, titles.getOrDefault(m.getSessionId(), "")));
         }
         return out;
+    }
+
+    // ── SessionMessagePort 实现（memory 蒸馏用；复用上面既有查询后映射为视图）──
+
+    @Override
+    public List<com.ragagent.common.session.SessionMessagePort.SessionMessageView> listAfterCursor(
+            String sessionId, java.time.OffsetDateTime afterCreatedAt, String afterId, int limit) {
+        return listMessagesBySessionAfterCursor(
+                        sessionId, new com.ragagent.memory.domain.MemoryMessageCursor(afterCreatedAt, afterId), limit)
+                .stream().map(MessageRepository::toSessionMessageView).toList();
+    }
+
+    @Override
+    public List<com.ragagent.common.session.SessionMessagePort.SessionMessageView> listBeforeTime(
+            String sessionId, java.time.OffsetDateTime beforeTime, int limit) {
+        return getMessagesBySessionBeforeTime(sessionId, beforeTime, limit)
+                .stream().map(MessageRepository::toSessionMessageView).toList();
+    }
+
+    private static com.ragagent.common.session.SessionMessagePort.SessionMessageView toSessionMessageView(
+            com.ragagent.session.domain.Message message) {
+        return new com.ragagent.common.session.SessionMessagePort.SessionMessageView(
+                message.getId(), message.getRole(), message.getContent(), message.getCreatedAt());
     }
 }

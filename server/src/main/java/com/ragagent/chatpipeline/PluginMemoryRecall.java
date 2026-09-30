@@ -9,7 +9,6 @@ import com.ragagent.event.Event;
 import com.ragagent.event.EventType;
 import com.ragagent.event.MemoryRecalledData;
 import com.ragagent.memory.domain.MemoryItem;
-import com.ragagent.memory.domain.MemoryUsedMemories;
 import com.ragagent.session.domain.UsedMemory;
 import com.ragagent.retrieval.obs.RetrievalObs;
 
