@@ -104,6 +104,9 @@ public class KnowledgeQaController {
 
     private final SessionService sessionService;
 
+    /** 收尾簇（§14.9c 刀 7）。 */
+    private final QaTurnFinalizer turnFinalizer;
+
     /** 请求解析主体（§14.9c 刀 4b）。 */
     private final QaRequestParser qaRequestParser;
     private final MessageService messageService;
@@ -148,6 +151,7 @@ public class KnowledgeQaController {
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
         this.memoryExtraction = memoryExtraction.getIfAvailable();
             this.qaRequestParser = new QaRequestParser(sessionService, temporaryDocuments, this.fileService, this.storageBackendResolver);
+        this.turnFinalizer = new QaTurnFinalizer(this.sessionService, this.messageService, this.suggestionService, this.temporaryDocuments, this.memoryExtraction);
 }
 
     // ── 端点（qa.go L790-964） ───────────────────────────────────────────────
@@ -296,7 +300,7 @@ public class KnowledgeQaController {
             // 派生线程同样按会话属主租户查（对照 Go 的 ctx 传播）
             com.ragagent.session.service.SessionLookupScope.mark();
             try {
-                persistLastRequestState(reqCtx, mode);
+                turnFinalizer.persistLastRequestState(reqCtx, mode);
             } finally {
                 TenantContext.clear();
                 com.ragagent.session.service.SessionLookupScope.clear();
@@ -371,8 +375,8 @@ public class KnowledgeQaController {
                         }
                         completionHandled[0] = true;
                         log.info("Knowledge QA service completed for session: {}", sessionId);
-                        runWithTenant(normalSessionTenantId, () -> {
-                            completeAssistantMessage(streamCtx.assistantMessage, reqCtx.query,
+                        turnFinalizer.runWithTenant(normalSessionTenantId, () -> {
+                            turnFinalizer.completeAssistantMessage(streamCtx.assistantMessage, reqCtx.query,
                                     reqCtx.userMessageID, normalSessionTenantId);
                             Event done = new Event();
                             done.setType(EventType.EVENT_AGENT_COMPLETE);
@@ -452,16 +456,16 @@ public class KnowledgeQaController {
                     // 与平台（owner=<userId>）会话双双 SessionNotFound。
                     // 对照 Go：defer 里的 ctx 值仍然完整，不存在这个顺序陷阱。
                     Long sessionTenant = reqCtx.session.getTenantId();
-                    runWithTenant(sessionTenant, () -> {
+                    turnFinalizer.runWithTenant(sessionTenant, () -> {
                         if (streamCtx.cancelled) {
                             Set<String> injected = streamCtx.steerSink != null
                                     ? streamCtx.steerSink.injectedIds() : Set.of();
                             steerCoordinator.discardSteerBacklog(sessionId, am.getId(), injected);
-                            completeAssistantMessage(am, reqCtx.query, reqCtx.userMessageID, sessionTenant);
+                            turnFinalizer.completeAssistantMessage(am, reqCtx.query, reqCtx.userMessageID, sessionTenant);
                         } else {
                             boolean kicked = steerCoordinator.kickNextRunFromSteerBacklog(
                                     reqCtx, streamCtx, this::runFollowUp);
-                            completeAssistantMessage(am, reqCtx.query, reqCtx.userMessageID, sessionTenant);
+                            turnFinalizer.completeAssistantMessage(am, reqCtx.query, reqCtx.userMessageID, sessionTenant);
                             if (!kicked) {
                                 steerCoordinator.kickNextRunFromSteerBacklog(reqCtx, streamCtx, this::runFollowUp);
                             }
@@ -514,7 +518,7 @@ public class KnowledgeQaController {
             String amId = followUp.assistantMessage == null ? "" : followUp.assistantMessage.getId();
             long sessionTenant = followUp.session == null ? 0 : followUp.session.getTenantId();
             if (followUp.assistantMessage != null && !amId.isEmpty() && sessionTenant != 0) {
-                runWithTenant(sessionTenant, () -> completeAssistantMessage(
+                turnFinalizer.runWithTenant(sessionTenant, () -> turnFinalizer.completeAssistantMessage(
                         followUp.assistantMessage, followUp.query, followUp.userMessageID, sessionTenant));
             }
         } catch (RuntimeException e) {
@@ -552,29 +556,6 @@ public class KnowledgeQaController {
     // 曾有的 errorEventText（剥 BizException 取 appError().message()）已删除：
     // 其前提被线上 A/B 推翻（W5γ5.12），现统一走 BizException.wireText，理由见上面的调用点注释。
 
-    /**
-     * 借用执行租户运行（对照 Go types.WithExecutionTenant：只换执行租户，身份原样保留）。
-     *
-     * <p>纪律 #1：借用必须**保存-恢复**而非 clear。旧实现在 finally 里先
-     * {@code clear()} 再读 {@code currentPrincipal()/currentRole()/currentUserId()}
-     * 去还原——这些读取在 clear 之后恒为 null，等于把调用线程的身份永久抹掉、
-     * 只还原了 tenantId。而本方法的调用点包含**同步 EventBus 的内联 handler**
-     * （723 的 AGENT_FINAL_ANSWER、1006 的 STOP），handler 跑在引擎/流水线/HTTP
-     * 线程上，身份被抹后同线程后续的 owner/权限判定全部失真。</p>
-     */
-    private void runWithTenant(Long tenantId, Runnable body) {
-        com.ragagent.event.TenantContextSnapshot prev =
-                com.ragagent.event.TenantContextSnapshot.capture();
-        try {
-            if (tenantId != null) {
-                prev.withTenantId(tenantId).replay();
-            }
-            body.run();
-        } finally {
-            // 调用方无上下文时 prev 全空，恢复等价于 clear（新线程场景行为不变）
-            prev.replay();
-        }
-    }
 
     // ── persistTurnMessages / rollback（qa.go L978-1047） ────────────────────
 
@@ -701,7 +682,7 @@ public class KnowledgeQaController {
             log.info("Received stop event, cancelling async operations for session: {}", reqCtx.sessionId);
             streamCtx.cancelled = true;
             // 停止时保住已流出内容；用 session 租户落库
-            runWithTenant(sessionTenantId, () -> completeAssistantMessage(
+            turnFinalizer.runWithTenant(sessionTenantId, () -> turnFinalizer.completeAssistantMessage(
                     streamCtx.assistantMessage, "", "", sessionTenantId));
         });
 
@@ -1003,7 +984,7 @@ public class KnowledgeQaController {
         String sessionId = reqCtx.sessionId;
         long start = System.currentTimeMillis();
         String toolCallId = "";
-        if (hasPendingAttachments(tenantId, sessionId, reqCtx.attachmentIDs)) {
+        if (turnFinalizer.hasPendingAttachments(tenantId, sessionId, reqCtx.attachmentIDs)) {
             toolCallId = UUID.randomUUID().toString();
             Event evt = new Event();
             evt.setType(EventType.EVENT_AGENT_TOOL_CALL);
@@ -1163,25 +1144,11 @@ public class KnowledgeQaController {
         }
     }
 
-    private boolean hasPendingAttachments(long tenantId, String sessionId, List<String> ids) {
-        for (String id : ids) {
-            TemporaryDocument doc;
-            try {
-                doc = temporaryDocuments.get(tenantId, sessionId, id);
-            } catch (RuntimeException e) {
-                continue;
-            }
-            if (doc != null && ("uploaded".equals(doc.getStatus()) || "processing".equals(doc.getStatus()))) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     private void waitForAttachments(long tenantId, String sessionId, List<String> ids, long timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         try {
-            while (hasPendingAttachments(tenantId, sessionId, ids) && System.currentTimeMillis() < deadline) {
+            while (turnFinalizer.hasPendingAttachments(tenantId, sessionId, ids) && System.currentTimeMillis() < deadline) {
                 Thread.sleep(500);
             }
         } catch (InterruptedException e) {
@@ -1189,87 +1156,6 @@ public class KnowledgeQaController {
         }
     }
 
-    /** persistLastRequestState（qa.go L1635-1666）。 */
-    private void persistLastRequestState(QaRequestContext reqCtx, QaMode mode) {
-        boolean agentEnabled = reqCtx.reqAgentEnabled;
-        if (mode == QaMode.AGENT && reqCtx.agentConfig != null) {
-            agentEnabled = SessionKnowledgeQaService.isAgentMode(reqCtx.agentConfig);
-        }
-        try {
-            com.ragagent.session.domain.SessionLastRequestState state =
-                    new com.ragagent.session.domain.SessionLastRequestState();
-            state.setAgentId(QaSupport.orEmpty(reqCtx.reqAgentID));
-            state.setAgentEnabled(agentEnabled);
-            state.setModelId(reqCtx.summaryModelId);
-            state.setKnowledgeBaseIds(reqCtx.knowledgeBaseIds);
-            state.setKnowledgeIds(reqCtx.knowledgeIds);
-            state.setTagIds(reqCtx.tagIds);
-            state.setMcpServiceIds(reqCtx.mcpServiceIds);
-            state.setSkillNames(reqCtx.skillNames);
-            state.setMentionedItems(reqCtx.mentionedItems);
-            state.setWebSearchEnabled(reqCtx.webSearchEnabled);
-            sessionService.updateSessionLastRequestState(reqCtx.sessionId, state);
-        } catch (RuntimeException e) {
-            log.warn("persist last_request_state failed for session {}: {}", reqCtx.sessionId, e.toString());
-        }
-    }
-
-    /** completeAssistantMessage（qa.go L1679-1702）。 */
-    private void completeAssistantMessage(Message assistantMessage, String userQuery,
-            String userMessageId, Long tenantId) {
-        assistantMessage.setUpdatedAt(OffsetDateTime.now());
-        assistantMessage.setCompleted(true);
-        try {
-            messageService.updateMessage(assistantMessage);
-        } catch (RuntimeException e) {
-            log.warn("complete assistant message update failed: {}", e.toString());
-        }
-        final String content = assistantMessage.getContent();
-        final String amId = assistantMessage.getId();
-        final String sessionId = assistantMessage.getSessionId();
-        // 纪律 #1：新虚拟线程没有 ThreadLocal——必须捕获**完整身份**（不止 tenantId）
-        // 再重放。历史上这里只带 tenantId，principal/userId 丢失后
-        // sessionUserIDForLookup() 推导出 owner=""，embed（owner=embed_session:…）与
-        // 平台（owner=<userId>）会话的索引与 follow-up 全部 SessionNotFoundException。
-        final com.ragagent.event.TenantContextSnapshot asyncTenant =
-                com.ragagent.event.TenantContextSnapshot.capture();
-        Thread.ofVirtual().start(() -> {
-            asyncTenant.replay();
-            com.ragagent.session.service.SessionLookupScope.mark();
-            try {
-                messageService.indexMessageToKb(userQuery, content, amId, sessionId);
-            } catch (RuntimeException e) {
-                log.warn("index message to KB failed for message {}: {}", amId, e.toString());
-            } finally {
-                TenantContext.clear();
-                com.ragagent.session.service.SessionLookupScope.clear();
-            }
-        });
-        if (userQuery != null && !userQuery.isEmpty() && suggestionService != null) {
-            Thread.ofVirtual().start(() -> {
-                asyncTenant.replay();
-                com.ragagent.session.service.SessionLookupScope.mark();
-                try {
-                    suggestionService.ensureFollowUps(sessionId, amId, false);
-                } catch (RuntimeException e) {
-                    log.warn("follow-up suggestion generation failed for message {}: {}", amId, e.toString());
-                } finally {
-                    TenantContext.clear();
-                    com.ragagent.session.service.SessionLookupScope.clear();
-                }
-            });
-        }
-        // 记忆自动蒸馏调度（Go 的 QA 收尾 ScheduleExtraction 点）：enabledScope 读当前
-        // 租户上下文（调用方已 runWithTenant），model_id 沿 assistant 行取。
-        if (memoryExtraction != null) {
-            try {
-                memoryExtraction.scheduleExtraction(sessionId, amId,
-                        assistantMessage.getModelId() == null ? "" : assistantMessage.getModelId());
-            } catch (RuntimeException e) {
-                log.warn("memory extraction scheduling failed for session {}: {}", sessionId, e.toString());
-            }
-        }
-    }
 
     /** 对照 secutils.GetMaxFileSize 的 dev 缺省（100MB 上传闸门同形）。 */
     static long maxFileBytes() {
