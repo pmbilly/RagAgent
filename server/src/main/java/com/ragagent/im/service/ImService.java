@@ -77,7 +77,7 @@ public class ImService {
     private final TenantService tenantService;
     final SessionKnowledgeQaService knowledgeQaService;
     final SessionAgentQaService agentQaService;
-    private final com.ragagent.storage.support.Resolver storageResolver;
+    final com.ragagent.storage.support.Resolver storageResolver;
     private final com.ragagent.storage.support.FileService defaultFileSvc;
 
     // ── 调谐参数（对照 resolveIMConfig，service.go L805-840 + L40-60 常量） ──
@@ -87,6 +87,7 @@ public class ImService {
     private final int rateLimitWindowSec;
     private final int rateLimitMax;
 
+    final ImOutboundFormatter outboundFormatter;
     final ImSessionResolver sessionResolver;
     final ImQaRequests qaRequests;
 
@@ -143,6 +144,7 @@ public class ImService {
         this.maxPerUser = maxPerUser;
         this.rateLimitWindowSec = rateLimitWindowSec;
         this.rateLimitMax = rateLimitMax;
+        this.outboundFormatter = new ImOutboundFormatter(this);
         this.sessionResolver = new ImSessionResolver(this);
         this.qaRequests = new ImQaRequests(this);
         ImCommandSet.registerDefaults(this.cmdRegistry, kbLister(), knowledgeSearcher());
@@ -596,13 +598,9 @@ public class ImService {
         return streamManagerRef;
     }
 
-    /** 对照 sendStreamReply（service.go L2195-2216）。 */
     void sendStreamReply(IncomingMessage msg, StreamSender streamer, String content)
             throws Exception {
-        String streamId = streamer.startStream(msg);
-        streamer.updateStreamContent(msg, streamId, content);
-        streamer.finalizeStream(msg, streamId, content);
-        streamer.endStream(msg, streamId);
+        outboundFormatter.sendStreamReply(msg, streamer, content);
     }
 
     // ── QA 执行（executeQARequest，service.go L1927-2013） ────────────────
@@ -881,25 +879,12 @@ public class ImService {
         }
         return new QaOutcome(answer, null);
     }
-    // ── 出站内容整形（service.go L144-201） ──────────────────────────────
-
-    private String cleanIMContent(String content) {
-        content = ImFormat.stripImageXMLTags(content);
-        content = ImFormat.stripImCitationTags(content);
-        if (storageResolver != null) {
-            content = new com.ragagent.storage.support.Rewriter(storageResolver, "IM")
-                    .rewrite(content);
-        }
-        return content;
+    String formatIMOutboundAnswerOrFallback(String raw) {
+        return outboundFormatter.formatIMOutboundAnswerOrFallback(raw);
     }
 
-    String formatIMOutboundAnswerOrFallback(String raw) {
-        String content = cleanIMContent(ThinkDisplay.formatIMDisplayContent(raw,
-                ThinkDisplay.STREAM_DISPLAY_FINAL));
-        if (content.strip().isEmpty()) {
-            return ImFormat.IM_NO_ANSWER_FALLBACK;
-        }
-        return content;
+    String cleanIMContent(String content) {
+        return outboundFormatter.cleanIMContent(content);
     }
 
     // ── handleMessageStream（service.go L2482-2907） ─────────────────────
@@ -1281,13 +1266,8 @@ public class ImService {
             log.warn("[IM] UpdateStreamContent failed: {}", e.getMessage());
         }
     }
-
-    private void sendReplyQuiet(Adapter adapter, IncomingMessage msg, ReplyMessage reply) {
-        try {
-            adapter.sendReply(msg, reply);
-        } catch (Exception e) {
-            log.warn("[IM] Send reply failed: {}", e.getMessage());
-        }
+    void sendReplyQuiet(Adapter adapter, IncomingMessage msg, ReplyMessage reply) {
+        outboundFormatter.sendReplyQuiet(adapter, msg, reply);
     }
 
 }
