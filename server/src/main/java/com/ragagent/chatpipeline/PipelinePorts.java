@@ -77,7 +77,7 @@ public final class PipelinePorts {
         float[] getQueryEmbedding(String kbId, String queryText);
 
         /** 对照 ResolveEmbeddingModelKeys：KB ID → "模型名|endpoint"（解析失败缺键）。 */
-        Map<String, String> resolveEmbeddingModelKeys(List<com.ragagent.knowledge.domain.KnowledgeBase> kbs);
+        Map<String, String> resolveEmbeddingModelKeys(List<String> kbIds);
     }
 
     /** 对照 interfaces.KnowledgeService 的 chat_pipeline 子集。 */

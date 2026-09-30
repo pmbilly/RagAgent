@@ -236,8 +236,9 @@ public final class PluginSearch implements Plugin {
             PipelineLog.warn("Search", "batch_kb_fetch_error", f);
         }
 
-        Map<String, String> modelKeyMap =
-                knowledgeBaseService.resolveEmbeddingModelKeys(kbList);
+        // 只给"取到了"的 KB 求身份键（与既有行为一致：取不到的 KB 回落空 key 组）
+        Map<String, String> modelKeyMap = knowledgeBaseService.resolveEmbeddingModelKeys(
+                kbList.stream().map(KnowledgeBase::getId).toList());
 
         // Go 的 map 分组迭代是随机的；结果合并由全局列表承接，组间顺序不影响结果集
         Map<String, List<SearchTarget>> groups = new LinkedHashMap<>();

@@ -15,10 +15,6 @@
     [
       "initialization",
       "model"
-    ],
-    [
-      "knowledge",
-      "retrieval"
     ]
   ],
   "depend_on_config": [
@@ -56,10 +52,6 @@
     [
       "retrieval",
       "initialization"
-    ],
-    [
-      "retrieval",
-      "knowledge"
     ],
     [
       "retrieval",

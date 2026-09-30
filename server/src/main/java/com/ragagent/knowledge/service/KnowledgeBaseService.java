@@ -3,6 +3,8 @@ package com.ragagent.knowledge.service;
 import com.ragagent.common.knowledge.KnowledgeBaseFacts;
 import com.ragagent.common.knowledge.KnowledgeBaseGateway;
 import com.ragagent.common.knowledge.KnowledgeBaseProvisioner;
+import com.ragagent.common.knowledge.KnowledgeBaseSearchFacts;
+import com.ragagent.common.knowledge.KnowledgeBaseSearchGateway;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -50,7 +52,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *  EnsureDefaults → applyTenantDefaultStorageProvider → applyAndValidateStorageBackend
  */
 @Service
-public class KnowledgeBaseService implements KnowledgeBaseGateway, KnowledgeBaseProvisioner {
+public class KnowledgeBaseService
+        implements KnowledgeBaseGateway, KnowledgeBaseProvisioner, KnowledgeBaseSearchGateway {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeBaseService.class);
 
@@ -325,6 +328,30 @@ public class KnowledgeBaseService implements KnowledgeBaseGateway, KnowledgeBase
                 .isNull(KnowledgeBase::getDeletedAt)
                 .last("LIMIT 1"));
         return kb == null ? null : new KnowledgeBaseFacts(kb.getTenantId(), kb.getCreatorId());
+    }
+
+    /**
+     * 跨域只读端口的实现（{@link KnowledgeBaseSearchGateway}）：检索引擎编排按 id 取
+     * KB 的检索配置。
+     *
+     * <p>走 {@link #getAllTenantById}（含 {@code ensureDefaults} 的字段回填），
+     * 保证"索引策略零值 → vector+keyword 默认"的既有检索行为不变。</p>
+     */
+    @Override
+    public KnowledgeBaseSearchFacts findSearchFacts(String knowledgeBaseId) {
+        KnowledgeBase kb = getAllTenantById(knowledgeBaseId);
+        if (kb == null) {
+            return null;
+        }
+        KnowledgeBaseIndexingStrategy strategy = kb.getIndexingStrategy();
+        return new KnowledgeBaseSearchFacts(
+                kb.getId(),
+                kb.getTenantId(),
+                kb.getType() == null ? "" : kb.getType(),
+                kb.getEmbeddingModelId() == null ? "" : kb.getEmbeddingModelId(),
+                kb.getVectorStoreId(),
+                strategy != null && strategy.isVectorEnabled(),
+                strategy != null && strategy.isKeywordEnabled());
     }
 
     /**

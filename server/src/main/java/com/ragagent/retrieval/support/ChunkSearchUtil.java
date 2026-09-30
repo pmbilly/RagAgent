@@ -8,10 +8,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * chunk 编辑链路的纯逻辑辅助。
- * 本任务只允许改 {@code com.ragagent.knowledge.service}，故先落在服务包、命名
- * {@code ChunkSearchUtil}，后续 searchutil 波次整体落地时应迁往
- * {@code com.ragagent.retrieval.support}（公开方法签名保持不变即可平移）。</p>
+ * chunk 内容与图片 URL 的纯逻辑辅助：Markdown/HTML 图片链接扫描、内容拼接与包含判断、
+ * 生成问题的 source id 编码、空白裁剪与码点切片。
+ *
+ * <p>无状态、零仓储依赖；知识库编辑链与聊天管线（search/merge）共用同一份实现，
  * 已知差异逐条标注在成员上。</p>
  */
 public final class ChunkSearchUtil {

@@ -211,8 +211,8 @@ public class QaWiring {
             }
 
             @Override
-            public Map<String, String> resolveEmbeddingModelKeys(List<KnowledgeBase> kbs) {
-                return hybridSearchService.resolveEmbeddingModelKeys(kbs);
+            public Map<String, String> resolveEmbeddingModelKeys(List<String> kbIds) {
+                return hybridSearchService.resolveEmbeddingModelKeys(kbIds);
             }
         };
     }

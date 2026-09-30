@@ -16,6 +16,8 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
+import com.ragagent.common.knowledge.KnowledgeDocumentFacts;
+import com.ragagent.common.knowledge.KnowledgeDocumentGateway;
 import com.ragagent.knowledge.dto.DuplicateKnowledgeDetails;
 import com.ragagent.common.security.InputSanitizer;
 import com.ragagent.knowledge.domain.Chunk;
@@ -63,7 +65,7 @@ import java.util.TreeSet;
  *    含真 embedding 与生成问题行重建）。</p>
  */
 @Service
-public class KnowledgeService {
+public class KnowledgeService implements KnowledgeDocumentGateway {
 
     // 规模例外（~830 行）：文档主链路的门面与共享工具（常量/静态助手/直创建路径），
     // 已按能力拆出 ProcessWorker/Summary/File/Parse/BatchOps 等专项服务，本类保持聚合面。
@@ -498,6 +500,21 @@ public class KnowledgeService {
      */
     public List<Knowledge> getKnowledgeBatchWithSharedAccess(long tenantId, List<String> ids) {
         return getKnowledgeBatch(tenantId, ids);
+    }
+
+    /**
+     * 跨域只读端口的实现（{@link KnowledgeDocumentGateway}）：检索结果装配按 id 批量取
+     * 文档元数据，语义与 {@link #getKnowledgeBatchWithSharedAccess} 一致。
+     */
+    @Override
+    public List<KnowledgeDocumentFacts> findAccessibleDocuments(long tenantId, List<String> knowledgeIds) {
+        List<KnowledgeDocumentFacts> out = new ArrayList<>();
+        for (Knowledge k : getKnowledgeBatchWithSharedAccess(tenantId, knowledgeIds)) {
+            out.add(new KnowledgeDocumentFacts(k.getId(), k.getTitle(), k.getMetadata(),
+                    k.getFileName(), k.getSource(), k.getChannel(), k.getDescription(),
+                    k.getKnowledgeBaseId()));
+        }
+        return out;
     }
 
     /** 有关系才回填（无关系保持 null）。 */

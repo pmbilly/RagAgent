@@ -24,13 +24,13 @@ import com.ragagent.common.pipeline.SearchParams;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
-import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.repository.ChunkRepository;
-import com.ragagent.knowledge.client.EmbedderClient;
-import com.ragagent.knowledge.service.KnowledgeBaseService;
-import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.common.embedding.EmbeddingGateway;
+import com.ragagent.common.knowledge.ChunkFacts;
+import com.ragagent.common.knowledge.ChunkSearchGateway;
+import com.ragagent.common.knowledge.KnowledgeBaseSearchFacts;
+import com.ragagent.common.knowledge.KnowledgeBaseSearchGateway;
+import com.ragagent.common.knowledge.KnowledgeDocumentFacts;
+import com.ragagent.common.knowledge.KnowledgeDocumentGateway;
 import com.ragagent.common.model.ModelFacts;
 import com.ragagent.common.model.ModelGateway;
 import com.ragagent.common.retrieval.SearchResult;
@@ -100,26 +100,27 @@ public class HybridSearchService {
     public static final int MATCH_PARENT_CHUNK = 4;
     public static final int MATCH_RELATION_CHUNK = 5;
 
-    private final KnowledgeBaseService kbService;
-    private final KnowledgeService knowledgeService;
-    private final ChunkRepository chunkRepository;
+    private final KnowledgeBaseSearchGateway kbGateway;
+    private final KnowledgeDocumentGateway documentGateway;
+    private final ChunkSearchGateway chunkGateway;
     private final ModelGateway modelGateway;
     private final TenantService tenantService;
-    private final EmbedderClient embedderClient;
+    private final EmbeddingGateway embeddingGateway;
     private final PgVectorRetrieveRepository pgRepository;
     private final RetrieveEngineRegistry engineRegistry;
     private final TenantStoreOwnership storeOwnership;
 
-    public HybridSearchService(KnowledgeBaseService kbService, KnowledgeService knowledgeService,
-            ChunkRepository chunkRepository, ModelGateway modelGateway, TenantService tenantService,
-            EmbedderClient embedderClient, PgVectorRetrieveRepository pgRepository,
-            RetrieveEngineRegistry engineRegistry, TenantStoreOwnership storeOwnership) {
-        this.kbService = kbService;
-        this.knowledgeService = knowledgeService;
-        this.chunkRepository = chunkRepository;
+    public HybridSearchService(KnowledgeBaseSearchGateway kbGateway,
+            KnowledgeDocumentGateway documentGateway, ChunkSearchGateway chunkGateway,
+            ModelGateway modelGateway, TenantService tenantService, EmbeddingGateway embeddingGateway,
+            PgVectorRetrieveRepository pgRepository, RetrieveEngineRegistry engineRegistry,
+            TenantStoreOwnership storeOwnership) {
+        this.kbGateway = kbGateway;
+        this.documentGateway = documentGateway;
+        this.chunkGateway = chunkGateway;
         this.modelGateway = modelGateway;
         this.tenantService = tenantService;
-        this.embedderClient = embedderClient;
+        this.embeddingGateway = embeddingGateway;
         this.pgRepository = pgRepository;
         this.engineRegistry = engineRegistry;
         this.storeOwnership = storeOwnership;
@@ -178,9 +179,9 @@ public class HybridSearchService {
                         ? params.getKnowledgeBaseIds()
                         : List.of(id);
 
-        List<KnowledgeBase> kbs = new ArrayList<>();
+        List<KnowledgeBaseSearchFacts> kbs = new ArrayList<>();
         for (String kbId : searchKbIds) {
-            KnowledgeBase kb = kbService.getAllTenantById(kbId);
+            KnowledgeBaseSearchFacts kb = kbGateway.findSearchFacts(kbId);
             if (kb != null) {
                 kbs.add(kb);
             }
@@ -193,7 +194,7 @@ public class HybridSearchService {
         // storegroup.go L248-289；wiki/graph-only KB 的空键豁免）。
         validateSameEmbeddingModel(kbs);
 
-        KnowledgeBase primary = pickPrimary(kbs, id);
+        KnowledgeBaseSearchFacts primary = pickPrimary(kbs, id);
         if (primary == null) {
             throw new RetrievalException("knowledge base not found");
         }
@@ -204,13 +205,12 @@ public class HybridSearchService {
         overMatchCount = Math.min(overMatchCount, MAX_RETRIEVAL_POOL_SIZE);
 
         // 查询向量：一次现算，沿 params 下行（Go L206-214）。
-        boolean vectorEnabled = primary.getIndexingStrategy() != null
-                && primary.getIndexingStrategy().isVectorEnabled();
+        boolean vectorEnabled = primary.vectorEnabled();
         if ((params.getQueryEmbedding() == null || params.getQueryEmbedding().length == 0)
                 && vectorEnabled
-                && !primary.getEmbeddingModelId().isEmpty()
+                && !primary.embeddingModelId().isEmpty()
                 && !params.isDisableVectorMatch()) {
-            params.setQueryEmbedding(getQueryEmbedding(primary.getId(), params.getQueryText()));
+            params.setQueryEmbedding(getQueryEmbedding(primary.id(), params.getQueryText()));
         }
 
         // 按 (storeID, 属主租户) 分组并解析各组引擎（Go resolveStoreGroups）。
@@ -237,9 +237,9 @@ public class HybridSearchService {
         retrieveInput.put("disable_keywords_match", params.isDisableKeywordsMatch());
         retrieveInput.put("group_count", groups.size()); // 对照 Go 的 len(groups)
         Map<String, Object> retrieveMeta = new LinkedHashMap<>();
-        retrieveMeta.put("primary_kb_id", primary.getId());
-        retrieveMeta.put("primary_kb_type", primary.getType());
-        retrieveMeta.put("embedding_model_id", primary.getEmbeddingModelId());
+        retrieveMeta.put("primary_kb_id", primary.id());
+        retrieveMeta.put("primary_kb_type", primary.type());
+        retrieveMeta.put("embedding_model_id", primary.embeddingModelId());
         retrieveMeta.put("has_query_embedding",
                 params.getQueryEmbedding() != null && params.getQueryEmbedding().length > 0);
         com.ragagent.tracing.langfuse.Span retrieveSpan =
@@ -293,17 +293,16 @@ public class HybridSearchService {
 
     /** 对照 GetQueryEmbedding（knowledgebase_search.go L26-54）。 */
     public float[] getQueryEmbedding(String kbId, String queryText) {
-        KnowledgeBase kb = kbService.getAllTenantById(kbId);
+        KnowledgeBaseSearchFacts kb = kbGateway.findSearchFacts(kbId);
         if (kb == null) {
             throw new RetrievalException("knowledge base not found");
         }
-        ModelFacts model = modelGateway.findFacts(kb.getEmbeddingModelId());
+        ModelFacts model = modelGateway.findFacts(kb.embeddingModelId());
         if (model == null) {
-            throw new RetrievalException("model not found: " + kb.getEmbeddingModelId());
+            throw new RetrievalException("model not found: " + kb.embeddingModelId());
         }
         try {
-            List<float[]> vectors = embedderClient.embedBatch(
-                    EmbedderClient.configFrom(model), List.of(queryText));
+            List<float[]> vectors = embeddingGateway.embed(model, List.of(queryText));
             if (vectors.isEmpty() || vectors.get(0) == null || vectors.get(0).length == 0) {
                 throw new RetrievalException("no embedding returned");
             }
@@ -325,19 +324,31 @@ public class HybridSearchService {
      * 跨租户的模型解析在<b>属主租户</b>上下文里做（WithExecutionTenant），同一个
      * 底层模型跨租户共享时键相同，多库分组才最优。解析失败回落 modelID。
      */
-    public Map<String, String> resolveEmbeddingModelKeys(List<KnowledgeBase> kbs) {
+    public Map<String, String> resolveEmbeddingModelKeys(List<String> kbIds) {
+        List<KnowledgeBaseSearchFacts> kbs = new ArrayList<>();
+        for (String kbId : kbIds) {
+            KnowledgeBaseSearchFacts kb = kbGateway.findSearchFacts(kbId);
+            if (kb != null) {
+                kbs.add(kb);
+            }
+        }
+        return embeddingModelKeys(kbs);
+    }
+
+    /** 身份键解析核心（事实已在手时不重复查库，如多 KB 一致性闸门）。 */
+    private Map<String, String> embeddingModelKeys(List<KnowledgeBaseSearchFacts> kbs) {
         Map<ModelRef, String> resolved = new LinkedHashMap<>();
         Map<String, ModelRef> kbRefs = new HashMap<>();
-        for (KnowledgeBase kb : kbs) {
-            ModelRef ref = new ModelRef(kb.getEmbeddingModelId(), kb.getTenantId());
-            kbRefs.put(kb.getId(), ref);
+        for (KnowledgeBaseSearchFacts kb : kbs) {
+            ModelRef ref = new ModelRef(kb.embeddingModelId(), kb.tenantId());
+            kbRefs.put(kb.id(), ref);
             if (!resolved.containsKey(ref)) {
                 resolved.put(ref, resolveModelIdentity(ref));
             }
         }
         Map<String, String> result = new HashMap<>();
-        for (KnowledgeBase kb : kbs) {
-            result.put(kb.getId(), resolved.get(kbRefs.get(kb.getId())));
+        for (KnowledgeBaseSearchFacts kb : kbs) {
+            result.put(kb.id(), resolved.get(kbRefs.get(kb.id())));
         }
         return result;
     }
@@ -366,14 +377,14 @@ public class HybridSearchService {
      * 嵌入模型身份键则 400——不同嵌入空间的分数没有可比性。单 KB no-op；
      * 解析键为空（wiki-only / graph-only KB 无嵌入模型）豁免。
      */
-    private void validateSameEmbeddingModel(List<KnowledgeBase> kbs) {
+    private void validateSameEmbeddingModel(List<KnowledgeBaseSearchFacts> kbs) {
         if (kbs.size() <= 1) {
             return;
         }
-        Map<String, String> keys = resolveEmbeddingModelKeys(kbs);
+        Map<String, String> keys = embeddingModelKeys(kbs);
         String seen = null;
-        for (KnowledgeBase kb : kbs) {
-            String k = keys.get(kb.getId());
+        for (KnowledgeBaseSearchFacts kb : kbs) {
+            String k = keys.get(kb.id());
             if (k == null || k.isEmpty()) {
                 // wiki-only / graph-only 豁免：KB 没有嵌入模型。
                 continue;
@@ -384,7 +395,7 @@ public class HybridSearchService {
             }
             if (!k.equals(seen)) {
                 log.warn("multi-KB search rejected: embedding models differ, kb_id={}",
-                        com.ragagent.common.security.LogSanitizer.sanitize(kb.getId()));
+                        com.ragagent.common.security.LogSanitizer.sanitize(kb.id()));
                 throw new BizException(AppError.badRequest(
                         "selected knowledge bases use different embedding models; "
                                 + "multi-KB search requires every knowledge base to share a single "
@@ -399,12 +410,12 @@ public class HybridSearchService {
      * KB 按 (vectorStoreId, kb.tenantId) 分桶，逐组经工厂解析复合引擎并构建
      * 基础检索参数。桶序 = KB 首见序（Go 为 map 随机序，本仓确定性备案）。
      */
-    private List<StoreGroup> resolveStoreGroups(KnowledgeBase primary, List<KnowledgeBase> kbs,
+    private List<StoreGroup> resolveStoreGroups(KnowledgeBaseSearchFacts primary, List<KnowledgeBaseSearchFacts> kbs,
                                                 SearchParams params, int matchCount) {
-        Map<String, List<KnowledgeBase>> buckets = new LinkedHashMap<>();
-        for (KnowledgeBase kb : kbs) {
-            String sid = kb.getVectorStoreId() == null ? "" : kb.getVectorStoreId();
-            long tid = kb.getTenantId() == null ? 0L : kb.getTenantId();
+        Map<String, List<KnowledgeBaseSearchFacts>> buckets = new LinkedHashMap<>();
+        for (KnowledgeBaseSearchFacts kb : kbs) {
+            String sid = kb.vectorStoreId() == null ? "" : kb.vectorStoreId();
+            long tid = kb.tenantId() == null ? 0L : kb.tenantId();
             buckets.computeIfAbsent(sid + ":" + tid, key -> new ArrayList<>()).add(kb);
         }
 
@@ -413,10 +424,10 @@ public class HybridSearchService {
         List<RetrieverEngineParams> tenantEngines = EffectiveEngines.of(currentTenant());
 
         List<StoreGroup> groups = new ArrayList<>(buckets.size());
-        for (List<KnowledgeBase> groupKbs : buckets.values()) {
-            KnowledgeBase first = groupKbs.get(0);
-            String storeId = first.getVectorStoreId() == null ? "" : first.getVectorStoreId();
-            long ownerTenantId = first.getTenantId() == null ? 0L : first.getTenantId();
+        for (List<KnowledgeBaseSearchFacts> groupKbs : buckets.values()) {
+            KnowledgeBaseSearchFacts first = groupKbs.get(0);
+            String storeId = first.vectorStoreId() == null ? "" : first.vectorStoreId();
+            long ownerTenantId = first.tenantId() == null ? 0L : first.tenantId();
             CompositeRetrieveEngine engine;
             try {
                 engine = RetrieveEngineFactories.createForKb(engineRegistry, storeOwnership,
@@ -427,8 +438,8 @@ public class HybridSearchService {
             List<RetrieveParams> baseParams =
                     buildRetrievalParams(engine, primary, groupKbs, params, matchCount);
             List<String> ids = new ArrayList<>(groupKbs.size());
-            for (KnowledgeBase kb : groupKbs) {
-                ids.add(kb.getId());
+            for (KnowledgeBaseSearchFacts kb : groupKbs) {
+                ids.add(kb.id());
             }
             groups.add(new StoreGroup(storeId, ownerTenantId, ids, engine, baseParams, matchCount));
         }
@@ -485,27 +496,27 @@ public class HybridSearchService {
      * 不看主 KB；引擎的 {@code SupportRetriever} 决定该组要不要发对应类型。
      */
     private List<RetrieveParams> buildRetrievalParams(CompositeRetrieveEngine engine,
-                                                      KnowledgeBase primary,
-                                                      List<KnowledgeBase> groupKbs,
+                                                      KnowledgeBaseSearchFacts primary,
+                                                      List<KnowledgeBaseSearchFacts> groupKbs,
                                                       SearchParams params, int matchCount) {
         List<RetrieveParams> retrieveParams = new ArrayList<>();
 
         List<String> faqVectorKbIds = new ArrayList<>();
         List<String> docVectorKbIds = new ArrayList<>();
         List<String> docKeywordKbIds = new ArrayList<>();
-        for (KnowledgeBase kb : groupKbs) {
-            boolean kbVector = kb.getIndexingStrategy() != null && kb.getIndexingStrategy().isVectorEnabled();
-            boolean kbKeyword = kb.getIndexingStrategy() != null && kb.getIndexingStrategy().isKeywordEnabled();
-            if (kbVector && !kb.getEmbeddingModelId().isEmpty()) {
-                if ("faq".equals(kb.getType())) {
-                    faqVectorKbIds.add(kb.getId());
+        for (KnowledgeBaseSearchFacts kb : groupKbs) {
+            boolean kbVector = kb.vectorEnabled();
+            boolean kbKeyword = kb.keywordEnabled();
+            if (kbVector && !kb.embeddingModelId().isEmpty()) {
+                if ("faq".equals(kb.type())) {
+                    faqVectorKbIds.add(kb.id());
                 } else {
-                    docVectorKbIds.add(kb.getId());
+                    docVectorKbIds.add(kb.id());
                 }
             }
             // FAQ KB 只走 FAQ 向量索引、没有关键词索引；仅文档型 KB 参与关键词检索。
-            if (kbKeyword && !"faq".equals(kb.getType())) {
-                docKeywordKbIds.add(kb.getId());
+            if (kbKeyword && !"faq".equals(kb.type())) {
+                docKeywordKbIds.add(kb.id());
             }
         }
 
@@ -514,7 +525,7 @@ public class HybridSearchService {
             float[] embedding = params.getQueryEmbedding() != null
                     && params.getQueryEmbedding().length > 0
                             ? params.getQueryEmbedding()
-                            : getQueryEmbedding(primary.getId(), params.getQueryText());
+                            : getQueryEmbedding(primary.id(), params.getQueryText());
             // 文档 KB 用默认向量索引；FAQ KB 用 FAQ 索引——各组一份参数，各查各的索引。
             if (!docVectorKbIds.isEmpty()) {
                 retrieveParams.add(vectorParams(params, docVectorKbIds, embedding, matchCount, ""));
@@ -763,9 +774,9 @@ public class HybridSearchService {
         return out;
     }
 
-    private static KnowledgeBase pickPrimary(List<KnowledgeBase> kbs, String id) {
-        for (KnowledgeBase kb : kbs) {
-            if (kb.getId().equals(id)) {
+    private static KnowledgeBaseSearchFacts pickPrimary(List<KnowledgeBaseSearchFacts> kbs, String id) {
+        for (KnowledgeBaseSearchFacts kb : kbs) {
+            if (kb.id().equals(id)) {
                 return kb;
             }
         }
@@ -903,10 +914,10 @@ public class HybridSearchService {
     // ── FAQ 后处理（knowledgebase_search_faq.go，现按 storeGroups） ────────
 
     private List<PgVectorRetrieveRepository.IndexHit> applyFaqPostProcessing(
-            KnowledgeBase primary, List<PgVectorRetrieveRepository.IndexHit> chunks,
+            KnowledgeBaseSearchFacts primary, List<PgVectorRetrieveRepository.IndexHit> chunks,
             List<PgVectorRetrieveRepository.IndexHit> vectorResults, List<StoreGroup> groups,
             SearchParams params, int matchCount) {
-        if (!"faq".equals(primary.getType())) {
+        if (!"faq".equals(primary.type())) {
             return chunks;
         }
         if (needsIterativeRetrieval(params, matchCount, chunks, vectorResults)) {
@@ -933,7 +944,7 @@ public class HybridSearchService {
         final int maxIterations = 5;
         int currentTopK = Math.min(matchCount * 3, MAX_RETRIEVAL_POOL_SIZE);
         Map<String, PgVectorRetrieveRepository.IndexHit> uniqueChunks = new LinkedHashMap<>();
-        Map<String, Chunk> chunkDataCache = new HashMap<>();
+        Map<String, ChunkFacts> chunkDataCache = new HashMap<>();
         Set<String> filteredOutChunks = new HashSet<>();
         String queryTextLower = queryText == null ? "" : queryText.strip().toLowerCase();
         Long tenantId = com.ragagent.common.context.TenantContext.currentTenantId();
@@ -970,9 +981,9 @@ public class HybridSearchService {
             }
             if (!newChunkIds.isEmpty() && tenantId != null) {
                 try {
-                    List<Chunk> fresh = chunkRepository.listChunksById(tenantId, newChunkIds);
-                    for (Chunk c : fresh) {
-                        chunkDataCache.put(c.getId(), c);
+                    List<ChunkFacts> fresh = chunkGateway.findChunks(tenantId, newChunkIds);
+                    for (ChunkFacts c : fresh) {
+                        chunkDataCache.put(c.id(), c);
                     }
                 } catch (Exception e) {
                     log.warn("Failed to fetch chunks at iteration {}: {}", i + 1, e.getMessage());
@@ -982,8 +993,8 @@ public class HybridSearchService {
                 if (filteredOutChunks.contains(result.chunkId)) {
                     continue;
                 }
-                Chunk chunkData = chunkDataCache.get(result.chunkId);
-                if (chunkData != null && "faq".equals(chunkData.getChunkType())
+                ChunkFacts chunkData = chunkDataCache.get(result.chunkId);
+                if (chunkData != null && "faq".equals(chunkData.chunkType())
                         && matchesNegativeQuestions(queryTextLower, faqNegativeQuestions(chunkData))) {
                     filteredOutChunks.add(result.chunkId);
                     uniqueChunks.remove(result.chunkId);
@@ -1004,10 +1015,10 @@ public class HybridSearchService {
         return out;
     }
 
-    private List<String> faqNegativeQuestions(Chunk chunk) {
+    private List<String> faqNegativeQuestions(ChunkFacts chunk) {
         try {
             List<String> negatives = new ArrayList<>();
-            JsonNode node = chunk.getMetadata();
+            JsonNode node = chunk.metadata();
             if (node != null && node.has("negativeQuestions") && node.get("negativeQuestions").isArray()) {
                 for (JsonNode n : node.get("negativeQuestions")) {
                     negatives.add(n.asText(""));
@@ -1046,10 +1057,10 @@ public class HybridSearchService {
             return chunks;
         }
         List<String> ids = chunks.stream().map(c -> c.chunkId).toList();
-        Map<String, Chunk> cache = new HashMap<>();
+        Map<String, ChunkFacts> cache = new HashMap<>();
         try {
-            for (Chunk c : chunkRepository.listChunksById(tenantId, ids)) {
-                cache.put(c.getId(), c);
+            for (ChunkFacts c : chunkGateway.findChunks(tenantId, ids)) {
+                cache.put(c.id(), c);
             }
         } catch (Exception e) {
             log.warn("Failed to fetch chunks for negative question filtering: {}", e.getMessage());
@@ -1057,8 +1068,8 @@ public class HybridSearchService {
         }
         List<PgVectorRetrieveRepository.IndexHit> result = new ArrayList<>();
         for (PgVectorRetrieveRepository.IndexHit hit : chunks) {
-            Chunk chunkData = cache.get(hit.chunkId);
-            if (chunkData != null && "faq".equals(chunkData.getChunkType())
+            ChunkFacts chunkData = cache.get(hit.chunkId);
+            if (chunkData != null && "faq".equals(chunkData.chunkType())
                     && matchesNegativeQuestions(queryTextLower, faqNegativeQuestions(chunkData))) {
                 continue;
             }
@@ -1089,54 +1100,54 @@ public class HybridSearchService {
             matchedContents.put(c.chunkId, c.content);
         }
 
-        List<Knowledge> knowledgeList = knowledgeService.getKnowledgeBatchWithSharedAccess(
+        List<KnowledgeDocumentFacts> knowledgeList = documentGateway.findAccessibleDocuments(
                 tenantId == null ? 0 : tenantId, new ArrayList<>(knowledgeIds));
-        Map<String, Knowledge> knowledgeMap = new HashMap<>();
-        for (Knowledge k : knowledgeList) {
-            knowledgeMap.put(k.getId(), k);
+        Map<String, KnowledgeDocumentFacts> knowledgeMap = new HashMap<>();
+        for (KnowledgeDocumentFacts k : knowledgeList) {
+            knowledgeMap.put(k.id(), k);
         }
 
-        List<Chunk> allChunks = tenantId == null ? List.of()
-                : chunkRepository.listChunksById(tenantId, chunkIds);
-        Map<String, Chunk> chunkMap = new HashMap<>();
-        for (Chunk c : allChunks) {
-            chunkMap.put(c.getId(), c);
+        List<ChunkFacts> allChunks = tenantId == null ? List.of()
+                : chunkGateway.findChunks(tenantId, chunkIds);
+        Map<String, ChunkFacts> chunkMap = new HashMap<>();
+        for (ChunkFacts c : allChunks) {
+            chunkMap.put(c.id(), c);
         }
 
         if (!skipEnrichment) {
             Set<String> processed = new HashSet<>();
             List<String> additional = new ArrayList<>();
-            for (Chunk c : allChunks) {
-                processed.add(c.getId());
+            for (ChunkFacts c : allChunks) {
+                processed.add(c.id());
             }
-            for (Chunk c : allChunks) {
-                if (!c.getParentChunkId().isEmpty() && !processed.contains(c.getParentChunkId())) {
-                    additional.add(c.getParentChunkId());
-                    processed.add(c.getParentChunkId());
-                    scores.put(c.getParentChunkId(), scores.getOrDefault(c.getId(), 0.0));
-                    matchTypes.put(c.getParentChunkId(), MATCH_PARENT_CHUNK);
+            for (ChunkFacts c : allChunks) {
+                if (!c.parentChunkId().isEmpty() && !processed.contains(c.parentChunkId())) {
+                    additional.add(c.parentChunkId());
+                    processed.add(c.parentChunkId());
+                    scores.put(c.parentChunkId(), scores.getOrDefault(c.id(), 0.0));
+                    matchTypes.put(c.parentChunkId(), MATCH_PARENT_CHUNK);
                 }
                 for (String rel : relatedChunkIds(c, processed)) {
                     additional.add(rel);
                     matchTypes.put(rel, MATCH_RELATION_CHUNK);
                 }
-                if ("text".equals(c.getChunkType())) {
-                    if (!c.getNextChunkId().isEmpty() && !processed.contains(c.getNextChunkId())) {
-                        additional.add(c.getNextChunkId());
-                        processed.add(c.getNextChunkId());
-                        matchTypes.put(c.getNextChunkId(), MATCH_NEAR_BY_CHUNK);
+                if ("text".equals(c.chunkType())) {
+                    if (!c.nextChunkId().isEmpty() && !processed.contains(c.nextChunkId())) {
+                        additional.add(c.nextChunkId());
+                        processed.add(c.nextChunkId());
+                        matchTypes.put(c.nextChunkId(), MATCH_NEAR_BY_CHUNK);
                     }
-                    if (!c.getPreChunkId().isEmpty() && !processed.contains(c.getPreChunkId())) {
-                        additional.add(c.getPreChunkId());
-                        processed.add(c.getPreChunkId());
-                        matchTypes.put(c.getPreChunkId(), MATCH_NEAR_BY_CHUNK);
+                    if (!c.preChunkId().isEmpty() && !processed.contains(c.preChunkId())) {
+                        additional.add(c.preChunkId());
+                        processed.add(c.preChunkId());
+                        matchTypes.put(c.preChunkId(), MATCH_NEAR_BY_CHUNK);
                     }
                 }
             }
             for (String aid : additional) {
-                Chunk extra = fetchChunk(tenantId, aid);
+                ChunkFacts extra = fetchChunk(tenantId, aid);
                 if (extra != null) {
-                    chunkMap.put(extra.getId(), extra);
+                    chunkMap.put(extra.id(), extra);
                 }
             }
         }
@@ -1145,35 +1156,35 @@ public class HybridSearchService {
         List<SearchResult> out = new ArrayList<>();
         Set<String> added = new HashSet<>();
         for (PgVectorRetrieveRepository.IndexHit input : chunks) {
-            Chunk chunk = chunkMap.get(input.chunkId);
-            if (chunk == null || !isSearchableChunk(chunk) || added.contains(chunk.getId())) {
+            ChunkFacts chunk = chunkMap.get(input.chunkId);
+            if (chunk == null || !isSearchableChunk(chunk) || added.contains(chunk.id())) {
                 continue;
             }
-            Knowledge knowledge = knowledgeMap.get(chunk.getKnowledgeId());
+            KnowledgeDocumentFacts knowledge = knowledgeMap.get(chunk.knowledgeId());
             if (knowledge == null) {
                 continue;
             }
             out.add(buildSearchResult(chunk, knowledge,
-                    scores.getOrDefault(chunk.getId(), 0.0),
-                    matchTypes.getOrDefault(chunk.getId(), MATCH_EMBEDDING),
-                    matchedContents.getOrDefault(chunk.getId(), "")));
-            added.add(chunk.getId());
+                    scores.getOrDefault(chunk.id(), 0.0),
+                    matchTypes.getOrDefault(chunk.id(), MATCH_EMBEDDING),
+                    matchedContents.getOrDefault(chunk.id(), "")));
+            added.add(chunk.id());
         }
         return out;
     }
 
-    private Chunk fetchChunk(Long tenantId, String id) {
+    private ChunkFacts fetchChunk(Long tenantId, String id) {
         try {
-            List<Chunk> rows = chunkRepository.listChunksById(tenantId, List.of(id));
+            List<ChunkFacts> rows = chunkGateway.findChunks(tenantId, List.of(id));
             return rows.isEmpty() ? null : rows.get(0);
         } catch (Exception e) {
             return null;
         }
     }
 
-    private static List<String> relatedChunkIds(Chunk chunk, Set<String> processed) {
+    private static List<String> relatedChunkIds(ChunkFacts chunk, Set<String> processed) {
         List<String> related = new ArrayList<>();
-        JsonNode rel = chunk.getRelationChunks();
+        JsonNode rel = chunk.relationChunks();
         if (rel != null && rel.isArray()) {
             for (JsonNode n : rel) {
                 String id = n.asText("");
@@ -1187,24 +1198,24 @@ public class HybridSearchService {
     }
 
     /** 对照 buildSearchResult（knowledgebase_search_results.go L303-334）。 */
-    private static SearchResult buildSearchResult(Chunk chunk, Knowledge knowledge,
+    private static SearchResult buildSearchResult(ChunkFacts chunk, KnowledgeDocumentFacts knowledge,
             double score, int matchType, String matchedContent) {
         SearchResult r = new SearchResult();
-        r.setId(chunk.getId());
-        r.setContent(chunk.getContent());
-        r.setContentRevision(chunk.getContentRevision());
-        r.setKnowledgeId(chunk.getKnowledgeId());
-        r.setChunkIndex(chunk.getChunkIndex());
-        r.setKnowledgeTitle(knowledge.getTitle());
-        r.setStartAt(chunk.getStartAt());
-        r.setEndAt(chunk.getEndAt());
-        r.setSeq(chunk.getChunkIndex());
+        r.setId(chunk.id());
+        r.setContent(chunk.content());
+        r.setContentRevision(chunk.contentRevision());
+        r.setKnowledgeId(chunk.knowledgeId());
+        r.setChunkIndex(chunk.chunkIndex());
+        r.setKnowledgeTitle(knowledge.title());
+        r.setStartAt(chunk.startAt());
+        r.setEndAt(chunk.endAt());
+        r.setSeq(chunk.chunkIndex());
         r.setScore(score);
         r.setMatchType(matchType);
-        // 对照 Knowledge.GetMetadata（types/knowledge.go L227-240）：nil → 空 map
+        // 对照 KnowledgeDocumentFacts.GetMetadata（types/knowledge.go L227-240）：nil → 空 map
         // （序列化 "{}"）；不可解析 → null。SearchResult.metadata 是 map[string]string
         // （Go 同型），只挑字符串值（Go 的 types.JSON.Map() 对非字符串值报错 → nil）。
-        JsonNode meta = knowledge.getMetadata();
+        JsonNode meta = knowledge.metadata();
         if (meta == null || meta.isNull()) {
             r.setMetadata(new LinkedHashMap<>());
         } else if (meta.isObject()) {
@@ -1222,28 +1233,28 @@ public class HybridSearchService {
         } else {
             r.setMetadata(null);
         }
-        r.setChunkType(chunk.getChunkType());
-        r.setParentChunkId(chunk.getParentChunkId());
-        r.setKnowledgeFilename(knowledge.getFileName());
-        r.setKnowledgeSource(knowledge.getSource());
-        r.setKnowledgeChannel(knowledge.getChannel());
-        r.setKnowledgeDescription(knowledge.getDescription());
-        r.setKnowledgeBaseId(knowledge.getKnowledgeBaseId());
+        r.setChunkType(chunk.chunkType());
+        r.setParentChunkId(chunk.parentChunkId());
+        r.setKnowledgeFilename(knowledge.fileName());
+        r.setKnowledgeSource(knowledge.source());
+        r.setKnowledgeChannel(knowledge.channel());
+        r.setKnowledgeDescription(knowledge.description());
+        r.setKnowledgeBaseId(knowledge.knowledgeBaseId());
         r.setMatchedContent(matchedContent);
         return r;
     }
 
     /** 对照 isSearchableChunk（knowledgebase_search_results.go L337-353）。 */
-    private static boolean isSearchableChunk(Chunk chunk) {
-        if (chunk == null || !chunk.isIsEnabled()) {
+    private static boolean isSearchableChunk(ChunkFacts chunk) {
+        if (chunk == null || !chunk.enabled()) {
             return false;
         }
-        String status = chunk.getIndexStatus();
+        String status = chunk.indexStatus();
         if ("processing".equals(status) || "failed".equals(status)) {
             return false;
         }
         return List.of("text", "summary", "table_column", "table_summary",
-                "faq", "image_ocr", "image_caption").contains(chunk.getChunkType());
+                "faq", "image_ocr", "image_caption").contains(chunk.chunkType());
     }
 
 }

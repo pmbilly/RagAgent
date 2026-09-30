@@ -778,16 +778,13 @@ public class AgentToolBackends {
             @Override
             public Map<String, String> resolveEmbeddingModelKeys(
                     List<KnowledgeSearchTool.KBView> kbs) {
-                List<KnowledgeBase> rows = new ArrayList<>();
+                List<String> kbIds = new ArrayList<>();
                 if (kbs != null) {
                     for (KnowledgeSearchTool.KBView v : kbs) {
-                        KnowledgeBase kb = kbService.getAllTenantById(v.id());
-                        if (kb != null) {
-                            rows.add(kb);
-                        }
+                        kbIds.add(v.id());
                     }
                 }
-                return hybridSearchService.resolveEmbeddingModelKeys(rows);
+                return hybridSearchService.resolveEmbeddingModelKeys(kbIds);
             }
 
             @Override

@@ -717,15 +717,15 @@ final class Rec46cSupport {
         }
 
         @Override
-        public Map<String, String> resolveEmbeddingModelKeys(
-                List<com.ragagent.knowledge.domain.KnowledgeBase> kbs) {
+        public Map<String, String> resolveEmbeddingModelKeys(List<String> kbIds) {
             if (modelKeys != null) {
                 return modelKeys;
             }
             Map<String, String> out = new LinkedHashMap<>();
-            for (var kb : kbs) {
+            for (String id : kbIds) {
+                var kb = kbs.get(id);
                 if (kb != null) {
-                    out.put(kb.getId(), "model|" + kb.getEmbeddingModelId());
+                    out.put(id, "model|" + kb.getEmbeddingModelId());
                 }
             }
             return out;

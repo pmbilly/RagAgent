@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ragagent.common.CleanInvalidUtf8;
+import com.ragagent.common.knowledge.ChunkFacts;
+import com.ragagent.common.knowledge.ChunkSearchGateway;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.ChunkRevision;
 import org.springframework.stereotype.Component;
@@ -50,7 +52,7 @@ import javax.sql.DataSource;
  * 位运算的分支依据），与 VectorStoreService/MessageRepository 同款。</p>
  */
 @Component
-public class ChunkRepository {
+public class ChunkRepository implements ChunkSearchGateway {
 
     /** 三条 json 列共用的类型处理器（3 参 set 的 mapping 串）。 */
     private static final String PG_JSON = "com.ragagent.common.web.PgJsonTypeHandler";
@@ -124,6 +126,22 @@ public class ChunkRepository {
                 .eq(Chunk::getTenantId, tenantId)
                 .in(Chunk::getId, ids)
                 .isNull(Chunk::getDeletedAt));
+    }
+
+    /**
+     * 跨域只读端口的实现（{@link ChunkSearchGateway}）：检索编排按 id 批量取 chunk 事实，
+     * 语义与 {@link #listChunksById} 一致（租户内、软删不可见）。
+     */
+    @Override
+    public List<ChunkFacts> findChunks(long tenantId, List<String> chunkIds) {
+        List<ChunkFacts> out = new ArrayList<>();
+        for (Chunk c : listChunksById(tenantId, chunkIds)) {
+            out.add(new ChunkFacts(c.getId(), c.getKnowledgeId(), c.getContent(), c.getChunkType(),
+                    c.getIndexStatus(), c.isIsEnabled(), c.getChunkIndex(), c.getStartAt(),
+                    c.getEndAt(), c.getContentRevision(), c.getParentChunkId(), c.getPreChunkId(),
+                    c.getNextChunkId(), c.getRelationChunks(), c.getMetadata()));
+        }
+        return out;
     }
 
     /**

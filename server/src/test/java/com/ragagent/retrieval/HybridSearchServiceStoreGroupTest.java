@@ -15,13 +15,12 @@ import org.junit.jupiter.api.Test;
 
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.pipeline.SearchParams;
+import com.ragagent.common.embedding.EmbeddingGateway;
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
-import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.repository.ChunkRepository;
-import com.ragagent.knowledge.client.EmbedderClient;
-import com.ragagent.knowledge.service.KnowledgeBaseService;
-import com.ragagent.knowledge.service.KnowledgeService;
+import com.ragagent.common.knowledge.ChunkSearchGateway;
+import com.ragagent.common.knowledge.KnowledgeBaseSearchFacts;
+import com.ragagent.common.knowledge.KnowledgeBaseSearchGateway;
+import com.ragagent.common.knowledge.KnowledgeDocumentGateway;
 import com.ragagent.common.model.ModelFacts;
 import com.ragagent.common.model.ModelGateway;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
@@ -49,12 +48,12 @@ class HybridSearchServiceStoreGroupTest {
 
     private static final long TENANT = 10002L;
 
-    private KnowledgeBaseService kbService;
-    private KnowledgeService knowledgeService;
-    private ChunkRepository chunkRepository;
+    private KnowledgeBaseSearchGateway kbGateway;
+    private KnowledgeDocumentGateway documentGateway;
+    private ChunkSearchGateway chunkGateway;
     private ModelGateway modelGateway;
     private TenantService tenantService;
-    private EmbedderClient embedderClient;
+    private EmbeddingGateway embeddingGateway;
     private PgVectorRetrieveRepository pgRepository;
     private RetrieveEngineRegistry registry;
     private TenantStoreOwnership ownership;
@@ -62,41 +61,29 @@ class HybridSearchServiceStoreGroupTest {
 
     @BeforeEach
     void setUp() {
-        kbService = mock(KnowledgeBaseService.class);
-        knowledgeService = mock(KnowledgeService.class);
-        chunkRepository = mock(ChunkRepository.class);
+        kbGateway = mock(KnowledgeBaseSearchGateway.class);
+        documentGateway = mock(KnowledgeDocumentGateway.class);
+        chunkGateway = mock(ChunkSearchGateway.class);
         modelGateway = mock(ModelGateway.class);
         tenantService = mock(TenantService.class);
-        embedderClient = mock(EmbedderClient.class);
+        embeddingGateway = mock(EmbeddingGateway.class);
         pgRepository = mock(PgVectorRetrieveRepository.class);
         registry = mock(RetrieveEngineRegistry.class);
         ownership = mock(TenantStoreOwnership.class);
-        service = new HybridSearchService(kbService, knowledgeService, chunkRepository,
-                modelGateway, tenantService, embedderClient, pgRepository, registry, ownership);
+        service = new HybridSearchService(kbGateway, documentGateway, chunkGateway, modelGateway,
+                tenantService, embeddingGateway, pgRepository, registry, ownership);
     }
 
-    private KnowledgeBase kb(String id, String vectorStoreId, String embeddingModelId) {
-        KnowledgeBase k = new KnowledgeBase();
-        k.setId(id);
-        k.setTenantId(TENANT);
-        k.setType("document");
-        k.setEmbeddingModelId(embeddingModelId);
-        k.setVectorStoreId(vectorStoreId);
-        KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
-        s.setVectorEnabled(true);
-        s.setKeywordEnabled(true);
-        k.setIndexingStrategy(s);
-        return k;
+    private KnowledgeBaseSearchFacts kb(String id, String vectorStoreId,
+                                        String embeddingModelId) {
+        return new KnowledgeBaseSearchFacts(id, TENANT, "document", embeddingModelId, vectorStoreId,
+                true, true);
     }
 
     /** 零策略（vector+keyword 全关）的 KB——BaseParams 恒空，与引擎注册状态解耦。 */
-    private KnowledgeBase zeroStrategyKb(String id, String embeddingModelId) {
-        KnowledgeBase k = kb(id, null, embeddingModelId);
-        KnowledgeBaseIndexingStrategy s = new KnowledgeBaseIndexingStrategy();
-        s.setVectorEnabled(false);
-        s.setKeywordEnabled(false);
-        k.setIndexingStrategy(s);
-        return k;
+    private KnowledgeBaseSearchFacts zeroStrategyKb(String id, String embeddingModelId) {
+        return new KnowledgeBaseSearchFacts(id, TENANT, "document", embeddingModelId, null,
+                false, false);
     }
 
     private ModelFacts facts(String name) {
@@ -118,8 +105,8 @@ class HybridSearchServiceStoreGroupTest {
     void multiKbWithDifferentEmbeddingModelsIsRejected() {
         when(modelGateway.findFacts("emb-a")).thenReturn(facts("modelA"));
         when(modelGateway.findFacts("emb-b")).thenReturn(facts("modelB"));
-        when(kbService.getAllTenantById("kb-a")).thenReturn(kb("kb-a", null, "emb-a"));
-        when(kbService.getAllTenantById("kb-b")).thenReturn(kb("kb-b", null, "emb-b"));
+        when(kbGateway.findSearchFacts("kb-a")).thenReturn(kb("kb-a", null, "emb-a"));
+        when(kbGateway.findSearchFacts("kb-b")).thenReturn(kb("kb-b", null, "emb-b"));
 
         assertThatThrownBy(() -> service.hybridSearch("kb-a", params("kb-a", "kb-b")))
                 .isInstanceOfSatisfying(BizException.class, e -> {
@@ -133,8 +120,8 @@ class HybridSearchServiceStoreGroupTest {
     @Test
     void multiKbSharingOneEmbeddingModelPassesValidation() {
         when(modelGateway.findFacts(anyString())).thenReturn(facts("shared"));
-        when(kbService.getAllTenantById("kb-a")).thenReturn(zeroStrategyKb("kb-a", "emb-a"));
-        when(kbService.getAllTenantById("kb-b")).thenReturn(zeroStrategyKb("kb-b", "emb-a"));
+        when(kbGateway.findSearchFacts("kb-a")).thenReturn(zeroStrategyKb("kb-a", "emb-a"));
+        when(kbGateway.findSearchFacts("kb-b")).thenReturn(zeroStrategyKb("kb-b", "emb-a"));
         // env-store 组的引擎解析在 RETRIEVE_DRIVER 已配置的机器上也会发生——桩成真实件，
         // 零策略 KB 的 BaseParams 恒空，两种环境下都走 allBaseParamsEmpty → data:null
         when(registry.getRetrieveEngineService(anyString()))
@@ -149,7 +136,7 @@ class HybridSearchServiceStoreGroupTest {
 
     @Test
     void crossTenantStoreMapsTo2200() {
-        when(kbService.getAllTenantById("kb-1")).thenReturn(kb("kb-1", "store-1", "emb-a"));
+        when(kbGateway.findSearchFacts("kb-1")).thenReturn(kb("kb-1", "store-1", "emb-a"));
         when(ownership.storeOwnedBy("store-1", TENANT)).thenReturn(false);
 
         assertThatThrownBy(() -> service.hybridSearch("kb-1", params("kb-1")))
@@ -162,7 +149,7 @@ class HybridSearchServiceStoreGroupTest {
 
     @Test
     void unregisteredStoreMapsTo2201() {
-        when(kbService.getAllTenantById("kb-1")).thenReturn(kb("kb-1", "ghost-store", "emb-a"));
+        when(kbGateway.findSearchFacts("kb-1")).thenReturn(kb("kb-1", "ghost-store", "emb-a"));
         when(ownership.storeOwnedBy("ghost-store", TENANT)).thenReturn(true);
         when(registry.getOrLoadByStoreId(TENANT, "ghost-store"))
                 .thenThrow(RetrieveEngineException.VECTOR_STORE_NOT_FOUND);
@@ -178,7 +165,7 @@ class HybridSearchServiceStoreGroupTest {
     @Test
     void unownedStoreWithoutRegistrationWiringMapsTo2200BeforeRegistry() {
         // 归属为假时不查注册表（resolveBoundEngine 的短路序）
-        when(kbService.getAllTenantById("kb-1")).thenReturn(kb("kb-1", "store-x", "emb-a"));
+        when(kbGateway.findSearchFacts("kb-1")).thenReturn(kb("kb-1", "store-x", "emb-a"));
         when(ownership.storeOwnedBy("store-x", TENANT)).thenReturn(false);
 
         assertThatThrownBy(() -> service.hybridSearch("kb-1", params("kb-1")))

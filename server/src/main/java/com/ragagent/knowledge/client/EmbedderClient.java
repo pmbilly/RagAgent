@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.model.domain.Model;
 import org.springframework.stereotype.Service;
 import java.io.IOException;
+import com.ragagent.common.embedding.EmbeddingGateway;
 import com.ragagent.common.model.ModelFacts;
 
 /**
@@ -20,7 +21,7 @@ import com.ragagent.common.model.ModelFacts;
  * POST {base_url}/embeddings，Bearer api_key；输入 batch 文本，返回 float 向量。
  */
 @Service
-public class EmbedderClient {
+public class EmbedderClient implements EmbeddingGateway {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -47,6 +48,23 @@ public class EmbedderClient {
         base = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
         return new EmbedConfig(base, f.apiKey() == null ? "" : f.apiKey(),
                 f.name() == null ? "" : f.name());
+    }
+
+    /**
+     * 能力端口的实现（{@link EmbeddingGateway}）：按模型事实嵌入文本。
+     *
+     * <p>本类既有的 {@code embedBatch} 声明受检异常（Jackson 的 parse 异常），端口面
+     * 不带受检异常，故在此收敛为同名消息的运行时异常——调用方看到的文案不变。</p>
+     */
+    @Override
+    public List<float[]> embed(ModelFacts model, List<String> texts) {
+        try {
+            return embedBatch(configFrom(model), texts);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
     }
 
     /** 批量嵌入 */
