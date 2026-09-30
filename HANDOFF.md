@@ -674,6 +674,38 @@ chat 两重载、chatStream 两重载、logUsage、compactForLog(+DATA_URL_PATTE
 匹配到深层缩进的调用点报假"unbalanced"——已修为 `(?![ ])` 负向前瞻）；③harness 忠实性失败分支
 也要回滚工作区（有一轮文件滞留落刀后状态，靠 `git checkout -- <门面>` 恢复后重跑）。
 
+#### 14.7.9 TenantCatalogController 执行计划（2026-10-01 侦察，接替 llm；auth 域续刀 §14.7.7）
+
+**目标类**：`auth/controller/TenantCatalogController` 980（跨空间租户目录 + KV 配置分发器，
+POST /tenants 巨型端点 ~150 行 + W5a CRUD 4 条 + KV 分发器 + 6 组配置 get/put）。
+
+**测试床**：`TenantCatalogContractTest` 471 行 + `W5aSundryRoutesContractTest` 428 行
+（均 `@SpringBootTest + @AutoConfigureMockMvc` 全上下文直打路由，**不直 new、无 static 直调** →
+构造装配可改，路由/注解/端点签名不可变）；`TenantMemberContractTest`（envelope 消费方）。
+协作者样式照同包先例 `AuthOidcOps`：**service 回引**（`new XxxOps(this)`，门面构造器内装配）。
+
+**簇边界（先落被依赖方）**：
+- `TenantBindSupport`（刀 T1，全静态）：MAPPER + bindBody + bindingError + invalidParams +
+  trimGo + goJsonKind + goStringField——四簇共用的 Go 绑定错误形态助手；随刀删死方法
+  `parseIntOr`（零调用，§13.15 登记）。
+- `TenantCreateOps`（刀 T2）：createTenant 端点体 + tenantWithApiKey + deepSortKeys +
+  resolveMaxOwnedTenantsPerUser + quotaExceeded + validateCreateBinding +
+  `CreateTenantRequest` 嵌套类型 + `DEFAULT_MAX_OWNED_PER_USER` 常量随簇。
+- `TenantCrudOps`（刀 T3）：listTenants/getTenant/updateTenant/deleteTenant 4 端点体 +
+  bindUpdateTenantRequest + `UpdateTenantRequest` 嵌套类型 + loadTenantOr500 + contextRoleHasAdmin。
+- `TenantConfigOps`（刀 T4）：getTenantKV/updateTenantKV 两分发端点体 +
+  requireIntegrationSecretsIfSensitive + canViewIntegrationSecrets + requireContextTenant +
+  parseConfig + updateFailed + envelopeWithMessage + 6 组配置 get/put 12 方法 +
+  validateParserEngineOutboundUrls + ssrfCheck + firstAllowedStorageProvider。
+
+**留门面**：类注解/字段/10 参构造器（Spring 装配）、7 个薄端点（注解+参数提取+委托）、
+4 个协作者字段。**登记替换**：字段 → `service.` 限定；MAPPER/绑定助手 → `TenantBindSupport.` 限定；
+嵌套类型随簇后引用改 `XxxOps.` 前缀。端点搬移时 @Mapping 注解剥、参数注解（@RequestBody/
+@PathVariable）随簇保留（AuthOidcOps 同款）。
+
+**预估**：门面 980→~250；四个协作者 90~330 行。闸门：每刀 `--rerun-tasks` 重编 +
+`--tests "com.ragagent.auth.*"` + spotlessCheck + 忠实性逐字比对；收官 clean 全量 + 环守卫。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
