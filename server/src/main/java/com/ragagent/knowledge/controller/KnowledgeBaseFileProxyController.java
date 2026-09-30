@@ -43,7 +43,7 @@ public class KnowledgeBaseFileProxyController {
     }
 
     @RequestMapping(value = "/api/v1/knowledge-bases/{id}/files", method = RequestMethod.HEAD)
-    public void filesHead(@PathVariable("id") String id, jakarta.servlet.http.HttpServletResponse response)
+    public void filesHead(@PathVariable("id") String id, HttpServletResponse response)
             throws IOException {
         FileProxyController.writeGinNoRoute(response);
     }

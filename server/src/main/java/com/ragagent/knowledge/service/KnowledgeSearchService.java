@@ -9,6 +9,10 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.common.context.TenantContext;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 知识检索。
@@ -117,7 +121,7 @@ public class KnowledgeSearchService {
             rows = rows.subList(0, limit);
         }
         // knowledge_base_name 回填
-        java.util.Map<String, String> names = new java.util.HashMap<>();
+        Map<String, String> names = new HashMap<>();
         for (KnowledgeSearchScope s : valid) {
             KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                     .eq(KnowledgeBase::getId, s.kbId())
@@ -148,7 +152,7 @@ public class KnowledgeSearchService {
         if (fileTypes == null) {
             return patterns;
         }
-        java.util.Set<String> seen = new java.util.HashSet<>();
+        Set<String> seen = new HashSet<>();
         for (String ft : fileTypes) {
             String f = ft == null ? "" : ft.toLowerCase();
             while (f.startsWith(".")) {

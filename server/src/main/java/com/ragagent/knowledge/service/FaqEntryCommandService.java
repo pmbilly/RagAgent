@@ -36,6 +36,11 @@ import com.ragagent.knowledge.security.FaqGuard;
 import com.ragagent.knowledge.dto.FaqEntryPayload;
 import com.ragagent.knowledge.dto.FaqEntryFieldsBatchUpdate;
 import com.ragagent.knowledge.dto.FaqEntryFieldsUpdate;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * FAQ 条目命令面：创建、更新、相似问追加、批量字段/标签更新与删除，
@@ -664,12 +669,12 @@ public class FaqEntryCommandService {
         entry.setTargetType(targetType);
         entry.setTargetId(targetId);
         entry.setOutcome(AuditOutcome.SUCCESS);
-        com.fasterxml.jackson.databind.node.ObjectNode detailsNode =
-                com.fasterxml.jackson.databind.json.JsonMapper.builder().build().createObjectNode();
+        ObjectNode detailsNode =
+                JsonMapper.builder().build().createObjectNode();
         details.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .forEachOrdered(e -> detailsNode.set(e.getKey(),
-                        com.fasterxml.jackson.databind.json.JsonMapper.builder().build().valueToTree(e.getValue())));
+                        JsonMapper.builder().build().valueToTree(e.getValue())));
         entry.setDetails(detailsNode);
         auditService.logBestEffort(entry);
     }
@@ -757,14 +762,14 @@ public class FaqEntryCommandService {
 
     private static String sha256Hex(String input) {
         try {
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
             StringBuilder hex = new StringBuilder();
-            for (byte b : digest.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            for (byte b : digest.digest(input.getBytes(StandardCharsets.UTF_8))) {
                 hex.append(Character.forDigit((b >> 4) & 0xF, 16));
                 hex.append(Character.forDigit(b & 0xF, 16));
             }
             return hex.substring(0, 32); // 契约：内容哈希取前 16 字节
-        } catch (java.security.NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
     }

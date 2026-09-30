@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 import com.ragagent.common.web.PgJsonTypeHandler;
+import java.util.List;
 
 @Mapper
 /** {@code chunks} 表的 MyBatis-Plus mapper。 */
@@ -16,7 +17,7 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
 
     @Select("SELECT id FROM chunks WHERE tenant_id = #{tenantId} "
             + "AND knowledge_base_id = #{kbId} AND tag_id = #{tagId} AND deleted_at IS NULL")
-    java.util.List<String> selectIdsByTag(long tenantId, String kbId, String tagId);
+    List<String> selectIdsByTag(long tenantId, String kbId, String tagId);
 
     /**
      * 全字段 UPDATE。
@@ -89,7 +90,7 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
     Chunk findFaqDuplicateChunk(@Param("tenantId") long tenantId,
                                 @Param("kbId") String kbId,
                                 @Param("excludeChunkId") String excludeChunkId,
-                                @Param("questions") java.util.List<String> questions);
+                                @Param("questions") List<String> questions);
 
     /**
      * CASE 批量更新
@@ -107,5 +108,5 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
             + "WHERE id IN <foreach collection='chunks' item='c' open='(' close=')' separator=','>#{c.id}</foreach> "
             + "AND deleted_at IS NULL"
             + "</script>")
-    int updateChunksCase(@Param("chunks") java.util.List<Chunk> chunks);
+    int updateChunksCase(@Param("chunks") List<Chunk> chunks);
 }

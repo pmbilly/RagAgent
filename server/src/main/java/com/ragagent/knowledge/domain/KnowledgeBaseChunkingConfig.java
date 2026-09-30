@@ -2,6 +2,7 @@ package com.ragagent.knowledge.domain;
 
 import java.util.List;
 import com.ragagent.common.web.JsonMappers;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * 知识库分块配置（jsonb 列 {@code config} 的形状）：分块尺寸与重叠、分隔符、
@@ -61,7 +62,7 @@ public class KnowledgeBaseChunkingConfig {
     }
 
     /** 从 KB 配置 jsonb 读取（null/解析失败 → 默认值）。 */
-    public static KnowledgeBaseChunkingConfig from(com.fasterxml.jackson.databind.JsonNode node) {
+    public static KnowledgeBaseChunkingConfig from(JsonNode node) {
     if (node == null || node.isNull()) {
         return new KnowledgeBaseChunkingConfig();
     }

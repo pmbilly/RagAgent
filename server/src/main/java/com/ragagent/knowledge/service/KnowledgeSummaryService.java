@@ -38,6 +38,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 import com.ragagent.knowledge.task.KnowledgeProcessWorker;
+import java.util.Collections;
 
 /**
  * 知识摘要生成管线：同步重生（含 fallback/重试状态机）与异步刷新入队；
@@ -347,7 +348,7 @@ public class KnowledgeSummaryService {
         JsonNode node = knowledge.getCustomMetadata();
         List<String> keys = new ArrayList<>();
         node.fieldNames().forEachRemaining(keys::add);
-        java.util.Collections.sort(keys);
+        Collections.sort(keys);
         List<String> lines = new ArrayList<>();
         for (String key : keys) {
             JsonNode value = node.get(key);

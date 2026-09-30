@@ -13,6 +13,11 @@ import com.ragagent.knowledge.domain.ChunkNotFoundException;
 import com.ragagent.knowledge.domain.ChunkRevisionConflictException;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.ChunkRevisionMapper;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import javax.sql.DataSource;
 
 /**
  * chunk 仓储（文档与 FAQ 的 chunk 行读写，方法式门面）。数据访问契约如下，
@@ -63,7 +68,7 @@ public class ChunkRepository {
     private final boolean postgres;
 
     public ChunkRepository(ChunkMapper chunkMapper, ChunkRevisionMapper revisionMapper,
-                           ChunkTxTemplate tx, javax.sql.DataSource dataSource) {
+                           ChunkTxTemplate tx, DataSource dataSource) {
         this.chunkMapper = chunkMapper;
         this.revisionMapper = revisionMapper;
         this.tx = tx;
@@ -228,7 +233,7 @@ public class ChunkRepository {
      */
     public void updateChunk(Chunk chunk) {
         // updated_at 覆盖为 now 且回写传入实体（updateChunk 契约）
-        chunk.setUpdatedAt(java.time.OffsetDateTime.now());
+        chunk.setUpdatedAt(OffsetDateTime.now());
         // FAQ 创建后 status 更新的全列 UPDATE 写 NULL → 违反 NOT NULL 约束。
         if (chunk.getSourceContent() == null) {
             chunk.setSourceContent("");
@@ -314,7 +319,7 @@ public class ChunkRepository {
                 .eq("tenant_id", tenantId)
                 .eq("id", id)
                 .isNull("deleted_at")
-                .set("deleted_at", java.time.OffsetDateTime.now()));
+                .set("deleted_at", OffsetDateTime.now()));
     }
 
     /**
@@ -330,7 +335,7 @@ public class ChunkRepository {
                     .eq("tenant_id", tenantId)
                     .in("id", ids.subList(i, end))
                     .isNull("deleted_at")
-                    .set("deleted_at", java.time.OffsetDateTime.now()));
+                    .set("deleted_at", OffsetDateTime.now()));
         }
     }
 
@@ -340,8 +345,8 @@ public class ChunkRepository {
      */
     public List<String> deleteChunksByTagId(long tenantId, String kbId, String tagId, List<String> excludeIds) {
         List<String> allIds = chunkMapper.selectIdsByTag(tenantId, kbId, tagId);
-        java.util.Set<String> excludeSet = new java.util.HashSet<>(excludeIds == null ? List.of() : excludeIds);
-        List<String> toDelete = new java.util.ArrayList<>(allIds.size());
+        Set<String> excludeSet = new HashSet<>(excludeIds == null ? List.of() : excludeIds);
+        List<String> toDelete = new ArrayList<>(allIds.size());
         for (String id : allIds) {
             if (!excludeSet.contains(id)) {
                 toDelete.add(id);
@@ -357,7 +362,7 @@ public class ChunkRepository {
                     .eq("tenant_id", tenantId)
                     .in("id", toDelete.subList(i, end))
                     .isNull("deleted_at")
-                    .set("deleted_at", java.time.OffsetDateTime.now()));
+                    .set("deleted_at", OffsetDateTime.now()));
         }
         return toDelete;
     }
@@ -368,7 +373,7 @@ public class ChunkRepository {
                 .eq("tenant_id", tenantId)
                 .eq("knowledge_id", knowledgeId)
                 .isNull("deleted_at")
-                .set("deleted_at", java.time.OffsetDateTime.now()));
+                .set("deleted_at", OffsetDateTime.now()));
     }
 
     /**
@@ -383,7 +388,7 @@ public class ChunkRepository {
                 .eq("tenant_id", tenantId)
                 .in("knowledge_id", knowledgeIds)
                 .isNull("deleted_at")
-                .set("deleted_at", java.time.OffsetDateTime.now()));
+                .set("deleted_at", OffsetDateTime.now()));
     }
 
     // ── 私有 ────────────────────────────────────────────────────────────────

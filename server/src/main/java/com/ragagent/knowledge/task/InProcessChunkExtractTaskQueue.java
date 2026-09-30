@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
 import com.ragagent.knowledge.service.ChunkExtractService;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 进程内分块抽取队列。
@@ -76,7 +77,7 @@ public class InProcessChunkExtractTaskQueue implements ChunkExtractTaskQueue {
             return retryDelayOverrideSeconds;
         }
         long base = (long) Math.pow(attempt, 4) + 15;
-        long jitter = (long) (java.util.concurrent.ThreadLocalRandom.current().nextDouble()
+        long jitter = (long) (ThreadLocalRandom.current().nextDouble()
                 * 30 * (attempt + 1));
         return base + jitter;
     }

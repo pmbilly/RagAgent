@@ -7,6 +7,10 @@ import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import com.ragagent.common.jdbc.DatabaseDialects;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 
 /**
  * postgres 向量写/删/更新。
@@ -56,7 +60,7 @@ public class VectorStoreService {
                   + "knowledge_id, knowledge_base_id, tag_id, content, is_enabled, dimension, embedding) "
                   + "KEY(source_id, source_type) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)";
         Timestamp now = Timestamp.from(Instant.now());
-        List<Integer> indexes = new java.util.ArrayList<>(rows.size());
+        List<Integer> indexes = new ArrayList<>(rows.size());
         for (int i = 0; i < rows.size(); i++) {
             indexes.add(i);
         }
@@ -84,7 +88,7 @@ public class VectorStoreService {
         if (chunkIds == null || chunkIds.isEmpty()) {
             return;
         }
-        String placeholders = String.join(",", java.util.Collections.nCopies(chunkIds.size(), "?"));
+        String placeholders = String.join(",", Collections.nCopies(chunkIds.size(), "?"));
         jdbc.update("DELETE FROM embeddings WHERE chunk_id IN (" + placeholders + ")",
                 chunkIds.toArray());
     }
@@ -94,7 +98,7 @@ public class VectorStoreService {
         if (sourceIds == null || sourceIds.isEmpty()) {
             return;
         }
-        String placeholders = String.join(",", java.util.Collections.nCopies(sourceIds.size(), "?"));
+        String placeholders = String.join(",", Collections.nCopies(sourceIds.size(), "?"));
         jdbc.update("DELETE FROM embeddings WHERE source_id IN (" + placeholders + ")",
                 sourceIds.toArray());
     }
@@ -104,7 +108,7 @@ public class VectorStoreService {
         if (knowledgeIds == null || knowledgeIds.isEmpty()) {
             return;
         }
-        String placeholders = String.join(",", java.util.Collections.nCopies(knowledgeIds.size(), "?"));
+        String placeholders = String.join(",", Collections.nCopies(knowledgeIds.size(), "?"));
         jdbc.update("DELETE FROM embeddings WHERE knowledge_id IN (" + placeholders + ")",
                 knowledgeIds.toArray());
     }
@@ -117,8 +121,8 @@ public class VectorStoreService {
         if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
             return;
         }
-        List<String> enabledIds = new java.util.ArrayList<>();
-        List<String> disabledIds = new java.util.ArrayList<>();
+        List<String> enabledIds = new ArrayList<>();
+        List<String> disabledIds = new ArrayList<>();
         for (Map.Entry<String, Boolean> e : chunkStatusMap.entrySet()) {
             if (Boolean.TRUE.equals(e.getValue())) {
                 enabledIds.add(e.getKey());
@@ -135,7 +139,7 @@ public class VectorStoreService {
     }
 
     private void updateEnabledStatus(List<String> chunkIds, boolean enabled) {
-        String placeholders = String.join(",", java.util.Collections.nCopies(chunkIds.size(), "?"));
+        String placeholders = String.join(",", Collections.nCopies(chunkIds.size(), "?"));
         Object[] args = new Object[chunkIds.size() + 1];
         args[0] = enabled;
         for (int i = 0; i < chunkIds.size(); i++) {
@@ -152,14 +156,14 @@ public class VectorStoreService {
         if (chunkTagMap == null || chunkTagMap.isEmpty()) {
             return;
         }
-        Map<String, List<String>> groups = new java.util.LinkedHashMap<>();
+        Map<String, List<String>> groups = new LinkedHashMap<>();
         for (Map.Entry<String, String> e : chunkTagMap.entrySet()) {
             groups.computeIfAbsent(e.getValue() == null ? "" : e.getValue(),
-                    k -> new java.util.ArrayList<>()).add(e.getKey());
+                    k -> new ArrayList<>()).add(e.getKey());
         }
         for (Map.Entry<String, List<String>> e : groups.entrySet()) {
             List<String> chunkIds = e.getValue();
-            String placeholders = String.join(",", java.util.Collections.nCopies(chunkIds.size(), "?"));
+            String placeholders = String.join(",", Collections.nCopies(chunkIds.size(), "?"));
             Object[] args = new Object[chunkIds.size() + 1];
             args[0] = e.getKey();
             for (int i = 0; i < chunkIds.size(); i++) {
@@ -176,7 +180,7 @@ public class VectorStoreService {
         long total = 0;
         for (IndexRow row : rows) {
             long contentSize = row.content() == null ? 0
-                    : row.content().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                    : row.content().getBytes(StandardCharsets.UTF_8).length;
             long vectorSize = dimension > 0 ? (long) dimension * 2 : 0;
             total += contentSize + vectorSize + 200 + vectorSize * 2;
         }

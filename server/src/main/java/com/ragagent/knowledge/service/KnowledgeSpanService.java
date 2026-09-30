@@ -12,6 +12,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.repository.KnowledgeSpanRepository;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
+import java.util.LinkedHashMap;
 
 /**
  * 知识处理 spans 合成树。静态 canonical 时间线复用门面公开常量
@@ -87,10 +88,10 @@ public class KnowledgeSpanService {
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
-        Map<String, ObjectNode> nodes = new java.util.LinkedHashMap<>();
+        Map<String, ObjectNode> nodes = new LinkedHashMap<>();
         KnowledgeProcessingSpan rootRow = null;
         Map<String, KnowledgeProcessingSpan> stageRowByName =
-                new java.util.LinkedHashMap<>();
+                new LinkedHashMap<>();
         String currentStage = "";
         KnowledgeProcessingSpan lastFailure = null;
         for (KnowledgeProcessingSpan r : rows) {

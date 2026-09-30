@@ -13,6 +13,9 @@ import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import org.springframework.stereotype.Component;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * 知识文档路由共用的守卫与解析面（两个控制器共享）：
@@ -132,7 +135,7 @@ public class KnowledgeRouteGuards {
         if (rawIds == null) {
             return ids;
         }
-        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        Set<String> seen = new LinkedHashSet<>();
         for (String id : rawIds) {
             if (id != null && !id.trim().isEmpty() && seen.add(id)) {
                 ids.add(id);
@@ -183,7 +186,7 @@ public class KnowledgeRouteGuards {
     }
 
     /** multipart 的 metadata 参数：空 → null；非法 JSON → 400。 */
-    public static JsonNode parseJsonParam(com.fasterxml.jackson.databind.ObjectMapper mapper,
+    public static JsonNode parseJsonParam(ObjectMapper mapper,
             String raw, String label) {
         if (raw == null || raw.isBlank()) {
             return null;

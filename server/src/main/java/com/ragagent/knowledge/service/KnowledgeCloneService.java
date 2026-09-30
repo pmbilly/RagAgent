@@ -27,6 +27,12 @@ import com.ragagent.embedding.Embedder;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.knowledge.task.KnowledgeTaskProgressStore;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * KB clone（copy 路由 worker 面）+ Duplicate（同步 settings-only）+ 跨库兼容性校验。
@@ -38,10 +44,10 @@ public class KnowledgeCloneService {
 
 
     /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（本仓约定 步 3 教训）。 */
-    private static final com.fasterxml.jackson.databind.ObjectMapper CLONE_MAPPER =
-            new com.fasterxml.jackson.databind.ObjectMapper()
-                    .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
-                    .disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+    private static final ObjectMapper CLONE_MAPPER =
+            new ObjectMapper()
+                    .registerModule(new JavaTimeModule())
+                    .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
@@ -131,7 +137,7 @@ public class KnowledgeCloneService {
                             .eq(Knowledge::getTenantId, tenantId)
                             .isNull(Knowledge::getDeletedAt));
             List<Knowledge> toAdd = new ArrayList<>();
-            java.util.Set<String> matched = new java.util.HashSet<>();
+            Set<String> matched = new HashSet<>();
             for (Knowledge k : srcRows) {
                 if (!Knowledge.PARSE_COMPLETED.equals(k.getParseStatus())) {
                     throw new IllegalStateException("source knowledge " + k.getId() + " is not completed");
@@ -401,7 +407,7 @@ public class KnowledgeCloneService {
             baseName = "知识库";
         }
         String suffix = " 副本";
-        java.util.Set<String> existing = new java.util.HashSet<>();
+        Set<String> existing = new HashSet<>();
         for (KnowledgeBase kb : kbMapper.selectList(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getTenantId, tid)
                 .isNull(KnowledgeBase::getDeletedAt))) {
@@ -471,7 +477,7 @@ public class KnowledgeCloneService {
     }
 
     private static long epochNow() {
-        return java.time.Instant.now().getEpochSecond();
+        return Instant.now().getEpochSecond();
     }
 
 }

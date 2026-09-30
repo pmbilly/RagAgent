@@ -49,6 +49,11 @@ import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.storage.TenantFileStorage;
 import org.springframework.context.annotation.Lazy;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * 知识处理后台 worker：虚拟线程队列消费 knowledge 的解析主链路
@@ -94,7 +99,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         }
     }
 
-    private final java.util.concurrent.ExecutorService executor =
+    private final ExecutorService executor =
             Executors.newVirtualThreadPerTaskExecutor();
 
     private final KnowledgeMapper knowledgeMapper;
@@ -114,15 +119,15 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final RetrieveGraphRepository graphRepository;
     /** wiki 交接；
      *  ObjectProvider 装配：wiki 域与 knowledge 域互不反向依赖，延迟解析更稳。 */
-    private final org.springframework.beans.factory.ObjectProvider<
+    private final ObjectProvider<
             WikiIngestService> wikiIngestService;
-    private final org.springframework.beans.factory.ObjectProvider<
+    private final ObjectProvider<
             WikiKnowledgeFinalizer> wikiKnowledgeFinalizer;
     /** 分块图抽取队列（D 批；未接线时 fan-out 直接释放槽位，行不搁浅）。 */
-    private final org.springframework.beans.factory.ObjectProvider<
+    private final ObjectProvider<
             ChunkExtractTaskQueue> chunkExtractQueue;
     /** 问题生成批队列（W5γ5.19 导入后自动生成；未接线时 fan-out 直接释放槽位，行不搁浅）。 */
-    private final org.springframework.beans.factory.ObjectProvider<
+    private final ObjectProvider<
             QuestionGenerationTaskQueue> questionGenerationQueue;
 
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
@@ -138,13 +143,13 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   @Lazy KnowledgeService knowledgeService,
                                   SpanTracker spanTracker,
                                   RetrieveGraphRepository graphRepository,
-                                  org.springframework.beans.factory.ObjectProvider<
+                                  ObjectProvider<
                                           WikiIngestService> wikiIngestService,
-                                  org.springframework.beans.factory.ObjectProvider<
+                                  ObjectProvider<
                                           WikiKnowledgeFinalizer> wikiKnowledgeFinalizer,
-                                  org.springframework.beans.factory.ObjectProvider<
+                                  ObjectProvider<
                                           ChunkExtractTaskQueue> chunkExtractQueue,
-                                  org.springframework.beans.factory.ObjectProvider<
+                                  ObjectProvider<
                                           QuestionGenerationTaskQueue> questionGenerationQueue) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
@@ -183,7 +188,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         LangfuseTaskScope scope =
                 LangfuseTaskScope.start(
                         TASK_TYPE_DOCUMENT_PROCESS, tracing,
-                        java.util.Map.of("knowledge_id", knowledgeId),
+                        Map.of("knowledge_id", knowledgeId),
                         LangfuseTaskScope.previewPayload(knowledgeId));
         try {
             processInner(knowledgeId, scope);
@@ -233,7 +238,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 finalizeProcessing(k, kb, knowledgeId, attempt, chunks);
             } catch (Exception inner) {
                 // 失败清场：本次 chunks + 向量行（向量化未启用时只清 chunks）
-                chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
+                chunkMapper.delete(new LambdaQueryWrapper<Chunk>()
                         .eq(Chunk::getKnowledgeId, knowledgeId));
                 deleteKnowledgeVectors(k, kb, embedConfig, knowledgeId);
                 throw inner;
@@ -250,7 +255,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     /** 预清理：删旧 chunks 行（无条件）+ 该知识全部向量行（仅向量化启用且模型可用）+ 旧图谱（失败仅告警）。 */
     private void preCleanKnowledge(Knowledge k, KnowledgeBase kb,
             EmbedderClient.EmbedConfig embedConfig, String knowledgeId) {
-        chunkMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
+        chunkMapper.delete(new LambdaQueryWrapper<Chunk>()
                 .eq(Chunk::getKnowledgeId, knowledgeId));
         deleteKnowledgeVectors(k, kb, embedConfig, knowledgeId);
         deleteGraphData(k.getKnowledgeBaseId(), knowledgeId);
@@ -264,7 +269,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         }
         SpanTracker.SpanHandle docSpan = beginStageSpan(attempt, knowledgeId,
                 KnowledgeProcessingSpan.STAGE_DOC_READER,
-                java.util.Map.of(
+                Map.of(
                         "file_type", k.getFileType() == null ? "" : k.getFileType(),
                         "file_name", k.getFileName() == null ? "" : k.getFileName()));
         String markdown;
@@ -279,7 +284,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                     e.getMessage() == null ? e.toString() : e.getMessage(), e);
             throw e;
         }
-        endStageSpan(docSpan, java.util.Map.of("chars", markdown.length()));
+        endStageSpan(docSpan, Map.of("chars", markdown.length()));
         return markdown;
     }
 
@@ -295,7 +300,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         for (int i = 0; i < parsedChunks.size(); i++) {
             ParsedChunk pc = parsedChunks.get(i);
             Chunk c = new Chunk();
-            c.setId(java.util.UUID.randomUUID().toString());
+            c.setId(UUID.randomUUID().toString());
             OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
             c.setCreatedAt(now);
             c.setUpdatedAt(now);
@@ -323,7 +328,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         for (Chunk c : chunks) {
             totalChars += c.getContent() == null ? 0 : c.getContent().length();
         }
-        endStageSpan(chunkSpan, java.util.Map.of(
+        endStageSpan(chunkSpan, Map.of(
                 "chunks_written", chunks.size(), "total_text_chars", totalChars));
         return chunks;
     }
@@ -341,7 +346,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         }
         SpanTracker.SpanHandle embedSpan = beginStageSpan(attempt, knowledgeId,
                 KnowledgeProcessingSpan.STAGE_EMBEDDING,
-                java.util.Map.of(
+                Map.of(
                         "chunks_to_embed", chunks.size(),
                         "model_id", k.getEmbeddingModelId() == null
                                 ? "" : k.getEmbeddingModelId()));
@@ -390,7 +395,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                 vectorStore.saveIndexRows(rows.subList(from, to), vectors);
             }
         }
-        endStageSpan(embedSpan, java.util.Map.of(
+        endStageSpan(embedSpan, Map.of(
                 "chunks_embedded", chunks.size()));
     }
 
@@ -548,7 +553,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      */
     private void spawnSummaryFanOut(String knowledgeId) {
         long textChunkCount = chunkMapper.selectCount(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Chunk>()
+                new LambdaQueryWrapper<Chunk>()
                         .eq(Chunk::getKnowledgeId, knowledgeId)
                         .eq(Chunk::getChunkType, "text"));
         if (textChunkCount <= 0) {
@@ -768,14 +773,14 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     // ── span 埋点辅助 ──
 
     private SpanTracker.SpanHandle beginStageSpan(int attempt, String knowledgeId,
-                                                 String stage, java.util.Map<String, Object> input) {
+                                                 String stage, Map<String, Object> input) {
         if (attempt <= 0) {
             return null;
         }
         return spanTracker.beginStage(knowledgeId, attempt, stage, input);
     }
 
-    private void endStageSpan(SpanTracker.SpanHandle span, java.util.Map<String, Object> output) {
+    private void endStageSpan(SpanTracker.SpanHandle span, Map<String, Object> output) {
         if (span != null) {
             spanTracker.endSpan(span, output);
         }

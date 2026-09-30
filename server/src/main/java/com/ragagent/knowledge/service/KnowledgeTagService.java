@@ -27,6 +27,9 @@ import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.common.error.AppError;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * <h2>路由链与 Java 落地</h2>
@@ -76,7 +79,7 @@ public class KnowledgeTagService {
      * 标签下文档的批量删除。ObjectProvider：KnowledgeService 依赖面极广，
      * 延迟解析规避任何潜在的装配环。
      */
-    private final org.springframework.beans.factory.ObjectProvider<KnowledgeService>
+    private final ObjectProvider<KnowledgeService>
             knowledgeServiceProvider;
 
     private static final int INDEX_DELETE_BATCH_SIZE = 100;
@@ -92,7 +95,7 @@ public class KnowledgeTagService {
                                VectorStoreService vectorStore,
                                KnowledgeVectorWrites vectorWrites,
                                ModelRuntimeFactory modelRuntimeFactory,
-                               org.springframework.beans.factory.ObjectProvider<KnowledgeService>
+                               ObjectProvider<KnowledgeService>
                                        knowledgeServiceProvider) {
         this.faqChunkRepository = faqChunkRepository;
 
@@ -407,7 +410,7 @@ public class KnowledgeTagService {
     }
 
     private static Map<String, Object> details(Object... keyValues) {
-        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        Map<String, Object> m = new LinkedHashMap<>();
         for (int i = 0; i + 1 < keyValues.length; i += 2) {
             m.put((String) keyValues[i], keyValues[i + 1]);
         }
@@ -475,20 +478,20 @@ public class KnowledgeTagService {
      * 校验排除条目：非法 ID → 400、他库/他租户/非 FAQ chunk → 403、缺失 → 404；
      * 返回可用的 chunk UUID 列表。
      */
-    public java.util.List<String> resolveExcludeUUIDs(String kbId, java.util.List<Long> excludeIds) {
-        java.util.List<String> excludeUUIDs = new java.util.ArrayList<>();
+    public List<String> resolveExcludeUUIDs(String kbId, List<Long> excludeIds) {
+        List<String> excludeUUIDs = new ArrayList<>();
         if (excludeIds == null || excludeIds.isEmpty()) {
             return excludeUUIDs;
         }
         long tenantId = TenantContext.currentTenantId();
-        java.util.Map<Long, Boolean> wanted = new java.util.HashMap<>();
+        Map<Long, Boolean> wanted = new HashMap<>();
         for (Long seqId : excludeIds) {
             if (seqId == null || seqId <= 0) {
                 throw new BizException(AppError.badRequest("排除条目 ID 必须为正整数"));
             }
             wanted.put(seqId, Boolean.TRUE);
         }
-        java.util.List<Chunk> chunks = faqChunkRepository.listChunksBySeqId(tenantId, excludeIds);
+        List<Chunk> chunks = faqChunkRepository.listChunksBySeqId(tenantId, excludeIds);
         for (Chunk chunk : chunks) {
             if (chunk == null || chunk.getSeqId() == null || !wanted.containsKey(chunk.getSeqId())) {
                 continue;

@@ -103,7 +103,7 @@ public class ChunkAccessGuard {
      */
     public KnowledgeBase requireKbAccess(String kbId) {
         TenantAPIKeyScope.authorizeKnowledgeBases(
-                kbId == null ? java.util.List.of() : java.util.List.of(kbId));
+                kbId == null ? List.of() : List.of(kbId));
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
                 .isNull(KnowledgeBase::getDeletedAt)

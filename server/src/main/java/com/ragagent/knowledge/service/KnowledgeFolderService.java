@@ -22,6 +22,12 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * 知识文件夹树与文件夹移动 / 重命名：树的增删改查、移动/重命名的路径重写与冲突校验。
@@ -114,8 +120,8 @@ public class KnowledgeFolderService {
         return tree;
     }
 
-    private static final java.util.Comparator<ObjectNode> byNameLower =
-            java.util.Comparator.comparing(n -> n.path("name").asText("").toLowerCase(java.util.Locale.ROOT));
+    private static final Comparator<ObjectNode> byNameLower =
+            Comparator.comparing(n -> n.path("name").asText("").toLowerCase(Locale.ROOT));
 
     /** 顶级挂 Folders，子级挂 parent.Children。 */
     private static ObjectNode ensureFolderNode(String path, Map<String, ObjectNode> nodes,
@@ -178,13 +184,13 @@ public class KnowledgeFolderService {
             if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
                 continue;
             }
-            if (segment.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 128) {
-                byte[] bytes = segment.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            if (segment.getBytes(StandardCharsets.UTF_8).length > 128) {
+                byte[] bytes = segment.getBytes(StandardCharsets.UTF_8);
                 int cut = 128;
                 while (cut > 0 && (bytes[cut] & 0xC0) == 0x80) {
                     cut--; // 回退到 rune 起点
                 }
-                segment = new String(bytes, 0, cut, java.nio.charset.StandardCharsets.UTF_8).trim();
+                segment = new String(bytes, 0, cut, StandardCharsets.UTF_8).trim();
             }
             if (segment.isEmpty()) {
                 continue;
@@ -195,7 +201,7 @@ public class KnowledgeFolderService {
             }
         }
         String path = String.join("/", segments);
-        while (path.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1024 && !segments.isEmpty()) {
+        while (path.getBytes(StandardCharsets.UTF_8).length > 1024 && !segments.isEmpty()) {
             segments = segments.subList(0, segments.size() - 1);
             path = String.join("/", segments);
         }
@@ -318,7 +324,7 @@ public class KnowledgeFolderService {
      */
     public List<Knowledge> loadKnowledgeWriteBatch(List<String> ids, String grantedKbId) {
         List<String> cleaned = new ArrayList<>(ids.size());
-        java.util.Set<String> seen = new java.util.HashSet<>();
+        Set<String> seen = new HashSet<>();
         for (String id : ids) {
             if (id == null || id.trim().isEmpty()) {
                 throw BizException.badRequest("resource ID cannot be empty");
@@ -328,12 +334,12 @@ public class KnowledgeFolderService {
             }
         }
         List<Knowledge> rows = facade.getKnowledgeBatch(KnowledgeService.tenantId(), cleaned);
-        Map<String, Knowledge> byId = new java.util.HashMap<>();
+        Map<String, Knowledge> byId = new HashMap<>();
         for (Knowledge row : rows) {
             byId.put(row.getId(), row);
         }
         List<Knowledge> result = new ArrayList<>(cleaned.size());
-        java.util.Set<String> checkedKbs = new java.util.HashSet<>();
+        Set<String> checkedKbs = new HashSet<>();
         for (String id : cleaned) {
             Knowledge row = byId.get(id);
             if (row == null) {

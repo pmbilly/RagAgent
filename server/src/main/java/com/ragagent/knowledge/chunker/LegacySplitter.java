@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.function.IntPredicate;
 
 /**
  * Tier 3 legacy（递归字符）切分器。
@@ -499,7 +500,7 @@ public final class LegacySplitter {
         List<RuneSpan> protectedSpans = protectedSpansRune(text, protectedSpans(text));
         // spans 按 start 升序
         final List<RuneSpan> prot = protectedSpans;
-        java.util.function.IntPredicate insideProtectedFn = pos -> {
+        IntPredicate insideProtectedFn = pos -> {
             for (RuneSpan p : prot) {
                 if (pos < p.start()) {
                     return false;

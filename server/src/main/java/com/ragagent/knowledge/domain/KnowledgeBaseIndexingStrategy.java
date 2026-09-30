@@ -2,6 +2,7 @@ package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.common.web.JsonMappers;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * IndexingStrategy。
@@ -41,7 +42,7 @@ public class KnowledgeBaseIndexingStrategy {
     }
 
     /** 从 KB 配置 jsonb 读取（null/解析失败 → 默认值）。 */
-    public static KnowledgeBaseIndexingStrategy from(com.fasterxml.jackson.databind.JsonNode node) {
+    public static KnowledgeBaseIndexingStrategy from(JsonNode node) {
         if (node == null || node.isNull()) {
             return KnowledgeBaseIndexingStrategy.defaultStrategy();
         }

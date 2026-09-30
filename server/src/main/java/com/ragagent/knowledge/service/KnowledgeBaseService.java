@@ -35,6 +35,10 @@ import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.retrieval.engine.RetrieveEngineFactories;
 import com.ragagent.knowledge.domain.KnowledgeBaseChunkingConfig;
 import com.ragagent.knowledge.domain.KnowledgeBaseImageProcessingConfig;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * （覆盖 CRUD + pin + move-targets + 计数回填；
@@ -128,7 +132,7 @@ public class KnowledgeBaseService {
     public void validateVectorStoreBinding(long tenantId, String storeId) {
         String sanitized = LogSanitizer.sanitize(storeId);
         try {
-            java.util.UUID.fromString(storeId);
+            UUID.fromString(storeId);
         } catch (IllegalArgumentException e) {
             log.warn("[kb.create] vector store id is not a valid UUID: tenant_id={} store_id={}",
                     tenantId, sanitized);
@@ -321,7 +325,7 @@ public class KnowledgeBaseService {
      */
     public List<KnowledgeBase> listKnowledgeBasesByTenantId(long tenantId) {
         List<KnowledgeBase> all = kbMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<KnowledgeBase>()
+                new QueryWrapper<KnowledgeBase>()
                         .eq("tenant_id", tenantId)
                         .eq("is_temporary", false)
                         .isNull("deleted_at")
@@ -426,7 +430,7 @@ public class KnowledgeBaseService {
 
     public KnowledgeBase updateKnowledgeBase(KnowledgeBase existing,
                                              String name, String description,
-                                             com.fasterxml.jackson.databind.JsonNode config) {
+                                             JsonNode config) {
         if (name != null && !name.isEmpty()) {
             existing.setName(name);
         }
@@ -443,7 +447,7 @@ public class KnowledgeBaseService {
         return existing;
     }
 
-    private static void applyUpdateConfig(KnowledgeBase kb, com.fasterxml.jackson.databind.JsonNode config) {
+    private static void applyUpdateConfig(KnowledgeBase kb, JsonNode config) {
         if (config.hasNonNull("chunking_config")) {
             kb.setChunkingConfig(KnowledgeBaseChunkingConfig.from(config.get("chunking_config")));
         }
@@ -470,12 +474,12 @@ public class KnowledgeBaseService {
             kb.setIndexingStrategy(strategy);
             // wiki/graph 联动
             if (kb.getWikiConfig() == null && strategy.isWikiEnabled()) {
-                com.fasterxml.jackson.databind.ObjectMapper m = new com.fasterxml.jackson.databind.ObjectMapper();
+                ObjectMapper m = new ObjectMapper();
                 kb.setWikiConfig(m.createObjectNode());
             }
             if (kb.getExtractConfig() != null && kb.getExtractConfig().isObject()) {
-                com.fasterxml.jackson.databind.node.ObjectNode ec =
-                        (com.fasterxml.jackson.databind.node.ObjectNode) kb.getExtractConfig();
+                ObjectNode ec =
+                        (ObjectNode) kb.getExtractConfig();
                 ec.put("enabled", strategy.isGraphEnabled());
             }
         }

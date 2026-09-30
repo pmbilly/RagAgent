@@ -27,6 +27,8 @@ import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.knowledge.task.KnowledgeTaskProgressStore;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 import com.ragagent.knowledge.storage.TenantStorageService;
+import java.time.Instant;
+import java.util.Objects;
 
 /**
  * 知识库 Move（跨库搬移）worker 面。HTTP 契约 = 立即返回 + 进度查询；
@@ -81,7 +83,7 @@ public class KnowledgeMoveService {
     }
 
     private static long epochNow() {
-        return java.time.Instant.now().getEpochSecond();
+        return Instant.now().getEpochSecond();
     }
 
 
@@ -345,7 +347,7 @@ public class KnowledgeMoveService {
                             + "(source KB " + sourceKbId + ", target KB " + targetKbId
                             + "); use reparse mode");
         }
-        if (!java.util.Objects.equals(row.getEmbeddingModelId(), sourceKb.getEmbeddingModelId())) {
+        if (!Objects.equals(row.getEmbeddingModelId(), sourceKb.getEmbeddingModelId())) {
             throw new IllegalStateException(
                     "knowledge " + knowledgeId + " uses a different embedding model");
         }

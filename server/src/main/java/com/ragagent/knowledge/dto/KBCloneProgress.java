@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.time.Instant;
 
 /** KB 副本克隆进度（轮询用）。 */
 public record KBCloneProgress(
@@ -27,6 +28,6 @@ public record KBCloneProgress(
         int pct = total > 0 ? done * 100 / total : 0;
         return new KBCloneProgress(taskId, sourceId, targetId, status, pct, total, done,
                 "Processed " + done + "/" + total + " clone operations", error, createdAt,
-                java.time.Instant.now().getEpochSecond());
+                Instant.now().getEpochSecond());
     }
 }

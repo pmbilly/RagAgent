@@ -8,6 +8,8 @@ import javax.sql.DataSource;
 import java.time.OffsetDateTime;
 import com.ragagent.common.jdbc.DatabaseDialects;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * knowledge_tags 的写入侧仓储，读路径在 {@link KnowledgeTagMapper}。
@@ -113,8 +115,8 @@ public class KnowledgeTagRepository {
         };
     }
 
-    public java.util.Map<String, long[]> batchCountReferences(long tenantId, String kbId, List<String> tagIds) {
-        java.util.Map<String, long[]> result = new java.util.HashMap<>();
+    public Map<String, long[]> batchCountReferences(long tenantId, String kbId, List<String> tagIds) {
+        Map<String, long[]> result = new HashMap<>();
         for (String id : tagIds) {
             result.put(id, new long[]{0, 0});
         }

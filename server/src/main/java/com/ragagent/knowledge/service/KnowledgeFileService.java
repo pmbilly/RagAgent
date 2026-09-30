@@ -27,6 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ragagent.storage.fileserve.FileTransport.OpenedFile;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 
 /**
  * 知识文件/行写面：manual 知识更新（全列写语义）、文件下载流、图片信息更新与
@@ -104,13 +109,13 @@ public class KnowledgeFileService {
         meta.put("status", normalizedStatus);
         meta.put("version", version);
         meta.put("updated_at", OffsetDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")));
+                .truncatedTo(ChronoUnit.SECONDS)
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")));
 
         if (!safeTitle.isEmpty()) {
             existing.setTitle(safeTitle);
         } else if (existing.getTitle() == null || existing.getTitle().isEmpty()) {
-            existing.setTitle("手工知识-" + java.time.format.DateTimeFormatter
+            existing.setTitle("手工知识-" + DateTimeFormatter
                     .ofPattern("yyyyMMdd-HHmmss").format(OffsetDateTime.now()));
         }
         existing.setFileName(KnowledgeService.ensureManualFileName(existing.getTitle()));
@@ -156,7 +161,7 @@ public class KnowledgeFileService {
                 .set("description", k.getDescription())
                 .set("summary_status", k.getSummaryStatus())
                 .set("metadata", k.getMetadata() == null
-                                ? com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()
+                                ? JsonNodeFactory.instance.objectNode()
                                 : k.getMetadata(),
                         "typeHandler=com.ragagent.common.web.PgJsonTypeHandler")
                 .set("updated_at", k.getUpdatedAt() == null ? OffsetDateTime.now(ZoneOffset.UTC) : k.getUpdatedAt()));
@@ -226,10 +231,10 @@ public class KnowledgeFileService {
             String content = knowledge.getMetadata() != null
                     && knowledge.getMetadata().hasNonNull("content")
                     ? knowledge.getMetadata().get("content").asText() : "";
-            byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
             return new KnowledgeFileStream(sanitizeManualDownloadFilename(knowledge.getTitle()),
                     OpenedFile.ofStream(
-                            new java.io.ByteArrayInputStream(bytes), bytes.length),
+                            new ByteArrayInputStream(bytes), bytes.length),
                     true);
         }
         String filePath = knowledge.getFilePath() == null ? "" : knowledge.getFilePath();
@@ -353,7 +358,7 @@ public class KnowledgeFileService {
         if (fresh != null) {
             String fileHash = LocalStorageService.md5Hex((knowledgeId + (fresh.getFileHash() == null
                     ? "" : fresh.getFileHash()) + imageInfo)
-                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    .getBytes(StandardCharsets.UTF_8));
             knowledgeMapper.update(null, new UpdateWrapper<Knowledge>()
                     .eq("id", fresh.getId())
                     .set("file_hash", fileHash)

@@ -44,6 +44,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.security.KnowledgeRouteGuards;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * 知识文档主面：创建（文件/URL/手工）、列表/详情/批量取、解析生命周期
@@ -148,7 +150,7 @@ public class KnowledgeController {
             throw new BizException(AppError.badRequest("pageSize must be between 1 and 1000"));
         }
         boolean folderPresent = folderPath != null;
-        com.baomidou.mybatisplus.extension.plugins.pagination.Page<Knowledge> result =
+        Page<Knowledge> result =
                 knowledgeService.listKnowledge(
                         kbId, page, pageSize, keyword, parseStatus, fileType, folderPath, folderPresent);
         List<KnowledgeResponse> items = result.getRecords().stream()
@@ -159,7 +161,7 @@ public class KnowledgeController {
 
     /** 文件夹树（结构由数据驱动，保持不透明 JSON 载荷）。 */
     @GetMapping("/knowledge-bases/{id}/knowledge/folders")
-    public ResponseEntity<com.fasterxml.jackson.databind.JsonNode> listFolders(
+    public ResponseEntity<JsonNode> listFolders(
             @PathVariable("id") String kbId) {
         return ResponseEntity.ok(knowledgeService.folderTree(kbId));
     }
@@ -204,7 +206,7 @@ public class KnowledgeController {
 
     /** {@code /stages} 与 {@code /spans} 两个路径同 handler（不透明 JSON 载荷）。 */
     @GetMapping({"/knowledge/{id}/stages", "/knowledge/{id}/spans"})
-    public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> getKnowledgeSpans(
+    public ResponseEntity<ObjectNode> getKnowledgeSpans(
             @PathVariable("id") String id,
             @RequestParam(value = "attempt", required = false) String attempt) {
         String safeId = requireKnowledgeId(id);

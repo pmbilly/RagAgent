@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import com.ragagent.knowledge.domain.Knowledge;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 
 /**
  * 处理管道面向的
@@ -162,7 +163,7 @@ public class SpanTracker {
         }
         try {
             knowledgeMapper.update(null,
-                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Knowledge>()
+                    new UpdateWrapper<Knowledge>()
                             .eq("id", knowledgeId)
                             .set("updated_at", OffsetDateTime.now(ZoneOffset.UTC)));
         } catch (RuntimeException e) {

@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.model.domain.Model;
 import org.springframework.stereotype.Service;
+import java.io.IOException;
 
 /**
  * 最小 OpenAI 兼容 embedding 客户端。
@@ -57,7 +58,7 @@ public class EmbedderClient {
         HttpResponse<String> resp;
         try {
             resp = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             //  %w"（url.Error 含方法与地址）：JDK 裸 ConnectException
             // 常无 message，兜底类名；dial tcp 等传输层内文属已记录的掩码 DIFF 族。
             throw new IllegalStateException(
@@ -87,7 +88,7 @@ public class EmbedderClient {
         return out;
     }
 
-    private static String ioDetail(java.io.IOException e) {
+    private static String ioDetail(IOException e) {
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 

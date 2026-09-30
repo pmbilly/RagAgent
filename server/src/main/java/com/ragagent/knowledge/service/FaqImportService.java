@@ -40,6 +40,11 @@ import com.ragagent.knowledge.dto.FaqEntryPayload;
 import com.ragagent.knowledge.dto.FaqBatchUpsertPayload;
 import com.ragagent.knowledge.dto.FaqEntryFieldsBatchUpdate;
 import com.ragagent.knowledge.dto.FaqEntryFieldsUpdate;
+import com.fasterxml.jackson.core.JacksonException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * FAQ 条目批量导入（upsert）与进度面：append/replace 两种模式的 dry-run 校验、
@@ -936,9 +941,9 @@ public class FaqImportService {
                     .append(isDisabled).append('\n');
         }
         String base = storage.baseDir().toString();
-        java.nio.file.Path dir = java.nio.file.Path.of(base, String.valueOf(tenantId), "exports");
+        Path dir = Path.of(base, String.valueOf(tenantId), "exports");
         String unique = "faq_dryrun_failed_" + taskId + "_" + System.nanoTime() + ".csv";
-        byte[] csv = buf.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] csv = buf.toString().getBytes(StandardCharsets.UTF_8);
         if (fileStorage != null) {
             // fileSvc.SaveBytes(..., temp=true) + GetFileURL → 云上落临时桶、回预签名 URL
             TenantFileStorage.Exported exported =
@@ -952,11 +957,11 @@ public class FaqImportService {
         }
         try {
             // 本地租户：既有落盘 + local:// 引用（契约样例 形态）
-            java.nio.file.Files.createDirectories(dir);
-            java.nio.file.Path target = dir.resolve(unique);
-            java.nio.file.Files.write(target, csv);
+            Files.createDirectories(dir);
+            Path target = dir.resolve(unique);
+            Files.write(target, csv);
             return "local://" + tenantId + "/exports/" + unique;
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             log.warn("FAQ import task {}: failed to generate failed entries CSV: {}", taskId, e.getMessage());
             return null;
         }
@@ -1215,7 +1220,7 @@ public class FaqImportService {
         }
         try {
             return FaqChunkMetadata.JSON.treeToValue(node, FaqImportResult.class);
-        } catch (com.fasterxml.jackson.core.JacksonException e) {
+        } catch (JacksonException e) {
             return null;
         }
     }

@@ -5,6 +5,7 @@ import java.util.List;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.KnowledgeBase;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * FAQ 索引行组装。2026-09-22 走查批接线：此前的
@@ -97,14 +98,14 @@ final class FaqIndexRows {
     }
 
     static String faqIndexMode(KnowledgeBase kb) {
-        com.fasterxml.jackson.databind.JsonNode cfg = kb.getFaqConfig();
+        JsonNode cfg = kb.getFaqConfig();
         String mode = cfg == null ? "" : cfg.path("index_mode").asText("");
         return mode.isEmpty() ? "question_answer" : mode;
     }
 
     /** combined。 */
     static String faqQuestionIndexMode(KnowledgeBase kb) {
-        com.fasterxml.jackson.databind.JsonNode cfg = kb.getFaqConfig();
+        JsonNode cfg = kb.getFaqConfig();
         String mode = cfg == null ? "" : cfg.path("question_index_mode").asText("");
         return mode.isEmpty() ? "combined" : mode;
     }

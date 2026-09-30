@@ -44,6 +44,7 @@ import com.ragagent.apikey.domain.APIKeyScopeContext;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import com.ragagent.storageurl.Mode;
+import java.util.UUID;
 
 /**
  * 知识库 CRUD 与检索入口：列表/详情/更新/删除、置顶、移动目标、混合检索
@@ -277,7 +278,7 @@ public class KnowledgeBaseController {
         }
         boolean create = targetId.isEmpty();
         KnowledgeBase targetKb = new KnowledgeBase();
-        targetKb.setId(java.util.UUID.randomUUID().toString());
+        targetKb.setId(UUID.randomUUID().toString());
         targetKb.setTenantId(caller);
         String creatorId = "";
         if (create) {

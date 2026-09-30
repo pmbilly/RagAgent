@@ -11,6 +11,12 @@ import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import org.springframework.stereotype.Component;
 import com.ragagent.common.jdbc.DatabaseDialects;
 import com.ragagent.knowledge.mapper.ChunkMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import javax.sql.DataSource;
 
 /**
  * FAQ 条目的 chunk 仓储面（FAQ 条目 = chunk_type=faq 的行）：按 seq_id/知识/KB 的
@@ -31,7 +37,7 @@ public class FaqChunkRepository {
     /** 方言（构造期探测一次）：true = postgres。 */
     private final boolean postgres;
 
-    public FaqChunkRepository(ChunkMapper chunkMapper, javax.sql.DataSource dataSource) {
+    public FaqChunkRepository(ChunkMapper chunkMapper, DataSource dataSource) {
         this.chunkMapper = chunkMapper;
         this.postgres = DatabaseDialects.isPostgres(dataSource);
     }
@@ -66,7 +72,7 @@ public class FaqChunkRepository {
      * {@code id, content_hash} 投影（replace 模式 hash 比对用），chunk_type='faq'。
      */
     public List<Chunk> listAllFAQChunksByKnowledgeId(long tenantId, String knowledgeId) {
-        List<Chunk> all = new java.util.ArrayList<>();
+        List<Chunk> all = new ArrayList<>();
         int offset = 0;
         while (true) {
             List<Chunk> batch = chunkMapper.selectList(new QueryWrapper<Chunk>()
@@ -92,7 +98,7 @@ public class FaqChunkRepository {
      * （append 校验/合并只看已索引行）。
      */
     public List<Chunk> listAllFAQChunksWithMetadataByKnowledgeBaseId(long tenantId, String kbId) {
-        List<Chunk> all = new java.util.ArrayList<>();
+        List<Chunk> all = new ArrayList<>();
         int offset = 0;
         while (true) {
             List<Chunk> batch = chunkMapper.selectList(new QueryWrapper<Chunk>()
@@ -137,7 +143,7 @@ public class FaqChunkRepository {
                 .eq("chunk_type", "faq")
                 .in("status", STATUS_DEFAULT, 1, STATUS_INDEXED)
                 .ne("id", excludeChunkId));
-        java.util.Set<String> wanted = new java.util.HashSet<>(questions);
+        Set<String> wanted = new HashSet<>(questions);
         for (Chunk c : candidates) {
             FaqChunkMetadata meta = parseFaqMetadata(c.getMetadata());
             if (meta == null) {
@@ -161,7 +167,7 @@ public class FaqChunkRepository {
      * * {@code id, metadata, tag_id, is_enabled, flags} + status=2 + {@code created_at ASC}。
      */
     public List<Chunk> listAllFAQChunksForExport(long tenantId, String knowledgeId) {
-        List<Chunk> all = new java.util.ArrayList<>();
+        List<Chunk> all = new ArrayList<>();
         int offset = 0;
         while (true) {
             List<Chunk> batch = chunkMapper.selectList(new QueryWrapper<Chunk>()
@@ -215,7 +221,7 @@ public class FaqChunkRepository {
     /**
      * FAQ metadata 列（json 投影）→ {@link FaqChunkMetadata}；解析失败/空 → null
      */
-    public static FaqChunkMetadata parseFaqMetadata(com.fasterxml.jackson.databind.JsonNode node) {
+    public static FaqChunkMetadata parseFaqMetadata(JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode() || node.isEmpty()) {
             return null;
         }
@@ -274,7 +280,7 @@ public class FaqChunkRepository {
         if (excludeIds != null && !excludeIds.isEmpty()) {
             update.notIn("id", excludeIds);
         }
-        update.set("updated_at", java.time.OffsetDateTime.now());
+        update.set("updated_at", OffsetDateTime.now());
         if (isEnabled != null) {
             update.set("is_enabled", isEnabled);
         }

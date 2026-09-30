@@ -14,6 +14,9 @@ import docreader.Docreader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.google.protobuf.ByteString;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * DocReader gRPC 客户端。
@@ -95,7 +98,7 @@ public class DocReaderClient {
             config.setParserEngine(parserEngine);
         }
         Docreader.ReadRequest request = Docreader.ReadRequest.newBuilder()
-                .setFileContent(com.google.protobuf.ByteString.copyFrom(fileContent))
+                .setFileContent(ByteString.copyFrom(fileContent))
                 .setFileName(fileName == null ? "" : fileName)
                 .setFileType(fileType == null ? "" : fileType)
                 .setTitle(title == null ? "" : title)
@@ -114,7 +117,7 @@ public class DocReaderClient {
 
     private ParseResult readStream(Docreader.ReadRequest request) throws Exception {
         List<Docreader.ReadStreamResponse> frames = new ArrayList<>();
-        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        CountDownLatch latch = new CountDownLatch(1);
         StreamObserver<Docreader.ReadStreamResponse> observer =
                 new StreamObserver<>() {
                     @Override
@@ -169,7 +172,7 @@ public class DocReaderClient {
     // ── 系统管理端（收官批）附加能力 ─────────────────────────────────
 
     /** 远端引擎信息。 */
-    public record RemoteEngine(String name, String description, java.util.List<String> fileTypes,
+    public record RemoteEngine(String name, String description, List<String> fileTypes,
                                boolean available, String unavailableReason) {}
 
     /**
@@ -199,7 +202,7 @@ public class DocReaderClient {
                         .build();
                 DocReaderGrpc.DocReaderBlockingStub newBlocking = DocReaderGrpc.newBlockingStub(channel);
                 // 探活：真连一次 ListEngines（空 overrides），失败即判定重连失败
-                newBlocking.withDeadlineAfter(5, java.util.concurrent.TimeUnit.SECONDS)
+                newBlocking.withDeadlineAfter(5, TimeUnit.SECONDS)
                         .listEngines(Docreader.ListEnginesRequest.newBuilder().build());
                 this.blocking = newBlocking;
                 this.asyncStub = DocReaderGrpc.newStub(channel);
@@ -214,14 +217,14 @@ public class DocReaderClient {
      * gRPC ListEngines RPC → 引擎列表。
      * RPC 失败抛 RuntimeException（调用方 fetchRemoteEngines 记 WARN 后回落静态表）。
      */
-    public java.util.List<RemoteEngine> listEngines(java.util.Map<String, String> overrides) {
+    public List<RemoteEngine> listEngines(Map<String, String> overrides) {
         Docreader.ListEnginesRequest.Builder req = Docreader.ListEnginesRequest.newBuilder();
         if (overrides != null) {
             req.putAllConfigOverrides(overrides);
         }
         Docreader.ListEnginesResponse resp = blocking.withDeadlineAfter(30, TimeUnit.SECONDS)
                 .listEngines(req.build());
-        java.util.List<RemoteEngine> result = new ArrayList<>();
+        List<RemoteEngine> result = new ArrayList<>();
         for (Docreader.ParserEngineInfo e : resp.getEnginesList()) {
             result.add(new RemoteEngine(e.getName(), e.getDescription(),
                     e.getFileTypesList(), e.getAvailable(), e.getUnavailableReason()));

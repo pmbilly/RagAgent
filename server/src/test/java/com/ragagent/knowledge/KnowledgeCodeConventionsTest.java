@@ -24,12 +24,13 @@ import org.junit.jupiter.api.Test;
  *
  * <p>规则一览：
  * <ol>
- *   <li>代码体内不得内联全限定类名（{@code com.ragagent.*} 一律走 import）；</li>
+ *   <li>代码体内不得内联全限定类名（**任何**包，含 {@code java.*} / {@code com.fasterxml.*} / {@code jakarta.*} —— 一律走 import）；</li>
  *   <li>不得出现空 JavaDoc（{@code /** *​/}）；</li>
  *   <li>注释不得残留移植期黑话（golden / 波 N / 对照 Go）；</li>
  *   <li>controller 包不得依赖 mapper 包（分层纪律）；</li>
  *   <li>controller 包不得自行开线程（后台任务走 KnowledgeTaskExecutor）；</li>
  *   <li>不得自行 new JdbcTemplate（用容器提供的 bean）。</li>
+ *   <li>不得引入 {@code @JsonInclude} 与逐字段 {@code @JsonProperty}（Go 期遗留已两批清理，勿回流）。</li>
  * </ol>
  */
 class KnowledgeCodeConventionsTest {
@@ -37,9 +38,13 @@ class KnowledgeCodeConventionsTest {
     /** 相对 server 模块根的主源目录。 */
     private static final Path MAIN_ROOT = Path.of("src/main/java/com/ragagent/knowledge");
 
-    private static final Pattern FQN = Pattern.compile("com\\.ragagent\\.[A-Za-z_][\\w.]*");
+    /** 通用全限定类名：≥2 段小写包名后跟大写开头的类型（含 java.* / com.fasterxml.* / jakarta.*）。 */
+    private static final Pattern FQN = Pattern.compile("(?:[a-z][\\w]*\\.){2,}[A-Z]\\w*");
     private static final Pattern EMPTY_JAVADOC = Pattern.compile("/\\*\\*\\s*\\*/");
     private static final Pattern JARGON = Pattern.compile("golden|波\\s*\\d|对照\\s*Go");
+    /** Go 期序列化注解（@JsonPropertyOrder 不匹配：\b 跟在 JsonProperty 后仍是字母）。 */
+    private static final Pattern GO_ERA_ANNOTATION = Pattern.compile("@JsonInclude\\b|@JsonProperty\\b");
+
     private static final Pattern THREAD_START =
             Pattern.compile("Thread\\.ofVirtual\\(|new\\s+Thread\\(");
     private static final Pattern NEW_JDBC_TEMPLATE = Pattern.compile("new\\s+JdbcTemplate\\(");
@@ -93,6 +98,27 @@ class KnowledgeCodeConventionsTest {
         });
         assertTrue(violations.isEmpty(),
                 "以下位置的注释需要改写成人话（或删除空 JavaDoc）：\n" + String.join("\n", violations));
+    }
+
+    @Test
+    @DisplayName("知识库模块：不得引入 @JsonInclude / 逐字段 @JsonProperty（Go 遗留已清理，勿回流）")
+    void noGoEraSerializationAnnotations() throws IOException {
+        List<String> violations = new ArrayList<>();
+        forEachSource((path, lines) -> {
+            for (int i = 0; i < lines.size(); i++) {
+                String trimmed = lines.get(i).trim();
+                if (trimmed.startsWith("*") || trimmed.startsWith("//") || trimmed.startsWith("/*")) {
+                    continue; // 注释/Javadoc 里的说明不算违规
+                }
+                if (GO_ERA_ANNOTATION.matcher(lines.get(i)).find()) {
+                    violations.add(path.getFileName() + ":" + (i + 1) + " → " + trimmed);
+                }
+            }
+        });
+        assertTrue(violations.isEmpty(),
+                "知识库模块已分两批清理 @JsonInclude（38 处）与逐字段 @JsonProperty，且契约政策要求\n"
+                        + "「字段一律显式输出、键名即 Java 字段名」——以下位置请勿回流：\n"
+                        + String.join("\n", violations));
     }
 
     @Test

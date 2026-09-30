@@ -38,6 +38,8 @@ import com.ragagent.knowledge.dto.BatchTaskData;
 import com.ragagent.knowledge.dto.FolderMoveResponse;
 import com.ragagent.knowledge.dto.KnowledgeSearchResponse;
 import com.ragagent.knowledge.dto.ReparseTaskData;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * 知识文档运营操作面：跨库搜索、批量删除/重析、批量标签、跨 KB 搬移与进度、
@@ -307,7 +309,7 @@ public class KnowledgeOperationsController {
             throw new BizException(AppError.badRequest(e.getMessage()));
         }
         // dedupe + 空白拒绝 + 归属/状态校验（两句话前后依赖，不能合并）
-        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        Set<String> seen = new LinkedHashSet<>();
         for (String id : req.knowledgeIds()) {
             if (id.trim().isEmpty()) {
                 throw new BizException(AppError.badRequest("Knowledge ID cannot be empty"));

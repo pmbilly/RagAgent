@@ -6,6 +6,16 @@ import java.util.List;
 import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.common.text.TextConv;
+import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Locale;
 
 /**
  * FAQ 条目在 {@code chunks.metadata}（jsonb）中的结构——**落库 JSON 即契约**，
@@ -24,25 +34,25 @@ public class FaqChunkMetadata {
     /**
      * 本仓约定 第 6 条——历史行/新增字段不能让整行读不出来）。
      */
-    public static final com.fasterxml.jackson.databind.ObjectMapper JSON =
-            new com.fasterxml.jackson.databind.ObjectMapper()
-                    .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
-                    .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
+    public static final ObjectMapper JSON =
+            new ObjectMapper()
+                    .registerModule(new JavaTimeModule())
+                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
                             false);
 
     /** 从 chunks.metadata 的 JsonNode 解析；null/空 → null。 */
-    public static FaqChunkMetadata fromJson(com.fasterxml.jackson.databind.JsonNode node) {
+    public static FaqChunkMetadata fromJson(JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode() || node.isEmpty()) {
             return null;
         }
         try {
             return JSON.treeToValue(node, FaqChunkMetadata.class);
-        } catch (com.fasterxml.jackson.core.JacksonException e) {
+        } catch (JacksonException e) {
             return null;
         }
     }
 
-    public com.fasterxml.jackson.databind.node.ObjectNode toJsonNode() {
+    public ObjectNode toJsonNode() {
         return JSON.valueToTree(this);
     }
 
@@ -142,15 +152,15 @@ public class FaqChunkMetadata {
                 + "|" + String.join(",", negative)
                 + "|" + String.join(",", answers);
         try {
-            java.security.MessageDigest digest =
-                    java.security.MessageDigest.getInstance("SHA-256");
+            MessageDigest digest =
+                    MessageDigest.getInstance("SHA-256");
             StringBuilder hex = new StringBuilder();
-            for (byte b : digest.digest(joined.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            for (byte b : digest.digest(joined.getBytes(StandardCharsets.UTF_8))) {
                 hex.append(Character.forDigit((b >> 4) & 0xF, 16));
                 hex.append(Character.forDigit(b & 0xF, 16));
             }
             return hex.toString();
-        } catch (java.security.NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
     }
@@ -173,7 +183,7 @@ public class FaqChunkMetadata {
             return "";
         }
         q = trimUrl(q);
-        q = q.toLowerCase(java.util.Locale.ROOT);
+        q = q.toLowerCase(Locale.ROOT);
         // cutset 逐字节？。，；、：+ ASCII 双引号 x2 + ！?.,;!:' + ASCII 双引号 x2
         q = trimCutset(q, "？。，；、：\"\"！?.,;!:'\"\"");
         q = TextConv.toSimplified(q);

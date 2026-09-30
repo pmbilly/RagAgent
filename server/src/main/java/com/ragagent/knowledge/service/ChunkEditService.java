@@ -19,6 +19,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.security.ChunkAccessGuard;
 import com.ragagent.searchutil.ChunkSearchUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import java.nio.charset.StandardCharsets;
 
 /**
  * chunk 版本化编辑面：乐观锁更新的编辑/回滚/修订历史、软删除、图片子块联动与父内容重建，
@@ -94,7 +96,7 @@ public class ChunkEditService {
             if (newContent.isEmpty()) {
                 throw new IllegalStateException("chunk content cannot be empty");
             }
-            if (newContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_EDITABLE_CHUNK_LENGTH) {
+            if (newContent.getBytes(StandardCharsets.UTF_8).length > MAX_EDITABLE_CHUNK_LENGTH) {
                 throw new IllegalStateException("chunk content exceeds " + MAX_EDITABLE_CHUNK_LENGTH + " bytes");
             }
         }
@@ -395,7 +397,7 @@ public class ChunkEditService {
 
     /** 未软删的 knowledge 行（租户过滤）。 */
     private Knowledge findKnowledgeRow(long tenantId, String id) {
-        return knowledgeMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Knowledge>()
+        return knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getId, id)
                 .eq(Knowledge::getTenantId, tenantId)
                 .isNull(Knowledge::getDeletedAt)

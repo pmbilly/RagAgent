@@ -35,6 +35,17 @@ import com.ragagent.knowledge.dto.KnowledgeMoveProgress;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * （覆盖 file/url/manual 创建、分页列表、get/update/delete、folders；
@@ -134,7 +145,7 @@ public class KnowledgeService {
     public KnowledgeBase requireKb(String kbId) {
         // KB 受限的 API Key 不能触碰白名单外的库。
         TenantAPIKeyScope.authorizeKnowledgeBases(
-                kbId == null ? java.util.List.of() : java.util.List.of(kbId));
+                kbId == null ? List.of() : List.of(kbId));
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
                 .eq(KnowledgeBase::getTenantId, tenantId())
@@ -386,16 +397,16 @@ public class KnowledgeService {
 
     private static byte[] fetchUrl(String url) {
         try {
-            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
-                    .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
-                    .connectTimeout(java.time.Duration.ofSeconds(30))
+            HttpClient client = HttpClient.newBuilder()
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .connectTimeout(Duration.ofSeconds(30))
                     .build();
-            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(url))
-                    .timeout(java.time.Duration.ofMinutes(2))
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofMinutes(2))
                     .GET()
                     .build();
-            var resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            var resp = client.send(req, HttpResponse.BodyHandlers.ofByteArray());
             if (resp.statusCode() / 100 != 2) {
                 throw new BizException(AppError.badRequest("failed to fetch URL: HTTP " + resp.statusCode()));
             }
@@ -445,7 +456,7 @@ public class KnowledgeService {
         // 按 knowledgeId 操作的端点，
         // 用其所属 KB 做 scope 校验（KB 受限的 Key 不得越界）。
         TenantAPIKeyScope.authorizeKnowledgeBases(
-                java.util.List.of(k.getKnowledgeBaseId()));
+                List.of(k.getKnowledgeBaseId()));
         // 回填 tags（knowledge_tag_relations 连接查；
         // 无关系 → 保持 null，与 契约样例 "tags":null 一致）
         attachTags(k);
@@ -516,8 +527,8 @@ public class KnowledgeService {
 
     /** 同包开放（KnowledgeSpanService 渲染 span 时间戳复用，不各自复制）。 */
     static String timeString(OffsetDateTime v) {
-        return v.atZoneSameInstant(java.time.ZoneId.systemDefault()).toOffsetDateTime()
-                .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        return v.atZoneSameInstant(ZoneId.systemDefault()).toOffsetDateTime()
+                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
     /** title/description(指针)/custom_metadata 部分更新 */
@@ -655,7 +666,7 @@ public class KnowledgeService {
             }
         }
         // 收集 + 校验标签
-        java.util.Set<String> tagIDSet = new java.util.TreeSet<>();
+        Set<String> tagIDSet = new TreeSet<>();
         for (List<String> tagIDs : updates.values()) {
             for (String tagID : tagIDs) {
                 if (tagID != null && !tagID.isEmpty()) {
@@ -663,7 +674,7 @@ public class KnowledgeService {
                 }
             }
         }
-        Map<String, KnowledgeTag> tagMap = new java.util.HashMap<>();
+        Map<String, KnowledgeTag> tagMap = new HashMap<>();
         if (!tagIDSet.isEmpty()) {
             List<KnowledgeTag> tags = tagMapper.selectByTenantAndIds(tenantId, List.copyOf(tagIDSet));
             for (KnowledgeTag tag : tags) {
@@ -700,7 +711,7 @@ public class KnowledgeService {
         if (tagIDs == null || tagIDs.isEmpty()) {
             return;
         }
-        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        Set<String> seen = new LinkedHashSet<>();
         for (String tagID : tagIDs) {
             if (tagID != null && !tagID.isEmpty() && seen.add(tagID)) {
                 tagMapper.insertRelation(knowledgeId, tagID);

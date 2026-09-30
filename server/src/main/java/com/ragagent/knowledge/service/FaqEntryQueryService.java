@@ -29,6 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.security.FaqGuard;
 import com.ragagent.knowledge.dto.FaqSearchRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * FAQ 条目查询面：分页列表、详情、导出（CSV/JSON）与混合检索。
@@ -234,7 +236,7 @@ public class FaqEntryQueryService {
             };
             buf.append(String.join(",", row)).append('\n');
         }
-        return buf.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return buf.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     private byte[] buildFAQJSON(List<Chunk> chunks, Map<String, String> tagMap) {
@@ -261,7 +263,7 @@ public class FaqEntryQueryService {
         }
         try {
             return FaqChunkMetadata.JSON.writeValueAsBytes(entries);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException(e);
         }
     }

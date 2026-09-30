@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.ragagent.common.error.AppError;
+import java.util.Comparator;
 
 /**
  * 本地存储引擎。
@@ -125,7 +126,7 @@ public class LocalStorageService {
             return;
         }
         try (var stream = Files.walk(dir)) {
-            stream.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+            stream.sorted(Comparator.reverseOrder()).forEach(p -> {
                 try {
                     Files.delete(p);
                 } catch (IOException e) {
