@@ -13,7 +13,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
  * KB 与 agent 约束的匹配判定、检索租户推导与调用方读权限判定。
  *
  * <p>依赖两个：{@code SessionKnowledgeQaService service}（宿主）与 {@link QaModelSelection}
- * （刀 8 已迁走的 findKb/findKnowledgeBase 等按 {@code modelSelection.} 转发）。门面对每个搬走成员留一行
+ * （依赖只有宿主 service）。门面对每个搬走成员留一行
  * 薄委托，宿主与同族调用点零改动。</p>
  */
 final class QaKbScope {
@@ -22,11 +22,8 @@ final class QaKbScope {
             org.slf4j.LoggerFactory.getLogger(QaKbScope.class);
 
     private final SessionKnowledgeQaService service;
-    private final QaModelSelection modelSelection;
-
-    QaKbScope(SessionKnowledgeQaService service, QaModelSelection modelSelection) {
+    QaKbScope(SessionKnowledgeQaService service) {
         this.service = service;
-        this.modelSelection = modelSelection;
     }
 
     public List<String> resolveKnowledgeBasesFromAgent(

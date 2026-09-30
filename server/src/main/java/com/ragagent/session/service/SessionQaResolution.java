@@ -306,7 +306,7 @@ final class SessionQaResolution {
 
 
             this.modelSelection = new QaModelSelection(service);
-        this.kbScope = new QaKbScope(service, this.modelSelection);
+        this.kbScope = new QaKbScope(service);
         this.mentionTagScope = new QaMentionTagScope(service, this.kbScope);
         this.chatOverrides = new QaChatManageOverrides(service);
         this.searchTargets = new QaSearchTargets(service, this.kbScope);
