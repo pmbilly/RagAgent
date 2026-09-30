@@ -520,6 +520,23 @@ javadoc 改文字陈述）；随刀清理失效 import（Spotless 兜底）。
 **结果**：`ImService` 1,445→**664**（出榜）；im/service 包 7 类全部 <800（最大 ImStreamPipeline 415）；
 全仓 ≥800 类 36→**35**。字段放宽面：JSON/channels/channelSessions/sessionService/messageService/
 knowledgeQaService/agentQaService/storageResolver/inflight（协作者经 `service.` 访问）。
+
+#### 14.7.5 retrieval 适配器批侦察（2026-10-01，下一批；§14.3 实测 9 个 ≥800）
+
+**形似度确认**：各引擎仓都有清晰的注释段边界（写入/删除/复制批量/迁移 move/检索/惰性初始化/探针/
+过滤构造），沿注释拆即可，不需要重新设计。测试床每引擎都有（459~1,163 行）：
+doris 3 文件 / elasticsearch 2 / milvus 3 / qdrant 1 / sqlite 2 / tencentvectordb 3 / weaviate 3 / opensearch 1。
+
+**重复式刀序（每引擎同构，一轮可复制）**：
+1. 刀 E1「检索簇」→ `XxxSearchOps`（检索/查询构造段；最大段，通常 300~500 行）；
+2. 刀 E2「写入删除簇」→ `XxxWriteOps`（写入/删除/批量更新段）；
+3. 刀 E3「管理簇」→ `XxxAdminOps`（集合管理/迁移/复制/惰性初始化/探针段）；
+4. 门面保 `RetrieveEngineRepository` 端口面（接口实现 + 引擎面 engineType/support/testConnection）——
+   方法签名是端口契约，**只改体内委托**；构造器签名不动（Spring 装配 + EngineFactory 反射面）。
+
+**注意**：`HybridSearchService` 1,260 不在引擎仓族里（域根的混合检索编排），单独侦察后处理，
+不套引擎刀序；`PgVectorRetrieveRepository` 已 <800 不进批。动手前按 §13.1 对**第一个引擎**（建议 sqlite-459 测试最小，
+或 opensearch-最大）做全量成员清单侦察，验证刀序后复制到其余 8 个。
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
@@ -542,6 +559,20 @@ knowledgeQaService/agentQaService/storageResolver/inflight（协作者经 `servi
 **进度（2026-10-01）**
 - 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview。
 - 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面。
+
+**存量表（2026-10-01 盘点实测，§14.9 第 1 步交付物；只读扫描，三分法甄别）**
+
+`@JsonProperty` 全仓 1,978 处 / 221 文件，**不是都是债**：
+
+| 类别 | 量级 | 处置 |
+|---|---|---|
+| ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
+| ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~1,100 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / model 78 / wiki 39（ingest 落库载荷，§14.8 预告）/ evaluation 62 | 按域推进，一域一 PR 同批带前端 |
+
+`@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
+`@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
+Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端调用点"细清单（§14.9 执行顺序第 3 步的入场检查）。
 
 **执行顺序（关键约束）**
 1. **先做清单盘点**（低风险、只读）：按域扫出「未换锚端点 + 对应前端调用点 + 涉及的 Go 序列化残留（注解 / jsr310 / NON_NULL / Problem Details 引用）」，
