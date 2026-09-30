@@ -683,6 +683,27 @@
   rerank 阈值）与 `MessageServiceChatHistoryIndexTest`（5 例：入 KB）正是这条簇的验收，抽取后**零改动全绿**。
 - 收尾：环 0/1/6 不变；全量绿 + `spotlessCheck` 绿（用例数口径见 §11.16）。
 
+## 11.18 session 步骤 2 第五刀：MessageSuggestionService 拆出无状态管道（2026-09-30）
+
+| | 前 | 后 |
+|---|---|---|
+| `MessageSuggestionService` | 1,088 | **601**（跌出 ≥800 神类榜） |
+| `MessageSuggestionPipeline`（新，同包） | — | **513** |
+
+- **切片边界**：`buildSuggestionGenerationContext` 起、`resolveLanguage` 止的**全静态管道**（输入侧
+  上下文装配 / 轮次分组 / 历史渲染 / 证据抽取；输出侧解析 / 合并 / 相关性排序 / 文本规范化），
+  连同 `ConversationTurn` 与 8 个常量（三个正则块、四个预算、`JSON_MAPPER`）。唯一读实例字段的
+  `buildGenerationContext`（10 行，取最近消息）留在门面并由它调用新类——新类因此**零依赖、
+  无构造器、无字段**。
+- **跨簇共享类型的处置（沿用 §14.9 先例）**：`GenerationContext` 与 `Evidence` 两个 record 被门面
+  （ensure/generate）与新类共读 → **留在门面**，新类 import 其嵌套类型；`MODE_HYBRID` 与 `strVal`
+  门面也在用 → 留门面（前者放宽为包内常量、后者放宽为包内静态），新类按类名引用；反向的
+  `modeVal`/`intVal`/`strList`/`emptySuggestionSection` 被门面调用 → 放宽为包内可见。
+- **忠实性核验**：27 个成员 + 8 个常量块**逐字一致**（本批是纯搬迁、零改写）。
+- 测试：`MessageSuggestionGenerateTest`（10 例，钉的正是这条管道）11 处限定名改指新类，
+  record 引用保持不变，全绿。
+- 收尾：环 0/1/6 不变；全量 + `spotlessCheck` 绿。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -946,5 +967,5 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 ### 14.9 session 步骤 2 半程（2026-09-30）
 
 - SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
-- **余五神类**（已出榜：TemporaryDocumentService 1,075 → 860 §11.15、AgentStreamBridge 853 → 697 §11.16、MessageService 1,028 → 510 §11.17）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 860。
+- **余四神类**（已出榜：TemporaryDocumentService 1,075 → 860 §11.15、AgentStreamBridge 853 → 697 §11.16、MessageService 1,028 → 510 §11.17、MessageSuggestionService 1,088 → 601 §11.18）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、TemporaryDocumentService 860。
 - 教训:切片协作者时 record(MentionScope/SearchTargetView)容易随 take 溢出/误限定——**record 一律留在门面**(测试与外部直引面),协作者经门面限定引用;声明行误加 service. 前缀的恢复统一按"4 空格缩进+修饰符开头"行匹配(勿对调用点盲替)。
