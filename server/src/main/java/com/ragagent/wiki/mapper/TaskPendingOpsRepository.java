@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>本仓储对消费语义<b>保持无知</b>：{@code (TaskType, Scope, ScopeID)} 三元组是它
  * 唯一理解的路由原语；去重、批处理与重试策略都住在消费方
- * （{@link com.ragagent.wiki.service.WikiIngestService}）。</p>
+ * （{@link com.ragagent.wiki.service.ingest.WikiIngestService}）。</p>
  *
  * <h2>两种消费原语的并存</h2>
  * <ul>

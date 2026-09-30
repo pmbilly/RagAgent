@@ -17,7 +17,7 @@ import com.ragagent.agent.tools.WikiContentRewrite;
 import com.ragagent.agent.tools.WikiScope;
 import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.domain.WikiPageNotFoundException;
-import com.ragagent.wiki.service.WikiPageService;
+import com.ragagent.wiki.service.page.WikiPageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -68,8 +68,8 @@ import com.ragagent.wiki.domain.WikiIndexEntry;
 import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.domain.WikiPageIssue;
 import com.ragagent.wiki.domain.WikiPageNotFoundException;
-import com.ragagent.wiki.service.WikiEditContext;
-import com.ragagent.wiki.service.WikiPageService;
+import com.ragagent.wiki.service.page.WikiEditContext;
+import com.ragagent.wiki.service.page.WikiPageService;
 
 /**
  * agent 引擎检索工具族的接缝适配（2026-09-23 接线批）。

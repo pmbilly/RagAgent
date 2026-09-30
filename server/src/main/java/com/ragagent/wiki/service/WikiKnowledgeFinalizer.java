@@ -1,4 +1,5 @@
 package com.ragagent.wiki.service;
+import com.ragagent.wiki.service.ingest.WikiIngestService;
 
 /**
  * 知识文档的「wiki 子任务已终结」记账端口。

@@ -11,7 +11,7 @@ import com.ragagent.wiki.domain.TaskDeadLetter;
 import com.ragagent.wiki.domain.TaskPendingOp;
 import com.ragagent.wiki.mapper.TaskDeadLetterRepository;
 import com.ragagent.wiki.mapper.TaskPendingOpsRepository;
-import com.ragagent.wiki.service.WikiIngestConstants;
+import com.ragagent.wiki.service.ingest.WikiIngestConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

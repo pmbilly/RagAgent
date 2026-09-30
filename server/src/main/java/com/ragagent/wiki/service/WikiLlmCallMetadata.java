@@ -1,4 +1,5 @@
 package com.ragagent.wiki.service;
+import com.ragagent.wiki.service.ingest.SingleFlight;
 
 /**
  * LLM 调用的记账元数据：由 {@code generateWithTemplate} 设置，

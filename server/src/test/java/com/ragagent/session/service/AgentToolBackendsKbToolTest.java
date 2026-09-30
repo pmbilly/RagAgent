@@ -27,7 +27,7 @@ import com.ragagent.memory.service.MemoryService;
 import com.ragagent.retrieval.HybridSearchService;
 import com.ragagent.session.domain.MessageSearchGroupItem;
 import com.ragagent.session.domain.MessageSearchResult;
-import com.ragagent.wiki.service.WikiPageService;
+import com.ragagent.wiki.service.page.WikiPageService;
 
 /**
  * 工具接线钉（2026-09-23 接线批：切片 1 KB 五件 + 切片 2a 会话/记忆/DB 三件）。

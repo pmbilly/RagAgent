@@ -3,6 +3,7 @@ package com.ragagent.wiki.service;
 import java.util.List;
 
 import com.ragagent.knowledge.domain.Chunk;
+import com.ragagent.wiki.service.ingest.WikiIngestService;
 
 /**
  * 把图片的 OCR / caption 文本内联进文档正文的可插拔端口。
