@@ -612,6 +612,31 @@
   ② 本次拆开 4（`chatpipeline`/`event` §11.11 + `embedding`/`rerank` 本节）；
   ③ 余 3（`stream`/`modelcontext`/`config`）判定单一职责、**保持扁平**；`agent/tools` 待 agent 域重构时按能力分组。
 
+## 11.15 session 步骤 2 第二刀：TemporaryDocumentService 的 prompt 切片（2026-09-30）
+
+§14.9b 的侦察落成（当时因工装失手中止，本次按它的结论"逐成员人工搬运"，不用行区间脚本）：
+
+| | 前 | 后 |
+|---|---|---|
+| `TemporaryDocumentService` | 1,075 | 门面 **860** + `TemporaryDocumentPromptResolver` **271** |
+
+- **搬走**（协作者只持 `repo` 一个引用）：`resolveForPrompt` + 选块/词元/图片一族
+  `selectContent`/`queryTerms`/`parseChunks`/`imageUrlsOf`/`isVisualDocumentQuery`/
+  `countOccurrences`/`isHan`/`intOf`/`strOf` + 两个内部 record（`ContentSelection`/`DocumentChunk`）
+  + 5 个提示词常量（`PROMPT_BUDGET_TOKENS`/`PROMPT_INLINE_TOKENS`/`MAX_PROMPT_PARTS`/`MAX_IMAGE_URLS`/
+  `VISUAL_QUERY_MARKERS`）。
+- **与 §14.9b 表的差异（按调用点实测修正）**：`isImageFormat`/`readJsonArray` 是**双用**
+  （存储/删除路径也在调）→ 留门面（`readJsonArray` 由 private 放宽为包内可见），协作者按类名调用；
+  `isIconImage`/`extFromMime`/`MIN_IMAGE_DIMENSION`/`MIN_IMAGE_BYTES`/`IMAGE_EXTENSIONS` **切片内零调用**
+  → 也留门面（侦察表把它们当"专用助手"是闭包算宽了）。**切片边界要用调用点核，别用名字猜。**
+- 对外 API 面不动：`PromptResult`/`AttachmentResolveException`/`MAX_ATTACHMENTS_PER_MESSAGE` 留门面
+  （测试与 `KnowledgeQaController` 直引），门面 `resolveForPrompt` 改薄委托，类注释记一句"已拆至 …"。
+- **忠实性核验（本次收口手法，值得复用）**：`git show HEAD:<门面>` 抽旧方法体 + 新文件抽同名方法，
+  归一化空白与 `TemporaryDocumentService.` 限定前缀后逐字比对——10 个方法 **9 个逐字一致**、
+  1 个仅换行差异（`throw new AttachmentResolveException(...)` 的折行）。比"看 diff"更硬。
+- 测试：`TemporaryDocumentResolveForPromptTest` 只改 10 处限定名（4 个纯函数按类名点 resolver）；
+  环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -840,7 +865,11 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **跨包缝合点(git grep 实测,15 文件)**:chatpipeline×6、embed×2、evaluation/im/memory×3、storage×2 消费 session 类型;session 出向依赖 retrieval.SearchResult(10)/event.EventBus/agent.AgentStep(5)/knowledge 服务族。
 - **C 波工作清单(自 wip 提交说明整理)**:20 实体+2 落库类型约 200 处注解;SessionController 8 键+3 解封+4 去 success;SteerController 11 键;KnowledgeQaController 2 处;删除/清空类端点 204;43 个 session-*/sug-* fixture;前端 93 键约 200+ 处读取(与 SSE 信封同名,切片③同批)。
 
-### 14.9b session 步骤 2 下一刀：TemporaryDocumentService 的 prompt 切片（2026-09-30 侦察，未实施）
+### 14.9b session 步骤 2 下一刀：TemporaryDocumentService 的 prompt 切片（2026-09-30 已实施，见 §11.15）
+
+**状态：已实施**——照本文结论"逐成员人工复制到新文件、再从门面删"做的；实施中按**调用点**修正了
+切片边界（`isImageFormat`/`readJsonArray` 双用留门面；`isIconImage`/`MIN_IMAGE_*`/`IMAGE_EXTENSIONS`
+切片内零调用也留），见 §11.15。本文保留侦察表与坑清单作为历史（第一轮中止的教训仍适用）。
 
 **结论：本批中止**（工装三次失手，见下"坑"）——现场已恢复，`git status` 干净。
 下次做这一刀时**别用行区间脚本抽取**，改"逐成员人工复制到新文件、再从门面删"（成员少、肉眼可校）。
@@ -871,5 +900,5 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 ### 14.9 session 步骤 2 半程（2026-09-30）
 
 - SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
-- **余七神类**:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 1,075、MessageService 1,028、AgentStreamBridge 853。
+- **余七神类**（TemporaryDocumentService 已切 prompt 切片：1,075 → 860，见 §11.15）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 860、MessageService 1,028、AgentStreamBridge 853。
 - 教训:切片协作者时 record(MentionScope/SearchTargetView)容易随 take 溢出/误限定——**record 一律留在门面**(测试与外部直引面),协作者经门面限定引用;声明行误加 service. 前缀的恢复统一按"4 空格缩进+修饰符开头"行匹配(勿对调用点盲替)。
