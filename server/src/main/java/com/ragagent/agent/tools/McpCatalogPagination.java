@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.McpCatalog.McpDiscoveryArgs;
 import com.ragagent.agent.tools.McpCatalog.McpServerSummary;
 import com.ragagent.agent.tools.McpCatalog.McpToolSummary;

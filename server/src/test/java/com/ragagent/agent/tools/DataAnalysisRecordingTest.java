@@ -2,8 +2,6 @@ package com.ragagent.agent.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.ByteArrayOutputStream;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.DataAnalysisTool.AnalysisDuckDb;
 import com.ragagent.agent.tools.DataAnalysisTool.KnowledgeData;
 import com.ragagent.agent.tools.DataAnalysisTool.KnowledgeFileMaterializer;

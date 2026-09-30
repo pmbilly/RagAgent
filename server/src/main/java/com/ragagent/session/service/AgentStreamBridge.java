@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.agent.tools.ToolResultPersist;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventType;

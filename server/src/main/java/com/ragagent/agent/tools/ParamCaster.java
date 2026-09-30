@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import com.ragagent.common.web.GoJsonCodec;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**

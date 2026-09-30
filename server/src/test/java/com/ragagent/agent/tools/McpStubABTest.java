@@ -11,7 +11,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.mcp.domain.McpService;
 import com.ragagent.mcp.protocol.McpClient;

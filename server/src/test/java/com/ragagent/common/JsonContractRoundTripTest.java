@@ -16,7 +16,7 @@ import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.agent.domain.ToolCall;
 import com.ragagent.agent.domain.ToolCallTarget;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyCreateResponse;
 import com.ragagent.datasource.domain.DataSource;

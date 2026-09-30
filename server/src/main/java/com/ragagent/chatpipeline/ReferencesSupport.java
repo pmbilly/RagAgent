@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.modelcontext.Registry;
 import com.ragagent.common.retrieval.SearchResult;

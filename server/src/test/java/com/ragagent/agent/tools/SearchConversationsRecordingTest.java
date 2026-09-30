@@ -10,7 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 
 /**
  * SearchConversationsTool 的 Go 实录回放（7 条）。output 逐字比对；limit/owner 断言

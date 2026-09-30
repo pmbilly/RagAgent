@@ -6,7 +6,7 @@ import java.util.Map;
 
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.agent.domain.ToolCall;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 
 /**
  * 工具结果的客户端/存储投影。

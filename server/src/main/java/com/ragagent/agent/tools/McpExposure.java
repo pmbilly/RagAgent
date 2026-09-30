@@ -286,7 +286,7 @@ public final class McpExposure {
     }
 
     /** 为展示序列化 MCP 工具结果。 */
-    public static String serializeMcpToolResult(com.ragagent.agent.domain.ToolResult result) throws Exception {
+    public static String serializeMcpToolResult(com.ragagent.common.llm.ToolResult result) throws Exception {
         if (result == null) {
             throw new IllegalArgumentException("result is nil");
         }

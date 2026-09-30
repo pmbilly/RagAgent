@@ -1,4 +1,4 @@
-package com.ragagent.agent.tools;
+package com.ragagent.common.web;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -8,7 +8,6 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 紧凑 JSON 编码器（参数转型后重新序列化整棵 args 用），输出遵循四条规则：
@@ -22,6 +21,10 @@ import com.ragagent.common.web.GoDoubleSerializer;
  *
  * <p>整型（cast 出的 int64）按十进制直写；U+2028/29 转义为 \u2028/\u2029
  * （本 writer 是手写的，不受 Jackson CharacterEscapes 够不到非 ASCII 的限制）。</p>
+ *
+ * <p>与同包的 {@link GoJsonMarshal} 同源：后者是宽松版（可读缩进/转义开关），
+ * 本类是紧凑版（键序 + 浮点形态 + HTML 转义恒开），被工具参数重编码与
+ * modelcontext 复用——原先落在 {@code agent.tools} 时被 modelcontext 反向依赖。</p>
  */
 public final class GoJsonCodec {
 
@@ -94,8 +97,14 @@ public final class GoJsonCodec {
         }
     }
 
-    /** 字符串编码（HTML 转义 + 小写十六进制控制字符 + U+2028/29）。 */
-    static void writeString(String s, StringBuilder sb) {
+    /**
+     * 字符串字面量编码（连引号一起写）：HTML 转义（{@code < > &}）+ 小写十六进制控制字符
+     * + U+2028/29。
+     *
+     * <p>公开给"自行拼装 JSON 但要求逐字节同形态"的调用方（如 agent 的 issue 视图）；
+     * 整棵树编码请直接用 {@link #write(JsonNode)}。</p>
+     */
+    public static void writeString(String s, StringBuilder sb) {
         sb.append('"');
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);

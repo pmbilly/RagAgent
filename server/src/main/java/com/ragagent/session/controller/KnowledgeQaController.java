@@ -1269,7 +1269,7 @@ public class KnowledgeQaController {
                     call.setId("pipeline:" + data.getToolCallId());
                     call.setName(data.getToolName());
                     call.setArgs(args);
-                    com.ragagent.agent.domain.ToolResult result = new com.ragagent.agent.domain.ToolResult();
+                    com.ragagent.common.llm.ToolResult result = new com.ragagent.common.llm.ToolResult();
                     result.setSuccess(data.isSuccess());
                     result.setOutput(data.getOutput());
                     result.setError(data.getError());

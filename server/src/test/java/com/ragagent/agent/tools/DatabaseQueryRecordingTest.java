@@ -17,7 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.DatabaseQueryTool.QueryResult;
 import com.ragagent.agent.tools.DatabaseQueryTool.SqlQueryExecutor;
 

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.common.web.GoJsonCodec;
 
 /**
  * GoJsonCodec 的 Go 实录语料（9 条：把 JSON 解析成树再按 Go json.Marshal

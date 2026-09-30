@@ -8,7 +8,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.DataAnalysisTool;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.llm.domain.ChatMessage;

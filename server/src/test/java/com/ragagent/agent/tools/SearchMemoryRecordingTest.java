@@ -3,13 +3,11 @@ package com.ragagent.agent.tools;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
 
 /**
  * SearchMemoryTool 的 Go 实录回放（6 条：hits/limit_clamp/limit_zero/disabled/empty/blank_query）。

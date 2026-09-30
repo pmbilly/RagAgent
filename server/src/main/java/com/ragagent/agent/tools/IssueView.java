@@ -3,6 +3,8 @@ package com.ragagent.agent.tools;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.ragagent.common.web.GoJsonCodec;
+
 /** agent wiki 工具的 issue seam 视图。 */
 
     /** issue 视图（时间字段以 RFC3339 文本透传保证逐字节输出）。 */

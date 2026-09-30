@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 import static com.ragagent.modelcontext.GoRecording46A.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.agent.tools.GoJsonCodec;
+import com.ragagent.common.llm.ToolResult;
+import com.ragagent.common.web.GoJsonCodec;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatTool;
 import com.ragagent.llm.domain.FunctionCall;

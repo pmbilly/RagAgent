@@ -1,4 +1,4 @@
-package com.ragagent.agent.domain;
+package com.ragagent.common.llm;
 
 import java.util.List;
 import java.util.Map;
@@ -7,7 +7,11 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * 一次工具执行的结果。
+ * 一次工具执行的结果——**工具调用协议的共享载荷**：agent 侧工具执行器产出、
+ * modelcontext 侧打包进模型消息、chatpipeline/session 侧消费。
+ *
+ * <p>为什么在 {@code common/llm}：与 {@code ResponseType} 同为跨域契约（原先在
+ * {@code agent.domain} 时被 modelcontext 反向依赖，构成 agent ⇄ modelcontext 环）。</p>
  *
  * <p>字段序即线上契约，不要重排。{@code outputFiles} 是**运行时**字段
  * （沙箱引用；历史用最终答案的持久资源引用）——故 {@code @JsonIgnore}。</p>

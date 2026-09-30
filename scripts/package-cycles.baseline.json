@@ -1,10 +1,6 @@
 {
   "cycles": [
     [
-      "agent",
-      "modelcontext"
-    ],
-    [
       "chatpipeline",
       "session"
     ]
@@ -32,10 +28,6 @@
     [
       "chatpipeline",
       "websearch"
-    ],
-    [
-      "modelcontext",
-      "agent"
     ],
     [
       "retrieval",

@@ -1,5 +1,6 @@
 package com.ragagent.agent.domain;
 
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 

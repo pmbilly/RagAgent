@@ -15,7 +15,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.approval.EnabledChecker;
 import com.ragagent.common.approval.McpApproval;
 import com.ragagent.common.approval.ToolPolicy;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.mcp.domain.McpService;
 
 /**

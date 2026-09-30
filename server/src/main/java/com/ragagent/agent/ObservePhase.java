@@ -383,7 +383,7 @@ final class ObservePhase {
         if (args == null) {
             return "null";
         }
-        return com.ragagent.agent.tools.GoJsonCodec.write(JSON.valueToTree(ActPhase.deepSortedGoMap(args)));
+        return com.ragagent.common.web.GoJsonCodec.write(JSON.valueToTree(ActPhase.deepSortedGoMap(args)));
     }
 
     /** 工具图片随结果消息走（工具结果图片的 VLM 描述内联在图片富化回调里）。 */

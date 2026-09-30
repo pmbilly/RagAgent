@@ -1,7 +1,7 @@
 package com.ragagent.agent.tools;
 
 
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 
 /**
  * 绑定一个授权目录与 schema 的模型可见定义。它的定义虽然预先广告过，也<b>不得</b>

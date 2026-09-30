@@ -1,12 +1,10 @@
 package com.ragagent.chatpipeline;
 
-import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.DataAnalysisSessionBridge;
 import com.ragagent.agent.tools.DataAnalysisTool;
-import com.ragagent.knowledge.domain.Knowledge;
 
 /**
  * DataAnalysisSessionFactory 的 chatpipeline 侧实现（波 4.6d 新增文件——

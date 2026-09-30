@@ -14,7 +14,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.llm.ToolResult;
 
 /**
  * data_analysis 工具。

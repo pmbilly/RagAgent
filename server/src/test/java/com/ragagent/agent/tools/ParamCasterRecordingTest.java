@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.common.web.GoJsonCodec;
 
 /**
  * ParamCaster 的 Go 实录判定表（29 条，探针原样调用 Go {@code CastParams}）。

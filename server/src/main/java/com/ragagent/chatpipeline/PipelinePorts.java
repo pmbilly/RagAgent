@@ -187,7 +187,7 @@ public final class PipelinePorts {
         com.ragagent.agent.tools.DataAnalysisTool.TableSchema loadFromKnowledge(
                 com.ragagent.agent.tools.DataAnalysisTool.KnowledgeData knowledge);
 
-        com.ragagent.agent.domain.ToolResult execute(JsonNode args);
+        com.ragagent.common.llm.ToolResult execute(JsonNode args);
 
         void cleanup();
     }

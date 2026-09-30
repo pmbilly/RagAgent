@@ -8,7 +8,8 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.llm.ToolResult;
 
 /**
  * database_query 工具。
