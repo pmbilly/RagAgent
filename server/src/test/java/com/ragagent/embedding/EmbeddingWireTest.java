@@ -20,8 +20,8 @@ import com.ragagent.llm.limiter.ConcurrencyGovernor;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * embedding 客户端的 stub server A/B：请求体/路径/头部与 Go 实录（/tmp 录制，
@@ -454,7 +454,7 @@ class EmbeddingWireTest {
         p.setCustomHeaders(Map.of("X-Gateway", "g1"));
         m.setParameters(p);
 
-        EmbedderConfig cfg = EmbedderConfig.configFromModel(m, "app", "secret");
+        EmbedderConfig cfg = ModelRuntimeConfigs.embedderConfig(m, "app", "secret");
         assertEquals("emb-1", cfg.getModelId());
         assertEquals("text-embedding-3-small", cfg.getModelName());
         assertEquals(1536, cfg.getDimensions());
@@ -466,7 +466,7 @@ class EmbeddingWireTest {
         assertEquals("secret", cfg.getAppSecret());
 
         assertNull(cfg.getCustomHeaders() == null ? null : null);
-        assertEquals(EmbedderConfig.configFromModel(null, "a", "b").getModelId(), "");
+        assertEquals(ModelRuntimeConfigs.embedderConfig(null, "a", "b").getModelId(), "");
     }
 
     // ── 并发治理（对照 concurrency_wrapper_test.go 的语义）──────────

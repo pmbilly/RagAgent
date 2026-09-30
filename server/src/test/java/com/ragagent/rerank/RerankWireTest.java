@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.security.SsrfGuard;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * rerank 客户端的 stub server A/B：请求体与 Go 实录（wire/*.json）逐字节比对 +
@@ -621,7 +622,7 @@ class RerankWireTest {
         p.setCustomHeaders(Map.of("X-Gateway", "g1"));
         m.setParameters(p);
 
-        RerankerConfig c = RerankerConfig.configFromModel(m, "app", "secret");
+        RerankerConfig c = ModelRuntimeConfigs.rerankerConfig(m, "app", "secret");
         assertEquals("rr-9", c.getModelId());
         assertEquals("rerank-model", c.getModelName());
         assertEquals("https://api.example.com/v1", c.getBaseUrl());
@@ -631,6 +632,6 @@ class RerankWireTest {
         assertEquals("g1", c.getCustomHeaders().get("X-Gateway"));
         assertEquals("app", c.getAppId());
         assertEquals("secret", c.getAppSecret());
-        assertNull(RerankerConfig.configFromModel(null, "a", "b"));
+        assertNull(ModelRuntimeConfigs.rerankerConfig(null, "a", "b"));
     }
 }

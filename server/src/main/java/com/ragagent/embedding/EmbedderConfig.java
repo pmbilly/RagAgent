@@ -2,7 +2,6 @@ package com.ragagent.embedding;
 
 import java.util.Map;
 
-import com.ragagent.model.domain.Model;
 
 /**
  * embedder 构造配置（对照 Go {@code embedding.Config}，embedder.go L43-61）。
@@ -33,33 +32,7 @@ public final class EmbedderConfig {
     public EmbedderConfig() {
     }
 
-    /**
-     * 对照 {@code ConfigFromModel}（embedder.go L66-86）：生产路径（从 DB 拉起）与
-     * 测试连接路径（临时表单）共享这份映射。appID/appSecret 是已解密的
-     * WeKnoraCloud 凭证，调用方负责传入。
-     */
-    public static EmbedderConfig configFromModel(Model m, String appId, String appSecret) {
-        EmbedderConfig c = new EmbedderConfig();
-        if (m == null) {
-            return c;
-        }
-        var p = m.getParameters();
-        c.source = m.getSource() == null ? "" : m.getSource();
-        c.baseUrl = p == null ? "" : p.getBaseUrl();
-        c.apiKey = p == null ? "" : p.getApiKey();
-        c.modelId = m.getId() == null ? "" : m.getId();
-        c.modelName = m.getName() == null ? "" : m.getName();
-        c.dimensions = p == null ? 0 : p.getEmbeddingParameters().getDimension();
-        c.supportsDimensionOverride = p != null && p.getEmbeddingParameters().isSupportsDimensionOverride();
-        c.truncatePromptTokens = p == null ? 0 : p.getEmbeddingParameters().getTruncatePromptTokens();
-        c.provider = p == null ? "" : p.getProvider();
-        c.maxConcurrency = p == null ? 0 : p.getMaxConcurrency();
-        c.extraConfig = p == null ? null : p.getExtraConfig();
-        c.customHeaders = p == null ? null : p.getCustomHeaders();
-        c.appId = appId;
-        c.appSecret = appSecret;
-        return c;
-    }
+
 
     public String getSource() { return source; }
     public void setSource(String v) { source = v == null ? "" : v; }

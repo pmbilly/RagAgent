@@ -17,10 +17,6 @@
       "session"
     ],
     [
-      "embedding",
-      "model"
-    ],
-    [
       "initialization",
       "knowledge"
     ],
@@ -46,19 +42,11 @@
     ],
     [
       "llm",
-      "model"
-    ],
-    [
-      "llm",
       "retrieval"
     ],
     [
       "memory",
       "session"
-    ],
-    [
-      "model",
-      "rerank"
     ],
     [
       "model",
@@ -90,20 +78,8 @@
       "websearch"
     ],
     [
-      "embedding",
-      "model"
-    ],
-    [
-      "llm",
-      "model"
-    ],
-    [
       "modelcontext",
       "agent"
-    ],
-    [
-      "rerank",
-      "model"
     ],
     [
       "retrieval",

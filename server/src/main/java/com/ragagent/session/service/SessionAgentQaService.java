@@ -42,6 +42,7 @@ import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.UsedMemory;
 
 import static com.ragagent.session.service.SessionKnowledgeQaService.SearchTargetView;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * agent 问答 service 面（对照 Go session_agent_qa.go 全文 + agent_history.go 的
@@ -1139,7 +1140,7 @@ public class SessionAgentQaService {
             return null;
         }
         var p = model.getParameters();
-        var config = com.ragagent.llm.domain.ChatConfig.fromModel(model,
+        var config = ModelRuntimeConfigs.chatConfig(model,
                 p == null ? null : p.getAppId(), p == null ? null : p.getAppSecret());
         // ⚠️ 2026-09-23 修复：governor/ollama 曾传 null——并发闸门装配（95a49c4）后
         // ConcurrencyChatClient 必调 gateNamedN，agent 路径任何 LLM 调用都会 NPE。
@@ -1150,7 +1151,7 @@ public class SessionAgentQaService {
     private Reranker rerankModel(String modelId) {
         var model = modelService.getModelByID(modelId);
         var p = model == null ? null : model.getParameters();
-        var config = com.ragagent.rerank.RerankerConfig.configFromModel(model,
+        var config = ModelRuntimeConfigs.rerankerConfig(model,
                 p == null ? null : p.getAppId(), p == null ? null : p.getAppSecret());
         return com.ragagent.rerank.RerankerFactory.newReranker(config);
     }

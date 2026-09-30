@@ -32,29 +32,7 @@ public class ChatConfig {
     public ChatConfig() {
     }
 
-    /**
-     * 按 types.Model 构造 ChatConfig（对照 Go ConfigFromModel）。
-     * appId / appSecret 是已解密/解析好的 WeKnoraCloud 凭证，调用方负责传入。
-     */
-    public static ChatConfig fromModel(com.ragagent.model.domain.Model m, String appId, String appSecret) {
-        if (m == null) {
-            return null;
-        }
-        com.ragagent.model.domain.ModelParameters p = m.getParameters();
-        ChatConfig c = new ChatConfig();
-        c.modelId = m.getId();
-        c.apiKey = p == null ? null : p.getApiKey();
-        c.baseUrl = p == null ? null : p.getBaseUrl();
-        c.modelName = m.getName();
-        c.source = m.getSource();
-        c.provider = p == null ? null : p.getProvider();
-        c.maxConcurrency = p == null ? 0 : p.getMaxConcurrency();
-        c.extraConfig = p == null ? null : p.getExtraConfig();
-        c.customHeaders = p == null ? null : p.getCustomHeaders();
-        c.appId = appId;
-        c.appSecret = appSecret;
-        return c;
-    }
+
 
     public String getSource() { return source; }
     public void setSource(String v) { source = v; }

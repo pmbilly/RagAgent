@@ -19,7 +19,6 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.chat.LlmChatClients;
-import com.ragagent.llm.domain.ChatConfig;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.limiter.ConcurrencyGovernor;
@@ -28,10 +27,10 @@ import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.rerank.RerankerFactory;
-import com.ragagent.rerank.RerankerConfig;
 import com.ragagent.embedding.Embedder;
 import com.ragagent.embedding.EmbedderConfig;
 import com.ragagent.embedding.EmbedderFactory;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * 模型连通性测试端点用例（remote/embedding/rerank/asr/multimodal）与测试模型装配、SSRF 校验、密钥解密机制。
@@ -80,7 +79,7 @@ public final class ModelConnectivityTestService {
         String message;
         try {
             LlmChatClient chat = LlmChatClients.create(
-                    ChatConfig.fromModel(model, creds[0], creds[1]), ollamaService, concurrencyGovernor);
+                    ModelRuntimeConfigs.chatConfig(model, creds[0], creds[1]), ollamaService, concurrencyGovernor);
             ChatOptions opts = new ChatOptions();
             opts.setMaxTokens(1);
             opts.setThinking(Boolean.FALSE); // for dashscope.aliyuncs qwen3-32b
@@ -130,7 +129,7 @@ public final class ModelConnectivityTestService {
             throw new BizException(AppError.badRequest("空间信息未找到"));
         }
         Model model = buildTestModel(r, "Embedding", "remote");
-        EmbedderConfig config = EmbedderConfig.configFromModel(model, creds[0], creds[1]);
+        EmbedderConfig config = ModelRuntimeConfigs.embedderConfig(model, creds[0], creds[1]);
         Embedder emb;
         try {
             // pooler：单文本 embed 不触达批路径
@@ -169,7 +168,7 @@ public final class ModelConnectivityTestService {
         boolean available;
         String message;
         try {
-            var config = RerankerConfig.configFromModel(model, appID, appSecret);
+            var config = ModelRuntimeConfigs.rerankerConfig(model, appID, appSecret);
             var reranker = RerankerFactory.newReranker(config);
             var results = reranker.rerank("ping", List.of("pong"));
             int count = results == null ? 0 : results.size();
@@ -534,7 +533,7 @@ public final class ModelConnectivityTestService {
                 }
             }
         }
-        return LlmChatClients.create(ChatConfig.fromModel(model, appID, appSecret),
+        return LlmChatClients.create(ModelRuntimeConfigs.chatConfig(model, appID, appSecret),
                 ollamaService, concurrencyGovernor);
     }
 

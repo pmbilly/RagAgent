@@ -13,6 +13,7 @@ import com.ragagent.model.domain.ModelParameters;
 import com.ragagent.model.service.ModelService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * {@link MemoryModelResolver} 的默认实现：把 Go 的 {@code modelService.GetChatModel} /
@@ -53,7 +54,7 @@ public class DefaultMemoryModelResolver implements MemoryModelResolver {
     public LlmChatClient getChatModel(String modelId) {
         Model model = modelService.getModelByID(modelId);
         ModelParameters p = model.getParameters();
-        ChatConfig config = ChatConfig.fromModel(model,
+        ChatConfig config = ModelRuntimeConfigs.chatConfig(model,
                 p == null ? null : p.getAppId(),
                 p == null ? null : p.getAppSecret());
         return LlmChatClients.create(config, ollamaService.getIfAvailable(), concurrencyGovernor);

@@ -8,18 +8,15 @@ import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.embedding.Embedder;
-import com.ragagent.embedding.EmbedderConfig;
 import com.ragagent.embedding.EmbedderFactory;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.chat.LlmChatClients;
-import com.ragagent.llm.domain.ChatConfig;
 import com.ragagent.llm.limiter.ConcurrencyGovernor;
 import com.ragagent.llm.ollama.OllamaService;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;
 import com.ragagent.model.service.ModelService.ModelNotFoundException;
 import com.ragagent.rerank.Reranker;
-import com.ragagent.rerank.RerankerConfig;
 import com.ragagent.rerank.RerankerFactory;
 import com.ragagent.retrieval.vlm.VlmClient;
 import org.slf4j.Logger;
@@ -78,7 +75,7 @@ public class ModelRuntimeFactory {
             // C 批：langfuse generation 装饰（对照 Go NewChat 末段的 wrapChatLangfuse；
             // 管理器未启用时原样返回，零成本）
             return com.ragagent.tracing.langfuse.LangfuseChatClient.wrap(
-                    LlmChatClients.create(ChatConfig.fromModel(model, creds[0], creds[1]),
+                    LlmChatClients.create(ModelRuntimeConfigs.chatConfig(model, creds[0], creds[1]),
                             ollamaService.getIfAvailable(), concurrencyGovernor));
         } catch (BizException e) {
             throw new RuntimeException(e.appError().message());
@@ -95,7 +92,7 @@ public class ModelRuntimeFactory {
             // C 批：langfuse generation 装饰（对照 Go NewEmbedder 末段的 wrapEmbedderLangfuse）
             return com.ragagent.tracing.langfuse.LangfuseEmbedder.wrap(
                     EmbedderFactory.newEmbedder(
-                            EmbedderConfig.configFromModel(model, creds[0], creds[1]),
+                            ModelRuntimeConfigs.embedderConfig(model, creds[0], creds[1]),
                             null, ollamaService.getIfAvailable(), concurrencyGovernor));
         } catch (BizException e) {
             throw new RuntimeException(e.appError().message());
@@ -111,7 +108,7 @@ public class ModelRuntimeFactory {
             // C 批：langfuse generation 装饰（对照 Go NewReranker 末段的 wrapRerankerLangfuse）
             return com.ragagent.tracing.langfuse.LangfuseReranker.wrap(
                     RerankerFactory.newReranker(
-                            RerankerConfig.configFromModel(model, creds[0], creds[1])));
+                            ModelRuntimeConfigs.rerankerConfig(model, creds[0], creds[1])));
         } catch (BizException e) {
             throw new RuntimeException(e.appError().message());
         }
@@ -136,7 +133,7 @@ public class ModelRuntimeFactory {
      */
     public VlmClient.VlmConfig vlmConfigFor(Model model) {
         String[] creds = resolveWeKnoraCloudCredentials(model.getParameters());
-        VlmClient.VlmConfig config = VlmClient.configFromModel(model, creds[0], creds[1]);
+        VlmClient.VlmConfig config = ModelRuntimeConfigs.vlmConfig(model, creds[0], creds[1]);
         if (config.isWeKnoraCloud()) {
             if (creds[0].isEmpty()) {
                 throw new RuntimeException("WeKnoraCloud VLM: AppID is required");

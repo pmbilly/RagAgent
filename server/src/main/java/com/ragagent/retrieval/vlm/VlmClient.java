@@ -63,24 +63,7 @@ public final class VlmClient {
         }
     }
 
-    /** 对照 ConfigFromModel（vlm.go L46-75）。 */
-    public static VlmConfig configFromModel(com.ragagent.model.domain.Model m, String appId,
-            String appSecret) {
-        if (m == null) {
-            return null;
-        }
-        var p = m.getParameters();
-        String ifType = p == null ? "" : p.getInterfaceType();
-        if (ifType == null || ifType.isEmpty()) {
-            ifType = "local".equals(m.getSource()) ? "ollama" : "openai";
-        }
-        Map<String, String> extra = p == null ? Map.of()
-                : new LinkedHashMap<>(p.getExtraConfig() == null ? Map.of() : p.getExtraConfig());
-        return new VlmConfig(m.getSource(), p == null ? "" : p.getBaseUrl(),
-                m.getName(), p == null ? "" : p.getApiKey(), m.getId(), ifType,
-                p == null ? "" : p.getProvider(), extra, appId == null ? "" : appId,
-                appSecret == null ? "" : appSecret);
-    }
+
 
     private VlmClient() {
     }

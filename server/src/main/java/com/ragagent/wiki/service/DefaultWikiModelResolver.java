@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * {@link WikiModelResolver} 的默认实现：用 Java 侧已有的部件拼出 chat / embedding 模型。
@@ -55,7 +56,7 @@ public class DefaultWikiModelResolver implements WikiModelResolver {
     public LlmChatClient getChatModel(String modelId) {
         Model model = modelService.getModelByID(modelId);
         ModelParameters p = model.getParameters();
-        ChatConfig config = ChatConfig.fromModel(model,
+        ChatConfig config = ModelRuntimeConfigs.chatConfig(model,
                 p == null ? null : p.getAppId(),
                 p == null ? null : p.getAppSecret());
         return LlmChatClients.create(config, ollamaService.getIfAvailable(), concurrencyGovernor);

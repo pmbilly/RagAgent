@@ -58,7 +58,7 @@
 
 **守卫（已入库）**：`python3 scripts/check-package-cycles.py` —— **环只许减不许增**（基线
 `scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
-当前基线（2026-09-30 批 4a 后）：**环 16 组 / 依赖 `config` 的包 1 个 / 能力层→业务层直连 14 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
+当前基线（2026-09-30 批 4b 后）：**环 13 组 / 依赖 `config` 的包 1 个 / 能力层→业务层直连 11 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
 
 ### P1 扁平包 10 个（无子包，靠文件名找东西）
 
@@ -145,7 +145,7 @@ system websearch favorite evaluation common config event stream tracing`。
 |---|---|
 | 批 1 解环·配置/工具归位（A+B） | ✅ **已执行（2026-09-30）：环 32 → 24（−8）**；顶层 −3；依赖 `config` 的包 5 → 1；L2→L3 直连 18 → 14 |
 | 批 2 解环·端口化（C） | **已完成（环 17，批 2 全部收口）**：已完成 `AgentPromptPlaceholders`→`common/prompt`（消 `agent ⇄ knowledge`，环 24→23）；③-c `auth ⇄ storage`（`StorageAllowList`→`common/storage`；`StorageBackendProvisioner` 命令端口，106 行 env→实体映射收回存储域）；③-d `auth ⇄ knowledge`（`KnowledgeBaseProvisioner` 命令端口：隐藏 KB 的实体语义收回知识域）；余下：① `session ⇄ storage`——✅ **已完成（2026-09-30，环 22）**：端口载荷收窄 + `Rewriter` 消息段搬到会话侧；原「前半已完成」：`FileAccessResolver` 的端口载荷已收窄为 storage 侧 `MessageFileFacts`（会话侧 `factsOf` 映射）；**后半待做**：`storage/support/Rewriter` 的消息段（第 334–437 行）仍 import `Message`/`MessageImage`，建议整段搬到会话侧（见 HANDOFF §11.9）；② `audit ⇄ knowledge` **已完成**（`KnowledgeBaseGateway` 只读端口）；`auth ⇄ knowledge/storage` 各加窄接口（**`auth ⇄ memory` 已完成**：`MemoryConfig`/`MemoryKinds`/`MemoryKeys` 下沉 `common/settings`）（**`auth ⇄ system` 已完成**：`SystemSettingRegistry` 下沉 `common/settings` + 新增只读端口 `SystemSettingGateway`，由 system 侧实现）|
-| 批 4 大项解环（④） | **进行中（环 16）**：④-a `agent ⇄ mcp` **已完成**——`ResponseType`（18 文件共享的事件契约枚举）→ `common/llm`；`agent/approval`（共享审批机制，1,861 行）→ `common/approval`，MCP 专用的 `Adapter`/`McpToolPolicySource` 下沉 `mcp/service`；余下：`embedding`/`rerank`/`llm ⇄ model`（`Model` 类型越界）等 |
+| 批 4 大项解环（④） | **进行中（环 13）**：④-a `agent ⇄ mcp` **已完成**——`ResponseType`（18 文件共享的事件契约枚举）→ `common/llm`；`agent/approval`（共享审批机制，1,861 行）→ `common/approval`，MCP 专用的 `Adapter`/`McpToolPolicySource` 下沉 `mcp/service`；④-b **能力层配置去实体化**：5 个配置类的 `fromModel(Model)` 映射收回 `model/service/ModelRuntimeConfigs`（消 `embedding`/`llm`/`model⇄rerank` 三组环，直连 14→11）；余下：`retrieval/HybridSearchService`（`Model`+`ModelService` 越界）、`initialization ⇄ model`、`knowledge ⇄ model` 等 |
 | 批 3 解环·传值 + 伴生类型（D+E） | provider 客户端只依赖配置值；引擎伴生类型归位 |
 | P1/P2 分包子包 | 上表的域内二级结构 |
 | P3 小修 | 2 个放错包的文件归位；5 个控制器改走服务层；wiki 2 处反向依赖反转 |

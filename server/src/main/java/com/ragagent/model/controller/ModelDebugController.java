@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * 模型调试端点（对照 Go {@code internal/handler/model.go} 的 {@code DebugModel}
@@ -192,7 +193,7 @@ public class ModelDebugController {
         chatOpts.setThinking(opts.thinking);
 
         // 对照 chat.ConfigFromModel(model, "", "") + EffectiveThinkingControl
-        ChatConfig chatConfig = ChatConfig.fromModel(model, "", "");
+        ChatConfig chatConfig = ModelRuntimeConfigs.chatConfig(model, "", "");
         String thinkingControl = effectiveThinkingControl(chatConfig);
         observations.put("stream", true);
         observations.put("requested_thinking", opts.thinking != null && opts.thinking);

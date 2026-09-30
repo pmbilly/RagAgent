@@ -2,7 +2,6 @@ package com.ragagent.rerank;
 
 import java.util.Map;
 
-import com.ragagent.model.domain.Model;
 
 /**
  * reranker 构造配置（对照 Go {@code rerank.RerankerConfig}）。
@@ -26,28 +25,7 @@ public final class RerankerConfig {
     public RerankerConfig() {
     }
 
-    /**
-     * 对照 {@code ConfigFromModel}（reranker.go L98-114）：生产/测试连接路径共享。
-     * 返回 null 对照 Go 的 {@code (nil) }（m == nil → nil config）。
-     */
-    public static RerankerConfig configFromModel(Model m, String appId, String appSecret) {
-        if (m == null) {
-            return null;
-        }
-        RerankerConfig c = new RerankerConfig();
-        var p = m.getParameters();
-        c.modelId = m.getId() == null ? "" : m.getId();
-        c.apiKey = p == null ? "" : p.getApiKey();
-        c.baseUrl = p == null ? "" : p.getBaseUrl();
-        c.modelName = m.getName() == null ? "" : m.getName();
-        c.source = m.getSource() == null ? "" : m.getSource();
-        c.provider = p == null ? "" : p.getProvider();
-        c.extraConfig = p == null ? null : p.getExtraConfig();
-        c.customHeaders = p == null ? null : p.getCustomHeaders();
-        c.appId = appId;
-        c.appSecret = appSecret;
-        return c;
-    }
+
 
     public String getApiKey() { return apiKey == null ? "" : apiKey; }
     public void setApiKey(String v) { apiKey = v == null ? "" : v; }

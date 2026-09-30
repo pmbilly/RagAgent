@@ -367,6 +367,14 @@
    `Adapter`/`McpToolPolicySource` 下沉 `mcp/service`（它们原先替审批包保管 mcp 的行类型）；测试包 9 文件同步搬。
    搬完 `common/approval` 对 agent/mcp/llm **零依赖**。`ToolPolicy.enabledToolsIndividually`（原包私有）放宽为 public（跨包调用）。
    验证：全量 4,550 绿 + spotless + 守卫（16/1/14）。
+
+   ✅ **④-b 能力层配置类去实体化 已完成（2026-09-30，环 16 → 13）**：轴 =「配置类不得持有业务实体 `Model`」。
+   5 处 `fromModel(Model)` 静态工厂（`embedding/EmbedderConfig`、`rerank/RerankerConfig`、`llm/provider/Config`、
+   `llm/domain/ChatConfig`、`retrieval/vlm/VlmClient`——**后两个藏在全限定写法里**）的映射体逐字搬入
+   `model/service/ModelRuntimeConfigs`（新家在最上层域；调用方本就依赖 model），配置类只留纯值字段、不再 import `Model`。
+   跨类后私有字段直写改 setter（35 处；各处 setter 的 null 归一与原赋值等价，wire 测试逐字段断言通过）。
+   效果：消 `embedding ⇄ model`、`llm ⇄ model`、`model ⇄ rerank`；**L2→L3 直连 14 → 11**；
+   `model ⇄ retrieval` 只剩 `retrieval/HybridSearchService`（`Model` + `ModelService` 真业务用法，另案）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

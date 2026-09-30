@@ -4,8 +4,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.ragagent.common.error.BizException;
-import com.ragagent.model.domain.Model;
 
 /**
  * 对照 Go provider.Config（provider.go），json tag 逐字段对齐：
@@ -32,28 +30,5 @@ public record Config(
         modelId = modelId == null ? "" : modelId;
     }
 
-    /**
-     * 对照 Go NewConfigFromModel（provider.go）：
-     * provider 为空则用 BaseURL 探测；Go 返回 error("model is nil") → Java 抛 BizException。
-     *
-     * ⚠️ 差异点：Go 对"非空但未知"的 provider 字符串原样保留，Java 枚举承载不了未知值，
-     * fromValue 返回 null 时此处会改用 DetectProvider 探测（对已知厂商名行为完全一致）。
-     */
-    public static Config fromModel(Model model) {
-        if (model == null) {
-            throw BizException.badRequest("model is nil");
-        }
-        ProviderName providerName = ProviderName.fromValue(model.getParameters().getProvider());
-        if (providerName == null) {
-            // 对照 Go: if providerName == "" { providerName = DetectProvider(...) }
-            providerName = ProviderRegistry.detectProvider(model.getParameters().getBaseUrl());
-        }
-        return new Config(
-                providerName,
-                model.getParameters().getBaseUrl(),
-                model.getParameters().getApiKey(),
-                model.getName(),
-                model.getId(),
-                null);
-    }
+
 }

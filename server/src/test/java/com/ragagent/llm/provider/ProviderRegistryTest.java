@@ -17,6 +17,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import com.ragagent.common.error.BizException;
 import com.ragagent.model.domain.Model;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * 对照 Go internal/models/provider/provider_test.go（TestProviderRegistry / TestDetectProvider /
@@ -260,7 +261,7 @@ class ProviderRegistryTest {
         model.getParameters().setBaseUrl("https://api.openai.com/v1");
         model.getParameters().setApiKey("sk-test");
 
-        Config detected = Config.fromModel(model);
+        Config detected = ModelRuntimeConfigs.providerConfig(model);
         assertEquals(ProviderName.OPENAI, detected.provider());
         assertEquals("https://api.openai.com/v1", detected.baseUrl());
         assertEquals("sk-test", detected.apiKey());
@@ -269,8 +270,8 @@ class ProviderRegistryTest {
 
         // provider 显式填写时以它为准（不做 URL 探测）
         model.getParameters().setProvider("deepseek");
-        assertEquals(ProviderName.DEEPSEEK, Config.fromModel(model).provider());
+        assertEquals(ProviderName.DEEPSEEK, ModelRuntimeConfigs.providerConfig(model).provider());
 
-        assertThrows(BizException.class, () -> Config.fromModel(null));
+        assertThrows(BizException.class, () -> ModelRuntimeConfigs.providerConfig(null));
     }
 }

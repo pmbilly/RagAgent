@@ -63,6 +63,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * MCP 服务 HTTP 层（对照 Go internal/handler/mcp_service.go 的 MCPServiceHandler，
@@ -775,7 +776,7 @@ public class McpServiceController {
     /** 对照 Go {@code modelService.GetChatModel(ctx, id)} 的实例构造部分 */
     private LlmChatClient chatClientFor(Model model) {
         var p = model.getParameters();
-        ChatConfig config = ChatConfig.fromModel(model,
+        ChatConfig config = ModelRuntimeConfigs.chatConfig(model,
                 p == null ? null : p.getAppId(),
                 p == null ? null : p.getAppSecret());
         return LlmChatClients.create(config, ollamaService.orElse(null), concurrencyGovernor);

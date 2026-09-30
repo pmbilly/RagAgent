@@ -55,6 +55,7 @@ import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.websearch.service.WebSearchService;
+import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
  * chat 管线 + QA 面装配（波 4.6d；docs/known-issues/05-wave-4.md 原 §9「波 4.6c 补充」的 11 seam 清单）。
@@ -107,7 +108,7 @@ public class QaWiring {
                     return null;
                 }
                 var p = model.getParameters();
-                ChatConfig config = ChatConfig.fromModel(model,
+                ChatConfig config = ModelRuntimeConfigs.chatConfig(model,
                         p == null ? null : p.getAppId(),
                         p == null ? null : p.getAppSecret());
                 return LlmChatClients.create(config, ollamaService.getIfAvailable(), concurrencyGovernor);
@@ -120,7 +121,7 @@ public class QaWiring {
                     return null;
                 }
                 var p = model.getParameters();
-                RerankerConfig config = RerankerConfig.configFromModel(model,
+                RerankerConfig config = ModelRuntimeConfigs.rerankerConfig(model,
                         p == null ? null : p.getAppId(),
                         p == null ? null : p.getAppSecret());
                 return RerankerFactory.newReranker(config);
