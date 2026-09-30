@@ -15,7 +15,6 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.ragagent.agent.compaction.CompactionSettings;
 import com.ragagent.agent.compaction.Compactor;
@@ -35,8 +34,6 @@ import com.ragagent.event.EventBus;
 import com.ragagent.event.EventIds;
 import com.ragagent.event.EventType;
 import com.ragagent.llm.LlmChatClient;
-import com.ragagent.llm.domain.ChatMessage;
-import com.ragagent.llm.domain.ChatTool;
 import com.ragagent.llm.domain.FunctionDef;
 import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.modelcontext.Registry;
@@ -74,7 +71,6 @@ public class AgentEngine {
 
     private static final Logger log = LoggerFactory.getLogger(AgentEngine.class);
 
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     /** agent.execute span 输入里 query 的预览上限。 */
     private static final int LANGFUSE_QUERY_PREVIEW = 2000;

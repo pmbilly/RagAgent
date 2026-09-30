@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.ragagent.agent.domain.AgentState;
 import com.ragagent.agent.domain.AgentStep;
@@ -29,7 +28,6 @@ final class FinalizePhase {
 
     private static final Logger log = LoggerFactory.getLogger(FinalizePhase.class);
 
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final AgentEngine engine;
 

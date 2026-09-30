@@ -65,7 +65,7 @@ public class InitializationController {
             TenantService tenantService, CryptoService cryptoService) {
         this.configService = new InitializationConfigService(kbGuard, kbService, kbMapper, knowledgeMapper, modelService, ssrfGuard);
         this.ollamaManage = new OllamaManageService(ollamaService, downloadTasks);
-        this.modelTest = new ModelConnectivityTestService(kbService, kbMapper, knowledgeMapper, modelService, ssrfGuard, ollamaService, concurrencyGovernor, tenantService, cryptoService, asrTranscriber, documentReader);
+        this.modelTest = new ModelConnectivityTestService(modelService, ssrfGuard, ollamaService, concurrencyGovernor, tenantService, cryptoService, asrTranscriber, documentReader);
         this.textTest = new TextExtractionTestService(extractPrompts, modelTest);
     }
 

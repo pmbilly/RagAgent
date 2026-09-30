@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.ragagent.agent.tools.KnowledgeSearchTool.RankResult;
 import com.ragagent.agent.tools.KnowledgeSearchTool.ResultWithMeta;
@@ -16,12 +14,9 @@ import com.ragagent.agent.tools.KnowledgeSearchTool.SearchResultView;
 
 import static com.ragagent.agent.tools.KnowledgeSearchTool.nz;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class KnowledgeSearchRanking {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeSearchRanking.class);
 
     private final KnowledgeSearchTool tool;
 

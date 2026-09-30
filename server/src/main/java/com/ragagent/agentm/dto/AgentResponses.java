@@ -238,20 +238,7 @@ public final class AgentResponses {
         m.put(field, sm);
     }
 
-    private static com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy zeroStrategy() {
-        return new com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy();
-    }
 
-    private static JsonNode parse(String raw) {
-        if (raw == null || raw.isEmpty()) {
-            return null;
-        }
-        try {
-            return MAPPER.readTree(raw);
-        } catch (Exception e) {
-            return null;
-        }
-    }
 
     private static List<String> strList(JsonNode n) {
         if (n == null || n.isNull()) {

@@ -12,19 +12,14 @@ import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.agent.tools.DocChunkSupport.ImageInfoView;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Chunk;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.ragagent.agent.tools.KnowledgeSearchTool.ResultWithMeta;
 
 import static com.ragagent.agent.tools.KnowledgeSearchTool.nz;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class KnowledgeSearchOutputFormatter {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeSearchOutputFormatter.class);
 
     private final KnowledgeSearchTool tool;
 

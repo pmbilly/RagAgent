@@ -17,9 +17,6 @@ import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.SsrfGuard;
-import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
-import com.ragagent.knowledge.mapper.KnowledgeMapper;
-import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.chat.LlmChatClients;
 import com.ragagent.llm.domain.ChatConfig;
@@ -45,9 +42,6 @@ public final class ModelConnectivityTestService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final KnowledgeBaseService kbService;
-    private final KnowledgeBaseMapper kbMapper;
-    private final KnowledgeMapper knowledgeMapper;
     private final ModelService modelService;
     private final SsrfGuard ssrfGuard;
     private final OllamaService ollamaService;
@@ -57,10 +51,7 @@ public final class ModelConnectivityTestService {
     private final AsrTranscriber asrTranscriber;
     private final com.ragagent.knowledge.client.DocReaderClient documentReader;
 
-    public ModelConnectivityTestService(KnowledgeBaseService kbService, KnowledgeBaseMapper kbMapper, KnowledgeMapper knowledgeMapper, ModelService modelService, SsrfGuard ssrfGuard, OllamaService ollamaService, ConcurrencyGovernor concurrencyGovernor, TenantService tenantService, CryptoService cryptoService, AsrTranscriber asrTranscriber, com.ragagent.knowledge.client.DocReaderClient documentReader) {
-        this.kbService = kbService;
-        this.kbMapper = kbMapper;
-        this.knowledgeMapper = knowledgeMapper;
+    public ModelConnectivityTestService(ModelService modelService, SsrfGuard ssrfGuard, OllamaService ollamaService, ConcurrencyGovernor concurrencyGovernor, TenantService tenantService, CryptoService cryptoService, AsrTranscriber asrTranscriber, com.ragagent.knowledge.client.DocReaderClient documentReader) {
         this.modelService = modelService;
         this.ssrfGuard = ssrfGuard;
         this.ollamaService = ollamaService;

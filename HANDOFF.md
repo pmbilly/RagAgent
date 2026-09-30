@@ -58,7 +58,7 @@
 - **agent 域（2026-09-30 A/B/E 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；**Go 锚点 0**（479 处/186 文件已清扫,§13.11/13.13 判据,真实不变量改中性陈述保留）；12 个子包全有 package-info；`@JsonProperty` 余 30 处已随落库换锚清零（§11.1）。
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器**线上引用 0 处**（2026-09-30 退役完成，`0ac456e`）；**工具面保留 5 个类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`，服务于 §11 边界内仍按 Go 字节的手搓载荷与 provider 请求体）；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
 - **注释卫生（knowledge 包实测，2026-09-30，可作其余域标准）**：Go 锚点注释 **0 处**、注释掉的代码 **0 处**、TODO **1 处**、注释占比 12.1%、13 个包全有 `package-info`；坏 `{@link}` 0 处。Javadoc 覆盖：**public 类型 91%**（201/221，未写的 20 处是纯 CRUD 请求体——有意留白，名字即语义）、public 方法 33%（**分布是对的**：逻辑密集类 90%+，POJO 访问器 7%）。
-- **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。**死 logger（声明却未使用）**：主干 15 处 / 测试 0 处；knowledge 已清零（`88c8054`，-24 行），余 7 处散在 `agent/tools`、`model/controller`、`auth/service`、`wiki/service`，随各自批次清。**死成员**：knowledge 已清零（logger 8 + MAPPER 5 + 死局部变量 4 + 死方法 1 + 死依赖 16 + 遮蔽 import 2）；全仓候选 **66 处**（字段 51 / 私有方法 14 / 遮蔽 import 1，`7bf963e` 口径，**含误报类**，需逐条人工确认；口径**不含未使用局部变量**——那类目前只有 IDE 能发现）；`agentm/ModelConnectivityTestService` 一个类占 3 处死依赖。
+- **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。**死 logger（声明却未使用）**：主干 15 处 / 测试 0 处；knowledge 已清零（`88c8054`，-24 行），**agent/agentm 已清零**（2026-09-30，含死 `ObjectMapper` 3 处），余 **5 处**散在 `model/controller`（3）、`auth/service`（1）、`wiki/service`（1），随各自批次清。**死成员**：knowledge 已清零（logger 8 + MAPPER 5 + 死局部变量 4 + 死方法 1 + 死依赖 16 + 遮蔽 import 2）；全仓候选 **66 处**（字段 51 / 私有方法 14 / 遮蔽 import 1，`7bf963e` 口径，**含误报类**，需逐条人工确认；口径**不含未使用局部变量**——那类目前只有 IDE 能发现）；`agentm/ModelConnectivityTestService` 3 处死依赖**已清**（2026-09-30）；**agent/agentm 死成员亦清零**（死成员 7 = 死 `ObjectMapper` 3 / 死 logger 2 / 死私有方法 2，另重复 import 6 条——Spotless 不去重）。**注意一个已知口径缺口**：字段级扫描"构造函数里赋值算引用"，所以**只注入不读取的依赖**要用依赖级口径单独扫（`agentm` 那 3 处就是这么漏到后来的）。
 - **`@JsonInclude` 处置完毕（2026-09-30，批次 A/B = `dc62ef7` + `7f1b2a7`）**：knowledge 原 38 处（Go `omitempty` 直译）→ **全域清零**；响应面 3 处按「可空显式 null」改（7 个 cprev fixture 同步），落库/LLM 载荷 35 处删注解（键恒输出；`path(x).asDefault()` 容错，全仓无「依赖键缺席」判断）。**当时暴露的缺口已补**：KB 配置 jsonb（`config` 列）形状原本无任何契约测试（改了 4 个 config 类型的输出却零 fixture 变化）→ 2026-09-30 新增 `knowledge/domain/KnowledgeBaseConfigJsonContractTest`（5 用例：键集合钉死、空值/假值必须显式输出、7 个配置类型 round-trip、读取容错与「旧 snake 键不再映射」防回流，`cd153c3`）。
 - **全限定名注解**：knowledge 已清零（22 处 → import + 短名，`4735348`）；全仓余 **177 处**（jackson annotation 138 / databind 15 / spring 9+4+2+1 / mybatis-plus 3 …），随各域批次清理。
 - 历史对照（2026-09-28 裁剪前）：main 1,608 文件 / 32.4 万行、test 448 / 14 万 / 1,783 fixture、frontend 533 / 23.6 万；千行大类 41 个（含 KnowledgeService 3,392 行 / 153 方法、FaqService 3,089、KnowledgeController 1,312——**这些数字均已过时**，knowledge 域已完成拆分）。
@@ -248,6 +248,25 @@
 | `stash@{0}`（原属已删的 `refactor/knowledge-java-idioms`） | `775b42c` | 消息自述"over-broad rune rename"，该改名已按 §2.14 正规完成（`Runes`→`CodePoints`） |
 
 **纪律**：分支合入后即删（不留"事后考古"分支）；`seed` 与 `origin/main` 除外。
+## 11.6 agent/agentm 域 §14.5 复验与卫生清零（2026-09-30）
+
+**复验结论：结构面已达标**——202 文件（agent 171 / agentm 31）、**≥800 行类 0**（最大 `ActPhase` 761）、
+**Go 锚点 0**、**批次代号/计划号 0**、10 个子包 `package-info` 全覆盖、容器类反模式命名 0、
+逐字段 `@JsonProperty` 仅 `agent/AgentConfig.java` 14 处（= §11.2 登记的 config jsonb 内层键边界）。
+**本轮清零**：死成员 7（死 `ObjectMapper` 3、死 logger 2、死私有方法 2）+ 死依赖 3 + 重复 import 6 → 6 文件 / −31 行。
+
+**108 处 snake 键读取的逐类判定（结论：全部是登记边界，勿改）**：
+
+| 族 | 例 | 为何必须留 snake |
+|---|---|---|
+| agent config jsonb 内层键 | `question_suggestions`/`starters`/`follow_ups`/`agent_mode` | 跨 agentm/engine/embed/session 五包共享的自洽 schema，前端表单同款写入（§11.2 已登记） |
+| **工具参数 schema** | `thought`/`next_thought_needed`/`knowledge_id`/`argument_resolution` | **模型侧按 schema 发参**——改名等于工具调不动（含各 `agent/tools/*`） |
+| prompt 模板 YAML 键 | `templates`/`i18n`/`has_knowledge_base` | 数据资产（`resources` 下的 YAML）自有键 |
+| span/实时载荷键 | `display_type`/`mentioned_items`/`channel` | 工具 span 与流式载荷的自有 schema（§11 边界族） |
+
+**体检口径的两个误报（勿据此动手）**：①"注释掉的代码"启发式在 agent 域报 11 处，**实为 0**（全是说明性注释，
+如 `// if / then / else` 段首、键格式说明）；②`{@link X}` 存在性检查报 42 处，绝大多数是 JDK/Jackson 类型与同文件嵌套类型。
+
 
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
