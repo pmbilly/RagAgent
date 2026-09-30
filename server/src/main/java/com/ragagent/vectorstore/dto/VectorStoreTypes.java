@@ -222,10 +222,8 @@ public final class VectorStoreTypes {
         @JsonProperty("description") @JsonInclude(JsonInclude.Include.NON_NULL) public String description;
         @JsonProperty("immutable") @JsonInclude(JsonInclude.Include.NON_DEFAULT) public boolean immutable;
         @JsonProperty("min") @JsonInclude(JsonInclude.Include.NON_NULL)
-        @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.ragagent.common.web.GoDoubleSerializer.class)
         public Double min;
         @JsonProperty("max") @JsonInclude(JsonInclude.Include.NON_NULL)
-        @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.ragagent.common.web.GoDoubleSerializer.class)
         public Double max;
         @JsonProperty("enum") @JsonInclude(JsonInclude.Include.NON_NULL) public List<String> enumValues;
     }
