@@ -891,6 +891,23 @@
   5/7 假红）→ 要**循环剥掉全部前导修饰符**再比对。
 - 忠实性核验：7 项逐字一致；常规档闸门（重编 + session 域 27s + `spotlessCheck`）绿。
 
+## 11.28 session 步骤 2 第十三刀：KnowledgeQaController 解析主体（2026-09-30，§14.9c 刀 4b，重试成功）
+
+| | 前 | 后 |
+|---|---|---|
+| `KnowledgeQaController` | 1,525 | **1,296** |
+| `QaRequestParser`（新，同包） | — | **331** |
+
+- 切片：`parseQARequest` 主体 234 行 → 同包 `QaRequestParser`（ctor 依赖 4 个：`sessionService` /
+  `temporaryDocuments` / `fileService` / `storageBackendResolver`）。
+- **参数化 2 项**（§11.26 既定）：`agentResolver`（控制器里是 `@Autowired` 字段，普通协作者不能快照）、
+  `readerTenant`（控制器 `currentTenant()` 依赖 `tenantServiceField`）→ 两个调用点（163/173）各补两参。
+- **包内引用 3 项**：`stringListOf`（附件簇也在用 → 留控制器，放宽包内可见）、`ParsedRequest`（私有 record →
+  包内嵌套）、`maxFileBytes()`（`static long`；**首败后才发现**，之前只扫了字段没扫方法 → 放宽 + 限定）。
+- 重试**一次通过**：传 `this.fileService` / `this.storageBackendResolver`（不是同名构造参数）、补
+  `KnowledgeQaController.Base64Support` import、调用点**先收集全部再右到左插**、其余既定替换。
+- 忠实性核验：主体（签名之后）按 4 项替换**反向**归一后逐字一致；常规档闸门（重编 + session 域 + spotless）绿。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
 
@@ -1073,7 +1090,7 @@ knowledge/
 | **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波完成(e026138)+ C 波完成(b407769:实体去 202 处注解转 camel/查询参数 Java 字段名/前端同批/wiki-* fixture 重录;PageController raw 形态保留但键已换锚,DTO 端点化随数据访问轴)**。**余**:数据访问轴(GORM 复刻层重塑) |
 | **agent** | 171(+agentm 31) | 见 §11.6 | `ActPhase` 761 | **0** | **0** | **14**（登记边界：`AgentConfig`） | **0** | A/B/E 波 + Task 12 契约换锚完成；**§14.5 复验通过 + 卫生清零（§11.6，2026-09-30）**——本行为复验口径 |
 | **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
-| **session** | 89 | 24577 | SessionQaResolution 2,906 | **4**（QaController 1,613 / AgentQaService 1,430 / Resolution 2,906 + SKQA 门面 1,036，后者按 §14.5 已在类 javadoc 注明例外） | 721（审计口径） | 188（审计口径，逐字段） | 12（审计口径） | **步骤 0/1 完成；步骤 2 六刀已落（§11.15~§11.20）+ 卫生批（§11.19）**：SKQA 1,764→门面 1,036+Resolution 2,906/Fallback（89a4e44）；TempDoc 两刀 1,075→498（+PromptResolver 271、+Processor 423）；StreamBridge 853→697（+9 例契约测试）；MessageService 1,028→510（+MessageSearch 596）；Suggestion 1,088→601（+Pipeline 513）。**步骤 2 余项（按 §14.9c 批次清单连续落刀）**=AgentQaService **已出榜**（1,430 → 364，刀 1-3，§11.23~§11.25）/ QaController 1,613 / Resolution 2,906 自身需再切（`AgentToolBackends` 两刀已出榜：1,264 → 590，§11.21/§11.22）；**步骤 3（分层/package-info）与步骤 4（契约 Java 化=DTO/HTTP 面换锚）均未开始**——换锚按 §14.2 排在步骤 3 之后，**同批带前端、不加兼容别名**（§2.11）；agent config jsonb 内层键为登记边界保持 snake；`wip/chat-sse-slice2` 已裁定不并入（§14.8） |
+| **session** | 90 | 24446 | SessionQaResolution 2,906 | **4**（QaController 1,613 / AgentQaService 1,430 / Resolution 2,906 + SKQA 门面 1,036，后者按 §14.5 已在类 javadoc 注明例外） | 721（审计口径） | 188（审计口径，逐字段） | 12（审计口径） | **步骤 0/1 完成；步骤 2 六刀已落（§11.15~§11.20）+ 卫生批（§11.19）**：SKQA 1,764→门面 1,036+Resolution 2,906/Fallback（89a4e44）；TempDoc 两刀 1,075→498（+PromptResolver 271、+Processor 423）；StreamBridge 853→697（+9 例契约测试）；MessageService 1,028→510（+MessageSearch 596）；Suggestion 1,088→601（+Pipeline 513）。**步骤 2 余项（按 §14.9c 批次清单连续落刀）**=AgentQaService **已出榜**（1,430 → 364，刀 1-3，§11.23~§11.25）/ QaController 1,613 / Resolution 2,906 自身需再切（`AgentToolBackends` 两刀已出榜：1,264 → 590，§11.21/§11.22）；**步骤 3（分层/package-info）与步骤 4（契约 Java 化=DTO/HTTP 面换锚）均未开始**——换锚按 §14.2 排在步骤 3 之后，**同批带前端、不加兼容别名**（§2.11）；agent config jsonb 内层键为登记边界保持 snake；`wip/chat-sse-slice2` 已裁定不并入（§14.8） |
 | **memory** | 62 | 13,166 | MemoryService 1,661 | 3 | 559 | 134 | 2 | |
 | **llm** | 94 | 10,826 | RemoteApiChat 1,367 | 1 | 476 | 171 | 1 | |
 | **retrieval** | 58 | 19,404 | OpenSearchRetrieveRepository 1,653 | **10** | 267 | 19 | 2 | 契约已换锚（§11 ①） |
@@ -1201,7 +1218,7 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 | 2 | 同 | 配置装配簇（`buildAgentConfig` + `resolveAgentPrompts` + `applyPerRequest*Scope` + `resolvePerRequestMcpScope` + `pinPreservingRequestOrder` + `agentRequiresRerankModel`） | ~280 |
 | 3 | 同 | 引擎/工具装配簇（`createAgentEngine` + `registerMcpTools` + `knowledgeBaseScopesForPrompt` + `getKnowledgeBaseInfos` + `getSelectedDocumentInfos` + `registerWebPageFiles` + `registerTools`） | ~500 → 门面 ~350 出榜 |
 | 4a | KnowledgeQaController 1,613 | ~~静态解析助手簇~~ **已落**（§11.27：1,614 → 1,525 + `QaRequestBinder` 105） | 114 |
-| 4b | 同 | `parseQARequest` 主体（需把 `AgentResolver` 作参数传入；共享项 `stringListOf`/`currentTenant`/`ParsedRequest` 留控制器） | ~260 |
+| 4b | 同 | ~~`parseQARequest` 主体~~ **已落**（§11.28：1,525 → 1,296 + `QaRequestParser` 331；`AgentResolver`/租户作参数传入） | 234 |
 | 5 | 同 | SSE 编排簇（`setupSSEStream` + `writeAgentQueryEvent` + `startStopWatcher` + `handleAgentEventsForSSE` + quick answer timeline） | ~320 |
 | 6-7 | 同 | 执行编排/落库/附件与收尾（`executeQA` 212 + `runFollowUp`/`recoverFailedFollowUp` + `persist*`/`rollback` + `resolveTemporaryAttachments` + `completeAssistantMessage`）分两刀 | ~600 → 门面 ~400 出榜 |
 | 8 | SessionQaResolution 2,906 | 模型选择簇（`resolveChatModelId` + `findModel` + `selectChatModelId`） | ~380 |
