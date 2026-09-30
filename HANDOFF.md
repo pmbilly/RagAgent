@@ -535,6 +535,32 @@
 （体检自标注"多为响应装配"）；要收只能给每个读面配视图类型，收益/成本比低，暂留。
 **收尾数据**：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
 
+## 11.11 P1 分包执行记录：chatpipeline / event 两个扁平包（2026-09-30）
+
+包地图 §P1（扁平包无子包、靠文件名找东西）前两个（也是最大的两个）收口，
+全部是**纯移动 + 引用改写**，行为零变化（Go 实录回放测试全绿兜底）：
+
+| 包 | 前 | 后 | 拆法 |
+|---|---|---|---|
+| `chatpipeline` | 38 文件扁平 | 根 13 + `plugin/`(19) + `support/`(6) | `Plugin*` 与 `Plugin` 接口进 `plugin/`；纯逻辑进 `support/`；骨架与跨域 seam 留根 |
+| `event` | 40 文件扁平 | 根 13 + `payload/`(26) | 26 个 `*Data` 载荷进 `payload/`；总线机制与事件信封留根 |
+
+**两个坑（下次搬迁直接照做）**：
+1. **跨子包可见性**：搬家后原"同包可见"的成员会不可达（④-e 先例是放宽为 public）。
+   本次受影响 26 处——`SearchSupport` 的 4 个辅助、`PipelineLog.runeLen`、
+   `PipelinePorts.DataAnalysisSession`，以及 plugin 里被**录制测试直接探针**的静态/实例辅助
+   （PluginMerge/PluginSearch/PluginRerank/PluginMemoryAffinity/PluginFilterTopK/PluginQueryUnderstand）。
+   测试仍在根包（静态导入 `Rec46cSupport` 需要），故只能放宽生产成员；
+   自动化做法：循环"编译 → 解析 `is not public in` → 放宽声明"，7 轮收敛（配方见 §13 第 29 条）。
+2. **同包引用变跨包**：搬家文件需要补 import；用"候选类型名 + 词边界命中 + 同名 import 则跳过"的
+   脚本批量补（本次补 172 行）。`package-info.java` 里 javadoc 表格中的类型名会被误补 import，
+   Spotless 的 removeUnusedImports 会清掉——可接受。
+
+**顺带的结构收口**：`PluginIntoChatMessage.getEnrichedPassageForChat` 移入
+`support/ReferencesSupport`（support 不再反向调 plugin）；`chatpipeline/plugin/` 与
+`chatpipeline/support/` 补 package-info。
+**收尾数据**：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -640,6 +666,17 @@ knowledge/
     我先用 `rewriteMessagesResponse` 扫 `src/main`，**没命中**，于是写进文档说"无生产调用者、不能当死代码删"；
     真正调用者是 `MessageController` 里的 `rewriter.rewriteMessagesResponse(messages)`——带接收者的调用被我的模式漏掉了。
     教训：**判断"有没有人调用"至少扫两种写法**（`Type.method(` 与 `.method(`），并用编译器兜底（删完先编译，报错即有人用）。
+
+29. **"分二级子包"的搬迁配方（2026-09-30 批 P1 实测，chatpipeline/event 两个扁平包）**：纯移动也**别手改 import**，按四步走：
+   ① `git mv` 到子包（git 认 rename，历史不断）；
+   ② 脚本改 `package` 声明 + **给每个搬迁文件补跨子包 import**：候选集 = 该顶层包下所有类型（排除同子包），
+      判据 = `\b类型名\b` 命中且文件里没有**同名** import（防遮蔽）——本次两个包共补 ~170 行，一次成型；
+   ③ 全仓引用改写：`com.ragagent.<包>.<类型>` → 新 FQN，**必须带词边界**（否则 `Plugin` 会吃掉 `PluginSearch`）；
+      主源 + `src/test` 同包文件（它们引用是短名，要补 import）一起处理；
+   ④ **跨子包可见性收口**：循环"编译 → 解析 `is not public in X` → 把该成员/嵌套类型放宽为 public"，直到编译过。
+      本次 chatpipeline 26 处（含录制测试直接探针的 plugin 辅助），event 0 处。**测试留在根包**（静态导入 `Rec46cSupport` 需要），
+      所以只能放宽生产成员——这是 ④-e 的老先例，不是新问题。
+   收尾：`spotlessApply`（会清掉 package-info 里 javadoc 表格误补的 import）→ 全量测试 → `check-package-cycles.py` 守卫 → 体检复跑。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 

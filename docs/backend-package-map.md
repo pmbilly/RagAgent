@@ -62,13 +62,19 @@
 `scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
 当前基线（2026-09-30 批 4n 后）：**环 0 组 / 依赖 `config` 的包 1 个 / 能力层→业务层直连 6 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
 
-### P1 扁平包 10 个（无子包，靠文件名找东西）
+### P1 扁平包（原 10 个 → 余 5 个）
 
-`chatpipeline`(44)、`event`(40)、`embedding`(21)、`rerank`(14)、`stream`(11)、`modelcontext`(11)、
-`storageurl`(10)、`config`(10)、`searchutil`(8)、`webfetch`(4)。
+**已拆**（2026-09-30 批 P1，纯移动 + 引用改写 + 全绿；`storageurl`/`searchutil`/`webfetch` 三个早先批次已合并掉）：
 
-- [ ] **拆解点已存在**（沿命名即可分）：`chatpipeline` 的 `Plugin*`(19) + 管线骨架；`event` 的 `Agent*`(11) + `Event*`(10)；
-- [ ] 顺带处理命名遗留：`searchutil` → `retrieval/support`；`webfetch` 是 agent 能力 → `agent/support`。
+| 包 | 结果 | 拆法 |
+|---|---|---|
+| `chatpipeline` | 根 13 + `plugin/`(19) + `support/`(6) | `Plugin*` + `Plugin` 接口进 `plugin/`；纯逻辑（SearchSupport/QueryTokenizer/ReferencesSupport/ImageInfoCollector/MemoryUsedMemories/MatchTypes）进 `support/`；骨架与跨域 seam（PipelinePorts/Builder/Common/EventType/Log/Progress/ChatManage/History/QueryIntent/SummaryConfig/EventManager）留根 |
+| `event` | 根 13 + `payload/`(26) | 26 个 `*Data` 事件载荷进 `payload/`；总线机制（Event/EventBus*/EventHandler/EventMiddleware/EventIds/EventJson/EventType/GlobalEventBus/PanicError）与事件信封 `TenantContextSnapshot` 留根 |
+
+**余 5 个**：`embedding`(22)、`rerank`(15)、`stream`(12)、`modelcontext`(12)、`config`(9)。
+
+- [ ] 这 5 个多为单一职责的小包（`config` 是装配层、`stream` 是 SSE 契约、`modelcontext` 是工具协议）——
+      拆前先判有无**天然族**，没有族就保持扁平（别为扁平而扁平）。
 
 ### P2 超大单层（≥70 文件）—— 内部已有天然族
 
