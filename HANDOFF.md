@@ -235,6 +235,8 @@
 
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
+> **模块手册**：`docs/knowledge-module-guide.md`（架构师接手版，500 行 / 8 张 Mermaid 图：全景 · 分层 · ER · 入库时序 · 检索 · FAQ 状态机 · 任务 span · 守卫）——它讲「结构 + 接口 + 实体 + 链路 + 改哪里」，新人先读手册、再读本节地图。
+
 ```
 knowledge/
   controller/ (9)   只放 @RestController：Chunk / ChunkerPreview / Faq / KnowledgeBase /
