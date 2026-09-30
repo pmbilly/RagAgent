@@ -11,7 +11,6 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.wiki.domain.WikiActivityAudit;
-import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiFolder;
 import com.ragagent.wiki.domain.WikiFolderCreateRequest;
 import com.ragagent.wiki.domain.WikiFolderListResponse;
@@ -21,21 +20,11 @@ import com.ragagent.wiki.domain.WikiGraph;
 import com.ragagent.wiki.domain.WikiIndex;
 import com.ragagent.wiki.domain.WikiLintReport;
 import com.ragagent.wiki.domain.WikiPage;
-import com.ragagent.wiki.domain.WikiPageConflictException;
 import com.ragagent.wiki.domain.WikiPageIssue;
-import com.ragagent.wiki.domain.WikiPageListRequest;
-import com.ragagent.wiki.domain.WikiPageListResponse;
 import com.ragagent.wiki.domain.WikiPageMoveRequest;
-import com.ragagent.wiki.domain.WikiPageNotFoundException;
-import com.ragagent.wiki.domain.WikiPageRevertRequest;
-import com.ragagent.wiki.domain.WikiPageRevision;
-import com.ragagent.wiki.domain.WikiPageRevisionListResponse;
-import com.ragagent.wiki.domain.WikiPageUpdateRequest;
 import com.ragagent.wiki.domain.WikiStats;
-import com.ragagent.wiki.service.page.WikiEditContext;
 import com.ragagent.wiki.service.page.WikiLintService;
 import com.ragagent.wiki.service.page.WikiPageService;
-import com.ragagent.wiki.service.page.WikiRevertToCurrentVersionException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,7 +121,7 @@ public class WikiPageController {
     private final WikiLintService lintService;
     private final WikiKbAccessGuard kbGuard;
     private final ObjectMapper json;
-    private final ObjectProvider<WikiActivityAudit> activityAudit;
+    private final WikiPageOps pageOps;
 
     public WikiPageController(WikiPageService wikiService,
                               WikiLintService lintService,
@@ -143,360 +132,55 @@ public class WikiPageController {
         this.lintService = lintService;
         this.kbGuard = new WikiKbAccessGuard(kbMapper);
         this.json = json;
-        this.activityAudit = activityAudit;
+        this.pageOps = new WikiPageOps(wikiService, kbGuard,
+                new WikiActivityRecorder(activityAudit), json);
     }
 
     // ════════════════════════════ 页面 CRUD ════════════════════════════
 
-    /**
-     * 页面列表——读端点（Viewer+ 角色 + KB 读权限）。
-     *
-     * <p>{@code folder_id} 的<b>存在性</b>有语义：显式存在但为空 = 根目录（{@code folder_id = ''}），
-     * 完全缺席 = 不过滤。用 {@code request.getParameterMap().containsKey} 区分两者。</p>
-     */
     @GetMapping("/pages")
     public ResponseEntity<?> listPages(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
-        requireWikiKB(kbId, false);
-
-        int page = atoi(query(request, "page", "1"));
-        int pageSize = atoi(query(request, "pageSize", "20"));
-        List<String> categoryPath = parseWikiCategoryPath(q(request, "categoryPath"));
-
-        // "提供了空值" vs "没提供"是两种不同语义
-        String folderId = null;
-        if (hasParam(request, "folderId")) {
-            folderId = trimSpace(request.getParameter("folderId"));
-        }
-
-        // 解析成功且 >= 0 才生效
-        Integer categoryDepth = null;
-        String rawDepth = q(request, "categoryDepth");
-        if (!rawDepth.isEmpty()) {
-            Integer depth = atoiOrNull(rawDepth);
-            if (depth != null && depth >= 0) {
-                categoryDepth = depth;
-            }
-        }
-
-        WikiPageListRequest req = new WikiPageListRequest();
-        req.setKnowledgeBaseId(kbId);
-        req.setPageType(q(request, "pageType"));
-        req.setStatus(q(request, "status"));
-        req.setQuery(q(request, "query"));
-        req.setFolderId(folderId);
-        req.setCategoryPath(categoryPath);
-        req.setCategoryDepth(categoryDepth);
-        req.setPage(page);
-        req.setPageSize(pageSize);
-        req.setSortBy(query(request, "sortBy", "updated_at"));
-        req.setSortOrder(query(request, "sortOrder", "desc"));
-
-        WikiPageListResponse resp;
-        try {
-            resp = wikiService.listPages(req);
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-        return ResponseEntity.ok(resp);
+        return pageOps.listPages(kbId, request);
     }
 
-    /**
-     * 新建页面——写端点（创建者/Admin+ + KB 写权限）。
-     *
-     * <p>请求体直接绑定 {@link WikiPage}（没有独立的 CreateRequest），
-     * 且 {@code page_type} / {@code status} 只在<b>非空</b>时校验合法性。</p>
-     */
     @PostMapping("/pages")
     public ResponseEntity<?> createPage(@PathVariable("kb_id") String kbId,
                                         @RequestBody(required = false) String rawBody) {
-        requireWikiKB(kbId, true);
-        long tenantId = currentTenantId();
-
-        WikiPage page = bind(rawBody, WikiPage.class);
-        page.setKnowledgeBaseId(kbId);
-        page.setTenantId(tenantId);
-        page.setPageType(trimSpace(page.getPageType()));
-        page.setStatus(trimSpace(page.getStatus()));
-        if (!page.getPageType().isEmpty() && !WikiConstants.isValidPageType(page.getPageType())) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                    "Invalid page_type: " + page.getPageType());
-        }
-        if (!page.getStatus().isEmpty() && !WikiConstants.isValidPageStatus(page.getStatus())) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                    "Invalid status: " + page.getStatus());
-        }
-
-        WikiPage created;
-        try {
-            // 以"用户编辑"来源标记包裹这次 CreatePage
-            created = WikiEditContext.callWith(WikiConstants.EDIT_SOURCE_USER,
-                    () -> wikiService.createPage(page));
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-
-        recordManualWikiActivity(created, "manual_create");
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        return pageOps.createPage(kbId, rawBody);
     }
 
-    /**
-     * 页面详情——读端点（Viewer+ 角色 + KB 读权限）。
-     * 路径是 catch-all，slug 可以多段（{@code entity/acme}）。
-     */
     @GetMapping("/pages/{*slug}")
     public ResponseEntity<?> getPage(@PathVariable("kb_id") String kbId,
                                      @PathVariable(value = "slug", required = false) String slugParam) {
-        requireWikiKB(kbId, false);
-
-        String slug = getSlugParam(slugParam);
-        if (slug.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
-        }
-
-        WikiPage page;
-        try {
-            page = wikiService.getPageBySlug(kbId, slug);
-        } catch (WikiPageNotFoundException e) {
-            throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page not found");
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-        return ResponseEntity.ok(page);
+        return pageOps.getPage(kbId, slugParam);
     }
 
-    /**
-     * 更新页面——写端点（创建者/Admin+ + KB 写权限）。
-     *
-     * <p>部分更新：缺席字段保留库中值（
-     * {@link WikiPageUpdateRequest} record 用 null 表达缺席）。{@code version &gt; 0} 时是
-     * 乐观锁护栏，与库中版本不符则 409 并<b>附带当前版本</b>供客户端重载。</p>
-     *
-     * <p>⚠️ 409 的 body 是 raw JSON map → <b>键字母序</b>：{@code current_version} 在 {@code error} 之前。</p>
-     */
     @PutMapping("/pages/{*slug}")
     public ResponseEntity<?> updatePage(@PathVariable("kb_id") String kbId,
                                         @PathVariable(value = "slug", required = false) String slugParam,
                                         @RequestBody(required = false) String rawBody) {
-        requireWikiKB(kbId, true);
-
-        String slug = getSlugParam(slugParam);
-        if (slug.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
-        }
-
-        WikiPageUpdateRequest req = bind(rawBody, WikiPageUpdateRequest.class);
-
-        // 以"用户编辑"来源标记覆盖整段读写
-        return WikiEditContext.callWith(WikiConstants.EDIT_SOURCE_USER,
-                () -> applyPageUpdate(kbId, slug, req));
+        return pageOps.updatePage(kbId, slugParam, rawBody);
     }
 
-    private ResponseEntity<?> applyPageUpdate(String kbId, String slug, WikiPageUpdateRequest req) {
-        WikiPage existing;
-        try {
-            existing = wikiService.getPageBySlug(kbId, slug);
-        } catch (WikiPageNotFoundException e) {
-            throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page not found");
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-
-        int previousVersion = existing.getVersion();
-        if (req.version() > 0 && req.version() != previousVersion) {
-            // 键字母序：current_version < error
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("currentVersion", previousVersion);
-            body.put("error", "Wiki page was modified by someone else");
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
-        }
-
-        // 把提交的字段合并到库里那份：服务的更新语义是
-        // "完整的目标状态"，喂半空的结构体会把真实数据清掉。
-        if (req.title() != null) {
-            existing.setTitle(trimSpace(req.title()));
-        }
-        if (req.content() != null) {
-            existing.setContent(req.content());
-        }
-        if (req.summary() != null) {
-            existing.setSummary(req.summary());
-        }
-        if (req.pageType() != null) {
-            existing.setPageType(trimSpace(req.pageType()));
-            if (!WikiConstants.isValidPageType(existing.getPageType())) {
-                throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                        "Invalid page_type: " + existing.getPageType());
-            }
-        }
-        if (req.status() != null) {
-            existing.setStatus(trimSpace(req.status()));
-            if (!WikiConstants.isValidPageStatus(existing.getStatus())) {
-                throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                        "Invalid status: " + existing.getStatus());
-            }
-        }
-        if (req.aliases() != null) {
-            existing.setAliases(new ArrayList<>(req.aliases()));
-        }
-
-        WikiPage updated;
-        try {
-            updated = wikiService.updatePage(existing);
-        } catch (WikiPageNotFoundException e) {
-            throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page not found");
-        } catch (WikiPageConflictException e) {
-            throw new RawJsonError(HttpStatus.CONFLICT.value(),
-                    "Wiki page was modified by someone else");
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-
-        if (updated.getVersion() != previousVersion) {
-            recordManualWikiActivity(updated, "manual_edit");
-        }
-        return ResponseEntity.ok(updated);
-    }
-
-    /**
-     * 删除页面——写端点（创建者/Admin+ + KB 写权限）。
-     *
-     * <p>先读一次（好让活动流带上被删页面的标题），读取失败被<b>刻意忽略</b>；
-     * 真正的删除失败才报 404。</p>
-     */
     @DeleteMapping("/pages/{*slug}")
     public ResponseEntity<?> deletePage(@PathVariable("kb_id") String kbId,
                                         @PathVariable(value = "slug", required = false) String slugParam) {
-        requireWikiKB(kbId, true);
-
-        String slug = getSlugParam(slugParam);
-        if (slug.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
-        }
-
-        WikiPage page = null;
-        try {
-            page = wikiService.getPageBySlug(kbId, slug);
-        } catch (RuntimeException ignored) {
-            // 读取失败刻意忽略（只影响活动流里的标题）
-        }
-
-        try {
-            wikiService.deletePage(kbId, slug);
-        } catch (WikiPageNotFoundException e) {
-            throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page not found");
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-
-        recordManualWikiActivity(page, "manual_delete");
-        return ResponseEntity.noContent().build();
+        return pageOps.deletePage(kbId, slugParam);
     }
 
     // ════════════════════════════ 修订历史 ════════════════════════════
 
-    /**
-     * 修订历史——读端点（Viewer+ 角色 + KB 读权限）。
-     *
-     * <p>两种模式共用一个 GET：带 {@code version} 时返回<b>单条含 content</b> 的快照，
-     * 否则返回最新在前的列表（省略 content）+ 当前版本。</p>
-     */
     @GetMapping("/revisions/{*slug}")
     public ResponseEntity<?> listRevisions(@PathVariable("kb_id") String kbId,
                                            @PathVariable(value = "slug", required = false) String slugParam,
                                            HttpServletRequest request) {
-        requireWikiKB(kbId, false);
-
-        String slug = getSlugParam(slugParam);
-        if (slug.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
-        }
-
-        String rawVersion = request.getParameter("version");
-        if (rawVersion != null && !rawVersion.isEmpty()) {
-            Integer version = atoiOrNull(rawVersion);
-            if (version == null || version < 1) {
-                throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Invalid version");
-            }
-            WikiPageRevision rev;
-            try {
-                rev = wikiService.getRevision(kbId, slug, version);
-            } catch (WikiPageNotFoundException e) {
-                throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page revision not found");
-            } catch (RuntimeException e) {
-                throw internal(errText(e));
-            }
-            return ResponseEntity.ok(rev);
-        }
-
-        int limit = atoi(query(request, "limit", "50"));
-        if (limit < 1) {
-            limit = 50;
-        }
-        if (limit > 200) {
-            limit = 200;
-        }
-        int offset = atoi(query(request, "offset", "0"));
-        if (offset < 0) {
-            offset = 0;
-        }
-
-        WikiPageRevisionListResponse resp;
-        try {
-            resp = wikiService.listRevisions(kbId, slug, limit, offset);
-        } catch (WikiPageNotFoundException e) {
-            throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page not found");
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-        return ResponseEntity.ok(resp);
+        return pageOps.listRevisions(kbId, slugParam, request);
     }
 
-    /**
-     * 回滚页面——写端点（创建者/Admin+ + KB 写权限）。
-     *
-     * <p>slug 走请求体（层级 slug 会和 catch-all 路由冲突，同 move-page）。回滚是
-     * <b>一次普通编辑</b>：回滚前状态会被快照、版本号前进。</p>
-     *
-     * <p>⚠️ "回滚到的就是当前版本"错误 → <b>400</b>（不是 500）。</p>
-     */
     @PostMapping("/revert")
     public ResponseEntity<?> revertPage(@PathVariable("kb_id") String kbId,
                                         @RequestBody(required = false) String rawBody) {
-        requireWikiKB(kbId, true);
-
-        JsonNode node = readJsonBody(rawBody);
-        String bindingErrors = requiredFieldErrors(node, "WikiPageRevertRequest", "Slug", "Version");
-        if (bindingErrors != null) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                    "Invalid request body: " + bindingErrors);
-        }
-        WikiPageRevertRequest req = toType(node, WikiPageRevertRequest.class);
-
-        String slug = trimSpace(req.slug());
-        if (slug.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
-        }
-        if (req.version() < 1) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Invalid version");
-        }
-
-        WikiPage updated;
-        try {
-            // 回滚编辑以"revert"来源归属这次编辑
-            updated = wikiService.revertPageToVersion(kbId, slug, req.version());
-        } catch (WikiPageNotFoundException e) {
-            throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page or revision not found");
-        } catch (WikiPageConflictException e) {
-            throw new RawJsonError(HttpStatus.CONFLICT.value(),
-                    "Wiki page was modified by someone else");
-        } catch (WikiRevertToCurrentVersionException e) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), errText(e));
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-
-        recordManualWikiActivity(updated, "revert");
-        return ResponseEntity.ok(updated);
+        return pageOps.revertPage(kbId, rawBody);
     }
 
     // ════════════════════════════ 文件夹树 ════════════════════════════
@@ -899,34 +583,6 @@ public class WikiPageController {
         return kbGuard.requireWikiKB(kbId, write);
     }
 
-
-    /**
-     * 把人工页面变更投影进知识库活动流。
-     *
-     * <p>记账是<b>尽力而为</b>：绝不能让埋点失败反过来让编辑失败。</p>
-     */
-    private void recordManualWikiActivity(WikiPage page, String action) {
-        if (page == null) {
-            return;
-        }
-        Map<String, Integer> actions = new LinkedHashMap<>();
-        actions.put(action, 1);
-
-        long tenantId = page.getTenantId() == null ? 0L : page.getTenantId();
-        WikiActivityAudit audit = activityAudit.getIfAvailable();
-        if (audit == null) {
-            // audit 接缝缺位时的等价行为：什么也不写
-            log.debug("wiki activity skipped (no WikiActivityAudit bean): kb={} actions={}",
-                    page.getKnowledgeBaseId(), actions);
-            return;
-        }
-        try {
-            audit.wikiContentChanged(tenantId, page.getKnowledgeBaseId(), actions);
-        } catch (RuntimeException e) {
-            log.warn("record wiki activity failed: kb={} action={} err={}",
-                    page.getKnowledgeBaseId(), action, errText(e));
-        }
-    }
 
     // ══════════════════════════════ 工具方法（实现移至 WikiRequestSupport，门面薄委托） ══════════════════════════════
 
