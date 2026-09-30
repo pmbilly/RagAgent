@@ -490,6 +490,25 @@
    虚拟线程并发回调（`WebSearchTool`/`WebFetchTool` 各起 3 条虚拟线程），全量下偶发丢记录 →
    改 `CopyOnWriteArrayList`。
 
+   ✅ **④-n `chatpipeline ⇄ session` 已完成（2026-09-30，环 1 → 0）——消息载荷视图，全仓零环**：
+   要消的背边是 `chatpipeline → session`（7 文件），耦合面全是"借会话实体当载荷"（不是主链逻辑耦合）：
+   - `common/session/` 新增 4 个载荷记录：`PipelineMessageView`（requestId/role/content/createdAt/
+     images/attachments/knowledgeReferences——历史装载真正读的 7 个字段）、`PipelineMessageImageView`
+     （url + caption，带 `withCaption` 供图片描述回写）、`PipelineMessageAttachmentView`（9 字段 = 提示词
+     渲染面）、`PipelineUsedMemoryView`（id/kind/content；紧凑构造器把空值归一为空串，保持 SSE
+     `memory_recalled` 事件载荷逐字节不变）；
+   - `MessageAttachmentsPrompt`（附件 → LLM 提示词段）`session` → **`common/prompt`**，入参换成载荷视图
+     （chatpipeline 与 session 两侧共用）；
+   - 会话侧新增 `session/support/PipelineViews`（实体 ↔ 载荷映射，出域与回写都收敛到这一处）：
+     `QaWiring` 的 `MessageService` 端口实现、`SessionKnowledgeQaService`/`SessionAgentQaService`
+     （附件与"用到的记忆"）、`AgentStreamBridge`（事件载荷 → 实体落库）改走映射；
+   - chatpipeline 侧 7 个文件只换类型与访问器（`PipelineCommon` 历史装载、`PluginQueryUnderstand`
+     的图片描述回写改成"重建列表 + `withCaption`"、`ChatManage` 两个字段、`MemoryUsedMemories`/
+     `PluginMemoryRecall`），端口签名换载荷。
+   **收尾数据**：环 1 → **0**（全仓零包间环）、L2→L3 7 → **6**；全量 4,675 用例 + `spotlessCheck` 绿；
+   基线刷新 **0/1/6**。余下 6 条 L2→L3（`chatpipeline → agent/knowledge/memory/websearch`、
+   `retrieval → auth/vectorstore`）方向本身合法（能力层正常使用业务域），属阶段 4 物理模块化范畴。
+
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 
