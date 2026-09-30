@@ -75,6 +75,9 @@ public final class AgentStreamBridge {
     private boolean ttfbLogged;
     private final Message assistantMessage;
     private final StreamManager streamManager;
+
+    /** SSE 发射缝（§14 步骤 2：各 handler 的"组装 + 试追加 + 日志"样板收拢处）。 */
+    private final AgentStreamEmitter emitter;
     private final EventBus eventBus;
     // ---- State tracking ----
     private final List<SearchResult> knowledgeRefs = new ArrayList<>();
@@ -127,6 +130,7 @@ public final class AgentStreamBridge {
         this.receivedAt = receivedAt;
         this.assistantMessage = assistantMessage;
         this.streamManager = streamManager;
+        this.emitter = new AgentStreamEmitter(sessionId, assistantMessageId, streamManager);
         this.eventBus = eventBus;
     }
 
@@ -199,18 +203,8 @@ public final class AgentStreamBridge {
                 metadata.put("event_id", evt.getId());
             }
         }
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.THINKING);
-        se.setContent(orEmpty(data.getContent()));
-        se.setDone(data.isDone());
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(metadata);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append thought event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.THINKING, orEmpty(data.getContent()), data.isDone(), metadata,
+                "Append thought event to stream failed");
         return null;
     }
 
@@ -244,18 +238,8 @@ public final class AgentStreamBridge {
         metadata.put("arguments", data.getArguments());
         metadata.put("tool_call_id", data.getToolCallId());
 
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.TOOL_CALL);
-        se.setContent("Calling tool: " + data.getToolName());
-        se.setDone(false);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(metadata);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append tool call event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.TOOL_CALL, "Calling tool: " + data.getToolName(), false,
+                metadata, "Append tool call event to stream failed");
         return null;
     }
 
@@ -307,18 +291,7 @@ public final class AgentStreamBridge {
         Map<String, Object> clientData = ToolResultPersist.sanitizeToolResultForClient(data.getToolName(), tr);
         metadata.putAll(clientData);
 
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(responseType);
-        se.setContent(content);
-        se.setDone(false);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(metadata);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append tool result event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), responseType, content, false, metadata, "Append tool result event to stream failed");
         return null;
     }
 
@@ -344,18 +317,8 @@ public final class AgentStreamBridge {
         }
         Map<String, Object> meta = toolApprovalDataToMap(data);
         meta.put("pending_id", data.getPendingId());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.TOOL_APPROVAL_REQUIRED);
-        se.setContent("MCP tool requires human approval");
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(meta);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append tool approval required event failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.TOOL_APPROVAL_REQUIRED, "MCP tool requires human approval",
+                true, meta, "Append tool approval required event failed");
         return null;
     }
 
@@ -365,18 +328,8 @@ public final class AgentStreamBridge {
         }
         Map<String, Object> meta = toolApprovalDataToMap(data);
         meta.put("pending_id", data.getPendingId());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.TOOL_APPROVAL_RESOLVED);
-        se.setContent("MCP tool approval resolved");
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(meta);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append tool approval resolved event failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.TOOL_APPROVAL_RESOLVED, "MCP tool approval resolved", true,
+                meta, "Append tool approval resolved event failed");
         return null;
     }
 
@@ -386,18 +339,8 @@ public final class AgentStreamBridge {
         }
         Map<String, Object> meta = toolApprovalDataToMap(data);
         meta.put("pending_id", data.getPendingId());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.MCP_OAUTH_REQUIRED);
-        se.setContent("MCP service requires OAuth authorization");
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(meta);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append mcp oauth required event failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.MCP_OAUTH_REQUIRED, "MCP service requires OAuth authorization",
+                true, meta, "Append mcp oauth required event failed");
         return null;
     }
 
@@ -407,18 +350,8 @@ public final class AgentStreamBridge {
         }
         Map<String, Object> meta = toolApprovalDataToMap(data);
         meta.put("pending_id", data.getPendingId());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.MCP_OAUTH_RESOLVED);
-        se.setContent("MCP OAuth authorization resolved");
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(meta);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append mcp oauth resolved event failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.MCP_OAUTH_RESOLVED, "MCP OAuth authorization resolved", true,
+                meta, "Append mcp oauth resolved event failed");
         return null;
     }
 
@@ -444,18 +377,8 @@ public final class AgentStreamBridge {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("references", List.copyOf(knowledgeRefs));
 
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.REFERENCES);
-        se.setContent("");
-        se.setDone(false);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(payload);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append references event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.REFERENCES, "", false, payload,
+                "Append references event to stream failed");
         return null;
     }
 
@@ -478,17 +401,8 @@ public final class AgentStreamBridge {
             }
             assistantMessage.setUsedMemories(PipelineViews.toUsedMemories(views));
         }
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.MEMORY_RECALLED);
-        se.setDone(false);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(Map.of("memories", data.getMemories()));
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append memory recalled event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.MEMORY_RECALLED, "", false, Map.of("memories",
+                data.getMemories()), "Append memory recalled event to stream failed");
         return null;
     }
 
@@ -508,17 +422,8 @@ public final class AgentStreamBridge {
         payload.put("summary", data.getSummary());
         payload.put("degraded", data.isDegraded());
         payload.put("split_turn", data.isSplitTurn());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.CONTEXT_COMPACTED);
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(payload);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append context compacted event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.CONTEXT_COMPACTED, "", true, payload,
+                "Append context compacted event to stream failed");
         return null;
     }
 
@@ -570,18 +475,8 @@ public final class AgentStreamBridge {
                 metadata.put("is_fallback", true);
             }
         }
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.ANSWER);
-        se.setContent(orEmpty(data.getContent()));
-        se.setDone(data.isDone());
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(metadata);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append answer event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.ANSWER, orEmpty(data.getContent()), data.isDone(), metadata,
+                "Append answer event to stream failed");
         return null;
     }
 
@@ -591,17 +486,8 @@ public final class AgentStreamBridge {
         if (!(evt.getData() instanceof AgentReflectionData data)) {
             return null;
         }
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.REFLECTION);
-        se.setContent(orEmpty(data.getContent()));
-        se.setDone(data.isDone());
-        se.setTimestamp(OffsetDateTime.now());
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append reflection event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.REFLECTION, orEmpty(data.getContent()), data.isDone(), null,
+                "Append reflection event to stream failed");
         return null;
     }
 
@@ -614,18 +500,8 @@ public final class AgentStreamBridge {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("stage", data.getStage());
         metadata.put("error", data.getError());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.ERROR);
-        se.setContent(orEmpty(data.getError()));
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(metadata);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append error event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.ERROR, orEmpty(data.getError()), true, metadata,
+                "Append error event to stream failed");
         return null;
     }
 
@@ -638,18 +514,8 @@ public final class AgentStreamBridge {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("session_id", data.getSessionId());
         payload.put("title", data.getTitle());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.SESSION_TITLE);
-        se.setContent(data.getTitle());
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(payload);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.warn("Append session title event to stream failed (stream may have ended): {}", e.toString());
-        }
+        emitter.emitTolerant(evt.getId(), ResponseType.SESSION_TITLE, data.getTitle(), true, payload,
+                "Append session title event to stream failed (stream may have ended)");
         return null;
     }
 
@@ -664,17 +530,8 @@ public final class AgentStreamBridge {
         payload.put("message_id", data.getMessageId());
         payload.put("content", data.getContent());
         payload.put("user_message_id", data.getUserMessageId());
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.USER_MESSAGE_INJECTED);
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(payload);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append user message injected event to stream failed: {}", e.toString());
-        }
+        emitter.emit(evt.getId(), ResponseType.USER_MESSAGE_INJECTED, "", true, payload,
+                "Append user message injected event to stream failed");
         return null;
     }
 
@@ -744,12 +601,7 @@ public final class AgentStreamBridge {
                 second.setDone(true);
                 second.setTimestamp(OffsetDateTime.now());
                 second.setData(new LinkedHashMap<>(d1));
-                try {
-                    streamManager.appendEvent(sessionId, assistantMessageId, first);
-                    streamManager.appendEvent(sessionId, assistantMessageId, second);
-                } catch (RuntimeException e) {
-                    log.error("Append fallback answer event failed: {}", e.toString());
-                }
+                emitter.appendAll("Append fallback answer event failed", first, second);
             }
         }
 
@@ -762,19 +614,9 @@ public final class AgentStreamBridge {
         if (turnUsage != null) {
             completeData.put("usage", turnUsage);
         }
-        StreamEvent se = new StreamEvent();
-        se.setId(evt.getId());
-        se.setType(ResponseType.COMPLETE);
-        se.setContent("");
-        se.setDone(true);
-        se.setTimestamp(OffsetDateTime.now());
-        se.setData(completeData);
+        StreamEvent se = emitter.event(evt.getId(), ResponseType.COMPLETE, "", true, completeData);
         se.setUsage(turnUsage);
-        try {
-            streamManager.appendEvent(sessionId, assistantMessageId, se);
-        } catch (RuntimeException e) {
-            log.error("Append complete event to stream failed: {}", e.toString());
-        }
+        emitter.append(se, "Append complete event to stream failed");
         return null;
     }
 
