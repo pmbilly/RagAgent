@@ -10,7 +10,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
@@ -113,8 +112,6 @@ public class ChunkerPreviewController {
         public int end;
         public int sizeChars;
         public int sizeTokensApprox;
-        /** JSON 空值省略：空串省略。 */
-        @JsonInclude(JsonInclude.Include.NON_EMPTY)
         public String contextHeader;
         public String content;
     }
@@ -125,8 +122,6 @@ public class ChunkerPreviewController {
         public int minChars;
         public int maxChars;
         public int stddevChars;
-        /** JSON 空值省略：0 省略。 */
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         public int truncatedTo;
     }
 

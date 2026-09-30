@@ -1,6 +1,5 @@
 package com.ragagent.knowledge.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.OffsetDateTime;
 
 /** FAQ 导入结果汇总（写入分块元数据的最终形状）。 */
@@ -15,7 +14,7 @@ public record FaqImportResult(
         String importMode,
         OffsetDateTime importedAt,
         String taskId,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) String failedEntriesUrl,
+        String failedEntriesUrl,
         String displayStatus,
         long processingTime) {
 }
