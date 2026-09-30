@@ -1054,6 +1054,25 @@
 - 顺带清理：`QaKbScope` 未用的 `modelSelection` 依赖（字段/参数/赋值/实参；清理前先断言确无引用）。
 - 剩余：两个巨型方法（684/424，**待立项**）。
 
+## 11.37 巨型方法项目立项书：SessionQaResolution 两个方法（2026-09-30，域内最后一块）
+
+**位置**：`SessionQaResolution` 2,906 → 1,877（刀 8-10 后），剩余两个巨型方法占 **~1,086 行**（58%）；做完它们本类 ≈ **770，正式出 ≥800 榜**。
+
+### 结构侦察（决定切法，都是好消息）
+
+| 方法 | 行数 | 顶层分支 | 缩进层级 | 结论 |
+|---|---|---|---|---|
+| `buildSearchTargets(long tenantId, List<String> knowledgeBaseIds, ...)` | **673** | 仅 **4** 处：568 `if (!kbIdsToFetch.isEmpty())` / 736 `for (kbId : knowledgeBaseIds)` / 804 `if (!knowledgeIds.isEmpty())` / 960 `for (tagIdsByKb.entrySet())`，**1 个 return**（1184） | 最深 32 | 按 4 个块**内部提取**为 4 个私有助手（KB 取数 / 逐 KB / knowledgeIds / tag 段） |
+| `applyAgentOverridesToChatManage(QaSupport.QaRequest req, ChatManage cm)` | **413** | **20** 处（1204 `agentConfig == null` 早返回之后是一串平铺 `if`：prompts.system / prompts.context / temperature / maxCompletionTokens / embeddingTopK …），**0 个 return** | 最深 12 | **扁平序列** → 按语义分组为 3-4 个 applier（提示词 / 采样参数 / 检索参数） |
+
+### 项目分步（每步独立提交，走既有 harness 纪律）
+
+1. **补契约测试**（纯加测试、零行为变更，风险最低）：新建 `SessionQaResolutionSearchTargetsTest`（按 4 个分支面各钉一条：全空 / 仅 knowledgeIds / KB loop 命中与缺失 / tagScopes）；`applyAgentOverridesToChatManage` 侧按 `agentConfig == null` + 每类配置键各钉一条（`ChatManage` 真实例 + `ObjectNode` 配置）。
+   现有覆盖边界：`SessionKnowledgeQaKbScopeTest`（KB 范围族）+ `SessionKnowledgeQaServiceAgentModeTest`（agent 模式）已覆盖部分前置链路，新测试**只钉这两个方法自身的行为**，避免重复。
+2. **`applyAgentOverridesToChatManage` 先切**（扁平、风险低）：抽 `QaChatManageOverrides`（同包），20 个 `if` 按语义分 3-4 个 applier，门面保薄委托或直改调用点。
+3. **`buildSearchTargets` 后切**（深嵌套）：先抽 4 个私有助手到 `QaSearchTargets`（同包），保持主流程"取数 → 逐 KB → knowledgeIds → tag"四段可读。
+4. 收尾：本类应 ≈770 出榜；环守卫 + 全量闸门 + §11.38 记录。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
 
