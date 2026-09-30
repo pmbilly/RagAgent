@@ -306,7 +306,7 @@ knowledge/
 
 | 域 | 文件 | 行数 | 最大类 | ≥800 | Go 锚点 | `@JsonProperty` | 未用 import | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波已完成(e026138:package-info 六包 + 锚点 1,371→6,保留 GORM 复刻层等事实陈述)**。**余**:C 波契约换锚(raw gin→DTO,将整体重写 PageController)、数据访问轴 |
+| **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波完成(e026138)+ C 波完成(b407769:实体去 202 处注解转 camel/查询参数 Java 字段名/前端同批/wiki-* fixture 重录;PageController raw 形态保留但键已换锚,DTO 端点化随数据访问轴)**。**余**:数据访问轴(GORM 复刻层重塑) |
 | **agent** | 131 | 29,590 | AgentEngine 3,236 | 6 | 466 | 96 | 5 | §5 阶段 2 的另一半（已列名） |
 | **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
 | **session** | 73 | 21,460 | SessionKnowledgeQaService 1,764 | 8 | 721 | 188 | 12 | **步骤 0 体检完成(2026-09-30)**:≥800 八类=KnowledgeQaService 1,764/QaController 1,616/AgentQaService 1,446/AgentToolBackends 1,266/Suggestion 1,087/TempDoc 1,075/MessageService 1,028/StreamBridge 853;@RequestBody 直绑 12;子包 controller 8/domain 33/dto 1/mapper 8/service 19/sse 4,无 package-info;`wip/chat-sse-slice2` 在途(动实体/控制器前先并或裁) |
@@ -372,3 +372,10 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
 - **跨包缝合点（git grep 实测,11 文件）**：`service.WikiLanguageSupport`（agent PromptAssembly + knowledge×4 + session×2,消费最广）；`service.WikiIngestService`(+EnqueueResult)/`WikiKnowledgeFinalizer`/`DefaultWikiKnowledgeFinalizer`/`WikiImageMarkup`（knowledge 加工链）；`service.WikiPageService`/`WikiEditContext` + `domain.Wiki*`（session AgentToolBackends → agent wiki 工具,经 WikiPages seam 接口）；`controller.WikiActivityAudit`（audit）。
 - **拆分纪律**：A 波门面保全部 public 成员与上述类型不动；WikiIngestBatchHandler 为 wiki 内部驱动（无跨包消费者），可自由拆。
+
+### 14.8 session 域步骤 1 边界判定 + wip 分支裁定（2026-09-30）
+
+- **wip/chat-sse-slice2(785cdc7)裁定:不并入**。理由:①用了 @JsonAlias 兼容别名,与现行 §2 第 11 条"无别名"政策冲突;②仅完成切片②后端主体,自带约 40 个失败、前端未动;③当前分支已领先 59 提交,session 域多处被触碰,合并即冲突。**处置**:保留分支作工作清单参考(其提交说明是完整的键清单与任务分解),session C 波在当前分支按 wiki C 波同法重做(去注解无别名)。
+- **不动**:session/domain 实体 jsonb 键在 C 波前保持 snake(§11 边界);chat SSE 信封(event/*Data)归 session C 波切片③(与前端同批);工具输出自有 schema 不动。
+- **跨包缝合点(git grep 实测,15 文件)**:chatpipeline×6、embed×2、evaluation/im/memory×3、storage×2 消费 session 类型;session 出向依赖 retrieval.SearchResult(10)/event.EventBus/agent.AgentStep(5)/knowledge 服务族。
+- **C 波工作清单(自 wip 提交说明整理)**:20 实体+2 落库类型约 200 处注解;SessionController 8 键+3 解封+4 去 success;SteerController 11 键;KnowledgeQaController 2 处;删除/清空类端点 204;43 个 session-*/sug-* fixture;前端 93 键约 200+ 处读取(与 SSE 信封同名,切片③同批)。
