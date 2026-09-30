@@ -145,6 +145,7 @@
 - `.env` 已从旧仓原样复制（未入库，gitignore 正常），**待改** `SERVER_PORT` 与库名；`SYSTEM_AES_KEY` 可沿用。
 - **`LOCAL_STORAGE_BASE_DIR` 必须放持久目录、严禁 /tmp**（旧环境实测踩坑 2026-09-28：放在 `/tmp/weknora-java-files`，macOS 定期清理 /tmp 导致已入库文档原始文件丢失——文档列表正常、检索可能正常，但 preview 全 500、重处理报 "failed to read file"，原始文件不可恢复只能重传）。建议 `~/ragagent-data/files` 之类仓库外持久路径。
 - CI 起步三样：build、test、Spotless；ArchUnit 规则留到阶段 4。
+- **远程仓库（2026-09-30 起）**：`origin` = `https://github.com/pmbilly/ragagent.git`（**公开**）；首次推送只推了 `main`（`bbf7443`），**wip 分支与 tag 都留在本地**。此后本地提交若要同步，记得 `git push`（并行会话在同一仓库提交、同样落在 main，也需推送）。
 
 ## 9. 测试与安全网
 
@@ -289,7 +290,7 @@ knowledge/
 
 18. **本会话新增三条**（并行会话记录，2026-09-30）：(a) 被中止的 gradle 测试 run 会留孤儿 Test Executor 占固定端口 stub（11434）,下一轮误报"failed to start stub"——先 `lsof -ti :11434` 清进程再判回归；(b) 去逐字段 `@JsonProperty` 时,**失效的 `@JsonPropertyOrder` 旧名名单必须同删**——属性对 order 表不可见时 Jackson 序列化静默丢属性（approval 线上抓到）;(c) 闸门命令链不要依赖退出码（`cmd | tail` 恒 0）——用 `grep -q 'BUILD SUCCESSFUL'` 之类的字符串断言收口,否则红灯也会照常 commit（本轮 amend 修复过一次）。
 19. **别写全限定名注解**：`@jakarta.validation.constraints.NotBlank` 这类写法不标准也不必须（与 import + 短名等价），通常是遗留或脚本产物；唯一合法例外是**真同名冲突**，此时在注释里写明原因。knowledge 已清零（22 处），全仓余 177 处随各域清。另注：`message = "字段名: 不能为空"` 是仓库**有意约定**（GlobalExceptionHandler 按 `^[a-z][A-Za-z0-9_]*: ` 解析字段名），别当风格问题删掉。
-
+20. **推送到公开仓库前必须扫密钥**（2026-09-30 首次推送前执行）：① `git grep -nE '(sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'`；② `git ls-files | grep -iE '\.env|\.pem$|id_rsa'`；③ `du -sh .git` 看体积（GitHub 单文件上限 100MB）。本次扫出**两个录制期 fixture 里未脱敏的 `sk-` 值**（`adm-key-create.json` 的 `token` 字段、`ct-create-apikey.json` 的 `api_key`），经用户确认是录制时的假值后才推送。**教训：从真实环境「录制」来的 fixture 最容易夹带真实凭据**；一旦推送，彻底清除需改写历史（会变更所有提交号），所以**先问清楚再推**。
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
 > **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
