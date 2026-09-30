@@ -25,6 +25,7 @@ import com.ragagent.chatpipeline.PluginError;
 import com.ragagent.chatpipeline.SummaryConfig;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.prompt.MessageAttachmentsPrompt;
 import com.ragagent.common.settings.ConversationProperties;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
@@ -45,6 +46,7 @@ import com.ragagent.common.retrieval.SearchResult;
 
 import static com.ragagent.session.service.QaSupport.TagScope;
 import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.session.support.PipelineViews;
 
 /**
  * 知识问答 service 面（对照 Go internal/application/service/session_knowledge_qa.go
@@ -269,7 +271,7 @@ public class SessionKnowledgeQaService {
         chatManage.setImages(req.imageUrls);
         chatManage.setVlmModelId(vlmModelId);
         chatManage.setChatModelSupportsVision(chatModelSupportsVision);
-        chatManage.setAttachments(req.attachments);
+        chatManage.setAttachments(PipelineViews.ofAttachments(req.attachments));
         chatManage.setLanguage(currentLanguage());
         chatManage.setRewriteQuery(req.query);
         chatManage.setImageDescription(req.imageDescription);
@@ -297,7 +299,8 @@ public class SessionKnowledgeQaService {
                 userContent += "\n\n" + req.quotedContext;
             }
             if (!req.attachments.isEmpty()) {
-                userContent += com.ragagent.session.MessageAttachmentsPrompt.build(req.attachments);
+                userContent += MessageAttachmentsPrompt.build(
+                        PipelineViews.ofAttachments(req.attachments));
             }
             chatManage.setUserContent(userContent);
 

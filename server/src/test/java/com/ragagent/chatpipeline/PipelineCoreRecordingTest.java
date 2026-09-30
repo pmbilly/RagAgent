@@ -3,7 +3,6 @@ package com.ragagent.chatpipeline;
 import static com.ragagent.chatpipeline.Rec46cSupport.assertRec;
 import static com.ragagent.chatpipeline.Rec46cSupport.errOf;
 import static com.ragagent.chatpipeline.Rec46cSupport.json;
-import static com.ragagent.chatpipeline.Rec46cSupport.mask;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+
+import com.ragagent.common.session.PipelineMessageAttachmentView;
+import com.ragagent.common.session.PipelineUsedMemoryView;
 
 /**
  * 实录回放：event_manager / builder / plugin_error / chat_manage 组
@@ -210,11 +212,9 @@ class PipelineCoreRecordingTest {
         cm.setImages(new ArrayList<>(List.of("img1")));
         cm.setVlmModelId("vlm");
         cm.setChatModelSupportsVision(true);
-        var att = new com.ragagent.session.domain.MessageAttachment();
-        att.setFileName("a.txt");
-        att.setFileType(".txt");
-        att.setContent("hello");
-        cm.setAttachments(new ArrayList<>(List.of(att)));
+        // 载荷视图：未设置的字段取零值（与实体默认一致，渲染结果逐字节不变）
+        cm.setAttachments(new ArrayList<>(List.of(new PipelineMessageAttachmentView(
+                "a.txt", ".txt", 0, null, "hello", false, 0, 0, 0))));
         Map<String, String> overrides = new LinkedHashMap<>();
         overrides.put("greeting", "gp");
         cm.setIntentPromptOverrides(overrides);
@@ -231,11 +231,8 @@ class PipelineCoreRecordingTest {
         cm.setQuotedContext("qc");
         cm.setSystemPromptOverride("spo");
         cm.setMemoryPrompt("mp");
-        var used = new com.ragagent.session.domain.UsedMemory();
-        used.setId("m1");
-        used.setKind("fact");
-        used.setContent("c");
-        cm.setUsedMemories(new ArrayList<>(List.of(used)));
+        cm.setUsedMemories(new ArrayList<>(List.of(
+                new PipelineUsedMemoryView("m1", "fact", "c"))));
         cm.setEntity(new ArrayList<>(List.of("e1")));
         cm.setEntityKbIds(new ArrayList<>(List.of("kb1")));
         Map<String, String> ek = new LinkedHashMap<>();

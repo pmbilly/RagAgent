@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.agent.tools.ToolResultPersist;
 import com.ragagent.common.llm.ToolResult;
+import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventType;
@@ -37,7 +38,7 @@ import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.session.domain.Message;
-import com.ragagent.session.domain.UsedMemory;
+import com.ragagent.session.support.PipelineViews;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
@@ -468,13 +469,14 @@ public final class AgentStreamBridge {
             return null;
         }
         synchronized (mu) {
-            List<UsedMemory> typed = new ArrayList<>();
+            // 事件载荷是跨域视图（chatpipeline 侧产生），落库前映射回实体
+            List<PipelineUsedMemoryView> views = new ArrayList<>();
             for (Object item : used) {
-                if (item instanceof UsedMemory um) {
-                    typed.add(um);
+                if (item instanceof PipelineUsedMemoryView v) {
+                    views.add(v);
                 }
             }
-            assistantMessage.setUsedMemories(typed);
+            assistantMessage.setUsedMemories(PipelineViews.toUsedMemories(views));
         }
         StreamEvent se = new StreamEvent();
         se.setId(evt.getId());

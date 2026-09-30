@@ -10,9 +10,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
-import com.ragagent.session.domain.Message;
+import com.ragagent.common.prompt.MessageAttachmentsPrompt;
+import com.ragagent.common.session.PipelineMessageImageView;
+import com.ragagent.common.session.PipelineMessageView;
 import com.ragagent.common.web.JsonMappers;
-import com.ragagent.session.MessageAttachmentsPrompt;
 import com.ragagent.llm.extract.PipelineConfig;
 
 /**
@@ -164,7 +165,7 @@ public final class PluginQueryUnderstand implements Plugin {
 
     /** 对照 updateUserMessageImageCaption：把生成的图片描述写回用户消息。 */
     private void updateUserMessageImageCaption(ChatManage chatManage) {
-        Message msg;
+        PipelineMessageView msg;
         try {
             msg = messageService.getMessage(chatManage.getSessionId(), chatManage.getUserMessageId());
         } catch (RuntimeException e) {
@@ -178,13 +179,15 @@ public final class PluginQueryUnderstand implements Plugin {
         if (msg == null) {
             return;
         }
-        if (msg.getImages() == null || msg.getImages().isEmpty()) {
+        if (msg.images() == null || msg.images().isEmpty()) {
             return;
         }
-        msg.getImages().get(0).setCaption(chatManage.getImageDescription());
+        // 载荷不可变：换掉首图描述后整体回写（会话侧端口实现负责映射回实体）
+        List<PipelineMessageImageView> images = new ArrayList<>(msg.images());
+        images.set(0, images.get(0).withCaption(chatManage.getImageDescription()));
         try {
             messageService.updateMessageImages(chatManage.getSessionId(),
-                    chatManage.getUserMessageId(), msg.getImages());
+                    chatManage.getUserMessageId(), images);
         } catch (RuntimeException e) {
             Map<String, Object> f = new LinkedHashMap<>();
             f.put("session_id", chatManage.getSessionId());

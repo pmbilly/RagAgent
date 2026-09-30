@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.common.prompt.MessageAttachmentsPrompt;
+import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.knowledge.dto.FaqEntry;
 import com.ragagent.knowledge.dto.FaqEntryPage;
 import com.ragagent.knowledge.service.FaqEntryQueryService;
@@ -39,10 +41,10 @@ import com.ragagent.rerank.Reranker;
 import com.ragagent.agent.domain.AgentStep;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.session.domain.Message;
-import com.ragagent.session.domain.UsedMemory;
 
 import static com.ragagent.session.service.SessionKnowledgeQaService.SearchTargetView;
 import com.ragagent.model.service.ModelRuntimeConfigs;
+import com.ragagent.session.support.PipelineViews;
 
 /**
  * agent 问答 service 面（对照 Go session_agent_qa.go 全文 + agent_history.go 的
@@ -232,13 +234,12 @@ public class SessionAgentQaService {
                 var recall = memoryService.recall(req.query);
                 if (recall != null && recall.prompt() != null && !recall.prompt().isEmpty()) {
                     engine.setMemoryPrompt(recall.prompt());
-                    List<UsedMemory> used = new ArrayList<>();
+                    List<PipelineUsedMemoryView> used = new ArrayList<>();
                     if (recall.items() != null) {
                         for (var item : recall.items()) {
-                            UsedMemory um = new UsedMemory();
-                            um.setId(item.getId());
-                            um.setContent(item.getContent());
-                            used.add(um);
+                            // 与 chatpipeline 的投影一致：kind 缺省空串
+                            used.add(new PipelineUsedMemoryView(item.getId(), null,
+                                    item.getContent()));
                         }
                     }
                     Event evt = new Event();
@@ -278,7 +279,8 @@ public class SessionAgentQaService {
                 agentQuery += "\n\n" + req.quotedContext;
             }
             if (!req.attachments.isEmpty()) {
-                agentQuery += com.ragagent.session.MessageAttachmentsPrompt.build(req.attachments);
+                agentQuery += MessageAttachmentsPrompt.build(
+                        PipelineViews.ofAttachments(req.attachments));
                 log.info("Appended {} attachment(s) to agent query", req.attachments.size());
             }
 
@@ -1287,7 +1289,8 @@ public class SessionAgentQaService {
             }
         }
         if (m.getAttachments() != null && !m.getAttachments().isEmpty()) {
-            content += com.ragagent.session.MessageAttachmentsPrompt.build(m.getAttachments());
+            content += MessageAttachmentsPrompt.build(
+                    PipelineViews.ofAttachments(m.getAttachments()));
         }
         ChatMessage msg = new ChatMessage();
         msg.setRole("user");

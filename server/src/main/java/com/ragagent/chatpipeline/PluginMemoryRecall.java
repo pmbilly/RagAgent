@@ -9,7 +9,7 @@ import com.ragagent.event.Event;
 import com.ragagent.event.EventType;
 import com.ragagent.event.MemoryRecalledData;
 import com.ragagent.memory.domain.MemoryItem;
-import com.ragagent.session.domain.UsedMemory;
+import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
@@ -60,7 +60,7 @@ public final class PluginMemoryRecall implements Plugin {
 
         chatManage.setMemoryPrompt(prompt);
         List<MemoryItem> items = recall.items() == null ? List.of() : recall.items();
-        List<UsedMemory> used = MemoryUsedMemories.usedMemoriesFromItems(items);
+        List<PipelineUsedMemoryView> used = MemoryUsedMemories.usedMemoriesFromItems(items);
         chatManage.setUsedMemories(used);
         emitMemoryRecalled(chatManage.getEventBus(), chatManage.getSessionId(), used);
 
@@ -86,7 +86,7 @@ public final class PluginMemoryRecall implements Plugin {
      * EventMemoryRecalled 的 Data = MemoryRecalledData{Memories}。
      */
     static void emitMemoryRecalled(com.ragagent.event.EventBusInterface bus, String sessionID,
-                                   List<UsedMemory> used) {
+                                   List<PipelineUsedMemoryView> used) {
         if (bus == null || used == null || used.isEmpty()) {
             return;
         }

@@ -7,8 +7,8 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.memory.service.MemoryRecall;
 import com.ragagent.memory.service.MemoryRetrievalContext;
 import com.ragagent.common.retrieval.SearchResult;
-import com.ragagent.session.domain.Message;
-import com.ragagent.session.domain.MessageImage;
+import com.ragagent.common.session.PipelineMessageImageView;
+import com.ragagent.common.session.PipelineMessageView;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.service.WebSearchService;
 
@@ -114,13 +114,14 @@ public final class PipelinePorts {
     /** 对照 interfaces.MessageService 的 chat_pipeline 子集。 */
     public interface MessageService {
         /** 对照 GetMessage。找不到返回 null（Go (nil, nil)）或抛异常。 */
-        Message getMessage(String sessionId, String messageId);
+        PipelineMessageView getMessage(String sessionId, String messageId);
 
         /** 对照 GetRecentMessagesBySession。 */
-        List<Message> getRecentMessagesBySession(String sessionId, int limit);
+        List<PipelineMessageView> getRecentMessagesBySession(String sessionId, int limit);
 
         /** 对照 UpdateMessageImages。 */
-        void updateMessageImages(String sessionId, String messageId, List<MessageImage> images);
+        void updateMessageImages(String sessionId, String messageId,
+                List<PipelineMessageImageView> images);
 
         /** 对照 UpdateMessageRenderedContent。 */
         void updateMessageRenderedContent(String sessionId, String messageId, String renderedContent);

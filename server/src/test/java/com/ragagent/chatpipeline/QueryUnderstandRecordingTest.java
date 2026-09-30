@@ -16,6 +16,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import com.ragagent.common.session.PipelineMessageAttachmentView;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.llm.extract.PipelineConfig;
@@ -135,15 +136,8 @@ class QueryUnderstandRecordingTest {
         cm3.setQuery("看图");
         cm3.setLanguage("en");
         cm3.setImages(List.of("data:image/png;base64,AAA"));
-        MessageAttachment att = new MessageAttachment();
-        att.setFileName("报告.pdf");
-        att.setFileType(".pdf");
-        att.setFileSize(2048);
-        att.setContent("报告正文");
-        att.setTruncated(true);
-        att.setLineCount(100);
-        att.setContentMode("full");
-        cm3.setAttachments(new ArrayList<>(List.of(att)));
+        cm3.setAttachments(new ArrayList<>(List.of(new PipelineMessageAttachmentView(
+                "报告.pdf", ".pdf", 2048, "full", "报告正文", true, 100, 0, 0))));
         cm3.setRewritePromptSystem("AGENT SYS {{query}}");
         cm3.setRewritePromptUser("AGENT USER {{query}} {{conversation}}");
         cm3.setIntentPromptOverrides(new LinkedHashMap<>());

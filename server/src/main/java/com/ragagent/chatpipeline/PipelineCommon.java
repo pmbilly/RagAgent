@@ -15,10 +15,10 @@ import com.ragagent.agent.tools.SearchTarget;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
-import com.ragagent.session.domain.Message;
-import com.ragagent.session.domain.MessageAttachment;
-import com.ragagent.session.domain.MessageImage;
-import com.ragagent.session.MessageAttachmentsPrompt;
+import com.ragagent.common.prompt.MessageAttachmentsPrompt;
+import com.ragagent.common.session.PipelineMessageAttachmentView;
+import com.ragagent.common.session.PipelineMessageImageView;
+import com.ragagent.common.session.PipelineMessageView;
 
 /**
  * 管线共享工具（对照 Go chat_pipeline 的 common.go / chat_pipeline.go 包级函数）。
@@ -137,30 +137,31 @@ public final class PipelineCommon {
      */
     public static List<History> loadAndProcessHistory(PipelinePorts.MessageService messageService,
                                                       String sessionId, int maxRounds, int fetchCount) {
-        List<Message> history = messageService.getRecentMessagesBySession(sessionId, fetchCount);
+        List<PipelineMessageView> history =
+                messageService.getRecentMessagesBySession(sessionId, fetchCount);
         Map<String, History> historyMap = new LinkedHashMap<>();
-        for (Message message : history) {
-            History h = historyMap.get(message.getRequestId());
+        for (PipelineMessageView message : history) {
+            History h = historyMap.get(message.requestId());
             if (h == null) {
                 h = new History();
             }
-            if ("user".equals(message.getRole())) {
+            if ("user".equals(message.role())) {
                 // RenderedContent 是旧轮的提示词快照，重放会把旧协议混进本轮；
                 // 历史引用单独走 KnowledgeReferences，由本轮重新渲染合并。
-                h.setQuery(message.getContent());
-                h.setCreateAt(message.getCreatedAt() == null ? null : message.getCreatedAt().toInstant());
-                String desc = extractImageCaptions(message.getImages());
+                h.setQuery(message.content());
+                h.setCreateAt(message.createdAt() == null ? null : message.createdAt().toInstant());
+                String desc = extractImageCaptions(message.images());
                 if (!desc.isEmpty()) {
                     h.setQuery(h.getQuery() + "\n\n[用户上传图片内容]\n" + desc);
                 }
-                if (message.getAttachments() != null && !message.getAttachments().isEmpty()) {
-                    h.setQuery(h.getQuery() + MessageAttachmentsPrompt.build(message.getAttachments()));
+                if (message.attachments() != null && !message.attachments().isEmpty()) {
+                    h.setQuery(h.getQuery() + MessageAttachmentsPrompt.build(message.attachments()));
                 }
             } else {
-                h.setAnswer(message.getContent().replaceAll(THINK_TAGS, ""));
-                h.setKnowledgeReferences(message.getKnowledgeReferences());
+                h.setAnswer(message.content().replaceAll(THINK_TAGS, ""));
+                h.setKnowledgeReferences(message.knowledgeReferences());
             }
-            historyMap.put(message.getRequestId(), h);
+            historyMap.put(message.requestId(), h);
         }
 
         List<History> historyList = new ArrayList<>(historyMap.size());
@@ -194,12 +195,12 @@ public final class PipelineCommon {
     }
 
     /** 对照 extractImageCaptions：拼接消息图片的非空 Caption。 */
-    static String extractImageCaptions(List<MessageImage> images) {
+    static String extractImageCaptions(List<PipelineMessageImageView> images) {
         List<String> parts = new ArrayList<>();
         if (images != null) {
-            for (MessageImage img : images) {
-                if (img != null && img.getCaption() != null && !img.getCaption().isEmpty()) {
-                    parts.add(img.getCaption());
+            for (PipelineMessageImageView img : images) {
+                if (img != null && img.caption() != null && !img.caption().isEmpty()) {
+                    parts.add(img.caption());
                 }
             }
         }
@@ -313,7 +314,7 @@ public final class PipelineCommon {
     }
 
     /** 附件提示词构建（对照 MessageAttachments.BuildPrompt；见 {@link MessageAttachmentsPrompt}）。 */
-    static String attachmentsPrompt(List<MessageAttachment> attachments) {
+    static String attachmentsPrompt(List<PipelineMessageAttachmentView> attachments) {
         return MessageAttachmentsPrompt.build(attachments);
     }
 

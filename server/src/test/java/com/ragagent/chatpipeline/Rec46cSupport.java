@@ -9,6 +9,9 @@ import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
 
+import com.ragagent.common.session.PipelineMessageImageView;
+import com.ragagent.common.session.PipelineMessageView;
+import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventHandler;
 import com.ragagent.event.EventJson;
@@ -30,6 +33,7 @@ import com.ragagent.common.graph.GraphData;
 import com.ragagent.common.graph.NameSpace;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.common.pipeline.SearchParams;
+import com.ragagent.session.support.PipelineViews;
 
 /**
  * 4.6c 实录回放的替身与掩码工具（对照 Go 探针的 zz_ 前缀同款）。
@@ -182,16 +186,16 @@ final class Rec46cSupport {
         return out;
     }
 
-    static List<Map<String, Object>> usedShape(List<com.ragagent.session.domain.UsedMemory> u) {
+    static List<Map<String, Object>> usedShape(List<PipelineUsedMemoryView> u) {
         List<Map<String, Object>> out = new ArrayList<>();
         if (u == null) {
             return out;
         }
         for (var m : u) {
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("id", m.getId());
-            row.put("kind", m.getKind());
-            row.put("content", m.getContent());
+            row.put("id", m.id());
+            row.put("kind", m.kind());
+            row.put("content", m.content());
             out.add(row);
         }
         return out;
@@ -794,29 +798,30 @@ final class Rec46cSupport {
         RuntimeException recentErr;
 
         @Override
-        public Message getMessage(String sessionId, String messageId) {
+        public PipelineMessageView getMessage(String sessionId, String messageId) {
             if (getErr != null) {
                 throw getErr;
             }
             for (Message msg : messages) {
                 if (msg.getId().equals(messageId) && msg.getSessionId().equals(sessionId)) {
-                    return msg;
+                    // 桩也照真实现出域：实体 → 跨域载荷
+                    return PipelineViews.ofMessage(msg);
                 }
             }
             throw new RuntimeException("message " + messageId + " not found");
         }
 
         @Override
-        public List<Message> getRecentMessagesBySession(String sessionId, int limit) {
+        public List<PipelineMessageView> getRecentMessagesBySession(String sessionId, int limit) {
             if (recentErr != null) {
                 throw recentErr;
             }
-            return messages;
+            return PipelineViews.ofMessages(messages);
         }
 
         @Override
         public void updateMessageImages(String sessionId, String messageId,
-                                        List<com.ragagent.session.domain.MessageImage> images) {
+                                        List<PipelineMessageImageView> images) {
         }
 
         @Override

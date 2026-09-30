@@ -10,8 +10,8 @@ import com.ragagent.agent.tools.SearchTarget;
 import com.ragagent.event.EventBusInterface;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.common.retrieval.SearchResult;
-import com.ragagent.session.domain.MessageAttachment;
-import com.ragagent.session.domain.UsedMemory;
+import com.ragagent.common.session.PipelineMessageAttachmentView;
+import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.common.graph.GraphData;
 
 /**
@@ -84,7 +84,7 @@ public final class ChatManage {
     private String vlmModelId = "";
     private boolean chatModelSupportsVision;
 
-    private List<MessageAttachment> attachments;
+    private List<PipelineMessageAttachmentView> attachments;
     /** intent → 覆写系统提示词（agent 级；空白值回落全局默认）。 */
     private Map<String, String> intentPromptOverrides;
 
@@ -116,7 +116,7 @@ public final class ChatManage {
     private String quotedContext = "";
     private String systemPromptOverride = "";
     private String memoryPrompt = "";
-    private List<UsedMemory> usedMemories;
+    private List<PipelineUsedMemoryView> usedMemories;
 
     // ===== 运行时段（对照 PipelineContext） =====
 
@@ -202,8 +202,8 @@ public final class ChatManage {
     public boolean isChatModelSupportsVision() { return chatModelSupportsVision; }
     public void setChatModelSupportsVision(boolean v) { chatModelSupportsVision = v; }
 
-    public List<MessageAttachment> getAttachments() { return attachments; }
-    public void setAttachments(List<MessageAttachment> v) { attachments = v; }
+    public List<PipelineMessageAttachmentView> getAttachments() { return attachments; }
+    public void setAttachments(List<PipelineMessageAttachmentView> v) { attachments = v; }
     public Map<String, String> getIntentPromptOverrides() { return intentPromptOverrides; }
     public void setIntentPromptOverrides(Map<String, String> v) { intentPromptOverrides = v; }
 
@@ -259,8 +259,8 @@ public final class ChatManage {
     public void setSystemPromptOverride(String v) { systemPromptOverride = v == null ? "" : v; }
     public String getMemoryPrompt() { return memoryPrompt; }
     public void setMemoryPrompt(String v) { memoryPrompt = v == null ? "" : v; }
-    public List<UsedMemory> getUsedMemories() { return usedMemories; }
-    public void setUsedMemories(List<UsedMemory> v) { usedMemories = v; }
+    public List<PipelineUsedMemoryView> getUsedMemories() { return usedMemories; }
+    public void setUsedMemories(List<PipelineUsedMemoryView> v) { usedMemories = v; }
 
     // ----- 运行时段访问器 -----
 
@@ -328,7 +328,7 @@ public final class ChatManage {
         c.images = images == null ? null : new ArrayList<>(images);
         c.vlmModelId = vlmModelId;
         c.chatModelSupportsVision = chatModelSupportsVision;
-        c.attachments = attachments == null ? null : new ArrayList<>(attachments); // MessageAttachment 视为不可变行
+        c.attachments = attachments == null ? null : new ArrayList<>(attachments); // 载荷记录视为不可变行
         c.intentPromptOverrides = intentPromptOverrides == null ? null : new LinkedHashMap<>(intentPromptOverrides);
         c.tenantId = tenantId;
         c.webSearchEnabled = webSearchEnabled;

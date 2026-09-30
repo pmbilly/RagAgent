@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.ragagent.common.llm.ResponseType;
+import com.ragagent.common.session.PipelineMessageAttachmentView;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.graph.GraphData;
 import com.ragagent.common.graph.GraphNode;
@@ -191,11 +192,8 @@ class PipelineLifecycleRecordingTest {
         ChatManage cm2 = new ChatManage();
         cm2.setQuery("这是什么");
         cm2.setChatModelSupportsVision(false);
-        var att = new com.ragagent.session.domain.MessageAttachment();
-        att.setFileName("a.txt");
-        att.setFileType(".txt");
-        att.setContent("txt 内容");
-        cm2.setAttachments(new ArrayList<>(List.of(att)));
+        cm2.setAttachments(new ArrayList<>(List.of(new PipelineMessageAttachmentView(
+                "a.txt", ".txt", 0, null, "txt 内容", false, 0, 0, 0))));
         cm2.setIntent(QueryIntent.IMAGE_ONLY);
         cm2.setImageDescription("一只猫坐在垫子上");
         cm2.setQuotedContext("被引用的话");

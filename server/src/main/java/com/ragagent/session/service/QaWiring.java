@@ -15,6 +15,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.chatpipeline.EventManager;
+import com.ragagent.common.session.PipelineMessageImageView;
+import com.ragagent.common.session.PipelineMessageView;
 import com.ragagent.llm.extract.PipelineConfig;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.chatpipeline.PluginChatCompletion;
@@ -52,8 +54,7 @@ import com.ragagent.rerank.Reranker;
 import com.ragagent.rerank.RerankerConfig;
 import com.ragagent.rerank.RerankerFactory;
 import com.ragagent.common.retrieval.SearchResult;
-import com.ragagent.session.domain.Message;
-import com.ragagent.session.domain.MessageImage;
+import com.ragagent.session.support.PipelineViews;
 import com.ragagent.websearch.service.WebSearchService;
 import com.ragagent.model.service.ModelRuntimeConfigs;
 import com.ragagent.chatpipeline.PipelinePorts;
@@ -288,18 +289,21 @@ public class QaWiring {
     public PipelinePorts.MessageService qaPipelineMessageService(MessageService messageService) {
         return new PipelinePorts.MessageService() {
             @Override
-            public Message getMessage(String sessionId, String messageId) {
-                return messageService.getMessage(sessionId, messageId);
+            public PipelineMessageView getMessage(String sessionId, String messageId) {
+                // 端口两端只认 common 载荷：出域（实体 → 载荷）在这层收敛
+                return PipelineViews.ofMessage(messageService.getMessage(sessionId, messageId));
             }
 
             @Override
-            public List<Message> getRecentMessagesBySession(String sessionId, int limit) {
-                return messageService.getRecentMessages(sessionId, limit);
+            public List<PipelineMessageView> getRecentMessagesBySession(String sessionId, int limit) {
+                return PipelineViews.ofMessages(messageService.getRecentMessages(sessionId, limit));
             }
 
             @Override
-            public void updateMessageImages(String sessionId, String messageId, List<MessageImage> images) {
-                messageService.updateMessageImages(sessionId, messageId, images);
+            public void updateMessageImages(String sessionId, String messageId,
+                                            List<PipelineMessageImageView> images) {
+                messageService.updateMessageImages(sessionId, messageId,
+                        PipelineViews.toImages(images));
             }
 
             @Override

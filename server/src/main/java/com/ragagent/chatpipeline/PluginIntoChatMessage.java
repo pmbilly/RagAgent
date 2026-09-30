@@ -10,7 +10,7 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.knowledge.support.ImageInfoEnricher;
 import com.ragagent.common.pipeline.ChunkTypes;
 import com.ragagent.retrieval.obs.RetrievalObs;
-import com.ragagent.session.MessageAttachmentsPrompt;
+import com.ragagent.common.prompt.MessageAttachmentsPrompt;
 
 /**
  * INTO_CHAT_MESSAGE 阶段插件（对照 Go chat_pipeline/into_chat_message.go）：
