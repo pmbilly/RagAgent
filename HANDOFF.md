@@ -14,11 +14,11 @@
    **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）；
    **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）；
    **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。**AuthController 已出榜（3 刀，1,167→704，§14.7.7）——auth controller 清零**。**FaqImportService 已出榜（2 刀 F1/F2，1,235→583+419，knowledge 例外解除）**。
-4. **下一步**：`llm`/`chatpipeline` 1,000+ 类 →
+4. **下一步**：`llm` RemoteApiChat 1,366 →
    `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **23 个**（本会话 38→24，共 **48 刀**）（清单见 §14.3）；**检索域 + auth 域 controller ≥800 全清零**。
+6. **全仓存量**：≥800 行的类还有 **22 个**（本会话 38→24，共 **48 刀**）（清单见 §14.3）；**检索域 + auth 域 controller ≥800 全清零**。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -358,7 +358,7 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **23 个**；适配器批后 38→23，检索域 + auth controller 清零）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **22 个**；适配器批后 38→22）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
@@ -367,7 +367,7 @@ knowledge/
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | 其余单类 | `RemoteApiChat` 1,366（llm）· `FaqImportService` 1,235（knowledge 例外）· `AuthController` 1,167 · `PluginMerge` 1,155（chatpipeline）· `SessionKnowledgeQaService` 1,036（session 例外）· `McpServiceController` 937 · `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `TenantCatalogController` 980 · `SourceRegistry` 878 · `UserService` 876 · `KnowledgeService` 848（knowledge 例外）· `OAuthHandler` 825 · `KnowledgeProcessWorker` 814 |
-| im / llm / chatpipeline | `RemoteApiChat` 1,366 · `PluginMerge` 1,155 |
+| im / llm | `RemoteApiChat` 1,366 |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
 | auth | **controller 已清零**（§14.7.7；service 域 + apikey 未动） |
 
