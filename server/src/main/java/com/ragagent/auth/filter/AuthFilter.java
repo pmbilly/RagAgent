@@ -58,11 +58,11 @@ public class AuthFilter extends OncePerRequestFilter {
 
     private final UserService userService;
     private final WsAuthSupport wsAuthSupport;
-    private final com.ragagent.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel;
+    private final com.ragagent.auth.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel;
 
     public AuthFilter(UserService userService,
                       WsAuthSupport wsAuthSupport,
-                      com.ragagent.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel) {
+                      com.ragagent.auth.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel) {
         this.userService = userService;
         this.wsAuthSupport = wsAuthSupport;
         this.apiKeyAuthChannel = apiKeyAuthChannel;

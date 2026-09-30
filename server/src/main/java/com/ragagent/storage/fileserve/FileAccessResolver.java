@@ -225,7 +225,7 @@ public class FileAccessResolver {
     /** Go 的 {@code AuthorizeTenantAPIKeyKnowledgeBases(...) == nil} 判定（受限 Key 越白名单 → false）。 */
     private static boolean apiKeyAllowsKb(String kbId) {
         try {
-            com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(java.util.List.of(kbId));
+            com.ragagent.auth.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeBases(java.util.List.of(kbId));
             return true;
         } catch (RuntimeException e) {
             return false;

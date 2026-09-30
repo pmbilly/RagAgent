@@ -8,7 +8,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.datasource.ConnectorCatalog;
 import com.ragagent.datasource.ConnectorMetadata;

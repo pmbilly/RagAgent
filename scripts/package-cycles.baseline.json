@@ -21,14 +21,6 @@
       "model"
     ],
     [
-      "apikey",
-      "auth"
-    ],
-    [
-      "apikey",
-      "knowledge"
-    ],
-    [
       "audit",
       "auth"
     ],
@@ -204,10 +196,6 @@
     [
       "storageurl",
       "agent"
-    ],
-    [
-      "storageurl",
-      "apikey"
     ],
     [
       "storageurl",

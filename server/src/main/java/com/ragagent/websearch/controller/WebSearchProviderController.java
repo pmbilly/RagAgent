@@ -7,11 +7,10 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.apikey.domain.APIKeyScopeContext;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.retrieval.domain.WebSearchResult;

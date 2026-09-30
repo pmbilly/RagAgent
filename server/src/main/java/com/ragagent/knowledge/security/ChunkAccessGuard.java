@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;

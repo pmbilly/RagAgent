@@ -2,13 +2,13 @@
 
 > **用途**：新人 30 分钟建立"哪个功能在哪个包"的全局观；后续会话按本文的 **P0–P3 待办**推进，
 > 不用重新摸索。**复测**：`python3 scripts/pkg-audit.py`（口径见脚本 docstring）。
-> **基线数据**：34 个顶层包 / **1,599 文件 / 284,033 行**（`com.ragagent` 子树）；顶层 `package-info` **33/34**（仅 `session` 待其批次补）。
+> **基线数据**：**33 个顶层包**（2026-09-30：`apikey` 并入 `auth`）/ **1,581 文件 / 281k 行**（`com.ragagent` 子树）；顶层 `package-info` **33/34**（仅 `session` 待其批次补）。
 
 ## 1. 三类包（先分清性质，再判断"合理与否"）
 
 | 性质 | 包 | 判定 |
 |---|---|---|
-| **业务域（20）** | knowledge、agent、agentm、wiki、session、datasource、memory、mcp、auth、apikey、audit、im、storage、model、system、websearch、embed、vectorstore、favorite、evaluation | 有 `controller/service/domain/dto/mapper/repository` 六件套，HTTP 面明确 |
+| **业务域（19）** | knowledge、agent、agentm、wiki、session、datasource、memory、mcp、auth（含 `apikey/` 子域）、audit、im、storage、model、system、websearch、embed、vectorstore、favorite、evaluation | 有 `controller/service/domain/dto/mapper/repository` 六件套，HTTP 面明确 |
 | **库式域（4）** | `llm`、`retrieval`、`chatpipeline`、`event` | **无 controller 是对的**——被其他域调用的引擎/管线（`retrieval` 被 chatpipeline 19 文件、knowledge 10、session 7 消费） |
 | **基础设施（10）** | `common`、`config`、`stream`、`modelcontext`、`searchutil`、`storageurl`、`tracing`、`webfetch`、`embedding`、`rerank` | 横切能力；`common` 被 **30 个包**依赖（位置正确） |
 
@@ -58,7 +58,7 @@
 
 **守卫（已入库）**：`python3 scripts/check-package-cycles.py` —— **环只许减不许增**（基线
 `scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
-当前基线：**环 34 组 / 依赖 `config` 的包 5 个 / 能力层→业务层直连 19 条**。
+当前基线（2026-09-30 并入 apikey 后）：**环 32 组 / 依赖 `config` 的包 5 个 / 能力层→业务层直连 18 条**。
 
 ### P1 扁平包 10 个（无子包，靠文件名找东西）
 
@@ -109,10 +109,10 @@ L1  平台                         common event stream tracing
 | `searchutil` | `retrieval/support` | 纯检索工具，归属检索域（同时消 `retrieval ⇄ searchutil` 环）|
 | `storageurl` | `storage/support` | 存储 URL 重写是该域能力（消 `storage ⇄ storageurl`）|
 | `webfetch` | `agent/support` | 它就是 agent 的抓取能力 |
-| `apikey` | `auth/apikey` | 与 auth 职责相邻且互相成环（消 `apikey ⇄ auth`）；**待用户确认** |
+| `apikey` | `auth/apikey` | ✅ **已并入（2026-09-30）**：一次消掉 `apikey ⇄ auth` 与 `apikey ⇄ knowledge` 两组环 |
 | `embed` | `embedchannel` | 与 `embedding` 名字太近，语义不同（业务渠道 vs provider 客户端）|
-| `modelcontext` | **待定**：并入 `agent/modelcontext` 或保留顶层 | 目前只被 agent 用；`agent ⇄ modelcontext` 环也可用"伴生类型归位"解 |
-| `agentm` | **待定**：是否一分为二（智能体管理 / 初始化+模型能力） | 它是混装（§7 已记）|
+| `modelcontext` | **仍待定**：并入 `agent/modelcontext` 或保留顶层 | 目前只被 agent 用；`agent ⇄ modelcontext` 环也可用"伴生类型归位"解 |
+| `agentm` | **用户已定：分拆**（智能体管理 / 初始化+模型能力） | 它是混装（§7 已记）；待执行 |
 
 其余域**保留顶层**：`knowledge agent session wiki datasource im memory mcp auth audit model storage
 system websearch favorite evaluation common config event stream tracing`。
@@ -152,7 +152,7 @@ system websearch favorite evaluation common config event stream tracing`。
 
 ## 4. 明确"别动"
 
-- `im` / `datasource`：文档记着"可裁 / 可纯删"——**先由用户定删留**再谈结构；
+- ~~`im` / `datasource`~~：**用户已定：保留**（2026-09-30，不再考虑删除）——其结构可按 §14 正常重构；
 - `evaluation`：§2.5 待排期可选项；
 - `agent` 根级 26 个文件：此前已裁定"扰动/收益比不划算"；
 - §11 边界清单（租户配置 jsonb、auth 域、agent fixture、工具输出自有 schema、检索引擎索引文档、Go 工具面 5 类）。

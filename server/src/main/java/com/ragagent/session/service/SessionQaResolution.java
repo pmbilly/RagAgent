@@ -387,11 +387,11 @@ final class SessionQaResolution {
 
 
 
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(requestedKbIds, req.knowledgeIds);
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(requestedKbIds, req.knowledgeIds);
 
 
 
-        kbIds = com.ragagent.apikey.domain.TenantAPIKeyScope.filterKnowledgeBases(requestedKbIds, kbIds);
+        kbIds = com.ragagent.auth.apikey.domain.TenantAPIKeyScope.filterKnowledgeBases(requestedKbIds, kbIds);
 
 
 
@@ -1499,11 +1499,11 @@ final class SessionQaResolution {
 
 
 
-        com.ragagent.apikey.domain.TenantAPIKeyScope scope =
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope scope =
 
 
 
-                com.ragagent.apikey.domain.APIKeyScopeContext.current();
+                com.ragagent.auth.apikey.domain.APIKeyScopeContext.current();
 
 
 

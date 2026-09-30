@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.agentm.mapper.AgentQuestionMapper;
 import com.ragagent.agentm.mapper.CustomAgentMapper;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**

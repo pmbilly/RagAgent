@@ -12,7 +12,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import org.springframework.stereotype.Component;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashSet;
 import java.util.Set;

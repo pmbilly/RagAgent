@@ -222,7 +222,7 @@ public class KnowledgeQaController {
             throw BizException.badRequest(
                     "At least one knowledge_base_id, knowledge_base_ids, knowledge_ids, or scoped tag must be provided");
         }
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(
                 knowledgeBaseIds, request.knowledgeIds());
 
         List<SearchResult> searchResults = knowledgeQaService.searchKnowledge(
@@ -366,7 +366,7 @@ public class KnowledgeQaController {
         // @mention 合并
         KnowledgeTargets merged = QaSupport.mergeKnowledgeTargets(
                 request.knowledgeBaseIds(), request.knowledgeIds(), request.mentionedItems());
-        com.ragagent.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(
                 merged.kbIds(), merged.knowledgeIds());
 
         // wiki fixer 的租户作用域（Go L206-218）：内建 agent id 不匹配即跳过（同款守卫）

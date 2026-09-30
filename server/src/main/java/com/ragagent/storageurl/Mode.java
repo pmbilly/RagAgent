@@ -5,8 +5,8 @@ import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.ragagent.apikey.domain.APIKeyScopeContext;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 
 /**
  * 存储文件在 API 响应里的引用方式（对照 Go {@code internal/storageurl/mode.go}）。

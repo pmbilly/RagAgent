@@ -72,7 +72,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Bean
     public FilterRegistrationBean<AuthFilter> authFilter(UserService userService,
                                                          com.ragagent.auth.filter.WsAuthSupport wsAuthSupport,
-                                                         com.ragagent.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel) {
+                                                         com.ragagent.auth.apikey.filter.APIKeyAuthChannel apiKeyAuthChannel) {
         FilterRegistrationBean<AuthFilter> bean =
                 new FilterRegistrationBean<>(new AuthFilter(userService, wsAuthSupport,
                         apiKeyAuthChannel));
@@ -86,9 +86,9 @@ public class WebConfig implements WebMvcConfigurer {
      * 不清理会让后续的 JWT 请求被误判成 API Key 主体（对照 Go 的 per-request 值语义）。
      */
     @Bean
-    public FilterRegistrationBean<com.ragagent.apikey.filter.APIKeyScopeCleanupFilter> apiKeyScopeCleanupFilter() {
-        FilterRegistrationBean<com.ragagent.apikey.filter.APIKeyScopeCleanupFilter> bean =
-                new FilterRegistrationBean<>(new com.ragagent.apikey.filter.APIKeyScopeCleanupFilter());
+    public FilterRegistrationBean<com.ragagent.auth.apikey.filter.APIKeyScopeCleanupFilter> apiKeyScopeCleanupFilter() {
+        FilterRegistrationBean<com.ragagent.auth.apikey.filter.APIKeyScopeCleanupFilter> bean =
+                new FilterRegistrationBean<>(new com.ragagent.auth.apikey.filter.APIKeyScopeCleanupFilter());
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 15);
         bean.addUrlPatterns("/*");
         return bean;
@@ -106,10 +106,10 @@ public class WebConfig implements WebMvcConfigurer {
         // API Key 能力维度的门禁（对照 Go middleware.APIKeyRouteAuthorizer.Middleware）。
         // 必须**排在角色维度的 RbacInterceptor 之前**：Go 里能力判定先于角色判定，
         // 且 RbacInterceptor 对 API Key 主体短路（见其 apiKeyShortCircuit）。
-        com.ragagent.apikey.filter.APIKeyRouteAuthorizer apiKeyAuthorizer =
-                new com.ragagent.apikey.filter.APIKeyRouteAuthorizer();
-        com.ragagent.apikey.filter.APIKeyRoutePolicies.registerAll(apiKeyAuthorizer);
-        registry.addInterceptor(new com.ragagent.apikey.filter.APIKeyGateInterceptor(apiKeyAuthorizer))
+        com.ragagent.auth.apikey.filter.APIKeyRouteAuthorizer apiKeyAuthorizer =
+                new com.ragagent.auth.apikey.filter.APIKeyRouteAuthorizer();
+        com.ragagent.auth.apikey.filter.APIKeyRoutePolicies.registerAll(apiKeyAuthorizer);
+        registry.addInterceptor(new com.ragagent.auth.apikey.filter.APIKeyGateInterceptor(apiKeyAuthorizer))
                 .addPathPatterns("/api/v1/**")
                 // W5c：/api/v1/files/presigned 与 presigned-preview 在 Go 注册在
                 // **引擎根**（servePresignedFiles/servePresignedPreview 拿 *gin.Engine），
@@ -603,12 +603,12 @@ public class WebConfig implements WebMvcConfigurer {
         // middleware.AllowFileServeAPIKey——这两个引擎级路由不在 /api/v1 组的门禁下，
         // KB 受限 Key 拒绝、full-access 与 retrieve 放行，JWT 直通）。
         // 注册先于 rbac（对照 Go 链序：AllowFileServeAPIKey → Viewer）。
-        registry.addInterceptor(new com.ragagent.apikey.filter.AllowFileServeAPIKeyInterceptor())
+        registry.addInterceptor(new com.ragagent.auth.apikey.filter.AllowFileServeAPIKeyInterceptor())
                 .addPathPatterns("/files", "/api/v1/knowledge-bases/*/files")
                 .order(0);
         // W5c：presigned-preview 的 DenyAPIKeyPrincipal（对照 Go servePresignedPreview
         // L640——RequireRole 对 Key 短路，引擎级路由必须显式拒绝 Key）。
-        registry.addInterceptor(new com.ragagent.apikey.filter.DenyAPIKeyPrincipalInterceptor())
+        registry.addInterceptor(new com.ragagent.auth.apikey.filter.DenyAPIKeyPrincipalInterceptor())
                 .addPathPatterns("/api/v1/files/presigned-preview")
                 .order(0);
 
@@ -654,7 +654,7 @@ public class WebConfig implements WebMvcConfigurer {
      */
     @org.springframework.context.annotation.Bean
     public com.ragagent.system.service.DeploymentCapabilitiesHolder deploymentCapabilitiesHolder(
-            com.ragagent.apikey.service.TenantAPIKeyService apiKeyService) {
+            com.ragagent.auth.apikey.service.TenantAPIKeyService apiKeyService) {
         var holder = new com.ragagent.system.service.DeploymentCapabilitiesHolder();
         holder.bind(
                 /* agents */ true, // 波 3 agents 批注册了 routes_agent.go 的 agents 家族

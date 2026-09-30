@@ -12,11 +12,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.ragagent.TestSchema;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
-import com.ragagent.apikey.filter.APIKeyGateInterceptor;
-import com.ragagent.apikey.filter.APIKeyRouteAuthorizer;
-import com.ragagent.apikey.filter.APIKeyRoutePolicies;
-import com.ragagent.apikey.filter.APIKeyRoutePolicy;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.filter.APIKeyGateInterceptor;
+import com.ragagent.auth.apikey.filter.APIKeyRouteAuthorizer;
+import com.ragagent.auth.apikey.filter.APIKeyRoutePolicies;
+import com.ragagent.auth.apikey.filter.APIKeyRoutePolicy;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.TenantMember;
 import com.ragagent.auth.domain.User;
@@ -621,7 +621,7 @@ class MemoryHttpContractTest {
     /** 对照 Go 的 {@code runGate}：直接驱动 {@link APIKeyGateInterceptor}。 */
     private static boolean gateAllows(APIKeyRouteAuthorizer authorizer, TenantAPIKeyScope scope,
                                       String method, String pattern) throws Exception {
-        com.ragagent.apikey.domain.APIKeyScopeContext.set(scope);
+        com.ragagent.auth.apikey.domain.APIKeyScopeContext.set(scope);
         try {
             MockHttpServletRequest request = new MockHttpServletRequest(method, pattern);
             request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, pattern);
@@ -630,7 +630,7 @@ class MemoryHttpContractTest {
                     new APIKeyGateInterceptor(authorizer).preHandle(request, response, new Object());
             return allowed && response.getStatus() == 200;
         } finally {
-            com.ragagent.apikey.domain.APIKeyScopeContext.clear();
+            com.ragagent.auth.apikey.domain.APIKeyScopeContext.clear();
         }
     }
 

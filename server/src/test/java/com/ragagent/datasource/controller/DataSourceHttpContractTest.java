@@ -14,9 +14,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.ragagent.TestSchema;
-import com.ragagent.apikey.filter.APIKeyRouteAuthorizer;
-import com.ragagent.apikey.filter.APIKeyRoutePolicies;
-import com.ragagent.apikey.filter.APIKeyRoutePolicy;
+import com.ragagent.auth.apikey.filter.APIKeyRouteAuthorizer;
+import com.ragagent.auth.apikey.filter.APIKeyRoutePolicies;
+import com.ragagent.auth.apikey.filter.APIKeyRoutePolicy;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.TenantMember;
 import com.ragagent.auth.domain.User;
@@ -814,14 +814,14 @@ class DataSourceHttpContractTest {
         APIKeyRouteAuthorizer a = new APIKeyRouteAuthorizer();
         APIKeyRoutePolicies.registerAll(a);
 
-        com.ragagent.apikey.domain.TenantAPIKeyScope scoped =
-                new com.ragagent.apikey.domain.TenantAPIKeyScope(
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope scoped =
+                new com.ragagent.auth.apikey.domain.TenantAPIKeyScope(
                         0L, "tenant", false, null, List.of("chat"));
         assertThat(gateAllows(a, scoped, "GET", "/api/v1/datasource/types")).isFalse();
         assertThat(gateAllows(a, scoped, "POST", "/api/v1/datasource/{id}/sync")).isFalse();
 
-        com.ragagent.apikey.domain.TenantAPIKeyScope full =
-                new com.ragagent.apikey.domain.TenantAPIKeyScope(0L, "tenant", true, null, null);
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope full =
+                new com.ragagent.auth.apikey.domain.TenantAPIKeyScope(0L, "tenant", true, null, null);
         assertThat(gateAllows(a, full, "GET", "/api/v1/datasource/types")).isTrue();
 
         // 行为层：scoped Key 打真实请求 → 403（纯字符串形态，不是 AppError 信封）
@@ -833,9 +833,9 @@ class DataSourceHttpContractTest {
     }
 
     private static boolean gateAllows(APIKeyRouteAuthorizer authorizer,
-                                      com.ragagent.apikey.domain.TenantAPIKeyScope scope,
+                                      com.ragagent.auth.apikey.domain.TenantAPIKeyScope scope,
                                       String method, String pattern) throws Exception {
-        com.ragagent.apikey.domain.APIKeyScopeContext.set(scope);
+        com.ragagent.auth.apikey.domain.APIKeyScopeContext.set(scope);
         try {
             org.springframework.mock.web.MockHttpServletRequest request =
                     new org.springframework.mock.web.MockHttpServletRequest(method, pattern);
@@ -843,11 +843,11 @@ class DataSourceHttpContractTest {
                     .BEST_MATCHING_PATTERN_ATTRIBUTE, pattern);
             org.springframework.mock.web.MockHttpServletResponse response =
                     new org.springframework.mock.web.MockHttpServletResponse();
-            boolean allowed = new com.ragagent.apikey.filter.APIKeyGateInterceptor(authorizer)
+            boolean allowed = new com.ragagent.auth.apikey.filter.APIKeyGateInterceptor(authorizer)
                     .preHandle(request, response, new Object());
             return allowed && response.getStatus() == 200;
         } finally {
-            com.ragagent.apikey.domain.APIKeyScopeContext.clear();
+            com.ragagent.auth.apikey.domain.APIKeyScopeContext.clear();
         }
     }
 

@@ -2,7 +2,6 @@ package com.ragagent.session.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -20,8 +19,8 @@ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import com.ragagent.apikey.domain.APIKeyScopeContext;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.llm.domain.ResponseType;
@@ -35,8 +34,6 @@ import com.ragagent.session.sse.StreamEventEmitter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.web.GoJsonEscapes;
 import com.ragagent.session.service.SessionService;
-import com.ragagent.storageurl.FileService;
-import com.ragagent.storageurl.StorageBackendResolver;
 import com.ragagent.stream.StreamBatch;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;

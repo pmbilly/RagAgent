@@ -7,11 +7,11 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.apikey.domain.APIKeyCapability;
-import com.ragagent.apikey.domain.APIKeyScopeType;
-import com.ragagent.apikey.domain.TenantAPIKeyCreateResponse;
-import com.ragagent.apikey.domain.TenantAPIKeyResponse;
-import com.ragagent.apikey.service.TenantAPIKeyService;
+import com.ragagent.auth.apikey.domain.APIKeyCapability;
+import com.ragagent.auth.apikey.domain.APIKeyScopeType;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyCreateResponse;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyResponse;
+import com.ragagent.auth.apikey.service.TenantAPIKeyService;
 import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.audit.domain.AuditOutcome;

@@ -8,8 +8,8 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import com.ragagent.apikey.domain.APIKeyScopeContext;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 
 /**
  * {@link Mode} 的解析与合并（对照 Go {@code mode.go} 的

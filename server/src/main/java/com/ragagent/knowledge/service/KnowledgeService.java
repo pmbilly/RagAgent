@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ragagent.knowledge.dto.UpdateKnowledgeRequest;
 import com.ragagent.knowledge.dto.KBCloneProgress;
 import com.ragagent.knowledge.dto.KnowledgeMoveProgress;
-import com.ragagent.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
 import java.net.URI;

@@ -1,21 +1,17 @@
 package com.ragagent.system.service;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.audit.service.AuditLogService;
 import com.ragagent.auth.domain.AuthToken;
 import com.ragagent.auth.domain.Tenant;
-import com.ragagent.auth.domain.TenantMember;
 import com.ragagent.auth.domain.User;
 import com.ragagent.auth.mapper.AuthTokenMapper;
 import com.ragagent.auth.mapper.UserMapper;
@@ -340,7 +336,7 @@ public class SystemAdminUserService {
 
     /** 对照 systemAuditActorRole：平台 API-Key 主体 → "platform_api_key"。 */
     public static String systemAuditActorRole() {
-        var scope = com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        var scope = com.ragagent.auth.apikey.domain.APIKeyScopeContext.current();
         if (scope != null && scope.isPlatform()) {
             return "platform_api_key";
         }

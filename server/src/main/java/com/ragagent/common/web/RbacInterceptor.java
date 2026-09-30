@@ -135,7 +135,7 @@ public class RbacInterceptor implements HandlerInterceptor {
         }
         // 对照 Go：RequireRole 对 API-Key 主体直接放行——能力维度由 APIKeyGate 全权判定，
         // 否则 full-access Key 会被这里的角色下限拦住（rbac_api_key_shortcircuit_test.go）
-        if (com.ragagent.apikey.domain.APIKeyScopeContext.present()) {
+        if (com.ragagent.auth.apikey.domain.APIKeyScopeContext.present()) {
             return true;
         }
 
@@ -210,8 +210,8 @@ public class RbacInterceptor implements HandlerInterceptor {
         // 角色阶梯不适用于机器主体——RequireRole / RequireRoleOrSystemAdmin 短路放行
         // （rbac.go L72-78 / L121-124）；RequireSystemAdmin 只放行平台 Key、
         // 拒绝租户 Key（L155-164）。
-        com.ragagent.apikey.domain.TenantAPIKeyScope apiKeyScope =
-                com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope apiKeyScope =
+                com.ragagent.auth.apikey.domain.APIKeyScopeContext.current();
         if (apiKeyScope != null) {
             if (rule.sysAdminOnly()) {
                 if (apiKeyScope.isPlatform()) {
@@ -304,8 +304,8 @@ public class RbacInterceptor implements HandlerInterceptor {
             return true;
         }
         // 平台 Key 等价跨租户超管（对照 Go RequireSystemAdmin 对平台 Key 的放行形态）
-        com.ragagent.apikey.domain.TenantAPIKeyScope keyScope =
-                com.ragagent.apikey.domain.APIKeyScopeContext.current();
+        com.ragagent.auth.apikey.domain.TenantAPIKeyScope keyScope =
+                com.ragagent.auth.apikey.domain.APIKeyScopeContext.current();
         if (keyScope != null && keyScope.isPlatform()) {
             return true;
         }

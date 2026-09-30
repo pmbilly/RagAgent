@@ -268,6 +268,20 @@
 如 `// if / then / else` 段首、键格式说明）；②`{@link X}` 存在性检查报 42 处，绝大多数是 JDK/Jackson 类型与同文件嵌套类型。
 
 
+## 11.7 顶层包归并与结构决策（2026-09-30）
+
+**用户拍板三条**：① `apikey` **并入** `auth`（✅ 已完成）；② `agentm` **分拆**（智能体管理 / 初始化+模型能力，待执行）；
+③ `datasource` / `im` **保留**（不再考虑删除，其结构可按 §14 正常重构）。
+
+**① 已执行（`apikey` → `auth/apikey`）**：main 27 文件 + test 9 文件 `git mv` 搬迁，68 文件引用重写
+（含 4 处 mapper 字符串里的 FQN `typeHandler=com.ragagent.apikey.domain.APIKeyRawJsonbTypeHandler`）；
+`auth/package-info` 补子域说明、子包 `package-info` 改子域措辞。
+**效果**：环 **34 → 32**（`apikey ⇄ auth`、`apikey ⇄ knowledge` 双消），L2→L3 直连 19 → 18；
+全量 4,655 用例绿 + spotlessCheck 通过。基线已刷新（`scripts/package-cycles.baseline.json`）。
+
+**②③ 待执行/约束**：`agentm` 分拆后新包名建议 `initialization`（对齐既有 URL 前缀与类名）；
+`datasource`/`im` 保留意味着它们进入正常重构队列（P1/P2 结构项照做）。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -342,6 +356,13 @@ knowledge/
     实际可能只是**一个类型**被上层域引了一次（切它只需动 1 个文件）；而 34 组环里真正的重活只有 5 组（背边 ≥8 文件）。
     **教训**：给出架构级结论前先量"背边规模 / 引用文件数"，别用"环的数量"估成本（我第一版就估反了）；
     守卫用 `scripts/check-package-cycles.py`（环只许减不许增，与 Spotless ratchet 同精神）。
+
+23. **包搬迁的引用检查清单（4 类，缺一类就编译不过或运行期才炸）**（2026-09-30 执行 `apikey` → `auth/apikey`）：
+    ① `import com.ragagent.X.`（编译器会兜底）；
+    ② **字符串里的 FQN**——MyBatis `typeHandler=com.ragagent.X.domain.Y` 这类注释/注解字符串（编译器**不**兜底，本次 4 处）；
+    ③ `yml/xml/properties` 里的类名或扫描路径（本次为 0，但必须先 grep）；
+    ④ 扫描路径**通配**（本仓 `@MapperScan("com.ragagent.**.mapper")` 是通配，搬迁无需改配置——若写成具体包名则必须改）。
+    做法：`git mv` 目录 → 全仓替换 `com.ragagent.X`（含 test）→ **grep 残留**（现包名替换后仍能匹配旧串吗？不能——旧串 `com.ragagent.apikey` 不再是新串 `com.ragagent.auth.apikey` 的子串，可直接 grep 验证）→ 编译 → 全量 → 刷新环基线。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
