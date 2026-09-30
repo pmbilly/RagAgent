@@ -18,7 +18,7 @@
    `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **28 个**（清单见 §14.3）。
+6. **全仓存量**：≥800 行的类还有 **27 个**（清单见 §14.3）。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -356,13 +356,13 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **28 个**；适配器批后 38→28）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **27 个**；适配器批后 38→27）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | `DataSourceService` 1,828 · `FeishuClient` 1,154 · `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
-| retrieval | `OpenSearchRetrieveRepository` 1,652 · `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260（非引擎族，单独侦察）——其余 7 引擎仓已全部出榜（§14.7.5） |
+| retrieval | `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260（非引擎族，单独侦察）——其余 8 引擎仓已全部出榜（§14.7.5，含 opensearch 3 刀） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | 其余单类 | `RemoteApiChat` 1,366（llm）· `FaqImportService` 1,235（knowledge 例外）· `AuthController` 1,167 · `PluginMerge` 1,155（chatpipeline）· `SessionKnowledgeQaService` 1,036（session 例外）· `McpServiceController` 937 · `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `TenantCatalogController` 980 · `SourceRegistry` 878 · `UserService` 876 · `KnowledgeService` 848（knowledge 例外）· `OAuthHandler` 825 · `KnowledgeProcessWorker` 814 |
 | im / llm / knowledge / auth / chatpipeline | `ImService` 1,445 · `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `AuthController` 1,167 · `PluginMerge` 1,155 |
@@ -570,7 +570,19 @@ doris 3 文件 / elasticsearch 2 / milvus 3 / qdrant 1 / sqlite 2 / tencentvecto
    `(?<![A-Za-z0-9_.])FIELD_X\b`、最长优先；`in(` 同理（防 `join(` 误替）。
 5. **端口方法的 @Override**：搬移文本剥、门面委托补（doc_start 不含注解行——块删除前要合并注解行）。
 6. harness 生成/派生时：SUBSTS/REVERSE 的 `"/_'` 引号缺失会连环出现（本批修了 4 次）——
-   生成后先 `compile()` 两个 heredoc 再跑。
+   生成后先 `compile()` 两个 heredoc 再跑；补丁派生连坏时**整体重写 harness**（生成脚本用 Write 工具落盘，
+   不经 shell 嵌套 heredoc）。
+
+**opensearch 尾仓记录（2026-10-01，3 刀出榜）**：`OpenSearchRetrieveRepository` 1,652→**605**
+（O1 `f3505c4` 检索簇 → `OpenSearchSearchOps`；O2 `3dac252` 写/删/批量/拷贝/迁移+投影检视 19 成员
+→ `OpenSearchWriteOps`；O3 `5a82093` 惰性初始化/建索引/探针/别名 16 成员 → `OpenSearchAdminOps`）。
+**O3 新坑位**：①构造期探针委托的协作者装配必须**先于探针调用**（否则构造 NPE——首轮 8 测试全挂）；
+②`cfg` 既是门面字段又是成员参数名 → 按成员区分（签名带 `InternalCfg cfg` 参数的保持参数名，其余限定
+`service.cfg`）；③`http.send(`/`join(` 等自身含目标词的调用 → send/in 用负向断言正则限定；
+④跨包共享静态（`classifyFailure` 门面侧 HTTP 底座也调）→ 留门面放宽包内。
+收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 28→**27**。
+检索域剩：`DorisRetrieveRepository` 1,265（同刀序可复制）+ `HybridSearchService` 1,260（非引擎族）。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
