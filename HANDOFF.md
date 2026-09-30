@@ -745,6 +745,27 @@
 - 测试：流程契约 5 例（`service.processNow` 驱动）+ 提示词/附件 22 例（图片落盘探针改为对协作者构造）
   + 上传契约 7 例全绿；`clean :test :spotlessCheck` 全绿（432 类 / 4,664 例 / 0 失败）；环 0/1/6 不变。
 
+## 11.21 session 步骤 2 第七刀：AgentToolBackends 拆出知识库检索簇（2026-09-30）
+
+| | 前 | 后 |
+|---|---|---|
+| `AgentToolBackends` | 1,264 | **836**（余 wiki 簇待下一刀） |
+| `AgentToolKbBackends`（新，同包） | — | **538** |
+
+- **切片边界**：KB 检索簇 21 个成员（`searchConfig`/`knowledgeSearchBackend`/`chunkInfoBackend`/
+  `imageEnricher`/`rerankerModel`/`grepChunkSearch` + 私有助手 `grepScopeClause`/`backfillTotalChunkCounts`/
+  `regexDialect`+`RegexDialect`/`placeholders`/`metadataMap` + `knowledgeInfoReader`/`chunkById`/`pagedChunks`/
+  `pagedChunkCount`/`imageInfoCollector`/`graphSearch`/`extractConfigView`/`toKbView`/`toSearchResultView`）
+  + `TEXT_FAQ_TYPES` 常量。
+- **共享项（§11.17 口径）**：`readJson`/`JSON`/`nz`（wiki 簇与门面也在用）与 `conversation`/`jdbc`
+  （门面 datasource 簇共用）→ 静态项留门面按类名引用（`nz` 放宽包内可见，19 处限定），实例项经构造参数传入；
+  **注意 `JdbcTemplate` 必须在门面 `this.jdbc = new JdbcTemplate(dataSource)` 之后构造协作者**（否则传 null）。
+- **薄委托 11 个**：装配点 `createTool` 与契约测试直调面（含 `DbTest` 直用的 4 个）→ 三个测试与
+  `SessionAgentQaService` 零改动。
+- **忠实性核验**：21 个成员**逐字一致**；测试 `AgentToolBackendsDbTest`(6)/`KbToolTest`(5)/`WikiTest`(12) 全绿。
+- **收尾闸门首次走新分档（§14.4 常规批）**：`--rerun-tasks` 重编 + session 域测试 + `spotlessCheck`
+  ≈ **58 秒**（旧口径全量约 2m50s）。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -928,7 +949,7 @@ knowledge/
 | **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波完成(e026138)+ C 波完成(b407769:实体去 202 处注解转 camel/查询参数 Java 字段名/前端同批/wiki-* fixture 重录;PageController raw 形态保留但键已换锚,DTO 端点化随数据访问轴)**。**余**:数据访问轴(GORM 复刻层重塑) |
 | **agent** | 171(+agentm 31) | 见 §11.6 | `ActPhase` 761 | **0** | **0** | **14**（登记边界：`AgentConfig`） | **0** | A/B/E 波 + Task 12 契约换锚完成；**§14.5 复验通过 + 卫生清零（§11.6，2026-09-30）**——本行为复验口径 |
 | **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
-| **session** | 84 | 24,406 | SessionQaResolution 2,906 | **5**（3 神类 + Resolution 2,906 + SKQA 门面 1,036，后者按 §14.5 已在类 javadoc 注明例外） | 721（审计口径） | 188（审计口径，逐字段） | 12（审计口径） | **步骤 0/1 完成；步骤 2 六刀已落（§11.15~§11.20）+ 卫生批（§11.19）**：SKQA 1,764→门面 1,036+Resolution 2,906/Fallback（89a4e44）；TempDoc 两刀 1,075→498（+PromptResolver 271、+Processor 423）；StreamBridge 853→697（+9 例契约测试）；MessageService 1,028→510（+MessageSearch 596）；Suggestion 1,088→601（+Pipeline 513）。**步骤 2 余项**=QaController 1,613 / AgentQaService 1,430 / AgentToolBackends 1,263 + **Resolution 2,906 自身需再切**；**步骤 3（分层/package-info）与步骤 4（契约 Java 化=DTO/HTTP 面换锚）均未开始**——换锚按 §14.2 排在步骤 3 之后，**同批带前端、不加兼容别名**（§2.11）；agent config jsonb 内层键为登记边界保持 snake；`wip/chat-sse-slice2` 已裁定不并入（§14.8） |
+| **session** | 84 | 24,406 | SessionQaResolution 2,906 | **5**（3 神类 + Resolution 2,906 + SKQA 门面 1,036，后者按 §14.5 已在类 javadoc 注明例外） | 721（审计口径） | 188（审计口径，逐字段） | 12（审计口径） | **步骤 0/1 完成；步骤 2 六刀已落（§11.15~§11.20）+ 卫生批（§11.19）**：SKQA 1,764→门面 1,036+Resolution 2,906/Fallback（89a4e44）；TempDoc 两刀 1,075→498（+PromptResolver 271、+Processor 423）；StreamBridge 853→697（+9 例契约测试）；MessageService 1,028→510（+MessageSearch 596）；Suggestion 1,088→601（+Pipeline 513）。**步骤 2 余项**=QaController 1,613 / AgentQaService 1,430 / AgentToolBackends **836**（KB 簇已切 §11.21，余 wiki 簇）/ Resolution 2,906 自身需再切；**步骤 3（分层/package-info）与步骤 4（契约 Java 化=DTO/HTTP 面换锚）均未开始**——换锚按 §14.2 排在步骤 3 之后，**同批带前端、不加兼容别名**（§2.11）；agent config jsonb 内层键为登记边界保持 snake；`wip/chat-sse-slice2` 已裁定不并入（§14.8） |
 | **memory** | 62 | 13,166 | MemoryService 1,661 | 3 | 559 | 134 | 2 | |
 | **llm** | 94 | 10,826 | RemoteApiChat 1,367 | 1 | 476 | 171 | 1 | |
 | **retrieval** | 58 | 19,404 | OpenSearchRetrieveRepository 1,653 | **10** | 267 | 19 | 2 | 契约已换锚（§11 ①） |
