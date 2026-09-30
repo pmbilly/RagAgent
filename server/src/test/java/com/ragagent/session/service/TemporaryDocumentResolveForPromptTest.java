@@ -27,6 +27,10 @@ import com.ragagent.session.mapper.TemporaryDocumentRepository;
  */
 class TemporaryDocumentResolveForPromptTest {
 
+    // 入口 resolveForPrompt 与 PromptResult/AttachmentResolveException 在门面；
+    // 选块/图片/词元等纯函数已随切片移到 TemporaryDocumentPromptResolver（§14 步骤 2）。
+
+
     private static final long TENANT = 1L;
     private static final String SESSION = "s1";
 
@@ -289,7 +293,7 @@ class TemporaryDocumentResolveForPromptTest {
                 .contains("\"original_ref\":\"images/gac.png\"")
                 .contains("\"mime_type\":\"image/png\"");
         // 落盘字节可读回（真文件存储）
-        String url = TemporaryDocumentService.imageUrlsOf(stored.imageRefsJson()).get(0);
+        String url = TemporaryDocumentPromptResolver.imageUrlsOf(stored.imageRefsJson()).get(0);
         assertThat(stored.markdown()).isEqualTo("![gac.png](" + url + ")");
         assertThat(fileStore.getFile(url)).isEqualTo(png);
     }
@@ -322,7 +326,7 @@ class TemporaryDocumentResolveForPromptTest {
         TemporaryDocumentService.StoredImages stored = service()
                 .storeDocumentImages(TENANT, doc, List.of(ref), "![tiny](images/tiny.png)");
 
-        assertThat(TemporaryDocumentService.imageUrlsOf(stored.imageRefsJson())).hasSize(1);
+        assertThat(TemporaryDocumentPromptResolver.imageUrlsOf(stored.imageRefsJson())).hasSize(1);
     }
 
     @Test
@@ -366,7 +370,7 @@ class TemporaryDocumentResolveForPromptTest {
         TemporaryDocumentService.StoredImages stored = service().storeDocumentImages(
                 TENANT, doc, List.of(ref), "![图片](images/chart.png \"标题\")");
 
-        String url = TemporaryDocumentService.imageUrlsOf(stored.imageRefsJson()).get(0);
+        String url = TemporaryDocumentPromptResolver.imageUrlsOf(stored.imageRefsJson()).get(0);
         // title 与右括号必须原样保留（换成路径本体之外的整段不动）
         assertThat(stored.markdown()).isEqualTo("![图片](" + url + " \"标题\")");
     }
@@ -376,16 +380,16 @@ class TemporaryDocumentResolveForPromptTest {
     @Test
     void queryTermsSplitWordsAndHanBigrams() {
         // 空白/标点切出的整段（连续汉字不切）+ 相邻汉字二元组（对照 Go temporaryDocumentQueryTerms）
-        assertThat(TemporaryDocumentService.queryTerms("deployment 图表的说明"))
+        assertThat(TemporaryDocumentPromptResolver.queryTerms("deployment 图表的说明"))
                 .containsExactly("deployment", "图表的说明", "图表", "表的", "的说", "说明");
-        assertThat(TemporaryDocumentService.queryTerms("a 图")).isEmpty(); // 单字词与单字汉字不成词
+        assertThat(TemporaryDocumentPromptResolver.queryTerms("a 图")).isEmpty(); // 单字词与单字汉字不成词
     }
 
     @Test
     void visualDocumentQueryMarkers() {
-        assertThat(TemporaryDocumentService.isVisualDocumentQuery("这张图是什么")).isTrue();
-        assertThat(TemporaryDocumentService.isVisualDocumentQuery("show me the LAYOUT")).isTrue();
-        assertThat(TemporaryDocumentService.isVisualDocumentQuery("你好")).isFalse();
+        assertThat(TemporaryDocumentPromptResolver.isVisualDocumentQuery("这张图是什么")).isTrue();
+        assertThat(TemporaryDocumentPromptResolver.isVisualDocumentQuery("show me the LAYOUT")).isTrue();
+        assertThat(TemporaryDocumentPromptResolver.isVisualDocumentQuery("你好")).isFalse();
     }
 
     @Test
@@ -399,8 +403,8 @@ class TemporaryDocumentResolveForPromptTest {
 
     @Test
     void countOccurrencesIsNonOverlapping() {
-        assertThat(TemporaryDocumentService.countOccurrences("aaa", "aa")).isEqualTo(1);
-        assertThat(TemporaryDocumentService.countOccurrences("ababab", "ab")).isEqualTo(3);
+        assertThat(TemporaryDocumentPromptResolver.countOccurrences("aaa", "aa")).isEqualTo(1);
+        assertThat(TemporaryDocumentPromptResolver.countOccurrences("ababab", "ab")).isEqualTo(3);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
