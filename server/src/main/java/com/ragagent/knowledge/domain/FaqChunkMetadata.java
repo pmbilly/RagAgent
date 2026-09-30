@@ -5,19 +5,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ragagent.common.text.TextConv;
 
 /**
- * FAQ 条目在 chunks.metadata 中的结构。
- * <p><b>JSON 是契约</b>（落库 + 由 {@code FAQEntry}/导出面逐字段搬运）：
- * answer_strategy / version / source} 带 omitempty（空省略，{@code NON_DEFAULT}——
- * 空列表与 0/"" 都省，nil 列表同样省）；{@code standard_question} 恒输出。</p>
- * {@code Sanitize/Normalize} 翻成 {@link #sanitize()} / {@link #normalize()}——
- * 不带 get/is 前缀，Jackson 不会当属性吐进 jsonb（历史上两次在此踩坑，
- * UnrecognizedPropertyException）。</p>
+ * FAQ 条目在 {@code chunks.metadata}（jsonb）中的结构——**落库 JSON 即契约**，
+ * 由 {@code FAQEntry} 与导出面逐字段搬运。
+ *
+ * <p>所有字段一律输出（空列表、0、空串照常输出，不再省略）。
+ *
+ * <p>{@link #sanitize()} / {@link #normalize()} 刻意不带 get/is 前缀，避免被 Jackson
+ * 当作属性写进 jsonb（历史上在此两次踩到 {@code UnrecognizedPropertyException}）。
  */
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class FaqChunkMetadata {
 
     public static final String ANSWER_STRATEGY_ALL = "all";

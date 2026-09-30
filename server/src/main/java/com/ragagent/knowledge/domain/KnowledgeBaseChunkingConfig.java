@@ -1,35 +1,26 @@
 package com.ragagent.knowledge.domain;
 
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ragagent.common.web.JsonMappers;
 
 /**
- * ChunkingConfig。
- * 非指针值类型：chunk_size/chunk_overlap/separators 恒输出（separators null → JSON null）；
+ * 知识库分块配置（jsonb 列 {@code config} 的形状）：分块尺寸与重叠、分隔符、
+ * 解析器引擎规则、父子块、token 上限等。
+ *
+ * <p>字段一律输出（{@code separators} 为 null 时输出 JSON null）。
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class KnowledgeBaseChunkingConfig {
 
     private int chunkSize;
     private int chunkOverlap;
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private List<String> separators;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private List<ParserEngineRule> parserEngineRules;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean enableParentChild;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int parentChunkSize;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int childChunkSize;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String strategy;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int tokenLimit;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private List<String> languages;
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String tableMetadataInstructions;
 
     public int getChunkSize() { return chunkSize; }

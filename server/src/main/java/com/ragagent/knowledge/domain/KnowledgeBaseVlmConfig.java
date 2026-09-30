@@ -1,14 +1,12 @@
 package com.ragagent.knowledge.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * VLMConfig。
- * enabled/model_id/model_name/base_url/api_key/interface_type 无 omitempty 恒输出；
- * description_language/custom_instructions 带 omitempty。
+ * 知识库的 VLM（图像描述）配置：开关、模型、描述语言与自定义指令等。
+ *
+ * <p>字段一律输出（含空串与 null）。
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class KnowledgeBaseVlmConfig {
 
     private boolean enabled;

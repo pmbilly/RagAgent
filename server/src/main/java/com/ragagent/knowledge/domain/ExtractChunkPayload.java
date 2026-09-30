@@ -1,31 +1,29 @@
 package com.ragagent.knowledge.domain;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TracingContext;
 import com.ragagent.common.web.JsonMappers;
 
 /**
- * 分块图抽取任务的载荷。
- * <p>{@code knowledge_id} / {@code attempt} / {@code chunk_index} 三个键带 omitempty：
- * 缺省表示"旧版在飞任务"——worker 侧因此跳过 span 记录（无法挂到父 attempt 的
- * postprocess 阶段）。</p>
- * Java 侧同形，空值整键省略。</p>
+ * 分块图抽取任务的载荷（队列内传递）。
+ *
+ * <p>{@code knowledgeId} / {@code attempt} / {@code chunkIndex} 为 0 或空表示「旧版在飞任务」——
+ * worker 侧据此跳过 span 记录（挂不到父 attempt 的 postprocess 阶段）。所有键恒输出。
  */
 public record ExtractChunkPayload(
         long tenantId,
         String chunkId,
         String modelId,
         /** 关联回父 attempt 的 postprocess 阶段（0/"" = 跳过 span 记录）。 */
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String knowledgeId,
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) int attempt,
+        String knowledgeId,
+        int attempt,
         /** 该分块在父知识文本分块集中的 0 基序数（子 span 名后缀 {@code chunk[i]}）。 */
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT) int chunkIndex,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
+        int chunkIndex,
+        String lfTraceId,
+        String lfParentObsId,
+        String lfTraceparent,
+        String lfUserId,
+        String lfSessionId) {
 
     private static final ObjectMapper MAPPER = JsonMappers.lenient();
 

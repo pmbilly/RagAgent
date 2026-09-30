@@ -1,16 +1,13 @@
 package com.ragagent.knowledge.domain;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 生成问题。
- * <p>chunk.metadata（jsonb）里 {@code generated_questions} 数组的元素，
- * 同时是 {@code PUT /chunks/by-id/:id/questions} 与
- * {@code POST .../questions/regenerate} 响应体 {@code data} 的元素。</p>
- * 零值 {@code ""} 也输出）；{@code content_revision} 是 {@code *int} ——nil 省略、
- * <b>非 nil 的 0 也要输出</b>（指针的空值省略只判 null），Java 用
- * {@code Integer + NON_NULL} 表达，service 侧允许放 0（chunk.ContentRevision
- * 从未被编辑过时就是 0）。</p>
+ *
+ * <p>{@code chunk.metadata}（jsonb）里 {@code generatedQuestions} 数组的元素，同时是
+ * {@code PUT} / {@code POST .../questions/regenerate} 类响应体的元素。
+ *
+ * <p>所有字段一律输出；{@code contentRevision} 的 0 是有意义的值（文档从未被编辑过时即 0）。
  */
 public class GeneratedQuestion {
 
@@ -18,7 +15,6 @@ public class GeneratedQuestion {
 
     private String question;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private Integer contentRevision;
 
     public GeneratedQuestion() { }

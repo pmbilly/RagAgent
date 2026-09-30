@@ -196,8 +196,8 @@ class ChunkQuestionServiceTest {
         assertThat(meta.path("generatedQuestions")).hasSize(1);
         assertThat(meta.path("generatedQuestions").get(0).path("id").asText())
                 .isEqualTo(created.getId());
-        // generated_questions_revision=0 被 omitempty 省略（Go 同款）
-        assertThat(meta.has("generatedQuestionsRevision")).isFalse();
+        // generated_questions_revision 恒输出：0 有意义（从未重新生成过）
+        assertThat(meta.path("generatedQuestionsRevision").asInt()).isZero();
 
         // 更新（同 ID 覆盖问题文本）
         GeneratedQuestion updated = service.upsertGeneratedQuestion(c.getId(), created.getId(), "What is Y?");

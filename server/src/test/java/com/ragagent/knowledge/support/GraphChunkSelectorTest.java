@@ -66,12 +66,15 @@ class GraphChunkSelectorTest {
     }
 
     @Test
-    @DisplayName("载荷 JSON：业务键 + 平铺 lf_* 键；omitempty 键缺省时不输出")
+    @DisplayName("载荷 JSON：业务键 + 平铺 lf_* 键；空值键同样输出")
     void payloadJsonShape() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
 
         ExtractChunkPayload bare = new ExtractChunkPayload(7L, "ck-1", "model-1", "", 0, 0);
-        assertEquals("{\"tenantId\":7,\"chunkId\":\"ck-1\",\"modelId\":\"model-1\"}",
+        assertEquals("{\"tenantId\":7,\"chunkId\":\"ck-1\",\"modelId\":\"model-1\","
+                        + "\"knowledgeId\":\"\",\"attempt\":0,\"chunkIndex\":0,"
+                        + "\"lfTraceId\":\"\",\"lfParentObsId\":\"\",\"lfTraceparent\":\"\","
+                        + "\"lfUserId\":\"\",\"lfSessionId\":\"\"}",
                 mapper.writeValueAsString(bare));
 
         ExtractChunkPayload withTracing = ExtractChunkPayload.withTracing(7L, "ck-1", "model-1",
