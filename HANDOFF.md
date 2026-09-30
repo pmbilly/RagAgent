@@ -11,12 +11,13 @@
 3. **已完成**：P0/P1/P2/P3 包结构治理（§11.8~§11.14）；**session 域阶段 2 神类批次全收官**（§11 总览表）——
    `SessionAgentQaService` 1,430→**364**、`KnowledgeQaController` 1,614→**328**、`SessionQaResolution` 2,906→**706**，
    域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；
-   **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）。
-4. **下一步（§14.7 第 5 条建议序）**：`im`（单类 1,445，好收官）→ `retrieval` 四引擎"适配器批" →
+   **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）；
+   **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）。
+4. **下一步（§14.7 第 5 条建议序）**：`retrieval` 引擎仓"适配器批"（实测 **9 个** ≥800，§14.3）→
    `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **36 个**（清单见 §14.3）；批次顺序建议见 §14.7 末尾。
+6. **全仓存量**：≥800 行的类还有 **35 个**（清单见 §14.3）；批次顺序建议见 §14.7 末尾。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -131,6 +132,7 @@
 | P1 扁平包 / P2 分包 / P3 归位 | chatpipeline·event·wiki/service·knowledge/dto·embedding·rerank 等 | 全部完成（§11.11~§11.14、§11.10） |
 | 阶段 2 神类切片（session 域） | AgentQaService / QaController / Resolution / 其余神类 | **全部出榜**（§11 总览表；15 个同包协作者；4 条契约测试） |
 | 阶段 2 神类切片（wiki 域，2026-10-01） | WikiPageController / WikiIngestService | **全部出榜**（10 刀 → 10 个包内协作者；1,311→272、1,208→509；§14.7.2） |
+| 阶段 2 神类切片（im 域，2026-10-01） | ImService | **出榜**（5 刀 → 5 个包内协作者；1,445→664；§14.7.4） |
 
 ### 7.2 当前存量（实测）
 
@@ -352,14 +354,15 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **36 个**；wiki 批次收官后 38→36）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **35 个**；wiki+im 批次后 38→35）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | `DataSourceService` 1,828 · `FeishuClient` 1,154 · `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
-| retrieval | `OpenSearchRetrieveRepository` 1,652 · `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260 · `QdrantRetrieveRepository` 1,025 |
+| retrieval | **9 个**（形似引擎仓，适配器批候选）：`OpenSearchRetrieveRepository` 1,652 · `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260 · `QdrantRetrieveRepository` 1,025 · `MilvusRetrieveRepository` 1,020 · `TencentVectorDbRetrieveRepository` 987 · `WeaviateRetrieveRepository` 986 · `SqliteRetrieveRepository` 985 · `ElasticsearchV8` 891 · `ElasticsearchV7` 877 |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
+| im | `FeishuAdapter` 926（ImService 已出榜，§14.7.4；适配器族其余 <800） |
 | im / llm / knowledge / auth / chatpipeline | `ImService` 1,445 · `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `AuthController` 1,167 · `PluginMerge` 1,155 |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
 
@@ -502,6 +505,21 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 javadoc 改文字陈述）；随刀清理失效 import（Spotless 兜底）。
 
 **预估**：门面 1,445→~530；五个协作者 90~400 行。闸门：每刀 im 域测试（适配器族）+ 忠实性比对；收官 clean 全量 + 环守卫。
+
+#### 14.7.4 im 批次落刀记录（2026-10-01 执行完毕，5+收官刀全绿；边界判定见 §14.7.3）
+
+| 刀 | 协作者 | 内容 | 提交 |
+|---|---|---|---|
+| I1 | `ImQaRequests` | QA 共享底座 4 成员（先落被依赖方）；JSON 放宽包内 | `5007b39` |
+| I2 | `ImSessionResolver` | 会话解析 6 成员 | `13d5ec6` |
+| I3 | `ImOutboundFormatter` | 出站整形+回复发送 4 成员（门面留委托） | `c2b3427` |
+| I4 | `ImStreamPipeline` | 流式管线整簇 + 删死方法 asMap | `062765b` |
+| I5 | `ImQaRunner` | QA 执行编排 4 成员；QaTask/QaAttach/QaOutcome 类型留门面；lambda 改线+死委托清理 | `42955a4` |
+| 收官 | — | 坏 `{@link ImRedisKeys}` 修正；clean 全量 4,668/0 + 环守卫基线保持 | 本提交 |
+
+**结果**：`ImService` 1,445→**664**（出榜）；im/service 包 7 类全部 <800（最大 ImStreamPipeline 415）；
+全仓 ≥800 类 36→**35**。字段放宽面：JSON/channels/channelSessions/sessionService/messageService/
+knowledgeQaService/agentQaService/storageResolver/inflight（协作者经 `service.` 访问）。
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。

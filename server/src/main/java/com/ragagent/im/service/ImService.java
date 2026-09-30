@@ -51,7 +51,7 @@ import com.ragagent.session.service.SessionService;
  *   <li>跨实例 /stop 标记与 inflight 映射（L1454-1553）：进程内 map；</li>
  *   <li>渠道配置 pub/sub（L1021-1101）：本进程内直接失效。</li>
  * </ul>
- * 多实例部署把这些换成 Redis 实现即可（键名常量保留在 {@link ImRedisKeys}）。
+ * 多实例部署把这些换成 Redis 实现即可（键名常量届时随 Redis 实现一并引入）。
  */
 @Service
 public class ImService {
