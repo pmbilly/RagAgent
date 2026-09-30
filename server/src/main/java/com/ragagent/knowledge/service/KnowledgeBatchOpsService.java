@@ -11,6 +11,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
+import com.ragagent.knowledge.security.ChunkAccessGuard;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 批量面：批量删除 / 批量重解析 / 重建索引 / 清空 KB 内容。
  * <p>复位/全列写复用 {@link KnowledgeFileService}/{@link KnowledgeParseService}（同包开放），
- * moving 状态防线复用 {@link KnowledgeFolderService#rejectMovingKnowledge}；
+ * moving 状态防线复用 {@link ChunkAccessGuard#rejectMovingKnowledge}；
  * 门面 helper（requireKb/getKnowledge/tenantId）经 {@code @Lazy} 门面调用，不复制。</p>
  */
 @Service
@@ -112,7 +113,7 @@ public class KnowledgeBatchOpsService {
                 .eq(Knowledge::getTenantId, KnowledgeService.tenantId())
                 .isNull(Knowledge::getDeletedAt));
         for (Knowledge row : rows) {
-            KnowledgeFolderService.rejectMovingKnowledge(row);
+            ChunkAccessGuard.rejectMovingKnowledge(row);
         }
         if (rows.isEmpty()) {
             return 0;

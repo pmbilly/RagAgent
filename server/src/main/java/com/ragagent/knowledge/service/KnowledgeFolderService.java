@@ -19,6 +19,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
+import com.ragagent.knowledge.security.ChunkAccessGuard;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +33,7 @@ import java.util.Set;
 /**
  * 知识文件夹树与文件夹移动 / 重命名：树的增删改查、移动/重命名的路径重写与冲突校验。
  * <p>门面 helper（requireKb/findKb/tenantId/getKnowledgeBatch）经 {@code @Lazy}
- * 门面调用，不复制；{@link #rejectMovingKnowledge} 同包开放给批量面
+ * 门面调用，不复制；搬移中防线统一走 {@link ChunkAccessGuard#rejectMovingKnowledge}（批量面同样复用）
  * （KnowledgeBatchOpsService）复用。</p>
  */
 @Service
@@ -345,7 +346,7 @@ public class KnowledgeFolderService {
             if (row == null) {
                 throw BizException.notFound("knowledge not found");
             }
-            rejectMovingKnowledge(row);
+            ChunkAccessGuard.rejectMovingKnowledge(row);
             if (checkedKbs.add(row.getKnowledgeBaseId())) {
                 // knowledgeWriteKB：KB 行与 (id, tenant) 绑定一致，否则 403
                 KnowledgeBase kb = facade.findKb(row.getKnowledgeBaseId());
@@ -371,7 +372,7 @@ public class KnowledgeFolderService {
         if (k == null) {
             throw BizException.notFound("knowledge not found");
         }
-        rejectMovingKnowledge(k);
+        ChunkAccessGuard.rejectMovingKnowledge(k);
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, k.getKnowledgeBaseId())
                 .eq(KnowledgeBase::getTenantId, k.getTenantId())
@@ -382,20 +383,6 @@ public class KnowledgeFolderService {
             throw BizException.forbidden("knowledge does not belong to its knowledge base");
         }
         return k;
-    }
-
-    /** transfer metadata 里 operation=move 且
-     *  phase=moving → 409（该路由的固定状态防线）。同包开放（批量清空复用）。 */
-    static void rejectMovingKnowledge(Knowledge k) {
-        JsonNode metadata = k.getMetadata();
-        if (metadata == null || !metadata.has("_knowledge_transfer")) {
-            return;
-        }
-        JsonNode state = metadata.get("_knowledge_transfer");
-        if ("move".equals(state.path("operation").asText(""))
-                && "moving".equals(state.path("phase").asText(""))) {
-            throw BizException.conflict("knowledge has an unfinished move; retry the move first");
-        }
     }
 
 }
