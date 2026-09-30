@@ -898,7 +898,12 @@ knowledge/
 1. **沿注释边界拆，不按行数硬切**：神类里的 `// ── X 段 ──` 分割线就是拆解点（`KnowledgeService`
    3,392 行 → 门面 + 7 切片服务就是照这个来的）。拆完"门面保留全部公共委托"→ 18+ 注入点与
    Mockito 测试**零改动**，这是能把大手术做小的关键。
-2. **每步全绿再走下一步**：`:server:test`（4,670 用例）+ `:server:spotlessCheck`；**纯移动也走这一套**。
+2. **每步全绿再走下一步**（2026-09-30 起分档，命令见 §14.4）：闸门按改动性质分档——迭代中只跑单类/单域；
+   **常规批**（同包抽协作者、成员增删、卫生、文案）= `--rerun-tasks` 重编（~31s）+ 受影响域测试（~30s）
+   + `spotlessCheck`（~10s）≈ 1m10s；**结构搬迁批**（跨包 `git mv`、改共享 API、删类）=
+   `clean :server:test :spotlessCheck`（~3m25s）。**判据：抓断链靠"强制重编"（便宜），防跨域行为回归才靠全量（贵）**
+   ——别把两件事混成一件（§13.21 的两次假绿根因都是**编译错误**被增量编译掩盖，重编即可暴露；
+   用例数只认"干净一遍"后的 `build/test-results/test/*.xml` 汇总）。
    这是"种子 fork + 渐进转型"优于重写的全部意义（§9）。
 3. **一次只动一个轴**（§3 红线 1）：拆类期不改契约、换锚期不拆类、卫生期不动逻辑。
    轴混了就退化成大爆炸重写。
@@ -955,8 +960,17 @@ git grep -c '@JsonProperty(' -- 'server/src/main/java/**/*.java' | sort -t: -k2 
 git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/java/**/*.java'
 # 卫生闸门（ratchet：只覆盖 seed 后触碰过的文件，这是设计不是遗漏）
 ./gradlew :server:spotlessCheck
-# 每步收尾的三条（§9）
-./gradlew :server:test && (cd frontend && npx vue-tsc --build --force && npm test)
+# 收尾闸门（按改动分档；实测：重编 ~31s / 单域 ~30s / spotless ~10s / 全量 ~2m50s / clean 全量 ~3m25s）
+# ① 常规批（同包抽协作者、成员增删、卫生、文案）≈ 1m10s
+./gradlew :server:compileJava :server:compileTestJava --rerun-tasks   # 专抓"引用被搬走"的断链
+./gradlew :server:test --tests "com.ragagent.<受影响域>.*"
+./gradlew :server:spotlessCheck
+# ② 结构搬迁批（跨包 git mv / 改共享 API / 删类）≈ 3m25s
+./gradlew :server:clean :server:test :server:spotlessCheck
+# ③ 迭代中：单类/单域（秒级）
+./gradlew :server:test --tests "com.ragagent.session.service.SomeTest"
+# 前端契约同步（触及前端契约时）
+(cd frontend && npx vue-tsc --build --force && npm test)
 ```
 
 ### 14.5 完成判据（Acceptance，逐项核对）
@@ -968,7 +982,8 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - [ ] 每个子包有 `package-info.java`；`*Util`/容器类等反模式命名清零
 - [ ] **无全限定名注解**（除真同名冲突并在注释说明）；校验 `message` 保持「字段名: 原因」前缀格式
 - [ ] **死成员清零**：未使用 logger / `ObjectMapper` / 私有方法 / 局部变量 / **只注入不读取的 final 依赖**（口径见 §13.15 ①④）；javac 不报未使用私有成员、Spotless 也只查 import，**必须主动扫**
-- [ ] 触点变更后：`:server:test` 全绿 + `:server:spotlessCheck` 绿 +（触及前端契约时）`vue-tsc` 0 错误 / `npm test` 全绿
+- [ ] 触点变更后按 §14.4 分档收口：**常规批** = `--rerun-tasks` 重编 + 受影响域测试 + `spotlessCheck`；
+      **结构搬迁批** = `clean :server:test :spotlessCheck`（+ 触及前端契约时 `vue-tsc` 0 错误 / `npm test` 全绿）
 - [ ] §4 数据、§12 地图、§13 经验、本节候选表四处同步更新
 
 ### 14.6 不要做什么（踩过的坑，别再踩）
