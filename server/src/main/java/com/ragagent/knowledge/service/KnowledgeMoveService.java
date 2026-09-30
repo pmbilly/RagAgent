@@ -19,8 +19,6 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import com.ragagent.chatpipeline.ChatManage.NameSpace;
@@ -37,7 +35,6 @@ import com.ragagent.knowledge.storage.TenantStorageService;
 @Service
 public class KnowledgeMoveService {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeMoveService.class);
 
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;

@@ -15,8 +15,6 @@ import com.ragagent.knowledge.security.ChunkAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeTagService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,7 +35,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class KnowledgeTagController {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeTagController.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final KnowledgeTagService tagService;

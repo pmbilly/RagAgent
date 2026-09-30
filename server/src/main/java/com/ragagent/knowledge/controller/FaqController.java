@@ -24,8 +24,6 @@ import com.ragagent.knowledge.service.FaqEntryCommandService;
 import com.ragagent.knowledge.service.FaqEntryQueryService;
 import com.ragagent.knowledge.service.FaqImportService;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -47,7 +45,6 @@ import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 @RestController
 public class FaqController {
 
-    private static final Logger log = LoggerFactory.getLogger(FaqController.class);
 
     private final FaqEntryQueryService faqEntryQuery;
     private final FaqEntryCommandService faqEntryCommand;

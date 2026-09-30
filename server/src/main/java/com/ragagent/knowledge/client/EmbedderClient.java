@@ -10,8 +10,6 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.model.domain.Model;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,7 +20,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class EmbedderClient {
 
-    private static final Logger log = LoggerFactory.getLogger(EmbedderClient.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final HttpClient http = HttpClient.newBuilder()

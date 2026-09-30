@@ -9,8 +9,6 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -20,7 +18,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class KnowledgeParseService {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeParseService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final KnowledgeService facade;

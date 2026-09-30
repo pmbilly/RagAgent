@@ -17,8 +17,6 @@ import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.service.KnowledgeSearchService;
 import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,7 +49,6 @@ import com.ragagent.knowledge.dto.ReparseTaskData;
 @RequestMapping("/api/v1")
 public class KnowledgeOperationsController {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeOperationsController.class);
 
     private final KnowledgeService knowledgeService;
     private final KnowledgeRouteGuards guards;

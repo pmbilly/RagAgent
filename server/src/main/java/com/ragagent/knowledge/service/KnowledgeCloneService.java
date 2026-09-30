@@ -22,8 +22,6 @@ import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import com.ragagent.embedding.Embedder;
@@ -39,7 +37,6 @@ import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 @Service
 public class KnowledgeCloneService {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeCloneService.class);
 
     /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（本仓约定 步 3 教训）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper CLONE_MAPPER =
