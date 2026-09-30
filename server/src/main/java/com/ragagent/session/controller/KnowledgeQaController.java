@@ -41,7 +41,6 @@ import com.ragagent.session.domain.MessageAttachment;
 import com.ragagent.session.domain.MessageImage;
 import com.ragagent.session.domain.SuggestionAttribution;
 import com.ragagent.session.domain.TemporaryDocument;
-import com.ragagent.session.dto.QaRequests.AttachmentUpload;
 import com.ragagent.session.dto.QaRequests.CreateKnowledgeQARequest;
 import com.ragagent.session.dto.QaRequests.SearchKnowledgeRequest;
 import com.ragagent.session.service.AgentResolver;
@@ -160,7 +159,7 @@ public class KnowledgeQaController {
             @RequestBody(required = false) String rawBody,
             @RequestParam(value = com.ragagent.storage.support.Mode.QUERY_PARAM, required = false) String resourceUrls,
             HttpServletResponse response) throws IOException {
-        CreateKnowledgeQARequest request = bindQaRequest(rawBody);
+        CreateKnowledgeQARequest request = QaRequestBinder.bindQaRequest(rawBody);
         ParsedRequest parsed = parseQARequest(rawSessionId, request, resourceUrls, "KnowledgeQA");
         executeQA(parsed.reqCtx(), QaMode.NORMAL, !request.disableTitle, response);
     }
@@ -170,7 +169,7 @@ public class KnowledgeQaController {
             @RequestBody(required = false) String rawBody,
             @RequestParam(value = com.ragagent.storage.support.Mode.QUERY_PARAM, required = false) String resourceUrls,
             HttpServletResponse response) throws IOException {
-        CreateKnowledgeQARequest request = bindQaRequest(rawBody);
+        CreateKnowledgeQARequest request = QaRequestBinder.bindQaRequest(rawBody);
         ParsedRequest parsed = parseQARequest(rawSessionId, request, resourceUrls, "AgentQA");
         QaRequestContext reqCtx = parsed.reqCtx();
 
@@ -193,7 +192,7 @@ public class KnowledgeQaController {
 
     @PostMapping("/api/v1/knowledge-search")
     public List<SearchResult> searchKnowledge(@RequestBody(required = false) String rawBody) {
-        SearchKnowledgeRequest request = bindSearchRequest(rawBody);
+        SearchKnowledgeRequest request = QaRequestBinder.bindSearchRequest(rawBody);
         if (request.query.isEmpty()) {
             // Go 的手动分支被 binding:required 拦截（不可达），保留对应物
             throw BizException.badRequest("Query content cannot be empty");
@@ -233,59 +232,6 @@ public class KnowledgeQaController {
 
     // ── ShouldBindJSON 对应物（Go binding:required 文案逐字对齐） ─────────────
 
-    private static final com.fasterxml.jackson.databind.ObjectMapper BIND_JSON =
-            new com.fasterxml.jackson.databind.ObjectMapper();
-
-    private CreateKnowledgeQARequest bindQaRequest(String rawBody) {
-        CreateKnowledgeQARequest r = parseOrBindError(rawBody, CreateKnowledgeQARequest.class);
-        if (r.query == null || r.query.isEmpty()) {
-            throw BizException.badRequest(bindingError("CreateKnowledgeQARequest", "Query", "required"));
-        }
-        return r;
-    }
-
-    private SearchKnowledgeRequest bindSearchRequest(String rawBody) {
-        SearchKnowledgeRequest r = parseOrBindError(rawBody, SearchKnowledgeRequest.class);
-        if (r.query == null || r.query.isEmpty()) {
-            throw BizException.badRequest(bindingError("SearchKnowledgeRequest", "Query", "required"));
-        }
-        return r;
-    }
-
-    private static <T> T parseOrBindError(String rawBody, Class<T> type) {
-        String msg = com.ragagent.common.web.GoJsonBindError.message(rawBody, null);
-        if (msg != null) {
-            throw BizException.badRequest(msg);
-        }
-        try {
-            return BIND_JSON.readValue(rawBody, type);
-        } catch (Exception e) {
-            // 字段级类型错误 → Go 的 unmarshal 措辞（golden 驱动登记，w5q-kch-badsource）
-            if (e instanceof com.fasterxml.jackson.databind.JsonMappingException jme
-                    && !jme.getPath().isEmpty() && jme.getPath().get(0).getFieldName() != null) {
-                String field = jme.getPath().get(0).getFieldName();
-                String kind = "?";
-                try {
-                    kind = com.ragagent.common.web.GoJsonBindError.valueKind(
-                            BIND_JSON.readTree(rawBody).get(field));
-                } catch (Exception ignore) {
-                    // rawBody 本身坏掉时回落 Jackson 措辞
-                }
-                String goMsg = com.ragagent.common.web.GoJsonBindError.fieldTypeError(
-                        type.getSimpleName(), field, kind);
-                if (goMsg != null) {
-                    throw BizException.badRequest(goMsg);
-                }
-            }
-            throw BizException.badRequest(com.ragagent.common.web.GoJsonBindError.message(rawBody, e.getMessage()));
-        }
-    }
-
-    private static String bindingError(String structName, String field, String tag) {
-        String key = structName == null || structName.isEmpty() ? field : structName + "." + field;
-        return "Key: '" + key + "' Error:Field validation for '" + field
-                + "' failed on the '" + tag + "' tag";
-    }
 
     // ── parseQARequest（qa.go L126-429） ─────────────────────────────────────
 
@@ -409,7 +355,7 @@ public class KnowledgeQaController {
 
         // 内联附件（base64 直传，对照 Go：落临时附件表后走既有的 attachment_ids 解析链）
         if (!request.attachmentUploads().isEmpty()) {
-            decodeAndValidateAttachmentUploads(request.attachmentUploads(),
+            QaRequestBinder.decodeAndValidateAttachmentUploads(request.attachmentUploads(),
                     QaSupport.MAX_ATTACHMENT_UPLOADS_PER_REQUEST,
                     maxFileBytes(),
                     QaSupport.MAX_ATTACHMENT_UPLOAD_TOTAL_BYTES);
@@ -484,11 +430,11 @@ public class KnowledgeQaController {
             throw BizException.badRequest(tagError);
         }
         rc.tagScopes = QaSupport.mergeTagScopesFromRequestIds(mentionScopes, requestTagIds, merged.kbIds());
-        List<String> tagIds = QaSupport.dedupRequestStrings(appendAll(request.tagIds(),
+        List<String> tagIds = QaSupport.dedupRequestStrings(QaRequestBinder.appendAll(request.tagIds(),
                 QaSupport.mentionedIdsByType(request.mentionedItems(), "tag")));
-        List<String> mcpServiceIds = QaSupport.dedupRequestStrings(appendAll(request.mcpServiceIds(),
+        List<String> mcpServiceIds = QaSupport.dedupRequestStrings(QaRequestBinder.appendAll(request.mcpServiceIds(),
                 QaSupport.mentionedIdsByType(request.mentionedItems(), "mcp")));
-        List<String> skillNames = QaSupport.dedupRequestStrings(appendAll(request.skillNames(),
+        List<String> skillNames = QaSupport.dedupRequestStrings(QaRequestBinder.appendAll(request.skillNames(),
                 QaSupport.mentionedIdsByType(request.mentionedItems(), "skill")));
 
         // assistant 消息骨架（buildMessageExecutionContext 的 agent 字段，Go L368-426）
@@ -560,40 +506,6 @@ public class KnowledgeQaController {
         return out;
     }
 
-    private static List<String> appendAll(List<String> base, List<String> extra) {
-        List<String> out = new ArrayList<>(base == null ? List.of() : base);
-        out.addAll(extra == null ? List.of() : extra);
-        return out;
-    }
-
-    /** 对照 decodeAndValidateAttachmentUploads（qa.go L431-457）的校验段。 */
-    private static void decodeAndValidateAttachmentUploads(List<AttachmentUpload> uploads,
-            int maxCount, long maxFileBytes, long maxTotalBytes) {
-        if (uploads.size() > maxCount) {
-            throw new IllegalArgumentException(
-                    "at most " + maxCount + " attachments are allowed per request");
-        }
-        long total = 0;
-        int i = 1;
-        for (AttachmentUpload upload : uploads) {
-            byte[] data;
-            try {
-                data = Base64Support.decode(upload.data);
-            } catch (RuntimeException e) {
-                throw new IllegalArgumentException("attachment " + i + " decode failed: " + e.getMessage());
-            }
-            if (data.length > maxFileBytes) {
-                throw new IllegalArgumentException(
-                        "attachment " + i + " exceeds size limit of " + maxFileBytes + " bytes");
-            }
-            total += data.length;
-            if (total > maxTotalBytes) {
-                throw new IllegalArgumentException(
-                        "attachments exceed total request limit of " + maxTotalBytes + " bytes");
-            }
-            i++;
-        }
-    }
 
     // ── executeQA（qa.go L1069-1324） ────────────────────────────────────────
 
