@@ -13,12 +13,12 @@
    域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；
    **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）；
    **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）；
-   **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。
-4. **下一步**：`knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 →
+   **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。**AuthController 已出榜（3 刀，1,167→704，§14.7.7）——auth controller 清零**。
+4. **下一步**：`llm`/`chatpipeline` 1,000+ 类 + knowledge `FaqImportService` 1,235 →
    `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **25 个**（清单见 §14.3）；**检索域 ≥800 全清零**。
+6. **全仓存量**：≥800 行的类还有 **24 个**（清单见 §14.3）；**检索域 + auth 域 controller ≥800 全清零**。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -136,6 +136,7 @@
 | 阶段 2 神类切片（im 域，2026-10-01） | ImService | **出榜**（5 刀 → 5 个包内协作者；1,445→664；§14.7.4） |
 | 阶段 2 适配器批（retrieval，2026-10-01） | 9 个引擎仓 | **全部出榜**（sqlite 2 刀 + 6 仓 12 刀 + 尾仓 opensearch 3 刀/doris 3 刀，23 个协作者；≥800 引擎清零；§14.7.5） |
 | 阶段 2 收官（HybridSearchService，2026-10-01） | 非引擎族检索编排 | **出榜**（3 刀 → FusionOps/ResultOps/StoreGroupOps；1,260→775；检索域清零；§14.7.6） |
+| 阶段 2（AuthController，2026-10-01） | auth 域控制器 | **出榜**（3 刀 → OidcOps/SessionOps/BindingSupport；1,167→704；auth controller 清零；§14.7.7） |
 
 ### 7.2 当前存量（实测）
 
@@ -357,7 +358,7 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **25 个**；适配器批后 38→25，检索域清零）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **24 个**；适配器批后 38→24，检索域 + auth controller 清零）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
@@ -366,8 +367,9 @@ knowledge/
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | 其余单类 | `RemoteApiChat` 1,366（llm）· `FaqImportService` 1,235（knowledge 例外）· `AuthController` 1,167 · `PluginMerge` 1,155（chatpipeline）· `SessionKnowledgeQaService` 1,036（session 例外）· `McpServiceController` 937 · `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `TenantCatalogController` 980 · `SourceRegistry` 878 · `UserService` 876 · `KnowledgeService` 848（knowledge 例外）· `OAuthHandler` 825 · `KnowledgeProcessWorker` 814 |
-| im / llm / knowledge / auth / chatpipeline | `ImService` 1,445 · `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `AuthController` 1,167 · `PluginMerge` 1,155 |
+| im / llm / knowledge / chatpipeline | `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `PluginMerge` 1,155 |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
+| auth | **controller 已清零**（§14.7.7；service 域 + apikey 未动） |
 
 复测命令：`git ls-files 'server/src/main/java/**/*.java' | xargs wc -l | sort -rn | head -20`
 
@@ -603,6 +605,17 @@ storeKindLabel/StoreGroup）与 `RetrievalConfigView` record 全部留门面；�
 跨簇调用点（applyFaqPostProcessing）改 `fusionOps.` 前缀；③static 薄委托（fuseOrDeduplicate/
 deduplicateByScore）必须用**类名**调 ops 的 static 方法，实例字段在 static 上下文不可引用。
 收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 26→**25**；检索域 ≥800 清零。
+
+### 14.7.7 AuthController 记录（2026-10-01，3 刀出榜；auth controller 域）
+
+`AuthController` 1,167→**704**（A1 `1101b79` OIDC 簇 13 成员 → `AuthOidcOps`；
+A2 `e902697` 会话簇 8 成员（logout/refresh/switch-tenant + RefreshTokenRequest record）→ `AuthSessionOps`；
+A3 `83e75ce` 绑定校验簇 9 成员 → `AuthBindingSupport`）。
+**要点**：①`@Value` 注入字段（edition/configuredRegistrationMode）留门面；②测试直调 static 无（安全网 =
+AuthContractTest/OidcContractTest 等 MockMvc 契约测试）；③OIDC 常量 `OIDC_NONCE_COOKIE_*` 随簇；
+④`RefreshTokenRequest` 嵌套 record 随会话簇；⑤`buildAuthLoginResponse`/`parseBody` 被多端点调用 →
+门面留委托；⑥`bindingError`/`invalidParams` 被会话簇 + 门面端点共用 → 门面留非 static 委托。
+收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 25→**24**；auth controller 清零。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
