@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -18,15 +17,12 @@ import com.ragagent.agentm.domain.CustomAgentEntity;
 import com.ragagent.agentm.service.CustomAgentService;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.event.EventBus;
-import com.ragagent.event.EventType;
 import com.ragagent.im.domain.ChannelSessionEntity;
 import com.ragagent.im.domain.ImChannelEntity;
 import com.ragagent.im.mapper.ChannelSessionMapper;
 import com.ragagent.im.mapper.ImChannelMapper;
 import com.ragagent.im.runtime.ImTypes;
 import com.ragagent.im.runtime.AdapterInterfaces.Adapter;
-import com.ragagent.im.runtime.AdapterInterfaces.FullOutputProgressSender;
 import com.ragagent.im.runtime.AdapterInterfaces.StreamSender;
 import com.ragagent.im.runtime.Commands;
 import com.ragagent.im.runtime.Commands.CommandContext;
@@ -37,12 +33,10 @@ import com.ragagent.im.runtime.ImFormat;
 import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.QaQueue;
 import com.ragagent.im.runtime.ReplyMessage;
-import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.service.MessageService;
 import com.ragagent.session.service.SessionAgentQaService;
 import com.ragagent.session.service.SessionKnowledgeQaService;
-import com.ragagent.session.service.QaSupport;
 import com.ragagent.session.service.SessionService;
 
 /**
@@ -83,6 +77,7 @@ public class ImService {
     private final int rateLimitWindowSec;
     private final int rateLimitMax;
 
+    final ImQaRunner qaRunner;
     final ImStreamPipeline streamPipeline;
     final ImOutboundFormatter outboundFormatter;
     final ImSessionResolver sessionResolver;
@@ -96,7 +91,7 @@ public class ImService {
     /** 去重（redis==nil 分支）：messageID → epoch 秒。 */
     private final Map<String, Long> processedMsgs = new ConcurrentHashMap<>();
     /** 在途请求（/stop 的本地取消面）。 */
-    private final Map<String, InflightEntry> inflight = new ConcurrentHashMap<>();
+    final Map<String, InflightEntry> inflight = new ConcurrentHashMap<>();
     /** 跨实例 /stop 标记的本地等价物。 */
     private final Map<String, Long> stopMarkers = new ConcurrentHashMap<>();
 
@@ -145,10 +140,11 @@ public class ImService {
         this.outboundFormatter = new ImOutboundFormatter(this);
         this.sessionResolver = new ImSessionResolver(this);
         this.qaRequests = new ImQaRequests(this);
+        this.qaRunner = new ImQaRunner(this);
         ImCommandSet.registerDefaults(this.cmdRegistry, kbLister(), knowledgeSearcher());
         this.qaQueue = new QaQueue(workers, maxQueue, maxPerUser, task -> {
             QaTask t = (QaTask) task.attach();
-            executeQARequest(t);
+            qaRunner.executeQARequest(t);
         });
         this.qaQueue.start();
     }
@@ -601,67 +597,6 @@ public class ImService {
         outboundFormatter.sendStreamReply(msg, streamer, content);
     }
 
-    // ── QA 执行（executeQARequest，service.go L1927-2013） ────────────────
-
-    void executeQARequest(QaTask task) {
-        // 队列 worker 是独立虚拟线程：租户上下文必须显式携带（约定 §5，对照 Go
-        // ctx 随 qaRequest.ctx 流转）。
-        TenantContext.set(task.tenantId(), new TenantContext.Principal(
-                TenantContext.PrincipalTypes.IM_USER, "system-" + task.tenantId()),
-                "viewer", false, "system-" + task.tenantId(), false);
-        QaQueue.QaRequest req = task.queueReq();
-        InflightEntry entry = new InflightEntry(() -> {
-            req.cancel();
-            return true;
-        });
-        inflight.put(task.userKey, entry);
-        try {
-            // 排队期间被 /stop 的直接跳过。
-            if (req.isCancelled()) {
-                return;
-            }
-            IncomingMessage msg = task.msg;
-            QaAttach attach = task.attach();
-            List<com.ragagent.session.domain.MessageAttachment> attachments = List.of();
-            List<String> imageUrls = List.of();
-            boolean streamDisabled = "full".equals(attach.channel().getOutputMode());
-
-            if (streamDisabled) {
-                if (attach.adapter() instanceof FullOutputProgressSender progress
-                        && progress.supportsFullOutputProgress()) {
-                    try {
-                        handleMessageFullOutput(msg, attach, progress);
-                    } catch (Exception e) {
-                        log.error("[IM] Full-output QA failed: {}", e.getMessage(), e);
-                    }
-                    return;
-                }
-            } else if (attach.adapter() instanceof StreamSender streamer) {
-                try {
-                    handleMessageStream(msg, attach, streamer);
-                } catch (Exception e) {
-                    log.error("[IM] Stream QA failed: {}", e.getMessage(), e);
-                }
-                return;
-            }
-
-            // 非流式兜底：收集完整答案再发。
-            QaOutcome outcome = runQA(attach);
-            String answer = outcome.answer();
-            if (outcome.error() != null) {
-                log.error("[IM] QA failed: {}, sending fallback reply", outcome.error());
-                answer = ImFormat.imQAFailureReply(outcome.error());
-            }
-            String display = formatIMOutboundAnswerOrFallback(answer);
-            sendReplyQuiet(attach.adapter(), msg, new ReplyMessage(display, false, true));
-            log.info("[IM] Reply sent: channel={} platform={} user={} answer_len={}",
-                    attach.channelId(), msg.platform, msg.userId, answer.length());
-        } finally {
-            inflight.remove(task.userKey);
-            TenantContext.clear();
-        }
-    }
-
     /** 排队任务：QaRequest（队列面）+ 业务束（对照 Go 的 qaRequest 整体）。 */
     static final class QaTask {
         private QaQueue.QaRequest queueReq;
@@ -703,179 +638,15 @@ public class ImService {
     }
 
     /** QA 输入束（对照 Go qaRequest 的业务字段）。 */
+
+    void runFallbackNonStream(QaAttach attach) {
+        qaRunner.runFallbackNonStream(attach);
+    }
     record QaAttach(IncomingMessage msg, Session session, CustomAgentEntity agent,
             Adapter adapter, ImChannelEntity channel, String channelId, String userKey) {
     }
 
     record QaOutcome(String answer, Exception error) {
-    }
-
-    private void handleMessageFullOutput(IncomingMessage msg, QaAttach attach,
-            FullOutputProgressSender streamer) throws Exception {
-        String streamId;
-        try {
-            streamId = streamer.startStream(msg);
-        } catch (Exception e) {
-            log.warn("[IM] StartStream failed for full output, falling back: {}", e.getMessage());
-            runFallbackNonStream(attach);
-            return;
-        }
-        QaOutcome outcome = runQA(attach);
-        String answer = outcome.answer();
-        if (outcome.error() != null) {
-            log.error("[IM] Full-output QA failed: {}, sending fallback reply", outcome.error());
-            answer = ImFormat.imQAFailureReply(outcome.error());
-        }
-        String finalContent = formatIMOutboundAnswerOrFallback(answer);
-        Exception finalizeErr = null;
-        try {
-            streamer.finalizeStream(msg, streamId, finalContent);
-        } catch (Exception e) {
-            finalizeErr = e;
-            log.warn("[IM] FinalizeStream failed for full output: {}", e.getMessage());
-        }
-        try {
-            streamer.endStream(msg, streamId);
-        } catch (Exception e) {
-            log.warn("[IM] EndStream failed for full output: {}", e.getMessage());
-        }
-        if (finalizeErr != null) {
-            sendReplyQuiet(attach.adapter(), msg, new ReplyMessage(finalContent, false, true));
-        }
-    }
-
-    void runFallbackNonStream(QaAttach attach) {
-        QaOutcome outcome = runQA(attach);
-        String answer = outcome.answer();
-        if (outcome.error() != null) {
-            answer = ImFormat.imQAFailureReply(outcome.error());
-        }
-        String display = formatIMOutboundAnswerOrFallback(answer);
-        sendReplyQuiet(attach.adapter(), attach.msg(), new ReplyMessage(display, false, true));
-    }
-
-    // ── runQA（service.go L2924-3115）：事件收集 + 消息落库 ────────────────
-
-    QaOutcome runQA(QaAttach attach) {
-        EventBus eventBus = new EventBus();
-        StringBuilder answerBuilder = new StringBuilder();
-        AtomicReference<Exception> qaErr = new AtomicReference<>();
-        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
-        java.util.concurrent.CountDownLatch complete = new java.util.concurrent.CountDownLatch(1);
-
-        eventBus.on(EventType.EVENT_AGENT_FINAL_ANSWER, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.payload.AgentFinalAnswerData data)) {
-                return;
-            }
-            String content = data.getContent();
-            if (content != null && !content.isEmpty()) {
-                synchronized (answerBuilder) {
-                    answerBuilder.append(content);
-                }
-            }
-            if (data.isDone()) {
-                done.countDown();
-            }
-        });
-        eventBus.on(EventType.EVENT_ERROR, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.payload.ErrorData data)) {
-                return;
-            }
-            log.error("[IM] QA error: {}", data.getError());
-            qaErr.set(new RuntimeException("QA pipeline error: " + data.getError()));
-            done.countDown();
-            complete.countDown();
-        });
-        eventBus.on(EventType.EVENT_MCP_OAUTH_REQUIRED, evt -> {
-            // OAuth 待授权：IM 无法处理会话内提示 → 汇总成文末提示（γ2 精简为日志备案）。
-            log.info("[IM] MCP OAuth required: {}", evt.getData());
-        });
-
-        CustomAgentEntity agent = attach.agent();
-        Session session = attach.session();
-        String requestId = UUID.randomUUID().toString();
-
-        Message userMsg = qaRequests.createUserMessage(session.getId(), attach.msg().content, requestId);
-        Message assistantMsg = qaRequests.createAssistantMessage(session.getId(), requestId);
-
-        eventBus.on(EventType.EVENT_AGENT_COMPLETE, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.payload.AgentCompleteData data)) {
-                return;
-            }
-            String finalAnswer = data.getFinalAnswer();
-            if (finalAnswer != null && !finalAnswer.isEmpty()) {
-                synchronized (answerBuilder) {
-                    if (answerBuilder.isEmpty()) {
-                        answerBuilder.append(finalAnswer);
-                    }
-                }
-            }
-            assistantMsg.setCompleted(true);
-            complete.countDown();
-        });
-
-        // 租户上下文：IM 回调无 JWT——显式注入合成身份（Go withIMIdentity 的
-        // "system-<tenantID>" 对应 TenantContext.IM_USER principal）。
-        long imTenant = attach.channel().getTenantId();
-        TenantContext.set(imTenant, new TenantContext.Principal(
-                TenantContext.PrincipalTypes.IM_USER, "system-" + imTenant), "viewer",
-                false, "system-" + imTenant, false);
-        try {
-            QaSupport.QaRequest qaReq = qaRequests.buildIMQARequest(session, attach.msg().content,
-                    assistantMsg.getId(), userMsg.getId(), agent, attach.msg().quote);
-            // 同步执行（Go 是 goroutine + select 等待；Java 侧 QA 服务内部为
-            // 虚拟线程管线，事件经 eventBus 回流到上面的订阅）。
-            Exception runErr;
-            try {
-                if (agent != null && qaRequests.isAgentMode(agent)) {
-                    agentQaService.agentQA(qaReq, eventBus);
-                } else {
-                    knowledgeQaService.knowledgeQA(qaReq, eventBus);
-                }
-                runErr = null;
-            } catch (Exception e) {
-                runErr = e;
-            }
-            if (runErr != null) {
-                qaErr.set(new RuntimeException("QA execution error: " + runErr.getMessage(), runErr));
-                done.countDown();
-                complete.countDown();
-            } else {
-                try {
-                    // 等待最终帧（对照 select done / waitForIMAgentComplete）。
-                    if (!done.await(10, java.util.concurrent.TimeUnit.MINUTES)) {
-                        qaErr.compareAndSet(null, new java.util.concurrent.TimeoutException("IM QA wait"));
-                    }
-                    if (qaRequests.isAgentMode(agent)) {
-                        complete.await(10, java.util.concurrent.TimeUnit.SECONDS);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        } finally {
-            TenantContext.clear();
-        }
-
-        String answer;
-        synchronized (answerBuilder) {
-            answer = answerBuilder.toString();
-        }
-        Exception err = qaErr.get();
-        if (answer.isEmpty() && err != null) {
-            return new QaOutcome("", err);
-        }
-        if (answer.isEmpty()) {
-            answer = ImFormat.IM_NO_ANSWER_FALLBACK;
-        }
-        assistantMsg.setContent(answer);
-        assistantMsg.setCompleted(true);
-        try {
-            messageService.updateMessage(assistantMsg);
-        } catch (Exception e) {
-            log.warn("[IM] Failed to update assistant message: {}", e.getMessage());
-        }
-        return new QaOutcome(answer, null);
     }
     String formatIMOutboundAnswerOrFallback(String raw) {
         return outboundFormatter.formatIMOutboundAnswerOrFallback(raw);
@@ -883,13 +654,6 @@ public class ImService {
 
     String cleanIMContent(String content) {
         return outboundFormatter.cleanIMContent(content);
-    }
-
-    // ── handleMessageStream（实现移至 ImStreamPipeline，门面薄委托） ──────
-
-    void handleMessageStream(IncomingMessage msg, QaAttach attach,
-            StreamSender streamer) throws Exception {
-        streamPipeline.handleMessageStream(msg, attach, streamer);
     }
 
 
