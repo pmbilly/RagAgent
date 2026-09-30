@@ -337,6 +337,11 @@
    auth 读写自己表的列时不该反向依赖 memory 域）+ 其同包依赖 `MemoryKinds`/`MemoryKeys` 一并下沉 `common/settings/`。
    **判定要点**：这属于"**共享 jsonb 载荷 / 表 schema 类型 → 下沉 common**"，与 `TenantProperties`/`ConversationProperties` 同一原则；
    注意搬之前先看它引用了哪些同包兄弟（否则 `common` 会反向依赖源域，编译器会拦）。
+   ✅ **`audit → knowledge` 已完成（2026-09-30，环 20 → 19）**：新增只读端口 `common/knowledge/KnowledgeBaseGateway`
+   （+ 载荷 `KnowledgeBaseFacts`，只带 `tenantId`/`creatorId`——两处消费者实际只读这两个；刻意不做租户过滤，
+   调用方要区分"查不到"与"属于别的空间"），由 `KnowledgeBaseService implements`（**专用最小查询**，不触发
+   `ensureDefaults` 的字段回填，与原裸 mapper 查询等价）；消费方 `AuditLogController` 与
+   `auth/apikey/TenantAPIKeyController` 改注入端口 → 两者 import 里再无 `knowledge`；测试桩同步改桩端口。
    余下 **`auth → storage`**（背边 2 文件 `StorageAllowList`+`StorageBackendRepository`）、
    **`audit → knowledge`** 与 **`auth → knowledge`**（各 2–3 文件，直查 `KnowledgeBaseMapper`/`KnowledgeBaseService`）：
    统一手法 = 下层域提供**只读窄接口**（如 `KnowledgeBaseLookup`），上层注入接口而非 mapper。
