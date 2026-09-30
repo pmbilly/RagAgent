@@ -138,21 +138,23 @@
 | 阶段 2 收官（HybridSearchService，2026-10-01） | 非引擎族检索编排 | **出榜**（3 刀 → FusionOps/ResultOps/StoreGroupOps；1,260→775；检索域清零；§14.7.6） |
 | 阶段 2（AuthController，2026-10-01） | auth 域控制器 | **出榜**（3 刀 → OidcOps/SessionOps/BindingSupport；1,167→704；auth controller 清零；§14.7.7） |
 | 阶段 2（llm RemoteApiChat，2026-10-01） | llm 域聊天客户端 | **出榜**（5 刀 → RequestOps/BodyCodec/HttpOps/StreamOps/ResponseOps；1,366→513；llm 清零；§14.7.8） |
+| 阶段 2（TenantCatalogController，2026-10-01） | auth 域租户目录/KV 配置控制器 | **出榜**（4 刀 → BindSupport/CreateOps/CrudOps/ConfigOps；980→133；§14.7.9） |
 
 ### 7.2 当前存量（实测）
 
 - session 域：**100 文件 / 25,147 行**；最大类 `SessionKnowledgeQaService` 1,036（例外）→ 其后 `SessionController` 791 / `SessionQaResolution` 706 / `QaSearchTargets` 706 / `AgentStreamBridge` 696 / `SessionService` 650。
 - wiki 域（2026-10-01 批次后）：**144 文件 / 24,910 行**；≥800 剩 4 个 = `WikiPageServiceImpl` 1,008 / `WikiPageRepository` 858 / `WikiIngestDedupService` 851 / `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2）。
 - llm 域（2026-10-01 批次后）：chat 包 `RemoteApiChat` 家族 6 类全部 <800（最大 `RemoteApiStreamOps` 365）。
-- 全仓 ≥800 行的类：**21 个**（清单与分域建议见 §14.3）。
+- auth 域 controller（2026-10-01 批次后）：`TenantCatalogController` 980→133，包内最大 `TenantInvitationController` 519。
+- 全仓 ≥800 行的类：**20 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
 
 1. **阶段 2 其余域**：wiki / im / retrieval / auth controller / llm / knowledge(FaqImportService) / chatpipeline(PluginMerge) **均已出榜**；
-   余量以 §14.3 实测为准——单类：chatpipeline(PluginSearch 899)、auth service(TenantCatalogController 980 / UserService 876)、
-   mcp(McpServiceController 937 / OAuthHandler 825)、embed(EmbedChannelController 925)、modelcontext(SourceRegistry 878)、
-   wiki-page 面 4 类；大体量：datasource / memory（单独立项）。
+   余量以 §14.3 实测为准——单类：mcp(McpServiceController 937 / OAuthHandler 825)、im(FeishuAdapter 926)、
+   embed(EmbedChannelController 925)、chatpipeline(PluginSearch 899)、modelcontext(SourceRegistry 878)、
+   auth service(UserService 876)、wiki-page 面 4 类；大体量：datasource / memory（单独立项）。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
    chunker-preview 已完成（同批带前端）；**剩余域 wiki / agent / auth / memory / mcp 等**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
@@ -363,7 +365,7 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **21 个**；llm 批后 22→21）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **20 个**；auth tenant 批后 21→20）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
@@ -371,10 +373,10 @@ knowledge/
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
-| 其余单类 | `TenantCatalogController` 980（auth）· `McpServiceController` 937 · `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `PluginSearch` 899（chatpipeline）· `SourceRegistry` 878（modelcontext）· `UserService` 876（auth）· `KnowledgeService` 848（knowledge 例外）· `OAuthHandler` 825（mcp）· `KnowledgeProcessWorker` 814（knowledge 例外） |
+| 其余单类 | `McpServiceController` 937 · `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `PluginSearch` 899（chatpipeline）· `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `OAuthHandler` 825（mcp）· `KnowledgeProcessWorker` 814（knowledge 例外） |
 | im / llm | llm **已清零**（RemoteApiChat 1,366→513，§14.7.8）；im 剩 `FeishuAdapter` 926 |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
-| auth | **controller 已清零**（§14.7.7；service 域 TenantCatalogController/UserService 未动） |
+| auth | **controller 已清零**（§14.7.7 AuthController + §14.7.9 TenantCatalogController 980→133）；service 域剩 `UserService` 876 + apikey 未动 |
 
 复测命令：`git ls-files 'server/src/main/java/**/*.java' | xargs wc -l | sort -rn | head -20`
 
@@ -705,6 +707,24 @@ POST /tenants 巨型端点 ~150 行 + W5a CRUD 4 条 + KV 分发器 + 6 组配�
 
 **预估**：门面 980→~250；四个协作者 90~330 行。闸门：每刀 `--rerun-tasks` 重编 +
 `--tests "com.ragagent.auth.*"` + spotlessCheck + 忠实性逐字比对；收官 clean 全量 + 环守卫。
+
+**落刀记录（2026-10-01 执行完毕，4 刀全绿；边界判定见上）**
+
+| 刀 | 协作者 | 内容 | 提交 |
+|---|---|---|---|
+| T1 | `TenantBindSupport`（全静态 76） | MAPPER/bindBody/bindingError/invalidParams/trimGo/goJsonKind/goStringField（先落被依赖方）；删死方法 `parseIntOr` | `2c6a076` |
+| T2 | `TenantCreateOps` 272 | createTenant 端点体 + tenantWithApiKey/deepSortKeys/resolveMaxOwnedTenantsPerUser/quotaExceeded/validateCreateBinding + `CreateTenantRequest` + `DEFAULT_MAX_OWNED_PER_USER` | `cb8029e` |
+| T3 | `TenantCrudOps` 196 | listTenants/getTenant/updateTenant/deleteTenant 4 端点体 + bindUpdateTenantRequest/loadTenantOr500/contextRoleHasAdmin + `UpdateTenantRequest` | `5caa584` |
+| T4 | `TenantConfigOps` 436 | getTenantKV/updateTenantKV 分发端点体 + 守卫/解析/信封 6 助手 + 6 组配置 get/put 12 方法 + SSRF 三件 | `dad94d8` |
+
+**结果**：`TenantCatalogController` 980→**133**（出榜，收官清扫删死 logger）；四个协作者 76~436 行；
+auth 域测试 183 条 / 全量 4,668 条 0 失败（clean 全量 + spotless + 环守卫基线保持）；
+全仓 ≥800 类 21→**20**。
+**本批新增坑位**：①剥 `@Mapping` 注解行**必须连行首缩进一起剥**（只剥注解文本会把残余 4 空格
+叠进下一行 → 协作者签名 8 空格、忠实性抽取失配）；②多切块落刀必须**按文件序排序切口后重建**
+（T1 首轮按"编号序"手工拼接，R1(73 行)在 R0(119 行)之前 → 区间重叠、死方法复活）；③依赖计数
+断言别凭读文件印象写死——本批 trimGo 4 非 5、tenantProperties 4 非 2、tenantService 7 非 6，
+三次都是脚本实测纠偏（先跑计数再定断言）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 

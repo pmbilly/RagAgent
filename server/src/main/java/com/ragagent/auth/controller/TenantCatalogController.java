@@ -12,8 +12,6 @@ import com.ragagent.common.tenant.TenantProperties;
 import com.ragagent.common.knowledge.KnowledgeBaseProvisioner;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.common.settings.SystemSettingGateway;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,9 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 public class TenantCatalogController {
-
-    private static final Logger log = LoggerFactory.getLogger(TenantCatalogController.class);
-
     final TenantService tenantService;
     final TenantMemberService memberService;
     final UserService userService;
