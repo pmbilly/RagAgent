@@ -1,7 +1,7 @@
 # knowledge 模块手册
 
 > **面向读者**：第一次接手 `com.ragagent.knowledge` 的架构师 / 高级开发者。
-> **目标**：30 分钟建立全局观 → 能定位改动点 → 能安全迭代（本模块有 4,670 个后端用例兜底，改错会立刻红）。
+> **目标**：30 分钟建立全局观 → 能定位改动点 → 能安全迭代（本模块有 4,681 个后端用例兜底，改错会立刻红）。
 > **数据口径**：2026-09-30 实测（`wc -l` 口径）：**197 个 java 文件 / 约 2.48 万行 / 12 个子包**。
 > **本文档的地位**：模块级导览；仓库级作业规范见仓库根 `HANDOFF.md`（§12 结构地图、§13 踩坑清单、§14 逐包重构范式）。
 
@@ -467,7 +467,9 @@ flowchart TD
     D -. 同上 .-> X1
 ```
 
-> ⚠️ **已知隐患**（见 §9）：搬移中防线在 `ChunkAccessGuard` 与 `KnowledgeFolderService` 各有一份实现，**严格度不一致**。
+> ✅ **已于 2026-09-30 统一**（`9c01242`）：只保留 `ChunkAccessGuard` 的严格版实现（形态异常 → 500），
+> `KnowledgeFolderService` / `KnowledgeBatchOpsService` 的调用点改指它；行为由 `ChunkAccessGuardMoveGuardTest`
+> （6 用例）钉死。
 
 ---
 
@@ -529,7 +531,7 @@ cd frontend && npx vue-tsc --build --force && npm test
 
 ## 8. 测试与验证
 
-- **规模**：**4,675** 个后端用例（含 6 个 skip）/ 1,366 个契约 fixture；本模块的 fixture 在 `server/src/test/resources/contracts/`（`chunk-*`、`cprev-*`、`faq-*`、`knowledge-*`、`kb-*`）。
+- **规模**：**4,681** 个后端用例（含 6 个 skip）/ 1,366 个契约 fixture；本模块的 fixture 在 `server/src/test/resources/contracts/`（`chunk-*`、`cprev-*`、`faq-*`、`knowledge-*`、`kb-*`）。
 - **比较口径**：契约比较器是**语义比较**（键序 / 转义归一化后比），fixture 锚定的是**本仓自己的行为**。
 - **已知偶发 2 例**（遇到先单独重跑，别误判回归）：
   - `WebToolsRecordingTest.searchWithContentFetchesLeadingPagesViaSharedFetchTool`（全量并发下偶发）
@@ -543,7 +545,7 @@ cd frontend && npx vue-tsc --build --force && npm test
 | 项 | 性质 | 建议 |
 |---|---|---|
 | ~~KB 配置 jsonb 无契约测试~~ | **已解决（2026-09-30）** | 新增 `knowledge/domain/KnowledgeBaseConfigJsonContractTest`（5 用例）钉死形状：键集合、空值/假值显式输出、7 个配置类型 round-trip、读取容错与「旧 snake 键不再映射」防回流 |
-| **搬移中防线两份实现、严格度不一致** | **真实隐患** | `ChunkAccessGuard.rejectMovingKnowledge`（严格：形态异常 → 500）与 `KnowledgeFolderService.rejectMovingKnowledge`（宽松：形态异常**静默放行**）→ 同一份异常 metadata，走文件夹路由被放行、走编辑路由报错。建议统一到严格版（会改变"异常态放行"现行为，需单独一批 + 全量 fixture 验证） |
+| ~~搬移中防线两份实现、严格度不一致~~ | **已解决（2026-09-30，`9c01242`）** | `ChunkAccessGuard.rejectMovingKnowledge`（严格：形态异常 → 500）与 `KnowledgeFolderService.rejectMovingKnowledge`（宽松：形态异常**静默放行**）→ 同一份异常 metadata，走文件夹路由被放行、走编辑路由报错。建议统一到严格版（会改变"异常态放行"现行为，需单独一批 + 全量 fixture 验证） |
 | Go 兼容序列化层（`common/web`） | 技术债 | 全仓 400+ 引用，**必须一次性全仓删除**，不能按域分批 |
 | 静态分析闸门缺失 | 工程债 | 死局部变量、静态方法误用实例调用等问题只有 IDE 能发现，建议上 Checkstyle / ErrorProne 进 CI |
 | 死成员扫描器覆盖不全 | 工具债 | 现有扫描覆盖字段 / 私有方法 / 遮蔽 import，**不含未使用局部变量与顶层死类型** |

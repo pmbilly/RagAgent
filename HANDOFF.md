@@ -52,7 +52,7 @@
 ## 4. 关键测量数据（**2026-09-30 复核**）
 
 - main：**1,535 文件 / 27.9 万行**；test：**401 文件 / 12.6 万行 / 1,366 契约 fixture**；frontend：**465 文件 / 20.0 万行**。
-- 后端测试：**4,670 用例全绿**（含 6 个 skip）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
+- 后端测试：**4,681 用例全绿**（含 6 个 skip）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
 - **≥800 行的类（main，全仓）**：AgentEngine 3,235、WikiIngestBatchHandler 2,268、WikiIngestService 2,182、InitializationController 1,981、DataSourceService 1,827、SessionKnowledgeQaService 1,764、MemoryService 1,660、OpenSearchRetrieveRepository 1,652、WikiPageServiceImpl 1,642、KnowledgeQaController 1,616……
 - **knowledge 包（已整治，可作样板）**：**197 文件 / 25,264 行**；最大三个 = `FaqImportService` 1,234、`KnowledgeService` 850、`KnowledgeProcessWorker` 814；13 个子包见 §12；容器类/`*Util` 反模式命名已清零。
 - **agent 域（2026-09-30 A/B/E 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；**Go 锚点 0**（479 处/186 文件已清扫,§13.11/13.13 判据,真实不变量改中性陈述保留）；12 个子包全有 package-info；`@JsonProperty` 余 30 处已随落库换锚清零（§11.1）。
@@ -132,7 +132,7 @@
 2. **agent 域五神类拆分**（`AgentEngine` 3,235 行，七段注释边界）——阶段 2 的另一半。
 3. **Go 序列化层删除（阶段 3 收尾）**：408 处引用 / 94 文件回归标准 Jackson（`common/web` 的 `GoMapSerializer`/`GoDoubleSerializer`/`GoTimeSerializer`/`GoJsonEscapes`），Controller 手搓 `ObjectNode` 一并收敛——**红线要求一次性全仓完成**，不能按域分批。
 4. 其余存量：wiki/session 神类；`System.getenv()` 151 处收敛 `@ConfigurationProperties`；Go 锚点注释随触碰清洗。（`@JsonInclude` 已于批次 A/B 清零，见 §4；KB 配置 jsonb 契约测试已补，`cd153c3`。）
-5. **待决策：同名防线两份实现、严格度不一致（真实隐患）**——`ChunkAccessGuard.rejectMovingKnowledge`（public static；null→404、形态异常→500）与 `KnowledgeFolderService.rejectMovingKnowledge`（package-private static；无 null 校验、形态异常**静默放行**）规则相同但严格度不同：同一份异常 metadata，走文件夹路由被放行、走编辑路由 500。建议统一到 `ChunkAccessGuard` 版（更严），但会改变「异常态放行」的现行为，需单独一批 + 全量 fixture 验证（2026-09-30 发现，未改）。
+5. **已修复（2026-09-30，`9c01242`）：同名防线两份实现、严格度不一致**（原为待决策）——`ChunkAccessGuard.rejectMovingKnowledge`（public static；null→404、形态异常→500）与 `KnowledgeFolderService.rejectMovingKnowledge`（package-private static；无 null 校验、形态异常**静默放行**）规则相同但严格度不同：同一份异常 metadata，走文件夹路由被放行、走编辑路由 500。**已统一到严格版**：删除 `KnowledgeFolderService` 的宽松副本，3 个调用点改指 `ChunkAccessGuard.rejectMovingKnowledge`（全仓只剩一份实现）；新增 `ChunkAccessGuardMoveGuardTest`（6 用例）钉死行为——含此前被**静默放行**的两类：transfer 非对象、operation/phase 非文本（现在都是 500）。行为变化仅限异常态（正是要修的洞）；全量 4,681 用例绿、**零 fixture 变化**（说明该异常路径此前无测试覆盖，这也是它能悄悄分叉的原因）。
 6. **已查清、勿再排查**：前端 `updateKBConfig` → `PUT /api/v1/initialization/config/{kbId}` 是**活端点**（agentm 域 `InitializationController` 自有契约、内层 snake 键，不在知识库契约范围）；其 legacy 装配块（`KnowledgeBaseEditorModal.vue` ~1415-1430）从 KB 响应里读 snake 键 → **一直在静默取默认值**（属 agentm 域改造面）。
 7. **在途分支**：`wip/chat-sse-slice2`（`785cdc7`，会话域实体/控制器去 snake，**未并入**，等后续切片）；`wip/dego-storage-format` 与 `wip/knowledge-doc-contract` **已并入工作分支**（前者只剩历史意义）。另有一个 `stash@{0}` 是被取代的旧尝试（可删）。
    另：`refactor/knowledge-java-idioms` 已于 2026-09-30 **合并进 main 并删除**（§5 表格、§7.1 存档、§11/§11.1 等**历史记录**中仍会提到它，那是当时的记录，不影响现在）；`wip/dego-storage-format` 与 `wip/knowledge-doc-contract` 的内容均已并入 main，只剩历史意义、可删；`wip/chat-sse-slice2` **未并入**（保留作工作清单参考）。
