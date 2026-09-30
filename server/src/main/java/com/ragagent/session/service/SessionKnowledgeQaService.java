@@ -53,6 +53,10 @@ import static com.ragagent.session.service.QaSupport.TagScope;
  * <p>已知差异（本批装配边界，均已备案）：检索执行面未翻译（hybridSearch adapter 空）、
  * web_fetch/网页抓取在 RAG 路径可用（websearch 执行面波 4.4 已有）。Langfuse span
  * 为 no-op seam（4.6a 备案），span 生命周期调用点保留。</p>
+ *
+ * <p>例外说明(§14.5):约 1,000 行略超 800——KnowledgeQA/KnowledgeQAByEvent/SearchKnowledge
+ * 三条入口流是单一状态机,解析与降级已拆至 SessionQaResolution/SessionQaFallback。</p>
+
  */
 @Service
 public class SessionKnowledgeQaService {
