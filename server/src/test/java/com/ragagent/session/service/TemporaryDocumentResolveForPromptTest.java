@@ -53,6 +53,15 @@ class TemporaryDocumentResolveForPromptTest {
         return service;
     }
 
+    /** 图片落盘路径的探针：切片后由协作者承载（同 §14 步骤 2 的切片口径）。 */
+    private TemporaryDocumentProcessor processor() {
+        service(); // 确保 fileStore（真实落盘目录）已建
+        return new TemporaryDocumentProcessor(repo, fileStore, docReader,
+                mock(com.ragagent.model.service.ModelRuntimeFactory.class),
+                mock(com.ragagent.llm.asr.AsrTranscriber.class),
+                mock(com.ragagent.auth.service.TenantService.class));
+    }
+
     // ── fixtures ─────────────────────────────────────────────────────────
 
     private static TemporaryDocument document(String id, String name, String type, String status,
@@ -284,7 +293,7 @@ class TemporaryDocumentResolveForPromptTest {
         DocReaderClient.ImageRef ref = new DocReaderClient.ImageRef(
                 "gac.png", "images/gac.png", "image/png", png);
 
-        TemporaryDocumentService.StoredImages stored = service()
+        TemporaryDocumentProcessor.StoredImages stored = processor()
                 .storeDocumentImages(TENANT, doc, List.of(ref), "![gac.png](images/gac.png)");
 
         assertThat(stored.markdown()).startsWith("![gac.png](local://1/exports/")
@@ -307,7 +316,7 @@ class TemporaryDocumentResolveForPromptTest {
         DocReaderClient.ImageRef ref = new DocReaderClient.ImageRef(
                 "icon.png", "images/icon.png", "image/png", icon);
 
-        TemporaryDocumentService.StoredImages stored = service()
+        TemporaryDocumentProcessor.StoredImages stored = processor()
                 .storeDocumentImages(TENANT, doc, List.of(ref), "![icon](images/icon.png)");
 
         assertThat(stored.imageRefsJson()).isEqualTo("[]");
@@ -323,7 +332,7 @@ class TemporaryDocumentResolveForPromptTest {
         DocReaderClient.ImageRef ref = new DocReaderClient.ImageRef(
                 "tiny.png", "images/tiny.png", "image/png", small);
 
-        TemporaryDocumentService.StoredImages stored = service()
+        TemporaryDocumentProcessor.StoredImages stored = processor()
                 .storeDocumentImages(TENANT, doc, List.of(ref), "![tiny](images/tiny.png)");
 
         assertThat(TemporaryDocumentPromptResolver.imageUrlsOf(stored.imageRefsJson())).hasSize(1);
@@ -352,7 +361,7 @@ class TemporaryDocumentResolveForPromptTest {
         DocReaderClient.ImageRef ref =
                 new DocReaderClient.ImageRef("a.png", "images/a.png", "image/png", new byte[0]);
 
-        TemporaryDocumentService.StoredImages stored = service()
+        TemporaryDocumentProcessor.StoredImages stored = processor()
                 .storeDocumentImages(TENANT, doc, List.of(ref), "![a](images/a.png)");
 
         assertThat(stored.imageRefsJson()).isEqualTo("[]");
@@ -367,7 +376,7 @@ class TemporaryDocumentResolveForPromptTest {
         DocReaderClient.ImageRef ref =
                 new DocReaderClient.ImageRef("chart.png", "images/chart.png", "image/png", png);
 
-        TemporaryDocumentService.StoredImages stored = service().storeDocumentImages(
+        TemporaryDocumentProcessor.StoredImages stored = processor().storeDocumentImages(
                 TENANT, doc, List.of(ref), "![图片](images/chart.png \"标题\")");
 
         String url = TemporaryDocumentPromptResolver.imageUrlsOf(stored.imageRefsJson()).get(0);
@@ -397,8 +406,8 @@ class TemporaryDocumentResolveForPromptTest {
         assertThat(TemporaryDocumentService.isImageFormat(".PNG")).isTrue();
         assertThat(TemporaryDocumentService.isImageFormat("webp")).isTrue();
         assertThat(TemporaryDocumentService.isImageFormat(".pdf")).isFalse();
-        assertThat(TemporaryDocumentService.extFromMime("image/jpeg")).isEqualTo(".jpg");
-        assertThat(TemporaryDocumentService.extFromMime("image/tiff")).isEmpty();
+        assertThat(TemporaryDocumentProcessor.extFromMime("image/jpeg")).isEqualTo(".jpg");
+        assertThat(TemporaryDocumentProcessor.extFromMime("image/tiff")).isEmpty();
     }
 
     @Test

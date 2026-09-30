@@ -722,6 +722,29 @@
 - 提醒：IDE 的 Problems 面板可能因「Gradle 导入失败」（§13.22 的默认 JDK 26 问题）整体失效或滞后——
   **判据以编译器与闸门为准**，面板只当线索。
 
+## 11.20 session 步骤 2 第六刀：TemporaryDocumentService 第二刀（解析/落盘管线）（2026-09-30）
+
+| | 前 | 后 |
+|---|---|---|
+| `TemporaryDocumentService` | 862 | **498**（两刀累计 1,075 → 498） |
+| `TemporaryDocumentProcessor`（新，同包） | — | **423** |
+
+- **切片边界**：投递与重试（`enqueueProcess`/`processWithRetry`/`processNow`）+ `process` + `optionsOf`
+  + 解析器选择 `tenantParserEngine` + 音频转写 `transcribeAudio` + 资源租户切换 `withResourceTenant`
+  + 文本/图片落盘（`storeDocumentImages`/`StoredImages`/`chunksJson`/`quote`/`quoteMap`/
+  `cleanInvalidUtf8`/`isIconImage`/`extFromMime`）+ 7 个常量与 `executor` 字段。
+- **共享项（§11.17 口径）**：`MAPPER`/`readJsonArray`/`extOf`/`isImageFormat` 门面也在用
+  （删除/附件提示词/白名单判定）→ 留门面并放宽包内可见，管线按类名引用；`CreateOptions` 是门面公开
+  record → 新类 import 嵌套类型；`processNow` 门面留薄委托（流程契约测试的驱动口，测试零改动）。
+  门面不再使用的四个字段（`docReader`/`modelRuntimeFactory`/`asrTranscriber`/`tenantService`）
+  删字段、留构造参数直传协作者。
+- **忠实性核验（§11.15 手法）**：16 个成员 + 7 个常量**逐字一致**。
+- **工具教训（并入 §14.9b 坑清单）**：花括号配对数遇上 **char 字面量** `'}'` 会提前收口
+  （`chunksJson` 里就有）——剥离规则必须同时去 `"..."`/`'...'`/`//...`/`/*...*/`，否则块被截断
+  （首次跑即踩，靠 diff 复核发现后回退重做）。
+- 测试：流程契约 5 例（`service.processNow` 驱动）+ 提示词/附件 22 例（图片落盘探针改为对协作者构造）
+  + 上传契约 7 例全绿；`clean :test :spotlessCheck` 全绿（432 类 / 4,664 例 / 0 失败）；环 0/1/6 不变。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -1009,5 +1032,5 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 ### 14.9 session 步骤 2 半程（2026-09-30）
 
 - SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
-- **余四神类**（已出榜：TemporaryDocumentService 1,075 → 860 §11.15、AgentStreamBridge 853 → 697 §11.16、MessageService 1,028 → 510 §11.17、MessageSuggestionService 1,088 → 601 §11.18）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、TemporaryDocumentService 860。
+- **余三神类**（已出榜：TemporaryDocumentService 1,075 → 860 §11.15 → **498** §11.20、AgentStreamBridge 853 → 697 §11.16、MessageService 1,028 → 510 §11.17、MessageSuggestionService 1,088 → 601 §11.18）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266。
 - 教训:切片协作者时 record(MentionScope/SearchTargetView)容易随 take 溢出/误限定——**record 一律留在门面**(测试与外部直引面),协作者经门面限定引用;声明行误加 service. 前缀的恢复统一按"4 空格缩进+修饰符开头"行匹配(勿对调用点盲替)。
