@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.prompt.MessageAttachmentsPrompt;
 import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.knowledge.dto.faq.FaqEntry;
@@ -21,7 +20,6 @@ import com.ragagent.agent.tools.McpExposure;
 import com.ragagent.agent.tools.ToolDefinitions;
 import com.ragagent.agent.tools.WikiRouteResolver;
 import com.ragagent.agent.tools.WikiScope;
-import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 import com.ragagent.agent.tools.ToolRegistry;
 import com.ragagent.agentm.service.AgentConfigJson;
 import com.ragagent.common.context.TenantContext;
@@ -36,9 +34,7 @@ import com.ragagent.mcp.domain.McpService;
 import com.ragagent.memory.service.MemoryService;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.rerank.Reranker;
-import com.fasterxml.jackson.databind.JsonNode;
 
-import static com.ragagent.session.service.SessionKnowledgeQaService.SearchTargetView;
 import com.ragagent.model.service.ModelRuntimeConfigs;
 import com.ragagent.session.support.PipelineViews;
 
@@ -72,6 +68,9 @@ public class SessionAgentQaService {
 
     /** 历史/消息装配簇（§14.9c 刀 1）。 */
     private final AgentHistoryAssembler historyAssembler;
+
+    /** 配置装配簇（§14.9c 刀 2）。 */
+    private final AgentConfigAssembler configAssembler;
     private final com.ragagent.storage.service.ResourceCatalogService resourceCatalog;
     private final javax.sql.DataSource dataSource;
     private final ArtifactCollectorWiring artifactCollectorWiring;
@@ -130,6 +129,7 @@ public class SessionAgentQaService {
         this.artifactCollectorWiring = artifactCollectorWiring;
         this.knowledgeService = knowledgeService;
         this.faqService = faqService;
+        this.configAssembler = new AgentConfigAssembler(knowledgeQa, this.hostSkillDirs);
     }
 
     // ==================================================================
@@ -151,7 +151,7 @@ public class SessionAgentQaService {
         AgentConfigJson.ensureDefaults(req.agentConfig);
 
         // Build AgentConfig
-        QaAgentConfig agentConfig = buildAgentConfig(req, agentTenantId);
+        QaAgentConfig agentConfig = configAssembler.buildAgentConfig(req, agentTenantId);
 
         {
             // VLM runtime field
@@ -190,7 +190,7 @@ public class SessionAgentQaService {
 
             // Rerank model only when knowledge_search can run
             Reranker rerankModel = null;
-            if (agentRequiresRerankModel(req.agentConfig)) {
+            if (AgentConfigAssembler.agentRequiresRerankModel(req.agentConfig)) {
                 String rerankModelId = req.agentConfig.path("rerank_model_id").asText("");
                 if (rerankModelId.isEmpty()) {
                     throw new RuntimeException("rerank model is not configured: please set rerank_model_id on the agent");
@@ -297,269 +297,6 @@ public class SessionAgentQaService {
     // buildAgentConfig（session_agent_qa.go L291-430）
     // ==================================================================
 
-    private QaAgentConfig buildAgentConfig(QaSupport.QaRequest req, long agentTenantId) {
-        ObjectNode c = AgentConfigJson.ensureDefaults(req.agentConfig);
-        QaAgentConfig ac = new QaAgentConfig();
-        ac.setMaxIterations(c.path("max_iterations").asInt(0));
-        // Go 零值 = 未配置；RemoteApiChat 对 temperature==0 不出键（openai-go omitempty
-        // 同形）。内建 agent 的 0.7 来自 agent_type_presets.yaml 显式配置，不靠此缺省。
-        ac.setTemperature(c.path("temperature").asDouble(0.0));
-        ac.setWebSearchEnabled(c.path("web_search_enabled").asBoolean(false) && req.webSearchEnabled);
-        ac.setWebSearchMaxResults(c.path("web_search_max_results").asInt(0));
-        ac.setWebSearchProviderId(c.path("web_search_provider_id").asText(""));
-        ac.setMultiTurnEnabled(c.path("multi_turn_enabled").asBoolean(true));
-        ac.setHistoryTurns(c.path("history_turns").asInt(0));
-        ac.setMemoryEnabled(c.path("memory_enabled").asBoolean(false));
-        ac.setMcpSelectionMode(c.path("mcp_selection_mode").asText(""));
-        // Go session_agent_qa.go L309：MCPServices 直取 agent config 的 mcp_services
-        // （mode=selected 时按 ID 列表注册；mode=all 由注册处列全租户）
-        ac.setMcpServices(stringListOf(c.get("mcp_services")));
-        ac.setMcpAuthWaitTimeout(c.path("mcp_auth_wait_timeout").asInt(0));
-        JsonNode thinking = c.get("thinking");
-        ac.setThinking(thinking != null && thinking.isBoolean() ? thinking.asBoolean() : null);
-        ac.setCitationEnabled(c.path("citation_enabled").asBoolean(true));
-        ac.setRetrieveKbOnlyWhenMentioned(c.path("retrieve_kb_only_when_mentioned").asBoolean(false));
-        ac.setLlmCallTimeout(c.path("llm_call_timeout").asInt(0));
-        ac.setMaxCompletionTokens(c.path("max_completion_tokens").asInt(0));
-        ac.setRetainRetrievalHistory(c.path("retain_retrieval_history").asBoolean(false));
-        ac.setSharedAgentReadOnly(req.sharedAgentReadOnly);
-
-        // skills 配置（configureSkillsFromAgent，Go L616-647）；指令型数据源 =
-        // 宿主技能目录（选项 B），不再有沙箱镜像技能集
-        String skillsMode = c.path("skills_selection_mode").asText("");
-        switch (skillsMode) {
-            case "all" -> {
-                ac.setSkillsEnabled(true);
-                ac.setAllowedSkills(null);
-                log.info("SkillsSelectionMode=all: using installed sandbox skills");
-            }
-            case "selected" -> {
-                List<String> selected = stringListOf(c.get("selected_skills"));
-                if (!selected.isEmpty()) {
-                    ac.setSkillsEnabled(true);
-                    ac.setAllowedSkills(selected);
-                    log.info("SkillsSelectionMode=selected: enabled {} selected skills: {}", selected.size(), selected);
-                } else {
-                    ac.setSkillsEnabled(false);
-                    log.info("SkillsSelectionMode=selected but no skills selected: skills disabled");
-                }
-            }
-            case "none", "" -> {
-                ac.setSkillsEnabled(false);
-                log.info("SkillsSelectionMode={}: skills disabled", skillsMode);
-            }
-            default -> {
-                ac.setSkillsEnabled(false);
-                log.warn("Unknown SkillsSelectionMode={}: skills disabled", skillsMode);
-            }
-        }
-
-        // 指令型技能（选项 B）：目录来自 weknora.skills.host-dirs，Loader 扫描
-        // SKILL.md；allowedSkills 即 selected_skills 过滤
-        ac.setSkillDirs(hostSkillDirs);
-
-        // Resolve knowledge bases
-        var kb = knowledgeQa.resolveKnowledgeBases(req);
-        ac.setKnowledgeBases(kb.kbIds());
-        ac.setKnowledgeIds(kb.knowledgeIds());
-
-        // Allowed tools
-        List<String> allowed = stringListOf(c.get("allowed_tools"));
-        ac.setAllowedTools(allowed.isEmpty()
-                ? new ArrayList<>(com.ragagent.agent.tools.ToolDefinitions.defaultAllowedTools())
-                : allowed);
-
-        // Per-request skill/MCP scope（Go L364-366）
-        applyPerRequestSkillScope(ac, skillsMode, req.skillNames);
-        applyPerRequestMcpScope(ac, stringListOf(c.get("mcp_services")),
-                req.sharedAgentReadOnly, req.mcpServiceIds);
-
-        // Custom system prompt（Go L369-372）
-        Prompts prompts = resolveAgentPrompts(req);
-        if (!prompts.system().isEmpty()) {
-            ac.setUseCustomSystemPrompt(true);
-            ac.setSystemPrompt(prompts.system());
-        }
-
-        log.info("Custom agent config applied: MaxIterations={}, Temperature={}, AllowedTools={}, WebSearchEnabled={}",
-                ac.getMaxIterations(), ac.getTemperature(), ac.getAllowedTools(), ac.isWebSearchEnabled());
-
-        // Web search max results（tenant 兜底 5）
-        if (ac.getWebSearchMaxResults() == 0) {
-            ac.setWebSearchMaxResults(5);
-        }
-        // web_search provider 默认解析（Go L387-390）由 handler 层 web repo 完成，dev 空。
-
-        log.info("Merged agent config from tenant {} and session {}", agentTenantId, req.session.getId());
-
-        // Search targets（Go L407-424）
-        List<SearchTargetView> targets;
-        try {
-            targets = knowledgeQa.buildSearchTargets(agentTenantId, ac.getKnowledgeBases(),
-                    ac.getKnowledgeIds(), req.tagScopes);
-        } catch (RuntimeException e) {
-            throw new RuntimeException("build search targets: " + e.getMessage(), e);
-        }
-        ac.setSearchTargets(new SearchTargets(SessionKnowledgeQaService.SearchTargetView.toPipeline(targets)));
-        log.info("Agent search targets built: {} targets", targets.size());
-
-        return ac;
-    }
-
-    private record Prompts(String system, String context) {}
-
-    private Prompts resolveAgentPrompts(QaSupport.QaRequest req) {
-        ObjectNode c = req.agentConfig;
-        String system = c.path("system_prompt").asText("");
-        String context = c.path("context_template").asText("");
-        boolean agentMode = SessionKnowledgeQaService.isAgentMode(c);
-        if (system.isEmpty()) {
-            String id = c.path("system_prompt_id").asText("");
-            if (!id.isEmpty()) {
-                String resolved = templateContentByIdAndFile(id,
-                        agentMode ? "agent_system_prompt.yaml" : "system_prompt.yaml");
-                if (resolved != null) {
-                    system = resolved;
-                }
-            }
-        }
-        if (context.isEmpty()) {
-            String id = c.path("context_template_id").asText("");
-            if (!id.isEmpty()) {
-                String resolved = templateContentByIdAndFile(id, "context_template.yaml");
-                if (resolved != null) {
-                    context = resolved;
-                }
-            }
-        }
-        return new Prompts(system, context);
-    }
-
-    /** applyPerRequestSkillScope（Go L464-487）。 */
-    private static void applyPerRequestSkillScope(QaAgentConfig ac, String skillsMode, List<String> requested) {
-        if (requested == null || requested.isEmpty()) {
-            return;
-        }
-        if ("none".equals(skillsMode) || skillsMode.isEmpty()) {
-            log.warn("Ignoring @skill mention: agent skills selection is disabled (mode={})", skillsMode);
-            return;
-        }
-        if (!ac.isSkillsEnabled()) {
-            return;
-        }
-        List<String> allowed = ac.getAllowedSkills() == null ? new ArrayList<>() : ac.getAllowedSkills();
-        ac.setPinnedSkillNames(pinPreservingRequestOrder(requested, allowed));
-        log.info("Applied per-request @skill scope: requested={} effective={} pinned={}",
-                requested, allowed, ac.getPinnedSkillNames());
-    }
-
-    /** applyPerRequestMCPScope（Go L492-518）。 */
-    private static void applyPerRequestMcpScope(QaAgentConfig ac, List<String> agentPresetMcps,
-            boolean isSharedAgent, List<String> requested) {
-        if (requested == null || requested.isEmpty()) {
-            return;
-        }
-        if ("none".equals(ac.getMcpSelectionMode())) {
-            log.warn("Ignoring @MCP mention: agent MCP selection is disabled (mode=none)");
-            return;
-        }
-        List<String> mentioned = dedupPreservingOrder(requested);
-        var scope = resolvePerRequestMcpScope(mentioned, agentPresetMcps, ac.getMcpSelectionMode(), isSharedAgent);
-        if (scope.effective().isEmpty()) {
-            log.warn("Ignoring @MCP scope outside agent preset: requested={} agent={} shared={}",
-                    requested, agentPresetMcps, isSharedAgent);
-            return;
-        }
-        ac.setPinnedMcpServiceIds(scope.effective());
-        log.info("Applied per-request @MCP priority: requested={} mode={} pinned={}",
-                requested, ac.getMcpSelectionMode(), scope.effective());
-    }
-
-    private record McpScope(List<String> effective, String mode) {}
-
-    private static McpScope resolvePerRequestMcpScope(List<String> mentioned, List<String> agentMcps,
-            String selectionMode, boolean isSharedAgent) {
-        if (mentioned.isEmpty()) {
-            return new McpScope(new ArrayList<>(), selectionMode);
-        }
-        if (isSharedAgent) {
-            mentioned = intersectPreservingRequestOrder(mentioned, agentMcps);
-            if (mentioned.isEmpty()) {
-                return new McpScope(new ArrayList<>(), selectionMode);
-            }
-        }
-        List<String> effective = new ArrayList<>();
-        switch (selectionMode) {
-            case "none" -> {
-                return new McpScope(new ArrayList<>(), selectionMode);
-            }
-            case "selected" -> effective = intersectPreservingRequestOrder(mentioned, agentMcps);
-            case "all", "" -> effective = new ArrayList<>(mentioned);
-            default -> effective = new ArrayList<>(mentioned);
-        }
-        if (effective.isEmpty()) {
-            return new McpScope(new ArrayList<>(), selectionMode);
-        }
-        return new McpScope(effective, "selected");
-    }
-
-    private static List<String> intersectPreservingRequestOrder(List<String> requested, List<String> allowed) {
-        var allowedSet = new java.util.LinkedHashSet<>(allowed);
-        List<String> result = new ArrayList<>();
-        var seen = new java.util.LinkedHashSet<String>();
-        for (String value : requested) {
-            if (value.isEmpty() || seen.contains(value) || !allowedSet.contains(value)) {
-                continue;
-            }
-            seen.add(value);
-            result.add(value);
-        }
-        return result;
-    }
-
-    private static List<String> pinPreservingRequestOrder(List<String> requested, List<String> allowed) {
-        boolean allowedAll = allowed.isEmpty();
-        var allowedSet = new java.util.LinkedHashSet<>(allowed);
-        List<String> result = new ArrayList<>();
-        var seen = new java.util.LinkedHashSet<String>();
-        for (String value : requested) {
-            if (value.isEmpty() || seen.contains(value)) {
-                continue;
-            }
-            if (!allowedAll && !allowedSet.contains(value)) {
-                continue;
-            }
-            seen.add(value);
-            result.add(value);
-        }
-        return result;
-    }
-
-    private static List<String> dedupPreservingOrder(List<String> values) {
-        List<String> result = new ArrayList<>();
-        var seen = new java.util.LinkedHashSet<String>();
-        for (String value : values) {
-            if (value.isEmpty() || seen.contains(value)) {
-                continue;
-            }
-            seen.add(value);
-            result.add(value);
-        }
-        return result;
-    }
-
-    /** agentRequiresRerankModel（org 包 AgentShareService L368 同源；agent/tools 的判定）。 */
-    private static boolean agentRequiresRerankModel(ObjectNode c) {
-        List<String> allowed = new ArrayList<>();
-        JsonNode arr = c.get("allowed_tools");
-        if (arr != null && arr.isArray()) {
-            arr.forEach(n -> allowed.add(n.asText()));
-        }
-        if (allowed.isEmpty()) {
-            return true; // DefaultAllowedTools 含 knowledge_search
-        }
-        return allowed.contains(ToolDefinitions.TOOL_KNOWLEDGE_SEARCH);
-    }
 
     // ==================================================================
     // CreateAgentEngine（agent_service.go L180-295 的 dev 可达集）
@@ -1144,52 +881,4 @@ public class SessionAgentQaService {
     // ==================================================================
 
 
-
-
-
-
-
-
-
-
-
-
-    private static List<String> stringListOf(JsonNode arr) {
-        List<String> out = new ArrayList<>();
-        if (arr != null && arr.isArray()) {
-            for (JsonNode n : arr) {
-                if (n.isTextual()) {
-                    out.add(n.asText());
-                }
-            }
-        }
-        return out;
-    }
-
-
-    private static final com.fasterxml.jackson.databind.ObjectMapper YAML_JSON =
-            new com.fasterxml.jackson.databind.ObjectMapper();
-
-    private static String templateContentByIdAndFile(String id, String file) {
-        try (java.io.InputStream in = SessionAgentQaService.class.getClassLoader()
-                .getResourceAsStream("agentm/prompt_templates/" + file)) {
-            if (in == null) {
-                return null;
-            }
-            Object raw = new org.yaml.snakeyaml.Yaml().load(in);
-            com.fasterxml.jackson.databind.JsonNode root = YAML_JSON.valueToTree(raw);
-            com.fasterxml.jackson.databind.JsonNode list = root.get("templates");
-            if (list == null || !list.isArray()) {
-                return null;
-            }
-            for (com.fasterxml.jackson.databind.JsonNode t : list) {
-                if (id.equals(t.path("id").asText(""))) {
-                    return t.path("content").asText("");
-                }
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
 }
