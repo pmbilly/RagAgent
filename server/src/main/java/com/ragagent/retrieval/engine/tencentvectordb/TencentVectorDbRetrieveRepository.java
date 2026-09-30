@@ -94,12 +94,14 @@ public class TencentVectorDbRetrieveRepository
     /** 对照搜索的 {@code Ef: 100}。 */
     static final int SEARCH_EF = 100;
 
-    private final TencentVectorDbRestClient client;
-    private final String databaseName;
+    final TencentVectorDbRestClient client;
+    final String databaseName;
     private final String collectionBaseName;
     private final boolean useDimensionSuffix;
     private final int shardsNum;
     private final int replicasNum;
+
+    final TencentVectorDbSearchOps searchOps;
 
     private final ConcurrentHashMap<Integer, Boolean> initialized = new ConcurrentHashMap<>();
     private volatile TencentVectorDbBm25 bm25;
@@ -116,6 +118,7 @@ public class TencentVectorDbRetrieveRepository
         this.useDimensionSuffix = useDimensionSuffix;
         this.shardsNum = shardsNum <= 0 ? 1 : shardsNum;
         this.replicasNum = replicasNum;
+        this.searchOps = new TencentVectorDbSearchOps(this);
     }
 
     /** 照 {@code NewTencentVectorDBRetrieveEngineRepository} + {@code createTencentVectorDBEngine}。 */
@@ -537,7 +540,7 @@ public class TencentVectorDbRetrieveRepository
         }
     }
 
-    private List<String> listCollectionNames() {
+    List<String> listCollectionNames() {
         JsonNode res = client.listCollections(databaseName);
         List<String> names = new ArrayList<>();
         for (JsonNode node : res.path("collections")) {
@@ -551,163 +554,13 @@ public class TencentVectorDbRetrieveRepository
 
     // ── 过滤器 ─────────────────────────────────────────────────────────────
 
-    /** 照 {@code baseFilter}：is_enabled=1 恒在，其余按需 in/not in，空格 and 连接。 */
-    static String baseFilter(RetrieveParams params) {
-        List<String> conditions = new ArrayList<>();
-        conditions.add(FIELD_IS_ENABLED + "=1");
-        if (params != null) {
-            addIfPresent(conditions, in(FIELD_KNOWLEDGE_BASE_ID, params.knowledgeBaseIds));
-            addIfPresent(conditions, in(FIELD_KNOWLEDGE_ID, params.knowledgeIds));
-            addIfPresent(conditions, in(FIELD_TAG_ID, params.tagIds));
-            addIfPresent(conditions, notIn(FIELD_KNOWLEDGE_ID, params.excludeKnowledgeIds));
-            addIfPresent(conditions, notIn(FIELD_CHUNK_ID, params.excludeChunkIds));
-        }
-        return String.join(" and ", conditions);
-    }
-
-    private static void addIfPresent(List<String> conditions, String condition) {
-        if (condition != null && !condition.isEmpty()) {
-            conditions.add(condition);
-        }
-    }
-
     // ── 检索 ────────────────────────────────────────────────────────────────
 
     @Override
     public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
-        String retrieverType = params == null || params.retrieverType == null
-                ? "" : params.retrieverType;
-        return switch (retrieverType) {
-            case EngineTypes.RETRIEVER_VECTOR -> vectorRetrieve(params);
-            case EngineTypes.RETRIEVER_KEYWORDS -> keywordsRetrieve(params);
-            default -> throw new IllegalStateException(
-                    "invalid retriever type: " + retrieverType);
-        };
+        return searchOps.retrieve(params);
     }
 
-    private List<RetrieveResult> vectorRetrieve(RetrieveParams params) {
-        float[] embedding = params.embedding == null ? new float[0] : params.embedding;
-        int dimension = embedding.length;
-        if (dimension == 0) {
-            return retrieveResult(List.of(), EngineTypes.RETRIEVER_VECTOR);
-        }
-        String collection = collectionName(dimension);
-        boolean exists;
-        try {
-            exists = client.existsCollection(databaseName, collection);
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("tencent vectordb check collection " + collection
-                    + ": " + e.getMessage(), e);
-        }
-        if (!exists) {
-            return retrieveResult(List.of(), EngineTypes.RETRIEVER_VECTOR);
-        }
-        long limit = params.topK <= 0 ? 10 : params.topK;
-        ObjectNode search = Json.object();
-        search.put("filter", baseFilter(params));
-        ObjectNode paramsNode = search.putObject("params");
-        paramsNode.put("ef", SEARCH_EF);
-        search.put("retrieveVector", false);
-        search.set("outputFields", outputFields());
-        search.put("limit", limit);
-        if (params.threshold > 0) {
-            search.put("radius", (float) params.threshold);
-        }
-        ArrayNode vectors = search.putArray("vectors");
-        ArrayNode vector = vectors.addArray();
-        for (float v : embedding) {
-            vector.add(v);
-        }
-        JsonNode res;
-        try {
-            res = client.search(databaseName, collection, search);
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("tencent vectordb vector search " + collection + ": "
-                    + e.getMessage(), e);
-        }
-        List<IndexWithScore> results = parseHits(res, EngineTypes.MATCH_EMBEDDING);
-        return retrieveResult(results, EngineTypes.RETRIEVER_VECTOR);
-    }
-
-    /**
-     * 照 {@code KeywordsRetrieve}：客户端 BM25 查询向量 → 跨匹配集合 fullTextSearch；
-     * 单集合失败只跳过，但全失败要报错（提示老集合缺 sparse 索引）；score 降序后截 limit。
-     */
-    private List<RetrieveResult> keywordsRetrieve(RetrieveParams params) {
-        String query = params.query == null ? "" : params.query.trim();
-        if (query.isEmpty()) {
-            return retrieveResult(List.of(), EngineTypes.RETRIEVER_KEYWORDS);
-        }
-        TencentVectorDbBm25 encoder = bm25();
-        List<SparseVecItem> queryVector = encoder.encodeQuery(query);
-        if (queryVector.isEmpty()) {
-            return retrieveResult(List.of(), EngineTypes.RETRIEVER_KEYWORDS);
-        }
-        List<String> collections = listCollectionNames();
-        int limit = params.topK <= 0 ? 10 : params.topK;
-        List<IndexWithScore> results = new ArrayList<>();
-        int matched = 0;
-        int failed = 0;
-        for (String collection : collections) {
-            if (!matchesCollection(collection)) {
-                continue;
-            }
-            matched++;
-            ObjectNode search = Json.object();
-            search.put("filter", baseFilter(params));
-            search.put("retrieveVector", false);
-            search.set("outputFields", outputFields());
-            search.put("limit", limit);
-            ObjectNode match = search.putObject("match");
-            match.put("fieldName", FIELD_SPARSE_VECTOR);
-            ArrayNode data = match.putArray("data");
-            ArrayNode sparse = data.addArray();
-            for (SparseVecItem item : queryVector) {
-                ArrayNode pair = sparse.addArray();
-                pair.add(item.termId());
-                pair.add(item.score());
-            }
-            JsonNode res;
-            try {
-                res = client.fullTextSearch(databaseName, collection, search);
-            } catch (RuntimeException e) {
-                failed++;
-                log.warn("[TencentVectorDB] keyword search failed in {}: {}", collection,
-                        e.getMessage());
-                continue;
-            }
-            results.addAll(parseHits(res, EngineTypes.MATCH_KEYWORDS));
-        }
-        if (matched > 0 && failed == matched) {
-            throw new IllegalStateException("tencent vectordb keyword search failed in all matched"
-                    + " collections; ensure collections have the \"" + FIELD_SPARSE_VECTOR
-                    + "\" sparse vector index and reimport data if they were created before"
-                    + " keyword support");
-        }
-        results.sort((a, b) -> Double.compare(b.score, a.score));
-        if (results.size() > limit) {
-            results = new ArrayList<>(results.subList(0, limit));
-        }
-        return retrieveResult(results, EngineTypes.RETRIEVER_KEYWORDS);
-    }
-
-    /** 解析 search/fullTextSearch 的 {@code documents[0]}（照 Go 只取第一批）。 */
-    static List<IndexWithScore> parseHits(JsonNode res, int matchType) {
-        List<IndexWithScore> results = new ArrayList<>();
-        JsonNode batches = res.path("documents");
-        if (!batches.isArray() || batches.isEmpty()) {
-            return results;
-        }
-        for (JsonNode doc : batches.get(0)) {
-            results.add(toIndexWithScore(fromDocument(doc), matchType));
-        }
-        return results;
-    }
-
-    static List<RetrieveResult> retrieveResult(List<IndexWithScore> results, String retrieverType) {
-        return List.of(new RetrieveResult(results, EngineTypes.ENGINE_TENCENT_VECTORDB,
-                retrieverType));
-    }
 
     // ── CopyIndices（照 Go：offset 分页 + 三态 SourceID（第 3 态是 sha256 前 16 hex）） ──
 
