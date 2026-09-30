@@ -10,7 +10,6 @@ import java.util.ArrayList;
 
 
 
-import java.util.HashSet;
 
 
 
@@ -218,6 +217,21 @@ final class SessionQaResolution {
 
     private final SessionKnowledgeQaService service;
 
+    /** mention/tag 收敛簇（§14.9c 刀 10）。 */
+    private final QaMentionTagScope mentionTagScope;
+
+    public SessionKnowledgeQaService.KnowledgeResolution resolveKnowledgeBases(QaSupport.QaRequest req) {
+        return mentionTagScope.resolveKnowledgeBases(req);
+    }
+
+    public MentionScope restrictMentionsToAgentScope(com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
+        return mentionTagScope.restrictMentionsToAgentScope(agent, agentCfg, sessionTenantId, kbIds, knowledgeIds);
+    }
+
+    public List<QaSupport.TagScope> restrictTagScopesToAgentScope(com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<QaSupport.TagScope> tagScopes) {
+        return mentionTagScope.restrictTagScopesToAgentScope(agent, agentCfg, sessionTenantId, tagScopes);
+    }
+
     /** KB 范围簇（§14.9c 刀 9）。 */
     private final QaKbScope kbScope;
 
@@ -282,6 +296,7 @@ final class SessionQaResolution {
 
             this.modelSelection = new QaModelSelection(service);
         this.kbScope = new QaKbScope(service, this.modelSelection);
+        this.mentionTagScope = new QaMentionTagScope(service, this.kbScope);
 }
 
 
@@ -294,155 +309,6 @@ final class SessionQaResolution {
 
 
 
-    public SessionKnowledgeQaService.KnowledgeResolution resolveKnowledgeBases(QaSupport.QaRequest req) {
-
-
-
-        List<String> kbIds = new ArrayList<>(req.knowledgeBaseIds);
-
-
-
-        List<String> knowledgeIds = new ArrayList<>(req.knowledgeIds);
-
-
-
-        List<String> requestedKbIds = new ArrayList<>(req.knowledgeBaseIds);
-
-
-
-        boolean hasExplicitMention = !kbIds.isEmpty() || !knowledgeIds.isEmpty() || !req.tagScopes.isEmpty();
-
-
-
-
-
-
-
-        if (hasExplicitMention) {
-
-
-
-            log.info("Using request-specified targets: kbs={}, docs={}", kbIds, knowledgeIds);
-
-
-
-            // 共享 agent（agent 属于另一租户）：@mention 必须收敛到 agent 的允许范围，
-
-
-
-            // 防止调用方注入范围外的 KB/知识 id（对照 Go L38-43）。
-
-
-
-            // ⚠️ Long 一律 equals（约定 §5 第 6 条：装箱比较，租户 10002 超出缓存区间恒不等）
-
-
-
-            if (req.agentRow != null && req.session != null
-
-
-
-                    && !java.util.Objects.equals(req.agentRow.getTenantId(),
-
-
-
-                            req.session.getTenantId())) {
-
-
-
-                MentionScope scope = restrictMentionsToAgentScope(req.agentRow, req.agentConfig,
-
-
-
-                        req.session.getTenantId(), kbIds, knowledgeIds);
-
-
-
-                kbIds = scope.kbIds();
-
-
-
-                knowledgeIds = scope.knowledgeIds();
-
-
-
-                req.tagScopes = restrictTagScopesToAgentScope(req.agentRow, req.agentConfig,
-
-
-
-                        req.session.getTenantId(), req.tagScopes);
-
-
-
-            }
-
-
-
-        } else if (req.agentConfig != null
-
-
-
-                && req.agentConfig.path("retrieve_kb_only_when_mentioned").asBoolean(false)) {
-
-
-
-            kbIds = new ArrayList<>();
-
-
-
-            knowledgeIds = new ArrayList<>();
-
-
-
-            log.info("RetrieveKBOnlyWhenMentioned is enabled and no @ mention found, "
-
-
-
-                    + "KB retrieval disabled for this request");
-
-
-
-        } else if (req.agentConfig != null) {
-
-
-
-            kbIds = resolveKnowledgeBasesFromAgent(req.agentRow, req.agentConfig,
-
-
-
-                    req.session.getTenantId());
-
-
-
-        }
-
-
-
-
-
-
-
-        // API-Key KB 白名单（Go AuthorizeTenantAPIKeyKnowledgeTargets + Filter*）。
-
-
-
-        // 拒绝形态是 BizException（波 1 通道）。
-
-
-
-        com.ragagent.auth.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(requestedKbIds, req.knowledgeIds);
-
-
-
-        kbIds = com.ragagent.auth.apikey.domain.TenantAPIKeyScope.filterKnowledgeBases(requestedKbIds, kbIds);
-
-
-
-        return new SessionKnowledgeQaService.KnowledgeResolution(kbIds, knowledgeIds);
-
-
-
-    }
 
 
 
@@ -478,175 +344,6 @@ final class SessionQaResolution {
 
 
 
-    public MentionScope restrictMentionsToAgentScope(
-
-
-
-            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg,
-
-
-
-            long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
-
-
-
-        List<String> allowed = resolveKnowledgeBasesFromAgent(agent, agentCfg, sessionTenantId);
-
-
-
-        if (allowed.isEmpty()) {
-
-
-
-            log.warn("Shared agent has no allowed KBs, blocking all @mentions");
-
-
-
-            return new MentionScope(new ArrayList<>(), new ArrayList<>());
-
-
-
-        }
-
-
-
-        Set<String> allowedSet = new HashSet<>(allowed);
-
-
-
-
-
-
-
-        List<String> filteredKbs = new ArrayList<>();
-
-
-
-        for (String id : kbIds) {
-
-
-
-            if (allowedSet.contains(id)) {
-
-
-
-                filteredKbs.add(id);
-
-
-
-            } else {
-
-
-
-                log.warn("Blocking @mentioned KB {}: not in shared agent's allowed scope", id);
-
-
-
-            }
-
-
-
-        }
-
-
-
-
-
-
-
-        List<String> filteredKnowledge = knowledgeIds;
-
-
-
-        if (knowledgeIds != null && !knowledgeIds.isEmpty()) {
-
-
-
-            List<Knowledge> rows;
-
-
-
-            try {
-
-
-
-                rows = service.knowledgeService.getKnowledgeBatch(agent.getTenantId(), knowledgeIds);
-
-
-
-            } catch (RuntimeException e) {
-
-
-
-                log.warn("Failed to validate knowledge IDs against agent scope: {}, blocking all",
-
-
-
-                        e.toString());
-
-
-
-                rows = null;
-
-
-
-            }
-
-
-
-            filteredKnowledge = new ArrayList<>();
-
-
-
-            if (rows != null) {
-
-
-
-                for (Knowledge k : rows) {
-
-
-
-                    if (k != null && allowedSet.contains(k.getKnowledgeBaseId())) {
-
-
-
-                        filteredKnowledge.add(k.getId());
-
-
-
-                    } else if (k != null) {
-
-
-
-                        log.warn("Blocking @mentioned knowledge {} (KB {}): not in shared agent's allowed scope",
-
-
-
-                                k.getId(), k.getKnowledgeBaseId());
-
-
-
-                    }
-
-
-
-                }
-
-
-
-            }
-
-
-
-        }
-
-
-
-        return new MentionScope(filteredKbs, filteredKnowledge);
-
-
-
-    }
 
 
 
@@ -670,79 +367,6 @@ final class SessionQaResolution {
 
 
 
-    public List<QaSupport.TagScope> restrictTagScopesToAgentScope(
-
-
-
-            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg,
-
-
-
-            long sessionTenantId, List<QaSupport.TagScope> tagScopes) {
-
-
-
-        if (tagScopes == null || tagScopes.isEmpty()) {
-
-
-
-            return new ArrayList<>();
-
-
-
-        }
-
-
-
-        List<String> allowed = resolveKnowledgeBasesFromAgent(agent, agentCfg, sessionTenantId);
-
-
-
-        Set<String> allowedSet = new HashSet<>(allowed);
-
-
-
-        List<QaSupport.TagScope> filtered = new ArrayList<>();
-
-
-
-        for (QaSupport.TagScope scope : tagScopes) {
-
-
-
-            if (allowedSet.contains(scope.knowledgeBaseId)) {
-
-
-
-                filtered.add(scope);
-
-
-
-            } else {
-
-
-
-                log.warn("Blocking @mentioned tag scope for KB {}: not in shared agent's allowed scope",
-
-
-
-                        scope.knowledgeBaseId);
-
-
-
-            }
-
-
-
-        }
-
-
-
-        return filtered;
-
-
-
-    }
 
 
 
