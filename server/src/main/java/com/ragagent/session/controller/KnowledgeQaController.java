@@ -121,7 +121,6 @@ public class KnowledgeQaController {
     private final com.ragagent.session.sse.SseFrameWriter sseFrameWriter;
     private final com.ragagent.storage.support.FileService fileService;
     private final com.ragagent.storage.support.StorageBackendResolver storageBackendResolver;
-    private final com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring;
     private final com.ragagent.memory.service.MemoryExtractionService memoryExtraction;
 
     public KnowledgeQaController(SessionService sessionService,
@@ -136,7 +135,6 @@ public class KnowledgeQaController {
             com.ragagent.session.sse.SseFrameWriter sseFrameWriter,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.storage.support.FileService> fileService,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.storage.support.StorageBackendResolver> storageBackendResolver,
-            com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.memory.service.MemoryExtractionService> memoryExtraction) {
         this.sessionService = sessionService;
         this.messageService = messageService;
@@ -148,7 +146,6 @@ public class KnowledgeQaController {
         this.steerCoordinator = steerCoordinator;
         this.emitter = emitter;
         this.sseFrameWriter = sseFrameWriter;
-        this.artifactCollectorWiring = artifactCollectorWiring;
         // 两个端口按 ObjectProvider 取（A3-3 起 StorageBackendResolver 有生产实现）；
         // 缺 bean 时 Rewriter 按 Go 的 nil 分支降级（handle 模式同形）
         this.fileService = fileService.getIfAvailable();
@@ -1004,7 +1001,7 @@ public class KnowledgeQaController {
         // Mid-run steering：仅 agent 模式有引擎排空点（Go L713-731）
         if (mode == QaMode.AGENT && reqCtx.agentConfig != null) {
             SteerSinkBridge sink = new SteerSinkBridge(reqCtx.sessionId, reqCtx.requestId,
-                    reqCtx.assistantMessage, messageService, streamManager,
+                    messageService, streamManager,
                     com.ragagent.event.TenantContextSnapshot.capture());
             streamCtx.steerSink = sink;
             reqCtx.steerSink = sink;

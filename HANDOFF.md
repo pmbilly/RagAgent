@@ -704,6 +704,24 @@
   record 引用保持不变，全绿。
 - 收尾：环 0/1/6 不变；全量 + `spotlessCheck` 绿。
 
+## 11.19 session 域卫生批：清 IDE 诊断的 29 条遗留（2026-09-30）
+
+口径：IDE（CodeBuddy）Problems 面板按 `session` 主源 + 测试整个域扫（我上一轮只扫了 `service` 目录，
+少算了 7 条），逐条核过后按 §13.15 的判据处置。**26 项改动 / 12 文件 / 净 −39 行**：
+
+| 类别 | 处置 |
+|---|---|
+| 静态方法被实例访问 ×9（`SessionQaResolution` 的 `service.stringListOf` 等） | 改 `SessionKnowledgeQaService.` 静态访问（纯风格，零行为） |
+| 只注入不读取 ×5（`SessionAgentQaService` 的 `customAgentService`/`builtinAgentRegistry`/`kbService`、`SteerSinkBridge.assistantMessage`、`KnowledgeQaController.artifactCollectorWiring`） | 字段 + 构造参数 + 赋值 + 调用点一起删（§13.15④⑤：逐个整行删，无需逗号手术；`ArtifactCollectorWiring` 是 `@Component`，删注入不影响容器实例化） |
+| 死方法/常量/局部 ×4（`SessionAgentQaService.kbScopeIds`、`MessageSuggestionService.MODE_CURATED`、`SessionQaFallback.JSON`、`SessionAgentQaService` 的空 lambda 局部 `drain`） | 删（`MODE_CURATED` 的公开词表在 `agentm.AgentConfigJson.SUGGESTION_CURATED`，此处是重复） |
+| 未用 import ×3 + 测试死字段 ×3（`resolver`/`mapper`/`owner`+`TENANT`） | 删 |
+| unchecked 转换 ×1（`TemporaryDocumentService.readJsonArray` 的 `List.class`） | 加 `@SuppressWarnings("unchecked")`（零行为；换类型化 `TypeReference` 属另一轴） |
+| **故意保留 ×2**：`AgentStreamBridge.tenantId` + `emitArtifactsPending(int)` | 有 Go 对照（`agent_stream_handler.go L841-858` 的 artifacts_pending 通知）但 Java 侧无调用点——**属"翻译了、未接线"，删掉就丢了接线证据**；旁边多余的 `@SuppressWarnings("unchecked")` 已删 |
+
+- 收尾：`clean :test :spotlessCheck` 全绿（**432 类 / 4,664 例 / 0 失败**）、环 0/1/6 不变。
+- 提醒：IDE 的 Problems 面板可能因「Gradle 导入失败」（§13.22 的默认 JDK 26 问题）整体失效或滞后——
+  **判据以编译器与闸门为准**，面板只当线索。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。

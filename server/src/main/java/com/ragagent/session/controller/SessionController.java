@@ -34,7 +34,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.ragagent.knowledge.dto.BatchDeleteRequest;
 
 /**
  * 会话 HTTP 层（对照 Go {@code internal/handler/session/handler.go} 的

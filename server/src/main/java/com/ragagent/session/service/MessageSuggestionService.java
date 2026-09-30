@@ -73,7 +73,6 @@ public class MessageSuggestionService {
     private static final int SUGGESTION_KNOWLEDGE_CANDIDATE_MAX = 30;
 
     /** 对照 types.SuggestionMode*。 */
-    private static final String MODE_CURATED = "curated";
     private static final String MODE_KNOWLEDGE = "knowledge";
     private static final String MODE_GENERATED = "generated";
     static final String MODE_HYBRID = "hybrid";

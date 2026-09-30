@@ -72,13 +72,10 @@ public class SessionAgentQaService {
     private final ModelService modelService;
     private final MemoryService memoryService;
     private final SessionKnowledgeQaService knowledgeQa;
-    private final com.ragagent.agentm.service.CustomAgentService customAgentService;
-    private final com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry;
     private final AgentToolBackends toolBackends;
     private final com.ragagent.storage.service.ResourceCatalogService resourceCatalog;
     private final javax.sql.DataSource dataSource;
     private final ArtifactCollectorWiring artifactCollectorWiring;
-    private final com.ragagent.knowledge.service.KnowledgeBaseService kbService;
     private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
     private final FaqEntryQueryService faqService;
     /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
@@ -99,13 +96,10 @@ public class SessionAgentQaService {
             ModelService modelService,
             MemoryService memoryService,
             SessionKnowledgeQaService knowledgeQa,
-            com.ragagent.agentm.service.CustomAgentService customAgentService,
-            com.ragagent.agentm.service.BuiltinAgentRegistry builtinAgentRegistry,
             AgentToolBackends toolBackends,
             com.ragagent.storage.service.ResourceCatalogService resourceCatalog,
             javax.sql.DataSource dataSource,
             ArtifactCollectorWiring artifactCollectorWiring,
-            com.ragagent.knowledge.service.KnowledgeBaseService kbService,
             com.ragagent.knowledge.service.KnowledgeService knowledgeService,
             FaqEntryQueryService faqService,
             com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor,
@@ -130,13 +124,10 @@ public class SessionAgentQaService {
         this.modelService = modelService;
         this.memoryService = memoryService;
         this.knowledgeQa = knowledgeQa;
-        this.customAgentService = customAgentService;
-        this.builtinAgentRegistry = builtinAgentRegistry;
         this.toolBackends = toolBackends;
         this.resourceCatalog = resourceCatalog;
         this.dataSource = dataSource;
         this.artifactCollectorWiring = artifactCollectorWiring;
-        this.kbService = kbService;
         this.knowledgeService = knowledgeService;
         this.faqService = faqService;
     }
@@ -895,16 +886,6 @@ public class SessionAgentQaService {
         return v == null ? "" : v;
     }
 
-    private static List<String> kbScopeIds(QaAgentConfig config) {
-        List<String> ids = new ArrayList<>(config.getKnowledgeBases());
-        if (ids.isEmpty() && config.getSearchTargets() != null) {
-            for (var t : config.getSearchTargets().list()) {
-                ids.add(t.knowledgeBaseId());
-            }
-        }
-        return ids;
-    }
-
     /**
      * registerWebPageFiles（agent_web_pages.go L108-159）：web 抓取页的完整快照面。
      * web_search 共享会话 web_fetch 的快照缓存（WithPageReader）；read_file 未被
@@ -1229,7 +1210,6 @@ public class SessionAgentQaService {
         }
         List<Message> pending = new ArrayList<>(midRunUsers);
         final int[] next = {0};
-        Runnable drain = () -> {};
         if (assistant.getAgentSteps() != null) {
             for (AgentStep step : assistant.getAgentSteps()) {
                 if (step.getUserMessagesBefore() != null) {

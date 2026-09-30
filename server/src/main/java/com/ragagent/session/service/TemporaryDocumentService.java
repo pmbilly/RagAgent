@@ -776,6 +776,7 @@ public class TemporaryDocumentService {
     }
 
     /** jsonb 数组读取（{@link TemporaryDocumentPromptResolver} 解析 chunks/image_refs 也用它）。 */
+    @SuppressWarnings("unchecked") // MAPPER.readValue(json, List.class) 的原始类型转换
     static List<Map<?, ?>> readJsonArray(String json) {
         // "null" 是 text 路径写入的字面量（Go nil slice 语义），与空数组同义
         if (json == null || json.isEmpty() || "[]".equals(json) || "null".equals(json)) {

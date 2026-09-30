@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.ragagent.agent.SteerSink;
-import com.ragagent.common.context.TenantContext;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MentionedItem;
 import com.ragagent.stream.StreamBatch;
@@ -35,7 +34,6 @@ public final class SteerSinkBridge implements SteerSink {
 
     private final String sessionId;
     private final String requestId;
-    private final Message assistantMessage;
     private final MessageService messageService;
     private final StreamManager streamManager;
     private final com.ragagent.event.TenantContextSnapshot tenant;
@@ -46,12 +44,11 @@ public final class SteerSinkBridge implements SteerSink {
     private Set<String> injectedIDs = new LinkedHashSet<>();
 
     public SteerSinkBridge(
-            String sessionId, String requestId, Message assistantMessage,
+            String sessionId, String requestId,
             MessageService messageService, StreamManager streamManager,
             com.ragagent.event.TenantContextSnapshot tenant) {
         this.sessionId = sessionId;
         this.requestId = requestId;
-        this.assistantMessage = assistantMessage;
         this.messageService = messageService;
         this.streamManager = streamManager;
         this.tenant = tenant;

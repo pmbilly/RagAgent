@@ -9,7 +9,6 @@ import com.ragagent.TestSchema;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionLastRequestState;
 import com.ragagent.session.domain.SessionNotFoundException;
-import com.ragagent.session.mapper.SessionMapper;
 import com.ragagent.session.mapper.SessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,8 +38,6 @@ class SessionRepositoryTest {
     private JdbcTemplate jdbc;
     @Autowired
     private SessionRepository repo;
-    @Autowired
-    private SessionMapper mapper;
 
     @BeforeEach
     void seed() {

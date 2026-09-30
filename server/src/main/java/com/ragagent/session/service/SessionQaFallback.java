@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 
@@ -80,7 +79,6 @@ final class SessionQaFallback {
 
     private static final Logger log = LoggerFactory.getLogger(SessionQaFallback.class);
 
-    private static final ObjectMapper JSON = new ObjectMapper();
 
 
 

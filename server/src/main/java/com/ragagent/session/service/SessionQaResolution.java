@@ -843,7 +843,7 @@ final class SessionQaResolution {
 
 
 
-                List<String> configured = service.stringListOf(agentCfg.get("knowledge_bases"));
+                List<String> configured = SessionKnowledgeQaService.stringListOf(agentCfg.get("knowledge_bases"));
 
 
 
@@ -879,7 +879,7 @@ final class SessionQaResolution {
 
 
 
-                List<String> configured = service.stringListOf(agentCfg.get("knowledge_bases"));
+                List<String> configured = SessionKnowledgeQaService.stringListOf(agentCfg.get("knowledge_bases"));
 
 
 
@@ -1139,7 +1139,7 @@ final class SessionQaResolution {
 
 
 
-            long tenantId = service.requireTenantId();
+            long tenantId = SessionKnowledgeQaService.requireTenantId();
 
 
 
@@ -1555,7 +1555,7 @@ final class SessionQaResolution {
 
 
 
-        Map<String, List<String>> tagIdsByKb = service.mergeTagScopesByKb(tagScopes);
+        Map<String, List<String>> tagIdsByKb = SessionKnowledgeQaService.mergeTagScopesByKb(tagScopes);
 
 
 
@@ -1583,7 +1583,7 @@ final class SessionQaResolution {
 
 
 
-        kbIdsToFetch = service.uniqueNonEmptyStrings(kbIdsToFetch);
+        kbIdsToFetch = SessionKnowledgeQaService.uniqueNonEmptyStrings(kbIdsToFetch);
 
 
 
@@ -2031,7 +2031,7 @@ final class SessionQaResolution {
 
 
 
-            List<String> explicitKnowledgeIds = service.uniqueNonEmptyStrings(
+            List<String> explicitKnowledgeIds = SessionKnowledgeQaService.uniqueNonEmptyStrings(
 
 
 
@@ -2075,7 +2075,7 @@ final class SessionQaResolution {
 
 
 
-                    tagKnowledgeIds = service.intersectStrings(tagKnowledgeIds, explicitKnowledgeIds);
+                    tagKnowledgeIds = SessionKnowledgeQaService.intersectStrings(tagKnowledgeIds, explicitKnowledgeIds);
 
 
 
@@ -2083,7 +2083,7 @@ final class SessionQaResolution {
 
 
 
-                tagKnowledgeIds = service.uniqueNonEmptyStrings(tagKnowledgeIds);
+                tagKnowledgeIds = SessionKnowledgeQaService.uniqueNonEmptyStrings(tagKnowledgeIds);
 
 
 
@@ -2687,7 +2687,7 @@ final class SessionQaResolution {
 
 
 
-        boolean agentMode = service.isAgentMode(c);
+        boolean agentMode = SessionKnowledgeQaService.isAgentMode(c);
 
 
 

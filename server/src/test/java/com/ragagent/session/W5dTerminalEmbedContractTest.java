@@ -39,7 +39,6 @@ class W5dTerminalEmbedContractTest {
 
     private static final String BCRYPT =
             "$2a$10$9U3ZmqQkmCqoQUZapJ1Txe5puo70IHlrnyZnSdE9LO/HUagt5exnK"; // Passw0rd!
-    private static final long TENANT = 10008L;
     private static final String WU = "b0000000-0000-0000-0000-000000000801";
     private static final String SES_A = "b5000000-0000-0000-0000-000000000801";
     private static final String SES_B = "b5000000-0000-0000-0000-000000000802";
@@ -58,7 +57,6 @@ class W5dTerminalEmbedContractTest {
     @Autowired
     private LocalStorageService localStorage;
 
-    private String owner;
     private String esig;
 
     @BeforeEach
@@ -88,7 +86,6 @@ class W5dTerminalEmbedContractTest {
         Files.createDirectories(dir);
         Files.write(dir.resolve("w5d-embed-seed.txt"), "w5d embed seed\n".getBytes(StandardCharsets.UTF_8));
 
-        owner = "Bearer " + login("w5d-batch@weknora.test");
         esig = sign(PTOKEN, CID8, ESID8);
     }
 

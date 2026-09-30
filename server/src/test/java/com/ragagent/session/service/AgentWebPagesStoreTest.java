@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,8 +32,6 @@ class AgentWebPagesStoreTest {
     private JdbcTemplate jdbc;
     @Autowired
     private com.ragagent.storage.service.ResourceCatalogService catalog;
-    @Autowired
-    private com.ragagent.storage.fileserve.StorageFileResolver resolver;
     @Autowired
     private ArtifactCollectorWiring wiring;
 

@@ -302,7 +302,6 @@ public final class AgentStreamBridge {
 
     private static Map<String, Object> toolApprovalDataToMap(Object v) {
         try {
-            @SuppressWarnings("unchecked")
             Map<String, Object> m = GO_JSON.convertValue(v,
                     new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
             return m == null ? new LinkedHashMap<>() : m;
