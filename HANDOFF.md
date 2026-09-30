@@ -3,7 +3,7 @@
 > 本文档写给在 `~/ragagent` 打开的新会话/新成员。新会话没有旧仓会话的记忆，**一切背景以本文为准**。
 > 种子：自 `~/ragagent-java` @ `646aba7`（2026-09-28）分叉，git 历史完整保留（blame/log 可直接用）。
 > **最近更新 2026-09-30**（本次会话）：§2 补第 11–14 条（落库格式 / 宽松读统一策略 / 包结构 / 命名政策，**均为已定，勿再重新讨论**）；§4 指标复核；§5 进度刷新；§7 当前状态重写（**接手先读这里**）；§9 补验证命令；新增 §11 执行记录 / §12 knowledge 包结构地图 / §13 操作经验备忘。
-> **接手第一件事**：`git log --oneline -30` 看 `refactor/knowledge-java-idioms` 分支近提交；跑一次 §9 的三条验证命令确认基线全绿。
+> **接手第一件事**：`git log --oneline -30` 看 `main` 分支近提交；跑一次 §9 的三条验证命令确认基线全绿。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -117,7 +117,7 @@
 
 **阶段 2 开局已完成（2026-09-29，8e9b7da）**：`KnowledgeService`（3,392 行/153 方法）沿注释边界拆为门面 + 7 服务——KnowledgeMoveService(405)/KnowledgeCloneService(486)/KnowledgeSearchService(198)/KnowledgeFolderService(409)/KnowledgeSpanService(269)/KnowledgeSummaryPipelineService(1,114)/KnowledgeBatchOpsService(158)/KnowledgeTaskIds(76)；门面保留全部公共方法委托（851 行），18+ 注入点与 Mockito 测试零改动。
 
-**当前状态（2026-09-30，接手先读这一段）**：工作分支 **`refactor/knowledge-java-idioms`**（`main` 停在 `32a5354` = 本文档定稿点；工作区干净）。接手时用 `git log --oneline -20` 看实际顶端（本文档自身的提交就在顶端附近）。基线：**后端 4,670 用例全绿 + 前端 `vue-tsc` 0 错误 / 690 用例全绿**（命令见 §9）。
+**当前状态（2026-09-30，接手先读这一段）**：工作分支 = **`main`**（2026-09-30：把 `refactor/knowledge-java-idioms` 的 **140 个提交快进并入** 并删除该分支 —— 此后所有开发**直接在 main 上进行**；合并时状态：后端 4,670 + 前端 690 全绿、工作区干净）。接手时用 `git log --oneline -20` 看实际顶端（本文档自身的提交就在顶端附近）。基线：**后端 4,670 用例全绿 + 前端 `vue-tsc` 0 错误 / 690 用例全绿**（命令见 §9）。
 
 **自本文档定稿以来（70+ 提交）已完成三块**（细节与教训见 §11）：
 1. **契约换锚（前端可见面）**：知识库域 → 检索域 → 会话/消息/附件/建议 → chunker-preview，按 §2 第 4 条全部落地（camelCase 且 JSON 名 = Java 字段名、去 `{data,success}` 信封、删除返 204、可空显式 `null`），后端与前端同批改完；
@@ -135,6 +135,7 @@
 5. **待决策：同名防线两份实现、严格度不一致（真实隐患）**——`ChunkAccessGuard.rejectMovingKnowledge`（public static；null→404、形态异常→500）与 `KnowledgeFolderService.rejectMovingKnowledge`（package-private static；无 null 校验、形态异常**静默放行**）规则相同但严格度不同：同一份异常 metadata，走文件夹路由被放行、走编辑路由 500。建议统一到 `ChunkAccessGuard` 版（更严），但会改变「异常态放行」的现行为，需单独一批 + 全量 fixture 验证（2026-09-30 发现，未改）。
 6. **已查清、勿再排查**：前端 `updateKBConfig` → `PUT /api/v1/initialization/config/{kbId}` 是**活端点**（agentm 域 `InitializationController` 自有契约、内层 snake 键，不在知识库契约范围）；其 legacy 装配块（`KnowledgeBaseEditorModal.vue` ~1415-1430）从 KB 响应里读 snake 键 → **一直在静默取默认值**（属 agentm 域改造面）。
 7. **在途分支**：`wip/chat-sse-slice2`（`785cdc7`，会话域实体/控制器去 snake，**未并入**，等后续切片）；`wip/dego-storage-format` 与 `wip/knowledge-doc-contract` **已并入工作分支**（前者只剩历史意义）。另有一个 `stash@{0}` 是被取代的旧尝试（可删）。
+   另：`refactor/knowledge-java-idioms` 已于 2026-09-30 **合并进 main 并删除**（§5 表格、§7.1 存档、§11/§11.1 等**历史记录**中仍会提到它，那是当时的记录，不影响现在）；`wip/dego-storage-format` 与 `wip/knowledge-doc-contract` 的内容均已并入 main，只剩历史意义、可删；`wip/chat-sse-slice2` **未并入**（保留作工作清单参考）。
 
 ## 8. 环境与运行
 
