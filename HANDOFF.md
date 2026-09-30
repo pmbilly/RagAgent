@@ -235,6 +235,20 @@
 3. **Task 13 已完成（f59e35b）**：Go 锚点 479→0、批次代号清零;终审顺延项(服务段横幅/控制器批次叙述)一并落地。经验:清扫注释时 javadoc 里的 `\u00XX` 会被 javac 当 unicode 转义处理(非法十六进制=编译错)——写"U+00XX"形态。
 4. **范围外发现（终审抓出,动 session 域前必读）**：Gate 发出的 `agent.approval.*Data` 经 `ApprovalBridge.toEventBus` 上的真实 EventBus,而 `AgentStreamBridge` 四个 handler instanceof 的是 `com.ragagent.event.*Data`——类型永不匹配,审批/OAuth 事件的 SSE 流转链路疑似断裂（重构前即如此,本域改造未改变它）。session 域切片动 `AgentStreamBridge` 时必须先核实前端实际经哪条链路收到审批事件。
 
+## 11.5 分支与残留清理（2026-09-30）
+
+清理后**只保留 `main`**（`seed` tag 是 Spotless ratchet 基准，**永久保留**）。删除记录（sha 可经 `git reflog` / `git fsck --lost-found` 找回）：
+
+| 旧 ref | sha | 判定依据 |
+|---|---|---|
+| `refactor/retire-go-json-layer` | `0ac456f` | 已并入 main（本批 Go 序列化层退役） |
+| `wip/dego-storage-format` | `8cff849` | 已并入 main（0 独有提交） |
+| `wip/knowledge-doc-contract` | `78e6705` | 已并入 main（0 独有提交） |
+| `wip/chat-sse-slice2` | `785cdc7` | **被取代**：其做法是"落库兼容别名"，而 §2.11 定稿"不加兼容别名、曾加过的 `@JsonAlias` 已删"；会话域契约已由后续批次换锚（§2.4/§11） |
+| `stash@{0}`（原属已删的 `refactor/knowledge-java-idioms`） | `775b42c` | 消息自述"over-broad rune rename"，该改名已按 §2.14 正规完成（`Runes`→`CodePoints`） |
+
+**纪律**：分支合入后即删（不留"事后考古"分支）；`seed` 与 `origin/main` 除外。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **模块手册**：`docs/knowledge-module-guide.md`（架构师接手版，500 行 / 8 张 Mermaid 图：全景 · 分层 · ER · 入库时序 · 检索 · FAQ 状态机 · 任务 span · 守卫）——它讲「结构 + 接口 + 实体 + 链路 + 改哪里」，新人先读手册、再读本节地图。
