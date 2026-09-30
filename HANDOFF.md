@@ -405,13 +405,6 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **别跳过闸门**：只跑 `:server:test` 会漏掉 Spotless（§13.14）。
 
 
-### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
-
-- **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
-- **跨包缝合点（git grep 实测,11 文件）**：`service.WikiLanguageSupport`（agent PromptAssembly + knowledge×4 + session×2,消费最广）；`service.WikiIngestService`(+EnqueueResult)/`WikiKnowledgeFinalizer`/`DefaultWikiKnowledgeFinalizer`/`WikiImageMarkup`（knowledge 加工链）；`service.WikiPageService`/`WikiEditContext` + `domain.Wiki*`（session AgentToolBackends → agent wiki 工具,经 WikiPages seam 接口）；`controller.WikiActivityAudit`（audit）。
-- **拆分纪律**：A 波门面保全部 public 成员与上述类型不动；WikiIngestBatchHandler 为 wiki 内部驱动（无跨包消费者），可自由拆。
-
-
 ### 14.7 wiki 域执行计划（下一步，2026-10-01 定；边界侦察见 §14.8）
 
 **目标类**：`wiki/controller/WikiPageController` 1,311、`wiki/service/ingest/WikiIngestService` 1,208（域内 ≥800 就这两个）。
@@ -428,3 +421,8 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 4. **收尾**：`§14.3` 计数刷新（实测）+ 域内测试全绿 + 环守卫 + 更新本节的"已落刀"记录。
 5. **之后批次顺序（建议）**：`im`（单类 1,445，好收官）→ `retrieval` 的 4 个 engine（形似，做"适配器批"，一轮可重复）
    → `knowledge` / `auth` / `llm` / `chatpipeline` 的 1,000+ 类 → `datasource` / `memory`（体量最大，单独立项）。
+### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
+
+- **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
+- **跨包缝合点（git grep 实测,11 文件）**：`service.WikiLanguageSupport`（agent PromptAssembly + knowledge×4 + session×2,消费最广）；`service.WikiIngestService`(+EnqueueResult)/`WikiKnowledgeFinalizer`/`DefaultWikiKnowledgeFinalizer`/`WikiImageMarkup`（knowledge 加工链）；`service.WikiPageService`/`WikiEditContext` + `domain.Wiki*`（session AgentToolBackends → agent wiki 工具,经 WikiPages seam 接口）；`controller.WikiActivityAudit`（audit）。
+- **拆分纪律**：A 波门面保全部 public 成员与上述类型不动；WikiIngestBatchHandler 为 wiki 内部驱动（无跨包消费者），可自由拆。
