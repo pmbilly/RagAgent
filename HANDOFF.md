@@ -325,8 +325,14 @@
    已改为 `new MessageReferenceRewriter(rewriter).rewriteMessagesResponse(messages)`。
    **检查清单再补一条（§13.28）**：grep 调用点不能只按"方法名"扫，要按"`.` + 方法名"或全仓字符串扫，
    否则会漏掉带接收者的调用。
-2. **`auth → system`**（背边 4 文件：`SystemSettingService`×3 + `SystemSettingRegistry`×1）：前者加窄接口；
-   `SystemSettingRegistry` 已自足（零仓内依赖），可直接下沉 `common/settings/`（但只挪它**不足以**消环）。
+2. **`auth → system`**（背边 4 文件）——✅ **已完成（2026-09-30，环 22 → 21）**：
+   `SystemSettingRegistry`（自足）下沉 **`common/settings/`**；新增**只读端口 `common/settings/SystemSettingGateway`**
+   （只列 auth 实际用到的 `getString`/`getBool`/`getInt` 三个读方法），由 `SystemSettingService implements` 承载；
+   auth 三处注入（`AuthController`/`TenantCatalogController`/`UserService`）改注入端口 → **auth 侧不再 import system**，
+   方向变 `system → auth` 单向，环消。
+   **端口模式定式（本批确立，后续 ③ 照此办）**：端口接口放 `common/<领域>`（最底层、零依赖），
+   由**提供方的域**实现（`implements`），消费方注入接口；**写侧/列表等能力不出端口**，保持最小面。
+   **踩点**：跨包后 `SystemSettingRegistry.goTypeName(...)` 原为 package-private → 编译报错，按需放宽为 public（§13.1 的老坑）。
 3. **`auth → memory`**（背边 1 文件 `MemoryConfig`）、**`auth → storage`**（背边 2 文件 `StorageAllowList`+`StorageBackendRepository`）、
    **`audit → knowledge`** 与 **`auth → knowledge`**（各 2–3 文件，直查 `KnowledgeBaseMapper`/`KnowledgeBaseService`）：
    统一手法 = 下层域提供**只读窄接口**（如 `KnowledgeBaseLookup`），上层注入接口而非 mapper。

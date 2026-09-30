@@ -37,7 +37,7 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.memory.domain.MemoryConfig;
 import com.ragagent.storage.StorageAllowList;
-import com.ragagent.system.service.SystemSettingService;
+import com.ragagent.common.settings.SystemSettingGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -85,7 +85,7 @@ public class TenantCatalogController {
     private final TenantService tenantService;
     private final TenantMemberService memberService;
     private final UserService userService;
-    private final SystemSettingService systemSettingService;
+    private final SystemSettingGateway systemSettingService;
     private final TenantAPIKeyService apiKeyService;
     private final KnowledgeBaseService knowledgeBaseService;
     private final TenantProperties tenantProperties;
@@ -98,7 +98,7 @@ public class TenantCatalogController {
     public TenantCatalogController(TenantService tenantService,
                                    TenantMemberService memberService,
                                    UserService userService,
-                                   SystemSettingService systemSettingService,
+                                   SystemSettingGateway systemSettingService,
                                    TenantAPIKeyService apiKeyService,
                                    KnowledgeBaseService knowledgeBaseService,
                                    TenantProperties tenantProperties,
@@ -143,7 +143,7 @@ public class TenantCatalogController {
         boolean catalogManager = caller.isCanAccessAllTenants() || platformCaller;
 
         // 部署级自助开关（对照 resolveTenantSelfServiceCreationEnabled 的三层解析：
-        // 以 config 为底，SystemSettingService 再叠 DB/env）
+        // 以 config 为底，SystemSettingGateway 再叠 DB/env）
         if (!catalogManager && !systemSettingService.getBool(
                 "tenant.self_service_creation_enabled",
                 "WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED",

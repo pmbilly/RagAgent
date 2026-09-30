@@ -18,7 +18,7 @@ import com.ragagent.auth.dto.Membership;
 import com.ragagent.auth.mapper.AuthTokenMapper;
 import com.ragagent.auth.mapper.UserMapper;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.system.service.SystemSettingService;
+import com.ragagent.common.settings.SystemSettingGateway;
 import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +50,7 @@ public class UserService {
     private final TenantService tenantService;
     private final TenantMemberService memberService;
     private final JwtService jwtService;
-    private final SystemSettingService settingService;
+    private final SystemSettingGateway settingService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserService(UserMapper userMapper,
@@ -58,7 +58,7 @@ public class UserService {
                        TenantService tenantService,
                        TenantMemberService memberService,
                        JwtService jwtService,
-                       SystemSettingService settingService) {
+                       SystemSettingGateway settingService) {
         this.userMapper = userMapper;
         this.authTokenMapper = authTokenMapper;
         this.tenantService = tenantService;

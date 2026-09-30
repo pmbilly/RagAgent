@@ -47,8 +47,8 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.common.tenant.TenantProperties;
-import com.ragagent.system.service.SystemSettingRegistry;
-import com.ragagent.system.service.SystemSettingService;
+import com.ragagent.common.settings.SystemSettingRegistry;
+import com.ragagent.common.settings.SystemSettingGateway;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -113,7 +113,7 @@ public class AuthController {
     private final UserService userService;
     private final TenantService tenantService;
     private final TenantInvitationService invitationService;
-    private final SystemSettingService settingService;
+    private final SystemSettingGateway settingService;
     private final TenantProperties tenantProperties;
     private final OidcConfig oidcConfig;
     private final OidcService oidcService;
@@ -130,7 +130,7 @@ public class AuthController {
     public AuthController(UserService userService,
                           TenantService tenantService,
                           TenantInvitationService invitationService,
-                          SystemSettingService settingService,
+                          SystemSettingGateway settingService,
                           TenantProperties tenantProperties,
                           OidcConfig oidcConfig,
                           OidcService oidcService,

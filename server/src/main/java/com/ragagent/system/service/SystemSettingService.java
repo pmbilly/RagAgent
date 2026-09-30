@@ -19,6 +19,8 @@ import com.ragagent.auth.domain.User;
 import com.ragagent.auth.mapper.UserMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.security.SsrfGuard;
+import com.ragagent.common.settings.SystemSettingGateway;
+import com.ragagent.common.settings.SystemSettingRegistry;
 import com.ragagent.system.domain.SystemSetting;
 import com.ragagent.system.mapper.SystemSettingMapper;
 import org.slf4j.Logger;
@@ -49,7 +51,7 @@ import org.springframework.stereotype.Service;
  * dashscope fake-IP 又被拦）。读失败降级 env-only（WARN，不阻断启动）。</p>
  */
 @Service
-public class SystemSettingService {
+public class SystemSettingService implements SystemSettingGateway {
 
     private static final Logger log = LoggerFactory.getLogger(SystemSettingService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();

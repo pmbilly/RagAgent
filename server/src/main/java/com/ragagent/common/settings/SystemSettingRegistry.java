@@ -1,4 +1,4 @@
-package com.ragagent.system.service;
+package com.ragagent.common.settings;
 
 import java.util.List;
 import java.util.Map;
@@ -228,7 +228,7 @@ public final class SystemSettingRegistry {
     }
 
     /** Go %T 的 JSON 值TypeName 对应（错误消息里出现，golden 钉住 string/int 形态）。 */
-    static String goTypeName(JsonNode node) {
+    public static String goTypeName(JsonNode node) {
         if (node == null || node.isNull()) {
             return "<nil>";
         }

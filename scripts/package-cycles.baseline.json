@@ -25,10 +25,6 @@
       "storage"
     ],
     [
-      "auth",
-      "system"
-    ],
-    [
       "chatpipeline",
       "knowledge"
     ],
