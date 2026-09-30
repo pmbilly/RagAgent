@@ -854,6 +854,12 @@
   `tenantServiceField`（544/545 在 `currentTenant`、**720 在 `executeQA`** → 双用）、`currentTenant`（随前者）、
   `ParsedRequest`（1 行私有 record，被 `agentQA`（174）与解析簇共用 → 放宽为**包内嵌套**，协作者按
   `KnowledgeQaController.ParsedRequest` 引用，同 §11.25 `SearchTargetView` 手法）。
+- **4b 首次施工受阻（2026-09-30，已回退到全绿）**：解析体把 `fileService` / `storageBackendResolver` 按实例用，
+  但控制器构造器里它们是 **`ObjectProvider<...>`**（Spring 延迟取值，见 135-137 行与 148 行注释）→ 协作者该拿
+  provider 还是实例，属**接线语义**决定，不是机械搬运；下次先定语义（ctor 注入 provider + 体内 `getObject()`，
+  或调用点传实例）再动刀。
+  机械面另一课：**给多个调用点补实参要先收集全部调用点、从右到左插**——本轮出现「同一处插了两次、另一处漏插」，
+  编译期才暴露（`parseQARequest cannot be applied to given types`）。
 - **侦察口径修正（值得记）**：`QaRequestContext`/`SseStreamContext`/`CreateKnowledgeQARequest`/
   `SearchKnowledgeRequest` **都是外部导入的顶层类型**，不是控制器嵌套类型——"嵌套上下文挡路"的第一印象是错的；
   真挡路的只有 1 行 `ParsedRequest` 与两个 `@Autowired` 字段。**先 grep 类型声明（`record X|class X` + `import`）
