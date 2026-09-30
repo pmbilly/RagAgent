@@ -577,6 +577,18 @@
 - 跨子包可见性：仅 1 处（`WikiLinkify` 调 `WikiIngestPageOps`）→ 该顶层类罕见地没写 `public`，补上。
 - **收尾数据**：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
 
+## 11.13 P2 分包执行记录：knowledge/dto（2026-09-30）
+
+74 个 DTO → **`faq/`(21) + `chunk/`(12) + `kb/`(15) + `doc/`(16) + `tag/`(7) + 根 3**
+（根留 `BatchDeleteRequest` / `HybridSearchRequest` / `TaskIdResponse` 三个跨面载荷），
+6 个 package-info 一并补齐。
+
+- 切分轴 = **功能**（FAQ / chunk / 知识库本体与其配置视图 / 文档 Knowledge / 标签）；
+  命名沿用域内词汇：`kb/` 是 KnowledgeBase（知识库）、`doc/` 是 Knowledge（文档）。
+- **本批是搬迁里最省的**：DTO 之间零跨包引用 → 脚本 0 处补 import、0 处可见性放宽、
+  92 文件全部是 import 行同增同减（179/179）；编译一次通过。
+- 收尾数据：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
