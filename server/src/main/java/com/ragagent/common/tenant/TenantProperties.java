@@ -1,4 +1,4 @@
-package com.ragagent.config;
+package com.ragagent.common.tenant;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

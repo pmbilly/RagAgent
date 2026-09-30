@@ -27,7 +27,7 @@ import com.ragagent.agentm.service.CustomAgentService;
 import com.ragagent.agentm.service.AgentSuggestedQuestions.TagScope;
 import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
-import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;

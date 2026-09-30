@@ -17,7 +17,7 @@ import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.audit.service.AuditLogService;
 import com.ragagent.auth.domain.TenantInvitation;
 import com.ragagent.auth.domain.TenantMember;
-import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.auth.mapper.TenantInvitationMapper;
 import com.ragagent.common.context.TenantContext;
 import org.slf4j.Logger;

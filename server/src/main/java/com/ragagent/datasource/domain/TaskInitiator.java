@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p>Go 的 {@code TaskInitiator} 住在 {@code internal/types}，被
  * knowledge / tag / knowledge_faq_import / datasource 等多处使用。Java 侧目前只有
  * datasource 用它（其它模块尚未翻译），所以先落在本模块的 {@code domain} 下——
- * 它与 {@code com.ragagent.auth.domain.TenantRole} 一样是"跨模块公用类型"。
+ * 它与 {@code com.ragagent.common.tenant.TenantRole} 一样是"跨模块公用类型"。
  * 等第二个模块需要它时，应提升到 {@code com.ragagent.common.context}
  * （与 {@code TenantContext} 同级），而不是各自复制一份。</p>
  *

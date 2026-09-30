@@ -4,7 +4,7 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import org.springframework.stereotype.Component;
-import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.service.KnowledgeService;
 

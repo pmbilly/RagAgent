@@ -1,6 +1,6 @@
 package com.ragagent.mcp.dto;
 
-import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.common.context.TenantContext;
 
 /**

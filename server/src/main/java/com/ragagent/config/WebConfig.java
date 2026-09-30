@@ -1,8 +1,9 @@
 package com.ragagent.config;
 
+import com.ragagent.common.tenant.TenantProperties;
 import java.util.List;
 
-import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.auth.filter.AuthFilter;
 import com.ragagent.auth.service.UserService;
 import com.ragagent.common.filter.RequestIdFilter;

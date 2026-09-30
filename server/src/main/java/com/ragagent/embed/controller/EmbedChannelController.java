@@ -730,7 +730,7 @@ public class EmbedChannelController {
         TenantContext.set(tenantId,
                 new TenantContext.Principal(TenantContext.PrincipalTypes.EMBED_SESSION,
                         tenantId + ":" + ch.getId() + ":" + sessionId),
-                com.ragagent.auth.domain.TenantRole.VIEWER.value(),
+                com.ragagent.common.tenant.TenantRole.VIEWER.value(),
                 false, "embed-" + ch.getId(), false);
         if (!visitor.isEmpty()) {
             com.ragagent.common.context.TenantContext.setEmbedVisitorId(visitor);

@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.TenantInvitation;
 import com.ragagent.auth.domain.TenantMember;
-import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.auth.domain.User;
 import com.ragagent.auth.dto.TenantInvitationResponse;
 import com.ragagent.auth.service.TenantInvitationService;

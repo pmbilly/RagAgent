@@ -1,4 +1,4 @@
-package com.ragagent.auth.domain;
+package com.ragagent.common.tenant;
 
 /**
  * 租户角色（对照 Go types/tenant_member.go TenantRole）。

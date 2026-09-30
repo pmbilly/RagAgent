@@ -6,14 +6,14 @@ import java.util.List;
 
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.TenantMember;
-import com.ragagent.auth.domain.TenantRole;
+import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.auth.domain.User;
 import com.ragagent.auth.service.TenantMemberService;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.auth.service.UserService;
 import com.ragagent.auth.service.ValidatedToken;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.config.TenantProperties;
+import com.ragagent.common.tenant.TenantProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;

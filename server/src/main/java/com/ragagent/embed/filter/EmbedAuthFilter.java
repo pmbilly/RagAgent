@@ -135,7 +135,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
         TenantContext.set(ch.getTenantId(),
                 new TenantContext.Principal(TenantContext.PrincipalTypes.EMBED_CHANNEL,
                         ch.getTenantId() + ":" + channelId),
-                com.ragagent.auth.domain.TenantRole.VIEWER.value(),
+                com.ragagent.common.tenant.TenantRole.VIEWER.value(),
                 false, syntheticUser, false);
         request.setAttribute(CHANNEL_ATTRIBUTE, ch);
         try {
