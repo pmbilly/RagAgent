@@ -405,20 +405,14 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **别跳过闸门**：只跑 `:server:test` 会漏掉 Spotless（§13.14）。
 
 
-### 14.7 wiki 域步骤 1 边界判定（2026-09-30）
+### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
 - **跨包缝合点（git grep 实测,11 文件）**：`service.WikiLanguageSupport`（agent PromptAssembly + knowledge×4 + session×2,消费最广）；`service.WikiIngestService`(+EnqueueResult)/`WikiKnowledgeFinalizer`/`DefaultWikiKnowledgeFinalizer`/`WikiImageMarkup`（knowledge 加工链）；`service.WikiPageService`/`WikiEditContext` + `domain.Wiki*`（session AgentToolBackends → agent wiki 工具,经 WikiPages seam 接口）；`controller.WikiActivityAudit`（audit）。
 - **拆分纪律**：A 波门面保全部 public 成员与上述类型不动；WikiIngestBatchHandler 为 wiki 内部驱动（无跨包消费者），可自由拆。
 
-### 14.8 session 域步骤 1 边界判定 + wip 分支裁定（2026-09-30）
 
-- **wip/chat-sse-slice2(785cdc7)裁定:不并入**。理由:①用了 @JsonAlias 兼容别名,与现行 §2 第 11 条"无别名"政策冲突;②仅完成切片②后端主体,自带约 40 个失败、前端未动;③当前分支已领先 59 提交,session 域多处被触碰,合并即冲突。**处置**:保留分支作工作清单参考(其提交说明是完整的键清单与任务分解),session C 波在当前分支按 wiki C 波同法重做(去注解无别名)。
-- **不动**:session/domain 实体 jsonb 键在 C 波前保持 snake(§11 边界);chat SSE 信封(event/*Data)归 session C 波切片③(与前端同批);工具输出自有 schema 不动。
-- **跨包缝合点(git grep 实测,15 文件)**:chatpipeline×6、embed×2、evaluation/im/memory×3、storage×2 消费 session 类型;session 出向依赖 retrieval.SearchResult(10)/event.EventBus/agent.AgentStep(5)/knowledge 服务族。
-- **C 波工作清单(自 wip 提交说明整理)**:20 实体+2 落库类型约 200 处注解;SessionController 8 键+3 解封+4 去 success;SteerController 11 键;KnowledgeQaController 2 处;删除/清空类端点 204;43 个 session-*/sug-* fixture;前端 93 键约 200+ 处读取(与 SSE 信封同名,切片③同批)。
-
-### 14.7 wiki 域执行计划（下一步，2026-10-01 定）
+### 14.7 wiki 域执行计划（下一步，2026-10-01 定；边界侦察见 §14.8）
 
 **目标类**：`wiki/controller/WikiPageController` 1,311、`wiki/service/ingest/WikiIngestService` 1,208（域内 ≥800 就这两个）。
 先读 `§14.1~§14.6` 与 `§13`，再照下面的刀序走（每刀独立提交 + harness 自动回退）。
