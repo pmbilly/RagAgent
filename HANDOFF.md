@@ -1083,6 +1083,29 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 3. **span 边界用"下一个成员的 javadoc 起点 -1"**，别用"下一个声明行 -1"——后者会把下一位的
    javadoc 吞进上一位，抽取后新文件重复、门面反而丢注释。
 
+### 14.9c session 步骤 2 收尾批次清单（2026-09-30 定稿；3 类约 9 刀，SKQA 保持例外）
+
+批次口径（用户要求"多个一起"）：**一次侦察定边界 → 按清单连续落刀，每刀自带编译自检 + 独立提交，
+共用一次收尾闸门**；不混改、不合并提交——本会话三次真问题（char 字面量截断 / `JdbcTemplate` 顺序 /
+测试里的静态成员引用）都靠"每刀编译"暴露，混改会让定位成本指数上升。
+
+| 刀 | 类 | 切片 | 规模 |
+|---|---|---|---|
+| 1 | SessionAgentQaService 1,430 | 历史/消息装配簇（`loadAgentHistory` + `buildTurnBodyMessages` + `build*HistoryMessage` + `buildAgentStepMessages` + `finalAnswerHistoryMessage` + `filterNonT…` + `templateContentByIdAndFile`） | ~235 |
+| 2 | 同 | 配置装配簇（`buildAgentConfig` + `resolveAgentPrompts` + `applyPerRequest*Scope` + `resolvePerRequestMcpScope` + `pinPreservingRequestOrder` + `agentRequiresRerankModel`） | ~280 |
+| 3 | 同 | 引擎/工具装配簇（`createAgentEngine` + `registerMcpTools` + `knowledgeBaseScopesForPrompt` + `getKnowledgeBaseInfos` + `getSelectedDocumentInfos` + `registerWebPageFiles` + `registerTools`） | ~500 → 门面 ~350 出榜 |
+| 4 | KnowledgeQaController 1,613 | 请求解析簇（`parseQARequest` 237 + `parseOrBindError` + `decodeAndValidateAttachmentUploads` + binder） | ~350 |
+| 5 | 同 | SSE 编排簇（`setupSSEStream` + `writeAgentQueryEvent` + `startStopWatcher` + `handleAgentEventsForSSE` + quick answer timeline） | ~320 |
+| 6-7 | 同 | 执行编排/落库/附件与收尾（`executeQA` 212 + `runFollowUp`/`recoverFailedFollowUp` + `persist*`/`rollback` + `resolveTemporaryAttachments` + `completeAssistantMessage`）分两刀 | ~600 → 门面 ~400 出榜 |
+| 8 | SessionQaResolution 2,906 | 模型选择簇（`resolveChatModelId` + `findModel` + `selectChatModelId`） | ~380 |
+| 9 | 同 | KB 范围簇（`resolveKnowledgeBasesFromAgent` + `kbSatisfiesAgentRequirements` + `findKnowledgeBase`/`findKb` + `resolveRetrievalTenantId` + `callerCanReadKb`） | ~480 |
+| 10 | 同 | mention/tag 收敛簇（`MentionScope` + `resolveKnowledge…` + `restrictMentionsToAgentScope` + `restrictTagScopesToAgentScope`） | ~500 |
+| 待评估 | 同 | 两个巨型方法**内部提取**（`buildSearchTargets` 684 / `applyAgentOverridesToChatManage` 424）——需先补契约测试，单独评估 | ~1,100 |
+
+- **范围登记**：`SessionKnowledgeQaService` 1,036 保持 ≥800（§14.5 例外，类 javadoc 已注明三条入口流
+  状态机）；要压它需单独开刀（拆入口流），风险最高，本批不做。
+- 每刀收尾走 §14.4 常规档（重编 + 受影响域 + spotless ≈1 分钟）；批次末跑一次结构搬迁档（clean 全量）。
+
 ### 14.9 session 步骤 2 半程（2026-09-30）
 
 - SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
