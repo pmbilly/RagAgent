@@ -10,7 +10,6 @@ import java.util.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
@@ -48,7 +47,6 @@ import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 public class KnowledgeSummaryService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeSummaryService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;

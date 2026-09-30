@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -18,7 +17,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class KnowledgeParseService {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final KnowledgeService facade;
     private final KnowledgeFileService fileService;

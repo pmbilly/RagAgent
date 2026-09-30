@@ -207,22 +207,9 @@ public class FaqEntryCommandService {
 
         checkFAQQuestionDuplicate(tid, kb.getId(), chunk.getId(), meta);
 
-        List<String> oldSimilarQuestions = null;
-        String oldStandardQuestion = "";
-        List<String> oldAnswers = null;
-        String questionIndexMode = "combined";
-        String qim = faqChunkCodec.faqQuestionIndexMode(kb);
-        if (!qim.isEmpty()) {
-            questionIndexMode = qim;
-        }
         FaqChunkMetadata existing = faqChunkCodec.currentFaqMetadata(chunk);
         if (existing != null) {
             meta.version = existing.version + 1;
-            if ("separate".equals(questionIndexMode)) {
-                oldSimilarQuestions = existing.similarQuestions;
-                oldStandardQuestion = existing.standardQuestion;
-                oldAnswers = existing.answers;
-            }
         }
         faqChunkCodec.setFaqMetadata(chunk, meta);
 
@@ -351,7 +338,6 @@ public class FaqEntryCommandService {
         tempMeta.similarQuestions.addAll(newQuestions);
         checkFAQQuestionDuplicate(tid, kb.getId(), chunk.getId(), tempMeta);
 
-        List<String> oldSimilarQuestions = meta.similarQuestions;
         if (meta.similarQuestions == null) {
             meta.similarQuestions = new ArrayList<>();
         }

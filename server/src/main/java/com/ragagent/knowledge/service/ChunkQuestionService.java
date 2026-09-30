@@ -101,10 +101,6 @@ public class ChunkQuestionService {
         return tid;
     }
 
-    private static String orEmpty(String s) {
-        return s == null ? "" : s;
-    }
-
 
     // ── 生成问题 ───────────────────────────────────────────────────────────
 

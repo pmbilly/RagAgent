@@ -11,8 +11,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
@@ -62,9 +60,6 @@ public class ChunkerPreviewController {
     static final int PREVIEW_MAX_CHUNKS = 500;
 
     static final long PREVIEW_TIMEOUT_SECONDS = 5;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     /** 虚拟线程池：切分 CPU 密集，超时后让线程自然跑完。 */
     private static final ExecutorService CHUNKER_POOL = Executors.newVirtualThreadPerTaskExecutor();

@@ -2,7 +2,6 @@ package com.ragagent.knowledge.controller;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.auth.domain.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
@@ -67,7 +66,6 @@ import com.ragagent.storageurl.Mode;
 public class KnowledgeBaseController {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeBaseController.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final KnowledgeBaseService kbService;
     private final KnowledgeService knowledgeService;
