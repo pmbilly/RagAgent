@@ -2,7 +2,7 @@
 
 > **用途**：新人 30 分钟建立"哪个功能在哪个包"的全局观；后续会话按本文的 **P0–P3 待办**推进，
 > 不用重新摸索。**复测**：`python3 scripts/pkg-audit.py`（口径见脚本 docstring）。
-> **基线数据**：34 个顶层包 / **1,599 文件 / 284,033 行**（`com.ragagent` 子树）。
+> **基线数据**：34 个顶层包 / **1,599 文件 / 284,033 行**（`com.ragagent` 子树）；顶层 `package-info` **33/34**（仅 `session` 待其批次补）。
 
 ## 1. 三类包（先分清性质，再判断"合理与否"）
 
@@ -56,7 +56,9 @@
 
 ### P3 命名与文档
 
-- [ ] **顶层 `package-info` 只有 5/34**（agent、agentm、event、knowledge、wiki）→ 补齐其余 29 个（性价比最高、零风险）；
+- [x] **顶层 `package-info` 补齐至 33/34**（2026-09-30，`f9` 批）：新增 28 个（apikey/audit/auth/chatpipeline/common/config/datasource/embed/embedding/
+      evaluation/favorite/im/llm/mcp/memory/model/modelcontext/rerank/retrieval/searchutil/storage/storageurl/stream/system/
+      tracing/vectorstore/webfetch/websearch）。**`session` 故意留空**——该域批次正在进行（步骤 2 半程），由该批次一并补，避免撞车；
 - [ ] `model` 既是顶层域又是层名（`model/domain` vs `auth/domain`）→ 至少在文档里点名，改名后议；
 - [ ] 四个近邻包易混：`embed`(12，HTTP 叶子域，0 包引用) / `embedding`(21，provider 客户端) / `vectorstore`(12) / `rerank`(14)；
 - [ ] 2 个放错包的文件归位；5 个控制器改走服务层；wiki 2 处反向依赖反转。
