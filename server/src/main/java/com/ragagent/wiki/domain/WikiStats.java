@@ -5,8 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoMapSerializer;
 
 /**
  * wiki 的聚合统计。JSON 键为 snake（§11 登记边界，前端按此解析）。
@@ -21,7 +19,7 @@ public class WikiStats {
     /** 键为 page_type，值为计数；用 LinkedHashMap 保持键序稳定 */
     // 出口契约要求 map 键按字节序稳定输出；Jackson 默认不排——不挂 GoMapSerializer，
     // 多键 map 的键序会随构造顺序漂移
-    @JsonSerialize(using = GoMapSerializer.class)
+
     private Map<String, Long> pagesByType = new LinkedHashMap<>();
 
     private long totalLinks;

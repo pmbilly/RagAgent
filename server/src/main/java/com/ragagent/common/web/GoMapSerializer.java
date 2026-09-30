@@ -34,7 +34,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  *
  * <h2>使用方式与边界</h2>
  * <ul>
- *   <li>挂在 {@code Map} 型字段/getter 上：{@code @JsonSerialize(using = GoMapSerializer.class)}。</li>
+ *   <li>挂在 {@code Map} 型字段/getter 上：{@code}。</li>
  *   <li>不会与自身的嵌套调用递归打架：内部走 {@code gen.writeObject}，
  *       那时选中的是按<b>运行时类型</b>（{@link TreeMap}）查到的普通 Map 序列化器，
  *       而本序列化器绑在<b>属性</b>上。</li>

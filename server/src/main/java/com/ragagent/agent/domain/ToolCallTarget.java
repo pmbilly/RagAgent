@@ -3,8 +3,6 @@ package com.ragagent.agent.domain;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoMapSerializer;
 
 /**
  * 解析后的实际调用目标。
@@ -20,7 +18,7 @@ public class ToolCallTarget {
     private String name = "";
 
     /** 键序递归恒排序（与既有 jsonb 记录逐字节一致）。恒输出：null → {@code null}。 */
-    @JsonSerialize(using = GoMapSerializer.class)
+
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private Map<String, Object> args;
 

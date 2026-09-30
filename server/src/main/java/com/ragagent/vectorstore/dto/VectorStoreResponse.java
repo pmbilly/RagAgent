@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
@@ -32,13 +31,10 @@ public class VectorStoreResponse {
     @JsonProperty("index_config")
     public IndexConfig indexConfig;
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
     public OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
     @JsonProperty("updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
     public OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
     @JsonProperty("deleted_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
     @JsonInclude(JsonInclude.Include.ALWAYS) // Go 无 omitempty：null 恒输出
     public OffsetDateTime deletedAt;
     @JsonProperty("source")

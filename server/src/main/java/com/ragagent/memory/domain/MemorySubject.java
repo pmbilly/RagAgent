@@ -12,9 +12,6 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -96,16 +93,12 @@ public class MemorySubject {
     private String blockText = "";
 
     @JsonProperty("block_updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime blockUpdatedAt;
 
     @JsonProperty("item_count")
     private int itemCount;
 
     @JsonProperty("last_extracted_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime lastExtractedAt;
 
     /**
@@ -113,8 +106,6 @@ public class MemorySubject {
      * 新 worker **从不**推进它；每个会话有自己的进度行。
      */
     @JsonProperty("extract_cursor")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime extractCursor;
 
     /**
@@ -147,8 +138,6 @@ public class MemorySubject {
 
     /** 标记"蒸馏任务已在路上"，让并发的多轮只排一个任务而不是每轮一个。 */
     @JsonProperty("extract_scheduled_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime extractScheduledAt;
 
     /**
@@ -157,8 +146,6 @@ public class MemorySubject {
      * 只有这里才注意得到。
      */
     @JsonProperty("consolidated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime consolidatedAt;
 
     /**
@@ -166,18 +153,12 @@ public class MemorySubject {
      * 每日任务刚跑过不能成为拒绝"按按钮的人"的理由，所以两者不能共用一个时间戳。
      */
     @JsonProperty("forced_consolidated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime forcedConsolidatedAt;
 
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @JsonProperty("updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

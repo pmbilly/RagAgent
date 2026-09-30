@@ -7,10 +7,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoMapSerializer;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.datasource.domain.DataSource;
 import com.ragagent.datasource.domain.DataSourceConfig;
@@ -102,8 +99,6 @@ public class DataSourceResponse {
     private boolean syncDeletions;
 
     @JsonProperty("last_sync_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime lastSyncAt;
 
     @JsonProperty("last_sync_cursor")
@@ -122,13 +117,9 @@ public class DataSourceResponse {
     private int syncLogRetentionDays;
 
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @JsonProperty("updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @JsonProperty("total_items_synced")
@@ -145,7 +136,6 @@ public class DataSourceResponse {
      */
     @JsonProperty("credentials")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, CredentialFieldMetadata> credentials;
 
     /** 对照 Go {@code NewDataSourceResponse}：nil 入参回 nil。 */

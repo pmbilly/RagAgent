@@ -11,9 +11,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -92,23 +89,15 @@ public class MemoryTopicStat {
     private int hits;
 
     @JsonProperty("last_seen_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime lastSeenAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @JsonProperty("promoted_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime promotedAt;
 
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @JsonProperty("updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

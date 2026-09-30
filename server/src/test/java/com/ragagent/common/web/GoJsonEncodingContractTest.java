@@ -9,7 +9,6 @@ import java.util.stream.Stream;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -60,7 +59,6 @@ class GoJsonEncodingContractTest {
     /** 挂了 {@link GoDoubleSerializer} 的对照物。 */
     public static final class AnnotatedBox {
         @JsonProperty("v")
-        @JsonSerialize(using = GoDoubleSerializer.class)
         public double v;
 
         AnnotatedBox(double v) {

@@ -7,7 +7,6 @@ import java.util.TreeMap;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.GoMapSerializer;
 
@@ -64,7 +63,7 @@ public class SearchResult {
     private int seq;
 
     /** 相似度/融合分。**无 omitempty**：{@code 0} 恒输出（不是 {@code 0.0}，见类注释）。 */
-    @JsonSerialize(using = GoDoubleSerializer.class)
+
     private double score;
 
     /**

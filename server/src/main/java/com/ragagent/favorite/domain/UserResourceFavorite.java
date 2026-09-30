@@ -3,7 +3,6 @@ package com.ragagent.favorite.domain;
 import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -42,7 +41,6 @@ public class UserResourceFavorite {
 
     /** Go gorm:"autoCreateTime"——insert 时由应用侧写入 now（DB 列另有 DEFAULT 兜底）。 */
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
     private OffsetDateTime createdAt;
 
     /** 对照 Go IsValidFavoriteResourceType：可收藏类型的白名单。 */

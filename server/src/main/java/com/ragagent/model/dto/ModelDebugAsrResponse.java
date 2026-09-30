@@ -5,7 +5,6 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
@@ -47,11 +46,9 @@ public class ModelDebugAsrResponse {
         }
 
         @JsonProperty("start")
-        @JsonSerialize(using = GoDoubleSerializer.class)
         public double getStart() { return start; }
 
         @JsonProperty("end")
-        @JsonSerialize(using = GoDoubleSerializer.class)
         public double getEnd() { return end; }
 
         @JsonProperty("text")

@@ -9,9 +9,6 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
@@ -168,8 +165,6 @@ public class DataSource {
     /** 上次成功同步的时间。指针 → nil 输出 {@code null}。 */
     @TableField("last_sync_at")
     @JsonProperty("last_sync_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime lastSyncAt;
 
     /** 增量同步的游标/状态（连接器私有）。由 {@link SyncCursor#toJSON()} 产出。 */
@@ -194,14 +189,10 @@ public class DataSource {
 
     @TableField("created_at")
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @TableField("updated_at")
     @JsonProperty("updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /**
@@ -211,8 +202,6 @@ public class DataSource {
      */
     @TableField("deleted_at")
     @JsonProperty("deleted_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime deletedAt;
 
     /** 已同步条目总数。{@code gorm:"-"}：不落库，查询时由 service 计算填充。 */

@@ -7,8 +7,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoMapSerializer;
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.websearch.domain.WebSearchProvider;
 
@@ -38,13 +36,10 @@ public class WebSearchProviderResponse {
     @JsonProperty("is_default")
     public boolean isDefault;
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
     public OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
     @JsonProperty("updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
     public OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
     @JsonProperty("credentials")
-    @JsonSerialize(using = GoMapSerializer.class)
     public Map<String, CredentialFieldMetadata> credentials;
 
     public static WebSearchProviderResponse from(WebSearchProvider e, boolean canViewIntegrationSecrets) {
@@ -100,7 +95,6 @@ public class WebSearchProviderResponse {
         public String proxyUrl = "";
         @JsonProperty("extra_config")
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonSerialize(using = GoMapSerializer.class)
         public Map<String, String> extraConfig;
     }
 

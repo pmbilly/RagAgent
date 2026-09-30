@@ -3,8 +3,6 @@ package com.ragagent.rerank;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 单条重排结果（对照 Go {@code rerank.RankResult} 与其自定义
@@ -41,7 +39,6 @@ public final class RankResult {
     }
 
     @JsonProperty("relevance_score")
-    @JsonSerialize(using = GoDoubleSerializer.class)
     public double getRelevanceScore() {
         return relevanceScore;
     }

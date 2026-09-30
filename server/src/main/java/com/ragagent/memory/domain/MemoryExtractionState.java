@@ -6,9 +6,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -50,8 +47,6 @@ public class MemoryExtractionState {
 
     /** 零值是 Go 的 year-1 字面量，且**恒输出**（见类注释）。 */
     @JsonProperty("lease_until")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime leaseUntil = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public MemoryExtractionState() {

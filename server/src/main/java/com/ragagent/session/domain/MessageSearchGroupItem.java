@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
@@ -40,7 +39,6 @@ public class MessageSearchGroupItem {
     private String answerContent = "";
 
     @JsonProperty("score")
-    @JsonSerialize(using = GoDoubleSerializer.class)
     private double score;
 
     @JsonProperty("match_type")

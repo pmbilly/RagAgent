@@ -6,7 +6,6 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoMapSerializer;
 import com.ragagent.retrieval.domain.SearchResult;
 
@@ -61,7 +60,6 @@ public class StreamResponse {
      */
     @JsonProperty("data")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, Object> data;
     @JsonProperty("usage")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)

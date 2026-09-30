@@ -1,13 +1,10 @@
 package com.ragagent.chatpipeline;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 混合检索参数（对照 Go {@code types.SearchParams}，internal/types/search.go:230-252）。
@@ -25,10 +22,8 @@ public final class SearchParams {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private float[] queryEmbedding;
     @JsonProperty("vector_threshold")
-    @JsonSerialize(using = GoDoubleSerializer.class)
     private double vectorThreshold;
     @JsonProperty("keyword_threshold")
-    @JsonSerialize(using = GoDoubleSerializer.class)
     private double keywordThreshold;
     @JsonProperty("match_count")
     private int matchCount;

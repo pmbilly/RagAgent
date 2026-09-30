@@ -11,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonRawValue;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /**
  * 会话附件（临时文档），对照 Go types.TemporaryDocument（types/temporary_document.go L24-48）。
@@ -103,31 +102,29 @@ public class TemporaryDocument {
     @JsonProperty("error_message")
     private String errorMessage;
 
-        @JsonSerialize(using = com.ragagent.common.web.GoTimeSerializer.class)
+
     @TableField(value = "expires_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
     @JsonProperty("expires_at")
     private OffsetDateTime expiresAt;
 
     /** omitempty：nil 省略。 */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonSerialize(using = com.ragagent.common.web.GoTimeSerializer.class)
     @TableField(value = "started_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
     @JsonProperty("started_at")
     private OffsetDateTime startedAt;
 
     /** omitempty：nil 省略。 */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonSerialize(using = com.ragagent.common.web.GoTimeSerializer.class)
     @TableField(value = "ready_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
     @JsonProperty("ready_at")
     private OffsetDateTime readyAt;
 
-        @JsonSerialize(using = com.ragagent.common.web.GoTimeSerializer.class)
+
     @TableField(value = "created_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
     @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-        @JsonSerialize(using = com.ragagent.common.web.GoTimeSerializer.class)
+
     @TableField(value = "updated_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
     @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;

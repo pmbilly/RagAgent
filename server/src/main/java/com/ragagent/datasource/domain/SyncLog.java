@@ -8,9 +8,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -95,15 +92,11 @@ public class SyncLog {
     /** 同步开始时间。Go 的 {@code BeforeCreate} 在零值时补 {@code time.Now().UTC()}。 */
     @TableField("started_at")
     @JsonProperty("started_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime startedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /** 同步完成时间。指针 → nil 输出 {@code null}。 */
     @TableField("finished_at")
     @JsonProperty("finished_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime finishedAt;
 
     @TableField("items_total")
@@ -142,14 +135,10 @@ public class SyncLog {
 
     @TableField("created_at")
     @JsonProperty("created_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @TableField("updated_at")
     @JsonProperty("updated_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

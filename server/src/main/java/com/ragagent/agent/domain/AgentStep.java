@@ -6,9 +6,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -71,8 +68,8 @@ public class AgentStep {
      * <p>序列化与反序列化都自带（jsonb 读路径用的是没有 {@code JavaTimeModule} 的裸 mapper，
      * 只挂一半会在读回时炸）。</p>
      */
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
+
+
     private OffsetDateTime timestamp = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public int getIteration() { return iteration; }

@@ -3,7 +3,6 @@ package com.ragagent.auth.domain.tenantconfig;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
@@ -23,18 +22,18 @@ public class RetrievalConfig {
     @JsonProperty("embedding_top_k")
     private int embeddingTopK;
 
-    @JsonSerialize(using = GoDoubleSerializer.class)
+
     @JsonProperty("vector_threshold")
     private double vectorThreshold;
 
-    @JsonSerialize(using = GoDoubleSerializer.class)
+
     @JsonProperty("keyword_threshold")
     private double keywordThreshold;
 
     @JsonProperty("rerank_top_k")
     private int rerankTopK;
 
-    @JsonSerialize(using = GoDoubleSerializer.class)
+
     @JsonProperty("rerank_threshold")
     private double rerankThreshold;
 
@@ -48,12 +47,10 @@ public class RetrievalConfig {
 
     /** Go float64 + omitempty：0.0 省略（NON_DEFAULT 对 primitive double 即 0.0） */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    @JsonSerialize(using = GoDoubleSerializer.class)
     @JsonProperty("rrf_vector_weight")
     private double rrfVectorWeight;
 
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    @JsonSerialize(using = GoDoubleSerializer.class)
     @JsonProperty("rrf_keyword_weight")
     private double rrfKeywordWeight;
 

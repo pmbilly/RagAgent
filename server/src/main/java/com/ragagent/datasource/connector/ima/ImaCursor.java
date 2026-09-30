@@ -8,9 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -55,8 +52,6 @@ public class ImaCursor {
 
     /** 上次同步时间（Go 的 {@code time.Time} 是值类型，零值也输出字面量）。 */
     @JsonProperty("last_sync_time")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime lastSyncTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /** {@code { kb_id: { logical_key: media_id } }}；omitempty → 空时整个键消失。 */

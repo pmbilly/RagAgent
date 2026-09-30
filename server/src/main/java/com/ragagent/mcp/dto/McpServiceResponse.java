@@ -13,8 +13,6 @@ import com.ragagent.mcp.domain.McpConfigFingerprint;
 import com.ragagent.mcp.domain.McpMetadataSummary;
 import com.ragagent.mcp.domain.McpService;
 import com.ragagent.mcp.domain.McpStdioConfig;
-import com.ragagent.common.web.GoMapSerializer;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /**
  * MCP 服务的主资源响应（对照 Go dto.MCPServiceResponse，internal/handler/dto/mcp.go:24-50）。
@@ -71,7 +69,7 @@ public class McpServiceResponse {
     private String url;
     @JsonProperty("headers")
     // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
-    @JsonSerialize(using = GoMapSerializer.class)
+
     private Map<String, String> headers;
     @JsonProperty("auth_config")
     private McpAuthConfigResponse authConfig;
@@ -81,7 +79,7 @@ public class McpServiceResponse {
     private McpStdioConfig stdioConfig;
     @JsonProperty("env_vars")
     // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
-    @JsonSerialize(using = GoMapSerializer.class)
+
     private Map<String, String> envVars;
     @JsonProperty("is_builtin")
     @JsonInclude(JsonInclude.Include.ALWAYS)
@@ -95,7 +93,7 @@ public class McpServiceResponse {
     /** 逐字段"是否已配置"；内置服务不返回（它们没有按租户的凭据） */
     @JsonProperty("credentials")
     // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
-    @JsonSerialize(using = GoMapSerializer.class)
+
     private Map<String, CredentialFieldMetadata> credentials;
     /** 列表卡片用的已保存目录摘要；从未同步过时省略 */
     @JsonProperty("catalog")

@@ -5,7 +5,6 @@ import java.time.OffsetDateTime;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -25,9 +24,9 @@ public class StorageBackendResponse {
     @JsonProperty("source") public String source;
     @JsonProperty("status") public String status;
     @JsonProperty("legacy_alias") public boolean legacyAlias;
-    @JsonProperty("created_at") @JsonSerialize(using = GoTimeSerializer.Utc.class)
+    @JsonProperty("created_at")
     public OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("updated_at") @JsonSerialize(using = GoTimeSerializer.Utc.class)
+    @JsonProperty("updated_at")
     public OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
     @JsonProperty("deleted_at")
     @JsonInclude(JsonInclude.Include.ALWAYS) // Go 无 omitempty：null 恒输出

@@ -6,9 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeDeserializer;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -69,8 +67,6 @@ public class Resource {
 
     /** 在外部系统里的最后修改时间。Go 是**值类型** {@code time.Time}：零值也输出字面量。 */
     @JsonProperty("modified_at")
-    @JsonSerialize(using = GoTimeSerializer.class)
-    @JsonDeserialize(using = GoTimeDeserializer.class)
     private OffsetDateTime modifiedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /** 层级资源才有；omitempty → 空串时整个键消失。 */

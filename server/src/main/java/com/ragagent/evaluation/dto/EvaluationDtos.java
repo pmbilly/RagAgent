@@ -6,7 +6,6 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.GoTimeSerializer;
 
@@ -58,19 +57,14 @@ public final class EvaluationDtos {
             "no_match_prefix", "temperature", "seed", "max_completion_tokens", "thinking"})
     public static final class SummaryConfigParams {
         @JsonProperty("max_tokens") public int maxTokens;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("repeat_penalty") public double repeatPenalty;
         @JsonProperty("top_k") public int topK;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("top_p") public double topP;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("frequency_penalty") public double frequencyPenalty;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("presence_penalty") public double presencePenalty;
         @JsonProperty("prompt") public String prompt = "";
         @JsonProperty("context_template") public String contextTemplate = "";
         @JsonProperty("no_match_prefix") public String noMatchPrefix = "";
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("temperature") public double temperature;
         @JsonProperty("seed") public int seed;
         @JsonProperty("max_completion_tokens") public int maxCompletionTokens;
@@ -101,15 +95,12 @@ public final class EvaluationDtos {
         @JsonProperty("knowledge_base_ids") public List<String> knowledgeBaseIds;
         @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         @JsonProperty("knowledge_ids") public List<String> knowledgeIds;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("vector_threshold") public double vectorThreshold;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("keyword_threshold") public double keywordThreshold;
         @JsonProperty("embedding_top_k") public int embeddingTopK;
         @JsonProperty("vector_database") public String vectorDatabase = "";
         @JsonProperty("rerank_model_id") public String rerankModelId = "";
         @JsonProperty("rerank_top_k") public int rerankTopK;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("rerank_threshold") public double rerankThreshold;
         @JsonProperty("chat_model_id") public String chatModelId = "";
         @JsonProperty("summary_config") public SummaryConfigParams summaryConfig;
@@ -151,34 +142,24 @@ public final class EvaluationDtos {
     /** 对照 types.RetrievalMetrics（六项检索指标，键名含 ndcg3/ndcg10）。 */
     @JsonPropertyOrder({"precision", "recall", "ndcg3", "ndcg10", "mrr", "map"})
     public static final class RetrievalMetrics {
-        @JsonSerialize(using = GoDoubleSerializer.class)
+
         @JsonProperty("precision") public double precision;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("recall") public double recall;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("ndcg3") public double ndcg3;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("ndcg10") public double ndcg10;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("mrr") public double mrr;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("map") public double map;
     }
 
     /** 对照 types.GenerationMetrics（BLEU-1/2/4 + ROUGE-1/2/L；rougel 键名照 Go）。 */
     @JsonPropertyOrder({"bleu1", "bleu2", "bleu4", "rouge1", "rouge2", "rougel"})
     public static final class GenerationMetrics {
-        @JsonSerialize(using = GoDoubleSerializer.class)
+
         @JsonProperty("bleu1") public double bleu1;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("bleu2") public double bleu2;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("bleu4") public double bleu4;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("rouge1") public double rouge1;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("rouge2") public double rouge2;
-        @JsonSerialize(using = GoDoubleSerializer.class)
         @JsonProperty("rougel") public double rougel;
     }
 }

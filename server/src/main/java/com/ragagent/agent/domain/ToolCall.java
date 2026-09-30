@@ -5,8 +5,6 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoMapSerializer;
 
 /**
  * agent 领域里的一次工具调用。
@@ -44,7 +42,7 @@ public class ToolCall {
     private String name = "";
 
     /** 工具参数。恒输出：null → {@code null}；键序递归恒排序（与既有 jsonb 记录逐字节一致）。 */
-    @JsonSerialize(using = GoMapSerializer.class)
+
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private Map<String, Object> args;
 
@@ -63,7 +61,6 @@ public class ToolCall {
      * **值原样内联**（不是字符串化），故 Java 用 {@link JsonNode}。
      */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, JsonNode> providerMetadata;
 
     public ToolCallTarget getTarget() { return target; }

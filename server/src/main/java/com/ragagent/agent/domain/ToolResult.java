@@ -5,8 +5,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoMapSerializer;
 
 /**
  * 一次工具执行的结果。
@@ -29,7 +27,6 @@ public class ToolResult {
 
     /** 结构化数据，供程序化使用。空时省略。键序递归恒排序（与既有 jsonb 记录逐字节一致）。 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, Object> data;
 
     /** 执行失败时的错误信息。空时省略。 */
