@@ -1,6 +1,5 @@
 package com.ragagent.wiki.service.ingest;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -10,13 +9,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.wiki.domain.TaskPendingOp;
 import com.ragagent.wiki.mapper.TaskDeadLetterRepository;
 import com.ragagent.wiki.mapper.TaskPendingOpsRepository;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -189,6 +186,7 @@ public class WikiIngestService implements WikiIngestPort {
     }
 
     /** 摄取阶段协作者(构造期装配)。 */
+    final WikiIngestContentSupport contentOps;
     final WikiIngestSettleOps settleOps;
     final WikiIngestQueueOps queueOps;
     final WikiIngestEnqueueOps enqueueOps;
@@ -223,6 +221,7 @@ public class WikiIngestService implements WikiIngestPort {
         this.knowledgeFinalizer = knowledgeFinalizer;
         this.imageEnricher = imageEnricher;
         this.taskHandler = taskHandler;
+        this.contentOps = new WikiIngestContentSupport(this);
         this.settleOps = new WikiIngestSettleOps(this);
         this.queueOps = new WikiIngestQueueOps(this);
         this.enqueueOps = new WikiIngestEnqueueOps(this);
@@ -423,6 +422,27 @@ public class WikiIngestService implements WikiIngestPort {
         return settleOps.requeueFailedOpsDetached(payload, ops);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 文档存活与正文重建（实现移至 WikiIngestContentSupport，门面薄委托）
+    // ═══════════════════════════════════════════════════════════════
+
+    public boolean isKnowledgeGone(String kbId, String knowledgeId) {
+        return contentOps.isKnowledgeGone(kbId, knowledgeId);
+    }
+
+    public List<SlugUpdate> filterLiveUpdates(String kbId, List<SlugUpdate> updates) {
+        return contentOps.filterLiveUpdates(kbId, updates);
+    }
+
+    public static String reconstructContent(List<Chunk> chunks) {
+        return WikiIngestContentSupport.reconstructContent(chunks);
+    }
+
+    public String reconstructEnrichedContent(List<Chunk> chunks, long tenantId) {
+        return contentOps.reconstructEnrichedContent(chunks, tenantId);
+    }
+
+
 
 
 
@@ -468,106 +488,8 @@ public class WikiIngestService implements WikiIngestPort {
 
 
 
-    // ═══════════════════════════════════════════════════════════════
-    // 辅助
-    // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * 知识文档是否已删除、或正在删除中。
-     *
-     * <p>先查墓碑快路径，再回落数据库。{@code getKnowledgeByIDOnly} 返回 null 同样算
-     * "已消失"：仓储层查询会过滤软删行，因此软删的知识在这里表现为
-     * "查不到"——正是我们要的。</p>
-     */
-    public boolean isKnowledgeGone(String kbId, String knowledgeId) {
-        if (knowledgeId == null || knowledgeId.isEmpty()) {
-            return true;
-        }
-        WikiDeletedTombstoneStore tombstones = tombstoneStore.getIfAvailable();
-        if (tombstones != null && tombstones.exists(kbId, knowledgeId)) {
-            return true;
-        }
-        KnowledgeMapper mapper = knowledgeMapper.getIfAvailable();
-        if (mapper == null) {
-            // 无知识仓储可查（装配裁剪）—— 无法判定，保守地当作"还在"
-            return false;
-        }
-        Knowledge kn;
-        try {
-            kn = mapper.selectOne(new LambdaQueryWrapper<Knowledge>()
-                    .eq(Knowledge::getId, knowledgeId)
-                    .isNull(Knowledge::getDeletedAt));
-        } catch (Exception e) {
-            return true;
-        }
-        if (kn == null) {
-            return true;
-        }
-        return Knowledge.PARSE_DELETING.equals(kn.getParseStatus())
-                || Knowledge.PARSE_CANCELLED.equals(kn.getParseStatus());
-    }
-
-    /**
-     * 丢弃那些源知识在 Map 阶段结束后
-     * 已被删除的新增 / 摘要更新。<b>retract 更新被保留</b>，页面因此仍能得到清理。
-     * 按知识缓存判定结果，避免单个 reduce slug 携带同一文档的多个更新时反复打库。
-     */
-    public List<SlugUpdate> filterLiveUpdates(String kbId, List<SlugUpdate> updates) {
-        if (updates == null || updates.isEmpty()) {
-            return updates;
-        }
-        Map<String, Boolean> goneCache = new java.util.HashMap<>();
-        List<SlugUpdate> filtered = new ArrayList<>(updates.size());
-        int dropped = 0;
-        for (SlugUpdate u : updates) {
-            if (u.isRetractType()) {
-                filtered.add(u);
-                continue;
-            }
-            String kid = u.getKnowledgeId();
-            boolean gone = false;
-            if (!kid.isEmpty()) {
-                gone = goneCache.computeIfAbsent(kid, k -> isKnowledgeGone(kbId, k));
-            }
-            if (gone) {
-                dropped++;
-                continue;
-            }
-            filtered.add(u);
-        }
-        if (dropped > 0) {
-            log.info("wiki ingest: reduce dropped {} updates for deleted knowledge(s)", dropped);
-        }
-        return filtered;
-    }
-
-    /**
-     * 从 chunk 重建文档正文。
-     *
-     * <p><b>只拼接文本类型的 chunk</b>——图片 OCR / caption 信息存在
-     * {@code image_ocr} / {@code image_caption} 子 chunk 上，不在父文本 chunk 的
-     * ImageInfo 字段里。需要完整富化正文（内联 OCR / caption）的调用方应改用
-     * {@link #reconstructEnrichedContent}。</p>
-     *
-     * <p>重叠去重与排序统一交给 {@link WikiChunkMerge}（按文本匹配，
-     * 兼容补写表头 / HTML 实体）。</p>
-     */
-    public static String reconstructContent(List<Chunk> chunks) {
-        if (chunks == null || chunks.isEmpty()) {
-            return "";
-        }
-        List<Chunk> textChunks = new ArrayList<>(chunks.size());
-        for (Chunk c : chunks) {
-            if (c == null) {
-                continue;
-            }
-            String type = c.getChunkType();
-            if (CHUNK_TYPE_TEXT.equals(type) || type == null || type.isEmpty()) {
-                textChunks.add(c);
-            }
-        }
-        return WikiChunkMerge.mergeTextChunks(textChunks, "\n");
-    }
+    // CHUNK_TYPE_* 常量留在门面：WikiIngestBatchHandler 按类名直引
 
     /** 文本类型的 chunk type 取值 */
     public static final String CHUNK_TYPE_TEXT = "text";
@@ -578,49 +500,6 @@ public class WikiIngestService implements WikiIngestPort {
     /** 图片 caption 子 chunk 的 chunk type 取值 */
     public static final String CHUNK_TYPE_IMAGE_CAPTION = "image_caption";
 
-    /**
-     * 重建正文并把
-     * 图片的 OCR / caption 文本内联进来。
-     *
-     * <p>没有图片信息时返回纯文本重建结果——与富化器缺席时的退化路径一致。</p>
-     */
-    public String reconstructEnrichedContent(List<Chunk> chunks, long tenantId) {
-        String content = reconstructContent(chunks);
-        if (chunks == null || chunks.isEmpty() || content.isEmpty()) {
-            return content;
-        }
-        List<Chunk> textChunks = new ArrayList<>(chunks.size());
-        for (Chunk c : chunks) {
-            if (c == null) {
-                continue;
-            }
-            String type = c.getChunkType();
-            if (CHUNK_TYPE_TEXT.equals(type) || type == null || type.isEmpty()) {
-                textChunks.add(c);
-            }
-        }
-        if (textChunks.isEmpty()) {
-            return content;
-        }
-        WikiImageEnricher enricher = imageEnricher.getIfAvailable(WikiImageEnricher::identity);
-        return enricher.enrich(content, textChunks, tenantId);
-    }
-
-    /**
-     * 为该文档在知识追踪树下开一个
-     * {@code postprocess.wiki} 子 span。
-     *
-     * <p>已接线（2026-09-24）：真实实现在 {@link WikiBatchSupport.WikiSpans#beginWikiSubspan}，
-     * batch 通过注入的 {@link com.ragagent.knowledge.service.SpanTracker} 上报；
-     * 本方法保留仅为兼容可能的旧调用点（当前无调用者）。</p>
-     */
-    public Object beginWikiSubspan(String knowledgeId, Map<String, Object> input) {
-        return null;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 内部工具
-    // ═══════════════════════════════════════════════════════════════
 
 
     /** 供可观测/测试：当前在飞行的 LLM 请求数 */
