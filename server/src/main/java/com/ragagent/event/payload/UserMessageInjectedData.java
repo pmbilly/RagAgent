@@ -1,4 +1,4 @@
-package com.ragagent.event;
+package com.ragagent.event.payload;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;

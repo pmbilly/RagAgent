@@ -1,4 +1,4 @@
-package com.ragagent.event;
+package com.ragagent.event.payload;
 
 import java.util.Map;
 

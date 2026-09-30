@@ -28,7 +28,7 @@ import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.agent.skills.Manager;
 import com.ragagent.agent.tools.ToolDefinitions;
 import com.ragagent.agent.tools.ToolRegistry;
-import com.ragagent.event.ErrorData;
+import com.ragagent.event.payload.ErrorData;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventIds;

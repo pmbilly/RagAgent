@@ -9,7 +9,7 @@ import com.ragagent.common.approval.OAuthPendingRequest;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventType;
-import com.ragagent.event.MCPOAuthRequiredData;
+import com.ragagent.event.payload.MCPOAuthRequiredData;
 import com.ragagent.mcp.domain.McpService;
 import com.ragagent.mcp.oauth.OAuthReauthorizationRequiredException;
 import com.ragagent.mcp.protocol.McpAuthorizationRequiredException;

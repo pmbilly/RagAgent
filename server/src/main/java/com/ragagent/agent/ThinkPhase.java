@@ -12,9 +12,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.ragagent.event.AgentFinalAnswerData;
-import com.ragagent.event.AgentThoughtData;
-import com.ragagent.event.AgentToolCallData;
+import com.ragagent.event.payload.AgentFinalAnswerData;
+import com.ragagent.event.payload.AgentThoughtData;
+import com.ragagent.event.payload.AgentToolCallData;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventIds;
 import com.ragagent.event.EventType;

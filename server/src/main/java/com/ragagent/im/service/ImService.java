@@ -858,7 +858,7 @@ public class ImService {
         java.util.concurrent.CountDownLatch complete = new java.util.concurrent.CountDownLatch(1);
 
         eventBus.on(EventType.EVENT_AGENT_FINAL_ANSWER, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.AgentFinalAnswerData data)) {
+            if (!(evt.getData() instanceof com.ragagent.event.payload.AgentFinalAnswerData data)) {
                 return;
             }
             String content = data.getContent();
@@ -872,7 +872,7 @@ public class ImService {
             }
         });
         eventBus.on(EventType.EVENT_ERROR, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.ErrorData data)) {
+            if (!(evt.getData() instanceof com.ragagent.event.payload.ErrorData data)) {
                 return;
             }
             log.error("[IM] QA error: {}", data.getError());
@@ -893,7 +893,7 @@ public class ImService {
         Message assistantMsg = createAssistantMessage(session.getId(), requestId);
 
         eventBus.on(EventType.EVENT_AGENT_COMPLETE, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.AgentCompleteData data)) {
+            if (!(evt.getData() instanceof com.ragagent.event.payload.AgentCompleteData data)) {
                 return;
             }
             String finalAnswer = data.getFinalAnswer();
@@ -1239,7 +1239,7 @@ public class ImService {
             java.util.concurrent.CountDownLatch done,
             java.util.concurrent.CountDownLatch complete, boolean useAgent) {
         eventBus.on(EventType.EVENT_AGENT_FINAL_ANSWER, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.AgentFinalAnswerData data)) {
+            if (!(evt.getData() instanceof com.ragagent.event.payload.AgentFinalAnswerData data)) {
                 return;
             }
             String content = data.getContent();
@@ -1260,7 +1260,7 @@ public class ImService {
             }
         });
         eventBus.on(EventType.EVENT_ERROR, evt -> {
-            String text = evt.getData() instanceof com.ragagent.event.ErrorData d
+            String text = evt.getData() instanceof com.ragagent.event.payload.ErrorData d
                     ? d.getError() : String.valueOf(evt.getData());
             synchronized (buf) {
                 buf.qaErr = new RuntimeException("QA pipeline error: " + text);
@@ -1269,7 +1269,7 @@ public class ImService {
             complete.countDown();
         });
         eventBus.on(EventType.EVENT_AGENT_COMPLETE, evt -> {
-            if (!(evt.getData() instanceof com.ragagent.event.AgentCompleteData data)) {
+            if (!(evt.getData() instanceof com.ragagent.event.payload.AgentCompleteData data)) {
                 return;
             }
             synchronized (buf) {
@@ -1286,7 +1286,7 @@ public class ImService {
             // 引用进 assistant 消息（web 端的交互 UI 在 IM 无意义，不入最终文本）。
         });
         eventBus.on(EventType.EVENT_AGENT_THOUGHT, evt -> {
-            String content = evt.getData() instanceof com.ragagent.event.AgentThoughtData d
+            String content = evt.getData() instanceof com.ragagent.event.payload.AgentThoughtData d
                     && d.getContent() != null ? d.getContent() : "";
             synchronized (buf) {
                 if (content.isEmpty()) {
@@ -1379,11 +1379,11 @@ public class ImService {
 
     private static ToolEvent toolOf(Event evt) {
         Object d = evt.getData();
-        if (d instanceof com.ragagent.event.AgentToolCallData c) {
+        if (d instanceof com.ragagent.event.payload.AgentToolCallData c) {
             return new ToolEvent(c.getToolCallId(), c.getToolName(), false,
                     c.getArguments(), null, "");
         }
-        if (d instanceof com.ragagent.event.AgentToolResultData r) {
+        if (d instanceof com.ragagent.event.payload.AgentToolResultData r) {
             return new ToolEvent(r.getToolCallId(), r.getToolName(), r.isSuccess(),
                     null, r.getData(), r.getOutput() == null ? "" : r.getOutput());
         }

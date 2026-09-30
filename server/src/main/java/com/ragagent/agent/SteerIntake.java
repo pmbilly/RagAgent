@@ -10,7 +10,7 @@ import com.ragagent.agent.domain.AgentState;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventIds;
 import com.ragagent.event.EventType;
-import com.ragagent.event.UserMessageInjectedData;
+import com.ragagent.event.payload.UserMessageInjectedData;
 import com.ragagent.llm.domain.ChatMessage;
 
 /**

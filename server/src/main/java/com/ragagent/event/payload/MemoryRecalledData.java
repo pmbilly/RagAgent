@@ -1,4 +1,4 @@
-package com.ragagent.event;
+package com.ragagent.event.payload;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;

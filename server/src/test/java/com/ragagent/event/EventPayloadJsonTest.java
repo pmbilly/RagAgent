@@ -9,6 +9,32 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import com.ragagent.event.payload.AgentActionData;
+import com.ragagent.event.payload.AgentCompleteData;
+import com.ragagent.event.payload.AgentFinalAnswerData;
+import com.ragagent.event.payload.AgentPlanData;
+import com.ragagent.event.payload.AgentQueryData;
+import com.ragagent.event.payload.AgentReferencesData;
+import com.ragagent.event.payload.AgentReflectionData;
+import com.ragagent.event.payload.AgentStepData;
+import com.ragagent.event.payload.AgentThoughtData;
+import com.ragagent.event.payload.AgentToolCallData;
+import com.ragagent.event.payload.AgentToolResultData;
+import com.ragagent.event.payload.ChatData;
+import com.ragagent.event.payload.ContextCompactedData;
+import com.ragagent.event.payload.ErrorData;
+import com.ragagent.event.payload.MCPOAuthRequiredData;
+import com.ragagent.event.payload.MCPOAuthResolvedData;
+import com.ragagent.event.payload.MemoryRecalledData;
+import com.ragagent.event.payload.MergeData;
+import com.ragagent.event.payload.QueryData;
+import com.ragagent.event.payload.RerankData;
+import com.ragagent.event.payload.RetrievalData;
+import com.ragagent.event.payload.SessionTitleData;
+import com.ragagent.event.payload.StopData;
+import com.ragagent.event.payload.ToolApprovalRequiredData;
+import com.ragagent.event.payload.ToolApprovalResolvedData;
+import com.ragagent.event.payload.UserMessageInjectedData;
 
 /**
  * 事件 payload 的 JSON 字节形状——<b>期望值全部是 /tmp Go 程序实录</b>
