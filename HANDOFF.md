@@ -137,7 +137,13 @@
 ### 7.3 未完成 / 待办
 
 1. **阶段 2 其余域**：wiki（下一步，§14.7）→ im → retrieval（4 个 engine 形似，可做"适配器批"）→ knowledge/auth/llm/chatpipeline 的 1,000+ 类 → datasource/memory（体量大，单独立项）。
-2. **阶段 3**（分层 / `package-info`）与**阶段 4**（契约 Java 化 / DTO·HTTP 面换锚）均未开始；换锚按 §14.2 排在阶段 3 之后，**同批带前端、不加兼容别名**（§2 第 4/11 条）。
+2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
+   chunker-preview 已完成（同批带前端）；**剩余域 wiki / agent / auth / memory / mcp 等**（§2 第 4 条落地范围）。
+   硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
+   **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
+3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
+4. **编号对照（防混淆）**：§5 用**阶段 0-4**；§14.2 用**步骤 0-4**（单域 SOP）。神类切片属「阶段 2 / 步骤 2」，
+   契约换锚属「阶段 3 / 步骤 4」——两套编号并存，引用时写全称。
 3. 可选尾巴：`QaSearchTargets`（706）内部 4 块细分；`SessionKnowledgeQaService` 1,036 的 §14.5 例外复核。
 
 ## 8. 环境与运行
@@ -426,3 +432,35 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
 - **跨包缝合点（git grep 实测,11 文件）**：`service.WikiLanguageSupport`（agent PromptAssembly + knowledge×4 + session×2,消费最广）；`service.WikiIngestService`(+EnqueueResult)/`WikiKnowledgeFinalizer`/`DefaultWikiKnowledgeFinalizer`/`WikiImageMarkup`（knowledge 加工链）；`service.WikiPageService`/`WikiEditContext` + `domain.Wiki*`（session AgentToolBackends → agent wiki 工具,经 WikiPages seam 接口）；`controller.WikiActivityAudit`（audit）。
 - **拆分纪律**：A 波门面保全部 public 成员与上述类型不动；WikiIngestBatchHandler 为 wiki 内部驱动（无跨包消费者），可自由拆。
+
+### 14.9 契约工作（阶段 3 换锚）——何时做 / 做什么 / 怎么验收（2026-10-01 补写）
+
+**为什么单独立节**：标准在 §2 第 4 条、进度散在 §2/§5、细则在 `docs/knowledge-api-contract-v1.md`，
+而"什么时候做、一次做多少、怎么算完成"此前没有集中交代 —— 新 Agent 容易误判（本轮曾误写成"均未开始"）。
+
+**已定、勿再讨论**
+- 标准 = §2 第 4 条四段：camelCase 且 **JSON 字段名＝Java 字段名**（禁逐字段 `@JsonProperty` / `@JsonNaming`）；
+  成功响应不包 `{data,success}`（分页 `{"items","page","pageSize","total"}`、删除返 **204**）；
+  错误统一 `{"error":{"code","message","details"}}`；时间 ISO-8601 带时区；可空字段**显式 null**；不用 Problem Details。
+- 落库格式（jsonb）同走 Java 字段名、**不加兼容别名**（§2 第 11 条）。
+- 每个改契约的 PR **同批带前端**（§2 第 3 条）；产品未上线，无兼容期（§2 第 2 条）。
+- 细则与历史差异表：`docs/knowledge-api-contract-v1.md`（v1.0，32KB）。
+
+**进度（2026-10-01）**
+- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview。
+- 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面。
+
+**执行顺序（关键约束）**
+1. **先做清单盘点**（低风险、只读）：按域扫出「未换锚端点 + 对应前端调用点 + 涉及的 Go 序列化残留（注解 / jsr310 / NON_NULL / Problem Details 引用）」，
+   产出一张存量表（形如 §14.3）。
+2. **再一次性全仓删除序列化层**（§2 第 7 条已删的 156 处注解 + `JacksonConfig` 是第一批；剩余引用按清单扫净）——
+   **不允许半删状态**（§5 阶段 3 红字：一部分端点走 Go 格式、一部分走标准 Jackson 最危险）。
+3. 端点/落库面**按清单逐域推进**：一个域一个 PR、同批带前端、重录 fixture。
+
+**验收（Acceptance）**
+- 全量测试绿（当前口径 **4,670 用例**）；每一步"改一步 → 全量验证 → 提交"。
+- 契约 fixture 重录后**语义对比**（键序/转义归一化）全过；200 路径 fixture 应零改动。
+- 前端同 PR；`docs/knowledge-api-contract-v1.md` 同步更新版本与差异表。
+
+**与阶段 2 的关系**：路线图上可对调（§5）；但换锚要动 HTTP 面与落库面，
+**建议目标域先做完"神类切片"再换锚**，避免同一批文件反复改。
