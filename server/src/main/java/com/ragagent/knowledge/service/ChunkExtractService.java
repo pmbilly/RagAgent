@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.initialization.service.ExtractPrompts;
+import com.ragagent.llm.extract.ExtractPrompts;
 import com.ragagent.llm.extract.EntityExtraction;
 import com.ragagent.llm.extract.PipelineConfig;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;

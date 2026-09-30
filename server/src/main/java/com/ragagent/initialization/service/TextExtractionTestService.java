@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.llm.extract.EntityExtraction;
+import com.ragagent.llm.extract.ExtractPrompts;
 import com.ragagent.llm.extract.PipelineConfig.PromptTemplateStructured;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;

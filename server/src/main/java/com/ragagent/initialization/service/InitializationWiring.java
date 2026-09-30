@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.ragagent.common.security.SsrfGuard;
+import com.ragagent.llm.extract.ExtractPrompts;
 import com.ragagent.llm.ollama.OllamaService;
 
 /**
