@@ -840,6 +840,34 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **跨包缝合点(git grep 实测,15 文件)**:chatpipeline×6、embed×2、evaluation/im/memory×3、storage×2 消费 session 类型;session 出向依赖 retrieval.SearchResult(10)/event.EventBus/agent.AgentStep(5)/knowledge 服务族。
 - **C 波工作清单(自 wip 提交说明整理)**:20 实体+2 落库类型约 200 处注解;SessionController 8 键+3 解封+4 去 success;SteerController 11 键;KnowledgeQaController 2 处;删除/清空类端点 204;43 个 session-*/sug-* fixture;前端 93 键约 200+ 处读取(与 SSE 信封同名,切片③同批)。
 
+### 14.9b session 步骤 2 下一刀：TemporaryDocumentService 的 prompt 切片（2026-09-30 侦察，未实施）
+
+**结论：本批中止**（工装三次失手，见下"坑"）——现场已恢复，`git status` 干净。
+下次做这一刀时**别用行区间脚本抽取**，改"逐成员人工复制到新文件、再从门面删"（成员少、肉眼可校）。
+
+**切片边界（已按声明序核实，行号=当时的 TemporaryDocumentService.java）**：
+
+| 组成 | 成员（行号） |
+|---|---|
+| 公开入口 | `resolveForPrompt`(737-803) |
+| 专用静态助手 | `selectContent`(835-898)、`queryTerms`(898-921)、`parseChunks`(811-823)、`imageUrlsOf`(823-840)、`isVisualDocumentQuery`(927-938)、`countOccurrences`(938-948)、`isImageFormat`(712-726)、`isIconImage`(682-696)、`isHan`(923-927)、`intOf`(950-952)、`strOf`(954-958)、`readJsonArray`(994-1004) |
+| 内部记录（随切片走） | `ContentSelection`(803-807)、`DocumentChunk`(807-809) |
+| 提示词常量（随切片走） | `PROMPT_BUDGET_TOKENS`/`PROMPT_INLINE_TOKENS`/`MAX_PROMPT_PARTS`/`MAX_IMAGE_URLS`(70-82)、`MIN_IMAGE_DIMENSION`/`MIN_IMAGE_BYTES`(85-89)、`IMAGE_EXTENSIONS`(89-93)、`VISUAL_QUERY_MARKERS`(93-97) |
+| **留在门面** | `PromptResult`、`AttachmentResolveException`（对外类型，§14.9 的 record-留门面先例）、其余全部 |
+
+**设计**：新建同包 `TemporaryDocumentPromptResolver`（`final class`，持 `facade` + `repo` 两个引用，
+同 `SessionQaResolution`/`SessionQaFallback` 先例）；门面留一个 `resolveForPrompt` 薄委托 +
+`private final TemporaryDocumentPromptResolver promptResolver`（构造器里 new）。
+门面同时含 `MAPPER`（process 路径也用），协作者自带一份 ObjectMapper。
+
+**三个坑（下次直接绕开）**：
+1. **别用花括号配对数 span**：该类正文里全是 JSON 字符串（`"{\"a\":1}"`），朴素计数会越界/截断；
+   真要脚本化，先按字面量剥离（去 `"..."`/`'...'`/`//`/`/*...*/` 再数）。
+2. **声明正则必须钉死 4 空格缩进**（`^ {4}(?! )`）：松写成 `^    [\w .]+` 会把方法体里的
+   8 空格语句（`        String lang = ...;`）当成员声明，span 全乱。
+3. **span 边界用"下一个成员的 javadoc 起点 -1"**，别用"下一个声明行 -1"——后者会把下一位的
+   javadoc 吞进上一位，抽取后新文件重复、门面反而丢注释。
+
 ### 14.9 session 步骤 2 半程（2026-09-30）
 
 - SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
