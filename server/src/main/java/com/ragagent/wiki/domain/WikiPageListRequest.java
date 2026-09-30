@@ -8,14 +8,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 列出 wiki 页面的过滤 / 分页请求（对照 Go types.WikiPageListRequest，
- * internal/types/wiki_page.go L633-645）。
+ * 列出 wiki 页面的过滤 / 分页请求。JSON 键为 snake（§11 登记边界，前端按此解析）。
  *
- * <p><b>指针字段的 Java 对应</b>：Go 的 {@code FolderID *string} 与
- * {@code CategoryDepth *int} 用"指针是否为 nil"区分<b>未提供</b>与<b>提供零值</b>
- * （{} = 根目录、0 = 根层级）；Java 侧用包装类型的 {@code null} 表达"未提供"。
+ * <p><b>可空字段语义</b>：包装类型字段用 {@code null} 表达<b>未提供</b>，与
+ * <b>提供了零值</b>（{} = 根目录、0 = 根层级）是两种不同语义。
  * 这是本类唯一需要小心的地方——{@code folderId = ""} 与 {@code folderId = null}
- * 是两种不同语义。</p>
+ * 不可混淆。</p>
  */
 @JsonPropertyOrder({
         "knowledge_base_id", "page_type", "status", "query", "folder_id", "category_path",
@@ -26,7 +24,7 @@ public class WikiPageListRequest {
     @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
-    /** 按类型过滤；可带逗号分隔的多类型（"entity,concept"），由 SplitWikiPageTypes 切分 */
+    /** 按类型过滤；可带逗号分隔的多类型（"entity,concept"），按逗号切分 */
     @JsonProperty("page_type")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String pageType = "";
@@ -41,7 +39,7 @@ public class WikiPageListRequest {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String query = "";
 
-    /** 精确的文件夹归属（"" = 根）；<b>null = 不过滤</b>（Go 的 *string） */
+    /** 精确的文件夹归属（"" = 根）；<b>null = 不过滤</b> */
     @JsonProperty("folder_id")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String folderId;
@@ -51,7 +49,7 @@ public class WikiPageListRequest {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> categoryPath = new ArrayList<>();
 
-    /** 精确的目录层级深度，含 0（根）；<b>null = 不过滤</b>（Go 的 *int） */
+    /** 精确的目录层级深度，含 0（根）；<b>null = 不过滤</b> */
     @JsonProperty("category_depth")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Integer categoryDepth;
@@ -68,7 +66,7 @@ public class WikiPageListRequest {
     @JsonProperty("sort_by")
     private String sortBy = "";
 
-    /** "asc" 或 "desc"；非 "asc" 一律按 DESC（对照 Go applyWikiPageListOrder） */
+    /** "asc" 或 "desc"；非 "asc" 一律按 DESC */
     @JsonProperty("sort_order")
     private String sortOrder = "";
 

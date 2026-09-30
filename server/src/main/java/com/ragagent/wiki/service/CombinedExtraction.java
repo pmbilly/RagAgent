@@ -7,8 +7,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * {@code WikiKnowledgeExtractPrompt} / {@code WikiCandidateSlugPrompt} 输出的解析结果
- * （对照 Go {@code combinedExtraction}，wiki_ingest.go L2055-2059）。
+ * {@code WikiKnowledgeExtractPrompt} / {@code WikiCandidateSlugPrompt} 输出的解析结果：
+ * 实体与概念两个列表。
  */
 @JsonPropertyOrder({"entities", "concepts"})
 public class CombinedExtraction {

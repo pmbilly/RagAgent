@@ -35,7 +35,7 @@ final class WikiIngestMapPhase {
 
 
     /**
-     * 对照 Go {@code mapOneDocument}（batch L1156-1601）：对单篇文档跑完整 Map 阶段
+     * 对单篇文档跑完整 Map 阶段
      * ——取消守卫、分块重建、Pass 0 抽取（含旧版回落）、摘要与引用并行、引用回填、
      * 身份重认领、新旧页面调和。
      *
@@ -52,7 +52,7 @@ final class WikiIngestMapPhase {
         String lang = WikiLanguageSupport.resolveLanguageName(op.getLanguage());
         String kbId = payload.knowledgeBaseId();
 
-        // 对照 Go beginWikiSubspan（wiki_ingest.go L443-466）：沿 LatestAttempt →
+        // 页级 span：沿 LatestAttempt →
         // postprocess stage 找父 span，在其下开 postprocess.wiki。找不到父 → null，
         // 后续 helper 全部 no-op（best-effort，追踪绝不阻断批次）。
         SpanTracker.SpanHandle wikiSpan = handler.spans.beginWikiSubspan(knowledgeID,
@@ -370,7 +370,7 @@ final class WikiIngestMapPhase {
             updates.add(u);
         }
 
-        // 调和旧页面集合与新的抽取结果。（三种情形见 Go 注释 batch L1495-1523）
+        // 调和旧页面集合与新的抽取结果。三种情形：
         //   (a) oldSlug ∉ new  → "retractStale"：文档不再提及该主题，剥掉它的引用
         //       （若这是唯一来源则可能删除页面）。用<b>新</b>正文作为撤回语境——如果 LLM
         //       找到匹配的事实就裁掉它们，否则这次撤回近似 no-op，这没问题。
@@ -454,7 +454,7 @@ final class WikiIngestMapPhase {
     }
 
     /**
-     * 对照 Go {@code mapOneDocument} L1219-1232：文档标题优先取知识行，取不到就回落到
+     * 文档标题优先取知识行，取不到就回落到
      * 第一个非空 chunk 的首行（短于 200 字节时），并裁掉 markdown 的 {@code "# "} 前缀。
      */
     String resolveDocTitle(String knowledgeID, List<Chunk> chunks) {

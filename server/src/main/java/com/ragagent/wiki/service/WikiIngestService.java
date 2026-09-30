@@ -28,7 +28,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
- * wiki 生成管线的主入口（对照 Go internal/application/service/wiki_ingest.go，3246 行）。
+ * wiki 生成管线的主入口。
  *
  * <h2>持久化状态在哪</h2>
  * <ul>
@@ -39,23 +39,22 @@ import org.springframework.stereotype.Service;
  *   <li>{@code task_dead_letters}：批内失败且耗尽 {@code MAX_FAIL_RETRIES} 的 op 落这里。</li>
  * </ul>
  *
- * <h2>Java 侧的三处结构性替换（已登记为已知差异）</h2>
+ * <h2>三处结构性替换</h2>
  * <ol>
- *   <li><b>asynq → 进程内虚拟线程队列</b>（{@link InProcessWikiIngestTaskQueue}）：
- *       与阶段 3 的 {@code KnowledgeProcessWorker} 同模式。延迟、TaskID 合并、
+ *   <li><b>任务队列 → 进程内虚拟线程队列</b>（{@link InProcessWikiIngestTaskQueue}）：
+ *       与 {@code KnowledgeProcessWorker} 同模式。延迟、TaskID 合并、
  *       重试预算与超时语义保留；多副本下的协调缺失见该实现注释。</li>
  *   <li><b>Redis → 可插拔端口</b>：{@link WikiSlugLock}（已有）、
  *       {@link WikiInflightLimiter}、{@link WikiDeletedTombstoneStore}。
- *       默认都是进程内实现，语义与 Go 的 Lite 模式一致。</li>
+ *       默认都是进程内实现（单 JVM 语义）。</li>
  *   <li><b>context.Context → 显式传参 + TenantContext</b>：取消传播改用线程中断
  *       （见 {@link WikiCleanupScope}）；LLM 记账元数据改用 {@link WikiLlmCallMetadata}。</li>
  * </ol>
  *
- * <h2>暴露给后续翻译任务的接缝</h2>
+ * <h2>接缝</h2>
  * <ul>
- *   <li>{@link WikiIngestTaskHandler} —— {@code ProcessWikiIngest} /
- *       {@code ProcessWikiFinalize}（wiki_ingest_batch.go）的落点；</li>
- *   <li>{@link WikiDedupSupport} —— wiki_ingest_dedup.go 的五个函数的落点；</li>
+ *   <li>{@link WikiIngestTaskHandler} —— 批次执行（Map → Reduce → finalize）的落点；</li>
+ *   <li>{@link WikiDedupSupport} —— 抽取去重辅助函数的落点；</li>
  *   <li>{@code NewSlugFromCitation} / {@code ExtractedItem} 等共享类型 —— cite 侧复用；</li>
  *   <li>{@code WikiBatchContext} / {@code SlugUpdate} / {@code DocIngestResult} ——
  *       Map/Reduce 阶段的数据载体。</li>
@@ -68,11 +67,11 @@ public class WikiIngestService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go {@code indexIntroSummaryCap} 用到的占位内容（L2134）。 */
+    /** 旧版默认索引导语；现有导语为空或等于它时按"首次生成"处理。 */
     static final String LEGACY_INDEX_PLACEHOLDER = "Wiki index - table of contents";
 
     // ═══════════════════════════════════════════════════════════════
-    // 依赖（对照 Go 的 wikiIngestService 字段，L363-395）
+    // 依赖
     // ═══════════════════════════════════════════════════════════════
 
     final WikiPageService wikiService;
@@ -90,34 +89,32 @@ public class WikiIngestService {
     final ObjectProvider<WikiIngestTaskHandler> taskHandler;
 
     /**
-     * 对照 Go {@code liteLocks sync.Map}（L384）：Lite 模式下的按 KB 互斥。
+     * Lite 模式下的按 KB 互斥容器。
      *
-     * <p>Go 用 {@code redisClient == nil} 判断是否 Lite 模式；Java 侧的等价判据是
-     * "没有分布式的在途限流实现"——即使用进程内实现（默认装配）。
-     * 由 {@link WikiIngestTaskHandler} 的实现在 {@code processWikiIngest} 里使用
-     * （Go 的用法就在 ProcessWikiIngest 里），本类提供容器与判据。</p>
+     * <p>Lite 判据见 {@link #isLiteMode()}（在途限流器为进程内实现）。
+     * 由 {@link WikiIngestTaskHandler} 的实现在 {@code processWikiIngest} 里使用，
+     * 本类提供容器与判据。</p>
      */
     final Set<String> liteLocks = ConcurrentHashMap.newKeySet();
 
     /**
-     * 对照 Go {@code liteFinalizeLocks sync.Map}（L388）：Lite 模式下
-     * {@code wiki:finalize:active:<kbID>} 的进程内对应物。
+     * Lite 模式下 finalize 活跃标记（{@code wiki:finalize:active:<kbID>}）的
+     * 进程内对应物。
      */
     final Set<String> liteFinalizeLocks = ConcurrentHashMap.newKeySet();
 
     /**
-     * 对照 Go {@code llmRequests singleflight.Group}（L391）：
      * 合并进程内<b>字节完全相同</b>的并发 prompt。
      */
     final SingleFlight llmRequests = new SingleFlight();
 
     /**
-     * 对照 Go {@code promptWarmups sync.Map}（L394）：只串行化同一个可复用 Wiki 页面
+     * 只串行化同一个可复用 Wiki 页面
      * 前缀的<b>首个</b>请求；其它前缀与已经预热过的同类保持并行。
      */
     final ConcurrentHashMap<String, PromptWarmup> promptWarmups = new ConcurrentHashMap<>();
 
-    /** 预热标记的回收器（对照 Go 的 {@code time.AfterFunc(4*time.Minute, ...)}）。 */
+    /** 预热标记的回收器：预热完成后延迟数分钟移除标记（覆盖并行 reduce 突发，又不常驻缓存）。 */
     final java.util.concurrent.ScheduledExecutorService warmupReaper =
             java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "wiki-prompt-warmup-reaper");
@@ -125,7 +122,7 @@ public class WikiIngestService {
                 return t;
             });
 
-    /** 对照 Go 的 {@code wikiPromptWarmup{done chan, once sync.Once}} */
+    /** 一次预热的完成标记（done 完成信号 + closed 幂等关闭位） */
     static final class PromptWarmup {
         final CompletableFuture<Void> done = new CompletableFuture<>();
         final AtomicBoolean closed = new AtomicBoolean(false);
@@ -226,22 +223,20 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 模式判定 / Lite 锁（对照 Go ProcessWikiIngest 的 L261-274 分支）
+    // 模式判定 / Lite 锁
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go 的 {@code s.redisClient == nil} 判据（L261）：是否处于 "Lite 模式"
-     * （没有跨进程协调）。
+     * 是否处于 "Lite 模式"（没有跨进程协调）。
      *
-     * <p>Java 侧以"在途限流器是否为进程内实现"为判据——进程内实现意味着
-     * 没有 Redis 级别的共享协调，正是 Go 里 {@code redisClient == nil} 的含义。</p>
+     * <p>以"在途限流器是否为进程内实现"为判据——进程内实现意味着
+     * 没有 Redis 级别的共享协调。</p>
      */
     public boolean isLiteMode() {
         return inflightLimiter instanceof InProcessWikiInflightLimiter;
     }
 
     /**
-     * 对照 Go 的 {@code liteLocks.LoadOrStore(kbID, struct{}{})}（L263）：
      * 尝试取得该 KB 的 Lite 模式独占许可。
      *
      * @return true = 取得（调用方必须配对调用 {@link #releaseLiteLock}）；
@@ -253,12 +248,12 @@ public class WikiIngestService {
         return liteLocks.add(kbId);
     }
 
-    /** 对照 Go 的 {@code defer s.liteLocks.Delete(kbID)}（L267） */
+    /** 释放该 KB 的 Lite 独占许可（批次退出时必须配对调用）。 */
     public void releaseLiteLock(String kbId) {
         liteLocks.remove(kbId);
     }
 
-    /** 对照 Go 的 {@code liteFinalizeLocks} 用法：finalize 的进程内互斥入口。 */
+    /** finalize 的进程内互斥入口。 */
     public boolean tryAcquireLiteFinalizeLock(String kbId) {
         return liteFinalizeLocks.add(kbId);
     }
@@ -269,13 +264,13 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 任务分派（对照 Go Handle，L671-678）
+    // 任务分派
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code Handle}：按任务类型分派。
+     * 按任务类型分派。
      *
-     * <p>Go 在这里 {@code switch t.Type()}。Java 侧队列（
+     * <p>队列（
      * {@link InProcessWikiIngestTaskQueue}）在投递时自己做同样的分派；
      * 本方法保留为显式的分派入口，供手工投递（测试、运维重放）使用。</p>
      *
@@ -302,20 +297,19 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 清理作用域（对照 Go wikiIngestCleanupContext，L680-695）
+    // 清理作用域
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code wikiIngestCleanupContext}（L680-685）：开一个脱钩的清理作用域。
+     * 开一个脱钩的清理作用域。
      *
-     * <p>用法与 Go 相同：{@code try (var scope = cleanupScope()) { scope.run(...); }}</p>
+     * <p>用法：{@code try (var scope = cleanupScope()) { scope.run(...); }}</p>
      */
     public WikiCleanupScope cleanupScope() {
         return WikiCleanupScope.open();
     }
 
     /**
-     * 对照 Go {@code clearDeletedKnowledgeBasePendingOps}（L687-695）：
      * KB 已被删除时清掉它名下的全部待办 op。
      */
     public void clearDeletedKnowledgeBasePendingOps(String kbId) {
@@ -328,23 +322,25 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 投递：ingest / retract（对照 Go L485-665）
+    // 投递：ingest / retract
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go 的 {@code (bool, error)} 返回：布尔是"待办 op 是否已持久化"。 */
+    // 投递：ingest / retract
+    // ═══════════════════════════════════════════════════════════════
+
+    /** 入队结果：accepted = 待办 op 是否已持久化。 */
     public record EnqueueResult(boolean accepted, Exception error) {}
 
     /**
-     * 对照 Go {@code enqueueWikiPendingOp}（L485-500）：把 op 持久化到
+     * 把 op 持久化到
      * {@code task_pending_ops}。
      *
-     * <p>Go 在有 {@code TaskPendingOpsKnowledgeBaseGuard} 时走原子守卫
-     * （"KB 仍活跃才入队"）。Java 侧该守卫尚未接线（它属于 knowledge 模块的
-     * 删除路径），因此退化为普通入队——与 Go 在没有该扩展接口时的行为一致。</p>
+     * <p>设计上有原子守卫（"KB 仍活跃才入队"），但该守卫尚未接线
+     * （它属于 knowledge 模块的删除路径），因此当前是普通入队。</p>
      */
     public boolean enqueueWikiPendingOp(TaskPendingOp op) {
         if (pendingRepo == null) {
-            // 对照 Go L490-492：pendingRepo 缺席时直接返回 (true, nil)
+            // pendingRepo 缺席：直接视为已接受
             return true;
         }
         pendingRepo.enqueue(op);
@@ -352,7 +348,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code EnqueueWikiIngest}（L502-533）：把一篇文档排进 wiki 队列，
+     * 把一篇文档排进 wiki 队列，
      * 并调度一个防抖的触发任务。
      *
      * <p>架构：每次上传往 {@code task_pending_ops} 插一行
@@ -363,7 +359,7 @@ public class WikiIngestService {
      * 全部合并：第一个拿到按 KB 许可的排空批次，后面的看到空队列即退出。</p>
      *
      * @return {@code accepted} = 待办 op 已持久化；{@code error} = 触发调度错误。
-     *         <b>触发错误可能与 accepted=true 同时返回</b>（对照 Go 注释），
+     *         <b>触发错误可能与 accepted=true 同时返回</b>，
      *         调用方可以只重试 KB 级的触发而不追加重复的操作。
      */
     public EnqueueResult enqueueWikiIngest(long tenantId, String kbId, String knowledgeId) {
@@ -394,9 +390,9 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code newWikiIngestPendingOp}（L535-559）：构造 ingest 待办行。
+     * 构造 ingest 待办行。
      *
-     * <p><b>语言必须在这里落定</b>（wiki_ingest_language_test.go 钉住的行为）：
+     * <p><b>语言必须在这里落定</b>（有回归测试钉住）：
      * wiki 工作会从后台路径（克隆/移动、重解析、内部重试）入队，而那些路径<b>从不</b>
      * 经过 HTTP 语言中间件。在那里持久化一个空 locale 会让整篇文档的语言丢失，
      * 因为 worker 是从排队的 op 解析 prompt 语言的。</p>
@@ -417,13 +413,13 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code enqueueWikiIngestTrigger}（L561-594）：调度防抖的批次触发。
+     * 调度防抖的批次触发。
      *
-     * <p>asynq 选项逐条对照：队列 wiki、MaxRetry 10、Timeout 60 分钟、
-     * ProcessIn 30 秒（{@link WikiIngestConstants#INGEST_DELAY}）。</p>
+     * <p>任务参数：MaxRetry 10、Timeout 60 分钟、ProcessIn 30 秒
+     * （{@link WikiIngestConstants#INGEST_DELAY}）。</p>
      */
     public void enqueueWikiIngestTrigger(long tenantId, String kbId) {
-        // 入队侧注入（对照 Go 的 langfuse.InjectTracing(ctx, &taskPayload)）：把当前
+        // 入队侧注入：把当前
         // 请求的 traceparent 打进负载，worker 侧续接同一棵树
         WikiIngestPayload trigger = WikiIngestPayload.withTracing(
                 tenantId, kbId, WikiLanguageSupport.languageFromContextOrDefault(),
@@ -445,7 +441,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code EnqueueWikiRetract}（L603-607）：排一次撤回（删除清理）。
+     * 排一次撤回（删除清理）。
      *
      * <p>持久化模型与 {@code EnqueueWikiIngest} 完全相同——op 坐在
      * {@code task_pending_ops} 里，一个触发稍后处理该批次。撤回用的 ProcessIn 稍短
@@ -460,7 +456,7 @@ public class WikiIngestService {
         }
     }
 
-    /** 对照 Go {@code enqueueWikiRetract}（L609-665） */
+    /** 撤回入队实现。 */
     private void enqueueWikiRetractInternal(WikiRetractPayload payload) throws Exception {
         WikiPendingOp op = new WikiPendingOp(WikiIngestConstants.OP_RETRACT, payload.knowledgeId());
         op.setDocTitle(payload.docTitle());
@@ -501,10 +497,10 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Finalize 通道（对照 Go L697-839）
+    // Finalize 通道
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code enqueueFinalizeRow}（L697-704） */
+    /** 单行 finalize 入队，失败只记 WARN。 */
     private boolean enqueueFinalizeRow(TaskPendingOp op) {
         try {
             return enqueueWikiPendingOp(op);
@@ -515,7 +511,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code enqueueFinalize}（L711-779）：把本批次的 KB 级收敛工作持久化进
+     * 把本批次的 KB 级收敛工作持久化进
      * finalize 通道，并调度一个防抖触发。
      *
      * <p>每个受影响页面一行 {@code "slug"}（本批次写过则带上新 title，供交叉链接用），
@@ -527,7 +523,7 @@ public class WikiIngestService {
                                 List<WikiFinalizeChange> changes,
                                 List<String> folderIds) {
         if (pendingRepo == null) {
-            // 对照 Go L719-721：没有持久化队列就没有 finalize 工作可记
+            // 没有持久化队列就没有 finalize 工作可记
             return;
         }
         boolean acceptedAny = false;
@@ -572,7 +568,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code uniqueWikiFolderIDs}（L781-796）：去空白、去重、保序。
+     * 去空白、去重、保序。
      */
     public static List<String> uniqueWikiFolderIDs(List<String> values) {
         if (values == null || values.isEmpty()) {
@@ -594,12 +590,12 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code scheduleFinalize}（L804-820）：调度一个防抖、可合并的
+     * 调度一个防抖、可合并的
      * KB 级 finalize 触发。
      *
-     * <p>{@code asynq.TaskID("wiki-finalize-<kbID>")} 让防抖窗口内的并发调度坍缩成
+     * <p>稳定 TaskID（{@code wiki-finalize-<kbID>}）让防抖窗口内的并发调度坍缩成
      * 一个待执行任务；<b>冲突不是失败，而是预期的合并信号</b>。Lite 模式下
-     * （对照 Go 的 sync executor）TaskID 被忽略，因此 finalize 每批次跑一次
+     * TaskID 被忽略，因此 finalize 每批次跑一次
      * ——在 Lite 面向的小规模下可以接受。</p>
      */
     public void scheduleFinalize(WikiIngestPayload payload) {
@@ -620,7 +616,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code scheduleFinalizeRetry}（L827-839）：目录剪枝还在等 ingest 行排空
+     * 目录剪枝还在等 ingest 行排空
      * 时使用。<b>刻意不带稳定的 TaskID</b>：当前正在跑的 finalize 任务仍占着那个 ID，
      * 这里复用它会把唯一的重试合并掉。重复的重试是无害的——持久化的 prune 行只会被
      * 删除一次，而空的通道是 no-op。
@@ -640,7 +636,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code scheduleCappedRetry}（L1019-1035）：批次被在途上限挡回后，
+     * 批次被在途上限挡回后，
      * 排一个<b>合并的</b>后续触发。
      *
      * <p>TaskID 把某个 KB 所有被挡回的触发坍缩成单个待执行重试（无惊群），
@@ -665,7 +661,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code scheduleStaleClaimRecheck}（L1051-1079）：为一个"仍有待办行、
+     * 为一个"仍有待办行、
      * 却什么都认领不到"（所有合格行都被<b>新鲜</b>认领持有）的 KB 布下单个、远期的
      * 安全网触发。
      *
@@ -714,14 +710,14 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 队列消费（对照 Go L841-1155）
+    // 队列消费
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go 的 {@code (ops, peekedIDs, err)} 三元返回。 */
+    /** 窥视/认领结果：解码后的 op 列表 + 被触及的原始行 id。 */
     public record PendingBatch(List<WikiPendingOp> ops, List<Long> peekedIds) {}
 
     /**
-     * 对照 Go {@code peekPendingList}（L852-869）：为该 KB 按 FIFO 载入最多
+     * 为该 KB 按 FIFO 载入最多
      * {@code limit} 条 op。<b>行不会被移除</b>；消费后必须
      * {@code DeleteByIDs}（或 {@code IncrFailCount} 后留着给下一轮）。
      *
@@ -738,10 +734,10 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code claimPendingList}（L879-896）：{@code peekPendingList} 在
+     * {@code peekPendingList} 在
      * standard（分布式协调）模式下的对应物——原子地<b>认领</b>最多 {@code limit}
-     * 条 op（标记 {@code claimed_at}），让同一 KB 的并发批次（Phase 3 移除独占
-     * 按 KB 锁之后成为可能）拉到<b>互不相交</b>的文档而不是重复处理。
+     * 条 op（标记 {@code claimed_at}），让同一 KB 的并发批次拉到<b>互不相交</b>的
+     * 文档而不是重复处理。
      * 陈旧认领（早于 {@code CLAIM_STALE_AFTER}，即来自崩溃 worker）会被回收。
      *
      * <p>去重 / peekedIds 语义与 {@code peekPendingList} 相同；返回的 peekedIds 是
@@ -758,7 +754,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code decodePendingRows}（L1086-1141）：把原始行转成
+     * 把原始行转成
      * {@link WikiPendingOp}，并按 knowledge_id 施加 last-write-wins 去重。
      *
      * <p>去重只保留每篇文档<b>最后</b>一个操作，从而优化掉冗余序列
@@ -818,10 +814,10 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code trimPendingList}（L1146-1155）：删除已消费的行。
+     * 删除已消费的行。
      * 空入参是 no-op，因此调用方可以在批次结束时无条件调用。
      *
-     * @throws RuntimeException 删除失败（对照 Go 返回 error；调用方据此让批次结算失败）
+     * @throws RuntimeException 删除失败；调用方据此让批次结算失败
      */
     public void trimPendingList(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -836,9 +832,8 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code trimPendingList(wikiIngestCleanupContext(ctx), ids)}：
-     * 在<b>脱钩</b>的清理路径上删除已消费的行（wiki_ingest_test.go 的
-     * {@code TestWikiIngestCleanupContextDetachedFromCancelledParent} 覆盖的行为）。
+     * 在<b>脱钩</b>的清理路径上删除已消费的行——父作用域已被取消/中断时
+     * 删除仍要执行（有回归测试覆盖该行为）。
      */
     public void trimPendingListDetached(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -850,18 +845,18 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 锁与限流（对照 Go L898-1011）
+    // 锁与限流
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code withSlugLock}（L912-938）：把对<b>同一个共享 wiki 页面</b>的
+     * 把对<b>同一个共享 wiki 页面</b>的
      * 读-改-写串行化。
      *
-     * <p>Phase 3 移除了按 KB 的独占批次锁，因此同一 KB 的两个批次可能同时为同一个
+     * <p>同一 KB 没有独占批次锁，两个批次可能并发，因此可能同时为同一个
      * 共享 entity/concept slug 产出更新；没有这把锁，它们的
      * {@code GetPageBySlug → UpdatePage} 循环会竞争并丢掉一份贡献。</p>
      *
-     * <p><b>失败语义（与 Go 一致）</b>：等待超时返回 false（调用方把该 slug 当作
+     * <p><b>失败语义</b>：等待超时返回 false（调用方把该 slug 当作
      * 一次尽力而为的 reduce miss）；<b>协调层故障则 fail-open</b>（不加锁直接执行）
      * ——共享页面上罕见的一次丢失更新会被 finalize / 死链清理兜住，
      * 而静默丢弃更新严格来说更糟。</p>
@@ -873,7 +868,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code reserveInflightSlot}（L969-1011）：占用该 KB 的一个并发批次槽位。
+     * 占用该 KB 的一个并发批次槽位。
      *
      * <p>{@code granted == false} 时调用方应调度 cap 重试并放弃本批次；
      * {@code granted == true} 时<b>必须</b>在批次结束时释放。</p>
@@ -883,19 +878,22 @@ public class WikiIngestService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 失败结算（对照 Go L1157-1255）
+    // 失败结算
+    // ═══════════════════════════════════════════════════════════════
+
+    // 失败结算
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code finalizeWikiSubtask}（L1168-1174）：该文档的 wiki op 到达终态
+     * 该文档的 wiki op 到达终态
      * （成功映射或已进死信）时，释放它在 finalizing 计数里的槽位。
      *
-     * <p>对应的 +1 是由 {@code KnowledgePostProcess.SetFinalizing} 在
-     * {@code willSpawnWiki} 为真时播种的。<b>只能对 ingest op 调用</b>——
+     * <p>对应的 +1 是由 {@code KnowledgeProcessWorker} 在确定要生成 wiki 时
+     * 晋升 finalizing 时播种的。<b>只能对 ingest op 调用</b>——
      * retract op 针对的是已删除的知识，没有计数器需要排空。</p>
      *
-     * <p>对已完成、或计数已为 0 的行调用是安全的 no-op（Go 的 FinalizeSubtask
-     * 同时守住了递减与晋升两个条件）。使用<b>脱钩的执行路径</b>：wiki 批次 worker
+     * <p>对已完成、或计数已为 0 的行调用是安全的 no-op（递减与晋升都带条件守卫）。
+     * 使用<b>脱钩的执行路径</b>：wiki 批次 worker
      * 可能正在关闭或父作用域已被取消，吞掉失败会把父文档永久留在 "finalizing"。</p>
      */
     public void finalizeWikiSubtask(String knowledgeId) {
@@ -904,7 +902,7 @@ public class WikiIngestService {
         }
         WikiKnowledgeFinalizer finalizer = knowledgeFinalizer.getIfAvailable();
         if (finalizer == null) {
-            // 对照 Go：knowledgeRepo 缺席时 finalizeSubtaskDetached 是 no-op
+            // finalizer 未接线：跳过（测试/裁剪装配）
             log.debug("wiki ingest: knowledge finalizer not wired, skipping subtask finalize for {}",
                     knowledgeId);
             return;
@@ -915,7 +913,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code requeueFailedOps}（L1190-1255）：记录批内失败。
+     * 记录批内失败。
      *
      * <p>对每个失败的 op：</p>
      * <ul>
@@ -928,8 +926,7 @@ public class WikiIngestService {
      *       把它从队列里移除。</li>
      * </ul>
      *
-     * <p><b>返回结算错误列表</b>（对照 Go 的 {@code errors.Join(settleErrs...)}；
-     * Java 没有错误聚合类型，返回列表比只留第一个更能暴露问题）。
+     * <p><b>返回结算错误列表</b>（返回列表比只留第一个更能暴露问题）。
      * 调用方在列表非空时不应把认领标记为"已结算"——行还在被认领或未被删除。</p>
      */
     public List<Exception> requeueFailedOps(WikiIngestPayload payload, List<WikiPendingOp> ops) {
@@ -1017,9 +1014,8 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code requeueFailedOps(wikiIngestCleanupContext(ctx), ...)}：
-     * 在脱钩路径上结算失败（Go 的调用点就是 cleanup ctx——批次超时/被取消时
-     * 仍必须把失败记账与归档做完）。
+     * 在脱钩路径上结算失败——批次超时/被取消时
+     * 仍必须把失败记账与归档做完。
      */
     public List<Exception> requeueFailedOpsDetached(WikiIngestPayload payload, List<WikiPendingOp> ops) {
         if (ops == null || ops.isEmpty()) {
@@ -1033,23 +1029,15 @@ public class WikiIngestService {
         return holder.get();
     }
 
-    /**
-     * 对照 Go {@code wikiTaxonomyNode}（L1921-1923）。
-     *
-     * <p>用 {@link java.util.TreeMap} 保证遍历即有序，但比较器是<b>码点序</b>
-     * （{@link GoStrings#compareByCodePoints}）而不是 Java 默认的 UTF-16 码元序
-     * ——Go 的 {@code sort.Strings} 是字节序，对 UTF-8 等价于码点序。</p>
-     */
-
     // ═══════════════════════════════════════════════════════════════
-    // 辅助（对照 Go L2789-2909）
+    // 辅助
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code isKnowledgeGone}（L2797-2815）：知识文档是否已删除、或正在删除中。
+     * 知识文档是否已删除、或正在删除中。
      *
-     * <p>先查墓碑快路径，再回落数据库。{@code GetKnowledgeByIDOnly} 返回 nil 同样算
-     * "已消失"：仓储层用 {@code First()} 过滤软删行，因此软删的知识在这里表现为
+     * <p>先查墓碑快路径，再回落数据库。{@code getKnowledgeByIDOnly} 返回 null 同样算
+     * "已消失"：仓储层查询会过滤软删行，因此软删的知识在这里表现为
      * "查不到"——正是我们要的。</p>
      */
     public boolean isKnowledgeGone(String kbId, String knowledgeId) {
@@ -1062,8 +1050,7 @@ public class WikiIngestService {
         }
         KnowledgeMapper mapper = knowledgeMapper.getIfAvailable();
         if (mapper == null) {
-            // 无知识仓储可查 —— 无法判定，保守地当作"还在"
-            // （对照 Go 只有 knowledgeSvc 一定存在，此处是 Java 侧的装配差异）
+            // 无知识仓储可查（装配裁剪）—— 无法判定，保守地当作"还在"
             return false;
         }
         Knowledge kn;
@@ -1082,7 +1069,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code filterLiveUpdates}（L2821-2855）：丢弃那些源知识在 Map 阶段结束后
+     * 丢弃那些源知识在 Map 阶段结束后
      * 已被删除的新增 / 摘要更新。<b>retract 更新被保留</b>，页面因此仍能得到清理。
      * 按知识缓存判定结果，避免单个 reduce slug 携带同一文档的多个更新时反复打库。
      */
@@ -1116,7 +1103,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code reconstructContent}（L2865-2875）：从 chunk 重建文档正文。
+     * 从 chunk 重建文档正文。
      *
      * <p><b>只拼接文本类型的 chunk</b>——图片 OCR / caption 信息存在
      * {@code image_ocr} / {@code image_caption} 子 chunk 上，不在父文本 chunk 的
@@ -1143,22 +1130,20 @@ public class WikiIngestService {
         return WikiChunkMerge.mergeTextChunks(textChunks, "\n");
     }
 
-    /** 对照 Go {@code types.ChunkTypeText}（= "text"） */
+    /** 文本类型的 chunk type 取值 */
     public static final String CHUNK_TYPE_TEXT = "text";
 
-    /** 对照 Go {@code types.ChunkTypeImageOCR}（= "image_ocr"） */
+    /** 图片 OCR 子 chunk 的 chunk type 取值 */
     public static final String CHUNK_TYPE_IMAGE_OCR = "image_ocr";
 
-    /** 对照 Go {@code types.ChunkTypeImageCaption}（= "image_caption"） */
+    /** 图片 caption 子 chunk 的 chunk type 取值 */
     public static final String CHUNK_TYPE_IMAGE_CAPTION = "image_caption";
 
     /**
-     * 对照 Go {@code reconstructEnrichedContent}（L2883-2909）：重建正文并把
+     * 重建正文并把
      * 图片的 OCR / caption 文本内联进来。
      *
-     * <p>没有图片信息时返回纯文本重建结果——这<b>正是</b> Go 在
-     * {@code mergedImageInfo == ""} 或没有文本 chunk 时的行为，因此
-     * {@link WikiImageEnricher} 未接线时的退化路径与 Go 的等价路径完全重合。</p>
+     * <p>没有图片信息时返回纯文本重建结果——与富化器缺席时的退化路径一致。</p>
      */
     public String reconstructEnrichedContent(List<Chunk> chunks, long tenantId) {
         String content = reconstructContent(chunks);
@@ -1183,7 +1168,7 @@ public class WikiIngestService {
     }
 
     /**
-     * 对照 Go {@code beginWikiSubspan}（L453-466）：为该文档在知识追踪树下开一个
+     * 为该文档在知识追踪树下开一个
      * {@code postprocess.wiki} 子 span。
      *
      * <p>已接线（2026-09-24）：真实实现在 {@link WikiBatchSupport.WikiSpans#beginWikiSubspan}，

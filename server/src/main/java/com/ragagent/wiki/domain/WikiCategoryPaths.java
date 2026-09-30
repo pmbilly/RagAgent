@@ -7,8 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Wiki 目录路径 / 候选类型的纯函数工具（逐条对照 Go internal/types/wiki_page.go
- * L21-133 + L823-834）。
+ * Wiki 目录路径 / 候选类型的纯函数工具。
  *
  * <p>这些函数是 service、repository、taxonomy 三层共用的<b>同一份</b>归一化规则：
  * 页面写入时存的路径与列表/过滤查询匹配的路径必须经过完全相同的清洗，
@@ -18,16 +17,14 @@ public final class WikiCategoryPaths {
 
     private WikiCategoryPaths() {}
 
-    /** 全角 / 竖线分隔符统一成 "/"（对照 Go wikiCategorySeparatorReplacer L21） */
+    /** 全角 / 竖线分隔符统一成 "/" */
     private static String replaceSeparators(String s) {
         return s.replace('／', '/').replace('｜', '/').replace('|', '/');
     }
 
     /**
-     * 对照 Go CleanWikiCategoryPart（L26-44）。
-     *
-     * <p>把单个原始分类标签归一化：可能自带分隔符、包裹引号/括号、或页面类型噪声，
-     * 返回拆开后的干净子标签（"entity"/"实体" 之类的类型标签被丢弃）。</p>
+     * 把单个原始分类标签归一化：可能自带分隔符、包裹引号/括号、或页面类型噪声，
+     * 返回拆开后的干净子标签（"entity"/"实体" 之类的类型标签被丢弃）。
      */
     public static List<String> cleanCategoryPart(String part) {
         if (part == null) {
@@ -52,8 +49,7 @@ public final class WikiCategoryPaths {
     }
 
     /**
-     * 对照 Go CleanWikiCategoryPath（L50-64）：清洗 + 去重 + 按
-     * {@link WikiConstants#CATEGORY_MAX_DEPTH} 截断。
+     * 清洗 + 去重 + 按 {@link WikiConstants#CATEGORY_MAX_DEPTH} 截断。
      */
     public static List<String> cleanCategoryPath(List<String> parts) {
         if (parts == null) {
@@ -75,11 +71,9 @@ public final class WikiCategoryPaths {
     }
 
     /**
-     * 对照 Go TrimWikiFolderSegments（L71-79）。
-     *
-     * <p>文件夹路径段<b>原样保留</b>，只丢空段。文件夹名在创建时已校验（无分隔符），
+     * 文件夹路径段<b>原样保留</b>，只丢空段。文件夹名在创建时已校验（无分隔符），
      * 且文件夹树才是页面归属的唯一真相来源，故与 {@link #cleanCategoryPath} 不同：
-     * 不做类型过滤、不去重、不限深度——用户合法地可以把文件夹命名为"概念"或"Concepts"。</p>
+     * 不做类型过滤、不去重、不限深度——用户合法地可以把文件夹命名为"概念"或"Concepts"。
      */
     public static List<String> trimFolderSegments(List<String> parts) {
         if (parts == null) {
@@ -99,7 +93,7 @@ public final class WikiCategoryPaths {
     }
 
     /**
-     * 对照 Go WikiFolderPathSegments（L83-88）：把物化的文件夹路径（"AI/RAG"）
+     * 把物化的文件夹路径（"AI/RAG"）
      * 拆成字面段。空/纯空白路径返回空列表（即 wiki 根）。
      */
     public static List<String> folderPathSegments(String path) {
@@ -110,7 +104,7 @@ public final class WikiCategoryPaths {
     }
 
     /**
-     * 对照 Go SplitWikiPageTypes（L95-113）：解析可能带逗号分隔多类型的 page_type
+     * 解析可能带逗号分隔多类型的 page_type
      * （如 "entity,concept"），去重后返回；空/纯空白输入返回空列表（= 不过滤）。
      * handler（查询解析）与 repository（List 过滤）共用，保证两层切分方式一致。
      */
@@ -130,7 +124,7 @@ public final class WikiCategoryPaths {
     }
 
     /**
-     * 对照 Go WikiSourceKnowledgeID（L825-834）：从 source_refs 条目里取出 knowledge id，
+     * 从 source_refs 条目里取出 knowledge id，
      * 存储形式为 "uuid" 或 "uuid|title"。
      */
     public static String sourceKnowledgeID(String ref) {
@@ -149,8 +143,9 @@ public final class WikiCategoryPaths {
     }
 
     /**
-     * 对照 Go isWikiTypeCategoryLabel（L115-124）：类型标签（entity/实体/…）会被
-     * {@link #cleanCategoryPart} 丢弃。注意 Go 会先 lower 再去掉一个尾随 "s"。
+     * 类型标签（entity/实体/…）会被
+     * {@link #cleanCategoryPart} 丢弃。注意匹配前先 lower、再去掉一个尾随 "s"
+     * （复数形式的 "concepts" 也能命中）。
      */
     public static boolean isTypeCategoryLabel(String label) {
         String normalized = label == null ? "" : label.trim().toLowerCase(Locale.ROOT);
@@ -166,8 +161,8 @@ public final class WikiCategoryPaths {
     }
 
     /**
-     * 对照 Go strings.Trim(label, `"'“”‘’[]（）()`)
-     * ——从两端反复裁掉集合内的字符（Trim 的 cutset 语义，非前缀剥离）。
+     * 从两端反复裁掉包裹字符（{@link #isWrappingChar} 集合）——
+     * cutset 语义（两端反复裁），非前缀/后缀一次性剥离。
      */
     private static String trimWrappingQuotes(String label) {
         int start = 0;

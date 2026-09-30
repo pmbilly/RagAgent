@@ -18,10 +18,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 批次目录规划与 embedding 选夹（对照 Go wiki_ingest_taxonomy.go，323 行）。
+ * 批次目录规划与 embedding 选夹。
  *
  * <h2>为什么是"整批一次规划"而不是逐页并行发明目录</h2>
- * <p>（照搬 Go 注释）这取代了逐页、并行的 CATEGORY 发明——后者无法收敛，
+ * <p>这取代了逐页、并行的 CATEGORY 发明——后者无法收敛，
  * 在 KB 还没有任何目录可锚定的首批文档上尤其糟。整批一次规划让整个集合落在
  * <b>同一棵连贯的树</b>上，并复用既有目录。</p>
  *
@@ -50,7 +50,7 @@ public class WikiIngestTaxonomy {
     }
 
     /**
-     * 对照 Go {@code wikiTaxonomyItem}（taxonomy L18-23）：待归档进目录的一个
+     * 待归档进目录的一个
      * entity/concept 页面。
      */
     public record TaxonomyItem(String slug, String title, String pageType, String about) { }
@@ -60,7 +60,7 @@ public class WikiIngestTaxonomy {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code planBatchTaxonomy}（taxonomy L32-102）：<b>一次</b>规划出一整批
+     * <b>一次</b>规划出一整批
      * entity/concept slug 的目录路径（大批次会分块），让整个集合落在同一棵连贯的树上、
      * 并复用既有目录。返回的 map 以 slug 为键；某个条目不可分类时值可以是空列表。
      * Reduce 只会把这些应用到<b>尚无目录</b>的页面上。
@@ -147,7 +147,7 @@ public class WikiIngestTaxonomy {
     }
 
     /**
-     * 对照 Go {@code resolvePlannedFolders}（taxonomy L110-140）：把 planner 的
+     * 把 planner 的
      * 逐 slug 路径落实成真实的 {@code wiki_folders} 行，返回 slug → folder id。
      *
      * <p>目录创建在这里、在并行 reduce 阶段<b>之前</b>、顺序完成，所以 reduce 只分配
@@ -193,7 +193,7 @@ public class WikiIngestTaxonomy {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code selectRelevantFolders}（taxonomy L149-208）：把既有目录池收窄成
+     * 把既有目录池收窄成
      * <b>本批次</b>值得给 planner 看的子集。健康的导航目录很小，整体喂入
      * （完美的复用召回、零 embedding 成本）。只有目录多起来之后，相似度预处理才介入：
      * 所有一级目录作为粗锚点<b>永远保留</b>，每个条目再按 embedding 相似度拉进
@@ -223,7 +223,7 @@ public class WikiIngestTaxonomy {
         }
 
         // 判据<b>纯粹</b>是"是否配置了 embedding 模型"——<b>不是</b>
-        // NeedsEmbeddingModel()，后者对纯 wiki KB 为 false，而那些 KB 仍可能
+        // KB 的"内容抽取需要 embedding"开关，后者对纯 wiki KB 为 false，而那些 KB 仍可能
         // 专门为目录/分类相似度选配一个 embedding 模型。
         String embeddingModelId = kb.getEmbeddingModelId();
         if (embeddingModelId == null || embeddingModelId.trim().isEmpty() || deeper.isEmpty()) {
@@ -275,11 +275,10 @@ public class WikiIngestTaxonomy {
     }
 
     /**
-     * 对照 Go {@code selectFoldersByVectors}（taxonomy L212-238）：返回在<b>任意</b>
+     * 返回在<b>任意</b>
      * 条目的 top-K 余弦相似度里排上号的深层目录，为确定性而<b>保留输入顺序</b>。
      *
-     * <p>（Go 的入参是 {@code [][]float32}；Java 侧沿用 {@code List<float[]>} 与
-     * embedding 客户端的返回类型对齐。）</p>
+     * <p>向量类型与 embedding 客户端的返回类型（{@code List<float[]>}）对齐。</p>
      */
     public static List<List<String>> selectFoldersByVectors(List<List<String>> deeper,
                                                             List<float[]> folderVecs,
@@ -298,7 +297,7 @@ public class WikiIngestTaxonomy {
             for (int fi = 0; fi < folderVecs.size(); fi++) {
                 ranking.add(new Scored(fi, cosineSimilarity(iv, folderVecs.get(fi))));
             }
-            // Go 的 sort.SliceStable（降序）：Java 的 List.sort 本身稳定
+            // 降序排序：List.sort 是稳定排序，并列时保持输入顺序
             ranking.sort((a, b) -> Double.compare(b.sim(), a.sim()));
             for (int k = 0; k < topK && k < ranking.size(); k++) {
                 chosen.add(ranking.get(k).idx());
@@ -314,7 +313,7 @@ public class WikiIngestTaxonomy {
     }
 
     /**
-     * 对照 Go {@code cosineSimilarity}（taxonomy L242-256）：两个等长向量的余弦；
+     * 两个等长向量的余弦；
      * 空 / 长度不匹配 / 零范数输入返回 0。
      */
     public static double cosineSimilarity(float[] a, float[] b) {
@@ -336,7 +335,7 @@ public class WikiIngestTaxonomy {
     }
 
     /**
-     * 对照 Go {@code capFolders}（taxonomy L259-264）：把目录列表截到最多 max 条
+     * 把目录列表截到最多 max 条
      * （{@code max <= 0} = 不限）。
      */
     public static List<List<String>> capFolders(List<List<String>> paths, int max) {
@@ -354,7 +353,7 @@ public class WikiIngestTaxonomy {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code collectTaxonomyItems}（taxonomy L269-296）：从批次的 slugUpdates
+     * 从批次的 slugUpdates
      * 里抽出 entity/concept 页面，按<b>确定的 slug 顺序</b>排列，让分块边界稳定。
      * summary 与仅 retract 的 slug 被跳过（它们不携带目录分类）。
      */
@@ -364,7 +363,7 @@ public class WikiIngestTaxonomy {
             return items;
         }
         List<String> slugs = new ArrayList<>(slugUpdates.keySet());
-        // 对照 Go 的 sort.Strings：按 UTF-8 字节序（≡ 码点序），不能用 String.compareTo
+        // 按码点序排序（不能用 String.compareTo，其对增补平面字符不友好）
         slugs.sort(GoStrings::compareByCodePoints);
 
         for (String slug : slugs) {
@@ -391,7 +390,7 @@ public class WikiIngestTaxonomy {
     }
 
     /**
-     * 对照 Go {@code parseTaxonomyAssignments}（taxonomy L300-323）：把规划 LLM 的
+     * 把规划 LLM 的
      * JSON 解析成 slug → 路径。畸形输出返回 null；slug 为空的条目被丢弃。
      */
     public static Map<String, List<String>> parseTaxonomyAssignments(String raw) {

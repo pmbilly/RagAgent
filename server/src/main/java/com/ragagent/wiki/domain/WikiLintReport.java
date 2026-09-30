@@ -7,12 +7,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 一次 wiki 体检的完整报告（对照 Go internal/application/service/wiki_lint.go
- * L47-54 的 {@code WikiLintReport}）。
+ * 一次 wiki 体检的完整报告。
  *
- * <p><b>issues 允许为 null</b>：Go 的 {@code var issues []WikiLintIssue} 初始是
- * nil slice，一条问题都没有时序列化成 {@code "issues":null}（不是 {@code []}）。
- * 前端只做 {@code issues?.length}，这里照抄 Go 行为以保持逐字节契约。</p>
+ * <p><b>issues 允许为 null</b>：一条问题都没有时序列化成 {@code "issues":null}
+ * （不是 {@code []}）。前端只做 {@code issues?.length}，出口契约按此保持。</p>
  */
 @JsonPropertyOrder({"knowledge_base_id", "issues", "health_score", "stats", "summary"})
 public class WikiLintReport {
@@ -20,7 +18,7 @@ public class WikiLintReport {
     @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
-    /** 见类注释：空时保持 null（对照 Go nil slice） */
+    /** 见类注释：空时保持 null 而非 [] */
     @JsonProperty("issues")
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private List<WikiLintIssue> issues;

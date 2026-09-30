@@ -7,33 +7,26 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 合并进程内<b>字节完全相同</b>的并发请求（对照 Go 的
- * {@code golang.org/x/sync/singleflight.Group}，见 wiki_ingest.go 的
- * {@code llmRequests singleflight.Group}，L391）。
+ * 合并进程内<b>字节完全相同</b>的并发请求（in-flight 去重）。
  *
  * <p><b>解决什么问题</b>：wiki ingest 的一个 reduce 批次会并发地对同一份
  * {@code WikiPageModifyUserPrompt} 发起多个 LLM 请求（每个页面一个），而它们的
  * 消息体可能逐字节相同（同一页面、同一批新信息被两条路径同时更新）。并发相同的
  * 请求打到 provider 是纯粹的浪费与限流风险，合并成一次即可。</p>
  *
- * <h2>与 Go 的语义对应</h2>
+ * <h2>语义要点</h2>
  * <ul>
- *   <li>Go 的 {@code Group.DoChan(key, fn)} 返回一个 channel，调用方
- *       {@code select} 在 {@code ctx.Done()} 与结果之间二选一。
- *       Java 的 {@link CompletableFuture} 天然同时承载「值」与「异常」，
- *       正好对应 Go {@code singleflight.Result{Val, Err}} 的两个字段——
+ *   <li>{@link CompletableFuture} 同时承载「值」与「异常」——
  *       失败以 {@code completeExceptionally} 表达，而不是一个"装着错误的值"。</li>
- *   <li><b>fn 在独立线程上执行</b>：Go 的 DoChan 立刻返回、fn 跑在新建的 goroutine 里，
- *       所以率先发起调用的那个调用方<b>不会</b>因为 fn 阻塞而失去取消能力。
- *       Java 侧同样把 fn 提交到虚拟线程执行器上，而不是在 leader 线程里内联跑完
+ *   <li><b>fn 在独立线程上执行</b>：率先发起调用的那个调用方<b>不会</b>因为 fn 阻塞
+ *       而失去取消能力。fn 提交到虚拟线程执行器上，而不是在 leader 线程里内联跑完
  *       ——否则 leader 被阻塞时，跟随者拿到的其实是一个"被自己的调用栈卡住"的 future。</li>
  *   <li><b>只在飞行期间合并</b>：完成后立刻从表里摘除，因此"上一次刚结束、新的
- *       相同请求马上到来"会真实地再执行一次（与 Go 一致——singleflight 不是缓存）。</li>
+ *       相同请求马上到来"会真实地再执行一次（这不是缓存）。</li>
  * </ul>
  *
- * <p><b>⚠️ 多实例差异</b>：合并范围只有<b>单个 JVM</b>。Go 侧同样是进程内合并
- * （singleflight 从来不是分布式的），因此这一条与 Go <b>完全一致</b>，
- * 不构成部署约束。</p>
+ * <p><b>⚠️ 合并范围</b>：只有<b>单个 JVM</b>——进程内合并，不构成分布式去重；
+ * 多实例部署时各实例独立合并。</p>
  */
 public final class SingleFlight {
 
@@ -56,7 +49,7 @@ public final class SingleFlight {
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
     /**
-     * 对照 Go {@code Group.DoChan}：若 key 已有在飞行的调用，直接返回它的 future；
+     * 若 key 已有在飞行的调用，直接返回它的 future；
      * 否则以本调用为 leader，把 fn 提交到虚拟线程执行并在完成后发布结果。
      *
      * <p>返回的 future 已完成时（或失败时）同样可用——调用方只需
@@ -90,10 +83,9 @@ public final class SingleFlight {
     }
 
     /**
-     * 对照 Go 的 {@code (interface{}, error)} 返回：把 future 的值取出来。
+     * 把 future 的值取出来。
      *
-     * <p>失败时抛出<b>原始的</b>受检异常（而非包一层 {@code ExecutionException}），
-     * 让调用方拿到与 Go {@code result.Err} 等价的错误对象。</p>
+     * <p>失败时抛出<b>原始的</b>受检异常（而非包一层 {@code ExecutionException}）。</p>
      */
     public static Object await(CompletableFuture<Object> future) throws Exception {
         try {

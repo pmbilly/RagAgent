@@ -8,25 +8,20 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * wiki 链接图谱的类型集合（对照 Go internal/types/wiki_page.go 里 WikiGraph* 系列：
- * WikiGraphRequest L674-685 / WikiGraphData L688-692 / WikiGraphMeta L697-706 /
- * WikiGraphNode L709-719 / WikiGraphEdge L722-725）。
- *
- * <p>Go 里它们是 5 个独立类型，Java 收敛为一个类的静态嵌套类型，命名一一对应：
- * {@code WikiGraphRequest → WikiGraph.Request}、{@code WikiGraphData → WikiGraph.Data}、
- * {@code WikiGraphMeta → WikiGraph.Meta}、{@code WikiGraphNode → WikiGraph.Node}、
- * {@code WikiGraphEdge → WikiGraph.Edge}。</p>
+ * wiki 链接图谱的类型集合：service 入参（{@link WikiGraph.Request}）与可视化响应
+ * （{@link WikiGraph.Data} 及其 {@link WikiGraph.Meta}/{@link WikiGraph.Node}/{@link WikiGraph.Edge}）
+ * 收敛为一个类的静态嵌套类型。
  */
 public final class WikiGraph {
 
     private WikiGraph() {}
 
-    /** 模式常量（对照 Go L657-664） */
+    /** 模式常量 */
     public static final String MODE_OVERVIEW = WikiConstants.GRAPH_MODE_OVERVIEW;
     public static final String MODE_EGO = WikiConstants.GRAPH_MODE_EGO;
 
     /**
-     * service 层图谱查询入参（对照 Go WikiGraphRequest）。
+     * service 层图谱查询入参。
      *
      * <p>Limit 策略：非正数表示"不设上限"，仅保留给内部调用方（如 wiki lint）取全图；
      * HTTP handler 永远会在调用 service 前把 Limit 夹到安全区间，外部流量拿不到全图。</p>
@@ -50,7 +45,7 @@ public final class WikiGraph {
             List<String> familiarKnowledgeIds) {
     }
 
-    /** 可视化用的链接图结构（对照 Go WikiGraphData） */
+    /** 可视化用的链接图结构 */
     @JsonPropertyOrder({"nodes", "edges", "meta"})
     public static final class Data {
         @JsonProperty("nodes")
@@ -71,7 +66,7 @@ public final class WikiGraph {
     }
 
     /**
-     * 返回的子图与完整知识库图谱的关系（对照 Go WikiGraphMeta）。
+     * 返回的子图与完整知识库图谱的关系。
      * 前端用 {@code truncated} 决定是否显示"显示 X / 共 Y"提示并开启 ego 展开。
      */
     @JsonPropertyOrder({"mode", "total", "returned", "truncated", "center", "depth", "familiar_count"})
@@ -120,7 +115,7 @@ public final class WikiGraph {
         public void setFamiliarCount(int v) { this.familiarCount = v; }
     }
 
-    /** 图谱中的一个节点（对照 Go WikiGraphNode） */
+    /** 图谱中的一个节点 */
     @JsonPropertyOrder({"slug", "title", "page_type", "link_count", "familiar"})
     public static final class Node {
         @JsonProperty("slug")
@@ -156,7 +151,7 @@ public final class WikiGraph {
         public void setFamiliar(boolean v) { this.familiar = v; }
     }
 
-    /** 图谱中的一条有向边（对照 Go WikiGraphEdge） */
+    /** 图谱中的一条有向边 */
     @JsonPropertyOrder({"source", "target"})
     public static final class Edge {
         /** 源 slug */

@@ -4,8 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 在 parentID 下新建（初始为空）文件夹的请求（对照 Go types.WikiFolderCreateRequest，
- * internal/types/wiki_page.go L455-458）。
+ * 在 parentID 下新建（初始为空）文件夹的请求。JSON 键为 snake（§11 登记边界，前端按此解析）。
  */
 @JsonPropertyOrder({"parent_id", "name"})
 public record WikiFolderCreateRequest(

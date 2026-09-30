@@ -15,23 +15,22 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * wiki_page_revisions 仓储语句（对照 Go repository/wiki_page.go 的修订相关方法）。
+ * wiki_page_revisions 仓储语句。
  *
- * <p>GORM 隐式行为清单（约定 §3）：</p>
+ * <p>原 ORM 隐式行为清单（约定 §3）：</p>
  * <ul>
  *   <li><b>无软删除</b>：本表没有 deleted_at 列，删除都是硬删。</li>
  *   <li><b>列表投影</b>：{@link #listRevisions} 刻意不 SELECT content
- *       （对照 Go {@code wikiRevisionListColumns}，L183-184）。</li>
- *   <li><b>ON CONFLICT DO NOTHING</b>：Go 用 {@code clause.OnConflict}（L121-124）
- *       让"同 (page_id, version) 已存在"成为静默 no-op。PG 原生支持；
- *       非 PG 方言（H2）退化为 {@code MERGE INTO ... KEY (page_id, version)}——
+ *       （见 {@link #LIST_COLUMNS}）。</li>
+ *   <li><b>ON CONFLICT DO NOTHING</b>：让"同 (page_id, version) 已存在"成为静默 no-op。
+ *       PG 原生支持；非 PG 方言（H2）退化为 {@code MERGE INTO ... KEY (page_id, version)}——
  *       重复时的净效果相同（历史里只留一份），因为并发写者写的是<b>同一份</b>快照。</li>
  * </ul>
  */
 @Mapper
 public interface WikiPageRevisionMapper extends BaseMapper<WikiPageRevision> {
 
-    /** 列表投影列（对照 Go wikiRevisionListColumns）：除 content 外的全部列 */
+    /** 列表投影列：除 content 外的全部列 */
     String LIST_COLUMNS = "id, tenant_id, knowledge_base_id, page_id, slug, version, "
             + "title, page_type, status, summary, aliases, edit_source, editor_id, edited_at, created_at";
 
@@ -61,8 +60,7 @@ public interface WikiPageRevisionMapper extends BaseMapper<WikiPageRevision> {
                                     @Param("version") int version);
 
     /**
-     * 对照 Go UpdateWithRevision 里的 {@code OnConflict{... DoNothing:true}}.Create(rev)
-     * （L121-124）：插入已被取代的版本快照，重复的 (page_id, version) 是静默 no-op。
+     * 插入已被取代的版本快照，重复的 (page_id, version) 是静默 no-op。
      */
     @Insert("<script><choose>"
             + "<when test='postgres'>"
@@ -91,12 +89,12 @@ public interface WikiPageRevisionMapper extends BaseMapper<WikiPageRevision> {
     int insertSnapshotDoNothing(@Param("rev") WikiPageRevision rev,
                                 @Param("postgres") boolean postgres);
 
-    /** 对照 Go ListRevisions 的 COUNT（L193-196） */
+    /** 修订总数（配合 {@link #listRevisions}） */
     @Select("SELECT COUNT(*) FROM wiki_page_revisions WHERE knowledge_base_id = #{kbId} "
             + "AND page_id = #{pageId}")
     long countRevisions(@Param("kbId") String kbId, @Param("pageId") String pageId);
 
-    /** 对照 Go ListRevisions（L187-208）：最新在前，content 省略 */
+    /** 修订列表：最新在前，content 省略 */
     @ResultMap("wikiPageRevisionResult")
     @Select("SELECT " + LIST_COLUMNS + " FROM wiki_page_revisions "
             + "WHERE knowledge_base_id = #{kbId} AND page_id = #{pageId} "
@@ -106,7 +104,7 @@ public interface WikiPageRevisionMapper extends BaseMapper<WikiPageRevision> {
                                          @Param("limit") int limit,
                                          @Param("offset") int offset);
 
-    /** 对照 Go PruneRevisions 的软上限分支（L234-241）：只删可剪枝来源的旧快照 */
+    /** 软上限分支：只删可剪枝来源的旧快照 */
     @Update("<script>DELETE FROM wiki_page_revisions WHERE page_id = #{pageId} "
             + "AND version &lt; #{keepFromVersion} AND edit_source IN "
             + "<foreach collection='prunableSources' item='s' open='(' separator=',' close=')'>#{s}</foreach>"
@@ -115,16 +113,16 @@ public interface WikiPageRevisionMapper extends BaseMapper<WikiPageRevision> {
                        @Param("keepFromVersion") int keepFromVersion,
                        @Param("prunableSources") List<String> prunableSources);
 
-    /** 对照 Go PruneRevisions 的硬上限分支（L242-248）：无视作者 */
+    /** 硬上限分支：无视作者 */
     @Update("DELETE FROM wiki_page_revisions WHERE page_id = #{pageId} AND version < #{hardKeepFromVersion}")
     int pruneBelowVersion(@Param("pageId") String pageId,
                           @Param("hardKeepFromVersion") int hardKeepFromVersion);
 
     /**
-     * 对照 Go DeleteRevisionsByPage（L256-263）：硬删整页快照历史。
+     * 硬删整页快照历史。
      *
      * <p>页面本身是软删，但软删后的页面在任何读路径上都不可达，其快照就是死重量——
-     * 而它们是 wiki 里最占空间的行。page_id 为空时由 repository 短路（Go L257-259），
+     * 而它们是 wiki 里最占空间的行。page_id 为空时由 repository 短路，
      * 避免变成全表删除。</p>
      */
     @Update("DELETE FROM wiki_page_revisions WHERE page_id = #{pageId}")

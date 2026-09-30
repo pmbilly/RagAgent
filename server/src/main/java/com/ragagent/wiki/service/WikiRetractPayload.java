@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * wiki 内容撤回任务的载荷（对照 Go {@code WikiRetractPayload}，wiki_ingest.go L301-312）。
+ * wiki 内容撤回任务的载荷。
  *
  * <p>文档被删除时携带该文档写过的页面 slug 与它曾归属的目录 id，让 wiki 侧能把
  * 只由它支撑的页面删掉、多来源页面走 LLM 撤回、并回收可能变空的目录。</p>

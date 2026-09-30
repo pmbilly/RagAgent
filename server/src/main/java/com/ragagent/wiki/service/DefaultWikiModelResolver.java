@@ -16,20 +16,16 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * {@link WikiModelResolver} 的默认实现：把 Go 的
- * {@code modelService.GetChatModel} / {@code GetEmbeddingModel} 用 Java 侧已有的部件拼出来。
+ * {@link WikiModelResolver} 的默认实现：用 Java 侧已有的部件拼出 chat / embedding 模型。
  *
- * <p>逐条对照：</p>
  * <ul>
- *   <li>chat：{@code ModelService.getModelByID}（含"downloading → 500"状态闸门，
- *       对照 Go GetModelByID）→ {@link ChatConfig#fromModel} → {@link LlmChatClients#create}
- *       （含并发闸门装饰器）。<b>已知差异</b>：Go 在 provider=weknoracloud 且租户未存
- *       app_id/app_secret 时会回落租户级凭据，Java 侧 {@code TenantService} 尚无该读取口
+ *   <li>chat：{@code ModelService.getModelByID}（含"downloading → 500"状态闸门）
+ *       → {@link ChatConfig#fromModel} → {@link LlmChatClients#create}
+ *       （含并发闸门装饰器）。<b>已知差异</b>：provider=weknoracloud 且租户未存
+ *       app_id/app_secret 时不会回落租户级凭据——Java 侧 {@code TenantService} 尚无该读取口
  *       （与 {@code McpServiceController#chatClientFor} 的既有取舍一致）。</li>
- *   <li>embedding：Go 的 {@code GetEmbeddingModel} 会校验模型类型并构造
- *       {@code EmbedderPooler}。Java 侧复用阶段 3 的
- *       {@link EmbedderClient}（最小 OpenAI 兼容客户端，对照
- *       {@code OpenAICompatibleEmbedder} 路径）。</li>
+ *   <li>embedding：先校验模型类型确为 embedding，再复用
+ *       {@link EmbedderClient}（最小 OpenAI 兼容客户端）。</li>
  * </ul>
  */
 @Component
@@ -37,7 +33,7 @@ public class DefaultWikiModelResolver implements WikiModelResolver {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultWikiModelResolver.class);
 
-    /** 对照 Go {@code types.ModelTypeEmbedding}（model.parameters.type 的取值） */
+    /** model.parameters.type 里表示 embedding 模型的取值 */
     static final String MODEL_TYPE_EMBEDDING = "Embedding";
 
     private final ModelService modelService;
@@ -70,7 +66,7 @@ public class DefaultWikiModelResolver implements WikiModelResolver {
         Model model = modelService.getModelByID(modelId);
         String type = model.getType();
         if (!MODEL_TYPE_EMBEDDING.equals(type)) {
-            // 对照 Go GetEmbeddingModel 的类型闸门：非 embedding 模型直接报错，
+            // 类型闸门：非 embedding 模型直接报错，
             // 让调用方回落到"喂全部目录"的降级路径，而不是发一次注定失败的请求。
             throw new IllegalStateException(
                     "model " + modelId + " is not an embedding model (type=" + type + ")");

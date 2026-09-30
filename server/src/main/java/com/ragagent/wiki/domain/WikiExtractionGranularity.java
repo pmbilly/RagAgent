@@ -1,16 +1,14 @@
 package com.ragagent.wiki.domain;
 
 /**
- * 候选 slug 抽取（Pass 0）的激进程度（对照 Go types.WikiExtractionGranularity，
- * internal/types/wiki_page.go L477-518）。
+ * 候选 slug 抽取（Pass 0）的激进程度。
  *
  * <p>粒度越高 = 抽出的 slug 越多；越低 = 越聚焦文档主题。</p>
  *
- * <p><b>为什么是 enum + 静态方法而不是「字段用 enum」</b>：Go 的这个类型是
- * {@code type WikiExtractionGranularity string}，其零值是 {@code ""}（历史行 / 未设置），
- * 且 {@code Normalize()} 会把空值与未知值映射为 standard。JSON 往返必须<b>保留 ""</b>
- * （omitempty 会把空串整键省略），所以 {@link WikiConfig} 里字段类型仍是 {@code String}，
- * 本枚举只提供取值 / 校验 / 归一化。</p>
+ * <p><b>为什么是 enum + 静态方法而不是「字段用 enum」</b>：历史行/未设置时库里存的是
+ * {@code ""}，JSON 往返必须<b>保留 ""</b>（空串整键省略会丢信息），所以
+ * {@link WikiConfig} 里字段类型仍是 {@code String}，本枚举只提供取值 / 校验 / 归一化
+ * （空值与未知值归一化为 standard）。</p>
  */
 public enum WikiExtractionGranularity {
 
@@ -38,12 +36,12 @@ public enum WikiExtractionGranularity {
         this.value = value;
     }
 
-    /** 线格式值（= Go 常量字面量） */
+    /** 线格式值（JSON/库中存储的字面量） */
     public String value() {
         return value;
     }
 
-    /** 对照 Go IsValid（L502-508）：严格区分大小写，非三个值之一即非法。 */
+    /** 严格区分大小写，非三个值之一即非法。 */
     public static boolean isValid(String raw) {
         for (WikiExtractionGranularity g : values()) {
             if (g.value.equals(raw)) {
@@ -54,7 +52,7 @@ public enum WikiExtractionGranularity {
     }
 
     /**
-     * 对照 Go Normalize（L513-518）：合法则原样返回，否则回落 standard。
+     * 合法则原样返回，否则回落 standard。
      * 调用方拿配置前都过一遍，避免历史行里的空值/未知值惊吓抽取 prompt。
      */
     public static String normalize(String raw) {

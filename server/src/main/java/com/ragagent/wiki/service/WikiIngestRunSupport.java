@@ -40,9 +40,8 @@ final class WikiIngestRunSupport {
     }
 
     /**
-     * 对照 Go {@code ProcessWikiIngest} L257-279：Lite 模式的按 KB 独占。
-     *
-     * <p>Standard 模式在 Phase 3 已不再取任何按 KB 的独占锁。</p>
+     * ingest 入口：Lite 模式取按 KB 的进程内独占锁；
+     * Standard 模式不取任何按 KB 的独占锁（并发安全靠认领与 slug 锁）。
      */
     void runIngest(WikiIngestPayload payload, WikiIngestBatchHandler.Stats stats) {
         if (handler.ingestService.isLiteMode()) {
@@ -63,7 +62,7 @@ final class WikiIngestRunSupport {
         runIngestBody(payload, stats);
     }
 
-    /** 对照 Go L281-377：KB 校验、模型解析、可调参数、在途上限、认领 */
+    /** 批次体第一步：KB 校验、模型解析、可调参数、在途上限、认领 */
     void runIngestBody(WikiIngestPayload payload, WikiIngestBatchHandler.Stats stats) {
         String kbId = payload.knowledgeBaseId();
 
@@ -103,7 +102,7 @@ final class WikiIngestRunSupport {
         stats.mapParallel = WikiConfig.ingestMapParallelOrDefault(wikiConfig, 10);
         stats.reduceParallel = WikiConfig.ingestReduceParallelOrDefault(wikiConfig, 10);
 
-        // 每 KB 的在途上限（Phase 4，standard 模式）：别让一个 KB 的批量导入独占总池。
+        // 每 KB 的在途上限（standard 模式）：别让一个 KB 的批量导入独占总池。
         // 若该 KB 已经到顶，就排一个合并的重试并<b>不认领任何行</b>地退出，
         // 让这些行留给先腾出槽位的那个运行中批次。
         stats.maxInflight = WikiConfig.ingestMaxInflightOrDefault(
@@ -124,7 +123,7 @@ final class WikiIngestRunSupport {
         }
     }
 
-    /** 对照 Go L347-404：认领 + 崩溃安全网 */
+    /** 认领 + 崩溃安全网 */
     void runIngestClaimed(WikiIngestPayload payload,
                                   KnowledgeBase kb,
                                   WikiConfig wikiConfig,
@@ -165,7 +164,7 @@ final class WikiIngestRunSupport {
                 claimsSettled[0] = true;
             } finally {
                 if (!claimsSettled[0]) {
-                    // 用有界的<b>脱钩</b>清理路径：ctx 可能已因超时被取消。
+                    // 用有界的<b>脱钩</b>清理路径：执行线程可能已因超时被中断。
                     try (WikiCleanupScope scope = handler.ingestService.cleanupScope()) {
                         scope.run(() -> handler.pendingRepo.releaseByIds(peekedIds));
                         log.warn("wiki ingest: released {} claimed rows on abnormal exit for KB {} "
@@ -181,7 +180,7 @@ final class WikiIngestRunSupport {
         runIngestPhases(payload, kb, wikiConfig, chatModel, pendingOps, peekedIds, stats);
     }
 
-    /** 对照 Go L406-908：Map → 目录规划 → Reduce → 收尾结算 */
+    /** Map → 目录规划 → Reduce → 收尾结算 */
     void runIngestPhases(WikiIngestPayload payload,
                                  KnowledgeBase kb,
                                  WikiConfig wikiConfig,
@@ -303,7 +302,7 @@ final class WikiIngestRunSupport {
         // 贡献永久静默丢失（finalize 只重建索引/交叉链接，不会重跑 reduce）。
         Set<String> unappliedSlugKIDs = new LinkedHashSet<>();
 
-        // reduce 的页级 span 归属映射（对照 Go L618-623：kid → 该文档的 wikiSpan）
+        // reduce 的页级 span 归属映射：kid → 该文档的 wikiSpan
         Map<String, SpanTracker.SpanHandle> kidToWikiMap = new LinkedHashMap<>();
         for (DocIngestResult r : docResults) {
             if (r != null && r.getWikiSpan() != null) {
@@ -325,9 +324,9 @@ final class WikiIngestRunSupport {
                         outcome[0] = new Reduced(r);
                     });
                 } catch (RuntimeException lockErr) {
-                    // 锁协调层故障（对照 Go 的 lockErr != nil 分支）：安静停下。
-                    // 注意：reduce 自身的错误以前在这里被 throw 进来一并吞掉，导致
-                    // Go 的 "reduce failed for slug" warn 从未执行（2026-09-24 修复）。
+                    // 锁协调层故障：安静停下，slug 记入未应用集合。
+                    // 注意：reduce 自身的错误以前也曾被 throw 进这个 catch 一并吞掉，
+                    // 其 "reduce failed for slug" warn 从未执行（2026-09-24 修复）。
                     log.warn("wiki ingest: slug lock failed for slug {}: {}", slug, lockErr.getMessage());
                     collectUnapplied(reduceMu, unappliedSlugKIDs, updates);
                     return;
@@ -562,7 +561,7 @@ final class WikiIngestRunSupport {
     }
 
     /**
-     * 对照 Go map 阶段里 retract 分支（batch L436-507）：在运行期解析权威页面集合。
+     * retract op 的 map 阶段处理：在运行期解析权威页面集合。
      *
      * <p>调用方（{@code cleanupWikiOnKnowledgeDelete}）从任务触发<b>之前</b>的 DB 快照
      * 采集 PageSlugs，但存在一个窗口：清理跑在 ingest 之前时快照为空、而并发 ingest
@@ -639,7 +638,7 @@ final class WikiIngestRunSupport {
         }
     }
 
-    /** 对照 Go 的 {@code collectUnapplied} 闭包（batch L604-612） */
+    /** 把"更新未落地"的 slug 对应的 knowledge_id 记入未应用集合 */
     static void collectUnapplied(Object reduceMu, Set<String> unappliedSlugKIDs,
                                          List<SlugUpdate> updates) {
         synchronized (reduceMu) {

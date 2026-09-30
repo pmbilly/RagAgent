@@ -1,16 +1,14 @@
 package com.ragagent.wiki.service;
 
 /**
- * 归一化身份（页面类型 + 显示标题）的 slug 预留（对照 Go
- * {@code wikiIdentityClaimPrefix} + {@code wikiIdentityClaimScript} +
- * {@code claimWikiIdentitySlug}，wiki_ingest.go L63-91 / wiki_ingest_dedup.go L287-338）。
+ * 归一化身份（页面类型 + 显示标题）的 slug 预留。
  *
  * <h2>解决什么问题</h2>
- * <p>（照搬 Go 注释）按 slug 的互斥锁在这里帮不上忙：当两个模型为<b>同一个标题</b>
+ * <p>按 slug 的互斥锁在这里帮不上忙：当两个模型为<b>同一个标题</b>
  * 吐出<b>不同 slug</b> 时，两个 reducer 锁的是不同的键。一个短命的身份认领能让两个
  * 批次在摘要与页面更新落地之前就收敛到同一个 slug。</p>
  *
- * <h2>Go 的 Redis Lua 语义（逐条照抄）</h2>
+ * <h2>认领语义（Redis Lua 脚本）</h2>
  * <pre>{@code
  * if ARGV[3] == '1' then                     -- authoritative
  *   SET key proposed EX ttl; return proposed
@@ -22,14 +20,14 @@ package com.ragagent.wiki.service;
  * <p>「缺失或损坏的值被替换」是刻意的：调用方绝不可以在一个脏键上分叉。
  * 前缀检查保证"另一个页面类型"的残留不会污染本类型的身份。</p>
  *
- * <p><b>⚠️ 多实例差异</b>：进程内实现只在单 JVM 内互斥。Go 的 Redis 实现是全局的
+ * <p><b>⚠️ 多实例差异</b>：进程内实现只在单 JVM 内互斥；Redis 实现是全局的
  * ——<b>这是本模块里对多副本部署最敏感的一处</b>，因为身份认领的失效会直接表现为
  * "同一个标题被建出两个页面"。多副本生产部署必须换 Redis 实现。</p>
  */
 public interface WikiIdentityClaimStore {
 
     /**
-     * 对照 Go {@code claimWikiIdentitySlug} 的 Redis 脚本调用。
+     * 认领一个身份 slug。
      *
      * @param kbId           知识库 id
      * @param pageType       页面类型（{@code "entity"} / {@code "concept"}）
@@ -43,7 +41,7 @@ public interface WikiIdentityClaimStore {
                  String proposedSlug, boolean authoritative, String requiredPrefix);
 
     /**
-     * 释放认领（对照 Go {@code reclaimExtractedIdentities} 里清理过期/失效认领的动作）。
+     * 释放认领（清理过期/失效认领时也会用到）。
      * 未持有该认领时是安全的 no-op。
      */
     void release(String kbId, String pageType, String identity);

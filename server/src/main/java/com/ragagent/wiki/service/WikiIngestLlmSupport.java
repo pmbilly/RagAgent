@@ -98,7 +98,7 @@ final class WikiIngestLlmSupport {
 
     /**
 
-     * 对照 Go {@code generateWithTemplate}（L2521-2644）：执行一个 prompt 模板，
+     * 执行一个 prompt 模板，
 
      * 并对瞬时基础设施错误做<b>有界的指数退避重试</b>。
 
@@ -246,7 +246,7 @@ final class WikiIngestLlmSupport {
 
 
 
-        // 对照 Go 的 types.WithLLMCallMetadata：把记账元数据挂到执行线程上
+        // 把 LLM 记账元数据挂到执行线程上
 
         String effectivePrefixFingerprint = prefixFingerprint;
 
@@ -271,8 +271,6 @@ final class WikiIngestLlmSupport {
 
 
             // 用长度为 1 的数组承载 release 句柄：lambda 里不能给局部变量重新赋值
-
-            // （对照 Go 的 defer releaseWarmup()，defer 的接收者是可变变量）
 
             Runnable[] warmupHolder = { () -> { } };
 
@@ -352,7 +350,7 @@ final class WikiIngestLlmSupport {
 
                     } catch (InterruptedException ie) {
 
-                        // 对照 Go 的 ctx.Done() 分支：任务正在取消，不再退避
+                        // 等待期间被中断：任务正在取消，不再退避
 
                         Thread.currentThread().interrupt();
 
@@ -432,18 +430,12 @@ final class WikiIngestLlmSupport {
 
     /**
 
-     * 对照 Go 的 {@code requestJSON, _ := json.Marshal(struct{Messages; Options})}（L2569-2572）：
-
      * 把消息与选项序列化成"精确请求"指纹的输入。
 
      *
 
-     * <p>字段序分别是 {@code messages, options}（Go struct 声明序）。Java 侧用
-
-     * {@code ChatMessage} / {@code ChatOptions} 自身的 {@code @JsonPropertyOrder} 与
-
-     * omitempty 注解产出同样的形状，因此指纹在两侧的意义一致。
-
+     * <p>字段序是 {@code messages, options}；由 {@code ChatMessage} / {@code ChatOptions}
+     * 自身的 {@code @JsonPropertyOrder} 与 NON_EMPTY 注解决定形状。
      * 该键只用于<b>进程内</b>的跨调用合并，不落库、不外泄。</p>
 
      */
@@ -478,7 +470,7 @@ final class WikiIngestLlmSupport {
 
     /**
 
-     * 对照 Go {@code awaitWikiPromptWarmup}（L2669-2692）：只串行化同一个可复用
+     * 只串行化同一个可复用
 
      * Wiki 页面前缀的<b>首个</b>请求。
 
@@ -486,7 +478,7 @@ final class WikiIngestLlmSupport {
 
      * <p>leader（第一个到达的调用）拿到一个 release 句柄，<b>必须</b>在它的 LLM 调用
 
-     * 结束后调用（Go 用 {@code defer releaseWarmup()}）；跟随者会阻塞到 leader 释放。
+     * 结束后调用；跟随者会阻塞到 leader 释放。
 
      * 释放后本地的"已预热"标记保留 4 分钟（覆盖并行的 reduce 突发），
 
@@ -495,8 +487,7 @@ final class WikiIngestLlmSupport {
      *
 
      * @return release 句柄
-
-     * @throws InterruptedException 等待期间线程被中断（对照 Go 的 {@code ctx.Done()} 分支）
+     * @throws InterruptedException 等待期间线程被中断
 
      */
 
@@ -536,7 +527,7 @@ final class WikiIngestLlmSupport {
 
         }
 
-        // 跟随者：等 leader 完成（对照 Go 的 select ctx.Done / entry.done）
+        // 跟随者：等 leader 完成（可被中断）
 
         try {
 
@@ -544,7 +535,7 @@ final class WikiIngestLlmSupport {
 
         } catch (InterruptedException e) {
 
-            // 对照 Go 的 ctx.Done() 分支：等待期间被取消
+            // 等待期间被中断：让调用方感知取消
 
             Thread.currentThread().interrupt();
 

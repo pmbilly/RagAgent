@@ -1,35 +1,27 @@
 package com.ragagent.wiki.service;
 
 /**
- * Go 标准库字符串语义的等价实现（只收录 Java 与 Go <b>行为不一致</b>的那几个函数）。
+ * 字符串工具，只收录 Java 标准方法与 wiki 所需语义<b>不一致</b>的那几个函数。
  *
- * <p>Java 的 {@code String.trim()} / {@code strip()} 与 Go 的 {@code strings.TrimSpace}
- * 在空白定义上并不等价：</p>
+ * <p>Java 的 {@code String.trim()} / {@code strip()} 与本类的空白定义并不等价：</p>
  * <ul>
  *   <li>Java {@code strip()} 用 {@link Character#isWhitespace}，它<b>不含</b>
  *       U+00A0（NBSP）、U+2007、U+202F；</li>
  *   <li>Java {@code strip()} 用 {@link Character#isWhitespace}，它<b>含</b>
- *       U+001C–U+001F 这些 Go 不认为是空白的控制字符；</li>
- *   <li>Go {@code unicode.IsSpace} = ASCII 空白 + {@code unicode.White_Space} 属性，
+ *       U+001C–U+001F 这些不应视为空白的控制字符；</li>
+ *   <li>本类的空白定义 = ASCII 空白 + Unicode White_Space 属性码点，
  *       含 U+0085、U+00A0、U+1680、U+2000–U+200A、U+2028/2029、U+202F、U+205F、U+3000。</li>
  * </ul>
  *
  * <p>这些差异在 ASCII 场景下不可见，但 wiki prompt / slug 会处理中文与 PDF 抽取文本，
- * NBSP 与全角空格都不罕见，故这里按 Go 的定义<b>逐码点</b>实现。</p>
+ * NBSP 与全角空格都不罕见，故这里按上述定义<b>逐码点</b>实现。</p>
  */
 final class GoStrings {
 
     private GoStrings() {}
 
     /**
-     * 对照 Go {@code unicode.IsSpace}：Go 空白定义中的全部码点。
-     *
-     * <p>刻意不使用 {@code Character.isWhitespace}/{@code isSpaceChar} 的组合——
-     * 二者并集既不等于 Go 的定义（多出 U+001C–U+001F），也与 JDK 版本演进的
-     * 模糊地带纠缠；显式列举反而稳定。</p>
-     */
-    /**
-     * 对照 Go {@code sort.Strings} 的比较语义：<b>按 UTF-8 字节序</b>。
+     * 按<b>码点序</b>比较，对合法 UTF-8 字符串等价于 UTF-8 字节序。
      *
      * <p>对合法的 UTF-8 字符串，字节序等价于<b>码点序</b>——因此 Java 侧用码点比较
      * 即可精确复刻，而<b>不能</b>用 {@link String#compareTo}（那是 UTF-16 码元序）。
@@ -56,6 +48,13 @@ final class GoStrings {
         return Integer.compare(a.length() - i, b.length() - j);
     }
 
+    /**
+     * 本类的空白定义（ASCII 空白 + Unicode White_Space 属性码点）是否命中。
+     *
+     * <p>刻意不使用 {@code Character.isWhitespace}/{@code isSpaceChar} 的组合——
+     * 二者并集与该定义不一致（多出 U+001C–U+001F），也与 JDK 版本演进的
+     * 模糊地带纠缠；显式列举反而稳定。</p>
+     */
     static boolean isSpace(int cp) {
         return cp == '\t' || cp == '\n' || cp == 0x0B || cp == '\f' || cp == '\r'
                 || cp == ' '
@@ -69,7 +68,7 @@ final class GoStrings {
     }
 
     /**
-     * 对照 Go {@code strings.TrimSpace}：裁掉首尾的 Go 空白。
+     * 裁掉首尾的空白（定义见 {@link #isSpace}）。
      * 按<b>码点</b>推进，代理对不会被拆开。
      */
     static String trimSpace(String s) {

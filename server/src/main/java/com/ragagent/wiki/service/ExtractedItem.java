@@ -10,15 +10,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 抽取出的单个 entity / concept（对照 Go {@code extractedItem}，
- * wiki_ingest.go L2040-2053）。
+ * 抽取出的单个 entity / concept。
  *
  * <p>{@code SourceChunks} 存放源文档里<b>实质性讨论</b>该项的稳定 chunk ID，
  * 由 chunk-citation 阶段填充；非空时 Reduce 阶段用这些 chunk 的<b>逐字原文</b>
  * 作为证据，而不是较短的 {@code Description} / {@code Details} 字段。</p>
  *
- * <p><b>可变 POJO 而非 record</b>：Go 侧多处就地改 {@code item.Slug}
- * （去重合并、身份认领、id 重映射），Java 侧照抄这一形态以便逐行对照。</p>
+ * <p><b>可变 POJO 而非 record</b>：去重合并、身份认领、id 重映射都会就地改写
+ * {@code slug} 等字段。</p>
  */
 @JsonPropertyOrder({"name", "slug", "aliases", "description", "details", "source_chunks"})
 public class ExtractedItem {
@@ -38,7 +37,7 @@ public class ExtractedItem {
     @JsonProperty("details")
     private String details = "";
 
-    /** 对照 Go 的 {@code source_chunks,omitempty} */
+    /** 空列表或 null 时整个字段不序列化 */
     @JsonProperty("source_chunks")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> sourceChunks;
@@ -72,7 +71,7 @@ public class ExtractedItem {
     public List<String> getSourceChunks() { return sourceChunks; }
     public void setSourceChunks(List<String> v) { sourceChunks = v; }
 
-    /** 对照 Go 里对 {@code item.SourceChunks} 的 nil 容忍遍历 */
+    /** null 安全视图：未填充时返回空列表，调用方可直接遍历 */
     @JsonIgnore
     public List<String> sourceChunksOrEmpty() {
         return sourceChunks == null ? List.of() : sourceChunks;

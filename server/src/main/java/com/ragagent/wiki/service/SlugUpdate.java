@@ -5,14 +5,13 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
- * 针对某个 slug 的一次更新操作（对照 Go {@code SlugUpdate}，
- * wiki_ingest.go L1353-1382）。
+ * 针对某个 slug 的一次更新操作。
  *
  * <p>Map 阶段每条文档产出若干 SlugUpdate，Reduce 阶段按 slug 聚合后逐页处理。</p>
  *
- * <p><b>Type 的取值</b>（Go 里是裸字符串，没有常量块）：{@code "entity"} /
+ * <p><b>Type 的取值</b>：{@code "entity"} /
  * {@code "concept"} / {@code "summary"} / {@code "retract"} / {@code "retractStale"}。
- * Java 侧把它们提成常量，拼写错误从"运行时静默走错分支"变成编译期错误。</p>
+ * 提成常量，让拼写错误从"运行时静默走错分支"变成编译期错误。</p>
  */
 public class SlugUpdate {
 
@@ -22,49 +21,45 @@ public class SlugUpdate {
     public static final String TYPE_RETRACT = "retract";
     public static final String TYPE_RETRACT_STALE = "retractStale";
 
-    /** 对照 Go {@code Slug} */
     private String slug = "";
 
-    /** 对照 Go {@code Type}：见本类常量 */
+    /** type：见本类常量 */
     private String type = "";
 
-    /** 对照 Go {@code Item}：entity/concept 抽取项 */
+    /** entity/concept 抽取项 */
     private ExtractedItem item;
 
-    /** 对照 Go {@code DocTitle} */
     private String docTitle = "";
 
-    /** 对照 Go {@code KnowledgeID} */
     private String knowledgeId = "";
 
-    /** 对照 Go {@code SourceRef} */
     private String sourceRef = "";
 
     /**
-     * 对照 Go {@code Language}：Map 阶段<b>已经解析好</b>的人类可读语言名
+     * Map 阶段<b>已经解析好</b>的人类可读语言名
      * （如 {@code "Chinese (Simplified)"}），Reduce 阶段直接插进编辑 prompt，
      * <b>不是</b> locale 码。每条文档解析一次，该文档派生的所有页面共享同一语言。
      */
     private String language = "";
 
-    /** 对照 Go {@code SummaryBody}：summary 类型用 */
+    /** summary 类型用 */
     private String summaryBody = "";
 
-    /** 对照 Go {@code SummaryLine}：summary 类型用 */
+    /** summary 类型用 */
     private String summaryLine = "";
 
-    /** 对照 Go {@code RetractDocContent}：retract / retractStale 用 */
+    /** retract / retractStale 用 */
     private String retractDocContent = "";
 
     /**
-     * 对照 Go {@code SourceChunks}：KnowledgeID 内<b>实质性支撑</b>本次更新的
+     * KnowledgeID 内<b>实质性支撑</b>本次更新的
      * chunk ID。与 {@link #item} 的 SourceChunks 镜像——Reduce 阶段从这里读，
      * 省一次字段跳转。
      */
     private List<String> sourceChunks;
 
     /**
-     * 对照 Go {@code DocSummary}：{@code WikiSummaryPrompt} 产出的文档级摘要正文
+     * 文档级摘要正文
      * （SUMMARY 行之后的全部内容；解析不出 SUMMARY 行时就是原始输出）。带在这是为了
      * 让 Reduce 阶段能用一段丰富的 {@code <source_context>} 把被引用的 chunk 框起来，
      * 告诉编辑模型这份文档<b>讲什么</b>以及是<b>哪一类</b>文档（简历 / 公告 / 产品页）。
@@ -79,7 +74,7 @@ public class SlugUpdate {
         this.type = type == null ? "" : type;
     }
 
-    /** 对照 Go 的 {@code SlugUpdate{Type: "retract", ...}} 构造点 */
+    /** retract 更新的便利工厂 */
     public static SlugUpdate retract(String slug, String knowledgeId, String docTitle,
                                      String retractDocContent, String language) {
         SlugUpdate u = new SlugUpdate(slug, TYPE_RETRACT);
@@ -90,7 +85,7 @@ public class SlugUpdate {
         return u;
     }
 
-    /** 对照 Go 的 {@code u.Type == "retract" || u.Type == "retractStale"}（filterLiveUpdates L2841） */
+    /** type 是否为 retract / retractStale */
     @JsonIgnore
     public boolean isRetractType() {
         return TYPE_RETRACT.equals(type) || TYPE_RETRACT_STALE.equals(type);
@@ -132,7 +127,7 @@ public class SlugUpdate {
     public String getDocSummary() { return docSummary; }
     public void setDocSummary(String v) { docSummary = v == null ? "" : v; }
 
-    /** 对照 Go 对 nil slice 的容忍遍历 */
+    /** null 安全的 sourceChunks 访问 */
     @JsonIgnore
     public List<String> sourceChunksOrEmpty() {
         return sourceChunks == null ? List.of() : sourceChunks;

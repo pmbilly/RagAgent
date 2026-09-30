@@ -16,14 +16,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 实体/概念去重与身份收敛（对照 Go internal/application/service/wiki_ingest_dedup.go，732 行）。
+ * 实体/概念去重与身份收敛。
  *
- * <p>本类实现 {@link WikiDedupSupport} 端口（上一轮冻结的接缝），把
- * {@code deduplicateExtractedBatch} 依赖的五个函数补齐，从而恢复 Go 的
- * 「同类型同标题收敛到同一 slug」保证；另含 {@code reclaimExtractedIdentities} /
+ * <p>本类实现 {@link WikiDedupSupport} 端口，把 ingest 主入口依赖的五个 dedup 函数补齐，
+ * 恢复「同类型同标题收敛到同一 slug」保证；另含 {@code reclaimExtractedIdentities} /
  * {@code remapSlugUpdatesByIdentity} 两个由批次主干直接调用的入口。</p>
  *
- * <h2>为什么需要预筛（照搬 Go 注释）</h2>
+ * <h2>为什么需要预筛</h2>
  * <p>不预筛时，去重 prompt 会把整个 entity+concept 页面语料塞进
  * {@code <existing_pages>}。在 100+ 页的 KB 上这既膨胀输入 token，更糟的是
  * <b>给弱模型留出足够长的绳子</b>——它会把两个毫不相干的 slug 合并起来，
@@ -32,7 +31,7 @@ import org.springframework.stereotype.Service;
  * <p>下面的过滤只保留与某个新条目共享至少一点<b>廉价表层信号</b>的页面。
  * 计算快、无外部调用，而且它只会<b>移除</b> prompt 的候选——下游的
  * {@code validMerge} 校验仍然守着最终写入。</p>
- * <p>例外说明(§14.5):846 行略超 800——名称 bigram/配对得分/LLM 仲裁是一条
+ * <p>例外说明:846 行略超 800——名称 bigram/配对得分/LLM 仲裁是一条
  * 不可中断的去重链,切段只会制造参数传递层。</p>
  */
 @Service
@@ -49,19 +48,19 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 预筛（对照 Go selectDedupCandidatePages 与它的特征类型）
+    // 预筛
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code dedupSurface}（dedup L56-68）：一次
+     * 一次
      * （新条目, 既有页面）比较的<b>预计算</b>相似度特征集。
      */
     public static final class DedupSurface {
-        /** 对照 Go {@code slugTokens}：slug 基段（"/" 之后）的 kebab 分词 */
+        /** slug 基段（"/" 之后）的 kebab 分词 */
         final Set<String> slugTokens;
 
         /**
-         * 对照 Go {@code nameGramSets}：每个表层形式（name 与每个 alias）一个
+         * 每个表层形式（name 与每个 alias）一个
          * 字符 bigram 集合。分开保存是为了让配对得分取<b>各表层形式的最大值</b>
          * ——一个冷门 alias 命中不该被主名称的不一致稀释掉。
          */
@@ -74,7 +73,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code countEntityConceptPages}（dedup L73-84）：给定页面里有多少是
+     * 给定页面里有多少是
      * entity/concept 类型。只用于记录预筛的压缩比。
      */
     public static int countEntityConceptPages(List<WikiPage> pages) {
@@ -95,7 +94,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code selectDedupCandidatePages}（dedup L93-178）：返回 {@code allPages}
+     * 返回 {@code allPages}
      * 中<b>至少与一个</b> {@code newItems} 貌似相关的子集。非 entity/concept 页面被
      * 无条件丢弃。返回的切片<b>保留输入顺序</b>，让下游 prompt 跨运行稳定。
      *
@@ -149,7 +148,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
             for (int i = 0; i < pageFeats.size(); i++) {
                 scores.add(new Scored(i, dedupPairScore(itemFeat, pageFeats.get(i))));
             }
-            // 稳定排序：并列时按原始下标确定性地破平（Go 的 sort.SliceStable）
+            // 稳定排序：并列时按原始下标确定性地破平
             scores.sort(Comparator.comparingDouble(Scored::score).reversed());
 
             int topKRemaining = WikiBatchConstants.DEDUP_CANDIDATE_TOP_K;
@@ -180,7 +179,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code dedupPairScore}（dedup L652-662）：a 的任意表层形式与 b 的任意
+     * a 的任意表层形式与 b 的任意
      * 表层形式之间的<b>最大</b>相似度（外加 slug 分词相似度）。slug 与 name 信号住在
      * 不同的符号空间（ASCII 拼音 vs 原始表层形式），因此取最大值而不是平均值。
      */
@@ -198,7 +197,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code slugBaseTokens}（dedup L666-689）：slug 基段的 kebab 分词。
+     * slug 基段的 kebab 分词。
      * {@code "entity/beijing-nongshang-yinxing"} → {@code {beijing, nongshang, yinxing}}。
      */
     public static Set<String> slugBaseTokens(String slug) {
@@ -216,7 +215,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
         for (int k = 0; k < base.length(); ) {
             int cp = base.codePointAt(k);
             k += Character.charCount(cp);
-            // 对照 Go 的 strings.FieldsFunc：分隔符是 - _ . 与 unicode 空白
+            // 分隔符是 - _ . 与 unicode 空白
             boolean sep = cp == '-' || cp == '_' || cp == '.' || GoStrings.isSpace(cp);
             if (sep) {
                 if (token.length() > 0) {
@@ -234,7 +233,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code gramsPerSurface}（dedup L692-701）：为每个非空表层形式算一个
+     * 为每个非空表层形式算一个
      * gram 集合。
      */
     public static List<Set<String>> gramsPerSurface(List<String> surfaces) {
@@ -252,7 +251,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code surfaceGrams}（dedup L708-732）：表层形式转小写、剥掉非字母/数字
+     * 表层形式转小写、剥掉非字母/数字
      * 后得到的<b>字符 bigram</b> 集合。
      *
      * <p>bigram 在 CJK（每个 bigram 近似一个词）与拉丁（能抓住 {@code corporation}
@@ -292,7 +291,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code dedupMergeRejectReason}（dedup L194-216）：用确定性、
+     * 用确定性、
      * 模型无关的规则校验一次 LLM 提议的合并（srcSlug → dstSlug）。
      * <b>返回空串表示允许</b>，否则返回简短的人类可读拒绝原因。
      * {@code srcCandidates} 是为 srcSlug <b>自己</b>的相似度探测召回的既有页面 slug 集合。
@@ -330,7 +329,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code normalizeWikiIdentityTitle}（dedup L224-231）：只用于防止
+     * 只用于防止
      * "同类型同标题"被建到不同 slug 上的保守身份键。
      *
      * <p>它<b>刻意保留标点</b>：{@code "寓言"} 与 {@code "《寓言》"} 可能分别代表一个
@@ -355,7 +354,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code exactIdentityTarget}（dedup L238-268）：当某个同类型候选的
+     * 当某个同类型候选的
      * <b>归一化显示标题完全相等</b>时，返回该条目对应的稳定既有页面。
      *
      * <p>语义/别名匹配仍由 LLM 负责；这条确定性快路径只覆盖那个无歧义的身份不变量：
@@ -394,7 +393,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code preferWikiIdentityDisplayName}（dedup L340-354）：两个名字
+     * 两个名字
      * 折叠到同一身份时保留<b>更紧凑</b>的显示形式（{@code "孔子"} 优于 {@code "孔 子"}），
      * 并返回被丢弃的形式以便记成别名。
      */
@@ -416,11 +415,11 @@ public class WikiIngestDedupService implements WikiDedupSupport {
         return new DisplayName(dst, src);
     }
 
-    /** 对照 Go {@code preferWikiIdentityDisplayName} 的 {@code (name, extraAlias)} 返回 */
+    /** 保留的显示名 + 被丢弃的形式（记成别名） */
     public record DisplayName(String name, String extraAlias) { }
 
     /**
-     * 对照 Go {@code mergeExtractedIdentity}（dedup L359-376）：把收敛到同一 slug 的
+     * 把收敛到同一 slug 的
      * 重复候选折叠起来。它保留每一条 alias / chunk 引用，并保留更丰富的回落文本，
      * 因此收敛永远不会在引用/reduce 阶段之前丢掉证据。
      */
@@ -448,7 +447,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code appendUniqueString}（dedup L378-389）：去空白后非空、且尚未
+     * 去空白后非空、且尚未
      * 出现过才追加。
      */
     public static List<String> appendUniqueString(List<String> values, String value) {
@@ -469,15 +468,14 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code claimWikiIdentitySlug}（dedup L287-335）：在 Reduce 开始之前，
+     * 在 Reduce 开始之前，
      * 为一个归一化的 (KB, 页面类型, 标题) 身份预留一个 slug。
      *
-     * <h2>语义映射（Java ↔ Go）</h2>
+     * <h2>语义要点</h2>
      * <ul>
-     *   <li>Go 的 Redis {@code EVAL} → {@link WikiIdentityClaimStore#claim}
+     *   <li>跨批次互斥经 {@link WikiIdentityClaimStore#claim}
      *       （默认进程内实现，见该接口的"多实例差异"警告）；</li>
-     *   <li>{@code usedRedis} 标志 → "认领存储确实答复了"。存储抛异常时按 Go 的
-     *       Redis 报错路径处理：记 warn、退回批次局部 map。</li>
+     *   <li>存储抛异常时记 warn、退回批次局部 map（认领只在该批次内有效）。</li>
      * </ul>
      *
      * <p>只有来自"精确既有页解析"的认领才是权威的、可以覆盖临时认领；
@@ -537,7 +535,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code stabilizeExtractedIdentities}（dedup L396-443）：应用确定性
+     * 应用确定性
      * 既有页解析、跨批次身份认领，以及同结果归并。
      *
      * @param mergeTargets 抽取 slug → 语义/LLM 合并目标（<b>非</b>权威）
@@ -601,12 +599,12 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     // 精确身份页的挂载与解析
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code identityPageCacheKey}（dedup L445-447） */
+    /** 身份页缓存键 */
     static String identityPageCacheKey(String pageType, String identity) {
         return WikiBatchContext.identityPageCacheKey(pageType, identity);
     }
 
-    /** 对照 Go {@code loadCachedIdentityPages}（dedup L449-459） */
+    /** 读取已缓存的精确身份页；未缓存返回 null */
     static List<WikiPageLite> loadCachedIdentityPages(WikiBatchContext batchCtx,
                                                       String pageType, String identity) {
         if (batchCtx == null) {
@@ -614,14 +612,14 @@ public class WikiIngestDedupService implements WikiDedupSupport {
         }
         String key = identityPageCacheKey(pageType, identity);
         // 注意：缓存值允许是空列表（"确认查无此页"），因此必须用 containsKey 判定，
-        // 不能用 get(...) == null（对照 Go sync.Map.Load 的 ok 语义）。
+        // 不能用 get(...) == null 判定。
         if (!batchCtx.identityPages().containsKey(key)) {
             return null;
         }
         return batchCtx.identityPages().get(key);
     }
 
-    /** 对照 Go {@code storeCachedIdentityPages}（dedup L461-469） */
+    /** 写入精确身份页缓存 */
     static void storeCachedIdentityPages(WikiBatchContext batchCtx, String pageType,
                                          String identity, List<WikiPageLite> pages) {
         if (batchCtx == null) {
@@ -631,7 +629,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
                 pages == null ? List.of() : pages);
     }
 
-    /** 对照 Go {@code bindExactIdentityPages}（dedup L471-500） */
+    /** 把精确身份页挂进候选集 */
     static void bindExactIdentityPages(List<String> itemSlugs,
                                        List<WikiPageLite> pages,
                                        String pageType,
@@ -656,7 +654,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code attachExactIdentityPages}（dedup L502-566）：按归一化标题做一次
+     * 按归一化标题做一次
      * <b>批量</b>精确查找，把命中的既有页补进候选集，让精确同名无论如何都进入候选。
      */
     @Override
@@ -732,7 +730,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     }
 
     /**
-     * 对照 Go {@code collectExactIdentityTargets}（dedup L568-580）：为每个条目确定
+     * 为每个条目确定
      * 精确同名的既有页目标。
      */
     @Override
@@ -759,7 +757,7 @@ public class WikiIngestDedupService implements WikiDedupSupport {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code reclaimExtractedIdentities}（dedup L585-603）：在引用发现之后
+     * 在引用发现之后
      * <b>重跑</b>精确标题查找 + 身份认领。引用遍的 new_slugs 跳过了抽取期的去重，
      * 没有这一步它们会物化出第二个同标题页面。
      *
@@ -790,11 +788,11 @@ public class WikiIngestDedupService implements WikiDedupSupport {
                         concepts, null, exactTargets, batchCtx));
     }
 
-    /** 对照 Go {@code reclaimExtractedIdentities} 的 {@code ([]extractedItem, []extractedItem)} 返回 */
+    /** 收敛后的 entities 与 concepts */
     public record Identities(List<ExtractedItem> entities, List<ExtractedItem> concepts) { }
 
     /**
-     * 对照 Go {@code remapSlugUpdatesByIdentity}（dedup L608-646）：每个 map worker
+     * 每个 map worker
      * 都选完 slug 之后<b>重读</b>身份认领，让同一个标题的并发罗马化在 Reduce 按 slug
      * 分组与加锁之前收敛。summary / retract 更新保留原有 slug。
      */

@@ -87,7 +87,7 @@ final class WikiIngestPageOps {
 
     /**
 
-     * 对照 Go {@code sanitizeDeadSummaryLinks}（L1534-1587）：重写<b>本批次</b>产出的
+     * 重写<b>本批次</b>产出的
 
      * 摘要页，修掉那些指向 reduce 阶段生成失败的 entity/concept 页面的
 
@@ -126,8 +126,6 @@ final class WikiIngestPageOps {
             }
 
             String summarySlug = "summary/" + WikiTextUtils.slugify(r.getKnowledgeId());
-
-            // 对照 Go：if err != nil || page == nil { continue }
 
             WikiPage page = service.wikiService.findPageBySlug(kbId, summarySlug);
 
@@ -201,7 +199,7 @@ final class WikiIngestPageOps {
 
     /**
 
-     * 对照 Go {@code cleanDeadLinks}（L1716-1790）：重写本批次受影响页面里指向
+     * 重写本批次受影响页面里指向
 
      * 已不存在（或已归档）目标的 {@code [[slug]]}。纯文本清理，不调用 LLM。
 
@@ -215,11 +213,11 @@ final class WikiIngestPageOps {
 
      *
 
-     * <p>流程：取页面 → 用一次批量 {@code ExistsSlugs} 把出链分类成活/死 →
+     * <p>流程：取页面 → 用一次批量 {@code existsSlugs} 把出链分类成活/死 →
 
      * 对每条死链先试 {@code resolveDeadSlug}，能安全还原就改写，否则剥离成纯文本 →
 
-     * 用 {@code UpdateAutoLinkedContent} 持久化（版本号不变——这是维护性写入，
+     * 用 {@code updateAutoLinkedContent} 持久化（版本号不变——这是维护性写入，
 
      * 不是用户可见的编辑）。</p>
 
@@ -236,8 +234,6 @@ final class WikiIngestPageOps {
         int cleaned = 0;
 
         for (String slug : affectedSlugs) {
-
-            // 对照 Go：if err != nil || page == nil { continue }
 
             WikiPage page = service.wikiService.findPageBySlug(kbId, slug);
 
@@ -371,7 +367,7 @@ final class WikiIngestPageOps {
 
     /**
 
-     * 对照 Go {@code injectCrossLinks}（L1812-1872）：扫描本批次受影响的页面，
+     * 扫描本批次受影响的页面，
 
      * 为正文里提到的其它页面标题 / 别名注入 {@code [[wiki-links]]}。
 
@@ -428,8 +424,6 @@ final class WikiIngestPageOps {
         int updated = 0;
 
         for (String slug : affectedSlugs) {
-
-            // 对照 Go：if err != nil || page == nil { continue }
 
             WikiPage page = service.wikiService.findPageBySlug(kbId, slug);
 

@@ -7,11 +7,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 分页的 wiki 页面列表响应（对照 Go types.WikiPageListResponse，
- * internal/types/wiki_page.go L648-654）。
+ * 分页的 wiki 页面列表响应。JSON 键为 snake（§11 登记边界，前端按此解析）。
  *
- * <p>{@code totalPages} 由 service 计算：Go 侧是
- * {@code ceil(total / pageSize)}，页大小按 repository 归一化后的值（&lt;1 → 20）。</p>
+ * <p>{@code totalPages} 由 service 计算：{@code ceil(total / pageSize)}，
+ * 页大小按 repository 归一化后的值（&lt;1 → 20）。</p>
  */
 @JsonPropertyOrder({"pages", "total", "page", "page_size", "total_pages"})
 public class WikiPageListResponse {

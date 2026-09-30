@@ -4,11 +4,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * LLM 瞬时错误判定（对照 Go internal/application/service/wiki_ingest.go 的
- * {@code isTransientLLMError} 与 {@code rateLimitErrorIndicators}，L2694-2787）。
+ * LLM 瞬时错误判定。
  *
- * <p>分类刻意保守：「判断不出来就当永久错误」能让重试保持廉价，也避免掩盖真正的
- * bug（Go 注释原文：the truthful "could not tell, assume permanent" choice）。</p>
+ * <p>分类刻意保守：「判断不出来就当永久错误」能让重试保持廉价，也避免掩盖真正的 bug。</p>
  *
  * <h2>判为瞬时的三类</h2>
  * <ol>
@@ -27,18 +25,16 @@ import java.util.Locale;
  * 只看状态码——<b>纯 403 通常是鉴权失败，绝不能重试</b>，本判定因此要求响应体里
  * 命中 {@link #RATE_LIMIT_ERROR_INDICATORS} 中的限流词才升级为瞬时。</p>
  *
- * <p><b>Java 侧的接口差异</b>：Go 的入参是 {@code context.Context}，只用它做一件事
- * ——{@code ctx.Err() != nil} 时短路为非瞬时（任务正在取消，再试一次只会同样失败）。
- * Java 侧没有 ctx，改为由调用方显式传入「父作用域是否已取消」。</p>
+ * <p><b>取消短路</b>：调用方显式传入「父作用域是否已取消」——任务正在取消时
+ * 再试一次只会同样失败，故直接判为非瞬时。</p>
  */
 public final class WikiLlmRetryPolicy {
 
     private WikiLlmRetryPolicy() {}
 
     /**
-     * 对照 Go {@code rateLimitErrorIndicators}（L2716-2730）：把 403 响应体标记为
-     * 「限流」而非「鉴权失败」的子串。<b>顺序与 Go 一一对应</b>（判定是"命中即真"，
-     * 顺序不影响结果，但保持同序便于对照diff）。
+     * 把 403 响应体标记为
+     * 「限流」而非「鉴权失败」的子串（判定是"命中即真"，顺序不影响结果）。
      */
     public static final List<String> RATE_LIMIT_ERROR_INDICATORS = List.of(
             "qpm",                 // 网关 qpm 配额（0x04030020）
@@ -56,7 +52,7 @@ public final class WikiLlmRetryPolicy {
             "slow down");
 
     /**
-     * 对照 Go {@code isTransientLLMError} 里第一个循环的状态码清单（L2745-2749）。
+     * 瞬时 HTTP 状态码清单。
      * 匹配形态是供应商气泡上来的 {@code "API request failed with status NNN: ..."}。
      */
     private static final List<String> TRANSIENT_STATUS_MARKERS = List.of(
@@ -64,7 +60,7 @@ public final class WikiLlmRetryPolicy {
             "status 500", "status 501", "status 502", "status 503", "status 504",
             "status 520", "status 521", "status 522", "status 523", "status 524");
 
-    /** 对照 Go 里第二个循环的传输层子串清单（L2770-2781），全部按小写匹配。 */
+    /** 传输层故障子串清单，全部按小写匹配。 */
     private static final List<String> TRANSIENT_TRANSPORT_MARKERS = List.of(
             "timeout",
             "timed out",
@@ -78,10 +74,9 @@ public final class WikiLlmRetryPolicy {
             "context deadline exceeded"); // 嵌套的逐次调用超时
 
     /**
-     * 对照 Go {@code isTransientLLMError}（L2732-2787）。
+     * 判定一次 LLM 失败是否瞬时（可重试）。
      *
      * @param parentContextCancelled 调用方所在的任务上下文是否已取消
-     *                               （对照 Go 的 {@code ctx.Err() != nil}）
      * @param err                    失败原因；null 一律返回 false
      */
     public static boolean isTransientLlmError(boolean parentContextCancelled, Throwable err) {
@@ -93,9 +88,9 @@ public final class WikiLlmRetryPolicy {
     }
 
     /**
-     * 同上，但直接收<b>错误文本</b>（Go 用 {@code err.Error()}）。
+     * 同上，但直接收<b>错误文本</b>。
      *
-     * <p>两条前置短路，顺序与 Go 一致：</p>
+     * <p>两条前置短路（顺序固定）：</p>
      * <ol>
      *   <li>err 为 nil → 不可能瞬时（否则忘了处理成功路径的调用方会空转）；</li>
      *   <li>父上下文已取消 → 不重试（任务正在拆栈，下一个尝试只会同样失败）。</li>

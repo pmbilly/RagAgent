@@ -8,27 +8,25 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 知识库的 wiki 专属配置（对照 Go types.WikiConfig，internal/types/wiki_page.go L524-630）。
+ * 知识库的 wiki 专属配置。
  *
  * <p>适用于"启用了 wiki 功能"的文档型知识库。wiki 功能<b>是否开启</b>由
  * {@code IndexingStrategy.WikiEnabled} 控制（见 KnowledgeBaseIndexingStrategy）；本结构只承载
  * wiki 专属的调节项。</p>
  *
- * <p>GORM 隐式行为清单（约定 §3）：Go 侧实现了 {@code driver.Valuer}/{@code sql.Scanner}
- * （{@code Value()} = json.Marshal，{@code Scan(nil)} 不报错且保持零值）。
- * 但 {@code knowledge_bases.wiki_config} 列在 Java 侧由 {@code KnowledgeBase.wikiConfig}
+ * <p>{@code knowledge_bases.wiki_config} 列在 Java 侧由 {@code KnowledgeBase.wikiConfig}
  * 以 {@code JsonNode} 承载，本类是<b>值类型</b>，另提供 {@link #toJson()} /
  * {@link #fromJson(String)} 两个等价入口供 service 使用。</p>
  *
- * <p>JSON 契约（键名 = Go tag，顺序 = Go 字段声明序）：</p>
+ * <p>JSON 契约（键名为 snake，§11 登记边界；顺序 = {@code @JsonPropertyOrder} 声明序）：</p>
  * <ul>
- *   <li>{@code synthesis_model_id} / {@code max_pages_per_ingest} 恒输出（无 omitempty）；</li>
- *   <li>其余字段 omitempty：空串/0 整键省略（{@code @JsonInclude(NON_EMPTY)} 对 String，
+ *   <li>{@code synthesis_model_id} / {@code max_pages_per_ingest} 恒输出；</li>
+ *   <li>其余字段空串/0 整键省略（{@code @JsonInclude(NON_EMPTY)} 对 String，
  *       {@code NON_DEFAULT} 对 int）。</li>
  * </ul>
  *
- * <p>读路径<b>容忍未知属性</b>（§9）：历史行里会有 {@code enabled} / {@code auto_ingest}
- * 等已退役的键，Go 的 json.Unmarshal 默认忽略它们，Jackson 默认会报错——故本类的
+ * <p>读路径<b>容忍未知属性</b>：历史行里会有 {@code enabled} / {@code auto_ingest}
+ * 等已退役的键，Jackson 默认会报错——故本类的
  * {@link #fromJson(String)} 用配了 {@code FAIL_ON_UNKNOWN_PROPERTIES=false} 的 mapper。</p>
  */
 @JsonPropertyOrder({
@@ -38,7 +36,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 })
 public class WikiConfig {
 
-    /** 读路径宽容的 mapper（对照 Go json.Unmarshal 的忽略未知字段） */
+    /** 读路径宽容的 mapper（忽略未知字段） */
     private static final ObjectMapper READER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -53,7 +51,7 @@ public class WikiConfig {
     /**
      * 控制 Pass 0 每篇文档抽取多少候选 slug。空 / 未知值按 standard 处理
      * （见 {@link WikiExtractionGranularity#normalize(String)}）。
-     * 类型刻意保持 String：Go 的零值是 ""，且 omitempty 会把空串整键省略。
+     * 类型刻意保持 String：历史行/未设置的值是 ""，JSON 往返须保留空串。
      */
     @JsonProperty("extraction_granularity")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -74,12 +72,12 @@ public class WikiConfig {
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestBatchSize;
 
-    /** Map 阶段（逐文档抽取 + 摘要 + chunk 引用）的 errgroup 并发上限；0 → 默认 10 */
+    /** Map 阶段（逐文档抽取 + 摘要 + chunk 引用）的并发上限；0 → 默认 10 */
     @JsonProperty("ingest_map_parallel")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestMapParallel;
 
-    /** Reduce 阶段（逐 slug 写页面）的 errgroup 并发上限；0 → 默认 10 */
+    /** Reduce 阶段（逐 slug 写页面）的并发上限；0 → 默认 10 */
     @JsonProperty("ingest_reduce_parallel")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestReduceParallel;
@@ -89,63 +87,58 @@ public class WikiConfig {
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestMaxInflight;
 
-    // ── Go 方法对照：*OrDefault 系列（L581-613）。
-    //    Go 里定义在 *WikiConfig 上，nil 接收者返回 fallback；Java 用静态方法承载
-    //    "config 可能为 null" 的语义，实例方法做同样的事。
+    // ── *OrDefault 系列：实例方法在字段非正时回落 fallback；静态入口承载
+    //    "config 可能为 null" 的语义（null → fallback）。
     //    ⚠️ 全部 @JsonIgnore：否则 Jackson 会把它们当属性写进 wiki_config jsonb，
-    //    回读触发 UnrecognizedPropertyException（§9 复发率最高的坑）。 ──
+    //    回读触发 UnrecognizedPropertyException（复发率最高的坑）。 ──
 
-    /** 对照 Go (*WikiConfig).IngestBatchSizeOrDefault */
     @JsonIgnore
     public int ingestBatchSizeOrDefault(int fallback) {
         return ingestBatchSize > 0 ? ingestBatchSize : fallback;
     }
 
-    /** 对照 Go (*WikiConfig).IngestMapParallelOrDefault */
     @JsonIgnore
     public int ingestMapParallelOrDefault(int fallback) {
         return ingestMapParallel > 0 ? ingestMapParallel : fallback;
     }
 
-    /** 对照 Go (*WikiConfig).IngestReduceParallelOrDefault */
     @JsonIgnore
     public int ingestReduceParallelOrDefault(int fallback) {
         return ingestReduceParallel > 0 ? ingestReduceParallel : fallback;
     }
 
-    /** 对照 Go (*WikiConfig).IngestMaxInflightOrDefault */
     @JsonIgnore
     public int ingestMaxInflightOrDefault(int fallback) {
         return ingestMaxInflight > 0 ? ingestMaxInflight : fallback;
     }
 
-    /** nil 安全的静态入口（Go 的 nil 接收者语义） */
+    /** null 安全的静态入口：null config → fallback */
     public static int ingestBatchSizeOrDefault(WikiConfig c, int fallback) {
         return c == null ? fallback : c.ingestBatchSizeOrDefault(fallback);
     }
 
-    /** nil 安全的静态入口 */
+    /** null 安全的静态入口 */
     public static int ingestMapParallelOrDefault(WikiConfig c, int fallback) {
         return c == null ? fallback : c.ingestMapParallelOrDefault(fallback);
     }
 
-    /** nil 安全的静态入口 */
+    /** null 安全的静态入口 */
     public static int ingestReduceParallelOrDefault(WikiConfig c, int fallback) {
         return c == null ? fallback : c.ingestReduceParallelOrDefault(fallback);
     }
 
-    /** nil 安全的静态入口 */
+    /** null 安全的静态入口 */
     public static int ingestMaxInflightOrDefault(WikiConfig c, int fallback) {
         return c == null ? fallback : c.ingestMaxInflightOrDefault(fallback);
     }
 
-    /** 对照 Go (*WikiConfig).IngestBatchSizeOrDefault 的 0 语义 + Granularity 归一化 */
+    /** 归一化后的抽取粒度（空/未知 → standard），出口为合法字面量 */
     @JsonIgnore
     public String normalizedExtractionGranularity() {
         return WikiExtractionGranularity.normalize(extractionGranularity);
     }
 
-    /** 对照 Go Value()：json.Marshal（写侧） */
+    /** 序列化为 JSON 字符串（写侧），失败抛 IllegalStateException */
     public String toJson() {
         try {
             return READER.writeValueAsString(this);
@@ -154,7 +147,7 @@ public class WikiConfig {
         }
     }
 
-    /** 对照 Go Scan(bytes)：json.Unmarshal，忽略未知字段；空输入返回 null（等价 Scan(nil) 不报错） */
+    /** 从 JSON 反序列化，忽略未知字段；空输入返回 null */
     public static WikiConfig fromJson(String json) {
         if (json == null || json.isEmpty()) {
             return null;

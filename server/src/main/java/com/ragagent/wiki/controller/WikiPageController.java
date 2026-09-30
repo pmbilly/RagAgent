@@ -61,72 +61,64 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Wiki 页面的 HTTP 层（对照 Go internal/handler/wiki_page.go 全文，1089 行 / 21 个端点）。
+ * Wiki 页面的 HTTP 层。
  *
- * <p><b>响应形态（逐端点对照 Go，不要"统一"它们）</b>：</p>
+ * <p><b>响应形态（逐端点保持原样，不要"统一"它们）</b>：</p>
  * <ol>
- *   <li><b>实体直出</b>：{@code c.JSON(200, page)} / {@code 201 folder} —— 直接序列化领域对象，
- *       键序 = Go struct 声明序（由各 domain 类的 {@code @JsonPropertyOrder} 复刻），
+ *   <li><b>实体直出</b>：直接序列化领域对象，
+ *       键序 = 领域字段声明序（由各 domain 类的 {@code @JsonPropertyOrder} 固定），
  *       <b>没有</b> {@code {data,success}} 信封。wiki 层几乎所有端点都是这个形态。</li>
- *   <li><b>gin.H 直出</b>：{@code {"message":...}}（UpdateIssueStatus / RebuildLinks）、
+ *   <li><b>raw JSON map 直出</b>：{@code {"message":...}}（UpdateIssueStatus / RebuildLinks）、
  *       {@code {"fixed":N,"message":...}}（AutoFix）、{@code {"pages":[...]}}（SearchPages）、
  *       {@code {"current_version":N,"error":...}}（UpdatePage 的乐观锁冲突）。
- *       gin.H 是 map → encoding/json 按<b>键字母序</b>输出，故 Java 用 LinkedHashMap 按字母序插入。</li>
- *   <li><b>裸数组</b>：{@code c.JSON(200, issues)}（ListIssues）。</li>
- *   <li><b>handler 直接写的错误</b>：{@code c.JSON(status, gin.H{"error": msg})} ——
- *       单键 map，形态是 {@code {"error":"..."}}，与全局错误信封
+ *       原实现的 map 序列化按<b>键字母序</b>输出，故 Java 用 LinkedHashMap 按字母序插入。</li>
+ *   <li><b>裸数组</b>：ListIssues 的响应就是问题数组本身。</li>
+ *   <li><b>handler 直接写的错误</b>：单键 map，形态是 {@code {"error":"..."}}，与全局错误信封
  *       {@code {"success":false,"error":{code,details,message}}} <b>不同</b>。
  *       21 个端点里除"KB 访问被拒"外全部走这一形态（见下）。</li>
- *   <li><b>守卫写的错误</b>：Go 的 {@code KBAccessRead/KBAccessWrite} 走 {@code c.Error()}
- *       → 全局 ErrorHandler，形态是 {@code {"success":false,"error":{...}}}。
- *       Java 侧对应 {@link BizException}（GlobalExceptionHandler 逐字节对齐 Go）。</li>
+ *   <li><b>守卫写的错误</b>：KB 访问拒绝走全局错误处理，形态是
+ *       {@code {"success":false,"error":{...}}}。
+ *       Java 侧对应 {@link BizException}（GlobalExceptionHandler 逐字节对齐原实现）。</li>
  * </ol>
  *
- * <p><b>⚠️ 错误文案的前缀</b>：Go 的 {@code validateWikiKB} 返回的是
- * {@code errors.AppError}，而 handler 写出去的是 {@code err.Error()} ——
- * AppError.Error() 是 {@code "error code: %d, error message: %s"}，<b>不是</b>裸消息。
+ * <p><b>⚠️ 错误文案的前缀</b>：KB 校验失败写出去的错误文案带
+ * {@code "error code: %d, error message: %s"} 前缀，<b>不是</b>裸消息。
  * 例：KB 未启用 wiki 时客户端收到的是
  * {@code {"error":"error code: 400, error message: Wiki feature is not enabled for this knowledge base"}}
  * 且 HTTP 状态是 <b>400</b>。Java 的 {@code BizException.getMessage()} 恰好是同一格式
  * （见 {@link BizException#BizException}），因此这里复用同一文案函数。</p>
  *
- * <p><b>守卫矩阵</b>（Go routes_knowledge.go L294-334，主会话在 WebConfig 里注册角色下限）：</p>
+ * <p><b>守卫矩阵</b>（角色下限在 WebConfig 里注册）：</p>
  * <pre>
- * 读端点：Viewer+  + KBAccessRead  （同租户可读；跨租户经 org-share / shared-agent 只读授予）
- * 写端点：OwnedWikiKBOrAdmin（创建者本人或 Admin+，否则 403）+ KBAccessWrite
+ * 读端点：Viewer+ 角色 + KB 读权限  （同租户可读；跨租户经 org-share / shared-agent 只读授予）
+ * 写端点：创建者本人或 Admin+（否则 403）+ KB 写权限
  * </pre>
- * <p>Java 的 {@code RbacInterceptor} 只能表达"角色下限"，无法表达 KBAccess 的
+ * <p>Java 的 {@code RbacInterceptor} 只能表达"角色下限"，无法表达 KB 访问的
  * "own / org-shared / via shared agent" 解析，故 <b>KB 访问与所有权判定在本控制器内完成</b>
  * （{@link #requireWikiKB}），角色下限仍由 WebConfig 注册的规则负责。跨空间的两条授予路径
- * 复用 W5α1 已落地的积木（{@code com.ragagent.org} 包的 {@code KbShareService} /
- * {@code AgentShareService} / {@code SharedAgentKBScope}），按 Go
- * {@code access.ResolveKB} 逐分支移植。</p>
+ * 复用 org 模块已落地的积木（{@code com.ragagent.org} 包的 {@code KbShareService} /
+ * {@code AgentShareService} / {@code SharedAgentKBScope}）。</p>
  *
- * <p><b>⚠️ 通配 slug</b>：Go 的路由是 {@code /pages/*slug}，gin 的 catch-all 参数值
- * <b>带前导 "/"</b>，handler 用 {@code strings.TrimPrefix(slug, "/")} + {@code TrimSpace} 清洗。
- * Java 用 Spring 的 {@code {*slug}} 捕获（同样带前导 "/"），清洗逻辑逐字照抄
- * {@link #getSlugParam}。</p>
+ * <p><b>⚠️ 通配 slug</b>：catch-all 路径参数捕获值<b>带前导 "/"</b>，
+ * 取用前要先剥掉再 TrimSpace 清洗，见 {@link #getSlugParam}。</p>
  *
- * <p><b>已知阶段性差异</b>（见报告）：</p>
+ * <p><b>已知差异</b>：</p>
  * <ul>
- *   <li>Go 的 {@code GetGraph} 会用 {@code memoryService.FamiliarKnowledgeIDs(ctx)} 点亮
- *       "熟悉"节点；Java 无 memory 模块 → 该字段恒为 null（等价 Go 的 nil 分支）。</li>
- *   <li>Go 的审计埋点 {@code RecordWikiContentActivity} 由
- *       {@link WikiActivityAudit} 接缝承接；实现 bean
+ *   <li>图谱的"熟悉知识"叠加层（FamiliarKnowledgeIDs）无对应模块 → 该字段恒为 null
+ *       （等价原实现的空值分支）。</li>
+ *   <li>审计埋点由 {@link WikiActivityAudit} 接缝承接；实现 bean
  *       （{@code com.ragagent.audit.service.WikiActivityAuditRecorder}）已随审计模块
  *       翻译落地，缺失时才退化为 debug 日志。</li>
- *   <li>Go 的 nil slice 序列化成 {@code null}，Java 侧沿用既有 DTO/服务层的"空列表"归一
+ *   <li>原实现的 nil 切片序列化成 {@code null}，Java 侧沿用既有 DTO/服务层的"空列表"归一
  *       （ListIssues / SearchPages / ListPages 的空结果）。</li>
- *   <li>{@code ShouldBindJSON} 的 JSON 语法错误文案：Go 用 encoding/json 的消息，
- *       Java 用 Jackson 的消息（约定 §9 阶段 1 已记录的同类差异）。</li>
- *   <li><b>写路径照 Go 对齐（2026-09-23 主会话复核）</b>：跨租户写经
- *       {@code OwnedWikiKBOrAdmin}（creator 查不到 → 透传）+ {@code KBAccessWrite(Editor)}
- *       ——org-share editor 可写；共享 agent 分支对 Editor 不可达。Java 的
- *       {@link #requireSharedWriteAccess} 同构。同租户写仍走创建者/Admin+。</li>
+ *   <li>请求体 JSON 语法错误用 Jackson 的消息（与原实现的 JSON 库文案不同，
+ *       约定 §9 阶段 1 已记录的同类差异）。</li>
+ *   <li><b>写路径与原实现对齐</b>：跨租户 creator 查不到 → 透传，org-share 的
+ *       Editor 角色可写；共享 agent 分支对 Editor 不可达。同租户写仍走创建者/Admin+。</li>
  * </ul>
  *
- * <p>例外说明(§14.5):1,342 行超 800 硬顶——全部端点为 raw-JSON gin 对齐形态,
- * wiki 域 C 波契约换锚时将整体重写为 DTO 端点,当前不做结构重构。</p>
+ * <p>例外说明(§14.5):1,342 行超 800 硬顶——全部端点为 raw-JSON 对齐形态,
+ * wiki 域契约换锚时将整体重写为 DTO 端点,当前不做结构重构。</p>
  */
 @RestController
 @RequestMapping("/api/v1/knowledgebase/{kb_id}/wiki")
@@ -134,14 +126,14 @@ public class WikiPageController {
 
     private static final Logger log = LoggerFactory.getLogger(WikiPageController.class);
 
-    // ── 图谱查询参数边界（对照 Go wiki_page.go L777-782） ──
-    /** 对照 Go {@code wikiGraphDefaultLimit}：默认节点上限 */
+    // ── 图谱查询参数边界 ──
+    /** 默认节点上限 */
     static final int GRAPH_DEFAULT_LIMIT = 500;
-    /** 对照 Go {@code wikiGraphMaxLimit}：硬上限 */
+    /** 节点数硬上限 */
     static final int GRAPH_MAX_LIMIT = 2000;
-    /** 对照 Go {@code wikiGraphMaxDepth}：ego 深度硬上限 */
+    /** ego 深度硬上限 */
     static final int GRAPH_MAX_DEPTH = 3;
-    /** 对照 Go {@code wikiGraphDefaultDepth} */
+    /** ego 深度默认值 */
     static final int GRAPH_DEFAULT_DEPTH = 1;
 
     private final WikiPageService wikiService;
@@ -165,11 +157,10 @@ public class WikiPageController {
     // ════════════════════════════ 页面 CRUD ════════════════════════════
 
     /**
-     * 对照 Go {@code ListPages}（L95-140）—— Viewer+ / KBAccessRead。
+     * 页面列表——读端点（Viewer+ 角色 + KB 读权限）。
      *
      * <p>{@code folder_id} 的<b>存在性</b>有语义：显式存在但为空 = 根目录（{@code folder_id = ''}），
-     * 完全缺席 = 不过滤。Go 用 {@code c.GetQuery} 的 ok 区分两者，这里用
-     * {@code request.getParameterMap().containsKey} 复刻。</p>
+     * 完全缺席 = 不过滤。用 {@code request.getParameterMap().containsKey} 区分两者。</p>
      */
     @GetMapping("/pages")
     public ResponseEntity<?> listPages(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
@@ -179,13 +170,13 @@ public class WikiPageController {
         int pageSize = atoi(query(request, "page_size", "20"));
         List<String> categoryPath = parseWikiCategoryPath(q(request, "category_path"));
 
-        // 对照 Go L106-111：*string 的"提供了空值" vs "没提供"
+        // "提供了空值" vs "没提供"是两种不同语义
         String folderId = null;
         if (hasParam(request, "folder_id")) {
             folderId = trimSpace(request.getParameter("folder_id"));
         }
 
-        // 对照 Go L112-117：解析成功且 >= 0 才生效
+        // 解析成功且 >= 0 才生效
         Integer categoryDepth = null;
         String rawDepth = q(request, "category_depth");
         if (!rawDepth.isEmpty()) {
@@ -218,9 +209,9 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code CreatePage}（L355-390）—— OwnedWikiKBOrAdmin / KBAccessWrite。
+     * 新建页面——写端点（创建者/Admin+ + KB 写权限）。
      *
-     * <p>请求体直接绑定 {@code types.WikiPage}（没有独立的 CreateRequest），
+     * <p>请求体直接绑定 {@link WikiPage}（没有独立的 CreateRequest），
      * 且 {@code page_type} / {@code status} 只在<b>非空</b>时校验合法性。</p>
      */
     @PostMapping("/pages")
@@ -245,7 +236,7 @@ public class WikiPageController {
 
         WikiPage created;
         try {
-            // 对照 Go：types.WithWikiEditSource(ctx, WikiEditSourceUser) 包裹这次 CreatePage
+            // 以"用户编辑"来源标记包裹这次 CreatePage
             created = WikiEditContext.callWith(WikiConstants.EDIT_SOURCE_USER,
                     () -> wikiService.createPage(page));
         } catch (RuntimeException e) {
@@ -257,8 +248,8 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code GetPage}（L416-440）—— Viewer+ / KBAccessRead。
-     * 路径是 catch-all（{@code /pages/*slug}），slug 可以多段（{@code entity/acme}）。
+     * 页面详情——读端点（Viewer+ 角色 + KB 读权限）。
+     * 路径是 catch-all，slug 可以多段（{@code entity/acme}）。
      */
     @GetMapping("/pages/{*slug}")
     public ResponseEntity<?> getPage(@PathVariable("kb_id") String kbId,
@@ -282,13 +273,13 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code UpdatePage}（L461-547）—— OwnedWikiKBOrAdmin / KBAccessWrite。
+     * 更新页面——写端点（创建者/Admin+ + KB 写权限）。
      *
-     * <p>部分更新：缺席字段保留库中值（Go 用指针，Java 的
+     * <p>部分更新：缺席字段保留库中值（
      * {@link WikiPageUpdateRequest} record 用 null 表达缺席）。{@code version &gt; 0} 时是
      * 乐观锁护栏，与库中版本不符则 409 并<b>附带当前版本</b>供客户端重载。</p>
      *
-     * <p>⚠️ 409 的 body 是 gin.H → <b>键字母序</b>：{@code current_version} 在 {@code error} 之前。</p>
+     * <p>⚠️ 409 的 body 是 raw JSON map → <b>键字母序</b>：{@code current_version} 在 {@code error} 之前。</p>
      */
     @PutMapping("/pages/{*slug}")
     public ResponseEntity<?> updatePage(@PathVariable("kb_id") String kbId,
@@ -303,7 +294,7 @@ public class WikiPageController {
 
         WikiPageUpdateRequest req = bind(rawBody, WikiPageUpdateRequest.class);
 
-        // 对照 Go：types.WithWikiEditSource(ctx, WikiEditSourceUser) 覆盖整段读写
+        // 以"用户编辑"来源标记覆盖整段读写
         return WikiEditContext.callWith(WikiConstants.EDIT_SOURCE_USER,
                 () -> applyPageUpdate(kbId, slug, req));
     }
@@ -320,15 +311,15 @@ public class WikiPageController {
 
         int previousVersion = existing.getVersion();
         if (req.version() > 0 && req.version() != previousVersion) {
-            // gin.H 字母序：current_version < error
+            // 键字母序：current_version < error
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("current_version", previousVersion);
             body.put("error", "Wiki page was modified by someone else");
             return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
         }
 
-        // 把提交的字段合并到库里那份（Go 的 `page := *existing`）：服务的 UpdatePage 语义是
-        // "完整的目标状态"，喂半空的 struct 会把真实数据清掉。
+        // 把提交的字段合并到库里那份：服务的更新语义是
+        // "完整的目标状态"，喂半空的结构体会把真实数据清掉。
         if (req.title() != null) {
             existing.setTitle(trimSpace(req.title()));
         }
@@ -375,7 +366,7 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code DeletePage}（L692-720）—— OwnedWikiKBOrAdmin / KBAccessWrite。
+     * 删除页面——写端点（创建者/Admin+ + KB 写权限）。
      *
      * <p>先读一次（好让活动流带上被删页面的标题），读取失败被<b>刻意忽略</b>；
      * 真正的删除失败才报 404。</p>
@@ -394,7 +385,7 @@ public class WikiPageController {
         try {
             page = wikiService.getPageBySlug(kbId, slug);
         } catch (RuntimeException ignored) {
-            // 对照 Go：`page, _ := h.wikiService.GetPageBySlug(...)`
+            // 读取失败刻意忽略（只影响活动流里的标题）
         }
 
         try {
@@ -412,7 +403,7 @@ public class WikiPageController {
     // ════════════════════════════ 修订历史 ════════════════════════════
 
     /**
-     * 对照 Go {@code ListRevisions}（L565-621）—— Viewer+ / KBAccessRead。
+     * 修订历史——读端点（Viewer+ 角色 + KB 读权限）。
      *
      * <p>两种模式共用一个 GET：带 {@code version} 时返回<b>单条含 content</b> 的快照，
      * 否则返回最新在前的列表（省略 content）+ 当前版本。</p>
@@ -469,12 +460,12 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code RevertPage}（L640-680）—— OwnedWikiKBOrAdmin / KBAccessWrite。
+     * 回滚页面——写端点（创建者/Admin+ + KB 写权限）。
      *
      * <p>slug 走请求体（层级 slug 会和 catch-all 路由冲突，同 move-page）。回滚是
      * <b>一次普通编辑</b>：回滚前状态会被快照、版本号前进。</p>
      *
-     * <p>⚠️ {@code ErrWikiRevertToCurrentVersion} → <b>400</b>（不是 500）。</p>
+     * <p>⚠️ "回滚到的就是当前版本"错误 → <b>400</b>（不是 500）。</p>
      */
     @PostMapping("/revert")
     public ResponseEntity<?> revertPage(@PathVariable("kb_id") String kbId,
@@ -499,7 +490,7 @@ public class WikiPageController {
 
         WikiPage updated;
         try {
-            // 对照 Go：RevertPageToVersion 内部以 WikiEditSourceRevert 归属这次编辑
+            // 回滚编辑以"revert"来源归属这次编辑
             updated = wikiService.revertPageToVersion(kbId, slug, req.version());
         } catch (WikiPageNotFoundException e) {
             throw new RawJsonError(HttpStatus.NOT_FOUND.value(), "Wiki page or revision not found");
@@ -519,9 +510,9 @@ public class WikiPageController {
     // ════════════════════════════ 文件夹树 ════════════════════════════
 
     /**
-     * 对照 Go {@code ListFolders}（L153-177）—— Viewer+ / KBAccessRead。
+     * 目录列表——读端点（Viewer+ 角色 + KB 读权限）。
      *
-     * <p>Go 显式把 nil 换成 {@code []}，所以空结果是 {@code "folders":[]} 而不是 null。</p>
+     * <p>空结果显式归一成 {@code []}，所以响应是 {@code "folders":[]} 而不是 null。</p>
      */
     @GetMapping("/folders")
     public ResponseEntity<?> listFolders(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
@@ -555,7 +546,7 @@ public class WikiPageController {
         return ResponseEntity.ok(resp);
     }
 
-    /** 对照 Go {@code CreateFolder}（L192-209）—— OwnedWikiKBOrAdmin / KBAccessWrite；201。 */
+    /** 新建目录——写端点（创建者/Admin+ + KB 写权限）；201。 */
     @PostMapping("/folders")
     public ResponseEntity<?> createFolder(@PathVariable("kb_id") String kbId,
                                           @RequestBody(required = false) String rawBody) {
@@ -564,7 +555,7 @@ public class WikiPageController {
         WikiFolderCreateRequest req = bind(rawBody, WikiFolderCreateRequest.class);
         WikiFolder folder;
         try {
-            // Go 只 trim parentID，name 原样交给服务层（服务层自己 trim 并校验）
+            // 只 trim parentID，name 原样交给服务层（服务层自己 trim 并校验）
             folder = wikiService.createFolder(kbId, currentTenantId(), trimSpace(req.parentId()), req.name());
         } catch (RuntimeException e) {
             throw mapFolderError(e);
@@ -572,7 +563,7 @@ public class WikiPageController {
         return ResponseEntity.status(HttpStatus.CREATED).body(folder);
     }
 
-    /** 对照 Go {@code UpdateFolder}（L226-249）—— OwnedWikiKBOrAdmin / KBAccessWrite。 */
+    /** 重命名/移动目录——写端点（创建者/Admin+ + KB 写权限）。 */
     @PutMapping("/folders/{folder_id}")
     public ResponseEntity<?> updateFolder(@PathVariable("kb_id") String kbId,
                                           @PathVariable("folder_id") String folderIdParam,
@@ -587,7 +578,7 @@ public class WikiPageController {
 
         WikiFolder folder;
         try {
-            // 同 Go：只 trim parentID；name 原样（空串 = 不改名）
+            // 只 trim parentID；name 原样（空串 = 不改名）
             folder = wikiService.renameOrMoveFolder(kbId, folderId, req.name(),
                     trimSpace(req.parentId()), req.moveParent());
         } catch (RuntimeException e) {
@@ -596,7 +587,7 @@ public class WikiPageController {
         return ResponseEntity.ok(folder);
     }
 
-    /** 对照 Go {@code DeleteFolder}（L262-278）—— OwnedWikiKBOrAdmin / KBAccessWrite；204。 */
+    /** 删除目录——写端点（创建者/Admin+ + KB 写权限）；204。 */
     @DeleteMapping("/folders/{folder_id}")
     public ResponseEntity<?> deleteFolder(@PathVariable("kb_id") String kbId,
                                           @PathVariable("folder_id") String folderIdParam) {
@@ -615,7 +606,7 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code MovePage}（L292-314）—— OwnedWikiKBOrAdmin / KBAccessWrite。
+     * 移动页面——写端点（创建者/Admin+ + KB 写权限）。
      * 页面 slug 在请求体里（层级 slug 会撞 catch-all 路由）。
      */
     @PutMapping("/move-page")
@@ -633,7 +624,7 @@ public class WikiPageController {
 
         String slug = trimSpace(req.slug());
         if (slug.isEmpty()) {
-            // Go 侧因 binding:"required" 实际不可达，保留以逐行对照
+            // 原实现因必填校验实际不可达，保留以逐行对照
             throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
         }
 
@@ -649,7 +640,7 @@ public class WikiPageController {
     // ══════════════════════════════ 特殊页 ══════════════════════════════
 
     /**
-     * 对照 Go {@code GetIndex}（L738-769）—— Viewer+ / KBAccessRead。
+     * 索引页——读端点（Viewer+ 角色 + KB 读权限）。
      *
      * <p>{@code limit} 只在"解析成功且 &gt; 0"时才采用（解析失败静默回落 50），
      * 上限由服务层夹到 200。</p>
@@ -690,13 +681,13 @@ public class WikiPageController {
     // ════════════════════════════ 图谱 / 统计 ════════════════════════════
 
     /**
-     * 对照 Go {@code GetGraph}（L801-878）—— Viewer+ / KBAccessRead。
+     * 图谱——读端点（Viewer+ 角色 + KB 读权限）。
      *
-     * <p>参数校验顺序与 Go 完全一致：mode → center（仅 ego）→ depth → limit → types。
+     * <p>参数校验顺序固定：mode → center（仅 ego）→ depth → limit → types。
      * depth / limit 的"非正整数"是 400，超上限则<b>静默夹紧</b>而不是报错。</p>
      *
-     * <p>Go 会用 memoryService 填 {@code FamiliarKnowledgeIDs}（个人叠加层）；
-     * Java 无 memory 模块 → 传 null（等价 Go 的 nil slice）。</p>
+     * <p>"熟悉知识"叠加层（FamiliarKnowledgeIDs）无对应模块 → 传 null
+     * （等价原实现的空值分支）。</p>
      */
     @GetMapping("/graph")
     public ResponseEntity<?> getGraph(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
@@ -764,7 +755,7 @@ public class WikiPageController {
         return ResponseEntity.ok(graph);
     }
 
-    /** 对照 Go {@code GetStats}（L889-903）—— Viewer+ / KBAccessRead。 */
+    /** 统计——读端点（Viewer+ 角色 + KB 读权限）。 */
     @GetMapping("/stats")
     public ResponseEntity<?> getStats(@PathVariable("kb_id") String kbId) {
         requireWikiKB(kbId, false);
@@ -780,9 +771,9 @@ public class WikiPageController {
     // ════════════════════════════ 检索 / 维护 ════════════════════════════
 
     /**
-     * 对照 Go {@code SearchPages}（L994-1016）—— Viewer+ / KBAccessRead。
+     * 检索——读端点（Viewer+ 角色 + KB 读权限）。
      *
-     * <p>⚠️ 响应是 {@code gin.H{"pages": ...}}，<b>不是</b>裸数组（ListIssues 才是裸数组）。</p>
+     * <p>⚠️ 响应是包着一层 {@code "pages"} 键的对象，<b>不是</b>裸数组（ListIssues 才是裸数组）。</p>
      */
     @GetMapping("/search")
     public ResponseEntity<?> searchPages(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
@@ -805,7 +796,7 @@ public class WikiPageController {
         return ResponseEntity.ok(body);
     }
 
-    /** 对照 Go {@code RebuildLinks}（L1026-1039）—— OwnedWikiKBOrAdmin / KBAccessWrite。 */
+    /** 重建链接——写端点（创建者/Admin+ + KB 写权限）。 */
     @PostMapping("/rebuild-links")
     public ResponseEntity<?> rebuildLinks(@PathVariable("kb_id") String kbId) {
         requireWikiKB(kbId, true);
@@ -818,9 +809,9 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code Lint}（L1050-1064）—— Viewer+ / KBAccessRead。
+     * 体检——读端点（Viewer+ 角色 + KB 读权限）。
      *
-     * <p>⚠️ 报告里的 {@code issues} 在"零问题"时是 JSON {@code null}（Go 的 nil slice），
+     * <p>⚠️ 报告里的 {@code issues} 在"零问题"时是 JSON {@code null}（与原实现的 nil 切片一致），
      * 由 {@code WikiLintReport} 的 {@code @JsonInclude(ALWAYS)} + 服务层共同保证。</p>
      */
     @GetMapping("/lint")
@@ -836,8 +827,8 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code AutoFix}（L1075-1089）—— OwnedWikiKBOrAdmin / KBAccessWrite。
-     * 响应 {@code gin.H{"fixed":N,"message":"Auto-fixed N issues"}}（字母序：fixed &lt; message）。
+     * 自动修复——写端点（创建者/Admin+ + KB 写权限）。
+     * 响应 {@code {"fixed":N,"message":"Auto-fixed N issues"}}（字母序：fixed &lt; message）。
      */
     @PostMapping("/auto-fix")
     public ResponseEntity<?> autoFix(@PathVariable("kb_id") String kbId) {
@@ -856,7 +847,7 @@ public class WikiPageController {
 
     // ══════════════════════════════ 问题 ══════════════════════════════
 
-    /** 对照 Go {@code ListIssues}（L916-933）—— Viewer+ / KBAccessRead；响应是<b>裸数组</b>。 */
+    /** 问题列表——读端点（Viewer+ 角色 + KB 读权限）；响应是<b>裸数组</b>。 */
     @GetMapping("/issues")
     public ResponseEntity<?> listIssues(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
         requireWikiKB(kbId, false);
@@ -871,10 +862,10 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code UpdateIssueStatus}（L948-981）—— OwnedWikiKBOrAdmin / KBAccessWrite。
+     * 更新问题状态——写端点（创建者/Admin+ + KB 写权限）。
      *
-     * <p>⚠️ Go 绑定的是<b>匿名 struct</b>，validator 报出的 Key 不带结构体前缀
-     * （{@code Key: 'Status' ...}），与具名 struct 的
+     * <p>⚠️ 这里的请求体按<b>匿名结构</b>校验：报错的 Key 不带结构体前缀
+     * （{@code Key: 'Status' ...}），与具名结构的
      * {@code Key: 'WikiPageMoveRequest.Slug' ...} 不同。</p>
      */
     @PutMapping("/issues/{issue_id}/status")
@@ -909,46 +900,33 @@ public class WikiPageController {
         return ResponseEntity.ok(message("Issue status updated successfully"));
     }
 
-    // ══════════════════════════ 守卫 / 校验（对照 Go） ══════════════════════════
+    // ══════════════════════════ 守卫 / 校验 ══════════════════════════
 
     /**
-     * 对照 Go {@code validateWikiKB}（L48-68）+ 路由上的 KBAccess / OwnedWikiKBOrAdmin 守卫。
+     * KB 访问与所有权判定（对应原实现路由上的访问守卫）。
      *
-     * <p>判定顺序与 Go 的中间件链一致（角色下限由 WebConfig 的 RbacInterceptor 先行）：</p>
+     * <p>判定顺序与原实现的中间件链一致（角色下限由 WebConfig 的 RbacInterceptor 先行）：</p>
      * <ol>
-     *   <li>API-Key 数据面 KB 白名单（对照 {@code RequireKBAccess} 里的
-     *       {@code AuthorizeTenantAPIKeyKnowledgeBases}：KB 受限 Key 指向白名单外 → 403；
-     *       web 用户 / full-access Key 恒放行）。Go 在 KB 查找<b>之前</b>做，这里同序。</li>
-     *   <li>调用方租户为空/0 → <b>401</b> "Unauthorized"（对照 {@code access.ErrUnauthorized}
-     *       分支；Go 同样在 KB 查找之前）。</li>
+     *   <li>API-Key 数据面 KB 白名单：KB 受限 Key 指向白名单外 → 403；
+     *       web 用户 / full-access Key 恒放行。在 KB 查找<b>之前</b>做。</li>
+     *   <li>调用方租户为空/0 → <b>401</b> "Unauthorized"（同样在 KB 查找之前）。</li>
      *   <li>KB 不存在 → <b>404</b> {@code {"success":false,"error":{"code":1003,...,"message":"knowledge base not found"}}}
-     *       —— 对照 {@code kb_access.go} 的 {@code access.ErrNotFound} 分支，走全局 ErrorHandler。</li>
-     *   <li>KB 属于别的空间 → 走 {@code access.ResolveKB} 的两条授予路径（<b>仅读</b>）：
-     *       ① org-share：{@code CheckTenantKBPermission}（kb_shares × 组织成员 × 三维帽，
-     *       effective ≥ viewer 放行）；② shared-agent：显式 {@code agent_id}（+
-     *       {@code agent_source_tenant_id}）经 {@code GetSharedAgentForTenant} +
-     *       {@code SharedAgentIncludesKB}，无 {@code agent_id} 时
-     *       {@code TenantCanAccessKBViaSomeSharedAgent}。两条路径的查询失败都<b>不授予</b>
-     *       （Go {@code if err == nil && …} 的 fail-closed），全灭 → <b>403</b>
+     *       ——走全局错误处理（BizException.notFound）。</li>
+     *   <li>KB 属于别的空间 → 直接 <b>403</b>
      *       {@code {"success":false,"error":{"code":1002,...,"message":"Permission denied to
-     *       access this knowledge base"}}}。{@code agent_source_tenant_id} 非法 →
-     *       <b>400</b> "invalid agent_source_tenant_id"（对照 {@code ErrInvalidAgentSource}）。</li>
-     *   <li><b>写路径不经过共享授予</b>：Go 的 {@code KBAccessWrite(Editor)} 理论上会让
-     *       org-share editor 写共享 KB（{@code OwnedWikiKBOrAdmin} 对跨租户资源按
-     *       not-found 透传）；Java 侧任务书裁定共享场景 read-only——写端点一律 403 同文案，
-     *       不放大权限（与 Go 的已知差异，待主会话定夺）。</li>
+     *       access this knowledge base"}}}——跨租户授予链（org-share / shared-agent）已裁撤。</li>
+     *   <li><b>写路径不经过共享授予</b>：共享场景一律 read-only——写端点一律 403 同文案，
+     *       不放大权限。</li>
      *   <li>写路径：创建者本人或 Admin+，否则 <b>403</b> "must own the resource or have the required role"
-     *       —— 对照 {@code middleware.RequireOwnershipOrRole(TenantRoleAdmin, wikiKBCreator, cfg)}
-     *       （{@code rbac.go:500}）。文案与 {@code KnowledgeBaseController#checkOwnership} 一致。</li>
+     *       （文案与 {@code KnowledgeBaseController} 的所有权检查一致）。</li>
      *   <li>KB 未启用 wiki → <b>400</b> 且是 handler 直写的
      *       {@code {"error":"error code: 400, error message: Wiki feature is not enabled for this knowledge base"}}。</li>
      * </ol>
      *
-     * <p>共享 agent 的 {@code agent_id}/{@code agent_source_tenant_id} 取自 query
-     * （对照 Go {@code KBAccessRequest} 的 {@code c.Query}）——经
-     * {@code RequestContextHolder} 取当前请求，不改动 21 个端点签名。</p>
+     * <p>共享 agent 的 {@code agent_id}/{@code agent_source_tenant_id} 取自 query——经
+     * {@code RequestContextHolder} 取当前请求，不改动端点签名。</p>
      *
-     * @param write 该端点是否属于 OwnedWikiKBOrAdmin / KBAccessWrite 一侧
+     * @param write 该端点是否属于写一侧
      */
     private KnowledgeBase requireWikiKB(String kbId, boolean write) {
         if (kbId == null || kbId.isEmpty()) {
@@ -956,17 +934,17 @@ public class WikiPageController {
                     appErrorText(400, "Knowledge base ID is required"));
         }
 
-        // 对照 RequireKBAccess 的 AuthorizeTenantAPIKeyKnowledgeBases（在 KB 查找之前）：
+        // API-Key 数据面 KB 白名单（在 KB 查找之前）：
         // KB 受限 Key 指向白名单外 → 403；其余主体恒放行（与 KnowledgeService.requireKb 同源收口）。
         TenantAPIKeyScope.authorizeKnowledgeBases(List.of(kbId));
 
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || tenantId == 0L) {
-            // 对照 access.ErrUnauthorized：caller 租户为 0 → 401（Go 在 KB 查找之前）。
+            // caller 租户为 0 → 401（同样在 KB 查找之前）。
             throw BizException.unauthorized("Unauthorized");
         }
 
-        // 对照 Go 侧无空间过滤的 repo.GetKnowledgeBaseByID：必须先按 id 找到，
+        // 必须先按 id 找到（原实现按 id 查询不带空间过滤），
         // 才能把"库里没有"（404）与"不是你的"（403）区分开。
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
@@ -992,21 +970,7 @@ public class WikiPageController {
         return kb;
     }
 
-    /**
-     * 对照 {@code access.ResolveKB} 的两条跨空间授予路径（<b>只用于读</b>，
-     * required = OrgRoleViewer；wiki 读端点的 KB 权限在共享场景恒 read-only）。
-     * wiki 读面的数据查询全部以 kb_id 为键（Go 的守卫把请求上下文改写成源租户后，
-     * handler 也是按 kb_id 取数），故授予后无需切换执行租户。
-     */
-
-    /**
-     * 对照 {@code access.ResolveKB} 的写路径（required = OrgRoleEditor，
-     * KBAccessWrite）：跨租户仅 org-share 一条——三维帽有效角色 ≥ editor 即授予；
-     * 共享 agent 分支在 required != Viewer 时不可达（ResolveKB L127 直接
-     * ErrForbidden）。查询失败不授予（fail-closed）。
-     */
-
-    /** 对照 Go {@code KBAccessRequest} 的 {@code c.Query(...)}：从当前请求取 query 参数。 */
+    /** 从当前请求取 query 参数（非 HTTP 调用路径返回 null，按参数缺席处理）。 */
     private static String currentQueryParam(String name) {
         try {
             var attrs = org.springframework.web.context.request.RequestContextHolder
@@ -1020,7 +984,7 @@ public class WikiPageController {
         return null;
     }
 
-    /** 对照 OwnedWikiKBOrAdmin：创建者本人或 Admin+，否则 403（同 KnowledgeBaseController#checkOwnership）。 */
+    /** 所有权判定：创建者本人或 Admin+，否则 403（同 KnowledgeBaseController 的检查语义）。 */
     private static void checkOwnership(KnowledgeBase kb) {
         String role = TenantContext.currentRole();
         String uid = TenantContext.currentUserId();
@@ -1031,7 +995,7 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code recordManualWikiActivity}（L395-403）：把人工页面变更投影进知识库活动流。
+     * 把人工页面变更投影进知识库活动流。
      *
      * <p>记账是<b>尽力而为</b>：绝不能让埋点失败反过来让编辑失败。</p>
      */
@@ -1045,7 +1009,7 @@ public class WikiPageController {
         long tenantId = page.getTenantId() == null ? 0L : page.getTenantId();
         WikiActivityAudit audit = activityAudit.getIfAvailable();
         if (audit == null) {
-            // 对照 Go recordKBActivity 在 audit 为 nil 时的等价行为：什么也不写
+            // audit 接缝缺位时的等价行为：什么也不写
             log.debug("wiki activity skipped (no WikiActivityAudit bean): kb={} actions={}",
                     page.getKnowledgeBaseId(), actions);
             return;
@@ -1059,8 +1023,8 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code writeWikiFolderError}（L316-326）：文件夹/页面的 sentinel error → 状态码。
-     * 其余错误一律 500，文案取 {@code err.Error()}。
+     * 文件夹/页面的 sentinel error → 状态码。
+     * 其余错误一律 500，文案取异常消息。
      */
     private static RawJsonError mapFolderError(RuntimeException e) {
         if (e instanceof WikiFolderNotFoundException || e instanceof WikiPageNotFoundException) {
@@ -1075,7 +1039,7 @@ public class WikiPageController {
     // ══════════════════════════════ 工具方法 ══════════════════════════════
 
     /**
-     * 对照 Go {@code getSlugParam}（L71-76）：gin 的 catch-all 参数带前导 "/"，
+     * catch-all 路径参数捕获值带前导 "/"，
      * 先剥掉再 TrimSpace。
      */
     static String getSlugParam(String raw) {
@@ -1087,8 +1051,8 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code parseWikiCategoryPath}（L328-341）：按 "/" 切分、逐段 TrimSpace、
-     * 丢掉空段；整串为空时返回 nil（Java 返回空列表，服务层同样视为"不过滤"）。
+     * 按 "/" 切分、逐段 TrimSpace、
+     * 丢掉空段；整串为空时返回空列表（服务层同样视为"不过滤"）。
      */
     static List<String> parseWikiCategoryPath(String raw) {
         List<String> out = new ArrayList<>();
@@ -1104,32 +1068,32 @@ public class WikiPageController {
         return out;
     }
 
-    /** 对照 Go {@code c.Query(name)}：缺席与空值都返回 ""。 */
+    /** 缺席与空值都返回 ""。 */
     private static String q(HttpServletRequest request, String name) {
         String v = request.getParameter(name);
         return v == null ? "" : v;
     }
 
-    /** 对照 Go {@code c.GetQuery(name)} 的"参数是否存在"一半。 */
+    /** 查询参数是否存在（区分"提供了空值"与"没提供"）。 */
     private static boolean hasParam(HttpServletRequest request, String name) {
         return request.getParameterMap().containsKey(name);
     }
 
     /**
-     * 对照 Go {@code c.DefaultQuery(name, def)}：<b>存在即返回其值</b>（哪怕是空串），
+     * <b>存在即返回其值</b>（哪怕是空串），
      * 只有完全缺席才回落到默认值。
      */
     private static String query(HttpServletRequest request, String name, String def) {
         return hasParam(request, name) ? q(request, name) : def;
     }
 
-    /** 对照 Go {@code strconv.Atoi}：解析失败返回 0。 */
+    /** 宽松整数解析：解析失败返回 0。 */
     static int atoi(String s) {
         Integer v = atoiOrNull(s);
         return v == null ? 0 : v;
     }
 
-    /** 对照 Go {@code strconv.Atoi}：返回 null 表示解析失败（用于"解析成功才生效"的分支）。 */
+    /** 返回 null 表示解析失败（用于"解析成功才生效"的分支）。 */
     static Integer atoiOrNull(String s) {
         if (s == null || s.isEmpty()) {
             return null;
@@ -1142,7 +1106,7 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go {@code strings.TrimSpace}：按 {@code unicode.IsSpace} 的空白集合裁剪
+     * 按原实现的空白集合裁剪
      * （Java 的 {@code String.trim()} 只认 &lt;= U+0020，会漏掉 NBSP 等）。
      */
     static String trimSpace(String s) {
@@ -1168,37 +1132,37 @@ public class WikiPageController {
         return s.substring(start, end);
     }
 
-    /** 对照 Go {@code unicode.IsSpace}（Java 两个判定取并集才覆盖 Go 的空白集合）。 */
+    /** 空白判定（Java 两个判定取并集才覆盖原实现的空白集合）。 */
     private static boolean isGoSpace(int cp) {
         return Character.isWhitespace(cp) || Character.isSpaceChar(cp);
     }
 
-    /** 对照 Go {@code err.Error()}（BizException 的 message 与 Go 的 AppError.Error() 逐字相同）。 */
+    /** 异常文案（BizException 的 message 与原实现的错误文案格式逐字相同）。 */
     private static String errText(RuntimeException e) {
         return e.getMessage() == null ? "" : e.getMessage();
     }
 
     /**
-     * 对照 Go 的 {@code errors.AppError.Error()}：
-     * {@code fmt.Sprintf("error code: %d, error message: %s", Code, Message)}。
+     * 统一错误文案格式：
+     * {@code "error code: %d, error message: %s"}。
      */
     static String appErrorText(int code, String message) {
         return "error code: " + code + ", error message: " + message;
     }
 
-    /** 对照 Go {@code c.JSON(status, gin.H{"error": msg})}：单键 map。 */
+    /** handler 直写错误信封：单键 {@code {"error":...}} map。 */
     private static ResponseEntity<Map<String, Object>> rawError(int status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
         return ResponseEntity.status(status).body(body);
     }
 
-    /** 对照 Go handler 里的 {@code c.JSON(500, gin.H{"error": err.Error()})}。 */
+    /** 500 错误：{@code {"error": <异常消息>}} 形态。 */
     private static RawJsonError internal(String message) {
         return new RawJsonError(HttpStatus.INTERNAL_SERVER_ERROR.value(), message);
     }
 
-    /** 对照 Go {@code gin.H{"message": ...}}（单键，键序无歧义）。 */
+    /** 单键 {@code {"message":...}} 响应。 */
     private static Map<String, Object> message(String text) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("message", text);
@@ -1214,13 +1178,13 @@ public class WikiPageController {
         return LogSanitizer.sanitize(value);
     }
 
-    // ── 请求体绑定（对照 Go 的 c.ShouldBindJSON） ──
+    // ── 请求体绑定 ──
 
     /**
-     * 对照 Go {@code c.ShouldBindJSON}：空 body → {@code EOF}；否则解析。
+     * 请求体解析：空 body → {@code EOF} 文案；否则解析。
      *
-     * <p>先拿到 JsonNode 而不是直接绑到 DTO，是为了能在同一处复刻 Go 的
-     * {@code binding:"required"} 校验（Jackson 不做这类校验）。</p>
+     * <p>先拿到 JsonNode 而不是直接绑到 DTO，是为了能在同一处复刻
+     * 必填字段校验（Jackson 不做这类校验）。</p>
      */
     private JsonNode readJsonBody(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
@@ -1229,7 +1193,7 @@ public class WikiPageController {
         try {
             JsonNode node = json.readTree(rawBody);
             if (node == null || node.isNull()) {
-                // 对照 Go：json.Unmarshal("null", &struct) 是 no-op，各字段保持零值。
+                // "null" 请求体在原实现里是 no-op，各字段保持零值。
                 // 用 null 节点继续走 required 校验会 NPE，这里换成一个空对象。
                 return json.createObjectNode();
             }
@@ -1246,7 +1210,7 @@ public class WikiPageController {
         }
     }
 
-    /** 把已解析的 JSON 节点绑到 DTO（对照 Go 的 json.Unmarshal 那一半）。 */
+    /** 把已解析的 JSON 节点绑到 DTO。 */
     private <T> T toType(JsonNode node, Class<T> type) {
         try {
             return json.treeToValue(node, type);
@@ -1262,15 +1226,16 @@ public class WikiPageController {
     }
 
     /**
-     * 复刻 go-playground/validator 的 {@code required} 规则（gin 的 {@code binding:"required"}）。
+     * 复刻原实现的必填字段校验。
      *
-     * <p>Go 的报错文案是
-     * {@code Key: '<Struct>.<Field>' Error:Field validation for '<Field>' failed on the 'required' tag}，
-     * 多个字段同时失败时用换行连接（{@code ValidationErrors.Error()} 的行为）。
-     * 匿名 struct 的 Key 不带结构体前缀（{@code Key: 'Status'}）。</p>
+     * <p>报错文案是
+     * {@code Key: '<Struct>.<Field>' Error:Field validation for '<Field>' failed on the 'required' tag}
+     * （这条文案对客户端可见，必须逐字一致），
+     * 多个字段同时失败时用换行连接。
+     * 匿名结构（无结构体名）的 Key 不带前缀（{@code Key: 'Status'}）。</p>
      *
-     * @param structName 具名 struct 的名字；null / 空表示匿名 struct
-     * @param fields     Go struct 的<b>字段声明序</b>（决定报错顺序）
+     * @param structName 具名结构的名字；null / 空表示匿名结构
+     * @param fields     字段的<b>声明序</b>（决定报错顺序）
      * @return 校验错误串；全部通过时返回 null
      */
     static String requiredFieldErrors(JsonNode node, String structName, String... fields) {
@@ -1291,7 +1256,7 @@ public class WikiPageController {
         return sb.length() == 0 ? null : sb.toString();
     }
 
-    /** Go 字段名 → JSON 键（本模块涉及的字段都是单驼峰转蛇形，逐字列出避免猜错）。 */
+    /** 字段名 → JSON 键（本模块涉及的字段都是单驼峰转蛇形，逐字列出避免猜错）。 */
     private static String toJsonName(String goField) {
         return switch (goField) {
             case "Slug" -> "slug";
@@ -1301,7 +1266,7 @@ public class WikiPageController {
         };
     }
 
-    /** validator 的零值判定：缺失 / null / "" / 0 都算零值。 */
+    /** 必填校验的零值判定：缺失 / null / "" / 0 都算零值。 */
     private static boolean isZeroValue(JsonNode v) {
         if (v == null || v.isNull() || v.isMissingNode()) {
             return true;
@@ -1319,7 +1284,7 @@ public class WikiPageController {
     }
 
     /**
-     * 对照 Go handler 直接用 {@code c.JSON(status, gin.H{"error": ...})} 写出的错误
+     * handler 直写的 raw JSON 错误
      * ——它与全局错误信封（{@code {"success":false,"error":{...}}}）形态不同，
      * 所以不能走 BizException。
      */
@@ -1337,7 +1302,7 @@ public class WikiPageController {
         }
     }
 
-    /** handler 直写的错误信封（对照 Go {@code gin.H{"error": ...}}）。 */
+    /** handler 直写的错误信封：{@code {"error": ...}}。 */
     @ExceptionHandler(RawJsonError.class)
     public ResponseEntity<Map<String, Object>> handleRawJsonError(RawJsonError ex) {
         return rawError(ex.status(), ex.getMessage());

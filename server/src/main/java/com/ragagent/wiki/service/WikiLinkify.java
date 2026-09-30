@@ -2,10 +2,8 @@ package com.ragagent.wiki.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
@@ -14,38 +12,27 @@ import com.ragagent.wiki.service.WikiCrossLinker.LinkifyResult;
 import com.ragagent.wiki.service.WikiCrossLinker.LinkRef;
 
 /**
- * {@code [[slug]]} 交叉链接自动注入（对照 Go
- * internal/application/service/wiki_linkify.go 全文，565 行）。
+ * {@code [[slug]]} 交叉链接自动注入（{@link WikiCrossLinker} 的默认实现）。
  *
- * <p>本类是该文件的<b>逐行翻译</b>：{@code linkifyContent} 与它的全部辅助函数
- * （{@code computeForbiddenSpans} / {@code findFirstSafeMatch} / {@code hasWordBoundary}
- * / {@code matchMarkdownLink} / {@code scanReferenceDefinitions} / …）逐条移植，
- * 算法与判定顺序完全一致。</p>
- *
- * <h2>为什么实现 {@link WikiCrossLinker} 而不是各写一份</h2>
- * <p>Go 侧有两个入口调用 {@code linkifyContent}：</p>
+ * <h2>为什么实现 {@link WikiCrossLinker}</h2>
+ * <p>有两个入口需要加链：</p>
  * <ul>
- *   <li>{@code wiki_page.go:InjectCrossLinks}（L1852-1892）——用<b>全量页面</b>的
+ *   <li>{@link WikiPageService#injectCrossLinks}——用<b>全量页面</b>的
  *       title/aliases 作为 refs，服务 agent 写页后的全局补链；</li>
- *   <li>{@code wiki_ingest.go:injectCrossLinks}（L1812-1872）——只用本批次
+ *   <li>ingest 收尾（WikiIngestPageOps）——只用本批次
  *       受影响页面 + 新鲜 slug 作为 refs，服务 ingest 收尾。</li>
  * </ul>
- * <p>Java 侧 {@link WikiPageService#injectCrossLinks} 已经把第一个入口写成了
- * 「取全量页面 → 挑受影响页 → 调 {@link WikiCrossLinker#linkify}」的编排，并在
- * linkify 未翻译时退化为 {@link WikiCrossLinker.Noop}。本类就是那个缺口的实现：
- * 注册为 bean 后 Noop 自动让位，两个入口同时获得真实的加链能力，
- * <b>无需改动任何既有文件</b>。</p>
+ * <p>两个入口共享同一个 linkify 内核（本类）。本类注册为 bean 后
+ * {@link WikiCrossLinker.Noop} 自动让位，两个入口同时获得真实的加链能力。</p>
  *
- * <h2>字节与码点</h2>
- * <p>Go 全程用<b>字节</b>偏移（{@code len(s)} / {@code s[i]} / {@code utf8.DecodeRune}）。
- * Java 的 {@code String} 是 UTF-16，本实现全程用 <b>char 下标</b>——对"查找子串、
- * 在命中处切接"这类操作，只要始终用同一套下标体系，结果与 Go 逐字节等价。
- * 唯一的语义差异点是<b>长度与邻接字符的判定</b>，已按下述方式对齐：</p>
+ * <h2>char 下标与码点</h2>
+ * <p>本实现全程用 <b>char 下标</b>——对"查找子串、在命中处切接"这类操作，
+ * 只要始终用同一套下标体系，结果自洽。长度与邻接字符的判定按以下方式处理：</p>
  * <ul>
- *   <li>ref 排序用的 {@code utf8.RuneCountInString} → {@link String#codePointCount}
- *       （按码点，不是 char，更不是字节）；</li>
- *   <li>{@code DecodeRuneInString(s[end:])} → {@link String#codePointAt}，
- *       {@code DecodeLastRuneInString(s[:pos])} → {@link String#codePointBefore}；
+ *   <li>ref 排序用 {@link String#codePointCount}
+ *       （按码点，不是 char）；</li>
+ *   <li>邻接字符判定用 {@link String#codePointAt} /
+ *       {@link String#codePointBefore}；
  *       两者都天然处理增补平面字符的代理对。</li>
  * </ul>
  */
@@ -55,19 +42,18 @@ public class WikiLinkify implements WikiCrossLinker {
     /**
      * 不得被加链改写的半开区间 {@code [start, end)}：围栏代码块、行内代码、
      * 既有 {@code [[...]]} wiki 链接、{@code [text](url)} 与 {@code ![alt](url)}。
-     * 对照 Go {@code span}（wiki_linkify.go L16-23）。
      */
     record Span(int start, int end) {}
 
     /**
-     * 对照 Go {@code linkifyContent}（wiki_linkify.go L35-82）：为每个 ref 注入
+     * 为每个 ref 注入
      * <b>至多第一处</b>合格的 {@code [[slug|matchText]]}，跳过落在代码或既有链接
      * 内部的出现；ASCII 字母开头/结尾的 matchText 还要求词边界。
      *
      * <p>已经链到该 slug 的 ref（无论是 {@code [[slug]]} 还是 {@code [[slug|...]]}）
      * 整条跳过；指向 {@code selfSlug} 的 ref 跳过。</p>
      *
-     * <p>入参 refs <b>不会被修改</b>（Go 注释明确保证，Java 的 {@link List} 同样只读）。</p>
+     * <p>入参 refs <b>不会被修改</b>。</p>
      */
     @Override
     public LinkifyResult linkify(String content, List<LinkRef> refs, String selfSlug) {
@@ -76,7 +62,7 @@ public class WikiLinkify implements WikiCrossLinker {
         }
         String self = selfSlug == null ? "" : selfSlug;
 
-        // 对照 Go L42-55：先过滤出有效 ref，再按 matchText 的**码点数**降序稳定排序，
+        // 先过滤出有效 ref，再按 matchText 的**码点数**降序稳定排序，
         // 让长名字赢过自己的子串（"北京邮电大学" 优先于 "北京"）。
         List<LinkRef> sorted = new ArrayList<>(refs.size());
         for (LinkRef ref : refs) {
@@ -96,7 +82,7 @@ public class WikiLinkify implements WikiCrossLinker {
         if (sorted.isEmpty()) {
             return new LinkifyResult(content, false);
         }
-        // Go 的 sort.SliceStable：长度降序，等长保持输入顺序
+        // 稳定排序：长度降序，等长保持输入顺序
         sorted.sort(Comparator.comparingInt(
                 (LinkRef r) -> -r.matchText().codePointCount(0, r.matchText().length())));
 
@@ -107,7 +93,7 @@ public class WikiLinkify implements WikiCrossLinker {
         boolean changed = false;
 
         for (LinkRef ref : sorted) {
-            // 该 slug 在正文里已经有链接了 → 整条跳过（对照 Go L62-64）
+            // 该 slug 在正文里已经有链接了 → 整条跳过
             if (used.contains(ref.slug())) {
                 continue;
             }
@@ -117,7 +103,7 @@ public class WikiLinkify implements WikiCrossLinker {
             }
             String replacement = "[[" + ref.slug() + "|" + ref.matchText() + "]]";
             out = out.substring(0, pos) + replacement + out.substring(pos + ref.matchText().length());
-            // 对照 Go L71-77：按本次编辑**平移/扩展**禁区，后续 ref 不会把新链接再套一层
+            // 按本次编辑**平移/扩展**禁区，后续 ref 不会把新链接再套一层
             int delta = replacement.length() - ref.matchText().length();
             List<Span> shifted = shiftSpansAfter(spans, pos, delta);
             shifted.add(new Span(pos, pos + replacement.length()));
@@ -131,13 +117,12 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code findFirstSafeMatch}（wiki_linkify.go L88-114）：返回 haystack 里
+     * 返回 haystack 里
      * 第一个「不落在任何禁区内、且（对 ASCII 字母边界的 needle）不与其他词字符相邻」
      * 的 needle 出现位置。<b>找不到返回 -1</b>。
      *
      * <p>注意 needle 的第一个不安全命中会让搜索从 {@code pos+1} 继续——这是
-     * 「同一个 needle 在代码块里出现过、正文里也出现过」时能正确跳到正文那处的关键
-     * （见 {@code TestFindFirstSafeMatch_BoundaryCases}）。</p>
+     * 「同一个 needle 在代码块里出现过、正文里也出现过」时能正确跳到正文那处的关键。</p>
      */
     static int findFirstSafeMatch(String haystack, String needle, List<Span> forbidden) {
         if (needle == null || needle.isEmpty() || haystack == null) {
@@ -167,7 +152,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code hasASCIILetterEdge}（L119-126）：needle 首<b>或</b>尾是 ASCII
+     * needle 首<b>或</b>尾是 ASCII
      * 字母/数字/下划线时才需要词边界检查——纯 CJK 或以标点收尾的 matchText
      * 没有词边界概念。
      */
@@ -180,16 +165,16 @@ public class WikiLinkify implements WikiCrossLinker {
         return isAsciiWordRune(first) || isAsciiWordRune(last);
     }
 
-    /** 对照 Go {@code isASCIIWordRune}（L128-134） */
+    /** ASCII 词字符（字母/数字/下划线）判定 */
     static boolean isAsciiWordRune(int r) {
-        if (r > 0x7F) { // unicode.MaxASCII
+        if (r > 0x7F) { // 非 ASCII
             return false;
         }
         return r == '_' || (r >= '0' && r <= '9') || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z');
     }
 
     /**
-     * 对照 Go {@code hasWordBoundary}（L140-154）：pos 之前与 end 处的字符都<b>不能</b>
+     * pos 之前与 end 处的字符都<b>不能</b>
      * 是 ASCII 词字符。非 ASCII 码点（如 CJK）视为边界，所以 "北京" 嵌在
      * "北京邮电大学" 里仍然可匹配——那种冲突由「长度降序」另行解决。
      */
@@ -207,7 +192,7 @@ public class WikiLinkify implements WikiCrossLinker {
         return true;
     }
 
-    /** 对照 Go {@code spanContains}（L157-164）：是否存在与 {@code [pos, end)} 相交的区间 */
+    /** 是否存在与 {@code [pos, end)} 相交的区间 */
     static boolean spanContains(List<Span> spans, int pos, int end) {
         if (spans == null) {
             return false;
@@ -221,9 +206,8 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code shiftSpansAfter}（L166-179）：把起点在 {@code >= pivot} 的区间整体
-     * 平移 delta。<b>delta == 0 时原样返回入参</b>（Go 的早退分支，Java 侧用同一个列表
-     * 对象表达；调用方随后会 append 并排序，等价于 Go 的切片行为）。
+     * 把起点在 {@code >= pivot} 的区间整体
+     * 平移 delta。<b>delta == 0 时返回入参内容的拷贝</b>（调用方随后会 append 并排序）。
      */
     static List<Span> shiftSpansAfter(List<Span> spans, int pivot, int delta) {
         List<Span> out = new ArrayList<>(spans.size() + 1);
@@ -241,13 +225,13 @@ public class WikiLinkify implements WikiCrossLinker {
         return out;
     }
 
-    /** 对照 Go {@code sortSpans}（L181-188）：按 start 升序，start 相同按 end 升序 */
+    /** 按 start 升序，start 相同按 end 升序 */
     static void sortSpans(List<Span> spans) {
         spans.sort(Comparator.comparingInt(Span::start).thenComparingInt(Span::end));
     }
 
     /**
-     * 对照 Go {@code computeForbiddenSpans}（L202-296）：返回正文里不得被加链改写的
+     * 返回正文里不得被加链改写的
      * 区间，以及正文中<b>已经出现</b>的 wiki 链接 slug 集合（调用方据此跳过已链的 ref，
      * 不必二次扫描）。
      *
@@ -268,7 +252,7 @@ public class WikiLinkify implements WikiCrossLinker {
         int i = 0;
         int n = s.length();
 
-        // Pass 1（对照 Go L208-213）：引用式链接定义。它们独占一行，若不先记下来，
+        // Pass 1：引用式链接定义。它们独占一行，若不先记下来，
         // 下面的结构扫描会把 `[label]` 当成一个悬空的开括号。
         spans.addAll(scanReferenceDefinitions(s));
 
@@ -367,18 +351,17 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code computeForbiddenSpans} 的 {@code ([]span, map[string]struct{})} 返回。
-     * 测试用（Go 的 {@code TestComputeForbiddenSpans_*} 直接读这两项）。
+     * 禁区区间 + 已链 slug 集合（测试直接读这两项）。
      */
     record ForbiddenResult(List<Span> spans, Set<String> used) {}
 
     /**
-     * 对照 Go {@code extractWikiSlug}（L302-311）：解析 {@code [[...]]} 的内部文本，
+     * 解析 {@code [[...]]} 的内部文本，
      * 返回 slug 部分。{@code [[slug|display]]} → {@code "slug"}；
      * {@code [[slug]]} → trim 后的整段。空则返回 ""。
      *
-     * <p>（Go 的文档注释提到「含空白则视为不像真 slug」，但<b>代码里并没有这个判断</b>
-     * ——以代码行为为准，Java 照抄。）</p>
+     * <p>注意：文档注释曾提到「含空白则视为不像真 slug」，但<b>代码里并没有这个判断</b>
+     * ——以代码行为为准。</p>
      */
     static String extractWikiSlug(String inner) {
         int pipe = inner.indexOf('|');
@@ -393,7 +376,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code matchReferenceStyleLink}（L316-334）：从 {@code [} 开始匹配
+     * 从 {@code [} 开始匹配
      * {@code [text][label]}，返回闭合 {@code ]} 之后的下标；不跨行、且两侧括号都必须配平。
      * 不匹配返回 -1。
      */
@@ -416,7 +399,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code findClosingBracket}（L338-364）：返回与位置 i 处 {@code [} 配对的
+     * 返回与位置 i 处 {@code [} 配对的
      * {@code ]} 的下标，尊重 {@code \[} / {@code \]} 转义，遇到换行即放弃。找不到返回 -1。
      */
     static int findClosingBracket(String s, int i) {
@@ -448,7 +431,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code scanReferenceDefinitions}（L370-400）：找出所有
+     * 找出所有
      * {@code [label]: url ...} 定义行，返回它们的区间（<b>含行尾换行符</b>）。
      * 只考虑首个非空格字符是 {@code [} 的行，与 CommonMark「定义最多缩进 3 个空格」
      * 的规则一致。
@@ -481,7 +464,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code isFenceStart}（L404-416）：下标 i 是否位于行首、且是一段围栏
+     * 下标 i 是否位于行首、且是一段围栏
      * （{@code ```} 或 {@code ~~~}，三个及以上）的开头。
      */
     static boolean isFenceStart(String s, int i) {
@@ -498,7 +481,7 @@ public class WikiLinkify implements WikiCrossLinker {
         return s.charAt(i + 1) == c && s.charAt(i + 2) == c;
     }
 
-    /** 对照 Go {@code fenceRun}（L418-425）：从 i 起同字符连续个数 */
+    /** 从 i 起同字符连续个数 */
     static int fenceRun(String s, int i) {
         char c = s.charAt(i);
         int j = i;
@@ -509,8 +492,8 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code findFenceEnd}（L429-456）：返回闭合围栏之后的下标；
-     * 找不到闭合则返回 {@code s.length()}（= 一直吞到文末，与 Go 一致）。
+     * 返回闭合围栏之后的下标；
+     * 找不到闭合则返回 {@code s.length()}（= 一直吞到文末）。
      */
     static int findFenceEnd(String s, int start, char ch, int minLen) {
         // 先推进到下一行
@@ -541,7 +524,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code findInlineCodeClose}（L460-482）：返回长度恰好为 runLen 的闭合
+     * 返回长度恰好为 runLen 的闭合
      * 反引号串的起始下标，没有则 -1。
      *
      * <p>CommonMark 里换行<b>不</b>终止行内代码，但这里遇到<b>双</b>换行（段落分隔）
@@ -570,7 +553,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code matchMarkdownLink}（L486-545）：从 s[i] == '[' 处匹配
+     * 从 s[i] == '[' 处匹配
      * {@code [text](url)}，返回闭合 {@code )} 之后的下标；不匹配返回 -1。
      */
     static int matchMarkdownLink(String s, int i) {
@@ -633,7 +616,7 @@ public class WikiLinkify implements WikiCrossLinker {
     }
 
     /**
-     * 对照 Go {@code matchAutolink}（L548-565）：从 s[i] == '<' 处匹配
+     * 从 s[i] == '<' 处匹配
      * {@code <scheme://...>}，返回闭合 {@code >} 之后的下标；不匹配返回 -1。
      */
     static int matchAutolink(String s, int i) {

@@ -4,24 +4,19 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * wiki ingest 批次触发任务的载荷（对照 Go {@code WikiIngestPayload}，
- * wiki_ingest.go L289-299）。
+ * wiki ingest 批次触发任务的载荷。
  *
  * <p>真正的文档 ID 存在 {@code task_pending_ops} 表里；本载荷只携带触发元数据，
  * 让 worker 能解析出队列三元组 {@code (task_type, scope, scope_id)} 并处理
  * 该元组下排队的所有行。</p>
  *
- * <p><b>langfuse 追踪载体（2026-09-24 C 批接线）</b>：Go 内嵌
- * {@code types.TracingContext}，匿名字段嵌入在 JSON 里是<b>平铺</b>的
- * （{@code lf_traceparent} 等五键与业务键同级）。Java 侧同形——五个
- * {@code lf_*} 组件直接平铺在 record 上（{@code @JsonUnwrapped} 不支持 record 的
- * Creator 参数，见 Jackson 的 "combination not yet supported"）；空值整键省略，
+ * <p><b>langfuse 追踪载体</b>：五个 {@code lf_*} 组件直接<b>平铺</b>在 record 上
+ * （与业务键同级；{@code @JsonUnwrapped} 不支持 record 的 Creator 参数）；空值整键省略，
  * 未启用追踪时载荷字节与接线前一致。结构视图见 {@link #tracing()}。</p>
  *
- * <p><b>JSON 键序</b>：Go 是 {@code struct} 序列化，按字段声明序输出，
- * 因此 Java 侧用 {@link JsonPropertyOrder} 钉住 <b>tenant_id, knowledge_base_id,
- * language</b>（{@code language} 有 omitempty）在前，{@code lf_*} 追踪键随后
- * （Go 的匿名字段也排在具名字段之后）。载荷会落进 {@code task_pending_ops.payload}，
+ * <p><b>JSON 键序</b>：由 {@link JsonPropertyOrder} 钉住 <b>tenant_id, knowledge_base_id,
+ * language</b>（{@code language} 空时整键省略）在前，{@code lf_*} 追踪键随后。
+ * 载荷会落进 {@code task_pending_ops.payload}，
  * 跨语言读写时键序不影响语义，但保持一致便于比对。</p>
  */
 @com.fasterxml.jackson.annotation.JsonPropertyOrder({
@@ -77,7 +72,7 @@ public record WikiIngestPayload(
                 lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
     }
 
-    /** 对照 Go 的零值载荷（测试与"仅知 KB"的调度路径用）。 */
+    /** 零值载荷（测试与"仅知 KB"的调度路径用）。 */
     public static WikiIngestPayload of(String knowledgeBaseId) {
         return new WikiIngestPayload(0L, knowledgeBaseId, null);
     }

@@ -10,18 +10,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * {@code task_dead_letters} 表实体（对照 Go {@code types.TaskDeadLetter}，
- * internal/types/task_dead_letter.go；表结构以迁移 000041 第 2 段为准）。
+ * {@code task_dead_letters} 表实体（表结构以迁移 000041 第 2 段为准）。
  *
  * <p>重试预算耗尽的任务的永久档案。<b>两个写入方</b>：</p>
  * <ol>
- *   <li>asynq 死信中间件——任务重试次数达到 MaxRetry 时插一行，<b>覆盖所有任务类型</b>；</li>
+ *   <li>队列消费者的死信中间件——任务重试次数达到上限时插一行，<b>覆盖所有任务类型</b>；</li>
  *   <li>服务层重试处理器——批内重试计数超过服务定义的 cap 时直接插入，
  *       wiki ingest 是当前唯一实例。</li>
  * </ol>
  * <p>没有 TTL：行保留到人工清理。运维按 (Scope, ScopeID) 或 TaskType 查询。</p>
  *
- * <p><b>GORM 隐式行为清单（约定 §3）</b>：{@code id} 自增；{@code failed_at DEFAULT NOW()}
+ * <p><b>落库行为约定</b>：{@code id} 自增；{@code failed_at DEFAULT NOW()}
  * 服务端填；{@code payload} 是 jsonb（同 {@link TaskPendingOp}，用
  * {@link PgJsonTypeHandler} 承载）；{@code related_id} / {@code last_error} 默认空串；
  * 无软删除、无钩子。</p>
@@ -32,7 +31,7 @@ public class TaskDeadLetter {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 对照 Go {@code TenantID}：从原始任务载荷镜像（尽力而为，解不出时落 0） */
+    /** 从原始任务载荷镜像（尽力而为，解不出时落 0） */
     @TableField("tenant_id")
     private Long tenantId;
 
@@ -46,7 +45,7 @@ public class TaskDeadLetter {
     private String scopeId = "";
 
     /**
-     * 对照 Go {@code RelatedID}：可选的次级标识。wiki ingest 放 knowledge_id，
+     * 可选的次级标识。wiki ingest 放 knowledge_id，
      * 让逐文档的失败聚拢到源文档周围。
      */
     @TableField("related_id")

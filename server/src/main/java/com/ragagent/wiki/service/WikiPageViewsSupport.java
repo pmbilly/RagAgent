@@ -89,7 +89,7 @@ final class WikiPageViewsSupport {
 
 
 
-    /** 对照 Go {@code ListPages}（L365-395） */
+    /** 分页列出页面（过滤 / 排序语义见请求对象）。 */
 
     public WikiPageListResponse listPages(WikiPageListRequest req) {
 
@@ -153,7 +153,7 @@ final class WikiPageViewsSupport {
 
     /**
 
-     * 对照 Go {@code GetIndexView}（L466-545）：结构性索引响应——intro（来自索引行）
+     * 结构性索引响应——intro（来自索引行）
 
      * + 每个 page_type 一个分页窗口。
 
@@ -227,7 +227,7 @@ final class WikiPageViewsSupport {
 
         // 调用方不传过滤时默认取全部已知内容类型。请求时传入的未知类型<b>原样透传</b>，
 
-        // 这样将来新版 Go 声明的页面类型一被 LLM 创建就能出现在索引里，无需改 handler。
+        // 这样将来新增的页面类型一被 LLM 创建就能出现在索引里，无需改 handler。
 
         List<String> selected = pageTypes;
 
@@ -295,7 +295,7 @@ final class WikiPageViewsSupport {
 
         // 目录从 wiki_pages 里搬走之后，content 列只剩 intro。为那些改版后还没重新
 
-        // 摄取的 KB 回落到 Summary，保证响应永不为空（Go L531-538）。
+        // 摄取的 KB 回落到 Summary，保证响应永不为空。
 
         String intro = indexPage.getContent();
 
@@ -321,7 +321,7 @@ final class WikiPageViewsSupport {
 
 
 
-    /** 对照 Go {@code GetStats}（L813-881） */
+    /** KB 级统计：各类型页面计数、孤儿页、总链接数、最近更新与待处理任务数。 */
 
     public WikiStats getStats(String kbId) {
 
@@ -385,7 +385,7 @@ final class WikiPageViewsSupport {
 
             // (task_type="wiki:ingest", scope="knowledge_base", scope_id=kbID)。
 
-            // Go 忽略这里的错误（pendingTasks 保持 0）。
+            // 查询失败不致命（pendingTasks 保持 0）。
 
             try {
 

@@ -15,14 +15,11 @@ import com.ragagent.wiki.domain.WikiGraph;
 import com.ragagent.wiki.domain.WikiPage;
 
 /**
- * 图谱子集计算（对照 Go internal/application/service/wiki_page.go
- * {@code computeGraphSubset} L592-741 与 {@code bfsEgoSlugs} L748-810）。
+ * 图谱子集计算。
  *
- * <p>Go 把它抽成包级纯函数是为了让测试不必搭整套仓储 mock；Java 侧同样抽成
- * <b>无 I/O 的静态方法</b>，便于逐分支对照
- * {@code wiki_page_test.go:410-608} 的密集覆盖。</p>
+ * <p>抽成<b>无 I/O 的静态方法</b>，测试不必搭整套仓储 mock，可逐分支密集覆盖。</p>
  *
- * <p>两种模式（Go L549-569）：</p>
+ * <p>两种模式：</p>
  * <ul>
  *   <li>{@link WikiConstants#GRAPH_MODE_OVERVIEW}（默认）：按 link_count（入+出）
  *       取 top-{@code Limit}，外加所有两端都存活节点之间的边。这是前端首次打开
@@ -43,8 +40,6 @@ public final class WikiGraphCalculator {
     private WikiGraphCalculator() {}
 
     /**
-     * 对照 Go {@code computeGraphSubset}（L592-741）。
-     *
      * @throws WikiException {@code "wiki graph request is required"} /
      *                       {@code "ego graph requires a center slug"} /
      *                       {@code "ego center slug \"x\" not found"}
@@ -61,7 +56,7 @@ public final class WikiGraphCalculator {
         }
 
         // 预计算 link_count 与类型白名单。保留完整页面列表，这样 ego 模式仍能
-        // 穿过类型不在白名单里的邻居（Go L598-607）。
+        // 穿过类型不在白名单里的邻居。
         Set<String> typeAllow = new HashSet<>();
         if (req.types() != null) {
             for (String t : req.types()) {
@@ -85,9 +80,8 @@ public final class WikiGraphCalculator {
             }
         }
 
-        // ⚠️ 与 Go 的差异：Go 用 map 迭代 + 排序保证确定性；Java 这里用
-        // LinkedHashMap 进一步保住「同一 slug 后出现者覆盖前者」的 insert 语义
-        // （Go 的 map 在建表阶段就是后者覆盖，两者一致）。
+        // 用 LinkedHashMap 保住「同一 slug 后出现者覆盖前者」的 insert 语义
+        // （建表阶段就是后者覆盖，结果确定）。
         Map<String, WikiPage> pageBySlug = new LinkedHashMap<>(all.size());
         Map<String, Integer> linkCount = new LinkedHashMap<>(all.size());
         for (WikiPage p : all) {
@@ -95,7 +89,7 @@ public final class WikiGraphCalculator {
             linkCount.put(p.getSlug(), p.getInLinks().size() + p.getOutLinks().size());
         }
 
-        // 选出本次切片的节点 slug 集合（Go L623-663）
+        // 选出本次切片的节点 slug 集合
         Set<String> selected;
         if (WikiConstants.GRAPH_MODE_EGO.equals(mode)) {
             if (req.center() == null || req.center().isEmpty()) {
@@ -131,7 +125,7 @@ public final class WikiGraphCalculator {
             }
         }
 
-        // 由选中集合构建节点（Go L665-683）
+        // 由选中集合构建节点
         List<WikiGraph.Node> nodes = new ArrayList<>(selected.size());
         for (String slug : selected) {
             WikiPage p = pageBySlug.get(slug);
@@ -143,13 +137,13 @@ public final class WikiGraphCalculator {
             n.setFamiliar(p.builtFrom(familiarSet));
             nodes.add(n);
         }
-        // 确定性节点排序——Go 上面那次 map 迭代是随机的（Go L677-683）
+        // 确定性节点排序（link_count 降序，并列按 slug 升序）
         nodes.sort(Comparator
                 .comparingInt(WikiGraph.Node::getLinkCount).reversed()
                 .thenComparing(WikiGraph.Node::getSlug));
 
-        // 构建边：只保留两端都活下来的（Go L685-700）。
-        // 边序 = 页面列表序 × 出链序，两端语言一致。
+        // 构建边：只保留两端都活下来的。
+        // 边序 = 页面列表序 × 出链序（稳定）。
         List<WikiGraph.Edge> edges = new ArrayList<>();
         for (WikiPage p : all) {
             if (!selected.contains(p.getSlug())) {
@@ -165,7 +159,7 @@ public final class WikiGraphCalculator {
 
         // total 是截断<b>之前</b>的候选节点数——即前端若请求整张图需要拉取的全量。
         // overview 尊重类型过滤；ego 用整个 KB 的页面数（用户看到的仍是
-        // "X / Y" 里的完整分母，而不是过滤后的分母）。Go L702-715。
+        // "X / Y" 里的完整分母，而不是过滤后的分母）。
         int total = all.size();
         if (WikiConstants.GRAPH_MODE_OVERVIEW.equals(mode) && hasTypeFilter) {
             total = 0;
@@ -205,7 +199,7 @@ public final class WikiGraphCalculator {
     }
 
     /**
-     * 对照 Go {@code bfsEgoSlugs}（L748-810）：以 {@code center} 为起点、最多
+     * 以 {@code center} 为起点、最多
      * {@code depth} 跳的<b>无向</b> BFS 邻域（同时走入链与出链）。
      *
      * <p>被类型过滤挡住的页面既不出现在结果里，<b>也不被穿过</b>——所以一个把
@@ -243,7 +237,7 @@ public final class WikiGraphCalculator {
                 if (p == null) {
                     continue;
                 }
-                // 邻居 = 出链 ++ 入链（Go 的 append(OutLinks, InLinks...)）
+                // 邻居 = 出链 + 入链
                 List<String> neighbors = new ArrayList<>(
                         p.getOutLinks().size() + p.getInLinks().size());
                 neighbors.addAll(p.getOutLinks());

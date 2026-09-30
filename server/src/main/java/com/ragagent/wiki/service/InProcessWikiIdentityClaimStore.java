@@ -7,10 +7,10 @@ import org.springframework.stereotype.Component;
 /**
  * {@link WikiIdentityClaimStore} 的<b>进程内</b>实现（默认装配）。
  *
- * <p>用 {@code ConcurrentHashMap} + 每条认领自带过期时刻，逐条复刻 Go 的 Lua 脚本：
+ * <p>用 {@code ConcurrentHashMap} + 每条认领自带过期时刻实现认领裁决：
  * 权威认领直接覆盖；否则既有且前缀匹配的认领获胜并续期；否则用提议值覆盖。
- * 过期条目在每次访问该键时惰性清除——与 Redis 的 {@code EX ttl} 语义等价
- * （唯一差别是我们不会在无人访问时主动回收内存，条目数上限是 KB 内不同标题数）。</p>
+ * 过期条目在每次访问该键时惰性清除
+ * （不会在无人访问时主动回收内存，条目数上限是 KB 内不同标题数）。</p>
  *
  * <p><b>⚠️ 多实例下不成立</b>：见接口注释——本条是多副本部署最容易出问题的地方。</p>
  */
@@ -18,8 +18,7 @@ import org.springframework.stereotype.Component;
 public class InProcessWikiIdentityClaimStore implements WikiIdentityClaimStore {
 
     /**
-     * 对照 Go 的 {@code redis.call('SET'/'GET'/'EXPIRE')} 键值对。
-     * value 是 (slug, 过期毫秒)。
+     * 身份 → 认领。value 是 (slug, 过期毫秒)。
      */
     private record Claim(String slug, long expiresAtMillis) {}
 
@@ -31,14 +30,14 @@ public class InProcessWikiIdentityClaimStore implements WikiIdentityClaimStore {
         String key = claimKey(kbId, pageType, identity);
         long expiry = System.currentTimeMillis() + WikiIngestConstants.IDENTITY_CLAIM_TTL.toMillis();
 
-        // 对照 Lua：ARGV[3] == '1' → 无条件 SET 并返回 proposed
+        // 权威认领：无条件覆盖既有值并返回 proposed
         if (authoritative) {
             claims.put(key, new Claim(proposedSlug, expiry));
             return proposedSlug;
         }
 
         String prefix = requiredPrefix == null ? "" : requiredPrefix;
-        // 用 compute 保证"读-判-写"是一个原子步骤（对照 Lua 脚本本身的原子性）
+        // 用 compute 保证"读-判-写"是一个原子步骤
         Claim result = claims.compute(key, (k, existing) -> {
             if (existing != null
                     && existing.expiresAtMillis() >= System.currentTimeMillis()

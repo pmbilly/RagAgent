@@ -17,29 +17,24 @@ import org.apache.ibatis.type.JdbcType;
  * wiki 各表的 {@code jsonb} 字符串数组列（category_path / source_refs / chunk_refs /
  * in_links / out_links / aliases / suspected_knowledge_ids）的 TypeHandler。
  *
- * <p>对照 Go {@code types.StringArray}（internal/types/session.go L237-253）的
- * {@code driver.Valuer}/{@code sql.Scanner} 实现。</p>
- *
  * <p><b>为什么不用通用 {@link com.ragagent.common.web.PgJsonTypeHandler}</b>：
  * {@code List<String>} 走泛型擦除后是 {@code List.class}，Jackson 会反序列化成
  * {@code List<LinkedHashMap>} / {@code List<Object>}，元素类型丢失。</p>
  *
- * <p><b>写路径对齐 Go</b>：Go 的 {@code Value()} 对 nil 切片返回 SQL NULL，空切片返回
- * {@code []}。Java 的实体无法区分"未设置"与"显式空"，而 golden 实录里这些列都是 NULL
- * （响应输出 {@code "aliases":null}），因此这里把**空列表也写成 SQL NULL**——
- * 这样跨语言读同一行才一致（Java 写 NULL → Go 读 nil → JSON {@code null}；
- * 若 Java 写 {@code []}，Go 会读出空切片并输出 {@code []}）。</p>
+ * <p><b>写路径约定</b>：**空列表也写成 SQL NULL**——出口契约（golden 实录）里这些列都是
+ * NULL（响应输出 {@code "aliases":null}），而 Java 的实体无法区分"未设置"与"显式空"，
+ * 统一按 NULL 落库。</p>
  *
  * <p>代价：查询侧不能再依赖 {@code in_links = '[]'::JSONB}（对 NULL 不成立），
  * 需要用 {@code COALESCE(in_links, '[]'::jsonb)}。仓储层已按此写法处理。</p>
  *
  * <p>读路径宽容：SQL NULL / 空串 / JSON {@code null} 一律回空列表；
  * 序列化时空列表再转回 {@code null}（见 {@link EmptyListAsNullSerializer}），
- * 与 Go 的 {@code nil → null} 对齐。</p>
+ * 与写路径约定闭环。</p>
  */
 public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
 
-    /** §9：jsonb 回读必须容忍未知属性（Go 的 json.Unmarshal 默认忽略未知字段） */
+    /** jsonb 回读必须容忍未知属性 */
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -49,7 +44,7 @@ public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
     public void setNonNullParameter(PreparedStatement ps, int i, List<String> parameter, JdbcType jdbcType)
             throws SQLException {
         if (parameter == null || parameter.isEmpty()) {
-            // 对齐 Go 的 nil slice → SQL NULL（见类注释）
+            // 空列表 → SQL NULL（见类注释）
             ps.setNull(i, java.sql.Types.OTHER);
             return;
         }
@@ -85,10 +80,10 @@ public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
     }
 
     /**
-     * 对照 Go StringArray.Scan：SQL NULL / 空串 / JSON {@code null} 一律回空列表；
+     * SQL NULL / 空串 / JSON {@code null} 一律回空列表；
      * 元素为 null 的脏数据归一成空串。
      *
-     * <p>单独暴露成静态方法是为了让单测能像 Go 的 Value/Scan 往返测试那样直接驱动它，
+     * <p>单独暴露成静态方法是为了让单测能直接驱动写/读往返，
      * 不必绕过 JDBC。</p>
      */
     public static List<String> decode(String json) {
@@ -113,7 +108,7 @@ public class WikiStringListTypeHandler extends BaseTypeHandler<List<String>> {
     }
 
     /**
-     * 对照 Go {@code StringArray.Value} 的序列化结果：null / 空列表 → 字面量 {@code null}
+     * null / 空列表 → 字面量 {@code "null"}
      * （与写路径一致，见类注释）。
      */
     public static String encode(List<String> values) {

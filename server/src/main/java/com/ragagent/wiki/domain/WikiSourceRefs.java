@@ -3,12 +3,10 @@ package com.ragagent.wiki.domain;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * {@code source_refs} 的匹配谓词构造（对照 Go repository/wiki_page.go 的
- * {@code json.Marshal([]string{...})} + {@code escapeLikePattern}，L497-570 / L825-912 / L1255-1265）。
+ * {@code source_refs} 的匹配谓词构造。
  *
  * <p>{@code source_refs} 是 JSON 数组列，元素有两种历史形态：{@code "knowledgeID"} 与
- * {@code "knowledgeID|title"}。Go 用「jsonb 包含 OR 文本 LIKE」两条分支同时覆盖，
- * Java 沿用同样的两条分支。</p>
+ * {@code "knowledgeID|title"}。匹配用「jsonb 包含 OR 文本 LIKE」两条分支同时覆盖。</p>
  *
  * <p>把 JSON 编码与 LIKE 转义放在一起，是为了让 needle 与 pattern 出自同一处，
  * 避免注入：任意 knowledge id（可能含引号、反斜杠、{@code %}、{@code _}）都不能
@@ -21,7 +19,7 @@ public final class WikiSourceRefs {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /**
-     * 对照 Go escapeLikePattern（L1258-1265）：转义 LIKE / ILIKE 元字符，
+     * 转义 LIKE / ILIKE 元字符，
      * 使结果可以安全地用 {@code %} 包裹。顺序重要：先反斜杠，再通配符。
      */
     public static String escapeLikePattern(String s) {
@@ -31,7 +29,7 @@ public final class WikiSourceRefs {
         return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
-    /** JSON 编码一个字符串（对照 Go json.Marshal(string)），失败时抛 IllegalStateException */
+    /** JSON 编码一个字符串，失败时抛 IllegalStateException */
     private static String jsonString(String s) {
         try {
             return JSON.writeValueAsString(s);

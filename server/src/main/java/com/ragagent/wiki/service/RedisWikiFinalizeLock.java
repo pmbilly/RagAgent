@@ -11,19 +11,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * {@link WikiFinalizeLock} 的 <b>Redis</b> 实现（对照 Go wiki_ingest_batch.go L934-966）。
+ * {@link WikiFinalizeLock} 的 <b>Redis</b> 实现。
  *
- * <p>逐条对齐 Go：</p>
+ * <p>语义要点：</p>
  * <ul>
- *   <li>{@code SetNX(key, "1", wikiFinalizeLockTTL)} 取锁 —— TTL
+ *   <li>SetNX 取锁 —— TTL
  *       {@link WikiIngestConstants#FINALIZE_LOCK_TTL}（60 秒）；</li>
  *   <li><b>失败即 fail CLOSED</b>：SetNX 报错返回 {@link AcquireResult#FAILED}，
  *       让调用方让任务失败并重试，而不是在无锁状态下与并发 finalize 抢同一条索引页
- *       （{@code GetPage→改→UpdatePage} 的丢失更新）；</li>
+ *       （读→改→写的丢失更新）；</li>
  *   <li>持有期间每 {@link WikiIngestConstants#FINALIZE_LOCK_RENEW}（20 秒）续期一次
- *       ——Go 用 {@code time.NewTicker} 起一个 goroutine，Java 用
- *       {@link ScheduledExecutorService}（见 {@link WikiSlugLock} 的同类取舍）；</li>
- *   <li>释放时先停掉续期协程再 DEL（Go 的 {@code defer { cancelLock(); Del(...) }}）。</li>
+ *       （{@link ScheduledExecutorService} 调度，见 {@link WikiSlugLock} 的同类取舍）；</li>
+ *   <li>释放时先停掉续期任务再 DEL 键。</li>
  * </ul>
  *
  * <p><b>装配</b>：与 {@link RedisWikiSlugLock} 同一模式——本类是普通类
@@ -35,10 +34,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  *     return new RedisWikiFinalizeLock(template);
  * }
  * }</pre>
- *
- * <p><b>与 Go 的一处差异</b>：Go 给 DEL 传的是 {@code context.Background()}；
- * Java 侧同样不依赖调用方的取消状态（用独立执行路径），但没有"脱钩 ctx"这个概念，
- * 因此直接调用。</p>
  */
 public class RedisWikiFinalizeLock implements WikiFinalizeLock {
 
@@ -84,8 +79,7 @@ public class RedisWikiFinalizeLock implements WikiFinalizeLock {
         try {
             acquired = template.opsForValue().setIfAbsent(key, "1", ttl);
         } catch (RuntimeException e) {
-            // fail CLOSED（对照 Go 的注释：proceeding unlocked would let two finalize
-            // runs drain the same PeekBatch rows and double-rebuild the index page）
+            // fail CLOSED：无锁放行会让两个 finalize 批次排空同一批待办、重复重建索引页
             log.warn("wiki finalize: SetNX failed for KB {}: {} (retrying)", kbId, e.toString());
             return AcquireResult.FAILED;
         }
@@ -110,9 +104,9 @@ public class RedisWikiFinalizeLock implements WikiFinalizeLock {
         if (kbId == null || kbId.isEmpty()) {
             return;
         }
-        // 对照 Go 的 defer { cancelLock(); Del(...) }：先停续期，再删键。
-        // 用 token 无关的 DEL 与 Go 一致（finalize 锁是"至多一个"语义，
-        // 不像 slug 锁那样需要防误删他人锁——持有者之间不会重入）。
+        // 先停续期，再删键。
+        // 用 token 无关的 DEL：finalize 锁是"至多一个"语义，
+        // 不像 slug 锁那样需要防误删他人锁——持有者之间不会重入。
         ScheduledFuture<?> task = renewals.remove(kbId);
         if (task != null) {
             task.cancel(false);
@@ -124,7 +118,7 @@ public class RedisWikiFinalizeLock implements WikiFinalizeLock {
         }
     }
 
-    /** 供测试：生成一个唯一的持有者标识（Go 写死 "1"，预留扩展点） */
+    /** 供测试：生成一个唯一的持有者标识（预留扩展点） */
     static String newToken() {
         return UUID.randomUUID().toString();
     }

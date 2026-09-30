@@ -5,13 +5,11 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 /**
- * 返回给浏览器的目录节点（对照 Go types.WikiFolderNode，internal/types/wiki_page.go
- * L441-445）。
+ * 返回给浏览器的目录节点。JSON 键为 snake（§11 登记边界，前端按此解析）。
  *
- * <p>Go 用<b>匿名嵌入</b> WikiFolder，因此 JSON 是扁平结构（folder 字段与
- * pageCount/hasChildren 同级）。Java 用 {@link JsonUnwrapped} 复刻同样的扁平化：
- * 序列化时 WikiFolder 的字段直接铺开在对象顶层，键名沿用 WikiFolder 的
- * {@code @JsonProperty}。</p>
+ * <p>JSON 是扁平结构：{@code folder} 字段经 {@link JsonUnwrapped} 铺开，
+ * WikiFolder 的字段直接出现在对象顶层（与 pageCount/hasChildren 同级），
+ * 键名沿用 WikiFolder 的 {@code @JsonProperty}。</p>
  *
  * <p>额外带两个字段，让 UI 不必二次请求就能渲染展开箭头：<b>直接</b>位于本文件夹下的
  * 活跃页面数，以及是否有子文件夹。</p>

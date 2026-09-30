@@ -33,9 +33,9 @@ final class WikiIngestFinalizePhase {
     }
 
     /**
-     * 对照 Go {@code ProcessWikiFinalize}（batch L916-1154）：跑防抖的、按 KB 的
+     * 跑防抖的、按 KB 的
      * KB 级收敛：索引导语重建、死链清理、交叉链接注入。它排空
-     * {@code task_pending_ops} 的 finalize 通道（由 {@code ProcessWikiIngest} 经
+     * {@code task_pending_ops} 的 finalize 通道（由 ingest 批次经
      * {@code enqueueFinalize} 写入），让 N 篇文档的突发只重建索引<b>一次</b>，
      * 而不是每个 5 文档批次一次。
      */
@@ -47,11 +47,11 @@ final class WikiIngestFinalizePhase {
         }
 
         // 按 KB 的 finalize 锁，与 ingest 的 active 锁分离，因此 finalize 与 ingest
-        // 批次永不互相阻塞。asynq.TaskID 的合流已经保证每个 KB 最多一个 finalize 待执行；
+        // 批次永不互相阻塞。稳定 TaskID 的合流已经保证每个 KB 最多一个 finalize 待执行；
         // 这道锁守护"重排重叠窗口"里与并发索引页写入的竞争。
         WikiFinalizeLock.AcquireResult acquired = handler.finalizeLock.tryAcquire(kbId);
         if (acquired == WikiFinalizeLock.AcquireResult.FAILED) {
-            // fail CLOSED：无锁执行会让两次 finalize 排空同一批 PeekBatch 行并重复重建
+            // fail CLOSED：无锁执行会让两次 finalize 排空同一批待办行并重复重建
             // 索引页。返回错误让任务重试。
             throw new IllegalStateException("wiki finalize: acquire lock failed for KB " + kbId);
         }

@@ -11,10 +11,10 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoMapSerializer;
 
 /**
- * wiki 的聚合统计（对照 Go types.WikiStats，internal/types/wiki_page.go L728-737）。
+ * wiki 的聚合统计。JSON 键为 snake（§11 登记边界，前端按此解析）。
  *
- * <p>统计口径：Go repository 的 CountByType / CountOrphans 都带
- * {@code status <> 'archived'}，即<b>排除归档页</b>。</p>
+ * <p>统计口径：按类型计数与孤儿页计数都带 {@code status <> 'archived'} 过滤，
+ * 即<b>排除归档页</b>。</p>
  */
 @JsonPropertyOrder({"total_pages", "pages_by_type", "total_links", "orphan_count",
         "recent_updates", "pending_tasks", "pending_issues", "is_active"})
@@ -23,9 +23,10 @@ public class WikiStats {
     @JsonProperty("total_pages")
     private long totalPages;
 
-    /** 键为 page_type，值为计数；用 LinkedHashMap 保持 Go map 的键序可控 */
+    /** 键为 page_type，值为计数；用 LinkedHashMap 保持键序稳定 */
     @JsonProperty("pages_by_type")
-    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
+    // 出口契约要求 map 键按字节序稳定输出；Jackson 默认不排——不挂 GoMapSerializer，
+    // 多键 map 的键序会随构造顺序漂移
     @JsonSerialize(using = GoMapSerializer.class)
     private Map<String, Long> pagesByType = new LinkedHashMap<>();
 
@@ -77,8 +78,8 @@ public class WikiStats {
     public long getPendingIssues() { return pendingIssues; }
     public void setPendingIssues(long v) { this.pendingIssues = v; }
 
-    /** ⚠️ 字段名是 isActive，Go tag 是 {@code is_active}；读取器名保持 isActive()，
-     *  Jackson 默认会输出 "active"，故必须显式 @JsonProperty("is_active")。 */
+    /** ⚠️ 字段名是 isActive，JSON 键是 {@code is_active}；Jackson 默认会从
+     *  isActive() 推出 "active"，故必须显式 @JsonProperty("is_active")。 */
     @JsonProperty("is_active")
     public boolean isActive() { return isActive; }
     public void setActive(boolean v) { this.isActive = v; }

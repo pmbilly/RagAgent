@@ -8,11 +8,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 死链重写（对照 Go wiki_ingest.go 的 {@code sanitizeDeadSummaryLinks} /
- * {@code resolveLiveSlugs} / {@code stripDeadWikiLinks}，L1512-1692）。
+ * 死链重写。
  *
  * <h2>为什么需要它</h2>
- * <p>（照搬 Go 注释）{@code WikiSummaryPrompt} 要求 LLM 为它知道的每个抽取 slug 内嵌
+ * <p>摘要生成要求 LLM 为它知道的每个抽取 slug 内嵌
  * wiki 链接，但 slug 抽取发生在 map 阶段（与摘要生成并行），而页面的真正创建在更晚的
  * reduce 阶段。当 reduce 的 {@code WikiPageModifyUserPrompt} 在某个 entity/concept
  * slug 上失败时，页面从未被写出——而<b>已经持久化</b>的摘要页手里还留着一条
@@ -24,21 +23,19 @@ import java.util.regex.Pattern;
  * 救不了的就<b>剥离</b>成纯文本（有 display 用 display，否则把 slug 的末段
  * 人性化）。这是纯文本替换，不调用 LLM。</p>
  *
- * <p><b>复用 {@link SlugFuzzy}</b>：Go 的 {@code resolveDeadSlug} 定义在
- * slug_fuzzy.go，Java 侧已经翻好（{@link SlugFuzzy#resolveDeadSlug}）。
- * 本类刻意调用它而不是另起一份实现，否则两处的相似度阈值会漂移。</p>
+ * <p><b>复用 {@link SlugFuzzy}</b>：本类刻意调用 {@link SlugFuzzy#resolveDeadSlug}
+ * 而不是另起一份实现，否则两处的相似度阈值会漂移。</p>
  *
- * <p><b>与 Go 完全相同的一点</b>：{@code stripDeadWikiLinks} 传给 resolver 的是
- * 正则捕获组里的<b>原始 slug</b>（未经 {@code normalizeSlug}）——注意这
- * 与 {@code wiki_page.go:rewriteDeadWikiLinks} 的调用形态不同（那边先归一化）。
- * 本类照抄 wiki_ingest.go 的行为。</p>
+ * <p><b>注意</b>：传给 resolver 的是正则捕获组里的<b>原始 slug</b>
+ * （未经 {@code normalizeSlug}）——这与 {@link SlugFuzzy#rewriteDeadWikiLinks}
+ * 的调用形态不同（那边先归一化）。这是刻意保留的 ingest 路径行为。</p>
  */
 public final class WikiDeadLinks {
 
     private WikiDeadLinks() {}
 
     /**
-     * 对照 Go {@code wikiLinkRE}（L1510）：匹配正文里的 {@code [[slug]]} 与
+     * 匹配正文里的 {@code [[slug]]} 与
      * {@code [[slug|display text]]}。slug 捕获组拒绝空白与 {@code [ ] |}，
      * 避免误吞相邻文本；display 文本（第 2 组）可选。
      */
@@ -46,7 +43,7 @@ public final class WikiDeadLinks {
             Pattern.compile("\\[\\[([^\\[\\]|\\s]+)(?:\\|([^\\]]+))?\\]\\]");
 
     /**
-     * 对照 Go {@code stripDeadWikiLinks}（L1643-1692）：把 {@code slug} 落在
+     * 把 {@code slug} 落在
      * {@code deadSlugs} 里的 wiki 链接重写。处理取决于能否修复：
      *
      * <ul>
@@ -59,8 +56,8 @@ public final class WikiDeadLinks {
      * 每个死 slug 都直接走剥离路径——这保持了尚未接线解析数据的历史调用点
      * （含测试）的行为。</p>
      *
-     * <p><b>Java 侧的实现注意</b>：Go 用 {@code ReplaceAllStringFunc} 逐匹配回调；
-     * Java 的 {@code Matcher.appendReplacement} 会对替换串做 {@code $}/{@code \} 回溯解析，
+     * <p><b>实现注意</b>：{@code Matcher.appendReplacement} 会对替换串做
+     * {@code $}/{@code \} 回溯解析，
      * 因此所有替换串都必须过 {@link Matcher#quoteReplacement}——display 文本来自
      * 文档正文，含有 {@code $} 完全正常。</p>
      */
@@ -113,11 +110,11 @@ public final class WikiDeadLinks {
         return new Result(sb.toString(), changed[0]);
     }
 
-    /** 对照 Go {@code stripDeadWikiLinks} 的 {@code (string, bool)} 返回。 */
+    /** 结果：新正文 + 是否有改动。 */
     public record Result(String content, boolean changed) {}
 
     /**
-     * 对照 Go {@code resolveLiveSlugs}（L1603-1625）：构造
+     * 构造
      * {@code (liveSlugs, titleToSlug)} 二元组。
      *
      * <p>从调用方给的候选集出发（通常是页面自己的出链 + 本批次刚写出的 slug），
@@ -149,6 +146,6 @@ public final class WikiDeadLinks {
         return new ResolvedLiveSlugs(live, titleToSlug);
     }
 
-    /** 对照 Go {@code resolveLiveSlugs} 的 {@code (map, map)} 返回。 */
+    /** 活跃 slug 集合与精确标题反查表。 */
     public record ResolvedLiveSlugs(Set<String> liveSlugs, Map<String, String> titleToSlug) {}
 }

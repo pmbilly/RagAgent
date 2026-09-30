@@ -16,28 +16,25 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * {@link WikiIngestTaskQueue} 的<b>进程内</b>实现：asynq → 虚拟线程队列
+ * {@link WikiIngestTaskQueue} 的<b>进程内</b>实现：虚拟线程队列
  * （与阶段 3 的 {@code KnowledgeProcessWorker} 同模式）。
  *
- * <p>对照 Go 的 asynq 客户端 + worker 池，本实现保留以下行为：</p>
+ * <p>保留以下行为：</p>
  * <ul>
  *   <li><b>延迟投递</b>：{@link java.util.concurrent.ScheduledExecutorService}。</li>
  *   <li><b>TaskID 合并</b>：{@code activeTaskIds} 的 {@code putIfAbsent}。
- *       条目从入队一直持有到<b>任务执行完毕</b>（含重试），与 asynq "ID 被 pending
- *       或 active 的任务占用"的语义一致——finalize 的 {@code scheduleFinalize}
+ *       条目从入队一直持有到<b>任务执行完毕</b>（含重试）——ID 被 pending
+ *       或 active 的任务占用，同 ID 的后续入队一律合并。finalize 的 {@code scheduleFinalize}
  *       正依赖这一点：运行中的 finalize 仍占着 ID，因此 {@code scheduleFinalizeRetry}
  *       刻意不带 TaskID（否则唯一的重试会被自己合并掉）。</li>
  *   <li><b>重试</b>：失败后按 {@link #retryDelaySeconds} 重排，直到
  *       {@code maxRetry} 次用尽；耗尽后写入死信档案。</li>
- *   <li><b>超时</b>：到点<b>中断执行线程</b>。这是 Java 侧对 asynq 取消
- *       {@code ctx} 的最接近替代——Go 的 {@code ctx.Done()} 分支
- *       （退避中止、{@code wikiIngestCleanupContext} 的脱钩清理）在 Java 侧对应
- *       中断与 {@link WikiIngestService#cleanupContext}。</li>
+ *   <li><b>超时</b>：到点<b>中断执行线程</b>；中止与脱钩清理对应
+ *       {@link WikiIngestService#cleanupContext}。</li>
  * </ul>
  *
  * <p><b>⚠️ 多实例差异（必须知道）</b>：任务表、TaskID 合并、重试全部只在<b>单个 JVM</b>
- * 内。Go 的 asynq 是 Redis 支撑的，多副本时任务会被任意一个 worker 取走且 TaskID
- * 全局唯一。因此：</p>
+ * 内；Redis / MQ 支撑的队列实现才有跨副本共享的任务表与全局唯一 TaskID。因此：</p>
  * <ul>
  *   <li>本实现下多副本部署会各自触发各自的批次——但因为 ingest 的待办队列是
  *       <b>数据库</b>里的 {@code task_pending_ops} 且认领靠条件更新，
@@ -45,7 +42,7 @@ import org.springframework.stereotype.Component;
  *   <li>finalize 的"窗口内合并成一次索引重建"在多副本下会退化成"每副本一次"，
  *       即索引重建次数变多（结果仍收敛，只是更贵）。</li>
  * </ul>
- * <p>要恢复 Go 的语义需换成 Redis / MQ 实现，端口已为此留好。</p>
+ * <p>跨实例语义需换成 Redis / MQ 实现，端口已为此留好。</p>
  */
 @Component
 public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
@@ -55,7 +52,6 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**
-     * 对照 Go router/task.go 的 {@code wikiIngestRetryDelay = 15 * time.Second}：
      * 锁冲突（{@code ErrWikiIngestConcurrent}）的重试延迟——短到用户无感，
      * 又足以让刚被遗弃的锁过期。
      */
@@ -69,7 +65,7 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
                 return t;
             });
 
-    /** 执行器：每个任务一个虚拟线程（对照 asynq 的 worker 池；池大小上限由 KB 的在途上限约束）。 */
+    /** 执行器：每个任务一个虚拟线程；并发总量由 KB 的在途上限约束。 */
     private final java.util.concurrent.ExecutorService worker =
             Executors.newVirtualThreadPerTaskExecutor();
 
@@ -80,9 +76,9 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     private final ObjectProvider<com.ragagent.wiki.mapper.TaskDeadLetterRepository> deadLetterProvider;
 
     /**
-     * 测试钩子：覆盖重试延迟（秒）。{@code null} = 用 asynq 的默认公式。
+     * 测试钩子：覆盖重试延迟（秒）。{@code null} = 用 {@link #retryDelaySeconds} 的默认公式。
      *
-     * <p>存在的理由很实际：asynq 的默认退避是 {@code n^4 + 15 + rand(30)*(n+1)} 秒，
+     * <p>存在的理由很实际：默认退避是 {@code n^4 + 15 + rand(30)*(n+1)} 秒，
      * 第一次重试就要等 15–45 秒。若不覆盖，重试与死信归档这两条路径在单测里
      * 根本跑不动，于是只能靠代码审阅——那等于没测。</p>
      */
@@ -103,11 +99,11 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     @Override
     public boolean enqueue(WikiIngestTask task) {
         if (task.hasTaskId() && activeTaskIds.putIfAbsent(task.taskId(), Boolean.TRUE) != null) {
-            // 对照 asynq.ErrTaskIDConflict：已有同 id 的任务在排队/运行 → 合并
+            // 已有同 id 的任务在排队/运行 → 合并（TaskID 冲突语义）
             log.debug("wiki task queue: coalesced {} (taskId={})", task.type(), task.taskId());
             return false;
         }
-        // asynq 的默认队列权重是 1，没有优先级概念；这里同样 FIFO + 单线程调度，
+        // 队列没有优先级概念；这里 FIFO + 单线程调度，
         // 因此"同时到期的多个任务"的执行顺序与入队顺序一致。
         try {
             if (task.processIn().isZero() || task.processIn().isNegative()) {
@@ -143,15 +139,15 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     /**
      * 执行一次任务，失败则按重试策略重排。
      *
-     * @param attempt 第几次尝试（从 1 起）。asynq 的 RetryCount 也是从 0 起的已重试次数，
-     *                因此 {@code attempt-1} 即 asynq 传给 RetryDelayFunc 的 n。
+     * @param attempt 第几次尝试（从 1 起）。{@code attempt-1} 即已重试次数，
+     *                作为 {@link #retryDelaySeconds} 的 {@code alreadyRetried} 传入。
      */
     private void run(WikiIngestTask task, int attempt) {
         Throwable failure = null;
         Thread workerThread = Thread.currentThread();
         long timeoutMillis = task.timeout() == null ? 0 : task.timeout().toMillis();
 
-        // 超时看门狗：到点中断执行线程（对照 asynq 的 Timeout 取消 ctx）
+        // 超时看门狗：到点中断执行线程
         ScheduledFuture<?> watchdog = null;
         if (timeoutMillis > 0) {
             watchdog = scheduler.schedule(() -> {
@@ -164,8 +160,7 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
         try {
             WikiIngestTaskHandler handler = handlerProvider.getIfAvailable();
             if (handler == null) {
-                // 对照 Go "任务类型未注册"：asynq 会把它当失败并重试到预算耗尽。
-                // Java 侧<b>刻意</b>不重试：这是"batch/finalize 的翻译还没接线"这一
+                // 没有处理器 bean 不是可重试的失败：它是"batch/finalize 的翻译还没接线"
                 // 临时装配状态的信号，重试 10 次只会刷 10 行无信息的 warn。
                 // 但必须<b>释放 TaskID</b>——否则该 KB 的 finalize 合并会被一个
                 // 永不存在的任务永久占住（比丢一次任务严重得多）。
@@ -211,7 +206,7 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
 
     private void dispatch(WikiIngestTaskHandler handler, WikiIngestTask task) {
         WikiIngestPayload payload = parsePayload(task);
-        // C 批：任务侧观测（对照 Go 的 AsynqMiddleware）——负载带 traceparent 就续接上游
+        // 任务侧观测——负载带 traceparent 就续接上游
         // trace，否则以任务类型开独立根；处理体包在 asynq.<type> span 内，收尾记 outcome。
         try (com.ragagent.tracing.langfuse.LangfuseTaskScope scope =
                      com.ragagent.tracing.langfuse.LangfuseTaskScope.start(
@@ -232,8 +227,8 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
             WikiIngestPayload payload = MAPPER.readValue(task.payload(), WikiIngestPayload.class);
             return payload == null ? WikiIngestPayload.of("") : payload;
         } catch (Exception e) {
-            // 对照 Go: json.Unmarshal 失败 → invalid_payload，直接抛出（不重试没有意义，
-            // 但 asynq 仍会按预算重试；这里保守地抛出让上层走同样的路径）
+            // 负载损坏不是可修复的失败：直接抛出，让上层按普通失败路径
+            // 走重试/死信，行为与通用队列保持一致
             throw new IllegalArgumentException("wiki task queue: unmarshal payload: " + e.getMessage(), e);
         }
     }
@@ -256,7 +251,7 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
             dl.setFailCount(attempt);
             repo.insert(dl);
         } catch (Exception e) {
-            // 对照 Go 的"尽力而为"：归档失败不得掩盖底层任务错误
+            // 尽力而为：归档失败不得掩盖底层任务错误
             log.warn("wiki task queue: failed to archive {} to dead letters", task.type(), e);
         }
     }
@@ -268,14 +263,13 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     }
 
     /**
-     * 对照 Go router/task.go 的 {@code asynqRetryDelayFunc}（L120-125）：
-     * 锁冲突走固定的 15 秒，其余走 asynq 的默认指数退避。
+     * 重试延迟：锁冲突走固定的 15 秒，其余走默认退避公式。
      *
      * <p>为什么锁冲突不能指数退避：新被遗弃的锁 ≤60 秒就过期，15 秒的固定重试
      * 几乎保证下一次尝试成功。没有这个覆盖，崩溃-重启循环会让一个 KB 在
      * 7–10 分钟内无法推进（等孤儿锁过期 <b>并且</b> 等退避计划追上）。</p>
      *
-     * <p>默认公式照抄 asynq：{@code n^4 + 15 + rand(30) * (n + 1)} 秒。</p>
+     * <p>默认公式：{@code n^4 + 15 + rand(30) * (n + 1)} 秒。</p>
      */
     static long retryDelaySeconds(int alreadyRetried, Throwable failure) {
         if (failure instanceof WikiIngestConstants.ConcurrentTaskActiveException) {

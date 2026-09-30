@@ -14,13 +14,13 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * wiki_page_issues 仓储语句（对照 Go repository/wiki_page.go L1353-1377）。
+ * wiki_page_issues 仓储语句。
  *
- * <p>GORM 隐式行为清单（约定 §3）：</p>
+ * <p>原 ORM 隐式行为清单（约定 §3）：</p>
  * <ul>
  *   <li><b>软删除</b>：查询显式 {@code deleted_at IS NULL}。</li>
- *   <li><b>排序</b>：{@code ListIssues → created_at DESC}。</li>
- *   <li><b>UpdateIssueStatus</b>：Go 用 {@code Update("status", status)} 单列更新
+ *   <li><b>排序</b>：{@code listIssues → created_at DESC}。</li>
+ *   <li><b>updateIssueStatus</b>：单列更新
  *       （不做存在性检查，不报 not found）。</li>
  * </ul>
  */
@@ -52,12 +52,12 @@ public interface WikiPageIssueMapper extends BaseMapper<WikiPageIssue> {
                                    @Param("slug") String slug,
                                    @Param("status") String status);
 
-    /** 对照 Go UpdateIssueStatus（L1373-1377）：单列更新，无 not-found 语义 */
+    /** 单列更新，无 not-found 语义 */
     @Update("UPDATE wiki_page_issues SET status = #{status} "
             + "WHERE id = #{issueId} AND deleted_at IS NULL")
     int updateIssueStatus(@Param("issueId") String issueId, @Param("status") String status);
 
-    /** 供 service 读取单条（Go 没有对应方法，但 ListIssues 之外没有读取口；保留最小入口） */
+    /** 供 service 读取单条（列表查询之外唯一的读取口；保留最小入口） */
     @ResultMap("wikiPageIssueResult")
     @Select("SELECT * FROM wiki_page_issues WHERE id = #{id} AND deleted_at IS NULL LIMIT 1")
     WikiPageIssue selectIssueById(@Param("id") String id);

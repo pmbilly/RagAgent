@@ -96,7 +96,7 @@ final class WikiPageFolderSupport {
 
 
 
-    /** 对照 Go {@code GetFolder}（L1410-1412） */
+
 
     public WikiFolder getFolder(String kbId, String id) {
 
@@ -108,7 +108,7 @@ final class WikiPageFolderSupport {
 
     /**
 
-     * 对照 Go {@code ListChildFolders}（L1421-1474）。
+     * 列出子文件夹树。
 
      *
 
@@ -208,7 +208,7 @@ final class WikiPageFolderSupport {
 
 
 
-    /** 对照 Go {@code CreateFolder}（L1508-1553） */
+    /** 创建文件夹（校验名字、解析父路径、防同级重名）。 */
 
     public WikiFolder createFolder(String kbId, Long tenantID, String parentID, String name) {
 
@@ -270,7 +270,7 @@ final class WikiPageFolderSupport {
 
         folder.setUpdatedAt(now);
 
-        // 顺序保持与 Go 一致：先判冲突再写；唯一索引是最后一道防线
+        // 先判冲突再写；唯一索引是最后一道防线
 
         service.repo.createFolder(folder);
 
@@ -282,7 +282,7 @@ final class WikiPageFolderSupport {
 
     /**
 
-     * 对照 Go {@code FindOrCreateFolderPath}（L1558-1602）：把分类路径解析到叶子文件夹 id，
+     * 把分类路径解析到叶子文件夹 id，
 
      * 顺路补齐缺失的中间文件夹。对 (kb, parent, name) 唯一约束是并发安全的——
 
@@ -384,7 +384,7 @@ final class WikiPageFolderSupport {
 
 
 
-    /** 对照 Go {@code MovePage}（L1606-1623）：纯记账写入，不动版本号 */
+    /** 移动页面到文件夹：纯记账写入，不动版本号 */
 
     public WikiPage movePage(String kbId, String slug, String folderID) {
 
@@ -408,7 +408,7 @@ final class WikiPageFolderSupport {
 
     /**
 
-     * 对照 Go {@code RenameOrMoveFolder}（L1629-1720）：改名和/或换父节点，然后重算
+     * 改名和/或换父节点，然后重算
 
      * 整棵子树的物化 path/depth 及子树下每个页面的缓存分类路径。防成环（把文件夹
 
@@ -570,7 +570,7 @@ final class WikiPageFolderSupport {
 
     /**
 
-     * 对照 Go {@code recomputePagesForFolders}（L1725-1744）：刷新归在给定文件夹 id
+     * 刷新归在给定文件夹 id
 
      * 之下的每个页面的缓存 category_path/wiki_path/depth（用于文件夹子树被移动/改名之后）。
 
@@ -616,7 +616,7 @@ final class WikiPageFolderSupport {
 
     /**
 
-     * 对照 Go {@code DeleteFolder}（L1748-1767）：只能删既没有页面也没有子文件夹的
+     * 只能删既没有页面也没有子文件夹的
 
      * 文件夹。UI 必须先把内容移走；这让删除保持非破坏性。
 
@@ -650,7 +650,7 @@ final class WikiPageFolderSupport {
 
     /**
 
-     * 对照 Go {@code PruneEmptyFolderChains}（L1775-1846）：删掉文档回收之后变空的文件夹，
+     * 删掉文档回收之后变空的文件夹，
 
      * 再顺着被删除而变空的祖先往上继续。它<b>只</b>考虑传入的文件夹链，所以 wiki 里
 
@@ -668,7 +668,7 @@ final class WikiPageFolderSupport {
 
         if (folderIDs == null || folderIDs.isEmpty()) {
 
-            return null; // 对照 Go `return nil, nil`
+            return null;
 
         }
 
@@ -774,7 +774,7 @@ final class WikiPageFolderSupport {
 
     /**
 
-     * 对照 Go {@code applyFolderToPage}（L1389-1407）：从权威的 FolderID 刷新页面的
+     * 从权威的 FolderID 刷新页面的
 
      * 派生 category_path 缓存。根（""）清空路径。解析不到的文件夹 id 视为<b>硬错误</b>，
 

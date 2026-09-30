@@ -13,14 +13,13 @@ import org.springframework.stereotype.Component;
 /**
  * {@link WikiInflightLimiter} 的<b>进程内</b>实现（默认装配）。
  *
- * <p>对照 Go 的 {@code wiki:inflight:<kbID>} ZSET 语义逐条实现：</p>
+ * <p>实现要点：</p>
  * <ul>
- *   <li>每个预留是一个带<b>过期时间</b>的 token（score = expiry），
- *       预留前先清掉已过期的 token —— 等价于 {@code ZREMRANGEBYSCORE} 的自愈；</li>
+ *   <li>每个预留是一个带<b>过期时间</b>的 token，
+ *       预留前先清掉已过期的 token（自愈）；</li>
  *   <li>后台按 {@link WikiIngestConstants#INFLIGHT_RENEW} 续期，
- *       让长跑批次不会因为"漏了一次续期"就丢槽位（对照 Go 的续期 goroutine）；</li>
- *   <li>上限判定与添加在同一次同步块里完成——对照 Go 那条
- *       "purge + count + add 放进一个 Lua 调用"的注释：拆开会让两个并发预留者
+ *       让长跑批次不会因为"漏了一次续期"就丢槽位；</li>
+ *   <li>上限判定与添加在同一次同步块里完成：拆开会让两个并发预留者
  *       都通过检查。</li>
  * </ul>
  *
@@ -50,7 +49,7 @@ public class InProcessWikiInflightLimiter implements WikiInflightLimiter {
     @Override
     public Reservation reserve(String kbId, int maxInflight) {
         if (maxInflight <= 0) {
-            // 对照 Go：redisClient == nil || maxInflight <= 0 → 无条件放行的 no-op 槽位
+            // 上限未配置（<= 0）→ 无条件放行的 no-op 槽位
             return Reservation.allow();
         }
         ConcurrentHashMap<String, Long> kbSlots =
@@ -58,7 +57,7 @@ public class InProcessWikiInflightLimiter implements WikiInflightLimiter {
         String token = UUID.randomUUID().toString();
         long expiry = System.currentTimeMillis() + WikiIngestConstants.INFLIGHT_TTL.toMillis();
 
-        // purge + count + add 必须在同一临界区（对照 Go 的 Lua 脚本）
+        // purge + count + add 必须在同一临界区
         synchronized (kbSlots) {
             purgeExpired(kbSlots);
             if (kbSlots.size() >= maxInflight) {
@@ -92,8 +91,8 @@ public class InProcessWikiInflightLimiter implements WikiInflightLimiter {
     }
 
     /**
-     * 对照 Go 的续期 goroutine：{@code ZADD} 刷新每个 token 的 score 并
-     * {@code PEXPIRE} 刷新整个键的 TTL。
+     * 后台续期：把每个 token 的过期时刻向前推，
+     * 长跑批次因此不会因为漏掉单次续期而丢槽位。
      */
     private void renewAll() {
         long expiry = System.currentTimeMillis() + WikiIngestConstants.INFLIGHT_TTL.toMillis();

@@ -7,8 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * finalize 通道里 {@code task_pending_ops} 行的 JSON 载荷
- * （对照 Go {@code wikiFinalizeRow}，wiki_ingest.go L271-279）。
+ * finalize 通道里 {@code task_pending_ops} 行的 JSON 载荷。
  *
  * <p>{@code Slug} / {@code Change} / {@code FolderIDs} 三者中<b>恰好一个</b>被设置，
  * 由行的 {@code Op} 列区分（{@link WikiIngestConstants#FINALIZE_OP_SLUG} /
@@ -21,17 +20,17 @@ public record WikiFinalizeRow(
         @JsonProperty("change") @JsonInclude(JsonInclude.Include.NON_EMPTY) WikiFinalizeChange change,
         @JsonProperty("folder_ids") @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> folderIds) {
 
-    /** 对照 Go {@code wikiFinalizeRow{Slug: slug, Title: freshTitleBySlug[slug]}} */
+    /** slug 变更行 */
     public static WikiFinalizeRow slug(String slug, String title) {
         return new WikiFinalizeRow(slug, title, null, null);
     }
 
-    /** 对照 Go {@code wikiFinalizeRow{Change: &changes[i]}} */
+    /** 变更描述行 */
     public static WikiFinalizeRow change(WikiFinalizeChange change) {
         return new WikiFinalizeRow(null, null, change, null);
     }
 
-    /** 对照 Go {@code wikiFinalizeRow{FolderIDs: uniqueWikiFolderIDs(folderIDs)}} */
+    /** 目录剪枝行（folderIds 需已去重） */
     public static WikiFinalizeRow folderIds(List<String> folderIds) {
         return new WikiFinalizeRow(null, null, null, folderIds);
     }

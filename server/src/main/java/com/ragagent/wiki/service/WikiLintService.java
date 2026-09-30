@@ -25,20 +25,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * wiki 健康体检（对照 Go internal/application/service/wiki_lint.go 全文，430 行）。
+ * wiki 健康体检。
  *
- * <p>Go 的 {@code WikiLintService} 依赖三个对象：{@code wikiService}
- * （{@link WikiPageService}）、{@code kbService}（只用来取 KB 并判
- * {@code IsWikiEnabled}）、{@code knowledgeService}（只用来按 id 判文档是否还活着）。
- * Java 侧后两者直接用对应 Mapper 的窄查询实现，避免为两个一次性查询改动既有
- * knowledge 模块的类（翻译任务禁止改既有文件）。语义与 Go 的
- * {@code GetKnowledgeBaseByIDOnly} / {@code GetKnowledgeByIDOnly} 一致：
- * 都带 {@code deleted_at IS NULL}（GORM 软删除的默认谓词）。</p>
+ * <p><b>依赖面</b>：{@link WikiPageService} 加两个只读窄查询——取 KB（判 wiki 开关）
+ * 与按 id 判文档是否还活着。两者都带 {@code deleted_at IS NULL}
+ * （软删除的默认谓词）。</p>
  *
- * <p><b>实现说明</b>：Go 在 4 万文档规模下，旧的「一次性载入所有页面」是该方法的主要
+ * <p><b>实现说明</b>：4 万文档规模下，旧的「一次性载入所有页面」是该方法的主要
  * 长尾（生产上偶发 OOM）。现在用 {@code ListPagesCursor} 以
  * {@value #LINT_CURSOR_BATCH} 条为一窗走页面集合，增量累积问题——无论 KB 多大，
- * 内存都有界。同时去掉了旧路径用来算活跃 slug 集合的 {@code GetGraph(Limit: 0)} 调用：
+ * 内存都有界。同时去掉了旧路径用来算活跃 slug 集合的全图调用：
  * {@code ListAllSlugs} 是同一谓词（kbID + status&lt;&gt;archived）上的单列投影，
  * 答案一样而代价只有零头。</p>
  */
@@ -48,13 +44,13 @@ public class WikiLintService {
     private static final Logger log = LoggerFactory.getLogger(WikiLintService.class);
 
     /**
-     * 对照 Go {@code lintCursorBatch}（L80）：流式走页的每批条数。取 200 是因为
+     * 流式走页的每批条数。取 200 是因为
      * wiki 页面可能带多 KB 正文，200 行 × 约 20KB ≈ 4MB 常驻，仍在跑逐页检查时
      * 可以接受的范围内。
      */
     static final int LINT_CURSOR_BATCH = 200;
 
-    /** 对照 Go {@code LintIssueEmptyContent} 判据（L182）的阈值（<b>字节</b>数） */
+    /** "正文过短"判定的阈值（UTF-8 <b>字节</b>数） */
     static final int EMPTY_CONTENT_THRESHOLD_BYTES = 50;
 
     private final WikiPageService wikiService;
@@ -70,7 +66,7 @@ public class WikiLintService {
     }
 
     /**
-     * 对照 Go {@code RunLint}（L94-346）：对 wiki 知识库做一次完整健康检查。
+     * 对 wiki 知识库做一次完整健康检查。
      */
     public WikiLintReport runLint(String kbId) {
         // 校验 KB
@@ -101,8 +97,8 @@ public class WikiLintService {
         }
         Set<String> slugSet = new HashSet<>(liveSlugs);
 
-        // ⚠️ 对照 Go：`var issues []WikiLintIssue` 是 nil slice，一条问题都没有时
-        // 保持 null（JSON 输出 "issues":null，不是 []）。这里同样只在首次追加时分配。
+        // ⚠️ 一条问题都没有时 issues 保持 null
+        // （JSON 输出 "issues":null，不是 []，见 WikiLintReport）。只在首次追加时分配。
         List<WikiLintIssue> issues = null;
         int healthScore = 100;
         Map<String, Boolean> knowledgeLive = new LinkedHashMap<>(); // kid -> 是否存在；跨页缓存
@@ -159,8 +155,8 @@ public class WikiLintService {
                 }
 
                 // 检查 3：正文过短
-                // ⚠️ Go 的 len(content) 是<b>字节</b>数（UTF-8），Java 必须按 UTF-8 字节
-                //    长度比较，否则同样一段 CJK 正文两边判定不同。
+                // ⚠️ 阈值按 UTF-8 <b>字节</b>数比较（不是 char 数），否则 CJK 正文会
+                //    被系统性高估。
                 String content = page.getContent().trim();
                 int contentBytes = content.getBytes(StandardCharsets.UTF_8).length;
                 if (contentBytes < EMPTY_CONTENT_THRESHOLD_BYTES) {
@@ -329,7 +325,7 @@ public class WikiLintService {
     }
 
     /**
-     * 对照 Go {@code AutoFix}（L349-430）：尝试自动修复可修的问题。
+     * 尝试自动修复可修的问题。
      *
      * @return 实际修掉的问题数
      */
@@ -364,7 +360,7 @@ public class WikiLintService {
                         wikiService.updateAutoLinkedContent(page);
                         fixed++;
                     } catch (RuntimeException ignored) {
-                        // 对照 Go：`if err := ...; err == nil { fixed++ }`
+                        // 修复失败不计入 fixed
                     }
                 }
                 case WikiLintIssue.EMPTY_CONTENT -> {
@@ -427,7 +423,7 @@ public class WikiLintService {
                 }
                 default -> {
                     // 其余类型（orphan_page / missing_cross_ref / duplicate_slug）
-                    // 在 Go 里 AutoFixable 恒为 false，走不到这里
+                    // 的 AutoFixable 恒为 false，走不到这里
                 }
             }
         }
@@ -437,7 +433,7 @@ public class WikiLintService {
             try {
                 wikiService.rebuildLinks(kbId);
             } catch (RuntimeException ignored) {
-                // 对照 Go：`_ = s.wikiService.RebuildLinks(ctx, kbID)`
+                // 重建链接失败不阻断返回
             }
         }
 
@@ -446,7 +442,7 @@ public class WikiLintService {
     }
 
     /**
-     * 对照 Go {@code removeSourceRef}（knowledge_delete.go L346-356）：摘掉等于
+     * 摘掉等于
      * {@code knowledgeID} 或以其 + "|" 开头的 source_ref 条目。
      */
     static List<String> removeSourceRef(List<String> refs, String knowledgeID) {
@@ -465,9 +461,7 @@ public class WikiLintService {
     }
 
     /**
-     * 对照 Go {@code knowledgeService.GetKnowledgeByIDOnly}
-     * （knowledge.go L495-497 → repository L79-88）：按 id 查文档，<b>不带租户过滤</b>，
-     * 但要排除软删（GORM 的默认谓词）。
+     * 按 id 查文档是否仍存活（<b>不带租户过滤</b>，排除软删）。
      *
      * @return 该文档是否仍存活
      */
@@ -479,7 +473,7 @@ public class WikiLintService {
         return k != null;
     }
 
-    /** 对照 Go 的 {@code issues = append(issues, ...)}：nil slice 首次追加时分配 */
+    /** issues 延迟分配：保持"零问题 = null"的出口契约 */
     private static List<WikiLintIssue> appendIssue(List<WikiLintIssue> issues,
                                                    WikiLintIssue issue) {
         if (issues == null) {

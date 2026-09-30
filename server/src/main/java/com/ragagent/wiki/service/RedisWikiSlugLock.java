@@ -10,22 +10,19 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 /**
- * {@link WikiSlugLock} 的 Redis 实现（对照 Go {@code withSlugLock}，
- * internal/application/service/wiki_ingest.go L911-938）。
+ * {@link WikiSlugLock} 的 Redis 实现。
  *
  * <p>键 {@code wiki:slug:{kbID}:{slug}}，TTL 5 分钟，轮询 50ms、最多等 2 分钟。
- * 与 Go 一致地 <b>fail-open</b>：Redis 报错时记 warn 日志并返回 true
+ * <b>fail-open</b>：Redis 报错时记 warn 日志并返回 true
  * （"running unlocked"），因为罕见的一次丢失更新会被 finalize/死链清理兜住，
  * 而静默丢弃整份更新严格更糟。</p>
  *
- * <p><b>释放为什么要用 Lua</b>：Go 的 {@code defer Del(key)} 其实也有「删除别人
- * 误持的锁」的窗口（锁 TTL 到期后由另一个持有者重建，此时原持有者 Del 会删掉
- * 新持有者的锁）。Java 侧按同样的外部契约翻译，但把释放收窄为
- * 「只删自己写进去的 token」，避免在 <b>TTL 到期后</b>出现跨持有者误删——
- * 这是比 Go 更严格的行为，不放宽任何 Go 的保证。</p>
+ * <p><b>释放为什么要用 Lua</b>：朴素 DEL 有「删除别人误持的锁」的窗口
+ * （锁 TTL 到期后由另一个持有者重建，此时原持有者 DEL 会删掉新持有者的锁）。
+ * 本类把释放收窄为「只删自己写进去的 token」，避免在 <b>TTL 到期后</b>
+ * 出现跨持有者误删。</p>
  *
- * <p><b>装配</b>：本类是普通类（<b>不是</b> {@code @Component}），与 MCP 的
- * {@code SpringOAuthStateRedis} 同一模式——由主装配会话显式注册 bean：</p>
+ * <p><b>装配</b>：本类是普通类（<b>不是</b> {@code @Component}），由主装配会话显式注册 bean：</p>
  * <pre>{@code
  * @Bean
  * @Primary   // ⚠️ 必须：InProcessWikiSlugLock 是无条件 @Component，
@@ -72,7 +69,7 @@ public class RedisWikiSlugLock implements WikiSlugLock {
             try {
                 ok = template.opsForValue().setIfAbsent(key, token, ttl);
             } catch (RuntimeException e) {
-                // 对照 Go：SetNX 报错 → fail-open，不加锁直接跑
+                // SetNX 报错 → fail-open，不加锁直接跑
                 log.warn("wiki slug lock: SetNX failed for {}: {} (running unlocked)", slug, e.toString());
                 return true;
             }

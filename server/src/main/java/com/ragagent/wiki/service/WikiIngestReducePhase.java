@@ -36,7 +36,7 @@ final class WikiIngestReducePhase {
 
 
     /**
-     * 对照 Go {@code reduceSlugUpdates}（batch L1702-2123）：把一个 slug 的全部更新
+     * 把一个 slug 的全部更新
      * 读-改-写成一个页面。
      *
      * <ul>
@@ -49,11 +49,11 @@ final class WikiIngestReducePhase {
      *   <li>{@code error}：持久化 upsert 的传输/仓储错误。</li>
      * </ul>
      *
-     * <p><b>span 归属（Go 注释）</b>：单个 slug 可以收到同一批次多个文档的贡献
-     * （entity/concept 页面跨来源聚合）。Go 把 {@code postprocess.wiki.page[slug]} 子 span
+     * <p><b>span 归属</b>：单个 slug 可以收到同一批次多个文档的贡献
+     * （entity/concept 页面跨来源聚合）。{@code postprocess.wiki.page[slug]} 子 span
      * 挂到 updates 列表里<b>第一个</b>贡献文档的 wikiSpan 下——span 树的拓扑只允许一个父节点。
-     * Java 侧未实现追踪，因此这段拓扑逻辑无对应副作用，但 <b>contributors 的收集语义</b>
-     * （按首次出现去重）被保留，供将来接线。</p>
+     * <b>contributors 的收集语义</b>
+     * （按首次出现去重）供 span output 与下游记账使用。</p>
      */
     public WikiIngestBatchHandler.ReduceOutcome reduceSlugUpdates(LlmChatClient chatModel,
                                            String kbId,
@@ -83,7 +83,7 @@ final class WikiIngestReducePhase {
             }
         }
 
-        // 页级 span（对照 Go L1726-1752 的归属规则 + L1763-1789 的 deferred 收尾）：
+        // 页级 span：
         // 挂在 updates 里第一个有 wikiSpan 的贡献文档下——span 树只允许一个父节点；
         // 完整 contributors 进 output，供追溯聚合页的多来源归属。
         SpanTracker.SpanHandle pageSpan = beginPageSpan(slug, updates, contributors, kidToWikiMap);
@@ -101,7 +101,7 @@ final class WikiIngestReducePhase {
     }
 
     /**
-     * 开页级 span（对照 Go 的 contributors 循环 + {@code BeginSubSpan}）：
+     * 开页级 span：
      * 父 = updates 里首个有 wikiSpan 的贡献文档；都没有 → null（no-op）。
      */
     SpanTracker.SpanHandle beginPageSpan(String slug, List<SlugUpdate> updates,
@@ -125,7 +125,7 @@ final class WikiIngestReducePhase {
     }
 
     /**
-     * 页级 span 收尾（对照 Go 的 deferred 闭包 L1763-1789）：错误 → FailSpan；
+     * 页级 span 收尾：错误 → FailSpan；
      * 无变化 → SkipSpan；正常 → EndSpan，output 捕获<b>合并后</b>的页面状态
      * （title / page_type / summary / content 预览 / refs 计数 / aliases）。
      */
@@ -165,8 +165,8 @@ final class WikiIngestReducePhase {
                                                 long tenantId, WikiBatchContext batchCtx,
                                                 WikiPage[] pageHolder) {
         try {
-            // 对照 Go：page, err := GetPageBySlug(...); exists := (err == nil && page != nil)
-            // —— not found 是正常路径（下面合成新页），不能让它冒泡成 reduce 失败。
+            // findPageBySlug 查无此页时返回 null 而不是抛错——not found 是正常路径
+            // （下面合成新页），不能让它冒泡成 reduce 失败。
             WikiPage page = handler.wikiService.findPageBySlug(kbId, slug);
             pageHolder[0] = page;
             boolean exists = page != null;
@@ -437,8 +437,8 @@ final class WikiIngestReducePhase {
                     if (!additions.isEmpty()) {
                         additionFailed = true;
                     }
-                    // <b>不</b>把 LLM 错误向上传播：它已经记过日志，而 eg.Go 的调用方否则会
-                    // 再记一次 "reduce failed for slug"。
+                    // <b>不</b>把 LLM 错误向上传播：它已经记过日志，再抛出去只会
+                    // 让上层再记一次 "reduce failed for slug"。
                 }
             }
 
@@ -472,7 +472,7 @@ final class WikiIngestReducePhase {
     }
 
     /**
-     * 对照 Go {@code mergeChunkRefs}（batch L2134-2154）：把页面当前的 chunk ID 与本批次
+     * 把页面当前的 chunk ID 与本批次
      * additions 引用的 chunk ID 求并集，保留插入顺序并丢弃重复项。空串被过滤掉，免得畸形
      * source_chunks 数组在列里留下垃圾。
      *

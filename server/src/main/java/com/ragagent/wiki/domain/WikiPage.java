@@ -16,43 +16,35 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * wiki_pages 表实体（对照 Go types.WikiPage，internal/types/wiki_page.go L191-279）。
+ * wiki_pages 表实体。JSON 键为 snake（§11 登记边界，前端按此解析）。
  *
  * <p><b>表结构以迁移为准</b>（migrations/versioned/000037_wiki_and_indexing.up.sql、
  * 000061_wiki_page_hierarchy.up.sql、000075_wiki_page_revisions.up.sql）。</p>
  *
- * <p>GORM 隐式行为清单（约定 §3）：</p>
+ * <p>落库行为约定：</p>
  * <ol>
- *   <li><b>软删除</b>：{@code gorm.DeletedAt} 会给每条查询/更新自动加
- *       {@code deleted_at IS NULL}——Java 侧<b>每条 SQL 显式写出</b>（§9：不用 @TableLogic）。</li>
- *   <li><b>钩子</b>：Go 无 BeforeCreate/AfterFind。ID 由 service 生成（Go 侧亦然），
- *       实体无自动 UUID。</li>
- *   <li><b>自动时间戳</b>：GORM 按约定把 CreatedAt / UpdatedAt 当自动时间戳字段
- *       （Create 时填当前时间，Update 时刷新 UpdatedAt）。Java 侧由
- *       {@code WikiPageRepository} 在写入前对 null 值补当前时间（<b>不覆盖</b>已赋值，
- *       与 GORM 只填零值一致）。</li>
- *   <li><b>默认值 tag</b>：{@code status default:'published'}、{@code version default:1}、
- *       {@code depth default:0}、{@code sort_order default:0}。GORM 在 Create 时会把
- *       <b>零值字段替换为该默认值并回写内存</b>（即 Go 无法用本 struct 建出 status='' 的行）。
- *       Java 侧<b>不复刻这个回写</b>：字段保持调用方给的值（Java 零值见下），
- *       由 service 显式赋值；须知道这条差异的调用点见 §9 同类记录（MCP enabled default:true）。</li>
- *   <li><b>零值语义</b>（Go 非指针字段）：所有 String 字段零值为 {@code ""}，DB 各列
+ *   <li><b>软删除</b>：每条查询/更新<b>显式写出</b> {@code deleted_at IS NULL}
+ *       （刻意不用 @TableLogic）。</li>
+ *   <li><b>无钩子</b>：ID 由 service 生成，实体无自动 UUID。</li>
+ *   <li><b>自动时间戳</b>：由 {@code WikiPageRepository} 在写入前对 null 的
+ *       createdAt/updatedAt 补当前时间（<b>不覆盖</b>已赋值）；更新时刷新 updatedAt。</li>
+ *   <li><b>默认值</b>：SQL 列默认 {@code status 'published'}、{@code version 1}、
+ *       {@code depth 0}、{@code sort_order 0}。Java 侧<b>不复刻默认值回写</b>：
+ *       字段保持调用方给的值（Java 零值见下），须要默认值的字段由 service 显式赋值。</li>
+ *   <li><b>零值语义</b>：所有 String 字段零值为 {@code ""}，DB 各列
  *       NOT NULL DEFAULT ''，因此 Java 侧 getter 永不返回 null；计数器
  *       （depth/sort_order/version）用<b>原始 int</b>，避免插入 NULL。</li>
- *   <li><b>唯一索引</b>：Go tag 写的是 {@code uniqueIndex:idx_kb_slug}，但迁移 000037
- *       建的是<b>部分唯一索引</b> {@code (knowledge_base_id, slug) WHERE deleted_at IS NULL}
- *       ——GORM tag 与 SQL 不一致，<b>以 SQL 为准</b>。</li>
+ *   <li><b>唯一索引</b>：迁移 000037 建的是<b>部分唯一索引</b>
+ *       {@code (knowledge_base_id, slug) WHERE deleted_at IS NULL}——重复判断只针对
+ *       未删除行，已删除的 slug 可复用。</li>
  *   <li><b>jsonb 列</b>：aliases / category_path / source_refs / chunk_refs / in_links /
- *       out_links / page_metadata。前六者是字符串数组（{@link WikiStringListTypeHandler}，
- *       对照 Go StringArray 的 Value/Scan），page_metadata 是任意 JSON
- *       （{@link PgJsonTypeHandler}，对照 Go types.JSON）。</li>
- *   <li><b>无关联预加载</b>：Go 侧本实体没有任何 Preload。</li>
+ *       out_links / page_metadata。前六者是字符串数组（{@link WikiStringListTypeHandler}），
+ *       page_metadata 是任意 JSON（{@link PgJsonTypeHandler}）。</li>
  * </ol>
  *
- * <p>JSON 输出（handler 直接序列化实体，字段序 = Go struct 声明序）：
- * {@code @JsonPropertyOrder} 必须与 Go 一致；omitempty 由字段级
- * {@code @JsonInclude} 复刻（string 空→省略用 NON_EMPTY，int 0→省略用 NON_DEFAULT，
- * slice 空→省略用 NON_EMPTY）。</p>
+ * <p>JSON 输出（handler 直接序列化实体，字段序 = {@code @JsonPropertyOrder} 声明序）：
+ * 省略语义由字段级 {@code @JsonInclude} 控制（string 空→省略用 NON_EMPTY，
+ * int 0→省略用 NON_DEFAULT，列表空→省略用 NON_EMPTY）。</p>
  */
 @TableName(value = "wiki_pages", autoResultMap = true)
 @JsonPropertyOrder({
@@ -69,7 +61,7 @@ public class WikiPage {
     @JsonProperty("id")
     private String id;
 
-    /** 工作空间 ID（多租户隔离；Go uint64 → Long） */
+    /** 工作空间 ID（多租户隔离） */
     @JsonProperty("tenant_id")
     private Long tenantId;
 
@@ -89,7 +81,7 @@ public class WikiPage {
     @JsonProperty("page_type")
     private String pageType = "";
 
-    /** 页面状态：draft / published / archived（Go tag default:'published'，见类注释第 3 条） */
+    /** 页面状态：draft / published / archived（SQL 默认 'published'，见类注释默认值条） */
     @JsonProperty("status")
     private String status = "";
 
@@ -135,7 +127,7 @@ public class WikiPage {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String wikiPath = "";
 
-    /** = categoryPath.size()，缓存用于过滤/展示（Go int → 原始 int） */
+    /** = categoryPath.size()，缓存用于过滤/展示 */
     @JsonProperty("depth")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int depth;
@@ -177,9 +169,9 @@ public class WikiPage {
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> outLinks = new ArrayList<>();
 
-    /** 任意元数据（标签、分类、日期等）；Go 类型是 types.JSON（原始 JSON） */
+    /** 任意元数据（标签、分类、日期等）；原始 JSON */
     // insertStrategy=ALWAYS：MyBatis-Plus 默认对 null 字段省略该列，会落到 DB 默认值 '{}'，
-    // 而 Go 显式写 NULL（nil JSON → driver 返回 nil）——golden 里该键是 null，故必须总是插入。
+    // 而出口契约（golden fixture）里该键是 null——故必须总是插入（null 直写）。
     @TableField(value = "page_metadata", typeHandler = PgJsonTypeHandler.class,
             insertStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
     @JsonProperty("page_metadata")
@@ -217,17 +209,17 @@ public class WikiPage {
     @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
-    /** 软删除标记；Go 的 gorm.DeletedAt 未删除时 JSON 输出 null（恒输出该键） */
+    /** 软删除标记；未删除时 JSON 输出 null（恒输出该键） */
     @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
-    // ── Go 方法对照（⚠️ 全部 @JsonIgnore：派生访问器会被 Jackson 当属性序列化，
-    //    阶段 3/4.1 各踩过一次——约定 §9「复发率最高的坑」） ──
+    // ── 派生访问器（⚠️ 全部 @JsonIgnore：派生访问器会被 Jackson 当属性序列化，
+    //    是复发率最高的坑） ──
 
     /**
-     * 对照 Go WikiPage.SourceKnowledgeIDs（L837-848）：本页面构建自哪些文档 id。
+     * 本页面构建自哪些文档 id（从 {@link #sourceRefs} 的 "id|title" 条目提取）。
      *
-     * <p>⚠️ {@code @JsonIgnore}：Go 里它是<b>方法</b>不是字段，JSON 输出里没有这个键；
+     * <p>⚠️ {@code @JsonIgnore}：这是派生方法不是持久化字段，JSON 输出里没有这个键；
      * 不加注解会让它出现在每个响应里，回读 jsonb 时还会触发
      * UnrecognizedPropertyException（MyBatisSystemException: null）。</p>
      */
@@ -247,7 +239,7 @@ public class WikiPage {
     }
 
     /**
-     * 对照 Go WikiPage.BuiltFrom（L851-861）：本页面的任一来源是否落在给定集合里。
+     * 本页面的任一来源是否落在给定集合里。
      *
      * <p>⚠️ {@code @JsonIgnore}，理由同上。</p>
      */

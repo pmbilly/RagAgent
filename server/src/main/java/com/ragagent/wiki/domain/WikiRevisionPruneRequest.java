@@ -3,12 +3,11 @@ package com.ragagent.wiki.domain;
 import java.util.List;
 
 /**
- * 单个页面的快照历史两级保留策略（对照 Go types.WikiRevisionPruneRequest，
- * internal/types/wiki_page.go L364-373）。
+ * 单个页面的快照历史两级保留策略。
  *
  * <p>版本阈值 &lt;= 0 表示该级不生效。</p>
  *
- * @param pageID              目标页面 id（空则整套剪枝是 no-op，对照 Go L230）
+ * @param pageID              目标页面 id（空则整套剪枝是 no-op）
  * @param keepFromVersion     低于该版本的快照被丢弃，<b>但仅当其编辑来源在
  *                            {@code prunableSources} 里</b>
  * @param prunableSources     可被软上限丢弃的编辑来源（见
@@ -21,7 +20,7 @@ public record WikiRevisionPruneRequest(
         List<String> prunableSources,
         int hardKeepFromVersion) {
 
-    /** 对照 Go 零值：pageID 空、两级阈值 0、来源空列表 */
+    /** 全不生效的空请求：pageID 空、两级阈值 0、来源空列表 */
     public static WikiRevisionPruneRequest none() {
         return new WikiRevisionPruneRequest("", 0, List.of(), 0);
     }

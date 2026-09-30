@@ -40,40 +40,38 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
- * wiki 页面服务实现（对照 Go internal/application/service/wiki_page.go 全文，1913 行）。
+ * wiki 页面服务实现。
  *
- * <p>方法名 = Go 方法名（首字母小写）。Go 的 {@code (value, error)} 在 Java 拆成
- * 「返回值 + 抛 {@link WikiException} 子类」；Go 的 {@code errors.Is(err, sentinel)}
- * 判别改成异常类型判别（sentinel 见 {@code com.ragagent.wiki.domain} 下的异常类）。</p>
+ * <p>错误模型：「返回值 + 抛 {@link WikiException} 子类」；sentinel 判别改成
+ * 异常类型判别（sentinel 见 {@code com.ragagent.wiki.domain} 下的异常类）。</p>
  *
- * <h3>保真要点（逐条对照）</h3>
+ * <h3>行为要点</h3>
  * <ol>
- *   <li><b>版本号策略</b>（Go L121-197）：只有 title/content/summary/page_type/status/aliases
+ *   <li><b>版本号策略</b>：只有 title/content/summary/page_type/status/aliases
  *       真的变了才走 {@code updateWithRevision} 并递增 version；否则走 {@code updateMeta}。</li>
- *   <li><b>链接维护</b>（Go L1028-1240）：{@code parseOutLinks} 是纯字符串算法；
+ *   <li><b>链接维护</b>：{@code parseOutLinks} 是纯字符串算法；
  *       {@code updateInLinks}/{@code removeInLinks} 逐目标页做读-改-写，目标不存在时静默跳过。</li>
- *   <li><b>图谱子集</b>：抽到 {@link WikiGraphCalculator}（Go 的包级纯函数 {@code computeGraphSubset}）。</li>
- *   <li><b>文件夹子树重算</b>（Go L1629-1744）：改名/移动后按 path 前缀重算整棵子树的
+ *   <li><b>图谱子集</b>：抽到 {@link WikiGraphCalculator}（纯函数）。</li>
+ *   <li><b>文件夹子树重算</b>：改名/移动后按 path 前缀重算整棵子树的
  *       path/depth，再重算子树下每个页面的缓存路径。</li>
- *   <li><b>chunk 同步 / 待处理任务计数 / Redis 活跃标志</b>：Go 用 nil 仓储/客户端表示
- *       「不接线」，Java 用可插拔端口 + 缺席时的同款降级（见各端口接口注释）。</li>
+ *   <li><b>chunk 同步 / 待处理任务计数 / Redis 活跃标志</b>：用可插拔端口 + 缺席时的
+ *       同款降级（见各端口接口注释）。</li>
  * </ol>
  *
  * <h3>上下文</h3>
- * <p>Go 的 {@code types.WikiEditSourceFromContext(ctx)} / {@code UserIDFromContext(ctx)}
- * 在 Java 由 {@link WikiEditContext} + {@link com.ragagent.common.context.TenantContext}
- * 承担，因此 service 签名与 Go 保持一致（不带额外的来源参数）。</p>
+ * <p>编辑来源与用户身份由 {@link WikiEditContext} +
+ * {@link com.ragagent.common.context.TenantContext} 承担，service 签名不带额外的来源参数。</p>
  */
 @Service
 public class WikiPageServiceImpl implements WikiPageService {
 
     static final Logger log = LoggerFactory.getLogger(WikiPageServiceImpl.class);
 
-    /** 对照 Go {@code wikiLinkRegex}（L23）：{@code \[\[([^\]]+)\]\]} */
+    /** wiki 链接语法：{@code \[\[([^\]]+)\]\]} */
     static final Pattern WIKI_LINK_REGEX = Pattern.compile("\\[\\[([^\\]]+)\\]\\]");
 
     /**
-     * 对照 Go {@code wikiInlineChunkCitationRegex}（L29）：
+     * 行内 chunk 引用句柄语法：
      * {@code [ \t]*\[c\d{3,}(?:\s*[,;]\s*c\d{3,})*\]}。
      *
      * <p>这些是 ingest 提示词在分类支撑 chunk 时产生的<b>内部短句柄</b>；稳定的来源
@@ -83,7 +81,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     static final Pattern WIKI_INLINE_CHUNK_CITATION_REGEX =
             Pattern.compile("[ \\t]*\\[c\\d{3,}(?:\\s*[,;]\\s*c\\d{3,})*\\]");
 
-    /** 对照 Go {@code wikiIndexContentPageTypes}（L443-449）：构成用户可见目录的页面类型 */
+    /** 构成用户可见目录的页面类型 */
     static final List<String> WIKI_INDEX_CONTENT_PAGE_TYPES = List.of(
             WikiConstants.PAGE_TYPE_SUMMARY,
             WikiConstants.PAGE_TYPE_ENTITY,
@@ -91,7 +89,7 @@ public class WikiPageServiceImpl implements WikiPageService {
             WikiConstants.PAGE_TYPE_SYNTHESIS,
             WikiConstants.PAGE_TYPE_COMPARISON);
 
-    /** 对照 Go {@code wikiIndexGetIndex}} 里默认索引页的字面内容（L431-432） */
+    /** 默认索引页的字面内容 */
     static final String DEFAULT_INDEX_CONTENT =
             "# Wiki Index\n\nThis is the index page. It will be automatically updated as pages are added.\n";
 
@@ -124,7 +122,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         this.views = new WikiPageViewsSupport(this);
     }
 
-    /** 对照 Go {@code CreatePage}（L70-109） */
     @Override
     public WikiPage createPage(WikiPage page) {
         if (page.getId() == null || page.getId().isEmpty()) {
@@ -163,9 +160,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code UpdatePage}（L121-197）。
-     *
-     * <p>版本号只跟踪<b>用户可见</b>的内容修订，不是每一次行重写：只有
+     * 版本号只跟踪<b>用户可见</b>的内容修订，不是每一次行重写：只有
      * title / content / summary / page_type / status / aliases 至少一项真的变了才递增。
      * 纯记账写入（同内容重摄取时刷新 source_refs、同目录重建索引页、没替换任何东西的
      * 交叉链接注入……）仍会落库，但走 {@code UpdateMeta}、version 不动，这样消费方
@@ -204,7 +199,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         existing.setUpdatedAt(OffsetDateTime.now());
 
         // CategoryPath 只是 FolderID 的派生缓存——从文件夹链重算，
-        // 而不是相信调用方送来的值（Go L157-161）
+        // 而不是相信调用方送来的值
         applyFolderToPage(existing);
 
         // 出链是正文的纯导数，所以只随正文变。无条件重解析以与库中正文保持一致。
@@ -217,25 +212,25 @@ public class WikiPageServiceImpl implements WikiPageService {
             existing.setLastEditorId(WikiEditContext.currentEditorId());
 
             // 快照被取代的版本 + 原子写入新版本：每个历史版本的正文都被保住，
-            // 且更新失败时不会留下半份快照（Go L174-179）
+            // 且更新失败时不会留下半份快照
             repo.updateWithRevision(existing, revisionFromPage(prev));
             // 限制单页历史；尽力而为——剪枝失败只意味着多占一点存储，直到下次内容变更
             pruneRevisions(existing.getId(), existing.getVersion());
         } else {
             // 没有用户可见的变化——持久化记账字段但保留 version，
-            // 让下游消费方能依赖它（Go L183-189）
+            // 让下游消费方能依赖它
             repo.updateMeta(existing);
         }
 
         // 入链：先摘旧的再加新的。内容没变时 oldOutLinks == existing.OutLinks，
-        // 这两次调用实际都是 no-op（Go L191-194）
+        // 这两次调用实际都是 no-op
         removeInLinks(existing.getKnowledgeBaseId(), existing.getSlug(), oldOutLinks);
         updateInLinks(existing.getKnowledgeBaseId(), existing.getSlug(), existing.getOutLinks());
 
         return existing;
     }
 
-    /** 对照 Go {@code UpdatePageMeta}（L200-204） */
+    /** 记账型更新：落库但不递增 version。 */
     @Override
     public void updatePageMeta(WikiPage page) {
         normalizeWikiHierarchy(page);
@@ -244,7 +239,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code UpdateAutoLinkedContent}（L211-231）：持久化<b>机器侧</b>链接修饰
+     * 持久化<b>机器侧</b>链接修饰
      * （交叉链接注入 / 死链清理）产生的正文，不递增 version。出链从新正文重解析、
      * 目标页的入链刷新，从而导航一致——只有面向用户的修订计数被保留。
      */
@@ -264,7 +259,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code revisionFromPage}（L237-256）：为给定页面状态构造不可变快照行。
+     * 为给定页面状态构造不可变快照行。
      *
      * <p>快照上的 {@code editSource} 是<b>那个版本</b>的作者——该版本尚为当前版本时
      * 页面溯源列的值——而不是取代它的这次写入的作者。</p>
@@ -291,7 +286,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code pruneRevisions}（L262-275）：页面推进到 currentVersion 之后限制其
+     * 页面推进到 currentVersion 之后限制其
      * 快照历史。机器作者的快照一旦滑出近期窗口就丢；人工/agent/回滚的快照活到硬上限
      * ——这样热页上的管道churn 挤不掉用户真正在意的编辑。
      */
@@ -311,7 +306,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
     }
 
-    /** 对照 Go {@code GetPageBySlug}（L345-352） */
     @Override
     public WikiPage getPageBySlug(String kbId, String slug) {
         WikiPage page = repo.getBySlug(kbId, slug);
@@ -319,7 +313,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         return page;
     }
 
-    /** 对照 Go 调用侧 {@code if err != nil || page == nil} 的 null 形态（见接口注释）。 */
+    /** 不抛异常的查询形态：页面不存在时返回 null（见接口注释）。 */
     @Override
     public WikiPage findPageBySlug(String kbId, String slug) {
         try {
@@ -329,7 +323,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
     }
 
-    /** 对照 Go {@code GetPageByID}（L355-362） */
     @Override
     public WikiPage getPageByID(String id) {
         WikiPage page = repo.getByID(id);
@@ -337,7 +330,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return page;
     }
 
-    /** 对照 Go {@code DeletePage}（L398-423） */
     @Override
     public void deletePage(String kbId, String slug) {
         WikiPage page = repo.getBySlug(kbId, slug);
@@ -358,7 +350,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         deleteChunkForPage(page);
     }
 
-    /** 对照 Go {@code GetIndex}（L426-437） */
+    /** 页面不存在时按默认内容即时建出索引页。 */
     @Override
     public WikiPage getIndex(String kbId) {
         try {
@@ -370,7 +362,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
     }
 
-    /** 对照 Go {@code GetGraph}（L576-586） */
     @Override
     public WikiGraph.Data getGraph(WikiGraph.Request req) {
         if (req == null) {
@@ -379,7 +370,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return WikiGraphCalculator.compute(repo.listAll(req.knowledgeBaseId()), req);
     }
 
-    /** 对照 Go {@code RebuildLinks}（L884-920） */
     @Override
     public void rebuildLinks(String kbId) {
         List<WikiPage> pages = repo.listAll(kbId);
@@ -416,7 +406,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
     }
 
-    /** 对照 Go {@code InjectCrossLinks}（L1852-1892） */
     @Override
     public void injectCrossLinks(String kbId, List<String> affectedSlugs) {
         List<WikiPage> allPages;
@@ -469,123 +458,105 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code RebuildIndexPage}（L1909-1913）。
-     *
-     * <p>Go 侧正文<b>故意是 no-op</b>——目录不再持久化进 wiki_pages.content，
+     * 目录页正文的<b>故意 no-op</b>——目录不再持久化进 wiki_pages.content，
      * 改由 GetIndexView 从 ListByTypeLight 轻投影按需拼装，因此单个页面写入
      * 不必再做 O(N) 字符串拼接、重写多兆 TEXT 列。保留方法名只为让既有 agent
-     * 工具调用点（wiki_write_page / wiki_rename_page）编译不变。</p>
+     * 工具调用点（wiki_write_page / wiki_rename_page）编译不变。
      *
      * <p>索引行上仍留着的 intro 由 ingest 管道在批次完成时单独维护
-     * （wikiIngestService.rebuildIndexPage），那里才真正有 LLM + 变更描述上下文。</p>
+     * （rebuildIndexPage(chatModel, ...)），那里才真正有 LLM + 变更描述上下文。</p>
      */
     @Override
     public void rebuildIndexPage(String kbId) {
-        // intentionally no-op（对照 Go L1909-1913）
+        // intentionally no-op
     }
 
-    /** 对照 Go {@code ListAllPages}（L923-925） */
     @Override
     public List<WikiPage> listAllPages(String kbId) {
         return repo.listAll(kbId);
     }
 
-    /** 对照 Go {@code ListByType}（L930-932） */
     @Override
     public List<WikiPage> listByType(String kbId, String pageType) {
         return repo.listByType(kbId, pageType);
     }
 
-    /** 对照 Go {@code ListPagesBySourceRef}（L937-939） */
     @Override
     public List<WikiPage> listPagesBySourceRef(String kbId, String knowledgeID) {
         return repo.listBySourceRef(kbId, knowledgeID);
     }
 
-    /** 对照 Go {@code ListSlugsBySourceRef}（L945-947） */
     @Override
     public List<String> listSlugsBySourceRef(String kbId, String knowledgeID) {
         return repo.listSlugsBySourceRef(kbId, knowledgeID);
     }
 
-    /** 对照 Go {@code ListBySlugs}（L954-956） */
     @Override
     public Map<String, WikiPageLite> listBySlugs(String kbId, List<String> slugs) {
         return repo.listBySlugs(kbId, slugs);
     }
 
-    /** 对照 Go {@code ListSummariesByKnowledgeIDs}（L961-963） */
     @Override
     public Map<String, String> listSummariesByKnowledgeIDs(String kbId, List<String> kids) {
         return repo.listSummariesByKnowledgeIDs(kbId, kids);
     }
 
-    /** 对照 Go {@code ExistsSlugs}（L968-970） */
     @Override
     public Map<String, Boolean> existsSlugs(String kbId, List<String> slugs) {
         return repo.existsSlugs(kbId, slugs);
     }
 
-    /** 对照 Go {@code ListAllSlugs}（L975-977） */
     @Override
     public List<String> listAllSlugs(String kbId) {
         return repo.listAllSlugs(kbId);
     }
 
-    /** 对照 Go {@code ListPagesCursor}（L980-982） */
     @Override
     public CursorPage listPagesCursor(String kbId, String cursor, int limit) {
         WikiPageRepository.CursorPage page = repo.listPagesCursor(kbId, cursor, limit);
         return new CursorPage(page.pages(), page.nextCursor());
     }
 
-    /** 对照 Go {@code ListByTypeRecent}（L986-988） */
     @Override
     public List<WikiIndexEntry> listByTypeRecent(String kbId, String pageType, int limit) {
         return repo.listByTypeRecent(kbId, pageType, limit);
     }
 
-    /** 对照 Go {@code FindSimilarPages}（L992-994） */
     @Override
     public List<WikiPageLite> findSimilarPages(String kbId, String query, List<String> pageTypes,
                                                int limit) {
         return repo.findSimilarPages(kbId, query, pageTypes, limit);
     }
 
-    /** 对照 Go {@code FindPagesByNormalizedTitle}（L998-1000） */
     @Override
     public List<WikiPageLite> findPagesByNormalizedTitle(String kbId, String pageType,
                                                          String identity) {
         return repo.findPagesByNormalizedTitle(kbId, pageType, identity);
     }
 
-    /** 对照 Go {@code FindPagesByNormalizedTitles}（L1004-1006） */
     @Override
     public List<WikiPageLite> findPagesByNormalizedTitles(String kbId, String pageType,
                                                           List<String> identities) {
         return repo.findPagesByNormalizedTitles(kbId, pageType, identities);
     }
 
-    /** 对照 Go {@code ListDistinctCategoryPaths}（L1010-1012） */
     @Override
     public List<List<String>> listDistinctCategoryPaths(String kbId, int maxPaths) {
         return repo.listDistinctCategoryPaths(kbId, maxPaths);
     }
 
-    /** 对照 Go {@code CountByType}（L1016-1018） */
     @Override
     public Map<String, Long> countByType(String kbId) {
         return repo.countByType(kbId);
     }
 
-    /** 对照 Go {@code SearchPages}（L1021-1023） */
     @Override
     public List<WikiPage> searchPages(String kbId, String query, int limit) {
         return repo.search(kbId, query, limit);
     }
 
     /**
-     * 对照 Go {@code parseOutLinks}（L1028-1048）：从 markdown 正文提取
+     * 从 markdown 正文提取
      * {@code [[wiki-link]]} 的 slug。
      *
      * <p>去重（保首次出现序）；支持 {@code [[slug|显示名]]} 只取竖线前那段；
@@ -614,10 +585,10 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code normalizeSlug}（L1051-1055）：小写 + 去首尾空白 + 空格换成连字符。
+     * 小写 + 去首尾空白 + 空格换成连字符。
      *
-     * <p>Go 的 {@code strings.ToLower} 是 Unicode 简单折叠；Java 用
-     * {@code Locale.ROOT} 避免土耳其语 i 之类的区域陷阱（与仓库其它地方一致）。</p>
+     * <p>小写化用 {@code Locale.ROOT}（Unicode 简单折叠），
+     * 避免土耳其语 i 之类的区域陷阱（与仓库其它地方一致）。</p>
      */
     static String normalizeSlug(String slug) {
         if (slug == null) {
@@ -627,7 +598,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code slugNamespace}（L1059-1064）：取 slug 第一个 {@code '/'} 之前的前缀，
+     * 取 slug 第一个 {@code '/'} 之前的前缀，
      * 例如 {@code "summary/abc" -> "summary"}；没有 {@code '/'} 的 slug 映射为 {@code ""}。
      */
     static String slugNamespace(String slug) {
@@ -638,7 +609,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return i >= 0 ? slug.substring(0, i) : "";
     }
 
-    /** 对照 Go {@code stripWikiInlineChunkCitations}（L31-33） */
     static String stripWikiInlineChunkCitations(String content) {
         if (content == null || content.isEmpty()) {
             return content;
@@ -646,7 +616,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return WIKI_INLINE_CHUNK_CITATION_REGEX.matcher(content).replaceAll("");
     }
 
-    /** 对照 Go {@code stripWikiPageInlineChunkCitations}（L35-41） */
     static void stripWikiPageInlineChunkCitations(WikiPage page) {
         if (page == null) {
             return;
@@ -656,7 +625,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code updateInLinks}（L1203-1217）：把源 slug 加到目标页的 in_links。
+     * 把源 slug 加到目标页的 in_links。
      * 目标页不存在时静默跳过（还没建出来）。
      */
     final void updateInLinks(String kbId, String sourceSlug, List<String> targets) {
@@ -679,7 +648,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
     }
 
-    /** 对照 Go {@code removeInLinks}（L1220-1235） */
     final void removeInLinks(String kbId, String sourceSlug, List<String> targets) {
         for (String targetSlug : targets) {
             WikiPage targetPage;
@@ -702,7 +670,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code deleteChunkForPage}（L1240-1248）：删掉页面同步出去的 chunk。
+     * 删掉页面同步出去的 chunk。
      * chunk 同步是可选接线——没装 chunk 仓储的 service 直接跳过，而不是让删除连带失败。
      */
     final void deleteChunkForPage(WikiPage page) {
@@ -718,7 +686,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         }
     }
 
-    /** 对照 Go {@code createDefaultPage}（L1251-1276） */
     final WikiPage createDefaultPage(String kbId, String slug, String title, String pageType,
                                        String content) {
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
@@ -745,7 +712,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         return page;
     }
 
-    /** 对照 Go {@code normalizeWikiHierarchy}（L1278-1302） */
     static void normalizeWikiHierarchy(WikiPage page) {
         if (page == null) {
             return;
@@ -771,7 +737,6 @@ public class WikiPageServiceImpl implements WikiPageService {
         page.setWikiPath(buildWikiPath(page.getPageType(), cleanPath, display));
     }
 
-    /** 对照 Go {@code normalizeWikiIndexEntryHierarchy}（L1304-1318） */
     static void normalizeWikiIndexEntryHierarchy(WikiIndexEntry entry, String pageType) {
         if (entry == null) {
             return;
@@ -788,7 +753,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code buildWikiPath}（L1322-1332）：拼出规范化、可排序的
+     * 拼出规范化、可排序的
      * {@code "page_type/cat.../title"} 面包屑。空段跳过。
      */
     static String buildWikiPath(String pageType, List<String> categoryPath, String display) {
@@ -804,12 +769,11 @@ public class WikiPageServiceImpl implements WikiPageService {
         return String.join("/", parts);
     }
 
-    /** 对照 Go {@code containsString}（L1335-1342） */
     static boolean containsString(List<String> slice, String s) {
         return slice != null && slice.contains(s);
     }
 
-    /** 对照 Go {@code removeString}（L1345-1353）：移除<b>所有</b>等于 s 的元素 */
+    /** 移除<b>所有</b>等于 s 的元素 */
     static List<String> removeString(List<String> slice, String s) {
         List<String> result = new ArrayList<>(slice == null ? 0 : slice.size());
         if (slice != null) {
@@ -822,7 +786,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         return result;
     }
 
-    /** 浅拷贝一份页面（对照 Go 的 {@code prev := *existing}），列表字段另起一份 */
+    /** 浅拷贝一份页面，列表字段另起一份 */
     static WikiPage copyPage(WikiPage p) {
         WikiPage c = new WikiPage();
         c.setId(p.getId());
@@ -856,7 +820,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code ListRevisions}（L284-300）：某页面存下来的历史快照
+     * 某页面存下来的历史快照
      * （最新在前，<b>省略 content</b>）+ 快照总数 + 页面当前版本。
      *
      * <p>当前版本本身<b>没有</b>快照行——它活在 wiki_pages 里。</p>
@@ -878,7 +842,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         return resp;
     }
 
-    /** 对照 Go {@code GetRevision}（L303-311）：单条历史快照，含 content */
+    /** 单条历史快照，含 content */
     @Override
     public WikiPageRevision getRevision(String kbId, String slug, int version) {
         WikiPage page = repo.getBySlug(kbId, slug);
@@ -886,7 +850,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code RevertPageToVersion}（L318-342）：把页面回滚到某份快照的正文内容，
+     * 把页面回滚到某份快照的正文内容，
      * 并以<b>一次普通编辑</b>的形式应用它——回滚前的状态会被快照、版本号前进、链接重解析。
      *
      * <p>位置（文件夹、排序权重）与溯源引用保持当前值——回滚是关于内容的，
@@ -908,12 +872,11 @@ public class WikiPageServiceImpl implements WikiPageService {
         target.setStatus(rev.getStatus());
         target.setAliases(new ArrayList<>(rev.getAliases()));
 
-        // 对照 Go：types.WithWikiEditSource(ctx, WikiEditSourceRevert) 包裹这次 UpdatePage
+        // 以"回滚"编辑来源包裹这次 UpdatePage，让新版本署名可辨
         return WikiEditContext.callWith(WikiConstants.EDIT_SOURCE_REVERT,
                 () -> updatePage(target));
     }
 
-    /** 对照 Go {@code CreateIssue}（L1356-1364） */
     @Override
     public WikiPageIssue createIssue(WikiPageIssue issue) {
         if (issue.getId() == null || issue.getId().isEmpty()) {
@@ -923,20 +886,18 @@ public class WikiPageServiceImpl implements WikiPageService {
         return issue;
     }
 
-    /** 对照 Go {@code ListIssues}（L1367-1369） */
     @Override
     public List<WikiPageIssue> listIssues(String kbId, String slug, String status) {
         return repo.listIssues(kbId, slug, status);
     }
 
-    /** 对照 Go {@code UpdateIssueStatus}（L1372-1374） */
     @Override
     public void updateIssueStatus(String issueID, String status) {
         repo.updateIssueStatus(issueID, status);
     }
 
     /**
-     * 对照 Go {@code recursiveFolderCounts}（L1479-1492）：把每个文件夹 id 映射到
+     * 把每个文件夹 id 映射到
      * 它自己及全部后代的 {@code direct} 页面数之和，利用物化 path 让（导航规模的）
      * 文件夹集合一遍扫完。
      */
@@ -957,7 +918,7 @@ public class WikiPageServiceImpl implements WikiPageService {
     }
 
     /**
-     * 对照 Go {@code validateFolderName}（L1496-1505）：trim 后拒绝空名或带目录
+     * trim 后拒绝空名或带目录
      * 分隔符的名字（文件夹名是单个树层级）。
      */
     static String validateFolderName(String name) {

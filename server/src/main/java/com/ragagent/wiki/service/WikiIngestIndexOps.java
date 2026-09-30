@@ -89,21 +89,21 @@ final class WikiIngestIndexOps {
 
     /**
 
-     * 对照 Go {@code formatExistingTaxonomyForPrompt}（L1966-1987）：把去重后的
+     * 把去重后的
 
      * category_path 列表渲染成缩进的目录树，供抽取 prompt 使用。
 
      *
 
-     * <p>同级标签按<b>字符串升序</b>输出（对照 Go 的 {@code sort.Strings(keys)}）
+     * <p>同级标签按<b>字符串升序</b>输出（按码点序，见 {@link GoStrings#compareByCodePoints}）
 
-     * ——Go 的 map 迭代是随机的，所以它显式排序；Java 侧照抄，否则 prompt 的字节
+     * ——否则 prompt 的字节
 
      * 前缀会随批次抖动，provider 前缀缓存会失效。</p>
 
      *
 
-     * @return 空树时返回 ""（对照 Go 的 {@code return ""}）
+     * @return 空树时返回 ""
 
      */
 
@@ -131,7 +131,7 @@ final class WikiIngestIndexOps {
 
         StringBuilder buf = new StringBuilder();
 
-        // 对照 Go 的 sort.Strings：**字节序**（对 UTF-8 等价于码点序）。
+        // 同级按键的码点序排序（对 UTF-8 等价于字节序）。
 
         // 不能用 Collections.sort 的 UTF-16 码元序——顺序会直接影响 prompt 字节，
 
@@ -153,7 +153,7 @@ final class WikiIngestIndexOps {
 
 
 
-    /** 对照 Go {@code insertWikiTaxonomyPath}（L1925-1945） */
+    /** 把一条 category path 插入目录树（trim 空段）。 */
 
     static void insertWikiTaxonomyPath(TaxonomyNode root, List<String> path) {
 
@@ -183,7 +183,7 @@ final class WikiIngestIndexOps {
 
 
 
-    /** 对照 Go {@code appendWikiTaxonomyNode}（L1947-1962）：每层两个空格缩进。 */
+    /** 渲染目录树节点：每层两个空格缩进。 */
 
     static void appendWikiTaxonomyNode(StringBuilder buf, String label,
 
@@ -201,7 +201,7 @@ final class WikiIngestIndexOps {
 
         }
 
-        // TreeMap 已保证升序；照 Go 的 sort.Strings 语义
+        // TreeMap 已保证升序（码点序比较器）
 
         for (Map.Entry<String, TaxonomyNode> e : node.children.entrySet()) {
 
@@ -215,7 +215,7 @@ final class WikiIngestIndexOps {
 
     /**
 
-     * 对照 Go {@code getExistingPageSlugsForKnowledge}（L2004-2023）：返回当前在
+     * 返回当前在
 
      * {@code source_refs} 里引用了给定 knowledge id 的全部页面 slug。
 
@@ -229,7 +229,7 @@ final class WikiIngestIndexOps {
 
      *
 
-     * @return 无命中时返回 <b>null</b>（对照 Go 的 {@code return nil}）
+     * @return 无命中时返回 <b>null</b>
 
      */
 
@@ -277,7 +277,7 @@ final class WikiIngestIndexOps {
 
     /**
 
-     * 对照 Go {@code rebuildIndexPage}（L2108-2213）：刷新索引页上由 LLM 生成的导语。
+     * 刷新索引页上由 LLM 生成的导语。
 
      *
 
@@ -398,7 +398,7 @@ final class WikiIngestIndexOps {
 
             } catch (Exception e) {
 
-                // 计数失败不阻断导语生成（对照 Go 的 "A failure here doesn't block"）
+                // 计数失败不阻断导语生成
 
                 log.debug("wiki ingest: CountByType failed, using sample size for framing hint");
 
@@ -518,7 +518,7 @@ final class WikiIngestIndexOps {
 
     /**
 
-     * 对照 Go {@code publishDraftPages}（L2235-2248）：摄取完成后把草稿页转为已发布，
+     * 摄取完成后把草稿页转为已发布，
 
      * 确保用户在摄取过程中看不到半成品页面。
 
@@ -533,8 +533,6 @@ final class WikiIngestIndexOps {
         }
 
         for (String slug : slugs) {
-
-            // 对照 Go：if err != nil || page == nil { continue }
 
             WikiPage page = service.wikiService.findPageBySlug(kbId, slug);
 

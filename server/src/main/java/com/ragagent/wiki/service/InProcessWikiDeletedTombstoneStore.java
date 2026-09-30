@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 /**
  * {@link WikiDeletedTombstoneStore} 的<b>进程内</b>实现（默认装配）。
  *
- * <p>对照 Redis 的 {@code SET key 1 EX wikiDeletedTTL} 语义：写入即带绝对过期时刻，
- * 读取时惰性判过期，过期即视为不存在。惰性清理由每次 {@link #exists} 顺手完成
+ * <p>写入即带绝对过期时刻，读取时惰性判过期，过期即视为不存在。
+ * 惰性清理由每次 {@link #exists} 顺手完成
  * ——墓碑的键空间是"最近删除的文档数"，量级很小，不为此单开清理线程。</p>
  *
  * <p>局限见接口注释：单 JVM 可见，但 {@code isKnowledgeGone} 有 DB 回落，

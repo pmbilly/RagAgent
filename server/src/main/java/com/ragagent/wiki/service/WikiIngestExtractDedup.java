@@ -94,7 +94,7 @@ final class WikiIngestExtractDedup {
 
     /**
 
-     * 对照 Go {@code writeDedupCandidateGroup}（L2256-2284）：把一个新条目连同
+     * 把一个新条目连同
 
      * <b>它自己的</b>相似候选页渲染成嵌套在 {@code <candidates>} 下的 XML。
 
@@ -106,13 +106,11 @@ final class WikiIngestExtractDedup {
 
      *
 
-     * <p>{@code slug=%q} / {@code type=%q} 用 Go 的 {@code fmt %q} 语义——
+     * <p>{@code slug} / {@code type} 属性值用 {@link #goQuote} 的带引号字符串语义——
 
      * 对 slug（纯 ASCII）而言就是加双引号并转义 {@code "} 与 {@code \}。
 
-     * Go 的 %q 还会对不可打印字符用反斜杠转义（{@code \xNN} / {@code uXXXX} 形态），
-
-     * Java 侧实现了同样的规则（见 {@link #goQuote}）。</p>
+     * 不可打印字符用反斜杠转义（{@code \xNN} / {@code uXXXX} 形态）。</p>
 
      */
 
@@ -180,7 +178,7 @@ final class WikiIngestExtractDedup {
 
     /**
 
-     * 对照 Go 的 {@code %q} 动词（{@code strconv.Quote}）：给字符串加双引号，
+     * 带引号的字符串字面量：给字符串加双引号，
 
      * 并转义 {@code "}、{@code \} 以及不可打印字符。
 
@@ -190,7 +188,7 @@ final class WikiIngestExtractDedup {
 
      * 这里把规则补全是为了将来有人把非 ASCII 内容塞进来时不至于产出非法 XML
 
-     * （Go 的 %q 同样保留可打印 Unicode 原样，只转义不可打印字符）。</p>
+     * （可打印 Unicode 保留原样，只转义不可打印字符）。</p>
 
      */
 
@@ -256,7 +254,7 @@ final class WikiIngestExtractDedup {
 
     /**
 
-     * 对照 Go {@code deduplicateExtractedBatch}（L2306-2502）：用<b>一次 LLM 调用</b>
+     * 用<b>一次 LLM 调用</b>
 
      * 把 entities 与 concepts 一起对既有 wiki 页面去重。
 
@@ -266,7 +264,7 @@ final class WikiIngestExtractDedup {
 
      * pg_trgm 三元组索引）：每个新条目发一次探测，所有条目的 top-K 命中并集就是候选集。
 
-     * 这取代了历史"ListAllPages + Go 侧表面形式 Jaccard"的 O(P × N) 路径。</p>
+     * 这取代了历史"全量拉取页面 + 表面形式 Jaccard"的 O(P × N) 路径。</p>
 
      *
 
@@ -634,7 +632,7 @@ final class WikiIngestExtractDedup {
 
 
 
-    /** 对照 Go 的 {@code stabilize} 闭包（L2386-2392） */
+    /** 对 entities 与 concepts 施加身份稳定化（合并/改名落定），返回投影。 */
 
     ExtractedProjection stabilize(WikiDedupSupport dedup, String kbId,
 
@@ -660,7 +658,7 @@ final class WikiIngestExtractDedup {
 
 
 
-    /** 对照 Go {@code deduplicateExtractedBatch} 的 {@code ([]extractedItem, []extractedItem)} 返回。 */
+    /** 去重后的 (entities, concepts) 结果对。 */
 
     public record ExtractedProjection(List<ExtractedItem> entities, List<ExtractedItem> concepts) {}
 

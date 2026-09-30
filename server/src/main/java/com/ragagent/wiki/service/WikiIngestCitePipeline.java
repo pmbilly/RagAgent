@@ -20,13 +20,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 分块引用管线的纯算法与并发编排（对照 Go internal/application/service/wiki_ingest_cite.go，545 行）。
+ * 分块引用管线的纯算法与并发编排。
  *
  * <p>管线形态：<b>Pass 0</b>（候选 slug 骨架）→ <b>Pass 1..N</b>（把候选挂到具体
  * chunk）→ <b>Reduce</b>（用逐字 chunk 正文当证据写页面）。本类负责中间那段：
  * 分桶、渲染、并发分类、句柄翻译、引用合并；另含 Pass 0 的两个抽取器
  * （{@code extractCandidateSlugs} / {@code extractEntitiesAndConceptsNoUpsert}，
- * 后者物理上位于 wiki_ingest_batch.go 但共享同一套渲染与去重协议）。</p>
+ * 后者共享同一套渲染与去重协议）。</p>
  *
  * <h2>句柄协议（cite 的核心不变量）</h2>
  * <p>每个引用批次持有一张<b>批次局部</b>的句柄表（{@code c000}、{@code c001}…），
@@ -36,8 +36,7 @@ import org.springframework.stereotype.Service;
  *
  * <h2>“不中断兄弟批次”的失败语义</h2>
  * <p>单个引用批次失败（LLM 报错、JSON 解析失败）只记 warn 并跳过，
- * <b>不</b>让整个文档的引用阶段失败——其它批次的结果照常合并。这与 Go 的
- * {@code eg.Go} 里 "don't abort peer batches" 一致。</p>
+ * <b>不</b>让整个文档的引用阶段失败——其它批次的结果照常合并。</p>
  */
 @Service
 public class WikiIngestCitePipeline {
@@ -55,15 +54,15 @@ public class WikiIngestCitePipeline {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 线格式类型（对照 Go citationBatchResult / newSlugFromCitation）
+    // 线格式类型
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code citationBatchResult}（cite L34-37）：一次
+     * 一次
      * {@code WikiChunkCitationPrompt} 调用期望的 JSON 形状。
      *
      * <p>只用于<b>解析</b>模型输出，从不序列化出站，因此不需要
-     * {@code @JsonProperty}；字段名与 Go tag 一致，Jackson 默认按字段名映射。</p>
+     * {@code @JsonProperty}；Jackson 按字段名映射（snake 字段名见注解）。</p>
      */
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     static final class CitationBatchResult {
@@ -75,12 +74,11 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go {@code citationPipelineOutcome}（cite L55-62）：Pass 0 + 分类流程产出的
+     * Pass 0 + 分类流程产出的
      * 原始计数，供 {@code mapOneDocument} 打一行统一统计。
      *
-     * <p><b>注意</b>：Go 声明了该类型但<b>从未构造/使用它</b>（mapOneDocument 直接用
-     * 局部变量拼统计行）。Java 侧保留它只为让"这个文件里有什么"与 Go 一一对应，
-     * 并给调用方一个可选的类型化载体。</p>
+     * <p><b>注意</b>：这是可选的类型化载体；{@code mapOneDocument} 目前直接用
+     * 局部变量拼统计行。</p>
      */
     public record CitationPipelineOutcome(
             int candidateCount,
@@ -91,7 +89,7 @@ public class WikiIngestCitePipeline {
             int newSlugCount) { }
 
     /**
-     * 对照 Go {@code chunkBatch}（cite L137-141）：一次
+     * 一次
      * {@code WikiChunkCitationPrompt} 调用里发送的分块组。
      *
      * <p>{@code totalRuneLen} 在分桶过程中累加，因此是<b>可变</b>字段。</p>
@@ -101,7 +99,7 @@ public class WikiIngestCitePipeline {
         final WikiChunkHandleTable handles = new WikiChunkHandleTable();
         int totalRuneLen;
 
-        /** 对照 Go 测试里的 {@code b.handles.Len()} */
+        /** 已分配句柄数（测试断言用） */
         public int handleCount() {
             return handles.size();
         }
@@ -119,13 +117,13 @@ public class WikiIngestCitePipeline {
     // Pass 0：候选 slug 抽取
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go 的 {@code (entities, concepts, slugItems, error)} 四元返回 */
+    /** Pass 0 的抽取结果 */
     public record CandidateSlugs(List<ExtractedItem> entities,
                                  List<ExtractedItem> concepts,
                                  Map<String, ExtractedItem> slugItems) { }
 
     /**
-     * 对照 Go {@code extractCandidateSlugs}（cite L72-134）：chunk-cited 管线的
+     * chunk-cited 管线的
      * <b>Pass 0</b>——扫全文，返回每个显著实体/概念的轻量<b>骨架</b>。
      * 与旧版单次抽取不同，这一遍<b>刻意不</b>要求 LLM 逐项改写完整事实；
      * 那些将由分块引用遍提供。
@@ -164,12 +162,11 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go {@code extractEntitiesAndConceptsNoUpsert}（batch L1603-1671）：
+     *
      * Pass 0 失败时回落的<b>旧版单次抽取器</b>。输出已经带有逐项改写过的 Details，
      * 因此不需要（也不应该）再跑 chunk 引用遍。
      *
-     * <p>（Go 把它放在 wiki_ingest_batch.go，本管线放在这里是为了让两个抽取器共享
-     * 同一套 prompt 渲染、JSON 清洗与去重收敛路径。）</p>
+     * <p>与 Pass 0 主抽取器共享同一套 prompt 渲染、JSON 清洗与去重收敛路径。</p>
      */
     public CandidateSlugs extractEntitiesAndConceptsNoUpsert(LlmChatClient chatModel,
                                                              String kbId,
@@ -199,7 +196,7 @@ public class WikiIngestCitePipeline {
         return dedupeAndIndex(chatModel, kbId, result, batchCtx);
     }
 
-    /** 对照 Go 两处相同的 {@code cleanLLMJSON + json.Unmarshal + 失败包装} */
+    /** 统一的 JSON 清洗 + 反序列化 + 失败包装 */
     private static CombinedExtraction parseCombinedExtraction(String raw, String what) {
         try {
             CombinedExtraction result = MAPPER.readValue(raw, CombinedExtraction.class);
@@ -211,9 +208,9 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go 两处相同的 {@code deduplicateExtractedBatch → slugItems} 收尾。
+     * 抽取结果的统一收尾：去重 → 建 slug 索引。
      *
-     * <p>Go 的注释点明：去重预筛是对着 wiki 页仓储用 pg_trgm 发的。
+     * <p>去重预筛面向 wiki 页仓储的相似度检索；
      * 未接线 {@link WikiDedupSupport} 时它退化为"不去重"——这是<b>安全默认</b>
      * （LLM 合并调用拿不到候选列表，条目原样通过）。</p>
      */
@@ -245,7 +242,7 @@ public class WikiIngestCitePipeline {
         return new CandidateSlugs(entities, concepts, slugItems);
     }
 
-    /** 对照 Go {@code batchCtx.ExtractionGranularity.Normalize()}（cite L95） */
+    /** 取批次声明的抽取粒度（缺省 standard） */
     private static String resolveGranularity(WikiBatchContext batchCtx) {
         if (batchCtx == null || batchCtx.getExtractionGranularity() == null) {
             return WikiExtractionGranularity.STANDARD.value();
@@ -254,7 +251,6 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go 里两处相同的 {@code prevSlugsText} 构造（cite L80-93、batch L1615-1628）：
      * 只保留 {@code entity/} / {@code concept/} 前缀的 slug——summary slug 是代码按
      * knowledge ID 生成的，永远不会出现在抽取输出里，带进去只是浪费 token。
      */
@@ -280,7 +276,7 @@ public class WikiIngestCitePipeline {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code splitChunksIntoCitationBatches}（cite L150-207）：把 chunk 分成
+     * 把 chunk 分成
      * 累计码点数不超过 {@link WikiBatchConstants#MAX_RUNES_PER_CITATION_BATCH} 的批次。
      *
      * <p>顺序（按 ChunkIndex）保留；单个超过预算的 chunk <b>独占一个批次</b>，
@@ -308,9 +304,8 @@ public class WikiIngestCitePipeline {
             return List.of();
         }
 
-        // 保留文档顺序，让引用对人类可读。注意：Go 用的是不稳定的 sort.Slice，
-        // Java 侧用稳定排序——只有在 ChunkIndex 与 StartAt 都相同的退化输入上才可能
-        // 与 Go 的顺序不同（真实数据里 chunk ID 唯一，不会触发）。
+        // 保留文档顺序，让引用对人类可读。稳定排序：ChunkIndex 并列时按 StartAt
+        // 破平（真实数据里 chunk ID 唯一，不会触发进一步歧义）。
         filtered.sort(Comparator
                 .comparingInt(Chunk::getChunkIndex)
                 .thenComparingInt(Chunk::getStartAt));
@@ -326,7 +321,7 @@ public class WikiIngestCitePipeline {
                 batches.add(current);
                 current = new ChunkBatch();
             }
-            // 对照 Go 的 handles.Register(c.ID)：只登记、分配句柄
+            // 只登记、分配句柄
             current.handles.register(c.getId());
             current.chunks.add(c);
             current.totalRuneLen += runeLen;
@@ -338,7 +333,7 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go {@code renderCandidateSlugsXML}（cite L211-234）：把候选 slug 渲染成
+     * 把候选 slug 渲染成
      * 适合 prompt 的 {@code <candidate_slugs>} 块的紧凑列表。
      */
     public static String renderCandidateSlugsXML(List<ExtractedItem> entities,
@@ -364,9 +359,9 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go 的 {@code write} 闭包（cite L213-220）：{@code name} 与 {@code aliases}
-     * 用 {@code %q}（Go 引号语义），{@code slug}/{@code type}/{@code description} 是裸值。
-     * 逐字节照抄以保持 prompt 前缀稳定（前缀缓存命中率取决于此）。
+     * {@code name} 与 {@code aliases}
+     * 用引号包裹（goQuote 语义），{@code slug}/{@code type}/{@code description} 是裸值。
+     * 格式保持稳定（prompt 前缀缓存命中率取决于此）。
      */
     private static void writeCandidate(StringBuilder sb, ExtractedItem item, String kind) {
         String aliases = "";
@@ -382,11 +377,11 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go {@code renderChunksXML}（cite L238-245）：把一个批次的 chunk 渲染进
+     * 把一个批次的 chunk 渲染进
      * {@code <chunks>} 块，使用<b>批次局部句柄</b>（c000、c001…）而不是原始 UUID。
      *
-     * <p>Go 用 {@code batch.handles.Handle(c.ID)}（已注册则取回，<b>不</b>新建）；
-     * 由于分桶时已逐个 {@code Register}，此处必然命中。</p>
+     * <p>句柄用 {@code handleForKey}（已注册则取回，<b>不</b>新建）；
+     * 由于分桶时已逐个注册，此处必然命中。</p>
      */
     public static String renderChunksXML(ChunkBatch batch) {
         StringBuilder sb = new StringBuilder();
@@ -407,13 +402,13 @@ public class WikiIngestCitePipeline {
     // Pass 1..N：分块分类
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go 的 {@code (citations, newSlugs, batchCount)} 三元返回 */
+    /** 分类结果：slug → chunk 引用、新 slug、批次数 */
     public record CitationResult(Map<String, List<String>> citations,
                                  List<NewSlugFromCitation> newSlugs,
                                  int batchCount) { }
 
     /**
-     * 对照 Go {@code classifyChunkCitations}（cite L256-360）：chunk-cited 管线的
+     * chunk-cited 管线的
      * <b>Pass 1..N</b>——给定候选 slug 集合（来自 Pass 0）与文档分块，
      * 问 LLM 哪些 chunk <b>实质性</b>讨论了每个候选。
      *
@@ -421,8 +416,8 @@ public class WikiIngestCitePipeline {
      * "new_slugs" 单独收集。{@code citations} 的键是 slug、值是<b>真实</b>的
      * chunk UUID（句柄已在批次内翻译完）。</p>
      *
-     * <p><b>并发</b>：对照 Go 的 {@code errgroup.SetLimit(maxCitationBatchConcurrency)}
-     * ——各批次并行跑，合并状态用一把锁串行化。</p>
+     * <p><b>并发</b>：各批次并行跑（上限见 {@code MAX_CITATION_BATCH_CONCURRENCY}），
+     * 合并状态用一把锁串行化。</p>
      */
     public CitationResult classifyChunkCitations(LlmChatClient chatModel,
                                                  String candidatesXml,
@@ -454,7 +449,7 @@ public class WikiIngestCitePipeline {
                                     "ChunksXML", chunksXml,
                                     "Language", lang == null ? "" : lang));
                 } catch (RuntimeException e) {
-                    // 对照 Go：失败只记日志，return nil —— 不中断兄弟批次
+                    // 失败只记日志并返回 —— 不中断兄弟批次
                     log.warn("wiki ingest: citation batch {} failed: {}", batchIdx, e.getMessage());
                     return;
                 }
@@ -499,7 +494,7 @@ public class WikiIngestCitePipeline {
         return new CitationResult(out, newSlugsAll, batches.size());
     }
 
-    /** 对照 Go 的 {@code mu.Lock() ... } 临界区（cite L301-335） */
+    /** 合并临界区（调用方持锁串行调用） */
     private static void mergeCitations(int batchIdx,
                                        ChunkBatch batch,
                                        CitationBatchResult parsed,
@@ -554,13 +549,13 @@ public class WikiIngestCitePipeline {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code resolveCitedChunks}（cite L367-419）：按 knowledge ID 分批，
+     * 按 knowledge ID 分批，
      * 一次性把给定 additions 引用到的每个 chunk 的<b>正文</b>查出来，
      * 返回 {@code map[chunkID]content}。缺失 / 跨租户的 chunk ID 被静默跳过
      * （warn 级日志），好让 Reduce 阶段优雅回落到 Details 改写版。
      *
-     * <p>Go 的注释：chunk 仓储查询按租户而不是按知识库划界，所以理论上一次就能全取；
-     * 仍按知识库分批，是为了让大 reduce 批次下的 {@code IN (...)} 列表有界。</p>
+     * <p>chunk 仓储查询按租户划界，理论上一次就能全取；仍按知识库分批，
+     * 是为了让大 reduce 批次下的 {@code IN (...)} 列表有界。</p>
      */
     public Map<String, String> resolveCitedChunks(long tenantId, List<SlugUpdate> additions) {
         Map<String, Set<String>> byKnowledge = new LinkedHashMap<>();
@@ -579,7 +574,7 @@ public class WikiIngestCitePipeline {
             }
         }
         if (byKnowledge.isEmpty()) {
-            // 对照 Go 的 `return nil`
+            // 无引用时返回 null（与调用方的回落分支约定）
             return null;
         }
 
@@ -609,7 +604,7 @@ public class WikiIngestCitePipeline {
     }
 
     /**
-     * 对照 Go {@code collectCitedChunkContent}（cite L424-440）：按给定顺序把每个
+     * 按给定顺序把每个
      * 被引用 chunk 的<b>逐字</b>正文串起来。解析不到的 chunk ID 被静默丢弃
      * （上游已记日志）。
      */
@@ -636,13 +631,13 @@ public class WikiIngestCitePipeline {
     // 引用合并
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code mergeCitationsIntoItems} 的 {@code (entities, concepts, uncited)} 三元返回 */
+    /** 合并结果：回填后的切片与未获引用计数 */
     public record MergedCitations(List<ExtractedItem> entities,
                                   List<ExtractedItem> concepts,
                                   int uncited) { }
 
     /**
-     * 对照 Go {@code mergeCitationsIntoItems}（cite L449-545）：用引用映射回填每个
+     * 用引用映射回填每个
      * {@code extractedItem} 的 {@code SourceChunks}，并把引用遍发现的<b>真正新</b> slug
      * 追加进对应切片。不在引用映射里的条目保持原样——Reduce 会回落到它们的
      * Description/Details。
@@ -716,7 +711,7 @@ public class WikiIngestCitePipeline {
                     slugOrder.add(ns.slug());
                     continue;
                 }
-                // 求并集（对照 Go 的 seen map + append）
+                // 求并集
                 Set<String> seen = new LinkedHashSet<>(existing.sourceChunksOrEmpty());
                 List<String> union = new ArrayList<>(existing.sourceChunksOrEmpty());
                 if (ns.sourceChunks() != null) {
@@ -742,7 +737,7 @@ public class WikiIngestCitePipeline {
         return new MergedCitations(outEntities, outConcepts, uncited);
     }
 
-    /** 供日志用的小工具：把引用映射转成"被引用 chunk 去重集合"（对照 Go 的 citedChunkSet） */
+    /** 供日志用的小工具：把引用映射转成"被引用 chunk 去重集合" */
     public static Set<String> citedChunkSet(Map<String, List<String>> citations) {
         Set<String> set = new LinkedHashSet<>();
         if (citations == null) {

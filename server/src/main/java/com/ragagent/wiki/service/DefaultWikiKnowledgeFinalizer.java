@@ -12,11 +12,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * {@link WikiKnowledgeFinalizer} 的默认实现：把文档从 {@code finalizing} 推向
- * {@code completed}（对照 Go {@code finalizeSubtaskDetached}，
- * internal/application/service/knowledge.go L229-246 +
- * {@code knowledgeRepository.FinalizeSubtask}，repository/knowledge.go L600-650）。
+ * {@code completed}。
  *
- * <h2>两步写入（照搬 Go 的两步设计）</h2>
+ * <h2>两步写入</h2>
  * <ol>
  *   <li><b>原子递减、钳在零</b>：{@code WHERE id = ? AND pending_subtasks_count > 0}
  *       ——那道守卫纯粹是记账 bug 的安全网（正常运行时每个子任务处理器每个任务至多
@@ -31,10 +29,10 @@ import org.springframework.stereotype.Component;
  *       只有那个真正把计数减到零的调用方能匹配上，而 cancel/delete 也不会被迟到的晋升覆盖。</li>
  * </ol>
  *
- * <h2>Java 侧的等价处理</h2>
- * <p>Go 的读副本问题在 Java 侧当前单数据源装配下不存在，但这里<b>仍然</b>逐条照抄
+ * <h2>Java 侧的处理</h2>
+ * <p>上述陈旧读风险在当前单数据源装配下并不存在，但这里<b>仍然</b>保持
  * "无 SELECT、无条件尝试晋升"的形状——它同时也是并发正确性的来源（多个子任务同时归零时
- * 只有一个能匹配 Promoted 的 WHERE）。{@code rows == 0} 与 Go 一样静默成功。</p>
+ * 只有一个能匹配晋升的 WHERE）。{@code rows == 0} 视为静默成功（计数已被他人归零并晋升）。</p>
  */
 @Component
 public class DefaultWikiKnowledgeFinalizer implements WikiKnowledgeFinalizer {
@@ -60,9 +58,7 @@ public class DefaultWikiKnowledgeFinalizer implements WikiKnowledgeFinalizer {
     }
 
     /**
-     * 对照 Go {@code knowledgeRepository.FinalizeSubtask(ctx, id)}。
-     *
-     * <p>用<b>脱钩的执行路径</b>（Java 侧无 ctx，因此这里的要点是"不依赖调用方的中断
+     * <p>用<b>脱钩的执行路径</b>（Java 侧没有贯穿调用的取消上下文，因此这里的要点是"不依赖调用方的中断
      * 状态"）：调用方在 wiki 批次 worker 可能正在关闭或父作用域已被取消时调用它，
      * 吞掉失败会把父文档永久留在 finalizing。</p>
      */

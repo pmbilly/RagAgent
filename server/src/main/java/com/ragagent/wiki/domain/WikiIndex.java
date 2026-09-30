@@ -8,16 +8,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 结构化 wiki 索引响应的类型集合（对照 Go internal/types/wiki_page.go 的
- * WikiIndexGroup L780-785 / WikiIndexResponse L792-796；条目类型
- * {@code WikiIndexEntry} 因需被 MyBatis 映射，单独成文件 {@link WikiIndexEntry}）。
+ * 结构化 wiki 索引响应的类型集合（条目类型因需被 MyBatis 映射，单独成文件
+ * {@link WikiIndexEntry}）。
  */
 public final class WikiIndex {
 
     private WikiIndex() {}
 
     /**
-     * 把某个 page_type 的条目打成一页（对照 Go WikiIndexGroup）。
+     * 把某个 page_type 的条目打成一页。
      *
      * <p>{@code total} 是该类型在知识库中的完整计数；{@code items} 是从
      * {@code NextOffset - items.size()} 开始的当前分页窗口。{@code nextCursor} 为空
@@ -49,7 +48,7 @@ public final class WikiIndex {
     }
 
     /**
-     * {@code GET /wiki/index} 的返回（对照 Go WikiIndexResponse）。
+     * {@code GET /wiki/index} 的返回。
      *
      * <p>过去塞在 wiki_pages.content 里的大块目录 markdown 已经移除——那里只剩
      * LLM 生成的导语。其余内容由 index 仓储的<b>瘦列投影</b>按需装配，

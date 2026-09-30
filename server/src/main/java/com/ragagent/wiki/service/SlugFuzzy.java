@@ -6,16 +6,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 模糊 slug 还原（对照 Go internal/application/service/slug_fuzzy.go 全文，189 行）。
+ * 模糊 slug 还原。
  *
- * <p><b>为什么在 wiki 服务层：</b>Go 侧 {@code resolveDeadSlug} 定义在
- * {@code slug_fuzzy.go}，被 {@code wiki_page.go:RepairContentLinks} 与
- * {@code wiki_ingest.go} 的清理路径共用。翻译任务把 wiki_linkify.go / wiki_ingest*.go
- * 划归他人，但 {@code slug_fuzzy.go} 未列入禁改清单，且 RepairContentLinks 是
- * wiki 服务层的保真优先项——故在此独立成类。wiki ingest 的翻译若需要，
- * 应<b>复用本类</b>而不是另起一份（否则两处阈值会漂移）。</p>
+ * <p><b>为什么在 wiki 服务层独立成类：</b>它被页面链接修复与 ingest 清理路径共用；
+ * ingest 侧需要时应<b>复用本类</b>而不是另起一份（否则两处阈值会漂移）。</p>
  *
- * <p><b>背景</b>（Go L9-33 注释）：wiki ingest 的 LLM 拿到精确的
+ * <p><b>背景</b>：wiki ingest 的 LLM 拿到精确的
  * {@code [[slug]] = title} 清单，仍会把 slug 弄错——插连字符、丢/重连字符、
  * 改大小写、把该是 CJK 的名字拉丁化。display 文本几乎总是对的，所以有两根杠杆：
  * 对 slug 本身的宽容比较 + 用 display 文本反查标题。</p>
@@ -25,7 +21,7 @@ public final class SlugFuzzy {
     private SlugFuzzy() {}
 
     /**
-     * 对照 Go {@code slugResolveBigramThreshold}（L42）：字符 bigram 的 Jaccard
+     * 字符 bigram 的 Jaccard
      * 相似度下限。0.8 是刻意保守的——这个量级下 "shang-hai-tower" 与
      * "shanghai-tower" 仍能匹配，而 "user-profile" 与 "user-permissions" 不会
      * （前缀相同但词干不同）。误链到错误的页比输出纯文本更糟。
@@ -33,7 +29,7 @@ public final class SlugFuzzy {
     public static final double BIGRAM_THRESHOLD = 0.8;
 
     /**
-     * 对照 Go {@code normalizeSlugForCompare}（L59-64）：折叠纯装饰性的 slug 差异
+     * 折叠纯装饰性的 slug 差异
      * （小写 + 去掉全部连字符与下划线），让只差连字符/大小写的两个 slug 视为同一
      * 逻辑 token 袋。CJK 原样保留——它们就是 CJK slug 的身份本身，折叠会过度合并。
      */
@@ -45,10 +41,10 @@ public final class SlugFuzzy {
     }
 
     /**
-     * 对照 Go {@code slugCharBigrams}（L175-188）：给定（已归一化的）slug 的字符
+     * 给定（已归一化的）slug 的字符
      * bigram 集合。单字符 slug 退化成 1-gram，仍能贡献可比较的信号。
      *
-     * <p>Go 用 {@code []rune} 切分，Java 侧必须同样按<b>码点</b>切而不是 char，
+     * <p>必须按<b>码点</b>切而不是 char，
      * 否则增补平面的字符（emoji 等）会被拆成两个代理项。</p>
      */
     public static Set<String> slugCharBigrams(String s) {
@@ -67,9 +63,9 @@ public final class SlugFuzzy {
     }
 
     /**
-     * 对照 Go {@code searchutil.Jaccard}（internal/searchutil L2054-2079）。
+     * Jaccard 相似度。
      *
-     * <p>保留了 Go 的两个细节：两边都空时返回 0（不是 1）；大小集合互换以便
+     * <p>两个语义细节：两边都空时返回 0（不是 1）；大小集合互换以便
      * 用较小的一侧驱动交集循环。</p>
      */
     public static double jaccard(Set<String> a, Set<String> b) {
@@ -93,7 +89,7 @@ public final class SlugFuzzy {
     }
 
     /**
-     * 对照 Go {@code resolveDeadSlug}（L91-165）：把死链 {@code [[slug]]} 映射回
+     * 把死链 {@code [[slug]]} 映射回
      * 一个活跃 KB slug，逐级放宽：
      *
      * <ol>
@@ -111,10 +107,8 @@ public final class SlugFuzzy {
      * @param titleToSlug 精确（大小写敏感）标题/别名 → slug 的反查表
      * @return 命中的活跃 slug；没有足够接近的候选时返回 null
      *
-     * <p><b>与 Go 的唯一差异（确定性）</b>：Go 第 2、3 步遍历 {@code map} 是<b>随机
-     * 顺序</b>，多个候选并列时结果不可复现；Java 侧按调用方给的 {@code liveSlugs}
-     * 迭代顺序取第一个命中 / 严格大于才替换，因此结果稳定。真实数据里高熵 slug
-     * 在同命名空间内不会并列，该差异只影响理论边界。</p>
+     * <p><b>确定性</b>：多个候选并列时按调用方给的 {@code liveSlugs} 迭代顺序取
+     * 第一个命中（best 严格大于才替换），结果稳定可复现。</p>
      */
     public static String resolveDeadSlug(String deadSlug,
                                          String displayText,
@@ -126,12 +120,12 @@ public final class SlugFuzzy {
         Set<String> live = liveSlugs == null ? Set.of() : liveSlugs;
         Map<String, String> titles = titleToSlug == null ? Map.of() : titleToSlug;
 
-        // (0) 本来就是活跃的？直接当成功返回（Go L100-103）
+        // (0) 本来就是活跃的？直接当成功返回
         if (live.contains(deadSlug)) {
             return deadSlug;
         }
 
-        // (1) display 文本反查（Go L105-114）。trim 是因为 LLM 偶尔产出
+        // (1) display 文本反查。trim 是因为 LLM 偶尔产出
         //     `[[slug| display ]]` 带多余空格，而用户侧标题不会带。
         String dt = displayText == null ? "" : displayText.trim();
         if (!dt.isEmpty()) {
@@ -141,7 +135,7 @@ public final class SlugFuzzy {
             }
         }
 
-        // (2) 归一化相等（Go L121-131）
+        // (2) 归一化相等
         String deadNorm = normalizeSlugForCompare(deadSlug);
         if (deadNorm.isEmpty()) {
             // 归一化后只剩空——原始 slug 全是连字符/下划线，没有可比的东西
@@ -153,7 +147,7 @@ public final class SlugFuzzy {
             }
         }
 
-        // (3) bigram Jaccard 兜底（Go L133-164）
+        // (3) bigram Jaccard 兜底
         Set<String> deadGrams = slugCharBigrams(deadNorm);
         if (deadGrams.isEmpty()) {
             return null;
@@ -181,10 +175,10 @@ public final class SlugFuzzy {
         return null;
     }
 
-    // ──────────────────────── 以下为 wiki_page.go 中的链接工具 ────────────────────────
+    // ──────────────────────── 链接重写工具 ────────────────────────
 
     /**
-     * 对照 Go {@code rewriteDeadWikiLinks}（wiki_page.go L1072-1097）：遍历正文里每一处
+     * 遍历正文里每一处
      * {@code [[slug]] / [[slug|display]]}，由 {@code resolve} 逐条决定是否重写 slug。
      *
      * <p>display 文本<b>原样保留</b>。这是纯工具——解析策略全在回调里。</p>
@@ -224,13 +218,13 @@ public final class SlugFuzzy {
         return new RewriteResult(out.toString(), true);
     }
 
-    /** 对照 Go {@code rewriteDeadWikiLinks} 的 {@code resolve func(normSlug, display) (string, bool)} 回调 */
+    /** {@link #rewriteDeadWikiLinks} 的逐条决策回调 */
     @FunctionalInterface
     public interface SlugResolver {
         /** 返回替换后的 slug；返回 null / 空串表示"保持原样不重写" */
         String resolve(String normSlug, String display);
     }
 
-    /** 对照 Go {@code rewriteDeadWikiLinks} 的 {@code (string, bool)} 返回 */
+    /** 重写结果：新正文 + 是否有改动 */
     public record RewriteResult(String content, boolean changed) {}
 }

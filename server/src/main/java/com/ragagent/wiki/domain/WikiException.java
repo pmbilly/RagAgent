@@ -1,13 +1,10 @@
 package com.ragagent.wiki.domain;
 
 /**
- * wiki 领域异常基类（对照 Go internal/application/repository/wiki_page.go 里的
- * 五个 sentinel error：ErrWikiPageNotFound / ErrWikiPageConflict /
- * ErrWikiFolderNotFound / ErrWikiFolderConflict / ErrWikiFolderNotEmpty）。
+ * wiki 领域异常基类。
  *
- * <p>Go 用 {@code var ErrX = errors.New("...")} + {@code errors.Is} 做判别；
- * Java 侧改为异常类型判别。各子类的 message 与 Go 的 error 文本<b>逐字相同</b>，
- * 便于 handler 层对照。</p>
+ * <p>用异常类型判别（而非解析错误文本）。各子类的 message 保持固定字面量，
+ * 便于 handler 层与测试按类型和文本双口径断言。</p>
  */
 public class WikiException extends RuntimeException {
 

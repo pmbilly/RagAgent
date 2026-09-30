@@ -29,11 +29,10 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
- * wiki 生成管线的批次执行体（对照 Go internal/application/service/wiki_ingest_batch.go，
- * 2154 行）：Map（逐文档抽取/摘要/引用）→ Reduce（逐 slug 落页）→ finalize
- * （索引导语重建 / 死链清理 / 交叉链接注入 / 空目录剪枝）。
+ * wiki 生成管线的批次执行体：Map（逐文档抽取/摘要/引用）→ Reduce（逐 slug 落页）→
+ * finalize（索引导语重建 / 死链清理 / 交叉链接注入 / 空目录剪枝）。
  *
- * <h2>并发模型（Phase 3，照搬 Go 注释）</h2>
+ * <h2>并发模型</h2>
  * <ul>
  *   <li><b>Standard（分布式协调）模式</b>：<b>没有</b>按 KB 的独占锁。同一 KB 的多个
  *       批次可以同时运行，各自通过 {@code claimPendingList} 认领<b>互不相交</b>的行。
@@ -49,16 +48,13 @@ import org.springframework.stereotype.Service;
  * <p>Standard 模式下若本批次异常退出（异常、超时、提前返回）而<b>尚未</b>结算它认领的
  * 行（trim + requeueFailedOps），必须释放认领，让下一次触发在几秒内就能重新认领，
  * 而不是干等 {@code CLAIM_STALE_AFTER}（90 分钟）。正常路径上 {@code claimsSettled}
- * 会翻成 true，使释放动作变成 no-op。Go 用脱钩的 cleanup ctx；
- * Java 用 {@link WikiCleanupScope}。</p>
+ * 会翻成 true，使释放动作变成 no-op；释放走 {@link WikiCleanupScope} 的脱钩清理。</p>
  *
- * <h2>与 Go 的结构差异</h2>
+ * <h2>已知取舍</h2>
  * <ol>
- *   <li>asynq 的 {@code RetryCount / MaxRetry} 在 Java 的任务对象里没有可读的
- *       "当前第几次尝试"，因此统计日志里不再输出 retry 字段。</li>
- *   <li>span 追踪未实现（约定文档 §9 阶段 4.0 差异 1）；
- *       {@link WikiBatchSupport.WikiSpans} 是 no-op 门面，调用点形状与 Go 一致。</li>
- *   <li>{@code langfuse.InjectTracing} 未实现（同上）。</li>
+ *   <li>任务对象没有可读的"当前第几次尝试"，因此统计日志里不输出 retry 字段。</li>
+ *   <li>{@code langfuse.InjectTracing}（HTTP 入口侧的 trace 注入）未接入；
+ *       任务侧观测见 {@code InProcessWikiIngestTaskQueue}。</li>
  * </ol>
  */
 @Service
@@ -82,7 +78,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     final ObjectProvider<WikiActivityAudit> auditProvider;
     final ObjectProvider<WikiIngestTaskQueue> taskQueueProvider;
 
-    /** 对照 Go 的 {@code s.tracker()}：wiki 批次 span 门面（接 SpanTracker 后真实上报）。 */
+    /** wiki 批次 span 门面（接 SpanTracker 后真实上报，缺席时 no-op）。 */
     final WikiBatchSupport.WikiSpans spans;
 
     /** 摄取阶段协作者(构造期装配;只存 handler 引用,调用期才解引)。 */
@@ -118,7 +114,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         this.knowledgeMapper = knowledgeMapper;
         this.auditProvider = auditProvider;
         this.taskQueueProvider = taskQueueProvider;
-        // tracker 缺席（测试/裁剪装配）→ NOOP 门面，语义等同 Go 的 nil tracker
+        // tracker 缺席（测试/裁剪装配）→ no-op 门面
         this.spans = new WikiBatchSupport.WikiSpans(spanTrackerProvider.getIfAvailable());
         this.run = new WikiIngestRunSupport(this);
         this.map = new WikiIngestMapPhase(this);
@@ -126,14 +122,14 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 统计载体（对照 Go 的闭包捕获变量 + defer 统计日志）
+    // 统计载体
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code ProcessWikiIngest} 开头声明的一批局部计数变量。
+     * 一次批处理的全部计数变量。
      *
-     * <p>Go 用闭包 + {@code defer} 让统计日志无论走哪条退出路径都能观测到它们；
-     * Java 没有 defer，因此把这些值装进一个可变对象，由 {@code finally} 读取。</p>
+     * <p>装进一个可变对象，由 {@code finally} 读取——统计日志无论走哪条退出路径
+     * 都能观测到它们。</p>
      */
     static final class Stats {
         String exitStatus = "success";
@@ -155,16 +151,14 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // KB / 知识 / 分块 的批量读取（对照 Go service 层调用）
+    // KB / 知识 / 分块 的批量读取
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code kbService.GetKnowledgeBaseByIDOnly}（knowledgebase.go L314-330 →
-     * repo L31-40）：按 id 取 KB，未找到返回 {@code null}。
+     * 按 id 取 KB，未找到返回 {@code null}。
      *
-     * <p>GORM 的软删作用域自动加 {@code deleted_at IS NULL}，Java 侧显式写出来
-     * （约定 §9："soft delete 不用 @TableLogic"）。Go 侧此处<b>不</b>按租户过滤
-     * （repo 里只有 {@code Where("id = ?")}），Java 照抄。</p>
+     * <p>软删过滤显式写 {@code deleted_at IS NULL}（约定 §9："soft delete 不用
+     * {@code @TableLogic}"）。此处<b>不</b>按租户过滤（沿用既有查询语义）。</p>
      */
     KnowledgeBase getKnowledgeBaseByIDOnly(String kbId) {
         if (kbId == null || kbId.isEmpty()) {
@@ -177,8 +171,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     /**
-     * 对照 Go {@code knowledgeSvc.GetKnowledgeByIDOnly}（knowledge.go L495-497 →
-     * repo L79-88）：按 id 取知识文档，未找到返回 {@code null}。
+     * 按 id 取知识文档，未找到返回 {@code null}。
      */
     Knowledge getKnowledgeByIDOnly(String knowledgeId) {
         if (knowledgeId == null || knowledgeId.isEmpty()) {
@@ -191,11 +184,10 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     /**
-     * 对照 Go {@code chunkRepo.ListChunksByKnowledgeID}（chunk.go L150-161）：
      * <b>只取 text 类型</b>、按 {@code chunk_index ASC}。
      *
-     * <p>Go 的注释点名这个方法是"按设计只取 text"的；需要 summary / parent_text /
-     * image 的调用方走 {@code ListChunksByKnowledgeIDAndTypes}。</p>
+     * <p>本方法按设计只取 text；需要 summary / parent_text /
+     * image 的调用方走 {@code ChunkRepository#listChunksByKnowledgeIDAndTypes}。</p>
      */
     List<Chunk> listTextChunksByKnowledgeID(long tenantId, String knowledgeId) {
         return chunkMapper.selectList(new LambdaQueryWrapper<Chunk>()
@@ -205,7 +197,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
                 .orderByAsc(Chunk::getChunkIndex));
     }
 
-    /** 对照 Go {@code types.WikiConfig} 的 jsonb 反序列化（KB 行的 wiki_config 列） */
+    /** 解析 KB 行的 wiki_config 列（jsonb）为 {@link WikiConfig} */
     static WikiConfig wikiConfigOf(KnowledgeBase kb) {
         if (kb == null || kb.getWikiConfig() == null || kb.getWikiConfig().isNull()) {
             return null;
@@ -217,11 +209,11 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 批次上下文（对照 Go newWikiBatchContext，batch L74-190）
+    // 批次上下文
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code newWikiBatchContext}（batch L74-190）：构造本次运行使用的
+     * 构造本次运行使用的
      * <b>懒加载</b> fetcher。
      *
      * <p>这些取代了历史的"批次前 ListAllPages 全量转储"：不再一上来就把约 100MB 的行
@@ -355,9 +347,9 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     /**
-     * 对照 Go {@code types.WikiExtractionGranularity} 的取值映射。
+     * String → 枚举的取值映射。
      *
-     * <p>Java 侧 {@code WikiConfig} 的字段是 String（保留 Go 的 {@code ""} 零值），
+     * <p>{@code WikiConfig} 的字段是 String（空串表示未配置），
      * 而 {@link WikiBatchContext} 的字段是枚举（消费方可以假定它是三个合法值之一，
      * 因为 {@code normalizedExtractionGranularity()} 已经归一化过）。
      * 这里做最后一次显式映射，而不是 {@code valueOf(大写)}——后者会让
@@ -373,19 +365,19 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 后续调度（对照 Go scheduleFollowUp，batch L41-65）
+    // 后续调度
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code scheduleFollowUp}（batch L41-65）：若该 KB 的
+     * 若该 KB 的
      * {@code task_pending_ops} 里还有待办 op，就再排一个触发任务。
      *
-     * <p>Phase 3 之后这只是在"批次排空了自己的认领窗口、但还有行剩下、且没有别的触发
+     * <p>这只是在"批次排空了自己的认领窗口、但还有行剩下、且没有别的触发
      * 在排队"（例如稳定的上传涓流）时兜底。standard 模式已经把 KB 的积压扇到并发的
      * 认领批次上，因此这个短延迟通常只是轻量防抖，而不是在等锁释放。</p>
      *
-     * <p>与 Go 一致：<b>不</b>带 {@code asynq.TaskID}，因此重复的后续触发不会被合并
-     * ——它们最终都会看到空通道并廉价退出。</p>
+     * <p>后续触发<b>不</b>带 TaskID，因此重复的后续触发不会被合并
+     * ——它们最终都会看到空队列并廉价退出。</p>
      *
      * @param delay 常规场景传 {@link WikiIngestConstants#FOLLOW_UP_DELAY}；
      *              批次撞上上游限流时传 {@link WikiIngestConstants#RATE_LIMIT_BACKOFF}
@@ -393,7 +385,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
      */
     public boolean scheduleFollowUp(WikiIngestPayload payload, Duration delay) {
         if (pendingRepo == null) {
-            // 对照 Go L42-44：没有持久化队列就没有待办可查
+            // 没有持久化队列就没有待办可查
             return false;
         }
         long count;
@@ -421,7 +413,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
                     toJson(payload),
                     delay,
                     WikiIngestConstants.INGEST_MAX_RETRY,
-                    Duration.ofMinutes(60), // 对照 asynq.Timeout(60*time.Minute)
+                    Duration.ofMinutes(60), // 任务超时：60 分钟
                     ""));
         } catch (Exception e) {
             log.warn("wiki ingest: follow-up enqueue failed: {}", e.getMessage());
@@ -431,7 +423,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ProcessWikiIngest（对照 Go batch L192-909）
+    // ProcessWikiIngest 主流程
     // ═══════════════════════════════════════════════════════════════
 
     @Override
@@ -439,15 +431,14 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         long taskStartedAt = System.currentTimeMillis();
         Stats stats = new Stats();
         try {
-            // 对照 Go 的 context.WithValue(ctx, types.TenantIDContextKey, payload.TenantID)：
             // 批次跑在队列线程上，没有 HTTP Filter 链填过 TenantContext，而模型解析
-            // （ModelService.getModelByID 按租户可见性过滤）需要它。
+            // （ModelService.getModelByID 按租户可见性过滤）需要它——这里显式进入租户作用域。
             try (WikiBatchSupport.TenantScope ignored =
                          WikiBatchSupport.enterTenantScope(payload.tenantId())) {
                 run.runIngest(payload, stats);
             }
         } finally {
-            // 对照 Go 的 defer 统计日志（batch L219-244）
+            // 统计日志：无论哪条退出路径都要输出
             log.info("wiki ingest stats: kb={} status={} elapsed={}ms mode={} ops(pending={},ingest={},"
                             + "retract={}) ingest(success={},failed={}) retract_handled={} pages(total={}) "
                             + "followup={} tunables(batch={},map_par={},reduce_par={},max_inflight={}) preview={}",
@@ -472,14 +463,14 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     // 小工具
     // ═══════════════════════════════════════════════════════════════
 
-/** 对照 Go {@code reduceSlugUpdates} 的 {@code (changed, affectedType, additionFailed, err)} 返回 */
+/** {@code reduceSlugUpdates} 的多值返回载体。 */
     public record ReduceOutcome(boolean changed, String affectedType,
                                 boolean additionFailed, RuntimeException error) { }
 
-/** 对照 Go {@code mapOneDocument} 的 {@code (*docIngestResult, []SlugUpdate, error)} 返回 */
+/** 单文档 map 的结果载体：抽取结果 + 待落页的 slug 更新。 */
     public record MapResult(DocIngestResult result, List<SlugUpdate> updates) { }
 
-    /** 对照 Go {@code appendUnique}（wiki_ingest.go L2947-2955） */
+    /** 去重追加 */
     static List<String> appendUnique(List<String> arr, String s) {
         return WikiTextUtils.appendUnique(arr == null ? new ArrayList<>() : arr, s);
     }
@@ -508,7 +499,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
         }
     }
 
-    /** 暴露给测试：把 docPreview 列表折叠成日志片段（对照 Go previewStringSlice 的调用点） */
+    /** 暴露给测试：把 docPreview 列表折叠成日志片段 */
     static String preview(Stats stats, int limit) {
         return WikiTextUtils.previewStringSlice(new ArrayList<>(stats.docPreview), limit);
     }
