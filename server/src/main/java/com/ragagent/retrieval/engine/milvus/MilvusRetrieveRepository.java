@@ -5,7 +5,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -103,6 +102,7 @@ public class MilvusRetrieveRepository
     private final int replicaNumber;
 
     final MilvusSearchOps searchOps;
+    final MilvusWriteOps writeOps;
 
     private final ConcurrentHashMap<Integer, Boolean> initializedCollections =
             new ConcurrentHashMap<>();
@@ -116,6 +116,7 @@ public class MilvusRetrieveRepository
         this.shardsNum = shardsNum;
         this.replicaNumber = replicaNumber;
         this.searchOps = new MilvusSearchOps(this);
+        this.writeOps = new MilvusWriteOps(this);
     }
 
     /** 照 Go {@code NewMilvusRetrieveEngineRepository} + {@code createMilvusEngine}。 */
@@ -235,7 +236,7 @@ public class MilvusRetrieveRepository
         return collectionBaseName + "_" + dimension;
     }
 
-    private void ensureCollection(int dimension) {
+    void ensureCollection(int dimension) {
         if (initializedCollections.containsKey(dimension)) {
             return;
         }
@@ -356,80 +357,8 @@ public class MilvusRetrieveRepository
         return field;
     }
 
-    // ── 写入 ────────────────────────────────────────────────────────────────
-
-    @Override
-    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
-        log.debug("[Milvus] Saving index for chunk ID: {}", indexInfo.chunkId);
-        MilvusVectorEmbedding row = toEmbedding(indexInfo, params);
-        if (row.embedding == null || row.embedding.length == 0) {
-            IllegalStateException e = new IllegalStateException(
-                    "empty embedding vector for chunk ID: " + indexInfo.chunkId);
-            log.error("[Milvus] {}", e.getMessage());
-            throw e;
-        }
-        int dimension = row.embedding.length;
-        ensureCollection(dimension);
-        row.id = UUID.randomUUID().toString();
-        ArrayNode rows = Json.array();
-        rows.add(rowNode(row));
-        try {
-            client.upsert(collectionName(dimension), rows);
-        } catch (RuntimeException e) {
-            log.error("[Milvus] Failed to save index: {}", e.getMessage());
-            throw new IllegalStateException(e.getMessage() == null ? e.toString()
-                    : e.getMessage(), e);
-        }
-        log.info("[Milvus] Successfully saved index for chunk ID: {}", indexInfo.chunkId);
-    }
 
     /** 对照 {@code BatchSave}：按维度分组（升序确定性）→ 每组一次 Upsert。 */
-    @Override
-    public void batchSave(List<IndexInfo> embeddingList, Map<String, Object> params)
-            throws Exception {
-        if (embeddingList == null || embeddingList.isEmpty()) {
-            log.warn("[Milvus] Empty list provided to BatchSave, skipping");
-            return;
-        }
-        log.info("[Milvus] Batch saving {} indices", embeddingList.size());
-        Map<Integer, List<MilvusVectorEmbedding>> byDimension = new TreeMap<>();
-        for (IndexInfo info : embeddingList) {
-            MilvusVectorEmbedding row = toEmbedding(info, params);
-            if (row.embedding == null || row.embedding.length == 0) {
-                log.warn("[Milvus] Skipping empty embedding for chunk ID: {}", info.chunkId);
-                continue;
-            }
-            byDimension.computeIfAbsent(row.embedding.length, k -> new ArrayList<>()).add(row);
-        }
-        if (byDimension.isEmpty()) {
-            log.warn("[Milvus] No valid points to save after filtering");
-            return;
-        }
-        int totalSaved = 0;
-        for (Map.Entry<Integer, List<MilvusVectorEmbedding>> entry : byDimension.entrySet()) {
-            int dimension = entry.getKey();
-            ensureCollection(dimension);
-            String collection = collectionName(dimension);
-            ArrayNode rows = Json.array();
-            for (MilvusVectorEmbedding row : entry.getValue()) {
-                row.id = UUID.randomUUID().toString();
-                rows.add(rowNode(row));
-            }
-            try {
-                client.upsert(collection, rows);
-            } catch (RuntimeException e) {
-                log.error("[Milvus] Failed to execute batch operation for dimension {}: {}",
-                        dimension, e.getMessage());
-                throw new IllegalStateException("failed to batch save (dimension " + dimension
-                        + "): " + e.getMessage(), e);
-            }
-            totalSaved += entry.getValue().size();
-            log.info("[Milvus] Saved {} points to collection {}", entry.getValue().size(),
-                    collection);
-        }
-        log.info("[Milvus] Successfully batch saved {} indices", totalSaved);
-    }
-
     /** 行体（REST 行式 JSON；列名照 {@code createUpsert} 的列集合）。 */
     static ObjectNode rowNode(MilvusVectorEmbedding row) {
         ObjectNode node = Json.object();
@@ -450,31 +379,6 @@ public class MilvusRetrieveRepository
         return node;
     }
 
-    // ── 删除 ────────────────────────────────────────────────────────────────
-
-    @Override
-    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByField(FIELD_CHUNK_ID, chunkIdList, dimension,
-                "Empty chunk ID list provided for deletion, skipping",
-                "failed to delete by chunk IDs");
-    }
-
-    @Override
-    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
-                                        String knowledgeType) throws Exception {
-        deleteByField(FIELD_KNOWLEDGE_ID, knowledgeIdList, dimension,
-                "Empty knowledge ID list provided for deletion, skipping",
-                "failed to delete by knowledge IDs");
-    }
-
-    @Override
-    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByField(FIELD_SOURCE_ID, sourceIdList, dimension,
-                "Empty Source ID list provided for deletion, skipping",
-                "failed to delete by source IDs");
-    }
 
     /** 照 {@code WithStringIDs}：{@code field in ["a","b"]}（不转义，照 SDK 原文形状）。 */
     static String inFilter(String field, List<String> ids) {
@@ -485,137 +389,11 @@ public class MilvusRetrieveRepository
         return field + " in [" + String.join(",", rendered) + "]";
     }
 
-    private void deleteByField(String field, List<String> ids, int dimension, String emptyWarning,
-                               String errorPrefix) {
-        if (ids == null || ids.isEmpty()) {
-            log.warn("[Milvus] {}", emptyWarning);
-            return;
-        }
-        String collection = collectionName(dimension);
-        log.info("[Milvus] Deleting indices by {} from {}, count: {}", field, collection,
-                ids.size());
-        try {
-            client.delete(collection, inFilter(field, ids));
-        } catch (RuntimeException e) {
-            log.error("[Milvus] {}: {}", errorPrefix, e.getMessage());
-            throw new IllegalStateException(errorPrefix + ": " + e.getMessage(), e);
-        }
-        log.info("[Milvus] Successfully deleted documents by {}", field);
-    }
-
-    // ── 批量更新（查整行 → 改字段 → Upsert 回写，照 Go） ──────────────────
-
     /**
      * 对照 {@code BatchUpdateChunkEnabledStatus}：按 true/false 分组，跨前缀集合逐组回写；
      * 失败<b>聚合后冒泡</b>（{@code errors.Join} 语义——"停用必须让索引不可搜"）。
      */
-    @Override
-    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
-            throws Exception {
-        if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
-            log.warn("[Milvus] Empty chunk status map provided, skipping");
-            return;
-        }
-        log.info("[Milvus] Batch updating chunk enabled status, count: {}", chunkStatusMap.size());
-        List<String> collections = listCollectionsOrThrow();
-        List<String> enabledChunkIds = new ArrayList<>();
-        List<String> disabledChunkIds = new ArrayList<>();
-        for (Map.Entry<String, Boolean> entry : chunkStatusMap.entrySet()) {
-            if (Boolean.TRUE.equals(entry.getValue())) {
-                enabledChunkIds.add(entry.getKey());
-            } else {
-                disabledChunkIds.add(entry.getKey());
-            }
-        }
-        List<String> failures = new ArrayList<>();
-        for (String collection : collections) {
-            if (!isPrefixed(collection)) {
-                continue;
-            }
-            try {
-                updateEnabledInCollection(collection, enabledChunkIds, true);
-            } catch (RuntimeException e) {
-                failures.add("update enabled chunks in " + collection + ": " + e.getMessage());
-            }
-            try {
-                updateEnabledInCollection(collection, disabledChunkIds, false);
-            } catch (RuntimeException e) {
-                failures.add("update disabled chunks in " + collection + ": " + e.getMessage());
-            }
-        }
-        if (!failures.isEmpty()) {
-            String joined = String.join("; ", failures);
-            log.warn("[Milvus] Failed to update chunk enabled status: {}", joined);
-            throw new IllegalStateException(joined);
-        }
-        log.info("[Milvus] Batch update chunk enabled status completed");
-    }
-
-    private void updateEnabledInCollection(String collection, List<String> chunkIds,
-                                           boolean enabled) {
-        if (chunkIds.isEmpty()) {
-            return;
-        }
-        List<MilvusVectorEmbedding> rows = searchByFilter(collection,
-                MilvusFilter.Condition.in(FIELD_CHUNK_ID, chunkIds));
-        if (rows.isEmpty()) {
-            return;
-        }
-        ArrayNode data = Json.array();
-        for (MilvusVectorEmbedding row : rows) {
-            row.isEnabled = enabled;
-            data.add(rowNode(row));
-        }
-        client.upsert(collection, data);
-    }
-
     /** 对照 {@code BatchUpdateChunkTagID}：逐 tag 组回写；失败只 WARN 继续。 */
-    @Override
-    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
-        if (chunkTagMap == null || chunkTagMap.isEmpty()) {
-            log.warn("[Milvus] Empty chunk tag map provided, skipping");
-            return;
-        }
-        log.info("[Milvus] Batch updating chunk tag ID, count: {}", chunkTagMap.size());
-        List<String> collections = listCollectionsOrThrow();
-        Map<String, List<String>> tagGroups = new TreeMap<>();
-        for (Map.Entry<String, String> entry : chunkTagMap.entrySet()) {
-            tagGroups.computeIfAbsent(entry.getValue() == null ? "" : entry.getValue(),
-                    k -> new ArrayList<>()).add(entry.getKey());
-        }
-        for (String collection : collections) {
-            if (!isPrefixed(collection)) {
-                continue;
-            }
-            for (Map.Entry<String, List<String>> group : tagGroups.entrySet()) {
-                List<MilvusVectorEmbedding> rows;
-                try {
-                    rows = searchByFilter(collection,
-                            MilvusFilter.Condition.in(FIELD_CHUNK_ID, group.getValue()));
-                } catch (RuntimeException e) {
-                    log.warn("[Milvus] Failed to search chunks in {}: {}", collection,
-                            e.getMessage());
-                    continue;
-                }
-                if (rows.isEmpty()) {
-                    continue;
-                }
-                ArrayNode data = Json.array();
-                for (MilvusVectorEmbedding row : rows) {
-                    row.tagId = group.getKey();
-                    data.add(rowNode(row));
-                }
-                try {
-                    client.upsert(collection, data);
-                } catch (RuntimeException e) {
-                    log.warn("[Milvus] Failed to update chunks in {}: {}", collection,
-                            e.getMessage());
-                }
-            }
-        }
-        log.info("[Milvus] Batch update chunk tag ID completed");
-    }
-
     List<String> listCollectionsOrThrow() {
         try {
             return client.listCollections();
@@ -683,111 +461,12 @@ public class MilvusRetrieveRepository
         return row;
     }
 
-    /** 对照 {@code searchByFilter}：Query（无分数的整行读取，供更新/拷贝/move 用）。 */
-    List<MilvusVectorEmbedding> searchByFilter(String collection,
-                                               MilvusFilter.Condition condition) {
-        String filter;
-        try {
-            filter = MilvusFilter.expr(condition);
-        } catch (RuntimeException e) {
-            throw new IllegalStateException(e.getMessage(), e);
-        }
-        JsonNode rows = client.query(collection, filter, List.of("*"), null, null);
-        List<MilvusVectorEmbedding> out = new ArrayList<>();
-        if (rows != null && rows.isArray()) {
-            for (JsonNode row : rows) {
-                out.add(fromNode(row));
-            }
-        }
-        return out;
-    }
-
     @Override
     public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
         return searchOps.retrieve(params);
     }
 
 
-    // ── CopyIndices（照 Go：offset 分页 + 三态 SourceID + isEnabled 沿用源值） ──
-
-    @Override
-    public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
-                            Map<String, String> sourceToTargetChunkIdMap,
-                            String targetKnowledgeBaseId, int dimension, String knowledgeType)
-            throws Exception {
-        log.info("[Milvus] Copying indices from source knowledge base {} to target knowledge base"
-                + " {}, count: {}, dimension: {}", sourceKnowledgeBaseId, targetKnowledgeBaseId,
-                sourceToTargetChunkIdMap == null ? 0 : sourceToTargetChunkIdMap.size(), dimension);
-        if (sourceToTargetChunkIdMap == null || sourceToTargetChunkIdMap.isEmpty()) {
-            log.warn("[Milvus] Empty mapping, skipping copy");
-            return;
-        }
-        String collection = collectionName(dimension);
-        ensureCollection(dimension);
-        MilvusFilter.Condition filter = MilvusFilter.Condition.equal(FIELD_KNOWLEDGE_BASE_ID,
-                sourceKnowledgeBaseId);
-        int offset = 0;
-        int totalCopied = 0;
-        while (true) {
-            JsonNode page;
-            try {
-                page = client.query(collection, MilvusFilter.expr(filter), List.of("*"),
-                        COPY_PAGE_SIZE, offset);
-            } catch (RuntimeException e) {
-                log.error("[Milvus] Failed to query source points: {}", e.getMessage());
-                throw new IllegalStateException(e.getMessage(), e);
-            }
-            int pageSize = page == null || !page.isArray() ? 0 : page.size();
-            if (pageSize == 0) {
-                break;
-            }
-            ArrayNode targets = Json.array();
-            for (JsonNode node : page) {
-                MilvusVectorEmbedding source = fromNode(node);
-                String targetChunkId = sourceToTargetChunkIdMap.get(source.chunkId);
-                if (targetChunkId == null) {
-                    log.warn("[Milvus] Source chunk {} not found in target mapping, skipping",
-                            source.chunkId);
-                    continue;
-                }
-                String targetKnowledgeId = sourceToTargetKbIdMap == null ? null
-                        : sourceToTargetKbIdMap.get(source.knowledgeId);
-                if (targetKnowledgeId == null) {
-                    log.warn("[Milvus] Source knowledge {} not found in target mapping, skipping",
-                            source.knowledgeId);
-                    continue;
-                }
-                MilvusVectorEmbedding target = new MilvusVectorEmbedding();
-                target.id = UUID.randomUUID().toString();
-                target.content = source.content;
-                target.sourceId = translateSourceId(source.sourceId, source.chunkId, targetChunkId);
-                target.sourceType = source.sourceType;
-                target.chunkId = targetChunkId;
-                target.knowledgeId = targetKnowledgeId;
-                target.knowledgeBaseId = targetKnowledgeBaseId;
-                target.tagId = source.tagId;
-                target.embedding = source.embedding;
-                target.isEnabled = source.isEnabled;
-                targets.add(rowNode(target));
-            }
-            if (!targets.isEmpty()) {
-                try {
-                    client.upsert(collection, targets);
-                } catch (RuntimeException e) {
-                    log.error("[Milvus] Failed to batch upsert target points: {}", e.getMessage());
-                    throw new IllegalStateException(e.getMessage(), e);
-                }
-                totalCopied += targets.size();
-                log.info("[Milvus] Successfully copied batch, batch size: {}, total copied: {}",
-                        targets.size(), totalCopied);
-            }
-            if (pageSize < COPY_PAGE_SIZE) {
-                break;
-            }
-            offset += pageSize;
-        }
-        log.info("[Milvus] Index copy completed, total copied: {}", totalCopied);
-    }
 
     /**
      * 对照 {@code translateSourceID} 的三态：普通 chunk → targetChunkID；生成型问题
@@ -805,6 +484,56 @@ public class MilvusRetrieveRepository
         }
         return UUID.randomUUID().toString();
     }
+
+    @Override
+    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
+        writeOps.save(indexInfo, params);
+    }
+
+    @Override
+    public void batchSave(List<IndexInfo> embeddingList, Map<String, Object> params)
+            throws Exception {
+        writeOps.batchSave(embeddingList, params);
+    }
+
+    @Override
+    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteByChunkIdList(chunkIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
+                                        String knowledgeType) throws Exception {
+        writeOps.deleteByKnowledgeIdList(knowledgeIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteBySourceIdList(sourceIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
+            throws Exception {
+        writeOps.batchUpdateChunkEnabledStatus(chunkStatusMap);
+    }
+
+    @Override
+    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
+        writeOps.batchUpdateChunkTagID(chunkTagMap);
+    }
+
+    @Override
+    public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
+                            Map<String, String> sourceToTargetChunkIdMap,
+                            String targetKnowledgeBaseId, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.copyIndices(sourceKnowledgeBaseId, sourceToTargetKbIdMap,
+                sourceToTargetChunkIdMap, targetKnowledgeBaseId, dimension, knowledgeType);
+    }
+
 
     // ── move（照 move.go：drain 循环 + seen 守卫 + Upsert 整行） ───────────
 
