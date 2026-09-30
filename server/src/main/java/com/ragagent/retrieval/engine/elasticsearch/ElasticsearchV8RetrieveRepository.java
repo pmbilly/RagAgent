@@ -84,7 +84,7 @@ public class ElasticsearchV8RetrieveRepository
 
     private static final Logger log =
             LoggerFactory.getLogger(ElasticsearchV8RetrieveRepository.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** 对照 {@code ResolveIndexName(indexCfg, "ELASTICSEARCH_INDEX", "xwrag_default")}。 */
     public static final String ENV_INDEX_KEY = "ELASTICSEARCH_INDEX";
@@ -109,13 +109,15 @@ public class ElasticsearchV8RetrieveRepository
     }
 
     private final String addr;
-    private final String index;
+    final String index;
     private final int numberOfShards;
     private final int numberOfReplicas;
     private final String username;
     private final String password;
     private final HttpClient http;
     private volatile boolean useKeywordSuffix;
+
+    final ElasticsearchV8SearchOps searchOps;
 
     public ElasticsearchV8RetrieveRepository(String addr, String indexName, int numberOfShards,
                                              int numberOfReplicas, String username,
@@ -155,6 +157,7 @@ public class ElasticsearchV8RetrieveRepository
             log.error("[Elasticsearch] Failed to create index: {}", e.toString());
         }
         detectFieldTypes();
+        this.searchOps = new ElasticsearchV8SearchOps(this);
     }
 
     /** 对照 {@code types.ResolveIndexName}：indexName > env > default（共享助手）。 */
@@ -469,7 +472,7 @@ public class ElasticsearchV8RetrieveRepository
     }
 
     /** {@code {"terms":{field:[...]}}}（照 types.TermsQuery）。 */
-    private static ObjectNode termsQuery(String field, List<String> values) {
+    static ObjectNode termsQuery(String field, List<String> values) {
         ObjectNode terms = MAPPER.createObjectNode();
         ArrayNode array = terms.putArray(field);
         for (String value : values) {
@@ -482,136 +485,7 @@ public class ElasticsearchV8RetrieveRepository
 
     // ── 基础条件 ────────────────────────────────────────────────────────────
 
-    /**
-     * 对照 {@code getBaseConds}：返回 {@code [{"bool":{"must":[...],"must_not":[...]}}]}；
-     * 空 must/must_not 不写出（照 typedapi 的 omitempty）。
-     */
-    List<ObjectNode> getBaseConds(RetrieveParams params) {
-        ArrayNode must = MAPPER.createArrayNode();
-        if (params.knowledgeBaseIds != null && !params.knowledgeBaseIds.isEmpty()) {
-            must.add(termsQuery(idField("knowledge_base_id"), params.knowledgeBaseIds));
-        }
-        if (params.knowledgeIds != null && !params.knowledgeIds.isEmpty()) {
-            must.add(termsQuery(idField("knowledge_id"), params.knowledgeIds));
-        }
-        if (params.tagIds != null && !params.tagIds.isEmpty()) {
-            must.add(termsQuery(idField("tag_id"), params.tagIds));
-        }
-
-        ArrayNode mustNot = MAPPER.createArrayNode();
-        // 恒排除 is_enabled=false（历史数据无该字段 → 不被排除）
-        ObjectNode term = MAPPER.createObjectNode();
-        term.set("term", MAPPER.createObjectNode().set("is_enabled",
-                MAPPER.createObjectNode().put("value", false)));
-        mustNot.add(term);
-        if (params.excludeKnowledgeIds != null && !params.excludeKnowledgeIds.isEmpty()) {
-            mustNot.add(termsQuery(idField("knowledge_id"), params.excludeKnowledgeIds));
-        }
-        if (params.excludeChunkIds != null && !params.excludeChunkIds.isEmpty()) {
-            mustNot.add(termsQuery(idField("chunk_id"), params.excludeChunkIds));
-        }
-
-        ObjectNode bool = MAPPER.createObjectNode();
-        if (!must.isEmpty()) {
-            bool.set("must", must);
-        }
-        if (!mustNot.isEmpty()) {
-            bool.set("must_not", mustNot);
-        }
-        ObjectNode wrapper = MAPPER.createObjectNode();
-        wrapper.set("bool", bool);
-        return List.of(wrapper);
-    }
-
     // ── 检索 ────────────────────────────────────────────────────────────────
-
-    /** 对照 {@code Retrieve}：按检索类型分派。 */
-    public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
-        if (EngineTypes.RETRIEVER_VECTOR.equals(params.retrieverType)) {
-            return vectorRetrieve(params);
-        }
-        if (EngineTypes.RETRIEVER_KEYWORDS.equals(params.retrieverType)) {
-            return keywordsRetrieve(params);
-        }
-        throw new IllegalArgumentException("invalid retriever type: " + params.retrieverType);
-    }
-
-    /** 对照 {@code VectorRetrieve}：script_score + cosineSimilarity + min_score。 */
-    public List<RetrieveResult> vectorRetrieve(RetrieveParams params) throws Exception {
-        List<ObjectNode> filter = getBaseConds(params);
-
-        ObjectNode script = MAPPER.createObjectNode();
-        script.put("source", "cosineSimilarity(params.query_vector, 'embedding')");
-        ArrayNode vector = script.putObject("params").putArray("query_vector");
-        if (params.embedding != null) {
-            for (float v : params.embedding) {
-                vector.add(v);
-            }
-        }
-
-        ObjectNode boolQuery = MAPPER.createObjectNode();
-        ArrayNode filterArray = boolQuery.putArray("filter");
-        filter.forEach(filterArray::add);
-
-        ObjectNode scriptScore = MAPPER.createObjectNode();
-        scriptScore.putObject("query").set("bool", boolQuery);
-        scriptScore.set("script", script);
-        scriptScore.put("min_score", (float) params.threshold);
-
-        ObjectNode query = MAPPER.createObjectNode();
-        query.set("script_score", scriptScore);
-
-        ObjectNode body = MAPPER.createObjectNode();
-        body.set("query", query);
-        body.put("size", params.topK);
-        body.putObject("_source").putArray("excludes").add("embedding");
-
-        HttpResult resp = request("POST", "/" + index + "/_search", body.toString());
-        return List.of(parseSearchResponse(resp, "vector"));
-    }
-
-    /** 对照 {@code KeywordsRetrieve}：bool{filter, must:[match content]}。 */
-    public List<RetrieveResult> keywordsRetrieve(RetrieveParams params) throws Exception {
-        List<ObjectNode> filter = getBaseConds(params);
-
-        ObjectNode match = MAPPER.createObjectNode();
-        match.putObject("match").putObject("content").put("query", params.query);
-
-        ObjectNode bool = MAPPER.createObjectNode();
-        ArrayNode filterArray = bool.putArray("filter");
-        filter.forEach(filterArray::add);
-        ArrayNode must = bool.putArray("must");
-        must.add(match);
-
-        ObjectNode query = MAPPER.createObjectNode();
-        query.set("bool", bool);
-
-        ObjectNode body = MAPPER.createObjectNode();
-        body.set("query", query);
-        body.put("size", params.topK);
-        body.putObject("_source").putArray("excludes").add("embedding");
-
-        HttpResult resp = request("POST", "/" + index + "/_search", body.toString());
-        return List.of(parseSearchResponse(resp, "keywords"));
-    }
-
-    private RetrieveResult parseSearchResponse(HttpResult resp, String retrieverType)
-            throws Exception {
-        if (resp.status() < 200 || resp.status() >= 300) {
-            throw new IllegalStateException("elasticsearch search returned " + resp.status()
-                    + ": " + resp.body());
-        }
-        JsonNode root = MAPPER.readTree(resp.body());
-        List<IndexWithScore> results = new ArrayList<>();
-        for (JsonNode hit : root.path("hits").path("hits")) {
-            VectorEmbedding embedding = parseSource(hit.path("_source"));
-            embedding.score = hit.path("_score").asDouble(0);
-            results.add(fromDbVectorEmbeddingWithScore(hit.path("_id").asText(""), embedding,
-                    EngineTypes.RETRIEVER_VECTOR.equals(retrieverType)
-                            ? EngineTypes.MATCH_EMBEDDING : EngineTypes.MATCH_KEYWORDS));
-        }
-        return new RetrieveResult(results, EngineTypes.ENGINE_ELASTICSEARCH, retrieverType);
-    }
 
     /** {@code _source} → 文档（字段缺失按零值，照 Go 的 json.Unmarshal 语义）。 */
     static VectorEmbedding parseSource(JsonNode source) {
@@ -635,6 +509,16 @@ public class ElasticsearchV8RetrieveRepository
         doc.isRecommended = source.path("is_recommended").asBoolean(false);
         return doc;
     }
+
+    public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
+        return searchOps.retrieve(params);
+    }
+
+    /** 检索簇搬移后的门面委托（copyIndices/写簇仍经此取基础条件）。 */
+    List<ObjectNode> getBaseConds(RetrieveParams params) {
+        return searchOps.getBaseConds(params);
+    }
+
 
     // ── 复制索引 ────────────────────────────────────────────────────────────
 
@@ -860,12 +744,12 @@ public class ElasticsearchV8RetrieveRepository
     record HttpResult(int status, String body) {
     }
 
-    private HttpResult request(String method, String path, String jsonBody) throws Exception {
+    HttpResult request(String method, String path, String jsonBody) throws Exception {
         return requestRaw(method, path, jsonBody,
                 jsonBody == null ? null : "application/json");
     }
 
-    private HttpResult requestRaw(String method, String path, String body, String contentType)
+    HttpResult requestRaw(String method, String path, String body, String contentType)
             throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(addr + path))
                 .timeout(Duration.ofSeconds(60));
