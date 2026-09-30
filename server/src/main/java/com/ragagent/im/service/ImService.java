@@ -13,11 +13,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.agentm.domain.CustomAgentEntity;
 import com.ragagent.agentm.service.CustomAgentService;
-import com.ragagent.agentm.service.AgentConfigJson;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.event.Event;
@@ -69,16 +67,16 @@ import com.ragagent.session.service.SessionService;
 public class ImService {
 
     private static final Logger log = LoggerFactory.getLogger(ImService.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    static final ObjectMapper JSON = new ObjectMapper();
 
-    private final ImChannelMapper channels;
-    private final ChannelSessionMapper channelSessions;
-    private final SessionService sessionService;
-    private final MessageService messageService;
+    final ImChannelMapper channels;
+    final ChannelSessionMapper channelSessions;
+    final SessionService sessionService;
+    final MessageService messageService;
     private final CustomAgentService agentService;
     private final TenantService tenantService;
-    private final SessionKnowledgeQaService knowledgeQaService;
-    private final SessionAgentQaService agentQaService;
+    final SessionKnowledgeQaService knowledgeQaService;
+    final SessionAgentQaService agentQaService;
     private final com.ragagent.storage.support.Resolver storageResolver;
     private final com.ragagent.storage.support.FileService defaultFileSvc;
 
@@ -88,6 +86,8 @@ public class ImService {
     private final int maxPerUser;
     private final int rateLimitWindowSec;
     private final int rateLimitMax;
+
+    final ImQaRequests qaRequests;
 
     private final CommandRegistry cmdRegistry = new CommandRegistry();
     private final QaQueue qaQueue;
@@ -142,6 +142,7 @@ public class ImService {
         this.maxPerUser = maxPerUser;
         this.rateLimitWindowSec = rateLimitWindowSec;
         this.rateLimitMax = rateLimitMax;
+        this.qaRequests = new ImQaRequests(this);
         ImCommandSet.registerDefaults(this.cmdRegistry, kbLister(), knowledgeSearcher());
         this.qaQueue = new QaQueue(workers, maxQueue, maxPerUser, task -> {
             QaTask t = (QaTask) task.attach();
@@ -889,8 +890,8 @@ public class ImService {
         Session session = attach.session();
         String requestId = UUID.randomUUID().toString();
 
-        Message userMsg = createUserMessage(session.getId(), attach.msg().content, requestId);
-        Message assistantMsg = createAssistantMessage(session.getId(), requestId);
+        Message userMsg = qaRequests.createUserMessage(session.getId(), attach.msg().content, requestId);
+        Message assistantMsg = qaRequests.createAssistantMessage(session.getId(), requestId);
 
         eventBus.on(EventType.EVENT_AGENT_COMPLETE, evt -> {
             if (!(evt.getData() instanceof com.ragagent.event.payload.AgentCompleteData data)) {
@@ -915,13 +916,13 @@ public class ImService {
                 TenantContext.PrincipalTypes.IM_USER, "system-" + imTenant), "viewer",
                 false, "system-" + imTenant, false);
         try {
-            QaSupport.QaRequest qaReq = buildIMQARequest(session, attach.msg().content,
+            QaSupport.QaRequest qaReq = qaRequests.buildIMQARequest(session, attach.msg().content,
                     assistantMsg.getId(), userMsg.getId(), agent, attach.msg().quote);
             // 同步执行（Go 是 goroutine + select 等待；Java 侧 QA 服务内部为
             // 虚拟线程管线，事件经 eventBus 回流到上面的订阅）。
             Exception runErr;
             try {
-                if (agent != null && isAgentMode(agent)) {
+                if (agent != null && qaRequests.isAgentMode(agent)) {
                     agentQaService.agentQA(qaReq, eventBus);
                 } else {
                     knowledgeQaService.knowledgeQA(qaReq, eventBus);
@@ -940,7 +941,7 @@ public class ImService {
                     if (!done.await(10, java.util.concurrent.TimeUnit.MINUTES)) {
                         qaErr.compareAndSet(null, new java.util.concurrent.TimeoutException("IM QA wait"));
                     }
-                    if (isAgentMode(agent)) {
+                    if (qaRequests.isAgentMode(agent)) {
                         complete.await(10, java.util.concurrent.TimeUnit.SECONDS);
                     }
                 } catch (InterruptedException e) {
@@ -971,68 +972,6 @@ public class ImService {
         }
         return new QaOutcome(answer, null);
     }
-
-    private static boolean isAgentMode(CustomAgentEntity agent) {
-        // 对照 CustomAgent.IsAgentMode：Config.AgentMode == "smart-reasoning"
-        if (agent == null || agent.getConfig() == null || agent.getConfig().isEmpty()) {
-            return false;
-        }
-        try {
-            JsonNode cfg = JSON.readTree(agent.getConfig());
-            return "smart-reasoning".equals(cfg.path("agent_mode").asText(""));
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /** 对照 buildIMQARequest（service.go L528-558）。 */
-    private QaSupport.QaRequest buildIMQARequest(Session session, String query,
-            String assistantMessageId, String userMessageId, CustomAgentEntity agent,
-            IncomingMessage.QuotedMessage quote) {
-        QaSupport.QaRequest req = new QaSupport.QaRequest();
-        req.session = session;
-        req.query = query;
-        req.assistantMessageId = assistantMessageId;
-        req.userMessageId = userMessageId;
-        req.agentRow = agent;
-        if (agent != null && agent.getConfig() != null && !agent.getConfig().isEmpty()) {
-            try {
-                req.agentConfig = (com.fasterxml.jackson.databind.node.ObjectNode)
-                        JSON.readTree(agent.getConfig());
-                AgentConfigJson.ensureDefaults(req.agentConfig);
-            } catch (Exception ignored) {
-                req.agentConfig = null;
-            }
-        }
-        req.webSearchEnabled = agent != null && req.agentConfig != null
-                && req.agentConfig.path("web_search_enabled").asBoolean(false);
-        req.quotedContext = ImFormat.formatQuotedContext(quote);
-
-        return req;
-    }
-
-    /** 对照 createIMUserMessagePayload（service.go L580-595）。 */
-    private Message createUserMessage(String sessionId, String content, String requestId) {
-        Message m = new Message();
-        m.setSessionId(sessionId);
-        m.setRole("user");
-        m.setContent(content);
-        m.setRequestId(requestId);
-        m.setCompleted(true);
-        m.setChannel("im");
-        return messageService.createMessage(m);
-    }
-
-    /** 对照 createIMAssistantMessagePayload（service.go L700-709）。 */
-    private Message createAssistantMessage(String sessionId, String requestId) {
-        Message m = new Message();
-        m.setSessionId(sessionId);
-        m.setRole("assistant");
-        m.setRequestId(requestId);
-        m.setChannel("im");
-        return messageService.createMessage(m);
-    }
-
     // ── 出站内容整形（service.go L144-201） ──────────────────────────────
 
     private String cleanIMContent(String content) {
@@ -1073,14 +1012,14 @@ public class ImService {
         java.util.concurrent.CountDownLatch complete = new java.util.concurrent.CountDownLatch(1);
 
         CustomAgentEntity agent = attach.agent();
-        boolean useAgent = isAgentMode(agent);
+        boolean useAgent = qaRequests.isAgentMode(agent);
 
         subscribeStreamEvents(eventBus, buf, done, complete, useAgent);
 
         Session session = attach.session();
         String requestId = UUID.randomUUID().toString();
-        Message userMsg = createUserMessage(session.getId(), msg.content, requestId);
-        Message assistantMsg = createAssistantMessage(session.getId(), requestId);
+        Message userMsg = qaRequests.createUserMessage(session.getId(), msg.content, requestId);
+        Message assistantMsg = qaRequests.createAssistantMessage(session.getId(), requestId);
         buf.assistantMessage = assistantMsg;
 
         // 租户上下文（同 runQA）。
@@ -1089,7 +1028,7 @@ public class ImService {
                 TenantContext.PrincipalTypes.IM_USER, "system-" + tenantId), "viewer",
                 false, "system-" + tenantId, false);
         try {
-            QaSupport.QaRequest qaReq = buildIMQARequest(session, msg.content,
+            QaSupport.QaRequest qaReq = qaRequests.buildIMQARequest(session, msg.content,
                     assistantMsg.getId(), userMsg.getId(), agent, msg.quote);
             Exception runErr;
             try {
