@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.event.Event;
-import com.ragagent.event.EventBus;
 import com.ragagent.event.EventType;
 import com.ragagent.event.payload.AgentThoughtData;
 import com.ragagent.event.payload.AgentToolCallData;
@@ -30,7 +28,6 @@ import com.ragagent.event.payload.AgentToolResultData;
 import com.ragagent.event.payload.ErrorData;
 import com.ragagent.event.payload.AgentFinalAnswerData;
 import com.ragagent.event.payload.AgentCompleteData;
-import com.ragagent.common.llm.ResponseType;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.session.domain.Message;
@@ -40,7 +37,6 @@ import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.dto.QaRequests.CreateKnowledgeQARequest;
 import com.ragagent.session.dto.QaRequests.SearchKnowledgeRequest;
 import com.ragagent.session.service.AgentResolver;
-import com.ragagent.session.service.AgentStreamBridge;
 import com.ragagent.session.service.MessageService;
 import com.ragagent.session.service.MessageSuggestionService;
 import com.ragagent.session.service.QaSupport;
@@ -50,13 +46,8 @@ import com.ragagent.session.service.QaSupport.SseStreamContext;
 import com.ragagent.session.service.SessionAgentQaService;
 import com.ragagent.session.service.SessionKnowledgeQaService;
 import com.ragagent.session.service.SessionService;
-import com.ragagent.session.service.SteerSinkBridge;
 import com.ragagent.session.service.TemporaryDocumentService;
-import com.ragagent.session.sse.SseContract;
 import com.ragagent.session.sse.StreamEventEmitter;
-import com.ragagent.storage.support.StreamRewriter;
-import com.ragagent.stream.StreamBatch;
-import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -103,6 +94,9 @@ public class KnowledgeQaController {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeQaController.class);
 
     private final SessionService sessionService;
+
+    /** SSE 编排簇（§14.9c 刀 5）。 */
+    private final QaSseOrchestrator sseOrchestrator;
 
     /** 收尾簇（§14.9c 刀 7）。 */
     private final QaTurnFinalizer turnFinalizer;
@@ -152,6 +146,7 @@ public class KnowledgeQaController {
         this.memoryExtraction = memoryExtraction.getIfAvailable();
             this.qaRequestParser = new QaRequestParser(sessionService, temporaryDocuments, this.fileService, this.storageBackendResolver);
         this.turnFinalizer = new QaTurnFinalizer(this.sessionService, this.messageService, this.suggestionService, this.temporaryDocuments, this.memoryExtraction);
+        this.sseOrchestrator = new QaSseOrchestrator(this.streamManager, this.emitter, this.sessionService, this.messageService, this.sseFrameWriter, this.turnFinalizer);
 }
 
     // ── 端点（qa.go L790-964） ───────────────────────────────────────────────
@@ -338,7 +333,7 @@ public class KnowledgeQaController {
         }
 
         // SSE 装配
-        SseStreamContext streamCtx = setupSSEStream(reqCtx, generateTitle, mode);
+        SseStreamContext streamCtx = sseOrchestrator.setupSSEStream(reqCtx, generateTitle, mode);
         if (streamCtx.liveRunFailed) {
             rollbackTurnMessages(reqCtx, createdUser, createdAssistant);
             if (streamCtx.liveRunExists) {
@@ -349,7 +344,7 @@ public class KnowledgeQaController {
 
         // 快答路径：timeline 记录器 + reasoning 累积 + 完成事件（Go L1159-1206）
         if (mode == QaMode.NORMAL) {
-            registerQuickAnswerTimelineRecorder(streamCtx.eventBus, streamCtx.assistantMessage);
+            sseOrchestrator.registerQuickAnswerTimelineRecorder(streamCtx.eventBus, streamCtx.assistantMessage);
             streamCtx.eventBus.on(EventType.EVENT_AGENT_THOUGHT, evt -> {
                 if (evt.getData() instanceof AgentThoughtData data && !data.getContent().isEmpty()) {
                     appendQuickAnswerReasoning(streamCtx.assistantMessage, data.getContent());
@@ -494,7 +489,7 @@ public class KnowledgeQaController {
         }
         boolean shouldWaitForTitle = generateTitle && reqCtx.session.getTitle() != null
                 && reqCtx.session.getTitle().isEmpty();
-        handleAgentEventsForSSE(response, sessionId, reqCtx.assistantMessage.getId(), reqCtx.requestId,
+        sseOrchestrator.handleAgentEventsForSSE(response, sessionId, reqCtx.assistantMessage.getId(), reqCtx.requestId,
                 streamCtx, shouldWaitForTitle, reqCtx.resourceRewriter);
     }
 
@@ -647,296 +642,14 @@ public class KnowledgeQaController {
 
     // ── setupSSEStream（qa.go L659-775） ─────────────────────────────────────
 
-    private SseStreamContext setupSSEStream(QaRequestContext reqCtx, boolean generateTitle, QaMode mode) {
-        SseStreamContext streamCtx = new SseStreamContext();
-        streamCtx.assistantMessage = reqCtx.assistantMessage;
-        streamCtx.tenantSnapshot = com.ragagent.event.TenantContextSnapshot.capture();
-
-        EventBus eventBus = new EventBus();
-        streamCtx.eventBus = eventBus;
-
-        // Mid-run steering：仅 agent 模式有引擎排空点（Go L713-731）
-        if (mode == QaMode.AGENT && reqCtx.agentConfig != null) {
-            SteerSinkBridge sink = new SteerSinkBridge(reqCtx.sessionId, reqCtx.requestId,
-                    messageService, streamManager,
-                    com.ragagent.event.TenantContextSnapshot.capture());
-            streamCtx.steerSink = sink;
-            reqCtx.steerSink = sink;
-            try {
-                streamManager.setLiveRun(reqCtx.sessionId, reqCtx.assistantMessage.getId(), reqCtx.requestId);
-            } catch (RuntimeException e) {
-                log.error("SetLiveRun failed for session {}: {}", reqCtx.sessionId, e.toString());
-                streamCtx.liveRunFailed = true;
-                streamCtx.liveRunErr = e.getMessage();
-                streamCtx.liveRunExists = e instanceof com.ragagent.stream.LiveRunExistsException;
-                return streamCtx;
-            }
-        }
-
-        // agent_query 事件写流（writeAgentQueryEvent，helpers.go L418-440）
-        writeAgentQueryEvent(reqCtx);
-
-        // stop 事件处理器（setupStopEventHandler，helpers.go L318-338）
-        long sessionTenantId = reqCtx.session.getTenantId();
-        eventBus.on(EventType.EVENT_STOP, evt -> {
-            log.info("Received stop event, cancelling async operations for session: {}", reqCtx.sessionId);
-            streamCtx.cancelled = true;
-            // 停止时保住已流出内容；用 session 租户落库
-            turnFinalizer.runWithTenant(sessionTenantId, () -> turnFinalizer.completeAssistantMessage(
-                    streamCtx.assistantMessage, "", "", sessionTenantId));
-        });
-
-        // 独立 stop watcher（helpers.go L364-415；自终止：complete/终态错误）
-        startStopWatcher(reqCtx.sessionId, reqCtx.assistantMessage.getId(), eventBus);
-
-        // AgentStreamBridge 订阅（17 种事件）
-        AgentStreamBridge bridge = new AgentStreamBridge(reqCtx.sessionId, reqCtx.assistantMessage.getId(),
-                reqCtx.requestId, sessionTenantId, OffsetDateTime.now(), reqCtx.assistantMessage,
-                streamManager, eventBus);
-        bridge.subscribe();
-
-        // title 生成（GenerateTitleAsync：session title 为空时；2026-09-23 走查批接线）
-        if (generateTitle && (reqCtx.session.getTitle() == null || reqCtx.session.getTitle().isEmpty())) {
-            String modelId = "";
-            if (reqCtx.agentConfig != null) {
-                modelId = reqCtx.agentConfig.path("model_id").asText("");
-            }
-            log.info("Session has no title, starting async title generation, session ID: {}, model: {}",
-                    reqCtx.sessionId, modelId);
-            sessionService.generateTitleAsync(reqCtx.session, reqCtx.query, modelId, eventBus);
-        }
-        return streamCtx;
-    }
-
-    private void writeAgentQueryEvent(QaRequestContext reqCtx) {
-        String assistantMessageId = reqCtx.assistantMessage == null ? "" : reqCtx.assistantMessage.getId();
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("session_id", reqCtx.sessionId);
-        data.put("assistant_message_id", assistantMessageId);
-        if (!reqCtx.userMessageID.isEmpty()) {
-            data.put("user_message_id", reqCtx.userMessageID);
-        }
-        if (reqCtx.userCreatedAt != null) {
-            data.put("user_created_at", reqCtx.userCreatedAt.toInstant().toString());
-        }
-        if (reqCtx.assistantMessage != null && reqCtx.assistantMessage.getCreatedAt() != null) {
-            data.put("assistant_created_at", reqCtx.assistantMessage.getCreatedAt().toInstant().toString());
-        }
-        StreamEvent evt = new StreamEvent();
-        evt.setId("query-" + System.nanoTime());
-        evt.setType(ResponseType.AGENT_QUERY);
-        evt.setContent("");
-        evt.setDone(true);
-        evt.setTimestamp(OffsetDateTime.now());
-        evt.setData(data);
-        try {
-            streamManager.appendEvent(reqCtx.sessionId, assistantMessageId, evt);
-        } catch (RuntimeException e) {
-            log.error("write agent query event failed session={} message={}: {}",
-                    reqCtx.sessionId, assistantMessageId, e.toString());
-        }
-    }
-
-    /** startStopWatcher（helpers.go L364-415）。 */
-    private void startStopWatcher(String sessionId, String assistantMessageId, EventBus eventBus) {
-        Thread.ofVirtual().start(() -> {
-            int offset = 0;
-            long deadline = System.currentTimeMillis() + 2 * 60 * 60 * 1000L; // stopWatcherMaxDuration
-            while (System.currentTimeMillis() < deadline) {
-                try {
-                    Thread.sleep(300);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                StreamBatch batch;
-                try {
-                    batch = streamManager.getEvents(sessionId, assistantMessageId, offset);
-                } catch (RuntimeException e) {
-                    continue; // 瞬态读错误，下一 tick 重试
-                }
-                offset = batch.nextOffset();
-                for (StreamEvent evt : batch.events()) {
-                    if (evt.getType() == ResponseType.STOP) {
-                        log.info("Stop watcher detected stop event, cancelling generation for session={}, message={}",
-                                sessionId, assistantMessageId);
-                        Event stopEvt = new Event();
-                        stopEvt.setType(EventType.EVENT_STOP);
-                        stopEvt.setSessionId(sessionId);
-                        com.ragagent.event.payload.StopData data = new com.ragagent.event.payload.StopData();
-                        data.setSessionId(sessionId);
-                        data.setMessageId(assistantMessageId);
-                        data.setReason("user_requested");
-                        stopEvt.setData(data);
-                        eventBus.emit(stopEvt);
-                        return;
-                    }
-                    if (evt.getType() == ResponseType.COMPLETE) {
-                        return;
-                    }
-                    if (evt.getType() == ResponseType.ERROR && evt.isDone()) {
-                        return;
-                    }
-                }
-            }
-        });
-    }
 
     // ── handleAgentEventsForSSE（stream.go L330-474） ─────────────────────────
 
-    private void handleAgentEventsForSSE(HttpServletResponse response, String sessionId,
-            String assistantMessageId, String requestId, SseStreamContext streamCtx,
-            boolean waitForTitle, StreamRewriter resourceRewriter) throws IOException {
-        SseContract.setSSEHeaders(response);
-        AtomicBoolean clientGone = new AtomicBoolean(false);
-        StreamEventEmitter.ClientState client = clientGone::get;
-
-        int lastOffset = 0;
-        log.info("Starting pull-based SSE streaming for session={}, message={}", sessionId, assistantMessageId);
-
-        while (true) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            StreamBatch batch;
-            try {
-                batch = streamManager.getEvents(sessionId, assistantMessageId, lastOffset);
-            } catch (RuntimeException e) {
-                log.warn("Failed to get events from stream: {}", e.toString());
-                continue;
-            }
-            boolean streamCompleted = false;
-            boolean titleReceived = false;
-            for (StreamEvent evt : batch.events()) {
-                if (evt.getType() == ResponseType.STOP) {
-                    log.info("Detected stop event, session={}", sessionId);
-                    if (streamCtx.eventBus != null) {
-                        Event stopEvt = new Event();
-                        stopEvt.setType(EventType.EVENT_STOP);
-                        stopEvt.setSessionId(sessionId);
-                        com.ragagent.event.payload.StopData data = new com.ragagent.event.payload.StopData();
-                        data.setSessionId(sessionId);
-                        data.setMessageId(assistantMessageId);
-                        data.setReason("user_requested");
-                        stopEvt.setData(data);
-                        streamCtx.eventBus.emit(stopEvt);
-                    }
-                    try {
-                        emitter.flushHeldStreamContent(response, requestId, resourceRewriter, client);
-                    } catch (IOException ignored) {
-                        // 客户端已断开
-                    }
-                    // 对照 Go c.SSEvent("message", &StreamResponse{ResponseType: "stop", ...})
-                    com.ragagent.llm.domain.StreamResponse stopResp = new com.ragagent.llm.domain.StreamResponse();
-                    stopResp.setId(requestId);
-                    stopResp.setResponseType(ResponseType.STOP);
-                    stopResp.setContent("Generation stopped by user");
-                    stopResp.setDone(true);
-                    sseFrameWriter.write(response, stopResp);
-                    return;
-                }
-                if (evt.getType() == ResponseType.COMPLETE) {
-                    streamCompleted = true;
-                }
-                if (evt.getType() == ResponseType.SESSION_TITLE) {
-                    titleReceived = true;
-                }
-                try {
-                    emitter.emitStreamEvent(response, evt, requestId, resourceRewriter, client);
-                } catch (IOException e) {
-                    clientGone.set(true);
-                    log.info("Connection closed during event sending, stopping");
-                    return;
-                }
-            }
-            lastOffset = batch.nextOffset();
-            if (streamCompleted) {
-                if (waitForTitle && !titleReceived) {
-                    log.info("Stream completed, waiting for title event");
-                    long titleDeadline = System.currentTimeMillis() + 3000;
-                    titleWait:
-                    while (System.currentTimeMillis() < titleDeadline) {
-                        StreamBatch titleBatch;
-                        try {
-                            titleBatch = streamManager.getEvents(sessionId, assistantMessageId, lastOffset);
-                        } catch (RuntimeException e) {
-                            break titleWait;
-                        }
-                        if (!titleBatch.events().isEmpty()) {
-                            for (StreamEvent evt : titleBatch.events()) {
-                                try {
-                                    emitter.emitStreamEvent(response, evt, requestId, resourceRewriter, client);
-                                } catch (IOException e) {
-                                    clientGone.set(true);
-                                    return;
-                                }
-                                if (evt.getType() == ResponseType.SESSION_TITLE) {
-                                    break titleWait;
-                                }
-                            }
-                            lastOffset = titleBatch.nextOffset();
-                        }
-                    }
-                }
-                SseContract.sendCompletionEvent(response, requestId);
-                return;
-            }
-        }
-    }
 
     // ── quick answer timeline（quick_answer_timeline.go 全文） ────────────────
 
-    private static final Set<String> QUICK_ANSWER_TIMELINE_TOOLS = Set.of(
-            "query_understand", "knowledge_search", "attachment_parsing", "image_analysis");
 
-    private void registerQuickAnswerTimelineRecorder(EventBus bus, Message msg) {
-        if (bus == null || msg == null) {
-            return;
-        }
-        Map<String, Map<String, Object>> pending = new LinkedHashMap<>();
-        Map<String, Long> startedAt = new LinkedHashMap<>();
-        bus.on(EventType.EVENT_AGENT_TOOL_CALL, evt -> {
-            if (evt.getData() instanceof AgentToolCallData data
-                    && QUICK_ANSWER_TIMELINE_TOOLS.contains(data.getToolName())
-                    && !data.getToolCallId().isEmpty()) {
-                synchronized (msg) {
-                    pending.put(data.getToolCallId(), data.getArguments());
-                    startedAt.put(data.getToolCallId(), System.currentTimeMillis());
-                }
-            }
-        });
-        bus.on(EventType.EVENT_AGENT_TOOL_RESULT, evt -> {
-            if (evt.getData() instanceof AgentToolResultData data
-                    && QUICK_ANSWER_TIMELINE_TOOLS.contains(data.getToolName())
-                    && !data.getToolCallId().isEmpty()) {
-                synchronized (msg) {
-                    Map<String, Object> args = pending.remove(data.getToolCallId());
-                    Long started = startedAt.remove(data.getToolCallId());
-                    long duration = data.getDurationMs();
-                    if (duration == 0 && started != null) {
-                        duration = System.currentTimeMillis() - started;
-                    }
-                    com.ragagent.agent.domain.ToolCall call = new com.ragagent.agent.domain.ToolCall();
-                    call.setId("pipeline:" + data.getToolCallId());
-                    call.setName(data.getToolName());
-                    call.setArgs(args);
-                    com.ragagent.common.llm.ToolResult result = new com.ragagent.common.llm.ToolResult();
-                    result.setSuccess(data.isSuccess());
-                    result.setOutput(data.getOutput());
-                    result.setError(data.getError());
-                    result.setData(data.getData());
-                    call.setResult(result);
-                    call.setDuration(duration);
-                    appendQuickAnswerToolCall(msg, call);
-                }
-            }
-        });
-    }
-
-    private static AgentStep ensureQuickAnswerStep(Message msg) {
+    static AgentStep ensureQuickAnswerStep(Message msg) {
         if (msg.getAgentSteps() == null || msg.getAgentSteps().isEmpty()) {
             AgentStep step = new AgentStep();
             step.setIteration(0);
@@ -949,21 +662,6 @@ public class KnowledgeQaController {
         return msg.getAgentSteps().get(0);
     }
 
-    private static void appendQuickAnswerToolCall(Message msg, com.ragagent.agent.domain.ToolCall call) {
-        AgentStep step = ensureQuickAnswerStep(msg);
-        if (step.getToolCalls() != null) {
-            for (int i = 0; i < step.getToolCalls().size(); i++) {
-                if (step.getToolCalls().get(i).getId().equals(call.getId())) {
-                    step.getToolCalls().set(i, call);
-                    return;
-                }
-            }
-        }
-        if (step.getToolCalls() == null) {
-            step.setToolCalls(new ArrayList<>());
-        }
-        step.getToolCalls().add(call);
-    }
 
     private static void appendQuickAnswerReasoning(Message msg, String content) {
         if (content == null || content.isEmpty()) {
