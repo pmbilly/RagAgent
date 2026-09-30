@@ -87,10 +87,6 @@
     [
       "model",
       "retrieval"
-    ],
-    [
-      "session",
-      "storage"
     ]
   ],
   "depend_on_config": [

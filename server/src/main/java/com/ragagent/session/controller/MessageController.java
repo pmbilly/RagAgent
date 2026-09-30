@@ -21,6 +21,7 @@ import com.ragagent.storage.support.FileService;
 import com.ragagent.storage.support.Mode;
 import com.ragagent.storage.support.PublicModeForbiddenException;
 import com.ragagent.storage.support.ResourceModeException;
+import com.ragagent.session.support.MessageReferenceRewriter;
 import com.ragagent.storage.support.Rewriter;
 import com.ragagent.storage.support.StorageBackendResolver;
 import org.slf4j.Logger;
@@ -135,7 +136,10 @@ public class MessageController {
             }
         }
 
-        return ResponseEntity.ok(rewriter.rewriteMessagesResponse(messages));
+        // 消息字段级重写在会话侧（MessageReferenceRewriter）：URL 重写内核在 storage，编排在 session，
+        // 依赖方向保持「会话 → 存储」单向（原先 message 重写放在 storage 会反向依赖 session）。
+        return ResponseEntity.ok(
+                new MessageReferenceRewriter(rewriter).rewriteMessagesResponse(messages));
     }
 
     /**
