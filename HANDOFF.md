@@ -475,6 +475,33 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 `WikiIngestService` 1,208→**509**（照既有 `new Xxx(this)` 回引样式，门面保全部 public 薄委托）——均出榜；
 全仓 ≥800 类 38→**36**；wiki 域测试 542 条 / 全量 4,668 条 0 失败；前端三绿（本批零前端改动）；环守卫基线保持。
 原控制器 javadoc 的 §14.5 例外声明已随出榜删除。
+
+#### 14.7.3 im 域执行计划（2026-10-01 侦察，接替 wiki；目标类 `ImService` 1,445）
+
+**测试床现状（风险已知）**：`im/service` 无直连单测——安全网 = 9 个适配器测试（im 域 2,000+ 行）+ 全量契约 fixture；
+因此**忠实性逐字比对是本批主安全网**，每刀必做。外部 public 面只有 4 个：
+`registerAdapterFactory`/`adapterFor`（wiring+callback）、`handleMessage`（callback）、`deleteChannelsByAgent`（CustomAgentService）——全留门面。
+
+**簇边界（L 为现文件行号）**：
+- `ImQaRequests`（刀 I1）：isAgentMode / buildIMQARequest / createUserMessage / createAssistantMessage
+  （L975-1034，QA 管线共享底座——runQA 与 handleMessageStream 两个簇都用，按 §13.2"先落被依赖方"先抽）。
+  `JSON` 静态 mapper 放宽包内可见（wiki `MAPPER` 先例）。
+- `ImSessionResolver`（刀 I2）：resolveSession / resolveUserSession / resolveThreadSession /
+  createImSession / newMapping / insertMapping（L505-602；持 channelSessions+sessionService 经 service 回引）。
+- `ImOutboundFormatter`（刀 I3）：cleanIMContent / formatIMOutboundAnswerOrFallback / sendStreamReply /
+  sendReplyQuiet——门面留薄委托（门面自身消息入口与命令簇仍用，协作者经 `service.` 调）。
+- `ImStreamPipeline`（刀 I4）：handleMessageStream / StreamBuffers / subscribeStreamEvents /
+  ToolEvent / toolOf / upsert / flushStream（L1057-1435 的流式管线；QA 构造经 `service.` 走 I1 协作者）。
+- `ImQaRunner`（刀 I5）：QaTask / QaAttach / QaOutcome / executeQARequest / handleMessageFullOutput /
+  runFallbackNonStream / runQA（L698-973）；**构造器 qaQueue lambda 改指 `qaRunner.executeQARequest`**
+  （qaRunner 须先于 qaQueue 装配）。
+- 留门面：字段/构造器、渠道生命周期（L173-316）、消息入口+去重+限流（L318-503）、命令执行+doLocalStop（L604-696）、
+  StreamManager 延迟接、`ChannelState`/`InflightEntry` 类型。
+
+**登记清理（收官刀）**：死方法 `asMap`（L1393-1396，零调用）；坏 `{@link ImRedisKeys}`（类不存在，
+javadoc 改文字陈述）；随刀清理失效 import（Spotless 兜底）。
+
+**预估**：门面 1,445→~530；五个协作者 90~400 行。闸门：每刀 im 域测试（适配器族）+ 忠实性比对；收官 clean 全量 + 环守卫。
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
