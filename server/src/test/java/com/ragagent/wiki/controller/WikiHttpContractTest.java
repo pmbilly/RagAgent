@@ -40,7 +40,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * <ol>
  *   <li><b>路由级越权</b>：{@code internal/router/router_wiki_test.go}（212 行）——跨空间 KB 的
  *       读/写拒绝、KB 不存在的 404。Go 侧这些 403 由 {@code KBAccessRead/KBAccessWrite} 守卫产生；
- *       Java 侧由控制器内的等价判定产生（见 {@link WikiPageController#requireWikiKB}），
+ *       Java 侧由守卫的等价判定产生（见 {@link WikiKbAccessGuard#requireWikiKB}），
  *       断言的状态码与 Go 测试逐条一致。</li>
  *   <li><b>所有权</b>：{@code OwnedWikiKBOrAdmin}（Go {@code rbac.go:500} →
  *       {@code RequireOwnershipOrRole}）——非创建者的 Contributor 写被拒、读放行，
