@@ -1,5 +1,6 @@
 package com.ragagent.memory.service;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -67,7 +68,7 @@ public class MemoryExtractionService {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryExtractionService.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 对照 Go {@code extractMaxMessagesPerRun}：一次运行读多少对话。 */

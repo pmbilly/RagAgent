@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.rss;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -41,7 +42,7 @@ final class RssConfig {
     private static final ObjectMapper MAPPER = buildMapper();
 
     private static ObjectMapper buildMapper() {
-        ObjectMapper mapper = new ObjectMapper()
+        ObjectMapper mapper = JsonMappers.lenient()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 // Go 的 struct tag 是 json:"feed_urls" / json:"auth_headers"（蛇形），
                 // Java 字段是驼峰 —— 用命名策略让两边对上（别改成给字段加 @JsonProperty，

@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -132,16 +131,13 @@ class RssCursorJsonTest {
     }
 
     @Test
-    void lastSyncTimeIsSameInstantButJvmZoneRepresentation() {
+    void lastSyncTimeIsSameInstantAndUtcLikeGo() {
         Map<String, Object> map = cursor(t(), null, null).toMap();
         String rendered = (String) map.get("last_sync_time");
         // 瞬时一致：这是跨语言能互相读回的关键
         assertThat(Instant.parse(rendered)).isEqualTo(t().toInstant());
-        // ⚠️ 已知差异：Go 写 "2006-01-02T15:04:05Z"（UTC），Java 归一化到 JVM 默认时区。
-        // 只有 JVM 时区恰好是 UTC 时两者才字节相同。
-        if (!ZoneId.systemDefault().getRules().getOffset(t().toInstant()).equals(ZoneOffset.UTC)) {
-            assertThat(rendered).isNotEqualTo("2006-01-02T15:04:05Z");
-        }
+        // Go 序列化层退役后按标准 ISO-8601 输出 UTC，与 Go 的写法一致——此前的"已知差异"消失。
+        assertThat(rendered).isEqualTo("2006-01-02T15:04:05Z");
     }
 
     @Test

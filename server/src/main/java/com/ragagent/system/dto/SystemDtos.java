@@ -166,7 +166,6 @@ public final class SystemDtos {
             @JsonProperty("cluster_capacity") int clusterCapacity,
             @JsonProperty("active") int active,
             /** float64 → Go 编码器（0 不带 .0；utilization=Active/ClusterCapacity） */
-            @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.ragagent.common.web.GoDoubleSerializer.class)
             @JsonProperty("utilization") double utilization) {
     }
 

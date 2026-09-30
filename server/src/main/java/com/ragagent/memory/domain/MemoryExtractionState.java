@@ -26,7 +26,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  * </ul>
  *
  * <h2>⚠️ 时间字段必须挂成对的序列化器</h2>
- * <p>本类型走的是 **jsonb 读路径**——处理器用的是裸 {@code new ObjectMapper()}，
+ * <p>本类型走的是 **jsonb 读路径**——处理器用的是裸 {@code JsonMappers.lenient()}，
  * 没有 {@code JavaTimeModule}（§9「jsonb 读路径的 mapper 没有 JavaTimeModule」）。
  * 只挂 {@code @JsonSerialize} 会让**写**对、**读**炸（{@code InvalidDefinitionException}）。
  * 挂上成对的两件套后两个方向自足，不依赖任何全局 mapper 配置——这就是

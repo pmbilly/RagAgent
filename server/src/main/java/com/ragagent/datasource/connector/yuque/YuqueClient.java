@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.yuque;
 
+import com.ragagent.common.web.JsonMappers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ public class YuqueClient {
     public static final int DEFAULT_PAGE_SIZE = 100;
     public static final String USER_AGENT = "WeKnora-Yuque-Connector/1.0";
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final String baseUrl;

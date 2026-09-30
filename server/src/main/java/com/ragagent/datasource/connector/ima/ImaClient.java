@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.ima;
 
+import com.ragagent.common.web.JsonMappers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -72,7 +73,7 @@ public class ImaClient {
     /** 笔记自成一个命名空间：wiki 端点只给 notebook_id，正文要到这里读。 */
     public static final String NOTE_BASE_PATH = "/openapi/note/v1";
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final String baseUrl;

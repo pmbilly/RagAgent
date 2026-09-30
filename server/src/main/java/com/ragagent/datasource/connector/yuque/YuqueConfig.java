@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.yuque;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -37,7 +38,7 @@ public class YuqueConfig {
      * Go 用 marshal/unmarshal 往返解析而不是逐字段类型断言，正是因为
      * {@code base_url} 这类字段可选。
      */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 对照 Go {@code api_token}：语雀设置页里的个人令牌，随 {@code X-Auth-Token} 头发送。 */

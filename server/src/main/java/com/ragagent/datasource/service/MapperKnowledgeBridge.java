@@ -1,5 +1,6 @@
 package com.ragagent.datasource.service;
 
+import com.ragagent.common.web.JsonMappers;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -70,7 +71,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
 
     private static final Logger log = LoggerFactory.getLogger(MapperKnowledgeBridge.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;

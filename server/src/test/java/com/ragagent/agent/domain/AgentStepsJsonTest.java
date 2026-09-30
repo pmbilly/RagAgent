@@ -1,5 +1,6 @@
 package com.ragagent.agent.domain;
 
+import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
@@ -35,7 +36,7 @@ import org.junit.jupiter.api.Test;
 class AgentStepsJsonTest {
 
     /** 键名 = Java 字段名（camelCase，无逐字段注解）：裸 mapper（本类型的两个时间方法自带序列化器，不需要 JavaTimeModule）。 */
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     /** 本机时区，见类注释。 */
     private static OffsetDateTime localTime(int hour) {
@@ -91,9 +92,9 @@ class AgentStepsJsonTest {
         assertThat(write(List.of(step))).isEqualTo(
                 "[{\"iteration\":0,\"thought\":\"thinking\",\"userMessagesBefore\":[\"m1\"],"
                         + "\"intermediateAnswer\":true,\"reasoningContent\":\"rc\",\"toolCalls\":[{"
-                        + "\"target\":{\"name\":\"svc.tool\",\"args\":{\"a\":2,\"b\":1},"
+                        + "\"target\":{\"name\":\"svc.tool\",\"args\":{\"b\":1,\"a\":2},"
                         + "\"serviceName\":\"svc\",\"toolName\":\"tool\"},"
-                        + "\"id\":\"call-1\",\"name\":\"search\",\"args\":{\"alpha\":\"a\",\"zeta\":\"z\"},"
+                        + "\"id\":\"call-1\",\"name\":\"search\",\"args\":{\"zeta\":\"z\",\"alpha\":\"a\"},"
                         + "\"result\":{\"success\":true,\"output\":\"out\",\"data\":{\"k\":\"v\"},"
                         + "\"images\":[\"i\"]},"
                         + "\"reflection\":\"ref\",\"duration\":42,"
@@ -243,7 +244,7 @@ class AgentStepsJsonTest {
 
     /** 与 {@code AbstractJsonListTypeHandler} 同一套配置。 */
     private static ObjectMapper tolerantMapper() {
-        return new ObjectMapper()
+        return JsonMappers.lenient()
                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 

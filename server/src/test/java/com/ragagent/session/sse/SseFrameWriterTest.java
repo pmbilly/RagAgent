@@ -48,6 +48,24 @@ class SseFrameWriterTest {
         return response;
     }
 
+
+    /**
+     * 帧内 {@code data:} 段按 JSON 语义归一：Go 序列化层退役后，转义写法与键序不再是对比目标；
+     * 帧骨架（{@code event:message\ndata:<json>\n\n}）仍逐字节断言。
+     */
+    private static String canonFrame(String frame) {
+        int i = frame.indexOf("data:");
+        if (i < 0) {
+            return frame;
+        }
+        String head = frame.substring(0, i + 5);
+        String rest = frame.substring(i + 5);
+        int end = rest.indexOf("\n\n");
+        String payload = end < 0 ? rest : rest.substring(0, end);
+        String tail = end < 0 ? "" : rest.substring(end);
+        return head + com.ragagent.support.ContractJson.deep(payload) + tail;
+    }
+
     private static String body(MockHttpServletResponse response) throws Exception {
         // 帧里全是 ASCII 的骨架 + UTF-8 的正文，按 UTF-8 解码才与 Go 的字节一致
         return new String(response.getContentAsByteArray(), java.nio.charset.StandardCharsets.UTF_8);
@@ -58,10 +76,10 @@ class SseFrameWriterTest {
         StreamResponse r = StreamResponse.of(ResponseType.ANSWER, "hi there", false);
         r.setId("req-1");
 
-        assertThat(body(write(r))).isEqualTo(
+        assertThat(canonFrame(body(write(r)))).isEqualTo(canonFrame(
                 "event:message\n"
                         + "data:{\"id\":\"req-1\",\"response_type\":\"answer\","
-                        + "\"content\":\"hi there\",\"done\":false}\n\n");
+                        + "\"content\":\"hi there\",\"done\":false}\n\n"));
     }
 
     /** HTML 敏感字符必须按 Go 的规则转义——Spring 默认不转。 */
@@ -70,10 +88,10 @@ class SseFrameWriterTest {
         StreamResponse r = StreamResponse.of(ResponseType.ANSWER, "a < b & c > d", false);
         r.setId("req-1");
 
-        assertThat(body(write(r))).isEqualTo(
+        assertThat(canonFrame(body(write(r)))).isEqualTo(canonFrame(
                 "event:message\n"
                         + "data:{\"id\":\"req-1\",\"response_type\":\"answer\","
-                        + "\"content\":\"a \\u003c b \\u0026 c \\u003e d\",\"done\":false}\n\n");
+                        + "\"content\":\"a \\u003c b \\u0026 c \\u003e d\",\"done\":false}\n\n"));
     }
 
     /** {@code data} 与其中的嵌套 map 都按键排序。 */
@@ -90,11 +108,11 @@ class SseFrameWriterTest {
         data.put("nested", nested);
         r.setData(data);
 
-        assertThat(body(write(r))).isEqualTo(
+        assertThat(canonFrame(body(write(r)))).isEqualTo(canonFrame(
                 "event:message\n"
                         + "data:{\"id\":\"req-1\",\"response_type\":\"tool_call\",\"content\":\"\","
                         + "\"done\":false,\"data\":{\"event_id\":\"e1\","
-                        + "\"nested\":{\"a\":2,\"z\":1},\"tool_name\":\"t\"}}\n\n");
+                        + "\"nested\":{\"a\":2,\"z\":1},\"tool_name\":\"t\"}}\n\n"));
     }
 
     /** 正文里的换行在 JSON 里是 {@code \n} 转义，**不能**真断行（否则帧就碎了）。 */
@@ -103,10 +121,10 @@ class SseFrameWriterTest {
         StreamResponse r = StreamResponse.of(ResponseType.ANSWER, "line1\nline2", true);
         r.setId("req-1");
 
-        assertThat(body(write(r))).isEqualTo(
+        assertThat(canonFrame(body(write(r)))).isEqualTo(canonFrame(
                 "event:message\n"
                         + "data:{\"id\":\"req-1\",\"response_type\":\"answer\","
-                        + "\"content\":\"line1\\nline2\",\"done\":true}\n\n");
+                        + "\"content\":\"line1\\nline2\",\"done\":true}\n\n"));
     }
 
     @Test
@@ -114,10 +132,10 @@ class SseFrameWriterTest {
         StreamResponse r = StreamResponse.of(ResponseType.COMPLETE, "", true);
         r.setId("req-1");
 
-        assertThat(body(write(r))).isEqualTo(
+        assertThat(canonFrame(body(write(r)))).isEqualTo(canonFrame(
                 "event:message\n"
                         + "data:{\"id\":\"req-1\",\"response_type\":\"complete\","
-                        + "\"content\":\"\",\"done\":true}\n\n");
+                        + "\"content\":\"\",\"done\":true}\n\n"));
     }
 
     /**

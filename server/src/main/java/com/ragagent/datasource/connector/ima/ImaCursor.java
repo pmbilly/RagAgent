@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.ima;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,7 +48,7 @@ import com.ragagent.common.web.GoTimeSerializer;
 public class ImaCursor {
 
     /** 与 Go 的 {@code json.Unmarshal} 对齐：容忍未知属性（游标是历史数据的容器）。 */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 上次同步时间（Go 的 {@code time.Time} 是值类型，零值也输出字面量）。 */

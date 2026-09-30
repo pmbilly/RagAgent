@@ -1,5 +1,6 @@
 package com.ragagent.datasource.service;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -121,7 +122,7 @@ public class DataSourceService implements DataSourceSyncHandler {
 
     private static final Logger log = LoggerFactory.getLogger(DataSourceService.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     /** 对照 Go {@code datasource.ErrDataSourceInvalid}。 */
     public static final String ERR_DATA_SOURCE_INVALID = "data source configuration is invalid";

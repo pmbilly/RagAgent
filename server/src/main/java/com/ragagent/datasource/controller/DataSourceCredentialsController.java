@@ -1,5 +1,6 @@
 package com.ragagent.datasource.controller;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -55,7 +56,7 @@ public class DataSourceCredentialsController {
 
     private static final Logger log = LoggerFactory.getLogger(DataSourceCredentialsController.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 对照 Go 的 {@code dataSourceCredentialsPutRequest}（validator 的 Key 前缀）。 */

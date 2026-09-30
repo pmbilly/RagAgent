@@ -1,5 +1,6 @@
 package com.ragagent.datasource.domain;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
@@ -40,7 +41,7 @@ import com.ragagent.common.web.GoTimeSerializer;
 @JsonPropertyOrder({"last_sync_time", "connector_cursor", "last_schema_hash"})
 public class SyncCursor {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 上次同步的时间（值类型零值也输出字面量）。 */

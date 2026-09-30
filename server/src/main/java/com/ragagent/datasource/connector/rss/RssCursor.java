@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.rss;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -43,7 +44,7 @@ import com.ragagent.common.web.GoTimeSerializer;
 @JsonPropertyOrder({"last_sync_time", "feed_items", "feed_signals"})
 public class RssCursor {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 本次同步的时间（UTC）。无 omitempty → 恒输出。 */

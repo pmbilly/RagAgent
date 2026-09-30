@@ -1,5 +1,6 @@
 package com.ragagent.memory.domain;
 
+import com.ragagent.common.web.JsonMappers;
 import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -30,7 +31,7 @@ import org.apache.ibatis.type.JdbcType;
  */
 public class MemoryExtractionStateTypeHandler extends BaseTypeHandler<MemoryExtractionState> {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Override

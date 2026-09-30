@@ -39,8 +39,6 @@ public final class EvaluationDtos {
         @JsonProperty("dataset_id") public String datasetId = "";
         /** Go time.Time 零值语义：字段默认值即 Go 零值（null 序列化不走自定义序列化器）。 */
         @JsonProperty("start_time")
-        @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.ragagent.common.web.GoTimeSerializer.class)
-        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.ragagent.common.web.GoTimeDeserializer.class)
         public OffsetDateTime startTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
         @JsonProperty("status") public int status;
         @JsonInclude(JsonInclude.Include.NON_DEFAULT)

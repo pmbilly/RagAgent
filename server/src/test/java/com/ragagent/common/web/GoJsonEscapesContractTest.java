@@ -6,7 +6,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
@@ -28,8 +27,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 class GoJsonEscapesContractTest {
 
-    @Autowired
-    private ObjectMapper mapper;
+    /** 转义表仍在（事件总线 / 流事件 / provider 载荷等仍是 Go 字节契约的路径使用）。 */
+    private final ObjectMapper mapper = com.fasterxml.jackson.databind.json.JsonMapper.builder()
+            .build();
+
+    {
+        mapper.getFactory().setCharacterEscapes(new com.ragagent.common.web.GoJsonEscapes());
+    }
 
     private String jsonOf(String value) throws Exception {
         return mapper.writeValueAsString(Map.of("v", value));

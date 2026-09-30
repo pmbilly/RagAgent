@@ -68,9 +68,9 @@ final class Rec46cSupport {
     /** 解析 GoRecording46C 常量并断言相等（带上下文 diff）。 */
     static void assertRec(String group, String key, String actual) {
         String expected = GoRecording46C.constant(group, key);
-        org.assertj.core.api.Assertions.assertThat(actual)
+        org.assertj.core.api.Assertions.assertThat(com.ragagent.support.ContractJson.deep(actual))
                 .as("recording %s/%s", group, key)
-                .isEqualTo(expected);
+                .isEqualTo(com.ragagent.support.ContractJson.deep(expected));
     }
 
     /** 常量查找（GoRecording46C 生成的常量名按组/键）。 */

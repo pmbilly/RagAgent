@@ -1,5 +1,6 @@
 package com.ragagent.memory.service;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -44,7 +45,7 @@ public class MemoryTopicResolver {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryTopicResolver.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /**

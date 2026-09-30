@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.yuque;
 
+import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -18,7 +19,6 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.connector.yuque.YuqueApiTypes.FlexibleStatus;
 import com.ragagent.datasource.connector.yuque.YuqueApiTypes.V2Doc;
@@ -350,7 +350,7 @@ class YuqueClientTest {
             "'{\"id\":1,\"status\":\"0\"}',  0",
     })
     void flexibleStatusAcceptsNumberAndString(String body, String want) throws Exception {
-        V2Doc d = new ObjectMapper().readValue(body, V2Doc.class);
+        V2Doc d = JsonMappers.lenient().readValue(body, V2Doc.class);
         assertThat(d.getStatus().value()).isEqualTo(want == null ? "" : want);
     }
 
@@ -367,7 +367,7 @@ class YuqueClientTest {
             "'{\"id\":1,\"status\":{\"x\":1}}'",
     })
     void flexibleStatusRejectsUnexpectedShapes(String body) {
-        assertThatThrownBy(() -> new ObjectMapper().readValue(body, V2Doc.class))
+        assertThatThrownBy(() -> JsonMappers.lenient().readValue(body, V2Doc.class))
                 .isInstanceOf(Exception.class)
                 .hasMessageContaining("flexibleStatus: expected string or integer");
     }
@@ -375,7 +375,7 @@ class YuqueClientTest {
     /** 超长整数（超出 int64）也必须失败——Go 解到 int64 会报 out of range。 */
     @Test
     void flexibleStatusRejectsOutOfRangeInteger() {
-        assertThatThrownBy(() -> new ObjectMapper()
+        assertThatThrownBy(() -> JsonMappers.lenient()
                 .readValue("{\"id\":1,\"status\":99999999999999999999}", V2Doc.class))
                 .hasMessageContaining("flexibleStatus: expected string or integer");
     }

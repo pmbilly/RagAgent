@@ -1,5 +1,6 @@
 package com.ragagent.memory;
 
+import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
@@ -33,7 +34,7 @@ import org.junit.jupiter.api.Test;
  */
 class MemoryContractTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     private static OffsetDateTime localTime(int hour) {
         return java.time.ZonedDateTime.of(2026, 9, 18, hour, 0, 0, 0, ZoneId.systemDefault())

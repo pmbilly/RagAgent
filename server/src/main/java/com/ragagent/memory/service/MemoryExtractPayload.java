@@ -1,5 +1,6 @@
 package com.ragagent.memory.service;
 
+import com.ragagent.common.web.JsonMappers;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -63,7 +64,7 @@ public record MemoryExtractPayload(
         @JsonProperty("lf_session_id")
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public MemoryExtractPayload {

@@ -82,12 +82,10 @@ public class SystemSetting {
     /** 虚拟行 = Go 零值时间；持久行 = DB 值（零值走 GoTimeSerializer 的字面量输出） */
     @JsonProperty("created_at")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = GoTimeSerializer.class)
-    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.ragagent.common.web.GoTimeDeserializer.class)
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @JsonProperty("updated_at")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = GoTimeSerializer.class)
-    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.ragagent.common.web.GoTimeDeserializer.class)
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /** gorm:"-"：registry 元数据，落库前必须清空（响应 omitempty） */

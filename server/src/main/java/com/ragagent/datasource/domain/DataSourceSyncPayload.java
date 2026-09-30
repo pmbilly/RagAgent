@@ -1,5 +1,6 @@
 package com.ragagent.datasource.domain;
 
+import com.ragagent.common.web.JsonMappers;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -73,7 +74,7 @@ public record DataSourceSyncPayload(
         @JsonProperty("lf_session_id")
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 紧凑构造器：字符串归一成空串，让 NON_EMPTY 对 null 与 "" 表现一致。 */

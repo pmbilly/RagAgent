@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.ima;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.Locale;
 import java.util.Map;
 
@@ -42,7 +43,7 @@ public class ImaConfig {
      * marshal/unmarshal 往返解析（"extra fields are ignored gracefully"）。
      * Java 侧用容忍未知属性的 convertValue 表达同一语义。</p>
      */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 对照 Go {@code ima-openapi-clientid} 头的取值来源。 */

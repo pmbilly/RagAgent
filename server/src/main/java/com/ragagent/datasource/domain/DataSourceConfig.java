@@ -1,5 +1,6 @@
 package com.ragagent.datasource.domain;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +60,7 @@ import com.ragagent.common.crypto.CryptoService;
 public class DataSourceConfig {
 
     /** 与 Go 的 {@code json.Marshal} 对齐的写出器（容忍未知属性，对照 json.Unmarshal）。 */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @JsonProperty("type")

@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.yuque;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -27,7 +28,7 @@ import com.ragagent.common.web.GoTimeSerializer;
 public class YuqueCursor {
 
     /** 与 Go 的 {@code json.Unmarshal} 对齐：容忍未知属性（游标承载历史数据）。 */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @JsonProperty("last_sync_time")

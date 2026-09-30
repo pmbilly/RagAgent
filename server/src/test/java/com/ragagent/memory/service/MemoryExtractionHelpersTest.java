@@ -1,5 +1,6 @@
 package com.ragagent.memory.service;
 
+import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -359,7 +360,7 @@ class MemoryExtractionHelpersTest {
     @DisplayName("负载 JSON（对照 Go 的 omitempty）")
     class Payload {
 
-        private final ObjectMapper mapper = new ObjectMapper();
+        private final ObjectMapper mapper = JsonMappers.lenient();
 
         @Test
         void omitsBlankChatModelAndLanguage() throws Exception {

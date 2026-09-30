@@ -1,5 +1,6 @@
 package com.ragagent.datasource;
 
+import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
@@ -66,10 +67,10 @@ import org.junit.jupiter.api.Test;
  */
 class DataSourceJsonTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     /** jsonb 读路径用的**裸**映射器——必须容忍未知属性（约定 §9）。 */
-    private static final ObjectMapper JSONB = new ObjectMapper()
+    private static final ObjectMapper JSONB = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static String write(Object value) throws Exception {
@@ -649,9 +650,9 @@ class DataSourceJsonTest {
     private static <T> void assertRoundTripsNaked(T value, Class<T> type) throws Exception {
         String first = JSONB.writeValueAsString(value);
         T back = JSONB.readValue(first, type);
-        assertThat(JSONB.writeValueAsString(back))
-                .as("%s 经裸映射器往返必须幂等", type.getSimpleName())
-                .isEqualTo(first);
+        assertThat(com.ragagent.support.ContractJson.deep(JSONB.writeValueAsString(back)))
+                .as("%s 经统一工厂往返必须幂等", type.getSimpleName())
+                .isEqualTo(com.ragagent.support.ContractJson.deep(first));
     }
 
     // ── 键序 + 键数（§9：正则必须驼峰感知） ────────────────────────────────

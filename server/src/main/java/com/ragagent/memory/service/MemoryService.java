@@ -1,5 +1,6 @@
 package com.ragagent.memory.service;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -85,7 +86,7 @@ public class MemoryService {
      * 未知字段而 Jackson 默认失败（§7.5 第 6 条）——配置里多一个键就让记忆整体失效
      * 是这里最不该发生的事。</p>
      */
-    private static final ObjectMapper CONFIG_MAPPER = new ObjectMapper()
+    private static final ObjectMapper CONFIG_MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final MemoryRepository repo;

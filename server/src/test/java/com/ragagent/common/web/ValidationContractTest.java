@@ -62,7 +62,7 @@ class ValidationContractTest {
     private TenantMapper tenantMapper;
     @Autowired
     private TenantMemberMapper memberMapper;
-    private final ObjectMapper m = new ObjectMapper();
+    private final ObjectMapper m = JsonMappers.lenient();
     private String owner;
 
     @BeforeEach

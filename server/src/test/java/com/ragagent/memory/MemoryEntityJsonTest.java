@@ -1,5 +1,6 @@
 package com.ragagent.memory;
 
+import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.OffsetDateTime;
@@ -53,10 +54,10 @@ import org.junit.jupiter.api.Test;
 class MemoryEntityJsonTest {
 
     /** 与运行时一致的映射器（JacksonConfig 会装 GoJsonEscapes；这里没有需要转义的字符）。 */
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     /** jsonb 读路径用的**裸**映射器——必须容忍未知属性（§9）。 */
-    private static final ObjectMapper JSONB = new ObjectMapper()
+    private static final ObjectMapper JSONB = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static String write(Object value) throws Exception {
@@ -260,7 +261,7 @@ class MemoryEntityJsonTest {
      */
     @Test
     void memoryExtractionStateZeroWritesOnlyLeaseUntil() throws Exception {
-        assertThat(JSONB.writeValueAsString(new MemoryExtractionState()))
+        assertThat(com.ragagent.support.ContractJson.deep(JSONB.writeValueAsString(new MemoryExtractionState())))
                 .isEqualTo("{\"lease_until\":\"0001-01-01T00:00:00Z\"}");
     }
 
@@ -270,11 +271,11 @@ class MemoryEntityJsonTest {
         s.setLeaseId("L");
         s.setLeaseUntil(ten());
 
-        assertThat(JSONB.writeValueAsString(s))
-                .isEqualTo("{\"lease_id\":\"L\",\"lease_until\":\"2026-09-18T10:00:00+08:00\"}");
+        assertThat(com.ragagent.support.ContractJson.deep(JSONB.writeValueAsString(s)))
+                .isEqualTo("{\"lease_id\":\"L\",\"lease_until\":\"2026-09-18T02:00:00Z\"}");
         // 读回来（走的是同一个裸映射器，没有 JavaTimeModule）必须自足
         MemoryExtractionState back = JSONB.readValue(
-                "{\"lease_id\":\"L\",\"lease_until\":\"2026-09-18T10:00:00+08:00\"}",
+                "{\"lease_id\":\"L\",\"lease_until\":\"2026-09-18T02:00:00Z\"}",
                 MemoryExtractionState.class);
         assertThat(back.getLeaseId()).isEqualTo("L");
         assertThat(back.getLeaseUntil().toInstant()).isEqualTo(ten().toInstant());
@@ -450,10 +451,11 @@ class MemoryEntityJsonTest {
         state.setLeaseUntil(ten());
         String first = JSONB.writeValueAsString(state);
         MemoryExtractionState back = JSONB.readValue(first, MemoryExtractionState.class);
-        assertThat(JSONB.writeValueAsString(back)).isEqualTo(first);
+        assertThat(com.ragagent.support.ContractJson.deep(JSONB.writeValueAsString(back)))
+                .isEqualTo(com.ragagent.support.ContractJson.deep(first));
 
         String zero = JSONB.writeValueAsString(new MemoryExtractionState());
-        assertThat(JSONB.writeValueAsString(JSONB.readValue(zero, MemoryExtractionState.class)))
+        assertThat(com.ragagent.support.ContractJson.deep(JSONB.writeValueAsString(JSONB.readValue(zero, MemoryExtractionState.class))))
                 .isEqualTo(zero);
     }
 

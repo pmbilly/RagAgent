@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.ima;
 
+import com.ragagent.common.web.JsonMappers;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -73,7 +74,7 @@ public class ImaConnector implements Connector {
      * 这些对象上继续加字段（约定 §9「jsonb 回读的 ObjectMapper 要容忍未知属性」）。
      * 这里虽然不是 jsonb 回读，但同一条理由成立。</p>
      */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final ImaRetryPolicy retryPolicy;

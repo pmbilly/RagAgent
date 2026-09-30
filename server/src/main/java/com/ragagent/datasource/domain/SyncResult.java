@@ -1,5 +1,6 @@
 package com.ragagent.datasource.domain;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -44,7 +45,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
         "deletion_failed", "errors", "next_cursor"})
 public class SyncResult {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 处理过的条目总数。 */

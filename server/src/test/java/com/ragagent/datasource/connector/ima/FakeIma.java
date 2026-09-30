@@ -1,5 +1,6 @@
 package com.ragagent.datasource.connector.ima;
 
+import com.ragagent.common.web.JsonMappers;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -44,7 +45,7 @@ import com.sun.net.httpserver.HttpServer;
  */
 final class FakeIma implements AutoCloseable {
 
-    static final ObjectMapper MAPPER = new ObjectMapper();
+    static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     /** 一个假条目（对照 Go {@code fakeFile}）。 */
     static final class FakeFile {

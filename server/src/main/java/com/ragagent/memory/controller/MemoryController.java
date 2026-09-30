@@ -1,5 +1,6 @@
 package com.ragagent.memory.controller;
 
+import com.ragagent.common.web.JsonMappers;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -101,7 +102,7 @@ public class MemoryController {
      * Jackson 的裸 {@code ObjectMapper} 默认<b>失败</b>（§7.5 第 6 条的同族坑，
      * 只是这次在请求方向）。前端多带一个字段就整条请求 400 是这里最不该发生的事。</p>
      */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final MemoryService memoryService;

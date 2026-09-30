@@ -34,6 +34,13 @@ public class PgJsonTypeHandler extends JacksonTypeHandler {
     private static final com.fasterxml.jackson.databind.ObjectMapper READER =
             JsonMappers.lenient();
 
+    static {
+        // 写路径（父类 toJson）默认用 MyBatis-Plus 内部裸 mapper——未注册 JSR-310，
+        // 落 java.time 字段会抛 InvalidDefinitionException。用官方钩子换成本仓工厂，
+        // 使 jsonb 读写两侧同源（时间按 ISO-8601 字符串落库，不再依赖逐字段注解）。
+        JacksonTypeHandler.setObjectMapper(READER);
+    }
+
     /**
      * 读路径 jsonb 规范化：PG jsonb 不保留键序，对象键按（长度, 字节序）排序
      * （H2 的 VARCHAR 原样返回插入串，这里模拟 jsonb 行为使两侧读回一致；

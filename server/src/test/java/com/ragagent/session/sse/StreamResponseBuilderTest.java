@@ -65,7 +65,8 @@ class StreamResponseBuilderTest {
         assertThat(json).contains("\"knowledgeFilename\":\"a.md\",\"knowledgeSource\":\"file\"");
         assertThat(json).contains("\"knowledgeBaseId\":\"kb-1\"");
         // data 直通：库内 snake 键 + 未知键原样带出
-        assertThat(json).contains("\"data\":{\"references\":[{\"chunk_index\":3");
+        assertThat(json).contains("\"data\":{\"references\":[");
+        assertThat(json).contains("\"chunk_index\":3");
         assertThat(json).contains("\"extra_unknown_key\":\"ignored\"");
     }
 
@@ -107,10 +108,10 @@ class StreamResponseBuilderTest {
         data.put("session_id", "sess-1");
         evt.setData(data);
 
-        assertThat(write(StreamResponseBuilder.build(evt, "req-2"))).isEqualTo(
+        assertThat(com.ragagent.support.ContractJson.deep(write(StreamResponseBuilder.build(evt, "req-2")))).isEqualTo(com.ragagent.support.ContractJson.deep(
                 "{\"id\":\"req-2\",\"response_type\":\"agent_query\",\"content\":\"\",\"done\":true,"
                         + "\"session_id\":\"sess-1\",\"assistant_message_id\":\"msg-1\","
-                        + "\"data\":{\"assistant_message_id\":\"msg-1\",\"session_id\":\"sess-1\"}}");
+                        + "\"data\":{\"assistant_message_id\":\"msg-1\",\"session_id\":\"sess-1\"}}"));
     }
 
     /** 非 agent_query 事件即便带了这两个键也<b>不</b>提取（Go 只在 agent_query 分支里取）。 */
@@ -123,10 +124,10 @@ class StreamResponseBuilderTest {
         data.put("event_id", "e1");
         evt.setData(data);
 
-        assertThat(write(StreamResponseBuilder.build(evt, "req-6"))).isEqualTo(
+        assertThat(com.ragagent.support.ContractJson.deep(write(StreamResponseBuilder.build(evt, "req-6")))).isEqualTo(com.ragagent.support.ContractJson.deep(
                 "{\"id\":\"req-6\",\"response_type\":\"answer\",\"content\":\"hi\",\"done\":false,"
                         + "\"data\":{\"assistant_message_id\":\"m9\",\"event_id\":\"e1\","
-                        + "\"session_id\":\"sess-9\"}}");
+                        + "\"session_id\":\"sess-9\"}}"));
     }
 
     // ── 场景 C/D/E：references 数据不成立时的三种退路 ───────────────────────
@@ -137,9 +138,9 @@ class StreamResponseBuilderTest {
         StreamEvent evt = new StreamEvent("evt-3", ResponseType.REFERENCES, "", false);
         evt.setData(Map.of("foo", "bar"));
 
-        assertThat(write(StreamResponseBuilder.build(evt, "req-3"))).isEqualTo(
+        assertThat(com.ragagent.support.ContractJson.deep(write(StreamResponseBuilder.build(evt, "req-3")))).isEqualTo(com.ragagent.support.ContractJson.deep(
                 "{\"id\":\"req-3\",\"response_type\":\"references\",\"content\":\"\",\"done\":false,"
-                        + "\"data\":{\"foo\":\"bar\"}}");
+                        + "\"data\":{\"foo\":\"bar\"}}"));
     }
 
     /**
@@ -151,9 +152,9 @@ class StreamResponseBuilderTest {
         StreamEvent evt = new StreamEvent("evt-4", ResponseType.REFERENCES, "", false);
         evt.setData(Map.of("references", List.of("not-a-map", 42)));
 
-        assertThat(write(StreamResponseBuilder.build(evt, "req-4"))).isEqualTo(
+        assertThat(com.ragagent.support.ContractJson.deep(write(StreamResponseBuilder.build(evt, "req-4")))).isEqualTo(com.ragagent.support.ContractJson.deep(
                 "{\"id\":\"req-4\",\"response_type\":\"references\",\"content\":\"\",\"done\":false,"
-                        + "\"data\":{\"references\":[\"not-a-map\",42]}}");
+                        + "\"data\":{\"references\":[\"not-a-map\",42]}}"));
     }
 
     /** {@code references} 是字符串 → 一条类型分支都不命中 → 同样不设该字段。 */
@@ -162,9 +163,9 @@ class StreamResponseBuilderTest {
         StreamEvent evt = new StreamEvent("evt-5", ResponseType.REFERENCES, "", false);
         evt.setData(Map.of("references", "oops"));
 
-        assertThat(write(StreamResponseBuilder.build(evt, "req-5"))).isEqualTo(
+        assertThat(com.ragagent.support.ContractJson.deep(write(StreamResponseBuilder.build(evt, "req-5")))).isEqualTo(com.ragagent.support.ContractJson.deep(
                 "{\"id\":\"req-5\",\"response_type\":\"references\",\"content\":\"\",\"done\":false,"
-                        + "\"data\":{\"references\":\"oops\"}}");
+                        + "\"data\":{\"references\":\"oops\"}}"));
     }
 
     // ── 活路径（不经 Redis）：直接就是 SearchResult 对象 ─────────────────────
@@ -195,9 +196,10 @@ class StreamResponseBuilderTest {
         assertThat(json).contains("\"matchType\":3");
         assertThat(json).contains("\"subChunkId\":[\"sub-1\"]");
         assertThat(json).contains("\"chunkMetadata\":{\"questions\":[\"q\"]}");
-        // score 是 1.0，Go 输出 1（不是 1.0）——GoDoubleSerializer 的职责
-        assertThat(json).contains("\"score\":1,");
-        assertThat(json).contains("\"data\":{\"references\":[{\"id\":\"chunk-2\"");
+        // score 现在是标准 Jackson 写法（Go 序列化层退役后不再折叠成 1）
+        assertThat(json).contains("\"score\":1.0,");
+        assertThat(json).contains("\"data\":{\"references\":[");
+        assertThat(json).contains("\"id\":\"chunk-2\"");
     }
 
     /** 空 {@code data} → Go 的 omitempty 整键省略（不是输出 {@code "data":{}}）。 */
@@ -206,8 +208,8 @@ class StreamResponseBuilderTest {
         StreamEvent evt = new StreamEvent("evt-8", ResponseType.ANSWER, "x", true);
         evt.setData(Map.of());
 
-        assertThat(write(StreamResponseBuilder.build(evt, "req-8"))).isEqualTo(
-                "{\"id\":\"req-8\",\"response_type\":\"answer\",\"content\":\"x\",\"done\":true}");
+        assertThat(com.ragagent.support.ContractJson.deep(write(StreamResponseBuilder.build(evt, "req-8")))).isEqualTo(com.ragagent.support.ContractJson.deep(
+                "{\"id\":\"req-8\",\"response_type\":\"answer\",\"content\":\"x\",\"done\":true}"));
     }
 
     // ── 与 Go 一致的"不拷贝"语义 ────────────────────────────────────────────

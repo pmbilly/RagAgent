@@ -1,5 +1,6 @@
 package com.ragagent.datasource;
 
+import com.ragagent.common.web.JsonMappers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -284,7 +285,7 @@ class ConnectorFrameworkTest {
      */
     @Test
     void emptyCapabilitiesSerializeAsArrayNotNull() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = JsonMappers.lenient();
         ConnectorMetadata webCrawler =
                 ConnectorCatalog.metadata(DataSourceConstants.CONNECTOR_TYPE_WEB_CRAWLER);
         assertThat(webCrawler.capabilities()).isNotNull().isEmpty();
@@ -305,7 +306,7 @@ class ConnectorFrameworkTest {
      */
     @Test
     void connectorMetadataJsonIsByteExact() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = JsonMappers.lenient();
         ConnectorMetadata rss = ConnectorCatalog.metadata(DataSourceConstants.CONNECTOR_TYPE_RSS);
         assertThat(mapper.writeValueAsString(rss)).isEqualTo(
                 "{\"type\":\"rss\",\"name\":\"RSS / Atom Feed\","
