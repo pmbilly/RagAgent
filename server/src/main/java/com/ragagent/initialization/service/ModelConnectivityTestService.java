@@ -23,6 +23,7 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.limiter.ConcurrencyGovernor;
 import com.ragagent.llm.ollama.OllamaService;
+import com.ragagent.llm.asr.AsrTranscriber;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;
 import com.ragagent.model.service.ModelService;

@@ -23,7 +23,7 @@ import com.ragagent.knowledge.chunker.Chunker;
 import com.ragagent.knowledge.chunker.ParsedChunk;
 import com.ragagent.knowledge.chunker.SplitterConfig;
 import com.ragagent.knowledge.chunker.Tokens;
-import com.ragagent.initialization.service.AsrTranscriber;
+import com.ragagent.llm.asr.AsrTranscriber;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.knowledge.support.ParserEngineRules;

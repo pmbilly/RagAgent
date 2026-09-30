@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.initialization.service.AsrTranscriber;
+import com.ragagent.llm.asr.AsrTranscriber;
 import com.ragagent.llm.chat.LlmTransport;
 
 /**

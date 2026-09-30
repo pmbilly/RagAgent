@@ -1,4 +1,4 @@
-package com.ragagent.initialization.service;
+package com.ragagent.llm.asr;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,6 +23,11 @@ import com.ragagent.llm.chat.LlmTransport;
  * <p><b>为什么是接缝而不是完整 provider 库</b>：asr/check 端点的行为验证需要真实
  * 出站调用；所有 ASR 厂商共用 OpenAI 兼容 /v1/audio/transcriptions API，
  * 故以一份薄实现作为缺省实现；将来扩展其他 provider 时只需替换本接口的实现。</p>
+ *
+ * <p><b>为什么在 {@code llm/asr}</b>：它是"按模型配置调 provider"的能力（与 {@code llm/chat}
+ * 同层，复用 {@code LlmTransport} 出站），消费方横跨初始化（asr/check）、模型调试、
+ * 会话（临时文档转写）、检索（VLM 错误文案复用其静态映射）——原先落在 initialization
+ * 时被后三个域反向依赖成环。</p>
  *
  * <p>缺省实现的线上行为（错误文案等已被 golden 钉死，不可改字）：</p>
  * <ul>

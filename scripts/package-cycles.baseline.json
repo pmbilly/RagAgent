@@ -7,14 +7,6 @@
     [
       "chatpipeline",
       "session"
-    ],
-    [
-      "initialization",
-      "knowledge"
-    ],
-    [
-      "initialization",
-      "model"
     ]
   ],
   "depend_on_config": [
@@ -48,10 +40,6 @@
     [
       "retrieval",
       "auth"
-    ],
-    [
-      "retrieval",
-      "initialization"
     ],
     [
       "retrieval",
