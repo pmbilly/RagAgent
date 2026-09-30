@@ -561,6 +561,22 @@
 `chatpipeline/support/` 补 package-info。
 **收尾数据**：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
 
+## 11.12 P2 分包执行记录：wiki/service（2026-09-30）
+
+包地图 §P2 第一个真正要拆的超大单层（另两个是误报/待做，见包地图口径提醒）。
+
+- `wiki/service` 76 文件 → **根 11 + `ingest/`(45) + `page/`(19)**：
+  - `ingest/`：摄取管线（`WikiIngest*` 19 门面与四阶段、`WikiBatch*`、`WikiFinalize*`、任务队列与锁
+    （`InProcessWiki*`/`RedisWiki*`/`SingleFlight`）、幂等凭据（IdentityClaim/Tombstone）、去重与清理支撑）；
+  - `page/`：页面服务（接口 + 实现）、文件夹/视图支撑、链接与 lint（Linkify/CrossLinker/DeadLinks）、
+    slug 锁与匹配、编辑上下文；
+  - 根：跨切面端口与缺省实现（ChunkCleaner / ImageEnricher / KnowledgeFinalizer / ModelResolver）、
+    prompt 与 LLM 重试策略。
+- **测试同步迁移**（§13 第 27 条）：`src/test/.../wiki/service/` 下 17 个测试按目标类分入
+  `ingest/`(10) 与 `page/`(7)，包声明一并改；否则会因短名解析与包私有探针而编译不过。
+- 跨子包可见性：仅 1 处（`WikiLinkify` 调 `WikiIngestPageOps`）→ 该顶层类罕见地没写 `public`，补上。
+- **收尾数据**：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。

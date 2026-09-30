@@ -76,16 +76,20 @@
 - [ ] 这 5 个多为单一职责的小包（`config` 是装配层、`stream` 是 SSE 契约、`modelcontext` 是工具协议）——
       拆前先判有无**天然族**，没有族就保持扁平（别为扁平而扁平）。
 
-### P2 超大单层（≥70 文件）—— 内部已有天然族
+### P2 超大单层（≥70 文件）
 
-| 层 | 数量 | 内部族 |
+> **口径提醒**：本节数字是"二级目录**递归**聚合"，子目录分好之后数字**不会变小**——
+> `datasource/connector`(76) 早已按 provider 分好（`feishu/{core,drive,wiki}`、`gitlab`/`ima`/`notion`/`rss`/`yuque`，
+> 测试树镜像），`wiki/service` 拆分后聚合数仍是 78。**看子结构，别看这个数。**
+
+| 层 | 状态 | 拆法 / 内部族 |
 |---|---|---|
-| `agent/tools` | 95 | `Wiki*` 19、`Mcp*` 10、`Sql*` 4、`Search*` 4 |
-| `wiki/service` | 81 | `Wiki*` 60、`Ingest*` 6 |
-| `datasource/connector` | 76 | `Notion*` 22、`Ima*`/`Yuque*`/`Feishu*`/`Rss*` 各 6–7 |
-| `knowledge/dto` | 74 | `Faq*` 17、`Knowledge*` 8 |
+| `wiki/service` | ✅ 已拆（2026-09-30）：根 11 + `ingest/`(45) + `page/`(19) | `ingest/` = 摄取管线（Ingest 门面 + 四阶段、任务队列、锁、幂等凭据、去重清理）；`page/` = 页面服务、文件夹/视图、链接与 lint、slug 锁与匹配、编辑上下文；根 = 跨切面端口（ChunkCleaner/ImageEnricher/KnowledgeFinalizer/ModelResolver + 缺省实现）与 LLM/提示词适配 |
+| `datasource/connector` | ✅ 早已按 provider 分层 | 无需再动 |
+| `agent/tools` | 待做（94） | `Wiki*` 19、`Mcp*` 10、`Sql*` 4、`Search*` 4 —— 但余下 ~60 是单件工具，**别按前缀切**，等 agent 域自身重构时按能力分组 |
+| `knowledge/dto` | 待做（74） | `Faq*` 21、`Chunk*` 14、`KnowledgeBase*`/`Knowledge*`（文档）、`*ConfigView`、`*Tag*` —— 按功能切 |
 
-- [ ] 按族建二级子包（纯移动 + 全绿，走 §14 手法）。
+- [ ] 余下两个按上表拆；判据：有天然族才拆，别为扁平而扁平。
 
 ### P3 命名与文档
 
