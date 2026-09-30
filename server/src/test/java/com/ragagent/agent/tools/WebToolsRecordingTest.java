@@ -2,20 +2,18 @@ package com.ragagent.agent.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.agent.domain.ToolResult;
+import com.ragagent.common.llm.ToolResult;
 import com.ragagent.retrieval.domain.WebSearchResult;
-import com.ragagent.websearch.service.WebSearchService.WebSearchConfig;
 
 /**
  * web_search / web_fetch 工具钉（2026-09-23 接线批·切片 2d，对照 Go
@@ -195,7 +193,8 @@ class WebToolsRecordingTest {
 
     @Test
     void fetchCachesPerRunAndEvictsLruBeyond8() {
-        List<String> fetched = new ArrayList<>();
+        // WebFetchTool 用虚拟线程并发抓 items，记录器须线程安全
+        List<String> fetched = new CopyOnWriteArrayList<>();
         WebFetchTool tool = fetchTool(url -> {
             fetched.add(url);
             return "body of " + url;
@@ -358,7 +357,8 @@ class WebToolsRecordingTest {
 
     @Test
     void searchWithContentFetchesLeadingPagesViaSharedFetchTool() {
-        List<String> fetchedUrls = new ArrayList<>();
+        // 前 3 页由 WebSearchTool 的虚拟线程并发抓取，记录器须线程安全
+        List<String> fetchedUrls = new CopyOnWriteArrayList<>();
         WebSearchTool tool = new WebSearchTool(
                 (t, p, c, q) -> List.of(
                         row("A", "https://e.com/a", "sa"),
