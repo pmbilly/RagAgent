@@ -637,6 +637,31 @@
 - 测试：`TemporaryDocumentResolveForPromptTest` 只改 10 处限定名（4 个纯函数按类名点 resolver）；
   环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
 
+## 11.16 session 步骤 2 第三刀：AgentStreamBridge 补测 + 抽发射器（2026-09-30）
+
+| | 前 | 后 |
+|---|---|---|
+| `AgentStreamBridge` | 856 | **683**（跌出 ≥800 神类榜） |
+| 该类测试 | **零直接覆盖** | `AgentStreamBridgeTest` 9 例 |
+
+- **先补网再动刀**：该类只在 `KnowledgeQaController` 的 agent 流里构造，全仓 grep 无任何测试引用它
+  → 先补 `AgentStreamBridgeTest`（真 `EventBus` + mock `StreamManager`，同 `SessionStreamControllerTest`）：
+  thought（done 补 duration 元数据）/ tool_call（前导剔除）+ final_answer 分片 / tool_result（成功
+  TOOL_RESULT、失败 ERROR）/ references（累积并落 assistantMessage）/ memory_recalled（视图→实体落库、
+  原样进 SSE）/ complete（无 answer 事件时补 fallback 对 + usage 透传）/ 订阅表与实际订阅一致 /
+  非载荷对象被忽略。
+- **抽 `AgentStreamEmitter`（同包，94 行）**：17 个 handler 各抄一份"组装 + try 追加 + catch 日志"样板
+  → `emit`/`emitTolerant`（组装 + 追加，级别分 error/warn）与 `append`/`appendTolerant`/`appendAll`
+  （只追加：给带 `setUsage` 或一次追加两事件的站点）。**日志文案逐字由调用方传入**，零文案变更；
+  `emitArtifactsPending` 保留原样（它的 warn 带 session/message 字段，且"流可能已结束"时要保这些信息）。
+- **机械替换的核验手法**：逐行扫描（不用花括号配对、不用回溯正则）解析
+  "`StreamEvent se = new StreamEvent();` → 连续 `se.setX(...)` → try 追加 → catch 日志"的规整块，
+  先打印候选与断言形态、**再落盘**；少设 `setContent`/`setData` 的 4 处按 `StreamEvent` 字段默认值
+  （`""`/null）补齐（等价改写）。第一版正则一次都没匹配上（`{ind}` 占位与 `\{` 转义互相干扰）——
+  **规整块改写优先逐行扫描，别跟正则较劲**。
+- 收尾：环 0/1/6 不变；全量绿 + `spotlessCheck` 绿。
+  **用例数口径统一（本批起）**：以刚跑完的全量 XML 汇总为准——`server/build/test-results/test/*.xml` 的 `tests` 求和 = **4,559**（6 skipped）；此前各节沿用的 "4,675" 是另一口径（静态/汇总不等价）的旧值，**引用时别混**。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -900,5 +925,5 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 ### 14.9 session 步骤 2 半程（2026-09-30）
 
 - SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
-- **余七神类**（TemporaryDocumentService 已切 prompt 切片：1,075 → 860，见 §11.15）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 860、MessageService 1,028、AgentStreamBridge 853。
+- **余六神类**（TemporaryDocumentService 已切 prompt 切片 1,075 → 860，见 §11.15；AgentStreamBridge 补测 + 抽发射器 853 → 683 出榜，见 §11.16）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 860、MessageService 1,028。
 - 教训:切片协作者时 record(MentionScope/SearchTargetView)容易随 take 溢出/误限定——**record 一律留在门面**(测试与外部直引面),协作者经门面限定引用;声明行误加 service. 前缀的恢复统一按"4 空格缩进+修饰符开头"行匹配(勿对调用点盲替)。
