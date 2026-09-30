@@ -20,7 +20,7 @@ import com.ragagent.knowledge.domain.KnowledgeBaseAsrConfig;
 import com.ragagent.knowledge.domain.KnowledgeBaseVlmConfig;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.dto.KnowledgeBaseResponse;
+import com.ragagent.knowledge.dto.kb.KnowledgeBaseResponse;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.security.KnowledgeAccessGuard;

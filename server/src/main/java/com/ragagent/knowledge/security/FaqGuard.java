@@ -19,10 +19,10 @@ import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.knowledge.repository.KnowledgeTagRepository;
 import org.springframework.stereotype.Component;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.knowledge.dto.FaqEntryPayload;
-import com.ragagent.knowledge.dto.FaqEntryFieldsBatchUpdate;
-import com.ragagent.knowledge.dto.FaqEntryFieldsUpdate;
-import com.ragagent.knowledge.dto.FaqEntry;
+import com.ragagent.knowledge.dto.faq.FaqEntryPayload;
+import com.ragagent.knowledge.dto.faq.FaqEntryFieldsBatchUpdate;
+import com.ragagent.knowledge.dto.faq.FaqEntryFieldsUpdate;
+import com.ragagent.knowledge.dto.faq.FaqEntry;
 
 /**
  * FAQ 写路径的域守卫：知识库存在性/类型校验、租户越权判定、标签解析与作用域校验、
