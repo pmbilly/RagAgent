@@ -12,7 +12,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -68,11 +67,12 @@ public class SqliteRetrieveRepository
 
     private final String dbPath;
     private final boolean memory;
-    private final ConcurrentHashMap<Integer, Boolean> vecTables = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<Integer, Boolean> vecTables = new ConcurrentHashMap<>();
     /** 内存库必须复用同一连接（否则每次连接都是新库）。 */
     private volatile Connection memoryConnection;
 
     final SqliteSearchOps searchOps;
+    final SqliteWriteOps writeOps;
 
     public SqliteRetrieveRepository(String dbPath) {
         String path = dbPath == null || dbPath.trim().isEmpty() ? DEFAULT_PATH : dbPath.trim();
@@ -92,6 +92,7 @@ public class SqliteRetrieveRepository
         migrate();
         ensureExistingVecTables();
         this.searchOps = new SqliteSearchOps(this);
+        this.writeOps = new SqliteWriteOps(this);
     }
 
     /** 照 {@code NewSQLiteRetrieveEngineRepository}（AutoMigrate + initFTS5 + 既有向量表）。 */
@@ -333,7 +334,7 @@ public class SqliteRetrieveRepository
      * 连接内建表（写路径必需）：WAL 下"另一条连接建的表"在已开启事务的快照里不可见——
      * 故写事务里必须用<b>同一条连接</b>建向量表（SQLite 允许事务内 DDL）。
      */
-    private void ensureVecTable(Connection conn, int dim) throws SQLException {
+    void ensureVecTable(Connection conn, int dim) throws SQLException {
         if (dim <= 0 || vecTables.containsKey(dim)) {
             return;
         }
@@ -387,275 +388,51 @@ public class SqliteRetrieveRepository
 
     // ── 写入（照 Save/BatchSave：INSERT OR IGNORE + FTS + 向量） ───────────
 
+    // ── 删除（照 Go：先查行 → 删向量/FTS → 删元数据） ──────────────────────
+
+    // ── 批量更新（逐 chunk UPDATE 元数据，照 Go） ──────────────────────────
+
+    // ── 拷贝（照 Go：逐 chunk 读源行 → 新 UUID SourceID → 复制 FTS/向量） ──
+
     @Override
     public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
-        batchSave(List.of(indexInfo), params);
+        writeOps.save(indexInfo, params);
     }
 
     @Override
     public void batchSave(List<IndexInfo> indexInfoList, Map<String, Object> params)
             throws Exception {
-        if (indexInfoList == null || indexInfoList.isEmpty()) {
-            return;
-        }
-        try (Connection conn = open()) {
-            conn.setAutoCommit(false);
-            try {
-                List<long[]> newIds = new ArrayList<>();
-                List<float[]> vectors = new ArrayList<>();
-                for (IndexInfo info : indexInfoList) {
-                    float[] emb = extractEmbedding(params, info.sourceId);
-                    Row row = toRow(info, emb.length);
-                    long id = insertIgnore(conn, row);
-                    if (id > 0) {
-                        syncFtsInsert(conn, id, row);
-                        newIds.add(new long[] {id, emb.length});
-                        vectors.add(emb);
-                    }
-                }
-                for (int i = 0; i < newIds.size(); i++) {
-                    long id = newIds.get(i)[0];
-                    int dim = (int) newIds.get(i)[1];
-                    float[] emb = vectors.get(i);
-                    if (dim > 0 && id > 0) {
-                        insertVec(conn, id, dim, emb);
-                    }
-                }
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
+        writeOps.batchSave(indexInfoList, params);
     }
-
-    /** 行模型（照 {@code sqliteEmbedding}）。 */
-    static final class Row {
-
-        long id;
-        String sourceId = "";
-        int sourceType;
-        String chunkId = "";
-        String knowledgeId = "";
-        String knowledgeBaseId = "";
-        String tagId = "";
-        String content = "";
-        int dimension;
-        boolean isEnabled = true;
-    }
-
-    /** 照 {@code toSQLiteEmbedding}：content 过 CleanInvalidUTF8；is_enabled 恒有值。 */
-    static Row toRow(IndexInfo info, int dimension) {
-        Row row = new Row();
-        row.sourceId = info.sourceId == null ? "" : info.sourceId;
-        row.sourceType = info.sourceType;
-        row.chunkId = info.chunkId == null ? "" : info.chunkId;
-        row.knowledgeId = info.knowledgeId == null ? "" : info.knowledgeId;
-        row.knowledgeBaseId = info.knowledgeBaseId == null ? "" : info.knowledgeBaseId;
-        row.tagId = info.tagId == null ? "" : info.tagId;
-        row.content = cleanInvalidUtf8(info.content);
-        row.dimension = dimension;
-        row.isEnabled = info.isEnabled;
-        return row;
-    }
-
-    /** 照 {@code extractEmbedding}：params["embedding"] 是 sourceID→向量的表。 */
-    static float[] extractEmbedding(Map<String, Object> params, String sourceId) {
-        if (params == null) {
-            return new float[0];
-        }
-        Object raw = params.get("embedding");
-        if (!(raw instanceof Map<?, ?> map)) {
-            return new float[0];
-        }
-        Object value = map.get(sourceId);
-        if (value instanceof float[] f) {
-            return f;
-        }
-        if (value instanceof List<?> list) {
-            float[] out = new float[list.size()];
-            for (int i = 0; i < list.size(); i++) {
-                out[i] = list.get(i) instanceof Number n ? n.floatValue() : 0f;
-            }
-            return out;
-        }
-        return new float[0];
-    }
-
-    /** 照 GORM 的 {@code OnConflict DoNothing}：唯一索引冲突 → 忽略并返回 0。 */
-    private long insertIgnore(Connection conn, Row row) throws SQLException {
-        String sql = "INSERT OR IGNORE INTO " + TABLE_EMBEDDINGS + "(created_at, updated_at,"
-                + " source_id, source_type, chunk_id, knowledge_id, knowledge_base_id, tag_id,"
-                + " content, dimension, is_enabled) VALUES(datetime('now'), datetime('now'),"
-                + " ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            setRowParams(ps, row);
-            int affected = ps.executeUpdate();
-            if (affected == 0) {
-                return 0;
-            }
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) {
-                    return keys.getLong(1);
-                }
-            }
-        }
-        return 0;
-    }
-
-    private static void setRowParams(PreparedStatement ps, Row row) throws SQLException {
-        ps.setString(1, row.sourceId);
-        ps.setInt(2, row.sourceType);
-        ps.setString(3, row.chunkId);
-        ps.setString(4, row.knowledgeId);
-        ps.setString(5, row.knowledgeBaseId);
-        ps.setString(6, row.tagId);
-        ps.setString(7, row.content);
-        ps.setInt(8, row.dimension);
-        ps.setInt(9, row.isEnabled ? 1 : 0);
-    }
-
-    /** 照 {@code syncFTS5Insert}：内容先过二元切分再进 FTS5。 */
-    private void syncFtsInsert(Connection conn, long id, Row row) throws SQLException {
-        if (id == 0) {
-            return;
-        }
-        String tokenized = SqliteCjkBigram.tokenize(row.content);
-        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO " + TABLE_FTS
-                + "(rowid, content, source_id, chunk_id, knowledge_id, knowledge_base_id)"
-                + " VALUES(?, ?, ?, ?, ?, ?)")) {
-            ps.setLong(1, id);
-            ps.setString(2, tokenized);
-            ps.setString(3, row.sourceId);
-            ps.setString(4, row.chunkId);
-            ps.setString(5, row.knowledgeId);
-            ps.setString(6, row.knowledgeBaseId);
-            ps.executeUpdate();
-        }
-    }
-
-    private void insertVec(Connection conn, long rowId, int dim, float[] emb) throws SQLException {
-        ensureVecTable(conn, dim);
-        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO " + vecTableName(dim)
-                + "(rowid, embedding) VALUES (?, ?)")) {
-            ps.setLong(1, rowId);
-            ps.setBytes(2, SqliteCjkBigram.serializeFloat32(emb));
-            ps.executeUpdate();
-        }
-    }
-
-    // ── 删除（照 Go：先查行 → 删向量/FTS → 删元数据） ──────────────────────
 
     @Override
     public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
             throws Exception {
-        deleteBy("chunk_id", chunkIdList);
+        writeOps.deleteByChunkIdList(chunkIdList, dimension, knowledgeType);
     }
 
     @Override
     public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
             throws Exception {
-        deleteBy("source_id", sourceIdList);
+        writeOps.deleteBySourceIdList(sourceIdList, dimension, knowledgeType);
     }
 
     @Override
     public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
                                         String knowledgeType) throws Exception {
-        deleteBy("knowledge_id", knowledgeIdList);
+        writeOps.deleteByKnowledgeIdList(knowledgeIdList, dimension, knowledgeType);
     }
-
-    private void deleteBy(String column, List<String> values) throws SQLException {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        try (Connection conn = open()) {
-            List<Row> rows = findRows(conn, column, values);
-            deleteRowsAndVecs(conn, rows);
-            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM " + TABLE_EMBEDDINGS
-                    + " WHERE " + column + " IN (" + placeholders(values.size()) + ")")) {
-                bindStrings(ps, 1, values);
-                ps.executeUpdate();
-            }
-        }
-    }
-
-    private List<Row> findRows(Connection conn, String column, List<String> values)
-            throws SQLException {
-        List<Row> rows = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement("SELECT id, dimension FROM "
-                + TABLE_EMBEDDINGS + " WHERE " + column + " IN ("
-                + placeholders(values.size()) + ")")) {
-            bindStrings(ps, 1, values);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Row row = new Row();
-                    row.id = rs.getLong(1);
-                    row.dimension = rs.getInt(2);
-                    rows.add(row);
-                }
-            }
-        }
-        return rows;
-    }
-
-    /** 照 {@code deleteRowsAndVecs}：只动"已建向量表"的维度，再删 FTS 行。 */
-    private void deleteRowsAndVecs(Connection conn, List<Row> rows) throws SQLException {
-        for (Row row : rows) {
-            if (row.dimension > 0 && vecTables.containsKey(row.dimension)) {
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM "
-                        + vecTableName(row.dimension) + " WHERE rowid = ?")) {
-                    ps.setLong(1, row.id);
-                    ps.executeUpdate();
-                }
-            }
-        }
-        for (Row row : rows) {
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM " + TABLE_FTS + " WHERE rowid = ?")) {
-                ps.setLong(1, row.id);
-                ps.executeUpdate();
-            }
-        }
-    }
-
-    // ── 批量更新（逐 chunk UPDATE 元数据，照 Go） ──────────────────────────
 
     @Override
     public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
             throws Exception {
-        if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
-            return;
-        }
-        try (Connection conn = open(); PreparedStatement ps = conn.prepareStatement(
-                "UPDATE " + TABLE_EMBEDDINGS + " SET is_enabled = ?, updated_at = datetime('now')"
-                        + " WHERE chunk_id = ?")) {
-            for (Map.Entry<String, Boolean> entry : chunkStatusMap.entrySet()) {
-                ps.setInt(1, Boolean.TRUE.equals(entry.getValue()) ? 1 : 0);
-                ps.setString(2, entry.getKey());
-                ps.executeUpdate();
-            }
-        }
+        writeOps.batchUpdateChunkEnabledStatus(chunkStatusMap);
     }
 
     @Override
     public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
-        if (chunkTagMap == null || chunkTagMap.isEmpty()) {
-            return;
-        }
-        try (Connection conn = open(); PreparedStatement ps = conn.prepareStatement(
-                "UPDATE " + TABLE_EMBEDDINGS + " SET tag_id = ?, updated_at = datetime('now')"
-                        + " WHERE chunk_id = ?")) {
-            for (Map.Entry<String, String> entry : chunkTagMap.entrySet()) {
-                ps.setString(1, entry.getValue() == null ? "" : entry.getValue());
-                ps.setString(2, entry.getKey());
-                ps.executeUpdate();
-            }
-        }
+        writeOps.batchUpdateChunkTagID(chunkTagMap);
     }
-
-    // ── 拷贝（照 Go：逐 chunk 读源行 → 新 UUID SourceID → 复制 FTS/向量） ──
 
     @Override
     public void copyIndices(String sourceKnowledgeBaseId,
@@ -663,88 +440,10 @@ public class SqliteRetrieveRepository
                             Map<String, String> sourceToTargetChunkIdMap,
                             String targetKnowledgeBaseId, int dimension, String knowledgeType)
             throws Exception {
-        if (sourceToTargetChunkIdMap == null || sourceToTargetChunkIdMap.isEmpty()) {
-            return;
-        }
-        try (Connection conn = open()) {
-            conn.setAutoCommit(false);
-            try {
-                for (Map.Entry<String, String> entry : sourceToTargetChunkIdMap.entrySet()) {
-                    String sourceChunkId = entry.getKey();
-                    String targetChunkId = entry.getValue();
-                    Row src = findByChunkId(conn, sourceChunkId);
-                    if (src == null) {
-                        continue;
-                    }
-                    Row target = new Row();
-                    target.sourceId = UUID.randomUUID().toString();
-                    target.sourceType = src.sourceType;
-                    target.chunkId = targetChunkId;
-                    target.knowledgeId = sourceToTargetKbIdMap == null ? ""
-                            : nullToEmpty(sourceToTargetKbIdMap.get(src.knowledgeId));
-                    target.knowledgeBaseId = targetKnowledgeBaseId;
-                    target.tagId = src.tagId;
-                    target.content = src.content;
-                    target.dimension = src.dimension;
-                    target.isEnabled = src.isEnabled;
-                    long newId = insertIgnore(conn, target);
-                    if (newId <= 0) {
-                        log.warn("[SQLite] CopyIndices: failed to copy chunk {}", sourceChunkId);
-                        continue;
-                    }
-                    syncFtsInsert(conn, newId, target);
-                    if (src.dimension > 0 && newId > 0) {
-                        copyVec(conn, src.id, newId, src.dimension);
-                    }
-                }
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
+        writeOps.copyIndices(sourceKnowledgeBaseId, sourceToTargetKbIdMap,
+                sourceToTargetChunkIdMap, targetKnowledgeBaseId, dimension, knowledgeType);
     }
 
-    private Row findByChunkId(Connection conn, String chunkId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT id, source_type, chunk_id,"
-                + " knowledge_id, knowledge_base_id, tag_id, content, dimension, is_enabled"
-                + " FROM " + TABLE_EMBEDDINGS + " WHERE chunk_id = ? LIMIT 1")) {
-            ps.setString(1, chunkId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return null;
-                }
-                Row row = new Row();
-                row.id = rs.getLong(1);
-                row.sourceType = rs.getInt(2);
-                row.chunkId = nullToEmpty(rs.getString(3));
-                row.knowledgeId = nullToEmpty(rs.getString(4));
-                row.knowledgeBaseId = nullToEmpty(rs.getString(5));
-                row.tagId = nullToEmpty(rs.getString(6));
-                row.content = nullToEmpty(rs.getString(7));
-                row.dimension = rs.getInt(8);
-                row.isEnabled = rs.getInt(9) != 0;
-                return row;
-            }
-        }
-    }
-
-    /** 照 {@code copyVec}：向量行整行复制（同一维度表内）。 */
-    private void copyVec(Connection conn, long srcId, long dstId, int dim) throws SQLException {
-        if (!vecTables.containsKey(dim)) {
-            return;
-        }
-        ensureVecTable(conn, dim);
-        String table = vecTableName(dim);
-        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO " + table
-                + "(rowid, embedding) SELECT ?, embedding FROM " + table + " WHERE rowid = ?")) {
-            ps.setLong(1, dstId);
-            ps.setLong(2, srcId);
-            ps.executeUpdate();
-        }
-    }
 
     // ── move（照 move.go：一条 UPDATE，FTS/向量行靠 rowid 关联不动） ───────
 
