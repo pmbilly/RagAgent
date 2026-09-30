@@ -2,10 +2,7 @@ package com.ragagent.llm.chat;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,7 +11,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
@@ -39,7 +35,6 @@ import com.ragagent.llm.provider.ProviderRegistry;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 
 /**
  * OpenAI 兼容 API 的聊天客户端（对照 Go internal/models/chat/remote_api.go 的
@@ -99,21 +94,16 @@ public class RemoteApiChat implements LlmChatClient {
     private static final Pattern DATA_URL_PATTERN =
             Pattern.compile("data:([^;\"\\s]*);base64,[A-Za-z0-9+/=]+");
 
-    /** 对照 Go utils.reservedHeaderKeys：不允许被用户自定义头覆盖的关键头。 */
-    private static final Set<String> RESERVED_HEADERS = Set.of(
-            "authorization", "api-key", "x-api-key", "x-goog-api-key", "content-type",
-            "content-length", "accept-encoding", "host", "connection", "transfer-encoding");
-
     final String modelName;
     private final String modelId;
     private final String baseUrl;
-    private final String apiKey;
+    final String apiKey;
     /** provider 名；未知厂商（Go 允许任意字符串，Java 枚举表达不了）为 null = Go 的 default 分支。 */
     final ProviderName provider;
-    private final String appId;
-    private final String appSecret;
+    final String appId;
+    final String appSecret;
     /** 用户在模型配置里指定的自定义 HTTP 头（类 OpenAI Python SDK 的 extra_headers）。 */
-    private final Map<String, String> customHeaders;
+    final Map<String, String> customHeaders;
     /** 仅 Azure 使用：URL 上的 api-version（对照 go-openai config.APIVersion）。 */
     private final String azureApiVersion;
 
@@ -121,6 +111,9 @@ public class RemoteApiChat implements LlmChatClient {
     private ProviderAdapter adapter;
     /** 来自 extra_config.thinking_control，非 null 时覆盖 adapter.thinking()。 */
     private final ThinkingStrategy thinkingOverride;
+
+    /** HTTP 传输协作者（对照 Go 裸 HTTP 段）。 */
+    final RemoteHttpOps httpOps;
 
     /** 出站组装协作者（对照 openai_request.go 段）。 */
     final RemoteApiRequestOps requestOps;
@@ -192,6 +185,7 @@ public class RemoteApiChat implements LlmChatClient {
                 ? (isBlank(apiVersion) ? DEFAULT_AZURE_API_VERSION : apiVersion)
                 : null;
         this.requestOps = new RemoteApiRequestOps(this);
+        this.httpOps = new RemoteHttpOps(this);
     }
 
     /**
@@ -283,90 +277,20 @@ public class RemoteApiChat implements LlmChatClient {
         return RemoteApiBodyCodec.goSorted(node);
     }
 
-    /** 组请求头（对照 Go chatWithRawHTTP/chatStreamWithRawHTTP 的头部设置顺序）。 */
-    private HttpHeaders buildHeaders(Outbound out, byte[] bodyBytes, boolean isStream) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Content-Type", "application/json");
-        adapter.auth(headers, authCreds(), bodyBytes);
-        if (isStream) {
-            headers.set("Accept", "text/event-stream");
-        }
-        applyCustomHeaders(headers, customHeaders);
-        PromptCache.attachPromptCacheHeaders(headers, out.policy(), out.sessionId());
-        return headers;
-    }
-
-    /** 对照 Go authCreds()。 */
-    private ProviderAdapter.AuthCreds authCreds() {
-        return new ProviderAdapter.AuthCreds(apiKey, appId, appSecret);
-    }
-
-    /** 对照 Go secutils.ApplyCustomHeaders：保留头跳过，其余覆盖。 */
-    private static void applyCustomHeaders(HttpHeaders headers, Map<String, String> custom) {
-        if (custom == null || custom.isEmpty()) {
-            return;
-        }
-        custom.forEach((key, value) -> {
-            String name = key == null ? "" : key.trim();
-            if (name.isEmpty() || RESERVED_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
-                return;
-            }
-            headers.set(name, value);
-        });
-    }
-
-    /** 发一次裸 HTTP 请求（对照 Go chatWithRawHTTP 的 SSRF 校验 + rawHTTPClient.Do）。 */
+    /** 薄委托：传输细节见 {@link RemoteHttpOps}。 */
     private HttpResponse<InputStream> sendRequest(Outbound out, Duration timeout, boolean isStream) {
-        byte[] bodyBytes = out.bodyBytes();
-        try {
-            LlmTransport.validateUrlForSsrf(out.endpoint());
-        } catch (RuntimeException e) {
-            throw BizException.internal("endpoint SSRF check failed: " + e.getMessage());
-        }
-        log.info("[LLM Request] Remote HTTP, endpoint={}, model={}, stream={}\n{}",
-                out.endpoint(), modelName, isStream,
-                compactForLog(new String(bodyBytes, StandardCharsets.UTF_8)));
-
-        HttpRequest.Builder builder;
-        try {
-            builder = HttpRequest.newBuilder(URI.create(out.endpoint()))
-                    .timeout(timeout)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(bodyBytes));
-        } catch (IllegalArgumentException e) {
-            throw BizException.internal("create request: " + e.getMessage());
-        }
-        buildHeaders(out, bodyBytes, isStream).forEach((name, values) ->
-                values.forEach(value -> builder.header(name, value)));
-
-        try {
-            return LlmTransport.send(builder.build());
-        } catch (IOException e) {
-            // getMessage() 可能为 null（如 EOFException），对照 Go fmt.Errorf("send request: %w")
-            // 会打出错误名，兜底用异常类名。
-            throw BizException.internal("send request: " + ioDetail(e));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw BizException.internal("send request interrupted");
-        }
+        return httpOps.sendRequest(out, timeout, isStream);
     }
 
-    private static String ioDetail(IOException e) {
-        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-    }
-
-    /** 非 200 时读出 body 并抛错（对照 Go 的 "API request failed with status %d: %s"）。 */
+    /** 薄委托：见 {@link RemoteHttpOps#readAll}。 */
     private static String readAll(InputStream in) {
-        try (in) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw BizException.internal("read response: " + e.getMessage());
-        }
+        return RemoteHttpOps.readAll(in);
     }
 
+    /** 薄委托：见 {@link RemoteHttpOps#statusError}。 */
     private static String statusError(HttpResponse<?> resp, String body) {
-        return "API request failed with status " + resp.statusCode() + ": " + body;
+        return RemoteHttpOps.statusError(resp, body);
     }
-
     // ------------------------------------------------------------------
     // 非流式（对照 remote_api.go Chat / chatWithRawHTTP）
     // ------------------------------------------------------------------
