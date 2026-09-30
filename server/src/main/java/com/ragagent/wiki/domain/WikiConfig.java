@@ -2,8 +2,6 @@ package com.ragagent.wiki.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -29,11 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 等已退役的键，Jackson 默认会报错——故本类的
  * {@link #fromJson(String)} 用配了 {@code FAIL_ON_UNKNOWN_PROPERTIES=false} 的 mapper。</p>
  */
-@JsonPropertyOrder({
-        "synthesis_model_id", "max_pages_per_ingest", "extraction_granularity",
-        "content_instructions", "extraction_instructions", "ingest_batch_size",
-        "ingest_map_parallel", "ingest_reduce_parallel", "ingest_max_inflight"
-})
 public class WikiConfig {
 
     /** 读路径宽容的 mapper（忽略未知字段） */
@@ -41,11 +34,9 @@ public class WikiConfig {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 用于 wiki 页面生成与更新的 LLM 模型 ID */
-    @JsonProperty("synthesis_model_id")
     private String synthesisModelId = "";
 
     /** 单次 ingest 允许创建/更新的页面数上限（0 = 不限） */
-    @JsonProperty("max_pages_per_ingest")
     private int maxPagesPerIngest;
 
     /**
@@ -53,37 +44,30 @@ public class WikiConfig {
      * （见 {@link WikiExtractionGranularity#normalize(String)}）。
      * 类型刻意保持 String：历史行/未设置的值是 ""，JSON 往返须保留空串。
      */
-    @JsonProperty("extraction_granularity")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String extractionGranularity = "";
 
     /** 控制生成 summary/entity/index 文案的语气、结构与侧重（引用与合并规则仍归系统所有） */
-    @JsonProperty("content_instructions")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String contentInstructions = "";
 
     /** 告诉候选抽取要强调哪些领域概念，但不替换稳定的 JSON/引用协议 */
-    @JsonProperty("extraction_instructions")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String extractionInstructions = "";
 
     /** 单批（batch）认领并处理的待办数；0 → 硬编码默认 5 */
-    @JsonProperty("ingest_batch_size")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestBatchSize;
 
     /** Map 阶段（逐文档抽取 + 摘要 + chunk 引用）的并发上限；0 → 默认 10 */
-    @JsonProperty("ingest_map_parallel")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestMapParallel;
 
     /** Reduce 阶段（逐 slug 写页面）的并发上限；0 → 默认 10 */
-    @JsonProperty("ingest_reduce_parallel")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestReduceParallel;
 
     /** 本知识库可同时运行的 ingest 批次数上限（共享 worker 池）；0 → 默认 4 */
-    @JsonProperty("ingest_max_inflight")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestMaxInflight;
 

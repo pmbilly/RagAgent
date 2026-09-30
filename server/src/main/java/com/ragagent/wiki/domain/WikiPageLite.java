@@ -5,8 +5,6 @@ import java.util.List;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * WikiPage 的瘦投影。
@@ -27,29 +25,22 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p>本类不是实体，仅作查询投影的 POJO；
  * jsonb 列需在 Mapper 的 {@code @Results} 里显式挂 {@link WikiStringListTypeHandler}。</p>
  */
-@JsonPropertyOrder({"slug", "title", "page_type", "status", "aliases", "out_links"})
 public class WikiPageLite {
 
-    @JsonProperty("slug")
     private String slug = "";
 
-    @JsonProperty("title")
     private String title = "";
 
     @TableField(value = "page_type")
-    @JsonProperty("page_type")
     private String pageType = "";
 
-    @JsonProperty("status")
     private String status = "";
 
     @TableField(value = "aliases", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("aliases")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> aliases = new ArrayList<>();
 
     @TableField(value = "out_links", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("out_links")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> outLinks = new ArrayList<>();
 

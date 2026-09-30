@@ -2,8 +2,6 @@ package com.ragagent.wiki.domain;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * {@code PUT /wiki/pages/*slug} 的部分更新载荷。JSON 键为 snake（§11 登记边界，前端按此解析）。
@@ -15,13 +13,5 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * @param version 乐观锁护栏：&gt; 0 时若库中版本不同则以冲突拒绝本次更新
  *                （客户端加载后有人改过）；0 跳过校验（兼容旧客户端）
  */
-@JsonPropertyOrder({"title", "content", "summary", "page_type", "status", "aliases", "version"})
-public record WikiPageUpdateRequest(
-        @JsonProperty("title") String title,
-        @JsonProperty("content") String content,
-        @JsonProperty("summary") String summary,
-        @JsonProperty("page_type") String pageType,
-        @JsonProperty("status") String status,
-        @JsonProperty("aliases") List<String> aliases,
-        @JsonProperty("version") int version) {
+public record WikiPageUpdateRequest( String title, String content, String summary, String pageType, String status, List<String> aliases, int version) {
 }

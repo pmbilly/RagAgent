@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 列出 wiki 页面的过滤 / 分页请求。JSON 键为 snake（§11 登记边界，前端按此解析）。
@@ -15,59 +13,44 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * 这是本类唯一需要小心的地方——{@code folderId = ""} 与 {@code folderId = null}
  * 不可混淆。</p>
  */
-@JsonPropertyOrder({
-        "knowledge_base_id", "page_type", "status", "query", "folder_id", "category_path",
-        "category_depth", "page", "page_size", "sort_by", "sort_order"
-})
 public class WikiPageListRequest {
 
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
     /** 按类型过滤；可带逗号分隔的多类型（"entity,concept"），按逗号切分 */
-    @JsonProperty("page_type")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String pageType = "";
 
     /** 按状态过滤 */
-    @JsonProperty("status")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String status = "";
 
     /** 全文检索词 */
-    @JsonProperty("query")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String query = "";
 
     /** 精确的文件夹归属（"" = 根）；<b>null = 不过滤</b> */
-    @JsonProperty("folder_id")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String folderId;
 
     /** 精确的目录路径（按 {@link WikiCategoryPaths#trimFolderSegments} 归一化后比较） */
-    @JsonProperty("category_path")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> categoryPath = new ArrayList<>();
 
     /** 精确的目录层级深度，含 0（根）；<b>null = 不过滤</b> */
-    @JsonProperty("category_depth")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Integer categoryDepth;
 
     /** 分页页码（1 起）；&lt;1 时按 1 处理 */
-    @JsonProperty("page")
     private int page;
 
     /** 分页大小；&lt;1 时按 20 处理 */
-    @JsonProperty("page_size")
     private int pageSize;
 
     /** "updated_at" | "created_at" | "title" | "page_type" | "wiki_path" | "sort_order" | "depth" */
-    @JsonProperty("sort_by")
     private String sortBy = "";
 
     /** "asc" 或 "desc"；非 "asc" 一律按 DESC */
-    @JsonProperty("sort_order")
     private String sortOrder = "";
 
     public String getKnowledgeBaseId() { return knowledgeBaseId; }

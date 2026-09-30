@@ -40,7 +40,7 @@ import org.springframework.test.web.servlet.MvcResult;
  * <p><b>Wiki 端点的响应形态与知识库/MCP 都不同</b>，这是本测试的核心价值：
  * <ul>
  *   <li>页面 CRUD 返回**裸实体**（无 success/data 信封）</li>
- *   <li>列表是自定义分页结构 {@code {"pages":[...],"total":N,"page":N,"page_size":N,"total_pages":N}}</li>
+ *   <li>列表是自定义分页结构 {@code {"pages":[...],"total":N,"page":N,"pageSize":N,"total_pages":N}}</li>
  *   <li>错误是**纯字符串** {@code {"error":"Wiki page not found"}}（不是 AppError 信封）</li>
  *   <li>403 走路由守卫：{@code {"error":"Forbidden: must own the resource or have the required role"}}</li>
  * </ul>
@@ -147,7 +147,7 @@ class WikiContractTest {
         MvcResult created = mockMvc.perform(post(base + "/pages")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"slug\":\"golden-page\",\"title\":\"Golden Page\",\"page_type\":\"summary\","
+                        .content("{\"slug\":\"golden-page\",\"title\":\"Golden Page\",\"pageType\":\"summary\","
                                 + "\"content\":\"# Golden\\n\\nContent with a [[other-page]] link.\","
                                 + "\"summary\":\"short summary\"}"))
                 .andExpect(status().isCreated())
@@ -163,7 +163,7 @@ class WikiContractTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String listBody = list.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        for (String key : new String[]{"\"pages\"", "\"total\"", "\"page\"", "\"page_size\"", "\"total_pages\""}) {
+        for (String key : new String[]{"\"pages\"", "\"total\"", "\"page\"", "\"pageSize\"", "\"totalPages\""}) {
             assertTrue(listBody.contains(key), "list 应含分页键 " + key + ": " + listBody);
         }
         assertFalse(listBody.contains("\"data\""), "list 无 data 信封: " + listBody);
@@ -198,7 +198,7 @@ class WikiContractTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String revBody = revs.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        for (String key : new String[]{"\"revisions\"", "\"total\"", "\"current_version\""}) {
+        for (String key : new String[]{"\"revisions\"", "\"total\"", "\"currentVersion\""}) {
             assertTrue(revBody.contains(key), "revisions 应含 " + key + ": " + revBody);
         }
     }
@@ -219,7 +219,7 @@ class WikiContractTest {
         mockMvc.perform(post(base + "/folders")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"Golden Folder\",\"parent_id\":\"\"}"))
+                        .content("{\"name\":\"Golden Folder\",\"parentId\":\"\"}"))
                 .andExpect(status().isCreated());
     }
 
@@ -238,20 +238,20 @@ class WikiContractTest {
 
         // graph → {nodes:[{slug,title,page_type,link_count}],edges,meta:{mode,total}}
         String graph = body(get(base + "/graph"), token);
-        for (String key : new String[]{"\"nodes\"", "\"slug\"", "\"link_count\"", "\"meta\"", "\"mode\""}) {
+        for (String key : new String[]{"\"nodes\"", "\"slug\"", "\"linkCount\"", "\"meta\"", "\"mode\""}) {
             assertTrue(graph.contains(key), "graph 应含 " + key + ": " + graph);
         }
 
         // stats → {total_pages,pages_by_type,total_links,orphan_count,recent_updates}
         String stats = body(get(base + "/stats"), token);
-        for (String key : new String[]{"\"total_pages\"", "\"pages_by_type\"", "\"total_links\"",
-                "\"orphan_count\"", "\"recent_updates\""}) {
+        for (String key : new String[]{"\"totalPages\"", "\"pagesByType\"", "\"totalLinks\"",
+                "\"orphanCount\"", "\"recentUpdates\""}) {
             assertTrue(stats.contains(key), "stats 应含 " + key + ": " + stats);
         }
 
         // lint → {knowledge_base_id,issues:[{type,severity,page_slug,description}]}
         String lint = body(get(base + "/lint"), token);
-        assertTrue(lint.contains("\"issues\"") && lint.contains("\"knowledge_base_id\""),
+        assertTrue(lint.contains("\"issues\"") && lint.contains("\"knowledgeBaseId\""),
                 "lint 形态: " + lint);
 
         // issues → 裸数组（无信封）

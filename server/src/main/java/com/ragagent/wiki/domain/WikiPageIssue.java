@@ -8,8 +8,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * wiki_page_issues 表实体（表结构以 migrations/versioned/000037_wiki_and_indexing.up.sql
@@ -29,52 +27,35 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * </ol>
  */
 @TableName(value = "wiki_page_issues", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "tenant_id", "knowledge_base_id", "slug", "issue_type", "description",
-        "suspected_knowledge_ids", "status", "reported_by", "created_at", "updated_at",
-        "deleted_at"
-})
 public class WikiPageIssue {
 
     @TableId(type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
-    @JsonProperty("slug")
     private String slug = "";
 
     @TableField(value = "issue_type")
-    @JsonProperty("issue_type")
     private String issueType = "";
 
-    @JsonProperty("description")
     private String description = "";
 
     @TableField(value = "suspected_knowledge_ids", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("suspected_knowledge_ids")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> suspectedKnowledgeIds = new ArrayList<>();
 
-    @JsonProperty("status")
     private String status = "";
 
     @TableField(value = "reported_by")
-    @JsonProperty("reported_by")
     private String reportedBy = "";
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     // ── 访问器 ──

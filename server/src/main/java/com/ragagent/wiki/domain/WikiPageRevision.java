@@ -9,8 +9,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * wiki_page_revisions 表实体（表结构以 migrations/versioned/000075_wiki_page_revisions.up.sql
@@ -35,68 +33,47 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * </ol>
  */
 @TableName(value = "wiki_page_revisions", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "tenant_id", "knowledge_base_id", "page_id", "slug", "version", "title",
-        "page_type", "status", "content", "summary", "aliases", "edit_source", "editor_id",
-        "edited_at", "created_at"
-})
 public class WikiPageRevision {
 
     @TableId(type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
-    @JsonProperty("page_id")
     private String pageId = "";
 
-    @JsonProperty("slug")
     private String slug = "";
 
-    @JsonProperty("version")
     private int version;
 
-    @JsonProperty("title")
     private String title = "";
 
-    @JsonProperty("page_type")
     private String pageType = "";
 
-    @JsonProperty("status")
     private String status = "";
 
     /** 正文快照；空时 JSON 省略（列表场景本就不取正文） */
-    @JsonProperty("content")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String content = "";
 
-    @JsonProperty("summary")
     private String summary = "";
 
     @TableField(typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("aliases")
     private List<String> aliases = new ArrayList<>();
 
     /** <b>本版本</b>的作者类型（语义同 WikiPage 的 lastEditSource） */
     @TableField(value = "edit_source")
-    @JsonProperty("edit_source")
     private String editSource = "";
 
     @TableField(value = "editor_id")
-    @JsonProperty("editor_id")
     private String editorId = "";
 
     /** 本版本的撰写时间（= 它还是当前版本时的 wiki_pages.updated_at） */
     @TableField(value = "edited_at")
-    @JsonProperty("edited_at")
     private OffsetDateTime editedAt;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
     // ── 访问器 ──

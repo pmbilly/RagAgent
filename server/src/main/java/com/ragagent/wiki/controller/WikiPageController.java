@@ -167,18 +167,18 @@ public class WikiPageController {
         requireWikiKB(kbId, false);
 
         int page = atoi(query(request, "page", "1"));
-        int pageSize = atoi(query(request, "page_size", "20"));
-        List<String> categoryPath = parseWikiCategoryPath(q(request, "category_path"));
+        int pageSize = atoi(query(request, "pageSize", "20"));
+        List<String> categoryPath = parseWikiCategoryPath(q(request, "categoryPath"));
 
         // "提供了空值" vs "没提供"是两种不同语义
         String folderId = null;
-        if (hasParam(request, "folder_id")) {
-            folderId = trimSpace(request.getParameter("folder_id"));
+        if (hasParam(request, "folderId")) {
+            folderId = trimSpace(request.getParameter("folderId"));
         }
 
         // 解析成功且 >= 0 才生效
         Integer categoryDepth = null;
-        String rawDepth = q(request, "category_depth");
+        String rawDepth = q(request, "categoryDepth");
         if (!rawDepth.isEmpty()) {
             Integer depth = atoiOrNull(rawDepth);
             if (depth != null && depth >= 0) {
@@ -188,7 +188,7 @@ public class WikiPageController {
 
         WikiPageListRequest req = new WikiPageListRequest();
         req.setKnowledgeBaseId(kbId);
-        req.setPageType(q(request, "page_type"));
+        req.setPageType(q(request, "pageType"));
         req.setStatus(q(request, "status"));
         req.setQuery(q(request, "query"));
         req.setFolderId(folderId);
@@ -196,8 +196,8 @@ public class WikiPageController {
         req.setCategoryDepth(categoryDepth);
         req.setPage(page);
         req.setPageSize(pageSize);
-        req.setSortBy(query(request, "sort_by", "updated_at"));
-        req.setSortOrder(query(request, "sort_order", "desc"));
+        req.setSortBy(query(request, "sortBy", "updated_at"));
+        req.setSortOrder(query(request, "sortOrder", "desc"));
 
         WikiPageListResponse resp;
         try {
@@ -313,7 +313,7 @@ public class WikiPageController {
         if (req.version() > 0 && req.version() != previousVersion) {
             // 键字母序：current_version < error
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("current_version", previousVersion);
+            body.put("currentVersion", previousVersion);
             body.put("error", "Wiki page was modified by someone else");
             return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
         }
@@ -518,9 +518,9 @@ public class WikiPageController {
     public ResponseEntity<?> listFolders(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
         requireWikiKB(kbId, false);
 
-        String parentId = trimSpace(request.getParameter("parent_id"));
+        String parentId = trimSpace(request.getParameter("parentId"));
         List<String> pageTypes = new ArrayList<>();
-        String raw = trimSpace(request.getParameter("page_types"));
+        String raw = trimSpace(request.getParameter("pageTypes"));
         if (!raw.isEmpty()) {
             for (String part : raw.split(",", -1)) {
                 String p = trimSpace(part);

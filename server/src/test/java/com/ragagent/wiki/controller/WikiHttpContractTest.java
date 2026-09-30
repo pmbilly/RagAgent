@@ -285,7 +285,7 @@ class WikiHttpContractTest {
     @Test
     void listPagesReturnsStructOrderWithoutEnvelope() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages")
                 .header("Authorization", "Bearer " + token)));
@@ -294,8 +294,8 @@ class WikiHttpContractTest {
         int iPages = body.indexOf("\"pages\"");
         int iTotal = body.indexOf("\"total\"");
         int iPage = body.indexOf("\"page\"");
-        int iPageSize = body.indexOf("\"page_size\"");
-        int iTotalPages = body.indexOf("\"total_pages\"");
+        int iPageSize = body.indexOf("\"pageSize\"");
+        int iTotalPages = body.indexOf("\"totalPages\"");
         assertTrue(iPages < iTotal && iTotal < iPage && iPage < iPageSize && iPageSize < iTotalPages,
                 "字段序必须是 pages,total,page,page_size,total_pages：" + body);
         assertFalse(body.contains("\"success\""), "不应该是 data 信封：" + body);
@@ -304,11 +304,11 @@ class WikiHttpContractTest {
     @Test
     void listPagesHonoursTypeFilter() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
-        createPage(token, "{\"slug\":\"concept/rag\",\"title\":\"RAG\",\"page_type\":\"concept\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
+        createPage(token, "{\"slug\":\"concept/rag\",\"title\":\"RAG\",\"pageType\":\"concept\"}");
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages")
-                .param("page_type", "entity")
+                .param("pageType", "entity")
                 .header("Authorization", "Bearer " + token)));
         assertTrue(body.contains("\"total\":1"), body);
         assertTrue(body.contains("entity/acme"), body);
@@ -322,18 +322,18 @@ class WikiHttpContractTest {
         MvcResult r = perform(post("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\","
+                .content("{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\","
                         + "\"content\":\"Body\"}"));
 
         assertEquals(201, r.getResponse().getStatus(), body(r));
         String body = body(r);
         assertFalse(body.contains("\"success\""), "实体直出不得带 data/success 信封：" + body);
         int iId = body.indexOf("\"id\":\"");
-        int iTenant = body.indexOf("\"tenant_id\":");
-        int iKb = body.indexOf("\"knowledge_base_id\":");
+        int iTenant = body.indexOf("\"tenantId\":");
+        int iKb = body.indexOf("\"knowledgeBaseId\":");
         int iSlug = body.indexOf("\"slug\":");
         int iTitle = body.indexOf("\"title\":");
-        int iPageType = body.indexOf("\"page_type\":");
+        int iPageType = body.indexOf("\"pageType\":");
         assertTrue(iId == 1 && iId < iTenant && iTenant < iKb && iKb < iSlug
                 && iSlug < iTitle && iTitle < iPageType, "实体键序错误：" + body);
         // 服务侧补的默认值（对照 Go：status 空 → published，version 0 → 1）
@@ -349,14 +349,14 @@ class WikiHttpContractTest {
         MvcResult bad = perform(post("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"slug\":\"x\",\"page_type\":\"bogus\"}"));
+                .content("{\"slug\":\"x\",\"pageType\":\"bogus\"}"));
         assertEquals(400, bad.getResponse().getStatus(), body(bad));
         assertEquals("{\"error\":\"Invalid page_type: bogus\"}", body(bad));
 
         MvcResult empty = perform(post("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"slug\":\"y\",\"page_type\":\"\",\"status\":\"\"}"));
+                .content("{\"slug\":\"y\",\"pageType\":\"\",\"status\":\"\"}"));
         assertEquals(201, empty.getResponse().getStatus(), body(empty));
     }
 
@@ -375,7 +375,7 @@ class WikiHttpContractTest {
     @Test
     void getPageResolvesMultiSegmentSlug() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages/entity/acme")
                 .header("Authorization", "Bearer " + token)));
@@ -399,7 +399,7 @@ class WikiHttpContractTest {
     @Test
     void updatePageVersionConflictReturns409WithCurrentVersion() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         MvcResult r = perform(put("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages/entity/acme")
                 .header("Authorization", "Bearer " + token)
@@ -407,7 +407,7 @@ class WikiHttpContractTest {
                 .content("{\"title\":\"Acme 2\",\"version\":99}"));
 
         assertEquals(409, r.getResponse().getStatus(), body(r));
-        assertEquals("{\"current_version\":1,\"error\":\"Wiki page was modified by someone else\"}",
+        assertEquals("{\"currentVersion\":1,\"error\":\"Wiki page was modified by someone else\"}",
                 body(r));
     }
 
@@ -415,7 +415,7 @@ class WikiHttpContractTest {
     @Test
     void updatePageMergesAbsentFieldsAndBumpsVersion() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\","
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\","
                 + "\"summary\":\"keep me\"}");
 
         MvcResult r = perform(put("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages/entity/acme")
@@ -432,7 +432,7 @@ class WikiHttpContractTest {
     @Test
     void updatePageRejectsInvalidStatus() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         MvcResult r = perform(put("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages/entity/acme")
                 .header("Authorization", "Bearer " + token)
@@ -446,7 +446,7 @@ class WikiHttpContractTest {
     @Test
     void deletePageReturns204ThenGetReturns404() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         MvcResult del = perform(delete("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/pages/entity/acme")
                 .header("Authorization", "Bearer " + token));
@@ -462,7 +462,7 @@ class WikiHttpContractTest {
     @Test
     void listRevisionsReturnsCurrentVersionAndHistory() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\","
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\","
                 + "\"content\":\"v1\"}");
         editPage(token, "v2");
 
@@ -470,10 +470,10 @@ class WikiHttpContractTest {
                 .header("Authorization", "Bearer " + token)));
         int iRev = body.indexOf("\"revisions\"");
         int iTotal = body.indexOf("\"total\"");
-        int iCur = body.indexOf("\"current_version\"");
+        int iCur = body.indexOf("\"currentVersion\"");
         assertTrue(iRev == 1 && iRev < iTotal && iTotal < iCur,
                 "字段序必须是 revisions,total,current_version：" + body);
-        assertTrue(body.contains("\"current_version\":2"), body);
+        assertTrue(body.contains("\"currentVersion\":2"), body);
         assertTrue(body.contains("\"total\":1"), body);
     }
 
@@ -481,7 +481,7 @@ class WikiHttpContractTest {
     @Test
     void singleRevisionIncludesContentAndRejectsBadVersion() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\","
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\","
                 + "\"content\":\"v1\"}");
         editPage(token, "v2");
 
@@ -514,7 +514,7 @@ class WikiHttpContractTest {
     @Test
     void revertToCurrentVersionReturns400() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         MvcResult r = perform(post("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/revert")
                 .header("Authorization", "Bearer " + token)
@@ -528,7 +528,7 @@ class WikiHttpContractTest {
     @Test
     void revertToOlderRevisionAppliesAsNormalEdit() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\","
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\","
                 + "\"content\":\"v1\"}");
         editPage(token, "v2");
 
@@ -588,17 +588,17 @@ class WikiHttpContractTest {
     @Test
     void movePageIntoFolderUpdatesCategoryPath() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
         String folderId = createFolder(token, "", "AI");
 
         MvcResult r = perform(put("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/move-page")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"slug\":\"entity/acme\",\"folder_id\":\"" + folderId + "\"}"));
+                .content("{\"slug\":\"entity/acme\",\"folderId\":\"" + folderId + "\"}"));
 
         assertEquals(200, r.getResponse().getStatus(), body(r));
-        assertTrue(body(r).contains("\"folder_id\":\"" + folderId + "\""), body(r));
-        assertTrue(body(r).contains("\"category_path\":[\"AI\"]"), body(r));
+        assertTrue(body(r).contains("\"folderId\":\"" + folderId + "\""), body(r));
+        assertTrue(body(r).contains("\"categoryPath\":[\"AI\"]"), body(r));
     }
 
     /** 文件夹 CRUD + {@code writeWikiFolderError} 的三分支状态码。 */
@@ -612,7 +612,7 @@ class WikiHttpContractTest {
         MvcResult dup = perform(post("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/folders")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"parent_id\":\"\",\"name\":\"AI\"}"));
+                .content("{\"parentId\":\"\",\"name\":\"AI\"}"));
         assertEquals(409, dup.getResponse().getStatus(), body(dup));
         assertEquals("{\"error\":\"wiki folder name conflict\"}", body(dup));
 
@@ -658,23 +658,23 @@ class WikiHttpContractTest {
         String token = loginOwner();
         String parent = createFolder(token, "", "AI");
         String child = createFolder(token, parent, "LLM");
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
         movePage(token, "entity/acme", child);
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/folders")
                 .header("Authorization", "Bearer " + token)));
-        assertTrue(body.startsWith("{\"parent_id\":\"\",\"folders\":["), body);
+        assertTrue(body.startsWith("{\"parentId\":\"\",\"folders\":["), body);
         assertTrue(body.contains("\"name\":\"AI\""), body);
         assertTrue(body.contains("\"path\":\"AI\""), body);
-        assertTrue(body.contains("\"page_count\":1"), "父节点的计数是递归的：" + body);
-        assertTrue(body.contains("\"has_children\":true"), body);
+        assertTrue(body.contains("\"pageCount\":1"), "父节点的计数是递归的：" + body);
+        assertTrue(body.contains("\"hasChildren\":true"), body);
         assertFalse(body.contains("LLM"), "根层级只列直接子节点：" + body);
 
         String children = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/folders")
-                .param("parent_id", parent)
+                .param("parentId", parent)
                 .header("Authorization", "Bearer " + token)));
         assertTrue(children.contains("\"name\":\"LLM\""), children);
-        assertTrue(children.contains("\"has_children\":false"), children);
+        assertTrue(children.contains("\"hasChildren\":false"), children);
     }
 
     // ═══════════════════════════ 索引 / 图谱 / 统计 ═══════════════════════════
@@ -682,7 +682,7 @@ class WikiHttpContractTest {
     @Test
     void indexReturnsIntroVersionGroups() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\","
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\","
                 + "\"summary\":\"s\"}");
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/index")
@@ -718,7 +718,7 @@ class WikiHttpContractTest {
     @Test
     void graphClampsOversizedParams() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI
                 + "/wiki/graph?mode=ego&center=entity/acme&depth=99&limit=99999")
@@ -734,7 +734,7 @@ class WikiHttpContractTest {
     @Test
     void graphDefaultsToOverview() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/graph")
                 .header("Authorization", "Bearer " + token)));
@@ -748,17 +748,17 @@ class WikiHttpContractTest {
     @Test
     void statsReturnsAggregateInDeclarationOrder() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/stats")
                 .header("Authorization", "Bearer " + token)));
-        assertTrue(body.startsWith("{\"total_pages\":1"), body);
-        int iPages = body.indexOf("\"total_pages\"");
-        int iByType = body.indexOf("\"pages_by_type\"");
-        int iLinks = body.indexOf("\"total_links\"");
-        int iOrphan = body.indexOf("\"orphan_count\"");
+        assertTrue(body.startsWith("{\"totalPages\":1"), body);
+        int iPages = body.indexOf("\"totalPages\"");
+        int iByType = body.indexOf("\"pagesByType\"");
+        int iLinks = body.indexOf("\"totalLinks\"");
+        int iOrphan = body.indexOf("\"orphanCount\"");
         assertTrue(iPages < iByType && iByType < iLinks && iLinks < iOrphan, body);
-        assertTrue(body.contains("\"is_active\":false"), body);
+        assertTrue(body.contains("\"active\":false"), body);
     }
 
     // ═══════════════════════════ 检索 / 维护 / 问题 ═══════════════════════════
@@ -766,7 +766,7 @@ class WikiHttpContractTest {
     @Test
     void searchRequiresQueryAndWrapsResultInPagesKey() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         MvcResult missing = perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/search")
                 .header("Authorization", "Bearer " + token));
@@ -792,17 +792,17 @@ class WikiHttpContractTest {
     @Test
     void lintReturnsReportInDeclarationOrderAndAutoFixReturnsFixedCount() throws Exception {
         String token = loginOwner();
-        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"page_type\":\"entity\"}");
+        createPage(token, "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"pageType\":\"entity\"}");
 
         String report = body(perform(get("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/lint")
                 .header("Authorization", "Bearer " + token)));
-        int iKb = report.indexOf("\"knowledge_base_id\"");
+        int iKb = report.indexOf("\"knowledgeBaseId\"");
         int iIssues = report.indexOf("\"issues\"");
-        int iScore = report.indexOf("\"health_score\"");
+        int iScore = report.indexOf("\"healthScore\"");
         int iStats = report.indexOf("\"stats\"");
         int iSummary = report.indexOf("\"summary\"");
         assertTrue(iKb == 1 && iKb < iIssues && iIssues < iScore && iScore < iStats && iStats < iSummary,
-                "字段序必须是 knowledge_base_id,issues,health_score,stats,summary：" + report);
+                "字段序必须是 knowledgeBaseId,issues,healthScore,stats,summary：" + report);
 
         String fix = body(perform(post("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/auto-fix")
                 .header("Authorization", "Bearer " + token)));
@@ -885,7 +885,7 @@ class WikiHttpContractTest {
         MvcResult r = perform(post("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/folders")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"parent_id\":\"" + parentId + "\",\"name\":\"" + name + "\"}"));
+                .content("{\"parentId\":\"" + parentId + "\",\"name\":\"" + name + "\"}"));
         assertEquals(201, r.getResponse().getStatus(), "建目录应成功：" + body(r));
         return jsonString(body(r), "id");
     }
@@ -894,7 +894,7 @@ class WikiHttpContractTest {
         MvcResult r = perform(put("/api/v1/knowledgebase/" + KB_WIKI + "/wiki/move-page")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"slug\":\"" + slug + "\",\"folder_id\":\"" + folderId + "\"}"));
+                .content("{\"slug\":\"" + slug + "\",\"folderId\":\"" + folderId + "\"}"));
         assertEquals(200, r.getResponse().getStatus(), body(r));
     }
 

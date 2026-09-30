@@ -1,7 +1,5 @@
 package com.ragagent.wiki.domain;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 /**
@@ -14,17 +12,13 @@ import com.fasterxml.jackson.annotation.JsonUnwrapped;
  * <p>额外带两个字段，让 UI 不必二次请求就能渲染展开箭头：<b>直接</b>位于本文件夹下的
  * 活跃页面数，以及是否有子文件夹。</p>
  */
-@JsonPropertyOrder({"id", "tenant_id", "knowledge_base_id", "parent_id", "name", "path", "depth",
-        "sort_order", "created_at", "updated_at", "deleted_at", "page_count", "has_children"})
 public class WikiFolderNode {
 
     @JsonUnwrapped
     private WikiFolder folder;
 
-    @JsonProperty("page_count")
     private long pageCount;
 
-    @JsonProperty("has_children")
     private boolean hasChildren;
 
     public WikiFolderNode() {

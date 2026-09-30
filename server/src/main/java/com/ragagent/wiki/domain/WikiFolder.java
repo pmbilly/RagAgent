@@ -6,8 +6,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * wiki_folders 表实体（表结构以 migrations/versioned/000037_wiki_and_indexing.up.sql
@@ -32,47 +30,32 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * </ol>
  */
 @TableName(value = "wiki_folders", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "tenant_id", "knowledge_base_id", "parent_id", "name", "path", "depth",
-        "sort_order", "created_at", "updated_at", "deleted_at"
-})
 public class WikiFolder {
 
     @TableId(type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
     /** 父文件夹 id；{@link WikiConstants#FOLDER_ROOT_ID}（""）= 根 */
     @TableField(value = "parent_id")
-    @JsonProperty("parent_id")
     private String parentId = "";
 
-    @JsonProperty("name")
     private String name = "";
 
     /** 物化的 "/" 连接名链，如 "AI/LLM"；仅用于展示与排序 */
-    @JsonProperty("path")
     private String path = "";
 
-    @JsonProperty("depth")
     private int depth;
 
-    @JsonProperty("sort_order")
     private int sortOrder;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     // ── 访问器 ──

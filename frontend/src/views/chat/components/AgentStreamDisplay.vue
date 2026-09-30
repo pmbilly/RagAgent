@@ -528,8 +528,8 @@
       <div class="wiki-reader-meta"
         style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <t-tag size="small" :theme="getTypeTheme(wikiDrawerPage.page_type)" variant="light-outline">
-            {{ getTypeLabel(wikiDrawerPage.page_type) }}
+          <t-tag size="small" :theme="getTypeTheme(wikiDrawerPage.pageType)" variant="light-outline">
+            {{ getTypeLabel(wikiDrawerPage.pageType) }}
           </t-tag>
           <span class="wiki-reader-meta-text">{{ $t('knowledgeEditor.wikiBrowser.version', {
             ver: wikiDrawerPage.version
@@ -713,7 +713,7 @@ const formatMCPToolName = (rawName: string): string => {
 };
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-const ID_LABEL_RE = /\b(knowledge_base_id|knowledge_id|chunk_id|knowledge_base_ids)\s*[:=]\s*/gi;
+const ID_LABEL_RE = /\b(knowledgeBaseId|knowledge_id|chunk_id|knowledge_base_ids)\s*[:=]\s*/gi;
 
 const sanitizeForDisplay = (text: string): string => {
   if (!text) return text;
@@ -1218,7 +1218,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
           source: getLocalizedToolName(toolName),
           tool: toolName,
           ...(item.slug ? { slug: item.slug } : {}),
-          ...(item.knowledgeBaseId ? { knowledge_base_id: item.knowledgeBaseId } : {}),
+          ...(item.knowledgeBaseId ? { knowledgeBaseId: item.knowledgeBaseId } : {}),
         },
       }));
   }
@@ -1275,7 +1275,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
         id: item.chunk_id || `${item.knowledge_id}-${item.result_index ?? index + 1}`,
         knowledge_id: item.knowledge_id,
         knowledge_title: item.faq_standard_question || item.knowledge_title,
-        knowledge_base_id: item.knowledge_base_id || fallbackKnowledgeBaseId,
+        knowledgeBaseId: item.knowledge_base_id || fallbackKnowledgeBaseId,
         chunk_index: item.result_index ?? index + 1,
         chunk_type: item.chunk_type,
         content: item.content || '',
@@ -1292,7 +1292,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
           chunk_ids: group.chunks.map((chunk) => chunk.chunk_id).filter(Boolean),
           knowledge_id: group.knowledge_id,
           knowledge_title: group.title,
-          knowledge_base_id: group.knowledge_base_id,
+          knowledgeBaseId: group.knowledge_base_id,
           chunk_index: index + 1,
           chunk_type: group.is_faq ? 'faq' : undefined,
           content: group.chunks.map((chunk) => chunk.content).filter(Boolean).slice(0, 3).join('\n\n') || group.match_snippet || '',
@@ -1306,7 +1306,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
         id: item.knowledge_id,
         knowledge_id: item.knowledge_id,
         knowledge_title: item.faq_question || item.knowledge_title,
-        knowledge_base_id: item.knowledge_base_id,
+        knowledgeBaseId: item.knowledge_base_id,
         chunk_index: index + 1,
         content: item.match_snippet || '',
       })));
@@ -1321,7 +1321,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
           id: item.chunk_id || item.id || `${toolData.knowledge_id || 'doc'}-${index + 1}`,
           knowledge_id: item.knowledge_id || toolData.knowledge_id,
           knowledge_title: toolData.faq_question || toolData.knowledge_title || toolData.knowledge_id,
-          knowledge_base_id: item.knowledge_base_id || toolData.knowledge_base_id,
+          knowledgeBaseId: item.knowledge_base_id || toolData.knowledge_base_id,
           chunk_index: item.chunk_index ?? item.index ?? index + 1,
           chunk_type: item.chunk_type || (toolData.faq_question ? 'faq' : undefined),
           content: item.content || '',

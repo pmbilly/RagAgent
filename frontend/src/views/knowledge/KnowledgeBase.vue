@@ -1281,7 +1281,7 @@ type KnowledgeCard = {
   display_name?: string;
   title?: string;
   type?: string;
-  updated_at?: string;
+  updatedAt?: string;
   fileType?: string;
   isMore?: boolean;
   metadata?: any;
@@ -2248,8 +2248,8 @@ const getTitle = (session_id: string, value: string) => {
     id: session_id,
     isMore: false,
     isNoTitle: true,
-    created_at: now,
-    updated_at: now
+    createdAt: now,
+    updatedAt: now
   };
   usemenuStore.updataMenuChildren(obj);
   usemenuStore.changeIsFirstSession(true);

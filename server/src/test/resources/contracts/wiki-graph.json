@@ -1,1 +1,1 @@
-{"nodes":[{"slug":"golden-page","title":"Golden Page Renamed","page_type":"summary","link_count":1},{"slug":"index","title":"Index","page_type":"index","link_count":0}],"edges":null,"meta":{"mode":"overview","total":2,"returned":2,"truncated":false}}
+{"nodes":[{"slug":"golden-page","title":"Golden Page Renamed","pageType":"summary","linkCount":1},{"slug":"index","title":"Index","pageType":"index","linkCount":0}],"edges":null,"meta":{"mode":"overview","total":2,"returned":2,"truncated":false}}

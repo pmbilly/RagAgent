@@ -192,7 +192,7 @@ const expandedResourceIds = ref(new Set<string>())
 const loadedChildrenIds = ref(new Set<string>())
 const loadingChildrenIds = ref(new Set<string>())
 // True when the initial listing already returned the whole tree (connectors like
-// Notion populate parent_id on the first call). In that case expanding a node
+// Notion populate parentId on the first call). In that case expanding a node
 // never needs an extra request.
 const treeFullyLoaded = ref(false)
 

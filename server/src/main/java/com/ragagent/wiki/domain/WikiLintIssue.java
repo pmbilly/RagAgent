@@ -1,8 +1,6 @@
 package com.ragagent.wiki.domain;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 单条 wiki 体检发现。
@@ -13,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p><b>@JsonInclude 说明</b>：{@code target_slug} 空串时整个键省略；
  * 其余字段恒输出。</p>
  */
-@JsonPropertyOrder({"type", "severity", "page_slug", "target_slug", "description", "auto_fixable"})
 public class WikiLintIssue {
 
     // ── 问题类型 ──
@@ -40,13 +37,10 @@ public class WikiLintIssue {
     public static final String SEVERITY_WARNING = "warning";
     public static final String SEVERITY_ERROR = "error";
 
-    @JsonProperty("type")
     private String type = "";
 
-    @JsonProperty("severity")
     private String severity = "";
 
-    @JsonProperty("page_slug")
     private String pageSlug = "";
 
     /**
@@ -54,14 +48,11 @@ public class WikiLintIssue {
      * 或陈旧引用对应的 knowledge id。AutoFix 用这个<b>结构化字段</b>而不是解析
      * Description 文本。
      */
-    @JsonProperty("target_slug")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String targetSlug = "";
 
-    @JsonProperty("description")
     private String description = "";
 
-    @JsonProperty("auto_fixable")
     private boolean autoFixable;
 
     public WikiLintIssue() {}

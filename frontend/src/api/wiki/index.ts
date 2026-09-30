@@ -11,52 +11,52 @@ function encodeSlugPath(slug: string): string {
 // Wiki Page Types
 export interface WikiPage {
   id: string;
-  tenant_id: number;
-  knowledge_base_id: string;
+  tenantId: number;
+  knowledgeBaseId: string;
   slug: string;
   title: string;
-  page_type: string;
+  pageType: string;
   status: string;
   content: string;
   summary: string;
   aliases: string[];
-  parent_slug?: string;
-  category_path?: string[];
-  wiki_path?: string;
+  parentSlug?: string;
+  categoryPath?: string[];
+  wikiPath?: string;
   depth?: number;
-  sort_order?: number;
-  source_refs: string[];
-  in_links: string[];
-  out_links: string[];
-  page_metadata: Record<string, any>;
+  sortOrder?: number;
+  sourceRefs: string[];
+  inLinks: string[];
+  outLinks: string[];
+  pageMetadata: Record<string, any>;
   version: number;
   // Author kind of the current version: 'pipeline' | 'agent' | 'user' |
   // 'revert'. Empty/missing on legacy rows (treat as 'pipeline').
-  last_edit_source?: string;
-  last_editor_id?: string;
-  created_at: string;
-  updated_at: string;
+  lastEditSource?: string;
+  lastEditorId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WikiPageListResponse {
   pages: WikiPage[];
   total: number;
   page: number;
-  page_size: number;
-  total_pages: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 export interface WikiFolder {
   id: string;
-  tenant_id: number;
-  knowledge_base_id: string;
-  parent_id: string;
+  tenantId: number;
+  knowledgeBaseId: string;
+  parentId: string;
   name: string;
   path: string;
   depth: number;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WikiFolderNode extends WikiFolder {
@@ -65,7 +65,7 @@ export interface WikiFolderNode extends WikiFolder {
 }
 
 export interface WikiFolderListResponse {
-  parent_id: string;
+  parentId: string;
   folders: WikiFolderNode[];
 }
 
@@ -80,13 +80,13 @@ export interface WikiGraphMeta {
 }
 
 export interface WikiGraphData {
-  nodes: { slug: string; title: string; page_type: string; link_count: number; familiar?: boolean }[];
+  nodes: { slug: string; title: string; pageType: string; linkCount: number; familiar?: boolean }[];
   edges: { source: string; target: string }[];
   meta: WikiGraphMeta;
 }
 
 export interface WikiStats {
-  total_pages: number;
+  totalPages: number;
   pages_by_type: Record<string, number>;
   total_links: number;
   orphan_count: number;
@@ -98,29 +98,29 @@ export interface WikiStats {
 
 export interface WikiPageIssue {
   id: string;
-  tenant_id: number;
-  knowledge_base_id: string;
+  tenantId: number;
+  knowledgeBaseId: string;
   slug: string;
   issue_type: string;
   description: string;
   suspected_knowledge_ids: string[];
   status: string;
   reported_by: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Wiki API Functions
 export function listWikiPages(kbId: string, params?: {
-  page_type?: string;
+  pageType?: string;
   status?: string;
   query?: string;
-  category_path?: string;
-  category_depth?: number;
+  categoryPath?: string;
+  categoryDepth?: number;
   page?: number;
-  page_size?: number;
-  sort_by?: string;
-  sort_order?: string;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: string;
 }) {
   const query = new URLSearchParams();
   if (params) {
@@ -142,23 +142,23 @@ export function listWikiPages(kbId: string, params?: {
 // counted within those types.
 export function listWikiFolders(kbId: string, parentId = '', pageTypes = '') {
   const query = new URLSearchParams();
-  if (parentId) query.set('parent_id', parentId);
-  if (pageTypes) query.set('page_types', pageTypes);
+  if (parentId) query.set('parentId', parentId);
+  if (pageTypes) query.set('pageTypes', pageTypes);
   const qs = query.toString();
   return get(`/api/v1/knowledgebase/${kbId}/wiki/folders${qs ? '?' + qs : ''}`);
 }
 
 // createWikiFolder creates a new empty folder under parentId ("" = root).
 export function createWikiFolder(kbId: string, parentId: string, name: string) {
-  return post(`/api/v1/knowledgebase/${kbId}/wiki/folders`, { parent_id: parentId, name });
+  return post(`/api/v1/knowledgebase/${kbId}/wiki/folders`, { parentId: parentId, name });
 }
 
-// updateWikiFolder renames and/or reparents a folder. Pass move_parent: true
+// updateWikiFolder renames and/or reparents a folder. Pass moveParent: true
 // (and parent_id) to reparent; omit it for a pure rename.
 export function updateWikiFolder(
   kbId: string,
   folderId: string,
-  data: { name?: string; parent_id?: string; move_parent?: boolean },
+  data: { name?: string; parentId?: string; moveParent?: boolean },
 ) {
   return put(`/api/v1/knowledgebase/${kbId}/wiki/folders/${folderId}`, data);
 }
@@ -171,7 +171,7 @@ export function deleteWikiFolder(kbId: string, folderId: string) {
 // moveWikiPage relocates a page into folderId ("" = root). The slug is sent in
 // the body because wiki slugs are hierarchical.
 export function moveWikiPage(kbId: string, slug: string, folderId: string) {
-  return put(`/api/v1/knowledgebase/${kbId}/wiki/move-page`, { slug, folder_id: folderId });
+  return put(`/api/v1/knowledgebase/${kbId}/wiki/move-page`, { slug, folderId: folderId });
 }
 
 export function createWikiPage(kbId: string, data: Partial<WikiPage>) {
@@ -190,7 +190,7 @@ export interface WikiPageUpdatePayload {
   title?: string;
   content?: string;
   summary?: string;
-  page_type?: string;
+  pageType?: string;
   status?: string;
   aliases?: string[];
   version?: number;
@@ -208,13 +208,13 @@ export function deleteWikiPage(kbId: string, slug: string) {
 // `content` is only populated when fetching a single revision.
 export interface WikiPageRevision {
   id: string;
-  tenant_id: number;
-  knowledge_base_id: string;
+  tenantId: number;
+  knowledgeBaseId: string;
   page_id: string;
   slug: string;
   version: number;
   title: string;
-  page_type: string;
+  pageType: string;
   status: string;
   content?: string;
   summary: string;
@@ -222,13 +222,13 @@ export interface WikiPageRevision {
   edit_source: string;
   editor_id: string;
   edited_at: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface WikiRevisionListResponse {
   revisions: WikiPageRevision[];
   total: number;
-  current_version: number;
+  currentVersion: number;
 }
 
 // listWikiRevisions returns the page's historical snapshots newest-first
@@ -258,11 +258,11 @@ export interface WikiIndexEntryDTO {
   slug: string;
   title: string;
   summary: string;
-  parent_slug?: string;
-  category_path?: string[];
-  wiki_path?: string;
+  parentSlug?: string;
+  categoryPath?: string[];
+  wikiPath?: string;
   depth?: number;
-  sort_order?: number;
+  sortOrder?: number;
 }
 
 export interface WikiIndexGroup {

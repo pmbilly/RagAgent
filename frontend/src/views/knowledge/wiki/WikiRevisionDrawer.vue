@@ -14,8 +14,8 @@
               <span class="wiki-rev-current-label">{{ t('knowledgeEditor.wikiBrowser.revisionCurrent') }}</span>
             </div>
             <div class="wiki-rev-item-secondary">
-              <span>{{ sourceLabel(currentPage.last_edit_source) }}</span>
-              <span class="wiki-rev-time">{{ formatShortTime(currentPage.updated_at) }}</span>
+              <span>{{ sourceLabel(currentPage.lastEditSource) }}</span>
+              <span class="wiki-rev-time">{{ formatShortTime(currentPage.updatedAt) }}</span>
             </div>
           </div>
 

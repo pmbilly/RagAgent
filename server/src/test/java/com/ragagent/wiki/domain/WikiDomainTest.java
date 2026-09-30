@@ -117,7 +117,7 @@ class WikiDomainTest {
      * {@code deleted_at} 恒输出（Go 的 gorm.DeletedAt 未删除时是 JSON null）。
      */
     @Test
-    void wikiPageJsonKeysMatchGoTags() throws Exception {
+    void wikiPageJsonKeys() throws Exception {
         WikiPage page = new WikiPage();
         page.setId("p1");
         page.setSlug("entity/a");
@@ -127,27 +127,27 @@ class WikiDomainTest {
         page.setWikiPath("entity/A");
         JsonNode node = JSON.readTree(JSON.writeValueAsString(page));
 
-        assertThat(node.has("knowledge_base_id")).isTrue();
-        assertThat(node.has("page_type")).isTrue();
-        assertThat(node.has("source_refs")).isTrue();
-        assertThat(node.has("chunk_refs")).isTrue();
-        assertThat(node.has("page_metadata")).isTrue();
-        assertThat(node.has("created_at")).isTrue();
-        assertThat(node.has("deleted_at")).isTrue();
-        assertThat(node.get("deleted_at").isNull()).isTrue();
+        assertThat(node.has("knowledgeBaseId")).isTrue();
+        assertThat(node.has("pageType")).isTrue();
+        assertThat(node.has("sourceRefs")).isTrue();
+        assertThat(node.has("chunkRefs")).isTrue();
+        assertThat(node.has("pageMetadata")).isTrue();
+        assertThat(node.has("createdAt")).isTrue();
+        assertThat(node.has("deletedAt")).isTrue();
+        assertThat(node.get("deletedAt").isNull()).isTrue();
 
         // omitempty：空串 / 0 整键省略
-        assertThat(node.has("parent_slug")).isFalse();
-        assertThat(node.has("folder_id")).isFalse();
-        assertThat(node.has("category_path")).isFalse();
+        assertThat(node.has("parentSlug")).isFalse();
+        assertThat(node.has("folderId")).isFalse();
+        assertThat(node.has("categoryPath")).isFalse();
         assertThat(node.has("depth")).isFalse();
-        assertThat(node.has("sort_order")).isFalse();
-        assertThat(node.has("last_edit_source")).isFalse();
-        assertThat(node.has("last_editor_id")).isFalse();
+        assertThat(node.has("sortOrder")).isFalse();
+        assertThat(node.has("lastEditSource")).isFalse();
+        assertThat(node.has("lastEditorId")).isFalse();
 
         // ⚠️ 便捷方法必须 @JsonIgnore：否则会写进 jsonb 并让回读炸 UnrecognizedPropertyException
         assertThat(node.has("sourceKnowledgeIDs")).isFalse();
-        assertThat(node.has("source_knowledge_i_ds")).isFalse();
+        assertThat(node.has("sourceKnowledgeIDs")).isFalse();
     }
 
     @Test
@@ -257,14 +257,14 @@ class WikiDomainTest {
         WikiConfig config = new WikiConfig();
         config.setSynthesisModelId("m-1");
         JsonNode node = JSON.readTree(config.toJson());
-        assertThat(node.has("extraction_granularity")).isFalse();
-        assertThat(node.has("ingest_batch_size")).isFalse();
-        assertThat(node.get("max_pages_per_ingest").asInt()).isZero();
-        assertThat(node.get("synthesis_model_id").asText()).isEqualTo("m-1");
+        assertThat(node.has("extractionGranularity")).isFalse();
+        assertThat(node.has("ingestBatchSize")).isFalse();
+        assertThat(node.get("maxPagesPerIngest").asInt()).isZero();
+        assertThat(node.get("synthesisModelId").asText()).isEqualTo("m-1");
         // ⚠️ *OrDefault 便捷方法必须 @JsonIgnore，否则会被写进 wiki_config jsonb
         assertThat(node.has("ingestBatchSizeOrDefault")).isFalse();
         assertThat(node.has("normalizedExtractionGranularity")).isFalse();
-        assertThat(node.has("ingest_batch_size_or_default")).isFalse();
+        assertThat(node.has("ingestBatchsizeOrDefault")).isFalse();
     }
 
     @Test
@@ -380,7 +380,7 @@ class WikiDomainTest {
     }
 
     @Test
-    void folderNodeUnwrapsFolderAndKeepsSnakeCaseKeys() throws Exception {
+    void folderNodeUnwrapsFolderAndFlattensKeys() throws Exception {
         WikiFolder folder = new WikiFolder();
         folder.setId("f-1");
         folder.setName("AI");
@@ -390,44 +390,43 @@ class WikiDomainTest {
         // 对照 Go 的匿名嵌入：folder 字段扁平化到顶层
         assertThat(json.get("id").asText()).isEqualTo("f-1");
         assertThat(json.get("name").asText()).isEqualTo("AI");
-        assertThat(json.get("parent_id").asText()).isEmpty();
-        assertThat(json.get("page_count").asLong()).isEqualTo(3);
-        assertThat(json.get("has_children").asBoolean()).isTrue();
+        assertThat(json.get("parentId").asText()).isEmpty();
+        assertThat(json.get("pageCount").asLong()).isEqualTo(3);
+        assertThat(json.get("hasChildren").asBoolean()).isTrue();
         assertThat(json.has("folder")).isFalse();
         // 不得出现被 @JsonUnwrapped / 字段+getter 合并搞出的重复键
-        assertThat(json.has("hasChildren")).isFalse();
-        assertThat(json.has("parentId")).isFalse();
+        assertThat(json.has("folder")).isFalse();
     }
 
     @Test
-    void statsSerializesIsActiveAsSnakeCaseAndOmitsNothing() throws Exception {
+    void statsWireFormat() throws Exception {
         WikiStats stats = new WikiStats();
         stats.setActive(true);
         JsonNode json = JSON.readTree(JSON.writeValueAsString(stats));
-        assertThat(json.has("is_active")).isTrue();
-        assertThat(json.get("is_active").asBoolean()).isTrue();
-        // ⚠️ isActive 字段 + isActive() 读取器合并后不得再冒出驼峰副本
-        assertThat(json.has("active")).isFalse();
+        assertThat(json.has("active")).isTrue();
+        assertThat(json.get("active").asBoolean()).isTrue();
+        // isActive() 读取器推导的键与字段名一致,不得出现第二副本
         assertThat(json.has("isActive")).isFalse();
+        assertThat(json.has("is_active")).isFalse();
         // Go struct 无 omitempty → 全字段恒输出
-        assertThat(json.has("total_pages")).isTrue();
-        assertThat(json.has("pages_by_type")).isTrue();
-        assertThat(json.has("recent_updates")).isTrue();
-        assertThat(json.has("orphan_count")).isTrue();
+        assertThat(json.has("totalPages")).isTrue();
+        assertThat(json.has("pagesByType")).isTrue();
+        assertThat(json.has("recentUpdates")).isTrue();
+        assertThat(json.has("orphanCount")).isTrue();
     }
 
     /** 投影类型（MyBatis 映射 + 可能的 JSON 输出）的键名也必须逐字对照 Go tag */
     @Test
-    void projectionTypesKeepSnakeCaseKeys() throws Exception {
+    void projectionTypesUseJavaFieldNames() throws Exception {
         WikiPageLite lite = new WikiPageLite();
         lite.setSlug("entity/a");
         lite.setPageType("entity");
         lite.setOutLinks(List.of("concept/c"));
         lite.setAliases(List.of());
         JsonNode liteJson = JSON.readTree(JSON.writeValueAsString(lite));
-        assertThat(liteJson.has("page_type")).isTrue();
-        assertThat(liteJson.has("out_links")).isTrue();
-        assertThat(liteJson.has("pageType")).isFalse();
+        assertThat(liteJson.has("pageType")).isTrue();
+        assertThat(liteJson.has("outLinks")).isTrue();
+        assertThat(liteJson.has("page_type")).isFalse();
         // omitempty：空 aliases 整键省略
         assertThat(liteJson.has("aliases")).isFalse();
 
@@ -437,41 +436,41 @@ class WikiDomainTest {
         entry.setCategoryPath(List.of("AI"));
         entry.setDepth(1);
         JsonNode entryJson = JSON.readTree(JSON.writeValueAsString(entry));
-        assertThat(entryJson.has("wiki_path")).isTrue();
-        assertThat(entryJson.has("category_path")).isTrue();
-        assertThat(entryJson.has("sort_order")).isFalse();
+        assertThat(entryJson.has("wikiPath")).isTrue();
+        assertThat(entryJson.has("categoryPath")).isTrue();
         assertThat(entryJson.has("sortOrder")).isFalse();
-        assertThat(entryJson.has("parent_slug")).isFalse();
+        assertThat(entryJson.has("sort_order")).isFalse();
+        assertThat(entryJson.has("parentSlug")).isFalse();
         assertThat(entryJson.has("depth")).isTrue();
 
         WikiPageRevision rev = new WikiPageRevision();
         rev.setPageId("p");
         rev.setEditSource("user");
         JsonNode revJson = JSON.readTree(JSON.writeValueAsString(rev));
-        assertThat(revJson.has("page_id")).isTrue();
-        assertThat(revJson.has("edit_source")).isTrue();
-        assertThat(revJson.has("edited_at")).isTrue();
+        assertThat(revJson.has("pageId")).isTrue();
+        assertThat(revJson.has("editSource")).isTrue();
+        assertThat(revJson.has("editedAt")).isTrue();
         // content 是 omitempty
         assertThat(revJson.has("content")).isFalse();
     }
 
     /** 图谱与索引的嵌套类型键名 */
     @Test
-    void graphAndIndexKeysMatchGoTags() throws Exception {
+    void graphAndIndexKeys() throws Exception {
         WikiGraph.Meta meta = new WikiGraph.Meta();
         meta.setMode("ego");
         meta.setCenter("entity/a");
         meta.setFamiliarCount(2);
         JsonNode metaJson = JSON.readTree(JSON.writeValueAsString(meta));
-        assertThat(metaJson.has("familiar_count")).isTrue();
-        assertThat(metaJson.has("familiarCount")).isFalse();
+        assertThat(metaJson.has("familiarCount")).isTrue();
+        assertThat(metaJson.has("familiar_count")).isFalse();
 
         WikiIndex.Group group = new WikiIndex.Group();
         group.setType("entity");
         group.setNextCursor("20");
         JsonNode groupJson = JSON.readTree(JSON.writeValueAsString(group));
-        assertThat(groupJson.has("next_cursor")).isTrue();
-        assertThat(groupJson.has("nextCursor")).isFalse();
+        assertThat(groupJson.has("nextCursor")).isTrue();
+        assertThat(groupJson.has("next_cursor")).isFalse();
         assertThat(groupJson.has("items")).isTrue();
 
         WikiIndex.Response resp = new WikiIndex.Response();

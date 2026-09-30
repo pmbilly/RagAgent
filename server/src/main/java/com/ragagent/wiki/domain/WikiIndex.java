@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 结构化 wiki 索引响应的类型集合（条目类型因需被 MyBatis 映射，单独成文件
@@ -22,15 +20,10 @@ public final class WikiIndex {
      * {@code NextOffset - items.size()} 开始的当前分页窗口。{@code nextCursor} 为空
      * 表示该类型的窗口已经到底。</p>
      */
-    @JsonPropertyOrder({"type", "total", "items", "next_cursor"})
-    public static final class Group {
-        @JsonProperty("type")
+        public static final class Group {
         private String type = "";
-        @JsonProperty("total")
         private long total;
-        @JsonProperty("items")
         private List<WikiIndexEntry> items = new ArrayList<>();
-        @JsonProperty("next_cursor")
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         private String nextCursor = "";
 
@@ -54,13 +47,9 @@ public final class WikiIndex {
      * LLM 生成的导语。其余内容由 index 仓储的<b>瘦列投影</b>按需装配，
      * 使索引读取成本恒为 O(page_size)，与知识库规模无关。</p>
      */
-    @JsonPropertyOrder({"intro", "version", "groups"})
-    public static final class Response {
-        @JsonProperty("intro")
+        public static final class Response {
         private String intro = "";
-        @JsonProperty("version")
         private int version;
-        @JsonProperty("groups")
         private List<Group> groups = new ArrayList<>();
 
         public String getIntro() { return intro; }

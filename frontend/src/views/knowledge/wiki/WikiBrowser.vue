@@ -132,8 +132,8 @@
           class="wiki-graph-drawer">
           <template v-if="graphDrawerPage">
             <div class="wiki-reader-meta" style="margin-bottom: 8px;">
-              <t-tag size="small" :theme="getTypeTheme(graphDrawerPage.page_type)" variant="light-outline">
-                {{ getTypeLabel(graphDrawerPage.page_type) }}
+              <t-tag size="small" :theme="getTypeTheme(graphDrawerPage.pageType)" variant="light-outline">
+                {{ getTypeLabel(graphDrawerPage.pageType) }}
               </t-tag>
               <span class="wiki-reader-meta-text">{{ $t('knowledgeEditor.wikiBrowser.version', {
                 ver:
@@ -196,7 +196,7 @@
               <div class="wiki-page-item-title">{{ page.title }}</div>
               <div class="wiki-page-item-summary">{{ page.summary }}</div>
               <div class="wiki-page-item-meta">
-                <span>{{ formatDate(page.updated_at) }}</span>
+                <span>{{ formatDate(page.updatedAt) }}</span>
               </div>
             </div>
             <div v-if="searchResults.length === 0 && !loading" class="wiki-empty-state">
@@ -333,7 +333,7 @@
                       @click="selectPage(item.page)" @dragstart="onPageDragStart($event, item.page)"
                       @dragend="onPageDragEnd">
                       <t-icon :name="getPageIcon(item.page)"
-                        :class="['wiki-page-file-icon', `wiki-page-file-icon--${item.page.page_type}`]" />
+                        :class="['wiki-page-file-icon', `wiki-page-file-icon--${item.page.pageType}`]" />
                       <span class="wiki-page-item-title">{{ item.page.title }}</span>
                     </div>
                   </template>
@@ -360,7 +360,7 @@
                     <div class="wiki-page-item-title">{{ item.title }}</div>
                     <div class="wiki-page-item-summary">{{ item.summary }}</div>
                     <div class="wiki-page-item-meta">
-                      <span>{{ formatDate(item.updated_at) }}</span>
+                      <span>{{ formatDate(item.updatedAt) }}</span>
                     </div>
                   </div>
                 </RecycleScroller>
@@ -483,16 +483,16 @@
                       </span>
                       <span class="wiki-badge wiki-badge--type">
                         <t-icon :name="getPageIcon(selectedPage)" />
-                        {{ getTypeLabel(selectedPage.page_type) }}
+                        {{ getTypeLabel(selectedPage.pageType) }}
                       </span>
                       <span class="wiki-badge wiki-badge--ver">
                         {{ $t('knowledgeEditor.wikiBrowser.version', { ver: selectedPage.version }) }}
                       </span>
-                      <t-tooltip v-if="editSourceVisible(selectedPage.last_edit_source)"
-                        :content="editSourceLabel(selectedPage.last_edit_source)">
+                      <t-tooltip v-if="editSourceVisible(selectedPage.lastEditSource)"
+                        :content="editSourceLabel(selectedPage.lastEditSource)">
                         <span class="wiki-badge wiki-badge--source">
-                          <t-icon :name="editSourceIcon(selectedPage.last_edit_source)" />
-                          {{ editSourceLabel(selectedPage.last_edit_source) }}
+                          <t-icon :name="editSourceIcon(selectedPage.lastEditSource)" />
+                          {{ editSourceLabel(selectedPage.lastEditSource) }}
                         </span>
                       </t-tooltip>
                       <span v-for="alias in (selectedPage.aliases || [])" :key="alias"
@@ -554,7 +554,7 @@
                     <div v-if="!editingPage" class="wiki-reader-aside-meta">
                       <span class="wiki-reader-aside-meta-item">
                         <t-icon name="time" size="14px" />
-                        {{ formatDate(selectedPage.updated_at) }}
+                        {{ formatDate(selectedPage.updatedAt) }}
                       </span>
                     </div>
                   </div>
@@ -589,12 +589,12 @@
               </div>
 
               <!-- Page footer: backlinks + sources -->
-              <footer v-if="!editingPage && (selectedPage.in_links?.length || parsedSourceRefs.length)"
+              <footer v-if="!editingPage && (selectedPage.inLinks?.length || parsedSourceRefs.length)"
                 class="wiki-reader-footer">
-                <div v-if="selectedPage.in_links?.length" class="wiki-reader-footer-row">
+                <div v-if="selectedPage.inLinks?.length" class="wiki-reader-footer-row">
                   <span class="wiki-reader-footer-label">{{ $t('knowledgeEditor.wikiBrowser.linkedFrom') }}</span>
                   <span class="wiki-reader-footer-value">
-                    <a v-for="link in selectedPage.in_links" :key="'in-' + link" href="#"
+                    <a v-for="link in selectedPage.inLinks" :key="'in-' + link" href="#"
                       class="wiki-content-link" @click.prevent="navigateToSlug(link)">
                       {{ slugDisplayName(link) }}
                     </a>
@@ -872,7 +872,7 @@ const selectedPage = ref<WikiPage | null>(null)
 // Per-type pagination state for the sidebar. 4万-page wikis used to load
 // the entire page list into `pages.value` at startup (50 pages of 500 =
 // 25k rows of JSON fetched even when the user only wants to glance at
-// one type). Instead we now keep one bucket per page_type and lazy-load
+// one type). Instead we now keep one bucket per pageType and lazy-load
 // them on demand:
 //
 //   * Each bucket tracks loaded items, next page cursor, total count
@@ -1042,10 +1042,10 @@ async function handleGlobalIssueIgnore(issueId: string) {
   }
 }
 
-// toggleGraphFilterType flips a page_type in the active allow-list and
+// toggleGraphFilterType flips a pageType in the active allow-list and
 // refetches the graph from the server. Client-side DOM hiding used to
 // suffice when the canvas contained every page, but once we cap the
-// overview at top-500 by link_count, hiding the "summary" type just
+// overview at top-500 by linkCount, hiding the "summary" type just
 // blanks out most of the canvas without surfacing the next 500 nodes
 // that would qualify under the narrowed filter. Re-asking the server
 // keeps the top-N always relevant to what the user said they wanted to
@@ -1064,7 +1064,7 @@ async function toggleGraphFilterType(type: string) {
   // freshly-rendered elements that were never built for it.
   graphHighlightSlug.value = null
   if (graphSelectedSlug.value && !newSet.has(
-    graphData.value?.nodes.find(n => n.slug === graphSelectedSlug.value)?.page_type || ''
+    graphData.value?.nodes.find(n => n.slug === graphSelectedSlug.value)?.pageType || ''
   )) {
     graphSelectedSlug.value = null
     graphDrawerVisible.value = false
@@ -1162,7 +1162,7 @@ const KNOWLEDGE_TYPES = ['entity', 'concept', 'synthesis', 'comparison']
 // first, then summary. Each tab maps to its own bucket keyed by the tab id.
 const CONTENT_TABS = [KNOWLEDGE_TAB, 'summary']
 
-// tabPageTypes maps a sidebar tab onto the comma-separated page_type filter the
+// tabPageTypes maps a sidebar tab onto the comma-separated pageType filter the
 // backend expects. The knowledge tab folds every non-summary content type into
 // one request so the server returns a single merged list and directory
 // skeleton — no per-type fan-out on the client.
@@ -1195,7 +1195,7 @@ const groupedPages = computed(() => {
   }
   const out: Group[] = []
   const seen = new Set<string>()
-  // Stats are reported per real page_type; the knowledge tab sums its members
+  // Stats are reported per real pageType; the knowledge tab sums its members
   // so the count is available before the first page request completes.
   const statTotal = (tab: string) => {
     const byType = stats.value?.pages_by_type
@@ -1240,7 +1240,7 @@ const hasContentPages = computed(() => {
   return false
 })
 
-// Pipeline ingest stores source_refs as bare knowledge IDs (see wiki_ingest_batch)
+// Pipeline ingest stores sourceRefs as bare knowledge IDs (see wiki_ingest_batch)
 // so filenames do not leak into LLM citation strings. Resolve titles for display.
 const sourceRefTitleCache = reactive<Record<string, string>>({})
 let sourceRefTitleRequestSeq = 0
@@ -1261,8 +1261,8 @@ function parseSourceRefEntry(ref: string): { id: string; title: string } {
 }
 
 const parsedSourceRefs = computed(() => {
-  if (!selectedPage.value?.source_refs?.length) return []
-  return selectedPage.value.source_refs.map(parseSourceRefEntry)
+  if (!selectedPage.value?.sourceRefs?.length) return []
+  return selectedPage.value.sourceRefs.map(parseSourceRefEntry)
 })
 
 async function hydrateSourceRefTitles(refs: string[]) {
@@ -1283,7 +1283,7 @@ async function hydrateSourceRefTitles(refs: string[]) {
 }
 
 watch(
-  () => selectedPage.value?.source_refs,
+  () => selectedPage.value?.sourceRefs,
   (refs) => {
     if (refs?.length) hydrateSourceRefTitles(refs)
   },
@@ -1298,11 +1298,11 @@ const graphDrawerContent = computed(() => {
 
 // graphDrawerNeighborStatus describes, for the currently open drawer page,
 // how the canvas relates to the KB-wide neighborhood of the node. The
-// accounting is subtler than a simple "shown vs link_count" because three
+// accounting is subtler than a simple "shown vs linkCount" because three
 // different situations produce different interpretations of a gap:
 //
 //   ego center — the backend already returned every neighbor reachable
-//     through BFS at depth 1+. Any difference between `link_count` and
+//     through BFS at depth 1+. Any difference between `linkCount` and
 //     the visible degree is pages that couldn't be traversed (dead refs,
 //     type-filtered pages, soft-deleted neighbors), NOT pages we can
 //     still fetch. Expanding or blooming from the center does nothing
@@ -1331,16 +1331,16 @@ const graphDrawerNeighborStatus = computed(() => {
   }
   // Undirected degree within the current subgraph. Both incoming and
   // outgoing edges count toward a visible neighbor, matching how
-  // link_count is computed server-side (in+out).
+  // linkCount is computed server-side (in+out).
   const neighbors = new Set<string>()
   for (const e of data.edges) {
     if (e.source === page.slug) neighbors.add(e.target)
     else if (e.target === page.slug) neighbors.add(e.source)
   }
   const visible = neighbors.size
-  const total = node.link_count || 0
+  const total = node.linkCount || 0
   // hidden can go negative in a rare corner case — a neighbor might be
-  // visible via an edge that the link_count counter didn't know about
+  // visible via an edge that the linkCount counter didn't know about
   // (e.g. a broken-link cleanup happened after the snapshot). Clamp.
   const hidden = Math.max(0, total - visible)
   const isEgoCenter = data.meta?.mode === 'ego' && data.meta.center === page.slug
@@ -1475,7 +1475,7 @@ const graphStatusCard = computed((): { icon: string; title: string; primary: str
   if (meta.mode === 'ego' && meta.center) {
     const centerNode = data.nodes.find(n => n.slug === meta.center)
     const centerTitle = centerNode?.title || meta.center
-    const typeLabel = centerNode ? getTypeLabel(centerNode.page_type) : ''
+    const typeLabel = centerNode ? getTypeLabel(centerNode.pageType) : ''
     // Subtract 1 so the count means "related nodes" (excluding the
     // center itself) — matches how users count "connections". If the
     // count is 0 the center is an isolated page.
@@ -1560,7 +1560,7 @@ function handleGraphDrawerClick(e: MouseEvent) {
   }
 }
 
-// activeTab drives which page_type's list is visible in the sidebar.
+// activeTab drives which pageType's list is visible in the sidebar.
 // Pre-tabbed UX stacked collapsible groups, but on a 40k-page KB the
 // expanded groups left multiple virtualized viewports and scroll events got
 // ambiguous — "which list am I scrolling?" The tabbed version removes
@@ -1695,7 +1695,7 @@ const activeFlatState = computed(() => {
 })
 
 function pageCategoryPath(page: WikiPage): string[] {
-  const raw = Array.isArray(page.category_path) ? page.category_path : []
+  const raw = Array.isArray(page.categoryPath) ? page.categoryPath : []
   return raw.map(part => String(part || '').trim()).filter(Boolean)
 }
 
@@ -1788,7 +1788,7 @@ const activeTreeRows = computed<WikiTreeRow[]>(() => {
   }
 
   // Each tab maps to a single bucket; the knowledge tab's bucket already holds
-  // the server-merged pages and directory skeleton (page_type=entity,concept,…).
+  // the server-merged pages and directory skeleton (pageType=entity,concept,…).
   const bucket = pagesByType.value[groupType]
   const hasCategorySkeleton = (bucket?.categoryPaths.length || 0) > 0
   for (const category of bucket?.categoryPaths || []) {
@@ -1974,7 +1974,7 @@ function getTypeLabel(type: string): string {
   return map[type] || type
 }
 
-// getPageIcon picks a distinct icon per page_type so the merged knowledge
+// getPageIcon picks a distinct icon per pageType so the merged knowledge
 // tab can still tell entities, concepts, etc. apart at a glance.
 function getPageIcon(page: WikiPage): string {
   const map: Record<string, string> = {
@@ -1984,7 +1984,7 @@ function getPageIcon(page: WikiPage): string {
     comparison: 'view-module',
     summary: 'file',
   }
-  return map[page.page_type] || 'file'
+  return map[page.pageType] || 'file'
 }
 
 const renderedContent = computed(() => {
@@ -2107,11 +2107,11 @@ async function loadFlatPagesForType(type: string, reset = false): Promise<boolea
   try {
     const requestPage = reset ? 1 : bucket.flatNextPage
     const res = await listWikiPages(props.knowledgeBaseId, {
-      page_type: tabPageTypes(type),
+      pageType: tabPageTypes(type),
       page: requestPage,
-      page_size: WIKI_SIDEBAR_PAGE_SIZE,
-      sort_by: 'wiki_path',
-      sort_order: 'asc',
+      pageSize: WIKI_SIDEBAR_PAGE_SIZE,
+      sortBy: 'wiki_path',
+      sortOrder: 'asc',
     })
     const body: any = (res as any).data || res
     const batch: WikiPage[] = body?.pages || []
@@ -2150,7 +2150,7 @@ function ensureBucket(type: string): PageTypeBucket {
 
 // loadCategoriesForType pulls the child folders of one directory level from the
 // authoritative wiki_folders tree. Empty folders are returned only for the
-// merged knowledge tab (multi page_type); the summary tab omits them.
+// merged knowledge tab (multi pageType); the summary tab omits them.
 // bucket.folderIdByPath; the root level uses id "". Each level's children are
 // returned in one shot (the tree is navigation-sized), so there is no
 // per-level "load more folders" pagination anymore.
@@ -2188,7 +2188,7 @@ async function loadCategoriesForType(type: string, opts: { reset?: boolean; pare
         id: String(folder.id || ''),
       }))
       .filter(entry => entry.path.length > 0)
-      // Summary is a single page_type; empty folders belong in the merged
+      // Summary is a single pageType; empty folders belong in the merged
       // knowledge view only (backend filters too — belt-and-suspenders).
       .filter(entry => type !== 'summary' || entry.count > 0)
 
@@ -2205,7 +2205,7 @@ async function loadCategoriesForType(type: string, opts: { reset?: boolean; pare
     setState({ nextPage: 2, totalPages: 1, loading: false, initialized: true })
     if (isRoot) bucket.categoriesInitialized = true
     initializeDefaultCollapsedDirectories(type, incoming.map(entry => ({
-      category_path: entry.path,
+      categoryPath: entry.path,
     } as WikiPage)))
   } catch (e) {
     console.error(`Failed to load wiki folders of type ${type}:`, e)
@@ -2363,7 +2363,7 @@ async function confirmPendingMove() {
   }
 
   try {
-    await updateWikiFolder(props.knowledgeBaseId, item.folderId, { parent_id: folderId, move_parent: true })
+    await updateWikiFolder(props.knowledgeBaseId, item.folderId, { parentId: folderId, moveParent: true })
     MessagePlugin.success(t('knowledgeEditor.wikiBrowser.moveFolderSuccess'))
     await reloadDirectoryForType(activeTab.value)
   } catch (e: any) {
@@ -2523,13 +2523,13 @@ async function loadPagesForType(
     const currentScopedState = scopedToCategory ? bucket.directoryPages[scopedPathKey] : null
     const requestPage = opts.reset ? 1 : (currentScopedState ? currentScopedState.nextPage : bucket.nextPage)
     const res = await listWikiPages(props.knowledgeBaseId, {
-      page_type: tabPageTypes(type),
+      pageType: tabPageTypes(type),
       page: requestPage,
-      page_size: WIKI_SIDEBAR_PAGE_SIZE,
-      sort_by: 'wiki_path',
-      sort_order: 'asc',
-      category_path: categoryPath.join('/'),
-      category_depth: categoryPath.length,
+      pageSize: WIKI_SIDEBAR_PAGE_SIZE,
+      sortBy: 'wiki_path',
+      sortOrder: 'asc',
+      categoryPath: categoryPath.join('/'),
+      categoryDepth: categoryPath.length,
     })
     const body: any = (res as any).data || res
     const batch: WikiPage[] = body?.pages || []
@@ -2657,7 +2657,7 @@ function appendIndexDirectoryLines(items: WikiIndexEntryDTO[]): string {
   let out = ''
   const emittedDirs = new Set<string>()
   for (const entry of items) {
-    const path = (Array.isArray(entry.category_path) ? entry.category_path : [])
+    const path = (Array.isArray(entry.categoryPath) ? entry.categoryPath : [])
       .map(part => String(part || '').trim())
       .filter(Boolean)
     for (let i = 0; i < path.length; i++) {
@@ -3046,7 +3046,7 @@ async function submitCreatePage() {
     await createWikiPage(props.knowledgeBaseId, {
       slug,
       title,
-      page_type: createPageForm.value.pageType,
+      pageType: createPageForm.value.pageType,
       content: createPageForm.value.content,
     })
     showCreatePageDialog.value = false
@@ -3173,7 +3173,7 @@ async function loadGraph() {
     })
     graphData.value = (res as any).data || res as any
     // Seed the search dropdown's empty-state with this overview snapshot
-    // so opening the select without typing shows the top-500 by link_count
+    // so opening the select without typing shows the top-500 by linkCount
     // — matching what the old client-filter dropdown used to surface.
     // We re-seed on every overview load so filter toggles / KB changes
     // propagate; ego loads intentionally skip seeding so drilling into a
@@ -3422,17 +3422,17 @@ const GROW_FRONTIER_CONCURRENCY = 6
 const GRAPH_SYSTEM_PAGE_TYPES = new Set(['index'])
 
 function isFrontierCandidate(
-  node: { slug: string; page_type: string; link_count: number },
+  node: { slug: string; pageType: string; linkCount: number },
   centerSlug: string,
   visibleDegree: number,
 ): boolean {
   if (node.slug === centerSlug) return false
-  if (GRAPH_SYSTEM_PAGE_TYPES.has(node.page_type)) return false
-  return (node.link_count || 0) > visibleDegree
+  if (GRAPH_SYSTEM_PAGE_TYPES.has(node.pageType)) return false
+  return (node.linkCount || 0) > visibleDegree
 }
 
 // growFrontier is the "one-click expand everything" operator. It finds
-// every visible node that currently has an expansion ring (visible < link_count,
+// every visible node that currently has an expansion ring (visible < linkCount,
 // not the ego center, not an Index/Log super-node), fires parallel ego
 // fetches for them, merges all responses together and repaints the canvas
 // preserving layout. This is the batch cousin of loadBloomNeighbors —
@@ -3447,7 +3447,7 @@ async function growFrontier() {
   }
   if (graphFilterSelectsNothing()) return
 
-  // Collect frontier nodes: visible degree < link_count AND not the ego
+  // Collect frontier nodes: visible degree < linkCount AND not the ego
   // center AND not a system super-node. We compute visible degree inline
   // from edges so we don't depend on the stale adjacency snapshot from
   // the last render.
@@ -3616,8 +3616,8 @@ async function startFixSession(prompt: string) {
         id: sessionId,
         isMore: false,
         isNoTitle: true,
-        created_at: now,
-        updated_at: now
+        createdAt: now,
+        updatedAt: now
       })
 
       menuStore.changeIsFirstSession(true)
@@ -3862,8 +3862,8 @@ function renderGraph(opts: RenderGraphOpts = {}) {
     }
     const node: GNode = {
       x, y, vx, vy,
-      slug: n.slug, title: n.title, type: n.page_type,
-      linkCount: n.link_count || 0, pinned,
+      slug: n.slug, title: n.title, type: n.pageType,
+      linkCount: n.linkCount || 0, pinned,
       familiar: !!n.familiar,
     }
     nodeMap.set(n.slug, node)
@@ -3982,13 +3982,13 @@ function renderGraph(opts: RenderGraphOpts = {}) {
     // still hiding 80 more connections just out of view, so they either
     // click "bloom" on everything (wasteful) or on nothing (miss the
     // interesting pages). adjacency here is the undirected neighbor set
-    // we've already built from graph.edges; link_count is the KB-wide
+    // we've already built from graph.edges; linkCount is the KB-wide
     // in+out degree reported by the backend. Diff > 0 means there's
     // more to fetch.
     //
     // Exception: the ego-mode center node already received every
     // reachable neighbor from the BFS expansion, so any remaining gap
-    // against link_count is dead refs / filtered pages, NOT loadable
+    // against linkCount is dead refs / filtered pages, NOT loadable
     // neighbors. Drawing a dashed ring there would mislead users into
     // thinking there's something to click.
     const visibleNeighbors = adjacency.get(n.slug)?.size ?? 0
@@ -4657,7 +4657,7 @@ const graphSearchLoading = ref(false)
 let graphSearchDebounce: ReturnType<typeof setTimeout> | null = null
 let graphSearchSeq = 0
 
-// graphSearchDefaultOptions is the snapshot of "global top-500 by link_count"
+// graphSearchDefaultOptions is the snapshot of "global top-500 by linkCount"
 // used as the empty-keyword default. We populate it lazily from the first
 // overview fetch and keep it across ego-mode navigations so drilling into
 // a neighborhood doesn't shrink the search surface back to the ego subgraph.
@@ -4725,7 +4725,7 @@ let graphAdjacencyRef = new Map<string, Set<string>>()
 // graph as an ego view centered on that slug, then finish the highlight
 // and drawer flow once the new render is ready. This guarantees any
 // navigable link can actually reach its destination regardless of where
-// the target sits in the link_count ranking.
+// the target sits in the linkCount ranking.
 async function handleGraphSearchSelect(value: string) {
   if (!value) return
 

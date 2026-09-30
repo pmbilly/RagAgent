@@ -10,8 +10,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
@@ -47,61 +45,43 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * int 0→省略用 NON_DEFAULT，列表空→省略用 NON_EMPTY）。</p>
  */
 @TableName(value = "wiki_pages", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "tenant_id", "knowledge_base_id", "slug", "title", "page_type", "status",
-        "content", "summary", "aliases", "parent_slug", "folder_id", "category_path",
-        "wiki_path", "depth", "sort_order", "source_refs", "chunk_refs", "in_links",
-        "out_links", "page_metadata", "version", "last_edit_source", "last_editor_id",
-        "created_at", "updated_at", "deleted_at"
-})
 public class WikiPage {
 
     /** 唯一标识（UUID） */
     @TableId(type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
 
     /** 工作空间 ID（多租户隔离） */
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
     /** 所属知识库 */
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
     /** URL 友好标识，如 "entity/acme-corp"、"concept/rag"；库内唯一 */
-    @JsonProperty("slug")
     private String slug = "";
 
     /** 人类可读标题 */
-    @JsonProperty("title")
     private String title = "";
 
     /** 页面类型：summary / entity / concept / index / synthesis / comparison */
-    @JsonProperty("page_type")
     private String pageType = "";
 
     /** 页面状态：draft / published / archived（SQL 默认 'published'，见类注释默认值条） */
-    @JsonProperty("status")
     private String status = "";
 
     /** 完整 markdown 正文 */
-    @JsonProperty("content")
     private String content = "";
 
     /** 索引列表用一句话摘要 */
-    @JsonProperty("summary")
     private String summary = "";
 
     /** 别名、缩写、首字母缩略语或译名 */
     @TableField(typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("aliases")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> aliases = new ArrayList<>();
 
     /** 语义父页面 slug（可为空）；页面仅按 FolderID 归组时留空 */
     @TableField(value = "parent_slug")
-    @JsonProperty("parent_slug")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String parentSlug = "";
 
@@ -111,29 +91,24 @@ public class WikiPage {
      * 每次写入时重算，好让 list/index/search 查询不必 join wiki_folders。
      */
     @TableField(value = "folder_id")
-    @JsonProperty("folder_id")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String folderId = "";
 
     /** 目录面包屑，如 ["AI", "LLM 应用", "RAG"]；FolderID 标识的文件夹链的派生缓存 */
     @TableField(value = "category_path", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("category_path")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> categoryPath = new ArrayList<>();
 
     /** 由 page_type + category_path + title 派生的可排序规范化路径，让大目录排序廉价 */
     @TableField(value = "wiki_path")
-    @JsonProperty("wiki_path")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String wikiPath = "";
 
     /** = categoryPath.size()，缓存用于过滤/展示 */
-    @JsonProperty("depth")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int depth;
 
     /** 排序权重，让生成或手工编辑的页面能在 title 之前控制同级顺序 */
-    @JsonProperty("sort_order")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int sortOrder;
 
@@ -143,7 +118,6 @@ public class WikiPage {
      * 取回标题。文档级粒度。
      */
     @TableField(value = "source_refs", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("source_refs")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> sourceRefs = new ArrayList<>();
 
@@ -153,19 +127,16 @@ public class WikiPage {
      * （它们是文档级梗概，不带 chunk 级引用）。
      */
     @TableField(value = "chunk_refs", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("chunk_refs")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> chunkRefs = new ArrayList<>();
 
     /** 链接<b>到</b>本页面的页面 slug（反向链接） */
     @TableField(value = "in_links", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("in_links")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> inLinks = new ArrayList<>();
 
     /** 本页面链接<b>出去</b>的页面 slug（出链） */
     @TableField(value = "out_links", typeHandler = WikiStringListTypeHandler.class)
-    @JsonProperty("out_links")
     @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> outLinks = new ArrayList<>();
 
@@ -174,7 +145,6 @@ public class WikiPage {
     // 而出口契约（golden fixture）里该键是 null——故必须总是插入（null 直写）。
     @TableField(value = "page_metadata", typeHandler = PgJsonTypeHandler.class,
             insertStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
-    @JsonProperty("page_metadata")
     private JsonNode pageMetadata;
 
     /**
@@ -182,7 +152,6 @@ public class WikiPage {
      * 真的变化时递增；纯记账写入（链接维护、同内容重摄取、后台任务同步状态）
      * 保持不动，使其可作为"页面被编辑过"的真实信号。
      */
-    @JsonProperty("version")
     private int version;
 
     /**
@@ -191,26 +160,21 @@ public class WikiPage {
      * wiki_page_revisions，因此每个历史版本各自保留作者类型。
      */
     @TableField(value = "last_edit_source")
-    @JsonProperty("last_edit_source")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String lastEditSource = "";
 
     /** 产生当前版本的调用方用户 id（后台管道写入留空） */
     @TableField(value = "last_editor_id")
-    @JsonProperty("last_editor_id")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String lastEditorId = "";
 
     /** 创建时间 */
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
     /** 最后更新时间 */
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
     /** 软删除标记；未删除时 JSON 输出 null（恒输出该键） */
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     // ── 派生访问器（⚠️ 全部 @JsonIgnore：派生访问器会被 Jackson 当属性序列化，
