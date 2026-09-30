@@ -425,6 +425,29 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 3. **WikiIngestService**：先找"无字段依赖的无状态簇"（prompt/解析/切片类）→ 再找"写面"（索引/落库）→
    最后处理与外部服务的交互簇；形如 `buildSearchTargets` 的巨型方法按**整体搬入协作者**先出榜，内部 4 块细分留后。
 4. **收尾**：`§14.3` 计数刷新（实测）+ 域内测试全绿 + 环守卫 + 更新本节的"已落刀"记录。
+
+#### 14.7.1 wiki 两目标类边界判定（2026-10-01 刀 0 侦察实测，动刀前核对）
+
+**测试床**：`WikiHttpContractTest` 936 行（`@AutoConfigureMockMvc` 全上下文，不直 new 控制器 → 构造装配可改，路由/注解/端点签名不可变）；`WikiIngestServiceTest` 740 行（**直 new 13 参构造** → 构造签名冻结，协作者照既有 `new WikiIngestPageOps(this)` 回引模式在构造器内装配）。
+
+**WikiPageController 簇边界与共享项**：
+- 静态工具簇（原 L1042-1285）：getSlugParam / parseWikiCategoryPath / q / hasParam / query / atoi / atoiOrNull / trimSpace / isGoSpace / errText / appErrorText / rawError / internal / message / currentTenantId / sanitize / requiredFieldErrors / toJsonName / isZeroValue + 绑定三件 readJsonBody / toType / bind（**静态化 + 首参 ObjectMapper**——必须用 Spring 注入的 mapper，其 lenient 语义是行为的一部分，不许自建）。
+- 守卫簇：requireWikiKB + checkOwnership（持 `kbMapper`）；活动记账：recordManualWikiActivity（持 `activityAudit`）。
+- 端点簇四片：页面 CRUD+修订/回滚 ｜ 文件夹+movePage ｜ index+graph+stats+search ｜ rebuild-links+lint+auto-fix+issues。
+- 共享项处置：**`RawJsonError` 嵌套类型留门面**（`@ExceptionHandler` 必须在控制器；协作者按 `WikiPageController.RawJsonError` 引用——`QaRequestBinder`→`Base64Support` 同款）；errText/internal/message 等先在门面留薄委托，端点体搬走后委托随之消亡。
+- 协作者（包内 final class，仿 `QaRequestBinder`/`QaTurnExecutor`）：`WikiRequestSupport`（全静态）→ `WikiKbAccessGuard` → `WikiPageOps`（CRUD+修订+回滚，内含 `WikiActivityRecorder`）→ `WikiFolderOps` → `WikiStatsOps` → `WikiMaintenanceOps`；门面保薄端点（注解+参数提取+委托）。
+
+**WikiIngestService 簇边界与共享项**：
+- 写面簇 → `WikiIngestEnqueueOps`：enqueueWikiPendingOp / enqueueWikiIngest / newWikiIngestPendingOp / enqueueWikiIngestTrigger / enqueueWikiRetract(+Internal) / enqueueFinalizeRow / enqueueFinalize / finalizeRow / uniqueWikiFolderIDs / scheduleFinalize / scheduleFinalizeRetry / scheduleCappedRetry / scheduleStaleClaimRecheck + toJson。
+- 队列消费簇 → `WikiIngestQueueOps`：peekPendingList / claimPendingList / decodePendingRows / trimPendingList(+Detached)。
+- 失败结算簇 → `WikiIngestSettleOps`：finalizeWikiSubtask / requeueFailedOps(+Detached)。
+- 文档簇 → `WikiIngestContentSupport`：isKnowledgeGone / filterLiveUpdates / reconstructContent / reconstructEnrichedContent。
+- 共享项处置：**`MAPPER` 静态留门面**（包内可见，handle/decode 与簇共用）；**`PendingBatch` 公共 record 留门面**（§13.2 嵌套公共类型）；**`CHUNK_TYPE_*` 常量留门面**（`WikiIngestBatchHandler` 按 `WikiIngestService.CHUNK_TYPE_TEXT` 引用，常量不能委托）；reconstructContent 门面留薄委托（`WikiImageEnricher` javadoc 的 `{@link}` 指向门面）；PromptWarmup/SingleFlight/warmupReaper 留门面（llm 协作者域）。
+- 门面保全部 public 薄委托（§14.8 A 波纪律）；Lite 锁/handle/cleanupScope/锁与限流留门面（BatchHandler/RunSupport 直接消费）。
+
+**两类的死成员（登记替换，落刀时删）**：`WikiPageController.currentQueryParam` 零调用点；`WikiIngestService.beginWikiSubspan` 零调用者（MapPhase 调的是 `WikiBatchSupport` 的同名方法，javadoc 自认"当前无调用者"）。
+
+**闸门口径**：每刀 = `--rerun-tasks` 重编 + `--tests "com.ragagent.wiki.*"` + spotlessCheck + 忠实性核验；收官 = clean 全量（基线 **4,668 用例 / 0 失败**，实测 2026-10-01）+ 前端三绿（本批不动前端契约，理论零影响，跑一次确认）。域内其余 ≥800（WikiPageServiceImpl 1,008 / WikiPageRepository 858 / WikiIngestDedupService 851 / WikiPageFolderSupport 821）**不在本批**，收尾时 §14.3 如实刷新。
 5. **之后批次顺序（建议）**：`im`（单类 1,445，好收官）→ `retrieval` 的 4 个 engine（形似，做"适配器批"，一轮可重复）
    → `knowledge` / `auth` / `llm` / `chatpipeline` 的 1,000+ 类 → `datasource` / `memory`（体量最大，单独立项）。
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
