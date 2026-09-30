@@ -464,6 +464,19 @@
    `chatpipeline/PipelinePorts`、`PluginSearch`、session 的 `QaWiring`/`AgentToolBackends` 与测试桩同步。
    **收尾数据**：环 5 → **4**、L2→L3 10 → **9**；全量 4,675 用例 + `spotlessCheck` 绿；基线刷新 **4/1/9**。
 
+   ✅ **④-l `initialization ⇄ knowledge/model` 已完成（2026-09-30，环 4 → 2）——"共享能力归位 L2"两笔小搬**：
+   这两个环的背边各只有一个类，成因都是 Go 目录遗留（agentm 的 service 包当成"公共库"用）：
+   - `ExtractPrompts`（config.yaml 的 `extract` 段三份提示词模板装载，产物是
+     `llm.extract.PipelineConfig.PromptTemplateStructured`）`initialization/service` → **`llm/extract/`**
+     与 `PipelineConfig` 成对——消 `initialization ⇄ knowledge`（知识域 `ChunkExtractService`
+     是它的真实消费者）；vendor 资源 `initialization/extract_config.yaml` 位置不动（路径字符串即契约）。
+   - `AsrTranscriber`（OpenAI 兼容 transcription 接缝，复用 `llm.chat.LlmTransport` 出站）
+     `initialization/service` → **`llm/asr/`**——消 `initialization ⇄ model`，且顺带消掉
+     `retrieval → initialization` 这条 L2→L3 违例（`vlm/VlmHttpTransport` 复用了它的
+     OpenAI 错误文案静态映射）；消费方 initialization/model/session 三处改向。
+   **收尾数据**：环 4 → **2**（余 `agent ⇄ modelcontext`、`chatpipeline ⇄ session`）、
+   L2→L3 9 → **8**；全量 4,675 用例 + `spotlessCheck` 绿；基线刷新 **2/1/8**。
+
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 
