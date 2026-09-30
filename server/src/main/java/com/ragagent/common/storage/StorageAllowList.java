@@ -1,4 +1,4 @@
-package com.ragagent.storage;
+package com.ragagent.common.storage;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -12,6 +12,11 @@ import org.springframework.stereotype.Component;
  * 对照 Go {@code internal/storageallowlist}：STORAGE_ALLOW_LIST 控制的
  * provider 白名单（空 = 全部允许）。Supported 是**展示序**（契约：
  * /storage-backends/types 的输出顺序）。
+ *
+ * <p><b>为什么在 common</b>：这是**纯规则**（读 {@code STORAGE_ALLOW_LIST} 环境变量，无数据访问、
+ * 无仓储依赖），却被 auth（建默认 KB 选 provider）、storage（后端列表/校验）、system（信息页）
+ * 三处共用。留在 {@code com.ragagent.storage} 会让 auth/system 反向依赖存储域
+ * （{@code auth ⇄ storage} 环的一半）；按"共享规则与配置搬 common"处理。</p>
  */
 @Component
 public class StorageAllowList {

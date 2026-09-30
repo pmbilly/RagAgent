@@ -36,7 +36,7 @@ import com.ragagent.common.tenant.TenantProperties;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.common.settings.MemoryConfig;
-import com.ragagent.storage.StorageAllowList;
+import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.common.settings.SystemSettingGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

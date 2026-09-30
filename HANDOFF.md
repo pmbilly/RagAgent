@@ -342,9 +342,17 @@
    调用方要区分"查不到"与"属于别的空间"），由 `KnowledgeBaseService implements`（**专用最小查询**，不触发
    `ensureDefaults` 的字段回填，与原裸 mapper 查询等价）；消费方 `AuditLogController` 与
    `auth/apikey/TenantAPIKeyController` 改注入端口 → 两者 import 里再无 `knowledge`；测试桩同步改桩端口。
-   余下 **`auth → storage`**（背边 2 文件 `StorageAllowList`+`StorageBackendRepository`）、
-   **`audit → knowledge`** 与 **`auth → knowledge`**（各 2–3 文件，直查 `KnowledgeBaseMapper`/`KnowledgeBaseService`）：
-   统一手法 = 下层域提供**只读窄接口**（如 `KnowledgeBaseLookup`），上层注入接口而非 mapper。
+   ✅ **`auth → storage` 已完成（2026-09-30，环 19 → 18）**：两处性质不同、两手法——
+   ① `StorageAllowList` 是**纯规则**（读 `STORAGE_ALLOW_LIST`，无数据访问）→ 搬到 `common/storage/`（先例 `MemoryConfig`）；
+   ② `StorageBackendRepository` 是**写操作**，且 auth 手里还握着 ~150 行"env → 存储后端实体/config JSON（含 Go 键序）"映射
+   → 新增**命令端口** `common/storage/StorageBackendProvisioner`（`provisionForTenant`/`deleteForTenant`），
+   实现 `storage/service/DefaultStorageBackendProvisioner` **逐字搬入**原块（已用 diff 验字节保真），
+   auth 只留自己的事务编排（建 → 回写 `default_storage_backend_id` → 失败补偿删行）。
+   副产物：`TenantService` 连 `knowledge.domain.StorageBackend` 的 import 一并消失（`auth → knowledge` 只剩 1 文件）。
+
+   余下 **`auth → knowledge`**（仅剩 `TenantCatalogController` 的租户开通建默认 KB：`new KnowledgeBase()` +
+   `knowledgeBaseService.create(...)`——**跨域命令**，端口需带 create 方法 + 请求载荷，不是纯读，单独设计）。
+   手法沿用：只读用**只读端口**（如 `KnowledgeBaseGateway`），写用**命令端口**（如 `StorageBackendProvisioner`）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

@@ -5,13 +5,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.knowledge.domain.StorageBackend;
-import com.ragagent.storage.StorageAllowList;
+import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.storage.dto.StorageBackendResponse;
 import com.ragagent.storage.dto.StorageConfig;
 import com.ragagent.storage.mapper.StorageBackendRepository;
