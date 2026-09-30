@@ -17,6 +17,10 @@ import com.ragagent.session.domain.SuggestionItem;
  */
 class MessageSuggestionGenerateTest {
 
+    // 纯函数管道已随切片移到 MessageSuggestionPipeline（§14 步骤 2）；
+    // GenerationContext / Evidence 两个 record 仍留在门面。
+
+
     private static SuggestionItem item(String text) {
         SuggestionItem i = new SuggestionItem();
         i.setId("id-" + text);
@@ -37,7 +41,7 @@ class MessageSuggestionGenerateTest {
                 + "{\"text\":\"   \",\"category\":\"clarify\"}," // 空文本
                 + "{\"text\":\"如何评测？\",\"category\":\"deepen\"}"
                 + "]}";
-        List<SuggestionItem> items = MessageSuggestionService.parseGeneratedSuggestions(
+        List<SuggestionItem> items = MessageSuggestionPipeline.parseGeneratedSuggestions(
                 content, List.of("clarify", "deepen"), 10);
         assertThat(items).hasSize(3);
         assertThat(items.get(0).getText()).isEqualTo("什么是 RAG？");
@@ -53,7 +57,7 @@ class MessageSuggestionGenerateTest {
     @Test
     void parseGeneratedSuggestionsRejectsNonJson() {
         org.assertj.core.api.Assertions.assertThatThrownBy(
-                () -> MessageSuggestionService.parseGeneratedSuggestions("no json here", List.of(), 3))
+                () -> MessageSuggestionPipeline.parseGeneratedSuggestions("no json here", List.of(), 3))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("invalid suggestion JSON");
     }
@@ -64,7 +68,7 @@ class MessageSuggestionGenerateTest {
         SuggestionItem a = item("What is RAG?");
         SuggestionItem b = item("what is rag"); // normalize 后与 a 同键（标点/大小写）
         SuggestionItem c = item("How to deploy?");
-        List<SuggestionItem> merged = MessageSuggestionService.mergeSuggestionItems(
+        List<SuggestionItem> merged = MessageSuggestionPipeline.mergeSuggestionItems(
                 List.of(a, c), List.of(b), 2);
         assertThat(merged).containsExactly(a, c);
     }
@@ -81,7 +85,7 @@ class MessageSuggestionGenerateTest {
             knowledge.add(item("kb-q-" + i));
         }
         // limit=6 → knowledge 槽 2，model 槽 4；先 model4 → knowledge2 → 互填不足 6 则回补
-        List<SuggestionItem> merged = MessageSuggestionService.mergeHybridSuggestionItems(
+        List<SuggestionItem> merged = MessageSuggestionPipeline.mergeHybridSuggestionItems(
                 model, knowledge, 6);
         assertThat(merged).hasSize(6);
         assertThat(merged.subList(0, 4)).allMatch(i -> i.getText().startsWith("model-q-"));
@@ -103,7 +107,7 @@ class MessageSuggestionGenerateTest {
         a2.setCompleted(true);
 
         MessageSuggestionService.GenerationContext ctx =
-                MessageSuggestionService.buildSuggestionGenerationContext(
+                MessageSuggestionPipeline.buildSuggestionGenerationContext(
                         List.of(u1, a1, u2, a2), a2, 2);
         // 当前轮 user 问题 = 问题二；历史 = 上一轮（更早轮被 maxTurns-1 截断）
         assertThat(ctx.currentQuery()).isEqualTo("问题二");
@@ -119,7 +123,7 @@ class MessageSuggestionGenerateTest {
         u1.setId("n1");
         a1.setId("n2");
         MessageSuggestionService.GenerationContext ctx =
-                MessageSuggestionService.buildSuggestionGenerationContext(
+                MessageSuggestionPipeline.buildSuggestionGenerationContext(
                         List.of(u1, a1), a1, 2);
         assertThat(ctx.currentQuery()).isEqualTo("老问题");
     }
@@ -128,14 +132,14 @@ class MessageSuggestionGenerateTest {
     @Test
     void truncateRunesByCodePoint() {
         String s = "aé𐍈b"; // 4 码点（𐍈 是增补平面）
-        assertThat(MessageSuggestionService.truncateRunes(s, 3)).isEqualTo("aé𐍈");
-        assertThat(MessageSuggestionService.truncateRunes(s, 10)).isEqualTo(s);
+        assertThat(MessageSuggestionPipeline.truncateRunes(s, 3)).isEqualTo("aé𐍈");
+        assertThat(MessageSuggestionPipeline.truncateRunes(s, 10)).isEqualTo(s);
     }
 
     /** 对照 suggestionRelevanceTokens：去标点、滤单 rune、小写。 */
     @Test
     void relevanceTokensCleanAndFilter() {
-        Set<String> tokens = MessageSuggestionService.suggestionRelevanceTokens(
+        Set<String> tokens = MessageSuggestionPipeline.suggestionRelevanceTokens(
                 "What is RAG?");
         assertThat(tokens).contains("what", "is", "rag");
         assertThat(tokens).noneMatch(t -> t.equals("?") || t.equals("a"));
@@ -148,7 +152,7 @@ class MessageSuggestionGenerateTest {
         candidates.add(new Object[] {"向量数据库如何选型", "faq", "kb-1"});
         candidates.add(new Object[] {"RAG 检索增强生成是什么", "document", "kb-1"});
         String context = "请解释 RAG 检索增强生成的原理";
-        MessageSuggestionService.rankKnowledgeSuggestions(candidates, context);
+        MessageSuggestionPipeline.rankKnowledgeSuggestions(candidates, context);
         assertThat((String) candidates.get(0)[0]).isEqualTo("RAG 检索增强生成是什么");
     }
 
@@ -181,7 +185,7 @@ class MessageSuggestionGenerateTest {
                 List.of(low, high, dup)));
 
         MessageSuggestionService.Evidence evidence =
-                MessageSuggestionService.buildSuggestionEvidence(current);
+                MessageSuggestionPipeline.buildSuggestionEvidence(current);
         assertThat(evidence.text()).contains("[1] 文档二: 高分证据内容");
         assertThat(evidence.text()).contains("[2] 文档一: 重复引用");
         assertThat(evidence.text()).doesNotContain("低分证据内容"); // 同 id 的低分行被去重
