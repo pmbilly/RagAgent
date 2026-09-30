@@ -13,12 +13,12 @@
    域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；
    **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）；
    **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）；
-   **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）。
-4. **下一步**：`HybridSearchService` 1,260 单独侦察（引擎族已清零）→
+   **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。
+4. **下一步**：`knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 →
    `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **26 个**（清单见 §14.3）。
+6. **全仓存量**：≥800 行的类还有 **25 个**（清单见 §14.3）；**检索域 ≥800 全清零**。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -135,6 +135,7 @@
 | 阶段 2 神类切片（wiki 域，2026-10-01） | WikiPageController / WikiIngestService | **全部出榜**（10 刀 → 10 个包内协作者；1,311→272、1,208→509；§14.7.2） |
 | 阶段 2 神类切片（im 域，2026-10-01） | ImService | **出榜**（5 刀 → 5 个包内协作者；1,445→664；§14.7.4） |
 | 阶段 2 适配器批（retrieval，2026-10-01） | 9 个引擎仓 | **全部出榜**（sqlite 2 刀 + 6 仓 12 刀 + 尾仓 opensearch 3 刀/doris 3 刀，23 个协作者；≥800 引擎清零；§14.7.5） |
+| 阶段 2 收官（HybridSearchService，2026-10-01） | 非引擎族检索编排 | **出榜**（3 刀 → FusionOps/ResultOps/StoreGroupOps；1,260→775；检索域清零；§14.7.6） |
 
 ### 7.2 当前存量（实测）
 
@@ -356,13 +357,13 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **26 个**；适配器批后 38→26）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **25 个**；适配器批后 38→25，检索域清零）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | `DataSourceService` 1,828 · `FeishuClient` 1,154 · `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
-| retrieval | `HybridSearchService` 1,260（非引擎族，单独侦察）——9 个引擎仓已全部出榜（§14.7.5，含 opensearch 3 刀 / doris 3 刀） |
+| retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | 其余单类 | `RemoteApiChat` 1,366（llm）· `FaqImportService` 1,235（knowledge 例外）· `AuthController` 1,167 · `PluginMerge` 1,155（chatpipeline）· `SessionKnowledgeQaService` 1,036（session 例外）· `McpServiceController` 937 · `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `TenantCatalogController` 980 · `SourceRegistry` 878 · `UserService` 876 · `KnowledgeService` 848（knowledge 例外）· `OAuthHandler` 825 · `KnowledgeProcessWorker` 814 |
 | im / llm / knowledge / auth / chatpipeline | `ImService` 1,445 · `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `AuthController` 1,167 · `PluginMerge` 1,155 |
@@ -591,6 +592,17 @@ ops 的同包嵌套 import 删除；②D2 已放宽的签名（`ensureTable`/`ta
 `private`——**侦察必须基于上一刀落盘后的现场**，别用陈旧行号或旧修饰符。
 收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 27→**26**。
 检索域剩：`HybridSearchService` 1,260（非引擎族）。
+
+### 14.7.6 HybridSearchService 记录（2026-10-01，3 刀出榜；非引擎族）
+
+`HybridSearchService` 1,260→**775**（H1 `665a3a7` 融合+FAQ 后处理 10 成员 → `HybridFusionOps`；
+H2 `57a9750` 结果装配 5 成员 → `HybridResultOps`；H3 `94569a1` store-group 解析 3 成员 →
+`HybridStoreGroupOps`，持 service+storeOwnership 双依赖）。
+**要点**：①测试直调 static（hasMixedEngineTypes/isKnownEngineType/multiStoreRetrieveTimeout/
+storeKindLabel/StoreGroup）与 `RetrievalConfigView` record 全部留门面；②入口 hybridSearch 内的
+跨簇调用点（applyFaqPostProcessing）改 `fusionOps.` 前缀；③static 薄委托（fuseOrDeduplicate/
+deduplicateByScore）必须用**类名**调 ops 的 static 方法，实例字段在 static 上下文不可引用。
+收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 26→**25**；检索域 ≥800 清零。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
