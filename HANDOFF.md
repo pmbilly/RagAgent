@@ -821,6 +821,18 @@ knowledge/
       所以只能放宽生产成员——这是 ④-e 的老先例，不是新问题。
    收尾：`spotlessApply`（会清掉 package-info 里 javadoc 表格误补的 import）→ 全量测试 → `check-package-cycles.py` 守卫 → 体检复跑。
 
+21. **搬运类/包之后必须跑一次「干净全量」**（2026-09-30 实测：用户贴 IDE Problems 才发现）：
+   `retrieval/support/SearchUtilTest` 自批 4k 起就编译不过——它测的 `SearchChunkMerge`/`ImageInfoEnricher`
+   搬去了 `knowledge.support`，测试仍按旧包同名引用（无 import），但 `:server:test` **一路全绿**。原因两层：
+   ① Gradle 增量编译**不重编未变更的引用方**，该文件自 4k 后没人碰过，错误永不暴露；
+   ② 它的 `.class` 早已不在 `build/classes/java/test` 里 → 测试**根本没跑**（`build/test-results` 里
+   连它的 XML 都没有）。`compileTestJava --rerun-tasks` 一秒暴露。**收口口径**：
+   ①迁移/改名/删类之后，该批收尾闸门改用 `:server:clean :server:test :server:spotlessCheck`
+   （本仓 clean 全量约 3.5 分钟，只比常规全量贵一点）；②**用例数只认「干净一遍」后的 XML 汇总**
+   （本次修复后 425 类 4,559 例 → **432 类 4,664 例**：多出的 7 个测试类此前一直"静默缺席"，
+   所以 §11.16 统一的口径还要再叠一条"需为 clean 构建的结果"）；③**IDE Problems 是这类断链最早的哨兵**
+   ——用户视角看得见，助手侧应主动对刚动过的目录 `read_lints`。
+
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
 > **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**

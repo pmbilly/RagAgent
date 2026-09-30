@@ -10,6 +10,8 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import com.ragagent.knowledge.domain.Chunk;
+import com.ragagent.knowledge.support.ImageInfoEnricher;
+import com.ragagent.knowledge.support.SearchChunkMerge;
 import com.ragagent.retrieval.domain.ImageInfo;
 
 /**
@@ -138,15 +140,6 @@ class SearchUtilTest {
     }
 
     // ── imageinfo（对照 Go imageinfo_html_test.go 语义）──────────────
-
-    private static String img(String url, String original, String caption, String ocr) {
-        return new ImageInfo() {{
-            setUrl(url);
-            setOriginalUrl(original);
-            setCaption(caption);
-            setOcrText(ocr);
-        }}.getUrl().isEmpty() && false ? "" : marshalOf(url, original, caption, ocr);
-    }
 
     private static String marshalOf(String url, String original, String caption, String ocr) {
         ImageInfo i = new ImageInfo();
