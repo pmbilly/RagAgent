@@ -20,7 +20,6 @@ import com.ragagent.common.CleanInvalidUtf8;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
-import com.ragagent.retrieval.engine.EngineTypes.IndexWithScore;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 import com.ragagent.retrieval.engine.RetrieveEngineRepository;
@@ -86,10 +85,12 @@ public class QdrantRetrieveRepository
     /** 对照 CopyIndices 的 {@code batchSize := uint32(64)}。 */
     static final int COPY_PAGE_SIZE = 64;
 
-    private final QdrantRestClient client;
-    private final String collectionBaseName;
+    final QdrantRestClient client;
+    final String collectionBaseName;
     private final int shardNumber;
     private final int replicationFactor;
+
+    final QdrantSearchOps searchOps;
 
     /** 对照 {@code initializedCollections sync.Map}：dim -> true。 */
     private final ConcurrentHashMap<Integer, Boolean> initializedCollections =
@@ -102,6 +103,7 @@ public class QdrantRetrieveRepository
                 ? DEFAULT_COLLECTION_NAME : collectionBaseName;
         this.shardNumber = shardNumber;
         this.replicationFactor = replicationFactor;
+        this.searchOps = new QdrantSearchOps(this);
     }
 
     /** 照 Go {@code NewQdrantRetrieveEngineRepository} + {@code createQdrantEngine} 的构造链。 */
@@ -438,7 +440,7 @@ public class QdrantRetrieveRepository
     // ── 过滤构造 ────────────────────────────────────────────────────────────
 
     /** 关键词集合匹配（gRPC MatchKeywords → REST match.any）。 */
-    private static ObjectNode matchAny(String field, List<String> values) {
+    static ObjectNode matchAny(String field, List<String> values) {
         ObjectNode cond = QdrantRestClient.object();
         cond.put("key", field);
         ObjectNode match = cond.putObject("match");
@@ -448,7 +450,7 @@ public class QdrantRetrieveRepository
     }
 
     /** 单值匹配（gRPC NewMatch → REST match.value）。 */
-    private static ObjectNode matchValue(String field, Object value) {
+    static ObjectNode matchValue(String field, Object value) {
         ObjectNode cond = QdrantRestClient.object();
         cond.put("key", field);
         ObjectNode match = cond.putObject("match");
@@ -463,7 +465,7 @@ public class QdrantRetrieveRepository
     }
 
     /** 全文匹配（gRPC NewMatchText → REST match.text）。 */
-    private static ObjectNode matchText(String field, String text) {
+    static ObjectNode matchText(String field, String text) {
         ObjectNode cond = QdrantRestClient.object();
         cond.put("key", field);
         ObjectNode match = cond.putObject("match");
@@ -471,7 +473,7 @@ public class QdrantRetrieveRepository
         return cond;
     }
 
-    private static ObjectNode mustOnly(ObjectNode... conditions) {
+    static ObjectNode mustOnly(ObjectNode... conditions) {
         ObjectNode filter = QdrantRestClient.object();
         ArrayNode must = filter.putArray("must");
         for (ObjectNode c : conditions) {
@@ -480,166 +482,10 @@ public class QdrantRetrieveRepository
         return filter;
     }
 
-    /** 对照 {@code getBaseFilter}：is_enabled=true 隐含 + KB/知识/标签过滤 + 排除项。 */
-    static ObjectNode baseFilter(RetrieveParams params) {
-        ObjectNode filter = QdrantRestClient.object();
-        ArrayNode must = filter.putArray("must");
-        ArrayNode mustNot = filter.putArray("must_not");
-        must.add(matchValue(FIELD_IS_ENABLED, true));
-        if (params != null) {
-            if (params.knowledgeBaseIds != null && !params.knowledgeBaseIds.isEmpty()) {
-                must.add(matchAny(FIELD_KNOWLEDGE_BASE_ID, params.knowledgeBaseIds));
-            }
-            if (params.knowledgeIds != null && !params.knowledgeIds.isEmpty()) {
-                must.add(matchAny(FIELD_KNOWLEDGE_ID, params.knowledgeIds));
-            }
-            if (params.tagIds != null && !params.tagIds.isEmpty()) {
-                must.add(matchAny(FIELD_TAG_ID, params.tagIds));
-            }
-            if (params.excludeKnowledgeIds != null && !params.excludeKnowledgeIds.isEmpty()) {
-                mustNot.add(matchAny(FIELD_KNOWLEDGE_ID, params.excludeKnowledgeIds));
-            }
-            if (params.excludeChunkIds != null && !params.excludeChunkIds.isEmpty()) {
-                mustNot.add(matchAny(FIELD_CHUNK_ID, params.excludeChunkIds));
-            }
-        }
-        return filter;
-    }
-
     // ── 检索 ────────────────────────────────────────────────────────────────
 
-    @Override
-    public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
-        String retrieverType = params == null || params.retrieverType == null
-                ? "" : params.retrieverType;
-        return switch (retrieverType) {
-            case EngineTypes.RETRIEVER_VECTOR -> vectorRetrieve(params);
-            case EngineTypes.RETRIEVER_KEYWORDS -> keywordsRetrieve(params);
-            default -> {
-                log.error("[Qdrant] invalid retriever type: {}", retrieverType);
-                throw new IllegalStateException("invalid retriever type: " + retrieverType);
-            }
-        };
-    }
-
-    /**
-     * 对照 {@code VectorRetrieve}：集合不存在 → 空结果；否则
-     * {@code /points/search}（filter + limit=TopK + score_threshold + with_payload）；
-     * 失败包 {@code <collection>: <err>}。
-     */
-    private List<RetrieveResult> vectorRetrieve(RetrieveParams params) {
-        float[] embedding = params.embedding == null ? new float[0] : params.embedding;
-        int dimension = embedding.length;
-        log.info("[Qdrant] Vector retrieval: dim={}, topK={}, threshold={}",
-                dimension, params.topK, params.threshold);
-        String collection = collectionName(dimension);
-        JsonNode existing;
-        try {
-            existing = client.request("GET", "/collections/" + collection, null, true);
-        } catch (RuntimeException e) {
-            log.error("[Qdrant] Failed to check collection existence: {}", e.getMessage());
-            throw new IllegalStateException("failed to check collection: " + e.getMessage(), e);
-        }
-        if (existing == null) {
-            log.warn("[Qdrant] Collection {} does not exist, returning empty results", collection);
-            return buildRetrieveResult(List.of(), EngineTypes.RETRIEVER_VECTOR);
-        }
-        ObjectNode body = QdrantRestClient.object();
-        ArrayNode vector = body.putArray("vector");
-        for (float v : embedding) {
-            vector.add(v);
-        }
-        body.set("filter", baseFilter(params));
-        body.put("limit", params.topK);
-        body.put("score_threshold", params.threshold);
-        body.put("with_payload", true);
-        JsonNode result;
-        try {
-            result = client.request("POST", "/collections/" + collection + "/points/search", body);
-        } catch (RuntimeException e) {
-            log.error("[Qdrant] Vector search failed: {}", e.getMessage());
-            throw new IllegalStateException(collection + ": " + e.getMessage(), e);
-        }
-        List<IndexWithScore> results = new ArrayList<>();
-        if (result != null) {
-            for (JsonNode point : result) {
-                results.add(fromPoint(point, EngineTypes.MATCH_EMBEDDING,
-                        point.path("score").asDouble()));
-            }
-        }
-        if (results.isEmpty()) {
-            log.warn("[Qdrant] No vector matches found that meet threshold {}", params.threshold);
-        } else {
-            log.info("[Qdrant] Vector retrieval found {} results", results.size());
-        }
-        return buildRetrieveResult(results, EngineTypes.RETRIEVER_VECTOR);
-    }
-
-    /**
-     * 对照 {@code KeywordsRetrieve}：跨集合 {@code /points/scroll}，filter 的 Should 装
-     * 每个 token 的 content 全文匹配（OR）；无 token 时回落 must 里塞原 query；跨集合合并后
-     * 截 TopK；score 恒 1.0；单集合失败只 WARN 继续。
-     */
-    private List<RetrieveResult> keywordsRetrieve(RetrieveParams params) {
-        String query = params.query == null ? "" : params.query;
-        log.info("[Qdrant] Performing keywords retrieval with query: {}, topK: {}",
-                query, params.topK);
-        List<String> collections;
-        try {
-            collections = listCollections();
-        } catch (RuntimeException e) {
-            log.error("[Qdrant] Failed to list collections: {}", e.getMessage());
-            throw new IllegalStateException("failed to list collections: " + e.getMessage(), e);
-        }
-        List<IndexWithScore> allResults = new ArrayList<>();
-        List<String> tokens = tokenizeQuery(query);
-        log.debug("[Qdrant] Tokenized query into {} tokens: {}", tokens.size(), tokens);
-        for (String collection : collections) {
-            if (!isPrefixed(collection)) {
-                continue;
-            }
-            ObjectNode filter = baseFilter(params);
-            if (!tokens.isEmpty()) {
-                ArrayNode should = filter.putArray("should");
-                for (String token : tokens) {
-                    should.add(matchText(FIELD_CONTENT, token));
-                }
-            } else {
-                filter.withArray("must").add(matchText(FIELD_CONTENT, query));
-            }
-            ObjectNode body = QdrantRestClient.object();
-            body.set("filter", filter);
-            body.put("limit", params.topK);
-            body.put("with_payload", true);
-            JsonNode scroll;
-            try {
-                scroll = client.request("POST",
-                        "/collections/" + collection + "/points/scroll", body);
-            } catch (RuntimeException e) {
-                log.warn("[Qdrant] Keywords search failed in {}: {}", collection, e.getMessage());
-                continue;
-            }
-            JsonNode points = scroll == null ? null : scroll.get("points");
-            if (points != null) {
-                for (JsonNode point : points) {
-                    allResults.add(fromPoint(point, EngineTypes.MATCH_KEYWORDS, 1.0));
-                }
-            }
-        }
-        int topK = Math.max(0, params.topK);
-        if (allResults.size() > topK) {
-            allResults = new ArrayList<>(allResults.subList(0, topK));
-        }
-        if (allResults.isEmpty()) {
-            log.warn("[Qdrant] No keyword matches found for query: {}", query);
-        } else {
-            log.info("[Qdrant] Keywords retrieval found {} results", allResults.size());
-        }
-        return buildRetrieveResult(allResults, EngineTypes.RETRIEVER_KEYWORDS);
-    }
-
     /** 对照 {@code ListCollections}（REST {@code GET /collections}）。 */
-    private List<String> listCollections() {
+    List<String> listCollections() {
         JsonNode result = client.request("GET", "/collections", null);
         List<String> names = new ArrayList<>();
         JsonNode collections = result == null ? null : result.get("collections");
@@ -652,7 +498,7 @@ public class QdrantRetrieveRepository
     }
 
     /** 对照 Go 的集合名前缀过滤：严格长于 base 且以此为前缀。 */
-    private boolean isPrefixed(String collection) {
+    boolean isPrefixed(String collection) {
         return collection.length() > collectionBaseName.length()
                 && collection.startsWith(collectionBaseName);
     }
@@ -690,6 +536,12 @@ public class QdrantRetrieveRepository
         }
         return result;
     }
+
+    @Override
+    public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
+        return searchOps.retrieve(params);
+    }
+
 
     // ── 批量更新（跨集合 SetPayload） ──────────────────────────────────────
 
@@ -975,28 +827,6 @@ public class QdrantRetrieveRepository
             }
         }
         return row;
-    }
-
-    /** 对照 {@code fromQdrantVectorEmbedding}：payload + score → IndexWithScore（IsEnabled 不回填，照 Go）。 */
-    static IndexWithScore fromPoint(JsonNode point, int matchType, double score) {
-        JsonNode payload = point.path("payload");
-        IndexWithScore out = new IndexWithScore();
-        out.id = point.path("id").asText("");
-        out.sourceId = payload.path(FIELD_SOURCE_ID).asText("");
-        out.sourceType = payload.path(FIELD_SOURCE_TYPE).asInt(0);
-        out.chunkId = payload.path(FIELD_CHUNK_ID).asText("");
-        out.knowledgeId = payload.path(FIELD_KNOWLEDGE_ID).asText("");
-        out.knowledgeBaseId = payload.path(FIELD_KNOWLEDGE_BASE_ID).asText("");
-        out.tagId = payload.path(FIELD_TAG_ID).asText("");
-        out.content = payload.path(FIELD_CONTENT).asText("");
-        out.score = score;
-        out.matchType = matchType;
-        return out;
-    }
-
-    static List<RetrieveResult> buildRetrieveResult(List<IndexWithScore> results,
-                                                    String retrieverType) {
-        return List.of(new RetrieveResult(results, EngineTypes.ENGINE_QDRANT, retrieverType));
     }
 
     // ── test-connection 探针（照 vectorstore_healthcheck.go testQdrantConnection） ──
