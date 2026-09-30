@@ -26,14 +26,39 @@
 
 ## 3. 待办（按优先级；**一次只动一个轴**，别混批）
 
-### P0 包间成环：32 组 —— 唯一"架构级"问题
+### P0 包间成环：34 组 —— 实测后**大部分比想象中便宜**
 
-挡着路线图**阶段 4（多模块边界固化）**：有环就画不出无环依赖图。代表：`agent ⇄ knowledge`、
-`auth ⇄ knowledge`、`knowledge ⇄ wiki`、`agent ⇄ mcp`、`chatpipeline ⇄ session`、`session ⇄ storage`、
-`llm ⇄ model`、`memory ⇄ session`、`config ⇄ common`…
+> ⚠️ **别用"成环数量"估成本**：决定成本的是**背边规模**（环里文件数较少的那一侧要切几刀）。
+> 2026-09-30 画像：**背边 ≤2 文件 = 22 组**（多数是**单个类型越界**造成）、4–7 文件 ≈ 7 组、**≥8 文件 = 5 组**（贵重）。
 
-- [ ] 先出**环的拓扑 + 最小解环方案**（依赖倒置 / 借 `event` 解耦 / 抽共享内核），评审后再动刀；
-- [ ] 建议与阶段 4 合并为一个专门批次（动面最大，不与 P1–P3 混做）。
+**便宜的环长什么样**（一个类型造成的整组环）：
+
+| 环 | 背边类型（切它即可） | 现用途 |
+|---|---|---|
+| `common ⇄ config` | `TenantProperties ×1` | `RbacInterceptor` 读租户属性 |
+| `auth ⇄ memory` | `MemoryConfig ×1` | 租户目录页读记忆配置 |
+| `audit ⇄ auth` | `TenantRole ×1` | 审计控制器判角色 |
+| `llm ⇄ retrieval` | `SearchResult ×1` | 流式响应里放检索结果 |
+| `storage ⇄ session` | `Message ×1` | 判断"消息是否引用该文件" |
+| `embedding`/`rerank`/`llm ⇄ model` | `Model ×1` | provider 只要**配置值**却拿了模型实体 |
+
+**五种手法**（22 组归为 5 类，不是 22 个独立难题）：
+
+| 手法 | 约解 | 例 |
+|---|---|---|
+| A 配置/常量类归位到最低层 | 6 组 | `TenantProperties`、`ConversationProperties`、`MemoryConfig` |
+| B 无状态工具下沉（→`common`/中立 support） | 5 组 | `SearchTextUtil`、`AgentPromptPlaceholders`、`ExtractPrompts` |
+| C 端口化：上层不直连下层 mapper/service | 6 组 | `audit`/`apikey` 直查 `KnowledgeBaseMapper`；`auth` 直用 `KnowledgeBaseService` |
+| D 传值不传实体 | 4 组 | provider 客户端只取模型配置值 |
+| E 引擎伴生类型归位 | 3 组 | `Gate`/`Decision`/`ApprovalException`、`Registry`/`StreamDecoder` |
+
+**批次**：批 1 = A+B（约 11 组）｜批 2 = C（约 6 组）｜批 3 = D+E（约 5 组）｜**5 组贵重的留阶段 4**
+（`knowledge ⇄ wiki`、`chatpipeline ⇄ session`、`chatpipeline ⇄ knowledge`、`knowledge ⇄ retrieval`、`agent ⇄ mcp`：
+要么是领域实质耦合，要么绑定仍待重构的域——现在硬解会返工）。
+
+**守卫（已入库）**：`python3 scripts/check-package-cycles.py` —— **环只许减不许增**（基线
+`scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
+当前基线：**环 34 组 / 依赖 `config` 的包 5 个 / 能力层→业务层直连 19 条**。
 
 ### P1 扁平包 10 个（无子包，靠文件名找东西）
 
@@ -62,6 +87,68 @@
 - [ ] `model` 既是顶层域又是层名（`model/domain` vs `auth/domain`）→ 至少在文档里点名，改名后议；
 - [ ] 四个近邻包易混：`embed`(12，HTTP 叶子域，0 包引用) / `embedding`(21，provider 客户端) / `vectorstore`(12) / `rerank`(14)；
 - [ ] 2 个放错包的文件归位；5 个控制器改走服务层；wiki 2 处反向依赖反转。
+
+## 3.5 目标结构（重组后）
+
+### 分层规则（`scripts/check-package-cycles.py` 可校验其一）
+
+```
+L4  config                      组合根：Spring 装配；**只出不进**（任何域不得依赖它）
+L3  业务域                       knowledge agent agentm session wiki datasource im memory mcp auth
+                                 audit model storage system websearch embedchannel favorite evaluation
+     └ 同级之间：禁直连对方 mapper/实体；跨域走**窄接口（port）或事件**
+L2  能力层                       llm retrieval embedding rerank chatpipeline
+     └ 不得依赖 L3；只接受**配置值**而非业务实体
+L1  平台                         common event stream tracing
+```
+
+### 顶层包 34 → 约 29（并入/改名 5 处 + 1 处待定）
+
+| 现在 | 重组后 | 理由 |
+|---|---|---|
+| `searchutil` | `retrieval/support` | 纯检索工具，归属检索域（同时消 `retrieval ⇄ searchutil` 环）|
+| `storageurl` | `storage/support` | 存储 URL 重写是该域能力（消 `storage ⇄ storageurl`）|
+| `webfetch` | `agent/support` | 它就是 agent 的抓取能力 |
+| `apikey` | `auth/apikey` | 与 auth 职责相邻且互相成环（消 `apikey ⇄ auth`）；**待用户确认** |
+| `embed` | `embedchannel` | 与 `embedding` 名字太近，语义不同（业务渠道 vs provider 客户端）|
+| `modelcontext` | **待定**：并入 `agent/modelcontext` 或保留顶层 | 目前只被 agent 用；`agent ⇄ modelcontext` 环也可用"伴生类型归位"解 |
+| `agentm` | **待定**：是否一分为二（智能体管理 / 初始化+模型能力） | 它是混装（§7 已记）|
+
+其余域**保留顶层**：`knowledge agent session wiki datasource im memory mcp auth audit model storage
+system websearch favorite evaluation common config event stream tracing`。
+
+### 域内标准骨架（§2.13）+ 二级子包阈值
+
+```
+<domain>/
+  controller/ 仅 *Controller      service/  Spring 服务        domain/  实体与值对象（jsonb 落库类型）
+  dto/        请求/响应           mapper/   MyBatis-Plus 接口   repository/ 仓储门面（软删/乐观锁/方言）
+  support/    无状态算法与规则    task/ client/ storage/ security/   按角色
+```
+
+**阈值**：一层 **>50 文件 或 ≥3 个自然族 → 建二级子包**（命中者：`agent/tools` 95、`wiki/service` 81、
+`datasource/connector` 76、`knowledge/dto` 74；扁平包 `chatpipeline` 44、`event` 40）。
+
+| 目标内部分组（沿已有命名族，纯移动） |
+|---|
+| `agent/tools/` → `tools/{knowledge,wiki,web,mcp,sql,data}/`（`Wiki*` 19、`Mcp*` 10、`Sql*` 4）|
+| `wiki/service/` → `service/{ingest,page,link,folder}/`（`Wiki*` 60、`Ingest*` 6）|
+| `knowledge/dto/` → `dto/{request,response,view}/`（或按族 `faq`17/`knowledge`8/`chunk`）|
+| `datasource/connector/` → 已按供应商分子包，只需 14 个根级文件归位 |
+| `chatpipeline/`（扁平 44）→ `plugin/`(19) + `pipeline/`(7) + `search/` + `payload/` |
+| `event/`（扁平 40）→ `bus/` + `payload/` + `agent/`(11) |
+| `embedding/`(21) `rerank/`(14) → 可选 `provider/` + `support/`（未超阈值，非必须）|
+
+### 批次 → 结构变化的对应
+
+| 批次 | 结构结果 |
+|---|---|
+| 批 1 解环·配置归位（A+B） | `config` 变成**纯组合根**；顶层 −3（searchutil/storageurl/webfetch） |
+| 批 2 解环·端口化（C） | `audit`/`apikey`/`auth` 不再直连下层 mapper/service（新增各自的 port）|
+| 批 3 解环·传值 + 伴生类型（D+E） | provider 客户端只依赖配置值；引擎伴生类型归位 |
+| P1/P2 分包子包 | 上表的域内二级结构 |
+| P3 小修 | 2 个放错包的文件归位；5 个控制器改走服务层；wiki 2 处反向依赖反转 |
+| 阶段 4 | 5 组贵重环 + 模块边界固化（`config`/L1 的物理模块化） |
 
 ## 4. 明确"别动"
 
