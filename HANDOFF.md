@@ -863,7 +863,14 @@
 - **侦察口径修正（值得记）**：`QaRequestContext`/`SseStreamContext`/`CreateKnowledgeQARequest`/
   `SearchKnowledgeRequest` **都是外部导入的顶层类型**，不是控制器嵌套类型——"嵌套上下文挡路"的第一印象是错的；
   真挡路的只有 1 行 `ParsedRequest` 与两个 `@Autowired` 字段。**先 grep 类型声明（`record X|class X` + `import`）
-  再判断能不能切。**
+  再判断能不能切。**  **结论已解（同日复核，无需另定语义）**：控制器 150/151 行本来就是 `this.fileService = fileService.getIfAvailable();`
+  —— provider 只是"容忍缺失"的入口，**字段是实例、构造期已取**，解析体（260 行）也按实例传下层 → 协作者照
+  **实例**收依赖即可。首次失败是脚本取型 bug（按名字命中了构造参数 `ObjectProvider` 而非字段类型），不是设计问题。
+  **4b 重试口径（三条，逐条对应首败）**：① 控制器里 `new QaRequestParser(...)` 传 `this.fileService` /
+  `this.storageBackendResolver`（字段，不是同名构造参数）；② 新类补
+  `import com.ragagent.session.controller.KnowledgeQaController.Base64Support;`（解析体用它解码）；③ 调用点补参
+  **先收集全部（163/173）再右到左插**。其余同 §11.26 既定替换（`agentResolver`/`readerTenant` 参数化 +
+  `stringListOf`/`ParsedRequest` 包内引用）。
 
 ## 11.27 session 步骤 2 第十二刀：KnowledgeQaController 静态解析助手簇（2026-09-30，§14.9c 刀 4a）
 
