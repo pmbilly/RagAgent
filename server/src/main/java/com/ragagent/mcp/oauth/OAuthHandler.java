@@ -1,11 +1,8 @@
 package com.ragagent.mcp.oauth;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -50,15 +47,19 @@ public class OAuthHandler {
 
     /** 元数据发现协作者（对照 Go metadataOnce 段）。 */
     final OAuthDiscovery discovery;
+
+    /** 协议交换协作者（对照 Go 刷新/注册/授权/code 交换段）。 */
+    final OAuthTokenOps tokenOps;
     final Duration timeout;
 
-    private final ReentrantLock stateLock = new ReentrantLock();
-    private String expectedState = "";
+    final ReentrantLock stateLock = new ReentrantLock();
+    String expectedState = "";
 
     public OAuthHandler(OAuthConfig config) {
         this.config = config;
         this.timeout = config.httpTimeout();
         this.discovery = new OAuthDiscovery(this);
+        this.tokenOps = new OAuthTokenOps(this);
     }
 
     /** 薄委托：发现状态见 {@link OAuthDiscovery#setBaseUrl}。 */
@@ -99,6 +100,38 @@ public class OAuthHandler {
     /** 薄委托：见 {@link OAuthDiscovery#resourceIdentifiersEqual}。 */
     static boolean resourceIdentifiersEqual(String a, String b) {
         return OAuthDiscovery.resourceIdentifiersEqual(a, b);
+    }
+
+
+    /** 薄委托：刷新语义见 {@link OAuthTokenOps#refreshToken}。 */
+    public OAuthToken refreshToken(McpContext ctx, String refreshToken) {
+        return tokenOps.refreshToken(ctx, refreshToken);
+    }
+
+    /** 薄委托：见 {@link OAuthTokenOps#registerClient}。 */
+    public void registerClient(McpContext ctx, String clientName) {
+        tokenOps.registerClient(ctx, clientName);
+    }
+
+    /** 薄委托：见 {@link OAuthTokenOps#getAuthorizationUrl}。 */
+    public String getAuthorizationUrl(McpContext ctx, String state, String codeChallenge) {
+        return tokenOps.getAuthorizationUrl(ctx, state, codeChallenge);
+    }
+
+    /** 薄委托：见 {@link OAuthTokenOps#processAuthorizationResponse}。 */
+    public void processAuthorizationResponse(McpContext ctx, String code, String state,
+                                             String codeVerifier) {
+        tokenOps.processAuthorizationResponse(ctx, code, state, codeVerifier);
+    }
+
+    /** 薄委托：见 {@link OAuthTokenOps#encodeForm}。 */
+    static String encodeForm(Map<String, String> params) {
+        return OAuthTokenOps.encodeForm(params);
+    }
+
+    /** 薄委托：见 {@link OAuthTokenOps#queryEscape}。 */
+    static String queryEscape(String s) {
+        return OAuthTokenOps.queryEscape(s);
     }
 
 
@@ -178,278 +211,10 @@ public class OAuthHandler {
         throw new OAuthAuthorizationRequiredException(this);
     }
 
-    // ── 刷新 ───────────────────────────────────────────────────────────
-
-    /**
-     * 对照 Go {@code refreshToken}（oauth.go:240-318）。
-     *
-     * <p>要点：接受<b>任意 2xx</b>（Supabase 会回 201）；若响应体里带 {@code error} 字段
-     * （GitHub 的 HTTP 200 错误）则按错误处理；服务器没回新 refresh token 时<b>沿用旧的</b>
-     * （轮换型 refresh token 的常见形态）。</p>
-     */
-    public OAuthToken refreshToken(McpContext ctx, String refreshToken) {
-        AuthServerMetadata metadata = getServerMetadata(ctx);
-
-        Map<String, String> form = new LinkedHashMap<>();
-        form.put("grant_type", "refresh_token");
-        form.put("refresh_token", refreshToken);
-        form.put("client_id", config.clientId());
-        if (!config.clientSecret().isEmpty()) {
-            form.put("client_secret", config.clientSecret());
-        }
-        // RFC 8707：刷新请求也要带 resource
-        if (!getResourceUrl().isEmpty()) {
-            form.put("resource", getResourceUrl());
-        }
-
-        byte[] body = encodeForm(form).getBytes(StandardCharsets.UTF_8);
-        OAuthHttp.Response resp = OAuthHttp.post(metadata.tokenEndpoint(),
-                "application/x-www-form-urlencoded", "application/json", body, timeout);
-
-        if (resp.status() < 200 || resp.status() >= 300) {
-            throw extractOAuthError(resp.body(), resp.status(), "refresh token request failed");
-        }
-
-        // GitHub 会在 HTTP 200 里带 error 字段
-        OAuthError bodyError = parseOAuthError(resp.body());
-        if (bodyError != null) {
-            throw OAuthProtocolException.ofOAuthError("refresh token request failed", bodyError);
-        }
-
-        OAuthToken token = parseToken(resp.body());
-        if (token.expiresIn() > 0) {
-            token.applyExpiresIn(token.expiresIn());
-        }
-        if (token.refreshToken().isEmpty()) {
-            token.setRefreshToken(refreshToken);
-        }
-        config.tokenStore().saveToken(ctx, token);
-        return token;
-    }
-
-    // ── RFC 7591 动态客户端注册 ─────────────────────────────────────────
-
-    /**
-     * 对照 Go {@code RegisterClient}（oauth.go:886-966）。
-     *
-     * <p>注册成功后<b>就地</b>更新 handler 的 client_id/secret，随后的
-     * {@link #getClientId} 才拿得到新值（Go 正是靠这个把 client_id 回填进
-     * {@code OAuthManager.StartAuthorization}）。</p>
-     */
-    public void registerClient(McpContext ctx, String clientName) {
-        AuthServerMetadata metadata = getServerMetadata(ctx);
-        if (metadata.registrationEndpoint().isEmpty()) {
-            throw OAuthProtocolException.of("server does not support dynamic client registration");
-        }
-
-        Map<String, Object> regRequest = new LinkedHashMap<>();
-        regRequest.put("client_name", clientName);
-        regRequest.put("redirect_uris", List.of(config.redirectUri()));
-        regRequest.put("token_endpoint_auth_method", "none"); // 公共客户端
-        regRequest.put("grant_types", List.of("authorization_code", "refresh_token"));
-        regRequest.put("response_types", List.of("code"));
-        regRequest.put("scope", String.join(" ", config.scopes()));
-        if (!config.clientUri().isEmpty()) {
-            regRequest.put("client_uri", config.clientUri());
-        }
-        if (!config.clientSecret().isEmpty()) {
-            regRequest.put("token_endpoint_auth_method", "client_secret_post");
-        }
-        if (!getResourceUrl().isEmpty()) {
-            regRequest.put("resource", getResourceUrl());
-        }
-
-        byte[] body;
-        try {
-            body = MAPPER.writeValueAsBytes(regRequest);
-        } catch (Exception e) {
-            throw OAuthProtocolException.of("failed to marshal registration request: " + e.getMessage(), e);
-        }
-
-        OAuthHttp.Response resp = OAuthHttp.post(metadata.registrationEndpoint(),
-                "application/json", "application/json", body, timeout);
-
-        if (resp.status() != 201 && resp.status() != 200) {
-            throw extractOAuthError(resp.body(), resp.status(), "registration request failed");
-        }
-
-        Map<?, ?> regResponse;
-        try {
-            regResponse = MAPPER.readValue(resp.body(), Map.class);
-        } catch (Exception e) {
-            throw OAuthProtocolException.of("failed to decode registration response: " + e.getMessage(), e);
-        }
-        String clientId = stringOf(regResponse.get("client_id"));
-        String clientSecret = stringOf(regResponse.get("client_secret"));
-        config.clientId(clientId);
-        if (!clientSecret.isEmpty()) {
-            config.clientSecret(clientSecret);
-        }
-    }
-
-    // ── 授权 URL ───────────────────────────────────────────────────────
-
-    /**
-     * 对照 Go {@code GetAuthorizationURL}（oauth.go:1071-1101）。
-     *
-     * <p><b>注意副作用</b>：Go 在这里顺手调用 {@code SetExpectedState(state)}，
-     * 即"发起授权"这一动作本身就把 state 记进了 handler 的 CSRF 期望值。
-     * 回调请求是<b>另一个</b> handler 实例，因此必须显式再 set 一次
-     * （见 {@code OAuthManager.CompleteAuthorization} 的说明）。</p>
-     */
-    public String getAuthorizationUrl(McpContext ctx, String state, String codeChallenge) {
-        AuthServerMetadata metadata = getServerMetadata(ctx);
-        setExpectedState(state);
-
-        Map<String, String> params = new TreeMap<>();
-        params.put("response_type", "code");
-        params.put("client_id", config.clientId());
-        params.put("redirect_uri", config.redirectUri());
-        params.put("state", state);
-        if (!config.scopes().isEmpty()) {
-            params.put("scope", String.join(" ", config.scopes()));
-        }
-        if (config.pkceEnabled() && !codeChallenge.isEmpty()) {
-            params.put("code_challenge", codeChallenge);
-            params.put("code_challenge_method", "S256");
-        }
-        if (!getResourceUrl().isEmpty()) {
-            params.put("resource", getResourceUrl());
-        }
-        return metadata.authorizationEndpoint() + "?" + encodeForm(params);
-    }
-
-    // ── code 交换 ──────────────────────────────────────────────────────
-
-    /**
-     * 对照 Go {@code ProcessAuthorizationResponse}（oauth.go:971-1068）。
-     *
-     * <p>CSRF 校验先行：期望值为空报"流程未正确发起"，不匹配报
-     * {@value #INVALID_STATE_MESSAGE}；<b>校验后立刻清空</b>期望值，
-     * 使同一 handler 上的第二次回调必然失败。</p>
-     */
-    public void processAuthorizationResponse(McpContext ctx, String code, String state,
-                                             String codeVerifier) {
-        stateLock.lock();
-        try {
-            if (expectedState.isEmpty()) {
-                throw OAuthProtocolException.of(
-                        "no expected state found, authorization flow may not have been initiated properly");
-            }
-            if (!state.equals(expectedState)) {
-                throw OAuthProtocolException.of(INVALID_STATE_MESSAGE);
-            }
-            expectedState = "";
-        } finally {
-            stateLock.unlock();
-        }
-
-        AuthServerMetadata metadata = getServerMetadata(ctx);
-
-        Map<String, String> form = new LinkedHashMap<>();
-        form.put("grant_type", "authorization_code");
-        form.put("code", code);
-        form.put("client_id", config.clientId());
-        form.put("redirect_uri", config.redirectUri());
-        if (!config.clientSecret().isEmpty()) {
-            form.put("client_secret", config.clientSecret());
-        }
-        if (config.pkceEnabled() && !codeVerifier.isEmpty()) {
-            form.put("code_verifier", codeVerifier);
-        }
-        if (!getResourceUrl().isEmpty()) {
-            form.put("resource", getResourceUrl());
-        }
-
-        byte[] body = encodeForm(form).getBytes(StandardCharsets.UTF_8);
-        OAuthHttp.Response resp = OAuthHttp.post(metadata.tokenEndpoint(),
-                "application/x-www-form-urlencoded", "application/json", body, timeout);
-
-        if (resp.status() < 200 || resp.status() >= 300) {
-            throw extractOAuthError(resp.body(), resp.status(), "token request failed");
-        }
-
-        OAuthError bodyError = parseOAuthError(resp.body());
-        if (bodyError != null) {
-            throw OAuthProtocolException.ofOAuthError("token request failed", bodyError);
-        }
-
-        OAuthToken token = parseToken(resp.body());
-        if (token.expiresIn() > 0) {
-            token.applyExpiresIn(token.expiresIn());
-        }
-        config.tokenStore().saveToken(ctx, token);
-    }
 
 
 
-    /** 对照 Go {@code extractOAuthError}：结构化错误优先，否则回落到 "with status N: <body>"。 */
-    static OAuthProtocolException extractOAuthError(String body, int statusCode, String context) {
-        OAuthError parsed = parseOAuthError(body);
-        if (parsed != null) {
-            return OAuthProtocolException.ofOAuthError(context, parsed);
-        }
-        return OAuthProtocolException.ofRawStatus(context, statusCode, body);
-    }
-
-    private static OAuthError parseOAuthError(String body) {
-        if (body == null || body.isEmpty()) {
-            return null;
-        }
-        try {
-            OAuthError error = MAPPER.readValue(body, OAuthError.class);
-            return error.isPresent() ? error : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static OAuthToken parseToken(String body) {
-        try {
-            return MAPPER.readValue(body, OAuthToken.class);
-        } catch (Exception e) {
-            throw OAuthProtocolException.of("failed to decode token response: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 对照 Go {@code url.Values.Encode()}：键<b>按字典序</b>输出，空格编成 {@code +}，
-     * 非保留字符含 {@code ~} 不编码。JDK 的 {@code URLEncoder} 会把 {@code ~} 编成
-     * {@code %7E} 且对 {@code *} 的处理不同，故这里自实现以保证字节级一致。
-     */
-    static String encodeForm(Map<String, String> params) {
-        StringBuilder sb = new StringBuilder();
-        boolean first = true;
-        for (Map.Entry<String, String> e : new TreeMap<>(params).entrySet()) {
-            if (!first) {
-                sb.append('&');
-            }
-            first = false;
-            sb.append(queryEscape(e.getKey())).append('=').append(queryEscape(e.getValue()));
-        }
-        return sb.toString();
-    }
-
-    /** 对照 Go {@code url.QueryEscape}。 */
-    static String queryEscape(String s) {
-        StringBuilder sb = new StringBuilder();
-        for (byte raw : (s == null ? "" : s).getBytes(StandardCharsets.UTF_8)) {
-            int c = raw & 0xFF;
-            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
-                    || c == '-' || c == '_' || c == '.' || c == '~') {
-                sb.append((char) c);
-            } else if (c == ' ') {
-                sb.append('+');
-            } else {
-                sb.append('%').append(String.format("%02X", c));
-            }
-        }
-        return sb.toString();
-    }
 
 
-    private static String stringOf(Object v) {
-        return v == null ? "" : String.valueOf(v);
-    }
 
 }
