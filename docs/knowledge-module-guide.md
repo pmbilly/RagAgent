@@ -1,4 +1,4 @@
-# knowledge 模块手册（架构师接手版）
+# knowledge 模块手册
 
 > **面向读者**：第一次接手 `com.ragagent.knowledge` 的架构师 / 高级开发者。
 > **目标**：30 分钟建立全局观 → 能定位改动点 → 能安全迭代（本模块有 4,670 个后端用例兜底，改错会立刻红）。
@@ -191,7 +191,7 @@ erDiagram
     }
 ```
 
-> `knowledge_spans` 没有实体类：它由 `KnowledgeSpanRepository` 用显式 SQL 读写（见 §4.4）。
+> `knowledge_spans` 没有实体类：它由 `KnowledgeSpanRepository` 用显式 SQL 读写（见 §4.5）。
 
 ### 2.2 jsonb 列与值类型对照
 
@@ -218,16 +218,16 @@ erDiagram
 | `SummaryStatus` | `pending` / `processing` / `completed` / `failed` | 摘要生成子状态 |
 | `EnableStatus` | 启用 / 停用 | 文档与 chunk 可用性 |
 | `chunks.index_status` | `ready` / 其他 | 索引是否可用 |
-| FAQ 导入进度 | `pending` → `processing` → `completed` / `failed` | 进度对象（非枚举，字符串，见 §4.3） |
+| FAQ 导入进度 | `pending` → `processing` → `completed` / `failed` | 进度对象（非枚举，字符串，见 §4.4） |
 | 处理阶段（span 名） | `docreader` / `chunking` / `embedding` / `multimodal` / `postprocess` | `KnowledgeService.ALL_STAGES` |
 
 ---
 
 ## 3. HTTP 接口面
 
-### 3.1 端点分组（8 个 controller / 约 64 个端点）
+### 3.1 端点分组（8 个 controller / 68 个端点）
 
-**文档管理**（`KnowledgeController`，前缀 `/api/v1`，16 个）
+**文档管理**（`KnowledgeController`，前缀 `/api/v1`，18 个）
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
@@ -252,7 +252,21 @@ erDiagram
 
 **FAQ**（`FaqController`，13 个）：条目 CRUD（`/knowledge-bases/{id}/faq/entries`）、导出、`POST .../faq/entry`（单条新增）、相似问追加、字段批量更新（`/entries/fields`）、标签批量（`/entries/tags`）、检索（`POST .../faq/search`）、导入进度（`GET /faq/import/progress/{taskId}`）、上次导入结果展示状态（`PUT .../import/last-result/display`）。
 
-**知识库本体**（`KnowledgeBaseController`，前缀 `/api/v1/knowledge-bases`，11 个）：CRUD、置顶（`PUT /{id}/pin`）、可搬移目标（`GET /{id}/move-targets`）、**混合检索**（`POST|GET /{id}/hybrid-search`）、复制（`POST /copy` + `GET /copy/progress/{taskId}`）、重建索引（`POST /{id}/rebuild-index`）、复制为副本（`POST /{id}/duplicate`）。
+**知识库本体**（`KnowledgeBaseController`，前缀 `/api/v1/knowledge-bases`，**13 个**）
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| POST | `/api/v1/knowledge-bases` | **创建**（裸映射，无子路径） |
+| GET | `/api/v1/knowledge-bases` | **列表**（裸映射） |
+| GET / PUT / DELETE | `/{id}` | 详情 / 更新（名称·描述·config）/ 软删 |
+| PUT | `/{id}/pin` | 置顶切换（per-(user,kb) 幂等） |
+| GET | `/{id}/move-targets` | 可搬移的目标库列表 |
+| POST / GET | `/{id}/hybrid-search` | KB 内混合检索（写 / 读两种载荷） |
+| POST | `/copy` + `GET /copy/progress/{taskId}` | 克隆 KB（异步任务 + 进度） |
+| POST | `/{id}/duplicate` | 仅同步 settings（命中重复文档 → 409 特殊信封） |
+| POST | `/{id}/rebuild-index` | 全量重建向量索引 |
+
+> ⚠️ **配置更新的第二条路径**：前端 `updateKBConfig` 实际打的是 **agentm 域**的 `PUT /api/v1/initialization/config/{kbId}`（自有契约、**内层键仍是 snake**），与本表的 `PUT /{id}` 并存——改配置语义前先确认改的是哪条。
 
 **运维**（`KnowledgeOperationsController`，8 个）：跨库搜索（`GET /knowledge/search`）、标签批量（`PUT /knowledge/tags`）、批量删除/重析、文件夹增删、跨库搬移（`POST /knowledge/move` + `GET /knowledge/move/progress/{taskId}`）。
 
@@ -274,7 +288,55 @@ erDiagram
 
 ## 4. 核心链路
 
-### 4.1 文档入库与处理（HTTP → 五阶段）
+### 4.1 知识库生命周期（创建 → 配置 → 克隆 → 软删）
+
+```mermaid
+sequenceDiagram
+    participant FE as 前端
+    participant C as KnowledgeBaseController
+    participant S as KnowledgeBaseService
+    participant G as 守卫（RouteGuards / AccessGuard）
+    participant DB as knowledge_bases 等表
+    participant W as CloneService / MoveService / Housekeeping
+
+    FE->>C: POST /api/v1/knowledge-bases
+    C->>G: 租户与权限校验
+    C->>S: createKnowledgeBase(kb)
+    S->>S: UUID / 时间 / 租户 / 创建者（合成用户不记名）
+    S->>S: ensureDefaults（分块 / 索引 / VLM / ASR 默认值）
+    S->>DB: 存储提供方默认 + applyAndValidateStorageBackend
+    S->>S: normalizeVectorStoreId + 绑定校验（畸形 UUID 快拒，哨兵 → 2200/2201 文案）
+    S->>DB: insert
+
+    FE->>C: PUT /{id}（名称 / 描述 / config）
+    C->>S: updateKnowledgeBase
+
+    FE->>C: POST /{id}/copy（或 /{id}/duplicate）
+    C->>W: 异步克隆 → GET /copy/progress/{taskId} 轮询
+    Note over W: duplicate = 仅同步 settings；命中重复文档 → 409 特殊信封
+
+    FE->>C: POST /{id}/rebuild-index
+    C->>W: 全量重新向量化（返回重建的文档数）
+
+    FE->>C: DELETE /{id}
+    C->>S: deleteKnowledgeBase → 软删 knowledge_bases / knowledges / chunks + 删 pin
+    Note over W: 物理清理（向量索引 / 文件）由清理任务兜底
+```
+
+| 动作 | 端点 | 关键实现 | 注意 |
+|---|---|---|---|
+| 创建 | `POST /api/v1/knowledge-bases` | `KnowledgeBaseService.createKnowledgeBase` | `ensureDefaults` 装配配置默认值；向量库绑定走 retriever 的绑定校验（归属 + 注册表哨兵，畸形 UUID 快拒） |
+| 列表 / 详情 | `GET /api/v1/knowledge-bases` · `GET /{id}` | `listKnowledgeBases` / `getById` | 租户过滤 + 软删过滤 |
+| 更新 | `PUT /{id}` | `updateKnowledgeBase` | ⚠️ 配置还有第二条路径（agentm 的 `PUT /initialization/config/{kbId}`），见 §3.1 注 |
+| 置顶 / 目标库 | `PUT /{id}/pin` · `GET /{id}/move-targets` | `togglePin` / `listMoveTargets` | pin 是 per-(user,kb) 幂等切换 |
+| 克隆 | `POST /copy` + `GET /copy/progress/{taskId}` | `KnowledgeCloneService` | 异步任务；`POST /{id}/duplicate` 是"仅 settings 同步" |
+| 重建索引 | `POST /{id}/rebuild-index` | 全量重新向量化 | 返回重建文档数（`RebuildIndexResponse`） |
+| 删除 | `DELETE /{id}` · `DELETE /knowledge-bases/{id}/knowledge` | `deleteKnowledgeBase` | **软删**（`deleted_at`）三张表 + 删 pin，不做物理删除 |
+| 兜底 | 无端点（周期任务） | `HousekeepingService` | 扫描"卡在处理态"的行判 failed；用户可见失败的最坏时延 ≈ 1 个 stale 阈值 + 1 个清扫周期 |
+
+`HousekeepingService` 的存在理由（**接手必读**）：worker 被杀、DocReader 超时、多模态计数收口失败——这三种情况没有任何端点会报错，只能靠它把永久 `processing` 的行推进到 `failed`，否则用户侧看到的是一个永远转的圈。
+
+### 4.2 文档入库与处理（HTTP → 五阶段）
 
 ```mermaid
 sequenceDiagram
@@ -320,7 +382,7 @@ sequenceDiagram
 
 **失败与重试**：阶段异常 → 该 span 记失败、`parse_status=failed`；`POST /knowledge/{id}/reparse` 触发新 attempt（**历史 attempt 的 span 保留**，进度接口可用 `attempt` 参数回看）。
 
-### 4.2 检索链路（三条入口，一套引擎）
+### 4.3 检索链路（三条入口，一套引擎）
 
 ```mermaid
 flowchart LR
@@ -349,7 +411,7 @@ flowchart LR
 | `KnowledgeSearchService` | 本模块 `service/` | **知识面**检索与文档定位：跨库搜索、批量取数、给 agent 工具供数 |
 | `HybridSearchService` | `retrieval/` | **KB 内混合检索**：向量召回 + 关键词召回融合、FAQ 反例去噪、重排 |
 
-### 4.3 FAQ 链路（导入状态机 + 检索）
+### 4.4 FAQ 链路（导入状态机 + 检索）
 
 ```mermaid
 stateDiagram-v2
@@ -368,7 +430,7 @@ stateDiagram-v2
 - **导入路径**：`FaqImportService`（状态机 + 进度 + 失败明细）→ 复用 `FaqIndexWriter`。
 - **进度查询**：`GET /faq/import/progress/{taskId}`；跨任务态由 `FaqImportTaskStore` 持有。
 
-### 4.4 任务、进度与 span 树
+### 4.5 任务、进度与 span 树
 
 ```mermaid
 sequenceDiagram
@@ -391,7 +453,7 @@ sequenceDiagram
 - **span 与 attempt**：每次处理尝试一个 `attempt` 号，span 记录父链；`KnowledgeSpanService` 把行合成树，控制器直接返回（**不经过 DTO**，历史原因见 §7）。
 - **任务 ID**：`KnowledgeTaskIdCodec` 负责编解码（对外短 ID ↔ 内部）。
 
-### 4.5 安全守卫（四道）
+### 4.6 安全守卫（四道）
 
 ```mermaid
 flowchart TD
@@ -413,6 +475,8 @@ flowchart TD
 
 | 我想… | 主要改这里 | 别忘了 |
 |---|---|---|
+| 改 KB 创建默认值 / 校验 | `service/KnowledgeBaseService.createKnowledgeBase` + `ensureDefaults` | 向量库绑定校验走 retriever（哨兵文案 2200/2201）；补创建类 fixture |
+| 改处理卡死的兜底策略 | `service/HousekeepingService`（周期扫描 + stale 阈值） | 它决定“用户多久看到失败”，改阈值要看前端轮询节奏 |
 | 加一个端点 | `controller/` 加方法 + `dto/` 加请求记录（`@Valid`）+ `service/` 加用例 | 响应别手搓 `ObjectNode`；错误用 `AppError` / `BizException` |
 | 给文档/chunk 加字段 | `domain/` 实体 + `dto/` 响应记录 | **schema 两处同改**：`migrations/versioned/V1__baseline.sql` + `server/src/test/java/com/ragagent/TestSchema.java`（否则 H2 报 `Column not found`） |
 | 加处理阶段 | `task/KnowledgeProcessWorker` + `KnowledgeService.ALL_STAGES` + `KnowledgeProcessingSpan.STAGE_*` | 前端进度条按阶段名渲染；补 fixture |
@@ -491,10 +555,12 @@ cd frontend && npx vue-tsc --build --force && npm test
 | 想知道 | 看这里 |
 |---|---|
 | 某个接口怎么走 | `controller/` → 同名 `service/` 方法 → `repository/` |
-| 文档处理全流程 | §4.1 + `task/KnowledgeProcessWorker` |
+| 文档处理全流程 | §4.2 + `task/KnowledgeProcessWorker` |
 | 处理进度怎么算 | `service/SpanTracker` + `KnowledgeSpanService` + `repository/KnowledgeSpanRepository` |
 | 切分策略怎么选 | `support/ParserEngineRules` + `chunker/Chunker` |
 | FAQ 元数据长什么样 | `domain/FaqChunkMetadata`（javadoc 即契约）+ `service/FaqChunkCodec` |
 | 向量索引怎么写 | `service/ChunkVectorIndexer` + `service/VectorStoreService` → `retrieval/` |
-| 谁在守卫权限 | `security/` 四个类（§4.5） |
+| 知识库怎么创建、默认配置怎么装配 | `service/KnowledgeBaseService`（`createKnowledgeBase` → `ensureDefaults`）+ 本文 §4.1 |
+| 处理卡住为什么最终会失败 | `service/HousekeepingService`（兜底网，见 §4.1） |
+| 谁在守卫权限 | `security/` 四个类（§4.6） |
 | 目录为什么这样分 | 本文 §1 + 每个包的 `package-info.java`（共 13 份，都是职责地图） |
