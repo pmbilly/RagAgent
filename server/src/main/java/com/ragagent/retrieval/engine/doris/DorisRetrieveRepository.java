@@ -7,14 +7,11 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,7 +78,7 @@ public class DorisRetrieveRepository
     static final int COPY_PAGE_SIZE = 64;
 
     final DorisSqlExecutor sql;
-    private final DorisStreamLoadClient streamLoad;
+    final DorisStreamLoadClient streamLoad;
     final String database;
     final String tableBaseName;
     private final int bucketsNum;
@@ -92,6 +89,7 @@ public class DorisRetrieveRepository
     private volatile CompatResolution compatResolution;
 
     final DorisSearchOps searchOps;
+    final DorisWriteOps writeOps;
 
     /** 对照 {@code initializedTables sync.Map}：dim -> true（已确保建过表）。 */
     private final ConcurrentHashMap<Integer, Boolean> initializedTables = new ConcurrentHashMap<>();
@@ -108,6 +106,7 @@ public class DorisRetrieveRepository
         this.replicationNum = replicationNum;
         this.compatModeRequested = compatModeRequested;
         this.searchOps = new DorisSearchOps(this);
+        this.writeOps = new DorisWriteOps(this);
     }
 
     /**
@@ -203,168 +202,11 @@ public class DorisRetrieveRepository
 
     // ── 写入 ────────────────────────────────────────────────────────────────
 
-    @Override
-    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
-        batchSave(List.of(indexInfo), params);
-    }
-
     /**
      * 对照 {@code BatchSave}：按维度分组；DUPLICATE KEY 表上用 delete + insert 保持
      * "按 id 替换"语义；空向量跳过（WARN）、非有限值拒收。
      */
-    @Override
-    public void batchSave(List<IndexInfo> indexInfoList, Map<String, Object> params)
-            throws Exception {
-        if (indexInfoList == null || indexInfoList.isEmpty()) {
-            return;
-        }
-        DorisCompatMode compatMode = resolveCompatModeOrThrow();
-        Map<Integer, List<DorisVectorEmbedding>> groups = new TreeMap<>();
-        for (IndexInfo info : indexInfoList) {
-            DorisVectorEmbedding emb = toEmbedding(info, params, compatMode);
-            if (emb.embedding == null || emb.embedding.length == 0) {
-                log.warn("[Doris] Skipping empty embedding for chunk {}", info.chunkId);
-                continue;
-            }
-            try {
-                DorisSql.validateEmbedding(emb.embedding);
-            } catch (DorisSql.InvalidEmbeddingException e) {
-                throw new IllegalStateException("invalid embedding for chunk " + info.chunkId
-                        + ": " + e.getMessage(), e);
-            }
-            if (emb.id.isEmpty()) {
-                emb.id = emb.sourceId;
-            }
-            if (emb.id.isEmpty()) {
-                emb.id = UUID.randomUUID().toString();
-            }
-            groups.computeIfAbsent(emb.embedding.length, k -> new ArrayList<>()).add(emb);
-        }
-        for (Map.Entry<Integer, List<DorisVectorEmbedding>> entry : groups.entrySet()) {
-            int dim = entry.getKey();
-            String table = getTableName(dim);
-            ensureTable(dim);
-            try {
-                if (compatMode.usesReplaceWrite()) {
-                    replaceRows(table, entry.getValue());
-                } else {
-                    insertRows(table, entry.getValue());
-                }
-            } catch (SQLException e) {
-                throw new IllegalStateException("batch save dim=" + dim + ": " + message(e), e);
-            }
-            log.info("[Doris] Saved {} rows to {}", entry.getValue().size(), table);
-        }
-    }
-
-    /**
-     * 对照 {@code insertRows}：按列序拼一条多 VALUES 的 INSERT；embedding 列以字面量
-     * 形式内联（MySQL 驱动不支持 ARRAY 占位符）。
-     */
-    private void insertRows(String table, List<DorisVectorEmbedding> rows) throws SQLException {
-        if (rows.isEmpty()) {
-            return;
-        }
-        List<String> parts = new ArrayList<>(rows.size());
-        List<Object> args = new ArrayList<>(rows.size() * 9);
-        for (DorisVectorEmbedding e : rows) {
-            parts.add("(?, ?, ?, ?, ?, ?, ?, ?, ?, "
-                    + DorisSql.embeddingLiteral(e.embedding) + ")");
-            args.add(e.id);
-            args.add(e.content);
-            args.add(e.sourceId);
-            args.add(e.sourceType);
-            args.add(e.chunkId);
-            args.add(e.knowledgeId);
-            args.add(e.knowledgeBaseId);
-            args.add(e.tagId);
-            args.add(e.isEnabled);
-        }
-        String stmt = "INSERT INTO `" + table + "` (" + String.join(", ", DorisSql.COLUMNS)
-                + ") VALUES " + String.join(", ", parts);
-        sql.execute(stmt, args);
-    }
-
-    /** 对照 {@code replaceRows}：按 id 去重（后者胜）后 delete + insert。 */
-    private void replaceRows(String table, List<DorisVectorEmbedding> rows) throws SQLException {
-        List<DorisVectorEmbedding> deduped = dedupeRowsById(rows);
-        if (deduped.isEmpty()) {
-            return;
-        }
-        List<String> ids = new ArrayList<>(deduped.size());
-        for (DorisVectorEmbedding row : deduped) {
-            ids.add(row.id);
-        }
-        deleteRowsById(table, ids);
-        insertRows(table, deduped);
-    }
-
-    private void deleteRowsById(String table, List<String> ids) throws SQLException {
-        if (ids.isEmpty()) {
-            return;
-        }
-        String placeholders = String.join(", ", Collections.nCopies(ids.size(), "?"));
-        String stmt = "DELETE FROM `" + table + "` WHERE " + DorisSql.FIELD_ID
-                + " IN (" + placeholders + ")";
-        sql.execute(stmt, new ArrayList<>(ids));
-    }
-
-    /** 对照 {@code dedupeRowsByID}：同 id 保留最后一条，且保留首次出现的位次。 */
-    static List<DorisVectorEmbedding> dedupeRowsById(List<DorisVectorEmbedding> rows) {
-        if (rows.size() < 2) {
-            return rows;
-        }
-        Map<String, Integer> positions = new LinkedHashMap<>();
-        List<DorisVectorEmbedding> out = new ArrayList<>(rows.size());
-        for (DorisVectorEmbedding row : rows) {
-            Integer idx = positions.get(row.id);
-            if (idx != null) {
-                out.set(idx, row);
-                continue;
-            }
-            positions.put(row.id, out.size());
-            out.add(row);
-        }
-        return out;
-    }
-
     // ── 删除 ────────────────────────────────────────────────────────────────
-
-    @Override
-    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByField(DorisSql.FIELD_CHUNK_ID, chunkIdList, dimension);
-    }
-
-    @Override
-    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
-                                        String knowledgeType) throws Exception {
-        deleteByField(DorisSql.FIELD_KNOWLEDGE_ID, knowledgeIdList, dimension);
-    }
-
-    @Override
-    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByField(DorisSql.FIELD_SOURCE_ID, sourceIdList, dimension);
-    }
-
-    /** 对照 {@code deleteByField}：DELETE FROM <table> WHERE <field> IN (?, ?, ...)。 */
-    private void deleteByField(String field, List<String> ids, int dimension) {
-        if (ids == null || ids.isEmpty()) {
-            return;
-        }
-        String table = getTableName(dimension);
-        String placeholders = String.join(", ", Collections.nCopies(ids.size(), "?"));
-        String stmt = "DELETE FROM `" + table + "` WHERE " + field
-                + " IN (" + placeholders + ")";
-        try {
-            sql.execute(stmt, new ArrayList<>(ids));
-        } catch (SQLException e) {
-            log.error("[Doris] Delete by {} failed: {}", field, e.getMessage());
-            throw new IllegalStateException("delete by " + field + ": " + message(e), e);
-        }
-        log.info("[Doris] Deleted {} rows from {} by {}", ids.size(), table, field);
-    }
 
     // ── 检索 ────────────────────────────────────────────────────────────────
 
@@ -380,298 +222,66 @@ public class DorisRetrieveRepository
      * 对照 {@code CopyIndices}（与 Qdrant 实现完全镜像）：分页扫描源表 → chunk_id /
      * knowledge_id 映射改写 → SourceID 三态改写 → 新 UUID 主键写回同一张表。
      */
+    /** 对照 {@code BatchUpdateChunkEnabledStatus}：按模式分派 partial update / 整行重写。 */
+    /** 对照 {@code BatchUpdateChunkTagID}。 */
+    // ── 迁移（KnowledgeIndexMover） ────────────────────────────────────────
+
     @Override
-    public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
-                            Map<String, String> sourceToTargetChunkIdMap,
-                            String targetKnowledgeBaseId, int dimension, String knowledgeType)
-            throws Exception {
-        if (sourceToTargetChunkIdMap == null || sourceToTargetChunkIdMap.isEmpty()) {
-            return;
-        }
-        ensureTable(dimension);
-        String table = getTableName(dimension);
-        int offset = 0;
-        int totalCopied = 0;
-        while (true) {
-            String stmt = "SELECT " + String.join(", ", DorisSql.COLUMNS_FOR_COPY)
-                    + " FROM `" + table + "` WHERE " + DorisSql.FIELD_KNOWLEDGE_BASE_ID
-                    + " = ? ORDER BY " + DorisSql.FIELD_ID
-                    + " LIMIT " + COPY_PAGE_SIZE + " OFFSET " + offset;
-            List<DorisVectorEmbedding> batch;
-            try {
-                batch = sql.query(stmt, List.of(sourceKnowledgeBaseId),
-                        DorisRetrieveRepository::scanCopyRow);
-            } catch (SQLException e) {
-                throw new IllegalStateException("copy indices scan: " + message(e), e);
-            }
-            if (batch.isEmpty()) {
-                break;
-            }
-            List<DorisVectorEmbedding> targets = new ArrayList<>();
-            for (DorisVectorEmbedding src : batch) {
-                if (!sourceToTargetChunkIdMap.containsKey(src.chunkId)) {
-                    log.warn("[Doris] Source chunk {} not in target mapping", src.chunkId);
-                    continue;
-                }
-                String targetChunkId = sourceToTargetChunkIdMap.get(src.chunkId);
-                if (sourceToTargetKbIdMap == null
-                        || !sourceToTargetKbIdMap.containsKey(src.knowledgeId)) {
-                    log.warn("[Doris] Source knowledge {} not in target mapping", src.knowledgeId);
-                    continue;
-                }
-                String targetKnowledgeId = sourceToTargetKbIdMap.get(src.knowledgeId);
-                DorisVectorEmbedding target = new DorisVectorEmbedding();
-                target.id = UUID.randomUUID().toString();
-                target.content = src.content;
-                target.sourceId = DorisSql.translateSourceId(src.sourceId, src.chunkId,
-                        targetChunkId);
-                target.sourceType = src.sourceType;
-                target.chunkId = targetChunkId;
-                target.knowledgeId = targetKnowledgeId;
-                target.knowledgeBaseId = targetKnowledgeBaseId;
-                target.tagId = src.tagId;
-                target.isEnabled = src.isEnabled;
-                target.embedding = src.embedding;
-                targets.add(target);
-            }
-            if (!targets.isEmpty()) {
-                try {
-                    insertRows(table, targets);
-                } catch (SQLException e) {
-                    throw new IllegalStateException("copy indices insert: " + message(e), e);
-                }
-                totalCopied += targets.size();
-            }
-            if (batch.size() < COPY_PAGE_SIZE) {
-                break;
-            }
-            offset += COPY_PAGE_SIZE;
-        }
-        log.info("[Doris] CopyIndices done, dim={}, copied={}", dimension, totalCopied);
+    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
+        writeOps.save(indexInfo, params);
     }
 
-    /** 对照 {@code BatchUpdateChunkEnabledStatus}：按模式分派 partial update / 整行重写。 */
+    @Override
+    public void batchSave(List<IndexInfo> indexInfoList, Map<String, Object> params)
+            throws Exception {
+        writeOps.batchSave(indexInfoList, params);
+    }
+
+    @Override
+    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteByChunkIdList(chunkIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
+                                        String knowledgeType) throws Exception {
+        writeOps.deleteByKnowledgeIdList(knowledgeIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteBySourceIdList(sourceIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
+                            Map<String, String> sourceToTargetChunkIdMap, String targetKnowledgeBaseId,
+                            int dimension, String knowledgeType) throws Exception {
+        writeOps.copyIndices(sourceKnowledgeBaseId, sourceToTargetKbIdMap,
+                sourceToTargetChunkIdMap, targetKnowledgeBaseId, dimension, knowledgeType);
+    }
+
     @Override
     public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
             throws Exception {
-        if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
-            return;
-        }
-        DorisCompatMode compatMode = resolveCompatModeOrThrow();
-        if (!compatMode.usesRewriteChunkUpdates()) {
-            batchUpdateChunkEnabledStatusLegacy(chunkStatusMap);
-            return;
-        }
-        rewriteChunkRows(new ArrayList<>(chunkStatusMap.keySet()), row -> {
-            Boolean enabled = chunkStatusMap.get(row.chunkId);
-            if (enabled == null || row.isEnabled == enabled) {
-                return false;
-            }
-            row.isEnabled = enabled;
-            return true;
-        }, "rewrite is_enabled");
+        writeOps.batchUpdateChunkEnabledStatus(chunkStatusMap);
     }
 
-    /** 对照 {@code BatchUpdateChunkTagID}。 */
     @Override
     public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
-        if (chunkTagMap == null || chunkTagMap.isEmpty()) {
-            return;
-        }
-        DorisCompatMode compatMode = resolveCompatModeOrThrow();
-        if (!compatMode.usesRewriteChunkUpdates()) {
-            batchUpdateChunkTagIDLegacy(chunkTagMap);
-            return;
-        }
-        rewriteChunkRows(new ArrayList<>(chunkTagMap.keySet()), row -> {
-            String tagId = chunkTagMap.get(row.chunkId);
-            if (tagId == null || tagId.equals(row.tagId)) {
-                return false;
-            }
-            row.tagId = tagId;
-            return true;
-        }, "rewrite tag_id");
-    }
-
-    /** 对照 {@code rewriteChunkRows}：跨表读整行 → 变更 → replaceRows 写回。 */
-    private void rewriteChunkRows(List<String> chunkIds, Predicate<DorisVectorEmbedding> mutate,
-                                  String action) {
-        if (chunkIds.isEmpty()) {
-            return;
-        }
-        List<String> tables;
-        try {
-            tables = listEmbeddingTables();
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("list tables: " + e.getMessage(), e);
-        }
-        for (String table : tables) {
-            List<DorisVectorEmbedding> rows;
-            try {
-                rows = loadRowsByChunkIds(table, chunkIds);
-            } catch (SQLException e) {
-                throw new IllegalStateException(
-                        "load chunk rows from " + table + ": " + message(e), e);
-            }
-            List<DorisVectorEmbedding> updated = new ArrayList<>();
-            for (DorisVectorEmbedding row : rows) {
-                if (mutate.test(row)) {
-                    updated.add(row);
-                }
-            }
-            if (updated.isEmpty()) {
-                continue;
-            }
-            try {
-                replaceRows(table, updated);
-            } catch (SQLException e) {
-                throw new IllegalStateException(action + " in " + table + ": " + message(e), e);
-            }
-        }
-    }
-
-    // ── legacy：Stream Load partial update 路径 ────────────────────────────
-
-    private void batchUpdateChunkEnabledStatusLegacy(Map<String, Boolean> chunkStatusMap) {
-        Map<String, List<RowLocation>> mapping = lookupChunkRowKeys(
-                new ArrayList<>(chunkStatusMap.keySet()));
-        Map<String, List<Map<String, Object>>> byTable = new LinkedHashMap<>();
-        for (Map.Entry<String, List<RowLocation>> entry : mapping.entrySet()) {
-            Boolean enabled = chunkStatusMap.get(entry.getKey());
-            if (enabled == null) {
-                continue;
-            }
-            for (RowLocation loc : entry.getValue()) {
-                Map<String, Object> row = new TreeMap<>();
-                row.put(DorisSql.FIELD_ID, loc.id());
-                row.put(DorisSql.FIELD_IS_ENABLED, enabled);
-                byTable.computeIfAbsent(loc.table(), k -> new ArrayList<>()).add(row);
-            }
-        }
-        for (Map.Entry<String, List<Map<String, Object>>> entry : byTable.entrySet()) {
-            try {
-                streamLoad.partialUpdateRows(entry.getKey(),
-                        List.of(DorisSql.FIELD_ID, DorisSql.FIELD_IS_ENABLED), entry.getValue());
-            } catch (RuntimeException e) {
-                throw new IllegalStateException("partial update is_enabled in "
-                        + entry.getKey() + ": " + e.getMessage(), e);
-            }
-        }
-    }
-
-    private void batchUpdateChunkTagIDLegacy(Map<String, String> chunkTagMap) {
-        Map<String, List<RowLocation>> mapping = lookupChunkRowKeys(
-                new ArrayList<>(chunkTagMap.keySet()));
-        Map<String, List<Map<String, Object>>> byTable = new LinkedHashMap<>();
-        for (Map.Entry<String, List<RowLocation>> entry : mapping.entrySet()) {
-            String tagId = chunkTagMap.get(entry.getKey());
-            if (tagId == null) {
-                continue;
-            }
-            for (RowLocation loc : entry.getValue()) {
-                Map<String, Object> row = new TreeMap<>();
-                row.put(DorisSql.FIELD_ID, loc.id());
-                row.put(DorisSql.FIELD_TAG_ID, tagId);
-                byTable.computeIfAbsent(loc.table(), k -> new ArrayList<>()).add(row);
-            }
-        }
-        for (Map.Entry<String, List<Map<String, Object>>> entry : byTable.entrySet()) {
-            try {
-                streamLoad.partialUpdateRows(entry.getKey(),
-                        List.of(DorisSql.FIELD_ID, DorisSql.FIELD_TAG_ID), entry.getValue());
-            } catch (RuntimeException e) {
-                throw new IllegalStateException("partial update tag_id in "
-                        + entry.getKey() + ": " + e.getMessage(), e);
-            }
-        }
-    }
-
-    /** 对照 {@code loadRowsByChunkIDs}：按 chunk_id 读整行（含 embedding）。 */
-    private List<DorisVectorEmbedding> loadRowsByChunkIds(String table, List<String> chunkIds)
-            throws SQLException {
-        if (chunkIds.isEmpty()) {
-            return List.of();
-        }
-        String placeholders = String.join(", ", Collections.nCopies(chunkIds.size(), "?"));
-        String stmt = "SELECT " + String.join(", ", DorisSql.COLUMNS_FOR_COPY)
-                + " FROM `" + table + "` WHERE " + DorisSql.FIELD_CHUNK_ID
-                + " IN (" + placeholders + ")";
-        return sql.query(stmt, new ArrayList<>(chunkIds),
-                DorisRetrieveRepository::scanCopyRow);
-    }
-
-    /** 对照 {@code rowLocation}。 */
-    record RowLocation(String table, String id) {
-    }
-
-    /**
-     * 对照 {@code lookupChunkRowKeys}：查给定 chunkIDs 在所有 {@code <base>_<dim>} 表中的
-     * 物理位置（同一 chunk 可能在多维度表里都有副本）。
-     */
-    private Map<String, List<RowLocation>> lookupChunkRowKeys(List<String> chunkIds) {
-        if (chunkIds.isEmpty()) {
-            return Map.of();
-        }
-        List<String> tables;
-        try {
-            tables = listEmbeddingTables();
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("list tables: " + e.getMessage(), e);
-        }
-        if (tables.isEmpty()) {
-            return Map.of();
-        }
-        String placeholders = String.join(", ", Collections.nCopies(chunkIds.size(), "?"));
-        Map<String, List<RowLocation>> out = new LinkedHashMap<>();
-        for (String table : tables) {
-            String stmt = "SELECT " + DorisSql.FIELD_ID + ", " + DorisSql.FIELD_CHUNK_ID
-                    + " FROM `" + table + "` WHERE " + DorisSql.FIELD_CHUNK_ID
-                    + " IN (" + placeholders + ")";
-            try {
-                List<Map.Entry<String, String>> pairs = sql.query(stmt,
-                        new ArrayList<>(chunkIds),
-                        row -> Map.entry(row.string(0), row.string(1)));
-                for (Map.Entry<String, String> pair : pairs) {
-                    out.computeIfAbsent(pair.getValue(), k -> new ArrayList<>())
-                            .add(new RowLocation(table, pair.getKey()));
-                }
-            } catch (SQLException e) {
-                throw new IllegalStateException(
-                        "lookup chunk row keys in " + table + ": " + message(e), e);
-            }
-        }
-        return out;
-    }
-
-    // ── 迁移（KnowledgeIndexMover） ────────────────────────────────────────
-
-    /**
-     * 对照 {@code ValidateKnowledgeIndexMove}：ANN DUPLICATE KEY 表的"替换"是
-     * delete + insert，失败的 insert 会丢掉唯一的向量副本、且改物理 id 会破坏
-     * 稳定的 source-ID 身份 → 内积副本模式不支持 reuse_vectors 搬移。
-     */
-    public void validateKnowledgeIndexMove() {
-        DorisCompatMode mode = resolveCompatModeOrThrow();
-        if (mode.usesRewriteChunkUpdates()) {
-            throw new IllegalStateException(
-                    "reuse_vectors move is not supported by Doris ANN tables; use reparse mode");
-        }
+        writeOps.batchUpdateChunkTagID(chunkTagMap);
     }
 
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
                                      List<String> chunkIds, int dimension, String knowledgeType)
             throws Exception {
-        validateKnowledgeIndexMove();
-        if (dimension <= 0) {
-            throw new IllegalStateException("invalid embedding dimension");
-        }
-        String stmt = "UPDATE `" + getTableName(dimension) + "` SET "
-                + DorisSql.FIELD_KNOWLEDGE_BASE_ID + " = ?, " + DorisSql.FIELD_TAG_ID
-                + " = '' WHERE " + DorisSql.FIELD_KNOWLEDGE_BASE_ID + " = ? AND "
-                + DorisSql.FIELD_KNOWLEDGE_ID + " = ?";
-        sql.execute(stmt, List.of(targetKb, sourceKb, knowledgeId));
+        writeOps.moveKnowledgeIndices(sourceKb, targetKb, knowledgeId, chunkIds, dimension,
+                knowledgeType);
     }
+
 
     // ── 兼容模式解析（照 compat.go 全文） ──────────────────────────────────
 
@@ -862,7 +472,7 @@ public class DorisRetrieveRepository
      * 对照 {@code ensureTable}：不存在则 CREATE TABLE IF NOT EXISTS，并起后台线程轮询
      * ANN 索引就绪（写入路径不阻塞——索引未就绪期间检索退化为 brute-force）。
      */
-    private void ensureTable(int dimension) {
+    void ensureTable(int dimension) {
         if (initializedTables.containsKey(dimension)) {
             return;
         }
