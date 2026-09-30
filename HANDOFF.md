@@ -58,7 +58,7 @@
 - **agent 域（2026-09-30 A/B/E 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；**Go 锚点 0**（479 处/186 文件已清扫,§13.11/13.13 判据,真实不变量改中性陈述保留）；12 个子包全有 package-info；`@JsonProperty` 余 30 处已随落库换锚清零（§11.1）。
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器引用 **408 处 / 94 文件**；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
 - **注释卫生（knowledge 包实测，2026-09-30，可作其余域标准）**：Go 锚点注释 **0 处**、注释掉的代码 **0 处**、TODO **1 处**、注释占比 12.1%、13 个包全有 `package-info`；坏 `{@link}` 0 处。Javadoc 覆盖：**public 类型 91%**（201/221，未写的 20 处是纯 CRUD 请求体——有意留白，名字即语义）、public 方法 33%（**分布是对的**：逻辑密集类 90%+，POJO 访问器 7%）。
-- **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。**死 logger（声明却未使用）**：主干 15 处 / 测试 0 处；knowledge 已清零（`88c8054`，-24 行），余 7 处散在 `agent/tools`、`model/controller`、`auth/service`、`wiki/service`，随各自批次清。
+- **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。**死 logger（声明却未使用）**：主干 15 处 / 测试 0 处；knowledge 已清零（`88c8054`，-24 行），余 7 处散在 `agent/tools`、`model/controller`、`auth/service`、`wiki/service`，随各自批次清。**死依赖（只注入不读取）**：全仓 1,670 个 final 依赖中 **24 处**（原 36，knowledge 已清 12，`662dece`）；`agentm/ModelConnectivityTestService` 一个类占 3 处。
 - 历史对照（2026-09-28 裁剪前）：main 1,608 文件 / 32.4 万行、test 448 / 14 万 / 1,783 fixture、frontend 533 / 23.6 万；千行大类 41 个（含 KnowledgeService 3,392 行 / 153 方法、FaqService 3,089、KnowledgeController 1,312——**这些数字均已过时**，knowledge 域已完成拆分）。
 
 ## 5. 转型路线图
@@ -271,6 +271,8 @@ knowledge/
 13. **写 javadoc 的判据（knowledge 包已按此做完）**：写"名字看不出来的"——三态语义（null = 不变更）、乐观锁字段、视图与写入形状的差异（如 VLM 视图不含 `apiKey`）、与仓储类型的对应关系、jsonb 列名；**不写**名字即语义的 CRUD 请求体（写了是噪声）。覆盖目标：承载语义的类型 100%，方法层保持"逻辑密集类 90%+ / 访问器 0%"的分布。
 14. **跑 `test` ≠ 跑了闸门**：仓库早已配好 Spotless（`removeUnusedImports` + `trimTrailingWhitespace` + `endWithNewline`，`ratchetFrom("seed")`），但只跑 `:server:test` 时它**不执行**——每批收尾必须 `:server:spotlessCheck`（或 `check`）。两个已知盲点：①`removeUnusedImports()` **不去重**（本次手删 13 处重复 import，分布在 5 个文件；要根治可加 `importOrder()` 步骤，但那会重排 import，需单独一个轴）；②抽类/拆类时**别整块继承原文件的头部样板**——本次两类残留同源：import 列表（276 处）与**从未使用的 logger 字段**（全仓 15 处，其中 8 处在 knowledge）。修法：删字段 + `spotlessApply` 清掉随之失效的 `org.slf4j` import（`88c8054`）。
 15. **核查"这个成员是不是没用"的标准做法**（用户逐条抽查时用的口径）：①私有字段/方法/局部变量 = 数**声明行之外**的引用（为 0 即死）；公开成员不能这样判（有外部消费者）；②**删之前先做来历追溯**——`git show <拆分类的引入提交>^:<原文件> | grep <名字>`：若拆分前也无调用点 → 翻译期遗留，可删；若拆分前**有**调用点 → 说明拆分把调用方留在了别处，先确认那边有等价实现（本次 `orEmpty` 就属后者：调用点落在 `ChunkEditService`，本处是重复遗留）；③**别按"删一行"的直觉动手**：声明可能跨行（链式调用、多行泛型、注解行），本次 `MAPPER = new ObjectMapper()` 换行接 `.disable(...)` 就差点留下悬空续行——Spotless 的 lint（`illegal start of type`）会兜住，所以**删完先跑 `spotlessApply`**。死成员清单：`88c8054`（logger ×8）、本次 `73e2343`（MAPPER ×5 + 死局部变量 ×4 + 死方法 ×1）。
+    **④「只注入不读取」的依赖（662dece：knowledge 清 12 处，全仓 36 → 24）**：判据 = `private final` 字段的全部出现只落在「构造参数行 + `this.x = x;` 赋值行」上（别处零引用）。这类残留同样源自「抽类搬构造清单」——**它与「字段未使用」是两个不同口径**，粗算「声明外引用次数」会把构造赋值算成使用而**漏报**。
+    **⑤按行号删代码必须逆序执行**：先删构造参数、再按旧行号删赋值行 → 误删相邻行（首次尝试即踩，diff 复核发现后回退重做）；两种形态要单独收拾：**末位参数**（行尾是 `) {`，删行后要给上一参数去掉逗号）与**参数与他人同行**（只抠片段，别删整行）。
 15. **本会话新增三条**：(a) 被中止的 gradle 测试 run 会留孤儿 Test Executor 占固定端口 stub（11434）,下一轮误报"failed to start stub"——先 `lsof -ti :11434` 清进程再判回归；(b) 去逐字段 `@JsonProperty` 时,**失效的 `@JsonPropertyOrder` 旧名名单必须同删**——属性对 order 表不可见时 Jackson 序列化静默丢属性（approval 线上抓到）;(c) 闸门命令链不要依赖退出码（`cmd | tail` 恒 0）——用 `grep -q 'BUILD SUCCESSFUL'` 之类的字符串断言收口,否则红灯也会照常 commit（本轮 amend 修复过一次）。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
@@ -353,7 +355,7 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - [ ] 请求侧无 `@JsonNaming`、无逐字段 `@JsonProperty`；无 `{data,success}` 信封；删除返 204；可空显式 `null`
 - [ ] controller 入参全部 `@Valid` DTO（multipart 与"固定文案兜底"端点可保留手绑，但须在 javadoc 注明）
 - [ ] 每个子包有 `package-info.java`；`*Util`/容器类等反模式命名清零
-- [ ] **死成员清零**：未使用 logger / `ObjectMapper` / 私有方法 / 局部变量（口径见 §13.15）；javac 不报未使用私有成员、Spotless 也只查 import，**必须主动扫**
+- [ ] **死成员清零**：未使用 logger / `ObjectMapper` / 私有方法 / 局部变量 / **只注入不读取的 final 依赖**（口径见 §13.15 ①④）；javac 不报未使用私有成员、Spotless 也只查 import，**必须主动扫**
 - [ ] 触点变更后：`:server:test` 全绿 + `:server:spotlessCheck` 绿 +（触及前端契约时）`vue-tsc` 0 错误 / `npm test` 全绿
 - [ ] §4 数据、§12 地图、§13 经验、本节候选表四处同步更新
 
