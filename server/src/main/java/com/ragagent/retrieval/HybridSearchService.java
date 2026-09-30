@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,11 +23,9 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
 import com.ragagent.common.embedding.EmbeddingGateway;
-import com.ragagent.common.knowledge.ChunkFacts;
 import com.ragagent.common.knowledge.ChunkSearchGateway;
 import com.ragagent.common.knowledge.KnowledgeBaseSearchFacts;
 import com.ragagent.common.knowledge.KnowledgeBaseSearchGateway;
-import com.ragagent.common.knowledge.KnowledgeDocumentFacts;
 import com.ragagent.common.knowledge.KnowledgeDocumentGateway;
 import com.ragagent.common.model.ModelFacts;
 import com.ragagent.common.model.ModelGateway;
@@ -100,7 +97,7 @@ public class HybridSearchService {
     public static final int MATCH_RELATION_CHUNK = 5;
 
     private final KnowledgeBaseSearchGateway kbGateway;
-    private final KnowledgeDocumentGateway documentGateway;
+    final KnowledgeDocumentGateway documentGateway;
     final ChunkSearchGateway chunkGateway;
     private final ModelGateway modelGateway;
     private final TenantService tenantService;
@@ -110,6 +107,7 @@ public class HybridSearchService {
     private final TenantStoreOwnership storeOwnership;
 
     final HybridFusionOps fusionOps;
+    final HybridResultOps resultOps;
 
     public HybridSearchService(KnowledgeBaseSearchGateway kbGateway,
             KnowledgeDocumentGateway documentGateway, ChunkSearchGateway chunkGateway,
@@ -126,6 +124,7 @@ public class HybridSearchService {
         this.engineRegistry = engineRegistry;
         this.storeOwnership = storeOwnership;
         this.fusionOps = new HybridFusionOps(this);
+        this.resultOps = new HybridResultOps(this);
     }
 
     // ── 检索命中（对照 types.IndexWithScore；复用引擎仓库的 PgVectorRetrieveRepository.IndexHit） ────
@@ -843,183 +842,10 @@ public class HybridSearchService {
     }
 
 
-    // ── 结果装配（knowledgebase_search_results.go 全文） ──────────────────
 
     private List<SearchResult> processSearchResults(
             List<PgVectorRetrieveRepository.IndexHit> chunks, boolean skipEnrichment) {
-        if (chunks.isEmpty()) {
-            return null;
-        }
-        Long tenantId = com.ragagent.common.context.TenantContext.currentTenantId();
-
-        Set<String> knowledgeIds = new LinkedHashSet<>();
-        List<String> chunkIds = new ArrayList<>();
-        Map<String, Double> scores = new HashMap<>();
-        Map<String, Integer> matchTypes = new HashMap<>();
-        Map<String, String> matchedContents = new HashMap<>();
-        for (PgVectorRetrieveRepository.IndexHit c : chunks) {
-            knowledgeIds.add(c.knowledgeId);
-            chunkIds.add(c.chunkId);
-            scores.put(c.chunkId, c.score);
-            matchTypes.put(c.chunkId, c.matchType);
-            matchedContents.put(c.chunkId, c.content);
-        }
-
-        List<KnowledgeDocumentFacts> knowledgeList = documentGateway.findAccessibleDocuments(
-                tenantId == null ? 0 : tenantId, new ArrayList<>(knowledgeIds));
-        Map<String, KnowledgeDocumentFacts> knowledgeMap = new HashMap<>();
-        for (KnowledgeDocumentFacts k : knowledgeList) {
-            knowledgeMap.put(k.id(), k);
-        }
-
-        List<ChunkFacts> allChunks = tenantId == null ? List.of()
-                : chunkGateway.findChunks(tenantId, chunkIds);
-        Map<String, ChunkFacts> chunkMap = new HashMap<>();
-        for (ChunkFacts c : allChunks) {
-            chunkMap.put(c.id(), c);
-        }
-
-        if (!skipEnrichment) {
-            Set<String> processed = new HashSet<>();
-            List<String> additional = new ArrayList<>();
-            for (ChunkFacts c : allChunks) {
-                processed.add(c.id());
-            }
-            for (ChunkFacts c : allChunks) {
-                if (!c.parentChunkId().isEmpty() && !processed.contains(c.parentChunkId())) {
-                    additional.add(c.parentChunkId());
-                    processed.add(c.parentChunkId());
-                    scores.put(c.parentChunkId(), scores.getOrDefault(c.id(), 0.0));
-                    matchTypes.put(c.parentChunkId(), MATCH_PARENT_CHUNK);
-                }
-                for (String rel : relatedChunkIds(c, processed)) {
-                    additional.add(rel);
-                    matchTypes.put(rel, MATCH_RELATION_CHUNK);
-                }
-                if ("text".equals(c.chunkType())) {
-                    if (!c.nextChunkId().isEmpty() && !processed.contains(c.nextChunkId())) {
-                        additional.add(c.nextChunkId());
-                        processed.add(c.nextChunkId());
-                        matchTypes.put(c.nextChunkId(), MATCH_NEAR_BY_CHUNK);
-                    }
-                    if (!c.preChunkId().isEmpty() && !processed.contains(c.preChunkId())) {
-                        additional.add(c.preChunkId());
-                        processed.add(c.preChunkId());
-                        matchTypes.put(c.preChunkId(), MATCH_NEAR_BY_CHUNK);
-                    }
-                }
-            }
-            for (String aid : additional) {
-                ChunkFacts extra = fetchChunk(tenantId, aid);
-                if (extra != null) {
-                    chunkMap.put(extra.id(), extra);
-                }
-            }
-        }
-
-        // 首轮：按输入顺序装配。
-        List<SearchResult> out = new ArrayList<>();
-        Set<String> added = new HashSet<>();
-        for (PgVectorRetrieveRepository.IndexHit input : chunks) {
-            ChunkFacts chunk = chunkMap.get(input.chunkId);
-            if (chunk == null || !isSearchableChunk(chunk) || added.contains(chunk.id())) {
-                continue;
-            }
-            KnowledgeDocumentFacts knowledge = knowledgeMap.get(chunk.knowledgeId());
-            if (knowledge == null) {
-                continue;
-            }
-            out.add(buildSearchResult(chunk, knowledge,
-                    scores.getOrDefault(chunk.id(), 0.0),
-                    matchTypes.getOrDefault(chunk.id(), MATCH_EMBEDDING),
-                    matchedContents.getOrDefault(chunk.id(), "")));
-            added.add(chunk.id());
-        }
-        return out;
-    }
-
-    private ChunkFacts fetchChunk(Long tenantId, String id) {
-        try {
-            List<ChunkFacts> rows = chunkGateway.findChunks(tenantId, List.of(id));
-            return rows.isEmpty() ? null : rows.get(0);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static List<String> relatedChunkIds(ChunkFacts chunk, Set<String> processed) {
-        List<String> related = new ArrayList<>();
-        JsonNode rel = chunk.relationChunks();
-        if (rel != null && rel.isArray()) {
-            for (JsonNode n : rel) {
-                String id = n.asText("");
-                if (!id.isEmpty() && !processed.contains(id)) {
-                    related.add(id);
-                    processed.add(id);
-                }
-            }
-        }
-        return related;
-    }
-
-    /** 对照 buildSearchResult（knowledgebase_search_results.go L303-334）。 */
-    private static SearchResult buildSearchResult(ChunkFacts chunk, KnowledgeDocumentFacts knowledge,
-            double score, int matchType, String matchedContent) {
-        SearchResult r = new SearchResult();
-        r.setId(chunk.id());
-        r.setContent(chunk.content());
-        r.setContentRevision(chunk.contentRevision());
-        r.setKnowledgeId(chunk.knowledgeId());
-        r.setChunkIndex(chunk.chunkIndex());
-        r.setKnowledgeTitle(knowledge.title());
-        r.setStartAt(chunk.startAt());
-        r.setEndAt(chunk.endAt());
-        r.setSeq(chunk.chunkIndex());
-        r.setScore(score);
-        r.setMatchType(matchType);
-        // 对照 KnowledgeDocumentFacts.GetMetadata（types/knowledge.go L227-240）：nil → 空 map
-        // （序列化 "{}"）；不可解析 → null。SearchResult.metadata 是 map[string]string
-        // （Go 同型），只挑字符串值（Go 的 types.JSON.Map() 对非字符串值报错 → nil）。
-        JsonNode meta = knowledge.metadata();
-        if (meta == null || meta.isNull()) {
-            r.setMetadata(new LinkedHashMap<>());
-        } else if (meta.isObject()) {
-            Map<String, String> m = new LinkedHashMap<>();
-            boolean allStrings = true;
-            for (var it = meta.fields(); it.hasNext(); ) {
-                var e = it.next();
-                if (e.getValue() == null || !e.getValue().isTextual()) {
-                    allStrings = false;
-                    break;
-                }
-                m.put(e.getKey(), e.getValue().asText());
-            }
-            r.setMetadata(allStrings ? m : null);
-        } else {
-            r.setMetadata(null);
-        }
-        r.setChunkType(chunk.chunkType());
-        r.setParentChunkId(chunk.parentChunkId());
-        r.setKnowledgeFilename(knowledge.fileName());
-        r.setKnowledgeSource(knowledge.source());
-        r.setKnowledgeChannel(knowledge.channel());
-        r.setKnowledgeDescription(knowledge.description());
-        r.setKnowledgeBaseId(knowledge.knowledgeBaseId());
-        r.setMatchedContent(matchedContent);
-        return r;
-    }
-
-    /** 对照 isSearchableChunk（knowledgebase_search_results.go L337-353）。 */
-    private static boolean isSearchableChunk(ChunkFacts chunk) {
-        if (chunk == null || !chunk.enabled()) {
-            return false;
-        }
-        String status = chunk.indexStatus();
-        if ("processing".equals(status) || "failed".equals(status)) {
-            return false;
-        }
-        return List.of("text", "summary", "table_column", "table_summary",
-                "faq", "image_ocr", "image_caption").contains(chunk.chunkType());
+        return resultOps.processSearchResults(chunks, skipEnrichment);
     }
 
 }
