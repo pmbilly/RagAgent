@@ -58,7 +58,7 @@
 **更新（2026-09-30 批 4 系列）**：这 5 组全部已解（`knowledge ⇄ wiki`、`chatpipeline ⇄ knowledge`、
 `knowledge ⇄ retrieval`、`agent ⇄ mcp`、`chatpipeline ⇄ session`）——**全仓零包间环**。
 
-**守卫（已入库）**：`python3 scripts/check-package-cycles.py` —— **环只许减不许增**（基线
+**守卫（已入库，2026-09-30 起挂 CI 的 `guards` job）**：`python3 scripts/check-package-cycles.py` —— **环只许减不许增**（基线
 `scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
 当前基线（2026-09-30 批 4n 后）：**环 0 组 / 依赖 `config` 的包 1 个 / 能力层→业务层直连 6 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
 

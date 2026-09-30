@@ -1,5 +1,6 @@
 # CI 起步三样：build / test / Spotless（HANDOFF §8；ArchUnit 规则留阶段 4）。
 # 测试自含（契约 fixture，无 Testcontainers），无需起服务容器。
+# 2026-09-30 增：包结构守卫（环 / 分层棘轮，scripts/check-package-cycles.py）。
 name: CI
 
 on:
@@ -12,6 +13,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  guards:
+    name: 包结构守卫（环 / 分层棘轮）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 环与分层违例只许减不许增
+        run: python3 scripts/check-package-cycles.py
+
   backend:
     name: 后端 build + test + spotless
     runs-on: ubuntu-latest
