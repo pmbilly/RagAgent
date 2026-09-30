@@ -302,6 +302,27 @@
 **原则**：`config` 是组合根，**只出不进**——凡被业务域读取的配置类都下沉到 `common/*`；扫描范围用**枚举**而非根包通配
 （根包扫描会把 `session` 等处"未注册"的配置类一并绑定，属行为变化）。
 
+## 11.9 P0 批 2 进度：端口化（2026-09-30，进行中）
+
+**已完成：环 24 → 23**（消 `agent ⇄ knowledge`）——`AgentPromptPlaceholders`（agent 的纯静态占位符渲染器，
+自足、零仓内依赖）下沉 `common/prompt/`；`chatpipeline`(3 文件) 与 `knowledge`(2 文件) 的引用随之改向。
+**踩点**：搬家脚本只重写了 FQN，漏了**同包内免 import** 的 `agent/AgentPrompts.java`（§13.23 的检查项，已补）。
+
+**余下（按性价比排序，各自独立可交付）**：
+
+1. **`session ⇄ storage`**（背边 2 文件、另一侧 11）：① `FileAccessResolver` 已有 `MessageFileLookup` 端口，
+   但端口签名直接返回 `session.domain.Message` 实体——**只有 2 处使用**（`resolveMessageFile` 调用点 + `MessageFileProxyController:68` 的 `messageService::getMessage` 方法引用），
+   宜把载荷收窄为 storage 侧记录（`content` / `artifactUrls` / `knowledgeReferences` / `images` / `toolResults` 五段，
+   与 `MessageReferencesFile` 实际读取的字段一一对应；**别改成整条消息序列化**——那会让匹配范围变宽、变成越权）；
+   ② `storage/support/Rewriter`（原 `storageurl`）仍 import `session.domain.Message`/`MessageImage` → 同样改传值。**两者都改才能消环**。
+2. **`auth → system`**（背边 4 文件：`SystemSettingService`×3 + `SystemSettingRegistry`×1）：前者加窄接口；
+   `SystemSettingRegistry` 已自足（零仓内依赖），可直接下沉 `common/settings/`（但只挪它**不足以**消环）。
+3. **`auth → memory`**（背边 1 文件 `MemoryConfig`）、**`auth → storage`**（背边 2 文件 `StorageAllowList`+`StorageBackendRepository`）、
+   **`audit → knowledge`** 与 **`auth → knowledge`**（各 2–3 文件，直查 `KnowledgeBaseMapper`/`KnowledgeBaseService`）：
+   统一手法 = 下层域提供**只读窄接口**（如 `KnowledgeBaseLookup`），上层注入接口而非 mapper。
+4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
+   体量较大，建议排在这批之后。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -394,6 +415,10 @@ knowledge/
     逐文件 `git mv` 之后目录里已无被跟踪文件，`git rm` 只会报 `pathspec did not match` 并**中断后面的步骤**（本次因此
     只搬了 3 个包里的第 1 个、引用重写整段没跑，编译报一片 `cannot find symbol`）。正解：**每个包一个独立脚本段落，
     或写成"逐包 mv → 逐包重写 → 校验残留"的幂等函数**，失败可原地重跑。
+
+26. **搬家的引用重写要覆盖三类写法**（2026-09-30 批 2a 又漏一次）：① FQN（`com.ragagent.a.B`）；② **同包内免 import 的简单名**
+（把 `agent/B.java` 搬到别处后，`agent/` 里原来直接写 `B` 的文件会编译不过——**必须补 import**）；
+③ 通配 import（`import com.ragagent.a.*;`）。**做法**：搬完先 `grep -rn '\b类名\b'` 全仓，逐个看是否已有对应 import。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 

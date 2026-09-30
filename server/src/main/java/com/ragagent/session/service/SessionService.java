@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import com.ragagent.agent.AgentPromptPlaceholders;
+import com.ragagent.common.prompt.AgentPromptPlaceholders;
 import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;

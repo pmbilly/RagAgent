@@ -118,7 +118,7 @@ public final class PluginIntoChatMessage implements Plugin {
                 vals.put("contexts", "");
                 vals.put("language", chatManage.getLanguage());
                 chatManage.setUserContent(
-                        com.ragagent.agent.AgentPromptPlaceholders.renderPromptPlaceholders(tpl, vals));
+                        com.ragagent.common.prompt.AgentPromptPlaceholders.renderPromptPlaceholders(tpl, vals));
             } else {
                 chatManage.setUserContent(userContent);
             }
@@ -187,7 +187,7 @@ public final class PluginIntoChatMessage implements Plugin {
         vals.put("query", safeQuery);
         vals.put("contexts", chatManage.getRenderedContexts());
         vals.put("language", chatManage.getLanguage());
-        String userContent = com.ragagent.agent.AgentPromptPlaceholders.renderPromptPlaceholders(
+        String userContent = com.ragagent.common.prompt.AgentPromptPlaceholders.renderPromptPlaceholders(
                 chatManage.getSummaryConfig().getContextTemplate(), vals);
 
         if (!chatManage.getImageDescription().isEmpty() && !chatManage.isChatModelSupportsVision()) {

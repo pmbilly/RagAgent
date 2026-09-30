@@ -1,4 +1,4 @@
-package com.ragagent.agent;
+package com.ragagent.common.prompt;
 
 import java.time.LocalDate;
 import java.time.format.TextStyle;

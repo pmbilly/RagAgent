@@ -58,7 +58,7 @@
 
 **守卫（已入库）**：`python3 scripts/check-package-cycles.py` —— **环只许减不许增**（基线
 `scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
-当前基线（2026-09-30 批 1 后）：**环 24 组 / 依赖 `config` 的包 5 个 / 能力层→业务层直连 18 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
+当前基线（2026-09-30 批 1 + 批 2a 后）：**环 23 组 / 依赖 `config` 的包 5 个 / 能力层→业务层直连 18 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
 
 ### P1 扁平包 10 个（无子包，靠文件名找东西）
 
@@ -144,7 +144,7 @@ system websearch favorite evaluation common config event stream tracing`。
 | 批次 | 结构结果 |
 |---|---|
 | 批 1 解环·配置/工具归位（A+B） | ✅ **已执行（2026-09-30）：环 32 → 24（−8）**；顶层 −3；依赖 `config` 的包 5 → 1；L2→L3 直连 18 → 14 |
-| 批 2 解环·端口化（C） | `audit`/`apikey`/`auth` 不再直连下层 mapper/service（新增各自的 port）|
+| 批 2 解环·端口化（C） | **进行中**：已完成 `AgentPromptPlaceholders`→`common/prompt`（消 `agent ⇄ knowledge`，环 24→23）；余下：① `session ⇄ storage`（`FileAccessResolver` 的 `MessageFileLookup` 端口载荷收窄为 storage 侧记录 + `storage/support/Rewriter` 去 `Message`/`MessageImage`）；② `audit ⇄ knowledge`、`auth ⇄ knowledge/storage/system/memory` 各加窄接口 |
 | 批 3 解环·传值 + 伴生类型（D+E） | provider 客户端只依赖配置值；引擎伴生类型归位 |
 | P1/P2 分包子包 | 上表的域内二级结构 |
 | P3 小修 | 2 个放错包的文件归位；5 个控制器改走服务层；wiki 2 处反向依赖反转 |

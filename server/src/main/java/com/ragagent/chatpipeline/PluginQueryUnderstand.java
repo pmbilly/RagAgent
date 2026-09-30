@@ -316,8 +316,8 @@ public final class PluginQueryUnderstand implements Plugin {
         vals.put("language", chatManage.getLanguage());
 
         return new String[] {
-                com.ragagent.agent.AgentPromptPlaceholders.renderPromptPlaceholders(systemPrompt, vals),
-                com.ragagent.agent.AgentPromptPlaceholders.renderPromptPlaceholders(userPrompt, vals),
+                com.ragagent.common.prompt.AgentPromptPlaceholders.renderPromptPlaceholders(systemPrompt, vals),
+                com.ragagent.common.prompt.AgentPromptPlaceholders.renderPromptPlaceholders(userPrompt, vals),
         };
     }
 

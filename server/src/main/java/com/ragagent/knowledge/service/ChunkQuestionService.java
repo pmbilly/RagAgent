@@ -10,7 +10,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.agent.AgentPromptPlaceholders;
+import com.ragagent.common.prompt.AgentPromptPlaceholders;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.prompt.PromptInstructions;

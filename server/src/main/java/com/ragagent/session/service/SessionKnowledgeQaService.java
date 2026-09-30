@@ -613,7 +613,7 @@ public class SessionKnowledgeQaService {
             query = rq;
         }
         String kbDocuments = buildKbDocumentListing(chatManage);
-        String result = com.ragagent.agent.AgentPromptPlaceholders.renderPromptPlaceholders(chatManage.getFallbackPrompt(), Map.of(
+        String result = com.ragagent.common.prompt.AgentPromptPlaceholders.renderPromptPlaceholders(chatManage.getFallbackPrompt(), Map.of(
                 "query", query,
                 "language", chatManage.getLanguage(),
                 "kb_documents", kbDocuments));

@@ -307,7 +307,7 @@ public final class PipelineCommon {
     /** AgentPromptPlaceholders 是 agent 包的 public 类，直接静态引用（避免每次写全名）。 */
     private static final class AgentPromptPlaceholdersHolder {
         static String render(String template, Map<String, String> vals) {
-            return com.ragagent.agent.AgentPromptPlaceholders.renderPromptPlaceholders(template, vals);
+            return com.ragagent.common.prompt.AgentPromptPlaceholders.renderPromptPlaceholders(template, vals);
         }
     }
 
