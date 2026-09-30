@@ -87,6 +87,7 @@ public class ImService {
     private final int rateLimitWindowSec;
     private final int rateLimitMax;
 
+    final ImSessionResolver sessionResolver;
     final ImQaRequests qaRequests;
 
     private final CommandRegistry cmdRegistry = new CommandRegistry();
@@ -142,6 +143,7 @@ public class ImService {
         this.maxPerUser = maxPerUser;
         this.rateLimitWindowSec = rateLimitWindowSec;
         this.rateLimitMax = rateLimitMax;
+        this.sessionResolver = new ImSessionResolver(this);
         this.qaRequests = new ImQaRequests(this);
         ImCommandSet.registerDefaults(this.cmdRegistry, kbLister(), knowledgeSearcher());
         this.qaQueue = new QaQueue(workers, maxQueue, maxPerUser, task -> {
@@ -503,104 +505,11 @@ public class ImService {
         };
     }
 
-    // ── 会话解析（service.go L2237-2444） ────────────────────────────────
-
     ChannelSessionEntity resolveSession(IncomingMessage msg, long tenantId, String agentId,
             String imChannelId, String sessionMode) {
-        if (ImTypes.SESSION_MODE_THREAD.equals(sessionMode)) {
-            return resolveThreadSession(msg, tenantId, agentId, imChannelId);
-        }
-        return resolveUserSession(msg, tenantId, agentId, imChannelId);
+        return sessionResolver.resolveSession(msg, tenantId, agentId, imChannelId, sessionMode);
     }
 
-    private ChannelSessionEntity resolveUserSession(IncomingMessage msg, long tenantId,
-            String agentId, String imChannelId) {
-        ChannelSessionEntity cs = channelSessions.findUserSession(msg.platform, msg.userId,
-                msg.chatId, tenantId, agentId);
-        if (cs != null) {
-            return cs;
-        }
-        // 有文本就以 "" 起头（首条消息后按内容起标题）；否则用 IM 身份标题。
-        Session created = createImSession(tenantId,
-                ImFormat.imInitialSessionTitle(msg, ImFormat::buildUserSessionTitle),
-                "Auto-created from " + msg.platform + " IM integration");
-        ChannelSessionEntity fresh = newMapping(msg, tenantId, agentId, imChannelId, created.getId());
-        fresh.setChatId(msg.chatId);
-        return insertMapping(fresh, created);
-    }
-
-    private ChannelSessionEntity resolveThreadSession(IncomingMessage msg, long tenantId,
-            String agentId, String imChannelId) {
-        String threadId = msg.threadId;
-        if (threadId == null || threadId.isEmpty()) {
-            // 纵深防御：前端挡住不支持平台的 thread 模式；真空 thread 回落 user 模式，
-            // 避免所有空 thread 消息共享一个会话。
-            log.warn("[IM] Thread mode but ThreadID is empty (platform={} chat={}), falling back to user session",
-                    msg.platform, msg.chatId);
-            return resolveUserSession(msg, tenantId, agentId, imChannelId);
-        }
-        ChannelSessionEntity cs = channelSessions.findThreadSession(msg.platform, msg.chatId,
-                threadId, tenantId, agentId);
-        if (cs != null) {
-            return cs;
-        }
-        Session created = createImSession(tenantId,
-                ImFormat.imInitialSessionTitle(msg, ImFormat::buildThreadSessionTitle),
-                "Thread-based session from " + msg.platform + " IM");
-        ChannelSessionEntity fresh = newMapping(msg, tenantId, agentId, imChannelId, created.getId());
-        fresh.setChatId(msg.chatId);
-        fresh.setThreadId(threadId);
-        return insertMapping(fresh, created);
-    }
-
-    private Session createImSession(long tenantId, String title, String description) {
-        Session s = new Session();
-        s.setTenantId(tenantId);
-        s.setTitle(title);
-        s.setDescription(description);
-        return sessionService.createSession(s);
-    }
-
-    private static ChannelSessionEntity newMapping(IncomingMessage msg, long tenantId,
-            String agentId, String imChannelId, String sessionId) {
-        ChannelSessionEntity e = new ChannelSessionEntity();
-        e.setId(UUID.randomUUID().toString());
-        e.setPlatform(msg.platform);
-        // Go 零值语义：空串不是 NULL（H2 显式 NULL 不落列 DEFAULT）
-        e.setUserId(msg.userId == null ? "" : msg.userId);
-        e.setChatId(msg.chatId == null ? "" : msg.chatId);
-        e.setThreadId(msg.threadId == null ? "" : msg.threadId);
-        e.setSessionId(sessionId);
-        e.setTenantId(tenantId);
-        e.setAgentId(agentId == null ? "" : agentId);
-        e.setImChannelId(imChannelId == null ? "" : imChannelId);
-        e.setStatus("active");
-        e.setMetadata("{}");
-        return e;
-    }
-
-    private ChannelSessionEntity insertMapping(ChannelSessionEntity fresh, Session created) {
-        try {
-            channelSessions.insert(fresh, OffsetDateTime.now());
-            log.info("[IM] Created new session mapping: session={}", created.getId());
-            return fresh;
-        } catch (RuntimeException e) {
-            log.error("[IM] channel session insert failed: {}", e.toString(), e);
-            // 并发创建撞唯一约束：清掉孤儿会话，回落已存在映射（Go L2320-2340 同形）。
-            try {
-                sessionService.deleteSession(created.getId());
-            } catch (Exception cleanup) {
-                log.warn("[IM] Failed to clean up orphaned session {}: {}",
-                        created.getId(), cleanup.getMessage());
-            }
-            ChannelSessionEntity existing = channelSessions.findUserSession(fresh.getPlatform(),
-                    fresh.getUserId(), fresh.getChatId(), fresh.getTenantId(), fresh.getAgentId());
-            if (existing == null) {
-                throw new IllegalStateException("create channel session: " + e.getMessage(), e);
-            }
-            return existing;
-        }
-    }
 
     // ── 命令执行（handleCommand，service.go L2080-2193） ──────────────────
 
