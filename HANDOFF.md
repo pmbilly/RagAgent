@@ -306,7 +306,7 @@ knowledge/
 
 | 域 | 文件 | 行数 | 最大类 | ≥800 | Go 锚点 | `@JsonProperty` | 未用 import | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| **wiki** | 124 | ~24.5k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 锚点已清 | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**余**:B 波 package-info、C 波契约换锚(raw gin→DTO,将整体重写 PageController)、数据访问轴 |
+| **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波已完成(e026138:package-info 六包 + 锚点 1,371→6,保留 GORM 复刻层等事实陈述)**。**余**:C 波契约换锚(raw gin→DTO,将整体重写 PageController)、数据访问轴 |
 | **agent** | 131 | 29,590 | AgentEngine 3,236 | 6 | 466 | 96 | 5 | §5 阶段 2 的另一半（已列名） |
 | **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
 | **session** | 73 | 21,460 | SessionKnowledgeQaService 1,764 | 8 | 721 | 188 | 12 | **步骤 0 体检完成(2026-09-30)**:≥800 八类=KnowledgeQaService 1,764/QaController 1,616/AgentQaService 1,446/AgentToolBackends 1,266/Suggestion 1,087/TempDoc 1,075/MessageService 1,028/StreamBridge 853;@RequestBody 直绑 12;子包 controller 8/domain 33/dto 1/mapper 8/service 19/sse 4,无 package-info;`wip/chat-sse-slice2` 在途(动实体/控制器前先并或裁) |
