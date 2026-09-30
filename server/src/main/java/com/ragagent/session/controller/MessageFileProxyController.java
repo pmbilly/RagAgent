@@ -1,5 +1,7 @@
 package com.ragagent.session.controller;
 
+import java.util.List;
+import com.ragagent.session.domain.Message;
 import java.io.IOException;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,7 +67,7 @@ public class MessageFileProxyController {
         if (reference == null) {
             return;
         }
-        MessageFileLookup lookup = messageService::getMessage;
+        MessageFileLookup lookup = (sid, mid) -> factsOf(messageService.getMessage(sid, mid));
         FileAccess file;
         try {
             file = accessResolver.resolveMessageFile(id, messageId, reference, lookup);
@@ -74,5 +76,39 @@ public class MessageFileProxyController {
             return;
         }
         proxy.serveAuthorizedFile(response, request, file, "message files");
+    }
+
+    /**
+     * 端口载荷映射：只取 storage 侧授权/匹配实际读取的字段
+     * （见 {@link FileAccessResolver.MessageFileFacts}）——避免 storage 依赖会话实体。
+     */
+    private static FileAccessResolver.MessageFileFacts factsOf(Message message) {
+        if (message == null) {
+            return null;
+        }
+        List<String> artifactUrls = new java.util.ArrayList<>();
+        if (message.getArtifacts() != null) {
+            for (var artifact : message.getArtifacts()) {
+                if (artifact != null) {
+                    artifactUrls.add(artifact.getUrl());
+                }
+            }
+        }
+        List<Object> toolResults = new java.util.ArrayList<>();
+        if (message.getAgentSteps() != null) {
+            for (var step : message.getAgentSteps()) {
+                if (step == null || step.getToolCalls() == null) {
+                    continue;
+                }
+                for (var call : step.getToolCalls()) {
+                    if (call != null && call.getResult() != null) {
+                        toolResults.add(call.getResult());
+                    }
+                }
+            }
+        }
+        return new FileAccessResolver.MessageFileFacts(message.getContent(), artifactUrls,
+                message.getKnowledgeReferences(), message.getImages(), toolResults,
+                message.getAgentTenantId(), message.getRole());
     }
 }

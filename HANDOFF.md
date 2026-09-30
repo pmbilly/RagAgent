@@ -310,11 +310,19 @@
 
 **余下（按性价比排序，各自独立可交付）**：
 
-1. **`session ⇄ storage`**（背边 2 文件、另一侧 11）：① `FileAccessResolver` 已有 `MessageFileLookup` 端口，
-   但端口签名直接返回 `session.domain.Message` 实体——**只有 2 处使用**（`resolveMessageFile` 调用点 + `MessageFileProxyController:68` 的 `messageService::getMessage` 方法引用），
-   宜把载荷收窄为 storage 侧记录（`content` / `artifactUrls` / `knowledgeReferences` / `images` / `toolResults` 五段，
-   与 `MessageReferencesFile` 实际读取的字段一一对应；**别改成整条消息序列化**——那会让匹配范围变宽、变成越权）；
-   ② `storage/support/Rewriter`（原 `storageurl`）仍 import `session.domain.Message`/`MessageImage` → 同样改传值。**两者都改才能消环**。
+1. **`session ⇄ storage`**（背边 2 文件、另一侧 11）——**前半已完成（2026-09-30）**：
+   ① ✅ `FileAccessResolver` 的 `MessageFileLookup` 端口载荷已收窄为 storage 侧记录
+   `FileAccessResolver.MessageFileFacts`（`content` / `artifactUrls` / `knowledgeReferences` / `images` /
+   `toolResults` / `agentTenantId` / `role`，与 `MessageReferencesFile`/`AuthorizeMessageFile` 实际读取的字段一一对应），
+   会话侧在 `MessageFileProxyController.factsOf(...)` 做映射（含 `agentSteps → toolResults` 提取）。
+   ⚠️ 端口设计判断：**别改成"整条消息序列化"**——那会让匹配范围变宽，等于越权。
+   ② ⬜ **后半待做（消环的最后一块）**：`storage/support/Rewriter` 的**消息段**（第 334–437 行：
+   `rewriteMessagesResponse` / `cloneMessages` / `rewriteMessages` / `rewriteAgentSteps` + `CLONE_MAPPER`）
+   仍 import `session.domain.Message`/`MessageImage`。它是**逐行移植的活代码**（`storage/support/RewriterTest` 覆盖），
+   但 **main 侧无调用者**（grep `rewriteMessages*` 无命中）——所以**不能当死代码删**。两条路：
+   **(a) 整段搬到会话侧**（如 `session/support/MessageReferenceRewriter`，内部持有 storage 的 `Rewriter`；
+   `session → storage` 方向本就存在，搬完即消环）——**推荐**；
+   (b) 改成 JSON-in/JSON-out（`String rewriteMessagesJson(String)`）——会改动逐行移植的语义，次选。
 2. **`auth → system`**（背边 4 文件：`SystemSettingService`×3 + `SystemSettingRegistry`×1）：前者加窄接口；
    `SystemSettingRegistry` 已自足（零仓内依赖），可直接下沉 `common/settings/`（但只挪它**不足以**消环）。
 3. **`auth → memory`**（背边 1 文件 `MemoryConfig`）、**`auth → storage`**（背边 2 文件 `StorageAllowList`+`StorageBackendRepository`）、
@@ -419,6 +427,10 @@ knowledge/
 26. **搬家的引用重写要覆盖三类写法**（2026-09-30 批 2a 又漏一次）：① FQN（`com.ragagent.a.B`）；② **同包内免 import 的简单名**
 （把 `agent/B.java` 搬到别处后，`agent/` 里原来直接写 `B` 的文件会编译不过——**必须补 import**）；
 ③ 通配 import（`import com.ragagent.a.*;`）。**做法**：搬完先 `grep -rn '\b类名\b'` 全仓，逐个看是否已有对应 import。
+
+27. **测试目录要跟主源一起搬**（2026-09-30 补记）：整包并入宿主域时，只搬 `src/main` 会让 **test 侧仍留在旧包名**下
+    （`com.ragagent.storageurl.RewriterTest` vs 主源新家 `com.ragagent.storage.support`）——编译能过（测试包名不必与主源镜像），
+    但 audit/体检与新人阅读都会被误导。**搬迁清单加上第 5 类：`src/test` 的同名包目录 + 其 `package` 声明与自引用 import。**
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 

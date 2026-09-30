@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.session.domain.Message;
 import com.ragagent.storage.domain.StoredResource;
 import com.ragagent.storage.service.ResourceCatalogService;
 
@@ -108,21 +107,21 @@ public class FileAccessResolver {
      * Go 对 List 字段整体 json.Marshal 后跑整 token 匹配；Java 用 Jackson 等价序列化
      * （引用 token 本身不含 HTML 特殊字符，转义差异不影响匹配）。
      */
-    public boolean messageReferencesFile(Message message, String reference) {
-        if (message == null) {
+    public boolean messageReferencesFile(MessageFileFacts facts, String reference) {
+        if (facts == null) {
             return false;
         }
-        if (StoragePaths.containsStorageReference(message.getContent(), reference)) {
+        if (StoragePaths.containsStorageReference(facts.content(), reference)) {
             return true;
         }
-        if (message.getArtifacts() != null) {
-            for (var artifact : message.getArtifacts()) {
-                if (artifact != null && reference.equals(artifact.getUrl())) {
+        if (facts.artifactUrls() != null) {
+            for (String url : facts.artifactUrls()) {
+                if (url != null && reference.equals(url)) {
                     return true;
                 }
             }
         }
-        for (List<?> value : List.of(message.getKnowledgeReferences(), message.getImages())) {
+        for (List<?> value : List.of(facts.knowledgeReferences(), facts.images())) {
             try {
                 String data = value == null ? "null" : MAPPER.writeValueAsString(value);
                 if (StoragePaths.containsStorageReference(data, reference)) {
@@ -132,24 +131,17 @@ public class FileAccessResolver {
                 // Go: json.Marshal 失败被吞（data 为空串 → 匹配不上）
             }
         }
-        if (message.getAgentSteps() != null) {
-            for (var step : message.getAgentSteps()) {
-                if (step == null || step.getToolCalls() == null) {
-                    continue;
+        for (Object result : facts.toolResults()) {
+            if (result == null) {
+                continue;
+            }
+            try {
+                String data = MAPPER.writeValueAsString(result);
+                if (StoragePaths.containsStorageReference(data, reference)) {
+                    return true;
                 }
-                for (var call : step.getToolCalls()) {
-                    if (call == null || call.getResult() == null) {
-                        continue;
-                    }
-                    try {
-                        String data = MAPPER.writeValueAsString(call.getResult());
-                        if (StoragePaths.containsStorageReference(data, reference)) {
-                            return true;
-                        }
-                    } catch (Exception ignored) {
-                        // 同上
-                    }
-                }
+            } catch (Exception ignored) {
+                // Go: json.Marshal 失败被吞（data 为空串 → 匹配不上）
             }
         }
         return false;
@@ -157,9 +149,26 @@ public class FileAccessResolver {
 
     // ── ResolveMessageFile / AuthorizeMessageFile ───────────────────────────
 
+    /**
+     * 消息中「与文件引用匹配 / 授权」相关的字段（端口载荷）。
+     *
+     * <p>不让 storage 依赖 session 的 {@code Message} 实体：会话侧只把需要的字段映射进来，
+     * 授权与匹配逻辑也只看这几段（与 Go 的 {@code MessageReferencesFile}/{@code AuthorizeMessageFile}
+     * 实际读取的字段一一对应）。**别改成"整条消息序列化"**——那会让匹配范围变宽，等于越权。</p>
+     */
+    public record MessageFileFacts(
+            String content,
+            List<String> artifactUrls,
+            List<?> knowledgeReferences,
+            List<?> images,
+            List<Object> toolResults,
+            long agentTenantId,
+            String role) {
+    }
+
     /** 消息加载端口（对照 Go 的 messageFileLookup：GetMessage 已内含会话可见性判定）。 */
     public interface MessageFileLookup {
-        Message getMessage(String sessionId, String messageId);
+        MessageFileFacts getMessage(String sessionId, String messageId);
     }
 
     /**
@@ -172,40 +181,40 @@ public class FileAccessResolver {
         if (callerTenant == null || callerTenant == 0) {
             throw FileAccessException.unauthorized();
         }
-        Message message;
+        MessageFileFacts facts;
         try {
-            message = messages.getMessage(sessionId, messageId);
+            facts = messages.getMessage(sessionId, messageId);
         } catch (RuntimeException e) {
             // Go: messages.GetMessage 的任何 error → ErrNotFound（fileAccessError 折 404 无体）
             throw FileAccessException.notFound();
         }
-        if (message == null) {
+        if (facts == null) {
             throw FileAccessException.notFound();
         }
-        return authorizeMessageFile(message, reference);
+        return authorizeMessageFile(facts, reference);
     }
 
     /** 对照 Go {@code AuthorizeMessageFile}（files.go L154-230 逐行，含跨租户双授予）。 */
-    private FileAccess authorizeMessageFile(Message message, String reference) {
+    private FileAccess authorizeMessageFile(MessageFileFacts facts, String reference) {
         Long callerTenant = TenantContext.currentTenantId();
         if (callerTenant == null || callerTenant == 0) {
             throw FileAccessException.unauthorized();
         }
-        if (!messageReferencesFile(message, reference)) {
+        if (!messageReferencesFile(facts, reference)) {
             throw FileAccessException.forbidden();
         }
         ResolvedFile resolved = resolveFile(reference);
         FileAccess file = resolved.file();
         StoredResource resource = resolved.resource();
 
-        long owner = message.getAgentTenantId();
+        long owner = facts.agentTenantId();
         if (resource != null) {
             owner = resource.getTenantId();
         }
         if (owner == 0) {
             throw FileAccessException.forbidden();
         }
-        if ("user".equals(message.getRole()) && owner != callerTenant) {
+        if ("user".equals(facts.role()) && owner != callerTenant) {
             throw FileAccessException.forbidden();
         }
         // 空间分享裁撤：跨租户双授予（org-shared KB 证据链 + shared-agent 授予）已退役，
