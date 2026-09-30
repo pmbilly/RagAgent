@@ -1,4 +1,4 @@
-package com.ragagent.agentm.service;
+package com.ragagent.initialization.service;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,7 +18,7 @@ import com.ragagent.llm.ollama.OllamaService;
  * </ul>
  */
 @Configuration
-public class AgentmWiring {
+public class InitializationWiring {
 
     @Bean
     public OllamaService ollamaService() {

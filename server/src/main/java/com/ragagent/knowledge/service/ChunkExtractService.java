@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agentm.service.ExtractPrompts;
+import com.ragagent.initialization.service.ExtractPrompts;
 import com.ragagent.chatpipeline.ChatManage;
 import com.ragagent.chatpipeline.EntityExtraction;
 import com.ragagent.chatpipeline.PipelineConfig;

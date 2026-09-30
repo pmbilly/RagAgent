@@ -1,4 +1,4 @@
-package com.ragagent.agentm.service;
+package com.ragagent.initialization.service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -118,7 +118,7 @@ public final class InitializationConfigService {
         Map<String, Object> data = new TreeMap<>();
         data.put("knowledgeBase", KnowledgeBaseResponse.from(kb, kbService.retrieveDriver()));
         // 自有契约：api_key 留在 parameters、无 credentials 键
-        data.put("models", processed.stream().map(com.ragagent.agentm.dto.InitResponses::rawModel).toList());
+        data.put("models", processed.stream().map(com.ragagent.initialization.dto.InitResponses::rawModel).toList());
         data.put("message", "知识库配置更新成功");
         return ResponseEntity.ok(data);
     }

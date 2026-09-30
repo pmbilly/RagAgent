@@ -1,4 +1,4 @@
-package com.ragagent.agentm.dto;
+package com.ragagent.initialization.dto;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

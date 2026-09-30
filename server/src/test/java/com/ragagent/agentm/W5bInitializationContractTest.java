@@ -90,7 +90,7 @@ class W5bInitializationContractTest {
         guardHolder = ssrfGuard;
         TestSchema.createTables(jdbc);
         TestSchema.resetData(jdbc);
-        com.ragagent.agentm.service.OllamaDownloadTaskStore.resetAll();
+        com.ragagent.initialization.service.OllamaDownloadTaskStore.resetAll();
         jdbc.execute("INSERT INTO tenants (id, name, description, business, status) VALUES "
                 + "(10005, 'ag-batch-tenant', '', '', 'active')");
         jdbc.update("INSERT INTO users (id, username, email, password_hash, tenant_id, is_active) VALUES "

@@ -11,7 +11,7 @@ import java.util.concurrent.BlockingQueue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.RawValue;
-import com.ragagent.agentm.service.AsrTranscriber;
+import com.ragagent.initialization.service.AsrTranscriber;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoDoubleSerializer;

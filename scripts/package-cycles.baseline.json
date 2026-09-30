@@ -13,14 +13,6 @@
       "modelcontext"
     ],
     [
-      "agentm",
-      "knowledge"
-    ],
-    [
-      "agentm",
-      "model"
-    ],
-    [
       "audit",
       "auth"
     ],
@@ -74,6 +66,14 @@
     ],
     [
       "embedding",
+      "model"
+    ],
+    [
+      "initialization",
+      "knowledge"
+    ],
+    [
+      "initialization",
       "model"
     ],
     [
@@ -175,11 +175,11 @@
     ],
     [
       "retrieval",
-      "agentm"
+      "auth"
     ],
     [
       "retrieval",
-      "auth"
+      "initialization"
     ],
     [
       "retrieval",

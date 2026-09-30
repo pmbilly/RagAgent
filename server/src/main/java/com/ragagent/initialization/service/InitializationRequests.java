@@ -1,4 +1,4 @@
-package com.ragagent.agentm.service;
+package com.ragagent.initialization.service;
 
 import java.util.ArrayList;
 import java.util.List;

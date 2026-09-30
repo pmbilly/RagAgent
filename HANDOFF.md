@@ -279,8 +279,9 @@
 **效果**：环 **34 → 32**（`apikey ⇄ auth`、`apikey ⇄ knowledge` 双消），L2→L3 直连 19 → 18；
 全量 4,655 用例绿 + spotlessCheck 通过。基线已刷新（`scripts/package-cycles.baseline.json`）。
 
-**②③ 待执行/约束**：`agentm` 分拆后新包名建议 `initialization`（对齐既有 URL 前缀与类名）；
-`datasource`/`im` 保留意味着它们进入正常重构队列（P1/P2 结构项照做）。
+**② 已执行（`agentm` → `agentm` + `initialization`）**：main 12 文件 `git mv`（1 controller + 1 dto + 8 service + `AgentmWiring`→`InitializationWiring`）+ 2 个 init 专属资源随迁（`asr_test.wav`、`extract_config.yaml`，含路径字符串同步）；新建 `initialization` 四份 package-info，改写 `agentm` 四份只描述剩余职责。拆后：**agentm 19 文件 / 2607 行、initialization 16 文件 / 2945 行**。
+**环影响**：`agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ knowledge`/`initialization ⇄ model`（净数仍 32）；`ExtractPrompts` 因引用 `chatpipeline` 未按预案下沉 `common/prompt`，留 init 半区（后续解环批次再处理）。
+**③ `datasource`/`im` 保留**：进入正常重构队列（P1/P2 结构项照做）。
 
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
@@ -363,6 +364,11 @@ knowledge/
     ③ `yml/xml/properties` 里的类名或扫描路径（本次为 0，但必须先 grep）；
     ④ 扫描路径**通配**（本仓 `@MapperScan("com.ragagent.**.mapper")` 是通配，搬迁无需改配置——若写成具体包名则必须改）。
     做法：`git mv` 目录 → 全仓替换 `com.ragagent.X`（含 test）→ **grep 残留**（现包名替换后仍能匹配旧串吗？不能——旧串 `com.ragagent.apikey` 不再是新串 `com.ragagent.auth.apikey` 的子串，可直接 grep 验证）→ 编译 → 全量 → 刷新环基线。
+
+24. **本机 Redis 偶发假失败要会甄别**（2026-09-30）：`RedisStreamManagerTest`（跑 `EmbeddedRedis`，需 PATH 上的 `redis-server`）
+    偶发 8 用例全红，错误 `RedisConnectionFailureException: Unable to connect to Redis`——**单跑即过**，与代码改动无关。
+    判据：①错误是"连不上"而非断言失败；②`which redis-server` 有；③单跑该类通过。**别据此怀疑刚做的改动，也别把它当回归记进文档。**
+    `agentm`/`initialization` 拆分时的真实规模：agentm 19 文件 / 2607 行，initialization 16 文件 / 2945 行。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 

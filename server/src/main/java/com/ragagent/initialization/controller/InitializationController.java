@@ -1,4 +1,4 @@
-package com.ragagent.agentm.controller;
+package com.ragagent.initialization.controller;
 
 
 import org.springframework.http.ResponseEntity;
@@ -10,13 +10,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ragagent.agentm.service.InitializationConfigService;
-import com.ragagent.agentm.service.ModelConnectivityTestService;
-import com.ragagent.agentm.service.OllamaManageService;
-import com.ragagent.agentm.service.TextExtractionTestService;
-import com.ragagent.agentm.service.AsrTranscriber;
-import com.ragagent.agentm.service.ExtractPrompts;
-import com.ragagent.agentm.service.OllamaDownloadTaskStore;
+import com.ragagent.initialization.service.InitializationConfigService;
+import com.ragagent.initialization.service.ModelConnectivityTestService;
+import com.ragagent.initialization.service.OllamaManageService;
+import com.ragagent.initialization.service.TextExtractionTestService;
+import com.ragagent.initialization.service.AsrTranscriber;
+import com.ragagent.initialization.service.ExtractPrompts;
+import com.ragagent.initialization.service.OllamaDownloadTaskStore;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.common.error.AppError;

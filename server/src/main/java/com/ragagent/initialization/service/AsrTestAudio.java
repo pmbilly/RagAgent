@@ -1,4 +1,4 @@
-package com.ragagent.agentm.service;
+package com.ragagent.initialization.service;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,7 +17,7 @@ public final class AsrTestAudio {
 
     private static byte[] load() {
         try (InputStream in = AsrTestAudio.class.getClassLoader()
-                .getResourceAsStream("agentm/asr_test.wav")) {
+                .getResourceAsStream("initialization/asr_test.wav")) {
             if (in == null) {
                 throw new IllegalStateException("missing resource agentm/asr_test.wav");
             }

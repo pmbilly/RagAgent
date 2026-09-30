@@ -1,4 +1,4 @@
-package com.ragagent.agentm.service;
+package com.ragagent.initialization.service;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -20,7 +20,7 @@ import com.ragagent.chatpipeline.PipelineConfig.PromptTemplateStructured;
  */
 public final class ExtractPrompts {
 
-    private static final String RESOURCE = "agentm/extract_config.yaml";
+    private static final String RESOURCE = "initialization/extract_config.yaml";
 
     private final PromptTemplateStructured extractGraph;
     private final PromptTemplateStructured extractEntity;
