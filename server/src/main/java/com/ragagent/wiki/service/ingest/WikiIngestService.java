@@ -1,7 +1,6 @@
 package com.ragagent.wiki.service.ingest;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -9,7 +8,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
@@ -192,6 +190,7 @@ public class WikiIngestService implements WikiIngestPort {
     }
 
     /** 摄取阶段协作者(构造期装配)。 */
+    final WikiIngestQueueOps queueOps;
     final WikiIngestEnqueueOps enqueueOps;
     final WikiIngestPageOps pageOps;
     final WikiIngestIndexOps indexOps;
@@ -224,6 +223,7 @@ public class WikiIngestService implements WikiIngestPort {
         this.knowledgeFinalizer = knowledgeFinalizer;
         this.imageEnricher = imageEnricher;
         this.taskHandler = taskHandler;
+        this.queueOps = new WikiIngestQueueOps(this);
         this.enqueueOps = new WikiIngestEnqueueOps(this);
         this.pageOps = new WikiIngestPageOps(this);
         this.indexOps = new WikiIngestIndexOps(this);
@@ -382,6 +382,31 @@ public class WikiIngestService implements WikiIngestPort {
         return enqueueOps.scheduleStaleClaimRecheck(payload);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 队列消费（实现移至 WikiIngestQueueOps，门面薄委托）
+    // ═══════════════════════════════════════════════════════════════
+
+    public PendingBatch peekPendingList(String kbId, int limit) {
+        return queueOps.peekPendingList(kbId, limit);
+    }
+
+    public PendingBatch claimPendingList(String kbId, int limit) {
+        return queueOps.claimPendingList(kbId, limit);
+    }
+
+    public PendingBatch decodePendingRows(List<TaskPendingOp> rows) {
+        return queueOps.decodePendingRows(rows);
+    }
+
+    public void trimPendingList(List<Long> ids) {
+        queueOps.trimPendingList(ids);
+    }
+
+    public void trimPendingListDetached(List<Long> ids) {
+        queueOps.trimPendingListDetached(ids);
+    }
+
+
 
     // ═══════════════════════════════════════════════════════════════
     // 队列消费
@@ -389,134 +414,6 @@ public class WikiIngestService implements WikiIngestPort {
 
     /** 窥视/认领结果：解码后的 op 列表 + 被触及的原始行 id。 */
     public record PendingBatch(List<WikiPendingOp> ops, List<Long> peekedIds) {}
-
-    /**
-     * 为该 KB 按 FIFO 载入最多
-     * {@code limit} 条 op。<b>行不会被移除</b>；消费后必须
-     * {@code DeleteByIDs}（或 {@code IncrFailCount} 后留着给下一轮）。
-     *
-     * <p>{@code peekedIds} 返回被窥视到的<b>每一行</b>的 db id（不只是通过去重的那些），
-     * 好让 {@code trimPendingList} 在批次末尾一条语句删光——这对应历史的
-     * "LTrim peekedCount 条"语义：被消费者按 dedup 折叠掉的重复行，
-     * 也在其规范兄弟被处理之后一并排空。</p>
-     */
-    public PendingBatch peekPendingList(String kbId, int limit) {
-        int effective = limit <= 0 ? WikiIngestConstants.MAX_DOCS_PER_BATCH : limit;
-        List<TaskPendingOp> rows = pendingRepo.peekBatch(
-                WikiIngestConstants.TASK_TYPE, WikiIngestConstants.TASK_SCOPE, kbId, effective);
-        return decodePendingRows(rows);
-    }
-
-    /**
-     * {@code peekPendingList} 在
-     * standard（分布式协调）模式下的对应物——原子地<b>认领</b>最多 {@code limit}
-     * 条 op（标记 {@code claimed_at}），让同一 KB 的并发批次拉到<b>互不相交</b>的
-     * 文档而不是重复处理。
-     * 陈旧认领（早于 {@code CLAIM_STALE_AFTER}，即来自崩溃 worker）会被回收。
-     *
-     * <p>去重 / peekedIds 语义与 {@code peekPendingList} 相同；返回的 peekedIds 是
-     * 已认领、调用方必须在成功时 {@code DeleteByIDs} 或失败时 {@code ReleaseByIDs}
-     * 的那些行。</p>
-     */
-    public PendingBatch claimPendingList(String kbId, int limit) {
-        int effective = limit <= 0 ? WikiIngestConstants.MAX_DOCS_PER_BATCH : limit;
-        java.time.OffsetDateTime staleBefore =
-                java.time.OffsetDateTime.now().minus(WikiIngestConstants.CLAIM_STALE_AFTER);
-        List<TaskPendingOp> rows = pendingRepo.claimBatch(
-                WikiIngestConstants.TASK_TYPE, WikiIngestConstants.TASK_SCOPE, kbId, effective, staleBefore);
-        return decodePendingRows(rows);
-    }
-
-    /**
-     * 把原始行转成
-     * {@link WikiPendingOp}，并按 knowledge_id 施加 last-write-wins 去重。
-     *
-     * <p>去重只保留每篇文档<b>最后</b>一个操作，从而优化掉冗余序列
-     * （例如"刚上传就删除"：{@code [ingest, retract]} → {@code [retract]}）。
-     * 非规范行仍会在 trim 时被排空——它们的 dbID 就在 peekedIDs 里。</p>
-     */
-    public PendingBatch decodePendingRows(List<TaskPendingOp> rows) {
-        if (rows == null || rows.isEmpty()) {
-            return new PendingBatch(List.of(), List.of());
-        }
-        List<WikiPendingOp> all = new ArrayList<>(rows.size());
-        List<Long> peekedIds = new ArrayList<>(rows.size());
-        for (TaskPendingOp r : rows) {
-            peekedIds.add(r.getId());
-            WikiPendingOp op;
-            JsonNode payload = r.getPayload();
-            if (payload != null) {
-                try {
-                    op = MAPPER.treeToValue(payload, WikiPendingOp.class);
-                    if (op == null) {
-                        op = new WikiPendingOp();
-                    }
-                } catch (Exception e) {
-                    log.warn("wiki ingest: failed to unmarshal pending op id={}: {}",
-                            r.getId(), e.getMessage());
-                    continue;
-                }
-            } else {
-                // 防御：载荷丢失时回落到列数据，让该行仍可被排空
-                // （否则它会每批次都因"删不掉"而空转）
-                op = new WikiPendingOp(r.getOp(), r.getDedupKey());
-            }
-            op.setDbId(r.getId());
-            all.add(op);
-        }
-
-        Set<String> seen = new HashSet<>();
-        List<WikiPendingOp> reversedUnique = new ArrayList<>(all.size());
-        for (int i = all.size() - 1; i >= 0; i--) {
-            WikiPendingOp op = all.get(i);
-            if (op.getKnowledgeId().isEmpty()) {
-                // 没有去重键 —— 原样保留（罕见；留给未来没有知识锚点的 op）
-                reversedUnique.add(op);
-                continue;
-            }
-            if (!seen.add(op.getKnowledgeId())) {
-                continue;
-            }
-            reversedUnique.add(op);
-        }
-
-        List<WikiPendingOp> ops = new ArrayList<>(reversedUnique.size());
-        for (int i = reversedUnique.size() - 1; i >= 0; i--) {
-            ops.add(reversedUnique.get(i));
-        }
-        return new PendingBatch(ops, peekedIds);
-    }
-
-    /**
-     * 删除已消费的行。
-     * 空入参是 no-op，因此调用方可以在批次结束时无条件调用。
-     *
-     * @throws RuntimeException 删除失败；调用方据此让批次结算失败
-     */
-    public void trimPendingList(List<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return;
-        }
-        try {
-            pendingRepo.deleteByIds(ids);
-        } catch (RuntimeException e) {
-            log.warn("wiki ingest: failed to trim {} pending rows: {}", ids.size(), e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * 在<b>脱钩</b>的清理路径上删除已消费的行——父作用域已被取消/中断时
-     * 删除仍要执行（有回归测试覆盖该行为）。
-     */
-    public void trimPendingListDetached(List<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return;
-        }
-        try (WikiCleanupScope scope = cleanupScope()) {
-            scope.run(() -> trimPendingList(ids));
-        }
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // 锁与限流
