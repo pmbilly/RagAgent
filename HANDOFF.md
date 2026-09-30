@@ -512,6 +512,29 @@
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 
+## 11.10 P3 小修执行记录：放错包 / 倒挂清零（2026-09-30）
+
+包地图 §P3 四项一次收口（体检 `python3 scripts/pkg-audit.py` 的 ④⑤ 已无输出）：
+
+1. **放错包 2 → 0**：`audit/controller/AuditLogListResponse` → `audit/dto/`（响应信封 record）；
+   `wiki/controller/WikiActivityAudit` → `wiki/domain/`（这是 wiki→audit 的端口接缝，
+   `audit/service/WikiActivityAuditRecorder` 实现它——放 controller 包才导致"service → controller"倒挂 2 处，
+   顺手一起消掉）。
+2. **控制器直连仓储 4 → 0**：`MemoryController` / `SessionController` / `MessageSuggestionController` /
+   `StorageBackendController`。做法不是给控制器开新面，而是**把仓储的嵌套类型提成领域类型 + 服务加读面方法**：
+   `MemoryRepository.Page<T>` → `memory/domain/MemoryPage`、`SessionRepository.PagedItems` →
+   `session/domain/SessionPage`、`SessionRepository.SuggestionSetNotFoundException` →
+   `session/domain/MessageSuggestionSetNotFoundException`；`StorageBackendService` 补
+   `listBackends`/`tenantDefaultBackendId`/`getBackend` 三个读面方法，控制器撤掉仓储字段。
+3. **dto → service 倒挂 1 → 0**：`CustomAgentService.Result` → `agentm/dto/CustomAgentResult`
+   （响应装配 DTO 不再命名服务的嵌套类型）。
+4. **顶层 package-info 30/31 → 31/31**：补 `session/package-info.java`
+   （原计划留给 session 域批次，该批次已交付，顾虑不再成立）。
+
+**遗留（观察项，非缺陷）**：`controller → domain` 40 处——控制器为响应装配直接读实体字段
+（体检自标注"多为响应装配"）；要收只能给每个读面配视图类型，收益/成本比低，暂留。
+**收尾数据**：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。

@@ -83,12 +83,17 @@
 
 ### P3 命名与文档
 
-- [x] **顶层 `package-info` 补齐至 33/34**（2026-09-30，`809115c`）：新增 28 个（apikey/audit/auth/chatpipeline/common/config/datasource/embed/embedding/
-      evaluation/favorite/im/llm/mcp/memory/model/modelcontext/rerank/retrieval/searchutil/storage/storageurl/stream/system/
-      tracing/vectorstore/webfetch/websearch）。**`session` 故意留空**——该域批次正在进行（步骤 2 半程），由该批次一并补，避免撞车；
+- [x] **顶层 `package-info` 全覆盖 31/31**（2026-09-30；28 个见 `809115c`，`session` 由批 P3 补：该域批次已交付，
+      当时"故意留空避免撞车"的顾虑不再成立）；
 - [ ] `model` 既是顶层域又是层名（`model/domain` vs `auth/domain`）→ 至少在文档里点名，改名后议；
 - [ ] 四个近邻包易混：`embed`(12，HTTP 叶子域，0 包引用) / `embedding`(21，provider 客户端) / `vectorstore`(12) / `rerank`(14)；
-- [ ] 2 个放错包的文件归位；5 个控制器改走服务层；wiki 2 处反向依赖反转。
+- [x] **放错包 / 倒挂清零（2026-09-30，批 P3，体检 ④⑤ 已无输出）**：
+      `AuditLogListResponse` → `audit/dto`、`WikiActivityAudit`（wiki→audit 的端口接缝）→ `wiki/domain`；
+      4 个控制器改走服务层/领域类型（`MemoryController`/`SessionController`/`MessageSuggestionController`/
+      `StorageBackendController`）——做法是把仓储的嵌套返回类型提成领域类型
+      （`memory/domain/MemoryPage`、`session/domain/SessionPage`、`session/domain/MessageSuggestionSetNotFoundException`）
+      与在服务上加读面方法，而不是给控制器开新面；`agentm/dto/AgentResponses` 的 dto→service 倒挂同法
+      （`CustomAgentService.Result` → `agentm/dto/CustomAgentResult`）。
 
 ## 3.5 目标结构（重组后）
 
@@ -150,7 +155,7 @@ system websearch favorite evaluation common config event stream tracing`。
 | 批 4 大项解环（④） | **已完成（环 0，全仓零包间环）**：④-a `agent ⇄ mcp` **已完成**——`ResponseType`（18 文件共享的事件契约枚举）→ `common/llm`；`agent/approval`（共享审批机制，1,861 行）→ `common/approval`，MCP 专用的 `Adapter`/`McpToolPolicySource` 下沉 `mcp/service`；④-b **能力层配置去实体化**：5 个配置类的 `fromModel(Model)` 映射收回 `model/service/ModelRuntimeConfigs`（消 `embedding`/`llm`/`model⇄rerank` 三组环，直连 14→11）；④-c **model 域边界收口**：`ModelGateway` 只读端口（消 `model ⇄ retrieval`）+ `UploadLimits` 纯规则搬 common（消 `knowledge ⇄ model`）；④-d **实体归位**：`StorageBackend`（storage_backends 表）从 `knowledge.domain` → `storage.domain`（10 文件引用）+ 清 `FileAccessResolver` 的死注入（消 `knowledge ⇄ storage`）；④-e **契约类型搬迁第一批**：`ChatManage` 的 4 个图形值类型 → `common/graph`；`SearchParams`/`ChunkTypes` → `common/pipeline`；`RetrievalObs` → `retrieval/obs`；`RetrieveGraphRepository` 端口 → `retrieval/graph`；`MessageAttachmentsPrompt` → `session`（消 `chatpipeline ⇄ retrieval`）；④-f-① `EntityExtraction`+`PipelineConfig` → `llm/extract`、`GoJsonMarshal`+`GoValueStr` → `common/web`（消 `chatpipeline ⇄ knowledge`）；④-g wiki 小簇（`WikiImageMarkup`/`WikiLanguageSupport`/`SlugUpdate`/`ExtractedItem`/**wiki 自己的 `GoStrings`**）→ `common/wiki` + `WikiIngestPort`/`WikiFinalizePort` 端口（消 `knowledge ⇄ wiki`）；④-h `SearchResult`（SSE 契约载荷、零域依赖）`retrieval.domain` → `common/retrieval`（消 `llm ⇄ retrieval`）；④-i `memory ⇄ session`：只读端口 `SessionMessagePort`（2 方法 + 视图，`MessageRepository` 实现）+ 删纯转发 `MemoryMessageReader` + `MemoryUsedMemories` 归位 chatpipeline（消 `memory ⇄ session`）；④-k `knowledge ⇄ retrieval` **已完成（环 5 → 4）**——先归位（`VectorStoreService` → `retrieval/engine`，引擎写面与读面合流；`ImageInfoEnricher`/`SearchChunkMerge` → `knowledge/support`），再端口组（`common/knowledge` 的 `KnowledgeBaseSearchGateway`/`KnowledgeDocumentGateway`/`ChunkSearchGateway` + `common/embedding` 的 `EmbeddingGateway`，全部由知识域实现；`HybridSearchService` 不再 import 知识域）；④-l `initialization ⇄ knowledge/model` **已完成（环 4 → 2）**——`ExtractPrompts` → `llm/extract`（与 `PipelineConfig` 成对，消 initialization⇄knowledge）、`AsrTranscriber` → `llm/asr`（复用 `LlmTransport` 的 provider 接缝，消 initialization⇄model，并顺带消掉 `retrieval → initialization` 违例）；④-m `agent ⇄ modelcontext` **已完成（环 2 → 1）**——`ToolResult` → `common/llm`（跨域协议载荷，与 `ResponseType` 同层）、`GoJsonCodec` → `common/web`（与 `GoJsonMarshal` 合流，`writeString` 转公开）；④-n `chatpipeline ⇄ session` **已完成（环 1 → 0）**——`common/session` 新增 4 个消息载荷记录（`PipelineMessageView`/`PipelineMessageImageView`/`PipelineMessageAttachmentView`/`PipelineUsedMemoryView`）+ `MessageAttachmentsPrompt` → `common/prompt` + 会话侧 `session/support/PipelineViews` 映射（端口实现/附件/用到记忆/事件落库）；余下 6 条 L2→L3 是合法方向（能力层正常使用业务域），属阶段 4 模块化 |
 | 批 3 解环·传值 + 伴生类型（D+E） | provider 客户端只依赖配置值；引擎伴生类型归位 |
 | P1/P2 分包子包 | 上表的域内二级结构 |
-| P3 小修 | 2 个放错包的文件归位；5 个控制器改走服务层；wiki 2 处反向依赖反转 |
+| P3 小修 | ✅ **已执行（2026-09-30）**：放错包 2→0、控制器直连仓储 4→0、真倒挂 3→0、顶层 package-info 31/31；余 40 处 controller→domain 属"响应装配读实体"（体检自标注为观察项） |
 | 阶段 4 | 5 组贵重环 + 模块边界固化（`config`/L1 的物理模块化） |
 
 ## 4. 明确"别动"
