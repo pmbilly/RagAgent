@@ -309,7 +309,7 @@ knowledge/
 | **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波完成(e026138)+ C 波完成(b407769:实体去 202 处注解转 camel/查询参数 Java 字段名/前端同批/wiki-* fixture 重录;PageController raw 形态保留但键已换锚,DTO 端点化随数据访问轴)**。**余**:数据访问轴(GORM 复刻层重塑) |
 | **agent** | 131 | 29,590 | AgentEngine 3,236 | 6 | 466 | 96 | 5 | §5 阶段 2 的另一半（已列名） |
 | **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
-| **session** | 73 | 21,460 | SessionKnowledgeQaService 1,764 | 8 | 721 | 188 | 12 | **步骤 0 体检完成(2026-09-30)**:≥800 八类=KnowledgeQaService 1,764/QaController 1,616/AgentQaService 1,446/AgentToolBackends 1,266/Suggestion 1,087/TempDoc 1,075/MessageService 1,028/StreamBridge 853;@RequestBody 直绑 12;子包 controller 8/domain 33/dto 1/mapper 8/service 19/sse 4,无 package-info;`wip/chat-sse-slice2` 在途(动实体/控制器前先并或裁) |
+| **session** | 73 | 21,460 | SessionKnowledgeQaService(门面+两协作者) | 8(1 已拆) | 721 | 188 | 12 | **步骤 0/1 完成,步骤 2 半程(2026-09-30)**:SKQA 1,764→门面+Resolution/Fallback(89a4e44);余七类=QaController 1,616/AgentQaService 1,446/AgentToolBackends 1,266/Suggestion 1,087/TempDoc 1,075/MessageService 1,028/StreamBridge 853;@RequestBody 直绑 12;子包 6 个无 package-info;`wip/chat-sse-slice2` 已裁定不并入(见 §14.8) |
 | **memory** | 62 | 13,166 | MemoryService 1,661 | 3 | 559 | 134 | 2 | |
 | **llm** | 94 | 10,826 | RemoteApiChat 1,367 | 1 | 476 | 171 | 1 | |
 | **retrieval** | 58 | 19,404 | OpenSearchRetrieveRepository 1,653 | **10** | 267 | 19 | 2 | 契约已换锚（§11 ①） |
@@ -379,3 +379,9 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **不动**:session/domain 实体 jsonb 键在 C 波前保持 snake(§11 边界);chat SSE 信封(event/*Data)归 session C 波切片③(与前端同批);工具输出自有 schema 不动。
 - **跨包缝合点(git grep 实测,15 文件)**:chatpipeline×6、embed×2、evaluation/im/memory×3、storage×2 消费 session 类型;session 出向依赖 retrieval.SearchResult(10)/event.EventBus/agent.AgentStep(5)/knowledge 服务族。
 - **C 波工作清单(自 wip 提交说明整理)**:20 实体+2 落库类型约 200 处注解;SessionController 8 键+3 解封+4 去 success;SteerController 11 键;KnowledgeQaController 2 处;删除/清空类端点 204;43 个 session-*/sug-* fixture;前端 93 键约 200+ 处读取(与 SSE 信封同名,切片③同批)。
+
+### 14.9 session 步骤 2 半程（2026-09-30）
+
+- SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
+- **余七神类**:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 1,075、MessageService 1,028、AgentStreamBridge 853。
+- 教训:切片协作者时 record(MentionScope/SearchTargetView)容易随 take 溢出/误限定——**record 一律留在门面**(测试与外部直引面),协作者经门面限定引用;声明行误加 service. 前缀的恢复统一按"4 空格缩进+修饰符开头"行匹配(勿对调用点盲替)。
