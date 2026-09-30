@@ -477,6 +477,19 @@
    **收尾数据**：环 4 → **2**（余 `agent ⇄ modelcontext`、`chatpipeline ⇄ session`）、
    L2→L3 9 → **8**；全量 4,675 用例 + `spotlessCheck` 绿；基线刷新 **2/1/8**。
 
+   ✅ **④-m `agent ⇄ modelcontext` 已完成（2026-09-30，环 2 → 1）——共享契约类型归位 common**：
+   背边（`modelcontext → agent`）只有 4 个文件、2 个类型，都是"modelcontext 需要 agent 侧定义的共享契约"：
+   - `agent/domain/ToolResult`（一次工具执行的结果）→ **`common/llm/`**，与 ④-a 的 `ResponseType`
+     同层（跨域协议载荷）：agent 43 文件 / chatpipeline 4 / modelcontext 2 / session 2 只改 import，
+     JSON 契约（字段序 / `@JsonInclude` / `@JsonIgnore`）不动；
+   - `agent/tools/GoJsonCodec`（紧凑 JSON 编码器：键序 + 浮点形态 + HTML 转义恒开）→ **`common/web/`**，
+     与 `GoJsonMarshal`/`GoJsonEscapes`/`GoDoubleSerializer` 合流；顺带把 `writeString` 由包私有改**公开**
+     （`agent/tools/IssueView` 自行拼 JSON 时要逐字节复用它，跨包后原可见性不可达），原同包引用的 5 个类补 import。
+   **收尾数据**：环 2 → **1**（余 `chatpipeline ⇄ session`）、L2→L3 8 → **7**；基线刷新 **1/1/7**。
+   另修一处**既有偶发**（单独提交）：`WebToolsRecordingTest` 的两个抓取记录器用普通 `ArrayList` 接
+   虚拟线程并发回调（`WebSearchTool`/`WebFetchTool` 各起 3 条虚拟线程），全量下偶发丢记录 →
+   改 `CopyOnWriteArrayList`。
+
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 
