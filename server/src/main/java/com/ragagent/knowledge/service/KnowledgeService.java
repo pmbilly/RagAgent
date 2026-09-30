@@ -29,17 +29,13 @@ import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.ragagent.chatpipeline.PipelinePorts.RetrieveGraphRepository;
 import com.ragagent.knowledge.dto.UpdateKnowledgeRequest;
 import com.ragagent.knowledge.dto.KBCloneProgress;
 import com.ragagent.knowledge.dto.KnowledgeMoveProgress;
-import com.ragagent.retrieval.engine.PgVectorEngineRepository;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
-import com.ragagent.knowledge.task.KnowledgeTaskProgressStore;
 import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
-import com.ragagent.knowledge.storage.TenantStorageService;
 
 /**
  * （覆盖 file/url/manual 创建、分页列表、get/update/delete、folders；
@@ -80,14 +76,8 @@ public class KnowledgeService {
     /** A3-3 尾批：租户感知文件存储（本地契约不变；云 provider 租户真正落对象存储）。 */
     private final TenantFileStorage fileStorage;
     private final KnowledgeProcessWorker worker;
-    private final KnowledgeTaskProgressStore progressStore;
     private final ChunkVectorIndexer chunkVectorIndexer;
-    private final KnowledgeBaseService knowledgeBaseService;
-    private final KnowledgeVectorWrites vectorWrites;
-    private final PgVectorEngineRepository pgVectorEngineRepository;
-    private final TenantStorageService tenantStorage;
     /** 图库仓储（D 批）：知识移动后清源命名空间。 */
-    private final RetrieveGraphRepository graphRepository;
     private final KnowledgeMoveService moveService;
     private final KnowledgeCloneService cloneService;
     private final KnowledgeSearchService searchService;
@@ -105,12 +95,7 @@ public class KnowledgeService {
                             LocalStorageService storage,
                             TenantFileStorage fileStorage,
                             @Lazy KnowledgeProcessWorker worker,
-                            KnowledgeTaskProgressStore progressStore,
                             ChunkVectorIndexer chunkVectorIndexer,
-                            RetrieveGraphRepository graphRepository,
-                            KnowledgeBaseService knowledgeBaseService,
-                            KnowledgeVectorWrites vectorWrites,
-                            PgVectorEngineRepository pgVectorEngineRepository,
                             KnowledgeMoveService moveService,
                             KnowledgeCloneService cloneService,
                             KnowledgeSearchService searchService,
@@ -119,8 +104,7 @@ public class KnowledgeService {
                             KnowledgeSummaryService knowledgeSummaryService,
                             KnowledgeFileService knowledgeFileService,
                             KnowledgeParseService knowledgeParseService,
-                            KnowledgeBatchOpsService batchOpsService,
-                            TenantStorageService tenantStorage) {
+                            KnowledgeBatchOpsService batchOpsService) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -128,9 +112,7 @@ public class KnowledgeService {
         this.storage = storage;
         this.fileStorage = fileStorage;
         this.worker = worker;
-        this.progressStore = progressStore;
         this.chunkVectorIndexer = chunkVectorIndexer;
-        this.graphRepository = graphRepository;
         this.moveService = moveService;
         this.cloneService = cloneService;
         this.searchService = searchService;
@@ -140,10 +122,6 @@ public class KnowledgeService {
         this.knowledgeFileService = knowledgeFileService;
         this.knowledgeParseService = knowledgeParseService;
         this.batchOpsService = batchOpsService;
-        this.knowledgeBaseService = knowledgeBaseService;
-        this.vectorWrites = vectorWrites;
-        this.pgVectorEngineRepository = pgVectorEngineRepository;
-        this.tenantStorage = tenantStorage;
     }
 
     /** 同包开放（拆分出的子服务经门面复用，不各自复制）。 */

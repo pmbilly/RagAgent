@@ -24,7 +24,6 @@ import com.ragagent.knowledge.domain.ChunkNotFoundException;
 import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.domain.ChunkRevisionConflictException;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
-import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
@@ -57,7 +56,6 @@ public class ChunkQuestionService {
     private static final Logger log = LoggerFactory.getLogger(ChunkQuestionService.class);
 
     private final ChunkRepository chunkRepository;
-    private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ModelRuntimeFactory modelRuntimeFactory;
@@ -68,7 +66,6 @@ public class ChunkQuestionService {
     private final ChunkAccessGuard guard;
 
     public ChunkQuestionService(ChunkRepository chunkRepository,
-                                KnowledgeMapper knowledgeMapper,
                                 KnowledgeBaseMapper kbMapper,
                                 ChunkVectorIndexer chunkVectorIndexer,
                                 ModelRuntimeFactory modelRuntimeFactory,
@@ -78,7 +75,6 @@ public class ChunkQuestionService {
                                 ConversationProperties conversationProps,
                                 ChunkAccessGuard guard) {
         this.chunkRepository = chunkRepository;
-        this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkVectorIndexer = chunkVectorIndexer;
         this.modelRuntimeFactory = modelRuntimeFactory;

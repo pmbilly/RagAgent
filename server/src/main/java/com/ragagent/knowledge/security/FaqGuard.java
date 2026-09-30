@@ -15,7 +15,6 @@ import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.repository.FaqChunkRepository;
-import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import com.ragagent.knowledge.repository.KnowledgeTagRepository;
 import org.springframework.stereotype.Component;
@@ -36,18 +35,15 @@ public class FaqGuard {
     private final KnowledgeService knowledgeService;
     private final KnowledgeTagMapper tagMapper;
     private final KnowledgeTagRepository tagRepository;
-    private final ChunkRepository chunkRepository;
     private final FaqChunkRepository faqChunkRepository;
 
     public FaqGuard(KnowledgeService knowledgeService,
                     KnowledgeTagMapper tagMapper,
                     KnowledgeTagRepository tagRepository,
-                    ChunkRepository chunkRepository,
                     FaqChunkRepository faqChunkRepository) {
         this.knowledgeService = knowledgeService;
         this.tagMapper = tagMapper;
         this.tagRepository = tagRepository;
-        this.chunkRepository = chunkRepository;
         this.faqChunkRepository = faqChunkRepository;
     }
 

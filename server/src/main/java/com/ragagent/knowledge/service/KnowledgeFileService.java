@@ -18,7 +18,6 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.ChunkMapper;
-import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +39,6 @@ public class KnowledgeFileService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ChunkMapper chunkMapper;
-    private final ChunkRepository chunkRepo;
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final KnowledgeService facade;
     private final TenantFileStorage fileStorage;
@@ -49,14 +47,12 @@ public class KnowledgeFileService {
 
     public KnowledgeFileService(
                             ChunkMapper chunkMapper,
-                            ChunkRepository chunkRepo,
                             ChunkVectorIndexer chunkVectorIndexer,
                             @Lazy KnowledgeService facade,
                             TenantFileStorage fileStorage,
                             KnowledgeMapper knowledgeMapper,
                             @Lazy KnowledgeService.KnowledgeProcessWorker worker) {
         this.chunkMapper = chunkMapper;
-        this.chunkRepo = chunkRepo;
         this.chunkVectorIndexer = chunkVectorIndexer;
         this.facade = facade;
         this.fileStorage = fileStorage;

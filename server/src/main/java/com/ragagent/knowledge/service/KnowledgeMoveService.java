@@ -45,7 +45,6 @@ public class KnowledgeMoveService {
     private final ModelRuntimeFactory modelRuntimeFactory;
     private final KnowledgeService.KnowledgeProcessWorker worker;
     private final KnowledgeTaskProgressStore progressStore;
-    private final ChunkVectorIndexer chunkVectorIndexer;
     private final KnowledgeVectorWrites vectorWrites;
     private final PgVectorEngineRepository pgVectorEngineRepository;
     private final RetrieveGraphRepository graphRepository;
@@ -62,7 +61,6 @@ public class KnowledgeMoveService {
             ModelRuntimeFactory modelRuntimeFactory,
             @Lazy KnowledgeService.KnowledgeProcessWorker worker,
             KnowledgeTaskProgressStore progressStore,
-            ChunkVectorIndexer chunkVectorIndexer,
             KnowledgeVectorWrites vectorWrites,
             PgVectorEngineRepository pgVectorEngineRepository,
             RetrieveGraphRepository graphRepository) {
@@ -77,7 +75,6 @@ public class KnowledgeMoveService {
         this.modelRuntimeFactory = modelRuntimeFactory;
         this.worker = worker;
         this.progressStore = progressStore;
-        this.chunkVectorIndexer = chunkVectorIndexer;
         this.vectorWrites = vectorWrites;
         this.pgVectorEngineRepository = pgVectorEngineRepository;
         this.graphRepository = graphRepository;

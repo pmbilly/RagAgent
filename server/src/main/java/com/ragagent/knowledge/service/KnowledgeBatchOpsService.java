@@ -28,7 +28,6 @@ public class KnowledgeBatchOpsService {
     private final ChunkMapper chunkMapper;
     private final KnowledgeService.KnowledgeProcessWorker worker;
     private final KnowledgeFolderService folderService;
-    private final KnowledgeParseService knowledgeParseService;
     private final KnowledgeFileService knowledgeFileService;
     private final KnowledgeService facade;
 
@@ -36,14 +35,12 @@ public class KnowledgeBatchOpsService {
                                     ChunkMapper chunkMapper,
                                     @Lazy KnowledgeService.KnowledgeProcessWorker worker,
                                     KnowledgeFolderService folderService,
-                                    KnowledgeParseService knowledgeParseService,
                                     KnowledgeFileService knowledgeFileService,
                                     @Lazy KnowledgeService facade) {
         this.knowledgeMapper = knowledgeMapper;
         this.chunkMapper = chunkMapper;
         this.worker = worker;
         this.folderService = folderService;
-        this.knowledgeParseService = knowledgeParseService;
         this.knowledgeFileService = knowledgeFileService;
         this.facade = facade;
     }

@@ -25,7 +25,6 @@ import com.ragagent.knowledge.dto.FaqImportResult;
 import com.ragagent.knowledge.dto.FaqSuccessEntry;
 import com.ragagent.model.domain.Model;
 import com.ragagent.knowledge.repository.FaqChunkRepository;
-import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.knowledge.mapper.KnowledgeTagMapper;
 import org.slf4j.Logger;
@@ -56,7 +55,6 @@ public class FaqImportService {
 
     private static final Logger log = LoggerFactory.getLogger(FaqImportService.class);
 
-    private final ChunkRepository chunkRepository;
     private final FaqChunkRepository faqChunkRepository;
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeTagMapper tagMapper;
@@ -70,7 +68,7 @@ public class FaqImportService {
     private final KnowledgeTaskExecutor taskExecutor;
 
 
-    public FaqImportService(KnowledgeTaskExecutor taskExecutor, ChunkRepository chunkRepository,
+    public FaqImportService(KnowledgeTaskExecutor taskExecutor,
                             KnowledgeMapper knowledgeMapper,
                             KnowledgeTagMapper tagMapper,
                             FaqImportTaskStore taskStore,
@@ -82,7 +80,6 @@ public class FaqImportService {
                             FaqChunkRepository faqChunkRepository) {
 
         this.taskExecutor = taskExecutor;
-        this.chunkRepository = chunkRepository;
         this.faqChunkRepository = faqChunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
