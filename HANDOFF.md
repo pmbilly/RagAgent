@@ -59,6 +59,7 @@
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器引用 **408 处 / 94 文件**；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
 - **注释卫生（knowledge 包实测，2026-09-30，可作其余域标准）**：Go 锚点注释 **0 处**、注释掉的代码 **0 处**、TODO **1 处**、注释占比 12.1%、13 个包全有 `package-info`；坏 `{@link}` 0 处。Javadoc 覆盖：**public 类型 91%**（201/221，未写的 20 处是纯 CRUD 请求体——有意留白，名字即语义）、public 方法 33%（**分布是对的**：逻辑密集类 90%+，POJO 访问器 7%）。
 - **import 卫生（实测 2026-09-30）**：主干 11,557 条 import，Spotless 闸门清掉 **295 处未使用**（其中 276 处在 `knowledge/dto`——**抽类时继承原文件 import 列表**留下的）+ **13 处重复**；剩 64 处未使用在 `seed` 后未触碰过的文件里，改到即被闸门清掉（这是 ratchet 的设计，不是遗漏）。**死 logger（声明却未使用）**：主干 15 处 / 测试 0 处；knowledge 已清零（`88c8054`，-24 行），余 7 处散在 `agent/tools`、`model/controller`、`auth/service`、`wiki/service`，随各自批次清。**死成员**：knowledge 已清零（logger 8 + MAPPER 5 + 死局部变量 4 + 死方法 1 + 死依赖 16 + 遮蔽 import 2）；全仓候选 **66 处**（字段 51 / 私有方法 14 / 遮蔽 import 1，`7bf963e` 口径，**含误报类**，需逐条人工确认；口径**不含未使用局部变量**——那类目前只有 IDE 能发现）；`agentm/ModelConnectivityTestService` 一个类占 3 处死依赖。
+- **`@JsonInclude` 现状（2026-09-30）**：knowledge 38 处 → 批次 A 清掉响应面 3 处后 **35 处**（NON_DEFAULT 14 / NON_EMPTY 15 / NON_NULL 4 / ALWAYS 1，均为 Go `omitempty` 直译），属清理面；**不要新增**。
 - 历史对照（2026-09-28 裁剪前）：main 1,608 文件 / 32.4 万行、test 448 / 14 万 / 1,783 fixture、frontend 533 / 23.6 万；千行大类 41 个（含 KnowledgeService 3,392 行 / 153 方法、FaqService 3,089、KnowledgeController 1,312——**这些数字均已过时**，knowledge 域已完成拆分）。
 
 ## 5. 转型路线图
@@ -129,7 +130,7 @@
 1. **③ 错误文案 + 手写绑定器 DTO 化**（收益明确、风险低）：gin 风格校验文案（`Key: 'X' Error:Field validation for 'X' failed on the 'required' tag`、`json: cannot unmarshal … into Go struct field .tenant_id`）→ Java 惯用写法；连带把 **Go 复刻手写绑定器**（如 `AuthController.bindSwitchTenantRequest`）改成 DTO + `@Valid`。⚠️ 这类绑定器里藏着**真实缺陷**：请求侧早已 camelCase 但它们仍按旧键读 → 前端字段静默丢失（§11 已修一处，建议全仓 grep 同类）。
 2. **agent 域五神类拆分**（`AgentEngine` 3,235 行，七段注释边界）——阶段 2 的另一半。
 3. **Go 序列化层删除（阶段 3 收尾）**：408 处引用 / 94 文件回归标准 Jackson（`common/web` 的 `GoMapSerializer`/`GoDoubleSerializer`/`GoTimeSerializer`/`GoJsonEscapes`），Controller 手搓 `ObjectNode` 一并收敛——**红线要求一次性全仓完成**，不能按域分批。
-4. 其余存量：`@JsonInclude`/NON_NULL 残留清理；wiki/session 神类；`System.getenv()` 151 处收敛 `@ConfigurationProperties`；Go 锚点注释随触碰清洗。
+4. 其余存量：**`@JsonInclude` 残留清理（批次 A 已完成响应面 3 处，`dc62ef7`；批次 B 待做：落库/LLM 载荷 35 处，语义不变但落库字节会变，需 fixture 比对）**；wiki/session 神类；`System.getenv()` 151 处收敛 `@ConfigurationProperties`；Go 锚点注释随触碰清洗。
 5. **待决策：同名防线两份实现、严格度不一致（真实隐患）**——`ChunkAccessGuard.rejectMovingKnowledge`（public static；null→404、形态异常→500）与 `KnowledgeFolderService.rejectMovingKnowledge`（package-private static；无 null 校验、形态异常**静默放行**）规则相同但严格度不同：同一份异常 metadata，走文件夹路由被放行、走编辑路由 500。建议统一到 `ChunkAccessGuard` 版（更严），但会改变「异常态放行」的现行为，需单独一批 + 全量 fixture 验证（2026-09-30 发现，未改）。
 6. **已查清、勿再排查**：前端 `updateKBConfig` → `PUT /api/v1/initialization/config/{kbId}` 是**活端点**（agentm 域 `InitializationController` 自有契约、内层 snake 键，不在知识库契约范围）；其 legacy 装配块（`KnowledgeBaseEditorModal.vue` ~1415-1430）从 KB 响应里读 snake 键 → **一直在静默取默认值**（属 agentm 域改造面）。
 7. **在途分支**：`wip/chat-sse-slice2`（`785cdc7`，会话域实体/控制器去 snake，**未并入**，等后续切片）；`wip/dego-storage-format` 与 `wip/knowledge-doc-contract` **已并入工作分支**（前者只剩历史意义）。另有一个 `stash@{0}` 是被取代的旧尝试（可删）。
@@ -278,4 +279,5 @@ knowledge/
     **④「只注入不读取」的依赖（662dece：knowledge 清 12 处，全仓 36 → 24）**：判据 = `private final` 字段的全部出现只落在「构造参数行 + `this.x = x;` 赋值行」上（别处零引用）。这类残留同样源自「抽类搬构造清单」——**它与「字段未使用」是两个不同口径**，粗算「声明外引用次数」会把构造赋值算成使用而**漏报**。
     **⑤按行号删代码必须逆序执行**：先删构造参数、再按旧行号删赋值行 → 误删相邻行（首次尝试即踩，diff 复核发现后回退重做）；两种形态要单独收拾：**末位参数**（行尾是 `) {`，删行后要给上一参数去掉逗号）与**参数与他人同行**（只抠片段，别删整行）。
     **⑥自查脚本的六个盲区（`7bf963e` 修正后 knowledge 才归零）**：①**注释/javadoc 里的同名词**别算读取（`worker`/`storage` 就是这样被漏报的）；②**import/package 行里的包名**别算读取（`import ...storage.LocalStorageService` 让 `storage` 显得被用）；③**跨行声明**要认（`MAPPER = new ObjectMapper()` 换行接 `.registerModule(...)`）；④`this::method` **方法引用**要算使用；⑤`serialVersionUID` 永远别报（Java 序列化隐式使用）；⑥**遮蔽 import** 单独查——类里声明了同名嵌套类型时，import 静默失效（javac/Spotless 都不报，只有 IDE 提示）。
+16. **注解约定已落在代码里（`knowledge/domain/package-info.java`）**：① jsonb 列必须逐字段 `@TableField(typeHandler = PgJsonTypeHandler.class)` 且实体带 `@TableName(autoResultMap = true)`——**漏了 autoResultMap 会「写得进、查出来是 null」**（wrapper 的 `set()` 也不套 typeHandler，需三参写法）；② `@JsonInclude` 属 Go `omitempty` 直译，**不要新增**，存量分批清（批次 A/B）。
     **⑦「静态方法被当实例方法调用」也是死依赖的入口**（IDE Java 603979893）：`folderService.rejectMovingKnowledge(row)` 调的是别类的 static 方法 → 改成静态调用后，该依赖若别无用途就变成死依赖（本次即如此，`2d1b375`）。**⑧未使用局部变量目前只有 IDE 能发现**（javac 不报、Spotless 不管、v2 扫描器不覆盖作用域）——本次 `KnowledgeTagService` 的 `OffsetDateTime now = ...` 即此类；根治需上静态分析闸门（见 §7 候选 5）。
