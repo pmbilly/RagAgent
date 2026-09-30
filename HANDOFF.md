@@ -617,6 +617,41 @@ AuthContractTest/OidcContractTest 等 MockMvc 契约测试）；③OIDC 常量 `
 门面留委托；⑥`bindingError`/`invalidParams` 被会话簇 + 门面端点共用 → 门面留非 static 委托。
 收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 25→**24**；auth controller 清零。
 
+#### 14.7.8 llm 域执行计划（2026-10-01 侦察，接替 chatpipeline；目标类 `RemoteApiChat` 1,366）
+
+**测试床**：`RemoteApiChatTest` 934 行（**直 `new RemoteApiChat(config)`，构造签名冻结**；直调门面
+public `convertMessages`/`buildChatCompletionRequest`/`shapedRequest`/`chat`/`chatStream` 与
+package-private `buildOutbound`/`processStreamDelta`/`applyStreamToolCallMetadata`/
+`parseCompletionResponse`/`applyCompletionToolCallMetadata`/`setAdapter`，static 直调
+`RemoteApiChat.goSorted`/`RemoteApiChat.removeThinkingContent`）；`ProviderAdapterRegistryTest`
+直 new + `buildOutbound`。外部生产面只有 `LlmChatClients` 工厂的 `new RemoteApiChat(config)`
+（SessionKnowledgeQaService/AgentConfigAssembler 仅注释提及）→ 门面全量薄委托即零改动。
+
+**簇边界（L 为现文件行号；协作者持 service 回引，mutable `adapter` 必须每处经 `service.adapter`
+取当前值，不得构造期缓存——测试 setAdapter 会换）**：
+- `RemoteApiRequestOps`（刀 L1）：convertMessages / buildChatCompletionRequest / shapedRequest /
+  buildBodyFromConverted / applyJsonSchemaHint(static) / messageToJson（L211-489 出站组装段）。
+  依赖 adapter(transformMessages/shapeRequest/injectToolCallMetadata)、modelName、provider、MAPPER。
+- `RemoteApiBodyCodec`（刀 L2，全静态）：GO_MARSHAL+goMarshal / goSorted / SDK_TOP_ORDER /
+  SDK_NESTED_ORDER / structSorted / structSortedChild（L93-102 + L538-681）；`Outbound` record
+  留门面（嵌套公共类型），其 bodyBytes() 改调 codec static；门面留 `goSorted` static 薄委托（测试直调）。
+- `RemoteHttpOps`（刀 L3）：buildHeaders / authCreds / applyCustomHeaders(static) / sendRequest /
+  ioDetail / readAll / statusError（L683-765）；`RESERVED_HEADERS` 常量随簇。
+- `RemoteApiStreamOps`（刀 L4）：processRawHttpStream / terminalResponse / processStreamDelta /
+  processToolCallsDelta / toolCallResponse(static) / applyStreamToolCallMetadata（L869-1194 流式段）；
+  `THINKING_TOOL_NAME` 常量随簇；测试直调两 package-private → 门面留薄委托。
+- `RemoteApiResponseOps`（刀 L5）：parseCompletionResponse / applyCompletionToolCallMetadata /
+  removeThinkingContent(static)（L1200-1279）；`removeThinkingContent` 门面留 static 薄委托（测试直调）。
+
+**留门面**：字段/构造器（L87-209）、buildOutbound+resolveEndpoint、`Outbound` record、
+chat 两重载、chatStream 两重载、logUsage、compactForLog(+DATA_URL_PATTERN/MAX_* 常量)、
+全部访问器（getModelName/getModelId @Override、getProvider/getBaseUrl/getApiKey、adapter()/setAdapter）、
+共享 static `textOrEmpty`/`isBlank` 与 `MAPPER`（放宽包内）。
+构造期常量 EXTRA_REMOTE_MODEL_NAME/EXTRA_API_VERSION/DEFAULT_AZURE_API_VERSION 留门面。
+
+**预估**：门面 1,366→~550；五个协作者 90~330 行。闸门：每刀 `--rerun-tasks` 重编 + `--tests
+"com.ragagent.llm.*"` + spotlessCheck + 忠实性逐字比对；收官 clean 全量 + 环守卫。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
