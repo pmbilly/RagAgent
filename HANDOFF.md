@@ -12,12 +12,13 @@
    `SessionAgentQaService` 1,430→**364**、`KnowledgeQaController` 1,614→**328**、`SessionQaResolution` 2,906→**706**，
    域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；
    **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）；
-   **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）。
-4. **下一步（§14.7 第 5 条建议序）**：`retrieval` 引擎仓"适配器批"（实测 **9 个** ≥800，§14.3）→
+   **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）；
+   **retrieval 适配器批已开工（2026-10-01）**——sqlite 模式验证仓收官：`SqliteRetrieveRepository` 985→**537**（§14.7.5，刀序可复制到其余 8 引擎）。
+4. **下一步**：retrieval 适配器批**复制刀序**到其余 8 引擎（§14.7.5，每引擎 2 刀）→
    `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **35 个**（清单见 §14.3）；批次顺序建议见 §14.7 末尾。
+6. **全仓存量**：≥800 行的类还有 **34 个**（清单见 §14.3）；批次顺序建议见 §14.7 末尾。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -133,6 +134,7 @@
 | 阶段 2 神类切片（session 域） | AgentQaService / QaController / Resolution / 其余神类 | **全部出榜**（§11 总览表；15 个同包协作者；4 条契约测试） |
 | 阶段 2 神类切片（wiki 域，2026-10-01） | WikiPageController / WikiIngestService | **全部出榜**（10 刀 → 10 个包内协作者；1,311→272、1,208→509；§14.7.2） |
 | 阶段 2 神类切片（im 域，2026-10-01） | ImService | **出榜**（5 刀 → 5 个包内协作者；1,445→664；§14.7.4） |
+| 阶段 2 适配器批（retrieval/sqlite，2026-10-01） | SqliteRetrieveRepository | **出榜**（2 刀 → SearchOps+WriteOps；985→537；刀序 E1/E2 已验证可复制，§14.7.5） |
 
 ### 7.2 当前存量（实测）
 
@@ -360,7 +362,7 @@ knowledge/
 |---|---|
 | datasource | `DataSourceService` 1,828 · `FeishuClient` 1,154 · `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
-| retrieval | **9 个**（形似引擎仓，适配器批候选）：`OpenSearchRetrieveRepository` 1,652 · `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260 · `QdrantRetrieveRepository` 1,025 · `MilvusRetrieveRepository` 1,020 · `TencentVectorDbRetrieveRepository` 987 · `WeaviateRetrieveRepository` 986 · `SqliteRetrieveRepository` 985 · `ElasticsearchV8` 891 · `ElasticsearchV7` 877 |
+| retrieval | **8 个**（形似引擎仓，适配器批候选；sqlite 已出榜 §14.7.5）：`OpenSearchRetrieveRepository` 1,652 · `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260（非引擎族，单独侦察） · `QdrantRetrieveRepository` 1,025 · `MilvusRetrieveRepository` 1,020 · `TencentVectorDbRetrieveRepository` 987 · `WeaviateRetrieveRepository` 986 · `ElasticsearchV8` 891 · `ElasticsearchV7` 877 |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | im | `FeishuAdapter` 926（ImService 已出榜，§14.7.4；适配器族其余 <800） |
 | im / llm / knowledge / auth / chatpipeline | `ImService` 1,445 · `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `AuthController` 1,167 · `PluginMerge` 1,155 |
@@ -537,6 +539,14 @@ doris 3 文件 / elasticsearch 2 / milvus 3 / qdrant 1 / sqlite 2 / tencentvecto
 **注意**：`HybridSearchService` 1,260 不在引擎仓族里（域根的混合检索编排），单独侦察后处理，
 不套引擎刀序；`PgVectorRetrieveRepository` 已 <800 不进批。动手前按 §13.1 对**第一个引擎**（建议 sqlite-459 测试最小，
 或 opensearch-最大）做全量成员清单侦察，验证刀序后复制到其余 8 个。
+
+**sqlite 模式验证仓执行记录（2026-10-01，刀序成立，可复制）**：
+- 刀 S1 → `SqliteSearchOps` 189（检索簇 7 成员：retrieve/keywordsRetrieve/vectorRetrieve/readIndex/FilterWhere/buildFilterWhere/addFilter）`f70c0f0`；
+- 刀 S2 → `SqliteWriteOps` 388（写入/删除/批量/拷贝簇 20 成员，Row/toRow/extractEmbedding 随簇）`865ffc6`；
+- `SqliteRetrieveRepository` 985→**537 出榜**；门面保全部端口 @Override 委托 + 引擎面 + 连接/DDL 底座 +
+  测试直调 static 面（cosineDistance/cleanInvalidUtf8/resolvePath/vecTableName/placeholders/bind/bindStrings/nullToEmpty）。
+- **复制到其余引擎时的固定坑位**（sqlite 全踩过）：①端口方法的 `@Override` 行在搬移文本里要剥、在门面委托里要补（doc_start 不含注解行）；②static helper 跨类调用必须类名限定（同一包不自动解析），SUBSTS 加限定、REVERSE 反向归一；③共享底座（open/vecTables/ensureVecTable(Connection,int)）放宽包内可见；④测试直调的 static 成员留门面（或委托）。
+- 收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 35→**34**。
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
