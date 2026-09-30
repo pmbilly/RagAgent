@@ -641,7 +641,7 @@
 
 | | 前 | 后 |
 |---|---|---|
-| `AgentStreamBridge` | 856 | **683**（跌出 ≥800 神类榜） |
+| `AgentStreamBridge` | 856 | **697**（折行后；跌出 ≥800 神类榜） |
 | 该类测试 | **零直接覆盖** | `AgentStreamBridgeTest` 9 例 |
 
 - **先补网再动刀**：该类只在 `KnowledgeQaController` 的 agent 流里构造，全仓 grep 无任何测试引用它
@@ -925,5 +925,5 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 ### 14.9 session 步骤 2 半程（2026-09-30）
 
 - SessionKnowledgeQaService 1,764 → 门面(约 1,000,例外注明:三条入口流状态机)+ SessionQaResolution(解析簇:mention/tag 收敛、模型选择、租户判定、搜索目标、agent 提示词)+ SessionQaFallback(固定/模型兜底)。外部 seam(resolveRetrievalTenantId/resolveChatModelId/resolveKnowledgeBases/buildSearchTargets/findKnowledgeBase/isAgentMode)门面委托,SessionAgentQaService 等消费面零改动(89a4e44)。
-- **余六神类**（TemporaryDocumentService 已切 prompt 切片 1,075 → 860，见 §11.15；AgentStreamBridge 补测 + 抽发射器 853 → 683 出榜，见 §11.16）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 860、MessageService 1,028。
+- **余六神类**（TemporaryDocumentService 已切 prompt 切片 1,075 → 860，见 §11.15；AgentStreamBridge 补测 + 抽发射器 853 → 697 出榜，见 §11.16）:KnowledgeQaController 1,616(与 SKQA 是同一条 QA 流的 HTTP 面,拆法沿用)、AgentQaService 1,446、AgentToolBackends 1,266、MessageSuggestionService 1,087、TemporaryDocumentService 860、MessageService 1,028。
 - 教训:切片协作者时 record(MentionScope/SearchTargetView)容易随 take 溢出/误限定——**record 一律留在门面**(测试与外部直引面),协作者经门面限定引用;声明行误加 service. 前缀的恢复统一按"4 空格缩进+修饰符开头"行匹配(勿对调用点盲替)。
