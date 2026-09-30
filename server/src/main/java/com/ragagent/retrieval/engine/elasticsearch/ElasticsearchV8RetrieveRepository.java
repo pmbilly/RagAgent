@@ -514,6 +514,14 @@ public class ElasticsearchV8RetrieveRepository
         return searchOps.retrieve(params);
     }
 
+    public List<RetrieveResult> vectorRetrieve(RetrieveParams params) throws Exception {
+        return searchOps.vectorRetrieve(params);
+    }
+
+    public List<RetrieveResult> keywordsRetrieve(RetrieveParams params) throws Exception {
+        return searchOps.keywordsRetrieve(params);
+    }
+
     /** 检索簇搬移后的门面委托（copyIndices/写簇仍经此取基础条件）。 */
     List<ObjectNode> getBaseConds(RetrieveParams params) {
         return searchOps.getBaseConds(params);
