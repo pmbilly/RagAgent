@@ -12,6 +12,7 @@ import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.memory.domain.MemoryDocAffinity;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.common.settings.MemoryKinds;
+import com.ragagent.memory.domain.MemoryPage;
 import com.ragagent.memory.domain.MemoryScope;
 import com.ragagent.memory.domain.MemorySubject;
 import com.ragagent.memory.domain.MemorySubjectMissingException;
@@ -292,11 +293,11 @@ class MemoryRepositoryTest {
         archived.setStatus(MemoryKinds.STATUS_ARCHIVED);
         repo.createItem(archived);
 
-        MemoryRepository.Page<MemoryItem> all = repo.listItems(scope, "", 0, 0);
+        MemoryPage<MemoryItem> all = repo.listItems(scope, "", 0, 0);
         assertThat(all.total()).isEqualTo(2);
         assertThat(all.items()).hasSize(2);
 
-        MemoryRepository.Page<MemoryItem> active = repo.listItems(scope, MemoryKinds.STATUS_ACTIVE, 0, 0);
+        MemoryPage<MemoryItem> active = repo.listItems(scope, MemoryKinds.STATUS_ACTIVE, 0, 0);
         assertThat(active.total()).isEqualTo(1);
         assertThat(active.items()).extracting(MemoryItem::getContent).containsExactly("a");
     }
@@ -669,7 +670,7 @@ class MemoryRepositoryTest {
 
         repo.markTopicPromoted(scope, "a");
 
-        MemoryRepository.Page<MemoryTopicStat> page = repo.listUnpromotedTopics(scope, 0, 0);
+        MemoryPage<MemoryTopicStat> page = repo.listUnpromotedTopics(scope, 0, 0);
         assertThat(page.total()).isEqualTo(1);
         assertThat(page.items()).extracting(MemoryTopicStat::getNormalizedKey).containsExactly("b");
         assertThat(repo.topicByKey(scope, "a").getPromotedAt()).isNotNull();
@@ -759,7 +760,7 @@ class MemoryRepositoryTest {
         repo.bumpDocAffinity(scope, List.of(doc("k2", "引用了两次")));
         repo.bumpDocAffinity(scope, List.of(doc("k2", "引用了两次")));
 
-        MemoryRepository.Page<MemoryDocAffinity> page = repo.listFamiliarDocs(scope, 0, 0, 0);
+        MemoryPage<MemoryDocAffinity> page = repo.listFamiliarDocs(scope, 0, 0, 0);
         assertThat(page.total()).isEqualTo(1);
         assertThat(page.items()).extracting(MemoryDocAffinity::getKnowledgeId).containsExactly("k2");
 

@@ -17,6 +17,7 @@ import com.ragagent.session.domain.SessionListItem;
 import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.domain.SessionOwnerIds;
+import com.ragagent.session.domain.SessionPage;
 import org.springframework.stereotype.Component;
 
 /**
@@ -285,7 +286,7 @@ public class SessionRepository {
      * （H2 两个都不支持）。Go 每次查询都问 {@code db.Dialector.Name()}，同一进程内结果不变，
      * 故与 wiki 一样在构造期探测一次。</p>
      */
-    public PagedItems queryPaged(SessionListQuery q) {
+    public SessionPage queryPaged(SessionListQuery q) {
         String rawSource = q.source() == null ? "" : q.source().trim();
         String src = rawSource.toLowerCase(Locale.ROOT);
 
@@ -318,7 +319,7 @@ public class SessionRepository {
         List<SessionListItem> items = mapper.queryPaged(q, postgres, keywordLike, src, channelDesc,
                 embedLike, apiTenantLike, apiExternalLike, skillMarker, size, (page - 1) * size);
 
-        return new PagedItems(items, total, page, size);
+        return new SessionPage(items, total, page, size);
     }
 
     /** 对照 Go {@code wikiDialect()} 的同款探测（见 {@code WikiPageRepository.detectPostgres}）。 */
@@ -336,7 +337,4 @@ public class SessionRepository {
     public record PagedSessions(List<Session> sessions, long total) {
     }
 
-    /** {@code QueryPaged} 的返回（对照 Go {@code PageResult} 的四元组，去掉 Data 的泛型）。 */
-    public record PagedItems(List<SessionListItem> items, long total, int page, int pageSize) {
-    }
-}
+    /** {@code QueryPaged} 的返回（对照 Go {@code PageResult} 的四元组，去掉 Data 的泛型）。 */}

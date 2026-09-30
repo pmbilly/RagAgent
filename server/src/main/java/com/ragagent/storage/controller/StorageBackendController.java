@@ -13,7 +13,6 @@ import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.storage.dto.StorageBackendResponse;
 import com.ragagent.storage.dto.StorageConfig;
-import com.ragagent.storage.mapper.StorageBackendRepository;
 import com.ragagent.storage.service.StorageBackendService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -45,13 +44,10 @@ public class StorageBackendController {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final StorageBackendService service;
-    private final StorageBackendRepository repo;
     private final StorageAllowList allowList;
 
-    public StorageBackendController(StorageBackendService service, StorageBackendRepository repo,
-            StorageAllowList allowList) {
+    public StorageBackendController(StorageBackendService service, StorageAllowList allowList) {
         this.service = service;
-        this.repo = repo;
         this.allowList = allowList;
     }
 
@@ -101,13 +97,13 @@ public class StorageBackendController {
     public ResponseEntity<?> list() {
         long tenantId = tenantId();
         List<StorageBackendResponse> result = new ArrayList<>();
-        for (StorageBackend b : repo.list(tenantId)) {
+        for (StorageBackend b : service.listBackends(tenantId)) {
             result.add(response(b));
         }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", result);
         // Go：types.TenantInfoFromContext 拿不到租户 → null
-        body.put("default_storage_backend_id", tenantId == 0 ? null : repo.tenantDefaultBackendId(tenantId));
+        body.put("default_storage_backend_id", tenantId == 0 ? null : service.tenantDefaultBackendId(tenantId));
         body.put("success", true);
         return ResponseEntity.ok(body);
     }
@@ -159,7 +155,7 @@ public class StorageBackendController {
     // ── 内部 ───────────────────────────────────────────────────────────
 
     private StorageBackend getOwned(long tenantId, String id) {
-        StorageBackend backend = repo.getByID(tenantId, id).orElse(null);
+        StorageBackend backend = service.getBackend(tenantId, id);
         if (backend == null) {
             throw BizException.notFound("storage backend not found");
         }

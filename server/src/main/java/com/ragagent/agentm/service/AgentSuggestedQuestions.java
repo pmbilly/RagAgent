@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.agentm.dto.CustomAgentResult;
 import com.ragagent.agentm.mapper.AgentQuestionMapper;
 import com.ragagent.agentm.mapper.CustomAgentMapper;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
@@ -69,7 +70,7 @@ public final class AgentSuggestedQuestions {
         List<String> scopeTagIds = flattenTagScopeIds(tagScopes);
         TenantAPIKeyScope.authorizeOptionalTagIds(scopeTagIds);
 
-        CustomAgentService.Result agent = agents.getAgentByID(agentId, locale);
+        CustomAgentResult agent = agents.getAgentByID(agentId, locale);
         ObjectNode cfg = agent.config();
 
         List<Object[]> curated = new ArrayList<>(); // [question, source, kbId]

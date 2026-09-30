@@ -15,9 +15,9 @@ import com.ragagent.memory.domain.MemoryConsolidationResult;
 import com.ragagent.memory.domain.MemoryDocView;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.common.settings.MemoryKinds;
+import com.ragagent.memory.domain.MemoryPage;
 import com.ragagent.memory.domain.MemorySettings;
 import com.ragagent.memory.domain.MemoryTopicView;
-import com.ragagent.memory.mapper.MemoryRepository;
 import com.ragagent.memory.service.MemoryConsolidationService;
 import com.ragagent.memory.service.MemoryScopeExceptions;
 import com.ragagent.memory.service.MemoryService;
@@ -178,7 +178,7 @@ public class MemoryController {
         }
         int[] paging = listPaging(limit, offset);
 
-        MemoryRepository.Page<MemoryItem> page;
+        MemoryPage<MemoryItem> page;
         try {
             page = memoryService.listItems(status == null ? "" : status, paging[0], paging[1]);
         } catch (RuntimeException e) {
@@ -313,7 +313,7 @@ public class MemoryController {
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "offset", required = false) String offset) {
         int[] paging = listPaging(limit, offset);
-        MemoryRepository.Page<MemoryTopicView> page;
+        MemoryPage<MemoryTopicView> page;
         try {
             page = memoryService.listTopics(paging[0], paging[1]);
         } catch (RuntimeException e) {
@@ -353,7 +353,7 @@ public class MemoryController {
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "offset", required = false) String offset) {
         int[] paging = listPaging(limit, offset);
-        MemoryRepository.Page<MemoryDocView> page;
+        MemoryPage<MemoryDocView> page;
         try {
             page = memoryService.listDocuments(paging[0], paging[1]);
         } catch (RuntimeException e) {
@@ -406,7 +406,7 @@ public class MemoryController {
         List<MemoryItem> items = null;
         long total = 0;
         while (true) {
-            MemoryRepository.Page<MemoryItem> page;
+            MemoryPage<MemoryItem> page;
             try {
                 page = memoryService.listItems("", EXPORT_PAGE_SIZE, itemCount(items));
             } catch (RuntimeException e) {
@@ -486,7 +486,7 @@ public class MemoryController {
      * {@code ListItems} 的 GORM {@code Find} 与 {@code ListTopics}/{@code ListDocuments}
      * 的 {@code make(..., 0, n)} 都产出<b>非 nil</b>切片，空时是 {@code []}。</p>
      */
-    private static ResponseEntity<Map<String, Object>> pageBody(MemoryRepository.Page<?> page) {
+    private static ResponseEntity<Map<String, Object>> pageBody(MemoryPage<?> page) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", page.items());
         body.put("success", true);

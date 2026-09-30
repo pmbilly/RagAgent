@@ -16,6 +16,7 @@ import com.ragagent.common.error.GuardForbiddenException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
+import com.ragagent.wiki.domain.WikiActivityAudit;
 import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiFolder;
 import com.ragagent.wiki.domain.WikiFolderConflictException;

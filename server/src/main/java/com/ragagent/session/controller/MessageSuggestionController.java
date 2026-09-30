@@ -9,8 +9,8 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.session.domain.MessageNotFoundException;
 import com.ragagent.session.domain.MessageSuggestionSet;
+import com.ragagent.session.domain.MessageSuggestionSetNotFoundException;
 import com.ragagent.session.domain.SessionNotFoundException;
-import com.ragagent.session.mapper.MessageSuggestionRepository;
 import com.ragagent.session.service.MessageSuggestionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,7 +163,7 @@ public class MessageSuggestionController {
      * 会话 404 独立分支，业务 400 靠子串匹配，其余 500 固定文案。
      */
     private static BizException writeError(RuntimeException e) {
-        if (e instanceof MessageSuggestionRepository.SuggestionSetNotFoundException
+        if (e instanceof MessageSuggestionSetNotFoundException
                 || e instanceof MessageNotFoundException) {
             // Go：errors.Is(err, gorm.ErrRecordNotFound) → 404 "suggestions not found"
             return BizException.notFound("suggestions not found");

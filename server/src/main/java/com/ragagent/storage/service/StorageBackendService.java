@@ -40,6 +40,23 @@ public class StorageBackendService {
     public static final String STATUS_DISABLED = "disabled";
     public static final String REDACTED = "***";
 
+    /**
+     * 控制器读面：租户的全部存储后端（控制器不直连仓储，见包地图 P3）。
+     */
+    public java.util.List<StorageBackend> listBackends(long tenantId) {
+        return repo.list(tenantId);
+    }
+
+    /** 控制器读面：租户默认后端 id（Go：TenantInfoFromContext 拿不到租户时控制器传 null 分支）。 */
+    public String tenantDefaultBackendId(long tenantId) {
+        return repo.tenantDefaultBackendId(tenantId);
+    }
+
+    /** 控制器读面：租户内按 id 取后端；不存在返回 {@code null}（控制器转 404）。 */
+    public StorageBackend getBackend(long tenantId, String id) {
+        return repo.getByID(tenantId, id).orElse(null);
+    }
+
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     /** Go path.Clean 的近似：用于 path_prefix 规范化比较（../ 与 .. 收敛） */

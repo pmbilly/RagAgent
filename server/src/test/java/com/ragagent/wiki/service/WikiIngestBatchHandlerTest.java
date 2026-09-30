@@ -31,7 +31,7 @@ import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.llm.LlmChatClient;
-import com.ragagent.wiki.controller.WikiActivityAudit;
+import com.ragagent.wiki.domain.WikiActivityAudit;
 import com.ragagent.wiki.domain.TaskPendingOp;
 import com.ragagent.wiki.domain.WikiPageLite;
 import com.ragagent.wiki.domain.WikiConstants;

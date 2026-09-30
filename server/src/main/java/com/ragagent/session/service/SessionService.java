@@ -32,6 +32,7 @@ import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.domain.SessionOwnerIds;
+import com.ragagent.session.domain.SessionPage;
 import com.ragagent.session.mapper.MessageRepository;
 import com.ragagent.session.mapper.MessageSuggestionRepository;
 import com.ragagent.session.mapper.SessionRepository;
@@ -264,7 +265,7 @@ public class SessionService {
      * 且命中时**丢掉按人裁剪**（Drop per-user owner scope）。其余来源保持调用方
      * 自己的 owner 范围。</p>
      */
-    public SessionRepository.PagedItems listSessions(SessionListQuery query) {
+    public SessionPage listSessions(SessionListQuery query) {
         long tenantId = requireTenantId();
         String userId;
         if (Session.listSourceRequiresAdmin(query.source())) {

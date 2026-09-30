@@ -26,6 +26,7 @@ import com.ragagent.memory.domain.MemoryConflictException;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.common.settings.MemoryKinds;
 import com.ragagent.common.settings.MemoryKeys;
+import com.ragagent.memory.domain.MemoryPage;
 import com.ragagent.memory.domain.MemoryRender;
 import com.ragagent.memory.domain.MemoryScope;
 import com.ragagent.memory.domain.MemorySettings;
@@ -715,15 +716,15 @@ public class MemoryService {
     // ═══════════════════════════════════════════════════════════════════════
 
     /** 对照 Go {@code ListItems}：记忆管理器的条目列表。 */
-    public MemoryRepository.Page<MemoryItem> listItems(String status, int limit, int offset) {
+    public MemoryPage<MemoryItem> listItems(String status, int limit, int offset) {
         MemoryScope scope = MemoryScopes.resolve();
         return repo.listItems(scope, status, limit, offset);
     }
 
     /** 对照 Go {@code ListTopics}：已计数但还没被提升的主体的视图。 */
-    public MemoryRepository.Page<MemoryTopicView> listTopics(int limit, int offset) {
+    public MemoryPage<MemoryTopicView> listTopics(int limit, int offset) {
         MemoryScope scope = MemoryScopes.resolve();
-        MemoryRepository.Page<MemoryTopicStat> page = repo.listUnpromotedTopics(scope, limit, offset);
+        MemoryPage<MemoryTopicStat> page = repo.listUnpromotedTopics(scope, limit, offset);
         int threshold = workspaceConfig(scope.tenantId()).effectiveInterestThreshold();
         List<MemoryTopicView> views = new ArrayList<>(page.items().size());
         for (MemoryTopicStat stat : page.items()) {
@@ -732,7 +733,7 @@ public class MemoryService {
                 views.add(view);
             }
         }
-        return new MemoryRepository.Page<>(views, page.total());
+        return new MemoryPage<>(views, page.total());
     }
 
     /**
@@ -784,9 +785,9 @@ public class MemoryService {
     }
 
     /** 对照 Go {@code ListDocuments}：当作习惯被引用过足够多次的文档。 */
-    public MemoryRepository.Page<MemoryDocView> listDocuments(int limit, int offset) {
+    public MemoryPage<MemoryDocView> listDocuments(int limit, int offset) {
         MemoryScope scope = MemoryScopes.resolve();
-        MemoryRepository.Page<MemoryDocAffinity> page = repo.listFamiliarDocs(
+        MemoryPage<MemoryDocAffinity> page = repo.listFamiliarDocs(
                 scope, MemoryConfig.MEMORY_DOC_AFFINITY_MIN_HITS, limit, offset);
         List<MemoryDocView> views = new ArrayList<>(page.items().size());
         for (MemoryDocAffinity row : page.items()) {
@@ -795,7 +796,7 @@ public class MemoryService {
                 views.add(view);
             }
         }
-        return new MemoryRepository.Page<>(views, page.total());
+        return new MemoryPage<>(views, page.total());
     }
 
     /** 对照 Go {@code DeleteDocument}：不再把某个文档当个人检索信号。 */
@@ -1009,7 +1010,7 @@ public class MemoryService {
             if (budget <= 0) {
                 return;
             }
-            MemoryRepository.Page<MemoryItem> page;
+            MemoryPage<MemoryItem> page;
             try {
                 page = repo.listItems(scope, status, budget, 0);
             } catch (RuntimeException e) {

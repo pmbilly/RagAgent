@@ -9,9 +9,9 @@ import java.util.List;
 import com.ragagent.TestSchema;
 import com.ragagent.session.domain.MessageSuggestionEvent;
 import com.ragagent.session.domain.MessageSuggestionSet;
+import com.ragagent.session.domain.MessageSuggestionSetNotFoundException;
 import com.ragagent.session.domain.SuggestionItem;
 import com.ragagent.session.mapper.MessageSuggestionRepository;
-import com.ragagent.session.mapper.MessageSuggestionRepository.SuggestionSetNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -126,7 +126,7 @@ class MessageSuggestionRepositoryTest {
     @Test
     void getByCacheKeyThrowsWhenMissing() {
         assertThatThrownBy(() -> repo.getByCacheKey(TENANT, "nope", "after_answer", "h", "zh-CN"))
-                .isInstanceOf(SuggestionSetNotFoundException.class);
+                .isInstanceOf(MessageSuggestionSetNotFoundException.class);
     }
 
     @Test
@@ -135,9 +135,9 @@ class MessageSuggestionRepositoryTest {
         assertThat(repo.getById(TENANT, "sess-1", created.getId()).getId()).isEqualTo(created.getId());
 
         assertThatThrownBy(() -> repo.getById(TENANT, "other-session", created.getId()))
-                .isInstanceOf(SuggestionSetNotFoundException.class);
+                .isInstanceOf(MessageSuggestionSetNotFoundException.class);
         assertThatThrownBy(() -> repo.getById(99999L, "sess-1", created.getId()))
-                .isInstanceOf(SuggestionSetNotFoundException.class);
+                .isInstanceOf(MessageSuggestionSetNotFoundException.class);
     }
 
     @Test

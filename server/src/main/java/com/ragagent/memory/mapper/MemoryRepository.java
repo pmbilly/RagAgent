@@ -28,6 +28,7 @@ import com.ragagent.memory.domain.MemoryItemEmbedding;
 import com.ragagent.common.settings.MemoryKeys;
 import com.ragagent.common.settings.MemoryKinds;
 import com.ragagent.memory.domain.MemoryMessageCursor;
+import com.ragagent.memory.domain.MemoryPage;
 import com.ragagent.memory.domain.MemoryScope;
 import com.ragagent.memory.domain.MemorySubject;
 import com.ragagent.memory.domain.MemorySubjectMissingException;
@@ -141,10 +142,6 @@ public class MemoryRepository {
     }
 
     // ── 返回值形状（Go 的多返回值） ────────────────────────────────────────
-
-    /** 一页数据 + 总数（对照 Go 的 {@code ([]T, int64, error)}）。 */
-    public record Page<T>(List<T> items, long total) {
-    }
 
     /** {@code EnqueuePendingSession} 的结果（对照 Go 的 {@code (*MemorySubject, bool, error)}）。 */
     public record EnqueueResult(MemorySubject subject, boolean shouldSend) {
@@ -361,12 +358,12 @@ public class MemoryRepository {
      *
      * <p>{@code limit <= 0} 时取 50（Go 的硬编码）；返回值同时带总数与这一页。</p>
      */
-    public Page<MemoryItem> listItems(MemoryScope scope, String status, int limit, int offset) {
+    public MemoryPage<MemoryItem> listItems(MemoryScope scope, String status, int limit, int offset) {
         long total = itemMapper.countListItems(scope.tenantId(), scope.subjectId(), status);
         int effectiveLimit = limit <= 0 ? 50 : limit;
         List<MemoryItem> items = itemMapper.listItems(scope.tenantId(), scope.subjectId(), status,
                 effectiveLimit, offset);
-        return new Page<>(items, total);
+        return new MemoryPage<>(items, total);
     }
 
     /**
@@ -781,10 +778,10 @@ public class MemoryRepository {
     }
 
     /** 对照 {@code ListUnpromotedTopics}：已计数、尚未变成兴趣的主题。 */
-    public Page<MemoryTopicStat> listUnpromotedTopics(MemoryScope scope, int limit, int offset) {
+    public MemoryPage<MemoryTopicStat> listUnpromotedTopics(MemoryScope scope, int limit, int offset) {
         long total = topicMapper.countUnpromoted(scope.tenantId(), scope.subjectId());
         int effectiveLimit = limit <= 0 ? 50 : limit;
-        return new Page<>(topicMapper.listUnpromoted(scope.tenantId(), scope.subjectId(),
+        return new MemoryPage<>(topicMapper.listUnpromoted(scope.tenantId(), scope.subjectId(),
                 effectiveLimit, offset), total);
     }
 
@@ -873,11 +870,11 @@ public class MemoryRepository {
      * 对照 {@code ListFamiliarDocs}：{@code minHits < 1} 时回落到
      * {@code MemoryDocAffinityMinHits}（= 2，一次引用是噪声、两次才是模式）。
      */
-    public Page<MemoryDocAffinity> listFamiliarDocs(MemoryScope scope, int minHits, int limit, int offset) {
+    public MemoryPage<MemoryDocAffinity> listFamiliarDocs(MemoryScope scope, int minHits, int limit, int offset) {
         int effectiveMinHits = minHits < 1 ? MemoryConfig.MEMORY_DOC_AFFINITY_MIN_HITS : minHits;
         long total = affinityMapper.countFamiliar(scope.tenantId(), scope.subjectId(), effectiveMinHits);
         int effectiveLimit = limit <= 0 ? 50 : limit;
-        return new Page<>(affinityMapper.listFamiliar(scope.tenantId(), scope.subjectId(),
+        return new MemoryPage<>(affinityMapper.listFamiliar(scope.tenantId(), scope.subjectId(),
                 effectiveMinHits, effectiveLimit, offset), total);
     }
 

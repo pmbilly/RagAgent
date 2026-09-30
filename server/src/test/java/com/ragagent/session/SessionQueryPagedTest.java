@@ -8,6 +8,7 @@ import com.ragagent.TestSchema;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListItem;
 import com.ragagent.session.domain.SessionListQuery;
+import com.ragagent.session.domain.SessionPage;
 import com.ragagent.session.mapper.SessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -245,7 +246,7 @@ class SessionQueryPagedTest {
             Thread.sleep(5);
         }
 
-        SessionRepository.PagedItems first =
+        SessionPage first =
                 repo.queryPaged(SessionListQuery.of(null, "", null, 1, 2).withScope(TENANT, "u1"));
         assertThat(first.total()).isEqualTo(3);
         assertThat(first.items()).hasSize(2);
@@ -253,7 +254,7 @@ class SessionQueryPagedTest {
         assertThat(first.pageSize()).isEqualTo(2);
         assertThat(first.items().get(0).getTitle()).isEqualTo("s2");
 
-        SessionRepository.PagedItems second =
+        SessionPage second =
                 repo.queryPaged(SessionListQuery.of(null, "", null, 2, 2).withScope(TENANT, "u1"));
         assertThat(second.items()).hasSize(1);
         assertThat(second.items().get(0).getTitle()).isEqualTo("s0");

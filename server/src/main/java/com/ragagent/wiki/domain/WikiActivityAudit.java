@@ -1,4 +1,4 @@
-package com.ragagent.wiki.controller;
+package com.ragagent.wiki.domain;
 
 import java.util.Map;
 

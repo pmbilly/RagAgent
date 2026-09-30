@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.SpanTracker;
 import com.ragagent.llm.LlmChatClient;
-import com.ragagent.wiki.controller.WikiActivityAudit;
+import com.ragagent.wiki.domain.WikiActivityAudit;
 import com.ragagent.wiki.domain.WikiConfig;
 import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiPage;

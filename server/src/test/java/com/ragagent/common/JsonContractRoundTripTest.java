@@ -10,7 +10,7 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.auth.apikey.domain.TenantAPIKey;
-import com.ragagent.audit.controller.AuditLogListResponse;
+import com.ragagent.audit.dto.AuditLogListResponse;
 import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.agent.domain.AgentStep;

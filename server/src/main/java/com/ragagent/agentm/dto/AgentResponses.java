@@ -9,7 +9,6 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import com.ragagent.agentm.domain.CustomAgentEntity;
-import com.ragagent.agentm.service.CustomAgentService.Result;
 
 /**
  * agents CRUD 家族的响应构造（JSON 是契约）。
@@ -26,7 +25,7 @@ public final class AgentResponses {
 
     private AgentResponses() {}
 
-    public static Map<String, Object> agent(Result r) {
+    public static Map<String, Object> agent(CustomAgentResult r) {
         return agent(r.row(), r.config());
     }
 

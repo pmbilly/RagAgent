@@ -10,7 +10,7 @@ import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.wiki.controller.WikiActivityAudit;
+import com.ragagent.wiki.domain.WikiActivityAudit;
 import org.springframework.stereotype.Component;
 
 /**

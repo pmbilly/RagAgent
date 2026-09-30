@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.audit.domain.AuditLogQuery;
+import com.ragagent.audit.dto.AuditLogListResponse;
 import com.ragagent.audit.service.AuditLogService;
 import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.common.context.TenantContext;

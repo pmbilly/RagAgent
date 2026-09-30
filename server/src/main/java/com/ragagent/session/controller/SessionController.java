@@ -20,7 +20,7 @@ import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.domain.SessionOwnerIds;
-import com.ragagent.session.mapper.SessionRepository;
+import com.ragagent.session.domain.SessionPage;
 import com.ragagent.session.service.SessionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -195,7 +195,7 @@ public class SessionController {
         int p = bindPagination(page, "Page", false);
         int size = bindPagination(pageSize, "PageSize", true);
 
-        SessionRepository.PagedItems result;
+        SessionPage result;
         try {
             result = sessionService.listSessions(
                     SessionListQuery.of(keyword, source, agentId, p, size));

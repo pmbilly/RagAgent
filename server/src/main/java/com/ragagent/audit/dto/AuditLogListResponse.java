@@ -1,4 +1,4 @@
-package com.ragagent.audit.controller;
+package com.ragagent.audit.dto;
 
 import java.util.List;
 

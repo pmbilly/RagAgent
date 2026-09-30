@@ -23,6 +23,7 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
+import com.ragagent.session.domain.SessionPage;
 import com.ragagent.session.mapper.SessionRepository;
 
 /**
@@ -762,7 +763,7 @@ public class EmbedChannelService {
     public long countEmbedSessions(long tenantId, String channelId,
                                    SessionRepository sessionRepository) {
         SessionListQuery query = SessionListQuery.of(null, "embed:" + channelId, null, 1, 1);
-        SessionRepository.PagedItems items = sessionRepository.queryPaged(query.withScope(tenantId, ""));
+        SessionPage items = sessionRepository.queryPaged(query.withScope(tenantId, ""));
         return items.total();
     }
 

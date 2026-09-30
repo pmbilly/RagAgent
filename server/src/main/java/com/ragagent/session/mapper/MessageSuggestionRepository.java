@@ -13,6 +13,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ragagent.session.domain.MessageSuggestionEvent;
 import com.ragagent.session.domain.MessageSuggestionSet;
+import com.ragagent.session.domain.MessageSuggestionSetNotFoundException;
 import org.springframework.stereotype.Component;
 
 /**
@@ -68,7 +69,7 @@ public class MessageSuggestionRepository {
                 .eq(MessageSuggestionSet::getConfigHash, configHash)
                 .eq(MessageSuggestionSet::getLocale, locale));
         if (set == null) {
-            throw new SuggestionSetNotFoundException();
+            throw new MessageSuggestionSetNotFoundException();
         }
         return set;
     }
@@ -80,7 +81,7 @@ public class MessageSuggestionRepository {
                 .eq(MessageSuggestionSet::getTenantId, tenantId)
                 .eq(MessageSuggestionSet::getSessionId, sessionId));
         if (set == null) {
-            throw new SuggestionSetNotFoundException();
+            throw new MessageSuggestionSetNotFoundException();
         }
         return set;
     }
@@ -208,12 +209,5 @@ public class MessageSuggestionRepository {
 
     /** {@code AcquireGeneration} 的返回：命中的集合 + 是否由本方抢到生成权。 */
     public record AcquireResult(MessageSuggestionSet set, boolean acquired) {
-    }
-
-    /** 对照 Go 里直接透传的 {@code gorm.ErrRecordNotFound}。 */
-    public static class SuggestionSetNotFoundException extends RuntimeException {
-        public SuggestionSetNotFoundException() {
-            super("message suggestion set not found");
-        }
     }
 }

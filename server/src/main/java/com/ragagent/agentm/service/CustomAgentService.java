@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.agentm.domain.CustomAgentEntity;
+import com.ragagent.agentm.dto.CustomAgentResult;
 import com.ragagent.agentm.mapper.AgentQuestionMapper;
 import com.ragagent.agentm.mapper.CustomAgentMapper;
 import com.ragagent.common.context.TenantContext;
@@ -79,7 +80,7 @@ public class CustomAgentService {
     // ═══════════════════ 查询 ═══════════════════
 
     /** 查询单个 agent（内建优先 DB，回落注册表）。config 树已补默认。 */
-    public Result getAgentByID(String id, String locale) {
+    public CustomAgentResult getAgentByID(String id, String locale) {
         if (id == null || id.isEmpty()) {
             throw new BizException(AppError.badRequest("agent ID cannot be empty"));
         }
@@ -90,7 +91,7 @@ public class CustomAgentService {
             if (BuiltinAgentRegistry.isBuiltinAgentID(id)) {
                 applyLocalization(id, row, locale);
             }
-            return new Result(row, cfg);
+            return new CustomAgentResult(row, cfg);
         }
         if (BuiltinAgentRegistry.isBuiltinAgentID(id)) {
             ObjectNode built = registry.builtinAgentConfig(id, locale);
@@ -102,9 +103,7 @@ public class CustomAgentService {
     }
 
     /** 响应层组合：row + 已 defaults 的 config 树。 */
-    public record Result(CustomAgentEntity row, ObjectNode config) {}
-
-    private Result virtualAgent(ObjectNode built, String id, long tenant, boolean builtin) {
+    private CustomAgentResult virtualAgent(ObjectNode built, String id, long tenant, boolean builtin) {
         CustomAgentEntity virtual = new CustomAgentEntity();
         virtual.setId(id);
         virtual.setName(built.path("name").asText(""));
@@ -120,7 +119,7 @@ public class CustomAgentService {
         if (cfgNode != null && !cfgNode.isNull()) {
             virtual.setConfig(cfgNode.toString());
         }
-        return new Result(virtual, (ObjectNode) built.get("config"));
+        return new CustomAgentResult(virtual, (ObjectNode) built.get("config"));
     }
 
     /**
@@ -131,16 +130,16 @@ public class CustomAgentService {
         long tenant = tenantId();
         List<CustomAgentEntity> all = agentMapper.listByTenant(tenant);
         Set<String> builtinInDb = new HashSet<>();
-        List<Result> prepared = new ArrayList<>();
+        List<CustomAgentResult> prepared = new ArrayList<>();
         for (CustomAgentEntity row : all) {
             ObjectNode cfg = AgentConfigJson.ensureDefaults(AgentSuggestedQuestions.parse(row.getConfig()));
             if (BuiltinAgentRegistry.isBuiltinAgentID(row.getId())) {
                 builtinInDb.add(row.getId());
                 applyLocalization(row.getId(), row, locale);
             }
-            prepared.add(new Result(row, cfg));
+            prepared.add(new CustomAgentResult(row, cfg));
         }
-        List<Result> result = new ArrayList<>();
+        List<CustomAgentResult> result = new ArrayList<>();
         for (String builtinId : registry.orderedIds()) {
             if (builtinInDb.contains(builtinId)) {
                 prepared.stream().filter(r -> r.row().getId().equals(builtinId))
@@ -152,7 +151,7 @@ public class CustomAgentService {
                 }
             }
         }
-        for (Result r : prepared) {
+        for (CustomAgentResult r : prepared) {
             if (!BuiltinAgentRegistry.isBuiltinAgentID(r.row().getId())) {
                 result.add(r);
             }
@@ -161,8 +160,8 @@ public class CustomAgentService {
         // creator=mine/others 筛选（内建恒保留；CreatedBy=="" 的行被丢弃）
         if ("mine".equals(creatorFilter) || "others".equals(creatorFilter)) {
             String caller = TenantContext.currentUserId() == null ? "" : TenantContext.currentUserId();
-            List<Result> filtered = new ArrayList<>();
-            for (Result r : result) {
+            List<CustomAgentResult> filtered = new ArrayList<>();
+            for (CustomAgentResult r : result) {
                 if (r.row().isBuiltin()) {
                     filtered.add(r);
                     continue;
@@ -185,7 +184,7 @@ public class CustomAgentService {
         return new ListResult(result, List.of());
     }
 
-    public record ListResult(List<Result> agents, List<String> disabledOwnIds) {}
+    public record ListResult(List<CustomAgentResult> agents, List<String> disabledOwnIds) {}
 
     /** 内建 agent 本地化：YAML 的 locale name/description + avatar 无条件覆盖。 */
     private void applyLocalization(String id, CustomAgentEntity row, String locale) {
@@ -203,9 +202,9 @@ public class CustomAgentService {
     }
 
     /** 批量回填 creator_name：内建/空 created_by 跳过，命中用户则 username（回落 email）。 */
-    private void enrichCreatorNames(List<Result> agents) {
+    private void enrichCreatorNames(List<CustomAgentResult> agents) {
         Set<String> ids = new HashSet<>();
-        for (Result r : agents) {
+        for (CustomAgentResult r : agents) {
             if (!r.row().isBuiltin() && r.row().getCreatedBy() != null
                     && !r.row().getCreatedBy().isEmpty()) {
                 ids.add(r.row().getCreatedBy());
@@ -220,7 +219,7 @@ public class CustomAgentService {
         } catch (Exception e) {
             return; // 查询失败静默跳过回填
         }
-        for (Result r : agents) {
+        for (CustomAgentResult r : agents) {
             if (r.row().isBuiltin() || r.row().getCreatedBy() == null
                     || r.row().getCreatedBy().isEmpty()) {
                 continue;
@@ -238,7 +237,7 @@ public class CustomAgentService {
     // ═══════════════════ 写路径 ═══════════════════
 
     /** 创建 agent（service 校验 + 落库；config 已补默认）。 */
-    public Result createAgent(String name, String description, String avatar, ObjectNode config) {
+    public CustomAgentResult createAgent(String name, String description, String avatar, ObjectNode config) {
         if (name == null || name.trim().isEmpty()) {
             throw new BizException(AppError.badRequest("agent name is required"));
         }
@@ -268,11 +267,11 @@ public class CustomAgentService {
         }
         agent.setConfig(config.toString());
         agentMapper.insertAgent(agent);
-        return new Result(agent, config);
+        return new CustomAgentResult(agent, config);
     }
 
     /** 更新 agent（含内建 config-only 更新分支）。 */
-    public Result updateAgent(String id, String name, String description, String avatar,
+    public CustomAgentResult updateAgent(String id, String name, String description, String avatar,
             ObjectNode config, String locale) {
         if (id == null || id.isEmpty()) {
             throw new BizException(AppError.badRequest("agent ID cannot be empty"));
@@ -299,7 +298,7 @@ public class CustomAgentService {
     }
 
     /** 更新内建 agent：只更新 config，保留 DB 基础信息；无行则创建。 */
-    private Result updateBuiltinAgent(String id, ObjectNode config, long tenant) {
+    private CustomAgentResult updateBuiltinAgent(String id, ObjectNode config, long tenant) {
         BuiltinAgentRegistry.Entry entry = registry.entry(id);
         if (entry == null) {
             throw new BizException(AppError.notFound("Agent not found"));
@@ -307,7 +306,7 @@ public class CustomAgentService {
         CustomAgentEntity existing = agentMapper.getByIDAndTenant(id, tenant);
         if (existing != null) {
             existing.setUpdatedAt(OffsetDateTime.now());
-            Result r = persistWithDefaults(existing, config, false);
+            CustomAgentResult r = persistWithDefaults(existing, config, false);
             applyLocalization(id, existing, AgentSuggestedQuestions.currentLocale());
             return r;
         }
@@ -323,13 +322,13 @@ public class CustomAgentService {
         created.setCreatedBy("");
         created.setCreatedAt(OffsetDateTime.now());
         created.setUpdatedAt(OffsetDateTime.now());
-        Result r = persistWithDefaults(created, config, true);
+        CustomAgentResult r = persistWithDefaults(created, config, true);
         applyLocalization(id, created, AgentSuggestedQuestions.currentLocale());
         return r;
     }
 
     /** 补默认 + 校验 + 落库（三处重复段的合并位）。 */
-    private Result persistWithDefaults(CustomAgentEntity entity, ObjectNode config, boolean insert) {
+    private CustomAgentResult persistWithDefaults(CustomAgentEntity entity, ObjectNode config, boolean insert) {
         AgentConfigJson.ensureDefaults(config);
         String err = AgentConfigJson.validateSuggestions(config);
         if (err != null) {
@@ -341,7 +340,7 @@ public class CustomAgentService {
         } else {
             agentMapper.updateAgent(entity);
         }
-        return new Result(entity, config);
+        return new CustomAgentResult(entity, config);
     }
 
     /** 删除 agent（软删；im 渠道清理随后执行，容器缺 ImService 时跳过）。 */
@@ -371,11 +370,11 @@ public class CustomAgentService {
     }
 
     /** 复制 agent：config 深拷贝、名字 + " (副本)"、归属当前调用者。 */
-    public Result copyAgent(String id, String locale) {
+    public CustomAgentResult copyAgent(String id, String locale) {
         if (id == null || id.isEmpty()) {
             throw new BizException(AppError.badRequest("agent ID cannot be empty"));
         }
-        Result source = getAgentByID(id, locale);
+        CustomAgentResult source = getAgentByID(id, locale);
         CustomAgentEntity created = new CustomAgentEntity();
         created.setId(UUID.randomUUID().toString());
         created.setName(source.row().getName() + " (副本)");
@@ -395,7 +394,7 @@ public class CustomAgentService {
         ObjectNode cfg = (ObjectNode) source.config().deepCopy();
         AgentConfigJson.ensureDefaults(cfg);
         agentMapper.insertAgent(created);
-        return new Result(created, cfg);
+        return new CustomAgentResult(created, cfg);
     }
 
     // ═══════════════════ suggested-questions(委托) ═══════════════════
