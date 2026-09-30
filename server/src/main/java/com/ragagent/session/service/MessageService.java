@@ -80,11 +80,6 @@ public class MessageService {
     private final KnowledgeService knowledgeService;
     private final TenantService tenantService;
     private final com.ragagent.knowledge.service.KnowledgeBaseService knowledgeBaseService;
-    /** 聊天历史 KB 的向量检索执行面（对照 Go kbService.HybridSearch 的 HybridSearch 段）。 */
-    private final HybridSearchService hybridSearchService;
-    /** 对照 Go modelService.GetRerankModel（rerankResults 的重排模型工厂）。 */
-    private final ModelRuntimeFactory modelRuntimeFactory;
-
     /** 聊天历史检索切片（§14 步骤 2：关键词/向量/混合 + RRF + 归属过滤 + 分组）。 */
     private final MessageSearch messageSearch;
 
@@ -102,8 +97,6 @@ public class MessageService {
         this.knowledgeService = knowledgeService;
         this.tenantService = tenantService;
         this.knowledgeBaseService = knowledgeBaseService;
-        this.hybridSearchService = hybridSearchService;
-        this.modelRuntimeFactory = modelRuntimeFactory;
         this.messageSearch = new MessageSearch(messageRepository, tenantService,
                 hybridSearchService, modelRuntimeFactory);
     }
