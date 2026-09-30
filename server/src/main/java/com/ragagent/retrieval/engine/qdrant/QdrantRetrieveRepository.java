@@ -1,12 +1,10 @@
 package com.ragagent.retrieval.engine.qdrant;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -91,6 +89,7 @@ public class QdrantRetrieveRepository
     private final int replicationFactor;
 
     final QdrantSearchOps searchOps;
+    final QdrantWriteOps writeOps;
 
     /** 对照 {@code initializedCollections sync.Map}：dim -> true。 */
     private final ConcurrentHashMap<Integer, Boolean> initializedCollections =
@@ -104,6 +103,7 @@ public class QdrantRetrieveRepository
         this.shardNumber = shardNumber;
         this.replicationFactor = replicationFactor;
         this.searchOps = new QdrantSearchOps(this);
+        this.writeOps = new QdrantWriteOps(this);
     }
 
     /** 照 Go {@code NewQdrantRetrieveEngineRepository} + {@code createQdrantEngine} 的构造链。 */
@@ -220,7 +220,7 @@ public class QdrantRetrieveRepository
      * （size/distance=Cosine + 可选的 shard/replication）→ payload 索引（keyword×4 +
      * bool + text）；索引失败只 WARN；结果按维度缓存。
      */
-    private void ensureCollection(int dimension) {
+    void ensureCollection(int dimension) {
         if (initializedCollections.containsKey(dimension)) {
             return;
         }
@@ -280,114 +280,8 @@ public class QdrantRetrieveRepository
         }
     }
 
-    // ── 写入 ────────────────────────────────────────────────────────────────
-
-    @Override
-    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
-        log.debug("[Qdrant] Saving index for chunk ID: {}", indexInfo.chunkId);
-        QdrantVectorEmbedding row = toEmbedding(indexInfo, params);
-        if (row.embedding == null || row.embedding.length == 0) {
-            IllegalStateException e = new IllegalStateException(
-                    "empty embedding vector for chunk ID: " + indexInfo.chunkId);
-            log.error("[Qdrant] {}", e.getMessage());
-            throw e;
-        }
-        int dimension = row.embedding.length;
-        ensureCollection(dimension);
-        String collection = collectionName(dimension);
-        String pointId = UUID.randomUUID().toString();
-        try {
-            client.request("PUT", "/collections/" + collection + "/points",
-                    upsertBody(List.of(pointBody(pointId, row))));
-        } catch (RuntimeException e) {
-            log.error("[Qdrant] Failed to save index: {}", e.getMessage());
-            throw new IllegalStateException("failed to save index for chunk ID "
-                    + indexInfo.chunkId + ": " + e.getMessage(), e);
-        }
-        log.info("[Qdrant] Successfully saved index for chunk ID: {}, point ID: {}",
-                indexInfo.chunkId, pointId);
-    }
 
     /** 对照 {@code BatchSave}：按维度分组 → 每维 ensureCollection → 100 分片 upsert。 */
-    @Override
-    public void batchSave(List<IndexInfo> embeddingList, Map<String, Object> params)
-            throws Exception {
-        if (embeddingList == null || embeddingList.isEmpty()) {
-            log.warn("[Qdrant] Empty list provided to BatchSave, skipping");
-            return;
-        }
-        log.info("[Qdrant] Batch saving {} indices", embeddingList.size());
-        Map<Integer, List<ObjectNode>> pointsByDimension = new TreeMap<>();
-        for (IndexInfo info : embeddingList) {
-            QdrantVectorEmbedding row = toEmbedding(info, params);
-            if (row.embedding == null || row.embedding.length == 0) {
-                log.warn("[Qdrant] Skipping empty embedding for chunk ID: {}", info.chunkId);
-                continue;
-            }
-            int dimension = row.embedding.length;
-            pointsByDimension.computeIfAbsent(dimension, k -> new ArrayList<>())
-                    .add(pointBody(UUID.randomUUID().toString(), row));
-        }
-        if (pointsByDimension.isEmpty()) {
-            log.warn("[Qdrant] No valid points to save after filtering");
-            return;
-        }
-        int totalSaved = 0;
-        for (Map.Entry<Integer, List<ObjectNode>> entry : pointsByDimension.entrySet()) {
-            int dimension = entry.getKey();
-            ensureCollection(dimension);
-            String collection = collectionName(dimension);
-            List<ObjectNode> points = entry.getValue();
-            for (int i = 0; i < points.size(); i += UPSERT_BATCH_SIZE) {
-                List<ObjectNode> batch = points.subList(i,
-                        Math.min(i + UPSERT_BATCH_SIZE, points.size()));
-                try {
-                    client.request("PUT", "/collections/" + collection + "/points",
-                            upsertBody(batch));
-                } catch (RuntimeException e) {
-                    throw new IllegalStateException(
-                            "failed to upsert batch: " + e.getMessage(), e);
-                }
-            }
-            totalSaved += points.size();
-            log.info("[Qdrant] Saved {} points to collection {}", points.size(), collection);
-        }
-        log.info("[Qdrant] Successfully batch saved {} indices", totalSaved);
-    }
-
-    private static ObjectNode upsertBody(List<ObjectNode> points) {
-        ObjectNode body = QdrantRestClient.object();
-        ArrayNode array = body.putArray("points");
-        points.forEach(array::add);
-        return body;
-    }
-
-    /** 对照 {@code PointStruct}：id + vector + payload。 */
-    private static ObjectNode pointBody(String pointId, QdrantVectorEmbedding row) {
-        ObjectNode point = QdrantRestClient.object();
-        point.put("id", pointId);
-        ArrayNode vector = point.putArray("vector");
-        for (float v : row.embedding) {
-            vector.add(v);
-        }
-        point.set("payload", createPayload(row));
-        return point;
-    }
-
-    /** 对照 {@code createPayload}：payload 键序按写入序（Go map → 库端无键序约束）。 */
-    private static ObjectNode createPayload(QdrantVectorEmbedding row) {
-        ObjectNode payload = QdrantRestClient.object();
-        payload.put(FIELD_CONTENT, sanitize(row.content));
-        payload.put(FIELD_SOURCE_ID, sanitize(row.sourceId));
-        payload.put(FIELD_SOURCE_TYPE, row.sourceType);
-        payload.put(FIELD_CHUNK_ID, sanitize(row.chunkId));
-        payload.put(FIELD_KNOWLEDGE_ID, sanitize(row.knowledgeId));
-        payload.put(FIELD_KNOWLEDGE_BASE_ID, sanitize(row.knowledgeBaseId));
-        payload.put(FIELD_TAG_ID, sanitize(row.tagId));
-        payload.put(FIELD_IS_ENABLED, row.isEnabled);
-        return payload;
-    }
-
     /** 对照 {@code newQdrantValueMap}：含 NUL/非法 UTF-8 的字符串先清理。 */
     static String sanitize(String value) {
         if (value == null) {
@@ -399,43 +293,6 @@ public class QdrantRetrieveRepository
         return value;
     }
 
-    // ── 删除 ────────────────────────────────────────────────────────────────
-
-    @Override
-    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByField(FIELD_CHUNK_ID, chunkIdList, dimension, "chunk IDs");
-    }
-
-    @Override
-    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
-                                        String knowledgeType) throws Exception {
-        deleteByField(FIELD_KNOWLEDGE_ID, knowledgeIdList, dimension, "knowledge IDs");
-    }
-
-    @Override
-    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByField(FIELD_SOURCE_ID, sourceIdList, dimension, "source IDs");
-    }
-
-    private void deleteByField(String field, List<String> ids, int dimension, String subject) {
-        if (ids == null || ids.isEmpty()) {
-            log.warn("[Qdrant] Empty {} list provided for deletion, skipping", subject);
-            return;
-        }
-        String collection = collectionName(dimension);
-        ObjectNode body = QdrantRestClient.object();
-        body.set("filter", mustOnly(matchAny(field, ids)));
-        try {
-            // 照 Go：Delete 不带 wait（异步默认）。
-            client.request("POST", "/collections/" + collection + "/points/delete", body);
-        } catch (RuntimeException e) {
-            log.error("[Qdrant] Failed to delete by {}: {}", subject, e.getMessage());
-            throw new IllegalStateException(
-                    "failed to delete by " + subject + ": " + e.getMessage(), e);
-        }
-    }
 
     // ── 过滤构造 ────────────────────────────────────────────────────────────
 
@@ -543,217 +400,9 @@ public class QdrantRetrieveRepository
     }
 
 
-    // ── 批量更新（跨集合 SetPayload） ──────────────────────────────────────
 
     /** 对照 {@code BatchUpdateChunkEnabledStatus}：按 true/false 分组 → 每集合两次 SetPayload。 */
-    @Override
-    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
-            throws Exception {
-        if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
-            log.warn("[Qdrant] Empty chunk status map provided, skipping");
-            return;
-        }
-        log.info("[Qdrant] Batch updating chunk enabled status, count: {}", chunkStatusMap.size());
-        List<String> collections = listCollectionsOrThrow();
-        List<String> enabledChunkIds = new ArrayList<>();
-        List<String> disabledChunkIds = new ArrayList<>();
-        for (Map.Entry<String, Boolean> entry : chunkStatusMap.entrySet()) {
-            if (Boolean.TRUE.equals(entry.getValue())) {
-                enabledChunkIds.add(entry.getKey());
-            } else {
-                disabledChunkIds.add(entry.getKey());
-            }
-        }
-        for (String collection : collections) {
-            if (!isPrefixed(collection)) {
-                continue;
-            }
-            if (!enabledChunkIds.isEmpty()) {
-                try {
-                    setPayload(collection, FIELD_IS_ENABLED, true,
-                            matchAny(FIELD_CHUNK_ID, enabledChunkIds));
-                } catch (RuntimeException e) {
-                    log.warn("[Qdrant] Failed to update enabled chunks in {}: {}",
-                            collection, e.getMessage());
-                }
-            }
-            if (!disabledChunkIds.isEmpty()) {
-                try {
-                    setPayload(collection, FIELD_IS_ENABLED, false,
-                            matchAny(FIELD_CHUNK_ID, disabledChunkIds));
-                } catch (RuntimeException e) {
-                    log.warn("[Qdrant] Failed to update disabled chunks in {}: {}",
-                            collection, e.getMessage());
-                }
-            }
-        }
-        log.info("[Qdrant] Batch update chunk enabled status completed");
-    }
-
     /** 对照 {@code BatchUpdateChunkTagID}：按 tagID 分组 → 每集合逐组 SetPayload。 */
-    @Override
-    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
-        if (chunkTagMap == null || chunkTagMap.isEmpty()) {
-            log.warn("[Qdrant] Empty chunk tag map provided, skipping");
-            return;
-        }
-        log.info("[Qdrant] Batch updating chunk tag ID, count: {}", chunkTagMap.size());
-        List<String> collections = listCollectionsOrThrow();
-        Map<String, List<String>> tagGroups = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : chunkTagMap.entrySet()) {
-            tagGroups.computeIfAbsent(entry.getValue(), k -> new ArrayList<>())
-                    .add(entry.getKey());
-        }
-        for (String collection : collections) {
-            if (!isPrefixed(collection)) {
-                continue;
-            }
-            for (Map.Entry<String, List<String>> group : tagGroups.entrySet()) {
-                try {
-                    setPayload(collection, FIELD_TAG_ID, group.getKey(),
-                            matchAny(FIELD_CHUNK_ID, group.getValue()));
-                } catch (RuntimeException e) {
-                    log.warn("[Qdrant] Failed to update chunks with tag_id {} in {}: {}",
-                            group.getKey(), collection, e.getMessage());
-                }
-            }
-        }
-        log.info("[Qdrant] Batch update chunk tag ID completed");
-    }
-
-    private List<String> listCollectionsOrThrow() {
-        try {
-            return listCollections();
-        } catch (RuntimeException e) {
-            log.error("[Qdrant] Failed to list collections: {}", e.getMessage());
-            throw new IllegalStateException("failed to list collections: " + e.getMessage(), e);
-        }
-    }
-
-    /** 对照 {@code SetPayloadPoints}：单字段 payload + 选择器条件（照 Go 的批量更新调用点）。 */
-    private void setPayload(String collection, String field, Object value, ObjectNode selector) {
-        ObjectNode payload = QdrantRestClient.object();
-        if (value instanceof Boolean b) {
-            payload.put(field, b.booleanValue());
-        } else if (value instanceof Number n) {
-            payload.put(field, n.longValue());
-        } else {
-            payload.put(field, String.valueOf(value));
-        }
-        ObjectNode body = QdrantRestClient.object();
-        body.set("payload", payload);
-        body.set("filter", mustOnly(selector));
-        client.request("POST", "/collections/" + collection + "/points/payload?wait=true", body);
-    }
-
-    // ── CopyIndices（照全文，含向量回搬） ─────────────────────────────────
-
-    @Override
-    public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
-                            Map<String, String> sourceToTargetChunkIdMap,
-                            String targetKnowledgeBaseId, int dimension, String knowledgeType)
-            throws Exception {
-        log.info("[Qdrant] Copying indices from source knowledge base {} to target knowledge base"
-                        + " {}, count: {}, dimension: {}", sourceKnowledgeBaseId,
-                targetKnowledgeBaseId,
-                sourceToTargetChunkIdMap == null ? 0 : sourceToTargetChunkIdMap.size(), dimension);
-        if (sourceToTargetChunkIdMap == null || sourceToTargetChunkIdMap.isEmpty()) {
-            log.warn("[Qdrant] Empty mapping, skipping copy");
-            return;
-        }
-        String collection = collectionName(dimension);
-        ensureCollection(dimension);
-        String offset = null;
-        int totalCopied = 0;
-        while (true) {
-            ObjectNode body = QdrantRestClient.object();
-            body.set("filter", mustOnly(matchValue(FIELD_KNOWLEDGE_BASE_ID,
-                    sourceKnowledgeBaseId)));
-            body.put("limit", COPY_PAGE_SIZE);
-            if (offset != null) {
-                body.put("offset", offset);
-            }
-            body.put("with_payload", true);
-            body.put("with_vector", true);
-            JsonNode scroll;
-            try {
-                scroll = client.request("POST", "/collections/" + collection + "/points/scroll",
-                        body);
-            } catch (RuntimeException e) {
-                log.error("[Qdrant] Failed to query source points: {}", e.getMessage());
-                throw new IllegalStateException(e.getMessage(), e);
-            }
-            JsonNode points = scroll == null ? null : scroll.get("points");
-            int pointsCount = points == null ? 0 : points.size();
-            if (pointsCount == 0) {
-                break;
-            }
-            log.info("[Qdrant] Found {} source points in batch", pointsCount);
-            List<ObjectNode> targetPoints = new ArrayList<>();
-            for (JsonNode point : points) {
-                JsonNode payload = point.path("payload");
-                String sourceChunkId = payload.path(FIELD_CHUNK_ID).asText("");
-                String sourceKnowledgeId = payload.path(FIELD_KNOWLEDGE_ID).asText("");
-                String originalSourceId = payload.path(FIELD_SOURCE_ID).asText("");
-                if (!sourceToTargetChunkIdMap.containsKey(sourceChunkId)) {
-                    log.warn("[Qdrant] Source chunk {} not found in target mapping, skipping",
-                            sourceChunkId);
-                    continue;
-                }
-                String targetChunkId = sourceToTargetChunkIdMap.get(sourceChunkId);
-                if (sourceToTargetKbIdMap == null
-                        || !sourceToTargetKbIdMap.containsKey(sourceKnowledgeId)) {
-                    log.warn("[Qdrant] Source knowledge {} not found in target mapping, skipping",
-                            sourceKnowledgeId);
-                    continue;
-                }
-                String targetKnowledgeId = sourceToTargetKbIdMap.get(sourceKnowledgeId);
-                String targetSourceId = translateSourceId(originalSourceId, sourceChunkId,
-                        targetChunkId);
-                boolean isEnabled = !payload.has(FIELD_IS_ENABLED)
-                        || payload.path(FIELD_IS_ENABLED).asBoolean(true);
-                JsonNode vectorNode = point.get("vector");
-                if (vectorNode == null || !vectorNode.isArray() || vectorNode.isEmpty()) {
-                    log.warn("[Qdrant] No vectors found for source point with chunk {}, skipping",
-                            sourceChunkId);
-                    continue;
-                }
-                QdrantVectorEmbedding target = new QdrantVectorEmbedding();
-                target.content = payload.path(FIELD_CONTENT).asText("");
-                target.sourceId = targetSourceId;
-                target.sourceType = payload.path(FIELD_SOURCE_TYPE).asInt(0);
-                target.chunkId = targetChunkId;
-                target.knowledgeId = targetKnowledgeId;
-                target.knowledgeBaseId = targetKnowledgeBaseId;
-                target.tagId = payload.path(FIELD_TAG_ID).asText("");
-                target.isEnabled = isEnabled;
-                target.embedding = new float[vectorNode.size()];
-                for (int i = 0; i < vectorNode.size(); i++) {
-                    target.embedding[i] = (float) vectorNode.get(i).asDouble();
-                }
-                targetPoints.add(pointBody(UUID.randomUUID().toString(), target));
-            }
-            if (!targetPoints.isEmpty()) {
-                try {
-                    client.request("PUT", "/collections/" + collection + "/points",
-                            upsertBody(targetPoints));
-                } catch (RuntimeException e) {
-                    log.error("[Qdrant] Failed to batch upsert target points: {}", e.getMessage());
-                    throw new IllegalStateException(
-                            "failed to batch upsert target points during copy: "
-                                    + e.getMessage(), e);
-                }
-                totalCopied += targetPoints.size();
-                log.info("[Qdrant] Successfully copied batch, batch size: {}, total copied: {}",
-                        targetPoints.size(), totalCopied);
-            }
-            offset = points.get(pointsCount - 1).path("id").asText();
-            if (pointsCount < COPY_PAGE_SIZE) {
-                break;
-            }
-        }
-        log.info("[Qdrant] Index copy completed, total copied: {}", totalCopied);
-    }
 
     /**
      * 对照 {@code translateSourceID} 的三态：普通 chunk（SourceID==ChunkID）→ targetChunkID；
@@ -771,6 +420,56 @@ public class QdrantRetrieveRepository
         }
         return UUID.randomUUID().toString();
     }
+
+    @Override
+    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
+        writeOps.save(indexInfo, params);
+    }
+
+    @Override
+    public void batchSave(List<IndexInfo> embeddingList, Map<String, Object> params)
+            throws Exception {
+        writeOps.batchSave(embeddingList, params);
+    }
+
+    @Override
+    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteByChunkIdList(chunkIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
+                                        String knowledgeType) throws Exception {
+        writeOps.deleteByKnowledgeIdList(knowledgeIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteBySourceIdList(sourceIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
+            throws Exception {
+        writeOps.batchUpdateChunkEnabledStatus(chunkStatusMap);
+    }
+
+    @Override
+    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
+        writeOps.batchUpdateChunkTagID(chunkTagMap);
+    }
+
+    @Override
+    public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
+                            Map<String, String> sourceToTargetChunkIdMap,
+                            String targetKnowledgeBaseId, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.copyIndices(sourceKnowledgeBaseId, sourceToTargetKbIdMap,
+                sourceToTargetChunkIdMap, targetKnowledgeBaseId, dimension, knowledgeType);
+    }
+
 
     // ── move（照 move.go） ─────────────────────────────────────────────────
 
