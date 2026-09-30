@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.auth.apikey.domain.APIKeyCapability;
@@ -71,13 +70,6 @@ public class TenantCatalogController {
 
     private static final Logger log = LoggerFactory.getLogger(TenantCatalogController.class);
 
-    /** 请求绑定 mapper：Go json.Unmarshal 忽略未知字段（FAIL_ON_UNKNOWN off）；
-     *  JavaTimeModule 供全字段路径（types.Tenant 含 created_at 等）往返 */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
-            .configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
-
     /** 对照 defaultMaxOwnedTenantsPerUser（tenant.go L195）。 */
     private static final int DEFAULT_MAX_OWNED_PER_USER = 10;
 
@@ -117,17 +109,6 @@ public class TenantCatalogController {
     }
 
 
-    private static int parseIntOr(String raw, int def) {
-        if (raw == null) {
-            return def;
-        }
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException e) {
-            return def;
-        }
-    }
-
     // ── POST /tenants（对照 CreateTenant，tenant.go L226-513） ──────────────
 
     @PostMapping("/api/v1/tenants")
@@ -156,17 +137,17 @@ public class TenantCatalogController {
         Tenant tenantData;
         if (catalogManager) {
             // 超管/平台 Key：全字段兼容路径（对照 ShouldBindJSON(&types.Tenant)）
-            tenantData = bindBody(rawBody, Tenant.class, "Invalid request parameters");
+            tenantData = TenantBindSupport.bindBody(rawBody, Tenant.class, "Invalid request parameters");
             if (tenantData == null) {
                 tenantData = new Tenant(); // body "null" → Go 零值绑定
             }
             tenantData.setId(null); // 主键恒由 DB 生成（Go: tenantData.ID = 0）
         } else {
-            CreateTenantRequest req = bindBody(rawBody, CreateTenantRequest.class,
+            CreateTenantRequest req = TenantBindSupport.bindBody(rawBody, CreateTenantRequest.class,
                     "Invalid request parameters");
             List<String> bindingErrors = validateCreateBinding(req);
             if (!bindingErrors.isEmpty()) {
-                throw invalidParams("Invalid request parameters", String.join("\n", bindingErrors));
+                throw TenantBindSupport.invalidParams("Invalid request parameters", String.join("\n", bindingErrors));
             }
             // 配额预检（对照 L296-321）：cap>0 且 owner 计数 ≥ cap → 429
             int cap = resolveMaxOwnedTenantsPerUser();
@@ -182,8 +163,8 @@ public class TenantCatalogController {
                 }
             }
             tenantData = new Tenant();
-            tenantData.setName(trimGo(req.name()));
-            tenantData.setDescription(trimGo(req.description()));
+            tenantData.setName(TenantBindSupport.trimGo(req.name()));
+            tenantData.setDescription(TenantBindSupport.trimGo(req.description()));
         }
 
         // 默认配额（对照 L334-351）：StorageQuota≤0 → settings 的 GB 值（≤0 再回 10）
@@ -331,18 +312,18 @@ public class TenantCatalogController {
         List<String> errors = new ArrayList<>();
         String name = req == null ? null : req.name();
         if (name == null || name.isEmpty()) {
-            errors.add(bindingError("createTenantRequest", "Name", "required"));
+            errors.add(TenantBindSupport.bindingError("createTenantRequest", "Name", "required"));
         } else {
             int len = name.codePointCount(0, name.length());
             if (len < 1) {
-                errors.add(bindingError("createTenantRequest", "Name", "min"));
+                errors.add(TenantBindSupport.bindingError("createTenantRequest", "Name", "min"));
             } else if (len > 128) {
-                errors.add(bindingError("createTenantRequest", "Name", "max"));
+                errors.add(TenantBindSupport.bindingError("createTenantRequest", "Name", "max"));
             }
         }
         String description = req == null ? null : req.description();
         if (description != null && description.codePointCount(0, description.length()) > 512) {
-            errors.add(bindingError("createTenantRequest", "Description", "max"));
+            errors.add(TenantBindSupport.bindingError("createTenantRequest", "Description", "max"));
         }
         return errors;
     }
@@ -406,14 +387,14 @@ public class TenantCatalogController {
         // 注意：绑定（400 语义层）先于租户加载——Go handler 同序
 
         if (req.name != null) {
-            String trimmed = trimGo(req.name);
+            String trimmed = TenantBindSupport.trimGo(req.name);
             if (trimmed.isEmpty()) {
                 throw new BizException(AppError.validation("name cannot be blank"));
             }
             existing.setName(trimmed);
         }
         if (req.description != null) {
-            existing.setDescription(trimGo(req.description));
+            existing.setDescription(TenantBindSupport.trimGo(req.description));
         }
 
         try {
@@ -445,30 +426,30 @@ public class TenantCatalogController {
      */
     private UpdateTenantRequest bindUpdateTenantRequest(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw invalidParams("Invalid request data", "EOF");
+            throw TenantBindSupport.invalidParams("Invalid request data", "EOF");
         }
         com.fasterxml.jackson.databind.JsonNode root;
         try {
-            root = MAPPER.readTree(rawBody);
+            root = TenantBindSupport.MAPPER.readTree(rawBody);
         } catch (Exception e) {
-            throw invalidParams("Invalid request data",
+            throw TenantBindSupport.invalidParams("Invalid request data",
                     GoJsonBindError.message(rawBody, e.getMessage()));
         }
         if (root == null || !root.isObject()) {
             if (root == null || root.isNull()) {
                 return new UpdateTenantRequest();
             }
-            throw invalidParams("Invalid request data",
-                    "json: cannot unmarshal " + goJsonKind(root) + " into Go value of type "
+            throw TenantBindSupport.invalidParams("Invalid request data",
+                    "json: cannot unmarshal " + TenantBindSupport.goJsonKind(root) + " into Go value of type "
                             + "struct { Name *string \"json:\\\"name\\\" binding:\\\"omitempty,min=1,max=128\\\"\"; "
                             + "Description *string \"json:\\\"description\\\" binding:\\\"omitempty,max=512\\\"\" }");
         }
-        String typeError = goStringField(root, "name");
+        String typeError = TenantBindSupport.goStringField(root, "name");
         if (typeError == null) {
-            typeError = goStringField(root, "description");
+            typeError = TenantBindSupport.goStringField(root, "description");
         }
         if (typeError != null) {
-            throw invalidParams("Invalid request data", typeError);
+            throw TenantBindSupport.invalidParams("Invalid request data", typeError);
         }
         UpdateTenantRequest req = new UpdateTenantRequest();
         req.name = root.get("name") == null || root.get("name").isNull() ? null : root.get("name").asText();
@@ -478,38 +459,20 @@ public class TenantCatalogController {
         if (req.name != null) {
             int len = req.name.codePointCount(0, req.name.length());
             if (len < 1) {
-                errors.add(bindingError("updateTenantRequest", "Name", "min"));
+                errors.add(TenantBindSupport.bindingError("updateTenantRequest", "Name", "min"));
             } else if (len > 128) {
-                errors.add(bindingError("updateTenantRequest", "Name", "max"));
+                errors.add(TenantBindSupport.bindingError("updateTenantRequest", "Name", "max"));
             }
         }
         if (req.description != null && req.description.codePointCount(0, req.description.length()) > 512) {
-            errors.add(bindingError("updateTenantRequest", "Description", "max"));
+            errors.add(TenantBindSupport.bindingError("updateTenantRequest", "Description", "max"));
         }
         if (!errors.isEmpty()) {
-            throw invalidParams("Invalid request data", String.join("\n", errors));
+            throw TenantBindSupport.invalidParams("Invalid request data", String.join("\n", errors));
         }
         return req;
     }
 
-    /** Go json.Decoder 的值种别（UnmarshalTypeError 文案用）。 */
-    private static String goJsonKind(com.fasterxml.jackson.databind.JsonNode node) {
-        if (node.isTextual()) return "string";
-        if (node.isBoolean()) return "bool";
-        if (node.isArray()) return "array";
-        if (node.isObject()) return "object";
-        return "number";
-    }
-
-    /** string 字段类型检查；违规返回 Go UnmarshalTypeError 原文，否则 null。 */
-    private static String goStringField(com.fasterxml.jackson.databind.JsonNode root, String field) {
-        com.fasterxml.jackson.databind.JsonNode node = root.get(field);
-        if (node == null || node.isNull() || node.isTextual()) {
-            return null;
-        }
-        return "json: cannot unmarshal " + goJsonKind(node)
-                + " into Go struct field updateTenantRequest." + field + " of type string";
-    }
 
     /**
      * DELETE /tenants/{id}（对照 DeleteTenant，L1123-1162）：repo 层软删成员+租户、
@@ -636,7 +599,7 @@ public class TenantCatalogController {
             if (node.isNull()) {
                 return type.getDeclaredConstructor().newInstance();
             }
-            return MAPPER.treeToValue(node, type);
+            return TenantBindSupport.MAPPER.treeToValue(node, type);
         } catch (Exception e) {
             throw new IllegalStateException("failed to decode tenant config jsonb: " + e.getMessage(), e);
         }
@@ -668,7 +631,7 @@ public class TenantCatalogController {
     }
 
     private Map<String, Object> putWebSearch(String rawBody) {
-        WebSearchConfig cfg = bindBody(rawBody, WebSearchConfig.class, "Invalid request data");
+        WebSearchConfig cfg = TenantBindSupport.bindBody(rawBody, WebSearchConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new WebSearchConfig();
         }
@@ -678,7 +641,7 @@ public class TenantCatalogController {
         if (merged.getMaxResults() < 1 || merged.getMaxResults() > 50) {
             throw new BizException(AppError.badRequest("max_results must be between 1 and 50"));
         }
-        tenant.setWebSearchConfig(MAPPER.valueToTree(merged));
+        tenant.setWebSearchConfig(TenantBindSupport.MAPPER.valueToTree(merged));
         try {
             tenantService.updateTenant(tenant);
         } catch (RuntimeException e) {
@@ -699,7 +662,7 @@ public class TenantCatalogController {
     }
 
     private Map<String, Object> putParserEngine(String rawBody) {
-        ParserEngineConfig cfg = bindBody(rawBody, ParserEngineConfig.class, "Invalid request data");
+        ParserEngineConfig cfg = TenantBindSupport.bindBody(rawBody, ParserEngineConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new ParserEngineConfig();
         }
@@ -707,7 +670,7 @@ public class TenantCatalogController {
         ParserEngineConfig merged = TenantConfigRedaction.mergeParserEngine(
                 cfg, parseConfig(tenant.getParserEngineConfig(), ParserEngineConfig.class));
         validateParserEngineOutboundUrls(merged);
-        tenant.setParserEngineConfig(MAPPER.valueToTree(merged));
+        tenant.setParserEngineConfig(TenantBindSupport.MAPPER.valueToTree(merged));
         try {
             tenantService.updateTenant(tenant);
         } catch (RuntimeException e) {
@@ -755,7 +718,7 @@ public class TenantCatalogController {
     }
 
     private Map<String, Object> putStorageEngine(String rawBody) {
-        StorageEngineConfig cfg = bindBody(rawBody, StorageEngineConfig.class, "Invalid request data");
+        StorageEngineConfig cfg = TenantBindSupport.bindBody(rawBody, StorageEngineConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new StorageEngineConfig();
         }
@@ -776,7 +739,7 @@ public class TenantCatalogController {
         Tenant tenant = requireContextTenant();
         StorageEngineConfig merged = TenantConfigRedaction.mergeStorageEngine(
                 cfg, parseConfig(tenant.getStorageEngineConfig(), StorageEngineConfig.class));
-        tenant.setStorageEngineConfig(MAPPER.valueToTree(merged));
+        tenant.setStorageEngineConfig(TenantBindSupport.MAPPER.valueToTree(merged));
         try {
             tenantService.updateTenant(tenant);
         } catch (RuntimeException e) {
@@ -801,7 +764,7 @@ public class TenantCatalogController {
     }
 
     private Map<String, Object> putChatHistory(String rawBody) {
-        ChatHistoryConfig req = bindBody(rawBody, ChatHistoryConfig.class, "Invalid request data");
+        ChatHistoryConfig req = TenantBindSupport.bindBody(rawBody, ChatHistoryConfig.class, "Invalid request data");
         if (req == null) {
             req = new ChatHistoryConfig();
         }
@@ -832,7 +795,7 @@ public class TenantCatalogController {
             cfg.setKnowledgeBaseId(kbId);
         }
 
-        tenant.setChatHistoryConfig(MAPPER.valueToTree(cfg));
+        tenant.setChatHistoryConfig(TenantBindSupport.MAPPER.valueToTree(cfg));
         try {
             tenantService.updateTenant(tenant);
         } catch (RuntimeException e) {
@@ -850,7 +813,7 @@ public class TenantCatalogController {
     }
 
     private Map<String, Object> putRetrieval(String rawBody) {
-        RetrievalConfig cfg = bindBody(rawBody, RetrievalConfig.class, "Invalid request data");
+        RetrievalConfig cfg = TenantBindSupport.bindBody(rawBody, RetrievalConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new RetrievalConfig();
         }
@@ -871,7 +834,7 @@ public class TenantCatalogController {
             throw new BizException(AppError.badRequest("rerank_top_k must be between 0 and 200"));
         }
         Tenant tenant = requireContextTenant();
-        tenant.setRetrievalConfig(MAPPER.valueToTree(cfg));
+        tenant.setRetrievalConfig(TenantBindSupport.MAPPER.valueToTree(cfg));
         try {
             tenantService.updateTenant(tenant);
         } catch (RuntimeException e) {
@@ -893,7 +856,7 @@ public class TenantCatalogController {
     }
 
     private Map<String, Object> putMemory(String rawBody) {
-        MemoryConfig cfg = bindBody(rawBody, MemoryConfig.class, "Invalid request data");
+        MemoryConfig cfg = TenantBindSupport.bindBody(rawBody, MemoryConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new MemoryConfig();
         }
@@ -935,7 +898,7 @@ public class TenantCatalogController {
         }
         cfg.normalize();
         Tenant tenant = requireContextTenant();
-        tenant.setMemoryConfig(MAPPER.valueToTree(cfg));
+        tenant.setMemoryConfig(TenantBindSupport.MAPPER.valueToTree(cfg));
         try {
             tenantService.updateTenant(tenant);
         } catch (RuntimeException e) {
@@ -944,37 +907,4 @@ public class TenantCatalogController {
         return envelopeWithMessage(cfg, "Memory configuration updated successfully");
     }
 
-    // ── 绑定与错误形态（对照 AuthController 的既有模式） ─────────────────────
-
-    /**
-     * 对照 c.ShouldBindJSON：空 body → details "EOF"；语法/类型错误 →
-     * Go 风格文案（{@link GoJsonBindError}）。body 是 JSON null 字面量时
-     * Go 做零值绑定不报错——Jackson readValue 返回 null，调用方按零值处理。
-     */
-    private static <T> T bindBody(String rawBody, Class<T> type, String message) {
-        if (rawBody == null || rawBody.isBlank()) {
-            throw invalidParams(message, "EOF");
-        }
-        try {
-            return MAPPER.readValue(rawBody, type);
-        } catch (Exception e) {
-            throw invalidParams(message, GoJsonBindError.message(rawBody, e.getMessage()));
-        }
-    }
-
-    private static String bindingError(String structName, String field, String tag) {
-        String key = structName == null || structName.isEmpty() ? field : structName + "." + field;
-        return "Key: '" + key + "' Error:Field validation for '" + field
-                + "' failed on the '" + tag + "' tag";
-    }
-
-    /** 对照 NewValidationError(message).WithDetails(err.Error()) */
-    private static BizException invalidParams(String message, String details) {
-        return new BizException(AppError.validation(message).withDetails(details));
-    }
-
-    /** Go strings.TrimSpace 等价（Unicode 空白） */
-    private static String trimGo(String s) {
-        return s == null ? "" : s.strip();
-    }
 }
