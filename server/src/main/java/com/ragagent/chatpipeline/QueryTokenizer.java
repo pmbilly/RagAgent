@@ -2,7 +2,7 @@ package com.ragagent.chatpipeline;
 
 import java.util.List;
 
-import com.ragagent.searchutil.SearchTextUtil;
+import com.ragagent.retrieval.support.SearchTextUtil;
 
 /**
  * 查询扩展的分词接缝（对照 Go {@code types.Jieba.CutForSearch(s, true)}，

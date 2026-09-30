@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.retrieval.domain.WebSearchFilters;
 import com.ragagent.retrieval.domain.WebSearchResult;
-import com.ragagent.searchutil.WebResultConverter;
+import com.ragagent.retrieval.support.WebResultConverter;
 import com.ragagent.websearch.domain.WebSearchProvider;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 import com.ragagent.websearch.mapper.WebSearchProviderRepository;

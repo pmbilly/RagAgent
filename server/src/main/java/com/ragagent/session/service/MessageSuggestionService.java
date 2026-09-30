@@ -26,7 +26,7 @@ import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.domain.SearchResult;
-import com.ragagent.searchutil.SearchTextUtil;
+import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageExecutionContext;
 import com.ragagent.session.domain.MessageSuggestionEvent;

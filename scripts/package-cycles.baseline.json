@@ -14,19 +14,7 @@
     ],
     [
       "audit",
-      "auth"
-    ],
-    [
-      "audit",
       "knowledge"
-    ],
-    [
-      "auth",
-      "common"
-    ],
-    [
-      "auth",
-      "config"
     ],
     [
       "auth",
@@ -55,14 +43,6 @@
     [
       "chatpipeline",
       "session"
-    ],
-    [
-      "common",
-      "config"
-    ],
-    [
-      "config",
-      "knowledge"
     ],
     [
       "embedding",
@@ -113,27 +93,11 @@
       "retrieval"
     ],
     [
-      "retrieval",
-      "searchutil"
-    ],
-    [
       "session",
       "storage"
-    ],
-    [
-      "session",
-      "storageurl"
-    ],
-    [
-      "storage",
-      "storageurl"
     ]
   ],
   "depend_on_config": [
-    "auth",
-    "common",
-    "knowledge",
-    "session",
     "stream"
   ],
   "l2_to_l3": [
@@ -192,22 +156,6 @@
     [
       "retrieval",
       "vectorstore"
-    ],
-    [
-      "storageurl",
-      "agent"
-    ],
-    [
-      "storageurl",
-      "auth"
-    ],
-    [
-      "storageurl",
-      "session"
-    ],
-    [
-      "storageurl",
-      "storage"
     ]
   ]
 }

@@ -1,4 +1,4 @@
-package com.ragagent.storageurl;
+package com.ragagent.storage.support;
 
 /**
  * 调用方要求 {@code public} 模式，但凭据不允许（对照 Go 的哨兵错误

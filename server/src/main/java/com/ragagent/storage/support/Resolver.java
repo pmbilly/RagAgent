@@ -1,4 +1,4 @@
-package com.ragagent.storageurl;
+package com.ragagent.storage.support;
 
 /**
  * 把一个存储引用映射到拥有它的 {@link FileService}（对照 Go

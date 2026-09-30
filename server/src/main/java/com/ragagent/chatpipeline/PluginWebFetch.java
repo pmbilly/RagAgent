@@ -8,7 +8,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.ragagent.retrieval.domain.SearchResult;
-import com.ragagent.webfetch.Fetcher;
+import com.ragagent.agent.support.Fetcher;
 
 /**
  * WEB_FETCH 阶段插件（对照 Go chat_pipeline/web_fetch.go）：rerank 之后对 web 结果

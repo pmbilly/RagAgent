@@ -1,4 +1,4 @@
-package com.ragagent.storageurl;
+package com.ragagent.storage.support;
 
 /**
  * 本包对"文件服务"的最小需求（对照 Go {@code interfaces.FileService} 的

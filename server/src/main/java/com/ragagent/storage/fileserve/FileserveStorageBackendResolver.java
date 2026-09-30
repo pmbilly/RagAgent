@@ -6,11 +6,11 @@ import org.springframework.stereotype.Component;
 
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.service.TenantService;
-import com.ragagent.storageurl.FileService;
-import com.ragagent.storageurl.StorageBackendResolver;
+import com.ragagent.storage.support.FileService;
+import com.ragagent.storage.support.StorageBackendResolver;
 
 /**
- * {@code com.ragagent.storageurl.StorageBackendResolver} 的生产实现（A3-3 接线）。
+ * {@code com.ragagent.storage.support.StorageBackendResolver} 的生产实现（A3-3 接线）。
  *
  * <p>此前该端口<b>没有实现</b>：HTTP 面的三处调用点（{@code SessionStreamController} /
  * {@code KnowledgeQaController} / {@code MessageController}）都按

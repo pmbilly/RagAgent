@@ -10,11 +10,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.retrieval.domain.SearchResult;
-import com.ragagent.searchutil.ChunkSearchUtil;
-import com.ragagent.searchutil.ImageInfoEnricher;
-import com.ragagent.searchutil.ImageInfoMatchUtil;
-import com.ragagent.searchutil.SearchChunkMerge;
-import com.ragagent.searchutil.SearchTextUtil;
+import com.ragagent.retrieval.support.ChunkSearchUtil;
+import com.ragagent.retrieval.support.ImageInfoEnricher;
+import com.ragagent.retrieval.support.ImageInfoMatchUtil;
+import com.ragagent.retrieval.support.SearchChunkMerge;
+import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.common.web.JsonMappers;
 
 /**

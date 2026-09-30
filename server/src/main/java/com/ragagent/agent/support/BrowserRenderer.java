@@ -1,4 +1,4 @@
-package com.ragagent.webfetch;
+package com.ragagent.agent.support;
 
 /**
  * 无头浏览器渲染接缝（对照 Go {@code renderWithChromium}，chromedp）。

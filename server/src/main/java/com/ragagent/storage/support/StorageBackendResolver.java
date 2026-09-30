@@ -1,4 +1,4 @@
-package com.ragagent.storageurl;
+package com.ragagent.storage.support;
 
 /**
  * 按租户配置解析存储后端（对照 Go {@code interfaces.StorageBackendResolver}，

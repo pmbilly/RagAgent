@@ -31,7 +31,7 @@ import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionOwnerIds;
 import com.ragagent.session.mapper.SessionRepository;
 import com.ragagent.session.service.SessionService;
-import com.ragagent.storageurl.StorageUrlContext;
+import com.ragagent.storage.support.StorageUrlContext;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;

@@ -33,7 +33,7 @@ import com.ragagent.chatpipeline.PluginWebFetch;
 import com.ragagent.chatpipeline.PluginWikiBoost;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.retrieval.HybridSearchService;
-import com.ragagent.config.ConversationProperties;
+import com.ragagent.common.settings.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;

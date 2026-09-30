@@ -1,4 +1,4 @@
-package com.ragagent.storageurl;
+package com.ragagent.storage.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

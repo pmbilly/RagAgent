@@ -6,15 +6,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.ragagent.storageurl.FileService;
+import com.ragagent.storage.support.FileService;
 
 /**
  * 把 {@code storageurl} 包的两个端口接到生产实现（A3-3 接线）：
  *
  * <ul>
- *   <li>{@link com.ragagent.storageurl.StorageBackendResolver} → 见
+ *   <li>{@link com.ragagent.storage.support.StorageBackendResolver} → 见
  *       {@link FileserveStorageBackendResolver}（{@code @Component}）；</li>
- *   <li>{@link com.ragagent.storageurl.FileService}（进程级默认）→ 本类的 bean，
+ *   <li>{@link com.ragagent.storage.support.FileService}（进程级默认）→ 本类的 bean，
  *       对照 Go container 装配的 {@code globalFileService}——恒 local 基座 + resource
  *       catalog 装饰（于是 {@code resource://} 手柄在 {@code APP_EXTERNAL_URL} 在位时
  *       能派生出 {@code /r/<token>} 能力链接，此前该分支恒不可达）。</li>

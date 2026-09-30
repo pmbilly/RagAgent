@@ -1,4 +1,4 @@
-package com.ragagent.webfetch;
+package com.ragagent.agent.support;
 
 /**
  * 抓取失败的可机读错误（对照 Go {@code web_fetch} 的

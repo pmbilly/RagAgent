@@ -42,7 +42,7 @@ class SessionServiceReadTest {
                 org.mockito.Mockito.mock(com.ragagent.knowledge.service.KnowledgeService.class),
                 org.mockito.Mockito.mock(com.ragagent.model.service.ModelService.class),
                 org.mockito.Mockito.mock(com.ragagent.model.service.ModelRuntimeFactory.class),
-                org.mockito.Mockito.mock(com.ragagent.config.ConversationProperties.class),
+                org.mockito.Mockito.mock(com.ragagent.common.settings.ConversationProperties.class),
                 org.mockito.Mockito.mock(
                         com.ragagent.websearch.service.WebSearchTempKbStateService.class));
         TenantContext.set(TENANT, null, null, false, "u-1", false);

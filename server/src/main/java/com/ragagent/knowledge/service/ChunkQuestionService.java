@@ -14,7 +14,7 @@ import com.ragagent.agent.AgentPromptPlaceholders;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.prompt.PromptInstructions;
-import com.ragagent.config.ConversationProperties;
+import com.ragagent.common.settings.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.DocumentChunkMetadata;
 import com.ragagent.knowledge.domain.GeneratedQuestion;
@@ -44,7 +44,7 @@ import com.ragagent.retrieval.engine.EffectiveEngines;
 import com.ragagent.retrieval.engine.RetrieveEngineFactories;
 import com.ragagent.common.web.JsonMappers;
 import com.ragagent.knowledge.security.ChunkAccessGuard;
-import com.ragagent.searchutil.ChunkSearchUtil;
+import com.ragagent.retrieval.support.ChunkSearchUtil;
 
 /**
  * chunk 生成问题面：生成问题的 upsert/删除/重生（LLM 生成 + 邻块上下文拼装 + metadata 落库）。

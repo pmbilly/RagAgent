@@ -22,7 +22,7 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.memory.service.MemoryRecall;
 import com.ragagent.memory.service.MemoryRetrievalContext;
 import com.ragagent.rerank.RankResult;
-import com.ragagent.searchutil.SearchTextUtil;
+import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.Message;

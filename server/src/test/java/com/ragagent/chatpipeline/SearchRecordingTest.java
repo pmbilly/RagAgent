@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.retrieval.domain.WebSearchResult;
-import com.ragagent.searchutil.SearchTextUtil;
+import com.ragagent.retrieval.support.SearchTextUtil;
 
 /**
  * 实录回放：查询扩展 / 去重 / 部分重叠 / filter_top_k / search / search_by_targets /

@@ -1,4 +1,4 @@
-package com.ragagent.searchutil;
+package com.ragagent.retrieval.support;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * chunk 编辑链路的纯逻辑辅助。
  * 本任务只允许改 {@code com.ragagent.knowledge.service}，故先落在服务包、命名
  * {@code ChunkSearchUtil}，后续 searchutil 波次整体落地时应迁往
- * {@code com.ragagent.searchutil}（公开方法签名保持不变即可平移）。</p>
+ * {@code com.ragagent.retrieval.support}（公开方法签名保持不变即可平移）。</p>
  * 已知差异逐条标注在成员上。</p>
  */
 public final class ChunkSearchUtil {

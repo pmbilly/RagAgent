@@ -1,4 +1,4 @@
-package com.ragagent.searchutil;
+package com.ragagent.retrieval.support;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

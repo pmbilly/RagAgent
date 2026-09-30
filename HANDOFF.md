@@ -283,6 +283,25 @@
 **环影响**：`agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ knowledge`/`initialization ⇄ model`（净数仍 32）；`ExtractPrompts` 因引用 `chatpipeline` 未按预案下沉 `common/prompt`，留 init 半区（后续解环批次再处理）。
 **③ `datasource`/`im` 保留**：进入正常重构队列（P1/P2 结构项照做）。
 
+## 11.8 P0 批 1 执行记录：配置/工具类归位（2026-09-30）
+
+**结果：环 32 → 24（消除 8 组）**，顶层包 34 → 31，依赖 `config` 的包 5 → 1，L2→L3 直连 18 → 14。
+
+| 组 | 动作 | 消除的环 |
+|---|---|---|
+| 1 | `TenantRole`（auth/domain，30 文件在用）、`TenantProperties`（config）→ **`common/tenant/`** | `common⇄config`、`auth⇄config`、`common⇄auth`、`audit⇄auth` |
+| 2 | `ConversationProperties`（config）→ **`common/settings/`** | `config⇄knowledge` |
+| 3 | `searchutil`→`retrieval/support`、`storageurl`→`storage/support`、`webfetch`→`agent/support` | `retrieval⇄searchutil`、`storage⇄storageurl`、`session⇄storageurl` |
+
+**两个必然的连带修复（下次搬迁直接照做）**：① 类型搬出 `config` 后，`@ConfigurationPropertiesScan` 要补新包
+（`TenantProperties`、`ConversationProperties` 各踩一次，症状是 **Spring 上下文加载失败**："No qualifying bean of type …"，
+且 Spring 会"失败阈值"跳过后续上下文，**看起来只有 4 个用例失败、实则整批失效**）；
+② **同包内原先免 import** 的引用点（`config/WebConfig`、`auth/domain/TenantMember` 等 5 处）必须补 import。
+非 Java 引用与 FQN 字符串本批为 0（§13.23 清单逐个查过）。
+
+**原则**：`config` 是组合根，**只出不进**——凡被业务域读取的配置类都下沉到 `common/*`；扫描范围用**枚举**而非根包通配
+（根包扫描会把 `session` 等处"未注册"的配置类一并绑定，属行为变化）。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
@@ -369,6 +388,12 @@ knowledge/
     偶发 8 用例全红，错误 `RedisConnectionFailureException: Unable to connect to Redis`——**单跑即过**，与代码改动无关。
     判据：①错误是"连不上"而非断言失败；②`which redis-server` 有；③单跑该类通过。**别据此怀疑刚做的改动，也别把它当回归记进文档。**
     `agentm`/`initialization` 拆分时的真实规模：agentm 19 文件 / 2607 行，initialization 16 文件 / 2945 行。
+
+25. **搬迁脚本要写成幂等 + 别做多余动作**（2026-09-30 批 1 踩了两次）：① `git mv` **要求目标目录已存在**——
+    忘了 `mkdir -p` 会在第一行就失败（好在本脚本首行即死、无副作用）；② **整包并入时不要 `git rm -r` 旧目录**——
+    逐文件 `git mv` 之后目录里已无被跟踪文件，`git rm` 只会报 `pathspec did not match` 并**中断后面的步骤**（本次因此
+    只搬了 3 个包里的第 1 个、引用重写整段没跑，编译报一片 `cannot find symbol`）。正解：**每个包一个独立脚本段落，
+    或写成"逐包 mv → 逐包重写 → 校验残留"的幂等函数**，失败可原地重跑。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 

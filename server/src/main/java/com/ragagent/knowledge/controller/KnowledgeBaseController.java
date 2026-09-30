@@ -38,12 +38,12 @@ import com.ragagent.knowledge.dto.DuplicateKnowledgeBaseResponse;
 import com.ragagent.knowledge.security.KnowledgeAccessGuard;
 import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.retrieval.domain.SearchResult;
-import com.ragagent.storageurl.PublicModeForbiddenException;
-import com.ragagent.storageurl.ResourceModeException;
+import com.ragagent.storage.support.PublicModeForbiddenException;
+import com.ragagent.storage.support.ResourceModeException;
 import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.knowledge.task.KnowledgeTaskIdCodec;
-import com.ragagent.storageurl.Mode;
+import com.ragagent.storage.support.Mode;
 import java.util.UUID;
 
 /**

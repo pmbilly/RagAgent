@@ -1,4 +1,4 @@
-package com.ragagent.storageurl;
+package com.ragagent.storage.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,8 +7,8 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import com.ragagent.storageurl.RewriterTest.FixedResolver;
-import com.ragagent.storageurl.RewriterTest.StubFileService;
+import com.ragagent.storage.support.RewriterTest.FixedResolver;
+import com.ragagent.storage.support.RewriterTest.StubFileService;
 
 /**
  * {@link StreamRewriter} 的对等测试（对照 Go

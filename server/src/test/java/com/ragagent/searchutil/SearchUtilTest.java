@@ -1,4 +1,4 @@
-package com.ragagent.searchutil;
+package com.ragagent.retrieval.support;
 
 import static org.junit.jupiter.api.Assertions.*;
 

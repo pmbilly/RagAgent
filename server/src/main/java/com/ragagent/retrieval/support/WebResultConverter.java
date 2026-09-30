@@ -1,4 +1,4 @@
-package com.ragagent.searchutil;
+package com.ragagent.retrieval.support;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;

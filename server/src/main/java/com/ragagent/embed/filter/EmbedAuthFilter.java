@@ -145,7 +145,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
             // StorageUrlContext 的 forced-handle 同样在此收口——它的 javadoc 明确
             // "生命周期由设置方负责"，漏清会把 handle 钉死泄漏到线程的下个请求。
             TenantContext.clear();
-            com.ragagent.storageurl.StorageUrlContext.clear();
+            com.ragagent.storage.support.StorageUrlContext.clear();
         }
     }
 

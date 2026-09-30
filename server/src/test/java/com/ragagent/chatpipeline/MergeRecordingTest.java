@@ -137,9 +137,9 @@ class MergeRecordingTest {
                 json(searchResultsShape(p.mergeSequentialChunks("k", joinImg))));
 
         Map<String, Object> s5 = new LinkedHashMap<>();
-        var exact = com.ragagent.searchutil.SearchChunkMerge.appendWithExactOverlap(
+        var exact = com.ragagent.retrieval.support.SearchChunkMerge.appendWithExactOverlap(
                 "直接重叠的甲乙丙", "甲乙丙丁", 3);
-        s5.put("ok", com.ragagent.searchutil.SearchChunkMerge.appendWithOverlap(
+        s5.put("ok", com.ragagent.retrieval.support.SearchChunkMerge.appendWithOverlap(
                 "HTML &amp; 实体头部内容", "实体头部内容加后续", 12));
         s5.put("exact", exact.value());
         assertRec("merge_sequential", "append_fallback", json(s5));

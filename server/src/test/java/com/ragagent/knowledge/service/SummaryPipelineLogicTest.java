@@ -10,9 +10,9 @@ import java.util.function.BiFunction;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.retrieval.domain.ImageInfo;
-import com.ragagent.searchutil.ImageInfoEnricher;
+import com.ragagent.retrieval.support.ImageInfoEnricher;
 import org.junit.jupiter.api.Test;
-import com.ragagent.searchutil.ChunkSearchUtil;
+import com.ragagent.retrieval.support.ChunkSearchUtil;
 import com.ragagent.knowledge.support.KnowledgeIndexContent;
 
 /**
@@ -82,7 +82,7 @@ class SummaryPipelineLogicTest {
         info.setUrl(url);
         info.setCaption(caption);
         info.setOcrText(ocr);
-        return com.ragagent.searchutil.ImageInfoMatchUtil.marshalImageInfos(List.of(info));
+        return com.ragagent.retrieval.support.ImageInfoMatchUtil.marshalImageInfos(List.of(info));
     }
 
     @Test

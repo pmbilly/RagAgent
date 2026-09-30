@@ -2,7 +2,7 @@
 
 > **用途**：新人 30 分钟建立"哪个功能在哪个包"的全局观；后续会话按本文的 **P0–P3 待办**推进，
 > 不用重新摸索。**复测**：`python3 scripts/pkg-audit.py`（口径见脚本 docstring）。
-> **基线数据**：**34 个顶层包**（2026-09-30：`apikey` 并入 `auth`、`agentm` 拆出 `initialization`）/ **1632 文件 / 284k 行**（`com.ragagent` 子树）；顶层 `package-info` **33/34**（仅 `session` 待其批次补）。
+> **基线数据**：**31 个顶层包**（2026-09-30：`apikey`→`auth`、`agentm` 拆出 `initialization`、`searchutil`→`retrieval/support`、`storageurl`→`storage/support`、`webfetch`→`agent/support`）/ **1634 文件 / 284k 行**（`com.ragagent` 子树）；顶层 `package-info` **33/34**（仅 `session` 待其批次补）。
 
 ## 1. 三类包（先分清性质，再判断"合理与否"）
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | **业务域（20）** | knowledge、agent、agentm、initialization、wiki、session、datasource、memory、mcp、auth（含 `apikey/` 子域）、audit、im、storage、model、system、websearch、embed、vectorstore、favorite、evaluation | 有 `controller/service/domain/dto/mapper/repository` 六件套，HTTP 面明确 |
 | **库式域（4）** | `llm`、`retrieval`、`chatpipeline`、`event` | **无 controller 是对的**——被其他域调用的引擎/管线（`retrieval` 被 chatpipeline 19 文件、knowledge 10、session 7 消费） |
-| **基础设施（10）** | `common`、`config`、`stream`、`modelcontext`、`searchutil`、`storageurl`、`tracing`、`webfetch`、`embedding`、`rerank` | 横切能力；`common` 被 **30 个包**依赖（位置正确） |
+| **基础设施（7）** | `common`、`config`、`stream`、`modelcontext`、`tracing`、`embedding`、`rerank`（`searchutil`/`storageurl`/`webfetch` 已并入宿主域，见 §3.5）| 横切能力；`common` 被 **30 个包**依赖（位置正确） |
 
 **分层约定**（§2.13）：`mapper/` 只放 MyBatis-Plus 接口；`repository/` 放仓储门面（软删/乐观锁/方言）；
 `service/` 放 Spring 服务；`support/` 放无状态算法；其余按 `task/client/storage/security` 角色；
@@ -58,7 +58,7 @@
 
 **守卫（已入库）**：`python3 scripts/check-package-cycles.py` —— **环只许减不许增**（基线
 `scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
-当前基线（2026-09-30：并入 apikey + 拆出 initialization 后）：**环 32 组 / 依赖 `config` 的包 5 个 / 能力层→业务层直连 18 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
+当前基线（2026-09-30 批 1 后）：**环 24 组 / 依赖 `config` 的包 5 个 / 能力层→业务层直连 18 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
 
 ### P1 扁平包 10 个（无子包，靠文件名找东西）
 
@@ -106,9 +106,9 @@ L1  平台                         common event stream tracing
 
 | 现在 | 重组后 | 理由 |
 |---|---|---|
-| `searchutil` | `retrieval/support` | 纯检索工具，归属检索域（同时消 `retrieval ⇄ searchutil` 环）|
-| `storageurl` | `storage/support` | 存储 URL 重写是该域能力（消 `storage ⇄ storageurl`）|
-| `webfetch` | `agent/support` | 它就是 agent 的抓取能力 |
+| `searchutil` | `retrieval/support` | ✅ **已并入（2026-09-30，批 1）**：纯检索工具（消 `retrieval ⇄ searchutil` 环）|
+| `storageurl` | `storage/support` | ✅ **已并入（2026-09-30，批 1）**：存储 URL 重写（消 `storage ⇄ storageurl` 与 `session ⇄ storageurl`）|
+| `webfetch` | `agent/support` | ✅ **已并入（2026-09-30，批 1）**：agent 的抓取能力 |
 | `apikey` | `auth/apikey` | ✅ **已并入（2026-09-30）**：一次消掉 `apikey ⇄ auth` 与 `apikey ⇄ knowledge` 两组环 |
 | `embed` | `embedchannel` | 与 `embedding` 名字太近，语义不同（业务渠道 vs provider 客户端）|
 | `modelcontext` | **仍待定**：并入 `agent/modelcontext` 或保留顶层 | 目前只被 agent 用；`agent ⇄ modelcontext` 环也可用"伴生类型归位"解 |
@@ -143,7 +143,7 @@ system websearch favorite evaluation common config event stream tracing`。
 
 | 批次 | 结构结果 |
 |---|---|
-| 批 1 解环·配置归位（A+B） | `config` 变成**纯组合根**；顶层 −3（searchutil/storageurl/webfetch） |
+| 批 1 解环·配置/工具归位（A+B） | ✅ **已执行（2026-09-30）：环 32 → 24（−8）**；顶层 −3；依赖 `config` 的包 5 → 1；L2→L3 直连 18 → 14 |
 | 批 2 解环·端口化（C） | `audit`/`apikey`/`auth` 不再直连下层 mapper/service（新增各自的 port）|
 | 批 3 解环·传值 + 伴生类型（D+E） | provider 客户端只依赖配置值；引擎伴生类型归位 |
 | P1/P2 分包子包 | 上表的域内二级结构 |

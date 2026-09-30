@@ -13,7 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.agent.domain.ToolResult;
-import com.ragagent.webfetch.FetchException;
+import com.ragagent.agent.support.FetchException;
 
 /**
  * web_fetch 工具。
@@ -122,7 +122,7 @@ public class WebFetchTool extends BaseTool {
 
     /** 生产 fetcher（markdown、2MB、60s、浏览器兜底）。 */
     public WebFetchTool() {
-        this(com.ragagent.webfetch.Fetcher.newFetcher()::fetch);
+        this(com.ragagent.agent.support.Fetcher.newFetcher()::fetch);
     }
 
     /** 测试注入口。 */

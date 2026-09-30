@@ -1,4 +1,4 @@
-package com.ragagent.storageurl;
+package com.ragagent.storage.support;
 
 /**
  * {@code resource_urls} 的取值不合法（对照 Go {@code ParseMode} 返回的普通 error）。

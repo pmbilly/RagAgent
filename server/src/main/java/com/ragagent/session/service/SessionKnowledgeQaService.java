@@ -26,7 +26,7 @@ import com.ragagent.chatpipeline.PluginError;
 import com.ragagent.chatpipeline.SummaryConfig;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
-import com.ragagent.config.ConversationProperties;
+import com.ragagent.common.settings.ConversationProperties;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventBusInterface;

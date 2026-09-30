@@ -1,11 +1,9 @@
-package com.ragagent.webfetch;
+package com.ragagent.agent.support;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;

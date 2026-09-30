@@ -26,13 +26,13 @@ import com.ragagent.session.service.SessionService;
 import com.ragagent.session.sse.SseContract;
 import com.ragagent.session.sse.SseFrameWriter;
 import com.ragagent.session.sse.StreamEventEmitter;
-import com.ragagent.storageurl.Mode;
-import com.ragagent.storageurl.PublicModeForbiddenException;
-import com.ragagent.storageurl.ResourceModeException;
-import com.ragagent.storageurl.Rewriter;
-import com.ragagent.storageurl.StorageBackendResolver;
-import com.ragagent.storageurl.FileService;
-import com.ragagent.storageurl.StreamRewriter;
+import com.ragagent.storage.support.Mode;
+import com.ragagent.storage.support.PublicModeForbiddenException;
+import com.ragagent.storage.support.ResourceModeException;
+import com.ragagent.storage.support.Rewriter;
+import com.ragagent.storage.support.StorageBackendResolver;
+import com.ragagent.storage.support.FileService;
+import com.ragagent.storage.support.StreamRewriter;
 import com.ragagent.stream.StreamBatch;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
@@ -127,7 +127,7 @@ public class SessionStreamController {
     }
 
     /**
-     * 当前租户的实体，供 {@link com.ragagent.storageurl.FileServiceResolver} 读
+     * 当前租户的实体，供 {@link com.ragagent.storage.support.FileServiceResolver} 读
      * {@code storage_engine_config.default_provider}。
      *
      * <p><b>A3-3 接线</b>：Go 从 ctx 里取已加载好的 {@code *types.Tenant}（认证中间件放进去的），

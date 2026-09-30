@@ -1,6 +1,5 @@
 package com.ragagent.im.service;
 
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,8 +79,8 @@ public class ImService {
     private final TenantService tenantService;
     private final SessionKnowledgeQaService knowledgeQaService;
     private final SessionAgentQaService agentQaService;
-    private final com.ragagent.storageurl.Resolver storageResolver;
-    private final com.ragagent.storageurl.FileService defaultFileSvc;
+    private final com.ragagent.storage.support.Resolver storageResolver;
+    private final com.ragagent.storage.support.FileService defaultFileSvc;
 
     // ── 调谐参数（对照 resolveIMConfig，service.go L805-840 + L40-60 常量） ──
     private final int workers;
@@ -121,8 +120,8 @@ public class ImService {
             SessionService sessionService, MessageService messageService,
             CustomAgentService agentService, TenantService tenantService,
             SessionKnowledgeQaService knowledgeQaService, SessionAgentQaService agentQaService,
-            java.util.Optional<com.ragagent.storageurl.Resolver> storageResolver,
-            java.util.Optional<com.ragagent.storageurl.FileService> defaultFileSvc,
+            java.util.Optional<com.ragagent.storage.support.Resolver> storageResolver,
+            java.util.Optional<com.ragagent.storage.support.FileService> defaultFileSvc,
             @Value("${im.workers:5}") int workers,
             @Value("${im.max-queue:50}") int maxQueue,
             @Value("${im.max-per-user:3}") int maxPerUser,
@@ -1008,7 +1007,7 @@ public class ImService {
         req.webSearchEnabled = agent != null && req.agentConfig != null
                 && req.agentConfig.path("web_search_enabled").asBoolean(false);
         req.quotedContext = ImFormat.formatQuotedContext(quote);
-        
+
         return req;
     }
 
@@ -1040,7 +1039,7 @@ public class ImService {
         content = ImFormat.stripImageXMLTags(content);
         content = ImFormat.stripImCitationTags(content);
         if (storageResolver != null) {
-            content = new com.ragagent.storageurl.Rewriter(storageResolver, "IM")
+            content = new com.ragagent.storage.support.Rewriter(storageResolver, "IM")
                     .rewrite(content);
         }
         return content;

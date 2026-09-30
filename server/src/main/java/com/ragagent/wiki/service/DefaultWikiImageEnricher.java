@@ -6,7 +6,7 @@ import java.util.Map;
 
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.repository.ChunkRepository;
-import com.ragagent.searchutil.ImageInfoEnricher;
+import com.ragagent.retrieval.support.ImageInfoEnricher;
 import org.springframework.stereotype.Component;
 
 /**

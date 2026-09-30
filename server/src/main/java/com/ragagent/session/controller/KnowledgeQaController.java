@@ -59,8 +59,8 @@ import com.ragagent.session.service.SteerSinkBridge;
 import com.ragagent.session.service.TemporaryDocumentService;
 import com.ragagent.session.sse.SseContract;
 import com.ragagent.session.sse.StreamEventEmitter;
-import com.ragagent.storageurl.ResourceModeException;
-import com.ragagent.storageurl.StreamRewriter;
+import com.ragagent.storage.support.ResourceModeException;
+import com.ragagent.storage.support.StreamRewriter;
 import com.ragagent.stream.StreamBatch;
 import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
@@ -119,8 +119,8 @@ public class KnowledgeQaController {
     private final com.ragagent.session.service.SteerRunCoordinator steerCoordinator;
     private final StreamEventEmitter emitter;
     private final com.ragagent.session.sse.SseFrameWriter sseFrameWriter;
-    private final com.ragagent.storageurl.FileService fileService;
-    private final com.ragagent.storageurl.StorageBackendResolver storageBackendResolver;
+    private final com.ragagent.storage.support.FileService fileService;
+    private final com.ragagent.storage.support.StorageBackendResolver storageBackendResolver;
     private final com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring;
     private final com.ragagent.memory.service.MemoryExtractionService memoryExtraction;
 
@@ -134,8 +134,8 @@ public class KnowledgeQaController {
             com.ragagent.session.service.SteerRunCoordinator steerCoordinator,
             StreamEventEmitter emitter,
             com.ragagent.session.sse.SseFrameWriter sseFrameWriter,
-            org.springframework.beans.factory.ObjectProvider<com.ragagent.storageurl.FileService> fileService,
-            org.springframework.beans.factory.ObjectProvider<com.ragagent.storageurl.StorageBackendResolver> storageBackendResolver,
+            org.springframework.beans.factory.ObjectProvider<com.ragagent.storage.support.FileService> fileService,
+            org.springframework.beans.factory.ObjectProvider<com.ragagent.storage.support.StorageBackendResolver> storageBackendResolver,
             com.ragagent.session.service.ArtifactCollectorWiring artifactCollectorWiring,
             org.springframework.beans.factory.ObjectProvider<com.ragagent.memory.service.MemoryExtractionService> memoryExtraction) {
         this.sessionService = sessionService;
@@ -161,7 +161,7 @@ public class KnowledgeQaController {
     @PostMapping("/api/v1/knowledge-chat/{session_id}")
     public void knowledgeQA(@PathVariable("session_id") String rawSessionId,
             @RequestBody(required = false) String rawBody,
-            @RequestParam(value = com.ragagent.storageurl.Mode.QUERY_PARAM, required = false) String resourceUrls,
+            @RequestParam(value = com.ragagent.storage.support.Mode.QUERY_PARAM, required = false) String resourceUrls,
             HttpServletResponse response) throws IOException {
         CreateKnowledgeQARequest request = bindQaRequest(rawBody);
         ParsedRequest parsed = parseQARequest(rawSessionId, request, resourceUrls, "KnowledgeQA");
@@ -171,7 +171,7 @@ public class KnowledgeQaController {
     @PostMapping("/api/v1/agent-chat/{session_id}")
     public void agentQA(@PathVariable("session_id") String rawSessionId,
             @RequestBody(required = false) String rawBody,
-            @RequestParam(value = com.ragagent.storageurl.Mode.QUERY_PARAM, required = false) String resourceUrls,
+            @RequestParam(value = com.ragagent.storage.support.Mode.QUERY_PARAM, required = false) String resourceUrls,
             HttpServletResponse response) throws IOException {
         CreateKnowledgeQARequest request = bindQaRequest(rawBody);
         ParsedRequest parsed = parseQARequest(rawSessionId, request, resourceUrls, "AgentQA");
@@ -312,11 +312,11 @@ public class KnowledgeQaController {
 
         // 先解析存储引用形态：SSE 起流后非法值不能再落 400
         try {
-            com.ragagent.storageurl.Mode mode = com.ragagent.storageurl.Mode.resolve(resourceUrls);
-            com.ragagent.storageurl.Rewriter rw = com.ragagent.storageurl.Rewriter.forRequest(
+            com.ragagent.storage.support.Mode mode = com.ragagent.storage.support.Mode.resolve(resourceUrls);
+            com.ragagent.storage.support.Rewriter rw = com.ragagent.storage.support.Rewriter.forRequest(
                     mode, currentTenant(), fileService, storageBackendResolver);
             rc.resourceRewriter = new StreamRewriter(rw);
-        } catch (com.ragagent.storageurl.PublicModeForbiddenException e) {
+        } catch (com.ragagent.storage.support.PublicModeForbiddenException e) {
             log.warn("Rejected resource URL mode: {}", e.getMessage());
             throw BizException.forbidden(e.getMessage());
         } catch (ResourceModeException e) {
