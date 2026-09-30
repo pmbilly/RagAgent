@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -7,6 +7,12 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineCommon;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.chatpipeline.support.ReferencesSupport;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBusInterface;
 import com.ragagent.event.EventType;

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.ragagent.chatpipeline.plugin.Plugin;
+import com.ragagent.chatpipeline.plugin.PluginError;
 
 /**
  * 插件注册表与事件分发器（对照 Go {@code chatpipeline.EventManager}，chat_pipeline.go:23-78）。

@@ -16,6 +16,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.ragagent.chatpipeline.plugin.PluginError;
+import com.ragagent.chatpipeline.plugin.PluginMemoryAffinity;
+import com.ragagent.chatpipeline.plugin.PluginMemoryRecall;
+import com.ragagent.chatpipeline.plugin.PluginRerank;
+import com.ragagent.chatpipeline.plugin.PluginWikiBoost;
+import com.ragagent.chatpipeline.support.ReferencesSupport;
 import com.ragagent.memory.service.MemoryRecall;
 import com.ragagent.common.retrieval.SearchResult;
 
@@ -122,7 +128,7 @@ class RerankRecordingTest {
         }
         for (int i = 0; i < corpus.size(); i++) {
             Map<String, Object> shape = new LinkedHashMap<>();
-            shape.put("out", PluginIntoChatMessage.getEnrichedPassageForChat(corpus.get(i)));
+            shape.put("out", ReferencesSupport.getEnrichedPassageForChat(corpus.get(i)));
             assertRec("rerank_passage", String.format("chat%02d", i), json(shape));
         }
     }

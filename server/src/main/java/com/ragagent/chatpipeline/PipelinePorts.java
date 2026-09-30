@@ -184,7 +184,7 @@ public final class PipelinePorts {
     }
 
     /** 一次数据装载/执行/清理会话（对照 DataAnalysisTool 的插件可见面）。 */
-    interface DataAnalysisSession {
+    public interface DataAnalysisSession {
         com.ragagent.agent.tools.DataAnalysisTool.TableSchema loadFromKnowledge(
                 com.ragagent.agent.tools.DataAnalysisTool.KnowledgeData knowledge);
 

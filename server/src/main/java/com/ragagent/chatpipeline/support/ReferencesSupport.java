@@ -1,11 +1,14 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.support;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineCommon;
 import com.ragagent.common.llm.ToolResult;
+import com.ragagent.knowledge.support.ImageInfoEnricher;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.modelcontext.Registry;
 import com.ragagent.common.retrieval.SearchResult;
@@ -74,7 +77,7 @@ public final class ReferencesSupport {
             row.put("knowledge_title", firstPipelineTitle(result));
             row.put("chunk_index", result.getChunkIndex());
             row.put("chunk_type", result.getChunkType());
-            row.put("content", PluginIntoChatMessage.getEnrichedPassageForChat(result));
+            row.put("content", getEnrichedPassageForChat(result));
             knowledgeRows.add(row);
         }
         // Java 的 SearchResult 默认 null 字段在 Go 侧是 ""（Registry 按非空契约读取）
@@ -186,4 +189,16 @@ public final class ReferencesSupport {
         }
         return result.getKnowledgeFilename();
     }
+    /** 对照 getEnrichedPassageForChat：内容 + 图片信息合并（委托 knowledge.support）。 */
+    public static String getEnrichedPassageForChat(SearchResult result) {
+        if (result.getContent().isEmpty() && result.getImageInfo().isEmpty()) {
+            return "";
+        }
+        if (result.getImageInfo().isEmpty()) {
+            return result.getContent();
+        }
+        return ImageInfoEnricher.enrichContentWithImageInfoForChat(
+                result.getContent(), result.getImageInfo());
+    }
+
 }

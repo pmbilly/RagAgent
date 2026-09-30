@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -8,6 +8,11 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.chatpipeline.support.MatchTypes;
 import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.DataAnalysisTool;
 import com.ragagent.knowledge.domain.Knowledge;

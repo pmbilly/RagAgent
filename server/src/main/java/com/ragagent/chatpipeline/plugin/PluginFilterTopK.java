@@ -1,9 +1,12 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
@@ -71,7 +74,7 @@ public final class PluginFilterTopK implements Plugin {
      * 稳定排序（List.sort 是 TimSort，同 Go 的 SliceStable 语义）。
      * nil 元素沉底（Go 的 {@code left != nil}：非 nil 排前）。
      */
-    static void sortSearchResultsDeterministically(List<SearchResult> results) {
+    public static void sortSearchResultsDeterministically(List<SearchResult> results) {
         results.sort((left, right) -> {
             if (left == null || right == null) {
                 return left == right ? 0 : (left != null ? -1 : 1);

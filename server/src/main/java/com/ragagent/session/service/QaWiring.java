@@ -19,20 +19,20 @@ import com.ragagent.common.session.PipelineMessageImageView;
 import com.ragagent.common.session.PipelineMessageView;
 import com.ragagent.llm.extract.PipelineConfig;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
-import com.ragagent.chatpipeline.PluginChatCompletion;
-import com.ragagent.chatpipeline.PluginChatCompletionStream;
-import com.ragagent.chatpipeline.PluginExtractEntity;
-import com.ragagent.chatpipeline.PluginFilterTopK;
-import com.ragagent.chatpipeline.PluginIntoChatMessage;
-import com.ragagent.chatpipeline.PluginLoadHistory;
-import com.ragagent.chatpipeline.PluginMemoryAffinity;
-import com.ragagent.chatpipeline.PluginMemoryRecall;
-import com.ragagent.chatpipeline.PluginMerge;
-import com.ragagent.chatpipeline.PluginQueryUnderstand;
-import com.ragagent.chatpipeline.PluginRerank;
-import com.ragagent.chatpipeline.PluginSearchParallel;
-import com.ragagent.chatpipeline.PluginWebFetch;
-import com.ragagent.chatpipeline.PluginWikiBoost;
+import com.ragagent.chatpipeline.plugin.PluginChatCompletion;
+import com.ragagent.chatpipeline.plugin.PluginChatCompletionStream;
+import com.ragagent.chatpipeline.plugin.PluginExtractEntity;
+import com.ragagent.chatpipeline.plugin.PluginFilterTopK;
+import com.ragagent.chatpipeline.plugin.PluginIntoChatMessage;
+import com.ragagent.chatpipeline.plugin.PluginLoadHistory;
+import com.ragagent.chatpipeline.plugin.PluginMemoryAffinity;
+import com.ragagent.chatpipeline.plugin.PluginMemoryRecall;
+import com.ragagent.chatpipeline.plugin.PluginMerge;
+import com.ragagent.chatpipeline.plugin.PluginQueryUnderstand;
+import com.ragagent.chatpipeline.plugin.PluginRerank;
+import com.ragagent.chatpipeline.plugin.PluginSearchParallel;
+import com.ragagent.chatpipeline.plugin.PluginWebFetch;
+import com.ragagent.chatpipeline.plugin.PluginWikiBoost;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.retrieval.HybridSearchService;
 import com.ragagent.common.settings.ConversationProperties;
@@ -413,12 +413,12 @@ public class QaWiring {
         var extractEntityTemplate = new PipelineConfig.PromptTemplateStructured();
 
         // 对照 container.go L380-396 的 Invoke 顺序（注册序=执行链序）
-        mgr.register(new com.ragagent.chatpipeline.PluginSearch(knowledgeBaseService, knowledgeService,
+        mgr.register(new com.ragagent.chatpipeline.plugin.PluginSearch(knowledgeBaseService, knowledgeService,
                 null, config, webSearch, tenantService, null, null, null));
         mgr.register(new PluginRerank(modelService));
         mgr.register(new PluginWebFetch());
         mgr.register(new PluginMerge(chunkRepository, null));
-        mgr.register(new com.ragagent.chatpipeline.PluginDataAnalysis(modelService, knowledgeService,
+        mgr.register(new com.ragagent.chatpipeline.plugin.PluginDataAnalysis(modelService, knowledgeService,
                 new com.ragagent.chatpipeline.DataAnalysisSessionFactoryAdapter()));
         mgr.register(new PluginIntoChatMessage(messageService));
         mgr.register(new PluginChatCompletion(modelService));
@@ -429,7 +429,7 @@ public class QaWiring {
         mgr.register(new PluginMemoryRecall(memoryService));
         mgr.register(new PluginExtractEntity(modelService, extractEntityTemplate,
                 knowledgeBaseRepository, knowledgeService, knowledgeRepository, neo4jEnabled));
-        mgr.register(new com.ragagent.chatpipeline.PluginSearchEntity(
+        mgr.register(new com.ragagent.chatpipeline.plugin.PluginSearchEntity(
                 retrieveGraphRepository, chunkRepository, knowledgeRepository));
         mgr.register(new PluginSearchParallel(mgr, knowledgeBaseService, knowledgeService,
                 null, config,

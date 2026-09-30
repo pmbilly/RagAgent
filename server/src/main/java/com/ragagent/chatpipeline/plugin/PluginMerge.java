@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -7,6 +7,14 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineCommon;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.chatpipeline.support.ImageInfoCollector;
+import com.ragagent.chatpipeline.support.MatchTypes;
+import com.ragagent.chatpipeline.support.SearchSupport;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.common.retrieval.SearchResult;
@@ -150,7 +158,7 @@ public final class PluginMerge implements Plugin {
     }
 
     /** 对照 groupAndMergeCurrentContent：KnowledgeID+ChunkType 分组 → 组内顺序合并 → 全局确定性排序。 */
-    List<SearchResult> groupAndMergeCurrentContent(List<SearchResult> results) {
+    public List<SearchResult> groupAndMergeCurrentContent(List<SearchResult> results) {
         // KnowledgeID → ChunkType → chunks（LinkedHashMap 保插入序；全局排序还原确定性）
         Map<String, Map<String, List<SearchResult>>> knowledgeGroup = new LinkedHashMap<>();
         for (SearchResult chunk : results) {
@@ -214,7 +222,7 @@ public final class PluginMerge implements Plugin {
     // merge.go：resolveParentChunks（text→parent / image→text→grandparent）
     // ------------------------------------------------------------------
 
-    List<SearchResult> resolveParentChunks(ChatManage chatManage, List<SearchResult> results) {
+    public List<SearchResult> resolveParentChunks(ChatManage chatManage, List<SearchResult> results) {
         if (results.isEmpty() || chunkRepo == null) {
             return results;
         }
@@ -440,7 +448,7 @@ public final class PluginMerge implements Plugin {
     // merge_expand.go：短上下文邻居扩展
     // ------------------------------------------------------------------
 
-    List<SearchResult> expandShortContextWithNeighbors(ChatManage chatManage, List<SearchResult> results) {
+    public List<SearchResult> expandShortContextWithNeighbors(ChatManage chatManage, List<SearchResult> results) {
         final int minLen = 350;
         final int maxLen = 850;
 
@@ -665,12 +673,12 @@ public final class PluginMerge implements Plugin {
     }
 
     /** 对照 runeLen。 */
-    static int runeLen(String s) {
+    public static int runeLen(String s) {
         return s == null ? 0 : s.codePointCount(0, s.length());
     }
 
     /** 对照 mergeOrderedContent：prev + base + next 按序拼接，超 maxLen 截 rune。 */
-    static String mergeOrderedContent(String prev, String base, String next, int maxLen) {
+    public static String mergeOrderedContent(String prev, String base, String next, int maxLen) {
         String content = base;
         if (!prev.isEmpty()) {
             // Go 用 searchutil.JoinChunkContent（带重叠折叠），不是裸拼接——
@@ -750,7 +758,7 @@ public final class PluginMerge implements Plugin {
     // merge_faq.go：FAQ 答案回填
     // ------------------------------------------------------------------
 
-    List<SearchResult> populateFAQAnswers(ChatManage chatManage, List<SearchResult> results) {
+    public List<SearchResult> populateFAQAnswers(ChatManage chatManage, List<SearchResult> results) {
         if (results.isEmpty() || chunkRepo == null) {
             return results;
         }
@@ -846,7 +854,7 @@ public final class PluginMerge implements Plugin {
     }
 
     /** 对照 buildFAQAnswerContent。 */
-    static String buildFAQAnswerContent(FaqChunkMetadata meta) {
+    public static String buildFAQAnswerContent(FaqChunkMetadata meta) {
         if (meta == null) {
             return "";
         }
@@ -884,7 +892,7 @@ public final class PluginMerge implements Plugin {
     // ------------------------------------------------------------------
 
     /** 对照 filterHistoryResults：Jaccard ≥ 0.15 的历史引用，分数打 6 折，上限 3 条。 */
-    static List<SearchResult> filterHistoryResults(ChatManage chatManage, List<SearchResult> currentResults) {
+    public static List<SearchResult> filterHistoryResults(ChatManage chatManage, List<SearchResult> currentResults) {
         final double minSimilarity = 0.15;
         final double historyScoreDiscount = 0.6;
         final int maxHistoryResults = 3;
@@ -961,7 +969,7 @@ public final class PluginMerge implements Plugin {
      * 对照 mergeSequentialChunks：可信对按位置合并；含编辑/扩展/过期内容的对
      * 落回文本匹配。入参必须已按 ChunkIndex 排序。
      */
-    List<SearchResult> mergeSequentialChunks(String knowledgeID, List<SearchResult> chunks) {
+    public List<SearchResult> mergeSequentialChunks(String knowledgeID, List<SearchResult> chunks) {
         if (chunks.isEmpty()) {
             return null;
         }
@@ -1031,7 +1039,7 @@ public final class PluginMerge implements Plugin {
     }
 
     /** 对照 chunkTrusted：坐标可信判定（长度不变量）。 */
-    static boolean chunkTrusted(SearchResult chunk) {
+    public static boolean chunkTrusted(SearchResult chunk) {
         return chunk.getContentRevision() == 0
                 && !chunk.isContentRewritten()
                 && chunk.getEndAt() > chunk.getStartAt()
@@ -1039,12 +1047,12 @@ public final class PluginMerge implements Plugin {
     }
 
     /** 对照 mergeSituation。 */
-    enum MergeSituation {
+    public enum MergeSituation {
         SEPARATE, EXTEND, SUBSUME, JOIN_DISTINCT, JOIN_TEXT
     }
 
     /** 对照 classifyMerge：先可信位置路径，再不可信文本/顺序路径。 */
-    static MergeSituation classifyMerge(SearchResult lastChunk, int lastIndex, SearchResult current) {
+    public static MergeSituation classifyMerge(SearchResult lastChunk, int lastIndex, SearchResult current) {
         if (chunkTrusted(lastChunk) && chunkTrusted(current)
                 && current.getStartAt() >= lastChunk.getStartAt()) {
             if (current.getStartAt() > lastChunk.getEndAt()) {

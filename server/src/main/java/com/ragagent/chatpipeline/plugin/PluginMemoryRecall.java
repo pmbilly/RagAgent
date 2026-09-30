@@ -1,10 +1,15 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.chatpipeline.support.MemoryUsedMemories;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventType;
 import com.ragagent.event.MemoryRecalledData;

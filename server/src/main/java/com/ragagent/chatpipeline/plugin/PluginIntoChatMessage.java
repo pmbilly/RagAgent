@@ -1,13 +1,17 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.chatpipeline.support.ReferencesSupport;
 import com.ragagent.common.security.InputSanitizer;
 import com.ragagent.common.retrieval.SearchResult;
-import com.ragagent.knowledge.support.ImageInfoEnricher;
 import com.ragagent.common.pipeline.ChunkTypes;
 import com.ragagent.retrieval.obs.RetrievalObs;
 import com.ragagent.common.prompt.MessageAttachmentsPrompt;
@@ -151,7 +155,7 @@ public final class PluginIntoChatMessage implements Plugin {
             contextsBuilder.append("<source type=\"faq\" priority=\"high\">\n");
             for (int i = 0; i < faqResults.size(); i++) {
                 SearchResult result = faqResults.get(i);
-                String passage = getEnrichedPassageForChat(result);
+                String passage = ReferencesSupport.getEnrichedPassageForChat(result);
                 if (hasHighConfidenceFAQ && i == 0) {
                     contextsBuilder.append(String.format(
                             "<context id=\"FAQ-%d\" match=\"exact\">%s</context>\n", i + 1, passage));
@@ -166,7 +170,7 @@ public final class PluginIntoChatMessage implements Plugin {
                 contextsBuilder.append("<source type=\"document\" priority=\"supplementary\">\n");
                 for (int i = 0; i < docResults.size(); i++) {
                     SearchResult result = docResults.get(i);
-                    String passage = getEnrichedPassageForChat(result);
+                    String passage = ReferencesSupport.getEnrichedPassageForChat(result);
                     contextsBuilder.append(String.format(
                             "<context id=\"DOC-%d\">%s</context>\n", i + 1, passage));
                 }
@@ -175,7 +179,7 @@ public final class PluginIntoChatMessage implements Plugin {
         } else {
             for (int i = 0; i < mergeResult.size(); i++) {
                 SearchResult result = mergeResult.get(i);
-                String passage = getEnrichedPassageForChat(result);
+                String passage = ReferencesSupport.getEnrichedPassageForChat(result);
                 if (i > 0) {
                     contextsBuilder.append("\n");
                 }
@@ -252,7 +256,7 @@ public final class PluginIntoChatMessage implements Plugin {
     }
 
     /** 对照 buildDocumentHeader：&lt;documents&gt; 元数据头（title/desc/metadata 转义）。 */
-    static String buildDocumentHeader(List<SearchResult> results) {
+    public static String buildDocumentHeader(List<SearchResult> results) {
         record DocMeta(String title, String description, String metadata) {}
 
         Map<String, Boolean> seen = new LinkedHashMap<>();
@@ -305,15 +309,4 @@ public final class PluginIntoChatMessage implements Plugin {
         return MessageAttachmentsPrompt.escapeHtml(s);
     }
 
-    /** 对照 getEnrichedPassageForChat：内容 + 图片信息合并（委托 searchutil）。 */
-    static String getEnrichedPassageForChat(SearchResult result) {
-        if (result.getContent().isEmpty() && result.getImageInfo().isEmpty()) {
-            return "";
-        }
-        if (result.getImageInfo().isEmpty()) {
-            return result.getContent();
-        }
-        return ImageInfoEnricher.enrichContentWithImageInfoForChat(
-                result.getContent(), result.getImageInfo());
-    }
 }

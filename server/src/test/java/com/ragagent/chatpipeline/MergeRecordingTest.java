@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.chatpipeline.plugin.PluginMerge;
+import com.ragagent.chatpipeline.support.SearchSupport;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;

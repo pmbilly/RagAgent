@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.support;
 
 /**
  * 匹配类型常量（对照 Go {@code types.MatchType} int 枚举，internal/types/embedding.go:13-27）。

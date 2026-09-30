@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -12,6 +12,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.ragagent.agent.tools.SearchTarget;
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.chatpipeline.support.QueryTokenizer;
+import com.ragagent.chatpipeline.support.SearchSupport;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.event.TenantContextSnapshot;
 import com.ragagent.tracing.langfuse.LangfuseManager;
@@ -206,7 +212,7 @@ public final class PluginSearch implements Plugin {
      * 按 embedding 模型分组检索。共享模型（name+endpoint）的整库目标合并成一次
      * HybridSearch；特定文档目标逐目标检索。
      */
-    List<SearchResult> searchByTargets(ChatManage chatManage) {
+    public List<SearchResult> searchByTargets(ChatManage chatManage) {
         if (chatManage.getSearchTargets().isEmpty()) {
             return null;
         }
@@ -590,7 +596,7 @@ public final class PluginSearch implements Plugin {
     // ------------------------------------------------------------------
 
     /** 对照 runQueryExpansion：低召回时的本地变体检索，并发窗口 16。 */
-    List<SearchResult> runQueryExpansion(ChatManage chatManage) {
+    public List<SearchResult> runQueryExpansion(ChatManage chatManage) {
         Map<String, Object> f = new LinkedHashMap<>();
         f.put("current", chatManage.getSearchResult().size());
         f.put("threshold", chatManage.getEmbeddingTopK());
@@ -705,7 +711,7 @@ public final class PluginSearch implements Plugin {
      * 对照 expandQueries：无 LLM 的本地变体生成（去停用词、引号短语、分隔符切段、
      * 去疑问词），最多 5 条。
      */
-    List<String> expandQueries(ChatManage chatManage) {
+    public List<String> expandQueries(ChatManage chatManage) {
         String query = chatManage.getRewriteQuery().trim();
         if (query.isEmpty()) {
             return null;
@@ -784,7 +790,7 @@ public final class PluginSearch implements Plugin {
     private static final Pattern QUESTION_WORDS =
             Pattern.compile("^(什么是|什么|如何|怎么|怎样|为什么|为何|哪个|哪些|谁|何时|何地|请问|请告诉我|帮我|我想知道|我想了解)");
 
-    static List<String> extractKeywords(String text) {
+    public static List<String> extractKeywords(String text) {
         List<String> words = tokenize(text);
         List<String> keywords = new ArrayList<>(words.size());
         for (String w : words) {
@@ -796,7 +802,7 @@ public final class PluginSearch implements Plugin {
         return keywords;
     }
 
-    static List<String> extractPhrases(String text) {
+    public static List<String> extractPhrases(String text) {
         List<String> phrases = new ArrayList<>();
         java.util.regex.Matcher m = QUOTED_PHRASE.matcher(text);
         while (m.find()) {
@@ -815,7 +821,7 @@ public final class PluginSearch implements Plugin {
 
     private static final Pattern DELIMITERS = Pattern.compile("[,，;；、。！？!?\\s]+");
 
-    static List<String> splitByDelimiters(String text) {
+    public static List<String> splitByDelimiters(String text) {
         String[] parts = DELIMITERS.split(text);
         List<String> result = new ArrayList<>();
         for (String p : parts) {
@@ -827,7 +833,7 @@ public final class PluginSearch implements Plugin {
         return result;
     }
 
-    static String removeQuestionWords(String text) {
+    public static String removeQuestionWords(String text) {
         return QUESTION_WORDS.matcher(text).replaceAll("").trim();
     }
 
@@ -835,7 +841,7 @@ public final class PluginSearch implements Plugin {
      * 对照 tokenize：Han 连续段走 jieba CutForSearch（searchutil 的分词 seam，
      * 4.4 的已知降级：Java 默认二字滑窗，可注入恢复）；字母数字段整段成词。
      */
-    static List<String> tokenize(String text) {
+    public static List<String> tokenize(String text) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean[] currentIsHan = new boolean[] {false};

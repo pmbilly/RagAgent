@@ -1,9 +1,12 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
@@ -84,7 +87,7 @@ public final class PluginMemoryAffinity implements Plugin {
     }
 
     /** 对照 affinityFactor：log1p 曲线，8 次命中饱和到 ×1.15。 */
-    static double affinityFactor(int hits) {
+    public static double affinityFactor(int hits) {
         if (hits < AFFINITY_MIN_HITS) {
             return 1;
         }

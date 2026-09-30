@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -7,6 +7,12 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.History;
+import com.ragagent.chatpipeline.PipelineCommon;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
@@ -289,7 +295,7 @@ public final class PluginQueryUnderstand implements Plugin {
     }
 
     /** 对照 buildPrompts：system/user 提示词（conversation/query/language 占位符）。 */
-    String[] buildPrompts(ChatManage chatManage, List<History> historyList) {
+    public String[] buildPrompts(ChatManage chatManage, List<History> historyList) {
         String userPrompt = config.getRewritePromptUser();
         if (!chatManage.getRewritePromptUser().isEmpty()) {
             userPrompt = chatManage.getRewritePromptUser();
@@ -367,7 +373,7 @@ public final class PluginQueryUnderstand implements Plugin {
     /**
      * 对照 parseOutput：解析失败保持原查询与原意图（blank 直接返回）。
      */
-    void parseOutput(ChatManage chatManage, String raw) {
+    public void parseOutput(ChatManage chatManage, String raw) {
         String content = raw == null ? "" : raw.trim();
         if (content.isEmpty()) {
             return;
@@ -387,14 +393,14 @@ public final class PluginQueryUnderstand implements Plugin {
     }
 
     /** 对照 queryUnderstandOutput。 */
-    static final class StructuredQueryOutput {
-        String rewriteQuery = "";
-        String intent = "";
-        String imageDescription = "";
+    public static final class StructuredQueryOutput {
+        public String rewriteQuery = "";
+        public String intent = "";
+        public String imageDescription = "";
     }
 
     /** 对照 parseStructuredQueryOutput：直接 JSON → 截 {..} 再试。 */
-    static StructuredQueryOutput parseStructuredQueryOutput(String raw) {
+    public static StructuredQueryOutput parseStructuredQueryOutput(String raw) {
         String content = raw == null ? "" : raw.trim();
         if (content.isEmpty()) {
             return null;
@@ -480,7 +486,7 @@ public final class PluginQueryUnderstand implements Plugin {
     }
 
     /** 对照 applyIntentPromptOverride：agent 覆写优先，空白回落全局。返回是否应用。 */
-    static boolean applyIntentPromptOverride(ChatManage chatManage, Map<String, String> globalPrompts) {
+    public static boolean applyIntentPromptOverride(ChatManage chatManage, Map<String, String> globalPrompts) {
         String intentKey = chatManage.getIntent();
         if (chatManage.getIntentPromptOverrides() != null) {
             String raw = chatManage.getIntentPromptOverrides().get(intentKey);
@@ -500,7 +506,7 @@ public final class PluginQueryUnderstand implements Plugin {
     }
 
     /** 对照 formatConversationHistory。 */
-    static String formatConversationHistory(List<History> historyList) {
+    public static String formatConversationHistory(List<History> historyList) {
         if (historyList == null || historyList.isEmpty()) {
             return "";
         }

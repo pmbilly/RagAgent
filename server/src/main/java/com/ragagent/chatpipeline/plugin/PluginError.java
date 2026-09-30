@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 /**
  * 插件执行错误（对照 Go {@code chatpipeline.PluginError} 与包级预定义错误，chat_pipeline.go:80-140）。

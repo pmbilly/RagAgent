@@ -12,6 +12,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.ragagent.chatpipeline.plugin.PluginError;
+import com.ragagent.chatpipeline.plugin.PluginSearch;
+import com.ragagent.chatpipeline.plugin.PluginSearchParallel;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;

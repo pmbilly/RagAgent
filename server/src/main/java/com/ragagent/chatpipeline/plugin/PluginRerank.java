@@ -1,4 +1,4 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -10,6 +10,11 @@ import java.util.regex.Pattern;
 import java.util.function.BiFunction;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineCommon;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.domain.ImageInfo;
@@ -413,7 +418,7 @@ public final class PluginRerank implements Plugin {
     }
 
     /** 对照 rerankFallbackMinScore。 */
-    static double rerankFallbackMinScore(List<SearchTarget> searchTargets) {
+    public static double rerankFallbackMinScore(List<SearchTarget> searchTargets) {
         if (new SearchTarget.SearchTargets(searchTargets).hasRecallThresholdOverride()) {
             return 0;
         }
@@ -428,7 +433,7 @@ public final class PluginRerank implements Plugin {
     }
 
     /** 对照 compositeScore。 */
-    static double compositeScore(SearchResult sr, double modelScore, double baseScore) {
+    public static double compositeScore(SearchResult sr, double modelScore, double baseScore) {
         double sourceWeight;
         switch (sr.getKnowledgeSource() == null ? "" : sr.getKnowledgeSource().toLowerCase(java.util.Locale.ROOT)) {
             case "web_search" -> sourceWeight = 0.95;
@@ -542,7 +547,7 @@ public final class PluginRerank implements Plugin {
     private static final Pattern RE_LIST_MARKER = Pattern.compile("(?m)^[\\t ]*(?:[-*+]|\\d+\\.)\\s+");
 
     /** 对照 cleanPassageForRerank：12 步去格式噪声（顺序即语义）。 */
-    static String cleanPassageForRerank(String text) {
+    public static String cleanPassageForRerank(String text) {
         // 1. 代码块解包
         text = RE_CODE_BLOCK.matcher(text).replaceAll("$1");
         // 2. LaTeX 块解包
@@ -594,7 +599,7 @@ public final class PluginRerank implements Plugin {
     }
 
     /** 对照 getEnrichedPassage：Content + ImageInfo + GeneratedQuestions 合并。 */
-    static String getEnrichedPassage(SearchResult result) {
+    public static String getEnrichedPassage(SearchResult result) {
         String combinedText = cleanPassageForRerank(result.getContent());
         List<String> enrichments = new ArrayList<>();
 

@@ -1,8 +1,11 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.List;
 
 import com.ragagent.agent.tools.SearchTarget;
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.pipeline.ChunkTypes;

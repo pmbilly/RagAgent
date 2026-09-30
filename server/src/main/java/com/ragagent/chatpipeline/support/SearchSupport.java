@@ -1,10 +1,14 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.support;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.History;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.plugin.PluginSearch;
 import com.ragagent.knowledge.support.SearchChunkMerge;
 import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.common.retrieval.SearchResult;
@@ -24,7 +28,7 @@ public final class SearchSupport {
      * 对照 getSearchResultFromHistory：从最近一轮带引用的历史里取引用，
      * 全部标 MatchTypeHistory（int 常量 3，对照 types.MatchTypeHistory）。
      */
-    static List<SearchResult> getSearchResultFromHistory(ChatManage chatManage) {
+    public static List<SearchResult> getSearchResultFromHistory(ChatManage chatManage) {
         List<History> history = chatManage.getHistory();
         if (history == null || history.isEmpty()) {
             return null;
@@ -45,7 +49,7 @@ public final class SearchSupport {
      * 对照 removeDuplicateResults：只按 chunk ID 去重（共享 ParentChunkID 不算重复），
      * 加内容签名去重（searchutil.BuildContentSignature）。
      */
-    static List<SearchResult> removeDuplicateResults(List<SearchResult> results) {
+    public static List<SearchResult> removeDuplicateResults(List<SearchResult> results) {
         Map<String, Boolean> seen = new LinkedHashMap<>();
         Map<String, String> contentSig = new LinkedHashMap<>(); // sig → 首个 chunk ID
         List<SearchResult> uniqueResults = new ArrayList<>();
@@ -75,7 +79,7 @@ public final class SearchSupport {
      * 两个阈值：字面包含（归一化后）或 token 重叠系数 ≥ 0.85。
      * 输入必须已经过 ID/签名去重；分数低者被移除，平分按内容长度（长者保留）。
      */
-    static List<SearchResult> removePartialOverlaps(List<SearchResult> results) {
+    public static List<SearchResult> removePartialOverlaps(List<SearchResult> results) {
         final double overlapThreshold = 0.85;
 
         if (results == null || results.size() <= 1) {
@@ -147,7 +151,7 @@ public final class SearchSupport {
     }
 
     /** 对照 logSearchScoreSample：前 8 条分数采样日志（观测面，非契约）。 */
-    static void logSearchScoreSample(String action, List<SearchResult> results) {
+    public static void logSearchScoreSample(String action, List<SearchResult> results) {
         final int maxLogRows = 8;
         int limit = results == null ? 0 : Math.min(maxLogRows, results.size());
         for (int i = 0; i < limit; i++) {

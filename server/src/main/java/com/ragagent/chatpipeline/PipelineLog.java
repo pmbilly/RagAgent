@@ -120,7 +120,7 @@ public final class PipelineLog {
         return sb.toString();
     }
 
-    static int runeLength(String s) {
+    public static int runeLength(String s) {
         return s.codePointCount(0, s.length());
     }
 

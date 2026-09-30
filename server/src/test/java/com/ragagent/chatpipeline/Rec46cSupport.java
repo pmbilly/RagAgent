@@ -9,6 +9,9 @@ import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
 
+import com.ragagent.chatpipeline.plugin.Plugin;
+import com.ragagent.chatpipeline.plugin.PluginError;
+import com.ragagent.chatpipeline.support.QueryTokenizer;
 import com.ragagent.common.session.PipelineMessageImageView;
 import com.ragagent.common.session.PipelineMessageView;
 import com.ragagent.common.session.PipelineUsedMemoryView;

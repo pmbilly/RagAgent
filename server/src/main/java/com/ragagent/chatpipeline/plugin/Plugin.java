@@ -1,4 +1,5 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
+import com.ragagent.chatpipeline.ChatManage;
 
 /**
  * chat 管线插件接口（对照 Go {@code chatpipeline.Plugin}，chat_pipeline.go:11-21）。

@@ -16,6 +16,8 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import com.ragagent.chatpipeline.plugin.PluginError;
+import com.ragagent.chatpipeline.plugin.PluginQueryUnderstand;
 import com.ragagent.common.session.PipelineMessageAttachmentView;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageAttachment;

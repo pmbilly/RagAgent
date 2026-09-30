@@ -1,10 +1,17 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.ChatManage;
+import com.ragagent.chatpipeline.EventManager;
+import com.ragagent.chatpipeline.PipelineCommon;
+import com.ragagent.chatpipeline.PipelineEventType;
+import com.ragagent.chatpipeline.PipelineLog;
+import com.ragagent.chatpipeline.PipelinePorts;
+import com.ragagent.chatpipeline.support.SearchSupport;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.llm.extract.PipelineConfig;

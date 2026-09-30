@@ -15,6 +15,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.ragagent.chatpipeline.plugin.PluginChatCompletion;
+import com.ragagent.chatpipeline.plugin.PluginChatCompletionStream;
+import com.ragagent.chatpipeline.plugin.PluginError;
+import com.ragagent.chatpipeline.plugin.PluginIntoChatMessage;
+import com.ragagent.chatpipeline.plugin.PluginWebFetch;
+import com.ragagent.chatpipeline.support.ReferencesSupport;
 import com.ragagent.common.llm.ResponseType;
 import com.ragagent.common.session.PipelineMessageAttachmentView;
 import com.ragagent.common.retrieval.SearchResult;

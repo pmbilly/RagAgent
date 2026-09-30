@@ -1,10 +1,11 @@
-package com.ragagent.chatpipeline;
+package com.ragagent.chatpipeline.support;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.knowledge.support.ImageInfoEnricher;
 
