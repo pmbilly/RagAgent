@@ -444,6 +444,26 @@
    改注入端口（视图是 record，getter 改访问器）、删除冗余 reader；`MemoryUsedMemories`（构造 session 的 `UsedMemory`）
    唯一调用方是 chatpipeline → 归位 `chatpipeline`。测试桩同步换端口。
    **反向 `session → memory`（5 文件、7 类型）未动**——单向不成环。
+
+   ✅ **④-k `knowledge ⇄ retrieval` 已完成（2026-09-30，环 5 → 4）——"能搬的搬 + 搬不动的端口化"两步**：
+   **第一步（`b320749`）背边归位**：① `knowledge/service/VectorStoreService` → `retrieval/engine/`——它是
+   postgres 检索引擎的 embeddings 索引写面，与读面 `PgVectorRetrieveRepository` 同属引擎存储层
+   （知识写链 6 个使用点改经 `retrieval.engine`，L3→L2 方向合法）；② `retrieval/support/ImageInfoEnricher`
+   + `SearchChunkMerge` → `knowledge/support/`（chunk 图片富化 / 内容重叠拼接，语义属知识域；消费方
+   chatpipeline/wiki/session/knowledge 改向——`chatpipeline → knowledge` 包边本就存在，L2→L3 净数不变）；
+   新入知识域的两个类顺过 `KnowledgeCodeConventionsTest`（全限定名清零、黑话注释人话化、import 归整）。
+   **第二步端口组**：`common/knowledge` 三个只读端口 + `common/embedding` 一个能力端口，全部由知识域实现：
+   - `KnowledgeBaseSearchGateway`（+`KnowledgeBaseSearchFacts`：租户/类型/嵌入模型/绑店/两条索引开关；
+     实现走 `getAllTenantById`，保留 `ensureDefaults` 的"索引策略零值 → vector+keyword 默认"回填）；
+   - `KnowledgeDocumentGateway`（+`KnowledgeDocumentFacts`：结果装配用的文档元数据）；
+   - `ChunkSearchGateway`（+`ChunkFacts` 15 字段：内容/坐标/类型/索引态/邻接/关系/两条 json 列）；
+   - `EmbeddingGateway`（按 `ModelFacts` 嵌入；实现 `EmbedderClient` 把受检异常收敛为同名消息的运行时异常）。
+   实现方分别是 `KnowledgeBaseService`/`KnowledgeService`/`ChunkRepository`/`EmbedderClient`（各加一个
+   "实体 → 载荷"映射方法）；`HybridSearchService` 注入四个端口、**不再 import 知识域**。
+   `resolveEmbeddingModelKeys` 对外签名由"KB 实体列表"改为"**KB id 列表**"（跨域端口不传实体）——
+   `chatpipeline/PipelinePorts`、`PluginSearch`、session 的 `QaWiring`/`AgentToolBackends` 与测试桩同步。
+   **收尾数据**：环 5 → **4**、L2→L3 10 → **9**；全量 4,675 用例 + `spotlessCheck` 绿；基线刷新 **4/1/9**。
+
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 
