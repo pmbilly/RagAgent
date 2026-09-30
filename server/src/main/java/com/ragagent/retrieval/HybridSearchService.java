@@ -31,8 +31,8 @@ import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.model.domain.Model;
-import com.ragagent.model.service.ModelService;
+import com.ragagent.common.model.ModelFacts;
+import com.ragagent.common.model.ModelGateway;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.retrieval.engine.EffectiveEngines;
@@ -103,7 +103,7 @@ public class HybridSearchService {
     private final KnowledgeBaseService kbService;
     private final KnowledgeService knowledgeService;
     private final ChunkRepository chunkRepository;
-    private final ModelService modelService;
+    private final ModelGateway modelGateway;
     private final TenantService tenantService;
     private final EmbedderClient embedderClient;
     private final PgVectorRetrieveRepository pgRepository;
@@ -111,13 +111,13 @@ public class HybridSearchService {
     private final TenantStoreOwnership storeOwnership;
 
     public HybridSearchService(KnowledgeBaseService kbService, KnowledgeService knowledgeService,
-            ChunkRepository chunkRepository, ModelService modelService, TenantService tenantService,
+            ChunkRepository chunkRepository, ModelGateway modelGateway, TenantService tenantService,
             EmbedderClient embedderClient, PgVectorRetrieveRepository pgRepository,
             RetrieveEngineRegistry engineRegistry, TenantStoreOwnership storeOwnership) {
         this.kbService = kbService;
         this.knowledgeService = knowledgeService;
         this.chunkRepository = chunkRepository;
-        this.modelService = modelService;
+        this.modelGateway = modelGateway;
         this.tenantService = tenantService;
         this.embedderClient = embedderClient;
         this.pgRepository = pgRepository;
@@ -297,7 +297,7 @@ public class HybridSearchService {
         if (kb == null) {
             throw new RetrievalException("knowledge base not found");
         }
-        Model model = modelService.getModelByID(kb.getEmbeddingModelId());
+        ModelFacts model = modelGateway.findFacts(kb.getEmbeddingModelId());
         if (model == null) {
             throw new RetrievalException("model not found: " + kb.getEmbeddingModelId());
         }
@@ -349,11 +349,9 @@ public class HybridSearchService {
             if (ref.tenantId() != null) {
                 prev.withTenantId(ref.tenantId()).replay();
             }
-            Model model = modelService.getModelByID(ref.modelId());
-            String baseUrl = model != null && model.getParameters() != null
-                    ? model.getParameters().getBaseUrl()
-                    : "";
-            return model == null ? ref.modelId() : model.getName() + "|" + baseUrl;
+            ModelFacts model = modelGateway.findFacts(ref.modelId());
+            String baseUrl = model == null ? "" : model.baseUrl();
+            return model == null ? ref.modelId() : model.name() + "|" + baseUrl;
         } catch (Exception e) {
             log.warn("ResolveEmbeddingModelKeys: cannot resolve model {} for tenant {}: {}",
                     ref.modelId(), ref.tenantId(), e.toString());

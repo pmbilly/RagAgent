@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.ragagent.common.error.AppError;
 import java.util.Comparator;
+import com.ragagent.common.storage.UploadLimits;
 
 /**
  * 本地存储引擎。
@@ -153,20 +154,14 @@ public class LocalStorageService {
         }
     }
 
+    /** 委托到 {@link UploadLimits}（纯规则搬 common 后本类保留同名入口，使用者零感知）。 */
     public static long maxFileSizeBytes() {
-        String env = System.getenv("MAX_FILE_SIZE_MB");
-        int mb = 50;
-        if (env != null && !env.isBlank()) {
-            try {
-                mb = Integer.parseInt(env.trim());
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return (long) mb * 1024 * 1024;
+        return UploadLimits.maxFileSizeBytes();
     }
 
+    /** 委托到 {@link UploadLimits}。 */
     public static long maxFileSizeMb() {
-        return maxFileSizeBytes() / (1024 * 1024);
+        return UploadLimits.maxFileSizeMb();
     }
 
     private static String sanitize(String fileName) {

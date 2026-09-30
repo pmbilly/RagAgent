@@ -26,10 +26,6 @@
     ],
     [
       "knowledge",
-      "model"
-    ],
-    [
-      "knowledge",
       "retrieval"
     ],
     [
@@ -47,10 +43,6 @@
     [
       "memory",
       "session"
-    ],
-    [
-      "model",
-      "retrieval"
     ]
   ],
   "depend_on_config": [
@@ -92,10 +84,6 @@
     [
       "retrieval",
       "knowledge"
-    ],
-    [
-      "retrieval",
-      "model"
     ],
     [
       "retrieval",

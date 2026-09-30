@@ -375,6 +375,15 @@
    跨类后私有字段直写改 setter（35 处；各处 setter 的 null 归一与原赋值等价，wire 测试逐字段断言通过）。
    效果：消 `embedding ⇄ model`、`llm ⇄ model`、`model ⇄ rerank`；**L2→L3 直连 14 → 11**；
    `model ⇄ retrieval` 只剩 `retrieval/HybridSearchService`（`Model` + `ModelService` 真业务用法，另案）。
+
+   ✅ **④-c model 域边界收口 已完成（2026-09-30，环 13 → 11）**：两处各按既有轴——
+   ① **只读端口**：`common/model/ModelGateway` + 载荷 `ModelFacts(modelId,name,baseUrl,apiKey)`，由 `ModelService` 实现
+   （`findFacts`，空值归一 ""，顺带消除 `EmbedderClient.configFrom` 在 parameters 为 null 时的潜在 NPE）；
+   `retrieval/HybridSearchService` 改注入端口（两处用法：查询嵌入的 HTTP 配置 + "同一嵌入模型"身份键；
+   `EmbedderClient` 新增 `configFrom(ModelFacts)` 载荷重载，原 `Model` 重载保留并委托——它还有 5 个 knowledge/memory/wiki 调用方）→ 消 `model ⇄ retrieval`。
+   ② **纯规则搬 common**：`MAX_FILE_SIZE_MB` 限额规则从 `knowledge.storage.LocalStorageService` 的静态方法提为
+   `common/storage/UploadLimits`（原方法改委托，11 个使用者零感知）；model 调试端点改用它 → 消 `knowledge ⇄ model`
+   （该环的反向只有这 1 行）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

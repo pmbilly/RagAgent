@@ -16,7 +16,7 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.embedding.Embedder;
-import com.ragagent.knowledge.storage.LocalStorageService;
+import com.ragagent.common.storage.UploadLimits;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.chat.ProviderAdapters;
 import com.ragagent.llm.chat.ThinkingStrategies;
@@ -132,8 +132,8 @@ public class ModelDebugController {
         if (file != null && fileName(file) != null && !fileName(file).isEmpty()) {
             fileName = fileName(file);
             fileSize = file.getSize();
-            long maxBytes = LocalStorageService.maxFileSizeBytes();
-            long maxMb = LocalStorageService.maxFileSizeMb();
+            long maxBytes = UploadLimits.maxFileSizeBytes();
+            long maxMb = UploadLimits.maxFileSizeMb();
             if (fileSize > maxBytes) {
                 throw new BizException(AppError.badRequest("file cannot exceed " + maxMb + " MB"));
             }

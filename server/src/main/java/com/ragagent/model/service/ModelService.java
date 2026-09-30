@@ -23,6 +23,8 @@ import com.ragagent.model.mapper.ModelUsageMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.common.model.ModelFacts;
+import com.ragagent.common.model.ModelGateway;
 
 /**
  * 对照 Go internal/application/service/model.go 的 modelService（阶段 2 子集：
@@ -37,7 +39,26 @@ import org.springframework.stereotype.Service;
  * - DeleteModel：内置 400；被 KB/agent/长期记忆引用 → 400 code=2300 + usage details
  */
 @Service
-public class ModelService {
+public class ModelService implements ModelGateway  {
+
+    /**
+     * 跨域只读端口的实现（{@link ModelGateway}）：只回填调用侧需要的字段。
+     *
+     * <p>空值归一为 {@code ""}（与消费方原先的 {@code p == null ? "" : p.getBaseUrl()} 一致；
+     * 顺带消除了原先 {@code EmbedderClient.configFrom} 在 parameters 为 null 时的潜在 NPE）。</p>
+     */
+    @Override
+    public ModelFacts findFacts(String modelId) {
+        Model m = getModelByID(modelId);
+        if (m == null) {
+            return null;
+        }
+        var p = m.getParameters();
+        return new ModelFacts(m.getId(), m.getName() == null ? "" : m.getName(),
+                p == null || p.getBaseUrl() == null ? "" : p.getBaseUrl(),
+                p == null || p.getApiKey() == null ? "" : p.getApiKey());
+    }
+
 
     private static final Logger log = LoggerFactory.getLogger(ModelService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();

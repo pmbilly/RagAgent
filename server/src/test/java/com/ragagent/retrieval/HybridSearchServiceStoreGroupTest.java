@@ -22,9 +22,8 @@ import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.model.domain.Model;
-import com.ragagent.model.domain.ModelParameters;
-import com.ragagent.model.service.ModelService;
+import com.ragagent.common.model.ModelFacts;
+import com.ragagent.common.model.ModelGateway;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.EngineTypes.IndexWithScore;
@@ -53,7 +52,7 @@ class HybridSearchServiceStoreGroupTest {
     private KnowledgeBaseService kbService;
     private KnowledgeService knowledgeService;
     private ChunkRepository chunkRepository;
-    private ModelService modelService;
+    private ModelGateway modelGateway;
     private TenantService tenantService;
     private EmbedderClient embedderClient;
     private PgVectorRetrieveRepository pgRepository;
@@ -66,14 +65,14 @@ class HybridSearchServiceStoreGroupTest {
         kbService = mock(KnowledgeBaseService.class);
         knowledgeService = mock(KnowledgeService.class);
         chunkRepository = mock(ChunkRepository.class);
-        modelService = mock(ModelService.class);
+        modelGateway = mock(ModelGateway.class);
         tenantService = mock(TenantService.class);
         embedderClient = mock(EmbedderClient.class);
         pgRepository = mock(PgVectorRetrieveRepository.class);
         registry = mock(RetrieveEngineRegistry.class);
         ownership = mock(TenantStoreOwnership.class);
         service = new HybridSearchService(kbService, knowledgeService, chunkRepository,
-                modelService, tenantService, embedderClient, pgRepository, registry, ownership);
+                modelGateway, tenantService, embedderClient, pgRepository, registry, ownership);
     }
 
     private KnowledgeBase kb(String id, String vectorStoreId, String embeddingModelId) {
@@ -100,12 +99,8 @@ class HybridSearchServiceStoreGroupTest {
         return k;
     }
 
-    private Model model(String name) {
-        Model m = new Model();
-        m.setName(name);
-        m.setParameters(new ModelParameters());
-        m.getParameters().setBaseUrl("http://model-host/v1");
-        return m;
+    private ModelFacts facts(String name) {
+        return new ModelFacts("id-" + name, name, "http://model-host/v1", "k");
     }
 
     private SearchParams params(String... kbIds) {
@@ -121,8 +116,8 @@ class HybridSearchServiceStoreGroupTest {
 
     @Test
     void multiKbWithDifferentEmbeddingModelsIsRejected() {
-        when(modelService.getModelByID("emb-a")).thenReturn(model("modelA"));
-        when(modelService.getModelByID("emb-b")).thenReturn(model("modelB"));
+        when(modelGateway.findFacts("emb-a")).thenReturn(facts("modelA"));
+        when(modelGateway.findFacts("emb-b")).thenReturn(facts("modelB"));
         when(kbService.getAllTenantById("kb-a")).thenReturn(kb("kb-a", null, "emb-a"));
         when(kbService.getAllTenantById("kb-b")).thenReturn(kb("kb-b", null, "emb-b"));
 
@@ -137,7 +132,7 @@ class HybridSearchServiceStoreGroupTest {
 
     @Test
     void multiKbSharingOneEmbeddingModelPassesValidation() {
-        when(modelService.getModelByID(anyString())).thenReturn(model("shared"));
+        when(modelGateway.findFacts(anyString())).thenReturn(facts("shared"));
         when(kbService.getAllTenantById("kb-a")).thenReturn(zeroStrategyKb("kb-a", "emb-a"));
         when(kbService.getAllTenantById("kb-b")).thenReturn(zeroStrategyKb("kb-b", "emb-a"));
         // env-store 组的引擎解析在 RETRIEVE_DRIVER 已配置的机器上也会发生——桩成真实件，

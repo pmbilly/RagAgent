@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.model.domain.Model;
 import org.springframework.stereotype.Service;
 import java.io.IOException;
+import com.ragagent.common.model.ModelFacts;
 
 /**
  * 最小 OpenAI 兼容 embedding 客户端。
@@ -32,12 +33,20 @@ public class EmbedderClient {
 
     public static EmbedConfig configFrom(Model model) {
         var p = model.getParameters();
-        String base = p.getBaseUrl();
+        return configFrom(new ModelFacts(model.getId(), model.getName(),
+                p == null || p.getBaseUrl() == null ? "" : p.getBaseUrl(),
+                p == null || p.getApiKey() == null ? "" : p.getApiKey()));
+    }
+
+    /** 端口载荷版本：给不持有 {@code Model} 实体的调用方（如 retrieval 的查询嵌入）。 */
+    public static EmbedConfig configFrom(ModelFacts f) {
+        String base = f.baseUrl() == null ? "" : f.baseUrl();
         if (base.isEmpty()) {
             base = "https://api.openai.com/v1";
         }
         base = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-        return new EmbedConfig(base, p.getApiKey(), model.getName());
+        return new EmbedConfig(base, f.apiKey() == null ? "" : f.apiKey(),
+                f.name() == null ? "" : f.name());
     }
 
     /** 批量嵌入 */
