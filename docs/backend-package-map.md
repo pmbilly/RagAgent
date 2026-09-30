@@ -71,10 +71,15 @@
 | `chatpipeline` | 根 13 + `plugin/`(19) + `support/`(6) | `Plugin*` + `Plugin` 接口进 `plugin/`；纯逻辑（SearchSupport/QueryTokenizer/ReferencesSupport/ImageInfoCollector/MemoryUsedMemories/MatchTypes）进 `support/`；骨架与跨域 seam（PipelinePorts/Builder/Common/EventType/Log/Progress/ChatManage/History/QueryIntent/SummaryConfig/EventManager）留根 |
 | `event` | 根 13 + `payload/`(26) | 26 个 `*Data` 事件载荷进 `payload/`；总线机制（Event/EventBus*/EventHandler/EventMiddleware/EventIds/EventJson/EventType/GlobalEventBus/PanicError）与事件信封 `TenantContextSnapshot` 留根 |
 
-**余 5 个**：`embedding`(22)、`rerank`(15)、`stream`(12)、`modelcontext`(12)、`config`(9)。
+**provider 族（2026-09-30 批 P1 收尾，已拆）**：
 
-- [ ] 这 5 个多为单一职责的小包（`config` 是装配层、`stream` 是 SSE 契约、`modelcontext` 是工具协议）——
-      拆前先判有无**天然族**，没有族就保持扁平（别为扁平而扁平）。
+| 包 | 结果 | 拆法 |
+|---|---|---|
+| `embedding` | 根 9 + `provider/`(11) | 10 家 provider 实现进 `provider/`；公共骨架 `BaseEmbedder` 随行（它只被 provider 用，同包后无需放宽可见性）；框架（Embedder/Factory/Http/GoJson/池化）留根 |
+| `rerank` | 根 6 + `provider/`(8) | 8 家 provider 实现进 `provider/`；框架（Reranker/Factory/Http/GoJson/RankResult）留根 |
+
+**余 3 个（判定为"保持扁平"，不拆）**：`stream`(12，SSE/流存储单一契约)、`modelcontext`(12，工具协议层)、
+`config`(9，装配层)。判据：**无天然族就不拆**（别为扁平而扁平）；`agent/tools` 同理待 agent 域重构时按能力分组。
 
 ### P2 超大单层（≥70 文件）
 

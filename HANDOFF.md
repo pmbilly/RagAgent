@@ -589,6 +589,29 @@
   92 文件全部是 import 行同增同减（179/179）；编译一次通过。
 - 收尾数据：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
 
+## 11.14 P1 收尾：embedding / rerank 拆 provider（2026-09-30）
+
+包地图 §P1 最后两个有天然族的扁平包：
+
+| 包 | 前 | 后 |
+|---|---|---|
+| `embedding` | 22 扁平 | 根 9（Embedder/Factory/Http/GoJson/池化）+ `provider/`(11)（10 家实现 + 公共骨架 `BaseEmbedder`） |
+| `rerank` | 15 扁平 | 根 6 + `provider/`(8) |
+
+- **公共骨架随 provider 走**：`BaseEmbedder` 只被 provider 用（包外零引用），搬进 `provider/` 后
+  子类的包私有访问天然成立——**比放宽可见性更干净**（首轮误把它留在根包，代价是构造器/字段/
+  若干方法全要放宽，已回退）。工厂 `EmbedderFactory` 在根包，仍需 `BaseEmbedder.setCustomHeaders`/
+  `applyDimensionOverride`/`setSupportsDimensionOverride` 与 rerank 各家的 `setCustomHeaders` 放宽为 public。
+- 测试探针同前批：`EmbeddingWireTest`/`RerankWireTest` 留在根包，放宽 4 个成员
+  （`VolcengineReranker.MAX_DOCUMENTS`、`LkeapReranker.Batch`/`lkeapRerankBatches`）。
+- **教训（写进 §13 的搬迁配方）**：批量放下标正则前先确认签名形态；本轮一次误改把
+  `static void applyDimensionOverride(Embedder, boolean)` 改成了 `public (Embedder e, ...)` 编译即报错，
+  靠 `git diff` 逐行复核修回——**正则放宽后务必看 diff**。
+- 收尾数据：环 0/1/6 不变；全量 4,675 用例 + `spotlessCheck` 绿。
+- **P1 收尾状态**：原 10 个扁平包 → ① 早先批次已合并掉 3（`storageurl`/`searchutil`/`webfetch`）；
+  ② 本次拆开 4（`chatpipeline`/`event` §11.11 + `embedding`/`rerank` 本节）；
+  ③ 余 3（`stream`/`modelcontext`/`config`）判定单一职责、**保持扁平**；`agent/tools` 待 agent 域重构时按能力分组。
+
 ## 12. knowledge 包结构地图（样板，其余域照此靠拢）
 
 > **全后端分包地图与体检结论见 `docs/backend-package-map.md`**（2026-09-30：34 顶层包 / 1,599 文件 / 284k 行；P0 包间成环 32 组、P1 扁平包 10 个、P2 超大单层 4 个、P3 顶层 package-info 仅 5/34；复测 `python3 scripts/pkg-audit.py`）。
