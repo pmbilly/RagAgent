@@ -6,12 +6,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,6 +115,7 @@ public class ElasticsearchV8RetrieveRepository
     private volatile boolean useKeywordSuffix;
 
     final ElasticsearchV8SearchOps searchOps;
+    final ElasticsearchV8WriteOps writeOps;
 
     public ElasticsearchV8RetrieveRepository(String addr, String indexName, int numberOfShards,
                                              int numberOfReplicas, String username,
@@ -158,6 +156,7 @@ public class ElasticsearchV8RetrieveRepository
         }
         detectFieldTypes();
         this.searchOps = new ElasticsearchV8SearchOps(this);
+        this.writeOps = new ElasticsearchV8WriteOps(this);
     }
 
     /** 对照 {@code types.ResolveIndexName}：indexName > env > default（共享助手）。 */
@@ -331,89 +330,6 @@ public class ElasticsearchV8RetrieveRepository
         return out;
     }
 
-    // ── 写入 ────────────────────────────────────────────────────────────────
-
-    /** 对照 {@code Save}。 */
-    public void save(IndexInfo embedding, Map<String, Object> additionalParams) throws Exception {
-        VectorEmbedding doc = toDbVectorEmbedding(embedding, additionalParams);
-        if (doc.embedding == null || doc.embedding.length == 0) {
-            throw new IllegalStateException(
-                    "empty embedding vector for chunk ID: " + embedding.chunkId);
-        }
-        HttpResult resp = request("POST", "/" + index + "/_doc", docJson(doc));
-        if (resp.status() < 200 || resp.status() >= 300) {
-            throw new IllegalStateException("elasticsearch index document returned "
-                    + resp.status() + ": " + resp.body());
-        }
-    }
-
-    /** 对照 {@code BatchSave}：bulk NDJSON，create 语义。 */
-    public void batchSave(List<IndexInfo> embeddingList, Map<String, Object> additionalParams)
-            throws Exception {
-        if (embeddingList == null || embeddingList.isEmpty()) {
-            log.warn("[Elasticsearch] Empty list provided to BatchSave, skipping");
-            return;
-        }
-        StringBuilder ndjson = new StringBuilder();
-        for (IndexInfo embedding : embeddingList) {
-            VectorEmbedding doc = toDbVectorEmbedding(embedding, additionalParams);
-            ObjectNode action = MAPPER.createObjectNode();
-            action.set("create", MAPPER.createObjectNode().put("_index", index));
-            ndjson.append(action).append('\n').append(docJson(doc)).append('\n');
-        }
-        HttpResult resp = requestRaw("POST", "/" + index + "/_bulk", ndjson.toString(),
-                "application/x-ndjson");
-        if (resp.status() < 200 || resp.status() >= 300) {
-            throw new IllegalStateException("failed to do bulk: elasticsearch returned "
-                    + resp.status() + ": " + resp.body());
-        }
-        inspectBulkResponse(resp.body());
-        log.info("[Elasticsearch] Successfully batch saved {} indices", embeddingList.size());
-    }
-
-    /**
-     * bulk 响应逐项检视（照 OpenSearch 的 inspectBulkResponse）：HTTP 200 +
-     * {@code errors:true} 是"部分失败"——此前只查状态码，mapping 冲突等单文档失败
-     * 静默丢数据且无日志。部分失败视为批量失败（与 OpenSearch 语义一致）。
-     */
-    private void inspectBulkResponse(String body) throws Exception {
-        com.fasterxml.jackson.databind.JsonNode root;
-        try {
-            root = MAPPER.readTree(body);
-        } catch (Exception e) {
-            return; // 非 JSON 响应不做逐项检视（状态码已过）
-        }
-        if (!root.path("errors").asBoolean(false)) {
-            return;
-        }
-        int total = 0;
-        List<String> msgs = new ArrayList<>();
-        for (com.fasterxml.jackson.databind.JsonNode item : root.path("items")) {
-            var it = item.fields();
-            if (!it.hasNext()) {
-                continue;
-            }
-            String opName = it.next().getKey();
-            com.fasterxml.jackson.databind.JsonNode op = item.path(opName);
-            com.fasterxml.jackson.databind.JsonNode err = op.path("error");
-            if (err.isMissingNode() || err.isNull()) {
-                continue;
-            }
-            total++;
-            log.debug("[Elasticsearch] bulk item err: op={} id={} type={} reason={}",
-                    opName, op.path("_id").asText(""), err.path("type").asText(""),
-                    err.path("reason").asText(""));
-            if (msgs.size() < 5) {
-                msgs.add("[" + opName + " " + op.path("_id").asText("") + "] "
-                        + err.path("type").asText(""));
-            }
-        }
-        if (total == 0) {
-            return;
-        }
-        throw new IllegalStateException("elasticsearch bulk partial failure ("
-                + total + " items failed, first 5: " + String.join("; ", msgs) + ")");
-    }
 
     /** 文档 JSON（键序与 Go struct 声明一致，snake_case）。 */
     static String docJson(VectorEmbedding doc) {
@@ -436,39 +352,6 @@ public class ElasticsearchV8RetrieveRepository
         node.put("is_enabled", doc.isEnabled);
         node.put("is_recommended", doc.isRecommended);
         return node.toString();
-    }
-
-    /** 对照 {@code DeleteByChunkIDList}。 */
-    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByTerms("chunk_id", chunkIdList);
-    }
-
-    /** 对照 {@code DeleteBySourceIDList}。 */
-    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByTerms("source_id", sourceIdList);
-    }
-
-    /** 对照 {@code DeleteByKnowledgeIDList}。 */
-    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
-                                        String knowledgeType) throws Exception {
-        deleteByTerms("knowledge_id", knowledgeIdList);
-    }
-
-    private void deleteByTerms(String field, List<String> ids) throws Exception {
-        if (ids == null || ids.isEmpty()) {
-            log.warn("[Elasticsearch] Empty {} list provided for deletion, skipping", field);
-            return;
-        }
-        ObjectNode query = termsQuery(idField(field), ids);
-        ObjectNode body = MAPPER.createObjectNode();
-        body.set("query", query);
-        HttpResult resp = request("POST", "/" + index + "/_delete_by_query", body.toString());
-        if (resp.status() < 200 || resp.status() >= 300) {
-            throw new IllegalStateException("failed to delete by query: elasticsearch returned "
-                    + resp.status() + ": " + resp.body());
-        }
     }
 
     /** {@code {"terms":{field:[...]}}}（照 types.TermsQuery）。 */
@@ -528,103 +411,48 @@ public class ElasticsearchV8RetrieveRepository
     }
 
 
-    // ── 复制索引 ────────────────────────────────────────────────────────────
 
-    /** 对照 {@code CopyIndices}（分页 + 映射改名 + SourceID 三态 + 目标向量回填）。 */
+    public void save(IndexInfo embedding, Map<String, Object> additionalParams) throws Exception {
+        writeOps.save(embedding, additionalParams);
+    }
+
+    public void batchSave(List<IndexInfo> embeddingList, Map<String, Object> additionalParams)
+            throws Exception {
+        writeOps.batchSave(embeddingList, additionalParams);
+    }
+
+    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteByChunkIdList(chunkIdList, dimension, knowledgeType);
+    }
+
+    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteBySourceIdList(sourceIdList, dimension, knowledgeType);
+    }
+
+    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
+                                        String knowledgeType) throws Exception {
+        writeOps.deleteByKnowledgeIdList(knowledgeIdList, dimension, knowledgeType);
+    }
+
+    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap) throws Exception {
+        writeOps.batchUpdateChunkEnabledStatus(chunkStatusMap);
+    }
+
+    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
+        writeOps.batchUpdateChunkTagID(chunkTagMap);
+    }
+
     public void copyIndices(String sourceKnowledgeBaseId,
                             Map<String, String> sourceToTargetKbIdMap,
                             Map<String, String> sourceToTargetChunkIdMap,
                             String targetKnowledgeBaseId, int dimension, String knowledgeType)
             throws Exception {
-        if (sourceToTargetChunkIdMap == null || sourceToTargetChunkIdMap.isEmpty()) {
-            log.warn("[Elasticsearch] Empty mapping, skipping copy");
-            return;
-        }
-        RetrieveParams params = new RetrieveParams();
-        params.knowledgeBaseIds = List.of(sourceKnowledgeBaseId);
-        List<ObjectNode> filter = getBaseConds(params);
-
-        int from = 0;
-        int totalCopied = 0;
-        while (true) {
-            ObjectNode bool = MAPPER.createObjectNode();
-            ArrayNode filterArray = bool.putArray("filter");
-            filter.forEach(filterArray::add);
-            ObjectNode query = MAPPER.createObjectNode();
-            query.set("bool", bool);
-
-            ObjectNode body = MAPPER.createObjectNode();
-            body.set("query", query);
-            body.put("from", from);
-            body.put("size", COPY_BATCH_SIZE);
-
-            HttpResult resp = request("POST", "/" + index + "/_search", body.toString());
-            if (resp.status() < 200 || resp.status() >= 300) {
-                throw new IllegalStateException("elasticsearch search returned " + resp.status()
-                        + ": " + resp.body());
-            }
-            JsonNode hits = MAPPER.readTree(resp.body()).path("hits").path("hits");
-            int hitsCount = hits.size();
-            if (hitsCount == 0) {
-                break;
-            }
-
-            List<IndexInfo> indexInfoList = new ArrayList<>();
-            Map<String, float[]> embeddingMap = new LinkedHashMap<>();
-            for (JsonNode hit : hits) {
-                VectorEmbedding sourceDoc = parseSource(hit.path("_source"));
-                String targetChunkId = sourceToTargetChunkIdMap.get(sourceDoc.chunkId);
-                if (targetChunkId == null) {
-                    log.warn("[Elasticsearch] Source chunk {} not found in target mapping,"
-                            + " skipping", sourceDoc.chunkId);
-                    continue;
-                }
-                String targetKnowledgeId = sourceToTargetKbIdMap.get(sourceDoc.knowledgeId);
-                if (targetKnowledgeId == null) {
-                    log.warn("[Elasticsearch] Source knowledge {} not found in target mapping,"
-                            + " skipping", sourceDoc.knowledgeId);
-                    continue;
-                }
-                String targetSourceId;
-                if (sourceDoc.sourceId.equals(sourceDoc.chunkId)) {
-                    targetSourceId = targetChunkId;
-                } else if (sourceDoc.sourceId.startsWith(sourceDoc.chunkId + "-")) {
-                    String questionId = sourceDoc.sourceId.substring(sourceDoc.chunkId.length() + 1);
-                    targetSourceId = targetChunkId + "-" + questionId;
-                } else {
-                    targetSourceId = UUID.randomUUID().toString();
-                }
-                if (sourceDoc.embedding != null && sourceDoc.embedding.length > 0) {
-                    // 修复（有意偏离 Go v8）：Go 以"目标 chunkID"为键、而查表用的是 SourceID →
-                    // 生成问题（<chunk>-<qid> 形态）取不到向量、同 chunk 多文档互相覆盖；
-                    // 这里改键为目标 SourceID（逐文档唯一），toDbVectorEmbedding 按 SourceID 查表即命中
-                    embeddingMap.put(targetSourceId, sourceDoc.embedding);
-                }
-
-                IndexInfo info = new IndexInfo();
-                info.content = sourceDoc.content;
-                info.sourceId = targetSourceId;
-                info.sourceType = sourceDoc.sourceType;
-                info.chunkId = targetChunkId;
-                info.knowledgeId = targetKnowledgeId;
-                info.knowledgeBaseId = targetKnowledgeBaseId;
-                indexInfoList.add(info);
-                totalCopied++;
-            }
-
-            if (!indexInfoList.isEmpty()) {
-                Map<String, Object> additionalParams = new LinkedHashMap<>();
-                additionalParams.put("embedding", embeddingMap);
-                batchSave(indexInfoList, additionalParams);
-            }
-
-            from += hitsCount;
-            if (hitsCount < COPY_BATCH_SIZE) {
-                break;
-            }
-        }
-        log.info("[Elasticsearch] Index copy completed, total copied: {}", totalCopied);
+        writeOps.copyIndices(sourceKnowledgeBaseId, sourceToTargetKbIdMap,
+                sourceToTargetChunkIdMap, targetKnowledgeBaseId, dimension, knowledgeType);
     }
+
 
     // ── 迁移知识 ────────────────────────────────────────────────────────────
 
@@ -677,74 +505,6 @@ public class ElasticsearchV8RetrieveRepository
         }
     }
 
-    // ── 批量改状态 / 标签 ───────────────────────────────────────────────────
-
-    /** 对照 {@code BatchUpdateChunkEnabledStatus}：按值分两组 update_by_query。 */
-    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap) throws Exception {
-        if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
-            log.warn("[Elasticsearch] Chunk status map is empty, skipping update");
-            return;
-        }
-        List<String> enabled = new ArrayList<>();
-        List<String> disabled = new ArrayList<>();
-        for (Map.Entry<String, Boolean> entry : chunkStatusMap.entrySet()) {
-            if (Boolean.TRUE.equals(entry.getValue())) {
-                enabled.add(entry.getKey());
-            } else {
-                disabled.add(entry.getKey());
-            }
-        }
-        if (!enabled.isEmpty()) {
-            updateByQuery(enabled, "ctx._source.is_enabled = true", null);
-        }
-        if (!disabled.isEmpty()) {
-            updateByQuery(disabled, "ctx._source.is_enabled = false", null);
-        }
-    }
-
-    /** 对照 {@code BatchUpdateChunkTagID}：按 tagID 分组逐组 update_by_query。 */
-    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
-        if (chunkTagMap == null || chunkTagMap.isEmpty()) {
-            log.warn("[Elasticsearch] Chunk tag map is empty, skipping update");
-            return;
-        }
-        Map<String, List<String>> groups = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : chunkTagMap.entrySet()) {
-            groups.computeIfAbsent(entry.getValue() == null ? "" : entry.getValue(),
-                    k -> new ArrayList<>()).add(entry.getKey());
-        }
-        for (Map.Entry<String, List<String>> group : groups.entrySet()) {
-            updateByQuery(group.getValue(), "ctx._source.tag_id = params.tag_id",
-                    group.getKey());
-        }
-    }
-
-    /** {@code _update_by_query}：query = bool.must[terms chunk_id]；脚本 painless。 */
-    private void updateByQuery(List<String> chunkIds, String scriptSource, String tagId)
-            throws Exception {
-        ObjectNode boolBody = MAPPER.createObjectNode();
-        ArrayNode mustArray = boolBody.putArray("must");
-        mustArray.add(termsQuery(idField("chunk_id"), chunkIds));
-        ObjectNode bool = MAPPER.createObjectNode();
-        bool.set("bool", boolBody);
-
-        ObjectNode script = MAPPER.createObjectNode();
-        script.put("source", scriptSource);
-        script.put("lang", "painless");
-        if (tagId != null) {
-            script.putObject("params").put("tag_id", tagId);
-        }
-
-        ObjectNode body = MAPPER.createObjectNode();
-        body.set("query", bool);
-        body.set("script", script);
-
-        HttpResult resp = request("POST", "/" + index + "/_update_by_query", body.toString());
-        if (resp.status() < 200 || resp.status() >= 300) {
-            throw new IllegalStateException("elasticsearch update_by_query returned "
-                    + resp.status() + ": " + resp.body());
-        }
-    }
 
     // ── HTTP ────────────────────────────────────────────────────────────────
 
