@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.ragagent.agent.approval.McpApproval;
+import com.ragagent.common.approval.McpApproval;
 import com.ragagent.agent.domain.ToolResult;
 import com.ragagent.mcp.domain.McpService;
 import com.ragagent.mcp.domain.McpTool;
@@ -206,9 +206,9 @@ public class McpToolWrapper implements AgentTool {
         // 人工审批门（issue #1173）
         if (gate != null && meta != null && meta.eventBus() != null) {
             if (gate.needsApproval(ApprovalBridge.toCancellation(request.cancellation()), tenantId, service.getId(), mcpTool.getName())) {
-                com.ragagent.agent.approval.Decision decision = gate.requestAndWait(
+                com.ragagent.common.approval.Decision decision = gate.requestAndWait(
                         ApprovalBridge.toCancellation(request.cancellation()),
-                        com.ragagent.agent.approval.PendingRequest.builder()
+                        com.ragagent.common.approval.PendingRequest.builder()
                                 .tenantId(tenantId)
                                 .userId(meta.userId())
                                 .sessionId(meta.sessionId())

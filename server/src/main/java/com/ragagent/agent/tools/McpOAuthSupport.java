@@ -3,9 +3,9 @@ package com.ragagent.agent.tools;
 import java.time.Duration;
 import java.time.Instant;
 
-import com.ragagent.agent.approval.Cancellation;
-import com.ragagent.agent.approval.Decision;
-import com.ragagent.agent.approval.OAuthPendingRequest;
+import com.ragagent.common.approval.Cancellation;
+import com.ragagent.common.approval.Decision;
+import com.ragagent.common.approval.OAuthPendingRequest;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventType;

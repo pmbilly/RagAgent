@@ -4,7 +4,7 @@ import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 
 /**
- * tools 包 ↔ agent.approval 包的类型桥（两个包面之间的显式适配）。
+ * tools 包 ↔ common.approval 包的类型桥（两个包面之间的显式适配）。
  *
  * <ul>
  *   <li>{@code ToolCancellation}（ctx.Err() 语义）→ {@code approval.Cancellation}
@@ -18,11 +18,11 @@ final class ApprovalBridge {
     private ApprovalBridge() {
     }
 
-    static com.ragagent.agent.approval.Cancellation toCancellation(ToolCancellation cancellation) {
+    static com.ragagent.common.approval.Cancellation toCancellation(ToolCancellation cancellation) {
         if (cancellation == null) {
-            return com.ragagent.agent.approval.Cancellation.none();
+            return com.ragagent.common.approval.Cancellation.none();
         }
-        return new com.ragagent.agent.approval.Cancellation() {
+        return new com.ragagent.common.approval.Cancellation() {
             @Override
             public boolean isCancelled() {
                 return cancellation.cancellationError() != null;
@@ -67,7 +67,7 @@ final class ApprovalBridge {
         };
     }
 
-    static com.ragagent.agent.approval.EventBus toEventBus(EventBus bus) {
+    static com.ragagent.common.approval.EventBus toEventBus(EventBus bus) {
         if (bus == null) {
             return null;
         }

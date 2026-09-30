@@ -4,9 +4,9 @@ import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import com.ragagent.agent.approval.ApprovalException;
-import com.ragagent.agent.approval.Decision;
-import com.ragagent.agent.approval.Gate;
+import com.ragagent.common.approval.ApprovalException;
+import com.ragagent.common.approval.Decision;
+import com.ragagent.common.approval.Gate;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;

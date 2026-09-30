@@ -359,6 +359,14 @@
 
    批 2 全景：**环 32 → 17**（批 1 消 8；批 2 消 7），端口三型 = 只读端口（`KnowledgeBaseGateway`）/ 命令端口
    （`StorageBackendProvisioner`、`KnowledgeBaseProvisioner`）/ 共享类型搬家（`MemoryConfig`、`StorageAllowList`）。
+
+   ✅ **④-a `agent ⇄ mcp` 已完成（2026-09-30，环 17 → 16）**：两侧不对称——`agent → mcp` 7 文件（工具集成，保留），
+   `mcp → agent` 只有 3 文件且**全部只用 `agent.approval.*`**（审批机制）。故按"共享能力搬家"轴：
+   ① 先搬 `ResponseType`（18 文件共享的事件契约枚举）`llm.domain` → `common/llm`（否则 common 反向依赖 llm）；
+   ② 再搬 `agent/approval`（27 文件 1,861 行，含 654 行 Gate）→ `common/approval`，其中 MCP 专用的
+   `Adapter`/`McpToolPolicySource` 下沉 `mcp/service`（它们原先替审批包保管 mcp 的行类型）；测试包 9 文件同步搬。
+   搬完 `common/approval` 对 agent/mcp/llm **零依赖**。`ToolPolicy.enabledToolsIndividually`（原包私有）放宽为 public（跨包调用）。
+   验证：全量 4,550 绿 + spotless + 守卫（16/1/14）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

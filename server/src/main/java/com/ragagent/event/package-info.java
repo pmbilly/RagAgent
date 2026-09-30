@@ -67,7 +67,7 @@
  *
  * <h2>Java 侧对接点预告（本包不实现、不 import）</h2>
  * <ul>
- *   <li>{@code agent.approval}：已翻译的 {@code com.ragagent.agent.approval.EventBus}
+ *   <li>{@code common.approval}：已翻译的 {@code com.ragagent.common.approval.EventBus}
  *       最小面（{@code void emit(Event)}）将来由接线层适配到本包的 {@link com.ragagent.event.EventBus}。</li>
  *   <li>{@code session.sse.StreamEventEmitter} / {@code StreamManager.appendEvent}：
  *       AgentStreamHandler 的 Java 版（波 4.6）订阅本包事件并转发进流。</li>

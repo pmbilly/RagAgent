@@ -86,7 +86,7 @@ public class SessionAgentQaService {
     private final com.ragagent.mcp.service.McpServiceService mcpServiceService;
     private final com.ragagent.mcp.service.McpMetadataService mcpMetadataService;
     private final com.ragagent.mcp.protocol.McpClientManager mcpClientManager;
-    private final com.ragagent.agent.approval.Gate toolApprovalGate;
+    private final com.ragagent.common.approval.Gate toolApprovalGate;
     /** 工具图片 VLM 描述器装配（对照 agent_service.go L246-256 的 SetImageDescriber 段）。 */
     private final VlmDescriberWiring vlmDescriberWiring;
     /** 指令型技能的宿主目录（选项 B；weknora.skills.host-dirs，逗号分隔）。 */
@@ -111,7 +111,7 @@ public class SessionAgentQaService {
             com.ragagent.mcp.service.McpServiceService mcpServiceService,
             com.ragagent.mcp.service.McpMetadataService mcpMetadataService,
             com.ragagent.mcp.protocol.McpClientManager mcpClientManager,
-            com.ragagent.agent.approval.Gate toolApprovalGate,
+            com.ragagent.common.approval.Gate toolApprovalGate,
             VlmDescriberWiring vlmDescriberWiring,
             @org.springframework.beans.factory.annotation.Value(
                     "${weknora.skills.host-dirs:}") String hostSkillDirs) {

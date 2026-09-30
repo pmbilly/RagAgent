@@ -64,7 +64,7 @@ public final class McpExposure {
     public static LoadedDirectory loadMcpDirectory(
             McpService service,
             com.ragagent.mcp.protocol.McpClientManager mcpManager,
-            com.ragagent.agent.approval.McpApproval gate,
+            com.ragagent.common.approval.McpApproval gate,
             McpOAuthSupport.McpOAuthSession oauthSess,
             McpMetadataIO metadata,
             boolean live,
@@ -107,7 +107,7 @@ public final class McpExposure {
     public static List<McpTool> loadMcpServiceTools(
             McpService service,
             com.ragagent.mcp.protocol.McpClientManager mcpManager,
-            com.ragagent.agent.approval.McpApproval gate,
+            com.ragagent.common.approval.McpApproval gate,
             McpOAuthSupport.McpOAuthSession oauthSess,
             McpOAuthSupport.OAuthWaiter waiter,
             McpOAuthSupport.CallerIdentity caller) throws Exception {
@@ -171,7 +171,7 @@ public final class McpExposure {
             ToolRegistry registry,
             List<McpService> services,
             com.ragagent.mcp.protocol.McpClientManager mcpManager,
-            com.ragagent.agent.approval.McpApproval gate,
+            com.ragagent.common.approval.McpApproval gate,
             int authWaitTimeoutSeconds,
             long tenantId,
             McpCatalog.McpServiceLookup lookup,

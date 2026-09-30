@@ -2,10 +2,6 @@
   "cycles": [
     [
       "agent",
-      "mcp"
-    ],
-    [
-      "agent",
       "modelcontext"
     ],
     [
