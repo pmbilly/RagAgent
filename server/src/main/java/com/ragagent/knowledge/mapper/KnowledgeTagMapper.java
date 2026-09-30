@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import com.ragagent.knowledge.domain.KnowledgeTag;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * knowledge_tags + knowledge_tag_relations 访问。
@@ -113,14 +114,14 @@ public interface KnowledgeTagMapper {
             + "sort_order, created_at, updated_at) "
             + "VALUES (#{t.id}, #{t.seqId}, #{t.tenantId}, "
             + "#{t.knowledgeBaseId}, #{t.name}, #{t.color}, #{t.sortOrder}, #{t.createdAt}, #{t.updatedAt})")
-    int insertTag(@org.apache.ibatis.annotations.Param("t") KnowledgeTag t);
+    int insertTag(@Param("t") KnowledgeTag t);
 
     /** PG 专用插入：seq_id 由列默认序列分配。 */
     @Insert("INSERT INTO knowledge_tags (id, seq_id, tenant_id, knowledge_base_id, name, color, "
             + "sort_order, created_at, updated_at) "
             + "VALUES (#{t.id}, NEXTVAL('knowledge_tags_seq_id_seq'), #{t.tenantId}, "
             + "#{t.knowledgeBaseId}, #{t.name}, #{t.color}, #{t.sortOrder}, #{t.createdAt}, #{t.updatedAt})")
-    int insertTagPg(@org.apache.ibatis.annotations.Param("t") KnowledgeTag t);
+    int insertTagPg(@Param("t") KnowledgeTag t);
 
     @Select("SELECT COALESCE(MAX(seq_id), 0) FROM knowledge_tags")
     long maxSeqId();
@@ -167,9 +168,9 @@ public interface KnowledgeTagMapper {
             </script>
             """)
     List<KnowledgeTag> listByKBKeyword(long tenantId, String kbId,
-                                       @org.apache.ibatis.annotations.Param("escapedKeyword") String escapedKeyword,
-                                       @org.apache.ibatis.annotations.Param("limit") int limit,
-                                       @org.apache.ibatis.annotations.Param("offset") int offset);
+                                       @Param("escapedKeyword") String escapedKeyword,
+                                       @Param("limit") int limit,
+                                       @Param("offset") int offset);
 
     @Select("""
             <script>
@@ -181,14 +182,14 @@ public interface KnowledgeTagMapper {
             </script>
             """)
     long countByKB(long tenantId, String kbId,
-                   @org.apache.ibatis.annotations.Param("escapedKeyword") String escapedKeyword);
+                   @Param("escapedKeyword") String escapedKeyword);
 
     /** 按主键整行覆写（含零值，照抄）。 */
     @Update("UPDATE knowledge_tags SET seq_id = #{t.seqId}, tenant_id = #{t.tenantId}, "
             + "knowledge_base_id = #{t.knowledgeBaseId}, name = #{t.name}, color = #{t.color}, "
             + "sort_order = #{t.sortOrder}, created_at = #{t.createdAt}, updated_at = #{t.updatedAt} "
             + "WHERE id = #{t.id}")
-    int updateTag(@org.apache.ibatis.annotations.Param("t") KnowledgeTag t);
+    int updateTag(@Param("t") KnowledgeTag t);
 
     @Delete("DELETE FROM knowledge_tags WHERE tenant_id = #{tenantId} AND id = #{id}")
     int deleteByTenantAndId(long tenantId, String id);
@@ -215,7 +216,7 @@ public interface KnowledgeTagMapper {
             </script>
             """)
     List<TagCountRow> batchCountKnowledgeRefs(long tenantId, String kbId,
-                                              @org.apache.ibatis.annotations.Param("tagIds") List<String> tagIds);
+                                              @Param("tagIds") List<String> tagIds);
 
     @Select("""
             <script>
@@ -227,7 +228,7 @@ public interface KnowledgeTagMapper {
             </script>
             """)
     List<TagCountRow> batchCountChunkRefs(long tenantId, String kbId,
-                                          @org.apache.ibatis.annotations.Param("tagIds") List<String> tagIds);
+                                          @Param("tagIds") List<String> tagIds);
 
     /** 分组计数投影行（列别名经 map-underscore → 属性）。 */
     class TagCountRow {

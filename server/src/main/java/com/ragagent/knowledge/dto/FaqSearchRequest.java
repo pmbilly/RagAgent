@@ -1,9 +1,10 @@
 package com.ragagent.knowledge.dto;
 
 import java.util.List;
+import jakarta.validation.constraints.NotBlank;
 
 public record FaqSearchRequest(
-        @jakarta.validation.constraints.NotBlank(message = "queryText: 不能为空")
+        @NotBlank(message = "queryText: 不能为空")
         String queryText,
         double vectorThreshold,
         int matchCount,

@@ -1,8 +1,9 @@
 package com.ragagent.knowledge.dto;
+import jakarta.validation.constraints.NotBlank;
 
 
 public record CopyKnowledgeBaseRequest(
-        @jakarta.validation.constraints.NotBlank(message = "sourceId: 不能为空")
+        @NotBlank(message = "sourceId: 不能为空")
         String sourceId,
         String targetId,
         String taskId) {

@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 分块图抽取任务：
@@ -67,7 +68,7 @@ public class ChunkExtractService {
     private final ExtractPrompts extractPrompts;
 
     /** 生产构造器（Spring 装配；模板来源用 vendored extract 配置）。 */
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public ChunkExtractService(ModelRuntimeFactory modelRuntimeFactory,
                                ChunkRepository chunkRepository,
                                KnowledgeMapper knowledgeMapper,

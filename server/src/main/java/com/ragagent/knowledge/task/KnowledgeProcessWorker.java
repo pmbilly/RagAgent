@@ -48,6 +48,7 @@ import com.ragagent.knowledge.service.VectorStoreService;
 import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.storage.TenantFileStorage;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * 知识处理后台 worker：虚拟线程队列消费 knowledge 的解析主链路
@@ -134,7 +135,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   ModelService modelService,
                                   KnowledgeVectorWrites vectorWrites,
                                   ModelRuntimeFactory modelRuntimeFactory,
-                                  @org.springframework.context.annotation.Lazy KnowledgeService knowledgeService,
+                                  @Lazy KnowledgeService knowledgeService,
                                   SpanTracker spanTracker,
                                   RetrieveGraphRepository graphRepository,
                                   org.springframework.beans.factory.ObjectProvider<

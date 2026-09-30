@@ -1,11 +1,12 @@
 package com.ragagent.knowledge.dto;
 
 import java.util.List;
+import jakarta.validation.constraints.NotBlank;
 
 /** FAQ 条目载荷（落库与跨任务传递共用）。 */
 public record FaqEntryPayload(
         Long id,
-        @jakarta.validation.constraints.NotBlank(message = "standardQuestion: 不能为空")
+        @NotBlank(message = "standardQuestion: 不能为空")
         String standardQuestion,
         List<String> similarQuestions,
         List<String> negativeQuestions,
