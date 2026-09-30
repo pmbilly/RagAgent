@@ -13,12 +13,12 @@
    域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；
    **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）；
    **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）；
-   **retrieval 适配器批已收官（2026-10-01，7 仓 14 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7 全部出榜（§14.7.5）。
-4. **下一步**：`retrieval` 收尾（OpenSearch 1,652 / Doris 1,265 同刀序 + HybridSearchService 1,260 单独侦察）→
+   **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）。
+4. **下一步**：`HybridSearchService` 1,260 单独侦察（引擎族已清零）→
    `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **27 个**（清单见 §14.3）。
+6. **全仓存量**：≥800 行的类还有 **26 个**（清单见 §14.3）。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -134,7 +134,7 @@
 | 阶段 2 神类切片（session 域） | AgentQaService / QaController / Resolution / 其余神类 | **全部出榜**（§11 总览表；15 个同包协作者；4 条契约测试） |
 | 阶段 2 神类切片（wiki 域，2026-10-01） | WikiPageController / WikiIngestService | **全部出榜**（10 刀 → 10 个包内协作者；1,311→272、1,208→509；§14.7.2） |
 | 阶段 2 神类切片（im 域，2026-10-01） | ImService | **出榜**（5 刀 → 5 个包内协作者；1,445→664；§14.7.4） |
-| 阶段 2 适配器批（retrieval，2026-10-01） | 7 个引擎仓 | **全部出榜**（sqlite 2 刀 + 续轮 6 仓 12 刀，14 个协作者；≥800 引擎清零；§14.7.5） |
+| 阶段 2 适配器批（retrieval，2026-10-01） | 9 个引擎仓 | **全部出榜**（sqlite 2 刀 + 6 仓 12 刀 + 尾仓 opensearch 3 刀/doris 3 刀，23 个协作者；≥800 引擎清零；§14.7.5） |
 
 ### 7.2 当前存量（实测）
 
@@ -356,13 +356,13 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **27 个**；适配器批后 38→27）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **26 个**；适配器批后 38→26）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | `DataSourceService` 1,828 · `FeishuClient` 1,154 · `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
-| retrieval | `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260（非引擎族，单独侦察）——其余 8 引擎仓已全部出榜（§14.7.5，含 opensearch 3 刀） |
+| retrieval | `HybridSearchService` 1,260（非引擎族，单独侦察）——9 个引擎仓已全部出榜（§14.7.5，含 opensearch 3 刀 / doris 3 刀） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | 其余单类 | `RemoteApiChat` 1,366（llm）· `FaqImportService` 1,235（knowledge 例外）· `AuthController` 1,167 · `PluginMerge` 1,155（chatpipeline）· `SessionKnowledgeQaService` 1,036（session 例外）· `McpServiceController` 937 · `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `TenantCatalogController` 980 · `SourceRegistry` 878 · `UserService` 876 · `KnowledgeService` 848（knowledge 例外）· `OAuthHandler` 825 · `KnowledgeProcessWorker` 814 |
 | im / llm / knowledge / auth / chatpipeline | `ImService` 1,445 · `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `AuthController` 1,167 · `PluginMerge` 1,155 |
@@ -581,7 +581,16 @@ doris 3 文件 / elasticsearch 2 / milvus 3 / qdrant 1 / sqlite 2 / tencentvecto
 `service.cfg`）；③`http.send(`/`join(` 等自身含目标词的调用 → send/in 用负向断言正则限定；
 ④跨包共享静态（`classifyFailure` 门面侧 HTTP 底座也调）→ 留门面放宽包内。
 收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 28→**27**。
-检索域剩：`DorisRetrieveRepository` 1,265（同刀序可复制）+ `HybridSearchService` 1,260（非引擎族）。
+
+**doris 尾仓记录（2026-10-01，3 刀出榜）**：`DorisRetrieveRepository` 1,265→**423**
+（D1 `8830875` 检索簇 6 成员 → `DorisSearchOps`；D2 `64316e3` 写/删/批量/拷贝/迁移 21 成员（含
+`RowLocation` record 与 legacy 批量路径）→ `DorisWriteOps`；D3 `64bd557` 兼容模式解析/建表/ANN 就绪
+17 成员（三 record 随簇）→ `DorisAdminOps`）。
+**D3 新坑位**：①记录随簇后门面字段类型改指新宿主（`volatile DorisAdminOps.CompatResolution`），
+ops 的同包嵌套 import 删除；②D2 已放宽的签名（`ensureTable`/`tableExists`）在 D3 侦察时签名已无
+`private`——**侦察必须基于上一刀落盘后的现场**，别用陈旧行号或旧修饰符。
+收官闸门：clean 全量 4,668/0 + 环守卫基线保持；全仓 ≥800 类 27→**26**。
+检索域剩：`HybridSearchService` 1,260（非引擎族）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
