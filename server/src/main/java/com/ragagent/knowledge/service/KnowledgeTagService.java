@@ -159,7 +159,6 @@ public class KnowledgeTagService {
             throw new BizException(AppError.conflict("标签名称已存在"));
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
         // "未分类" 标签排最前
         if (UNTAGGED_TAG_NAME.equals(trimmedName)) {
             sortOrder = -1;

@@ -27,20 +27,17 @@ public class KnowledgeBatchOpsService {
     private final KnowledgeMapper knowledgeMapper;
     private final ChunkMapper chunkMapper;
     private final KnowledgeService.KnowledgeProcessWorker worker;
-    private final KnowledgeFolderService folderService;
     private final KnowledgeFileService knowledgeFileService;
     private final KnowledgeService facade;
 
     public KnowledgeBatchOpsService(KnowledgeMapper knowledgeMapper,
                                     ChunkMapper chunkMapper,
                                     @Lazy KnowledgeService.KnowledgeProcessWorker worker,
-                                    KnowledgeFolderService folderService,
                                     KnowledgeFileService knowledgeFileService,
                                     @Lazy KnowledgeService facade) {
         this.knowledgeMapper = knowledgeMapper;
         this.chunkMapper = chunkMapper;
         this.worker = worker;
-        this.folderService = folderService;
         this.knowledgeFileService = knowledgeFileService;
         this.facade = facade;
     }
@@ -115,7 +112,7 @@ public class KnowledgeBatchOpsService {
                 .eq(Knowledge::getTenantId, KnowledgeService.tenantId())
                 .isNull(Knowledge::getDeletedAt));
         for (Knowledge row : rows) {
-            folderService.rejectMovingKnowledge(row);
+            KnowledgeFolderService.rejectMovingKnowledge(row);
         }
         if (rows.isEmpty()) {
             return 0;
