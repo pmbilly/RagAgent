@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
  *   <li><b>KB 访问</b>：{@code middleware.RequireKBAccess(KBIDFromXxxParam, Viewer/Editor, ...)}
  *       —— 解析 KB（404）→ API-Key 白名单 → 同空间授予（跨空间 403 信封）。</li>
  * </ol>
- * <p>Wiki 控制器（{@code WikiPageController#requireWikiKB}）已确立同样的模式；
+ * <p>Wiki 守卫（{@code WikiKbAccessGuard#requireWikiKB}）已确立同样的模式；
  * chunk 与 wiki 的差别在解析链多一跳（knowledge_id/chunk_id → kb_id），且
  * by-id 路由的 ownership 查找显式重校验租户（GetChunkByIDOnly 无空间过滤）。</p>
  * <p><b>判定顺序必须逐层复刻</b>（契约样例依赖顺序）：</p>

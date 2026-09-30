@@ -2,7 +2,7 @@
 
 > 本文档写给在 `~/ragagent` 打开的新会话/新成员。**一切背景以本文为准**；最近的执行细节在 `git log`。
 > 种子：自 `~/ragagent-java` @ `646aba7`（2026-09-28）分叉，git 历史完整保留。
-> **最近更新 2026-10-01**（session 域批次收官 + 本文重排为交接版）。
+> **最近更新 2026-10-01**（session 批次收官 + wiki 域批次收官：两神类出榜，§14.7.2）。
 
 ## ⭐ 接手须知（5 分钟版）
 
@@ -10,11 +10,13 @@
 2. **总目标**＝按 Java 标准提升可读性（§0）；**行为不变**是底线（测试是安全网）；已定决策见 §2（勿再讨论）。
 3. **已完成**：P0/P1/P2/P3 包结构治理（§11.8~§11.14）；**session 域阶段 2 神类批次全收官**（§11 总览表）——
    `SessionAgentQaService` 1,430→**364**、`KnowledgeQaController` 1,614→**328**、`SessionQaResolution` 2,906→**706**，
-   域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）。
-4. **下一步（已定）**：**`wiki` 域**阶段 2 —— 见 §14.7 执行计划（两个类：`WikiPageController` 1,311、`WikiIngestService` 1,208）。
+   域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；
+   **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）。
+4. **下一步（§14.7 第 5 条建议序）**：`im`（单类 1,445，好收官）→ `retrieval` 四引擎"适配器批" →
+   `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **38 个**（清单见 §14.3）；批次顺序建议见 §14.7 末尾。
+6. **全仓存量**：≥800 行的类还有 **36 个**（清单见 §14.3）；批次顺序建议见 §14.7 末尾。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -65,6 +67,7 @@
 - main：**1,535 文件 / 27.9 万行**；test：**401 文件 / 12.6 万行 / 1,366 契约 fixture**；frontend：**465 文件 / 20.0 万行**。
 - 后端测试：**4,681 用例全绿**（含 6 个 skip）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
 - **≥800 行的类（main，全仓）**：AgentEngine 3,235、WikiIngestBatchHandler 2,268、WikiIngestService 2,182、InitializationController 1,981、DataSourceService 1,827、SessionKnowledgeQaService 1,764、MemoryService 1,660、OpenSearchRetrieveRepository 1,652、WikiPageServiceImpl 1,642、KnowledgeQaController 1,616……
+  （**2026-09-30 历史快照，多数已过时**——活榜单以 §14.3 为准：2026-10-01 实测 36 个）
 - **knowledge 包（已整治，可作样板）**：**197 文件 / 25,264 行**；最大三个 = `FaqImportService` 1,234、`KnowledgeService` 850、`KnowledgeProcessWorker` 814；13 个子包见 §12；容器类/`*Util` 反模式命名已清零。
 - **agent 域（2026-09-30 A/B/E 波后）**：agent 145 文件 / 24,438 行 + agentm 30 文件 / 5,614 行；**≥800 行类 0 个**（A 波前 8 个）；**Go 锚点 0**（479 处/186 文件已清扫,§13.11/13.13 判据,真实不变量改中性陈述保留）；12 个子包全有 package-info；`@JsonProperty` 余 30 处已随落库换锚清零（§11.1）。
 - **Go 遗留面（阶段 3 的存量，均为本仓 grep 口径）**：Go 兼容序列化器**线上引用 0 处**（2026-09-30 退役完成，`0ac456e`）；**工具面保留 5 个类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`，服务于 §11 边界内仍按 Go 字节的手搓载荷与 provider 请求体）；"对照 Go / GORM"类注释锚点 **6,157 处**（阶段 3 随触碰清洗，先摘不变量信息再删锚点，不搞专项大扫除）；裸 `System.getenv()` **151 处**（收敛进 `@ConfigurationProperties`）。
@@ -127,12 +130,14 @@
 | P0 包间解环 | 全仓包间环 / 依赖 config 包 | **环 0 组**、依赖 config 仅 1 包、L2→L3 6 条（方向合法，属阶段 4）——守卫 `python3 scripts/check-package-cycles.py` |
 | P1 扁平包 / P2 分包 / P3 归位 | chatpipeline·event·wiki/service·knowledge/dto·embedding·rerank 等 | 全部完成（§11.11~§11.14、§11.10） |
 | 阶段 2 神类切片（session 域） | AgentQaService / QaController / Resolution / 其余神类 | **全部出榜**（§11 总览表；15 个同包协作者；4 条契约测试） |
+| 阶段 2 神类切片（wiki 域，2026-10-01） | WikiPageController / WikiIngestService | **全部出榜**（10 刀 → 10 个包内协作者；1,311→272、1,208→509；§14.7.2） |
 
 ### 7.2 当前存量（实测）
 
 - session 域：**100 文件 / 25,147 行**；最大类 `SessionKnowledgeQaService` 1,036（例外）→ 其后 `SessionController` 791 / `SessionQaResolution` 706 / `QaSearchTargets` 706 / `AgentStreamBridge` 696 / `SessionService` 650。
-- 全仓 ≥800 行的类：**38 个**（清单与分域建议见 §14.3）。
-- 测试：session 域 388 条 / 失败 0（本轮实测）；全量闸门命令见 §9。
+- wiki 域（2026-10-01 批次后）：**144 文件 / 24,910 行**；≥800 剩 4 个 = `WikiPageServiceImpl` 1,008 / `WikiPageRepository` 858 / `WikiIngestDedupService` 851 / `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2）。
+- 全仓 ≥800 行的类：**36 个**（清单与分域建议见 §14.3）。
+- 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
 
@@ -347,14 +352,14 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 实测：全仓 ≥800 行的类共 **38 个**）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **36 个**；wiki 批次收官后 38→36）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | `DataSourceService` 1,828 · `FeishuClient` 1,154 · `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
 | retrieval | `OpenSearchRetrieveRepository` 1,652 · `DorisRetrieveRepository` 1,265 · `HybridSearchService` 1,260 · `QdrantRetrieveRepository` 1,025 |
-| wiki | `WikiPageController` 1,311 · `WikiIngestService` 1,208（**下一步**，见 §14.7） |
+| wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | im / llm / knowledge / auth / chatpipeline | `ImService` 1,445 · `RemoteApiChat` 1,366 · `FaqImportService` 1,235 · `AuthController` 1,167 · `PluginMerge` 1,155 |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
 
@@ -411,7 +416,7 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 - **别跳过闸门**：只跑 `:server:test` 会漏掉 Spotless（§13.14）。
 
 
-### 14.7 wiki 域执行计划（下一步，2026-10-01 定；边界侦察见 §14.8）
+### 14.7 wiki 域执行计划（2026-10-01 定并**已执行完毕**，落刀记录见 §14.7.2；边界侦察见 §14.8）
 
 **目标类**：`wiki/controller/WikiPageController` 1,311、`wiki/service/ingest/WikiIngestService` 1,208（域内 ≥800 就这两个）。
 先读 `§14.1~§14.6` 与 `§13`，再照下面的刀序走（每刀独立提交 + harness 自动回退）。
@@ -450,6 +455,26 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 **闸门口径**：每刀 = `--rerun-tasks` 重编 + `--tests "com.ragagent.wiki.*"` + spotlessCheck + 忠实性核验；收官 = clean 全量（基线 **4,668 用例 / 0 失败**，实测 2026-10-01）+ 前端三绿（本批不动前端契约，理论零影响，跑一次确认）。域内其余 ≥800（WikiPageServiceImpl 1,008 / WikiPageRepository 858 / WikiIngestDedupService 851 / WikiPageFolderSupport 821）**不在本批**，收尾时 §14.3 如实刷新。
 5. **之后批次顺序（建议）**：`im`（单类 1,445，好收官）→ `retrieval` 的 4 个 engine（形似，做"适配器批"，一轮可重复）
    → `knowledge` / `auth` / `llm` / `chatpipeline` 的 1,000+ 类 → `datasource` / `memory`（体量最大，单独立项）。
+
+#### 14.7.2 wiki 批次落刀记录（2026-10-01 执行完毕，10 刀全绿；边界判定见 §14.7.1）
+
+| 刀 | 协作者（包内 final class） | 内容 | 提交 |
+|---|---|---|---|
+| 1 | `WikiRequestSupport` | 静态解析/绑定 23 成员；删死成员 `currentQueryParam` | `9288da6` |
+| 2 | `WikiKbAccessGuard` | 守卫簇（requireWikiKB+checkOwnership，持 kbMapper） | `8afb023` |
+| 3 | `WikiPageOps` + `WikiActivityRecorder` | 页面 CRUD+修订/回滚 8 端点体 + 活动记账 | `7c3a7fd` |
+| 4 | `WikiFolderOps` | folders+movePage 5 端点体 | `13d772a` |
+| 5 | `WikiStatsOps` | index/graph/stats/search 4 端点体；GRAPH_* 常量随簇 | `6185f2d` |
+| 6 | `WikiMaintenanceOps` + 收官清扫 | rebuild/lint/autofix/issues 5 端点体；薄委托与字段退役、死链接修正 | `e465fcb` |
+| A | `WikiIngestEnqueueOps` | 投递+finalize 通道 15 成员；`MAPPER` 放宽包内可见 | `6d5594c` |
+| B | `WikiIngestQueueOps` | 队列消费 5 成员；`PendingBatch` record 留门面 | `6b2e7c1` |
+| C | `WikiIngestSettleOps` | 失败结算 3 成员 | `d274459` |
+| D | `WikiIngestContentSupport` | 文档簇 4 成员；删死成员 `beginWikiSubspan` | `d057471` |
+
+**结果**：`WikiPageController` 1,311→**272**（薄端点 + `RawJsonError`/`handleRawJsonError`）、
+`WikiIngestService` 1,208→**509**（照既有 `new Xxx(this)` 回引样式，门面保全部 public 薄委托）——均出榜；
+全仓 ≥800 类 38→**36**；wiki 域测试 542 条 / 全量 4,668 条 0 失败；前端三绿（本批零前端改动）；环守卫基线保持。
+原控制器 javadoc 的 §14.5 例外声明已随出榜删除。
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
