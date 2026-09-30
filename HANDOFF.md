@@ -782,6 +782,36 @@ encodeForm 六个）+ `OAuthLifecycleTest` 299（Fake 仓 + OAuthServerStub）�
 先行再次生效（sanitize 8 非 7、log 18 非 17、canViewIntegrationSecrets 漏放宽、协作者漏 import
 JsonNode/ObjectMapper/ModelService/McpMetadataSummary/LinkedHashMap——五处都靠编译守卫抓回）。
 
+#### 14.7.11 FeishuAdapter 执行计划（2026-10-01 侦察，接替 mcp；im 域收尾刀）
+
+**目标类**：`im/feishu/FeishuAdapter` 926（五面适配器：验签/挑战/解析 + reply/send 发送 +
+CardKit 流式卡片 + 图片上传/文件下载 + token/解密；带静态流表 STREAMS 与 image_key 缓存）。
+
+**测试床**：`FeishuAdapterTest` 561 行（**直 `new FeishuAdapter(...)` ×7，构造签名冻结**；
+static 直调 `cardSummaryPreview`/`safePathParam` + 直摸 `STREAMS`/`IMAGE_KEY_CACHE`；实例直调
+`getTenantAccessToken`/`resolveMarkdownImages`）；跨类 `LarkEventConverter` →
+`FeishuAdapter.stripBotMention`。im 域 121 个 @Test。
+
+**共享定置（不随簇）**：`STREAMS`/`IMAGE_KEY_CACHE`/`StreamState`（测试直摸）与
+`MD_IMAGE_RE`/`MD_LINK_RE`（双簇共用）留门面放宽包内；`readTree`（全簇共用 static）留门面；
+token 态 + `getTenantAccessToken` 留门面（四簇都消费）；构造器/`validateApiBaseUrl`/`api()`/
+`apiBaseUrl()` 留门面。
+
+**簇边界**（协作者 service 回引；先落被依赖方 F2）：
+- `FeishuCallbackOps`（刀 F1）：verifyCallback/handleURLVerification/parseCallback +
+  stripBotMention(static，门面留委托——LarkEventConverter 消费) + baseMessage/textMessage + decrypt。
+- `FeishuSendOps`（刀 F2）：sendReply/resolveReceiveId(static)/sendWithFallback/postFeishuMessage +
+  `ApiResult` record + safePathParam(static，门面留委托——测试直调)；门面留
+  sendWithFallback/resolveReceiveId 委托（F3/F4 消费）。`FALLBACK_ELIGIBLE` 常量留门面。
+- `FeishuCardStreamOps`（刀 F3）：startStream/updateStreamContent/finalizeStream/endStream +
+  cardkit 四件 + sendCardByCardId + purgeOrphans/cardSummaryPreview(static，门面留委托——测试直调)/
+  buildStreamingCardJson；`STREAMING_ELEMENT_ID`/`STREAM_ORPHAN_TTL_MS` 常量随簇。
+- `FeishuMediaOps`（刀 F4）：resolveMarkdownImages(门面留实例委托——测试直调)/imageKeyForUrl/
+  imageCacheKey/uploadImageFromUrl/downloadFile；`MAX_IMAGE_BYTES` 常量随簇。
+
+**预估**：门面 926→~300；四个协作者 110~230 行。闸门：每刀 `--rerun-tasks` 重编 +
+`--tests "com.ragagent.im.*"`（阈值 ≥110）+ spotlessCheck + 忠实性逐字比对；收官 clean 全量 + 环守卫。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
