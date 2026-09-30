@@ -36,6 +36,7 @@ import com.ragagent.knowledge.security.FaqGuard;
 import com.ragagent.knowledge.dto.FaqEntryPayload;
 import com.ragagent.knowledge.dto.FaqEntryFieldsBatchUpdate;
 import com.ragagent.knowledge.dto.FaqEntryFieldsUpdate;
+import com.ragagent.retrieval.engine.VectorStoreService;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;

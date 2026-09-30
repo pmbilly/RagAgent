@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.ragagent.common.security.SsrfGuard;
-import com.ragagent.knowledge.service.VectorStoreService;
+import com.ragagent.retrieval.engine.VectorStoreService;
 import com.ragagent.retrieval.engine.EngineFactory;
 import com.ragagent.retrieval.engine.EngineRegistry;
 import com.ragagent.retrieval.engine.EngineTypes;
@@ -17,7 +17,6 @@ import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
 import com.ragagent.retrieval.engine.PgVectorRetrieveRepository;
 import com.ragagent.retrieval.engine.RetrieveEngineService;
-import com.ragagent.retrieval.engine.StoreEngineFactory;
 import com.ragagent.retrieval.engine.TenantStoreOwnership;
 import com.ragagent.retrieval.engine.VectorStoreRepoOwnership;
 import com.ragagent.vectorstore.mapper.VectorStoreRepository;

@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
+import com.ragagent.knowledge.support.SearchChunkMerge;
 
 /**
  * 实录回放：merge 五件（classify / sequential / group / parent / expand / faq / history）
@@ -137,9 +138,9 @@ class MergeRecordingTest {
                 json(searchResultsShape(p.mergeSequentialChunks("k", joinImg))));
 
         Map<String, Object> s5 = new LinkedHashMap<>();
-        var exact = com.ragagent.retrieval.support.SearchChunkMerge.appendWithExactOverlap(
+        var exact = SearchChunkMerge.appendWithExactOverlap(
                 "直接重叠的甲乙丙", "甲乙丙丁", 3);
-        s5.put("ok", com.ragagent.retrieval.support.SearchChunkMerge.appendWithOverlap(
+        s5.put("ok", SearchChunkMerge.appendWithOverlap(
                 "HTML &amp; 实体头部内容", "实体头部内容加后续", 12));
         s5.put("exact", exact.value());
         assertRec("merge_sequential", "append_fallback", json(s5));

@@ -1,4 +1,4 @@
-package com.ragagent.knowledge.service;
+package com.ragagent.retrieval.engine;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -13,7 +13,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 
 /**
- * postgres 向量写/删/更新。
+ * postgres 检索引擎的 embeddings 索引写面（写/删/更新），与读侧
+ * {@link PgVectorRetrieveRepository} 同属引擎存储层。
+ *
  * <p>halfvec 写入：PG 需 {@code ?::halfvec} 强转（pgvector 类型，PG JDBC 无内建映射）；
  * 测试库 H2 退化为 VARCHAR 存储（H2 分支的 MERGE 语义近似 ON CONFLICT DO NOTHING——
  * H2 无 DO NOTHING 形态，命中 KEY 时覆盖；两侧的调用方都是"先删后插"，无命中场景）。</p>

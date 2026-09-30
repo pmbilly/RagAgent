@@ -1,17 +1,17 @@
-package com.ragagent.retrieval.support;
+package com.ragagent.knowledge.support;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import com.ragagent.knowledge.domain.Chunk;
+
 /**
- * chunk 内容的重叠拼接（对照 Go {@code internal/searchutil/chunkmerge.go} 的
- * <b>波 2 未翻部分</b>：{@code AppendWithOverlap / AppendWithExactOverlap /
- * MergeTextChunks / indexRunes}。{@code JoinChunkContent / ContainsChunkContent}
- * 已在 {@code knowledge.service.ChunkSearchUtil} 落地（本包不重复，见该类注释的
- * 迁移备案）。
+ * chunk 内容的重叠拼接（{@code AppendWithOverlap / AppendWithExactOverlap /
+ * MergeTextChunks / indexRunes}）。{@code JoinChunkContent / ContainsChunkContent}
+ * 在 {@code retrieval.support.ChunkSearchUtil}（本类不重复）。
  *
- * <p>历史背景（Go 注释逐条保留）：按位置的裁剪公式默认
+ * <p>为什么按文本而非位置去重叠：按位置的裁剪公式默认
  * {@code len([]rune(Content)) == EndAt-StartAt}，两类数据会破坏它——
  * 父子分块器给拆开的表格补写零宽度表头；content 保留 HTML 实体导致字符数偏长。
  * 因此按<b>文本</b>匹配重叠，位置信息仅用于估算搜索窗口。</p>
@@ -75,7 +75,6 @@ public final class SearchChunkMerge {
      * 个字符逐字相等，相等则精确裁剪；overlap 为 0 直接拼接。
      *
      * @return result + ok；ok=false 时调用方回退 {@link #appendWithOverlap}
-     *         （对照 Go 的 {@code (string, bool)}）
      */
     public record ExactResult(String value, boolean ok) {
     }
@@ -111,15 +110,15 @@ public final class SearchChunkMerge {
      * gapSep 用于位置不相邻（有间隙）或 EndAt==0 的两段之间；传空串直接拼接。
      * 调用方负责先做类型过滤（本函数不感知 ChunkType）。
      */
-    public static String mergeTextChunks(List<com.ragagent.knowledge.domain.Chunk> chunks,
+    public static String mergeTextChunks(List<Chunk> chunks,
                                          String gapSep) {
         if (chunks == null || chunks.isEmpty()) {
             return "";
         }
-        List<com.ragagent.knowledge.domain.Chunk> sorted = new ArrayList<>(chunks);
+        List<Chunk> sorted = new ArrayList<>(chunks);
         sorted.sort(Comparator
-                .comparingInt(com.ragagent.knowledge.domain.Chunk::getStartAt)
-                .thenComparingInt(com.ragagent.knowledge.domain.Chunk::getChunkIndex));
+                .comparingInt(Chunk::getStartAt)
+                .thenComparingInt(Chunk::getChunkIndex));
 
         String merged = "";
         int mergedEnd = -1;

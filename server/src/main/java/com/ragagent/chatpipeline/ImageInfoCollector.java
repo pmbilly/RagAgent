@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.ragagent.common.retrieval.SearchResult;
-import com.ragagent.retrieval.support.ImageInfoEnricher;
+import com.ragagent.knowledge.support.ImageInfoEnricher;
 
 /**
  * 按命中 chunk 批量聚合子块 image_info（对照 Go searchutil/imageinfo.go 的

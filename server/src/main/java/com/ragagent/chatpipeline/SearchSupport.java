@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.ragagent.retrieval.support.SearchChunkMerge;
+import com.ragagent.knowledge.support.SearchChunkMerge;
 import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.obs.RetrievalObs;

@@ -27,6 +27,7 @@ import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.common.error.AppError;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
+import com.ragagent.retrieval.engine.VectorStoreService;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import org.springframework.beans.factory.ObjectProvider;

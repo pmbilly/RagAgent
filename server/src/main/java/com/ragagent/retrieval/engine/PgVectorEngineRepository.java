@@ -14,7 +14,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import javax.sql.DataSource;
 
 import com.ragagent.common.pipeline.SearchParams;
-import com.ragagent.knowledge.service.VectorStoreService;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.retrieval.engine.EngineTypes.IndexWithScore;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;

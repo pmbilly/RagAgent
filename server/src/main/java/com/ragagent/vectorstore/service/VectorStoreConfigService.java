@@ -32,8 +32,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 对照 Go {@code service.vectorStoreService}（internal/application/service/vectorstore.go
- * + vectorstore_healthcheck.go）。命名带 Config 以区别 knowledge.service.VectorStoreService
- * （Go retriever 引擎的 embeddings 写库，阶段 3 产物）。
+ * + vectorstore_healthcheck.go）。命名带 Config 以区别 retrieval.engine.VectorStoreService
+ * （检索引擎的 embeddings 索引写面）。
  *
  * <p>校验顺序逐字对照：Validate → validateConnectionConfig → validateConnectionAddrSSRF →
  * ValidateIndexConfig → OpenSearch HNSW → DB 去重 → env 去重 → TestConnection（失败=

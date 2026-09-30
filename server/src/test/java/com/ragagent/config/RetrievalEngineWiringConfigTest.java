@@ -14,7 +14,7 @@ import javax.sql.DataSource;
 
 import org.junit.jupiter.api.Test;
 
-import com.ragagent.knowledge.service.VectorStoreService;
+import com.ragagent.retrieval.engine.VectorStoreService;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
 import com.ragagent.retrieval.engine.EngineRegistry;
 import com.ragagent.retrieval.engine.EngineTypes;

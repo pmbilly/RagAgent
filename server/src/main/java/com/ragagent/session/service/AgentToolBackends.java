@@ -62,7 +62,7 @@ import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.HybridSearchService;
 import com.ragagent.common.retrieval.SearchResult;
-import com.ragagent.retrieval.support.ImageInfoEnricher;
+import com.ragagent.knowledge.support.ImageInfoEnricher;
 import com.ragagent.wiki.domain.WikiIndex;
 import com.ragagent.wiki.domain.WikiIndexEntry;
 import com.ragagent.wiki.domain.WikiPage;

@@ -23,6 +23,7 @@ import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.storage.TenantStorageService;
+import com.ragagent.retrieval.engine.VectorStoreService;
 
 /**
  * FAQ 条目的落库与向量索引写路径：FAQ 容器 knowledge 的查找/惰性创建、嵌入模型

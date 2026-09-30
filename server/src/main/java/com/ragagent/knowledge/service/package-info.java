@@ -9,7 +9,7 @@
  *       ChunkQuestionService（LLM 生成问题）+ ChunkVectorIndexer（图抽取与向量索引）；</li>
  *   <li><b>知识库与检索</b>：KnowledgeBaseService / KnowledgeTagService / KnowledgeSearchService /
  *       KnowledgeBatchOpsService / KnowledgeCloneService / KnowledgeMoveService /
- *       KnowledgeFolderService / VectorStoreService；</li>
+ *       KnowledgeFolderService；</li>
  *   <li><b>支撑</b>：HousekeepingService（定时清理）+ SpanTracker（处理进度 span 树，
  *       被 knowledge/wiki 两域共用）+ KnowledgeVectorWrites（向量写路由网关）。</li>
  * </ul>

@@ -42,7 +42,7 @@ import com.ragagent.knowledge.service.KnowledgeService;
 import com.ragagent.knowledge.service.KnowledgeVectorWrites;
 import com.ragagent.knowledge.support.QuestionBatchPlanner;
 import com.ragagent.knowledge.service.SpanTracker;
-import com.ragagent.knowledge.service.VectorStoreService;
+import com.ragagent.retrieval.engine.VectorStoreService;
 import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.knowledge.client.EmbedderClient;
 import com.ragagent.knowledge.storage.TenantFileStorage;

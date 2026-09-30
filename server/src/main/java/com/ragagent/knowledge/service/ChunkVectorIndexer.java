@@ -31,6 +31,7 @@ import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.common.web.JsonMappers;
 import com.ragagent.knowledge.client.EmbedderClient;
+import com.ragagent.retrieval.engine.VectorStoreService;
 import com.ragagent.retrieval.support.ChunkSearchUtil;
 import com.ragagent.knowledge.support.KnowledgeIndexContent;
 

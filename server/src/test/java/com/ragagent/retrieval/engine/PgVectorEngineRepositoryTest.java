@@ -36,7 +36,7 @@ class PgVectorEngineRepositoryTest {
     @Autowired
     private PgVectorRetrieveRepository pgRepository;
     @Autowired
-    private com.ragagent.knowledge.service.VectorStoreService vectorStoreService;
+    private VectorStoreService vectorStoreService;
 
     @BeforeEach
     void seed() {

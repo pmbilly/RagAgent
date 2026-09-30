@@ -1,17 +1,23 @@
-package com.ragagent.retrieval.support;
+package com.ragagent.knowledge.support;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
+import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.retrieval.domain.ImageInfo;
+import com.ragagent.retrieval.support.ChunkSearchUtil;
+import com.ragagent.retrieval.support.ImageInfoMatchUtil;
 
 /**
- * 图片信息与正文的互相富化（对照 Go {@code internal/searchutil/imageinfo.go} 的
- * 纯函数部分——波 2 未翻部分；依赖仓储的 {@code CollectImageInfoByChunkIDs /
- * EnrichSearchResultsImageInfo} 待检索引擎波次随端口一起落，见报告）。
+ * 图片信息与正文的互相富化：解析 chunk 的 {@code image_info} JSON，合并为数组，
+ * 并把 caption / OCR 文本注入正文或聊天段落。
+ *
+ * <p>按 chunk 聚合的入口（{@link #collectImageInfoByChunkIds}）由调用方提供
+ * "parent_chunk_id 列表 → 子块列表"的查询回调，本类不依赖任何仓储。</p>
  */
 public final class ImageInfoEnricher {
 
@@ -19,7 +25,7 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 MergeImageInfoJSON：把多 chunk 的 image_info JSON 合并成一个数组，
+     * 把多 chunk 的 image_info JSON 合并成一个数组，
      * 按 URL（空则 OriginalURL）去重；无有效内容返回 ""。
      */
     public static String mergeImageInfoJson(Map<String, String> perChunk) {
@@ -63,20 +69,20 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 Go {@code searchutil.CollectImageInfoByChunkIDs}：按 chunk 聚合子块
-     * image_info（两级解析——文本块的直接子块是图片块；parent_text 块的孙辈图片
-     * 折算到顶层文本 ID），禁用子块跳过；返回 chunkID → 合并后数组 JSON。
+     * 按 chunk 聚合子块 image_info（两级解析——文本块的直接子块是图片块；
+     * parent_text 块的孙辈图片折算到顶层文本 ID），禁用子块跳过；
+     * 返回 chunkID → 合并后数组 JSON。
      *
      * <p>仓储以 {@code lister} 回调注入（tenantId + parentIDs → 子块列表），
-     * chatpipeline 端口与 knowledge 包的具体仓储都走这里，避免两份实现漂移。</p>
+     * 聊天管线端口与知识库的具体仓储都走这里，避免两份实现漂移。</p>
      */
     public static Map<String, String> collectImageInfoByChunkIds(
-            java.util.function.BiFunction<Long, List<String>, List<com.ragagent.knowledge.domain.Chunk>> lister,
+            BiFunction<Long, List<String>, List<Chunk>> lister,
             long tenantId, List<String> chunkIds) {
         if (chunkIds == null || chunkIds.isEmpty()) {
             return null;
         }
-        List<com.ragagent.knowledge.domain.Chunk> children;
+        List<Chunk> children;
         try {
             children = lister.apply(tenantId, chunkIds);
         } catch (RuntimeException e) {
@@ -89,7 +95,7 @@ public final class ImageInfoEnricher {
         Map<String, Map<String, ImageInfo>> aggMap = new LinkedHashMap<>();
         List<String> textChildIds = new ArrayList<>();
         Map<String, String> textToParent = new LinkedHashMap<>();
-        for (com.ragagent.knowledge.domain.Chunk child : children) {
+        for (Chunk child : children) {
             if (!child.isIsEnabled()) {
                 continue;
             }
@@ -104,14 +110,14 @@ public final class ImageInfoEnricher {
             }
         }
         if (!textChildIds.isEmpty()) {
-            List<com.ragagent.knowledge.domain.Chunk> grandChildren;
+            List<Chunk> grandChildren;
             try {
                 grandChildren = lister.apply(tenantId, textChildIds);
             } catch (RuntimeException e) {
                 grandChildren = null;
             }
             if (grandChildren != null) {
-                for (com.ragagent.knowledge.domain.Chunk gc : grandChildren) {
+                for (Chunk gc : grandChildren) {
                     if (!gc.isIsEnabled()) {
                         continue;
                     }
@@ -136,10 +142,10 @@ public final class ImageInfoEnricher {
         return out;
     }
 
-    /** 对照 addInfo：URL（空则 OriginalURL）去重 + 非空 OCR/Caption 字段覆盖。 */
+    /** URL（空则 OriginalURL）去重 + 非空 OCR/Caption 字段覆盖。 */
     private static void addChildInfo(Map<String, Map<String, ImageInfo>> aggMap,
                                      String targetID,
-                                     com.ragagent.knowledge.domain.Chunk child) {
+                                     Chunk child) {
         if (child.getImageInfo() == null || child.getImageInfo().isEmpty()) {
             return;
         }
@@ -168,7 +174,7 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 ClearImageInfoTextMatchingBody：从 image_info 中移除与 recognized 完全
+     * 从 image_info 中移除与 recognized 完全
      * 相等的 OCR/caption 字段（merge 把该正文挂回 Content，富化不再重复注入）。
      */
     public static String clearImageInfoTextMatchingBody(String imageInfoJson,
@@ -208,7 +214,7 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 EnrichContentWithImageInfo：内联 Markdown 图片包成 &lt;image&gt; XML
+     * 内联 Markdown 图片包成 &lt;image&gt; XML
      * （含 &lt;image_original&gt; 原文与 caption/ocr），content 里找不到的图片以
      * &lt;image&gt; 块追加。
      */
@@ -272,7 +278,7 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 EnrichContentWithImageInfoForChat：保持图片本身是 Markdown，把
+     * 保持图片本身是 Markdown，把
      * caption/OCR 以引用块形式注入其后（答案可复制渲染）。只富化有 image_info
      * 匹配的图片；HTML img 的 src 值先 trim（Markdown 目标按原文精确匹配）。
      * 两种语法都对着<b>原始</b> content 定位，按位置倒序一次性拼接。
@@ -303,8 +309,7 @@ public final class ImageInfoEnricher {
         return content;
     }
 
-    /** HTMLImageSrcURLGroup = 2（桥内再导出一份，避免 Pattern 名重复）。 */
-    /** 对照 Go HTMLImageSrcURLGroup = 2。 */
+    /** HTML 图片 src 的捕获组下标（{@code <img src="…">} 的 URL 在第 2 组）。 */
     static final int HTML_IMAGE_SRC_URL_GROUP = 2;
 
     private static void appendInjection(List<Injection> injections,
@@ -325,15 +330,15 @@ public final class ImageInfoEnricher {
         if (metadata.isEmpty()) {
             return;
         }
-        // 注入点 = 整个匹配的末尾（对照 Go 的 loc[1]）
+        // 注入点 = 整个匹配的末尾
         injections.add(new Injection(matchEnd, "\n\n" + metadata));
     }
 
-    /** 注入点（位置 + 文本），对照 Go 的局部 injection struct。 */
+    /** 一个注入点：在正文第 {@code at} 个字符前插入 {@code text}。 */
     private record Injection(int at, String text) {
     }
 
-    /** 对照 buildImageInfoMarkdownMetadata：引用块承载 caption/OCR（保多行缩进）。 */
+    /** 引用块承载 caption/OCR（保多行缩进）。 */
     static String buildImageInfoMarkdownMetadata(ImageInfo img) {
         if (img == null) {
             return "";
@@ -355,7 +360,7 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 BuildImageInfoMarkdownWithURL：answer-ready Markdown（URL 原样保留）。
+     * answer-ready Markdown（URL 原样保留）。
      * alt 取 caption 的空白折叠并转义 {@code \ [ ]}；空 alt 回落 "image"。
      */
     public static String buildImageInfoMarkdownWithUrl(String url, ImageInfo img) {
@@ -379,7 +384,7 @@ public final class ImageInfoEnricher {
         return image + "\n\n" + metadata;
     }
 
-    /** 对照 BuildImageInfoXML：caption / ocr 两行（无行省略）。 */
+    /** caption / ocr 两行（无行省略）。 */
     public static String buildImageInfoXml(ImageInfo img) {
         StringBuilder b = new StringBuilder();
         if (img != null && !img.getCaption().isEmpty()) {
@@ -391,7 +396,7 @@ public final class ImageInfoEnricher {
         return b.toString();
     }
 
-    /** 对照 BuildImageInfoXMLWithURL：包一层 &lt;image url&gt;；内层空 → ""。 */
+    /** 包一层 &lt;image url&gt;；内层空 → ""。 */
     public static String buildImageInfoXmlWithUrl(String url, ImageInfo img) {
         String inner = buildImageInfoXml(img);
         if (inner.isEmpty()) {
@@ -401,7 +406,7 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 EnrichContentCaptionOnly：只注入 caption（摘要用，OCR 噪声大）。
+     * 只注入 caption（摘要用，OCR 噪声大）。
      * 内联图片在原文后接一行 caption；找不到的图片追加 caption 块。
      */
     public static String enrichContentCaptionOnly(String content, String imageInfoJson) {
@@ -449,7 +454,7 @@ public final class ImageInfoEnricher {
     }
 
     /**
-     * 对照 EnrichContentCaptionAndOCR：caption 之外也注入 OCR；刻意不带 URL 与
+     * caption 之外也注入 OCR；刻意不带 URL 与
      * &lt;image_original&gt; 包装（摘要 LLM 只要可读文本）。
      */
     public static String enrichContentCaptionAndOcr(String content, String imageInfoJson) {
@@ -500,7 +505,7 @@ public final class ImageInfoEnricher {
         return content;
     }
 
-    /** 对照 buildCaptionOCRBlock：无 URL 包装的 caption + OCR 行块。 */
+    /** 无 URL 包装的 caption + OCR 行块。 */
     static String buildCaptionOcrBlock(ImageInfo img) {
         List<String> parts = new ArrayList<>();
         if (!img.getCaption().isEmpty()) {
@@ -512,7 +517,7 @@ public final class ImageInfoEnricher {
         return String.join("\n", parts);
     }
 
-    /** url 与 original_url 都进 map（非空才放；同键后者覆盖前者，对照 Go）。 */
+    /** url 与 original_url 都进 map（非空才放；同键后者覆盖前者）。 */
     private static Map<String, ImageInfo> buildInfoMap(List<ImageInfo> infos) {
         Map<String, ImageInfo> map = new LinkedHashMap<>();
         for (ImageInfo info : infos) {
@@ -540,7 +545,7 @@ public final class ImageInfoEnricher {
         return out;
     }
 
-    /** Go strings.TrimSpace（unicode.IsSpace 全集，与 ChunkSearchUtil.goTrimSpace 同表）。 */
+    /** Go strings.TrimSpace（unicode.IsSpace 全集，与 ChunkSearchUtil.trimSpace 同表）。 */
     static String goTrimSpace(String s) {
         if (s == null) {
             return "";
