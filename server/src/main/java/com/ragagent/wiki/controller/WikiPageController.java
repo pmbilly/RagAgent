@@ -11,17 +11,11 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.wiki.domain.WikiActivityAudit;
-import com.ragagent.wiki.domain.WikiFolder;
-import com.ragagent.wiki.domain.WikiFolderCreateRequest;
-import com.ragagent.wiki.domain.WikiFolderListResponse;
-import com.ragagent.wiki.domain.WikiFolderNode;
-import com.ragagent.wiki.domain.WikiFolderUpdateRequest;
 import com.ragagent.wiki.domain.WikiGraph;
 import com.ragagent.wiki.domain.WikiIndex;
 import com.ragagent.wiki.domain.WikiLintReport;
 import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.domain.WikiPageIssue;
-import com.ragagent.wiki.domain.WikiPageMoveRequest;
 import com.ragagent.wiki.domain.WikiStats;
 import com.ragagent.wiki.service.page.WikiLintService;
 import com.ragagent.wiki.service.page.WikiPageService;
@@ -121,6 +115,7 @@ public class WikiPageController {
     private final WikiLintService lintService;
     private final WikiKbAccessGuard kbGuard;
     private final ObjectMapper json;
+    private final WikiFolderOps folderOps;
     private final WikiPageOps pageOps;
 
     public WikiPageController(WikiPageService wikiService,
@@ -134,6 +129,7 @@ public class WikiPageController {
         this.json = json;
         this.pageOps = new WikiPageOps(wikiService, kbGuard,
                 new WikiActivityRecorder(activityAudit), json);
+        this.folderOps = new WikiFolderOps(wikiService, kbGuard, json);
     }
 
     // ════════════════════════════ 页面 CRUD ════════════════════════════
@@ -185,132 +181,34 @@ public class WikiPageController {
 
     // ════════════════════════════ 文件夹树 ════════════════════════════
 
-    /**
-     * 目录列表——读端点（Viewer+ 角色 + KB 读权限）。
-     *
-     * <p>空结果显式归一成 {@code []}，所以响应是 {@code "folders":[]} 而不是 null。</p>
-     */
     @GetMapping("/folders")
     public ResponseEntity<?> listFolders(@PathVariable("kb_id") String kbId, HttpServletRequest request) {
-        requireWikiKB(kbId, false);
-
-        String parentId = trimSpace(request.getParameter("parentId"));
-        List<String> pageTypes = new ArrayList<>();
-        String raw = trimSpace(request.getParameter("pageTypes"));
-        if (!raw.isEmpty()) {
-            for (String part : raw.split(",", -1)) {
-                String p = trimSpace(part);
-                if (!p.isEmpty()) {
-                    pageTypes.add(p);
-                }
-            }
-        }
-
-        List<WikiFolderNode> folders;
-        try {
-            folders = wikiService.listChildFolders(kbId, parentId, pageTypes);
-        } catch (RuntimeException e) {
-            throw internal(errText(e));
-        }
-        if (folders == null) {
-            folders = new ArrayList<>();
-        }
-
-        WikiFolderListResponse resp = new WikiFolderListResponse();
-        resp.setParentId(parentId);
-        resp.setFolders(folders);
-        return ResponseEntity.ok(resp);
+        return folderOps.listFolders(kbId, request);
     }
 
-    /** 新建目录——写端点（创建者/Admin+ + KB 写权限）；201。 */
     @PostMapping("/folders")
     public ResponseEntity<?> createFolder(@PathVariable("kb_id") String kbId,
                                           @RequestBody(required = false) String rawBody) {
-        requireWikiKB(kbId, true);
-
-        WikiFolderCreateRequest req = bind(rawBody, WikiFolderCreateRequest.class);
-        WikiFolder folder;
-        try {
-            // 只 trim parentID，name 原样交给服务层（服务层自己 trim 并校验）
-            folder = wikiService.createFolder(kbId, currentTenantId(), trimSpace(req.parentId()), req.name());
-        } catch (RuntimeException e) {
-            throw mapFolderError(e);
-        }
-        return ResponseEntity.status(HttpStatus.CREATED).body(folder);
+        return folderOps.createFolder(kbId, rawBody);
     }
 
-    /** 重命名/移动目录——写端点（创建者/Admin+ + KB 写权限）。 */
     @PutMapping("/folders/{folder_id}")
     public ResponseEntity<?> updateFolder(@PathVariable("kb_id") String kbId,
                                           @PathVariable("folder_id") String folderIdParam,
                                           @RequestBody(required = false) String rawBody) {
-        requireWikiKB(kbId, true);
-
-        String folderId = sanitize(folderIdParam);
-        if (folderId.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Folder ID is required");
-        }
-        WikiFolderUpdateRequest req = bind(rawBody, WikiFolderUpdateRequest.class);
-
-        WikiFolder folder;
-        try {
-            // 只 trim parentID；name 原样（空串 = 不改名）
-            folder = wikiService.renameOrMoveFolder(kbId, folderId, req.name(),
-                    trimSpace(req.parentId()), req.moveParent());
-        } catch (RuntimeException e) {
-            throw mapFolderError(e);
-        }
-        return ResponseEntity.ok(folder);
+        return folderOps.updateFolder(kbId, folderIdParam, rawBody);
     }
 
-    /** 删除目录——写端点（创建者/Admin+ + KB 写权限）；204。 */
     @DeleteMapping("/folders/{folder_id}")
     public ResponseEntity<?> deleteFolder(@PathVariable("kb_id") String kbId,
                                           @PathVariable("folder_id") String folderIdParam) {
-        requireWikiKB(kbId, true);
-
-        String folderId = sanitize(folderIdParam);
-        if (folderId.isEmpty()) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Folder ID is required");
-        }
-        try {
-            wikiService.deleteFolder(kbId, folderId);
-        } catch (RuntimeException e) {
-            throw mapFolderError(e);
-        }
-        return ResponseEntity.noContent().build();
+        return folderOps.deleteFolder(kbId, folderIdParam);
     }
 
-    /**
-     * 移动页面——写端点（创建者/Admin+ + KB 写权限）。
-     * 页面 slug 在请求体里（层级 slug 会撞 catch-all 路由）。
-     */
     @PutMapping("/move-page")
     public ResponseEntity<?> movePage(@PathVariable("kb_id") String kbId,
                                       @RequestBody(required = false) String rawBody) {
-        requireWikiKB(kbId, true);
-
-        JsonNode node = readJsonBody(rawBody);
-        String bindingErrors = requiredFieldErrors(node, "WikiPageMoveRequest", "Slug");
-        if (bindingErrors != null) {
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(),
-                    "Invalid request body: " + bindingErrors);
-        }
-        WikiPageMoveRequest req = toType(node, WikiPageMoveRequest.class);
-
-        String slug = trimSpace(req.slug());
-        if (slug.isEmpty()) {
-            // 原实现因必填校验实际不可达，保留以逐行对照
-            throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
-        }
-
-        WikiPage page;
-        try {
-            page = wikiService.movePage(kbId, slug, trimSpace(req.folderId()));
-        } catch (RuntimeException e) {
-            throw mapFolderError(e);
-        }
-        return ResponseEntity.ok(page);
+        return folderOps.movePage(kbId, rawBody);
     }
 
     // ══════════════════════════════ 特殊页 ══════════════════════════════
