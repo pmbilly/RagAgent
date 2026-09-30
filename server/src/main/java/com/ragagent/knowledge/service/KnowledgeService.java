@@ -33,7 +33,6 @@ import com.ragagent.knowledge.dto.UpdateKnowledgeRequest;
 import com.ragagent.knowledge.dto.KBCloneProgress;
 import com.ragagent.knowledge.dto.KnowledgeMoveProgress;
 import com.ragagent.apikey.domain.TenantAPIKeyScope;
-import com.ragagent.knowledge.task.KnowledgeProcessWorker;
 import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
 
@@ -61,9 +60,6 @@ public class KnowledgeService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** duplicate 的配置克隆用：知识实体带 OffsetDateTime，往返 mapper 必须挂 JSR310（本仓约定 步 3 教训）。 */
-    private static final ObjectMapper CLONE_MAPPER = new ObjectMapper()
-            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
-            .disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     public static final List<String> ALL_STAGES =
             List.of("docreader", "chunking", "embedding", "multimodal", "postprocess");
@@ -72,7 +68,6 @@ public class KnowledgeService {
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
     private final KnowledgeTagMapper tagMapper;
-    private final LocalStorageService storage;
     /** A3-3 尾批：租户感知文件存储（本地契约不变；云 provider 租户真正落对象存储）。 */
     private final TenantFileStorage fileStorage;
     private final KnowledgeProcessWorker worker;
@@ -92,7 +87,6 @@ public class KnowledgeService {
                             KnowledgeBaseMapper kbMapper,
                             ChunkMapper chunkMapper,
                             KnowledgeTagMapper tagMapper,
-                            LocalStorageService storage,
                             TenantFileStorage fileStorage,
                             @Lazy KnowledgeProcessWorker worker,
                             ChunkVectorIndexer chunkVectorIndexer,
@@ -109,7 +103,6 @@ public class KnowledgeService {
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
         this.tagMapper = tagMapper;
-        this.storage = storage;
         this.fileStorage = fileStorage;
         this.worker = worker;
         this.chunkVectorIndexer = chunkVectorIndexer;

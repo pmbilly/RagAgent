@@ -22,7 +22,6 @@ import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.retrieval.engine.PgVectorEngineRepository;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import com.ragagent.embedding.Embedder;
 import com.ragagent.retrieval.engine.CompositeRetrieveEngine;
@@ -48,7 +47,6 @@ public class KnowledgeCloneService {
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
     private final KnowledgeBaseService knowledgeBaseService;
-    private final KnowledgeService.KnowledgeProcessWorker worker;
     private final KnowledgeTaskProgressStore progressStore;
     private final KnowledgeVectorWrites vectorWrites;
     private final PgVectorEngineRepository pgVectorEngineRepository;
@@ -61,7 +59,6 @@ public class KnowledgeCloneService {
             KnowledgeBaseMapper kbMapper,
             ChunkMapper chunkMapper,
             KnowledgeBaseService knowledgeBaseService,
-            @Lazy KnowledgeService.KnowledgeProcessWorker worker,
             KnowledgeTaskProgressStore progressStore,
             KnowledgeVectorWrites vectorWrites,
             PgVectorEngineRepository pgVectorEngineRepository,
@@ -72,7 +69,6 @@ public class KnowledgeCloneService {
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
         this.knowledgeBaseService = knowledgeBaseService;
-        this.worker = worker;
         this.progressStore = progressStore;
         this.vectorWrites = vectorWrites;
         this.pgVectorEngineRepository = pgVectorEngineRepository;

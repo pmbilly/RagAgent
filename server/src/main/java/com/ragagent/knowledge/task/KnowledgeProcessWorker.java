@@ -47,7 +47,6 @@ import com.ragagent.knowledge.service.SpanTracker;
 import com.ragagent.knowledge.service.VectorStoreService;
 import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.knowledge.client.EmbedderClient;
-import com.ragagent.knowledge.storage.LocalStorageService;
 import com.ragagent.knowledge.storage.TenantFileStorage;
 
 /**
@@ -100,7 +99,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
-    private final LocalStorageService storage;
     /** A3-3 尾批：租户感知文件存储（读 provider 引用；本地契约不变）。 */
     private final TenantFileStorage fileStorage;
     private final DocReaderClient docReader;
@@ -129,7 +127,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     public KnowledgeProcessWorker(KnowledgeMapper knowledgeMapper,
                                   KnowledgeBaseMapper kbMapper,
                                   ChunkMapper chunkMapper,
-                                  LocalStorageService storage,
                                   TenantFileStorage fileStorage,
                                   DocReaderClient docReader,
                                   EmbedderClient embedder,
@@ -151,7 +148,6 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
-        this.storage = storage;
         this.fileStorage = fileStorage;
         this.docReader = docReader;
         this.embedder = embedder;

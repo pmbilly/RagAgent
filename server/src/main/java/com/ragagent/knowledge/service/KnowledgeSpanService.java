@@ -12,7 +12,6 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.repository.KnowledgeSpanRepository;
 import org.springframework.stereotype.Service;
 import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
-import com.ragagent.knowledge.dto.SpanTree;
 
 /**
  * 知识处理 spans 合成树。静态 canonical 时间线复用门面公开常量

@@ -52,7 +52,6 @@ public class KnowledgeSummaryService {
     private final KnowledgeBaseMapper kbMapper;
     private final ChunkMapper chunkMapper;
     private final ChunkRepository chunkRepo;
-    private final KnowledgeService.KnowledgeProcessWorker worker;
     private final ModelRuntimeFactory modelRuntimeFactory;
     private final ChunkVectorIndexer chunkVectorIndexer;
     private final ConversationProperties conversationProps;
@@ -67,7 +66,6 @@ public class KnowledgeSummaryService {
                             KnowledgeBaseMapper kbMapper,
                             ChunkMapper chunkMapper,
                             ChunkRepository chunkRepo,
-                            @Lazy KnowledgeService.KnowledgeProcessWorker worker,
                             ModelRuntimeFactory modelRuntimeFactory,
                             ChunkVectorIndexer chunkVectorIndexer,
                             ConversationProperties conversationProps,
@@ -79,7 +77,6 @@ public class KnowledgeSummaryService {
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
         this.chunkRepo = chunkRepo;
-        this.worker = worker;
         this.modelRuntimeFactory = modelRuntimeFactory;
         this.chunkVectorIndexer = chunkVectorIndexer;
         this.conversationProps = conversationProps;
