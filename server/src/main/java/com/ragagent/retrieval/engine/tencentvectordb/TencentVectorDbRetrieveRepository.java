@@ -4,11 +4,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -102,6 +100,7 @@ public class TencentVectorDbRetrieveRepository
     private final int replicasNum;
 
     final TencentVectorDbSearchOps searchOps;
+    final TencentVectorDbWriteOps writeOps;
 
     private final ConcurrentHashMap<Integer, Boolean> initialized = new ConcurrentHashMap<>();
     private volatile TencentVectorDbBm25 bm25;
@@ -119,6 +118,7 @@ public class TencentVectorDbRetrieveRepository
         this.shardsNum = shardsNum <= 0 ? 1 : shardsNum;
         this.replicasNum = replicasNum;
         this.searchOps = new TencentVectorDbSearchOps(this);
+        this.writeOps = new TencentVectorDbWriteOps(this);
     }
 
     /** 照 {@code NewTencentVectorDBRetrieveEngineRepository} + {@code createTencentVectorDBEngine}。 */
@@ -350,110 +350,8 @@ public class TencentVectorDbRetrieveRepository
         this.bm25 = encoder;
     }
 
-    // ── 写入 ────────────────────────────────────────────────────────────────
-
-    @Override
-    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
-        batchSave(List.of(indexInfo), params);
-    }
 
     /** 照 {@code BatchSave}：按维度分组 → BM25 编码 → Upsert（buildIndex=true）。 */
-    @Override
-    public void batchSave(List<IndexInfo> indexInfoList, Map<String, Object> params)
-            throws Exception {
-        if (indexInfoList == null || indexInfoList.isEmpty()) {
-            return;
-        }
-        Map<Integer, List<Document>> byDimension = new TreeMap<>();
-        for (IndexInfo info : indexInfoList) {
-            Document doc = toDocument(info, params);
-            if (doc.vector.length == 0) {
-                log.warn("[TencentVectorDB] skip empty embedding for chunk_id={}", info.chunkId);
-                continue;
-            }
-            byDimension.computeIfAbsent(doc.vector.length, k -> new ArrayList<>()).add(doc);
-        }
-        if (byDimension.isEmpty()) {
-            return;
-        }
-        TencentVectorDbBm25 encoder = bm25();
-        for (Map.Entry<Integer, List<Document>> entry : byDimension.entrySet()) {
-            int dimension = entry.getKey();
-            List<Document> docs = entry.getValue();
-            ensureCollection(dimension);
-            ArrayNode documents = Json.array();
-            for (Document doc : docs) {
-                doc.sparseVector = encoder.encodeText(doc.content);
-                documents.add(documentNode(doc));
-            }
-            try {
-                client.upsert(databaseName, collectionName(dimension), documents, true);
-            } catch (RuntimeException e) {
-                throw new IllegalStateException("tencent vectordb batch save "
-                        + collectionName(dimension) + ": " + e.getMessage(), e);
-            }
-        }
-    }
-
-    /** 文档体：{@code id/vector/sparse_vector} + 8 个字段（照 {@code toDocument}）。 */
-    static ObjectNode documentNode(Document doc) {
-        ObjectNode node = Json.object();
-        node.put(FIELD_ID, doc.id == null ? "" : doc.id);
-        ArrayNode vector = node.putArray(FIELD_VECTOR);
-        for (float v : doc.vector) {
-            vector.add(v);
-        }
-        ArrayNode sparse = node.putArray(FIELD_SPARSE_VECTOR);
-        for (SparseVecItem item : doc.sparseVector) {
-            ArrayNode pair = sparse.addArray();
-            pair.add(item.termId());
-            pair.add(item.score());
-        }
-        node.put(FIELD_CONTENT, doc.content);
-        node.put(FIELD_SOURCE_ID, doc.sourceId);
-        node.put(FIELD_SOURCE_TYPE, (long) doc.sourceType);
-        node.put(FIELD_CHUNK_ID, doc.chunkId);
-        node.put(FIELD_KNOWLEDGE_ID, doc.knowledgeId);
-        node.put(FIELD_KNOWLEDGE_BASE_ID, doc.knowledgeBaseId);
-        node.put(FIELD_TAG_ID, doc.tagId);
-        node.put(FIELD_IS_ENABLED, doc.isEnabled ? 1L : 0L);
-        return node;
-    }
-
-    // ── 删除 ────────────────────────────────────────────────────────────────
-
-    @Override
-    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByFilter(dimension, in(FIELD_CHUNK_ID, chunkIdList));
-    }
-
-    @Override
-    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
-            throws Exception {
-        deleteByFilter(dimension, in(FIELD_SOURCE_ID, sourceIdList));
-    }
-
-    @Override
-    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
-                                        String knowledgeType) throws Exception {
-        deleteByFilter(dimension, in(FIELD_KNOWLEDGE_ID, knowledgeIdList));
-    }
-
-    private void deleteByFilter(int dimension, String filter) {
-        if (filter == null || filter.isEmpty()) {
-            return;
-        }
-        String collection = collectionName(dimension);
-        try {
-            ObjectNode query = Json.object();
-            query.put("filter", filter);
-            client.delete(databaseName, collection, query);
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("tencent vectordb delete from " + collection + ": "
-                    + e.getMessage(), e);
-        }
-    }
 
     /** 照 {@code tcvectordb.In}：{@code key in ("v1","v2")}（双引号 + 圆括号）。 */
     static String in(String key, List<String> values) {
@@ -478,67 +376,6 @@ public class TencentVectorDbRetrieveRepository
         return key + " not in (" + String.join(",", rendered) + ")";
     }
 
-    // ── 批量更新（Update API，照 Go） ──────────────────────────────────────
-
-    @Override
-    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
-            throws Exception {
-        if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
-            return;
-        }
-        Map<Boolean, List<String>> grouped = new LinkedHashMap<>();
-        for (Map.Entry<String, Boolean> entry : chunkStatusMap.entrySet()) {
-            grouped.computeIfAbsent(Boolean.TRUE.equals(entry.getValue()), k -> new ArrayList<>())
-                    .add(entry.getKey());
-        }
-        for (Map.Entry<Boolean, List<String>> entry : grouped.entrySet()) {
-            ObjectNode fields = Json.object();
-            fields.put(FIELD_IS_ENABLED, Boolean.TRUE.equals(entry.getKey()) ? 1L : 0L);
-            updateChunkFields(entry.getValue(), fields);
-        }
-    }
-
-    @Override
-    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
-        if (chunkTagMap == null || chunkTagMap.isEmpty()) {
-            return;
-        }
-        Map<String, List<String>> grouped = new TreeMap<>();
-        for (Map.Entry<String, String> entry : chunkTagMap.entrySet()) {
-            grouped.computeIfAbsent(entry.getValue() == null ? "" : entry.getValue(),
-                    k -> new ArrayList<>()).add(entry.getKey());
-        }
-        for (Map.Entry<String, List<String>> entry : grouped.entrySet()) {
-            ObjectNode fields = Json.object();
-            fields.put(FIELD_TAG_ID, entry.getKey());
-            updateChunkFields(entry.getValue(), fields);
-        }
-    }
-
-    /** 照 {@code updateChunkFields}：跨"匹配到的集合"逐个 Update；任一失败即抛。 */
-    private void updateChunkFields(List<String> chunkIds, ObjectNode fields) {
-        List<String> collections;
-        try {
-            collections = listCollectionNames();
-        } catch (RuntimeException e) {
-            throw new IllegalStateException(
-                    "tencent vectordb list collections: " + e.getMessage(), e);
-        }
-        String filter = in(FIELD_CHUNK_ID, chunkIds);
-        for (String collection : collections) {
-            if (!matchesCollection(collection)) {
-                continue;
-            }
-            try {
-                ObjectNode query = Json.object();
-                query.put("filter", filter);
-                client.update(databaseName, collection, query, fields);
-            } catch (RuntimeException e) {
-                throw new IllegalStateException("tencent vectordb update chunks in " + collection
-                        + ": " + e.getMessage(), e);
-            }
-        }
-    }
 
     List<String> listCollectionNames() {
         JsonNode res = client.listCollections(databaseName);
@@ -562,82 +399,6 @@ public class TencentVectorDbRetrieveRepository
     }
 
 
-    // ── CopyIndices（照 Go：offset 分页 + 三态 SourceID（第 3 态是 sha256 前 16 hex）） ──
-
-    @Override
-    public void copyIndices(String sourceKnowledgeBaseId,
-                            Map<String, String> sourceToTargetKbIdMap,
-                            Map<String, String> sourceToTargetChunkIdMap,
-                            String targetKnowledgeBaseId, int dimension, String knowledgeType)
-            throws Exception {
-        if (sourceToTargetChunkIdMap == null || sourceToTargetChunkIdMap.isEmpty()) {
-            return;
-        }
-        String collection = collectionName(dimension);
-        List<String> ids = new ArrayList<>(sourceToTargetChunkIdMap.keySet());
-        List<Document> embeddings = new ArrayList<>();
-        long offset = 0;
-        while (true) {
-            ObjectNode query = Json.object();
-            String filter = in(FIELD_CHUNK_ID, ids);
-            if (sourceKnowledgeBaseId != null && !sourceKnowledgeBaseId.isEmpty()) {
-                filter = in(FIELD_KNOWLEDGE_BASE_ID, List.of(sourceKnowledgeBaseId))
-                        + " and " + filter;
-            }
-            query.put("filter", filter);
-            query.put("retrieveVector", true);
-            query.set("outputFields", outputFields());
-            query.put("offset", offset);
-            query.put("limit", COPY_PAGE_SIZE);
-            JsonNode res;
-            try {
-                res = client.query(databaseName, collection, query);
-            } catch (RuntimeException e) {
-                throw new IllegalStateException(
-                        "tencent vectordb query source indices: " + e.getMessage(), e);
-            }
-            JsonNode documents = res.path("documents");
-            int pageSize = documents.isArray() ? documents.size() : 0;
-            for (JsonNode node : documents) {
-                Document doc = fromDocument(node);
-                String targetChunkId = sourceToTargetChunkIdMap.get(doc.chunkId);
-                if (targetChunkId == null) {
-                    continue;
-                }
-                String originalSourceId = doc.sourceId.isEmpty() ? doc.id : doc.sourceId;
-                String targetSourceId = translateSourceId(originalSourceId, doc.chunkId,
-                        targetChunkId);
-                doc.id = targetSourceId;
-                doc.sourceId = targetSourceId;
-                doc.chunkId = targetChunkId;
-                doc.knowledgeBaseId = targetKnowledgeBaseId;
-                String targetKnowledgeId = sourceToTargetKbIdMap == null ? null
-                        : sourceToTargetKbIdMap.get(doc.knowledgeId);
-                if (targetKnowledgeId != null && !targetKnowledgeId.isEmpty()) {
-                    doc.knowledgeId = targetKnowledgeId;
-                }
-                embeddings.add(doc);
-            }
-            if (pageSize < COPY_PAGE_SIZE) {
-                break;
-            }
-            offset += COPY_PAGE_SIZE;
-        }
-        if (embeddings.isEmpty()) {
-            return;
-        }
-        TencentVectorDbBm25 encoder = bm25();
-        ArrayNode documents = Json.array();
-        for (Document doc : embeddings) {
-            doc.sparseVector = encoder.encodeText(doc.content);
-            documents.add(documentNode(doc));
-        }
-        try {
-            client.upsert(databaseName, collection, documents, true);
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("tencent vectordb copy indices: " + e.getMessage(), e);
-        }
-    }
 
     /**
      * 三态：等 chunkID → targetChunkID；{@code "<chunkID>-<qid>"} → 换前缀；
@@ -670,6 +431,57 @@ public class TencentVectorDbRetrieveRepository
             throw new IllegalStateException("sha256 unavailable", e);
         }
     }
+
+    @Override
+    public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
+        writeOps.save(indexInfo, params);
+    }
+
+    @Override
+    public void batchSave(List<IndexInfo> indexInfoList, Map<String, Object> params)
+            throws Exception {
+        writeOps.batchSave(indexInfoList, params);
+    }
+
+    @Override
+    public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteByChunkIdList(chunkIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteBySourceIdList(List<String> sourceIdList, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.deleteBySourceIdList(sourceIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
+                                        String knowledgeType) throws Exception {
+        writeOps.deleteByKnowledgeIdList(knowledgeIdList, dimension, knowledgeType);
+    }
+
+    @Override
+    public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
+            throws Exception {
+        writeOps.batchUpdateChunkEnabledStatus(chunkStatusMap);
+    }
+
+    @Override
+    public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
+        writeOps.batchUpdateChunkTagID(chunkTagMap);
+    }
+
+    @Override
+    public void copyIndices(String sourceKnowledgeBaseId,
+                            Map<String, String> sourceToTargetKbIdMap,
+                            Map<String, String> sourceToTargetChunkIdMap,
+                            String targetKnowledgeBaseId, int dimension, String knowledgeType)
+            throws Exception {
+        writeOps.copyIndices(sourceKnowledgeBaseId, sourceToTargetKbIdMap,
+                sourceToTargetChunkIdMap, targetKnowledgeBaseId, dimension, knowledgeType);
+    }
+
 
     // ── move（照 move.go：Update API 一次搞定，无 seen 守卫） ──────────────
 
