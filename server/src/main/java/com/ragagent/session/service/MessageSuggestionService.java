@@ -34,7 +34,7 @@ import com.ragagent.session.domain.MessageSuggestionSet;
 import com.ragagent.session.domain.SessionOwnerIds;
 import com.ragagent.session.domain.SuggestionItem;
 import com.ragagent.session.mapper.MessageSuggestionRepository;
-import com.ragagent.wiki.service.WikiLanguageSupport;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * 追问建议服务（对照 Go {@code internal/application/service/message_suggestion.go}）。

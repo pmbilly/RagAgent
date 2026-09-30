@@ -16,6 +16,8 @@ import com.ragagent.wiki.prompt.WikiPrompts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.GoStrings;
 
 /**
  * 批次目录规划与 embedding 选夹。

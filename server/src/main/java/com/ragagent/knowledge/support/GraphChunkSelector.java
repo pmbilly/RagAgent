@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import com.ragagent.common.pipeline.ChunkTypes;
 import com.ragagent.knowledge.domain.Chunk;
-import com.ragagent.wiki.service.WikiImageMarkup;
+import com.ragagent.common.wiki.WikiImageMarkup;
 
 /**
  * 图抽取的分块筛选。

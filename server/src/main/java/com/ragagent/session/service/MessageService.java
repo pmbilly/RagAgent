@@ -232,7 +232,7 @@ public class MessageService {
             }
             message.setContent(com.ragagent.session.domain.ArtifactVersions.clarifyArtifactVersions(
                     message.getContent(), message.getArtifacts(), referenced,
-                    com.ragagent.wiki.service.WikiLanguageSupport.languageFromContextOrDefault()));
+                    com.ragagent.common.wiki.WikiLanguageSupport.languageFromContextOrDefault()));
         }
         return messages;
     }

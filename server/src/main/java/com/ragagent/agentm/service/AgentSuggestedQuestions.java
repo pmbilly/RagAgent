@@ -508,6 +508,6 @@ public final class AgentSuggestedQuestions {
     }
 
     public static String currentLocale() {
-        return com.ragagent.wiki.service.WikiLanguageSupport.defaultLanguage();
+        return com.ragagent.common.wiki.WikiLanguageSupport.defaultLanguage();
     }
 }

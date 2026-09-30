@@ -18,8 +18,9 @@ import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.repository.ChunkRepository;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
-import com.ragagent.wiki.service.DefaultWikiKnowledgeFinalizer;
+
 import com.ragagent.knowledge.domain.QuestionBatchPayload;
+import com.ragagent.common.wiki.WikiFinalizePort;
 
 /**
  * 问题生成**批** worker。
@@ -40,7 +41,7 @@ public class QuestionGenerationService {
     private final KnowledgeMapper knowledgeMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final SpanTracker spanTracker;
-    private final DefaultWikiKnowledgeFinalizer finalizer;
+    private final WikiFinalizePort finalizer;
     private final ChunkQuestionService chunkService;
 
     @Autowired
@@ -48,7 +49,7 @@ public class QuestionGenerationService {
                                      KnowledgeMapper knowledgeMapper,
                                      KnowledgeBaseMapper kbMapper,
                                      SpanTracker spanTracker,
-                                     DefaultWikiKnowledgeFinalizer finalizer,
+                                     WikiFinalizePort finalizer,
                                      ChunkQuestionService chunkService) {
         this.chunkRepository = chunkRepository;
         this.knowledgeMapper = knowledgeMapper;
@@ -205,7 +206,7 @@ public class QuestionGenerationService {
             return;
         }
         try {
-            finalizer.finalizeSubtask(knowledgeId);
+            finalizer.finalizeWikiSubtask(knowledgeId);
         } catch (RuntimeException e) {
             // best-effort：递减失败不破坏任务语义（行由 housekeeping sweep 兜底）
             log.warn("finalize subtask decrement failed source={} knowledge={} err={}",

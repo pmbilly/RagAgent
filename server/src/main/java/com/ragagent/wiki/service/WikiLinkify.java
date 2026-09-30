@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import com.ragagent.wiki.service.WikiCrossLinker.LinkifyResult;
 import com.ragagent.wiki.service.WikiCrossLinker.LinkRef;
+import com.ragagent.common.wiki.GoStrings;
 
 /**
  * {@code [[slug]]} 交叉链接自动注入（{@link WikiCrossLinker} 的默认实现）。

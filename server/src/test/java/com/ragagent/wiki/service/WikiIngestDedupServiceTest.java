@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.domain.WikiPageLite;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.SlugUpdate;
 
 /**
  * {@link WikiIngestDedupService} 的对等测试（对照 Go

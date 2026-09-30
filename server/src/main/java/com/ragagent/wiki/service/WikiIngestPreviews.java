@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import com.ragagent.common.wiki.ExtractedItem;
 
 /**
  * trace 视图用的"内容预览"渲染。

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.ragagent.common.wiki.GoStrings;
 
 /**
  * 死链重写。

@@ -1,4 +1,4 @@
-package com.ragagent.wiki.service;
+package com.ragagent.common.wiki;
 
 /**
  * 字符串工具，只收录 Java 标准方法与 wiki 所需语义<b>不一致</b>的那几个函数。
@@ -16,7 +16,7 @@ package com.ragagent.wiki.service;
  * <p>这些差异在 ASCII 场景下不可见，但 wiki prompt / slug 会处理中文与 PDF 抽取文本，
  * NBSP 与全角空格都不罕见，故这里按上述定义<b>逐码点</b>实现。</p>
  */
-final class GoStrings {
+public final class GoStrings {
 
     private GoStrings() {}
 
@@ -30,7 +30,7 @@ final class GoStrings {
      * 目录名 / slug 里出现 emoji 时这个分歧就会变成实测的顺序差异，
      * 而顺序直接影响 prompt 字节，进而影响 provider 前缀缓存——所以按码点比。</p>
      */
-    static int compareByCodePoints(String a, String b) {
+    public static int compareByCodePoints(String a, String b) {
         if (a == null || b == null) {
             return a == null ? (b == null ? 0 : -1) : 1;
         }
@@ -55,7 +55,7 @@ final class GoStrings {
      * 二者并集与该定义不一致（多出 U+001C–U+001F），也与 JDK 版本演进的
      * 模糊地带纠缠；显式列举反而稳定。</p>
      */
-    static boolean isSpace(int cp) {
+    public static boolean isSpace(int cp) {
         return cp == '\t' || cp == '\n' || cp == 0x0B || cp == '\f' || cp == '\r'
                 || cp == ' '
                 || cp == 0x85   // NEL
@@ -71,7 +71,7 @@ final class GoStrings {
      * 裁掉首尾的空白（定义见 {@link #isSpace}）。
      * 按<b>码点</b>推进，代理对不会被拆开。
      */
-    static String trimSpace(String s) {
+    public static String trimSpace(String s) {
         if (s == null || s.isEmpty()) {
             return s == null ? "" : s;
         }

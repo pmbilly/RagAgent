@@ -1,6 +1,7 @@
 package com.ragagent.wiki.service;
 
 import java.util.List;
+import com.ragagent.common.wiki.GoStrings;
 
 /**
  * wiki ingest 的纯文本工具：slug 化、截断、预览、XML 转义、SUMMARY 行解析与

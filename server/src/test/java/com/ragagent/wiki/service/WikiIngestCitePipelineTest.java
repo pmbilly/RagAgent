@@ -2,7 +2,6 @@ package com.ragagent.wiki.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -19,6 +18,7 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.wiki.prompt.WikiPrompts;
+import com.ragagent.common.wiki.ExtractedItem;
 
 /**
  * {@link WikiIngestCitePipeline} 的对等测试（对照 Go

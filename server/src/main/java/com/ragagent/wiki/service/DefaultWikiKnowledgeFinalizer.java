@@ -9,6 +9,7 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import com.ragagent.common.wiki.WikiFinalizePort;
 
 /**
  * {@link WikiKnowledgeFinalizer} 的默认实现：把文档从 {@code finalizing} 推向
@@ -35,7 +36,7 @@ import org.springframework.stereotype.Component;
  * 只有一个能匹配晋升的 WHERE）。{@code rows == 0} 视为静默成功（计数已被他人归零并晋升）。</p>
  */
 @Component
-public class DefaultWikiKnowledgeFinalizer implements WikiKnowledgeFinalizer {
+public class DefaultWikiKnowledgeFinalizer implements WikiFinalizePort, WikiKnowledgeFinalizer {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultWikiKnowledgeFinalizer.class);
 

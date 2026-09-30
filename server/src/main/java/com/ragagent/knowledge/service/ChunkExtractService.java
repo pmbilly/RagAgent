@@ -21,7 +21,7 @@ import com.ragagent.knowledge.mapper.KnowledgeMapper;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.tracing.langfuse.LangfuseTaskScope;
-import com.ragagent.wiki.service.DefaultWikiKnowledgeFinalizer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,6 +31,7 @@ import com.ragagent.common.graph.GraphData;
 import com.ragagent.common.graph.GraphNode;
 import com.ragagent.common.graph.GraphRelation;
 import com.ragagent.common.graph.NameSpace;
+import com.ragagent.common.wiki.WikiFinalizePort;
 
 /**
  * 分块图抽取任务：
@@ -67,7 +68,7 @@ public class ChunkExtractService {
     private final KnowledgeBaseMapper kbMapper;
     private final SpanTracker spanTracker;
     private final RetrieveGraphRepository graphRepository;
-    private final DefaultWikiKnowledgeFinalizer finalizer;
+    private final WikiFinalizePort finalizer;
     private final ExtractPrompts extractPrompts;
 
     /** 生产构造器（Spring 装配；模板来源用 vendored extract 配置）。 */
@@ -78,7 +79,7 @@ public class ChunkExtractService {
                                KnowledgeBaseMapper kbMapper,
                                SpanTracker spanTracker,
                                RetrieveGraphRepository graphRepository,
-                               DefaultWikiKnowledgeFinalizer finalizer) {
+                               WikiFinalizePort finalizer) {
         this(modelRuntimeFactory, chunkRepository, knowledgeMapper, kbMapper, spanTracker,
                 graphRepository, finalizer, new ExtractPrompts());
     }
@@ -90,7 +91,7 @@ public class ChunkExtractService {
                         KnowledgeBaseMapper kbMapper,
                         SpanTracker spanTracker,
                         RetrieveGraphRepository graphRepository,
-                        DefaultWikiKnowledgeFinalizer finalizer,
+                        WikiFinalizePort finalizer,
                         ExtractPrompts extractPrompts) {
         this.modelRuntimeFactory = modelRuntimeFactory;
         this.chunkRepository = chunkRepository;
@@ -291,7 +292,7 @@ public class ChunkExtractService {
             return;
         }
         try {
-            finalizer.finalizeSubtask(knowledgeId);
+            finalizer.finalizeWikiSubtask(knowledgeId);
         } catch (RuntimeException e) {
             // best-effort：递减失败不破坏任务语义（行由 housekeeping sweep 兜底）
             log.warn("finalize subtask decrement failed source={} knowledge={} err={}",

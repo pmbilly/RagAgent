@@ -14,6 +14,10 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.wiki.prompt.WikiPrompts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.WikiImageMarkup;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * wiki 摄取 Map 阶段协作者:单文档 → 页面草图的 LLM 映射与文档标题解析。

@@ -15,6 +15,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.wiki.domain.TaskPendingOp;
 import com.ragagent.wiki.prompt.WikiPromptTemplate;
 import com.ragagent.wiki.prompt.WikiPrompts;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.WikiLanguageSupport;
+import com.ragagent.common.wiki.GoStrings;
 
 /**
  * 语言持久化与 prompt 渲染的对等测试（对照 Go

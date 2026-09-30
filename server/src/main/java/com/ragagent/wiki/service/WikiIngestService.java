@@ -26,6 +26,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import com.ragagent.common.wiki.WikiIngestPort;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.GoStrings;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * wiki 生成管线的主入口。
@@ -61,7 +66,7 @@ import org.springframework.stereotype.Service;
  * </ul>
  */
 @Service
-public class WikiIngestService {
+public class WikiIngestService implements WikiIngestPort {
 
     private static final Logger log = LoggerFactory.getLogger(WikiIngestService.class);
 
@@ -329,7 +334,6 @@ public class WikiIngestService {
     // ═══════════════════════════════════════════════════════════════
 
     /** 入队结果：accepted = 待办 op 是否已持久化。 */
-    public record EnqueueResult(boolean accepted, Exception error) {}
 
     /**
      * 把 op 持久化到
@@ -362,31 +366,31 @@ public class WikiIngestService {
      *         <b>触发错误可能与 accepted=true 同时返回</b>，
      *         调用方可以只重试 KB 级的触发而不追加重复的操作。
      */
-    public EnqueueResult enqueueWikiIngest(long tenantId, String kbId, String knowledgeId) {
+    public WikiIngestPort.EnqueueResult enqueueWikiIngest(long tenantId, String kbId, String knowledgeId) {
         TaskPendingOp op;
         try {
             op = newWikiIngestPendingOp(tenantId, kbId, knowledgeId);
         } catch (Exception e) {
             log.warn("wiki ingest: failed to marshal pending op for {}: {}", knowledgeId, e.getMessage());
-            return new EnqueueResult(false, e);
+            return new WikiIngestPort.EnqueueResult(false, e);
         }
         boolean accepted;
         try {
             accepted = enqueueWikiPendingOp(op);
         } catch (Exception e) {
             log.warn("wiki ingest: failed to enqueue pending op for {}: {}", knowledgeId, e.getMessage());
-            return new EnqueueResult(false, e);
+            return new WikiIngestPort.EnqueueResult(false, e);
         }
         if (!accepted) {
             log.info("wiki ingest: skip enqueue for deleted KB {}", kbId);
-            return new EnqueueResult(false, null);
+            return new WikiIngestPort.EnqueueResult(false, null);
         }
         try {
             enqueueWikiIngestTrigger(tenantId, kbId);
         } catch (Exception e) {
-            return new EnqueueResult(true, e);
+            return new WikiIngestPort.EnqueueResult(true, e);
         }
-        return new EnqueueResult(true, null);
+        return new WikiIngestPort.EnqueueResult(true, null);
     }
 
     /**

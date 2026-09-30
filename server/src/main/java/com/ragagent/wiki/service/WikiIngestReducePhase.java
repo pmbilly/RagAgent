@@ -15,6 +15,10 @@ import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.prompt.WikiPrompts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.GoStrings;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * wiki 摄取 Reduce 阶段协作者:slug 更新按页归并写入(含 span 追踪与 chunk refs 合并)。

@@ -18,6 +18,8 @@ import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * wiki 批次摄取的运行管道协作者:processWikiFinalize 的执行体、ingest 的

@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import com.ragagent.knowledge.domain.Chunk;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.WikiImageMarkup;
 
 /**
  * wiki ingest 的纯文本工具对等测试（对照 Go wiki_ingest_test.go 的

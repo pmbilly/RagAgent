@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import com.ragagent.agent.skills.Skill;
 import com.ragagent.agent.tools.ToolDefinitions;
 import com.ragagent.llm.domain.ChatMessage;
-import com.ragagent.wiki.service.WikiLanguageSupport;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * 引擎提示词装配协作者：系统提示词构建、runtime_context / must_use 注入块、

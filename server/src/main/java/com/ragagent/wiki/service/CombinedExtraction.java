@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.ragagent.common.wiki.ExtractedItem;
 
 /**
  * {@code WikiKnowledgeExtractPrompt} / {@code WikiCandidateSlugPrompt} 输出的解析结果：

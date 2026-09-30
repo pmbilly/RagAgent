@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.ragagent.wiki.domain.WikiPageLite;
+import com.ragagent.common.wiki.ExtractedItem;
 
 /**
  * 实体/概念去重与身份收敛的<b>可插拔端口</b>。

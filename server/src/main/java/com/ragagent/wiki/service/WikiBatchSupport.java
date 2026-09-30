@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.KnowledgeProcessingSpan;
 import com.ragagent.knowledge.service.SpanTracker;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * 批次执行用到的零散工具：错误分类、正文清洗、有界并发扇出、span 门面。

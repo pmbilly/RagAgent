@@ -1,4 +1,4 @@
-package com.ragagent.wiki.service;
+package com.ragagent.common.wiki;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

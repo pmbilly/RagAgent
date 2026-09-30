@@ -12,6 +12,7 @@ import com.ragagent.wiki.domain.TaskPendingOp;
 import com.ragagent.wiki.domain.WikiConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * wiki 批次摄取的 Finalize 阶段协作者:终稿落库与批次收尾(从 RunSupport 分解)。

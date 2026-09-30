@@ -26,7 +26,7 @@ import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.model.service.ModelService;
-import com.ragagent.wiki.service.WikiLanguageSupport;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;

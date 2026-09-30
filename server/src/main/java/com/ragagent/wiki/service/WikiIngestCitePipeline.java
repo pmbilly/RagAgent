@@ -18,6 +18,8 @@ import com.ragagent.wiki.prompt.WikiPrompts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.SlugUpdate;
 
 /**
  * 分块引用管线的纯算法与并发编排。

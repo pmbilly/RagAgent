@@ -33,6 +33,8 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.wiki.domain.TaskPendingOp;
 import com.ragagent.wiki.mapper.TaskPendingOpsRepository;
 import com.ragagent.wiki.prompt.WikiPrompts;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
  * {@link WikiIngestService} 核心行为的对等测试（对照 Go wiki_ingest_test.go 的

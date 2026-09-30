@@ -32,7 +32,7 @@ import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.model.service.ModelRuntimeFactory;
-import com.ragagent.wiki.service.DefaultWikiKnowledgeFinalizer;
+import com.ragagent.common.wiki.WikiFinalizePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -104,7 +104,7 @@ class ChunkExtractServiceTest {
     private KnowledgeMapper knowledgeMapper;
     private KnowledgeBaseMapper kbMapper;
     private SpanTracker spanTracker;
-    private DefaultWikiKnowledgeFinalizer finalizer;
+    private WikiFinalizePort finalizer;
     private RecordingGraphRepo graphRepo;
     private ChunkExtractService service;
 
@@ -117,7 +117,7 @@ class ChunkExtractServiceTest {
         knowledgeMapper = mock(KnowledgeMapper.class);
         kbMapper = mock(KnowledgeBaseMapper.class);
         spanTracker = mock(SpanTracker.class);
-        finalizer = mock(DefaultWikiKnowledgeFinalizer.class);
+        finalizer = mock(WikiFinalizePort.class);
         graphRepo = new RecordingGraphRepo();
 
         chunk = new Chunk();
@@ -152,7 +152,7 @@ class ChunkExtractServiceTest {
         service.handle(payload());
 
         assertTrue(graphRepo.addedGraphs.isEmpty());
-        verify(finalizer, never()).finalizeSubtask(anyString());
+        verify(finalizer, never()).finalizeWikiSubtask(anyString());
         verify(chunkRepository, never()).getChunkById(anyLong(), anyString());
         verify(spanTracker, never()).lookupStage(anyString(), anyInt(), anyString());
     }
@@ -169,7 +169,7 @@ class ChunkExtractServiceTest {
 
         assertTrue(graphRepo.addedGraphs.isEmpty());
         verify(chunkRepository, never()).getChunkById(anyLong(), anyString());
-        verify(finalizer).finalizeSubtask("kn-1");
+        verify(finalizer).finalizeWikiSubtask("kn-1");
     }
 
     @Test
@@ -181,7 +181,7 @@ class ChunkExtractServiceTest {
 
         assertTrue(graphRepo.addedGraphs.isEmpty());
         verify(modelRuntimeFactory, never()).getChatModel(anyString());
-        verify(finalizer).finalizeSubtask("kn-1");
+        verify(finalizer).finalizeWikiSubtask("kn-1");
     }
 
     @Test
@@ -197,7 +197,7 @@ class ChunkExtractServiceTest {
         assertEquals(1, graphRepo.addedGraphs.size());
         assertEquals("kb-1", graphRepo.addedNamespaces.get(0).knowledgeBase());
         assertEquals("kn-1", graphRepo.addedNamespaces.get(0).knowledge());
-        verify(finalizer).finalizeSubtask("kn-1");
+        verify(finalizer).finalizeWikiSubtask("kn-1");
     }
 
     @Test

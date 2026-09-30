@@ -36,6 +36,8 @@ import com.ragagent.wiki.domain.TaskPendingOp;
 import com.ragagent.wiki.domain.WikiPageLite;
 import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.mapper.TaskPendingOpsRepository;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.SlugUpdate;
 
 /**
  * {@link WikiIngestBatchHandler} 的对等测试（对照 Go

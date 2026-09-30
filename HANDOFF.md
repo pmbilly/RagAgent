@@ -416,6 +416,19 @@
    `EntityExtraction` 还隐式用 `GoJsonMarshal`/`GoValueStr`（chatpipeline 里的自足 Go 兼容助手）→ 一并搬到 `common/web`
    （与 `JsonMappers` 同族），否则 `llm → chatpipeline` 会造出**新环**。测试侧 4 文件的隐式使用补 import。
    剩余 `chatpipeline ⇄ session`：`session/QaWiring` 装配了 14+ 个 chatpipeline 插件（功能性依赖），另案。
+
+   ✅ **④-g `knowledge ⇄ wiki` 已完成（2026-09-30，环 8 → 7）——用修正后的方法重做成功**：
+   ① **标识符级传递闭包扫描**（不再只看 import）：从 `WikiImageMarkup`/`WikiLanguageSupport` 出发的闭包有 56 个类型（含
+   `WikiPageServiceImpl` 等），**整簇不可搬**；但真小簇是 5 个自足类型：`WikiImageMarkup` → **wiki 自己的** `GoStrings`，
+   `WikiLanguageSupport` → `SlugUpdate` → `ExtractedItem`（后三者 0 依赖）。
+   ② **同名类陷阱**（上轮失败根因）：`wiki/service/GoStrings` 与 `datasource/connector/gitlab/GoStrings` 是**两个不同的类**——
+   本次只搬 **wiki 那份** 到 `common/wiki`（gitlab 那份原样不动），并放宽为 public。
+   ③ **端口**：`common/wiki/WikiIngestPort`（含 `EnqueueResult` 载荷，由 `WikiIngestService` 实现）+
+   `common/wiki/WikiFinalizePort`（单方法 void `finalizeWikiSubtask`，由 `DefaultWikiKnowledgeFinalizer` 实现——它的
+   `finalizeSubtask` 返回 Outcome，调用方不消费返回值，故端口只暴露 void 形态）；knowledge 三个调用点改注入端口。
+   ④ **import 修复改为编译错误驱动**（写了个循环修复器：只给报错的文件补对应类型的 import，main 2 轮 + test 3 轮）——
+   **不再按标识符做粗暴遍**（上轮教训）。测试侧 `ChunkExtractServiceTest` 的桩同步换端口；wiki 自己的
+   `WikiKnowledgeFinalizerTest` 保持不动（误伤已回退）。
 4. **`agent ⇄ mcp`**（背边 13 文件）与 **`embedding`/`rerank`/`llm ⇄ model`**（`Model` 实体越界，应传配置值）
    体量较大，建议排在这批之后。
 

@@ -14,6 +14,9 @@ import com.ragagent.wiki.domain.WikiPageLite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.ragagent.common.wiki.ExtractedItem;
+import com.ragagent.common.wiki.SlugUpdate;
+import com.ragagent.common.wiki.GoStrings;
 
 /**
  * 实体/概念去重与身份收敛。
