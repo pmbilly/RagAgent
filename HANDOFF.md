@@ -726,6 +726,42 @@ auth 域测试 183 条 / 全量 4,668 条 0 失败（clean 全量 + spotless + �
 断言别凭读文件印象写死——本批 trimGo 4 非 5、tenantProperties 4 非 2、tenantService 7 非 6，
 三次都是脚本实测纠偏（先跑计数再定断言）。
 
+#### 14.7.10 mcp 域执行计划（2026-10-01 侦察，接替 auth tenant；目标 `McpServiceController` 937 + `OAuthHandler` 825，一轮清零 mcp 域）
+
+**测试床**：controller 侧 `McpHttpContractTest` 539 行（`@SpringBootTest+@AutoConfigureMockMvc`，
+不直 new）+ `McpUsageInputTest` **static 直调** `McpServiceController.buildMCPUsageInput`/
+`mcpUsageExcerpt`（→ 门面留 static 薄委托）；oauth 侧 `OAuthHandlerTest` 343（**直
+`new OAuthHandler(cfg)`，构造签名冻结**；实例面 processAuthorizationResponse/setExpectedState/
+registerClient/refreshToken/getAuthorizationHeader 等 + **static 直调** resourceIdentifiersEqual/
+buildWellKnownUrl/validateAuthServerMetadataUrls/authorizationServerMetadataUrls/queryEscape/
+encodeForm 六个）+ `OAuthLifecycleTest` 299（Fake 仓 + OAuthServerStub）。mcp 域 236 个 @Test。
+
+**簇边界**（协作者 service 回引、门面构造器内装配；`OAuthHandler` 的可变态按状态组归属）：
+- `McpUsageInstructionsOps`（刀 M1）：generateMCPUsageInstructions + chatWithTimeout +
+  buildMCPUsageInput/mcpUsageExcerpt/runeCount/runeSubstring + selectChatModel + chatClientFor；
+  `MCP_USAGE_PROMPT`/`LANGUAGE_MAP`/`USAGE_INSTRUCTIONS_TIMEOUT`/`JSON` 常量随簇；
+  依赖 mcpMetadataAppError（留门面，经 `McpServiceController.` 调）。
+- `McpServiceCrudOps`（刀 M2）：create/list/get/update/delete/test/tools/resources 8 端点体 +
+  mcpServiceResponses + validateServiceUrlForSsrf + stringMap；自有 logger。
+- `OAuthDiscovery`（刀 O1）：**发现状态组整体随簇**（metadataLock/metadataFetched/serverMetadata/
+  metadataFetchError/baseUrl/resourceUrl）+ getServerMetadata/discover/fetchMetadataFromUrl/
+  extractBaseUrl/getDefaultEndpoints + setBaseUrl/setProtectedResourceMetadataUrl/getResourceUrl +
+  静态 buildWellKnownUrl/authorizationServerMetadataUrls/validateAuthServerMetadataUrls/
+  resourceIdentifiersEqual/trimTrailingSlash/trimSlashes/equalsIgnoreCase/equalsNn/isBlank；
+  门面留 4 个实例委托 + 4 个 static 委托（测试直调）。
+- `OAuthTokenOps`（刀 O2）：refreshToken/registerClient/getAuthorizationUrl/processAuthorizationResponse
+  + 静态 extractOAuthError/parseOAuthError/parseToken/encodeForm/queryEscape/stringOf；
+  CSRF 态（stateLock/expectedState）留门面放宽包内，O2 经 `service.` 访问。
+- 留门面（controller）：字段/7 参构造器、metadata 簇（getMCPMetadata/refreshMCPMetadata/mcpMetadata/
+  mayWriteSharedMCPMetadata/mcpMetadataAppError）、tool-approvals 两端点、共享助手
+  （requireTenant/canViewIntegrationSecrets/isOAuth/rawMessage/isNotFound/ok/envelope/successOnly/
+  sanitize——放宽包内）；留门面（oauth）：config/timeout/CSRF 态、setExpectedState/getExpectedState、
+  getAuthorizationHeader/getValidToken、`INVALID_STATE_MESSAGE`/`MAPPER`（放宽包内）。
+
+**预估**：controller 937→~330（M1/M2 后）；oauth 825→~200（O1/O2 后）；四个协作者 200~380 行。
+闸门：每刀 `--rerun-tasks` 重编 + `--tests "com.ragagent.mcp.*"`（阈值 ≥230）+ spotlessCheck +
+忠实性逐字比对；收官 clean 全量 + 环守卫。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
