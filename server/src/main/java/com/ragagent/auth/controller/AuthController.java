@@ -119,6 +119,7 @@ public class AuthController {
 
     final AuthOidcOps oidcOps;
     final AuthSessionOps sessionOps;
+    final AuthBindingSupport bindingSupport;
 
     /** 对照 handler.Edition（构建期注入，默认 "standard"）。 */
     @Value("${weknora.system.edition:standard}")
@@ -146,6 +147,7 @@ public class AuthController {
         this.oidcStateCodec = oidcStateCodec;
         this.oidcOps = new AuthOidcOps(this);
         this.sessionOps = new AuthSessionOps(this);
+        this.bindingSupport = new AuthBindingSupport(this);
     }
 
     @PostMapping("/login")
@@ -153,9 +155,9 @@ public class AuthController {
         log.info("Start user login");
 
         LoginRequest req = parseBody(rawBody, LoginRequest.class, "Invalid login parameters");
-        List<String> bindingErrors = validateLoginBinding(req);
+        List<String> bindingErrors = bindingSupport.validateLoginBinding(req);
         if (!bindingErrors.isEmpty()) {
-            throw invalidParams("Invalid login parameters", String.join("\n", bindingErrors));
+            throw bindingSupport.invalidParams("Invalid login parameters", String.join("\n", bindingErrors));
         }
         if (isBlank(req.email()) || isBlank(req.password())) {
             // 对照 Go handler 的显式空值检查（binding required 之后的兜底）
@@ -182,9 +184,9 @@ public class AuthController {
         }
         // 2) binding（对照 types.RegisterRequest 的校验标签）
         RegisterRequest req = parseBody(rawBody, RegisterRequest.class, "Invalid registration parameters");
-        List<String> bindingErrors = validateRegisterBinding(req);
+        List<String> bindingErrors = bindingSupport.validateRegisterBinding(req);
         if (!bindingErrors.isEmpty()) {
-            throw invalidParams("Invalid registration parameters", String.join("\n", bindingErrors));
+            throw bindingSupport.invalidParams("Invalid registration parameters", String.join("\n", bindingErrors));
         }
         // 3) 消毒（密码刻意不消毒：SanitizeForLog 会改写控制字符，导致注册成功却登录不上）
         String username = UserService.sanitizeForLog(req.username());
@@ -254,10 +256,10 @@ public class AuthController {
         InvitationLookupRequest req = parseBody(rawBody, InvitationLookupRequest.class, "token is required");
         List<String> bindingErrors = new ArrayList<>();
         if (isBlank(req.token())) {
-            bindingErrors.add(bindingError("invitationLookupRequest", "Token", "required"));
+            bindingErrors.add(bindingSupport.bindingError("invitationLookupRequest", "Token", "required"));
         }
         if (!bindingErrors.isEmpty()) {
-            throw invalidParams("token is required", String.join("\n", bindingErrors));
+            throw bindingSupport.invalidParams("token is required", String.join("\n", bindingErrors));
         }
         String token = UserService.goTrimSpace(req.token());
         if (token.isEmpty()) {
@@ -289,9 +291,9 @@ public class AuthController {
             @RequestBody(required = false) String rawBody) {
         RegisterByInviteRequest req = parseBody(rawBody, RegisterByInviteRequest.class,
                 "Invalid registration parameters");
-        List<String> bindingErrors = validateRegisterByInviteBinding(req);
+        List<String> bindingErrors = bindingSupport.validateRegisterByInviteBinding(req);
         if (!bindingErrors.isEmpty()) {
-            throw invalidParams("Invalid registration parameters", String.join("\n", bindingErrors));
+            throw bindingSupport.invalidParams("Invalid registration parameters", String.join("\n", bindingErrors));
         }
         String token = UserService.goTrimSpace(req.token());
         String email = UserService.goTrimSpace(req.email()).toLowerCase(Locale.ROOT);
@@ -488,13 +490,13 @@ public class AuthController {
         List<String> bindingErrors = new ArrayList<>();
         // Go 侧是匿名 struct：验证错误 Key 无 struct 名前缀（golden reg-chpw-binding 锁定）
         if (isBlank(req.oldPassword())) {
-            bindingErrors.add(bindingError("", "OldPassword", "required"));
+            bindingErrors.add(bindingSupport.bindingError("", "OldPassword", "required"));
         }
         if (isBlank(req.newPassword())) {
-            bindingErrors.add(bindingError("", "NewPassword", "required"));
+            bindingErrors.add(bindingSupport.bindingError("", "NewPassword", "required"));
         }
         if (!bindingErrors.isEmpty()) {
-            throw invalidParams("Invalid password change request", String.join("\n", bindingErrors));
+            throw bindingSupport.invalidParams("Invalid password change request", String.join("\n", bindingErrors));
         }
         User user = currentUserOr401();
         try {
@@ -657,116 +659,6 @@ public class AuthController {
             @RequestBody(required = false) String rawBody) {
         return sessionOps.switchTenant(rawBody);
     }
-
-    AuthLoginResponse buildAuthLoginResponse(boolean success, String message, User user,
-                                                     Tenant activeTenant, List<Membership> memberships,
-                                                     String token, String refreshToken) {
-        TenantResponse tenantResp = null;
-        if (activeTenant != null) {
-            String role = membershipRoleForTenant(memberships, activeTenant.getId());
-            tenantResp = TenantResponse.from(activeTenant,
-                    TenantRole.fromString(role).hasPermission(TenantRole.ADMIN));
-        }
-        return new AuthLoginResponse(success, message, user, tenantResp,
-                memberships, token, refreshToken);
-    }
-
-    /** 对照 ShouldBindJSON：空 body → details "EOF"；非法 JSON → details=解析器消息（已知差异） */
-    private <T> T parseBody(String rawBody, Class<T> type, String message) {
-        if (rawBody == null || rawBody.isBlank()) {
-            throw invalidParams(message, "EOF");
-        }
-        try {
-            // Go 的 json.Decoder 忽略未知字段：Jackson 默认同样忽略
-            return MAPPER.readValue(rawBody, type);
-        } catch (Exception e) {
-            throw invalidParams(message, e.getMessage());
-        }
-    }
-
-    /** 复刻 gin binding:"required,email"（Email）+ "required,min=6"（Password） */
-    private List<String> validateLoginBinding(LoginRequest req) {
-        List<String> errors = new ArrayList<>();
-        String email = req.email();
-        if (isBlank(email)) {
-            errors.add(bindingError("LoginRequest", "Email", "required"));
-        } else if (!GIN_EMAIL.matcher(email).matches()) {
-            errors.add(bindingError("LoginRequest", "Email", "email"));
-        }
-        String password = req.password();
-        if (isBlank(password)) {
-            errors.add(bindingError("LoginRequest", "Password", "required"));
-        } else if (password.length() < 6) {
-            errors.add(bindingError("LoginRequest", "Password", "min"));
-        }
-        return errors;
-    }
-
-    /** 复刻 RegisterRequest 的 binding：username required,min=2,max=50；email required,email；password required,min=6 */
-    private List<String> validateRegisterBinding(RegisterRequest req) {
-        List<String> errors = new ArrayList<>();
-        String username = req.username();
-        if (isBlank(username)) {
-            errors.add(bindingError("RegisterRequest", "Username", "required"));
-        } else {
-            // go-playground 的 min/max 对 string 按 rune 计；单字段遇首个失败即停
-            int len = username.codePointCount(0, username.length());
-            if (len < 2) {
-                errors.add(bindingError("RegisterRequest", "Username", "min"));
-            } else if (len > 50) {
-                errors.add(bindingError("RegisterRequest", "Username", "max"));
-            }
-        }
-        addEmailBinding(errors, "RegisterRequest", req.email());
-        addPasswordBinding(errors, "RegisterRequest", req.password());
-        return errors;
-    }
-
-    /** 复刻 registerByInviteRequest 的 binding：token required；email required,email；username required；password required,min=6 */
-    private List<String> validateRegisterByInviteBinding(RegisterByInviteRequest req) {
-        List<String> errors = new ArrayList<>();
-        if (isBlank(req.token())) {
-            errors.add(bindingError("registerByInviteRequest", "Token", "required"));
-        }
-        addEmailBinding(errors, "registerByInviteRequest", req.email());
-        if (isBlank(req.username())) {
-            errors.add(bindingError("registerByInviteRequest", "Username", "required"));
-        }
-        addPasswordBinding(errors, "registerByInviteRequest", req.password());
-        return errors;
-    }
-
-    private void addEmailBinding(List<String> errors, String structName, String email) {
-        if (isBlank(email)) {
-            errors.add(bindingError(structName, "Email", "required"));
-        } else if (!GIN_EMAIL.matcher(email).matches()) {
-            errors.add(bindingError(structName, "Email", "email"));
-        }
-    }
-
-    private void addPasswordBinding(List<String> errors, String structName, String password) {
-        if (isBlank(password)) {
-            errors.add(bindingError(structName, "Password", "required"));
-        } else if (password.codePointCount(0, password.length()) < 6) {
-            errors.add(bindingError(structName, "Password", "min"));
-        }
-    }
-
-    /**
-     * go-playground validator 的单条错误格式（gin err.Error() 的组成单元）。
-     * structName 为空 = Go 匿名 struct（Key 无前缀，对照 reg-chpw-binding golden）。
-     */
-    static String bindingError(String structName, String field, String tag) {
-        String key = structName == null || structName.isEmpty() ? field : structName + "." + field;
-        return "Key: '" + key + "' Error:Field validation for '" + field
-                + "' failed on the '" + tag + "' tag";
-    }
-
-    /** 对照 handler：NewValidationError(message).WithDetails(err.Error()) */
-    static BizException invalidParams(String message, String details) {
-        return new BizException(AppError.validation(message).withDetails(details));
-    }
-
     /** 对照 dto.NewAuthLoginResponse（login 用） */
     private AuthLoginResponse toResponse(LoginResult r) {
         return buildAuthLoginResponse(r.success(), r.message(), r.user(), r.activeTenant(),
@@ -786,7 +678,27 @@ public class AuthController {
         return "";
     }
 
-    private static boolean isBlank(String s) {
+    static boolean isBlank(String s) {
         return s == null || s.isEmpty();
     }
+
+    AuthLoginResponse buildAuthLoginResponse(boolean success, String message, User user,
+            Tenant activeTenant, List<Membership> memberships, String token, String refreshToken) {
+        return bindingSupport.buildAuthLoginResponse(success, message, user, activeTenant,
+                memberships, token, refreshToken);
+    }
+
+    private <T> T parseBody(String rawBody, Class<T> type, String message) {
+        return bindingSupport.parseBody(rawBody, type, message);
+    }
+
+    String bindingError(String structName, String field, String tag) {
+        return bindingSupport.bindingError(structName, field, tag);
+    }
+
+    BizException invalidParams(String message, String details) {
+        return bindingSupport.invalidParams(message, details);
+    }
+
+
 }
