@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.auth.apikey.domain.TenantAPIKey;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyCreateResponse;
@@ -19,8 +18,8 @@ import com.ragagent.auth.apikey.service.TenantAPIKeyService;
 import com.ragagent.auth.apikey.service.TenantAPIKeyValidator;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
+import com.ragagent.common.knowledge.KnowledgeBaseFacts;
+import com.ragagent.common.knowledge.KnowledgeBaseGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -74,11 +73,11 @@ public class TenantAPIKeyController {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final TenantAPIKeyService apiKeyService;
-    private final KnowledgeBaseMapper knowledgeBaseMapper;
+    private final KnowledgeBaseGateway knowledgeBaseGateway;
 
-    public TenantAPIKeyController(TenantAPIKeyService apiKeyService, KnowledgeBaseMapper knowledgeBaseMapper) {
+    public TenantAPIKeyController(TenantAPIKeyService apiKeyService, KnowledgeBaseGateway knowledgeBaseGateway) {
         this.apiKeyService = apiKeyService;
-        this.knowledgeBaseMapper = knowledgeBaseMapper;
+        this.knowledgeBaseGateway = knowledgeBaseGateway;
     }
 
     // ── 列表 ──
@@ -272,10 +271,7 @@ public class TenantAPIKeyController {
      * 租户比较交给 {@link TenantAPIKeyValidator}。</p>
      */
     private Long lookupKbTenantId(String knowledgeBaseId) {
-        KnowledgeBase kb = knowledgeBaseMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
-                .eq(KnowledgeBase::getId, knowledgeBaseId)
-                .isNull(KnowledgeBase::getDeletedAt)
-                .last("LIMIT 1"));
-        return kb == null ? null : kb.getTenantId();
+        KnowledgeBaseFacts kb = knowledgeBaseGateway.findFacts(knowledgeBaseId);
+        return kb == null ? null : kb.tenantId();
     }
 }

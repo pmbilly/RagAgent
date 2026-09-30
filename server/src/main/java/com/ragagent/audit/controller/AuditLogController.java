@@ -2,7 +2,6 @@ package com.ragagent.audit.controller;
 
 import java.util.List;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ragagent.audit.domain.AuditLog;
 import com.ragagent.audit.domain.AuditLogQuery;
 import com.ragagent.audit.service.AuditLogService;
@@ -11,8 +10,8 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.GuardForbiddenException;
-import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
+import com.ragagent.common.knowledge.KnowledgeBaseFacts;
+import com.ragagent.common.knowledge.KnowledgeBaseGateway;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,11 +51,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuditLogController {
 
     private final AuditLogService auditLogService;
-    private final KnowledgeBaseMapper knowledgeBaseMapper;
+    private final KnowledgeBaseGateway knowledgeBaseGateway;
 
-    public AuditLogController(AuditLogService auditLogService, KnowledgeBaseMapper knowledgeBaseMapper) {
+    public AuditLogController(AuditLogService auditLogService, KnowledgeBaseGateway knowledgeBaseGateway) {
         this.auditLogService = auditLogService;
-        this.knowledgeBaseMapper = knowledgeBaseMapper;
+        this.knowledgeBaseGateway = knowledgeBaseGateway;
     }
 
     // ── 空间审计流 ───────────────────────────────────────────────────────
@@ -128,17 +127,14 @@ public class AuditLogController {
         // 对照中间件 KBAccessRead 解析出的 access.KnowledgeBase（本租户 + 未删除）。
         // ⚠️ 共享空间（kb_shares）尚未翻译 → 跨租户的 KB 在这里直接落 404，
         // 与 Go 在共享场景下的 403 存在差异（见报告）。
-        KnowledgeBase kb = knowledgeBaseMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
-                .eq(KnowledgeBase::getId, kbId)
-                .isNull(KnowledgeBase::getDeletedAt)
-                .last("LIMIT 1"));
+        KnowledgeBaseFacts kb = knowledgeBaseGateway.findFacts(kbId);
         if (kb == null) {
             throw new BizException(AppError.notFound("knowledge base not found"));
         }
 
         Long callerTenantId = TenantContext.currentTenantId();
         long caller = callerTenantId == null ? 0L : callerTenantId;
-        long kbTenant = kb.getTenantId() == null ? 0L : kb.getTenantId();
+        long kbTenant = kb.tenantId() == null ? 0L : kb.tenantId();
         if (caller == 0 || kbTenant != caller) {
             throw new BizException(AppError.forbidden(
                     "knowledge base activity is only available in the owner workspace"));
@@ -146,7 +142,7 @@ public class AuditLogController {
 
         String actorId = TenantContext.currentUserId() == null ? "" : TenantContext.currentUserId();
         TenantRole role = currentRoleOrViewer();
-        String creatorId = kb.getCreatorId() == null ? "" : kb.getCreatorId();
+        String creatorId = kb.creatorId() == null ? "" : kb.creatorId();
         if (!creatorId.equals(actorId) && !role.hasPermission(TenantRole.ADMIN)) {
             // 对照 Go 中间件 g.OwnedKBOrAdmin() 的拒绝：**守卫形态**，
             // 不是 AppError 信封（见方法注释第 3 条）。

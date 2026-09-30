@@ -13,7 +13,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.ragagent.audit.controller.AuditLogController;
 import com.ragagent.audit.domain.AuditAction;
 import com.ragagent.audit.domain.AuditLog;
@@ -22,8 +21,8 @@ import com.ragagent.audit.domain.AuditOutcome;
 import com.ragagent.audit.service.AuditLogService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.GlobalExceptionHandler;
-import com.ragagent.knowledge.domain.KnowledgeBase;
-import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
+import com.ragagent.common.knowledge.KnowledgeBaseFacts;
+import com.ragagent.common.knowledge.KnowledgeBaseGateway;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -51,7 +50,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class AuditLogControllerTest {
 
     private AuditLogService svc;
-    private KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+    private final KnowledgeBaseGateway kbGateway = mock(KnowledgeBaseGateway.class);
     private MockMvc mvc;
 
     @AfterEach
@@ -65,7 +64,7 @@ class AuditLogControllerTest {
         when(svc.list(anyLong(), any(AuditLogQuery.class)))
                 .thenAnswer(inv -> listFn.apply(inv.getArgument(0), inv.getArgument(1)));
         mvc = MockMvcBuilders
-                .standaloneSetup(new AuditLogController(svc, kbMapper))
+                .standaloneSetup(new AuditLogController(svc, kbGateway))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -78,15 +77,11 @@ class AuditLogControllerTest {
     }
 
     private void seedKb(String kbId, long tenantId, String creatorId) {
-        KnowledgeBase kb = new KnowledgeBase();
-        kb.setId(kbId);
-        kb.setTenantId(tenantId);
-        kb.setCreatorId(creatorId);
-        when(kbMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(kb);
+        when(kbGateway.findFacts(kbId)).thenReturn(new KnowledgeBaseFacts(tenantId, creatorId));
     }
 
     private void seedNoKb() {
-        when(kbMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
+        when(kbGateway.findFacts(any())).thenReturn(null);
     }
 
     private void context(Long tenantId, String userId, String role) {

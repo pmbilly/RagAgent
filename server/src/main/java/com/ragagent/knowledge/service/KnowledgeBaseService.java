@@ -1,5 +1,7 @@
 package com.ragagent.knowledge.service;
 
+import com.ragagent.common.knowledge.KnowledgeBaseFacts;
+import com.ragagent.common.knowledge.KnowledgeBaseGateway;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -47,7 +49,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *  EnsureDefaults → applyTenantDefaultStorageProvider → applyAndValidateStorageBackend
  */
 @Service
-public class KnowledgeBaseService {
+public class KnowledgeBaseService implements KnowledgeBaseGateway {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeBaseService.class);
 
@@ -290,6 +292,21 @@ public class KnowledgeBaseService {
                 .eq(KnowledgeBase::getTenantId, tid)
                 .isNull(KnowledgeBase::getDeletedAt)
                 .last("LIMIT 1"));
+    }
+
+    /**
+     * 跨域只读端口的实现（{@link KnowledgeBaseGateway}）。
+     *
+     * <p>只回填归属事实，**不**调用 {@code ensureDefaults}——那是本域内部语义（字段回填），
+     * 端口调用方（audit 的归属守卫、auth 的跨租户校验）不需要，保持与它们原先的裸查询等价。</p>
+     */
+    @Override
+    public KnowledgeBaseFacts findFacts(String knowledgeBaseId) {
+        KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getId, knowledgeBaseId)
+                .isNull(KnowledgeBase::getDeletedAt)
+                .last("LIMIT 1"));
+        return kb == null ? null : new KnowledgeBaseFacts(kb.getTenantId(), kb.getCreatorId());
     }
 
     /**
