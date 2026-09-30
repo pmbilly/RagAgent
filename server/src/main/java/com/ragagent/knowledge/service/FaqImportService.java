@@ -1,7 +1,6 @@
 package com.ragagent.knowledge.service;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,10 +11,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.FaqChunkMetadata;
 import com.ragagent.knowledge.domain.Knowledge;
-import com.ragagent.knowledge.domain.KnowledgeTag;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.dto.faq.FaqFailedEntry;
 import com.ragagent.knowledge.dto.faq.FaqImportProgress;
@@ -39,10 +36,6 @@ import com.ragagent.knowledge.dto.faq.FaqBatchUpsertPayload;
 import com.ragagent.knowledge.dto.faq.FaqEntryFieldsBatchUpdate;
 import com.ragagent.knowledge.dto.faq.FaqEntryFieldsUpdate;
 import com.fasterxml.jackson.core.JacksonException;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 /**
  * FAQ 条目批量导入（upsert）与进度面：append/replace 两种模式的 dry-run 校验、
@@ -60,6 +53,7 @@ public class FaqImportService {
 
     final FaqChunkRepository faqChunkRepository;
     final FaqValidateOps validateOps;
+    final FaqBatchOps batchOps;
     final KnowledgeMapper knowledgeMapper;
     final KnowledgeTagMapper tagMapper;
     final FaqImportTaskStore taskStore;
@@ -85,6 +79,7 @@ public class FaqImportService {
 
         this.taskExecutor = taskExecutor;
         this.validateOps = new FaqValidateOps(this);
+        this.batchOps = new FaqBatchOps(this);
         this.faqChunkRepository = faqChunkRepository;
         this.knowledgeMapper = knowledgeMapper;
         this.tagMapper = tagMapper;
@@ -247,7 +242,7 @@ public class FaqImportService {
                 markImportFailed(job, progress, e.getMessage());
                 return;
             }
-            executeImportBatches(job, kb, knowledge, embeddingModel, progress);
+            batchOps.executeImportBatches(job, kb, knowledge, embeddingModel, progress);
         } finally {
             TenantContext.clear();
         }
@@ -282,13 +277,13 @@ public class FaqImportService {
         return validateOps.validateReplaceMode(entries, progress);
     }
 
-    private void finalizeImport(ImportJob job, FaqImportProgress progress, int originalTotalEntries) {
+    void finalizeImport(ImportJob job, FaqImportProgress progress, int originalTotalEntries) {
         List<FaqFailedEntry> failedEntries = progress.failedEntries() == null
                 ? List.of() : progress.failedEntries();
         String failedEntriesUrl = progress.failedEntriesUrl();
         String message = progress.message();
         if (!failedEntries.isEmpty()) {
-            String csvUrl = generateFailedEntriesCsv(job.tenantId(), job.taskId(), failedEntries);
+            String csvUrl = batchOps.generateFailedEntriesCsv(job.tenantId(), job.taskId(), failedEntries);
             if (csvUrl != null && !csvUrl.isEmpty()) {
                 failedEntriesUrl = csvUrl;
                 message = message + " (失败记录已导出为CSV)";
@@ -328,7 +323,7 @@ public class FaqImportService {
         taskStore.saveProgress(progress);
 
         if (!job.dryRun()) {
-            saveImportResultToDatabase(job, progress, originalTotalEntries);
+            batchOps.saveImportResultToDatabase(job, progress, originalTotalEntries);
             if ("replace".equals(job.mode())) {
                 int deleted = tagMapper.deleteUnusedTags(job.tenantId(), job.kbId());
                 if (deleted > 0) {
@@ -347,7 +342,12 @@ public class FaqImportService {
                 job.taskId(), job.dryRun(), progress.successCount(), progress.addedCount(),
                 progress.mergedCount(), progress.failedCount(), progress.partialFailedCount());
     }
-    private void markImportFailed(ImportJob job, FaqImportProgress progress, String error) {
+    String buildImportResultMessage(String prefix, FaqImportProgress p) {
+        return batchOps.buildImportResultMessage(prefix, p);
+    }
+
+
+    void markImportFailed(ImportJob job, FaqImportProgress progress, String error) {
         progress = withStatus(progress, "failed", 0, progress.total());
         progress = withMessage(progress, "导入失败");
         progress = withError(progress, error);
@@ -355,243 +355,6 @@ public class FaqImportService {
         taskStore.saveProgress(progress);
         taskStore.clearRunningInfoIfMatches(job.kbId(), job.taskId(), job.instanceId(), job.enqueuedAt());
         log.warn("FAQ import task {} failed: {}", job.taskId(), error);
-    }
-    private static final int FAQ_IMPORT_BATCH_SIZE = 50;
-
-    /**
-     * 导入执行循环——
-     * 2026-09-22 走查批接线（此前是「embedding runtime is not available」占位）：
-     * 按 faqImportBatchSize(50) 分批 → 逐条 sanitize/resolveTagID/建 chunk → CreateChunks
-     * → faqIndexWriter.indexFAQChunks(adjustStorage=true) → status=2 → 收集成功条目 → 进度落库；
-     * 末尾 finalizeImport（completed 终态 + 结果落库 + replace 清未引用标签）。
-     * 事务性回滚（失败直落 failed 终态，残留行由重导/replace 清理）——与 processImport
-     * 的既有取舍同款。</p>
-     */
-    private void executeImportBatches(ImportJob job, KnowledgeBase kb, Knowledge faqKnowledge,
-                                      Model embeddingModel, FaqImportProgress progress) {
-        List<Integer> valid = progress.validEntryIndices();
-        int totalEntries = progress.total();
-        int skippedCount = progress.skippedCount();
-        int actualProcessed = skippedCount + progress.mergedCount();
-        String indexMode = faqChunkCodec.faqIndexMode(kb);
-        List<FaqSuccessEntry> successEntries = progress.successEntries() == null
-                ? new ArrayList<>() : new ArrayList<>(progress.successEntries());
-
-        for (int i = 0; i < valid.size(); i += FAQ_IMPORT_BATCH_SIZE) {
-            int end = Math.min(i + FAQ_IMPORT_BATCH_SIZE, valid.size());
-            List<Chunk> chunks = new ArrayList<>(end - i);
-            for (int k = i; k < end; k++) {
-                int entryIdx = valid.get(k); // dry-run 校验给出的原始条目下标
-                FaqEntryPayload entry = job.entries().get(entryIdx);
-                FaqChunkMetadata meta;
-                try {
-                    meta = faqGuard.sanitizeFAQEntryPayload(entry);
-                } catch (RuntimeException e) {
-                    markImportFailed(job, progress,
-                            "FAQ import failed: failed to sanitize entry at index " + entryIdx
-                                    + ": " + e.getMessage());
-                    return;
-                }
-                String tagID;
-                try {
-                    tagID = faqGuard.resolveTagID(job.kbId(), entry);
-                } catch (RuntimeException e) {
-                    markImportFailed(job, progress,
-                            "FAQ import failed: failed to resolve tag for entry at index " + entryIdx
-                                    + ": " + e.getMessage());
-                    return;
-                }
-                boolean isEnabled = entry.enabled() == null || entry.enabled();
-                Chunk chunk = new Chunk();
-                chunk.setId(UUID.randomUUID().toString());
-                chunk.setTenantId(job.tenantId());
-                chunk.setKnowledgeId(faqKnowledge.getId());
-                chunk.setKnowledgeBaseId(kb.getId());
-                chunk.setContent(faqChunkCodec.buildFAQChunkContent(meta, indexMode));
-                chunk.setIsEnabled(isEnabled);
-                chunk.setChunkType("faq");
-                chunk.setTagId(tagID);
-                chunk.setStatus(1); // stored
-                if (entry.id() != null && entry.id() > 0) {
-                    chunk.setSeqId(entry.id());
-                }
-                faqChunkCodec.setFaqMetadata(chunk, meta);
-                // 导入建的 chunk 不设 Flags（推荐位零值）
-                chunk.setCreatedAt(OffsetDateTime.now());
-                chunk.setUpdatedAt(chunk.getCreatedAt());
-                chunks.add(chunk);
-            }
-            List<String> chunkIds = new ArrayList<>(chunks.size());
-            for (Chunk chunk : chunks) {
-                chunkIds.add(chunk.getId());
-            }
-            try {
-                faqIndexWriter.createChunks(chunks);
-            } catch (RuntimeException e) {
-                markImportFailed(job, progress,
-                        "FAQ import failed: failed to create chunks: " + e.getMessage());
-                return;
-            }
-            try {
-                faqIndexWriter.indexFAQChunks(kb, faqKnowledge, chunks, embeddingModel, true);
-            } catch (RuntimeException e) {
-                markImportFailed(job, progress,
-                        "FAQ import failed: failed to index chunks: " + e.getMessage());
-                return;
-            }
-            for (Chunk chunk : chunks) {
-                chunk.setStatus(2); // indexed
-            }
-            try {
-                faqChunkRepository.updateChunks(chunks);
-            } catch (RuntimeException e) {
-                markImportFailed(job, progress,
-                        "FAQ import failed: failed to update chunks status: " + e.getMessage());
-                return;
-            }
-
-            // 收集成功条目
-            for (int k = 0; k < chunks.size(); k++) {
-                Chunk chunk = chunks.get(k);
-                FaqChunkMetadata meta = faqChunkCodec.sanitizedFaqMetadata(chunk);
-                String standardQ = meta == null || meta.standardQuestion == null
-                        ? "" : meta.standardQuestion;
-                long tagID = 0;
-                String tagName = "";
-                if (chunk.getTagId() != null && !chunk.getTagId().isEmpty()) {
-                    KnowledgeTag tag = tagMapper
-                            .selectByTenantAndIds(job.tenantId(), List.of(chunk.getTagId()))
-                            .stream().findFirst().orElse(null);
-                    if (tag != null) {
-                        tagID = tag.getSeqId();
-                        tagName = tag.getName();
-                    }
-                }
-                successEntries.add(new FaqSuccessEntry(valid.get(k),
-                        chunk.getSeqId() == null ? 0 : chunk.getSeqId(), tagID, tagName, standardQ));
-            }
-
-            actualProcessed += end - i;
-            int prog = totalEntries == 0 ? 0 : (int) ((double) actualProcessed / totalEntries * 100);
-            progress = withStatus(progress, "processing", prog, actualProcessed);
-            progress = withMessage(progress,
-                    "正在处理第 " + actualProcessed + "/" + totalEntries + " 条");
-            progress = withSuccessEntries(progress, successEntries);
-            taskStore.saveProgress(progress);
-        }
-
-        progress = withSuccessEntries(progress, successEntries);
-        taskStore.saveProgress(progress);
-        log.info("FAQ import task {}: all batches completed, processed: {}", job.taskId(), actualProcessed);
-        finalizeImport(job, progress, totalEntries);
-    }
-
-    /** ：BOM + 8 列，
-     *  落 {base}/{tenant}/exports/{name}_{UnixNano}.csv，返回 local:// URL。 */
-    private String generateFailedEntriesCsv(long tenantId, String taskId, List<FaqFailedEntry> failedEntries) {
-        StringBuilder buf = new StringBuilder();
-        buf.append('\uFEFF');
-        buf.append("错误原因,分类(必填),问题(必填),相似问题(选填-多个用##分隔),反例问题(选填-多个用##分隔),")
-                .append("机器人回答(必填-多个用##分隔),是否全部回复(选填-默认FALSE),是否停用(选填-默认FALSE)")
-                .append('\n');
-        for (FaqFailedEntry entry : failedEntries) {
-            String answerAll = entry.answerAll() ? "true" : "false";
-            String isDisabled = entry.disabled() ? "true" : "false";
-            buf.append(csvEscape(entry.reason())).append(',')
-                    .append(csvEscape(entry.tagName())).append(',')
-                    .append(csvEscape(entry.standardQuestion())).append(',')
-                    .append(csvEscape(entry.similarQuestions() == null ? "" : String.join("##", entry.similarQuestions())))
-                    .append(',')
-                    .append(csvEscape(entry.negativeQuestions() == null ? "" : String.join("##", entry.negativeQuestions())))
-                    .append(',')
-                    .append(csvEscape(entry.answers() == null ? "" : String.join("##", entry.answers())))
-                    .append(',')
-                    .append(answerAll).append(',')
-                    .append(isDisabled).append('\n');
-        }
-        String base = storage.baseDir().toString();
-        Path dir = Path.of(base, String.valueOf(tenantId), "exports");
-        String unique = "faq_dryrun_failed_" + taskId + "_" + System.nanoTime() + ".csv";
-        byte[] csv = buf.toString().getBytes(StandardCharsets.UTF_8);
-        if (fileStorage != null) {
-            // fileSvc.SaveBytes(..., temp=true) + GetFileURL → 云上落临时桶、回预签名 URL
-            TenantFileStorage.Exported exported =
-                    fileStorage.saveExportedBytesToUrl(tenantId, unique, csv, true);
-            if (exported.handled()) {
-                if (exported.url() == null) {
-                    log.warn("FAQ import task {}: failed to generate failed entries CSV", taskId);
-                }
-                return exported.url();
-            }
-        }
-        try {
-            // 本地租户：既有落盘 + local:// 引用（契约样例 形态）
-            Files.createDirectories(dir);
-            Path target = dir.resolve(unique);
-            Files.write(target, csv);
-            return "local://" + tenantId + "/exports/" + unique;
-        } catch (IOException e) {
-            log.warn("FAQ import task {}: failed to generate failed entries CSV: {}", taskId, e.getMessage());
-            return null;
-        }
-    }
-
-    private static String csvEscape(String s) {
-        if (s == null) {
-            s = "";
-        }
-        if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0) {
-            return "\"" + s.replace("\"", "\"\"") + "\"";
-        }
-        return s;
-    }
-    private void saveImportResultToDatabase(ImportJob job, FaqImportProgress progress, int originalTotalEntries) {
-        Knowledge knowledge = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
-                .eq(Knowledge::getId, job.knowledgeId())
-                .eq(Knowledge::getTenantId, job.tenantId())
-                .isNull(Knowledge::getDeletedAt)
-                .last("LIMIT 1"));
-        if (knowledge == null) {
-            log.warn("FAQ import task {}: knowledge not found for result save", job.taskId());
-            return;
-        }
-        int skippedCount = originalTotalEntries - progress.successCount()
-                - progress.partialFailedCount() - progress.failedCount();
-        if (skippedCount < 0) {
-            skippedCount = 0;
-        }
-        long processingTime = Instant.now().getEpochSecond() - progress.createdAt();
-        FaqImportResult result = new FaqImportResult(originalTotalEntries, progress.successCount(),
-                progress.failedCount(), progress.partialFailedCount(), skippedCount,
-                progress.mergedCount(), progress.addedCount(), job.mode(),
-                OffsetDateTime.now(), job.taskId(),
-                progress.failedEntriesUrl() == null || progress.failedEntriesUrl().isEmpty()
-                        ? null : progress.failedEntriesUrl(),
-                "open", processingTime);
-        knowledge.setLastFaqImportResult(FaqChunkMetadata.JSON.valueToTree(result));
-        knowledge.setUpdatedAt(OffsetDateTime.now());
-        knowledgeMapper.updateById(knowledge);
-        log.info("Saved FAQ import result to database: knowledge_id={}, task={}, total={}, success={}, failed={}",
-                job.knowledgeId(), job.taskId(), originalTotalEntries, progress.successCount(),
-                progress.failedCount());
-    }
-    private static String buildImportResultMessage(String prefix, FaqImportProgress p) {
-        List<String> parts = new ArrayList<>();
-        parts.add(prefix);
-        parts.add("上传 " + p.total() + " 条");
-        if (p.mergedCount() > 0) {
-            parts.add("新增 " + p.addedCount() + " 条");
-            parts.add("合并更新 " + p.mergedCount() + " 条");
-        } else {
-            parts.add("成功 " + p.successCount() + " 条");
-        }
-        if (p.failedCount() > 0) {
-            parts.add("失败 " + p.failedCount() + " 条");
-        }
-        if (p.partialFailedCount() > 0) {
-            parts.add("部分失败 " + p.partialFailedCount() + " 条");
-        }
-        return String.join(" / ", parts);
     }
 
     // ── 不可变 record 的局部更新辅助 ─────────────────────────────────────
@@ -801,4 +564,18 @@ public class FaqImportService {
                      String mode, boolean dryRun, long enqueuedAt, String instanceId,
                      List<FaqEntryPayload> entries) {
     }
+
+    private void executeImportBatches(ImportJob job, KnowledgeBase kb, Knowledge faqKnowledge,
+            Model embeddingModel, FaqImportProgress progress) {
+        batchOps.executeImportBatches(job, kb, faqKnowledge, embeddingModel, progress);
+    }
+
+    private String generateFailedEntriesCsv(long tenantId, String taskId, List<FaqFailedEntry> failedEntries) {
+        return batchOps.generateFailedEntriesCsv(tenantId, taskId, failedEntries);
+    }
+
+    private void saveImportResultToDatabase(ImportJob job, FaqImportProgress progress, int originalTotalEntries) {
+        batchOps.saveImportResultToDatabase(job, progress, originalTotalEntries);
+    }
+
 }
