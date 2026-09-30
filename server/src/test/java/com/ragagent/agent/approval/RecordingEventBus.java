@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 
 /**
  * 测试用事件总线（对照 Go {@code event.NewEventBus()} + {@code bus.On(...)}）。

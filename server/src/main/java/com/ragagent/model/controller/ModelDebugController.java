@@ -24,7 +24,7 @@ import com.ragagent.llm.chat.ThinkingStrategy;
 import com.ragagent.llm.domain.ChatConfig;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.provider.ProviderName;
 import com.ragagent.llm.provider.ProviderRegistry;

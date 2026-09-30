@@ -373,7 +373,7 @@ public class SteerController {
     static StreamEvent steerEvent(String id, String query, List<MentionedItem> mentionedItems,
                                   String channel) {
         StreamEvent evt = new StreamEvent(id,
-                com.ragagent.llm.domain.ResponseType.STEER, query, true);
+                com.ragagent.common.llm.ResponseType.STEER, query, true);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("steer_id", id);
         data.put("channel", channel == null ? "" : channel);

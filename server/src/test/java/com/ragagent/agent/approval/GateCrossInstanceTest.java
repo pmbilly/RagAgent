@@ -10,7 +10,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;

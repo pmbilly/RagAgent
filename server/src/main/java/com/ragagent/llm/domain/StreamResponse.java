@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoMapSerializer;
 import com.ragagent.retrieval.domain.SearchResult;
+import com.ragagent.common.llm.ResponseType;
 
 /**
  * 流式响应（对照 Go types.StreamResponse，internal/types/chat.go:292-304）。

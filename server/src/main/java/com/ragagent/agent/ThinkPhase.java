@@ -22,7 +22,7 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.llm.domain.ChatTool;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.agent.compaction.CompactionOverflow;
 import com.ragagent.agent.domain.AgentState;
 import com.ragagent.agent.tools.MessageSanitizer;

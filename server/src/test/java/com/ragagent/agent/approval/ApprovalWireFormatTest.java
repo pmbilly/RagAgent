@@ -10,7 +10,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import org.junit.jupiter.api.Test;
 
 /**

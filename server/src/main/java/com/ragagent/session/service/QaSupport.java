@@ -451,7 +451,7 @@ public final class QaSupport {
     public static StreamEvent steerEvent(String id, String query, List<MentionedItem> mentionedItems, String channel) {
         StreamEvent evt = new StreamEvent();
         evt.setId(id);
-        evt.setType(com.ragagent.llm.domain.ResponseType.STEER);
+        evt.setType(com.ragagent.common.llm.ResponseType.STEER);
         evt.setContent(query);
         evt.setDone(true);
         Map<String, Object> data = new LinkedHashMap<>();

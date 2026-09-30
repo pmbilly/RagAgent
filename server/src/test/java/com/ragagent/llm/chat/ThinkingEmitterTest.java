@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 
 import org.junit.jupiter.api.Test;

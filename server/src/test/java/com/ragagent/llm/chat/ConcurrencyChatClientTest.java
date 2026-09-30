@@ -14,7 +14,7 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.limiter.BackgroundTaskContext;
 import com.ragagent.llm.limiter.ConcurrencyGovernor;

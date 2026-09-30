@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.stream.StreamEvent;

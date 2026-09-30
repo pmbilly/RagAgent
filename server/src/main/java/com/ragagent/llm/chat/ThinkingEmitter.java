@@ -2,7 +2,7 @@ package com.ragagent.llm.chat;
 
 import java.util.concurrent.BlockingQueue;
 
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 
 /**

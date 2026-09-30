@@ -283,7 +283,7 @@ class SteerContractTest {
     void deleteConsumedEventReportsAlreadyInjected() throws Exception {
         seedLiveRun();
         StreamEvent evt = new StreamEvent("steer-1",
-                com.ragagent.llm.domain.ResponseType.STEER, "已被注入", true);
+                com.ragagent.common.llm.ResponseType.STEER, "已被注入", true);
         Map<String, Object> data = new java.util.LinkedHashMap<>();
         data.put("consumed", true);
         evt.setData(data);

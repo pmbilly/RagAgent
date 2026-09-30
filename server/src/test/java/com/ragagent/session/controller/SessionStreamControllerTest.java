@@ -23,7 +23,7 @@ import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageNotFoundException;
 import com.ragagent.session.domain.Session;

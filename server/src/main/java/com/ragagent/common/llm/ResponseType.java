@@ -1,4 +1,4 @@
-package com.ragagent.llm.domain;
+package com.ragagent.common.llm;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;

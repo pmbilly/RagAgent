@@ -9,7 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.stereotype.Component;
 
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.storage.support.Rewriter;
 import com.ragagent.storage.support.StreamRewriter;

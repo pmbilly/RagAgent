@@ -33,7 +33,7 @@ import com.ragagent.event.SessionTitleData;
 import com.ragagent.event.ToolApprovalRequiredData;
 import com.ragagent.event.ToolApprovalResolvedData;
 import com.ragagent.event.UserMessageInjectedData;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.retrieval.domain.SearchResult;
 import com.ragagent.session.domain.Message;

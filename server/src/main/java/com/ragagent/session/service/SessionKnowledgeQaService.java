@@ -37,7 +37,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelService;

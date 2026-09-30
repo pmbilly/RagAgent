@@ -15,7 +15,7 @@ import com.ragagent.event.AgentThoughtData;
 import com.ragagent.event.ErrorData;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatOptions;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.modelcontext.StreamDecoder;
 

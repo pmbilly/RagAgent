@@ -17,7 +17,7 @@ import com.ragagent.event.EventIds;
 import com.ragagent.event.EventType;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
-import com.ragagent.llm.domain.ResponseType;
+import com.ragagent.common.llm.ResponseType;
 
 /**
  * ReAct「Finalize」段的协作者：最终答案合成与完成事件——从既有工具结果兜底合成答案、\n * 迭代上限兜底、complete 事件发射、答案流收束。

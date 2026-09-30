@@ -746,7 +746,7 @@ public class SessionController {
         }
 
         com.ragagent.stream.StreamEvent stopEvent = new com.ragagent.stream.StreamEvent(
-                "stop-" + System.nanoTime(), com.ragagent.llm.domain.ResponseType.STOP,
+                "stop-" + System.nanoTime(), com.ragagent.common.llm.ResponseType.STOP,
                 "", true);
         stopEvent.setTimestamp(OffsetDateTime.now());
         Map<String, Object> data = new LinkedHashMap<>();
