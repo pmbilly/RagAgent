@@ -331,6 +331,11 @@ knowledge/
     - **期望值改法**：`ContractJson.deep()`（键序 + 整值浮点 + 时间归一到 UTC + 嵌套 JSON 串）是通用解，但两个坑：①`deep()` 会**排序键**，按声明序断言的用例（如 `AgentStepsJsonTest`）**不能用**；②Jackson 对 `OffsetDateTime` **保留值自带偏移**（`Instant` 字段才输出 `Z`），所以"同一字段不同构造方式"的期望值要分别设，别一刀切 UTC 化。
     - **量级参考**：208 失败 → 0，其中约 100 属于"测试用例自己造的裸 mapper"（接工厂即修，34 文件），~30 属于"钉住 Go 字节的期望值"，~10 属于"退役层自己的测试"（删）。
 
+21. **体检启发式有三类误报，报告任何"卫生指标"前必须先人审样本**（2026-09-30 agent 域复验）：
+    ①「注释掉的代码」正则会把 `// if / then / else`、`// scopeKey = kb:tenant:tagIDs` 这类**说明性注释**判成代码（agent 域报 11 处、实为 0；**按报告去删就是删文档**）；
+    ②「坏 `{@link}`」的存在性检查会把 JDK/Jackson 类型（`JsonNode`/`LinkedHashMap`）与**同文件嵌套类型**报成坏链（agent 域报 42 处，绝大多数合法）；
+    ③「死成员」的字段级口径**把构造函数里的赋值算作使用**——所以「只注入不读取的依赖」必须用依赖级口径单独扫（`agentm/ModelConnectivityTestService` 的 3 处就是这么漏到后续批次的）。
+
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
 > **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
@@ -366,7 +371,7 @@ knowledge/
 | 域 | 文件 | 行数 | 最大类 | ≥800 | Go 锚点 | `@JsonProperty` | 未用 import | 备注 |
 |---|---|---|---|---|---|---|---|---|
 | **wiki** | 130 | ~24.6k | PageServiceImpl(接口门面+三协作者) | 0 硬顶外 3 例外已注明 | 6(保留事实) | 218 | 4 | **步骤 2 完成(2026-09-30)**:六神类处置=BatchHandler 2,268→522+四协作者(4cd8701);IngestService 2,182→1,213+四协作者(7f3df4e);PageServiceImpl 1,642→门面+三协作者 FolderSupport/LinkRepair/ViewsSupport(3e031eb);PageController 1,342/DedupService 846/PageRepository 870 例外注明(64c6c81,C 波/数据轴重写时重塑)。**B 波完成(e026138)+ C 波完成(b407769:实体去 202 处注解转 camel/查询参数 Java 字段名/前端同批/wiki-* fixture 重录;PageController raw 形态保留但键已换锚,DTO 端点化随数据访问轴)**。**余**:数据访问轴(GORM 复刻层重塑) |
-| **agent** | 131 | 29,590 | AgentEngine 3,236 | 6 | 466 | 96 | 5 | §5 阶段 2 的另一半（已列名） |
+| **agent** | 171(+agentm 31) | 见 §11.6 | `ActPhase` 761 | **0** | **0** | **14**（登记边界：`AgentConfig`） | **0** | A/B/E 波 + Task 12 契约换锚完成；**§14.5 复验通过 + 卫生清零（§11.6，2026-09-30）**——本行为复验口径 |
 | **datasource** | 121 | 28,390 | DataSourceService 1,828 | 3 | **1,393** | **473** | 1 | §6.2：**零外部引用，可纯删**——先决定删/留 |
 | **session** | 73 | 21,460 | SessionKnowledgeQaService(门面+两协作者) | 8(1 已拆) | 721 | 188 | 12 | **步骤 0/1 完成,步骤 2 半程(2026-09-30)**:SKQA 1,764→门面+Resolution/Fallback(89a4e44);余七类=QaController 1,616/AgentQaService 1,446/AgentToolBackends 1,266/Suggestion 1,087/TempDoc 1,075/MessageService 1,028/StreamBridge 853;@RequestBody 直绑 12;子包 6 个无 package-info;`wip/chat-sse-slice2` 已裁定不并入(见 §14.8) |
 | **memory** | 62 | 13,166 | MemoryService 1,661 | 3 | 559 | 134 | 2 | |
