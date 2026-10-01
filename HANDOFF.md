@@ -1145,6 +1145,31 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
   两个新类都 <500，避免再造一个 929 式大件）；m5 = 若切完仍明显超阈值，再评估 `召回` 段
   （243 行，独立关注点，接缝自然）。
 
+### 14.9b 小域打样（阶段 3 起手，2026-10-01 用户拍板：小域打样）
+
+**目的**：先跑通「盘点 → 换锚 → 同批改前端 → 验收」整条流水线，再按域推重域（auth 247 / session 188 / datasource 127 / memory 123 / mcp 110 / system 86 / model 78）。
+
+**选域结论（2026-10-01 只读盘点）**：
+- **`evaluation` 域 = 打样首选**：`dto/EvaluationDtos.java` 单文件集中 **69 处 `@JsonProperty`**（占该域全部），
+  配一个 `controller/EvaluationController.java`；HTTP 面小且集中，改一处即是一整条端点的换锚，
+  前端（`frontend/src/`）有对应调用面可同批改。
+- **`wiki` 域不作为打样域**：其 39 处经甄别**全部是 wiki 内部载荷**（`WikiIngestPayload` 队列载荷、
+  `WikiRetractPayload`、`WikiPendingOp` 待办行、`WikiFinalizeRow`/`WikiFinalizeChange` 批次结果、
+  `CombinedExtraction` / `NewSlugFromCitation` 模型输出形状），`git grep` 确认**无跨包消费者**；
+  按 §14.9 三分法多数落 ②（事件/队列载荷→保留），少数（若写进 jsonb 列）落 ③ —— **需逐类确认"是否落库"**，
+  属"甄别"工作而非端点换锚。wiki 的 HTTP 端点面（`WikiPageController` 等）另立切片。
+
+**打样步骤（照 §14.9 执行顺序）**：
+1. **入场清单（只读）**：`EvaluationController` 的端点 × 请求/响应 DTO × `frontend/src/` 对应调用点 ×
+   该域 `@JsonInclude`/`NON_NULL` 残留 → 产出一张表（形如 §14.3）。
+2. **换锚**：DTO 去逐字段 `@JsonProperty`（字段名即 JSON 名，必要时改 Java 字段名到 camelCase）；
+   响应形状按 §2 第 4 条（分页 `{items,page,pageSize,total}`、删除 204、错误 `{"error":{...}}`）。
+3. **同批前端**：按步骤 1 的清单改 `frontend/src/` 调用点，前后端同 PR。
+4. **验收**：该域用例 + 前端构建 + 手工冒烟（端点 × 主要页面），产物写回本节。
+
+**注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
+不触碰全仓序列化层。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
