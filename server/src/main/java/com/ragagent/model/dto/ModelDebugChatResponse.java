@@ -3,43 +3,29 @@ package com.ragagent.model.dto;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * models/{id}/debug 的 chat 分支 raw_response（对照 Go
- * {@code handler.modelDebugChatStreamResponse}，model.go:304-311）。
+ * models/{id}/debug 的 chat 分支 rawResponse（流式聚合结果）。
  *
- * <p>字段序 = Go struct 声明序。{@code stream_events} 无 omitempty 恒输出
- * （空也是 {@code []}）；{@code content} 恒输出；其余 omitempty。</p>
+ * <p>{@code content} 恒输出（可能为空串）；{@code streamEvents} 恒为数组
+ * （空也是 {@code []}）；其余字段未产出时显式 null。{@code streamEvents}/{@code usage}
+ * 的元素是 LLM 域事件载荷（Byte 契约保留面），其内部键名不变。</p>
  */
-@JsonPropertyOrder({"content", "reasoning_content", "tool_calls", "finish_reason", "usage", "stream_events"})
 public class ModelDebugChatResponse {
 
-    @JsonProperty("content")
     private String content = "";
 
-    @JsonProperty("reasoning_content")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String reasoningContent;
 
-    @JsonProperty("tool_calls")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<ToolCall> toolCalls;
 
-    @JsonProperty("finish_reason")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String finishReason;
 
-    @JsonProperty("usage")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private TokenUsage usage;
 
-    @JsonProperty("stream_events")
     private List<StreamResponse> streamEvents = new ArrayList<>();
 
     public String getContent() { return content; }

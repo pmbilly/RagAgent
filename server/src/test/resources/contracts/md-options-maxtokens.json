@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"max_tokens must be between 1 and 8192"},"success":false}
+{"error":{"code":1000,"details":null,"message":"maxTokens must be between 1 and 8192"},"success":false}

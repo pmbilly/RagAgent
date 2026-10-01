@@ -10,11 +10,9 @@ import java.util.concurrent.BlockingQueue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.util.RawValue;
 import com.ragagent.llm.asr.AsrTranscriber;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.embedding.Embedder;
 import com.ragagent.common.storage.UploadLimits;
 import com.ragagent.llm.LlmChatClient;
@@ -32,6 +30,7 @@ import com.ragagent.model.domain.Model;
 import com.ragagent.model.domain.ModelParameters;
 import com.ragagent.model.dto.ModelDebugAsrResponse;
 import com.ragagent.model.dto.ModelDebugChatResponse;
+import com.ragagent.model.dto.ModelDebugResult;
 import com.ragagent.model.service.ModelRuntimeFactory;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.model.service.ModelService.ModelNotFoundException;
@@ -51,17 +50,16 @@ import org.springframework.web.multipart.MultipartFile;
 import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
- * 模型调试端点（对照 Go {@code internal/handler/model.go} 的 {@code DebugModel}
- * 及其辅助函数族，model.go:208-534——阶段 7 批次落地）。
+ * 模型调试端点（POST /api/v1/models/{id}/debug）。
  *
- * <p>语义要点（全部逐行对照 Go）：</p>
+ * <p>语义要点：</p>
  * <ul>
  *   <li>multipart 表单：input / options(JSON) / documents(JSON 数组) / file；</li>
  *   <li>五类模型分支：KnowledgeQA(流式 chat) / Embedding / Rerank / VLLM / ASR；</li>
- *   <li>运行时错误<b>不是</b> HTTP 错误——写进 {@code data.error}，HTTP 恒 200
- *       （{@code writeModelDebugResult}）；参数校验错误才是 400 信封；</li>
- *   <li>请求预览只含非密字段：extra_config 过 {@code redactedDebugConfig}，
- *       custom_headers 只露头名。</li>
+ *   <li>运行时错误<b>不是</b> HTTP 错误——落在结果对象里（{@code ok=false} +
+ *       {@code error} 原文），HTTP 恒 200；参数校验错误才是 400 错误信封；</li>
+ *   <li>请求预览只含非密字段：extraConfig 过 {@code redactedDebugConfig}，
+ *       customHeaders 只露头名。</li>
  * </ul>
  */
 @RestController
@@ -90,7 +88,7 @@ public class ModelDebugController {
     }
 
     @PostMapping("/{id}/debug")
-    public ResponseEntity<?> debugModel(@PathVariable("id") String id,
+    public ResponseEntity<ModelDebugResult> debugModel(@PathVariable("id") String id,
                                         @RequestParam(value = "input", required = false) String input,
                                         @RequestParam(value = "options", required = false) String optionsRaw,
                                         @RequestParam(value = "documents", required = false) String documentsRaw,
@@ -164,8 +162,9 @@ public class ModelDebugController {
 
     // ── KnowledgeQA（对照 L431-475） ─────────────────────────────────────
 
-    private ResponseEntity<?> debugChat(Model model, String input, DebugOptions opts, long startedNanos,
-                                        Map<String, Object> requestPreview, Map<String, Object> observations) {
+    private ResponseEntity<ModelDebugResult> debugChat(Model model, String input, DebugOptions opts,
+                                        long startedNanos, Map<String, Object> requestPreview,
+                                        Map<String, Object> observations) {
         if (input.trim().isEmpty()) {
             throw new BizException(AppError.badRequest("query cannot be empty"));
         }
@@ -196,9 +195,9 @@ public class ModelDebugController {
         ChatConfig chatConfig = ModelRuntimeConfigs.chatConfig(model, "", "");
         String thinkingControl = effectiveThinkingControl(chatConfig);
         observations.put("stream", true);
-        observations.put("requested_thinking", opts.thinking != null && opts.thinking);
-        observations.put("thinking_control", thinkingControl);
-        observations.put("thinking_parameter_sent", opts.thinking != null && !"none".equals(thinkingControl));
+        observations.put("requestedThinking", opts.thinking != null && opts.thinking);
+        observations.put("thinkingControl", thinkingControl);
+        observations.put("thinkingParameterSent", opts.thinking != null && !"none".equals(thinkingControl));
 
         BlockingQueue<StreamResponse> stream;
         try {
@@ -257,15 +256,15 @@ public class ModelDebugController {
         }
         // 对照 L470-474：resp 恒非 null（consume 出错也返回部分结果）
         String reasoning = resp.getReasoningContent() == null ? "" : resp.getReasoningContent();
-        observations.put("reasoning_returned", !reasoning.trim().isEmpty());
-        observations.put("reasoning_characters", reasoning.codePointCount(0, reasoning.length()));
-        observations.put("answer_characters", resp.getContent().codePointCount(0, resp.getContent().length()));
+        observations.put("reasoningReturned", !reasoning.trim().isEmpty());
+        observations.put("reasoningCharacters", reasoning.codePointCount(0, reasoning.length()));
+        observations.put("answerCharacters", resp.getContent().codePointCount(0, resp.getContent().length()));
         return writeResult(startedNanos, requestPreview, resp, streamError, observations);
     }
 
     // ── Embedding（对照 L476-488） ───────────────────────────────────────
 
-    private ResponseEntity<?> debugEmbedding(Model model, String input, long startedNanos,
+    private ResponseEntity<ModelDebugResult> debugEmbedding(Model model, String input, long startedNanos,
                                              Map<String, Object> requestPreview, Map<String, Object> observations) {
         if (input.trim().isEmpty()) {
             throw new BizException(AppError.badRequest("input cannot be empty"));
@@ -289,7 +288,7 @@ public class ModelDebugController {
 
     // ── Rerank（对照 L489-501） ──────────────────────────────────────────
 
-    private ResponseEntity<?> debugRerank(Model model, String input, List<String> documents,
+    private ResponseEntity<ModelDebugResult> debugRerank(Model model, String input, List<String> documents,
                                           long startedNanos, Map<String, Object> requestPreview,
                                           Map<String, Object> observations) {
         if (input.trim().isEmpty() || documents == null || documents.isEmpty()) {
@@ -308,14 +307,15 @@ public class ModelDebugController {
         } catch (RuntimeException e) {
             error = e.getMessage();
         }
-        observations.put("result_count", results == null ? 0 : results.size());
+        observations.put("resultCount", results == null ? 0 : results.size());
         return writeResult(startedNanos, requestPreview, results, error, observations);
     }
 
     // ── VLLM（对照 L502-514） ────────────────────────────────────────────
 
-    private ResponseEntity<?> debugVlm(Model model, String input, byte[] fileBytes, long startedNanos,
-                                       Map<String, Object> requestPreview, Map<String, Object> observations) {
+    private ResponseEntity<ModelDebugResult> debugVlm(Model model, String input, byte[] fileBytes,
+                                       long startedNanos, Map<String, Object> requestPreview,
+                                       Map<String, Object> observations) {
         if (fileBytes == null || fileBytes.length == 0) {
             throw new BizException(AppError.badRequest("image file is required"));
         }
@@ -344,14 +344,15 @@ public class ModelDebugController {
             error = e.getMessage();
         }
         String answer = result == null ? "" : result;
-        observations.put("answer_characters", answer.codePointCount(0, answer.length()));
+        observations.put("answerCharacters", answer.codePointCount(0, answer.length()));
         return writeResult(startedNanos, requestPreview, result, error, observations);
     }
 
     // ── ASR（对照 L515-530） ─────────────────────────────────────────────
 
-    private ResponseEntity<?> debugAsr(Model model, byte[] fileBytes, String fileName, long startedNanos,
-                                       Map<String, Object> requestPreview, Map<String, Object> observations) {
+    private ResponseEntity<ModelDebugResult> debugAsr(Model model, byte[] fileBytes, String fileName,
+                                       long startedNanos, Map<String, Object> requestPreview,
+                                       Map<String, Object> observations) {
         if (fileBytes == null || fileBytes.length == 0) {
             throw new BizException(AppError.badRequest("audio file is required"));
         }
@@ -374,9 +375,9 @@ public class ModelDebugController {
         }
         ModelDebugAsrResponse raw = null;
         if (result != null) {
-            observations.put("text_characters",
+            observations.put("textCharacters",
                     result.text() == null ? 0 : result.text().codePointCount(0, result.text().length()));
-            observations.put("segment_count", result.segments() == null ? 0 : result.segments().size());
+            observations.put("segmentCount", result.segments() == null ? 0 : result.segments().size());
             List<ModelDebugAsrResponse.Segment> segments = null;
             if (result.segments() != null) {
                 segments = new ArrayList<>(result.segments().size());
@@ -391,40 +392,26 @@ public class ModelDebugController {
 
     // ── 结果整形（对照 writeModelDebugResult + modelDebugRequestPreview + redactedDebugConfig） ──
 
-    /**
-     * 对照 writeModelDebugResult（model.go:290-302）：HTTP 恒 200，data 键按 Go
-     * gin.H 的字母序输出（elapsed_ms / error / observations / ok / raw_response / request）。
-     */
-    private ResponseEntity<?> writeResult(long startedNanos, Object request, Object rawResponse,
-                                          String error, Map<String, Object> observations) {
+    /** 结果整形：HTTP 恒 200，裸结果对象（无信封）。 */
+    private ResponseEntity<ModelDebugResult> writeResult(long startedNanos, Map<String, Object> request,
+                                                         Object rawResponse, String error,
+                                                         Map<String, Object> observations) {
         long elapsedMs = (System.nanoTime() - startedNanos) / 1_000_000;
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("elapsed_ms", elapsedMs);
-        if (error != null) {
-            data.put("error", error);
-        }
-        data.put("observations", observations);
-        data.put("ok", error == null);
-        data.put("raw_response", rawResponse);
-        data.put("request", request);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(new ModelDebugResult(
+                error == null, elapsedMs, error, request, rawResponse, observations));
     }
 
     /**
-     * 对照 modelDebugRequestPreview（model.go:261-288）。返回 map 的键按字母序插入
-     * （Go gin.H 序列化按键排序）。options 是 Go struct——键序为声明序
-     * （system_prompt/temperature/top_p/max_tokens/thinking），omitempty 跳过空值。
+     * 请求预览（只含非密字段）：顶层键按字母序输出（确定性）；
+     * options 各键仅在显式给出时出现（键序 = 声明序）。
      */
     private Map<String, Object> requestPreview(Model model, String input, List<String> documents,
                                                DebugOptions opts, String fileName, long fileSize) {
         ModelParameters p = model.getParameters();
-        Map<String, Object> preview = new TreeMap<>(); // Go gin.H 按键排序输出
+        Map<String, Object> preview = new TreeMap<>();
         if (p != null && p.getCustomHeaders() != null && !p.getCustomHeaders().isEmpty()) {
-            // Go 从 map 迭代收集头名（顺序随机）；Java 排序输出（确定性，备案差异）
-            preview.put("custom_header_names", new ArrayList<>(new java.util.TreeSet<>(
+            // 只露头名（值可能含密钥），排序输出保证确定性
+            preview.put("customHeaderNames", new ArrayList<>(new java.util.TreeSet<>(
                     p.getCustomHeaders().keySet())));
         }
         if (documents != null && !documents.isEmpty()) {
@@ -438,25 +425,24 @@ public class ModelDebugController {
         }
         preview.put("input", input);
         if (p != null && p.getExtraConfig() != null) {
-            preview.put("model_extra_config", redactedDebugConfig(p.getExtraConfig()));
+            preview.put("modelExtraConfig", redactedDebugConfig(p.getExtraConfig()));
         }
-        preview.put("model_id", model.getId());
-        preview.put("model_name", model.getName());
-        preview.put("model_type", model.getType());
+        preview.put("modelId", model.getId());
+        preview.put("modelName", model.getName());
+        preview.put("modelType", model.getType());
 
         Map<String, Object> options = new LinkedHashMap<>();
         if (opts.systemPrompt != null && !opts.systemPrompt.isEmpty()) {
-            options.put("system_prompt", opts.systemPrompt);
+            options.put("systemPrompt", opts.systemPrompt);
         }
         if (opts.temperature != null) {
-            // Go float64 的字节形态（整数值不带 .0）；RawValue 原样写出不加引号
-            options.put("temperature", new RawValue(GoDoubleSerializer.format(opts.temperature)));
+            options.put("temperature", opts.temperature);
         }
         if (opts.topP != null) {
-            options.put("top_p", new RawValue(GoDoubleSerializer.format(opts.topP)));
+            options.put("topP", opts.topP);
         }
         if (opts.maxTokens != null) {
-            options.put("max_tokens", opts.maxTokens);
+            options.put("maxTokens", opts.maxTokens);
         }
         if (opts.thinking != null) {
             options.put("thinking", opts.thinking);
@@ -468,7 +454,7 @@ public class ModelDebugController {
         return preview;
     }
 
-    /** 对照 redactedDebugConfig（model.go:240-259）：空 → null；命中敏感词的值换 [REDACTED]。 */
+    /** 对照 redactedDebugConfig：空 → null；命中敏感词的值换 [REDACTED]（键序按字母序）。 */
     private static Map<String, String> redactedDebugConfig(Map<String, String> config) {
         if (config == null || config.isEmpty()) {
             return null;
@@ -487,14 +473,15 @@ public class ModelDebugController {
         return out;
     }
 
-    // ── options / documents 解析（对照 parseModelDebugOptions，错误文案按 Go json 仿真） ──
+    // ── options / documents 解析 ──
 
-    /** 对照 ModelDebugOptions（指针字段保留显式零值/false）。 */
+    /** 调试选项（null 表示"未显式给出"，与显式 false/0 区分）。 */
     private record DebugOptions(String systemPrompt, Double temperature, Double topP,
                                 Integer maxTokens, Boolean thinking) {
         static final DebugOptions EMPTY = new DebugOptions("", null, null, null, null);
     }
 
+    /** options JSON 解析：键为 camelCase；null / 空 → 零值；类型/范围错误 → 400。 */
     private static DebugOptions parseOptions(String raw) {
         if (raw == null || raw.trim().isEmpty()) {
             return DebugOptions.EMPTY;
@@ -503,15 +490,14 @@ public class ModelDebugController {
         try {
             node = MAPPER.readTree(raw);
         } catch (Exception e) {
-            throw new BizException(AppError.badRequest("invalid options: " + goJsonSyntaxError(raw)));
+            throw new BizException(AppError.badRequest("invalid options: malformed JSON"));
         }
         if (node == null || node.isNull()) {
-            // Go: json.Unmarshal("null", &opts) → 零值无错误
+            // "null" 解析为零值无错误
             return DebugOptions.EMPTY;
         }
         if (!node.isObject()) {
-            throw new BizException(AppError.badRequest("invalid options: json: cannot unmarshal "
-                    + goKind(node) + " into Go value of type handler.ModelDebugOptions"));
+            throw new BizException(AppError.badRequest("invalid options: expected a JSON object"));
         }
         String systemPrompt = "";
         Double temperature = null;
@@ -519,92 +505,50 @@ public class ModelDebugController {
         Integer maxTokens = null;
         Boolean thinking = null;
         JsonNode v;
-        if ((v = node.get("system_prompt")) != null && !v.isNull()) {
+        if ((v = node.get("systemPrompt")) != null && !v.isNull()) {
             if (!v.isTextual()) {
-                throw optionsTypeError("system_prompt", v, "string");
+                throw new BizException(AppError.badRequest(
+                        "invalid options: systemPrompt must be a string"));
             }
             systemPrompt = v.asText();
         }
         if ((v = node.get("temperature")) != null && !v.isNull()) {
             if (!v.isNumber()) {
-                throw optionsTypeError("temperature", v, "float64");
+                throw new BizException(AppError.badRequest(
+                        "invalid options: temperature must be a number"));
             }
             temperature = v.asDouble();
         }
-        if ((v = node.get("top_p")) != null && !v.isNull()) {
+        if ((v = node.get("topP")) != null && !v.isNull()) {
             if (!v.isNumber()) {
-                throw optionsTypeError("top_p", v, "float64");
+                throw new BizException(AppError.badRequest("invalid options: topP must be a number"));
             }
             topP = v.asDouble();
         }
-        if ((v = node.get("max_tokens")) != null && !v.isNull()) {
+        if ((v = node.get("maxTokens")) != null && !v.isNull()) {
             if (!v.isIntegralNumber()) {
-                throw optionsTypeError("max_tokens", v, "int");
+                throw new BizException(AppError.badRequest(
+                        "invalid options: maxTokens must be an integer"));
             }
             maxTokens = v.asInt();
         }
         if ((v = node.get("thinking")) != null && !v.isNull()) {
             if (!v.isBoolean()) {
-                throw optionsTypeError("thinking", v, "bool");
+                throw new BizException(AppError.badRequest(
+                        "invalid options: thinking must be a boolean"));
             }
             thinking = v.asBoolean();
         }
         if (maxTokens != null && (maxTokens < 1 || maxTokens > 8192)) {
-            throw new BizException(AppError.badRequest("max_tokens must be between 1 and 8192"));
+            throw new BizException(AppError.badRequest("maxTokens must be between 1 and 8192"));
         }
         if (temperature != null && (temperature < 0 || temperature > 2)) {
             throw new BizException(AppError.badRequest("temperature must be between 0 and 2"));
         }
         if (topP != null && (topP <= 0 || topP > 1)) {
-            throw new BizException(AppError.badRequest("top_p must be greater than 0 and at most 1"));
+            throw new BizException(AppError.badRequest("topP must be greater than 0 and at most 1"));
         }
         return new DebugOptions(systemPrompt, temperature, topP, maxTokens, thinking);
-    }
-
-    /** "json: cannot unmarshal <kind> into Go struct field ModelDebugOptions.<field> of type <goType>"。 */
-    private static BizException optionsTypeError(String field, JsonNode value, String goType) {
-        return new BizException(AppError.badRequest("invalid options: json: cannot unmarshal "
-                + goKind(value) + " into Go struct field ModelDebugOptions." + field
-                + " of type " + goType));
-    }
-
-    /** Go encoding/json 错误里的值类别词（number 带原始字面量，对照 UnmarshalTypeError.Value）。 */
-    private static String goKind(JsonNode node) {
-        if (node.isTextual()) {
-            return "string";
-        }
-        if (node.isNumber()) {
-            return "number " + node.toString();
-        }
-        if (node.isBoolean()) {
-            return "bool";
-        }
-        if (node.isArray()) {
-            return "array";
-        }
-        return "object";
-    }
-
-    /**
-     * options 的 JSON 语法错误文案（Go encoding/json 常见形态仿真）：
-     * 截断 → "unexpected end of JSON input"；其余起始字符错误 →
-     * "invalid character 'x' looking for beginning of value"。
-     */
-    private static String goJsonSyntaxError(String raw) {
-        String trimmed = raw.trim();
-        int i = 0;
-        while (i < raw.length() && Character.isWhitespace(raw.charAt(i))) {
-            i++;
-        }
-        if (i >= raw.length()) {
-            return "unexpected end of JSON input";
-        }
-        char c = raw.charAt(i);
-        if ("{[\"-0123456789tfn".indexOf(c) >= 0) {
-            // 合法起始字符但深层坏掉：golden 覆盖的是截断形态
-            return "unexpected end of JSON input";
-        }
-        return "invalid character '" + c + "' looking for beginning of value";
     }
 
     /** 对照 documents 解析（L388-398）：非法 JSON / 非字符串数组 → 固定文案。 */

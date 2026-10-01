@@ -72,7 +72,7 @@ class ModelDebugContractTest {
     private static final String MD_BADSRC = "b0000000-0000-0000-0000-000000000008";
     private static final String MD_EMB_DL = "b0000000-0000-0000-0000-000000000009";
 
-    private static final Pattern ELAPSED = Pattern.compile("\"elapsed_ms\":\\d+");
+    private static final Pattern ELAPSED = Pattern.compile("\"elapsedMs\":\\d+");
 
     /** 1x1 PNG（与录制脚本 TINY_PNG_B64 相同，70 字节）。 */
     private static final byte[] TINY_PNG = Base64.getDecoder().decode(
@@ -235,24 +235,24 @@ class ModelDebugContractTest {
 
         String url = stubBase + "/v1";
         insertModel(MD_CHAT, "KnowledgeQA", "md-chat", "remote", "debug chat",
-                "{\"base_url\":\"" + url + "\"}", "active");
+                "{\"baseUrl\":\"" + url + "\"}", "active");
         insertModel(MD_CHAT_THINK, "KnowledgeQA", "md-chat-think", "remote", "debug chat think",
-                "{\"base_url\":\"" + url + "\",\"extra_config\":{\"thinking_control\":"
+                "{\"baseUrl\":\"" + url + "\",\"extraConfig\":{\"thinking_control\":"
                         + "\"enable_thinking\",\"api_token\":\"super-secret\"}}", "active");
         insertModel(MD_EMB, "Embedding", "md-emb", "remote", "debug embedding",
-                "{\"base_url\":\"" + url + "\"}", "active");
+                "{\"baseUrl\":\"" + url + "\"}", "active");
         insertModel(MD_RERANK, "Rerank", "md-rerank", "remote", "debug rerank",
-                "{\"base_url\":\"" + url + "\"}", "active");
+                "{\"baseUrl\":\"" + url + "\"}", "active");
         insertModel(MD_VLM, "VLLM", "md-vlm", "remote", "debug vlm",
-                "{\"base_url\":\"" + url + "\"}", "active");
+                "{\"baseUrl\":\"" + url + "\"}", "active");
         insertModel(MD_ASR, "ASR", "md-asr", "remote", "debug asr",
-                "{\"base_url\":\"" + url + "\",\"api_key\":\"sk-debug\"}", "active");
+                "{\"baseUrl\":\"" + url + "\",\"apiKey\":\"sk-debug\"}", "active");
         insertModel(MD_ASR_NOKEY, "ASR", "md-asr-nokey", "remote", "debug asr nokey",
-                "{\"base_url\":\"" + url + "\"}", "active");
+                "{\"baseUrl\":\"" + url + "\"}", "active");
         insertModel(MD_BADSRC, "KnowledgeQA", "md-badsrc", "bogus", "debug bad source",
-                "{\"base_url\":\"" + url + "\"}", "active");
+                "{\"baseUrl\":\"" + url + "\"}", "active");
         insertModel(MD_EMB_DL, "Embedding", "md-emb-dl", "remote", "debug downloading",
-                "{\"base_url\":\"" + url + "\"}", "downloading");
+                "{\"baseUrl\":\"" + url + "\"}", "downloading");
 
         token = login("md-batch@weknora.test");
     }
@@ -302,7 +302,7 @@ class ModelDebugContractTest {
     @Test
     void optionsBadType() throws Exception {
         assertDebug("md-options-bad-type.json", 400, dbg(MD_CHAT)
-                .param("input", "hi").param("options", "{\"max_tokens\":\"abc\"}"));
+                .param("input", "hi").param("options", "{\"maxTokens\":\"abc\"}"));
     }
 
     @Test
@@ -314,7 +314,7 @@ class ModelDebugContractTest {
     @Test
     void optionsMaxTokens() throws Exception {
         assertDebug("md-options-maxtokens.json", 400, dbg(MD_CHAT)
-                .param("input", "hi").param("options", "{\"max_tokens\":0}"));
+                .param("input", "hi").param("options", "{\"maxTokens\":0}"));
     }
 
     @Test
@@ -326,7 +326,7 @@ class ModelDebugContractTest {
     @Test
     void optionsTopP() throws Exception {
         assertDebug("md-options-topp.json", 400, dbg(MD_CHAT)
-                .param("input", "hi").param("options", "{\"top_p\":0}"));
+                .param("input", "hi").param("options", "{\"topP\":0}"));
     }
 
     @Test
@@ -392,8 +392,8 @@ class ModelDebugContractTest {
     void chatOptions() throws Exception {
         assertDebug("md-chat-options.json", 200, dbg(MD_CHAT)
                 .param("input", "<<SCENARIO:chat>>你好")
-                .param("options", "{\"system_prompt\":\"你是助手\",\"temperature\":0.5,"
-                        + "\"top_p\":0.9,\"max_tokens\":100,\"thinking\":true}"));
+                .param("options", "{\"systemPrompt\":\"你是助手\",\"temperature\":0.5,"
+                        + "\"topP\":0.9,\"maxTokens\":100,\"thinking\":true}"));
     }
 
     @Test
@@ -483,10 +483,10 @@ class ModelDebugContractTest {
         return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
-    /** 唯一掩码：elapsed_ms。 */
+    /** 唯一掩码：elapsedMs。 */
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);
-        return ELAPSED.matcher(s).replaceAll("\"elapsed_ms\":0");
+        return ELAPSED.matcher(s).replaceAll("\"elapsedMs\":0");
     }
 }
