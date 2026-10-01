@@ -4,7 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ragagent.mcp.domain.McpAuthConfig;
 import com.ragagent.mcp.domain.McpAuthType;
 
@@ -16,7 +15,6 @@ import com.ragagent.mcp.domain.McpAuthType;
  * 密钥是否存在由 {@link McpServiceResponse#credentials()} 的布尔值表达。
  * AuthType / Scopes / AuthServerMetadataURL 是非秘密的 OAuth 配置，可以安全回显。</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public record McpAuthConfigResponse( String authType, String apiKeyHeader, Map<String, String> customHeaders, List<String> scopes, String authServerMetadataUrl) {
 
     /**

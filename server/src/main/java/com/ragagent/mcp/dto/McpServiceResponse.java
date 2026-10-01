@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
 import com.ragagent.mcp.domain.McpConfigFingerprint;
 import com.ragagent.mcp.domain.McpMetadataSummary;
@@ -32,7 +31,6 @@ import com.ragagent.mcp.domain.McpStdioConfig;
  *
  * <p>字段序 = Go struct 声明序（注意 usage_instructions 在 Go 里是第一个字段）。</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class McpServiceResponse {
 
     /** Go 无 omitempty → 恒输出 */

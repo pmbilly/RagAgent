@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * MCP 服务鉴权配置（对照 Go types.MCPAuthConfig）。
@@ -26,7 +25,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * 既接不住前端按契约发来的 {@code api_key}/{@code custom_headers}，
  * 也读不出 Go 写的行（只有 {@code token} / {@code scopes} 这类单词字段侥幸对上）。</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class McpAuthConfig {
 
     /** 鉴权策略；空串视为无鉴权（历史行兼容） */

@@ -1,13 +1,11 @@
 package com.ragagent.mcp.domain;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * MCP 服务暴露的工具（对照 Go types.MCPTool）。
  *
  * 注意 {@code inputSchema} 是**驼峰**——这是 MCP 协议规范的字段名，别按项目惯例改成 snake_case。
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class McpTool {
 
     private String name = "";
@@ -20,8 +18,7 @@ public class McpTool {
      * 键名是 {@code require_approval}（对照 Go 的 json tag）——本对象既走
      * GET /{id}/tools 响应，也存进 mcp_metadata.tools 的 jsonb。
      */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    private boolean requireApproval;
+        private boolean requireApproval;
 
     public McpTool() {
     }

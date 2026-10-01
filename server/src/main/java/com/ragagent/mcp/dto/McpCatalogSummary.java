@@ -2,7 +2,6 @@ package com.ragagent.mcp.dto;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 已保存 MCP 目录的**列表卡片视图**（对照 Go dto.MCPCatalogSummary，
@@ -10,6 +9,5 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <p>三个字段在 Go 里都无 omitempty → 恒输出。</p>
  */
-@JsonInclude(JsonInclude.Include.ALWAYS)
 public record McpCatalogSummary( int toolCount, boolean stale, OffsetDateTime syncedAt) {
 }
