@@ -96,14 +96,14 @@ class DataSourceJsonTest {
     @Test
     void dataSourceZeroMatchesGo() throws Exception {
         assertThat(write(new DataSource())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"knowledge_base_id\":\"\",\"name\":\"\",\"type\":\"\","
-                        + "\"config\":null,\"sync_schedule\":\"\",\"sync_mode\":\"\",\"status\":\"\","
-                        + "\"conflict_strategy\":\"\",\"sync_deletions\":false,\"last_sync_at\":null,"
-                        + "\"last_sync_cursor\":null,\"last_sync_result\":null,\"error_message\":\"\","
-                        + "\"sync_log_retention_days\":0,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\",\"deleted_at\":null,"
-                        + "\"total_items_synced\":0,\"latest_sync_log\":null}");
+                "{\"id\":\"\",\"tenantId\":0,\"knowledgeBaseId\":\"\",\"name\":\"\",\"type\":\"\","
+                        + "\"config\":null,\"syncSchedule\":\"\",\"syncMode\":\"\",\"status\":\"\","
+                        + "\"conflictStrategy\":\"\",\"syncDeletions\":false,\"lastSyncAt\":null,"
+                        + "\"lastSyncCursor\":null,\"lastSyncResult\":null,\"errorMessage\":\"\","
+                        + "\"syncLogRetentionDays\":0,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\",\"deletedAt\":null,"
+                        + "\"totalItemsSynced\":0,\"latestSyncLog\":null}");
     }
 
     @Test
@@ -133,17 +133,17 @@ class DataSourceJsonTest {
         ds.setLatestSyncLog(latest);
 
         assertThat(write(ds)).isEqualTo(
-                "{\"id\":\"d1\",\"tenant_id\":7,\"knowledge_base_id\":\"kb1\",\"name\":\"n\","
+                "{\"id\":\"d1\",\"tenantId\":7,\"knowledgeBaseId\":\"kb1\",\"name\":\"n\","
                         + "\"type\":\"feishu\",\"config\":{\"type\":\"feishu\"},"
-                        + "\"sync_schedule\":\"0 */6 * * *\",\"sync_mode\":\"full\",\"status\":\"paused\","
-                        + "\"conflict_strategy\":\"skip\",\"sync_deletions\":true,"
-                        + "\"last_sync_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"last_sync_cursor\":{\"last_schema_hash\":\"h\"},"
-                        + "\"last_sync_result\":{\"total\":3},\"error_message\":\"boom\","
-                        + "\"sync_log_retention_days\":14,"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\",\"deleted_at\":null,"
-                        + "\"total_items_synced\":42,\"latest_sync_log\":"
+                        + "\"syncSchedule\":\"0 */6 * * *\",\"syncMode\":\"full\",\"status\":\"paused\","
+                        + "\"conflictStrategy\":\"skip\",\"syncDeletions\":true,"
+                        + "\"lastSyncAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"lastSyncCursor\":{\"last_schema_hash\":\"h\"},"
+                        + "\"lastSyncResult\":{\"total\":3},\"errorMessage\":\"boom\","
+                        + "\"syncLogRetentionDays\":14,"
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\",\"deletedAt\":null,"
+                        + "\"totalItemsSynced\":42,\"latestSyncLog\":"
                         + "{\"id\":\"l1\",\"data_source_id\":\"\",\"tenant_id\":0,\"status\":\"\","
                         + "\"started_at\":\"0001-01-01T00:00:00Z\",\"finished_at\":null,\"items_total\":0,"
                         + "\"items_created\":0,\"items_updated\":0,\"items_deleted\":0,\"items_skipped\":0,"
@@ -157,8 +157,8 @@ class DataSourceJsonTest {
     void dataSourceKeepsNullJsonColumns() throws Exception {
         String out = write(new DataSource());
         assertThat(out).contains("\"config\":null")
-                .contains("\"last_sync_cursor\":null")
-                .contains("\"last_sync_result\":null");
+                .contains("\"lastSyncCursor\":null")
+                .contains("\"lastSyncResult\":null");
     }
 
     // ── SyncLog ────────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ class DataSourceJsonTest {
     @Test
     void dataSourceConfigZeroMatchesGo() throws Exception {
         assertThat(write(new DataSourceConfig())).isEqualTo(
-                "{\"type\":\"\",\"credentials\":null,\"resource_ids\":null,\"settings\":null}");
+                "{\"type\":\"\",\"credentials\":null,\"resourceIds\":null,\"settings\":null}");
     }
 
     @Test
@@ -229,7 +229,7 @@ class DataSourceJsonTest {
 
         assertThat(write(c)).isEqualTo(
                 "{\"type\":\"feishu\",\"credentials\":{\"app_id\":\"x\",\"b\":true,\"n\":1},"
-                        + "\"resource_ids\":[\"r1\",\"r2\"],\"settings\":{\"folder_token\":\"ft\"}}");
+                        + "\"resourceIds\":[\"r1\",\"r2\"],\"settings\":{\"folder_token\":\"ft\"}}");
     }
 
     /**
@@ -260,10 +260,11 @@ class DataSourceJsonTest {
 
     @Test
     void resourceZeroMatchesGo() throws Exception {
-        // 三个 omitempty 键（parent_id / has_children / metadata）**全部消失**
+        // §1.6：原先三个 omitempty 键（parentId / hasChildren / metadata）现在**恒输出**
         assertThat(write(new Resource())).isEqualTo(
-                "{\"external_id\":\"\",\"name\":\"\",\"type\":\"\",\"description\":\"\",\"url\":\"\","
-                        + "\"modified_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"externalId\":\"\",\"name\":\"\",\"type\":\"\",\"description\":\"\",\"url\":\"\","
+                        + "\"modifiedAt\":\"0001-01-01T00:00:00Z\",\"parentId\":\"\","
+                        + "\"hasChildren\":false,\"metadata\":null}");
     }
 
     @Test
@@ -280,9 +281,9 @@ class DataSourceJsonTest {
         r.setMetadata(new LinkedHashMap<>(Map.of("k", "v")));
 
         assertThat(write(r)).isEqualTo(
-                "{\"external_id\":\"e1\",\"name\":\"n\",\"type\":\"document\",\"description\":\"d\","
-                        + "\"url\":\"u\",\"modified_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"parent_id\":\"p1\",\"has_children\":true,\"metadata\":{\"k\":\"v\"}}");
+                "{\"externalId\":\"e1\",\"name\":\"n\",\"type\":\"document\",\"description\":\"d\","
+                        + "\"url\":\"u\",\"modifiedAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"parentId\":\"p1\",\"hasChildren\":true,\"metadata\":{\"k\":\"v\"}}");
     }
 
     @Test
@@ -658,26 +659,26 @@ class DataSourceJsonTest {
     // ── 键序 + 键数（§9：正则必须驼峰感知） ────────────────────────────────
 
     /**
-     * Go 按 **struct 声明序**输出。逐类型核对键序与键数，抓两类往返测试抓不到的问题：
-     * 派生访问器多吐一个键、漏写 {@code @JsonProperty} 变成驼峰键。
+     * 逐类型核对键序与键数，抓两类往返测试抓不到的问题：派生访问器多吐一个键、
+     * 字段漏进 JSON（§14.9q D1 后键名＝Java 字段名，声明序＝输出序）。
      */
     @Test
     void entityKeyOrderAndCountMatchGoDeclarationOrder() throws Exception {
-        assertKeyOrder(new DataSource(), "id", "tenant_id", "knowledge_base_id", "name", "type",
-                "config", "sync_schedule", "sync_mode", "status", "conflict_strategy",
-                "sync_deletions", "last_sync_at", "last_sync_cursor", "last_sync_result",
-                "error_message", "sync_log_retention_days", "created_at", "updated_at",
-                "deleted_at", "total_items_synced", "latest_sync_log");
+        assertKeyOrder(new DataSource(), "id", "tenantId", "knowledgeBaseId", "name", "type",
+                "config", "syncSchedule", "syncMode", "status", "conflictStrategy",
+                "syncDeletions", "lastSyncAt", "lastSyncCursor", "lastSyncResult",
+                "errorMessage", "syncLogRetentionDays", "createdAt", "updatedAt",
+                "deletedAt", "totalItemsSynced", "latestSyncLog");
 
         assertKeyOrder(new SyncLog(), "id", "data_source_id", "tenant_id", "status", "started_at",
                 "finished_at", "items_total", "items_created", "items_updated", "items_deleted",
                 "items_skipped", "items_failed", "error_message", "result", "created_at",
                 "updated_at");
 
-        assertKeyOrder(new DataSourceConfig(), "type", "credentials", "resource_ids", "settings");
+        assertKeyOrder(new DataSourceConfig(), "type", "credentials", "resourceIds", "settings");
 
-        assertKeyOrder(new Resource(), "external_id", "name", "type", "description", "url",
-                "modified_at");
+        assertKeyOrder(new Resource(), "externalId", "name", "type", "description", "url",
+                "modifiedAt", "parentId", "hasChildren", "metadata");
 
         assertKeyOrder(new FetchedItem(), "external_id", "title", "content", "content_type",
                 "file_name", "url", "updated_at", "created_at", "metadata", "is_deleted",
@@ -837,7 +838,7 @@ class DataSourceJsonTest {
     void dataSourceDeletedAtSerializesWhenSet() throws Exception {
         DataSource ds = new DataSource();
         ds.setDeletedAt(ten());
-        assertThat(write(ds)).contains("\"deleted_at\":\"2026-09-18T10:00:00+08:00\"");
+        assertThat(write(ds)).contains("\"deletedAt\":\"2026-09-18T10:00:00+08:00\"");
     }
 
     /** {@code DataSourceConfig.toJSON()} 与 Go 的 {@code json.Marshal} 同形。 */
@@ -845,7 +846,7 @@ class DataSourceJsonTest {
     void dataSourceConfigToJsonMatchesGoMarshal() throws Exception {
         DataSourceConfig empty = new DataSourceConfig();
         assertThat(MAPPER.writeValueAsString(empty.toJSON())).isEqualTo(
-                "{\"type\":\"\",\"credentials\":null,\"resource_ids\":null,\"settings\":null}");
+                "{\"type\":\"\",\"credentials\":null,\"resourceIds\":null,\"settings\":null}");
 
         DataSourceConfig c = new DataSourceConfig();
         c.setType("rss");
@@ -856,7 +857,7 @@ class DataSourceJsonTest {
         // 没有 SYSTEM_AES_KEY 时凭据原样落库（与 Go 的 GetAESKey()==nil 分支一致）
         assertThat(MAPPER.writeValueAsString(c.toJSON())).isEqualTo(
                 "{\"type\":\"rss\",\"credentials\":{\"auth_headers\":\"h\"},"
-                        + "\"resource_ids\":null,\"settings\":{\"feed_urls\":\"u\"}}");
+                        + "\"resourceIds\":null,\"settings\":{\"feed_urls\":\"u\"}}");
     }
 
     /** {@code toJSON()} 不得改动调用方的内存 map（Go 的浅拷贝理由）。 */

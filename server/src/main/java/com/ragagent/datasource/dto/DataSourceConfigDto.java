@@ -3,9 +3,6 @@ package com.ragagent.datasource.dto;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.datasource.domain.DataSourceMapSerializer;
 
@@ -33,18 +30,12 @@ import com.ragagent.datasource.domain.DataSourceMapSerializer;
  * 而这里的 settings 是从 jsonb 读回来的、键序是 PG 的（长度,字节序）规范化序，
  * 与 Go 的字母序并不相同——所以这条序列化器是**必须**的，不是锦上添花。</p>
  */
-@JsonPropertyOrder({"type", "resource_ids", "settings"})
 public class DataSourceConfigDto {
 
-    @JsonProperty("type")
     private String type = "";
 
-    @JsonProperty("resource_ids")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> resourceIds;
 
-    @JsonProperty("settings")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, Object> settings;
 

@@ -291,18 +291,18 @@ class ConnectorFrameworkTest {
         assertThat(webCrawler.capabilities()).isNotNull().isEmpty();
         assertThat(mapper.writeValueAsString(webCrawler)).isEqualTo(
                 "{\"type\":\"web_crawler\",\"name\":\"Web Crawler (Sitemap)\","
-                        + "\"description\":\"Crawl websites via Sitemap.xml\","
-                        + "\"priority\":9,\"auth_type\":\"none\",\"capabilities\":[]}");
+                        + "\"description\":\"Crawl websites via Sitemap.xml\",\"icon\":\"\","
+                        + "\"priority\":9,\"authType\":\"none\",\"capabilities\":[]}");
 
         ConnectorMetadata imap = ConnectorCatalog.metadata(DataSourceConstants.CONNECTOR_TYPE_IMAP);
         assertThat(mapper.writeValueAsString(imap)).isEqualTo(
                 "{\"type\":\"imap\",\"name\":\"Email (IMAP)\","
-                        + "\"description\":\"Sync email content from IMAP servers\","
-                        + "\"priority\":11,\"auth_type\":\"password\",\"capabilities\":[]}");
+                        + "\"description\":\"Sync email content from IMAP servers\",\"icon\":\"\","
+                        + "\"priority\":11,\"authType\":\"password\",\"capabilities\":[]}");
     }
 
     /**
-     * 逐字节：键序 = Go struct 的声明序，{@code icon} 因 omitempty + 空串而**整个键消失**。
+     * 逐字节：键序＝声明序；§1.6 后 {@code icon} 空串也**恒输出**（不再整键消失）。
      */
     @Test
     void connectorMetadataJsonIsByteExact() throws Exception {
@@ -310,11 +310,11 @@ class ConnectorFrameworkTest {
         ConnectorMetadata rss = ConnectorCatalog.metadata(DataSourceConstants.CONNECTOR_TYPE_RSS);
         assertThat(mapper.writeValueAsString(rss)).isEqualTo(
                 "{\"type\":\"rss\",\"name\":\"RSS / Atom Feed\","
-                        + "\"description\":\"Sync articles from RSS/Atom feeds\","
-                        + "\"priority\":12,\"auth_type\":\"custom\","
+                        + "\"description\":\"Sync articles from RSS/Atom feeds\",\"icon\":\"\","
+                        + "\"priority\":12,\"authType\":\"custom\","
                         + "\"capabilities\":[\"incremental\"]}");
 
-        // icon 非空时才出现（Go 的 omitempty）
+        // icon 有值时照写
         ConnectorMetadata withIcon = new ConnectorMetadata(
                 "notion", "Notion", "Sync pages and databases from Notion", "n.svg",
                 1, "api_key", List.of("incremental"));

@@ -1,7 +1,5 @@
 package com.ragagent.datasource.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 凭据字段的"是否已配置"元数据（对照 Go {@code dto.CredentialFieldMetadata}，
@@ -10,6 +8,5 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p>与 model / mcp 两个模块的同名 DTO 一样，本模块各持一份——项目里已有的处置，
  * 刻意不抽公共类（三个模块的字段集本来就不一样，抽出去只会多一层间接）。</p>
  */
-@JsonPropertyOrder({"configured"})
-public record CredentialFieldMetadata(@JsonProperty("configured") boolean configured) {
+public record CredentialFieldMetadata(boolean configured) {
 }

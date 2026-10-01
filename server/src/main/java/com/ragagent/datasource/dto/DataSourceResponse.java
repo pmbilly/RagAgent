@@ -3,9 +3,6 @@ package com.ragagent.datasource.dto;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.GoMapSerializer;
 import com.ragagent.common.web.GoTimeSerializer;
@@ -57,76 +54,46 @@ import com.ragagent.datasource.domain.SyncLog;
  *   <li><b>软删除 / 默认排序 / 唯一索引 / 自动时间戳</b>：全无。</li>
  * </ol>
  */
-@JsonPropertyOrder({"id", "tenant_id", "knowledge_base_id", "name", "type", "config",
-        "sync_schedule", "sync_mode", "status", "conflict_strategy", "sync_deletions",
-        "last_sync_at", "last_sync_cursor", "last_sync_result", "error_message",
-        "sync_log_retention_days", "created_at", "updated_at", "total_items_synced",
-        "latest_sync_log", "credentials"})
 public class DataSourceResponse {
 
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("tenant_id")
     private long tenantId;
 
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
-    @JsonProperty("name")
     private String name = "";
 
-    @JsonProperty("type")
     private String type = "";
 
-    @JsonProperty("config")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private DataSourceConfigDto config;
 
-    @JsonProperty("sync_schedule")
     private String syncSchedule = "";
 
-    @JsonProperty("sync_mode")
     private String syncMode = "";
 
-    @JsonProperty("status")
     private String status = "";
 
-    @JsonProperty("conflict_strategy")
     private String conflictStrategy = "";
 
-    @JsonProperty("sync_deletions")
     private boolean syncDeletions;
 
-    @JsonProperty("last_sync_at")
     private OffsetDateTime lastSyncAt;
 
-    @JsonProperty("last_sync_cursor")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private JsonNode lastSyncCursor;
 
-    @JsonProperty("last_sync_result")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private JsonNode lastSyncResult;
 
-    @JsonProperty("error_message")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String errorMessage;
 
-    @JsonProperty("sync_log_retention_days")
     private int syncLogRetentionDays;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("total_items_synced")
     private long totalItemsSynced;
 
-    @JsonProperty("latest_sync_log")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private SyncLog latestSyncLog;
 
     /**
@@ -134,8 +101,6 @@ public class DataSourceResponse {
      * 而这里只有一个键——排序本身无所谓，但挂上它同时保证 {@code NON_EMPTY} 的语义
      * （自定义序列化器会让 {@code @JsonInclude(NON_EMPTY)} 失效，见 §9）。
      */
-    @JsonProperty("credentials")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, CredentialFieldMetadata> credentials;
 
     /** 对照 Go {@code NewDataSourceResponse}：nil 入参回 nil。 */

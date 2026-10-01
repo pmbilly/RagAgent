@@ -6,8 +6,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
@@ -92,35 +90,25 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * </ol>
  */
 @TableName(value = "data_sources", autoResultMap = true)
-@JsonPropertyOrder({"id", "tenant_id", "knowledge_base_id", "name", "type", "config",
-        "sync_schedule", "sync_mode", "status", "conflict_strategy", "sync_deletions",
-        "last_sync_at", "last_sync_cursor", "last_sync_result", "error_message",
-        "sync_log_retention_days", "created_at", "updated_at", "deleted_at",
-        "total_items_synced", "latest_sync_log"})
 public class DataSource {
 
     /** 唯一标识。Go 的 {@code BeforeCreate} 在为空时生成 UUID。 */
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id = "";
 
     /** 多工作区隔离用的租户 ID。 */
     @TableField("tenant_id")
-    @JsonProperty("tenant_id")
     private Long tenantId = 0L;
 
     /** 目标知识库 ID。 */
     @TableField("knowledge_base_id")
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
     @TableField("name")
-    @JsonProperty("name")
     private String name = "";
 
     /** 连接器类型（feishu / notion / confluence …），见 {@link DataSourceConstants}。 */
     @TableField("type")
-    @JsonProperty("type")
     private String type = "";
 
     /**
@@ -129,27 +117,22 @@ public class DataSource {
      * <p>由 {@link DataSourceConfig#toJSON()} 产出；读回用 {@link #parseConfig()}。</p>
      */
     @TableField(value = "config", typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("config")
     private JsonNode config;
 
     /** 定时同步的 cron 表达式（例如每 6 小时一次）。无 omitempty → 空串照输出。 */
     @TableField("sync_schedule")
-    @JsonProperty("sync_schedule")
     private String syncSchedule = "";
 
     /** {@code "incremental"}（推荐）或 {@code "full"}。CREATE 时零值被 GORM 替成默认值。 */
     @TableField("sync_mode")
-    @JsonProperty("sync_mode")
     private String syncMode = "";
 
     /** active / paused / error。CREATE 时零值被 GORM 替成 {@code 'active'}。 */
     @TableField("status")
-    @JsonProperty("status")
     private String status = "";
 
     /** overwrite 或 skip。CREATE 时零值被 GORM 替成 {@code 'overwrite'}。 */
     @TableField("conflict_strategy")
-    @JsonProperty("conflict_strategy")
     private String conflictStrategy = "";
 
     /**
@@ -159,40 +142,32 @@ public class DataSource {
      * 仓储在事务里显式把调用方的值写回去，Java 侧直接插原值。</p>
      */
     @TableField("sync_deletions")
-    @JsonProperty("sync_deletions")
     private boolean syncDeletions;
 
     /** 上次成功同步的时间。指针 → nil 输出 {@code null}。 */
     @TableField("last_sync_at")
-    @JsonProperty("last_sync_at")
     private OffsetDateTime lastSyncAt;
 
     /** 增量同步的游标/状态（连接器私有）。由 {@link SyncCursor#toJSON()} 产出。 */
     @TableField(value = "last_sync_cursor", typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("last_sync_cursor")
     private JsonNode lastSyncCursor;
 
     /** 上次同步结果的摘要。由 {@link SyncResult#toJSON()} 产出。 */
     @TableField(value = "last_sync_result", typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("last_sync_result")
     private JsonNode lastSyncResult;
 
     /** status 为 {@code "error"} 时的错误消息。无 omitempty → 空串照输出。 */
     @TableField("error_message")
-    @JsonProperty("error_message")
     private String errorMessage = "";
 
     /** 同步日志保留天数（默认 30）。CREATE 时零值被 GORM 替成 30。 */
     @TableField("sync_log_retention_days")
-    @JsonProperty("sync_log_retention_days")
     private int syncLogRetentionDays;
 
     @TableField("created_at")
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @TableField("updated_at")
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /**
@@ -201,17 +176,14 @@ public class DataSource {
      * （Jackson 不调自定义序列化器处理 null，见 §9）。
      */
     @TableField("deleted_at")
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     /** 已同步条目总数。{@code gorm:"-"}：不落库，查询时由 service 计算填充。 */
     @TableField(exist = false)
-    @JsonProperty("total_items_synced")
     private Long totalItemsSynced = 0L;
 
     /** 最近一次同步日志。{@code gorm:"-"}：不落库，查询时由 service 填充。 */
     @TableField(exist = false)
-    @JsonProperty("latest_sync_log")
     private SyncLog latestSyncLog;
 
     public String getId() { return id; }

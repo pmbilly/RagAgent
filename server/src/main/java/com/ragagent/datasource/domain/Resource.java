@@ -3,9 +3,6 @@ package com.ragagent.datasource.domain;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoTimeSerializer;
 
@@ -43,45 +40,31 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   <li><b>默认排序</b>：无——顺序由各连接器决定，handler 原样透传。</li>
  * </ol>
  */
-@JsonPropertyOrder({"external_id", "name", "type", "description", "url", "modified_at",
-        "parent_id", "has_children", "metadata"})
 public class Resource {
 
     /** 在外部系统里的唯一标识。 */
-    @JsonProperty("external_id")
     private String externalId = "";
 
-    @JsonProperty("name")
     private String name = "";
 
     /** 资源类型（document / folder / space / page …）。 */
-    @JsonProperty("type")
     private String type = "";
 
-    @JsonProperty("description")
     private String description = "";
 
     /** 在外部系统里访问它的 URL。 */
-    @JsonProperty("url")
     private String url = "";
 
     /** 在外部系统里的最后修改时间。Go 是**值类型** {@code time.Time}：零值也输出字面量。 */
-    @JsonProperty("modified_at")
     private OffsetDateTime modifiedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /** 层级资源才有；omitempty → 空串时整个键消失。 */
-    @JsonProperty("parent_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String parentId = "";
 
     /** 还有可展开的子项；omitempty → {@code false} 时整个键消失。 */
-    @JsonProperty("has_children")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean hasChildren;
 
     /** 附加元数据；omitempty → nil / 空 map 时整个键消失（Go 对切片与 map 的 omitempty 都看 len）。 */
-    @JsonProperty("metadata")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, Object> metadata;
 

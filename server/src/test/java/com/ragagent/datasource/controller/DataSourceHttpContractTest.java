@@ -113,11 +113,16 @@ class DataSourceHttpContractTest {
     private static String FEED_URL;
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
+    /**
+     * ⚠️ <b>键名字符集必须含大写</b>：掩码按键名匹配，换锚（下划线 → camelCase）后
+     * {@code [a-z_]+} 会漏掉 {@code knowledgeBaseId}/{@code dataSourceId} 这类键，
+     * 夹具里就会混进真实 UUID 与逐次变化的真实时间戳（第三次踩同一个坑，见 §13.13）。
+     */
     private static final Pattern UUID_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+            "\"([A-Za-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     /** 只匹配**真实**时间戳（年份 2xxx），以免把 Go 零值时间也抹掉。 */
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
+            "\"([A-Za-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
 
     private static HttpServer stubFeed;
     private static SsrfGuard originalGuard;
@@ -273,6 +278,12 @@ class DataSourceHttpContractTest {
      */
     private void assertConnectorTypesMatchGo(String actualJson, String goldenFile) throws Exception {
         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        if (REFRESH_FIXTURES) {
+            java.nio.file.Files.writeString(
+                    java.nio.file.Paths.get("src/test/resources/contracts", goldenFile), mask(actualJson));
+            System.out.println("REFRESH " + goldenFile + "（顺序不稳定的目录：按掩码后的实际重录）");
+            return;   // 必返回：ClassPathResource 读的是 build 产物里的旧副本
+        }
         com.fasterxml.jackson.databind.JsonNode actual = mapper.readTree(actualJson);
         com.fasterxml.jackson.databind.JsonNode golden = mapper.readTree(golden(goldenFile));
 
@@ -290,25 +301,25 @@ class DataSourceHttpContractTest {
             assertThat(a).as("连接器 " + g.get("type").asText()).isNotNull();
             assertEquals(g.toString(), a.toString(), "连接器 " + g.get("type").asText() + " 的字段");
         }
-        // 内置连接器 icon 都是空串 → omitempty 让整个键消失
-        assertThat(actualJson).doesNotContain("\"icon\"");
+        // 内置连接器 icon 都是空串 → §1.6：空串照写（不再是 omitempty 式"键消失"）
+        assertThat(actualJson).contains("\"icon\":\"\"");
     }
 
     @Test
     void listWithoutKbIdIsBadRequest() throws Exception {
         MvcResult r = perform(get("/api/v1/datasource").header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-list-kb-required.json"), raw(r));
+        assertGoldenBody("ds-list-kb-required.json", raw(r));
     }
 
     /** 空仓库列表是 {@code []} 而不是 {@code null}（Go 显式做了 make）。 */
     @Test
     void listEmptyKbMatchesGo() throws Exception {
-        MvcResult r = perform(get("/api/v1/datasource?kb_id=" + KB_EMPTY)
+        MvcResult r = perform(get("/api/v1/datasource?kbId=" + KB_EMPTY)
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals("[]", raw(r));
-        assertEquals(golden("ds-list-empty.json"), raw(r));
+        assertGoldenBody("ds-list-empty.json", raw(r));
     }
 
     // ══════════════════════════ 2. 创建 ══════════════════════════
@@ -318,7 +329,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(post("/api/v1/datasource")
                 .contentType("application/json").header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-create-no-body.json"), raw(r));
+        assertGoldenBody("ds-create-no-body.json", raw(r));
     }
 
     @Test
@@ -326,26 +337,26 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"), "not-json")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-create-bad-json.json"), raw(r));
+        assertGoldenBody("ds-create-bad-json.json", raw(r));
     }
 
     /** 未登记的连接器类型：目录里有 confluence、但注册表里没有 → 400 固定文案。 */
     @Test
     void createWithUnregisteredConnectorIsBadRequest() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"confluence\",\"knowledge_base_id\":\"" + KB_MAIN + "\"}")
+                "{\"name\":\"x\",\"type\":\"confluence\",\"knowledgeBaseId\":\"" + KB_MAIN + "\"}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-create-bad-connector.json"), raw(r));
+        assertGoldenBody("ds-create-bad-connector.json", raw(r));
     }
 
     @Test
     void createWithUnknownKbIsNotFound() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"rss\",\"knowledge_base_id\":\"" + UNKNOWN_ID + "\"}")
+                "{\"name\":\"x\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + UNKNOWN_ID + "\"}")
                 .header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-create-bad-kb.json"), raw(r));
+        assertGoldenBody("ds-create-bad-kb.json", raw(r));
     }
 
     /** 缺 {@code knowledge_base_id} 走的是"kb_id is required"（400），不是 404。 */
@@ -354,7 +365,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"),
                 "{\"name\":\"x\",\"type\":\"rss\"}").header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-create-missing-kb.json"), raw(r));
+        assertGoldenBody("ds-create-missing-kb.json", raw(r));
     }
 
     /**
@@ -368,10 +379,10 @@ class DataSourceHttpContractTest {
     @Test
     void createWithNullConfigSurfacesConnectorError() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"rss\",\"knowledge_base_id\":\"" + KB_MAIN + "\"}")
+                "{\"name\":\"x\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + KB_MAIN + "\"}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-create-bad-creds.json"), raw(r));
+        assertGoldenBody("ds-create-bad-creds.json", raw(r));
     }
 
     /** 成功：<b>201</b> Created + 裸 DTO（无信封）。 */
@@ -380,7 +391,7 @@ class DataSourceHttpContractTest {
         MvcResult r = createDataSource();
 
         assertEquals(201, r.getResponse().getStatus(), raw(r));
-        assertEquals(mask(golden("ds-create.json")), mask(raw(r)));
+        assertGoldenBody("ds-create.json", raw(r));
         // config 里只有 settings（resource_ids 是 nil → omitempty 省略）
         // PR4：键序归一后邻接子串不可靠 → 树断言
         {
@@ -402,14 +413,14 @@ class DataSourceHttpContractTest {
         String id = createId();
         MvcResult r = perform(get("/api/v1/datasource/" + id).header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(mask(golden("ds-get.json")), mask(raw(r)));
+        assertGoldenBody("ds-get.json", raw(r));
     }
 
     @Test
     void getUnknownIdIsNotFound() throws Exception {
         MvcResult r = perform(get("/api/v1/datasource/" + UNKNOWN_ID).header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-unknown-id.json"), raw(r));
+        assertGoldenBody("ds-unknown-id.json", raw(r));
     }
 
     /**
@@ -426,18 +437,18 @@ class DataSourceHttpContractTest {
     void updateEchoesRequestObjectAndIgnoresCredentials() throws Exception {
         String id = createId();
         MvcResult r = perform(jsonBody(put("/api/v1/datasource/" + id),
-                "{\"name\":\"golden-rss-renamed\",\"sync_mode\":\"full\",\"sync_deletions\":false,"
-                        + "\"error_message\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
+                "{\"name\":\"golden-rss-renamed\",\"syncMode\":\"full\",\"syncDeletions\":false,"
+                        + "\"errorMessage\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
                         + "{\"feed_urls\":\"" + FEED_URL + "\"},\"credentials\":{\"feed_urls\":\""
                         + FEED_URL + "\",\"api_token\":\"should-be-ignored\"}}}")
                 .header("Authorization", bearer));
 
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         String body = raw(r);
-        assertEquals(mask(golden("ds-update.json")), mask(body));
+        assertGoldenBody("ds-update.json", body);
 
         // 反直觉但真实的三条（掩码前单独钉住，否则掩码会把它们抹平）
-        assertThat(body).contains("\"created_at\":\"0001-01-01T00:00:00Z\"");
+        assertThat(body).contains("\"createdAt\":\"0001-01-01T00:00:00Z\"");
         assertThat(body).contains("\"type\":\"\"");
         assertThat(body).contains("\"status\":\"\"");
         assertThat(body).doesNotContain("should-be-ignored");
@@ -452,25 +463,25 @@ class DataSourceHttpContractTest {
 
         // 库里真实的行没有被这些零值覆盖：type/status/schedule 都还在
         MvcResult after = perform(get("/api/v1/datasource/" + id).header("Authorization", bearer));
-        assertEquals(mask(golden("ds-get-after-update.json")), mask(raw(after)));
+        assertGoldenBody("ds-get-after-update.json", raw(after));
         assertThat(raw(after)).contains("\"type\":\"rss\"").contains("\"status\":\"active\"")
-                .contains("\"sync_schedule\":\"0 0 * * * *\"");
+                .contains("\"syncSchedule\":\"0 0 * * * *\"");
     }
 
     @Test
     void listAfterCreateMatchesGo() throws Exception {
         String id = createId();
         perform(jsonBody(put("/api/v1/datasource/" + id),
-                "{\"name\":\"golden-rss-renamed\",\"sync_mode\":\"full\",\"sync_deletions\":false,"
-                        + "\"error_message\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
+                "{\"name\":\"golden-rss-renamed\",\"syncMode\":\"full\",\"syncDeletions\":false,"
+                        + "\"errorMessage\":\"\",\"config\":{\"type\":\"rss\",\"settings\":"
                         + "{\"feed_urls\":\"" + FEED_URL + "\"},\"credentials\":{\"feed_urls\":\""
                         + FEED_URL + "\",\"api_token\":\"should-be-ignored\"}}}")
                 .header("Authorization", bearer));
 
-        MvcResult r = perform(get("/api/v1/datasource?kb_id=" + KB_MAIN)
+        MvcResult r = perform(get("/api/v1/datasource?kbId=" + KB_MAIN)
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(mask(golden("ds-list.json")), mask(raw(r)));
+        assertGoldenBody("ds-list.json", raw(r));
         // 还没有同步日志 → latest_sync_log 的 omitempty 让它整个键消失
         assertThat(raw(r)).doesNotContain("latest_sync_log");
     }
@@ -483,7 +494,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(post("/api/v1/datasource/" + id + "/validate")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-validate.json"), raw(r));
+        assertGoldenBody("ds-validate.json", raw(r));
     }
 
     @Test
@@ -491,7 +502,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(jsonBody(post("/api/v1/datasource/validate-credentials"), "{}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-validate-credentials-bad.json"), raw(r));
+        assertGoldenBody("ds-validate-credentials-bad.json", raw(r));
     }
 
     /** 裸凭据试连（不落库）：{@code feed_urls} 可以走 credentials 这个历史位置。 */
@@ -501,7 +512,7 @@ class DataSourceHttpContractTest {
                 "{\"type\":\"rss\",\"credentials\":{\"feed_urls\":\"" + FEED_URL + "\"}}")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-validate-credentials.json"), raw(r));
+        assertGoldenBody("ds-validate-credentials.json", raw(r));
         assertEquals(0, (int) jdbc.queryForObject("SELECT COUNT(*) FROM data_sources", Integer.class));
     }
 
@@ -517,7 +528,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(get("/api/v1/datasource/" + id + "/resources")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-resources.json"), normalizeFeed(raw(r)));
+        assertGoldenBody("ds-resources.json", normalizeFeed(raw(r)));
     }
 
     /**
@@ -531,9 +542,9 @@ class DataSourceHttpContractTest {
     void resolveAncestorsWithEmptyListShortCircuits() throws Exception {
         String id = createId();
         MvcResult r = perform(jsonBody(post("/api/v1/datasource/" + id + "/resource-ancestors"),
-                "{\"resource_ids\":[]}").header("Authorization", bearer));
+                "{\"resourceIds\":[]}").header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-ancestors-empty.json"), raw(r));
+        assertGoldenBody("ds-ancestors-empty.json", raw(r));
     }
 
     /** feed 是扁平列表：非空 resource_ids 也回空祖先集。 */
@@ -541,9 +552,9 @@ class DataSourceHttpContractTest {
     void resolveAncestorsMatchesGo() throws Exception {
         String id = createId();
         MvcResult r = perform(jsonBody(post("/api/v1/datasource/" + id + "/resource-ancestors"),
-                "{\"resource_ids\":[\"" + FEED_URL + "\"]}").header("Authorization", bearer));
+                "{\"resourceIds\":[\"" + FEED_URL + "\"]}").header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-ancestors.json"), raw(r));
+        assertGoldenBody("ds-ancestors.json", raw(r));
     }
 
     // ══════════════════════════ 5. 凭据子资源 ══════════════════════════
@@ -558,7 +569,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(jsonBody(put("/api/v1/datasource/" + id + "/credentials"), "{}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-credentials-put-missing.json"), raw(r));
+        assertGoldenBody("ds-credentials-put-missing.json", raw(r));
     }
 
     @Test
@@ -567,7 +578,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(jsonBody(put("/api/v1/datasource/" + id + "/credentials"),
                 "{\"credentials\":{}}").header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-credentials-put-empty.json"), raw(r));
+        assertGoldenBody("ds-credentials-put-empty.json", raw(r));
     }
 
     /**
@@ -581,7 +592,7 @@ class DataSourceHttpContractTest {
                 "{\"credentials\":{\"feed_urls\":\"" + FEED_URL + "\"}}")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-credentials-put.json"), raw(r));
+        assertGoldenBody("ds-credentials-put.json", raw(r));
 
         // 读回来确认：credentials 里没有 feed_urls（被剥掉）、settings 里照旧，
         // configured 仍是 false。⚠️ 这里不逐字节比 ds-get-after-credentials.json
@@ -608,7 +619,7 @@ class DataSourceHttpContractTest {
                         + "\",\"auth_headers\":\"X-Token: abc\"}}")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-credentials-put-auth-headers.json"), raw(r));
+        assertGoldenBody("ds-credentials-put-auth-headers.json", raw(r));
         // 密钥值本身永不出现在响应里
         assertThat(raw(r)).doesNotContain("X-Token");
     }
@@ -619,7 +630,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(delete("/api/v1/datasource/" + id + "/credentials/nope")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-credentials-delete-bad-field.json"), raw(r));
+        assertGoldenBody("ds-credentials-delete-bad-field.json", raw(r));
     }
 
     /** 唯一合法的字段名：清空 → <b>204</b>，无响应体；幂等。 */
@@ -652,9 +663,9 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(post("/api/v1/datasource/" + id + "/sync")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(mask(golden("ds-sync.json")), mask(raw(r)));
+        assertGoldenBody("ds-sync.json", raw(r));
         // 计数器恒输出（无 omitempty），空串 error_message 也照输出
-        assertThat(raw(r)).contains("\"finished_at\":null").contains("\"error_message\":\"\"")
+        assertThat(raw(r)).contains("\"finished_at\":null").contains("\"error_message\":\"\"")   // sync log 的键属 D2，本批不动
                 .contains("\"items_total\":0").contains("\"result\":null");
     }
 
@@ -663,7 +674,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(post("/api/v1/datasource/" + UNKNOWN_ID + "/sync")
                 .header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-unknown-id.json"), raw(r));
+        assertGoldenBody("ds-unknown-id.json", raw(r));
     }
 
     /** {@code limit} 在 1..100 之外（含非数字）一律 400——与 memory 那套"容错"相反。 */
@@ -673,7 +684,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(get("/api/v1/datasource/" + id + "/logs?limit=0")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-logs-bad-limit.json"), raw(r));
+        assertGoldenBody("ds-logs-bad-limit.json", raw(r));
 
         MvcResult abc = perform(get("/api/v1/datasource/" + id + "/logs?limit=abc")
                 .header("Authorization", bearer));
@@ -690,7 +701,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(get("/api/v1/datasource/" + id + "/logs?offset=-5")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(mask(golden("ds-logs-tolerant-offset.json")), mask(raw(r)));
+        assertGoldenBody("ds-logs-tolerant-offset.json", raw(r));
     }
 
     @Test
@@ -700,7 +711,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(get("/api/v1/datasource/" + id + "/logs?limit=2&offset=0")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(mask(golden("ds-logs.json")), mask(raw(r)));
+        assertGoldenBody("ds-logs.json", raw(r));
     }
 
     @Test
@@ -712,7 +723,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(get("/api/v1/datasource/logs/" + logId)
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(mask(golden("ds-log.json")), mask(raw(r)));
+        assertGoldenBody("ds-log.json", raw(r));
     }
 
     @Test
@@ -720,7 +731,7 @@ class DataSourceHttpContractTest {
         MvcResult r = perform(get("/api/v1/datasource/logs/" + UNKNOWN_ID)
                 .header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("ds-log-unknown.json"), raw(r));
+        assertGoldenBody("ds-log-unknown.json", raw(r));
     }
 
     @Test
@@ -761,7 +772,7 @@ class DataSourceHttpContractTest {
         assertConnectorTypesMatchGo(raw(types), "ds-types-viewer.json");
 
         MvcResult create = perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"x\",\"type\":\"rss\",\"knowledge_base_id\":\"" + KB_MAIN + "\"}")
+                "{\"name\":\"x\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + KB_MAIN + "\"}")
                 .header("Authorization", viewerToken));
         assertEquals(403, create.getResponse().getStatus(), raw(create));
         assertEquals(golden("ds-create-forbidden.json"), raw(create));
@@ -855,8 +866,8 @@ class DataSourceHttpContractTest {
 
     private MvcResult createDataSource() throws Exception {
         return perform(jsonBody(post("/api/v1/datasource"),
-                "{\"name\":\"golden-rss\",\"type\":\"rss\",\"knowledge_base_id\":\"" + KB_MAIN
-                        + "\",\"sync_schedule\":\"0 0 * * * *\",\"config\":{\"type\":\"rss\","
+                "{\"name\":\"golden-rss\",\"type\":\"rss\",\"knowledgeBaseId\":\"" + KB_MAIN
+                        + "\",\"syncSchedule\":\"0 0 * * * *\",\"config\":{\"type\":\"rss\","
                         + "\"settings\":{\"feed_urls\":\"" + FEED_URL + "\"},"
                         + "\"credentials\":{\"feed_urls\":\"" + FEED_URL + "\"}}}")
                 .header("Authorization", bearer));
@@ -938,6 +949,24 @@ class DataSourceHttpContractTest {
      * <p>Go 零值时间 {@code 0001-01-01T00:00:00Z} 刻意<b>不</b>掩码——它是"这个字段
      * 从未被赋值"的信号，掩掉就把两种形态混为一谈了。需要它的用例另行显式断言。</p>
      */
+    /**
+     * 夹具重录开关（同 EmbedContractTest/McpContractTest 的纪律，§13.12）：
+     * {@code -Dcontract.refresh=true} 时把**掩码后的实际响应**写回夹具，用于换锚批
+     * （键名改名/条件键改恒输出会一次影响几十个 golden）。默认关闭——平时是断言。
+     */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
+    /** golden 比对的统一入口：换锚批一律走这里（键序/转义/掩码在 mask 里处理）。 */
+    private void assertGoldenBody(String name, String actual) throws Exception {
+        if (REFRESH_FIXTURES) {
+            java.nio.file.Path path = java.nio.file.Paths.get("src/test/resources/contracts", name);
+            java.nio.file.Files.writeString(path, mask(actual));
+            System.out.println("REFRESH " + name);
+            return;
+        }
+        assertEquals(mask(golden(name)), mask(actual), name);
+    }
+
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);

@@ -1,1 +1,1 @@
-[{"external_id":"http://127.0.0.1:18099/feed.xml","name":"Stub Feed","type":"feed","description":"A local stub feed for datasource contract tests","url":"http://127.0.0.1:18099/","modified_at":"0001-01-01T00:00:00Z","metadata":{"item_count":2}}]
+[{"description":"A local stub feed for datasource contract tests","externalId":"http://127.0.0.1:18099/feed.xml","hasChildren":false,"metadata":{"item_count":2},"modifiedAt":"0001-01-01T00:00:00Z","name":"Stub Feed","parentId":"","type":"feed","url":"http://127.0.0.1:18099/"}]

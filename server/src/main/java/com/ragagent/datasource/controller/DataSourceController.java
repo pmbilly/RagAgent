@@ -148,7 +148,7 @@ public class DataSourceController {
      */
     @GetMapping("/api/v1/datasource")
     public ResponseEntity<?> listDataSources(
-            @RequestParam(value = "kb_id", required = false) String kbId) {
+            @RequestParam(value = "kbId", required = false) String kbId) {
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || tenantId == 0L) {
             return error(401, "unauthorized: workspace context missing");
@@ -293,7 +293,7 @@ public class DataSourceController {
     @GetMapping("/api/v1/datasource/{id}/resources")
     public ResponseEntity<?> listAvailableResources(
             @PathVariable("id") String id,
-            @RequestParam(value = "parent_id", required = false) String parentId) {
+            @RequestParam(value = "parentId", required = false) String parentId) {
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || tenantId == 0L) {
             return error(401, "unauthorized");
@@ -349,8 +349,7 @@ public class DataSourceController {
     }
 
     /** 对照 Go {@code resolveAncestorsRequest}（**没有** binding tag，字段可缺）。 */
-    record ResolveAncestorsRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("resource_ids") List<String> resourceIds) {
+    record ResolveAncestorsRequest(List<String> resourceIds) {
     }
 
     // ══════════════════════════ 同步控制 ══════════════════════════

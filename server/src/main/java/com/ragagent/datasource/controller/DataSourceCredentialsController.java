@@ -1,7 +1,6 @@
 package com.ragagent.datasource.controller;
 
 import com.ragagent.common.web.JsonMappers;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -74,9 +73,8 @@ public class DataSourceCredentialsController {
      * 对照 Go {@code Put}（L62-95）：整体替换凭据并立刻做一次真实连接校验
      * ——用户当场就知道新 token 对不对，不必等下一次定时同步。
      *
-     * <p>成功体是
-     * {@code {"data":{"fields":{"credentials":{"configured":bool}}},"success":true}}
-     * ——{@code gin.H} 是 map，键按字母序（data &lt; success）。</p>
+     * <p>成功体是<b>裸对象</b> {@code {"fields":{"credentials":{"configured":bool}}}}
+     * （§2.1：不再包 data/success 信封，§14.9q D1）。</p>
      */
     @PutMapping("/api/v1/datasource/{id}/credentials")
     public ResponseEntity<?> put(@PathVariable("id") String id,
@@ -109,10 +107,7 @@ public class DataSourceCredentialsController {
         } catch (RuntimeException ignored) {
             // 对照 Go 的 `if parsed, err := ...; err == nil && parsed != nil`
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", CredentialsResponse.credentials(configured));
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(CredentialsResponse.credentials(configured));
     }
 
     /**

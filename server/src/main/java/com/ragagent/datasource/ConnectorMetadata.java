@@ -2,9 +2,6 @@ package com.ragagent.datasource;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 一个可用连接器的元数据（对照 Go {@code datasource.ConnectorMetadata}，
@@ -32,15 +29,14 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  *       ——两者形态不同，照抄。</li>
  * </ol>
  */
-@JsonPropertyOrder({"type", "name", "description", "icon", "priority", "auth_type", "capabilities"})
 public record ConnectorMetadata(
-        @JsonProperty("type") String type,
-        @JsonProperty("name") String name,
-        @JsonProperty("description") String description,
-        @JsonProperty("icon") @JsonInclude(JsonInclude.Include.NON_EMPTY) String icon,
-        @JsonProperty("priority") int priority,
-        @JsonProperty("auth_type") String authType,
-        @JsonProperty("capabilities") List<String> capabilities) {
+        String type,
+        String name,
+        String description,
+        String icon,
+        int priority,
+        String authType,
+        List<String> capabilities) {
 
     public ConnectorMetadata {
         if (type == null) {

@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,14 +54,12 @@ import com.ragagent.common.crypto.CryptoService;
  *       （否则后续的读会看见密文）。</li>
  * </ol>
  */
-@JsonPropertyOrder({"type", "credentials", "resource_ids", "settings"})
 public class DataSourceConfig {
 
     /** 与 Go 的 {@code json.Marshal} 对齐的写出器（容忍未知属性，对照 json.Unmarshal）。 */
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    @JsonProperty("type")
     private String type = "";
 
     /**
@@ -73,16 +69,13 @@ public class DataSourceConfig {
      * <p>挂 {@link DataSourceMapSerializer} 而不是 {@code GoMapSerializer}：
      * 连接器会把数字塞进这张表，而 map 值的 {@code Double} 格式也要按 Go 的编码器走。</p>
      */
-    @JsonProperty("credentials")
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, Object> credentials;
 
     /** 要同步的资源 ID（文件夹 ID、空间 ID 等）。 */
-    @JsonProperty("resource_ids")
     private List<String> resourceIds;
 
     /** 连接器私有配置。 */
-    @JsonProperty("settings")
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, Object> settings;
 
