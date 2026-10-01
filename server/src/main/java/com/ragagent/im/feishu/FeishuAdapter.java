@@ -114,6 +114,9 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
     /** 回调验签/解析协作者（对照 Go 回调段）。 */
     final FeishuCallbackOps callbackOps;
 
+    /** 发送协作者（对照 Go 发送段）。 */
+    final FeishuSendOps sendOps;
+
     private final Object tokenLock = new Object();
     private String tokenCache = "";
     private Instant tokenExpiresAt = Instant.EPOCH;
@@ -138,6 +141,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
         this.callbackOps = new FeishuCallbackOps(this);
+        this.sendOps = new FeishuSendOps(this);
     }
 
     /**
@@ -170,7 +174,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
     }
 
     /** 对照 {@code api}：区域基址 + 路径。 */
-    private String api(String path) {
+    String api(String path) {
         return apiBaseUrl + path;
     }
 
@@ -209,118 +213,30 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
     }
 
 
-    // ── 发送（reply 优先，可回落 send-message） ───────────────────────────────
 
+    /** 薄委托：发送语义见 {@link FeishuSendOps#sendReply}。 */
     @Override
     public void sendReply(IncomingMessage incoming, ReplyMessage reply) throws Exception {
-        String accessToken = getTenantAccessToken();
-        String content = MAPPER.writeValueAsString(Map.of("text",
-                reply.content == null ? "" : reply.content));
-
-        Map<String, Object> replyPayload = new LinkedHashMap<>();
-        replyPayload.put("msg_type", "text");
-        replyPayload.put("content", content);
-
-        String[] receive = resolveReceiveId(incoming);
-        Map<String, Object> fallbackPayload = new LinkedHashMap<>();
-        fallbackPayload.put("receive_id", receive[1]);
-        fallbackPayload.put("msg_type", "text");
-        fallbackPayload.put("content", content);
-
-        sendWithFallback(accessToken, incoming, replyPayload, fallbackPayload, receive[0]);
+        sendOps.sendReply(incoming, reply);
     }
 
-    /** 对照 {@code resolveReceiveID}：群聊 chat_id，私聊 open_id。 */
+    /** 薄委托：F3/F4 消费（reply 优先、可回落）。 */
+    void sendWithFallback(String accessToken, IncomingMessage incoming,
+                          Map<String, Object> replyPayload, Map<String, Object> fallbackPayload,
+                          String receiveIdType) throws Exception {
+        sendOps.sendWithFallback(accessToken, incoming, replyPayload, fallbackPayload, receiveIdType);
+    }
+
+    /** 薄委托：测试直调 + F3 消费。 */
     static String[] resolveReceiveId(IncomingMessage incoming) {
-        String receiveIdType = "open_id";
-        String receiveId = incoming.userId == null ? "" : incoming.userId;
-        if (ImTypes.CHAT_TYPE_GROUP.equals(incoming.chatType)
-                && incoming.chatId != null && !incoming.chatId.isEmpty()) {
-            receiveIdType = "chat_id";
-            receiveId = incoming.chatId;
-        }
-        return new String[] {receiveIdType, receiveId};
+        return FeishuSendOps.resolveReceiveId(incoming);
     }
 
-    /** 对照 {@code sendWithFallback}：reply API 优先，可回落码 → send-message。 */
-    private void sendWithFallback(String accessToken, IncomingMessage incoming,
-                                  Map<String, Object> replyPayload,
-                                  Map<String, Object> fallbackPayload, String receiveIdType)
-            throws Exception {
-        String messageId = incoming.messageId == null ? "" : incoming.messageId;
-        if (!messageId.isEmpty() && safePathParam(messageId)) {
-            String replyUrl = api("/open-apis/im/v1/messages/" + messageId + "/reply");
-            ApiResult result = postFeishuMessage(accessToken, replyUrl, replyPayload);
-            if (result.transportError() != null) {
-                log.warn("[{}] reply API transport error (will try fallback): {}",
-                        region.label(), result.transportError());
-            } else if (result.code() == 0) {
-                return;
-            } else if (!FALLBACK_ELIGIBLE.contains(result.code())) {
-                throw new IllegalStateException(region.label() + " reply api error: code="
-                        + result.code() + " msg=" + result.msg());
-            } else {
-                log.warn("[{}] reply API returned code={} msg={}, falling back to send-message API",
-                        region.label(), result.code(), result.msg());
-            }
-        } else if (!messageId.isEmpty()) {
-            // message_id 含不安全字符 → 拒绝而不是放进 URL 路径（疑似篡改）
-            throw new IllegalArgumentException("invalid message_id for reply API: " + messageId);
-        } else {
-            log.warn("[{}] incoming message has no message_id; replying via send-message API"
-                    + " (will not attach to thread)", region.label());
-        }
-
-        String fallbackUrl = api("/open-apis/im/v1/messages?receive_id_type=" + receiveIdType);
-        ApiResult result = postFeishuMessage(accessToken, fallbackUrl, fallbackPayload);
-        if (result.transportError() != null) {
-            throw new IllegalStateException("send message (fallback): " + result.transportError(),
-                    result.transportError());
-        }
-        if (result.code() != 0) {
-            throw new IllegalStateException(region.label() + " send api error: code="
-                    + result.code() + " msg=" + result.msg());
-        }
-    }
-
-    /** 对照 {@code postFeishuMessage}：POST JSON，解 (code, msg)（传输错误单列）。 */
-    private ApiResult postFeishuMessage(String accessToken, String url, Map<String, Object> payload)
-            throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .header("Content-Type", "application/json; charset=utf-8")
-                .header("Authorization", "Bearer " + accessToken)
-                .timeout(Duration.ofSeconds(10))
-                .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(payload),
-                        StandardCharsets.UTF_8))
-                .build();
-        try {
-            HttpResponse<byte[]> response = http.send(request,
-                    HttpResponse.BodyHandlers.ofByteArray());
-            JsonNode node = readTree(response.body());
-            return new ApiResult(node.path("code").asInt(0), node.path("msg").asText(""), null);
-        } catch (java.io.IOException e) {
-            return new ApiResult(0, "", e);
-        }
-    }
-
-    private record ApiResult(int code, String msg, Throwable transportError) {
-    }
-
-    /** 对照 {@code feishuSafePathParam}：只允许字母数字与 {@code -_}，且非空。 */
+    /** 薄委托：测试直调 + F4 消费。 */
     static boolean safePathParam(String value) {
-        if (value == null || value.isEmpty()) {
-            return false;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9') || c == '-' || c == '_';
-            if (!ok) {
-                return false;
-            }
-        }
-        return true;
+        return FeishuSendOps.safePathParam(value);
     }
+
 
     // ── 流式（CardKit v1） ──────────────────────────────────────────────────
 
