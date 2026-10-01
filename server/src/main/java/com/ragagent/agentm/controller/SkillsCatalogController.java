@@ -71,7 +71,6 @@ public class SkillsCatalogController {
         }
         body.put("skills", response);
         body.put("skillsAvailable", true);
-        body.put("success", true);
         return ResponseEntity.ok(body);
     }
 }

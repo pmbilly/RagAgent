@@ -130,16 +130,13 @@ public final class OllamaManageService {
         }
         var existing = downloadTasks.findActiveByModel(modelName);
         if (existing != null) {
+            // 幂等：已有进行中的任务 → 裸任务对象原样返回（§2.1）
             ObjectNode data = MAPPER.createObjectNode();
             data.put("modelName", existing.modelName);
             data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(GoDoubleSerializer.format(existing.progress)));
             data.put("status", existing.status);
             data.put("taskId", existing.id);
-            Map<String, Object> body = new TreeMap<>();
-            body.put("data", data);
-            body.put("message", "模型下载任务已存在");
-            body.put("success", true);
-            return ResponseEntity.ok(body);
+            return ResponseEntity.ok(data);
         }
         String taskId = UUID.randomUUID().toString();
         downloadTasks.create(taskId, modelName, OffsetDateTime.now());
