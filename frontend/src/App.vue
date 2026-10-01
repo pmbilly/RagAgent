@@ -51,11 +51,11 @@ const clearOIDCCallbackState = (path = '/') => {
 
 const syncOIDCUserContext = async () => {
   const currentUserResponse = await getCurrentUser()
-  if (!currentUserResponse.success || !currentUserResponse.data?.user) {
-    throw new Error(currentUserResponse.message || 'Failed to get user information')
+  if (!currentUserResponse.user) {
+    throw new Error('Failed to get user information')
   }
 
-  const { user, tenant, memberships, capabilities } = currentUserResponse.data
+  const { user, tenant, memberships, capabilities } = currentUserResponse
   authStore.setUser(userInfoFromApi(user, tenant?.id))
   if (tenant) {
     authStore.setTenant({
@@ -67,8 +67,8 @@ const syncOIDCUserContext = async () => {
       business: tenant.business,
       storage_quota: tenant.storage_quota,
       storage_used: tenant.storage_used,
-      created_at: tenant.created_at || new Date().toISOString(),
-      updated_at: tenant.updated_at || new Date().toISOString()
+      createdAt: tenant.createdAt || new Date().toISOString(),
+      updatedAt: tenant.updatedAt || new Date().toISOString()
     })
   } else {
     authStore.setTenant(null)
@@ -88,7 +88,7 @@ const syncOIDCUserContext = async () => {
   // remembered last-active-tenant preference) make sure X-Tenant-ID
   // override is set; otherwise drop any stale override.
   const activeIdNum = tenant?.id != null ? Number(tenant.id) : NaN
-  const homeIdNum = user.tenant_id != null ? Number(user.tenant_id) : NaN
+  const homeIdNum = user.tenantId != null ? Number(user.tenantId) : NaN
   if (Number.isFinite(activeIdNum) && Number.isFinite(homeIdNum) && activeIdNum !== homeIdNum) {
     authStore.setSelectedTenant(activeIdNum, tenant?.name || null)
   } else {
@@ -98,7 +98,7 @@ const syncOIDCUserContext = async () => {
 
 const persistOIDCLoginResponse = async (response: any) => {
   if (!response.token) {
-    throw new Error(response.message || 'OIDC login failed')
+    throw new Error('OIDC login failed')
   }
 
   authStore.setToken(response.token)
@@ -161,13 +161,13 @@ const handleGlobalOIDCCallback = async () => {
 
     clearOIDCCallbackState('/login')
     await router.replace('/login')
-    MessagePlugin.error(response.message || 'OIDC login failed')
+    MessagePlugin.error('OIDC login failed')
   } catch (error: any) {
     console.error('Global OIDC callback handling failed:', error)
     authStore.logout()
     clearOIDCCallbackState('/login')
     await router.replace('/login')
-    MessagePlugin.error(error.message || 'OIDC login failed')
+    MessagePlugin.error('OIDC login failed')
   }
 }
 

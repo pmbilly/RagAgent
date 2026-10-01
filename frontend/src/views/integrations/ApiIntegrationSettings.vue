@@ -116,7 +116,7 @@
                       <th>{{ $t('integrations.api.apiKeyValue') }}</th>
                       <th>{{ $t('integrations.api.apiKeyAccessMode') }}</th>
                       <th>{{ $t('integrations.api.apiKeyKnowledgeScope') }}</th>
-                      <th>{{ $t('integrations.api.createdAt') }}</th>
+                      <th>{{ $t('integrations.api.created_at') }}</th>
                       <th class="api-key-table__actions-heading">{{ $t('integrations.api.actions') }}</th>
                     </tr>
                   </thead>
@@ -239,7 +239,7 @@
                 <p>{{ $t('integrations.api.requireDirectHeaderDesc') }}</p>
               </div>
               <div class="config-row__action">
-                <t-switch v-model="form.require_direct_header" size="small" @change="handleRequireDirectHeaderChange" />
+                <t-switch v-model="form.requireDirectHeader" size="small" @change="handleRequireDirectHeaderChange" />
               </div>
             </div>
           </div>
@@ -263,7 +263,7 @@
                     v-model="secretInput"
                     :type="secretInputType"
                     class="mono-input secret-mono-input"
-                    :placeholder="config?.has_hmac_secret && !secretInput.trim() ? $t('integrations.api.secretConfigured') : ''"
+                    :placeholder="config?.hasHmacSecret && !secretInput.trim() ? $t('integrations.api.secretConfigured') : ''"
                     @blur="triggerAutoSave"
                   />
                   <t-button
@@ -380,7 +380,7 @@
         <div class="drawer-form-item">
           <label class="drawer-form-label">{{ $t('integrations.api.playgroundExternalUser') }}</label>
           <t-input
-            v-model="playground.external_user_id"
+            v-model="playground.externalUserId"
             :disabled="form.mode === 'tenant'"
             class="mono-input"
             :placeholder="$t('integrations.api.playgroundExternalUserPlaceholder')"
@@ -743,9 +743,9 @@ const desktopListenPublicActive = ref(false)
 
 const form = reactive({
   mode: 'tenant' as APIPrincipalMode,
-  direct_header_name: DEFAULT_DIRECT_HEADER_NAME,
-  signed_token_header_name: DEFAULT_TOKEN_HEADER_NAME,
-  require_direct_header: false,
+  directHeaderName: DEFAULT_DIRECT_HEADER_NAME,
+  signedTokenHeaderName: DEFAULT_TOKEN_HEADER_NAME,
+  requireDirectHeader: false,
 })
 
 const API_KEY_CAPABILITIES = TENANT_API_KEY_CAPABILITIES
@@ -922,7 +922,7 @@ type WeKnoraDesktopWindow = Window & {
 const playground = reactive({
   agent_id: '',
   query: 'hello',
-  external_user_id: 'user_123',
+  externalUserId: 'user_123',
   signed_token: '',
   running: false,
   session_status: '' as PlaygroundStatus,
@@ -974,8 +974,8 @@ const canAutoSave = computed(() => {
   if (form.mode === 'signed_token') {
     // Either a secret is already stored server-side, or the user has just
     // typed a new one. The plaintext secret is never returned by the API,
-    // so we rely on the has_hmac_secret presence flag.
-    return config.value?.has_hmac_secret === true || secretInput.value.trim() !== ''
+    // so we rely on the hasHmacSecret presence flag.
+    return config.value?.hasHmacSecret === true || secretInput.value.trim() !== ''
   }
   return true
 })
@@ -1006,7 +1006,7 @@ const hasUnsavedPrincipalChanges = computed(() => {
   if (!cfg) return false
   return (
     form.mode !== cfg.mode
-    || form.require_direct_header !== cfg.require_direct_header
+    || form.requireDirectHeader !== cfg.requireDirectHeader
     || hasUnsavedSecretChange.value
   )
 })
@@ -1041,7 +1041,7 @@ const playgroundDisabledReason = computed(() => {
   if (!apiKey.value) return t('integrations.api.playgroundNeedApiKey')
   if (!playground.agent_id) return t('integrations.api.playgroundNeedAgent')
   if (!playground.query.trim()) return t('integrations.api.playgroundNeedQuestion')
-  if (form.mode === 'signed_token' && !playground.external_user_id.trim()) {
+  if (form.mode === 'signed_token' && !playground.externalUserId.trim()) {
     return t('integrations.api.playgroundNeedExternalUser')
   }
   return ''
@@ -1144,16 +1144,16 @@ async function load() {
     ])
 
     const cfgResp = await getAPIPrincipalConfig(tenantId.value)
-    if (!cfgResp.success || !cfgResp.data) {
-      throw new Error(cfgResp.message || t('integrations.api.loadFailed'))
+    if (!cfgResp) {
+      throw new Error(t('integrations.api.loadFailed'))
     }
-    config.value = cfgResp.data
-    form.mode = cfgResp.data.mode || 'tenant'
-    form.direct_header_name = DEFAULT_DIRECT_HEADER_NAME
-    form.signed_token_header_name = DEFAULT_TOKEN_HEADER_NAME
-    form.require_direct_header = cfgResp.data.require_direct_header === true
+    config.value = cfgResp
+    form.mode = cfgResp.mode || 'tenant'
+    form.directHeaderName = DEFAULT_DIRECT_HEADER_NAME
+    form.signedTokenHeaderName = DEFAULT_TOKEN_HEADER_NAME
+    form.requireDirectHeader = cfgResp.requireDirectHeader === true
     // The plaintext secret is never returned; start with an empty input and
-    // rely on config.has_hmac_secret to reflect whether one is configured.
+    // rely on config.hasHmacSecret to reflect whether one is configured.
     secretInput.value = ''
     lastSavedSecretInput.value = ''
     ensurePlaygroundAgent()
@@ -1235,7 +1235,7 @@ function handlePrincipalModeChange(mode: APIPrincipalMode) {
 }
 
 function handleRequireDirectHeaderChange(checked: boolean) {
-  form.require_direct_header = checked
+  form.requireDirectHeader = checked
   void saveIfNeeded()
 }
 
@@ -1275,21 +1275,19 @@ async function saveIfNeeded(options: { showSuccess?: boolean } = {}) {
   try {
     const payload: Parameters<typeof updateAPIPrincipalConfig>[1] = {
       mode: form.mode,
-      direct_header_name: DEFAULT_DIRECT_HEADER_NAME,
-      signed_token_header_name: DEFAULT_TOKEN_HEADER_NAME,
-      require_direct_header: form.require_direct_header,
+      directHeaderName: DEFAULT_DIRECT_HEADER_NAME,
+      signedTokenHeaderName: DEFAULT_TOKEN_HEADER_NAME,
+      requireDirectHeader: form.requireDirectHeader,
     }
     // Only send the secret when the user entered a new value; otherwise the
     // backend keeps the stored value untouched.
     const secretBeingSaved = hasUnsavedSecretChange.value ? secretInput.value.trim() : ''
     if (secretBeingSaved) {
-      payload.hmac_secret = secretBeingSaved
+      payload.hmacSecret = secretBeingSaved
     }
     const resp = await updateAPIPrincipalConfig(tenantId.value, payload)
-    if (!resp.success || !resp.data) {
-      throw new Error(resp.message || t('integrations.api.saveFailed'))
-    }
-    config.value = resp.data
+    
+    config.value = resp
     if (secretBeingSaved) {
       lastSavedSecretInput.value = secretBeingSaved
       showHMACSecret.value = true
@@ -1484,10 +1482,10 @@ function openEditAPIKeyScope(key: TenantAPIKey) {
   editingAPIKeyForm.name = key.name
   editingAPIKeyForm.tenant_full_enabled = key.full_access
   editingAPIKeyForm.knowledge_base_ids = normalizeAPIKeyKnowledgeBaseIDs(key.knowledge_base_ids)
-  const expiresAt = key.expires_at ? Date.parse(key.expires_at) : Number.NaN
-  editingAPIKeyForm.expires_at_unix = Number.isNaN(expiresAt)
+  const expires_at = key.expires_at ? Date.parse(key.expires_at) : Number.NaN
+  editingAPIKeyForm.expires_at_unix = Number.isNaN(expires_at)
     ? undefined
-    : Math.floor(expiresAt / 1000)
+    : Math.floor(expires_at / 1000)
   const currentCapabilities = new Set(key.capabilities || [])
   API_KEY_CAPABILITIES.forEach((capability) => {
     editingCapabilitySelections[capability] = currentCapabilities.has(capability)
@@ -1517,9 +1515,7 @@ async function saveAPIKeyConfiguration() {
       knowledge_base_ids: editingKnowledgeScopeApplies.value ? editingAPIKeyForm.knowledge_base_ids : [],
       expires_at_unix: editingAPIKeyForm.expires_at_unix,
     })
-    if (!resp.success || !resp.data) {
-      throw new Error(resp.message || t('integrations.api.updateApiKeyScopeFailed'))
-    }
+    
     apiKeyScopeDialogVisible.value = false
     editingAPIKey.value = null
     MessagePlugin.success(t('integrations.api.updateApiKeyScopeSuccess'))
@@ -1586,8 +1582,8 @@ function buildPlaygroundHeaders(maskSecrets: boolean) {
     'Content-Type': 'application/json',
     'X-API-Key': maskSecrets ? '<API_KEY>' : apiKey.value,
   }
-  if (form.mode === 'direct_header' && playground.external_user_id.trim()) {
-    commonHeaders[directHeaderName.value] = playground.external_user_id.trim()
+  if (form.mode === 'direct_header' && playground.externalUserId.trim()) {
+    commonHeaders[directHeaderName.value] = playground.externalUserId.trim()
   }
   if (form.mode === 'signed_token') {
     commonHeaders[tokenHeaderName.value] = maskSecrets ? '<JWT>' : playground.signed_token.trim()
@@ -1625,13 +1621,13 @@ async function ensurePlaygroundSignedToken() {
   if (form.mode !== 'signed_token') return
   if (!tenantId.value) throw new Error(t('integrations.api.loadFailed'))
   const resp = await createAPIPrincipalTestToken(tenantId.value, {
-    external_user_id: playground.external_user_id.trim(),
-    expires_in_seconds: 900,
+    externalUserId: playground.externalUserId.trim(),
+    expiresInSeconds: 900,
   })
-  if (!resp.success || !resp.data?.token) {
-    throw new Error(resp.message || t('integrations.api.playgroundMintTokenFailed'))
+  if (!resp.token) {
+    throw new Error(t('integrations.api.playgroundMintTokenFailed'))
   }
-  playground.signed_token = resp.data.token
+  playground.signed_token = resp.token
 }
 
 async function runPlayground() {

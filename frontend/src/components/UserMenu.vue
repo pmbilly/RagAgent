@@ -153,14 +153,14 @@
           {{ $t('tenant.switcher.menuLabel') }}
         </div>
         <div class="tenant-submenu-list">
-          <div v-for="m in switchableMemberships" :key="m.tenant_id" class="tenant-submenu-item"
-            :class="{ 'is-current': isCurrentTenant(m.tenant_id) }" @click="switchToTenant(m)">
-            <div class="tenant-submenu-item-avatar" :class="{ 'is-current': isCurrentTenant(m.tenant_id) }">
+          <div v-for="m in switchableMemberships" :key="m.tenantId" class="tenant-submenu-item"
+            :class="{ 'is-current': isCurrentTenant(m.tenantId) }" @click="switchToTenant(m)">
+            <div class="tenant-submenu-item-avatar" :class="{ 'is-current': isCurrentTenant(m.tenantId) }">
               {{ tenantInitial(m) }}
               <!-- Home 标识：home tenant 行的 avatar 右下角加一个小 home
                    icon。比起在 meta 行单独立一个「我的」pill，这里更省地、
                    也保持各行徽标列对齐。 -->
-              <span v-if="isHomeTenant(m.tenant_id)" class="tenant-submenu-item-home-dot"
+              <span v-if="isHomeTenant(m.tenantId)" class="tenant-submenu-item-home-dot"
                 :title="$t('tenant.switcher.homeTooltip')">
                 <t-icon name="home" size="9px" />
               </span>
@@ -178,7 +178,7 @@
                     class="tenant-submenu-item-role-icon" />
                   {{ formatRole(m.role) }}
                 </span>
-                <span v-if="isCurrentTenant(m.tenant_id)" class="tenant-submenu-item-badge">{{
+                <span v-if="isCurrentTenant(m.tenantId)" class="tenant-submenu-item-badge">{{
                   $t('tenant.switcher.currentBadge') }}</span>
               </div>
             </div>
@@ -206,6 +206,7 @@ import { useRouter } from 'vue-router'
 import { useUIStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { MessagePlugin } from 'tdesign-vue-next'
+import type { MembershipInfo } from '@/api/auth'
 import { getCurrentUser, logout as logoutApi, userInfoFromApi } from '@/api/auth'
 import { useI18n } from 'vue-i18n'
 import CreateTenantDialog from '@/components/CreateTenantDialog.vue'
@@ -352,7 +353,7 @@ const onTenantCreated = async (newTenant: TenantInfo) => {
 // authStore.selectedTenantId here is enough — the next page reload re-issues
 // every request with the new header and the server resolves the role server-side.
 type Membership = {
-  tenant_id: number
+  tenantId: number
   tenantName?: string
   role: string
 }
@@ -361,7 +362,7 @@ type Membership = {
 // the active tenant in there (with a "Current" badge) so the user has a
 // single place to glance at "where am I right now"; clicking the current
 // row is a no-op (handled in switchToTenant).
-const switchableMemberships = computed<Membership[]>(() => {
+const switchableMemberships = computed<MembershipInfo[]>(() => {
   return authStore.memberships ?? []
 })
 
@@ -381,7 +382,7 @@ const isCurrentTenant = (id: number) => {
 }
 
 const tenantDisplayName = (m: Membership) =>
-  m.tenantName && m.tenantName.trim() !== '' ? m.tenantName : `#${m.tenant_id}`
+  m.tenantName && m.tenantName.trim() !== '' ? m.tenantName : `#${m.tenantId}`
 
 const tenantInitial = (m: Membership) => {
   const name = tenantDisplayName(m).trim()
@@ -389,7 +390,7 @@ const tenantInitial = (m: Membership) => {
 }
 
 const switchToTenant = (m: Membership) => {
-  if (isCurrentTenant(m.tenant_id)) {
+  if (isCurrentTenant(m.tenantId)) {
     closeAll()
     return
   }
@@ -400,8 +401,8 @@ const switchToTenant = (m: Membership) => {
   // 服务端持久化偏好仍然按 home/peer 区分：home 时清空 last_active，
   // 让下次干净重登能正确回到 home。
   const home = homeTenantId.value
-  const switchingToHome = home !== null && home === m.tenant_id
-  authStore.setSelectedTenant(m.tenant_id, tenantDisplayName(m))
+  const switchingToHome = home !== null && home === m.tenantId
+  authStore.setSelectedTenant(m.tenantId, tenantDisplayName(m))
   closeAll()
   // Toast 在 reload 后由 App.vue 弹出（直接在这里弹会被 hard reload 干掉）。
   stashTenantSwitchToast({
@@ -415,7 +416,7 @@ const switchToTenant = (m: Membership) => {
   // redirects to the platform home so tenant-scoped resource paths don't
   // white-screen. Race the persist against the existing 400ms grace
   // window so most writes complete before the page tears down.
-  const persist = persistLastActiveTenantPreference(switchingToHome ? null : m.tenant_id)
+  const persist = persistLastActiveTenantPreference(switchingToHome ? null : m.tenantId)
   Promise.race([persist, new Promise((r) => setTimeout(r, 400))])
     .finally(() => navigateAfterTenantSwitch())
 }
@@ -533,8 +534,8 @@ const handleLogout = async () => {
 const loadUserInfo = async () => {
   try {
     const response = await getCurrentUser()
-    if (response.success && response.data && response.data.user) {
-      const user = response.data.user
+    if (response.user) {
+      const user = response.user
       userInfo.value = {
         username: user.username || t('common.info'),
         email: user.email || 'user@example.com',
@@ -550,22 +551,22 @@ const loadUserInfo = async () => {
       authStore.setUser(userInfoFromApi(user))
       // 如果返回了空间信息，也更新空间信息；tenantless 用户（/auth/me
       // 无 tenant）必须显式清空，否则会残留上一账号/上一会话的空间快照。
-      if (response.data.tenant) {
+      if (response.tenant) {
         authStore.setTenant({
-          id: String(response.data.tenant.id),
-          name: response.data.tenant.name,
+          id: String(response.tenant.id),
+          name: response.tenant.name,
           owner_id: user.id,
-          created_at: response.data.tenant.created_at,
-          updated_at: response.data.tenant.updated_at
+          createdAt: response.tenant.createdAt,
+          updatedAt: response.tenant.updatedAt
         })
       } else {
         authStore.setTenant(null)
       }
-      const membershipsSync = response.data.memberships
+      const membershipsSync = response.memberships
       if (Array.isArray(membershipsSync)) {
         authStore.setMemberships(membershipsSync)
       }
-      const canCreateTenant = response.data.capabilities?.can_create_tenant
+      const canCreateTenant = response.capabilities?.can_create_tenant
       if (typeof canCreateTenant === 'boolean') {
         authStore.setCanCreateTenant(canCreateTenant)
       }

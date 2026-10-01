@@ -26,7 +26,7 @@ interface LoginResponseLike {
   // Accept either so callers don't have to normalise.
   activeTenant?: { id?: number | string; name?: string } | null
   tenant?: { id?: number | string; name?: string } | null
-  memberships?: Array<{ tenant_id?: number | string; role?: string }>
+  memberships?: Array<{ tenantId?: number | string; role?: string }>
 }
 
 export function notifyLoginSuccess(
@@ -42,7 +42,7 @@ export function notifyLoginSuccess(
   const tenantName = activeTenant.name || String(activeTenant.id || '')
   const activeTenantId = Number(activeTenant.id)
   const membership = Array.isArray(response?.memberships)
-    ? response!.memberships!.find((m) => Number(m?.tenant_id) === activeTenantId)
+    ? response!.memberships!.find((m) => Number(m?.tenantId) === activeTenantId)
     : null
   const roleEnum = membership?.role
   const roleLabel = roleEnum ? formatRole(roleEnum) : ''

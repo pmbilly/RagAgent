@@ -132,7 +132,7 @@ interface ChatHeaderSession {
   id: string
   title?: string
   description?: string
-  tenant_id?: number | string
+  tenantId?: number | string
   is_pinned?: boolean
 }
 

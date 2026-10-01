@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { UserInfo, TenantInfo, KnowledgeBaseInfo } from '@/api/auth'
+import type { UserInfo, TenantInfo, KnowledgeBaseInfo, MembershipInfo } from '@/api/auth'
 import { userInfoFromApi } from '@/api/auth'
 import type { TenantInfo as TenantInfoFromAPI } from '@/api/tenant'
 import i18n from '@/i18n'
@@ -41,7 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
   // along with their role in each. Populated from /auth/login response.
   // v1 deployments will typically have length 1; the field is wired now
   // so PR 3 can render a tenant-switcher UI without a store migration.
-  const memberships = ref<Array<{ tenant_id: number; tenantName?: string; role: string }>>([])
+  const memberships = ref<MembershipInfo[]>([])
   const isLiteMode = ref(false)
   // pendingInvitationCount is the number of pending tenant invitations
   // addressed to the current user. Renders as a badge next to the
@@ -90,7 +90,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (selectedTenantId.value && selectedTenantName.value) {
       return selectedTenantName.value
     }
-    const fromMembership = memberships.value.find((m) => String(m.tenant_id) === tid)
+    const fromMembership = memberships.value.find((m) => String(m.tenantId) === tid)
     if (fromMembership?.tenantName) return fromMembership.tenantName
     if (tenant.value && String(tenant.value.id) === tid) return tenant.value.name || ''
     return ''
@@ -146,7 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
         ? String(tenant.value.id)
         : ''
     if (!tid) return ''
-    const match = memberships.value.find((m) => String(m.tenant_id) === tid)
+    const match = memberships.value.find((m) => String(m.tenantId) === tid)
     if (match?.role) return match.role
     // Cross-tenant superuser visiting a tenant they're not a member of:
     // backend auth.go resolveTenantRole step2 grants a temporary Admin
@@ -270,12 +270,12 @@ export const useAuthStore = defineStore('auth', () => {
     selectedTenantId.value = tenantId
     selectedTenantName.value = tenantName
     if (tenantId !== null) {
-      localStorage.setItem('weknora_selected_tenant_id', String(tenantId))
+      localStorage.setItem('weknora_selected_tenantId', String(tenantId))
       if (tenantName) {
         localStorage.setItem('weknora_selected_tenantName', tenantName)
       }
     } else {
-      localStorage.removeItem('weknora_selected_tenant_id')
+      localStorage.removeItem('weknora_selected_tenantId')
       localStorage.removeItem('weknora_selected_tenantName')
     }
     if (tenantChanged) {
@@ -288,7 +288,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const setMemberships = (
-    list: Array<{ tenant_id: number; tenantName?: string; role: string }>
+    list: Array<{ tenantId: number; tenantName?: string; role: string }>
   ) => {
     memberships.value = Array.isArray(list) ? list : []
     localStorage.setItem('weknora_memberships', JSON.stringify(memberships.value))
@@ -324,7 +324,7 @@ export const useAuthStore = defineStore('auth', () => {
       const { getMyPendingInvitationCount } = await import('@/api/tenant/invitations')
       const resp = await getMyPendingInvitationCount()
       if (resp.success && resp.data) {
-        setPendingInvitationCount(resp.data.pending_count)
+        setPendingInvitationCount(resp.data.pendingCount)
       }
     } catch {
       // best-effort; keep last known value
@@ -339,12 +339,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { getCurrentUser } = await import('@/api/auth')
       const response = await getCurrentUser()
-      const u = response.data?.user
-      if (!response.success || !u) return false
+      const u = response.user
+      if (!response.user) return false
 
-      setUser(userInfoFromApi(u, response.data?.tenant?.id))
+      setUser(userInfoFromApi(u, response.tenant?.id))
 
-      const tenantSnapshot = response.data?.tenant
+      const tenantSnapshot = response.tenant
       if (tenantSnapshot) {
         setTenant({
           id: String(tenantSnapshot.id) || '',
@@ -355,24 +355,24 @@ export const useAuthStore = defineStore('auth', () => {
           business: tenantSnapshot.business,
           storage_quota: tenantSnapshot.storage_quota,
           storage_used: tenantSnapshot.storage_used,
-          created_at: tenantSnapshot.created_at || new Date().toISOString(),
-          updated_at: tenantSnapshot.updated_at || new Date().toISOString(),
+          createdAt: tenantSnapshot.createdAt || new Date().toISOString(),
+          updatedAt: tenantSnapshot.updatedAt || new Date().toISOString(),
         })
       } else {
         setTenant(null)
       }
 
-      const list = response.data?.memberships
+      const list = response.memberships
       if (Array.isArray(list)) {
         setMemberships(list)
       }
 
-      const createCapability = response.data?.capabilities?.can_create_tenant
+      const createCapability = response.capabilities?.can_create_tenant
       if (typeof createCapability === 'boolean') {
         setCanCreateTenant(createCapability)
       }
 
-      setAutoAcceptInvitation(response.data?.capabilities?.auto_accept_invitation === true)
+      setAutoAcceptInvitation(response.capabilities?.auto_accept_invitation === true)
 
       return true
     } catch {
@@ -391,8 +391,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (!resp.success || !resp.data?.membership) {
         return { ok: false }
       }
-      const tenantId = resp.data.membership.tenant_id
-      const tenantName = resp.data.tenant_name
+      const tenantId = resp.data.membership.tenantId
+      const tenantName = resp.data.tenantName
       // 刷新成员关系，并切到刚加入的空间。
       await refreshFromAuthMe()
       setSelectedTenant(tenantId, tenantName ?? null)
@@ -439,7 +439,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('weknora_refreshToken')
     localStorage.removeItem('weknora_knowledge_bases')
     localStorage.removeItem('weknora_current_kb')
-    localStorage.removeItem('weknora_selected_tenant_id')
+    localStorage.removeItem('weknora_selected_tenantId')
     localStorage.removeItem('weknora_selected_tenantName')
     localStorage.removeItem('weknora_memberships')
     localStorage.removeItem('weknora_lite_mode')
@@ -460,7 +460,7 @@ export const useAuthStore = defineStore('auth', () => {
     const storedRefreshToken = localStorage.getItem('weknora_refreshToken')
     const storedKnowledgeBases = localStorage.getItem('weknora_knowledge_bases')
     const storedCurrentKb = localStorage.getItem('weknora_current_kb')
-    const storedSelectedTenantId = localStorage.getItem('weknora_selected_tenant_id')
+    const storedSelectedTenantId = localStorage.getItem('weknora_selected_tenantId')
     const storedSelectedTenantName = localStorage.getItem('weknora_selected_tenantName')
 
     if (storedUser) {

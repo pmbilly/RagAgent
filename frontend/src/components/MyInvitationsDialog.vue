@@ -31,7 +31,7 @@
         <div class="invitation-card-main">
           <div class="invitation-card-header">
             <span class="tenant-name">
-              {{ row.tenant_name || $t('tenantInvitation.myInbox.tenantLabel') + ' #' + row.tenant_id }}
+              {{ row.tenantName || $t('tenantInvitation.myInbox.tenantLabel') + ' #' + row.tenantId }}
             </span>
             <t-tag :theme="roleTagTheme(row.role)" size="small">
               {{ $t('tenantMember.role.' + row.role) }}
@@ -46,7 +46,7 @@
             <span class="meta-row">
               <t-icon name="time" size="14px" class="meta-icon" />
               <span class="meta-value">
-                {{ $t('tenantInvitation.myInbox.expiresIn', { date: formatDate(row.expires_at) }) }}
+                {{ $t('tenantInvitation.myInbox.expiresIn', { date: formatDate(row.expiresAt) }) }}
               </span>
             </span>
             <span v-if="row.message" class="meta-row meta-row--message">
@@ -115,7 +115,7 @@ function roleTagTheme(role: TenantRole): 'primary' | 'warning' | 'success' | 'de
 }
 
 function inviterDisplay(row: TenantInvitation): string {
-  return row.inviter_name?.trim() || row.inviter_email?.trim() || row.invited_by || '—'
+  return row.inviter_name?.trim() || row.inviter_email?.trim() || row.invitedBy || '—'
 }
 
 function formatDate(s: string): string {
@@ -163,7 +163,7 @@ async function onAccept(row: TenantInvitation) {
       await authStore.refreshFromAuthMe()
       MessagePlugin.success(
         t('tenantInvitation.myInbox.acceptSuccess', {
-          tenant: row.tenant_name || `#${row.tenant_id}`,
+          tenant: row.tenantName || `#${row.tenantId}`,
         }),
       )
     } else {

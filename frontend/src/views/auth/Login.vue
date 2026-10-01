@@ -425,12 +425,12 @@ const persistLoginResponse = async (response: any, skipRedirect = false) => {
   // JWT, defaulting to the user's home tenant on a fresh login.
   const activeTenant = response.activeTenant || response.tenant
   if (response.user && response.token) {
-    // user.tenant_id must be the user's HOME tenant (the immutable row
+    // user.tenantId must be the user's HOME tenant (the immutable row
     // on the users table); useHomeTenant() and the home-badge logic both
     // assume so. The ACTIVE tenant (which can differ from home when the
     // server honoured a remembered last-active-tenant preference) is
     // expressed separately via setSelectedTenant below.
-    const homeTenantIdRaw = response.user.tenant_id ?? activeTenant?.id ?? ''
+    const homeTenantIdRaw = response.user.tenantId ?? activeTenant?.id ?? ''
     authStore.setUser(userInfoFromApi(response.user, homeTenantIdRaw))
     authStore.setToken(response.token)
     if (response.refreshToken) {
@@ -441,8 +441,8 @@ const persistLoginResponse = async (response: any, skipRedirect = false) => {
         id: String(activeTenant.id) || '',
         name: activeTenant.name || '',
         owner_id: response.user.id || '',
-        created_at: activeTenant.created_at || new Date().toISOString(),
-        updated_at: activeTenant.updated_at || new Date().toISOString()
+        createdAt: activeTenant.createdAt || new Date().toISOString(),
+        updatedAt: activeTenant.updatedAt || new Date().toISOString()
       })
     } else {
       authStore.setTenant(null)

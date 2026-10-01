@@ -62,7 +62,7 @@
           <p class="desc">{{ $t('tenant.api.createdAtDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ formatDate(userInfo?.created_at) }}</span>
+          <span class="info-value">{{ formatDate(userInfo?.createdAt) }}</span>
         </div>
       </div>
 
@@ -252,10 +252,10 @@ const loadInfo = async () => {
     loading.value = true
     error.value = ''
     const resp = await getCurrentUser()
-    if ((resp as any).success && resp.data) {
-      userInfo.value = resp.data.user
+    if (resp.user) {
+      userInfo.value = resp.user
     } else {
-      error.value = resp.message || t('tenant.messages.fetchFailed')
+      error.value = t('tenant.messages.fetchFailed')
     }
   } catch (err: any) {
     error.value = err?.message || t('tenant.messages.networkError')

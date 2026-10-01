@@ -218,8 +218,8 @@ function persistLoginResponse(authStore: ReturnType<typeof useAuthStore>, respon
       id: String(response.tenant.id) || '',
       name: response.tenant.name || '',
       owner_id: response.user.id || '',
-      created_at: response.tenant.created_at || new Date().toISOString(),
-      updated_at: response.tenant.updated_at || new Date().toISOString()
+      createdAt: response.tenant.createdAt || new Date().toISOString(),
+      updatedAt: response.tenant.updatedAt || new Date().toISOString()
     })
   }
 }
@@ -239,14 +239,14 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
 
   try {
     const response = await getCurrentUser()
-    const user = response.data?.user
-    if (!response.success || !user) {
+    const user = response.user
+    if (!response.user) {
       return false
     }
 
-    authStore.setUser(userInfoFromApi(user, response.data?.tenant?.id))
+    authStore.setUser(userInfoFromApi(user, response.tenant?.id))
 
-    const tenant = response.data?.tenant
+    const tenant = response.tenant
     if (tenant) {
       authStore.setTenant({
         id: String(tenant.id) || '',
@@ -257,8 +257,8 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
         business: tenant.business,
         storage_quota: tenant.storage_quota,
         storage_used: tenant.storage_used,
-        created_at: tenant.created_at || new Date().toISOString(),
-        updated_at: tenant.updated_at || new Date().toISOString(),
+        createdAt: tenant.createdAt || new Date().toISOString(),
+        updatedAt: tenant.updatedAt || new Date().toISOString(),
       })
     } else {
       authStore.setTenant(null)
@@ -269,18 +269,18 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
     // would only ever see the snapshot from the original /auth/login
     // call, so role changes (and tenant-switch role lookups) would
     // be silently stale until the user logged out and back in.
-    const memberships = response.data?.memberships
+    const memberships = response.memberships
     if (Array.isArray(memberships)) {
       authStore.setMemberships(memberships)
     }
 
-    const canCreateTenant = response.data?.capabilities?.can_create_tenant
+    const canCreateTenant = response.capabilities?.can_create_tenant
     if (typeof canCreateTenant === 'boolean') {
       authStore.setCanCreateTenant(canCreateTenant)
     }
 
     authStore.setAutoAcceptInvitation(
-      response.data?.capabilities?.auto_accept_invitation === true,
+      response.capabilities?.auto_accept_invitation === true,
     )
 
     return true

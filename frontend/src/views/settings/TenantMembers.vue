@@ -107,14 +107,14 @@
             <t-table row-key="id" :data="invitations" :columns="invitationColumns" size="medium" hover>
               <template #invitee="{ row }">
                 <div class="member-cell">
-                  <template v-if="row.is_share_link">
+                  <template v-if="row.isShareLink">
                     <span class="member-name share-link-title">
                       <t-icon name="link" size="14px" />
                       {{ $t('tenantInvitation.shareLink.cellTitle') }}
                     </span>
                     <span class="member-email">
-                      {{ (row.accepted_count ?? 0) > 0
-                        ? $t('tenantInvitation.shareLink.cellAccepted', { count: row.accepted_count })
+                      {{ (row.acceptedCount ?? 0) > 0
+                        ? $t('tenantInvitation.shareLink.cellAccepted', { count: row.acceptedCount })
                         : $t('tenantInvitation.shareLink.cellEmpty') }}
                     </span>
                   </template>
@@ -133,10 +133,10 @@
               <template #inviter="{ row }">
                 <span>{{ inviterPrimary(row) }}</span>
               </template>
-              <template #expires_at="{ row }">{{ formatDate(row.expires_at) }}</template>
+              <template #expiresAt="{ row }">{{ formatDate(row.expiresAt) }}</template>
               <template #status="{ row }">
                 <t-tag :theme="invitationStatusTheme(row.status)" size="small">
-                  {{ row.is_share_link && row.status === 'pending'
+                  {{ row.isShareLink && row.status === 'pending'
                     ? $t('tenantInvitation.status.shareLinkActive')
                     : $t('tenantInvitation.status.' + row.status) }}
                 </t-tag>
@@ -146,10 +146,10 @@
                      Icon-only with tooltip so two actions ("copy" +
                      "revoke") fit inside the actions column without
                      clipping; the full label was too wide. -->
-                <t-tooltip v-if="row.status === 'pending' && row.invite_url"
+                <t-tooltip v-if="row.status === 'pending' && row.inviteUrl"
                   :content="$t('tenantInvitation.copyLink')" placement="top">
                   <t-button shape="square" variant="text" size="small"
-                    @click="copyText(absoluteInviteURL(row.invite_url))">
+                    @click="copyText(absoluteInviteURL(row.inviteUrl))">
                     <template #icon><t-icon name="copy" /></template>
                   </t-button>
                 </t-tooltip>
@@ -158,10 +158,10 @@
                        yes/no decision; the popover stays inside the
                        table cell so the user keeps spatial context. -->
                 <t-popconfirm v-if="row.status === 'pending'" theme="warning"
-                  :content="row.is_share_link
+                  :content="row.isShareLink
                     ? $t('tenantInvitation.shareLink.revokeConfirm')
                     : $t('tenantInvitation.revoke.confirmBody', {
-                        email: row.invitee_email || row.invitee_user_id,
+                        email: row.invitee_email || row.inviteeUserId,
                       })"
                   :confirm-btn="{ content: $t('tenantInvitation.revoke.confirm'), theme: 'danger' }"
                   :cancel-btn="$t('common.cancel')" placement="left" @confirm="doRevokeInvitation(row)">
@@ -279,10 +279,10 @@
                     </p>
                     <div class="share-link-row">
                       <input class="share-link-row__input"
-                        :value="absoluteInviteURL(shareLinkResult.invite_url || '')"
+                        :value="absoluteInviteURL(shareLinkResult.inviteUrl || '')"
                         readonly @click="($event.target as HTMLInputElement).select()" />
                       <t-button size="small" theme="primary" variant="outline"
-                        @click="copyText(absoluteInviteURL(shareLinkResult.invite_url || ''))">
+                        @click="copyText(absoluteInviteURL(shareLinkResult.inviteUrl || ''))">
                         <template #icon><t-icon name="copy" /></template>
                         {{ $t('tenantInvitation.copyLink') }}
                       </t-button>
@@ -325,7 +325,7 @@
         </div>
         <div v-else class="data-table-shell data-table-shell--with-footer">
           <div class="data-table-shell__scroll">
-            <t-table row-key="user_id" :data="members" :columns="columns" size="medium" hover stripe :loading="loading">
+            <t-table row-key="userId" :data="members" :columns="columns" size="medium" hover stripe :loading="loading">
               <template #member="{ row }">
                 <div class="member-cell">
                   <span class="member-name">{{ memberPrimary(row) }}</span>
@@ -334,7 +334,7 @@
               </template>
               <template #role="{ row }">
                 <div class="role-cell">
-                  <t-select v-if="canManage && row.user_id !== currentUserId" :model-value="row.role"
+                  <t-select v-if="canManage && row.userId !== currentUserId" :model-value="row.role"
                     class="member-role-select" size="small" :popup-props="roleSelectPopupProps"
                     @change="(val: string) => onRoleChange(row, val)">
                     <t-option v-for="opt in roleOptions" :key="opt.value" :value="opt.value" :label="opt.label">
@@ -349,10 +349,10 @@
                   </t-tag>
                 </div>
               </template>
-              <template #joined_at="{ row }">{{ formatDate(row.joined_at) }}</template>
+              <template #joinedAt="{ row }">{{ formatDate(row.joinedAt) }}</template>
               <template #actions="{ row }">
                 <t-popconfirm
-                  v-if="canManage && row.user_id !== currentUserId"
+                  v-if="canManage && row.userId !== currentUserId"
                   :content="$t('tenantMember.remove.confirmBody', { name: row.username || row.email })"
                   :confirm-btn="{ content: $t('tenantMember.remove.confirm'), theme: 'danger' }"
                   :cancel-btn="{ content: $t('common.cancel') }"
@@ -433,7 +433,7 @@
                 <template #actor="{ row }">
                   <div class="audit-actor">
                     <span class="audit-actor-name">
-                      {{ row.actor_user_id ? actorDisplayName(row.actor_user_id) :
+                      {{ row.actor_userId ? actorDisplayName(row.actor_userId) :
                         $t('tenantMember.audit.systemActor') }}
                     </span>
                     <span v-if="row.actor_role" class="audit-actor-role">
@@ -470,7 +470,7 @@
                     <div class="audit-expanded-grid">
                       <div class="audit-expanded-cell">
                         <span class="audit-expanded-label">{{ $t('tenantMember.audit.expanded.actorId') }}</span>
-                        <span class="audit-expanded-value mono">{{ row.actor_user_id || '—' }}</span>
+                        <span class="audit-expanded-value mono">{{ row.actor_userId || '—' }}</span>
                       </div>
                       <div v-if="row.target_user_id" class="audit-expanded-cell">
                         <span class="audit-expanded-label">{{ $t('tenantMember.audit.expanded.targetUserId') }}</span>
@@ -601,7 +601,7 @@ const invitationsError = ref('')
 // Invitation TTL is mirrored from the backend constant
 // (defaultInvitationTTL in tenant_invitation.go). Kept as a UI string
 // for the section description; the authoritative number comes from
-// the server's expires_at on each row.
+// the server's expiresAt on each row.
 const INVITATION_TTL_DAYS = 7
 
 const MEMBERS_PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
@@ -734,7 +734,7 @@ function roleMatrixIcon(role: TenantRole): string {
 const columns = computed(() => [
   { colKey: 'member', title: t('tenantMember.columns.member'), ellipsis: true, minWidth: 132 },
   { colKey: 'role', title: t('tenantMember.columns.role'), width: 128 },
-  { colKey: 'joined_at', title: t('tenantMember.columns.joinedAt'), width: 154 },
+  { colKey: 'joinedAt', title: t('tenantMember.columns.joinedAt'), width: 154 },
   { colKey: 'actions', title: t('tenantMember.columns.operations'), width: 88, align: 'left' },
 ])
 
@@ -798,7 +798,7 @@ function formatDate(s: string | undefined): string {
 
 function rememberMembersForAudit(rows: TenantMember[]) {
   for (const m of rows) {
-    memberDisplayByUserId[m.user_id] = { username: m.username, email: m.email }
+    memberDisplayByUserId[m.userId] = { username: m.username, email: m.email }
   }
 }
 
@@ -811,12 +811,12 @@ async function loadMembers() {
   try {
     const resp = await listMembers(activeTenantId.value, {
       page: membersPage.value,
-      page_size: membersPageSize.value,
+      pageSize: membersPageSize.value,
       q: memberSearchQ.value || undefined,
     })
     if (resp.success && resp.data) {
       const total = resp.data.total ?? 0
-      const ps = resp.data.page_size ?? membersPageSize.value
+      const ps = resp.data.pageSize ?? membersPageSize.value
       const safePs = Math.max(1, ps)
       const maxPage = Math.max(1, Math.ceil(total / safePs))
       if (membersPage.value > maxPage) {
@@ -830,8 +830,8 @@ async function loadMembers() {
       if (typeof resp.data.page === 'number' && resp.data.page > 0) {
         membersPage.value = resp.data.page
       }
-      if (typeof resp.data.page_size === 'number' && resp.data.page_size > 0) {
-        membersPageSize.value = resp.data.page_size
+      if (typeof resp.data.pageSize === 'number' && resp.data.pageSize > 0) {
+        membersPageSize.value = resp.data.pageSize
       }
       rememberMembersForAudit(members.value)
     } else {
@@ -864,7 +864,7 @@ const invitationColumns = computed(() => [
   { colKey: 'invitee', title: t('tenantInvitation.columns.invitee'), ellipsis: true, minWidth: 160 },
   { colKey: 'role', title: t('tenantInvitation.columns.role'), width: 110 },
   { colKey: 'inviter', title: t('tenantInvitation.columns.inviter'), ellipsis: true, minWidth: 140 },
-  { colKey: 'expires_at', title: t('tenantInvitation.columns.expiresAt'), width: 160 },
+  { colKey: 'expiresAt', title: t('tenantInvitation.columns.expiresAt'), width: 160 },
   { colKey: 'status', title: t('tenantInvitation.columns.status'), width: 100 },
   ...(canManage.value
     ? [{ colKey: 'actions', title: t('tenantInvitation.columns.operations'), width: 120, align: 'left' as const }]
@@ -888,11 +888,11 @@ function invitationStatusTheme(s: TenantInvitation['status']): 'primary' | 'succ
 }
 
 function inviteePrimary(row: TenantInvitation): string {
-  return row.invitee_name?.trim() || row.invitee_email?.trim() || row.invitee_user_id
+  return row.invitee_name?.trim() || row.invitee_email?.trim() || row.inviteeUserId
 }
 
 function inviterPrimary(row: TenantInvitation): string {
-  return row.inviter_name?.trim() || row.inviter_email?.trim() || row.invited_by || '—'
+  return row.inviter_name?.trim() || row.inviter_email?.trim() || row.invitedBy || '—'
 }
 
 // loadInvitations is called from the same trigger as loadMembers so
@@ -913,11 +913,11 @@ async function loadInvitations() {
   try {
     const resp = await listTenantInvitations(activeTenantId.value, {
       page: invitationsPage.value,
-      page_size: invitationsPageSize.value,
+      pageSize: invitationsPageSize.value,
     })
     if (resp.success && resp.data) {
       const total = resp.data.total ?? 0
-      const ps = resp.data.page_size ?? invitationsPageSize.value
+      const ps = resp.data.pageSize ?? invitationsPageSize.value
       const safePs = Math.max(1, ps)
       const maxPage = Math.max(1, Math.ceil(total / safePs))
       if (invitationsPage.value > maxPage) {
@@ -931,8 +931,8 @@ async function loadInvitations() {
       if (typeof resp.data.page === 'number' && resp.data.page > 0) {
         invitationsPage.value = resp.data.page
       }
-      if (typeof resp.data.page_size === 'number' && resp.data.page_size > 0) {
-        invitationsPageSize.value = resp.data.page_size
+      if (typeof resp.data.pageSize === 'number' && resp.data.pageSize > 0) {
+        invitationsPageSize.value = resp.data.pageSize
       }
     } else {
       invitationsError.value = resp.message || t('tenantInvitation.errors.generic')
@@ -1064,7 +1064,7 @@ function formatAuditAction(action: AuditAction): string {
 // Resolve a user id to a display label: prefer current页的 members，
 // 再退到历次分页积累的 memberDisplayByUserId，最后是原始 id。
 function actorDisplayName(userId: string): string {
-  const cur = members.value.find((x) => x.user_id === userId)
+  const cur = members.value.find((x) => x.userId === userId)
   if (cur?.username?.trim()) return cur.username.trim()
   if (cur?.email?.trim()) return cur.email.trim()
   const memo = memberDisplayByUserId[userId]
@@ -1258,7 +1258,7 @@ watch(shareLinkPopupVisible, (open) => {
 })
 
 // absoluteInviteURL turns the backend's potentially-host-relative
-// invite_url into a copy-friendly absolute URL. The backend returns
+// inviteUrl into a copy-friendly absolute URL. The backend returns
 // "/register?token=…" when FRONTEND_BASE_URL is unset (the typical
 // case); the SPA is best-positioned to know its own origin.
 function absoluteInviteURL(raw: string): string {
@@ -1333,8 +1333,8 @@ async function sendInvitation(email: string, role: TenantRole) {
   try {
     const resp = await createInvitation(activeTenantId.value, { email, role })
     if (resp.success) {
-      // auto-accept returns a member (user_id) instead of an invitation (id)
-      const autoJoined = !!resp.data && 'user_id' in resp.data
+      // auto-accept returns a member (userId) instead of an invitation (id)
+      const autoJoined = !!resp.data && 'userId' in resp.data
       invitePopupVisible.value = false
       if (autoJoined) {
         // The invitee is already a member — refresh the roster so they
@@ -1379,7 +1379,7 @@ async function onRoleChange(row: TenantMember, newRole: string) {
   if (prev === next) return
 
   try {
-    const resp = await updateMemberRole(activeTenantId.value, row.user_id, next)
+    const resp = await updateMemberRole(activeTenantId.value, row.userId, next)
     if (resp.success) {
       // Mutate the row by replacing it in `members.value` instead of
       // assigning `row.role = next` in place. The `row` argument here
@@ -1390,7 +1390,7 @@ async function onRoleChange(row: TenantMember, newRole: string) {
       // select keeps showing the previous value until a refresh.
       // Splicing a fresh object into the source array guarantees the
       // table re-renders.
-      const idx = members.value.findIndex((m) => m.user_id === row.user_id)
+      const idx = members.value.findIndex((m) => m.userId === row.userId)
       if (idx >= 0) {
         const merged = { ...members.value[idx], role: next }
         members.value.splice(idx, 1, merged)
@@ -1421,7 +1421,7 @@ async function onRoleChange(row: TenantMember, newRole: string) {
 // 错误分支保持与旧实现一致（409 last-owner / 404 not-found / 兜底）。
 async function removeRow(row: TenantMember) {
   try {
-    const resp = await removeMember(activeTenantId.value, row.user_id)
+    const resp = await removeMember(activeTenantId.value, row.userId)
     if (resp.success) {
       await loadMembers()
       MessagePlugin.success(t('tenantMember.remove.success'))

@@ -102,11 +102,11 @@ const loading = ref(false)
 const searchTimer = ref<number | null>(null)
 
 const selectedTenantId = computed(() => authStore.selectedTenantId)
-// home 空间 id 来自 user.tenant_id（注册时分配、永不变）。不要读
+// home 空间 id 来自 user.tenantId（注册时分配、永不变）。不要读
 // authStore.tenant.id —— 那是当前激活空间，会随 X-Tenant-ID 切换；用它
 // 当 home 会让「切回 home」分支错判，详见 useHomeTenant() 注释。
 const defaultTenantId = computed(() =>
-  authStore.user?.tenant_id ? Number(authStore.user.tenant_id) : null,
+  authStore.user?.tenantId ? Number(authStore.user.tenantId) : null,
 )
 
 const currentTenantId = computed(() => {
@@ -176,7 +176,7 @@ const selectTenant = (tenantId: number) => {
   // 退而求其次从 memberships 上挑名字。注意不要回退到 authStore.tenant?.name
   // —— 那是当前激活空间的名字，在 active != home 的会话里就是 peer 的名字。
   const homeNameFallback = switchingToHome
-    ? (authStore.memberships ?? []).find((m) => Number(m.tenant_id) === tenantId)?.tenantName
+    ? (authStore.memberships ?? []).find((m) => Number(m.tenantId) === tenantId)?.tenantName
       || null
     : null
   authStore.setSelectedTenant(tenantId, selectedTenant?.name || homeNameFallback || null)
@@ -187,7 +187,7 @@ const selectTenant = (tenantId: number) => {
   // Cross-tenant superusers may not have a membership row in the target
   // tenant; in that case skip the role line rather than show a misleading
   // empty/raw value.
-  const membership = (authStore.memberships ?? []).find((m) => Number(m.tenant_id) === tenantId)
+  const membership = (authStore.memberships ?? []).find((m) => Number(m.tenantId) === tenantId)
   const roleLabel = membership ? formatRole(membership.role) : ''
   // Toast 在 reload 后由 App.vue 弹出（直接在这里弹会被 hard reload 干掉）。
   stashTenantSwitchToast({
@@ -212,7 +212,7 @@ const loadTenants = async (append = false) => {
     const keyword = searchQuery.value.trim()
     let tenantID: number | undefined = undefined
 
-    // 如果是纯数字，同时作为 tenant_id 和 keyword 搜索
+    // 如果是纯数字，同时作为 tenantId 和 keyword 搜索
     // 这样既能精确匹配空间ID，也能模糊匹配名称中包含数字的空间
     if (keyword && /^\d+$/.test(keyword)) {
       tenantID = Number(keyword)
@@ -220,9 +220,9 @@ const loadTenants = async (append = false) => {
 
     const response = await searchTenants({
       keyword: keyword || undefined,
-      tenant_id: tenantID,
+      tenantId: tenantID,
       page: currentPage.value,
-      page_size: pageSize.value
+      pageSize: pageSize.value
     })
 
     if (response.success && response.data) {

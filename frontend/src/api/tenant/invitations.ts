@@ -17,31 +17,31 @@ export type TenantInvitationStatus =
 // raw id in the UI rather than dropping the row.
 export interface TenantInvitation {
   id: number
-  tenant_id: number
-  tenant_name?: string
-  invitee_user_id: string
+  tenantId: number
+  tenantName?: string
+  inviteeUserId: string
   invitee_email?: string
   invitee_name?: string
-  invited_by?: string | null
+  invitedBy?: string | null
   inviter_email?: string
   inviter_name?: string
   role: TenantRole
   status: TenantInvitationStatus
   message?: string
-  expires_at: string
+  expiresAt: string
   responded_at?: string | null
   created_at: string
-  // invite_url is set on share-link rows that are still pending. The
+  // inviteUrl is set on share-link rows that are still pending. The
   // backend re-emits it on every list/get so Owners can copy the
   // link on demand without "copy now or revoke" pressure.
-  invite_url?: string
-  // is_share_link distinguishes share-link rows (no specific invitee,
+  inviteUrl?: string
+  // isShareLink distinguishes share-link rows (no specific invitee,
   // multi-use, copyable URL) from per-user invitations.
-  is_share_link?: boolean
-  // accepted_count counts how many users have completed registration
+  isShareLink?: boolean
+  // acceptedCount counts how many users have completed registration
   // through this invitation. Surfaced in the management UI for
   // share-link rows ("已加入 N 人").
-  accepted_count?: number
+  acceptedCount?: number
 }
 
 export interface ListInvitationsResponse {
@@ -50,7 +50,7 @@ export interface ListInvitationsResponse {
     invitations: TenantInvitation[]
     total: number
     page?: number
-    page_size?: number
+    pageSize?: number
   }
   message?: string
 }
@@ -58,14 +58,14 @@ export interface ListInvitationsResponse {
 export interface ListTenantInvitationsParams {
   includeTerminal?: boolean
   page?: number
-  page_size?: number
+  pageSize?: number
 }
 
 function buildTenantInvitationsQuery(options: ListTenantInvitationsParams): string {
   const u = new URLSearchParams()
   if (options.includeTerminal) u.set('include_terminal', 'true')
   if (options.page != null && options.page > 0) u.set('page', String(options.page))
-  if (options.page_size != null && options.page_size > 0) u.set('page_size', String(options.page_size))
+  if (options.pageSize != null && options.pageSize > 0) u.set('pageSize', String(options.pageSize))
   const qs = u.toString()
   return qs ? `?${qs}` : ''
 }
@@ -79,7 +79,7 @@ export interface CreateInvitationRequest {
 export interface CreateInvitationResponse {
   success: boolean
   // With tenant.auto_accept_invitation enabled the backend returns a
-  // TenantMember (user_id set) instead of a pending TenantInvitation.
+  // TenantMember (userId set) instead of a pending TenantInvitation.
   data?: TenantInvitation | TenantMember
   message?: string
 }
@@ -93,40 +93,40 @@ export interface AcceptInvitationResponse {
   success: boolean
   data?: {
     membership: {
-      tenant_id: number
+      tenantId: number
       role: TenantRole
       status: string
-      joined_at: string
+      joinedAt: string
     }
   }
   message?: string
 }
 
-// AcceptInvitationByTokenResponse：已登录用户用 token 加入空间的响应（tenant_name 供前端展示）。
+// AcceptInvitationByTokenResponse：已登录用户用 token 加入空间的响应（tenantName 供前端展示）。
 export interface AcceptInvitationByTokenResponse {
   success: boolean
   data?: {
     membership: {
-      tenant_id: number
+      tenantId: number
       role: TenantRole
       status: string
-      joined_at: string
+      joinedAt: string
     }
-    tenant_name?: string
+    tenantName?: string
   }
   message?: string
 }
 
 export interface PendingCountResponse {
   success: boolean
-  data?: { pending_count: number }
+  data?: { pendingCount: number }
   message?: string
 }
 
 /**
  * List invitations for a tenant. Defaults to pending only; pass
  * includeTerminal=true to also surface accepted/declined/revoked/
- * expired rows for the history view. Supports `page` / `page_size`.
+ * expired rows for the history view. Supports `page` / `pageSize`.
  * Backend: GET /api/v1/tenants/:id/invitations (Viewer+).
  */
 export async function listTenantInvitations(
@@ -249,7 +249,7 @@ export interface CreateInviteLinkResponse {
 
 /**
  * Generate a multi-use share-link invitation for the tenant. The
- * returned row carries `invite_url` (composed from the persisted
+ * returned row carries `inviteUrl` (composed from the persisted
  * plaintext token) which the SPA copies into clipboards. The link
  * stays valid until expiry or revocation; revoking is the same DELETE
  * as a per-user invitation.

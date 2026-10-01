@@ -141,7 +141,7 @@
             <p class="desc">{{ $t('tenant.details.createdAtDescription') }}</p>
           </div>
           <div class="setting-control">
-            <span class="info-value">{{ formatDate(tenantInfo?.created_at) }}</span>
+            <span class="info-value">{{ formatDate(tenantInfo?.createdAt) }}</span>
           </div>
         </div>
 
@@ -389,24 +389,24 @@ async function deleteCurrentTenant() {
     if (resp.success) {
       MessagePlugin.success(t('tenant.deleteDangerZone.success'))
       authStore.setMemberships(
-        (authStore.memberships ?? []).filter((m) => m.tenant_id !== tid),
+        (authStore.memberships ?? []).filter((m) => m.tenantId !== tid),
       )
       await authStore.refreshFromAuthMe()
       const next =
-        authStore.memberships.find((m) => m.tenant_id === homeTenantId.value) ??
+        authStore.memberships.find((m) => m.tenantId === homeTenantId.value) ??
         authStore.memberships[0]
       if (next) {
         const switchingToHome =
-          homeTenantId.value !== null && homeTenantId.value === next.tenant_id
-        const name = next.tenantName?.trim() || `#${next.tenant_id}`
-        authStore.setSelectedTenant(next.tenant_id, name)
+          homeTenantId.value !== null && homeTenantId.value === next.tenantId
+        const name = next.tenantName?.trim() || `#${next.tenantId}`
+        authStore.setSelectedTenant(next.tenantId, name)
         stashTenantSwitchToast({
           name,
           role: formatRole(next.role) || undefined,
           roleEnum: next.role || undefined,
         })
         const persist = persistLastActiveTenantPreference(
-          switchingToHome ? null : next.tenant_id,
+          switchingToHome ? null : next.tenantId,
         )
         await Promise.race([persist, new Promise((r) => setTimeout(r, 400))])
         navigateAfterTenantSwitch()
@@ -560,7 +560,7 @@ const saveTenantName = async () => {
       // memberships 里的 tenantName 是空间切换器读的字段，一并同步避免显示旧名字。
       if (authStore.memberships?.length) {
         const next = authStore.memberships.map((m) =>
-          String(m.tenant_id) === String(tenantInfo.value?.id)
+          String(m.tenantId) === String(tenantInfo.value?.id)
             ? { ...m, tenantName: newName }
             : m,
         )
@@ -586,11 +586,11 @@ const loadInfo = async () => {
 
     const userResponse = await getCurrentUser()
 
-    const data = userResponse?.data as { tenant?: TenantInfo } | undefined
-    if ((userResponse as any).success && data?.tenant) {
+    const data = userResponse as { tenant?: TenantInfo } | undefined
+    if (data?.tenant) {
       tenantInfo.value = data.tenant
     } else {
-      error.value = userResponse.message || t('tenant.messages.fetchFailed')
+      error.value = t('tenant.messages.fetchFailed')
     }
   } catch (err: any) {
     error.value = err?.message || t('tenant.messages.networkError')

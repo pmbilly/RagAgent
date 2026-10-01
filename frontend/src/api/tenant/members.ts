@@ -9,14 +9,14 @@ export type TenantMemberStatus = 'active' | 'invited' | 'suspended'
 // TenantMember is the API projection of a (user, tenant) membership row,
 // already joined with the user's email/username/avatar by the backend.
 export interface TenantMember {
-  user_id: string
+  userId: string
   email: string
   username: string
   avatar?: string
   role: TenantRole
   status: TenantMemberStatus
-  invited_by?: string | null
-  joined_at: string
+  invitedBy?: string | null
+  joinedAt: string
 }
 
 export interface ListMembersResponse {
@@ -25,14 +25,14 @@ export interface ListMembersResponse {
     members: TenantMember[]
     total: number
     page?: number
-    page_size?: number
+    pageSize?: number
   }
   message?: string
 }
 
 export interface ListMembersParams {
   page?: number
-  page_size?: number
+  pageSize?: number
   /** 按邮箱/用户名筛选（服务端模糊匹配） */
   q?: string
 }
@@ -41,7 +41,7 @@ function buildMembersQuery(params: ListMembersParams | undefined): string {
   if (!params) return ''
   const u = new URLSearchParams()
   if (params.page != null && params.page > 0) u.set('page', String(params.page))
-  if (params.page_size != null && params.page_size > 0) u.set('page_size', String(params.page_size))
+  if (params.pageSize != null && params.pageSize > 0) u.set('pageSize', String(params.pageSize))
   const q = params.q?.trim()
   if (q) u.set('q', q)
   const qs = u.toString()
@@ -66,7 +66,7 @@ export interface SimpleResponse {
 
 /**
  * 分页列出空间成员。
- * Backend: GET /api/v1/tenants/:id/members (Viewer+)。查询参数：`q`、`page`、`page_size`。
+ * Backend: GET /api/v1/tenants/:id/members (Viewer+)。查询参数：`q`、`page`、`pageSize`。
  */
 export async function listMembers(
   tenantId: number,
@@ -88,7 +88,7 @@ export async function fetchAllTenantMembers(tenantId: number): Promise<TenantMem
   const out: TenantMember[] = []
   let total = Number.POSITIVE_INFINITY
   for (let guard = 0; guard < 500 && out.length < total; guard++) {
-    const resp = await listMembers(tenantId, { page, page_size: pageSize })
+    const resp = await listMembers(tenantId, { page, pageSize: pageSize })
     if (!resp.success || !resp.data) break
     total = resp.data.total
     const batch = resp.data.members || []
@@ -117,7 +117,7 @@ export async function addMember(
 
 /**
  * Change an existing member's role.
- * Backend: PUT /api/v1/tenants/:id/members/:user_id (Owner+).
+ * Backend: PUT /api/v1/tenants/:id/members/:userId (Owner+).
  *
  * Returns 409 when this would demote the last active Owner of the tenant.
  */
@@ -131,7 +131,7 @@ export async function updateMemberRole(
 
 /**
  * Remove a member from the tenant.
- * Backend: DELETE /api/v1/tenants/:id/members/:user_id (Owner+).
+ * Backend: DELETE /api/v1/tenants/:id/members/:userId (Owner+).
  *
  * Returns 409 when this would remove the last active Owner.
  */

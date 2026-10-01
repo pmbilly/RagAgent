@@ -17,12 +17,12 @@ export interface LoginResponse {
     username: string
     email: string
     avatar?: string
-    tenant_id: number
+    tenantId: number
     canAccessAllTenants?: boolean
     isSystemAdmin?: boolean
     is_active: boolean
-    created_at: string
-    updated_at: string
+    createdAt: string
+    updatedAt: string
   }
   tenant?: {
     id: number
@@ -32,8 +32,8 @@ export interface LoginResponse {
     business: string
     storage_quota: number
     storage_used: number
-    created_at: string
-    updated_at: string
+    createdAt: string
+    updatedAt: string
   } | null
   // activeTenant mirrors `tenant` for endpoints that distinguish home
   // tenant from current tenant (e.g. /auth/register-by-invite). Only
@@ -110,12 +110,12 @@ export interface UserInfo {
   username: string
   email: string
   avatar?: string
-  tenant_id: string
+  tenantId: string
   canAccessAllTenants?: boolean
   preferences?: UserPreferences
   isSystemAdmin?: boolean
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 /**
@@ -127,8 +127,8 @@ export interface UserInfo {
  * 漏拷一处而看不到「系统管理」入口；这个工厂存在的目的就是杜绝同类
  * 漏拷再发生。**新增 user 字段请只改这里**。
  *
- * fallbackTenantId 是 tenant_id 缺失时的兜底来源——
- *   - autoSetup 响应顶层有 tenant.id，但 user 对象上没有 tenant_id
+ * fallbackTenantId 是 tenantId 缺失时的兜底来源——
+ *   - autoSetup 响应顶层有 tenant.id，但 user 对象上没有 tenantId
  *   - /auth/me 偶发只返回 user 不带 tenant 时也走兜底
  * 调用方按需传入；不传则保持空字符串（与历史行为一致）。
  *
@@ -141,8 +141,8 @@ export function userInfoFromApi(
   fallbackTenantId?: string | number | null,
 ): UserInfo {
   const rawTenantId =
-    u?.tenant_id !== undefined && u?.tenant_id !== null && u.tenant_id !== ''
-      ? u.tenant_id
+    u?.tenantId !== undefined && u?.tenantId !== null && u.tenantId !== ''
+      ? u.tenantId
       : fallbackTenantId ?? ''
   const tid = Number(rawTenantId) > 0 ? rawTenantId : ''
   return {
@@ -150,12 +150,12 @@ export function userInfoFromApi(
     username: u?.username || '',
     email: u?.email || '',
     avatar: u?.avatar,
-    tenant_id: String(tid) || '',
+    tenantId: String(tid) || '',
     canAccessAllTenants: u?.canAccessAllTenants === true,
     isSystemAdmin: u?.isSystemAdmin === true,
     preferences: u?.preferences,
-    created_at: u?.created_at || new Date().toISOString(),
-    updated_at: u?.updated_at || new Date().toISOString(),
+    createdAt: u?.created_at || new Date().toISOString(),
+    updatedAt: u?.updated_at || new Date().toISOString(),
   }
 }
 
@@ -169,8 +169,8 @@ export interface TenantInfo {
   owner_id: string
   storage_quota?: number
   storage_used?: number
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
   knowledge_bases?: KnowledgeBaseInfo[]
 }
 
@@ -179,7 +179,7 @@ export interface KnowledgeBaseInfo {
   id: string
   name: string
   description: string
-  tenant_id: string
+  tenantId: string
   // creator_id is the user id of whoever originally created the KB.
   // Set by PR 5 of the multi-tenant RBAC series; nullable for legacy
   // KBs created before that migration backfilled the column.
@@ -187,8 +187,8 @@ export interface KnowledgeBaseInfo {
   // creator_name 由后端 list 接口批量回填（username 优先，退化到 email），
   // 仅用于列表卡片来源徽章；缺失代表无法解析（已删除 / 老数据）。
   creator_name?: string
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
   document_count?: number
   chunk_count?: number
 }
@@ -201,8 +201,8 @@ export interface ModelInfo {
   source: string
   description?: string
   is_default?: boolean
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 /**
@@ -300,7 +300,7 @@ export async function autoSetup(): Promise<LoginResponse> {
   } catch (error: any) {
     return {
       success: false,
-      message: error.message || 'Auto-setup unavailable'
+      message: 'Auto-setup unavailable'
     }
   }
 }
@@ -313,7 +313,7 @@ export async function autoSetup(): Promise<LoginResponse> {
  * in.
  */
 export interface MembershipInfo {
-  tenant_id: number
+  tenantId: number
   tenantName?: string
   role: string
 }
@@ -326,15 +326,12 @@ export interface AuthCapabilities {
   auto_accept_invitation: boolean
 }
 
-export async function getCurrentUser(): Promise<{ success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenantRequired?: boolean; capabilities?: AuthCapabilities; preferenceDefaults?: { browser_search_instructions: string } }; message?: string }> {
+export async function getCurrentUser(): Promise<{ user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenantRequired?: boolean; capabilities?: AuthCapabilities; preferenceDefaults?: { browserSearchInstructions: string } }> {
   try {
     const response = await get('/api/v1/auth/me')
-    return response as unknown as { success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenantRequired?: boolean; capabilities?: AuthCapabilities; preferenceDefaults?: { browser_search_instructions: string } }; message?: string }
+    return response as unknown as { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenantRequired?: boolean; capabilities?: AuthCapabilities; preferenceDefaults?: { browserSearchInstructions: string } }
   } catch (error: any) {
-    return {
-      success: false,
-      message: error.message || t('error.auth.getUserFailed')
-    }
+    throw new Error(error.message || t('error.auth.getUserFailed'))
   }
 }
 
@@ -474,7 +471,7 @@ export async function validateToken(): Promise<{ success: boolean; valid?: boole
 // /register?token=xxx — enough to render the registration page header
 // ("X invited you to Y") without leaking sensitive inviter fields.
 export interface InviteLookup {
-  tenant_id: number
+  tenantId: number
   tenantName?: string
   role: string
   expires_at: string
@@ -506,7 +503,7 @@ export async function getInvitationByToken(token: string): Promise<InviteLookupR
     const response = await post(`/api/v1/auth/invitations/lookup`, { token })
     return response as unknown as InviteLookupResponse
   } catch (error: any) {
-    return { success: false, message: error.message || '' }
+    return { success: false, message: '' }
   }
 }
 

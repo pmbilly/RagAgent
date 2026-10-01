@@ -37,7 +37,7 @@ export function useRoleLabel() {
 /**
  * Derive home-tenant identity helpers off the auth store. The home tenant
  * is the tenant the user was registered into — the row id stored on the
- * users table at signup time, exposed via `authStore.user.tenant_id` and
+ * users table at signup time, exposed via `authStore.user.tenantId` and
  * never mutated by /auth/switch-tenant.
  *
  * IMPORTANT: do NOT read `authStore.tenant?.id` here. That field is the
@@ -54,7 +54,7 @@ export function useRoleLabel() {
 export function useHomeTenant() {
   const authStore = useAuthStore()
   const homeTenantId = computed<number | null>(() => {
-    const raw = authStore.user?.tenant_id
+    const raw = authStore.user?.tenantId
     if (raw === null || raw === undefined || raw === '') return null
     const n = Number(raw)
     return Number.isFinite(n) && n > 0 ? n : null
