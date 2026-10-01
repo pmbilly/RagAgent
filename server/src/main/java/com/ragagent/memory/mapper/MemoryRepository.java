@@ -16,7 +16,6 @@ import javax.sql.DataSource;
 
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.common.settings.MemoryConfig;
-import com.ragagent.memory.domain.MemoryConflictException;
 import com.ragagent.memory.domain.MemoryDocAffinity;
 import com.ragagent.memory.domain.MemoryExtractionBatch;
 import com.ragagent.memory.domain.MemoryExtractionFailure;
@@ -97,24 +96,27 @@ public class MemoryRepository {
     /** 对照 Go {@code RecordExtractionFailure} 的 {@code attempts >= 3}。 */
     static final int MAX_EXTRACTION_ATTEMPTS = 3;
 
-    private final MemorySubjectMapper subjectMapper;
-    private final MemoryItemMapper itemMapper;
-    private final MemoryItemEmbeddingMapper embeddingMapper;
-    private final MemoryTombstoneMapper tombstoneMapper;
-    private final MemoryTopicStatMapper topicMapper;
-    private final MemoryDocAffinityMapper affinityMapper;
-    private final MemoryExtractionSessionMapper extractionMapper;
-    private final MemoryTxTemplate tx;
+    final MemorySubjectMapper subjectMapper;
+    final MemoryItemMapper itemMapper;
+    final MemoryItemEmbeddingMapper embeddingMapper;
+    final MemoryTombstoneMapper tombstoneMapper;
+    final MemoryTopicStatMapper topicMapper;
+    final MemoryDocAffinityMapper affinityMapper;
+    final MemoryExtractionSessionMapper extractionMapper;
+    final MemoryTxTemplate tx;
+
+    /** 条目/墓碑读写协作者（构造期装配）。 */
+    final MemoryItemStore itemStore;
 
     /**
      * 对照 Go 的 {@code r.db.Dialector.Name() == "postgres"}——
      * {@code ON CONFLICT DO NOTHING/DO UPDATE} 在这个方言下可用，H2 上要换成条件插入
      * （与 {@code MessageSuggestionMapper} 同款处置）。
      */
-    private final boolean postgres;
+    final boolean postgres;
 
     /** 元数据探测用的数据源（对照 GORM 的 {@code Migrator().HasColumn}）。 */
-    private final DataSource dataSource;
+    final DataSource dataSource;
 
     /** 对照 Go {@code vectorOnce sync.Once} + {@code vectorColumn}。 */
     private volatile boolean vectorProbed;
@@ -137,6 +139,7 @@ public class MemoryRepository {
         this.affinityMapper = affinityMapper;
         this.extractionMapper = extractionMapper;
         this.tx = tx;
+        this.itemStore = new MemoryItemStore(this);
         this.dataSource = dataSource;
         this.postgres = detectPostgres(dataSource);
     }
@@ -210,431 +213,114 @@ public class MemoryRepository {
         subjectMapper.markForcedConsolidated(scope.tenantId(), scope.subjectId(), now);
     }
 
-    // ── 条目：写 ───────────────────────────────────────────────────────────
-
-    /**
-     * 对照 {@code CreateItem}：id 为空则生成、{@code valid_from} 为零值则补 {@code now}、
-     * {@code status} 为空则 active，然后插入。
-     *
-     * <p>注意顺序：Go 先补 {@code status} 再交给 GORM，
-     * 所以"零值 → 默认值"的替换在这里是显式写出来的。</p>
-     */
-    public void createItem(MemoryItem item) {
-        if (item.getId().isEmpty()) {
-            item.setId(UUID.randomUUID().toString());
-        }
-        if (GoTimeSerializer.isGoZero(item.getValidFrom())) {
-            item.setValidFrom(OffsetDateTime.now());
-        }
-        if (item.getStatus().isEmpty()) {
-            item.setStatus(MemoryKinds.STATUS_ACTIVE);
-        }
-        applyInsertDefaults(item);
-        stampForCreate(item);
-        itemMapper.insert(item);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void createItem(MemoryItem item) {
+        itemStore.createItem(item);
     }
 
-    /** 对照 {@code UpdateItemContent}：内容变了才删向量、作废提议，最后无条件覆盖五列。 */
-    public void updateItemContent(MemoryScope scope, String id, String content,
-                                  String normalizedKey, int importance) {
-        tx.withSubject(scope, subject -> {
-            MemoryItem current = itemMapper.selectScoped(scope.tenantId(), scope.subjectId(), id);
-            if (current == null) {
-                // 对照 Go 的 First 未命中 → gorm.ErrRecordNotFound 上抛
-                throw new MemorySubjectMissingException();
-            }
-            if (!current.getContent().equals(content)) {
-                embeddingMapper.deleteByItemId(scope.tenantId(), scope.subjectId(), id);
-                // 编辑一条已确认的事实，会让基于它旧措辞的提议失效。
-                itemMapper.supersedeProposalsOf(scope.tenantId(), scope.subjectId(), id,
-                        MemoryKinds.STATUS_PENDING, MemoryKinds.STATUS_SUPERSEDED, OffsetDateTime.now());
-            }
-            itemMapper.updateItemContent(scope.tenantId(), scope.subjectId(), id, content,
-                    normalizedKey, importance, MemoryKinds.ORIGIN_MANUAL, OffsetDateTime.now());
-            return null;
-        });
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void updateItemContent(MemoryScope scope, String id, String content, String normalizedKey, int importance) {
+        itemStore.updateItemContent(scope, id, content, normalizedKey, importance);
     }
 
-    /** 对照 {@code SupersedeItem}。 */
-    public void supersedeItem(MemoryScope scope, String id, String supersededBy) {
-        tx.withSubject(scope, subject -> {
-            itemMapper.supersedeItem(scope.tenantId(), scope.subjectId(), id, supersededBy,
-                    MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING,
-                    MemoryKinds.STATUS_SUPERSEDED, OffsetDateTime.now());
-            return null;
-        });
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void supersedeItem(MemoryScope scope, String id, String supersededBy) {
+        itemStore.supersedeItem(scope, id, supersededBy);
     }
 
-    /**
-     * 对照 {@code DeleteItem}：**物理删**。
-     *
-     * <p>三步：作废指向它的待确认项 → 删向量 → 删条目。"忘记就是忘记"，
-     * 所以这里不软删、也不留墓碑（墓碑由 reject 路径单独写）。</p>
-     */
-    public void deleteItem(MemoryScope scope, String id) {
-        tx.withSubject(scope, subject -> {
-            itemMapper.supersedePendingReplacements(scope.tenantId(), scope.subjectId(), id,
-                    MemoryKinds.STATUS_PENDING, MemoryKinds.STATUS_SUPERSEDED, OffsetDateTime.now());
-            embeddingMapper.deleteByItemId(scope.tenantId(), scope.subjectId(), id);
-            itemMapper.deleteScoped(scope.tenantId(), scope.subjectId(), id);
-            return null;
-        });
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void deleteItem(MemoryScope scope, String id) {
+        itemStore.deleteItem(scope, id);
     }
 
-    /**
-     * 对照 {@code DeleteAll}：物理删本 scope 的全部条目，返回删了几行。
-     *
-     * <p>⚠️ Go 的 {@code Delete} 只对 {@code memory_items} 生效——**不动**
-     * {@code memory_item_embeddings}。清空路径由 service 层另外调
-     * {@code deleteAllTopics} / {@code deleteAllDocAffinity} 补齐（Go 也是这样）。
-     * 没有外键，所以清空之后向量行确实会留下来——这是 Go 的既有行为，照抄。</p>
-     */
-    public long deleteAll(MemoryScope scope) {
-        return itemMapper.deleteAllInScope(scope.tenantId(), scope.subjectId());
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public long deleteAll(MemoryScope scope) {
+        return itemStore.deleteAll(scope);
     }
 
-    /** 对照 {@code TouchUsed}：{@code use_count} 在 SQL 侧自增。 */
-    public void touchUsed(MemoryScope scope, List<String> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return;
-        }
-        itemMapper.touchUsed(scope.tenantId(), scope.subjectId(), ids, OffsetDateTime.now());
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void touchUsed(MemoryScope scope, List<String> ids) {
+        itemStore.touchUsed(scope, ids);
     }
 
-    /**
-     * 对照 {@code ArchiveLowestRanked}：留下排名最好的 {@code keep} 条，其余归档。
-     *
-     * <p>排名是"重要度 → 使用时间 → 生效时间"，**没有衰减曲线**——
-     * 一条会悄悄埋掉正确记忆的半衰期，比用户能在列表里看见的硬上限更糟。</p>
-     */
-    public long archiveLowestRanked(MemoryScope scope, int keep) {
-        if (keep <= 0) {
-            return 0;
-        }
-        List<String> survivors = itemMapper.selectSurvivorIds(scope.tenantId(), scope.subjectId(),
-                MemoryKinds.STATUS_ACTIVE, keep);
-        return itemMapper.archiveExcept(scope.tenantId(), scope.subjectId(),
-                MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_ARCHIVED, survivors, OffsetDateTime.now());
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public long archiveLowestRanked(MemoryScope scope, int keep) {
+        return itemStore.archiveLowestRanked(scope, keep);
     }
 
-    /** 对照 {@code ExpireOverdue}：{@code expires_at} 已过的 active 条目归档。 */
-    public long expireOverdue(MemoryScope scope) {
-        OffsetDateTime now = OffsetDateTime.now();
-        return itemMapper.expireOverdue(scope.tenantId(), scope.subjectId(),
-                MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_ARCHIVED, now);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public long expireOverdue(MemoryScope scope) {
+        return itemStore.expireOverdue(scope);
     }
 
-    // ── 条目：读 ───────────────────────────────────────────────────────────
-
-    /** 对照 {@code GetItem}：不存在时回 {@code null}。 */
-    public MemoryItem getItem(MemoryScope scope, String id) {
-        return itemMapper.selectScoped(scope.tenantId(), scope.subjectId(), id);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public MemoryItem getItem(MemoryScope scope, String id) {
+        return itemStore.getItem(scope, id);
     }
 
-    /** 对照 {@code ListActiveByKinds}：{@code kinds} 为空时 Go 直接回 {@code nil}。 */
-    public List<MemoryItem> listActiveByKinds(MemoryScope scope, List<String> kinds, int limit) {
-        if (kinds == null || kinds.isEmpty()) {
-            return null;
-        }
-        return itemMapper.listActiveByKinds(scope.tenantId(), scope.subjectId(), kinds,
-                MemoryKinds.STATUS_ACTIVE, OffsetDateTime.now(), limit);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public List<MemoryItem> listActiveByKinds(MemoryScope scope, List<String> kinds, int limit) {
+        return itemStore.listActiveByKinds(scope, kinds, limit);
     }
 
-    /**
-     * 对照 {@code ListActiveResident}：常驻块由哪些条目构成。
-     *
-     * <p>稳定特质按 kind 入选；**用户明确要求记住**的按 origin 入选、不问 kind
-     * ——他说了"记住这个"，让这件事取决于他之后的问题恰好与它共享词汇，
-     * 是让用户失去对这个功能信任最快的方式。</p>
-     */
-    public List<MemoryItem> listActiveResident(MemoryScope scope, int limit) {
-        return itemMapper.listActiveResident(scope.tenantId(), scope.subjectId(),
-                MemoryKinds.RESIDENT, MemoryKinds.ORIGIN_EXPLICIT,
-                MemoryKinds.STATUS_ACTIVE, OffsetDateTime.now(), limit);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public List<MemoryItem> listActiveResident(MemoryScope scope, int limit) {
+        return itemStore.listActiveResident(scope, limit);
     }
 
-    /**
-     * 对照 {@code ListItems}：记忆管理器的分页列表。
-     *
-     * <p>{@code limit <= 0} 时取 50（Go 的硬编码）；返回值同时带总数与这一页。</p>
-     */
-    public MemoryPage<MemoryItem> listItems(MemoryScope scope, String status, int limit, int offset) {
-        long total = itemMapper.countListItems(scope.tenantId(), scope.subjectId(), status);
-        int effectiveLimit = limit <= 0 ? 50 : limit;
-        List<MemoryItem> items = itemMapper.listItems(scope.tenantId(), scope.subjectId(), status,
-                effectiveLimit, offset);
-        return new MemoryPage<>(items, total);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public MemoryPage<MemoryItem> listItems(MemoryScope scope, String status, int limit, int offset) {
+        return itemStore.listItems(scope, status, limit, offset);
     }
 
-    /**
-     * 对照 {@code ListLive}：用户当前**看得到**的某一 kind 的条目
-     * ——在用 + 提议中待定。去重必须同时考虑两者，否则确认一条提议会留下重复。
-     */
-    public List<MemoryItem> listLive(MemoryScope scope, String kind, int limit) {
-        return itemMapper.listLive(scope.tenantId(), scope.subjectId(),
-                List.of(MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING),
-                kind, OffsetDateTime.now(), limit);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public List<MemoryItem> listLive(MemoryScope scope, String kind, int limit) {
+        return itemStore.listLive(scope, kind, limit);
     }
 
-    /**
-     * 对照 {@code FindActiveByKey}。
-     *
-     * <p>{@code pending} 在这里算"活着"：一条等待确认的记忆是用户已经看得到的，
-     * 忽略它会让同一个推断每重推一次就在他的待办列表里多堆一份。</p>
-     */
-    public MemoryItem findActiveByKey(MemoryScope scope, String normalizedKey) {
-        if (normalizedKey == null || normalizedKey.isEmpty()) {
-            return null;
-        }
-        return itemMapper.findLiveByKey(scope.tenantId(), scope.subjectId(),
-                List.of(MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING), normalizedKey);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public MemoryItem findActiveByKey(MemoryScope scope, String normalizedKey) {
+        return itemStore.findActiveByKey(scope, normalizedKey);
     }
 
-    /** 对照 {@code CountActive}。 */
-    public long countActive(MemoryScope scope) {
-        return itemMapper.countByStatus(scope.tenantId(), scope.subjectId(), MemoryKinds.STATUS_ACTIVE);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public long countActive(MemoryScope scope) {
+        return itemStore.countActive(scope);
     }
 
-    /**
-     * 对照 {@code ItemsMissingEmbeddings}：找出向量积压。
-     *
-     * <p>在配置 embedding 模型之前写的每一条、模型不可达时写的每一条都没有向量，
-     * 而没有向量的记忆对语义召回是**不可见**的。没有这个补扫，
-     * 这个功能就只对"打开它之后创建的"记忆有效。</p>
-     */
-    public List<MemoryItem> itemsMissingEmbeddings(MemoryScope scope, String modelId, int limit) {
-        int effectiveLimit = limit <= 0 ? 20 : limit;
-        return itemMapper.itemsMissingEmbeddings(scope.tenantId(), scope.subjectId(),
-                MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING, modelId, effectiveLimit);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public List<MemoryItem> itemsMissingEmbeddings(MemoryScope scope, String modelId, int limit) {
+        return itemStore.itemsMissingEmbeddings(scope, modelId, limit);
     }
 
-    // ── 生命周期：SaveItem / ConfirmPendingItem ────────────────────────────
-
-    /**
-     * 对照 {@code SaveItem}（memory_lifecycle.go L15-90）：
-     * 把"替换"与"确认 / 人工编辑"串行化。一条提议可以替换另一条提议，
-     * 但**不能**让一条已生效的事实退休。
-     *
-     * <p>三处必须照抄的细节：</p>
-     * <ol>
-     *   <li><b>重放分支</b>：目标已经不在 active/pending 时，若它的
-     *       {@code superseded_by} 指向的那条与本次要写的 status+content 完全一致，
-     *       说明"上次已经成功应用、只是 checkpoint 失败后被重放"——直接把那一条
-     *       复制回 {@code item} 并返回，不要再写一遍。</li>
-     *   <li><b>内容完全相同就复用</b>：{@code live} 里有一条 content 与 status 都一样的
-     *       ——把已存的整行复制回 {@code item} 返回。</li>
-     *   <li><b>pending 的 replaces_id 推导</b>：目标 active → 就是它；
-     *       目标 pending → 继承目标的 replaces_id；仍为空 → 取 live 里第一条 active。</li>
-     * </ol>
-     *
-     * <p>{@code item} 是**被就地改写**的（Go 的 {@code *item = …}），
-     * 调用方拿到的才是最终落库的那一行。</p>
-     */
-    public void saveItem(MemoryScope scope, MemoryItem item, String replacesId) {
-        tx.withSubject(scope, subject -> {
-            long tenantId = scope.tenantId();
-            String subjectId = scope.subjectId();
-
-            MemoryItem target = new MemoryItem();
-            if (replacesId != null && !replacesId.isEmpty()) {
-                MemoryItem found = itemMapper.selectScoped(tenantId, subjectId, replacesId);
-                if (found == null) {
-                    throw new MemoryConflictException();
-                }
-                target = found;
-                boolean stillReplaceable = MemoryKinds.STATUS_ACTIVE.equals(target.getStatus())
-                        || MemoryKinds.STATUS_PENDING.equals(target.getStatus());
-                if (!stillReplaceable) {
-                    // 一次已经成功应用的决策，可能在 checkpoint 失败后被重放。
-                    // 返还它的替换者，而不是写第二遍。
-                    if (!target.getSupersededBy().isEmpty()) {
-                        MemoryItem replacement =
-                                itemMapper.selectScoped(tenantId, subjectId, target.getSupersededBy());
-                        if (replacement != null
-                                && replacement.getStatus().equals(item.getStatus())
-                                && replacement.getContent().equals(item.getContent())) {
-                            copyInto(item, replacement);
-                            return null;
-                        }
-                    }
-                    throw new MemoryConflictException();
-                }
-            }
-
-            List<MemoryItem> live = itemMapper.listByNormalizedKey(tenantId, subjectId,
-                    item.getNormalizedKey(),
-                    List.of(MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING));
-            for (MemoryItem old : live) {
-                if (old.getContent().equals(item.getContent())
-                        && old.getStatus().equals(item.getStatus())) {
-                    copyInto(item, old);
-                    return null;
-                }
-            }
-
-            if (MemoryKinds.STATUS_PENDING.equals(item.getStatus())) {
-                if (MemoryKinds.STATUS_ACTIVE.equals(target.getStatus())) {
-                    item.setReplacesId(target.getId());
-                }
-                if (MemoryKinds.STATUS_PENDING.equals(target.getStatus())) {
-                    item.setReplacesId(target.getReplacesId());
-                }
-                if (item.getReplacesId().isEmpty()) {
-                    for (MemoryItem old : live) {
-                        if (MemoryKinds.STATUS_ACTIVE.equals(old.getStatus())) {
-                            item.setReplacesId(old.getId());
-                            break;
-                        }
-                    }
-                }
-            }
-
-            item.setTenantId(scope.tenantId());
-            item.setSubjectId(scope.subjectId());
-            applyInsertDefaults(item);
-            stampForCreate(item);
-            itemMapper.insert(item);
-
-            List<MemoryItem> supersedeCandidates = new ArrayList<>(live);
-            if (!target.getId().isEmpty()) {
-                supersedeCandidates.add(target);
-            }
-            List<String> ids = new ArrayList<>(supersedeCandidates.size() + 1);
-            if (!target.getReplacesId().isEmpty()
-                    && MemoryKinds.STATUS_ACTIVE.equals(item.getStatus())) {
-                ids.add(target.getReplacesId());
-            }
-            for (MemoryItem old : supersedeCandidates) {
-                if (MemoryKinds.STATUS_PENDING.equals(item.getStatus())
-                        && MemoryKinds.STATUS_ACTIVE.equals(old.getStatus())) {
-                    continue;
-                }
-                ids.add(old.getId());
-            }
-            if (ids.isEmpty()) {
-                return null;
-            }
-            itemMapper.supersedeByIds(tenantId, subjectId, item.getId(), ids,
-                    List.of(MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING),
-                    MemoryKinds.STATUS_SUPERSEDED, OffsetDateTime.now());
-            return null;
-        });
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void saveItem(MemoryScope scope, MemoryItem item, String replacesId) {
+        itemStore.saveItem(scope, item, replacesId);
     }
 
-    /**
-     * 对照 {@code ConfirmPendingItem}（memory_lifecycle.go L92-125）：
-     * 原子地把一条提议置为生效、并让它要替换的目标退休。
-     *
-     * <p>四条分支都要保留：已经是 active → **直接成功返回**（幂等）；
-     * 不是 pending、或已经过期 → 冲突；{@code replaces_id} 指向的目标不存在 → 冲突；
-     * 目标已经不是 active → 冲突。</p>
-     */
-    public void confirmPendingItem(MemoryScope scope, String id) {
-        tx.withSubject(scope, subject -> {
-            long tenantId = scope.tenantId();
-            String subjectId = scope.subjectId();
-
-            MemoryItem item = itemMapper.selectScoped(tenantId, subjectId, id);
-            if (item == null) {
-                throw new MemorySubjectMissingException();
-            }
-            if (MemoryKinds.STATUS_ACTIVE.equals(item.getStatus())) {
-                return null;
-            }
-            OffsetDateTime now = OffsetDateTime.now();
-            boolean expired = item.getExpiresAt() != null && !item.getExpiresAt().isAfter(now);
-            if (!MemoryKinds.STATUS_PENDING.equals(item.getStatus()) || expired) {
-                throw new MemoryConflictException();
-            }
-            if (!item.getReplacesId().isEmpty()) {
-                MemoryItem target = itemMapper.selectScoped(tenantId, subjectId, item.getReplacesId());
-                if (target == null || !MemoryKinds.STATUS_ACTIVE.equals(target.getStatus())) {
-                    throw new MemoryConflictException();
-                }
-            }
-
-            itemMapper.supersedeForConfirm(tenantId, subjectId, id, item.getNormalizedKey(),
-                    item.getReplacesId(),
-                    List.of(MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING),
-                    MemoryKinds.STATUS_SUPERSEDED, now);
-            itemMapper.activateItem(tenantId, subjectId, id, MemoryKinds.STATUS_ACTIVE, now);
-            return null;
-        });
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void confirmPendingItem(MemoryScope scope, String id) {
+        itemStore.confirmPendingItem(scope, id);
     }
 
-    // ── 墓碑 ───────────────────────────────────────────────────────────────
-
-    /**
-     * 对照 {@code AddTombstone}：记一条"刻意忘掉"，然后做一次修剪。
-     *
-     * <p>{@code fingerprint} 为空时 Go 直接返回——空指纹是全表冲突，不能插。</p>
-     */
-    public void addTombstone(MemoryScope scope, String topic, String fingerprint, String sourceMessageId) {
-        if (fingerprint == null || fingerprint.isEmpty()) {
-            return;
-        }
-        MemoryTombstone tombstone = new MemoryTombstone();
-        tombstone.setId(UUID.randomUUID().toString());
-        tombstone.setTenantId(scope.tenantId());
-        tombstone.setSubjectId(scope.subjectId());
-        tombstone.setTopic(topic == null ? "" : topic);
-        tombstone.setFingerprint(fingerprint);
-        tombstone.setSourceMessageId(sourceMessageId == null ? "" : sourceMessageId);
-        tombstone.setCreatedAt(OffsetDateTime.now());
-
-        if (postgres) {
-            tombstoneMapper.insertIfAbsentPostgres(tombstone);
-        } else {
-            tombstoneMapper.insertIfAbsentOther(tombstone);
-        }
-        trimTombstones(scope);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public void addTombstone(MemoryScope scope, String topic, String fingerprint, String sourceMessageId) {
+        itemStore.addTombstone(scope, topic, fingerprint, sourceMessageId);
     }
 
-    /**
-     * 对照 {@code trimTombstones}：让这张表保持有界。很久以前的一次拒绝，
-     * 没有这张表无上限长大重要。
-     *
-     * <p>⚠️ 那个 {@code len(keep) < Max} 就返回的判断不能省——它保证"还没到上限时不删"，
-     * 而且顺带避开了 {@code id NOT IN ()} 这种非法 SQL。</p>
-     */
-    private void trimTombstones(MemoryScope scope) {
-        List<String> keep = tombstoneMapper.selectNewestIds(scope.tenantId(), scope.subjectId(),
-                MemoryKinds.MAX_TOMBSTONES);
-        if (keep.size() < MemoryKinds.MAX_TOMBSTONES) {
-            return;
-        }
-        tombstoneMapper.deleteExcept(scope.tenantId(), scope.subjectId(), keep);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public List<MemoryTombstone> listTombstones(MemoryScope scope, int limit) {
+        return itemStore.listTombstones(scope, limit);
     }
 
-    /** 对照 {@code ListTombstones}：最近的拒绝，{@code created_at DESC}。 */
-    public List<MemoryTombstone> listTombstones(MemoryScope scope, int limit) {
-        return tombstoneMapper.listTombstones(scope.tenantId(), scope.subjectId(), limit);
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public boolean hasTombstone(MemoryScope scope, String fingerprint) {
+        return itemStore.hasTombstone(scope, fingerprint);
     }
 
-    /** 对照 {@code HasTombstone}。 */
-    public boolean hasTombstone(MemoryScope scope, String fingerprint) {
-        if (fingerprint == null || fingerprint.isEmpty()) {
-            return false;
-        }
-        return tombstoneMapper.countByFingerprint(scope.tenantId(), scope.subjectId(), fingerprint) > 0;
-    }
-
-    /**
-     * 对照 {@code HasTombstoneForMessage}。
-     *
-     * <p>{@code within <= 0} 时不加时间窗（Go 的 {@code if within > 0}）。
-     * 窗口是有意义的：这条规则拦的是一个 debounce 之后的重推，不是永久封禁一条消息。</p>
-     */
-    public boolean hasTombstoneForMessage(MemoryScope scope, String sourceMessageId, Duration within) {
-        if (sourceMessageId == null || sourceMessageId.isEmpty()) {
-            return false;
-        }
-        OffsetDateTime cutoff = null;
-        if (within != null && !within.isZero() && !within.isNegative()) {
-            cutoff = OffsetDateTime.now().minus(within);
-        }
-        return tombstoneMapper.countBySourceMessage(scope.tenantId(), scope.subjectId(),
-                sourceMessageId, cutoff) > 0;
+    /** 实现随协作者 {@link MemoryItemStore}。 */
+        public boolean hasTombstoneForMessage(MemoryScope scope, String sourceMessageId, Duration within) {
+        return itemStore.hasTombstoneForMessage(scope, sourceMessageId, within);
     }
 
     // ── 话题统计 ───────────────────────────────────────────────────────────
@@ -1325,7 +1011,7 @@ public class MemoryRepository {
      * 其余（{@code topic}/{@code normalized_key}/{@code replaces_id}/{@code use_count}）
      * 的默认值就是它们各自的零值，填不填一个样。显式写出来是为了将来改 DDL 时不会静默漂移。</p>
      */
-    private static void applyInsertDefaults(MemoryItem item) {
+    static void applyInsertDefaults(MemoryItem item) {
         if (item.getImportance() == 0) {
             item.setImportance(3);
         }
@@ -1345,7 +1031,7 @@ public class MemoryRepository {
      * {@code memory_doc_affinity} / {@code memory_item_embeddings} 五张表的共同规则
      * （{@code created_at} 与 {@code updated_at} 都在）。</p>
      */
-    private static void stampForCreate(MemorySubject subject) {
+    static void stampForCreate(MemorySubject subject) {
         OffsetDateTime now = OffsetDateTime.now();
         if (GoTimeSerializer.isGoZero(subject.getCreatedAt())) {
             subject.setCreatedAt(now);
@@ -1354,7 +1040,7 @@ public class MemoryRepository {
     }
 
     /** 同 {@link #stampForCreate(MemorySubject)}，条目版。 */
-    private static void stampForCreate(MemoryItem item) {
+    static void stampForCreate(MemoryItem item) {
         OffsetDateTime now = OffsetDateTime.now();
         if (GoTimeSerializer.isGoZero(item.getCreatedAt())) {
             item.setCreatedAt(now);
@@ -1363,7 +1049,7 @@ public class MemoryRepository {
     }
 
     /** 对照 Go 的 {@code *item = replacement} / {@code *item = *old}（就地改写调用方的对象）。 */
-    private static void copyInto(MemoryItem target, MemoryItem source) {
+    static void copyInto(MemoryItem target, MemoryItem source) {
         target.setId(source.getId());
         target.setTenantId(source.getTenantId());
         target.setSubjectId(source.getSubjectId());
