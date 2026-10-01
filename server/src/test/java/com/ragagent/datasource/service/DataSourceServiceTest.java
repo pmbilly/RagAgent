@@ -42,7 +42,6 @@ import com.ragagent.datasource.mapper.SyncLogRepository;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
-import com.ragagent.knowledge.service.KnowledgeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -944,7 +943,7 @@ class DataSourceServiceTest {
         for (int i = 0; i < 150; i++) {
             SyncItemError e = new SyncItemError();
             e.setMessage("e" + i);
-            DataSourceService.recordSyncError(result, e);
+            DataSourceSyncResultOps.recordSyncError(result, e);
         }
         assertThat(result.getErrors()).hasSize(100);
         assertThat(result.getErrors().get(0).getMessage()).isEqualTo("e0");
@@ -952,26 +951,26 @@ class DataSourceServiceTest {
 
     @Test
     void allFetchedItemsFailedOnlyWhenEveryItemFailed() {
-        assertThat(DataSourceService.allFetchedItemsFailedError(null)).isNull();
+        assertThat(DataSourceSyncResultOps.allFetchedItemsFailedError(null)).isNull();
 
         SyncResult empty = new SyncResult();
-        assertThat(DataSourceService.allFetchedItemsFailedError(empty)).isNull();
+        assertThat(DataSourceSyncResultOps.allFetchedItemsFailedError(empty)).isNull();
 
         SyncResult partial = new SyncResult();
         partial.setTotal(2);
         partial.setFailed(1);
-        assertThat(DataSourceService.allFetchedItemsFailedError(partial)).isNull();
+        assertThat(DataSourceSyncResultOps.allFetchedItemsFailedError(partial)).isNull();
 
         SyncResult withSkips = new SyncResult();
         withSkips.setTotal(2);
         withSkips.setFailed(2);
         withSkips.setSkipped(1);
-        assertThat(DataSourceService.allFetchedItemsFailedError(withSkips)).isNull();
+        assertThat(DataSourceSyncResultOps.allFetchedItemsFailedError(withSkips)).isNull();
 
         SyncResult allFailed = new SyncResult();
         allFailed.setTotal(3);
         allFailed.setFailed(3);
-        assertThat(DataSourceService.allFetchedItemsFailedError(allFailed))
+        assertThat(DataSourceSyncResultOps.allFetchedItemsFailedError(allFailed))
                 .isEqualTo("all fetched items failed during sync (3/3)");
     }
 
@@ -985,7 +984,7 @@ class DataSourceServiceTest {
         e.setMessage("x".repeat(600));
         result.setErrors(List.of(e));
 
-        String message = DataSourceService.allFetchedItemsFailedError(result);
+        String message = DataSourceSyncResultOps.allFetchedItemsFailedError(result);
         assertThat(message).endsWith("...");
         assertThat(message.length()).isLessThan(600 + 80);
     }
@@ -1000,7 +999,7 @@ class DataSourceServiceTest {
         meta.put("error_reason", "token expired");
         it.setMetadata(meta);
 
-        SyncItemError e = DataSourceService.fetchFailureSyncError(it, "raw message");
+        SyncItemError e = DataSourceSyncResultOps.fetchFailureSyncError(it, "raw message");
 
         assertThat(e.getCode()).isEqualTo("FEISHU_TOKEN_EXPIRED");
         assertThat(e.getParams()).containsEntry("code", "99991663");
@@ -1012,7 +1011,7 @@ class DataSourceServiceTest {
         FetchedItem it = new FetchedItem();
         it.setTitle("doc");
 
-        SyncItemError e = DataSourceService.fetchFailureSyncError(it, "raw message");
+        SyncItemError e = DataSourceSyncResultOps.fetchFailureSyncError(it, "raw message");
 
         assertThat(e.getCode()).isEmpty();
         assertThat(e.getMessage()).isEqualTo("raw message");
@@ -1032,12 +1031,12 @@ class DataSourceServiceTest {
 
     @Test
     void syntheticUserIdMatchesGoRule() {
-        assertThat(DataSourceService.isSyntheticUserId("system-42")).isTrue();
-        assertThat(DataSourceService.isSyntheticUserId("system-")).isFalse();
-        assertThat(DataSourceService.isSyntheticUserId("system-4a2")).isFalse();
-        assertThat(DataSourceService.isSyntheticUserId("user-1")).isFalse();
-        assertThat(DataSourceService.isSyntheticUserId("")).isFalse();
-        assertThat(DataSourceService.isSyntheticUserId(null)).isFalse();
+        assertThat(DataSourceSupport.isSyntheticUserId("system-42")).isTrue();
+        assertThat(DataSourceSupport.isSyntheticUserId("system-")).isFalse();
+        assertThat(DataSourceSupport.isSyntheticUserId("system-4a2")).isFalse();
+        assertThat(DataSourceSupport.isSyntheticUserId("user-1")).isFalse();
+        assertThat(DataSourceSupport.isSyntheticUserId("")).isFalse();
+        assertThat(DataSourceSupport.isSyntheticUserId(null)).isFalse();
     }
 
     /** paused 的源跑完一次成功的同步后仍然 paused（手动同步不改它的排期状态）。 */
