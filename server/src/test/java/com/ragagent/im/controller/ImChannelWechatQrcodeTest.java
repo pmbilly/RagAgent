@@ -17,9 +17,8 @@ import com.ragagent.im.wechat.WechatQRCodeService.LoginResult;
 import com.ragagent.im.wechat.WechatQRCodeService.QRCodeResult;
 
 /**
- * 微信扫码两个端点的响应面（W5γ3.10b）——对照 Go {@code internal/handler/wechat_qrcode.go}：
- * 成功体是 gin.H（map）→ <b>键按字典序</b>；失败是 500 固定文案；缺 qrcode 400；
- * 服务 bean 缺位时保留 W5γ2 的接缝文案。
+ * 微信扫码两个端点的响应面：成功体是裸对象（键名即字段名，camelCase）；
+ * 失败是 500 固定文案；缺 qrcode 400；服务 bean 缺位时保留接缝文案。
  */
 class ImChannelWechatQrcodeTest {
 
@@ -58,7 +57,7 @@ class ImChannelWechatQrcodeTest {
     }
 
     @Test
-    @DisplayName("取码：200 {\"data\":{qrcode,qrcode_url}}（字典序）；出站失败 → 500 + 前缀 + 原因")
+    @DisplayName("取码：200 裸 {qrcode,qrcodeUrl}；出站失败 → 500 + 前缀 + 原因")
     void qrcodeEndpoint() throws Exception {
         ImChannelController controller = new ImChannelController(null);
         StubService stub = new StubService();
@@ -68,7 +67,7 @@ class ImChannelWechatQrcodeTest {
         stub.qrResult = new QRCodeResult("https://x/qr.png", "q-1");
         ResponseEntity<Map<String, Object>> ok = controller.wechatQrcode();
         assertEquals(200, ok.getStatusCode().value());
-        assertEquals("{\"data\":{\"qrcode\":\"q-1\",\"qrcode_url\":\"https://x/qr.png\"}}",
+        assertEquals("{\"qrcode\":\"q-1\",\"qrcodeUrl\":\"https://x/qr.png\"}",
                 json(ok));
 
         stub.failQr = true;
@@ -84,7 +83,7 @@ class ImChannelWechatQrcodeTest {
     }
 
     @Test
-    @DisplayName("轮询：wait 只有 status；confirmed 带 credentials（+baseurl，字典序）；失败 500 固定文案")
+    @DisplayName("轮询：未确认 credentials/baseUrl 显式 null；confirmed 带凭据；失败 500 固定文案")
     void qrcodeStatusEndpoint() throws Exception {
         ImChannelController controller = new ImChannelController(null);
         StubService stub = new StubService();
@@ -92,19 +91,19 @@ class ImChannelWechatQrcodeTest {
 
         stub.pollResult = new LoginResult("wait", "", "", "", "");
         String wait = json(controller.wechatQrcodeStatus("{\"qrcode\":\"q-1\"}"));
-        assertEquals("{\"data\":{\"status\":\"wait\"}}", wait);
+        assertEquals("{\"status\":\"wait\",\"credentials\":null,\"baseUrl\":null}", wait);
 
         stub.pollResult = new LoginResult("confirmed", "tk", "bot-9", "u-9",
                 "https://ilink.example");
         String confirmed = json(controller.wechatQrcodeStatus("{\"qrcode\":\"q-1\"}"));
-        assertEquals("{\"data\":{\"baseurl\":\"https://ilink.example\",\"credentials\":"
-                + "{\"bot_token\":\"tk\",\"ilink_bot_id\":\"bot-9\",\"ilink_user_id\":\"u-9\"},"
-                + "\"status\":\"confirmed\"}}", confirmed);
+        assertEquals("{\"status\":\"confirmed\",\"credentials\":"
+                + "{\"botToken\":\"tk\",\"ilinkBotId\":\"bot-9\",\"ilinkUserId\":\"u-9\"},"
+                + "\"baseUrl\":\"https://ilink.example\"}", confirmed);
 
-        // confirmed 但 baseurl 为空 → 不带该键（照 Go）
+        // confirmed 但 baseurl 为空 → 空串照写（§1.6：空串不是 null）
         stub.pollResult = new LoginResult("confirmed", "tk", "bot-9", "u-9", "");
         String noBase = json(controller.wechatQrcodeStatus("{\"qrcode\":\"q-1\"}"));
-        assertTrue(!noBase.contains("baseurl"));
+        assertTrue(noBase.contains("\"baseUrl\":\""));
 
         // 缺 qrcode → 400 固定文案（golden 已锁，见 ImContractTest）
         ResponseEntity<Map<String, Object>> bad = controller.wechatQrcodeStatus("{}");

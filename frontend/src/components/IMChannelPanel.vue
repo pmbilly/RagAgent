@@ -104,7 +104,7 @@
           <div class="form-item">
             <label class="form-label required">{{ $t('integrations.boundAgent') }}</label>
             <div class="agent-field-row">
-              <t-select v-model="formData.target_agent_id" :options="agentOptions" filterable
+              <t-select v-model="formData.targetAgentId" :options="agentOptions" filterable
                 :placeholder="$t('integrations.selectAgentPlaceholder')" />
             </div>
           </div>
@@ -174,13 +174,13 @@
             <label class="form-label required">{{ $t('agentEditor.im.outputMode') }}</label>
             <div class="option-chips">
               <button type="button" class="option-chip"
-                :class="{ 'option-chip--active': formData.output_mode === 'stream' }"
-                @click="formData.output_mode = 'stream'">
+                :class="{ 'option-chip--active': formData.outputMode === 'stream' }"
+                @click="formData.outputMode = 'stream'">
                 {{ $t('agentEditor.im.outputStream') }}
               </button>
               <button type="button" class="option-chip"
-                :class="{ 'option-chip--active': formData.output_mode === 'full' }"
-                @click="formData.output_mode = 'full'">
+                :class="{ 'option-chip--active': formData.outputMode === 'full' }"
+                @click="formData.outputMode = 'full'">
                 {{ $t('agentEditor.im.outputFull') }}
               </button>
             </div>
@@ -193,13 +193,13 @@
             <label class="form-label required">{{ $t('agentEditor.im.sessionMode') }}</label>
             <div class="option-chips">
               <button type="button" class="option-chip"
-                :class="{ 'option-chip--active': formData.session_mode === 'user' }"
-                @click="formData.session_mode = 'user'">
+                :class="{ 'option-chip--active': formData.sessionMode === 'user' }"
+                @click="formData.sessionMode = 'user'">
                 {{ $t('agentEditor.im.sessionModeUser') }}
               </button>
               <button type="button" class="option-chip"
-                :class="{ 'option-chip--active': formData.session_mode === 'thread' }"
-                :disabled="!platformSupportsThread(formData.platform)" @click="formData.session_mode = 'thread'">
+                :class="{ 'option-chip--active': formData.sessionMode === 'thread' }"
+                :disabled="!platformSupportsThread(formData.platform)" @click="formData.sessionMode = 'thread'">
                 {{ $t('agentEditor.im.sessionModeThread') }}
               </button>
             </div>
@@ -229,7 +229,7 @@
           <h4 class="setting-drawer__section-title">{{ $t('agentEditor.im.sectionKnowledge') }}</h4>
           <div class="form-item">
             <label class="form-label">{{ $t('agentEditor.im.fileKnowledgeBase') }}</label>
-            <t-select v-model="formData.knowledge_base_id"
+            <t-select v-model="formData.knowledgeBaseId"
               :placeholder="$t('agentEditor.im.fileKnowledgeBasePlaceholder')" clearable filterable>
               <t-option v-for="kb in knowledgeBases" :key="kb.id" :value="kb.id" :label="kb.name" />
             </t-select>
@@ -638,7 +638,7 @@ const allChannels = ref<Array<IMChannel | IMChannelOverview>>([]);
 const channels = computed(() => {
   const filter = filterAgentId.value?.trim();
   if (!filter) return allChannels.value;
-  return allChannels.value.filter((channel) => channel.agent_id === filter);
+  return allChannels.value.filter((channel) => channel.agentId === filter);
 });
 const loading = ref(false);
 const saving = ref(false);
@@ -690,7 +690,7 @@ const drawerTitle = computed(() => {
 });
 
 function validateWizardStep(step: number): boolean {
-  if (step === 0 && !formData.value.target_agent_id) {
+  if (step === 0 && !formData.value.targetAgentId) {
     MessagePlugin.warning(t('integrations.selectAgentHint'));
     return false;
   }
@@ -725,13 +725,13 @@ let wechatPollTimer: ReturnType<typeof setTimeout> | null = null;
 const defaultCredentials = (): Record<string, any> => ({});
 
 const formData = ref({
-  target_agent_id: '',
+  targetAgentId: '',
   platform: 'wecom' as IMPlatform,
   name: '',
   mode: 'websocket' as 'webhook' | 'websocket' | 'longpoll',
-  output_mode: 'stream' as 'stream' | 'full',
-  session_mode: 'user' as 'user' | 'thread',
-  knowledge_base_id: '',
+  outputMode: 'stream' as 'stream' | 'full',
+  sessionMode: 'user' as 'user' | 'thread',
+  knowledgeBaseId: '',
   credentials: defaultCredentials(),
 });
 
@@ -756,12 +756,12 @@ function agentDisplayName(channel: IMChannel | IMChannelOverview): string {
 }
 
 function agentForChannel(channel: IMChannel | IMChannelOverview): CustomAgent | undefined {
-  const found = agents.value.find((agent) => agent.id === channel.agent_id);
+  const found = agents.value.find((agent) => agent.id === channel.agentId);
   if (found) return found;
-  const overviewName = (channel as IMChannelOverview).agent_name;
+  const overviewName = (channel as IMChannelOverview).agentName;
   if (!overviewName) return undefined;
   return {
-    id: channel.agent_id,
+    id: channel.agentId,
     name: overviewName,
     builtin: false,
     config: {},
@@ -795,7 +795,7 @@ watch(
       }
     }
     if (!platformSupportsThread(p)) {
-      formData.value.session_mode = 'user';
+      formData.value.sessionMode = 'user';
     }
   },
 );
@@ -818,10 +818,10 @@ function onPlatformChange(val: string | number | boolean) {
   // WeChat uses fixed mode/output
   if (val === 'wechat') {
     formData.value.mode = 'longpoll';
-    formData.value.output_mode = 'full';
+    formData.value.outputMode = 'full';
   } else if (val === 'mattermost' || val === 'yunzhijia') {
     formData.value.mode = 'webhook';
-    formData.value.output_mode = 'stream';
+    formData.value.outputMode = 'stream';
     if (val === 'yunzhijia') {
       formData.value.credentials = {
         timeout_seconds: 10,
@@ -830,7 +830,7 @@ function onPlatformChange(val: string | number | boolean) {
     }
   } else {
     formData.value.mode = 'websocket';
-    formData.value.output_mode = 'stream';
+    formData.value.outputMode = 'stream';
   }
   if (!channelNameTouched.value) {
     formData.value.name = defaultChannelName(String(val));
@@ -856,13 +856,13 @@ async function startWeChatBinding() {
 
   try {
     const res = await getWeChatQRCode();
-    // qrcode_url is the text content to encode as QR code (e.g. a weixin:// URL)
-    wechatQRContent.value = res.data.qrcode_url;
-    wechatQRCode.value = res.data.qrcode;
+    // qrcodeUrl is the text content to encode as QR code (e.g. a weixin:// URL)
+    wechatQRContent.value = res.qrcodeUrl;
+    wechatQRCode.value = res.qrcode;
     wechatQRStatus.value = 'wait';
 
     // Generate QR code image via public API (no extra npm dependency needed)
-    wechatQRImgUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(res.data.qrcode_url)}`;
+    wechatQRImgUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(res.qrcodeUrl)}`;
 
     // Start long-polling for scan status
     startStatusPolling();
@@ -883,13 +883,13 @@ async function pollOnce() {
   try {
     const statusRes = await pollWeChatQRCodeStatus(wechatQRCode.value);
     if (!wechatPollActive) return;
-    wechatQRStatus.value = statusRes.data.status;
+    wechatQRStatus.value = statusRes.status;
 
-    if (statusRes.data.status === 'confirmed' && statusRes.data.credentials) {
+    if (statusRes.status === 'confirmed' && statusRes.credentials) {
       formData.value.credentials = {
-        bot_token: statusRes.data.credentials.bot_token,
-        ilink_bot_id: statusRes.data.credentials.ilink_bot_id,
-        ilink_user_id: statusRes.data.credentials.ilink_user_id,
+        bot_token: statusRes.credentials.botToken,
+        ilink_bot_id: statusRes.credentials.ilinkBotId,
+        ilink_user_id: statusRes.credentials.ilinkUserId,
       };
       stopWeChatPolling();
       wechatQRContent.value = '';
@@ -897,7 +897,7 @@ async function pollOnce() {
       MessagePlugin.success(t('agentEditor.im.wechatBindSuccess'));
       return;
     }
-    if (statusRes.data.status === 'expired') {
+    if (statusRes.status === 'expired') {
       stopWeChatPolling();
       return;
     }
@@ -927,7 +927,7 @@ async function loadChannels() {
       listAgents(),
       chatResources.ensureKnowledgeBases(),
     ]);
-    allChannels.value = channelRes.data || [];
+    allChannels.value = channelRes || [];
     agents.value = agentRes?.agents || [];
     knowledgeBases.value = chatResources.rawKnowledgeBases.map((kb: any) => ({ id: kb.id, name: kb.name }));
   } catch {
@@ -949,7 +949,7 @@ async function copyUrl(channel: IMChannel) {
 function openCreate() {
   resetForm();
   if (filterAgentId.value) {
-    formData.value.target_agent_id = filterAgentId.value;
+    formData.value.targetAgentId = filterAgentId.value;
   }
   showCreateDialog.value = true;
 }
@@ -963,8 +963,8 @@ async function editChannel(channel: IMChannel | IMChannelOverview) {
   let fullChannel: IMChannel | null = null;
   if (!('credentials' in channel)) {
     try {
-      const res = await listIMChannels(channel.agent_id);
-      fullChannel = (res.data || []).find((item) => item.id === channel.id) || null;
+      const res = await listIMChannels(channel.agentId);
+      fullChannel = (res || []).find((item: IMChannel) => item.id === channel.id) || null;
     } catch {
       fullChannel = null;
     }
@@ -979,13 +979,13 @@ async function editChannel(channel: IMChannel | IMChannelOverview) {
   editingEnabled.value = fullChannel.enabled;
   channelNameTouched.value = true;
   formData.value = {
-    target_agent_id: fullChannel.agent_id,
+    targetAgentId: fullChannel.agentId,
     platform: fullChannel.platform,
     name: fullChannel.name,
     mode: fullChannel.mode,
-    output_mode: fullChannel.output_mode,
-    session_mode: fullChannel.session_mode || 'user',
-    knowledge_base_id: fullChannel.knowledge_base_id || '',
+    outputMode: fullChannel.outputMode,
+    sessionMode: fullChannel.sessionMode || 'user',
+    knowledgeBaseId: fullChannel.knowledgeBaseId || '',
     credentials: { ...fullChannel.credentials },
   };
   normalizeYunzhijiaCredentials();
@@ -1003,13 +1003,13 @@ function resetForm() {
   wechatQRCode.value = '';
   wechatQRStatus.value = '';
   formData.value = {
-    target_agent_id: filterAgentId.value || '',
+    targetAgentId: filterAgentId.value || '',
     platform: 'wecom',
     name: defaultChannelName('wecom'),
     mode: 'websocket',
-    output_mode: 'stream',
-    session_mode: 'user',
-    knowledge_base_id: '',
+    outputMode: 'stream',
+    sessionMode: 'user',
+    knowledgeBaseId: '',
     credentials: defaultCredentials(),
   };
 }
@@ -1036,16 +1036,16 @@ async function handleSave() {
       await updateIMChannel(editingChannel.value.id, {
         name: resolvedChannelName(),
         mode: formData.value.mode,
-        output_mode: formData.value.output_mode,
-        session_mode: formData.value.session_mode,
-        knowledge_base_id: normalizeOptionalString(formData.value.knowledge_base_id),
+        outputMode: formData.value.outputMode,
+        sessionMode: formData.value.sessionMode,
+        knowledgeBaseId: normalizeOptionalString(formData.value.knowledgeBaseId),
         credentials: formData.value.credentials,
         enabled: editingEnabled.value,
-        ...(formData.value.target_agent_id ? { agent_id: formData.value.target_agent_id } : {}),
+        ...(formData.value.targetAgentId ? { agentId: formData.value.targetAgentId } : {}),
       });
       MessagePlugin.success(t('common.updateSuccess'));
     } else {
-      const targetAgentId = formData.value.target_agent_id;
+      const targetAgentId = formData.value.targetAgentId;
       if (!targetAgentId) {
         MessagePlugin.warning(t('integrations.selectAgentHint'));
         return;
@@ -1054,9 +1054,9 @@ async function handleSave() {
         platform: formData.value.platform,
         name: resolvedChannelName(),
         mode: formData.value.mode,
-        output_mode: formData.value.output_mode,
-        session_mode: formData.value.session_mode,
-        knowledge_base_id: normalizeOptionalString(formData.value.knowledge_base_id),
+        outputMode: formData.value.outputMode,
+        sessionMode: formData.value.sessionMode,
+        knowledgeBaseId: normalizeOptionalString(formData.value.knowledgeBaseId),
         credentials: formData.value.credentials,
       });
       MessagePlugin.success(t('common.createSuccess'));
@@ -1097,7 +1097,7 @@ onMounted(() => {
 
 watch(filterAgentId, (id) => {
   if (!showCreateDialog.value && !editingChannel.value && id) {
-    formData.value.target_agent_id = id;
+    formData.value.targetAgentId = id;
   }
 });
 

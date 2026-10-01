@@ -87,34 +87,34 @@ class ImContractTest {
                 "{\"platform\":\"slack\"}"), 403, "imc-guard-viewer.json");
 
         // ── 三个渠道 ──
-        MvcResult r = expect(200, postJson("/api/v1/agents/" + AG + "/im-channels", owner,
-                "{\"platform\":\"telegram\",\"name\":\"tg-bot\",\"knowledge_base_id\":\"\","
+        MvcResult r = expectCreated(postJson("/api/v1/agents/" + AG + "/im-channels", owner,
+                "{\"platform\":\"telegram\",\"name\":\"tg-bot\",\"knowledgeBaseId\":\"\","
                         + "\"credentials\":{\"bot_token\":\"7654321:AAEmbtoken123\"},\"enabled\":true}"),
                 "imc-create.json");
-        String imc1 = jsonPath(r, "data.id");
+        String imc1 = jsonPath(r, "id");
 
-        expect(200, postJson("/api/v1/agents/" + AG + "/im-channels", owner,
+        expectCreated(postJson("/api/v1/agents/" + AG + "/im-channels", owner,
                 "{\"platform\":\"wechat\",\"name\":\"wx-bot\","
                         + "\"credentials\":{\"ilink_bot_id\":\"wx-bot-1\"}}"), "imc-create-wechat.json");
 
-        r = expect(200, postJson("/api/v1/agents/" + AGP + "/im-channels", owner,
+        r = expectCreated(postJson("/api/v1/agents/" + AGP + "/im-channels", owner,
                 "{\"platform\":\"mattermost\",\"name\":\"mm-bot\","
                         + "\"credentials\":{\"outgoing_token\":\"mm-token-1\"}}"),
                 "imc-create-mattermost.json");
-        String imc3 = jsonPath(r, "data.id");
+        String imc3 = jsonPath(r, "id");
 
         assertGolden(postJson("/api/v1/agents/" + AG + "/im-channels", owner,
                 "{\"platform\":\"telegram\",\"name\":\"tg-again\","
                         + "\"credentials\":{\"bot_token\":\"7654321:AAEmbtoken123\"}}"), 409,
                 "imc-create-dup.json");
         assertGolden(postJson("/api/v1/agents/" + AG + "/im-channels", owner,
-                "{\"platform\":\"slack\",\"name\":\"bad-mode\",\"session_mode\":\"party\"}"), 500,
+                "{\"platform\":\"slack\",\"name\":\"bad-mode\",\"sessionMode\":\"party\"}"), 500,
                 "imc-create-badsessionmode.json");
-        r = expect(200, postJson("/api/v1/agents/" + AGP + "/im-channels", owner,
+        r = expectCreated(postJson("/api/v1/agents/" + AGP + "/im-channels", owner,
                 "{\"platform\":\"telegram\",\"name\":\"tg-two\","
                         + "\"credentials\":{\"bot_token\":\"8888777:BBOtherToken\"}}"),
                 "imc-create-tg2.json");
-        String imc4 = jsonPath(r, "data.id");
+        String imc4 = jsonPath(r, "id");
 
         // ── 列表（Viewer）──
         assertGolden(get("/api/v1/agents/" + AG + "/im-channels", viewer), 200,
@@ -129,7 +129,7 @@ class ImContractTest {
         assertGolden(putJson("/api/v1/im-channels/b9999999-0000-0000-0000-000000000001", owner,
                 "{\"name\":\"x\"}"), 404, "imc-update-404.json");
         assertGolden(putJson("/api/v1/im-channels/" + imc1, owner,
-                "{\"agent_id\":\"ghost-agent\"}"), 400, "imc-update-badagent.json");
+                "{\"agentId\":\"ghost-agent\"}"), 400, "imc-update-badagent.json");
         assertGolden(putJson("/api/v1/im-channels/" + imc4, owner,
                 "{\"credentials\":{\"bot_token\":\"7654321:AAEmbtoken123\"}}"), 409,
                 "imc-update-dup.json");
@@ -140,8 +140,8 @@ class ImContractTest {
         assertGolden(post("/api/v1/im-channels/b9999999-0000-0000-0000-000000000001/toggle", owner),
                 500, "imc-toggle-404.json");
 
-        // ── delete 家族（脚本删的是 mattermost 渠道 IMC3）──
-        assertGolden(delete("/api/v1/im-channels/" + imc3, owner), 200, "imc-delete.json");
+        // ── delete 家族（脚本删的是 mattermost 渠道 IMC3；成功 204 无体）──
+        assertNoBody(delete("/api/v1/im-channels/" + imc3, owner), 204, "imc-delete");
         assertGolden(delete("/api/v1/im-channels/b9999999-0000-0000-0000-000000000001", owner),
                 500, "imc-delete-404.json");
 
@@ -169,14 +169,37 @@ class ImContractTest {
         expect(status, req, goldenName);
     }
 
+    /** {@code -Dcontract.refresh=true} 时把掩码后的实际响应写回夹具（换锚批重录用）。 */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
     private MvcResult expect(int status, MockHttpServletRequestBuilder req, String goldenName)
             throws Exception {
         MvcResult r = mockMvc.perform(req).andReturn();
         assertEquals(status, r.getResponse().getStatus(), goldenName + " 状态码不符: " + raw(r));
-        String actual = raw(r);
+        String actual = mask(raw(r));
+        if (REFRESH_FIXTURES) {
+            java.nio.file.Path target = java.nio.file.Path.of("src/test/resources/contracts", goldenName);
+            java.nio.file.Files.writeString(target, actual + "\n");
+            return r;
+        }
         String golden = golden(goldenName);
-        assertEquals(mask(golden), mask(actual), goldenName);
+        assertEquals(mask(golden), actual, goldenName);
         return r;
+    }
+
+    /** 201 创建：状态码 + 体按 golden 掩码比对。 */
+    private MvcResult expectCreated(MockHttpServletRequestBuilder req, String goldenName)
+            throws Exception {
+        return expect(201, req, goldenName);
+    }
+
+    /** 204 无体端点：只钉状态码 + 空体。 */
+    private void assertNoBody(MockHttpServletRequestBuilder req, int status, String label)
+            throws Exception {
+        MvcResult r = mockMvc.perform(req).andReturn();
+        assertEquals(status, r.getResponse().getStatus(), label + " 状态码不符: " + raw(r));
+        assertEquals("", r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8),
+                label + " 应无响应体");
     }
 
     private static MockHttpServletRequestBuilder get(String url, String bearer) {

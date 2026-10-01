@@ -268,9 +268,9 @@ class W5aSundryRoutesContractTest {
                 "w5a-im-callback-unknown-get.json");
         assertGolden(postJson("/api/v1/im/callback/00000000-0000-0000-0000-000000000000", null, "{}"),
                 404, "w5a-im-callback-unknown-post.json");
-        r = expect(200, postJson("/api/v1/agents/" + agent + "/im-channels", owner,
+        r = expect(201, postJson("/api/v1/agents/" + agent + "/im-channels", owner,
                 "{\"platform\":\"mattermost\",\"name\":\"w5a-im\"}"), "w5a-im-channel-create.json");
-        String channel = jsonPath(r, "data.id");
+        String channel = jsonPath(r, "id");
         // enabled 渠道：Go dev 的 mattermost webhook 工厂建适配器失败 → 503 not available
         //（Java 无 adapter factory → 同形 503，MATCH 非 XDEP）
         assertGolden(get("/api/v1/im/callback/" + channel), 503,

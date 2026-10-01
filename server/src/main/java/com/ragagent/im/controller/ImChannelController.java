@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,30 +52,30 @@ public class ImChannelController {
     // ═══════════════════ 请求体（对照 im.go 内联 struct） ═══════════════════
 
     record CreateRequest(
-            @JsonProperty("platform") String platform,
-            @JsonProperty("name") String name,
-            @JsonProperty("mode") String mode,
-            @JsonProperty("output_mode") String outputMode,
-            @JsonProperty("session_mode") String sessionMode,
-            @JsonProperty("knowledge_base_id") String knowledgeBaseId,
-            @JsonProperty("credentials") JsonNode credentials,
-            @JsonProperty("enabled") Boolean enabled) {
+            String platform,
+            String name,
+            String mode,
+            String outputMode,
+            String sessionMode,
+            String knowledgeBaseId,
+            JsonNode credentials,
+            Boolean enabled) {
     }
 
     record UpdateRequest(
-            @JsonProperty("name") String name,
-            @JsonProperty("mode") String mode,
-            @JsonProperty("output_mode") String outputMode,
-            @JsonProperty("session_mode") String sessionMode,
-            @JsonProperty("knowledge_base_id") String knowledgeBaseId,
-            @JsonProperty("credentials") JsonNode credentials,
-            @JsonProperty("enabled") Boolean enabled,
-            @JsonProperty("agent_id") String agentId) {
+            String name,
+            String mode,
+            String outputMode,
+            String sessionMode,
+            String knowledgeBaseId,
+            JsonNode credentials,
+            Boolean enabled,
+            String agentId) {
     }
 
     // ═══════════════════ CRUD ═══════════════════
 
-    /** 对照 CreateIMChannel：200（不是 201）。 */
+    /** 创建渠道：201 + 裸资源行（§2.1）。 */
     @PostMapping("/api/v1/agents/{id}/im-channels")
     public ResponseEntity<Map<String, Object>> create(@PathVariable("id") String agentId,
                                                       @RequestBody(required = false) String rawBody) {
@@ -126,12 +125,12 @@ public class ImChannelController {
         } catch (RuntimeException e) {
             return plain(500, "failed to create channel");
         }
-        return ResponseEntity.ok(Map.of("data", channelRow(channel)));
+        return ResponseEntity.status(201).body(channelRow(channel));
     }
 
-    /** 对照 ListIMChannels：凭据不出现在列表行（IMChannelSummary）。 */
+    /** per-agent 列表 = 裸数组（凭据不出现在列表行，IMChannelSummary）。 */
     @GetMapping("/api/v1/agents/{id}/im-channels")
-    public ResponseEntity<Map<String, Object>> listByAgent(@PathVariable("id") String agentId) {
+    public ResponseEntity<List<Map<String, Object>>> listByAgent(@PathVariable("id") String agentId) {
         if (agentId == null || agentId.isEmpty()) {
             return plain(400, "agent_id is required");
         }
@@ -141,19 +140,16 @@ public class ImChannelController {
         } catch (RuntimeException e) {
             return plain(500, "failed to list channels");
         }
-        // GORM Find 零行 = nil 切片 → data:null（ListChannelsByAgent 同实录锚）。
-        List<Map<String, Object>> data = channels.isEmpty() ? null : new ArrayList<>();
+        List<Map<String, Object>> data = new ArrayList<>();
         for (ImChannelEntity ch : channels) {
             data.add(summaryRow(ch));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(data);
     }
 
-    /** 对照 ListAllIMChannels：跨 agent 总览（ChannelWithAgent，带 agent_name）。 */
+    /** 跨 agent 总览 = 裸数组（行带 agentName）。 */
     @GetMapping("/api/v1/im-channels")
-    public ResponseEntity<Map<String, Object>> listAll() {
+    public ResponseEntity<List<Map<String, Object>>> listAll() {
         List<Map<String, Object>> rows;
         try {
             rows = service.listChannelsByTenant(currentTenant());
@@ -162,29 +158,25 @@ public class ImChannelController {
                     .error("[IM] list all channels failed", e);
             return plain(500, "failed to list channels");
         }
-        // GORM Scan 进 nil 切片：零行时 marshals 为 null（非 []）——2026-09-22 双端实录。
-        List<Map<String, Object>> data = rows.isEmpty() ? null : new ArrayList<>();
+        List<Map<String, Object>> data = new ArrayList<>();
         for (Map<String, Object> row : rows) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", row.get("id"));
-            m.put("tenant_id", row.get("tenant_id"));
-            m.put("agent_id", row.get("agent_id"));
-            m.put("agent_name", row.get("agent_name"));
+            m.put("tenantId", row.get("tenant_id"));
+            m.put("agentId", row.get("agent_id"));
+            m.put("agentName", row.get("agent_name"));
             m.put("platform", row.get("platform"));
             m.put("name", row.get("name"));
             m.put("enabled", row.get("enabled"));
             m.put("mode", row.get("mode"));
-            m.put("output_mode", row.get("output_mode"));
-            m.put("session_mode", row.get("session_mode"));
-            m.put("bot_identity", row.get("bot_identity"));
-            m.put("created_at", row.get("created_at"));
-            m.put("updated_at", row.get("updated_at"));
-            if (data == null) break;
+            m.put("outputMode", row.get("output_mode"));
+            m.put("sessionMode", row.get("session_mode"));
+            m.put("botIdentity", row.get("bot_identity"));
+            m.put("createdAt", row.get("created_at"));
+            m.put("updatedAt", row.get("updated_at"));
             data.add(m);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(data);
     }
 
     /** 对照 UpdateIMChannel。 */
@@ -237,12 +229,12 @@ public class ImChannelController {
         } catch (RuntimeException e) {
             return plain(500, "failed to update channel");
         }
-        return ResponseEntity.ok(Map.of("data", channelRow(channel)));
+        return ResponseEntity.ok(channelRow(channel));
     }
 
-    /** 对照 DeleteIMChannel：任何失败都落 500 "failed to delete channel"。 */
+    /** 删除渠道：任何失败都落 500 "failed to delete channel"；成功 204。 */
     @DeleteMapping("/api/v1/im-channels/{id}")
-    public ResponseEntity<Map<String, Object>> delete(@PathVariable("id") String channelId) {
+    public ResponseEntity<Void> delete(@PathVariable("id") String channelId) {
         if (channelId == null || channelId.isEmpty()) {
             return plain(400, "channel id is required");
         }
@@ -251,9 +243,7 @@ public class ImChannelController {
         } catch (RuntimeException e) {
             return plain(500, "failed to delete channel");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
     /** 对照 ToggleIMChannel：任何失败都落 500 "failed to toggle channel"。 */
@@ -268,7 +258,7 @@ public class ImChannelController {
         } catch (RuntimeException e) {
             return plain(500, "failed to toggle channel");
         }
-        return ResponseEntity.ok(Map.of("data", channelRow(channel)));
+        return ResponseEntity.ok(channelRow(channel));
     }
 
     // ═══════════════════ 微信扫码（绑定分支 + 接缝） ═══════════════════
@@ -280,7 +270,7 @@ public class ImChannelController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.ragagent.im.wechat.WechatQRCodeService wechatQRCodeService;
 
-    /** 对照 WeChatGetQRCode：200 {"data":{qrcode, qrcode_url}}（gin.H → 键按字典序）。 */
+    /** 微信扫码出站：200 裸对象 {qrcode, qrcodeUrl}。 */
     @PostMapping("/api/v1/wechat/qrcode")
     public ResponseEntity<Map<String, Object>> wechatQrcode() {
         if (wechatQRCodeService == null) {
@@ -291,13 +281,12 @@ public class ImChannelController {
         try {
             result = wechatQRCodeService.getLoginQRCode();
         } catch (Exception e) {
-            // 照 Go：500 + 固定前缀 + err 文案
             throw new PlainErrorException(500, "failed to generate QR code: " + errText(e));
         }
-        Map<String, Object> data = new java.util.TreeMap<>();
+        Map<String, Object> data = new LinkedHashMap<>();
         data.put("qrcode", result.qrcode());
-        data.put("qrcode_url", result.qrcodeUrl());
-        return ResponseEntity.ok(new java.util.TreeMap<>(Map.of("data", data)));
+        data.put("qrcodeUrl", result.qrcodeUrl());
+        return ResponseEntity.ok(data);
     }
 
     /**
@@ -327,19 +316,15 @@ public class ImChannelController {
         } catch (Exception e) {
             return plain(500, "failed to check QR code status");
         }
-        Map<String, Object> data = new java.util.TreeMap<>();
+        Map<String, Object> data = new LinkedHashMap<>();
         data.put("status", result.status());
-        if ("confirmed".equals(result.status())) {
-            Map<String, Object> credentials = new java.util.TreeMap<>();
-            credentials.put("bot_token", result.botToken());
-            credentials.put("ilink_bot_id", result.ilinkBotId());
-            credentials.put("ilink_user_id", result.ilinkUserId());
-            data.put("credentials", credentials);
-            if (result.baseUrl() != null && !result.baseUrl().isEmpty()) {
-                data.put("baseurl", result.baseUrl());
-            }
-        }
-        return ResponseEntity.ok(new java.util.TreeMap<>(Map.of("data", data)));
+        Map<String, Object> credentials = new LinkedHashMap<>();
+        credentials.put("botToken", result.botToken());
+        credentials.put("ilinkBotId", result.ilinkBotId());
+        credentials.put("ilinkUserId", result.ilinkUserId());
+        data.put("credentials", "confirmed".equals(result.status()) ? credentials : null);
+        data.put("baseUrl", "confirmed".equals(result.status()) ? result.baseUrl() : null);
+        return ResponseEntity.ok(data);
     }
 
     private static String errText(Exception e) {
@@ -352,49 +337,49 @@ public class ImChannelController {
         this.wechatQRCodeService = service;
     }
 
-    record QrcodeRequest(@JsonProperty("qrcode") String qrcode) {
+    record QrcodeRequest(String qrcode) {
     }
 
     // ═══════════════════ 响应行（三套键序并存，对照 Go 三个 struct） ═══════════════════
 
-    /** 对照 IMChannel struct 字段序（create/update/toggle 的 data 行）。 */
+    /** 渠道行（create/update/toggle 的资源行），键名即字段名。 */
     private static Map<String, Object> channelRow(ImChannelEntity ch) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", ch.getId());
-        m.put("tenant_id", ch.getTenantId());
-        m.put("agent_id", ch.getAgentId());
+        m.put("tenantId", ch.getTenantId());
+        m.put("agentId", ch.getAgentId());
         m.put("platform", ch.getPlatform());
         m.put("name", ch.getName());
         m.put("enabled", ch.isEnabled());
         m.put("mode", ch.getMode());
-        m.put("output_mode", ch.getOutputMode());
-        m.put("knowledge_base_id", ch.getKnowledgeBaseId());
-        m.put("bot_identity", ch.getBotIdentity());
-        m.put("session_mode", ch.getSessionMode());
+        m.put("outputMode", ch.getOutputMode());
+        m.put("knowledgeBaseId", ch.getKnowledgeBaseId());
+        m.put("botIdentity", ch.getBotIdentity());
+        m.put("sessionMode", ch.getSessionMode());
         m.put("credentials", rawJson(ch.getCredentials()));
-        m.put("created_at", ch.getCreatedAt());
-        m.put("updated_at", ch.getUpdatedAt());
-        m.put("deleted_at", null);
+        m.put("createdAt", ch.getCreatedAt());
+        m.put("updatedAt", ch.getUpdatedAt());
+        m.put("deletedAt", null);
         return m;
     }
 
-    /** 对照 IMChannelSummary struct 字段序（per-agent 列表行）。 */
+    /** per-agent 列表行（IMChannelSummary：凭据不出行，只出 credentialsConfigured）。 */
     private static Map<String, Object> summaryRow(ImChannelEntity ch) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", ch.getId());
-        m.put("tenant_id", ch.getTenantId());
-        m.put("agent_id", ch.getAgentId());
+        m.put("tenantId", ch.getTenantId());
+        m.put("agentId", ch.getAgentId());
         m.put("platform", ch.getPlatform());
         m.put("name", ch.getName());
         m.put("enabled", ch.isEnabled());
         m.put("mode", ch.getMode());
-        m.put("output_mode", ch.getOutputMode());
-        m.put("knowledge_base_id", ch.getKnowledgeBaseId());
-        m.put("bot_identity", ch.getBotIdentity());
-        m.put("session_mode", ch.getSessionMode());
-        m.put("credentials_configured", credentialsConfigured(ch.getCredentials()));
-        m.put("created_at", ch.getCreatedAt());
-        m.put("updated_at", ch.getUpdatedAt());
+        m.put("outputMode", ch.getOutputMode());
+        m.put("knowledgeBaseId", ch.getKnowledgeBaseId());
+        m.put("botIdentity", ch.getBotIdentity());
+        m.put("sessionMode", ch.getSessionMode());
+        m.put("credentialsConfigured", credentialsConfigured(ch.getCredentials()));
+        m.put("createdAt", ch.getCreatedAt());
+        m.put("updatedAt", ch.getUpdatedAt());
         return m;
     }
 
@@ -439,10 +424,10 @@ public class ImChannelController {
         return tid == null ? 0L : tid;
     }
 
-    private static ResponseEntity<Map<String, Object>> plain(int status, String message) {
+    private static <T> ResponseEntity<T> plain(int status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(status).body((T) body);
     }
 
     private static String orEmpty(String s) {

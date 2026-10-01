@@ -2634,7 +2634,7 @@ async function loadAgentIntegrationCounts(agentId: string) {
       listIMChannels(agentId),
       listEmbedChannels(agentId),
     ]);
-    agentIMChannelCount.value = imResp?.data?.length ?? 0;
+    agentIMChannelCount.value = imResp?.length ?? 0;
     agentEmbedChannelCount.value = embedResp?.length ?? 0;
   } catch {
     agentIMChannelCount.value = 0;
