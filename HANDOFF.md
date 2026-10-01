@@ -1499,6 +1499,35 @@ datasource / storage 的 scoped-key 用例）——它们的请求体与 `data.t
 **验收**：apikey 域 129 + auth/system 域 202 + memory/datasource/storage 三组全绿；
 全量 **4670 / 失败 0 / 跳过 4** + spotlessCheck 绿；前端 `vue-tsc` 0 + 690 用例。
 
+### 14.9k memory 域作战计划（2026-10-01 只读侦察，待执行）
+
+**存量**：`@JsonProperty` **137 处 / 14 文件**（`git grep -c '@JsonProperty\|@com.fasterxml...JsonProperty'` 双写法口径）。
+
+**分层（换锚判据）**：
+
+| 层 | 文件（处数） | 判据 |
+|---|---|---|
+| **HTTP 响应实体**（63） | `MemoryItem`(23)、`MemoryTopicStat`(12)、`MemoryTopicView`(7)、`MemoryDocView`(7)、`MemorySettings`(7)、`MemoryConsolidationResult`(7) | 换锚：裸 DTO + camelCase + 可空显式 null |
+| **落库实体**（49） | `MemorySubject`(16)、`MemoryDocAffinity`(11)、`MemoryTombstone`(8)、`MemoryItemEmbedding`(8)、`MemoryMessageCursor`(3)、`MemoryExtractionState`(3) | 落库面：改键名 + dev 存量 SQL 迁移（§14.9e 手法） |
+| **LLM 载荷**（22） | `MemoryExtractionLlm`(11)、`MemoryExtractPayload`(11) | **保留**（模型输出 schema，同 §11「工具输出自有 schema」） |
+| 边界 | `MemoryIndexStore`（929 行，已知例外，§14.7.17） | 不动 |
+
+**端点**：`MemoryController`（590 行）**20 个**，全 `ResponseEntity<Map<String,Object>>`：
+- 四个资源组（settings / items / topics / documents）的读写 + 动作（confirm/reject/promote）
+- 信封：`{data, success}`（直接资源）与 `pageBody(page)` 的分页（`{items, page, pageSize, total}`，须对齐 §2 第 4 条）
+- 错误已 AppError ✓；请求体已 record（`UpdateMemorySettingsRequest` 等）但带注解
+
+**三刀划分**：
+- **M1（HTTP 响应面）**：20 端点去信封 + 6 个响应实体去注解（63 处）+ fixture 重录 + 前端同步
+- **M2（落库实体）**：49 处 + SQL 迁移 + repository/JSON 测试同步
+- **M3（收尾）**：LLM 载荷边界登记 + 残留核对
+
+**风险点（B 批教训直接适用）**：
+1. 批量替换**必须按文件白名单**——memory 的 `mapper/` 与手写 SQL 里的列名不能碰；
+2. 分页形态要按 §2 第 4 条的 `{items,page,pageSize,total}` 对齐（`pageBody` 的当前键名待核）；
+3. 前端面：`api/memory/*` + 记忆设置/详情相关组件（`MemorySettings.vue` 等）；
+4. M2 的迁移要**先核对 jsonb 列**（`MemoryItem` 的字段是否落 jsonb）。
+
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
 
