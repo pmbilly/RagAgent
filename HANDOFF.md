@@ -210,8 +210,9 @@
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
    auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** / **mcp 域 M1（服务资源 + 凭据面）+ M4（工具审批 + OAuth 用户面，均前后端同批）** 已完成（同批带前端）；
    **mcp 域已收官（M1 + M4 + M5，仅剩第三方协议面 22 处永久冻结）**。
-   下一步候选：**datasource 域（侦察案见 §14.9q：493 处里 270 处是 connector 第三方线格式永久冻结、
-   ~207 处是我方面，拆 D1/D2/D3）/ wiki（54）/ auth 余面（138）/ retrieval（21）/ agent（15）**（§2 第 4 条落地范围）。
+   **datasource D1（主资源 + 凭据 + 资源目录，前后端同批）已完成（§14.9q）**。
+   下一步候选：**datasource 余 D2（同步日志与结果）/ D3（队列载荷 + Go golden）/ wiki（54）/
+   auth 余面（138）/ retrieval（21）/ agent（15）**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -451,6 +452,16 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
 **纪律（重要）**：重录之后**必须结构化复核差异**（解析新旧 JSON、比键集与取值），确认差异只是
 本次换锚该有的那几类；否则就成了"测试适应实现"，夹具失去契约价值。复核脚本思路见 §14.9m。
 
+### 13.13 契约夹具的掩码按键名匹配——键改名必须同步放宽正则（2026-10-01，三次实录）
+
+**夹具掩码用的正则形如 `"([a-z_]+)":"<uuid>"`（按键名锚定）**：换锚（下划线 → camelCase）之后，
+`knowledgeBaseId`/`dataSourceId`/`createdAt` 这类键不再匹配 → **掩码静默失效**，
+夹具里混进真实 UUID 与**逐次变化的真实时间戳**（下次跑就红，看起来像业务回归）。
+**判据**：一批换锚后先看"重录的夹具里还有没有未掩的 id/时间戳"，再跑第二遍确认确定性。
+**修法**：把键名字符集放宽成 `[A-Za-z_]+`（含大写），并在掩码定义处留注释。
+**三次实录**：S3 `att-get` 的 sessionId（掩码未覆盖，夹具混进真实会话 id）→ M4 `McpContractTest`
+（加 `serviceId`）→ D1 `DataSourceHttpContractTest`（`[a-z_]+` → `[A-Za-z_]+`，一次影响 12 个夹具）。
+
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
 > **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
@@ -483,7 +494,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
 | 3 分层 | `controller/service/support/task/client/storage/security/repository/mapper/domain/dto` | 每包一份 `package-info.java`（职责地图） |
 | 4 契约 Java 化 | controller 入参 → DTO + `@Valid`；去 `@JsonNaming` / 逐字段 `@JsonProperty` / 信封 | **顺手消灭手写绑定器**（那是真实缺陷温床，§7 第 1 条）；同批带前端 |
 | 5 数据访问去 Go | 落库 jsonb 去 snake（若该域有此面）| 改完必须 `grep` 全仓"按旧键读取"的代码（§11 ② 的 4 处真实缺陷） |
-| 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
+| 6 卫生 | 注释判据与 import 卫生（§13.8）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
 ### 14.3 候选域盘点（2026-10-01 m5 后复测：全仓 ≥800 行的类共 **6 个**）
@@ -552,9 +563,9 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
   这些"仍是 snake"是**对的**。**注意该清单会随各域推进而变动**：`wiki 域实体` 条目已作废
   （`b407769` C 波把 `wiki/domain` 换锚为 camelCase），`wiki/service` 残留的 `@JsonProperty` 载荷随其批次处理；
   **引用前先看 §14.3 该域的进度栏，别照抄旧结论**。
-- **别为数字写注释**：getter/POJO 访问器保持 0 javadoc（§13.13）。
+- **别为数字写注释**：getter/POJO 访问器保持 0 javadoc（§13.8 第 3 条）。
 - **别做全仓文本替换**：先用单文件验证再决定扩大（§13.2 的两次翻车）。
-- **别跳过闸门**：只跑 `:server:test` 会漏掉 Spotless（§13.14）。
+- **别跳过闸门**：只跑 `:server:test` 会漏掉 Spotless（§13.9）。
 
 
 ### 14.7 wiki 域执行计划（2026-10-01 定并**已执行完毕**，落刀记录见 §14.7.2；边界侦察见 §14.8）
@@ -2248,6 +2259,41 @@ agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
 **冻结登记**：270 处 connector 线格式（`connector/{feishu,yuque,ima,gitlab,notion,rss}` 的 `*ApiTypes`/客户端），
 与 mcp 的 RFC 面同类——**别把它们的键名"改回 camelCase"**。
 
+**✅ D1（主资源 + 凭据 + 资源目录）执行记录（2026-10-01）**——76 处 / 9 文件：
+- **键名换锚**：`DataSource`(22)、`DataSourceResponse`(22)、`Resource`(10)、`ConnectorMetadata`(8)、
+  `DataSourceConfig`(5)、`DataSourceConfigDto`(4)、`CredentialsResponse`(2)、`CredentialFieldMetadata`(2)、
+  控制器请求记录(1)；`@JsonPropertyOrder`（Go 声明序）与 9 处 `@JsonInclude`（omitempty 直译）一并退役
+  （§1.6：可空字段显式 null、空串照写——`Resource` 的三个原 omitempty 键、`ConnectorMetadata.icon`
+  因此由"键消失"变为恒输出）。
+- **请求面**：创建/更新体直接绑定 `DataSource` 实体 ⇒ 键名＝字段名（同批改）；
+  查询参数 `kb_id`→**`kbId`**、`parent_id`→**`parentId`**；`resource-ancestors` 体 `resource_ids`→**`resourceIds`**。
+  ⚠️ 校验文案照抄 Go（`kb_id is required`）——属已知的"文案-键名不一致"（cosmetic，同 S4/M4 口径）。
+- **响应面**：`PUT /datasource/{id}/credentials` 从 `{data:{fields:…},success:true}` 改**裸对象**
+  `{fields:{"credentials":{"configured":bool}}}`（§2.1）。
+- **落库 jsonb（1 列）**：`data_sources.config` 顶层 `resource_ids`→`resourceIds`
+  （内层 `settings`/`credentials` 是各 connector 的**字段名**，按 §14.9q 入场判定**保持不动**）；
+  表达式已在真 PG 用合成数据验证（有键行改名、无键行与 null 行不动、同层其它键不受影响）；
+  dev 库 0 行需迁移。`last_sync_cursor`/`last_sync_result` 是 connector 载荷，不在本批。
+- **Go 逐字节测试退役**：`DataSourceJsonTest` 的 10 个 D1 用例与 `ConnectorFrameworkTest` 的 2 个用例
+  **保留结构、改写期望值**为本方契约形状（同 memory `MemoryEntityJsonTest` 的做法）；
+  D2/D3 类型的用例原样通过——正好证明批次边界。
+- **契约测试可重录化**：`DataSourceHttpContractTest` 加 `-Dcontract.refresh=true` 开关 + `assertGoldenBody`
+  统一入口（原来 31 处 `assertEquals(golden(...))` 各自为政），33 个 golden 一次重录。
+  ⚠️ **掩码按键名匹配，键改名必须同步放宽正则**（第三次踩，见 §13.13）：`[a-z_]+` → `[A-Za-z_]+`，
+  否则 `knowledgeBaseId`/`createdAt` 这类键漏掩，夹具里会混进真实 UUID 与逐次变化的时间戳
+  （本次已混入并修掉：重录后逐个夹具扫过"未掩 id/时间戳 = 0"）。
+- 前端：`api/datasource/index.ts`（类型 + `?kbId=`/`?parentId=` + `{resourceIds}` + 凭据裸读）+
+  `DataSourceSettings.vue`/`DataSourceEditorDialog.vue`（D1 键；`DataSourceSyncLogs.vue` 属 D2 未动）。
+- 验收：全量 **4686 / 0 失败 / 6 跳过** + `spotlessCheck`；前端 `vue-tsc` 0 错误 + **690 用例**；
+  **真实服务冒烟 10 路通过**（连接器目录裸数组+authType/icon 恒输出 / 建源 201 + **21 键 camelCase** /
+  旧 snake 建库体→400 **反证** / 列表 `?kbId=` 裸数组 / 旧 `?kb_id=`→400 **反证** / 详情 / 更新往返 /
+  日志端点 200（**D2 键未动，边界证明**）/ 凭据 PUT 裸 `{fields:…}` / 凭据删除 204）。
+  冒烟前置：本地 RSS 桩（18099）+ `SSRF_WHITELIST_EXTRA=127.0.0.1` 重启（否则创建被 SSRF 拦）。
+- 剩余：**D2（同步日志与结果，51 处）→ D3（队列载荷 16 处 + `DataSourceJsonTest` 的 D2/D3 用例）**；
+  270 处 connector 第三方线格式永久冻结（§14.9q）。
+
+**⚠️ 本轮发现（登记待办）**：M1 只去了 `@JsonProperty` 与 `@JsonPropertyOrder`，**漏了类级/字段级 `@JsonInclude`**——`McpServiceResponse`、`McpAuthConfigResponse`、`McpTool`、`McpTestResult`（mcp 域 7 个文件）仍是 omitempty 直译，按 §1.6 应改恒输出（会动响应键集合 ⇒ 需重录夹具）。另 `McpCatalogSummary` 的 `Include.ALWAYS` 是默认值可删。作为 **M6** 小批处理。
+
 ### 14.9p mcp 域 M5（OAuth 内部 blob 面）+ 该域收官（2026-10-01）
 
 **✅ M5 执行记录**：`OAuthState`(9) + `OAuthAttempt`(4) 去键名映射——这两个记录**只序列化进
@@ -2331,7 +2377,7 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1 主资源+凭据+资源目录，§14.9q；余 D2 51 处 + D3 16 处 + 270 处 connector 第三方线格式永久冻结）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
