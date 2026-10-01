@@ -13,12 +13,13 @@
    域内 ≥800 只剩 `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；
    **wiki 域阶段 2 已收官（2026-10-01，10 刀）**——`WikiPageController` 1,311→**272**、`WikiIngestService` 1,208→**509**（§14.7.2）；
    **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）；
-   **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。**AuthController 已出榜（3 刀，1,167→704，§14.7.7）——auth controller 清零**。**FaqImportService 已出榜（2 刀 F1/F2，1,235→583+419，knowledge 例外解除）**。
-4. **下一步**：`llm` RemoteApiChat 1,366 →
-   `knowledge`/`auth`/`llm`/`chatpipeline` 的 1,000+ 类 → `datasource`/`memory`（体量最大，单独立项）。
+   **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。**AuthController 已出榜（3 刀，1,167→704，§14.7.7）——auth controller 清零**。**FaqImportService 已出榜（2 刀 F1/F2，1,235→583+419，knowledge 例外解除）**；
+   **wiki page 面已收官（2026-10-01，w1~w5 + 两个卫生刀，§14.7.14）——`WikiPageServiceImpl` 1,008→732、`WikiPageRepository` 858→708、`WikiIngestDedupService` 851→468（例外解除）、`WikiPageFolderSupport` 822→383（切片产物空行折叠）——wiki 域 ≥800 清零**。
+4. **下一步**：`datasource`（DataSourceService 1,828 / FeishuClient 1,154 / NotionConnector 1,092）→
+   `memory`（3 类，1,216~1,662）→ 单类（`SourceRegistry` 878 / `UserService` 876）→ knowledge 两个已登记例外的复核。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
-   harness 模板已入库：`scripts/refactor-harness.sh`。
-6. **全仓存量**：≥800 行的类还有 **22 个**（本会话 38→24，共 **48 刀**）（清单见 §14.3）；**检索域 + auth 域 controller ≥800 全清零**。
+   harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
+6. **全仓存量**：≥800 行的类还有 **11 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline 域 ≥800 全清零**。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -143,25 +144,27 @@
 | 阶段 2（FeishuAdapter，2026-10-01） | im 域飞书适配器 | **出榜，im 清零**（4 刀 → CallbackOps/SendOps/CardStreamOps/MediaOps；926→331；§14.7.11） |
 | 阶段 2（EmbedChannelController，2026-10-01） | embed 域渠道控制器 | **出榜，embed 清零**（3 刀 → MgmtOps/PublicOps/DelegateOps；925→561；§14.7.12） |
 | 阶段 2（PluginSearch，2026-10-01） | chatpipeline 检索插件 | **出榜，chatpipeline 清零**（3 刀 → QueryTextOps/ExpansionOps/SearchOps；899→278；§14.7.13） |
+| 阶段 2（wiki page 面，2026-10-01） | WikiPageServiceImpl / WikiPageRepository / WikiIngestDedupService / WikiPageFolderSupport | **出榜，wiki 域 ≥800 清零**（w1~w5 + 两个卫生刀 → RevisionOps/LinkOps/FolderRepository/IdentityDedup；1,008→732、858→708、851→468、822→383；§14.7.14） |
 
 ### 7.2 当前存量（实测）
 
-- session 域：**100 文件 / 25,147 行**；最大类 `SessionKnowledgeQaService` 1,036（例外）→ 其后 `SessionController` 791 / `SessionQaResolution` 706 / `QaSearchTargets` 706 / `AgentStreamBridge` 696 / `SessionService` 650。
-- wiki 域（2026-10-01 批次后）：**144 文件 / 24,910 行**；≥800 剩 4 个 = `WikiPageServiceImpl` 1,008 / `WikiPageRepository` 858 / `WikiIngestDedupService` 851 / `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2）。
+- session 域：**100 文件 / 22,734 行**（空行折叠后）；最大类 `SessionKnowledgeQaService` 1,036（例外）→ 其后 `SessionController` 791 / `AgentStreamBridge` 696 / `SessionService` 650。
+- wiki 域（2026-10-01 page 面批次后）：**148 文件 / 22,964 行**；**≥800 = 0**（最大 `WikiIngestCitePipeline` 760，其后 `WikiPageServiceImpl` 732 / `WikiPageRepository` 708）。
 - llm 域（2026-10-01 批次后）：chat 包 `RemoteApiChat` 家族 6 类全部 <800（最大 `RemoteApiStreamOps` 365）。
 - auth 域 controller（2026-10-01 批次后）：`TenantCatalogController` 980→133，包内最大 `TenantInvitationController` 519。
 - mcp 域（2026-10-01 批次后）：controller/oauth 两神类出榜，包内最大 `OAuthDiscovery` 439。
 - im 域（2026-10-01 批次后）：`FeishuAdapter` 926→331，feishu 包最大协作者 `FeishuCardStreamOps` 256。
 - embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
 - chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
-- 全仓 ≥800 行的类：**15 个**（清单与分域建议见 §14.3）。
+- 全仓 ≥800 行的类：**11 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
 
-1. **阶段 2 其余域**：wiki / im / retrieval / auth controller / llm / mcp / embed / chatpipeline / knowledge(FaqImportService) **均已出榜**；
-   余量以 §14.3 实测为准——单类：modelcontext(SourceRegistry 878)、auth service(UserService 876)、
-   knowledge 例外 2 个、wiki-page 面 4 类；大体量：datasource / memory（单独立项）。
+1. **阶段 2 其余域**：wiki（含 page 面）/ im / retrieval / auth controller / llm / mcp / embed / chatpipeline / knowledge(FaqImportService) **均已出榜**；
+   余量以 §14.3 实测为准——大体量：`datasource`（3 类，最大 1,828）/ `memory`（3 类，1,216~1,662）；
+   单类：modelcontext(`SourceRegistry` 878)、auth service(`UserService` 876)、knowledge 例外 2 个；
+   另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
    chunker-preview 已完成（同批带前端）；**剩余域 wiki / agent / auth / memory / mcp 等**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
@@ -284,6 +287,9 @@ knowledge/
 
 ## 13. 落刀方法论（新 Agent 必读；全部是踩坑换来的）
 
+> **编号说明**：文中与提交信息里可见的 `§13.9`~`§13.28` 是 §13 改写前的历史条目编号
+> （判据已并入 13.1~13.7 与 §14.5）；本仓当前编号到 **13.8** 为止，新条目从 13.9 继续。
+
 ### 13.1 切片的先后动作（固定套路）
 
 1. **侦察**（只读，1~2 条命令）：成员清单与行区间 → **三类依赖扫描**（字段／方法／常量；字段要含 `@Autowired`）→
@@ -337,6 +343,23 @@ knowledge/
 - 找不到 import 时，先怀疑"它是嵌套类型"（`grep "class X\b"` 直接搜声明）。
 - 差 1~2 行的异常先别慌：**先解释异常再动刀**（本次两次"异常"分别是空白折叠与扫描顺序假象）。
 
+### 13.8 切片产物的排版与源码卫生（2026-10-01 wiki page 面批次，3 条）
+
+1. **切片产物"每行后跟一个空行"的排版 artifact**（wiki/session 两批共 14 文件、空白行占比
+   55%~78%，仓库中位数 13%）：文件被撑大一倍以上，`wc -l` 榜单随之失真——`WikiPageFolderSupport`
+   表面 822 行、实际 383 行；`SessionQaResolution` 707→184。**落刀写盘一律单空行**；发现后
+   用 `scripts/normalize-blank-lines.py` 折叠（只删空行 + "非空行逐一相同"断言；口径：>100 行且
+   空白率 >30%）。**推广**：任何 `wc -l`/行数榜单先看空白率，别把排版当规模。
+2. **源码里的裸 NUL 字节**：字符串字面量内嵌真实 NUL（`"...\x00..."`）会让 **git 把文件当二进制**
+   （`Bin 5600 -> 5443 bytes`，`git grep` 只回 "Binary file matches"）→ diff/blame 全不可读。
+   写成转义 `"\0"`（值不变）即可恢复文本。**判据**：`file <f>` 报 `data` / diff 报 `Bin` 就是它。
+3. **死方法的判别不能信 javadoc 自述**：`assertNoFolderConflict` 的 javadoc 写着"供 service 在
+   创建前显式判定冲突时抛错"，但全仓 `git grep` 0 调用方（service 侧真正用的是 `folderNameExists`）
+   ——属未接线遗留，删。**删前两种写法都扫**：`<name>(` 与 `.<name>(`（含 `Type.name(`）。
+   另一条连带经验：拆仓储时若某方法与目标聚合共用 mapper（`listDistinctCategoryPaths` 走
+   `WikiFolderMapper`），**按数据归属判**（它是文件夹路径查询）→ 随该聚合走，别为了让新仓储
+   少背一个 mapper 而留下它。
+
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
 > **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
@@ -372,14 +395,14 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **15 个**；chatpipeline 批后 16→15）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **11 个**；wiki page 面批后 15→11）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | `DataSourceService` 1,828 · `FeishuClient` 1,154 · `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
-| wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
+| wiki | **已清零**（`WikiPageController`/`WikiIngestService` §14.7.2；page 面 4 类 §14.7.14：1,008→732 / 858→708 / 851→468 / 822→383，最大类 `WikiIngestCitePipeline` 760） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
 | 其余单类 | `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
 | chatpipeline | **已清零**（PluginMerge 1,155→670 C1 + PluginSearch 899→278 P1-P3，§14.7.13） |
@@ -935,7 +958,7 @@ chatpipeline 域测试 45 条 / 全量 4,668 条 0 失败（clean 全量 + spotl
 **目标类（§14.3 实测）**：`WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851
 ——原列第 4 个 `WikiPageFolderSupport`（822）**已由卫生刀 w0 出榜**（折叠后 383 行，见下）。
 
-**刀 0 侦察的新发现（已写进 §13.29 的教训）**：wiki/session 两批切片脚本产出的 **14 个协作者文件被写成
+**刀 0 侦察的新发现（已写进 §13.8 的教训）**：wiki/session 两批切片脚本产出的 **14 个协作者文件被写成
 "每行后跟一个空行"**（空白行占比 55%~78%，仓库中位数 13%）——文件被撑大一倍以上，`wc -l` 榜单随之失真
 （`WikiPageFolderSupport` 表面 822 行、实际 383 行；`SessionQaResolution` 707→184）。处置：
 - **w0a** `scripts/normalize-blank-lines.py`（入库脚本，只删空行 + "非空行逐一相同"断言）：14 文件 7,346→2,821 行（`d1f8180`）；
@@ -971,12 +994,27 @@ chatpipeline 域测试 45 条 / 全量 4,668 条 0 失败（clean 全量 + spotl
 **闸门口径**：每刀 = `--rerun-tasks` 重编 + `--tests "com.ragagent.wiki.*"` + spotlessCheck + 忠实性逐字比对；
 收官 = clean 全量 + 环守卫（`scripts/check-package-cycles.py`）+ §14.3/§7.2 刷新（本批不动前端契约）。
 
-**落刀记录（2026-10-01）**
+**落刀记录（2026-10-01 执行完毕，7 刀全绿；边界判定见上）**
 
-| 刀 | 内容 | 提交 |
-|---|---|---|
-| w0a | 空行折叠（14 文件，7,346→2,821 行） | `d1f8180` |
-| w0b | 裸 NUL → `"\0"`（WikiPageLinkRepair） | `8be19c3` |
+| 刀 | 协作者 / 内容 | 结果 | 提交 |
+|---|---|---|---|
+| w0a | 空行折叠（14 文件：wiki 7 + session 7） | 7,346→2,821 行；`WikiPageFolderSupport` 出榜 | `d1f8180` |
+| w0b | 裸 NUL → `"\0"`（WikiPageLinkRepair，git 视其为二进制） | diff 恢复可读 | `8be19c3` |
+| w1 | `WikiPageRevisionOps`（修订 + 问题簇，166 行） | 1,009→923 | `e415d13` |
+| w2 | `WikiPageLinkOps`（链接维护 + 链接文本工具，249 行） | 922→734（出榜） | `afc7716` |
+| w3b | `detectPostgres` 收敛 `DatabaseDialects`（死 logger 一并清） | 858→846 | `a61b34e` |
+| w3 | `WikiFolderRepository`（文件夹树 + 目录路径段，152 行；删死方法 `assertNoFolderConflict`） | 846→708（出榜） | `c49dd6a` |
+| w4 | `WikiIdentityDedup`（纯算法簇，405 行；**解除 §14.5 例外**） | 852→468（新类 405） | `fcfebfc` |
+| w5 | 收尾卫生：Go 锚点 5 处清零（§14.4 口径）+ 死 logger 2 处 | wiki 域 Go 锚点 0 | `80e9385` |
+
+**结果**：四个目标类全部出榜——`WikiPageServiceImpl` 1,008→**732**、`WikiPageRepository` 858→**708**、
+`WikiIngestDedupService` 851→**468**（例外解除）、`WikiPageFolderSupport` 822→**383**（空行折叠）；
+**wiki 域 ≥800 清零**（最大类 `WikiIngestCitePipeline` 760）；全仓 ≥800 类 15→**11**。
+验证：每刀 `--rerun-tasks` 重编 + wiki 域 542 条 + spotlessCheck + 忠实性逐字比对（w1 9/9、w2 11/11、
+w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck`（4,645 条 + 2 条环境依赖
+用例失败——`GrepChunksRecordingTest`/`DatabaseQueryRecordingTest` 需本地 PG 15432，与改动无关，
+改动前基线即如此）+ 环守卫通过（环 0 组）。
+**本批新增坑位**：见 §13.8（切片产物"每行后跟空行"的排版 artifact / 裸 NUL 字节 / 死方法判别）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
