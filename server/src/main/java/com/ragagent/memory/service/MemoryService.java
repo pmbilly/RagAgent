@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,7 +65,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class MemoryService {
 
-    private static final Logger log = LoggerFactory.getLogger(MemoryService.class);
+    static final Logger log = LoggerFactory.getLogger(MemoryService.class);
 
     /**
      * 一条被拒绝的消息在这段时间内继续阻止重新推导
@@ -87,15 +86,21 @@ public class MemoryService {
      * 未知字段而 Jackson 默认失败（§7.5 第 6 条）——配置里多一个键就让记忆整体失效
      * 是这里最不该发生的事。</p>
      */
-    private static final ObjectMapper CONFIG_MAPPER = JsonMappers.lenient()
+    static final ObjectMapper CONFIG_MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    private final MemoryRepository repo;
-    private final TenantService tenantService;
-    private final MemoryVectorService vectorService;
-    private final MemoryRecallSelector recallSelector;
-    private final MemoryTopicResolver topicResolver;
-    private final MemoryModelResolver modelResolver;
+    final MemoryRepository repo;
+    final TenantService tenantService;
+    final MemoryVectorService vectorService;
+    final MemoryRecallSelector recallSelector;
+    final MemoryTopicResolver topicResolver;
+    final MemoryModelResolver modelResolver;
+
+    /** 目录管理协作者（构造期装配）。 */
+    final MemoryCatalogOps catalogOps;
+
+    /** 检索/亲和协作者（构造期装配）。 */
+    final MemoryInsightOps insightOps;
 
     public MemoryService(MemoryRepository repo,
                          TenantService tenantService,
@@ -104,11 +109,165 @@ public class MemoryService {
                          MemoryTopicResolver topicResolver,
                          MemoryModelResolver modelResolver) {
         this.repo = repo;
+        this.catalogOps = new MemoryCatalogOps(this);
+        this.insightOps = new MemoryInsightOps(this);
         this.tenantService = tenantService;
         this.vectorService = vectorService;
         this.recallSelector = recallSelector;
         this.topicResolver = topicResolver;
         this.modelResolver = modelResolver;
+    }
+
+    /** 实现随协作者。 */
+    boolean topicWasForgotten(MemoryScope scope, String... labels) {
+        return catalogOps.topicWasForgotten(scope, labels);
+    }
+
+    /** 实现随协作者。 */
+    void tombstoneTopic(MemoryScope scope, MemoryTopicStat stat) {
+        catalogOps.tombstoneTopic(scope, stat);
+    }
+
+    /** 实现随协作者。 */
+    List<String> observeTopics(MemoryScope scope, MemoryConfig cfg, String modelId, List<String> topics, MemoryRunBudget budget) {
+        return insightOps.observeTopics(scope, cfg, modelId, topics, budget);
+    }
+
+    /** 实现随协作者。 */
+    void tombstoneEverything(MemoryScope scope) {
+        catalogOps.tombstoneEverything(scope);
+    }
+
+    /** 实现随协作者。 */
+    void renameInterestItem(MemoryScope scope, String oldLabel, String newLabel) {
+        catalogOps.renameInterestItem(scope, oldLabel, newLabel);
+    }
+
+    /** 实现随协作者。 */
+    int topicAliasCount(MemoryScope scope, String key) {
+        return catalogOps.topicAliasCount(scope, key);
+    }
+
+    /** 实现随协作者。 */
+    void invalidateInterestEmbedding(MemoryScope scope, String topic) {
+        catalogOps.invalidateInterestEmbedding(scope, topic);
+    }
+
+    /** 实现随协作者。 */
+    String[] renameTopic(MemoryScope scope, MemoryTopicStat stat, String newLabel, String currentKey) {
+        return catalogOps.renameTopic(scope, stat, newLabel, currentKey);
+    }
+
+    /** 实现随协作者。 */
+    MemoryTopicStat unpromotedTopic(MemoryScope scope, String id) {
+        return catalogOps.unpromotedTopic(scope, id);
+    }
+
+    /** 实现随协作者。 */
+    List<String> topDocumentTitles(MemoryScope scope) {
+        return insightOps.topDocumentTitles(scope);
+    }
+
+    // ── 记忆管理器/检索侧：实现随协作者（MemoryCatalogOps / MemoryInsightOps） ──
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemoryPage<MemoryItem> listItems(String status, int limit, int offset) {
+        return catalogOps.listItems(status, limit, offset);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemoryPage<MemoryTopicView> listTopics(int limit, int offset) {
+        return catalogOps.listTopics(limit, offset);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemoryItem promoteTopic(String id) {
+        return catalogOps.promoteTopic(id);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public void deleteTopic(String id) {
+        catalogOps.deleteTopic(id);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemoryPage<MemoryDocView> listDocuments(int limit, int offset) {
+        return catalogOps.listDocuments(limit, offset);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public void deleteDocument(String id) {
+        catalogOps.deleteDocument(id);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public List<String> familiarKnowledgeIds() {
+        return catalogOps.familiarKnowledgeIds();
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemoryItem createItem(String kind, String content, int importance) {
+        return catalogOps.createItem(kind, content, importance);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemoryItem updateItem(String id, String content, int importance) {
+        return catalogOps.updateItem(id, content, importance);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public void deleteItem(String id) {
+        catalogOps.deleteItem(id);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public long clear() {
+        return catalogOps.clear();
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemorySettings getSettings() {
+        return catalogOps.getSettings();
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public void setEnabled(boolean enabled) {
+        catalogOps.setEnabled(enabled);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public MemoryItem confirmItem(String id) {
+        return catalogOps.confirmItem(id);
+    }
+
+    /** 实现随协作者 {@link MemoryCatalogOps}。 */
+        public void rejectItem(String id) {
+        catalogOps.rejectItem(id);
+    }
+
+    /** 实现随协作者 {@link MemoryInsightOps}。 */
+        public MemoryRetrievalContext retrievalContextFor() {
+        return insightOps.retrievalContextFor();
+    }
+
+    /** 实现随协作者 {@link MemoryInsightOps}。 */
+        public Map<String, Integer> documentAffinity(List<String> knowledgeIds) {
+        return insightOps.documentAffinity(knowledgeIds);
+    }
+
+    /** 实现随协作者 {@link MemoryInsightOps}。 */
+        public void recordAnswerSources(List<MemoryDocAffinity> refs) {
+        insightOps.recordAnswerSources(refs);
+    }
+
+    /** 实现随协作者 {@link MemoryInsightOps}。 */
+        public List<String> observeQuestionTopics(List<String> topics) {
+        return insightOps.observeQuestionTopics(topics);
+    }
+
+    /** 实现随协作者 {@link MemoryInsightOps}。 */
+        public MemorySearchResult searchMemory(String query, int limit) {
+        return insightOps.searchMemory(query, limit);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -715,870 +874,13 @@ public class MemoryService {
     // 记忆管理器（列表 / 主题 / 文档 / CRUD）
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code ListItems}：记忆管理器的条目列表。 */
-    public MemoryPage<MemoryItem> listItems(String status, int limit, int offset) {
-        MemoryScope scope = MemoryScopes.resolve();
-        return repo.listItems(scope, status, limit, offset);
-    }
-
-    /** 对照 Go {@code ListTopics}：已计数但还没被提升的主体的视图。 */
-    public MemoryPage<MemoryTopicView> listTopics(int limit, int offset) {
-        MemoryScope scope = MemoryScopes.resolve();
-        MemoryPage<MemoryTopicStat> page = repo.listUnpromotedTopics(scope, limit, offset);
-        int threshold = workspaceConfig(scope.tenantId()).effectiveInterestThreshold();
-        List<MemoryTopicView> views = new ArrayList<>(page.items().size());
-        for (MemoryTopicStat stat : page.items()) {
-            MemoryTopicView view = MemoryTopicView.fromStat(stat, threshold);
-            if (view != null) {
-                views.add(view);
-            }
-        }
-        return new MemoryPage<>(views, page.total());
-    }
-
-    /**
-     * 对照 Go {@code unpromotedTopic}：取一条还没被提升的主题，否则
-     * {@link MemoryScopeExceptions.ItemNotFound}。
-     *
-     * <p>"已经提升过"与"不存在"刻意回同一个错误——与 {@code ErrItemNotFound} 的
-     * 那条注释同一个理由。</p>
-     */
-    private MemoryTopicStat unpromotedTopic(MemoryScope scope, String id) {
-        MemoryTopicStat stat = repo.topicById(scope, id);
-        if (stat == null || stat.getPromotedAt() != null) {
-            throw new MemoryScopeExceptions.ItemNotFound();
-        }
-        return stat;
-    }
-
-    /** 对照 Go {@code PromoteTopic}：把一个被计数的主体立刻变成兴趣，不再等剩余命中数。 */
-    public MemoryItem promoteTopic(String id) {
-        ScopeState state = enabledScope();
-        if (!state.ok()) {
-            throw new MemoryScopeExceptions.Disabled();
-        }
-        MemoryTopicStat stat = unpromotedTopic(state.scope(), id);
-        MemoryItem item = new MemoryItem();
-        item.setKind(MemoryKinds.KIND_INTEREST);
-        item.setTopic(stat.getTopic());
-        item.setContent(stat.getTopic());
-        item.setImportance(3);
-        item.setOrigin(MemoryKinds.ORIGIN_MANUAL);
-        MemoryItem created = write(state.scope(), state.cfg(), item);
-        try {
-            repo.markTopicPromoted(state.scope(), stat.getNormalizedKey());
-        } catch (RuntimeException e) {
-            log.warn("memory: mark topic promoted failed: {}", e.toString());
-        }
-        return created;
-    }
-
-    /**
-     * 对照 Go {@code DeleteTopic}：停止跟踪一个主体，并记住这次拒绝，
-     * 免得自动提升又把这个标签带回来。
-     */
-    public void deleteTopic(String id) {
-        MemoryScope scope = MemoryScopes.resolve();
-        MemoryTopicStat stat = unpromotedTopic(scope, id);
-        tombstoneTopic(scope, stat);
-        repo.deleteTopic(scope, id);
-    }
-
-    /** 对照 Go {@code ListDocuments}：当作习惯被引用过足够多次的文档。 */
-    public MemoryPage<MemoryDocView> listDocuments(int limit, int offset) {
-        MemoryScope scope = MemoryScopes.resolve();
-        MemoryPage<MemoryDocAffinity> page = repo.listFamiliarDocs(
-                scope, MemoryConfig.MEMORY_DOC_AFFINITY_MIN_HITS, limit, offset);
-        List<MemoryDocView> views = new ArrayList<>(page.items().size());
-        for (MemoryDocAffinity row : page.items()) {
-            MemoryDocView view = MemoryDocView.fromAffinity(row);
-            if (view != null) {
-                views.add(view);
-            }
-        }
-        return new MemoryPage<>(views, page.total());
-    }
-
-    /** 对照 Go {@code DeleteDocument}：不再把某个文档当个人检索信号。 */
-    public void deleteDocument(String id) {
-        MemoryScope scope = MemoryScopes.resolve();
-        if (repo.docAffinityById(scope, id) == null) {
-            throw new MemoryScopeExceptions.ItemNotFound();
-        }
-        repo.deleteDocAffinity(scope, id);
-    }
-
-    /**
-     * 对照 Go {@code FamiliarKnowledgeIDs}：这个人反复引用的文档 id。
-     *
-     * <p>任何失败都回空，好让调用方无条件使用它。</p>
-     */
-    public List<String> familiarKnowledgeIds() {
-        MemoryScope scope;
-        try {
-            scope = MemoryScopes.resolve();
-        } catch (MemoryScopeExceptions.NoScope e) {
-            return null;
-        }
-        List<MemoryDocAffinity> rows;
-        try {
-            rows = repo.topDocAffinity(scope, 200);
-        } catch (RuntimeException e) {
-            log.warn("memory: load familiar documents failed: {}", e.toString());
-            return null;
-        }
-        if (rows == null) {
-            return null;
-        }
-        List<String> ids = new ArrayList<>(rows.size());
-        for (MemoryDocAffinity row : rows) {
-            if (row == null || row.getKnowledgeId().isEmpty()
-                    || row.getHits() < MemoryConfig.MEMORY_DOC_AFFINITY_MIN_HITS) {
-                continue;
-            }
-            ids.add(row.getKnowledgeId());
-        }
-        return ids;
-    }
-
-    /**
-     * 对照 Go {@code topicWasForgotten}：这个主题（或它的任一个别名）被刻意忘掉过吗。
-     *
-     * <p>查墓碑失败时**继续**（Go 的 {@code continue}），而不是当成"没忘过"就返回——
-     * 它只是跳过那一个标签。</p>
-     */
-    boolean topicWasForgotten(MemoryScope scope, String... labels) {
-        Set<String> seen = new LinkedHashSet<>();
-        for (String label : labels) {
-            String fingerprint = MemoryText.fingerprint(MemoryText.sanitizeMemoryContent(label));
-            if (fingerprint.isEmpty()) {
-                continue;
-            }
-            if (!seen.add(fingerprint)) {
-                continue;
-            }
-            boolean forgotten;
-            try {
-                forgotten = repo.hasTombstone(scope, fingerprint);
-            } catch (RuntimeException e) {
-                log.warn("memory: check forgotten topic failed: {}", e.toString());
-                continue;
-            }
-            if (forgotten) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** 对照 Go {@code tombstoneTopic}：把一条主题连同它的全部别名记成"被拒绝"。 */
-    void tombstoneTopic(MemoryScope scope, MemoryTopicStat stat) {
-        if (stat == null) {
-            return;
-        }
-        List<String> labels = new ArrayList<>();
-        if (!stat.getTopic().isEmpty()) {
-            labels.add(stat.getTopic());
-        }
-        if (stat.getAliases() != null) {
-            labels.addAll(stat.getAliases());
-        }
-        Set<String> seen = new LinkedHashSet<>();
-        for (String label : labels) {
-            String content = MemoryText.sanitizeMemoryContent(label);
-            String fingerprint = MemoryText.fingerprint(content);
-            if (fingerprint.isEmpty()) {
-                continue;
-            }
-            if (!seen.add(fingerprint)) {
-                continue;
-            }
-            try {
-                repo.addTombstone(scope, stat.getTopic(), fingerprint, "");
-            } catch (RuntimeException e) {
-                log.warn("memory: record topic tombstone failed: {}", e.toString());
-            }
-        }
-    }
-
-    /**
-     * 对照 Go {@code CreateItem}：加一条用户自己敲进来的记忆。
-     *
-     * <p>它走与其它一切相同的写路径，所以一条手写的记忆可以**取代**同主题上
-     * 抽取出来的一条，而不是并排躺着。</p>
-     */
-    public MemoryItem createItem(String kind, String content, int importance) {
-        ScopeState state = enabledScope();
-        if (!state.ok()) {
-            throw new MemoryScopeExceptions.Disabled();
-        }
-        if (!MemoryKinds.isValid(kind)) {
-            kind = MemoryKinds.KIND_FACT;
-        }
-        if (importance <= 0) {
-            importance = 3;
-        }
-        MemoryItem item = new MemoryItem();
-        item.setKind(kind);
-        item.setContent(content);
-        item.setImportance(importance);
-        item.setOrigin(MemoryKinds.ORIGIN_MANUAL);
-        return write(state.scope(), state.cfg(), item);
-    }
-
-    /**
-     * 对照 Go {@code UpdateItem}：从记忆管理器里编辑一条。
-     * 被编辑过的条目会变成 manual，这样之后的抽取不会悄悄撤销用户的更正。
-     */
-    public MemoryItem updateItem(String id, String content, int importance) {
-        MemoryScope scope = MemoryScopes.resolve();
-        MemoryItem existing = repo.getItem(scope, id);
-        if (existing == null) {
-            throw new MemoryScopeExceptions.ItemNotFound();
-        }
-        String sanitized = MemoryText.sanitizeMemoryContent(content);
-        if (sanitized.isEmpty()) {
-            throw new MemoryScopeExceptions.EmptyContent();
-        }
-        MemoryText.Redaction redaction = MemoryText.redactSensitive(sanitized);
-        if (redaction.changed()) {
-            if (MemoryText.isMostlyRedacted(redaction.content())) {
-                throw new MemoryScopeExceptions.SensitiveContent();
-            }
-            sanitized = MemoryText.sanitizeMemoryContent(redaction.content());
-        }
-        // 保留原来的主题：用户在更正陈述，不是把它重新归到另一个主题下，
-        // 而复用主题正是让这条更正能够取代未来某次抽取的原因。
-        String normalizedKey = MemoryKeys.itemKey(existing.getTopic(), sanitized);
-        int clamped = MemoryText.clampImportance(importance);
-        repo.updateItemContent(scope, id, sanitized, normalizedKey, clamped);
-        rebuildBlock(scope);
-        MemoryItem updated = repo.getItem(scope, id);
-        vectorService.storeItemEmbedding(scope, workspaceConfig(scope.tenantId()), updated);
-        return updated;
-    }
-
-    /**
-     * 对照 Go {@code DeleteItem}：永久忘掉一条记忆。
-     */
-    public void deleteItem(String id) {
-        MemoryScope scope = MemoryScopes.resolve();
-        MemoryItem existing = repo.getItem(scope, id);
-        if (existing == null) {
-            throw new MemoryScopeExceptions.ItemNotFound();
-        }
-        // 在删行之前先记下这次拒绝。删掉一条蒸馏马上要从同一条消息重新推导出来的记忆，
-        // 正是用户"同一个东西删两次然后不再信任这个功能"的来路。
-        try {
-            repo.addTombstone(scope, existing.getTopic(),
-                    MemoryText.fingerprint(existing.getContent()), existing.getSourceMessageId());
-        } catch (RuntimeException e) {
-            log.warn("memory: record tombstone failed: {}", e.toString());
-        }
-        repo.deleteItem(scope, id);
-        rebuildBlock(scope);
-    }
-
-    /** 对照 Go {@code Clear}：忘掉调用者记忆空间里的一切。 */
-    public long clear() {
-        MemoryScope scope = MemoryScopes.resolve();
-        // 清空是对当前存着的一切的拒绝，所以它留下的墓碑与逐条删除一样。
-        tombstoneEverything(scope);
-        long removed = repo.deleteAll(scope);
-        repo.deleteAllTopics(scope);
-        repo.deleteAllDocAffinity(scope);
-        rebuildBlock(scope);
-        return removed;
-    }
-
-    /**
-     * 对照 Go {@code tombstoneEverything}：为清空删掉的每一条记忆记一次拒绝。
-     *
-     * <p>一个主体最多保留 {@code MaxMemoryTombstones} 条拒绝，而存储能持有的行远多于此：
-     * {@code max_items} 只管活跃记忆，被取代与被归档的行可以无上限堆积。所以读一页平铺的
-     * 列表会把整个预算花在"恰好最新的那些"上，一条活着的记忆可能一条墓碑都没有，
-     * 于是又可以自由地被重新推导出来。</p>
-     *
-     * <p>按状态逐个走，是把预算花在**能改变行为**的地方：用户还在被服务的，
-     * 然后是在等他决定的，最后是其余。总数封顶，好让这次调用不会把自己更早、
-     * 更重要的那些行挤掉。</p>
-     */
-    private void tombstoneEverything(MemoryScope scope) {
-        int budget = MemoryKinds.MAX_TOMBSTONES;
-        for (String status : List.of(MemoryKinds.STATUS_ACTIVE, MemoryKinds.STATUS_PENDING,
-                MemoryKinds.STATUS_ARCHIVED, MemoryKinds.STATUS_SUPERSEDED)) {
-            if (budget <= 0) {
-                return;
-            }
-            MemoryPage<MemoryItem> page;
-            try {
-                page = repo.listItems(scope, status, budget, 0);
-            } catch (RuntimeException e) {
-                log.warn("memory: list {} items during clear failed: {}", status, e.toString());
-                continue;
-            }
-            for (MemoryItem item : page.items()) {
-                if (item == null) {
-                    continue;
-                }
-                try {
-                    repo.addTombstone(scope, item.getTopic(), MemoryText.fingerprint(item.getContent()),
-                            item.getSourceMessageId());
-                } catch (RuntimeException e) {
-                    log.warn("memory: record tombstone during clear failed: {}", e.toString());
-                }
-                budget--;
-            }
-        }
-    }
-
-    /** 对照 Go {@code GetSettings}：设置界面渲染的那个合并视图。 */
-    public MemorySettings getSettings() {
-        MemoryScope scope = MemoryScopes.resolve();
-        MemoryConfig cfg = workspaceConfig(scope.tenantId());
-        MemorySettings settings = new MemorySettings();
-        settings.setWorkspaceEnabled(cfg.memoryEnabled());
-        settings.setUserEnabled(true);
-        settings.setWriteMode(cfg.getWriteMode());
-        settings.setMaxItems(cfg.effectiveMaxItems());
-        if (settings.getWriteMode().isEmpty()) {
-            settings.setWriteMode(MemoryConfig.WRITE_MODE_EXPLICIT_ONLY);
-        }
-        MemorySubject subject = repo.getSubject(scope);
-        if (subject != null) {
-            settings.setUserEnabled(subject.isEnabled());
-            settings.setItemCount(subject.getItemCount());
-        }
-        try {
-            settings.setItemCount((int) repo.countActive(scope));
-        } catch (RuntimeException e) {
-            // Go 只在 err == nil 时覆盖；失败时保留主体上的那一份。
-        }
-        settings.setEffective(settings.isWorkspaceEnabled() && settings.isUserEnabled());
-        return settings;
-    }
-
-    /** 对照 Go {@code SetEnabled}：翻转调用者自己的退出开关。 */
-    public void setEnabled(boolean enabled) {
-        MemoryScope scope = MemoryScopes.resolve();
-        repo.updateSubjectEnabled(scope, enabled);
-    }
-
-    /** 对照 Go {@code ConfirmItem}：接受系统推断出来的东西，让它开始被使用。 */
-    public MemoryItem confirmItem(String id) {
-        MemoryScope scope = MemoryScopes.resolve();
-        MemoryItem existing = repo.getItem(scope, id);
-        if (existing == null) {
-            throw new MemoryScopeExceptions.ItemNotFound();
-        }
-        repo.confirmPendingItem(scope, id);
-        enforceCapacity(scope, workspaceConfig(scope.tenantId()));
-        rebuildBlock(scope);
-        return repo.getItem(scope, id);
-    }
-
-    /**
-     * 对照 Go {@code RejectItem}：拒绝一条推断。
-     *
-     * <p>它删掉而不是归档，这样墓碑就能阻止同一个猜测下周再被提出来。</p>
-     */
-    public void rejectItem(String id) {
-        deleteItem(id);
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
     // 检索条件化
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * 对照 Go {@code RetrievalContextFor}：返回记忆对**检索**的贡献。
-     *
-     * <p>与 {@code Recall} 一样，它不做模型调用：两次带索引的读加上字符串拼装，
-     * 因为它跑在每一个检索回合的第一个 token 之前。</p>
-     */
-    public MemoryRetrievalContext retrievalContextFor() {
-        MemoryTrace.Span condSpan = MemoryTrace.start("memory.retrieval_context", null);
-        ScopeState state = enabledScope();
-        if (!state.ok() || !state.cfg().retrievalConditioningEnabled()) {
-            String reason;
-            if (!state.ok()) {
-                reason = scopeDisableReason();
-            } else if (!state.cfg().retrievalConditioningEnabled()) {
-                reason = "retrieval_conditioning_disabled";
-            } else {
-                reason = "disabled";
-            }
-            Map<String, Object> skipped = new LinkedHashMap<>();
-            skipped.put("outcome", "skipped");
-            skipped.put("reason", reason);
-            condSpan.finish(skipped, null, null);
-            return MemoryRetrievalContext.EMPTY;
-        }
-        MemoryScope scope = state.scope();
-
-        List<MemoryItem> items;
-        try {
-            items = repo.listActiveByKinds(scope,
-                    List.of(MemoryKinds.KIND_PROFILE, MemoryKinds.KIND_INTEREST), 30);
-        } catch (RuntimeException e) {
-            log.warn("memory: load retrieval context failed: {}", e.toString());
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("outcome", "error");
-            error.put("error", e.toString());
-            condSpan.finish(error, null, e);
-            return MemoryRetrievalContext.EMPTY;
-        }
-
-        List<String> background = new ArrayList<>();
-        List<String> interests = new ArrayList<>();
-        List<MemoryItem> used = new ArrayList<>();
-        int budget = 0;
-        if (items != null) {
-            for (MemoryItem item : items) {
-                if (item == null) {
-                    continue;
-                }
-                String line = MemoryText.sanitizeMemoryContent(item.getContent());
-                if (line.isEmpty()) {
-                    continue;
-                }
-                int cost = MemoryKeys.runeLength(line) + 2;
-                if (budget + cost > RETRIEVAL_BACKGROUND_RUNE_BUDGET) {
-                    break;
-                }
-                budget += cost;
-                used.add(item);
-                if (MemoryKinds.KIND_INTEREST.equals(item.getKind())) {
-                    interests.add(line);
-                    continue;
-                }
-                background.add(line);
-            }
-        }
-
-        List<String> documents = topDocumentTitles(scope);
-
-        MemoryRetrievalContext retrievalCtx = new MemoryRetrievalContext(
-                String.join("；", background), interests, documents, used);
-        log.info("memory: retrieval context subject={} interests={} documents={} items={}",
-                scope.subjectId(), interests.size(), documents == null ? 0 : documents.size(),
-                used.size());
-        condSpan.finish(MemoryTrace.summarizeRetrievalContextOutput(
-                        retrievalCtx.background(), interests, documents, used),
-                Map.of("tenant_id", scope.tenantId()), null);
-        return retrievalCtx;
-    }
-
-    /**
-     * 对照 Go {@code topDocumentTitles}：把这个人答案通常取材自的词汇交给改写器。
-     * 用标题而不是 id，因为改写器的任务是产出更好的检索文本，不是寻址文档。
-     */
-    private List<String> topDocumentTitles(MemoryScope scope) {
-        List<MemoryDocAffinity> rows;
-        try {
-            rows = repo.topDocAffinity(scope, 5);
-        } catch (RuntimeException e) {
-            log.warn("memory: load document affinity failed: {}", e.toString());
-            return null;
-        }
-        if (rows == null) {
-            return null;
-        }
-        List<String> titles = new ArrayList<>(rows.size());
-        for (MemoryDocAffinity row : rows) {
-            if (row == null || row.getTitle().strip().isEmpty()) {
-                continue;
-            }
-            // 见过一次不算习惯。
-            if (row.getHits() < MemoryConfig.MEMORY_DOC_AFFINITY_MIN_HITS) {
-                continue;
-            }
-            titles.add(row.getTitle());
-        }
-        return titles;
-    }
-
-    /** 对照 Go {@code DocumentAffinity}：按这个人以前对它们的依赖给文档打分。 */
-    public Map<String, Integer> documentAffinity(List<String> knowledgeIds) {
-        ScopeState state = enabledScope();
-        if (!state.ok() || !state.cfg().retrievalConditioningEnabled()
-                || knowledgeIds == null || knowledgeIds.isEmpty()) {
-            return null;
-        }
-        try {
-            return repo.docAffinity(state.scope(), knowledgeIds);
-        } catch (RuntimeException e) {
-            log.warn("memory: read document affinity failed: {}", e.toString());
-            return null;
-        }
-    }
-
-    /**
-     * 对照 Go {@code RecordAnswerSources}：记下一个回答取材于哪些文档。
-     *
-     * <p>挂在回答上的引用是比显式点赞更弱的信号，但它是不问用户任何东西就能拿到的
-     * 唯一一个，而且正是它让重排器能够偏爱这个人反复回来的材料。</p>
-     */
-    public void recordAnswerSources(List<MemoryDocAffinity> refs) {
-        if (refs == null || refs.isEmpty()) {
-            return;
-        }
-        ScopeState state = enabledScope();
-        if (!state.ok() || !state.cfg().retrievalConditioningEnabled()) {
-            return;
-        }
-        try {
-            repo.ensureSubject(state.scope());
-        } catch (RuntimeException e) {
-            log.warn("memory: ensure subject for affinity failed: {}", e.toString());
-            return;
-        }
-        try {
-            repo.bumpDocAffinity(state.scope(), refs);
-        } catch (RuntimeException e) {
-            log.warn("memory: record answer sources failed: {}", e.toString());
-        }
-    }
-
-    /**
-     * 对照 Go {@code ObserveQuestionTopics}：统计一个人问过什么，
-     * 并在某个主体复现之后把它提升成记忆。返回本次提升出来的兴趣。
-     */
-    public List<String> observeQuestionTopics(List<String> topics) {
-        if (topics == null || topics.isEmpty()) {
-            return null;
-        }
-        ScopeState state = enabledScope();
-        if (!state.ok()) {
-            return null;
-        }
-        return observeTopics(state.scope(), state.cfg(),
-                extractionModelId(state.cfg(), MemoryExtractPayload.empty()), topics,
-                MemoryRunBudget.UNBOUNDED);
-    }
-
-    /**
-     * 对照 Go {@code observeTopics}：显式传 scope 的形态。
-     *
-     * <p>蒸馏跑在一个没有主体的后台 worker 上——它的 scope 来自任务负载——
-     * 所以蒸馏调用的任何东西都必须被**交给** scope，而不是从请求里重新推导。</p>
-     */
-    List<String> observeTopics(MemoryScope scope, MemoryConfig cfg, String modelId,
-                               List<String> topics, MemoryRunBudget budget) {
-        if (topics == null || topics.isEmpty() || cfg == null || !cfg.autoExtractEnabled()) {
-            return null;
-        }
-        try {
-            repo.ensureSubject(scope);
-        } catch (RuntimeException e) {
-            log.warn("memory: ensure subject for topics failed: {}", e.toString());
-            return null;
-        }
-
-        // 先把标签洗干净，再把它们对着这个人已经有的主体解析。统计原始字符串
-        // 正是让这个功能悄悄失效的原因：模型每次给同一个主体起不同的名字，
-        // 于是每次出现都落在自己的 key 下，没有任何主题会复现。
-        List<String> surfaces = new ArrayList<>(topics.size());
-        for (String topic : topics) {
-            String cleaned = MemoryText.sanitizeMemoryTopic(topic);
-            if (!cleaned.isEmpty()) {
-                surfaces.add(cleaned);
-            }
-        }
-        if (surfaces.isEmpty()) {
-            return null;
-        }
-        List<MemoryTopicResolver.Resolution> resolutions =
-                topicResolver.resolveTopics(scope, modelId, surfaces, budget);
-
-        int threshold = cfg.effectiveInterestThreshold();
-        List<String> promoted = new ArrayList<>();
-        for (MemoryTopicResolver.Resolution resolution : resolutions) {
-            // 存下来的标签保持这个主体**第一次**被记下时的那个，这样一个人的主题列表
-            // 不会每次模型换个说法就翻搅一遍。新的措辞留作别名。
-            String canonicalTopic = resolution.surface();
-            if (resolution.canonical() != null) {
-                canonicalTopic = resolution.canonical().getTopic();
-            }
-            String key = MemoryKeys.normalizeTopicKey(canonicalTopic);
-            if (key.isEmpty()) {
-                continue;
-            }
-            if (topicWasForgotten(scope, canonicalTopic, resolution.surface())) {
-                continue;
-            }
-            int aliasesBefore = topicAliasCount(scope, key);
-            MemoryTopicStat stat;
-            try {
-                stat = repo.bumpTopic(scope, canonicalTopic, key, resolution.surface());
-            } catch (RuntimeException e) {
-                log.warn("memory: count topic {} failed: {}", canonicalTopic, e.toString());
-                continue;
-            }
-            if (stat == null) {
-                log.warn("memory: topic {} produced no row", canonicalTopic);
-                continue;
-            }
-            // 没有这一行，从外面就无从判断一个主题到底有没有被计数、被折进了哪个主体、
-            // 是哪一层判定的——而"hits 永远是 1"和"什么都没跑"看起来一模一样。
-            log.info("memory: topic {} -> {} (tier={}, hits={}, threshold={})",
-                    resolution.surface(), canonicalTopic, resolution.tierOrNew(), stat.getHits(),
-                    threshold);
-            if (MemoryKeys.topicLooksLikeOneQuestion(canonicalTopic)) {
-                log.warn("memory: topic {} names one question rather than a subject, so it will never "
-                        + "recur and can never reach the threshold", canonicalTopic);
-            }
-            // 新的措辞改变了这个主体的兴趣应当嵌入成什么，而向量是在提升那一刻写的一次。
-            // 丢掉它，让维护补扫带上新措辞重建。
-            if (stat.getAliases() != null && stat.getAliases().size() > aliasesBefore) {
-                invalidateInterestEmbedding(scope, canonicalTopic);
-            }
-            if (resolution.mergedLabel() != null && !resolution.mergedLabel().isEmpty()) {
-                String[] renamed = renameTopic(scope, stat, resolution.mergedLabel(), key);
-                canonicalTopic = renamed[0];
-                key = renamed[1];
-            }
-
-            if (stat.getPromotedAt() != null || stat.getHits() < threshold) {
-                continue;
-            }
-            MemoryItem interest = new MemoryItem();
-            interest.setKind(MemoryKinds.KIND_INTEREST);
-            interest.setTopic(canonicalTopic);
-            interest.setContent(canonicalTopic);
-            interest.setImportance(3);
-            interest.setOrigin(MemoryKinds.ORIGIN_EXTRACTED);
-            try {
-                write(scope, cfg, interest);
-            } catch (MemoryScopeExceptions.PreviouslyForgotten e) {
-                // 用户忘过一次的主题不该在之后每一个问题上重新自我提议。
-            } catch (MemoryScopeExceptions.SensitiveContent e) {
-                // 同上：不算失败。
-            } catch (RuntimeException e) {
-                log.warn("memory: promote interest failed: {}", e.toString());
-            }
-            try {
-                repo.markTopicPromoted(scope, key);
-            } catch (RuntimeException e) {
-                log.warn("memory: mark topic promoted failed: {}", e.toString());
-            }
-            promoted.add(canonicalTopic);
-        }
-        if (!promoted.isEmpty()) {
-            log.info("memory: promoted {} recurring topics into interests", promoted.size());
-        }
-        return promoted;
-    }
-
-    /**
-     * 对照 Go {@code renameTopic}：给一个主体采纳更好的标签，并让一切指向它的东西跟上。
-     *
-     * <p>一次合并留下的标签否则就只是"先到的那个措辞"，而那个标签不是装饰性的：
-     * 它被当作这个人的词汇喂给查询改写器，也展示给他看我们以为他在乎什么。</p>
-     *
-     * @return {@code [label, key]}——继续用下去的那两个值
-     */
-    private String[] renameTopic(MemoryScope scope, MemoryTopicStat stat, String newLabel, String currentKey) {
-        String newKey = MemoryKeys.normalizeTopicKey(newLabel);
-        boolean renamed;
-        try {
-            renamed = repo.renameTopic(scope, currentKey, newKey, newLabel);
-        } catch (RuntimeException e) {
-            log.warn("memory: rename topic {} failed: {}", stat.getTopic(), e.toString());
-            return new String[]{stat.getTopic(), currentKey};
-        }
-        if (!renamed) {
-            return new String[]{stat.getTopic(), currentKey};
-        }
-        log.info("memory: renamed topic {} to {}", stat.getTopic(), newLabel);
-        renameInterestItem(scope, stat.getTopic(), newLabel);
-        return new String[]{newLabel, newKey};
-    }
-
-    /**
-     * 对照 Go {@code renameInterestItem}：让提升出来的兴趣与它的主体保持同步。
-     *
-     * <p>它只碰"仍然一字不差地读作旧标签"的条目。别的都被用户编辑过，
-     * 悄悄覆盖别人自己的措辞比让两者稍微不同步更糟。</p>
-     */
-    private void renameInterestItem(MemoryScope scope, String oldLabel, String newLabel) {
-        List<MemoryItem> items;
-        try {
-            items = repo.listActiveByKinds(scope, List.of(MemoryKinds.KIND_INTEREST), 100);
-        } catch (RuntimeException e) {
-            log.warn("memory: load interests for rename failed: {}", e.toString());
-            return;
-        }
-        if (items == null) {
-            return;
-        }
-        for (MemoryItem item : items) {
-            if (item == null || !item.getContent().equals(oldLabel)) {
-                continue;
-            }
-            try {
-                repo.updateItemContent(scope, item.getId(), newLabel,
-                        MemoryKeys.itemKey(newLabel, newLabel), item.getImportance());
-            } catch (RuntimeException e) {
-                log.warn("memory: rename interest item failed: {}", e.toString());
-                continue;
-            }
-            // 向量里还拼着旧标签，所以语义召回会继续匹配一个这个主体已经不再用的名字。
-            try {
-                repo.deleteItemEmbedding(scope, item.getId());
-            } catch (RuntimeException e) {
-                log.warn("memory: drop renamed interest embedding failed: {}", e.toString());
-            }
-            rebuildBlock(scope);
-            return;
-        }
-    }
-
-    /** 对照 Go {@code topicAliasCount}：一个主体已经以多少种措辞被认识。 */
-    private int topicAliasCount(MemoryScope scope, String key) {
-        MemoryTopicStat stat;
-        try {
-            stat = repo.topicByKey(scope, key);
-        } catch (RuntimeException e) {
-            return 0;
-        }
-        if (stat == null || stat.getAliases() == null) {
-            return 0;
-        }
-        return stat.getAliases().size();
-    }
-
-    /**
-     * 对照 Go {@code invalidateInterestEmbedding}：丢掉从这个主体提升出来的那条兴趣的向量。
-     * 尽力而为：在一个维护周期里没有向量只损失一条记忆的语义召回，而这条记忆全程都还能
-     * 靠措辞被找到。
-     */
-    private void invalidateInterestEmbedding(MemoryScope scope, String topic) {
-        List<MemoryItem> items;
-        try {
-            items = repo.listActiveByKinds(scope, List.of(MemoryKinds.KIND_INTEREST), 100);
-        } catch (RuntimeException e) {
-            log.warn("memory: load interests for re-embedding failed: {}", e.toString());
-            return;
-        }
-        if (items == null) {
-            return;
-        }
-        for (MemoryItem item : items) {
-            if (item == null || !item.getContent().equals(topic)) {
-                continue;
-            }
-            try {
-                repo.deleteItemEmbedding(scope, item.getId());
-            } catch (RuntimeException e) {
-                log.warn("memory: drop interest embedding failed: {}", e.toString());
-            }
-            return;
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
     // 按需查找（search.go）
     // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * 对照 Go {@code SearchMemory}：把这个用户存下的记忆对着一个任意查询排序。
-     *
-     * <p>召回每轮跑一次、对着用户开场的那个问题，而且它放行什么被卡得很死：
-     * 五条情境条目，600 rune 预算。有两类东西落在外面——一个已经跑了十轮、
-     * 早就离开开场问题的 agent 循环，此时它在做的事与召回排序所依据的东西
-     * 一个词都不重合；以及一个有几十条已存事实的主体，其中大多数静静躺在切线下，
-     * 没有任何办法够到。两者都不是"把每轮预算开大"能修的，
-     * 因为那份预算是每一轮都要付的，包括那些一条都不需要的轮次。</p>
-     *
-     * <p>只有 active 的条目会被搜到。被取代与被归档的记忆刻意留在够不到的地方：
-     * 一条被更新的陈述取代掉的东西，正是取代机制存在的理由，
-     * 从侧门把它翻出来会让那套机制前功尽弃。</p>
-     */
-    public MemorySearchResult searchMemory(String query, int limit) {
-        String trimmed = query == null ? "" : query.strip();
-
-        MemoryTrace.Span searchSpan = MemoryTrace.start("memory.search", Map.of(
-                "query", MemoryTrace.truncateRunes(trimmed, MemoryRecallSelector.recallQueryPreviewRunes()),
-                "limit", limit));
-
-        ScopeState state = enabledScope();
-        if (!state.ok()) {
-            String reason = scopeDisableReason();
-            log.info("memory: search skipped ({})", reason);
-            Map<String, Object> disabled = new LinkedHashMap<>();
-            disabled.put("outcome", "disabled");
-            disabled.put("reason", reason);
-            searchSpan.finish(MemoryTrace.summarizeMemoryRecallOutput(disabled, null), null, null);
-            return MemorySearchResult.UNAVAILABLE;
-        }
-        MemoryScope scope = state.scope();
-        MemoryConfig cfg = state.cfg();
-
-        // 空查询走到这里，而不是在上面短路，是为了让"记忆关着"仍然赢过"你要了空的东西"：
-        // 调用方自己的参数就算写错了，也需要那个"不可用"的答案。
-        if (trimmed.isEmpty()) {
-            Map<String, Object> empty = new LinkedHashMap<>();
-            empty.put("outcome", "empty");
-            empty.put("reason", "blank_query");
-            searchSpan.finish(MemoryTrace.summarizeMemoryRecallOutput(empty, null), null, null);
-            return new MemorySearchResult(true, null);
-        }
-
-        int effectiveLimit = limit;
-        if (effectiveLimit <= 0) {
-            effectiveLimit = MemoryKinds.SEARCH_DEFAULT_ITEMS;
-        }
-        if (effectiveLimit > MemoryKinds.SEARCH_MAX_ITEMS) {
-            effectiveLimit = MemoryKinds.SEARCH_MAX_ITEMS;
-        }
-
-        List<MemoryItem> candidates;
-        try {
-            candidates = repo.listActiveByKinds(scope, MemoryKinds.ALL,
-                    MemoryRecallSelector.lexicalPoolSize(cfg));
-        } catch (RuntimeException e) {
-            log.warn("memory: load search candidates failed: {}", e.toString());
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("outcome", "error");
-            error.put("error", e.toString());
-            searchSpan.finish(MemoryTrace.summarizeMemoryRecallOutput(error, null), null, e);
-            return new MemorySearchResult(true, null);
-        }
-        if (candidates == null) {
-            candidates = List.of();
-        }
-
-        MemoryRecallSelector.Outcome outcome = recallSelector.selectRecallWithTrace(scope, cfg,
-                new MemoryRecallSelector.Selection(trimmed, candidates, MemoryKinds.ALL,
-                        null, effectiveLimit, MemoryKinds.SEARCH_RUNE_BUDGET));
-        List<MemoryItem> matched = outcome.matched();
-        MemoryRecallSelector.RankingTrace trace = outcome.trace();
-
-        // 被搜索到的记忆与注入的一样确凿地被模型读过，所以它算"用过"。没有这一步，
-        // 只有通过搜索够得到的条目会看起来永远没用过，在容量上限下次决定归档谁时排名最低。
-        touchAsync(scope, matched);
-
-        log.info("memory: search done subject={} candidates={} vector_hits={} outside_pool={} "
-                        + "matched={} mode={}",
-                scope.subjectId(), candidates.size(), trace.vectorHits, trace.vectorOutsidePool,
-                matched.size(), trace.mode);
-
-        Map<String, Object> okMeta = new LinkedHashMap<>();
-        okMeta.put("outcome", "ok");
-        okMeta.put("subject_id", scope.subjectId());
-        okMeta.put("candidate_count", candidates.size());
-        okMeta.put("lexical_hits", trace.lexicalHits);
-        okMeta.put("vector_hits", trace.vectorHits);
-        okMeta.put("vector_outside", trace.vectorOutsidePool);
-        okMeta.put("vector_skip", trace.vectorSkipReason);
-        okMeta.put("ranking_mode", trace.mode);
-        okMeta.put("matched_count", matched.size());
-        searchSpan.finish(MemoryTrace.summarizeMemoryRecallOutput(okMeta, matched),
-                Map.of("tenant_id", scope.tenantId()), null);
-
-        return new MemorySearchResult(true, matched);
-    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // 抽取模型的解析（extract.go 的 L800-853，供抽取/归并/话题三处共用）
