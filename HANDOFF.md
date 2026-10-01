@@ -26,7 +26,7 @@
    `SessionLastRequestState`/`MentionedItem` 换 camelCase + 恒输出，`is_pinned`→**`pinned`**）+
    控制器面（请求体标准 DTO、列表 `{items,page,pageSize,total}`、置顶 `{pinned}`、产物裸数组、
    生成标题 `{title}`、删除类与停止 **204**、查询参数 `pageSize`/`agentId`），两处 jsonb 迁移 SQL 已备
-   （dev 库 0 行需迁移）；**S2 消息面（含 embed 与 9 个 jsonb 列）/ S3 附件·建议·steer / S4 QA 请求面 DTO 均已完成（前后端同批）——session 域只剩 S5 收尾**；
+   （dev 库 0 行需迁移）；**session 域 S1~S5 全部完成（S2/S3/S4 前后端同批，S5 后端面）——`@JsonProperty` 188 → 0**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
    **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
 4. **下一步（候选，由用户排）**：① **memory M3（收尾）**——LLM 载荷边界登记（22 处，写进文档即可）+
@@ -208,9 +208,8 @@
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
-   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）+ S2（消息面）+ S3（附件·建议·steer）+ S4（QA 请求面 DTO，均前后端同批）** 已完成（同批带前端）；
-   **session 域只剩 S5 收尾**（`MessageExecutionContext` 13 处键名映射 + `SessionLastRequestState`），
-   以及 **wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
+   auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** 已完成（同批带前端）；
+   下一步候选：**wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -1965,7 +1964,7 @@ WHERE jsonb_typeof(execution_context->'suggestion_attribution') = 'object'
 | **S2 消息主资源（最高风险）✅ 前后端已交付** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/{chat-history.ts,chat/index.ts}`、`composables/{useChatStreamHandler,useEmbedChatSession}.ts`、`views/chat/index.vue`、`views/chat/components/*`、`views/embed/*`、`utils/{messageTimestamp,sessionArtifacts,sessionMarkdown,steerStreamFork,rag-pipeline-history,attachmentPreview,sandboxArtifactRefs,referenceSources,citationMarkdown}.ts`、`types/mention.ts`；夹具 `msg-*.json`、`emb-*.json` | 已完成 |
 | **S3 附件 / 建议 / steer / artifacts ✅ 前后端已交付** | `TemporaryDocument` / `MessageSuggestionSet` / `MessageSuggestionEvent` / `SuggestionItem` / `SuggestionAttribution` + 三个 controller 的请求面与手写响应 map + **四处落库 jsonb**（详见下方执行记录） | `domain/*`、`controller/{TemporaryDocumentController,MessageSuggestionController,SteerController}.java`、`service/{TemporaryDocumentProcessor,TemporaryDocumentService,TemporaryDocumentPromptResolver,SteerSinkBridge}.java`、`dto/QaRequests.java`（仅提及项元素）、`embed/controller/EmbedChannelController.java`（channel 关闭分支）；前端 `api/{message-suggestion.ts,chat/steer.ts,chat/temporary-attachments.ts,chat/streame.ts,embed/index.ts}`、`types/mention.ts`、`utils/steerStreamFork.ts`、`components/{Input-field.vue,AttachmentUpload.vue}`、`views/chat/index.vue`、`views/embed/EmbedChatCore.vue`、`composables/useEmbedChatSession.ts`；夹具 `att-*/sug-*/emb-pub-suggestions-*` | 已完成 |
 | **S4 请求面 DTO ✅ 前后端已交付** | `dto/QaRequests.java`（三入口共用：`/knowledge-chat`、`/agent-chat`、`/knowledge-search`）+ `GoJsonBindError` 的字段名映射 + embed 请求改写器（**错误文案不动**）；新增 2 个绑定守卫测试 | `dto/QaRequests.java`、`common/web/GoJsonBindError.java`、`embed/controller/EmbedChannelDelegateOps.java`（patch 键）；前端 `api/chat/{streame.ts,index.ts}`、`views/chat/index.vue` 发送段、`composables/useEmbedChatSession.ts`、`utils/chatRequestDebug.ts`、`views/integrations/ApiIntegrationSettings.vue`；新增 `QaRequestBindingTest` / `EmbedChatPayloadPatchTest`；SSE 体断言 `streame.test.ts` | 已完成 |
-| **S5 收尾** | `SessionLastRequestState`（agent_config 遗留载荷）+ `MessageExecutionContext`（13 处键名映射）+ 各 TypeHandler 挂载点 + 残留核对 | — | 收尾 |
+| **S5 收尾 ✅ 后端已交付（本批无前端改动）** | `MessageExecutionContext`（`execution_context` 落库面，11 处键名映射）+ 各 TypeHandler 挂载点核对 + 残留核对与边界登记；**session 域收官：`@JsonProperty` 188 → 0** | `domain/MessageExecutionContext.java`、`service/MessageSuggestionService.java`（tagScopes 双拼写读）、`session/MessageJsonContractTest.java`（新增键集契约） | 已完成 |
 
 **✅ S4（QA 请求面 DTO）执行记录（2026-10-01）——后端 + 前端同批**：
 - **换锚**：`QaRequests` 的 `CreateKnowledgeQARequest`（11 键）/ `SearchKnowledgeRequest`（4）/ `AttachmentUpload`
@@ -2005,6 +2004,58 @@ WHERE jsonb_typeof(execution_context->'suggestion_attribution') = 'object'
   agent-chat `agentEnabled` → 400 固定文案、knowledge-search → 1003）、**旧 snake 键失效 ×3**
   （两个 chat 端点 + search 落到「作用域为空」分支）、绑定文案 ×2（必填与字段级类型错误）、提及项元素 ×1。
 
+**✅ S5（session 域收尾）执行记录（2026-10-01）——后端 + 文档（无前端改动）**：
+- **`MessageExecutionContext` 换锚**（`messages.execution_context` 落库面）：11 个外层键去 `@JsonProperty`、
+  9 处 `@JsonInclude`（Go omitempty 直译）与 `@JsonPropertyOrder` 一并摘除 → 键名＝Java 字段名、
+  12 键恒输出；`@JsonIgnoreProperties(ignoreUnknown=true)` **保留**（历史行/已删键不能炸）。
+  三处**刻意保留**：`questionSuggestions` / `tagScopes` 的**内层**键属 agent 域配置（跨模块透传，
+  见类注释）、`locale` 本无映射。
+- 连带把 `MessageSuggestionService.tagScopes(ec)` 的读取改成**双拼写**（`knowledge_base_id`/`knowledgeBaseId`
+  与 `tag_ids`/`tagIds`）——写入方若改用 `QaSupport.TagScope` 的字段名也不会静默丢作用域。
+- **新增键集契约测试**（`MessageJsonContractTest.executionContextJsonbKeysMatchFieldNames`）：
+  12 键声明序 + 全空实例同样输出 12 键 + 三个旧下划线键不得出现 + 内层 snake 键保留。
+  这一列**不出响应**，没有任何 HTTP 夹具能守它——漏改只会让追问建议静默降级。
+- **TypeHandler 挂载点核对**（S5 指定动作）：真 PG 里 session 五表共 **18 个 jsonb 列**，
+  逐个核对到实体 `@TableField(typeHandler=…)` 或 mapper 方法级 `@Result`：**全部有处理器**；
+  两个例外是**刻意未映射的遗留列** `sessions.context_config` / `sessions.summary_parameters`
+  （列名保留、不进实体，也不该挂处理器）。
+- **残留核对（收官口径）**：session 域真实注解 `@JsonProperty` **0** / `@JsonInclude` **0** / `@JsonNaming` **0**；
+  代码里剩余的下划线字符串**全部**属三类冻结面——① SSE/事件载荷（`session_id`/`is_fallback`/`steer_id`/…）；
+  ② 工具与内部 agent 载荷（`tool_call_id`/`chunk_index`/`knowledge_base_ids`/…）；
+  ③ DB 列名与手写 SQL（`lease_until`/`updated_at`/…）；另有 `new_run`/`already_injected`/`user_requested`
+  是**取值**不是键名。
+- **登记一处移植缺口（S5 侦察发现，未实现）**：Java 侧**从不填充** `execution_context` 的 11 个字段
+  （全仓只有两处写入：`QaRequestParser` 的空骨架与 `QaTurnExecutor` 的 suggestionAttribution）——
+  于是读侧的 `questionSuggestions`（建议配置）、`langfuseTraceparent`（续接原对话 trace）、
+  `tagScopes`（标签作用域还原）、`regenerate` 闸门（`!enabled || !allowRegenerate` → 恒 400）在 Java 上
+  **全部落空**。这是 Go `buildMessageExecutionContext` 的移植缺口，属功能补齐切片（换锚批不补功能）。
+- 验收：全量 **4684 / 0 失败 / 6 跳过** + `spotlessCheck` 绿；**本批无前端改动**
+  （`stores/settings.ts` 的 `SessionLastRequestStatePayload` 在 S1 已同批对齐；`executionContext` 不出响应）。
+  **session 域收官**：S1（会话主资源）→ S2（消息面）→ S3（附件·建议·steer）→ S4（QA 请求面）→ S5（收尾）全部交付，
+  `@JsonProperty` **188 → 0**。
+
+**S5 存量迁移 SQL（真 PG；dev 库 `messages` 为空，**0 行需迁移**；表达式已用合成数据验证）**：
+```sql
+-- messages.execution_context：11 个外层键改名（suggestion_attribution 外层键 S3 已改，
+-- 其内层两键由 S3 的 SQL 负责；question_suggestions / tag_scopes 的内层键刻意不动）
+UPDATE messages SET execution_context = (
+  SELECT jsonb_object_agg(e.key_new, e.value) FROM (
+    SELECT CASE k.key
+      WHEN 'agent_config_hash'   THEN 'agentConfigHash'
+      WHEN 'question_suggestions' THEN 'questionSuggestions'
+      WHEN 'knowledge_base_ids'  THEN 'knowledgeBaseIds'
+      WHEN 'knowledge_ids'       THEN 'knowledgeIds'
+      WHEN 'tag_ids'             THEN 'tagIds'
+      WHEN 'tag_scopes'          THEN 'tagScopes'
+      WHEN 'mcp_service_ids'     THEN 'mcpServiceIds'
+      WHEN 'skill_names'         THEN 'skillNames'
+      WHEN 'web_search_enabled'  THEN 'webSearchEnabled'
+      WHEN 'langfuse_traceparent' THEN 'langfuseTraceparent'
+      ELSE k.key END AS key_new, k.value
+    FROM jsonb_each(execution_context) AS k) AS e)
+WHERE jsonb_typeof(execution_context) = 'object' AND execution_context <> '{}'::jsonb;
+```
+
 **已登记的风险点（S3 后状态）**：
 1. ~~`SuggestionItem` 一物两用~~ **已结案（S3）**：LLM 那条路不经 Jackson（只读 `text`/`category` 后手工 new），键名换 camelCase 不影响提示词；边界已写进类注释。
 2. ~~搜索请求体 `session_ids` 不一致~~ **已结（S2）**：前端改发 `sessionIds`。
@@ -2014,6 +2065,10 @@ WHERE jsonb_typeof(execution_context->'suggestion_attribution') = 'object'
    `agent_id`/`agent_source_tenant_id` 查询参数——Java 侧随空间分享裁撤后**无人读**（死参数）；
    ② `manual-knowledge-editor.vue` 发 `tag_ids`/`process_config`，而服务端 `CreateManualRequest`
    只有 title/content/status/channel → **标签与解析配置被静默忽略**（功能缺口，补实现时按 camelCase 落）。
+6. **（新登记，S5 侦察发现，不改）`execution_context` 移植缺口**：Java 侧从不填充该列的 11 个字段
+   （只有空骨架与 `suggestionAttribution` 被写）→ 追问建议的配置读取、langfuse trace 续接、
+   标签作用域还原与 `regenerate` 闸门在读侧全部落空（Go `buildMessageExecutionContext` 未移植）。
+   补实现时按 S5 后的 camelCase 写；迁移 SQL 已就位。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
@@ -2046,7 +2101,7 @@ WHERE jsonb_typeof(execution_context->'suggestion_attribution') = 'object'
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / session 188 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 13**（S1+S2+S3+S4 收官，仅剩 `MessageExecutionContext` 13 处＝S5 的 execution_context 落库面，§14.9l）。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
