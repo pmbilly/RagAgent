@@ -160,6 +160,7 @@
 | 阶段 3（system 域 S2/S3/S4，2026-10-01） | /system/admin 全部端点 + SystemSetting（§14.9g） | **收官**：账号面/平台密钥/设置/runtime+配额四组换锚（rawBody→DTO、PlainError→AppError、动作 204）；`@JsonProperty` 14→**0**；前端 5 文件同批；auth 域波及 fixture 4 个同批 |
 | 阶段 3（auth 域 A1，2026-10-01） | 登录/会话/用户信息面 + User/Tenant/UserPreferences（§14.9h） | **完成**：成功裸 DTO / 失败 AppError / 动作 204；`@JsonProperty` 370→约 250（余 A2 租户成员邀请 + B apikey + 边界 tenantconfig 130）；前端 19 文件同批；**共享实体链条**牵动 4 测试类 ~50 fixture |
 | 阶段 3（auth 域 A2，2026-10-01） | 租户/成员/邀请/配置面（§14.9i） | **完成**：成员/邀请列表去信封、租户 CRUD 裸 DTO + 删除 204、KV 配置裸对象、动作 204、三个手搓封装辅助删除；前端 20 文件同批；183 用例绿 |
+| 阶段 3（auth 域 B，2026-10-01） | API 密钥面（§14.9j） | **收官**：4 文件去注解 + 四端点去信封/204 + 请求体 camelCase；波及平台密钥与 4 个外域测试；前端 5 文件同批；**auth 域 @JsonProperty 仅余边界** |
 
 ### 7.2 当前存量（实测）
 
@@ -1472,6 +1473,31 @@ S2（账号面）/ S3（密钥+设置+runtime）/ S4（配额）或转 auth/memo
 `TenantAPIKeyResponse`/`TenantAPIKeyRequest`）+ 平台密钥端点元素；前端 `ApiIntegrationSettings.vue`
 的 API Key 面（`expires_at` 等）保持 snake 待同批。另：`APIPrincipalConfig`（jsonb 落库结构）
 与 `auth/domain/tenantconfig/`（126 处）为**边界保留**。
+
+### 14.9j auth 域 B 批（API 密钥面）+ 该域收官（2026-10-01）
+
+**提交**：`40e683c`（后端）+ `81cf3bd`（前端）。
+
+**范围**：`TenantAPIKey`(13)/`TenantAPIKeyResponse`(10)/`TenantAPIKeyCreateResponse`(11)/
+`TenantAPIKeyRequest`(5) + `TenantAPIKeyController` 四端点。
+
+**形态**：
+- 列表 → 裸数组；创建 → 裸 `TenantAPIKeyCreateResponse`（201，一次性 token）；更新 → 裸 DTO；**删除 → 204**
+- 可空字段显式 null（`lastUsedAt`/`expiresAt` 恒在，原 omitempty 省略）
+- **请求体同批 camelCase**（`fullAccess`/`knowledgeBaseIds`/`expiresAtUnix`）——请求侧与响应侧一致
+- 校验文案 camelCase（`knowledgeBaseIds contains ...`）；手搓 `body()` 封装删除
+
+**⚠️ 本批最危险的坑（自动化替换差点毁落库）**：`knowledge_base_ids` 在 `TenantAPIKeyMapper`
+的**手写 SQL 与 @Result 列名**里也存在——批量脚本按字符串替换时**必须按文件/上下文白名单**，
+否则改掉 SQL 列名（本次靠 repository 测试的 `Column "KNOWLEDGEBASEIDS" not found` 立刻暴露并回退）。
+**判据**：`mapper/`（手写 SQL）与 `domain/` 的 TypeHandler 注释里的列名要单独核对。
+
+**波及面**：平台密钥端点元素（`SystemContractTest`）+ **4 个外域测试的 Key 创建**（memory /
+datasource / storage 的 scoped-key 用例）——它们的请求体与 `data.token` 解包都要同步。
+**auth 域至此收官**：`@JsonProperty` 仅余边界（`APIPrincipalConfig` 落库结构 + `tenantconfig/` 126 处）。
+
+**验收**：apikey 域 129 + auth/system 域 202 + memory/datasource/storage 三组全绿；
+全量 **4670 / 失败 0 / 跳过 4** + spotlessCheck 绿；前端 `vue-tsc` 0 + 690 用例。
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
