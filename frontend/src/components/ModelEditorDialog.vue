@@ -802,7 +802,11 @@ const credentialApi = computed<CredentialResourceApi<ModelCredentialField>>(() =
   const id = props.modelData?.id ?? ''
   return {
     save: async (patch) => {
-      const meta = await putModelCredentials(id, patch)
+      // 通用组件按字段标识符（api_key/app_secret）传 patch；HTTP body 用 camelCase 键
+      const meta = await putModelCredentials(id, {
+        apiKey: patch.api_key,
+        appSecret: patch.app_secret,
+      })
       return meta.fields
     },
     remove: async (field) => {

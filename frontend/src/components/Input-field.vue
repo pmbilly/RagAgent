@@ -936,7 +936,7 @@ const selectedModelDisplayName = computed(() => {
 });
 
 const modelDisplayName = (model: ModelConfig) => {
-  const displayName = model.display_name?.trim();
+  const displayName = model.displayName?.trim();
   return displayName || model.name;
 };
 
@@ -949,16 +949,16 @@ const contextWindowTitle = (tokens?: number) => {
 
 const selectedModelContextLabel = computed(() => {
   if (!selectedModel.value) return '';
-  return formatContextWindow(selectedModel.value.parameters?.context_window);
+  return formatContextWindow(selectedModel.value.parameters?.contextWindow);
 });
 
 const selectedModelContextIsDefault = computed(() => {
-  return isDefaultContextWindow(selectedModel.value?.parameters?.context_window);
+  return isDefaultContextWindow(selectedModel.value?.parameters?.contextWindow);
 });
 
 const selectedModelContextTitle = computed(() => {
   if (!selectedModel.value) return '';
-  return contextWindowTitle(selectedModel.value.parameters?.context_window);
+  return contextWindowTitle(selectedModel.value.parameters?.contextWindow);
 });
 
 const updateModelDropdownPosition = () => {
@@ -2585,14 +2585,14 @@ defineExpose({
                     </div>
                     <div class="model-option-name-wrap">
                       <span class="model-option-name">{{ modelDisplayName(model) }}</span>
-                      <span v-if="model.display_name" class="model-option-raw-name">{{ model.name }}</span>
+                      <span v-if="model.displayName" class="model-option-raw-name">{{ model.name }}</span>
                     </div>
                   </div>
                   <span
                     class="model-option-ctx"
-                    :class="{ 'is-default': isDefaultContextWindow(model.parameters?.context_window) }"
-                    :title="contextWindowTitle(model.parameters?.context_window)"
-                  >{{ formatContextWindow(model.parameters?.context_window) }}</span>
+                    :class="{ 'is-default': isDefaultContextWindow(model.parameters?.contextWindow) }"
+                    :title="contextWindowTitle(model.parameters?.contextWindow)"
+                  >{{ formatContextWindow(model.parameters?.contextWindow) }}</span>
                 </div>
                 <div v-if="availableModels.length === 0" class="model-option empty">
                   {{ $t('input.noModel') }}

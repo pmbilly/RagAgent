@@ -58,7 +58,7 @@ export function defaultThinkingControl(
   }
 }
 
-/** Resolve stored extra_config or fall back to the provider default. */
+/** Resolve stored extraConfig or fall back to the provider default. */
 export function resolveThinkingControl(
   saved: string | undefined,
   provider: string,
@@ -78,12 +78,12 @@ export function modelSupportsThinking(model: {
   name: string
   parameters: {
     provider?: string
-    extra_config?: { thinking_control?: string }
+    extraConfig?: { thinking_control?: string }
   }
 }): boolean {
   if (model.type !== 'KnowledgeQA' || model.source !== 'remote') return false
   return resolveThinkingControl(
-    model.parameters.extra_config?.thinking_control,
+    model.parameters.extraConfig?.thinking_control,
     model.parameters.provider || '',
     model.name || '',
   ) !== 'none'

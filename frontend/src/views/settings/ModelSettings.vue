@@ -357,24 +357,24 @@ function convertToLegacyFormat(model: ModelConfig) {
   return {
     id: model.id!,
     name: model.name,
-    displayName: model.display_name || '',
+    displayName: model.displayName || '',
     source: model.source,
     modelName: model.name,
-    baseUrl: model.parameters.base_url || '',
+    baseUrl: model.parameters.baseUrl || '',
     apiKey: '',
     provider: model.parameters.provider || '',
-    dimension: model.parameters.embedding_parameters?.dimension,
-    supportsDimensionOverride: model.parameters.embedding_parameters?.supports_dimension_override || false,
-    isBuiltin: model.is_builtin || false,
-    supportsVision: model.parameters.supports_vision || false,
-    contextWindow: model.parameters.context_window || undefined,
-    maxConcurrency: model.parameters.max_concurrency,
-    customHeaders: model.parameters.custom_headers
-      ? Object.entries(model.parameters.custom_headers).map(([key, value]) => ({ key, value: String(value) }))
+    dimension: model.parameters.embeddingParameters?.dimension,
+    supportsDimensionOverride: model.parameters.embeddingParameters?.supportsDimensionOverride || false,
+    isBuiltin: model.isBuiltin || false,
+    supportsVision: model.parameters.supportsVision || false,
+    contextWindow: model.parameters.contextWindow || undefined,
+    maxConcurrency: model.parameters.maxConcurrency,
+    customHeaders: model.parameters.customHeaders
+      ? Object.entries(model.parameters.customHeaders).map(([key, value]) => ({ key, value: String(value) }))
       : [],
-    lkeapRegion: model.parameters.extra_config?.region || 'ap-guangzhou',
+    lkeapRegion: model.parameters.extraConfig?.region || 'ap-guangzhou',
     // 原始存库值，编辑弹窗内再 resolve（避免打开时被推断值覆盖）
-    thinkingControl: model.parameters.extra_config?.thinking_control,
+    thinkingControl: model.parameters.extraConfig?.thinking_control,
     _modelType: backendTypeToModelType[model.type] || 'chat' as ModelType,
     // Preserve the credential metadata map so the editor dialog can render
     // the "Configured" state without an extra round-trip.
@@ -593,15 +593,15 @@ const handleModelSave = async (modelData: any) => {
       }
     }
 
-    // api_key flows in only on initial create (modelData.apiKey is wiped on
+    // apiKey flows in only on initial create (modelData.apiKey is wiped on
     // every edit-mode open). Edits to existing models commit credentials via
     // the /credentials subresource (handled inside ModelEditorDialog).
     const trimmedApiKey = (modelData.apiKey ?? '').trim()
-    const apiKeyFields: { api_key?: string } =
-      !editingModel.value && trimmedApiKey ? { api_key: trimmedApiKey } : {}
+    const apiKeyFields: { apiKey?: string } =
+      !editingModel.value && trimmedApiKey ? { apiKey: trimmedApiKey } : {}
     const trimmedAppSecret = (modelData.appSecret ?? '').trim()
-    const appSecretFields: { app_secret?: string } =
-      !editingModel.value && trimmedAppSecret ? { app_secret: trimmedAppSecret } : {}
+    const appSecretFields: { appSecret?: string } =
+      !editingModel.value && trimmedAppSecret ? { appSecret: trimmedAppSecret } : {}
     const extraConfig: Record<string, string> = {}
     if (modelData.provider === 'lkeap' && saveType === 'rerank') {
       extraConfig.region = (modelData.lkeapRegion || 'ap-guangzhou').trim()
@@ -614,42 +614,42 @@ const handleModelSave = async (modelData: any) => {
       extraConfig.thinking_control = modelData.thinkingControl
     }
     const extraConfigFields = Object.keys(extraConfig).length > 0
-      ? { extra_config: extraConfig }
+      ? { extraConfig }
       : {}
 
     const apiModelData: ModelConfig = {
       name: modelData.modelName.trim(),
-      display_name: modelData.displayName?.trim() || '',
+      displayName: modelData.displayName?.trim() || '',
       type: getModelType(saveType),
       source: modelData.source,
       description: '',
       parameters: {
-        base_url: modelData.baseUrl?.trim() || '',
+        baseUrl: modelData.baseUrl?.trim() || '',
         ...apiKeyFields,
         ...appSecretFields,
         provider: modelData.provider || '',
         ...extraConfigFields,
-        ...(Object.keys(customHeadersMap).length > 0 ? { custom_headers: customHeadersMap } : {}),
+        ...(Object.keys(customHeadersMap).length > 0 ? { customHeaders: customHeadersMap } : {}),
         ...(saveType === 'embedding' && modelData.dimension ? {
-          embedding_parameters: {
+          embeddingParameters: {
             dimension: modelData.dimension,
-            truncate_prompt_tokens: 0,
-            supports_dimension_override: modelData.supportsDimensionOverride ?? false
+            truncatePromptTokens: 0,
+            supportsDimensionOverride: modelData.supportsDimensionOverride ?? false
           }
         } : {}),
         ...(saveType === 'vllm' ? {
-          supports_vision: true
+          supportsVision: true
         } : saveType === 'chat' ? {
-          supports_vision: modelData.supportsVision ?? false
+          supportsVision: modelData.supportsVision ?? false
         } : {}),
         ...((saveType === 'chat' || saveType === 'vllm')
           && Number(modelData.contextWindow) >= 1024
-          ? { context_window: Math.round(Number(modelData.contextWindow)) }
+          ? { contextWindow: Math.round(Number(modelData.contextWindow)) }
           : {}),
         // 后台并发上限：仅 chat/embedding/vllm 受治理，>0 才写入（0/空沿用全局默认）。
         ...(['chat', 'embedding', 'vllm'].includes(saveType)
           && Number(modelData.maxConcurrency) > 0
-          ? { max_concurrency: Number(modelData.maxConcurrency) }
+          ? { maxConcurrency: Number(modelData.maxConcurrency) }
           : {})
       }
     }
@@ -673,7 +673,7 @@ const handleModelSave = async (modelData: any) => {
 // 删除模型
 const deleteModel = async (_type: ModelType, modelId: string) => {
   const model = allModels.value.find(m => m.id === modelId)
-  if (model?.is_builtin) {
+  if (model?.isBuiltin) {
     MessagePlugin.warning(t('modelSettings.toasts.builtinCannotDelete'))
     return
   }
@@ -686,7 +686,7 @@ const deleteModel = async (_type: ModelType, modelId: string) => {
     console.error('删除模型失败:', error)
     if (error instanceof ModelInUseError) {
       usageConflict.value = error.details
-      usageConflictModelName.value = model?.display_name || model?.name || modelId
+      usageConflictModelName.value = model?.displayName || model?.name || modelId
       showUsageDialog.value = true
       return
     }
@@ -799,7 +799,7 @@ const copyModel = async (_type: ModelType, modelId: string) => {
   if (!source) {
     return
   }
-  if (source.is_builtin) {
+  if (source.isBuiltin) {
     MessagePlugin.warning(t('modelSettings.toasts.builtinCannotCopy'))
     return
   }
@@ -807,7 +807,7 @@ const copyModel = async (_type: ModelType, modelId: string) => {
   try {
     const newModel: ModelConfig = {
       name: generateCopyName(source.name),
-      display_name: source.display_name || '',
+      displayName: source.displayName || '',
       type: source.type,
       source: source.source,
       description: source.description || '',

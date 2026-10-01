@@ -16,9 +16,9 @@
           <span class="selected-model__name">{{ modelDisplayName(selectedModel) }}</span>
           <span
             class="model-ctx"
-            :class="{ 'model-ctx--default': isDefaultContextWindow(selectedModel.parameters?.context_window) }"
-            :title="contextWindowTitle(selectedModel.parameters?.context_window)"
-          >{{ formatContextWindow(selectedModel.parameters?.context_window) }}</span>
+            :class="{ 'model-ctx--default': isDefaultContextWindow(selectedModel.parameters?.contextWindow) }"
+            :title="contextWindowTitle(selectedModel.parameters?.contextWindow)"
+          >{{ formatContextWindow(selectedModel.parameters?.contextWindow) }}</span>
         </span>
       </template>
       <!-- 已有的模型选项 -->
@@ -31,15 +31,15 @@
         <div class="model-option">
           <t-icon name="check-circle-filled" class="model-icon" />
           <span class="model-name">{{ modelDisplayName(model) }}</span>
-          <span v-if="model.display_name" class="model-raw-name">{{ model.name }}</span>
-          <t-tag v-if="model.is_builtin" size="small" theme="primary">{{ $t('model.builtinTag') }}</t-tag>
-          <t-tag v-if="model.is_default" size="small" theme="success">{{ $t('model.defaultTag') }}</t-tag>
+          <span v-if="model.displayName" class="model-raw-name">{{ model.name }}</span>
+          <t-tag v-if="model.isBuiltin" size="small" theme="primary">{{ $t('model.builtinTag') }}</t-tag>
+          <t-tag v-if="model.isDefault" size="small" theme="success">{{ $t('model.defaultTag') }}</t-tag>
           <span
             v-if="showContextWindow"
             class="model-ctx"
-            :class="{ 'model-ctx--default': isDefaultContextWindow(model.parameters?.context_window) }"
-            :title="contextWindowTitle(model.parameters?.context_window)"
-          >{{ formatContextWindow(model.parameters?.context_window) }}</span>
+            :class="{ 'model-ctx--default': isDefaultContextWindow(model.parameters?.contextWindow) }"
+            :title="contextWindowTitle(model.parameters?.contextWindow)"
+          >{{ formatContextWindow(model.parameters?.contextWindow) }}</span>
         </div>
       </t-option>
       
@@ -105,7 +105,7 @@ const placeholderText = computed(() => {
 })
 
 const modelDisplayName = (model: ModelConfig) => {
-  const displayName = model.display_name?.trim()
+  const displayName = model.displayName?.trim()
   return displayName || model.name
 }
 

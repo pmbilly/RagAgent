@@ -593,7 +593,7 @@ export interface ModelProviderOption {
 export function listModelProviders(modelType?: string): Promise<ModelProviderOption[]> {
     return new Promise((resolve, reject) => {
         const url = modelType
-            ? `/api/v1/models/providers?model_type=${encodeURIComponent(modelType)}`
+            ? `/api/v1/models/providers?modelType=${encodeURIComponent(modelType)}`
             : '/api/v1/models/providers';
         get(url)
             .then((response: any) => {

@@ -10,7 +10,7 @@ export function filterModelsByType(
     return allModels.filter(
       (m) =>
         m.type === 'VLLM' ||
-        (m.type === 'KnowledgeQA' && m.parameters?.supports_vision === true),
+        (m.type === 'KnowledgeQA' && m.parameters?.supportsVision === true),
     )
   }
 

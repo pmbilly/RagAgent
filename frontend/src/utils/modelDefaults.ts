@@ -2,7 +2,7 @@ export interface ModelDefaultCandidate {
   id?: string
   type: string
   status?: string
-  is_default?: boolean
+  isDefault?: boolean
 }
 
 /**
@@ -18,5 +18,5 @@ export function selectInitialModelId(
       && model.type === modelType
       && (!model.status || model.status === 'active'),
   )
-  return active.find(model => model.is_default)?.id?.trim() ?? active[0]?.id?.trim() ?? null
+  return active.find(model => model.isDefault)?.id?.trim() ?? active[0]?.id?.trim() ?? null
 }

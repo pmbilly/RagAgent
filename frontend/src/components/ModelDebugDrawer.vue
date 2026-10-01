@@ -61,7 +61,7 @@
                 <span class="model-option__meta">
                   {{ vendorLabel(model) }}
                   <template v-if="modelHasContextWindow(model.type)">
-                    · {{ formatContextWindow(model.parameters?.context_window) }}
+                    · {{ formatContextWindow(model.parameters?.contextWindow) }}
                   </template>
                 </span>
               </div>
@@ -283,7 +283,7 @@ const availableModelTypes = computed(() =>
   allModelTypeOptions.value.filter(option => modelCount(option.value) > 0),
 )
 
-const modelLabel = (model: ModelConfig) => model.display_name?.trim() || model.name
+const modelLabel = (model: ModelConfig) => model.displayName?.trim() || model.name
 
 const vendorLabel = (model: ModelConfig) => {
   const provider = model.parameters.provider || ''

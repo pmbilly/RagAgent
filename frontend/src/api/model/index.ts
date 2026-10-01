@@ -6,53 +6,52 @@ export * from './modelUsage'
 
 const t = (key: string) => i18n.global.t(key)
 
-// 模型类型定义
+// 模型类型定义（键名 = 后端 JSON 字段名，camelCase）
 export interface ModelConfig {
   id?: string;
-  tenant_id?: number;
+  tenantId?: number;
   name: string;
-  display_name?: string;
+  displayName?: string;
   type: 'KnowledgeQA' | 'Embedding' | 'Rerank' | 'VLLM' | 'ASR';
   source: 'local' | 'remote';
   description?: string;
   parameters: {
-    base_url?: string;
-    api_key?: string;
+    baseUrl?: string;
+    apiKey?: string;
     provider?: string; // Provider identifier: openai, aliyun, zhipu, generic
-    embedding_parameters?: {
+    embeddingParameters?: {
       dimension?: number;
-      truncate_prompt_tokens?: number;
-      supports_dimension_override?: boolean;
+      truncatePromptTokens?: number;
+      supportsDimensionOverride?: boolean;
     };
-    interface_type?: 'ollama' | 'openai'; // VLLM专用
-    parameter_size?: string; // Ollama模型参数大小 (e.g., "7B", "13B", "70B")
-    extra_config?: Record<string, string>; // Provider-specific configuration
+    interfaceType?: 'ollama' | 'openai'; // VLLM专用
+    parameterSize?: string; // Ollama模型参数大小 (e.g., "7B", "13B", "70B")
+    extraConfig?: Record<string, string>; // Provider-specific configuration
     // 自定义 HTTP 请求头（类似 Python OpenAI SDK 的 extra_headers），
     // 会在调用远程模型 API 时附加到每个请求上。Authorization、Content-Type 等保留头会被忽略。
-    custom_headers?: Record<string, string>;
-    supports_vision?: boolean; // Whether the model accepts image/multimodal input
+    customHeaders?: Record<string, string>;
+    supportsVision?: boolean; // Whether the model accepts image/multimodal input
     // 对话/VLM 的上下文窗口（token）。0 或不填表示使用后端默认 200000。
-    context_window?: number;
-    max_output_tokens?: number;
+    contextWindow?: number;
+    maxOutputTokens?: number;
     // 后台任务（入库/富化）对该模型的并发上限，按模型 ID 全副本共享。
     // 0 或不填表示沿用全局默认（model.max_concurrency）；仅对 chat/embedding/vllm 生效。
-    max_concurrency?: number;
-    app_id?: string;
-    // Secret fields (api_key, app_secret) are never returned by the server in
+    maxConcurrency?: number;
+    appId?: string;
+    // Secret fields (apiKey, appSecret) are never returned by the server in
     // this shape — they live behind the /credentials subresource. They are
     // kept on the type so create-mode payloads can still carry them in the
     // initial POST body.
-    app_secret?: string;
+    appSecret?: string;
   };
-  is_default?: boolean;
-  is_builtin?: boolean;
+  isDefault?: boolean;
+  isBuiltin?: boolean;
   status?: string;
   // Per-field configured? metadata from the main response. For builtin
   // models it is returned only to system administrators.
   credentials?: Record<ModelCredentialField, { configured: boolean }>;
-  created_at?: string;
-  updated_at?: string;
-  deleted_at?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // 创建模型
@@ -60,10 +59,10 @@ export function createModel(data: ModelConfig): Promise<ModelConfig> {
   return new Promise((resolve, reject) => {
     post('/api/v1/models', data)
       .then((response: any) => {
-        if (response.success && response.data) {
-          resolve(response.data);
+        if (response && response.id) {
+          resolve(response);
         } else {
-          reject(new Error(response.message || t('error.model.createFailed')));
+          reject(new Error(response?.message || t('error.model.createFailed')));
         }
       })
       .catch((error: any) => {
@@ -79,14 +78,8 @@ export function listModels(type?: string): Promise<ModelConfig[]> {
     const url = `/api/v1/models`;
     get(url)
       .then((response: any) => {
-        if (response.success && response.data) {
-          if (type) {
-            response.data = response.data.filter((item: ModelConfig) => item.type === type);
-          }
-          resolve(response.data);
-        } else {
-          resolve([]);
-        }
+        const items: ModelConfig[] = Array.isArray(response) ? response : [];
+        resolve(type ? items.filter((item: ModelConfig) => item.type === type) : items);
       })
       .catch((error: any) => {
         console.error('Failed to list models:', error);
@@ -102,10 +95,10 @@ export function getModel(id: string): Promise<ModelConfig> {
   return new Promise((resolve, reject) => {
     get(`/api/v1/models/${id}`)
       .then((response: any) => {
-        if (response.success && response.data) {
-          resolve(response.data);
+        if (response && response.id) {
+          resolve(response);
         } else {
-          reject(new Error(response.message || t('error.model.getFailed')));
+          reject(new Error(response?.message || t('error.model.getFailed')));
         }
       })
       .catch((error: any) => {
@@ -120,10 +113,10 @@ export function updateModel(id: string, data: Partial<ModelConfig>): Promise<Mod
   return new Promise((resolve, reject) => {
     put(`/api/v1/models/${id}`, data)
       .then((response: any) => {
-        if (response.success && response.data) {
-          resolve(response.data);
+        if (response && response.id) {
+          resolve(response);
         } else {
-          reject(new Error(response.message || t('error.model.updateFailed')));
+          reject(new Error(response?.message || t('error.model.updateFailed')));
         }
       })
       .catch((error: any) => {
@@ -133,22 +126,11 @@ export function updateModel(id: string, data: Partial<ModelConfig>): Promise<Mod
   });
 }
 
-// 删除模型
+// 删除模型（204 无响应体：成功即无异常）
 export function deleteModel(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     del(`/api/v1/models/${id}`)
-      .then((response: any) => {
-        if (response.success) {
-          resolve();
-        } else {
-          const conflict = modelInUseErrorFromRequest(response)
-          if (conflict) {
-            reject(conflict)
-            return
-          }
-          reject(new Error(response.message || t('error.model.deleteFailed')));
-        }
-      })
+      .then(() => resolve())
       .catch((error: any) => {
         console.error('Failed to delete model:', error);
         if (error instanceof ModelInUseError) {
@@ -219,10 +201,10 @@ export interface ModelCredentialsResponse {
 
 export async function putModelCredentials(
   id: string,
-  body: Partial<Record<ModelCredentialField, string>>,
+  body: { apiKey?: string; appSecret?: string },
 ): Promise<ModelCredentialsResponse> {
   const response: any = await put(`/api/v1/models/${id}/credentials`, body)
-  return (response.data ?? response) as ModelCredentialsResponse
+  return response as ModelCredentialsResponse
 }
 
 export async function deleteModelCredentialField(

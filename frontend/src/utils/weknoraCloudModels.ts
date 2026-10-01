@@ -47,23 +47,23 @@ export function buildWkcModelConfig(
   const name = WKC_MODEL_NAME_BY_KIND[kind]
   const type = BACKEND_TYPE_BY_KIND[kind]
   const parameters: ModelConfig['parameters'] = {
-    base_url: WEKNORA_CLOUD_BASE_URL,
+    baseUrl: WEKNORA_CLOUD_BASE_URL,
     provider: WEKNORA_CLOUD_PROVIDER,
   }
 
   if (kind === 'embedding' && dimension) {
-    parameters.embedding_parameters = {
+    parameters.embeddingParameters = {
       dimension,
-      truncate_prompt_tokens: 0,
+      truncatePromptTokens: 0,
     }
   }
   if (kind === 'vllm') {
-    parameters.supports_vision = true
+    parameters.supportsVision = true
   }
 
   return {
     name,
-    display_name: displayName,
+    displayName,
     type,
     source: 'remote',
     description: '',

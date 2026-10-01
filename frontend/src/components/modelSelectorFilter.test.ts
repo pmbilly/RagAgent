@@ -21,10 +21,10 @@ function model(overrides: Partial<ModelConfig> & Pick<ModelConfig, 'id' | 'type'
 }
 
 const fixtures: ModelConfig[] = [
-  model({ id: 'vllm-1', name: 'MiniMax-M3', display_name: 'MiniMax M3', type: 'VLLM' }),
-  model({ id: 'chat-vision', name: 'MiniMax-M3', display_name: 'MiniMax M3', type: 'KnowledgeQA', parameters: { supports_vision: true } }),
+  model({ id: 'vllm-1', name: 'MiniMax-M3', displayName: 'MiniMax M3', type: 'VLLM' }),
+  model({ id: 'chat-vision', name: 'MiniMax-M3', displayName: 'MiniMax M3', type: 'KnowledgeQA', parameters: { supportsVision: true } }),
   model({ id: 'chat-text', type: 'KnowledgeQA' }),
-  model({ id: 'embed-vision', type: 'Embedding', parameters: { supports_vision: true } }),
+  model({ id: 'embed-vision', type: 'Embedding', parameters: { supportsVision: true } }),
   model({ id: 'embed-1', type: 'Embedding' }),
 ]
 
