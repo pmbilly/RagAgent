@@ -11,18 +11,16 @@ import { get, post, del } from '@/utils/request'
 export type FavoriteResourceType = 'kb' | 'agent'
 
 export interface FavoriteEntry {
-  user_id: string
-  tenant_id: number
-  resource_type: FavoriteResourceType
-  resource_id: string
-  /** ISO timestamp from the server (created_at column). */
-  created_at: string
+  userId: string
+  tenantId: number
+  resourceType: FavoriteResourceType
+  resourceId: string
+  /** ISO timestamp from the server (createdAt column). */
+  createdAt: string
 }
 
 export function listFavorites(type: FavoriteResourceType) {
-  return get<{ success: boolean; data: FavoriteEntry[] }>(
-    `/api/v1/user/favorites?type=${encodeURIComponent(type)}`
-  )
+  return get<FavoriteEntry[]>(`/api/v1/user/favorites?type=${encodeURIComponent(type)}`)
 }
 
 export function addFavorite(type: FavoriteResourceType, id: string) {

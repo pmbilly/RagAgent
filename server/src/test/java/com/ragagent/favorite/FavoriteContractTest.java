@@ -99,7 +99,7 @@ class FavoriteContractTest {
         memberMapper.insert(member);
     }
 
-    // ── 1) 空列表（钉 GORM Find 空结果 → "data":[]）+ 缺 type 参数 ─────────
+    // ── 1) 空列表（裸数组 []）+ 缺 type 参数 ─────────────────────────────
 
     @Test
     void emptyListThenNoType() throws Exception {
@@ -120,12 +120,12 @@ class FavoriteContractTest {
     void addThenList() throws Exception {
         String owner = "Bearer " + login();
 
-        assertGolden(json(post("/api/v1/user/favorites").header("Authorization", owner),
-                "{\"type\":\"kb\",\"id\":\"fav-kb-fixed-0001\"}"), 200, "fav-add-kb.json");
-        assertGolden(json(post("/api/v1/user/favorites").header("Authorization", owner),
-                "{\"type\":\"agent\",\"id\":\"fav-agent-fixed-0001\"}"), 200, "fav-add-agent.json");
-        assertGolden(json(post("/api/v1/user/favorites").header("Authorization", owner),
-                "{\"type\":\"kb\",\"id\":\"fav-kb-fixed-0001\"}"), 200, "fav-add-dup.json");
+        assertStatus(json(post("/api/v1/user/favorites").header("Authorization", owner),
+                "{\"type\":\"kb\",\"id\":\"fav-kb-fixed-0001\"}"), 201, "fav-add-kb");
+        assertStatus(json(post("/api/v1/user/favorites").header("Authorization", owner),
+                "{\"type\":\"agent\",\"id\":\"fav-agent-fixed-0001\"}"), 201, "fav-add-agent");
+        assertStatus(json(post("/api/v1/user/favorites").header("Authorization", owner),
+                "{\"type\":\"kb\",\"id\":\"fav-kb-fixed-0001\"}"), 201, "fav-add-dup");
 
         assertMasked(get("/api/v1/user/favorites?type=kb").header("Authorization", owner),
                 200, "fav-list-kb-after.json");
@@ -133,7 +133,7 @@ class FavoriteContractTest {
                 200, "fav-list-agent-after.json");
     }
 
-    // ── 3) remove 真实行 + 幽灵行（都 200 {"success":true}） ────────────────
+    // ── 3) remove 真实行 + 幽灵行（都 204） ───────────────────────────────
 
     @Test
     void removeRealAndGhost() throws Exception {
@@ -145,10 +145,10 @@ class FavoriteContractTest {
         mockMvc.perform(json(post("/api/v1/user/favorites").header("Authorization", owner),
                 "{\"type\":\"agent\",\"id\":\"fav-agent-fixed-0001\"}")).andReturn();
 
-        assertGolden(delete("/api/v1/user/favorites/agent/fav-agent-fixed-0001")
-                .header("Authorization", owner), 200, "fav-remove-agent.json");
-        assertGolden(delete("/api/v1/user/favorites/agent/ghost-id-000")
-                .header("Authorization", owner), 200, "fav-remove-ghost.json");
+        assertStatus(delete("/api/v1/user/favorites/agent/fav-agent-fixed-0001")
+                .header("Authorization", owner), 204, "fav-remove-agent");
+        assertStatus(delete("/api/v1/user/favorites/agent/ghost-id-000")
+                .header("Authorization", owner), 204, "fav-remove-ghost");
         assertGolden(get("/api/v1/user/favorites?type=agent").header("Authorization", owner),
                 200, "fav-list-agent-after-rm.json");
     }
@@ -209,6 +209,15 @@ class FavoriteContractTest {
         MvcResult r = mockMvc.perform(req).andReturn();
         assertEquals(status, r.getResponse().getStatus(), goldenName + " 状态码不符: " + raw(r));
         assertEquals(mask(golden(goldenName)), mask(raw(r)), goldenName);
+    }
+
+    /** 201/204 无体端点：只钉状态码与体为空。 */
+    private void assertStatus(MockHttpServletRequestBuilder req, int status, String label)
+            throws Exception {
+        MvcResult r = mockMvc.perform(req).andReturn();
+        assertEquals(status, r.getResponse().getStatus(), label + " 状态码不符: " + raw(r));
+        assertEquals("", r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8),
+                label + " 应无响应体");
     }
 
     private static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder req, String body) {

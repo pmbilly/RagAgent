@@ -1,1 +1,1 @@
-{"data":[{"user_id":"11111111-2222-3333-4444-555555555501","tenant_id":10002,"resource_type":"agent","resource_id":"fav-agent-fixed-0001","created_at":"2026-09-19T18:21:29.038418+08:00"}],"success":true}
+[{"createdAt":"2026-10-02T00:00:00Z","resourceId":"fav-agent-fixed-0001","resourceType":"agent","tenantId":10002,"userId":"11111111-2222-3333-4444-555555555501"}]

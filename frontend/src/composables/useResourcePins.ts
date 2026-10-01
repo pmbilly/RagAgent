@@ -116,12 +116,11 @@ async function fetchFavorites(type: ResourceType): Promise<void> {
   if (inFlight[type]) return inFlight[type]!
   inFlight[type] = (async () => {
     try {
-      const res = (await listFavorites(type)) as unknown as { success: boolean; data?: any[] }
-      const data = res?.data || []
-      favoritesByType[type].value = data.map((e: any) => ({
-        type: e.resource_type as ResourceType,
-        id: e.resource_id as string,
-        ts: e.created_at ? new Date(e.created_at).getTime() : Date.now(),
+      const data = (await listFavorites(type)) as unknown as any[]
+      favoritesByType[type].value = (data || []).map((e: any) => ({
+        type: e.resourceType as ResourceType,
+        id: e.resourceId as string,
+        ts: e.createdAt ? new Date(e.createdAt).getTime() : Date.now(),
       }))
       loaded[type] = true
     } catch (err) {

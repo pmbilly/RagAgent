@@ -1,8 +1,6 @@
 package com.ragagent.favorite.controller;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +10,7 @@ import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.favorite.domain.UserResourceFavorite;
 import com.ragagent.favorite.service.UserResourceFavoriteService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,35 +58,27 @@ public class UserFavoriteController {
         this.service = service;
     }
 
-    /** 对照 Go ListFavorites：?type= 缺失/非法 → 400（空串不命中白名单）。 */
+ /** 列表 = 裸数组（§2.1）；?type= 缺失/非法 → 400（空串不命中白名单）。 */
     @GetMapping("/api/v1/user/favorites")
-    public Map<String, Object> listFavorites(@RequestParam(required = false) String type) {
+    public ResponseEntity<List<UserResourceFavorite>> listFavorites(@RequestParam(required = false) String type) {
         String userId = favoriteUserId();
         Long tenantId = favoriteTenantId();
-        List<UserResourceFavorite> list = service.list(userId, tenantId, type);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", list);
-        body.put("success", true);
-        return body;
+        return ResponseEntity.ok(service.list(userId, tenantId, type));
     }
 
-    /** 对照 Go AddFavorite：body 是 {type,id}，成功只回 success。 */
+    /** 添加收藏：body 是 {type,id}，创建成功 201（§2.1；绑定文案见类注释）。 */
     @PostMapping("/api/v1/user/favorites")
-    public Map<String, Object> addFavorite(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<Void> addFavorite(@RequestBody(required = false) String rawBody) {
         AddFavoriteRequest req = bindBody(rawBody);
         service.add(favoriteUserId(), favoriteTenantId(), req.type, req.id);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
+        return ResponseEntity.status(201).build();
     }
 
-    /** 对照 Go RemoveFavorite：类型/id 校验失败 400；删 0 行照样 200。 */
+    /** 移除收藏：类型/id 校验失败 400；删 0 行照样成功 → 204（§1.13）。 */
     @DeleteMapping("/api/v1/user/favorites/{type}/{id}")
-    public Map<String, Object> removeFavorite(@PathVariable String type, @PathVariable String id) {
+    public ResponseEntity<Void> removeFavorite(@PathVariable String type, @PathVariable String id) {
         service.remove(favoriteUserId(), favoriteTenantId(), type, id);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
+        return ResponseEntity.noContent().build();
     }
 
     /** 对照 Go AddFavoriteRequest：json tag 是小写 type/id。 */
