@@ -17,12 +17,13 @@
    **wiki page 面已收官（2026-10-01，w1~w5 + 两个卫生刀，§14.7.14）——`WikiPageServiceImpl` 1,008→732、`WikiPageRepository` 858→708、`WikiIngestDedupService` 851→468（例外解除）、`WikiPageFolderSupport` 822→383（切片产物空行折叠）——wiki 域 ≥800 清零**；
    **DataSourceService 已出榜（2026-10-01，d1~d3，§14.7.15）——1,828→666，四协作者**；
    **datasource 连接器批已收官（2026-10-01，f1~f3 + n1，§14.7.16）——`FeishuClient` 1,155→709、`NotionConnector` 1,093→625，datasource 域 ≥800 清零**；
-   **memory 域已开刀（2026-10-01，m1，§14.7.17）——`MemoryExtractionService` 1,217→718 出榜，余两个大件待续**。
-4. **下一步**：`memory` 域 m2/m3（`MemoryService` 1,662 / `MemoryRepository` 1,514，§14.7.17 已给切片边界）→
-   单类（`SourceRegistry` 878 / `UserService` 876）→ knowledge 两个已登记例外的复核。
+   **memory 域四刀落定（2026-10-01，m1~m4，§14.7.17）——`MemoryExtractionService` 1,217→718、`MemoryRepository` 1,515→458、`MemoryService` 1,663→965（余 m5 评估）**；
+   **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**。
+4. **下一步（两个候选，由用户排）**：① `memory` 域 m5——`MemoryService` 965 的「召回」段（243 行，接缝自然，§14.7.17 已给边界）；
+   ② **阶段 3 换锚按域推**——打样已跑通（§14.9b），目标域建议挑前端真有调用的（auth/memory 等，重域清单见 §14.9 存量表）。单类尾巴：`SourceRegistry` 878 / `UserService` 876；knowledge 两个已登记例外待复核。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
-6. **全仓存量**：≥800 行的类还有 **7 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource 域 ≥800 全清零**，memory 域已开刀（1/3）。
+6. **全仓存量**：≥800 行的类还有 **7 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 2/3（余 `MemoryService` 965 待 m5、`MemoryIndexStore` 929 登记例外）。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -71,7 +72,7 @@
 ## 4. 关键测量数据（**2026-09-30 复核**）
 
 - main：**1,535 文件 / 27.9 万行**；test：**401 文件 / 12.6 万行 / 1,366 契约 fixture**；frontend：**465 文件 / 20.0 万行**。
-- 后端测试：**4,681 用例全绿**（含 6 个 skip）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
+- 后端测试：**4,681 用例全绿**（含 6 个 skip，2026-09-30 复核；2026-10-01 evaluation 打样批实测 **4,669 / 失败 0 / 跳过 4**，434 测试类）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
 - **≥800 行的类（main，全仓）**：AgentEngine 3,235、WikiIngestBatchHandler 2,268、WikiIngestService 2,182、InitializationController 1,981、DataSourceService 1,827、SessionKnowledgeQaService 1,764、MemoryService 1,660、OpenSearchRetrieveRepository 1,652、WikiPageServiceImpl 1,642、KnowledgeQaController 1,616……
   （**2026-09-30 历史快照，多数已过时**——活榜单以 §14.3 为准：2026-10-01 实测 36 个）
 - **knowledge 包（已整治，可作样板）**：**197 文件 / 25,264 行**；最大三个 = `FaqImportService` 1,234、`KnowledgeService` 850、`KnowledgeProcessWorker` 814；13 个子包见 §12；容器类/`*Util` 反模式命名已清零。
@@ -150,7 +151,8 @@
 | 阶段 2（wiki page 面，2026-10-01） | WikiPageServiceImpl / WikiPageRepository / WikiIngestDedupService / WikiPageFolderSupport | **出榜，wiki 域 ≥800 清零**（w1~w5 + 两个卫生刀 → RevisionOps/LinkOps/FolderRepository/IdentityDedup；1,008→732、858→708、851→468、822→383；§14.7.14） |
 | 阶段 2（DataSourceService，2026-10-01） | datasource 域最长类 | **出榜**（d1~d3 → ResultOps/Support/ItemOps/SyncExecutor 四协作者；1,828→666，-63.6%；§14.7.15） |
 | 阶段 2（datasource 连接器批，2026-10-01） | FeishuClient + NotionConnector | **双出榜，datasource 域 ≥800 清零**（f1~f3 + n1 → Transport/WikiTreeOps/DriveOps/FetchOps；1,155→709、1,093→625；§14.7.16） |
-| 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService / MemoryRepository | **三刀落定**（m1 1,217→718 出榜；m2 1,515→1,200 出 `MemoryItemStore`；m3 1,200→**458** 出 `MemoryIndexStore`；⚠️ `MemoryIndexStore` 929 登记为**已知例外**（用户 2026-10-01 定调「不硬切」，判据见 §14.7.17）） |
+| 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService / MemoryRepository / MemoryService | **四刀落定**（m1 1,217→718 出榜；m2 1,515→1,200 出 `MemoryItemStore`；m3 1,200→**458** 出 `MemoryIndexStore`；m4 1,663→**965** 出 `MemoryCatalogOps`+`MemoryInsightOps`；⚠️ `MemoryIndexStore` 929 登记**已知例外**、`MemoryService` 965 待 m5 评估——用户 2026-10-01 定调「不硬切」，判据见 §14.7.17） |
+| 阶段 3 打样（evaluation 域，2026-10-01） | 小域契约换锚打样（§14.9b） | **流水线跑通**：POST/GET 去信封 + camelCase + 标准 DTO 绑定；10 个 fixture（含新增空体用例）；前端零调用面；**真实服务冒烟 8 路通过** |
 
 ### 7.2 当前存量（实测）
 
@@ -163,7 +165,8 @@
 - embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
 - chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
 - datasource 域（2026-10-01 全批后）：**115 文件 / 26,723 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709**、`NotionConnector` 1,093→**625** —— **域内 ≥800 清零**（原三个：1,828 / 1,155 / 1,093）。
-- memory 域（2026-10-01 m1~m3 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryItemStore` 462 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 1,662 与 `MemoryIndexStore` 929（后者**登记例外**：同属索引侧一个关注点，§14.7.17）。
+- memory 域（2026-10-01 m1~m4 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→**965**；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 965（待 m5 评估）与 `MemoryIndexStore` 929（**登记例外**：同属索引侧一个关注点，§14.7.17）。
+- evaluation 域（2026-10-01 打样后）：**`@JsonProperty` 66→0、`@JsonInclude` 12→0**；POST/GET 两端点契约已换锚（§14.9b）；`dto` 包 2 文件（`EvaluationDtos` 容器待拆分，另立批次）。
 - 全仓 ≥800 行的类：**7 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
@@ -196,7 +199,7 @@
 
 ## 9. 测试与安全网
 
-- 401 个测试类 / 1,366 契约 fixture（**4,670 用例**）是重构回归网，**每一步（哪怕纯移动）结束都必须全绿**——近两轮的工作方式就是"改一步 → 全量验证 → 提交"。这是"种子 fork + 渐进转型"优于重写的全部意义。
+- 434 个测试类 / 1,366 契约 fixture（**4,669 用例 / 4 skip**，2026-10-01 实测）是重构回归网，**每一步（哪怕纯移动）结束都必须全绿**——近两轮的工作方式就是"改一步 → 全量验证 → 提交"。这是"种子 fork + 渐进转型"优于重写的全部意义。
 - **三条验证命令（接手先跑一遍确认基线）**：
   ```bash
   # 后端全量（约 3 分钟；期望 BUILD SUCCESSFUL，4,670 用例 0 失败）
@@ -369,6 +372,16 @@ knowledge/
    另一条连带经验：拆仓储时若某方法与目标聚合共用 mapper（`listDistinctCategoryPaths` 走
    `WikiFolderMapper`），**按数据归属判**（它是文件夹路径查询）→ 随该聚合走，别为了让新仓储
    少背一个 mapper 而留下它。
+
+### 13.9 闸门命令的环境卫生（2026-10-01 evaluation 打样批，1 条）
+
+**source .env 的 shell 会把 `SYSTEM_AES_KEY` 等变量泄漏给同 shell 里跑的 Gradle 测试**：
+CLI 起服务常写 `set -a && . ./.env && set +a && ./gradlew :server:bootRun`；Agent 工具链会
+**复用同一 shell**，后续在同一会话里跑的全量测试就带上了这些变量——`DataSourceConfig.toJSON()`
+走 AES 加密分支，`DataSourceJsonTest.dataSourceConfigToJsonMatchesGoMarshal` 的"无 KEY 时凭据
+原样落库"断言失败（**1/4669，其余全绿，极易误判为回归**）。
+**判据**：全量里出现"孤零零 1 个与环境相关的失败"时，先 `env | grep SYSTEM_AES`；
+**修法**：跑闸门用 `env -u SYSTEM_AES_KEY ./gradlew ...`（或换独立 shell 复跑该单类确认）。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
@@ -1149,23 +1162,54 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 
 **目的**：先跑通「盘点 → 换锚 → 同批改前端 → 验收」整条流水线，再按域推重域（auth 247 / session 188 / datasource 127 / memory 123 / mcp 110 / system 86 / model 78）。
 
-**选域结论（2026-10-01 只读盘点）**：
-- **`evaluation` 域 = 打样首选**：`dto/EvaluationDtos.java` 单文件集中 **69 处 `@JsonProperty`**（占该域全部），
-  配一个 `controller/EvaluationController.java`；HTTP 面小且集中，改一处即是一整条端点的换锚，
-  前端（`frontend/src/`）有对应调用面可同批改。
+**选域结论（2026-10-01 只读盘点；执行时修正两处误判，见下）**：
+- **`evaluation` 域 = 打样首选**：`dto/EvaluationDtos.java` 单文件集中 **62 处 `@JsonProperty`**（+ controller 内 4 处全限定写法，占该域全部），
+  配一个 `controller/EvaluationController.java`；HTTP 面小且集中，改一处即是一整条端点的换锚。
+  **修正①**：注解实测 66 处（侦察写 69 是口径差：漏算 controller 全限定写法、多算了 `@JsonPropertyOrder` 等）。
+  **修正②**：**前端无调用面**——`frontend/src/` 仅有 API-Key capability 名 `run_evaluations` 与 i18n 文案，
+  与端点无关；"前端有调用面可同批改"是误判，本域因此不是"前后端同 PR"的完整样本。
 - **`wiki` 域不作为打样域**：其 39 处经甄别**全部是 wiki 内部载荷**（`WikiIngestPayload` 队列载荷、
   `WikiRetractPayload`、`WikiPendingOp` 待办行、`WikiFinalizeRow`/`WikiFinalizeChange` 批次结果、
   `CombinedExtraction` / `NewSlugFromCitation` 模型输出形状），`git grep` 确认**无跨包消费者**；
   按 §14.9 三分法多数落 ②（事件/队列载荷→保留），少数（若写进 jsonb 列）落 ③ —— **需逐类确认"是否落库"**，
   属"甄别"工作而非端点换锚。wiki 的 HTTP 端点面（`WikiPageController` 等）另立切片。
 
-**打样步骤（照 §14.9 执行顺序）**：
-1. **入场清单（只读）**：`EvaluationController` 的端点 × 请求/响应 DTO × `frontend/src/` 对应调用点 ×
-   该域 `@JsonInclude`/`NON_NULL` 残留 → 产出一张表（形如 §14.3）。
-2. **换锚**：DTO 去逐字段 `@JsonProperty`（字段名即 JSON 名，必要时改 Java 字段名到 camelCase）；
-   响应形状按 §2 第 4 条（分页 `{items,page,pageSize,total}`、删除 204、错误 `{"error":{...}}`）。
-3. **同批前端**：按步骤 1 的清单改 `frontend/src/` 调用点，前后端同 PR。
-4. **验收**：该域用例 + 前端构建 + 手工冒烟（端点 × 主要页面），产物写回本节。
+**打样执行记录（2026-10-01 完成，提交 `9ed0847`）**：
+
+**① 入场清单（只读产物）**：
+
+| 端点 | 请求（旧 → 新） | 响应（旧 → 新） | 涉及 fixture | 前端调用点 |
+|---|---|---|---|---|
+| `POST /api/v1/evaluation`（Admin） | rawBody 手绑 snake 4 字段 → `EvaluationRequest` record（camelCase，字段全可选） | `{data:{task,params,metric},success:true}` → 裸 `EvaluationDetail` | `ev-post`（创建快照）/ `ev-post-empty`、`ev-post-kb-missing`（500）/ `ev-post-badjson`（400）/ `ev-post-viewer`（403）/ **新增 `ev-post-nobody`**（400 空体） | **无** |
+| `GET /api/v1/evaluation?taskId=`（Viewer） | query `task_id` → `taskId` | 同上去信封 | `ev-get`（终态含 metric）/ `ev-get-viewer` / `ev-get-missing`（400）/ `ev-get-unknown`（500） | **无** |
+
+**② 换锚（改动面）**：
+- `EvaluationDtos`：去 62 处 `@JsonProperty` + 12 处 `@JsonInclude` + 6 处 `@JsonPropertyOrder`——
+  字段名即键名；可空字段显式 `null`（`metric` 未产出输出 `null` 而非缺键；`thinking`/`citationEnabled` 同）；
+  `startTime` 默认值由 Go 零值时间改 `null`（`GoTimeSerializer` 引用随之摘除）。7 个嵌套类结构不动
+  （容器拆分 = 一类型一文件，另立批次，不与换锚混轴）。
+- `EvaluationController`：手写 `bind()`/`MAPPER`/`GoJsonBindError` 全删 →
+  `@Valid @RejectEmptyBody @RequestBody(required = false) EvaluationRequest`（knowledge 域同款惯例）；
+  响应改裸 `EvaluationDetail`；GET `task_id` → `taskId`，缺失校验文案对齐全局形态
+  （`请求参数不合法` + `taskId: 不能为空`）。新增 `dto/EvaluationRequest.java`（一类型一文件）。
+- **错误信封形态未动**（`{error:{...},success:false}` 的去 `success` 属全仓统一批）——本批只替掉
+  evaluation 自己手写的那层绑定文案（`ev-post-badjson`/`ev-get-missing` 两 fixture 因此变化）。
+- 测试：`EvaluationContractTest` 8 用例（新增空体 400）+ `JsonContractRoundTripTest` label 同步。
+
+**③ 同批前端**：**零改动**（该域前端无 HTTP 调用面，见 ①）——完整"前后端同 PR"样本待第二域
+（建议挑前端真有调用的域，如 auth/memory）。
+
+**④ 验收**：
+- 干净一遍全量：**4669 用例 / 失败 0 / 跳过 4**（434 测试类）+ `spotlessCheck` 绿；
+  ⚠️ 首轮全量出 1 个失败（`DataSourceJsonTest`）是 shell 环境泄漏所致，见 §13.9 新条；
+- **真实服务冒烟 8 路通过**（`bootRun` + 真实 PG/Redis + 注册登录拿 token）：
+  POST `{}`→500 无默认模型 / 空体→400「请求体不能为空」/ 畸形 JSON→400「请求体格式不正确」/
+  字面量 `null` 体→零值放行 / camelCase 新键→识别（500 knowledge base not found）/
+  旧 snake 键→宽松读忽略（不再映射）/ GET 缺 taskId→400「taskId: 不能为空」/ GET 未知→500 task not found。
+
+**打样暴露的方法论补充**：选域侦察时的"前端有调用面"要**逐调用点 grep 实证**（本域只查到了
+API-Key capability 名与 i18n 文案，差点误当调用面）；换锚批可顺手做"请求侧手写绑定器清除"
+（与 §14.2 步骤 4 一致），但错误信封统一与容器拆分都**不与换锚混轴**。
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
@@ -1190,7 +1234,7 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 - 细则与历史差异表：`docs/knowledge-api-contract-v1.md`（v1.0，32KB）。
 
 **进度（2026-10-01）**
-- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview。
+- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / **evaluation（打样域，§14.9b——含真实服务冒烟）**。
 - 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面。
 
 **存量表（2026-10-01 盘点实测，§14.9 第 1 步交付物；只读扫描，三分法甄别）**
@@ -1201,7 +1245,7 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~1,100 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / model 78 / wiki 39（ingest 落库载荷，§14.8 预告）/ evaluation 62 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~1,038 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / model 78 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（2026-10-01 打样换锚，§14.9b） | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
