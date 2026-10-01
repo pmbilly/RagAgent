@@ -74,7 +74,7 @@
           <!-- Messages -->
           <ResultGroup v-if="isGroupVisible('messages') && messageGroups.length"
             :label="t('commandPalette.group.messages')" :count="totalMessages">
-            <template v-for="(item, i) in flatMessageItems" :key="'m-' + item.msg.request_id">
+            <template v-for="(item, i) in flatMessageItems" :key="'m-' + item.msg.requestId">
               <ResultItem :index="flatIndexFor('messages', i)" :selected="selectedIndex === flatIndexFor('messages', i)"
                 :shortcut="shortcutFor(flatIndexFor('messages', i))" icon-name="chat" :score="item.msg.score"
                 @primary="openMessage(item)" @hover="selectItemAt($event)">
@@ -82,8 +82,8 @@
                   <span>{{ item.group.sessionTitle || t('commandPalette.untitledSession') }}</span>
                 </template>
                 <template #subtitle>
-                  <span class="cmdk-msg-role">{{ item.msg.query_content ? 'Q' : 'A' }}</span>
-                  <span v-html="highlight(item.msg.query_content || item.msg.answer_content)" />
+                  <span class="cmdk-msg-role">{{ item.msg.queryContent ? 'Q' : 'A' }}</span>
+                  <span v-html="highlight(item.msg.queryContent || item.msg.answerContent)" />
                 </template>
               </ResultItem>
             </template>
@@ -340,7 +340,7 @@ const flatItems = computed<FlatItem[]>(() => {
     } else if (g === 'messages') {
       flatMessageItems.value.forEach((item) => {
         out.push({
-          key: `msg:${item.msg.request_id}`,
+          key: `msg:${item.msg.requestId}`,
           group: g,
           run: () => openMessage(item),
         })

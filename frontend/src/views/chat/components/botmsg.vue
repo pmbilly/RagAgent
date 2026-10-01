@@ -8,7 +8,7 @@
                 ]">
                     <span class="tag_icon">
                         <t-icon v-if="item.type === 'kb'"
-                            :name="item.kb_type === 'faq' ? 'chat-bubble-help' : 'folder'" />
+                            :name="item.kbType === 'faq' ? 'chat-bubble-help' : 'folder'" />
                         <t-icon v-else :name="mentionTagIcon(item)" />
                     </span>
                     <span class="tag_name">{{ item.name }}</span>
@@ -25,9 +25,9 @@
                      it gets the standalone row. Agent turns render theirs inside
                      the agent timeline instead, next to the steps it belongs
                      with. -->
-                <RagPipelineProgress v-if="!session.isAgentMode && session.used_memories?.length"
+                <RagPipelineProgress v-if="!session.isAgentMode && session.usedMemories?.length"
                     :session="session" :embedded-mode="embeddedMode" memory-only />
-                <docInfo v-if="session.knowledge_references?.length" :session="session"></docInfo>
+                <docInfo v-if="session.knowledgeReferences?.length" :session="session"></docInfo>
                 <AgentStreamDisplay :session="session" :session-id="sessionId" :user-query="userQuery"
                     v-if="session.isAgentMode" :follow-up-loading="followUpLoading"
                     @render-complete-change="emit('render-complete-change', $event)" />
@@ -73,7 +73,7 @@
                     <span v-if="hasArtifacts" class="answer-toolbar__artifact-count" aria-hidden="true">{{ artifactCount }}</span>
                 </span>
                 <!-- Fallback 提示图标 -->
-                <t-tooltip v-if="session.is_fallback" :content="$t('chat.fallbackHint')" placement="top">
+                <t-tooltip v-if="session.fallback" :content="$t('chat.fallbackHint')" placement="top">
                     <t-button size="small" variant="outline" shape="round" class="fallback-icon-btn">
                         <t-icon name="info-circle" />
                     </t-button>
@@ -151,7 +151,7 @@ import { SKILL_ICON } from '@/types/mention';
 ensureMermaidInitialized();
 
 const mentionTagClass = (item) => {
-    if (item.type === 'kb') return item.kb_type === 'faq' ? 'faq-tag' : 'kb-tag';
+    if (item.type === 'kb') return item.kbType === 'faq' ? 'faq-tag' : 'kb-tag';
     return `${item.type || 'file'}-tag`;
 };
 
@@ -167,7 +167,7 @@ const { t } = useI18n()
 const uiStore = useUIStore();
 let parentMd = ref()
 const { float: citationFloat, rebind: rebindCitations, cancelClose: cancelCitationClose, scheduleClose: scheduleCitationClose } = useChatCitationPopover(parentMd, {
-    getKnowledgeReferences: () => props.session?.knowledge_references,
+    getKnowledgeReferences: () => props.session?.knowledgeReferences,
     sessionId: () => props.sessionId,
 });
 let reviewUrl = ref('')
@@ -206,7 +206,7 @@ const props = defineProps({
     }
 });
 
-const showRequestInfo = computed(() => !!(props.session?.request_id || props.session?.id));
+const showRequestInfo = computed(() => !!(props.session?.requestId || props.session?.id));
 
 // -----------------------------------------------------------------------------
 // Legacy artifact drawer (embedded mode)
@@ -231,8 +231,8 @@ const hasArtifacts = computed(() => artifactList.value.length > 0);
 const artifactCount = computed(() => artifactList.value.length);
 const messageIdForArtifacts = computed(() => {
     // Steered segments have synthetic row IDs; artifact APIs address the
-    // persisted assistant. Keep request_id as the in-flight fallback.
-    return persistedAssistantId(props.session) || String(props.session?.request_id || '');
+    // persisted assistant. Keep requestId as the in-flight fallback.
+    return persistedAssistantId(props.session) || String(props.session?.requestId || '');
 });
 // Set when the drawer is opened by clicking an inline artifact card, so it
 // lands directly on that file's preview instead of the list.
@@ -279,7 +279,7 @@ const markdownRenderer = createChatMarkdownRenderer({
             artifacts: artifactList.value,
             labels: artifactRefLabels.value,
             context: artifactRefContext.value,
-            streaming: !props.session?.is_completed,
+            streaming: !props.session?.completed,
         });
         if (artifactHtml !== null) return artifactHtml;
         return createSafeImage(href, text || '', title || '');
@@ -290,7 +290,7 @@ const markdownRenderer = createChatMarkdownRenderer({
 
 // 计算属性：将 Markdown 文本转换为 tokens
 const mentionedItems = computed(() => {
-    return props.session?.mentioned_items || [];
+    return props.session?.mentionedItems || [];
 });
 
 // Smooth the streamed answer into a steady typewriter cadence (shared with the
@@ -301,14 +301,14 @@ const answerText = computed(() => {
 });
 const { displayed: typedAnswer } = useTypewriter(
     () => answerText.value,
-    () => Boolean(props.session?.is_completed),
+    () => Boolean(props.session?.completed),
 );
 
 // The backend completion event can arrive while the local typewriter still has
 // buffered text to reveal. Treat the answer as visually complete only after the
 // displayed text has caught up, so actions never appear beside a moving answer.
 const answerFullyRendered = computed(() =>
-    Boolean(props.session?.is_completed) && typedAnswer.value.length >= answerText.value.length
+    Boolean(props.session?.completed) && typedAnswer.value.length >= answerText.value.length
 );
 
 watch(
@@ -327,8 +327,8 @@ const renderedHTML = computed(() => {
         renderer: markdownRenderer,
         escapeMarkdown: safeMarkdownToHTML,
         sanitizeHtml: sanitizeMarkdownHTML,
-        streaming: !props.session?.is_completed,
-        knowledgeReferences: props.session?.knowledge_references,
+        streaming: !props.session?.completed,
+        knowledgeReferences: props.session?.knowledgeReferences,
     });
 });
 
@@ -418,7 +418,7 @@ onUpdated(() => {
         await hydrateProtectedFileImages(parentMd.value);
         await hydrateArtifactImages(parentMd.value, artifactRefContext.value);
         refreshMarkdownEnhancements(parentMd.value);
-        if (props.session?.is_completed) {
+        if (props.session?.completed) {
             await renderMermaidInContainer(parentMd.value);
         }
     });

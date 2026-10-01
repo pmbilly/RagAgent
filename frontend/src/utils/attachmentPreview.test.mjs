@@ -5,13 +5,13 @@ import {
   resolveAttachmentFileType,
 } from './attachmentPreview.ts';
 
-test('resolveAttachmentFileType prefers explicit file_type', () => {
+test('resolveAttachmentFileType prefers explicit fileType', () => {
   assert.equal(resolveAttachmentFileType('report.PDF', '.pdf'), 'pdf');
   assert.equal(resolveAttachmentFileType('report.PDF', ''), 'pdf');
 });
 
 test('isPreviewableAttachment requires id and supported type', () => {
-  assert.equal(isPreviewableAttachment({ id: 'doc-1', file_name: 'notes.md' }), true);
-  assert.equal(isPreviewableAttachment({ file_name: 'notes.md' }), false);
-  assert.equal(isPreviewableAttachment({ id: 'doc-1', file_name: 'archive.zip' }), false);
+  assert.equal(isPreviewableAttachment({ id: 'doc-1', fileName: 'notes.md' }), true);
+  assert.equal(isPreviewableAttachment({ fileName: 'notes.md' }), false);
+  assert.equal(isPreviewableAttachment({ id: 'doc-1', fileName: 'archive.zip' }), false);
 });

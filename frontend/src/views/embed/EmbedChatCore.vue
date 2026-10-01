@@ -43,17 +43,17 @@
 
         <div
           v-for="(session, index) in messagesList"
-          :key="(session.id as string) || `${session.role}-${session.created_at}-${index}`"
+          :key="(session.id as string) || `${session.role}-${session.createdAt}-${index}`"
           class="msg-item-wrapper"
         >
           <MessageTimestamp
             v-if="shouldShowConversationTimestamp(messagesList, index)"
-            :value="session.created_at"
+            :value="session.createdAt"
           />
           <div v-if="session.role === 'user'" class="message-row">
             <EmbedUserMessage
               :content="String(session.content || '')"
-              :mentioned_items="asUnknownArray(session.mentioned_items)"
+              :mentionedItems="asUnknownArray(session.mentionedItems)"
               :images="asEmbedImages(session.images)"
               :attachments="asEmbedAttachments(session.attachments)"
               :embeddedMode="true"
@@ -139,7 +139,7 @@ import type { MessageSuggestionItem, MessageSuggestionSet } from '@/api/message-
 provideChatReferencesDrawer()
 
 type EmbedImage = { url?: string; data?: string }
-type EmbedAttachment = { file_name: string; file_size?: number }
+type EmbedAttachment = { fileName: string; fileSize?: number }
 
 const props = defineProps<{
   sessionId: string
@@ -209,7 +209,7 @@ const loadFollowUpSuggestions = async (
 
 const loadPersistedFollowUps = (messages: Record<string, unknown>[]) => {
   for (const message of messages) {
-    if (message.role === 'assistant' && message.is_completed && message.suggestionSet === undefined) {
+    if (message.role === 'assistant' && message.completed && message.suggestionSet === undefined) {
       void loadFollowUpSuggestions(message, false)
     }
   }

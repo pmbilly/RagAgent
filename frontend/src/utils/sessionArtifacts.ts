@@ -12,7 +12,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function readMessageId(message: Record<string, unknown>): string {
-  return persistedAssistantId(message) || String(message.request_id || '')
+  return persistedAssistantId(message) || String(message.requestId || '')
 }
 
 /**

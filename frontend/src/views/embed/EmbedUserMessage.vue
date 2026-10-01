@@ -7,8 +7,8 @@
     <div v-if="hasAttachments" class="user_attachments">
       <div v-for="(att, idx) in attachments" :key="idx" class="user_attachment_card">
         <div class="attachment_card_info">
-          <div class="attachment_card_name">{{ att.file_name }}</div>
-          <div v-if="att.file_size" class="attachment_card_meta">{{ formatFileSize(att.file_size) }}</div>
+          <div class="attachment_card_name">{{ att.fileName }}</div>
+          <div v-if="att.fileSize" class="attachment_card_meta">{{ formatFileSize(att.fileSize) }}</div>
         </div>
       </div>
     </div>
@@ -23,12 +23,12 @@ import { hydrateProtectedFileImages } from '@/utils/security'
 import picturePreview from '@/components/picture-preview.vue'
 
 type EmbedImage = { url?: string; data?: string }
-type EmbedAttachment = { file_name: string; file_size?: number }
+type EmbedAttachment = { fileName: string; fileSize?: number }
 
 const props = withDefaults(
   defineProps<{
     content?: string
-    mentioned_items?: unknown[]
+    mentionedItems?: unknown[]
     images?: EmbedImage[]
     attachments?: EmbedAttachment[]
     embeddedMode?: boolean
@@ -37,7 +37,7 @@ const props = withDefaults(
   }>(),
   {
     content: '',
-    mentioned_items: () => [],
+    mentionedItems: () => [],
     images: () => [],
     attachments: () => [],
     embeddedMode: true,

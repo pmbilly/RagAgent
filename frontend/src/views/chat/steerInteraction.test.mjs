@@ -49,7 +49,7 @@ test('default after stays below; promotion immediately moves it into the transcr
 test('direct inject shows immediately and an early SSE receipt does not duplicate it', async () => {
   const request = deferred()
   const h = harness({ steerSession: () => request.promise })
-  const assistant = { id: 'assistant', role: 'assistant', request_id: 'request', is_completed: false }
+  const assistant = { id: 'assistant', role: 'assistant', requestId: 'request', completed: false }
   h.state.messagesList.push(assistant)
   const sending = h.handleSteerMsg('补充', [], 'inject')
   const item = h.state.steerQueue.value[0]
@@ -121,7 +121,7 @@ for (const receiptFirst of [false, true]) {
   test(`server-assigned steer ID reconciles the optimistic bubble when SSE arrives ${receiptFirst ? 'before' : 'after'} HTTP`, async () => {
     const request = deferred()
     const h = harness({ steerSession: () => request.promise })
-    h.state.messagesList.push({ id: 'assistant', role: 'assistant', request_id: 'request', is_completed: false })
+    h.state.messagesList.push({ id: 'assistant', role: 'assistant', requestId: 'request', completed: false })
     const sending = h.handleSteerMsg('写到Docx', [{ id: 'mention' }], 'inject')
     if (receiptFirst) receiveInjection(h, 'server-steer', 'persisted-user')
     request.resolve({ status: 'queued', steer_id: 'server-steer' })
@@ -131,7 +131,7 @@ for (const receiptFirst of [false, true]) {
     assert.equal(users.length, 1)
     assert.equal(users[0].id, 'persisted-user')
     assert.equal(users[0]._steerPending, undefined)
-    assert.equal(users[0].mentioned_items[0].id, 'mention')
+    assert.equal(users[0].mentionedItems[0].id, 'mention')
     assert.equal(h.state.steerQueue.value.length, 0)
     assert.deepEqual(h.state.messagesList.map(m => m.role), ['assistant', 'user', 'assistant'])
   })
@@ -141,7 +141,7 @@ test('concurrent identical injects reconcile by their HTTP receipts without merg
   const first = deferred(), second = deferred()
   let calls = 0
   const h = harness({ steerSession: () => (++calls === 1 ? first.promise : second.promise) })
-  h.state.messagesList.push({ id: 'assistant', role: 'assistant', request_id: 'request', is_completed: false })
+  h.state.messagesList.push({ id: 'assistant', role: 'assistant', requestId: 'request', completed: false })
   const sendingFirst = h.handleSteerMsg('写到Docx', [{ id: 'first' }], 'inject')
   const sendingSecond = h.handleSteerMsg('写到Docx', [{ id: 'second' }], 'inject')
   receiveInjection(h, 'server-first', 'user-first')
@@ -151,6 +151,6 @@ test('concurrent identical injects reconcile by their HTTP receipts without merg
   first.resolve({ status: 'queued', steer_id: 'server-first' })
   await sendingFirst
   const users = h.state.messagesList.filter(m => m.role === 'user')
-  assert.deepEqual(users.map(m => [m.id, m.mentioned_items[0].id]), [['user-first', 'first'], ['user-second', 'second']])
+  assert.deepEqual(users.map(m => [m.id, m.mentionedItems[0].id]), [['user-first', 'first'], ['user-second', 'second']])
   assert.equal(h.state.steerQueue.value.length, 0)
 })

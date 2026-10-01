@@ -26,48 +26,48 @@ test('ensureMessageCreatedAt fills a missing timestamp with the provided fallbac
   const result = ensureMessageCreatedAt(message, '2026-01-02T03:04:05.000Z')
 
   assert.equal(result, message)
-  assert.equal(message.created_at, '2026-01-02T03:04:05.000Z')
+  assert.equal(message.createdAt, '2026-01-02T03:04:05.000Z')
 })
 
 test('ensureMessageCreatedAt replaces empty and invalid local timestamps', () => {
-  const empty = { created_at: '' }
-  const blank = { created_at: '   ' }
-  const invalid = { created_at: 'not-a-date' }
+  const empty = { createdAt: '' }
+  const blank = { createdAt: '   ' }
+  const invalid = { createdAt: 'not-a-date' }
 
   ensureMessageCreatedAt(empty, '2026-01-02T03:04:05.000Z')
   ensureMessageCreatedAt(blank, '2026-01-02T03:04:05.000Z')
   ensureMessageCreatedAt(invalid, '2026-01-02T03:04:05.000Z')
 
-  assert.equal(empty.created_at, '2026-01-02T03:04:05.000Z')
-  assert.equal(blank.created_at, '2026-01-02T03:04:05.000Z')
-  assert.equal(invalid.created_at, '2026-01-02T03:04:05.000Z')
+  assert.equal(empty.createdAt, '2026-01-02T03:04:05.000Z')
+  assert.equal(blank.createdAt, '2026-01-02T03:04:05.000Z')
+  assert.equal(invalid.createdAt, '2026-01-02T03:04:05.000Z')
 })
 
 test('ensureMessageCreatedAt preserves a server timestamp', () => {
-  const message = { created_at: '2026-02-03T04:05:06.000Z' }
+  const message = { createdAt: '2026-02-03T04:05:06.000Z' }
 
   ensureMessageCreatedAt(message, '2026-01-02T03:04:05.000Z')
 
-  assert.equal(message.created_at, '2026-02-03T04:05:06.000Z')
+  assert.equal(message.createdAt, '2026-02-03T04:05:06.000Z')
 })
 
 test('applyMessageCreatedAt overwrites a local fallback with a server timestamp', () => {
-  const message = { created_at: '2026-01-02T03:04:05.000Z' }
+  const message = { createdAt: '2026-01-02T03:04:05.000Z' }
 
   applyMessageCreatedAt(message, '2026-02-03T04:05:06.000Z')
 
-  assert.equal(message.created_at, '2026-02-03T04:05:06.000Z')
+  assert.equal(message.createdAt, '2026-02-03T04:05:06.000Z')
 })
 
 test('applyMessageCreatedAt ignores empty or invalid server candidates', () => {
-  const message = { created_at: '2026-01-02T03:04:05.000Z' }
+  const message = { createdAt: '2026-01-02T03:04:05.000Z' }
 
   applyMessageCreatedAt(message, '')
   applyMessageCreatedAt(message, '   ')
   applyMessageCreatedAt(message, 'not-a-date')
   applyMessageCreatedAt(message, undefined)
 
-  assert.equal(message.created_at, '2026-01-02T03:04:05.000Z')
+  assert.equal(message.createdAt, '2026-01-02T03:04:05.000Z')
 })
 
 test('formatMessageTimestamp renders local time to minute precision', () => {
@@ -87,11 +87,11 @@ test('formatMessageTimestamp converts a UTC string into local wall time', () => 
 })
 
 test('bindServerTurnTimestamps replaces local fallbacks with persisted server times', () => {
-  const user: { role: string; created_at: string; id?: string } = {
+  const user: { role: string; createdAt: string; id?: string } = {
     role: 'user',
-    created_at: '2026-01-02T03:04:05.000Z',
+    createdAt: '2026-01-02T03:04:05.000Z',
   }
-  const assistant = { role: 'assistant', created_at: '2026-01-02T03:04:06.000Z' }
+  const assistant = { role: 'assistant', createdAt: '2026-01-02T03:04:06.000Z' }
 
   bindServerTurnTimestamps(
     [user, assistant],
@@ -104,13 +104,13 @@ test('bindServerTurnTimestamps replaces local fallbacks with persisted server ti
   )
 
   assert.equal(user.id, 'user-1')
-  assert.equal(user.created_at, '2026-01-02T03:05:00.000Z')
-  assert.equal(assistant.created_at, '2026-01-02T03:05:01.000Z')
+  assert.equal(user.createdAt, '2026-01-02T03:05:00.000Z')
+  assert.equal(assistant.createdAt, '2026-01-02T03:05:01.000Z')
 })
 
 test('bindServerTurnTimestamps ignores junk and keeps existing user ids', () => {
-  const user = { id: 'existing-user', role: 'user', created_at: '2026-01-02T03:04:05.000Z' }
-  const assistant = { role: 'assistant', created_at: '2026-01-02T03:04:06.000Z' }
+  const user = { id: 'existing-user', role: 'user', createdAt: '2026-01-02T03:04:05.000Z' }
+  const assistant = { role: 'assistant', createdAt: '2026-01-02T03:04:06.000Z' }
 
   bindServerTurnTimestamps(
     [user, assistant],
@@ -123,8 +123,8 @@ test('bindServerTurnTimestamps ignores junk and keeps existing user ids', () => 
   )
 
   assert.equal(user.id, 'existing-user')
-  assert.equal(user.created_at, '2026-01-02T03:04:05.000Z')
-  assert.equal(assistant.created_at, '2026-01-02T03:04:06.000Z')
+  assert.equal(user.createdAt, '2026-01-02T03:04:05.000Z')
+  assert.equal(assistant.createdAt, '2026-01-02T03:04:06.000Z')
 })
 
 test('formatMessageTimestamp hides empty and invalid timestamps', () => {
@@ -160,26 +160,26 @@ test('getConversationTimestampModel classifies today yesterday and older dates',
 })
 
 test('shouldInsertConversationTimestamp opens a new group on first message and long gaps', () => {
-  const firstUser = { role: 'user', created_at: new Date(2026, 7, 24, 16, 5, 0).toISOString() }
-  const assistantSameTurn = { role: 'assistant', created_at: new Date(2026, 7, 24, 16, 5, 20).toISOString() }
-  const nextUserSoon = { role: 'user', created_at: new Date(2026, 7, 24, 16, 8, 0).toISOString() }
-  const nextUserLater = { role: 'user', created_at: new Date(2026, 7, 24, 16, 12, 0).toISOString() }
-  const nextDay = { role: 'user', created_at: new Date(2026, 7, 25, 9, 0, 0).toISOString() }
+  const firstUser = { role: 'user', createdAt: new Date(2026, 7, 24, 16, 5, 0).toISOString() }
+  const assistantSameTurn = { role: 'assistant', createdAt: new Date(2026, 7, 24, 16, 5, 20).toISOString() }
+  const nextUserSoon = { role: 'user', createdAt: new Date(2026, 7, 24, 16, 8, 0).toISOString() }
+  const nextUserLater = { role: 'user', createdAt: new Date(2026, 7, 24, 16, 12, 0).toISOString() }
+  const nextDay = { role: 'user', createdAt: new Date(2026, 7, 25, 9, 0, 0).toISOString() }
 
   assert.equal(shouldInsertConversationTimestamp(undefined, firstUser), true)
   assert.equal(shouldInsertConversationTimestamp(firstUser, assistantSameTurn), false)
   assert.equal(shouldInsertConversationTimestamp(assistantSameTurn, nextUserSoon), false)
   assert.equal(shouldInsertConversationTimestamp(assistantSameTurn, nextUserLater), true)
   assert.equal(shouldInsertConversationTimestamp(nextUserLater, nextDay), true)
-  assert.equal(shouldInsertConversationTimestamp(firstUser, { role: 'user', created_at: '' }), false)
+  assert.equal(shouldInsertConversationTimestamp(firstUser, { role: 'user', createdAt: '' }), false)
 })
 
 test('shouldShowConversationTimestamp inserts before the user turn not the assistant reply', () => {
   const messages = [
-    { role: 'user', created_at: new Date(2026, 7, 24, 16, 5, 0).toISOString() },
-    { role: 'assistant', created_at: new Date(2026, 7, 24, 16, 5, 20).toISOString() },
-    { role: 'user', created_at: new Date(2026, 7, 24, 17, 0, 0).toISOString() },
-    { role: 'assistant', created_at: new Date(2026, 7, 24, 17, 0, 30).toISOString() },
+    { role: 'user', createdAt: new Date(2026, 7, 24, 16, 5, 0).toISOString() },
+    { role: 'assistant', createdAt: new Date(2026, 7, 24, 16, 5, 20).toISOString() },
+    { role: 'user', createdAt: new Date(2026, 7, 24, 17, 0, 0).toISOString() },
+    { role: 'assistant', createdAt: new Date(2026, 7, 24, 17, 0, 30).toISOString() },
   ]
 
   assert.equal(shouldShowConversationTimestamp(messages, 0), true)

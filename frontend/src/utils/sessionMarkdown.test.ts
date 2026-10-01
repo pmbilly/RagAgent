@@ -14,12 +14,12 @@ const labels = {
 test('collectAllSessionMessages walks backwards and returns chronological unique messages', async () => {
   const pages: Record<string, any[]> = {
     '': [
-      { id: '3', role: 'user', content: 'new question', created_at: '2026-01-03T00:00:00Z' },
-      { id: '4', role: 'assistant', content: 'new answer', created_at: '2026-01-04T00:00:00Z' },
+      { id: '3', role: 'user', content: 'new question', createdAt: '2026-01-03T00:00:00Z' },
+      { id: '4', role: 'assistant', content: 'new answer', createdAt: '2026-01-04T00:00:00Z' },
     ],
     '2026-01-03T00:00:00Z': [
-      { id: '1', role: 'user', content: 'old question', created_at: '2026-01-01T00:00:00Z' },
-      { id: '2', role: 'assistant', content: 'old answer', created_at: '2026-01-02T00:00:00Z' },
+      { id: '1', role: 'user', content: 'old question', createdAt: '2026-01-01T00:00:00Z' },
+      { id: '2', role: 'assistant', content: 'old answer', createdAt: '2026-01-02T00:00:00Z' },
     ],
     '2026-01-01T00:00:00Z': [],
   }
@@ -38,13 +38,14 @@ test('buildSessionMarkdown exports visible conversation content without internal
       {
         role: 'user',
         content: 'Read this file',
-        attachments: [{ file_name: 'notes.md' }],
+        attachments: [{ fileName: 'notes.md' }],
       },
       {
         role: 'assistant',
         content: 'Done. <kb doc="notes.md" chunk_id="1" />',
-        knowledge_references: [
-          { knowledge_title: 'Notes', knowledge_source: 'https://example.com/notes' },
+        knowledgeReferences: [
+          { knowledgeTitle: 'Notes', knowledgeSource: 'https://example.com/notes' },
+          // 历史 jsonb 行里的库内键名（过渡期兼容读取）——与上一条去重后只留一行
           { knowledge_title: 'Notes', knowledge_source: 'https://example.com/notes' },
         ],
       },

@@ -3,7 +3,7 @@ export const RAG_WAIT_REVEAL_DELAY_MS = 250
 
 /**
  * How long the wait row keeps claiming progress. A dropped SSE connection never
- * sets `is_completed` (the stream layer only raises a toast), so without this cap
+ * sets `completed` (the stream layer only raises a toast), so without this cap
  * the row would promise an answer forever.
  */
 export const RAG_WAIT_STALL_DELAY_MS = 60_000

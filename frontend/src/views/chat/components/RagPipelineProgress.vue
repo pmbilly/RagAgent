@@ -273,9 +273,9 @@ const props = defineProps<{
     id?: string | number
     agentEventStream?: Array<Record<string, unknown>>
     content?: string
-    knowledge_references?: Array<{ chunk_type?: string; knowledge_id?: string; knowledge_title?: string }>
-    used_memories?: Array<{ id: string; kind: string; content: string }>
-    is_completed?: boolean
+    knowledgeReferences?: Array<{ chunkType?: string; knowledgeId?: string; knowledgeTitle?: string }>
+    usedMemories?: Array<{ id: string; kind: string; content: string }>
+    completed?: boolean
   }
   embeddedMode?: boolean
   // Set by hosts that already render their own timeline (the agent stream) and
@@ -303,7 +303,7 @@ const {
   forgettingId,
   toggle: toggleMemory,
   forget: forgetMemory,
-} = useChatMemoryRow(() => props.session?.used_memories)
+} = useChatMemoryRow(() => props.session?.usedMemories)
 
 const thinkingContent = computed(() => {
   const stream = props.session?.agentEventStream
@@ -336,10 +336,10 @@ const hasAnswer = computed(() => {
 })
 
 const hasReferences = computed(
-  () => (props.session?.knowledge_references?.length ?? 0) > 0,
+  () => (props.session?.knowledgeReferences?.length ?? 0) > 0,
 )
 
-const referenceSections = computed(() => buildReferenceSections(props.session?.knowledge_references))
+const referenceSections = computed(() => buildReferenceSections(props.session?.knowledgeReferences))
 
 const steps = computed(() => {
   const stream = props.session?.agentEventStream
@@ -401,7 +401,7 @@ const hasCompletedRetrievalStep = computed(() => steps.value.some(
 ))
 
 const waitKind = computed(() => getRagPipelineWaitKind({
-  isCompleted: Boolean(props.session?.is_completed),
+  isCompleted: Boolean(props.session?.completed),
   hasAnswer: hasAnswer.value,
   hasThinkingEvent: hasThinkingEvent.value,
   stepCount: steps.value.length,
@@ -422,7 +422,7 @@ const waitStepText = computed(() => {
 
 const showCollapsedRoot = computed(
   () =>
-    (hasAnswer.value || Boolean(props.session?.is_completed)) &&
+    (hasAnswer.value || Boolean(props.session?.completed)) &&
     (steps.value.length > 0 || hasThinking.value),
 )
 
@@ -432,7 +432,7 @@ const showExpandedTimeline = computed(() => {
 })
 
 const showDoneRow = computed(() => {
-  const turnDone = hasAnswer.value || Boolean(props.session?.is_completed)
+  const turnDone = hasAnswer.value || Boolean(props.session?.completed)
   if (!turnDone) return false
   // A timeline rendered only because memory was used has nothing to report as
   // finished; adding a "done" row there would put a step into plain chat that
@@ -443,7 +443,7 @@ const showDoneRow = computed(() => {
 })
 
 const showPrePipelineWait = computed(() => {
-  if (hasAnswer.value || props.session?.is_completed || steps.value.length > 0 || hasThinking.value) {
+  if (hasAnswer.value || props.session?.completed || steps.value.length > 0 || hasThinking.value) {
     return false
   }
   // Memory is recalled before the first token, so once it is on screen the
@@ -460,7 +460,7 @@ const thinkingPending = computed(
     showThinkingStep.value &&
     !hasThinking.value &&
     !hasAnswer.value &&
-    !props.session?.is_completed,
+    !props.session?.completed,
 )
 
 const isThinkingStreaming = computed(
@@ -468,7 +468,7 @@ const isThinkingStreaming = computed(
     showThinkingStep.value &&
     thinkingExpanded.value &&
     !hasAnswer.value &&
-    !props.session?.is_completed,
+    !props.session?.completed,
 )
 
 // Memory alone is enough to render: a plain-chat answer that used memory still
@@ -517,13 +517,13 @@ const referenceSummaryText = computed(() => {
 })
 
 function toggleReferencesDrawer() {
-  const refs = props.session?.knowledge_references
+  const refs = props.session?.knowledgeReferences
   if (!referencesDrawer || !refs?.length) return
   referencesDrawer.toggle({
     references: refs,
     highlight: null,
     messageId: props.session?.id ? String(props.session.id) : '',
-    sourceKey: `rag:${props.session?.id || refs.map((item) => item.knowledge_id || item.knowledge_title).join('|')}`,
+    sourceKey: `rag:${props.session?.id || refs.map((item) => item.knowledgeId || item.knowledgeTitle).join('|')}`,
   })
 }
 

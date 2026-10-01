@@ -43,9 +43,9 @@
     <!-- 统计信息 -->
     <div class="stats-section">
       <h3 class="stats-title">{{ t('chatHistorySettings.statsTitle') }}</h3>
-      <div v-if="stats && stats.enabled && stats.knowledge_base_id" class="stats-grid">
+      <div v-if="stats && stats.enabled && stats.knowledgeBaseId" class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value">{{ stats.indexed_message_count }}</div>
+          <div class="stat-value">{{ stats.indexedMessageCount }}</div>
           <div class="stat-label">{{ t('chatHistorySettings.statsIndexedMessages') }}</div>
         </div>
       </div>
@@ -128,7 +128,7 @@ const loadStats = async () => {
     if (response) {
       stats.value = response
       // Lock model if there are indexed messages
-      modelLocked.value = response.has_indexed_messages === true
+      modelLocked.value = response.hasIndexedMessages === true
     }
   } catch (error: any) {
     console.error('Failed to load chat history stats:', error)

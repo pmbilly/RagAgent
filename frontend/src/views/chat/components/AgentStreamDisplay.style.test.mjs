@@ -17,7 +17,7 @@ test('streamed responses do not mount a hidden Wiki drawer that steals composer 
 test('steer seals animation while keeping the preceding timeline open without completion', () => {
   const stateBlock = source.slice(source.indexOf('const isConversationDone ='), source.indexOf('const streamingMermaidSvgCache ='))
   const collapseBlock = source.slice(source.indexOf('const shouldShowCollapsedSteps ='), source.indexOf('// Once the steps collapse'))
-  const props = reactive({ ragMode: false, session: { steerForked: true, is_completed: true } })
+  const props = reactive({ ragMode: false, session: { steerForked: true, completed: true } })
   const state = vm.runInNewContext(`${stateBlock}\n${collapseBlock}\n({ isConversationDone, isSegmentDone, shouldShowCollapsedSteps })`, {
     props, computed, isAssistantTurnComplete, intermediateStepsCount: { value: 2 },
   })

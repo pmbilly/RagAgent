@@ -15,7 +15,7 @@ test('isThinkingInProgress: agent mode scans thinking events', () => {
   assert.equal(
     isThinkingInProgress({
       isAgentMode: true,
-      is_completed: false,
+      completed: false,
       agentEventStream: [{ type: 'thinking', thinking: true, done: false }],
     }),
     true,
@@ -23,7 +23,7 @@ test('isThinkingInProgress: agent mode scans thinking events', () => {
   assert.equal(
     isThinkingInProgress({
       isAgentMode: true,
-      is_completed: true,
+      completed: true,
       agentEventStream: [{ type: 'thinking', thinking: false, done: true }],
     }),
     false,
@@ -33,16 +33,16 @@ test('isThinkingInProgress: agent mode scans thinking events', () => {
   assert.equal(
     isThinkingInProgress({
       isAgentMode: true,
-      is_completed: false,
+      completed: false,
       agentEventStream: [{ type: 'tool_call', thinking: false }],
     }),
     true,
   )
   assert.equal(isThinkingInProgress({ isAgentMode: true }), false)
-  assert.equal(isThinkingInProgress({ isAgentMode: true, is_completed: true }), false)
+  assert.equal(isThinkingInProgress({ isAgentMode: true, completed: true }), false)
   // Answer already streaming: dots must give way to the answer text.
   assert.equal(
-    isThinkingInProgress({ isAgentMode: true, is_completed: false, content: '2' }),
+    isThinkingInProgress({ isAgentMode: true, completed: false, content: '2' }),
     false,
   )
 })

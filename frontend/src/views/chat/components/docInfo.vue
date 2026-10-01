@@ -1,6 +1,6 @@
 <template>
     <div class="refer" :class="{ 'refer-timeline': timelineMode }"
-        v-if="session.knowledge_references && session.knowledge_references.length">
+        v-if="session.knowledgeReferences && session.knowledgeReferences.length">
         <div class="refer_header" v-if="!contentOnly" @click="referBoxSwitch">
             <div class="refer_title">
                 <t-icon v-if="!timelineMode" name="file" class="refer-title-icon" />
@@ -98,7 +98,7 @@ const showReferBox = ref(false);
 const expandedGroups = reactive({});
 
 const referBoxSwitch = () => {
-    const refs = props.session?.knowledge_references;
+    const refs = props.session?.knowledgeReferences;
     if (referencesDrawer && refs?.length) {
         referencesDrawer.open({ references: refs });
         return;
@@ -111,13 +111,13 @@ const toggleGroup = (key) => {
 };
 
 const webSearchRefs = computed(() => {
-    if (!props.session?.knowledge_references) return [];
-    return props.session.knowledge_references.filter(item => item.chunk_type === 'web_search');
+    if (!props.session?.knowledgeReferences) return [];
+    return props.session.knowledgeReferences.filter(item => item.chunkType === 'web_search');
 });
 
 const knowledgeRefs = computed(() => {
-    if (!props.session?.knowledge_references) return [];
-    return props.session.knowledge_references.filter(item => item.chunk_type !== 'web_search');
+    if (!props.session?.knowledgeReferences) return [];
+    return props.session.knowledgeReferences.filter(item => item.chunkType !== 'web_search');
 });
 
 const groupedKnowledgeRefs = computed(() => {
@@ -126,13 +126,13 @@ const groupedKnowledgeRefs = computed(() => {
 
     const groupMap = new Map();
     for (const item of refs) {
-        const key = item.knowledge_id || item.knowledge_title || item.id;
+        const key = item.knowledgeId || item.knowledgeTitle || item.id;
         if (!groupMap.has(key)) {
             groupMap.set(key, {
                 key,
-                title: item.knowledge_title || item.knowledge_filename || key,
-                knowledgeId: item.knowledge_id,
-                knowledgeBaseId: item.knowledge_base_id,
+                title: item.knowledgeTitle || item.knowledgeFilename || key,
+                knowledgeId: item.knowledgeId,
+                knowledgeBaseId: item.knowledgeBaseId,
                 chunks: [],
             });
         }
@@ -142,7 +142,7 @@ const groupedKnowledgeRefs = computed(() => {
 });
 
 const headerText = computed(() => {
-    const total = props.session?.knowledge_references?.length ?? 0;
+    const total = props.session?.knowledgeReferences?.length ?? 0;
     const docCount = groupedKnowledgeRefs.value.length;
     const webCount = webSearchRefs.value.length;
     if (docCount > 0 && webCount > 0) {
@@ -193,8 +193,8 @@ const getWebSearchUrl = (item) => {
 };
 
 const getWebSearchDisplayText = (item) => {
-    if (item.knowledge_title) {
-        return item.knowledge_title;
+    if (item.knowledgeTitle) {
+        return item.knowledgeTitle;
     }
     if (item.metadata?.title) {
         return item.metadata.title;

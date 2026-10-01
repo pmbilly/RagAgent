@@ -286,11 +286,11 @@ export function useCmdkSearch(options: {
     const mmap = new Map<string, CmdkMsgGroup>()
     const items: MessageSearchGroupItem[] = (msgRes as any).items || []
     for (const m of items) {
-      const sid = m.session_id || 'unknown'
+      const sid = m.sessionId || 'unknown'
       if (!mmap.has(sid)) {
         mmap.set(sid, {
           sessionId: sid,
-          sessionTitle: m.session_title || '',
+          sessionTitle: m.sessionTitle || '',
           items: [],
         })
       }

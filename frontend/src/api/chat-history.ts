@@ -9,13 +9,14 @@ export interface ChatHistoryConfig {
 }
 
 // ChatHistoryKBStats represents statistics about the chat history knowledge base
+// 键名＝服务端字段名（§14.9l S2 后为 camelCase）
 export interface ChatHistoryKBStats {
   enabled: boolean
-  embedding_model_id?: string
-  knowledge_base_id?: string
-  knowledge_base_name?: string
-  indexed_message_count: number
-  has_indexed_messages: boolean
+  embeddingModelId?: string
+  knowledgeBaseId?: string
+  knowledgeBaseName?: string
+  indexedMessageCount: number
+  hasIndexedMessages: boolean
 }
 
 // MessageSearchRequest defines search parameters for message search
@@ -23,19 +24,19 @@ export interface MessageSearchRequest {
   query: string
   mode?: 'keyword' | 'vector' | 'hybrid'
   limit?: number
-  session_ids?: string[]
+  sessionIds?: string[]
 }
 
 // MessageSearchGroupItem represents a merged Q&A pair in search results
 export interface MessageSearchGroupItem {
-  request_id: string
-  session_id: string
-  session_title: string
-  query_content: string
-  answer_content: string
+  requestId: string
+  sessionId: string
+  sessionTitle: string
+  queryContent: string
+  answerContent: string
   score: number
-  match_type: string
-  created_at: string
+  matchType: string
+  createdAt: string
 }
 
 // MessageSearchResult represents the full search result

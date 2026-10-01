@@ -50,8 +50,10 @@ export async function agentChat(data: {
 }
 
 export async function getMessageList(data: { session_id: string; limit: number, created_at: string }) {
+  // 查询参数是 §14.9l S2 后的 camelCase（beforeTime）；data.created_at 只是本地游标
+  // （上一页最早一条消息的 createdAt），不是线格式键。
   if (data.created_at) {
-    return get(`/api/v1/messages/${data.session_id}/load?before_time=${encodeURIComponent(data.created_at)}&limit=${data.limit}`);
+    return get(`/api/v1/messages/${data.session_id}/load?beforeTime=${encodeURIComponent(data.created_at)}&limit=${data.limit}`);
   } else {
     return get(`/api/v1/messages/${data.session_id}/load?limit=${data.limit}`);
   }
@@ -98,14 +100,16 @@ export interface ArtifactMeta {
    * resource catalog, in which case the body references files by name.
    */
   handle?: string | null;
-  // ⚠️ 过渡：产物字段名与消息面 jsonb（messages.artifacts 里的 MessageArtifact）保持一致，
-  // 两者要到消息面换锚（§14.9l S2）才一起转 camelCase —— 现在改一边会让抽屉拿到两种形状。
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  source_path: string;
-  mod_time: string;
-  created_at: string;
+  // 键名＝服务端字段名（§14.9l S2 后为 camelCase）：产物列表端点（ArtifactView）与
+  // 消息面 jsonb（messages.artifacts 里的 MessageArtifact）两处形状一致。
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  sourcePath: string;
+  modTime: string;
+  createdAt: string;
+  /** 消息面 jsonb 里的存储引用（`resource://<handle>`）；ArtifactView 用 `handle` 表达。 */
+  url?: string;
 }
 
 // listMessageArtifacts returns the artifacts attached to a single assistant

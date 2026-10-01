@@ -21,11 +21,11 @@
 import { escapeHTML } from './security.ts';
 import { renderArtifactFileIcon } from './artifactFileIcon';
 
-/** 与后端 artifactListItem / SSE publicArtifactViews 对齐的最小字段集。 */
+/** 与后端 artifactListItem（ArtifactView）/ 消息面 MessageArtifact 对齐的最小字段集。 */
 export interface ArtifactRefMeta {
   index: number;
-  file_name: string;
-  file_type?: string;
+  fileName: string;
+  fileType?: string;
   /** `resource://<handle>`。后端未启用资源目录时为空，此时只能按文件名解析。 */
   handle?: string;
   /**
@@ -200,7 +200,7 @@ export function resolveArtifactRef(
   if (ref.kind === 'handle') {
     return artifacts.find((item) => artifactHandle(item) === ref.handle) || null;
   }
-  return artifacts.find((item) => (item.file_name || '').trim() === ref.name) || null;
+  return artifacts.find((item) => (item.fileName || '').trim() === ref.name) || null;
 }
 
 function fileExtension(fileName: string): string {
@@ -213,9 +213,9 @@ function fileExtension(fileName: string): string {
  * 是否按图片内联渲染。SVG 刻意排除：它是可执行内容，走卡片 + 预览的沙箱路径。
  */
 function rendersAsImage(artifact: ArtifactRefMeta): boolean {
-  const ext = fileExtension(artifact.file_name);
+  const ext = fileExtension(artifact.fileName);
   if (ext) return IMAGE_EXTENSIONS.has(ext);
-  const type = (artifact.file_type || '').toLowerCase();
+  const type = (artifact.fileType || '').toLowerCase();
   return type.startsWith('image/') && !type.includes('svg');
 }
 
@@ -263,7 +263,7 @@ function renderImage(
   alt: string,
   ctx: ArtifactRefContext | null,
 ): string {
-  const safeAlt = escapeHTML(alt || artifact.file_name || '');
+  const safeAlt = escapeHTML(alt || artifact.fileName || '');
   // 已经拉取过就直接给 blob：流式重渲染会重建 <img>，否则每帧都会闪回占位图。
   const cached = ctx ? artifactBlobState.blobByKey.get(blobCacheKey(ctx, artifact.index)) : undefined;
   const src = cached || TRANSPARENT_PIXEL;
@@ -311,7 +311,7 @@ export function renderArtifactReference(args: {
   if (rendersAsImage(artifact)) {
     return renderImage(artifact, args.alt || '', args.context ?? null);
   }
-  return renderCard(artifact.file_name, args.labels.previewHint, artifact.index);
+  return renderCard(artifact.fileName, args.labels.previewHint, artifact.index);
 }
 
 async function loadArtifactBlobURL(ctx: ArtifactRefContext, index: number): Promise<string | null> {

@@ -62,9 +62,9 @@
                     </template>
                 </t-button>
                 <div class="artifact-drawer-header-icon">
-                    <t-icon :name="getFileIcon(previewItem.file_name)" />
+                    <t-icon :name="getFileIcon(previewItem.fileName)" />
                 </div>
-                <div class="artifact-drawer-header-title" :title="previewItem.file_name">{{ previewItem.file_name }}</div>
+                <div class="artifact-drawer-header-title" :title="previewItem.fileName">{{ previewItem.fileName }}</div>
                 <t-button
                     class="artifact-download"
                     variant="text"
@@ -94,7 +94,7 @@
                 :message-id="messageId"
                 :artifact-index="previewItem.index"
                 :file-type="previewFileType"
-                :file-name="previewItem.file_name"
+                :file-name="previewItem.fileName"
                 :active="internalVisible"
                 fill-height
             />
@@ -110,19 +110,19 @@
         <ul v-else class="artifact-list">
             <li
                 v-for="item in items"
-                :key="`${item.index}-${item.file_name}`"
+                :key="`${item.index}-${item.fileName}`"
                 class="artifact-item is-previewable"
                 @click="openPreview(item)"
             >
                 <span class="artifact-icon">
-                    <t-icon :name="getFileIcon(item.file_name)" />
+                    <t-icon :name="getFileIcon(item.fileName)" />
                 </span>
                 <div class="artifact-body">
-                    <div class="artifact-name" :title="item.file_name">{{ item.file_name }}</div>
+                    <div class="artifact-name" :title="item.fileName">{{ item.fileName }}</div>
                     <div class="artifact-meta">
-                        <span>{{ formatFileSize(item.file_size) }}</span>
+                        <span>{{ formatFileSize(item.fileSize) }}</span>
                         <span class="artifact-meta-sep">·</span>
-                        <span>{{ formatDateTime(item.created_at) }}</span>
+                        <span>{{ formatDateTime(item.createdAt) }}</span>
                     </div>
                 </div>
                 <t-button
@@ -244,7 +244,7 @@ const items = computed<ArtifactMeta[]>(() => {
 const previewFileType = computed(() => {
     const item = previewItem.value
     if (!item) return ''
-    return resolveFilePreviewExt(item.file_name, item.file_type)
+    return resolveFilePreviewExt(item.fileName, item.fileType)
 })
 
 const drawerSize = computed(() => (
@@ -409,7 +409,7 @@ async function handleDownload(item: ArtifactMeta) {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = item.file_name || 'artifact'
+        a.download = item.fileName || 'artifact'
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)

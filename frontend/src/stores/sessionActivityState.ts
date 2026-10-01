@@ -7,7 +7,7 @@ export interface SessionActivity {
 interface ActivityMessage {
   id: string
   role: string
-  is_completed: boolean
+  completed: boolean
 }
 
 // Entries are replaced on every local update so stale polling responses cannot
@@ -38,8 +38,8 @@ export function createSessionActivityState(
         if (entries[sessionId] !== entry) return
         const message = entry.messageId
           ? messages.find(message => message.id === entry.messageId)
-          : messages.find(message => message.role === 'assistant' && !message.is_completed)
-        if (message?.is_completed || (!message && entry.messageId)) {
+          : messages.find(message => message.role === 'assistant' && !message.completed)
+        if (message?.completed || (!message && entry.messageId)) {
           delete entries[sessionId]
         } else if (message) {
           entries[sessionId] = { messageId: message.id, detached: true, failures: 0 }

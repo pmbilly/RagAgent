@@ -1,24 +1,31 @@
 import { KB_WEB_TAG_RE } from './citationMarkdown'
 
 export interface SessionExportAttachment {
-  file_name?: string
+  fileName?: string
 }
 
+/**
+ * 引用元素是检索域的 `SearchResult`：线上是 camelCase；历史 jsonb 行里可能仍是
+ * Go 时代的库内键名，故两种拼写都收（camelCase 优先），见 `referenceSources.ts` 的同类说明。
+ */
 export interface SessionExportReference {
+  knowledgeTitle?: string
+  knowledgeFilename?: string
+  knowledgeSource?: string
+  chunkType?: string
+  metadata?: Record<string, string>
   knowledge_title?: string
   knowledge_filename?: string
   knowledge_source?: string
-  chunk_type?: string
-  metadata?: Record<string, string>
 }
 
 export interface SessionExportMessage {
   id?: string
   role?: string
   content?: string
-  created_at?: string
+  createdAt?: string
   attachments?: SessionExportAttachment[]
-  knowledge_references?: SessionExportReference[]
+  knowledgeReferences?: SessionExportReference[]
 }
 
 export interface SessionMarkdownLabels {
@@ -53,7 +60,7 @@ export async function collectAllSessionMessages(
     if (!Array.isArray(page) || page.length === 0) break
     pages.unshift(page)
 
-    const oldestTime = page[0]?.created_at || ''
+    const oldestTime = page[0]?.createdAt || ''
     if (page.length < pageSize || !oldestTime || oldestTime === beforeTime) break
     beforeTime = oldestTime
   }
@@ -63,13 +70,13 @@ export async function collectAllSessionMessages(
     .flat()
     .filter((message) => {
       const key = message.id
-        || `${message.role || ''}:${message.created_at || ''}:${message.content || ''}`
+        || `${message.role || ''}:${message.createdAt || ''}:${message.content || ''}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
     .sort((a, b) => {
-      const timeCompare = String(a.created_at || '').localeCompare(String(b.created_at || ''))
+      const timeCompare = String(a.createdAt || '').localeCompare(String(b.createdAt || ''))
       return timeCompare || roleOrder(a.role) - roleOrder(b.role)
     })
 }
@@ -90,14 +97,20 @@ function isHttpUrl(value: string): boolean {
 }
 
 function referenceLine(reference: SessionExportReference): string {
-  const title = reference.knowledge_title
+  const title = reference.knowledgeTitle
+    || reference.knowledge_title
+    || reference.knowledgeFilename
     || reference.knowledge_filename
     || reference.metadata?.title
+    || reference.knowledgeSource
     || reference.knowledge_source
     || ''
   if (!title) return ''
 
-  const source = reference.metadata?.url || reference.knowledge_source || ''
+  const source = reference.metadata?.url
+    || reference.knowledgeSource
+    || reference.knowledge_source
+    || ''
   const safeTitle = markdownListText(title)
   return isHttpUrl(source) ? `- [${safeTitle}](${source})` : `- ${safeTitle}`
 }
@@ -122,10 +135,10 @@ export function buildSessionMarkdown(options: {
     if (message.role !== 'user' && message.role !== 'assistant') continue
     const content = cleanMessageContent(message.content)
     const attachments = (message.attachments || [])
-      .map((attachment) => attachment.file_name?.trim() || '')
+      .map((attachment) => attachment.fileName?.trim() || '')
       .filter(Boolean)
     const references = [...new Set(
-      (message.knowledge_references || []).map(referenceLine).filter(Boolean),
+      (message.knowledgeReferences || []).map(referenceLine).filter(Boolean),
     )]
     if (!content && attachments.length === 0 && references.length === 0) continue
 

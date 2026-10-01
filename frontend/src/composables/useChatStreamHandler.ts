@@ -84,7 +84,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   }
 
   const emitMessageUpdated = (message: ChatMessage, payload?: ChatMessage) => {
-    if (payload) applyMessageCreatedAt(message, payload.created_at)
+    if (payload) applyMessageCreatedAt(message, payload.createdAt)
     onMessageUpdated?.(message, payload)
   }
 
@@ -104,14 +104,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const getTrailingIncompleteAssistant = () => {
     for (let i = messagesList.length - 1; i >= 0; i--) {
       const item = messagesList[i]
-      if (item?.role === 'assistant' && !item.is_completed) return item
+      if (item?.role === 'assistant' && !item.completed) return item
     }
     return undefined
   }
 
   const markAssistantStopped = (message: ChatMessage) => {
-    if (!message || message.is_completed) return
-    message.is_completed = true
+    if (!message || message.completed) return
+    message.completed = true
     if (message.isAgentMode) {
       if (!message.agentEventStream) message.agentEventStream = []
       const stream = message.agentEventStream as ChatMessage[]
@@ -128,7 +128,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   /** Finalize any in-flight assistant rows before a new user query is sent. */
   const prepareForNewOutgoingMessage = () => {
     for (const msg of messagesList) {
-      if (msg.role === 'assistant' && !msg.is_completed) {
+      if (msg.role === 'assistant' && !msg.completed) {
         markAssistantStopped(msg)
       }
     }
@@ -143,10 +143,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       target = messagesList.find(
         (m) =>
           m.role === 'assistant' &&
-          !m.is_completed &&
+          !m.completed &&
           (m.id === messageId ||
             m.assistant_message_id === messageId ||
-            m.request_id === messageId),
+            m.requestId === messageId),
       )
     }
     if (!target) target = getTrailingIncompleteAssistant()
@@ -179,8 +179,8 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     const matched = findLastMessage((item) => {
       if (item.role !== 'assistant') return false
-      if (dataId && (item.request_id === dataId || item.id === dataId)) return true
-      if (assistantId && (item.id === assistantId || item.request_id === assistantId)) return true
+      if (dataId && (item.requestId === dataId || item.id === dataId)) return true
+      if (assistantId && (item.id === assistantId || item.requestId === assistantId)) return true
       return false
     })
     if (matched) return matched
@@ -198,14 +198,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       const rowId = (data.id as string | undefined) || currentAssistantMessageId.value
       message = {
         id: rowId,
-        request_id: rowId,
+        requestId: rowId,
         role: 'assistant',
         content: '',
         showThink: false,
         thinkContent: '',
         thinking: false,
-        is_completed: false,
-        knowledge_references: [],
+        completed: false,
+        knowledgeReferences: [],
       }
       ensureAgentMessageShell(message, data.id as string | undefined)
       messagesList.push(message)
@@ -215,7 +215,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       ensureAgentMessageShell(message, data.id as string | undefined)
     }
 
-    message.knowledge_references = refs.slice()
+    message.knowledgeReferences = refs.slice()
     if (created) onAgentChunkBound?.(message, true)
     emitMessageUpdated(message, data)
     log('[References] Saved to message, count:', refs.length)
@@ -236,7 +236,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       log('[Memory] No assistant message to attach memories to')
       return undefined
     }
-    message.used_memories = memories.slice()
+    message.usedMemories = memories.slice()
     emitMessageUpdated(message, data)
     log('[Memory] Saved to message, count:', memories.length)
     return message
@@ -253,16 +253,16 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (!message._pendingToolCalls) message._pendingToolCalls = new Map()
     if (requestId) {
       if (!message.id) message.id = requestId
-      if (!message.request_id) message.request_id = requestId
+      if (!message.requestId) message.requestId = requestId
     }
   }
 
   const shouldRenderAssistantMessage = (session: ChatMessage) => {
     if (!session?.isAgentMode) return true
-    if (!session.is_completed) return true
+    if (!session.completed) return true
     const stream = session.agentEventStream
     if (Array.isArray(stream) && stream.length > 0) return true
-    if (Array.isArray(session.knowledge_references) && session.knowledge_references.length > 0) {
+    if (Array.isArray(session.knowledgeReferences) && session.knowledgeReferences.length > 0) {
       return true
     }
     // A turn can carry its answer as plain content with no timeline events —
@@ -279,7 +279,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     isRecovering = false,
   ) => {
     if (!isLoading && !isRecovering) return false
-    if (messages.some((m) => m.role === 'assistant' && m.isAgentMode && !m.is_completed)) {
+    if (messages.some((m) => m.role === 'assistant' && m.isAgentMode && !m.completed)) {
       return false
     }
     return true
@@ -290,9 +290,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (isAgentStreamSession() || item.role !== 'assistant') return
     item.isRagMode = true
     if (
-      item.agent_steps &&
-      Array.isArray(item.agent_steps) &&
-      item.agent_steps.length > 0
+      item.agentSteps &&
+      Array.isArray(item.agentSteps) &&
+      item.agentSteps.length > 0
     ) {
       item.isAgentMode = true
       item.hideContent = true
@@ -436,27 +436,27 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       if (item.id) existingIds.add(item.id)
 
       item.isAgentMode = false
-      const willContinueStream = preserveIncompleteStreamReactive && !item.is_completed
+      const willContinueStream = preserveIncompleteStreamReactive && !item.completed
       if (willContinueStream) {
         item.agentEventStream = item.agentEventStream || []
         item._eventMap = new Map()
         item._pendingToolCalls = new Map()
       } else {
-        item.agent_steps = item.agent_steps ? markRaw(item.agent_steps as object) : item.agent_steps
+        item.agentSteps = item.agentSteps ? markRaw(item.agentSteps as object) : item.agentSteps
         item.agentEventStream = markRaw((item.agentEventStream as unknown[]) || [])
         item._eventMap = markRaw(new Map())
         item._pendingToolCalls = markRaw(new Map())
       }
 
-      if (item.agent_steps && Array.isArray(item.agent_steps) && item.agent_steps.length > 0) {
+      if (item.agentSteps && Array.isArray(item.agentSteps) && item.agentSteps.length > 0) {
         item.isAgentMode = true
         item.agentEventStream = markRaw(
           reconstructEventStreamFromSteps(
-            item.agent_steps as unknown[],
+            item.agentSteps as unknown[],
             String(item.content || ''),
-            Boolean(item.is_completed),
-            Boolean(item.is_fallback),
-            Number(item.agent_duration_ms) || 0,
+            Boolean(item.completed),
+            Boolean(item.fallback),
+            Number(item.agentDurationMs) || 0,
             item.usage,
           ),
         )
@@ -519,26 +519,26 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const updateAssistantSession = (payload: ChatMessage) => {
     const message = findLastMessage((item) => {
       if (item.role !== 'assistant') return false
-      if (item.request_id === payload.id) return true
+      if (item.requestId === payload.id) return true
       return item.id === payload.id
     })
     if (message) {
-      if (payload.id && !message.request_id) message.request_id = payload.id
+      if (payload.id && !message.requestId) message.requestId = payload.id
       message.content = payload.content
       message.thinking = payload.thinking
       message.thinkContent = payload.thinkContent
       message.showThink = payload.showThink
-      if (!message.knowledge_references) {
-        message.knowledge_references = Array.isArray(payload.knowledge_references)
-          ? payload.knowledge_references.map((r) => normalizeKnowledgeReference(r))
-          : payload.knowledge_references
+      if (!message.knowledgeReferences) {
+        message.knowledgeReferences = Array.isArray(payload.knowledgeReferences)
+          ? payload.knowledgeReferences.map((r) => normalizeKnowledgeReference(r))
+          : payload.knowledgeReferences
       }
-      if (payload.is_fallback) message.is_fallback = true
-      if (payload.is_completed) message.is_completed = true
+      if (payload.fallback) message.fallback = true
+      if (payload.completed) message.completed = true
       emitMessageUpdated(message, payload)
     } else {
       const entry = { ...payload }
-      if (entry.id && !entry.request_id) entry.request_id = entry.id
+      if (entry.id && !entry.requestId) entry.requestId = entry.id
       messagesList.push(entry)
       emitMessageCreated(entry)
       emitMessageUpdated(entry, payload)
@@ -564,14 +564,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (!message) {
       const newMsg: ChatMessage = {
         id: dataId,
-        request_id: dataId,
+        requestId: dataId,
         role: 'assistant',
         content: '',
         isAgentMode: true,
         isRagMode: !isAgentStreamSession(),
         agentEventStream: [],
         _eventMap: new Map(),
-        knowledge_references: [],
+        knowledgeReferences: [],
       }
       messagesList.push(newMsg)
       emitMessageCreated(newMsg)
@@ -878,7 +878,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             // 消息级错误标记：气泡（botmsg 的 error-wrapper）据此渲染失败原因——
             // 只弹 toast 的话，用户回头/刷新就看不到任何提示。
             message.error = errorMsg
-            message.is_completed = true
+            message.completed = true
             isReplying.value = false
             loading.value = false
             fullContent.value = ''
@@ -890,7 +890,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           const errorMsg = String(data.content || t('chat.processError'))
           message.content = errorMsg
           message.error = errorMsg
-          message.is_completed = true
+          message.completed = true
           isReplying.value = false
           loading.value = false
           fullContent.value = ''
@@ -926,7 +926,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         if (dataPayload?.is_fallback) {
           answerEvent.is_fallback = true
-          message.is_fallback = true
+          message.fallback = true
         }
         if (data.done && !answerEvent.done) {
           answerEvent.done = true
@@ -978,7 +978,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
               content: String(dataPayload?.content || ''),
               steer_id: steerId,
               channel: 'web',
-              is_completed: true,
+              completed: true,
             }
             if (data.created_at) applyMessageCreatedAt(injectedUser, data.created_at)
           }
@@ -986,7 +986,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           if (data.created_at) applyMessageCreatedAt(injectedUser, data.created_at)
         }
         if (injectedUser) {
-          if (dataId && !injectedUser.request_id) injectedUser.request_id = dataId
+          if (dataId && !injectedUser.requestId) injectedUser.requestId = dataId
           const continuation = forkAfterInjectedUser(
             messagesList,
             message,
@@ -1009,7 +1009,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         applyFinalArtifactContent(message, (dataPayload as any)?.final_content)
         loading.value = false
         isReplying.value = false
-        message.is_completed = true
+        message.completed = true
         onReplyComplete?.(String(message.content || ''))
         onTurnComplete?.(message)
         fullContent.value = ''
@@ -1047,7 +1047,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           timestamp: Date.now(),
           reason: dataPayload?.reason || 'user_requested',
         })
-        message.is_completed = true
+        message.completed = true
         loading.value = false
         isReplying.value = false
         fullContent.value = ''
@@ -1078,12 +1078,13 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       if (replay) replaySegments.set(String(data.id), replay)
       if (data.id) {
         const earlyMsg = getTrailingIncompleteAssistant()
-        if (earlyMsg) earlyMsg.request_id = data.id
+        if (earlyMsg) earlyMsg.requestId = data.id
       }
       if (data.assistant_message_id) {
         currentAssistantMessageId.value = data.assistant_message_id as string
         log('[Agent Query] Saved assistant message ID:', data.assistant_message_id)
       }
+      // 日志里读的是 SSE 载荷（冻结的线协议，键名仍是下划线），别换成消息对象的键名。
       log('[Agent Query Event]', {
         session_id: data.session_id || (data.data as ChatMessage | undefined)?.session_id,
         assistant_message_id: data.assistant_message_id,
@@ -1094,7 +1095,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       let existingMessage = replay || findLastMessage(
         (item) =>
           item.role === 'assistant' &&
-          (item.id === data.id || item.request_id === data.id),
+          (item.id === data.id || item.requestId === data.id),
       )
       const created = !existingMessage
       if (!existingMessage) {
@@ -1102,16 +1103,16 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         existingMessage = {
           id: assistantId || data.id,
           assistant_message_id: assistantId,
-          request_id: data.id,
+          requestId: data.id,
           role: 'assistant',
           content: '',
           isAgentMode: true,
           isRagMode: !isAgentStreamSession(),
-          is_completed: false,
+          completed: false,
           agentEventStream: [],
           _eventMap: new Map(),
           _pendingToolCalls: new Map(),
-          knowledge_references: [],
+          knowledgeReferences: [],
         }
         messagesList.push(existingMessage)
         emitMessageCreated(existingMessage)
@@ -1151,7 +1152,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       isAgentStreamSession() &&
       !!data.id &&
       (data.id === currentAssistantMessageId.value ||
-        activeAssistant?.request_id === data.id ||
+        activeAssistant?.requestId === data.id ||
         activeAssistant?.id === data.id)
     const isAgentAnswerChunk =
       data.response_type === 'answer' && (isAgentStreamSession() || targetsActiveAgentRequest)
@@ -1194,10 +1195,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       log('[Stop Event] Non-agent generation stopped')
       const stoppedMessage = findLastMessage((item) => {
         if (item.role !== 'assistant') return false
-        if (item.request_id === data.id) return true
+        if (item.requestId === data.id) return true
         return item.id === data.id
       })
-      if (stoppedMessage) stoppedMessage.is_completed = true
+      if (stoppedMessage) stoppedMessage.completed = true
       loading.value = false
       isReplying.value = false
       fullContent.value = ''
@@ -1208,10 +1209,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     const existingMessage = findLastMessage((item) => {
       if (item.role !== 'assistant') return false
-      if (item.request_id === data.id) return true
+      if (item.requestId === data.id) return true
       return item.id === data.id
     })
-    if (existingMessage?.is_completed && data.done && !data.content) {
+    if (existingMessage?.completed && data.done && !data.content) {
       log('[Non-Agent] Ignoring duplicate completion event for completed message')
       return
     }
@@ -1222,10 +1223,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       content: '',
       role: 'assistant',
       showThink: false,
-      is_completed: false,
+      completed: false,
     }
 
-    if ((data.data as ChatMessage | undefined)?.is_fallback) obj.is_fallback = true
+    if ((data.data as ChatMessage | undefined)?.is_fallback) obj.fallback = true
 
     const thinkCloseTag = '</think>'
     if (fullContent.value.includes('<think>') && !fullContent.value.includes(thinkCloseTag)) {
@@ -1246,7 +1247,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (!existingMessage) loading.value = false
 
     if (data.done) {
-      obj.is_completed = true
+      obj.completed = true
       onReplyComplete?.(String(obj.content || ''))
       isReplying.value = false
       fullContent.value = ''
@@ -1254,8 +1255,8 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
     updateAssistantSession(obj)
     if (data.done) {
-      const completed = resolveActiveAssistantMessage(data) || obj
-      onTurnComplete?.(completed)
+      const finishedMessage = resolveActiveAssistantMessage(data) || obj
+      onTurnComplete?.(finishedMessage)
     }
   }
 

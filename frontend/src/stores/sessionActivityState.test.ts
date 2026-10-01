@@ -9,7 +9,7 @@ test('tracks multiple sessions and keeps detached replies until completion', asy
   const requested: string[] = []
   const state = createSessionActivityState(entries, async id => {
     requested.push(id)
-    return [{ id: 'reply-a', role: 'assistant', is_completed: completed }]
+    return [{ id: 'reply-a', role: 'assistant', completed: completed }]
   })
   state.update('a', true, 'reply-a')
   state.update('b', true, 'reply-b')
@@ -33,7 +33,7 @@ test('a stale poll cannot clear a reattached stream or a new turn', async () => 
   state.detach('a')
   const poll = state.refresh()
   state.update('a', true, 'new')
-  resolve([{ id: 'old', role: 'assistant', is_completed: true }])
+  resolve([{ id: 'old', role: 'assistant', completed: true }])
   await poll
   assert.equal(entries.a?.messageId, 'new')
   assert.equal(entries.a?.detached, false)
@@ -47,7 +47,7 @@ test('handles navigation before the assistant message arrives and clears deleted
   state.detach('a')
   await state.refresh()
   assert.ok(entries.a)
-  messages = [{ id: 'reply', role: 'assistant', is_completed: false }]
+  messages = [{ id: 'reply', role: 'assistant', completed: false }]
   await state.refresh()
   assert.equal(entries.a?.messageId, 'reply')
   messages = []
@@ -75,7 +75,7 @@ test('clearing activity while a poll is in flight cannot restore old account sta
   state.detach('a')
   const poll = state.refresh()
   state.clear()
-  resolve([{ id: 'reply', role: 'assistant', is_completed: false }])
+  resolve([{ id: 'reply', role: 'assistant', completed: false }])
   await poll
   assert.deepEqual(Object.keys(entries), [])
 })

@@ -15,7 +15,7 @@ const labels = { previewHint: '点击预览', missingHint: '文件不可用' }
 test('inline file cards reuse the drawer icon and keep filenames escaped', () => {
   for (const name of ['report.pdf', 'table.xlsx', 'notes.docx', 'slides.pptx', 'chart.html', 'bad.<img src=x onerror=alert(1)>']) {
     const icon = renderArtifactFileIcon(name)
-    const html = renderArtifactReference({ href: 'sandbox:' + name, artifacts: [{ index: 3, file_name: name }], labels })
+    const html = renderArtifactReference({ href: 'sandbox:' + name, artifacts: [{ index: 3, fileName: name }], labels })
     assert.ok(html?.includes(icon))
     assert.ok(html?.includes('data-artifact-index="3"'))
     assert.doesNotMatch(icon, /<img|onerror/)
@@ -30,10 +30,10 @@ const handleFor = (i: number) => `art${i}`.padEnd(22, 'x')
 const refFor = (i: number) => `resource://${handleFor(i)}`
 
 const artifacts: ArtifactRefMeta[] = [
-  { index: 0, handle: refFor(0), file_name: '市场画像评分_e7edba.html', file_type: 'text/html' },
-  { index: 1, handle: refFor(1), file_name: 'trend.png', file_type: 'image/png' },
-  { index: 2, handle: refFor(2), file_name: 'diagram.svg', file_type: 'image/svg+xml' },
-  { index: 3, handle: refFor(3), file_name: '腾讯控股(00700) 成交量_838ccc.html', file_type: 'text/html' },
+  { index: 0, handle: refFor(0), fileName: '市场画像评分_e7edba.html', fileType: 'text/html' },
+  { index: 1, handle: refFor(1), fileName: 'trend.png', fileType: 'image/png' },
+  { index: 2, handle: refFor(2), fileName: 'diagram.svg', fileType: 'image/svg+xml' },
+  { index: 3, handle: refFor(3), fileName: '腾讯控股(00700) 成交量_838ccc.html', fileType: 'text/html' },
 ]
 
 // 知识库检索图：形式与产物完全相同，但不属于这条消息。
@@ -51,7 +51,7 @@ test('isArtifactRefHref matches handle and sandbox forms only', () => {
 })
 
 test('resolveArtifactRef resolves both the handle and the name form', () => {
-  assert.equal(resolveArtifactRef(refFor(1), artifacts)?.file_name, 'trend.png')
+  assert.equal(resolveArtifactRef(refFor(1), artifacts)?.fileName, 'trend.png')
   assert.equal(resolveArtifactRef('sandbox:trend.png', artifacts)?.index, 1)
   assert.equal(
     resolveArtifactRef('sandbox:/workspace/output/trend.png', artifacts)?.index,
@@ -66,8 +66,8 @@ test('resolveArtifactRef resolves both the handle and the name form', () => {
 })
 
 test('resolveArtifactRef accepts the url field carried by persisted messages', () => {
-  const persisted: ArtifactRefMeta[] = [{ index: 0, url: refFor(7), file_name: 'a.csv' }]
-  assert.equal(resolveArtifactRef(refFor(7), persisted)?.file_name, 'a.csv')
+  const persisted: ArtifactRefMeta[] = [{ index: 0, url: refFor(7), fileName: 'a.csv' }]
+  assert.equal(resolveArtifactRef(refFor(7), persisted)?.fileName, 'a.csv')
 })
 
 test('renderArtifactReference leaves ordinary images to the default renderer', () => {
@@ -197,7 +197,7 @@ test('normalizeSandboxArtifactRefs preserves a title and an unterminated tail', 
 test('artifact names are HTML-escaped', () => {
   const html = renderArtifactReference({
     href: refFor(0),
-    artifacts: [{ index: 0, handle: refFor(0), file_name: '<img src=x onerror=alert(1)>.csv' }],
+    artifacts: [{ index: 0, handle: refFor(0), fileName: '<img src=x onerror=alert(1)>.csv' }],
     labels,
   })
   assert.ok(!html?.includes('<img src=x'))

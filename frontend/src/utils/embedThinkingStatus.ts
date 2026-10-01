@@ -2,7 +2,7 @@ export interface EmbedThinkingMessage {
   thinking?: boolean
   showThink?: boolean
   isAgentMode?: boolean
-  is_completed?: boolean
+  completed?: boolean
   content?: string
   agentEventStream?: Array<{ type?: string; thinking?: boolean; done?: boolean }>
 }
@@ -23,7 +23,7 @@ export function isThinkingInProgress(message?: EmbedThinkingMessage | null): boo
     )
     if (hasActiveThinkingEvent) return true
     const hasAnswerContent = Boolean(String(message.content ?? '').trim())
-    return message.is_completed === false && !hasAnswerContent
+    return message.completed === false && !hasAnswerContent
   }
   return message.thinking === true
 }

@@ -1,7 +1,20 @@
 export type ReferenceItemKind = 'web' | 'document' | 'tool'
 
+/**
+ * 引用对象（两种来源、两种拼写，见 {@link normalizeKnowledgeReference}）：
+ * 消息对象上的 `knowledgeReferences`（检索域 `SearchResult`，camelCase）与
+ * `data.references` 直通载荷（库内键名 / 工具结果，snake）。两边都列出来，
+ * 消费处用 `??` 取值或先过归一化函数。
+ */
 export type KnowledgeReferenceLike = {
   id?: string
+  chunkIds?: string[]
+  knowledgeId?: string
+  knowledgeTitle?: string
+  knowledgeFilename?: string
+  knowledgeBaseId?: string
+  chunkIndex?: number
+  chunkType?: string
   chunk_ids?: string[]
   knowledge_id?: string
   knowledge_title?: string

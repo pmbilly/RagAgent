@@ -33,7 +33,7 @@ test('wiki drawer navigation and citation fallbacks open in a new tab', () => {
 test('agent citations recover drawer references from retrieval tool events', () => {
   assert.match(
     agentStream,
-    /const getReferencesForDrawer = \([\s\S]*?props\.session\?\.knowledge_references[\s\S]*?props\.session\?\.agentEventStream[\s\S]*?getToolReferenceItems\(event\)/,
+    /const getReferencesForDrawer = \([\s\S]*?props\.session\?.knowledgeReferences[\s\S]*?props\.session\?\.agentEventStream[\s\S]*?getToolReferenceItems\(event\)/,
   )
   assert.match(
     agentStream,

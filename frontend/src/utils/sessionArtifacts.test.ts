@@ -14,30 +14,30 @@ test('collectSessionArtifacts keeps per-message download indexes', () => {
     {
       role: 'assistant',
       id: 'a1',
-      artifacts: [{ file_name: 'a.csv', file_size: 12 }],
+      artifacts: [{ fileName: 'a.csv', fileSize: 12 }],
     },
     {
       role: 'assistant',
       id: 'a2',
       artifacts: [
-        { index: 0, file_name: 'chart.html' },
-        { index: 1, file_name: 'plot.png' },
+        { index: 0, fileName: 'chart.html' },
+        { index: 1, fileName: 'plot.png' },
       ],
     },
   ])
   assert.deepEqual(
-    items.map((item) => ({ messageId: item.messageId, index: item.index, file_name: item.file_name })),
+    items.map((item) => ({ messageId: item.messageId, index: item.index, fileName: item.fileName })),
     [
-      { messageId: 'a1', index: 0, file_name: 'a.csv' },
-      { messageId: 'a2', index: 0, file_name: 'chart.html' },
-      { messageId: 'a2', index: 1, file_name: 'plot.png' },
+      { messageId: 'a1', index: 0, fileName: 'a.csv' },
+      { messageId: 'a2', index: 0, fileName: 'chart.html' },
+      { messageId: 'a2', index: 1, fileName: 'plot.png' },
     ],
   )
 })
 
-test('collectSessionArtifacts falls back to request_id before the row is persisted', () => {
+test('collectSessionArtifacts falls back to requestId before the row is persisted', () => {
   const items = collectSessionArtifacts([
-    { request_id: 'req-9', artifacts: [{ file_name: 'out.md' }] },
+    { requestId: 'req-9', artifacts: [{ fileName: 'out.md' }] },
   ])
   assert.equal(items[0]?.messageId, 'req-9')
   assert.equal(items[0]?.index, 0)
@@ -47,7 +47,7 @@ test('collectSessionArtifacts skips empty or unidentifiable rows', () => {
   assert.deepEqual(
     collectSessionArtifacts([
       { id: 'a1', artifacts: [] },
-      { artifacts: [{ file_name: 'ghost.txt' }] },
+      { artifacts: [{ fileName: 'ghost.txt' }] },
       null,
       'nope',
     ]),
@@ -68,21 +68,21 @@ test('formatArtifactDateTime renders a stable local timestamp', () => {
 })
 
 test('artifacts after a live inject use the persisted assistant ID regardless of filename', () => {
-  const assistant = { id: 'assistant', request_id: 'request', role: 'assistant' }
+  const assistant = { id: 'assistant', requestId: 'request', role: 'assistant' }
   const list = [assistant]
   const continuation = forkAfterInjectedUser(list, assistant, { id: 'user', role: 'user' }, 'steer')
-  continuation.artifacts = [{ file_name: 'WeKnora-示例文档.docx', index: 3 }]
+  continuation.artifacts = [{ fileName: 'WeKnora-示例文档.docx', index: 3 }]
   const items = collectSessionArtifacts(list)
   assert.equal(items[0]?.messageId, 'assistant')
   assert.equal(items[0]?.index, 3)
-  assert.equal(items[0]?.file_name, 'WeKnora-示例文档.docx')
+  assert.equal(items[0]?.fileName, 'WeKnora-示例文档.docx')
 })
 
 test('history-split artifacts keep their persisted download address after refresh', () => {
   const list = expandSteerForksInHistory([
-    { id: 'assistant', role: 'assistant', request_id: 'request', is_completed: true,
-      artifacts: [{ file_name: '示例.docx' }, { file_name: 'example.docx' }] },
-    { id: 'user', role: 'user', request_id: 'request', created_at: '2026-09-09T12:00:00Z' },
+    { id: 'assistant', role: 'assistant', requestId: 'request', completed: true,
+      artifacts: [{ fileName: '示例.docx' }, { fileName: 'example.docx' }] },
+    { id: 'user', role: 'user', requestId: 'request', createdAt: '2026-09-09T12:00:00Z' },
   ])
   const items = collectSessionArtifacts(list)
   assert.deepEqual(items.map(item => [item.messageId, item.index]), [['assistant', 0], ['assistant', 1]])

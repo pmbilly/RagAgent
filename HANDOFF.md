@@ -208,8 +208,8 @@
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
-   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）** 已完成（同批带前端）；
-   **session 余 S2 的「前端同批」（下一轮第一件事，见下）/ S3 附件·建议·steer / S4 请求 DTO / S5 收尾**，
+   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）+ S2（消息面，前后端同批）** 已完成（同批带前端）；
+   **session 余 S3 附件·建议·steer / S4 请求 DTO / S5 收尾**，
    以及 **wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
@@ -1780,7 +1780,7 @@ WHERE jsonb_typeof(mentioned_items) = 'array'
 - 验收：session+embed 域绿；前端 `vue-tsc` 0 错误 + 690 用例通过；全量 `clean test` 绿 + `spotlessCheck`；
   **真实服务冒烟 18 路通过**（列表/详情/改名/置顶/产物/生成标题/清空/删除/批量删除 + 空体 400 + 分页 400 两条）。
 
-**🟡 S2（消息面）执行记录（2026-10-01）——后端已交付，⚠️ 前端同批待补**：
+**✅ S2（消息面）执行记录（2026-10-01）——后端 + 前端同批均已交付**：
 - **实体**：`Message`（23 处）/`MessageAttachment`（20）/`MessageImage`（3）/`UsedMemory`（3）/
   `MessageArtifact`（7）/`MessageSearchResult`（2）/`MessageSearchGroupItem`（8）/`ChatHistoryKbStats`（9）
   去键名映射 → 键名＝Java 字段名、全部键恒输出（§1.6）。两个键名决策：`is_completed`→**`completed`**、
@@ -1828,18 +1828,40 @@ WHERE jsonb_typeof(artifacts) = 'array'
                                  'mod_time','created_at']);
 ```
 （`messages.mentioned_items` 的迁移在 S1a 已给，`images`/`used_memories` 无键名变化，不需迁移。）
-- **⚠️ 前端同批尚未落地（下一轮第一件事）**：`frontend/src` 里消息面字段仍是下划线（约 **223 处 / 20+ 文件**，
-  含 `composables/useChatStreamHandler.ts`、`views/chat/index.vue`、`utils/{messageTimestamp,sessionArtifacts,rag-pipeline-history}.ts`、
-  `api/chat-history.ts`、`api/embed/index.ts`、`components/ChatArtifactsDrawer.vue` 等）。**在补齐之前：
-  历史消息的渲染会不一致（引用/步骤/时间戳/记忆行读不到）**——别在这一步做 UI 走查。
-  注意甄别：SSE 载荷里的 `session_id`/`created_at`/`response_type` 属**冻结的线协议**（§14.9l 前提判定 2），
-  只有"从 REST 消息对象上读"的那些字段才改。
+- **✅ 前端同批（2026-10-01 交付，26 文件）**——换锚规则一句话：**"从 REST 消息对象上读"的键改 camelCase；
+  SSE 载荷键一律不动**（§14.9l 前提判定 2）。逐类：
+  ① 消息对象的键：`request_id→requestId`、`is_completed→completed`、`is_fallback→fallback`、`knowledge_references→knowledgeReferences`、
+  `mentioned_items→mentionedItems`、`used_memories→usedMemories`、`agent_steps→agentSteps`、`agent_duration_ms→agentDurationMs`、
+  `created_at→createdAt`、附件 `file_name/file_type/file_size→fileName/fileType/fileSize`、
+  产物 `source_path/mod_time→sourcePath/modTime`、搜索组 `session_title/query_content/answer_content/match_type→camelCase`、
+  统计 `embedding_model_id/knowledge_base_id/knowledge_base_name/indexed_message_count/has_indexed_messages→camelCase`。
+  ② **冻结不动**（已实测后端无这些键或属其它线协议）：SSE 顶层/`data` 载荷（`response_type`、`session_id`、`assistant_message_id`、
+  `created_at`、`knowledge_references`、`user_message_included` 家族的 `user_created_at`/`assistant_created_at`、`is_fallback`）、
+  agentEventStream 事件字段（`event_id`/`tool_call_id`/`display_type`/… 与 SSE 同形）、请求面（`streame.ts` 的 chat 请求体、
+  `attachment_uploads`、steer 请求体、`data.references` 直通载荷属 S4/S3）。
+  ③ **两个本地键保留蛇形**：`assistant_message_id`（前端自有、不对应 REST 字段）与 steer 队列项的 `mentioned_items`（S3 面）。
+  ④ **跨形状转换点**（新增 `types/mention.ts::fromMentionRequest`）：本地乐观用户消息与 steer 预览把**上送项**（snake 元素）
+  转成消息元素形状（camelCase），保证"刷新前 = 刷新后"；`views/chat/index.vue` 的 steer 合并处同用。
+  ⑤ 接口参数：`GET /messages/{id}/load` 的查询参数 `before_time`→**`beforeTime`**（`api/chat/index.ts`；embed 的
+  `/embed/.../load` 仍是 `before_time`，属 embed 域）；搜索结果请求体 `session_ids`→**`sessionIds`**（与 S2 后的 DTO 对齐，
+  顺带修掉旧的不一致）。`ChatHistoryConfig`（tenants KV）**不在本批**——它的键名仍由 auth 域 KV 面决定。
+  ⑥ 顺带修两处隐藏键名 bug（同 M2 的"顺手修"口径，已在文件里留注释）：`utils/sessionMarkdown.ts` 的引用元素按
+  `knowledgeTitle/knowledgeFilename/…` 双拼写读（此前只读 snake，导出里的引用段静默为空）；`utils/rag-pipeline-history.ts`
+  的 `chunkType/knowledgeId/knowledgeTitle` 同款双拼写（历史回放合成检索步骤此前恒判成"文档"）。
+  ⑦ 形态测试同步：`useChatStreamHandler.test.mjs`、`steerStreamFork.test.mjs`、`steerInteraction.test.mjs`、
+  `steerFollowUp.test.mjs`、`chatLinksNewTab.test.mjs`、`RagPipelineProgress.style.test.mjs`、`AgentStreamDisplay.style.test.mjs`、
+  `rag-pipeline-history.test.mjs`、`attachmentPreview.test.mjs`、`sessionArtifacts.test.ts`、`sandboxArtifactRefs.test.ts`、
+  `sessionMarkdown.test.ts`、`messageTimestamp.test.ts`、`sessionActivityState.test.ts`、`embedThinkingStatus.test.ts`。
+  ⑧ 验收：`vue-tsc --build` 0 错误；前端 **690 用例全绿**；`vite build` 通过。**未做真机 UI 走查**——
+  dev 库 `messages` 表为空（无历史数据），要跑走查须先产生一轮真实对话（需 provider + 真模型）。
+  ⑨ 另登记一个**不属于本批**的既有缺陷（未改）：`composables/useEmbedChatSession.ts` 的 `getmsgList` 读 `res?.data` 解包，
+  而 embed `load` 端点的响应体是裸数组（`[Message]`）——embed 历史分页实际拿不到数据；归 embed 域的批次处理。
 
 **分批（按资源，每批自带 jsonb 迁移 + 前端 + 夹具）**：
 | 批 | 内容 | 文件（主要） | 预估 |
 |---|---|---|---|
 | **S1 会话主资源 ✅（S1a 实体面 + S1b 控制器面）** | `Session` / `SessionListItem` / `SessionLastRequestState` / `MentionedItem` + `SessionController`（求体 DTO / 信封 / 分页参数）+ 两处 jsonb 迁移 | `domain/Session.java`、`SessionListItem.java`；`controller/SessionController.java`；前端 `api/chat/index.ts` + `components/sessionGrouping.ts`、`SessionSidebarRow.vue`；夹具 `session-*.json`；`SessionJsonContractTest` / `SessionHttpContractTest` / `SessionQueryPagedTest` | ~55 处 |
-| **S2 消息主资源（最高风险）🟡 后端已交付，前端待补** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/chat-history.ts`、`composables/useChatStreamHandler.ts`、`views/chat/index.vue`、`utils/messageTimestamp.ts`；夹具 `msg-*.json`、`emb-*.json` | ~90 处 |
+| **S2 消息主资源（最高风险）✅ 前后端已交付** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/{chat-history.ts,chat/index.ts}`、`composables/{useChatStreamHandler,useEmbedChatSession}.ts`、`views/chat/index.vue`、`views/chat/components/*`、`views/embed/*`、`utils/{messageTimestamp,sessionArtifacts,sessionMarkdown,steerStreamFork,rag-pipeline-history,attachmentPreview,sandboxArtifactRefs,referenceSources,citationMarkdown}.ts`、`types/mention.ts`；夹具 `msg-*.json`、`emb-*.json` | 已完成 |
 | **S3 附件 / 建议 / steer / artifacts** | `TemporaryDocument` / `MessageSuggestionSet` / `MessageSuggestionEvent` / `SuggestionItem` / `SuggestionAttribution` + 三个 controller 的手写信封（artifacts 三端点仍带 `{data,success}`；`api/message-suggestion.ts` 前端**还期待信封**） | `domain/*`、`controller/{TemporaryDocumentController,MessageSuggestionController,SteerController}.java`、前端 `api/message-suggestion.ts`、`api/chat/{steer.ts,temporary-attachments.ts}`、`utils/sessionArtifacts.ts`；夹具 `att-*/sug-*/g6-*` | ~70 处 |
 | **S4 请求面 DTO** | `dto/QaRequests.java` + `QaRequestBinder/QaRequestParser/KnowledgeQaController` 的请求体（web/IM/embed 三入口共用；**错误文案不动**） | `dto/QaRequests.java`、`controller/Qa*.java`、`im/service/ImQaRequests.java`、前端 `views/chat/index.vue` 发送段 | ~30 处 |
 | **S5 收尾** | `SessionLastRequestState`（agent_config 遗留载荷）+ 各 TypeHandler 挂载点 + 边界登记（SSE / `SuggestionItem` 的 LLM 解析面）+ 残留核对 | — | 收尾 |

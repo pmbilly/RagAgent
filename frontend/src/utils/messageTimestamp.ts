@@ -1,4 +1,4 @@
-type MessageWithTimestamp = Record<string, unknown> & { created_at?: unknown }
+type MessageWithTimestamp = Record<string, unknown> & { createdAt?: unknown }
 
 export function normalizeMessageCreatedAt(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return ''
@@ -14,7 +14,7 @@ export function applyMessageCreatedAt<T extends MessageWithTimestamp>(
   candidate: unknown,
 ): T {
   const next = normalizeMessageCreatedAt(candidate)
-  if (next) message.created_at = next
+  if (next) message.createdAt = next
   return message
 }
 
@@ -22,12 +22,17 @@ export function ensureMessageCreatedAt<T extends MessageWithTimestamp>(
   message: T,
   fallback = new Date().toISOString(),
 ): T {
-  if (!normalizeMessageCreatedAt(message.created_at)) {
-    message.created_at = fallback
+  if (!normalizeMessageCreatedAt(message.createdAt)) {
+    message.createdAt = fallback
   }
   return message
 }
 
+/**
+ * `payload` 是 SSE `agent_query` 事件的 data 载荷——**冻结的线协议**，键名仍是下划线
+ * （`assistant_created_at` / `user_created_at` / `user_message_id`），别顺手 camelCase
+ * （§14.9l 前提判定 2）。写回消息对象时才用 `createdAt`。
+ */
 export function bindServerTurnTimestamps(
   messages: MessageWithTimestamp[],
   payload: Record<string, unknown> | undefined,
@@ -79,7 +84,7 @@ export type ConversationTimestampModel = {
 
 type ConversationTimestampMessage = {
   role?: unknown
-  created_at?: unknown
+  createdAt?: unknown
 }
 
 function startOfLocalDay(date: Date): number {
@@ -125,14 +130,14 @@ export function shouldInsertConversationTimestamp(
   current: ConversationTimestampMessage | undefined,
   gapMs = CONVERSATION_TIMESTAMP_GAP_MS,
 ): boolean {
-  if (!current || !normalizeMessageCreatedAt(current.created_at)) return false
+  if (!current || !normalizeMessageCreatedAt(current.createdAt)) return false
   if (current.role === 'assistant' && previous?.role === 'user') return false
 
-  const previousCreatedAt = normalizeMessageCreatedAt(previous?.created_at)
+  const previousCreatedAt = normalizeMessageCreatedAt(previous?.createdAt)
   if (!previousCreatedAt) return true
 
   const previousDate = new Date(previousCreatedAt)
-  const currentDate = new Date(current.created_at as string)
+  const currentDate = new Date(current.createdAt as string)
   if (startOfLocalDay(previousDate) !== startOfLocalDay(currentDate)) return true
   return currentDate.getTime() - previousDate.getTime() >= gapMs
 }

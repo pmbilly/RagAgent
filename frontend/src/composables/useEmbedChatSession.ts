@@ -207,7 +207,7 @@ export function useEmbedChatSession(options: {
           hasMoreHistory.value = false
           return
         }
-        const nextCursor = String(batch[0].created_at)
+        const nextCursor = String(batch[0].createdAt)
         if (isScrollType && created_at.value && nextCursor === created_at.value) {
           hasMoreHistory.value = false
           return
@@ -258,8 +258,10 @@ export function useEmbedChatSession(options: {
 
     const imageAttachments: Array<{ data: string }> = []
     const displayImages: Array<{ url: string }> = []
+    // 上传载荷走上送面（S4 前仍是下划线键）；displayAttachments 直接挂在本地消息对象上，
+    // 形状必须与 REST 返回的 MessageAttachment 一致（camelCase）。
     const attachmentUploads: Array<{ data: string; file_name: string; file_size: number }> = []
-    const displayAttachments: Array<{ file_name: string; file_size: number }> = []
+    const displayAttachments: Array<{ fileName: string; fileSize: number }> = []
     try {
       for (const file of imageFiles) {
         const dataURI = String(await fileToDataURI(file))
@@ -269,7 +271,7 @@ export function useEmbedChatSession(options: {
       for (const file of attachmentFiles) {
         const dataURI = String(await fileToDataURI(file))
         attachmentUploads.push({ data: dataURI, file_name: file.name, file_size: file.size })
-        displayAttachments.push({ file_name: file.name, file_size: file.size })
+        displayAttachments.push({ fileName: file.name, fileSize: file.size })
       }
     } catch (err) {
       console.error('Failed to read attachment:', err)
@@ -282,11 +284,11 @@ export function useEmbedChatSession(options: {
     messagesList.push({
       content: value,
       role: 'user',
-      mentioned_items: [],
+      mentionedItems: [],
       images: displayImages,
       attachments: displayAttachments,
       channel: 'embed',
-      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     })
     postEmbedMessageSent(options.channelId, options.sessionId.value, value)
     relayEmbedWebhookEvent(

@@ -1,12 +1,12 @@
 <template>
     <div class="user_msg_container" ref="containerRef" :class="{ 'is-embedded': embeddedMode }">
         <!-- 显示@的知识库和文件 -->
-        <div v-if="mentioned_items && mentioned_items.length > 0" class="mentioned_items">
-            <span v-for="item in mentioned_items" :key="item.id" class="mentioned_tag" :class="[
+        <div v-if="mentionedItems && mentionedItems.length > 0" class="mentioned_items">
+            <span v-for="item in mentionedItems" :key="item.id" class="mentioned_tag" :class="[
                 mentionTagClass(item)
             ]">
                 <span class="tag_icon">
-                    <t-icon v-if="item.type === 'kb'" :name="item.kb_type === 'faq' ? 'chat-bubble-help' : 'folder'" />
+                    <t-icon v-if="item.type === 'kb'" :name="item.kbType === 'faq' ? 'chat-bubble-help' : 'folder'" />
                     <t-icon v-else :name="mentionTagIcon(item)" />
                 </span>
                 <span class="tag_name">{{ item.name }}</span>
@@ -34,9 +34,9 @@
                     </svg>
                 </div>
                 <div class="attachment_card_info">
-                    <div class="attachment_card_name">{{ att.file_name }}</div>
-                    <div class="attachment_card_meta">{{ getFileExt(att.file_name) }}<span
-                            v-if="att.file_size">&nbsp;·&nbsp;{{ formatFileSize(att.file_size) }}</span></div>
+                    <div class="attachment_card_name">{{ att.fileName }}</div>
+                    <div class="attachment_card_meta">{{ getFileExt(att.fileName) }}<span
+                            v-if="att.fileSize">&nbsp;·&nbsp;{{ formatFileSize(att.fileSize) }}</span></div>
                 </div>
             </div>
         </div>
@@ -64,7 +64,7 @@ const emit = defineEmits(['retry-steer', 'remove-steer']);
 const { t } = useI18n();
 
 const mentionTagClass = (item) => {
-    if (item.type === 'kb') return item.kb_type === 'faq' ? 'faq-tag' : 'kb-tag';
+    if (item.type === 'kb') return item.kbType === 'faq' ? 'faq-tag' : 'kb-tag';
     return `${item.type || 'file'}-tag`;
 };
 
@@ -81,7 +81,7 @@ const props = defineProps({
         type: String,
         required: false
     },
-    mentioned_items: {
+    mentionedItems: {
         type: Array,
         required: false,
         default: () => []
@@ -162,8 +162,8 @@ const openAttachmentPreview = (attachment) => {
     attachmentPreviewDrawer.open({
         sessionId: props.sessionId,
         attachmentId: attachment.id,
-        fileName: attachment.file_name,
-        fileType: resolveAttachmentFileType(attachment.file_name, attachment.file_type),
+        fileName: attachment.fileName,
+        fileType: resolveAttachmentFileType(attachment.fileName, attachment.fileType),
     });
 };
 

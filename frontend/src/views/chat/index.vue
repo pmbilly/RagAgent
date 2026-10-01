@@ -78,18 +78,18 @@
                   若用索引作 key 会让所有已渲染消息的 key 漂移，触发整个列表的销毁重建
                   （botmsg / AgentStreamDisplay 全部重新挂载、markdown 重新渲染），
                   这是历史加载时白屏 + layout shift 蔓延到 session 列表的根因。
-                  仅对极少数尚未拿到 id 的本地占位消息 fallback 到 role+created_at+index。
+                  仅对极少数尚未拿到 id 的本地占位消息 fallback 到 role+createdAt+index。
                 -->
                     <div v-for="(session, index) in messagesList"
-                        :key="session.id || `${session.role}-${session.created_at}-${index}`" class="msg-item-wrapper"
+                        :key="session.id || `${session.role}-${session.createdAt}-${index}`" class="msg-item-wrapper"
                         :class="{ 'is-steer-prefix': session.steerForked, 'is-empty-segment': session.role === 'assistant' && !shouldRenderAssistantMessage(session) }">
                         <MessageTimestamp v-if="shouldShowConversationTimestamp(messagesList, index)"
-                            :value="session.created_at" />
+                            :value="session.createdAt" />
 
                         <div v-if="session.role == 'user'" class="message-row"
                             :data-message-id="session.id || undefined"
                             :class="{ 'is-minimap-target': session.id && session.id === minimapTargetId }">
-                            <usermsg :content="session.content" :mentioned_items="session.mentioned_items"
+                            <usermsg :content="session.content" :mentionedItems="session.mentionedItems"
                                 :images="session.images" :attachments="session.attachments" :embeddedMode="embeddedMode"
                                 :session-id="session_id"
                                 :steer-failed="Boolean(session._steerFailed)"
@@ -164,6 +164,7 @@ import { deleteTemporaryAttachment, uploadTemporaryAttachment } from '@/api/chat
 import { useStream } from '../../api/chat/streame'
 import { listSteerSession, promoteSteerSession, removeSteerSession, steerSession } from '@/api/chat/steer';
 import { persistedAssistantId, previewSteerMessage, discardSteerPreview, reconcileSteerMessageId } from '@/utils/steerStreamFork';
+import { fromMentionRequest } from '@/types/mention';
 import { useMenuStore } from '@/stores/menu';
 import { useSettingsStore } from '@/stores/settings';
 import { MessagePlugin } from 'tdesign-vue-next';
@@ -242,8 +243,8 @@ const attachStreamDebugToMessage = (message) => {
     if (!message) return;
     const payload = pendingStreamDebug.value || buildStreamDebugPayload();
     if (!payload) return;
-    if (payload.requestId && !message.request_id) {
-        message.request_id = payload.requestId;
+    if (payload.requestId && !message.requestId) {
+        message.requestId = payload.requestId;
     }
     message.debugRequest = payload;
 };
@@ -650,7 +651,7 @@ const {
     onAfterMsgList: async () => {
         activitySessionId.value = String(session_id.value);
         for (const message of messagesList) {
-            if (message.role === 'assistant' && message.is_completed && message.suggestionSet === undefined) {
+            if (message.role === 'assistant' && message.completed && message.suggestionSet === undefined) {
                 void loadFollowUpSuggestions(message, false);
             }
         }
@@ -662,7 +663,7 @@ const {
         // in some orderings, and keying off that row would skip the resume
         // entirely, leaving a running agent with no visible output.
         const lastMessage = findLastMessage(
-            (message) => message.role === 'assistant' && !message.is_completed
+            (message) => message.role === 'assistant' && !message.completed
         );
         const locallyRunning = isReplying.value || isStreaming.value || isImRecovering.value;
         // History reload can finish after sendMsg already marked this session
@@ -705,7 +706,7 @@ const {
     onMessageCreated: (message) => attachStreamDebugToMessage(message),
     onMessageUpdated: (message, payload) => {
         attachStreamDebugToMessage(message);
-        if (payload?.is_completed) pendingStreamDebug.value = null;
+        if (payload?.completed) pendingStreamDebug.value = null;
     },
     onAgentAnswerDone: (message) => {
         attachStreamDebugToMessage(message);
@@ -748,7 +749,7 @@ const getmsgList = (data, isScrollType = false, scrollHeight) => {
         if (!isScrollType) {
             cancelSuggestedQuestionsFetch();
         }
-        const nextCursor = batch[0].created_at;
+        const nextCursor = batch[0].createdAt;
         if (isScrollType && created_at.value && nextCursor === created_at.value) {
             hasMoreHistory.value = false;
             return;
@@ -1006,17 +1007,17 @@ const attachSteerFollowUp = async (completedAssistantId) => {
             if (sessionChanged()) return;
             const batch = Array.isArray(res) ? res : [];
             const newAssistant = [...batch].reverse().find((m) =>
-                m.role === 'assistant' && !m.is_completed && m.id && m.id !== completedAssistantId
+                m.role === 'assistant' && !m.completed && m.id && m.id !== completedAssistantId
             );
             if (newAssistant) {
                 // The follow-up run persists its query under its own
-                // request_id, so the new user rows are identified exactly.
+                // requestId, so the new user rows are identified exactly.
                 // Matching on message text instead would attach the wrong
                 // bubble whenever the user sends the same thing twice.
                 const claimed = new Set();
                 for (const persisted of batch) {
                     if (persisted.role !== 'user' || !persisted.id) continue;
-                    if (persisted.request_id !== newAssistant.request_id) continue;
+                    if (persisted.requestId !== newAssistant.requestId) continue;
                     if (messagesList.some((existing) => existing.id === persisted.id)) continue;
                     const queuedMatch = queued.find(
                         (q) => q.content === persisted.content && !claimed.has(q.steer_id)
@@ -1024,9 +1025,9 @@ const attachSteerFollowUp = async (completedAssistantId) => {
                     if (queuedMatch) claimed.add(queuedMatch.steer_id);
                     const userRow = {
                         ...persisted,
-                        mentioned_items: queuedMatch?.mentioned_items?.length
-                            ? queuedMatch.mentioned_items
-                            : persisted.mentioned_items,
+                        mentionedItems: queuedMatch?.mentioned_items?.length
+                            ? queuedMatch.mentioned_items.map(fromMentionRequest)
+                            : persisted.mentionedItems,
                     };
                     const preview = queuedMatch && messagesList.find(m => m.steer_id === queuedMatch.steer_id && m._steerPending);
                     if (preview) {
@@ -1191,7 +1192,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
     }
 
     // 将@提及的知识库和文件信息存入用户消息
-    messagesList.push({ content: value, role: 'user', mentioned_items: mentionedItems, images: userImages, attachments: attachmentFiles.map(a => ({ id: a.documentId, file_name: a.name, file_size: a.size, file_type: '.' + a.name.split('.').pop()?.toLowerCase() })), channel: 'web', created_at: new Date().toISOString() });
+    messagesList.push({ content: value, role: 'user', mentionedItems: (mentionedItems || []).map(fromMentionRequest), images: userImages, attachments: attachmentFiles.map(a => ({ id: a.documentId, fileName: a.name, fileSize: a.size, fileType: '.' + a.name.split('.').pop()?.toLowerCase() })), channel: 'web', createdAt: new Date().toISOString() });
     userHasScrolledUp.value = false;
     scrollToBottom(true);
 
@@ -1277,7 +1278,7 @@ const recoverIncompleteMessage = () => {
         try {
             const res = await getMessageList({ session_id: targetSession, limit: limit.value, created_at: '' });
             const target = (Array.isArray(res) ? res : []).find((m) => m.id === targetMessageId);
-            if (target && target.is_completed) {
+            if (target && target.completed) {
                 created_at.value = '';
                 messagesList.splice(0);
                 getmsgList({ session_id: targetSession, limit: limit.value, created_at: '' });

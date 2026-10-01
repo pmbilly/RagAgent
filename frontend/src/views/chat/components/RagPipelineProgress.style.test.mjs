@@ -138,14 +138,14 @@ test('only timeline-less answers get the standalone memory row', () => {
   const botmsg = readFileSync(join(here, 'botmsg.vue'), 'utf8')
   assert.match(
     botmsg,
-    /<RagPipelineProgress v-if="!session\.isAgentMode && session\.used_memories\?\.length"[\s\S]*?memory-only/,
+    /<RagPipelineProgress v-if="!session\.isAgentMode && session\.usedMemories\?\.length"[\s\S]*?memory-only/,
   )
 })
 
 // Both timelines show the same row from the same state; duplicating the recall
 // list, expand state and forget call is how the two drift apart.
 test('memory row state is shared by both timelines', () => {
-  assert.match(source, /useChatMemoryRow\(\(\) => props\.session\?\.used_memories\)/)
+  assert.match(source, /useChatMemoryRow\(\(\) => props\.session\?\.usedMemories\)/)
   const agent = readFileSync(join(here, 'AgentStreamDisplay.vue'), 'utf8')
   assert.match(agent, /useChatMemoryRow\(/)
 })

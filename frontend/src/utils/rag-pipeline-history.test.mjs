@@ -9,10 +9,10 @@ import {
 
 test('synthesizeRagPipelineToolEvents builds completed retrieval steps', () => {
   const events = synthesizeRagPipelineToolEvents({
-    knowledge_references: [
-      { knowledge_id: 'a' },
-      { knowledge_id: 'a' },
-      { knowledge_id: 'b' },
+    knowledgeReferences: [
+      { knowledgeId: 'a' },
+      { knowledgeId: 'a' },
+      { knowledgeId: 'b' },
     ],
   })
 
@@ -25,9 +25,9 @@ test('synthesizeRagPipelineToolEvents builds completed retrieval steps', () => {
 
 test('synthesizeRagPipelineToolEvents marks web-only references as web search', () => {
   const events = synthesizeRagPipelineToolEvents({
-    knowledge_references: [
-      { chunk_type: 'web_search', knowledge_title: 'page-1' },
-      { chunk_type: 'web_search', knowledge_title: 'page-2' },
+    knowledgeReferences: [
+      { chunkType: 'web_search', knowledgeTitle: 'page-1' },
+      { chunkType: 'web_search', knowledgeTitle: 'page-2' },
     ],
   })
 
@@ -38,7 +38,7 @@ test('synthesizeRagPipelineToolEvents marks web-only references as web search', 
 
 test('synthesizeRagPipelineToolEvents skips retrieval when there are no references', () => {
   const events = synthesizeRagPipelineToolEvents({
-    knowledge_references: [],
+    knowledgeReferences: [],
   })
 
   assert.equal(events.length, 0)
@@ -46,9 +46,9 @@ test('synthesizeRagPipelineToolEvents skips retrieval when there are no referenc
 
 test('ensureRagPipelineHistoryStream does not invent retrieval for attachment-only turns', () => {
   const item = {
-    is_completed: true,
+    completed: true,
     content: 'answer from attachment only',
-    knowledge_references: [],
+    knowledgeReferences: [],
     agentEventStream: [
       {
         type: 'tool_call',
@@ -86,9 +86,9 @@ test('ensureRagPipelineHistoryStream does not invent retrieval for attachment-on
 
 test('ensureRagPipelineHistoryStream restores quick-answer history after reload', () => {
   const item = {
-    is_completed: true,
+    completed: true,
     content: 'final answer',
-    knowledge_references: [{ knowledge_id: 'doc-1' }],
+    knowledgeReferences: [{ knowledgeId: 'doc-1' }],
     agentEventStream: [],
   }
 
@@ -111,7 +111,7 @@ test('ensureRagPipelineHistoryStream keeps existing pipeline events', () => {
     pending: false,
   }
   const item = {
-    is_completed: true,
+    completed: true,
     content: 'answer',
     agentEventStream: [existing],
   }

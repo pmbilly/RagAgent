@@ -7,7 +7,7 @@
         :embed-session-sig="embedSessionSig" :embed-visitor-id="embedVisitorId" :suppress-thinking="!showThinking" />
     </div>
     <template v-else>
-      <DocInfo v-if="session?.knowledge_references?.length" :session="session" embedded-mode />
+      <DocInfo v-if="session?.knowledgeReferences?.length" :session="session" embedded-mode />
       <AgentStreamDisplay v-if="session?.isAgentMode" :session="session" :session-id="sessionId" :user-query="userQuery"
         :embedded-mode="embeddedMode" :embed-channel-id="embedChannelId" :embed-token="embedToken"
         :embed-session-sig="embedSessionSig" :embed-visitor-id="embedVisitorId" :suppress-thinking="!showThinking" />
@@ -93,9 +93,9 @@ type EmbedSession = {
   showThink?: boolean
   thinking?: boolean
   hideContent?: boolean
-  is_completed?: boolean
+  completed?: boolean
   agentEventStream?: Array<Record<string, unknown>>
-  knowledge_references?: Array<{ chunk_type?: string; knowledge_id?: string; knowledge_title?: string }>
+  knowledgeReferences?: Array<{ chunkType?: string; knowledgeId?: string; knowledgeTitle?: string }>
 }
 
 const props = withDefaults(
@@ -135,7 +135,7 @@ const { float: citationFloat, rebind: rebindCitations } = useEmbedCitationPopove
   embedChannelIdRef,
   embedTokenRef,
   {
-    getKnowledgeReferences: () => props.session?.knowledge_references,
+    getKnowledgeReferences: () => props.session?.knowledgeReferences,
   },
 )
 
@@ -158,7 +158,7 @@ const scheduleCitationClose = () => {
 const answerText = computed(() => String(props.content || props.session?.content || ''))
 const { displayed: typedAnswer } = useTypewriter(
   () => answerText.value,
-  () => Boolean(props.session?.is_completed),
+  () => Boolean(props.session?.completed),
 )
 
 const renderedHTML = computed(() => {
@@ -168,7 +168,7 @@ const renderedHTML = computed(() => {
     renderer: markdownRenderer,
     escapeMarkdown: safeMarkdownToHTML,
     sanitizeHtml: sanitizeMarkdownHTML,
-    streaming: !props.session?.is_completed,
+    streaming: !props.session?.completed,
   })
 })
 
@@ -193,7 +193,7 @@ watch(renderedHTML, () => {
   nextTick(async () => {
     rebindCitations()
     await hydrateImages()
-    if (props.session?.is_completed) {
+    if (props.session?.completed) {
       await renderMermaidDiagrams()
     }
   })
@@ -202,7 +202,7 @@ watch(renderedHTML, () => {
 onUpdated(() => {
   nextTick(async () => {
     await hydrateImages()
-    if (props.session?.is_completed) {
+    if (props.session?.completed) {
       await renderMermaidDiagrams()
     }
   })

@@ -66,7 +66,7 @@ const debugInfo = computed((): ChatRequestDebugInfo => {
   const s = props.session;
   const dr = s.debugRequest as ChatRequestDebugInfo | undefined;
   return {
-    requestId: (s.request_id as string) || dr?.requestId,
+    requestId: (s.requestId as string) || dr?.requestId,
     messageId: (s.id as string) || undefined,
     sessionId: props.sessionId || dr?.sessionId,
     url: dr?.url,

@@ -33,8 +33,15 @@ export function stripIncompleteCitationTag(content: string): string {
   return isCitationPrefix ? content.slice(0, start) : content
 }
 
+/** 同 `KnowledgeReferenceLike`：两种来源两种拼写（消息面 camelCase / 直通载荷 snake）。 */
 export type CitationKnowledgeRef = {
   id?: string
+  knowledgeId?: string
+  knowledgeTitle?: string
+  knowledgeFilename?: string
+  chunkIndex?: number
+  chunkType?: string
+  knowledgeBaseId?: string
   knowledge_id?: string
   knowledge_title?: string
   knowledge_filename?: string

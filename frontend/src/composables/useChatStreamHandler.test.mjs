@@ -31,9 +31,9 @@ test('command output updates only its pending tool and cannot replace a final re
 
 test('replaying agent_query binds the first segment and preserves distinct row IDs', () => {
   const messagesList = [
-    { id: 'a', role: 'assistant', request_id: 'r', steerForked: true, is_completed: true },
-    { id: 'u', role: 'user', request_id: 'r' },
-    { id: 'a:steer:1', assistant_message_id: 'a', role: 'assistant', request_id: 'r', is_completed: false },
+    { id: 'a', role: 'assistant', requestId: 'r', steerForked: true, completed: true },
+    { id: 'u', role: 'user', requestId: 'r' },
+    { id: 'a:steer:1', assistant_message_id: 'a', role: 'assistant', requestId: 'r', completed: false },
   ]
   const start = source.indexOf("if (data.response_type === 'agent_query')")
   const block = source.slice(start, source.indexOf('const isAgentOnlyResponse', start))
@@ -41,7 +41,7 @@ test('replaying agent_query binds the first segment and preserves distinct row I
   const process = vm.runInNewContext(ts.transpile(`(data) => { ${block} }`), {
     messagesList, replaySegments, resetSteerTurnForReplay,
     currentAssistantMessageId: { value: 'a' },
-    getTrailingIncompleteAssistant: () => [...messagesList].reverse().find(m => m.role === 'assistant' && !m.is_completed),
+    getTrailingIncompleteAssistant: () => [...messagesList].reverse().find(m => m.role === 'assistant' && !m.completed),
     findLastMessage: fn => [...messagesList].reverse().find(fn),
     log() {}, ensureAgentMessageShell() {}, bindServerTurnTimestamps() {}, onAgentQuery() {},
   })
@@ -70,7 +70,7 @@ test('agent chunks bind only to the in-flight assistant after a queued user mess
   assert.notEqual(chunkStart, -1)
   assert.notEqual(chunkEnd, -1)
   assert.match(chunk, /resolveActiveAssistantMessage\(data\)/)
-  assert.doesNotMatch(chunk, /item\.request_id === dataId \|\| item\.id === dataId/)
+  assert.doesNotMatch(chunk, /item\.requestId === dataId \|\| item\.id === dataId/)
 })
 
 test('incomplete assistant is found even when a later user message is the list tail', () => {
@@ -92,7 +92,7 @@ test('global typing indicator stays hidden while an in-flight agent assistant ex
   assert.match(fn, /messages\.some\(/)
   assert.match(fn, /role === 'assistant'/)
   assert.match(fn, /isAgentMode/)
-  assert.match(fn, /is_completed/)
+  assert.match(fn, /!m\.completed/)
 })
 
 // Splitting a turn around an injected message can leave one segment holding

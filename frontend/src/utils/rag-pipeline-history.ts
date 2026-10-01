@@ -10,17 +10,28 @@ export const RAG_TIMELINE_TOOL_NAMES = new Set([
   'image_analysis',
 ])
 
+/**
+ * 引用元素是检索域的 `SearchResult`：线上 camelCase；历史 jsonb 行里可能仍是
+ * 库内键名，故两种拼写都收（camelCase 优先）。
+ */
 type RagHistoryReference = {
+  chunkType?: string
+  knowledgeId?: string
+  knowledgeTitle?: string
   chunk_type?: string
   knowledge_id?: string
   knowledge_title?: string
+}
+
+function referenceChunkType(ref: RagHistoryReference): string {
+  return ref.chunkType ?? ref.chunk_type ?? ''
 }
 
 function inferRetrievalSearchSource(refs: RagHistoryReference[]): 'knowledge' | 'web' | 'mixed' {
   let docCount = 0
   let webCount = 0
   for (const ref of refs) {
-    if (ref.chunk_type === 'web_search') {
+    if (referenceChunkType(ref) === 'web_search') {
       webCount++
     } else {
       docCount++
@@ -32,7 +43,7 @@ function inferRetrievalSearchSource(refs: RagHistoryReference[]): 'knowledge' | 
 }
 
 type RagHistoryMessage = {
-  knowledge_references?: RagHistoryReference[]
+  knowledgeReferences?: RagHistoryReference[]
   agentEventStream?: Array<Record<string, unknown>>
 }
 
@@ -50,7 +61,7 @@ export function hasRagPipelineToolEvents(stream: Array<Record<string, unknown>> 
 export function synthesizeRagPipelineToolEvents(
   item: RagHistoryMessage,
 ): Array<Record<string, unknown>> {
-  const refs = item.knowledge_references ?? []
+  const refs = item.knowledgeReferences ?? []
   // Only rebuild retrieval steps when citations prove a search actually ran.
   // Content-only turns (e.g. attachment Q&A with no KB hits) must not get a
   // fake "knowledge_search" row on history reload.
@@ -63,12 +74,12 @@ export function synthesizeRagPipelineToolEvents(
   let webCount = 0
 
   for (const ref of refs) {
-    if (ref.chunk_type === 'web_search') {
+    if (referenceChunkType(ref) === 'web_search') {
       webCount++
       continue
     }
     docCount++
-    const key = ref.knowledge_id || ref.knowledge_title || 'document'
+    const key = ref.knowledgeId || ref.knowledge_id || ref.knowledgeTitle || ref.knowledge_title || 'document'
     kbCounts[key] = (kbCounts[key] || 0) + 1
   }
 
@@ -105,11 +116,11 @@ export function synthesizeRagPipelineToolEvents(
 
 export function ensureRagPipelineHistoryStream(item: RagHistoryMessage & {
   content?: string
-  is_completed?: boolean
+  completed?: boolean
   isAgentMode?: boolean
   hideContent?: boolean
 }): void {
-  if (!item.is_completed) return
+  if (!item.completed) return
 
   const stream = Array.isArray(item.agentEventStream)
     ? [...item.agentEventStream]
@@ -119,7 +130,7 @@ export function ensureRagPipelineHistoryStream(item: RagHistoryMessage & {
 
   const hasRestorablePayload =
   Boolean(item.content?.trim()) ||
-  Boolean(item.knowledge_references?.length)
+  Boolean(item.knowledgeReferences?.length)
   if (!hasRestorablePayload) return
 
   const synthesized = synthesizeRagPipelineToolEvents(item)

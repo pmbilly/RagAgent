@@ -877,11 +877,11 @@ import compactionIcon from '@/assets/img/context-compaction.svg';
 interface SessionData {
   id?: string;
   assistant_message_id?: string;
-  request_id?: string;
+  requestId?: string;
   debugRequest?: Record<string, unknown>;
   isAgentMode?: boolean;
   agentEventStream?: any[];
-  knowledge_references?: any[];
+  knowledgeReferences?: any[];
   [key: string]: unknown;
 }
 
@@ -913,7 +913,7 @@ const embedAuthProps = computed(() => ({
 }));
 
 const showRequestInfo = computed(
-  () => !props.embeddedMode && !!(props.session?.request_id || props.session?.id),
+  () => !props.embeddedMode && !!(props.session?.requestId || props.session?.id),
 );
 
 const {
@@ -923,7 +923,7 @@ const {
   forgettingId: memoryForgettingId,
   toggle: toggleMemory,
   forget: forgetMemory,
-} = useChatMemoryRow(() => props.session?.used_memories as UsedMemory[] | undefined);
+} = useChatMemoryRow(() => props.session?.usedMemories as UsedMemory[] | undefined);
 
 const resolveAssistantMessageId = (session?: SessionData) =>
   String(session?.assistant_message_id || session?.id || '').trim();
@@ -944,7 +944,7 @@ const protectedFileAccess = computed<ProtectedFileAccessContext | undefined>(() 
 });
 
 // Re-hydrate when the message authorization anchor becomes available or is
-// corrected (e.g. request_id → persisted assistant_message_id after agent_query).
+// corrected (e.g. requestId → persisted assistant_message_id after agent_query).
 watch(
   () => {
     const access = protectedFileAccess.value;
@@ -976,7 +976,7 @@ const hasArtifacts = computed(() => artifactList.value.length > 0);
 const artifactCount = computed(() => artifactList.value.length);
 const sessionIdForArtifacts = computed(() => props.sessionId ?? '');
 const messageIdForArtifacts = computed(() =>
-  persistedAssistantId(props.session) || String(props.session?.request_id || ''),
+  persistedAssistantId(props.session) || String(props.session?.requestId || ''),
 );
 // Set when the drawer is opened from an inline artifact card in the answer, so
 // it lands on that file's preview instead of the list.
@@ -1005,7 +1005,7 @@ const {
   cancelClose: cancelCitationClose,
   scheduleClose: scheduleCitationClose,
 } = useChatCitationPopover(rootElement, {
-  getKnowledgeReferences: () => props.session?.knowledge_references,
+  getKnowledgeReferences: () => props.session?.knowledgeReferences,
   embedChannelId: () => (props.embeddedMode ? props.embedChannelId : undefined),
   embedToken: () => (props.embeddedMode ? props.embedToken : undefined),
   sessionId: () => props.sessionId,
@@ -1018,7 +1018,7 @@ const getReferencesForDrawer = (
 ): KnowledgeReferenceLike[] => {
   const messageReferences = refsOverride?.length
     ? refsOverride
-    : props.session?.knowledge_references;
+    : props.session?.knowledgeReferences;
   if (messageReferences?.length) return messageReferences;
 
   // Agent answers can already contain citation tags before the aggregated
