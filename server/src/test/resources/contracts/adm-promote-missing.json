@@ -1,1 +1,1 @@
-{"error":"Either user_id or email is required"}
+{"error":{"code":1000,"details":null,"message":"Either userId or email is required"},"success":false}

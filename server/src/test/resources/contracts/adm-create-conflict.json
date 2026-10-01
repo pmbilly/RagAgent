@@ -1,1 +1,1 @@
-{"error":"email and username refer to conflicting existing identities"}
+{"error":{"code":1005,"details":null,"message":"email and username refer to conflicting existing identities"},"success":false}

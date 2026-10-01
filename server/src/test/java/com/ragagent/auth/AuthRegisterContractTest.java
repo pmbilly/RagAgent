@@ -331,7 +331,7 @@ class AuthRegisterContractTest {
         MvcResult restore = mockMvc.perform(delete(
                 "/api/v1/system/admin/settings/auth.registration_mode")
                 .header("Authorization", sysAdmin)).andReturn();
-        assertEquals(200, restore.getResponse().getStatus(), raw(restore));
+        assertEquals(204, restore.getResponse().getStatus(), raw(restore));
         assertGolden(get("/api/v1/auth/config"), 200, "reg-config-restored.json");
     }
 

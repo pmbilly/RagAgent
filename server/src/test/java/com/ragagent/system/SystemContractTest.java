@@ -356,7 +356,7 @@ class SystemContractTest {
         assertEquals(golden("adm-promote-missing.json"), raw(missing));
         // 2) unknown id → 404
         MvcResult nf = mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"user_id\":\"" + UNKNOWN + "\"}")).andReturn();
+                "{\"userId\":\"" + UNKNOWN + "\"}")).andReturn();
         assertEquals(404, nf.getResponse().getStatus(), raw(nf));
         assertEquals(golden("adm-promote-404.json"), raw(nf));
         // 3) list（只有 sysadmin 一行；掩码 UUID/时间戳）
@@ -366,34 +366,34 @@ class SystemContractTest {
         assertEquals(mask(golden("adm-list.json")), mask(raw(list)));
         // 4) promote self → 幂等 200
         MvcResult self = mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"user_id\":\"" + SYS_ADMIN + "\"}")).andReturn();
+                "{\"userId\":\"" + SYS_ADMIN + "\"}")).andReturn();
         assertEquals(200, self.getResponse().getStatus(), raw(self));
         assertEquals(mask(golden("adm-promote-self.json")), mask(raw(self)));
         // 5) promote owner（真实）→ is_system_admin=true
         MvcResult po = mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
+                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
         assertEquals(200, po.getResponse().getStatus(), raw(po));
         assertEquals(mask(golden("adm-promote-owner.json")), mask(raw(po)));
         // 6) revoke self → 400
         MvcResult rs = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"user_id\":\"" + SYS_ADMIN + "\"}")).andReturn();
+                "{\"userId\":\"" + SYS_ADMIN + "\"}")).andReturn();
         assertEquals(400, rs.getResponse().getStatus(), raw(rs));
         assertEquals(golden("adm-revoke-self.json"), raw(rs));
         // 7) revoke owner（此时 owner 已是管理员 → 真实撤销）
         MvcResult rn = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
+                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
         assertEquals(200, rn.getResponse().getStatus(), raw(rn));
         assertEquals(mask(golden("adm-revoke-noop.json")), mask(raw(rn)));
         // 8) 再提权 + 再撤销（真实撤销形态）
         mockMvc.perform(jsonBody(post("/api/v1/system/admin/promote"), sysAdmin,
-                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
+                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
         MvcResult ro = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"user_id\":\"" + OWNER + "\"}")).andReturn();
+                "{\"userId\":\"" + OWNER + "\"}")).andReturn();
         assertEquals(200, ro.getResponse().getStatus(), raw(ro));
         assertEquals(mask(golden("adm-revoke-owner.json")), mask(raw(ro)));
         // 9) revoke 未知 → 404；{} → validator 原文
         MvcResult r404 = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"user_id\":\"" + UNKNOWN + "\"}")).andReturn();
+                "{\"userId\":\"" + UNKNOWN + "\"}")).andReturn();
         assertEquals(404, r404.getResponse().getStatus(), raw(r404));
         assertEquals(golden("adm-revoke-404.json"), raw(r404));
         MvcResult rbad = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin, "{}"))
@@ -402,7 +402,7 @@ class SystemContractTest {
         assertEquals(golden("adm-revoke-badbody.json"), raw(rbad));
         // 10) 非管理员 revoke → 幂等 200（changed=false 形态同 200 + is_system_admin=false）
         MvcResult rn2 = mockMvc.perform(jsonBody(post("/api/v1/system/admin/revoke"), sysAdmin,
-                "{\"user_id\":\"" + VIEWER + "\"}")).andReturn();
+                "{\"userId\":\"" + VIEWER + "\"}")).andReturn();
         assertEquals(200, rn2.getResponse().getStatus(), raw(rn2));
         // 11) 终态 list
         MvcResult after = mockMvc.perform(get("/api/v1/system/admin/list")
@@ -417,30 +417,30 @@ class SystemContractTest {
     void resetPasswordMatchesGo() throws Exception {
         // 顺序与录制一致：weak → self → 404 → badbody → ok
         MvcResult weak = mockMvc.perform(jsonBody(post("/api/v1/system/admin/users/reset-password"), sysAdmin,
-                "{\"email\":\"java-phase1-viewer@weknora.test\",\"new_password\":\"short\"}")).andReturn();
+                "{\"email\":\"java-phase1-viewer@weknora.test\",\"newPassword\":\"short\"}")).andReturn();
         assertEquals(400, weak.getResponse().getStatus(), raw(weak));
         assertEquals(golden("adm-reset-weak.json"), raw(weak));
 
         MvcResult self = mockMvc.perform(jsonBody(post("/api/v1/system/admin/users/reset-password"), sysAdmin,
-                "{\"email\":\"java-sys-admin@weknora.test\",\"new_password\":\"Passw0rd!\"}")).andReturn();
+                "{\"email\":\"java-sys-admin@weknora.test\",\"newPassword\":\"Passw0rd!\"}")).andReturn();
         assertEquals(400, self.getResponse().getStatus(), raw(self));
         assertEquals(golden("adm-reset-self.json"), raw(self));
 
         MvcResult nf = mockMvc.perform(jsonBody(post("/api/v1/system/admin/users/reset-password"), sysAdmin,
-                "{\"email\":\"nobody@weknora.test\",\"new_password\":\"Passw0rd!\"}")).andReturn();
+                "{\"email\":\"nobody@weknora.test\",\"newPassword\":\"Passw0rd!\"}")).andReturn();
         assertEquals(404, nf.getResponse().getStatus(), raw(nf));
         assertEquals(golden("adm-reset-404.json"), raw(nf));
 
         MvcResult bad = mockMvc.perform(jsonBody(post("/api/v1/system/admin/users/reset-password"), sysAdmin,
-                "{\"email\":\"notanemail\",\"new_password\":\"x\"}")).andReturn();
+                "{\"email\":\"notanemail\",\"newPassword\":\"x\"}")).andReturn();
         assertEquals(400, bad.getResponse().getStatus(), raw(bad));
         assertEquals(golden("adm-reset-badbody.json"), raw(bad));
 
         // 成功（viewer 会话被吊销 → 重登可用；密码相同）
         MvcResult ok = mockMvc.perform(jsonBody(post("/api/v1/system/admin/users/reset-password"), sysAdmin,
-                "{\"email\":\"java-phase1-viewer@weknora.test\",\"new_password\":\"Passw0rd!\"}")).andReturn();
-        assertEquals(200, ok.getResponse().getStatus(), raw(ok));
-        assertEquals(golden("adm-reset-ok.json"), raw(ok));
+                "{\"email\":\"java-phase1-viewer@weknora.test\",\"newPassword\":\"Passw0rd!\"}")).andReturn();
+        assertEquals(204, ok.getResponse().getStatus(), raw(ok));
+        assertEquals("", raw(ok)); // 204 无响应体
         // 被吊销的旧 token 401（AdminResetPassword 的 RevokeTokensByUserID）
         MvcResult revoked = mockMvc.perform(get("/api/v1/system/info")
                 .header("Authorization", viewer)).andReturn();
@@ -517,7 +517,7 @@ class SystemContractTest {
         assertEquals(golden("adm-key-create-badcap.json"), raw(badcap));
 
         MvcResult exppast = mockMvc.perform(jsonBody(post("/api/v1/system/admin/api-keys"), sysAdmin,
-                "{\"name\":\"x\",\"capabilities\":[\"chat\"],\"expires_at_unix\":1000000000}")).andReturn();
+                "{\"name\":\"x\",\"capabilities\":[\"chat\"],\"expiresAtUnix\":1000000000}")).andReturn();
         assertEquals(400, exppast.getResponse().getStatus(), raw(exppast));
         assertEquals(golden("adm-key-create-exppast.json"), raw(exppast));
 
@@ -528,7 +528,7 @@ class SystemContractTest {
 
         // 创建（201；token 明文 + api_key 掩码 + expires_at 原样）
         MvcResult created = mockMvc.perform(jsonBody(post("/api/v1/system/admin/api-keys"), sysAdmin,
-                "{\"name\":\"sys-golden-key\",\"capabilities\":[\"chat\"],\"expires_at_unix\":4102444800}"))
+                "{\"name\":\"sys-golden-key\",\"capabilities\":[\"chat\"],\"expiresAtUnix\":4102444800}"))
                 .andReturn();
         assertEquals(201, created.getResponse().getStatus(), raw(created));
         assertThat(mask(raw(created))).contains("\"token\":\"<keytoken>\"");
@@ -544,7 +544,7 @@ class SystemContractTest {
         // 平台 key 打 settings（无 platform 能力 → 403 门禁文案）
         // PR4：键序归一后邻接正则不可靠 → Jackson 直取
         String key = new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(raw(created)).path("data").path("token").asText();
+                .readTree(raw(created)).path("token").asText();
         assertThat(key).startsWith("sk-");
         MvcResult guard = mockMvc.perform(get("/api/v1/system/admin/settings")
                 .header("X-API-Key", key)).andReturn();
@@ -564,11 +564,11 @@ class SystemContractTest {
 
         // PR4：键序归一后邻接正则不可靠 → Jackson 直取
         long delId = new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(raw(created)).path("data").path("id").asLong();
+                .readTree(raw(created)).path("id").asLong();
         MvcResult del = mockMvc.perform(delete("/api/v1/system/admin/api-keys/" + delId)
                 .header("Authorization", sysAdmin)).andReturn();
-        assertEquals(200, del.getResponse().getStatus(), raw(del));
-        assertEquals(golden("adm-key-delete.json"), raw(del));
+        assertEquals(204, del.getResponse().getStatus(), raw(del));
+        assertEquals("", raw(del)); // 204 无响应体
 
         MvcResult after = mockMvc.perform(get("/api/v1/system/admin/api-keys")
                 .header("Authorization", sysAdmin)).andReturn();
@@ -634,8 +634,8 @@ class SystemContractTest {
 
         MvcResult del = mockMvc.perform(delete("/api/v1/system/admin/settings/tenant.max_owned_per_user")
                 .header("Authorization", sysAdmin)).andReturn();
-        assertEquals(200, del.getResponse().getStatus(), raw(del));
-        assertEquals(golden("adm-settings-delete.json"), raw(del));
+        assertEquals(204, del.getResponse().getStatus(), raw(del));
+        assertEquals("", raw(del)); // 204 无响应体
 
         MvcResult delUnknown = mockMvc.perform(delete("/api/v1/system/admin/settings/nope.key")
                 .header("Authorization", sysAdmin)).andReturn();
@@ -703,12 +703,12 @@ class SystemContractTest {
                 post("/api/v1/system/admin/runtime/queues/default/tasks/t1/actions/cancel")
                         .header("Authorization", sysAdmin)).andReturn();
         assertEquals(503, mutate.getResponse().getStatus(), raw(mutate));
-        assertEquals("{\"error\":\"Task queue is unavailable\"}", raw(mutate));
+        assertEquals("{\"error\":{\"code\":1008,\"details\":null,\"message\":\"Task queue is unavailable\"},\"success\":false}", raw(mutate));
 
         MvcResult purge = mockMvc.perform(delete("/api/v1/system/admin/runtime/queues/default/archived")
                 .header("Authorization", sysAdmin)).andReturn();
         assertEquals(503, purge.getResponse().getStatus(), raw(purge));
-        assertEquals("{\"error\":\"Task queue is unavailable\"}", raw(purge));
+        assertEquals("{\"error\":{\"code\":1008,\"details\":null,\"message\":\"Task queue is unavailable\"},\"success\":false}", raw(purge));
     }
 
     // ════════════════ /system/admin 组：配额批量应用 ════════════════

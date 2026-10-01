@@ -1,1 +1,1 @@
-{"error":"Unknown task queue"}
+{"error":{"code":1000,"details":null,"message":"Unknown task queue"},"success":false}

@@ -1,1 +1,1 @@
-{"error":"Invalid queue or task ID"}
+{"error":{"code":1000,"details":null,"message":"Invalid queue or task ID"},"success":false}

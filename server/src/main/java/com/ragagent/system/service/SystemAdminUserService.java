@@ -19,7 +19,8 @@ import com.ragagent.auth.service.PasswordPolicy;
 import com.ragagent.auth.service.TenantMemberService;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
-import com.ragagent.common.error.PlainErrorException;
+import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,24 +143,24 @@ public class SystemAdminUserService {
 
     /**
      * 对照 RevokeSystemAdmin（repo 事务的顺序化等价）：
-     * @return user 行；self/last-admin/not-found 走 PlainErrorException（纯字符串错误体）。
+     * @return user 行；self/last-admin/not-found 抛 AppError 信封（400/404）。
      */
     public User revoke(String userId, String callerId) {
         if (userId.equals(callerId)) {
-            throw PlainErrorException.badRequest(
-                    "Cannot revoke your own system admin privileges");
+            throw new BizException(AppError.badRequest(
+                    "Cannot revoke your own system admin privileges"));
         }
         User user = getUserById(userId);
         if (user == null) {
-            throw PlainErrorException.notFound("User not found");
+            throw new BizException(AppError.notFound("User not found"));
         }
         if (!user.isIsSystemAdmin()) {
             return user; // idempotent 分支（handler 落 changed=false 审计）
         }
         Long total = countSystemAdmins();
         if (total == null || total <= 1) {
-            throw PlainErrorException.badRequest(
-                    "Cannot revoke the last remaining system administrator");
+            throw new BizException(AppError.badRequest(
+                    "Cannot revoke the last remaining system administrator"));
         }
         user.setIsSystemAdmin(false);
         userMapper.updateById(user);
@@ -244,7 +245,7 @@ public class SystemAdminUserService {
         }
         String policyError = validatePasswordPolicy(effectivePassword, complexPasswordEnabled());
         if (policyError != null) {
-            throw PlainErrorException.badRequest(policyError);
+            throw new BizException(AppError.badRequest(policyError));
         }
 
         User existing;
@@ -257,7 +258,7 @@ public class SystemAdminUserService {
             if (row != null && username.equals(row.getUsername()) && email.equals(row.getEmail())) {
                 return new CreateResult.Idempotent(row);
             }
-            throw new PlainErrorException(409, ERR_USER_IDENTITY_CONFLICT);
+            throw new BizException(AppError.conflict(ERR_USER_IDENTITY_CONFLICT));
         }
         return generated ? new CreateResult.Created(existing, effectivePassword)
                 : new CreateResult.Created(existing, "");

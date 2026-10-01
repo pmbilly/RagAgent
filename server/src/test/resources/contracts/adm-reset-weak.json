@@ -1,1 +1,1 @@
-{"error":"password must be 8-32 characters and contain at least one letter and one number"}
+{"error":{"code":1000,"details":null,"message":"password must be 8-32 characters and contain at least one letter and one number"},"success":false}

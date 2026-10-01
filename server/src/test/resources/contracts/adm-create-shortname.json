@@ -1,1 +1,1 @@
-{"error":"Invalid user creation request"}
+{"error":{"code":1000,"details":null,"message":"Invalid user creation request"},"success":false}

@@ -1,1 +1,1 @@
-{"error":"User not found"}
+{"error":{"code":1003,"details":null,"message":"User not found"},"success":false}

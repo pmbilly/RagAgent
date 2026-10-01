@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.auth.apikey.domain.APIKeyCapability;
 import com.ragagent.auth.apikey.domain.APIKeyScopeType;
@@ -22,10 +21,13 @@ import com.ragagent.auth.mapper.TenantMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.error.PlainErrorException;
-import com.ragagent.common.web.GoJsonBindError;
+import com.ragagent.common.web.NonNullBody;
+import com.ragagent.common.web.RejectEmptyBody;
 import com.ragagent.system.dto.SystemDtos;
 import com.ragagent.system.service.SystemAdminUserService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,29 +41,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * /api/v1/system/admin 组（对照 Go RegisterSystemAdminRoutes + SystemHandler 的
- * P0 用户管理 / 平台 API Key / P1 系统设置 / 运行时队列 / 配额批量应用）。
+ * /api/v1/system/admin 组：用户管理 / 平台 API Key / 系统设置 / 运行时队列 / 配额批量应用。
  *
- * <p>整组 SystemAdmin 守卫（{@code RbacInterceptor.addSystemAdminRule}）；
- * 审计埋点（promote/revoke/reset/create/api-key/quota）全部落 tenant_id=0 的
- * 平台行（best-effort，与 Go 的 {@code _ = h.auditSvc.Log(...)} 一致）。</p>
+ * <p>整组 SystemAdmin 守卫；审计埋点（promote/revoke/reset/create/api-key/quota）全部落
+ * tenant_id=0 的平台行（best-effort）。</p>
  *
- * <p><b>响应形态（golden 钉住，三种并存）</b>：</p>
- * <ul>
- *   <li>纯字符串错误 {@code {"error":"..."}}（c.JSON 直写，400/404/409/500）；
- *       binding 失败的 message 是 go-playground validator / Go json 解析器原文
- *       （如 {@code Key: 'RevokeSystemAdminRequest.UserID' ... 'required' tag}）；</li>
- *   <li>平台 API Key 的校验错误走 <b>AppError 信封</b>（c.Error → 1010/1000/1003，
- *       message 固定、原文在 details）；</li>
- *   <li>settings 读写返回<b>裸行</b>（无 {"data":...} 包装，axios 拦截器约定）；
- *       api-keys 列表是 {"data":[...],"success":true}（gin.H 字母序：data&lt;success）。</li>
- * </ul>
+ * <p><b>响应形态</b>：裸资源对象（无 {@code data}/{@code success} 包装）；
+ * 动作成功（重置密码 / 删除密钥 / 重置设置）→ 204；错误一律 AppError 信封
+ * （请求校验用显式 message，如 {@code userId: 不能为空}）。</p>
  *
- * <p><b>runtime/queues 是 Lite 形态</b>（对照 Go noopTaskInspector，**确定性翻译**非降级）：
- * GetRuntimeQueues → available=false + queues=[]（asynq 深度在进程内队列下不存在）；
- * ListRuntimeTasks → {@code {available:false,tasks:[],page_size:N,has_more:false}}；
- * mutate/purge → 503 "Task queue is unavailable"。错误分支（未知队列/state/action）
- * 与模式无关，逐字对照 Go。</p>
+ * <p><b>runtime/queues 是 Lite 形态</b>（进程内队列，确定性翻译非降级）：
+ * available=false + queues=[]；mutate/purge → 503 "Task queue is unavailable"。</p>
  */
 @RestController
 @RequestMapping("/api/v1/system/admin")
@@ -89,36 +79,21 @@ public class SystemAdminController {
 
     // ── P0：系统管理员升降级 ──────────────────────────────────────────────
 
-    /** 对照 PromoteUserToSystemAdminRequest（user_id 与 email 二选一，user_id 优先）。 */
-    public record PromoteRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("user_id") String userId,
-            @com.fasterxml.jackson.annotation.JsonProperty("email") String email) {
+    /** promote 请求（userId 与 email 二选一，userId 优先）。 */
+    public record PromoteRequest(String userId, String email) {
     }
 
     @PostMapping("/promote")
-    public ResponseEntity<?> promote(@RequestBody(required = false) String rawBody) {
-        String userId = null;
-        String email = null;
-        if (rawBody == null || rawBody.isBlank()) {
-            // Go 的 ShouldBindJSON 空 body → EOF
-            throw PlainErrorException.badRequest("Invalid request: EOF");
-        }
-        try {
-            PromoteRequest req = MAPPER.readValue(rawBody, PromoteRequest.class);
-            userId = req.userId();
-            email = req.email();
-        } catch (Exception e) {
-            throw PlainErrorException.badRequest(
-                    "Invalid request: " + GoJsonBindError.message(rawBody, e.getMessage()));
-        }
-        String uid = userId == null ? "" : userId.trim();
-        String mail = email == null ? "" : email.trim();
+    public ResponseEntity<SystemDtos.UserInfoResponse> promote(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false) PromoteRequest req) {
+        String uid = req.userId() == null ? "" : req.userId().trim();
+        String mail = req.email() == null ? "" : req.email().trim();
         if (uid.isEmpty() && mail.isEmpty()) {
-            throw PlainErrorException.badRequest("Either user_id or email is required");
+            throw new BizException(AppError.badRequest("Either userId or email is required"));
         }
         User user = uid.isEmpty() ? users.getUserByEmail(mail) : users.getUserById(uid);
         if (user == null) {
-            throw PlainErrorException.notFound("User not found");
+            throw new BizException(AppError.notFound("User not found"));
         }
         if (user.isIsSystemAdmin()) {
             users.emitAdminAudit(AuditAction.SYSTEM_ADMIN_PROMOTED, user, Map.of(
@@ -135,30 +110,15 @@ public class SystemAdminController {
         return ResponseEntity.ok(SystemDtos.UserInfoResponse.from(promoted));
     }
 
+    /** revoke 请求。 */
+    public record RevokeRequest(@NotBlank(message = "userId: 不能为空") String userId) {
+    }
+
     @PostMapping("/revoke")
-    public ResponseEntity<?> revoke(@RequestBody(required = false) String rawBody) {
-        String userId = null;
-        if (rawBody == null || rawBody.isBlank()) {
-            userId = null;
-        } else {
-            try {
-                JsonNode node = MAPPER.readTree(rawBody);
-                if (node.isObject() && node.has("user_id") && !node.get("user_id").isNull()) {
-                    userId = node.get("user_id").asText();
-                }
-            } catch (Exception e) {
-                throw PlainErrorException.badRequest(
-                        "Invalid request: " + GoJsonBindError.message(rawBody, e.getMessage()));
-            }
-        }
-        if (userId == null || userId.isEmpty()) {
-            // Go binding:"required" 的 validator 原文（空 body 同样命中 required）
-            throw PlainErrorException.badRequest("Invalid request: "
-                    + "Key: 'RevokeSystemAdminRequest.UserID' Error:Field validation for 'UserID' "
-                    + "failed on the 'required' tag");
-        }
+    public ResponseEntity<SystemDtos.UserInfoResponse> revoke(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false) RevokeRequest req) {
         String callerId = TenantContext.currentUserId() == null ? "" : TenantContext.currentUserId();
-        User user = users.revoke(userId, callerId);
+        User user = users.revoke(req.userId(), callerId);
         if (!user.isIsSystemAdmin()) {
             // ErrUserNotSystemAdmin → 幂等 200（changed=false 审计）
             users.emitAdminAudit(AuditAction.SYSTEM_ADMIN_REVOKED, user, Map.of(
@@ -212,81 +172,55 @@ public class SystemAdminController {
 
     // ── 用户管理 ──────────────────────────────────────────────────────────
 
+    /** 密码重置请求。 */
     public record ResetPasswordRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("email") String email,
-            @com.fasterxml.jackson.annotation.JsonProperty("new_password") String newPassword) {
+            @NotBlank(message = "email: 不能为空") String email,
+            @NotBlank(message = "newPassword: 不能为空") String newPassword) {
     }
 
     @PostMapping("/users/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody(required = false) String rawBody) {
-        ResetPasswordRequest req = null;
-        try {
-            req = rawBody == null ? null : MAPPER.readValue(rawBody, ResetPasswordRequest.class);
-        } catch (Exception ignored) {
-            // fall through → generic 400（Go 的 bind 错误统一这条文案）
-        }
-        if (req == null || req.email() == null || req.email().isEmpty()
-                || req.newPassword() == null || req.newPassword().isEmpty()
-                || !SystemAdminUserService.isValidEmail(req.email())) {
-            throw PlainErrorException.badRequest("Invalid password reset request");
-        }
+    public ResponseEntity<Void> resetPassword(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    ResetPasswordRequest req) {
         String email = req.email().trim();
+        if (!SystemAdminUserService.isValidEmail(email)) {
+            throw new BizException(AppError.badRequest("Invalid password reset request"));
+        }
         String policyError = users.validatePasswordPolicy(req.newPassword(), users.complexPasswordEnabled());
         if (policyError != null) {
-            throw PlainErrorException.badRequest(policyError);
+            throw new BizException(AppError.badRequest(policyError));
         }
         User user = users.getUserByEmail(email);
         if (user == null) {
-            throw PlainErrorException.notFound("User not found");
+            throw new BizException(AppError.notFound("User not found"));
         }
         String callerId = TenantContext.currentUserId() == null ? "" : TenantContext.currentUserId();
         if (callerId.equals(user.getId())) {
-            throw PlainErrorException.badRequest("Cannot reset your own password here");
+            throw new BizException(AppError.badRequest("Cannot reset your own password here"));
         }
         users.adminResetPassword(user, req.newPassword());
         users.emitAdminAudit(AuditAction.SYSTEM_USER_PASSWORD_RESET, user, Map.of(
                 "target_email", user.getEmail(),
                 "target_username", user.getUsername(),
                 "sessions_revoked", true));
-        return ResponseEntity.ok(orderedMessage("Password reset successfully"));
+        return ResponseEntity.noContent().build();
     }
 
-    /** {"message":"..."}——单键 map，字母序无歧义。 */
-    private static Map<String, Object> orderedMessage(String message) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", message);
-        return body;
-    }
-
+    /** 创建用户请求（username 2-50 字符；password 缺省/为 null 时服务端生成）。 */
     public record CreateUserRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("username") String username,
-            @com.fasterxml.jackson.annotation.JsonProperty("email") String email,
-            @com.fasterxml.jackson.annotation.JsonProperty("password") String password) {
+            @NotBlank(message = "username: 不能为空") String username,
+            @NotBlank(message = "email: 不能为空") String email,
+            String password) {
     }
 
     @PostMapping("/users/create")
-    public ResponseEntity<?> createUser(@RequestBody(required = false) String rawBody) {
-        CreateUserRequest req = null;
-        boolean malformed = false;
-        try {
-            req = rawBody == null ? null : MAPPER.readValue(rawBody, CreateUserRequest.class);
-        } catch (Exception ignored) {
-            malformed = true; // Go 的 bind 错误（含 EOF/解析错误）统一这条文案
-        }
-        if (malformed || req == null
-                || req.username() == null || req.username().isEmpty()
-                || req.email() == null || req.email().isEmpty()
-                || !SystemAdminUserService.isValidEmail(req.email())
+    public ResponseEntity<SystemDtos.CreateUserResponse> createUser(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false) CreateUserRequest req) {
+        if (!SystemAdminUserService.isValidEmail(req.email())
                 || req.username().length() < 2 || req.username().length() > 50) {
-            throw PlainErrorException.badRequest("Invalid user creation request");
+            throw new BizException(AppError.badRequest("Invalid user creation request"));
         }
-        boolean passwordPresent = false;
-        try {
-            JsonNode node = MAPPER.readTree(rawBody);
-            passwordPresent = node.isObject() && node.has("password") && !node.get("password").isNull();
-        } catch (Exception ignored) {
-            // malformed 已在上面拦截
-        }
+        boolean passwordPresent = req.password() != null;
         SystemAdminUserService.CreateResult result = users.adminCreateUser(
                 req.username(), req.email(), req.password(), passwordPresent,
                 users.resolveDefaultTenantMode());
@@ -312,38 +246,26 @@ public class SystemAdminController {
 
     // ── 平台 API Key ──────────────────────────────────────────────────────
 
-    /** 对照 platformAPIKeyCreateRequest：expires_at_unix 是 epoch 秒（不是 RFC3339）。 */
+    /** 平台 API Key 创建请求（expiresAtUnix 是 epoch 秒）。 */
     public record PlatformAPIKeyCreateRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("name") String name,
-            @com.fasterxml.jackson.annotation.JsonProperty("capabilities") List<String> capabilities,
-            @com.fasterxml.jackson.annotation.JsonProperty("expires_at_unix") Long expiresAtUnix) {
+            @NotBlank(message = "name: 不能为空") String name,
+            List<String> capabilities,
+            Long expiresAtUnix) {
     }
 
     @GetMapping("/api-keys")
-    public ResponseEntity<Map<String, Object>> listPlatformKeys() {
+    public ResponseEntity<List<TenantAPIKeyResponse>> listPlatformKeys() {
         List<TenantAPIKeyResponse> response = new ArrayList<>();
         for (var key : apiKeyService.listPlatform()) {
             response.add(masked(TenantAPIKeyResponse.from(key), key.getApiKey()));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", response);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/api-keys")
-    public ResponseEntity<?> createPlatformKey(@RequestBody(required = false) String rawBody) {
-        PlatformAPIKeyCreateRequest req;
-        try {
-            req = rawBody == null ? null : MAPPER.readValue(rawBody, PlatformAPIKeyCreateRequest.class);
-        } catch (Exception e) {
-            // Go：NewValidationError("Invalid request data").WithDetails(err.Error())
-            throw new BizException(AppError.validation("Invalid request data")
-                    .withDetails(GoJsonBindError.message(rawBody, e.getMessage())));
-        }
-        if (req == null || req.name() == null || req.name().trim().isEmpty()) {
-            throw validation("name is required");
-        }
+    public ResponseEntity<TenantAPIKeyCreateResponse> createPlatformKey(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    PlatformAPIKeyCreateRequest req) {
         List<String> capabilities = req.capabilities() == null ? List.of() : req.capabilities();
         List<String> normalized = APIKeyCapability.normalizeAll(capabilities);
         if (normalized.isEmpty() || normalized.size() != capabilities.size()) {
@@ -354,7 +276,7 @@ public class SystemAdminController {
             expiresAt = java.time.Instant.ofEpochSecond(req.expiresAtUnix())
                     .atOffset(java.time.ZoneOffset.UTC);
             if (!expiresAt.toInstant().isAfter(java.time.Instant.now())) {
-                throw validation("expires_at_unix must be in the future");
+                throw validation("expiresAtUnix must be in the future");
             }
         }
         var result = apiKeyService.create(new TenantAPIKeyService.TenantAPIKeyServiceCreateRequest(
@@ -362,10 +284,8 @@ public class SystemAdminController {
         TenantAPIKeyResponse item = masked(TenantAPIKeyResponse.from(result.apiKey()), result.token());
         emitAPIKeyAudit(AuditAction.SYSTEM_API_KEY_CREATED, result.apiKey().getId(),
                 result.apiKey().getCapabilities());
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", TenantAPIKeyCreateResponse.of(item, result.token()));
-        body.put("success", true);
-        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(TenantAPIKeyCreateResponse.of(item, result.token()));
     }
 
     @DeleteMapping("/api-keys/{keyId}")
@@ -385,7 +305,7 @@ public class SystemAdminController {
             throw new BizException(AppError.notFound("Platform API key not found"));
         }
         emitAPIKeyAudit(AuditAction.SYSTEM_API_KEY_REVOKED, id, List.of());
-        return ResponseEntity.ok(Map.of("success", true));
+        return ResponseEntity.noContent().build();
     }
 
     /** 对照 maskManagedAPIKey：<=12 位 → "***"；否则 first7 + "..." + last4。 */
@@ -432,45 +352,40 @@ public class SystemAdminController {
     }
 
     @GetMapping("/settings/{key}")
-    public ResponseEntity<?> getSetting(@PathVariable("key") String key) {
+    public ResponseEntity<com.ragagent.system.domain.SystemSetting> getSetting(
+            @PathVariable("key") String key) {
         try {
             return ResponseEntity.ok(normalizeRow(settings.get(key)));
         } catch (IllegalArgumentException e) {
-            throw PlainErrorException.badRequest(e.getMessage());
+            throw new BizException(AppError.badRequest(e.getMessage()));
         }
     }
 
+    /** 设置更新请求（value 必填）。 */
+    public record UpdateSettingRequest(@NotNull(message = "value: 不能为空") Object value) {
+    }
+
     @PutMapping("/settings/{key}")
-    public ResponseEntity<?> updateSetting(@PathVariable("key") String key,
-                                           @RequestBody(required = false) String rawBody) {
-        JsonNode req;
-        if (rawBody == null || rawBody.isBlank()) {
-            throw PlainErrorException.badRequest("Invalid request: EOF");
-        }
+    public ResponseEntity<com.ragagent.system.domain.SystemSetting> updateSetting(
+            @PathVariable("key") String key,
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    UpdateSettingRequest req) {
         try {
-            req = MAPPER.readTree(rawBody);
-        } catch (Exception e) {
-            throw PlainErrorException.badRequest(
-                    "Invalid request: " + GoJsonBindError.message(rawBody, e.getMessage()));
-        }
-        if (!req.isObject() || !req.has("value") || req.get("value").isNull()) {
-            throw PlainErrorException.badRequest("value is required");
-        }
-        try {
-            return ResponseEntity.ok(normalizeRow(settings.update(key, req.get("value"))));
+            return ResponseEntity.ok(
+                    normalizeRow(settings.update(key, MAPPER.valueToTree(req.value()))));
         } catch (IllegalArgumentException e) {
-            throw PlainErrorException.badRequest(e.getMessage());
+            throw new BizException(AppError.badRequest(e.getMessage()));
         }
     }
 
     @DeleteMapping("/settings/{key}")
-    public ResponseEntity<?> resetSetting(@PathVariable("key") String key) {
+    public ResponseEntity<Void> resetSetting(@PathVariable("key") String key) {
         try {
             settings.reset(key);
         } catch (IllegalArgumentException e) {
-            throw PlainErrorException.badRequest(e.getMessage());
+            throw new BizException(AppError.badRequest(e.getMessage()));
         }
-        return ResponseEntity.ok(Map.of("success", true));
+        return ResponseEntity.noContent().build();
     }
 
     /** 虚拟行的 id 归一为 0（Go uint64 零值输出 0，不是 null）。 */
@@ -524,15 +439,16 @@ public class SystemAdminController {
     }
 
     @GetMapping("/runtime/queues/{queue}/tasks")
-    public ResponseEntity<?> listRuntimeTasks(@PathVariable("queue") String queue,
-                                              @RequestParam(name = "state", required = false) String state,
-                                              @RequestParam(name = "page_size", required = false) String pageSize) {
+    public ResponseEntity<SystemDtos.RuntimeTasksResponse> listRuntimeTasks(
+            @PathVariable("queue") String queue,
+            @RequestParam(name = "state", required = false) String state,
+            @RequestParam(name = "pageSize", required = false) String pageSize) {
         if (!KNOWN_QUEUES.contains(queue)) {
-            throw PlainErrorException.badRequest("Unknown task queue");
+            throw new BizException(AppError.badRequest("Unknown task queue"));
         }
         if (state == null || !List.of("pending", "active", "scheduled", "retry", "archived", "completed")
                 .contains(state)) {
-            throw PlainErrorException.badRequest("Unknown task state");
+            throw new BizException(AppError.badRequest("Unknown task state"));
         }
         // 对照 runtimeTaskPageSize：默认 20；<1 → 20；>100 → 100；非法 → 20
         int size;
@@ -552,28 +468,32 @@ public class SystemAdminController {
     }
 
     @PostMapping("/runtime/queues/{queue}/tasks/{taskId}/actions/{action}")
-    public ResponseEntity<?> mutateRuntimeTask(@PathVariable("queue") String queue,
+    public ResponseEntity<Void> mutateRuntimeTask(@PathVariable("queue") String queue,
                                                @PathVariable("taskId") String taskId,
                                                @PathVariable("action") String action) {
         if (!KNOWN_QUEUES.contains(queue) || taskId.isEmpty()) {
-            throw PlainErrorException.badRequest("Invalid queue or task ID");
+            throw new BizException(AppError.badRequest("Invalid queue or task ID"));
         }
-        // Lite：类型断言失败 → 503（Go mutateRuntimeTask 的 !supported 分支）
-        throw new PlainErrorException(503, "Task queue is unavailable");
+        // Lite：进程内队列不支持任务变更 → 503
+        throw new BizException(AppError.serviceUnavailable("Task queue is unavailable"));
     }
 
     @DeleteMapping("/runtime/queues/{queue}/archived")
-    public ResponseEntity<?> purgeArchived(@PathVariable("queue") String queue) {
+    public ResponseEntity<Void> purgeArchived(@PathVariable("queue") String queue) {
         if (!KNOWN_QUEUES.contains(queue)) {
-            throw PlainErrorException.badRequest("Invalid queue");
+            throw new BizException(AppError.badRequest("Invalid queue"));
         }
-        throw new PlainErrorException(503, "Task queue is unavailable");
+        throw new BizException(AppError.serviceUnavailable("Task queue is unavailable"));
     }
 
     // ── 配额批量应用 ──────────────────────────────────────────────────────
 
+    /** 配额批量应用结果（affected = 被重置的租户数）。 */
+    public record StorageQuotaApplyResponse(int affected, long quotaBytes, long quotaGb) {
+    }
+
     @PostMapping("/tenants/apply-default-storage-quota")
-    public ResponseEntity<?> applyDefaultStorageQuota() {
+    public ResponseEntity<StorageQuotaApplyResponse> applyDefaultStorageQuota() {
         long gb = settings.getInt("tenant.default_storage_quota_gb",
                 "WEKNORA_TENANT_DEFAULT_STORAGE_QUOTA_GB", 10);
         if (gb <= 0) {
@@ -597,10 +517,6 @@ public class SystemAdminController {
         entry.setOutcome(AuditOutcome.SUCCESS);
         entry.setDetails(MAPPER.valueToTree(details));
         auditService.logBestEffort(entry);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("affected", affected);
-        body.put("quota_bytes", quotaBytes);
-        body.put("quota_gb", gb);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(new StorageQuotaApplyResponse(affected, quotaBytes, gb));
     }
 }

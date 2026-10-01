@@ -1,1 +1,1 @@
-{"error":"Cannot reset your own password here"}
+{"error":{"code":1000,"details":null,"message":"Cannot reset your own password here"},"success":false}
