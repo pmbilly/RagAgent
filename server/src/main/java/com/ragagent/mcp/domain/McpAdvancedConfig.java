@@ -1,6 +1,5 @@
 package com.ragagent.mcp.domain;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * MCP 服务高级配置（对照 Go types.MCPAdvancedConfig）。
@@ -13,13 +12,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class McpAdvancedConfig {
 
     /** 超时（秒），默认 30 */
-    @JsonProperty("timeout")
     private int timeout;
     /** 重试次数，默认 3 */
-    @JsonProperty("retry_count")
     private int retryCount;
     /** 重试间隔（秒），默认 1 */
-    @JsonProperty("retry_delay")
     private int retryDelay;
 
     public McpAdvancedConfig() {

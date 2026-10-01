@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.mcp.domain.McpAuthConfig;
 import com.ragagent.mcp.domain.McpAuthType;
 
@@ -19,15 +17,7 @@ import com.ragagent.mcp.domain.McpAuthType;
  * AuthType / Scopes / AuthServerMetadataURL 是非秘密的 OAuth 配置，可以安全回显。</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "auth_type", "api_key_header", "custom_headers", "scopes", "auth_server_metadata_url"
-})
-public record McpAuthConfigResponse(
-        @JsonProperty("auth_type") String authType,
-        @JsonProperty("api_key_header") String apiKeyHeader,
-        @JsonProperty("custom_headers") Map<String, String> customHeaders,
-        @JsonProperty("scopes") List<String> scopes,
-        @JsonProperty("auth_server_metadata_url") String authServerMetadataUrl) {
+public record McpAuthConfigResponse( String authType, String apiKeyHeader, Map<String, String> customHeaders, List<String> scopes, String authServerMetadataUrl) {
 
     /**
      * 对照 Go 侧把 {@code *types.MCPAuthConfig} 逐字段拷进响应的构造逻辑。

@@ -123,13 +123,12 @@ class McpContractTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"golden-mcp\",\"description\":\"phase4 golden mcp service\","
-                                + "\"enabled\":true,\"transport_type\":\"http-streamable\","
+                                + "\"enabled\":true,\"transportType\":\"http-streamable\","
                                 + "\"url\":\"" + MCP_URL + "\",\"headers\":{\"X-Custom\":\"v1\"}}"))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())   // §1.15：创建 → 201
                 .andReturn();
         String createdBody = created.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertEquals(mask(golden("mcp-create.json")), mask(createdBody),
-                "mcp-create 应与 golden 一致（掩码后）");
+        assertGoldenBody("mcp-create.json", createdBody, "mcp-create 应与 golden 一致（掩码后）");
         String id = extractUuid(createdBody);
 
         // 2. list → 掩码比对
@@ -137,8 +136,7 @@ class McpContractTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertEquals(mask(golden("mcp-list.json")),
-                mask(list.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+        assertGoldenBody("mcp-list.json", list.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "mcp-list 应与 golden 一致（掩码后）");
 
         // 3. get → 掩码比对
@@ -146,8 +144,7 @@ class McpContractTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertEquals(mask(golden("mcp-get.json")),
-                mask(got.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+        assertGoldenBody("mcp-get.json", got.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "mcp-get 应与 golden 一致（掩码后）");
 
         // 4. 404 → 静态 golden
@@ -163,8 +160,7 @@ class McpContractTest {
                         .content("{\"name\":\"golden-mcp-renamed\",\"description\":\"updated desc\",\"enabled\":false}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertEquals(mask(golden("mcp-update.json")),
-                mask(updated.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+        assertGoldenBody("mcp-update.json", updated.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "mcp-update 应与 golden 一致（掩码后）");
 
         // 6. tool-approvals 空 → 静态 golden
@@ -177,7 +173,7 @@ class McpContractTest {
         mockMvc.perform(put("/api/v1/mcp-services/" + id + "/tool-approvals/golden_tool")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"require_approval\":true}"))
+                        .content("{\"require_approval\":true}"))   // 工具审批面属 M4，仍是下划线
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(goldenBytes("mcp-tool-approval-set.json")));
 
@@ -191,15 +187,18 @@ class McpContractTest {
                 "mcp-tool-approvals 应与 golden 一致（掩码后）");
 
         // 9. credentials put → 静态 golden（只暴露 configured 布尔）
-        mockMvc.perform(put("/api/v1/mcp-services/" + id + "/credentials")
+        MvcResult credPut = mockMvc.perform(put("/api/v1/mcp-services/" + id + "/credentials")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"api_key\":\"sk-golden-123\",\"token\":\"tok-golden-456\"}"))
+                        .content("{\"apiKey\":\"sk-golden-123\",\"token\":\"tok-golden-456\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("mcp-credentials-put.json")));
+                .andReturn();
+        assertGoldenBody("mcp-credentials-put.json",
+                credPut.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "凭据 PUT 应与 golden 一致（掩码后）");
 
         // 10. credentials delete → 204（golden 是空响应体）
-        mockMvc.perform(delete("/api/v1/mcp-services/" + id + "/credentials/api_key")
+        mockMvc.perform(delete("/api/v1/mcp-services/" + id + "/credentials/apiKey")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
 
@@ -210,10 +209,13 @@ class McpContractTest {
                 .andExpect(content().bytes(goldenBytes("mcp-credentials-bad-field.json")));
 
         // 12. metadata（无快照）→ 静态 golden（{"data":null,"success":true}）
-        mockMvc.perform(get("/api/v1/mcp-services/" + id + "/metadata")
+        MvcResult meta = mockMvc.perform(get("/api/v1/mcp-services/" + id + "/metadata")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("mcp-metadata.json")));
+                .andReturn();
+        assertGoldenBody("mcp-metadata.json",
+                meta.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "从未同步应为 null");
 
         // 13. test：结构化断言（消息含网络错误文案，两侧必然不同）
         MvcResult tested = mockMvc.perform(post("/api/v1/mcp-services/" + id + "/test")
@@ -221,8 +223,9 @@ class McpContractTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String testBody = tested.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(testBody.contains("\"success\":true"), "test 信封应为成功: " + testBody);
-        assertTrue(testBody.contains("\"success\":false"), "内部连接结果应为失败: " + testBody);
+        // §2.1：裸 McpTestResult（不再有外层信封），success=false 是**业务结论**
+        assertTrue(testBody.startsWith("{\"success\":false"), "应为裸 McpTestResult: " + testBody);
+        assertTrue(testBody.contains("\"message\":"), testBody);
 
         // 14. tools：服务已被 update 停用 → 结构化断言错误码
         MvcResult tools = mockMvc.perform(get("/api/v1/mcp-services/" + id + "/tools")
@@ -233,19 +236,19 @@ class McpContractTest {
         assertTrue(toolsBody.contains("\"code\":1007") && toolsBody.contains("is not enabled"),
                 "停用服务取工具应报 1007: " + toolsBody);
 
-        // 15. delete → 静态 golden
+        // 15. delete → 204（§1.13，无响应体）
         mockMvc.perform(delete("/api/v1/mcp-services/" + id)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("mcp-delete.json")));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         // 16. 删除后列表为空
         MvcResult empty = mockMvc.perform(get("/api/v1/mcp-services")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertEquals("{\"data\":[],\"success\":true}",
-                empty.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertEquals("[]", empty.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "§2.1：空列表就是裸 []");
     }
 
     /**
@@ -260,17 +263,17 @@ class McpContractTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"golden-mcp-auth\",\"description\":\"auth variant\","
-                                + "\"enabled\":true,\"transport_type\":\"http-streamable\","
+                                + "\"enabled\":true,\"transportType\":\"http-streamable\","
                                 + "\"url\":\"" + MCP_URL + "\","
-                                + "\"auth_config\":{\"auth_type\":\"api_key\","
-                                + "\"api_key\":\"sk-golden-secret\",\"api_key_header\":\"X-Tenant-Key\"}}"))
-                .andExpect(status().isOk())
+                                + "\"authConfig\":{\"authType\":\"api_key\","
+                                + "\"apiKey\":\"sk-golden-secret\",\"apiKeyHeader\":\"X-Tenant-Key\"}}"))
+                .andExpect(status().isCreated())   // §1.15：创建 → 201
                 .andReturn();
         String actual = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertEquals(mask(golden("mcp-create-auth.json")), mask(actual),
+        assertGoldenBody("mcp-create-auth.json", actual,
                 "create(auth_config) 应与 golden 一致（掩码后）");
         assertFalse(actual.contains("sk-golden-secret"), "明文密钥不得出现在响应里: " + actual);
-        assertTrue(actual.contains("\"api_key_header\":\"X-Tenant-Key\""),
+        assertTrue(actual.contains("\"apiKeyHeader\":\"X-Tenant-Key\""),
                 "非秘密的结构配置应回显: " + actual);
     }
 
@@ -286,7 +289,7 @@ class McpContractTest {
         mockMvc.perform(post("/api/v1/mcp-services")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"ssrf-probe\",\"transport_type\":\"http-streamable\","
+                        .content("{\"name\":\"ssrf-probe\",\"transportType\":\"http-streamable\","
                                 + "\"url\":\"http://10.0.0.1/mcp\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().bytes(goldenBytes("mcp-create-ssrf-rejected.json")));
@@ -299,7 +302,7 @@ class McpContractTest {
         mockMvc.perform(post("/api/v1/mcp-services")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"v-mcp\",\"transport_type\":\"http-streamable\",\"url\":\"" + MCP_URL + "\"}"))
+                        .content("{\"name\":\"v-mcp\",\"transportType\":\"http-streamable\",\"url\":\"" + MCP_URL + "\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(content().bytes(goldenBytes("mcp-create-forbidden-viewer.json")));
     }
@@ -320,6 +323,23 @@ class McpContractTest {
 
     private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
+
+
+    /**
+     * 夹具重录开关（同 EmbedContractTest）：{@code -Dcontract.refresh=true} 时把掩码后的实际响应
+     * 写回夹具，用于换锚批（本次 M1 改键名/去信封/改状态码，一次影响 5 个 golden）。
+     */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
+    private void assertGoldenBody(String name, String actual, String label) throws Exception {
+        if (REFRESH_FIXTURES) {
+            java.nio.file.Path path = java.nio.file.Paths.get("src/test/resources/contracts", name);
+            java.nio.file.Files.writeString(path, mask(actual));
+            System.out.println("REFRESH " + name);
+            return;
+        }
+        assertEquals(mask(golden(name)), mask(actual), label);
+    }
 
     private static String golden(String name) throws Exception {
         // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变

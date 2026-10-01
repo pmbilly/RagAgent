@@ -139,18 +139,18 @@ class McpHttpContractTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
                 .content(json));
-        assertEquals(200, r.getResponse().getStatus(), "创建应成功：" + body(r));
+        assertEquals(201, r.getResponse().getStatus(), "创建应成功（§1.15 → 201）：" + body(r));
         Matcher m = ID_UUID.matcher(body(r));
         assertTrue(m.find(), "创建响应应含服务 UUID：" + body(r));
         return m.group(1);
     }
 
     private static final String FULL_BODY = "{\"name\":\"golden-mcp\",\"description\":\"d0\","
-            + "\"transport_type\":\"sse\",\"url\":\"https://example.com/mcp\","
+            + "\"transportType\":\"sse\",\"url\":\"https://example.com/mcp\","
             + "\"headers\":{\"X-Tenant\":\"acme\"},"
-            + "\"env_vars\":{\"TOKEN\":\"env-secret\"},"
-            + "\"auth_config\":{\"api_key\":\"sk-real-do-not-leak\",\"token\":\"tok-real-do-not-leak\","
-            + "\"custom_headers\":{\"X-Trace\":\"abc\"}}}";
+            + "\"envVars\":{\"TOKEN\":\"env-secret\"},"
+            + "\"authConfig\":{\"apiKey\":\"sk-real-do-not-leak\",\"token\":\"tok-real-do-not-leak\","
+            + "\"customHeaders\":{\"X-Trace\":\"abc\"}}}";
 
     // ── 创建：密钥剥离 + GORM 默认值 ─────────────────────────────────────
 
@@ -162,20 +162,21 @@ class McpHttpContractTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
                 .content(FULL_BODY));
-        assertEquals(200, r.getResponse().getStatus(), body(r));
+        assertEquals(201, r.getResponse().getStatus(), body(r));
         String s = body(r);
 
         assertFalse(s.contains("sk-real-do-not-leak"), "创建响应不得回显原始 api_key：" + s);
         assertFalse(s.contains("tok-real-do-not-leak"), "创建响应不得回显原始 token：" + s);
-        assertTrue(s.contains("\"api_key\":{\"configured\":true}"), s);
+        assertTrue(s.contains("\"apiKey\":{\"configured\":true}"), s);
         assertTrue(s.contains("\"token\":{\"configured\":true}"), s);
-        assertTrue(s.contains("\"custom_headers\""), s);
-        // gin.H 信封：data < success
-        assertTrue(s.contains("\"data\":{") && s.indexOf("\"data\"") < s.indexOf("\"success\""), s);
+        assertTrue(s.contains("\"customHeaders\""), s);
+        // §2.1：裸对象，不再有 {data,success} 信封
+        assertFalse(s.contains("\"success\""), "响应不该带 success 键：" + s);
+        assertFalse(s.startsWith("{\"data\":"), "响应不该被 data 包起来：" + s);
         // GORM 的 default:true 语义：未传 enabled 时落库与响应都是 true
         assertTrue(s.contains("\"enabled\":true"), "enabled 必须命中 DB 默认值 true：" + s);
         // 服务层补的默认高级配置，键名必须是蛇形（Go json tag）
-        assertTrue(s.contains("\"retry_count\":3") && s.contains("\"retry_delay\":1"),
+        assertTrue(s.contains("\"retryCount\":3") && s.contains("\"retryDelay\":1"),
                 "advanced_config 必须用 Go 的蛇形键名：" + s);
     }
 
@@ -199,17 +200,18 @@ class McpHttpContractTest {
         assertFalse(viewerView.contains("X-Trace"), "Viewer 必须被剥离 custom_headers：" + viewerView);
         assertFalse(viewerView.contains("sk-real-do-not-leak"), viewerView);
         // 非秘密的鉴权策略仍需回显，前端才能渲染当前策略
-        assertTrue(viewerView.contains("\"auth_config\""), viewerView);
+        assertTrue(viewerView.contains("\"authConfig\""), viewerView);
     }
 
     @Test
-    void listReturnsEnvelopeWithDataArray() throws Exception {
+    void listReturnsBareArray() throws Exception {
         String token = loginOwner();
         createService(token, FULL_BODY);
 
         String s = body(perform(get("/api/v1/mcp-services").header("Authorization", "Bearer " + token)));
-        assertTrue(s.startsWith("{\"data\":["), "列表应是 data 数组信封：" + s);
-        assertTrue(s.endsWith("\"success\":true}"), s);
+        // §2.1：列表裸数组
+        assertTrue(s.startsWith("["), "列表应是裸数组：" + s);
+        assertFalse(s.contains("\"success\""), s);
         assertFalse(s.contains("sk-real-do-not-leak"), s);
     }
 
@@ -228,14 +230,14 @@ class McpHttpContractTest {
     void updateRespectsFieldPresenceAndNeverTouchesSecrets() throws Exception {
         String token = loginOwner();
         // 故意不带凭据创建，便于断言"主 PUT 带 api_key 也不会写入"
-        String id = createService(token, "{\"name\":\"no-cred\",\"transport_type\":\"sse\","
+        String id = createService(token, "{\"name\":\"no-cred\",\"transportType\":\"sse\","
                 + "\"url\":\"https://example.com/mcp\"}");
 
         MvcResult r = perform(put("/api/v1/mcp-services/" + id)
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
                 .content("{\"description\":\"after\","
-                        + "\"auth_config\":{\"api_key\":\"hostile-key\",\"token\":\"hostile-token\"}}"));
+                        + "\"authConfig\":{\"apiKey\":\"hostile-key\",\"token\":\"hostile-token\"}}"));
         assertEquals(200, r.getResponse().getStatus(), body(r));
         String s = body(r);
 
@@ -243,19 +245,19 @@ class McpHttpContractTest {
         assertEquals("no-cred", field(s, "name"), "未提供的标量字段必须保持原值");
         assertFalse(s.contains("hostile-key"), "secret 永不经主 PUT 写入：" + s);
         assertFalse(s.contains("hostile-token"), s);
-        assertTrue(s.contains("\"api_key\":{\"configured\":false}"),
+        assertTrue(s.contains("\"apiKey\":{\"configured\":false}"),
                 "主 PUT 里的 api_key 必须被忽略（仍为未配置）：" + s);
     }
 
     @Test
     void updateRejectsInvalidUsageInstructions() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"n1\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"n1\",\"transportType\":\"sse\"}");
 
         MvcResult empty = perform(put("/api/v1/mcp-services/" + id)
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"usage_instructions\":\"   \"}"));
+                .content("{\"usageInstructions\":\"   \"}"));
         assertEquals(400, empty.getResponse().getStatus());
         assertTrue(body(empty).contains(
                 "Usage instructions must contain between 1 and 16000 characters"), body(empty));
@@ -264,27 +266,27 @@ class McpHttpContractTest {
         MvcResult longBody = perform(put("/api/v1/mcp-services/" + id)
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"usage_instructions\":\"" + tooLong + "\"}"));
+                .content("{\"usageInstructions\":\"" + tooLong + "\"}"));
         assertEquals(400, longBody.getResponse().getStatus());
     }
 
     @Test
     void updateValidUsageInstructionsIsTrimmed() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"n2\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"n2\",\"transportType\":\"sse\"}");
 
         String s = body(perform(put("/api/v1/mcp-services/" + id)
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"usage_instructions\":\"  use it for search  \"}")));
+                .content("{\"usageInstructions\":\"  use it for search  \"}")));
 
-        assertEquals("use it for search", field(s, "usage_instructions"));
+        assertEquals("use it for search", field(s, "usageInstructions"));
     }
 
     @Test
     void updateRejectsSsrfUrl() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"n3\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"n3\",\"transportType\":\"sse\"}");
 
         MvcResult r = perform(put("/api/v1/mcp-services/" + id)
                 .header("Authorization", "Bearer " + token)
@@ -303,7 +305,7 @@ class McpHttpContractTest {
         MvcResult r = perform(post("/api/v1/mcp-services")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"name\":\"ssrf\",\"transport_type\":\"sse\","
+                .content("{\"name\":\"ssrf\",\"transportType\":\"sse\","
                         + "\"url\":\"http://127.0.0.1:8080/mcp\"}"));
 
         assertEquals(400, r.getResponse().getStatus(), body(r));
@@ -316,22 +318,23 @@ class McpHttpContractTest {
         MvcResult r = perform(post("/api/v1/mcp-services")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"name\":\"stdio-svc\",\"transport_type\":\"stdio\"}"));
+                .content("{\"name\":\"stdio-svc\",\"transportType\":\"stdio\"}"));
 
         assertEquals(500, r.getResponse().getStatus(), body(r));
         assertTrue(body(r).contains("stdio transport is disabled for security reasons"), body(r));
     }
 
     @Test
-    void deleteReturnsMessageEnvelope() throws Exception {
+    void deleteReturnsNoContent() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"n4\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"n4\",\"transportType\":\"sse\"}");
 
         MvcResult r = perform(delete("/api/v1/mcp-services/" + id)
                 .header("Authorization", "Bearer " + token));
 
-        assertEquals(200, r.getResponse().getStatus());
-        assertEquals("{\"message\":\"MCP service deleted successfully\",\"success\":true}", body(r));
+        // §1.13：同步完成的删除 → 204 且无响应体
+        assertEquals(204, r.getResponse().getStatus());
+        assertEquals("", body(r), "删除不该有响应体");
     }
 
     // ── 凭据子资源 ───────────────────────────────────────────────────────
@@ -339,39 +342,39 @@ class McpHttpContractTest {
     @Test
     void credentialsSubresourceLifecycle() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"cred\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"cred\",\"transportType\":\"sse\"}");
 
         // 空 body 的 PUT 退化为"当前状态查询"，不是 400
         String current = body(perform(put("/api/v1/mcp-services/" + id + "/credentials")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
                 .content("{}")));
-        assertEquals("{\"data\":{\"fields\":{\"api_key\":{\"configured\":false},"
-                + "\"token\":{\"configured\":false}}},\"success\":true}", current);
+        assertEquals("{\"fields\":{\"apiKey\":{\"configured\":false},"
+                + "\"token\":{\"configured\":false}}}", current);
 
         String saved = body(perform(put("/api/v1/mcp-services/" + id + "/credentials")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"api_key\":\"fresh-key\"}")));
-        assertTrue(saved.contains("\"api_key\":{\"configured\":true}"), saved);
+                .content("{\"apiKey\":\"fresh-key\"}")));
+        assertTrue(saved.contains("\"apiKey\":{\"configured\":true}"), saved);
         assertTrue(saved.contains("\"token\":{\"configured\":false}"), saved);
         assertFalse(saved.contains("fresh-key"), "响应只回布尔值，绝不回显凭据：" + saved);
 
         // DELETE 幂等，返回 204 无正文
-        MvcResult removed = perform(delete("/api/v1/mcp-services/" + id + "/credentials/api_key")
+        MvcResult removed = perform(delete("/api/v1/mcp-services/" + id + "/credentials/apiKey")
                 .header("Authorization", "Bearer " + token));
         assertEquals(204, removed.getResponse().getStatus());
         assertEquals("", body(removed));
 
         String after = body(perform(get("/api/v1/mcp-services/" + id)
                 .header("Authorization", "Bearer " + token)));
-        assertTrue(after.contains("\"api_key\":{\"configured\":false}"), after);
+        assertTrue(after.contains("\"apiKey\":{\"configured\":false}"), after);
     }
 
     @Test
     void credentialsRejectsUnknownField() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"cred2\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"cred2\",\"transportType\":\"sse\"}");
 
         MvcResult r = perform(delete("/api/v1/mcp-services/" + id + "/credentials/bogus")
                 .header("Authorization", "Bearer " + token));
@@ -385,7 +388,7 @@ class McpHttpContractTest {
     @Test
     void toolApprovalPolicyLifecycle() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"appr\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"appr\",\"transportType\":\"sse\"}");
 
         assertEquals("{\"data\":[],\"success\":true}", body(perform(
                 get("/api/v1/mcp-services/" + id + "/tool-approvals")
@@ -408,7 +411,7 @@ class McpHttpContractTest {
     @Test
     void toolApprovalRequiresAtLeastOneField() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"appr2\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"appr2\",\"transportType\":\"sse\"}");
 
         MvcResult r = perform(put("/api/v1/mcp-services/" + id + "/tool-approvals/search")
                 .header("Authorization", "Bearer " + token)
@@ -437,13 +440,14 @@ class McpHttpContractTest {
     @Test
     void metadataIsNullWhenNeverSynced() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"meta\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"meta\",\"transportType\":\"sse\"}");
 
         MvcResult r = perform(get("/api/v1/mcp-services/" + id + "/metadata")
                 .header("Authorization", "Bearer " + token));
 
         assertEquals(200, r.getResponse().getStatus());
-        assertEquals("{\"data\":null,\"success\":true}", body(r));
+        // §2.1：裸资源——"从未同步"就是 JSON null（不再是 {"data":null,"success":true}）
+        assertEquals("null", body(r));
     }
 
     @Test
@@ -462,7 +466,7 @@ class McpHttpContractTest {
     void metadataRefreshForStaticAuthRequiresAdmin() throws Exception {
         String owner = loginOwner();
         String viewer = loginViewer();
-        String id = createService(owner, "{\"name\":\"meta2\",\"transport_type\":\"sse\","
+        String id = createService(owner, "{\"name\":\"meta2\",\"transportType\":\"sse\","
                 + "\"url\":\"https://example.com/mcp\"}");
 
         MvcResult r = perform(post("/api/v1/mcp-services/" + id + "/metadata/refresh")
@@ -478,7 +482,7 @@ class McpHttpContractTest {
     @Test
     void generateUsageInstructionsRequiresSyncedCatalog() throws Exception {
         String token = loginOwner();
-        String id = createService(token, "{\"name\":\"usage\",\"transport_type\":\"sse\"}");
+        String id = createService(token, "{\"name\":\"usage\",\"transportType\":\"sse\"}");
 
         MvcResult r = perform(post("/api/v1/mcp-services/" + id + "/usage-instructions/generate")
                 .header("Authorization", "Bearer " + token)
@@ -521,7 +525,7 @@ class McpHttpContractTest {
         MvcResult r = perform(post("/api/v1/mcp-services/nope/test")
                 .header("Authorization", "Bearer " + token));
 
-        // 与其它端点不同：连接失败也返回 200，把失败装进 data.success=false
+        // 与其它端点不同：连接失败也返回 200（裸 McpTestResult，success=false）
         assertEquals(200, r.getResponse().getStatus(), body(r));
         String s = body(r);
         assertTrue(s.contains("\"success\":false"), s);

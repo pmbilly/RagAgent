@@ -161,7 +161,8 @@ final class McpUsageInstructionsOps {
             throw new BizException(AppError.serviceUnavailable(
                     "Generated instructions were empty or too long; try again"));
         }
-        return McpServiceController.ok(McpServiceController.envelope(Map.of("usage_instructions", text)));
+        // 裸对象（§14.9n M1：无 {data,success} 信封），键名＝DTO 字段名
+        return McpServiceController.ok(Map.of("usageInstructions", text));
     }
 
     /**

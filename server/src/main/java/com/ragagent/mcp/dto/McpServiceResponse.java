@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
 import com.ragagent.mcp.domain.McpConfigFingerprint;
 import com.ragagent.mcp.domain.McpMetadataSummary;
@@ -35,68 +33,35 @@ import com.ragagent.mcp.domain.McpStdioConfig;
  * <p>字段序 = Go struct 声明序（注意 usage_instructions 在 Go 里是第一个字段）。</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "usage_instructions", "id", "tenant_id", "name", "description", "enabled",
-        "transport_type", "url", "headers", "auth_config", "advanced_config",
-        "stdio_config", "env_vars", "is_builtin", "created_at", "updated_at",
-        "credentials", "catalog"
-})
 public class McpServiceResponse {
 
     /** Go 无 omitempty → 恒输出 */
-    @JsonProperty("usage_instructions")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private String usageInstructions = "";
-    @JsonProperty("id")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private String id = "";
-    @JsonProperty("tenant_id")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private long tenantId;
-    @JsonProperty("name")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private String name = "";
-    @JsonProperty("description")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private String description = "";
-    @JsonProperty("enabled")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private boolean enabled;
-    @JsonProperty("transport_type")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private String transportType = "";
-    @JsonProperty("url")
     private String url;
-    @JsonProperty("headers")
     // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
 
     private Map<String, String> headers;
-    @JsonProperty("auth_config")
     private McpAuthConfigResponse authConfig;
-    @JsonProperty("advanced_config")
     private McpAdvancedConfig advancedConfig;
-    @JsonProperty("stdio_config")
     private McpStdioConfig stdioConfig;
-    @JsonProperty("env_vars")
     // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
 
     private Map<String, String> envVars;
-    @JsonProperty("is_builtin")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    private boolean isBuiltin;
-    @JsonProperty("created_at")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
+    /** §9：布尔字段不带 is 前缀（键名 `builtin`）。 */
+    private boolean builtin;
     private OffsetDateTime createdAt;
-    @JsonProperty("updated_at")
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     private OffsetDateTime updatedAt;
     /** 逐字段"是否已配置"；内置服务不返回（它们没有按租户的凭据） */
-    @JsonProperty("credentials")
     // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
 
     private Map<String, CredentialFieldMetadata> credentials;
     /** 列表卡片用的已保存目录摘要；从未同步过时省略 */
-    @JsonProperty("catalog")
     private McpCatalogSummary catalog;
 
     /**
@@ -124,7 +89,7 @@ public class McpServiceResponse {
         resp.stdioConfig = svc.getStdioConfig();
         resp.envVars = svc.getEnvVars() == null || svc.getEnvVars().isEmpty()
                 ? null : new LinkedHashMap<>(svc.getEnvVars());
-        resp.isBuiltin = svc.isIsBuiltin();
+        resp.builtin = svc.isIsBuiltin();
         resp.createdAt = svc.getCreatedAt();
         resp.updatedAt = svc.getUpdatedAt();
 
@@ -146,7 +111,7 @@ public class McpServiceResponse {
             resp.authConfig = null;
         } else {
             Map<String, CredentialFieldMetadata> creds = new LinkedHashMap<>();
-            creds.put("api_key", new CredentialFieldMetadata(
+            creds.put("apiKey", new CredentialFieldMetadata(
                     svc.getAuthConfig() != null && !nullToEmpty(svc.getAuthConfig().getApiKey()).isEmpty()));
             creds.put("token", new CredentialFieldMetadata(
                     svc.getAuthConfig() != null && !nullToEmpty(svc.getAuthConfig().getToken()).isEmpty()));
@@ -215,7 +180,7 @@ public class McpServiceResponse {
     public McpAdvancedConfig getAdvancedConfig() { return advancedConfig; }
     public McpStdioConfig getStdioConfig() { return stdioConfig; }
     public Map<String, String> getEnvVars() { return envVars; }
-    public boolean isIsBuiltin() { return isBuiltin; }
+    public boolean isBuiltin() { return builtin; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public Map<String, CredentialFieldMetadata> getCredentials() { return credentials; }

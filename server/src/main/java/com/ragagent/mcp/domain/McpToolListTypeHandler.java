@@ -6,7 +6,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.type.BaseTypeHandler;
@@ -34,15 +33,8 @@ public class McpToolListTypeHandler extends BaseTypeHandler<List<McpTool>> {
 
     private static final TypeReference<List<McpTool>> TYPE = new TypeReference<>() {};
 
-    /** 把 Java 的 requireApproval 别名回 Go 的 require_approval（仅作用于本 handler 的 MAPPER）。 */
-    abstract static class McpToolMixin {
-        @JsonProperty("require_approval")
-        abstract boolean isRequireApproval();
-    }
-
-    static {
-        MAPPER.addMixIn(McpTool.class, McpToolMixin.class);
-    }
+    // §14.9n M1：McpTool.requireApproval 的字段名就是落库键名，原来的
+    // require_approval 别名 mixin 已退役（存量的下划线行按 HANDOFF 的 SQL 迁移）。
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, List<McpTool> parameter, JdbcType jdbcType)

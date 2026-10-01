@@ -2,7 +2,6 @@ package com.ragagent.mcp.dto;
 
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.mcp.domain.McpAdvancedConfig;
 import com.ragagent.mcp.domain.McpAuthConfig;
 import com.ragagent.mcp.domain.McpService;
@@ -20,21 +19,7 @@ import com.ragagent.mcp.domain.McpStdioConfig;
  * 就能建出一条对所有工作空间可见的行（Go 侧 BeforeCreate 只在 id 为空时生成 UUID）。
  * 这里照抄该行为（保真优先），但已在报告中标记为需要产品决策的既有风险点。</p>
  */
-public record McpServiceCreateRequest(
-        @JsonProperty("usage_instructions") String usageInstructions,
-        @JsonProperty("id") String id,
-        @JsonProperty("tenant_id") Long tenantId,
-        @JsonProperty("name") String name,
-        @JsonProperty("description") String description,
-        @JsonProperty("enabled") Boolean enabled,
-        @JsonProperty("transport_type") String transportType,
-        @JsonProperty("url") String url,
-        @JsonProperty("headers") Map<String, String> headers,
-        @JsonProperty("auth_config") McpAuthConfig authConfig,
-        @JsonProperty("advanced_config") McpAdvancedConfig advancedConfig,
-        @JsonProperty("stdio_config") McpStdioConfig stdioConfig,
-        @JsonProperty("env_vars") Map<String, String> envVars,
-        @JsonProperty("is_builtin") Boolean isBuiltin) {
+public record McpServiceCreateRequest( String usageInstructions, String id, Long tenantId, String name, String description, Boolean enabled, String transportType, String url, Map<String, String> headers, McpAuthConfig authConfig, McpAdvancedConfig advancedConfig, McpStdioConfig stdioConfig, Map<String, String> envVars, Boolean builtin) {
 
     /** 对照 Go 的 struct 绑定结果（tenantId 由 handler 覆盖）。 */
     public McpService toService() {
@@ -61,8 +46,8 @@ public record McpServiceCreateRequest(
         s.setAdvancedConfig(advancedConfig);
         s.setStdioConfig(stdioConfig);
         s.setEnvVars(envVars);
-        if (isBuiltin != null) {
-            s.setIsBuiltin(isBuiltin);
+        if (builtin != null) {
+            s.setIsBuiltin(builtin);
         }
         return s;
     }

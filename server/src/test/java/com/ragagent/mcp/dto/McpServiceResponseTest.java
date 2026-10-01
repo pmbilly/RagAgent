@@ -72,19 +72,19 @@ class McpServiceResponseTest {
 
         // auth_config 子对象里不该再有 api_key / token 键
         JsonNode raw = JSON.readTree(s);
-        if (raw.has("auth_config")) {
-            String ac = raw.get("auth_config").toString();
-            assertFalse(ac.contains("\"api_key\""), "auth_config 不得含 api_key：" + ac);
+        if (raw.has("authConfig")) {
+            String ac = raw.get("authConfig").toString();
+            assertFalse(ac.contains("\"apiKey\""), "auth_config 不得含 api_key：" + ac);
             assertFalse(ac.contains("\"token\""), "auth_config 不得含 token：" + ac);
         }
 
         // credentials 是有意暴露的"是否已配置"布尔值（取代独立的 GET /credentials 端点）
         assertTrue(s.contains("\"credentials\""), s);
-        assertTrue(s.contains("\"api_key\":{\"configured\":true}"), s);
+        assertTrue(s.contains("\"apiKey\":{\"configured\":true}"), s);
         assertTrue(s.contains("\"token\":{\"configured\":true}"), s);
 
         // CustomHeaders 是结构性元数据，**应该**透出
-        assertTrue(s.contains("\"custom_headers\""), s);
+        assertTrue(s.contains("\"customHeaders\""), s);
         assertTrue(s.contains("\"X-Trace\""), s);
     }
 
@@ -211,7 +211,7 @@ class McpServiceResponseTest {
 
         String body = JSON.writeValueAsString(resp.get(0));
         assertFalse(body.contains("\"tools\""), "列表卡片不得带工具本体：" + body);
-        assertTrue(body.contains("\"tool_count\":3"), body);
+        assertTrue(body.contains("\"toolCount\":3"), body);
     }
 
     // ── 补充：字段名与 OAuth 非秘密配置的回显 ────────────────────────────
@@ -230,7 +230,7 @@ class McpServiceResponseTest {
 
         String body = JSON.writeValueAsString(McpServiceResponse.from(svc, true));
 
-        assertTrue(body.contains("\"auth_type\":\"oauth\""), body);
+        assertTrue(body.contains("\"authType\":\"oauth\""), body);
         assertTrue(body.contains("\"scopes\":[\"read\",\"write\"]"), body);
         assertTrue(body.contains("oauth-authorization-server"), body);
         assertFalse(body.contains("leak-me-not"), body);
@@ -257,22 +257,25 @@ class McpServiceResponseTest {
         asAdmin();
         McpService svc = new McpService();
         svc.setId("svc-6");
+        // 时间戳非空才会出现（类级 NON_NULL 是授权剥离的实现，空值一并省略）
+        svc.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        svc.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
         String body = JSON.writeValueAsString(McpServiceResponse.from(svc, true));
 
-        int usage = body.indexOf("\"usage_instructions\"");
+        int usage = body.indexOf("\"usageInstructions\"");
         int id = body.indexOf("\"id\"");
-        int builtin = body.indexOf("\"is_builtin\"");
-        int created = body.indexOf("\"created_at\"");
-        assertTrue(usage >= 0 && usage < id, "usage_instructions 必须排在 id 之前：" + body);
+        int builtin = body.indexOf("\"builtin\"");
+        int created = body.indexOf("\"createdAt\"");
+        assertTrue(usage >= 0 && usage < id, "usageInstructions 必须排在 id 之前：" + body);
         assertTrue(id < builtin && builtin < created, body);
     }
 
-    /** gin.H 信封的键序（data < success）——前端逐字节依赖 */
+    /** credentials 映射的键序（apiKey < token 插入序）；§14.9n M1 起无信封 */
     @Test
     void credentialsResponseFieldOrder() throws Exception {
         String body = JSON.writeValueAsString(CredentialsResponse.of(true, false));
-        assertEquals("{\"fields\":{\"api_key\":{\"configured\":true},\"token\":{\"configured\":false}}}",
+        assertEquals("{\"fields\":{\"apiKey\":{\"configured\":true},\"token\":{\"configured\":false}}}",
                 body);
     }
 }

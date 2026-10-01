@@ -5,7 +5,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * MCP 服务鉴权配置（对照 Go types.MCPAuthConfig）。
@@ -31,29 +30,22 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class McpAuthConfig {
 
     /** 鉴权策略；空串视为无鉴权（历史行兼容） */
-    @JsonProperty("auth_type")
     private McpAuthType authType;
-    @JsonProperty("api_key")
     private String apiKey;
     /**
      * AuthType=api_key 时承载 APIKey 的头名，空则默认 "X-API-Key"。
      * 这是非秘密的结构配置（秘密是 APIKey 本身），故不加密、可安全回显——
      * 让期望密钥在别的头里的服务（如把裸 token 放进 Authorization）无需退化成明文自定义头。
      */
-    @JsonProperty("api_key_header")
     private String apiKeyHeader;
-    @JsonProperty("token")
     private String token;
-    @JsonProperty("custom_headers")
     private Map<String, String> customHeaders;
     /** OAuth 授权时请求的 scope，可选 */
-    @JsonProperty("scopes")
     private List<String> scopes;
     /**
      * 可选：钉死 OAuth 授权服务器 metadata URL。为空时从 MCP URL 自动发现
      * （RFC 9728 / RFC 8414）。
      */
-    @JsonProperty("auth_server_metadata_url")
     private String authServerMetadataUrl;
 
     /**

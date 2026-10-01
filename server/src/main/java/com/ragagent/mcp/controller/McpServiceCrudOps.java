@@ -80,8 +80,10 @@ final class McpServiceCrudOps {
             throw BizException.internal("Failed to create MCP service: " + McpServiceController.rawMessage(e));
         }
 
-        // 响应用 McpServiceResponse：密钥字段在构造期就不存在，无需运行时脱敏
-        return McpServiceController.ok(McpServiceController.envelope(McpServiceResponse.from(service, McpServiceController.canViewIntegrationSecrets())));
+        // 响应用 McpServiceResponse：密钥字段在构造期就不存在，无需运行时脱敏。
+        // §1.15：创建类 → 201 + 资源视图
+        return ResponseEntity.status(201).body(
+                McpServiceResponse.from(service, McpServiceController.canViewIntegrationSecrets()));
     }
 
     // ── 列表 / 详情 ──────────────────────────────────────────────────────
@@ -96,7 +98,7 @@ final class McpServiceCrudOps {
             log.error("Failed to list MCP services, tenant_id={}", tenantId, e);
             throw BizException.internal("Failed to list MCP services: " + McpServiceController.rawMessage(e));
         }
-        return McpServiceController.ok(McpServiceController.envelope(mcpServiceResponses(tenantId, services)));
+        return McpServiceController.ok(mcpServiceResponses(tenantId, services));
     }
 
     /** 对照 GetMCPService — Viewer+ */
@@ -109,7 +111,7 @@ final class McpServiceCrudOps {
             log.warn("MCP service not found, service_id={}", McpServiceController.sanitize(id));
             throw BizException.notFound("MCP service not found");
         }
-        return McpServiceController.ok(McpServiceController.envelope(mcpServiceResponses(tenantId, List.of(service)).get(0)));
+        return McpServiceController.ok(mcpServiceResponses(tenantId, List.of(service)).get(0));
     }
 
     // ── 更新（handler 210 行单函数：存在性语义 + 凭据保护 + 连接失效 + DTO 组装） ──
@@ -140,8 +142,8 @@ final class McpServiceCrudOps {
         // 记录哪些字段被显式更新（Go: updateFields）
         Map<String, Boolean> updateFields = new LinkedHashMap<>();
 
-        if (updateData.has("usage_instructions")) {
-            JsonNode raw = updateData.get("usage_instructions");
+        if (updateData.has("usageInstructions")) {
+            JsonNode raw = updateData.get("usageInstructions");
             String instructions = raw.isTextual() ? raw.asText().trim() : "";
             if (!raw.isTextual() || instructions.isEmpty()
                     || instructions.codePointCount(0, instructions.length()) > 16000) {
@@ -149,7 +151,7 @@ final class McpServiceCrudOps {
                         "Usage instructions must contain between 1 and 16000 characters");
             }
             service.setUsageInstructions(instructions);
-            updateFields.put("usage_instructions", true);
+            updateFields.put("usageInstructions", true);
         }
 
         if (updateData.path("name").isTextual()) {
@@ -165,8 +167,8 @@ final class McpServiceCrudOps {
             service.setEnabled(updateData.get("enabled").asBoolean());
             updateFields.put("enabled", true);
         }
-        if (updateData.path("transport_type").isTextual()) {
-            service.setTransportType(updateData.get("transport_type").asText());
+        if (updateData.path("transportType").isTextual()) {
+            service.setTransportType(updateData.get("transportType").asText());
         }
         if (updateData.path("url").isTextual() && !updateData.get("url").asText().isEmpty()) {
             service.setUrl(updateData.get("url").asText());
@@ -179,8 +181,8 @@ final class McpServiceCrudOps {
         // 更新后的 URL 仍需 SSRF 校验
         validateServiceUrlForSsrf(service.getUrl());
 
-        if (updateData.path("stdio_config").isObject()) {
-            JsonNode stdioConfig = updateData.get("stdio_config");
+        if (updateData.path("stdioConfig").isObject()) {
+            JsonNode stdioConfig = updateData.get("stdioConfig");
             McpStdioConfig config = new McpStdioConfig();
             if (stdioConfig.path("command").isTextual()) {
                 config.setCommand(stdioConfig.get("command").asText());
@@ -196,14 +198,14 @@ final class McpServiceCrudOps {
             }
             service.setStdioConfig(config);
         }
-        if (updateData.path("env_vars").isObject()) {
-            service.setEnvVars(stringMap(updateData.get("env_vars")));
+        if (updateData.path("envVars").isObject()) {
+            service.setEnvVars(stringMap(updateData.get("envVars")));
         }
         if (updateData.path("headers").isObject()) {
             service.setHeaders(stringMap(updateData.get("headers")));
         }
-        if (updateData.path("auth_config").isObject()) {
-            JsonNode authConfig = updateData.get("auth_config");
+        if (updateData.path("authConfig").isObject()) {
+            JsonNode authConfig = updateData.get("authConfig");
             McpAuthConfig auth = new McpAuthConfig();
             // 秘密字段刻意不从主 PUT 读取：它们走 /credentials 子资源，
             // 这样改超时/启用之类的无关配置不可能误伤已存的凭据。
@@ -217,18 +219,18 @@ final class McpServiceCrudOps {
                         + "use PUT /credentials instead", serviceId);
             }
             // CustomHeaders 是结构性配置（不是秘密）：nil 保持既有，非 nil 整体替换
-            if (authConfig.path("custom_headers").isObject()) {
-                auth.setCustomHeaders(stringMap(authConfig.get("custom_headers")));
+            if (authConfig.path("customHeaders").isObject()) {
+                auth.setCustomHeaders(stringMap(authConfig.get("customHeaders")));
             }
             // auth_type / scopes / auth_server_metadata_url 属非秘密 OAuth 配置，允许经主 PUT 切换
-            if (authConfig.path("auth_type").isTextual()) {
-                auth.setAuthType(McpAuthType.fromValue(authConfig.get("auth_type").asText()));
-                updateFields.put("auth_type", true);
+            if (authConfig.path("authType").isTextual()) {
+                auth.setAuthType(McpAuthType.fromValue(authConfig.get("authType").asText()));
+                updateFields.put("authType", true);
             }
             // api_key_header 是非秘密的结构配置（承载 api_key 的头名），与 custom_headers 同路
-            if (authConfig.path("api_key_header").isTextual()) {
-                auth.setApiKeyHeader(authConfig.get("api_key_header").asText());
-                updateFields.put("api_key_header", true);
+            if (authConfig.path("apiKeyHeader").isTextual()) {
+                auth.setApiKeyHeader(authConfig.get("apiKeyHeader").asText());
+                updateFields.put("apiKeyHeader", true);
             }
             if (authConfig.path("scopes").isArray()) {
                 List<String> scopes = new ArrayList<>();
@@ -239,23 +241,23 @@ final class McpServiceCrudOps {
                 }
                 auth.setScopes(scopes);
             }
-            if (authConfig.path("auth_server_metadata_url").isTextual()) {
-                auth.setAuthServerMetadataUrl(authConfig.get("auth_server_metadata_url").asText());
+            if (authConfig.path("authServerMetadataUrl").isTextual()) {
+                auth.setAuthServerMetadataUrl(authConfig.get("authServerMetadataUrl").asText());
             }
             service.setAuthConfig(auth);
         }
-        if (updateData.path("advanced_config").isObject()) {
-            JsonNode advanced = updateData.get("advanced_config");
+        if (updateData.path("advancedConfig").isObject()) {
+            JsonNode advanced = updateData.get("advancedConfig");
             McpAdvancedConfig config = new McpAdvancedConfig();
             // 对照 Go 的 float64 断言：JSON number → int；其它类型静默跳过
             if (advanced.path("timeout").isNumber()) {
                 config.setTimeout(advanced.get("timeout").asInt());
             }
-            if (advanced.path("retry_count").isNumber()) {
-                config.setRetryCount(advanced.get("retry_count").asInt());
+            if (advanced.path("retryCount").isNumber()) {
+                config.setRetryCount(advanced.get("retryCount").asInt());
             }
-            if (advanced.path("retry_delay").isNumber()) {
-                config.setRetryDelay(advanced.get("retry_delay").asInt());
+            if (advanced.path("retryDelay").isNumber()) {
+                config.setRetryDelay(advanced.get("retryDelay").asInt());
             }
             service.setAdvancedConfig(config);
         }
@@ -283,7 +285,7 @@ final class McpServiceCrudOps {
         } catch (RuntimeException e) {
             throw BizException.internal("Failed to fetch updated MCP service: " + McpServiceController.rawMessage(e));
         }
-        return McpServiceController.ok(McpServiceController.envelope(mcpServiceResponses(tenantId, List.of(stored)).get(0)));
+        return McpServiceController.ok(mcpServiceResponses(tenantId, List.of(stored)).get(0));
     }
 
     // ── 删除 ─────────────────────────────────────────────────────────────
@@ -299,11 +301,8 @@ final class McpServiceCrudOps {
             throw BizException.internal("Failed to delete MCP service: " + McpServiceController.rawMessage(e));
         }
         log.info("MCP service deleted successfully: {}", serviceId);
-        // gin.H：message < success（字母序）
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "MCP service deleted successfully");
-        body.put("success", true);
-        return McpServiceController.ok(body);
+        // §1.13：同步完成的删除 → 204（无响应体）
+        return ResponseEntity.noContent().build();
     }
 
     // ── 连接测试 / 工具 / 资源 ────────────────────────────────────────────
@@ -324,10 +323,10 @@ final class McpServiceCrudOps {
             result = ctrl.mcpServiceService.testMCPService(tenantId, serviceId);
         } catch (RuntimeException e) {
             log.error("MCP service test failed, service_id={}", serviceId, e);
-            return McpServiceController.ok(McpServiceController.envelope(McpTestResult.fail("Test failed: " + McpServiceController.rawMessage(e))));
+            return McpServiceController.ok(McpTestResult.fail("Test failed: " + McpServiceController.rawMessage(e)));
         }
         log.info("MCP service test completed: {}, success: {}", serviceId, result.isSuccess());
-        return McpServiceController.ok(McpServiceController.envelope(result));
+        return McpServiceController.ok(result);
     }
 
     /** 对照 GetMCPServiceTools — Viewer+（不落库） */
@@ -341,7 +340,7 @@ final class McpServiceCrudOps {
             log.error("Failed to get MCP service tools, service_id={}", serviceId, e);
             throw BizException.internal("Failed to get MCP service tools: " + McpServiceController.rawMessage(e));
         }
-        return McpServiceController.ok(McpServiceController.envelope(tools));
+        return McpServiceController.ok(tools);
     }
 
     /** 对照 GetMCPServiceResources — Viewer+ */
@@ -355,7 +354,7 @@ final class McpServiceCrudOps {
             log.error("Failed to get MCP service resources, service_id={}", serviceId, e);
             throw BizException.internal("Failed to get MCP service resources: " + McpServiceController.rawMessage(e));
         }
-        return McpServiceController.ok(McpServiceController.envelope(resources));
+        return McpServiceController.ok(resources);
     }
     private List<McpServiceResponse> mcpServiceResponses(long tenantId, List<McpService> services) {
         List<McpServiceResponse> resp = McpServiceResponse.listOf(services, McpServiceController.canViewIntegrationSecrets());

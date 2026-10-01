@@ -329,7 +329,7 @@ class McpServiceServiceTest {
     void clearCredentialClearsApiKey() {
         String id = seed("stored-api", "stored-token");
 
-        svc.clearMCPCredential(1L, id, "api_key");
+        svc.clearMCPCredential(1L, id, "apiKey");
 
         McpService got = stored(id);
         assertEquals("", got.getAuthConfig().getApiKey());
@@ -375,7 +375,7 @@ class McpServiceServiceTest {
         markBuiltin(id);
 
         BizException e = assertThrows(BizException.class,
-                () -> svc.clearMCPCredential(1L, id, "api_key"));
+                () -> svc.clearMCPCredential(1L, id, "apiKey"));
         assertTrue(e.getMessage().toLowerCase().contains("builtin"));
     }
 

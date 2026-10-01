@@ -196,7 +196,7 @@ public class McpServiceService {
             throw BizException.internal(STDIO_DISABLED_MESSAGE);
         }
 
-        if (Boolean.TRUE.equals(fields.get("usage_instructions"))) {
+        if (Boolean.TRUE.equals(fields.get("usageInstructions"))) {
             existing.setUsageInstructions(service.getUsageInstructions());
         }
 
@@ -237,12 +237,12 @@ public class McpServiceService {
             }
             // 只在显式提供时覆盖 OAuth 配置，避免只带 custom_headers 的部分 PUT
             // 把既有 auth_type / scopes 抹掉（空/缺省 = 不改）
-            if (Boolean.TRUE.equals(fields.get("auth_type"))
+            if (Boolean.TRUE.equals(fields.get("authType"))
                     || authTypeOf(incoming) != McpAuthType.NONE) {
                 target.setAuthType(incoming.getAuthType());
             }
             // APIKeyHeader 非秘密；空串的含义是"用默认 X-API-Key"，故与 scopes 同规则
-            if (Boolean.TRUE.equals(fields.get("api_key_header"))
+            if (Boolean.TRUE.equals(fields.get("apiKeyHeader"))
                     || !nullToEmpty(incoming.getApiKeyHeader()).isEmpty()) {
                 target.setApiKeyHeader(incoming.getApiKeyHeader());
             }
@@ -521,7 +521,7 @@ public class McpServiceService {
     /**
      * 对照 ClearMCPCredential：幂等——清一个本来为空的字段不写库、不重连。
      *
-     * @param field 只接受 "api_key" / "token"，其它值报 unknown credential field
+     * @param field 只接受 "apiKey" / "token"，其它值报 unknown credential field
      */
     public void clearMCPCredential(long tenantId, String id, String field) {
         McpService existing = getMCPServiceByID(tenantId, id);
@@ -534,7 +534,7 @@ public class McpServiceService {
 
         boolean changed = false;
         switch (field == null ? "" : field) {
-            case "api_key" -> {
+            case "apiKey" -> {
                 if (!nullToEmpty(existing.getAuthConfig().getApiKey()).isEmpty()) {
                     existing.getAuthConfig().setApiKey("");
                     changed = true;

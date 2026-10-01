@@ -60,8 +60,9 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>凭据子资源见 {@link McpCredentialsController}；{@code /agent/tool-approvals/{pending_id}}
  * 见 {@link AgentToolApprovalController}（Go 里该方法也在 mcp_service.go，但挂在 /agent 组）。</p>
  *
- * <p>所有成功响应都是 gin.H → JSON 键按字母序：{@code {"data":...,"success":true}} /
- * {@code {"message":...,"success":true}}。</p>
+ * <p><b>响应形态（§14.9n M1 换锚后）</b>：服务资源面（create/list/get/update/delete/test/
+ * tools/resources/metadata/usage-instructions）返回**裸对象或裸数组**（§2.1），创建 201、
+ * 删除 204；仅**工具审批面**仍带 {@code {data,success}} 信封（属 M4 批次）。</p>
  */
 @RestController
 @RequestMapping("/api/v1/mcp-services")
@@ -196,7 +197,9 @@ public class McpServiceController {
                     serviceId, e);
             throw mcpMetadataAppError(e, refresh);
         }
-        return ok(envelope(snapshot));
+        // 从未同步 → 裸 JSON null（§2.1；Spring 对 null body 会发空正文，故显式给 NullNode）
+        return ResponseEntity.ok(snapshot == null
+                ? com.fasterxml.jackson.databind.node.NullNode.getInstance() : snapshot);
     }
 
     /**

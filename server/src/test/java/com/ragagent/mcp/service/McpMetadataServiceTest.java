@@ -135,7 +135,7 @@ class McpMetadataServiceTest {
 
         // 改文档不改上游身份
         svc.updateMCPService(serviceFixture("svc", "Edited overview", "Edited guidance"),
-                McpServiceService.updateFields("description", "usage_instructions"));
+                McpServiceService.updateFields("description", "usageInstructions"));
         got = metadata.getMCPMetadata(1, "svc");
         assertFalse(got.isStale(), "文档编辑不能让快照变陈旧");
         assertEquals("Edited guidance", svc.getMCPServiceByID(1, "svc").getUsageInstructions());

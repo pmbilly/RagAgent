@@ -1,7 +1,5 @@
 package com.ragagent.mcp.controller;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.common.context.TenantContext;
@@ -60,7 +58,7 @@ public class McpCredentialsController {
      * 非空值替换已存的秘密。</p>
      */
     public record McpCredentialsPutRequest(
-            @JsonProperty("api_key") String apiKey,
+            String apiKey,
             @JsonProperty("token") String token) {
     }
 
@@ -89,8 +87,8 @@ public class McpCredentialsController {
             if (service == null) {
                 throw BizException.notFound("MCP service not found");
             }
-            return ok(envelope(CredentialsResponse.of(
-                    configured(service, true), configured(service, false))));
+            return ok(CredentialsResponse.of(
+                    configured(service, true), configured(service, false)));
         }
 
         McpService updated;
@@ -100,12 +98,13 @@ public class McpCredentialsController {
             log.error("failed to update credentials, service_id={}", serviceId, e);
             throw BizException.internal("failed to update credentials: " + rawMessage(e));
         }
-        return ok(envelope(CredentialsResponse.of(
-                configured(updated, true), configured(updated, false))));
+        return ok(CredentialsResponse.of(
+                configured(updated, true), configured(updated, false)));
     }
 
     /**
-     * 删除单个凭据字段。可识别的字段只有 {@code api_key} 与 {@code token}；
+     * 删除单个凭据字段。可识别的字段只有 {@code apiKey} 与 {@code token}（§14.9n M1 起
+     * 路径值随 JSON 键一起改 camelCase——它镜像的是响应里 credentials 映射的键名）；
      * 成功返回 204（即使该字段本来就是空的——幂等）— Admin+。
      */
     @DeleteMapping("/{id}/credentials/{field}")
@@ -113,7 +112,7 @@ public class McpCredentialsController {
                                          @PathVariable("field") String field) {
         long tenantId = requireTenant();
         String serviceId = LogSanitizer.sanitize(id);
-        if (!"api_key".equals(field) && !"token".equals(field)) {
+        if (!"apiKey".equals(field) && !"token".equals(field)) {
             // 字段名白名单：只认这两个，其它值一律拒绝
             throw BizException.badRequest(
                     "unknown credential field: " + LogSanitizer.sanitize(field));
@@ -153,16 +152,8 @@ public class McpCredentialsController {
         return e.getMessage() == null ? "" : e.getMessage();
     }
 
-    /** 成功响应：HTTP 200 + gin.H 信封（Go 的 {@code c.JSON(http.StatusOK, ...)}） */
+    /** 成功响应：裸对象（§14.9n M1：凭据面已去 {data,success} 信封）。 */
     private static ResponseEntity<?> ok(Object body) {
         return ResponseEntity.ok(body);
-    }
-
-    /** gin.H：{"data":..., "success":true}（字母序） */
-    private static Map<String, Object> envelope(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
     }
 }
