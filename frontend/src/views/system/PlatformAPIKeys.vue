@@ -44,7 +44,7 @@
                 <span class="api-key-name">{{ key.name }}</span>
               </td>
               <td>
-                <code class="api-key-fingerprint">{{ key.api_key }}</code>
+                <code class="api-key-fingerprint">{{ key.apiKey }}</code>
               </td>
               <td class="api-key-table__capability-cell">
                 <div class="api-key-capability-inline">
@@ -94,10 +94,10 @@
                 </div>
               </td>
               <td>
-                <span class="api-key-meta">{{ formatDate(key.last_used_at) }}</span>
+                <span class="api-key-meta">{{ formatDate(key.lastUsedAt) }}</span>
               </td>
               <td>
-                <time class="api-key-date" :datetime="key.created_at">{{ formatDate(key.created_at) }}</time>
+                <time class="api-key-date" :datetime="key.createdAt">{{ formatDate(key.createdAt) }}</time>
               </td>
               <td>
                 <div class="api-key-table__actions">

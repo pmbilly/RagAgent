@@ -131,12 +131,12 @@
                       <td>
                         <div class="api-key-access-cell" :title="formatApiKeyCapabilitiesTitle(key)">
                           <span
-                            v-if="key.full_access"
+                            v-if="key.fullAccess"
                             class="api-key-access-mode api-key-access-mode--full"
                           >
                             {{ formatApiKeyAccessModeLabel(key) }}
                           </span>
-                          <div v-if="!key.full_access" class="api-key-capability-chips">
+                          <div v-if="!key.fullAccess" class="api-key-capability-chips">
                             <span
                               v-for="label in keyCapabilityLabels(key)"
                               :key="label"
@@ -149,11 +149,11 @@
                       </td>
                       <td>
                         <span class="api-key-knowledge-scope">
-                          {{ formatKeyKnowledgeScope(key.knowledge_base_ids) }}
+                          {{ formatKeyKnowledgeScope(key.knowledgeBaseIds) }}
                         </span>
                       </td>
                       <td>
-                        <span class="api-key-created-at">{{ formatDate(key.created_at) }}</span>
+                        <span class="api-key-created-at">{{ formatDate(key.createdAt) }}</span>
                       </td>
                       <td>
                         <div class="api-key-table__actions">
@@ -169,7 +169,7 @@
                             shape="square"
                             variant="text"
                             :title="$t('integrations.api.copy')"
-                            @click="copy(key.api_key)"
+                            @click="copy(key.apiKey)"
                           >
                             <t-icon name="file-copy" />
                           </t-button>
@@ -551,7 +551,7 @@
             <label>{{ $t('integrations.api.apiKeyKnowledgeScope') }}</label>
           </div>
           <t-select
-            v-model="apiKeyForm.knowledge_base_ids"
+            v-model="apiKeyForm.knowledgeBaseIds"
             multiple
             filterable
             clearable
@@ -654,7 +654,7 @@
             <label>{{ $t('integrations.api.apiKeyKnowledgeScope') }}</label>
           </div>
           <t-select
-            v-model="editingAPIKeyForm.knowledge_base_ids"
+            v-model="editingAPIKeyForm.knowledgeBaseIds"
             multiple
             filterable
             clearable
@@ -769,9 +769,9 @@ const editingCapabilitySelections = reactive<Record<TenantAPIKeyCapability, bool
 
 const editingAPIKeyForm = reactive({
   name: '',
-  knowledge_base_ids: [] as string[],
+  knowledgeBaseIds: [] as string[],
   tenant_full_enabled: false,
-  expires_at_unix: undefined as number | undefined,
+  expiresAtUnix: undefined as number | undefined,
 })
 
 const editingAPIKeyFullAccessEnabled = computed(() => editingAPIKeyForm.tenant_full_enabled)
@@ -790,7 +790,7 @@ const editingKnowledgeScopeApplies = computed(() => (
 ))
 
 watch(editingKnowledgeScopeApplies, (applies) => {
-  if (!applies) editingAPIKeyForm.knowledge_base_ids = []
+  if (!applies) editingAPIKeyForm.knowledgeBaseIds = []
 })
 
 function editingCapabilityGroupAllSelected(group: ApiKeyCapabilityGroup): boolean {
@@ -805,7 +805,7 @@ function toggleEditingCapabilityGroup(group: ApiKeyCapabilityGroup, selected: bo
 
 const apiKeyForm = reactive({
   name: '',
-  knowledge_base_ids: [] as string[],
+  knowledgeBaseIds: [] as string[],
   // Tenant-full keys already cover every capability. Scoped keys default to
   // retrieval + chat + agent reads so a fresh integration can ask questions
   // and present an agent picker immediately.
@@ -827,13 +827,13 @@ const apiKeyKnowledgeScopeApplies = computed(() => (
 
 watch(() => apiKeyForm.tenant_full_enabled, (enabled) => {
   if (enabled) {
-    apiKeyForm.knowledge_base_ids = []
+    apiKeyForm.knowledgeBaseIds = []
   }
 })
 
 watch(apiKeyKnowledgeScopeApplies, (applies) => {
   if (!applies) {
-    apiKeyForm.knowledge_base_ids = []
+    apiKeyForm.knowledgeBaseIds = []
   }
 })
 
@@ -861,7 +861,7 @@ function toggleCapabilityGroup(group: ApiKeyCapabilityGroup, selected: boolean) 
 
 // Full-access keys already cover every capability, so no capability badges for them.
 function keyCapabilityLabels(key: TenantAPIKey): string[] {
-  if (key.full_access) return []
+  if (key.fullAccess) return []
   const labels: Partial<Record<TenantAPIKeyCapability, string>> = {
     retrieve: t('integrations.api.capabilityRetrieve'),
     chat: t('integrations.api.capabilityChat'),
@@ -888,13 +888,13 @@ function keyCapabilityLabels(key: TenantAPIKey): string[] {
 }
 
 function formatApiKeyCapabilitiesTitle(key: TenantAPIKey): string {
-  if (key.full_access) return t('integrations.api.capabilityTenantFull')
+  if (key.fullAccess) return t('integrations.api.capabilityTenantFull')
   const labels = keyCapabilityLabels(key)
   return labels.length > 0 ? labels.join(' / ') : t('integrations.api.apiKeyScopedAccess')
 }
 
 function formatApiKeyAccessModeLabel(key: TenantAPIKey): string {
-  return key.full_access
+  return key.fullAccess
     ? t('integrations.api.capabilityTenantFull')
     : t('integrations.api.apiKeyScopedAccess')
 }
@@ -1169,12 +1169,9 @@ async function loadAPIKeys() {
   apiKeysLoading.value = true
   try {
     const resp = await listTenantAPIKeys(tenantId.value)
-    if (!resp.success) {
-      throw new Error(resp.message || t('integrations.api.loadApiKeysFailed'))
-    }
-    apiKeys.value = resp.data || []
+    apiKeys.value = resp || []
     if (!apiKey.value && apiKeys.value.length > 0) {
-      apiKey.value = apiKeys.value[0].api_key || ''
+      apiKey.value = apiKeys.value[0].apiKey || ''
     }
   } catch (err: any) {
     MessagePlugin.error(err?.message || t('integrations.api.loadApiKeysFailed'))
@@ -1434,7 +1431,7 @@ function openApiDoc() {
 
 function openCreateAPIKeyDialog() {
   apiKeyForm.name = ''
-  apiKeyForm.knowledge_base_ids = []
+  apiKeyForm.knowledgeBaseIds = []
   apiKeyForm.tenant_full_enabled = false
   API_KEY_CAPABILITIES.forEach((capability) => {
     capabilitySelections[capability] = DEFAULT_API_KEY_CAPABILITIES.has(capability)
@@ -1456,17 +1453,17 @@ async function createScopedAPIKey() {
   try {
     const resp = await createTenantAPIKey(tenantId.value, {
       name: apiKeyForm.name.trim(),
-      full_access: apiKeyFullAccessEnabled.value,
+      fullAccess: apiKeyFullAccessEnabled.value,
       // KB scoping only applies to capabilities that touch knowledge bases.
-      knowledge_base_ids: apiKeyKnowledgeScopeApplies.value ? apiKeyForm.knowledge_base_ids : [],
+      knowledgeBaseIds: apiKeyKnowledgeScopeApplies.value ? apiKeyForm.knowledgeBaseIds : [],
       // Capabilities only matter below full access; full access already covers them all.
       capabilities: apiKeyFullAccessEnabled.value ? [] : selectedCapabilities(),
     })
-    if (!resp.success || !resp.data?.api_key) {
-      throw new Error(resp.message || t('integrations.api.createApiKeyFailed'))
+    if (!resp?.apiKey) {
+      throw new Error(t('integrations.api.createApiKeyFailed'))
     }
     apiKeyDialogVisible.value = false
-    apiKey.value = resp.data.api_key
+    apiKey.value = resp.apiKey
     MessagePlugin.success(t('integrations.api.apiKeyCreated'))
     await loadAPIKeys()
   } catch (err: any) {
@@ -1480,10 +1477,10 @@ async function createScopedAPIKey() {
 function openEditAPIKeyScope(key: TenantAPIKey) {
   editingAPIKey.value = key
   editingAPIKeyForm.name = key.name
-  editingAPIKeyForm.tenant_full_enabled = key.full_access
-  editingAPIKeyForm.knowledge_base_ids = normalizeAPIKeyKnowledgeBaseIDs(key.knowledge_base_ids)
-  const expires_at = key.expires_at ? Date.parse(key.expires_at) : Number.NaN
-  editingAPIKeyForm.expires_at_unix = Number.isNaN(expires_at)
+  editingAPIKeyForm.tenant_full_enabled = key.fullAccess
+  editingAPIKeyForm.knowledgeBaseIds = normalizeAPIKeyKnowledgeBaseIDs(key.knowledgeBaseIds)
+  const expires_at = key.expiresAt ? Date.parse(key.expiresAt) : Number.NaN
+  editingAPIKeyForm.expiresAtUnix = Number.isNaN(expires_at)
     ? undefined
     : Math.floor(expires_at / 1000)
   const currentCapabilities = new Set(key.capabilities || [])
@@ -1510,10 +1507,10 @@ async function saveAPIKeyConfiguration() {
   try {
     const resp = await updateTenantAPIKey(tenantId.value, key.id, {
       name: editingAPIKeyForm.name.trim(),
-      full_access: editingAPIKeyFullAccessEnabled.value,
+      fullAccess: editingAPIKeyFullAccessEnabled.value,
       capabilities: editingAPIKeyFullAccessEnabled.value ? [] : editingSelectedCapabilities.value,
-      knowledge_base_ids: editingKnowledgeScopeApplies.value ? editingAPIKeyForm.knowledge_base_ids : [],
-      expires_at_unix: editingAPIKeyForm.expires_at_unix,
+      knowledgeBaseIds: editingKnowledgeScopeApplies.value ? editingAPIKeyForm.knowledgeBaseIds : [],
+      expiresAtUnix: editingAPIKeyForm.expiresAtUnix,
     })
     
     apiKeyScopeDialogVisible.value = false
@@ -1542,11 +1539,7 @@ function confirmDeleteAPIKey(id: number) {
 }
 
 async function deleteScopedAPIKey(id: number) {
-  const resp = await deleteTenantAPIKey(tenantId.value, id)
-  if (!resp.success) {
-    MessagePlugin.error(resp.message || t('integrations.api.deleteApiKeyFailed'))
-    return
-  }
+  await deleteTenantAPIKey(tenantId.value, id)
   MessagePlugin.success(t('integrations.api.deleteApiKeySuccess'))
   await loadAPIKeys()
 }
@@ -1559,7 +1552,7 @@ function formatKeyKnowledgeScope(ids: readonly string[] | null | undefined) {
 }
 
 function formatKeyMaskedValue(key: TenantAPIKey) {
-  const value = key.api_key || ''
+  const value = key.apiKey || ''
   if (!value) return '-'
   return maskAPIKey(value)
 }

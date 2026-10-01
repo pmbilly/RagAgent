@@ -95,15 +95,15 @@ export type TenantAPIKeyCapability =
 
 export interface TenantAPIKey {
   id: number
-  scope_type?: 'tenant' | 'platform'
+  scopeType?: 'tenant' | 'platform'
   name: string
-  api_key: string
-  full_access: boolean
-  knowledge_base_ids: string[] | null
+  apiKey: string
+  fullAccess: boolean
+  knowledgeBaseIds: string[] | null
   capabilities?: TenantAPIKeyCapability[]
-  last_used_at?: string
-  expires_at?: string
-  created_at: string
+  lastUsedAt?: string
+  expiresAt?: string
+  createdAt: string
 }
 
 export interface CreatedTenantAPIKey extends TenantAPIKey {
@@ -112,18 +112,18 @@ export interface CreatedTenantAPIKey extends TenantAPIKey {
 
 export interface CreateTenantAPIKeyPayload {
   name: string
-  full_access?: boolean
-  knowledge_base_ids?: string[]
+  fullAccess?: boolean
+  knowledgeBaseIds?: string[]
   capabilities?: TenantAPIKeyCapability[]
-  expires_at_unix?: number
+  expiresAtUnix?: number
 }
 
 export interface UpdateTenantAPIKeyPayload {
   name: string
-  full_access: boolean
-  knowledge_base_ids: string[]
+  fullAccess: boolean
+  knowledgeBaseIds: string[]
   capabilities: TenantAPIKeyCapability[]
-  expires_at_unix?: number
+  expiresAtUnix?: number
 }
 
 // 搜索空间参数
@@ -150,10 +150,10 @@ export interface SearchTenantsResponse {
  * 获取所有空间列表（需要跨空间访问权限）
  * @deprecated 建议使用 searchTenants 代替，支持分页和搜索
  */
-export async function listAllTenants(): Promise<{ success: boolean; data?: { items: TenantInfo[] }; message?: string }> {
+export async function listAllTenants(): Promise<{ items: TenantInfo[] }> {
   try {
     const response = await get('/api/v1/tenants/all')
-    return response as unknown as { success: boolean; data?: { items: TenantInfo[] }; message?: string }
+    return response as unknown as { items: TenantInfo[] }
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.listFailed'))
   }
@@ -196,10 +196,10 @@ export async function createAPIPrincipalTestToken(
 
 export async function listTenantAPIKeys(
   tenantId: number,
-): Promise<{ success: boolean; data?: TenantAPIKey[]; message?: string }> {
+): Promise<TenantAPIKey[]> {
   try {
     const response = await get(`/api/v1/tenants/${tenantId}/api-keys`)
-    return response as unknown as { success: boolean; data?: TenantAPIKey[]; message?: string }
+    return response as unknown as TenantAPIKey[]
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.listApiKeysFailed'))
   }
@@ -208,10 +208,10 @@ export async function listTenantAPIKeys(
 export async function createTenantAPIKey(
   tenantId: number,
   payload: CreateTenantAPIKeyPayload,
-): Promise<{ success: boolean; data?: CreatedTenantAPIKey; message?: string }> {
+): Promise<CreatedTenantAPIKey> {
   try {
     const response = await post(`/api/v1/tenants/${tenantId}/api-keys`, payload)
-    return response as unknown as { success: boolean; data?: CreatedTenantAPIKey; message?: string }
+    return response as unknown as CreatedTenantAPIKey
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.createApiKeyFailed'))
   }
@@ -222,10 +222,10 @@ export async function updateTenantAPIKey(
   tenantId: number,
   keyId: number,
   payload: UpdateTenantAPIKeyPayload,
-): Promise<{ success: boolean; data?: TenantAPIKey; message?: string }> {
+): Promise<TenantAPIKey> {
   try {
     const response = await put(`/api/v1/tenants/${tenantId}/api-keys/${keyId}`, payload)
-    return response as unknown as { success: boolean; data?: TenantAPIKey; message?: string }
+    return response as unknown as TenantAPIKey
   } catch (error: any) {
     throw new Error(error?.message || t('integrations.api.updateApiKeyScopeFailed'))
   }
@@ -234,10 +234,10 @@ export async function updateTenantAPIKey(
 export async function deleteTenantAPIKey(
   tenantId: number,
   keyId: number,
-): Promise<{ success: boolean; message?: string }> {
+): Promise<void> {
   try {
     const response = await del(`/api/v1/tenants/${tenantId}/api-keys/${keyId}`)
-    return response as unknown as { success: boolean; message?: string }
+    return
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.deleteApiKeyFailed'))
   }
@@ -252,10 +252,10 @@ export async function deleteTenantAPIKey(
 export async function updateTenant(
   tenantId: number,
   payload: { name?: string; description?: string },
-): Promise<{ success: boolean; data?: TenantInfo; message?: string }> {
+): Promise<TenantInfo> {
   try {
     const response = await put(`/api/v1/tenants/${tenantId}`, payload)
-    return response as unknown as { success: boolean; data?: TenantInfo; message?: string }
+    return response as unknown as TenantInfo
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.updateFailed'))
   }
@@ -266,10 +266,10 @@ export async function updateTenant(
  */
 export async function deleteTenant(
   tenantId: number,
-): Promise<{ success: boolean; message?: string }> {
+): Promise<void> {
   try {
     const response = await del(`/api/v1/tenants/${tenantId}`)
-    return response as unknown as { success: boolean; message?: string }
+    return
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.deleteFailed'))
   }
@@ -283,18 +283,16 @@ export async function deleteTenant(
  */
 export async function createTenant(
   payload: { name: string; description?: string },
-): Promise<{ success: boolean; data?: TenantInfo; message?: string }> {
+): Promise<TenantInfo> {
   try {
     const response = await post('/api/v1/tenants', payload)
-    return response as unknown as { success: boolean; data?: TenantInfo; message?: string }
+    return response as unknown as TenantInfo
   } catch (error: any) {
     const code = error?.error?.code ?? error?.code
-    return {
-      success: false,
-      message: code === 2005
-        ? t('tenant.create.disabled')
-        : (error.message || t('error.tenant.createFailed')),
+    if (code === 2005) {
+      throw new Error(t('tenant.create.disabled'))
     }
+    throw new Error(error?.message || t('error.tenant.createFailed'))
   }
 }
 

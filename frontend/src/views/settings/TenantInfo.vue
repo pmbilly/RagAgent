@@ -345,13 +345,9 @@ function confirmLeaveTenant() {
     onConfirm: async () => {
       try {
         const resp = await leaveTenant(tid)
-        if (resp.success) {
-          MessagePlugin.success(t('tenantMember.leave.success'))
-          authStore.logout()
-          window.location.href = '/login'
-        } else {
-          MessagePlugin.error(resp.message || t('tenantMember.errors.generic'))
-        }
+        MessagePlugin.success(t('tenantMember.leave.success'))
+        authStore.logout()
+        window.location.href = '/login'
       } catch (err: any) {
         const status = err?.status
         if (status === 409) {
@@ -386,7 +382,7 @@ async function deleteCurrentTenant() {
   try {
     deletingTenant.value = true
     const resp = await deleteTenantApi(tid)
-    if (resp.success) {
+    {
       MessagePlugin.success(t('tenant.deleteDangerZone.success'))
       authStore.setMemberships(
         (authStore.memberships ?? []).filter((m) => m.tenantId !== tid),
@@ -414,8 +410,6 @@ async function deleteCurrentTenant() {
       }
       authStore.logout()
       window.location.href = '/login'
-    } else {
-      MessagePlugin.error(resp.message || t('tenant.deleteDangerZone.failed'))
     }
   } catch (err: any) {
     MessagePlugin.error(err?.message || t('tenant.deleteDangerZone.failed'))
@@ -515,7 +509,7 @@ const saveTenantDescription = async () => {
   try {
     savingDescription.value = true
     const resp = await updateTenantApi(Number(tenantInfo.value.id), { description: newDesc })
-    if (resp.success) {
+    {
       // 本地立即回显，避免等 /auth/me 往返。描述不像名称那样会出现在空间切换器等
       // 顶部组件里，所以无需同步 authStore.tenant / memberships。
       if (tenantInfo.value) {
@@ -523,8 +517,6 @@ const saveTenantDescription = async () => {
       }
       MessagePlugin.success(t('tenant.details.editDescriptionSuccess'))
       editingDescription.value = false
-    } else {
-      MessagePlugin.error(resp.message || t('tenant.details.editDescriptionFailed'))
     }
   } catch (err: any) {
     MessagePlugin.error(err?.message || t('tenant.details.editDescriptionFailed'))
@@ -548,7 +540,7 @@ const saveTenantName = async () => {
   try {
     saving.value = true
     const resp = await updateTenantApi(Number(tenantInfo.value.id), { name: newName })
-    if (resp.success) {
+    {
       // 本地立即回显，避免等 /auth/me 往返；同步刷新登录态里的 tenant
       // 缓存（若当前激活空间就是 home tenant，顶部空间切换器等地方也跟着更新）。
       if (tenantInfo.value) {
@@ -568,8 +560,6 @@ const saveTenantName = async () => {
       }
       MessagePlugin.success(t('tenant.details.editNameSuccess'))
       editing.value = false
-    } else {
-      MessagePlugin.error(resp.message || t('tenant.details.editNameFailed'))
     }
   } catch (err: any) {
     MessagePlugin.error(err?.message || t('tenant.details.editNameFailed'))

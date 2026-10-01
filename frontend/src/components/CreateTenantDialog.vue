@@ -99,12 +99,12 @@ const handleSubmit = async () => {
       name: form.name.trim(),
       description: form.description.trim() || undefined,
     })
-    if (!response.success || !response.data) {
-      MessagePlugin.error(response.message || t('tenant.create.failed'))
+    if (!response) {
+      MessagePlugin.error(t('tenant.create.failed'))
       return
     }
     MessagePlugin.success(t('tenant.create.success'))
-    emit('created', response.data)
+    emit('created', response)
     emit('update:visible', false)
   } catch (error: any) {
     console.error('Failed to create tenant:', error)
