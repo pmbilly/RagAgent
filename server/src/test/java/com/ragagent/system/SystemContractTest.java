@@ -68,9 +68,9 @@ class SystemContractTest {
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
 
     private static final Pattern UUID_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+            "\"([a-zA-Z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T[0-9:.+\\-Z]+\"");
+            "\"([a-zA-Z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T[0-9:.+\\-Z]+\"");
     /** 数字 id（key 行 / 设置持久行——两侧取值都是部署态，统一掩码；虚拟行 id:0 也遮） */
     private static final Pattern KEY_ID = Pattern.compile("\"id\":(\\d+)");
     private static final Pattern API_KEY_TOKEN = Pattern.compile("\"token\":\"(sk-[^\"]+)\"");
@@ -158,9 +158,7 @@ class SystemContractTest {
         // PR4：外壳与键集改树断言（键序已归一）
         {
             var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(java);
-            assertThat(root.path("code").asInt()).isEqualTo(0);
-            assertThat(root.path("msg").asText()).isEqualTo("success");
-            assertThat(root.path("data").path("edition").asText()).isEqualTo("standard");
+            assertThat(root.path("edition").asText()).isEqualTo("standard");
         }
         String goldenCaps = golden("sys-capabilities.json");
         for (String key : subsetKeys(goldenCaps).split("\\|")) {
@@ -168,9 +166,9 @@ class SystemContractTest {
         }
         // Java 部署：api/mcp/websearch/vectorstore/storage=true；agents 随波 3 agents 批
         // 注册（routes_agent.go 的 agents 家族落地）→ supported=true；其余 route_not_registered
-        assertThat(java).contains("\"agents\":{\"supported\":true}");
-        assertThat(java).contains("\"integrations.api\":{\"supported\":true}");
-        assertThat(java).contains("\"settings.mcp\":{\"supported\":true}");
+        assertThat(java).contains("\"agents\":{\"reason\":null,\"supported\":true}");
+        assertThat(java).contains("\"integrations.api\":{\"reason\":null,\"supported\":true}");
+        assertThat(java).contains("\"settings.mcp\":{\"reason\":null,\"supported\":true}");
         // settings.sandbox 两键随沙箱裁剪退役（对照 capabilities 键集同步收缩）
     }
 
@@ -226,31 +224,29 @@ class SystemContractTest {
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         String java = raw(r);
         // 外壳字母序 + connected=false + 本地 8 引擎（无远端追加）
-        assertThat(java).contains("\"code\":0");
         assertThat(java).contains("\"connected\":false");
-        assertThat(java).contains("\"docreader_transport\":\"grpc\"");
-        assertThat(java).contains("\"msg\":\"success\"");
+        assertThat(java).contains("\"docreaderTransport\":\"grpc\"");
         for (String engine : new String[]{"builtin", "simple", "anydoc", "weknoracloud",
                 "mineru", "mineru_cloud", "paddleocr_vl", "paddleocr_vl_cloud"}) {
-            assertThat(java).contains("\"Name\":\"" + engine + "\"");
+            assertThat(java).contains("\"name\":\"" + engine + "\"");
         }
         assertThat(java).doesNotContain("markitdown").doesNotContain("opendataloader");
         // 未连接 → builtin 不可用；simple 恒可用；UnavailableReason 恒输出（Go 无 json tag）
         // PR4：相邻键子串在键序归一后不可靠 → 树断言
         {
             var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(java);
-            var engines = root.path("data");
+            var engines = root.path("engines");
             assertThat(engines.isArray()).isTrue();
             com.fasterxml.jackson.databind.JsonNode hit = null;
             for (var e : engines) {
-                if ("builtin".equals(e.path("Name").asText())) {
+                if ("builtin".equals(e.path("name").asText())) {
                     hit = e;
                     break;
                 }
             }
             assertThat(hit).as("builtin engine row").isNotNull();
-            assertThat(hit.path("Available").asBoolean()).isFalse();
-            assertThat(hit.path("UnavailableReason").asText())
+            assertThat(hit.path("available").asBoolean()).isFalse();
+            assertThat(hit.path("unavailableReason").asText())
                     .isEqualTo("DocReader service not connected");
         }
     }
@@ -271,7 +267,7 @@ class SystemContractTest {
         MvcResult r = mockMvc.perform(jsonBody(post("/api/v1/system/parser-engines/check"), sysAdmin, "nope"))
                 .andReturn();
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals("{\"code\":1,\"msg\":\"请求体格式错误\"}", raw(r));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":\"请求体格式不正确\",\"message\":\"请求参数不合法\"},\"success\":false}", raw(r));
     }
 
     /** viewer 打 check → 403（Admin 门）。 */
@@ -288,17 +284,17 @@ class SystemContractTest {
         MvcResult r = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin, "{}"))
                 .andReturn();
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals("{\"code\":1,\"msg\":\"请提供 addr 参数\"}", raw(r));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"请提供 addr 参数\"},\"success\":false}", raw(r));
 
         MvcResult b = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin,
                 "{\"addr\":\"   \"}")).andReturn();
         assertEquals(400, b.getResponse().getStatus(), raw(b));
-        assertEquals("{\"code\":1,\"msg\":\"addr 不能为空\"}", raw(b));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"addr 不能为空\"},\"success\":false}", raw(b));
 
         MvcResult j = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin, "nope"))
                 .andReturn();
         assertEquals(400, j.getResponse().getStatus(), raw(j));
-        assertEquals("{\"code\":1,\"msg\":\"请提供 addr 参数\"}", raw(j));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"请提供 addr 参数\"},\"success\":false}", raw(j));
 
         MvcResult s = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin,
                 "{\"addr\":\"http://169.254.169.254:50051\"}")).andReturn();
@@ -496,7 +492,7 @@ class SystemContractTest {
         MvcResult generated = mockMvc.perform(jsonBody(post("/api/v1/system/admin/users/create"), sysAdmin,
                 "{\"username\":\"sysgolden2\",\"email\":\"java-sys-golden-2@weknora.test\"}")).andReturn();
         assertEquals(201, generated.getResponse().getStatus(), raw(generated));
-        assertThat(mask(raw(generated))).contains("\"generated_password\":\"<genpw>\"");
+        assertThat(mask(raw(generated))).contains("\"generatedPassword\":\"<genpw>\"");
         assertEquals(maskTenant(mask(golden("adm-create-generated.json"))),
                 maskTenant(mask(raw(generated))));
     }
@@ -681,27 +677,27 @@ class SystemContractTest {
         assertEquals(200, queues.getResponse().getStatus(), raw(queues));
         String body = com.ragagent.support.ContractJson.semantic(
                 QUEUE_TS.matcher(raw(queues)).replaceAll("\"timestamp\":\"<ts>\""));
-        assertEquals(com.ragagent.support.ContractJson.semantic("{\"available\":false,\"upstream_concurrency\":32,\"parse_concurrency\":32,"
-                + "\"wiki_concurrency\":8,\"pools\":["
-                + "{\"name\":\"core\",\"concurrency\":8,\"queue_count\":2,\"instances\":0,"
-                + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0},"
-                + "{\"name\":\"postprocess\",\"concurrency\":2,\"queue_count\":1,\"instances\":0,"
-                + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0},"
-                + "{\"name\":\"enrichment\",\"concurrency\":12,\"queue_count\":5,\"instances\":0,"
-                + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0},"
-                + "{\"name\":\"maintenance\",\"concurrency\":4,\"queue_count\":2,\"instances\":0,"
-                + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0},"
-                + "{\"name\":\"shared\",\"concurrency\":6,\"queue_count\":7,\"instances\":0,"
-                + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0},"
-                + "{\"name\":\"wiki\",\"concurrency\":8,\"queue_count\":1,\"instances\":0,"
-                + "\"cluster_capacity\":0,\"active\":0,\"utilization\":0}],"
-                + "\"queues\":[],\"model_limiter_available\":true,\"models\":[],\"timestamp\":\"<ts>\"}"), body);
+        assertEquals(com.ragagent.support.ContractJson.semantic("{\"available\":false,\"upstreamConcurrency\":32,\"parseConcurrency\":32,"
+                + "\"wikiConcurrency\":8,\"pools\":["
+                + "{\"name\":\"core\",\"concurrency\":8,\"queueCount\":2,\"instances\":0,"
+                + "\"clusterCapacity\":0,\"active\":0,\"utilization\":0},"
+                + "{\"name\":\"postprocess\",\"concurrency\":2,\"queueCount\":1,\"instances\":0,"
+                + "\"clusterCapacity\":0,\"active\":0,\"utilization\":0},"
+                + "{\"name\":\"enrichment\",\"concurrency\":12,\"queueCount\":5,\"instances\":0,"
+                + "\"clusterCapacity\":0,\"active\":0,\"utilization\":0},"
+                + "{\"name\":\"maintenance\",\"concurrency\":4,\"queueCount\":2,\"instances\":0,"
+                + "\"clusterCapacity\":0,\"active\":0,\"utilization\":0},"
+                + "{\"name\":\"shared\",\"concurrency\":6,\"queueCount\":7,\"instances\":0,"
+                + "\"clusterCapacity\":0,\"active\":0,\"utilization\":0},"
+                + "{\"name\":\"wiki\",\"concurrency\":8,\"queueCount\":1,\"instances\":0,"
+                + "\"clusterCapacity\":0,\"active\":0,\"utilization\":0}],"
+                + "\"queues\":[],\"modelLimiterAvailable\":true,\"models\":[],\"timestamp\":\"<ts>\"}"), body);
 
         MvcResult tasks = mockMvc.perform(get("/api/v1/system/admin/runtime/queues/default/tasks?state=pending")
                 .header("Authorization", sysAdmin)).andReturn();
         assertEquals(200, tasks.getResponse().getStatus(), raw(tasks));
         assertEquals(com.ragagent.support.ContractJson.semantic(
-                "{\"available\":false,\"tasks\":[],\"page_size\":20,\"has_more\":false}"), raw(tasks));
+                "{\"available\":false,\"tasks\":[],\"pageSize\":20,\"hasMore\":false,\"nextCursor\":null}"), raw(tasks));
 
         MvcResult mutate = mockMvc.perform(
                 post("/api/v1/system/admin/runtime/queues/default/tasks/t1/actions/cancel")
@@ -773,7 +769,7 @@ class SystemContractTest {
 
     /** 创建用户的新空间 id 是部署态（dev 序列 vs H2 身份列）→ 掩码 */
     private static String maskTenant(String s) {
-        return s.replaceAll("\"tenant_id\":\\d+", "\"tenant_id\":<tid>");
+        return s.replaceAll("\"tenantId\":\\d+", "\"tenantId\":<tid>");
     }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
@@ -791,9 +787,9 @@ class SystemContractTest {
 
     /** info 专属：db_version（部署态：Java/H2 无迁移历史 → 键省略）整体剔除；started_at/uptime 掩码。 */
     private static String maskInfo(String s) {
-        String out = s.replaceAll("\"db_version\":\"[^\"]*\",?", "");
-        out = out.replaceAll("\"started_at\":\"[^\"]*\"", "\"started_at\":\"<ts>\"");
-        out = out.replaceAll("\"uptime_seconds\":\\d+", "\"uptime_seconds\":0");
+        String out = s.replaceAll("\"dbVersion\":\"[^\"]*\",?", "");
+        out = out.replaceAll("\"startedAt\":\"[^\"]*\"", "\"startedAt\":\"<ts>\"");
+        out = out.replaceAll("\"uptimeSeconds\":\\d+", "\"uptimeSeconds\":0");
         return out;
     }
 
@@ -801,8 +797,8 @@ class SystemContractTest {
     private static String mask(String s) {
         String out = API_KEY_TOKEN.matcher(s).replaceAll("\"token\":\"<keytoken>\"");
         out = API_KEY_FIELD.matcher(out).replaceAll("\"api_key\":\"<masked>\"");
-        out = Pattern.compile("\"generated_password\":\"[^\"]*\"")
-                .matcher(out).replaceAll("\"generated_password\":\"<genpw>\"");
+        out = Pattern.compile("\"generatedPassword\":\"[^\"]*\"")
+                .matcher(out).replaceAll("\"generatedPassword\":\"<genpw>\"");
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");
         out = TS_VALUE.matcher(out).replaceAll("\"$1\":\"<ts>\"");
         // Go 零值时间（虚拟设置行）：两侧字节一致，不需掩码——但要压成同一形态防时区漂移

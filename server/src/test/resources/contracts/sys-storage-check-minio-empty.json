@@ -1,1 +1,1 @@
-{"code":0,"data":{"ok":false,"message":"未提供 MinIO 配置"}}
+{"ok":false,"message":"未提供 MinIO 配置","bucketCreated":false}

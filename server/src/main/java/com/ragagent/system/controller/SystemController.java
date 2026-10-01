@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.system.dto.SystemDtos;
@@ -25,19 +27,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * /api/v1/system 组（对照 Go RegisterSystemRoutes，routes_auth_tenant.go L246-258）。
- *
- * <p>读端（capabilities/info/parser-engines/storage-engine-status）Viewer+；
+ * /api/v1/system 组：读端（capabilities/info/parser-engines/storage-engine-status）Viewer+；
  * 探测端（parser-engines/check、docreader/reconnect、storage-engine-check）Admin+——
- * 它们拿租户凭据主动探测远端服务。</p>
+ * 它们拿租户凭据主动探测远端服务。
  *
- * <p><b>响应形态两类并存（golden 钉住，别统一）</b>：</p>
- * <ul>
- *   <li>capabilities/info/parser-engines 系列：{@code {"code":0,"msg":"success","data":...}}
- *       （gin.H map → 键字母序，外带键也字母序插入）；</li>
- *   <li>storage 系列：成功同上；校验失败是 {@code {"code":1,"msg":"中文文案"}} +
- *       对应状态码（400/403）——Go 的 c.JSON 直写。</li>
- * </ul>
+ * <p>响应一律为裸资源对象（无 {@code code/data/msg} 信封）；错误走 AppError 信封，
+ * docreader 连接失败 → 503、被禁用的存储引擎 → 403。
+ * parser/storage 的请求键名保持 snake（§11 边界：与租户配置 jsonb 同形，待解冻后
+ * 随批次 DTO 化）。</p>
  *
  * <p><b>POST /system/sandbox-check 未实现</b>（依赖波 3 sandbox）——Go 注册了该路由，
  * Java 侧不映射 → Spring 404。RBAC 与 API-Key 策略表的同名死登记已于
@@ -83,21 +80,15 @@ public class SystemController {
      * sandbox=false 推导（route_not_registered）。
      */
     @GetMapping("/capabilities")
-    public ResponseEntity<Map<String, Object>> capabilities() {
-        SystemDtos.DeploymentCapabilitiesData snapshot = capabilitiesHolder.snapshot();
-        SystemDtos.DeploymentCapabilitiesData data = snapshot;
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", 0);
-        body.put("data", data);
-        body.put("msg", "success");
-        return ResponseEntity.ok(body);
+    public ResponseEntity<SystemDtos.DeploymentCapabilitiesData> capabilities() {
+        return ResponseEntity.ok(capabilitiesHolder.snapshot());
     }
 
 
     // ── GET /info ─────────────────────────────────────────────────────────
 
     @GetMapping("/info")
-    public ResponseEntity<Map<String, Object>> info() {
+    public ResponseEntity<SystemDtos.SystemInfoResponse> info() {
         long tenantId = currentTenantId();
         boolean minioEnabled = isMinioConfigured(tenantId);
         String dbVersion = infoService.dbVersion();
@@ -112,35 +103,35 @@ public class SystemController {
                 infoService.graphDatabaseEngine(),
                 minioEnabled,
                 dbVersion,
-                "",
+                null,
                 infoService.startedAt(),
                 infoService.uptimeSeconds());
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", 0);
-        body.put("data", response);
-        body.put("msg", "success");
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(response);
     }
 
     // ── GET /parser-engines ───────────────────────────────────────────────
 
     @GetMapping("/parser-engines")
-    public ResponseEntity<Map<String, Object>> listParserEngines() {
+    public ResponseEntity<SystemDtos.ParserEnginesResponse> listParserEngines() {
         return ResponseEntity.ok(engineListBody(engineOverrides()));
     }
 
     // ── POST /parser-engines/check ────────────────────────────────────────
 
-    /** body 形状 = ParserEngineConfig（未保存的表单值）；绑定失败 → {"code":1,"msg":"请求体格式错误"}。 */
+    /**
+     * 请求体 = ParserEngineConfig（未保存的表单值）。
+     *
+     * <p>请求键名保持 snake：与租户配置 jsonb（§11 边界）同形，待该边界解冻后随批次 DTO 化。</p>
+     */
     @PostMapping("/parser-engines/check")
-    public ResponseEntity<Map<String, Object>> checkParserEngines(
+    public ResponseEntity<SystemDtos.ParserEnginesResponse> checkParserEngines(
             @RequestBody(required = false) String rawBody) {
         JsonNode body = parseBody(rawBody);
         if (body == null) {
-            return code1Msg("请求体格式错误", 400);
+            throw new BizException(AppError.badRequest("请求参数不合法").withDetails("请求体格式不正确"));
         }
         Map<String, String> overrides = overridesFromRaw(body);
-        // 现有租户配置的 weknoracloud_app_id 叠加（Go MergeParserEngineConfigForUpdate 之后的 creds 步）
+        // 现有租户配置的 weknoracloud_app_id 叠加（配置保存前的凭证步）
         String cloudAppId = tenantWeKnoraCloudAppId();
         if (!cloudAppId.isEmpty()) {
             overrides.put("weknoracloud_app_id", cloudAppId);
@@ -151,47 +142,41 @@ public class SystemController {
     // ── POST /docreader/reconnect ─────────────────────────────────────────
 
     @PostMapping("/docreader/reconnect")
-    public ResponseEntity<Map<String, Object>> reconnectDocReader(
+    public ResponseEntity<SystemDtos.ParserEnginesResponse> reconnectDocReader(
             @RequestBody(required = false) String rawBody) {
         JsonNode body = parseBody(rawBody);
         String addr = body == null || !body.has("addr") ? null : body.path("addr").asText(null);
         if (addr == null) {
-            return code1Msg("请提供 addr 参数", 400);
+            throw new BizException(AppError.badRequest("请提供 addr 参数"));
         }
         addr = addr.trim();
         if (addr.isEmpty()) {
-            return code1Msg("addr 不能为空", 400);
+            throw new BizException(AppError.badRequest("addr 不能为空"));
         }
         // SSRF 校验（DocReader 地址）
         try {
             ssrfGuard.validateURLForSSRF(addr);
         } catch (RuntimeException e) {
-            return code1Msg(ssrfGuard.formatSSRFError("DocReader 地址", addr, e), 400);
+            throw new BizException(AppError.badRequest(
+                    ssrfGuard.formatSSRFError("DocReader 地址", addr, e)));
         }
-        // Go: documentReader == nil → 500 "document converter not initialized"
-        // （生产装配不可达）；Reconnect 失败 → 200 code:1 "连接失败: %v"。
         try {
             docReader.reconnect(addr);
         } catch (RuntimeException e) {
-            return code1Msg("连接失败: " + e.getMessage(), 200);
+            // 下游 docreader 不可达：503（错误语义化）
+            throw new BizException(AppError.serviceUnavailable("连接失败: " + e.getMessage()));
         }
         List<SystemDtos.ParserEngineInfo> engines = parserEngines.listAllEngines(
                 true, engineOverrides(),
                 parserEngines.fetchRemoteEngines(true, engineOverrides()));
-        Map<String, Object> body2 = new LinkedHashMap<>();
-        body2.put("code", 0);
-        body2.put("connected", true);
-        body2.put("data", engines);
-        body2.put("docreader_addr", addr);
-        body2.put("docreader_transport", docreaderTransport());
-        body2.put("msg", "连接成功");
-        return ResponseEntity.ok(body2);
+        return ResponseEntity.ok(new SystemDtos.ParserEnginesResponse(
+                true, addr, docreaderTransport(), engines));
     }
 
     // ── GET /storage-engine-status ────────────────────────────────────────
 
     @GetMapping("/storage-engine-status")
-    public ResponseEntity<Map<String, Object>> storageEngineStatus() {
+    public ResponseEntity<SystemDtos.StorageEngineStatusResponse> storageEngineStatus() {
         long tenantId = currentTenantId();
         Map<String, Boolean> activeBackend = infoService.activeBackendProviders(tenantId);
         boolean minioConfigured = isMinioConfigured(tenantId) || truthy(activeBackend.get("minio"));
@@ -227,27 +212,28 @@ public class SystemController {
                 new SystemDtos.StorageEngineStatusItem("obs", allowed.contains("obs"),
                         isObsConfigured(tenantId) || truthy(activeBackend.get("obs")),
                         "华为云对象存储服务，适合公有云部署"));
-        SystemDtos.StorageEngineStatusResponse data =
-                new SystemDtos.StorageEngineStatusResponse(engines, allowedProviders, minioEnvAvailable);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", 0);
-        body.put("data", data);
-        body.put("msg", "success");
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(new SystemDtos.StorageEngineStatusResponse(
+                engines, allowedProviders, minioEnvAvailable));
     }
 
     // ── POST /storage-engine-check ────────────────────────────────────────
 
+    /**
+     * 连通性检测。
+     *
+     * <p>请求体 = 存储配置表单（键名 snake，与前端的存储设置一致；该配置最终落租户
+     * jsonb，属 §11 边界——请求键名随该边界解冻后统一 DTO 化）。</p>
+     */
     @PostMapping("/storage-engine-check")
-    public ResponseEntity<Map<String, Object>> storageEngineCheck(
+    public ResponseEntity<SystemDtos.StorageCheckResponse> storageEngineCheck(
             @RequestBody(required = false) String rawBody) {
         JsonNode body = parseBody(rawBody);
         if (body == null) {
-            return code1Msg("请求体格式错误", 400);
+            throw new BizException(AppError.badRequest("请求参数不合法").withDetails("请求体格式不正确"));
         }
         String provider = body.path("provider").asText("");
         if (!infoService.allowList().isAllowed(provider)) {
-            return code1Msg("该存储引擎已被禁用", 403);
+            throw new BizException(AppError.forbidden("该存储引擎已被禁用"));
         }
         JsonNode cfg = body.get(provider);
         return switch (provider) {
@@ -260,30 +246,17 @@ public class SystemController {
             case "ks3" -> checkGeneric(cfg, "KS3",
                     List.of("Endpoint", "Region", "Access Key", "Secret Key", "Bucket 名称"), "endpoint");
             case "obs" -> checkObs(cfg);
-            // default（含 local 与空 provider）：本地存储无需检测。
-            // StorageCheckResponse 是 record（声明序 ok<message<bucket_created）✓；
-            // 外层 gin.H 字母序 code<data——不能 Map.of（顺序未定义会漂，实测抓过）
-            default -> {
-                Map<String, Object> localBody = new LinkedHashMap<>();
-                localBody.put("code", 0);
-                localBody.put("data", new SystemDtos.StorageCheckResponse(true, "本地存储无需检测", false));
-                yield ResponseEntity.ok(localBody);
-            }
+            // default（含 local 与空 provider）：本地存储无需检测
+            default -> ResponseEntity.ok(
+                    new SystemDtos.StorageCheckResponse(true, "本地存储无需检测", false));
         };
     }
 
-    // Map.of 会乱序——用 LinkedHashMap 固定 gin.H 字母序
-    private ResponseEntity<Map<String, Object>> checkResponse(boolean ok, String message) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("ok", ok);
-        data.put("message", message);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", 0);
-        body.put("data", data);
-        return ResponseEntity.ok(body);
+    private ResponseEntity<SystemDtos.StorageCheckResponse> checkResponse(boolean ok, String message) {
+        return ResponseEntity.ok(new SystemDtos.StorageCheckResponse(ok, message, false));
     }
 
-    private ResponseEntity<Map<String, Object>> checkMinio(JsonNode cfg) {
+    private ResponseEntity<SystemDtos.StorageCheckResponse> checkMinio(JsonNode cfg) {
         if (cfg == null || cfg.isNull()) {
             return checkResponse(false, "未提供 MinIO 配置");
         }
@@ -312,7 +285,7 @@ public class SystemController {
         return connectivityFallback("minio", cfg, endpoint, bucketName);
     }
 
-    private ResponseEntity<Map<String, Object>> checkCos(JsonNode cfg) {
+    private ResponseEntity<SystemDtos.StorageCheckResponse> checkCos(JsonNode cfg) {
         if (cfg == null || cfg.isNull()) {
             return checkResponse(false, "未提供 COS 配置");
         }
@@ -332,7 +305,7 @@ public class SystemController {
         return connectivityFallback("cos", cfg, region, bucketName);
     }
 
-    private ResponseEntity<Map<String, Object>> checkS3(JsonNode cfg) {
+    private ResponseEntity<SystemDtos.StorageCheckResponse> checkS3(JsonNode cfg) {
         if (cfg == null || cfg.isNull()) {
             return checkResponse(false, "未提供 S3 配置");
         }
@@ -356,7 +329,7 @@ public class SystemController {
         return connectivityFallback("s3", cfg, endpoint, bucketName);
     }
 
-    private ResponseEntity<Map<String, Object>> checkOss(JsonNode cfg) {
+    private ResponseEntity<SystemDtos.StorageCheckResponse> checkOss(JsonNode cfg) {
         if (cfg == null || cfg.isNull()) {
             return checkResponse(false, "未提供 OSS 配置");
         }
@@ -382,7 +355,7 @@ public class SystemController {
         return connectivityFallback("oss", cfg, endpoint, bucketName);
     }
 
-    private ResponseEntity<Map<String, Object>> checkObs(JsonNode cfg) {
+    private ResponseEntity<SystemDtos.StorageCheckResponse> checkObs(JsonNode cfg) {
         if (cfg == null || cfg.isNull()) {
             return checkResponse(false, "未提供 OBS 配置");
         }
@@ -410,7 +383,7 @@ public class SystemController {
     }
 
     /** TOS/KS3 共用（同样的必填与 SSRF 分支顺序）。 */
-    private ResponseEntity<Map<String, Object>> checkGeneric(
+    private ResponseEntity<SystemDtos.StorageCheckResponse> checkGeneric(
             JsonNode cfg, String label, List<String> requiredFields, String endpointField) {
         if (cfg == null || cfg.isNull()) {
             return checkResponse(false, "未提供 " + label + " 配置");
@@ -437,7 +410,7 @@ public class SystemController {
      * 这里对异常消息做同款子串分派；两侧 SDK 错误串不完全一致 → 失败文案是已知差异
      * （golden 只覆盖 nil-config / SSRF / 禁用 provider 等确定性分支）。
      */
-    private ResponseEntity<Map<String, Object>> connectivityFallback(
+    private ResponseEntity<SystemDtos.StorageCheckResponse> connectivityFallback(
             String provider, JsonNode cfg, String endpoint, String bucketName) {
         com.ragagent.storage.domain.StorageBackend backend =
                 new com.ragagent.storage.domain.StorageBackend();
@@ -708,21 +681,15 @@ public class SystemController {
 
     // ── 响应组装辅助 ──────────────────────────────────────────────────────
 
-    /** 对照 ListParserEngines 的响应包（gin.H 字母序：code < connected < data < ... < msg）。 */
-    private Map<String, Object> engineListBody(Map<String, String> overrides) {
+    /** parser-engines 响应组装（连接态 + docreader 信息 + 引擎清单）。 */
+    private SystemDtos.ParserEnginesResponse engineListBody(Map<String, String> overrides) {
         boolean connected = docReader.isConnected();
         List<SystemDtos.ParserEngineInfo> remote =
                 parserEngines.fetchRemoteEngines(connected, overrides);
         List<SystemDtos.ParserEngineInfo> engines =
                 parserEngines.listAllEngines(connected, overrides, remote);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", 0);
-        body.put("connected", connected);
-        body.put("data", engines);
-        body.put("docreader_addr", docReaderAddr());
-        body.put("docreader_transport", docreaderTransport());
-        body.put("msg", "success");
-        return body;
+        return new SystemDtos.ParserEnginesResponse(
+                connected, docReaderAddr(), docreaderTransport(), engines);
     }
 
     private String docReaderAddr() {
@@ -751,11 +718,4 @@ public class SystemController {
         return b != null && b;
     }
 
-    /** {"code":1,"msg":...}（Go 的 c.JSON 直写错误形态）。 */
-    private static ResponseEntity<Map<String, Object>> code1Msg(String msg, int status) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", 1);
-        body.put("msg", msg);
-        return ResponseEntity.status(status).body(body);
-    }
 }
