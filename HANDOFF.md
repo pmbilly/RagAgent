@@ -20,16 +20,19 @@
    **memory 域四刀落定（2026-10-01，m1~m4，§14.7.17）——`MemoryExtractionService` 1,217→718、`MemoryRepository` 1,515→458、`MemoryService` 1,663→965（余 m5 评估）**；
    **memory 域契约换锚 M1 完成（2026-10-01，§14.9k）——20 端点去信封 + 6 响应实体 camelCase + 创建 201/删除 204 + 分页形态对齐；前端 8 文件同批（含 A2 漏改的 KV 解包）；真实服务冒烟 21 路通过**；
    **memory 域契约换锚 M2 完成（2026-10-01，§14.9k）——7 个落库/内部实体 + `MemoryConfig` 去注解 60 处（memory 域 @JsonProperty 137→22，余者为 LLM 载荷并登记保留）；`tenants.memory_config` 与 `memory_subjects.extraction_state` 两处 jsonb 已跑存量迁移 SQL；前端 2 文件同批；真实服务冒烟 11 路通过**；
+   **memory 域 M3 收尾完成（2026-10-01，§14.9k）——请求侧手写 `rawBody+parse()` 全部退役（三个 DTO 进 `memory/dto` + `@Valid`），错误形态统一到全局处理器；LLM 载荷 22 处登记保留；真实服务冒烟 12 路通过**；
+   **memory 域 m5 切片完成（2026-10-01，§14.7.17）——`MemoryService` 965→**768**（出榜），「召回」段外提 `MemoryRecallOps` 252 行；忠实性逐字核验通过；memory 域 ≥800 仅剩 `MemoryIndexStore` 929（已登记例外）**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
    **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
 4. **下一步（候选，由用户排）**：① **memory M3（收尾）**——LLM 载荷边界登记（22 处，写进文档即可）+
    请求侧手写绑定器清除（`MemoryController` 的 `rawBody + parse()` → DTO + `@Valid`，含 1010/EOF 文案）；
    ② 其余重域端点面：**session 188（下一条建议刀）/ datasource 127 / mcp 110 / system 尾**；
-   ③ `memory` 域 m5——`MemoryService` 965 的「召回」段（243 行，接缝自然，§14.7.17 已给边界）；
-   ④ 错误形态统一（`{error:{…},"success":false}` 去 `success`）可与任一批同做或单独立批。单类尾巴：`SourceRegistry` 878 / `UserService` 876。
+   ③ 阶段 2 剩余尾巴：`SourceRegistry` 878 / `UserService` 876 / knowledge 两个登记例外 / `SessionKnowledgeQaService` 1,036 例外复核；
+   ④ 错误形态统一（`{error:{…},"success":false}` 去 `success`）可与任一批同做或单独立批。
+   **memory 域两条线都已走完**（切片：m1~m5；换锚：M1~M3）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
-6. **全仓存量**：≥800 行的类还有 **7 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 2/3（余 `MemoryService` 965 待 m5、`MemoryIndexStore` 929 登记例外）。
+6. **全仓存量**：≥800 行的类还有 **6 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 3/3（2026-10-01 m5 后仅剩 `MemoryIndexStore` 929，登记例外）。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -167,6 +170,8 @@
 | 阶段 3（auth 域 B，2026-10-01） | API 密钥面（§14.9j） | **收官**：4 文件去注解 + 四端点去信封/204 + 请求体 camelCase；波及平台密钥与 4 个外域测试；前端 5 文件同批；**auth 域 @JsonProperty 仅余边界** |
 | 阶段 3（memory 域 M1，2026-10-01） | HTTP 响应面 16 路由（§14.9k） | **完成**（前三次尝试回滚后第四次成功）：6 响应实体去注解 + 去信封/camelCase + 创建 201 / 删除类 204 + 分页 `{items,page,pageSize,total}`；fixture JSON 解析改写 + Java 断言逐处手改；前端 8 文件同批（含修 A2 漏改的 KV 解包）；全域 339 用例绿 / 全量 4670 绿；**真实服务冒烟 21 路通过** |
 | 阶段 3（memory 域 M2，2026-10-01） | 落库/内部 JSON 面（§14.9k） | **完成**：7 个落库实体 + `MemoryConfig` 去注解 60 处 → **memory 域 @JsonProperty 137→22**（余者 LLM 载荷，登记保留）；**真落库的两处 jsonb**（`memory_subjects.extraction_state`、`tenants.memory_config`）跑存量迁移 SQL；顺手修 `ModelService` 按旧键读 memory config 的运行时依赖 + KV 校验文案改 camelCase；前端 2 文件同批；全量 4670 绿；**真实服务冒烟 11 路通过（含迁移后存量行读回）** |
+| 阶段 3（memory 域 M3，2026-10-01） | 请求侧绑定收尾（§14.9k） | **完成**：三个请求 DTO 进 `memory/dto` + `@Valid`，手写 `rawBody+parse()`/`MAPPER` 退役；错误形态统一到全局处理器（空体/null→请求体不能为空、畸形→请求体格式不正确、类型错→`<字段>: 类型不正确`、缺 enabled→`enabled: 不能为空`）；LLM 载荷 22 处**登记保留**；新增 5 条测试 + 2 个夹具、清 1 个孤儿夹具；**真实服务冒烟 12 路通过** |
+| 阶段 2（memory 域 m5，2026-10-01） | 召回段外提（§14.7.17） | **完成**：`MemoryService` 965→**768**（出榜）、新协作者 `MemoryRecallOps` 252 行；忠实性逐字核验通过；memory 域 ≥800 只剩 `MemoryIndexStore` 929（登记例外）；跨域回归（memory/chatpipeline/session）+ 全量 4673 绿；**真实服务冒烟 7 路通过** |
 
 ### 7.2 当前存量（实测）
 
@@ -179,7 +184,7 @@
 - embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
 - chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
 - datasource 域（2026-10-01 全批后）：**115 文件 / 26,723 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709**、`NotionConnector` 1,093→**625** —— **域内 ≥800 清零**（原三个：1,828 / 1,155 / 1,093）。
-- memory 域（2026-10-01 m1~m4 + M1 换锚后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→**965**；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 965（待 m5 评估）与 `MemoryIndexStore` 929（**登记例外**：同属索引侧一个关注点，§14.7.17）。
+- memory 域（2026-10-01 m1~m5 + M1~M3 换锚后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→965→**768**（出榜，m5）；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryRecallOps` 252 / `MemoryIndexStore` 929；**≥800 只剩 `MemoryIndexStore` 929**（**登记例外**：同属索引侧一个关注点，§14.7.17）。
   **`@JsonProperty` 137→22**（HTTP 面 63 处 + 落库/内部面 52 处清零）：余 22 处**全是 LLM 载荷**
   （`MemoryExtractionLlm` 11 + `MemoryExtractPayload` 11，**保留**：模型输出 schema，§14.9k 三分法）；
   `common.settings.MemoryConfig` 12 处已清零（tenants.memory_config jsonb 换锚，M2）。
@@ -193,7 +198,7 @@
 
 1. **阶段 2 其余域**：wiki（含 page 面）/ im / retrieval / auth controller / llm / mcp / embed / chatpipeline / knowledge(FaqImportService) **均已出榜**；
    `datasource` **全域出榜**（service §14.7.15；两个连接器 §14.7.16）——域内 ≥800 清零；
-   memory 域已出榜 2/3（余 `MemoryService` 965 候选 m5、`MemoryIndexStore` 929 登记例外）；
+   memory 域**两条线都已走完**（切片 m1~m5 + 换锚 M1~M3，≥800 只剩登记例外 `MemoryIndexStore` 929）；
    单类：modelcontext(`SourceRegistry` 878)、auth service(`UserService` 876)、knowledge 例外 2 个；
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
@@ -450,12 +455,12 @@ CLI 起服务常写 `set -a && . ./.env && set +a && ./gradlew :server:bootRun`�
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **7 个**；memory 首刀后 8→7）
+### 14.3 候选域盘点（2026-10-01 m5 后复测：全仓 ≥800 行的类共 **6 个**）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | **已清零**（`DataSourceService` 1,828→666 §14.7.15；`FeishuClient` 1,155→709、`NotionConnector` 1,093→625 §14.7.16） |
-| memory | `MemoryService` 1,662 · `MemoryIndexStore` 929（**登记例外**：六段同属「索引侧读写」一个关注点，用户 2026-10-01 定调不硬切；仓储 1,515→458、`MemoryExtractionService` 1,216→718 均已出榜，§14.7.17） |
+| memory | **已清零**（`MemoryService` 1,662→965→**768** 于 m5 出榜 §14.7.17；`MemoryIndexStore` 929 为**登记例外**：六段同属「索引侧读写」一个关注点，用户 2026-10-01 定调不硬切；仓储 1,515→458、`MemoryExtractionService` 1,216→718 亦已出榜） |
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | **已清零**（`WikiPageController`/`WikiIngestService` §14.7.2；page 面 4 类 §14.7.14：1,008→732 / 858→708 / 851→468 / 822→383，最大类 `WikiIngestCitePipeline` 760） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
@@ -1152,6 +1157,7 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 | m2 | `MemoryItemStore`（462 行）：条目写/读 + 生命周期 + 墓碑（仓储原 L213-638） | 1,515→**1,200** | `a2d83ef` |
 | m3 | `MemoryIndexStore`（929 行）：话题统计/文档亲和/向量/抽取进度/内部工具/方言探测（仓储原 L326-1199） | 1,200→**458**（出榜） | `cf8c2ca` |
 | m4 | `MemoryCatalogOps`（517 行）+ `MemoryInsightOps`（412 行）：目录管理 + 检索/亲和 | 1,663→**965** | 见下 |
+| m5 | `MemoryRecallOps`（252 行）：召回段（`Recall` + 两个 trace 辅助 + 块内命中筛选） | 965→**768**（出榜） | 见下 |
 
 **m1 手法要点（与前面几批的差异点）**：
 - 两簇里混着 `static` 工具与实例方法：**静态走类名限定**（`MemoryExtractionLlm.parseExpiry(...)`）、
@@ -1175,6 +1181,19 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 收尾必须扫一遍字面量；②前缀替换会打到**被搬成员的声明行**（`static void X.helper(`），编译报
 "invalid method declaration" 即是此症状——修法是把声明行的类名前缀回退。
 
+**m5 手法要点（2026-10-01，「召回」段外提 `MemoryRecallOps` 252 行）**：
+- 段内依赖只有四类：仓储 `repo`、选择器 `recallSelector`、三层开关 `enabledScope` / `scopeDisableReason`、
+  用量回写 `touchAsync`——按 m4 惯例用 `service.` 回引；日志换成本类自己的 logger（8 处 `log.` 不用动）；
+  `ScopeState` 这类嵌套类型用 `MemoryService.ScopeState`（§13.2「嵌套类型不能委托」）。
+- **`touchAsync` 留在门面**：`MemoryInsightOps.searchMemory` 也在用它（跨段共享），搬走会把协作者变成互调。
+- 可复用教训三条：
+  ① **干跑断言的行数算式要把"顺手加的字段与构造行"算进去**——我起初按 `加 = 委托行数`，
+     实际还有字段块 3 行 + 构造 1 行，断言当场抓住（这正是干跑断言的价值，别嫌它啰嗦）；
+  ② **被测试直接调用的包内 helper 跟着搬，并改测试调用点**（`residentItemsWithinBlock` 被
+     `MemoryExtractionHelpersTest` 调）——比为测试在门面留一个死委托干净；
+  ③ **删未用导入时别信被 `head` 截断的 grep**：`MemoryRender` 的另一次使用在第 668 行（首轮 grep 被截掉），
+     误删后靠"编译失败"才发现——**编译是权威**（§13.7）。
+
 **`MemoryIndexStore` 929 的处理（用户 2026-10-01 定调：不硬切）**：它的六段（话题统计 / 文档亲和 /
 向量 / 抽取进度 / 内部工具 / 方言探测）同属「索引侧读写」一个关注点，**为压进 800 再切一刀只有数字意义**，
 故登记为已知例外。将来若「向量段」因独立演进出现真实接缝（如 pgvector 换成独立存储），再按自然边界外提
@@ -1189,6 +1208,7 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
   `listDocuments` / `deleteDocument` / `familiarKnowledgeIds`）各成一个协作者（各约 450~480 行，
   两个新类都 <500，避免再造一个 929 式大件）；m5 = 若切完仍明显超阈值，再评估 `召回` 段
   （243 行，独立关注点，接缝自然）。
+  **两刀均已执行**（m4 见上表；m5 = 召回段 209 行 → `MemoryRecallOps` 252 行，服务 965→768 出榜）。
 
 ### 14.9b 小域打样（阶段 3 起手，2026-10-01 用户拍板：小域打样）
 
@@ -1631,7 +1651,28 @@ WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(memory_config) k
 *验收*：memory 域 + auth 契约 + 跨域 round-trip 全绿；全量 `clean test` **4670 / 0 失败 / 4 跳过** + `spotlessCheck` 绿；
 前端 `vue-tsc` 0 错误 + **690 用例通过**；**真实服务冒烟 11 路通过**——含
 「**迁移后的存量行读回**（`writeMode=explicit_only` 等 11 键全对）」、「PUT camelCase 落库后库里也是 camelCase」、
-「非法值 400 文案为 `writeMode/maxItems/interestThreshold …`」、「改配置后 `/memory/settings` 的 `writeMode`/`maxItems` 跟着变」。*
+「非法值 400 文案为 `writeMode/maxItems/interestThreshold …`」、「改配置后 `/memory/settings` 的 `writeMode`/`maxItems` 跟着变」。
+
+**✅ M3 执行记录（2026-10-01 完成）——请求侧绑定收尾 + LLM 载荷边界登记**：
+
+- **请求侧**：`MemoryController` 三个带体端点从 `@RequestBody(required=false) String rawBody` + 手写
+  `parse()` 改成标准 DTO 绑定（§1.10）——`memory/dto` 新增 `UpdateMemorySettingsRequest`
+  （`@NotNull(message = "enabled: 不能为空")`）/ `CreateMemoryItemRequest` / `UpdateMemoryItemRequest`；
+  手写的 `MAPPER` / `parse()` / `invalidRequestData()` 与内嵌 record 全部删除，缺省语义改由
+  `orEmpty` / `orZero` 显式表达（**缺省与显式 null 同义＝零值**，与 Go 的非指针字段一致）。
+- **错误形态统一到全局处理器**（旧 Go 仿真文案 1010 / `EOF` / `Invalid request data` 退役）：
+  空体与字面量 `null` → `请求体不能为空`；畸形 JSON → `请求体格式不正确`；字段类型错 →
+  `<字段>: 类型不正确`；缺 `enabled` / 显式 null → `enabled: 不能为空`。
+  **未知字段仍被忽略**（Spring Boot 的 mapper 关掉了 FAIL_ON_UNKNOWN，与 Go 的 `encoding/json` 同款）——
+  已用一条测试钉住，避免"前端多带一个字段就整条 400"。
+- **LLM 载荷 22 处登记保留**（`MemoryExtractionLlm` 11 + `MemoryExtractPayload` 11）：它们是**模型输出的 schema**，
+  不是我们的线格式，改名等于改提示词契约（同 §11「工具输出自有 schema」）。memory 域 `@JsonProperty`
+  因此**停在 22**，这是收尾态、不是欠账。
+- 测试：新增 5 条（空体/null 体/未知字段容错/显式 null 字段/只给 content）；夹具新增
+  `memory-body-empty.json`、`memory-body-malformed.json`，`memory-settings-required.json` 改文案，
+  孤儿夹具 `memory-settings-invalid.json` 删除。
+- 验收：全量 **4673 / 0 失败 / 4 跳过** + `spotlessCheck` 绿；**真实服务冒烟 12 路通过**（含类型错文案
+  `enabled: 类型不正确`、`content:null` 落零值 → 500 空内容）。
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
