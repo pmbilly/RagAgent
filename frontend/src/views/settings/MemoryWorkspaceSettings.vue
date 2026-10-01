@@ -33,14 +33,14 @@
           <p class="desc">{{ t('memoryWorkspaceSettings.writeModeDescription') }}</p>
           <p class="desc hint">
             {{
-              config.write_mode === 'auto'
+              config.writeMode === 'auto'
                 ? t('memoryWorkspaceSettings.writeModeAutoHint')
                 : t('memoryWorkspaceSettings.writeModeExplicitHint')
             }}
           </p>
         </div>
         <div class="setting-control">
-          <t-radio-group v-model="config.write_mode" :disabled="!canEdit" @change="debouncedSave">
+          <t-radio-group v-model="config.writeMode" :disabled="!canEdit" @change="debouncedSave">
             <t-radio-button value="explicit_only">
               {{ t('memoryWorkspaceSettings.writeModeExplicit') }}
             </t-radio-button>
@@ -51,7 +51,7 @@
         </div>
       </div>
 
-      <div v-if="config.enabled && config.write_mode === 'auto'" class="setting-row">
+      <div v-if="config.enabled && config.writeMode === 'auto'" class="setting-row">
         <div class="setting-info">
           <label>{{ t('memoryWorkspaceSettings.extractModelLabel') }}</label>
           <p class="desc">{{ t('memoryWorkspaceSettings.extractModelDescription') }}</p>
@@ -59,7 +59,7 @@
         <div class="setting-control" style="min-width: 280px">
           <ModelSelector
             model-type="KnowledgeQA"
-            :selected-model-id="config.extract_model_id"
+            :selected-model-id="config.extractModelId"
             :disabled="!canEdit"
             @update:selected-model-id="handleModelChange"
             @add-model="handleAddModel('chat')"
@@ -67,14 +67,14 @@
         </div>
       </div>
 
-      <div v-if="config.enabled && config.write_mode === 'auto'" class="setting-row">
+      <div v-if="config.enabled && config.writeMode === 'auto'" class="setting-row">
         <div class="setting-info">
           <label>{{ t('memoryWorkspaceSettings.extractDelayLabel') }}</label>
           <p class="desc">{{ t('memoryWorkspaceSettings.extractDelayDescription') }}</p>
         </div>
         <div class="setting-control">
           <t-input-number
-            v-model="config.extract_delay_seconds"
+            v-model="config.extractDelaySeconds"
             :min="5"
             :max="3600"
             :step="15"
@@ -85,14 +85,14 @@
         </div>
       </div>
 
-      <div v-if="config.enabled && config.write_mode === 'auto'" class="setting-row">
+      <div v-if="config.enabled && config.writeMode === 'auto'" class="setting-row">
         <div class="setting-info">
           <label>{{ t('memoryWorkspaceSettings.extractMinIntervalLabel') }}</label>
           <p class="desc">{{ t('memoryWorkspaceSettings.extractMinIntervalDescription') }}</p>
         </div>
         <div class="setting-control">
           <t-input-number
-            v-model="config.extract_min_interval_seconds"
+            v-model="config.extractMinIntervalSeconds"
             :min="0"
             :max="86400"
             :step="60"
@@ -109,11 +109,11 @@
           <p class="desc">{{ t('memoryWorkspaceSettings.vectorRecallDescription') }}</p>
         </div>
         <div class="setting-control">
-          <t-switch v-model="config.vector_recall" :disabled="!canEdit" @change="debouncedSave" />
+          <t-switch v-model="config.vectorRecall" :disabled="!canEdit" @change="debouncedSave" />
         </div>
       </div>
 
-      <div v-if="config.enabled && config.vector_recall" class="setting-row">
+      <div v-if="config.enabled && config.vectorRecall" class="setting-row">
         <div class="setting-info">
           <label>{{ t('memoryWorkspaceSettings.embeddingModelLabel') }}</label>
           <p class="desc">{{ t('memoryWorkspaceSettings.embeddingModelDescription') }}</p>
@@ -121,7 +121,7 @@
         <div class="setting-control" style="min-width: 280px">
           <ModelSelector
             model-type="Embedding"
-            :selected-model-id="config.embedding_model_id"
+            :selected-model-id="config.embeddingModelId"
             :disabled="!canEdit"
             :clearable="true"
             @update:selected-model-id="handleEmbeddingModelChange"
@@ -137,21 +137,21 @@
         </div>
         <div class="setting-control">
           <t-switch
-            v-model="config.retrieval_conditioning"
+            v-model="config.retrievalConditioning"
             :disabled="!canEdit"
             @change="debouncedSave"
           />
         </div>
       </div>
 
-      <div v-if="config.enabled && config.write_mode === 'auto'" class="setting-row">
+      <div v-if="config.enabled && config.writeMode === 'auto'" class="setting-row">
         <div class="setting-info">
           <label>{{ t('memoryWorkspaceSettings.interestThresholdLabel') }}</label>
           <p class="desc">{{ t('memoryWorkspaceSettings.interestThresholdDescription') }}</p>
         </div>
         <div class="setting-control">
           <t-input-number
-            v-model="config.interest_threshold"
+            v-model="config.interestThreshold"
             :min="1"
             :max="20"
             :step="1"
@@ -161,14 +161,14 @@
         </div>
       </div>
 
-      <div v-if="config.enabled && config.write_mode === 'auto'" class="setting-row instructions-row">
+      <div v-if="config.enabled && config.writeMode === 'auto'" class="setting-row instructions-row">
         <div class="setting-info">
           <label>{{ t('memoryWorkspaceSettings.instructionsLabel') }}</label>
           <p class="desc">{{ t('memoryWorkspaceSettings.instructionsDescription') }}</p>
         </div>
         <div class="setting-control instructions-control">
           <t-textarea
-            v-model="config.extract_instructions"
+            v-model="config.extractInstructions"
             :autosize="{ minRows: 3, maxRows: 8 }"
             :maxlength="1000"
             :disabled="!canEdit"
@@ -185,7 +185,7 @@
         </div>
         <div class="setting-control">
           <t-input-number
-            v-model="config.max_items"
+            v-model="config.maxItems"
             :min="10"
             :max="2000"
             :step="10"
@@ -213,16 +213,16 @@ const uiStore = useUIStore()
 
 const config = reactive<MemoryConfig>({
   enabled: false,
-  write_mode: 'explicit_only',
-  extract_model_id: '',
-  max_items: 200,
-  extract_delay_seconds: 90,
-  extract_min_interval_seconds: 300,
-  extract_instructions: '',
-  interest_threshold: 3,
-  retrieval_conditioning: true,
-  embedding_model_id: '',
-  vector_recall: true,
+  writeMode: 'explicit_only',
+  extractModelId: '',
+  maxItems: 200,
+  extractDelaySeconds: 90,
+  extractMinIntervalSeconds: 300,
+  extractInstructions: '',
+  interestThreshold: 3,
+  retrievalConditioning: true,
+  embeddingModelId: '',
+  vectorRecall: true,
 })
 const isInitializing = ref(true)
 
@@ -235,16 +235,16 @@ const loadConfig = async () => {
     const stored = await getTenantMemoryConfig()
     if (stored) {
       config.enabled = stored.enabled ?? false
-      config.write_mode = stored.write_mode === 'auto' ? 'auto' : 'explicit_only'
-      config.extract_model_id = stored.extract_model_id || ''
-      config.max_items = stored.max_items || 200
-      config.extract_delay_seconds = stored.extract_delay_seconds || 90
-      config.extract_min_interval_seconds = stored.extract_min_interval_seconds || 300
-      config.extract_instructions = stored.extract_instructions || ''
-      config.interest_threshold = stored.interest_threshold || 3
-      config.retrieval_conditioning = stored.retrieval_conditioning !== false
-      config.embedding_model_id = stored.embedding_model_id || ''
-      config.vector_recall = stored.vector_recall !== false
+      config.writeMode = stored.writeMode === 'auto' ? 'auto' : 'explicit_only'
+      config.extractModelId = stored.extractModelId || ''
+      config.maxItems = stored.maxItems || 200
+      config.extractDelaySeconds = stored.extractDelaySeconds || 90
+      config.extractMinIntervalSeconds = stored.extractMinIntervalSeconds || 300
+      config.extractInstructions = stored.extractInstructions || ''
+      config.interestThreshold = stored.interestThreshold || 3
+      config.retrievalConditioning = stored.retrievalConditioning !== false
+      config.embeddingModelId = stored.embeddingModelId || ''
+      config.vectorRecall = stored.vectorRecall !== false
     }
   } catch (error: any) {
     console.error('Failed to load memory config:', error)
@@ -278,12 +278,12 @@ const debouncedSave = () => {
 }
 
 const handleModelChange = (modelId: string) => {
-  config.extract_model_id = modelId
+  config.extractModelId = modelId
   debouncedSave()
 }
 
 const handleEmbeddingModelChange = (modelId: string) => {
-  config.embedding_model_id = modelId || ''
+  config.embeddingModelId = modelId || ''
   debouncedSave()
 }
 

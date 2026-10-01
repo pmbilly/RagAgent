@@ -55,23 +55,23 @@ export interface MemoryList<T> {
 
 export interface MemoryConfig {
   enabled: boolean
-  write_mode: 'explicit_only' | 'auto'
-  extract_model_id: string
-  max_items: number
+  writeMode: 'explicit_only' | 'auto'
+  extractModelId: string
+  maxItems: number
   /** Debounce before distillation runs, in seconds. */
-  extract_delay_seconds: number
+  extractDelaySeconds: number
   /** Floor between two distillation runs for one person, in seconds. */
-  extract_min_interval_seconds: number
+  extractMinIntervalSeconds: number
   /** Workspace-specific rules appended to the distillation prompt. */
-  extract_instructions: string
+  extractInstructions: string
   /** How many conversations must touch a topic before it becomes an interest. */
-  interest_threshold: number
+  interestThreshold: number
   /** Whether memory may shape retrieval, not only the answer prompt. */
-  retrieval_conditioning: boolean
+  retrievalConditioning: boolean
   /** Model used to score memory against a question. Blank = lexical matching only. */
-  embedding_model_id: string
+  embeddingModelId: string
   /** Whether recall also matches on meaning, not only on wording. */
-  vector_recall: boolean
+  vectorRecall: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -212,8 +212,8 @@ export function deleteMemoryDocument(id: string) {
 
 // ---------------------------------------------------------------------------
 // Workspace configuration, stored on the tenant like the other KV configs.
-// The endpoint itself answers the bare config object; its inner keys are the
-// stored jsonb names and move to camelCase in the M2 (stored-format) batch.
+// The endpoint answers the bare config object, and its keys are the stored
+// jsonb names — camelCase since the M2 (stored-format) re-anchoring.
 // ---------------------------------------------------------------------------
 
 export function getTenantMemoryConfig() {
