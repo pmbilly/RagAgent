@@ -230,19 +230,21 @@ const canEdit = computed(() => authStore.hasRole('admin'))
 
 const loadConfig = async () => {
   try {
-    const response = await getTenantMemoryConfig()
-    if (response.data) {
-      config.enabled = response.data.enabled ?? false
-      config.write_mode = response.data.write_mode === 'auto' ? 'auto' : 'explicit_only'
-      config.extract_model_id = response.data.extract_model_id || ''
-      config.max_items = response.data.max_items || 200
-      config.extract_delay_seconds = response.data.extract_delay_seconds || 90
-      config.extract_min_interval_seconds = response.data.extract_min_interval_seconds || 300
-      config.extract_instructions = response.data.extract_instructions || ''
-      config.interest_threshold = response.data.interest_threshold || 3
-      config.retrieval_conditioning = response.data.retrieval_conditioning !== false
-      config.embedding_model_id = response.data.embedding_model_id || ''
-      config.vector_recall = response.data.vector_recall !== false
+    // The KV endpoint answers the bare config object (no {success, data} envelope).
+    // Its inner keys are still the stored jsonb names and move to camelCase in M2.
+    const stored = await getTenantMemoryConfig()
+    if (stored) {
+      config.enabled = stored.enabled ?? false
+      config.write_mode = stored.write_mode === 'auto' ? 'auto' : 'explicit_only'
+      config.extract_model_id = stored.extract_model_id || ''
+      config.max_items = stored.max_items || 200
+      config.extract_delay_seconds = stored.extract_delay_seconds || 90
+      config.extract_min_interval_seconds = stored.extract_min_interval_seconds || 300
+      config.extract_instructions = stored.extract_instructions || ''
+      config.interest_threshold = stored.interest_threshold || 3
+      config.retrieval_conditioning = stored.retrieval_conditioning !== false
+      config.embedding_model_id = stored.embedding_model_id || ''
+      config.vector_recall = stored.vector_recall !== false
     }
   } catch (error: any) {
     console.error('Failed to load memory config:', error)

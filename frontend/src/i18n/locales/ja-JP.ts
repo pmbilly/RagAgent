@@ -1531,7 +1531,7 @@ export default {
       added: '追加しました',
       updated: '更新しました',
       deleted: '削除しました',
-      cleared: 'メモリを{count}件削除しました',
+      cleared: 'すべてのメモリを削除しました',
       saveFailed: '操作に失敗しました: {message}'
     }
   },

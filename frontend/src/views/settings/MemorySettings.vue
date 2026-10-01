@@ -35,7 +35,7 @@
 
     <!-- Workspace switch is off: say so plainly instead of showing a personal
          toggle that would appear to work and change nothing. -->
-    <div v-if="settings && !settings.workspace_enabled" class="notice">
+    <div v-if="settings && !settings.workspaceEnabled" class="notice">
       <t-icon name="info-circle" />
       <span>{{ t('memorySettings.workspaceDisabled') }}</span>
     </div>
@@ -48,14 +48,14 @@
           <!-- An agent can opt out on its own, so this switch being on is not a
                promise that every conversation uses memory. Say so here rather
                than letting someone conclude the page is broken. -->
-          <p v-if="userEnabled && settings?.workspace_enabled" class="desc">
+          <p v-if="userEnabled && settings?.workspaceEnabled" class="desc">
             {{ t('memorySettings.agentDisabledHint') }}
           </p>
         </div>
         <div class="setting-control">
           <t-switch
             v-model="userEnabled"
-            :disabled="!settings || !settings.workspace_enabled"
+            :disabled="!settings || !settings.workspaceEnabled"
             @change="handleEnabledChange"
           />
         </div>
@@ -180,7 +180,7 @@
               <p class="memory-content">{{ doc.title || t('memorySettings.untitledDocument') }}</p>
               <div class="memory-meta">
                 <span>{{ t('memorySettings.documentsHits', { hits: doc.hits }) }}</span>
-                <span>{{ formatTime(doc.last_used_at) }}</span>
+                <span>{{ formatTime(doc.lastUsedAt) }}</span>
               </div>
             </div>
             <div class="memory-actions">
@@ -188,8 +188,8 @@
                 size="small"
                 theme="primary"
                 variant="text"
-                :disabled="!doc.knowledge_base_id"
-                :title="doc.knowledge_base_id ? t('memorySettings.openDocument') : t('memorySettings.openDocumentUnavailable')"
+                :disabled="!doc.knowledgeBaseId"
+                :title="doc.knowledgeBaseId ? t('memorySettings.openDocument') : t('memorySettings.openDocumentUnavailable')"
                 @click="handleOpenDocument(doc)"
               >
                 <template #icon><t-icon name="jump" /></template>
@@ -227,7 +227,7 @@
                 >
                   {{ t('memorySettings.trackingAliases', { aliases: topic.aliases.join(', ') }) }}
                 </span>
-                <span>{{ formatTime(topic.last_seen_at) }}</span>
+                <span>{{ formatTime(topic.lastSeenAt) }}</span>
               </div>
             </div>
             <div class="memory-actions">
@@ -287,7 +287,7 @@
                   {{ item.topic }}
                 </span>
                 <span>{{ originLabel(item.origin) }}</span>
-                <span>{{ formatTime(item.valid_from) }}</span>
+                <span>{{ formatTime(item.validFrom) }}</span>
               </div>
             </div>
             <div class="memory-actions">
@@ -547,8 +547,8 @@ const topicProgressText = (topic: MemoryTopic) => {
 const loadSettings = async () => {
   try {
     const response = await getMemorySettings()
-    settings.value = response.data
-    userEnabled.value = response.data.user_enabled
+    settings.value = response
+    userEnabled.value = response.userEnabled
   } catch (error: any) {
     console.error('Failed to load memory settings:', error)
   }
@@ -562,7 +562,7 @@ const loadItems = async () => {
       limit: pageSize,
       offset: (page.value - 1) * pageSize,
     })
-    items.value = response.data || []
+    items.value = response.items || []
     total.value = response.total || 0
   } catch (error: any) {
     console.error('Failed to load memories:', error)
@@ -580,7 +580,7 @@ const loadTopics = async () => {
       limit: pageSize,
       offset: (page.value - 1) * pageSize,
     })
-    topics.value = response.data || []
+    topics.value = response.items || []
     trackingCount.value = response.total || 0
   } catch (error: any) {
     console.error('Failed to load topics:', error)
@@ -598,7 +598,7 @@ const loadDocuments = async () => {
       limit: pageSize,
       offset: (page.value - 1) * pageSize,
     })
-    documents.value = response.data || []
+    documents.value = response.items || []
     documentCount.value = response.total || 0
   } catch (error: any) {
     console.error('Failed to load documents:', error)
@@ -635,14 +635,14 @@ const loadCounts = async () => {
         }
       }),
     ),
-    listMemoryTopics({ limit: 1 }).catch(() => ({ total: 0 })),
-    listMemoryDocuments({ limit: 1 }).catch(() => ({ total: 0 })),
+    listMemoryTopics({ limit: 1 }).catch(() => null),
+    listMemoryDocuments({ limit: 1 }).catch(() => null),
   ])
   statuses.forEach((value, index) => {
     counts.value[value] = totals[index]
   })
-  trackingCount.value = topicResponse.total || 0
-  documentCount.value = documentResponse.total || 0
+  trackingCount.value = topicResponse?.total || 0
+  documentCount.value = documentResponse?.total || 0
 }
 
 const reload = async () => {
@@ -672,14 +672,16 @@ const handleDismissTopic = async (topic: MemoryTopic) => {
 }
 
 const handleOpenDocument = (doc: MemoryDoc) => {
-  if (!doc.knowledge_base_id) {
+  if (!doc.knowledgeBaseId) {
     MessagePlugin.warning(t('memorySettings.openDocumentUnavailable'))
     return
   }
+  // The route query keeps its `knowledge_id` name — KnowledgeBase.vue reads that
+  // key and it is a frontend-internal convention, not the API contract.
   router.push({
     name: 'knowledgeBaseDetail',
-    params: { kbId: doc.knowledge_base_id },
-    query: { knowledge_id: doc.knowledge_id },
+    params: { kbId: doc.knowledgeBaseId },
+    query: { knowledge_id: doc.knowledgeId },
   })
 }
 
@@ -726,8 +728,8 @@ const handlePageChange = async (current: number) => {
 const handleEnabledChange = async (value: boolean) => {
   try {
     const response = await updateMemoryEnabled(value)
-    settings.value = response.data
-    userEnabled.value = response.data.user_enabled
+    settings.value = response
+    userEnabled.value = response.userEnabled
     MessagePlugin.success(
       value ? t('memorySettings.toasts.enabled') : t('memorySettings.toasts.disabled'),
     )
@@ -789,10 +791,10 @@ const handleDelete = async (item: MemoryItem) => {
 
 const handleClear = async () => {
   try {
-    const response = await clearMemoryItems()
+    await clearMemoryItems()
     await reload()
     await loadSettings()
-    MessagePlugin.success(t('memorySettings.toasts.cleared', { count: response.removed || 0 }))
+    MessagePlugin.success(t('memorySettings.toasts.cleared'))
   } catch (error: any) {
     MessagePlugin.error(t('memorySettings.toasts.saveFailed', { message: error?.message || '' }))
   }
@@ -811,8 +813,7 @@ const handleConsolidate = async () => {
   if (consolidating.value) return
   consolidating.value = true
   try {
-    const response = await consolidateMemory()
-    const result = response.data
+    const result = await consolidateMemory()
     if (result?.merged || result?.demoted || result?.expired) {
       MessagePlugin.success(
         t('memorySettings.consolidateSuccess', {
@@ -839,7 +840,7 @@ const handleConsolidate = async () => {
 const handleExport = async () => {
   try {
     const response = await exportMemoryItems()
-    const blob = new Blob([JSON.stringify(response.data || [], null, 2)], {
+    const blob = new Blob([JSON.stringify(response.items || [], null, 2)], {
       type: 'application/json',
     })
     const url = URL.createObjectURL(blob)

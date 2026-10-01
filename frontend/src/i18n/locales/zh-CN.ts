@@ -4576,7 +4576,7 @@ export default {
       added: '已添加',
       updated: '已更新',
       deleted: '已删除',
-      cleared: '已删除 {count} 条记忆',
+      cleared: '已清空全部记忆',
       saveFailed: '操作失败：{message}'
     }
   },

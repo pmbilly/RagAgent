@@ -4574,7 +4574,7 @@ export default {
       added: '추가했습니다',
       updated: '수정했습니다',
       deleted: '삭제했습니다',
-      cleared: '{count}개의 기억을 삭제했습니다',
+      cleared: '모든 기억을 삭제했습니다',
       saveFailed: '작업 실패: {message}'
     }
   },

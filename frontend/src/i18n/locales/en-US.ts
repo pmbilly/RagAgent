@@ -1531,7 +1531,7 @@ export default {
       added: 'Added',
       updated: 'Updated',
       deleted: 'Deleted',
-      cleared: 'Deleted {count} memories',
+      cleared: 'All memories deleted',
       saveFailed: 'Operation failed: {message}'
     }
   },

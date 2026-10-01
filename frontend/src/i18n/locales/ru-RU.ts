@@ -4574,7 +4574,7 @@ export default {
       added: 'Добавлено',
       updated: 'Обновлено',
       deleted: 'Удалено',
-      cleared: 'Удалено записей: {count}',
+      cleared: 'Все записи удалены',
       saveFailed: 'Не удалось выполнить: {message}'
     }
   },
