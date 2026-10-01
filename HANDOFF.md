@@ -19,11 +19,10 @@
    **datasource 连接器批已收官（2026-10-01，f1~f3 + n1，§14.7.16）——`FeishuClient` 1,155→709、`NotionConnector` 1,093→625，datasource 域 ≥800 清零**；
    **memory 域四刀落定（2026-10-01，m1~m4，§14.7.17）——`MemoryExtractionService` 1,217→718、`MemoryRepository` 1,515→458、`MemoryService` 1,663→965（余 m5 评估）**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
-   **阶段 3 第二域 model M1 完成（2026-10-01，§14.9c）——模型主资源去信封 + camelCase + 请求侧实体解耦，首次前后端同 PR（前端 12 文件）**。
-4. **下一步（候选，由用户排）**：① **model M2/M3**——debug 端点（multipart + 手搓响应 + 24 个 `md-*` fixture）与 weknoracloud；
-   ② `memory` 域 m5——`MemoryService` 965 的「召回」段（243 行，接缝自然，§14.7.17 已给边界）；
-   ③ 阶段 3 换锚按域继续推（建议 auth / system / memory 的端点面；落库 jsonb 面与错误形态统一各自成批）。
-   单类尾巴：`SourceRegistry` 878 / `UserService` 876；knowledge 两个已登记例外待复核。
+   **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
+4. **下一步（候选，由用户排）**：① 阶段 3 换锚按域继续推——model 已收官，下一个建议 **auth / system / memory**
+   的端点面（重域清单见 §14.9 存量表）；② `memory` 域 m5——`MemoryService` 965 的「召回」段（243 行，接缝自然，§14.7.17 已给边界）；
+   ③ 落库 jsonb 面（model 之外）与错误形态统一各自成批。单类尾巴：`SourceRegistry` 878 / `UserService` 876；knowledge 两个已登记例外待复核。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
 6. **全仓存量**：≥800 行的类还有 **7 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 2/3（余 `MemoryService` 965 待 m5、`MemoryIndexStore` 929 登记例外）。
@@ -75,7 +74,7 @@
 ## 4. 关键测量数据（**2026-09-30 复核**）
 
 - main：**1,535 文件 / 27.9 万行**；test：**401 文件 / 12.6 万行 / 1,366 契约 fixture**；frontend：**465 文件 / 20.0 万行**。
-- 后端测试：**4,681 用例全绿**（含 6 个 skip，2026-09-30 复核；2026-10-01 evaluation 打样批实测 **4,669 / 失败 0 / 跳过 4**，434 测试类）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
+- 后端测试：**4,681 用例全绿**（含 6 个 skip，2026-09-30 复核；2026-10-01 model 域收官批实测 **4,670 / 失败 0 / 跳过 4**，434 测试类）；前端 `vue-tsc` 0 错误 + **690 用例全绿**（§9 有命令）。
 - **≥800 行的类（main，全仓）**：AgentEngine 3,235、WikiIngestBatchHandler 2,268、WikiIngestService 2,182、InitializationController 1,981、DataSourceService 1,827、SessionKnowledgeQaService 1,764、MemoryService 1,660、OpenSearchRetrieveRepository 1,652、WikiPageServiceImpl 1,642、KnowledgeQaController 1,616……
   （**2026-09-30 历史快照，多数已过时**——活榜单以 §14.3 为准：2026-10-01 实测 36 个）
 - **knowledge 包（已整治，可作样板）**：**197 文件 / 25,264 行**；最大三个 = `FaqImportService` 1,234、`KnowledgeService` 850、`KnowledgeProcessWorker` 814；13 个子包见 §12；容器类/`*Util` 反模式命名已清零。
@@ -156,7 +155,7 @@
 | 阶段 2（datasource 连接器批，2026-10-01） | FeishuClient + NotionConnector | **双出榜，datasource 域 ≥800 清零**（f1~f3 + n1 → Transport/WikiTreeOps/DriveOps/FetchOps；1,155→709、1,093→625；§14.7.16） |
 | 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService / MemoryRepository / MemoryService | **四刀落定**（m1 1,217→718 出榜；m2 1,515→1,200 出 `MemoryItemStore`；m3 1,200→**458** 出 `MemoryIndexStore`；m4 1,663→**965** 出 `MemoryCatalogOps`+`MemoryInsightOps`；⚠️ `MemoryIndexStore` 929 登记**已知例外**、`MemoryService` 965 待 m5 评估——用户 2026-10-01 定调「不硬切」，判据见 §14.7.17） |
 | 阶段 3 打样（evaluation 域，2026-10-01） | 小域契约换锚打样（§14.9b） | **流水线跑通**：POST/GET 去信封 + camelCase + 标准 DTO 绑定；10 个 fixture（含新增空体用例）；前端零调用面；**真实服务冒烟 8 路通过** |
-| 阶段 3（model 域 M1，2026-10-01） | 模型主资源契约换锚（§14.9c） | **完成**：CRUD + providers + credentials 去信封 + camelCase + 标准 DTO 绑定（含请求侧实体解耦）；54 处注解清零（87→33）；15 fixture 重录；**前端 12 文件同 PR**；真实服务冒烟 11 路 |
+| 阶段 3（model 域，2026-10-01） | 模型域契约换锚四块（§14.9c + §14.9e） | **收官**：主资源 + debug + weknoracloud + 落库 jsonb 全部换锚；`@JsonProperty` **87→0**；**前端 15 文件同批**（首次前后端同 PR）；真实服务冒烟 11 路（§14.9c） |
 
 ### 7.2 当前存量（实测）
 
@@ -171,7 +170,7 @@
 - datasource 域（2026-10-01 全批后）：**115 文件 / 26,723 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709**、`NotionConnector` 1,093→**625** —— **域内 ≥800 清零**（原三个：1,828 / 1,155 / 1,093）。
 - memory 域（2026-10-01 m1~m4 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→**965**；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 965（待 m5 评估）与 `MemoryIndexStore` 929（**登记例外**：同属索引侧一个关注点，§14.7.17）。
 - evaluation 域（2026-10-01 打样后）：**`@JsonProperty` 66→0、`@JsonInclude` 12→0**；POST/GET 两端点契约已换锚（§14.9b）；`dto` 包 2 文件（`EvaluationDtos` 容器待拆分，另立批次）。
-- model 域（2026-10-01 M1 后）：**`@JsonProperty` 87→33**（剩 `ModelParameters` 19 落库 + `ModelDebug*` 14）；主资源 CRUD/providers/credentials 已换锚（§14.9c）；前端 12 文件同批改（首次前后端同 PR 样本）。
+- model 域（2026-10-01 收官）：**`@JsonProperty` 87→0**、`@JsonInclude`/`Go*` 序列化引用清零；主资源（M1）+ debug（M2）+ weknoracloud（M3）+ 落库 jsonb 四块全部换锚（§14.9c/§14.9e）；前端 15 文件同批改；dev 库旧 jsonb 行已用迁移 SQL 改写。
 - 全仓 ≥800 行的类：**7 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
@@ -204,7 +203,7 @@
 
 ## 9. 测试与安全网
 
-- 434 个测试类 / 1,366 契约 fixture（**4,669 用例 / 4 skip**，2026-10-01 实测）是重构回归网，**每一步（哪怕纯移动）结束都必须全绿**——近两轮的工作方式就是"改一步 → 全量验证 → 提交"。这是"种子 fork + 渐进转型"优于重写的全部意义。
+- 434 个测试类 / 1,366 契约 fixture（**4,670 用例 / 4 skip**，2026-10-01 实测）是重构回归网，**每一步（哪怕纯移动）结束都必须全绿**——近两轮的工作方式就是"改一步 → 全量验证 → 提交"。这是"种子 fork + 渐进转型"优于重写的全部意义。
 - **三条验证命令（接手先跑一遍确认基线）**：
   ```bash
   # 后端全量（约 3 分钟；期望 BUILD SUCCESSFUL，4,670 用例 0 失败）
@@ -1264,6 +1263,78 @@ credentials 写入与查询 / credentials 删除 204 / providers `?modelType=` /
 `thinkingControl.ts` 的局部结构类型 `parameters: { extra_config?: … }` 与
 `initialization/index.ts` 的 query 参数，**vue-tsc 不报错也要 grep 兜底**（局部类型绕过编译器）。
 
+### 14.9e model 域收官三块（M2 debug + M3 weknoracloud + 落库面，2026-10-01）
+
+**提交**：`8f1af81`（M2）+ `91311a0`（M3）+ `7d55435`（落库面）+ `290557b`（前端）。
+
+**M2：debug 端点（`POST /api/v1/models/{id}/debug`）**
+- 响应去 `{data,success}` 信封 → 裸 `ModelDebugResult`（`ok`/`elapsedMs`/`error`/`request`/`rawResponse`/
+  `observations`，`error` 恒输出）；运行时错误仍**落在结果对象里**（HTTP 恒 200——这是"调试结果"语义，
+  不是 HTTP 错误；参数校验错误才是 400 错误信封）
+- `rawResponse` 的 chat/asr 分支去 snake（`reasoningContent`/`toolCalls`/`finishReason`/`streamEvents`）；
+  **不动**：`usage` 与 `streamEvents` 的**元素**（LLM 域事件载荷）、rerank 的 `RankResult`（rerank 域）、
+  `extraConfig` 的 map 键（用户自定义配置键）
+- 可空字段显式 null（chat 的 reasoningContent/toolCalls、asr 的 segments）
+- options JSON 键改 camelCase（`systemPrompt`/`topP`/`maxTokens`）；输入解析错误文案去 Go 仿真
+  （`invalid options: malformed JSON`、`systemPrompt must be a string`、`maxTokens must be between 1 and 8192`…）
+- 请求预览去 snake（`modelId`/`modelName`/`modelType`/`customHeaderNames`/`modelExtraConfig`）+ observations
+  去 snake（`answerCharacters`/`reasoningCharacters`/`resultCount`/`segmentCount`/`textCharacters`/
+  `requestedThinking`/`thinkingControl`/`thinkingParameterSent`/`reasoningReturned`）；温度/topP 预览改
+  标准 Jackson 数字（原 `GoDoubleSerializer`+RawValue 去除——预览不属工具面）
+- fixture：24 个 `md-*` 重录；`ModelDebugContractTest` 24 用例绿；前端 `ModelDebugDrawer` 同步
+
+**M3：weknoracloud 端点**
+- `POST /api/v1/weknoracloud/credentials`：Map 手绑 → `WeKnoraCloudCredentialsRequest`（camelCase + @Valid
+  显式 message）；错误 `{"error":"原文"}` 直写 → AppError 信封；成功 `{message,success}` → **204**
+- `GET /api/v1/models/weknoracloud/status`：手搓 ObjectNode → `WeKnoraCloudStatusResponse`
+  （`hasModels`/`needsReinit`/`reason`，reason 恒 null 保留位）
+- fixture：`weknoracloud-status` 重录 + 新增 `weknoracloud-cred-validation`（校验路径可测；外呼校验路径
+  需真实 WeKnoraCloud，不做集成）；前端 3 个调用点同步
+
+**落库面（`models.parameters` jsonb）**
+- `ModelParameters` 去 19 处 `@JsonProperty` + `@JsonPropertyOrder` + `@JsonInclude(NON_NULL)`：
+  jsonb 键名 = Java 字段名（camelCase）；`BuiltinModelsReconciler.parseParameters` 的 YAML 键名同步
+  （`config/builtin_models.yaml` 当前不存在，属可选配置）
+- **存量数据**（系统未上线、无正式存量；按 §11 `ecbdf56` 同一原则）：**不做代码层宽容读**——
+  TypeHandler 的 mapper 保持严格，旧格式行会显式报 "Unrecognized field"（避免静默丢参数）；
+  dev 库旧行用下方 SQL 一次性改写（2026-10-01 已对 ragagent 库执行，`UPDATE 1`）
+- 迁移 SQL（其他环境复用；embeddingParameters 子对象单独改写）：
+  ```sql
+  UPDATE models SET parameters = (
+    SELECT jsonb_object_agg(
+      CASE e.key
+        WHEN 'base_url' THEN 'baseUrl' WHEN 'api_key' THEN 'apiKey'
+        WHEN 'interface_type' THEN 'interfaceType' WHEN 'embedding_parameters' THEN 'embeddingParameters'
+        WHEN 'parameter_size' THEN 'parameterSize' WHEN 'extra_config' THEN 'extraConfig'
+        WHEN 'custom_headers' THEN 'customHeaders' WHEN 'supports_vision' THEN 'supportsVision'
+        WHEN 'context_window' THEN 'contextWindow' WHEN 'max_output_tokens' THEN 'maxOutputTokens'
+        WHEN 'max_concurrency' THEN 'maxConcurrency' WHEN 'app_id' THEN 'appId'
+        WHEN 'app_secret' THEN 'appSecret' ELSE e.key END,
+      CASE WHEN e.key = 'embedding_parameters' AND jsonb_typeof(e.value) = 'object' THEN (
+        SELECT jsonb_object_agg(
+          CASE e2.key WHEN 'truncate_prompt_tokens' THEN 'truncatePromptTokens'
+                      WHEN 'supports_dimension_override' THEN 'supportsDimensionOverride'
+                      ELSE e2.key END, e2.value)
+        FROM jsonb_each(e.value) e2
+      ) ELSE e.value END)
+    FROM jsonb_each(parameters) e)
+  WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(parameters) k
+    WHERE k IN ('base_url','api_key','interface_type','embedding_parameters','parameter_size',
+                'extra_config','custom_headers','supports_vision','context_window','max_output_tokens',
+                'max_concurrency','app_id','app_secret'));
+  ```
+
+**model 域收官口径**：`@JsonProperty` **87 → 0**（主资源 54 + debug 14 + 落库 19 全清）；
+M1/M2/M3 + 落库面四块完成，域内无 `@JsonInclude`/`Go*` 序列化引用。
+
+**验收（2026-10-01）**：后端干净一遍 **4670 用例 / 失败 0 / 跳过 4**（434 测试类，比上批 +1 =
+M3 新增校验用例）+ `spotlessCheck` 绿（`spotlessApply` 顺手删掉 `BuiltinModelsReconciler` 的僵尸
+`java.util.UUID` import）；前端 `vue-tsc` 0 错误 + **690 用例全绿**；**真实服务冒烟**：cloud status
+（`{hasModels:false,needsReinit:false,reason:null}`）/ 模型创建→库中 jsonb 即 camelCase→单查反序列化
+/ 凭证缺字段 400（显式 message）/ debug 未知模型 404。**全量抓到一处漏改**：
+`W5bInitializationContractTest` 用 SQL 直写旧键名 jsonb（§13 判据：落库面换锚后要全仓搜
+`models SET parameters` 这类直写点）。
+
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
 
@@ -1287,8 +1358,8 @@ credentials 写入与查询 / credentials 删除 204 / providers `?modelType=` /
 - 细则与历史差异表：`docs/knowledge-api-contract-v1.md`（v1.0，32KB）。
 
 **进度（2026-10-01）**
-- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / **evaluation（打样域，§14.9b）** / **model 主资源 M1（§14.9c，首次前后端同 PR）**。
-- 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面；model 的 M2（debug）/ M3（weknoracloud）/ 落库面。
+- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / **evaluation（打样域，§14.9b）** / **model 全域（主资源 + debug + weknoracloud + 落库 jsonb，§14.9c/§14.9e——首次前后端同 PR）**。
+- 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面。
 
 **存量表（2026-10-01 盘点实测，§14.9 第 1 步交付物；只读扫描，三分法甄别）**
 
@@ -1298,7 +1369,7 @@ credentials 写入与查询 / credentials 删除 204 / providers `?modelType=` /
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~984 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（2026-10-01 打样，§14.9b）；model 87 → **33**（2026-10-01 M1，§14.9c） | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e） | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
