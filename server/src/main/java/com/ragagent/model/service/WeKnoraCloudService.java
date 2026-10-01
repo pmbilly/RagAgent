@@ -21,6 +21,7 @@ import com.ragagent.auth.mapper.TenantMapper;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.model.dto.WeKnoraCloudStatusResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -54,13 +55,13 @@ public class WeKnoraCloudService {
         this.cryptoService = cryptoService;
     }
 
-    /** 对照 SaveCredentials：先校验凭证（真实外呼），再落库到 tenants.credentials */
+    /** 保存凭证：先校验凭证（真实外呼），再加密落库到 tenants.credentials */
     public void saveCredentials(String appId, String appSecret) {
         if (appId == null || appId.isEmpty()) {
-            throw new IllegalArgumentException("app_id is required");
+            throw new IllegalArgumentException("appId is required");
         }
         if (appSecret == null || appSecret.isEmpty()) {
-            throw new IllegalArgumentException("app_secret is required");
+            throw new IllegalArgumentException("appSecret is required");
         }
         try {
             verifyCredentials(appId, appSecret);
@@ -108,36 +109,24 @@ public class WeKnoraCloudService {
     }
 
     /**
-     * 对照 CheckStatus。
-     * @return ObjectNode {"has_models":..,"needs_reinit":..,"reason"(omitempty)}——struct 字段序
+     * 凭证状态：appId + appSecret 均非空才算已配置。
+     * {@code needsReinit} 当前恒 false（宽容解密链路下不可达）；{@code reason} 恒 null（保留字段位）。
      */
-    public JsonNode checkStatus() {
+    public WeKnoraCloudStatusResponse checkStatus() {
         long tenantId = TenantContext.currentTenantId() == null ? 0 : TenantContext.currentTenantId();
-        com.fasterxml.jackson.databind.node.ObjectNode result =
-                new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
         Tenant tenant = tenantService.getTenantById(tenantId);
         if (tenant == null || tenant.getCredentials() == null) {
-            result.put("has_models", false);
-            result.put("needs_reinit", false);
-            return result;
+            return new WeKnoraCloudStatusResponse(false, false, null);
         }
         JsonNode creds = tenant.getCredentials().get("weknoracloud");
-        // 对照 CredentialsConfig.Scan：读库时已宽容解密；此处再按 lenient 语义取明文
+        // 读库时已宽容解密；此处再按 lenient 语义取明文
         String appId = creds != null && creds.get("app_id") != null ? creds.get("app_id").asText() : "";
         String appSecret = "";
         if (creds != null && creds.get("app_secret") != null) {
             var decrypted = cryptoService.decryptStoredSecretLenient(creds.get("app_secret").asText());
             appSecret = decrypted.ok() ? decrypted.plaintext() : "";
         }
-        // 对照 GetWeKnoraCloud()：app_id / app_secret 均非空才算已配置
-        if (appId.isEmpty() || appSecret.isEmpty()) {
-            result.put("has_models", false);
-            result.put("needs_reinit", false);
-            return result;
-        }
-        result.put("has_models", true);
-        result.put("needs_reinit", false);
-        return result;
+        return new WeKnoraCloudStatusResponse(!appId.isEmpty() && !appSecret.isEmpty(), false, null);
     }
 
     /**

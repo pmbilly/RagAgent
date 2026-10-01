@@ -1,9 +1,14 @@
 package com.ragagent.model.controller;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
+import com.ragagent.common.error.AppError;
+import com.ragagent.common.error.BizException;
+import com.ragagent.common.web.NonNullBody;
+import com.ragagent.common.web.RejectEmptyBody;
+import com.ragagent.model.dto.WeKnoraCloudCredentialsRequest;
+import com.ragagent.model.dto.WeKnoraCloudStatusResponse;
 import com.ragagent.model.service.WeKnoraCloudService;
+
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -14,8 +19,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go internal/handler/weknoracloud.go。
- * 注意该 handler 的错误为 gin.H{"error":...} 直写（非 AppError 信封），golden 已锁定。
+ * WeKnoraCloud 端点：凭证保存（先外呼校验再加密落库）+ 凭证状态。
+ *
+ * <p>请求体为 {@code {appId, appSecret}}；保存成功 → 204 无响应体；
+ * 校验/外呼失败 → 400 错误信封（含失败原因）。</p>
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -29,39 +36,23 @@ public class WeKnoraCloudController {
         this.service = service;
     }
 
-    /** 对照 SaveCredentials — Admin+；绑定错误为 validator 原文（gin 格式） */
+    /** 保存凭证（Admin+）：appId/appSecret 必填，先外呼校验再加密落库 → 204。 */
     @PostMapping("/weknoracloud/credentials")
-    public ResponseEntity<?> saveCredentials(@RequestBody(required = false) Map<String, Object> body) {
-        String appId = body != null && body.get("app_id") != null ? String.valueOf(body.get("app_id")) : "";
-        String appSecret = body != null && body.get("app_secret") != null ? String.valueOf(body.get("app_secret")) : "";
-        if (appId.isEmpty()) {
-            return ResponseEntity.badRequest().body(plainError(
-                    "Key: 'weKnoraCloudCredentialsRequest.AppID' Error:Field validation for 'AppID' failed on the 'required' tag"));
-        }
-        if (appSecret.isEmpty()) {
-            return ResponseEntity.badRequest().body(plainError(
-                    "Key: 'weKnoraCloudCredentialsRequest.AppSecret' Error:Field validation for 'AppSecret' failed on the 'required' tag"));
-        }
+    public ResponseEntity<Void> saveCredentials(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    WeKnoraCloudCredentialsRequest req) {
         try {
-            service.saveCredentials(appId, appSecret);
+            service.saveCredentials(req.appId(), req.appSecret());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(plainError(e.getMessage()));
+            throw new BizException(AppError.badRequest(e.getMessage()));
         }
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("message", "凭证保存成功");
-        resp.put("success", true);
-        return ResponseEntity.ok(resp);
+        log.info("WeKnoraCloud credentials saved");
+        return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Status — Viewer+：返回结构体（字段序 has_models, needs_reinit, reason?） */
+    /** 凭证状态（Viewer+）：hasModels = appId + appSecret 均已配置。 */
     @GetMapping("/models/weknoracloud/status")
-    public ResponseEntity<?> status() {
+    public ResponseEntity<WeKnoraCloudStatusResponse> status() {
         return ResponseEntity.ok(service.checkStatus());
-    }
-
-    private static Map<String, Object> plainError(String message) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", message);
-        return body;
     }
 }

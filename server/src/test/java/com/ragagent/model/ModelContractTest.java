@@ -156,6 +156,17 @@ class ModelContractTest {
                 .andExpect(content().bytes(goldenBytes("weknoracloud-status.json")));
     }
 
+    /** 凭证保存的校验路径（外呼校验路径需真实 WeKnoraCloud，不做集成）。 */
+    @Test
+    void weknoracloudCredentialsValidation() throws Exception {
+        mockMvc.perform(post("/api/v1/weknoracloud/credentials")
+                        .header("Authorization", "Bearer " + loginOwner())
+                        .contentType("application/json")
+                        .content("{\"appId\":\"app-x\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().bytes(goldenBytes("weknoracloud-cred-validation.json")));
+    }
+
     @Test
     void createValidationError() throws Exception {
         mockMvc.perform(post("/api/v1/models")
