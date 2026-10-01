@@ -105,7 +105,7 @@ class MemoryRepositoryTest {
         assertThat(jdbc.queryForObject("SELECT pending_sessions FROM memory_subjects", String.class))
                 .isEqualTo("[]");
         assertThat(jdbc.queryForObject("SELECT extraction_state FROM memory_subjects", String.class))
-                .isEqualTo("{\"lease_until\":\"0001-01-01T00:00:00Z\"}");
+                .isEqualTo("{\"leaseId\":\"\",\"leaseUntil\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test

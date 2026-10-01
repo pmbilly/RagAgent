@@ -4,8 +4,6 @@ import java.time.OffsetDateTime;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -53,7 +51,6 @@ import com.ragagent.common.web.GoTimeSerializer;
  * </ol>
  */
 @TableName("memory_extraction_sessions")
-@JsonPropertyOrder({"revision", "cursor"})
 public class MemoryExtractionSession {
 
     /* ── 复合主键的三列：两个是 json:"-"，session_id 也是 json:"-" ─────────── */
@@ -72,7 +69,6 @@ public class MemoryExtractionSession {
     @JsonIgnore
     private String sessionId = "";
 
-    @JsonProperty("revision")
     private long revision;
 
     /** {@code cursor_at} + {@code cursor_id} 两列，JSON 里是嵌套对象（见类注释）。 */
@@ -119,7 +115,6 @@ public class MemoryExtractionSession {
      * 因为 Go 里它就是真字段（embedded struct），JSON 契约要求这个键存在。
      * 反方向（{@code setCursor}）供 Jackson 与测试使用，落库仍走两个平列字段。</p>
      */
-    @JsonProperty("cursor")
     public MemoryMessageCursor getCursor() {
         return new MemoryMessageCursor(cursorAt, cursorId);
     }

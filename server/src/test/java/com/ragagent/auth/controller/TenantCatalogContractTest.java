@@ -354,20 +354,20 @@ class TenantCatalogContractTest {
         long alpha = createAlpha();
         assertGolden(kvGet("memory-config", alpha), 200, "ct-kv-mem-get-default.json");
         assertGolden(kvPut("memory-config", alpha,
-                "{\"enabled\":true,\"write_mode\":\"auto\",\"max_items\":500,"
-                        + "\"extract_delay_seconds\":30,\"extract_min_interval_seconds\":60,"
-                        + "\"extract_instructions\":\"  记笔记  \",\"interest_threshold\":5,"
-                        + "\"embedding_model_id\":\"\",\"vector_recall\":true,"
-                        + "\"retrieval_conditioning\":false}"),
+                "{\"enabled\":true,\"writeMode\":\"auto\",\"maxItems\":500,"
+                        + "\"extractDelaySeconds\":30,\"extractMinIntervalSeconds\":60,"
+                        + "\"extractInstructions\":\"  记笔记  \",\"interestThreshold\":5,"
+                        + "\"embeddingModelId\":\"\",\"vectorRecall\":true,"
+                        + "\"retrievalConditioning\":false}"),
                 200, "ct-kv-mem-put.json");
         assertGolden(kvGet("memory-config", alpha), 200, "ct-kv-mem-get-after.json");
-        assertGolden(kvPut("memory-config", alpha, "{\"write_mode\":\"bogus\"}"),
+        assertGolden(kvPut("memory-config", alpha, "{\"writeMode\":\"bogus\"}"),
                 400, "ct-kv-mem-put-bad-mode.json");
-        assertGolden(kvPut("memory-config", alpha, "{\"max_items\":2001}"),
+        assertGolden(kvPut("memory-config", alpha, "{\"maxItems\":2001}"),
                 400, "ct-kv-mem-put-bad-max.json");
-        assertGolden(kvPut("memory-config", alpha, "{\"interest_threshold\":-1}"),
+        assertGolden(kvPut("memory-config", alpha, "{\"interestThreshold\":-1}"),
                 400, "ct-kv-mem-put-bad-interest.json");
-        assertGolden(kvPut("memory-config", alpha, "{\"extract_delay_seconds\":3601}"),
+        assertGolden(kvPut("memory-config", alpha, "{\"extractDelaySeconds\":3601}"),
                 400, "ct-kv-mem-put-bad-delay.json");
     }
 

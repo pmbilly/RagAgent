@@ -1,1 +1,1 @@
-{"enabled":false,"write_mode":"explicit_only","extract_model_id":"","max_items":200,"extract_delay_seconds":90,"extract_min_interval_seconds":300,"extract_instructions":"","interest_threshold":3,"embedding_model_id":"","vector_recall":null,"retrieval_conditioning":null}
+{"enabled":false,"writeMode":"explicit_only","extractModelId":"","maxItems":200,"extractDelaySeconds":90,"extractMinIntervalSeconds":300,"extractInstructions":"","interestThreshold":3,"embeddingModelId":"","vectorRecall":null,"retrievalConditioning":null}

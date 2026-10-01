@@ -7,8 +7,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -18,13 +16,13 @@ import com.ragagent.common.web.GoTimeSerializer;
  * <p>**刻意**与 {@code memory_items} 分开：记忆管理器、常驻块和容量控制在不停地列条目，
  * 它们没有一个愿意顺带拖着每行几 KB 的 float。只有真正给相似度打分的那段代码才读它。</p>
  *
- * <h2>Go 实录</h2>
+ * <h2>JSON 形态（§14.9k M2 换锚后：键名＝Java 字段名）</h2>
  * <pre>
  *   MemoryItemEmbedding{} →
- *   {"item_id":"","tenant_id":0,"subject_id":"","model_id":"","dims":0,
- *    "created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}
+ *   {"itemId":"","tenantId":0,"subjectId":"","modelId":"","dims":0,
+ *    "createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"}
  * </pre>
- * <p>{@code source_content} / {@code source_topic} / {@code vector} 一个键都不出。</p>
+ * <p>{@code sourceContent} / {@code sourceTopic} / {@code vector} 一个键都不出。</p>
  *
  * <h2>⚠️ 三个 {@code json:"-"} 的含义**不一样**，逐个看 Go 的 gorm tag</h2>
  * <ul>
@@ -56,9 +54,6 @@ import com.ragagent.common.web.GoTimeSerializer;
  * 在 H2 上就没有对应的列，实体一 insert 就炸。</p>
  */
 @TableName("memory_item_embeddings")
-@JsonPropertyOrder({
-        "item_id", "tenant_id", "subject_id", "model_id", "dims", "created_at", "updated_at"
-})
 public class MemoryItemEmbedding {
 
     /** 输入快照，对照 Go {@code SourceContent json:"-" gorm:"-"}——**不落库**。 */
@@ -72,23 +67,18 @@ public class MemoryItemEmbedding {
     private String sourceTopic = "";
 
     @TableId(value = "item_id", type = IdType.INPUT)
-    @JsonProperty("item_id")
     private String itemId = "";
 
-    @JsonProperty("tenant_id")
     private Long tenantId = 0L;
 
-    @JsonProperty("subject_id")
     private String subjectId = "";
 
     /**
      * 这个向量是哪个模型产生的。不同模型的向量不可比，所以换模型必须让它们失效，
      * 而不是悄悄拿它们算出没意义的分数。
      */
-    @JsonProperty("model_id")
     private String modelId = "";
 
-    @JsonProperty("dims")
     private int dims;
 
     /**
@@ -99,10 +89,8 @@ public class MemoryItemEmbedding {
     @JsonIgnore
     private byte[] vector;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getSourceContent() { return sourceContent; }

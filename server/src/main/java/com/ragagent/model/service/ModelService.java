@@ -340,10 +340,10 @@ public class ModelService implements ModelGateway  {
         if (tenant != null && tenant.getMemoryConfig() != null) {
             JsonNode memoryConfig = tenant.getMemoryConfig();
             // 两个记忆模型钉都要查：删任一会让空间指向不存在的模型（对照 Go 注释）
-            if (modelId.equals(text(memoryConfig.get("embedding_model_id")))) {
+            if (modelId.equals(text(memoryConfig.get("embeddingModelId")))) {
                 memoryBindings.add("embedding_model");
             }
-            if (modelId.equals(text(memoryConfig.get("extract_model_id")))) {
+            if (modelId.equals(text(memoryConfig.get("extractModelId")))) {
                 memoryBindings.add("extract_model");
             }
         }

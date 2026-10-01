@@ -3,9 +3,6 @@ package com.ragagent.memory.domain;
 import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -13,40 +10,37 @@ import com.ragagent.common.web.GoTimeSerializer;
  * （对照 Go {@code types.MemoryExtractionState}，internal/types/memory_extraction.go L46-70）。
  * 游标与排队的工作都在 {@link MemoryExtractionSession} 里。
  *
- * <h2>⚠️ 两个 omitempty 的效果不同（Go 实测，见 GoTruth 语料）</h2>
+ * <h2>JSON 形态（§14.9k M2 换锚后：键名＝Java 字段名，两个键都恒输出）</h2>
  * <pre>
- *   MemoryExtractionState{}                          → {"lease_until":"0001-01-01T00:00:00Z"}
- *   MemoryExtractionState{LeaseID:"L", LeaseUntil:t} → {"lease_id":"L","lease_until":"…"}
+ *   MemoryExtractionState{}                          → {"leaseId":"","leaseUntil":"0001-01-01T00:00:00Z"}
+ *   MemoryExtractionState{LeaseID:"L", LeaseUntil:t} → {"leaseId":"L","leaseUntil":"…"}
  * </pre>
- * <ul>
- *   <li>{@code lease_id} 是 string + omitempty → 空串**省略整个键**；</li>
- *   <li>{@code lease_until} 是 {@code time.Time} + omitempty → <b>永远在</b>。
- *       Go 的 {@code encoding/json} 判 omitempty 时 struct 值不算"空"，
- *       所以零值时间照样输出 year-1 字面量。<b>别看到 omitempty 就加 NON_NULL</b>。</li>
- * </ul>
+ * <p>Go 的 {@code lease_id,omitempty} 随契约 §1.6「禁止条件键」退役——空串照样写出 {@code ""}；
+ * {@code leaseUntil} 本来就是恒输出（Go 判 omitempty 时 {@code time.Time} 值不算"空"，
+ * 零值时间照样写字面量）。</p>
  *
- * <h2>⚠️ 时间字段必须挂成对的序列化器</h2>
- * <p>本类型走的是 **jsonb 读路径**——处理器用的是裸 {@code JsonMappers.lenient()}，
- * 没有 {@code JavaTimeModule}（§9「jsonb 读路径的 mapper 没有 JavaTimeModule」）。
- * 只挂 {@code @JsonSerialize} 会让**写**对、**读**炸（{@code InvalidDefinitionException}）。
- * 挂上成对的两件套后两个方向自足，不依赖任何全局 mapper 配置——这就是
- * {@code AgentStep.timestamp} 那个模子。</p>
+ * <h2>⚠️ 存量行要跑迁移：这里的读路径是宽松的</h2>
+ * <p>改名前写进这一列的是 {@code {"lease_id":…,"lease_until":…}}。读的人
+ * （{@link MemoryExtractionStateTypeHandler}）忽略未知字段，所以旧键会被**静默丢弃**、
+ * 拿到一个零值租约——不报错，但"别人正持有租约"会变成"没人持有"。改名前写下的行
+ * 必须跑迁移 SQL（HANDOFF §14.9k M2）。</p>
  *
- * <p>另外字段默认值必须是 {@link GoTimeSerializer#GO_ZERO_DATE_TIME}：
+ * <h2>时间字段为什么不需要自定义序列化器</h2>
+ * <p>本类型走 jsonb 读写路径，解析器是 {@code JsonMappers.lenient()}——它**带**
+ * {@code JavaTimeModule}（注意：不是裸 mapper），{@link java.time.OffsetDateTime} 按
+ * ISO-8601 输出，零值正好是 Go 的 {@code "0001-01-01T00:00:00Z"} 字面量。</p>
+ *
+ * <p>字段默认值必须是 {@link GoTimeSerializer#GO_ZERO_DATE_TIME}：
  * {@code null} 不会走自定义序列化器（Jackson 对 null 值用 nullSerializer），
  * 想让落库字节是 year-1 就必须让字段本身就持有零值时间。</p>
  */
-@JsonPropertyOrder({"lease_id", "lease_until"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MemoryExtractionState {
 
     /** 空串时**省略键**（Go 的 {@code omitempty}）。 */
-    @JsonProperty("lease_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String leaseId = "";
 
     /** 零值是 Go 的 year-1 字面量，且**恒输出**（见类注释）。 */
-    @JsonProperty("lease_until")
     private OffsetDateTime leaseUntil = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public MemoryExtractionState() {

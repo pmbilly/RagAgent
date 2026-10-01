@@ -17,17 +17,19 @@ import org.apache.ibatis.type.JdbcType;
  *
  * <h2>⚠️ 零值也**不是** SQL NULL</h2>
  * <p>Go 的 {@code Value()} 是 {@code json.Marshal(s)}，永远返回一段 JSON——零值写出的是</p>
- * <pre>{"lease_until":"0001-01-01T00:00:00Z"}</pre>
+ * <pre>{"leaseId":"","leaseUntil":"0001-01-01T00:00:00Z"}</pre>
  * <p>而不是 NULL。所以这一列在 Go 里**从不**为 NULL，Java 侧也必须保持同一形态：
  * 字段默认值就是 {@code new MemoryExtractionState()}，且用
  * {@code insertStrategy/updateStrategy = ALWAYS} 保证连"看起来空"的值也落库。</p>
  *
- * <h2>为什么读路径用裸 ObjectMapper 也安全</h2>
- * <p>jsonb 读路径没有 {@code JavaTimeModule}（约定 §9）。本类型的
- * {@code leaseUntil} 挂了**成对**的 {@code @JsonSerialize}/{@code @JsonDeserialize}，
- * 两个方向自足，所以这里可以放心用裸 mapper —— 但必须
- * {@code FAIL_ON_UNKNOWN_PROPERTIES=false}（Go 的 {@code json.Unmarshal} 默认忽略未知字段，
- * 否则将来加字段会让历史行读不出来）。</p>
+ * <h2>读路径的 mapper</h2>
+ * <p>用的是 {@code JsonMappers.lenient()}：带 {@code JavaTimeModule}（时间按 ISO-8601），
+ * 且 {@code FAIL_ON_UNKNOWN_PROPERTIES=false}——后者是 Go {@code json.Unmarshal} 的默认行为，
+ * 否则给 {@link MemoryExtractionState} 加字段会让历史行读不出来。这里再显式 configure 一次，
+ * 是把这个前提钉在调用点上。</p>
+ *
+ * <p>⚠️ 宽松也有代价：改名前写下的 {@code {"lease_id":…}} 会被静默忽略成零值租约，
+ * 所以改键名必须配存量迁移（HANDOFF §14.9k M2）。</p>
  */
 public class MemoryExtractionStateTypeHandler extends BaseTypeHandler<MemoryExtractionState> {
 

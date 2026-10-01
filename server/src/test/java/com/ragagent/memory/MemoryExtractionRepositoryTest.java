@@ -298,7 +298,7 @@ class MemoryExtractionRepositoryTest {
                 repo.claimPendingSessions(scope, "sess-1", "lease-A", Duration.ofSeconds(1))
                         .getSessions().get(0);
         jdbc.update("UPDATE memory_subjects SET extraction_state = "
-                + "'{\"lease_id\":\"lease-A\",\"lease_until\":\"2000-01-01T00:00:00Z\"}'");
+                + "'{\"leaseId\":\"lease-A\",\"leaseUntil\":\"2000-01-01T00:00:00Z\"}'");
 
         assertThatThrownBy(() -> repo.checkpointExtraction(scope, "lease-A", session,
                 cursor("m"), false))
@@ -373,7 +373,7 @@ class MemoryExtractionRepositoryTest {
         repo.finishExtraction(scope, "lease-A");
 
         assertThat(jdbc.queryForObject("SELECT extraction_state FROM memory_subjects", String.class))
-                .isEqualTo("{\"lease_until\":\"0001-01-01T00:00:00Z\"}");
+                .isEqualTo("{\"leaseId\":\"\",\"leaseUntil\":\"0001-01-01T00:00:00Z\"}");
         assertThat(jdbc.queryForObject("SELECT extract_scheduled_at FROM memory_subjects",
                 OffsetDateTime.class)).isNull();
         assertThat(repo.getSubject(scope).getLastExtractedAt()).isNotNull();
@@ -399,11 +399,11 @@ class MemoryExtractionRepositoryTest {
 
         assertThat(jdbc.queryForObject("SELECT extraction_state FROM memory_subjects", String.class))
                 .as("别人的租约不能被释放")
-                .isNotEqualTo("{\"lease_until\":\"0001-01-01T00:00:00Z\"}");
+                .isNotEqualTo("{\"leaseId\":\"\",\"leaseUntil\":\"0001-01-01T00:00:00Z\"}");
 
         repo.releaseExtractionSlot(scope, "lease-A");
         assertThat(jdbc.queryForObject("SELECT extraction_state FROM memory_subjects", String.class))
-                .isEqualTo("{\"lease_until\":\"0001-01-01T00:00:00Z\"}");
+                .isEqualTo("{\"leaseId\":\"\",\"leaseUntil\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test

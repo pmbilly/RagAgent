@@ -3,8 +3,6 @@ package com.ragagent.memory.domain;
 import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -16,14 +14,11 @@ import com.ragagent.common.web.GoTimeSerializer;
  * 也作为 {@code failed_from_} / {@code failed_to_} 的 {@code embeddedPrefix} 展开成平列
  * （见 {@link MemoryExtractionSession} 的说明）。</p>
  */
-@JsonPropertyOrder({"at", "id"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MemoryMessageCursor {
 
-    @JsonProperty("at")
     private OffsetDateTime at = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("id")
     private String id = "";
 
     public MemoryMessageCursor() {

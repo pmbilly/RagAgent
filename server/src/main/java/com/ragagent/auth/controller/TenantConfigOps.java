@@ -383,35 +383,35 @@ final class TenantConfigOps {
         if (!writeMode.isEmpty()
                 && !MemoryConfig.WRITE_MODE_EXPLICIT_ONLY.equals(writeMode)
                 && !MemoryConfig.WRITE_MODE_AUTO.equals(writeMode)) {
-            throw new BizException(AppError.badRequest("write_mode must be explicit_only or auto"));
+            throw new BizException(AppError.badRequest("writeMode must be explicit_only or auto"));
         }
         if (cfg.getMaxItems() < 0 || cfg.getMaxItems() > MemoryConfig.MAX_ITEMS_CAP) {
-            throw new BizException(AppError.badRequest("max_items must be between 0 and 2000"));
+            throw new BizException(AppError.badRequest("maxItems must be between 0 and 2000"));
         }
         if (cfg.getExtractDelaySeconds() < 0
                 || cfg.getExtractDelaySeconds() > MemoryConfig.MAX_EXTRACT_DELAY_SECONDS) {
             throw new BizException(AppError.badRequest(
-                    "extract_delay_seconds must be between 0 and " + MemoryConfig.MAX_EXTRACT_DELAY_SECONDS));
+                    "extractDelaySeconds must be between 0 and " + MemoryConfig.MAX_EXTRACT_DELAY_SECONDS));
         }
         if (cfg.getExtractMinIntervalSeconds() < 0
                 || cfg.getExtractMinIntervalSeconds() > MemoryConfig.MAX_EXTRACT_MIN_INTERVAL_SECONDS) {
             throw new BizException(AppError.badRequest(
-                    "extract_min_interval_seconds must be between 0 and "
+                    "extractMinIntervalSeconds must be between 0 and "
                             + MemoryConfig.MAX_EXTRACT_MIN_INTERVAL_SECONDS));
         }
         if (cfg.getEmbeddingModelId().length() > 64) {
-            throw new BizException(AppError.badRequest("embedding_model_id is too long"));
+            throw new BizException(AppError.badRequest("embeddingModelId is too long"));
         }
         if (cfg.getInterestThreshold() < 0
                 || cfg.getInterestThreshold() > MemoryConfig.MAX_MEMORY_INTEREST_THRESHOLD) {
-            // Go 原文就是 "between 1 and ..."（下界写死 1，尽管校验允许 0）——照抄
+            // 下界文案写死 1（尽管校验允许 0）——Go 原文如此，换锚只改字段名
             throw new BizException(AppError.badRequest(
-                    "interest_threshold must be between 1 and " + MemoryConfig.MAX_MEMORY_INTEREST_THRESHOLD));
+                    "interestThreshold must be between 1 and " + MemoryConfig.MAX_MEMORY_INTEREST_THRESHOLD));
         }
         if (cfg.getExtractInstructions().codePointCount(0, cfg.getExtractInstructions().length())
                 > MemoryConfig.MAX_EXTRACT_INSTRUCTIONS_RUNES) {
             throw new BizException(AppError.badRequest(
-                    "extract_instructions must be at most " + MemoryConfig.MAX_EXTRACT_INSTRUCTIONS_RUNES
+                    "extractInstructions must be at most " + MemoryConfig.MAX_EXTRACT_INSTRUCTIONS_RUNES
                             + " characters"));
         }
         cfg.normalize();

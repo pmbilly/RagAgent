@@ -42,14 +42,16 @@ import org.junit.jupiter.api.Test;
  *       旧 Go 的 {@code omitempty} 随 §1.6「禁止条件键」退役，两种处置不再并存。</li>
  *   <li>{@code inference}（Go {@code Inferred}）是 {@code json:"-" gorm:"-"}：
  *       **既不出响应也不落库**——Java 侧 {@code @JsonIgnore} + {@code @TableField(exist=false)} 缺一不可。</li>
- *   <li>{@code MemorySubject.pending_sessions} 与 {@code MemoryTopicStat.aliases}
+ *   <li>{@code MemorySubject.pendingSessions} 与 {@code MemoryTopicStat.aliases}
  *       的**响应是 {@code null}、落库是 {@code []}**——Go 的 {@code Value()} 与
  *       {@code json.Marshal} 是两条路，别混。（落库侧由 {@code MemoryRepositoryTest} 用真库钉。）</li>
- *   <li>{@code MemoryExtractionState} 的 {@code lease_until} 虽然带 {@code omitempty}
- *       但在 Go 里**永远输出**（struct 值不算"空"），零值是 year-1 字面量。</li>
+ *   <li>{@code MemoryExtractionState} 的 {@code leaseUntil} **永远输出**（Go 判 omitempty 时
+ *       struct 值不算"空"），零值是 year-1 字面量；{@code leaseId} 换锚后也恒输出。</li>
  *   <li>{@code MemoryExtractionSession} 的游标在 JSON 里是**嵌套对象** {@code cursor}，
  *       在库里是**两个平列** {@code cursor_at}/{@code cursor_id}。这里只钉 JSON 那一半。</li>
  * </ol>
+ *
+ * <p>§14.9k M2 换锚后，本文件里**所有**类型的 JSON 键名都＝Java 字段名（camelCase）。</p>
  */
 class MemoryEntityJsonTest {
 
@@ -74,12 +76,12 @@ class MemoryEntityJsonTest {
     @Test
     void memorySubjectZeroMatchesGo() throws Exception {
         assertThat(write(new MemorySubject())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"enabled\":false,"
-                        + "\"block_text\":\"\",\"block_updated_at\":null,\"item_count\":0,"
-                        + "\"last_extracted_at\":null,\"extract_cursor\":null,\"pending_sessions\":null,"
-                        + "\"extract_scheduled_at\":null,\"consolidated_at\":null,"
-                        + "\"forced_consolidated_at\":null,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\",\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"id\":\"\",\"tenantId\":0,\"subjectId\":\"\",\"enabled\":false,"
+                        + "\"blockText\":\"\",\"blockUpdatedAt\":null,\"itemCount\":0,"
+                        + "\"lastExtractedAt\":null,\"extractCursor\":null,\"pendingSessions\":null,"
+                        + "\"extractScheduledAt\":null,\"consolidatedAt\":null,"
+                        + "\"forcedConsolidatedAt\":null,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\",\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -97,21 +99,21 @@ class MemoryEntityJsonTest {
         s.setUpdatedAt(ten());
 
         assertThat(write(s)).isEqualTo(
-                "{\"id\":\"s1\",\"tenant_id\":7,\"subject_id\":\"web_user:u1\",\"enabled\":true,"
-                        + "\"block_text\":\"b\",\"block_updated_at\":null,\"item_count\":2,"
-                        + "\"last_extracted_at\":null,\"extract_cursor\":null,\"pending_sessions\":[\"a\"],"
-                        + "\"extract_scheduled_at\":null,\"consolidated_at\":null,"
-                        + "\"forced_consolidated_at\":null,"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\"}");
+                "{\"id\":\"s1\",\"tenantId\":7,\"subjectId\":\"web_user:u1\",\"enabled\":true,"
+                        + "\"blockText\":\"b\",\"blockUpdatedAt\":null,\"itemCount\":2,"
+                        + "\"lastExtractedAt\":null,\"extractCursor\":null,\"pendingSessions\":[\"a\"],"
+                        + "\"extractScheduledAt\":null,\"consolidatedAt\":null,"
+                        + "\"forcedConsolidatedAt\":null,"
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
-    /** {@code extraction_state} 的 {@code json:"-"}：**一个键都不出**（不是 null、不是 {}）。 */
+    /** {@code extractionState} 的 {@code json:"-"}：**一个键都不出**（不是 null、不是 {}）。 */
     @Test
     void memorySubjectNeverExposesExtractionState() throws Exception {
         MemorySubject s = new MemorySubject();
         s.setExtractionState(new MemoryExtractionState());
-        assertThat(write(s)).doesNotContain("extraction_state").doesNotContain("lease_id");
+        assertThat(write(s)).doesNotContain("extractionState").doesNotContain("leaseId");
     }
 
     @Test
@@ -194,26 +196,26 @@ class MemoryEntityJsonTest {
     @Test
     void memoryDocAffinityZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryDocAffinity())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"knowledge_id\":\"\","
-                        + "\"knowledge_base_id\":\"\",\"title\":\"\",\"hits\":0,"
-                        + "\"last_used_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"id\":\"\",\"tenantId\":0,\"subjectId\":\"\",\"knowledgeId\":\"\","
+                        + "\"knowledgeBaseId\":\"\",\"title\":\"\",\"hits\":0,"
+                        + "\"lastUsedAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
     void memoryTombstoneZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryTombstone())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"topic\":\"\",\"fingerprint\":\"\","
-                        + "\"source_message_id\":\"\",\"created_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"id\":\"\",\"tenantId\":0,\"subjectId\":\"\",\"topic\":\"\",\"fingerprint\":\"\","
+                        + "\"sourceMessageId\":\"\",\"createdAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
     void memoryItemEmbeddingZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryItemEmbedding())).isEqualTo(
-                "{\"item_id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"model_id\":\"\",\"dims\":0,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"itemId\":\"\",\"tenantId\":0,\"subjectId\":\"\",\"modelId\":\"\",\"dims\":0,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     /** 三个 {@code json:"-"} 的含义不同：{@code vector} 仍落库、两个 source 连库都不落。 */
@@ -225,7 +227,7 @@ class MemoryEntityJsonTest {
         e.setVector(new byte[]{1, 2, 3});
 
         String json = write(e);
-        assertThat(json).doesNotContain("source_content").doesNotContain("source_topic")
+        assertThat(json).doesNotContain("sourceContent").doesNotContain("sourceTopic")
                 .doesNotContain("vector");
         // 但 Java 侧的取值口仍在——落库与业务判断都要用
         assertThat(e.getSourceContent()).isEqualTo("c");
@@ -257,15 +259,16 @@ class MemoryEntityJsonTest {
     }
 
     /**
-     * {@code MemoryExtractionState} 的零值——**{@code lease_id} 省略、{@code lease_until} 留下**。
+     * {@code MemoryExtractionState} 的零值——**两个键都在**：{@code leaseId} 是空串、
+     * {@code leaseUntil} 是 year-1 字面量（旧 Go 的 {@code omitempty} 已随 M2 退役）。
      *
      * <p>这正是落库 jsonb 的字节（Go 的 {@code Value()} 就是 {@code json.Marshal(s)}），
      * 所以断言同时钉住了"库里那一列长什么样"。</p>
      */
     @Test
-    void memoryExtractionStateZeroWritesOnlyLeaseUntil() throws Exception {
+    void memoryExtractionStateZeroWritesBothKeys() throws Exception {
         assertThat(com.ragagent.support.ContractJson.deep(JSONB.writeValueAsString(new MemoryExtractionState())))
-                .isEqualTo("{\"lease_until\":\"0001-01-01T00:00:00Z\"}");
+                .isEqualTo("{\"leaseId\":\"\",\"leaseUntil\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -275,10 +278,10 @@ class MemoryEntityJsonTest {
         s.setLeaseUntil(ten());
 
         assertThat(com.ragagent.support.ContractJson.deep(JSONB.writeValueAsString(s)))
-                .isEqualTo("{\"lease_id\":\"L\",\"lease_until\":\"2026-09-18T02:00:00Z\"}");
+                .isEqualTo("{\"leaseId\":\"L\",\"leaseUntil\":\"2026-09-18T02:00:00Z\"}");
         // 读回来（走的是同一个裸映射器，没有 JavaTimeModule）必须自足
         MemoryExtractionState back = JSONB.readValue(
-                "{\"lease_id\":\"L\",\"lease_until\":\"2026-09-18T02:00:00Z\"}",
+                "{\"leaseId\":\"L\",\"leaseUntil\":\"2026-09-18T02:00:00Z\"}",
                 MemoryExtractionState.class);
         assertThat(back.getLeaseId()).isEqualTo("L");
         assertThat(back.getLeaseUntil().toInstant()).isEqualTo(ten().toInstant());
@@ -288,11 +291,11 @@ class MemoryEntityJsonTest {
     @Test
     void memoryExtractionStateToleratesUnknownKeysOnRead() throws Exception {
         MemoryExtractionState back = JSONB.readValue(
-                "{\"lease_id\":\"L\",\"future_field\":1}", MemoryExtractionState.class);
+                "{\"leaseId\":\"L\",\"unknownKey\":1}", MemoryExtractionState.class);
         assertThat(back.getLeaseId()).isEqualTo("L");
     }
 
-    /** 空列/缺失的 {@code lease_until} 读回**零值时间**而不是 null（往返才幂等）。 */
+    /** 空列/缺失的 {@code leaseUntil} 读回**零值时间**而不是 null（往返才幂等）。 */
     @Test
     void memoryExtractionStateReadsMissingLeaseUntilAsGoZero() throws Exception {
         MemoryExtractionState back = JSONB.readValue("{}", MemoryExtractionState.class);
@@ -312,14 +315,14 @@ class MemoryEntityJsonTest {
      *       大小写感知，否则驼峰键会被静默过滤掉（§9 明确记过这个教训）。</li>
      * </ul>
      *
-     * <p>换锚范围（M1）内的类型用驼峰键名；未换锚的落库实体（M2 范围）仍是 snake 键。</p>
+     * <p>§14.9k M2 换锚后全部类型都用驼峰键名（＝Java 字段名），与声明序一致。</p>
      */
     @Test
     void entityKeyOrderAndCountMatchGoDeclarationOrder() throws Exception {
-        assertKeyOrder(new MemorySubject(), "id", "tenant_id", "subject_id", "enabled", "block_text",
-                "block_updated_at", "item_count", "last_extracted_at", "extract_cursor",
-                "pending_sessions", "extract_scheduled_at", "consolidated_at", "forced_consolidated_at",
-                "created_at", "updated_at");
+        assertKeyOrder(new MemorySubject(), "id", "tenantId", "subjectId", "enabled", "blockText",
+                "blockUpdatedAt", "itemCount", "lastExtractedAt", "extractCursor",
+                "pendingSessions", "extractScheduledAt", "consolidatedAt", "forcedConsolidatedAt",
+                "createdAt", "updatedAt");
 
         assertKeyOrder(new MemoryItem(), "id", "tenantId", "subjectId", "kind", "content", "topic",
                 "normalizedKey", "importance", "origin", "status", "sourceSessionId",
@@ -329,14 +332,14 @@ class MemoryEntityJsonTest {
         assertKeyOrder(new MemoryTopicStat(), "id", "tenantId", "subjectId", "normalizedKey",
                 "topic", "aliases", "hits", "lastSeenAt", "promotedAt", "createdAt", "updatedAt");
 
-        assertKeyOrder(new MemoryDocAffinity(), "id", "tenant_id", "subject_id", "knowledge_id",
-                "knowledge_base_id", "title", "hits", "last_used_at", "created_at", "updated_at");
+        assertKeyOrder(new MemoryDocAffinity(), "id", "tenantId", "subjectId", "knowledgeId",
+                "knowledgeBaseId", "title", "hits", "lastUsedAt", "createdAt", "updatedAt");
 
-        assertKeyOrder(new MemoryTombstone(), "id", "tenant_id", "subject_id", "topic", "fingerprint",
-                "source_message_id", "created_at");
+        assertKeyOrder(new MemoryTombstone(), "id", "tenantId", "subjectId", "topic", "fingerprint",
+                "sourceMessageId", "createdAt");
 
-        assertKeyOrder(new MemoryItemEmbedding(), "item_id", "tenant_id", "subject_id", "model_id",
-                "dims", "created_at", "updated_at");
+        assertKeyOrder(new MemoryItemEmbedding(), "itemId", "tenantId", "subjectId", "modelId",
+                "dims", "createdAt", "updatedAt");
 
         // ⚠️ MemoryExtractionSession **不在这里**：它的 cursor 是嵌套对象，
         // 而下面那个键名正则会把嵌套的 at/id 一并抓出来（这是刻意写的驼峰感知正则的反面）。

@@ -5,8 +5,6 @@ import java.time.OffsetDateTime;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -31,32 +29,24 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       GORM 实测仍显式写入。</li>
  * </ol>
  *
- * <p>本类型**不是**响应体（仓储层的 {@code ListTombstones} 目前只被抽取路径用），
- * 但键按 Go struct 声明序：{@code source_message_id} 是 {@code ""}（无 omitempty）。</p>
+ * <p>本类型**不是**响应体（仓储层的 {@code ListTombstones} 目前只被抽取路径用，且只取
+ * {@code getTopic()} 拼进提示词）。JSON 面只在测试里，§14.9k M2 换锚后键名＝Java 字段名、
+ * 键序＝声明序：{@code sourceMessageId} 是 {@code ""}（恒输出）。</p>
  */
 @TableName("memory_tombstones")
-@JsonPropertyOrder({
-        "id", "tenant_id", "subject_id", "topic", "fingerprint", "source_message_id",
-        "created_at"
-})
 public class MemoryTombstone {
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("tenant_id")
     private Long tenantId = 0L;
 
-    @JsonProperty("subject_id")
     private String subjectId = "";
 
     /** 存的是**短主题名**而不是内容——告诉抽取模型哪些主题被否决，才是挡住改写版回来的关键。 */
-    @JsonProperty("topic")
     private String topic = "";
 
     /** 被忘掉那条陈述的 {@link MemoryText#fingerprint}。 */
-    @JsonProperty("fingerprint")
     private String fingerprint = "";
 
     /**
@@ -67,10 +57,8 @@ public class MemoryTombstone {
      * 记住消息这件事不带内容、又能精确堵住这条路；而用户之后说的任何话都来自更晚的消息，
      * 仍然放行。</p>
      */
-    @JsonProperty("source_message_id")
     private String sourceMessageId = "";
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

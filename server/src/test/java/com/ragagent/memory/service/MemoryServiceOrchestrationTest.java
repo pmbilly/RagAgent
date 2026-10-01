@@ -43,9 +43,9 @@ class MemoryServiceOrchestrationTest {
     private static final long TENANT = 10009L;
 
     /** 记忆开着、自动抽取、容量 3、兴趣阈值 2、无向量模型。 */
-    private static final String CONFIG = "{\"enabled\":true,\"write_mode\":\"auto\",\"max_items\":3,"
-            + "\"extract_delay_seconds\":5,\"extract_min_interval_seconds\":10,"
-            + "\"interest_threshold\":2,\"embedding_model_id\":\"\",\"vector_recall\":false}";
+    private static final String CONFIG = "{\"enabled\":true,\"writeMode\":\"auto\",\"maxItems\":3,"
+            + "\"extractDelaySeconds\":5,\"extractMinIntervalSeconds\":10,"
+            + "\"interestThreshold\":2,\"embeddingModelId\":\"\",\"vectorRecall\":false}";
 
     @Autowired
     private JdbcTemplate jdbc;
