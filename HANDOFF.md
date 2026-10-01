@@ -19,11 +19,12 @@
    **datasource 连接器批已收官（2026-10-01，f1~f3 + n1，§14.7.16）——`FeishuClient` 1,155→709、`NotionConnector` 1,093→625，datasource 域 ≥800 清零**；
    **memory 域四刀落定（2026-10-01，m1~m4，§14.7.17）——`MemoryExtractionService` 1,217→718、`MemoryRepository` 1,515→458、`MemoryService` 1,663→965（余 m5 评估）**；
    **memory 域契约换锚 M1 完成（2026-10-01，§14.9k）——20 端点去信封 + 6 响应实体 camelCase + 创建 201/删除 204 + 分页形态对齐；前端 8 文件同批（含 A2 漏改的 KV 解包）；真实服务冒烟 21 路通过**；
+   **memory 域契约换锚 M2 完成（2026-10-01，§14.9k）——7 个落库/内部实体 + `MemoryConfig` 去注解 60 处（memory 域 @JsonProperty 137→22，余者为 LLM 载荷并登记保留）；`tenants.memory_config` 与 `memory_subjects.extraction_state` 两处 jsonb 已跑存量迁移 SQL；前端 2 文件同批；真实服务冒烟 11 路通过**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
    **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
-4. **下一步（候选，由用户排）**：① **memory M2（落库实体 49 处 + `MemoryExtractionSession` 3 处 + `MemoryConfig` 12 处）**——
-   §14.9k 已给分层与手法（改键名 + dev 存量 SQL 迁移，同 model 的落库面）；**建议先做"测试 fixture 化"小批**（把 `MemoryEntityJsonTest` /
-   `MemoryContractTest` 的逐字节字面量搬进 fixture，M2 才可脚本改写）；② 其余重域端点面：**auth（余 B 后无）/ session 188 / datasource 127 / mcp 110 / system 尾**；
+4. **下一步（候选，由用户排）**：① **memory M3（收尾）**——LLM 载荷边界登记（22 处，写进文档即可）+
+   请求侧手写绑定器清除（`MemoryController` 的 `rawBody + parse()` → DTO + `@Valid`，含 1010/EOF 文案）；
+   ② 其余重域端点面：**session 188（下一条建议刀）/ datasource 127 / mcp 110 / system 尾**；
    ③ `memory` 域 m5——`MemoryService` 965 的「召回」段（243 行，接缝自然，§14.7.17 已给边界）；
    ④ 错误形态统一（`{error:{…},"success":false}` 去 `success`）可与任一批同做或单独立批。单类尾巴：`SourceRegistry` 878 / `UserService` 876。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
@@ -165,6 +166,7 @@
 | 阶段 3（auth 域 A2，2026-10-01） | 租户/成员/邀请/配置面（§14.9i） | **完成**：成员/邀请列表去信封、租户 CRUD 裸 DTO + 删除 204、KV 配置裸对象、动作 204、三个手搓封装辅助删除；前端 20 文件同批；183 用例绿 |
 | 阶段 3（auth 域 B，2026-10-01） | API 密钥面（§14.9j） | **收官**：4 文件去注解 + 四端点去信封/204 + 请求体 camelCase；波及平台密钥与 4 个外域测试；前端 5 文件同批；**auth 域 @JsonProperty 仅余边界** |
 | 阶段 3（memory 域 M1，2026-10-01） | HTTP 响应面 16 路由（§14.9k） | **完成**（前三次尝试回滚后第四次成功）：6 响应实体去注解 + 去信封/camelCase + 创建 201 / 删除类 204 + 分页 `{items,page,pageSize,total}`；fixture JSON 解析改写 + Java 断言逐处手改；前端 8 文件同批（含修 A2 漏改的 KV 解包）；全域 339 用例绿 / 全量 4670 绿；**真实服务冒烟 21 路通过** |
+| 阶段 3（memory 域 M2，2026-10-01） | 落库/内部 JSON 面（§14.9k） | **完成**：7 个落库实体 + `MemoryConfig` 去注解 60 处 → **memory 域 @JsonProperty 137→22**（余者 LLM 载荷，登记保留）；**真落库的两处 jsonb**（`memory_subjects.extraction_state`、`tenants.memory_config`）跑存量迁移 SQL；顺手修 `ModelService` 按旧键读 memory config 的运行时依赖 + KV 校验文案改 camelCase；前端 2 文件同批；全量 4670 绿；**真实服务冒烟 11 路通过（含迁移后存量行读回）** |
 
 ### 7.2 当前存量（实测）
 
@@ -178,7 +180,9 @@
 - chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
 - datasource 域（2026-10-01 全批后）：**115 文件 / 26,723 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709**、`NotionConnector` 1,093→**625** —— **域内 ≥800 清零**（原三个：1,828 / 1,155 / 1,093）。
 - memory 域（2026-10-01 m1~m4 + M1 换锚后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→**965**；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 965（待 m5 评估）与 `MemoryIndexStore` 929（**登记例外**：同属索引侧一个关注点，§14.7.17）。
-  **`@JsonProperty` 137→74**（HTTP 面 63 处清零）：余 49 处落库实体（M2：`MemorySubject` 16 / `MemoryDocAffinity` 11 / `MemoryTombstone` 8 / `MemoryItemEmbedding` 8 / `MemoryMessageCursor` 3 / `MemoryExtractionState` 3）、3 处 `MemoryExtractionSession`（M2 定夺）、22 处 LLM 载荷（**保留**：模型输出 schema，§14.9k 三分法）；另有 `common.settings.MemoryConfig` 12 处（tenants.memory_config jsonb，M2）。
+  **`@JsonProperty` 137→22**（HTTP 面 63 处 + 落库/内部面 52 处清零）：余 22 处**全是 LLM 载荷**
+  （`MemoryExtractionLlm` 11 + `MemoryExtractPayload` 11，**保留**：模型输出 schema，§14.9k 三分法）；
+  `common.settings.MemoryConfig` 12 处已清零（tenants.memory_config jsonb 换锚，M2）。
 - evaluation 域（2026-10-01 打样后）：**`@JsonProperty` 66→0、`@JsonInclude` 12→0**；POST/GET 两端点契约已换锚（§14.9b）；`dto` 包 2 文件（`EvaluationDtos` 容器待拆分，另立批次）。
 - model 域（2026-10-01 收官）：**`@JsonProperty` 87→0**、`@JsonInclude`/`Go*` 序列化引用清零；主资源（M1）+ debug（M2）+ weknoracloud（M3）+ 落库 jsonb 四块全部换锚（§14.9c/§14.9e）；前端 15 文件同批改；dev 库旧 jsonb 行已用迁移 SQL 改写。
 - system 域（2026-10-01 收官）：**`@JsonProperty` 99→0**（S1 的 `SystemDtos` 85 + S3 的 `SystemSetting` 14）；`/system` 7 端点 + `/system/admin` 全部端点 + settings 实体均已换锚（§14.9f/§14.9g）；前端 16 文件同批；权威细节见 §14.9g（含"审计 details 有意保留"清单）。
@@ -194,8 +198,8 @@
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
-   chunker-preview / evaluation / model / system / auth（A1+A2+B）/ **memory M1（HTTP 响应面）** 已完成（同批带前端）；
-   **memory 剩余 M2（落库实体 49 + `MemoryExtractionSession` 3 + `MemoryConfig` 12）与 M3（收尾）**，
+   chunker-preview / evaluation / model / system / auth（A1+A2+B）/ **memory M1（HTTP 响应面）+ M2（落库/内部 JSON 面）** 已完成（同批带前端）；
+   **memory 只剩 M3（收尾：LLM 载荷边界登记 + 请求侧 DTO 化，非契约项）**，
    以及 **wiki / agent / mcp / session / datasource 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
@@ -1506,7 +1510,7 @@ datasource / storage 的 scoped-key 用例）——它们的请求体与 `data.t
 **验收**：apikey 域 129 + auth/system 域 202 + memory/datasource/storage 三组全绿；
 全量 **4670 / 失败 0 / 跳过 4** + spotlessCheck 绿；前端 `vue-tsc` 0 + 690 用例。
 
-### 14.9k memory 域作战计划（2026-10-01 只读侦察；**M1 已完成**，M2/M3 待执行）
+### 14.9k memory 域作战计划（2026-10-01 只读侦察；**M1/M2 已完成**，余 M3 收尾）
 
 **存量**：`@JsonProperty` **137 处 / 14 文件**（`git grep -c '@JsonProperty\|@com.fasterxml...JsonProperty'` 双写法口径）。
 
@@ -1515,7 +1519,7 @@ datasource / storage 的 scoped-key 用例）——它们的请求体与 `data.t
 | 层 | 文件（处数） | 判据 |
 |---|---|---|
 | **HTTP 响应实体**（63） | `MemoryItem`(23)、`MemoryTopicStat`(12)、`MemoryTopicView`(7)、`MemoryDocView`(7)、`MemorySettings`(7)、`MemoryConsolidationResult`(7) | 换锚：裸 DTO + camelCase + 可空显式 null |
-| **落库实体**（49） | `MemorySubject`(16)、`MemoryDocAffinity`(11)、`MemoryTombstone`(8)、`MemoryItemEmbedding`(8)、`MemoryMessageCursor`(3)、`MemoryExtractionState`(3) | 落库面：改键名 + dev 存量 SQL 迁移（§14.9e 手法） |
+| **落库实体**（49，✅ M2 完成） | `MemorySubject`(16)、`MemoryDocAffinity`(11)、`MemoryTombstone`(8)、`MemoryItemEmbedding`(8)、`MemoryMessageCursor`(3)、`MemoryExtractionState`(3) | 落库面：改键名 + dev 存量 SQL 迁移（**实测只有 `MemoryExtractionState` 一处真落 jsonb**，其余仅测试面） |
 | **LLM 载荷**（22） | `MemoryExtractionLlm`(11)、`MemoryExtractPayload`(11) | **保留**（模型输出 schema，同 §11「工具输出自有 schema」） |
 | 边界 | `MemoryIndexStore`（929 行，已知例外，§14.7.17） | 不动 |
 
@@ -1526,14 +1530,14 @@ datasource / storage 的 scoped-key 用例）——它们的请求体与 `data.t
 
 **三刀划分**：
 - **M1（HTTP 响应面，✅ 2026-10-01 完成）**：16 路由去信封 + 6 个响应实体去注解（63 处）+ fixture 重录 + 前端同步
-- **M2（落库实体）**：49 处 + `MemoryExtractionSession`(3) + `MemoryConfig`(12) + SQL 迁移 + repository/JSON 测试同步
+- **M2（落库实体，✅ 2026-10-01 完成）**：7 实体 + `MemoryConfig` 共 60 处 + 两处真落库 jsonb 的迁移 SQL + repository/JSON 测试同步
 - **M3（收尾）**：LLM 载荷边界登记 + 请求侧手写绑定器清除（`rawBody + parse()` → DTO + `@Valid`）+ 残留核对
 
 **风险点（B 批教训直接适用；②③ 已随 M1 关闭）**：
 1. 批量替换**必须按文件白名单**——memory 的 `mapper/` 与手写 SQL 里的列名不能碰（M2 仍然适用）；
 2. ~~分页形态对齐~~ ✅ M1 已做（`{items,page,pageSize,total}`，请求侧仍 limit/offset）；
 3. ~~前端面~~ ✅ M1 已做（`api/memory.ts` + `MemorySettings.vue` + `MemoryWorkspaceSettings.vue` + 5 个 locale 文案）；
-4. M2 入场先把"**真落库的 JSON**"与"只是注解残留在实体上"分开（本批已核实）：
+4. ✅ **M2 已按此条执行**（把"真落库的 JSON"与"只是注解残留在实体上"分开）：
    **真落库**＝`MemoryExtractionState`（`MemorySubject.extraction_state` jsonb，走 `MemoryExtractionStateTypeHandler`）
    与 `MemoryConfig`（`tenants.memory_config` jsonb）→ 改键名**必须配 dev 存量 SQL 迁移**；
    其余落库实体（`MemorySubject` 本体 / `MemoryDocAffinity` / `MemoryTombstone` / `MemoryItemEmbedding` /
@@ -1563,13 +1567,71 @@ datasource / storage 的 scoped-key 用例）——它们的请求体与 `data.t
 - **代码层**（实体去注解）与 **fixture**（JSON 解析改写：snake→camel + 去信封 + 分页重排）可脚本化，一次通过；
 - **Java 断言不要用正则**：按测试失败清单**逐处手改**——本轮 19 个失败点一轮收敛，说明失败根因是
   "用正则扫 Java 源"，**不是"手写断言"本身**；
-- 可选的进一步提升（非必须）：M2 前把 `MemoryEntityJsonTest` / `MemoryContractTest` 的逐字节字面量
-  搬进 fixture，M2 就能纯脚本改写；不做则 M2 仍需 ~15 处手改。
+- 可选的进一步提升（非必须）：把 `MemoryEntityJsonTest` / `MemoryContractTest` 的逐字节字面量搬进 fixture，
+  后续换锚可纯脚本改写。**M2 未做**（直接结构化改写也一轮过，见下），登记为可选卫生项。
 
 *验收*：memory 域 **339 用例 / 0 失败**；全量 `clean test` **4670 / 0 失败 / 6 跳过** + `spotlessCheck` 绿；
 前端 `vue-tsc` 0 错误 + **690 用例通过**；**真实服务冒烟 21 路通过**（settings 读写与合并视图、items 建/改/确认/拒/删/清空、
 非法 status 400、空内容 500、分页容错、topics/documents/export/consolidate、404 三连、空导出 `items:null`、
 `/tenants/kv/memory-config` 裸对象）。
+
+**✅ M2 执行记录（2026-10-01 完成，一轮过）——落库/内部 JSON 面**：
+
+*入场结论（先分类，避免过度改造）*：7 个落库实体在生产代码里**没有一个**是 HTTP 响应体，
+其中**只有两个**真的经 Jackson 落进 jsonb：`MemoryExtractionState`（→ `memory_subjects.extraction_state`，
+经 `MemoryExtractionStateTypeHandler`）与 `MemoryConfig`（→ `tenants.memory_config`，auth 的 KV 端点读写）。
+其余 5 个（`MemorySubject` 本体 / `MemoryDocAffinity` / `MemoryTombstone` / `MemoryItemEmbedding` /
+`MemoryExtractionSession`）的 JSON 面**只在测试里**，注解去掉即可、不动数据。
+
+*改动面*：8 个文件去 Jackson 注解 **60 处**（`@JsonProperty` 51 + `@JsonPropertyOrder` 8 +
+`@JsonInclude(NON_EMPTY)` 1；`@JsonIgnore` 一律保留）→ **memory 域 `@JsonProperty` 137→22**；
+`MemoryExtractionState.leaseId` 的 `omitempty` 退役（两个键恒输出，§1.6）；
+顺手修两处**运行时键名依赖**：`ModelService` 读 `memoryConfig.get("embeddingModelId"/"extractModelId")`（模型删除影响面），
+`TenantConfigOps.putMemory` 的七段校验文案改 camelCase；`TestSchema` 无需改（无写死的 sample JSON）。
+
+*存量迁移 SQL（其他环境复用；2026-10-01 已对 dev 库 ragagent@15432 执行，两处各 `UPDATE 1`）*：
+```sql
+-- 1) memory_subjects.extraction_state：lease_id/lease_until → leaseId/leaseUntil
+UPDATE memory_subjects SET extraction_state = (
+  SELECT jsonb_object_agg(
+    CASE e.key WHEN 'lease_id' THEN 'leaseId' WHEN 'lease_until' THEN 'leaseUntil' ELSE e.key END,
+    e.value)
+  FROM jsonb_each(extraction_state) e)
+WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(extraction_state) k WHERE k IN ('lease_id','lease_until'));
+
+-- 2) tenants.memory_config：11 个键改 camelCase
+UPDATE tenants SET memory_config = (
+  SELECT jsonb_object_agg(
+    CASE e.key
+      WHEN 'write_mode' THEN 'writeMode' WHEN 'extract_model_id' THEN 'extractModelId'
+      WHEN 'max_items' THEN 'maxItems' WHEN 'extract_delay_seconds' THEN 'extractDelaySeconds'
+      WHEN 'extract_min_interval_seconds' THEN 'extractMinIntervalSeconds'
+      WHEN 'extract_instructions' THEN 'extractInstructions'
+      WHEN 'interest_threshold' THEN 'interestThreshold'
+      WHEN 'embedding_model_id' THEN 'embeddingModelId'
+      WHEN 'vector_recall' THEN 'vectorRecall'
+      WHEN 'retrieval_conditioning' THEN 'retrievalConditioning'
+      ELSE e.key END, e.value)
+  FROM jsonb_each(memory_config) e)
+WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(memory_config) k
+  WHERE k IN ('write_mode','extract_model_id','max_items','extract_delay_seconds',
+              'extract_min_interval_seconds','extract_instructions','interest_threshold',
+              'embedding_model_id','vector_recall','retrieval_conditioning'));
+```
+**⚠️ 与 model 落库批的口径差异**：那批**不做代码层宽容读**（旧行显式报错，逼迁移）；
+本批的 `MemoryExtractionState` 读路径**本来就是宽松的**（`FAIL_ON_UNKNOWN_PROPERTIES=false`，Go 同款），
+旧键会被**静默忽略成零值租约**——所以迁移必须做，且跑完才算完（已写进实体 javadoc）。
+
+*测试与前端同步*：`MemoryEntityJsonTest`（JSON 键结构性改写 50 处 + 键序数组 + 零值断言改名）、
+`MemoryContractTest`（MemoryConfig 三条）、`MemoryRepositoryTest` / `MemoryExtractionRepositoryTest`（jsonb 字节断言 5 处）、
+`MemoryServiceOrchestrationTest`（CONFIG 常量）、`TenantCatalogContractTest`（PUT 体 6 处）；
+夹具 `ct-kv-mem-*.json` 7 个（3 个 payload camelCase + 4 个校验文案）；
+前端 `api/memory.ts` 的 `MemoryConfig` + `MemoryWorkspaceSettings.vue`（39 处字段访问 + 默认值块）。
+
+*验收*：memory 域 + auth 契约 + 跨域 round-trip 全绿；全量 `clean test` **4670 / 0 失败 / 4 跳过** + `spotlessCheck` 绿；
+前端 `vue-tsc` 0 错误 + **690 用例通过**；**真实服务冒烟 11 路通过**——含
+「**迁移后的存量行读回**（`writeMode=explicit_only` 等 11 键全对）」、「PUT camelCase 落库后库里也是 camelCase」、
+「非法值 400 文案为 `writeMode/maxItems/interestThreshold …`」、「改配置后 `/memory/settings` 的 `writeMode`/`maxItems` 跟着变」。*
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
