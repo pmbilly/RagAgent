@@ -499,20 +499,24 @@ class DataSourceJsonTest {
 
     @Test
     void taskInitiatorMatchesGo() throws Exception {
-        assertThat(write(TaskInitiator.empty())).isEqualTo("{}");
+        // §14.9q D3：键名＝组件名（空发起人是两个空串，不再是 {}）
+        assertThat(write(TaskInitiator.empty())).isEqualTo(
+                "{\"userId\":\"\",\"role\":\"\"}");
         assertThat(write(new TaskInitiator("user-1", "admin")))
-                .isEqualTo("{\"user_id\":\"user-1\",\"role\":\"admin\"}");
+                .isEqualTo("{\"userId\":\"user-1\",\"role\":\"admin\"}");
         // ⚠️ isEmpty() 会变成 JSON 属性 "empty"——所以那个方法叫 blank()
         assertThat(write(TaskInitiator.empty())).doesNotContain("empty");
     }
 
     @Test
     void dataSourceSyncPayloadZeroMatchesGo() throws Exception {
-        // initiator 的 omitempty 对 struct 无效 → 空发起人也输出 "initiator":{}
+        // §1.6：自有键全部恒输出（空发起人是 {"userId":"","role":""}）；
+        // lf_* 五键属平铺载具（空值整键省略）→ 这里一个都不出现
         assertThat(write(new DataSourceSyncPayload(
                 null, null, "", 0L, "", false, 0))).isEqualTo(
-                "{\"initiator\":{},\"data_source_id\":\"\",\"tenant_id\":0,"
-                        + "\"sync_log_id\":\"\",\"force_full\":false}");
+                "{\"initiator\":{\"userId\":\"\",\"role\":\"\"},"
+                        + "\"trigger\":\"\",\"dataSourceId\":\"\",\"tenantId\":0,"
+                        + "\"syncLogId\":\"\",\"forceFull\":false,\"maxItems\":0}");
     }
 
     @Test
@@ -520,9 +524,9 @@ class DataSourceJsonTest {
         DataSourceSyncPayload p = new DataSourceSyncPayload(
                 new TaskInitiator("user-1", "admin"), "manual", "d1", 7L, "l1", true, 10);
         assertThat(write(p)).isEqualTo(
-                "{\"initiator\":{\"user_id\":\"user-1\",\"role\":\"admin\"},"
-                        + "\"trigger\":\"manual\",\"data_source_id\":\"d1\",\"tenant_id\":7,"
-                        + "\"sync_log_id\":\"l1\",\"force_full\":true,\"max_items\":10}");
+                "{\"initiator\":{\"userId\":\"user-1\",\"role\":\"admin\"},"
+                        + "\"trigger\":\"manual\",\"dataSourceId\":\"d1\",\"tenantId\":7,"
+                        + "\"syncLogId\":\"l1\",\"forceFull\":true,\"maxItems\":10}");
     }
 
     @Test
@@ -702,12 +706,12 @@ class DataSourceJsonTest {
 
         assertKeyOrder(new SyncItemError(), "title", "code", "params", "message");
 
-        assertKeyOrder(new TaskInitiator("u", "admin"), "user_id", "role");
+        assertKeyOrder(new TaskInitiator("u", "admin"), "userId", "role");
 
-        // DataSourceSyncPayload 属 D3（队列载荷），本批键名不动
+        // lf_* 五键是平铺载具（空值整键省略），本用例不设追踪 → 只到 maxItems
         assertKeyOrder(new DataSourceSyncPayload(new TaskInitiator("u", "admin"), "t", "d", 1L,
-                "l", true, 2), "initiator", "user_id", "role", "trigger", "data_source_id",
-                "tenant_id", "sync_log_id", "force_full", "max_items");
+                "l", true, 2), "initiator", "userId", "role", "trigger", "dataSourceId",
+                "tenantId", "syncLogId", "forceFull", "maxItems");
     }
 
     /** 驼峰感知的键名正则——{@code "([a-z_]+)"} 会把驼峰键静默过滤掉（§9 明确要求）。 */

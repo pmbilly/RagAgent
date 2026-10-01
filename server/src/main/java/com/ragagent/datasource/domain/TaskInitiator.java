@@ -1,8 +1,5 @@
 package com.ragagent.datasource.domain;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 提交异步任务的已认证调用方（对照 Go {@code types.TaskInitiator}，
@@ -11,12 +8,12 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p>worker 把它还原进自己的上下文，好让审计条目描述"是谁发起的"；
  * 调度器创建的任务则仍归于系统。</p>
  *
- * <h2>Go 实录（{@code DataSourceJsonTest} 逐字节钉住）</h2>
+ * <h2>JSON 形状（§14.9q D3）</h2>
  * <pre>
- *   TaskInitiator{}                             → {}
- *   TaskInitiator{UserID:"user-1",Role:"admin"} → {"user_id":"user-1","role":"admin"}
+ *   TaskInitiator.empty()                       → {"userId":"","role":""}
+ *   TaskInitiator{"user-1","admin"}             → {"userId":"user-1","role":"admin"}
  * </pre>
- * <p>两个字段都带 omitempty：<b>零值对象序列化成 {@code {}}</b>。</p>
+ * <p>键名＝组件名；§1.6 后两键**恒输出**（旧 Go 的 omitempty 会让零值对象成为 {@code {}}）。</p>
  *
  * <h2>⚠️ 放这个包是权宜，后续应提升</h2>
  * <p>Go 的 {@code TaskInitiator} 住在 {@code internal/types}，被
@@ -37,12 +34,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * （{@code isXxx()} 是标准 bean 访问器前缀）。需要"是否是空发起人"时用
  * {@link #blank()}，或者直接判 {@link #userId()}。</p>
  */
-@JsonPropertyOrder({"user_id", "role"})
-public record TaskInitiator(
-        @JsonProperty("user_id") @JsonInclude(JsonInclude.Include.NON_EMPTY) String userId,
-        @JsonProperty("role") @JsonInclude(JsonInclude.Include.NON_EMPTY) String role) {
+public record TaskInitiator( String userId, String role) {
 
-    /** 紧凑构造器把 null 归一成空串——{@code NON_EMPTY} 才能在 null/空串两种输入下都省略键。 */
+    /** 紧凑构造器把 null 归一成空串（消费侧不必再判 null）。 */
     public TaskInitiator {
         userId = userId == null ? "" : userId;
         role = role == null ? "" : role;

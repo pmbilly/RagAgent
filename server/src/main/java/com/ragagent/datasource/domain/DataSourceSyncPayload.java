@@ -3,7 +3,6 @@ package com.ragagent.datasource.domain;
 import com.ragagent.common.web.JsonMappers;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -11,14 +10,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 一次数据源同步任务的载荷（对照 Go {@code types.DataSourceSyncPayload}，
  * internal/types/datasource.go L495-516）。
  *
- * <h2>Go 实录（{@code DataSourceJsonTest} 逐字节钉住）</h2>
+ * <h2>JSON 形状（§14.9q D3；{@code DataSourceJsonTest} 逐字节钉住）</h2>
  * <pre>
- *   DataSourceSyncPayload{} →
- *   {"initiator":{},"data_source_id":"","tenant_id":0,"sync_log_id":"","force_full":false}
- *   DataSourceSyncPayload(全字段) →
- *   {"lf_trace_id":"tr","lf_parent_obs_id":"po","lf_traceparent":"tp","lf_user_id":"u",
- *    "lf_session_id":"s","initiator":{"user_id":"user-1","role":"admin"},"trigger":"manual",
- *    "data_source_id":"d1","tenant_id":7,"sync_log_id":"l1","force_full":true,"max_items":10}
+ *   7 参构造（无追踪）→
+ *   {"initiator":{"userId":"","role":""},"trigger":"","dataSourceId":"","tenantId":0,
+ *    "syncLogId":"","forceFull":false,"maxItems":0}
+ *   全字段 + 追踪载体 →
+ *   {"initiator":{"userId":"user-1","role":"admin"},"trigger":"manual","dataSourceId":"d1",
+ *    "tenantId":7,"syncLogId":"l1","forceFull":true,"maxItems":10,
+ *    "lf_trace_id":"tr","lf_parent_obs_id":"po","lf_traceparent":"tp","lf_user_id":"u",
+ *    "lf_session_id":"s"}
  * </pre>
  * <p>两个容易写错的点：</p>
  * <ol>
@@ -27,15 +28,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *       对 struct 一律无效，所以空发起人输出的是 {@code "initiator":{}}。
  *       Java 侧对应 {@code NON_NULL}（而不是 {@code NON_EMPTY}）：即便值为
  *       {@link TaskInitiator#empty()} 也要输出。</li>
- *   <li><b>{@code force_full} 没有 omitempty</b> → false 恒输出；
- *       {@code trigger} / {@code max_items} 有 omitempty → 空串 / 0 省略。</li>
+ *   <li><b>§1.6</b>：自有键全部恒输出（{@code forceFull} false 照写、{@code trigger} 空串照写、
+ *       {@code maxItems} 0 照写）；只有 {@code lf_*} 平铺键保持"空值整键省略"的载具口径。</li>
  * </ol>
  *
  * <h2>langfuse 追踪载体（2026-09-24 C 批接线）</h2>
- * <p>Go 内嵌 {@code types.TracingContext}（langfuse 的 {@code lf_*} 五个字段），匿名字段嵌入
- * 在 JSON 里是<b>平铺</b>的。Java 侧同形——五个 {@code lf_*} 键直接平铺在 record 上
- * （{@code @JsonUnwrapped} 不支持 record 的 Creator 参数），空值整键省略，等价于 Go 在
- * <b>未启用追踪</b>时的载荷。载荷只在进程内队列里流动，不落库、不出响应。</p>
+ * <p>追踪载体（{@code lf_*} 五键）直接平铺在 record 上（{@code @JsonUnwrapped} 不支持
+ * record 的 Creator 参数），空值整键省略。载荷只在进程内队列里流动，不落库、不出响应。</p>
+ *
+ * <p><b>⚠️ {@code lf_*} 五键冻结</b>（§14.9q D3 判定）：它们是<b>平铺载具的命名空间前缀</b>
+ * ——{@code TracingContext}（{@code common/context}）被平铺进本载荷与 memory / wiki / knowledge
+ * 三个兄弟载荷，去掉 {@code lf_} 前缀就会与载荷自有字段撞名（如 {@code userId}、{@code sessionId}）。
+ * 四域 + 共享记录是同一个形状，改名要一起动且失去命名空间保护；确需清理时应改成"嵌套一个
+ * {@code tracing} 键"（形状变更，另批），而不是去掉前缀。除这五键外，本类的键名＝组件名（§1.6）。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
  * <ol>
@@ -43,25 +48,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *       本类型不落表。</li>
  * </ol>
  */
-@JsonPropertyOrder({"initiator", "trigger", "data_source_id", "tenant_id", "sync_log_id",
-        "force_full", "max_items",
-        "lf_trace_id", "lf_parent_obs_id", "lf_traceparent", "lf_user_id", "lf_session_id"})
 public record DataSourceSyncPayload(
         /**
          * 发起人。**恒输出**（对照 Go 的 struct + 无效 omitempty）——
          * 所以这里用 NON_NULL，而不是 NON_EMPTY。
          */
-        @JsonProperty("initiator") @JsonInclude(JsonInclude.Include.NON_NULL) TaskInitiator initiator,
-        /** 区分"用户手动触发"与"调度器创建"。omitempty → 空串省略。 */
-        @JsonProperty("trigger") @JsonInclude(JsonInclude.Include.NON_EMPTY) String trigger,
-        @JsonProperty("data_source_id") String dataSourceId,
-        @JsonProperty("tenant_id") long tenantId,
+        /** 发起人。§1.6：恒输出（nil → {@code null}）。 */
+        TaskInitiator initiator,
+        /** 区分"用户手动触发"与"调度器创建"。§1.6：空串照写。 */
+        String trigger,
+        String dataSourceId,
+        long tenantId,
         /** 用于追踪同步日志。 */
-        @JsonProperty("sync_log_id") String syncLogId,
-        /** 即便配了增量模式也强制全量。无 omitempty → false 恒输出。 */
-        @JsonProperty("force_full") boolean forceFull,
-        /** 最多抓取多少条（0 = 不限）。omitempty → 0 省略。 */
-        @JsonProperty("max_items") @JsonInclude(JsonInclude.Include.NON_DEFAULT) int maxItems,
+        String syncLogId,
+        /** 即便配了增量模式也强制全量。§1.6：false 恒输出。 */
+        boolean forceFull,
+        /** 最多抓取多少条（0 = 不限）。§1.6：0 照写。 */
+        int maxItems,
         /** 追踪载体五键（平铺成 {@code lf_*}；空值整键省略）。 */
         @JsonProperty("lf_trace_id")
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,

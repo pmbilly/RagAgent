@@ -19,13 +19,13 @@ import com.fasterxml.jackson.databind.JsonNode;
  * {@code GET /datasources/sync-logs/:log_id} 都是 {@code c.JSON(200, log)}
  * ——裸实体，没有信封。</p>
  *
- * <h2>Go 实录（{@code DataSourceJsonTest} 逐字节钉住）</h2>
+ * <h2>JSON 形状（§14.9q D2；{@code DataSourceJsonTest} 逐字节钉住）</h2>
  * <pre>
- *   SyncLog{} →
- *   {"id":"","data_source_id":"","tenant_id":0,"status":"","started_at":"0001-01-01T00:00:00Z",
- *    "finished_at":null,"items_total":0,"items_created":0,"items_updated":0,"items_deleted":0,
- *    "items_skipped":0,"items_failed":0,"error_message":"","result":null,
- *    "created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}
+ *   new SyncLog() →
+ *   {"id":"","dataSourceId":"","tenantId":0,"status":"","startedAt":"0001-01-01T00:00:00Z",
+ *    "finishedAt":null,"itemsTotal":0,"itemsCreated":0,"itemsUpdated":0,"itemsDeleted":0,
+ *    "itemsSkipped":0,"itemsFailed":0,"errorMessage":"","result":null,
+ *    "createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"}
  * </pre>
  * <p><b>键名＝字段名，所有键恒输出</b>（§1.6）——{@code errorMessage} 空串照常输出、
  * {@code finished_at} 为 nil 时输出 {@code null}、{@code result} 空时输出 {@code null}。</p>
