@@ -163,13 +163,20 @@ class VectorStoreContractTest {
         }
     }
 
+    /** {@code -Dcontract.refresh=true} 时把掩码后的实际响应写回夹具（换锚批重录用）。 */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
     private void compare(String golden, String actual) throws Exception {
         Path file = Path.of("src/test/resources/contracts", golden);
         if (!Files.exists(file)) {
             file = Path.of("server/src/test/resources/contracts", golden);
         }
-        String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8));
-        assertEquals(expected, mask(actual),
+        if (REFRESH_FIXTURES) {
+            Files.writeString(file, mask(actual) + "\n");
+            return;
+        }
+        String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8)).strip();
+        assertEquals(expected, mask(actual).strip(),
                 () -> "golden mismatch: " + golden + "\nexpected: " + expected + "\nactual:   " + mask(actual));
     }
 
@@ -205,19 +212,19 @@ class VectorStoreContractTest {
         String base = API + "/vector-stores";
         compareAndStatus("vs-create-empty.json", 400, "POST", base, owner, "{}");
         compareAndStatus("vs-create-sqlite.json", 400, "POST", base, owner,
-                "{\"name\":\"x\",\"engine_type\":\"sqlite\",\"connection_config\":{}}");
+                "{\"name\":\"x\",\"engineType\":\"sqlite\",\"connectionConfig\":{}}");
         compareAndStatus("vs-create-postgres.json", 400, "POST", base, owner,
-                "{\"name\":\"x\",\"engine_type\":\"postgres\",\"connection_config\":{\"use_default_connection\":true}}");
+                "{\"name\":\"x\",\"engineType\":\"postgres\",\"connectionConfig\":{\"use_default_connection\":true}}");
         compareAndStatus("vs-create-qdrant-missing-host.json", 400, "POST", base, owner,
-                "{\"name\":\"x\",\"engine_type\":\"qdrant\",\"connection_config\":{}}");
+                "{\"name\":\"x\",\"engineType\":\"qdrant\",\"connectionConfig\":{}}");
         compareAndStatus("vs-create-es-ssrf.json", 400, "POST", base, owner,
-                "{\"name\":\"x\",\"engine_type\":\"elasticsearch\",\"connection_config\":{\"addr\":\"http://127.0.0.1:19200\"}}");
+                "{\"name\":\"x\",\"engineType\":\"elasticsearch\",\"connectionConfig\":{\"addr\":\"http://127.0.0.1:19200\"}}");
         // SSRF（2.1）先于 index 校验（2.5）——顺序由本 golden 钉住
         compareAndStatus("vs-create-badindex-ssrf-first.json", 400, "POST", base, owner,
-                "{\"name\":\"x\",\"engine_type\":\"elasticsearch\",\"connection_config\":{\"addr\":\"http://127.0.0.1:19200\"},"
-                        + "\"index_config\":{\"index_name\":\"bad name!\"}}");
+                "{\"name\":\"x\",\"engineType\":\"elasticsearch\",\"connectionConfig\":{\"addr\":\"http://127.0.0.1:19200\"},"
+                        + "\"indexConfig\":{\"index_name\":\"bad name!\"}}");
         compareAndStatus("vs-viewer-create.json", 403, "POST", base, viewer,
-                "{\"name\":\"x\",\"engine_type\":\"qdrant\",\"connection_config\":{\"host\":\"h\"}}");
+                "{\"name\":\"x\",\"engineType\":\"qdrant\",\"connectionConfig\":{\"host\":\"h\"}}");
     }
 
     // ── 3) 种子行 CRUD + test-by-id 连接拒绝 + raw test + 删除 ─────────
@@ -232,14 +239,14 @@ class VectorStoreContractTest {
                 "{\"name\":\"vs-golden-es-renamed\"}");
         compareAndStatus("vs-put-badjson.json", 400, "PUT", base + "/" + VS_ES, owner, "");
         compareAndStatus("vs-test-raw-postgres.json", 200, "POST", base + "/test", owner,
-                "{\"engine_type\":\"postgres\",\"connection_config\":{\"use_default_connection\":true}}");
+                "{\"engineType\":\"postgres\",\"connectionConfig\":{\"use_default_connection\":true}}");
         compareAndStatus("vs-test-raw-es-missing-addr.json", 200, "POST", base + "/test", owner,
-                "{\"engine_type\":\"elasticsearch\",\"connection_config\":{}}");
+                "{\"engineType\":\"elasticsearch\",\"connectionConfig\":{}}");
         compareAndStatus("vs-test-raw-es-ssrf.json", 200, "POST", base + "/test", owner,
-                "{\"engine_type\":\"elasticsearch\",\"connection_config\":{\"addr\":\"http://127.0.0.1:19200\"}}");
+                "{\"engineType\":\"elasticsearch\",\"connectionConfig\":{\"addr\":\"http://127.0.0.1:19200\"}}");
         compareAndStatus("vs-test-viewer-denied.json", 403, "POST", base + "/test", viewer,
-                "{\"engine_type\":\"elasticsearch\",\"connection_config\":{\"addr\":\"http://127.0.0.1:19200\"}}");
-        compareAndStatus("vs-delete.json", 200, "DELETE", base + "/" + VS_ES, owner, null);
+                "{\"engineType\":\"elasticsearch\",\"connectionConfig\":{\"addr\":\"http://127.0.0.1:19200\"}}");
+        compareAndStatus("vs-delete.json", 204, "DELETE", base + "/" + VS_ES, owner, null);
         compareAndStatus("vs-get-after-delete.json", 404, "GET", base + "/" + VS_ES, owner, null);
     }
 }

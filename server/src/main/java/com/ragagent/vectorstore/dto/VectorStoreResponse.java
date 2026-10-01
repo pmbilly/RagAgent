@@ -2,44 +2,27 @@ package com.ragagent.vectorstore.dto;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.IndexConfig;
 import com.ragagent.vectorstore.domain.VectorStore;
 
 /**
- * 对照 Go {@code types.VectorStoreResponse}（内嵌 VectorStore + source/readonly）。
- * 键序 = Go struct 声明序：id, tenant_id, name, engine_type, connection_config,
- * index_config, created_at, updated_at, deleted_at, source, readonly。
- * connection_config 经 MaskSensitiveFields（非空 password/api_key → "***"）。
+ * 向量库的响应形态（内嵌 VectorStore + source/readonly）。键名即 Java 字段名
+ * （camelCase），键恒输出（deletedAt 恒 null），时间 ISO-8601 带时区；
+ * connectionConfig 经掩码（非空 password/apiKey → "***"）。
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class VectorStoreResponse {
 
-    @JsonProperty("id")
     public String id;
-    @JsonProperty("tenant_id")
     public long tenantId;
-    @JsonProperty("name")
     public String name;
-    @JsonProperty("engine_type")
     public String engineType;
-    @JsonProperty("connection_config")
     public ConnectionConfig connectionConfig;
-    @JsonProperty("index_config")
     public IndexConfig indexConfig;
-    @JsonProperty("created_at")
-    public OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("updated_at")
-    public OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("deleted_at")
-    @JsonInclude(JsonInclude.Include.ALWAYS) // Go 无 omitempty：null 恒输出
+    public OffsetDateTime createdAt;
+    public OffsetDateTime updatedAt;
     public OffsetDateTime deletedAt;
-    @JsonProperty("source")
     public String source;
-    @JsonProperty("readonly")
     public boolean readOnly;
 
     /** 对照 NewVectorStoreResponse(store, source, readonly)：掩码后组装 */
@@ -54,8 +37,8 @@ public class VectorStoreResponse {
         r.engineType = s.getEngineType() == null ? "" : s.getEngineType();
         r.connectionConfig = conn;
         r.indexConfig = s.getIndexConfig() == null ? new IndexConfig() : s.getIndexConfig();
-        r.createdAt = s.getCreatedAt() == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : s.getCreatedAt();
-        r.updatedAt = s.getUpdatedAt() == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : s.getUpdatedAt();
+        r.createdAt = s.getCreatedAt();
+        r.updatedAt = s.getUpdatedAt();
         r.deletedAt = s.getDeletedAt();
         r.source = source;
         r.readOnly = readonly;

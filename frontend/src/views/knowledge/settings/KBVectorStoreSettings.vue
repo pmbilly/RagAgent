@@ -48,7 +48,7 @@
               <span class="select-option">
                 <span>{{ s.name }}</span>
                 <t-tag theme="success" variant="light" size="small">
-                  {{ s.engine_type }}
+                  {{ s.engineType }}
                 </t-tag>
               </span>
             </t-option>
@@ -134,7 +134,7 @@ const userStores = computed(() => allStores.value.filter((s) => s.source === 'us
 // showing a placeholder.
 const envEngineType = computed(() => {
   const envStore = allStores.value.find((s) => s.source === 'env')
-  return envStore?.engine_type || ''
+  return envStore?.engineType || ''
 })
 
 watch(
@@ -165,7 +165,7 @@ onMounted(async () => {
   loading.value = true
   try {
     const resp = await listVectorStores()
-    if (resp.success) allStores.value = resp.data || []
+    allStores.value = resp || []
   } catch (e) {
     // Graceful degradation: if vector-store listing fails the dropdown
     // simply renders only the "System default" entry, which is exactly

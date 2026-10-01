@@ -58,25 +58,25 @@ public class VectorStoreController {
 
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public record CreateStoreRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("name") String name,
-            @com.fasterxml.jackson.annotation.JsonProperty("engine_type") String engineType,
-            @com.fasterxml.jackson.annotation.JsonProperty("connection_config") ConnectionConfig connectionConfig,
-            @com.fasterxml.jackson.annotation.JsonProperty("index_config") IndexConfig indexConfig) {}
+            String name,
+            String engineType,
+            ConnectionConfig connectionConfig,
+            IndexConfig indexConfig) {}
 
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public record UpdateStoreRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("name") String name) {}
+            String name) {}
 
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public record TestStoreRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("engine_type") String engineType,
-            @com.fasterxml.jackson.annotation.JsonProperty("connection_config") ConnectionConfig connectionConfig) {}
+            String engineType,
+            ConnectionConfig connectionConfig) {}
 
     // ── 端点 ───────────────────────────────────────────────────────────
 
     @GetMapping("/types")
     public ResponseEntity<?> listStoreTypes() {
-        return ResponseEntity.ok(envelopeData(VectorStoreTypes.all()));
+        return ResponseEntity.ok(VectorStoreTypes.all());
     }
 
     @PostMapping("/test")
@@ -91,7 +91,7 @@ public class VectorStoreController {
         // 直接落到引擎必填校验。
         try {
             String version = service.testRawConnection(req.engineType(), req.connectionConfig());
-            return ResponseEntity.ok(successVersion(version));
+            return ResponseEntity.ok(versionBody(version));
         } catch (BizException e) {
             throw new TestFailure(e.getMessage());
         }
@@ -102,7 +102,7 @@ public class VectorStoreController {
         long tenantId = requireTenant();
         JsonNode body = parseOrValidator(rawBody, "CreateStoreRequest");
         String name = textOrNull(body, "name");
-        String engineType = textOrNull(body, "engine_type");
+        String engineType = textOrNull(body, "engineType");
         List<String> missing = new ArrayList<>();
         if (name == null) {
             missing.add("Name");
@@ -118,15 +118,15 @@ public class VectorStoreController {
         store.setTenantId(tenantId);
         store.setName(name);
         store.setEngineType(engineType);
-        store.setConnectionConfig(configOf(body, "connection_config"));
-        store.setIndexConfig(indexOf(body, "index_config"));
+        store.setConnectionConfig(configOf(body, "connectionConfig"));
+        store.setIndexConfig(indexOf(body, "indexConfig"));
         try {
             service.create(store);
         } catch (RuntimeException e) {
             throw e; // Go c.Error(err)：AppError 原样进信封
         }
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(envelopeData(VectorStoreResponse.of(store, "user", false)));
+                .body(VectorStoreResponse.of(store, "user", false));
     }
 
     /** env stores 在前、DB stores 在后（Go ListStores 的合并顺序） */
@@ -140,7 +140,7 @@ public class VectorStoreController {
         for (VectorStore s : service.list(tenantId)) {
             all.add(VectorStoreResponse.of(s, "user", false));
         }
-        return ResponseEntity.ok(envelopeData(all));
+        return ResponseEntity.ok(all);
     }
 
     @GetMapping("/{id}")
@@ -151,10 +151,10 @@ public class VectorStoreController {
             if (env == null) {
                 throw notFoundPure();
             }
-            return ResponseEntity.ok(envelopeData(VectorStoreResponse.of(env, "env", true)));
+            return ResponseEntity.ok(VectorStoreResponse.of(env, "env", true));
         }
         VectorStore store = owned(tenantId, id);
-        return ResponseEntity.ok(envelopeData(VectorStoreResponse.of(store, "user", false)));
+        return ResponseEntity.ok(VectorStoreResponse.of(store, "user", false));
     }
 
     @PutMapping("/{id}")
@@ -176,12 +176,10 @@ public class VectorStoreController {
         service.updateName(updated);
         VectorStore result = service.getByID(tenantId, id);
         if (result != null) {
-            return ResponseEntity.ok(envelopeData(VectorStoreResponse.of(result, "user", false)));
+            return ResponseEntity.ok(VectorStoreResponse.of(result, "user", false));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        body.put("data", null);
-        return ResponseEntity.ok(body);
+        // owned() 已确认存在，理论不可达；防御分支按 404 走
+        throw notFoundPure();
     }
 
     @DeleteMapping("/{id}")
@@ -192,7 +190,7 @@ public class VectorStoreController {
         }
         owned(tenantId, id);
         service.delete(tenantId, id);
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/test")
@@ -205,7 +203,7 @@ public class VectorStoreController {
             }
             try {
                 String version = service.testConnection(env.getEngineType(), env.getConnectionConfig());
-                return ResponseEntity.ok(successVersion(version));
+                return ResponseEntity.ok(versionBody(version));
             } catch (BizException e) {
                 throw new TestFailure(e.getMessage());
             }
@@ -226,7 +224,7 @@ public class VectorStoreController {
                 // Go：仅 Warnf 后继续
             }
         }
-        return ResponseEntity.ok(successVersion(version));
+        return ResponseEntity.ok(versionBody(version));
     }
 
     // ── 内部 ───────────────────────────────────────────────────────────
@@ -321,25 +319,13 @@ public class VectorStoreController {
     }
 
     /** {"success":true,"version":"..."}（gin.H 字母序 success < version） */
-    private static Map<String, Object> successVersion(String version) {
+    /** 连通性测试成功体：{version}（探测不到为空串照写）。 */
+    private static Map<String, Object> versionBody(String version) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
         body.put("version", version == null ? "" : version);
         return body;
     }
 
-    private static Map<String, Object> envelopeData(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
-    }
-
-    private static Map<String, Object> successOnly() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
-    }
 
     private static Map<String, Object> errorEnvelope(String message) {
         Map<String, Object> body = new LinkedHashMap<>();

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 对照 Go {@code types.GetVectorStoreTypes()}（types/vectorstore.go L665-784）：
@@ -30,7 +29,7 @@ public final class VectorStoreTypes {
                         field("username", "string", false, "Username", "elastic"),
                         secret("password", "Password")),
                 listOf(
-                        field("index_name", "string", false, "Index Name", "weknora"),
+                        field("indexName", "string", false, "Index Name", "weknora"),
                         numField("number_of_shards", false, "Shards", 4, null, null),
                         numField("number_of_replicas", false, "Replicas", 1, null, null))));
 
@@ -39,10 +38,10 @@ public final class VectorStoreTypes {
                 listOf(
                         field("host", "string", true, "Host", "localhost"),
                         numField("port", false, "Port", 6334, null, null),
-                        secret("api_key", "API Key"),
-                        boolField("use_tls", false, "Use TLS", false)),
+                        secret("apiKey", "API Key"),
+                        boolField("useTls", false, "Use TLS", false)),
                 listOf(
-                        field("collection_prefix", "string", false, "Collection Prefix", "weknora_embeddings"),
+                        field("collectionPrefix", "string", false, "Collection Prefix", "weknora_embeddings"),
                         numField("shard_number", false, "Shard Number", 1, null, null),
                         numField("replication_factor", false, "Replication Factor", 1, null, null))));
 
@@ -54,7 +53,7 @@ public final class VectorStoreTypes {
                         field("username", "string", false, "Username", "root"),
                         secret("password", "Password")),
                 listOf(
-                        field("collection_name", "string", false, "Collection Name", "weknora_embeddings"),
+                        field("collectionName", "string", false, "Collection Name", "weknora_embeddings"),
                         numField("shards_num", false, "Shards (write parallelism)", 1, null, null),
                         numField("replica_number", false, "In-memory Replicas (read HA)", 1, null, null))));
 
@@ -63,10 +62,10 @@ public final class VectorStoreTypes {
                 listOf(
                         field("addr", "string", true, "Address", "http://localhost:8080"),
                         field("username", "string", true, "Username", null),
-                        secretRequired("api_key", "API Key"),
+                        secretRequired("apiKey", "API Key"),
                         field("database", "string", false, "Database", "weknora")),
                 listOf(
-                        field("collection_name", "string", false, "Collection Name", "weknora_embeddings"),
+                        field("collectionName", "string", false, "Collection Name", "weknora_embeddings"),
                         numField("shards_num", false, "Shards", 1, null, null),
                         numField("replica_number", false, "Replicas", tencentReplicas, null, null))));
 
@@ -74,11 +73,11 @@ public final class VectorStoreTypes {
         out.add(type("weaviate", "Weaviate",
                 listOf(
                         field("host", "string", true, "Host", "weaviate:8080"),
-                        field("grpc_address", "string", false, "gRPC Address", "weaviate:50051"),
+                        field("grpcAddress", "string", false, "gRPC Address", "weaviate:50051"),
                         field("scheme", "string", false, "Scheme", "http"),
-                        secret("api_key", "API Key")),
+                        secret("apiKey", "API Key")),
                 listOf(
-                        field("collection_prefix", "string", false, "Collection Prefix", "Weknora_embeddings"),
+                        field("collectionPrefix", "string", false, "Collection Prefix", "Weknora_embeddings"),
                         numField("desired_shard_count", false, "Shard Count", 1, null, null),
                         numField("replication_factor", false, "Replication Factor", 1, null, null))));
 
@@ -91,7 +90,7 @@ public final class VectorStoreTypes {
                         field("username", "string", false, "Username", "root"),
                         secret("password", "Password")),
                 listOf(
-                        field("collection_prefix", "string", false, "Table Prefix", "weknora_embeddings"),
+                        field("collectionPrefix", "string", false, "Table Prefix", "weknora_embeddings"),
                         numField("buckets_num", false, "Buckets per table", 10, null, null),
                         numField("replication_num", false, "Replication Num", 1, null, null))));
 
@@ -105,7 +104,7 @@ public final class VectorStoreTypes {
                                 "Skip TLS certificate verification. For self-signed dev clusters only — "
                                         + "never enable in production.", false)),
                 listOf(
-                        field("index_name", "string", false, "Index Name", "weknora"),
+                        field("indexName", "string", false, "Index Name", "weknora"),
                         numField("number_of_shards", false, "Shards", 4, 1.0, 64.0),
                         numField("number_of_replicas", false, "Replicas", 1, 0.0, 10.0),
                         immutableNum("hnsw_m", "HNSW graph degree (M). Immutable after index creation.",
@@ -206,25 +205,25 @@ public final class VectorStoreTypes {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TypeInfo {
-        @JsonProperty("type") public String type;
-        @JsonProperty("display_name") public String displayName;
-        @JsonProperty("connection_fields") public List<FieldInfo> connectionFields;
-        @JsonProperty("index_fields") public List<FieldInfo> indexFields;
+        public String type;
+        public String displayName;
+        public List<FieldInfo> connectionFields;
+        public List<FieldInfo> indexFields;
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class FieldInfo {
-        @JsonProperty("name") public String name;
-        @JsonProperty("type") public String type;
-        @JsonProperty("required") public boolean required;
-        @JsonProperty("sensitive") @JsonInclude(JsonInclude.Include.NON_DEFAULT) public boolean sensitive;
-        @JsonProperty("default") @JsonInclude(JsonInclude.Include.NON_NULL) public Object defaultValue;
-        @JsonProperty("description") @JsonInclude(JsonInclude.Include.NON_NULL) public String description;
-        @JsonProperty("immutable") @JsonInclude(JsonInclude.Include.NON_DEFAULT) public boolean immutable;
-        @JsonProperty("min") @JsonInclude(JsonInclude.Include.NON_NULL)
+        public String name;
+        public String type;
+        public boolean required;
+        public boolean sensitive;
+        public Object defaultValue;
+        @JsonInclude(JsonInclude.Include.NON_NULL) public String description;
+        public boolean immutable;
+
         public Double min;
-        @JsonProperty("max") @JsonInclude(JsonInclude.Include.NON_NULL)
+
         public Double max;
-        @JsonProperty("enum") @JsonInclude(JsonInclude.Include.NON_NULL) public List<String> enumValues;
+        public List<String> enumValues;
     }
 }

@@ -26,7 +26,7 @@
             :key="store.id"
             class="store-card"
             :class="[
-              `store-card--${store.engine_type}`,
+              `store-card--${store.engineType}`,
               {
                 'store-card--env': store.source === 'env',
                 'store-card--clickable': isStoreCardClickable(store),
@@ -40,17 +40,17 @@
             <div class="store-card__main">
               <div
                 class="store-card__badge"
-                :class="badgeClass(store.engine_type)"
-                :style="badgeStyle(store.engine_type)"
-                :aria-label="store.engine_type"
+                :class="badgeClass(store.engineType)"
+                :style="badgeStyle(store.engineType)"
+                :aria-label="store.engineType"
               >
                 <img
-                  v-if="resolveLogo(store.engine_type)?.mode === 'color'"
-                  :src="resolveLogo(store.engine_type)!.url"
-                  :alt="store.engine_type"
+                  v-if="resolveLogo(store.engineType)?.mode === 'color'"
+                  :src="resolveLogo(store.engineType)!.url"
+                  :alt="store.engineType"
                   class="store-card__badge-img"
                 />
-                <template v-else-if="!resolveLogo(store.engine_type)">{{ engineInitial(store.engine_type) }}</template>
+                <template v-else-if="!resolveLogo(store.engineType)">{{ engineInitial(store.engineType) }}</template>
               </div>
               <div class="store-card__body">
                 <div class="store-card__header">
@@ -81,7 +81,7 @@
                   </div>
                 </div>
                 <div class="store-card__subtitle">
-                  <span class="store-card__type">{{ store.engine_type }}</span>
+                  <span class="store-card__type">{{ store.engineType }}</span>
                   <template v-if="getStoreEndpoint(store)">
                     <span class="store-card__sep">·</span>
                     <span class="store-card__endpoint" :title="getStoreEndpoint(store)">{{ getStoreEndpoint(store) }}</span>
@@ -118,11 +118,11 @@
         Header icon — 与列表 .store-card__badge 同款 logo/mono/fallback。
         per-engine 配色由非 scoped 块的 .vectorstore-drawer--{engine} 注入。
       -->
-      <template v-if="form.engine_type" #headerIcon>
+      <template v-if="form.engineType" #headerIcon>
         <img
           v-if="drawerLogo?.mode === 'color'"
           :src="drawerLogo.url"
-          :alt="form.engine_type"
+          :alt="form.engineType"
           class="header-icon__img"
         />
         <span
@@ -130,12 +130,12 @@
           class="header-icon__mono"
           :style="drawerLogoStyle"
         />
-        <span v-else class="header-icon__text">{{ engineInitial(form.engine_type) }}</span>
+        <span v-else class="header-icon__text">{{ engineInitial(form.engineType) }}</span>
       </template>
 
       <!-- 副标题：engine display_name -->
       <template v-if="selectedType" #subtitle>
-        <span>{{ selectedType.display_name || form.engine_type }}</span>
+        <span>{{ selectedType.displayName || form.engineType }}</span>
       </template>
 
       <!--
@@ -189,23 +189,23 @@
           <div class="readonly-fields">
             <div class="readonly-row">
               <span class="readonly-label">{{ t('vectorStoreSettings.engineTypeLabel') }}</span>
-              <span class="readonly-value">{{ selectedType?.display_name || editingStore.engine_type }}</span>
+              <span class="readonly-value">{{ selectedType?.displayName || editingStore.engineType }}</span>
             </div>
             <template v-if="selectedType">
-              <template v-for="field in selectedType.connection_fields" :key="field.name">
-                <div v-if="field.sensitive || form.connection_config[field.name]" class="readonly-row">
+              <template v-for="field in selectedType.connectionFields" :key="field.name">
+                <div v-if="field.sensitive || form.connectionConfig[field.name]" class="readonly-row">
                   <span class="readonly-label">{{ fieldLabel(field.name) }}</span>
                   <span class="readonly-value">
-                    {{ field.sensitive ? '********' : form.connection_config[field.name] }}
+                    {{ field.sensitive ? '********' : form.connectionConfig[field.name] }}
                   </span>
                 </div>
               </template>
             </template>
-            <template v-if="selectedType?.index_fields?.length">
-              <template v-for="field in selectedType.index_fields" :key="field.name">
-                <div v-if="form.index_config[field.name]" class="readonly-row">
+            <template v-if="selectedType?.indexFields?.length">
+              <template v-for="field in selectedType.indexFields" :key="field.name">
+                <div v-if="form.indexConfig[field.name]" class="readonly-row">
                   <span class="readonly-label">{{ fieldLabel(field.name) }}</span>
-                  <span class="readonly-value">{{ form.index_config[field.name] }}</span>
+                  <span class="readonly-value">{{ form.indexConfig[field.name] }}</span>
                 </div>
               </template>
             </template>
@@ -220,12 +220,12 @@
 
             <div class="form-item">
               <label class="form-label required">{{ t('vectorStoreSettings.engineTypeLabel') }}</label>
-              <t-select v-model="form.engine_type" @change="onEngineTypeChange">
+              <t-select v-model="form.engineType" @change="onEngineTypeChange">
                 <t-option
                   v-for="st in storeTypes"
                   :key="st.type"
                   :value="st.type"
-                  :label="st.display_name"
+                  :label="st.displayName"
                 />
               </t-select>
             </div>
@@ -241,7 +241,7 @@
             <h4 class="setting-drawer__section-title">{{ t('vectorStoreSettings.connectionInfo') }}</h4>
 
             <div
-              v-for="field in selectedType.connection_fields"
+              v-for="field in selectedType.connectionFields"
               :key="field.name"
               class="form-item"
             >
@@ -253,10 +253,10 @@
               <!-- boolean 字段：switch + 行内描述 / TLS 警告 -->
               <template v-if="field.type === 'boolean'">
                 <div class="vision-toggle">
-                  <t-switch v-model="form.connection_config[field.name]" />
+                  <t-switch v-model="form.connectionConfig[field.name]" />
                 </div>
                 <p
-                  v-if="field.name === 'insecure_skip_verify' && form.connection_config[field.name]"
+                  v-if="field.name === 'insecure_skip_verify' && form.connectionConfig[field.name]"
                   class="form-desc form-desc--warn"
                 >
                   {{ t('vectorStoreSettings.insecureSkipVerifyWarning') }}
@@ -266,7 +266,7 @@
               <!-- 敏感字段（password / api key 等）：lock prefix + password -->
               <t-input
                 v-else-if="field.type === 'string' && field.sensitive"
-                v-model="form.connection_config[field.name]"
+                v-model="form.connectionConfig[field.name]"
                 type="password"
                 placeholder="********"
               >
@@ -285,14 +285,14 @@
               <!-- 普通字符串 -->
               <t-input
                 v-else
-                v-model="form.connection_config[field.name]"
+                v-model="form.connectionConfig[field.name]"
                 :placeholder="field.default?.toString() || ''"
               />
             </div>
           </section>
 
           <!-- Section 3 — 高级索引（仅 selectedType 有 index_fields 时显示） -->
-          <section v-if="selectedType?.index_fields?.length" class="setting-drawer__section">
+          <section v-if="selectedType?.indexFields?.length" class="setting-drawer__section">
             <h4 class="setting-drawer__section-title">{{ t('vectorStoreSettings.advancedIndexConfig') }}</h4>
 
             <!-- 折叠/展开开关：保留之前的可选展示行为，但样式更轻量 -->
@@ -307,7 +307,7 @@
 
             <template v-if="showAdvanced">
               <div
-                v-for="field in selectedType.index_fields"
+                v-for="field in selectedType.indexFields"
                 :key="field.name"
                 class="form-item"
               >
@@ -316,7 +316,7 @@
                 <!-- 枚举 → 下拉 -->
                 <t-select
                   v-if="field.enum && field.enum.length"
-                  v-model="form.index_config[field.name]"
+                  v-model="form.indexConfig[field.name]"
                   :placeholder="field.default?.toString() || ''"
                 >
                   <t-option v-for="opt in field.enum" :key="opt" :value="opt" :label="opt" />
@@ -336,7 +336,7 @@
                 <!-- 字符串 -->
                 <t-input
                   v-else
-                  v-model="form.index_config[field.name]"
+                  v-model="form.indexConfig[field.name]"
                   :placeholder="field.default?.toString() || ''"
                   :maxlength="128"
                 />
@@ -384,14 +384,14 @@ const formRef = ref<any>()
 
 const form = ref<{
   name: string
-  engine_type: string
-  connection_config: Record<string, any>
-  index_config: Record<string, any>
+  engineType: string
+  connectionConfig: Record<string, any>
+  indexConfig: Record<string, any>
 }>({
   name: '',
-  engine_type: '',
-  connection_config: {},
-  index_config: {},
+  engineType: '',
+  connectionConfig: {},
+  indexConfig: {},
 })
 
 // Tri-state hint icon next to the test button: null=neutral, true=just
@@ -401,7 +401,7 @@ const form = ref<{
 const lastTestOk = ref<boolean | null>(null)
 
 watch(
-  () => [form.value.engine_type, form.value.connection_config],
+  () => [form.value.engineType, form.value.connectionConfig],
   () => { lastTestOk.value = null },
   { deep: true },
 )
@@ -409,13 +409,13 @@ watch(
 // ===== Computed =====
 const envStores = computed(() => stores.value.filter(s => s.source === 'env'))
 const userStores = computed(() => stores.value.filter(s => s.source === 'user'))
-const selectedType = computed(() => storeTypes.value.find(st => st.type === form.value.engine_type))
+const selectedType = computed(() => storeTypes.value.find(st => st.type === form.value.engineType))
 
 // Drawer header logo — 与列表 .store-card__badge 同源（providerLogo()），让
 // 列表卡 → 抽屉 hand-off 视觉连贯。
 const drawerLogo = computed(() => {
-  if (!form.value.engine_type) return null
-  return providerLogo('vectorstore', form.value.engine_type)
+  if (!form.value.engineType) return null
+  return providerLogo('vectorstore', form.value.engineType)
 })
 
 const drawerLogoStyle = computed((): Record<string, string> => {
@@ -426,8 +426,8 @@ const drawerLogoStyle = computed((): Record<string, string> => {
 
 // per-engine class on drawer for non-scoped header-icon coloring rules.
 const drawerClass = computed(() => {
-  return form.value.engine_type
-    ? `vectorstore-drawer vectorstore-drawer--${form.value.engine_type}`
+  return form.value.engineType
+    ? `vectorstore-drawer vectorstore-drawer--${form.value.engineType}`
     : 'vectorstore-drawer'
 })
 
@@ -437,9 +437,9 @@ const canTestConnection = computed(() => {
   if (editingStore.value) return false
   const st = selectedType.value
   if (!st) return false
-  for (const f of st.connection_fields) {
+  for (const f of st.connectionFields) {
     if (!f.required) continue
-    const v = form.value.connection_config[f.name]
+    const v = form.value.connectionConfig[f.name]
     if (v == null || v === '' || (typeof v === 'string' && v.trim() === '')) return false
   }
   return true
@@ -461,9 +461,9 @@ const formRules = computed(() => {
     name: [{ required: true, message: t('vectorStoreSettings.validation.nameRequired') }],
   }
   if (!editingStore.value) {
-    rules.engine_type = [{ required: true, message: t('vectorStoreSettings.validation.engineTypeRequired') }]
+    rules.engineType = [{ required: true, message: t('vectorStoreSettings.validation.engineTypeRequired') }]
     if (selectedType.value) {
-      for (const field of selectedType.value.connection_fields) {
+      for (const field of selectedType.value.connectionFields) {
         if (field.required) {
           rules[`connection_config.${field.name}`] = [
             { required: true, message: t('vectorStoreSettings.validation.fieldRequired', { field: fieldLabel(field.name) }) },
@@ -471,7 +471,7 @@ const formRules = computed(() => {
         }
       }
       // Index name/collection string fields: pattern validation (optional — empty is allowed)
-      for (const field of (selectedType.value.index_fields || [])) {
+      for (const field of (selectedType.value.indexFields || [])) {
         if (field.type === 'string') {
           rules[`index_config.${field.name}`] = [
             {
@@ -503,7 +503,7 @@ const replicaFieldNames = ['number_of_replicas', 'replication_factor', 'replica_
 const isReplicaField = (name: string): boolean => replicaFieldNames.includes(name)
 
 const getStoreEndpoint = (store: VectorStoreEntity): string => {
-  const cc = store.connection_config || {}
+  const cc = store.connectionConfig || {}
   return cc.addr || cc.host || ''
 }
 
@@ -532,8 +532,8 @@ const badgeStyle = (engineType: string): Record<string, string> => {
 }
 
 const onEngineTypeChange = () => {
-  form.value.connection_config = {}
-  form.value.index_config = {}
+  form.value.connectionConfig = {}
+  form.value.indexConfig = {}
   showAdvanced.value = false
   // Drop cached number-text proxies so a switch to a different engine
   // doesn't keep stale entries pointing at the old field set.
@@ -577,17 +577,17 @@ function ensureNumberProxy(
 // keys multiplying — wrap in a Proxy so `connectionNumberText[name].value`
 // from the template lazily creates the proxy on first read.
 const connectionNumberTextProxy = new Proxy(connectionNumberText, {
-  get: (target, name: string) => ensureNumberProxy(target, form.value.connection_config, name),
+  get: (target, name: string) => ensureNumberProxy(target, form.value.connectionConfig, name),
 })
 const indexNumberTextProxy = new Proxy(indexNumberText, {
-  get: (target, name: string) => ensureNumberProxy(target, form.value.index_config, name),
+  get: (target, name: string) => ensureNumberProxy(target, form.value.indexConfig, name),
 })
 
 const loadStores = async () => {
   try {
     const response = await listVectorStores()
-    if (response.data && Array.isArray(response.data)) {
-      stores.value = response.data
+    if (response && Array.isArray(response)) {
+      stores.value = response
     }
   } catch (error) {
     console.error('Failed to load vector stores:', error)
@@ -607,9 +607,9 @@ const openAddDialog = () => {
   showAdvanced.value = false
   form.value = {
     name: '',
-    engine_type: storeTypes.value[0]?.type || '',
-    connection_config: {},
-    index_config: {},
+    engineType: storeTypes.value[0]?.type || '',
+    connectionConfig: {},
+    indexConfig: {},
   }
   lastTestOk.value = null
   showDialog.value = true
@@ -639,9 +639,9 @@ const editStore = (store: VectorStoreEntity) => {
   showAdvanced.value = false
   form.value = {
     name: store.name,
-    engine_type: store.engine_type,
-    connection_config: { ...store.connection_config },
-    index_config: { ...store.index_config },
+    engineType: store.engineType,
+    connectionConfig: { ...store.connectionConfig },
+    indexConfig: { ...store.indexConfig },
   }
   lastTestOk.value = null
   showDialog.value = true
@@ -669,9 +669,9 @@ const onDrawerConfirm = async () => {
     } else {
       const data: Partial<VectorStoreEntity> = {
         name: form.value.name.trim(),
-        engine_type: form.value.engine_type,
-        connection_config: { ...form.value.connection_config },
-        index_config: showAdvanced.value ? { ...form.value.index_config } : {},
+        engineType: form.value.engineType,
+        connectionConfig: { ...form.value.connectionConfig },
+        indexConfig: showAdvanced.value ? { ...form.value.indexConfig } : {},
       }
       await createVectorStore(data)
       MessagePlugin.success(t('vectorStoreSettings.toasts.storeCreated'))
@@ -725,8 +725,8 @@ const onDrawerTest = async () => {
   testing.value = true
   try {
     const data = {
-      engine_type: form.value.engine_type,
-      connection_config: { ...form.value.connection_config },
+      engineType: form.value.engineType,
+      connectionConfig: { ...form.value.connectionConfig },
     }
     const res = await testVectorStoreRaw(data)
     lastTestOk.value = !!res.success
@@ -1171,13 +1171,13 @@ onMounted(async () => {
 }
 
 // ---- 编辑模式只读字段列表（保持原有视觉，但去掉外框，紧贴 alert 下方）----
-.readonly-fields {
+.readOnly-fields {
   padding: 10px 12px;
   background: var(--td-bg-color-secondarycontainer);
   border-radius: 8px;
 }
 
-.readonly-row {
+.readOnly-row {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -1189,14 +1189,14 @@ onMounted(async () => {
   &:last-child { border-bottom: none; }
 }
 
-.readonly-label {
+.readOnly-label {
   color: var(--td-text-color-placeholder);
   font-size: 11px;
   white-space: nowrap;
   min-width: 80px;
 }
 
-.readonly-value {
+.readOnly-value {
   color: var(--td-text-color-primary);
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;

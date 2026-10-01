@@ -5,21 +5,21 @@ import { get, post, put, del } from '@/utils/request'
 export interface VectorStoreEntity {
   id?: string
   name: string
-  engine_type: string
-  connection_config: Record<string, any>
-  index_config: Record<string, any>
+  engineType: string
+  connectionConfig: Record<string, any>
+  indexConfig: Record<string, any>
   source: 'env' | 'user'
-  readonly: boolean
-  tenant_id?: number
-  created_at?: string
-  updated_at?: string
+  readOnly: boolean
+  tenantId?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface VectorStoreTypeInfo {
   type: string
-  display_name: string
-  connection_fields: FieldSchema[]
-  index_fields: FieldSchema[]
+  displayName: string
+  connectionFields: FieldSchema[]
+  indexFields: FieldSchema[]
 }
 
 export interface FieldSchema {
@@ -33,7 +33,7 @@ export interface FieldSchema {
   // absent the UI falls back to per-field heuristics (isReplicaField).
   min?: number
   max?: number
-  // Closed value set for string fields (e.g. knn_engine ∈ lucene|faiss).
+  // Closed value set for string fields (e.g. knnEngine ∈ lucene|faiss).
   // When non-empty the UI renders a select instead of a free-text input.
   enum?: string[]
   // Marks a field that cannot change after store creation. Informational
@@ -44,12 +44,10 @@ export interface FieldSchema {
 // ===== API Functions =====
 
 export function listVectorStoreTypes(): Promise<VectorStoreTypeInfo[]> {
-  return get('/api/v1/vector-stores/types').then((res: any) => {
-    return res.success && res.data ? res.data : []
-  })
+  return get('/api/v1/vector-stores/types')
 }
 
-export function listVectorStores(): Promise<{ success: boolean; data: VectorStoreEntity[] }> {
+export function listVectorStores(): Promise<VectorStoreEntity[]> {
   return get('/api/v1/vector-stores')
 }
 
@@ -65,7 +63,7 @@ export function deleteVectorStore(id: string) {
   return del(`/api/v1/vector-stores/${id}`)
 }
 
-export function testVectorStoreRaw(data: { engine_type: string; connection_config: any }): Promise<any> {
+export function testVectorStoreRaw(data: { engineType: string; connectionConfig: any }): Promise<any> {
   return post('/api/v1/vector-stores/test', data)
 }
 
