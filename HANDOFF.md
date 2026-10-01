@@ -862,6 +862,24 @@ fixture）→ 路由/注解/签名冻结、装配可改；每刀另过 `--tests 
 `--tests "com.ragagent.embed.*"`（正向 BUILD + ≥2）+ spotlessCheck + 忠实性逐字比对；
 收官 clean 全量 + 环守卫。
 
+**落刀记录（2026-10-01 执行完毕，3 刀全绿；边界判定见上）**
+
+| 刀 | 协作者 | 内容 | 提交 |
+|---|---|---|---|
+| E1 | `EmbedChannelMgmtOps` 198 | 管理面 9 端点体（create/listByAgent/listAll/get/update/delete/rotate/preview/stats）；`UpdateCommand` 是 service 嵌套类型（import 即可，不随簇） | `b84976e` |
+| E2 | `EmbedChannelPublicOps` 141 | 公开面 5 端点体（exchange/config/suggestedQuestions/chunk/createSession） | `3c608e7` |
+| E3 | `EmbedChannelDelegateOps` 280 | 委托面 16 端点体（QA 双路/文件代理/load/stop/建议×3/webhook events + `EventRequest` record 随簇 + MCP OAuth×4/tool-approval）；门面 ensureSession/suppressedIfChannelOff 放宽为实例包内，E3 经 `ctrl.` 调 | `908800b` |
+
+**结果**：`EmbedChannelController` 925→**561**（出榜）；三个协作者 141~280 行；embed 域 ≥800 清零；
+embed+session.controller 152 条测试 0 失败 / 全量 4,668 条 0 失败（clean 全量 + spotless + 环守卫基线保持）；
+全仓 ≥800 类 17→**16**。
+**本批新增坑位**：①回引撞名二次确认——门面 `service` 字段（EmbedChannelService）→ 回引叫 `ctrl`，
+`service.` → `ctrl.service.` 限定；②随簇嵌套 record（EventRequest）引用**不限定**（声明与引用同迁），
+与跨类嵌套类型（EmbedChannelRequest 留门面 → `EmbedChannelController.` 限定）方向相反，先判归属再定
+替换式；③实例方法与静态方法放宽后的调用形态不同（ensureSession/suppressedIfChannelOff 经 `ctrl.`，
+channel/request0/successEnvelope 经类名）；④sed 插入 `\w` 会被 shell 吃反斜杠 → 插入一律用 python 行级
+操作（§13.6 heredoc 坑的 sed 变体）。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
