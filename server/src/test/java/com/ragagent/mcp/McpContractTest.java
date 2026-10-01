@@ -55,8 +55,12 @@ class McpContractTest {
 
     private static final Pattern TS_PATTERN = Pattern.compile(
             "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})");
+    /**
+     * 掩码按键名匹配：**键改名必须同步这个正则**，否则夹具里会混进随机 UUID
+     * （S3 踩过：att-get 的 sessionId）。这里覆盖 id 与 serviceId（M1/M4 后的拼写）。
+     */
     private static final Pattern UUID_KEY_PATTERN = Pattern.compile(
-            "\"(id|service_id)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+            "\"(id|service_id|serviceId)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
 
     @Autowired
     private MockMvc mockMvc;
@@ -163,27 +167,27 @@ class McpContractTest {
         assertGoldenBody("mcp-update.json", updated.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "mcp-update 应与 golden 一致（掩码后）");
 
-        // 6. tool-approvals 空 → 静态 golden
+        // 6. tool-approvals 空 → 裸 []（§2.1）
         mockMvc.perform(get("/api/v1/mcp-services/" + id + "/tool-approvals")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("mcp-tool-approvals-empty.json")));
+                .andExpect(content().string("[]"));
 
-        // 7. 设置审批策略 → 静态 golden（{"success":true}）
+        // 7. 设置审批策略 → 204 无响应体（§14.9n M4：不再回 {"success":true}）
         mockMvc.perform(put("/api/v1/mcp-services/" + id + "/tool-approvals/golden_tool")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"require_approval\":true}"))   // 工具审批面属 M4，仍是下划线
-                .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("mcp-tool-approval-set.json")));
+                        .content("{\"requireApproval\":true}"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         // 8. tool-approvals 有 1 项 → 掩码比对（含生成的 id 与时间戳）
         MvcResult approvals = mockMvc.perform(get("/api/v1/mcp-services/" + id + "/tool-approvals")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertEquals(mask(golden("mcp-tool-approvals.json")),
-                mask(approvals.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+        assertGoldenBody("mcp-tool-approvals.json",
+                approvals.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "mcp-tool-approvals 应与 golden 一致（掩码后）");
 
         // 9. credentials put → 静态 golden（只暴露 configured 布尔）

@@ -2,8 +2,6 @@ package com.ragagent.mcp.oauth;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 授权状态（对照 Go internal/mcp/oauth_lifecycle.go:30-35 的
@@ -12,13 +10,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <p><b>为什么要分"现在可用"与"过期但可刷新"两态</b>（Go 注释原文精神）：一行陈旧的
  * 数据库记录（加密列里还留着 token 字符串）绝不能被当作"已经授权成功"——过期行不算已授权。</p>
  *
- * <p>JSON 形态与 Go 逐字段一致（{@code expires_at} 带 omitempty），因为前端按这些字段渲染。</p>
+ * <p><b>JSON 形态（§14.9n M4 后）</b>：键名＝record 组件名（camelCase），四个键**恒输出**
+ * （§1.6）——{@code expiresAt} 为 null 表示"不过期"（对照 Go 的零值 {@code IsZero()}
+ * 分支），不再是 omitempty 式的"键消失"。</p>
  */
 public record OAuthAuthorizationStatus(
-        @JsonProperty("authorized") boolean authorized,
-        @JsonProperty("state") String state,
-        @JsonProperty("refresh_available") boolean refreshAvailable,
-        @JsonProperty("expires_at") @JsonInclude(JsonInclude.Include.NON_NULL) OffsetDateTime expiresAt) {
+        boolean authorized,
+        String state,
+        boolean refreshAvailable,
+        OffsetDateTime expiresAt) {
 
     /** 对照 Go {@code oauthStateAuthorized}。 */
     public static final String STATE_AUTHORIZED = "authorized";
@@ -35,8 +35,7 @@ public record OAuthAuthorizationStatus(
      *   <li>无 token 或 access token 为空 → {@code reauth_required}，不算授权；</li>
      *   <li>{@code RefreshAvailable} 只取决于 refresh token 是否为空（与是否过期无关）；</li>
      *   <li><b>零值 expires_at 表示"不过期"</b>，直接算 authorized（对照 Go 的
-     *       {@code ExpiresAt.IsZero()} 分支）——注意 @JsonInclude(NON_NULL) 与 Go 的
-     *       {@code omitempty} 在此处语义一致：零值不输出。</li>
+     *       {@code ExpiresAt.IsZero()} 分支）——输出侧 {@code expiresAt} 写 null（§1.6）。</li>
      *   <li>已过期但有 refresh token → {@code refreshable}；否则 {@code reauth_required}。</li>
      * </ol>
      */

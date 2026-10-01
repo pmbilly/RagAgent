@@ -390,21 +390,23 @@ class McpHttpContractTest {
         String token = loginOwner();
         String id = createService(token, "{\"name\":\"appr\",\"transportType\":\"sse\"}");
 
-        assertEquals("{\"data\":[],\"success\":true}", body(perform(
+        // §2.1：审批行列表是裸数组
+        assertEquals("[]", body(perform(
                 get("/api/v1/mcp-services/" + id + "/tool-approvals")
                         .header("Authorization", "Bearer " + token))));
 
         MvcResult set = perform(put("/api/v1/mcp-services/" + id + "/tool-approvals/search")
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
-                .content("{\"require_approval\":true}"));
-        assertEquals(200, set.getResponse().getStatus(), body(set));
-        assertEquals("{\"success\":true}", body(set));
+                .content("{\"requireApproval\":true}"));
+        // 策略写入 → 204（§14.9n M4：不再回 {"success":true}）
+        assertEquals(204, set.getResponse().getStatus(), body(set));
+        assertEquals("", body(set));
 
         String rows = body(perform(get("/api/v1/mcp-services/" + id + "/tool-approvals")
                 .header("Authorization", "Bearer " + token)));
-        assertTrue(rows.contains("\"tool_name\":\"search\""), rows);
-        assertTrue(rows.contains("\"require_approval\":true"), rows);
+        assertTrue(rows.contains("\"toolName\":\"search\""), rows);
+        assertTrue(rows.contains("\"requireApproval\":true"), rows);
         assertTrue(rows.contains("\"enabled\":true"), "缺行默认 enabled=true：" + rows);
     }
 

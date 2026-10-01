@@ -5,7 +5,6 @@ import java.time.OffsetDateTime;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 逐工具的审批/启用策略（对照 Go types.MCPToolApproval）。
@@ -16,31 +15,22 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *   绕开 GORM 省略零值的行为（repository:76 UpsertPolicy 用 clause.OnConflict + map）。
  *   Java 侧在仓储层同样必须显式写入，不能依赖实体默认值。
  *
- * <p>⚠️ <b>本实体直接作为 GET /{id}/tool-approvals 的响应体</b>（对照 Go
- * {@code c.JSON(..., rows)}），所以 JSON 键名必须逐字对齐 Go 的 json tag。
- * {@code @JsonProperty} 只影响 Jackson 序列化，MyBatis 的列名仍按
- * map-underscore-to-camel-case 映射，两者互不干扰。</p>
+ * <p>⚠️ <b>本实体直接作为 GET /{id}/tool-approvals 的响应体</b>（§14.9n M4 后：裸数组，
+ * 键名＝Java 字段名）；MyBatis 的列名仍按 map-underscore-to-camel-case 映射，
+ * 两者互不干扰。</p>
  */
 @TableName("mcp_tool_approvals")
 public class McpToolApproval {
 
     @TableId(type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
-    @JsonProperty("tenant_id")
     private Long tenantId;
-    @JsonProperty("service_id")
     private String serviceId;
-    @JsonProperty("tool_name")
     private String toolName;
-    @JsonProperty("require_approval")
     private boolean requireApproval;
     /** 控制该工具是否暴露给 Agent；缺行视为 enabled */
-    @JsonProperty("enabled")
     private boolean enabled;
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
     public String getId() { return id; }

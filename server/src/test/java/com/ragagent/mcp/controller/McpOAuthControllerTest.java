@@ -131,18 +131,17 @@ class McpOAuthControllerTest {
     void authorizeUrlReturnsUrlAndAttempt() throws Exception {
         mvc(null, null).perform(post("/api/v1/mcp-services/" + SERVICE_ID + "/oauth/authorize-url")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"redirect_uri\":\"https://app.example.com/api/v1/mcp-oauth/callback\"}"))
+                        .content("{\"redirectUri\":\"https://app.example.com/api/v1/mcp-oauth/callback\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.authorization_url").exists())
-                .andExpect(jsonPath("$.data.authorization_attempt").exists());
+                .andExpect(jsonPath("$.authorizationUrl").exists())
+                .andExpect(jsonPath("$.authorizationAttempt").exists());
     }
 
     @Test
     void authorizeUrlRequiresRedirectUri() throws Exception {
         mvc(null, null).perform(post("/api/v1/mcp-services/" + SERVICE_ID + "/oauth/authorize-url")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"redirect_uri\":\"  \"}"))
+                        .content("{\"redirectUri\":\"  \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("redirect_uri is required"));
     }
@@ -155,7 +154,7 @@ class McpOAuthControllerTest {
 
         mvc(null, null).perform(post("/api/v1/mcp-services/" + SERVICE_ID + "/oauth/authorize-url")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"redirect_uri\":\"https://app/callback\"}"))
+                        .content("{\"redirectUri\":\"https://app/callback\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message")
                         .value("MCP service is not configured to use OAuth"));
@@ -165,7 +164,7 @@ class McpOAuthControllerTest {
     void authorizeUrlReturns404ForUnknownService() throws Exception {
         mvc(null, null).perform(post("/api/v1/mcp-services/nope/oauth/authorize-url")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"redirect_uri\":\"https://app/callback\"}"))
+                        .content("{\"redirectUri\":\"https://app/callback\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.message").value("MCP service not found"));
     }
@@ -175,7 +174,7 @@ class McpOAuthControllerTest {
         TenantContext.clear();
         mvc(null, null).perform(post("/api/v1/mcp-services/" + SERVICE_ID + "/oauth/authorize-url")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"redirect_uri\":\"https://app/callback\"}"))
+                        .content("{\"redirectUri\":\"https://app/callback\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.message").value("authentication required"));
     }
@@ -225,10 +224,9 @@ class McpOAuthControllerTest {
     void statusWithoutAttemptReturnsLifecycleState() throws Exception {
         mvc(null, null).perform(get("/api/v1/mcp-services/" + SERVICE_ID + "/oauth/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.authorized").value(false))
-                .andExpect(jsonPath("$.data.state").value("reauth_required"))
-                .andExpect(jsonPath("$.data.refresh_available").value(false));
+                .andExpect(jsonPath("$.authorized").value(false))
+                .andExpect(jsonPath("$.state").value("reauth_required"))
+                .andExpect(jsonPath("$.refreshAvailable").value(false));
     }
 
     @Test
@@ -239,8 +237,8 @@ class McpOAuthControllerTest {
         mvc(null, null).perform(get("/api/v1/mcp-services/" + SERVICE_ID + "/oauth/status")
                         .param("authorization_attempt", start.attemptId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.authorized").value(false))
-                .andExpect(jsonPath("$.data.state").value("pending"));
+                .andExpect(jsonPath("$.authorized").value(false))
+                .andExpect(jsonPath("$.state").value("pending"));
     }
 
     /** 回调完成后再查：同一 attempt 变为 authorized（历史 token 不参与）。 */
@@ -253,8 +251,8 @@ class McpOAuthControllerTest {
         mvc(null, null).perform(get("/api/v1/mcp-services/" + SERVICE_ID + "/oauth/status")
                         .param("authorization_attempt", start.attemptId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.authorized").value(true))
-                .andExpect(jsonPath("$.data.state").value("authorized"));
+                .andExpect(jsonPath("$.authorized").value(true))
+                .andExpect(jsonPath("$.state").value("authorized"));
     }
 
     // ── 4. revoke ─────────────────────────────────────────────────────
@@ -276,7 +274,7 @@ class McpOAuthControllerTest {
     void resolveWithoutGateIsServerError() throws Exception {
         mvc(null, null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"service_id\":\"" + SERVICE_ID + "\"}"))
+                        .content("{\"serviceId\":\"" + SERVICE_ID + "\"}"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error.message").value("OAuth gate is not configured"));
     }
@@ -293,7 +291,7 @@ class McpOAuthControllerTest {
     void resolveRequiresServiceId() throws Exception {
         mvc(mock(Gate.class), null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"service_id\":\"\"}"))
+                        .content("{\"serviceId\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("service_id is required"));
     }
@@ -302,7 +300,7 @@ class McpOAuthControllerTest {
     void resolveRejectsUnknownDecision() throws Exception {
         mvc(mock(Gate.class), null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"service_id\":\"" + SERVICE_ID + "\",\"decision\":\"maybe\"}"))
+                        .content("{\"serviceId\":\"" + SERVICE_ID + "\",\"decision\":\"maybe\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value("decision must be authorize or cancel"));
     }
@@ -312,7 +310,7 @@ class McpOAuthControllerTest {
     void resolveRequiresCompletedAuthorization() throws Exception {
         mvc(mock(Gate.class), null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"service_id\":\"" + SERVICE_ID + "\"}"))
+                        .content("{\"serviceId\":\"" + SERVICE_ID + "\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.message")
                         .value("authorization not completed yet for this MCP service"));
@@ -328,9 +326,8 @@ class McpOAuthControllerTest {
         Gate gate = mock(Gate.class);
         mvc(gate, null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"service_id\":\"" + SERVICE_ID + "\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                        .content("{\"serviceId\":\"" + SERVICE_ID + "\"}"))
+                .andExpect(status().isNoContent());
         org.mockito.Mockito.verify(gate).resolve(anyLong(), anyString(), anyString(), any(Decision.class));
     }
 
@@ -339,8 +336,7 @@ class McpOAuthControllerTest {
     void cancelDeniesPending() throws Exception {
         Gate gate = mock(Gate.class);
         mvc(gate, null).perform(post("/api/v1/agent/mcp-oauth-resolutions/p1/cancel"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(status().isNoContent());
         org.mockito.Mockito.verify(gate).resolve(anyLong(), anyString(), anyString(), any(Decision.class));
     }
 

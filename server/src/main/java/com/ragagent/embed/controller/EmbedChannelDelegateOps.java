@@ -235,7 +235,7 @@ final class EmbedChannelDelegateOps {
     }
 
     /** 对照 EmbedMCPOAuthStatus（委托 McpOAuthController.Status）。 */
-    public ResponseEntity<Map<String, Object>> mcpStatus(
+    public ResponseEntity<?> mcpStatus(
             @PathVariable("session_id") String sessionId,
             @PathVariable("svc_id") String serviceId) {
         ctrl.ensureSession(LogSanitizer.sanitize(sessionId));
@@ -243,7 +243,7 @@ final class EmbedChannelDelegateOps {
     }
 
     /** 对照 EmbedResolveMCPOAuth（gate 依赖分支；Gate 未接线时 500，与 Go dev 装配差 = 已知差异）。 */
-    public ResponseEntity<Map<String, Object>> mcpResolve(
+    public ResponseEntity<Void> mcpResolve(
             @PathVariable("session_id") String sessionId,
             @PathVariable("pending_id") String pendingId,
             @RequestBody(required = false) String rawBody) {
@@ -261,7 +261,7 @@ final class EmbedChannelDelegateOps {
     }
 
     /** 对照 EmbedCancelMCPOAuth。 */
-    public ResponseEntity<Map<String, Object>> mcpResolveCancel(
+    public ResponseEntity<Void> mcpResolveCancel(
             @PathVariable("session_id") String sessionId,
             @PathVariable("pending_id") String pendingId) {
         ctrl.ensureSession(LogSanitizer.sanitize(sessionId));

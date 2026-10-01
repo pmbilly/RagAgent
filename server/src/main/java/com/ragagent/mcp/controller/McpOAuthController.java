@@ -87,12 +87,10 @@ public class McpOAuthController {
     // ── 1. 发起授权 ────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code mcpOAuthAuthorizeRequest}（json tag 是<b>蛇形</b>，
-     * 前端按 {@code redirect_uri} / {@code frontend_redirect} 提交）。
+     * 对照 Go {@code mcpOAuthAuthorizeRequest}（§14.9n M4 后键名＝组件名：
+     * 前端按 {@code redirectUri} / {@code frontendRedirect} 提交）。
      */
-    public record AuthorizeRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("redirect_uri") String redirectUri,
-            @com.fasterxml.jackson.annotation.JsonProperty("frontend_redirect") String frontendRedirect) {
+    public record AuthorizeRequest(String redirectUri, String frontendRedirect) {
     }
 
     /**
@@ -143,9 +141,9 @@ public class McpOAuthController {
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("authorization_url", result.authorizationUrl());
-        data.put("authorization_attempt", result.attemptId());
-        return ResponseEntity.ok(envelope(data));
+        data.put("authorizationUrl", result.authorizationUrl());
+        data.put("authorizationAttempt", result.attemptId());
+        return ResponseEntity.ok(data);
     }
 
     // ── 2. 公开回调 ────────────────────────────────────────────────────
@@ -204,7 +202,7 @@ public class McpOAuthController {
      * 带的时候<b>只</b>回答"这一次尝试是否完成"（历史 token 不算数）。
      */
     @GetMapping("/mcp-services/{id}/oauth/status")
-    public ResponseEntity<Map<String, Object>> status(
+    public ResponseEntity<?> status(
             @PathVariable("id") String serviceId,
             @RequestParam(value = "authorization_attempt", required = false) String attemptIdRaw) {
         long tenantId = tenantIdOrZero();
@@ -224,7 +222,7 @@ public class McpOAuthController {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("authorized", authorized);
             data.put("state", authorized ? "authorized" : "pending");
-            return ResponseEntity.ok(envelope(data));
+            return ResponseEntity.ok(data);
         }
 
         OAuthAuthorizationStatus status;
@@ -233,7 +231,7 @@ public class McpOAuthController {
         } catch (RuntimeException e) {
             throw BizException.internal("failed to query authorization status: " + e.getMessage());
         }
-        return ResponseEntity.ok(envelope(status));
+        return ResponseEntity.ok(status);
     }
 
     // ── 4. 撤销 ────────────────────────────────────────────────────────
@@ -257,10 +255,8 @@ public class McpOAuthController {
 
     // ── 5. 会话内 OAuth 挂起 / 取消 ─────────────────────────────────────
 
-    /** 对照 Go {@code resolveMCPOAuthBody}（json tag 蛇形：{@code service_id}）。 */
-    public record ResolveRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("service_id") String serviceId,
-            @com.fasterxml.jackson.annotation.JsonProperty("decision") String decision) {
+    /** 对照 Go {@code resolveMCPOAuthBody}（§14.9n M4 后键名＝组件名：{@code serviceId}）。 */
+    public record ResolveRequest(String serviceId, String decision) {
     }
 
     /**
@@ -268,7 +264,7 @@ public class McpOAuthController {
      * 真的存在</b>再放行，免得过早/失败的授权把工具调用放回火坑再失败一次。
      */
     @PostMapping("/agent/mcp-oauth-resolutions/{pending_id}")
-    public ResponseEntity<Map<String, Object>> resolveMcpOAuth(
+    public ResponseEntity<Void> resolveMcpOAuth(
             @PathVariable("pending_id") String pendingId,
             @RequestBody(required = false) ResolveRequest body) {
         long tenantId = tenantIdOrZero();
@@ -298,7 +294,7 @@ public class McpOAuthController {
         switch (decision) {
             case "cancel", "reject", "skip" -> {
                 resolveGate(approvalGate, tenantId, gateUserId, pendingId, Decision.deny("user canceled"));
-                return ResponseEntity.ok(simpleOk());
+                return ResponseEntity.noContent().build();
             }
             case "authorize" -> {
                 // 继续往下走
@@ -318,14 +314,14 @@ public class McpOAuthController {
         }
 
         resolveGate(approvalGate, tenantId, gateUserId, pendingId, Decision.allow());
-        return ResponseEntity.ok(simpleOk());
+        return ResponseEntity.noContent().build();
     }
 
     /**
      * 对照 Go {@code CancelMCPOAuth}：用户主动跳过授权，以"拒绝"解除 Agent 阻塞。
      */
     @PostMapping("/agent/mcp-oauth-resolutions/{pending_id}/cancel")
-    public ResponseEntity<Map<String, Object>> cancelMcpOAuth(@PathVariable("pending_id") String pendingId) {
+    public ResponseEntity<Void> cancelMcpOAuth(@PathVariable("pending_id") String pendingId) {
         long tenantId = tenantIdOrZero();
         String gateUserId = gateUserId();
         if (tenantId == 0 || gateUserId.isEmpty()) {
@@ -336,7 +332,7 @@ public class McpOAuthController {
             throw BizException.internal("OAuth gate is not configured");
         }
         resolveGate(approvalGate, tenantId, gateUserId, pendingId, Decision.deny("user canceled"));
-        return ResponseEntity.ok(simpleOk());
+        return ResponseEntity.noContent().build();
     }
 
     // ── 内部工具 ───────────────────────────────────────────────────────
@@ -408,19 +404,6 @@ public class McpOAuthController {
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(location))
                 .build();
-    }
-
-    private static Map<String, Object> simpleOk() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
-    }
-
-    private static Map<String, Object> envelope(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
     }
 
     /**

@@ -1,1 +1,1 @@
-{"data":{"authorized":false,"refresh_available":false,"state":"reauth_required"},"success":true}
+{"authorized":false,"expiresAt":null,"refreshAvailable":false,"state":"reauth_required"}

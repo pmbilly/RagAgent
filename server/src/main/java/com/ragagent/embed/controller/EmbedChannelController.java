@@ -272,14 +272,14 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @GetMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/mcp-services/{svc_id}/oauth/status")
-    public ResponseEntity<Map<String, Object>> mcpStatus(
+    public ResponseEntity<?> mcpStatus(
             @PathVariable("session_id") String sessionId,
             @PathVariable("svc_id") String serviceId) {
         return delegateOps.mcpStatus(sessionId, serviceId);
     }
 
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/mcp-oauth-resolutions/{pending_id}")
-    public ResponseEntity<Map<String, Object>> mcpResolve(
+    public ResponseEntity<Void> mcpResolve(
             @PathVariable("session_id") String sessionId,
             @PathVariable("pending_id") String pendingId,
             @RequestBody(required = false) String rawBody) {
@@ -287,7 +287,7 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/mcp-oauth-resolutions/{pending_id}/cancel")
-    public ResponseEntity<Map<String, Object>> mcpResolveCancel(
+    public ResponseEntity<Void> mcpResolveCancel(
             @PathVariable("session_id") String sessionId,
             @PathVariable("pending_id") String pendingId) {
         return delegateOps.mcpResolveCancel(sessionId, pendingId);

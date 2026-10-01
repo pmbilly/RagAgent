@@ -445,7 +445,7 @@ class EmbedContractTest {
                 .header("X-Embed-Session", sigMain), 400, "emb-pub-mcp-authorize-nobody.json");
         assertGolden(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/mcp-services/"
                 + svcOauth + "/oauth/authorize-url", null,
-                "{\"redirect_uri\":\"https://a.example.com/oauth\",\"frontend_redirect\":\"\"}")
+                "{\"redirectUri\":\"https://a.example.com/oauth\",\"frontendRedirect\":\"\"}")
                 .header("Authorization", ea).header("Origin", origin)
                 .header("X-Embed-Session", sigMain), 404, "emb-pub-mcp-authorize-unknown.json");
         assertGolden(get("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/mcp-services/"

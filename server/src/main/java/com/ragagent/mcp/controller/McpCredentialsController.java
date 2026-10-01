@@ -1,7 +1,6 @@
 package com.ragagent.mcp.controller;
 
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
@@ -59,7 +58,7 @@ public class McpCredentialsController {
      */
     public record McpCredentialsPutRequest(
             String apiKey,
-            @JsonProperty("token") String token) {
+            String token) {
     }
 
     /**

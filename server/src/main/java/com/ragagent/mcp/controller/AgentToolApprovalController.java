@@ -1,7 +1,5 @@
 package com.ragagent.mcp.controller;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,8 +49,8 @@ public class AgentToolApprovalController {
 
     /** 对照 ResolveToolApproval — Viewer+ */
     @PostMapping("/tool-approvals/{pending_id}")
-    public ResponseEntity<?> resolveToolApproval(@PathVariable("pending_id") String pendingId,
-                                                 @RequestBody(required = false) ResolveToolApprovalRequest body) {
+    public ResponseEntity<Void> resolveToolApproval(@PathVariable("pending_id") String pendingId,
+                                                    @RequestBody(required = false) ResolveToolApprovalRequest body) {
         Long tenantId = TenantContext.currentTenantId();
         long tenant = tenantId == null ? 0L : tenantId;
         if (tenant == 0) {
@@ -94,9 +92,8 @@ public class AgentToolApprovalController {
                 }
             }
         }
-        Map<String, Object> ok = new LinkedHashMap<>();
-        ok.put("success", true);
-        return ResponseEntity.ok(ok);
+        // 无响应体的受理回执 → 204（§14.9n M4：不再是 {"success":true}）
+        return ResponseEntity.noContent().build();
     }
 
     /**

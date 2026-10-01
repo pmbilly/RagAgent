@@ -1,6 +1,5 @@
 package com.ragagent.mcp.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 更新单个 MCP 工具策略的请求体（对照 Go handler 的
@@ -10,6 +9,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * 与"显式 false"。两个都为 null 时 handler 返回 400。</p>
  */
 public record McpToolApprovalPolicyRequest(
-        @JsonProperty("require_approval") Boolean requireApproval,
-        @JsonProperty("enabled") Boolean enabled) {
+        Boolean requireApproval,
+        Boolean enabled) {
 }

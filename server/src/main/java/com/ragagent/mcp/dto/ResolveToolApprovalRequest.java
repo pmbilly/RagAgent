@@ -1,6 +1,5 @@
 package com.ragagent.mcp.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -13,7 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * 与"字段缺失"，正是 Go 那段 {@code trimmed != "null"} 探测所需要的。</p>
  */
 public record ResolveToolApprovalRequest(
-        @JsonProperty("decision") String decision,
-        @JsonProperty("modified_args") JsonNode modifiedArgs,
-        @JsonProperty("reason") String reason) {
+        String decision,
+        JsonNode modifiedArgs,
+        String reason) {
 }

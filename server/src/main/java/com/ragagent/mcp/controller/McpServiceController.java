@@ -1,8 +1,6 @@
 package com.ragagent.mcp.controller;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -275,7 +273,8 @@ public class McpServiceController {
             log.error("Failed to list MCP tool approvals, service_id={}", serviceId, e);
             throw BizException.internal(rawMessage(e));
         }
-        return ok(envelope(rows));
+        // §2.1：列表裸数组（不再是 {data:[...],success:true}）
+        return ResponseEntity.ok(rows);
     }
 
     /**
@@ -307,7 +306,8 @@ public class McpServiceController {
             }
             throw BizException.internal(rawMessage(e));
         }
-        return ok(successOnly());
+        // 策略写入是无响应体的受理回执 → 204（§14.9n M4）
+        return ResponseEntity.noContent().build();
     }
 
     // ── 工具方法 ─────────────────────────────────────────────────────────
@@ -349,24 +349,9 @@ public class McpServiceController {
 
 
 
-    /** 成功响应：HTTP 200 + gin.H 信封（Go 的 {@code c.JSON(http.StatusOK, ...)}） */
+    /** 成功响应：HTTP 200 + 裸资源（§2.1）。 */
     static ResponseEntity<?> ok(Object body) {
         return ResponseEntity.ok(body);
-    }
-
-    /** gin.H：{"data":..., "success":true}（字母序 data < success） */
-    static Map<String, Object> envelope(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
-    }
-
-    /** gin.H：{"success":true} */
-    private static Map<String, Object> successOnly() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
     }
 
     static String sanitize(String value) {
