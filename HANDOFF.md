@@ -210,9 +210,9 @@
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
    auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** / **mcp 域 M1（服务资源 + 凭据面）+ M4（工具审批 + OAuth 用户面，均前后端同批）** 已完成（同批带前端）；
    **mcp 域已收官（M1 + M4 + M5，仅剩第三方协议面 22 处永久冻结）**。
-   **datasource D1（主资源 + 凭据 + 资源目录）+ D2（同步日志与结果）已完成（前后端同批，§14.9q）**。
-   下一步候选：**datasource 余 D3（队列载荷 + Go golden）/ wiki（54）/
-   auth 余面（138）/ retrieval（21）/ agent（15）**（§2 第 4 条落地范围）。
+   **datasource 域已收官（D1 + D2 + D3，仅剩 connector 第三方线格式与 `lf_*` 共享载具，均冻结）**。
+   下一步候选：**wiki（54）/ auth 余面（138）/ retrieval（21）/ agent（15）/
+   datasource connector 面（若将来要改对方 API 版本）**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -559,7 +559,7 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 
 - **别把"Go 序列化层删除"拆到各域**：409 处引用 / 94 文件的那一刀按 §3 红线必须**一次性全仓完成**。
   按域先换锚（同 PR 带前端）是允许的，删序列化器本体不是。
-- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、agent 域 fixture（`ag-*`）、**Go 工具面 5 类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`——线上注解已清零，但手搓载荷/provider 请求体仍依赖其字节）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档——
+- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、agent 域 fixture（`ag-*`）、**Go 工具面 5 类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`——线上注解已清零，但手搓载荷/provider 请求体仍依赖其字节）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档、**`lf_*` 平铺追踪载具**（§14.9q D3：`TracingContext` 平铺进 4 个队列载荷，前缀是防撞名的命名空间；要清理应改为嵌套 `tracing` 键，不是去前缀）、**connector 第三方线格式**（`datasource/connector/**` 350 处，字段名由对方 API 决定）——
   这些"仍是 snake"是**对的**。**注意该清单会随各域推进而变动**：`wiki 域实体` 条目已作废
   （`b407769` C 波把 `wiki/domain` 换锚为 camelCase），`wiki/service` 残留的 `@JsonProperty` 载荷随其批次处理；
   **引用前先看 §14.3 该域的进度栏，别照抄旧结论**。
@@ -2364,6 +2364,26 @@ UPDATE data_sources SET last_sync_cursor = (
 WHERE jsonb_typeof(last_sync_cursor) = 'object' AND last_sync_cursor ? 'last_sync_time';
 ```
 
+**✅ D3（队列载荷）+ datasource 域收官（2026-10-02）**——我方面 16 处清零：
+- **换锚**：`DataSourceSyncPayload` 的 7 个自有键（`data_source_id`→`dataSourceId` 等）+ `TaskInitiator`(2)；
+  `@JsonPropertyOrder` 与自有键上的 `@JsonInclude`（omitempty 直译）一并退役（§1.6：`forceFull` false 照写、
+  `trigger` 空串照写、`maxItems` 0 照写、零值 `TaskInitiator` 是两个空串而非 `{}`）。
+- **⚠️ `lf_*` 五键判为冻结（本批最重要的边界判定）**：它们是**平铺载具的命名空间前缀**——
+  `com.ragagent.common.context.TracingContext` 被**平铺**进 4 个载荷（datasource / memory / wiki / knowledge），
+  去掉前缀就会与载荷自有字段撞名（如 `userId`/`sessionId`）。四域 + 共享记录是同一形状，改名要一起动
+  且失去命名空间保护；**确需清理时应改成"嵌套一个 `tracing` 键"（形状变更，另批）**，而不是去前缀。
+  故 `DataSourceSyncPayload` 里这五个 `@JsonProperty("lf_*")` 与它们的 `NON_EMPTY` 语义**刻意保留**，
+  并在类注释里写明了理由。判定口径已同步进 §11 边界清单。
+- **零兼容负担**：载荷只在**进程内队列**流动（不落库、不出响应、无第二个实现）→ 无需迁移 SQL、
+  无需兼容读（对比 M5 的 Redis blob 要兼容读：那是**跨进程 + TTL 窗口**的场景）。
+- 测试：`DataSourceJsonTest` 的 4 个 D3 用例（`taskInitiatorMatchesGo` / 载荷零值 / 全值 / 键序条目）
+  按本方形状改写；两处类注释里的旧 JSON 样例同步（SyncLog 与载荷各自的"Go 实录"块）。
+- 验收：全量 **4686 / 0 失败 / 6 跳过** + `spotlessCheck`；前端无面（内部载荷，未动）；
+  真实服务冒烟沿用 D2 那轮（打本地 RSS 桩跑真同步走的就是本载荷：调度器 → 队列 → worker），
+  换锚后同轮冒烟 6 路仍全绿。
+- **datasource 域收官**：493 →（D1）417 →（D2）366 →（D3）**355**，其中 **350 处是 connector 第三方线格式
+  （永久冻结）+ 5 处 `lf_*` 共享载具（冻结）** ⇒ **该域可换锚面 = 0**。
+
 ### 14.9p mcp 域 M5（OAuth 内部 blob 面）+ 该域收官（2026-10-01）
 
 **✅ M5 执行记录**：`OAuthState`(9) + `OAuthAttempt`(4) 去键名映射——这两个记录**只序列化进
@@ -2447,7 +2467,7 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1，§14.9q）→ 366（D2，§14.9q；**余 16 处＝D3 队列载荷**，另 **350 处 connector 第三方线格式永久冻结**。⚠️ 口径：本域计数含 `@JsonPropertyOrder`（`@JsonProperty` 前缀也匹配它），且 connector 段的 350 是**含全限定写法**的实测值——早期记的 270 是窄口径漏算，按 350 为准）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1）→ 366（D2）→ 355（D3 收官，§14.9q）：余 350 处为 connector 第三方线格式 + 5 处 `lf_*` 平铺载具，**均为永久冻结** ⇒ 该域可换锚面 0**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
