@@ -670,7 +670,7 @@ class NotionConnectorTest {
                             + "\"Status\":{\"type\":\"select\","
                             + "\"select\":{\"name\":\"Done\\nLine2|Pipe\"}}}");
 
-            FetchedItem item = connector.buildRecordItem(client, record,
+            FetchedItem item = connector.fetchOps.buildRecordItem(client, record,
                     NotionProperties.extractPropertySchema(record), "Test Database");
 
             assertThat(NotionTestSupport.contentOf(item)).isEqualTo(
@@ -692,7 +692,7 @@ class NotionConnectorTest {
             empty.id = "rec-empty";
             empty.object = "page";
             // 没有任何属性、也没有块内容 —— 但标题行恒被写入，所以**不是** null
-            FetchedItem item = connector.buildRecordItem(client, empty, null, "DB");
+            FetchedItem item = connector.fetchOps.buildRecordItem(client, empty, null, "DB");
             assertThat(item).isNotNull();
             assertThat(item.getTitle()).isEqualTo("Untitled");
             assertThat(NotionTestSupport.contentOf(item)).isEqualTo("# Untitled");
@@ -716,7 +716,7 @@ class NotionConnectorTest {
             record.rawProperties = NotionTestSupport.json(
                     "{\"Status\":{\"type\":\"select\",\"select\":{\"name\":\"Deep\"}}}");
 
-            FetchedItem item = connector.buildRecordItem(client, record,
+            FetchedItem item = connector.fetchOps.buildRecordItem(client, record,
                     NotionProperties.extractPropertySchema(record), "DB");
             assertThat(NotionTestSupport.contentOf(item))
                     .isEqualTo("# WithContent\n\n- **Status**: Deep\n\nrecord body");
@@ -748,7 +748,7 @@ class NotionConnectorTest {
             NotionPage rec4 = record("rec-with-content", "WithContent", null,
                     "{\"Status\":{\"type\":\"select\",\"select\":{\"name\":\"Deep\"}}}");
 
-            FetchedItem item = connector.buildDatabaseItem(client, "db-9", "Test Database",
+            FetchedItem item = connector.fetchOps.buildDatabaseItem(client, "db-9", "Test Database",
                     List.of(rec1, rec2, rec3, rec4));
 
             assertThat(NotionTestSupport.contentOf(item)).isEqualTo(
@@ -768,8 +768,8 @@ class NotionConnectorTest {
     @Test
     void buildDatabaseItemOnEmptyRecordsReturnsNull() {
         NotionConnector connector = NotionTestSupport.fastConnector();
-        assertThat(connector.buildDatabaseItem(null, "db-9", "T", List.of())).isNull();
-        assertThat(connector.buildDatabaseItem(null, "db-9", "T", null)).isNull();
+        assertThat(connector.fetchOps.buildDatabaseItem(null, "db-9", "T", List.of())).isNull();
+        assertThat(connector.fetchOps.buildDatabaseItem(null, "db-9", "T", null)).isNull();
     }
 
     @Test
@@ -782,7 +782,7 @@ class NotionConnectorTest {
             NotionPage rec2 = record("rec-2", "", null,
                     "{\"Status\":{\"type\":\"select\",\"select\":{\"name\":\"Open\"}}}");
 
-            FetchedItem item = connector.buildDatabaseItem(client, "db-9", "",
+            FetchedItem item = connector.fetchOps.buildDatabaseItem(client, "db-9", "",
                     List.of(rec2));
             assertThat(item.getTitle()).isEqualTo("Untitled");
             assertThat(item.getUrl()).isEqualTo("https://notion.so/db9");
