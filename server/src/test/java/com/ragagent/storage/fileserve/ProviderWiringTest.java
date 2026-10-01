@@ -104,9 +104,9 @@ class ProviderWiringTest {
         ObjectNode config = mapper.createObjectNode();
         config.put("mode", "remote");
         config.put("endpoint", "localhost:9100");
-        config.put("bucket_name", "weknora-ab");
-        config.put("access_key_id", crypto.encryptAESGCM("AK-minio", crypto.getAESKey()));
-        config.put("secret_access_key", crypto.encryptAESGCM("SK-minio", crypto.getAESKey()));
+        config.put("bucketName", "weknora-ab");
+        config.put("accessKeyId", crypto.encryptAESGCM("AK-minio", crypto.getAESKey()));
+        config.put("secretAccessKey", crypto.encryptAESGCM("SK-minio", crypto.getAESKey()));
         StorageBackend row = new StorageBackend();
         row.setProvider("minio");
         row.setConfig(config);
@@ -119,8 +119,8 @@ class ProviderWiringTest {
 
         // 无 enc:v1: 前缀 → 原样（照存储层"带前缀才解密"的语义）
         ObjectNode plain = mapper.createObjectNode();
-        plain.put("access_key_id", "plain-ak");
-        plain.put("secret_access_key", "plain-sk");
+        plain.put("accessKeyId", "plain-ak");
+        plain.put("secretAccessKey", "plain-sk");
         StorageBackend plainRow = new StorageBackend();
         plainRow.setProvider("s3");
         plainRow.setConfig(plain);

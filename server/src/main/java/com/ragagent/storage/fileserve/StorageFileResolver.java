@@ -452,19 +452,39 @@ public class StorageFileResolver {
         switch (b.getProvider() == null ? "" : b.getProvider()) {
             case "local" -> {
                 var local = cfg.putObject("local");
-                local.put("path_prefix", textValue(c, "path_prefix"));
+                local.put("path_prefix", textValue(c, "pathPrefix"));
             }
             default -> {
                 // 云 provider 的投影随 SDK 层回补；local 之外 W5c 只需 default_provider
-                // 与 provider 段（完备性检查读 sec.<provider>.* —— 从实例行回挂，但**先解密凭据**）。
+                // 与 provider 段（完备性检查读 sec.<provider>.*）。实例行配置是 camelCase
+                //（StorageConfig 键名=字段名），这里翻译成引擎面既定的 snake 键；凭据先解密。
                 if (c != null) {
                     var copy = c.deepCopy();
+                    renameConfigKeys(copy);
                     decryptCredentials(copy, crypto);
                     cfg.set(b.getProvider(), copy);
                 }
             }
         }
         return cfg;
+    }
+
+    /** 行配置（camelCase）→ 引擎面键（snake，冻结面）。自由键原样保留。 */
+    private static void renameConfigKeys(com.fasterxml.jackson.databind.JsonNode providerConfig) {
+        if (!(providerConfig instanceof com.fasterxml.jackson.databind.node.ObjectNode obj)) {
+            return;
+        }
+        for (String[] pair : new String[][]{
+                {"accessKeyId", "access_key_id"}, {"secretAccessKey", "secret_access_key"},
+                {"bucketName", "bucket_name"}, {"pathPrefix", "path_prefix"},
+                {"appId", "app_id"}, {"useSsl", "use_ssl"},
+                {"forcePathStyle", "force_path_style"}, {"useTempBucket", "use_temp_bucket"},
+                {"tempBucketName", "temp_bucket_name"}, {"tempRegion", "temp_region"}}) {
+            var v = obj.remove(pair[0]);
+            if (v != null && !obj.has(pair[1])) {
+                obj.set(pair[1], v);
+            }
+        }
     }
 
     /** 解密两族凭据命名（只有带 {@code enc:v1:} 前缀的才是密文，其余原样——照存储层语义）。 */

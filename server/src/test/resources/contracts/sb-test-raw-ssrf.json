@@ -1,1 +1,1 @@
-{"error":"storage endpoint failed SSRF validation"}
+{"connected":false,"error":"storage endpoint failed SSRF validation"}

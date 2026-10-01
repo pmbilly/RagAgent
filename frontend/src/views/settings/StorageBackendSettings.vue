@@ -173,24 +173,24 @@
           <template v-if="needsCredentials">
             <div class="form-item">
               <label class="form-label required">Access Key / Secret ID</label>
-              <t-input v-model="form.config.access_key_id" placeholder="***" clearable>
+              <t-input v-model="form.config.accessKeyId" placeholder="***" clearable>
                 <template #prefix-icon><t-icon name="lock-on" /></template>
               </t-input>
             </div>
             <div class="form-item">
               <label class="form-label required">Secret Key</label>
-              <t-input v-model="form.config.secret_access_key" type="password" placeholder="***" clearable>
+              <t-input v-model="form.config.secretAccessKey" type="password" placeholder="***" clearable>
                 <template #prefix-icon><t-icon name="lock-on" /></template>
               </t-input>
             </div>
           </template>
           <div v-if="form.provider !== 'local'" class="form-item">
             <label class="form-label required">Bucket</label>
-            <t-input v-model="form.config.bucket_name" :disabled="!!editing" clearable />
+            <t-input v-model="form.config.bucketName" :disabled="!!editing" clearable />
           </div>
           <div v-if="form.provider === 'cos'" class="form-item">
             <label class="form-label">App ID</label>
-            <t-input v-model="form.config.app_id" :disabled="!!editing" :placeholder="t('settings.storageBackend.optionalPlaceholder')" clearable />
+            <t-input v-model="form.config.appId" :disabled="!!editing" :placeholder="t('settings.storageBackend.optionalPlaceholder')" clearable />
           </div>
         </section>
 
@@ -198,34 +198,34 @@
           <h4 class="setting-drawer__section-title">{{ t('settings.storageBackend.advancedSection') }}</h4>
           <div class="form-item">
             <label class="form-label">{{ t('settings.storageBackend.pathPrefixLabel') }}</label>
-            <t-input v-model="form.config.path_prefix" :disabled="!!editing" placeholder="weknora/" clearable />
+            <t-input v-model="form.config.pathPrefix" :disabled="!!editing" placeholder="weknora/" clearable />
           </div>
           <div v-if="form.provider === 'minio'" class="form-item">
             <div class="vision-toggle">
-              <t-switch v-model="form.config.use_ssl" />
+              <t-switch v-model="form.config.useSsl" />
               <span class="form-desc form-desc--inline">{{ t('settings.storageBackend.useSslDesc') }}</span>
             </div>
           </div>
           <div v-if="form.provider === 's3'" class="form-item">
             <div class="vision-toggle">
-              <t-switch v-model="form.config.force_path_style" />
+              <t-switch v-model="form.config.forcePathStyle" />
               <span class="form-desc form-desc--inline">{{ t('settings.storageBackend.forcePathStyleDesc') }}</span>
             </div>
           </div>
           <div v-if="form.provider === 'oss'" class="form-item">
             <div class="vision-toggle">
-              <t-switch v-model="form.config.use_temp_bucket" />
+              <t-switch v-model="form.config.useTempBucket" />
               <span class="form-desc form-desc--inline">{{ t('settings.storageBackend.useTempBucketDesc') }}</span>
             </div>
           </div>
-          <template v-if="['cos', 'tos'].includes(form.provider) || (form.provider === 'oss' && form.config.use_temp_bucket)">
+          <template v-if="['cos', 'tos'].includes(form.provider) || (form.provider === 'oss' && form.config.useTempBucket)">
             <div class="form-item">
               <label class="form-label">{{ t('settings.storageBackend.tempBucketLabel') }}</label>
-              <t-input v-model="form.config.temp_bucket_name" :placeholder="t('settings.storageBackend.tempBucketPlaceholder')" clearable />
+              <t-input v-model="form.config.tempBucketName" :placeholder="t('settings.storageBackend.tempBucketPlaceholder')" clearable />
             </div>
             <div class="form-item">
               <label class="form-label">{{ t('settings.storageBackend.tempRegionLabel') }}</label>
-              <t-input v-model="form.config.temp_region" :placeholder="t('settings.storageBackend.tempRegionPlaceholder')" clearable />
+              <t-input v-model="form.config.tempRegion" :placeholder="t('settings.storageBackend.tempRegionPlaceholder')" clearable />
             </div>
           </template>
         </section>
@@ -264,7 +264,7 @@ const loading = ref(false), saving = ref(false), testing = ref(false), visible =
 const backends = ref<StorageBackend[]>([]), providers = ref<string[]>([]), defaultID = ref('')
 const editing = ref<StorageBackend | null>(null)
 const rawTestResult = ref<'ok' | 'error' | null>(null)
-const blankConfig = (): StorageBackendConfig => ({ mode: 'remote', endpoint: '', region: '', access_key_id: '', secret_access_key: '', bucket_name: '', path_prefix: '', use_ssl: true })
+const blankConfig = (): StorageBackendConfig => ({ mode: 'remote', endpoint: '', region: '', accessKeyId: '', secretAccessKey: '', bucketName: '', pathPrefix: '', useSsl: true })
 const form = reactive<{ name: string; provider: string; config: StorageBackendConfig }>({ name: '', provider: 'local', config: blankConfig() })
 const needsEndpoint = computed(() => !['local', 'cos'].includes(form.provider) && !(form.provider === 'minio' && form.config.mode === 'docker'))
 const needsRegion = computed(() => !['local', 'minio'].includes(form.provider))
@@ -293,11 +293,11 @@ const monoLogoStyle = computed((): Record<string, string> => {
 })
 
 function backendMeta(backend: StorageBackend): string {
-  return backend.config.endpoint || backend.config.bucket_name || backend.config.path_prefix || t('settings.storageBackend.localStorage')
+  return backend.config.endpoint || backend.config.bucketName || backend.config.pathPrefix || t('settings.storageBackend.localStorage')
 }
 
 const canEdit = (backend: StorageBackend) => authStore.hasRole('admin') && backend.source !== 'env'
-const canDelete = (backend: StorageBackend) => authStore.hasRole('admin') && backend.source !== 'env' && !backend.legacy_alias
+const canDelete = (backend: StorageBackend) => authStore.hasRole('admin') && backend.source !== 'env' && !backend.legacyAlias
 const canSetDefault = (backend: StorageBackend) => backend.id !== defaultID.value && authStore.hasRole('admin')
 // 测试连接对所有可见用户开放，因此每张卡至少有一个动作。
 const hasActions = (_backend: StorageBackend) => true
@@ -329,7 +329,7 @@ async function load() {
   loading.value = true
   try {
     const [list, types] = await Promise.all([listStorageBackends(), listStorageBackendTypes()])
-    backends.value = list.data || []; defaultID.value = list.default_storage_backend_id || ''; providers.value = types.data || []
+    backends.value = list.items || []; defaultID.value = list.defaultStorageBackendId || ''; providers.value = types || []
   } finally { loading.value = false }
 }
 function resetConfig() { form.config = blankConfig(); rawTestResult.value = null }

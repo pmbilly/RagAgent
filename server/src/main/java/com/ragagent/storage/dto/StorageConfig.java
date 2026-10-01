@@ -1,31 +1,28 @@
 package com.ragagent.storage.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 对照 Go {@code types.StorageBackendConfig}（internal/types/storagebackend.go L94-108）。
- * 全字段 omitempty；未知键容忍（jsonb 演进 + 裸种子行，§9「波 2 FAQ 补充」教训）。
- * access_key_id / secret_access_key 落库加密在仓储层序列化时处理（对照 Go Value()）。
+ * 对象存储后端配置（{@code storage_backends.config} jsonb 的载荷类型）。
+ * 键名即 Java 字段名（camelCase，§2 第 11 条）；未知键容忍（jsonb 演进 + 历史行）。
+ * accessKeyId / secretAccessKey 的密文在仓储层序列化写回时处理（加密与键名正交）。
  */
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StorageConfig {
 
-    @JsonProperty("mode") public String mode = "";
-    @JsonProperty("endpoint") public String endpoint = "";
-    @JsonProperty("region") public String region = "";
-    @JsonProperty("access_key_id") public String accessKeyId = "";
-    @JsonProperty("secret_access_key") public String secretAccessKey = "";
-    @JsonProperty("bucket_name") public String bucketName = "";
-    @JsonProperty("path_prefix") public String pathPrefix = "";
-    @JsonProperty("app_id") public String appId = "";
-    @JsonProperty("use_ssl") public boolean useSsl;
-    @JsonProperty("force_path_style") public boolean forcePathStyle;
-    @JsonProperty("use_temp_bucket") public boolean useTempBucket;
-    @JsonProperty("temp_bucket_name") public String tempBucketName = "";
-    @JsonProperty("temp_region") public String tempRegion = "";
+    public String mode = "";
+    public String endpoint = "";
+    public String region = "";
+    public String accessKeyId = "";
+    public String secretAccessKey = "";
+    public String bucketName = "";
+    public String pathPrefix = "";
+    public String appId = "";
+    public boolean useSsl;
+    public boolean forcePathStyle;
+    public boolean useTempBucket;
+    public String tempBucketName = "";
+    public String tempRegion = "";
 
     public StorageConfig copy() {
         StorageConfig c = new StorageConfig();

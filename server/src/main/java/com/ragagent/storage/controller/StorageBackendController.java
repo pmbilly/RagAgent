@@ -54,14 +54,14 @@ public class StorageBackendController {
     /** 对照 storageBackendRequest：name/provider required */
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public record StorageBackendRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("name") String name,
-            @com.fasterxml.jackson.annotation.JsonProperty("provider") String provider,
-            @com.fasterxml.jackson.annotation.JsonProperty("config") StorageConfig config,
-            @com.fasterxml.jackson.annotation.JsonProperty("status") String status) {}
+            String name,
+            String provider,
+            StorageConfig config,
+            String status) {}
 
     @GetMapping("/types")
     public ResponseEntity<?> types() {
-        return ResponseEntity.ok(envelopeData(allowList.allowedList()));
+        return ResponseEntity.ok(allowList.allowedList());
     }
 
     @PostMapping("/test")
@@ -79,20 +79,20 @@ public class StorageBackendController {
         } catch (RuntimeException e) {
             return ResponseEntity.ok(failureBody(e));
         }
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.ok(connectedBody(true));
     }
 
+    /** 创建后端：201 + 裸资源（§2.1）。 */
     @PostMapping
     public ResponseEntity<?> create(@RequestBody(required = false) String rawBody) {
         long tenantId = tenantId();
         StorageBackendRequest req = bind(rawBody);
         StorageBackend backend = carrier(tenantId, req);
         service.create(backend);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(envelopeData(response(backend)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(response(backend));
     }
 
-    /** {"data":[...],"default_storage_backend_id":...,"success":true}（gin.H 字母序） */
+    /** 列表 = {items, defaultStorageBackendId}（游标外的附加字段形态）。 */
     @GetMapping
     public ResponseEntity<?> list() {
         long tenantId = tenantId();
@@ -101,10 +101,9 @@ public class StorageBackendController {
             result.add(response(b));
         }
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", result);
-        // Go：types.TenantInfoFromContext 拿不到租户 → null
-        body.put("default_storage_backend_id", tenantId == 0 ? null : service.tenantDefaultBackendId(tenantId));
-        body.put("success", true);
+        body.put("items", result);
+        body.put("defaultStorageBackendId",
+                tenantId == 0 ? null : service.tenantDefaultBackendId(tenantId));
         return ResponseEntity.ok(body);
     }
 
@@ -112,7 +111,7 @@ public class StorageBackendController {
     public ResponseEntity<?> get(@PathVariable("id") String id) {
         long tenantId = tenantId();
         StorageBackend backend = getOwned(tenantId, id);
-        return ResponseEntity.ok(envelopeData(response(backend)));
+        return ResponseEntity.ok(response(backend));
     }
 
     @PutMapping("/{id}")
@@ -125,19 +124,19 @@ public class StorageBackendController {
         backend.setId(id);
         service.update(backend);
         StorageBackend refreshed = getOwned(tenantId, id);
-        return ResponseEntity.ok(envelopeData(response(refreshed)));
+        return ResponseEntity.ok(response(refreshed));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable("id") String id) {
         service.delete(tenantId(), id);
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/default")
     public ResponseEntity<?> setDefault(@PathVariable("id") String id) {
         service.setDefault(tenantId(), id);
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/test")
@@ -149,7 +148,7 @@ public class StorageBackendController {
         } catch (RuntimeException e) {
             return ResponseEntity.ok(failureBody(e));
         }
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.ok(connectedBody(true));
     }
 
     // ── 内部 ───────────────────────────────────────────────────────────
@@ -206,7 +205,15 @@ public class StorageBackendController {
             message = StorageBackendService.sanitizeConnectivity(e.getMessage());
         }
         Map<String, Object> body = new LinkedHashMap<>();
+        body.put("connected", false);
         body.put("error", message);
+        return body;
+    }
+
+    /** 连通性测试的成功体：{connected:true}（与 failureBody 同形对称）。 */
+    private static Map<String, Object> connectedBody(boolean connected) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("connected", connected);
         return body;
     }
 
@@ -242,16 +249,4 @@ public class StorageBackendController {
         return req;
     }
 
-    private static Map<String, Object> envelopeData(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
-    }
-
-    private static Map<String, Object> successOnly() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
-    }
 }

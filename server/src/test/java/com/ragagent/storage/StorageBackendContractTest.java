@@ -98,8 +98,8 @@ class StorageBackendContractTest {
         jdbc.update("INSERT INTO storage_backends (id, tenant_id, name, provider, config, source, "
                         + "status, legacy_alias) VALUES (?, ?, 'sb-golden-minio', 'minio', ?, 'user', 'active', FALSE)",
                 SB_MINIO, TENANT,
-                "{\"mode\":\"remote\",\"endpoint\":\"http://127.0.0.1:19314\",\"access_key_id\":\"sb-seed-ak\","
-                        + "\"secret_access_key\":\"sb-seed-sk\",\"bucket_name\":\"sb-golden-bucket\",\"path_prefix\":\"pp\"}");
+                "{\"mode\":\"remote\",\"endpoint\":\"http://127.0.0.1:19314\",\"accessKeyId\":\"sb-seed-ak\","
+                        + "\"secretAccessKey\":\"sb-seed-sk\",\"bucketName\":\"sb-golden-bucket\",\"pathPrefix\":\"pp\"}");
 
         owner = "Bearer " + login(OWNER_EMAIL);
         viewer = "Bearer " + login(VIEWER_EMAIL);
@@ -171,13 +171,20 @@ class StorageBackendContractTest {
         }
     }
 
+    /** {@code -Dcontract.refresh=true} 时把掩码后的实际响应写回夹具（换锚批重录用）。 */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
     private void compare(String golden, String actual) throws Exception {
         Path file = Path.of("src/test/resources/contracts", golden);
         if (!Files.exists(file)) {
             file = Path.of("server/src/test/resources/contracts", golden);
         }
-        String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8));
-        assertEquals(expected, mask(actual),
+        if (REFRESH_FIXTURES) {
+            Files.writeString(file, mask(actual) + "\n");
+            return;
+        }
+        String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8)).strip();
+        assertEquals(expected, mask(actual).strip(),
                 () -> "golden mismatch: " + golden + "\nexpected: " + expected + "\nactual:   " + mask(actual));
     }
 
@@ -200,7 +207,7 @@ class StorageBackendContractTest {
         assertEquals(201, result.getResponse().getStatus(),
                 () -> "seed create failed: " + diag);
         return new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(result.getResponse().getContentAsString()).get("data").get("id").asText();
+                .readTree(result.getResponse().getContentAsString()).get("id").asText();
     }
 
     private String latestId(String name) {
@@ -227,7 +234,7 @@ class StorageBackendContractTest {
     void section2_create() throws Exception {
         String base = API + "/storage-backends";
         createBackend("{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":"
-                + "{\"path_prefix\":\"sbgolden\",\"access_key_id\":\"sb-ak\",\"secret_access_key\":\"sb-sk\"}}");
+                + "{\"pathPrefix\":\"sbgolden\",\"accessKeyId\":\"sb-ak\",\"secretAccessKey\":\"sb-sk\"}}");
         createBackend("{\"name\":\"sb-golden-local2\",\"provider\":\"local\",\"config\":{}}");
         compareAndStatus("sb-create-dupname.json", 409, "POST", base, owner,
                 "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{}}");
@@ -236,14 +243,14 @@ class StorageBackendContractTest {
         compareAndStatus("sb-create-badstatus.json", 400, "POST", base, owner,
                 "{\"name\":\"x\",\"provider\":\"local\",\"config\":{},\"status\":\"bogus\"}");
         compareAndStatus("sb-create-path-traversal.json", 400, "POST", base, owner,
-                "{\"name\":\"x\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"../evil\"}}");
+                "{\"name\":\"x\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"../evil\"}}");
         // minio 单缺失字段（Go 的 map 迭代序随机——多缺失时错误不进契约）
         compareAndStatus("sb-create-minio-missing.json", 400, "POST", base, owner,
                 "{\"name\":\"x\",\"provider\":\"minio\",\"config\":{\"endpoint\":\"http://minio.example.internal:9000\","
-                        + "\"access_key_id\":\"k\",\"secret_access_key\":\"s\"}}");
+                        + "\"accessKeyId\":\"k\",\"secretAccessKey\":\"s\"}}");
         compareAndStatus("sb-create-oss-ssrf.json", 400, "POST", base, owner,
                 "{\"name\":\"x\",\"provider\":\"oss\",\"config\":{\"endpoint\":\"http://127.0.0.1:9000\",\"region\":\"r\","
-                        + "\"access_key_id\":\"k\",\"secret_access_key\":\"s\",\"bucket_name\":\"b\"}}");
+                        + "\"accessKeyId\":\"k\",\"secretAccessKey\":\"s\",\"bucketName\":\"b\"}}");
         compareAndStatus("sb-get.json", 200, "GET",
                 base + "/" + latestId("sb-golden-local"), owner, null);
         compareAndStatus("sb-viewer-create.json", 403, "POST", base, viewer,
@@ -256,28 +263,28 @@ class StorageBackendContractTest {
     void section3_update() throws Exception {
         String base = API + "/storage-backends";
         createBackend("{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":"
-                + "{\"path_prefix\":\"sbgolden\",\"access_key_id\":\"sb-ak\",\"secret_access_key\":\"sb-sk\"}}");
+                + "{\"pathPrefix\":\"sbgolden\",\"accessKeyId\":\"sb-ak\",\"secretAccessKey\":\"sb-sk\"}}");
 
         compareAndStatus("sb-update-readonly-env.json", 400, "PUT", base + "/" + SYS_LOCAL, owner,
                 "{\"name\":\"x\",\"provider\":\"local\",\"config\":{}}");
         compareAndStatus("sb-update-immutable.json", 400, "PUT", base + "/" + SB_MINIO, owner,
                 "{\"name\":\"sb-golden-minio\",\"provider\":\"minio\",\"config\":{\"mode\":\"remote\","
-                        + "\"endpoint\":\"http://other.example.internal:9000\",\"bucket_name\":\"sb-golden-bucket\","
-                        + "\"path_prefix\":\"pp\"}}");
+                        + "\"endpoint\":\"http://other.example.internal:9000\",\"bucketName\":\"sb-golden-bucket\","
+                        + "\"pathPrefix\":\"pp\"}}");
         // *** 占位 → 保留存量密钥（响应仍显 ***）
         compareAndStatus("sb-update-placeholder.json", 200, "PUT", base + "/" + latestId("sb-golden-local"),
                 owner,
-                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"sbgolden\","
-                        + "\"access_key_id\":\"***\",\"secret_access_key\":\"***\"}}");
+                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"sbgolden\","
+                        + "\"accessKeyId\":\"***\",\"secretAccessKey\":\"***\"}}");
         compareAndStatus("sb-get-after-placeholder.json", 200, "GET",
                 base + "/" + latestId("sb-golden-local"), owner, null);
         compareAndStatus("sb-update-badstatus.json", 400, "PUT", base + "/" + latestId("sb-golden-local"),
                 owner,
-                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"sbgolden\"},"
+                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"sbgolden\"},"
                         + "\"status\":\"bogus\"}");
         compareAndStatus("sb-update-disable.json", 200, "PUT", base + "/" + latestId("sb-golden-local"),
                 owner,
-                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"sbgolden\"},"
+                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"sbgolden\"},"
                         + "\"status\":\"disabled\"}");
         compareAndStatus("sb-update-404.json", 404, "PUT", base + "/" + UNKNOWN, owner,
                 "{\"name\":\"x\",\"provider\":\"local\",\"config\":{}}");
@@ -289,39 +296,39 @@ class StorageBackendContractTest {
     void section4_defaultTestDelete() throws Exception {
         String base = API + "/storage-backends";
         String local = createBackend("{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":"
-                + "{\"path_prefix\":\"sbgolden\",\"access_key_id\":\"sb-ak\",\"secret_access_key\":\"sb-sk\"}}");
+                + "{\"pathPrefix\":\"sbgolden\",\"accessKeyId\":\"sb-ak\",\"secretAccessKey\":\"sb-sk\"}}");
         String local2 = createBackend("{\"name\":\"sb-golden-local2\",\"provider\":\"local\",\"config\":{}}");
 
         // 录制序：setdefault-disabled 之前 local 行已被 section12 停用——本段复刻该前置
         perform("PUT", base + "/" + local, owner,
-                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"sbgolden\"},"
+                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"sbgolden\"},"
                         + "\"status\":\"disabled\"}");
 
         compareAndStatus("sb-setdefault-disabled.json", 400, "PUT", base + "/" + local + "/default", owner, null);
-        compareAndStatus("sb-setdefault.json", 200, "PUT", base + "/" + local2 + "/default", owner, null);
+        compareAndStatus("sb-setdefault.json", 204, "PUT", base + "/" + local2 + "/default", owner, null);
         compareAndStatus("sb-list-after-default.json", 200, "GET", base, owner, null);
         compareAndStatus("sb-delete-default.json", 400, "DELETE", base + "/" + local2, owner, null);
-        compareAndStatus("sb-setdefault-restore.json", 200, "PUT", base + "/" + SYS_LOCAL + "/default", owner, null);
+        compareAndStatus("sb-setdefault-restore.json", 204, "PUT", base + "/" + SYS_LOCAL + "/default", owner, null);
         compareAndStatus("sb-test-raw-local.json", 200, "POST", base + "/test", owner,
-                "{\"name\":\"t\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"sbgolden\"}}");
+                "{\"name\":\"t\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"sbgolden\"}}");
         compareAndStatus("sb-test-raw-badprovider.json", 400, "POST", base + "/test", owner,
                 "{\"name\":\"t\",\"provider\":\"bogus\",\"config\":{}}");
         compareAndStatus("sb-test-raw-minio-missing.json", 400, "POST", base + "/test", owner,
                 "{\"name\":\"t\",\"provider\":\"minio\",\"config\":{\"endpoint\":\"http://minio.example.internal:9000\","
-                        + "\"access_key_id\":\"k\",\"secret_access_key\":\"s\"}}");
+                        + "\"accessKeyId\":\"k\",\"secretAccessKey\":\"s\"}}");
         compareAndStatus("sb-test-raw-ssrf.json", 200, "POST", base + "/test", owner,
                 "{\"name\":\"t\",\"provider\":\"s3\",\"config\":{\"endpoint\":\"http://127.0.0.1:9000\",\"region\":\"r\","
-                        + "\"access_key_id\":\"k\",\"secret_access_key\":\"s\",\"bucket_name\":\"b\"}}");
+                        + "\"accessKeyId\":\"k\",\"secretAccessKey\":\"s\",\"bucketName\":\"b\"}}");
         compareAndStatus("sb-test-raw-path-traversal.json", 400, "POST", base + "/test", owner,
-                "{\"name\":\"t\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"../evil\"}}");
+                "{\"name\":\"t\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"../evil\"}}");
         compareAndStatus("sb-test-byid.json", 200, "POST", base + "/" + local2 + "/test", owner, null);
         compareAndStatus("sb-test-byid-404.json", 404, "POST", base + "/" + UNKNOWN + "/test", owner, null);
         // 重新启用后删除（默认已还原到 System LOCAL）
         compareAndStatus("sb-delete-enabled.json", 200, "PUT", base + "/" + local, owner,
-                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"path_prefix\":\"sbgolden\"},"
+                "{\"name\":\"sb-golden-local\",\"provider\":\"local\",\"config\":{\"pathPrefix\":\"sbgolden\"},"
                         + "\"status\":\"active\"}");
-        compareAndStatus("sb-delete.json", 200, "DELETE", base + "/" + local, owner, null);
+        compareAndStatus("sb-delete.json", 204, "DELETE", base + "/" + local, owner, null);
         compareAndStatus("sb-delete-404.json", 404, "DELETE", base + "/" + UNKNOWN, owner, null);
-        compareAndStatus("sb-delete-seed.json", 200, "DELETE", base + "/" + SB_MINIO, owner, null);
+        compareAndStatus("sb-delete-seed.json", 204, "DELETE", base + "/" + SB_MINIO, owner, null);
     }
 }

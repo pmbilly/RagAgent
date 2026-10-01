@@ -22,7 +22,7 @@
             </t-option>
           </t-select>
           <p v-if="props.hasFiles" class="option-hint change-warning">{{ $t('kbSettings.storage.migrateHint') }}</p>
-          <p v-else-if="selected" class="option-hint">{{ selected.config.endpoint || selected.config.bucket_name || selected.config.path_prefix || $t('kbSettings.storage.localStorage') }}</p>
+          <p v-else-if="selected" class="option-hint">{{ selected.config.endpoint || selected.config.bucketName || selected.config.pathPrefix || $t('kbSettings.storage.localStorage') }}</p>
           <a href="javascript:void(0)" class="go-settings" @click.prevent="goToSettings">{{ $t('kbSettings.storage.manageInstances') }}</a>
         </div>
       </div>
@@ -52,8 +52,8 @@ async function load() {
   loading.value = true
   try {
     const response = await listStorageBackends()
-    backends.value = (response.data || []).filter(item => item.status === 'active')
-    defaultID.value = response.default_storage_backend_id || ''
+    backends.value = (response.items || []).filter((item: StorageBackend) => item.status === 'active')
+    defaultID.value = response.defaultStorageBackendId || ''
     if (!localID.value) localID.value = defaultID.value || backends.value[0]?.id || ''
     if (localID.value) handleChange()
   } finally { loading.value = false }

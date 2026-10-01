@@ -2,33 +2,23 @@ package com.ragagent.storage.dto;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 对照 Go {@code types.StorageBackend} 的**响应形态**（NewStorageBackendResponse =
- * 掩码 config 后原样序列化 struct）。键序 = Go struct 声明序：
- * id, tenant_id, name, provider, config, source, status, legacy_alias,
- * created_at, updated_at, deleted_at（全部无 omitempty → 恒输出，deleted_at 恒 null）。
+ * 存储后端的响应形态（config 掩码后输出）。键名即 Java 字段名（camelCase）；
+ * 键恒输出，{@code deletedAt} 恒 null（§1.6 可空显式 null），时间 ISO-8601 带时区。
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class StorageBackendResponse {
 
-    @JsonProperty("id") public String id;
-    @JsonProperty("tenant_id") public long tenantId;
-    @JsonProperty("name") public String name;
-    @JsonProperty("provider") public String provider;
-    @JsonProperty("config") public JsonNode config;
-    @JsonProperty("source") public String source;
-    @JsonProperty("status") public String status;
-    @JsonProperty("legacy_alias") public boolean legacyAlias;
-    @JsonProperty("created_at")
-    public OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("updated_at")
-    public OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("deleted_at")
-    @JsonInclude(JsonInclude.Include.ALWAYS) // Go 无 omitempty：null 恒输出
+    public String id;
+    public long tenantId;
+    public String name;
+    public String provider;
+    public JsonNode config;
+    public String source;
+    public String status;
+    public boolean legacyAlias;
+    public OffsetDateTime createdAt;
+    public OffsetDateTime updatedAt;
     public OffsetDateTime deletedAt;
 }
