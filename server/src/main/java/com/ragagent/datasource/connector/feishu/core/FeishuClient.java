@@ -4,11 +4,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,20 +18,11 @@ import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.ConnectorHttp;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.DocRawContentResponse;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.DriveFile;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.DriveFileListFailure;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.DriveFileListResponse;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.DriveFolderMetaResponse;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.DriveShortcutInfo;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.ExportTaskCreateResponse;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.ExportTaskStatusResponse;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.PartialDriveFileListException;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.PartialWikiNodeListException;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiNode;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiNodeInfoResponse;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiNodeListFailure;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiNodeListResponse;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiSpace;
-import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiSpaceListResponse;
 
 /**
  * 飞书 Open Platform API 客户端（对照 Go {@code core/client.go} 全文）。
@@ -126,6 +115,11 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     /** 传输层协作者（构造期装配）。 */
     final FeishuTransport transport;
 
+    /** Drive 文件列举协作者（构造期装配）。 */
+    final FeishuDriveOps driveOps;
+
+    /** wiki 树遍历协作者（构造期装配）。 */
+    final FeishuWikiTreeOps treeOps;
 
     /** 对照 Go {@code NewClient}。 */
     public FeishuClient(FeishuConfig config) {
@@ -147,6 +141,8 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         this.location = location;
         this.httpClient = httpClient;
         this.transport = new FeishuTransport(this);
+        this.driveOps = new FeishuDriveOps(this);
+        this.treeOps = new FeishuWikiTreeOps(this);
     }
 
     public String baseUrl() {
@@ -181,6 +177,51 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         return FeishuTransport.parseRetryAfter(header, fallback);
     }
 
+    /** 实现见 {@link FeishuWikiTreeOps}。 */
+        public List<WikiSpace> listWikiSpaces() {
+        return treeOps.listWikiSpaces();
+    }
+
+    /** 实现见 {@link FeishuWikiTreeOps}。 */
+        public List<WikiNode> listWikiNodes(String spaceId, String parentNodeToken) {
+        return treeOps.listWikiNodes(spaceId, parentNodeToken);
+    }
+
+    /** 实现见 {@link FeishuWikiTreeOps}。 */
+        public WikiNode getWikiNode(String spaceId, String nodeToken) {
+        return treeOps.getWikiNode(spaceId, nodeToken);
+    }
+
+    /** 实现见 {@link FeishuWikiTreeOps}。 */
+        public List<WikiNode> listAllWikiNodesRecursive(String spaceId) {
+        return treeOps.listAllWikiNodesRecursive(spaceId);
+    }
+
+    /** 实现见 {@link FeishuWikiTreeOps}。 */
+        public List<WikiNode> listWikiNodesRecursiveFrom(String spaceId, String nodeToken) {
+        return treeOps.listWikiNodesRecursiveFrom(spaceId, nodeToken);
+    }
+
+    /** 实现见 {@link FeishuDriveOps}。 */
+        public DriveFilePage listDriveFiles(String folderToken, String pageToken) {
+        return driveOps.listDriveFiles(folderToken, pageToken);
+    }
+
+    /** 实现见 {@link FeishuDriveOps}。 */
+        public DriveFolderMetaResponse getDriveFolderMeta(String folderToken) {
+        return driveOps.getDriveFolderMeta(folderToken);
+    }
+
+    /** 实现见 {@link FeishuDriveOps}。 */
+        public List<DriveFile> listDriveFilesAllPages(String folderToken) {
+        return driveOps.listDriveFilesAllPages(folderToken);
+    }
+
+    /** 实现见 {@link FeishuDriveOps}。 */
+        public List<DriveFile> listDriveFilesRecursiveFrom(String folderToken) {
+        return driveOps.listDriveFilesRecursiveFrom(folderToken);
+    }
+
     // ──────────────────────────────────────────────────────────────────
     // 认证
     // ──────────────────────────────────────────────────────────────────
@@ -192,208 +233,6 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     // ──────────────────────────────────────────────────────────────────
     // wiki：空间 / 节点
     // ──────────────────────────────────────────────────────────────────
-
-    /** 对照 Go {@code ListWikiSpaces}：列出应用可见的全部 wiki 空间（自动翻页）。 */
-    public List<WikiSpace> listWikiSpaces() {
-        List<WikiSpace> allSpaces = new ArrayList<>();
-        String pageToken = "";
-        while (true) {
-            String path = "/open-apis/wiki/v2/spaces?page_size=50";
-            if (!pageToken.isEmpty()) {
-                path += "&page_token=" + pageToken;
-            }
-
-            WikiSpaceListResponse resp = doRequest("GET", path, null, WikiSpaceListResponse.class);
-            if (resp == null || resp.code() != 0) {
-                int code = resp == null ? -1 : resp.code();
-                String msg = resp == null ? "" : resp.msg();
-                log.error("[Feishu] ListWikiSpaces error: code={} msg={}", code, msg);
-                throw new ConnectorException("list wiki spaces error: code=" + code + " msg=" + msg);
-            }
-
-            List<WikiSpace> items = resp.data() == null ? List.of() : nvl(resp.data().items());
-            log.info("[Feishu] ListWikiSpaces: got {} spaces, has_more={}",
-                    items.size(), resp.data() != null && resp.data().hasMore());
-            for (int i = 0; i < items.size(); i++) {
-                WikiSpace s = items.get(i);
-                log.info("[Feishu]   space[{}]: id={} name=\"{}\" visibility={}",
-                        i, s.spaceId(), s.name(), s.visibility());
-            }
-
-            allSpaces.addAll(items);
-
-            if (resp.data() == null || !resp.data().hasMore()
-                    || resp.data().pageToken() == null || resp.data().pageToken().isEmpty()) {
-                break;
-            }
-            pageToken = resp.data().pageToken();
-        }
-
-        log.info("[Feishu] ListWikiSpaces: total {} spaces", allSpaces.size());
-        return allSpaces;
-    }
-
-    /**
-     * 对照 Go {@code ListWikiNodes}：列出某空间下的全部节点（自动翻页）。
-     * {@code parentNodeToken} 为空时返回顶层节点。
-     */
-    public List<WikiNode> listWikiNodes(String spaceId, String parentNodeToken) {
-        List<WikiNode> allNodes = new ArrayList<>();
-        String pageToken = "";
-        String parent = parentNodeToken == null ? "" : parentNodeToken;
-
-        while (true) {
-            String path = "/open-apis/wiki/v2/spaces/" + spaceId + "/nodes?page_size=50";
-            if (!parent.isEmpty()) {
-                path += "&parent_node_token=" + parent;
-            }
-            if (!pageToken.isEmpty()) {
-                path += "&page_token=" + pageToken;
-            }
-
-            WikiNodeListResponse resp = doRequest("GET", path, null, WikiNodeListResponse.class);
-            if (resp == null || resp.code() != 0) {
-                int code = resp == null ? -1 : resp.code();
-                String msg = resp == null ? "" : resp.msg();
-                throw new ConnectorException("list wiki nodes error: code=" + code + " msg=" + msg);
-            }
-
-            for (WikiNode node : resp.data() == null ? List.<WikiNode>of() : nvl(resp.data().items())) {
-                // 飞书对"列子节点"的响应有时不带 parent_node_token / space_id，就地补齐，
-                // 否则下游的 ResolveResourceAncestors 与 picker 展开会丢层级。
-                if (!parent.isEmpty() && node.getParentNodeId().isEmpty()) {
-                    node.setParentNodeId(parent);
-                }
-                if (node.getSpaceId().isEmpty()) {
-                    node.setSpaceId(spaceId);
-                }
-                allNodes.add(node);
-            }
-
-            if (resp.data() == null || !resp.data().hasMore()
-                    || resp.data().pageToken() == null || resp.data().pageToken().isEmpty()) {
-                break;
-            }
-            pageToken = resp.data().pageToken();
-        }
-
-        return allNodes;
-    }
-
-    /** 对照 Go {@code GetWikiNode}：取单个 wiki 节点的元数据。 */
-    public WikiNode getWikiNode(String spaceId, String nodeToken) {
-        String path = "/open-apis/wiki/v2/spaces/get_node?token="
-                + FeishuSupport.queryEscape(nodeToken);
-
-        WikiNodeInfoResponse resp = doRequest("GET", path, null, WikiNodeInfoResponse.class);
-        if (resp == null || resp.code() != 0) {
-            int code = resp == null ? -1 : resp.code();
-            String msg = resp == null ? "" : resp.msg();
-            throw new ConnectorException("get wiki node error: code=" + code + " msg=" + msg);
-        }
-        if (resp.data() == null || resp.data().node() == null) {
-            throw new ConnectorException("get wiki node error: code=0 msg=empty node");
-        }
-
-        WikiNode node = resp.data().node();
-        if (node.getSpaceId().isEmpty()) {
-            node.setSpaceId(spaceId);
-        }
-        return node;
-    }
-
-    /**
-     * 对照 Go {@code listAllWikiNodesRecursive}：深度优先列出空间下全部节点。
-     *
-     * <p>部分子树列举失败时收集进 {@link PartialWikiNodeListException} 并<b>继续</b>——
-     * 已经拿到的节点照样可用。</p>
-     */
-    public List<WikiNode> listAllWikiNodesRecursive(String spaceId) {
-        List<WikiNode> topNodes = listWikiNodes(spaceId, "");
-
-        List<WikiNode> allNodes = new ArrayList<>();
-        List<WikiNodeListFailure> failures = new ArrayList<>();
-        walkWikiNodes(this, spaceId, topNodes, allNodes, failures);
-
-        if (!failures.isEmpty()) {
-            throw new PartialWikiNodeListException(allNodes, failures);
-        }
-        return allNodes;
-    }
-
-    private static void walkWikiNodes(FeishuClient client, String spaceId, List<WikiNode> nodes,
-                                      List<WikiNode> allNodes, List<WikiNodeListFailure> failures) {
-        for (WikiNode node : nodes) {
-            allNodes.add(node);
-            if (!node.isHasChild()) {
-                continue;
-            }
-            List<WikiNode> children;
-            try {
-                children = client.listWikiNodes(spaceId, node.getNodeToken());
-            } catch (RuntimeException e) {
-                RuntimeException wrapped = new ConnectorException(
-                        "list children of " + node.getNodeToken() + ": " + e.getMessage(), e);
-                failures.add(new WikiNodeListFailure(node, wrapped));
-                log.warn("[Feishu] partial wiki node listing failure: space={} node={} err={}",
-                        spaceId, node.getNodeToken(), e.getMessage());
-                continue;
-            }
-            walkWikiNodes(client, spaceId, children, allNodes, failures);
-        }
-    }
-
-    /**
-     * 对照 Go {@code ListWikiNodesRecursiveFrom}：返回某个节点<b>及其全部后代</b>。
-     * {@code nodeToken} 为空时等价于整空间遍历。
-     */
-    public List<WikiNode> listWikiNodesRecursiveFrom(String spaceId, String nodeToken) {
-        if (nodeToken == null || nodeToken.isEmpty()) {
-            return listAllWikiNodesRecursive(spaceId);
-        }
-
-        WikiNode root = getWikiNode(spaceId, nodeToken);
-
-        List<WikiNode> out = new ArrayList<>();
-        out.add(root);
-        try {
-            out.addAll(listWikiNodeDescendants(spaceId, root));
-            return out;
-        } catch (PartialWikiNodeListException e) {
-            // Go: append([]WikiNode{root}, nodes...) 之后把同一个 partial 错误往上抛。
-            // 部分结果里 root 仍要保留，所以重建一个携带 root 的异常。
-            List<WikiNode> partial = new ArrayList<>();
-            partial.add(root);
-            partial.addAll(e.getNodes());
-            throw new PartialWikiNodeListException(partial, e.getFailures());
-        }
-    }
-
-    /** 对照 Go {@code listWikiNodeDescendants}（不含 root 本身）。 */
-    private List<WikiNode> listWikiNodeDescendants(String spaceId, WikiNode root) {
-        if (!root.isHasChild()) {
-            return new ArrayList<>();
-        }
-
-        List<WikiNode> children;
-        try {
-            children = listWikiNodes(spaceId, root.getNodeToken());
-        } catch (RuntimeException e) {
-            RuntimeException wrapped = new ConnectorException(
-                    "list children of " + root.getNodeToken() + ": " + e.getMessage(), e);
-            log.warn("[Feishu] partial wiki node listing failure: space={} node={} err={}",
-                    spaceId, root.getNodeToken(), e.getMessage());
-            throw new PartialWikiNodeListException(List.of(), List.of(new WikiNodeListFailure(root, wrapped)));
-        }
-
-        List<WikiNode> allNodes = new ArrayList<>();
-        List<WikiNodeListFailure> failures = new ArrayList<>();
-        walkWikiNodes(this, spaceId, children, allNodes, failures);
-        if (!failures.isEmpty()) {
-            throw new PartialWikiNodeListException(allNodes, failures);
-        }
-        return allNodes;
-    }
 
     /**
      * 对照 Go {@code getDocumentRawContent}（已废弃路径，保留以对齐 Go 的 API 面）。
@@ -628,139 +467,6 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
 
     /** 对照 Go {@code listDriveFiles} 的双返回值。 */
     public record DriveFilePage(List<DriveFile> files, String nextPageToken) {
-    }
-
-    /**
-     * 对照 Go {@code listDriveFiles}：列一个云盘文件夹的直接子项（单页）。
-     *
-     * <p>{@code folderToken == ""} 直接拒绝：根文件夹不可分页、也不返回快捷方式
-     * （飞书 API 限制），静默放行会丢内容且可能产出无界响应。</p>
-     */
-    public DriveFilePage listDriveFiles(String folderToken, String pageToken) {
-        if (folderToken == null || folderToken.isEmpty()) {
-            throw new ConnectorException("root folder not supported; specify a concrete folder_token "
-                    + "(root folder is not paginated and does not return shortcuts)");
-        }
-
-        String path = "/open-apis/drive/v1/files?folder_token=" + FeishuSupport.queryEscape(folderToken);
-        path += "&page_size=200"; // 上限
-        path += "&order_by=EditedTime&direction=DESC";
-        if (pageToken != null && !pageToken.isEmpty()) {
-            path += "&page_token=" + FeishuSupport.queryEscape(pageToken);
-        }
-
-        DriveFileListResponse resp = doRequest("GET", path, null, DriveFileListResponse.class);
-        if (resp == null || resp.code() != 0) {
-            int code = resp == null ? -1 : resp.code();
-            String msg = resp == null ? "" : resp.msg();
-            throw new ConnectorException("list drive files error: code=" + code + " msg=" + msg);
-        }
-
-        List<DriveFile> files = resp.data() == null ? List.of() : nvl(resp.data().files());
-        String next = resp.data() == null ? "" : nvl(resp.data().nextPageToken());
-        log.info("[FeishuDrive] listDriveFiles: folder={} got {} files, has_more={}",
-                folderToken, files.size(), resp.data() != null && resp.data().hasMore());
-        return new DriveFilePage(files, next);
-    }
-
-    /**
-     * 对照 Go {@code GetDriveFolderMeta}：取单个云盘文件夹的元数据（名字、所有者…）。
-     * 用来解析根文件夹的人类可读名字——列表 API 只返回子项，不返回它自己。
-     */
-    public DriveFolderMetaResponse getDriveFolderMeta(String folderToken) {
-        if (folderToken == null || folderToken.isEmpty()) {
-            throw new ConnectorException("root folder not supported; specify a concrete folder_token");
-        }
-        String path = "/open-apis/drive/explorer/v2/folder/" + FeishuSupport.queryEscape(folderToken) + "/meta";
-        DriveFolderMetaResponse resp = doRequest("GET", path, null, DriveFolderMetaResponse.class);
-        if (resp == null || resp.code() != 0) {
-            int code = resp == null ? -1 : resp.code();
-            String msg = resp == null ? "" : resp.msg();
-            throw new ConnectorException("get drive folder meta error: code=" + code + " msg=" + msg);
-        }
-        return resp;
-    }
-
-    /** 对照 Go {@code ListDriveFilesAllPages}：翻页取完一个文件夹的全部直接子项。 */
-    public List<DriveFile> listDriveFilesAllPages(String folderToken) {
-        List<DriveFile> all = new ArrayList<>();
-        String pageToken = "";
-        while (true) {
-            DriveFilePage page = listDriveFiles(folderToken, pageToken);
-            all.addAll(page.files());
-            if (page.nextPageToken().isEmpty()) {
-                break;
-            }
-            pageToken = page.nextPageToken();
-        }
-        return all;
-    }
-
-    /**
-     * 对照 Go {@code ListDriveFilesRecursiveFrom}：深度优先走一个云盘文件夹子树，
-     * 返回全部<b>非文件夹</b>文件。
-     *
-     * <ul>
-     *   <li>{@code folder} → 递归（{@code visited} 纯属防御性环路保护；云盘文件夹没有
-     *       快捷方式概念，理论上不成环）；</li>
-     *   <li>{@code shortcut} → 展开成目标（target_type 不可能是 folder，已实测），
-     *       把目标当普通文件纳入，不需要额外 API 调用（{@code shortcut_info} 就在列表响应里）；</li>
-     *   <li>其它 → 直接收下。</li>
-     * </ul>
-     * <p>部分失败（某个子文件夹列举报错）收集进
-     * {@link PartialDriveFileListException}，遍历<b>继续</b>——镜像 wiki 的同语义。</p>
-     */
-    public List<DriveFile> listDriveFilesRecursiveFrom(String folderToken) {
-        Set<String> visited = new HashSet<>();
-        List<DriveFile> all = new ArrayList<>();
-        List<DriveFileListFailure> failures = new ArrayList<>();
-        walkDriveFolder(this, folderToken, visited, all, failures);
-        if (!failures.isEmpty()) {
-            throw new PartialDriveFileListException(all, failures);
-        }
-        return all;
-    }
-
-    private static void walkDriveFolder(FeishuClient client, String folderToken, Set<String> visited,
-                                        List<DriveFile> all, List<DriveFileListFailure> failures) {
-        if (visited.contains(folderToken)) {
-            return;
-        }
-        visited.add(folderToken);
-
-        List<DriveFile> files;
-        try {
-            files = client.listDriveFilesAllPages(folderToken);
-        } catch (RuntimeException e) {
-            RuntimeException wrapped = new ConnectorException(
-                    "list children of " + folderToken + ": " + e.getMessage(), e);
-            failures.add(new DriveFileListFailure(folderToken, wrapped));
-            log.warn("[FeishuDrive] partial drive file listing failure: folder={} err={}",
-                    folderToken, e.getMessage());
-            return;
-        }
-
-        for (DriveFile f : files) {
-            switch (f.getType()) {
-                case "folder" -> walkDriveFolder(client, f.getToken(), visited, all, failures);
-                case "shortcut" -> {
-                    DriveShortcutInfo info = f.getShortcutInfo();
-                    if (info != null && info.targetToken() != null && !info.targetToken().isEmpty()) {
-                        DriveFile expanded = new DriveFile();
-                        expanded.setToken(info.targetToken());
-                        expanded.setName(f.getName());
-                        expanded.setType(info.targetType());
-                        expanded.setParentToken(f.getParentToken());
-                        expanded.setUrl(f.getUrl());
-                        expanded.setCreatedTime(f.getCreatedTime());
-                        expanded.setModifiedTime(f.getModifiedTime());
-                        expanded.setOwnerId(f.getOwnerId());
-                        all.add(expanded);
-                    }
-                }
-                default -> all.add(f);
-            }
-        }
     }
 
     // ──────────────────────────────────────────────────────────────────
