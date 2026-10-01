@@ -1106,6 +1106,7 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 | m1 | `MemoryExtractionLlm`（399 行）+ `MemoryTranscriptOps`（159 行） | 1,217→**718**（出榜） | `30213c4` |
 | m2 | `MemoryItemStore`（462 行）：条目写/读 + 生命周期 + 墓碑（仓储原 L213-638） | 1,515→**1,200** | `a2d83ef` |
 | m3 | `MemoryIndexStore`（929 行）：话题统计/文档亲和/向量/抽取进度/内部工具/方言探测（仓储原 L326-1199） | 1,200→**458**（出榜） | `cf8c2ca` |
+| m4 | `MemoryCatalogOps`（517 行）+ `MemoryInsightOps`（412 行）：目录管理 + 检索/亲和 | 1,663→**965** | 见下 |
 
 **m1 手法要点（与前面几批的差异点）**：
 - 两簇里混着 `static` 工具与实例方法：**静态走类名限定**（`MemoryExtractionLlm.parseExpiry(...)`）、
