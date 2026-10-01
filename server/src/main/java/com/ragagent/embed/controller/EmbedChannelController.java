@@ -250,9 +250,10 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/stop")
-    public ResponseEntity<Map<String, Object>> stop(@PathVariable("session_id") String sessionId,
-                                                    @RequestBody(required = false) String rawBody) {
-        return delegateOps.stop(sessionId, rawBody);
+    public ResponseEntity<?> stop(@PathVariable("session_id") String sessionId,
+                                  @RequestBody(required = false)
+                                  com.ragagent.session.dto.StopSessionRequest body) {
+        return delegateOps.stop(sessionId, body);
     }
 
     @GetMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/messages/{message_id}/suggestions")

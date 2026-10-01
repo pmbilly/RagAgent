@@ -368,12 +368,15 @@ class EmbedContractTest {
                 .header("X-Embed-Session", "x"), 404, "emb-pub-load-404.json");
         // （emb-pub-load-badvisitor：容器层畸形头拒绝，MockMvc 不重放，A/B 验证）
 
-        assertGolden(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/stop", null,
-                "{\"message_id\":\"" + MSG_DONE + "\"}")
+        // 停止已结束的消息：会话域换锚后是 204（无响应体）
+        MvcResult stopped = mockMvc.perform(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN
+                + "/stop", null, "{\"messageId\":\"" + MSG_DONE + "\"}")
                 .header("Authorization", ea).header("Origin", origin)
-                .header("X-Embed-Session", sigMain), 200, "emb-pub-stop-done.json");
+                .header("X-Embed-Session", sigMain)).andReturn();
+        assertEquals(204, stopped.getResponse().getStatus(), raw(stopped));
+        assertEquals("", raw(stopped), "204 必须无响应体");
         assertGolden(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/stop", null,
-                "{\"message_id\":\"b6999999-0000-0000-0000-000000000001\"}")
+                "{\"messageId\":\"b6999999-0000-0000-0000-000000000001\"}")
                 .header("Authorization", ea).header("Origin", origin)
                 .header("X-Embed-Session", sigMain), 404, "emb-pub-stop-404.json");
         assertGolden(post("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/stop", null, null)

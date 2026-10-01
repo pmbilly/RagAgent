@@ -354,18 +354,19 @@ class MessageHttpContractTest {
     void clearSessionMessagesMatchesGoAndIsIdempotent() throws Exception {
         MvcResult r = perform(delete("/api/v1/sessions/" + sid + "/messages")
                 .header("Authorization", bearer));
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("msg-clear.json"), raw(r));
+        // 同步清空 → 204（§1.13；旧 {"message":…,"success":true} 退役）
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
 
         MvcResult load = perform(get("/api/v1/messages/" + sid + "/load")
                 .header("Authorization", bearer));
         assertEquals(golden("msg-load-after-clear.json"), raw(load));
 
-        // 清空空会话也是 200（幂等）
+        // 清空空会话也是 204（幂等）
         MvcResult again = perform(delete("/api/v1/sessions/" + sid + "/messages")
                 .header("Authorization", bearer));
-        assertEquals(200, again.getResponse().getStatus(), raw(again));
-        assertEquals(golden("msg-clear-again.json"), raw(again));
+        assertEquals(204, again.getResponse().getStatus(), raw(again));
+        assertEquals("", raw(again), "204 必须无响应体");
 
         // 软删：行还在
         assertEquals(4, (int) jdbc.queryForObject(

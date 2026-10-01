@@ -134,11 +134,17 @@ final class EmbedChannelDelegateOps {
                 resourceUrls);
     }
 
-    /** 对照 EmbedStopSession：委托 SessionController.StopSession。 */
-    public ResponseEntity<Map<String, Object>> stop(@PathVariable("session_id") String sessionId,
-                                                    @RequestBody(required = false) String rawBody) {
+    /**
+     * 对照 EmbedStopSession：委托 SessionController.StopSession。
+     *
+     * <p>请求体随会话域换锚（§14.9l S1b）：键名从 {@code message_id} 变成 {@code messageId}
+     * ——embed 的其余键仍是下划线，等 embed 域自己的批次再统一。</p>
+     */
+    public ResponseEntity<?> stop(@PathVariable("session_id") String sessionId,
+                                  @RequestBody(required = false)
+                                  com.ragagent.session.dto.StopSessionRequest body) {
         ctrl.ensureSession(LogSanitizer.sanitize(sessionId));
-        return ctrl.sessionController.stopSession(LogSanitizer.sanitize(sessionId), rawBody);
+        return ctrl.sessionController.stopSession(LogSanitizer.sanitize(sessionId), body);
     }
 
     /** 对照 EmbedGetMessageSuggestions：channel 级 suppressed 分支优先于委托。 */

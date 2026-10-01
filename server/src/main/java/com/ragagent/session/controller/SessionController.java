@@ -6,22 +6,27 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.Session;
 import com.ragagent.session.domain.SessionListQuery;
 import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.domain.SessionOwnerIds;
 import com.ragagent.session.domain.SessionPage;
+import com.ragagent.session.dto.ArtifactView;
+import com.ragagent.session.dto.BatchDeleteSessionsRequest;
+import com.ragagent.session.dto.CreateSessionRequest;
+import com.ragagent.session.dto.GenerateTitleRequest;
+import com.ragagent.session.dto.GenerateTitleResponse;
+import com.ragagent.session.dto.SessionListResponse;
+import com.ragagent.session.dto.SessionPinResponse;
+import com.ragagent.session.dto.StopSessionRequest;
+import com.ragagent.session.dto.UpdateSessionRequest;
 import com.ragagent.session.service.SessionService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -43,22 +48,29 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>本波（G1）只落会话 CRUD + 置顶 8 条；消息 / steer / 附件 / 产物随后续分组补。</p>
  *
- * <h2>响应形态：gin.H = map = 键按字母序（§9 的 JSON 键序规则）</h2>
+ * <h2>响应形态（§14.9l S1b 换锚后，§2.1）</h2>
  * <ul>
- *   <li>创建/读取/更新：{@code {"data":…,"success":true}}（创建是 201）</li>
- *   <li>列表：{@code {"data":…,"page":N,"page_size":N,"success":true,"total":N}}</li>
- *   <li>删除：{@code {"message":"…","success":true}}</li>
- *   <li>置顶：{@code {"is_pinned":bool,"success":true}}</li>
+ *   <li>创建 → <b>201</b> + 裸 {@link Session}；读取/更新 → 200 + 裸 {@link Session}；</li>
+ *   <li>列表 → {@code {items,page,pageSize,total}}（{@link SessionListResponse}）；</li>
+ *   <li>删除 / 批量删除 / 清空消息 → <b>204</b>（§1.13；旧 {@code {"message":…,"success":true}} 退役，
+ *       前端不再解析服务端文案）；</li>
+ *   <li>置顶 → 200 + {@code {"pinned":bool}}（{@link SessionPinResponse}）；</li>
+ *   <li>产物列表 → 裸数组 {@code [ArtifactView]}；生成标题 → {@code {"title":"…"}}；</li>
+ *   <li>停止生成 → 成功 <b>204</b>（§1.17：操作类响应不带服务端文案）。</li>
  * </ul>
  *
  * <h2>错误门槛顺序（逐条对照 Go handler）</h2>
  * <ol>
  *   <li>路径参数 sanitize 后为空 → 400 {@code "invalid session id"}；</li>
- *   <li>请求体解析失败 → 400（Go 的 message 来自 gin 的 binding 错误，golden 已锁）；</li>
+ *   <li>请求体绑定失败 → 400，文案由全局处理器给（空体/字面量 null → {@code 请求体不能为空}；
+ *       畸形 JSON → {@code 请求体格式不正确}；缺 {@code messages} → {@code messages: 不能为空}）；</li>
  *   <li>上下文无租户 → 401 {@code "Unauthorized"}；</li>
  *   <li>服务层 ErrSessionNotFound → 404 {@code "session not found"}（code 1003）；</li>
  *   <li>其余服务层错误 → 500 + 错误 message。</li>
  * </ol>
+ * <p>⚠️ {@code stop} 端点的错误仍是**纯字符串信封** {@code {"error":"…"}}
+ * （Go 原文 {@code c.JSON(code, gin.H{"error": …})}）——错误形态统一是独立的一批（§14.9 第 ④ 项），
+ * 本批不混轴。</p>
  *
  * <h2>SanitizeForLog 为什么参与查找</h2>
  * <p>Go handler 拿到路径参数后先 {@code secutils.SanitizeForLog} 再查库——
@@ -69,16 +81,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class SessionController {
 
     private static final Logger log = LoggerFactory.getLogger(SessionController.class);
-
-    /**
-     * 请求体解析器：<b>必须</b>忽略未知字段（对照 Go {@code encoding/json} 的默认语义；
-     * UpdateSession 直接把请求体绑到 {@code types.Session} 上，多带一个键就整条 400
-     * 是这里最不该发生的事）。挂 JavaTimeModule 是因为绑定的 Session 实体带
-     * OffsetDateTime 字段（pinned_at 等）。
-     */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final SessionService sessionService;
     private final com.ragagent.session.service.MessageService messageService;
@@ -106,12 +108,9 @@ public class SessionController {
 
     // ══════════════════════════ 创建 ══════════════════════════
 
-    /** 对照 Go {@code CreateSession}（L123-178）。201 + {"data":…,"success":true}。 */
+    /** 对照 Go {@code CreateSession}（L123-178）。换锚后：<b>201</b> + 裸 {@link Session}。 */
     @PostMapping("/api/v1/sessions")
-    public ResponseEntity<Session> createSession(
-            @RequestBody(required = false) String rawBody) {
-        CreateSessionRequest request = parseCreateBody(rawBody);
-
+    public ResponseEntity<Session> createSession(@RequestBody @Valid CreateSessionRequest request) {
         // 对照 Go：body 解析门槛**先于**租户门槛
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null) {
@@ -140,22 +139,6 @@ public class SessionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
-    /** 对照 Go {@code CreateSessionRequest}（handler/session/types.go L10-15）。 */
-    private record CreateSessionRequest(
-            @JsonProperty("title") String title,
-            @JsonProperty("description") String description) {
-    }
-
-    /**
-     * 对照 Go {@code ShouldBindJSON}：空 body → "EOF"；解析失败 → 400 +
-     * Go 风格解析器消息（{@link GoJsonBindError}）。
-     * body 为 {@code null} 字面量时 Go 零值绑定不报错——按空请求处理。
-     */
-    private CreateSessionRequest parseCreateBody(String rawBody) {
-        CreateSessionRequest request = bindBody(rawBody, CreateSessionRequest.class);
-        return request == null ? new CreateSessionRequest("", "") : request;
-    }
-
     // ══════════════════════════ 读取 ══════════════════════════
 
     /** 对照 Go {@code GetSession}（L192-225）。 */
@@ -180,19 +163,19 @@ public class SessionController {
     /**
      * 对照 Go {@code GetSessionsByTenant}（L243-277）。
      *
-     * <p>分页参数手工绑定（对照 gin 的 {@code ShouldBindQuery} + validator）：
-     * 非整数 → strconv 错误文案；负数 / 超界 → validator 文案。文案逐字对照
-     * go-playground 的输出，golden 已锁（见契约测试）。</p>
+     * <p>查询参数换锚后是 camelCase（{@code page}/{@code pageSize}/{@code keyword}/{@code source}/
+     * {@code agentId}，§1.16）；分页门槛的文案是标准中文（见 {@link #bindPagination}），
+     * 不再是 go-playground 的 tag 文案。响应是 {@link SessionListResponse}（§2.1）。</p>
      */
     @GetMapping("/api/v1/sessions")
-    public ResponseEntity<Map<String, Object>> getSessionsByTenant(
+    public SessionListResponse getSessionsByTenant(
             @RequestParam(name = "page", required = false) String page,
-            @RequestParam(name = "page_size", required = false) String pageSize,
+            @RequestParam(name = "pageSize", required = false) String pageSize,
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "source", required = false) String source,
-            @RequestParam(name = "agent_id", required = false) String agentId) {
-        int p = bindPagination(page, "Page", false);
-        int size = bindPagination(pageSize, "PageSize", true);
+            @RequestParam(name = "agentId", required = false) String agentId) {
+        int p = bindPagination(page, "page", false);
+        int size = bindPagination(pageSize, "pageSize", true);
 
         SessionPage result;
         try {
@@ -202,22 +185,17 @@ public class SessionController {
             throw toInternal(e);
         }
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("items", result.items());
-        body.put("page", result.page());
-        body.put("page_size", result.pageSize());
-        body.put("total", result.total());
-        return ResponseEntity.ok(body);
+        return new SessionListResponse(result.items(), result.page(), result.pageSize(),
+                result.total());
     }
 
     /**
-     * 对照 gin form 绑定 + validator（{@code binding:"omitempty,min=1[,max=1000]"}）：
+     * 分页参数的门槛（换锚后文案是标准中文，不再是 Go validator 的 tag 文案）：
      * <ul>
-     *   <li>参数缺席/为空 → 0（omitempty 跳过校验，服务层再归一化）；
-     *       <b>显式 {@code 0} 同样被 omitempty 跳过</b>（golden 实测 page=0 → 200 且归一化）；
-     *   </li>
-     *   <li>非整数 → {@code strconv.ParseInt: parsing "<raw>": invalid syntax}；</li>
-     *   <li>负数 → min tag 文案；{@code withMax} 且 &gt;1000 → max tag 文案。</li>
+     *   <li>参数缺席/为空 → 0（服务层再归一化）；<b>显式 {@code 0} 同样跳过</b>
+     *       （历史行为：{@code page=0} → 200 且归一化）；</li>
+     *   <li>非整数 → 400 {@code 分页参数不合法 / page: 必须是整数}；</li>
+     *   <li>负数 → {@code page: 必须为正整数}；{@code withMax} 且 &gt;1000 → {@code pageSize: 超出上限}。</li>
      * </ul>
      */
     private static int bindPagination(String raw, String field, boolean withMax) {
@@ -226,25 +204,25 @@ public class SessionController {
         }
         final long value;
         try {
-            value = Long.parseLong(raw);
+            value = Long.parseLong(raw.trim());
         } catch (NumberFormatException e) {
-            throw new BizException(AppError.badRequest(
-                    "strconv.ParseInt: parsing \"" + raw + "\": invalid syntax"));
+            throw paginationError(field + ": 必须是整数");
         }
         if (value == 0) {
             return 0;
         }
         if (value < 1) {
-            throw new BizException(AppError.badRequest(
-                    "Key: 'Pagination." + field + "' Error:Field validation for '"
-                            + field + "' failed on the 'min' tag"));
+            throw paginationError(field + ": 必须为正整数");
         }
         if (withMax && value > 1000) {
-            throw new BizException(AppError.badRequest(
-                    "Key: 'Pagination." + field + "' Error:Field validation for '"
-                            + field + "' failed on the 'max' tag"));
+            throw paginationError(field + ": 超出上限");
         }
         return (int) value;
+    }
+
+    private static BizException paginationError(String details) {
+        return new BizException(
+                AppError.badRequest("分页参数不合法").withDetails(details));
     }
 
     // ══════════════════════════ 更新 ══════════════════════════
@@ -256,7 +234,7 @@ public class SessionController {
     @PutMapping("/api/v1/sessions/{id}")
     public ResponseEntity<Session> updateSession(
             @PathVariable("id") String id,
-            @RequestBody(required = false) String rawBody) {
+            @RequestBody @Valid UpdateSessionRequest request) {
         String sessionId = LogSanitizer.sanitize(id);
         if (sessionId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
@@ -266,7 +244,9 @@ public class SessionController {
             throw new BizException(AppError.unauthorized("Unauthorized"));
         }
 
-        Session session = parseSessionBody(rawBody);
+        Session session = new Session();
+        session.setTitle(request.title() == null ? "" : request.title());
+        session.setDescription(request.description() == null ? "" : request.description());
         session.setId(sessionId);
         session.setTenantId(tenantId);
 
@@ -291,38 +271,13 @@ public class SessionController {
         return ResponseEntity.ok(updated);
     }
 
-    /**
-     * 对照 Go {@code c.ShouldBindJSON(&session)}：body 直接绑到 Session 实体。
-     * 只有 title/description 会被仓储真正写入（repo.Update 的 map 白名单），
-     * 其余字段绑进来也不落库——语义与 Go 完全一致。
-     * body 为 {@code null} 字面量时 Go 零值绑定不报错——按空实体处理。
-     */
-    private Session parseSessionBody(String rawBody) {
-        Session session = bindBody(rawBody, Session.class);
-        return session == null ? new Session() : session;
-    }
 
-    /**
-     * 三个端点共用的请求体绑定：空 body → 400 "EOF"；解析失败 → 400 +
-     * Go 风格解析器消息（{@link GoJsonBindError}，golden 锁定该文案）。
-     */
-    private <T> T bindBody(String rawBody, Class<T> type) {
-        if (rawBody == null || rawBody.isBlank()) {
-            throw new BizException(AppError.badRequest("EOF"));
-        }
-        try {
-            return MAPPER.readValue(rawBody, type);
-        } catch (Exception e) {
-            throw new BizException(AppError.badRequest(
-                    GoJsonBindError.message(rawBody, e.getMessage())));
-        }
-    }
 
     // ══════════════════════════ 删除 ══════════════════════════
 
-    /** 对照 Go {@code DeleteSession}（L362-392）。 */
+    /** 对照 Go {@code DeleteSession}（L362-392）。换锚后：同步删除 → <b>204</b>（§1.13）。 */
     @DeleteMapping("/api/v1/sessions/{id}")
-    public ResponseEntity<Map<String, Object>> deleteSession(@PathVariable("id") String id) {
+    public ResponseEntity<Void> deleteSession(@PathVariable("id") String id) {
         String sessionId = LogSanitizer.sanitize(id);
         if (sessionId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
@@ -335,29 +290,27 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        return messageBody("Session deleted successfully");
+        return ResponseEntity.noContent().build();
     }
 
     /**
-     * 对照 Go {@code BatchDeleteSessions}（L455-514）：{@code delete_all=true} 走全量删除；
-     * 否则要求非空 ids，逐个 sanitize 后丢弃空项。
+     * 对照 Go {@code BatchDeleteSessions}（L455-514）：{@code deleteAll=true} 走全量删除；
+     * 否则要求非空 ids，逐个 sanitize 后丢弃空项。换锚后：<b>204</b>（同步删除）。
      */
     @DeleteMapping("/api/v1/sessions/batch")
-    public ResponseEntity<Map<String, Object>> batchDeleteSessions(
-            @RequestBody(required = false) String rawBody) {
-        BatchDeleteRequest req = parseBatchBody(rawBody);
-
+    public ResponseEntity<Void> batchDeleteSessions(
+            @RequestBody @Valid BatchDeleteSessionsRequest req) {
         if (Boolean.TRUE.equals(req.deleteAll())) {
             try {
                 sessionService.deleteAllSessions();
             } catch (RuntimeException e) {
                 throw toInternal(e);
             }
-            return messageBody("All sessions deleted successfully");
+            return ResponseEntity.noContent().build();
         }
 
         if (req.ids() == null || req.ids().isEmpty()) {
-            throw new BizException(AppError.badRequest("ids are required when delete_all is false"));
+            throw new BizException(AppError.badRequest("ids are required when deleteAll is false"));
         }
         List<String> sanitizedIds = new ArrayList<>();
         for (String raw : req.ids()) {
@@ -378,25 +331,7 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        return messageBody("Sessions deleted successfully");
-    }
-
-    /** 对照 Go {@code batchDeleteRequest}（L438-441）。 */
-    private record BatchDeleteRequest(
-            @JsonProperty("ids") List<String> ids,
-            @JsonProperty("delete_all") Boolean deleteAll) {
-    }
-
-    /** 对照 Go：解析失败一律 400 "invalid request"（不是原始解析器消息）。 */
-    private BatchDeleteRequest parseBatchBody(String rawBody) {
-        if (rawBody == null || rawBody.isBlank()) {
-            throw new BizException(AppError.badRequest("invalid request"));
-        }
-        try {
-            return MAPPER.readValue(rawBody, BatchDeleteRequest.class);
-        } catch (Exception e) {
-            throw new BizException(AppError.badRequest("invalid request"));
-        }
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 清空消息 ══════════════════════════
@@ -407,7 +342,7 @@ public class SessionController {
      * 会话不可见 → 404 "session not found"。
      */
     @DeleteMapping("/api/v1/sessions/{id}/messages")
-    public ResponseEntity<Map<String, Object>> clearSessionMessages(@PathVariable("id") String id) {
+    public ResponseEntity<Void> clearSessionMessages(@PathVariable("id") String id) {
         String sessionId = LogSanitizer.sanitize(id);
         if (sessionId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
@@ -420,20 +355,20 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        return messageBody("Session messages cleared successfully");
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 置顶 ══════════════════════════
 
-    /** 对照 Go {@code PinSession}（L527-529）。 */
+    /** 对照 Go {@code PinSession}（L527-529）。换锚后：200 + {@code {"pinned":true}}。 */
     @PostMapping("/api/v1/sessions/{sessionId}/pin")
-    public ResponseEntity<Map<String, Object>> pinSession(@PathVariable("sessionId") String sessionId) {
+    public SessionPinResponse pinSession(@PathVariable("sessionId") String sessionId) {
         return setSessionPinned(sessionId, true);
     }
 
     /** 对照 Go {@code UnpinSession}（L542-544）。 */
     @DeleteMapping("/api/v1/sessions/{id}/pin")
-    public ResponseEntity<Map<String, Object>> unpinSession(@PathVariable("id") String id) {
+    public SessionPinResponse unpinSession(@PathVariable("id") String id) {
         return setSessionPinned(id, false);
     }
 
@@ -441,7 +376,7 @@ public class SessionController {
      * 对照 Go {@code setSessionPinned}（L546-582）：服务层报错 → 500（不是 404）；
      * 0 行受影响（不存在/不可见）→ 404 {@code "session not found"}。
      */
-    private ResponseEntity<Map<String, Object>> setSessionPinned(String rawId, boolean pinned) {
+    private SessionPinResponse setSessionPinned(String rawId, boolean pinned) {
         String id = LogSanitizer.sanitize(rawId);
         if (id.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
@@ -455,10 +390,7 @@ public class SessionController {
         if (rows == 0) {
             throw BizException.notFound("session not found");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("is_pinned", pinned);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return new SessionPinResponse(pinned);
     }
 
     // ══════════════════════════ 产物（波 1 G6） ══════════════════════════
@@ -469,7 +401,7 @@ public class SessionController {
      * download 端点直接读 provider:// 路径。
      */
     @GetMapping("/api/v1/sessions/{id}/artifacts")
-    public ResponseEntity<Map<String, Object>> listSessionArtifacts(@PathVariable("id") String id) {
+    public List<ArtifactView> listSessionArtifacts(@PathVariable("id") String id) {
         String sessionId = LogSanitizer.sanitize(id);
         if (sessionId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
@@ -488,17 +420,14 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw BizException.internal(e.getMessage());
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", artifactListItems(artifacts));
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return artifactListItems(artifacts);
     }
 
-    /** 对照 Go {@code ListMessageArtifacts}（L103-144）。 */
-    @GetMapping("/api/v1/sessions/{id}/messages/{message_id}/artifacts")
-    public ResponseEntity<Map<String, Object>> listMessageArtifacts(
+    /** 对照 Go {@code ListMessageArtifacts}（L103-144）。换锚后：裸数组。 */
+    @GetMapping("/api/v1/sessions/{id}/messages/{messageId}/artifacts")
+    public List<ArtifactView> listMessageArtifacts(
             @PathVariable("id") String id,
-            @PathVariable("message_id") String messageId) {
+            @PathVariable("messageId") String messageId) {
         String sessionId = LogSanitizer.sanitize(id);
         String mid = LogSanitizer.sanitize(messageId);
         if (sessionId.isEmpty() || mid.isEmpty()) {
@@ -520,11 +449,8 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw BizException.notFound("message not found");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", artifactListItems(
-                message.getArtifacts() == null ? List.of() : message.getArtifacts()));
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return artifactListItems(
+                message.getArtifacts() == null ? List.of() : message.getArtifacts());
     }
 
     /**
@@ -534,10 +460,10 @@ public class SessionController {
      * 资源目录解析（未翻译）——Go 在 catalog 查不到资源时同样回
      * 404 "artifact not accessible"，Java 恒落该分支（provider 级文件服务未翻译）。</p>
      */
-    @GetMapping("/api/v1/sessions/{id}/messages/{message_id}/artifacts/{index}/download")
-    public ResponseEntity<Map<String, Object>> downloadMessageArtifact(
+    @GetMapping("/api/v1/sessions/{id}/messages/{messageId}/artifacts/{index}/download")
+    public ResponseEntity<Void> downloadMessageArtifact(
             @PathVariable("id") String id,
-            @PathVariable("message_id") String messageId,
+            @PathVariable("messageId") String messageId,
             @PathVariable("index") String indexParam) {
         String sessionId = LogSanitizer.sanitize(id);
         String mid = LogSanitizer.sanitize(messageId);
@@ -582,56 +508,17 @@ public class SessionController {
         throw BizException.notFound("artifact not accessible");
     }
 
-    /** 对照 Go {@code artifactListItem}（L265-279）：声明序 + handle omitempty。 */
-    private static List<Map<String, Object>> artifactListItems(
+    /** 对照 Go {@code artifactListItem}（L265-279）：{@code index} 是列表下标、其余字段照抄。 */
+    private static List<ArtifactView> artifactListItems(
             List<com.ragagent.session.domain.MessageArtifact> artifacts) {
-        List<Map<String, Object>> items = new ArrayList<>();
+        List<ArtifactView> items = new ArrayList<>(artifacts.size());
         for (int i = 0; i < artifacts.size(); i++) {
-            com.ragagent.session.domain.MessageArtifact a = artifacts.get(i);
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("index", i);
-            String handle = artifactHandle(a.getUrl());
-            if (handle != null && !handle.isEmpty()) {
-                item.put("handle", handle);
-            }
-            item.put("file_name", a.getFileName());
-            item.put("file_type", a.getFileType());
-            item.put("file_size", a.getFileSize());
-            item.put("source_path", a.getSourcePath());
-            item.put("mod_time", a.getModTime());
-            item.put("created_at", a.getCreatedAt());
-            items.add(item);
+            items.add(ArtifactView.of(i, artifacts.get(i)));
         }
         return items;
     }
 
-    /**
-     * 对照 Go {@code artifactHandle}（L352-357）：URL 是 {@code resource://<handle>}
-     * （恰好 22 个合法字符）时返回规范化的 {@code resource://<handle>}，否则空串
-     * （空串被 omitempty 省略——响应里没有 handle 键）。
-     */
-    private static String artifactHandle(String url) {
-        if (url == null) {
-            return "";
-        }
-        String trimmed = url.trim();
-        if (!trimmed.startsWith("resource://")) {
-            return "";
-        }
-        String handle = trimmed.substring("resource://".length());
-        if (handle.length() != 22) {
-            return "";
-        }
-        for (int i = 0; i < handle.length(); i++) {
-            char c = handle.charAt(i);
-            boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9') || c == '_' || c == '-';
-            if (!ok) {
-                return "";
-            }
-        }
-        return "resource://" + handle;
-    }
+
 
     // ══════════════════════════ 生成标题（波 1 G6） ══════════════════════════
 
@@ -639,20 +526,12 @@ public class SessionController {
      * 对照 Go {@code GenerateTitle}（title.go L25-76）。写会话行，用严格 owner 范围
      * （GetOwnedSession——管理员可读不可改）。响应 {"data":title,"success":true}。
      */
-    @PostMapping("/api/v1/sessions/{session_id}/generate_title")
-    public ResponseEntity<Map<String, Object>> generateTitle(
-            @PathVariable("session_id") String sessionId,
-            @RequestBody(required = false) String rawBody) {
+    @PostMapping("/api/v1/sessions/{sessionId}/generate_title")
+    public GenerateTitleResponse generateTitle(
+            @PathVariable("sessionId") String sessionId,
+            @RequestBody @Valid GenerateTitleRequest request) {
         if (sessionId == null || sessionId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
-        }
-        GenerateTitleRequest request = bindBody(rawBody, GenerateTitleRequest.class);
-        // binding:"required"：validator 对切片是**非 nil 即通过**（golden 实测
-        // {"messages":[]} 通过 binding 走到了模型查找），只有字段缺失才 400
-        if (request == null || request.messages() == null) {
-            throw new BizException(AppError.badRequest(
-                    "Key: 'GenerateTitleRequest.Messages' Error:Field validation for 'Messages' "
-                            + "failed on the 'required' tag"));
         }
         Session session;
         try {
@@ -669,15 +548,7 @@ public class SessionController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", title);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
-    }
-
-    /** 对照 Go {@code GenerateTitleRequest}（types.go L18-20）。 */
-    private record GenerateTitleRequest(
-            @JsonProperty("messages") List<Message> messages) {
+        return new GenerateTitleResponse(title);
     }
 
     // ══════════════════════════ 停止生成（波 1 G6） ══════════════════════════
@@ -690,21 +561,13 @@ public class SessionController {
      * 停止事件经 StreamManager 落存储（跨语言键空间），事件 type 是
      * {@code types.ResponseType(event.EventStop)} 的字符串强转 "stop"。</p>
      */
-    @PostMapping("/api/v1/sessions/{session_id}/stop")
-    public ResponseEntity<Map<String, Object>> stopSession(
-            @PathVariable("session_id") String sessionId,
-            @RequestBody(required = false) String rawBody) {
+    @PostMapping("/api/v1/sessions/{sessionId}/stop")
+    public ResponseEntity<?> stopSession(
+            @PathVariable("sessionId") String sessionId,
+            @RequestBody(required = false) StopSessionRequest request) {
         String sid = LogSanitizer.sanitize(sessionId);
         if (sid == null || sid.isEmpty()) {
             return errorBody(400, "Session ID is required");
-        }
-        StopSessionRequest request = null;
-        if (rawBody != null && !rawBody.isBlank()) {
-            try {
-                request = MAPPER.readValue(rawBody, StopSessionRequest.class);
-            } catch (Exception e) {
-                return errorBody(400, "message_id is required");
-            }
         }
         if (request == null || isBlankStr(request.messageId())) {
             return errorBody(400, "message_id is required");
@@ -738,10 +601,8 @@ public class SessionController {
             return errorBody(403, "Access denied");
         }
         if (message.isCompleted()) {
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("message", "Message already completed");
-            body.put("success", true);
-            return ResponseEntity.ok(body);
+            // 已经结束的消息是幂等的成功（换锚后不再回 message 文案，§1.17）
+            return ResponseEntity.noContent().build();
         }
 
         com.ragagent.stream.StreamEvent stopEvent = new com.ragagent.stream.StreamEvent(
@@ -758,17 +619,16 @@ public class SessionController {
         } catch (RuntimeException e) {
             return errorBody(500, "Failed to write stop event");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "Generation stopped");
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Go {@code StopSessionRequest}（stream.go 内定义，message_id 必填）。 */
-    private record StopSessionRequest(@JsonProperty("message_id") String messageId) {
-    }
-
-    /** Go 的 {@code c.JSON(code, gin.H{"error": "..."})}：纯字符串错误信封。 */
+    /**
+     * Go 的 {@code c.JSON(code, gin.H{"error": "..."})}：纯字符串错误信封。
+     *
+     * <p>⚠️ 只有 {@code stop} 端点用它（Go 原文如此）；其余端点的错误都是 AppError 信封。
+     * 错误形态统一是独立的一批（§14.9 第 ④ 项），本批不混轴——所以这里连成功响应
+     * 也只能是 {@link ResponseEntity}{@code <?>}。</p>
+     */
     private static ResponseEntity<Map<String, Object>> errorBody(int status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
@@ -777,15 +637,5 @@ public class SessionController {
 
     private static boolean isBlankStr(String v) {
         return v == null || v.trim().isEmpty();
-    }
-
-    // ══════════════════════════ 公共 ══════════════════════════
-
-    /** 删除类成功响应：{"message":…,"success":true}（map 字母序：message &lt; success）。 */
-    private static ResponseEntity<Map<String, Object>> messageBody(String message) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", message);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
     }
 }

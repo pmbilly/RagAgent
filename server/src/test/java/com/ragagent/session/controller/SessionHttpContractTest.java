@@ -264,7 +264,7 @@ class SessionHttpContractTest {
     @Test
     void listPaginationMatchesGo() throws Exception {
         seedListState();
-        MvcResult r = perform(get("/api/v1/sessions?page=1&page_size=1")
+        MvcResult r = perform(get("/api/v1/sessions?page=1&pageSize=1")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("session-list-page2.json")), mask(raw(r)));
@@ -351,7 +351,7 @@ class SessionHttpContractTest {
 
     @Test
     void listPageSizeOverMaxMatchesGo() throws Exception {
-        MvcResult r = perform(get("/api/v1/sessions?page_size=1001")
+        MvcResult r = perform(get("/api/v1/sessions?pageSize=1001")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("session-list-size-over.json"), raw(r));
@@ -359,7 +359,7 @@ class SessionHttpContractTest {
 
     @Test
     void listPageSizeNotANumberMatchesGo() throws Exception {
-        MvcResult r = perform(get("/api/v1/sessions?page_size=abc")
+        MvcResult r = perform(get("/api/v1/sessions?pageSize=abc")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("session-list-size-abc.json"), raw(r));
@@ -553,8 +553,8 @@ class SessionHttpContractTest {
         MvcResult r = perform(jsonBody(delete("/api/v1/sessions/batch"),
                 "{\"ids\":[\"" + UNKNOWN_ID + "\",\"aaaaaaa1-0000-0000-0000-000000000001\"]}")
                 .header("Authorization", bearer));
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("session-batch-mixed.json"), raw(r));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
         // 可见的被软删、不可见的本来就不存在
         assertEquals(0, (int) jdbc.queryForObject(
                 "SELECT COUNT(*) FROM sessions WHERE id = ? AND deleted_at IS NULL",
@@ -567,8 +567,8 @@ class SessionHttpContractTest {
     void deleteMatchesGoAndIsNotIdempotent() throws Exception {
         String id = createSessionId();
         MvcResult r = perform(delete("/api/v1/sessions/" + id).header("Authorization", bearer));
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("session-delete.json"), raw(r));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
 
         MvcResult again = perform(delete("/api/v1/sessions/" + id)
                 .header("Authorization", bearer));
@@ -593,10 +593,10 @@ class SessionHttpContractTest {
     @Test
     void deleteAllMatchesGo() throws Exception {
         seedListState();
-        MvcResult r = perform(jsonBody(delete("/api/v1/sessions/batch"), "{\"delete_all\":true}")
+        MvcResult r = perform(jsonBody(delete("/api/v1/sessions/batch"), "{\"deleteAll\":true}")
                 .header("Authorization", bearer));
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("session-delete-all.json"), raw(r));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
 
         MvcResult after = perform(get("/api/v1/sessions").header("Authorization", bearer));
         assertEquals(golden("session-list-after-delete-all.json"), raw(after));

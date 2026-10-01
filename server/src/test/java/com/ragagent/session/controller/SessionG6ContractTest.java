@@ -287,24 +287,24 @@ class SessionG6ContractTest {
     @Test
     void stopCompletedMessageMatchesGo() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/stop"),
-                "{\"message_id\":\"" + U1 + "\"}").header("Authorization", bearer));
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("g6-stop-completed.json"), raw(r));
+                "{\"messageId\":\"" + U1 + "\"}").header("Authorization", bearer));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
     }
 
     /** 未完成消息：写 stop 事件（type=stop）→ 200 "Generation stopped"。 */
     @Test
     void stopRunningMessageMatchesGoAndWritesEvent() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + stopSid + "/stop"),
-                "{\"message_id\":\"" + A3 + "\"}").header("Authorization", bearer));
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("g6-stop-running.json"), raw(r));
+                "{\"messageId\":\"" + A3 + "\"}").header("Authorization", bearer));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
     }
 
     @Test
     void stopUnknownMessageMatchesGo() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/stop"),
-                "{\"message_id\":\"" + UNKNOWN_ID + "\"}").header("Authorization", bearer));
+                "{\"messageId\":\"" + UNKNOWN_ID + "\"}").header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("g6-stop-unknown-msg.json"), raw(r));
     }
@@ -313,7 +313,7 @@ class SessionG6ContractTest {
     @Test
     void stopUnknownSessionMatchesGo() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + UNKNOWN_ID + "/stop"),
-                "{\"message_id\":\"" + A1 + "\"}").header("Authorization", bearer));
+                "{\"messageId\":\"" + A1 + "\"}").header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("g6-stop-unknown-session.json"), raw(r));
     }
@@ -329,7 +329,7 @@ class SessionG6ContractTest {
     @Test
     void stopEmptyMessageIdMatchesGo() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/stop"),
-                "{\"message_id\":\"\"}").header("Authorization", bearer));
+                "{\"messageId\":\"\"}").header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("g6-stop-empty-msgid.json"), raw(r));
     }
