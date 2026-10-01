@@ -15,12 +15,13 @@
    **im 域已收官（2026-10-01，5 刀）**——`ImService` 1,445→**664**（§14.7.4）；
    **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。**AuthController 已出榜（3 刀，1,167→704，§14.7.7）——auth controller 清零**。**FaqImportService 已出榜（2 刀 F1/F2，1,235→583+419，knowledge 例外解除）**；
    **wiki page 面已收官（2026-10-01，w1~w5 + 两个卫生刀，§14.7.14）——`WikiPageServiceImpl` 1,008→732、`WikiPageRepository` 858→708、`WikiIngestDedupService` 851→468（例外解除）、`WikiPageFolderSupport` 822→383（切片产物空行折叠）——wiki 域 ≥800 清零**；
-   **DataSourceService 已出榜（2026-10-01，d1~d3，§14.7.15）——1,828→666，四协作者；datasource 域剩两个连接器**。
-4. **下一步**：`datasource` 连接器批（`FeishuClient` 1,154 / `NotionConnector` 1,092）→
+   **DataSourceService 已出榜（2026-10-01，d1~d3，§14.7.15）——1,828→666，四协作者**；
+   **FeishuClient 已出榜（2026-10-01，f1~f3，§14.7.16）——1,155→709，三协作者；datasource 域只剩 `NotionConnector`**。
+4. **下一步**：`datasource` 最后一个（`NotionConnector` 1,092）→
    `memory`（3 类，1,216~1,662）→ 单类（`SourceRegistry` 878 / `UserService` 876）→ knowledge 两个已登记例外的复核。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
-6. **全仓存量**：≥800 行的类还有 **10 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline 域 ≥800 全清零**，datasource 剩两个连接器。
+6. **全仓存量**：≥800 行的类还有 **9 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline 域 ≥800 全清零**，datasource 只剩 `NotionConnector`。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -147,6 +148,7 @@
 | 阶段 2（PluginSearch，2026-10-01） | chatpipeline 检索插件 | **出榜，chatpipeline 清零**（3 刀 → QueryTextOps/ExpansionOps/SearchOps；899→278；§14.7.13） |
 | 阶段 2（wiki page 面，2026-10-01） | WikiPageServiceImpl / WikiPageRepository / WikiIngestDedupService / WikiPageFolderSupport | **出榜，wiki 域 ≥800 清零**（w1~w5 + 两个卫生刀 → RevisionOps/LinkOps/FolderRepository/IdentityDedup；1,008→732、858→708、851→468、822→383；§14.7.14） |
 | 阶段 2（DataSourceService，2026-10-01） | datasource 域最长类 | **出榜**（d1~d3 → ResultOps/Support/ItemOps/SyncExecutor 四协作者；1,828→666，-63.6%；§14.7.15） |
+| 阶段 2（FeishuClient，2026-10-01） | datasource 域飞书客户端 | **出榜**（f1~f3 → Transport/WikiTreeOps/DriveOps 三协作者；1,155→709；§14.7.16） |
 
 ### 7.2 当前存量（实测）
 
@@ -158,14 +160,14 @@
 - im 域（2026-10-01 批次后）：`FeishuAdapter` 926→331，feishu 包最大协作者 `FeishuCardStreamOps` 256。
 - embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
 - chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
-- datasource 域（2026-10-01 d1~d3 后）：**111 文件 / 26,536 行**；`DataSourceService` 1,828→**666** 出榜，域内 ≥800 剩 `FeishuClient` 1,154 / `NotionConnector` 1,092（下一批）。
-- 全仓 ≥800 行的类：**10 个**（清单与分域建议见 §14.3）。
+- datasource 域（2026-10-01 d1~d3 + f1~f3 后）：**114 文件 / 26,695 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709** 均已出榜，域内 ≥800 只剩 `NotionConnector` 1,092（下一批）。
+- 全仓 ≥800 行的类：**9 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
 
 1. **阶段 2 其余域**：wiki（含 page 面）/ im / retrieval / auth controller / llm / mcp / embed / chatpipeline / knowledge(FaqImportService) **均已出榜**；
-   `datasource` **service 出榜**（§14.7.15），域内还剩两个连接器（`FeishuClient` 1,154 / `NotionConnector` 1,092）；
+   `datasource` **service 与飞书客户端均出榜**（§14.7.15/§14.7.16），域内只剩 `NotionConnector` 1,092；
    余量以 §14.3 实测为准——大体量：`memory`（3 类，1,216~1,662）；
    单类：modelcontext(`SourceRegistry` 878)、auth service(`UserService` 876)、knowledge 例外 2 个；
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
@@ -400,11 +402,11 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **10 个**；datasource 批后 11→10）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **9 个**；feishu 客户端批后 10→9）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
-| datasource | **service 已出榜**（`DataSourceService` 1,828→666，§14.7.15）；剩 `FeishuClient` 1,154 · `NotionConnector` 1,092 |
+| datasource | **service + 飞书客户端已出榜**（`DataSourceService` 1,828→666 §14.7.15；`FeishuClient` 1,155→709 §14.7.16）；剩 `NotionConnector` 1,092 |
 | memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | **已清零**（`WikiPageController`/`WikiIngestService` §14.7.2；page 面 4 类 §14.7.14：1,008→732 / 858→708 / 851→468 / 822→383，最大类 `WikiIngestCitePipeline` 760） |
@@ -1056,6 +1058,32 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 - **两个隐蔽坑**：①嵌套类 `StreamSyncHandler` 持自己的 `svc` 引用，`svc.applyFetchedItem(...)` 这类调用点
   在机械替换里会被漏掉（`(?<![\w.])` 前缀断言挡住了 `.` 前导）——编译能抓到，按提示改；
   ②接口方法（`handle`）**搬体不搬签名**：服务留 `@Override` 薄委托，详细 javadoc 随实现走，避免文档与实现分家。
+
+### 14.7.16 FeishuClient 批（2026-10-01，1,155→709）
+
+**为什么单独成批**：它是飞书连接器的唯一出口（wiki 空间/节点、Drive 列举、导出与下载、表格块），
+调用方是 `WikiConnector` / `DriveConnector` / `SyncEngine` / 若干测试；公开面保住即零改动。
+
+**切片边界（同 §14.7.15 的"从叶子往上搬"）**：
+1. 传输层（token 缓存 + `doRequest` 退避 + `Retry-After`）——认证状态随实现走，客户端只留测试缝常量
+2. wiki 树遍历（空间/节点/递归遍历）
+3. Drive 列举（单页/收全/递归）
+
+导出与下载、docx 块、表格块三段留在客户端（下一批再切）。
+
+| 刀 | 协作者 / 内容 | 结果 | 提交 |
+|---|---|---|---|
+| f1 | `FeishuTransport`（216 行） | 1,155→991 | `58ce0d5` |
+| f2+f3 | `FeishuWikiTreeOps`（235 行）+ `FeishuDriveOps`（167 行） | 991→**709**（出榜） | `368ea95` |
+
+**手法要点（本批新增）**：
+- **委托换零改动**：客户端为每个搬走的公开方法留同名薄委托（含静态 `parseRetryAfter`），
+  于是 `doRequest` / `doRequest` 的全部内部调用点与四个调用方一处都不用改——比"改所有调用点"省一半 diff。
+- **公开 DTO 留在原类**：`DriveFilePage` 记录不搬（调用方类型引用会炸），协作者按 `FeishuClient.DriveFilePage` 引用。
+- **递归遍历的 `this` 传参**：`walkWikiNodes(this, …)` / `walkDriveFolder(this, …)` 里的 `this` 在新类里是协作者，
+  必须换成回引（`walkXxx(client, …)`）——这是机械替换最难自动发现的一类，编译期能抓到但要看懂报错。
+- **测试缝常量不搬**：`MAX_RETRIES` / `MAX_5XX_RETRIES` / `retry5xxDelay` / `retryBackoff` 留在客户端，
+  传输层按类名读取（保住"测试可覆盖"这条既有约定）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
