@@ -40,6 +40,9 @@ import org.slf4j.LoggerFactory;
  * 记忆索引侧读写：话题统计、文档亲和、向量（含 pgvector 列就绪探测与列缺失回退）、
  * 抽取进度，以及本类与仓储共用的内部工具。
  *
+ * <p>规模例外（§14.5，2026-10-01 用户定调）：~930 行——六段同属「索引侧读写」
+ * 一个关注点，再切不落在自然接缝上，登记不硬切。</p>
+ *
  * <p>持有 {@link MemoryRepository} 回引以访问各 mapper 与方言判定；本类不得独立实例化。</p>
  */
 final class MemoryIndexStore {

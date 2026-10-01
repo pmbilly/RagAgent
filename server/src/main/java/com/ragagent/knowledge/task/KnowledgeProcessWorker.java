@@ -74,7 +74,9 @@ import com.ragagent.common.wiki.WikiIngestPort;
  *       finalizing（pending_subtasks_count 由子任务持有）再入队 ingest，
  *       由 DefaultWikiKnowledgeFinalizer 递减并晋升 completed。</li>
  * </ol>
- */
+ *
+ * <p>规模例外（§14.5）：~810 行——摄取 worker 的状态机与补偿面同生命周期，
+ * 再切不落在自然接缝上，登记不硬切。</p> */
 @Service
 public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcessWorker {
 

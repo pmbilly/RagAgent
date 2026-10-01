@@ -2,7 +2,10 @@
 
 > 本文档写给在 `~/ragagent` 打开的新会话/新成员。**一切背景以本文为准**；最近的执行细节在 `git log`。
 > 种子：自 `~/ragagent-java` @ `646aba7`（2026-09-28）分叉，git 历史完整保留。
-> **最近更新 2026-10-02**（wiki ingest 载荷 W1 收官：阶段 3 域级契约换锚收官，§14.9r）。
+> **最近更新 2026-10-02**（契约尾巴全清 + 两个真单类出榜：散存量七域批、错误体统一、
+> M6、SourceRegistry/UserService 切片、例外复核——§14.9s）。
+
+## ⭐ 接手须知（5 分钟版）
 
 ## ⭐ 接手须知（5 分钟版）
 
@@ -32,19 +35,21 @@
    **阶段 3 其余域全部收官（2026-10-01~10-02）**：system（§14.9f/g）/ auth（§14.9h/i/j）/ memory（§14.9k）/
    mcp（§14.9n/o/p，余 22 处第三方协议面冻结）/ session（§14.9l，S1~S5，`@JsonProperty` 188→0）/
    embed（§14.9m）/ datasource（§14.9q，D1~D3，余 350 处 connector 线格式 + 5 处 `lf_*` 冻结）；
-   **wiki ingest 载荷 W1 收官（2026-10-02，§14.9r）——阶段 3 域级契约换锚至此收官：
-   各域可换锚面清零，全仓 `@JsonProperty` 余量全是登记冻结面**（第三方 API / RFC 协议 / SSE·Redis 事件 /
-   provider 请求体 / LLM 输出解析面 / `lf_*` 载具 / 租户配置 jsonb）。
-4. **下一步（候选，由用户排）**：① **契约尾巴三小批**：(a) 小额散存量甄别批——im `ImChannelController` 17 /
-   storage dto 24 / favorite 5 / audit 1 / retrieval `ImageInfo`+`WebSearchResult` 13 / `common SearchParams` 13 /
-   `rerank RankResult` 4（约 77 处，**动手前先按 §14.9 三分法甄别**，个别可能是内部载荷）；
-   (b) **M6**——mcp 域 4 类 `@JsonInclude` 漏网改恒输出（§14.9q 登记的待办，7 文件，需重录夹具）；
-   (c) 错误形态统一（`{error:{…},"success":false}` 去 `success`）可单独立批；
-   ② 阶段 2 剩余尾巴：`SourceRegistry` 878 / `UserService` 876 / knowledge 两个登记例外 / `SessionKnowledgeQaService` 1,036 例外复核。
-   **阶段 3 域级换锚已收官**（2026-10-02 wiki W1 后），memory 域两条线也都走完（切片 m1~m5；换锚 M1~M3）。
+   **wiki ingest 载荷 W1 收官（2026-10-02，§14.9r）**；
+   **契约尾巴全清 + 两个真单类出榜（2026-10-02，§14.9s，9 个提交）**——全局错误体去 `success:false` +
+   622 个错误金片重录；散存量七域批（audit/favorite/im/storage/vectorstore/auth 补刀/agentm·init）+
+   M6（mcp `@JsonInclude` 恒输出）；`SourceRegistry` 878→534、`UserService` 876→748 切片出榜；
+   4 个登记例外复核结论入册（§14.3）。**至此 ⭐ 第 4 条所列全部剩余工作完成：
+   全仓 `@JsonProperty` 余量 942 处全部是登记冻结面（§14.6）**。
+4. **下一步**：**阶段 3 已全部收官、阶段 2 ≥800 榜只剩 4 个登记例外（§14.3），无在办工作面**。
+   可选候选（由用户排）：① 阶段 4（§5）：Gradle 多模块 + ArchUnit 边界规则、裸 `System.getenv()` 151 处收敛、
+   注释清洗（Go 锚点 ~6,000 处随触碰清洗）；② **已知尾巴**（登记在案、非在办）：残留 `@JsonInclude` 288 处
+   （大头是租户配置冻结面与 wiki/agent 域早批的 omitempty 语义，恒输出化需逐域重录夹具）；
+   Go 零值时间哨兵（`0001-01-01T00:00:00Z`，涉冻结事件面）；`{data:…}` 形态的 agent 列表信封
+   （`{agents,disabledOwnAgentIds}` 业务键，无需动）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
-6. **全仓存量**：≥800 行的类还有 **6 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 3/3（2026-10-01 m5 后仅剩 `MemoryIndexStore` 929，登记例外）。
+6. **全仓存量**：≥800 行的类只剩 **4 个登记例外**（§14.3，真单类已清零）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 3/3（2026-10-01 m5 后仅剩 `MemoryIndexStore` 929，登记例外）。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -504,7 +509,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
 | 6 卫生 | 注释判据与 import 卫生（§13.8）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 m5 后复测：全仓 ≥800 行的类共 **6 个**）
+### 14.3 候选域盘点（2026-10-02 收官复测：真单类清零，≥800 只剩 **4 个登记例外**）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
@@ -513,12 +518,17 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | **已清零**（`WikiPageController`/`WikiIngestService` §14.7.2；page 面 4 类 §14.7.14：1,008→732 / 858→708 / 851→468 / 822→383，最大类 `WikiIngestCitePipeline` 760） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
-| 其余单类 | `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
+| 其余单类 | **已清零**（`SourceRegistry` 878→534，工具参数编解码外提 `SourceToolCodec`；`UserService` 876→748，会话令牌操作外提 `UserSessionOps`——§14.9s） |
 | chatpipeline | **已清零**（PluginMerge 1,155→670 C1 + PluginSearch 899→278 P1-P3，§14.7.13） |
 | embed | **已清零**（EmbedChannelController 925→561，§14.7.12；EmbedChannelService 792 本就 <800） |
 | im / llm | **均已清零**（llm：RemoteApiChat 1,366→513，§14.7.8；im：FeishuAdapter 926→331，§14.7.11） |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
 | auth | **controller 已清零**（§14.7.7 AuthController + §14.7.9 TenantCatalogController 980→133）；service 域剩 `UserService` 876 + apikey 未动 |
+
+**例外复核结论（2026-10-02，§14.5 判据＝接缝优先）**：四个例外全部**维持登记**——
+`SessionKnowledgeQaService` 1,036（三条入口流单一状态机，javadoc 已备案）、`MemoryIndexStore` 932
+（六段同属索引侧读写，用户定调不硬切；javadoc 本批补例外说明）、`KnowledgeService` 848 /
+`KnowledgeProcessWorker` 816（knowledge 门面与摄取状态机，类注释已备案；后者本批补 javadoc）。
 
 复测命令：`git ls-files 'server/src/main/java/**/*.java' | xargs wc -l | sort -rn | head -20`
 
@@ -566,7 +576,15 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 
 - **别把"Go 序列化层删除"拆到各域**：409 处引用 / 94 文件的那一刀按 §3 红线必须**一次性全仓完成**。
   按域先换锚（同 PR 带前端）是允许的，删序列化器本体不是。
-- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、agent 域 fixture（`ag-*`）、**Go 工具面 5 类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`——线上注解已清零，但手搓载荷/provider 请求体仍依赖其字节）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档、**`lf_*` 平铺追踪载具**（§14.9q D3：`TracingContext` 平铺进 4 个队列载荷，前缀是防撞名的命名空间；要清理应改为嵌套 `tracing` 键，不是去前缀）、**connector 第三方线格式**（`datasource/connector/**` 350 处，字段名由对方 API 决定）、**wiki LLM 输出解析面**（§14.9r：`CombinedExtraction`/`NewSlugFromCitation`/`CitationBatchResult`/`common/wiki/ExtractedItem` 约 17 处，键名由 `WikiPrompts` 三条 prompt 的正文钉住——要改 Java 侧键名必须连 prompt 一起改，属行为面，另批处理）——
+- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、agent 域 fixture（`ag-*`）、**Go 工具面 5 类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`——线上注解已清零，但手搓载荷/provider 请求体仍依赖其字节）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档、**`lf_*` 平铺追踪载具**（§14.9q D3：`TracingContext` 平铺进 4 个队列载荷，前缀是防撞名的命名空间；要清理应改为嵌套 `tracing` 键，不是去前缀）、**connector 第三方线格式**（`datasource/connector/**` 350 处，字段名由对方 API 决定）、**wiki LLM 输出解析面**（§14.9r：`CombinedExtraction`/`NewSlugFromCitation`/`CitationBatchResult`/`common/wiki/ExtractedItem` 约 17 处，键名由 `WikiPrompts` 三条 prompt 的正文钉住——要改 Java 侧键名必须连 prompt 一起改，属行为面，另批处理）、
+**image_info 面**（§14.9s：`chunks.image_info` 列与 `retrieval.domain.ImageInfo`，入站是 **docreader Go 容器**
+`PUT /knowledge/image/{id}/{chunkId}` 体的内层 JSON——键 `original_url/ocr_text/start_pos…` 由对方服务决定，
+存储列透传同形，管线读侧 `.path("original_url")` 等不得"顺手 camel 化"）、
+**chat span/log 载荷的 SearchParams**（§14.9s：`common.pipeline.SearchParams` 序列化进 PipelineLog params 载荷，
+SearchRecordingTest 金片钉住 snake——死注判定必须扫"参数对象被泛型序列化"的路径）、
+**Go 零值时间哨兵**（`0001-01-01T00:00:00Z`：AgentStep 时间戳、agentm/init 的 GO_ZERO_TIME 与 goTime 系——
+涉冻结事件面与既有前端，登记保留；换 null 属另批形状变更）、
+**rerank RankResult**（`index/document/relevance_score`，Jina/Aliyun/Lkeap 的第三方 rerank API 响应面）——
   这些"仍是 snake"是**对的**。**注意该清单会随各域推进而变动**：`wiki 域实体` 条目已作废
   （`b407769` C 波把 `wiki/domain` 换锚为 camelCase），`wiki/service` 残留的 `@JsonProperty` 载荷随其批次处理；
   **引用前先看 §14.3 该域的进度栏，别照抄旧结论**。
@@ -2463,6 +2481,71 @@ WHERE jsonb_typeof(payload) = 'object'
 ```
 
 
+### 14.9s 契约尾巴全清 + 两个真单类出榜（2026-10-02，9 个提交）
+
+**批 C（`ef887db`）全局错误体**：`GlobalExceptionHandler.errorBody` 从
+`{"error":{…},"success":false}` 改 `{"error":{"code","message","details"}}`（§2 第 4 条标准形态；
+旧 code/details/message 字母序是 Go gin.H 复刻）。同族纯字符串错误体四处手写构造点
+（SessionStreamController.writeJsonError、StorageBackendController、WebSearchProviderController
+errorEnvelope、VectorStoreController.errorEnvelope）一并去 success。**夹具 622 个**：604 个
+`{error,success:false}` 金片去 success、571 个多行格式压回紧凑单行、23 个纯字符串错误金片同批、
+10 个字节级对比金片按实况重录。死信封类（common/web 的 ApiResponse/R/DataMessageResponse/
+MessageResponse）全仓零引用删除。
+**教训**：契约测试的 `raw()` 走 `ContractJson.semantic` 归一（键序排序）——断言字面量要与
+**归一化后**的形态对齐，不是服务器原始输出；字节级与语义级对比器并存，改金片前先看对比器。
+
+**A-audit（`ff53d90`）**：审计三端点 `{success,data,next_cursor}` → `{"items":[…],"nextCursor":N}`
++ 查询参数 `after_id`→`afterId`；前端 audit-log.ts 类型 camelCase（原类型按 Go tag 抄的 snake 与
+实况不符——TS 断言掩盖的实况 bug，顺带纠正）+ 三视图同批。
+
+**A-favorite（`ed83cac`）**：收藏三端点裸数组 + 创建 201 / 删除 204；实体摘 5 处注解 +
+**GoTimeSerializer 退役**（ISO-8601）；fav-* 金片重录；前端 useResourcePins 同批。
+
+**A-im（`014e000`）**：IM 渠道面 17 处注解退役 + create 201/裸行 + delete 204 + 列表裸数组 +
+wechat 扫码两端点裸对象（confirmed 条件键改恒输出）；行键 camelCase（credentials 内层是各平台
+凭据字段名，照 D1 口径不动）。`ImContractTest` 加 `-Dcontract.refresh=true` 重录开关。
+**教训**：请求体键名换锚后宽松绑定会吞掉旧 snake 键——bad-session-mode 用例静默从 500 变 201，
+重录前先核对状态码语义。
+
+**A-storage（`0996885`）**：StorageConfig（`storage_backends.config` jsonb）13 处 + StorageBackendResponse
+11 处 + 请求记录 4 处注解退役；types→裸数组、test→`{connected}`、create 201 裸资源、list→
+`{items,defaultStorageBackendId}`、delete/setdefault→204；迁移 SQL 只改键名（密文与键名正交，
+真 PG 合成数据验证；dev 库 2 行均 `{}` 无需迁移）。
+**边界判定**：`StorageFileResolver.toStorageEngineConfig` 把实例行配置**翻译成冻结的引擎面（snake）**
+再交工厂——工厂与租户引擎配置统一读 snake，camel 只存在于行配置一侧；TenantCatalogContractTest 的
+KV storage 请求体是冻结面，误 camel 化后回退。
+
+**A-vectorstore（`f0a19dd`）**：ConnectionConfig 14 + IndexConfig 16 + VectorStoreResponse 11 +
+VectorStoreTypes（含表单 schema 广告字段名）全 camelCase；信封拆除、delete 204、test→`{version}`；
+`vector_stores` 两列 jsonb 迁移 SQL 备好（dev 0 行，合成数据验证）；vs-* 金片重录；前端五个文件同批。
+
+**A-misc（`6449e39`）**：死注摘除 WebSearchResult 7 处（管线内转 SearchResult，自身从不序列化）+
+RuntimeStat 5 处；TempKbState（Redis）换锚 + **M5 式部署窗口兼容读**（migrateLegacyKeys）。
+**判定翻转（本批最重要教训）**：SearchParams 13 处**不是死注**——它序列化进 PipelineLog 的 span
+载荷（SearchRecordingTest 金片钉住），回退并登记 §14.6；死注判定必须扫"参数对象被泛型序列化"的路径。
+
+**A-auth 补刀（`657597b`）**：APIPrincipalConfig（`tenants.api_principal_config`）5 处换锚 +
+迁移 SQL（密文随键移动，合成验证；dev 0 行）；RegisterResponse 死类删除（A1 已裸返，前端
+register() 的 success 包装实况 bug 顺带修）；四处陈旧 javadoc 清洗。
+
+**A-agentm/initialization（`581d583`）**：SkillsCatalog 去 success 键；Ollama 下载"任务已存在"分支
+信封拆除；ModelConnectivityTest 的 success/processingTime 判为业务结论字段保留；误入库的
+`.bak12` 备份文件删除。
+
+**M6（`e929be7`）**：mcp 六类 `@JsonInclude`（omitempty 直译）全部退役改恒输出（§14.9q 登记的
+待办），McpCatalogSummary 的 ALWAYS（默认值显式写法）同删；mcp-* 五金片重录。
+
+**切片（`9277d3e` + `432624c`）**：`SourceRegistry` 878→**534**——「工具参数编解码」段（~400 行）
+外提 `SourceToolCodec`（439），门面保全部签名，SHORT_SOURCE_HANDLE 常量留注册段共用；
+`UserService` 876→**748**——W5a 会话令牌段外提 `UserSessionOps`（180），三个失败通道异常留
+UserService（控制器捕获面不变）。忠实性核验：文案逐字、两遍编码形状、先落偏好再签发等顺序不变。
+
+**例外复核**：四个登记例外维持（§14.3）；MemoryIndexStore/KnowledgeProcessWorker 补 javadoc 例外说明。
+
+**最终态**：全仓 `@JsonProperty` 942 处 / 104 文件全部是登记冻结面；`@JsonInclude` 残 288 处
+（大头冻结面 + 早批域的 omitempty 语义）登记为已知尾巴；错误体、信封、时间、键名四轴在
+十四域 + 本轮七域全部对齐 §2 第 4 条。**阶段 3 收官。**
+
 ### 14.9p mcp 域 M5（OAuth 内部 blob 面）+ 该域收官（2026-10-01）
 
 **✅ M5 执行记录**：`OAuthState`(9) + `OAuthAttempt`(4) 去键名映射——这两个记录**只序列化进
@@ -2534,9 +2617,9 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 - 每个改契约的 PR **同批带前端**（§2 第 3 条）；产品未上线，无兼容期（§2 第 2 条）。
 - 细则与历史差异表：`docs/knowledge-api-contract-v1.md`（v1.0，32KB）。
 
-**进度（2026-10-02 更新：域级换锚收官）**
-- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / evaluation（打样，§14.9b）/ model（§14.9c/§14.9e，首次前后端同 PR）/ system（§14.9f/g）/ auth（§14.9h/i/j）/ memory（§14.9k）/ session（§14.9l）/ embed（§14.9m）/ mcp（§14.9n/o/p）/ datasource（§14.9q）/ wiki（§14.9r）。
-- **未完成 = 冻结面之外的小额散尾巴**（约 77 处，见 ⭐ 第 4 条，动手前按三分法甄别）+ 两个登记小批（M6、错误形态统一）。
+**进度（2026-10-02 收官）**
+- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval / 会话链 / chunker-preview / evaluation（§14.9b）/ model（§14.9c/e）/ system（§14.9f/g）/ auth（§14.9h/i/j + 补刀 §14.9s）/ memory（§14.9k）/ session（§14.9l）/ embed（§14.9m）/ mcp（§14.9n/o/p + M6 §14.9s）/ datasource（§14.9q）/ wiki（§14.9r）/ **散存量七域 + 错误体统一（§14.9s）**。
+- **无未完成项**。残留 `@JsonInclude` ~288 处与 Go 零值时间哨兵为登记尾巴（§14.6 / ⭐ 第 4 条），非在办。
 
 **存量表（2026-10-01 盘点实测，§14.9 第 1 步交付物；只读扫描，三分法甄别）**
 
@@ -2546,7 +2629,11 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / **wiki 39 → 0（W1 收官，§14.9r：17 键换锚 + 8 处死注解摘除；余 22 处 = `lf_*` 5 + LLM 解析面 17，登记冻结）**；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1）→ 366（D2）→ 355（D3 收官，§14.9q）：余 350 处为 connector 第三方线格式 + 5 处 `lf_*` 平铺载具，**均为永久冻结** ⇒ 该域可换锚面 0**。**2026-10-02 收官判定：十四域可换锚面全部清零；全仓 `@JsonProperty` 余量（约 1,060 处）均为登记冻结面，③ 类真存量只剩小额散尾巴（im 17 / storage 24 / favorite 5 / audit 1 / retrieval 13 / `SearchParams` 13 / `RankResult` 4，动手前先甄别）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / **wiki 39 → 0（W1 收官，§14.9r：17 键换锚 + 8 处死注解摘除；余 22 处 = `lf_*` 5 + LLM 解析面 17，登记冻结）**；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1）→ 366（D2）→ 355（D3 收官，§14.9q）：余 350 处为 connector 第三方线格式 + 5 处 `lf_*` 平铺载具，**均为永久冻结** ⇒ 该域可换锚面 0**。**2026-10-02 两段收官判定**：域级换锚（§14.9r）后散尾巴约 77 处由 §14.9s 七域批处理完——甄别结果：
+真存量已换锚（audit 1+信封、favorite 5、im 17、storage 24、retrieval WebSearchResult 7、TempKbState 3、
+APIPrincipalConfig 5、RuntimeStat 5 死注、WebSearchResult 死注）；**判冻结新增登记**：image_info（docreader
+第三方）、SearchParams（chat span 载荷）、RankResult（第三方 rerank API）。全仓 `@JsonProperty` 余量 **942 处
+/ 104 文件** 全部是登记冻结面（§14.6）⇒ **③ 类真存量 = 0，阶段 3 收官**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
