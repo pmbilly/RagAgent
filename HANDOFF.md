@@ -832,6 +832,36 @@ im 域 ≥800 清零；im 域测试 121 条 / 全量 4,668 条 0 失败（clean 
 `region.label()`/`buildStreamingCardJson(region)` 等具体形态）；③跨刀依赖先登记（F3 的
 resolveMarkdownImages 属 F4，落 F3 时先经 `service.` 调用，F4 搬走后委托天然接住）。
 
+#### 14.7.12 EmbedChannelController 执行计划（2026-10-01 侦察，接替 im；embed 单类）
+
+**目标类**：`embed/controller/EmbedChannelController` 925（管理面 9 端点 + 公开面 5 端点 +
+QA/文件/消息/建议/webhook/MCP 委托 16 端点 + 响应组构件助手；委托型控制器——大半端点是对
+session/message/suggestion/MCP 控制器的转发）。
+
+**测试床（薄弱，忠实性为主安全网）**：`EmbedContractTest` 570 行，`@SpringBootTest+
+@AutoConfigureMockMvc` 全上下文直打路由（**不直 new、无 static 直调**，2 个 @Test 驱动全
+fixture）→ 路由/注解/签名冻结、装配可改；每刀另过 `--tests "com.ragagent.session.*"`
+（委托消费方域）作旁证。
+
+**簇边界**（协作者回引 `ctrl`——门面 EmbedChannelService 字段名为 `service`，撞名；helper 全留
+门面放宽包内，协作者 `EmbedChannelController.` 限定调用）：
+- `EmbedChannelMgmtOps`（刀 E1）：create/listByAgent/listAll/get/update/delete/rotate/preview/
+  stats 9 端点体 + `UpdateCommand` 嵌套类随簇。
+- `EmbedChannelPublicOps`（刀 E2）：exchange/config/suggestedQuestions/chunk/createSession
+  5 端点体。
+- `EmbedChannelDelegateOps`（刀 E3）：knowledgeChat/agentChat/delegateEmbedChat/
+  patchEmbedChatPayload/embedFiles/load/stop/suggestionsGet/suggestionsEnsure/suggestionEvents/
+  events + `EventRequest` record + mcpAuthorize/mcpStatus/mcpResolve/mcpResolveCancel/
+  toolApprovals 共 16 端点体。
+- 留门面：`EmbedChannelRequest` record（bind 消费）、ensureSession/suppressedIfChannelOff/
+  validVisitor、响应组构件（row×3/rows/originsJson/dataEnvelope/successEnvelope/plainError/
+  writeMgmtError/currentTenant/channel/request0/bind/allowedOriginsColumn/stringList/trim/orEmpty）、
+  字段/10 参构造器、30 个薄端点（注解+委托）。
+
+**预估**：门面 925→~300；三个协作者 140~280 行。闸门：每刀 `--rerun-tasks` 重编 +
+`--tests "com.ragagent.embed.*"`（正向 BUILD + ≥2）+ spotlessCheck + 忠实性逐字比对；
+收官 clean 全量 + 环守卫。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
