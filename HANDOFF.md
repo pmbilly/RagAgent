@@ -26,7 +26,7 @@
    `SessionLastRequestState`/`MentionedItem` 换 camelCase + 恒输出，`is_pinned`→**`pinned`**）+
    控制器面（请求体标准 DTO、列表 `{items,page,pageSize,total}`、置顶 `{pinned}`、产物裸数组、
    生成标题 `{title}`、删除类与停止 **204**、查询参数 `pageSize`/`agentId`），两处 jsonb 迁移 SQL 已备
-   （dev 库 0 行需迁移）；**余 S2 消息面（最高风险，含 embed 与 9 个 jsonb 列）+ S3 附件/建议/steer + S4 请求 DTO**；
+   （dev 库 0 行需迁移）；**S2 消息面（含 embed 与 9 个 jsonb 列）与 S3 附件·建议·steer 均已完成（前后端同批）——session 域只剩 S4 请求 DTO（信封键）与 S5 收尾**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
    **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
 4. **下一步（候选，由用户排）**：① **memory M3（收尾）**——LLM 载荷边界登记（22 处，写进文档即可）+
@@ -208,8 +208,8 @@
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
-   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）+ S2（消息面，前后端同批）** 已完成（同批带前端）；
-   **session 余 S3 附件·建议·steer / S4 请求 DTO / S5 收尾**，
+   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）+ S2（消息面）+ S3（附件·建议·steer，前后端同批）** 已完成（同批带前端）；
+   **session 余 S4 请求 DTO / S5 收尾**，
    以及 **wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
@@ -1849,6 +1849,7 @@ WHERE jsonb_typeof(artifacts) = 'array'
   agentEventStream 事件字段（`event_id`/`tool_call_id`/`display_type`/… 与 SSE 同形）、请求面（`streame.ts` 的 chat 请求体、
   `attachment_uploads`、steer 请求体、`data.references` 直通载荷属 S4/S3）。
   ③ **两个本地键保留蛇形**：`assistant_message_id`（前端自有、不对应 REST 字段）与 steer 队列项的 `mentioned_items`（S3 面）。
+  ⚠️ 后者在 **S3 已移位**：队列项键改 camelCase（`steerId`/`mentionedItems`），消息对象上镜像 SSE 的 `steer_id` 仍保留下划线——见下方 S3 记录。
   ④ **跨形状转换点**（新增 `types/mention.ts::fromMentionRequest`）：本地乐观用户消息与 steer 预览把**上送项**（snake 元素）
   转成消息元素形状（camelCase），保证"刷新前 = 刷新后"；`views/chat/index.vue` 的 steer 合并处同用。
   ⑤ 接口参数：`GET /messages/{id}/load` 的查询参数 `before_time`→**`beforeTime`**（`api/chat/index.ts`；embed 的
@@ -1866,20 +1867,111 @@ WHERE jsonb_typeof(artifacts) = 'array'
   ⑨ 另登记一个**不属于本批**的既有缺陷（未改）：`composables/useEmbedChatSession.ts` 的 `getmsgList` 读 `res?.data` 解包，
   而 embed `load` 端点的响应体是裸数组（`[Message]`）——embed 历史分页实际拿不到数据；归 embed 域的批次处理。
 
+**✅ S3（附件 / 建议 / steer）执行记录（2026-10-01）——后端 + 前端同批**：
+- **实体 5 个去键名映射**（键名＝Java 字段名，`@JsonIgnore` 保留）：`TemporaryDocument`(18)
+  / `MessageSuggestionSet`(20) / `MessageSuggestionEvent`(7) / `SuggestionItem`(5) /
+  `SuggestionAttribution`(2)；**三类 `@JsonInclude`（Go omitempty 直译）一并去掉**——可空字段改显式 null
+  （§1.6），这条直接改变了响应键集合，夹具必须按实际重录（见下）。
+- **请求面**：`SteerController` 请求记录三键 + 两键 camelCase；`MessageSuggestionController.EventRequest`
+  三键 camelCase；附件上传**表单字段** `agentId`/`parserEngine`（§1.16 的表单类比）。
+- **响应面**：`SteerController` 的手写 `Map` 键（steerId / assistantMessageId / removed / status / items）
+  camelCase——但**事件 data 保持冻结的线协议**（`steer_id`/`mentioned_items`/`channel`/`delivery`），
+  列表项里的提及项经 `MentionedItem.fromRawList` 从事件载荷（下划线）转成实体（camelCase）后输出。
+- **提及项形状一次收口（本批最有价值的一处）**：`QaRequests.MentionedItemRequest` 的元素键改 camelCase
+  ⇒ 请求元素＝消息元素＝落库 jsonb **同一形状**。起因是一个**活缺陷**：S1a 把 `MentionedItem` 改成
+  camelCase 后，steer 请求仍按实体反序列化、前端仍发下划线元素 → `kbType/kbId/kbName/serviceId/skillName`
+  **被静默丢弃**（`@JsonIgnoreProperties(ignoreUnknown=true)`），注入消息的 @提及作用域全丢。
+  前端随之删掉 `MentionRequestItem` 与 `fromMentionRequest`（S2 引入的过渡转换函数），
+  `Input-field.vue` / `streame.ts` / `steerStreamFork.ts` / `index.vue` 全部只留一种形状。
+  **S4 只剩请求「信封」键**（`knowledge_base_ids`/`agent_id`/`suggestion_attribution`/`attachment_uploads`…）。
+- **四处落库 jsonb**（键名＝字段名，§2 第 11 条；表达式已在真 PG 用合成数据验证，dev 库 0 行需迁移）：
+  `temporary_documents.chunks`（contextHeader/tokenCount）、`temporary_documents.image_refs`
+  （originalRef/mimeType）、`temporary_documents.processing_options`（6 键；**写入 `toJson` 与读取 `optionsOf` 必须同批**）、
+  `message_suggestion_sets.questions[].knowledge_base_ids`→`knowledgeBaseIds`、
+  `messages.execution_context.suggestion_attribution`（两键）。SQL 见下方"存量迁移 SQL"。
+- **embed 同批**：channel 关闭的建议分支从 `{data,success}` 信封改裸对象 + `suppressionReason`
+  （与委托路径同形）；embed 建议 GET/ensure 前端不再解包 `.data`。
+- **顺手修 3 处「前端还期待信封」的活缺陷**：① `views/chat/index.vue` 的 `upload.data.id/.status`
+  （附件上传后 `upload.data` 是 undefined，图片/附件 id 拿不到）；② `useEmbedChatSession` 的历史加载
+  `res?.data` 解包（S2 已登记）；③ `api/message-suggestion.ts` 的 `{data: set}` 泛型（消费侧原本已是裸读，
+  只是类型骗人）。**纪律复盘**：S1b/S2 换锚时只改了「服务端 + 消费侧」，漏了「API 模块的类型/解包」这一层。
+- **入场风险 1 的结论（`SuggestionItem` 一物两用）**：**不需要**改提示词或另立 DTO——
+  `MessageSuggestionPipeline.parseGeneratedSuggestions` 只逐字段读 `path("text")`/`path("category")`
+  后手工 new，**不经 Jackson**；已把这条边界写进 `SuggestionItem` 的类注释。
+- 夹具：`att-*`/`sug-*` JSON 解析改写 + 4 个 golden 按实际响应**重录**（去 omitempty 后多出
+  completionTokens/errorCode/latencyMs/modelId/promptTokens/generatedAt/suppressionReason 等恒输出键）；
+  `emb-pub-suggestions-get/off` 同批；`AttachmentContractTest` 的掩码正则键名（`sessionId`/`attachmentId`）
+  随批改——**掩码按键名匹配，键改名必须同步掩码，否则 fixtures 里会混进真实 UUID**。
+- 验收：全量 **4673 / 0 失败 / 4 跳过** + `spotlessCheck` 绿；前端 `vue-tsc` 0 错误 + **690 用例全绿**
+  + `vite build`；**真实服务冒烟 14 路通过**（建会话 201 / 上传 202 / 上传体键名断言 / 解析 ready /
+  详情体断言 / 列表裸数组 / 预览字节 / 未知附件 404 / 删除 204 幂等 / steer 列表 `{items:[]}` /
+  steer `new_run` / 建议事件 camelCase→404 / **旧 snake 体→400（换锚生效的反证）** / 建议 GET 404），
+  并在**真 PG 核验落库键名**（`chunks.tokenCount`、`processing_options.parserEngine`：旧键名一条不留）。
+
+**S3 存量迁移 SQL（真 PG，dev 库 0 行需迁移；表达式已用合成数据验证）**：
+```sql
+-- temporary_documents.chunks：数组元素键改名
+UPDATE temporary_documents SET chunks = (
+  SELECT coalesce(jsonb_agg((SELECT jsonb_object_agg(
+      CASE e.key WHEN 'context_header' THEN 'contextHeader'
+                 WHEN 'token_count' THEN 'tokenCount' ELSE e.key END, e.value)
+    FROM jsonb_each(elem) AS e)), '[]'::jsonb)
+  FROM jsonb_array_elements(chunks) AS elem)
+WHERE jsonb_typeof(chunks) = 'array' AND chunks <> '[]'::jsonb;
+
+-- temporary_documents.image_refs
+UPDATE temporary_documents SET image_refs = (
+  SELECT coalesce(jsonb_agg((SELECT jsonb_object_agg(
+      CASE e.key WHEN 'original_ref' THEN 'originalRef'
+                 WHEN 'mime_type' THEN 'mimeType' ELSE e.key END, e.value)
+    FROM jsonb_each(elem) AS e)), '[]'::jsonb)
+  FROM jsonb_array_elements(image_refs) AS elem)
+WHERE jsonb_typeof(image_refs) = 'array' AND image_refs <> '[]'::jsonb;
+
+-- temporary_documents.processing_options（空对象要守卫：jsonb_object_agg 空集返回 null）
+UPDATE temporary_documents SET processing_options = (
+  SELECT jsonb_object_agg(e.key_new, e.value) FROM (
+    SELECT CASE k.key WHEN 'resource_tenant_id' THEN 'resourceTenantId'
+                      WHEN 'asr_model_id' THEN 'asrModelId'
+                      WHEN 'parser_engine' THEN 'parserEngine'
+                      WHEN 'vlm_model_id' THEN 'vlmModelId'
+                      WHEN 'image_understanding' THEN 'imageUnderstanding'
+                      WHEN 'ocr_max_pages' THEN 'ocrMaxPages' ELSE k.key END AS key_new, k.value
+    FROM jsonb_each(processing_options) AS k) AS e)
+WHERE jsonb_typeof(processing_options) = 'object' AND processing_options <> '{}'::jsonb;
+
+-- message_suggestion_sets.questions[].knowledge_base_ids
+UPDATE message_suggestion_sets SET questions = (
+  SELECT coalesce(jsonb_agg((SELECT jsonb_object_agg(
+      CASE e.key WHEN 'knowledge_base_ids' THEN 'knowledgeBaseIds' ELSE e.key END, e.value)
+    FROM jsonb_each(elem) AS e)), '[]'::jsonb)
+  FROM jsonb_array_elements(questions) AS elem)
+WHERE jsonb_typeof(questions) = 'array' AND questions <> '[]'::jsonb;
+
+-- messages.execution_context.suggestion_attribution
+UPDATE messages SET execution_context = jsonb_set(execution_context, '{suggestion_attribution}', (
+  SELECT jsonb_object_agg(e.key_new, e.value) FROM (
+    SELECT CASE k.key WHEN 'suggestion_set_id' THEN 'suggestionSetId'
+                      WHEN 'question_id' THEN 'questionId' ELSE k.key END AS key_new, k.value
+    FROM jsonb_each(execution_context->'suggestion_attribution') AS k) AS e))
+WHERE jsonb_typeof(execution_context->'suggestion_attribution') = 'object'
+  AND execution_context->'suggestion_attribution' <> '{}'::jsonb;
+```
+
 **分批（按资源，每批自带 jsonb 迁移 + 前端 + 夹具）**：
 | 批 | 内容 | 文件（主要） | 预估 |
 |---|---|---|---|
 | **S1 会话主资源 ✅（S1a 实体面 + S1b 控制器面）** | `Session` / `SessionListItem` / `SessionLastRequestState` / `MentionedItem` + `SessionController`（求体 DTO / 信封 / 分页参数）+ 两处 jsonb 迁移 | `domain/Session.java`、`SessionListItem.java`；`controller/SessionController.java`；前端 `api/chat/index.ts` + `components/sessionGrouping.ts`、`SessionSidebarRow.vue`；夹具 `session-*.json`；`SessionJsonContractTest` / `SessionHttpContractTest` / `SessionQueryPagedTest` | ~55 处 |
 | **S2 消息主资源（最高风险）✅ 前后端已交付** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/{chat-history.ts,chat/index.ts}`、`composables/{useChatStreamHandler,useEmbedChatSession}.ts`、`views/chat/index.vue`、`views/chat/components/*`、`views/embed/*`、`utils/{messageTimestamp,sessionArtifacts,sessionMarkdown,steerStreamFork,rag-pipeline-history,attachmentPreview,sandboxArtifactRefs,referenceSources,citationMarkdown}.ts`、`types/mention.ts`；夹具 `msg-*.json`、`emb-*.json` | 已完成 |
-| **S3 附件 / 建议 / steer / artifacts** | `TemporaryDocument` / `MessageSuggestionSet` / `MessageSuggestionEvent` / `SuggestionItem` / `SuggestionAttribution` + 三个 controller 的手写信封（artifacts 三端点仍带 `{data,success}`；`api/message-suggestion.ts` 前端**还期待信封**） | `domain/*`、`controller/{TemporaryDocumentController,MessageSuggestionController,SteerController}.java`、前端 `api/message-suggestion.ts`、`api/chat/{steer.ts,temporary-attachments.ts}`、`utils/sessionArtifacts.ts`；夹具 `att-*/sug-*/g6-*` | ~70 处 |
+| **S3 附件 / 建议 / steer / artifacts ✅ 前后端已交付** | `TemporaryDocument` / `MessageSuggestionSet` / `MessageSuggestionEvent` / `SuggestionItem` / `SuggestionAttribution` + 三个 controller 的请求面与手写响应 map + **四处落库 jsonb**（详见下方执行记录） | `domain/*`、`controller/{TemporaryDocumentController,MessageSuggestionController,SteerController}.java`、`service/{TemporaryDocumentProcessor,TemporaryDocumentService,TemporaryDocumentPromptResolver,SteerSinkBridge}.java`、`dto/QaRequests.java`（仅提及项元素）、`embed/controller/EmbedChannelController.java`（channel 关闭分支）；前端 `api/{message-suggestion.ts,chat/steer.ts,chat/temporary-attachments.ts,chat/streame.ts,embed/index.ts}`、`types/mention.ts`、`utils/steerStreamFork.ts`、`components/{Input-field.vue,AttachmentUpload.vue}`、`views/chat/index.vue`、`views/embed/EmbedChatCore.vue`、`composables/useEmbedChatSession.ts`；夹具 `att-*/sug-*/emb-pub-suggestions-*` | 已完成 |
 | **S4 请求面 DTO** | `dto/QaRequests.java` + `QaRequestBinder/QaRequestParser/KnowledgeQaController` 的请求体（web/IM/embed 三入口共用；**错误文案不动**） | `dto/QaRequests.java`、`controller/Qa*.java`、`im/service/ImQaRequests.java`、前端 `views/chat/index.vue` 发送段 | ~30 处 |
 | **S5 收尾** | `SessionLastRequestState`（agent_config 遗留载荷）+ 各 TypeHandler 挂载点 + 边界登记（SSE / `SuggestionItem` 的 LLM 解析面）+ 残留核对 | — | 收尾 |
 
-**已登记的风险点**：
-1. `SuggestionItem` **一物两用**：既是线格式/落库，又是 **LLM 生成 JSON 的解析目标**（`MessageSuggestionPipeline.java:318`）。S3 入场前先决定：给 LLM 那条路单独留一个解析 DTO，或同步改提示词——**不允许半改**。
-2. `MessageController` 的搜索请求体当前是 camelCase（`sessionIds`），而前端 `api/chat-history.ts` 发的是 `session_ids`——**现状就不一致**，S2 顺手对齐（属请求契约修正，需在提交信息里写明）。
-3. `SteerController:373` 的 steer 事件 data 键与前端 `utils/steerStreamFork.ts` 耦合（事件载荷不是实体，S3 逐条判断）。
-4. artifacts 三端点（`SessionController:472/499/538`）返回 `{data,success}`，S2/S3 按 §2.1 改裸对象/204/201。
+**已登记的风险点（S3 后状态）**：
+1. ~~`SuggestionItem` 一物两用~~ **已结案（S3）**：LLM 那条路不经 Jackson（只读 `text`/`category` 后手工 new），键名换 camelCase 不影响提示词；边界已写进类注释。
+2. ~~搜索请求体 `session_ids` 不一致~~ **已结（S2）**：前端改发 `sessionIds`。
+3. ~~steer 事件 data 与前端耦合~~ **已结（S3）**：事件 data 判为**冻结线协议**（保留下划线），HTTP 响应键 camelCase；列表项里的提及项经实体转换输出。
+4. ~~artifacts 三端点带信封~~ **已结（S1b/S2 实测）**：`SessionController` 的 artifacts 三端点早已返回裸 `List<ArtifactView>` / 204 / 字节流，前端 `ChatArtifactsDrawer` 的 `res.data || res` 双读保留（无害）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
@@ -1912,7 +2004,7 @@ WHERE jsonb_typeof(artifacts) = 'array'
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e） | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / session 188 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 13**（S1+S2+S3 收官，仅剩 `MessageExecutionContext` 13 处＝S5 的 execution_context 落库面，§14.9l） | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
