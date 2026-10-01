@@ -52,8 +52,8 @@ final class MemoryItemStore {
         if (item.getStatus().isEmpty()) {
             item.setStatus(MemoryKinds.STATUS_ACTIVE);
         }
-        MemoryRepository.applyInsertDefaults(item);
-        MemoryRepository.stampForCreate(item);
+        MemoryIndexStore.applyInsertDefaults(item);
+        MemoryIndexStore.stampForCreate(item);
         repo.itemMapper.insert(item);
     }
 
@@ -276,7 +276,7 @@ final class MemoryItemStore {
                         if (replacement != null
                                 && replacement.getStatus().equals(item.getStatus())
                                 && replacement.getContent().equals(item.getContent())) {
-                            MemoryRepository.copyInto(item, replacement);
+                            MemoryIndexStore.copyInto(item, replacement);
                             return null;
                         }
                     }
@@ -290,7 +290,7 @@ final class MemoryItemStore {
             for (MemoryItem old : live) {
                 if (old.getContent().equals(item.getContent())
                         && old.getStatus().equals(item.getStatus())) {
-                    MemoryRepository.copyInto(item, old);
+                    MemoryIndexStore.copyInto(item, old);
                     return null;
                 }
             }
@@ -314,8 +314,8 @@ final class MemoryItemStore {
 
             item.setTenantId(scope.tenantId());
             item.setSubjectId(scope.subjectId());
-            MemoryRepository.applyInsertDefaults(item);
-            MemoryRepository.stampForCreate(item);
+            MemoryIndexStore.applyInsertDefaults(item);
+            MemoryIndexStore.stampForCreate(item);
             repo.itemMapper.insert(item);
 
             List<MemoryItem> supersedeCandidates = new ArrayList<>(live);
