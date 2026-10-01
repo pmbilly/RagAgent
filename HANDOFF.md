@@ -150,7 +150,7 @@
 | 阶段 2（wiki page 面，2026-10-01） | WikiPageServiceImpl / WikiPageRepository / WikiIngestDedupService / WikiPageFolderSupport | **出榜，wiki 域 ≥800 清零**（w1~w5 + 两个卫生刀 → RevisionOps/LinkOps/FolderRepository/IdentityDedup；1,008→732、858→708、851→468、822→383；§14.7.14） |
 | 阶段 2（DataSourceService，2026-10-01） | datasource 域最长类 | **出榜**（d1~d3 → ResultOps/Support/ItemOps/SyncExecutor 四协作者；1,828→666，-63.6%；§14.7.15） |
 | 阶段 2（datasource 连接器批，2026-10-01） | FeishuClient + NotionConnector | **双出榜，datasource 域 ≥800 清零**（f1~f3 + n1 → Transport/WikiTreeOps/DriveOps/FetchOps；1,155→709、1,093→625；§14.7.16） |
-| 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService / MemoryRepository | **首两刀落定**（m1 1,217→718 出榜；m2 1,515→1,200，条目簇出 `MemoryItemStore`；余 `MemoryService` 1,662 与仓储四段见 §14.7.17） |
+| 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService / MemoryRepository | **三刀落定**（m1 1,217→718 出榜；m2 1,515→1,200 出 `MemoryItemStore`；m3 1,200→**458** 出 `MemoryIndexStore`；⚠️ `MemoryIndexStore` 929 本身仍 ≥800，续刀 m4 见 §14.7.17） |
 
 ### 7.2 当前存量（实测）
 
@@ -163,7 +163,7 @@
 - embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
 - chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
 - datasource 域（2026-10-01 全批后）：**115 文件 / 26,723 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709**、`NotionConnector` 1,093→**625** —— **域内 ≥800 清零**（原三个：1,828 / 1,155 / 1,093）。
-- memory 域（2026-10-01 m1/m2 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**1,200**（条目簇已切，余四段）；≥800 剩 `MemoryService` 1,662 与 `MemoryRepository` 1,200（§14.7.17 已给续切边界）。
+- memory 域（2026-10-01 m1~m3 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryItemStore` 462 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 1,662 与 `MemoryIndexStore` 929（§14.7.17 已给续切边界）。
 - 全仓 ≥800 行的类：**7 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
@@ -410,7 +410,7 @@ knowledge/
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | **已清零**（`DataSourceService` 1,828→666 §14.7.15；`FeishuClient` 1,155→709、`NotionConnector` 1,093→625 §14.7.16） |
-| memory | `MemoryService` 1,662 · `MemoryRepository` 1,200（`MemoryExtractionService` 1,216→718 已出榜；仓储条目簇已切出 `MemoryItemStore`，§14.7.17） |
+| memory | `MemoryService` 1,662 · `MemoryIndexStore` 929（仓储已 1,515→458 出榜；`MemoryExtractionService` 1,216→718 亦出榜，§14.7.17） |
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | **已清零**（`WikiPageController`/`WikiIngestService` §14.7.2；page 面 4 类 §14.7.14：1,008→732 / 858→708 / 851→468 / 822→383，最大类 `WikiIngestCitePipeline` 760） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
@@ -1103,6 +1103,7 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 |---|---|---|---|
 | m1 | `MemoryExtractionLlm`（399 行）+ `MemoryTranscriptOps`（159 行） | 1,217→**718**（出榜） | `30213c4` |
 | m2 | `MemoryItemStore`（462 行）：条目写/读 + 生命周期 + 墓碑（仓储原 L213-638） | 1,515→**1,200** | `a2d83ef` |
+| m3 | `MemoryIndexStore`（929 行）：话题统计/文档亲和/向量/抽取进度/内部工具/方言探测（仓储原 L326-1199） | 1,200→**458**（出榜） | `cf8c2ca` |
 
 **m1 手法要点（与前面几批的差异点）**：
 - 两簇里混着 `static` 工具与实例方法：**静态走类名限定**（`MemoryExtractionLlm.parseExpiry(...)`）、
@@ -1119,9 +1120,15 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 零改动；代价是委托占 ~90 行，所以净减 315 行。仓储的 9 个 mapper/事务字段与 `postgres` 放宽为包内可见，
 三个内部静态工具（`applyInsertDefaults` / `stampForCreate` / `copyInto`）放宽为包内静态供协作者回调。
 
+**m3 手法要点与遗留**：整段（874 行）换 28 个薄委托，仓储 1,200→**458**；但**新协作者 `MemoryIndexStore`
+自身 929 行仍在榜上**——这是"整段搬"的代价：一段搬完不等于出榜，下次要么搬得更碎、要么搬完再切一次。
+两个坑：①`repo.postgres` 这类字段前缀会被正则打进**字符串字面量与 javadoc**（`"postgres"` 变 `"repo.postgres"`），
+收尾必须扫一遍字面量；②前缀替换会打到**被搬成员的声明行**（`static void X.helper(`），编译报
+"invalid method declaration" 即是此症状——修法是把声明行的类名前缀回退。
+
 **续切边界（下次动手前先复核）**：
-- `MemoryRepository` 1,200：`话题统计` / `文档亲和` / `向量` / `抽取进度` / `内部工具` / `pgvector 探测`
-  六段仍可整段外提（其中"向量"段最大，约 180 行）；下一刀可把四段合成一个 `MemoryIndexStore`。
+- `MemoryIndexStore` 929（**下一刀 m4 的目标**）：`向量段`（约 177 行）与 `内部工具 + pgvector 探测段`
+  （约 210 行）各可整段外提；切完即 <800 出榜。
 - `MemoryService` 1,662：`开关判定` / `召回`（含 `finishSubjectLoadFailure` / `recallEmptyMeta`）/
   `写入路径`（`remember` + `findContainedDuplicate` + `statusForWrite`）/ `记忆管理器`（列表/主题/文档/CRUD）
   ——目标切 2~3 刀。
