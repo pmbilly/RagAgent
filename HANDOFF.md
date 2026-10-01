@@ -16,12 +16,13 @@
    **retrieval 适配器批已收官（2026-10-01，9 仓 20 刀）**——sqlite/qdrant/milvus/tencentvectordb/weaviate/es8/es7/opensearch/doris 全部出榜（§14.7.5）；**HybridSearchService 已出榜（3 刀，1,260→775，§14.7.6）——检索域清零**。**AuthController 已出榜（3 刀，1,167→704，§14.7.7）——auth controller 清零**。**FaqImportService 已出榜（2 刀 F1/F2，1,235→583+419，knowledge 例外解除）**；
    **wiki page 面已收官（2026-10-01，w1~w5 + 两个卫生刀，§14.7.14）——`WikiPageServiceImpl` 1,008→732、`WikiPageRepository` 858→708、`WikiIngestDedupService` 851→468（例外解除）、`WikiPageFolderSupport` 822→383（切片产物空行折叠）——wiki 域 ≥800 清零**；
    **DataSourceService 已出榜（2026-10-01，d1~d3，§14.7.15）——1,828→666，四协作者**；
-   **datasource 连接器批已收官（2026-10-01，f1~f3 + n1，§14.7.16）——`FeishuClient` 1,155→709、`NotionConnector` 1,093→625，datasource 域 ≥800 清零**。
-4. **下一步**：`memory`（3 类，1,216~1,662，本仓目前最大块）→
+   **datasource 连接器批已收官（2026-10-01，f1~f3 + n1，§14.7.16）——`FeishuClient` 1,155→709、`NotionConnector` 1,093→625，datasource 域 ≥800 清零**；
+   **memory 域已开刀（2026-10-01，m1，§14.7.17）——`MemoryExtractionService` 1,217→718 出榜，余两个大件待续**。
+4. **下一步**：`memory` 域 m2/m3（`MemoryService` 1,662 / `MemoryRepository` 1,514，§14.7.17 已给切片边界）→
    单类（`SourceRegistry` 878 / `UserService` 876）→ knowledge 两个已登记例外的复核。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
-6. **全仓存量**：≥800 行的类还有 **8 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource 域 ≥800 全清零**。
+6. **全仓存量**：≥800 行的类还有 **7 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource 域 ≥800 全清零**，memory 域已开刀（1/3）。
 
 ## 0. 总目标（2026-09-29 用户定稿）
 
@@ -149,6 +150,7 @@
 | 阶段 2（wiki page 面，2026-10-01） | WikiPageServiceImpl / WikiPageRepository / WikiIngestDedupService / WikiPageFolderSupport | **出榜，wiki 域 ≥800 清零**（w1~w5 + 两个卫生刀 → RevisionOps/LinkOps/FolderRepository/IdentityDedup；1,008→732、858→708、851→468、822→383；§14.7.14） |
 | 阶段 2（DataSourceService，2026-10-01） | datasource 域最长类 | **出榜**（d1~d3 → ResultOps/Support/ItemOps/SyncExecutor 四协作者；1,828→666，-63.6%；§14.7.15） |
 | 阶段 2（datasource 连接器批，2026-10-01） | FeishuClient + NotionConnector | **双出榜，datasource 域 ≥800 清零**（f1~f3 + n1 → Transport/WikiTreeOps/DriveOps/FetchOps；1,155→709、1,093→625；§14.7.16） |
+| 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService（三神类之首刀） | **出榜**（m1 → Llm/TranscriptOps 两协作者；1,217→718；余 `MemoryService` 1,662 / `MemoryRepository` 1,514 见 §14.7.17） |
 
 ### 7.2 当前存量（实测）
 
@@ -161,7 +163,8 @@
 - embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
 - chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
 - datasource 域（2026-10-01 全批后）：**115 文件 / 26,723 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709**、`NotionConnector` 1,093→**625** —— **域内 ≥800 清零**（原三个：1,828 / 1,155 / 1,093）。
-- 全仓 ≥800 行的类：**8 个**（清单与分域建议见 §14.3）。
+- memory 域（2026-10-01 m1 后）：**`MemoryExtractionService` 1,217→718 出榜**；域内 ≥800 剩 `MemoryService` 1,662 / `MemoryRepository` 1,514（m2/m3 待续，§14.7.17）。
+- 全仓 ≥800 行的类：**7 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
@@ -402,12 +405,12 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **8 个**；datasource 全批后 9→8）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **7 个**；memory 首刀后 8→7）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
 | datasource | **已清零**（`DataSourceService` 1,828→666 §14.7.15；`FeishuClient` 1,155→709、`NotionConnector` 1,093→625 §14.7.16） |
-| memory | `MemoryService` 1,662 · `MemoryRepository` 1,514 · `MemoryExtractionService` 1,216 |
+| memory | `MemoryService` 1,662 · `MemoryRepository` 1,514（`MemoryExtractionService` 1,216→718 已出榜，§14.7.17） |
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | **已清零**（`WikiPageController`/`WikiIngestService` §14.7.2；page 面 4 类 §14.7.14：1,008→732 / 858→708 / 851→468 / 822→383，最大类 `WikiIngestCitePipeline` 760） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
@@ -1090,6 +1093,33 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
   必须换成回引（`walkXxx(client, …)`）——这是机械替换最难自动发现的一类，编译期能抓到但要看懂报错。
 - **测试缝常量不搬**：`MAX_RETRIES` / `MAX_5XX_RETRIES` / `retry5xxDelay` / `retryBackoff` 留在客户端，
   传输层按类名读取（保住"测试可覆盖"这条既有约定）。
+
+### 14.7.17 memory 域批（2026-10-01 起：三神类）
+
+**为什么最后动它**：memory 域三个类互相咬合（服务 → 仓储 → 抽取服务），且是唯一带"后台蒸馏"的域；
+按 §14.7.15 的"依赖方向定序"，先切最外层的抽取服务（m1），再切仓储（m2），最后切服务门面（m3）。
+
+| 刀 | 协作者 / 内容 | 结果 | 提交 |
+|---|---|---|---|
+| m1 | `MemoryExtractionLlm`（399 行）+ `MemoryTranscriptOps`（159 行） | 1,217→**718**（出榜） | `30213c4` |
+
+**m1 手法要点（与前面几批的差异点）**：
+- 两簇里混着 `static` 工具与实例方法：**静态走类名限定**（`MemoryExtractionLlm.parseExpiry(...)`）、
+  实例走协作者字段（`llmOps.relevantExisting(...)`），服务侧调用点按这条规则一次性改完。
+- 服务把 6 个依赖字段 + 4 个常量（`MAPPER` / `LINE_TIME` / `EXTRACTION_SCHEMA` /
+  `EXTRACTION_SYSTEM_PROMPT`）放宽为包内可见——**常量与 MAPPER 这类被跨类读的静态也要放宽**，
+  这是本批新增到清单的一条。
+- 服务的**嵌套类型**（`TranscriptSegment` / `TranscriptLine` / `InvalidExtractionOutputException`）
+  不搬，协作者按 `MemoryExtractionService.X` 引用；搬走的 `ExtractionDecision` / `ExtractionResponse`
+  的 `@JsonIgnoreProperties` **必须跟着走**（漏了会让模型输出反序列化静默变宽容）——javadoc/注解与
+  方法体不在同一个块里时，harness 容易漏，要在核验时专门看一眼。
+
+**m2 / m3 的预判边界（下次动手前先复核）**：
+- `MemoryRepository` 1,514：`条目：写` / `条目：读` / `生命周期（saveItem / confirmPendingItem）` /
+  `墓碑` 四段是天然切面；`saveItem` 单方法 100 行，含事务与去重语义，搬时保持整段。
+- `MemoryService` 1,662：`开关判定` / `召回`（含 `finishSubjectLoadFailure` / `recallEmptyMeta`）/
+  `写入路径`（`remember` + `findContainedDuplicate` + `statusForWrite`）/ `记忆管理器`（列表/主题/文档/CRUD）
+  ——目标切 2~3 刀。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
