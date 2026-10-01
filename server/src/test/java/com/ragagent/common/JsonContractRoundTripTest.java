@@ -1244,8 +1244,8 @@ class JsonContractRoundTripTest {
 
     @Test
     void evaluationDetailRoundTrips() {
-        // EvaluationDetail（task+params）直接作响应体；double 字段挂 GoDoubleSerializer，
-        // summary_config.thinking 是 *bool 无 omitempty（null 恒输出）。
+        // EvaluationDetail（task+params）直接作响应体；可空字段显式 null
+        // （metric 未产出、summaryConfig.thinking 未设置时均为 null）。
         var task = new com.ragagent.evaluation.dto.EvaluationDtos.EvaluationTask();
         task.id = "evaluation_10002_1789790586130_89a7491e_default";
         task.tenantId = 10002L;
@@ -1268,7 +1268,7 @@ class JsonContractRoundTripTest {
         detail.task = task;
         detail.params = params;
         assertRoundTrips(detail, com.ragagent.evaluation.dto.EvaluationDtos.EvaluationDetail.class,
-                "types.EvaluationDetail ← evaluation.dto.EvaluationDetail（metric omitempty + thinking null）");
+                "evaluation.dto.EvaluationDetail（metric 显式 null + thinking null）");
     }
 
     // ── 波 2 扫尾批 1（auth 注册族响应体） ─────────────────────────────────

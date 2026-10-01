@@ -29,14 +29,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * 评估契约测试（对照 Go routes_infra.go L81-89 的 POST/GET /evaluation）。
- * golden：record-system-golden.sh 的 ev-*（Go dev 实录）。
+ * 评估契约测试（POST/GET /api/v1/evaluation）。
  *
- * <p><b>执行步（2026-09-24 A4 接线后）</b>：后台真实跑 EvalDataset——本 fixture 的源 KB
- * 无 embedding 模型，段落同步建索引在 ChunkVectorIndexer 处以 Go 原文
- * "model ID cannot be empty" 失败（部署有模型时才会跑到 metrics 产出，见 ev-get.json
- * 的 Go dev 终态）。创建响应（ev-post）的 task+params 形态两侧一致（掩码 task id /
- * start_time 后字节比对——params 里的 prompt 常量按 dev 配置固化在 EvaluationPromptDefaults）。</p>
+ * <p>fixture 锚定本仓行为：创建响应（ev-post）掩码 task id / startTime 后整体比对；
+ * params 里的 prompt 常量按 dev 配置固化在 {@code EvaluationPromptDefaults}。</p>
+ *
+ * <p><b>执行步</b>：后台真实跑 EvalDataset——本 fixture 的源 KB 无 embedding 模型，
+ * 段落同步建索引在 ChunkVectorIndexer 处失败 "model ID cannot be empty"
+ * （部署有模型时才会跑到 metrics 产出，见 ev-get.json 的终态）。</p>
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -55,7 +55,7 @@ class EvaluationContractTest {
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
     private static final Pattern TASK_ID = Pattern.compile("\"id\":\"(evaluation_[^\"]+)\"");
-    private static final Pattern START_TIME = Pattern.compile("\"start_time\":\"[^\"]+\"");
+    private static final Pattern START_TIME = Pattern.compile("\"startTime\":\"[^\"]+\"");
 
     @Autowired
     private MockMvc mockMvc;
@@ -120,24 +120,33 @@ class EvaluationContractTest {
     }
 
     @Test
-    void postBadJsonMatchesGo() throws Exception {
+    void postBadJson() throws Exception {
         MvcResult r = mockMvc.perform(json(post("/api/v1/evaluation"), owner, "not-json")).andReturn();
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("ev-post-badjson.json"), raw(r));
     }
 
+    /** 0 字节空体 → 400「请求体不能为空」（@RejectEmptyBody 拦截）。 */
+    @Test
+    void postEmptyBody() throws Exception {
+        MvcResult r = mockMvc.perform(post("/api/v1/evaluation")
+                .header("Authorization", owner).contentType("application/json")).andReturn();
+        assertEquals(400, r.getResponse().getStatus(), raw(r));
+        assertEquals(golden("ev-post-nobody.json"), raw(r));
+    }
+
     /** 租户无模型 → 500 "no default models found for evaluation"（模型表空，确定性）。 */
     @Test
-    void postEmptyMatchesGo() throws Exception {
+    void postEmpty() throws Exception {
         MvcResult r = mockMvc.perform(json(post("/api/v1/evaluation"), owner, "{}")).andReturn();
         assertEquals(500, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("ev-post-empty.json"), raw(r));
     }
 
     @Test
-    void postUnknownKbMatchesGo() throws Exception {
+    void postUnknownKb() throws Exception {
         MvcResult r = mockMvc.perform(json(post("/api/v1/evaluation"), owner,
-                "{\"knowledge_base_id\":\"" + UNKNOWN_KB + "\",\"chat_id\":\"fake-chat-model-id\"}"))
+                "{\"knowledgeBaseId\":\"" + UNKNOWN_KB + "\",\"chatId\":\"fake-chat-model-id\"}"))
                 .andReturn();
         assertEquals(500, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("ev-post-kb-missing.json"), raw(r));
@@ -152,67 +161,67 @@ class EvaluationContractTest {
     }
 
     @Test
-    void getValidationMatchesGo() throws Exception {
+    void getValidation() throws Exception {
         MvcResult missing = mockMvc.perform(get("/api/v1/evaluation")
                 .header("Authorization", owner)).andReturn();
         assertEquals(400, missing.getResponse().getStatus(), raw(missing));
         assertEquals(golden("ev-get-missing.json"), raw(missing));
 
-        MvcResult unknown = mockMvc.perform(get("/api/v1/evaluation?task_id=no-such-task")
+        MvcResult unknown = mockMvc.perform(get("/api/v1/evaluation?taskId=no-such-task")
                 .header("Authorization", owner)).andReturn();
         assertEquals(500, unknown.getResponse().getStatus(), raw(unknown));
         assertEquals(golden("ev-get-unknown.json"), raw(unknown));
     }
 
-    /** 创建响应（掩码 task id / start_time 后与 Go golden 字节比对，status=0 快照）。 */
+    /** 创建响应（掩码 task id / startTime 后整体比对，status=0 快照）。 */
     @Test
-    void postSuccessMatchesGo() throws Exception {
+    void postSuccess() throws Exception {
         MvcResult r = mockMvc.perform(json(post("/api/v1/evaluation"), owner,
-                "{\"knowledge_base_id\":\"" + KB_ID + "\",\"chat_id\":\"fake-chat-model-id\"}"))
+                "{\"knowledgeBaseId\":\"" + KB_ID + "\",\"chatId\":\"fake-chat-model-id\"}"))
                 .andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("ev-post.json")), mask(raw(r)));
-        // status=0（创建快照；Go 是与后台 goroutine 的竞态，实测 0/1 都出现）
+        // status=0（创建快照；后台 goroutine 竞态下 0/1 都可能出现）
         JsonNode node = MAPPER.readTree(raw(r));
-        assertEquals(0, node.path("data").path("task").path("status").asInt());
+        assertEquals(0, node.path("task").path("status").asInt());
     }
 
-    /** 终态：真实执行（无 embedding 模型 → failed，err_msg = Go 原文）。 */
+    /** 终态：真实执行（无 embedding 模型 → failed，errMsg = AppError 原文）。 */
     @Test
     void getTerminalRunsExecution() throws Exception {
         MvcResult created = mockMvc.perform(json(post("/api/v1/evaluation"), owner,
-                "{\"knowledge_base_id\":\"" + KB_ID + "\",\"chat_id\":\"fake-chat-model-id\"}"))
+                "{\"knowledgeBaseId\":\"" + KB_ID + "\",\"chatId\":\"fake-chat-model-id\"}"))
                 .andReturn();
         Matcher m = TASK_ID.matcher(raw(created));
         assertThat(m.find()).isTrue();
         String taskId = m.group(1);
 
         // viewer 同租户可读（GET=Viewer）
-        MvcResult viewerGet = mockMvc.perform(get("/api/v1/evaluation?task_id=" + taskId)
+        MvcResult viewerGet = mockMvc.perform(get("/api/v1/evaluation?taskId=" + taskId)
                 .header("Authorization", viewer)).andReturn();
         assertEquals(200, viewerGet.getResponse().getStatus(), raw(viewerGet));
 
         // 轮询到终态（真实执行：段落建索引因无模型失败），params/task 契约形态保持
-        MvcResult r = mockMvc.perform(get("/api/v1/evaluation?task_id=" + taskId)
+        MvcResult r = mockMvc.perform(get("/api/v1/evaluation?taskId=" + taskId)
                 .header("Authorization", owner)).andReturn();
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         JsonNode node = MAPPER.readTree(raw(r));
-        JsonNode task = node.path("data").path("task");
+        JsonNode task = node.path("task");
         for (int i = 0; i < 250 && task.path("status").asInt() <= 1; i++) {
             Thread.sleep(20);
-            r = mockMvc.perform(get("/api/v1/evaluation?task_id=" + taskId)
+            r = mockMvc.perform(get("/api/v1/evaluation?taskId=" + taskId)
                     .header("Authorization", owner)).andReturn();
             node = MAPPER.readTree(raw(r));
-            task = node.path("data").path("task");
+            task = node.path("task");
         }
         assertEquals(3, task.path("status").asInt(), raw(r));
-        // 失败点在 ChunkVectorIndexer.updateChunkVector（KB 无 embedding 模型），
-        // err_msg = AppError 原文（对照 Go err.Error() 语义）
-        assertEquals("model ID cannot be empty", task.path("err_msg").asText());
+        // 失败点在 ChunkVectorIndexer.updateChunkVector（KB 无 embedding 模型）
+        assertEquals("model ID cannot be empty", task.path("errMsg").asText());
         JsonNode createdNode = MAPPER.readTree(raw(created));
-        assertEquals(createdNode.path("data").path("params"), node.path("data").path("params"));
-        // 失败早于指标记录 → metric 缺省
-        assertThat(node.path("data").has("metric")).isFalse();
+        assertEquals(createdNode.path("params"), node.path("params"));
+        // 失败早于指标记录 → metric 显式 null（键恒在）
+        assertThat(node.has("metric")).isTrue();
+        assertThat(node.path("metric").isNull()).isTrue();
     }
 
     // ════════════════ 辅助 ════════════════
