@@ -3,7 +3,6 @@ package com.ragagent.websearch.service;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,13 +43,15 @@ public class WebSearchTempKbStateService {
     private static final String STATE_KEY_PREFIX = "tempkb:";
 
     /**
-     * 对照 Go 的匿名 struct（字段序 kbID → knowledgeIDs → seenURLs）。
-     * record 分量序 = 序列化序，与 Go marshal 的键序一致。
+     * web 搜索临时 KB 的 Redis 状态载荷；键名 = Java 字段名（camelCase，§2 第 11 条）。
+     * Redis 是跨进程 + TTL 窗口（同 mcp OAuthState）：部署窗口内读到旧键
+     * {@code kbID/knowledgeIDs/seenURLs} 时按已知映射改名后再反序列化（{@link
+     * #migrateLegacyKeys}，窗口过后连同该方法删除）。
      */
     public record TempKbState(
-            @JsonProperty("kbID") String kbId,
-            @JsonProperty("knowledgeIDs") List<String> knowledgeIds,
-            @JsonProperty("seenURLs") Map<String, Boolean> seenUrls) {
+            String kbId,
+            List<String> knowledgeIds,
+            Map<String, Boolean> seenUrls) {
     }
 
     /** 对照 encoding/json：忽略未知字段（Go 默认语义）。 */
@@ -69,13 +70,35 @@ public class WebSearchTempKbStateService {
         this.knowledgeBaseService = knowledgeBaseService;
     }
 
-    /** 对照 GetWebSearchTempKBState：无状态/损坏一律回空三元组（""/空 map/空列表）。 */
+    /** 旧 blob 的键名 → 新键名（仅部署窗口用；窗口过后连同本方法删除）。 */
+    static String migrateLegacyKeys(String json) {
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = MAPPER.readTree(json);
+            if (root instanceof com.fasterxml.jackson.databind.node.ObjectNode obj) {
+                var moved = new java.util.LinkedHashMap<String, com.fasterxml.jackson.databind.JsonNode>();
+                for (String[] pair : new String[][]{{"kbID", "kbId"}, {"knowledgeIDs", "knowledgeIds"},
+                        {"seenURLs", "seenUrls"}}) {
+                    var v = obj.remove(pair[0]);
+                    if (v != null && !obj.has(pair[1])) {
+                        moved.put(pair[1], v);
+                    }
+                }
+                moved.forEach(obj::set);
+                return MAPPER.writeValueAsString(obj);
+            }
+            return json;
+        } catch (Exception e) {
+            return json; // 损坏载荷走既有的"回空三元组"分支
+        }
+    }
+
+    /** 无状态/损坏一律回空三元组（""/空 map/空列表）。 */
     public TempKbState getTempKbState(String sessionId) {
         String stateKey = STATE_KEY_PREFIX + sessionId;
         try {
             String raw = redis.opsForValue().get(stateKey);
             if (raw != null && !raw.isEmpty()) {
-                TempKbState state = MAPPER.readValue(raw, TempKbState.class);
+                TempKbState state = MAPPER.readValue(migrateLegacyKeys(raw), TempKbState.class);
                 if (state != null) {
                     return new TempKbState(
                             state.kbId() == null ? "" : state.kbId(),

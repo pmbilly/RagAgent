@@ -1,6 +1,5 @@
 package com.ragagent.llm.limiter;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 对照 Go limiter.RuntimeStat（limiter.go），json tag 逐字段对齐：
@@ -10,9 +9,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Waiting 故意保持进程内（等待者阻塞在应用进程里，Redis 中不体现）。
  */
 public record RuntimeStat(
-        @JsonProperty("model_id") String modelId,
-        @JsonProperty("name") String name,
-        @JsonProperty("active") long active,
-        @JsonProperty("waiting") long waiting,
-        @JsonProperty("limit") int limit) {
+        String modelId,
+        String name,
+        long active,
+        long waiting,
+        int limit) {
 }

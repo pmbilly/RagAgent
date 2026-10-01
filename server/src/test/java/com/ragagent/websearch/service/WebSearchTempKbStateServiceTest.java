@@ -22,7 +22,7 @@ import com.ragagent.knowledge.service.KnowledgeService;
 /**
  * web 搜索临时 KB 状态服务（对照 Go web_search_state.go 全文）。
  * 重点钉 Delete 的四分支语义与 Get 的空三元组兜底；save 的 JSON 键序
- * （kbID → knowledgeIDs → seenURLs）必须与 Go marshal 一致（双端可互读）。
+ * 键名 = Java 字段名（camelCase，§2 第 11 条）；部署窗口内的旧键读走 migrateLegacyKeys。
  */
 class WebSearchTempKbStateServiceTest {
 
@@ -60,13 +60,13 @@ class WebSearchTempKbStateServiceTest {
 
     /** save 落键的 JSON 形态：键序与 Go 匿名 struct 一致。 */
     @Test
-    void saveWritesGoShapedJson() {
+    void saveWritesCamelJson() {
         service.saveTempKbState("s1", "kb-1", Map.of("http://a", true), List.of("k1", "k2"));
         verify(valueOps).set(
                 org.mockito.ArgumentMatchers.eq("tempkb:s1"),
                 org.mockito.ArgumentMatchers.eq(
-                        "{\"kbID\":\"kb-1\",\"knowledgeIDs\":[\"k1\",\"k2\"],"
-                                + "\"seenURLs\":{\"http://a\":true}}"));
+                        "{\"kbId\":\"kb-1\",\"knowledgeIds\":[\"k1\",\"k2\"],"
+                                + "\"seenUrls\":{\"http://a\":true}}"));
     }
 
     /** Delete 分支 1：键不存在 → 无事可做。 */
@@ -88,11 +88,11 @@ class WebSearchTempKbStateServiceTest {
         verify(knowledgeBaseService, never()).deleteKnowledgeBase(anyString());
     }
 
-    /** Delete 分支 3：kbID 空白 → 只删键。 */
+    /** Delete 分支 3：kbId 空白 → 只删键。 */
     @Test
     void deleteBlankKbIdDeletesKeyOnly() {
         when(valueOps.get("tempkb:s1")).thenReturn(
-                "{\"kbID\":\"  \",\"knowledgeIDs\":[\"k1\"],\"seenURLs\":{}}");
+                "{\"kbId\":\"  \",\"knowledgeIds\":[\"k1\"],\"seenUrls\":{}}");
         service.deleteTempKbState("s1");
         verify(redis).delete("tempkb:s1");
         verify(knowledgeService, never()).deleteKnowledge(anyString());
@@ -102,8 +102,8 @@ class WebSearchTempKbStateServiceTest {
     @Test
     void deleteFullStateCleansKnowledgeKbAndKey() {
         when(valueOps.get("tempkb:s1")).thenReturn(
-                "{\"kbID\":\"kb-1\",\"knowledgeIDs\":[\"k1\",\"k2\"],"
-                        + "\"seenURLs\":{\"http://a\":true}}");
+                "{\"kbId\":\"kb-1\",\"knowledgeIds\":[\"k1\",\"k2\"],"
+                        + "\"seenUrls\":{\"http://a\":true}}");
         org.mockito.Mockito.doThrow(new RuntimeException("boom"))
                 .when(knowledgeService).deleteKnowledge("k1");
         service.deleteTempKbState("s1");
@@ -117,7 +117,7 @@ class WebSearchTempKbStateServiceTest {
     @Test
     void deleteKeyFailurePropagates() {
         when(valueOps.get("tempkb:s1")).thenReturn(
-                "{\"kbID\":\"kb-1\",\"knowledgeIDs\":[],\"seenURLs\":{}}");
+                "{\"kbId\":\"kb-1\",\"knowledgeIds\":[],\"seenUrls\":{}}");
         org.mockito.Mockito.doThrow(new RuntimeException("redis down"))
                 .when(redis).delete("tempkb:s1");
         assertThatThrownBy(() -> service.deleteTempKbState("s1"))

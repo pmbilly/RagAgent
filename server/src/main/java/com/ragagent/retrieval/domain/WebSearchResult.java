@@ -2,9 +2,6 @@ package com.ragagent.retrieval.domain;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 网络搜索结果条目（对照 Go {@code types.WebSearchResult}，
@@ -14,32 +11,22 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * （空时省略整键）。不落库、不作响应体的内部承载类型——注解形状按契约保留，
  * 供后续检索/agent 波次直接复用。</p>
  */
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
-@JsonPropertyOrder({"title", "url", "snippet", "content", "source", "age", "published_at"})
 public class WebSearchResult {
 
-    @JsonProperty("title")
     private String title = "";
 
-    @JsonProperty("url")
     private String url = "";
 
-    @JsonProperty("snippet")
     private String snippet = "";
 
-    @JsonProperty("content")
     private String content = "";
 
-    @JsonProperty("source")
     private String source = "";
 
     /** Provider 报告的相对年龄，不臆造精确发布时间（omitempty：空串省略）。 */
-    @JsonProperty("age")
     private String age = "";
 
-    @JsonProperty("published_at")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private OffsetDateTime publishedAt;
+        private OffsetDateTime publishedAt;
 
     public String getTitle() { return title == null ? "" : title; }
     public void setTitle(String v) { title = v == null ? "" : v; }
