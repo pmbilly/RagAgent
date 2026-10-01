@@ -234,10 +234,10 @@ class MemoryExtractionHelpersTest {
                     item("i1", MemoryKinds.KIND_FACT, "在用的数据库", "生产库用的是 MySQL"),
                     item("i2", MemoryKinds.KIND_TASK, "在做的重构", "重构支付流程，计划本周完成"));
             // Go 实录：["i1"]
-            assertThat(MemoryService.residentItemsWithinBlock(items, "- 生产库用的是 MySQL\n- 别的东西"))
+            assertThat(MemoryRecallOps.residentItemsWithinBlock(items, "- 生产库用的是 MySQL\n- 别的东西"))
                     .extracting(MemoryItem::getId).containsExactly("i1");
             // 空块 → 空（Go 实录：[]）
-            assertThat(MemoryService.residentItemsWithinBlock(items, "")).isEmpty();
+            assertThat(MemoryRecallOps.residentItemsWithinBlock(items, "")).isEmpty();
         }
 
         private MemoryItem itemWith(boolean inferred, String origin) {
