@@ -158,6 +158,7 @@
 | 阶段 3（model 域，2026-10-01） | 模型域契约换锚四块（§14.9c + §14.9e） | **收官**：主资源 + debug + weknoracloud + 落库 jsonb 全部换锚；`@JsonProperty` **87→0**；**前端 15 文件同批**（首次前后端同 PR）；真实服务冒烟 11 路（§14.9c） |
 | 阶段 3（system 域 S1，2026-10-01） | /system 读端与探测端 7 端点（§14.9f） | **完成**：去 `code/data/msg` 信封 + camelCase + 错误语义化（503/403/400）；`SystemDtos` 85 处清零（99→14）；前端 10 文件同批；契约 19/19 绿 |
 | 阶段 3（system 域 S2/S3/S4，2026-10-01） | /system/admin 全部端点 + SystemSetting（§14.9g） | **收官**：账号面/平台密钥/设置/runtime+配额四组换锚（rawBody→DTO、PlainError→AppError、动作 204）；`@JsonProperty` 14→**0**；前端 5 文件同批；auth 域波及 fixture 4 个同批 |
+| 阶段 3（auth 域 A1，2026-10-01） | 登录/会话/用户信息面 + User/Tenant/UserPreferences（§14.9h） | **完成**：成功裸 DTO / 失败 AppError / 动作 204；`@JsonProperty` 370→约 250（余 A2 租户成员邀请 + B apikey + 边界 tenantconfig 130）；前端 19 文件同批；**共享实体链条**牵动 4 测试类 ~50 fixture |
 
 ### 7.2 当前存量（实测）
 
@@ -1404,6 +1405,41 @@ S2（账号面）/ S3（密钥+设置+runtime）/ S4（配额）或转 auth/memo
 `SystemAuditLog.vue` 的审计 details 读取（据此判定为保留面）。
 
 **system 域收官口径**：`@JsonProperty` **99 → 0**（S1 的 `SystemDtos` 85 + S3 的 `SystemSetting` 14）。
+
+### 14.9h auth 域 A1（登录 / 会话 / 用户信息面，2026-10-01）
+
+**提交**：`51a8683`（后端）+ `801623d`（前端）。**口径修正**：auth 域实测 **370 处**（含全限定写法；
+此前 272 是漏算——**统计要两种写法都 grep**）。
+
+**A1 范围**：`auth/dto` 登录/注册/会话/OIDC/邀请查询面 + `domain/{User,UserPreferences,Tenant}` +
+`dto/TenantResponse` + `TenantAPIPrincipalController`。
+
+**形态**：
+- `/login`、`/auto-setup`、`/switch-tenant`：成功裸 `AuthLoginResponse{user,activeTenant,memberships,token,refreshToken}`；
+  **失败 401 + AppError**（原 200/401 + `{success,message,...}`）
+- `/register`：201 + **裸 User**；`RegisterResponse` 类型删除
+- `/logout`、`/change-password`：**204**；`/refresh`：裸 `TokenPairResponse{token,refreshToken}`
+- `/invitations/lookup`、`/tenants/{id}/api-principal-*` 三端点：去 `{data,success}`
+- `/config`→`AuthConfigResponse`；`/validate`→裸 `UserInfo`；
+  `/me`→`CurrentUserResponse{capabilities,memberships,preferenceDefaults,tenant,tenantRequired,user}`；
+  `/me/preferences`→裸 `UserPreferences`；`/oidc/{config,url}` 去 `success` + camelCase
+- 请求侧：`@Valid` + `@NotBlank`（显式 message）+ `@RejectEmptyBody`/`@NonNullBody`；
+  邮箱正则与码点长度沿用 gin 语义并**逐条收集**（与 Go 一次返回全部错误一致）
+
+**本批最大教训（共享实体链条）**：`User` → 所有返回 user 的端点；`Tenant`/`TenantResponse` →
+登录响应 `activeTenant` **与租户 CRUD（`w5a-tenant-*`/`ct-*`）**——一次换锚牵动 4 个测试类、
+~50 个 fixture。`UserPreferences` 的 `NON_NULL` **保留**（局部更新协议：省略 = 保持原值，
+不是省略美化）——只改键名。
+**另一处坑**：`@JsonProperty` 与 `@JsonInclude` 的**全限定写法**（`@com.fasterxml...`）会漏过
+短名 grep（`Tenant` 的 `defaultStorageBackendId` 因此残留 NON_NULL，多花了 3 轮才定位）。
+
+**边界保留**：`auth/domain/tenantconfig/` 130 处（§14.6「租户配置 jsonb」）；
+`refresh`/`switch-tenant` 的宽容手绑（`bindRefreshBody`/`bindSwitchTenantRequest`）暂留。
+
+**验收**：auth 域 183 用例全绿；后端全量 + spotlessCheck 绿；前端 `vue-tsc` 0 错误 + 690 用例。
+
+**A1 未做（后续批）**：**A2**（租户/成员/邀请列表：`TenantMemberResponse`/`Membership`/`TenantInvitationResponse`
++ `TenantMemberController` 的手搓 Map `envelope()`/`successOnly()`）；**B**（`apikey/domain` 41 处）。
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
