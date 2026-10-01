@@ -56,7 +56,7 @@
             <t-icon name="link" class="invite-banner__icon" />
             <div class="invite-banner__text">
               <div class="invite-banner__title">
-                {{ $t('inviteRegister.bannerTitle', { tenant: inviteLookup.tenant_name || '' }) }}
+                {{ $t('inviteRegister.bannerTitle', { tenant: inviteLookup.tenantName || '' }) }}
               </div>
               <div class="invite-banner__hint">
                 {{ $t('inviteRegister.bannerHintLogin') }}
@@ -140,7 +140,7 @@
             <t-icon name="link" class="invite-banner__icon" />
             <div class="invite-banner__text">
               <div class="invite-banner__title">
-                {{ $t('inviteRegister.bannerTitle', { tenant: inviteLookup.tenant_name || '' }) }}
+                {{ $t('inviteRegister.bannerTitle', { tenant: inviteLookup.tenantName || '' }) }}
               </div>
               <div class="invite-banner__hint">
                 {{ $t('inviteRegister.bannerHint') }}
@@ -419,11 +419,11 @@ onBeforeUnmount(() => {
 })
 
 const persistLoginResponse = async (response: any, skipRedirect = false) => {
-  // Backend renamed `tenant` to `active_tenant` and added `memberships`
+  // Backend renamed `tenant` to `activeTenant` and added `memberships`
   // when tenant-level RBAC landed (issue #1303). The two are otherwise
-  // identical — `active_tenant` is the tenant whose ID is encoded in the
+  // identical — `activeTenant` is the tenant whose ID is encoded in the
   // JWT, defaulting to the user's home tenant on a fresh login.
-  const activeTenant = response.active_tenant || response.tenant
+  const activeTenant = response.activeTenant || response.tenant
   if (response.user && response.token) {
     // user.tenant_id must be the user's HOME tenant (the immutable row
     // on the users table); useHomeTenant() and the home-badge logic both
@@ -433,8 +433,8 @@ const persistLoginResponse = async (response: any, skipRedirect = false) => {
     const homeTenantIdRaw = response.user.tenant_id ?? activeTenant?.id ?? ''
     authStore.setUser(userInfoFromApi(response.user, homeTenantIdRaw))
     authStore.setToken(response.token)
-    if (response.refresh_token) {
-      authStore.setRefreshToken(response.refresh_token)
+    if (response.refreshToken) {
+      authStore.setRefreshToken(response.refreshToken)
     }
     if (activeTenant) {
       authStore.setTenant({
@@ -479,7 +479,7 @@ const loadOIDCConfig = async () => {
   try {
     const response = await getOIDCConfig()
     oidcEnabled.value = !!response.success && !!response.enabled
-    oidcProviderName.value = response.provider_display_name || ''
+    oidcProviderName.value = response.providerDisplayName || ''
   } catch {
     oidcEnabled.value = false
     oidcProviderName.value = ''
@@ -492,8 +492,8 @@ const loadOIDCConfig = async () => {
 const loadAuthConfig = async () => {
   try {
     const response = await getAuthConfig()
-    registrationEnabled.value = response.registration_mode !== 'invite_only'
-    complexPasswordEnabled.value = response.complex_password_enabled
+    registrationEnabled.value = response.registrationMode !== 'invite_only'
+    complexPasswordEnabled.value = response.complexPasswordEnabled
   } catch {
     registrationEnabled.value = true
     complexPasswordEnabled.value = false
@@ -504,7 +504,7 @@ const handleOIDCLogin = async () => {
   try {
     oidcLoading.value = true
     const response = await getOIDCAuthorizationURL(getBackendOIDCRedirectURI())
-    const authorizationURL = response.authorization_url
+    const authorizationURL = response.authorizationUrl
 
     if (!response.success || !authorizationURL) {
       MessagePlugin.error(response.message || t('auth.oidcLoginFailed'))
@@ -600,7 +600,7 @@ const handleRegister = async () => {
       }
       MessagePlugin.success(t('auth.registerSuccess'))
       // register-by-invite returns the same shape as login (token +
-      // active_tenant + memberships), so reuse the login persistence
+      // activeTenant + memberships), so reuse the login persistence
       // path — same store writes, same redirect target.
       await persistLoginResponse(response)
       return
@@ -676,7 +676,7 @@ onMounted(async () => {
 
     // 3. 未登录：按注册模式决定界面。invite_only 停在登录页、登录后再兑换；self_serve 保持注册流程。
     const cfg = await getAuthConfig()
-    const inviteOnly = cfg.registration_mode === 'invite_only'
+    const inviteOnly = cfg.registrationMode === 'invite_only'
     registrationEnabled.value = !inviteOnly
     isRegisterMode.value = !inviteOnly
     loadOIDCConfig()

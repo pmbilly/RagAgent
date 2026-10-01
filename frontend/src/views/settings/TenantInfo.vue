@@ -398,7 +398,7 @@ async function deleteCurrentTenant() {
       if (next) {
         const switchingToHome =
           homeTenantId.value !== null && homeTenantId.value === next.tenant_id
-        const name = next.tenant_name?.trim() || `#${next.tenant_id}`
+        const name = next.tenantName?.trim() || `#${next.tenant_id}`
         authStore.setSelectedTenant(next.tenant_id, name)
         stashTenantSwitchToast({
           name,
@@ -557,11 +557,11 @@ const saveTenantName = async () => {
       if (authStore.tenant && String(authStore.tenant.id) === String(tenantInfo.value?.id)) {
         authStore.setTenant({ ...authStore.tenant, name: newName })
       }
-      // memberships 里的 tenant_name 是空间切换器读的字段，一并同步避免显示旧名字。
+      // memberships 里的 tenantName 是空间切换器读的字段，一并同步避免显示旧名字。
       if (authStore.memberships?.length) {
         const next = authStore.memberships.map((m) =>
           String(m.tenant_id) === String(tenantInfo.value?.id)
-            ? { ...m, tenant_name: newName }
+            ? { ...m, tenantName: newName }
             : m,
         )
         authStore.setMemberships(next)

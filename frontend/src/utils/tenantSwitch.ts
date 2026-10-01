@@ -86,7 +86,7 @@ export function consumePendingTenantSwitchToast(): PendingTenantSwitchToast | nu
 export function persistLastActiveTenantPreference(
   tenantId: number | null,
 ): Promise<void> {
-  const payload = { last_active_tenant_id: tenantId == null ? 0 : tenantId }
+  const payload = { last_activeTenant_id: tenantId == null ? 0 : tenantId }
   return updateMyPreferences(payload)
     .then((res) => {
       if (!res.success) {

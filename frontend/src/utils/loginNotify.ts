@@ -21,10 +21,10 @@ type RoleFormatter = (role: string | null | undefined) => string
 type RoleIconResolver = (role: string | null | undefined) => string
 
 interface LoginResponseLike {
-  // Password-login response uses `active_tenant`; the OIDC callback
+  // Password-login response uses `activeTenant`; the OIDC callback
   // response uses `tenant` (legacy backward-compat name on the Go side).
   // Accept either so callers don't have to normalise.
-  active_tenant?: { id?: number | string; name?: string } | null
+  activeTenant?: { id?: number | string; name?: string } | null
   tenant?: { id?: number | string; name?: string } | null
   memberships?: Array<{ tenant_id?: number | string; role?: string }>
 }
@@ -36,7 +36,7 @@ export function notifyLoginSuccess(
   formatRole: RoleFormatter,
   roleIcon: RoleIconResolver,
 ): void {
-  const activeTenant = response?.active_tenant || response?.tenant
+  const activeTenant = response?.activeTenant || response?.tenant
   if (!activeTenant) return
 
   const tenantName = activeTenant.name || String(activeTenant.id || '')

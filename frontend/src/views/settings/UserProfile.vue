@@ -206,7 +206,7 @@ const passwordForm = reactive({
 const loadPasswordPolicy = async () => {
   try {
     const resp = await getAuthConfig()
-    complexPasswordEnabled.value = !!resp.complex_password_enabled
+    complexPasswordEnabled.value = !!resp.complexPasswordEnabled
   } catch {
     complexPasswordEnabled.value = false
   }

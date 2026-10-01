@@ -18,8 +18,8 @@ export interface LoginResponse {
     email: string
     avatar?: string
     tenant_id: number
-    can_access_all_tenants?: boolean
-    is_system_admin?: boolean
+    canAccessAllTenants?: boolean
+    isSystemAdmin?: boolean
     is_active: boolean
     created_at: string
     updated_at: string
@@ -35,10 +35,10 @@ export interface LoginResponse {
     created_at: string
     updated_at: string
   } | null
-  // active_tenant mirrors `tenant` for endpoints that distinguish home
+  // activeTenant mirrors `tenant` for endpoints that distinguish home
   // tenant from current tenant (e.g. /auth/register-by-invite). Only
-  // one of `tenant` / `active_tenant` is populated by any given endpoint.
-  active_tenant?: {
+  // one of `tenant` / `activeTenant` is populated by any given endpoint.
+  activeTenant?: {
     id: number
     name: string
     description?: string
@@ -51,12 +51,12 @@ export interface LoginResponse {
   } | null
   memberships?: MembershipInfo[]
   token?: string
-  refresh_token?: string
+  refreshToken?: string
 }
 
 export interface OIDCAuthURLResponse {
   success: boolean
-  authorization_url?: string
+  authorizationUrl?: string
   state?: string
   message?: string
 }
@@ -64,7 +64,7 @@ export interface OIDCAuthURLResponse {
 export interface OIDCConfigResponse {
   success: boolean
   enabled: boolean
-  provider_display_name?: string
+  providerDisplayName?: string
   message?: string
 }
 
@@ -96,10 +96,10 @@ export interface RegisterResponse {
 // 处理；前端调用方按需读 / 默认值降级。
 export interface UserPreferences {
   browser_search_instructions?: string | null
-  // last_active_tenant_id 持久化「刷新 / 换设备 / 重新登录后回到上次的空间」
+  // last_activeTenant_id 持久化「刷新 / 换设备 / 重新登录后回到上次的空间」
   // 偏好；后端在 Login / RefreshToken 时校验 membership 有效后才会沿用，
   // 否则回退到 home 并清掉这个字段。传 0 给 PATCH 表示「清除偏好」。
-  last_active_tenant_id?: number | null
+  last_activeTenant_id?: number | null
   // oidc_only_login 为 true 表示账号由 OIDC 自动开通且用户尚未设置已知密码。
   oidc_only_login?: boolean
 }
@@ -111,9 +111,9 @@ export interface UserInfo {
   email: string
   avatar?: string
   tenant_id: string
-  can_access_all_tenants?: boolean
+  canAccessAllTenants?: boolean
   preferences?: UserPreferences
-  is_system_admin?: boolean
+  isSystemAdmin?: boolean
   created_at: string
   updated_at: string
 }
@@ -123,7 +123,7 @@ export interface UserInfo {
  *
  * 历史上有 4 处独立的 setUser 调用（Login、autoSetup、token rehydrate、
  * /auth/me 主动 refresh）各自手写字段白名单，每加一个 user 字段都要在
- * 4 处同步——否则该字段就被悄悄过滤掉。is_system_admin 上线时就因为
+ * 4 处同步——否则该字段就被悄悄过滤掉。isSystemAdmin 上线时就因为
  * 漏拷一处而看不到「系统管理」入口；这个工厂存在的目的就是杜绝同类
  * 漏拷再发生。**新增 user 字段请只改这里**。
  *
@@ -151,8 +151,8 @@ export function userInfoFromApi(
     email: u?.email || '',
     avatar: u?.avatar,
     tenant_id: String(tid) || '',
-    can_access_all_tenants: u?.can_access_all_tenants === true,
-    is_system_admin: u?.is_system_admin === true,
+    canAccessAllTenants: u?.canAccessAllTenants === true,
+    isSystemAdmin: u?.isSystemAdmin === true,
     preferences: u?.preferences,
     created_at: u?.created_at || new Date().toISOString(),
     updated_at: u?.updated_at || new Date().toISOString(),
@@ -254,7 +254,7 @@ export async function getOIDCConfig(): Promise<OIDCConfigResponse> {
 /**
  * 获取认证配置（仅返回前端渲染需要的公开字段，例如注册模式）。
  *
- * 后端通过 `auth.registration_mode` 控制是否允许自助注册：
+ * 后端通过 `auth.registrationMode` 控制是否允许自助注册：
  *   - "self_serve"  保留现有自助注册入口（默认）
  *   - "invite_only" 关闭注册，要求管理员邀请
  *
@@ -262,8 +262,8 @@ export async function getOIDCConfig(): Promise<OIDCConfigResponse> {
  */
 export interface AuthConfigResponse {
   success: boolean
-  registration_mode: 'self_serve' | 'invite_only' | string
-  complex_password_enabled: boolean
+  registrationMode: 'self_serve' | 'invite_only' | string
+  complexPasswordEnabled: boolean
 }
 
 export async function getAuthConfig(): Promise<AuthConfigResponse> {
@@ -271,7 +271,7 @@ export async function getAuthConfig(): Promise<AuthConfigResponse> {
     const response = await get('/api/v1/auth/config')
     return response as unknown as AuthConfigResponse
   } catch {
-    return { success: false, registration_mode: 'self_serve', complex_password_enabled: false }
+    return { success: false, registrationMode: 'self_serve', complexPasswordEnabled: false }
   }
 }
 
@@ -314,7 +314,7 @@ export async function autoSetup(): Promise<LoginResponse> {
  */
 export interface MembershipInfo {
   tenant_id: number
-  tenant_name?: string
+  tenantName?: string
   role: string
 }
 
@@ -326,10 +326,10 @@ export interface AuthCapabilities {
   auto_accept_invitation: boolean
 }
 
-export async function getCurrentUser(): Promise<{ success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenant_required?: boolean; capabilities?: AuthCapabilities; preference_defaults?: { browser_search_instructions: string } }; message?: string }> {
+export async function getCurrentUser(): Promise<{ success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenantRequired?: boolean; capabilities?: AuthCapabilities; preferenceDefaults?: { browser_search_instructions: string } }; message?: string }> {
   try {
     const response = await get('/api/v1/auth/me')
-    return response as unknown as { success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenant_required?: boolean; capabilities?: AuthCapabilities; preference_defaults?: { browser_search_instructions: string } }; message?: string }
+    return response as unknown as { success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenantRequired?: boolean; capabilities?: AuthCapabilities; preferenceDefaults?: { browser_search_instructions: string } }; message?: string }
   } catch (error: any) {
     return {
       success: false,
@@ -363,12 +363,12 @@ export async function refreshToken(refreshToken: string): Promise<{ success: boo
   try {
     const response: any = await post('/api/v1/auth/refresh', { refreshToken })
     if (response && response.success) {
-      if (response.access_token || response.refresh_token) {
+      if (response.access_token || response.refreshToken) {
         return {
           success: true,
           data: {
             token: response.access_token,
-            refreshToken: response.refresh_token,
+            refreshToken: response.refreshToken,
           }
         }
       }
@@ -475,7 +475,7 @@ export async function validateToken(): Promise<{ success: boolean; valid?: boole
 // ("X invited you to Y") without leaking sensitive inviter fields.
 export interface InviteLookup {
   tenant_id: number
-  tenant_name?: string
+  tenantName?: string
   role: string
   expires_at: string
 }

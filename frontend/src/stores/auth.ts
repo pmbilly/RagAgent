@@ -41,7 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
   // along with their role in each. Populated from /auth/login response.
   // v1 deployments will typically have length 1; the field is wired now
   // so PR 3 can render a tenant-switcher UI without a store migration.
-  const memberships = ref<Array<{ tenant_id: number; tenant_name?: string; role: string }>>([])
+  const memberships = ref<Array<{ tenant_id: number; tenantName?: string; role: string }>>([])
   const isLiteMode = ref(false)
   // pendingInvitationCount is the number of pending tenant invitations
   // addressed to the current user. Renders as a badge next to the
@@ -91,7 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
       return selectedTenantName.value
     }
     const fromMembership = memberships.value.find((m) => String(m.tenant_id) === tid)
-    if (fromMembership?.tenant_name) return fromMembership.tenant_name
+    if (fromMembership?.tenantName) return fromMembership.tenantName
     if (tenant.value && String(tenant.value.id) === tid) return tenant.value.name || ''
     return ''
   })
@@ -101,7 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   const canAccessAllTenants = computed(() => {
-    return user.value?.can_access_all_tenants || false
+    return user.value?.canAccessAllTenants || false
   })
 
   // isSystemAdmin reflects the platform-wide system-administrator flag
@@ -117,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
   // middleware (see internal/middleware/rbac.go). A user who flips this
   // bit in DevTools will get a 403 the moment they hit a guarded endpoint.
   const isSystemAdmin = computed(() => {
-    return user.value?.is_system_admin === true
+    return user.value?.isSystemAdmin === true
   })
 
   // currentTenantRole returns the user's role in the active tenant
@@ -211,7 +211,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const setRefreshToken = (refreshTokenValue: string) => {
     refreshToken.value = refreshTokenValue
-    localStorage.setItem('weknora_refresh_token', refreshTokenValue)
+    localStorage.setItem('weknora_refreshToken', refreshTokenValue)
   }
 
   const setKnowledgeBases = (kbList: KnowledgeBaseInfo[]) => {
@@ -272,11 +272,11 @@ export const useAuthStore = defineStore('auth', () => {
     if (tenantId !== null) {
       localStorage.setItem('weknora_selected_tenant_id', String(tenantId))
       if (tenantName) {
-        localStorage.setItem('weknora_selected_tenant_name', tenantName)
+        localStorage.setItem('weknora_selected_tenantName', tenantName)
       }
     } else {
       localStorage.removeItem('weknora_selected_tenant_id')
-      localStorage.removeItem('weknora_selected_tenant_name')
+      localStorage.removeItem('weknora_selected_tenantName')
     }
     if (tenantChanged) {
       clearTenantScopedClientState()
@@ -288,7 +288,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const setMemberships = (
-    list: Array<{ tenant_id: number; tenant_name?: string; role: string }>
+    list: Array<{ tenant_id: number; tenantName?: string; role: string }>
   ) => {
     memberships.value = Array.isArray(list) ? list : []
     localStorage.setItem('weknora_memberships', JSON.stringify(memberships.value))
@@ -436,11 +436,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('weknora_user')
     localStorage.removeItem('weknora_tenant')
     localStorage.removeItem('weknora_token')
-    localStorage.removeItem('weknora_refresh_token')
+    localStorage.removeItem('weknora_refreshToken')
     localStorage.removeItem('weknora_knowledge_bases')
     localStorage.removeItem('weknora_current_kb')
     localStorage.removeItem('weknora_selected_tenant_id')
-    localStorage.removeItem('weknora_selected_tenant_name')
+    localStorage.removeItem('weknora_selected_tenantName')
     localStorage.removeItem('weknora_memberships')
     localStorage.removeItem('weknora_lite_mode')
     isLiteMode.value = false
@@ -457,16 +457,16 @@ export const useAuthStore = defineStore('auth', () => {
     const storedUser = localStorage.getItem('weknora_user')
     const storedTenant = localStorage.getItem('weknora_tenant')
     const storedToken = localStorage.getItem('weknora_token')
-    const storedRefreshToken = localStorage.getItem('weknora_refresh_token')
+    const storedRefreshToken = localStorage.getItem('weknora_refreshToken')
     const storedKnowledgeBases = localStorage.getItem('weknora_knowledge_bases')
     const storedCurrentKb = localStorage.getItem('weknora_current_kb')
     const storedSelectedTenantId = localStorage.getItem('weknora_selected_tenant_id')
-    const storedSelectedTenantName = localStorage.getItem('weknora_selected_tenant_name')
+    const storedSelectedTenantName = localStorage.getItem('weknora_selected_tenantName')
 
     if (storedUser) {
       try {
         // 走 userInfoFromApi 把老 localStorage（可能缺新字段，如
-        // is_system_admin）规范化一遍，避免「我新加了字段、但老登录态
+        // isSystemAdmin）规范化一遍，避免「我新加了字段、但老登录态
         // 没经过登录响应处理过、字段就永远是 undefined」的死角。
         // 这是「漏拷 4 处」之外的第 5 个隐藏入口，专门给页面刷新走的。
         user.value = userInfoFromApi(JSON.parse(storedUser))

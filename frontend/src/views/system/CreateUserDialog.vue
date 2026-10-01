@@ -149,7 +149,7 @@ const complexPasswordEnabled = ref(false)
 
 const loadAuthConfig = async () => {
   const resp = await getAuthConfig()
-  complexPasswordEnabled.value = !!resp.complex_password_enabled
+  complexPasswordEnabled.value = !!resp.complexPasswordEnabled
   if (!resp.success) {
     MessagePlugin.warning(t('system.globalSettings.messages.loadFailed'))
   }

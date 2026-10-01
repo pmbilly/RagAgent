@@ -176,7 +176,7 @@ const selectTenant = (tenantId: number) => {
   // 退而求其次从 memberships 上挑名字。注意不要回退到 authStore.tenant?.name
   // —— 那是当前激活空间的名字，在 active != home 的会话里就是 peer 的名字。
   const homeNameFallback = switchingToHome
-    ? (authStore.memberships ?? []).find((m) => Number(m.tenant_id) === tenantId)?.tenant_name
+    ? (authStore.memberships ?? []).find((m) => Number(m.tenant_id) === tenantId)?.tenantName
       || null
     : null
   authStore.setSelectedTenant(tenantId, selectedTenant?.name || homeNameFallback || null)

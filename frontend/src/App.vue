@@ -102,8 +102,8 @@ const persistOIDCLoginResponse = async (response: any) => {
   }
 
   authStore.setToken(response.token)
-  if (response.refresh_token) {
-    authStore.setRefreshToken(response.refresh_token)
+  if (response.refreshToken) {
+    authStore.setRefreshToken(response.refreshToken)
   }
 
   await syncOIDCUserContext()

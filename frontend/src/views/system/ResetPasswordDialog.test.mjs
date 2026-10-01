@@ -43,7 +43,7 @@ function mountResetRow() {
   const Dialog = compileComponent(read('./ResetPasswordDialog.vue'), {
     'tdesign-vue-next': { MessagePlugin: { success: (msg) => notices.push(msg), error: (msg) => notices.push(msg) } },
     'vue-i18n': { useI18n: () => ({ t: (key) => key }) },
-    '@/api/auth': { getAuthConfig: async () => ({ complex_password_enabled: true }) },
+    '@/api/auth': { getAuthConfig: async () => ({ complexPasswordEnabled: true }) },
     '@/utils/passwordPolicy': { newPasswordRules: () => [] },
     '@/api/system': {
       resetUserPassword: (body) => new Promise((resolve, reject) => requests.push({ body, resolve, reject })),

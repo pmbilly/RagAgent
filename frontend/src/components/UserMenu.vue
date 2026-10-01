@@ -81,7 +81,7 @@
         </div>
         <!--
           System administration entry — visible only to users with the
-          platform-wide is_system_admin flag. Hidden for everyone else,
+          platform-wide isSystemAdmin flag. Hidden for everyone else,
           including tenant Owners. Real authorisation lives server-side
           (RequireSystemAdmin middleware); this is UI gating only.
         -->
@@ -353,7 +353,7 @@ const onTenantCreated = async (newTenant: TenantInfo) => {
 // every request with the new header and the server resolves the role server-side.
 type Membership = {
   tenant_id: number
-  tenant_name?: string
+  tenantName?: string
   role: string
 }
 
@@ -381,7 +381,7 @@ const isCurrentTenant = (id: number) => {
 }
 
 const tenantDisplayName = (m: Membership) =>
-  m.tenant_name && m.tenant_name.trim() !== '' ? m.tenant_name : `#${m.tenant_id}`
+  m.tenantName && m.tenantName.trim() !== '' ? m.tenantName : `#${m.tenant_id}`
 
 const tenantInitial = (m: Membership) => {
   const name = tenantDisplayName(m).trim()
@@ -540,10 +540,10 @@ const loadUserInfo = async () => {
         email: user.email || 'user@example.com',
         avatar: user.avatar || ''
       }
-      // 同时更新 authStore 中的用户信息，确保包含 can_access_all_tenants /
-      // is_system_admin 等所有字段。MUST 走 userInfoFromApi 工厂——历史
+      // 同时更新 authStore 中的用户信息，确保包含 canAccessAllTenants /
+      // isSystemAdmin 等所有字段。MUST 走 userInfoFromApi 工厂——历史
       // 上这里手写字段白名单，每加一个 user 字段都要在 5 个 setUser 调用
-      // 点同步，is_system_admin 就因为漏了这一处导致进入 platform 后
+      // 点同步，isSystemAdmin 就因为漏了这一处导致进入 platform 后
       // user.value 的字段被 mount 时的 loadUserInfo 静默覆盖回 undefined
       // （同时污染 localStorage），系统管理入口在 hover 工作空间触发
       // refreshFromAuthMe 后才出现。新增字段请只改 userInfoFromApi。
