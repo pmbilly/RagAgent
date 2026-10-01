@@ -208,8 +208,9 @@
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
-   auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** 已完成（同批带前端）；
-   下一步候选：**wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
+   auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** 已完成（同批带前端）；
+   下一步候选：**mcp / datasource / wiki / agent 等域的端点面**（§2 第 4 条落地范围），
+   mcp 批可顺带收掉 embed 访客事件的 mcp 委托信封（§14.9m）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -432,6 +433,22 @@ CLI 起服务常写 `set -a && . ./.env && set +a && ./gradlew :server:bootRun`�
 **判据**：某测试文件"整档失败"（`# Subtest: src/xxx.test.ts` 直接 not ok、无具体断言）时先看这条。
 **修法**：这类模块用相对导入（`../types/mention`）；`import type { X } from '@/...'` 是安全的（类型导入被擦除）。
 App 侧（Vite / vue-tsc）不受影响。
+
+### 13.12 契约夹具批量重录（换锚批的省力工具，2026-10-01 embed E1 起可用）
+
+换锚一次会改几十个 golden（去信封 / 键改名 / 键恒输出）。手改慢且容易漏，从 embed E1 起提供开关：
+
+```bash
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
+  ./gradlew :server:test --tests "com.ragagent.embed.EmbedContractTest" -Dcontract.refresh=true
+```
+
+命中时把**掩码后的实际响应**写回 `src/test/resources/contracts/`（`server/build.gradle.kts` 负责把该
+属性转发给 fork 出的测试 JVM——Gradle 的 `-D` 只作用于 daemon，不转发测试读不到）。
+目前 `EmbedContractTest` 已接入；其它契约测试按需照搬 `REFRESH_FIXTURES` 那三行。
+
+**纪律（重要）**：重录之后**必须结构化复核差异**（解析新旧 JSON、比键集与取值），确认差异只是
+本次换锚该有的那几类；否则就成了"测试适应实现"，夹具失去契约价值。复核脚本思路见 §14.9m。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
@@ -2070,6 +2087,42 @@ WHERE jsonb_typeof(execution_context) = 'object' AND execution_context <> '{}'::
    标签作用域还原与 `regenerate` 闸门在读侧全部落空（Go `buildMessageExecutionContext` 未移植）。
    补实现时按 S5 后的 camelCase 写；迁移 SQL 已就位。
 
+### 14.9m embed 域换锚（E1：渠道管理 + 公开面，2026-10-01）
+
+**✅ E1 执行记录（后端 + 前端同批）**：
+- **响应形态**：渠道管理 8 端点去 `{data,success}` 信封（§2.1）——create **201** 裸对象（§1.15）、
+  list-by-agent / list-all 裸数组、get/update/rotate 裸对象、preview → `{sessionToken,expiresIn}`、
+  stats → `{sessionCount}`、delete → **204**（§1.13，不再是 `{"success":true}`）；公开面同批：
+  config 裸对象、exchange → `{sessionToken,expiresIn}`、create-session **201** → `{id,sig}`、
+  suggested-questions → `{questions:[]}`、chunk 裸 `Chunk`、**访客事件上报 → 204**（无响应体）。
+- **键名**：渠道行视图 24 键、公开配置 20 键全部 camelCase（键名＝实体字段名）。
+  **唯一条件键是 `publishToken`**（列表行不带、详情/创建/轮换带）——那是**授权边界**
+  （列表里带 token = 把渠道会话签发权发给所有能读列表的人），不是 §1.6 的数据条件键，故保留并注释。
+  公开配置则按 §1.6 把原先 9 个条件键**全部改为恒输出**（空集合写 `[]`、空串照写）。
+- **请求面**：`EmbedChannelRequest`（19 处注解）与事件体 `EventRequest`（4 处）摘 `@JsonProperty`；
+  访客事件体随 S4 的 DTO 收口为 camelCase（前端 `sessionId`）。
+- **前端同批**（8 文件）：`api/embed/index.ts` 的类型与泛型去信封；`AgentEmbedChannelPanel`
+  （93 处）表单/解包；`useEmbedBridge`（widget 引导链三处解包）；`EmbedPage`/`EmbedChatCore`/
+  `menu`/`AgentEditorModal`/两个引用弹层。**接入示例（Node/Go 代码片段）同批改**——
+  示例里解码我们响应的 `body.data.session_token` 必须跟着变，否则等于发布错文档。
+- **刻意不改（登记）**：① 访客事件的 mcp authorize/status/resolve 仍委托 mcp 域，其 `{data,success}`
+  信封随 **mcp 域批**收；② `/embed/:cid/files` 是文件代理（非 JSON）；③ widget↔host 的
+  **postMessage 协议**（`channel_id`/`session_id`/`type`）不是 HTTP 契约，本批不动
+  （`onEmbedHostToken`/`postEmbedReady` 等仍用下划线）。
+- **新增工具：契约夹具重录开关**（`-Dcontract.refresh=true`）。换锚批会一次影响几十个 golden，
+  逐个手改既慢又易错：`server/build.gradle.kts` 把该属性转发给测试 JVM，`EmbedContractTest` 支持它
+  （命中时把**掩码后的实际响应**写回 `src/test/resources/contracts/`，平时是断言）。
+  ⚠️ 用它之后**必须结构化复核差异**（本次 21 个夹具的差异只有三类：少 `success` 键 /
+  config 多 3 个恒输出键 / 键序归一），别让"测试适应实现"。
+- 验收：全量 **4684 / 0 失败 / 6 跳过** + `spotlessCheck`；前端 `vue-tsc` 0 + **690 用例** + `vite build`；
+  **真实服务冒烟 14 路通过**（管理 6：201 裸对象 + 24 键 / 列表裸数组且**不泄漏 publishToken** /
+  详情含 token / 更新无 token / preview / stats；公开 8：config 20 键恒输出 / exchange /
+  建会话 201 / 建议 `{questions:[]}` / chunk 404 错误形态未动 / 事件 400 与 **204** / 删除 204→404）。
+- **embed 域 `@JsonProperty` 23 → 0**；余下 E2（若有）：访客事件的 mcp 委托面随 mcp 域批。
+
+**E2 候选（未做）**：mcp 委托三端点的信封（随 mcp 域）、`/embed/:cid/files`（非 JSON，无需改）、
+postMessage 协议（登记为 SDK 边界）。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
@@ -2101,7 +2154,7 @@ WHERE jsonb_typeof(execution_context) = 'object' AND execution_context <> '{}'::
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
