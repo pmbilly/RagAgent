@@ -319,7 +319,7 @@ export async function stopEmbedSession(
     Authorization: `Embed ${token}`,
     'X-Embed-Session': sessionSig,
   }
-  return post(`/api/v1/embed/${channelId}/sessions/${sessionId}/stop`, { message_id: messageId }, { headers })
+  return post(`/api/v1/embed/${channelId}/sessions/${sessionId}/stop`, { messageId }, { headers })
 }
 
 function embedSessionHeaders(token: string, sessionSig: string, visitorId?: string): Record<string, string> {

@@ -7,7 +7,7 @@ export async function createSessions(data = {}) {
 }
 
 export async function getSessionsList(page: number, page_size: number, source?: string) {
-  const params = new URLSearchParams({ page: String(page), page_size: String(page_size) });
+  const params = new URLSearchParams({ page: String(page), pageSize: String(page_size) });
   if (source) {
     params.set("source", source);
   }
@@ -66,7 +66,7 @@ export async function batchDelSessions(ids: string[]) {
 }
 
 export async function deleteAllSessions() {
-  return del(`/api/v1/sessions/batch`, { delete_all: true });
+  return del(`/api/v1/sessions/batch`, { deleteAll: true });
 }
 
 export async function getSession(session_id: string) {
@@ -74,7 +74,7 @@ export async function getSession(session_id: string) {
 }
 
 export async function stopSession(session_id: string, message_id: string) {
-  return post(`/api/v1/sessions/${session_id}/stop`, { message_id });
+  return post(`/api/v1/sessions/${session_id}/stop`, { messageId: message_id });
 }
 
 export async function clearSessionMessages(session_id: string) {
@@ -97,7 +97,9 @@ export interface ArtifactMeta {
    * the answer body references. Empty when the deployment runs without a
    * resource catalog, in which case the body references files by name.
    */
-  handle?: string;
+  handle?: string | null;
+  // ⚠️ 过渡：产物字段名与消息面 jsonb（messages.artifacts 里的 MessageArtifact）保持一致，
+  // 两者要到消息面换锚（§14.9l S2）才一起转 camelCase —— 现在改一边会让抽屉拿到两种形状。
   file_name: string;
   file_type: string;
   file_size: number;
