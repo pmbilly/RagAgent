@@ -157,6 +157,7 @@
 | 阶段 3 打样（evaluation 域，2026-10-01） | 小域契约换锚打样（§14.9b） | **流水线跑通**：POST/GET 去信封 + camelCase + 标准 DTO 绑定；10 个 fixture（含新增空体用例）；前端零调用面；**真实服务冒烟 8 路通过** |
 | 阶段 3（model 域，2026-10-01） | 模型域契约换锚四块（§14.9c + §14.9e） | **收官**：主资源 + debug + weknoracloud + 落库 jsonb 全部换锚；`@JsonProperty` **87→0**；**前端 15 文件同批**（首次前后端同 PR）；真实服务冒烟 11 路（§14.9c） |
 | 阶段 3（system 域 S1，2026-10-01） | /system 读端与探测端 7 端点（§14.9f） | **完成**：去 `code/data/msg` 信封 + camelCase + 错误语义化（503/403/400）；`SystemDtos` 85 处清零（99→14）；前端 10 文件同批；契约 19/19 绿 |
+| 阶段 3（system 域 S2/S3/S4，2026-10-01） | /system/admin 全部端点 + SystemSetting（§14.9g） | **收官**：账号面/平台密钥/设置/runtime+配额四组换锚（rawBody→DTO、PlainError→AppError、动作 204）；`@JsonProperty` 14→**0**；前端 5 文件同批；auth 域波及 fixture 4 个同批 |
 
 ### 7.2 当前存量（实测）
 
@@ -172,7 +173,7 @@
 - memory 域（2026-10-01 m1~m4 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→**965**；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 965（待 m5 评估）与 `MemoryIndexStore` 929（**登记例外**：同属索引侧一个关注点，§14.7.17）。
 - evaluation 域（2026-10-01 打样后）：**`@JsonProperty` 66→0、`@JsonInclude` 12→0**；POST/GET 两端点契约已换锚（§14.9b）；`dto` 包 2 文件（`EvaluationDtos` 容器待拆分，另立批次）。
 - model 域（2026-10-01 收官）：**`@JsonProperty` 87→0**、`@JsonInclude`/`Go*` 序列化引用清零；主资源（M1）+ debug（M2）+ weknoracloud（M3）+ 落库 jsonb 四块全部换锚（§14.9c/§14.9e）；前端 15 文件同批改；dev 库旧 jsonb 行已用迁移 SQL 改写。
-- system 域（2026-10-01 S1 后）：**`@JsonProperty` 99→14**（余 `SystemSetting`，属 S3）；`/system` 7 端点已换锚（去 `code/data/msg` 信封 + 错误语义化）；`SystemAdminController` 的端点外壳（S2/S3/S4）未动，但其响应体随共享 `SystemDtos` 已 camelCase。
+- system 域（2026-10-01 收官）：**`@JsonProperty` 99→0**（S1 的 `SystemDtos` 85 + S3 的 `SystemSetting` 14）；`/system` 7 端点 + `/system/admin` 全部端点 + settings 实体均已换锚（§14.9f/§14.9g）；前端 16 文件同批；权威细节见 §14.9g（含"审计 details 有意保留"清单）。
 - 全仓 ≥800 行的类：**7 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
@@ -1371,6 +1372,38 @@ javadoc 已注明）。
 
 **system 域进度口径**：`@JsonProperty` **99 → 14**（余 `SystemSetting`，属 S3）。下一步候选：
 S2（账号面）/ S3（密钥+设置+runtime）/ S4（配额）或转 auth/memory 域。
+
+### 14.9g system 域收官（S2/S3/S4：admin 面，2026-10-01）
+
+**提交**：`6ff4333`（后端）+ `1b835d9`（前端）。
+
+**范围**：`SystemAdminController` 全部端点 + `SystemSetting`（14 处注解）。
+
+**S2 账号面**（promote / revoke / list / users/reset-password / users/create）
+- 请求 rawBody 手绑 → 标准 DTO（camelCase + @Valid 显式 message，如 `userId: 不能为空`）；
+  `PlainErrorException`（`{"error":"原文"}`）→ AppError 信封；重置密码 `{message}` → **204**
+- service 层 5 处 `PlainErrorException` 一并转 AppError（self / last-admin / not-found / policy / conflict）
+
+**S3 平台密钥 + 设置**
+- api-keys：`{data,success}` → 裸数组 / 裸对象；删除 → **204**；创建请求 DTO（`expiresAtUnix` 等）
+- settings：`SystemSetting` 去 14 处注解（`valueType`/`isSecret`/`requiresRestart`/`lastModifiedBy`/
+  `createdAt`/`updatedAt`/`enumOptions`/`lastModifiedByName`——**含 `enum` → `enumOptions` 键名修正**，
+  字段名即键名）；PUT 请求 → DTO（`value` 必填）；删除 → **204**
+
+**S4 runtime + 配额**
+- tasks 查询参数 `page_size` → `pageSize`；mutate / purge 的 503 从纯字符串 → AppError（1008）
+- 配额应用响应手搓 Map → `StorageQuotaApplyResponse`（`affected`/`quotaBytes`/`quotaGb`）
+
+**有意保留（勿当漏网）**：① **审计 details 的键名**（`target_email`/`quota_gb`/`old_value`/`task_id`…）
+——跨域事件载荷（RBAC / settings / 队列产生方一起改才自洽），属独立批次；本批前后端一致保持原样；
+② `adm-guard-*` 的 403 文案（`{"error":"Forbidden: …"}`，`GuardForbiddenException` 未换锚）；
+③ auth 域 API Key 响应元素（`api_key`/`created_at`，auth 域未换锚）。
+
+**验收**：`SystemContractTest` 19/19 绿；前端 5 文件同步（`vue-tsc` 0 错误 + 690 用例）；
+**类型逃逸兜底**：前端 admin 面类型是手写接口——后端改键名 `vue-tsc` **不报错**，靠 grep 抓到
+`SystemAuditLog.vue` 的审计 details 读取（据此判定为保留面）。
+
+**system 域收官口径**：`@JsonProperty` **99 → 0**（S1 的 `SystemDtos` 85 + S3 的 `SystemSetting` 14）。
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
