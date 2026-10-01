@@ -769,7 +769,7 @@ class ModelContextRecordingTest {
         assertThat(comp).isEqualTo(out(R_SOURCES_COMPACT_LONGEST));
         assertThat(r4.decodeKnownText(comp)).isEqualTo(out(R_SOURCES_COMPACT_DECODED));
 
-        String quoted = SourceRegistry.rewriteQuotedText("a 'x''y' \"z\\\"w\" `t` plain 'un", String::toUpperCase);
+        String quoted = SourceToolCodec.rewriteQuotedText("a 'x''y' \"z\\\"w\" `t` plain 'un", String::toUpperCase);
         assertThat(quoted).isEqualTo(out(R_SOURCES_QUOTED));
     }
 
