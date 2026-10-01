@@ -210,8 +210,8 @@
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
    auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** / **mcp 域 M1（服务资源 + 凭据面）+ M4（工具审批 + OAuth 用户面，均前后端同批）** 已完成（同批带前端）；
    **mcp 域已收官（M1 + M4 + M5，仅剩第三方协议面 22 处永久冻结）**。
-   **datasource D1（主资源 + 凭据 + 资源目录，前后端同批）已完成（§14.9q）**。
-   下一步候选：**datasource 余 D2（同步日志与结果）/ D3（队列载荷 + Go golden）/ wiki（54）/
+   **datasource D1（主资源 + 凭据 + 资源目录）+ D2（同步日志与结果）已完成（前后端同批，§14.9q）**。
+   下一步候选：**datasource 余 D3（队列载荷 + Go golden）/ wiki（54）/
    auth 余面（138）/ retrieval（21）/ agent（15）**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
@@ -2294,6 +2294,75 @@ agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
 
 **⚠️ 本轮发现（登记待办）**：M1 只去了 `@JsonProperty` 与 `@JsonPropertyOrder`，**漏了类级/字段级 `@JsonInclude`**——`McpServiceResponse`、`McpAuthConfigResponse`、`McpTool`、`McpTestResult`（mcp 域 7 个文件）仍是 omitempty 直译，按 §1.6 应改恒输出（会动响应键集合 ⇒ 需重录夹具）。另 `McpCatalogSummary` 的 `Include.ALWAYS` 是默认值可删。作为 **M6** 小批处理。
 
+**✅ D2（同步日志与结果）执行记录（2026-10-01）**——51 处 / 5 类：
+- **键名换锚**：`SyncLog`(17)、`FetchedItem`(15)、`SyncResult`(10)、`SyncItemError`(5)、`SyncCursor`(4)；
+  `@JsonPropertyOrder` 全退役。**条件键一并改恒输出**（§1.6），这批的键集合变化最明显：
+  `SyncResult` 的 `deletionFailed`（原 NON_DEFAULT）/`errors`（原 NON_EMPTY）/`nextCursor`（原 NON_NULL）
+  → 零值写 0 / nil 写 null；`SyncItemError` 四键恒在（**零值对象不再是 `{}`**，而是
+  `{"title":"","code":"","params":null,"message":""}`）；`FetchedItem` 的 `replacesSubtree`/`subtreeKeep` 同款。
+- **落库 jsonb（3 处，已用真 PG 合成数据验证）**：`sync_logs.result`（含**内层** `nextCursor` 的三个键）、
+  `data_sources.last_sync_result`（同形）、`data_sources.last_sync_cursor`（包装三键；
+  **内层 `connectorCursor` 是各 connector 私有键，一律不动**——RSS 自己的 `last_sync_time` 就藏在里面）。
+  dev 库 0 行需迁移（表达式见下方 SQL）。
+- **业务键不动的两处**：`TaskInitiator`（`user_id`/`role`，属 D3 队列载荷）与 `RssCursor.toMap()`
+  （connector 私有游标键）——`DataSourceJsonTest` 的键序用例里两者并存，**证明分块换锚没串味**。
+- 测试：`DataSourceJsonTest` 12 个 D2 用例按本方形状改写（含**改名**两个口径已变的用例：
+  `syncResultOmitsEmptyCollectionsAndZeroDeletionFailed` → `…Keeps…`、
+  `syncItemErrorZeroMatchesGoAsEmptyObject` → `…AsFullObject`）；`RssCursorJsonTest` 的外层包装键同批；
+  `DataSourceHttpContractTest` 4 个日志/同步 golden 重录 + 内联断言改键。
+  顺带**修正一条从未生效的断言**：`fetchedItemDoesNotLeakPinnedStyleIsProperty` 原第二条子句写成
+  `doesNotContain("\"deleted\":")`，与第一条自相矛盾（等于没断言），已改为 `doesNotContain("is_deleted")`。
+- 前端：`api/datasource/index.ts`（SyncLog/SyncResultDetail/SyncItemError 类型改 camelCase 且标为恒在）+
+  `DataSourceSyncLogs.vue`(37 处)/`DataSourceSettings.vue`(13 处)。
+- 验收：全量 **4686 / 0 失败 / 6 跳过** + `spotlessCheck`；前端 `vue-tsc` 0 错误 + **690 用例**；
+  **真实服务冒烟 6 路通过**（跑真同步打本地 RSS 桩：手动同步 200 + sync_log 16 键 camelCase /
+  日志行 + `result` 全 camelCase（`errors` 恒在）/ 列表 `latestSyncLog` 嵌套同批 /
+  **落库 `sync_logs.result` 与 `data_sources.last_sync_result` 键名已换锚** / 响应无旧 snake 键）。
+  ⚠️ 冒烟发现两处口径（已记）：GET 详情**不补** `latestSyncLog`（只有列表补）；RSS **全量**同步不写
+  `last_sync_cursor`（增量才有）——所以落库断言取的是 `last_sync_result`。
+- 剩余：**D3（队列载荷 `DataSourceSyncPayload`/`TaskInitiator`，16 处 + `DataSourceJsonTest` 的 D3 用例）**。
+
+**D2 存量迁移 SQL（真 PG 合成数据验证；dev 库 0 行）**：
+```sql
+-- ① sync_logs.result：顶层两键 + 内层 nextCursor 三键
+UPDATE sync_logs SET result = (
+  SELECT jsonb_object_agg(CASE e.key
+      WHEN 'deletion_failed' THEN 'deletionFailed'
+      WHEN 'next_cursor' THEN 'nextCursor' ELSE e.key END,
+      CASE WHEN e.key = 'next_cursor' AND jsonb_typeof(e.value) = 'object' THEN (
+        SELECT jsonb_object_agg(CASE k.key
+            WHEN 'last_sync_time' THEN 'lastSyncTime'
+            WHEN 'connector_cursor' THEN 'connectorCursor'
+            WHEN 'last_schema_hash' THEN 'lastSchemaHash' ELSE k.key END, k.value)
+        FROM jsonb_each(e.value) AS k) ELSE e.value END)
+  FROM jsonb_each(result) AS e)
+WHERE jsonb_typeof(result) = 'object' AND (result ? 'deletion_failed' OR result ? 'next_cursor');
+
+-- ② data_sources.last_sync_result：同 ①（顶层两键 + 内层 nextCursor 三键）
+UPDATE data_sources SET last_sync_result = (
+  SELECT jsonb_object_agg(CASE e.key
+      WHEN 'deletion_failed' THEN 'deletionFailed'
+      WHEN 'next_cursor' THEN 'nextCursor' ELSE e.key END,
+      CASE WHEN e.key = 'next_cursor' AND jsonb_typeof(e.value) = 'object' THEN (
+        SELECT jsonb_object_agg(CASE k.key
+            WHEN 'last_sync_time' THEN 'lastSyncTime'
+            WHEN 'connector_cursor' THEN 'connectorCursor'
+            WHEN 'last_schema_hash' THEN 'lastSchemaHash' ELSE k.key END, k.value)
+        FROM jsonb_each(e.value) AS k) ELSE e.value END)
+  FROM jsonb_each(last_sync_result) AS e)
+WHERE jsonb_typeof(last_sync_result) = 'object'
+  AND (last_sync_result ? 'deletion_failed' OR last_sync_result ? 'next_cursor');
+
+-- ③ data_sources.last_sync_cursor：只改包装三键（connectorCursor 内层是 connector 私有键）
+UPDATE data_sources SET last_sync_cursor = (
+  SELECT jsonb_object_agg(CASE k.key
+      WHEN 'last_sync_time' THEN 'lastSyncTime'
+      WHEN 'connector_cursor' THEN 'connectorCursor'
+      WHEN 'last_schema_hash' THEN 'lastSchemaHash' ELSE k.key END, k.value)
+  FROM jsonb_each(last_sync_cursor) AS k)
+WHERE jsonb_typeof(last_sync_cursor) = 'object' AND last_sync_cursor ? 'last_sync_time';
+```
+
 ### 14.9p mcp 域 M5（OAuth 内部 blob 面）+ 该域收官（2026-10-01）
 
 **✅ M5 执行记录**：`OAuthState`(9) + `OAuthAttempt`(4) 去键名映射——这两个记录**只序列化进
@@ -2377,7 +2446,7 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1 主资源+凭据+资源目录，§14.9q；余 D2 51 处 + D3 16 处 + 270 处 connector 第三方线格式永久冻结）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1，§14.9q）→ 366（D2 同步日志与结果，§14.9q；余 D3 16 处 + 270 处 connector 第三方线格式永久冻结）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
