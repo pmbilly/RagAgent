@@ -930,6 +930,54 @@ chatpipeline 域测试 45 条 / 全量 4,668 条 0 失败（clean 全量 + spotl
 ③字段替换用 `\b` 而非 `\.`（webSearchService/tenantService 有裸 null 比较）；④同一 harnese 里
 重名 helper 函数（brace_end 一参/两参）后定义覆盖前定义 → 两参版先移到顶部。
 
+### 14.7.14 wiki page 面批次（2026-10-01 立；刀 0 侦察 + 两个前置卫生刀已完成）
+
+**目标类（§14.3 实测）**：`WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851
+——原列第 4 个 `WikiPageFolderSupport`（822）**已由卫生刀 w0 出榜**（折叠后 383 行，见下）。
+
+**刀 0 侦察的新发现（已写进 §13.29 的教训）**：wiki/session 两批切片脚本产出的 **14 个协作者文件被写成
+"每行后跟一个空行"**（空白行占比 55%~78%，仓库中位数 13%）——文件被撑大一倍以上，`wc -l` 榜单随之失真
+（`WikiPageFolderSupport` 表面 822 行、实际 383 行；`SessionQaResolution` 707→184）。处置：
+- **w0a** `scripts/normalize-blank-lines.py`（入库脚本，只删空行 + "非空行逐一相同"断言）：14 文件 7,346→2,821 行（`d1f8180`）；
+- **w0b** `WikiPageLinkRepair` 源码里的**裸 NUL 字节**（`"\x00"` → `"\0"`，git 此前视该文件为二进制、diff 不可读）（`8be19c3`）。
+
+**刀序与边界判定**（每刀一簇、独立提交）：
+
+1. **w1 `WikiPageServiceImpl` → `WikiPageRevisionOps`**（修订历史 + 页面问题簇）：`revisionFromPage`(static) /
+   `pruneRevisions` / `listRevisions` / `getRevision` / `revertPageToVersion` / `createIssue` / `listIssues` /
+   `updateIssueStatus`（含 `deletePage` 里的历史清理 try 块 → `deletePageRevisions(page)`）。
+   共享项：门面保 6 个 public 薄委托（接口面）；`updatePage` 内部改调 `revisionOps.revisionFromPage/pruneRevisions`；
+   revert 经门面回引 `service.updatePage`（`WikiEditContext.callWith` 语义不变）。测试床（`WikiPageRevisionServiceTest`、
+   `WikiPageServiceTest` 均 `@SpringBootTest` 注入接口）**零改动**。
+2. **w2 `WikiPageServiceImpl` → `WikiPageLinkOps`**（链接维护簇 + wiki 链接文本静态工具）：`parseOutLinks` /
+   `normalizeSlug` / `slugNamespace` / `stripWikiInlineChunkCitations` / `stripWikiPageInlineChunkCitations` /
+   `updateInLinks` / `removeInLinks` / `rebuildLinks` / `injectCrossLinks` + 两个正则常量。
+   外部引用改向：`SlugFuzzy`（2 处）、`WikiPageLinkRepair`（2 处）、`WikiPageViewsSupport`（1 处）、
+   `WikiPageServiceTest`（5 个静态用例）。门面保 `rebuildLinks`/`injectCrossLinks` 两个 public 薄委托。
+3. **w3 `WikiPageRepository` → `WikiFolderRepository`**（文件夹树段 615-707 + `folderNameExists`/`assertNoFolderConflict`）：
+   新 `@Repository`（持 `WikiFolderMapper` + `WikiPageMapper`；**该段无方言分支，不需 DataSource**）。
+   调用点改向：`WikiPageFolderSupport` 10 处（`service.repo.` → `service.folderRepo.`）+ `WikiPageRepositoryTest`
+   文件夹用例段（换注入 bean）。顺带 **w3b**：`detectPostgres` 收敛到 `common/jdbc/DatabaseDialects`
+   （同族 5 处早已收敛，wiki 是漏网；语义一致：探测失败 → 非 PG）。
+4. **w4 `WikiIngestDedupService` → 静态算法簇外提**（**解除该类现有"846 行略超 800"的 §14.5 例外**——
+   复核该例外理由后的判定：外提的是**纯静态函数**（无实例态），不产生"参数传递层"；
+   编排（claim/stabilize/attach/reclaim/remap + `Identities` 结果载体）留在服务）：
+   预筛/评分（`DedupSurface` / `countEntityConceptPages` / `selectDedupCandidatePages` / `dedupPairScore` /
+   `slugBaseTokens` / `gramsPerSurface` / `surfaceGrams`）+ 身份文本（`normalizeWikiIdentityTitle` /
+   `exactIdentityTarget` / `preferWikiIdentityDisplayName` / `mergeExtractedIdentity` / `appendUniqueString`）
+   → 新包内类 `WikiIdentityDedup`（命名避让既有端口 `WikiDedupSupport`）。测试 `WikiIngestDedupServiceTest`
+   的静态调用改向新类。
+
+**闸门口径**：每刀 = `--rerun-tasks` 重编 + `--tests "com.ragagent.wiki.*"` + spotlessCheck + 忠实性逐字比对；
+收官 = clean 全量 + 环守卫（`scripts/check-package-cycles.py`）+ §14.3/§7.2 刷新（本批不动前端契约）。
+
+**落刀记录（2026-10-01）**
+
+| 刀 | 内容 | 提交 |
+|---|---|---|
+| w0a | 空行折叠（14 文件，7,346→2,821 行） | `d1f8180` |
+| w0b | 裸 NUL → `"\0"`（WikiPageLinkRepair） | `8be19c3` |
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
