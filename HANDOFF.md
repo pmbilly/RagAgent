@@ -142,6 +142,7 @@
 | 阶段 2（mcp 域双类，2026-10-01） | McpServiceController + OAuthHandler | **出榜，mcp 清零**（4 刀 → UsageInstructionsOps/CrudOps/Discovery/TokenOps；937→372、825→220；§14.7.10） |
 | 阶段 2（FeishuAdapter，2026-10-01） | im 域飞书适配器 | **出榜，im 清零**（4 刀 → CallbackOps/SendOps/CardStreamOps/MediaOps；926→331；§14.7.11） |
 | 阶段 2（EmbedChannelController，2026-10-01） | embed 域渠道控制器 | **出榜，embed 清零**（3 刀 → MgmtOps/PublicOps/DelegateOps；925→561；§14.7.12） |
+| 阶段 2（PluginSearch，2026-10-01） | chatpipeline 检索插件 | **出榜，chatpipeline 清零**（3 刀 → QueryTextOps/ExpansionOps/SearchOps；899→278；§14.7.13） |
 
 ### 7.2 当前存量（实测）
 
@@ -152,15 +153,15 @@
 - mcp 域（2026-10-01 批次后）：controller/oauth 两神类出榜，包内最大 `OAuthDiscovery` 439。
 - im 域（2026-10-01 批次后）：`FeishuAdapter` 926→331，feishu 包最大协作者 `FeishuCardStreamOps` 256。
 - embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
-- 全仓 ≥800 行的类：**16 个**（清单与分域建议见 §14.3）。
+- chatpipeline 域（2026-10-01 批次后）：plugin 包 24 类全部 <800（最大 `PluginRerank` 686）。
+- 全仓 ≥800 行的类：**15 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
 
-1. **阶段 2 其余域**：wiki / im / retrieval / auth controller / llm / mcp / embed / knowledge(FaqImportService) / chatpipeline(PluginMerge) **均已出榜**；
-   余量以 §14.3 实测为准——单类：chatpipeline(PluginSearch 899)、modelcontext(SourceRegistry 878)、
-   auth service(UserService 876)、knowledge 例外 2 个、wiki-page 面 4 类；
-   大体量：datasource / memory（单独立项）。
+1. **阶段 2 其余域**：wiki / im / retrieval / auth controller / llm / mcp / embed / chatpipeline / knowledge(FaqImportService) **均已出榜**；
+   余量以 §14.3 实测为准——单类：modelcontext(SourceRegistry 878)、auth service(UserService 876)、
+   knowledge 例外 2 个、wiki-page 面 4 类；大体量：datasource / memory（单独立项）。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
    chunker-preview 已完成（同批带前端）；**剩余域 wiki / agent / auth / memory / mcp 等**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
@@ -371,7 +372,7 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **16 个**；embed 批后 17→16）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **15 个**；chatpipeline 批后 16→15）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
@@ -380,7 +381,8 @@ knowledge/
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
-| 其余单类 | `PluginSearch` 899（chatpipeline）· `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
+| 其余单类 | `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
+| chatpipeline | **已清零**（PluginMerge 1,155→670 C1 + PluginSearch 899→278 P1-P3，§14.7.13） |
 | embed | **已清零**（EmbedChannelController 925→561，§14.7.12；EmbedChannelService 792 本就 <800） |
 | im / llm | **均已清零**（llm：RemoteApiChat 1,366→513，§14.7.8；im：FeishuAdapter 926→331，§14.7.11） |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
@@ -910,6 +912,23 @@ splitByDelimiters/removeQuestionWords/tokenize 五个）+ `SearchGradingTest`；
 **预估**：门面 899→~300；三个协作者 120~390 行。闸门：每刀 `--rerun-tasks` 重编 +
 `--tests "com.ragagent.chatpipeline.*"`（≥45）+ spotlessCheck + 忠实性逐字比对；
 收官 clean 全量 + 环守卫。
+
+**落刀记录（2026-10-01 执行完毕，3 刀全绿；边界判定见上）**
+
+| 刀 | 协作者 | 内容 | 提交 |
+|---|---|---|---|
+| P1 | `QueryTextOps` 141（全静态） | STOPWORDS/QUESTION_WORDS/QUOTED_PHRASE/DELIMITERS + extractKeywords/extractPhrases/splitByDelimiters/removeQuestionWords/tokenize/isHan/runeCount；门面留五 public static 薄委托（测试在上级包直调） | `3098f5f` |
+| P2 | `PluginExpansionOps` 213 | runQueryExpansion/expandQueries/addIfNew；withTenant 经门面类名调 | `9a98c3b` |
+| P3 | `PluginSearchOps` 405 | searchByTargets/searchModelGroup/searchSingleTarget + 降级判定三件 + searchWebIfEnabled/currentTenantWebSearchConfig/effectiveWebSearchConfig/mapOf；withTenant/joinQuietly 留门面（与 onEvent 共用） | `e299fb8` |
+
+**结果**：`PluginSearch` 899→**278**（出榜，chatpipeline 域 ≥800 清零）；三个协作者 141~405 行；
+chatpipeline 域测试 45 条 / 全量 4,668 条 0 失败（clean 全量 + spotless + 环守卫基线保持）；
+全仓 ≥800 类 16→**15**。
+**本批新增坑位**：①门面写盘必须用**全部编辑完成后的最终文本**（P2 首轮把 `out_lines` 在装配编辑
+之前算好 → 字段放宽与协作者装配静默丢失，编译守卫抓回）；②静态委托的可见性按测试包位定
+（SearchRecordingTest 在 `chatpipeline` 上级包 → 五个委托保 `public static`，不能剥成包内）；
+③字段替换用 `\b` 而非 `\.`（webSearchService/tenantService 有裸 null 比较）；④同一 harnese 里
+重名 helper 函数（brace_end 一参/两参）后定义覆盖前定义 → 两参版先移到顶部。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
