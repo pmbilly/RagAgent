@@ -1024,9 +1024,9 @@ class DataSourceServiceTest {
         stored.setLastSyncTime(OffsetDateTime.now(ZoneOffset.UTC));
         ds.setLastSyncCursor(stored.toJSON());
 
-        assertThat(DataSourceService.streamStartCursor(ds, true, 0)).isNull();
-        assertThat(DataSourceService.streamStartCursor(ds, true, 1)).isNotNull();
-        assertThat(DataSourceService.streamStartCursor(ds, false, 0)).isNotNull();
+        assertThat(DataSourceSyncExecutor.streamStartCursor(ds, true, 0)).isNull();
+        assertThat(DataSourceSyncExecutor.streamStartCursor(ds, true, 1)).isNotNull();
+        assertThat(DataSourceSyncExecutor.streamStartCursor(ds, false, 0)).isNotNull();
     }
 
     @Test
