@@ -31,9 +31,9 @@ import com.ragagent.common.error.BizException;
  * <p>KB 归属校验的两条错误文案必须逐字保持（前端与集成方按文案断言，Go 测试也钉了）：</p>
  * <ul>
  *   <li>查不到（不存在 / 查询出错）→ 400
- *       {@code knowledge_base_ids contains an unknown knowledge base}；</li>
+ *       {@code knowledgeBaseIds contains an unknown knowledge base}；</li>
  *   <li>存在但属于别的租户 → <b>403</b>
- *       {@code knowledge_base_ids contains a knowledge base outside this workspace}。</li>
+ *       {@code knowledgeBaseIds contains a knowledge base outside this workspace}。</li>
  * </ul>
  */
 public final class TenantAPIKeyValidator {
@@ -98,11 +98,11 @@ public final class TenantAPIKeyValidator {
             Long ownerTenantId = lookup.tenantIdOf(trimmed);
             if (ownerTenantId == null) {
                 throw new BizException(AppError.validation(
-                        "knowledge_base_ids contains an unknown knowledge base"));
+                        "knowledgeBaseIds contains an unknown knowledge base"));
             }
             if (ownerTenantId != tenantId) {
                 throw new BizException(AppError.forbidden(
-                        "knowledge_base_ids contains a knowledge base outside this workspace"));
+                        "knowledgeBaseIds contains a knowledge base outside this workspace"));
             }
         }
     }

@@ -549,14 +549,14 @@ class MemoryHttpContractTest {
      */
     @Test
     void scopedApiKeyIsDeniedByFullAccessPolicy() throws Exception {
-        String scoped = createApiKey("{\"name\":\"mem-scoped\",\"full_access\":false,"
+        String scoped = createApiKey("{\"name\":\"mem-scoped\",\"fullAccess\":false,"
                 + "\"capabilities\":[\"chat\"]}");
 
         MvcResult r = perform(get("/api/v1/memory/settings").header("X-API-Key", scoped));
         assertEquals(403, r.getResponse().getStatus(), raw(r));
         assertEquals(com.ragagent.support.ContractJson.semantic("{\"error\":\"Forbidden: API key scope does not allow this operation\"}"), raw(r));
 
-        String full = createApiKey("{\"name\":\"mem-full\",\"full_access\":true}");
+        String full = createApiKey("{\"name\":\"mem-full\",\"fullAccess\":true}");
         MvcResult ok = perform(get("/api/v1/memory/settings").header("X-API-Key", full));
         assertEquals(200, ok.getResponse().getStatus(), raw(ok));
     }

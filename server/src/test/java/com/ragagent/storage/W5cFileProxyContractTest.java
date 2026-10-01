@@ -344,7 +344,7 @@ class W5cFileProxyContractTest {
                             .contentType("application/json").content(body))
                     .andReturn();
             return new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readTree(r.getResponse().getContentAsString()).path("data").path("token").asText();
+                    .readTree(r.getResponse().getContentAsString()).path("token").asText();
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -394,10 +394,10 @@ class W5cFileProxyContractTest {
     /** /files 的 API-Key 守卫：KB 受限拒绝、full-access 与 retrieve 直通。 */
     @Test
     void filesApiKeyGuard() throws Exception {
-        String full = createApiKey("{\"name\":\"w5c-full\",\"full_access\":true}");
+        String full = createApiKey("{\"name\":\"w5c-full\",\"fullAccess\":true}");
         String retr = createApiKey("{\"name\":\"w5c-retrieve\",\"capabilities\":[\"retrieve\"]}");
         String kbre = createApiKey("{\"name\":\"w5c-kbrestricted\",\"capabilities\":[\"retrieve\"],"
-                + "\"knowledge_base_ids\":[\"" + KB_MAIN + "\"]}");
+                + "\"knowledgeBaseIds\":[\"" + KB_MAIN + "\"]}");
         compareJson("w5c-files-key-kbrestricted.json", 403, "GET",
                 "/files?file_path=" + TXT, null, "X-API-Key: " + kbre);
         compareBinary("w5c-files-key-full", 200, "GET", "/files?file_path=" + TXT,
@@ -458,7 +458,7 @@ class W5cFileProxyContractTest {
         compareHead("w5c-prev-head.hdr", 404, "HEAD",
                 "/api/v1/files/presigned-preview?file_path=x", owner);
         // API-Key 主体显式拒绝（DenyAPIKeyPrincipal，403 文案独立于门禁）
-        String full = createApiKey("{\"name\":\"w5c-full\",\"full_access\":true}");
+        String full = createApiKey("{\"name\":\"w5c-full\",\"fullAccess\":true}");
         compareJson("w5c-prev-apikey.json", 403, "GET",
                 "/api/v1/files/presigned-preview?file_path=" + TXT, null, "X-API-Key: " + full);
     }
@@ -499,7 +499,7 @@ class W5cFileProxyContractTest {
         compareHead("w5c-kbfiles-head.hdr", 404, "HEAD",
                 "/api/v1/knowledge-bases/" + KB_MAIN + "/files?file_path=" + TXT_ENC, owner);
         String kbre = createApiKey("{\"name\":\"w5c-kbrestricted\",\"capabilities\":[\"retrieve\"],"
-                + "\"knowledge_base_ids\":[\"" + KB_MAIN + "\"]}");
+                + "\"knowledgeBaseIds\":[\"" + KB_MAIN + "\"]}");
         compareJson("w5c-kbfiles-key-kbrestricted.json", 403, "GET",
                 "/api/v1/knowledge-bases/" + KB_MAIN + "/files?file_path=" + TXT,
                 null, "X-API-Key: " + kbre);

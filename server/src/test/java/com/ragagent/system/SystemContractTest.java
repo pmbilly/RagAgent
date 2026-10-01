@@ -75,7 +75,7 @@ class SystemContractTest {
     private static final Pattern KEY_ID = Pattern.compile("\"id\":(\\d+)");
     private static final Pattern API_KEY_TOKEN = Pattern.compile("\"token\":\"(sk-[^\"]+)\"");
     /** api_key 字段是 Go maskManagedAPIKey 的输出（每次随机）→ 两侧同掩码 */
-    private static final Pattern API_KEY_FIELD = Pattern.compile("\"api_key\":\"[^\"]*\"");
+    private static final Pattern API_KEY_FIELD = Pattern.compile("\"apiKey\":\"[^\"]*\"");
     private static final Pattern AFFECTED = Pattern.compile("\"affected\":\\d+");
     private static final Pattern QUEUE_TS = Pattern.compile("\"timestamp\":\\d+");
 
@@ -796,7 +796,7 @@ class SystemContractTest {
     /** 两侧同掩码：UUID / 时间戳 / key id / key 明文 token / 生成密码。 */
     private static String mask(String s) {
         String out = API_KEY_TOKEN.matcher(s).replaceAll("\"token\":\"<keytoken>\"");
-        out = API_KEY_FIELD.matcher(out).replaceAll("\"api_key\":\"<masked>\"");
+        out = API_KEY_FIELD.matcher(out).replaceAll("\"apiKey\":\"<masked>\"");
         out = Pattern.compile("\"generatedPassword\":\"[^\"]*\"")
                 .matcher(out).replaceAll("\"generatedPassword\":\"<genpw>\"");
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");

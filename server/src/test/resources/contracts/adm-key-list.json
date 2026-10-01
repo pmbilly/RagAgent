@@ -1,1 +1,1 @@
-[{"id":25,"scope_type":"platform","name":"sys-golden-key","api_key":"sk-MNaZ...O2xo","full_access":false,"knowledge_base_ids":[],"capabilities":["chat"],"expires_at":"2100-01-01T08:00:00+08:00","created_at":"2026-09-19T12:03:05.303275+08:00"}]
+[{"id":25,"scopeType":"platform","name":"sys-golden-key","apiKey":"sk-MNaZ...O2xo","fullAccess":false,"knowledgeBaseIds":[],"capabilities":["chat"],"lastUsedAt":null,"expiresAt":"2100-01-01T08:00:00+08:00","createdAt":"2026-09-19T12:03:05.303275+08:00"}]

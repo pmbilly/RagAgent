@@ -3,10 +3,6 @@ package com.ragagent.auth.apikey.domain;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-
 /**
  * API Key 的响应投影（对照 Go {@code handler.tenantAPIKeyResponse}，
  * internal/handler/tenant.go L155-166）。
@@ -19,7 +15,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  *   <li>{@code id} / {@code full_access}：非指针 → 恒输出（0 / false 也输出）；</li>
  *   <li>{@code scope_type}：经 {@code NormalizeAPIKeyScopeType} 归一，恒输出，
  *       未知口径回落 {@code "tenant"}；</li>
- *   <li>{@code knowledge_base_ids}：**无 omitempty** → 恒输出，nil 时输出 {@code null}
+ *   <li>{@code knowledgeBaseIds}：**无 omitempty** → 恒输出，nil 时输出 {@code null}
  *       （full-access Key 就是这个形态）；</li>
  *   <li>{@code capabilities}：**无 omitempty** → 恒输出；且构造时经
  *       {@code NormalizeAPIKeyCapabilities}，nil 会变成 {@code []} ——所以这一列
@@ -28,21 +24,17 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  *   <li>{@code created_at}：非指针 time.Time → 恒输出。</li>
  * </ul>
  */
-@JsonPropertyOrder({"id", "scope_type", "name", "api_key", "full_access",
-        "knowledge_base_ids", "capabilities", "last_used_at", "expires_at", "created_at"})
 public record TenantAPIKeyResponse(
-        @JsonProperty("id") long id,
-        @JsonProperty("scope_type") String scopeType,
-        @JsonProperty("name") String name,
-        @JsonProperty("api_key") String apiKey,
-        @JsonProperty("full_access") boolean fullAccess,
-        @JsonProperty("knowledge_base_ids") List<String> knowledgeBaseIds,
-        @JsonProperty("capabilities") List<String> capabilities,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("last_used_at") OffsetDateTime lastUsedAt,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("expires_at") OffsetDateTime expiresAt,
-        @JsonProperty("created_at") OffsetDateTime createdAt) {
+        long id,
+        String scopeType,
+        String name,
+        String apiKey,
+        boolean fullAccess,
+        List<String> knowledgeBaseIds,
+        List<String> capabilities,
+        OffsetDateTime lastUsedAt,
+        OffsetDateTime expiresAt,
+        OffsetDateTime createdAt) {
 
     /**
      * 对照 {@code tenantAPIKeyForResponse}（handler/tenant.go L784-800）。

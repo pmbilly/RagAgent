@@ -105,13 +105,13 @@ class TenantAPIKeyValidatorTest {
                 () -> TenantAPIKeyValidator.validateKnowledgeBaseIds(42L, List.of("kb-other"), lookup));
         assertThat(crossTenant.appError().httpCode()).isEqualTo(403);
         assertThat(crossTenant.appError().message())
-                .isEqualTo("knowledge_base_ids contains a knowledge base outside this workspace");
+                .isEqualTo("knowledgeBaseIds contains a knowledge base outside this workspace");
 
         BizException missing = (BizException) org.assertj.core.api.Assertions.catchThrowable(
                 () -> TenantAPIKeyValidator.validateKnowledgeBaseIds(42L, List.of("kb-missing"), lookup));
         assertThat(missing.appError().httpCode()).isEqualTo(400);
         assertThat(missing.appError().message())
-                .isEqualTo("knowledge_base_ids contains an unknown knowledge base");
+                .isEqualTo("knowledgeBaseIds contains an unknown knowledge base");
     }
 
     @Test

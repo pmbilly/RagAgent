@@ -14,7 +14,7 @@ import java.util.Set;
  * <p><b>这是权限语义，不是配置项</b>：能力是"叠加式授权"（additive grant），
  * 与 JWT 的角色/所有权（{@link com.ragagent.common.web.RbacInterceptor}）是
  * <b>两套独立叠加的授权</b>。full-access Key 拥有全部能力且发 Key 时不允许再带细粒度能力；
- * scoped Key 只能做能力清单里列出的动作，且其 {@code knowledge_base_ids} 白名单
+ * scoped Key 只能做能力清单里列出的动作，且其 {@code knowledgeBaseIds} 白名单
  * 在知识库相关路由上仍额外生效。</p>
  *
  * <p>逐条注释与 Go 的常量注释一一对应，改动前请先读 Go 侧注释——每条能力都写明了
@@ -115,7 +115,7 @@ public final class APIKeyCapability {
      * {@code out := make(StringArray, 0, len(in))} 保证空输入产出空切片（{@code []}）
      * 而非 nil。这一点有外部契约后果：{@code tenantAPIKeyResponse.capabilities}
      * 走本函数归一化后，**永远是数组**（full-access Key 也是 {@code []}），
-     * 而 {@code knowledge_base_ids} 没有这一步，nil 时输出 {@code null}。</p>
+     * 而 {@code knowledgeBaseIds} 没有这一步，nil 时输出 {@code null}。</p>
      */
     public static List<String> normalizeAll(List<String> in) {
         List<String> out = new ArrayList<>(in == null ? 0 : in.size());

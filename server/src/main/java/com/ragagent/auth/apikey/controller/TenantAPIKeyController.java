@@ -4,9 +4,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.auth.apikey.domain.TenantAPIKey;
@@ -84,13 +82,13 @@ public class TenantAPIKeyController {
 
     /** 对照 {@code ListAPIKeys}：返回**裸数组**（空列表输出 {@code []}，不是 null）。 */
     @GetMapping
-    public ResponseEntity<Map<String, Object>> list(@PathVariable("id") String rawId) {
+    public ResponseEntity<List<TenantAPIKeyResponse>> list(@PathVariable("id") String rawId) {
         long tenantId = parseWorkspaceIdOrBadRequest(rawId);
         List<TenantAPIKeyResponse> data = new ArrayList<>();
         for (TenantAPIKey key : apiKeyService.listByTenant(tenantId)) {
             data.add(TenantAPIKeyResponse.from(key));
         }
-        return ResponseEntity.ok(body(data));
+        return ResponseEntity.ok(data);
     }
 
     // ── 创建 ──
@@ -99,11 +97,12 @@ public class TenantAPIKeyController {
      * 对照 {@code CreateAPIKey}：201 + {@code data.token}（明文只此一次）。
      *
      * <p>校验顺序照抄 Go：workspace ID → JSON 绑定 → {@code validateTenantAPIKeyRequest}
-     * → {@code expires_at_unix} 必须在未来 → 服务层。</p>
+     * → {@code expiresAtUnix} 必须在未来 → 服务层。</p>
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@PathVariable("id") String rawId,
-                                                     @RequestBody(required = false) String rawBody) {
+    public ResponseEntity<TenantAPIKeyCreateResponse> create(
+            @PathVariable("id") String rawId,
+            @RequestBody(required = false) String rawBody) {
         long tenantId = parseWorkspaceIdOrBadRequest(rawId);
         TenantAPIKeyRequest req = parseBody(rawBody);
         TenantAPIKeyValidator.validate(req, tenantId, this::lookupKbTenantId);
@@ -112,7 +111,7 @@ public class TenantAPIKeyController {
         if (req.expiresAtUnix() != null) {
             OffsetDateTime candidate = Instant.ofEpochSecond(req.expiresAtUnix()).atOffset(ZoneOffset.UTC);
             if (!candidate.toInstant().isAfter(Instant.now())) {
-                throw new BizException(AppError.validation("expires_at_unix must be in the future"));
+                throw new BizException(AppError.validation("expiresAtUnix must be in the future"));
             }
             expiresAt = candidate;
         }
@@ -127,12 +126,8 @@ public class TenantAPIKeyController {
             throw new BizException(AppError.internal("Failed to create API key").withDetails(e.getMessage()));
         }
 
-        TenantAPIKeyCreateResponse data = TenantAPIKeyCreateResponse.of(
-                TenantAPIKeyResponse.from(result.apiKey()), result.token());
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return ResponseEntity.status(201).body(body);
+        return ResponseEntity.status(201).body(TenantAPIKeyCreateResponse.of(
+                TenantAPIKeyResponse.from(result.apiKey()), result.token()));
     }
 
     // ── 更新 ──
@@ -142,7 +137,7 @@ public class TenantAPIKeyController {
      *
      * <p><b>两个刻意的差异，别"顺手修正"</b>：</p>
      * <ol>
-     *   <li>Go **没有** {@code expires_at_unix 必须在未来} 的校验（只有 Create 有）；
+     *   <li>Go **没有** {@code expiresAtUnix 必须在未来} 的校验（只有 Create 有）；
      *       而且过期时间**不转 UTC 之外的加工**就交给服务层
      *       （服务层再统一 UTC 化，见 {@code TenantAPIKeyService.update}）；</li>
      *   <li>服务层任何错误都被映射成 <b>404 {@code API key not found}</b>——
@@ -152,7 +147,7 @@ public class TenantAPIKeyController {
      * </ol>
      */
     @PutMapping("/{key_id}")
-    public ResponseEntity<Map<String, Object>> update(@PathVariable("id") String rawId,
+    public ResponseEntity<TenantAPIKeyResponse> update(@PathVariable("id") String rawId,
                                                       @PathVariable("key_id") String rawKeyId,
                                                       @RequestBody(required = false) String rawBody) {
         long tenantId = parseWorkspaceIdOrBadRequest(rawId);
@@ -174,15 +169,15 @@ public class TenantAPIKeyController {
             // 对照 Go：任何服务层错误都落到 404（含 TenantAPIKeyNotFoundException）
             throw new BizException(AppError.notFound("API key not found"));
         }
-        return ResponseEntity.ok(body(TenantAPIKeyResponse.from(updated)));
+        return ResponseEntity.ok(TenantAPIKeyResponse.from(updated));
     }
 
     // ── 删除（软撤销） ──
 
     /** 对照 {@code DeleteAPIKey}：响应体只有 {@code {"success": true}}。 */
     @DeleteMapping("/{key_id}")
-    public ResponseEntity<Map<String, Object>> delete(@PathVariable("id") String rawId,
-                                                      @PathVariable("key_id") String rawKeyId) {
+    public ResponseEntity<Void> delete(@PathVariable("id") String rawId,
+                                       @PathVariable("key_id") String rawKeyId) {
         long tenantId = parseWorkspaceIdOrBadRequest(rawId);
         long keyId = parseKeyIdOrBadRequest(rawKeyId);
         try {
@@ -190,20 +185,10 @@ public class TenantAPIKeyController {
         } catch (TenantAPIKeyNotFoundException e) {
             throw new BizException(AppError.notFound("API key not found"));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
     // ── 辅助 ──
-
-    /** 对照 gin.H{"success": true, "data": data}（map 输出 → 键按字母序：data < success）。 */
-    private static Map<String, Object> body(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
-    }
 
     /**
      * 对照 {@code strconv.ParseUint(c.Param("id"), 10, 64)}：

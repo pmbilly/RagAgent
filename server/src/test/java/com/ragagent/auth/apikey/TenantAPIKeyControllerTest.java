@@ -42,7 +42,7 @@ import org.springframework.test.web.servlet.MvcResult;
  *
  * <p>没有 golden 文件（这四条端点尚未在 Go dev server 上录制），
  * 因此这里用**逐字段 + 键序**的结构化断言钉住契约：
- * {@code {"data":...,"success":true}} 的键序、{@code created_at} 之后的
+ * {@code {"data":...,"success":true}} 的键序、{@code createdAt} 之后的
  * {@code token} 位置、以及 {@code DELETE} 的 {@code {"success":true}}（无 data 键）。</p>
  *
  * <p>注意：本测试**不**覆盖"API Key 主体被门禁拒绝"（那需要 WebConfig 注册
@@ -150,36 +150,36 @@ class TenantAPIKeyControllerTest {
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"integration\",\"full_access\":false,"
+                        .content("{\"name\":\"integration\",\"fullAccess\":false,"
                                 + "\"capabilities\":[\"retrieve\",\"chat\",\"retrieve\"]}"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         // 顶层键序：data < success（gin.H 的 map 字母序）
-        assertThat(keyOrder(body)).startsWith("data", "success");
+        assertThat(keyOrder(body)).startsWith("id", "scopeType");
 
-        JsonNode data = MAPPER.readTree(body).get("data");
-        // Go 的 tenantAPIKeyResponse 字段声明序 + 末尾 token；
-        // last_used_at / expires_at 为 nil → omitempty 省略
+        JsonNode data = MAPPER.readTree(body);
+        // 字段声明序 + 末尾 token；lastUsedAt / expiresAt 显式 null（恒在）
         assertThat(fieldNames(data)).containsExactly(
-                "id", "scope_type", "name", "api_key", "full_access",
-                "knowledge_base_ids", "capabilities", "created_at", "token");
+                "id", "scopeType", "name", "apiKey", "fullAccess",
+                "knowledgeBaseIds", "capabilities", "lastUsedAt", "expiresAt",
+                "createdAt", "token");
 
-        assertThat(data.get("scope_type").asText()).isEqualTo("tenant");
+        assertThat(data.get("scopeType").asText()).isEqualTo("tenant");
         assertThat(data.get("name").asText()).isEqualTo("integration");
-        assertThat(data.get("full_access").asBoolean()).isFalse();
+        assertThat(data.get("fullAccess").asBoolean()).isFalse();
         // scoped Key 未指定 KB → 空数组（不是 null）
-        assertThat(data.get("knowledge_base_ids").isArray()).isTrue();
-        assertThat(data.get("knowledge_base_ids")).isEmpty();
+        assertThat(data.get("knowledgeBaseIds").isArray()).isTrue();
+        assertThat(data.get("knowledgeBaseIds")).isEmpty();
         // 能力去重且顺序保留首次出现
         assertThat(toList(data.get("capabilities"))).containsExactly("retrieve", "chat");
-        assertThat(data.get("created_at").isTextual()).isTrue();
+        assertThat(data.get("createdAt").isTextual()).isTrue();
 
         // 明文 token 只在创建时返回一次，且与 api_key 一致
         String tokenPlain = data.get("token").asText();
         assertThat(tokenPlain).startsWith("sk-");
-        assertThat(data.get("api_key").asText()).isEqualTo(tokenPlain);
+        assertThat(data.get("apiKey").asText()).isEqualTo(tokenPlain);
         assertThat(data.get("id").asLong()).isPositive();
     }
 
@@ -188,16 +188,16 @@ class TenantAPIKeyControllerTest {
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"owner\",\"full_access\":true,"
-                                + "\"knowledge_base_ids\":[\"kb-1\"],\"capabilities\":[\"retrieve\"]}"))
+                        .content("{\"name\":\"owner\",\"fullAccess\":true,"
+                                + "\"knowledgeBaseIds\":[\"kb-1\"],\"capabilities\":[\"retrieve\"]}"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString()).get("data");
-        assertThat(data.get("full_access").asBoolean()).isTrue();
-        // ★ 刻意的不对称：full-access 时 knowledge_base_ids 是 **null**，
+        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString());
+        assertThat(data.get("fullAccess").asBoolean()).isTrue();
+        // ★ 刻意的不对称：full-access 时 knowledgeBaseIds 是 **null**，
         //   而 capabilities 经 NormalizeAPIKeyCapabilities 变成 **[]**
-        assertThat(data.get("knowledge_base_ids").isNull()).isTrue();
+        assertThat(data.get("knowledgeBaseIds").isNull()).isTrue();
         assertThat(data.get("capabilities").isArray()).isTrue();
         assertThat(data.get("capabilities")).isEmpty();
     }
@@ -207,7 +207,7 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"no-caps\",\"full_access\":false}"))
+                        .content("{\"name\":\"no-caps\",\"fullAccess\":false}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1010,"
@@ -220,7 +220,7 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"   \",\"full_access\":true}"))
+                        .content("{\"name\":\"   \",\"fullAccess\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1010,\"message\":\"name is required\","
@@ -232,7 +232,7 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"x\",\"full_access\":false,\"capabilities\":[\"chat\",\"bogus\"]}"))
+                        .content("{\"name\":\"x\",\"fullAccess\":false,\"capabilities\":[\"chat\",\"bogus\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1010,"
@@ -246,11 +246,11 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"x\",\"full_access\":true,\"expires_at_unix\":" + past + "}"))
+                        .content("{\"name\":\"x\",\"fullAccess\":true,\"expiresAtUnix\":" + past + "}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1010,"
-                                + "\"message\":\"expires_at_unix must be in the future\"}}"));
+                                + "\"message\":\"expiresAtUnix must be in the future\"}}"));
     }
 
     @Test
@@ -259,16 +259,16 @@ class TenantAPIKeyControllerTest {
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"ttl\",\"full_access\":true,\"expires_at_unix\":" + future + "}"))
+                        .content("{\"name\":\"ttl\",\"fullAccess\":true,\"expiresAtUnix\":" + future + "}"))
                 .andExpect(status().isCreated())
                 .andReturn();
-        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString()).get("data");
-        // 建 Key 时 last_used_at 恒为 nil → omitempty 省略；expires_at 有值 → 出现在
-        // created_at 之前（Go struct 声明序）
+        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString());
+        // 建 Key 时 lastUsedAt 恒为 nil → omitempty 省略；expiresAt 有值 → 出现在
+        // createdAt 之前（Go struct 声明序）
         assertThat(fieldNames(data)).containsExactly(
-                "id", "scope_type", "name", "api_key", "full_access",
-                "knowledge_base_ids", "capabilities", "expires_at", "created_at", "token");
-        assertThat(data.get("expires_at").asText()).startsWith("20");
+                "id", "scopeType", "name", "apiKey", "fullAccess",
+                "knowledgeBaseIds", "capabilities", "lastUsedAt", "expiresAt", "createdAt", "token");
+        assertThat(data.get("expiresAt").asText()).startsWith("20");
     }
 
     @Test
@@ -276,12 +276,12 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"x\",\"full_access\":false,\"capabilities\":[\"retrieve\"],"
-                                + "\"knowledge_base_ids\":[\"kb-foreign\"]}"))
+                        .content("{\"name\":\"x\",\"fullAccess\":false,\"capabilities\":[\"retrieve\"],"
+                                + "\"knowledgeBaseIds\":[\"kb-foreign\"]}"))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1002,"
-                                + "\"message\":\"knowledge_base_ids contains a knowledge base outside this workspace\","
+                                + "\"message\":\"knowledgeBaseIds contains a knowledge base outside this workspace\","
                                 + "\"details\":null}}"));
     }
 
@@ -290,12 +290,12 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"x\",\"full_access\":false,\"capabilities\":[\"retrieve\"],"
-                                + "\"knowledge_base_ids\":[\"kb-nope\"]}"))
+                        .content("{\"name\":\"x\",\"fullAccess\":false,\"capabilities\":[\"retrieve\"],"
+                                + "\"knowledgeBaseIds\":[\"kb-nope\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1010,"
-                                + "\"message\":\"knowledge_base_ids contains an unknown knowledge base\","
+                                + "\"message\":\"knowledgeBaseIds contains an unknown knowledge base\","
                                 + "\"details\":null}}"));
     }
 
@@ -307,7 +307,7 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(post("/api/v1/tenants/not-a-number/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"x\",\"full_access\":true}"))
+                        .content("{\"name\":\"x\",\"fullAccess\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1010,"
@@ -336,16 +336,15 @@ class TenantAPIKeyControllerTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(keyOrder(body)).startsWith("data", "success");
 
-        JsonNode data = MAPPER.readTree(body).get("data");
+        JsonNode data = MAPPER.readTree(body);
         assertThat(data.isArray()).isTrue();
         assertThat(data).hasSize(1);
         JsonNode first = data.get(0);
         // 列表项没有 token 键（只有创建响应才有）
         assertThat(fieldNames(first)).containsExactly(
-                "id", "scope_type", "name", "api_key", "full_access",
-                "knowledge_base_ids", "capabilities", "created_at");
+                "id", "scopeType", "name", "apiKey", "fullAccess",
+                "knowledgeBaseIds", "capabilities", "lastUsedAt", "expiresAt", "createdAt");
         assertThat(String.valueOf(first.get("id").asLong())).isEqualTo(createdId);
         assertThat(first.get("name").asText()).isEqualTo("listed");
     }
@@ -356,7 +355,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
-        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString()).get("data");
+        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString());
         assertThat(data.isArray()).isTrue();
         assertThat(data).isEmpty();
     }
@@ -370,18 +369,18 @@ class TenantAPIKeyControllerTest {
         MvcResult result = mockMvc.perform(put("/api/v1/tenants/" + TENANT_ID + "/api-keys/" + keyId)
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\" after \",\"full_access\":false,"
-                                + "\"capabilities\":[\"chat\",\"chat\"],\"knowledge_base_ids\":[\"kb-1\"]}"))
+                        .content("{\"name\":\" after \",\"fullAccess\":false,"
+                                + "\"capabilities\":[\"chat\",\"chat\"],\"knowledgeBaseIds\":[\"kb-1\"]}"))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString()).get("data");
+        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString());
         assertThat(fieldNames(data)).containsExactly(
-                "id", "scope_type", "name", "api_key", "full_access",
-                "knowledge_base_ids", "capabilities", "created_at");
+                "id", "scopeType", "name", "apiKey", "fullAccess",
+                "knowledgeBaseIds", "capabilities", "lastUsedAt", "expiresAt", "createdAt");
         assertThat(data.get("name").asText()).isEqualTo("after"); // trim
         assertThat(toList(data.get("capabilities"))).containsExactly("chat");
-        assertThat(toList(data.get("knowledge_base_ids"))).containsExactly("kb-1");
+        assertThat(toList(data.get("knowledgeBaseIds"))).containsExactly("kb-1");
     }
 
     @Test
@@ -390,17 +389,17 @@ class TenantAPIKeyControllerTest {
         MvcResult result = mockMvc.perform(put("/api/v1/tenants/" + TENANT_ID + "/api-keys/" + keyId)
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"full\",\"full_access\":true,"
-                                + "\"capabilities\":[\"retrieve\"],\"knowledge_base_ids\":[\"kb-1\"]}"))
+                        .content("{\"name\":\"full\",\"fullAccess\":true,"
+                                + "\"capabilities\":[\"retrieve\"],\"knowledgeBaseIds\":[\"kb-1\"]}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString()).get("data");
-        assertThat(data.get("full_access").asBoolean()).isTrue();
-        assertThat(data.get("knowledge_base_ids").isNull()).isTrue();
+        JsonNode data = MAPPER.readTree(result.getResponse().getContentAsString());
+        assertThat(data.get("fullAccess").asBoolean()).isTrue();
+        assertThat(data.get("knowledgeBaseIds").isNull()).isTrue();
         assertThat(data.get("capabilities")).isEmpty();
     }
 
-    /** 对照 Go：更新时**不校验** expires_at 是否在未来（只有创建才校验）。 */
+    /** 对照 Go：更新时**不校验** expiresAt 是否在未来（只有创建才校验）。 */
     @Test
     void updateAcceptsPastExpiry() throws Exception {
         String keyId = createKey("before", "retrieve");
@@ -408,8 +407,8 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(put("/api/v1/tenants/" + TENANT_ID + "/api-keys/" + keyId)
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"past\",\"full_access\":false,"
-                                + "\"capabilities\":[\"retrieve\"],\"expires_at_unix\":" + past + "}"))
+                        .content("{\"name\":\"past\",\"fullAccess\":false,"
+                                + "\"capabilities\":[\"retrieve\"],\"expiresAtUnix\":" + past + "}"))
                 .andExpect(status().isOk());
     }
 
@@ -418,7 +417,7 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(put("/api/v1/tenants/" + TENANT_ID + "/api-keys/999999")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"x\",\"full_access\":true}"))
+                        .content("{\"name\":\"x\",\"fullAccess\":true}"))
                 .andExpect(status().isNotFound())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1003,\"message\":\"API key not found\","
@@ -430,7 +429,7 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(put("/api/v1/tenants/" + TENANT_ID + "/api-keys/0")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"x\",\"full_access\":true}"))
+                        .content("{\"name\":\"x\",\"fullAccess\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"success\":false,\"error\":{\"code\":1000,\"message\":\"Invalid API key ID\"}}"));
@@ -444,18 +443,16 @@ class TenantAPIKeyControllerTest {
 
         MvcResult result = mockMvc.perform(delete("/api/v1/tenants/" + TENANT_ID + "/api-keys/" + keyId)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
+                .andExpect(status().isNoContent())
                 .andReturn();
-        // ★ 没有 data 键：Go 写的是 gin.H{"success": true}
-        assertThat(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
-                .isEqualTo("{\"success\":true}");
+        assertThat(result.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEmpty();
 
         // 撤销后从列表消失
         MvcResult list = mockMvc.perform(get("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertThat(MAPPER.readTree(list.getResponse().getContentAsString()).get("data")).isEmpty();
+        assertThat(MAPPER.readTree(list.getResponse().getContentAsString())).isEmpty();
     }
 
     @Test
@@ -485,7 +482,7 @@ class TenantAPIKeyControllerTest {
         mockMvc.perform(put("/api/v1/tenants/" + OTHER_TENANT_ID + "/api-keys/" + keyId)
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"stolen\",\"full_access\":true}"))
+                        .content("{\"name\":\"stolen\",\"fullAccess\":true}"))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(delete("/api/v1/tenants/" + OTHER_TENANT_ID + "/api-keys/" + keyId)
@@ -497,7 +494,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertThat(MAPPER.readTree(list.getResponse().getContentAsString()).get("data")).hasSize(1);
+        assertThat(MAPPER.readTree(list.getResponse().getContentAsString())).hasSize(1);
     }
 
     // ── 辅助 ──
@@ -507,11 +504,11 @@ class TenantAPIKeyControllerTest {
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"name\":\"" + name + "\",\"full_access\":false,"
+                        .content("{\"name\":\"" + name + "\",\"fullAccess\":false,"
                                 + "\"capabilities\":[\"" + capability + "\"]}"))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return MAPPER.readTree(result.getResponse().getContentAsString()).get("data").get("id").asText();
+        return MAPPER.readTree(result.getResponse().getContentAsString()).get("id").asText();
     }
 
     /** 顶层 JSON 键序（契约：gin.H 是 map → 字母序）。 */

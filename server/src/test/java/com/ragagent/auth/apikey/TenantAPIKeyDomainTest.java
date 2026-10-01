@@ -234,12 +234,12 @@ class TenantAPIKeyDomainTest {
         assertThat(json).doesNotContain("\"tenantIdValue\"");
         assertThat(json).doesNotContain("deadbeef");
         assertThat(json).doesNotContain("key_hash");
-        // Go 的 tag 是蛇形，必须逐字对上
-        assertThat(json).contains("\"tenant_id\"");
-        assertThat(json).contains("\"scope_type\"");
-        assertThat(json).contains("\"full_access\"");
-        assertThat(json).contains("\"knowledge_base_ids\"");
-        assertThat(json).contains("\"api_key\"");
+        // 字段名即键名（camelCase）
+        assertThat(json).contains("\"tenantId\"");
+        assertThat(json).contains("\"scopeType\"");
+        assertThat(json).contains("\"fullAccess\"");
+        assertThat(json).contains("\"knowledgeBaseIds\"");
+        assertThat(json).contains("\"apiKey\"");
 
         // 严格映射器回读不炸（漏 @JsonIgnore 会让这里失败）
         TenantAPIKey back = new com.fasterxml.jackson.databind.ObjectMapper()

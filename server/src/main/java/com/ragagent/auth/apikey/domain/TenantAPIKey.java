@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * tenant_api_keys 表实体（对照 Go {@code types.TenantAPIKey}，
@@ -54,17 +53,13 @@ public class TenantAPIKey {
 
     /** 迁移 000065 是 {@code BIGSERIAL PRIMARY KEY} → 自增。 */
     @TableId(type = IdType.AUTO)
-    @JsonProperty("id")
     private Long id;
 
     /** 平台级 Key 为 null（迁移 000071 放开 NOT NULL）。 */
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("scope_type")
     private String scopeType;
 
-    @JsonProperty("name")
     private String name;
 
     /**
@@ -82,10 +77,8 @@ public class TenantAPIKey {
      * 以及 List/Update 响应里由 {@code tenantAPIKeyForResponse} 带出的
      * 已存值（库中密文经 AfterFind 解密后的明文）。</p>
      */
-    @JsonProperty("api_key")
     private String apiKey;
 
-    @JsonProperty("full_access")
     private boolean fullAccess;
 
     /**
@@ -94,27 +87,20 @@ public class TenantAPIKey {
      * 有值 = 白名单。
      */
     @TableField(typeHandler = APIKeyStringListTypeHandler.class)
-    @JsonProperty("knowledge_base_ids")
     private List<String> knowledgeBaseIds;
 
     /** 有界授权清单，见 {@link APIKeyCapability}。 */
     @TableField(typeHandler = APIKeyStringListTypeHandler.class)
-    @JsonProperty("capabilities")
     private List<String> capabilities;
 
-    @JsonProperty("last_used_at")
     private OffsetDateTime lastUsedAt;
 
-    @JsonProperty("expires_at")
     private OffsetDateTime expiresAt;
 
-    @JsonProperty("revoked_at")
     private OffsetDateTime revokedAt;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
     // ── 访问器 ──

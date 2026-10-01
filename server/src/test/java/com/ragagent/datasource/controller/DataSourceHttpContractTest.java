@@ -825,7 +825,7 @@ class DataSourceHttpContractTest {
         assertThat(gateAllows(a, full, "GET", "/api/v1/datasource/types")).isTrue();
 
         // 行为层：scoped Key 打真实请求 → 403（纯字符串形态，不是 AppError 信封）
-        String scopedKey = createApiKey("{\"name\":\"ds-scoped\",\"full_access\":false,"
+        String scopedKey = createApiKey("{\"name\":\"ds-scoped\",\"fullAccess\":false,"
                 + "\"capabilities\":[\"chat\"]}");
         MvcResult r = perform(get("/api/v1/datasource/types").header("X-API-Key", scopedKey));
         assertEquals(403, r.getResponse().getStatus(), raw(r));

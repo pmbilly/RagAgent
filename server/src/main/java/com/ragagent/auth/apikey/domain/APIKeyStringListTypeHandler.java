@@ -15,7 +15,7 @@ import org.apache.ibatis.type.JdbcType;
 
 /**
  * {@code tenant_api_keys} 的两个 jsonb 字符串数组列
- * （{@code knowledge_base_ids} / {@code capabilities}）的 TypeHandler。
+ * （{@code knowledgeBaseIds} / {@code capabilities}）的 TypeHandler。
  *
  * <p>对照 Go {@code types.StringArray} 的 {@code driver.Valuer} / {@code sql.Scanner}
  * （internal/types/session.go L238-253）：
@@ -27,10 +27,10 @@ import org.apache.ibatis.type.JdbcType;
  * {@code null}。这里的两个列在 Go 里**区分三态**，这个区别会直接体现在响应 JSON 上：</p>
  * <ul>
  *   <li>{@code nil} 切片 → {@code json.Marshal} 得字面量 {@code null} → 响应
- *       {@code "knowledge_base_ids":null}（full-access Key 建出来就是这个形态：
+ *       {@code "knowledgeBaseIds":null}（full-access Key 建出来就是这个形态：
  *       service 显式把 {@code KnowledgeBaseIDs} / {@code Capabilities} 置 nil）；</li>
  *   <li>空切片 {@code types.StringArray{}} → {@code []} → 响应
- *       {@code "knowledge_base_ids":[]}（scoped Key 未指定白名单时的形态，
+ *       {@code "knowledgeBaseIds":[]}（scoped Key 未指定白名单时的形态，
  *       repository L221 的 {@code normalizeAPIKeyIDs} 返回非 nil 空切片）；</li>
  *   <li>有值 → 数组。</li>
  * </ul>

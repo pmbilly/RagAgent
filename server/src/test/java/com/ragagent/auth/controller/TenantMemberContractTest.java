@@ -420,7 +420,7 @@ class TenantMemberContractTest {
 
     private String createFullAccessKey() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(post("/api/v1/tenants/10002/api-keys"), owner,
-                "{\"name\":\"mb-golden-key\",\"full_access\":true}")).andReturn();
+                "{\"name\":\"mb-golden-key\",\"fullAccess\":true}")).andReturn();
         assertEquals(201, r.getResponse().getStatus(), raw(r));
         Matcher m = Pattern.compile("\"token\":\"([^\"]+)\"").matcher(raw(r));
         assertThat(m.find()).as("key create 响应应含 token: " + raw(r)).isTrue();
