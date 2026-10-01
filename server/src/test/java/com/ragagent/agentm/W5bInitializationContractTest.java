@@ -193,7 +193,7 @@ class W5bInitializationContractTest {
         int port = W5bStubServers.startUpstream();
         String base = "http://127.0.0.1:" + port + "/v1";
         jdbc.update("UPDATE models SET parameters = ? WHERE id = ?",
-                "{\"base_url\":\"" + base + "\"}", MD_STUB);
+                "{\"baseUrl\":\"" + base + "\"}", MD_STUB);
 
         // ── remote/check ──
         assertGolden(post("/api/v1/initialization/remote/check", bearer, "{}"), 400,

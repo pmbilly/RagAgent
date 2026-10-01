@@ -1,51 +1,27 @@
 package com.ragagent.model.domain;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-
 /**
- * ModelParameters（对照 Go types/model.go ModelParameters），json 列映射。
+ * ModelParameters（models.parameters jsonb 列的落库形态）。
  *
- * 写库前 api_key/app_secret 加密、读库后宽容解密——由
- * {@link ModelParametersTypeHandler} 承担（对照 Go 的 Value()/Scan() driver 钩子）。
- * ExtraConfig/CustomHeaders 为 map → Jackson 序列化按 key 字母序（与 Go map 序列化一致）。
+ * <p>写库前 apiKey/appSecret 加密、读库后宽容解密——由
+ * {@link ModelParametersTypeHandler} 承担。键名 = Java 字段名（camelCase）；
+ * extraConfig/customHeaders 为 map，序列化按键字母序；可空字段显式 null。</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "base_url", "api_key", "interface_type", "embedding_parameters", "parameter_size",
-        "provider", "extra_config", "custom_headers", "supports_vision",
-        "context_window", "max_output_tokens", "max_concurrency", "app_id", "app_secret"
-})
 public class ModelParameters {
 
-    @JsonProperty("base_url")
     private String baseUrl = "";
-    @JsonProperty("api_key")
     private String apiKey = "";
-    @JsonProperty("interface_type")
     private String interfaceType = "";
-    @JsonProperty("embedding_parameters")
     private EmbeddingParameters embeddingParameters = new EmbeddingParameters();
-    @JsonProperty("parameter_size")
     private String parameterSize = "";
-    @JsonProperty("provider")
     private String provider = "";
-    @JsonProperty("extra_config")
     private java.util.Map<String, String> extraConfig;
-    @JsonProperty("custom_headers")
     private java.util.Map<String, String> customHeaders;
-    @JsonProperty("supports_vision")
     private boolean supportsVision;
-    @JsonProperty("context_window")
     private int contextWindow;
-    @JsonProperty("max_output_tokens")
     private int maxOutputTokens;
-    @JsonProperty("max_concurrency")
     private int maxConcurrency;
-    @JsonProperty("app_id")
     private String appId = "";
-    @JsonProperty("app_secret")
     private String appSecret = "";
 
     public String getBaseUrl() { return baseUrl; }
@@ -97,14 +73,10 @@ public class ModelParameters {
         return cp;
     }
 
-    /** EmbeddingParameters（Go 值类型，字段恒输出） */
-    @JsonPropertyOrder({"dimension", "truncate_prompt_tokens", "supports_dimension_override"})
+    /** 向量维度参数（字段恒输出）。 */
     public static class EmbeddingParameters {
-        @JsonProperty("dimension")
         private int dimension;
-        @JsonProperty("truncate_prompt_tokens")
         private int truncatePromptTokens;
-        @JsonProperty("supports_dimension_override")
         private boolean supportsDimensionOverride;
 
         public int getDimension() { return dimension; }

@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -179,34 +178,34 @@ public class BuiltinModelsReconciler implements ApplicationRunner {
         if (!(raw instanceof Map<?, ?> map)) {
             return p;
         }
-        p.setBaseUrl(str(map.get("base_url")));
-        p.setApiKey(str(map.get("api_key")));
-        p.setInterfaceType(str(map.get("interface_type")));
-        if (map.get("embedding_parameters") instanceof Map<?, ?> ep) {
+        p.setBaseUrl(str(map.get("baseUrl")));
+        p.setApiKey(str(map.get("apiKey")));
+        p.setInterfaceType(str(map.get("interfaceType")));
+        if (map.get("embeddingParameters") instanceof Map<?, ?> ep) {
             ModelParameters.EmbeddingParameters embedding = new ModelParameters.EmbeddingParameters();
             embedding.setDimension((int) num(ep.get("dimension")));
-            embedding.setTruncatePromptTokens((int) num(ep.get("truncate_prompt_tokens")));
-            embedding.setSupportsDimensionOverride(bool(ep.get("supports_dimension_override")));
+            embedding.setTruncatePromptTokens((int) num(ep.get("truncatePromptTokens")));
+            embedding.setSupportsDimensionOverride(bool(ep.get("supportsDimensionOverride")));
             p.setEmbeddingParameters(embedding);
         }
-        p.setParameterSize(str(map.get("parameter_size")));
+        p.setParameterSize(str(map.get("parameterSize")));
         p.setProvider(str(map.get("provider")));
-        if (map.get("extra_config") instanceof Map<?, ?> ec) {
+        if (map.get("extraConfig") instanceof Map<?, ?> ec) {
             java.util.Map<String, String> extra = new java.util.TreeMap<>();
             ec.forEach((k, v) -> extra.put(String.valueOf(k), str(v)));
             p.setExtraConfig(extra);
         }
-        if (map.get("custom_headers") instanceof Map<?, ?> ch) {
+        if (map.get("customHeaders") instanceof Map<?, ?> ch) {
             java.util.Map<String, String> headers = new java.util.TreeMap<>();
             ch.forEach((k, v) -> headers.put(String.valueOf(k), str(v)));
             p.setCustomHeaders(headers);
         }
-        p.setSupportsVision(bool(map.get("supports_vision")));
-        p.setContextWindow((int) num(map.get("context_window")));
-        p.setMaxOutputTokens((int) num(map.get("max_output_tokens")));
-        p.setMaxConcurrency((int) num(map.get("max_concurrency")));
-        p.setAppId(str(map.get("app_id")));
-        p.setAppSecret(str(map.get("app_secret")));
+        p.setSupportsVision(bool(map.get("supportsVision")));
+        p.setContextWindow((int) num(map.get("contextWindow")));
+        p.setMaxOutputTokens((int) num(map.get("maxOutputTokens")));
+        p.setMaxConcurrency((int) num(map.get("maxConcurrency")));
+        p.setAppId(str(map.get("appId")));
+        p.setAppSecret(str(map.get("appSecret")));
         return p;
     }
 
