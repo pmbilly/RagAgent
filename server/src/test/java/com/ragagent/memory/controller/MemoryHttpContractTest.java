@@ -41,11 +41,12 @@ import org.springframework.web.servlet.HandlerMapping;
  * 长期记忆 HTTP 层的契约测试（对照 Go {@code internal/handler/memory.go} 的 16 个端点，
  * 路由见 {@code internal/router/routes_memory.go}）。
  *
- * <h2>期望值来源：Go 实录（不是"照源码读出来的"）</h2>
- * <p>全部 golden 都是 2026-09-18 对<b>运行中的 Go dev server</b>（:8080，db=localhost:15432）
- * 打真实请求、用 {@code curl -o} 落盘录下来的，文件在
- * {@code server/src/test/resources/contracts/memory-*.json}。API-Key 那条也额外用
- * 真实的 scoped / full-access Key 各打了一发。</p>
+ * <h2>期望值来源</h2>
+ * <p>错误面（{@code memory-not-found.json} 等）仍是 2026-09-18 对<b>运行中的 Go dev
+ * server</b>（:8080，db=localhost:15432）打真实请求、{@code curl -o} 落盘录下来的实录；
+ * 成功面在 <b>2026-10-01 契约换锚</b>（§14.9k M1）后重录：信封退役、键名 camelCase、
+ * 列表改 {@code {items,page,pageSize,total}}、创建 201 / 删除类 204。文件都在
+ * {@code server/src/test/resources/contracts/memory-*.json}。</p>
  *
  * <p>录制序（顺序会影响响应内容——列表顺序、计数）：</p>
  * <pre>
@@ -60,18 +61,17 @@ import org.springframework.web.servlet.HandlerMapping;
  * </pre>
  *
  * <h2>掩码</h2>
- * <p>UUID、时间戳、{@code removed} 计数两侧同掩码后逐字节比对（中文按原始字节，
+ * <p>UUID、时间戳两侧同掩码后逐字节比对（中文按原始字节，
  * 见 §9「中文 golden 比较必须按原始字节」）。</p>
  *
- * <h2>三条只有实测才看得出来的形态</h2>
+ * <h2>换锚后仍要盯住的形态</h2>
  * <ol>
- *   <li>{@code GET /memory/items} 空仓库是 {@code "data":[]}，
- *       而 {@code GET /memory/export} 空仓库是 {@code "data":null}——
+ *   <li>{@code GET /memory/items} 空仓库是 {@code "items":[]}，
+ *       而 {@code GET /memory/export} 空仓库是 {@code "items":null}——
  *       同一个 service 方法，两条响应路径的 nil 语义不同（GORM {@code Find} 会把
- *       nil slice 初始化成空切片，Export 的 {@code var items} 不会）。</li>
- *   <li>{@code Clear} 的键序是 {@code {"removed":N,"success":true}}——
- *       gin.H 是 map，按字母序输出（{@code removed} 在 {@code success} 之前），
- *       与源码里的书写顺序相反。</li>
+ *       nil slice 初始化成空切片，Export 的 {@code var items} 不会）；换锚保留了它。</li>
+ *   <li>清空（{@code DELETE /memory/items}）是同步删除 → <b>204</b>，
+ *       旧 Go 的 {@code {"removed":N}} 计数不再下发。</li>
  *   <li>{@code Export} 的 Content-Type 仍是 {@code application/json; charset=utf-8}
  *       （Go 是 {@code c.Header("Content-Disposition", …)} + {@code c.JSON}，
  *       不是 {@code application/octet-stream}）。</li>
@@ -96,12 +96,11 @@ class MemoryHttpContractTest {
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
 
-    /** 与 golden 比对前的统一掩码：UUID（任意键）+ 时间戳 + removed 计数。 */
+    /** 与 golden 比对前的统一掩码：UUID（任意键）+ 时间戳。 */
     private static final Pattern UUID_PATTERN = Pattern.compile(
             "\"[A-Za-z_]+?\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern TS_PATTERN = Pattern.compile(
             "\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
-    private static final Pattern REMOVED_PATTERN = Pattern.compile("\"removed\":\\d+");
 
     @Autowired
     private MockMvc mockMvc;
@@ -205,16 +204,14 @@ class MemoryHttpContractTest {
                 + "\"message\":\"Invalid request data\"},\"success\":false}", raw(r));
     }
 
-    /** 关掉自己的开关：响应是**合并视图**（实测 workspace_enabled 仍 true、effective 翻 false）。 */
+    /** 关掉自己的开关：响应是**合并视图**（实测 workspaceEnabled 仍 true、effective 翻 false）。 */
     @Test
     void updateSettingsFlipsUserSwitch() throws Exception {
         MvcResult off = perform(jsonBody(put("/api/v1/memory/settings"), "{\"enabled\":false}")
                 .header("Authorization", bearer()));
 
         assertEquals(200, off.getResponse().getStatus(), raw(off));
-        assertEquals(com.ragagent.support.ContractJson.semantic("{\"data\":{\"workspace_enabled\":true,"
-                + "\"user_enabled\":false,\"effective\":false,\"write_mode\":\"explicit_only\","
-                + "\"item_count\":0,\"max_items\":200},\"success\":true}"), raw(off));
+        assertEquals(golden("memory-settings-user-off.json"), raw(off));
 
         MvcResult on = perform(jsonBody(put("/api/v1/memory/settings"), "{\"enabled\":true}")
                 .header("Authorization", bearer()));
@@ -276,7 +273,7 @@ class MemoryHttpContractTest {
         MvcResult r = createItem("{\"kind\":\"fact\",\"content\":\"我偏好用 PostgreSQL\","
                 + "\"importance\":4}");
 
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
+        assertEquals(201, r.getResponse().getStatus(), raw(r));
         assertEquals(goldenMasked("memory-item-create.json"), mask(raw(r)));
     }
 
@@ -316,8 +313,9 @@ class MemoryHttpContractTest {
         MvcResult r = perform(post("/api/v1/memory/items/" + id + "/reject")
                 .header("Authorization", bearer()));
 
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("memory-item-reject.json"), raw(r));
+        // 拒绝就是删除（Go 的 service 侧如此）：换锚后是 204，无响应体
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
     }
 
     @Test
@@ -348,16 +346,22 @@ class MemoryHttpContractTest {
         assertEquals(golden("memory-sensitive.json"), raw(r));
     }
 
+    /**
+     * 清空是<b>同步删除</b>：换锚后按 §1.13 返 204，旧 Go 的 {@code {"removed":N}}
+     * 计数不再下发（前端也不再展示条数）。
+     */
     @Test
-    void clearMatchesGoWithRemovedCount() throws Exception {
+    void clearIsSynchronousDeleteWithNoContent() throws Exception {
         createItem("{\"kind\":\"fact\",\"content\":\"我偏好用 PostgreSQL\",\"importance\":4}");
 
         MvcResult r = perform(delete("/api/v1/memory/items").header("Authorization", bearer()));
 
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        // 键序是 gin.H 的字母序：removed 在 success 前（与源码书写序相反）
-        assertEquals(goldenMasked("memory-clear.json"), mask(raw(r)));
-        assertEquals("{\"removed\":1,\"success\":true}", raw(r), "removed 必须是本次清掉的条数");
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
+
+        // 真的清掉了：列表回到空
+        MvcResult after = perform(get("/api/v1/memory/items").header("Authorization", bearer()));
+        assertEquals(golden("memory-items-empty.json"), raw(after));
     }
 
     // ══════════════════════════ 主题 / 文档 ══════════════════════════
@@ -425,8 +429,8 @@ class MemoryHttpContractTest {
         MvcResult r = perform(delete("/api/v1/memory/documents/" + DOC_ID)
                 .header("Authorization", bearer()));
 
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("memory-ack.json"), raw(r));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
     }
 
     @Test
@@ -643,7 +647,8 @@ class MemoryHttpContractTest {
 
     private String createdId(MvcResult result) throws Exception {
         String body = raw(result);
-        assertEquals(200, result.getResponse().getStatus(), body);
+        // 创建条目是 201（§1.15）
+        assertEquals(201, result.getResponse().getStatus(), body);
         Matcher m = Pattern.compile(
                 "\"id\":\"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\"")
                 .matcher(body);
@@ -731,12 +736,11 @@ class MemoryHttpContractTest {
         return mask(golden(name));
     }
 
-    /** 两侧同掩码：UUID 值、时间戳、{@code removed} 计数。 */
+    /** 两侧同掩码：UUID 值、时间戳。 */
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);
         String out = UUID_PATTERN.matcher(s).replaceAll("\"<uuid>\"");
-        out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
-        return REMOVED_PATTERN.matcher(out).replaceAll("\"removed\":<n>");
+        return TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
     }
 }

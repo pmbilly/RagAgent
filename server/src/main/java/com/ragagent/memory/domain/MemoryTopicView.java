@@ -4,8 +4,6 @@ import com.ragagent.common.settings.MemoryConfig;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -19,27 +17,20 @@ import com.ragagent.common.web.GoTimeSerializer;
  * 投影函数 {@code MemoryTopicViewFromStat} 会在 nil 时补空列表——
  * 也就是说**存量行的 nil 与投影后的空列表在线上是两种形态**，照抄别统一。</p>
  */
-@JsonPropertyOrder({"id", "topic", "aliases", "hits", "threshold", "last_seen_at"})
 public class MemoryTopicView {
 
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("topic")
     private String topic = "";
 
     /** 无 omitempty：nil → {@code null}。 */
-    @JsonProperty("aliases")
     private List<String> aliases;
 
-    @JsonProperty("hits")
     private int hits;
 
     /** 当前生效的兴趣阈值（来自 {@link MemoryConfig}，不是行上的字段）。 */
-    @JsonProperty("threshold")
     private int threshold;
 
-    @JsonProperty("last_seen_at")
     private OffsetDateTime lastSeenAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

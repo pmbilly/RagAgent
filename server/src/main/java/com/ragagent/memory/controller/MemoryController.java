@@ -2,9 +2,7 @@ package com.ragagent.memory.controller;
 
 import com.ragagent.common.web.JsonMappers;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,12 +16,15 @@ import com.ragagent.common.settings.MemoryKinds;
 import com.ragagent.memory.domain.MemoryPage;
 import com.ragagent.memory.domain.MemorySettings;
 import com.ragagent.memory.domain.MemoryTopicView;
+import com.ragagent.memory.dto.MemoryExportResponse;
+import com.ragagent.memory.dto.MemoryListResponse;
 import com.ragagent.memory.service.MemoryConsolidationService;
 import com.ragagent.memory.service.MemoryScopeExceptions;
 import com.ragagent.memory.service.MemoryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,18 +46,18 @@ import org.springframework.web.bind.annotation.RestController;
  * （Go handler 的类注释原文）。Java 侧同理——{@code MemoryScopes.resolve()}
  * 只读 {@code TenantContext} / principal，不读任何请求参数。</p>
  *
- * <h2>响应形态：gin.H = map = 键按字母序（§9 的 JSON 键序规则）</h2>
- * <p>Go 这里每一个成功响应都是 {@code gin.H}，经 {@code encoding/json} 序列化后
- * <b>键按字母序</b>输出，不是源码里的书写顺序。所以线上真实字节是：</p>
+ * <h2>响应形态：契约换锚后（2026-10-01，§14.9k M1）</h2>
+ * <p>成功响应不再包 {@code {"data":…,"success":true}} 信封；JSON 字段名＝Java 字段名
+ * （camelCase，见 {@code docs/knowledge-api-contract-v1.md} §1.1）。逐类形态：</p>
  * <ul>
- *   <li>{@code {"data":…,"success":true}}（data &lt; success，恰好与书写序相同）</li>
- *   <li>{@code {"data":[…],"success":true,"total":N}}（列表三键）</li>
- *   <li>{@code {"removed":N,"success":true}}（Clear——<b>removed 在 success 前</b>）</li>
- *   <li>{@code {"data":[…],"success":true,"total":N,"truncated":bool}}（Export 四键）</li>
+ *   <li>单资源（settings / 条目 / 整理结果）→ <b>裸对象</b>；</li>
+ *   <li>列表（items / topics / documents）→ {@code {items, page, pageSize, total}}
+ *       （{@link com.ragagent.memory.dto.MemoryListResponse}，§2.1 分页形态）；</li>
+ *   <li>创建条目 → <b>201</b> + 裸条目（§1.15）；删除 / 拒绝 → <b>204</b>（§1.13）；</li>
+ *   <li>Export 保持下载语义：{@code {items, total, truncated}} + {@code Content-Disposition}。</li>
  * </ul>
- * <p>故 Java 侧一律用 {@link LinkedHashMap} <b>按字母序 put</b>，与
- * {@code GlobalExceptionHandler.errorBody} 的做法一致。<b>不</b>给顶层 body 包一层
- * {@code R<T>}——{@code R} 只会输出 data+success 两键，列表与 Clear 用不了。</p>
+ * <p>{@code Clear} 是同步删除，按 §1.13 返 204——旧 Go 的 {@code {"removed":N}} 计数随信封一并退役；
+ * 前端不再展示条数（如需恢复，须先改标准）。</p>
  *
  * <h2>错误形态：AppError 信封，逐条对照 Go 的 {@code fail()}</h2>
  * <pre>
@@ -116,19 +117,14 @@ public class MemoryController {
 
     // ══════════════════════════ 设置 ══════════════════════════
 
-    /** 对照 Go {@code GetSettings}（L39-47）。 */
+    /** 对照 Go {@code GetSettings}（L39-47）。换锚后响应是裸 {@link MemorySettings}（camelCase）。 */
     @GetMapping("/api/v1/memory/settings")
-    public ResponseEntity<Map<String, Object>> getSettings() {
-        MemorySettings settings;
+    public MemorySettings getSettings() {
         try {
-            settings = memoryService.getSettings();
+            return memoryService.getSettings();
         } catch (RuntimeException e) {
             throw fail(e, "Failed to load memory settings");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", settings);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
     }
 
     /**
@@ -138,7 +134,7 @@ public class MemoryController {
      * 再"enabled 在不在"——{@code {"enabled":null}} 落后者。</p>
      */
     @PutMapping("/api/v1/memory/settings")
-    public ResponseEntity<Map<String, Object>> updateSettings(
+    public MemorySettings updateSettings(
             @RequestBody(required = false) String rawBody) {
         UpdateMemorySettingsRequest req = parse(rawBody, UpdateMemorySettingsRequest.class);
         if (req == null || req.enabled() == null) {
@@ -164,12 +160,11 @@ public class MemoryController {
      * <p>{@code status} 的白名单校验发生在<b>解析分页之前</b>，顺序照抄：
      * 非法 status 一律 400，哪怕 limit 也是垃圾。</p>
      *
-     * <p>⚠️ 实测：Go 空仓库输出 {@code "data":[]}（<b>不是</b> {@code null}）——
-     * GORM 的 {@code Find} 把 nil slice 初始化成非 nil 空切片。
-     * 与 Export 的 {@code "data":null} 是两种形态，别统一。</p>
+     * <p>空仓库输出 {@code "items":[]}（<b>不是</b> {@code null}）——与 Export 的空
+     * {@code items:null} 仍是两种形态，别统一（那是 Go 两条路径的既有差别）。</p>
      */
     @GetMapping("/api/v1/memory/items")
-    public ResponseEntity<Map<String, Object>> listItems(
+    public MemoryListResponse<MemoryItem> listItems(
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "offset", required = false) String offset) {
@@ -184,7 +179,7 @@ public class MemoryController {
         } catch (RuntimeException e) {
             throw fail(e, "Failed to list memories");
         }
-        return pageBody(page);
+        return pageBody(page, paging);
     }
 
     /**
@@ -201,9 +196,9 @@ public class MemoryController {
                 || MemoryKinds.STATUS_PENDING.equals(status);
     }
 
-    /** 对照 Go {@code CreateItem}（L262-275）。 */
+    /** 对照 Go {@code CreateItem}（L262-275）。换锚后：<b>201</b> + 裸条目（§1.15）。 */
     @PostMapping("/api/v1/memory/items")
-    public ResponseEntity<Map<String, Object>> createItem(
+    public ResponseEntity<MemoryItem> createItem(
             @RequestBody(required = false) String rawBody) {
         CreateMemoryItemRequest req = parse(rawBody, CreateMemoryItemRequest.class);
         MemoryItem item;
@@ -215,28 +210,26 @@ public class MemoryController {
         } catch (RuntimeException e) {
             throw fail(e, "Failed to create memory");
         }
-        return dataBody(item);
+        return ResponseEntity.status(HttpStatus.CREATED).body(item);
     }
 
     /** 对照 Go 的 {@code createMemoryItemRequest}：三个非指针字段（缺失即零值）。 */
     record CreateMemoryItemRequest(String kind, String content, Integer importance) {
     }
 
-    /** 对照 Go {@code UpdateItem}（L293-306）。 */
+    /** 对照 Go {@code UpdateItem}（L293-306）。换锚后：200 + 裸条目。 */
     @PutMapping("/api/v1/memory/items/{id}")
-    public ResponseEntity<Map<String, Object>> updateItem(
+    public MemoryItem updateItem(
             @PathVariable("id") String id,
             @RequestBody(required = false) String rawBody) {
         UpdateMemoryItemRequest req = parse(rawBody, UpdateMemoryItemRequest.class);
-        MemoryItem item;
         try {
-            item = memoryService.updateItem(id,
+            return memoryService.updateItem(id,
                     req == null || req.content() == null ? "" : req.content(),
                     req == null || req.importance() == null ? 0 : req.importance());
         } catch (RuntimeException e) {
             throw fail(e, "Failed to update memory");
         }
-        return dataBody(item);
     }
 
     /**
@@ -246,43 +239,40 @@ public class MemoryController {
     record UpdateMemoryItemRequest(String content, Integer importance) {
     }
 
-    /** 对照 Go {@code DeleteItem}（L317-324）。 */
+    /** 对照 Go {@code DeleteItem}（L317-324）。换锚后：<b>204</b>（§1.13）。 */
     @DeleteMapping("/api/v1/memory/items/{id}")
-    public ResponseEntity<Map<String, Object>> deleteItem(@PathVariable("id") String id) {
+    public ResponseEntity<Void> deleteItem(@PathVariable("id") String id) {
         try {
             memoryService.deleteItem(id);
         } catch (RuntimeException e) {
             throw fail(e, "Failed to delete memory");
         }
-        return ack();
+        return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Go {@code ConfirmItem}（L338-346）。 */
+    /** 对照 Go {@code ConfirmItem}（L338-346）。换锚后：200 + 裸条目。 */
     @PostMapping("/api/v1/memory/items/{id}/confirm")
-    public ResponseEntity<Map<String, Object>> confirmItem(@PathVariable("id") String id) {
-        MemoryItem item;
+    public MemoryItem confirmItem(@PathVariable("id") String id) {
         try {
-            item = memoryService.confirmItem(id);
+            return memoryService.confirmItem(id);
         } catch (RuntimeException e) {
             throw fail(e, "Failed to confirm memory");
         }
-        return dataBody(item);
     }
 
     /**
      * 对照 Go {@code RejectItem}（L357-364）。
      *
-     * <p>响应是 {@code {"success":true}} ——<b>不带 data</b>，
-     * 与 DeleteItem 的响应同形（Go 里 {@code RejectItem} 的 service 侧就是删除）。</p>
+     * <p>拒绝就是删除（Go 的 service 侧如此），响应随 DeleteItem：<b>204</b>。</p>
      */
     @PostMapping("/api/v1/memory/items/{id}/reject")
-    public ResponseEntity<Map<String, Object>> rejectItem(@PathVariable("id") String id) {
+    public ResponseEntity<Void> rejectItem(@PathVariable("id") String id) {
         try {
             memoryService.rejectItem(id);
         } catch (RuntimeException e) {
             throw fail(e, "Failed to reject memory");
         }
-        return ack();
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -290,26 +280,25 @@ public class MemoryController {
      *
      * <p>注意是 {@code DELETE /memory/items}（集合本身），
      * 与 {@code DELETE /memory/items/{id}} 是两条不同的路由。</p>
+     *
+     * <p>同步完成的一次性清空，按 §1.13 返 <b>204</b>：Go 的 {@code {"removed":N}}
+     * 计数是信封里的信息，换锚后不再下发（前端原样展示条数的 toast 一并去掉）。</p>
      */
     @DeleteMapping("/api/v1/memory/items")
-    public ResponseEntity<Map<String, Object>> clear() {
-        long removed;
+    public ResponseEntity<Void> clear() {
         try {
-            removed = memoryService.clear();
+            memoryService.clear();
         } catch (RuntimeException e) {
             throw fail(e, "Failed to clear memories");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("removed", removed);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 主题 ══════════════════════════
 
-    /** 对照 Go {@code ListTopics}（L151-164）。 */
+    /** 对照 Go {@code ListTopics}（L151-164）。换锚后：{@code {items,page,pageSize,total}}。 */
     @GetMapping("/api/v1/memory/topics")
-    public ResponseEntity<Map<String, Object>> listTopics(
+    public MemoryListResponse<MemoryTopicView> listTopics(
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "offset", required = false) String offset) {
         int[] paging = listPaging(limit, offset);
@@ -319,37 +308,40 @@ public class MemoryController {
         } catch (RuntimeException e) {
             throw fail(e, "Failed to list topics");
         }
-        return pageBody(page);
+        return pageBody(page, paging);
     }
 
-    /** 对照 Go {@code PromoteTopic}（L175-183）。 */
+    /**
+     * 对照 Go {@code PromoteTopic}（L175-183）。
+     *
+     * <p>它是"动作"而不是创建端点：动的是主题、产出的是那条新记忆，
+     * 故按 §2.1 的单资源形态返 200 + 裸条目（不套 §1.15 的 201）。</p>
+     */
     @PostMapping("/api/v1/memory/topics/{id}/promote")
-    public ResponseEntity<Map<String, Object>> promoteTopic(@PathVariable("id") String id) {
-        MemoryItem item;
+    public MemoryItem promoteTopic(@PathVariable("id") String id) {
         try {
-            item = memoryService.promoteTopic(id);
+            return memoryService.promoteTopic(id);
         } catch (RuntimeException e) {
             throw fail(e, "Failed to promote topic");
         }
-        return dataBody(item);
     }
 
-    /** 对照 Go {@code DeleteTopic}（L194-201）。 */
+    /** 对照 Go {@code DeleteTopic}（L194-201）。换锚后：<b>204</b>。 */
     @DeleteMapping("/api/v1/memory/topics/{id}")
-    public ResponseEntity<Map<String, Object>> deleteTopic(@PathVariable("id") String id) {
+    public ResponseEntity<Void> deleteTopic(@PathVariable("id") String id) {
         try {
             memoryService.deleteTopic(id);
         } catch (RuntimeException e) {
             throw fail(e, "Failed to delete topic");
         }
-        return ack();
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 文档亲和度 ══════════════════════════
 
-    /** 对照 Go {@code ListDocuments}（L213-226）。 */
+    /** 对照 Go {@code ListDocuments}（L213-226）。换锚后：{@code {items,page,pageSize,total}}。 */
     @GetMapping("/api/v1/memory/documents")
-    public ResponseEntity<Map<String, Object>> listDocuments(
+    public MemoryListResponse<MemoryDocView> listDocuments(
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "offset", required = false) String offset) {
         int[] paging = listPaging(limit, offset);
@@ -359,18 +351,18 @@ public class MemoryController {
         } catch (RuntimeException e) {
             throw fail(e, "Failed to list documents");
         }
-        return pageBody(page);
+        return pageBody(page, paging);
     }
 
-    /** 对照 Go {@code DeleteDocument}（L237-244）。 */
+    /** 对照 Go {@code DeleteDocument}（L237-244）。换锚后：<b>204</b>。 */
     @DeleteMapping("/api/v1/memory/documents/{id}")
-    public ResponseEntity<Map<String, Object>> deleteDocument(@PathVariable("id") String id) {
+    public ResponseEntity<Void> deleteDocument(@PathVariable("id") String id) {
         try {
             memoryService.deleteDocument(id);
         } catch (RuntimeException e) {
             throw fail(e, "Failed to delete document affinity");
         }
-        return ack();
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 导出 / 整理 ══════════════════════════
@@ -385,13 +377,15 @@ public class MemoryController {
      * 因此这里按 {@link #EXPORT_PAGE_SIZE} 走到 {@code len(page) < pageSize}
      * 或 {@code len(items) >= total} 或触到 {@link #EXPORT_MAX_ITEMS} 安全上限为止。</p>
      *
-     * <h2>两个必须照抄的形态</h2>
+     * <h2>换锚后的形态（§14.9k M1）</h2>
      * <ol>
-     *   <li>⚠️ <b>空仓库的 {@code data} 是 {@code null} 而不是 {@code []}</b>——
+     *   <li>体是裸 {@link com.ragagent.memory.dto.MemoryExportResponse}：
+     *       {@code {items, total, truncated}}——旧的 {@code {"data":…,"success":true}} 信封退役。</li>
+     *   <li>⚠️ <b>空仓库的 {@code items} 仍是 {@code null} 而不是 {@code []}</b>——
      *       Go 是 {@code var items []*types.MemoryItem} 且只在有行时才
-     *       {@code append}，nil slice 序列化成 {@code null}。已实测：
-     *       {@code {"data":null,"success":true,"total":0,"truncated":false}}。
-     *       这与 {@code GET /memory/items} 的 {@code []} <b>不同</b>，别统一。</li>
+     *       {@code append}，nil slice 序列化成 {@code null}。这与
+     *       {@code GET /memory/items} 的 {@code []} <b>不同</b>，别统一
+     *       （契约未要求把空导出改成空数组，保留既有语义）。</li>
      *   <li>{@code Content-Disposition: attachment; filename="weknora-memories.json"}
      *       ——Go 是 {@code c.Header(...)} + {@code c.JSON(200, ...)}，
      *       所以 <b>Content-Type 仍是普通 JSON</b>（{@code application/json; charset=utf-8}），
@@ -402,7 +396,7 @@ public class MemoryController {
      * 能触发，所以实践中恒为 false——但要说出来，而不是让一个残缺的文件看起来完整。</p>
      */
     @GetMapping("/api/v1/memory/export")
-    public ResponseEntity<Map<String, Object>> export() {
+    public ResponseEntity<MemoryExportResponse> export() {
         List<MemoryItem> items = null;
         long total = 0;
         while (true) {
@@ -429,11 +423,8 @@ public class MemoryController {
                 break;
             }
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", items);
-        body.put("success", true);
-        body.put("total", total);
-        body.put("truncated", itemCount(items) < total);
+        MemoryExportResponse body =
+                new MemoryExportResponse(items, total, itemCount(items) < total);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"weknora-memories.json\"")
@@ -450,48 +441,34 @@ public class MemoryController {
         return items == null ? 0 : items.size();
     }
 
-    /** 对照 Go {@code Consolidate}（L437-445）。 */
+    /** 对照 Go {@code Consolidate}（L437-445）。换锚后：200 + 裸结果对象。 */
     @PostMapping("/api/v1/memory/consolidate")
-    public ResponseEntity<Map<String, Object>> consolidate() {
-        MemoryConsolidationResult result;
+    public MemoryConsolidationResult consolidate() {
         try {
-            result = consolidationService.consolidateNow();
+            return consolidationService.consolidateNow();
         } catch (RuntimeException e) {
             throw fail(e, "Failed to consolidate memories");
         }
-        return dataBody(result);
     }
 
     // ══════════════════════════ 工具方法 ══════════════════════════
 
-    /** {@code {"success":true}}——DeleteTopic / DeleteDocument / DeleteItem / RejectItem 的响应。 */
-    private static ResponseEntity<Map<String, Object>> ack() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return ResponseEntity.ok(body);
-    }
-
-    /** {@code {"data":…,"success":true}}——单条资源的响应。 */
-    private static ResponseEntity<Map<String, Object>> dataBody(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
-    }
-
     /**
-     * {@code {"data":[…],"success":true,"total":N}}——三个列表端点的响应。
+     * {@code {items, page, pageSize, total}}——三个列表端点的响应（§2.1 分页形态）。
      *
-     * <p>{@code data} 直接透传 service 的 {@code Page.items()}：Go 侧
+     * <p>{@code items} 直接透传 service 的 {@code Page.items()}：Go 侧
      * {@code ListItems} 的 GORM {@code Find} 与 {@code ListTopics}/{@code ListDocuments}
      * 的 {@code make(..., 0, n)} 都产出<b>非 nil</b>切片，空时是 {@code []}。</p>
+     *
+     * <p>{@code page} 由 offset/limit 换算（{@code offset / limit + 1}，整数除法），
+     * {@code pageSize} 就是容错后的 limit——请求侧仍只有 limit/offset 两个参数。</p>
+     *
+     * @param paging {@link #listPaging} 的返回值：{limit, offset}
      */
-    private static ResponseEntity<Map<String, Object>> pageBody(MemoryPage<?> page) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", page.items());
-        body.put("success", true);
-        body.put("total", page.total());
-        return ResponseEntity.ok(body);
+    private static <T> MemoryListResponse<T> pageBody(MemoryPage<T> page, int[] paging) {
+        int limit = paging[0];
+        int offset = paging[1];
+        return new MemoryListResponse<>(page.items(), offset / limit + 1L, limit, page.total());
     }
 
     /**

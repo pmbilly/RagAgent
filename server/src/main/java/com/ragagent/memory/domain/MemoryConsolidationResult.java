@@ -1,8 +1,5 @@
 package com.ragagent.memory.domain;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 一次"整仓回顾"做了什么（对照 Go {@code types.MemoryConsolidationResult}，
@@ -12,9 +9,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * 这个区分是有意的：一次什么都没合并的回顾是常态，"什么都没发生"本身
  * 既不能告诉提问的人它有没有干活，也不能告诉他值不值得再点一次。</p>
  *
- * <p>前五个计数无 omitempty 恒输出；{@code skipped} 带 omitempty（空串省略）。</p>
+ * <p>六个字段全部恒输出（契约 §1.6「禁止条件键」）：{@code skipped} 未跳过时是
+ * {@code null}，空串就是空串——旧 Go 的 {@code omitempty} 已随 §14.9k M1 退役。</p>
  */
-@JsonPropertyOrder({"merged", "demoted", "expired", "reviewed", "candidates", "skipped"})
 public class MemoryConsolidationResult {
 
     // ── skipped 的取值（对照 Go 的 MemoryConsolidationSkip* 常量） ──────────
@@ -33,26 +30,19 @@ public class MemoryConsolidationResult {
      */
     public static final String SKIP_TOO_SOON = "too_soon";
 
-    @JsonProperty("merged")
     private int merged;
 
-    @JsonProperty("demoted")
     private int demoted;
 
-    @JsonProperty("expired")
     private int expired;
 
     /** 这次回顾看了多少条活跃记忆。 */
-    @JsonProperty("reviewed")
     private int reviewed;
 
     /** 有多少组候选被摆到了模型面前。 */
-    @JsonProperty("candidates")
     private int candidates;
 
-    /** 为什么什么都没合并；真合并了就是空。omitempty。 */
-    @JsonProperty("skipped")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    /** 为什么什么都没合并；真合并了就是空串，没跳过是 {@code null}。恒输出。 */
     private String skipped;
 
     public int getMerged() { return merged; }

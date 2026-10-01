@@ -1,1 +1,1 @@
-{"data":[{"id":"aaaaaaaa-1111-2222-3333-444444444401","topic":"K8s 部署","aliases":["Kubernetes 部署","k8s 部署"],"hits":1,"threshold":3,"last_seen_at":"2026-09-18T13:22:46.690463+08:00"}],"success":true,"total":1}
+{"items":[{"id":"aaaaaaaa-1111-2222-3333-444444444401","topic":"K8s 部署","aliases":["Kubernetes 部署","k8s 部署"],"hits":1,"threshold":3,"lastSeenAt":"2026-09-18T13:22:46.690463+08:00"}],"page":1,"pageSize":50,"total":1}

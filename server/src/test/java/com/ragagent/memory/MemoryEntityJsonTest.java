@@ -38,8 +38,8 @@ import org.junit.jupiter.api.Test;
  *
  * <h2>这份语料刻意盯住的五个坑</h2>
  * <ol>
- *   <li>{@code replaces_id} 带 {@code omitempty} → 空串时**整个键消失**；
- *       而 {@code superseded_by} 无 omitempty → **在**且为 {@code ""}。两个相邻字段两种处置。</li>
+ *   <li>（换锚后已统一）{@code replacesId} 与 {@code supersededBy} 都**恒输出**空串——
+ *       旧 Go 的 {@code omitempty} 随 §1.6「禁止条件键」退役，两种处置不再并存。</li>
  *   <li>{@code inference}（Go {@code Inferred}）是 {@code json:"-" gorm:"-"}：
  *       **既不出响应也不落库**——Java 侧 {@code @JsonIgnore} + {@code @TableField(exist=false)} 缺一不可。</li>
  *   <li>{@code MemorySubject.pending_sessions} 与 {@code MemoryTopicStat.aliases}
@@ -117,13 +117,14 @@ class MemoryEntityJsonTest {
     @Test
     void memoryItemZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryItem())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"kind\":\"\",\"content\":\"\","
-                        + "\"topic\":\"\",\"normalized_key\":\"\",\"importance\":0,\"origin\":\"\","
-                        + "\"status\":\"\",\"source_session_id\":\"\",\"source_message_id\":\"\","
-                        + "\"valid_from\":\"0001-01-01T00:00:00Z\",\"invalid_at\":null,"
-                        + "\"expires_at\":null,\"superseded_by\":\"\",\"last_used_at\":null,"
-                        + "\"use_count\":0,\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"id\":\"\",\"tenantId\":0,\"subjectId\":\"\",\"kind\":\"\",\"content\":\"\","
+                        + "\"topic\":\"\",\"normalizedKey\":\"\",\"importance\":0,\"origin\":\"\","
+                        + "\"status\":\"\",\"sourceSessionId\":\"\",\"sourceMessageId\":\"\","
+                        + "\"validFrom\":\"0001-01-01T00:00:00Z\",\"invalidAt\":null,"
+                        + "\"expiresAt\":null,\"replacesId\":\"\",\"supersededBy\":\"\","
+                        + "\"lastUsedAt\":null,\"useCount\":0,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -150,25 +151,27 @@ class MemoryEntityJsonTest {
         i.setUpdatedAt(ten());
 
         assertThat(write(i)).isEqualTo(
-                "{\"id\":\"i1\",\"tenant_id\":7,\"subject_id\":\"s\",\"kind\":\"fact\",\"content\":\"c\","
-                        + "\"topic\":\"t\",\"normalized_key\":\"nk\",\"importance\":3,\"origin\":\"extracted\","
-                        + "\"status\":\"active\",\"source_session_id\":\"ss\",\"source_message_id\":\"sm\","
-                        + "\"valid_from\":\"2026-09-18T10:00:00+08:00\",\"invalid_at\":null,"
-                        + "\"expires_at\":null,\"replaces_id\":\"r1\",\"superseded_by\":\"sb\","
-                        + "\"last_used_at\":null,\"use_count\":4,"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\"}");
+                "{\"id\":\"i1\",\"tenantId\":7,\"subjectId\":\"s\",\"kind\":\"fact\",\"content\":\"c\","
+                        + "\"topic\":\"t\",\"normalizedKey\":\"nk\",\"importance\":3,\"origin\":\"extracted\","
+                        + "\"status\":\"active\",\"sourceSessionId\":\"ss\",\"sourceMessageId\":\"sm\","
+                        + "\"validFrom\":\"2026-09-18T10:00:00+08:00\",\"invalidAt\":null,"
+                        + "\"expiresAt\":null,\"replacesId\":\"r1\",\"supersededBy\":\"sb\","
+                        + "\"lastUsedAt\":null,\"useCount\":4,"
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
     /**
-     * {@code replaces_id} 与 {@code superseded_by} 的**不对称**：前者 omitempty、后者没有。
-     * 这是本类型最容易"顺手统一"的一处。
+     * 换锚后 {@code replacesId} 与 {@code supersededBy} **一视同仁**：未取代时都是空串但键都在。
+     *
+     * <p>旧 Go 里前者带 {@code omitempty}（空串时整个键消失）、后者没有——那种"条件键"
+     * 随契约 §1.6「禁止条件键」退役，本类型不再有两种处置。</p>
      */
     @Test
-    void memoryItemOmitsEmptyReplacesIdButKeepsSupersededBy() throws Exception {
+    void memoryItemAlwaysEmitsReplacesIdAndSupersededBy() throws Exception {
         String json = write(new MemoryItem());
-        assertThat(json).doesNotContain("replaces_id");
-        assertThat(json).contains("\"superseded_by\":\"\"");
+        assertThat(json).contains("\"replacesId\":\"\"");
+        assertThat(json).contains("\"supersededBy\":\"\"");
     }
 
     /** {@code inferred} 在 Go 里是 {@code json:"-"}：绝不能出现在响应里。 */
@@ -182,10 +185,10 @@ class MemoryEntityJsonTest {
     @Test
     void memoryTopicStatZeroMatchesGo() throws Exception {
         assertThat(write(new MemoryTopicStat())).isEqualTo(
-                "{\"id\":\"\",\"tenant_id\":0,\"subject_id\":\"\",\"normalized_key\":\"\",\"topic\":\"\","
-                        + "\"aliases\":null,\"hits\":0,\"last_seen_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"promoted_at\":null,\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"id\":\"\",\"tenantId\":0,\"subjectId\":\"\",\"normalizedKey\":\"\",\"topic\":\"\","
+                        + "\"aliases\":null,\"hits\":0,\"lastSeenAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"promotedAt\":null,\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -305,9 +308,11 @@ class MemoryEntityJsonTest {
      * 抓的是两类"往返测试抓不到"的问题：
      * <ul>
      *   <li>派生访问器多吐了一个键（例如把 {@code hasAlias} 起名成 {@code isAlias}）；</li>
-     *   <li>漏写 {@code @JsonProperty} 变成驼峰键——★ 正则必须驼峰感知，
-     *       否则那种键会被静默过滤掉（§9 明确记过这个教训）。</li>
+     *   <li>字段漏进/多出响应面（换锚后键名＝Java 字段名，写错就当场显形）——★ 正则必须
+     *       大小写感知，否则驼峰键会被静默过滤掉（§9 明确记过这个教训）。</li>
      * </ul>
+     *
+     * <p>换锚范围（M1）内的类型用驼峰键名；未换锚的落库实体（M2 范围）仍是 snake 键。</p>
      */
     @Test
     void entityKeyOrderAndCountMatchGoDeclarationOrder() throws Exception {
@@ -316,13 +321,13 @@ class MemoryEntityJsonTest {
                 "pending_sessions", "extract_scheduled_at", "consolidated_at", "forced_consolidated_at",
                 "created_at", "updated_at");
 
-        assertKeyOrder(new MemoryItem(), "id", "tenant_id", "subject_id", "kind", "content", "topic",
-                "normalized_key", "importance", "origin", "status", "source_session_id",
-                "source_message_id", "valid_from", "invalid_at", "expires_at", "superseded_by",
-                "last_used_at", "use_count", "created_at", "updated_at");
+        assertKeyOrder(new MemoryItem(), "id", "tenantId", "subjectId", "kind", "content", "topic",
+                "normalizedKey", "importance", "origin", "status", "sourceSessionId",
+                "sourceMessageId", "validFrom", "invalidAt", "expiresAt", "replacesId",
+                "supersededBy", "lastUsedAt", "useCount", "createdAt", "updatedAt");
 
-        assertKeyOrder(new MemoryTopicStat(), "id", "tenant_id", "subject_id", "normalized_key",
-                "topic", "aliases", "hits", "last_seen_at", "promoted_at", "created_at", "updated_at");
+        assertKeyOrder(new MemoryTopicStat(), "id", "tenantId", "subjectId", "normalizedKey",
+                "topic", "aliases", "hits", "lastSeenAt", "promotedAt", "createdAt", "updatedAt");
 
         assertKeyOrder(new MemoryDocAffinity(), "id", "tenant_id", "subject_id", "knowledge_id",
                 "knowledge_base_id", "title", "hits", "last_used_at", "created_at", "updated_at");

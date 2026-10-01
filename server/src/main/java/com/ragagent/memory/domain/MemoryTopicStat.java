@@ -10,8 +10,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -54,26 +52,17 @@ import com.ragagent.common.web.GoTimeSerializer;
  * 见类型处理器）。</p>
  */
 @TableName(value = "memory_topic_stats", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "tenant_id", "subject_id", "normalized_key", "topic", "aliases", "hits",
-        "last_seen_at", "promoted_at", "created_at", "updated_at"
-})
 public class MemoryTopicStat {
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("tenant_id")
     private Long tenantId = 0L;
 
-    @JsonProperty("subject_id")
     private String subjectId = "";
 
-    @JsonProperty("normalized_key")
     private String normalizedKey = "";
 
-    @JsonProperty("topic")
     private String topic = "";
 
     /**
@@ -83,22 +72,16 @@ public class MemoryTopicStat {
      */
     @TableField(value = "aliases", typeHandler = MemoryStringListTypeHandler.class,
             insertStrategy = FieldStrategy.ALWAYS, updateStrategy = FieldStrategy.ALWAYS)
-    @JsonProperty("aliases")
     private List<String> aliases;
 
-    @JsonProperty("hits")
     private int hits;
 
-    @JsonProperty("last_seen_at")
     private OffsetDateTime lastSeenAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("promoted_at")
     private OffsetDateTime promotedAt;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

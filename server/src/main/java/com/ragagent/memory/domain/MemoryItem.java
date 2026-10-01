@@ -7,29 +7,26 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
  * 一条被记住的陈述（对照 Go {@code types.MemoryItem}，internal/types/memory.go L288-326）。
  *
- * <p><b>这是真正的响应体</b>：handler 把本对象直接放进
- * {@code {"success":true,"data":…}}（列表是 {@code {"data":[…],"total":N}}），
- * 所以下面的键序是 **Go struct 声明序**，不是字母序（§9 的 JSON 键序规则）。</p>
+ * <p><b>这是真正的响应体</b>：handler 直接把它作为响应（列表在
+ * {@code {items, page, pageSize, total}} 的 {@code items} 里）。契约换锚
+ * （§14.9k M1，2026-10-01）后 JSON 字段名＝Java 字段名（camelCase）、键序＝字段声明序——
+ * 逐字节期望见 {@code MemoryEntityJsonTest}。</p>
  *
- * <h2>Go 实录（见 {@code MemoryEntityJsonTest}）</h2>
  * <pre>
  *   MemoryItem{} →
- *   {"id":"","tenant_id":0,"subject_id":"","kind":"","content":"","topic":"",
- *    "normalized_key":"","importance":0,"origin":"","status":"","source_session_id":"",
- *    "source_message_id":"","valid_from":"0001-01-01T00:00:00Z","invalid_at":null,
- *    "expires_at":null,"superseded_by":"","last_used_at":null,"use_count":0,
- *    "created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}
+ *   {"id":"","tenantId":0,"subjectId":"","kind":"","content":"","topic":"",
+ *    "normalizedKey":"","importance":0,"origin":"","status":"","sourceSessionId":"",
+ *    "sourceMessageId":"","validFrom":"0001-01-01T00:00:00Z","invalidAt":null,
+ *    "expiresAt":null,"replacesId":"","supersededBy":"","lastUsedAt":null,"useCount":0,
+ *    "createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"}
  * </pre>
- * <p>三个要点：{@code replaces_id} **整个键消失**（omitempty + 空串）、
- * {@code superseded_by} **在**且为 {@code ""}（无 omitempty）、{@code inferred} 一个键都不出。</p>
+ * <p>两个要点：{@code replacesId} 与 {@code supersededBy} **都恒输出**（未取代时是空串）——
+ * 旧 Go 的 {@code omitempty} 随契约 §1.6「禁止条件键」退役；{@code inferred} 一个键都不出。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
  * <ol>
@@ -56,35 +53,23 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       非 nil → 列进 INSERT 列表）。Java 侧因此一律显式赋值，字段默认值对齐 Go 零值。</li>
  * </ol>
  *
- * <h2>⚠️ {@code replaces_id} 的"省略"与"落库"是两件事</h2>
- * <p>tag 是 {@code json:"replaces_id,omitempty"}——**响应里空串就省略键**；
- * 而 gorm tag 是 {@code not null;default:''}——**落库必须写 {@code ''}**。
- * 两者不冲突：{@code @JsonProperty} 只管 Jackson，落库走实体字段值。
- * Java 字段默认 {@code ""}，所以落库写空串、响应省略键，两处都对。</p>
+ * <h2>⚠️ {@code replacesId} 的"响应"与"落库"是两件事</h2>
+ * <p>响应里恒输出（空串就是空串）；落库列 {@code replaces_id} 是
+ * {@code not null;default:''}——**落库必须写 {@code ''}**。
+ * 两者不冲突：Jackson 只管响应，落库走实体字段值。Java 字段默认 {@code ""}，两处都对。</p>
  */
 @TableName("memory_items")
-@JsonPropertyOrder({
-        "id", "tenant_id", "subject_id", "kind", "content", "topic", "normalized_key",
-        "importance", "origin", "status", "source_session_id", "source_message_id",
-        "valid_from", "invalid_at", "expires_at", "replaces_id", "superseded_by",
-        "last_used_at", "use_count", "created_at", "updated_at"
-})
 public class MemoryItem {
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("tenant_id")
     private Long tenantId = 0L;
 
-    @JsonProperty("subject_id")
     private String subjectId = "";
 
-    @JsonProperty("kind")
     private String kind = "";
 
-    @JsonProperty("content")
     private String content = "";
 
     /**
@@ -93,59 +78,44 @@ public class MemoryItem {
      * <p>它与归一化 key 并存而不是被取代：它是最好的检索抓手——提问常常点出主题，
      * 而陈述本身只带值（"已经迁到 PostgreSQL"）。</p>
      */
-    @JsonProperty("topic")
     private String topic = "";
 
     /**
      * 这条陈述所关于主题的归一化 key。与某个活跃条目同 key 的新条目会**取代**它——
      * 这就是"我用 MySQL"→"我迁到 Postgres"这类矛盾在**不经 LLM** 的读路径上被解决的方式。
      */
-    @JsonProperty("normalized_key")
     private String normalizedKey = "";
 
-    @JsonProperty("importance")
     private int importance;
 
-    @JsonProperty("origin")
     private String origin = "";
 
-    @JsonProperty("status")
     private String status = "";
 
-    @JsonProperty("source_session_id")
     private String sourceSessionId = "";
 
-    @JsonProperty("source_message_id")
     private String sourceMessageId = "";
 
-    @JsonProperty("valid_from")
     private OffsetDateTime validFrom = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("invalid_at")
     private OffsetDateTime invalidAt;
 
     /**
      * 这条陈述什么时候开始不值得再被想起，用于"只在一段时间内成立"的事
      * （"这周把迁移做完"）。没有它，一个进行中的任务会永远留在上下文里。
      */
-    @JsonProperty("expires_at")
     private OffsetDateTime expiresAt;
 
     /**
      * ⚠️ {@code omitempty}：空串时**整个键消失**。落库仍写 {@code ''}（见类注释）。
      */
-    @JsonProperty("replaces_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String replacesId = "";
 
     /** 无 omitempty：未取代时输出 {@code ""}（不是 {@code null}）。 */
-    @JsonProperty("superseded_by")
     private String supersededBy = "";
 
-    @JsonProperty("last_used_at")
     private OffsetDateTime lastUsedAt;
 
-    @JsonProperty("use_count")
     private int useCount;
 
     /**
@@ -157,10 +127,8 @@ public class MemoryItem {
     @com.baomidou.mybatisplus.annotation.TableField(exist = false)
     private boolean inferred;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

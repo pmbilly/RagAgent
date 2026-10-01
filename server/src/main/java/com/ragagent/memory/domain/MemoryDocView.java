@@ -2,8 +2,6 @@ package com.ragagent.memory.domain;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
@@ -12,25 +10,18 @@ import com.ragagent.common.web.GoTimeSerializer;
  *
  * <p>六个字段都无 omitempty，恒输出。</p>
  */
-@JsonPropertyOrder({"id", "knowledge_id", "knowledge_base_id", "title", "hits", "last_used_at"})
 public class MemoryDocView {
 
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("knowledge_id")
     private String knowledgeId = "";
 
-    @JsonProperty("knowledge_base_id")
     private String knowledgeBaseId = "";
 
-    @JsonProperty("title")
     private String title = "";
 
-    @JsonProperty("hits")
     private int hits;
 
-    @JsonProperty("last_used_at")
     private OffsetDateTime lastUsedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

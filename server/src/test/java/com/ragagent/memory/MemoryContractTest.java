@@ -27,10 +27,16 @@ import org.junit.jupiter.api.Test;
  * <ol>
  *   <li>{@link MemoryConfig} 的**三态** {@code *bool}——{@code null} 要写出去
  *       （"没配"≠"显式配成 false"），且全类型无 omitempty；</li>
- *   <li>{@link MemoryConsolidationResult#getSkipped()} 带 omitempty，空串省略；</li>
+ *   <li>{@link MemoryConsolidationResult#getSkipped()} 换锚后**恒输出**：
+ *       没跳过时是 {@code null}，空串就是空串（§1.5 可空字段显式 null）；</li>
  *   <li>{@link MemoryTopicView} 的 {@code aliases} 无 omitempty，nil 输出 {@code null}
  *       （而投影函数补空列表，两种形态并存）。</li>
  * </ol>
+ *
+ * <p>响应体三个类型（{@link MemorySettings} / {@link MemoryConsolidationResult} /
+ * {@link MemoryTopicView} / {@link MemoryDocView}）已随 §14.9k M1 换锚：JSON 字段名＝
+ * Java 字段名（camelCase）。{@link MemoryConfig} 是 tenants 的 jsonb 载荷，属 M2 范围，
+ * 这里仍是库内键名。</p>
  */
 class MemoryContractTest {
 
@@ -107,15 +113,16 @@ class MemoryContractTest {
         s.setMaxItems(200);
 
         assertThat(write(s)).isEqualTo(
-                "{\"workspace_enabled\":true,\"user_enabled\":false,\"effective\":false,"
-                        + "\"write_mode\":\"explicit_only\",\"item_count\":7,\"max_items\":200}");
+                "{\"workspaceEnabled\":true,\"userEnabled\":false,\"effective\":false,"
+                        + "\"writeMode\":\"explicit_only\",\"itemCount\":7,\"maxItems\":200}");
     }
 
-    /** {@code skipped} 带 omitempty：空串时整个键消失（零值回顾是常态，不是失败）。 */
+    /** {@code skipped} 换锚后恒输出：没跳过时是 {@code null}（旧 Go 的 omitempty 退役）。 */
     @Test
-    void consolidationResultOmitsEmptySkipped() throws Exception {
+    void consolidationResultAlwaysEmitsSkipped() throws Exception {
         assertThat(write(new MemoryConsolidationResult())).isEqualTo(
-                "{\"merged\":0,\"demoted\":0,\"expired\":0,\"reviewed\":0,\"candidates\":0}");
+                "{\"merged\":0,\"demoted\":0,\"expired\":0,\"reviewed\":0,\"candidates\":0,"
+                        + "\"skipped\":null}");
 
         MemoryConsolidationResult merged = new MemoryConsolidationResult();
         merged.setMerged(2);
@@ -125,7 +132,8 @@ class MemoryContractTest {
         merged.setCandidates(3);
         merged.setSkipped("");
         assertThat(write(merged)).isEqualTo(
-                "{\"merged\":2,\"demoted\":1,\"expired\":1,\"reviewed\":9,\"candidates\":3}");
+                "{\"merged\":2,\"demoted\":1,\"expired\":1,\"reviewed\":9,\"candidates\":3,"
+                        + "\"skipped\":\"\"}");
 
         MemoryConsolidationResult skipped = new MemoryConsolidationResult();
         skipped.setSkipped(MemoryConsolidationResult.SKIP_TOO_SOON);
@@ -144,7 +152,7 @@ class MemoryContractTest {
 
         assertThat(write(nilAliases)).isEqualTo(
                 "{\"id\":\"t1\",\"topic\":\"db\",\"aliases\":null,\"hits\":2,\"threshold\":3,"
-                        + "\"last_seen_at\":\"2026-09-18T10:00:00+08:00\"}");
+                        + "\"lastSeenAt\":\"2026-09-18T10:00:00+08:00\"}");
 
         MemoryTopicView withAliases = new MemoryTopicView();
         withAliases.setId("t1");
@@ -156,7 +164,7 @@ class MemoryContractTest {
 
         assertThat(write(withAliases)).isEqualTo(
                 "{\"id\":\"t1\",\"topic\":\"db\",\"aliases\":[\"a\",\"b\"],\"hits\":2,"
-                        + "\"threshold\":3,\"last_seen_at\":\"2026-09-18T10:00:00+08:00\"}");
+                        + "\"threshold\":3,\"lastSeenAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
     @Test
@@ -170,15 +178,15 @@ class MemoryContractTest {
         d.setLastUsedAt(localTime(10));
 
         assertThat(write(d)).isEqualTo(
-                "{\"id\":\"d1\",\"knowledge_id\":\"k1\",\"knowledge_base_id\":\"kb1\","
+                "{\"id\":\"d1\",\"knowledgeId\":\"k1\",\"knowledgeBaseId\":\"kb1\","
                         + "\"title\":\"t\",\"hits\":4,"
-                        + "\"last_used_at\":\"2026-09-18T10:00:00+08:00\"}");
+                        + "\"lastUsedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
     /** 零值时间必须输出 Go 的 year-1 字面量，而不是 {@code null}。 */
     @Test
     void viewsEmitGoZeroTimeRatherThanNull() throws Exception {
-        assertThat(write(new MemoryTopicView())).contains("\"last_seen_at\":\"0001-01-01T00:00:00Z\"");
-        assertThat(write(new MemoryDocView())).contains("\"last_used_at\":\"0001-01-01T00:00:00Z\"");
+        assertThat(write(new MemoryTopicView())).contains("\"lastSeenAt\":\"0001-01-01T00:00:00Z\"");
+        assertThat(write(new MemoryDocView())).contains("\"lastUsedAt\":\"0001-01-01T00:00:00Z\"");
     }
 }
