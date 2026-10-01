@@ -148,7 +148,7 @@ class WikiIngestDedupServiceTest {
                     "填充概念" + "占位".repeat(i + 1), "concept"));
         }
 
-        List<WikiPage> got = WikiIngestDedupService.selectDedupCandidatePages(newItems, pages);
+        List<WikiPage> got = WikiIdentityDedup.selectDedupCandidatePages(newItems, pages);
 
         assertThat(containsSlug(got, "concept/zhong-hua-you-xiu-chuan-tong-wen-hua"))
                 .as("无关页面应被过滤，实际候选=%s", slugsOf(got))
@@ -176,7 +176,7 @@ class WikiIngestDedupServiceTest {
             pages.add(page("entity/filler-" + "x".repeat(i + 1), "填充实体" + "占位".repeat(i + 1), "entity"));
         }
 
-        List<WikiPage> got = WikiIngestDedupService.selectDedupCandidatePages(newItems, pages);
+        List<WikiPage> got = WikiIdentityDedup.selectDedupCandidatePages(newItems, pages);
 
         assertThat(containsSlug(got, "concept/deng-ji-shi-ye-ren-yuan"))
                 .as("强相关页面应被保留，实际=%s", slugsOf(got))
@@ -195,7 +195,7 @@ class WikiIngestDedupServiceTest {
                 page("concept/wholly-unrelated-1", "毫不相关一", "concept"),
                 page("concept/wholly-unrelated-2", "毫不相关二", "concept"),
                 page("concept/wholly-unrelated-3", "毫不相关三", "concept"));
-        List<WikiPage> got = WikiIngestDedupService.selectDedupCandidatePages(newItems, pages);
+        List<WikiPage> got = WikiIdentityDedup.selectDedupCandidatePages(newItems, pages);
         assertThat(got).hasSize(pages.size());
     }
 
@@ -212,7 +212,7 @@ class WikiIngestDedupServiceTest {
                 page("summary/some-doc", "Some Doc Summary", WikiConstants.PAGE_TYPE_SUMMARY),
                 page("comparison/foo-vs-bar", "Foo vs Bar", WikiConstants.PAGE_TYPE_COMPARISON),
                 page("concept/foo-related", "Foo Related", WikiConstants.PAGE_TYPE_CONCEPT));
-        List<WikiPage> got = WikiIngestDedupService.selectDedupCandidatePages(newItems, pages);
+        List<WikiPage> got = WikiIdentityDedup.selectDedupCandidatePages(newItems, pages);
         for (WikiPage p : got) {
             assertThat(p.getPageType())
                     .as("非 entity/concept 页面应被过滤：%s (%s)", p.getSlug(), p.getPageType())
@@ -227,8 +227,8 @@ class WikiIngestDedupServiceTest {
     @Test
     @DisplayName("无关中文配对的 surfaceGrams 交集为空（对照 Go TestSurfaceGrams_UnrelatedCJKPair）")
     void surfaceGramsUnrelatedCjkPair() {
-        Set<String> a = WikiIngestDedupService.surfaceGrams("城镇登记失业人员");
-        Set<String> b = WikiIngestDedupService.surfaceGrams("中华优秀传统文化");
+        Set<String> a = WikiIdentityDedup.surfaceGrams("城镇登记失业人员");
+        Set<String> b = WikiIdentityDedup.surfaceGrams("中华优秀传统文化");
         Set<String> shared = new LinkedHashSet<>(a);
         shared.retainAll(b);
         assertThat(shared).as("期望零 bigram 重叠，实际共享 %s", shared).isEmpty();
@@ -241,13 +241,13 @@ class WikiIngestDedupServiceTest {
     @Test
     @DisplayName("Acme Corp ↔ Acme Corporation 得分高于下限（对照 Go TestDedupPairScore_AcmeCorpVariant）")
     void dedupPairScoreAcmeCorpVariant() {
-        WikiIngestDedupService.DedupSurface a = new WikiIngestDedupService.DedupSurface(
-                WikiIngestDedupService.slugBaseTokens("entity/acme-corp"),
-                WikiIngestDedupService.gramsPerSurface(List.of("Acme Corp")));
-        WikiIngestDedupService.DedupSurface b = new WikiIngestDedupService.DedupSurface(
-                WikiIngestDedupService.slugBaseTokens("entity/acme-corporation"),
-                WikiIngestDedupService.gramsPerSurface(List.of("Acme Corporation")));
-        assertThat(WikiIngestDedupService.dedupPairScore(a, b))
+        WikiIdentityDedup.DedupSurface a = new WikiIdentityDedup.DedupSurface(
+                WikiIdentityDedup.slugBaseTokens("entity/acme-corp"),
+                WikiIdentityDedup.gramsPerSurface(List.of("Acme Corp")));
+        WikiIdentityDedup.DedupSurface b = new WikiIdentityDedup.DedupSurface(
+                WikiIdentityDedup.slugBaseTokens("entity/acme-corporation"),
+                WikiIdentityDedup.gramsPerSurface(List.of("Acme Corporation")));
+        assertThat(WikiIdentityDedup.dedupPairScore(a, b))
                 .as("期望 Acme Corp ↔ Corporation 得分高于下限 %s",
                         WikiBatchConstants.DEDUP_CANDIDATE_SCORE_FLOOR)
                 .isGreaterThanOrEqualTo(WikiBatchConstants.DEDUP_CANDIDATE_SCORE_FLOOR);
@@ -260,13 +260,13 @@ class WikiIngestDedupServiceTest {
     @Test
     @DisplayName("无关中文配对得分为 0（对照 Go TestDedupPairScore_UnrelatedCJKPair）")
     void dedupPairScoreUnrelatedCjkPair() {
-        WikiIngestDedupService.DedupSurface a = new WikiIngestDedupService.DedupSurface(
-                WikiIngestDedupService.slugBaseTokens("concept/chengzhen-dengji-shiye-renyuan"),
-                WikiIngestDedupService.gramsPerSurface(List.of("城镇登记失业人员", "登记失业人员")));
-        WikiIngestDedupService.DedupSurface b = new WikiIngestDedupService.DedupSurface(
-                WikiIngestDedupService.slugBaseTokens("concept/zhong-hua-you-xiu-chuan-tong-wen-hua"),
-                WikiIngestDedupService.gramsPerSurface(List.of("中华优秀传统文化")));
-        assertThat(WikiIngestDedupService.dedupPairScore(a, b))
+        WikiIdentityDedup.DedupSurface a = new WikiIdentityDedup.DedupSurface(
+                WikiIdentityDedup.slugBaseTokens("concept/chengzhen-dengji-shiye-renyuan"),
+                WikiIdentityDedup.gramsPerSurface(List.of("城镇登记失业人员", "登记失业人员")));
+        WikiIdentityDedup.DedupSurface b = new WikiIdentityDedup.DedupSurface(
+                WikiIdentityDedup.slugBaseTokens("concept/zhong-hua-you-xiu-chuan-tong-wen-hua"),
+                WikiIdentityDedup.gramsPerSurface(List.of("中华优秀传统文化")));
+        assertThat(WikiIdentityDedup.dedupPairScore(a, b))
                 .as("期望无关中文配对得分低于下限 %s", WikiBatchConstants.DEDUP_CANDIDATE_SCORE_FLOOR)
                 .isLessThan(WikiBatchConstants.DEDUP_CANDIDATE_SCORE_FLOOR);
     }
@@ -282,11 +282,11 @@ class WikiIngestDedupServiceTest {
     @Test
     @DisplayName("归一化标题保留语义标点（对照 Go TestNormalizeWikiIdentityTitlePreservesSemanticPunctuation）")
     void normalizeWikiIdentityTitlePreservesSemanticPunctuation() {
-        assertThat(WikiIngestDedupService.normalizeWikiIdentityTitle("  Acme  Corp "))
+        assertThat(WikiIdentityDedup.normalizeWikiIdentityTitle("  Acme  Corp "))
                 .isEqualTo("acmecorp");
-        assertThat(WikiIngestDedupService.normalizeWikiIdentityTitle("寓言"))
+        assertThat(WikiIdentityDedup.normalizeWikiIdentityTitle("寓言"))
                 .as("概念标题与作品/篇章标题必须保持不同身份")
-                .isNotEqualTo(WikiIngestDedupService.normalizeWikiIdentityTitle("《寓言》"));
+                .isNotEqualTo(WikiIdentityDedup.normalizeWikiIdentityTitle("《寓言》"));
     }
 
     /** 对照 Go {@code TestExactIdentityTargetSameTypeOnly} */
@@ -299,7 +299,7 @@ class WikiIngestDedupServiceTest {
         pages.put("concept/confucius", lite("concept/confucius", "孔子", WikiConstants.PAGE_TYPE_CONCEPT));
         Set<String> candidates = new LinkedHashSet<>(List.of("entity/confucius", "concept/confucius"));
 
-        assertThat(WikiIngestDedupService.exactIdentityTarget(
+        assertThat(WikiIdentityDedup.exactIdentityTarget(
                 it, WikiConstants.PAGE_TYPE_ENTITY, candidates, pages))
                 .isEqualTo("entity/confucius");
     }
@@ -413,7 +413,7 @@ class WikiIngestDedupServiceTest {
     @DisplayName("共享认领覆盖陈旧本地值（对照 Go TestWikiIdentityClaimRedisOverridesStaleLocal）")
     void wikiIdentityClaimSharedStoreOverridesStaleLocal() {
         WikiBatchContext batch = new WikiBatchContext();
-        String identity = WikiIngestDedupService.normalizeWikiIdentityTitle("孔子");
+        String identity = WikiIdentityDedup.normalizeWikiIdentityTitle("孔子");
         batch.identityClaims().put(
                 WikiBatchContext.identityPageCacheKey(WikiConstants.PAGE_TYPE_ENTITY, identity),
                 "entity/kong-zi");
@@ -596,7 +596,7 @@ class WikiIngestDedupServiceTest {
     @Test
     @DisplayName("替换共享存储里的非法值（对照 Go TestWikiIdentityClaimReplacesInvalidRedisValue）")
     void wikiIdentityClaimReplacesInvalidSharedValue() {
-        String identity = WikiIngestDedupService.normalizeWikiIdentityTitle("孔子");
+        String identity = WikiIdentityDedup.normalizeWikiIdentityTitle("孔子");
         // "garbage" 不以 "entity/" 开头 → 视为脏值
         claims.claim("kb-1", WikiConstants.PAGE_TYPE_ENTITY, identity,
                 "garbage", true, "entity/");
@@ -635,7 +635,7 @@ class WikiIngestDedupServiceTest {
                         List<WikiPageLite> out = new ArrayList<>();
                         for (WikiPageLite p : corpus) {
                             if (p != null
-                                    && want.contains(WikiIngestDedupService.normalizeWikiIdentityTitle(p.getTitle()))) {
+                                    && want.contains(WikiIdentityDedup.normalizeWikiIdentityTitle(p.getTitle()))) {
                                 out.add(p);
                             }
                         }
@@ -679,7 +679,7 @@ class WikiIngestDedupServiceTest {
                     grown, candidatePages, itemCandidates, batch);
             assertThat(calls).as("缓存未命中应只查新身份，实际 %d last=%s", calls, last).isEqualTo(2);
             assertThat(last).hasSize(1);
-            assertThat(last.get(0)).isEqualTo(WikiIngestDedupService.normalizeWikiIdentityTitle("荀子"));
+            assertThat(last.get(0)).isEqualTo(WikiIdentityDedup.normalizeWikiIdentityTitle("荀子"));
         }
     }
 
@@ -695,23 +695,23 @@ class WikiIngestDedupServiceTest {
                 page("entity/a", "A", WikiConstants.PAGE_TYPE_ENTITY),
                 page("concept/b", "B", WikiConstants.PAGE_TYPE_CONCEPT),
                 page("summary/c", "C", WikiConstants.PAGE_TYPE_SUMMARY));
-        assertThat(WikiIngestDedupService.countEntityConceptPages(pages)).isEqualTo(2);
+        assertThat(WikiIdentityDedup.countEntityConceptPages(pages)).isEqualTo(2);
     }
 
     /** 对照 Go {@code slugBaseTokens} 的注释示例 */
     @Test
     @DisplayName("slugBaseTokens 例：entity/beijing-nongshang-yinxing")
     void slugBaseTokens() {
-        assertThat(WikiIngestDedupService.slugBaseTokens("entity/beijing-nongshang-yinxing"))
+        assertThat(WikiIdentityDedup.slugBaseTokens("entity/beijing-nongshang-yinxing"))
                 .containsExactlyInAnyOrder("beijing", "nongshang", "yinxing");
-        assertThat(WikiIngestDedupService.slugBaseTokens("")).isEmpty();
+        assertThat(WikiIdentityDedup.slugBaseTokens("")).isEmpty();
     }
 
     /** 对照 Go {@code gramsPerSurface}：空表层形式被跳过 */
     @Test
     @DisplayName("gramsPerSurface 跳过空表层形式")
     void gramsPerSurfaceSkipsEmpty() {
-        List<Set<String>> grams = WikiIngestDedupService.gramsPerSurface(
+        List<Set<String>> grams = WikiIdentityDedup.gramsPerSurface(
                 List.of("Acme", "", "  ", "B"));
         assertThat(grams).hasSize(2);
     }
@@ -720,9 +720,9 @@ class WikiIngestDedupServiceTest {
     @Test
     @DisplayName("appendUniqueString 去空白且不重复")
     void appendUniqueString() {
-        List<String> out = WikiIngestDedupService.appendUniqueString(new ArrayList<>(), "  a ");
-        out = WikiIngestDedupService.appendUniqueString(out, "a");
-        out = WikiIngestDedupService.appendUniqueString(out, "  ");
+        List<String> out = WikiIdentityDedup.appendUniqueString(new ArrayList<>(), "  a ");
+        out = WikiIdentityDedup.appendUniqueString(out, "a");
+        out = WikiIdentityDedup.appendUniqueString(out, "  ");
         assertThat(out).containsExactly("a");
     }
 
@@ -733,8 +733,8 @@ class WikiIngestDedupServiceTest {
         assertThat(svc.remapSlugUpdatesByIdentity("kb-1", null, new WikiBatchContext())).isNull();
         assertThat(svc.stabilizeExtractedIdentities("kb-1", WikiConstants.PAGE_TYPE_ENTITY,
                 null, null, null, null)).isEmpty();
-        assertThat(WikiIngestDedupService.selectDedupCandidatePages(null, null)).isEmpty();
-        assertThat(WikiIngestDedupService.mergeExtractedIdentity(
+        assertThat(WikiIdentityDedup.selectDedupCandidatePages(null, null)).isEmpty();
+        assertThat(WikiIdentityDedup.mergeExtractedIdentity(
                 new ExtractedItem(), new ExtractedItem()).getName()).isEmpty();
     }
 }
