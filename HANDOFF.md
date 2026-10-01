@@ -883,6 +883,34 @@ embed+session.controller 152 条测试 0 失败 / 全量 4,668 条 0 失败（cl
 channel/request0/successEnvelope 经类名）；④sed 插入 `\w` 会被 shell 吃反斜杠 → 插入一律用 python 行级
 操作（§13.6 heredoc 坑的 sed 变体）。
 
+#### 14.7.13 PluginSearch 执行计划（2026-10-01 侦察，接替 embed；chatpipeline 续刀）
+
+**目标类**：`chatpipeline/plugin/PluginSearch` 899（检索插件：onEvent 编排 + embedding 分组检索 +
+web 检索 + 查询扩展 + 关键词/分词静态工具）。
+
+**测试床**：`SearchRecordingTest`（直 `new PluginSearch(...)`，构造签名冻结；实例直调
+`searchByTargets`/`runQueryExpansion`/`expandQueries`，**static 直调** extractKeywords/extractPhrases/
+splitByDelimiters/removeQuestionWords/tokenize 五个）+ `SearchGradingTest`；chatpipeline 域 45 @Test。
+外部面：`QaWiring` 装配；`SearchSupport`/`PipelinePorts` 仅 javadoc/注释提及。
+
+**共享定置（不随簇）**：`withTenant`/`joinQuietly`（P2/P3 与 onEvent 共用 static，留门面放宽包内）、
+`mapOf` 随 P3（onEvent 不用）；字段 `knowledgeService`/`chunkService`/`sessionService`/
+`webSearchStateService`/`webSearchProviderRepo`/`config` 仅 onEvent 用，留门面。
+
+**簇边界**（协作者 `service` 回引——本类无 `service` 局部变量；`chatManage` 是形参不替换）：
+- `QueryTextOps`（刀 P1，全静态）：STOPWORDS/QUESTION_WORDS/QUOTED_PHRASE/DELIMITERS +
+  extractKeywords/extractPhrases/splitByDelimiters/removeQuestionWords/tokenize/isHan/runeCount；
+  门面留五 static 薄委托（测试直调）。
+- `PluginExpansionOps`（刀 P2）：runQueryExpansion/expandQueries/addIfNew；门面留两 public 薄委托。
+- `PluginSearchOps`（刀 P3）：searchByTargets/searchModelGroup/searchSingleTarget +
+  targetReportsEmbedFailure/isVectorEnabled/isKeywordEnabled + searchWebIfEnabled/
+  currentTenantWebSearchConfig/effectiveWebSearchConfig/mapOf；门面留 searchByTargets public 委托 +
+  searchWebIfEnabled 包内委托（onEvent 消费）。
+
+**预估**：门面 899→~300；三个协作者 120~390 行。闸门：每刀 `--rerun-tasks` 重编 +
+`--tests "com.ragagent.chatpipeline.*"`（≥45）+ spotlessCheck + 忠实性逐字比对；
+收官 clean 全量 + 环守卫。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
