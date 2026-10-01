@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"Key: 'CreateModelRequest.Name' Error:Field validation for 'Name' failed on the 'required' tag"},"success":false}
+{"error":{"code":1000,"details":"name: 不能为空","message":"请求参数不合法"},"success":false}

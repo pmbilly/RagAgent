@@ -1,7 +1,5 @@
 package com.ragagent.model.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-/** CredentialFieldMetadata（对照 Go dto.CredentialFieldMetadata） */
-public record CredentialFieldMetadata(@JsonProperty("configured") boolean configured) {
+/** 单个凭据字段的已配置状态。 */
+public record CredentialFieldMetadata(boolean configured) {
 }

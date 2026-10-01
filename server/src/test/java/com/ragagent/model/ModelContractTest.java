@@ -34,11 +34,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * 阶段 2 契约测试：模型配置模块，对照 golden 逐字节比对。
+ * 模型配置模块契约测试（CRUD + providers + credentials 子资源）。
  *
- * golden 来源：Go dev server（2026-09-17 录制，完整生命周期实录）。
- * 动态字段（模型 UUID / 时间戳）两侧同掩码；其余静态 golden 直接逐字节断言。
- * 掩码规则与 AuthContractTest 一致，另加模型 id 掩码。
+ * <p>fixture 锚定本仓行为：动态字段（模型 UUID / 时间戳）两侧同掩码后语义比对；
+ * 静态 fixture 直接字节断言。请求体与响应键名均为 camelCase（字段名即 JSON 键名）。</p>
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -52,14 +51,14 @@ class ModelContractTest {
     private static final Pattern MODEL_ID_PATTERN = Pattern.compile(
             "\"id\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
 
-    private static final String CREATE_BODY = "{\"name\":\"golden-lifecycle\",\"display_name\":\"Golden Lifecycle\","
+    private static final String CREATE_BODY = "{\"name\":\"golden-lifecycle\",\"displayName\":\"Golden Lifecycle\","
             + "\"type\":\"KnowledgeQA\",\"source\":\"remote\",\"description\":\"phase2 golden\","
-            + "\"parameters\":{\"base_url\":\"https://api.deepseek.com/v1\",\"api_key\":\"sk-golden-secret\","
-            + "\"provider\":\"openai\",\"supports_vision\":true,\"context_window\":128000,\"max_output_tokens\":4096}}";
-    private static final String UPDATE_BODY = "{\"name\":\"golden-lifecycle-v2\",\"display_name\":\"Golden V2\","
+            + "\"parameters\":{\"baseUrl\":\"https://api.deepseek.com/v1\",\"apiKey\":\"sk-golden-secret\","
+            + "\"provider\":\"openai\",\"supportsVision\":true,\"contextWindow\":128000,\"maxOutputTokens\":4096}}";
+    private static final String UPDATE_BODY = "{\"name\":\"golden-lifecycle-v2\",\"displayName\":\"Golden V2\","
             + "\"description\":\"updated\","
-            + "\"parameters\":{\"base_url\":\"https://api.deepseek.com/v1\",\"provider\":\"openai\","
-            + "\"supports_vision\":false,\"context_window\":64000}}";
+            + "\"parameters\":{\"baseUrl\":\"https://api.deepseek.com/v1\",\"provider\":\"openai\","
+            + "\"supportsVision\":false,\"contextWindow\":64000}}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -135,7 +134,7 @@ class ModelContractTest {
 
     @Test
     void providersFilteredByChat() throws Exception {
-        mockMvc.perform(get("/api/v1/models/providers?model_type=chat")
+        mockMvc.perform(get("/api/v1/models/providers?modelType=chat")
                         .header("Authorization", "Bearer " + loginOwner()))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(goldenBytes("model-providers-chat.json")));
@@ -163,7 +162,7 @@ class ModelContractTest {
                         .header("Authorization", "Bearer " + loginOwner())
                         .contentType("application/json")
                         .content("{\"type\":\"KnowledgeQA\",\"source\":\"openai\","
-                                + "\"parameters\":{\"base_url\":\"https://api.openai.com/v1\"}}"))
+                                + "\"parameters\":{\"baseUrl\":\"https://api.openai.com/v1\"}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().bytes(goldenBytes("model-create-validation.json")));
     }
@@ -174,7 +173,7 @@ class ModelContractTest {
                         .header("Authorization", "Bearer " + loginOwner())
                         .contentType("application/json")
                         .content("{\"name\":\"ssrf-test\",\"type\":\"KnowledgeQA\",\"source\":\"openai\","
-                                + "\"parameters\":{\"base_url\":\"http://127.0.0.1:8080/v1\",\"api_key\":\"sk-test\"}}"))
+                                + "\"parameters\":{\"baseUrl\":\"http://127.0.0.1:8080/v1\",\"apiKey\":\"sk-test\"}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().bytes(goldenBytes("model-create-ssrf.json")));
     }
@@ -185,7 +184,7 @@ class ModelContractTest {
                         .header("Authorization", "Bearer " + loginViewer())
                         .contentType("application/json")
                         .content("{\"name\":\"v\",\"type\":\"KnowledgeQA\",\"source\":\"openai\","
-                                + "\"parameters\":{\"base_url\":\"https://api.openai.com/v1\"}}"))
+                                + "\"parameters\":{\"baseUrl\":\"https://api.openai.com/v1\"}}"))
                 .andExpect(status().isForbidden())
                 .andExpect(content().bytes(goldenBytes("model-create-forbidden-viewer.json")));
     }
@@ -229,7 +228,7 @@ class ModelContractTest {
         mockMvc.perform(put("/api/v1/models/" + modelId + "/credentials")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
-                        .content("{\"api_key\":\"sk-rotated-key\"}"))
+                        .content("{\"apiKey\":\"sk-rotated-key\"}"))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(goldenBytes("model-cred-put.json")));
 
@@ -247,11 +246,11 @@ class ModelContractTest {
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
 
-        // delete → 200（静态）
+        // delete → 204 无响应体
         mockMvc.perform(delete("/api/v1/models/" + modelId)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("model-delete.json")));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
     }
 
     // ── 工具 ──────────────────────────────────────────────────────────────
