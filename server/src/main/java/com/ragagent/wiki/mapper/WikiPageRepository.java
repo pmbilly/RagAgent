@@ -1,7 +1,5 @@
 package com.ragagent.wiki.mapper;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,6 +11,7 @@ import java.util.Set;
 import javax.sql.DataSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragagent.common.jdbc.DatabaseDialects;
 import com.ragagent.wiki.domain.SourceRefNeedle;
 import com.ragagent.wiki.domain.WikiCategoryPaths;
 import com.ragagent.wiki.domain.WikiConstants;
@@ -30,8 +29,6 @@ import com.ragagent.wiki.domain.WikiPageNotFoundException;
 import com.ragagent.wiki.domain.WikiPageRevision;
 import com.ragagent.wiki.domain.WikiRevisionPruneRequest;
 import com.ragagent.wiki.domain.WikiSourceRefs;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,8 +59,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Repository
 public class WikiPageRepository {
-
-    private static final Logger log = LoggerFactory.getLogger(WikiPageRepository.class);
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -101,24 +96,12 @@ public class WikiPageRepository {
         this.revisions = revisions;
         this.folders = folders;
         this.issues = issues;
-        this.postgres = detectPostgres(dataSource);
+        this.postgres = DatabaseDialects.isPostgres(dataSource);
     }
 
     /** 当前方言是否为 PostgreSQL（构造期探测一次）。 */
     public boolean isPostgres() {
         return postgres;
-    }
-
-    private static boolean detectPostgres(DataSource dataSource) {
-        try (Connection c = dataSource.getConnection()) {
-            String product = c.getMetaData().getDatabaseProductName();
-            boolean pg = product != null && product.toLowerCase().contains("postgres");
-            log.debug("wiki dialect resolved: product={} postgres={}", product, pg);
-            return pg;
-        } catch (SQLException e) {
-            log.warn("wiki dialect detection failed, falling back to non-postgres: {}", e.toString());
-            return false;
-        }
     }
 
     // ──────────────────────────── 结果载体 ────────────────────────────
