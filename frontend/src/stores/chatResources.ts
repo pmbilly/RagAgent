@@ -38,7 +38,7 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
   // creator==='all' 的列表请求单独去重：首屏 platform 预取与对话页 onMounted
   // 可能并发触发，缓存尚未写入时不去重会重复打 listKnowledgeBases / listAgents。
   let kbAllInflight: Promise<any[]> | null = null
-  let agentsAllInflight: Promise<{ data: CustomAgent[]; disabled_own_agent_ids: string[] }> | null = null
+  let agentsAllInflight: Promise<{ agents: CustomAgent[]; disabledOwnAgentIds: string[] }> | null = null
   // 代际计数：force 与非 force 并发时句柄会被后来者覆盖，旧请求结束时凭此判断
   // 自己是否仍是最新的那次，避免误清正在飞行的句柄。
   let kbAllGen = 0
@@ -139,25 +139,25 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
   async function fetchAgentsForList(
     params?: { creator?: ListCreatorFilter },
     force = false,
-  ): Promise<{ data: CustomAgent[]; disabled_own_agent_ids: string[] }> {
+  ): Promise<{ agents: CustomAgent[]; disabledOwnAgentIds: string[] }> {
     const creator = params?.creator ?? 'all'
 
     // 带 creator 过滤的列表不进缓存，直接透传请求。
     if (creator !== 'all') {
       const agentsRes = await listAgents({ creator })
-      const res = agentsRes as { data?: CustomAgent[]; disabled_own_agent_ids?: string[] }
-      return { data: res.data || [], disabled_own_agent_ids: res.disabled_own_agent_ids || [] }
+      const res = agentsRes as { agents?: CustomAgent[]; disabledOwnAgentIds?: string[] }
+      return { agents: res.agents || [], disabledOwnAgentIds: res.disabledOwnAgentIds || [] }
     }
 
     const locale = getCurrentLanguage()
     if (!force && isFresh('agents')) {
-      return { data: agents.value, disabled_own_agent_ids: disabledOwnAgentIds.value }
+      return { agents: agents.value, disabledOwnAgentIds: disabledOwnAgentIds.value }
     }
     if (
       !force &&
       shouldReuseLocalizedInflight(!!agentsAllInflight, agentsAllInflightLocale, locale)
     ) {
-      return agentsAllInflight as Promise<{ data: CustomAgent[]; disabled_own_agent_ids: string[] }>
+      return agentsAllInflight as Promise<{ agents: CustomAgent[]; disabledOwnAgentIds: string[] }>
     }
 
     const gen = ++agentsAllGen
@@ -166,16 +166,16 @@ export const useChatResourcesStore = defineStore('chatResources', () => {
     agentsAllInflight = (async () => {
       try {
         const agentsRes = await listAgents()
-        const res = agentsRes as { data?: CustomAgent[]; disabled_own_agent_ids?: string[] }
-        const data = res.data || []
-        const disabled = res.disabled_own_agent_ids || []
+        const res = agentsRes as { agents?: CustomAgent[]; disabledOwnAgentIds?: string[] }
+        const data = res.agents || []
+        const disabled = res.disabledOwnAgentIds || []
         if (shouldCommitLocalizedGeneration(gen, agentsAllGen)) {
           agents.value = data
           disabledOwnAgentIds.value = disabled
           loadedAt.value.agents = Date.now()
           agentsLoadedLocale = requestLocale
         }
-        return { data, disabled_own_agent_ids: disabled }
+        return { agents: data, disabledOwnAgentIds: disabled }
       } finally {
         if (shouldCommitLocalizedGeneration(gen, agentsAllGen)) {
           agentsAllInflight = null

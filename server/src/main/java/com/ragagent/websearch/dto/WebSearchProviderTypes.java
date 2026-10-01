@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 对照 Go {@code types.GetWebSearchProviderTypes()}（internal/types/web_search_provider.go
@@ -183,28 +182,18 @@ public final class WebSearchProviderTypes {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TypeInfo {
-        @JsonProperty("id")
-        public String id;
-        @JsonProperty("name")
-        public String name;
-        @JsonProperty("requires_api_key")
-        public boolean requiresApiKey;
-        @JsonProperty("supports_optional_api_key")
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+                public String id;
+                public String name;
+                public boolean requiresApiKey;
+                @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         public boolean supportsOptionalApiKey;
-        @JsonProperty("requires_engine_id")
-        public boolean requiresEngineId;
-        @JsonProperty("requires_base_url")
-        public boolean requiresBaseUrl;
-        @JsonProperty("supports_proxy")
-        public boolean supportsProxy;
-        @JsonProperty("description")
-        public String description;
-        @JsonProperty("docs_url")
-        @JsonInclude(JsonInclude.Include.NON_NULL)
+                public boolean requiresEngineId;
+                public boolean requiresBaseUrl;
+                public boolean supportsProxy;
+                public String description;
+                @JsonInclude(JsonInclude.Include.NON_NULL)
         public String docsUrl;
-        @JsonProperty("config_fields")
-        @JsonInclude(JsonInclude.Include.NON_NULL)
+                @JsonInclude(JsonInclude.Include.NON_NULL)
         public List<Map<String, Object>> configFields;
     }
 }

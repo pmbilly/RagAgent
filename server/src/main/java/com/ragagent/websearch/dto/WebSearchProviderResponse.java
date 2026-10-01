@@ -7,7 +7,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.websearch.domain.WebSearchProvider;
 
 /**
@@ -21,25 +20,15 @@ import com.ragagent.websearch.domain.WebSearchProvider;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class WebSearchProviderResponse {
 
-    @JsonProperty("id")
     public String id;
-    @JsonProperty("tenant_id")
     public long tenantId;
-    @JsonProperty("name")
     public String name;
-    @JsonProperty("provider")
     public String provider;
-    @JsonProperty("description")
     public String description;
-    @JsonProperty("parameters")
     public ParametersDTO parameters;
-    @JsonProperty("is_default")
     public boolean isDefault;
-    @JsonProperty("created_at")
-    public OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("updated_at")
-    public OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
-    @JsonProperty("credentials")
+    public OffsetDateTime createdAt;
+    public OffsetDateTime updatedAt;
     public Map<String, CredentialFieldMetadata> credentials;
 
     public static WebSearchProviderResponse from(WebSearchProvider e, boolean canViewIntegrationSecrets) {
@@ -61,8 +50,8 @@ public class WebSearchProviderResponse {
         }
         r.parameters = dto;
         r.isDefault = e.isDefault();
-        r.createdAt = e.getCreatedAt() == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : e.getCreatedAt();
-        r.updatedAt = e.getUpdatedAt() == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : e.getUpdatedAt();
+        r.createdAt = e.getCreatedAt();
+        r.updatedAt = e.getUpdatedAt();
         // Go 恒构造 map（即使 api_key 为空）→ omitempty 不触发，键恒在
         Map<String, CredentialFieldMetadata> creds = new LinkedHashMap<>();
         creds.put("api_key", new CredentialFieldMetadata(params != null && !params.getApiKey().isEmpty()));
@@ -84,17 +73,13 @@ public class WebSearchProviderResponse {
     /** 对照 WebSearchProviderParametersDTO：除 api_key 外的全部参数（非秘密） */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ParametersDTO {
-        @JsonProperty("engine_id")
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+            @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         public String engineId = "";
-        @JsonProperty("base_url")
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+            @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         public String baseUrl = "";
-        @JsonProperty("proxy_url")
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+            @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         public String proxyUrl = "";
-        @JsonProperty("extra_config")
-        @JsonInclude(JsonInclude.Include.NON_NULL)
+            @JsonInclude(JsonInclude.Include.NON_NULL)
         public Map<String, String> extraConfig;
     }
 

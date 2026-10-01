@@ -12,7 +12,7 @@ function task(id: string): RuntimeTask {
     state: 'archived',
     allowed_actions: [],
     retried: 0,
-    max_retry: 0,
+    maxRetry: 0,
   }
 }
 

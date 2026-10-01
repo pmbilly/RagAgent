@@ -2709,7 +2709,7 @@ async function loadMoreIndexSection() {
 
     const items: WikiIndexEntryDTO[] = group?.items || []
     const total: number = group?.total || 0
-    const nextCursor: string = group?.next_cursor || ''
+    const nextCursor: string = group?.nextCursor || ''
 
     // Only emit a section heading the first time we see entries for a
     // type. An empty section is skipped entirely so the reader doesn't

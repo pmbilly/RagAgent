@@ -647,34 +647,34 @@ export interface RuntimeTask {
   allowed_actions: RuntimeTaskAction[]
   last_error?: string
   last_failed_at?: string
-  next_process_at?: string
-  started_at?: string
-  completed_at?: string
+  nextProcessAt?: string
+  startedAt?: string
+  completedAt?: string
   deadline?: string
-  enqueued_at?: string
+  enqueuedAt?: string
   retried: number
-  max_retry: number
-  is_orphaned?: boolean
+  maxRetry: number
+  isOrphaned?: boolean
   worker?: string
-  tenant_id?: number
-  knowledge_base_id?: string
-  knowledge_id?: string
-  task_id?: string
-  source_id?: string
-  target_id?: string
-  source_kb_id?: string
-  target_kb_id?: string
-  data_source_id?: string
-  sync_log_id?: string
-  knowledge_count?: number
+  tenantId?: number
+  knowledgeBaseId?: string
+  knowledgeId?: string
+  taskId?: string
+  sourceId?: string
+  targetId?: string
+  sourceKbId?: string
+  targetKbId?: string
+  dataSourceId?: string
+  syncLogId?: string
+  knowledgeCount?: number
 }
 
 export interface RuntimeTasksResponse {
   available: boolean
   tasks: RuntimeTask[]
   pageSize: number
-  has_more: boolean
-  next_cursor?: string
+  hasMore: boolean
+  nextCursor?: string | null
 }
 
 /**

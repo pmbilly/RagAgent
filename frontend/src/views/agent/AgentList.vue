@@ -683,9 +683,9 @@ const showAgentListContextualGuide = computed(
   () => showAgentListEmpty.value && isReadyForAgent.value && !editorVisible.value,
 )
 
-const applyAgentListData = (res: { data: CustomAgent[]; disabled_own_agent_ids: string[] }) => {
-  const disabledOwnIds = res.disabled_own_agent_ids || []
-  agents.value = (res.data || []).map((agent: CustomAgent) => ({
+const applyAgentListData = (res: { agents: CustomAgent[]; disabledOwnAgentIds: string[] }) => {
+  const disabledOwnIds = res.disabledOwnAgentIds || []
+  agents.value = (res.agents || []).map((agent: CustomAgent) => ({
     ...agent,
     showMore: false,
     disabled_by_me: disabledOwnIds.includes(agent.id)

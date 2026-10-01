@@ -174,13 +174,20 @@ class WebSearchProviderContractTest {
         compare(golden, result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    /** {@code -Dcontract.refresh=true} 时把掩码后的实际响应写回夹具（换锚批重录用）。 */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
     private void compare(String golden, String actual) throws Exception {
         Path file = Path.of("src/test/resources/contracts", golden);
         if (!Files.exists(file)) {
             file = Path.of("server/src/test/resources/contracts", golden);
         }
-        String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8));
-        assertEquals(expected, mask(actual),
+        if (REFRESH_FIXTURES) {
+            Files.writeString(file, mask(actual) + "\n");
+            return;
+        }
+        String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8)).strip();
+        assertEquals(expected, mask(actual).strip(),
                 () -> "golden mismatch: " + golden + "\nexpected: " + expected + "\nactual:   " + mask(actual));
     }
 
@@ -197,7 +204,7 @@ class WebSearchProviderContractTest {
                 () -> "seed create failed: " + result.getResponse().getErrorMessage());
         com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper()
                 .readTree(result.getResponse().getContentAsString());
-        return node.get("data").get("id").asText();
+        return node.get("id").asText();
     }
 
     // ── 1) 静态元数据 ──────────────────────────────────────────────────
@@ -220,13 +227,13 @@ class WebSearchProviderContractTest {
         compareAndStatus("wsp-create-brave-nokey.json", 500, "POST", base, owner,
                 "{\"name\":\"x\",\"provider\":\"brave\"}");
         compareAndStatus("wsp-create-zhipu-badengine.json", 500, "POST", base, owner,
-                "{\"name\":\"x\",\"provider\":\"zhipu\",\"parameters\":{\"extra_config\":{\"search_engine\":\"bogus\"}}}");
+                "{\"name\":\"x\",\"provider\":\"zhipu\",\"parameters\":{\"extraConfig\":{\"search_engine\":\"bogus\"}}}");
         compareAndStatus("wsp-create-searxng-nourl.json", 500, "POST", base, owner,
                 "{\"name\":\"x\",\"provider\":\"searxng\"}");
         compareAndStatus("wsp-create-searxng-ssrf.json", 500, "POST", base, owner,
-                "{\"name\":\"x\",\"provider\":\"searxng\",\"parameters\":{\"base_url\":\"http://127.0.0.1:18999\"}}");
+                "{\"name\":\"x\",\"provider\":\"searxng\",\"parameters\":{\"baseUrl\":\"http://127.0.0.1:18999\"}}");
         compareAndStatus("wsp-create-badproxy.json", 500, "POST", base, owner,
-                "{\"name\":\"x\",\"provider\":\"duckduckgo\",\"parameters\":{\"proxy_url\":\"http://127.0.0.1:1080\"}}");
+                "{\"name\":\"x\",\"provider\":\"duckduckgo\",\"parameters\":{\"proxyUrl\":\"http://127.0.0.1:1080\"}}");
         compareAndStatus("wsp-viewer-create.json", 403, "POST", base, viewer,
                 "{\"name\":\"x\",\"provider\":\"duckduckgo\"}");
     }
@@ -238,9 +245,9 @@ class WebSearchProviderContractTest {
         String base = API + "/web-search-providers";
         createProvider(
                 "{\"name\":\"wsp-golden-ddg\",\"provider\":\"duckduckgo\",\"description\":\"d\","
-                        + "\"parameters\":{\"base_url\":\"x\",\"extra_config\":{\"k\":\"v\"}},\"is_default\":false}");
-        createProvider("{\"name\":\"wsp-def-one\",\"provider\":\"duckduckgo\",\"is_default\":true}");
-        createProvider("{\"name\":\"wsp-def-two\",\"provider\":\"duckduckgo\",\"is_default\":true}");
+                        + "\"parameters\":{\"baseUrl\":\"x\",\"extraConfig\":{\"k\":\"v\"}},\"isDefault\":false}");
+        createProvider("{\"name\":\"wsp-def-one\",\"provider\":\"duckduckgo\",\"isDefault\":true}");
+        createProvider("{\"name\":\"wsp-def-two\",\"provider\":\"duckduckgo\",\"isDefault\":true}");
         compareAndStatus("wsp-list-defaults.json", 200, "GET", base, owner, null);
         compareAndStatus("wsp-get.json", 200, "GET",
                 base + "/" + latestId("wsp-golden-ddg"), owner, null);
@@ -261,17 +268,17 @@ class WebSearchProviderContractTest {
         String base = API + "/web-search-providers";
         String ddg = createProvider(
                 "{\"name\":\"wsp-golden-ddg\",\"provider\":\"duckduckgo\",\"description\":\"d\","
-                        + "\"parameters\":{\"base_url\":\"x\",\"extra_config\":{\"k\":\"v\"}},\"is_default\":false}");
-        String def1 = createProvider("{\"name\":\"wsp-def-one\",\"provider\":\"duckduckgo\",\"is_default\":true}");
+                        + "\"parameters\":{\"baseUrl\":\"x\",\"extraConfig\":{\"k\":\"v\"}},\"isDefault\":false}");
+        String def1 = createProvider("{\"name\":\"wsp-def-one\",\"provider\":\"duckduckgo\",\"isDefault\":true}");
 
         compareAndStatus("wsp-update-404.json", 404, "PUT", base + "/" + UNKNOWN, owner,
                 "{\"name\":\"x\"}");
         compareAndStatus("wsp-update-preserve.json", 200, "PUT", base + "/" + def1, owner,
-                "{\"name\":\"\",\"description\":\"\",\"parameters\":{},\"is_default\":false}");
+                "{\"name\":\"\",\"description\":\"\",\"parameters\":{},\"isDefault\":false}");
         compareAndStatus("wsp-get-after-update.json", 200, "GET", base + "/" + def1, owner, null);
         // api_key 忽略 + engine_id 设置 + extra_config 保留 + base_url 丢弃
         compareAndStatus("wsp-update-params-merge.json", 200, "PUT", base + "/" + ddg, owner,
-                "{\"parameters\":{\"engine_id\":\"e2\",\"api_key\":\"stale-key\"}}");
+                "{\"parameters\":{\"engineId\":\"e2\",\"apiKey\":\"stale-key\"}}");
         compareAndStatus("wsp-get-after-merge.json", 200, "GET", base + "/" + ddg, owner, null);
     }
 
@@ -284,13 +291,13 @@ class WebSearchProviderContractTest {
         // → 才进入凭据流；本段必须复刻这些前置变更
         String ddg = createProvider(
                 "{\"name\":\"wsp-golden-ddg\",\"provider\":\"duckduckgo\",\"description\":\"d\","
-                        + "\"parameters\":{\"base_url\":\"x\",\"extra_config\":{\"k\":\"v\"}},\"is_default\":false}");
+                        + "\"parameters\":{\"baseUrl\":\"x\",\"extraConfig\":{\"k\":\"v\"}},\"isDefault\":false}");
         perform("PUT", base + "/" + ddg, owner,
-                "{\"parameters\":{\"engine_id\":\"e2\",\"api_key\":\"stale-key\"}}");
+                "{\"parameters\":{\"engineId\":\"e2\",\"apiKey\":\"stale-key\"}}");
 
         compareAndStatus("wsp-cred-put-status.json", 200, "PUT", base + "/" + ddg + "/credentials", owner, "{}");
         compareAndStatus("wsp-cred-put.json", 200, "PUT", base + "/" + ddg + "/credentials", owner,
-                "{\"api_key\":\"sk-golden-123\"}");
+                "{\"apiKey\":\"sk-golden-123\"}");
         compareAndStatus("wsp-get-after-cred.json", 200, "GET", base + "/" + ddg, owner, null);
         compareAndStatus("wsp-cred-put-badjson.json", 400, "PUT", base + "/" + ddg + "/credentials", owner, "");
         compareAndStatus("wsp-cred-put-404.json", 404, "PUT", base + "/" + UNKNOWN + "/credentials", owner, "{}");
@@ -313,16 +320,16 @@ class WebSearchProviderContractTest {
         compareAndStatus("wsp-test-raw-unknown.json", 200, "POST", base + "/test", owner,
                 "{\"provider\":\"nosuch\",\"parameters\":{}}");
         compareAndStatus("wsp-test-raw-searxng-empty.json", 200, "POST", base + "/test", owner,
-                "{\"provider\":\"searxng\",\"parameters\":{\"base_url\":\"\"}}");
+                "{\"provider\":\"searxng\",\"parameters\":{\"baseUrl\":\"\"}}");
         compareAndStatus("wsp-test-raw-searxng-ssrf.json", 200, "POST", base + "/test", owner,
-                "{\"provider\":\"searxng\",\"parameters\":{\"base_url\":\"http://127.0.0.1:18999\"}}");
+                "{\"provider\":\"searxng\",\"parameters\":{\"baseUrl\":\"http://127.0.0.1:18999\"}}");
         compareAndStatus("wsp-test-raw-zhipu-nokey.json", 200, "POST", base + "/test", owner,
                 "{\"provider\":\"zhipu\",\"parameters\":{}}");
         compareAndStatus("wsp-test-raw-badjson.json", 400, "POST", base + "/test", owner, "");
         compareAndStatus("wsp-test-viewer-denied.json", 403, "POST", base + "/test", viewer,
                 "{\"provider\":\"zhipu\"}");
         compareAndStatus("wsp-test-byid-404.json", 404, "POST", base + "/" + UNKNOWN + "/test", owner, null);
-        compareAndStatus("wsp-delete.json", 200, "DELETE", base + "/" + ddg, owner, null);
+        compareAndStatus("wsp-delete.json", 204, "DELETE", base + "/" + ddg, owner, null);
         compareAndStatus("wsp-delete-404.json", 404, "DELETE", base + "/" + UNKNOWN, owner, null);
         compareAndStatus("wsp-get-after-delete.json", 404, "GET", base + "/" + ddg, owner, null);
     }
@@ -331,7 +338,7 @@ class WebSearchProviderContractTest {
 
     /**
      * 2026-09-23 占位扫清回归（doTestSearch 真实执行编排）：构造成功 → 真实 search
-     * 的三种出口——有结果 {"success":true}；空结果 → EmptyTestResults 文案；
+     * 的三种出口——有结果 {"connected":true}；空结果 → EmptyTestResults 文案；
      * search 抛错 → 原文透传（均 200 纯字符串）。以 registry.register 注入内存
      * stub（无需外网；Go 侧无此路径实录，故为内联断言而非 golden）。
      */
@@ -344,7 +351,7 @@ class WebSearchProviderContractTest {
         String base = API + "/web-search-providers";
         MvcResult ok = perform("POST", base + "/test", owner, "{\"provider\":\"stub-ok\"}");
         assertEquals(200, ok.getResponse().getStatus());
-        assertTrue(ok.getResponse().getContentAsString().contains("\"success\":true"),
+        assertTrue(ok.getResponse().getContentAsString().contains("\"connected\":true"),
                 ok.getResponse().getContentAsString());
 
         // 空结果 → default 文案（stub-empty 不在 searxng/ddg/keenable/exa 分支）

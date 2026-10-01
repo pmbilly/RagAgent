@@ -3,40 +3,40 @@ import { get, post, put, del } from '@/utils/request'
 // WebSearchProviderEntity represents a configured web search provider instance
 export interface WebSearchProviderEntity {
   id?: string
-  tenant_id?: number
+  tenantId?: number
   name: string
   provider: 'brave' | 'bing' | 'google' | 'duckduckgo' | 'tavily' | 'ollama' | 'baidu' | 'searxng' | 'keenable' | 'zhipu' | 'metaso' | 'exa' | 'bocha'
   description?: string
   parameters: {
-    // api_key is never returned by the server in this shape; it lives behind
+    // apiKey is never returned by the server in this shape; it lives behind
     // the /credentials subresource. Kept on the type so the initial create
     // POST can still include it.
-    api_key?: string
-    engine_id?: string
-    base_url?: string
-    proxy_url?: string
-    extra_config?: Record<string, string>
+    apiKey?: string
+    engineId?: string
+    baseUrl?: string
+    proxyUrl?: string
+    extraConfig?: Record<string, string>
   }
-  is_default?: boolean
+  isDefault?: boolean
   // Per-field configured? metadata from the main response.
   credentials?: Record<WebSearchCredentialField, { configured: boolean }>
-  created_at?: string
-  updated_at?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 // WebSearchProviderTypeInfo describes metadata for a provider type
 export interface WebSearchProviderTypeInfo {
   id: string
   name: string
-  requires_api_key: boolean
+  requiresApiKey: boolean
   // Keyless-by-default providers that still accept an optional key (e.g. Keenable).
-  supports_optional_api_key?: boolean
-  requires_engine_id?: boolean
-  requires_base_url?: boolean
-  supports_proxy?: boolean
+  supportsOptionalApiKey?: boolean
+  requiresEngineId?: boolean
+  requiresBaseUrl?: boolean
+  supportsProxy?: boolean
   description?: string
-  docs_url?: string
-  config_fields?: WebSearchProviderConfigField[]
+  docsUrl?: string
+  configFields?: WebSearchProviderConfigField[]
 }
 
 export interface WebSearchProviderConfigField {
@@ -78,19 +78,14 @@ export function deleteWebSearchProvider(id: string) {
 
 // Get available provider types (for dynamic form rendering)
 export function listWebSearchProviderTypes(): Promise<WebSearchProviderTypeInfo[]> {
-  return get('/api/v1/web-search-providers/types').then((res: any) => {
-    if (res.success && res.data) {
-      return res.data
-    }
-    return []
-  })
+  return get('/api/v1/web-search-providers/types')
 }
 
 // ----------------------------------------------------------------------------
 // Web search provider credential subresource.
 // ----------------------------------------------------------------------------
 
-export type WebSearchCredentialField = 'api_key'
+export type WebSearchCredentialField = 'apiKey'
 
 export interface WebSearchCredentialsResponse {
   fields: Record<WebSearchCredentialField, { configured: boolean }>

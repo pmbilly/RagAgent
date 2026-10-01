@@ -68,8 +68,8 @@
               <span class="provider-card__desc" :title="entity.description">{{ entity.description }}</span>
             </template>
           </div>
-          <div v-if="entity.parameters?.proxy_url" class="provider-card__url" :title="entity.parameters.proxy_url">
-            {{ entity.parameters.proxy_url }}
+          <div v-if="entity.parameters?.proxyUrl" class="provider-card__url" :title="entity.parameters.proxyUrl">
+            {{ entity.parameters.proxyUrl }}
           </div>
         </div>
       </div>
@@ -121,8 +121,8 @@
       <template v-if="selectedProviderType" #subtitle>
         <span>{{ selectedProviderType.name }}</span>
         <a
-          v-if="selectedProviderType.docs_url"
-          :href="selectedProviderType.docs_url"
+          v-if="selectedProviderType.docsUrl"
+          :href="selectedProviderType.docsUrl"
           target="_blank"
           rel="noopener noreferrer"
           class="doc-link doc-link--inline"
@@ -137,8 +137,8 @@
         外层卡片菜单不再露出"测试连接"，所有测试都从这里发起。
 
         全部 provider 都显示按钮（包括 DuckDuckGo / SearXNG 这些"免费"的）—
-        免费只是不要 api_key，不代表不需要测：DuckDuckGo 走外网可能被墙、
-        SearXNG 是自托管要验 base_url 可达性。disabled 由 canTestConnection
+        免费只是不要 apiKey，不代表不需要测：DuckDuckGo 走外网可能被墙、
+        SearXNG 是自托管要验 baseUrl 可达性。disabled 由 canTestConnection
         统一控制，缺哪个必填字段就置灰。
       -->
       <template v-if="selectedProviderType" #footer-left>
@@ -179,7 +179,7 @@
             >
               <!--
                 Just provider name in each option — we used to append a "免费"
-                t-tag for providers that don't take an api_key, but the
+                t-tag for providers that don't take an apiKey, but the
                 "免费"分类对用户决策没什么帮助（DuckDuckGo / SearXNG 也都
                 需要可用的网络/自托管实例），反而占视觉空间。
               -->
@@ -206,15 +206,15 @@
 
         <!-- Section 2 — 连接配置（base url / api key / engine id），仅当任意字段需要时渲染 -->
         <section
-          v-if="selectedProviderType?.requires_api_key || selectedProviderType?.supports_optional_api_key || selectedProviderType?.requires_engine_id || selectedProviderType?.requires_base_url || selectedProviderType?.config_fields?.length"
+          v-if="selectedProviderType?.requiresApiKey || selectedProviderType?.supportsOptionalApiKey || selectedProviderType?.requiresEngineId || selectedProviderType?.requiresBaseUrl || selectedProviderType?.configFields?.length"
           class="setting-drawer__section"
         >
           <h4 class="setting-drawer__section-title">{{ t('webSearchSettings.credentialsSection', '连接配置') }}</h4>
 
-          <div v-if="selectedProviderType?.requires_base_url" class="form-item">
+          <div v-if="selectedProviderType?.requiresBaseUrl" class="form-item">
             <label class="form-label required">{{ t('webSearchSettings.baseUrlLabel') }}</label>
             <t-input
-              v-model="providerForm.parameters.base_url"
+              v-model="providerForm.parameters.baseUrl"
               :placeholder="t('webSearchSettings.baseUrlPlaceholder')"
             />
           </div>
@@ -224,9 +224,9 @@
             子资源调用），不与本表单 submit 耦合；Create 模式下用 plain
             password input + lock prefix-icon，与 ModelEditorDialog 一致。
           -->
-          <div v-if="selectedProviderType?.requires_api_key || selectedProviderType?.supports_optional_api_key" class="form-item">
-            <label class="form-label" :class="{ required: selectedProviderType?.requires_api_key }">
-              {{ selectedProviderType?.supports_optional_api_key && !selectedProviderType?.requires_api_key
+          <div v-if="selectedProviderType?.requiresApiKey || selectedProviderType?.supportsOptionalApiKey" class="form-item">
+            <label class="form-label" :class="{ required: selectedProviderType?.requiresApiKey }">
+              {{ selectedProviderType?.supportsOptionalApiKey && !selectedProviderType?.requiresApiKey
                 ? t('webSearchSettings.apiKeyOptionalLabel', 'API Key（可选）')
                 : t('webSearchSettings.apiKeyLabel') }}
             </label>
@@ -238,7 +238,7 @@
             />
             <t-input
               v-else
-              v-model="providerForm.parameters.api_key"
+              v-model="providerForm.parameters.apiKey"
               type="password"
               :placeholder="apiKeyPlaceholder"
             >
@@ -246,16 +246,16 @@
             </t-input>
           </div>
 
-          <div v-if="selectedProviderType?.requires_engine_id" class="form-item">
+          <div v-if="selectedProviderType?.requiresEngineId" class="form-item">
             <label class="form-label required">{{ t('webSearchSettings.engineIdLabel') }}</label>
             <t-input
-              v-model="providerForm.parameters.engine_id"
+              v-model="providerForm.parameters.engineId"
               :placeholder="t('webSearchSettings.engineIdLabel')"
             />
           </div>
 
           <div
-            v-for="field in selectedProviderType?.config_fields || []"
+            v-for="field in selectedProviderType?.configFields || []"
             :key="field.key"
             class="form-item"
           >
@@ -264,7 +264,7 @@
             </label>
             <t-select
               v-if="field.type === 'select'"
-              v-model="providerForm.parameters.extra_config[field.key]"
+              v-model="providerForm.parameters.extraConfig[field.key]"
             >
               <t-option
                 v-for="option in field.options || []"
@@ -281,15 +281,15 @@
 
         <!-- Section 3 — 选项（代理 / 默认） -->
         <section
-          v-if="selectedProviderType?.supports_proxy || selectedProviderType"
+          v-if="selectedProviderType?.supportsProxy || selectedProviderType"
           class="setting-drawer__section"
         >
           <h4 class="setting-drawer__section-title">{{ t('webSearchSettings.optionsSection', '选项') }}</h4>
 
-          <div v-if="selectedProviderType?.supports_proxy" class="form-item">
+          <div v-if="selectedProviderType?.supportsProxy" class="form-item">
             <label class="form-label">{{ t('webSearchSettings.proxyUrlLabel') }}</label>
             <t-input
-              v-model="providerForm.parameters.proxy_url"
+              v-model="providerForm.parameters.proxyUrl"
               :placeholder="t('webSearchSettings.proxyUrlPlaceholder')"
             />
             <p class="form-desc">{{ t('webSearchSettings.proxyUrlHelp') }}</p>
@@ -298,7 +298,7 @@
           <div class="form-item">
             <label class="form-label">{{ t('webSearchSettings.setAsDefault') }}</label>
             <div class="vision-toggle">
-              <t-switch v-model="providerForm.is_default" />
+              <t-switch v-model="providerForm.isDefault" />
               <span class="form-desc form-desc--inline">{{ t('webSearchSettings.setAsDefaultDesc') }}</span>
             </div>
           </div>
@@ -359,33 +359,33 @@ const providerForm = ref<{
   provider: string
   description: string
   parameters: {
-    api_key?: string
-    engine_id?: string
-    base_url?: string
-    proxy_url?: string
-    extra_config: Record<string, string>
+    apiKey?: string
+    engineId?: string
+    baseUrl?: string
+    proxyUrl?: string
+    extraConfig: Record<string, string>
   }
-  is_default: boolean
+  isDefault: boolean
 }>({
   name: '',
   provider: 'duckduckgo',
   description: '',
-  parameters: { extra_config: {} },
-  is_default: false,
+  parameters: { extraConfig: {} },
+  isDefault: false,
 })
 
 // Invalidate the cached test result whenever the user edits a connection
 // field. Set up after providerForm is declared so the watch's source
 // function — which dereferences providerForm.value on first run — doesn't
-// hit a TDZ ReferenceError. proxy_url is excluded because the upstream
+// hit a TDZ ReferenceError. proxyUrl is excluded because the upstream
 // call doesn't actually use it for credential validation.
 watch(
   () => [
     providerForm.value.provider,
-    providerForm.value.parameters?.api_key,
-    providerForm.value.parameters?.engine_id,
-    providerForm.value.parameters?.base_url,
-    JSON.stringify(providerForm.value.parameters?.extra_config || {}),
+    providerForm.value.parameters?.apiKey,
+    providerForm.value.parameters?.engineId,
+    providerForm.value.parameters?.baseUrl,
+    JSON.stringify(providerForm.value.parameters?.extraConfig || {}),
   ],
   () => { lastTestOk.value = null },
 )
@@ -400,7 +400,7 @@ const selectedProviderType = computed(() => {
 const apiKeyPlaceholder = computed(() => t('webSearchSettings.apiKeyPlaceholder'))
 
 const credentialFields = computed<CredentialFieldDef<WebSearchCredentialField>[]>(() => [
-  { key: 'api_key', label: t('webSearchSettings.apiKeyLabel') as string },
+  { key: 'apiKey', label: t('webSearchSettings.apiKeyLabel') as string },
 ])
 
 const credentialApi = computed<CredentialResourceApi<WebSearchCredentialField>>(() => {
@@ -419,7 +419,7 @@ const credentialApi = computed<CredentialResourceApi<WebSearchCredentialField>>(
 // Initial configured? from the main provider response (embedded server-side
 // in dto.WebSearchProviderResponse.Credentials).
 const credentialMeta = computed(() => editingProvider.value?.credentials ?? {
-  api_key: { configured: false },
+  apiKey: { configured: false },
 })
 
 // Per-provider class on the drawer — the non-scoped CSS block at the
@@ -446,17 +446,17 @@ const drawerLogoStyle = computed((): Record<string, string> => {
 })
 
 // Whether "Test connection" can fire. New-mode requires the user to have
-// typed an api_key (and engine_id / base_url where applicable); edit-mode
-// can fire with no fresh api_key because the backend will fall back to
+// typed an apiKey (and engineId / baseUrl where applicable); edit-mode
+// can fire with no fresh apiKey because the backend will fall back to
 // the stored credential. Free providers don't show the button at all.
 const canTestConnection = computed(() => {
   const pt = selectedProviderType.value
   if (!pt) return false
   if (editingProvider.value) return true
-  if (pt.requires_api_key && !providerForm.value.parameters.api_key) return false
-  if (pt.requires_engine_id && !providerForm.value.parameters.engine_id) return false
-  if (pt.requires_base_url && !providerForm.value.parameters.base_url) return false
-  if (pt.config_fields?.some(field => field.required && !providerForm.value.parameters.extra_config?.[field.key])) return false
+  if (pt.requiresApiKey && !providerForm.value.parameters.apiKey) return false
+  if (pt.requiresEngineId && !providerForm.value.parameters.engineId) return false
+  if (pt.requiresBaseUrl && !providerForm.value.parameters.baseUrl) return false
+  if (pt.configFields?.some(field => field.required && !providerForm.value.parameters.extraConfig?.[field.key])) return false
   return true
 })
 
@@ -492,7 +492,7 @@ const configFieldText = (key: string | undefined, fallback: string) => {
 }
 
 const providerConfigDefaults = (providerId: string) => {
-  const fields = providerTypes.value.find(p => p.id === providerId)?.config_fields || []
+  const fields = providerTypes.value.find(p => p.id === providerId)?.configFields || []
   return Object.fromEntries(
     fields
       .filter(field => field.default !== undefined)
@@ -503,7 +503,7 @@ const providerConfigDefaults = (providerId: string) => {
 // ===== Methods =====
 const onProviderTypeChange = () => {
   providerForm.value.parameters = {
-    extra_config: providerConfigDefaults(providerForm.value.provider),
+    extraConfig: providerConfigDefaults(providerForm.value.provider),
   }
   lastTestOk.value = null
 }
@@ -534,9 +534,9 @@ const openAddDialog = () => {
     provider: providerTypes.value[0]?.id || 'duckduckgo',
     description: '',
     parameters: {
-      extra_config: providerConfigDefaults(providerTypes.value[0]?.id || 'duckduckgo'),
+      extraConfig: providerConfigDefaults(providerTypes.value[0]?.id || 'duckduckgo'),
     },
-    is_default: providerEntities.value.length === 0
+    isDefault: providerEntities.value.length === 0
   }
   lastTestOk.value = null
   showAddProviderDialog.value = true
@@ -549,18 +549,18 @@ const editProvider = (entity: WebSearchProviderEntity) => {
     provider: entity.provider,
     description: entity.description || '',
     parameters: {
-      // Never pre-fill the api_key — even the redacted placeholder from the
+      // Never pre-fill the apiKey — even the redacted placeholder from the
       // server is ignored so that "non-empty means user typed it" holds.
-      api_key: '',
-      engine_id: entity.parameters?.engine_id || '',
-      base_url: entity.parameters?.base_url || '',
-      proxy_url: entity.parameters?.proxy_url || '',
-      extra_config: {
+      apiKey: '',
+      engineId: entity.parameters?.engineId || '',
+      baseUrl: entity.parameters?.baseUrl || '',
+      proxyUrl: entity.parameters?.proxyUrl || '',
+      extraConfig: {
         ...providerConfigDefaults(entity.provider),
-        ...(entity.parameters?.extra_config || {}),
+        ...(entity.parameters?.extraConfig || {}),
       },
     },
-    is_default: entity.is_default || false,
+    isDefault: entity.isDefault || false,
   }
   lastTestOk.value = null
   showAddProviderDialog.value = true
@@ -576,23 +576,23 @@ const saveProvider = async () => {
 
   saving.value = true
   try {
-    // Build the parameters payload. api_key only flows in on initial
+    // Build the parameters payload. apiKey only flows in on initial
     // create — edit mode commits credentials through <CredentialResource>
     // (a dedicated PUT /credentials call) before this save runs.
     const paramsOut: WebSearchProviderEntity['parameters'] = {
-      engine_id: providerForm.value.parameters.engine_id,
-      base_url: providerForm.value.parameters.base_url,
-      proxy_url: providerForm.value.parameters.proxy_url,
+      engineId: providerForm.value.parameters.engineId,
+      baseUrl: providerForm.value.parameters.baseUrl,
+      proxyUrl: providerForm.value.parameters.proxyUrl,
     }
     const extraConfig = Object.fromEntries(
-      Object.entries(providerForm.value.parameters.extra_config || {})
+      Object.entries(providerForm.value.parameters.extraConfig || {})
         .filter(([, value]) => value !== ''),
     )
     if (Object.keys(extraConfig).length > 0) {
-      paramsOut.extra_config = extraConfig
+      paramsOut.extraConfig = extraConfig
     }
-    if (!editingProvider.value && providerForm.value.parameters.api_key) {
-      paramsOut.api_key = providerForm.value.parameters.api_key
+    if (!editingProvider.value && providerForm.value.parameters.apiKey) {
+      paramsOut.apiKey = providerForm.value.parameters.apiKey
     }
 
     const data: Partial<WebSearchProviderEntity> = {
@@ -600,7 +600,7 @@ const saveProvider = async () => {
       provider: providerForm.value.provider as any,
       description: providerForm.value.description,
       parameters: paramsOut,
-      is_default: providerForm.value.is_default,
+      isDefault: providerForm.value.isDefault,
     }
 
     if (editingProvider.value) {
@@ -643,7 +643,7 @@ const testConnection = async () => {
     }
 
     let ok = false
-    if (editingProvider.value && !data.parameters.api_key) {
+    if (editingProvider.value && !data.parameters.apiKey) {
       const res = await testWebSearchProvider(editingProvider.value.id!)
       ok = !!res.success
       if (res.success) {

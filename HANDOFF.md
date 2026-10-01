@@ -36,11 +36,11 @@
    mcp（§14.9n/o/p，余 22 处第三方协议面冻结）/ session（§14.9l，S1~S5，`@JsonProperty` 188→0）/
    embed（§14.9m）/ datasource（§14.9q，D1~D3，余 350 处 connector 线格式 + 5 处 `lf_*` 冻结）；
    **wiki ingest 载荷 W1 收官（2026-10-02，§14.9r）**；
-   **契约尾巴全清 + 两个真单类出榜（2026-10-02，§14.9s，9 个提交）**——全局错误体去 `success:false` +
+   **契约尾巴全清 + 两个真单类出榜（2026-10-02，§14.9s，15 个提交）**——全局错误体去 `success:false` +
    622 个错误金片重录；散存量七域批（audit/favorite/im/storage/vectorstore/auth 补刀/agentm·init）+
    M6（mcp `@JsonInclude` 恒输出）；`SourceRegistry` 878→534、`UserService` 876→748 切片出榜；
    4 个登记例外复核结论入册（§14.3）。**至此 ⭐ 第 4 条所列全部剩余工作完成：
-   全仓 `@JsonProperty` 余量 942 处全部是登记冻结面（§14.6）**。
+   复查批后全仓 `@JsonProperty` 余量 913 处全部是登记冻结面（§14.6）**。
 4. **下一步**：**阶段 3 已全部收官、阶段 2 ≥800 榜只剩 4 个登记例外（§14.3），无在办工作面**。
    可选候选（由用户排）：① 阶段 4（§5）：Gradle 多模块 + ArchUnit 边界规则、裸 `System.getenv()` 151 处收敛、
    注释清洗（Go 锚点 ~6,000 处随触碰清洗）；② **已知尾巴**（登记在案、非在办）：残留 `@JsonInclude` 288 处
@@ -2481,7 +2481,7 @@ WHERE jsonb_typeof(payload) = 'object'
 ```
 
 
-### 14.9s 契约尾巴全清 + 两个真单类出榜（2026-10-02，9 个提交）
+### 14.9s 契约尾巴全清 + 两个真单类出榜（2026-10-02，15 个提交）
 
 **批 C（`ef887db`）全局错误体**：`GlobalExceptionHandler.errorBody` 从
 `{"error":{…},"success":false}` 改 `{"error":{"code","message","details"}}`（§2 第 4 条标准形态；
@@ -2535,6 +2535,92 @@ register() 的 success 包装实况 bug 顺带修）；四处陈旧 javadoc 清�
 **M6（`e929be7`）**：mcp 六类 `@JsonInclude`（omitempty 直译）全部退役改恒输出（§14.9q 登记的
 待办），McpCatalogSummary 的 ALWAYS（默认值显式写法）同删；mcp-* 五金片重录。
 
+**本轮三条落库迁移 SQL（均已真 PG 合成数据验证；dev 库对应行要么 0 行、要么空 `{}`）**：
+```sql
+-- ① storage_backends.config（StorageConfig 10 键改名；密文值随键移动）
+UPDATE storage_backends SET config = (
+  SELECT jsonb_object_agg(CASE e.key
+      WHEN 'access_key_id' THEN 'accessKeyId'
+      WHEN 'secret_access_key' THEN 'secretAccessKey'
+      WHEN 'bucket_name' THEN 'bucketName'
+      WHEN 'path_prefix' THEN 'pathPrefix'
+      WHEN 'app_id' THEN 'appId'
+      WHEN 'use_ssl' THEN 'useSsl'
+      WHEN 'force_path_style' THEN 'forcePathStyle'
+      WHEN 'use_temp_bucket' THEN 'useTempBucket'
+      WHEN 'temp_bucket_name' THEN 'tempBucketName'
+      WHEN 'temp_region' THEN 'tempRegion'
+      ELSE e.key END, e.value)
+  FROM jsonb_each(config) AS e)
+WHERE jsonb_typeof(config) = 'object';
+
+-- ② vector_stores.connection_config（6 键）
+UPDATE vector_stores SET connection_config = (
+  SELECT jsonb_object_agg(CASE e.key
+      WHEN 'api_key' THEN 'apiKey'
+      WHEN 'insecure_skip_verify' THEN 'insecureSkipVerify'
+      WHEN 'use_tls' THEN 'useTls'
+      WHEN 'grpc_address' THEN 'grpcAddress'
+      WHEN 'use_default_connection' THEN 'useDefaultConnection'
+      WHEN 'http_port' THEN 'httpPort'
+      ELSE e.key END, e.value)
+  FROM jsonb_each(connection_config) AS e)
+WHERE jsonb_typeof(connection_config) = 'object';
+
+-- ③ vector_stores.index_config（16 键）
+UPDATE vector_stores SET index_config = (
+  SELECT jsonb_object_agg(CASE e.key
+      WHEN 'index_name' THEN 'indexName'
+      WHEN 'number_of_shards' THEN 'numberOfShards'
+      WHEN 'number_of_replicas' THEN 'numberOfReplicas'
+      WHEN 'collection_prefix' THEN 'collectionPrefix'
+      WHEN 'collection_name' THEN 'collectionName'
+      WHEN 'shard_number' THEN 'shardNumber'
+      WHEN 'replication_factor' THEN 'replicationFactor'
+      WHEN 'shards_num' THEN 'shardsNum'
+      WHEN 'replica_number' THEN 'replicaNumber'
+      WHEN 'desired_shard_count' THEN 'desiredShardCount'
+      WHEN 'buckets_num' THEN 'bucketsNum'
+      WHEN 'replication_num' THEN 'replicationNum'
+      WHEN 'hnsw_m' THEN 'hnswM'
+      WHEN 'hnsw_ef_construction' THEN 'hnswEfConstruction'
+      WHEN 'hnsw_ef_search' THEN 'hnswEfSearch'
+      WHEN 'knn_engine' THEN 'knnEngine'
+      ELSE e.key END, e.value)
+  FROM jsonb_each(index_config) AS e)
+WHERE jsonb_typeof(index_config) = 'object';
+
+-- ④ tenants.api_principal_config（4 键；hmac_secret 密文随键移动）
+UPDATE tenants SET api_principal_config = (
+  SELECT jsonb_object_agg(CASE e.key
+      WHEN 'direct_header_name' THEN 'directHeaderName'
+      WHEN 'signed_token_header_name' THEN 'signedTokenHeaderName'
+      WHEN 'require_direct_header' THEN 'requireDirectHeader'
+      WHEN 'hmac_secret' THEN 'hmacSecret'
+      ELSE e.key END, e.value)
+  FROM jsonb_each(api_principal_config) AS e)
+WHERE jsonb_typeof(api_principal_config) = 'object'
+  AND (api_principal_config ? 'direct_header_name' OR api_principal_config ? 'signed_token_header_name'
+       OR api_principal_config ? 'require_direct_header' OR api_principal_config ? 'hmac_secret');
+```
+
+**复查批（2026-10-02 深夜，全量复查揪出的对齐债 + 文档勘误）**：
+- **文档勘误**：本节提交数 9→13（实际）；storage/vectorstore/APIPrincipalConfig 三条迁移 SQL 补录（上文）。
+- **websearch provider CRUD 换锚**（此前整域漏在甄别外）：types/list/test/create/get/update/delete 全部
+  去信封（create 201、delete 204、test→`{connected:true}` 与失败体 `{connected:false,error}` 同形）；
+  `WebSearchProviderResponse`(16)+`Types`(10)+`Params`(5) 注解退役（表单 schema 广告字段名同 camel，
+  credentials 路径段 `api_key`→`apiKey`）；`CredentialsController` 的
+  `{data:{fields:{...}},success}` → 裸 `{fields:{apiKey:{configured}}}`（D1 同款）；wsp-* 金片重录。
+- **前端对齐债清扫**（后端已换锚、前端还读 success/data/旧键的实况断点，全部实锤修复）：
+  auth 登录族 api 函数全部适配器化（**login 成功分支此前永不可达**——裸响应无 `success`；
+  **refreshToken 流程读取 access_token 旧键**——401 刷新静默失败强制重登；changePassword 204、
+  validateToken、updateMyPreferences、members 分页五函数同批）；RuntimeQueues 的 task 字段与
+  游标（snake→camel）；wiki IndexGroup next_cursor；chatResources/AgentList 的 agents 列表解包
+  （`{agents,disabledOwnAgentIds}`）；menu.vue 的 IM 平台列表；WebSearchSettings 表单全批；
+  agentWebSearch 测试夹具同批。
+- **教训入册**：换锚批的"同 PR 带前端"必须核到**视图层字段读取**，api 类型文件对齐不等于消费端对齐——
+  TS `as unknown as` 断言把实况断点全部藏住了；本轮用「后端形态 × 前端读取」交叉 grep 才扫出。
+
 **切片（`9277d3e` + `432624c`）**：`SourceRegistry` 878→**534**——「工具参数编解码」段（~400 行）
 外提 `SourceToolCodec`（439），门面保全部签名，SHORT_SOURCE_HANDLE 常量留注册段共用；
 `UserService` 876→**748**——W5a 会话令牌段外提 `UserSessionOps`（180），三个失败通道异常留
@@ -2542,7 +2628,7 @@ UserService（控制器捕获面不变）。忠实性核验：文案逐字、两
 
 **例外复核**：四个登记例外维持（§14.3）；MemoryIndexStore/KnowledgeProcessWorker 补 javadoc 例外说明。
 
-**最终态**：全仓 `@JsonProperty` 942 处 / 104 文件全部是登记冻结面；`@JsonInclude` 残 288 处
+**最终态**：全仓 `@JsonProperty` 913 处 / 102 文件全部是登记冻结面；`@JsonInclude` 残 288 处
 （大头冻结面 + 早批域的 omitempty 语义）登记为已知尾巴；错误体、信封、时间、键名四轴在
 十四域 + 本轮七域全部对齐 §2 第 4 条。**阶段 3 收官。**
 
@@ -2632,8 +2718,8 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 | ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / **wiki 39 → 0（W1 收官，§14.9r：17 键换锚 + 8 处死注解摘除；余 22 处 = `lf_*` 5 + LLM 解析面 17，登记冻结）**；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1）→ 366（D2）→ 355（D3 收官，§14.9q）：余 350 处为 connector 第三方线格式 + 5 处 `lf_*` 平铺载具，**均为永久冻结** ⇒ 该域可换锚面 0**。**2026-10-02 两段收官判定**：域级换锚（§14.9r）后散尾巴约 77 处由 §14.9s 七域批处理完——甄别结果：
 真存量已换锚（audit 1+信封、favorite 5、im 17、storage 24、retrieval WebSearchResult 7、TempKbState 3、
 APIPrincipalConfig 5、RuntimeStat 5 死注、WebSearchResult 死注）；**判冻结新增登记**：image_info（docreader
-第三方）、SearchParams（chat span 载荷）、RankResult（第三方 rerank API）。全仓 `@JsonProperty` 余量 **942 处
-/ 104 文件** 全部是登记冻结面（§14.6）⇒ **③ 类真存量 = 0，阶段 3 收官**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+第三方）、SearchParams（chat span 载荷）、RankResult（第三方 rerank API）。复查批后全仓 `@JsonProperty` 余量 **913 处
+/ 102 文件** 全部是登记冻结面（§14.6）⇒ **③ 类真存量 = 0，阶段 3 收官**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。

@@ -4,7 +4,6 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * 对照 Go {@code types.WebSearchProviderParameters}（internal/types/web_search_provider.go）。
@@ -22,24 +21,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class WebSearchProviderParams {
 
     /** API key（落库加密；响应永不回显） */
-    @JsonProperty("api_key")
-    private String apiKey = "";
+        private String apiKey = "";
 
     /** Google CSE engine id */
-    @JsonProperty("engine_id")
-    private String engineId = "";
+        private String engineId = "";
 
     /** 自托管搜索引擎地址（SearXNG） */
-    @JsonProperty("base_url")
-    private String baseUrl = "";
+        private String baseUrl = "";
 
     /** 出站代理（仅隧道官方 API） */
-    @JsonProperty("proxy_url")
-    private String proxyUrl = "";
+        private String proxyUrl = "";
 
     /** provider 特有的非秘密扩展配置 */
-    @JsonProperty("extra_config")
-    private Map<String, String> extraConfig;
+        private Map<String, String> extraConfig;
 
     public String getApiKey() { return apiKey; }
     public void setApiKey(String v) { apiKey = v == null ? "" : v; }

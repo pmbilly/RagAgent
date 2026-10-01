@@ -269,7 +269,7 @@ export interface WikiIndexGroup {
   type: string;
   total: number;
   items: WikiIndexEntryDTO[];
-  next_cursor?: string;
+  nextCursor?: string;
 }
 
 export interface WikiIndexResponse {

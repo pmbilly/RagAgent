@@ -1,1 +1,1 @@
-{"data":{"id":"cf384837-c469-4774-bca3-05461c52af9d","tenant_id":10002,"name":"wsp-def-one","provider":"duckduckgo","description":"","parameters":{},"is_default":false,"created_at":"0001-01-01T00:00:00Z","updated_at":"2026-09-19T01:34:05.500056Z","credentials":{"api_key":{"configured":false}}},"success":true}
+{"id":"<uuid>","tenantId":10002,"name":"wsp-def-one","provider":"duckduckgo","description":"","parameters":{},"isDefault":false,"updatedAt":"<ts>","credentials":{"api_key":{"configured":false}}}

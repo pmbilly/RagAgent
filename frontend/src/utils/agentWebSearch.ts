@@ -14,7 +14,7 @@ export function resolveAgentWebSearchProviderId(
   if (explicitId) {
     return providers.some((p) => p.id === explicitId) ? explicitId : null;
   }
-  const defaultProvider = providers.find((p) => p.is_default);
+  const defaultProvider = providers.find((p) => p.isDefault);
   return defaultProvider?.id ?? null;
 }
 
@@ -35,5 +35,5 @@ export function isAgentWebSearchReady(
 
 /** 空间级默认搜索引擎是否可用（无智能体约束时） */
 export function isTenantWebSearchReady(providers: WebSearchProviderEntity[]): boolean {
-  return providers.some((p) => p.is_default);
+  return providers.some((p) => p.isDefault);
 }

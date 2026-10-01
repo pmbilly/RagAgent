@@ -211,7 +211,8 @@ export interface ModelInfo {
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   try {
     const response = await post('/api/v1/auth/login', data)
-    return response as unknown as LoginResponse
+    // 后端 200 裸 AuthLoginResponse（§2.1）；本函数保留 success 包装供视图分支
+    return { ...(response as object), success: true } as unknown as LoginResponse
   } catch (error: any) {
     return {
       success: false,
@@ -241,7 +242,7 @@ export async function getOIDCAuthorizationURL(redirectURI: string): Promise<OIDC
 export async function getOIDCConfig(): Promise<OIDCConfigResponse> {
   try {
     const response = await get('/api/v1/auth/oidc/config')
-    return response as unknown as OIDCConfigResponse
+    return { ...(response as object), success: true } as unknown as OIDCConfigResponse
   } catch (error: any) {
     return {
       success: false,
@@ -269,7 +270,7 @@ export interface AuthConfigResponse {
 export async function getAuthConfig(): Promise<AuthConfigResponse> {
   try {
     const response = await get('/api/v1/auth/config')
-    return response as unknown as AuthConfigResponse
+    return { ...(response as object), success: true } as unknown as AuthConfigResponse
   } catch {
     return { success: false, registrationMode: 'self_serve', complexPasswordEnabled: false }
   }
@@ -297,7 +298,7 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
 export async function autoSetup(): Promise<LoginResponse> {
   try {
     const response = await post('/api/v1/auth/auto-setup', {})
-    return response as unknown as LoginResponse
+    return { ...(response as object), success: true } as unknown as LoginResponse
   } catch (error: any) {
     return {
       success: false,
@@ -345,7 +346,7 @@ export async function updateMyPreferences(
 ): Promise<{ success: boolean; data?: UserPreferences; message?: string }> {
   try {
     const response = await put('/api/v1/auth/me/preferences', patch)
-    return response as unknown as { success: boolean; data?: UserPreferences; message?: string }
+    return { data: response as unknown as UserPreferences, success: true }
   } catch (error: any) {
     return {
       success: false,
@@ -360,19 +361,14 @@ export async function updateMyPreferences(
 export async function refreshToken(refreshToken: string): Promise<{ success: boolean; data?: { token: string; refreshToken: string }; message?: string }> {
   try {
     const response: any = await post('/api/v1/auth/refresh', { refreshToken })
-    if (response && response.success) {
-      if (response.access_token || response.refreshToken) {
-        return {
-          success: true,
-          data: {
-            token: response.access_token,
-            refreshToken: response.refreshToken,
-          }
-        }
+    // 后端 200 裸 TokenPairResponse {token, refreshToken}（§2.1）
+    if (response && response.token) {
+      return {
+        success: true,
+        data: { token: response.token, refreshToken: response.refreshToken },
       }
     }
 
-    // 其他情况直接返回原始消息
     return {
       success: false,
       message: response?.message || t('error.auth.refreshTokenFailed')
@@ -436,8 +432,8 @@ export async function changePassword(
   data: ChangePasswordRequest,
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const response = await post('/api/v1/auth/change-password', data)
-    return response as unknown as { success: boolean; message?: string }
+    await post('/api/v1/auth/change-password', data)
+    return { success: true }
   } catch (error: any) {
     return {
       success: false,
@@ -451,8 +447,8 @@ export async function changePassword(
  */
 export async function validateToken(): Promise<{ success: boolean; valid?: boolean; message?: string }> {
   try {
-    const response = await get('/api/v1/auth/validate')
-    return response as unknown as { success: boolean; valid?: boolean; message?: string }
+    await get('/api/v1/auth/validate')
+    return { success: true, valid: true }
   } catch (error: any) {
     return {
       success: false,

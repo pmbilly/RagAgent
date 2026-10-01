@@ -52,7 +52,7 @@ public class WebSearchProviderCredentialsController {
             if (provider == null) {
                 throw BizException.notFound("web search provider not found");
             }
-            return ResponseEntity.ok(envelope(configured(provider)));
+            return ResponseEntity.ok(fieldsBody(configured(provider)));
         }
         WebSearchProvider updated;
         try {
@@ -60,7 +60,7 @@ public class WebSearchProviderCredentialsController {
         } catch (RuntimeException e) {
             throw BizException.internal("failed to update credentials: " + e.getMessage());
         }
-        return ResponseEntity.ok(envelope(configured(updated)));
+        return ResponseEntity.ok(fieldsBody(configured(updated)));
     }
 
     @DeleteMapping("/{id}/credentials/{field}")
@@ -116,17 +116,14 @@ public class WebSearchProviderCredentialsController {
         return key == null || key.isNull() ? null : key.asText();
     }
 
-    /** {"data":{"fields":{"api_key":{"configured":b}}},"success":true}（gin.H 嵌套，字母序） */
-    private static Map<String, Object> envelope(boolean configured) {
-        Map<String, Object> apiKey = new LinkedHashMap<>();
-        apiKey.put("configured", configured);
+    /** 裸对象 {fields:{apiKey:{configured}}}（对照 D1 的凭据状态形态）。 */
+    private static Map<String, Object> fieldsBody(boolean configured) {
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("configured", configured);
         Map<String, Object> fields = new LinkedHashMap<>();
-        fields.put("api_key", apiKey);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("fields", fields);
+        fields.put("apiKey", field);
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
+        body.put("fields", fields);
         return body;
     }
 }

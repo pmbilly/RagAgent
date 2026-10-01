@@ -73,9 +73,19 @@ export async function listMembers(
   params: ListMembersParams = {},
 ): Promise<ListMembersResponse> {
   const qs = buildMembersQuery(params)
-  return (await get(
+  const resp = (await get(
     `/api/v1/tenants/${tenantId}/members${qs}`,
-  )) as unknown as ListMembersResponse
+  )) as unknown as { members: TenantMember[]; page: number; pageSize: number; total: number }
+  // 后端 200 {members,page,pageSize,total}（§2.1 无信封）；适配成既有的 success/data 契约
+  return {
+    success: true,
+    data: {
+      members: resp?.members ?? [],
+      total: resp?.total ?? 0,
+      page: resp?.page,
+      pageSize: resp?.pageSize,
+    },
+  }
 }
 
 /**
@@ -112,7 +122,9 @@ export async function addMember(
   tenantId: number,
   body: AddMemberRequest,
 ): Promise<AddMemberResponse> {
-  return (await post(`/api/v1/tenants/${tenantId}/members`, body)) as unknown as AddMemberResponse
+  // 后端 201 裸 TenantMemberResponse（§2.1）
+  const resp = (await post(`/api/v1/tenants/${tenantId}/members`, body)) as unknown as TenantMember
+  return { success: true, data: resp }
 }
 
 /**
@@ -126,7 +138,8 @@ export async function updateMemberRole(
   userId: string,
   role: TenantRole,
 ): Promise<SimpleResponse> {
-  return (await put(`/api/v1/tenants/${tenantId}/members/${userId}`, { role })) as unknown as SimpleResponse
+  await put(`/api/v1/tenants/${tenantId}/members/${userId}`, { role })
+  return { success: true }
 }
 
 /**
@@ -139,7 +152,8 @@ export async function removeMember(
   tenantId: number,
   userId: string,
 ): Promise<SimpleResponse> {
-  return (await del(`/api/v1/tenants/${tenantId}/members/${userId}`)) as unknown as SimpleResponse
+  await del(`/api/v1/tenants/${tenantId}/members/${userId}`)
+  return { success: true }
 }
 
 /**
@@ -149,5 +163,6 @@ export async function removeMember(
  * Backend: POST /api/v1/tenants/:id/leave (Viewer+).
  */
 export async function leaveTenant(tenantId: number): Promise<SimpleResponse> {
-  return (await post(`/api/v1/tenants/${tenantId}/leave`)) as unknown as SimpleResponse
+  await post(`/api/v1/tenants/${tenantId}/leave`)
+  return { success: true }
 }

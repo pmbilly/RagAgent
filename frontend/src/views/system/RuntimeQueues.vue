@@ -398,7 +398,7 @@
                 </span>
                 <span class="rq-failed-row-sep" aria-hidden="true">·</span>
                 <span class="rq-failed-row-stat">
-                  {{ t('system.globalSettings.runtime.tasks.attempts', { current: task.retried + 1, max: task.max_retry + 1 }) }}
+                  {{ t('system.globalSettings.runtime.tasks.attempts', { current: task.retried + 1, max: task.maxRetry + 1 }) }}
                 </span>
               </div>
               <dl v-if="runtimeTaskMeta(task).length > 0" class="rq-failed-row-refs">
@@ -677,51 +677,51 @@ function formatTaskTime(value?: string): string {
 
 function runtimeTaskMeta(task: RuntimeTask): RuntimeTaskMeta[] {
   const refs: RuntimeTaskMeta[] = []
-  if (task.knowledge_base_id) {
+  if (task.knowledgeBaseId) {
     refs.push({
       key: 'kb',
       label: t('system.globalSettings.runtime.tasks.knowledgeBaseLabel'),
-      value: task.knowledge_base_id,
+      value: task.knowledgeBaseId,
     })
   }
-  if (task.knowledge_id) {
+  if (task.knowledgeId) {
     refs.push({
       key: 'knowledge',
       label: t('system.globalSettings.runtime.tasks.knowledgeLabel'),
-      value: task.knowledge_id,
+      value: task.knowledgeId,
     })
   }
-  if (task.task_id) {
+  if (task.taskId) {
     refs.push({
       key: 'task',
       label: t('system.globalSettings.runtime.tasks.taskIDLabel'),
-      value: task.task_id,
+      value: task.taskId,
     })
   }
-  if (task.source_id) refs.push({ key: 'source', label: t('system.globalSettings.runtime.tasks.sourceLabel'), value: task.source_id })
-  if (task.target_id) refs.push({ key: 'target', label: t('system.globalSettings.runtime.tasks.targetLabel'), value: task.target_id })
-  if (task.source_kb_id) refs.push({ key: 'source-kb', label: t('system.globalSettings.runtime.tasks.sourceKBLabel'), value: task.source_kb_id })
-  if (task.target_kb_id) refs.push({ key: 'target-kb', label: t('system.globalSettings.runtime.tasks.targetKBLabel'), value: task.target_kb_id })
-  if (task.data_source_id) refs.push({ key: 'datasource', label: t('system.globalSettings.runtime.tasks.dataSourceLabel'), value: task.data_source_id })
-  if (task.sync_log_id) refs.push({ key: 'sync-log', label: t('system.globalSettings.runtime.tasks.syncLogLabel'), value: task.sync_log_id })
-  if (task.knowledge_count) {
-    refs.push({ key: 'knowledge-count', label: t('system.globalSettings.runtime.tasks.knowledgeCountLabel'), value: String(task.knowledge_count) })
+  if (task.sourceId) refs.push({ key: 'source', label: t('system.globalSettings.runtime.tasks.sourceLabel'), value: task.sourceId })
+  if (task.targetId) refs.push({ key: 'target', label: t('system.globalSettings.runtime.tasks.targetLabel'), value: task.targetId })
+  if (task.sourceKbId) refs.push({ key: 'source-kb', label: t('system.globalSettings.runtime.tasks.sourceKBLabel'), value: task.sourceKbId })
+  if (task.targetKbId) refs.push({ key: 'target-kb', label: t('system.globalSettings.runtime.tasks.targetKBLabel'), value: task.targetKbId })
+  if (task.dataSourceId) refs.push({ key: 'datasource', label: t('system.globalSettings.runtime.tasks.dataSourceLabel'), value: task.dataSourceId })
+  if (task.syncLogId) refs.push({ key: 'sync-log', label: t('system.globalSettings.runtime.tasks.syncLogLabel'), value: task.syncLogId })
+  if (task.knowledgeCount) {
+    refs.push({ key: 'knowledge-count', label: t('system.globalSettings.runtime.tasks.knowledgeCountLabel'), value: String(task.knowledgeCount) })
   }
-  if (task.tenant_id) {
+  if (task.tenantId) {
     refs.push({
       key: 'tenant',
       label: t('system.globalSettings.runtime.tasks.tenantLabel'),
-      value: String(task.tenant_id),
+      value: String(task.tenantId),
     })
   }
-  if (task.enqueued_at) refs.push({ key: 'enqueued', label: t('system.globalSettings.runtime.tasks.enqueuedAt'), value: formatTaskTime(task.enqueued_at) })
-  if (task.started_at) refs.push({ key: 'started', label: t('system.globalSettings.runtime.tasks.startedAt'), value: formatTaskTime(task.started_at) })
-  if (task.next_process_at) refs.push({ key: 'next', label: t('system.globalSettings.runtime.tasks.nextProcessAt'), value: formatTaskTime(task.next_process_at) })
+  if (task.enqueuedAt) refs.push({ key: 'enqueued', label: t('system.globalSettings.runtime.tasks.enqueuedAt'), value: formatTaskTime(task.enqueuedAt) })
+  if (task.startedAt) refs.push({ key: 'started', label: t('system.globalSettings.runtime.tasks.startedAt'), value: formatTaskTime(task.startedAt) })
+  if (task.nextProcessAt) refs.push({ key: 'next', label: t('system.globalSettings.runtime.tasks.nextProcessAt'), value: formatTaskTime(task.nextProcessAt) })
   if (task.last_failed_at) refs.push({ key: 'failed', label: t('system.globalSettings.runtime.tasks.lastFailedAt'), value: formatTaskTime(task.last_failed_at) })
-  if (task.completed_at) refs.push({ key: 'completed', label: t('system.globalSettings.runtime.tasks.completedAt'), value: formatTaskTime(task.completed_at) })
+  if (task.completedAt) refs.push({ key: 'completed', label: t('system.globalSettings.runtime.tasks.completedAt'), value: formatTaskTime(task.completedAt) })
   if (task.deadline) refs.push({ key: 'deadline', label: t('system.globalSettings.runtime.tasks.deadline'), value: formatTaskTime(task.deadline) })
   if (task.worker) refs.push({ key: 'worker', label: t('system.globalSettings.runtime.tasks.worker'), value: task.worker })
-  if (task.is_orphaned) refs.push({ key: 'orphaned', label: t('system.globalSettings.runtime.tasks.health'), value: t('system.globalSettings.runtime.tasks.orphaned') })
+  if (task.isOrphaned) refs.push({ key: 'orphaned', label: t('system.globalSettings.runtime.tasks.health'), value: t('system.globalSettings.runtime.tasks.orphaned') })
   return refs
 }
 
@@ -797,8 +797,8 @@ async function fetchRuntimeTasks(reset: boolean) {
       return
     }
     tasks.value = reset ? response.tasks : mergeRuntimeTaskPage(tasks.value, response.tasks)
-    tasksCursor.value = response.next_cursor || ''
-    tasksHasMore.value = response.has_more && Boolean(response.next_cursor)
+    tasksCursor.value = response.nextCursor || ''
+    tasksHasMore.value = response.hasMore && Boolean(response.nextCursor)
   } catch (err: any) {
     if (requestID !== tasksRequestID) return
     if (!reset && err?.code === 'runtime_task_cursor_expired') {

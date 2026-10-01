@@ -931,7 +931,7 @@ async function loadCurrentKbInfo(kbId: string) {
 const loadSessionOriginMeta = async () => {
     try {
         const res: any = await listAllIMChannels();
-        imPlatforms.value = configuredPlatforms(res?.data || []);
+        imPlatforms.value = configuredPlatforms(res || []);
     } catch {
         imPlatforms.value = [];
     }

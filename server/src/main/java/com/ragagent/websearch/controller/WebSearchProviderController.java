@@ -71,7 +71,7 @@ public class WebSearchProviderController {
 
     @GetMapping("/types")
     public ResponseEntity<?> listProviderTypes() {
-        return ResponseEntity.ok(envelopeData(WebSearchProviderTypes.all()));
+        return ResponseEntity.ok(WebSearchProviderTypes.all());
     }
 
     // ── POST /test（Admin+）：原始凭据连通性 ───────────────────────────
@@ -89,7 +89,7 @@ public class WebSearchProviderController {
             throw validatorError("TestProviderRequest", "Provider");
         }
         doTestSearch(req.provider(), req.parameters());
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.ok(connectedBody());
     }
 
     // ── CRUD ───────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ public class WebSearchProviderController {
         providerEntity.setProvider(provider);
         providerEntity.setDescription(sanitize(textOrEmpty(body, "description")));
         providerEntity.setParameters(paramsOf(body));
-        providerEntity.setDefault(boolOrFalse(body, "is_default"));
+        providerEntity.setDefault(boolOrFalse(body, "isDefault"));
         try {
             service.create(providerEntity);
         } catch (RuntimeException e) {
@@ -126,7 +126,7 @@ public class WebSearchProviderController {
             throw BizException.internal(e.getMessage());
         }
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(envelopeData(WebSearchProviderResponse.from(providerEntity, canViewIntegrationSecrets())));
+                .body(WebSearchProviderResponse.from(providerEntity, canViewIntegrationSecrets()));
     }
 
     @GetMapping
@@ -134,14 +134,14 @@ public class WebSearchProviderController {
         long tenantId = requireTenant();
         List<WebSearchProvider> providers = service.list(tenantId);
         return ResponseEntity.ok(
-                envelopeData(WebSearchProviderResponse.listOf(providers, canViewIntegrationSecrets())));
+                WebSearchProviderResponse.listOf(providers, canViewIntegrationSecrets()));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getProvider(@PathVariable("id") String id) {
         long tenantId = requireTenant();
         WebSearchProvider provider = owned(tenantId, id);
-        return ResponseEntity.ok(envelopeData(WebSearchProviderResponse.from(provider, canViewIntegrationSecrets())));
+        return ResponseEntity.ok(WebSearchProviderResponse.from(provider, canViewIntegrationSecrets()));
     }
 
     /** 对照 UpdateProviderRequest：无 required 字段；merge 规则见下 */
@@ -191,9 +191,9 @@ public class WebSearchProviderController {
         // Re-fetch to get the full stored state
         WebSearchProvider refreshed = service.getByID(tenantId, id);
         if (refreshed != null) {
-            return ResponseEntity.ok(envelopeData(WebSearchProviderResponse.from(refreshed, canViewIntegrationSecrets())));
+            return ResponseEntity.ok(WebSearchProviderResponse.from(refreshed, canViewIntegrationSecrets()));
         }
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.ok(connectedBody());
     }
 
     @DeleteMapping("/{id}")
@@ -206,7 +206,7 @@ public class WebSearchProviderController {
             log.warn("Failed to delete web search provider {}: {}", id, e.getMessage());
             throw BizException.internal(e.getMessage());
         }
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.noContent().build();
     }
 
     // ── POST /{id}/test（Admin+）：已存 provider 连通性 ─────────────────
@@ -216,7 +216,7 @@ public class WebSearchProviderController {
         long tenantId = requireTenant();
         WebSearchProvider provider = owned(tenantId, id);
         doTestSearch(provider.getProvider(), provider.getParameters());
-        return ResponseEntity.ok(successOnly());
+        return ResponseEntity.ok(connectedBody());
     }
 
     // ── 内部辅助 ───────────────────────────────────────────────────────
@@ -401,10 +401,11 @@ public class WebSearchProviderController {
         return body;
     }
 
-    /** gin.H：{"success":true} */
-    static Map<String, Object> successOnly() {
+
+    /** 连通性测试成功体：{connected:true}（与失败体 {connected:false,error} 同形对称）。 */
+    private static Map<String, Object> connectedBody() {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
+        body.put("connected", true);
         return body;
     }
 

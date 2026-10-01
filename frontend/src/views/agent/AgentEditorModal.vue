@@ -1453,7 +1453,7 @@
                           :placeholder="$t('agent.editor.webSearchProviderPlaceholder')" style="width: 240px;">
                           <t-option v-for="p in webSearchProviderList" :key="p.id" :value="p.id" :label="p.name">
                             <span>{{ p.name }}</span>
-                            <t-tag v-if="p.is_default" theme="primary" size="small" style="margin-left: 6px;">{{
+                            <t-tag v-if="p.isDefault" theme="primary" size="small" style="margin-left: 6px;">{{
                               $t('common.default')
                               }}</t-tag>
                           </t-option>

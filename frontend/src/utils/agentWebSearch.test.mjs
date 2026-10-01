@@ -7,8 +7,8 @@ import {
 } from './agentWebSearch.ts';
 
 const providers = [
-  { id: 'p1', name: 'Keenable', is_default: false },
-  { id: 'p2', name: 'Default', is_default: true },
+  { id: 'p1', name: 'Keenable', isDefault: false },
+  { id: 'p2', name: 'Default', isDefault: true },
 ];
 
 test('resolveAgentWebSearchProviderId uses explicit agent provider', () => {
@@ -26,7 +26,7 @@ test('resolveAgentWebSearchProviderId falls back to tenant default', () => {
 });
 
 test('resolveAgentWebSearchProviderId returns null when default missing', () => {
-  const noDefault = [{ id: 'p1', name: 'Keenable', is_default: false }];
+  const noDefault = [{ id: 'p1', name: 'Keenable', isDefault: false }];
   assert.equal(
     resolveAgentWebSearchProviderId({ web_search_provider_id: '' }, noDefault),
     null,
@@ -40,7 +40,7 @@ test('isAgentWebSearchReady requires enabled flag and resolvable provider', () =
   );
   assert.equal(
     isAgentWebSearchReady({ web_search_enabled: true, web_search_provider_id: '' }, [
-      { id: 'p1', name: 'Keenable', is_default: false },
+      { id: 'p1', name: 'Keenable', isDefault: false },
     ]),
     false,
   );
@@ -68,7 +68,7 @@ test('isAgentWebSearchReady trusts source workspace readiness for a shared agent
 test('isTenantWebSearchReady checks default provider only', () => {
   assert.equal(isTenantWebSearchReady(providers), true);
   assert.equal(
-    isTenantWebSearchReady([{ id: 'p1', name: 'Keenable', is_default: false }]),
+    isTenantWebSearchReady([{ id: 'p1', name: 'Keenable', isDefault: false }]),
     false,
   );
 });
