@@ -1,11 +1,8 @@
 package com.ragagent.memory.controller;
 
-import com.ragagent.common.web.JsonMappers;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.memory.domain.MemoryConflictException;
@@ -16,11 +13,15 @@ import com.ragagent.common.settings.MemoryKinds;
 import com.ragagent.memory.domain.MemoryPage;
 import com.ragagent.memory.domain.MemorySettings;
 import com.ragagent.memory.domain.MemoryTopicView;
+import com.ragagent.memory.dto.CreateMemoryItemRequest;
 import com.ragagent.memory.dto.MemoryExportResponse;
 import com.ragagent.memory.dto.MemoryListResponse;
+import com.ragagent.memory.dto.UpdateMemoryItemRequest;
+import com.ragagent.memory.dto.UpdateMemorySettingsRequest;
 import com.ragagent.memory.service.MemoryConsolidationService;
 import com.ragagent.memory.service.MemoryScopeExceptions;
 import com.ragagent.memory.service.MemoryService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -59,6 +60,20 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>{@code Clear} 是同步删除，按 §1.13 返 204——旧 Go 的 {@code {"removed":N}} 计数随信封一并退役；
  * 前端不再展示条数（如需恢复，须先改标准）。</p>
  *
+ * <h2>请求形态：标准 DTO 绑定（§1.10 / §1.23，2026-10-01 M3）</h2>
+ * <p>三个带体的端点用 {@code memory/dto} 里的 record 绑定 + {@code @Valid}，
+ * 不再手写 {@code rawBody} 解析；错误由全局处理器统一给（都是 400 信封）：</p>
+ * <pre>
+ *   空体 / 字面量 null   → details "请求体不能为空"
+ *   畸形 JSON            → details "请求体格式不正确"
+ *   字段类型错           → details "&lt;字段&gt;: 类型不正确"
+ *   缺 enabled / 显式 null → details "enabled: 不能为空"（DTO 上的 @NotNull）
+ *   未知字段             → <b>忽略</b>（Spring Boot 的 mapper 关掉了 FAIL_ON_UNKNOWN，
+ *                          与 Go 的 encoding/json 同款——多带一个字段不该让整条请求失败）
+ * </pre>
+ * <p>缺省语义：条目端点的 {@code kind}/{@code content}/{@code importance} 缺失或显式
+ * {@code null} 都按零值（{@code orEmpty} / {@code orZero}），"内容是否为空"仍由服务层判。</p>
+ *
  * <h2>错误形态：AppError 信封，逐条对照 Go 的 {@code fail()}</h2>
  * <pre>
  *   NoScope          → 401 {"code":1001,…,"message":"no principal in request"}
@@ -96,16 +111,6 @@ public class MemoryController {
      */
     static final int EXPORT_MAX_ITEMS = 20000;
 
-    /**
-     * 请求体解析器：<b>必须</b>忽略未知字段。
-     *
-     * <p>Go 的 {@code c.ShouldBindJSON} 走 {@code encoding/json}，默认忽略未知字段；
-     * Jackson 的裸 {@code ObjectMapper} 默认<b>失败</b>（§7.5 第 6 条的同族坑，
-     * 只是这次在请求方向）。前端多带一个字段就整条请求 400 是这里最不该发生的事。</p>
-     */
-    private static final ObjectMapper MAPPER = JsonMappers.lenient()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
     private final MemoryService memoryService;
     private final MemoryConsolidationService consolidationService;
 
@@ -130,26 +135,18 @@ public class MemoryController {
     /**
      * 对照 Go {@code UpdateSettings}（L63-84）。
      *
-     * <p>两处 400 的门槛顺序有语义：先"请求体能不能解析"，
-     * 再"enabled 在不在"——{@code {"enabled":null}} 落后者。</p>
+     * <p>两处 400 的门槛顺序有语义：先"请求体能不能解析"（框架的绑定错误），
+     * 再"enabled 在不在"（DTO 上的 {@code @NotNull}）——{@code {"enabled":null}}
+     * 落后者，两者都是 400，门前的 {@code details} 各不相同。</p>
      */
     @PutMapping("/api/v1/memory/settings")
-    public MemorySettings updateSettings(
-            @RequestBody(required = false) String rawBody) {
-        UpdateMemorySettingsRequest req = parse(rawBody, UpdateMemorySettingsRequest.class);
-        if (req == null || req.enabled() == null) {
-            throw new BizException(AppError.badRequest("enabled is required"));
-        }
+    public MemorySettings updateSettings(@RequestBody @Valid UpdateMemorySettingsRequest req) {
         try {
             memoryService.setEnabled(req.enabled());
         } catch (RuntimeException e) {
             throw fail(e, "Failed to update memory settings");
         }
         return getSettings();
-    }
-
-    /** 对照 Go 的 {@code updateMemorySettingsRequest}：{@code Enabled *bool}。 */
-    record UpdateMemorySettingsRequest(Boolean enabled) {
     }
 
     // ══════════════════════════ 条目 ══════════════════════════
@@ -198,45 +195,27 @@ public class MemoryController {
 
     /** 对照 Go {@code CreateItem}（L262-275）。换锚后：<b>201</b> + 裸条目（§1.15）。 */
     @PostMapping("/api/v1/memory/items")
-    public ResponseEntity<MemoryItem> createItem(
-            @RequestBody(required = false) String rawBody) {
-        CreateMemoryItemRequest req = parse(rawBody, CreateMemoryItemRequest.class);
+    public ResponseEntity<MemoryItem> createItem(@RequestBody @Valid CreateMemoryItemRequest req) {
         MemoryItem item;
         try {
             item = memoryService.createItem(
-                    req == null ? "" : req.kind(),
-                    req == null || req.content() == null ? "" : req.content(),
-                    req == null || req.importance() == null ? 0 : req.importance());
+                    orEmpty(req.kind()), orEmpty(req.content()), orZero(req.importance()));
         } catch (RuntimeException e) {
             throw fail(e, "Failed to create memory");
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(item);
     }
 
-    /** 对照 Go 的 {@code createMemoryItemRequest}：三个非指针字段（缺失即零值）。 */
-    record CreateMemoryItemRequest(String kind, String content, Integer importance) {
-    }
-
     /** 对照 Go {@code UpdateItem}（L293-306）。换锚后：200 + 裸条目。 */
     @PutMapping("/api/v1/memory/items/{id}")
     public MemoryItem updateItem(
             @PathVariable("id") String id,
-            @RequestBody(required = false) String rawBody) {
-        UpdateMemoryItemRequest req = parse(rawBody, UpdateMemoryItemRequest.class);
+            @RequestBody @Valid UpdateMemoryItemRequest req) {
         try {
-            return memoryService.updateItem(id,
-                    req == null || req.content() == null ? "" : req.content(),
-                    req == null || req.importance() == null ? 0 : req.importance());
+            return memoryService.updateItem(id, orEmpty(req.content()), orZero(req.importance()));
         } catch (RuntimeException e) {
             throw fail(e, "Failed to update memory");
         }
-    }
-
-    /**
-     * 对照 Go 的 {@code updateMemoryItemRequest}：只有 content + importance
-     * ——{@code kind} 不在请求体里，前端传了也读不到（Go 的 struct 没有那个字段）。
-     */
-    record UpdateMemoryItemRequest(String content, Integer importance) {
     }
 
     /** 对照 Go {@code DeleteItem}（L317-324）。换锚后：<b>204</b>（§1.13）。 */
@@ -504,29 +483,14 @@ public class MemoryController {
         }
     }
 
-    /**
-     * 对照 Go 的 {@code c.ShouldBindJSON(&req)}：空 body 与非法 JSON 都落
-     * {@code Invalid request data}（code 1010），details 是解析器的消息。
-     *
-     * <p>⚠️ <b>已知差异</b>：非法 JSON 的 details 文案两边不同——Go 是
-     * {@code encoding/json} 的 {@code invalid character 'o' in literal null (expecting 'u')}，
-     * Java 是 Jackson 的等价消息（措辞不同）。前端只读 {@code message}，
-     * 契约测试因此掩码 details（与登录端点的既有处置一致，见 §9 阶段 1 差异 #2）。
-     * 空 body 的 {@code "EOF"} 是逐字节一致的。</p>
-     */
-    private static <T> T parse(String rawBody, Class<T> type) {
-        if (rawBody == null || rawBody.isBlank()) {
-            throw invalidRequestData("EOF");
-        }
-        try {
-            return MAPPER.readValue(rawBody, type);
-        } catch (Exception e) {
-            throw invalidRequestData(e.getMessage());
-        }
+    /** 字符串字段的缺省语义：缺省/显式 {@code null} 都按零值（空串）处理。 */
+    private static String orEmpty(String value) {
+        return value == null ? "" : value;
     }
 
-    private static BizException invalidRequestData(String details) {
-        return new BizException(AppError.validation("Invalid request data").withDetails(details));
+    /** 计数字段的缺省语义：缺省/显式 {@code null} 都按零值（0）处理。 */
+    private static int orZero(Integer value) {
+        return value == null ? 0 : value;
     }
 
     /**

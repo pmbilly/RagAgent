@@ -173,35 +173,43 @@ class MemoryHttpContractTest {
     }
 
     /**
-     * 非法 JSON → 400 code 1010（不是 1000）。
+     * 非法 JSON → 400「请求参数不合法 / 请求体格式不正确」。
      *
-     * <p>⚠️ details 的两侧文案本来就不同（Go 是 encoding/json 的消息），
-     * 所以这里只钉 {@code code} 与 {@code message}，并单独断言空 body 的 {@code "EOF"}
-     * 是逐字节一致的（同 §9 阶段 1 差异 #2 的处置）。</p>
+     * <p>M3 起走标准请求绑定（不再是手写的 {@code rawBody} 解析）：details 由全局处理器
+     * 给中文文案，不再逐字节复刻 Go 的 {@code encoding/json} 消息。</p>
      */
     @Test
-    void settingsInvalidJsonIsValidationError() throws Exception {
+    void settingsInvalidJsonIsBadRequest() throws Exception {
         MvcResult r = perform(jsonBody(put("/api/v1/memory/settings"), "not-json")
                 .header("Authorization", bearer()));
 
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        String body = raw(r);
-        assertTrue(body.startsWith(
-                "{\"error\":{\"code\":1010,\"details\":\""), body);
-        assertTrue(body.endsWith(
-                "\",\"message\":\"Invalid request data\"},\"success\":false}"), body);
+        assertEquals(golden("memory-body-malformed.json"), raw(r));
     }
 
-    /** 空 body 的 details 是 Go 的 {@code "EOF"}——这一条逐字节一致。 */
+    /** 空体与字面量 {@code null} 落同一条 400「请求体不能为空」（标准绑定，M3）。 */
     @Test
-    void settingsEmptyBodyIs400WithEofDetails() throws Exception {
-        MvcResult r = perform(put("/api/v1/memory/settings")
+    void settingsEmptyOrNullBodyIsBadRequest() throws Exception {
+        MvcResult empty = perform(put("/api/v1/memory/settings")
                 .contentType("application/json")
                 .header("Authorization", bearer()));
+        assertEquals(400, empty.getResponse().getStatus(), raw(empty));
+        assertEquals(golden("memory-body-empty.json"), raw(empty));
 
-        assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals("{\"error\":{\"code\":1010,\"details\":\"EOF\","
-                + "\"message\":\"Invalid request data\"},\"success\":false}", raw(r));
+        MvcResult nullBody = perform(jsonBody(put("/api/v1/memory/settings"), "null")
+                .header("Authorization", bearer()));
+        assertEquals(400, nullBody.getResponse().getStatus(), raw(nullBody));
+        assertEquals(golden("memory-body-empty.json"), raw(nullBody));
+    }
+
+    /** 未知字段被**忽略**（与 Go 的 {@code encoding/json} 同款）：多带一个字段不该整条 400。 */
+    @Test
+    void settingsToleratesUnknownFields() throws Exception {
+        MvcResult r = perform(jsonBody(put("/api/v1/memory/settings"),
+                "{\"enabled\":true,\"whatever\":1}").header("Authorization", bearer()));
+
+        assertEquals(200, r.getResponse().getStatus(), raw(r));
+        assertEquals(golden("memory-settings.json"), raw(r));
     }
 
     /** 关掉自己的开关：响应是**合并视图**（实测 workspaceEnabled 仍 true、effective 翻 false）。 */
@@ -334,6 +342,27 @@ class MemoryHttpContractTest {
 
         assertEquals(500, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("memory-empty-content.json"), raw(r));
+    }
+
+    /**
+     * 条目字段缺省与显式 {@code null} **同义**（都按零值，M3 的 {@code orEmpty}/{@code orZero}）：
+     * {@code content:null} 与空串走同一条 500 空内容，而不是绑定期 400。
+     */
+    @Test
+    void createItemTreatsExplicitNullFieldsAsZeroValues() throws Exception {
+        MvcResult r = createItem("{\"kind\":\"fact\",\"content\":null,\"importance\":null}");
+
+        assertEquals(500, r.getResponse().getStatus(), raw(r));
+        assertEquals(golden("memory-empty-content.json"), raw(r));
+    }
+
+    /** 只给 {@code content} 就够：{@code kind}/{@code importance} 缺省即零值。 */
+    @Test
+    void createItemAcceptsOmittedOptionalFields() throws Exception {
+        MvcResult r = createItem("{\"content\":\"只给内容\"}");
+
+        assertEquals(201, r.getResponse().getStatus(), raw(r));
+        assertTrue(raw(r).contains("\"content\":\"只给内容\""), raw(r));
     }
 
     /** 全是凭据的陈述被拒：400 + err.Error()（details 为 null）。 */
