@@ -2227,9 +2227,9 @@ agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
 
 | 面 | 处数 | 判定 |
 | --- | --- | --- |
-| **第三方 connector 线格式** | **270** | **永久冻结**：飞书 `FeishuApiTypes`(94)+`DocxBlocks`(62)、语雀 `YuqueApiTypes`(47)、IMA `ImaApiTypes`(43)、`GitLabClient`(24)——字段名由对方 API 决定（同 mcp 的 RFC 面） |
+| **第三方 connector 线格式** | **350** | **永久冻结**：飞书 `FeishuApiTypes`+`DocxBlocks`、语雀 `YuqueApiTypes`、IMA `ImaApiTypes`、`GitLabClient` 等——字段名由对方 API 决定（同 mcp 的 RFC 面）。⚠️ 早期写的 270 是窄口径（漏算全限定写法与部分文件），以 350 为准 |
 | **队列载荷（我方内部）** | 16 | `DataSourceSyncPayload`(13)+`TaskInitiator`(3)：进程内同步队列的 JSON（`InProcessDataSourceSyncTaskQueue`）；**但有 Go 逐字节 golden（`DataSourceJsonTest`）** → 归 D3 |
-| **我方 HTTP/落库面** | ~207 | 拆 D1/D2 |
+| **我方 HTTP/落库面** | ~143 | 拆 D1（76）/D2（51）/D3（16） |
 
 **批次划分**
 - **D1 主资源 + 凭据 + 资源目录（~140）**：`domain/DataSource`(22)、`dto/DataSourceResponse`(22)、`domain/Resource`(10)、
@@ -2290,7 +2290,7 @@ agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
   日志端点 200（**D2 键未动，边界证明**）/ 凭据 PUT 裸 `{fields:…}` / 凭据删除 204）。
   冒烟前置：本地 RSS 桩（18099）+ `SSRF_WHITELIST_EXTRA=127.0.0.1` 重启（否则创建被 SSRF 拦）。
 - 剩余：**D2（同步日志与结果，51 处）→ D3（队列载荷 16 处 + `DataSourceJsonTest` 的 D2/D3 用例）**；
-  270 处 connector 第三方线格式永久冻结（§14.9q）。
+  350 处 connector 第三方线格式永久冻结（§14.9q；口径见存量表脚注）。
 
 **⚠️ 本轮发现（登记待办）**：M1 只去了 `@JsonProperty` 与 `@JsonPropertyOrder`，**漏了类级/字段级 `@JsonInclude`**——`McpServiceResponse`、`McpAuthConfigResponse`、`McpTool`、`McpTestResult`（mcp 域 7 个文件）仍是 omitempty 直译，按 §1.6 应改恒输出（会动响应键集合 ⇒ 需重录夹具）。另 `McpCatalogSummary` 的 `Include.ALWAYS` 是默认值可删。作为 **M6** 小批处理。
 
@@ -2320,7 +2320,8 @@ agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
   **落库 `sync_logs.result` 与 `data_sources.last_sync_result` 键名已换锚** / 响应无旧 snake 键）。
   ⚠️ 冒烟发现两处口径（已记）：GET 详情**不补** `latestSyncLog`（只有列表补）；RSS **全量**同步不写
   `last_sync_cursor`（增量才有）——所以落库断言取的是 `last_sync_result`。
-- 剩余：**D3（队列载荷 `DataSourceSyncPayload`/`TaskInitiator`，16 处 + `DataSourceJsonTest` 的 D3 用例）**。
+- 剩余：**D3（队列载荷 `DataSourceSyncPayload`/`TaskInitiator`，16 处 + `DataSourceJsonTest` 的 D3 用例）**
+  ——做完即该域收官（余 350 处为 connector 第三方线格式，永久冻结）。
 
 **D2 存量迁移 SQL（真 PG 合成数据验证；dev 库 0 行）**：
 ```sql
@@ -2446,7 +2447,7 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1，§14.9q）→ 366（D2 同步日志与结果，§14.9q；余 D3 16 处 + 270 处 connector 第三方线格式永久冻结）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1，§14.9q）→ 366（D2，§14.9q；**余 16 处＝D3 队列载荷**，另 **350 处 connector 第三方线格式永久冻结**。⚠️ 口径：本域计数含 `@JsonPropertyOrder`（`@JsonProperty` 前缀也匹配它），且 connector 段的 350 是**含全限定写法**的实测值——早期记的 270 是窄口径漏算，按 350 为准）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
