@@ -143,7 +143,7 @@ async function submit() {
     if (valid !== true) return
     await resetUserPassword({
       email: form.email.trim(),
-      new_password: form.newPassword,
+      newPassword: form.newPassword,
     })
     const success = t('system.globalSettings.passwordReset.success')
     emit('announced', success)

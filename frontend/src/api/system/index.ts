@@ -7,21 +7,18 @@ export interface CreatePlatformAPIKeyPayload {
   expires_at_unix?: number
 }
 
-export async function listPlatformAPIKeys(): Promise<{ success: boolean; data?: TenantAPIKey[] }> {
-  return await get('/api/v1/system/admin/api-keys') as unknown as { success: boolean; data?: TenantAPIKey[] }
+export async function listPlatformAPIKeys(): Promise<TenantAPIKey[]> {
+  return await get('/api/v1/system/admin/api-keys') as unknown as TenantAPIKey[]
 }
 
 export async function createPlatformAPIKey(
   payload: CreatePlatformAPIKeyPayload,
-): Promise<{ success: boolean; data?: CreatedTenantAPIKey }> {
-  return await post('/api/v1/system/admin/api-keys', payload) as unknown as {
-    success: boolean
-    data?: CreatedTenantAPIKey
-  }
+): Promise<CreatedTenantAPIKey> {
+  return await post('/api/v1/system/admin/api-keys', payload) as unknown as CreatedTenantAPIKey
 }
 
-export async function deletePlatformAPIKey(keyId: number): Promise<{ success: boolean }> {
-  return await del(`/api/v1/system/admin/api-keys/${keyId}`) as unknown as { success: boolean }
+export async function deletePlatformAPIKey(keyId: number): Promise<void> {
+  await del(`/api/v1/system/admin/api-keys/${keyId}`)
 }
 
 export interface SystemInfo {
@@ -291,11 +288,11 @@ export interface SystemAdminUser {
 }
 
 export interface PromoteUserRequest {
-  user_id: string
+  userId: string
 }
 
 export interface RevokeSystemAdminRequest {
-  user_id: string
+  userId: string
 }
 
 export interface ListSystemAdminsResponse {
@@ -306,9 +303,9 @@ export interface ListSystemAdminsResponse {
 /**
  * Promote a user to system administrator.
  *
- * Identify the target either by user_id (UUID, for API clients) or
+ * Identify the target either by userId (UUID, for API clients) or
  * email (the human-friendly path used by the SystemAdmin UI). Backend
- * accepts whichever is provided; user_id wins when both are set.
+ * accepts whichever is provided; userId wins when both are set.
  *
  * Backend handler (system.go) returns the updated UserInfo directly as
  * the response body — no {data: ...} wrapping. The shared axios
@@ -323,8 +320,8 @@ export interface ListSystemAdminsResponse {
  */
 export interface PromoteUserToSystemAdminRequest {
   /** UUID of the user to promote. Optional; supply this OR `email`. */
-  user_id?: string
-  /** Email address of the user to promote. Optional; supply this OR `user_id`. */
+  userId?: string
+  /** Email address of the user to promote. Optional; supply this OR `userId`. */
   email?: string
 }
 
@@ -340,7 +337,7 @@ export async function promoteUserToSystemAdmin(
  * Same wrapping convention as promoteUserToSystemAdmin.
  */
 export async function revokeSystemAdmin(userId: string): Promise<SystemAdminUser> {
-  const response = await post('/api/v1/system/admin/revoke', { user_id: userId })
+  const response = await post('/api/v1/system/admin/revoke', { userId: userId })
   return response as unknown as SystemAdminUser
 }
 
@@ -364,7 +361,7 @@ export async function listSystemAdmins(
 
 export interface ResetUserPasswordRequest {
   email: string
-  new_password: string
+  newPassword: string
 }
 
 /**
@@ -372,9 +369,8 @@ export interface ResetUserPasswordRequest {
  * The backend route is restricted to SystemAdmin callers and rejects attempts
  * to reset the caller's own password.
  */
-export async function resetUserPassword(req: ResetUserPasswordRequest): Promise<{ message: string }> {
-  const response = await post('/api/v1/system/admin/users/reset-password', req)
-  return response as unknown as { message: string }
+export async function resetUserPassword(req: ResetUserPasswordRequest): Promise<void> {
+  await post('/api/v1/system/admin/users/reset-password', req)
 }
 
 export interface CreateSystemUserRequest {
@@ -384,7 +380,7 @@ export interface CreateSystemUserRequest {
   email: string
   /**
    * Optional. Omit the key (or send null) to have the server generate a
-   * random password, returned exactly once in `generated_password`.
+   * random password, returned exactly once in `generatedPassword`.
    * Any provided value (including empty string) is subject to the
    * password policy and can be rejected.
    */
@@ -398,7 +394,7 @@ export interface CreateSystemUserResponse {
    * server-minted plaintext password, returned exactly once and could not
    * be fetched again.
    */
-  generated_password?: string
+  generatedPassword?: string
 }
 
 export interface CreateSystemUserResult extends CreateSystemUserResponse {
@@ -430,29 +426,29 @@ export async function createSystemUser(req: CreateSystemUserRequest): Promise<Cr
  * types/system_setting.go.
  *
  * `value` is typed as `unknown` because the underlying JSONB column can
- * hold an int / string / bool depending on `value_type`. Callers narrow
- * via the value_type field (`'int' | 'string' | 'bool'`).
+ * hold an int / string / bool depending on `valueType`. Callers narrow
+ * via the valueType field (`'int' | 'string' | 'bool'`).
  */
 export interface SystemSettingItem {
   id: number
   key: string
-  /** Raw JSON value — narrow via value_type before rendering. */
+  /** Raw JSON value — narrow via valueType before rendering. */
   value: unknown
-  value_type: 'int' | 'string' | 'bool' | 'string_list'
+  valueType: 'int' | 'string' | 'bool' | 'string_list'
   category: string
   description: string
   /** P3+ — currently always false. UI may surface a "redacted" state when true. */
-  is_secret: boolean
+  isSecret: boolean
   /** P3+ — currently always false. UI may show "needs restart to take effect" badge when true. */
-  requires_restart: boolean
-  last_modified_by: string
+  requiresRestart: boolean
+  lastModifiedBy: string
   /**
-   * Display label resolved from last_modified_by (UUID) on the server —
+   * Display label resolved from lastModifiedBy (UUID) on the server —
    * username when known, email as a fallback. Empty/undefined for
    * virtual rows that were never persisted; UI then falls back to the
    * UUID prefix.
    */
-   last_modified_by_name?: string
+   lastModifiedByName?: string
   created_at: string
   updated_at: string
   /**
@@ -460,7 +456,7 @@ export interface SystemSettingItem {
    * the service from the in-code registry; absent/empty means "free-form".
    * Frontend renders a t-select instead of t-input when this is non-empty.
    */
-  enum?: string[]
+  enumOptions?: string[]
 }
 
 /**
@@ -484,7 +480,7 @@ export async function getSystemSetting(key: string): Promise<SystemSettingItem> 
 
 /**
  * Persist a new value for `key`. The backend validates the value against
- * the registry-declared value_type and rejects mismatches with 400; the
+ * the registry-declared valueType and rejects mismatches with 400; the
  * error message is surfaced via err.message (see utils/request.ts:209).
  *
  * Successful updates emit an audit row (action=system.setting_changed)
@@ -513,16 +509,16 @@ export async function resetSystemSetting(key: string): Promise<void> {
 /**
  * Result of POST /system/admin/tenants/apply-default-storage-quota.
  * `affected` is the count of tenant rows whose storage_quota was
- * overwritten; `quota_bytes` is the value written.
+ * overwritten; `quotaBytes` is the value written.
  */
 export interface ApplyDefaultStorageQuotaResult {
   affected: number
-  quota_bytes: number
-  quota_gb: number
+  quotaBytes: number
+  quotaGb: number
 }
 
 /**
- * Apply the current `tenant.default_storage_quota_gb` setting to every
+ * Apply the current `tenant.default_storage_quotaGb` setting to every
  * existing tenant. Reads the resolved setting server-side (DB > ENV >
  * default), then writes that quota to every row. SystemAdmin only.
  *
@@ -606,15 +602,15 @@ export interface QueueStat {
 export interface RuntimeWorkerPool {
   name: string
   concurrency: number
-  queue_count: number
+  queueCount: number
   instances: number
-  cluster_capacity: number
+  clusterCapacity: number
   active: number
   utilization: number
 }
 
 export interface ModelRuntimeStat {
-  model_id: string
+  modelId: string
   name: string
   active: number
   waiting: number
@@ -630,12 +626,12 @@ export interface ModelRuntimeStat {
  */
 export interface RuntimeQueuesResponse {
   available: boolean
-  upstream_concurrency: number
-  parse_concurrency: number
-  wiki_concurrency: number
+  upstreamConcurrency: number
+  parseConcurrency: number
+  wikiConcurrency: number
   pools: RuntimeWorkerPool[]
   queues: QueueStat[]
-  model_limiter_available: boolean
+  modelLimiterAvailable: boolean
   models: ModelRuntimeStat[]
   timestamp: number
 }
@@ -676,7 +672,7 @@ export interface RuntimeTask {
 export interface RuntimeTasksResponse {
   available: boolean
   tasks: RuntimeTask[]
-  page_size: number
+  pageSize: number
   has_more: boolean
   next_cursor?: string
 }
@@ -699,7 +695,7 @@ export async function getRuntimeTasks(
   pageSize = 20,
 ): Promise<RuntimeTasksResponse> {
   return get(`/api/v1/system/admin/runtime/queues/${encodeURIComponent(queue)}/tasks`, {
-    params: { state, ...(cursor ? { cursor } : {}), page_size: pageSize },
+    params: { state, ...(cursor ? { cursor } : {}), pageSize: pageSize },
   })
 }
 

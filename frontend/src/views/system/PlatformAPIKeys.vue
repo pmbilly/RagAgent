@@ -305,7 +305,7 @@ async function reload() {
   loading.value = true
   try {
     const response = await listPlatformAPIKeys()
-    keys.value = response.data ?? []
+    keys.value = response ?? []
   } catch (error: any) {
     MessagePlugin.error(error?.message || t('platformApiKeys.loadFailed'))
   } finally {
@@ -326,7 +326,7 @@ async function createKey() {
   creating.value = true
   try {
     const response = await createPlatformAPIKey({ name: form.name.trim(), capabilities })
-    createdToken.value = response.data?.token ?? ''
+    createdToken.value = response.token ?? ''
     drawerVisible.value = false
     tokenVisible.value = true
     await reload()

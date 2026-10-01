@@ -14,7 +14,7 @@ const identity = { username: 'alice', email: 'alice@example.com' }
 
 test('reveal wins whenever the server minted a one-time password', () => {
   const view = resolveCreateUserView(
-    { generated_password: 'OnceOnly9', created: true },
+    { generatedPassword: 'OnceOnly9', created: true },
     identity,
     true,
   )
@@ -44,7 +44,7 @@ test('created:true with a supplied password is a real create', () => {
   )
 })
 
-test('auto-generate create that failed to return generated_password surfaces missingPassword', () => {
+test('auto-generate create that failed to return generatedPassword surfaces missingPassword', () => {
   assert.deepEqual(
     resolveCreateUserView({ created: true }, identity, true),
     { kind: 'missingPassword' },

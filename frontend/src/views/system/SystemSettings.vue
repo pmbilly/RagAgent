@@ -176,10 +176,10 @@
             <div class="setting-info">
               <div class="setting-label">
                 <span>{{ keyLabel(item.key) }}</span>
-                <t-tag v-if="item.requires_restart" theme="warning" variant="light" size="small"
+                <t-tag v-if="item.requiresRestart" theme="warning" variant="light" size="small"
                   class="setting-badge">{{
                     t('system.globalSettings.badgeRequiresRestart') }}</t-tag>
-                <t-tag v-if="item.is_secret" theme="primary" variant="light" size="small" class="setting-badge">{{
+                <t-tag v-if="item.isSecret" theme="primary" variant="light" size="small" class="setting-badge">{{
                   t('system.globalSettings.badgeSecret') }}</t-tag>
                 <t-tag v-if="isHighImpactKey(item.key)" theme="danger" variant="light" size="small"
                   class="setting-badge">{{
@@ -221,13 +221,13 @@
                 <t-select v-else-if="hasEnum(item)" v-model="editValues[item.key]" :options="enumOptions(item)"
                   :aria-label="keyLabel(item.key)" :disabled="savingKey === item.key" class="setting-input"
                   @change="onChange(item)" />
-                <t-switch v-else-if="item.value_type === 'bool'" v-model="editValues[item.key]"
+                <t-switch v-else-if="item.valueType === 'bool'" v-model="editValues[item.key]"
                   :aria-label="keyLabel(item.key)" :disabled="savingKey === item.key" @change="onChange(item)" />
-                <t-input-number v-else-if="item.value_type === 'int'" v-model="editValues[item.key]"
+                <t-input-number v-else-if="item.valueType === 'int'" v-model="editValues[item.key]"
                   :placeholder="placeholderFor(item)" :aria-label="keyLabel(item.key)"
                   :disabled="savingKey === item.key" theme="normal" :step="1" :min="minimumFor(item)"
                   class="setting-input" @blur="onChange(item)" />
-                <t-popconfirm v-else-if="item.value_type === 'string_list' && item.key === 'ssrf.whitelist'"
+                <t-popconfirm v-else-if="item.valueType === 'string_list' && item.key === 'ssrf.whitelist'"
                   v-model:visible="ssrfPopconfirm.visible" :content="ssrfPopconfirm.content"
                   :theme="ssrfPopconfirm.theme" :confirm-btn="ssrfPopconfirm.confirmBtn"
                   :cancel-btn="t('system.globalSettings.confirm.cancelBtn')"
@@ -271,7 +271,7 @@
               <div v-if="hasOverride(item) || hasBulkAction(item)" class="setting-control-actions">
                 <!--
               Per-key bulk action. Currently only one key
-              (tenant.default_storage_quota_gb) carries one — clicking
+              (tenant.default_storage_quotaGb) carries one — clicking
               writes the current setting value onto every existing
               tenant. We do this as a separate explicit action rather
               than auto-cascade on save so a SystemAdmin who tweaks the
@@ -466,7 +466,7 @@ const SETTINGS_SECTION_KEYS: Record<Exclude<SettingsSection, 'other'>, readonly 
     'tenant.max_owned_per_user',
   ],
   tenant: [
-    'tenant.default_storage_quota_gb',
+    'tenant.default_storage_quotaGb',
     'tenant.auto_create_api_key',
     'tenant.auto_accept_invitation',
   ],
@@ -565,24 +565,24 @@ const ssrfSnapLocked = ref(false)
 const editValues = reactive<Record<string, unknown>>({})
 
 function hasEnum(item: SystemSettingItem): boolean {
-  return Array.isArray(item.enum) && item.enum.length > 0
+  return Array.isArray(item.enumOptions) && item.enumOptions.length > 0
 }
 
 function enumOptions(item: SystemSettingItem): { label: string; value: string }[] {
-  const opts = item.enum ?? []
+  const opts = item.enumOptions ?? []
   return opts.map((v) => ({ label: enumLabel(item.key, v), value: v }))
 }
 
 // hasOverride reports whether the row carries a real DB override (vs a
 // virtual row backed by ENV/default). Distinguishing these is what
-// `last_modified_by` was made for: empty string means the value came
+// `lastModifiedBy` was made for: empty string means the value came
 // from registry/ENV. Drives the "已覆盖" badge.
 function hasOverride(item: SystemSettingItem): boolean {
-  return Boolean(item.last_modified_by && item.last_modified_by.trim() !== '')
+  return Boolean(item.lastModifiedBy && item.lastModifiedBy.trim() !== '')
 }
 
 // modifiedMeta returns a humane "上次修改" line for rows that have been
-// persisted (last_modified_by non-empty AND updated_at not the Go zero
+// persisted (lastModifiedBy non-empty AND updated_at not the Go zero
 // value). Returns '' for virtual rows so the meta line collapses
 // entirely instead of rendering "1/1/1 08:05:43" garbage.
 function modifiedMeta(item: SystemSettingItem): string {
@@ -591,12 +591,12 @@ function modifiedMeta(item: SystemSettingItem): string {
   if (!ts || ts.startsWith('0001-')) return ''
   const formatted = formatDate(ts)
   // Prefer the resolved username/email the server enriches via
-  // last_modified_by_name. Fall back to the UUID's first 8 chars when
+  // lastModifiedByName. Fall back to the UUID's first 8 chars when
   // the user can't be resolved (deleted account, transient lookup
   // failure) — the full ID is still in the audit log.
-  const actor = item.last_modified_by_name && item.last_modified_by_name.trim() !== ''
-    ? item.last_modified_by_name
-    : (item.last_modified_by || '').slice(0, 8)
+  const actor = item.lastModifiedByName && item.lastModifiedByName.trim() !== ''
+    ? item.lastModifiedByName
+    : (item.lastModifiedBy || '').slice(0, 8)
   return `${formatted} · ${actor}`
 }
 
@@ -838,11 +838,11 @@ function highRiskConfirmBody(item: SystemSettingItem, value: unknown): string {
 
 // hasBulkAction tells the template whether the current row carries an
 // extra "apply to existing data" action beyond plain save/reset.
-// Currently only `tenant.default_storage_quota_gb` does — saving the
+// Currently only `tenant.default_storage_quotaGb` does — saving the
 // setting only affects future tenants, so the bulk button is the
 // escape hatch for "rewrite all current tenants too".
 function hasBulkAction(item: SystemSettingItem): boolean {
-  return item.key === 'tenant.default_storage_quota_gb'
+  return item.key === 'tenant.default_storage_quotaGb'
 }
 
 function bulkActionConfirmBody(item: SystemSettingItem): string {
@@ -864,7 +864,7 @@ async function runBulkAction(item: SystemSettingItem) {
     MessagePlugin.success(
       t('system.globalSettings.bulkApply.success', {
         count: result.affected,
-        gb: result.quota_gb,
+        gb: result.quotaGb,
       }),
     )
     markSettingSaved(item)

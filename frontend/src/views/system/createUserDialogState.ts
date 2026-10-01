@@ -26,7 +26,7 @@ export function resolveCreateUserView(
   identity: CreateUserIdentity,
   autoGenerate: boolean,
 ): CreateUserView {
-  const generated = response.generated_password ?? ''
+  const generated = response.generatedPassword ?? ''
   if (generated) {
     return {
       kind: 'reveal',

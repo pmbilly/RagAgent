@@ -110,7 +110,7 @@
             <div class="rq-pool-topline">
               <span class="rq-pool-name">{{ poolLabel(pool.name) }}</span>
               <strong class="rq-pool-value">
-                {{ pool.instances > 0 ? `${pool.active}/${pool.cluster_capacity}` : pool.concurrency }}
+                {{ pool.instances > 0 ? `${pool.active}/${pool.clusterCapacity}` : pool.concurrency }}
               </strong>
             </div>
             <p class="rq-pool-desc">
@@ -121,7 +121,7 @@
                   · {{ t('system.globalSettings.runtime.poolInstances', { value: pool.instances }) }}
                   · {{ t('system.globalSettings.runtime.poolUtilization', { value: poolUtilization(pool) }) }}
                 </template>
-                · {{ t('system.globalSettings.runtime.queueCount', { value: pool.queue_count }) }}
+                · {{ t('system.globalSettings.runtime.queueCount', { value: pool.queueCount }) }}
               </span>
             </p>
           </div>
@@ -269,11 +269,11 @@
           <span>{{ t('system.globalSettings.runtime.models.empty') }}</span>
         </div>
         <div v-else class="data-table-shell rq-table-shell">
-          <t-table row-key="model_id" :data="models" :columns="modelColumns" size="medium" hover>
-            <template #model_id="{ row }">
+          <t-table row-key="modelId" :data="models" :columns="modelColumns" size="medium" hover>
+            <template #modelId="{ row }">
               <div class="rq-queue-cell">
-                <span class="rq-queue-name">{{ row.name || row.model_id }}</span>
-                <span class="rq-queue-meta">{{ row.name ? row.model_id : t('system.globalSettings.runtime.models.backgroundOnly') }}</span>
+                <span class="rq-queue-name">{{ row.name || row.modelId }}</span>
+                <span class="rq-queue-meta">{{ row.name ? row.modelId : t('system.globalSettings.runtime.models.backgroundOnly') }}</span>
               </div>
             </template>
             <template #active="{ row }"><span class="rq-number" :class="{ 'rq-number--active': row.active > 0 }">{{ row.active }}</span></template>
@@ -592,7 +592,7 @@ const columns = computed(() => [
   { colKey: 'status', title: t('system.globalSettings.runtime.columns.status'), width: 96 },
 ])
 const modelColumns = computed(() => [
-  { colKey: 'model_id', title: t('system.globalSettings.runtime.models.columns.model'), minWidth: 240 },
+  { colKey: 'modelId', title: t('system.globalSettings.runtime.models.columns.model'), minWidth: 240 },
   { colKey: 'active', title: t('system.globalSettings.runtime.models.columns.active'), width: 86, align: 'center' as const },
   { colKey: 'waiting', title: t('system.globalSettings.runtime.models.columns.waiting'), width: 86, align: 'center' as const },
   { colKey: 'usage', title: t('system.globalSettings.runtime.models.columns.usage'), width: 190 },
@@ -736,7 +736,7 @@ function poolDescription(pool: string): string {
 }
 
 function poolQueueCount(pool: string): number {
-  return pools.value.find((item) => item.name === pool)?.queue_count ?? 0
+  return pools.value.find((item) => item.name === pool)?.queueCount ?? 0
 }
 
 function poolUtilization(pool: RuntimeWorkerPool): number {
@@ -908,7 +908,7 @@ async function load(showSpinner: boolean) {
       taskQueue.value = queues.value.find((item) => item.name === taskQueue.value?.name) ?? taskQueue.value
     }
     models.value = resp.models || []
-    modelLimiterAvailable.value = Boolean(resp.model_limiter_available)
+    modelLimiterAvailable.value = Boolean(resp.modelLimiterAvailable)
     updatedAt.value = new Date((resp.timestamp || Date.now() / 1000) * 1000)
       .toLocaleTimeString(locale.value, { hour12: false })
     error.value = ''
