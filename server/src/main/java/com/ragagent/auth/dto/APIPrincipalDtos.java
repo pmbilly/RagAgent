@@ -22,11 +22,11 @@ public final class APIPrincipalDtos {
 
     /** 缺省归一后的配置视图（对照 apiPrincipalConfigForResponse） */
     public record APIPrincipalConfigResponse(
-            @com.fasterxml.jackson.annotation.JsonProperty("mode") String mode,
-            @com.fasterxml.jackson.annotation.JsonProperty("direct_header_name") String directHeaderName,
-            @com.fasterxml.jackson.annotation.JsonProperty("signed_token_header_name") String signedTokenHeaderName,
-            @com.fasterxml.jackson.annotation.JsonProperty("require_direct_header") boolean requireDirectHeader,
-            @com.fasterxml.jackson.annotation.JsonProperty("has_hmac_secret") boolean hasHmacSecret) {
+            String mode,
+            String directHeaderName,
+            String signedTokenHeaderName,
+            boolean requireDirectHeader,
+            boolean hasHmacSecret) {
     }
 
     /**
@@ -35,11 +35,11 @@ public final class APIPrincipalDtos {
      * （Go 同样反序列化成 nil）→ 保留存量密钥；TextNode("…")=显式提供 → 覆盖。
      */
     public record APIPrincipalConfigRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("mode") String mode,
-            @com.fasterxml.jackson.annotation.JsonProperty("direct_header_name") String directHeaderName,
-            @com.fasterxml.jackson.annotation.JsonProperty("signed_token_header_name") String signedTokenHeaderName,
-            @com.fasterxml.jackson.annotation.JsonProperty("require_direct_header") boolean requireDirectHeader,
-            @com.fasterxml.jackson.annotation.JsonProperty("hmac_secret") JsonNode hmacSecret) {
+            String mode,
+            String directHeaderName,
+            String signedTokenHeaderName,
+            boolean requireDirectHeader,
+            JsonNode hmacSecret) {
 
         /** hmac_secret 是否被显式提供（非缺失、非显式 null） */
         public boolean hasHmacSecret() {
@@ -53,15 +53,15 @@ public final class APIPrincipalDtos {
     }
 
     public record APIPrincipalTestTokenRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("external_user_id") String externalUserId,
-            @com.fasterxml.jackson.annotation.JsonProperty("expires_in_seconds") int expiresInSeconds) {
+            String externalUserId,
+            int expiresInSeconds) {
     }
 
     public record APIPrincipalTestTokenResponse(
-            @com.fasterxml.jackson.annotation.JsonProperty("token") String token,
-            @com.fasterxml.jackson.annotation.JsonProperty("header_name") String headerName,
-            @com.fasterxml.jackson.annotation.JsonProperty("expires_in_seconds") int expiresInSeconds,
-            @com.fasterxml.jackson.annotation.JsonProperty("expires_at_unix") long expiresAtUnix,
-            @com.fasterxml.jackson.annotation.JsonProperty("external_user_id") String externalUserId) {
+            String token,
+            String headerName,
+            int expiresInSeconds,
+            long expiresAtUnix,
+            String externalUserId) {
     }
 }

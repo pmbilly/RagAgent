@@ -1,1 +1,1 @@
-{"success":false,"message":"Account is disabled","memberships":null}
+{"error":{"code":1001,"details":null,"message":"Account is disabled"},"success":false}

@@ -8,18 +8,20 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Valid;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.TenantInvitation;
 import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.auth.domain.User;
 import com.ragagent.auth.domain.UserPreferences;
+import com.ragagent.auth.dto.AuthConfigResponse;
 import com.ragagent.auth.dto.AuthLoginResponse;
 import com.ragagent.auth.dto.ChangePasswordRequest;
 import com.ragagent.auth.dto.InvitationLookupRequest;
+import com.ragagent.auth.dto.CurrentUserResponse;
 import com.ragagent.auth.dto.InvitationLookupResponse;
 import com.ragagent.auth.dto.LoginRequest;
 import com.ragagent.auth.dto.Membership;
@@ -27,9 +29,10 @@ import com.ragagent.auth.dto.OidcAuthUrlResponse;
 import com.ragagent.auth.dto.OidcConfigResponse;
 import com.ragagent.auth.dto.RegisterByInviteRequest;
 import com.ragagent.auth.dto.RegisterRequest;
-import com.ragagent.auth.dto.RegisterResponse;
 import com.ragagent.auth.dto.TenantResponse;
+import com.ragagent.auth.dto.TokenPairResponse;
 import com.ragagent.auth.dto.UpdatePreferencesRequest;
+import com.ragagent.auth.dto.UserCapabilities;
 import com.ragagent.auth.dto.UserInfo;
 import com.ragagent.auth.service.LoginResult;
 import com.ragagent.auth.service.OidcConfig;
@@ -43,6 +46,8 @@ import com.ragagent.auth.service.UserService;
 import com.ragagent.auth.service.ValidatedToken;
 import com.ragagent.auth.service.TokenValidationException;
 import com.ragagent.common.context.TenantContext;
+import com.ragagent.common.web.NonNullBody;
+import com.ragagent.common.web.RejectEmptyBody;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.tenant.TenantProperties;
@@ -151,64 +156,75 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthLoginResponse> login(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<AuthLoginResponse> login(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false) LoginRequest req) {
         log.info("Start user login");
 
-        LoginRequest req = parseBody(rawBody, LoginRequest.class, "Invalid login parameters");
-        List<String> bindingErrors = bindingSupport.validateLoginBinding(req);
-        if (!bindingErrors.isEmpty()) {
-            throw bindingSupport.invalidParams("Invalid login parameters", String.join("\n", bindingErrors));
+        // 空值由 @NotBlank 拦截；格式与长度沿用 gin binding 语义（正则 + 按码点计数，逐条收集）
+        List<String> bindingErrors = new ArrayList<>();
+        if (!GIN_EMAIL.matcher(req.email()).matches()) {
+            bindingErrors.add(bindingError("LoginRequest", "Email", "email"));
         }
-        if (isBlank(req.email()) || isBlank(req.password())) {
-            // 对照 Go handler 的显式空值检查（binding required 之后的兜底）
-            throw new BizException(AppError.validation("Email and password are required"));
+        if (req.password().codePointCount(0, req.password().length()) < 6) {
+            bindingErrors.add(bindingError("LoginRequest", "Password", "min"));
+        }
+        if (!bindingErrors.isEmpty()) {
+            throw bindingSupport.invalidParams("Invalid login parameters",
+                    String.join("\n", bindingErrors));
         }
 
         LoginResult result = userService.login(req);
         if (!result.success()) {
             log.warn("Login failed: {}", result.message());
-        } else {
-            log.info("User logged in successfully, email: {}", result.user().getEmail());
+            throw new BizException(AppError.unauthorized(result.message()));
         }
-        AuthLoginResponse body = toResponse(result);
-        return ResponseEntity.status(result.success() ? 200 : 401).body(body);
+        log.info("User logged in successfully, email: {}", result.user().getEmail());
+        return ResponseEntity.ok(toResponse(result));
     }
 
     // ── POST /register（对照 auth.go L170-243） ────────────────────────────
 
     @PostMapping("/register")
-    public ResponseEntity<RegisterResponse> register(@RequestBody(required = false) String rawBody) {
+    public ResponseEntity<User> register(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false) RegisterRequest req) {
         // 1) invite_only 门（DB system_settings > cfg > self_serve）
         if ("invite_only".equals(resolveRegistrationMode())) {
             throw new BizException(AppError.forbidden("Registration is invite-only"));
         }
-        // 2) binding（对照 types.RegisterRequest 的校验标签）
-        RegisterRequest req = parseBody(rawBody, RegisterRequest.class, "Invalid registration parameters");
-        List<String> bindingErrors = bindingSupport.validateRegisterBinding(req);
+        // 2) 格式与长度沿用 gin binding 语义（正则 + 按码点计数，逐条收集）
+        List<String> bindingErrors = new ArrayList<>();
+        int usernameLen = req.username().codePointCount(0, req.username().length());
+        if (usernameLen < 2) {
+            bindingErrors.add(bindingError("RegisterRequest", "Username", "min"));
+        } else if (usernameLen > 50) {
+            bindingErrors.add(bindingError("RegisterRequest", "Username", "max"));
+        }
+        if (!GIN_EMAIL.matcher(req.email()).matches()) {
+            bindingErrors.add(bindingError("RegisterRequest", "Email", "email"));
+        }
+        if (req.password().codePointCount(0, req.password().length()) < 6) {
+            bindingErrors.add(bindingError("RegisterRequest", "Password", "min"));
+        }
         if (!bindingErrors.isEmpty()) {
-            throw bindingSupport.invalidParams("Invalid registration parameters", String.join("\n", bindingErrors));
+            throw bindingSupport.invalidParams("Invalid registration parameters",
+                    String.join("\n", bindingErrors));
         }
         // 3) 消毒（密码刻意不消毒：SanitizeForLog 会改写控制字符，导致注册成功却登录不上）
         String username = UserService.sanitizeForLog(req.username());
         String email = UserService.sanitizeForLog(req.email());
-        // 4) 必填检查（消毒后）
-        if (username.isEmpty() || email.isEmpty() || isBlank(req.password())) {
-            throw new BizException(AppError.validation("Username, email and password are required"));
-        }
-        // 5) 密码策略（运行时可调：DB system_settings 优先）
+        // 4) 密码策略（运行时可调：DB system_settings 优先）
         String policyError = PasswordPolicy.validate(req.password(), userService.complexPasswordEnabled());
         if (policyError != null) {
             throw new BizException(AppError.validation(policyError));
         }
-        // 6) 注册（租户供应模式服务端决定，不从请求读）
+        // 5) 注册（租户供应模式服务端决定，不从请求读）
         User user;
         try {
             user = userService.register(username, email, req.password(), resolveDefaultTenantMode());
         } catch (UserService.RegistrationException e) {
             throw new BizException(AppError.badRequest(e.getMessage()));
         }
-        return ResponseEntity.status(201)
-                .body(new RegisterResponse(true, "Registration successful", user));
+        return ResponseEntity.status(201).body(user);
     }
 
     // ── POST /auto-setup（对照 auth.go L895-962） ──────────────────────────
@@ -243,24 +259,17 @@ public class AuthController {
         List<Membership> memberships = List.of(new Membership(
                 user.getTenantId() == null ? 0L : user.getTenantId(),
                 tenantNameOrEmpty(tenant), TenantRole.OWNER.value()));
-        return ResponseEntity.ok(buildAuthLoginResponse(true, "Auto-setup successful",
-                user, tenant, memberships, tokens[0], tokens[1]));
+        return ResponseEntity.ok(
+                buildAuthLoginResponse(user, tenant, memberships, tokens[0], tokens[1]));
     }
 
     // ── POST /register-by-invite + /invitations/lookup ─────────────────────
     // （对照 auth_register_by_invite.go；均不受 invite_only 门控——token 即授权）
 
     @PostMapping("/invitations/lookup")
-    public ResponseEntity<Map<String, Object>> lookupInvitation(
-            @RequestBody(required = false) String rawBody) {
-        InvitationLookupRequest req = parseBody(rawBody, InvitationLookupRequest.class, "token is required");
-        List<String> bindingErrors = new ArrayList<>();
-        if (isBlank(req.token())) {
-            bindingErrors.add(bindingSupport.bindingError("invitationLookupRequest", "Token", "required"));
-        }
-        if (!bindingErrors.isEmpty()) {
-            throw bindingSupport.invalidParams("token is required", String.join("\n", bindingErrors));
-        }
+    public ResponseEntity<InvitationLookupResponse> lookupInvitation(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    InvitationLookupRequest req) {
         String token = UserService.goTrimSpace(req.token());
         if (token.isEmpty()) {
             throw new BizException(AppError.validation("token is required"));
@@ -280,20 +289,23 @@ public class AuthController {
                 // 对照 .UTC().Format("2006-01-02T15:04:05Z07:00")：UTC、无小数秒、Z 结尾
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
                         .format(inv.getExpiresAt().withOffsetSameInstant(ZoneOffset.UTC)));
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", resp);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(resp);
     }
 
     @PostMapping("/register-by-invite")
     public ResponseEntity<AuthLoginResponse> registerByInvite(
-            @RequestBody(required = false) String rawBody) {
-        RegisterByInviteRequest req = parseBody(rawBody, RegisterByInviteRequest.class,
-                "Invalid registration parameters");
-        List<String> bindingErrors = bindingSupport.validateRegisterByInviteBinding(req);
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    RegisterByInviteRequest req) {
+        List<String> bindingErrors = new ArrayList<>();
+        if (!GIN_EMAIL.matcher(req.email()).matches()) {
+            bindingErrors.add(bindingError("registerByInviteRequest", "Email", "email"));
+        }
+        if (req.password().codePointCount(0, req.password().length()) < 6) {
+            bindingErrors.add(bindingError("registerByInviteRequest", "Password", "min"));
+        }
         if (!bindingErrors.isEmpty()) {
-            throw bindingSupport.invalidParams("Invalid registration parameters", String.join("\n", bindingErrors));
+            throw bindingSupport.invalidParams("Invalid registration parameters",
+                    String.join("\n", bindingErrors));
         }
         String token = UserService.goTrimSpace(req.token());
         String email = UserService.goTrimSpace(req.email()).toLowerCase(Locale.ROOT);
@@ -368,19 +380,16 @@ public class AuthController {
         }
         List<Membership> memberships = List.of(
                 new Membership(inv.getTenantId(), tenantNameOrEmpty(tenant), inv.getRole()));
-        return ResponseEntity.status(201).body(buildAuthLoginResponse(true, "Registration successful",
-                user, tenant, memberships, tokens[0], tokens[1]));
+        return ResponseEntity.status(201).body(
+                buildAuthLoginResponse(user, tenant, memberships, tokens[0], tokens[1]));
     }
 
     // ── GET /config（对照 auth.go L821-836，无鉴权公共读） ─────────────────
 
     @GetMapping("/config")
-    public ResponseEntity<Map<String, Object>> getAuthConfig() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("complex_password_enabled", userService.complexPasswordEnabled());
-        body.put("registration_mode", resolveRegistrationMode());
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+    public ResponseEntity<AuthConfigResponse> getAuthConfig() {
+        return ResponseEntity.ok(new AuthConfigResponse(
+                userService.complexPasswordEnabled(), resolveRegistrationMode()));
     }
 
     // ── GET /validate（对照 auth.go L984-1024） ────────────────────────────
@@ -388,7 +397,7 @@ public class AuthController {
     // 这里的 400/401 分支是对 Go handler 的忠实翻译（过滤器之后不可达）。
 
     @GetMapping("/validate")
-    public ResponseEntity<Map<String, Object>> validateToken(
+    public ResponseEntity<UserInfo> validateToken(
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         if (authHeader == null || authHeader.isEmpty()) {
             throw new BizException(AppError.validation("Authorization header is required"));
@@ -404,17 +413,13 @@ public class AuthController {
             throw new BizException(AppError.unauthorized("Token validation failed")
                     .withDetails(e.getMessage()));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "Token is valid");
-        body.put("success", true);
-        body.put("user", UserInfo.from(vt.user(), vt.user().isCanAccessAllTenants()));
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(UserInfo.from(vt.user(), vt.user().isCanAccessAllTenants()));
     }
 
     // ── GET /me（对照 auth.go L613-669） ───────────────────────────────────
 
     @GetMapping("/me")
-    public ResponseEntity<Map<String, Object>> getCurrentUser() {
+    public ResponseEntity<CurrentUserResponse> getCurrentUser() {
         User user = currentUserOr401();
         // 取**活动**空间（AuthFilter 按 X-Tenant-ID/JWT claim 解析的），不是用户的主空间
         Long ctxTenant = TenantContext.currentTenantId();
@@ -439,32 +444,24 @@ public class AuthController {
         boolean autoAcceptInvitation = settingService.getBool("tenant.auto_accept_invitation",
                 "WEKNORA_TENANT_AUTO_ACCEPT_INVITATION", false);
 
-        Map<String, Object> capabilities = new LinkedHashMap<>();
-        capabilities.put("auto_accept_invitation", autoAcceptInvitation);
-        capabilities.put("can_create_tenant", canCreateTenant);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("capabilities", capabilities);
-        data.put("memberships", memberships);
-        // preference_defaults：browser_search_instructions 随浏览器连接裁撤后已无条目，
+        // preferenceDefaults：browser_search_instructions 随浏览器连接裁撤后已无条目，
         // 保留空 map 以维持响应形状。
-        data.put("preference_defaults", new LinkedHashMap<>());
-        data.put("tenant", tenant == null ? null : TenantResponse.from(tenant, contextRoleHasAdmin()));
-        data.put("tenant_required", tenant == null);
-        data.put("user", userInfo);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(new CurrentUserResponse(
+                new UserCapabilities(autoAcceptInvitation, canCreateTenant),
+                memberships,
+                new LinkedHashMap<>(),
+                tenant == null ? null : TenantResponse.from(tenant, contextRoleHasAdmin()),
+                tenant == null,
+                userInfo));
     }
 
     // ── PUT /me/preferences（对照 auth.go L700-733） ───────────────────────
 
     @PutMapping("/me/preferences")
-    public ResponseEntity<Map<String, Object>> updateMyPreferences(
-            @RequestBody(required = false) String rawBody) {
+    public ResponseEntity<UserPreferences> updateMyPreferences(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    UpdatePreferencesRequest req) {
         User user = currentUserOr401();
-        UpdatePreferencesRequest req = parseBody(rawBody, UpdatePreferencesRequest.class,
-                "Invalid preferences request");
         UserPreferences patch = new UserPreferences();
         patch.setLastActiveTenantId(req.lastActiveTenantId());
         UserPreferences prefs;
@@ -474,30 +471,15 @@ public class AuthController {
             throw new BizException(AppError.badRequest("Failed to update preferences")
                     .withDetails(e.getMessage()));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", prefs);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(prefs);
     }
 
     // ── POST /change-password（对照 auth.go L746-806） ─────────────────────
 
     @PostMapping("/change-password")
-    public ResponseEntity<Map<String, Object>> changePassword(
-            @RequestBody(required = false) String rawBody) {
-        ChangePasswordRequest req = parseBody(rawBody, ChangePasswordRequest.class,
-                "Invalid password change request");
-        List<String> bindingErrors = new ArrayList<>();
-        // Go 侧是匿名 struct：验证错误 Key 无 struct 名前缀（golden reg-chpw-binding 锁定）
-        if (isBlank(req.oldPassword())) {
-            bindingErrors.add(bindingSupport.bindingError("", "OldPassword", "required"));
-        }
-        if (isBlank(req.newPassword())) {
-            bindingErrors.add(bindingSupport.bindingError("", "NewPassword", "required"));
-        }
-        if (!bindingErrors.isEmpty()) {
-            throw bindingSupport.invalidParams("Invalid password change request", String.join("\n", bindingErrors));
-        }
+    public ResponseEntity<Void> changePassword(
+            @Valid @RejectEmptyBody @NonNullBody @RequestBody(required = false)
+                    ChangePasswordRequest req) {
         User user = currentUserOr401();
         try {
             userService.changePassword(user.getId(), req.oldPassword(), req.newPassword());
@@ -515,10 +497,7 @@ public class AuthController {
                         .withDetails(e.getMessage()));
             }
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "Password changed successfully");
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
 
@@ -643,13 +622,13 @@ public class AuthController {
      * （AuthLoginResponse，message="Workspace switched"）。
      */
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, Object>> logout(
+    public ResponseEntity<Void> logout(
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         return sessionOps.logout(authHeader);
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, Object>> refreshToken(
+    public ResponseEntity<TokenPairResponse> refreshToken(
             @RequestBody(required = false) String rawBody) {
         return sessionOps.refreshToken(rawBody);
     }
@@ -661,7 +640,7 @@ public class AuthController {
     }
     /** 对照 dto.NewAuthLoginResponse（login 用） */
     private AuthLoginResponse toResponse(LoginResult r) {
-        return buildAuthLoginResponse(r.success(), r.message(), r.user(), r.activeTenant(),
+        return buildAuthLoginResponse(r.user(), r.activeTenant(),
                 r.memberships(), r.token(), r.refreshToken());
     }
 
@@ -682,22 +661,18 @@ public class AuthController {
         return s == null || s.isEmpty();
     }
 
-    AuthLoginResponse buildAuthLoginResponse(boolean success, String message, User user,
+    AuthLoginResponse buildAuthLoginResponse(User user,
             Tenant activeTenant, List<Membership> memberships, String token, String refreshToken) {
-        return bindingSupport.buildAuthLoginResponse(success, message, user, activeTenant,
+        return bindingSupport.buildAuthLoginResponse(user, activeTenant,
                 memberships, token, refreshToken);
     }
 
-    private <T> T parseBody(String rawBody, Class<T> type, String message) {
-        return bindingSupport.parseBody(rawBody, type, message);
-    }
-
     String bindingError(String structName, String field, String tag) {
-        return bindingSupport.bindingError(structName, field, tag);
+        return AuthBindingSupport.bindingError(structName, field, tag);
     }
 
     BizException invalidParams(String message, String details) {
-        return bindingSupport.invalidParams(message, details);
+        return AuthBindingSupport.invalidParams(message, details);
     }
 
 

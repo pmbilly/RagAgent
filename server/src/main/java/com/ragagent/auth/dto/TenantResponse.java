@@ -2,9 +2,6 @@ package com.ragagent.auth.dto;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -15,41 +12,34 @@ import com.fasterxml.jackson.databind.JsonNode;
  * NewTenantResponseWithRole 的 includeSecrets 分支）。
  * config 字段为 null 时省略（Go 指针 + omitempty）；deleted_at 恒输出（null → "deleted_at":null）。
  */
-@JsonPropertyOrder({
-        "id", "name", "description", "status", "retriever_engines", "business",
-        "storage_quota", "storage_used", "context_config", "web_search_config",
-        "parser_engine_config", "credentials", "storage_engine_config",
-        "chat_history_config", "retrieval_config", "memory_config",
-        "created_at", "updated_at", "deleted_at"
-})
 public record TenantResponse(
-        @JsonProperty("id") Long id,
-        @JsonProperty("name") String name,
-        @JsonProperty("description") String description,
-        @JsonProperty("status") String status,
-        @JsonProperty("retriever_engines") JsonNode retrieverEngines,
-        @JsonProperty("business") String business,
-        @JsonProperty("storage_quota") Long storageQuota,
-        @JsonProperty("storage_used") Long storageUsed,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("context_config") JsonNode contextConfig,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("web_search_config") JsonNode webSearchConfig,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("parser_engine_config") JsonNode parserEngineConfig,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("credentials") JsonNode credentials,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("storage_engine_config") JsonNode storageEngineConfig,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("chat_history_config") JsonNode chatHistoryConfig,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("retrieval_config") JsonNode retrievalConfig,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        @JsonProperty("memory_config") JsonNode memoryConfig,
-        @JsonProperty("created_at") OffsetDateTime createdAt,
-        @JsonProperty("updated_at") OffsetDateTime updatedAt,
-        @JsonProperty("deleted_at") OffsetDateTime deletedAt) {
+        Long id,
+        String name,
+        String description,
+        String status,
+        JsonNode retrieverEngines,
+        String business,
+        Long storageQuota,
+        Long storageUsed,
+
+        JsonNode contextConfig,
+
+        JsonNode webSearchConfig,
+
+        JsonNode parserEngineConfig,
+
+        JsonNode credentials,
+
+        JsonNode storageEngineConfig,
+
+        JsonNode chatHistoryConfig,
+
+        JsonNode retrievalConfig,
+
+        JsonNode memoryConfig,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        OffsetDateTime deletedAt) {
 
     /**
      * 从 jsonb 列构造（对照 NewTenantResponseWithRole）。

@@ -2,8 +2,6 @@ package com.ragagent.auth.dto;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.auth.domain.User;
 import com.ragagent.auth.domain.UserPreferences;
 
@@ -15,21 +13,18 @@ import com.ragagent.auth.domain.UserPreferences;
  * avatar 恒输出（Go 非指针 string 零值 ""）；tenant_id 恒输出（uint64 零值 0）；
  * preferences 恒输出对象（Go 值类型，空为 {}）。
  */
-@JsonPropertyOrder({"id", "username", "email", "avatar", "tenant_id",
-        "is_active", "can_access_all_tenants", "is_system_admin", "preferences",
-        "created_at", "updated_at"})
 public record UserInfo(
-        @JsonProperty("id") String id,
-        @JsonProperty("username") String username,
-        @JsonProperty("email") String email,
-        @JsonProperty("avatar") String avatar,
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("is_active") boolean isActive,
-        @JsonProperty("can_access_all_tenants") boolean canAccessAllTenants,
-        @JsonProperty("is_system_admin") boolean isSystemAdmin,
-        @JsonProperty("preferences") UserPreferences preferences,
-        @JsonProperty("created_at") OffsetDateTime createdAt,
-        @JsonProperty("updated_at") OffsetDateTime updatedAt) {
+        String id,
+        String username,
+        String email,
+        String avatar,
+        long tenantId,
+        boolean isActive,
+        boolean canAccessAllTenants,
+        boolean isSystemAdmin,
+        UserPreferences preferences,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt) {
 
     /**
      * 对照 ToUserInfo + /auth/me 的调整：canAccessAllTenants 在 /auth/me 里还要

@@ -37,7 +37,7 @@ final class AuthOidcOps {
         boolean enabled = service.oidcConfig != null && service.oidcConfig.isEnable();
         String providerDisplayName = service.oidcConfig == null ? ""
                 : UserService.goTrimSpace(service.oidcConfig.getProviderDisplayName());
-        return ResponseEntity.ok(new OidcConfigResponse(true, enabled, providerDisplayName));
+        return ResponseEntity.ok(new OidcConfigResponse(enabled, providerDisplayName));
     }
 
     // ── GET /oidc/url（对照 auth.go L311-332） ──────────────────────────────
@@ -52,7 +52,7 @@ final class AuthOidcOps {
         OidcService.AuthorizationUrl result = authorizationUrlOr403(trimmed);
         // 绑定 state nonce 到浏览器，防授权码被重放到受害者回调（对照 setOIDCNonceCookie）
         setOidcNonceCookie(request, response, result.nonce());
-        return ResponseEntity.ok(new OidcAuthUrlResponse(true, result.providerDisplayName(),
+        return ResponseEntity.ok(new OidcAuthUrlResponse(result.providerDisplayName(),
                 result.authorizationUrl(), result.state()));
     }
 

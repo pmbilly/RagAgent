@@ -55,7 +55,7 @@ class W5aSundryRoutesContractTest {
     private static final Pattern UUID_PATTERN = Pattern.compile(
             "\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern JWT_PATTERN = Pattern.compile(
-            "\"(access_token|refresh_token|token)\":\"[^\"]*\"");
+            "\"(token|refreshToken)\":\"[^\"]*\"");
     private static final Pattern SEQ_PATTERN = Pattern.compile("\"seqId\":\\d+");
     private static final Pattern NUMERIC_ID_PATTERN = Pattern.compile("\"id\":\\d+");
 
@@ -141,7 +141,7 @@ class W5aSundryRoutesContractTest {
     private void logoutFace() throws Exception {
         String fresh = login("java-phase1@weknora.test");
         assertGolden(postJson("/api/v1/auth/logout", "Bearer " + fresh, null),
-                200, "w5a-auth-logout-ok.json");
+                204, "w5a-auth-logout-ok.json");
         assertGolden(get("/api/v1/auth/validate", "Bearer " + fresh), 401,
                 "w5a-auth-logout-revoked.json");
     }
@@ -313,8 +313,8 @@ class W5aSundryRoutesContractTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\",\"password\":\"Passw0rd!\"}"))
                 .andReturn();
-        Matcher m = Pattern.compile("\"refresh_token\":\"([^\"]+)\"").matcher(raw(result));
-        assertTrue(m.find(), "login 响应应含 refresh_token: " + raw(result));
+        Matcher m = Pattern.compile("\"refreshToken\":\"([^\"]+)\"").matcher(raw(result));
+        assertTrue(m.find(), "login 响应应含 refreshToken: " + raw(result));
         return m.group(1);
     }
 

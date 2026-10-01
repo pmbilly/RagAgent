@@ -1,6 +1,6 @@
 package com.ragagent.auth.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * POST /auth/register-by-invite 请求体
@@ -8,8 +8,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * gin binding：token required；email required,email；username required；password required,min=6。
  */
 public record RegisterByInviteRequest(
-        @JsonProperty("token") String token,
-        @JsonProperty("email") String email,
-        @JsonProperty("username") String username,
-        @JsonProperty("password") String password) {
+        @NotBlank(message = "token: 不能为空") String token,
+        @NotBlank(message = "email: 不能为空") String email,
+        @NotBlank(message = "username: 不能为空") String username,
+        @NotBlank(message = "password: 不能为空") String password) {
 }

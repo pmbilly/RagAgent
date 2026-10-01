@@ -1,6 +1,6 @@
 package com.ragagent.auth.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * 注册请求体（对照 Go types/user.go RegisterRequest）。
@@ -10,7 +10,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * username required,min=2,max=50；email required,email；password required,min=6。
  */
 public record RegisterRequest(
-        @JsonProperty("username") String username,
-        @JsonProperty("email") String email,
-        @JsonProperty("password") String password) {
+        @NotBlank(message = "username: 不能为空") String username,
+        @NotBlank(message = "email: 不能为空") String email,
+        @NotBlank(message = "password: 不能为空") String password) {
 }

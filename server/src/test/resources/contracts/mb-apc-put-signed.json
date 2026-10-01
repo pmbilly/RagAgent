@@ -1,1 +1,1 @@
-{"data":{"mode":"signed_token","direct_header_name":"X-External-User-ID","signed_token_header_name":"X-External-User-Token","require_direct_header":false,"has_hmac_secret":true},"success":true}
+{"mode":"signed_token","directHeaderName":"X-External-User-ID","signedTokenHeaderName":"X-External-User-Token","requireDirectHeader":false,"hasHmacSecret":true}

@@ -1,6 +1,6 @@
 package com.ragagent.auth.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * POST /auth/change-password 请求体（对照 Go handler/auth.go L751-754 的匿名 struct）。
@@ -8,6 +8,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * （Go 匿名 struct 的 namespace 为空，golden reg-chpw-binding 已锁定）。
  */
 public record ChangePasswordRequest(
-        @JsonProperty("old_password") String oldPassword,
-        @JsonProperty("new_password") String newPassword) {
+        @NotBlank(message = "oldPassword: 不能为空") String oldPassword,
+        @NotBlank(message = "newPassword: 不能为空") String newPassword) {
 }

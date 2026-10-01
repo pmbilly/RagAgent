@@ -217,8 +217,8 @@ class AuthContractTest {
                 .andReturn();
         String body = login.getResponse().getContentAsString();
         java.util.regex.Matcher m =
-                Pattern.compile("\"refresh_token\":\"([^\"]+)\"").matcher(body);
-        assertTrue(m.find(), "login 响应应含 refresh_token: " + body);
+                Pattern.compile("\"refreshToken\":\"([^\"]+)\"").matcher(body);
+        assertTrue(m.find(), "login 响应应含 refreshToken: " + body);
         mockMvc.perform(get("/api/v1/knowledgebases")
                         .header("Authorization", "Bearer " + m.group(1)))
                 .andExpect(status().isUnauthorized())
@@ -257,7 +257,7 @@ class AuthContractTest {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);
         String out = s.replaceAll("\"token\":\"[^\"]*\"", "\"token\":\"<masked>\"");
-        out = out.replaceAll("\"refresh_token\":\"[^\"]*\"", "\"refresh_token\":\"<masked>\"");
+        out = out.replaceAll("\"refreshToken\":\"[^\"]*\"", "\"refreshToken\":\"<masked>\"");
         out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
         return out;
     }

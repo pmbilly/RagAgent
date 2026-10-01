@@ -1,1 +1,1 @@
-{"data":{"tenant_id":10002,"tenant_name":"phase1-test-tenant","role":"viewer","expires_at":"2026-09-26T06:45:44Z"},"success":true}
+{"tenantId":10002,"tenantName":"phase1-test-tenant","role":"viewer","expiresAt":"2026-09-26T06:45:44Z"}

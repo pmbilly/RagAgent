@@ -1286,8 +1286,7 @@ class JsonContractRoundTripTest {
         assertRoundTrips(info, com.ragagent.auth.dto.UserInfo.class,
                 "types.UserInfo ← auth.dto.UserInfo（无 deleted_at，preferences 恒输出）");
 
-        // RegisterResponse：201 响应体，内嵌的是 **User 实体**（含 "deleted_at":null），
-        // 与 UserInfo 投影的差异正是 golden 钉住的点
+        // 注册 201 直接返回 **User 实体**（含 "deletedAt":null），与 UserInfo 投影的差异
         var user = new com.ragagent.auth.domain.User();
         user.setId("u-1");
         user.setUsername("reg-probe");
@@ -1295,48 +1294,46 @@ class JsonContractRoundTripTest {
         user.setTenantId(10002L);
         user.setIsActive(true);
         user.setPreferences(new com.ragagent.auth.domain.UserPreferences());
-        assertRoundTrips(
-                new com.ragagent.auth.dto.RegisterResponse(true, "Registration successful", user),
-                com.ragagent.auth.dto.RegisterResponse.class,
-                "types.RegisterResponse ← auth.dto.RegisterResponse（user 为完整实体）");
+        assertRoundTrips(user, com.ragagent.auth.domain.User.class,
+                "auth.domain.User（注册响应体，deletedAt 显式 null）");
 
-        // InvitationLookupResponse：tenant_name 是 omitempty（NON_EMPTY），两种形态各钉一条
+        // InvitationLookupResponse：tenantName 可空，两种形态各钉一条
         assertRoundTrips(
                 new com.ragagent.auth.dto.InvitationLookupResponse(
                         10002L, "Acme", "viewer", "2026-09-20T14:00:00Z"),
                 com.ragagent.auth.dto.InvitationLookupResponse.class,
-                "handler.invitationLookupResponse ← InvitationLookupResponse");
+                "auth.dto.InvitationLookupResponse");
         assertRoundTrips(
                 new com.ragagent.auth.dto.InvitationLookupResponse(
-                        10002L, "", "viewer", "2026-09-20T14:00:00Z"),
+                        10002L, null, "viewer", "2026-09-20T14:00:00Z"),
                 com.ragagent.auth.dto.InvitationLookupResponse.class,
-                "handler.invitationLookupResponse ← InvitationLookupResponse（tenant_name 省略）");
+                "auth.dto.InvitationLookupResponse（tenantName 显式 null）");
     }
 
     // ── 波 2 扫尾批 2（OIDC 端点响应体） ───────────────────────────────────
 
     @Test
     void authOidcContractsRoundTrip() {
-        // OIDCConfigResponse：provider_display_name 是 omitempty，两形态各钉一条
+        // OidcConfigResponse：providerDisplayName 未配置时显式 null
         assertRoundTrips(
-                new com.ragagent.auth.dto.OidcConfigResponse(true, false, "OIDC"),
+                new com.ragagent.auth.dto.OidcConfigResponse(false, "OIDC"),
                 com.ragagent.auth.dto.OidcConfigResponse.class,
-                "types.OIDCConfigResponse ← OidcConfigResponse");
+                "auth.dto.OidcConfigResponse");
         assertRoundTrips(
-                new com.ragagent.auth.dto.OidcConfigResponse(true, true, ""),
+                new com.ragagent.auth.dto.OidcConfigResponse(true, null),
                 com.ragagent.auth.dto.OidcConfigResponse.class,
-                "types.OIDCConfigResponse ← OidcConfigResponse（display name 省略）");
+                "auth.dto.OidcConfigResponse（display name 显式 null）");
 
-        // OIDCAuthURLResponse：后三字段 omitempty；nonce 标 json:"-" 不建模
+        // OidcAuthUrlResponse：可空字段显式 null；nonce 只进 cookie 不建模
         assertRoundTrips(
-                new com.ragagent.auth.dto.OidcAuthUrlResponse(true, "OIDC",
+                new com.ragagent.auth.dto.OidcAuthUrlResponse("OIDC",
                         "https://idp.example.com/authorize?client_id=c", "st.ate"),
                 com.ragagent.auth.dto.OidcAuthUrlResponse.class,
-                "types.OIDCAuthURLResponse ← OidcAuthUrlResponse");
+                "auth.dto.OidcAuthUrlResponse");
         assertRoundTrips(
-                new com.ragagent.auth.dto.OidcAuthUrlResponse(false, "", "", ""),
+                new com.ragagent.auth.dto.OidcAuthUrlResponse(null, null, null),
                 com.ragagent.auth.dto.OidcAuthUrlResponse.class,
-                "types.OIDCAuthURLResponse ← OidcAuthUrlResponse（omitempty 全省略）");
+                "auth.dto.OidcAuthUrlResponse（全 null）");
     }
 
     // ── 波 2 扫尾批 3（租户 KV 配置类型族，落 tenants 表 jsonb 列） ─────────

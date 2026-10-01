@@ -74,9 +74,9 @@ class AuthRegisterContractTest {
     private static final Pattern UUID_VALUE = Pattern.compile(
             "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern TOKEN_VALUE = Pattern.compile("\"token\":\"[^\"]*\"");
-    private static final Pattern REFRESH_VALUE = Pattern.compile("\"refresh_token\":\"[^\"]*\"");
-    private static final Pattern TENANT_ID_VALUE = Pattern.compile("\"tenant_id\":\\d+");
-    private static final Pattern LAST_ACTIVE_VALUE = Pattern.compile("\"last_active_tenant_id\":\\d+");
+    private static final Pattern REFRESH_VALUE = Pattern.compile("\"refreshToken\":\"[^\"]*\"");
+    private static final Pattern TENANT_ID_VALUE = Pattern.compile("\"tenantId\":\\d+");
+    private static final Pattern LAST_ACTIVE_VALUE = Pattern.compile("\"lastActiveTenantId\":\\d+");
     private static final Pattern NUMERIC_ID = Pattern.compile("\"id\":\\d+");
 
     @Autowired
@@ -225,12 +225,12 @@ class AuthRegisterContractTest {
         long probeTenant = currentTenantId(probe);
         MvcResult tenantPref = mockMvc.perform(json(
                 put("/api/v1/auth/me/preferences").header("Authorization", probe),
-                "{\"last_active_tenant_id\":" + probeTenant + "}")).andReturn();
+                "{\"lastActiveTenantId\":" + probeTenant + "}")).andReturn();
         assertEquals(200, tenantPref.getResponse().getStatus(), raw(tenantPref));
         assertMasked("reg-prefs-tenant.json", raw(tenantPref));
 
         assertGolden(json(put("/api/v1/auth/me/preferences").header("Authorization", probe),
-                "{\"last_active_tenant_id\":0}"), 200, "reg-prefs-tenant-clear.json");
+                "{\"lastActiveTenantId\":0}"), 200, "reg-prefs-tenant-clear.json");
     }
 
     // ── 5) change-password（成功 → 旧 token 吊销 → 密码轮换） ────────────────
@@ -243,17 +243,17 @@ class AuthRegisterContractTest {
         assertGolden(json(post("/api/v1/auth/change-password").header("Authorization", probe), "{}"),
                 400, "reg-chpw-binding.json");
         assertGolden(json(post("/api/v1/auth/change-password").header("Authorization", probe),
-                "{\"old_password\":\"WrongPass1\",\"new_password\":\"" + PROBE_PW_NEW + "\"}"),
+                "{\"oldPassword\":\"WrongPass1\",\"newPassword\":\"" + PROBE_PW_NEW + "\"}"),
                 400, "reg-chpw-wrong-old.json");
         assertGolden(json(post("/api/v1/auth/change-password").header("Authorization", probe),
-                "{\"old_password\":\"" + PROBE_PW + "\",\"new_password\":\"" + PROBE_PW + "\"}"),
+                "{\"oldPassword\":\"" + PROBE_PW + "\",\"newPassword\":\"" + PROBE_PW + "\"}"),
                 400, "reg-chpw-same.json");
         assertGolden(json(post("/api/v1/auth/change-password").header("Authorization", probe),
-                "{\"old_password\":\"" + PROBE_PW + "\",\"new_password\":\"abcdefgh\"}"),
+                "{\"oldPassword\":\"" + PROBE_PW + "\",\"newPassword\":\"abcdefgh\"}"),
                 400, "reg-chpw-weak.json");
         assertGolden(json(post("/api/v1/auth/change-password").header("Authorization", probe),
-                "{\"old_password\":\"" + PROBE_PW + "\",\"new_password\":\"" + PROBE_PW_NEW + "\"}"),
-                200, "reg-chpw-success.json");
+                "{\"oldPassword\":\"" + PROBE_PW + "\",\"newPassword\":\"" + PROBE_PW_NEW + "\"}"),
+                204, "reg-chpw-success.json");
 
         // 改密成功吊销全部会话
         assertGolden(get("/api/v1/auth/validate").header("Authorization", probe),
@@ -349,7 +349,7 @@ class AuthRegisterContractTest {
                 .header("Authorization", bearer)).andReturn();
         // PR4：键序归一后邻接正则不可靠 → Jackson 直取
         var __root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw(me));
-        return __root.path("data").path("user").path("tenant_id").asLong();
+        return __root.path("user").path("tenantId").asLong();
     }
 
     private String login(String email, String password) throws Exception {
@@ -403,10 +403,10 @@ class AuthRegisterContractTest {
     /** 与 golden 比对前对动态字段做同一种掩码（顺序敏感：先 token/uuid 再时间戳）。 */
     private static String mask(String s) {
         String out = TOKEN_VALUE.matcher(s).replaceAll("\"token\":\"<masked>\"");
-        out = REFRESH_VALUE.matcher(out).replaceAll("\"refresh_token\":\"<masked>\"");
+        out = REFRESH_VALUE.matcher(out).replaceAll("\"refreshToken\":\"<masked>\"");
         out = UUID_VALUE.matcher(out).replaceAll("<uuid>");
-        out = TENANT_ID_VALUE.matcher(out).replaceAll("\"tenant_id\":<tid>");
-        out = LAST_ACTIVE_VALUE.matcher(out).replaceAll("\"last_active_tenant_id\":<tid>");
+        out = TENANT_ID_VALUE.matcher(out).replaceAll("\"tenantId\":<tid>");
+        out = LAST_ACTIVE_VALUE.matcher(out).replaceAll("\"lastActiveTenantId\":<tid>");
         out = NUMERIC_ID.matcher(out).replaceAll("\"id\":<tid>");
         out = TS_PATTERN.matcher(out).replaceAll("\"<ts>\"");
         return out;

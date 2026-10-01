@@ -1,9 +1,8 @@
 package com.ragagent.auth.controller;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import com.ragagent.auth.dto.AuthLoginResponse;
+import com.ragagent.auth.dto.TokenPairResponse;
 import com.ragagent.auth.dto.TenantResponse;
 import com.ragagent.auth.service.LoginResult;
 import com.ragagent.auth.domain.User;
@@ -32,7 +31,7 @@ final class AuthSessionOps {
         this.service = service;
     }
 
-    ResponseEntity<Map<String, Object>> logout(
+    ResponseEntity<Void> logout(
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         log.info("Start user logout");
         if (authHeader == null || authHeader.isEmpty()) {
@@ -47,15 +46,12 @@ final class AuthSessionOps {
         } catch (UserService.LogoutException e) {
             throw new BizException(AppError.internal("Logout failed").withDetails(e.getMessage()));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "Logout successful");
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
     // ── refresh ──
 
-    ResponseEntity<Map<String, Object>> refreshToken(
+    ResponseEntity<TokenPairResponse> refreshToken(
             @RequestBody(required = false) String rawBody) {
         log.info("Start token refresh");
         RefreshTokenRequest req = bindRefreshBody(rawBody);
@@ -69,12 +65,7 @@ final class AuthSessionOps {
         } catch (UserService.RefreshTokenException e) {
             throw new BizException(AppError.unauthorized("Token refresh failed").withDetails(e.getMessage()));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("access_token", tokens[0]);
-        body.put("message", "Token refreshed successfully");
-        body.put("refresh_token", tokens[1]);
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(new TokenPairResponse(tokens[0], tokens[1]));
     }
 
     RefreshTokenRequest bindRefreshBody(String rawBody) {
@@ -142,9 +133,8 @@ final class AuthSessionOps {
             log.warn("SwitchTenant failed user={} target={}: {}", user.getId(), tenantId, e.getMessage());
             throw new BizException(AppError.forbidden("workspace switch failed").withDetails(e.getMessage()));
         }
-        return ResponseEntity.ok(new AuthLoginResponse(result.success(), result.message(),
-                result.user(), activeTenantResponse(result), result.memberships(),
-                result.token(), result.refreshToken()));
+        return ResponseEntity.ok(new AuthLoginResponse(result.user(), activeTenantResponse(result),
+                result.memberships(), result.token(), result.refreshToken()));
     }
 
     TenantResponse activeTenantResponse(LoginResult result) {

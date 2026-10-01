@@ -179,10 +179,10 @@ class TenantCatalogContractTest {
                 "{\"name\":\"  \",\"description\":\"\"}"),
                 500, "ct-create-wsname-500.json");
 
-        // §2 超管全字段路径（status 被 service 恒写 active；storage_quota 透传 12345）
+        // §2 超管全字段路径（status 被 service 恒写 active；storageQuota 透传 12345）
         assertMasked(jsonBody(post("/api/v1/tenants"), superTok,
                 "{\"name\":\"ct-beta\",\"description\":\"beta workspace\","
-                        + "\"storage_quota\":12345,\"status\":\"suspended\"}"),
+                        + "\"storageQuota\":12345,\"status\":\"suspended\"}"),
                 201, "ct-create-superuser.json");
         assertGolden(jsonBody(post("/api/v1/tenants"), superTok,
                 "{\"name\":\"\",\"description\":\"x\"}"),

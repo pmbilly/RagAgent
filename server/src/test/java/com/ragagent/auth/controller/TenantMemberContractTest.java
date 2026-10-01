@@ -81,7 +81,7 @@ class TenantMemberContractTest {
     private static final Pattern INVITE_URL = Pattern.compile(
             "\"invite_url\":\"[^\"]*\"");
     private static final Pattern UNIX_TS = Pattern.compile(
-            "\"expires_at_unix\":\\d+");
+            "\"expiresAtUnix\":\\d+");
 
     @Autowired
     private MockMvc mockMvc;
@@ -716,7 +716,7 @@ class TenantMemberContractTest {
         String putUrl = "/api/v1/tenants/10002/api-principal-config";
 
         MvcResult s = mockMvc.perform(jsonBody(put(putUrl), owner,
-                "{\"mode\":\"signed_token\",\"hmac_secret\":\"mb-golden-hmac-secret-0123456789abcdef\"}"))
+                "{\"mode\":\"signed_token\",\"hmacSecret\":\"mb-golden-hmac-secret-0123456789abcdef\"}"))
                 .andReturn();
         assertEquals(200, s.getResponse().getStatus(), raw(s));
         assertEquals(golden("mb-apc-put-signed.json"), raw(s));
@@ -726,18 +726,18 @@ class TenantMemberContractTest {
         assertEquals(golden("mb-apc-get-after.json"), raw(g));
 
         MvcResult p = mockMvc.perform(jsonBody(put(putUrl), owner,
-                "{\"mode\":\"signed_token\",\"hmac_secret\":\"***\"}")).andReturn();
+                "{\"mode\":\"signed_token\",\"hmacSecret\":\"***\"}")).andReturn();
         assertEquals(200, p.getResponse().getStatus(), raw(p));
         assertEquals(golden("mb-apc-put-placeholder.json"), raw(p));
 
         // 显式 null：Go 反序列化成 nil → 未提供 → 保留存量
         MvcResult n = mockMvc.perform(jsonBody(put(putUrl), owner,
-                "{\"mode\":\"signed_token\",\"hmac_secret\":null}")).andReturn();
+                "{\"mode\":\"signed_token\",\"hmacSecret\":null}")).andReturn();
         assertEquals(200, n.getResponse().getStatus(), raw(n));
         assertEquals(golden("mb-apc-put-null-secret.json"), raw(n));
 
         MvcResult c = mockMvc.perform(jsonBody(put(putUrl), owner,
-                "{\"mode\":\"signed_token\",\"hmac_secret\":\"   \"}")).andReturn();
+                "{\"mode\":\"signed_token\",\"hmacSecret\":\"   \"}")).andReturn();
         assertEquals(400, c.getResponse().getStatus(), raw(c));
         assertEquals(golden("mb-apc-put-clear-secret.json"), raw(c));
     }
@@ -750,41 +750,41 @@ class TenantMemberContractTest {
 
         // 先进入 signed_token 模式（密钥见 mb-apc-put-signed）
         mockMvc.perform(jsonBody(put(putUrl), owner,
-                "{\"mode\":\"signed_token\",\"hmac_secret\":\"mb-golden-hmac-secret-0123456789abcdef\"}"))
+                "{\"mode\":\"signed_token\",\"hmacSecret\":\"mb-golden-hmac-secret-0123456789abcdef\"}"))
                 .andReturn();
 
         MvcResult t = mockMvc.perform(jsonBody(post(postUrl), owner,
-                "{\"external_user_id\":\"ext-user-1\"}")).andReturn();
+                "{\"externalUserId\":\"ext-user-1\"}")).andReturn();
         assertEquals(200, t.getResponse().getStatus(), raw(t));
         assertEquals(mask(golden("mb-test-token.json")), mask(raw(t)));
 
         MvcResult mx = mockMvc.perform(jsonBody(post(postUrl), owner,
-                "{\"external_user_id\":\"ext-user-2\",\"expires_in_seconds\":3600}")).andReturn();
+                "{\"externalUserId\":\"ext-user-2\",\"expiresInSeconds\":3600}")).andReturn();
         assertEquals(200, mx.getResponse().getStatus(), raw(mx));
         assertEquals(mask(golden("mb-test-token-ttl-max.json")), mask(raw(mx)));
 
         MvcResult df = mockMvc.perform(jsonBody(post(postUrl), owner,
-                "{\"external_user_id\":\"ext-user-3\",\"expires_in_seconds\":0}")).andReturn();
+                "{\"externalUserId\":\"ext-user-3\",\"expiresInSeconds\":0}")).andReturn();
         assertEquals(200, df.getResponse().getStatus(), raw(df));
         assertEquals(mask(golden("mb-test-token-ttl-default.json")), mask(raw(df)));
 
         MvcResult ov = mockMvc.perform(jsonBody(post(postUrl), owner,
-                "{\"external_user_id\":\"ext-user-4\",\"expires_in_seconds\":3601}")).andReturn();
+                "{\"externalUserId\":\"ext-user-4\",\"expiresInSeconds\":3601}")).andReturn();
         assertEquals(400, ov.getResponse().getStatus(), raw(ov));
         assertEquals(golden("mb-test-token-ttl-over.json"), raw(ov));
 
-        MvcResult em = mockMvc.perform(jsonBody(post(postUrl), owner, "{\"external_user_id\":\"\"}")).andReturn();
+        MvcResult em = mockMvc.perform(jsonBody(post(postUrl), owner, "{\"externalUserId\":\"\"}")).andReturn();
         assertEquals(400, em.getResponse().getStatus(), raw(em));
         assertEquals(golden("mb-test-token-empty.json"), raw(em));
 
         String longId = "a".repeat(129);
         MvcResult ln = mockMvc.perform(jsonBody(post(postUrl), owner,
-                "{\"external_user_id\":\"" + longId + "\"}")).andReturn();
+                "{\"externalUserId\":\"" + longId + "\"}")).andReturn();
         assertEquals(400, ln.getResponse().getStatus(), raw(ln));
         assertEquals(golden("mb-test-token-long.json"), raw(ln));
 
         MvcResult ct = mockMvc.perform(jsonBody(post(postUrl), owner,
-                "{\"external_user_id\":\"bad\\u0007id\"}")).andReturn();
+                "{\"externalUserId\":\"bad\\u0007id\"}")).andReturn();
         assertEquals(400, ct.getResponse().getStatus(), raw(ct));
         assertEquals(golden("mb-test-token-ctrl.json"), raw(ct));
 
@@ -794,7 +794,7 @@ class TenantMemberContractTest {
         assertEquals(golden("mb-apc-put-tenant.json"), raw(tn));
 
         MvcResult ns = mockMvc.perform(jsonBody(post(postUrl), owner,
-                "{\"external_user_id\":\"ext-user-5\"}")).andReturn();
+                "{\"externalUserId\":\"ext-user-5\"}")).andReturn();
         assertEquals(400, ns.getResponse().getStatus(), raw(ns));
         assertEquals(golden("mb-test-token-not-signed.json"), raw(ns));
     }
@@ -870,7 +870,7 @@ class TenantMemberContractTest {
         s = com.ragagent.support.ContractJson.semantic(s);
         String out = INVITE_URL.matcher(s).replaceAll("\"invite_url\":\"<invite_url>\"");
         out = JWT.matcher(out).replaceAll("\"token\":\"<jwt>\"");
-        out = UNIX_TS.matcher(out).replaceAll("\"expires_at_unix\":\"<unix>\"");
+        out = UNIX_TS.matcher(out).replaceAll("\"expiresAtUnix\":\"<unix>\"");
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");
         out = TS_VALUE.matcher(out).replaceAll("\"$1\":\"<ts>\"");
         out = INV_ID.matcher(out).replaceAll("\"id\":\"<id>\"");

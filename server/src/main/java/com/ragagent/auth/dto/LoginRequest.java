@@ -1,6 +1,6 @@
 package com.ragagent.auth.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * 登录请求体（对照 Go types/user.go LoginRequest）。
@@ -10,6 +10,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * （见 AuthController.validateLoginRequest），不使用 @Valid 默认消息。
  */
 public record LoginRequest(
-        @JsonProperty("email") String email,
-        @JsonProperty("password") String password) {
+        @NotBlank(message = "email: 不能为空") String email,
+        @NotBlank(message = "password: 不能为空") String password) {
 }
