@@ -208,9 +208,8 @@
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
-   auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** 已完成（同批带前端）；
-   下一步候选：**mcp / datasource / wiki / agent 等域的端点面**（§2 第 4 条落地范围），
-   mcp 批可顺带收掉 embed 访客事件的 mcp 委托信封（§14.9m）。
+   auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** / **mcp 域 M1（服务资源 + 凭据面，前后端同批）** 已完成（同批带前端）；
+   下一步候选：**mcp M3（OAuth 面）/ M4（工具审批面，含 embed 事件委托的信封）/ datasource / wiki / agent 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -2123,6 +2122,92 @@ WHERE jsonb_typeof(execution_context) = 'object' AND execution_context <> '{}'::
 **E2 候选（未做）**：mcp 委托三端点的信封（随 mcp 域）、`/embed/:cid/files`（非 JSON，无需改）、
 postMessage 协议（登记为 SDK 边界）。
 
+### 14.9n mcp 域换锚（M1：服务资源 + 凭据面，2026-10-01）
+
+**✅ M1 执行记录（后端 + 前端同批）**：
+- **响应形态**：服务资源面去 `{data,success}` 信封（§2.1）——create **201** 裸对象（§1.15）、
+  list 裸数组、get/update 裸对象、tools/resources 裸数组、metadata 裸对象（**从未同步 = 裸 `null`**，
+  显式 `NullNode`——Spring 对 null body 会发空正文，前端 JSON.parse 会炸）、
+  usage-instructions 裸 `{usageInstructions}`、**delete 204**（§1.13）；
+  凭据面同批：PUT → 裸 `{fields:{apiKey:{configured},token:{...}}}`、DELETE 保持 204。
+- **键名**：`McpServiceResponse` / `McpServiceCreateRequest` / `McpAuthConfigResponse` /
+  `McpCatalogSummary` / `CredentialsResponse` / `CredentialFieldMetadata` 全 camelCase；
+  **布尔改名**：`is_builtin` → **`builtin`**（§9：布尔字段不带 is 前缀，字段与访问器一起改，
+  否则 Jackson 会同时吐 `builtin` 与 `isBuiltin` 两个键）。
+  **刻意保留**：`inputSchema`（MCP 协议字段名本身就是 camelCase，Go tag 也这么写）；
+  `McpAuthType` 的**枚举值**（`api_key`/`bearer`/`oauth`）是取值不是键名，一律不动。
+- **落库 jsonb 三处**（键名＝字段名）：`mcp_services.auth_config`（7 键）、
+  `mcp_services.advanced_config`（3 键）、`mcp_metadata.tools[]`（`require_approval`→`requireApproval`）；
+  `env_vars`/`headers` 是**用户自定义键**的映射，只需改列名不需迁移。SQL 见下。
+- **请求面**：主 PUT 的**存在性映射**（Go 的 updateFields）键随之 camelCase——
+  它按原始 JSON 键记录"哪些字段被显式提供"，改漏会让部分更新静默失效（`usageInstructions`/
+  `authType`/`apiKeyHeader` 三个最容易漏）；凭据 DELETE 的**路径值** `api_key` → `apiKey`
+  （它镜像响应里 credentials 映射的键名）。
+- **前端同批**（9 文件）：`api/mcp-service.ts` 类型与解包（M1 函数去 `.data`；
+  **M2/M3/M4 的查询（tool-approvals GET / oauth status）刻意保留 `.data`**）、
+  `McpSettings`/`McpServiceDialog`（96 处）/`McpMetadataPanel`/`Input-field`/`editorResources` + 两个测试。
+- **顺手修 3 处前端读错键的活缺陷**：① `MCPMetadata` 类型写成 `service_id`/`server_name`/… 而后端
+  `McpMetadata` 字段本就是 camelCase → **服务文档行（server name/version/description）从来没显示过**；
+  ② `McpTestResult.oauth_required` → 后端字段是 `oauthRequired` → OAuth 引导提示从不触发；
+  ③ 元数据面板 `syncedAt` 与 `stale` 之外的键全错位（同 ①）。
+- **刻意不改（登记）**：① 工具审批面（`GET/PUT /{id}/tool-approvals`：`McpToolApproval` 9 处 +
+  `McpToolApprovalPolicyRequest` 2 处）与 agent 侧 `ResolveToolApprovalRequest`（3 处）→ **M4**；
+  ② OAuth 面（`oauth/*` 39 处：AuthServerMetadata/OAuthState/OAuthToken/…）与
+  `McpOAuthController` 的 4 处 → **M3**；③ agent 工具载荷里的 `usage_instructions`
+  （`McpCatalog`/`McpDiscoverTool` 的 LLM 结果）与 agent 配置 jsonb 的 `is_builtin`（agentm）→ 他域冻结面。
+- 验收：全量 **4684 / 0 失败 / 6 跳过** + `spotlessCheck`；前端 `vue-tsc` 0 错误 + **690 用例** + `vite build`；
+  **真实服务冒烟 10 路通过**（创建 201 裸对象 24 键 + 密钥剥离 + credentials 映射 /
+  列表裸数组 / 更新忽略主 PUT 里的秘密且不动既有凭据 / 凭据 PUT 裸 fields 且不回显 /
+  凭据删除 204 幂等 + 状态回读 / tools 无信封 / metadata 裸 null / test 裸 McpTestResult /
+  **工具审批面仍是信封（M4 未动，反证本批边界）** / 删除 204 → 404）。
+- **`McpToolListTypeHandler` 的别名 mixin 退役**（M1 的关键一处）：该 handler 曾用
+  `@JsonProperty("require_approval")` 的 mixin 把 `McpTool.requireApproval` 别名成 Go 的下划线键——
+  键名收口后必须**同时**退役 mixin 并迁移存量行，否则旧行读出来会把 `requireApproval` 静默重置为 false
+  （`FAIL_ON_UNKNOWN_PROPERTIES=false` 的宽容读）。
+- **mcp 域 `@JsonProperty` 119 → 58**（余：oauth 面 39 = M3；审批/agent 侧 14 + 其它 5 = M4，详见下）。
+  夹具：mcp-create/-list/-get/-update/-create-auth/-credentials-put/-metadata 共 7 个经重录开关刷新，
+  逐条复核差异 = 去信封 + 键改名 + metadata→null，无其它变化。
+
+**M1 存量迁移 SQL（真 PG；dev 库 mcp_* 表为空，0 行需迁移；表达式已用合成数据验证）**：
+```sql
+-- mcp_services.auth_config（7 键；枚举值 'api_key' 与用户自定义键不动）
+UPDATE mcp_services SET auth_config = (
+  SELECT jsonb_object_agg(e.key_new, e.value) FROM (
+    SELECT CASE k.key
+      WHEN 'auth_type' THEN 'authType'
+      WHEN 'api_key' THEN 'apiKey'
+      WHEN 'api_key_header' THEN 'apiKeyHeader'
+      WHEN 'token' THEN 'token'
+      WHEN 'custom_headers' THEN 'customHeaders'
+      WHEN 'scopes' THEN 'scopes'
+      WHEN 'auth_server_metadata_url' THEN 'authServerMetadataUrl'
+      ELSE k.key END AS key_new, k.value
+    FROM jsonb_each(auth_config) AS k) AS e)
+WHERE jsonb_typeof(auth_config) = 'object' AND auth_config <> '{}'::jsonb;
+
+-- mcp_services.advanced_config（3 键）
+UPDATE mcp_services SET advanced_config = (
+  SELECT jsonb_object_agg(e.key_new, e.value) FROM (
+    SELECT CASE k.key WHEN 'retry_count' THEN 'retryCount'
+                      WHEN 'retry_delay' THEN 'retryDelay'
+                      ELSE k.key END AS key_new, k.value
+    FROM jsonb_each(advanced_config) AS k) AS e)
+WHERE jsonb_typeof(advanced_config) = 'object' AND advanced_config <> '{}'::jsonb;
+
+-- mcp_metadata.tools[]（数组元素键；inputSchema 本就是这个拼写，不在改名表里）
+UPDATE mcp_metadata SET tools = (
+  SELECT coalesce(jsonb_agg((SELECT jsonb_object_agg(
+      CASE e.key WHEN 'require_approval' THEN 'requireApproval' ELSE e.key END, e.value)
+    FROM jsonb_each(elem) AS e)), '[]'::jsonb)
+  FROM jsonb_array_elements(tools) AS elem)
+WHERE jsonb_typeof(tools) = 'array' AND tools <> '[]'::jsonb;
+```
+
+**M3/M4 候选（未做）**：M3 = OAuth 面（`oauth/*` 39 处 + `McpOAuthController` 4 处，含
+`AuthServerMetadata`/`OAuthState`(Redis)/`OAuthToken`(DB) 的落库与线协议判定）；
+M4 = 工具审批面（`McpToolApproval` 9 + `McpToolApprovalPolicyRequest` 2 + `ResolveToolApprovalRequest` 3 +
+agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
+
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
 - **不动**：`wiki/domain` 22 文件 173 处 `@JsonProperty`（§11 已登记的 wiki 域实体 snake 边界）；wiki 对前端契约整体（§2 第 4 条落地范围外，wiki 域 C 波另立切片）。
@@ -2154,7 +2239,7 @@ postMessage 协议（登记为 SDK 边界）。
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1 服务资源+凭据面收官，§14.9n；余 oauth 39 = M3、审批面 14 = M4）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
