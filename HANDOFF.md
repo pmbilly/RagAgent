@@ -159,6 +159,7 @@
 | 阶段 3（system 域 S1，2026-10-01） | /system 读端与探测端 7 端点（§14.9f） | **完成**：去 `code/data/msg` 信封 + camelCase + 错误语义化（503/403/400）；`SystemDtos` 85 处清零（99→14）；前端 10 文件同批；契约 19/19 绿 |
 | 阶段 3（system 域 S2/S3/S4，2026-10-01） | /system/admin 全部端点 + SystemSetting（§14.9g） | **收官**：账号面/平台密钥/设置/runtime+配额四组换锚（rawBody→DTO、PlainError→AppError、动作 204）；`@JsonProperty` 14→**0**；前端 5 文件同批；auth 域波及 fixture 4 个同批 |
 | 阶段 3（auth 域 A1，2026-10-01） | 登录/会话/用户信息面 + User/Tenant/UserPreferences（§14.9h） | **完成**：成功裸 DTO / 失败 AppError / 动作 204；`@JsonProperty` 370→约 250（余 A2 租户成员邀请 + B apikey + 边界 tenantconfig 130）；前端 19 文件同批；**共享实体链条**牵动 4 测试类 ~50 fixture |
+| 阶段 3（auth 域 A2，2026-10-01） | 租户/成员/邀请/配置面（§14.9i） | **完成**：成员/邀请列表去信封、租户 CRUD 裸 DTO + 删除 204、KV 配置裸对象、动作 204、三个手搓封装辅助删除；前端 20 文件同批；183 用例绿 |
 
 ### 7.2 当前存量（实测）
 
@@ -1440,6 +1441,37 @@ S2（账号面）/ S3（密钥+设置+runtime）/ S4（配额）或转 auth/memo
 
 **A1 未做（后续批）**：**A2**（租户/成员/邀请列表：`TenantMemberResponse`/`Membership`/`TenantInvitationResponse`
 + `TenantMemberController` 的手搓 Map `envelope()`/`successOnly()`）；**B**（`apikey/domain` 41 处）。
+
+### 14.9i auth 域 A2（租户/成员/邀请/配置面，2026-10-01）
+
+**提交**：`142c58a`（后端）+ `ae67a07`（前端）。
+
+**范围**：`TenantMemberResponse`(8)/`TenantInvitationResponse`(18)/`TenantInvitation`(1) +
+`TenantMemberController`/`TenantInvitationController`/`TenantCrudOps`/`TenantConfigOps`/`TenantCreateOps`/`TenantCatalogController`。
+
+**形态**：
+- 成员/邀请列表：`{members,page,pageSize,total}` / `{invitations,page,pageSize,total}`（去信封）；
+  邀请的 `isShareLink`/`acceptedCount` 由 omitempty 改**显式输出**
+- 租户 CRUD：create/get/update → 裸 `TenantResponse`；delete → **204**（原 `{message,success}`）
+- KV 配置 6 类：GET/PUT → 裸 config 对象（原 `{data,message,success}`）；
+  **web-search 无配置 → 显式 `null`**（原 `{"data":null,"success":true}`，直接返回 Java null 会变空体，
+  需 `NullNode`）
+- 动作 **204**：成员改角色/移除/离开、邀请撤销/拒绝
+- `/me/invitations*`：裸 `{invitations,total}` / `{pendingCount}` / `membership + tenantName`
+- **三个手搓封装辅助删除**：`TenantMemberController.envelope`/`successOnly`/`TenantConfigOps.envelopeWithMessage`
+  ——去信封的连带清理（引用点 12 处）
+
+**验收**：auth 域 183 用例全绿；全量 **4670 / 失败 0 / 跳过 4** + spotlessCheck 绿；
+前端 `vue-tsc` 0 错误 + 690 用例（20 文件同步）。
+
+**A2 时发现的 A1 前端遗漏**：`UserInfo.tenant_id/created_at/updated_at` 与 `getCurrentUser` 的
+`{success,data}` 解包在 A1 未同步（vue-tsc 骨架不报，靠本轮类型收紧才暴露）——
+**换锚批的前端要按"后端 DTO 字段全集"逐项核对，不能只改明显的少数**。
+
+**该域遗留（B 批）**：`apikey/domain` 4 文件 41 处（`TenantAPIKey`/`TenantAPIKeyCreateResponse`/
+`TenantAPIKeyResponse`/`TenantAPIKeyRequest`）+ 平台密钥端点元素；前端 `ApiIntegrationSettings.vue`
+的 API Key 面（`expires_at` 等）保持 snake 待同批。另：`APIPrincipalConfig`（jsonb 落库结构）
+与 `auth/domain/tenantconfig/`（126 处）为**边界保留**。
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
