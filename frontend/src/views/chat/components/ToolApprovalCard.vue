@@ -225,13 +225,13 @@ const submit = async (decision: 'approve' | 'reject') => {
         props.pendingId,
         {
           decision,
-          modified_args: decision === 'approve' ? modified : undefined,
+          modifiedArgs: decision === 'approve' ? modified : undefined,
           reason: decision === 'reject' ? t('agentStream.toolApproval.userRejected') : undefined,
         },
       )
       : resolveToolApproval(props.pendingId, {
         decision,
-        modified_args: decision === 'approve' ? modified : undefined,
+        modifiedArgs: decision === 'approve' ? modified : undefined,
         reason: decision === 'reject' ? t('agentStream.toolApproval.userRejected') : undefined,
       }))
     MessagePlugin.success(t('agentStream.toolApproval.submitted'))

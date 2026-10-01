@@ -646,8 +646,8 @@ async function startAuthorize(serviceId: string) {
     // authorization status flips, so this page is only shown briefly.
     const frontendRedirect = window.location.origin + '/'
     const authorization = await getMCPOAuthAuthorizeURL(serviceId, {
-      redirect_uri: redirectUri,
-      frontend_redirect: frontendRedirect,
+      redirectUri,
+      frontendRedirect,
     })
     if (!authorization.authorizationUrl || !authorization.authorizationAttempt) {
       MessagePlugin.error(t('mcpServiceDialog.toasts.authorizeFailed', '发起授权失败') as string)

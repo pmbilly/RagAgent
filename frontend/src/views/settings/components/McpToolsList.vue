@@ -72,8 +72,8 @@
               :aria-label="`${tool.name} ${t('mcpMetadata.enabled')}`" @change="(value: boolean) => savePolicy(tool.name, 'enabled', value)" />
           </label>
           <label class="tool-control"><span>{{ t('mcpMetadata.approval') }}</span>
-            <t-switch :value="policy(tool.name).require_approval" size="small" :disabled="loading || !!policyError || !!busy.get(tool.name)" :loading="busy.get(tool.name) === 'require_approval'"
-              :aria-label="`${tool.name} ${t('mcpMetadata.approval')}`" @change="(value: boolean) => savePolicy(tool.name, 'require_approval', value)" />
+            <t-switch :value="policy(tool.name).requireApproval" size="small" :disabled="loading || !!policyError || !!busy.get(tool.name)" :loading="busy.get(tool.name) === 'requireApproval'"
+              :aria-label="`${tool.name} ${t('mcpMetadata.approval')}`" @change="(value: boolean) => savePolicy(tool.name, 'requireApproval', value)" />
           </label>
         </div>
       </article>
@@ -110,7 +110,7 @@ const detailTabLabel = {
 } as const
 const loading = ref(false)
 const policyError = ref('')
-const policies = ref(new Map<string, Pick<MCPToolApprovalRow, 'enabled' | 'require_approval'>>())
+const policies = ref(new Map<string, Pick<MCPToolApprovalRow, 'enabled' | 'requireApproval'>>())
 const busy = ref(new Map<string, string>())
 let generation = 0
 const filtered = computed(() => {
@@ -120,7 +120,7 @@ const filtered = computed(() => {
 const visibleTools = computed(() => filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize))
 watch([query, () => props.tools], () => { page.value = 1; openTool.value = '' })
 watch(page, () => { openTool.value = '' })
-const policy = (name: string) => policies.value.get(name) ?? { enabled: true, require_approval: false }
+const policy = (name: string) => policies.value.get(name) ?? { enabled: true, requireApproval: false }
 const parametersOf = (tool: MCPTool) => mcpSchemaParameters(tool.inputSchema)
 
 function setOpenTool(name: string, visible: boolean) {
@@ -142,14 +142,14 @@ async function loadPolicies() {
   loading.value = true
   try {
     const rows = await getMCPToolApprovals(props.serviceId)
-    if (current === generation) policies.value = new Map(rows.map(row => [row.tool_name, row]))
+    if (current === generation) policies.value = new Map(rows.map(row => [row.toolName, row]))
   } catch {
     if (current === generation) policyError.value = t('mcpMetadata.policyLoadFailed')
   } finally { if (current === generation) loading.value = false }
 }
 watch(() => props.serviceId, loadPolicies, { immediate: true })
 
-async function savePolicy(name: string, field: 'enabled' | 'require_approval', value: boolean) {
+async function savePolicy(name: string, field: 'enabled' | 'requireApproval', value: boolean) {
   if (!props.serviceId || busy.value.has(name) || loading.value || policyError.value) return
   const current = generation
   busy.value.set(name, field)

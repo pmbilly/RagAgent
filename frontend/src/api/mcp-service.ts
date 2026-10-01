@@ -65,9 +65,9 @@ export interface MCPTool {
 export interface MCPToolApprovalRow {
   id: string
   tenantId?: number
-  service_id: string
-  tool_name: string
-  require_approval: boolean
+  serviceId: string
+  toolName: string
+  requireApproval: boolean
   enabled: boolean
 }
 
@@ -137,13 +137,14 @@ export async function getMCPServiceResources(id: string): Promise<MCPResource[]>
 
 /** Persisted per-tool human-approval flags (issue #1173) */
 export async function getMCPToolApprovals(serviceId: string): Promise<MCPToolApprovalRow[]> {
+  // 裸数组（§14.9n M4）
   const response: any = await get(`/api/v1/mcp-services/${serviceId}/tool-approvals`)
-  return response.data || []
+  return Array.isArray(response) ? response : []
 }
 
 export async function setMCPToolApproval(serviceId: string, toolName: string, requireApproval: boolean): Promise<void> {
   await put(`/api/v1/mcp-services/${serviceId}/tool-approvals/${encodeURIComponent(toolName)}`, {
-    require_approval: requireApproval
+    requireApproval
   })
 }
 
@@ -209,21 +210,22 @@ export type MCPOAuthTokenState = 'authorized' | 'refreshable' | 'reauth_required
 export interface MCPOAuthStatus {
   authorized: boolean
   state: MCPOAuthTokenState
-  refresh_available: boolean
-  expires_at?: string
+  refreshAvailable: boolean
+  /** null = 不过期（§1.6：键恒在，不再是 omitempty 式的"键消失"） */
+  expiresAt: string | null
 }
 
 // Begin authorization for the current user. The attempt id binds polling to
 // this popup, so an older stored token cannot be mistaken for fresh consent.
 export async function getMCPOAuthAuthorizeURL(
   serviceId: string,
-  body: { redirect_uri: string; frontend_redirect?: string }
+  body: { redirectUri: string; frontendRedirect?: string }
 ): Promise<MCPOAuthAuthorization> {
-  const response: any = await post(`/api/v1/mcp-services/${serviceId}/oauth/authorize-url`, body)
-  const data = response.data ?? response
+  // 裸对象（§14.9n M4）
+  const data: any = await post(`/api/v1/mcp-services/${serviceId}/oauth/authorize-url`, body)
   return {
-    authorizationUrl: data?.authorization_url ?? '',
-    authorizationAttempt: data?.authorization_attempt ?? '',
+    authorizationUrl: data?.authorizationUrl ?? '',
+    authorizationAttempt: data?.authorizationAttempt ?? '',
   }
 }
 
@@ -236,19 +238,18 @@ export async function getMCPOAuthStatus(
     ? `?authorization_attempt=${encodeURIComponent(authorizationAttempt)}`
     : ''
   const response: any = await get(`/api/v1/mcp-services/${serviceId}/oauth/status${query}`)
-  return Boolean((response.data ?? response)?.authorized)
+  return Boolean(response?.authorized)
 }
 
 // Full lifecycle status for management surfaces. Expired access tokens with a
 // refresh token are "refreshable", not falsely presented as already usable.
 export async function getMCPOAuthAuthorizationStatus(serviceId: string): Promise<MCPOAuthStatus> {
-  const response: any = await get(`/api/v1/mcp-services/${serviceId}/oauth/status`)
-  const data = response.data ?? response
+  const data: any = await get(`/api/v1/mcp-services/${serviceId}/oauth/status`)
   return {
     authorized: Boolean(data?.authorized),
     state: data?.state ?? 'reauth_required',
-    refresh_available: Boolean(data?.refresh_available),
-    expires_at: data?.expires_at,
+    refreshAvailable: Boolean(data?.refreshAvailable),
+    expiresAt: data?.expiresAt ?? null,
   }
 }
 
@@ -259,7 +260,7 @@ export async function revokeMCPOAuthToken(serviceId: string): Promise<void> {
 
 export async function resolveToolApproval(
   pendingId: string,
-  body: { decision: 'approve' | 'reject'; modified_args?: Record<string, unknown>; reason?: string }
+  body: { decision: 'approve' | 'reject'; modifiedArgs?: Record<string, unknown>; reason?: string }
 ): Promise<void> {
   await post(`/api/v1/agent/tool-approvals/${encodeURIComponent(pendingId)}`, body)
 }
@@ -269,7 +270,7 @@ export async function resolveToolApproval(
 // the token exists before unblocking the paused tool call.
 export async function resolveMCPOAuth(
   pendingId: string,
-  body: { service_id: string; decision?: 'authorize' | 'cancel' }
+  body: { serviceId: string; decision?: 'authorize' | 'cancel' }
 ): Promise<void> {
   await post(`/api/v1/agent/mcp-oauth-resolutions/${encodeURIComponent(pendingId)}`, body)
 }

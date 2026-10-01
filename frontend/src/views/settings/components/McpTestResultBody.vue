@@ -148,10 +148,10 @@ const mergeApprovals = async () => {
   }
   try {
     const rows = await getMCPToolApprovals(props.serviceId)
-    const map = new Map(rows.map((r) => [r.tool_name, r]))
+    const map = new Map(rows.map((r) => [r.toolName, r]))
     displayTools.value = tools.map((tool) => ({
       ...tool,
-      require_approval: map.get(tool.name)?.require_approval || false,
+      requireApproval: map.get(tool.name)?.requireApproval || false,
       enabled: map.get(tool.name)?.enabled !== false,
     }))
   } catch {

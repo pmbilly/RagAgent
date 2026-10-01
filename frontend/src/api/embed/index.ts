@@ -361,7 +361,7 @@ export async function resolveEmbedMCPOAuth(
   sessionSig: string,
   visitorId: string,
   pendingId: string,
-  body: { service_id: string; decision?: 'authorize' | 'cancel' },
+  body: { serviceId: string; decision?: 'authorize' | 'cancel' },
 ): Promise<void> {
   await post(
     `/api/v1/embed/${channelId}/sessions/${encodeURIComponent(sessionId)}/mcp-oauth-resolutions/${encodeURIComponent(pendingId)}`,
@@ -392,17 +392,18 @@ export async function getEmbedMCPOAuthAuthorizeURL(
   sessionSig: string,
   visitorId: string,
   serviceId: string,
-  body: { redirect_uri: string; frontend_redirect?: string },
+  body: { redirectUri: string; frontendRedirect?: string },
 ): Promise<{ authorizationUrl: string; authorizationAttempt: string }> {
   const response: any = await post(
     `/api/v1/embed/${channelId}/sessions/${encodeURIComponent(sessionId)}/mcp-services/${encodeURIComponent(serviceId)}/oauth/authorize-url`,
     body,
     { headers: embedSessionHeaders(token, sessionSig, visitorId) },
   )
-  const data = response.data ?? response
+  // 裸对象（§14.9n M4：委托 McpOAuthController）
+  const data: any = response ?? {}
   return {
-    authorizationUrl: data?.authorization_url ?? '',
-    authorizationAttempt: data?.authorization_attempt ?? '',
+    authorizationUrl: data?.authorizationUrl ?? '',
+    authorizationAttempt: data?.authorizationAttempt ?? '',
   }
 }
 
@@ -422,7 +423,7 @@ export async function getEmbedMCPOAuthStatus(
     `/api/v1/embed/${channelId}/sessions/${encodeURIComponent(sessionId)}/mcp-services/${encodeURIComponent(serviceId)}/oauth/status${query}`,
     { headers: embedSessionHeaders(token, sessionSig, visitorId) },
   )
-  return Boolean((response.data ?? response)?.authorized)
+  return Boolean(response?.authorized)
 }
 
 export async function resolveEmbedToolApproval(
@@ -432,7 +433,7 @@ export async function resolveEmbedToolApproval(
   sessionSig: string,
   visitorId: string,
   pendingId: string,
-  body: { decision: 'approve' | 'reject'; modified_args?: Record<string, unknown>; reason?: string },
+  body: { decision: 'approve' | 'reject'; modifiedArgs?: Record<string, unknown>; reason?: string },
 ): Promise<void> {
   await post(
     `/api/v1/embed/${channelId}/sessions/${encodeURIComponent(sessionId)}/tool-approvals/${encodeURIComponent(pendingId)}`,

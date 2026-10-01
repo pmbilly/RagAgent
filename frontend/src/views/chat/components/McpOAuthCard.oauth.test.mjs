@@ -32,7 +32,7 @@ test('in-chat OAuth success refreshes the caller MCP directory', () => {
   assert.match(cardSource, /refreshMCPMetadata/)
   assert.match(
     cardSource,
-    /await resolveMCPOAuth\(props\.pendingId, \{ service_id: props\.serviceId, decision: 'authorize' \}\)/,
+    /await resolveMCPOAuth\(props\.pendingId, \{ serviceId: props\.serviceId, decision: 'authorize' \}\)/,
   )
   assert.match(cardSource, /await refreshMCPMetadata\(props\.serviceId\)/)
 })

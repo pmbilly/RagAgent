@@ -184,11 +184,11 @@ const authorize = async () => {
         props.embedSessionSig!,
         props.embedVisitorId!,
         props.serviceId,
-        { redirect_uri: redirectUri, frontend_redirect: frontendRedirect },
+        { redirectUri, frontendRedirect },
       )
       : await getMCPOAuthAuthorizeURL(props.serviceId, {
-        redirect_uri: redirectUri,
-        frontend_redirect: frontendRedirect,
+        redirectUri,
+        frontendRedirect,
       })
     if (!authorization.authorizationUrl || !authorization.authorizationAttempt) {
       MessagePlugin.error(t('agentStream.mcpOAuth.startFailed'))
@@ -226,10 +226,10 @@ const authorize = async () => {
               props.embedSessionSig!,
               props.embedVisitorId!,
               props.pendingId,
-              { service_id: props.serviceId, decision: 'authorize' },
+              { serviceId: props.serviceId, decision: 'authorize' },
             )
           } else {
-            await resolveMCPOAuth(props.pendingId, { service_id: props.serviceId, decision: 'authorize' })
+            await resolveMCPOAuth(props.pendingId, { serviceId: props.serviceId, decision: 'authorize' })
             try {
               await refreshMCPMetadata(props.serviceId)
             } catch {
