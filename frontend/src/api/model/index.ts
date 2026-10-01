@@ -148,20 +148,20 @@ export function deleteModel(id: string): Promise<void> {
 }
 
 export interface ModelDebugOptions {
-  system_prompt?: string
+  systemPrompt?: string
   temperature?: number
-  top_p?: number
-  max_tokens?: number
+  topP?: number
+  maxTokens?: number
   thinking?: boolean
 }
 
 export interface ModelDebugResult {
   ok: boolean
-  elapsed_ms: number
+  elapsedMs: number
+  error: string | null
   request: Record<string, unknown>
-  raw_response: unknown
+  rawResponse: unknown
   observations: Record<string, unknown>
-  error?: string
 }
 
 export async function debugModel(
@@ -184,8 +184,9 @@ export async function debugModel(
     undefined,
     { timeout: 300000 },
   )
-  if (response?.success && response?.data) return response.data
-  throw new Error(response?.message || t('error.model.getFailed'))
+  // 调试结果恒 200 且为裸对象（运行时错误在 result.ok/error 里）
+  if (response && typeof response.ok === 'boolean') return response
+  throw new Error(response?.error?.message || response?.message || t('error.model.getFailed'))
 }
 
 // ----------------------------------------------------------------------------
@@ -215,49 +216,33 @@ export async function deleteModelCredentialField(
 }
 
 export interface InitializeWeKnoraCloudRequest {
-  app_id: string
-  app_secret: string
+  appId: string
+  appSecret: string
 }
 
-// 仅保存 WeKnoraCloud 凭证，不自动创建模型
-export function saveWeKnoraCloudCredentials(data: InitializeWeKnoraCloudRequest): Promise<{ success: boolean; message: string }> {
-  return new Promise((resolve, reject) => {
-    post('/api/v1/weknoracloud/credentials', data)
-      .then((response: any) => {
-        if (response.success) {
-          resolve(response)
-        } else {
-          reject(new Error(response.message || response.error || '凭证保存失败'))
-        }
-      })
-      .catch((error: any) => {
-        console.error('Failed to save WeKnoraCloud credentials:', error)
-        reject(error)
-      })
-  })
+// 仅保存 WeKnoraCloud 凭证，不自动创建模型（成功 = 204 无响应体）
+export function saveWeKnoraCloudCredentials(data: InitializeWeKnoraCloudRequest): Promise<void> {
+  return post('/api/v1/weknoracloud/credentials', data)
 }
 
 export interface WeKnoraCloudStatusResult {
-  has_models: boolean
-  needs_reinit: boolean
-  reason?: string
+  hasModels: boolean
+  needsReinit: boolean
+  reason: string | null
 }
 
 export function getWeKnoraCloudStatus(): Promise<WeKnoraCloudStatusResult> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     get('/api/v1/models/weknoracloud/status')
       .then((response: any) => {
-        // status 接口直接返回对象，不包在 success/data 中
-        if (response && typeof response.has_models === 'boolean') {
+        if (response && typeof response.hasModels === 'boolean') {
           resolve(response)
-        } else if (response?.success && response?.data) {
-          resolve(response.data)
         } else {
-          resolve({ has_models: false, needs_reinit: false })
+          resolve({ hasModels: false, needsReinit: false, reason: null })
         }
       })
       .catch(() => {
-        resolve({ has_models: false, needs_reinit: false })
+        resolve({ hasModels: false, needsReinit: false, reason: null })
       })
   })
 }

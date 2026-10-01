@@ -865,9 +865,9 @@ const checkWkcCredentialStatus = async () => {
   wkcCredentialState.value = 'loading'
   try {
     const status = await getWeKnoraCloudStatus()
-    if (status.needs_reinit) {
+    if (status.needsReinit) {
       wkcCredentialState.value = 'expired'
-    } else if (status.has_models) {
+    } else if (status.hasModels) {
       wkcCredentialState.value = 'configured'
     } else {
       wkcCredentialState.value = 'unconfigured'

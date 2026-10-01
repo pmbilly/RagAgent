@@ -695,9 +695,9 @@ async function checkWkcStatus() {
   wkcState.value = 'loading'
   try {
     const status = await getWeKnoraCloudStatus()
-    if (status.needs_reinit) {
+    if (status.needsReinit) {
       wkcState.value = 'expired'
-    } else if (status.has_models) {
+    } else if (status.hasModels) {
       wkcState.value = 'configured'
     } else {
       wkcState.value = 'unconfigured'

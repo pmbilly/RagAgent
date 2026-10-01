@@ -162,7 +162,7 @@
                 @click="result = run.result"
               >
                 <span class="history-item__label">{{ run.label }}</span>
-                <span class="history-item__meta">{{ run.result.elapsed_ms }} ms</span>
+                <span class="history-item__meta">{{ run.result.elapsedMs }} ms</span>
               </button>
             </div>
           </div>
@@ -172,7 +172,7 @@
               <t-icon :name="result.ok ? 'check-circle-filled' : 'close-circle-filled'" />
               <div class="result-banner__text">
                 <strong>{{ result.ok ? $t('modelSettings.debug.success') : $t('modelSettings.debug.failed') }}</strong>
-                <span>{{ result.elapsed_ms }} ms</span>
+                <span>{{ result.elapsedMs }} ms</span>
               </div>
             </div>
 
@@ -315,19 +315,19 @@ const fileLabel = computed(() =>
 const formattedResult = computed(() => {
   if (!result.value) return ''
   const value = resultTab.value === 'response'
-    ? result.value.raw_response
+    ? result.value.rawResponse
     : result.value.request
   return JSON.stringify(value, null, 2)
 })
 
 const OBSERVATION_LABELS: Record<string, string> = {
   dimension: 'modelSettings.debug.metrics.dimension',
-  result_count: 'modelSettings.debug.metrics.resultCount',
-  answer_characters: 'modelSettings.debug.metrics.answerChars',
-  reasoning_characters: 'modelSettings.debug.metrics.reasoningChars',
-  reasoning_returned: 'modelSettings.debug.metrics.reasoningReturned',
-  text_characters: 'modelSettings.debug.metrics.textChars',
-  segment_count: 'modelSettings.debug.metrics.segmentCount',
+  resultCount: 'modelSettings.debug.metrics.resultCount',
+  answerCharacters: 'modelSettings.debug.metrics.answerChars',
+  reasoningCharacters: 'modelSettings.debug.metrics.reasoningChars',
+  reasoningReturned: 'modelSettings.debug.metrics.reasoningReturned',
+  textCharacters: 'modelSettings.debug.metrics.textChars',
+  segmentCount: 'modelSettings.debug.metrics.segmentCount',
 }
 
 const resultMetrics = computed(() => {
@@ -434,10 +434,10 @@ const runDebug = async () => {
       documents: documents.value,
       file: file.value,
       options: isChat.value ? {
-        system_prompt: systemPrompt.value.trim() || undefined,
+        systemPrompt: systemPrompt.value.trim() || undefined,
         temperature: temperature.value,
-        top_p: topP.value,
-        max_tokens: maxTokens.value,
+        topP: topP.value,
+        maxTokens: maxTokens.value,
         thinking: thinkingValue,
       } : {},
     })

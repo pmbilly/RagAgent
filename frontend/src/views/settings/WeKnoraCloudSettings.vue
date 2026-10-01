@@ -328,8 +328,8 @@ const handleSave = async () => {
   saving.value = true
   try {
     await saveWeKnoraCloudCredentials({
-      app_id: form.value.appId,
-      app_secret: form.value.appSecret,
+      appId: form.value.appId,
+      appSecret: form.value.appSecret,
     })
     MessagePlugin.success(t('settings.weknoraCloud.saveSuccess'))
     form.value.appId = ''
@@ -349,9 +349,9 @@ const handleSave = async () => {
 const checkStatus = async () => {
   try {
     const status = await getWeKnoraCloudStatus()
-    needsReinit.value = status.needs_reinit
+    needsReinit.value = status.needsReinit
     reinitReason.value = status.reason || ''
-    hasCredentials.value = status.has_models && !status.needs_reinit
+    hasCredentials.value = status.hasModels && !status.needsReinit
     if (hasCredentials.value) {
       formExpanded.value = false
       await refreshExistingKinds()
