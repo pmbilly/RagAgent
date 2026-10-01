@@ -55,12 +55,11 @@ import org.springframework.web.bind.annotation.RestController;
  *       （否则一把 Key 能给自己扩权）。Java 侧靠"不登记策略"天然满足。</li>
  * </ul>
  *
- * <h2>响应形态（逐字段对照 Go 的 gin.H）</h2>
+ * <h2>响应形态（§2.1）</h2>
  * <ul>
- *   <li>三个成功响应都是 {@code {"data": ..., "success": true}}（data &lt; success，
- *       字母序与 Go 的 map 输出一致）；</li>
- *   <li>{@code DELETE} 是 {@code {"success": true}}——<b>没有 data 键</b>；</li>
- *   <li>创建返回 <b>201</b>（不是 200），且 data 里带一次性明文 {@code token}。</li>
+ *   <li>列表/创建/更新 = 裸资源（camelCase，键名=字段名）；</li>
+ *   <li>{@code DELETE} → <b>204</b>；</li>
+ *   <li>创建返回 <b>201</b>，带一次性明文 {@code token}。</li>
  * </ul>
  */
 @RestController

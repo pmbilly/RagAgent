@@ -595,16 +595,13 @@ public class AuthController {
 
     /** 对照 dto.NewAuthLoginResponse：active_tenant 按 membership 角色决定秘密字段是否输出 */
     /**
-     * POST /auth/logout（对照 Logout，L517-560）。
-     * AuthFilter 已把它列入 tenant-optional（tenantless 也可登出，对照 Go）。
-     * 成功信封是 gin.H{"success","message"} → 字母序 message &lt; success。
+     * POST /auth/logout。AuthFilter 已把它列入 tenant-optional（tenantless 也可登出）。
+     * 成功无响应体。
      */
     /**
      * POST /auth/refresh（对照 RefreshToken，L569-611）。noAuthAPI 白名单路径
      * （无鉴权）；绑定失败 400 "Invalid refresh token request"+details，
-     * service 失败 401 "Token refresh failed"+details。成功信封是
-     * gin.H{"success","message","access_token","refresh_token"} → 字母序
-     * access_token &lt; message &lt; refresh_token &lt; success。
+     * service 失败 401 "Token refresh failed"+details。成功体见 AuthLoginResponse。
      */
     /**
      * SwitchTenant 匿名 struct 的 Go reflect.Type 字符串（顶层非对象时的

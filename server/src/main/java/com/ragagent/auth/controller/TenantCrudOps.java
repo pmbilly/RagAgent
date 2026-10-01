@@ -157,7 +157,7 @@ final class TenantCrudOps {
 
     /**
      * DELETE /tenants/{id}（对照 DeleteTenant，L1123-1162）：repo 层软删成员+租户、
-     * 删不存在的 id 同样成功 → 恒 200 {"message","success"}。
+     * 删不存在的 id 同样成功 → 204。
      */
     public org.springframework.http.ResponseEntity<Void> deleteTenant(@PathVariable("id") String id) {
         try {

@@ -280,8 +280,9 @@ export async function getAuthConfig(): Promise<AuthConfigResponse> {
  */
 export async function register(data: RegisterRequest): Promise<RegisterResponse> {
   try {
-    const response = await post('/api/v1/auth/register', data)
-    return response as unknown as RegisterResponse
+    // 后端注册成功 201 返回裸 User（§2.1）；本函数保留 success 包装供视图分支
+    await post('/api/v1/auth/register', data)
+    return { success: true }
   } catch (error: any) {
     return {
       success: false,
