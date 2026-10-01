@@ -1,22 +1,23 @@
 import { markRaw } from 'vue'
 // 相对导入：本模块被 node:test（tsx）直接加载，别名 @/ 在测试运行时不解析（tsconfig.app 才有 paths）
-import { fromMentionRequest, type MentionRequestItem } from '../types/mention'
+import type { MentionedItem } from '../types/mention'
 
 export type ChatMessage = Record<string, unknown>
 
 /**
  * Display a steer immediately; the receipt, not this preview, splits execution.
  *
- * `item.mentioned_items` 是上送项形状（steer 队列里存的就是要发给 steer 接口的那份），
- * 转成消息元素形状再挂到消息上——它会被 REST 加载的同名消息替换，形状必须一致。
+ * `item.mentionedItems`（S3 后与消息元素、请求元素同形）直接挂到消息上——它会被
+ * REST 加载的同名消息替换，形状一致才不会有"刷新前后渲染不同"的偏差。
+ * 消息上的 `steer_id` 是 SSE 载荷值的镜像（跟随冻结的线协议，刻意保留下划线）。
  */
-export function previewSteerMessage(list: ChatMessage[], item: { steer_id: string; content: string; mentioned_items?: MentionRequestItem[] }): ChatMessage {
-  const existing = list.find(m => m.role === 'user' && m.steer_id === item.steer_id)
+export function previewSteerMessage(list: ChatMessage[], item: { steerId: string; content: string; mentionedItems?: MentionedItem[] }): ChatMessage {
+  const existing = list.find(m => m.role === 'user' && m.steer_id === item.steerId)
   if (existing) return existing
   const message: ChatMessage = {
-    id: `steer-user-${item.steer_id}`, steer_id: item.steer_id,
+    id: `steer-user-${item.steerId}`, steer_id: item.steerId,
     role: 'user', content: item.content,
-    mentionedItems: (item.mentioned_items || []).map(fromMentionRequest),
+    mentionedItems: [...(item.mentionedItems || [])],
     isSteer: true, completed: true, _steerPending: true,
   }
   list.push(message)

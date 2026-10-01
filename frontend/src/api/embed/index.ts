@@ -218,7 +218,7 @@ export interface EmbedMessageSuggestionItem {
 export interface EmbedMessageSuggestionSet {
   id: string
   status: 'generating' | 'ready' | 'suppressed' | 'failed'
-  allow_regenerate: boolean
+  allowRegenerate: boolean
   questions: EmbedMessageSuggestionItem[]
 }
 
@@ -247,7 +247,8 @@ export async function ensureEmbedMessageSuggestions(
   visitorId: string,
   regenerate = false,
 ) {
-  return post<{ success: boolean; data: EmbedMessageSuggestionSet }>(
+  // 裸资源：embed 的 suggest 端点委托同一个 MessageSuggestionController，响应体即建议集
+  return post<EmbedMessageSuggestionSet>(
     `/api/v1/embed/${channelId}/sessions/${sessionId}/messages/${messageId}/suggestions`,
     { regenerate },
     { headers: embedSessionHeaders(token, sessionSig, visitorId) },
@@ -262,7 +263,7 @@ export async function getEmbedMessageSuggestions(
   sessionSig: string,
   visitorId: string,
 ) {
-  return get<{ success: boolean; data: EmbedMessageSuggestionSet }>(
+  return get<EmbedMessageSuggestionSet>(
     `/api/v1/embed/${channelId}/sessions/${sessionId}/messages/${messageId}/suggestions`,
     { headers: embedSessionHeaders(token, sessionSig, visitorId) },
   )
@@ -280,7 +281,7 @@ export async function recordEmbedMessageSuggestionEvent(
 ) {
   return post(
     `/api/v1/embed/${channelId}/sessions/${sessionId}/suggestion-events`,
-    { suggestion_set_id: suggestionSetId, question_id: questionId, event_type: eventType },
+    { suggestionSetId, questionId, eventType },
     { headers: embedSessionHeaders(token, sessionSig, visitorId) },
   )
 }

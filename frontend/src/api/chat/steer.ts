@@ -1,25 +1,35 @@
 import { del, get, post } from "../../utils/request";
+import type { MentionedItem } from "../../types/mention";
 
 export type SteerDelivery = 'inject' | 'after'
 
+/** 队列/overlay 项：键名与 steer 端点的响应、请求体一致（camelCase）。 */
 export type SteerQueueItem = {
-  steer_id: string
+  steerId: string
   content: string
   delivery: SteerDelivery
-  mentioned_items?: unknown[]
+  mentionedItems?: MentionedItem[]
   promoting?: boolean
   awaitingIdleSend?: boolean
   // True while POST /steer is in flight. The stable client UUID is also the
   // durable server ID; disable actions until its queue entry exists.
   pending?: boolean
   failed?: boolean
-  expected_assistant_message_id?: string
-  client_id?: string
+  expectedAssistantMessageId?: string
+  clientId?: string
+}
+
+/** 裸资源响应（§2.1，无 {data,success} 信封）。 */
+export type SteerMutationResponse = {
+  status: 'queued' | 'already_injected' | 'new_run' | 'gone' | 'deleted'
+  steerId?: string
+  delivery?: SteerDelivery
+  assistantMessageId?: string
+  removed?: boolean
 }
 
 /**
  * Append a message to a running agent turn.
- * Returns { success, status: 'queued' | 'already_injected' | 'new_run', steer_id?, delivery?, assistant_message_id? }.
  * - delivery 'after' (default): waits until the current run exits, then starts a follow-up turn.
  * - delivery 'inject': the running engine injects it at the next round boundary.
  * - 'new_run': no run is live; the caller should fall back to a normal send.
@@ -29,16 +39,16 @@ export type SteerQueueItem = {
 export async function steerSession(
   session_id: string,
   query: string,
-  mentionedItems: any[] = [],
+  mentionedItems: MentionedItem[] = [],
   delivery: SteerDelivery = 'after',
   expectedAssistantMessageId?: string,
   steerId?: string,
-) {
+): Promise<SteerMutationResponse> {
   return post(`/api/v1/sessions/${session_id}/steer`, {
     query,
-    expected_assistant_message_id: expectedAssistantMessageId,
-    steer_id: steerId,
-    mentioned_items: mentionedItems,
+    expectedAssistantMessageId,
+    steerId,
+    mentionedItems,
     channel: 'web',
     delivery,
   });
@@ -46,15 +56,17 @@ export async function steerSession(
 
 /** Flip a queued after-message to inject so the running turn reads it next. */
 export async function promoteSteerSession(session_id: string, steer_id: string) {
-  return post(`/api/v1/sessions/${session_id}/steer/${steer_id}/inject`, {});
+  return post<SteerMutationResponse>(`/api/v1/sessions/${session_id}/steer/${steer_id}/inject`, {});
 }
 
 /** Pending overlay items for the live run. Empty when nothing is generating. */
 export async function listSteerSession(session_id: string) {
-  return get(`/api/v1/sessions/${session_id}/steer`);
+  return get<{ assistantMessageId?: string; items: SteerQueueItem[] }>(
+    `/api/v1/sessions/${session_id}/steer`,
+  );
 }
 
 /** Drop a queued overlay item so it is neither injected nor sent as a follow-up. */
 export async function removeSteerSession(session_id: string, steer_id: string) {
-  return del(`/api/v1/sessions/${session_id}/steer/${steer_id}`);
+  return del<SteerMutationResponse>(`/api/v1/sessions/${session_id}/steer/${steer_id}`);
 }

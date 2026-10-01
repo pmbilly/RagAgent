@@ -5,29 +5,30 @@ export interface MessageSuggestionItem {
   text: string
   category?: 'clarify' | 'deepen' | 'action'
   source: 'model' | 'faq' | 'document' | 'wiki' | string
-  knowledge_base_ids?: string[]
+  knowledgeBaseIds?: string[]
 }
 
 export interface MessageSuggestionSet {
   id: string
-  session_id: string
-  assistant_message_id: string
+  sessionId: string
+  assistantMessageId: string
   status: 'generating' | 'ready' | 'suppressed' | 'failed'
-  allow_regenerate: boolean
-  suppression_reason?: string
+  allowRegenerate: boolean
+  suppressionReason?: string
   questions: MessageSuggestionItem[]
-  generated_at?: string
+  generatedAt?: string
 }
 
+/** 裸资源：响应体即建议集（§2.1，无 {data,success} 信封）。 */
 export function ensureMessageSuggestions(sessionId: string, messageId: string, regenerate = false) {
-  return post<{ data: MessageSuggestionSet }>(
+  return post<MessageSuggestionSet>(
     `/api/v1/sessions/${sessionId}/messages/${messageId}/suggestions`,
     { regenerate },
   )
 }
 
 export function getMessageSuggestions(sessionId: string, messageId: string) {
-  return get<{ data: MessageSuggestionSet }>(
+  return get<MessageSuggestionSet>(
     `/api/v1/sessions/${sessionId}/messages/${messageId}/suggestions`,
   )
 }
@@ -40,6 +41,6 @@ export function recordMessageSuggestionEvent(
 ) {
   return post(
     `/api/v1/sessions/${sessionId}/suggestion-events`,
-    { suggestion_set_id: suggestionSetId, question_id: questionId, event_type: eventType },
+    { suggestionSetId, questionId, eventType },
   )
 }

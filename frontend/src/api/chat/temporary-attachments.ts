@@ -2,19 +2,23 @@ import { del, get, getDown, postUpload } from '@/utils/request';
 
 export type TemporaryAttachmentStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
 
+/** 键名＝服务端字段名（§14.9l S3 后为 camelCase）。 */
 export interface TemporaryAttachment {
   id: string;
-  session_id: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  mime_type?: string;
+  sessionId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  mimeType?: string;
   status: TemporaryAttachmentStatus;
-  token_count: number;
-  chunk_count: number;
-  image_refs?: Array<{ original_ref?: string; url: string; mime_type?: string }>;
-  error_message?: string;
-  expires_at: string;
+  tokenCount: number;
+  chunkCount: number;
+  imageRefs?: Array<{ originalRef?: string; url: string; mimeType?: string }>;
+  errorMessage?: string;
+  expiresAt: string;
+  startedAt?: string | null;
+  readyAt?: string | null;
+  updatedAt?: string;
 }
 
 export function uploadTemporaryAttachment(
@@ -26,8 +30,8 @@ export function uploadTemporaryAttachment(
 ): Promise<TemporaryAttachment> {
   const form = new FormData();
   form.append('file', file);
-  if (agentId) form.append('agent_id', agentId);
-  if (parserEngine) form.append('parser_engine', parserEngine);
+  if (agentId) form.append('agentId', agentId);
+  if (parserEngine) form.append('parserEngine', parserEngine);
   return postUpload(
     `/api/v1/sessions/${sessionId}/attachments`,
     form,

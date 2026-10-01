@@ -108,7 +108,7 @@
                             <FollowUpSuggestions v-if="session.answerFullyRendered && !session.steerForked && !session.suggestionsDismissed"
                                 :suggestion-set="session.suggestionSet"
                                 :loading="session.suggestionLoading"
-                                :allow-regenerate="session.suggestionSet?.allow_regenerate"
+                                :allow-regenerate="session.suggestionSet?.allowRegenerate"
                                 @select="(item) => handleFollowUpSelect(session, item)"
                                 @regenerate="loadFollowUpSuggestions(session, true, true)"
                                 @impression="(set) => recordSuggestionEvent(session, set, 'impression')"
@@ -164,7 +164,6 @@ import { deleteTemporaryAttachment, uploadTemporaryAttachment } from '@/api/chat
 import { useStream } from '../../api/chat/streame'
 import { listSteerSession, promoteSteerSession, removeSteerSession, steerSession } from '@/api/chat/steer';
 import { persistedAssistantId, previewSteerMessage, discardSteerPreview, reconcileSteerMessageId } from '@/utils/steerStreamFork';
-import { fromMentionRequest } from '@/types/mention';
 import { useMenuStore } from '@/stores/menu';
 import { useSettingsStore } from '@/stores/settings';
 import { MessagePlugin } from 'tdesign-vue-next';
@@ -449,13 +448,13 @@ const recordSuggestionEvent = (message, set, eventType, questionId = '') => {
 const handleFollowUpSelect = (message, item) => {
     recordSuggestionEvent(message, message.suggestionSet, 'click', item.id);
     pendingSuggestionAttribution = {
-        suggestion_set_id: message.suggestionSet.id,
-        question_id: item.id,
+        suggestionSetId: message.suggestionSet.id,
+        questionId: item.id,
     };
     // Knowledge-backed follow-ups are generated from a specific KB. Keep that
     // authorized retrieval anchor for the immediate next request; model-backed
     // suggestions intentionally do not inherit transient @file/@tag/MCP/Skill scope.
-    pendingSuggestionKnowledgeBaseIds = [...new Set(item.knowledge_base_ids || [])];
+    pendingSuggestionKnowledgeBaseIds = [...new Set(item.knowledgeBaseIds || [])];
     if (inputFieldRef.value?.triggerSend) inputFieldRef.value.triggerSend(item.text);
     else sendMsg(item.text);
 };
@@ -610,15 +609,15 @@ const hydrateSteerQueue = async ({ onlyWhenLive = false } = {}) => {
     if (!session_id.value) return;
     try {
         const res = await listSteerSession(session_id.value);
-        if (onlyWhenLive && !res?.assistant_message_id) return;
+        if (onlyWhenLive && !res?.assistantMessageId) return;
         const items = Array.isArray(res?.items) ? res.items : [];
         steerQueue.value = items.map((item) => ({
-            steer_id: item.steer_id,
+            steerId: item.steerId,
             content: item.content || '',
             delivery: item.delivery === 'inject' ? 'inject' : 'after',
-            mentioned_items: item.mentioned_items || [],
-            expected_assistant_message_id: res.assistant_message_id,
-        })).concat(steerQueue.value.filter(item => item.failed && !items.some(remote => remote.steer_id === item.steer_id)));
+            mentionedItems: item.mentionedItems || [],
+            expectedAssistantMessageId: res.assistantMessageId,
+        })).concat(steerQueue.value.filter(item => item.failed && !items.some(remote => remote.steerId === item.steerId)));
         for (const item of steerQueue.value) {
             if (item.delivery === 'inject') previewSteerMessage(messagesList, item);
         }
@@ -720,7 +719,7 @@ const {
         dropSteerQueueItem(steerId);
     },
     onGenerationStopped: () => {
-        for (const item of steerQueue.value) discardSteerPreview(messagesList, item.steer_id);
+        for (const item of steerQueue.value) discardSteerPreview(messagesList, item.steerId);
         steerQueue.value = [];
     },
     onTurnComplete: (message) => {
@@ -786,7 +785,7 @@ const handleStopGeneration = () => {
 };
 
 const handleStopConfirmed = () => {
-    for (const item of steerQueue.value) discardSteerPreview(messagesList, item.steer_id);
+    for (const item of steerQueue.value) discardSteerPreview(messagesList, item.steerId);
     steerQueue.value = [];
 };
 
@@ -797,12 +796,12 @@ const handleStopFailed = () => {
 
 const dropSteerQueueItem = (steerId) => {
     if (!steerId) return;
-    const idx = steerQueue.value.findIndex((item) => item.steer_id === steerId);
+    const idx = steerQueue.value.findIndex((item) => item.steerId === steerId);
     if (idx >= 0) steerQueue.value.splice(idx, 1);
 };
 
 const findSteerQueueItem = (steerId) =>
-    steerQueue.value.find((item) => item.steer_id === steerId);
+    steerQueue.value.find((item) => item.steerId === steerId);
 
 // Enter queues a follow-up; an explicit inject appears in the transcript immediately.
 const handleSteerMsg = async (value, mentionedItems = [], delivery = 'after', retryId = '') => {
@@ -816,15 +815,15 @@ const handleSteerMsg = async (value, mentionedItems = [], delivery = 'after', re
     const requestSessionId = session_id.value;
     const clientId = retryId || makeSteerClientId();
     const retryItem = retryId ? findSteerQueueItem(retryId) : null;
-    const expectedId = retryItem?.expected_assistant_message_id || currentAssistantMessageId.value;
+    const expectedId = retryItem?.expectedAssistantMessageId || currentAssistantMessageId.value;
     if (retryItem) { retryItem.pending = true; retryItem.failed = false; }
     else steerQueue.value.push({
-        steer_id: clientId,
-        client_id: clientId,
-        expected_assistant_message_id: expectedId,
+        steerId: clientId,
+        clientId,
+        expectedAssistantMessageId: expectedId,
         content: value,
         delivery,
-        mentioned_items: mentionedItems,
+        mentionedItems,
         pending: true,
     });
     if (delivery === 'inject') {
@@ -835,7 +834,7 @@ const handleSteerMsg = async (value, mentionedItems = [], delivery = 'after', re
     try {
         const res = await steerSession(requestSessionId, value, mentionedItems, delivery, expectedId, clientId);
         if (session_id.value !== requestSessionId) return;
-        const serverId = res?.steer_id || clientId;
+        const serverId = res?.steerId || clientId;
         const received = reconcileSteerMessageId(messagesList, clientId, serverId);
         const queued = findSteerQueueItem(clientId);
         if (received && !received._steerPending) {
@@ -843,7 +842,7 @@ const handleSteerMsg = async (value, mentionedItems = [], delivery = 'after', re
             // when an older backend generated a different steer ID.
             dropSteerQueueItem(clientId);
         } else if (queued) {
-            queued.steer_id = serverId;
+            queued.steerId = serverId;
         }
         if (res?.status === 'already_injected') {
             dropSteerQueueItem(serverId);
@@ -882,7 +881,7 @@ const handleSteerMsg = async (value, mentionedItems = [], delivery = 'after', re
         item.failed = true;
         const preview = messagesList.find(m => m.steer_id === clientId && m._steerPending);
         if (preview) preview._steerFailed = true;
-        if (e?.status === 409) item.expected_assistant_message_id = currentAssistantMessageId.value;
+        if (e?.status === 409) item.expectedAssistantMessageId = currentAssistantMessageId.value;
         MessagePlugin.error(e?.message || t('input.messages.steerFailed'));
     }
 };
@@ -890,12 +889,12 @@ const handleSteerMsg = async (value, mentionedItems = [], delivery = 'after', re
 const handleRetrySteer = async (steerId) => {
     const item = findSteerQueueItem(steerId);
     if (!item || item.pending) return;
-    await handleSteerMsg(item.content, item.mentioned_items || [], item.delivery, steerId);
+    await handleSteerMsg(item.content, item.mentionedItems || [], item.delivery, steerId);
 };
 
 const handlePromoteSteer = async (steerId) => {
     if (!session_id.value || !steerId) return;
-    const item = findSteerQueueItem(steerId) || steerQueue.value.find((entry) => entry.client_id === steerId);
+    const item = findSteerQueueItem(steerId) || steerQueue.value.find((entry) => entry.clientId === steerId);
     if (!item || item.delivery === 'inject') return;
     if (item.pending || item.promoting || item.failed) return;
     const requestSessionId = session_id.value;
@@ -904,11 +903,11 @@ const handlePromoteSteer = async (steerId) => {
     previewSteerMessage(messagesList, item);
     scrollToBottom(true);
     try {
-        const res = await promoteSteerSession(requestSessionId, item.steer_id);
+        const res = await promoteSteerSession(requestSessionId, item.steerId);
         if (session_id.value !== requestSessionId) return;
         if (res?.status === 'already_injected') {
-            dropSteerQueueItem(item.steer_id);
-            const preview = messagesList.find(m => m.steer_id === item.steer_id);
+            dropSteerQueueItem(item.steerId);
+            const preview = messagesList.find(m => m.steer_id === item.steerId);
             if (preview) delete preview._steerPending;
             MessagePlugin.info(t('input.messages.steerAlreadyInjected'));
             return;
@@ -919,7 +918,7 @@ const handlePromoteSteer = async (steerId) => {
                 return;
             }
             const content = item.content;
-            const mentions = item.mentioned_items || [];
+            const mentions = item.mentionedItems || [];
             dropSteerQueueItem(steerId);
             discardSteerPreview(messagesList, steerId);
             await sendMsg(content, '', mentions);
@@ -946,7 +945,7 @@ const handleRemoveSteer = async (steerId) => {
     item.promoting = true;
     try {
         if (session_id.value) {
-            const res = await removeSteerSession(session_id.value, item.steer_id);
+            const res = await removeSteerSession(session_id.value, item.steerId);
             if (res?.status === 'already_injected') {
                 MessagePlugin.info(t('input.messages.steerAlreadyInjected'));
                 dropSteerQueueItem(steerId);
@@ -978,12 +977,12 @@ const flushSteerAfterTurn = async (completedAssistantId) => {
     const awaiting = steerQueue.value.filter((item) => item.awaitingIdleSend);
     if (awaiting.length) {
         const batch = awaiting.slice();
-        for (const item of batch) discardSteerPreview(messagesList, item.steer_id);
+        for (const item of batch) discardSteerPreview(messagesList, item.steerId);
         steerQueue.value = steerQueue.value.filter((item) => !item.awaitingIdleSend);
         const first = batch[0];
-        await sendMsg(first.content, '', first.mentioned_items || []);
+        await sendMsg(first.content, '', first.mentionedItems || []);
         for (const rest of batch.slice(1)) {
-            await handleSteerMsg(rest.content, rest.mentioned_items || [], rest.delivery || 'after');
+            await handleSteerMsg(rest.content, rest.mentionedItems || [], rest.delivery || 'after');
         }
         return;
     }
@@ -1020,16 +1019,16 @@ const attachSteerFollowUp = async (completedAssistantId) => {
                     if (persisted.requestId !== newAssistant.requestId) continue;
                     if (messagesList.some((existing) => existing.id === persisted.id)) continue;
                     const queuedMatch = queued.find(
-                        (q) => q.content === persisted.content && !claimed.has(q.steer_id)
+                        (q) => q.content === persisted.content && !claimed.has(q.steerId)
                     );
-                    if (queuedMatch) claimed.add(queuedMatch.steer_id);
+                    if (queuedMatch) claimed.add(queuedMatch.steerId);
                     const userRow = {
                         ...persisted,
-                        mentionedItems: queuedMatch?.mentioned_items?.length
-                            ? queuedMatch.mentioned_items.map(fromMentionRequest)
+                        mentionedItems: queuedMatch?.mentionedItems?.length
+                            ? queuedMatch.mentionedItems
                             : persisted.mentionedItems,
                     };
-                    const preview = queuedMatch && messagesList.find(m => m.steer_id === queuedMatch.steer_id && m._steerPending);
+                    const preview = queuedMatch && messagesList.find(m => m.steer_id === queuedMatch.steerId && m._steerPending);
                     if (preview) {
                         delete preview._steerPending;
                         delete preview._steerFailed;
@@ -1114,7 +1113,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
                 const upload = await uploadTemporaryAttachment(
                     session_id.value, file, selectedAgentId, 'auto'
                 );
-                imageAttachmentIds.push(upload.data.id);
+                imageAttachmentIds.push(upload.id);
             } catch (e) {
                 console.error('[Image] Temporary image upload failed, falling back to inline:', e);
                 imageAttachments.push({ data: dataURI });
@@ -1135,8 +1134,8 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
                 const upload = await uploadTemporaryAttachment(
                     session_id.value, attachment.file, selectedAgentId, 'auto'
                 );
-                attachment.documentId = upload.data.id;
-                attachment.status = upload.data.status;
+                attachment.documentId = upload.id;
+                attachment.status = upload.status;
             }));
         } catch (error) {
             console.error('[Attachment] Temporary document upload failed:', error);
@@ -1192,7 +1191,7 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
     }
 
     // 将@提及的知识库和文件信息存入用户消息
-    messagesList.push({ content: value, role: 'user', mentionedItems: (mentionedItems || []).map(fromMentionRequest), images: userImages, attachments: attachmentFiles.map(a => ({ id: a.documentId, fileName: a.name, fileSize: a.size, fileType: '.' + a.name.split('.').pop()?.toLowerCase() })), channel: 'web', createdAt: new Date().toISOString() });
+    messagesList.push({ content: value, role: 'user', mentionedItems: mentionedItems || [], images: userImages, attachments: attachmentFiles.map(a => ({ id: a.documentId, fileName: a.name, fileSize: a.size, fileType: '.' + a.name.split('.').pop()?.toLowerCase() })), channel: 'web', createdAt: new Date().toISOString() });
     userHasScrolledUp.value = false;
     scrollToBottom(true);
 

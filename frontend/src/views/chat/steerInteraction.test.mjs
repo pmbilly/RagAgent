@@ -36,9 +36,9 @@ test('default after stays below; promotion immediately moves it into the transcr
   const item = h.state.steerQueue.value[0]
   assert.equal(item.delivery, 'after')
   assert.equal(h.state.messagesList.length, 0)
-  request.resolve({ status: 'queued', steer_id: item.steer_id })
+  request.resolve({ status: 'queued', steerId: item.steerId })
   await sending
-  const promoting = h.handlePromoteSteer(item.steer_id)
+  const promoting = h.handlePromoteSteer(item.steerId)
   assert.equal(item.delivery, 'inject')
   assert.equal(h.state.steerQueue.value.filter(q => q.delivery === 'after').length, 0)
   assert.equal(h.state.messagesList[0].content, 'queued')
@@ -54,9 +54,9 @@ test('direct inject shows immediately and an early SSE receipt does not duplicat
   const sending = h.handleSteerMsg('补充', [], 'inject')
   const item = h.state.steerQueue.value[0]
   assert.equal(h.state.messagesList[1].content, '补充')
-  forkAfterInjectedUser(h.state.messagesList, assistant, h.state.messagesList[1], item.steer_id)
+  forkAfterInjectedUser(h.state.messagesList, assistant, h.state.messagesList[1], item.steerId)
   h.state.steerQueue.value.splice(0, 1) // onUserMessageInjected receipt
-  request.resolve({ status: 'queued', steer_id: item.steer_id })
+  request.resolve({ status: 'queued', steerId: item.steerId })
   await sending
   assert.equal(h.state.messagesList.filter(m => m.role === 'user').length, 1)
   assert.equal(h.state.steerQueue.value.length, 0)
@@ -67,7 +67,7 @@ test('failed inject retries with the same ID and bubble', async () => {
   const h = harness({ steerSession: async (...args) => {
     ids.push(args[5])
     if (ids.length === 1) throw new Error('network')
-    return { status: 'queued', steer_id: args[5] }
+    return { status: 'queued', steerId: args[5] }
   } })
   await h.handleSteerMsg('补充', [], 'inject')
   assert.equal(h.state.messagesList[0]._steerFailed, true)
@@ -89,7 +89,7 @@ test('a lost HTTP response after a delivery receipt does not report a failed sen
 
 test('failed promotion restores the after queue and removes only its optimistic row', async () => {
   const h = harness({ promoteSteerSession: async () => { throw new Error('network') } })
-  h.state.steerQueue.value.push({ steer_id: 'queued', content: '补充', delivery: 'after' })
+  h.state.steerQueue.value.push({ steerId: 'queued', content: '补充', delivery: 'after' })
   await h.handlePromoteSteer('queued')
   assert.equal(h.state.steerQueue.value[0].delivery, 'after')
   assert.equal(h.state.messagesList.length, 0)
@@ -111,7 +111,7 @@ function receiveInjection(h, steerId, userId) {
     data: {}, dataId: 'request', replaySegments: new Map(),
     forkAfterInjectedUser, log() {}, emitMessageCreated() {}, onAgentChunkBound() {},
     onUserMessageInjected(id) {
-      const index = h.state.steerQueue.value.findIndex(item => item.steer_id === id)
+      const index = h.state.steerQueue.value.findIndex(item => item.steerId === id)
       if (index >= 0) h.state.steerQueue.value.splice(index, 1)
     },
   })()
@@ -124,7 +124,7 @@ for (const receiptFirst of [false, true]) {
     h.state.messagesList.push({ id: 'assistant', role: 'assistant', requestId: 'request', completed: false })
     const sending = h.handleSteerMsg('写到Docx', [{ id: 'mention' }], 'inject')
     if (receiptFirst) receiveInjection(h, 'server-steer', 'persisted-user')
-    request.resolve({ status: 'queued', steer_id: 'server-steer' })
+    request.resolve({ status: 'queued', steerId: 'server-steer' })
     await sending
     if (!receiptFirst) receiveInjection(h, 'server-steer', 'persisted-user')
     const users = h.state.messagesList.filter(m => m.role === 'user')
@@ -146,9 +146,9 @@ test('concurrent identical injects reconcile by their HTTP receipts without merg
   const sendingSecond = h.handleSteerMsg('写到Docx', [{ id: 'second' }], 'inject')
   receiveInjection(h, 'server-first', 'user-first')
   receiveInjection(h, 'server-second', 'user-second')
-  second.resolve({ status: 'queued', steer_id: 'server-second' })
+  second.resolve({ status: 'queued', steerId: 'server-second' })
   await sendingSecond
-  first.resolve({ status: 'queued', steer_id: 'server-first' })
+  first.resolve({ status: 'queued', steerId: 'server-first' })
   await sendingFirst
   const users = h.state.messagesList.filter(m => m.role === 'user')
   assert.deepEqual(users.map(m => [m.id, m.mentionedItems[0].id]), [['user-first', 'first'], ['user-second', 'second']])

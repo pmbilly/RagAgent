@@ -77,7 +77,7 @@
             <FollowUpSuggestions v-if="!session.suggestionsDismissed"
               :suggestion-set="session.suggestionSet as any"
               :loading="Boolean(session.suggestionLoading)"
-              :allow-regenerate="Boolean((session.suggestionSet as any)?.allow_regenerate)"
+              :allow-regenerate="Boolean((session.suggestionSet as any)?.allowRegenerate)"
               @select="(item) => handleFollowUpSelect(session, item)"
               @regenerate="loadFollowUpSuggestions(session, true, true)"
               @impression="(set) => recordFollowUpEvent(set, 'impression')"
@@ -190,14 +190,14 @@ const loadFollowUpSuggestions = async (
       : await getEmbedMessageSuggestions(
         props.channelId, props.token, targetSessionId, messageId, props.sessionSig, props.visitorId,
       )
-    let set = response?.data
+    let set = response
     for (let attempt = 0; set?.status === 'generating' && attempt < 120; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 1000))
       if (props.sessionId !== targetSessionId || message.suggestionsDismissed) return
       response = await getEmbedMessageSuggestions(
         props.channelId, props.token, targetSessionId, messageId, props.sessionSig, props.visitorId,
       )
-      set = response?.data
+      set = response
     }
     message.suggestionSet = set?.status === 'ready' ? set : null
   } catch {

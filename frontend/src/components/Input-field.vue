@@ -46,7 +46,7 @@ import {
   type AgentNotReadyReasonKey,
 } from '@/utils/agent-readiness';
 import { formatLocalizedList } from '@/utils/format-list';
-import { SKILL_ICON, type MentionItem, type MentionItemType, type MentionRequestItem } from '@/types/mention';
+import { SKILL_ICON, type MentionItem, type MentionItemType, type MentionedItem } from '@/types/mention';
 
 const route = useRoute();
 const router = useRouter();
@@ -1701,13 +1701,13 @@ watch([selectedKbIds, selectedFileIds], ([kbIds, fileIds]) => {
 }, { deep: true });
 
 const emit = defineEmits<{
-  (e: 'send-msg', query: string, modelId: string, mentionedItems: MentionRequestItem[], imageFiles: File[], attachmentFiles: AttachmentFile[]): void;
+  (e: 'send-msg', query: string, modelId: string, mentionedItems: MentionedItem[], imageFiles: File[], attachmentFiles: AttachmentFile[]): void;
   (e: 'stop-generation'): void;
   (e: 'stop-confirmed'): void;
   (e: 'stop-failed'): void;
   // Running input defaults to after; the explicit shortcut/action steers.
   // Empty input while replying shows Stop; typed text also shows Send.
-  (e: 'steer-msg', query: string, mentionedItems: MentionRequestItem[], delivery: 'inject' | 'after'): void;
+  (e: 'steer-msg', query: string, mentionedItems: MentionedItem[], delivery: 'inject' | 'after'): void;
   (e: 'promote-steer', steerId: string): void;
   (e: 'remove-steer', steerId: string): void;
   (e: 'retry-steer', steerId: string): void;
@@ -1737,15 +1737,15 @@ const createSession = async (val: string, delivery: 'inject' | 'after' = 'after'
       MessagePlugin.warning(t('input.messages.steerHasAttachments'));
       return;
     }
-    const steerMentions: MentionRequestItem[] = allSelectedItems.value.map(item => ({
+    const steerMentions: MentionedItem[] = allSelectedItems.value.map(item => ({
       id: item.id,
       name: item.name,
       type: item.type,
-      kb_type: item.type === 'kb' ? (item.kbType || 'document') : undefined,
-      kb_id: item.kbId,
-      kb_name: item.kbName,
-      service_id: item.serviceId,
-      skill_name: item.skillName,
+      kbType: item.type === 'kb' ? (item.kbType || 'document') : undefined,
+      kbId: item.kbId,
+      kbName: item.kbName,
+      serviceId: item.serviceId,
+      skillName: item.skillName,
     }));
     emit('steer-msg', val.trim(), steerMentions, delivery);
     clearvalue();
@@ -1818,15 +1818,15 @@ const createSession = async (val: string, delivery: 'inject' | 'after' = 'after'
     return;
   }
   // 获取@提及的知识库和文件信息
-  const mentionedItems: MentionRequestItem[] = allSelectedItems.value.map(item => ({
+  const mentionedItems: MentionedItem[] = allSelectedItems.value.map(item => ({
     id: item.id,
     name: item.name,
     type: item.type,
-    kb_type: item.type === 'kb' ? (item.kbType || 'document') : undefined,
-    kb_id: item.kbId,
-    kb_name: item.kbName,
-    service_id: item.serviceId,
-    skill_name: item.skillName,
+    kbType: item.type === 'kb' ? (item.kbType || 'document') : undefined,
+    kbId: item.kbId,
+    kbName: item.kbName,
+    serviceId: item.serviceId,
+    skillName: item.skillName,
   }));
   const imageFiles = uploadedImages.value.map(img => img.file);
   const attachmentFiles = uploadedAttachments.value;
@@ -2070,7 +2070,7 @@ const firstQueuedSteer = computed(() => props.queuedSteers.find(item =>
 const injectCurrentInput = () => {
   if (!props.isReplying || !props.canSteer) return;
   if (query.value.trim()) void createSession(query.value, 'inject');
-  else if (firstQueuedSteer.value) emit('promote-steer', firstQueuedSteer.value.steer_id);
+  else if (firstQueuedSteer.value) emit('promote-steer', firstQueuedSteer.value.steerId);
 };
 
 const onKeydown = (val: string, event: { e: KeyboardEvent }) => {
@@ -2363,25 +2363,25 @@ defineExpose({
       style="display:none" @change="handleImageSelect" />
     <!-- 队列紧贴输入框上方，不参与输入区的焦点高亮 -->
     <div v-if="queuedSteers.length" class="steer-queue" role="list" :aria-label="$t('input.steerQueueWaiting')">
-      <div v-for="item in queuedSteers" :key="item.steer_id" class="steer-queue-item" role="listitem">
+      <div v-for="item in queuedSteers" :key="item.steerId" class="steer-queue-item" role="listitem">
         <t-tooltip :content="$t('input.steerAfter')">
           <t-icon name="time" class="steer-queue-icon" :aria-label="$t('input.steerAfter')" />
         </t-tooltip>
         <span class="steer-queue-text" :title="item.content">{{ item.content }}</span>
         <div class="steer-queue-actions">
           <t-tooltip v-if="item.failed" :content="$t('input.steerRetry')">
-            <button type="button" class="steer-queue-action" :aria-label="$t('input.steerRetry')" @click="emit('retry-steer', item.steer_id)"><t-icon name="refresh" /></button>
+            <button type="button" class="steer-queue-action" :aria-label="$t('input.steerRetry')" @click="emit('retry-steer', item.steerId)"><t-icon name="refresh" /></button>
           </t-tooltip>
           <t-icon v-else-if="item.pending" name="loading" class="steer-sending" :aria-label="$t('common.loading')" />
-          <t-tooltip v-else :content="`${$t('input.steerQueueSendNow')}${item.steer_id === firstQueuedSteer?.steer_id ? ` · ${steerShortcutLabel}` : ''}`">
+          <t-tooltip v-else :content="`${$t('input.steerQueueSendNow')}${item.steerId === firstQueuedSteer?.steerId ? ` · ${steerShortcutLabel}` : ''}`">
             <button type="button" class="steer-queue-action"
               :aria-label="$t('input.steerQueueSendNow')" :disabled="item.promoting || item.pending"
-              @click="emit('promote-steer', item.steer_id)"><t-icon name="arrow-up" /></button>
+              @click="emit('promote-steer', item.steerId)"><t-icon name="arrow-up" /></button>
           </t-tooltip>
           <t-tooltip :content="$t('common.remove')">
             <button type="button" class="steer-queue-action steer-queue-remove"
               :aria-label="$t('common.remove')" :disabled="item.promoting || item.pending"
-              @click="emit('remove-steer', item.steer_id)"><t-icon name="close" /></button>
+              @click="emit('remove-steer', item.steerId)"><t-icon name="close" /></button>
           </t-tooltip>
         </div>
       </div>

@@ -15,8 +15,8 @@ test('composer shortcuts queue Enter, inject drafts, and promote the first queue
   const query = ref('draft')
   const composing = ref(false)
   const props = reactive({ isReplying: true, canSteer: true, queuedSteers: [
-    { steer_id: 'pending', delivery: 'after', pending: true },
-    { steer_id: 'first', delivery: 'after' }, { steer_id: 'second', delivery: 'after' },
+    { steerId: 'pending', delivery: 'after', pending: true },
+    { steerId: 'first', delivery: 'after' }, { steerId: 'second', delivery: 'after' },
   ] })
   const { onKeydown } = vm.runInNewContext(ts.transpile(`${code}\n({ onKeydown })`), {
     navigator: { platform: 'MacIntel' }, computed, props, query, chatSubmitShortcut,
@@ -93,8 +93,8 @@ test('mid-run send is limited to agent sessions', () => {
 test('queued follow-ups sit in one block with send-now and remove', () => {
   assert.match(inputField, /class="steer-queue"/)
   assert.match(inputField, /queuedSteers/)
-  assert.match(inputField, /emit\('promote-steer', item\.steer_id\)/)
-  assert.match(inputField, /emit\('remove-steer', item\.steer_id\)/)
+  assert.match(inputField, /emit\('promote-steer', item\.steerId\)/)
+  assert.match(inputField, /emit\('remove-steer', item\.steerId\)/)
   assert.match(inputField, /class="steer-queue-action steer-queue-remove"/)
   assert.match(inputField, /\$t\('input\.steerQueueSendNow'\)/)
   assert.match(inputField, /:disabled="item\.promoting \|\| item\.pending"/)

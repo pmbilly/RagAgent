@@ -23,23 +23,12 @@ export interface MentionItem {
   catalogSynced?: boolean;
 }
 
-export interface MentionRequestItem {
-  id: string;
-  name: string;
-  type: MentionItemType;
-  kb_type?: 'document' | 'faq';
-  kb_id?: string;
-  kb_name?: string;
-  service_id?: string;
-  skill_name?: string;
-}
-
 /**
- * 消息对象里的提及项形状：与后端 `MentionedItem` 的线格式（camelCase）一致。
+ * 提及项的**单一形状**：与后端 `MentionedItem` 的字段名一致（camelCase）。
  *
- * 上送载荷（{@link MentionRequestItem}）仍是下划线键（请求面属 S4 批次），
- * 但本地构造的用户消息会被历史加载/对账拿到的 REST 消息替换，两处形状必须相同，
- * 否则同一行在刷新前后渲染不一致。
+ * 请求面（chat 的 `mentioned_items` 元素 / steer 的 `mentionedItems`）、消息对象的
+ * `mentionedItems`、以及落库 jsonb 都是它——三处同形，本地乐观消息与历史加载不会
+ * 因形状不同而渲染不一致（S3 收口前请求元素曾是下划线形状，见 HANDOFF §14.9l）。
  */
 export interface MentionedItem {
   id: string;
@@ -50,19 +39,4 @@ export interface MentionedItem {
   kbName?: string;
   serviceId?: string;
   skillName?: string;
-}
-
-/** 上送项 → 消息对象元素（本地乐观消息与 steer 预览用）。 */
-export function fromMentionRequest(item: MentionRequestItem): MentionedItem {
-  const { kb_type, kb_id, kb_name, service_id, skill_name } = item;
-  return {
-    id: item.id,
-    name: item.name,
-    type: item.type,
-    kbType: kb_type,
-    kbId: kb_id,
-    kbName: kb_name,
-    serviceId: service_id,
-    skillName: skill_name,
-  };
 }

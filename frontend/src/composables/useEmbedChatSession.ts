@@ -61,7 +61,7 @@ export function useEmbedChatSession(options: {
   const hasMoreHistory = ref(true)
   const created_at = ref('')
   const fullContent = ref('')
-  let pendingSuggestionAttribution: { suggestion_set_id: string; question_id: string } | null = null
+  let pendingSuggestionAttribution: { suggestionSetId: string; questionId: string } | null = null
   const scrollContainer = ref<HTMLElement | null>(null)
   const userHasScrolledUp = ref(false)
   const SCROLL_BOTTOM_THRESHOLD = 80
@@ -198,7 +198,8 @@ export function useEmbedChatSession(options: {
       options.sessionSig.value,
     )
       .then(async (res) => {
-        const batch = res?.data as Record<string, unknown>[] | undefined
+        // 裸数组：embed 的 load 委托 MessageController，响应体即消息列表（S2 起不再有信封）
+        const batch = (Array.isArray(res) ? res : undefined) as Record<string, unknown>[] | undefined
         if (!batch?.length) {
           // No (more) server history. Crucially this also covers the initial
           // load of a brand-new session: leaving hasMoreHistory true here would
@@ -402,7 +403,7 @@ export function useEmbedChatSession(options: {
     sendMsg,
     handleStopGeneration,
     setSuggestionAttribution: (suggestionSetId: string, questionId: string) => {
-      pendingSuggestionAttribution = { suggestion_set_id: suggestionSetId, question_id: questionId }
+      pendingSuggestionAttribution = { suggestionSetId, questionId }
     },
   }
 }

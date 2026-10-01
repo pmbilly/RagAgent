@@ -177,7 +177,7 @@ const pollStatus = async (attachment: AttachmentFile) => {
   try {
     const response = await getTemporaryAttachment(props.sessionId, attachment.documentId);
     attachment.status = response.status;
-    attachment.error = response.error_message;
+    attachment.error = response.errorMessage;
     emitFiles();
     if (attachment.status !== 'ready' && attachment.status !== 'failed') scheduleStatusPoll(attachment);
   } catch (error: any) {

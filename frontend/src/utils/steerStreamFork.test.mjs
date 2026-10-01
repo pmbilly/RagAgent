@@ -286,11 +286,11 @@ test('only run completion ends the task; draft completion and sealed prefixes do
 test('inject appears immediately and the delivery receipt reuses its bubble', () => {
   const assistant = { id: 'a', role: 'assistant', requestId: 'r', completed: false, agentEventStream: [{ type: 'thinking', done: false }] }
   const list = [assistant]
-  const preview = previewSteerMessage(list, { steer_id: 's', content: '补充' })
+  const preview = previewSteerMessage(list, { steerId: 's', content: '补充' })
   assert.equal(list[1], preview)
   assert.equal(assistant.completed, false)
   assert.equal(assistant.agentEventStream[0].done, false)
-  assert.equal(previewSteerMessage(list, { steer_id: 's', content: '补充' }), preview)
+  assert.equal(previewSteerMessage(list, { steerId: 's', content: '补充' }), preview)
   assert.equal(list.length, 2)
   forkAfterInjectedUser(list, assistant, preview, 's')
   assert.equal(list.length, 3)
@@ -302,9 +302,9 @@ test('inject appears immediately and the delivery receipt reuses its bubble', ()
 
 test('failed promotion can restore its queue without leaving a duplicate bubble', () => {
   const list = []
-  previewSteerMessage(list, { steer_id: 's', content: '补充' })
+  previewSteerMessage(list, { steerId: 's', content: '补充' })
   discardSteerPreview(list, 's')
   assert.equal(list.length, 0)
-  previewSteerMessage(list, { steer_id: 's', content: '补充' })
+  previewSteerMessage(list, { steerId: 's', content: '补充' })
   assert.equal(list.length, 1)
 })
