@@ -19,7 +19,6 @@ import com.ragagent.embed.EmbedTokens;
 import com.ragagent.embed.domain.EmbedChannelEntity;
 import com.ragagent.embed.filter.EmbedAuthFilter;
 import com.ragagent.embed.service.EmbedChannelService;
-import com.ragagent.embed.service.EmbedChannelService.UpdateCommand;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.mcp.controller.AgentToolApprovalController;
 import com.ragagent.mcp.dto.ResolveToolApprovalRequest;
@@ -76,16 +75,19 @@ public class EmbedChannelController {
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    private final EmbedChannelService service;
-    private final SessionService sessionService;
-    private final SessionRepository sessionRepository;
-    private final MessageController messageController;
-    private final SessionController sessionController;
-    private final MessageSuggestionController suggestionController;
-    private final McpOAuthController mcpOAuthController;
-    private final AgentToolApprovalController toolApprovalController;
+    final EmbedChannelService service;
+    final SessionService sessionService;
+    final SessionRepository sessionRepository;
+    final MessageController messageController;
+    final SessionController sessionController;
+    final MessageSuggestionController suggestionController;
+    final McpOAuthController mcpOAuthController;
+    final AgentToolApprovalController toolApprovalController;
     private final com.ragagent.session.controller.KnowledgeQaController knowledgeQaController;
     private final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
+
+    /** 管理面协作者（对照 Go 管理段）。 */
+    final EmbedChannelMgmtOps mgmtOps;
 
     public EmbedChannelController(EmbedChannelService service,
                                   SessionService sessionService,
@@ -107,6 +109,7 @@ public class EmbedChannelController {
         this.toolApprovalController = toolApprovalController;
         this.knowledgeQaController = knowledgeQaController;
         this.fileProxyService = fileProxyService;
+        this.mgmtOps = new EmbedChannelMgmtOps(this);
     }
 
     // ═══════════════════ 请求体（对照 Go embedChannelRequest） ═══════════════════
@@ -133,181 +136,52 @@ public class EmbedChannelController {
             @JsonProperty("launcher_icon") String launcherIcon) {
     }
 
-    // ═══════════════════ 管理面 ═══════════════════
 
-    /** 对照 CreateEmbedChannel：201 + gin.H（字母序）。 */
     @PostMapping("/api/v1/agents/{id}/embed-channels")
     public ResponseEntity<Map<String, Object>> create(@PathVariable("id") String agentId,
                                                       @RequestBody(required = false) String rawBody) {
-        EmbedChannelRequest req = bind(rawBody);
-        try {
-            EmbedChannelService.validateAllowedOrigins(stringList(req.allowedOrigins()));
-            if (req.launcherIcon() != null) {
-                EmbedChannelService.validateLauncherIcon(req.launcherIcon().trim());
-            }
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
-        EmbedChannelEntity input = new EmbedChannelEntity();
-        input.setName(orEmpty(req.name()));
-        input.setEnabled(Boolean.TRUE.equals(req.enabled()));
-        input.setAllowedOrigins(allowedOriginsColumn(req.allowedOrigins()));
-        input.setWelcomeMessage(orEmpty(req.welcomeMessage()));
-        input.setRateLimitPerMinute(req.rateLimitPerMinute() == null ? 0 : req.rateLimitPerMinute());
-        input.setRateLimitPerDay(req.rateLimitPerDay() == null ? 0 : req.rateLimitPerDay());
-        input.setPrimaryColor(orEmpty(req.primaryColor()));
-        input.setPageTitle(orEmpty(req.pageTitle()));
-        input.setHeaderTitleMode(orEmpty(req.headerTitleMode()));
-        input.setShowSuggestedQuestions(!Boolean.FALSE.equals(req.showSuggestedQuestions()));
-        input.setShowThinking(Boolean.TRUE.equals(req.showThinking()));
-        input.setWidgetPosition(orEmpty(req.widgetPosition()));
-        input.setAllowWebSearch(Boolean.TRUE.equals(req.allowWebSearch()));
-        input.setAllowFileUpload(Boolean.TRUE.equals(req.allowFileUpload()));
-        input.setDefaultLocale(EmbedChannelService.normalizeDefaultLocale(orEmpty(req.defaultLocale())));
-        input.setLauncherIcon(orEmpty(req.launcherIcon()));
-        try {
-            EmbedChannelEntity ch = service.create(currentTenant(), LogSanitizer.sanitize(agentId), input);
-            return ResponseEntity.status(201).body(dataEnvelope(row(ch, true)));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
+        return mgmtOps.create(agentId, rawBody);
     }
 
-    /** 对照 ListEmbedChannels。 */
     @GetMapping("/api/v1/agents/{id}/embed-channels")
     public ResponseEntity<Map<String, Object>> listByAgent(@PathVariable("id") String agentId) {
-        try {
-            List<EmbedChannelEntity> rows =
-                    service.listByAgent(currentTenant(), LogSanitizer.sanitize(agentId));
-            return ResponseEntity.ok(dataEnvelope(rows(rows)));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
+        return mgmtOps.listByAgent(agentId);
     }
 
-    /** 对照 ListAllEmbedChannels（跨 agent，publish token 永不出现在列表里）。 */
     @GetMapping("/api/v1/embed-channels")
     public ResponseEntity<Map<String, Object>> listAll() {
-        try {
-            return ResponseEntity.ok(dataEnvelope(rows(service.listByTenant(currentTenant()))));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
+        return mgmtOps.listAll();
     }
 
-    /** 对照 GetEmbedChannel：管理详情**含** publish token。 */
     @GetMapping("/api/v1/embed-channels/{channel_id}")
     public ResponseEntity<Map<String, Object>> get(@PathVariable("channel_id") String channelId) {
-        try {
-            EmbedChannelEntity ch = service.getOwnedChannel(currentTenant(), trim(channelId));
-            return ResponseEntity.ok(dataEnvelope(row(ch, true)));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
+        return mgmtOps.get(channelId);
     }
 
-    /** 对照 UpdateEmbedChannel：200 + gin.H（不含 publish token）。 */
     @PutMapping("/api/v1/embed-channels/{channel_id}")
     public ResponseEntity<Map<String, Object>> update(@PathVariable("channel_id") String channelId,
                                                       @RequestBody(required = false) String rawBody) {
-        EmbedChannelRequest req = bind(rawBody);
-        try {
-            if (req.allowedOrigins() != null) {
-                EmbedChannelService.validateAllowedOrigins(stringList(req.allowedOrigins()));
-            }
-            if (req.webhookUrl() != null) {
-                EmbedChannelService.validateWebhookUrl(req.webhookUrl());
-            }
-            if (req.launcherIcon() != null) {
-                EmbedChannelService.validateLauncherIcon(req.launcherIcon().trim());
-            }
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
-        UpdateCommand cmd = new UpdateCommand();
-        cmd.name = orEmpty(req.name());
-        cmd.welcomeMessage = req.welcomeMessage();
-        cmd.primaryColor = req.primaryColor();
-        cmd.pageTitle = req.pageTitle();
-        cmd.headerTitleMode = req.headerTitleMode();
-        cmd.widgetPosition = req.widgetPosition();
-        cmd.agentId = req.agentId();
-        cmd.enabled = req.enabled();
-        cmd.showSuggested = req.showSuggestedQuestions();
-        cmd.showThinking = req.showThinking();
-        cmd.allowWebSearch = req.allowWebSearch();
-        cmd.allowFileUpload = req.allowFileUpload();
-        cmd.defaultLocale = req.defaultLocale();
-        cmd.webhookUrl = req.webhookUrl();
-        cmd.webhookSecret = req.webhookSecret();
-        cmd.launcherIcon = req.launcherIcon();
-        cmd.rateLimitPerMinute = req.rateLimitPerMinute() == null ? 0 : req.rateLimitPerMinute();
-        cmd.rateLimitPerDay = req.rateLimitPerDay() == null ? 0 : req.rateLimitPerDay();
-        // ⚠️ golden 钉死：缺键 = json.Marshal(nil) = "null" 整列覆写（allowlist 清空）
-        cmd.allowedOriginsColumn = req.allowedOrigins() == null
-                ? "null" : req.allowedOrigins().toString();
-        try {
-            EmbedChannelEntity ch = service.update(currentTenant(), trim(channelId), cmd);
-            return ResponseEntity.ok(dataEnvelope(row(ch, false)));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
+        return mgmtOps.update(channelId, rawBody);
     }
 
-    /** 对照 DeleteEmbedChannel：{"success":true}。 */
     @DeleteMapping("/api/v1/embed-channels/{channel_id}")
     public ResponseEntity<Map<String, Object>> delete(@PathVariable("channel_id") String channelId) {
-        try {
-            service.delete(currentTenant(), trim(channelId));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return mgmtOps.delete(channelId);
     }
 
-    /** 对照 RotateEmbedToken：200 + 含新 token 的行。 */
     @PostMapping("/api/v1/embed-channels/{channel_id}/rotate-token")
     public ResponseEntity<Map<String, Object>> rotate(@PathVariable("channel_id") String channelId) {
-        try {
-            var result = service.rotateToken(currentTenant(), trim(channelId));
-            return ResponseEntity.ok(dataEnvelope(row(result.channel(), result.token())));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
+        return mgmtOps.rotate(channelId);
     }
 
-    /** 对照 IssuePreviewSession：禁用渠道 → 403 "embed channel is disabled"（专用分支）。 */
     @PostMapping("/api/v1/embed-channels/{channel_id}/preview-session")
     public ResponseEntity<Map<String, Object>> preview(@PathVariable("channel_id") String channelId) {
-        EmbedChannelService.IssueResult result;
-        try {
-            result = service.issuePreviewSession(currentTenant(), trim(channelId));
-        } catch (EmbedError e) {
-            if (e.kind == EmbedError.Kind.CHANNEL_DISABLED) {
-                return plainError(403, "embed channel is disabled");
-            }
-            throw writeMgmtError(e);
-        }
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("expires_in", result.expiresIn());
-        data.put("session_token", result.token());
-        return ResponseEntity.ok(dataEnvelope(data));
+        return mgmtOps.preview(channelId);
     }
 
-    /** 对照 GetEmbedChannelStats：{session_count:N}。 */
     @GetMapping("/api/v1/embed-channels/{channel_id}/stats")
     public ResponseEntity<Map<String, Object>> stats(@PathVariable("channel_id") String channelId) {
-        try {
-            service.getOwnedChannel(currentTenant(), trim(channelId));
-        } catch (EmbedError e) {
-            throw writeMgmtError(e);
-        }
-        long total = service.countEmbedSessions(currentTenant(), trim(channelId), sessionRepository);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("session_count", total);
-        return ResponseEntity.ok(dataEnvelope(data));
+        return mgmtOps.stats(channelId);
     }
 
     // ═══════════════════ 公开面（EmbedAuthFilter 已跑） ═══════════════════
@@ -774,15 +648,15 @@ public class EmbedChannelController {
     /**
      * 对照 embedChannelResponse（L798-828）：gin.H = 字母序。publishToken 非空才带键。
      */
-    private static Map<String, Object> row(EmbedChannelEntity ch, boolean withPublishToken) {
+    static Map<String, Object> row(EmbedChannelEntity ch, boolean withPublishToken) {
         return row(ch, ch.getPublishToken() == null ? "" : ch.getPublishToken(), withPublishToken);
     }
 
-    private static Map<String, Object> row(EmbedChannelEntity ch, String token) {
+    static Map<String, Object> row(EmbedChannelEntity ch, String token) {
         return row(ch, token, true);
     }
 
-    private static Map<String, Object> row(EmbedChannelEntity ch, String token, boolean includeToken) {
+    static Map<String, Object> row(EmbedChannelEntity ch, String token, boolean includeToken) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("agent_id", ch.getAgentId());
         m.put("allow_file_upload", ch.isAllowFileUpload());
@@ -818,7 +692,7 @@ public class EmbedChannelController {
         return origins.isEmpty() ? null : origins;
     }
 
-    private static List<Map<String, Object>> rows(List<EmbedChannelEntity> list) {
+    static List<Map<String, Object>> rows(List<EmbedChannelEntity> list) {
         List<Map<String, Object>> data = new ArrayList<>();
         for (EmbedChannelEntity ch : list) {
             data.add(row(ch, "", false));
@@ -827,7 +701,7 @@ public class EmbedChannelController {
     }
 
     /** {"data":…,"success":true}（字母序 data < success）。 */
-    private static Map<String, Object> dataEnvelope(Object data) {
+    static Map<String, Object> dataEnvelope(Object data) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", data);
         body.put("success", true);
@@ -840,14 +714,14 @@ public class EmbedChannelController {
         return body;
     }
 
-    private static ResponseEntity<Map<String, Object>> plainError(int status, String message) {
+    static ResponseEntity<Map<String, Object>> plainError(int status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
         return ResponseEntity.status(status).body(body);
     }
 
     /** 对照 writeEmbedMgmtError 的分派（纯字符串错误信封）。 */
-    private static PlainErrorException writeMgmtError(EmbedError e) {
+    static PlainErrorException writeMgmtError(EmbedError e) {
         return switch (e.kind) {
             case CHANNEL_NOT_FOUND -> new PlainErrorException(404, "embed channel not found");
             case BAD_REQUEST_TEXT -> new PlainErrorException(400, e.getMessage());
@@ -858,7 +732,7 @@ public class EmbedChannelController {
 
     // ═══════════════════ 工具 ═══════════════════
 
-    private static long currentTenant() {
+    static long currentTenant() {
         Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
         return tid == null ? 0L : tid;
     }
@@ -881,7 +755,7 @@ public class EmbedChannelController {
     /**
      * 对照 c.ShouldBindJSON(&req)：空 body → "EOF"，坏 JSON → Go 措辞（GoJsonBindError）。
      */
-    private static EmbedChannelRequest bind(String rawBody) {
+    static EmbedChannelRequest bind(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
             throw new PlainErrorException(400, "EOF");
         }
@@ -897,12 +771,12 @@ public class EmbedChannelController {
      * allowed_origins 的列值。create 路径：缺键（null 节点）按 Go 的 json.Marshal(nil)="null"
      * 处理（但 handler 校验会先拒掉缺键/空数组，实际到不了 service）；存在则原样文本。
      */
-    private static String allowedOriginsColumn(JsonNode node) {
+    static String allowedOriginsColumn(JsonNode node) {
         return node == null ? "null" : node.toString();
     }
 
     /** JsonNode → List&lt;String&gt;（校验入口）。非数组/元素非字符串在 Go 是 bind 错误，这里容忍为列表。 */
-    private static List<String> stringList(JsonNode node) {
+    static List<String> stringList(JsonNode node) {
         List<String> out = new ArrayList<>();
         if (node == null) {
             return out;
@@ -915,11 +789,11 @@ public class EmbedChannelController {
         return out;
     }
 
-    private static String trim(String s) {
+    static String trim(String s) {
         return s == null ? "" : s.trim();
     }
 
-    private static String orEmpty(String s) {
+    static String orEmpty(String s) {
         return s == null ? "" : s;
     }
 }
