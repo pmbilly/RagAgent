@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.PlainErrorException;
-import com.ragagent.common.security.LogSanitizer;
 import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.embed.EmbedError;
 import com.ragagent.embed.EmbedTokens;
@@ -20,7 +19,6 @@ import com.ragagent.embed.domain.EmbedChannelEntity;
 import com.ragagent.embed.filter.EmbedAuthFilter;
 import com.ragagent.embed.service.EmbedChannelService;
 import com.ragagent.mcp.controller.AgentToolApprovalController;
-import com.ragagent.mcp.dto.ResolveToolApprovalRequest;
 import com.ragagent.mcp.controller.McpOAuthController;
 import com.ragagent.session.controller.MessageController;
 import com.ragagent.session.controller.MessageSuggestionController;
@@ -71,7 +69,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class EmbedChannelController {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     final EmbedChannelService service;
@@ -82,14 +80,17 @@ public class EmbedChannelController {
     final MessageSuggestionController suggestionController;
     final McpOAuthController mcpOAuthController;
     final AgentToolApprovalController toolApprovalController;
-    private final com.ragagent.session.controller.KnowledgeQaController knowledgeQaController;
-    private final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
+final com.ragagent.session.controller.KnowledgeQaController knowledgeQaController;
+final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
 
     /** 管理面协作者（对照 Go 管理段）。 */
     final EmbedChannelMgmtOps mgmtOps;
 
     /** 公开面协作者（对照 Go 公开段）。 */
     final EmbedChannelPublicOps publicOps;
+
+    /** 委托协作者（对照 Go W5d/会话/建议/MCP 段）。 */
+    final EmbedChannelDelegateOps delegateOps;
 
     public EmbedChannelController(EmbedChannelService service,
                                   SessionService sessionService,
@@ -113,6 +114,7 @@ public class EmbedChannelController {
         this.fileProxyService = fileProxyService;
         this.mgmtOps = new EmbedChannelMgmtOps(this);
         this.publicOps = new EmbedChannelPublicOps(this);
+        this.delegateOps = new EmbedChannelDelegateOps(this);
     }
 
     // ═══════════════════ 请求体（对照 Go embedChannelRequest） ═══════════════════
@@ -216,264 +218,105 @@ public class EmbedChannelController {
         return publicOps.createSession(channelId);
     }
 
-    // ═══════════════════ QA / 文件代理委托（W5d 收口） ═══════════════════
 
-    /** 对照 EmbedKnowledgeChat（L460-462）：patch 后委托 KnowledgeQA。 */
     @PostMapping("/api/v1/embed/{channel_id}/knowledge-chat/{session_id}")
     public void knowledgeChat(@PathVariable("session_id") String sessionId,
                               @RequestBody(required = false) String rawBody,
                               @RequestParam(name = "resource_urls", required = false) String resourceUrls,
                               jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
-        delegateEmbedChat(sessionId, rawBody, resourceUrls, false, response);
+        delegateOps.knowledgeChat(sessionId, rawBody, resourceUrls, response);
     }
 
-    /** 对照 EmbedAgentChat（L464-466）：patch 后按渠道 agent 分派 AgentQA/KnowledgeQA。 */
     @PostMapping("/api/v1/embed/{channel_id}/agent-chat/{session_id}")
     public void agentChat(@PathVariable("session_id") String sessionId,
                           @RequestBody(required = false) String rawBody,
                           @RequestParam(name = "resource_urls", required = false) String resourceUrls,
                           jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
-        delegateEmbedChat(sessionId, rawBody, resourceUrls, true, response);
+        delegateOps.agentChat(sessionId, rawBody, resourceUrls, response);
     }
 
-    /**
-     * 对照 delegateEmbedChat（L620-648）：渠道 → ensureEmbedSession →
-     * patchEmbedChatPayload → 委托。quick-answer 内建 agent 恒走 KnowledgeQA。
-     */
-    private void delegateEmbedChat(String sessionId, String rawBody, String resourceUrls,
-            boolean agentMode, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
-        EmbedChannelEntity ch = channel(request0());
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        String patched = patchEmbedChatPayload(rawBody, ch, agentMode);
-        if (agentMode && !"builtin-quick-answer".equals(ch.getAgentId())) {
-            knowledgeQaController.agentQA(LogSanitizer.sanitize(sessionId), patched,
-                    resourceUrls, response);
-            return;
-        }
-        knowledgeQaController.knowledgeQA(LogSanitizer.sanitize(sessionId), patched,
-                resourceUrls, response);
-    }
-
-    /**
-     * 对照 patchEmbedChatPayload（L712-750）：把渠道约束合并进访客 QA 请求体。
-     * 「invalid request body」（Go 的 io.ReadAll 失败）在 Java 不可达——body 已由
-     * Spring 读成 String；坏 JSON / 非对象 → 400 "invalid json"。
-     */
-    private static String patchEmbedChatPayload(String rawBody, EmbedChannelEntity ch,
-            boolean agentMode) {
-        com.fasterxml.jackson.databind.node.ObjectNode payload;
-        if (rawBody == null || rawBody.isEmpty()) {
-            payload = MAPPER.createObjectNode();
-        } else {
-            JsonNode node;
-            try {
-                node = MAPPER.readTree(rawBody);
-            } catch (Exception e) {
-                throw new PlainErrorException(400, "invalid json");
-            }
-            // Go 的 json.Unmarshal("null", &map) 得 nil map 无错误 → 视同空体；
-            // 数组/标量是 unmarshal 类型错误 → "invalid json"
-            if (node == null || node.isNull()) {
-                payload = MAPPER.createObjectNode();
-            } else if (!node.isObject()) {
-                throw new PlainErrorException(400, "invalid json");
-            } else {
-                payload = (com.fasterxml.jackson.databind.node.ObjectNode) node;
-            }
-        }
-        payload.put("agent_id", ch.getAgentId());
-        payload.putArray("knowledge_base_ids");
-        // Go：仅当客户端给了 bool 才算 opt-in（非 bool 一律 false）
-        JsonNode clientWs = payload.get("web_search_enabled");
-        payload.put("web_search_enabled", ch.isAllowWebSearch()
-                && clientWs != null && clientWs.isBoolean() && clientWs.asBoolean());
-        if (!ch.isAllowFileUpload()) {
-            payload.remove("images");
-            payload.remove("attachment_uploads");
-            payload.remove("attachment_ids");
-        }
-        payload.putArray("mcp_service_ids");
-        payload.put("agent_enabled", agentMode);
-        try {
-            return MAPPER.writeValueAsString(payload);
-        } catch (Exception e) {
-            throw new PlainErrorException(500, "failed to prepare request");
-        }
-    }
-
-    /**
-     * 对照 routes_agent.go L255：embed 文件代理与 /files 共用同一 handler 体
-     * （newFileServeHandler）——渠道租户由 EmbedAuthFilter 注入 TenantContext，
-     * 路径归属校验在 FileProxyService 内（resource:// 目录命中优先）。
-     */
     @GetMapping("/api/v1/embed/{channel_id}/files")
     public void embedFiles(jakarta.servlet.http.HttpServletRequest request,
                            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
-        fileProxyService.serveTenantFiles(request, response);
+        delegateOps.embedFiles(request, response);
     }
 
-    /** 对照 EmbedLoadMessages：先 ensureEmbedSession，再委托 MessageController.LoadMessages。 */
     @GetMapping("/api/v1/embed/{channel_id}/messages/{session_id}/load")
     public ResponseEntity<List<com.ragagent.session.domain.Message>> load(@PathVariable("session_id") String sessionId,
                                                     @RequestParam(name = "limit", required = false) String limit,
                                                     @RequestParam(name = "before_time", required = false) String beforeTime,
                                                     @RequestParam(name = "resource_urls", required = false) String resourceUrls) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        return messageController.loadMessages(LogSanitizer.sanitize(sessionId), limit, beforeTime,
-                resourceUrls);
+        return delegateOps.load(sessionId, limit, beforeTime, resourceUrls);
     }
 
-    /** 对照 EmbedStopSession：委托 SessionController.StopSession。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/stop")
     public ResponseEntity<Map<String, Object>> stop(@PathVariable("session_id") String sessionId,
                                                     @RequestBody(required = false) String rawBody) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        return sessionController.stopSession(LogSanitizer.sanitize(sessionId), rawBody);
+        return delegateOps.stop(sessionId, rawBody);
     }
 
-    /** 对照 EmbedGetMessageSuggestions：channel 级 suppressed 分支优先于委托。 */
     @GetMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/messages/{message_id}/suggestions")
     public ResponseEntity<?> suggestionsGet(
             @PathVariable("session_id") String sessionId,
             @PathVariable("message_id") String messageId) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        ResponseEntity<Object> suppressed = suppressedIfChannelOff();
-        if (suppressed != null) {
-            return suppressed;
-        }
-        return suggestionController.get(LogSanitizer.sanitize(sessionId), null,
-                LogSanitizer.sanitize(messageId));
+        return delegateOps.suggestionsGet(sessionId, messageId);
     }
 
-    /** 对照 EmbedEnsureMessageSuggestions。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/messages/{message_id}/suggestions")
     public ResponseEntity<?> suggestionsEnsure(
             @PathVariable("session_id") String sessionId,
             @PathVariable("message_id") String messageId,
             @RequestBody(required = false) String rawBody) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        ResponseEntity<Object> suppressed = suppressedIfChannelOff();
-        if (suppressed != null) {
-            return suppressed;
-        }
-        return suggestionController.ensure(LogSanitizer.sanitize(sessionId),
-                LogSanitizer.sanitize(messageId), rawBody);
+        return delegateOps.suggestionsEnsure(sessionId, messageId, rawBody);
     }
 
-    /** 对照 EmbedRecordSuggestionEvent：成功 204 无响应体。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/suggestion-events")
     public ResponseEntity<?> suggestionEvents(@PathVariable("session_id") String sessionId,
                                               @RequestBody(required = false) String rawBody) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        return suggestionController.recordEvent(LogSanitizer.sanitize(sessionId), rawBody);
+        return delegateOps.suggestionEvents(sessionId, rawBody);
     }
 
-    /**
-     * 对照 EmbedRelayWebhookEvent：message_sent / message_received 之外全拒；
-     * DispatchEmbedWebhook 是 best-effort 异步（渠道 webhook 为空 → no-op），响应恒 200。
-     */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/events")
     public ResponseEntity<Map<String, Object>> events(@PathVariable("session_id") String sessionId,
                                                       @RequestBody(required = false) String rawBody) {
-        EmbedChannelEntity ch = channel(request0());
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        EventRequest req = null;
-        if (rawBody != null && !rawBody.isEmpty()) {
-            try {
-                req = MAPPER.readValue(rawBody, EventRequest.class);
-            } catch (Exception e) {
-                req = null;
-            }
-        }
-        if (req == null) {
-            return plainError(400, "invalid request body");
-        }
-        String eventType = trim(req.type());
-        if (!"message_sent".equals(eventType) && !"message_received".equals(eventType)) {
-            return plainError(400, "unsupported event type");
-        }
-        // DispatchEmbedWebhook：webhook_url 为空直接返回；golden 渠道未配 webhook → no-op。
-        return ResponseEntity.ok(successEnvelope());
+        return delegateOps.events(sessionId, rawBody);
     }
 
-    record EventRequest(@JsonProperty("type") String type,
-                        @JsonProperty("session_id") String sessionId,
-                        @JsonProperty("query") String query,
-                        @JsonProperty("content") String content) {
-    }
-
-    /** 对照 EmbedMCPOAuthAuthorizeURL（委托 McpOAuthController.AuthorizeURL）。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/mcp-services/{svc_id}/oauth/authorize-url")
     public ResponseEntity<Map<String, Object>> mcpAuthorize(
             @PathVariable("session_id") String sessionId,
             @PathVariable("svc_id") String serviceId,
             @RequestBody(required = false) String rawBody) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        McpOAuthController.AuthorizeRequest req = null;
-        if (rawBody != null && !rawBody.isEmpty()) {
-            try {
-                req = MAPPER.readValue(rawBody, McpOAuthController.AuthorizeRequest.class);
-            } catch (Exception e) {
-                throw BizException.badRequest(
-                        GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
-            }
-        }
-        return mcpOAuthController.authorizeUrl(serviceId, req);
+        return delegateOps.mcpAuthorize(sessionId, serviceId, rawBody);
     }
 
-    /** 对照 EmbedMCPOAuthStatus（委托 McpOAuthController.Status）。 */
     @GetMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/mcp-services/{svc_id}/oauth/status")
     public ResponseEntity<Map<String, Object>> mcpStatus(
             @PathVariable("session_id") String sessionId,
             @PathVariable("svc_id") String serviceId) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        return mcpOAuthController.status(serviceId, null);
+        return delegateOps.mcpStatus(sessionId, serviceId);
     }
 
-    /** 对照 EmbedResolveMCPOAuth（gate 依赖分支；Gate 未接线时 500，与 Go dev 装配差 = 已知差异）。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/mcp-oauth-resolutions/{pending_id}")
     public ResponseEntity<Map<String, Object>> mcpResolve(
             @PathVariable("session_id") String sessionId,
             @PathVariable("pending_id") String pendingId,
             @RequestBody(required = false) String rawBody) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        McpOAuthController.ResolveRequest req = null;
-        if (rawBody != null && !rawBody.isEmpty()) {
-            try {
-                req = MAPPER.readValue(rawBody, McpOAuthController.ResolveRequest.class);
-            } catch (Exception e) {
-                throw BizException.badRequest(
-                        GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
-            }
-        }
-        return mcpOAuthController.resolveMcpOAuth(pendingId, req);
+        return delegateOps.mcpResolve(sessionId, pendingId, rawBody);
     }
 
-    /** 对照 EmbedCancelMCPOAuth。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/mcp-oauth-resolutions/{pending_id}/cancel")
     public ResponseEntity<Map<String, Object>> mcpResolveCancel(
             @PathVariable("session_id") String sessionId,
             @PathVariable("pending_id") String pendingId) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        return mcpOAuthController.cancelMcpOAuth(pendingId);
+        return delegateOps.mcpResolveCancel(sessionId, pendingId);
     }
 
-    /** 对照 EmbedResolveToolApproval（gate 依赖分支；Gate 未接线时 500 = 已知差异）。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/tool-approvals/{pending_id}")
     public ResponseEntity<?> toolApprovals(@PathVariable("session_id") String sessionId,
                                            @PathVariable("pending_id") String pendingId,
                                            @RequestBody(required = false) String rawBody) {
-        ensureSession(LogSanitizer.sanitize(sessionId));
-        ResolveToolApprovalRequest req = null;
-        if (rawBody != null && !rawBody.isEmpty()) {
-            try {
-                req = MAPPER.readValue(rawBody, ResolveToolApprovalRequest.class);
-            } catch (Exception e) {
-                throw BizException.badRequest(
-                        GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
-            }
-        }
-        return toolApprovalController.resolveToolApproval(pendingId, req);
+        return delegateOps.toolApprovals(sessionId, pendingId, rawBody);
     }
 
     // ═══════════════════ ensureEmbedSession（对照 L650-704） ═══════════════════
@@ -482,7 +325,7 @@ public class EmbedChannelController {
      * 对照 ensureEmbedSession（L650-704）：失败直接抛 {@link PlainErrorException}
      * （全局处理器渲染纯字符串错误信封）；成功时上下文已改写为 embed_session 主体。
      */
-    private void ensureSession(String sessionId) {
+void ensureSession(String sessionId) {
         EmbedChannelEntity ch = channel(request0());
         long tenantId = ch.getTenantId() == null ? 0 : ch.getTenantId();
         if (sessionId == null || sessionId.isEmpty()) {
@@ -536,7 +379,7 @@ public class EmbedChannelController {
      * 对照 EmbedGet/EnsureMessageSuggestions 的 channel 级 suppressed 分支（L487-492）：
      * 渠道关闭推荐问题 → 200 + gin.H 字母序 {questions, status, suppression_reason}。
      */
-    private ResponseEntity<Object> suppressedIfChannelOff() {
+ResponseEntity<Object> suppressedIfChannelOff() {
         EmbedChannelEntity ch = channel(request0());
         if (ch == null || !ch.isShowSuggestedQuestions()) {
             Map<String, Object> data = new LinkedHashMap<>();
@@ -627,7 +470,7 @@ public class EmbedChannelController {
         return body;
     }
 
-    private static Map<String, Object> successEnvelope() {
+static Map<String, Object> successEnvelope() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
         return body;
