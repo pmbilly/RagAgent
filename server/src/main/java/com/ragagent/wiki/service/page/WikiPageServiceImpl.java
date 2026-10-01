@@ -27,6 +27,7 @@ import com.ragagent.wiki.domain.WikiPageNotFoundException;
 import com.ragagent.wiki.domain.WikiPageRevision;
 import com.ragagent.wiki.domain.WikiPageRevisionListResponse;
 import com.ragagent.wiki.domain.WikiStats;
+import com.ragagent.wiki.mapper.WikiFolderRepository;
 import com.ragagent.wiki.mapper.WikiPageRepository;
 import com.ragagent.wiki.service.WikiChunkCleaner;
 import com.ragagent.wiki.service.ingest.WikiGraphCalculator;
@@ -79,6 +80,7 @@ public class WikiPageServiceImpl implements WikiPageService {
             "# Wiki Index\n\nThis is the index page. It will be automatically updated as pages are added.\n";
 
     final WikiPageRepository repo;
+    final WikiFolderRepository folderRepo;
     final KnowledgeBaseMapper kbMapper;
     final ObjectProvider<WikiChunkCleaner> chunkCleaner;
     final ObjectProvider<WikiCrossLinker> crossLinker;
@@ -97,12 +99,14 @@ public class WikiPageServiceImpl implements WikiPageService {
     final WikiPageViewsSupport views;
 
     public WikiPageServiceImpl(WikiPageRepository repo,
+                               WikiFolderRepository folderRepo,
                                KnowledgeBaseMapper kbMapper,
                                ObjectProvider<WikiChunkCleaner> chunkCleaner,
                                ObjectProvider<WikiCrossLinker> crossLinker,
                                ObjectProvider<WikiPendingOpsCounter> pendingOps,
                                ObjectProvider<WikiActiveFlag> activeFlag) {
         this.repo = repo;
+        this.folderRepo = folderRepo;
         this.kbMapper = kbMapper;
         this.chunkCleaner = chunkCleaner;
         this.crossLinker = crossLinker;
@@ -398,7 +402,7 @@ public class WikiPageServiceImpl implements WikiPageService {
 
     @Override
     public List<List<String>> listDistinctCategoryPaths(String kbId, int maxPaths) {
-        return repo.listDistinctCategoryPaths(kbId, maxPaths);
+        return folderRepo.listDistinctCategoryPaths(kbId, maxPaths);
     }
 
     @Override

@@ -23,6 +23,7 @@ import com.ragagent.wiki.domain.WikiPageLite;
 import com.ragagent.wiki.domain.WikiPageListRequest;
 import com.ragagent.wiki.domain.WikiStats;
 import com.ragagent.wiki.mapper.WikiPageRepository;
+import com.ragagent.wiki.mapper.WikiFolderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -52,6 +53,9 @@ class WikiPageServiceTest {
     private JdbcTemplate jdbc;
     @Autowired
     private WikiPageRepository repo;
+
+    @Autowired
+    private WikiFolderRepository folderRepo;
     @Autowired
     private WikiPageService svc;
 
@@ -260,10 +264,10 @@ class WikiPageServiceTest {
         assertThat(deleted).containsExactlyInAnyOrder(
                 "empty-leaf", "empty-chain-leaf", "empty-chain");
 
-        assertThat(repo.getFolderByID(kbId, "topic"))
+        assertThat(folderRepo.getFolderByID(kbId, "topic"))
                 .as("ancestor with another occupied child must remain").isNotNull();
-        assertThat(repo.getFolderByID(kbId, "occupied-leaf")).isNotNull();
-        assertThat(repo.getFolderByID(kbId, "unrelated-empty"))
+        assertThat(folderRepo.getFolderByID(kbId, "occupied-leaf")).isNotNull();
+        assertThat(folderRepo.getFolderByID(kbId, "unrelated-empty"))
                 .as("empty folders outside the affected chains must remain").isNotNull();
     }
 
@@ -459,10 +463,10 @@ class WikiPageServiceTest {
                 .isInstanceOf(WikiFolderNotEmptyException.class);
 
         // 先删子再删父才成功
-        WikiFolder child = repo.getChildFolderByName(kbId, parent.getId(), "Child");
+        WikiFolder child = folderRepo.getChildFolderByName(kbId, parent.getId(), "Child");
         svc.deleteFolder(kbId, child.getId());
         svc.deleteFolder(kbId, parent.getId());
-        assertThatThrownBy(() -> repo.getFolderByID(kbId, parent.getId()))
+        assertThatThrownBy(() -> folderRepo.getFolderByID(kbId, parent.getId()))
                 .isInstanceOf(com.ragagent.wiki.domain.WikiFolderNotFoundException.class);
     }
 
@@ -493,10 +497,10 @@ class WikiPageServiceTest {
 
         svc.renameOrMoveFolder(kbId, parent.getId(), "New", "", false);
 
-        assertThat(repo.getFolderByID(kbId, parent.getId()).getPath()).isEqualTo("New");
-        assertThat(repo.getFolderByID(kbId, parent.getId()).getDepth()).isEqualTo(1);
-        assertThat(repo.getFolderByID(kbId, child.getId()).getPath()).isEqualTo("New/Leaf");
-        assertThat(repo.getFolderByID(kbId, child.getId()).getDepth()).isEqualTo(2);
+        assertThat(folderRepo.getFolderByID(kbId, parent.getId()).getPath()).isEqualTo("New");
+        assertThat(folderRepo.getFolderByID(kbId, parent.getId()).getDepth()).isEqualTo(1);
+        assertThat(folderRepo.getFolderByID(kbId, child.getId()).getPath()).isEqualTo("New/Leaf");
+        assertThat(folderRepo.getFolderByID(kbId, child.getId()).getDepth()).isEqualTo(2);
         WikiPage p1 = repo.getBySlug(kbId, "entity/p1");
         assertThat(p1.getCategoryPath()).containsExactly("New", "Leaf");
         assertThat(p1.getWikiPath()).isEqualTo("entity/New/Leaf/P1");
@@ -520,7 +524,7 @@ class WikiPageServiceTest {
                 svc.findOrCreateFolderPath(kbId, 1L, List.of("AI", "RAG"));
         assertThat(r.path()).containsExactly("AI", "RAG");
         assertThat(r.folderId()).isNotEmpty();
-        assertThat(repo.getFolderByID(kbId, r.folderId()).getPath()).isEqualTo("AI/RAG");
+        assertThat(folderRepo.getFolderByID(kbId, r.folderId()).getPath()).isEqualTo("AI/RAG");
 
         // 二次调用必须复用，不重复创建
         assertThat(svc.findOrCreateFolderPath(kbId, 1L, List.of("AI", "RAG")).folderId())
@@ -860,7 +864,7 @@ class WikiPageServiceTest {
         f.setDepth(depth);
         f.setCreatedAt(now);
         f.setUpdatedAt(now);
-        repo.createFolder(f);
+        folderRepo.createFolder(f);
     }
 
     /** 直接插一行 KB（默认索引页需要 KB 行提供 tenant id） */

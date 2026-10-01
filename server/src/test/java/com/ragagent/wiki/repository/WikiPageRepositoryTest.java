@@ -19,6 +19,7 @@ import com.ragagent.wiki.domain.WikiPageNotFoundException;
 import com.ragagent.wiki.domain.WikiPageRevision;
 import com.ragagent.wiki.domain.WikiRevisionPruneRequest;
 import com.ragagent.wiki.mapper.WikiPageRepository;
+import com.ragagent.wiki.mapper.WikiFolderRepository;
 import com.ragagent.wiki.mapper.WikiPageRevisionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,9 @@ class WikiPageRepositoryTest {
     private JdbcTemplate jdbc;
     @Autowired
     private WikiPageRepository repo;
+
+    @Autowired
+    private WikiFolderRepository folderRepo;
     @Autowired
     private WikiPageRevisionMapper revisionMapper;
 
@@ -277,17 +281,17 @@ class WikiPageRepositoryTest {
      */
     @Test
     void folderTreeCrudAndChildListing() {
-        repo.createFolder(mkFolder("f-ai", "", "AI", "AI", 1));
-        repo.createFolder(mkFolder("f-people", "", "人物", "人物", 1));
-        repo.createFolder(mkFolder("f-llm", "f-ai", "LLM", "AI/LLM", 2));
+        folderRepo.createFolder(mkFolder("f-ai", "", "AI", "AI", 1));
+        folderRepo.createFolder(mkFolder("f-people", "", "人物", "人物", 1));
+        folderRepo.createFolder(mkFolder("f-llm", "f-ai", "LLM", "AI/LLM", 2));
 
-        List<WikiFolder> roots = repo.listChildFolders("kb-f", WikiConstants.FOLDER_ROOT_ID);
+        List<WikiFolder> roots = folderRepo.listChildFolders("kb-f", WikiConstants.FOLDER_ROOT_ID);
         assertThat(roots).hasSize(2);
 
-        WikiFolder child = repo.getChildFolderByName("kb-f", "f-ai", "LLM");
+        WikiFolder child = folderRepo.getChildFolderByName("kb-f", "f-ai", "LLM");
         assertThat(child.getId()).isEqualTo("f-llm");
 
-        assertThatThrownBy(() -> repo.getChildFolderByName("kb-f", "f-ai", "Nope"))
+        assertThatThrownBy(() -> folderRepo.getChildFolderByName("kb-f", "f-ai", "Nope"))
                 .isInstanceOf(WikiFolderNotFoundException.class);
 
         // 归档页不计入
@@ -301,24 +305,24 @@ class WikiPageRepositoryTest {
         repo.create(pLLM);
         repo.create(pArch);
 
-        assertThat(repo.countPagesInFolder("kb-f", "f-ai")).isEqualTo(1);
+        assertThat(folderRepo.countPagesInFolder("kb-f", "f-ai")).isEqualTo(1);
 
-        Map<String, Long> byFolder = repo.countPagesByFolder("kb-f", List.of());
+        Map<String, Long> byFolder = folderRepo.countPagesByFolder("kb-f", List.of());
         assertThat(byFolder).containsEntry("f-ai", 1L).containsEntry("f-llm", 1L);
 
-        List<List<String>> paths = repo.listDistinctCategoryPaths("kb-f", 100);
+        List<List<String>> paths = folderRepo.listDistinctCategoryPaths("kb-f", 100);
         assertThat(paths).contains(List.of("AI"), List.of("AI", "LLM"), List.of("人物"));
 
-        List<WikiPage> pages = repo.listPagesByFolderIDs("kb-f", List.of("f-ai", "f-llm"));
+        List<WikiPage> pages = folderRepo.listPagesByFolderIDs("kb-f", List.of("f-ai", "f-llm"));
         assertThat(pages).hasSize(3);
 
         // 仓储层原子复查空判：并发移动/建子目录不能钻到 service 检查与软删之间
-        assertThatThrownBy(() -> repo.deleteFolder("kb-f", "f-ai"))
+        assertThatThrownBy(() -> folderRepo.deleteFolder("kb-f", "f-ai"))
                 .isInstanceOf(WikiFolderNotEmptyException.class);
-        repo.deleteFolder("kb-f", "f-people");
-        assertThatThrownBy(() -> repo.getFolderByID("kb-f", "f-people"))
+        folderRepo.deleteFolder("kb-f", "f-people");
+        assertThatThrownBy(() -> folderRepo.getFolderByID("kb-f", "f-people"))
                 .isInstanceOf(WikiFolderNotFoundException.class);
-        assertThatThrownBy(() -> repo.deleteFolder("kb-f", "f-nope"))
+        assertThatThrownBy(() -> folderRepo.deleteFolder("kb-f", "f-nope"))
                 .isInstanceOf(WikiFolderNotFoundException.class);
     }
 
@@ -337,21 +341,21 @@ class WikiPageRepositoryTest {
     /** 文件夹更新（重命名/搬父）与 ListAllFolders 的 depth/path 排序 */
     @Test
     void folderUpdateAndFullListOrdering() {
-        repo.createFolder(mkFolder("f-1", "", "AI", "AI", 1));
-        repo.createFolder(mkFolder("f-2", "f-1", "LLM", "AI/LLM", 2));
-        repo.createFolder(mkFolder("f-3", "", "Ops", "Ops", 1));
+        folderRepo.createFolder(mkFolder("f-1", "", "AI", "AI", 1));
+        folderRepo.createFolder(mkFolder("f-2", "f-1", "LLM", "AI/LLM", 2));
+        folderRepo.createFolder(mkFolder("f-3", "", "Ops", "Ops", 1));
 
-        List<WikiFolder> all = repo.listAllFolders("kb-f");
+        List<WikiFolder> all = folderRepo.listAllFolders("kb-f");
         assertThat(all).extracting(WikiFolder::getPath).containsExactly("AI", "Ops", "AI/LLM");
 
-        WikiFolder f2 = repo.getFolderByID("kb-f", "f-2");
+        WikiFolder f2 = folderRepo.getFolderByID("kb-f", "f-2");
         f2.setName("LLM 应用");
         f2.setPath("AI/LLM 应用");
-        repo.updateFolder(f2);
-        assertThat(repo.getFolderByID("kb-f", "f-2").getName()).isEqualTo("LLM 应用");
+        folderRepo.updateFolder(f2);
+        assertThat(folderRepo.getFolderByID("kb-f", "f-2").getName()).isEqualTo("LLM 应用");
 
         WikiFolder stale = mkFolder("f-missing", "", "x", "x", 1);
-        assertThatThrownBy(() -> repo.updateFolder(stale))
+        assertThatThrownBy(() -> folderRepo.updateFolder(stale))
                 .isInstanceOf(WikiFolderNotFoundException.class);
     }
 
