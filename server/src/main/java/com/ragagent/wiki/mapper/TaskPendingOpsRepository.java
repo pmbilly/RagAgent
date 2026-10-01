@@ -243,8 +243,8 @@ public class TaskPendingOpsRepository {
         }
 
         // (3) 按 dedup_key 分组（保持 id ASC 的首次出现顺序），跳过被阻塞的 key，
-        //     取前 limit 个。空 dedup_key 的行各自独立成组（对照 Go 的锚行语义：
-        //     空 key 无人可与之"同组"，因此单独成一个候选）。
+        //     取前 limit 个。空 dedup_key 的行各自独立成组
+        //     （空 key 无人可与之"同组"，因此单独成一个候选）。
         Map<String, List<TaskPendingOp>> byKey = new LinkedHashMap<>();
         for (TaskPendingOp row : eligible) {
             String key = row.getDedupKey();

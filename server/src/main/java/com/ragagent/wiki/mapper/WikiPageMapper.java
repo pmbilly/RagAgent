@@ -19,7 +19,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * wiki_pages 仓储语句（{@link WikiPageRepository} 这个 GORM 复刻层的配套 SQL）。
+ * wiki_pages 仓储语句（{@link WikiPageRepository} 的配套 SQL）。
  *
  * <p>原 ORM 隐式行为清单（约定 §3）：</p>
  * <ul>

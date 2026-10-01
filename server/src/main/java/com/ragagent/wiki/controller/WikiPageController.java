@@ -9,8 +9,6 @@ import com.ragagent.wiki.domain.WikiActivityAudit;
 import com.ragagent.wiki.service.page.WikiLintService;
 import com.ragagent.wiki.service.page.WikiPageService;
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -83,8 +81,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/knowledgebase/{kb_id}/wiki")
 public class WikiPageController {
-
-    private static final Logger log = LoggerFactory.getLogger(WikiPageController.class);
 
     private final WikiKbAccessGuard kbGuard;
     private final WikiFolderOps folderOps;

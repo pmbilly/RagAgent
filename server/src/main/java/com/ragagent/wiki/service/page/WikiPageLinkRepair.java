@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import com.ragagent.wiki.domain.WikiPageLite;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * wiki 链接修复协作者:正文内链死链检测与重写(RE2 语义见 WikiTextUtils)。
@@ -17,8 +15,6 @@ import org.slf4j.LoggerFactory;
  */
 final class WikiPageLinkRepair {
 
-    private static final Logger log = LoggerFactory.getLogger(WikiPageLinkRepair.class);
-
     private final WikiPageServiceImpl service;
 
     WikiPageLinkRepair(WikiPageServiceImpl service) {
@@ -26,7 +22,7 @@ final class WikiPageLinkRepair {
     }
 
     /**
-     * 对照 Go {@code RepairContentLinks}（L1121-1200）：把 {@code content} 里指向
+     * 把 {@code content} 里指向
      * <b>不存在的页面</b>、但几乎肯定是真实页面被弄花形式的 {@code [[slug]]} /
      * {@code [[slug|display]]} 引用重写掉。
      *
@@ -89,8 +85,7 @@ final class WikiPageLinkRepair {
                 }
             }
         } catch (RuntimeException ignored) {
-            // 对照 Go：`if lites, lerr := ...; lerr == nil { ... }`——反查失败只是
-            // 少一根杠杆，不阻断修复
+            // 反查失败只是少一根杠杆，不阻断修复
         }
         Map<String, String> resolveCache = new LinkedHashMap<>();
         SlugFuzzy.RewriteResult r = SlugFuzzy.rewriteDeadWikiLinks(content, (norm, display) -> {
