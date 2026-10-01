@@ -9,9 +9,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 一条助手消息 + 一套生效 agent 配置的**生成/缓存记录**（对照 Go
@@ -29,12 +26,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * </ol>
  */
 @TableName(value = "message_suggestion_sets", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "tenant_id", "session_id", "assistant_message_id", "agent_id", "placement",
-        "config_hash", "locale", "status", "allow_regenerate", "suppression_reason",
-        "questions", "model_id", "prompt_tokens", "completion_tokens", "latency_ms",
-        "error_code", "generated_at", "created_at", "updated_at"
-})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageSuggestionSet {
 
@@ -46,19 +37,14 @@ public class MessageSuggestionSet {
     public static final String STATUS_FAILED = "failed";
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("session_id")
     private String sessionId = "";
 
-    @JsonProperty("assistant_message_id")
     private String assistantMessageId = "";
 
-    @JsonProperty("agent_id")
     private String agentId = "";
 
     /** **不进 JSON**（Go 的 {@code json:"-"}）。 */
@@ -66,62 +52,40 @@ public class MessageSuggestionSet {
     @JsonIgnore
     private long agentTenantId;
 
-    @JsonProperty("placement")
     private String placement = "";
 
-    @JsonProperty("config_hash")
     private String configHash = "";
 
-    @JsonProperty("locale")
     private String locale = "";
 
-    @JsonProperty("status")
     private String status = "";
 
-    @JsonProperty("allow_regenerate")
     private boolean allowRegenerate;
 
-    @JsonProperty("suppression_reason")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String suppressionReason = "";
 
     /** **无 omitempty**：恒输出（nil 时 Go 输出 {@code []}，见 BeforeCreate）。 */
     @TableField(value = "questions", typeHandler = SuggestionItemListTypeHandler.class)
-    @JsonProperty("questions")
     private List<SuggestionItem> questions;
 
-    @JsonProperty("model_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String modelId = "";
 
-    @JsonProperty("prompt_tokens")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int promptTokens;
 
-    @JsonProperty("completion_tokens")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int completionTokens;
 
-    @JsonProperty("latency_ms")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private long latencyMs;
 
-    @JsonProperty("error_code")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String errorCode = "";
 
     /** 生成租约。**不进 JSON**（Go 的 {@code json:"-"}）。 */
     @JsonIgnore
     private OffsetDateTime leaseUntil;
 
-    @JsonProperty("generated_at")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private OffsetDateTime generatedAt;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
     public MessageSuggestionSet() {

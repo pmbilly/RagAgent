@@ -274,15 +274,6 @@ public final class SteerSinkBridge implements SteerSink {
     /** 对照 rawToMentionedItems / types.MentionedItemsFromRaw。 */
     @SuppressWarnings("unchecked")
     static List<MentionedItem> toMentionedItems(Object raw) {
-        List<MentionedItem> out = new java.util.ArrayList<>();
-        if (!(raw instanceof List<?> list)) {
-            return out;
-        }
-        for (Object item : list) {
-            if (item instanceof Map<?, ?> m) {
-                out.add(MentionedItem.fromRawMap((Map<String, Object>) m));
-            }
-        }
-        return out;
+        return MentionedItem.fromRawList(raw);
     }
 }

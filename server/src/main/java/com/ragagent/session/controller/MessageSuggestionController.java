@@ -1,7 +1,6 @@
 package com.ragagent.session.controller;
 
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.AppError;
@@ -26,9 +25,9 @@ import org.springframework.web.bind.annotation.RestController;
  * 追问建议 HTTP 层（对照 Go {@code internal/handler/message_suggestion.go}，
  * 路由对照 routes_chat.go L89-91 的 3 条）。
  *
- * <h2>响应形态</h2>
+ * <h2>响应形态（§2.1：裸对象，无 {"data","success"} 信封）</h2>
  * <ul>
- *   <li>Ensure：{@code {"data":set,"success":true}}，集合进入 generating 态时是 <b>202</b>；</li>
+ *   <li>Ensure：裸 {@code MessageSuggestionSet}，集合进入 generating 态时是 <b>202</b>；</li>
  *   <li>Get：同上恒 200；</li>
  *   <li>RecordEvent：<b>204 无响应体</b>。</li>
  * </ul>
@@ -90,7 +89,7 @@ public class MessageSuggestionController {
     }
 
     /** 对照 Go {@code EnsureMessageSuggestionsRequest}。 */
-    private record EnsureRequest(@JsonProperty("regenerate") Boolean regenerate) {
+    private record EnsureRequest(Boolean regenerate) {
     }
 
     /**
@@ -146,11 +145,11 @@ public class MessageSuggestionController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Go {@code SuggestionEventRequest}。 */
+    /** 对照 Go {@code SuggestionEventRequest}。请求体键名＝Java 字段名（camelCase）。 */
     private record EventRequest(
-            @JsonProperty("suggestion_set_id") String suggestionSetId,
-            @JsonProperty("question_id") String questionId,
-            @JsonProperty("event_type") String eventType) {
+            String suggestionSetId,
+            String questionId,
+            String eventType) {
     }
 
     private static boolean isBlank(String v) {

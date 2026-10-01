@@ -92,9 +92,9 @@ class TemporaryDocumentResolveForPromptTest {
         StringBuilder sb = new StringBuilder("{\"seq\":").append(seq)
                 .append(",\"content\":\"").append(content).append('"');
         if (contextHeader != null) {
-            sb.append(",\"context_header\":\"").append(contextHeader).append('"');
+            sb.append(",\"contextHeader\":\"").append(contextHeader).append('"');
         }
-        return sb.append(",\"start\":0,\"end\":0,\"token_count\":").append(tokenCount).append('}')
+        return sb.append(",\"start\":0,\"end\":0,\"tokenCount\":").append(tokenCount).append('}')
                 .toString();
     }
 
@@ -197,8 +197,8 @@ class TemporaryDocumentResolveForPromptTest {
     void imageAttachmentExposesImageUrls() {
         TemporaryDocument doc = document("d1", "gac.png", ".png", TemporaryDocument.STATUS_READY,
                 "![gac.png](local://1/exports/gac.png)", "[]", 7,
-                "[{\"original_ref\":\"images/gac.png\",\"url\":\"local://1/exports/gac.png\","
-                        + "\"mime_type\":\"image/png\"}]");
+                "[{\"originalRef\":\"images/gac.png\",\"url\":\"local://1/exports/gac.png\","
+                        + "\"mimeType\":\"image/png\"}]");
         when(repo.getScoped(TENANT, SESSION, "d1")).thenReturn(doc);
 
         TemporaryDocumentService.PromptResult result =
@@ -299,8 +299,8 @@ class TemporaryDocumentResolveForPromptTest {
         assertThat(stored.markdown()).startsWith("![gac.png](local://1/exports/")
                 .endsWith(".png)");
         assertThat(stored.imageRefsJson())
-                .contains("\"original_ref\":\"images/gac.png\"")
-                .contains("\"mime_type\":\"image/png\"");
+                .contains("\"originalRef\":\"images/gac.png\"")
+                .contains("\"mimeType\":\"image/png\"");
         // 落盘字节可读回（真文件存储）
         String url = TemporaryDocumentPromptResolver.imageUrlsOf(stored.imageRefsJson()).get(0);
         assertThat(stored.markdown()).isEqualTo("![gac.png](" + url + ")");

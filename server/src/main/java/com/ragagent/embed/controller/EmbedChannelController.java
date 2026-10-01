@@ -377,17 +377,18 @@ void ensureSession(String sessionId) {
     }
 
     /**
-     * 对照 EmbedGet/EnsureMessageSuggestions 的 channel 级 suppressed 分支（L487-492）：
-     * 渠道关闭推荐问题 → 200 + gin.H 字母序 {questions, status, suppression_reason}。
+     * 渠道关闭推荐问题 → 200 裸对象 {@code {questions, status, suppressionReason}}：
+     * 与委托路径（{@code MessageSuggestionController} 返回裸 {@code MessageSuggestionSet}）同形，
+     * 键名取该实体的字段名（§2.1：不再包 data/success 信封）。
      */
-ResponseEntity<Object> suppressedIfChannelOff() {
+    ResponseEntity<Object> suppressedIfChannelOff() {
         EmbedChannelEntity ch = channel(request0());
         if (ch == null || !ch.isShowSuggestedQuestions()) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("questions", new ArrayList<>());
             data.put("status", "suppressed");
-            data.put("suppression_reason", "channel_disabled");
-            return ResponseEntity.ok(dataEnvelope(data));
+            data.put("suppressionReason", "channel_disabled");
+            return ResponseEntity.ok(data);
         }
         return null;
     }

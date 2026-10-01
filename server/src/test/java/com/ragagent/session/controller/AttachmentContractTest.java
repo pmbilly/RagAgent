@@ -33,9 +33,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /**
  * 会话附件（临时文档）的契约测试（波 1 G5）。
  * golden：scripts/record-attachment-golden.sh（Go 实录）。
- * 钉住：上传 202 uploaded；expires_at 本地偏移 vs created_at Z（双形态）；
- * file_type 带点；text 终态 metadata {"parser":"plain_text"} + image_refs null；
- * 非 multipart 的 FormFile 原文；删除幂等 204。
+ * 钉住：上传 202 uploaded；expiresAt 本地偏移 vs createdAt Z（双形态）；
+ * fileType 带点；text 终态 metadata {"parser":"plain_text"} + imageRefs null；
+ * 非 multipart 的 FormFile 原文；删除幂等 204。键名＝Java 字段名（camelCase）。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -53,7 +53,7 @@ class AttachmentContractTest {
             "\"([A-Za-z_][A-Za-z0-9_]*)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
     /** 动态 id：两侧各自生成（对照 G1 的掩码口径，按键名掩 UUID）。 */
     private static final Pattern UUID_FIELDS = Pattern.compile(
-            "\"(id|session_id|attachment_id)\":\"[0-9a-f-]{32,36}\"");
+            "\"(id|sessionId|attachmentId)\":\"[0-9a-f-]{32,36}\"");
     private static final byte[] TXT_CONTENT =
             "第一行内容\n第二行内容\n第三行内容\n".getBytes(StandardCharsets.UTF_8);
 
@@ -123,11 +123,11 @@ class AttachmentContractTest {
         assertEquals(202, r.getResponse().getStatus(), raw(r));
         String body = raw(r);
         assertThat(body).contains("\"status\":\"uploaded\"")
-                .contains("\"file_type\":\".txt\"")
-                .contains("\"image_refs\":[]")
+                .contains("\"fileType\":\".txt\"")
+                .contains("\"imageRefs\":[]")
                 .contains("\"metadata\":{}")
-                .contains("\"file_name\":\"note.txt\"")
-                .contains("\"file_size\":48")
+                .contains("\"fileName\":\"note.txt\"")
+                .contains("\"fileSize\":48")
                 .doesNotContain("\"success\"");  // 裸资源：无信封
         assertEquals(mask(golden("att-upload.json")), mask(body));
     }
@@ -198,9 +198,9 @@ class AttachmentContractTest {
         MvcResult got = awaitReady(attId);
         String body = raw(got);
         assertThat(body).contains("\"metadata\":{\"parser\":\"plain_text\"}")
-                .contains("\"image_refs\":null")
-                .contains("\"token_count\":11")
-                .contains("\"chunk_count\":1");
+                .contains("\"imageRefs\":null")
+                .contains("\"tokenCount\":11")
+                .contains("\"chunkCount\":1");
         assertEquals(mask(golden("att-get.json")), mask(body));
 
         MvcResult list = perform(get("/api/v1/sessions/" + sid + "/attachments")

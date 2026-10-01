@@ -119,7 +119,7 @@ class SteerContractTest {
     }
 
     private String steerIdOf(MvcResult queued) throws Exception {
-        Matcher m = Pattern.compile("\"steer_id\":\"([^\"]+)\"").matcher(raw(queued));
+        Matcher m = Pattern.compile("\"steerId\":\"([^\"]+)\"").matcher(raw(queued));
         assertThat(m.find()).isTrue();
         return m.group(1);
     }
@@ -215,7 +215,7 @@ class SteerContractTest {
 
     // ════════ 排队路径（直种 live run；引擎接线后补 e2e） ════════
 
-    /** 有活轮：排队成功，返回 assistant_message_id + delivery=after。 */
+    /** 有活轮：排队成功，返回 assistantMessageId + delivery=after。 */
     @Test
     void steerWithLiveRunQueues() throws Exception {
         seedLiveRun();
@@ -225,7 +225,7 @@ class SteerContractTest {
         String body = raw(r);
         assertThat(body).contains("\"status\":\"queued\"")
                 .contains("\"delivery\":\"after\"")
-                .contains("\"assistant_message_id\":\"" + ASSISTANT_ID + "\"")
+                .contains("\"assistantMessageId\":\"" + ASSISTANT_ID + "\"")
                 // 载荷直出：不再带 success 标记（契约：成功用状态码表达）
                 .doesNotContain("\"success\"");
     }
@@ -240,7 +240,7 @@ class SteerContractTest {
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         String body = raw(r);
-        assertThat(body).contains("\"assistant_message_id\":\"" + ASSISTANT_ID + "\"")
+        assertThat(body).contains("\"assistantMessageId\":\"" + ASSISTANT_ID + "\"")
                 .contains("\"content\":\"第二问\"")
                 .contains("\"delivery\":\"after\"")
                 .contains("\"items\":");
@@ -259,7 +259,7 @@ class SteerContractTest {
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertThat(raw(r)).contains("\"removed\":true")
                 .contains("\"status\":\"deleted\"")
-                .contains("\"steer_id\":\"" + steerId + "\"");
+                .contains("\"steerId\":\"" + steerId + "\"");
     }
 
     /** promote：delivery 从 after 翻成 inject。 */
@@ -275,7 +275,7 @@ class SteerContractTest {
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertThat(raw(r)).contains("\"delivery\":\"inject\"")
                 .contains("\"status\":\"queued\"")
-                .contains("\"steer_id\":\"" + steerId + "\"");
+                .contains("\"steerId\":\"" + steerId + "\"");
     }
 
     /** 已被引擎注入（consumed=true）的事件：删除回 already_injected + removed=false。 */

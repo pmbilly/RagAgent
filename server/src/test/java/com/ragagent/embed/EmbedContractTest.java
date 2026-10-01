@@ -411,8 +411,8 @@ class EmbedContractTest {
                 .header("Authorization", ea).header("Origin", origin)
                 .header("X-Embed-Session", sigMain), 200, "emb-pub-suggestions-get.json");
         assertGolden(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/suggestion-events",
-                null, "{\"suggestion_set_id\":\"" + SSET + "\",\"question_id\":\"q1\","
-                        + "\"event_type\":\"impression\"}")
+                null, "{\"suggestionSetId\":\"" + SSET + "\",\"questionId\":\"q1\","
+                        + "\"eventType\":\"impression\"}")
                 .header("Authorization", ea).header("Origin", origin)
                 .header("X-Embed-Session", sigMain), 204, "emb-pub-suggestion-events.json");
         assertGolden(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/suggestion-events",

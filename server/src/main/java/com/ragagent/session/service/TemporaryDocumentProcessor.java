@@ -180,17 +180,17 @@ final class TemporaryDocumentProcessor {
                 quoteMap(metadata), Tokens.approxTokenCount(content, lang),
                 parts.size(), OffsetDateTime.now(ZoneId.systemDefault()));
     }
-    /** 对照 Go json.Unmarshal(document.ProcessingOptions, &options)。 */
+    /** 读回 processing_options（键名＝Java 字段名，与 {@code CreateOptions.toJson} 同源）。 */
     static CreateOptions optionsOf(TemporaryDocument document) {
         try {
             com.fasterxml.jackson.databind.JsonNode node = TemporaryDocumentService.MAPPER.readTree(
                     document.getProcessingOptions() == null ? "{}" : document.getProcessingOptions());
-            return new CreateOptions(node.path("parser_engine").asText(""),
-                    node.path("resource_tenant_id").asLong(0),
-                    node.path("asr_model_id").asText(""),
-                    node.path("vlm_model_id").asText(""),
-                    node.path("image_understanding").asBoolean(false),
-                    node.path("ocr_max_pages").asInt(0));
+            return new CreateOptions(node.path("parserEngine").asText(""),
+                    node.path("resourceTenantId").asLong(0),
+                    node.path("asrModelId").asText(""),
+                    node.path("vlmModelId").asText(""),
+                    node.path("imageUnderstanding").asBoolean(false),
+                    node.path("ocrMaxPages").asInt(0));
         } catch (Exception e) {
             return CreateOptions.empty();
         }
@@ -332,9 +332,9 @@ final class TemporaryDocumentProcessor {
                     savedByFilename.put(ref.filename(), servingUrl);
                 }
             }
-            jsonItems.add("{\"original_ref\":" + quote(path)
+            jsonItems.add("{\"originalRef\":" + quote(path)
                     + ",\"url\":" + quote(servingUrl)
-                    + ",\"mime_type\":" + quote(ref.mimeType() == null ? "" : ref.mimeType()) + "}");
+                    + ",\"mimeType\":" + quote(ref.mimeType() == null ? "" : ref.mimeType()) + "}");
             // 只换路径本体：保留原目标的尾部（空白 / title / 右括号）
             String tail = m.group(0).substring(m.end(2) - m.start());
             m.appendReplacement(out,
@@ -384,7 +384,7 @@ final class TemporaryDocumentProcessor {
             return value;
         }
     }
-    /** chunks jsonb（对照 Go TemporaryDocumentChunk 的 json tag，context_header omitempty）。 */
+    /** chunks jsonb（元素形态＝`DocumentChunk` 的字段名，contextHeader 空时不写）。 */
     private static String chunksJson(List<ParsedChunk> parts, String lang) {
         StringBuilder sb = new StringBuilder("[");
         boolean first = true;
@@ -396,11 +396,11 @@ final class TemporaryDocumentProcessor {
             sb.append("{\"seq\":").append(part.getSeq())
                     .append(",\"content\":").append(quote(part.getContent()));
             if (!part.getContextHeader().isEmpty()) {
-                sb.append(",\"context_header\":").append(quote(part.getContextHeader()));
+                sb.append(",\"contextHeader\":").append(quote(part.getContextHeader()));
             }
             sb.append(",\"start\":").append(part.getStart())
                     .append(",\"end\":").append(part.getEnd())
-                    .append(",\"token_count\":")
+                    .append(",\"tokenCount\":")
                     .append(Tokens.approxTokenCount(part.embeddingContent(), lang))
                     .append('}');
         }

@@ -128,8 +128,8 @@ final class TemporaryDocumentPromptResolver {
             out.add(new DocumentChunk(
                     intOf(raw.get("seq")),
                     strOf(raw.get("content")),
-                    strOf(raw.get("context_header")),
-                    intOf(raw.get("token_count"))));
+                    strOf(raw.get("contextHeader")),
+                    intOf(raw.get("tokenCount"))));
         }
         return out;
     }

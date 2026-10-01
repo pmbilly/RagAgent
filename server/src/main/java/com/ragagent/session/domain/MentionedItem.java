@@ -46,8 +46,30 @@ public class MentionedItem {
     }
 
     /**
+     * 从"原始 map 列表"重建（steer 事件 data 里的 {@code mentioned_items} 这类**冻结载荷**：
+     * 键名是下划线的线协议形状，不是本实体的字段名）。非 List 输入返回空列表。
+     */
+    public static java.util.List<MentionedItem> fromRawList(Object raw) {
+        java.util.List<MentionedItem> out = new java.util.ArrayList<>();
+        if (!(raw instanceof java.util.List<?> list)) {
+            return out;
+        }
+        for (Object item : list) {
+            if (item instanceof java.util.Map<?, ?> m) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> cast = (java.util.Map<String, Object>) m;
+                out.add(fromRawMap(cast));
+            }
+        }
+        return out;
+    }
+
+    /**
      * 从 JSON 解码后的 map 重建（对照 Go {@code MentionedItem} 的逐字段读取 +
      * {@code MapString}）。
+     *
+     * <p>键名是**冻结载荷**（steer 事件 data / Redis 事件）的下划线形状——与实体字段名
+     * （camelCase）刻意不同，别"顺手统一"。</p>
      *
      * <p>{@code MapString} 只接受 string 类型的值，其余（数字、对象、null）一律当空串——
      * 照抄这个宽容行为，别改成 toString。</p>

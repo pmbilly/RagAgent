@@ -186,26 +186,26 @@ public class TemporaryDocumentService {
                     vlmModelId == null ? "" : vlmModelId, imageUnderstanding, ocrMaxPages);
         }
 
-        /** processing_options 序列化（Go json.Marshal 的 omitempty：零值省略）。 */
+        /** processing_options 序列化（零值省略；键名＝Java 字段名，§2 第 11 条）。 */
         String toJson() {
             Map<String, Object> m = new LinkedHashMap<>();
             if (resourceTenantId != 0) {
-                m.put("resource_tenant_id", resourceTenantId);
+                m.put("resourceTenantId", resourceTenantId);
             }
             if (!asrModelId.isEmpty()) {
-                m.put("asr_model_id", asrModelId);
+                m.put("asrModelId", asrModelId);
             }
             if (!parserEngine.isEmpty()) {
-                m.put("parser_engine", parserEngine);
+                m.put("parserEngine", parserEngine);
             }
             if (!vlmModelId.isEmpty()) {
-                m.put("vlm_model_id", vlmModelId);
+                m.put("vlmModelId", vlmModelId);
             }
             if (imageUnderstanding) {
-                m.put("image_understanding", true);
+                m.put("imageUnderstanding", true);
             }
             if (ocrMaxPages != 0) {
-                m.put("ocr_max_pages", ocrMaxPages);
+                m.put("ocrMaxPages", ocrMaxPages);
             }
             try {
                 return MAPPER.writeValueAsString(m);

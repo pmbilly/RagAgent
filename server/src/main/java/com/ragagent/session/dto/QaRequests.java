@@ -24,15 +24,10 @@ public final class QaRequests {
         /** "kb", "file", "tag", "mcp", "skill" */
         public String type = "";
         /** "document" or "faq" (only for kb type) */
-        @com.fasterxml.jackson.annotation.JsonProperty("kb_type")
         public String kbType = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("kb_id")
         public String kbId = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("kb_name")
         public String kbName = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("service_id")
         public String serviceId = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("skill_name")
         public String skillName = "";
     }
 

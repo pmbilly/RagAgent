@@ -8,9 +8,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 追问建议的产品分析事件（对照 Go {@code types.MessageSuggestionEvent}，
@@ -19,10 +16,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p>与安全审计日志**分开存**：这里只引用 question ID，不复制建议文案。</p>
  */
 @TableName("message_suggestion_events")
-@JsonPropertyOrder({
-        "id", "tenant_id", "session_id", "suggestion_set_id", "question_id", "event_type",
-        "created_at"
-})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageSuggestionEvent {
 
@@ -32,23 +25,16 @@ public class MessageSuggestionEvent {
     public static final String EVENT_REGENERATE = "regenerate";
 
     @TableId(value = "id", type = IdType.AUTO)
-    @JsonProperty("id")
     private Long id;
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("session_id")
     private String sessionId = "";
 
-    @JsonProperty("suggestion_set_id")
     private String suggestionSetId = "";
 
-    @JsonProperty("question_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String questionId;
 
-    @JsonProperty("event_type")
     private String eventType = "";
 
     /** 行为主体。**不进 JSON**（Go 的 {@code json:"-"}）。 */
@@ -56,7 +42,6 @@ public class MessageSuggestionEvent {
     @JsonIgnore
     private String actorId = "";
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
     public MessageSuggestionEvent() {

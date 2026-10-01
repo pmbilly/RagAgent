@@ -29,9 +29,10 @@ import org.springframework.web.multipart.MultipartFile;
  * 会话附件（临时文档）HTTP 层（对照 Go handler/session/temporary_document.go，
  * 路由对照 routes_chat.go L61-65 的 5 条）。
  *
- * 响应形态：上传 202 {"data":doc,"success":true}（status=uploaded，解析异步）；
- * 列表/详情 200（详情查不到 404 "Attachment not found"）；预览是文件字节流
- * （filetransport 语义）；删除 204（幂等）。
+ * 响应形态（§2.1：裸对象，无 {"data","success"} 信封）：上传 202 裸 doc
+ * （status=uploaded，解析异步）；列表/详情 200 裸对象/裸数组（详情查不到
+ * 404 "Attachment not found"）；预览是文件字节流（filetransport 语义）；
+ * 删除 204（幂等）。表单字段名＝Java 参数名（camelCase）。
  *
  * owner 范围（与 Go 注释一致）：上传/删除改会话内容 → 严格 owner 范围；
  * 列表/详情/预览是读 → 读可见性。
@@ -59,8 +60,8 @@ public class TemporaryDocumentController {
     public ResponseEntity<TemporaryDocument> upload(
             @PathVariable("session_id") String sessionId,
             @RequestParam(value = "file", required = false) MultipartFile file,
-            @RequestParam(value = "agent_id", required = false) String agentId,
-            @RequestParam(value = "parser_engine", required = false) String parserEngine,
+            @RequestParam(value = "agentId", required = false) String agentId,
+            @RequestParam(value = "parserEngine", required = false) String parserEngine,
             jakarta.servlet.http.HttpServletRequest request) {
         String sid = LogSanitizer.sanitize(sessionId);
         // Go 的 FormFile 先查请求是否 multipart：非 multipart 是固定原文（golden 实测）

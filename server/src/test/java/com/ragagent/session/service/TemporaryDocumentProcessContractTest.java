@@ -104,7 +104,7 @@ class TemporaryDocumentProcessContractTest {
     @Test
     void audioIsTranscribedWhenAsrConfigured() {
         when(repo.getById(TENANT, "d-1")).thenReturn(document("voice.mp3", ".mp3",
-                "{\"asr_model_id\":\"asr-1\",\"resource_tenant_id\":42}"));
+                "{\"asrModelId\":\"asr-1\",\"resourceTenantId\":42}"));
         when(fileStore.getFile("local://1/exports/d-1")).thenReturn(new byte[] {1, 2, 3});
         when(modelRuntimeFactory.getAsrModel("asr-1")).thenReturn(asrModel());
         when(asrTranscriber.transcribe(any(), any(), any()))
@@ -147,7 +147,7 @@ class TemporaryDocumentProcessContractTest {
     @Test
     void resourceTenantDrivesEngineFallback() throws Exception {
         when(repo.getById(TENANT, "d-1")).thenReturn(document("report.pdf", ".pdf",
-                "{\"resource_tenant_id\":42}"));
+                "{\"resourceTenantId\":42}"));
         when(fileStore.getFile("local://1/exports/d-1")).thenReturn(new byte[] {1});
         when(tenantService.getTenantById(42L))
                 .thenReturn(tenantWithRule("pdf", "paddleocr_vl"));
@@ -163,7 +163,7 @@ class TemporaryDocumentProcessContractTest {
     @Test
     void explicitEngineSkipsTenantFallback() throws Exception {
         when(repo.getById(TENANT, "d-1")).thenReturn(document("report.pdf", ".pdf",
-                "{\"parser_engine\":\"simple\"}"));
+                "{\"parserEngine\":\"simple\"}"));
         when(fileStore.getFile("local://1/exports/d-1")).thenReturn(new byte[] {1});
         when(docReader.read(any(), anyString(), anyString(), anyString(), eq("simple")))
                 .thenReturn(new DocReaderClient.ParseResult("# md", 0, List.of()));

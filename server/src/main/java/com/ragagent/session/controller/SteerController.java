@@ -8,7 +8,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.AppError;
@@ -117,7 +116,7 @@ public class SteerController {
                     if (!delivered.getContent().equals(query)) {
                         throw conflict("steer_id already belongs to another message");
                     }
-                    return ok(ordered("status", "already_injected", "steer_id", steerIdIn));
+                    return ok(ordered("status", "already_injected", "steerId", steerIdIn));
                 }
             }
         }
@@ -143,10 +142,10 @@ public class SteerController {
                     throw conflict("steer_id already belongs to another message");
                 }
                 Map<String, Object> body = new LinkedHashMap<>();
-                body.put("assistant_message_id", assistantId);
+                body.put("assistantMessageId", assistantId);
                 body.put("delivery", deliveryOf(existingEvent));
                 body.put("status", "queued");
-                body.put("steer_id", steerId);
+                body.put("steerId", steerId);
                 return ResponseEntity.ok(body);
             }
         }
@@ -170,10 +169,10 @@ public class SteerController {
             return ok(ordered("status", "new_run"));
         }
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("assistant_message_id", rebind.queuedOn());
+        body.put("assistantMessageId", rebind.queuedOn());
         body.put("delivery", delivery);
         body.put("status", "queued");
-        body.put("steer_id", steerId);
+        body.put("steerId", steerId);
         return ResponseEntity.ok(body);
     }
 
@@ -200,7 +199,7 @@ public class SteerController {
         List<StreamEvent> events = steerEventsOr500(sid, assistantId, "Failed to update queued message");
         for (StreamEvent evt : events) {
             if (evt.getId().equals(steerId) && isConsumed(evt)) {
-                return ok(ordered("status", "already_injected", "steer_id", steerId));
+                return ok(ordered("status", "already_injected", "steerId", steerId));
             }
         }
         boolean updated;
@@ -215,10 +214,10 @@ public class SteerController {
             throw BizException.notFound("Queued message not found");
         }
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("assistant_message_id", assistantId);
+        body.put("assistantMessageId", assistantId);
         body.put("delivery", DELIVERY_INJECT);
         body.put("status", "queued");
-        body.put("steer_id", steerId);
+        body.put("steerId", steerId);
         return ResponseEntity.ok(body);
     }
 
@@ -246,7 +245,7 @@ public class SteerController {
         }
         List<StreamEvent> events = steerEventsOr500(sid, assistantId, "Failed to load queued messages");
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("assistant_message_id", assistantId);
+        body.put("assistantMessageId", assistantId);
         body.put("items", pendingQueueItems(events, null));
         return ResponseEntity.ok(body);
     }
@@ -279,7 +278,7 @@ public class SteerController {
                 Map<String, Object> body = new LinkedHashMap<>();
                 body.put("removed", false);
                 body.put("status", "already_injected");
-                body.put("steer_id", steerId);
+                body.put("steerId", steerId);
                 return ResponseEntity.ok(body);
             }
         }
@@ -293,7 +292,7 @@ public class SteerController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("removed", removed);
         body.put("status", "deleted");
-        body.put("steer_id", steerId);
+        body.put("steerId", steerId);
         return ResponseEntity.ok(body);
     }
 
@@ -443,18 +442,19 @@ public class SteerController {
         return out;
     }
 
-    /** 对照 Go pendingSteerQueueItems（L423-438）：overlay 恢复载荷。 */
+    /** 对照 Go pendingSteerQueueItems（L423-438）：overlay 恢复载荷。
+     *  事件 data 是冻结的线协议（下划线），响应体按契约输出 camelCase。 */
     static List<Map<String, Object>> pendingQueueItems(List<StreamEvent> events,
             Set<String> injectedIds) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (StreamEvent evt : selectBacklog(events, injectedIds)) {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("steer_id", evt.getId());
+            item.put("steerId", evt.getId());
             item.put("content", evt.getContent());
             item.put("delivery", deliveryOf(evt));
             Object mentions = evt.getData() == null ? null : evt.getData().get("mentioned_items");
             if (mentions != null) {
-                item.put("mentioned_items", mentions);
+                item.put("mentionedItems", MentionedItem.fromRawList(mentions));
             }
             out.add(item);
         }
@@ -483,15 +483,15 @@ public class SteerController {
         }
     }
 
-    /** 对照 Go SteerMessageRequest（L41-51）。 */
+    /** 对照 Go SteerMessageRequest（L41-51）。请求体键名＝Java 字段名（camelCase）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record SteerMessageRequest(
-            @JsonProperty("expected_assistant_message_id") String expectedAssistantMessageId,
-            @JsonProperty("steer_id") String steerId,
-            @JsonProperty("query") String query,
-            @JsonProperty("mentioned_items") List<MentionedItem> mentionedItems,
-            @JsonProperty("channel") String channel,
-            @JsonProperty("delivery") String delivery) {
+            String expectedAssistantMessageId,
+            String steerId,
+            String query,
+            List<MentionedItem> mentionedItems,
+            String channel,
+            String delivery) {
     }
 
     private static BizException conflict(String message) {

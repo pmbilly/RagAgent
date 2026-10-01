@@ -252,19 +252,19 @@ class MessageSuggestionContractTest {
     void impressionClickDismissAre204AndPersisted() throws Exception {
         MvcResult impression = perform(jsonBody(post("/api/v1/sessions/" + sid
                 + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + SET2 + "\",\"event_type\":\"impression\"}")
+                "{\"suggestionSetId\":\"" + SET2 + "\",\"eventType\":\"impression\"}")
                 .header("Authorization", bearer));
         assertEquals(HttpStatus.NO_CONTENT.value(), impression.getResponse().getStatus(),
                 raw(impression));
         assertEquals("", raw(impression));
 
         MvcResult click = perform(jsonBody(post("/api/v1/sessions/" + sid + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + SET2 + "\",\"question_id\":\"q1\",\"event_type\":\"click\"}")
+                "{\"suggestionSetId\":\"" + SET2 + "\",\"questionId\":\"q1\",\"eventType\":\"click\"}")
                 .header("Authorization", bearer));
         assertEquals(HttpStatus.NO_CONTENT.value(), click.getResponse().getStatus(), raw(click));
 
         MvcResult dismiss = perform(jsonBody(post("/api/v1/sessions/" + sid + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + SET2 + "\",\"event_type\":\"dismiss\"}")
+                "{\"suggestionSetId\":\"" + SET2 + "\",\"eventType\":\"dismiss\"}")
                 .header("Authorization", bearer));
         assertEquals(HttpStatus.NO_CONTENT.value(), dismiss.getResponse().getStatus(), raw(dismiss));
 
@@ -276,7 +276,7 @@ class MessageSuggestionContractTest {
     @Test
     void clickWithoutQuestionIdIsBadRequest() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + SET2 + "\",\"event_type\":\"click\"}")
+                "{\"suggestionSetId\":\"" + SET2 + "\",\"eventType\":\"click\"}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("sug-event-click-no-qid.json"), raw(r));
@@ -285,7 +285,7 @@ class MessageSuggestionContractTest {
     @Test
     void clickWithForeignQuestionIdIsBadRequest() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + SET2 + "\",\"question_id\":\"nope\",\"event_type\":\"click\"}")
+                "{\"suggestionSetId\":\"" + SET2 + "\",\"questionId\":\"nope\",\"eventType\":\"click\"}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("sug-event-bad-qid.json"), raw(r));
@@ -294,7 +294,7 @@ class MessageSuggestionContractTest {
     @Test
     void invalidEventTypeIsBadRequest() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + SET2 + "\",\"event_type\":\"hover\"}")
+                "{\"suggestionSetId\":\"" + SET2 + "\",\"eventType\":\"hover\"}")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("sug-event-bad-type.json"), raw(r));
@@ -303,7 +303,7 @@ class MessageSuggestionContractTest {
     @Test
     void eventOnUnknownSetIsSuggestionsNotFound() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + UNKNOWN_ID + "\",\"event_type\":\"impression\"}")
+                "{\"suggestionSetId\":\"" + UNKNOWN_ID + "\",\"eventType\":\"impression\"}")
                 .header("Authorization", bearer));
         assertEquals(404, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("sug-event-unknown-set.json"), raw(r));
@@ -320,7 +320,7 @@ class MessageSuggestionContractTest {
     @Test
     void eventWithMissingTypeIsInvalidRequest() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/suggestion-events"),
-                "{\"suggestion_set_id\":\"" + SET2 + "\"}").header("Authorization", bearer));
+                "{\"suggestionSetId\":\"" + SET2 + "\"}").header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("sug-event-missing-type.json"), raw(r));
     }
