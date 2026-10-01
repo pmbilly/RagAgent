@@ -26,7 +26,7 @@
    `SessionLastRequestState`/`MentionedItem` 换 camelCase + 恒输出，`is_pinned`→**`pinned`**）+
    控制器面（请求体标准 DTO、列表 `{items,page,pageSize,total}`、置顶 `{pinned}`、产物裸数组、
    生成标题 `{title}`、删除类与停止 **204**、查询参数 `pageSize`/`agentId`），两处 jsonb 迁移 SQL 已备
-   （dev 库 0 行需迁移）；**S2 消息面（含 embed 与 9 个 jsonb 列）与 S3 附件·建议·steer 均已完成（前后端同批）——session 域只剩 S4 请求 DTO（信封键）与 S5 收尾**；
+   （dev 库 0 行需迁移）；**S2 消息面（含 embed 与 9 个 jsonb 列）/ S3 附件·建议·steer / S4 QA 请求面 DTO 均已完成（前后端同批）——session 域只剩 S5 收尾**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
    **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
 4. **下一步（候选，由用户排）**：① **memory M3（收尾）**——LLM 载荷边界登记（22 处，写进文档即可）+
@@ -208,8 +208,8 @@
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
-   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）+ S2（消息面）+ S3（附件·建议·steer，前后端同批）** 已完成（同批带前端）；
-   **session 余 S4 请求 DTO / S5 收尾**，
+   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）+ S2（消息面）+ S3（附件·建议·steer）+ S4（QA 请求面 DTO，均前后端同批）** 已完成（同批带前端）；
+   **session 域只剩 S5 收尾**（`MessageExecutionContext` 13 处键名映射 + `SessionLastRequestState`），
    以及 **wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
@@ -1964,14 +1964,56 @@ WHERE jsonb_typeof(execution_context->'suggestion_attribution') = 'object'
 | **S1 会话主资源 ✅（S1a 实体面 + S1b 控制器面）** | `Session` / `SessionListItem` / `SessionLastRequestState` / `MentionedItem` + `SessionController`（求体 DTO / 信封 / 分页参数）+ 两处 jsonb 迁移 | `domain/Session.java`、`SessionListItem.java`；`controller/SessionController.java`；前端 `api/chat/index.ts` + `components/sessionGrouping.ts`、`SessionSidebarRow.vue`；夹具 `session-*.json`；`SessionJsonContractTest` / `SessionHttpContractTest` / `SessionQueryPagedTest` | ~55 处 |
 | **S2 消息主资源（最高风险）✅ 前后端已交付** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/{chat-history.ts,chat/index.ts}`、`composables/{useChatStreamHandler,useEmbedChatSession}.ts`、`views/chat/index.vue`、`views/chat/components/*`、`views/embed/*`、`utils/{messageTimestamp,sessionArtifacts,sessionMarkdown,steerStreamFork,rag-pipeline-history,attachmentPreview,sandboxArtifactRefs,referenceSources,citationMarkdown}.ts`、`types/mention.ts`；夹具 `msg-*.json`、`emb-*.json` | 已完成 |
 | **S3 附件 / 建议 / steer / artifacts ✅ 前后端已交付** | `TemporaryDocument` / `MessageSuggestionSet` / `MessageSuggestionEvent` / `SuggestionItem` / `SuggestionAttribution` + 三个 controller 的请求面与手写响应 map + **四处落库 jsonb**（详见下方执行记录） | `domain/*`、`controller/{TemporaryDocumentController,MessageSuggestionController,SteerController}.java`、`service/{TemporaryDocumentProcessor,TemporaryDocumentService,TemporaryDocumentPromptResolver,SteerSinkBridge}.java`、`dto/QaRequests.java`（仅提及项元素）、`embed/controller/EmbedChannelController.java`（channel 关闭分支）；前端 `api/{message-suggestion.ts,chat/steer.ts,chat/temporary-attachments.ts,chat/streame.ts,embed/index.ts}`、`types/mention.ts`、`utils/steerStreamFork.ts`、`components/{Input-field.vue,AttachmentUpload.vue}`、`views/chat/index.vue`、`views/embed/EmbedChatCore.vue`、`composables/useEmbedChatSession.ts`；夹具 `att-*/sug-*/emb-pub-suggestions-*` | 已完成 |
-| **S4 请求面 DTO** | `dto/QaRequests.java` + `QaRequestBinder/QaRequestParser/KnowledgeQaController` 的请求体（web/IM/embed 三入口共用；**错误文案不动**） | `dto/QaRequests.java`、`controller/Qa*.java`、`im/service/ImQaRequests.java`、前端 `views/chat/index.vue` 发送段 | ~30 处 |
-| **S5 收尾** | `SessionLastRequestState`（agent_config 遗留载荷）+ 各 TypeHandler 挂载点 + 边界登记（SSE / `SuggestionItem` 的 LLM 解析面）+ 残留核对 | — | 收尾 |
+| **S4 请求面 DTO ✅ 前后端已交付** | `dto/QaRequests.java`（三入口共用：`/knowledge-chat`、`/agent-chat`、`/knowledge-search`）+ `GoJsonBindError` 的字段名映射 + embed 请求改写器（**错误文案不动**）；新增 2 个绑定守卫测试 | `dto/QaRequests.java`、`common/web/GoJsonBindError.java`、`embed/controller/EmbedChannelDelegateOps.java`（patch 键）；前端 `api/chat/{streame.ts,index.ts}`、`views/chat/index.vue` 发送段、`composables/useEmbedChatSession.ts`、`utils/chatRequestDebug.ts`、`views/integrations/ApiIntegrationSettings.vue`；新增 `QaRequestBindingTest` / `EmbedChatPayloadPatchTest`；SSE 体断言 `streame.test.ts` | 已完成 |
+| **S5 收尾** | `SessionLastRequestState`（agent_config 遗留载荷）+ `MessageExecutionContext`（13 处键名映射）+ 各 TypeHandler 挂载点 + 残留核对 | — | 收尾 |
+
+**✅ S4（QA 请求面 DTO）执行记录（2026-10-01）——后端 + 前端同批**：
+- **换锚**：`QaRequests` 的 `CreateKnowledgeQARequest`（11 键）/ `SearchKnowledgeRequest`（4）/ `AttachmentUpload`
+  （`fileName`/`fileSize`）去 `@JsonProperty`；三处照抄 Go `omitempty` 的 `@JsonInclude` 一并摘除——
+  这些类**只做入参**（解析后转 `QaSupport.QaRequest`），注解对入参没有语义，留着只会误导下一个读者。
+- **错误文案不动**（本批硬约束）：`QaRequestBinder` 仍按 Go 措辞抛错；只有**字段级类型错误里的 json 名**
+  跟着换成 camelCase（`GoJsonBindError.FIELD_GO_TYPES` 的登记键），例如
+  `… into Go struct field CreateKnowledgeQARequest.agentSourceTenantId of type uint64`。
+- **旧 snake 键静默失效**（`@JsonIgnoreProperties` 与 Go 的 `json.Unmarshal` 同款宽松读）：不报错、
+  不映射——这是换锚的既定代价，已用测试与冒烟双向钉住（见下）。
+- **embed 请求改写器同批**：`patchEmbedChatPayload` 写回/读取/删除的键全部跟随
+  （`agentId` / `knowledgeBaseIds` / `webSearchEnabled` / `mcpServiceIds` / `agentEnabled` /
+  `attachmentUploads` / `attachmentIds`）。**这类"写 JSON 键"的代码是换锚里最危险的一类**：
+  写错不报错，只会静默丢掉渠道约束（KB 注入失效 = 访客越权检索面），或让禁用上传的渠道
+  仍收到附件。为此把该私有方法开放到包可见并新增单测。
+- **新增两个绑定守卫测试（此前这条链路没有任何绑定测试）**：
+  · `QaRequestBindingTest`（6 条）：camelCase 全字段读回（含提及项元素 / 附件项 / 归因）、
+    旧 snake 键静默失效（显式断言）、必填文案、类型错误文案、畸形体口径（空体 `EOF` /
+    `not-json` 的 Go 字面量措辞 / 深结构回落 Jackson 的既定差异）。
+  · `EmbedChatPayloadPatchTest`（4 条）：改写结果**直接用 DTO 反序列化**（等价于 QaRequestBinder
+    的映射），钉住改写器与 DTO 的键对齐；渠道值覆盖客户端值、`webSearchEnabled` 仅 bool 生效、
+    禁上传时剥掉 `images`/`attachmentUploads`/`attachmentIds`、坏体（空体/null/标量）口径。
+- **前端同批**：`streame.ts` 的入参与 postBody、`views/chat/index.vue` 主发送段与附件上传项构造、
+  `api/chat/index.ts` 两个非流式助手、`useEmbedChatSession.ts` 访客请求体、`chatRequestDebug.ts`
+  的消毒器（改错会把整段 base64 打进调试面板）。
+- **顺手修 2 处活缺陷**：① `ApiIntegrationSettings` 的试跑读 `sessionPayload?.data?.id`——S1b 后
+  会话创建返回裸对象，该路径一直抛「missing session id」（同时把 curl 示例与联调体改 camelCase）；
+  ② `streame.test.ts` 的 SSE 体断言补一条"旧 snake 键不得出现"的反断言。
+- **反转方向的发现**：cmdk 的 `knowledgeSemanticSearch` 一直发 `knowledgeBaseIds`（camelCase），
+  而后端此前只认 `knowledge_base_ids` → **该检索此前静默无作用域**（表现为搜不到 chunk）；S4 之后才真正生效。
+- **登记不改（属知识域遗留，非本批）**：① `api/knowledge-base/index.ts` 的 `agent_id`/`agent_source_tenant_id`
+  查询参数（Java 侧已随空间分享裁撤，无人读）；② `manual-knowledge-editor.vue` 的 `tag_ids`/`process_config`
+  ——服务端 `CreateManualRequest` 只有 title/content/status/channel，这两个字段（含标签与解析配置）**被忽略**，
+  是知识域的功能缺口（补实现时按 camelCase 落）。
+- 验收：全量 **4683 / 0 失败 / 6 跳过** + `spotlessCheck` 绿；前端 `vue-tsc` 0 错误 + **690 用例全绿** +
+  `vite build`；**真实服务冒烟 9 路通过**——camelCase 被读到 ×3（knowledge-chat 未知 KB → SSE 错误帧、
+  agent-chat `agentEnabled` → 400 固定文案、knowledge-search → 1003）、**旧 snake 键失效 ×3**
+  （两个 chat 端点 + search 落到「作用域为空」分支）、绑定文案 ×2（必填与字段级类型错误）、提及项元素 ×1。
 
 **已登记的风险点（S3 后状态）**：
 1. ~~`SuggestionItem` 一物两用~~ **已结案（S3）**：LLM 那条路不经 Jackson（只读 `text`/`category` 后手工 new），键名换 camelCase 不影响提示词；边界已写进类注释。
 2. ~~搜索请求体 `session_ids` 不一致~~ **已结（S2）**：前端改发 `sessionIds`。
 3. ~~steer 事件 data 与前端耦合~~ **已结（S3）**：事件 data 判为**冻结线协议**（保留下划线），HTTP 响应键 camelCase；列表项里的提及项经实体转换输出。
 4. ~~artifacts 三端点带信封~~ **已结（S1b/S2 实测）**：`SessionController` 的 artifacts 三端点早已返回裸 `List<ArtifactView>` / 204 / 字节流，前端 `ChatArtifactsDrawer` 的 `res.data || res` 双读保留（无害）。
+5. **（新登记，S4 侦察发现，不改）知识域两处遗留**：① `api/knowledge-base/index.ts` 的
+   `agent_id`/`agent_source_tenant_id` 查询参数——Java 侧随空间分享裁撤后**无人读**（死参数）；
+   ② `manual-knowledge-editor.vue` 发 `tag_ids`/`process_config`，而服务端 `CreateManualRequest`
+   只有 title/content/status/channel → **标签与解析配置被静默忽略**（功能缺口，补实现时按 camelCase 落）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
@@ -2004,7 +2046,7 @@ WHERE jsonb_typeof(execution_context->'suggestion_attribution') = 'object'
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / session 188 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 13**（S1+S2+S3 收官，仅剩 `MessageExecutionContext` 13 处＝S5 的 execution_context 落库面，§14.9l） | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / session 188 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 13**（S1+S2+S3+S4 收官，仅剩 `MessageExecutionContext` 13 处＝S5 的 execution_context 落库面，§14.9l）。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
